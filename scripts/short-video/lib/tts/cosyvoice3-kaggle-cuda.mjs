@@ -32,6 +32,7 @@ import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-process.mjs";
 import { resolveSceneSpeed } from "./pacing.mjs";
+import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 
 const execAsync = promisify(exec);
 
@@ -52,54 +53,24 @@ const KAGGLE_QUEUE_TIMEOUT_MS = parseInt(
 const KAGGLE_POLL_INTERVAL_MS = 15000; // 15s
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 
-// ── Emotion instructions per visualType/refStyle ──
-// Multi-dimensional best practice: Persona + Accent + Emotion + Pacing (#234)
-// CUDA (PyTorch) instruct format requires <|endofprompt|> suffix.
-const INSTRUCT_MAP = {
-  // #244 (2026-09-13 HITL): anchor instruct won three A/B rounds — confident/
-  // dynamic reads clearly more energetic than "energetic, clear, confident",
-  // and the old "shocked" variant is banned (accent). Validated string from
-  // output/_hook_ab_test2 scene-303 / _hook_ab_test3 rounds.
-  hook: "You are a helpful assistant. Speak in standard American English with a confident, dynamic, and clear tone, as if breaking major tech news.<|endofprompt|>",
-  narrative:
-    "You are a helpful assistant. You are a tech documentary narrator. Speak in standard American English with a calm, engaging, and professional tone at a steady pace.<|endofprompt|>",
-  data: "You are a helpful assistant. You are a tech analyst. Speak in standard American English with an authoritative, precise, and clear tone, emphasizing key metrics.<|endofprompt|>",
-  cta: "You are a helpful assistant. You are a warm and engaging host. Speak in standard American English with an enthusiastic, persuasive, and welcoming tone.<|endofprompt|>",
-  contrast:
-    "You are a helpful assistant. You are a tech commentator. Speak in standard American English with a pointed, thought-provoking tone that highlights tension between two sides.<|endofprompt|>",
-  "info-card":
-    "You are a helpful assistant. You are a tech educator. Speak in standard American English with a clear, structured, and explanatory tone, breaking down concepts step by step.<|endofprompt|>",
-  "stat-reveal":
-    "You are a helpful assistant. You are a tech analyst. Speak in standard American English with an authoritative, precise, and clear tone, emphasizing key metrics.<|endofprompt|>",
-  quote:
-    "You are a helpful assistant. You are a tech documentary narrator. Speak in standard American English with a calm, engaging, and professional tone at a steady pace.<|endofprompt|>",
-  context:
-    "You are a helpful assistant. You are a tech documentary narrator. Speak in standard American English with a calm, engaging, and professional tone at a steady pace.<|endofprompt|>",
-};
-
-/**
- * Resolve instruct_text for a scene based on visualType or refStyle.
- * Supports explicit scene.instruct override.
- * @param {{visualType?: string, refStyle?: string, instruct?: string}} scene
- * @returns {string|undefined}
- */
-export function resolveInstructForScene(scene) {
-  if (scene?.instruct) {
-    return scene.instruct.endsWith("<|endofprompt|>")
-      ? scene.instruct
-      : `${scene.instruct}<|endofprompt|>`;
-  }
-  const style = scene?.refStyle || scene?.visualType;
-  if (!style) return undefined;
-  return INSTRUCT_MAP[style];
-}
+// ── Emotion instructions ──
+// #270: the instruct standard (Persona + Accent + Emotion + Pacing, #234) has
+// ONE source — ./instruct.mjs. This adapter used to carry a private
+// INSTRUCT_MAP, which is what let a second generation path (#257) re-derive the
+// pre-#234 wording and reproduce the accent regression. Adding a new style is
+// now a change to the shared table, not to this file.
+// CUDA (PyTorch) instruct format requires the <|endofprompt|> suffix.
+export const resolveInstructForScene = createInstructResolver({
+  format: INSTRUCT_FORMAT.PYTORCH,
+});
 
 /**
  * Build the CosyVoice3 batch manifest for CUDA (with <|endofprompt|>).
  *
  * Baseline = the user-approved Kaggle P100 emotion samples
  * (assets/tts-comparison/cosyvoice3-kaggle-p100-cuda/, verified 2026-09-07):
- * inference_instruct2 with INSTRUCT_MAP text and ref audio, NO rubberband
+ * inference_instruct2 with the instruct-standard text (./instruct.mjs) and the
+ * ref audio, NO rubberband
  * post-processing — it distorts timbre away from the approved sound (hook
  * accent drift, CTA mismatch). Opt in via TTS_PROSODY=1.
  *
@@ -479,7 +450,8 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
     useSilenceFilter: false,
     resample: true,
     // #244: exposed so the cache key folds the per-scene instruct in — an
-    // INSTRUCT_MAP edit must invalidate affected cached takes, not replay them.
+    // INSTRUCT_STANDARD edit (#270) must invalidate affected cached takes,
+    // not replay them. Also the seam the Quality Gate re-validates through.
     instructForScene: resolveInstructForScene,
 
     async generate(scenes, outputDir) {

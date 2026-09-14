@@ -28,6 +28,7 @@ import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch, engineTtsText } from "./post-process.mjs";
+import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 
 const execAsync = promisify(exec);
 
@@ -36,29 +37,17 @@ const MODAL_SCRIPT = join(ROOT_DIR, "modal", "cosyvoice3_cuda_modal.py");
 const MODAL_TIMEOUT_MS = parseInt(process.env.COSYVOICE3_MODAL_TIMEOUT_MS || "1800000", 10); // 30 min default
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 
-// ── Emotion instructions per visualType/refStyle ──
-// CUDA (PyTorch) instruct format requires <|endofprompt|> suffix.
-// #244 (2026-09-13): hook swapped off the banned "shocked" instruct (accent,
-// user verdict) onto the A/B-validated anchor instruct. The other entries
-// predate the kaggle-cuda 4D set — syncing them is out of scope here.
-const INSTRUCT_MAP = {
-  hook: "You are a helpful assistant. Speak in standard American English with a confident, dynamic, and clear tone, as if breaking major tech news.<|endofprompt|>",
-  narrative:
-    "You are a helpful assistant. Speak with a calm and measured tone, like a narrator.<|endofprompt|>",
-  data: "You are a helpful assistant. Speak with a clear and informative tone, emphasizing key data points.<|endofprompt|>",
-  cta: "You are a helpful assistant. Speak with an energetic and persuasive tone, encouraging the listener to act now.<|endofprompt|>",
-};
-
-/**
- * Resolve instruct_text for a scene based on visualType or refStyle.
- * @param {{visualType?: string, refStyle?: string}} scene
- * @returns {string|undefined}
- */
-function resolveInstructForScene(scene) {
-  const style = scene?.refStyle || scene?.visualType;
-  if (!style) return undefined;
-  return INSTRUCT_MAP[style];
-}
+// ── Emotion instructions ──
+// #270: the instruct standard (Persona + Accent + Emotion + Pacing, #234) has
+// ONE source — ./instruct.mjs. This adapter used to carry a 4-entry
+// INSTRUCT_MAP holding the PRE-#234 wording (no persona, no "standard American
+// English"), and silently resolved nothing for the five styles it lacked
+// (#273 P1.3). CUDA (PyTorch) instruct format requires the <|endofprompt|>
+// suffix, so the resolver is bound to the PYTORCH format.
+// Exported so the Quality Gate can re-validate what this engine resolved.
+export const resolveInstructForScene = createInstructResolver({
+  format: INSTRUCT_FORMAT.PYTORCH,
+});
 
 /**
  * Build the CosyVoice3 batch manifest for CUDA (with <|endofprompt|>).

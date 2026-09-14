@@ -33,9 +33,11 @@ import { resolveSceneSpeed } from "./pacing.mjs";
  * replays 1.0x cached audio.
  *
  * The per-scene emotion instruct (#244) joins the key only when the engine
- * exposes `instructForScene(scene)`. Same trap as speed: an INSTRUCT_MAP edit
- * (e.g. the #244 hook emotion swap) must not replay audio generated under the
- * old instruct. Engines without the hook keep the legacy key shape.
+ * exposes `instructForScene(scene)`. Same trap as speed: editing the instruct
+ * standard (#270 — the single source is `lib/tts/instruct.mjs` →
+ * INSTRUCT_STANDARD; engines carry no local copy) must not replay audio
+ * generated under the old instruct. Engines without the hook keep the legacy
+ * key shape.
  *
  * @param {{name: string, info: string}} engine
  * @param {string} text - scene voiceover text

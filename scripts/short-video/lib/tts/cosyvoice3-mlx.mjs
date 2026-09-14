@@ -20,6 +20,7 @@ import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch, engineTtsText } from "./post-process.mjs";
+import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 
 const execAsync = promisify(exec);
 
@@ -55,34 +56,16 @@ function ensureS3Tokenizer() {
   console.log(`  🔗 Restored ${S3_TOKENIZER_DIR} → ${S3_TOKENIZER_HF_SNAPSHOT} (symlink)`);
 }
 
-// ── Emotion instructions per visualType/refStyle ──
-// Multi-dimensional best practice: Persona + Accent + Emotion + Pacing (#234)
-// CosyVoice3 MLX instruct format: "You are a helpful assistant. <emotion instruction>."
-// Do NOT add <|endofprompt|> — MLX version auto-appends it.
-const INSTRUCT_MAP = {
-  // #244 (2026-09-13 HITL): anchor instruct won three A/B rounds — see
-  // cosyvoice3-kaggle-cuda.mjs for the full provenance note.
-  hook: "You are a helpful assistant. Speak in standard American English with a confident, dynamic, and clear tone, as if breaking major tech news.",
-  narrative:
-    "You are a helpful assistant. You are a tech documentary narrator. Speak in standard American English with a calm, engaging, and professional tone at a steady pace.",
-  data: "You are a helpful assistant. You are a tech analyst. Speak in standard American English with an authoritative, precise, and clear tone, emphasizing key metrics.",
-  cta: "You are a helpful assistant. You are a warm and engaging host. Speak in standard American English with an enthusiastic, persuasive, and welcoming tone.",
-};
-
-/**
- * Resolve instruct_text for a scene based on visualType or refStyle.
- * Supports explicit scene.instruct override.
- * @param {{visualType?: string, refStyle?: string, instruct?: string}} scene
- * @returns {string|undefined} instruct_text, or undefined for plain clone.
- */
-export function resolveInstructForScene(scene) {
-  if (scene?.instruct) {
-    return scene.instruct.replace(/<\|endofprompt\|>/g, "").trim();
-  }
-  const style = scene?.refStyle || scene?.visualType;
-  if (!style) return undefined;
-  return INSTRUCT_MAP[style];
-}
+// ── Emotion instructions ──
+// #270: the instruct standard (Persona + Accent + Emotion + Pacing, #234) has
+// ONE source — ./instruct.mjs. This adapter used to carry its own 4-entry
+// INSTRUCT_MAP, so the five styles it lacked (contrast / info-card /
+// stat-reveal / quote / context) reached the kernel with no instruct at all
+// (#273 P1.3). MLX auto-appends <|endofprompt|>, so the resolver is bound to
+// the MLX format and the shared text is sent without the terminator.
+export const resolveInstructForScene = createInstructResolver({
+  format: INSTRUCT_FORMAT.MLX,
+});
 
 /**
  * Build the CosyVoice3 batch manifest. Each entry carries instruct_text

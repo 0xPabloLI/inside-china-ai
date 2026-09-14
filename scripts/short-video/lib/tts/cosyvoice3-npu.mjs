@@ -26,6 +26,7 @@ import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch, engineTtsText } from "./post-process.mjs";
+import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 
 const execAsync = promisify(exec);
 
@@ -36,23 +37,16 @@ const NPU_JUPYTER_TOKEN = process.env.COSYVOICE3_NPU_JUPYTER_TOKEN || "";
 const NPU_TIMEOUT_MS = parseInt(process.env.COSYVOICE3_NPU_TIMEOUT_MS || "1800000", 10); // 30 min
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 
-// ── Emotion instructions (NPU uses PyTorch instruct format) ──
-// #244 (2026-09-13): hook swapped off the banned "shocked" instruct (accent,
-// user verdict) onto the A/B-validated anchor instruct. The other entries
-// predate the kaggle-cuda 4D set — syncing them is out of scope here.
-const INSTRUCT_MAP = {
-  hook: "You are a helpful assistant. Speak in standard American English with a confident, dynamic, and clear tone, as if breaking major tech news.<|endofprompt|>",
-  narrative:
-    "You are a helpful assistant. Speak with a calm and measured tone, like a narrator.<|endofprompt|>",
-  data: "You are a helpful assistant. Speak with a clear and informative tone, emphasizing key data points.<|endofprompt|>",
-  cta: "You are a helpful assistant. Speak with an energetic and persuasive tone, encouraging the listener to act now.<|endofprompt|>",
-};
-
-export function resolveInstructForScene(scene) {
-  const style = scene?.refStyle || scene?.visualType;
-  if (!style) return undefined;
-  return INSTRUCT_MAP[style];
-}
+// ── Emotion instructions ──
+// #270: the instruct standard (Persona + Accent + Emotion + Pacing, #234) has
+// ONE source — ./instruct.mjs. This adapter used to carry a 4-entry
+// INSTRUCT_MAP holding the PRE-#234 wording (no persona, no "standard American
+// English"), and silently resolved nothing for the five styles it lacked
+// (#273 P1.3). NPU uses the PyTorch instruct format, so the resolver is bound
+// to the PYTORCH format.
+export const resolveInstructForScene = createInstructResolver({
+  format: INSTRUCT_FORMAT.PYTORCH,
+});
 
 export function buildCV3NpuManifest(scenes) {
   return scenes.map((s) => {

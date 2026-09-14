@@ -476,8 +476,9 @@ describe("per-scene instruct in the cache key (#244, 2026-09-13)", () => {
   it("mixes the per-scene emotion instruct into the key when provided", () => {
     const a = computeSceneKey(engine, "same text", 1.0, "anchor instruct");
     expect(computeSceneKey(engine, "same text", 1.0, "anchor instruct")).toBe(a);
-    // An INSTRUCT_MAP edit (e.g. #244 hook emotion swap) must not replay
-    // audio generated under the old instruct — same trap as the #235 speed key.
+    // An INSTRUCT_STANDARD edit (the #270 single source in lib/tts/instruct.mjs)
+    // must not replay audio generated under the old instruct — same trap as the
+    // #235 speed key.
     expect(computeSceneKey(engine, "same text", 1.0, "anchor instruct v2")).not.toBe(a);
     expect(computeSceneKey(engine, "same text", 1.2, "anchor instruct")).not.toBe(a);
   });
