@@ -113,6 +113,7 @@ import {
 import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
 import { searchX, searchXhs } from "./lib/bigsong-api.mjs";
 import { searchPool, isPoolEligible } from "./lib/search-pool.mjs";
+import { loadEnv } from "./lib/load-env.mjs";
 import {
   cdpNewTab,
   cdpCloseTab,
@@ -1336,6 +1337,7 @@ async function runChannelDoctor() {
 // shouldSkipCdpOnApiFail without triggering a live discovery run.
 const isMainModule = process.argv[1] && process.argv[1].endsWith("search-sources.mjs");
 if (isMainModule) {
+  loadEnv(); // #287 — the CLI entry owns env loading; the library never self-loads
   if (hasFlag("doctor")) {
     runChannelDoctor().catch((e) => {
       console.error(`❌ ${e.message}`);

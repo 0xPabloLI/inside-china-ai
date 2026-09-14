@@ -30,9 +30,8 @@
  * the resident MCP stdio server (search-pool-server.mjs) is deprecated.
  */
 
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { loadEnv } from "./load-env.mjs";
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const MAX_SNIPPET_LENGTH = 200;
@@ -276,26 +275,6 @@ async function searchPoolParallel(keyword, engines, timeoutMs) {
 //   node scripts/short-video/lib/search-pool.mjs "<query>" \
 //     [--engine <serper|brave|tavily|jina>] [--max-results <n>]
 
-/**
- * Load repo-root .env.local once (engines read keys from process.env).
- * Exported as the single dotenv loader — the deprecated MCP server
- * (search-pool-server.mjs) imports this instead of keeping its own copy.
- */
-export function loadDotEnv() {
-  try {
-    const here = fileURLToPath(import.meta.url);
-    const envPath = join(dirname(here), "..", "..", "..", ".env.local");
-    for (const line of readFileSync(envPath, "utf8").split("\n")) {
-      const match = line.match(/^(\w+)=(.+)$/);
-      if (match && !process.env[match[1]]) {
-        process.env[match[1]] = match[2].replace(/^["']|["']$/g, "").trim();
-      }
-    }
-  } catch {
-    // No .env.local — engines will report missing keys per engine.
-  }
-}
-
 /** Validate a positive-integer flag value, shared by both flag spellings. */
 function parsePositiveIntFlag(name, value) {
   const n = Number(value);
@@ -404,6 +383,6 @@ export async function runSearchPoolCli(argv, deps = {}) {
 /** ESM direct-execution guard: only run main() when invoked as a script. */
 const isMainModule = process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url);
 if (isMainModule) {
-  loadDotEnv();
+  loadEnv(); // #287 — the CLI entry owns env loading; the library never self-loads
   process.exitCode = await runSearchPoolCli(process.argv.slice(2));
 }

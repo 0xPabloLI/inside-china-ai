@@ -28,7 +28,8 @@
  * implements the client side of the same protocol.
  */
 
-import { loadDotEnv, searchPool } from "./search-pool.mjs";
+import { searchPool } from "./search-pool.mjs";
+import { loadEnv } from "./load-env.mjs";
 import { ALL_SOURCES } from "./source-registry.mjs";
 import { callMcpTool, parseMcpResult } from "./mcp-client.mjs";
 
@@ -172,7 +173,7 @@ async function handleMessageAsync(msg, d) {
 
 /** Stdio loop: line-delimited JSON-RPC in, responses out. */
 async function main() {
-  loadDotEnv();
+  loadEnv(); // #287 — entry owns env loading; the library never self-loads
 
   const chunks = [];
   for await (const chunk of process.stdin) {

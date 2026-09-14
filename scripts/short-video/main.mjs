@@ -40,6 +40,9 @@ import {
   assertAvatarVoiceovers,
   isAvatarDeclared,
 } from "./lib/avatar-guard.mjs";
+import { loadEnv } from "./lib/load-env.mjs";
+
+loadEnv(); // #287 — entry owns env loading; library modules never self-load
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
