@@ -14,9 +14,8 @@
  *
  * Manual opt-in only — NOT part of automatic fallback (user rule 2026-09-10):
  * these engines never run unless TTS_ENGINE explicitly names them:
- *   6. Qwen3-TTS (good emphasis on data points, no duration control)
- *   7. edge-tts (Microsoft neural TTS, no cloning)
- *   8. macOS `say` (last resort, no cloning)
+ *   6. edge-tts (Microsoft neural TTS, no cloning)
+ *   7. macOS `say` (last resort, no cloning)
  *
  * Why CUDA engines first: MPS/MLX/NPU emotion regression verified 2026-09-08 —
  * CoreML EP + float32 patches + MPS fallback did NOT close the emotion gap vs
@@ -33,7 +32,7 @@ import { createCosyVoice3ModalCudaEngine } from "./cosyvoice3-modal-cuda.mjs";
 import { createCosyVoice3NPUEngine } from "./cosyvoice3-npu.mjs";
 import { createCosyVoice3MLXEngine } from "./cosyvoice3-mlx.mjs";
 import { createF5MLXEngine } from "./f5-mlx.mjs";
-import { createQwenTTSEngine } from "./qwen-tts.mjs";
+
 import { createEdgeTTSEngine } from "./edge-tts.mjs";
 import { createSayEngine } from "./say.mjs";
 import { runForcedAlignment, getAtempo } from "./post-process.mjs";
@@ -55,15 +54,14 @@ const ENGINE_FACTORIES = {
   cv3: createCosyVoice3MLXEngine,
   "f5-mlx": createF5MLXEngine,
   f5: createF5MLXEngine,
-  "qwen-tts": createQwenTTSEngine,
-  qwen: createQwenTTSEngine,
+
   "edge-tts": createEdgeTTSEngine,
   say: createSayEngine,
 };
 
 /**
  * Priority order for AUTOMATIC selection (no TTS_ENGINE env).
- * Automatic fallback stops at f5-mlx — engines after it (qwen-tts, edge-tts,
+ * Automatic fallback stops at f5-mlx — engines after it (edge-tts,
  * say) are manual opt-in only and must never be selected by this loop
  * (user rule 2026-09-10).
  */

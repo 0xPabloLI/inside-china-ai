@@ -38,8 +38,8 @@ describe("computeSceneKey", () => {
   });
 
   it("changes when the engine or its config changes", () => {
-    const qwen = { name: "qwen-tts", info: "Qwen3-TTS (voice=Serene)" };
-    expect(computeSceneKey(engine, "文本")).not.toBe(computeSceneKey(qwen, "文本"));
+    const other = { name: "edge-tts", info: "edge-tts (Brian)" };
+    expect(computeSceneKey(engine, "文本")).not.toBe(computeSceneKey(other, "文本"));
     expect(computeSceneKey(engine, "文本")).not.toBe(
       computeSceneKey({ ...engine, info: "...speed=1.2)" }, "文本"),
     );
