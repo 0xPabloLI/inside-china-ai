@@ -176,10 +176,13 @@ function pacingFloorBlockError(detail) {
     new Error(
       `TTS_PACING_FLOOR_BLOCK: pacing-class take(s) still measure below the minimum-acceptable ` +
         `WPM floor after native speed compensation (≤${MAX_TTS_SPEED}x) — ${detail}. ` +
-        `NOT shipping slow audio (#271). The floor lives in quality-gate.mjs ` +
-        `MIN_ACCEPTABLE_WPM and ${MAX_TTS_SPEED}x is the ceiling, so the script has to change: ` +
-        `trim these scenes (docs/content-pipeline.md → 旁白语速预算 → 词密度预算), or set ` +
-        `TTS_SKIP_QUALITY_GATE=1 to bypass the gate explicitly.`,
+        `NOT shipping slow audio (#271). Only the AUTOMATIC loop is capped at ${MAX_TTS_SPEED}x ` +
+        `(quality-gate.mjs MIN_ACCEPTABLE_WPM is the floor it missed) — a block is not a dead ` +
+        `end, pick a speed lever: TTS_ATEMPO env speeds the whole piece up after post-processing ` +
+        `(ffmpeg atempo, pitch-preserving, NOT capped at ${MAX_TTS_SPEED}x), TTS_SPEED env lifts ` +
+        `the native baseline instead (clamped to ${MAX_TTS_SPEED}x), or trim the script ` +
+        `(docs/content-pipeline.md → 旁白语速预算 → 词密度预算). To ship anyway, bypass the ` +
+        `gate explicitly with TTS_SKIP_QUALITY_GATE=1.`,
     ),
     "TTS_PACING_FLOOR_BLOCK",
   );

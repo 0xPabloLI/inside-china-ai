@@ -320,7 +320,8 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 
 **Gate 失败语义分流（#271，出片安全门）**：Quality Gate 的失败按家族分流——`quality-gate.mjs` 在每条 evaluation 上标注 `failureClass`，registry 据此路由：
 
-- **pacing 类**（音素正确、仅实测 WPM **偏低**）：**同样进补差环**。原实现只规划 gate-PASS 的场景，慢 take 因此落在「自愈环」与「补差环」的缝隙里直接出片。补差后复检：通过 → 采用；仍低于下限 → **`TTS_PACING_FLOOR_BLOCK` 硬阻断**（1.2× 已是频谱通量上限，数学上救不回，只能改写稿）。pacing 类不占用重抽预算（同文本同速度重抽抬不动 WPM）。偏高一侧不在此列——Quality Gate 只把偏慢计入 issue、偏快仅作 warning，故 >225 恒为 gate-PASS，由上一段的 #252 reroll → `TTS_PACING_HARD_BLOCK` 覆盖。
+- **pacing 类**（音素正确、仅实测 WPM **偏低**）：**同样进补差环**。原实现只规划 gate-PASS 的场景，慢 take 因此落在「自愈环」与「补差环」的缝隙里直接出片。补差后复检：通过 → 采用；仍低于下限 → **`TTS_PACING_FLOOR_BLOCK` 硬阻断**（**仅自动环**受 1.2× 频谱通量上限约束，故自动补差救不回）。pacing 类不占用重抽预算（同文本同速度重抽抬不动 WPM）。偏高一侧不在此列——Quality Gate 只把偏慢计入 issue、偏快仅作 warning，故 >225 恒为 gate-PASS，由上一段的 #252 reroll → `TTS_PACING_HARD_BLOCK` 覆盖。
+- **硬阻断不等于锁死语速——成品语速的调节杠杆**：单场景 `scene.ttsSpeed`（native，clamp ≤1.2×）；全局 `TTS_SPEED`（native 基线，clamp ≤1.2×）；全局 **`TTS_ATEMPO`**（ffmpeg atempo，音高不变，**不受 1.2× 限制**，见 `video-production-runbook.md`）；逐场景 prosody（`TTS_PROSODY=1`，pitch/tempo/volume）。系统性上探与 narrative 相对 hook 的耦合由 **#279** 负责，hook 文案层由 **#278** 负责。
 - **acoustic 类**（截断 / 漏词 / 相似度低 / 无音频）：**禁止进补差环**（再提速只会把糊音推得更糊），走 self-heal 重抽（默认 ≤2 次）；超限 → **`TTS_ACOUSTIC_HARD_BLOCK` 硬阻断**。
 - 两类硬阻断均**不受 strict/non-strict 影响**——非 strict 的 warn-and-continue 不再软化任何一类 gate 分类失败（只剩 gate 未分类的失败仍走旧语义）。唯一能绕过硬阻断的开关是 `TTS_SKIP_QUALITY_GATE=1`；`TTS_SPEED` 只改基线速度，不构成绕过。
 
