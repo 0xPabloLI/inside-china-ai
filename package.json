@@ -60,6 +60,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.0.10",
+    "@resvg/resvg-wasm": "^2.6.2",
     "@supabase/supabase-js": "^2.110.8",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/react-query": "^5.101.1",
