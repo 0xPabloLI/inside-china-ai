@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, typecheck, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      # Bridge while the research suites are mid-refactor (see vitest.config.ts)
+      VITEST_CI_SKIP_RESEARCH: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (changed files only)
+        run: |
+          # Incremental lint gate: the repo carries ~1000 pre-existing
+          # prettier/prettier formatting errors (hooks never ran eslint), so a
+          # full `eslint .` would be red from day one and a repo-wide format
+          # pass needs coordination with in-flight sessions. Ratchet instead:
+          # every file touched by a PR/push must be lint-clean; schedule a
+          # dedicated `prettier --write` debt commit separately.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            BASE="${{ github.event.before }}"
+          else
+            BASE=$(git rev-parse HEAD^)
+          fi
+          FILES=$(git diff --name-only --diff-filter=d "$BASE" HEAD \
+            -- '*.ts' '*.tsx' '*.mjs' '*.js' | grep -v '^src/routeTree.gen.ts$' || true)
+          if [ -z "$FILES" ]; then
+            echo "No changed JS/TS files to lint."
+            exit 0
+          fi
+          echo "$FILES" | xargs npx eslint
+
+      - name: Doc hierarchy lint
+        run: npm run lint:docs
+
+      - name: TODO marker gate
+        run: node scripts/lint-todos.mjs
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Tests with coverage
+        run: npx vitest run --coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: .scratch/coverage
+          retention-days: 7
+
+      - name: Production build
+        run: npm run build
+
+  security:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Semgrep scan (SARIF)
+        run: semgrep scan --config p/default --metrics=off --sarif --output semgrep.sarif src/ scripts/
+
+      - name: Upload SARIF to GitHub code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
