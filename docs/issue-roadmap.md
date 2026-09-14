@@ -2,13 +2,14 @@
 
 GitHub Issues 依赖关系 + 执行波次（Wave）+ 价值分层（Tier）+ 主导层级（Dominant/Satellite）+ 状态追踪。每次 triage 后更新。
 
-> **Last inventory**: 2026-09-14（Phase 1 W1B session：#270 机制级交付并闭票）
+> **Last inventory**: 2026-09-14（Phase 1 W1B session：#270 闭票 + #273 交付，#273 待推送落档）
 >
 > - **#270 代码与测试已交付**（Wave 1B 🎯 Dominant，Tier 2）：instruct 单一来源 `scripts/short-video/lib/tts/instruct.mjs`（`INSTRUCT_STANDARD` + `buildInstruct` + `createInstructResolver` + `validateInstructSignature`），四个 CosyVoice3 adapter 删除各自的 `INSTRUCT_MAP` 并按引擎族绑定格式（PyTorch/CUDA/NPU 带后缀、MLX 不带）；三层门控 = manifest 构建时抛错（不耗 GPU）→ pre-render gate `checkInstructCoverage`（吸收 #273 P1.3）→ Quality Gate 复验告警。**改动前实测基线：9/9 visualType 的 instruct 跨引擎发散，5/9 有引擎完全无 instruct**。产线 Kaggle-CUDA manifest 与改动前逐字节一致（真实内容 `deepseek-v41-flash`），改的只是文案出处，不是已认可音色。Session-Id `20260914-tts-instruct-single-source-83a324`，6 commits 已 push 到 `main`。
 > - **#270 一条验收标准由用户裁决豁免**：AC3「#257 重生成的情绪参考使用该单一来源产出，听感无印度口音（人工验收）」——#257 的 Spark-TTS 实验脚本与 `refs-manifest.json` 已不在仓库（磁盘无、git 历史无）且 #257 已闭票，路径不可复现；**用户确认 Spark 在此前验证时已排除**，该项豁免，无需另立票。单一来源对任何新实验路径可用（`createInstructResolver` 即实验脚本的合法入口）。
 > - **#271 交付闭票**（Wave 1A 🎯 Dominant，Tier 1）：Quality Gate 失败按 `failureClass` 语义分流——**pacing 类**（音素正确、仅实测 WPM 偏低）进 #252 补差环，补差仍不合格 → `TTS_PACING_FLOOR_BLOCK`；**acoustic 类**（截断/漏词/相似度低/无音频）禁入补差环、重抽 ≤2 次后 → `TTS_ACOUSTIC_HARD_BLOCK`；两类在 strict/non-strict 下均阻断。**硬阻断 ≠ 锁死语速**：成品语速杠杆见 `docs/content-pipeline.md` → Gate 失败语义分流（`scene.ttsSpeed` / `TTS_SPEED` / `TTS_ATEMPO`）。
 > - **#272 交付闭票**（Wave 1A 剩余卫星票，Tier 1）：新增 `lib/avatar-guard.mjs` 作为 avatar 契约的单一实现——片段时长必须 ≥ 该 scene **当前** TTS 音频时长；`main.mjs` Step 2.5（TTS 后）与渲染 staging 双门控，错误给出可自愈的 `--force` 重生成路径。实证：`content/dh-pilot-qwen4` scene-10 的 5.00s 片段 vs 7.24s 旁白。
-> - **W1B 剩余**（#270 闭票后）：**#273**（CDP proxy 并发锁 + 并行操作规范，下一 frontier，agent 可做）→ **#274**（Z-Image-Turbo 许可核查，T3）；**#279**（语速整体上探）与 **#278**（Hook 文案句式规范）均为 `ready-for-human`，待用户。
+> - **#273 已交付待推送落档**（Wave 1B，Tier 2）：**P0.2 CDP proxy 并发守卫**——新增 `skills/web-access/scripts/cdp-concurrency.mjs`（限制在飞浏览器操作数 + 排队 + 超时 503 + 同 target busy lock，纯逻辑 11 用例直测），`cdp-proxy.mjs` 在 connect 后取 slot、响应关闭时释放，`/health` 带 `scheduler` 统计；`cdp-client.cdpNewTab` 把 `CDP_PROXY_QUEUE_FULL/TIMEOUT` 映射为 `RateLimitedSkipError`（临时耗尽走 fallback 链，不当成源永久失效）。**P2 并行操作规范**写入 `docs/video-production-runbook.md`（先串行建缓存再并行 + 分阶段并行安全表）。2 commits `8e8dd90` + `c6e7701` 在 session 分支，**待用户授权推送**。CI 口径全量 179 文件 / 3525 用例绿。
+> - **W1B 剩余**：#273 落档后 W1B 即收口；**#279**（语速整体上探）与 **#278**（Hook 文案句式规范）均为 `ready-for-human`，待用户；**#274**（Z-Image-Turbo 许可核查，T3）为剩余 agent 可做项。
 > - **上一轮（同日下午）**：Wave 1A 收口（#271 + #272 双门控交付）+ Wave-Tier 双维执行体系落地。
 > - 本轮未新增 issue，无新增重复项。
 
