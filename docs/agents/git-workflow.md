@@ -28,7 +28,7 @@
 
 1. 每个已验证的原子任务立即 commit。原子任务是一个 bug fix、独立 feature slice、机械 migration batch 或文档结构变更。
 2. 同一任务后续修复：
-   - 尚未 push：优先 amend 原 commit；
+   - 尚未 push：优先 amend 原 commit（写 ref 前先按 §9.5 复核身份）；
    - 已 push：追加新 commit；
    - 不改写 Lovable 已同步历史。
 3. 跨任务更正默认创建新的 atomic commit，不 amend 另一个任务。只有用户明确要求整理、相关历史尚未发布且不属于 Lovable 连接历史时，才使用 `git commit --fixup=<sha>` 与 autosquash。
@@ -81,9 +81,17 @@
 
 ## 9. 并发 Session 与恢复
 
-同仓库可能有并行 session 写 git（2026-09-03 事故：两 session 竞态互挤提交，一方 rebase 回滚了另一方的磁盘文件）。
+同仓库可能有并行 session 写 git。已留档两次事故：
+
+- **2026-09-03**：两 session 竞态互挤提交，一方 rebase 回滚了另一方的磁盘文件。
+- **2026-09-14**：并行 session 在共享工作目录执行 `pull --rebase` + `push`，把我方未推送的提交一并搬上远端（SHA 全变）；我方随后的 `--amend` 落在它刚落下的提交上，替换掉它的提交信息、把它的内容并入我方 commit（它第二次 rebase 才整理干净），并把共享目录切到它自己的分支。无内容丢失，但重复的提交信息已发布、无法不改写历史地修复。
 
 1. 检测到对方操作进行中（reflog 持续推进、存在 rebase 目录）时等待其停滞，期间不写任何 ref。
 2. 竞态应急（你的提交被并行挤出、或必须在不动共享工作区与 index 的前提下提交）按 `docs/agents/git-concurrent-recovery.md` 的配方执行；该路径绕过 commit hooks 与 §4 校验，完成后须按配方对齐 index。可预判的并行任务直接按第 3 条用 worktree，不走应急路径。
-3. **写入者独占**是并行工作的默认规则：写入型并行 session 用 `npm run session:start <task>` 开工——一条命令建独立 worktree（含 worktree 专属的绝对 hooksPath，hooks 在其中正常生效）、生成并登记 Session-Id、写 per-session 状态文件。此后该 worktree 内 `git commit -m` 自动带 trailer（prepare-commit-msg 填写），ref-gate 对"丢弃外会话 commit"的非快进 ref 操作进入拦截模式。共享工作目录即共享 staging 区，是并行冲突的根因。launcher 不可用时退回手动 `git worktree add` + §8 手动 trailer；收尾 `npm run session:stop <worktree-path>`。纯只读探索可共享目录；互不重叠文件的轻量任务（1–2 个文件）可留在主目录，仍走 §1 选择性 staging。
+3. **写入者独占**是并行工作的默认规则：写入型并行 session 用 `npm run session:start <task>` 开工——一条命令建独立 worktree（含 worktree 专属的绝对 hooksPath，hooks 在其中正常生效）、生成并登记 Session-Id、写 per-session 状态文件。此后该 worktree 内 `git commit -m` 自动带 trailer（prepare-commit-msg 填写），ref-gate 对"丢弃外会话 commit"的非快进 ref 操作进入拦截模式。共享工作目录即共享 staging 区，是并行冲突的根因。把 `pull --rebase`、`push`、`switch` 留在你自己的 worktree 内——在共享目录执行它们会搬走他人未推送的提交，或把工作区切到他人分支（2026-09-14 事故）。launcher 不可用时退回手动 `git worktree add` + §8 手动 trailer；收尾 `npm run session:stop <worktree-path>`。纯只读探索可共享目录；互不重叠文件的轻量任务（1–2 个文件）可留在主目录，仍走 §1 选择性 staging。
 4. 目标文件已有非本 session 的未提交改动时，本 session 停止并报告，由用户决定落库顺序。应急配方的临时 index 只覆盖互不重叠的文件——同文件交叠时 `git add` 会把混合内容装进树。
+5. **写 ref 前紧邻复核身份**（2026-09-14 事故的直接防线）：
+   - `commit` / `amend` / `reset` / `rebase` 前，在同一批命令里先取 `git rev-parse HEAD` 与 `git diff --cached --name-only`，与预期不符即停止并报告；`git rev-parse --abbrev-ref HEAD` 必须是你自己的 `session/<id>`。
+   - 判据取 HEAD 本身：`git status` 只看工作区与索引，HEAD 被他人 rebase 后它照样显示「干净」——上一轮复核（如 amend 目标）之后到写 ref 之间仍是窗口。
+   - 共享目录被他人切走分支时，切回由该目录当前所有者执行；你在自己的 worktree 继续。
+   - commit 后立即 `git show --stat HEAD`（§4.6）核对文件清单只含本任务文件。
