@@ -21,9 +21,9 @@ jobs:
       # Bridge: env-bound suites (see vitest.config.ts) can't run on CI
       VITEST_CI_SKIP_ENV_BOUND: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -43,12 +43,11 @@ jobs:
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
         run: |
-          # Incremental lint gate: the repo carries ~1000 pre-existing
-          # prettier/prettier formatting errors (hooks never ran eslint), so a
-          # full `eslint .` would be red from day one and a repo-wide format
-          # pass needs coordination with in-flight sessions. Ratchet instead:
-          # every file touched by a PR/push must be lint-clean; schedule a
-          # dedicated `prettier --write` debt commit separately.
+          # Incremental lint gate: a full `eslint .` over the tree is slow,
+          # so the gate is a ratchet instead — every file touched by a PR/push
+          # must be lint-clean. (The ~1000 pre-existing prettier errors this
+          # gate originally worked around were cleared by the 2026-09-14
+          # repo-wide format; the ratchet stays as the fast path.)
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE="$PR_BASE"
           elif [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
@@ -102,7 +101,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: .scratch/coverage
@@ -117,12 +116,12 @@ jobs:
     container:
       image: semgrep/semgrep
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Semgrep scan (SARIF)
         run: semgrep scan --config p/default --metrics=off --sarif --output semgrep.sarif src/ scripts/
 
       - name: Upload SARIF to GitHub code scanning
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
