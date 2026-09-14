@@ -14,7 +14,7 @@
 
 # TTS engines
 f5-tts-mlx==0.2.6
-qwen-tts==0.1.1
+
 
 # Subtitle alignment (wav2vec2 + forced alignment)
 whisperx==3.8.6

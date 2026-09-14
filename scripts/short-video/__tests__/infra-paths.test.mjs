@@ -13,10 +13,6 @@ describe("infra path resolution after lib/ migration", () => {
     expect(existsSync(path)).toBe(true);
   });
 
-  it("qwen_tts_batch.py exists at resolved path", () => {
-    const path = join(ROOT, "qwen_tts_batch.py");
-    expect(existsSync(path)).toBe(true);
-  });
 
   it("voice-sample-24k.wav exists at resolved path", () => {
     const path = join(ROOT, "voice-samples", "voice-sample-24k.wav");

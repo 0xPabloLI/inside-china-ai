@@ -6,8 +6,8 @@
  * (e.g. the JSDoc typedefs in registry.mjs / post-process.mjs).
  *
  * ROOT_DIR is the scripts/short-video/ directory — the anchor for
- * resolving Python scripts (text-align.py, f5_mlx_batch_tts.py,
- * qwen_tts_batch.py) and voice sample files.
+ * resolving Python scripts (text-align.py, f5_mlx_batch_tts.py)
+ * and voice sample files.
  */
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";

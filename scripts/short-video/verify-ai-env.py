@@ -44,10 +44,7 @@ def main():
     # 1. F5-TTS-MLX
     results.append(check_import("f5_tts_mlx", "F5-TTS-MLX"))
 
-    # 2. Qwen-TTS
-    results.append(check_import("qwen_tts", "Qwen-TTS"))
-
-    # 3. WhisperX (subtitle alignment)
+    # 2. WhisperX (subtitle alignment)
     results.append(check_import("whisperx", "WhisperX"))
 
     # 4. MLX-VLM (asset analysis)

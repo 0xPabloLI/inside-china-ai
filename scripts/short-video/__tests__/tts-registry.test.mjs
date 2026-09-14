@@ -23,9 +23,6 @@ vi.mock("../lib/tts/f5-mlx.mjs", () => ({
   createF5MLXEngine: vi.fn(),
 }));
 
-vi.mock("../lib/tts/qwen-tts.mjs", () => ({
-  createQwenTTSEngine: vi.fn(),
-}));
 
 vi.mock("../lib/tts/edge-tts.mjs", () => ({
   createEdgeTTSEngine: vi.fn(),
@@ -47,7 +44,7 @@ import { createCosyVoice3ModalCudaEngine } from "../lib/tts/cosyvoice3-modal-cud
 import { createCosyVoice3NPUEngine } from "../lib/tts/cosyvoice3-npu.mjs";
 import { createCosyVoice3MLXEngine } from "../lib/tts/cosyvoice3-mlx.mjs";
 import { createF5MLXEngine } from "../lib/tts/f5-mlx.mjs";
-import { createQwenTTSEngine } from "../lib/tts/qwen-tts.mjs";
+
 import { createEdgeTTSEngine } from "../lib/tts/edge-tts.mjs";
 import { createSayEngine } from "../lib/tts/say.mjs";
 
@@ -64,7 +61,7 @@ function resetAllMocks() {
   vi.mocked(createCosyVoice3NPUEngine).mockResolvedValue(null);
   vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(null);
   vi.mocked(createF5MLXEngine).mockResolvedValue(null);
-  vi.mocked(createQwenTTSEngine).mockResolvedValue(null);
+
   vi.mocked(createEdgeTTSEngine).mockResolvedValue(null);
   vi.mocked(createSayEngine).mockResolvedValue(null);
 }
@@ -193,7 +190,7 @@ describe("TTS Engine Registry — selectEngine()", () => {
   });
 
   // S2b: automatic chain Kaggle CUDA → Modal CUDA → NPU → CosyVoice3-MLX → F5-MLX,
-  // then FAILS CLOSED. Qwen3 / edge-tts / say are manual opt-in only
+  // then FAILS CLOSED. edge-tts / say are manual opt-in only
   // (user rule 2026-09-10, commit 2a36a48) — the loop must never reach them.
   it("S2b: automatic chain stops at f5-mlx and throws without reaching manual-only engines", async () => {
     vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
@@ -201,7 +198,7 @@ describe("TTS Engine Registry — selectEngine()", () => {
     vi.mocked(createCosyVoice3NPUEngine).mockResolvedValue(null);
     vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(null);
     vi.mocked(createF5MLXEngine).mockResolvedValue(null);
-    vi.mocked(createQwenTTSEngine).mockResolvedValue(mockEngine("qwen-tts"));
+
     vi.mocked(createEdgeTTSEngine).mockResolvedValue(mockEngine("edge-tts", "edge"));
     vi.mocked(createSayEngine).mockResolvedValue(mockEngine("say", "macOS say"));
 
@@ -213,7 +210,7 @@ describe("TTS Engine Registry — selectEngine()", () => {
     expect(createCosyVoice3MLXEngine).toHaveBeenCalled();
     expect(createF5MLXEngine).toHaveBeenCalled();
     // Manual-only engines stay out of the automatic fallback loop.
-    expect(createQwenTTSEngine).not.toHaveBeenCalled();
+
     expect(createEdgeTTSEngine).not.toHaveBeenCalled();
     expect(createSayEngine).not.toHaveBeenCalled();
   });

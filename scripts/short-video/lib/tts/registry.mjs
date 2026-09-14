@@ -24,7 +24,7 @@
  * CUDA EP — used when Kaggle's 30h/week quota runs out (Modal ~$30/mo).
  *
  * All local models run at MAX EFFORT by default (see docs/video-production-runbook.md).
- * Unified venv: ~/.video-tts-env (Python 3.12) — CosyVoice3 + F5 + Qwen + whisperx all in one.
+ * Unified venv: ~/.video-tts-env (Python 3.12) — CosyVoice3 + F5 + whisperx all in one.
  */
 
 import { createCosyVoice3KaggleCudaEngine } from "./cosyvoice3-kaggle-cuda.mjs";
@@ -101,7 +101,7 @@ export async function selectEngine() {
   }
 
   throw new Error(
-    "No TTS engine available. Install Kaggle CLI (~/.kaggle/kaggle.json) or Modal CLI (modal token new), CosyVoice3-MLX + F5-TTS-MLX + Qwen3-TTS (~/.video-tts-env), edge-tts, or run on macOS.",
+    "No TTS engine available. Install Kaggle CLI (~/.kaggle/kaggle.json) or Modal CLI (modal token new), CosyVoice3-MLX + F5-TTS-MLX (~/.video-tts-env), edge-tts, or run on macOS.",
   );
 }
 
