@@ -26,7 +26,12 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
+        # npm ci is unusable here: @tailwindcss/oxide-wasm32-wasi declares
+        # @emnapi/* as bundled optional peers and npm's strict ci sync check
+        # hard-fails on them even after a fresh lockfile re-resolution
+        # (upstream npm/cli bug). npm install reconciles the tree the same way
+        # every contributor's `npm install` does.
 
       - name: Lint (changed files only)
         env:
