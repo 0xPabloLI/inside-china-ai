@@ -207,6 +207,7 @@ collectFromSource() 层次：
 | **#281** | 2026-09-13 | search pool 引擎可用性核查：Serper 恒 "0 results" / Brave TUN DNS fetch failed | ✅ 分流 Tier 3 · `ready-for-agent`（#265 smoke 顺带发现；每引擎单独复测定性，只核查记录不预先设计；无既有票覆盖，与 #276 路由收敛不重叠） |
 | ~~**#282**~~ | 2026-09-13 | search-pool skill 跨 repo 同步：agent-harness 旧 MCP 形态需更新为 #265 CLI 消费 + env 指路 | ✅ 关闭（已落地——本 repo SKILL.md env 指路 `6e8cf9d` + harness `bc2f001`/`0c52ee8` 同步，均先于本票存在；无剩余 scope） |
 | **#288** | 2026-09-14 | 媒体素材补全:中国公司与模型 + 术语代表图,写 catalog 进 RAG 兜底(基于 scene-data 实证实体;#186 结构性稀缺的可执行落地) | ⏳ 待 triage(enhancement:实体清单已从全部 scene-data 实证;**范围已含人物肖像(典型照 + 采访视频截图,2026-09-14 用户裁决,见评论)**;选型等 Open Questions 实现时裁决) |
+| **#293** | 2026-09-14 | 素材预获取纳入 Stage 0 setup 必含步骤 + 生产素材缺口回流(给后续视频兜底;#288 的流程侧配套) | ⏳ 待 triage(enhancement:预获取类别清单承接 #288 实体清单;缺口回流机制实现时裁决,与 asset-sourcer 拒绝/降级日志对齐) |
 
 ## Execution Tiers
 
