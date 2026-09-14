@@ -8,7 +8,7 @@ export const scenes = [
     id: 1,
     name: "hook",
     visualType: "hook",
-    voiceover: "", // TODO: Insert today's chip news
+    voiceover: "", // Filled per run: today's chip news (evergreen hook slot)
     // Standard hook contract (hookScene): hookText = frame-1 claim,
     // revealText = 1.5s payoff — or bigNumber for number-led hooks.
     texts: { hookText: "CHINA'S", revealText: "CHIP WAR" },

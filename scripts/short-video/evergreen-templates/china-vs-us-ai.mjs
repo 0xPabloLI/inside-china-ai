@@ -8,7 +8,7 @@ export const scenes = [
     id: 1,
     name: "hook",
     visualType: "hook",
-    voiceover: "", // TODO: Insert today's comparison angle
+    voiceover: "", // Filled per run: today's comparison angle (evergreen hook slot)
     // Standard hook contract (hookScene): hookText = frame-1 claim,
     // revealText = 1.5s payoff — or bigNumber for number-led hooks.
     texts: { hookText: "CHINA vs US", revealText: "AI RACE" },

@@ -8,7 +8,7 @@ export const scenes = [
     id: 1,
     name: "hook",
     visualType: "hook",
-    voiceover: "", // TODO: Insert today's funding news
+    voiceover: "", // Filled per run: today's funding news (evergreen hook slot)
     // Standard hook contract (hookScene): hookText = frame-1 claim,
     // revealText = 1.5s payoff — or bigNumber for number-led hooks.
     texts: { hookText: "CHINA AI", revealText: "FUNDING" },

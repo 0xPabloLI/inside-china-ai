@@ -11,7 +11,7 @@ export const scenes = [
     id: 1,
     name: "hook",
     visualType: "hook",
-    voiceover: "", // TODO: Insert today's DeepSeek news as hook
+    voiceover: "", // Filled per run: today's DeepSeek news as hook (evergreen hook slot)
     // Standard hook contract (hookScene): hookText = frame-1 claim,
     // revealText = 1.5s payoff — or bigNumber for number-led hooks.
     texts: { hookText: "DEEPSEEK", revealText: "EXPLAINED" },
