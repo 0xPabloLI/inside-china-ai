@@ -6,7 +6,7 @@ import {
   organization,
   type JsonLdNode,
 } from "@/lib/structured-data";
-import { OG_DEFAULT, ogImageForPath } from "@/lib/og";
+import { articleOgImageUrl } from "@/lib/og";
 
 /**
  * Article + BreadcrumbList graph for a published post.
@@ -18,14 +18,10 @@ export function postJsonLd(post: {
   url: string;
   datePublished?: string;
   dateModified?: string;
-  cover?: string | null;
+  image?: string;
 }): JsonLdNode {
-  let image = OG_DEFAULT;
-  try {
-    image = ogImageForPath(new URL(post.url).pathname, post.cover);
-  } catch {
-    image = ogImageForPath("/", post.cover);
-  }
+  const slug = new URL(post.url).pathname.split("/").filter(Boolean).at(-1) ?? "article";
+  const image = post.image ?? articleOgImageUrl(slug, post.dateModified ?? post.datePublished);
 
   return graph(
     organization(),
@@ -39,6 +35,7 @@ export function postJsonLd(post: {
     }),
     breadcrumbListJsonLd([
       { name: "Home", item: SITE },
+      { name: "News", item: `${SITE}news` },
       { name: post.title, item: post.url },
     ]),
   );
