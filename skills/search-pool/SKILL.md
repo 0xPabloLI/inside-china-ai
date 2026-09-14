@@ -68,7 +68,7 @@ API key 从仓库根 `.env.local` 读取（`SERPER_API_KEY` / `BRAVE_SEARCH_API_
 
 适用：中文或英文的主流新闻检索、论文发现、技术事实核实。额度敏感——单次查询即可命中时优先 `--max-results` 截取，避免为凑数反复搜索。
 
-**引擎可用性记录（#281，2026-09-14 复测）**：Serper 与 Brave 均实测可用（Serper HTTP 200 + organic 命中；Brave Node fetch HTTP 200 + 20 条，fake-ip DNS 下不再 fetch failed）。Brave 历史故障特征（2026-08 观察，供复发时对照）：TUN fake-ip 把 `api.search.brave.com` 解析到 198.18.x 且 Node fetch 报 fetch failed——绕行方法：代理规则让该域名走代理（非 DIRECT），或 DoH 解析真实 IP 后 `curl --resolve` 钉住。另：`JINA_API_KEY` 当前未配置（key 缺失时该引擎自动跳过，非故障）。
+**引擎可用性记录（#281，2026-09-14 复测，逐引擎）**：**Serper 可用**（HTTP 200 + organic 命中；修复 `parseArticles` 对 `link`/`snippet` 的映射后链头直击）。**Brave 可用**（Node fetch HTTP 200 + 20 条，fake-ip DNS 下不再 fetch failed）；历史故障特征（2026-08 观察，供复发时对照）：TUN fake-ip 把 `api.search.brave.com` 解析到 198.18.x 且 Node fetch 报 fetch failed——绕行方法：代理规则让该域名走代理（非 DIRECT），或 DoH 解析真实 IP 后 `curl --resolve` 钉住。**Tavily 可用**（#265 smoke 命中、#287 smoke 沿用，本票未重复单测）。**Jina 未配置**：`JINA_API_KEY` 不在 `.env.local`，引擎自动跳过（key 缺失非故障，补 key 即入链）。
 
 ## Route B — curl SearXNG
 
