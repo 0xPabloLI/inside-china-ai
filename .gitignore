@@ -36,6 +36,7 @@ scripts/short-video/output/
 
 # Per-content derived caches (focus-detection results — reproducible from scene media)
 scripts/short-video/content/*/.focus-cache/
+scripts/short-video/content/**/.focus-cache/
 
 # Voice samples (TTS reference audio — personal, binary)
 scripts/short-video/voice-samples/
@@ -116,20 +117,32 @@ scripts/short-video/assets/revenue-laptop.jpg
 scripts/short-video/assets/shanghai-skyline.jpg
 
 # Per-content downloaded source images (not brand assets — brand assets are tracked via LFS)
+scripts/short-video/assets/baidu_search-*
 scripts/short-video/assets/bing_news-*
+scripts/short-video/assets/bing_images-*
 scripts/short-video/assets/brave_image-*
+scripts/short-video/assets/coverr-*
+scripts/short-video/assets/duckduckgo_images-*
+scripts/short-video/assets/google_images-*
 scripts/short-video/assets/pexels-*
 scripts/short-video/assets/pixabay-*
 scripts/short-video/assets/searxng_image-*
+scripts/short-video/assets/tavily-*
 scripts/short-video/assets/unsplash-*
+scripts/short-video/assets/wikimedia-*
+scripts/short-video/assets/youtube_search-*
+scripts/short-video/assets/bilibili-*
+scripts/short-video/assets/qbitai-*
+scripts/short-video/assets/jiqizhixin-*
+scripts/short-video/assets/36kr-*
 
 # Pipeline-generated B-roll clips (T2V output, regenerable, not source)
 scripts/short-video/assets/scene-*-seed*.mp4
 
 # Per-content generated assets and search cache (binary/cache, not source code)
-scripts/short-video/content/*/assets/
-scripts/short-video/content/*/search-cache.json
-scripts/short-video/content/*/research/
+scripts/short-video/content/**/assets/
+scripts/short-video/content/**/search-cache.json
+scripts/short-video/content/**/research/
 
 # Remotion render output (generated, not source)
 scripts/short-video/remotion/out/
@@ -181,6 +194,7 @@ scripts/short-video/.tmp-*
 
 # VLM 缓存（内容目录下的生成缓存，非内容本体）
 scripts/short-video/content/*/.vlm-cache/
+scripts/short-video/content/**/.vlm-cache/
 
 # FeatherTalk 训练视频片段（48MB，太大不入库）
 scripts/short-video/assets/dh-fixtures/feathertalk/train_30s_180s.mp4
