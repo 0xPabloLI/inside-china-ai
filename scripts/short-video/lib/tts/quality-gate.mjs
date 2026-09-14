@@ -15,11 +15,41 @@ import { existsSync, statSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { transcribeVideo } from "../video-understand.mjs";
+import { FAILURE_CLASS } from "./failure-class.mjs";
 
 // Pacing boundaries for vertical short videos (English)
 export const MIN_ACCEPTABLE_WPM = 115; // Below 115 WPM indicates dragging / unnatural pause / accent drift
 export const MAX_ACCEPTABLE_WPM = 225; // Above 225 WPM is too rushed for audience comprehension
 export const MIN_TEXT_SIMILARITY = 0.75; // Minimum normalized token similarity threshold
+
+/**
+ * #271 failure families (pacing vs acoustic) live in ./failure-class.mjs so the
+ * pacing ladder and the registry can share the vocabulary without loading this
+ * module's ASR dependency. Re-exported here because this is the module that
+ * assigns a family to each evaluation.
+ */
+export { FAILURE_CLASS };
+
+/** Issue texts that belong to the pacing family — this module owns them. */
+const PACING_ISSUE_PATTERN = /^Pacing\b/i;
+
+/**
+ * Classify a gate FAILURE from its issue list (#271): which family's repair the
+ * pipeline should target.
+ *
+ * Mixed lists resolve to `acoustic`: a take whose words cannot be trusted is
+ * not speed-fixable, so the conservative family wins.
+ *
+ * @param {string[]} [issues]
+ * @returns {"pacing"|"acoustic"|null} null when there is no issue at all
+ */
+export function classifyFailure(issues) {
+  const list = (issues || []).filter((i) => typeof i === "string" && i.trim() !== "");
+  if (list.length === 0) return null;
+  return list.every((i) => PACING_ISSUE_PATTERN.test(i.trim()))
+    ? FAILURE_CLASS.PACING
+    : FAILURE_CLASS.ACOUSTIC;
+}
 
 /**
  * Standardize text for phonetic & token comparison:
@@ -322,6 +352,9 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
       sceneId: scene.id,
       passed: false,
       issues: ["Audio file missing or zero bytes"],
+      // #271: no audio at all is an acoustic failure — there is nothing to
+      // speed-compensate, only a take to regenerate.
+      failureClass: FAILURE_CLASS.ACOUSTIC,
       action: "retry",
     };
   }
@@ -414,6 +447,9 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
       expectedText: expectedSpokenText,
       issues,
       warnings,
+      // #271: the registry routes on this — pacing → compensation loop,
+      // acoustic → reroll then fail-closed.
+      failureClass: classifyFailure(issues),
       action: issues.length === 0 ? "pass" : "retry",
     };
   }
@@ -428,6 +464,7 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     expectedText: expectedSpokenText,
     issues,
     warnings,
+    failureClass: classifyFailure(issues),
     action: issues.length === 0 ? "pass" : "retry",
   };
 }

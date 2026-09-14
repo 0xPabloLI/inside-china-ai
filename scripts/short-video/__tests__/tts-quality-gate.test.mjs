@@ -12,7 +12,11 @@ import {
   runTtsQualityGate,
   isWordInAsr,
   buildExpandedAsrTokenSet,
+  classifyFailure,
+  MIN_ACCEPTABLE_WPM,
+  FAILURE_CLASS,
 } from "../lib/tts/quality-gate.mjs";
+import { WPM_COMPENSATE_BELOW, MAX_TTS_SPEED } from "../lib/tts/pacing.mjs";
 import { writeFileSync, unlinkSync, mkdirSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -234,6 +238,136 @@ describe("TTS Quality Gate - Audio & ASR Evaluation", () => {
   });
 });
 
+// ─── #271: failure-family classification (pacing vs acoustic) ───
+// The registry routes the two families differently: pacing → speed
+// compensation, acoustic → reroll then fail-closed. `failureClass` is the
+// contract it reads, so it must be pinned here.
+
+describe("#271 failure classification", () => {
+  it("classifyFailure maps pacing-only text to pacing and anything else to acoustic", () => {
+    expect(classifyFailure(["Pacing too slow: 100 WPM (minimum acceptable: 115 WPM)"])).toBe(
+      "pacing",
+    );
+    expect(classifyFailure(["Pacing very fast: 240 WPM (guideline max: 225 WPM)"])).toBe("pacing");
+    expect(classifyFailure(["Truncation detected: missing tail word(s) [tenth]"])).toBe("acoustic");
+    expect(classifyFailure(["Low text similarity: 12.0% (threshold: 75%)"])).toBe("acoustic");
+    expect(classifyFailure(["Audio file missing or zero bytes"])).toBe("acoustic");
+    // Mixed → acoustic: a take whose words cannot be trusted is not
+    // speed-fixable, and compensating it could make the garble worse.
+    expect(
+      classifyFailure([
+        "Pacing too slow: 90 WPM (minimum acceptable: 115 WPM)",
+        "Truncation detected: missing tail word(s) [tenth]",
+      ]),
+    ).toBe("acoustic");
+    expect(classifyFailure([])).toBe(null);
+    expect(classifyFailure(undefined)).toBe(null);
+  });
+
+  const dummyAudio = join(tmpdir(), "dummy-classify-audio.wav");
+
+  it("tags a phonetically clean but slow take as pacing", async () => {
+    writeFileSync(dummyAudio, "RIFFdummydata");
+    const scene = {
+      id: 1,
+      voiceover: "DeepSeek just dropped V4.1 Flash with a new architecture.",
+    };
+    // 10 tokens over 6.0s → 100 WPM (< 115 floor); ASR echoes the script, so
+    // no truncation / similarity issue fires.
+    const mockTranscriber = vi.fn().mockResolvedValue({
+      ok: true,
+      segments: [{ text: scene.voiceover }],
+    });
+
+    const res = await evaluateSceneTts(scene, dummyAudio, 6.0, { transcriber: mockTranscriber });
+
+    expect(res.passed).toBe(false);
+    expect(res.issues.some((i) => i.includes("Pacing too slow"))).toBe(true);
+    expect(res.failureClass).toBe("pacing");
+
+    try {
+      unlinkSync(dummyAudio);
+    } catch {}
+  });
+
+  it("tags truncation and similarity failures as acoustic", async () => {
+    writeFileSync(dummyAudio, "RIFFdummydata");
+    const scene = {
+      id: 2,
+      voiceover: "The model ID literally says expires on September tenth.",
+    };
+    // 9 tokens over 3.0s → 180 WPM (in band), so pacing cannot be blamed.
+    const mockTranscriber = vi.fn().mockResolvedValue({
+      ok: true,
+      segments: [{ text: "The model ID literally says expires on September." }],
+    });
+
+    const res = await evaluateSceneTts(scene, dummyAudio, 3.0, { transcriber: mockTranscriber });
+
+    expect(res.passed).toBe(false);
+    expect(res.failureClass).toBe("acoustic");
+
+    try {
+      unlinkSync(dummyAudio);
+    } catch {}
+  });
+
+  it("tags a mixed pacing + truncation failure as acoustic", async () => {
+    writeFileSync(dummyAudio, "RIFFdummydata");
+    const scene = {
+      id: 3,
+      voiceover: "The model ID literally says expires on September tenth.",
+    };
+    // Same truncation, but now 90 WPM — both families fire.
+    const mockTranscriber = vi.fn().mockResolvedValue({
+      ok: true,
+      segments: [{ text: "The model ID literally says expires on September." }],
+    });
+
+    const res = await evaluateSceneTts(scene, dummyAudio, 6.0, { transcriber: mockTranscriber });
+
+    expect(res.passed).toBe(false);
+    expect(res.issues.some((i) => i.includes("Pacing too slow"))).toBe(true);
+    expect(
+      res.issues.some((i) => i.includes("missing tail") || i.includes("missing key token")),
+    ).toBe(true);
+    expect(res.failureClass).toBe("acoustic");
+
+    try {
+      unlinkSync(dummyAudio);
+    } catch {}
+  });
+
+  it("tags missing audio as acoustic and a passing take as null", async () => {
+    const missing = await evaluateSceneTts(
+      { id: 4, voiceover: "Anything at all here." },
+      join(tmpdir(), "definitely-not-there-271.wav"),
+      3.0,
+      { transcriber: vi.fn() },
+    );
+    expect(missing.passed).toBe(false);
+    expect(missing.failureClass).toBe("acoustic");
+
+    writeFileSync(dummyAudio, "RIFFdummydata");
+    const mockTranscriber = vi.fn().mockResolvedValue({
+      ok: true,
+      segments: [{ text: "The model ID literally says expires on September 10th." }],
+    });
+    const ok = await evaluateSceneTts(
+      { id: 5, voiceover: "The model ID literally says expires on September tenth." },
+      dummyAudio,
+      3.0,
+      { transcriber: mockTranscriber },
+    );
+    expect(ok.passed).toBe(true);
+    expect(ok.failureClass).toBe(null);
+
+    try {
+      unlinkSync(dummyAudio);
+    } catch {}
+  });
+});
+
 // ─── #251: roman-numeral version mishearing equivalence ───
 // Real repro (deepseek-v41-flash-report scene-1, whisper.cpp large-v3-turbo):
 // expected "DeepSeek V4.1" → ASR heard "DeepSeq VI 4.1" — the critical token
@@ -257,5 +391,21 @@ describe("#251 roman-numeral version equivalence", () => {
   it("v4 is NOT satisfied without version-letter evidence", () => {
     const asrSet = buildExpandedAsrTokenSet(tokenize("the 4 runners"));
     expect(isWordInAsr("v4", asrSet)).toBe(false);
+  });
+});
+
+// ─── #271: cross-module threshold coupling ───
+// The registry fail-closes a gate-failed pacing take it cannot plan, so the
+// compensation trigger (pacing.mjs) is a hard lower bound for the gate floor:
+// if MIN_ACCEPTABLE_WPM ever rose above WPM_COMPENSATE_BELOW, a take the gate
+// rejected as "too slow" would have no repair plan at all and the pipeline
+// would block on something that is in fact compensable.
+describe("#271 gate floor vs compensation trigger", () => {
+  it("keeps MIN_ACCEPTABLE_WPM strictly below WPM_COMPENSATE_BELOW", () => {
+    expect(MIN_ACCEPTABLE_WPM).toBeLessThan(WPM_COMPENSATE_BELOW);
+  });
+
+  it("pins the failure-family strings the registry routes on", () => {
+    expect(FAILURE_CLASS).toEqual({ PACING: "pacing", ACOUSTIC: "acoustic" });
   });
 });

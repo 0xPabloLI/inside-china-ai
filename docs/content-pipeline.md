@@ -318,6 +318,12 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 
 **TTS 补差机制（#252 反馈闭环，代码层已落地，写稿无需配置）**：#235 静态分流（EN hook 1.0 / EN 其余 1.2）已**取消**——它使 narrative 实测快于 hook（ant-lingbot-world-13b：hook 157 vs 228/257 WPM，#246 能量倒挂）。现行机制：所有 EN 场景基线 1.0 生成 → Quality Gate 实测 WPM → 驱动逐场景修复（`planPacingResponses`）：实测 <135 → 该场景独立补差（`ttsSpeed` = 150/实测，clamp ≤1.2，cache key 兼容）；实测 >225 → 换 seed 重抽一次（take 漂移 ±10-20%，#234），重抽仍超标 → **`TTS_PACING_HARD_BLOCK` 硬阻断**（fail-closed，不产出 rushed audio）；带内 keep。ZH 恒 1.0（**严禁全局统一提速**，300 字/分播音上限）；clamp ≤1.2（1.5× native 频谱通量 −36%，瞬态抹平）；逃生门 `TTS_SPEED` env 与 `TTS_SKIP_QUALITY_GATE=1`。hook 与正文的相对关系由实测涌现（hook 仍为最慢场景时闭环给出写稿端 advisory）。验收以真包逐场景实测 WPM 为准（依据：`docs/research/hook-vs-narrative-pacing-2026-09.md`）。
 
+**Gate 失败语义分流（#271，出片安全门）**：Quality Gate 的失败按家族分流——`quality-gate.mjs` 在每条 evaluation 上标注 `failureClass`，registry 据此路由：
+
+- **pacing 类**（音素正确、仅实测 WPM **偏低**）：**同样进补差环**。原实现只规划 gate-PASS 的场景，慢 take 因此落在「自愈环」与「补差环」的缝隙里直接出片。补差后复检：通过 → 采用；仍低于下限 → **`TTS_PACING_FLOOR_BLOCK` 硬阻断**（1.2× 已是频谱通量上限，数学上救不回，只能改写稿）。pacing 类不占用重抽预算（同文本同速度重抽抬不动 WPM）。偏高一侧不在此列——Quality Gate 只把偏慢计入 issue、偏快仅作 warning，故 >225 恒为 gate-PASS，由上一段的 #252 reroll → `TTS_PACING_HARD_BLOCK` 覆盖。
+- **acoustic 类**（截断 / 漏词 / 相似度低 / 无音频）：**禁止进补差环**（再提速只会把糊音推得更糊），走 self-heal 重抽（默认 ≤2 次）；超限 → **`TTS_ACOUSTIC_HARD_BLOCK` 硬阻断**。
+- 两类硬阻断均**不受 strict/non-strict 影响**——非 strict 的 warn-and-continue 不再软化任何一类 gate 分类失败（只剩 gate 未分类的失败仍走旧语义）。唯一能绕过硬阻断的开关是 `TTS_SKIP_QUALITY_GATE=1`；`TTS_SPEED` 只改基线速度，不构成绕过。
+
 ### AI Outline 话题描述规则（Step 5 细则，仅 opt-in 时适用）
 
 > TikTok AI Outline 仅移动端可用。输出质量取决于输入具体度——含公司名+数字时大幅提升。实测（2026-08-27）：泛输入→clickbait；具体输入→Title/Hook/Hashtags 均可用。

@@ -37,7 +37,8 @@ import { createEdgeTTSEngine } from "./edge-tts.mjs";
 import { createSayEngine } from "./say.mjs";
 import { runForcedAlignment, getAtempo } from "./post-process.mjs";
 import { planTtsScenes, writeSceneMeta, computeSceneKey, resolveSceneInstruct } from "./cache.mjs";
-import { resolveSceneSpeed } from "./pacing.mjs";
+import { FAILURE_CLASS } from "./failure-class.mjs";
+import { MAX_TTS_SPEED, resolveSceneSpeed } from "./pacing.mjs";
 
 /**
  * Engine factory map. Keys are both the canonical name and TTS_ENGINE aliases.
@@ -137,17 +138,73 @@ function replaceResult(results, res) {
 }
 
 /**
+ * Tag an error as fail-closed (#271). Errors carrying this marker are rethrown
+ * by the gate catch below regardless of strict mode — the non-strict
+ * "warn and continue" path is reserved for failures that are not proven
+ * unshippable. `TTS_SKIP_QUALITY_GATE=1` stays the explicit escape hatch.
+ */
+function markFailClosed(err, code) {
+  err.code = code;
+  err.failClosed = true;
+  return err;
+}
+
+/**
  * Build the #252 hard-block error: a scene still measures > 225 WPM after a
  * reroll. Fail-closed — rushed audio must not flow into rendering (#246).
  */
 function pacingHardBlockError(detail) {
-  const err = new Error(
-    `TTS_PACING_HARD_BLOCK: scene(s) exceed the ${225} WPM hard ceiling after reroll — ${detail}. ` +
-      `NOT shipping rushed audio (#246/#252). Fix: trim the script for these scenes ` +
-      `(docs/content-pipeline.md → 旁白语速预算 → 词密度预算), then re-run.`,
+  return markFailClosed(
+    new Error(
+      `TTS_PACING_HARD_BLOCK: scene(s) exceed the ${225} WPM hard ceiling after reroll — ${detail}. ` +
+        `NOT shipping rushed audio (#246/#252). Fix: trim the script for these scenes ` +
+        `(docs/content-pipeline.md → 旁白语速预算 → 词密度预算), then re-run.`,
+    ),
+    "TTS_PACING_HARD_BLOCK",
   );
-  err.code = "TTS_PACING_HARD_BLOCK";
-  return err;
+}
+
+/**
+ * #271 fail-closed: a phonetically clean but too-slow take is still below the
+ * Quality-Gate WPM floor after native speed compensation. `MAX_TTS_SPEED` is
+ * the spectral-flux ceiling, so no further compensation exists — the script,
+ * not the take, has to change. Falling back to the original take is not an
+ * option either: the gate had already rejected it.
+ */
+function pacingFloorBlockError(detail) {
+  return markFailClosed(
+    new Error(
+      `TTS_PACING_FLOOR_BLOCK: pacing-class take(s) still measure below the minimum-acceptable ` +
+        `WPM floor after native speed compensation (≤${MAX_TTS_SPEED}x) — ${detail}. ` +
+        `NOT shipping slow audio (#271). The floor lives in quality-gate.mjs ` +
+        `MIN_ACCEPTABLE_WPM and ${MAX_TTS_SPEED}x is the ceiling, so the script has to change: ` +
+        `trim these scenes (docs/content-pipeline.md → 旁白语速预算 → 词密度预算), or set ` +
+        `TTS_SKIP_QUALITY_GATE=1 to bypass the gate explicitly.`,
+    ),
+    "TTS_PACING_FLOOR_BLOCK",
+  );
+}
+
+/**
+ * #271 fail-closed: acoustic failures (truncation, missing tokens, low
+ * similarity, missing audio) survived the whole reroll budget. Audio whose
+ * words cannot be trusted must never reach rendering, and it is not
+ * speed-fixable, so there is nothing left to compensate — blocking is the only
+ * honest outcome in both strict and non-strict mode.
+ */
+function acousticBlockError(failed, attempts) {
+  const detail = failed
+    .map((f) => `scene ${f.sceneId} (${(f.issues || []).join("; ") || "acoustic failure"})`)
+    .join("; ");
+  return markFailClosed(
+    new Error(
+      `TTS_ACOUSTIC_HARD_BLOCK: ${failed.length} scene(s) still fail the acoustic checks after ` +
+        `${attempts} generated take(s) — ${detail}. NOT shipping audio whose words cannot be ` +
+        `trusted (#271). Fix the take (re-record, or revisit the reference audio / instruct — ` +
+        `see #270), or set TTS_SKIP_QUALITY_GATE=1 to bypass the gate explicitly.`,
+    ),
+    "TTS_ACOUSTIC_HARD_BLOCK",
+  );
 }
 
 /**
@@ -218,10 +275,16 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       // If any scene failed Quality Gate and retry is enabled
       const maxRetries = options.maxRetries ?? parseInt(process.env.TTS_RETRY_COUNT || "2", 10);
       let attempt = 1;
+      // #271: pacing-class failures do NOT consume the reroll budget. A reroll
+      // regenerates the same text at the same speed, so it cannot lift WPM — it
+      // only burns remote GPU time. Those takes belong to the compensation loop
+      // below.
+      const isRetryable = (e) => !e.passed && e.failureClass !== FAILURE_CLASS.PACING;
       while (!gateReport.passed && attempt <= maxRetries) {
         const failedSceneIds = new Set(
-          gateReport.evaluations.filter((e) => !e.passed).map((e) => e.sceneId),
+          gateReport.evaluations.filter(isRetryable).map((e) => e.sceneId),
         );
+        if (failedSceneIds.size === 0) break; // only pacing-class left → compensation loop
         console.warn(
           `\n  🔄 [TTS Self-Healing Loop] Attempt ${attempt}/${maxRetries}: Regenerating ${failedSceneIds.size} failed scene(s)...`,
         );
@@ -264,29 +327,69 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
 
       if (!gateReport.passed) {
         const failed = gateReport.evaluations.filter((e) => !e.passed);
-        const failSummary = failed
-          .map((f) => `Scene ${f.sceneId} (${f.issues.join(", ")})`)
-          .join("; ");
-        const msg = `TTS Quality Gate failed after ${attempt} attempt(s): ${failSummary}`;
-        if (options.strictQualityGate || process.env.TTS_STRICT_QUALITY_GATE === "1") {
-          throw new Error(msg);
+        const acousticFailed = failed.filter((e) => e.failureClass === FAILURE_CLASS.ACOUSTIC);
+        const pacingFailed = failed.filter((e) => e.failureClass === FAILURE_CLASS.PACING);
+
+        // #271: acoustic failures get the reroll budget above; once it is spent
+        // there is no take worth shipping, so this blocks in BOTH strict and
+        // non-strict mode. The old warn-and-continue path here is exactly how a
+        // take whose words were wrong reached rendering (#271 现象).
+        if (acousticFailed.length > 0) {
+          throw acousticBlockError(acousticFailed, attempt);
+        }
+
+        // #271: pacing-class failures are handed to the compensation loop below
+        // — warn-and-continue is deliberately not used for them either. Only
+        // failures the gate did not classify keep the legacy #225 semantics.
+        if (pacingFailed.length === 0) {
+          const failSummary = failed
+            .map((f) => `Scene ${f.sceneId} (${(f.issues || []).join(", ")})`)
+            .join("; ");
+          const msg = `TTS Quality Gate failed after ${attempt} attempt(s): ${failSummary}`;
+          if (options.strictQualityGate || process.env.TTS_STRICT_QUALITY_GATE === "1") {
+            throw new Error(msg);
+          } else {
+            console.warn(`  ⚠️ ${msg} (Continuing in non-strict mode)`);
+          }
         } else {
-          console.warn(`  ⚠️ ${msg} (Continuing in non-strict mode)`);
+          console.log(
+            `  ➡️ [TTS Quality Gate] ${pacingFailed.length} pacing-class scene(s) ` +
+              `(slow but phonetically clean) routed to the speed-compensation loop (#271)`,
+          );
         }
       }
 
-      // ── Pacing feedback loop (#252): measured WPM drives per-scene repair ──
+      // ── Pacing feedback loop (#252 + #271): measured WPM drives repair ──
       // The #235 static pair (hook 1.0 / non-hook 1.2) inverted the energy
       // curve (#246: hook 157 vs narrative 228/257 WPM) and let Scene 5 ship
       // at 257 WPM as a mere warning. Now: gate-passed scenes are classified
       // by MEASURED WPM — below 135 → compensate with scene.ttsSpeed (clamp
       // ≤1.2); above 225 → one reroll (take drift ±10-20%, #234) then HARD
-      // BLOCK; in between → keep. Runs only over gate-passed scenes so it
-      // never races the self-heal loop above.
+      // BLOCK; in between → keep. #271 extends the same ladder to gate-FAILED
+      // pacing-class takes that the loop used to skip outright — that gap is
+      // how a slow take shipped with no compensation at all.
       const { planPacingResponses, WPM_HARD_CEILING } = await import("./pacing.mjs");
       const pacing = planPacingResponses(toGenerate, gateReport.evaluations);
       for (const note of pacing.advisory) {
         console.warn(`  💬 [Pacing] ${note}`);
+      }
+
+      // #271 fail-closed invariant: every gate-failed pacing-class scene that
+      // reaches this point must own a repair plan. One the ladder could not
+      // plan (e.g. no usable WPM measurement) would otherwise ship the take the
+      // gate already rejected.
+      const plannedIds = new Set(
+        [...pacing.compensations, ...pacing.rerolls].map((p) => p.scene.id),
+      );
+      const unplanned = gateReport.evaluations.filter(
+        (e) => !e.passed && e.failureClass === FAILURE_CLASS.PACING && !plannedIds.has(e.sceneId),
+      );
+      if (unplanned.length > 0) {
+        throw pacingFloorBlockError(
+          unplanned
+            .map((e) => `scene ${e.sceneId} (${e.wpm ?? "unknown"} WPM, no repair plan)`)
+            .join("; "),
+        );
       }
 
       const regenScenes = [
@@ -329,6 +432,20 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
                 .join("; "),
             );
           }
+          // #271: a compensation whose SOURCE take had failed the gate has no
+          // shippable fallback — the only audio left IS the take the gate
+          // rejected. Block instead of quietly shipping it.
+          const unfixable = pacing.compensations.filter((c) => c.originalPassed === false);
+          if (unfixable.length > 0) {
+            throw pacingFloorBlockError(
+              unfixable
+                .map(
+                  (c) =>
+                    `scene ${c.scene.id} (${c.measuredWpm} WPM, compensation produced no audio)`,
+                )
+                .join("; "),
+            );
+          }
         } else {
           const regenGate = await runTtsQualityGate(
             regenScenes,
@@ -339,6 +456,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
             const evalRes = regenGate.evaluations.find((e) => e.sceneId === res.sceneId);
             const scene = regenScenes.find((s) => s.id === res.sceneId);
             const rerolled = pacing.rerolls.find((r) => r.scene.id === res.sceneId);
+            const compensation = pacing.compensations.find((c) => c.scene.id === res.sceneId);
             if (rerolled) {
               const measured = evalRes?.wpm ?? rerolled.measuredWpm;
               if (evalRes?.passed && measured <= WPM_HARD_CEILING) {
@@ -355,10 +473,33 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
             } else if (evalRes?.passed) {
               replaceResult(validatedResults, res);
               console.log(`  ✅ [Pacing Loop] Scene ${res.sceneId} compensated take accepted`);
+            } else if (compensation && compensation.originalPassed === false) {
+              // #271: the compensated take still fails AND the take it would
+              // replace had already been rejected by the gate — nothing
+              // shippable is left, so fail closed rather than fall back. Report
+              // the family the COMPENSATED take actually failed in: a 1.2x take
+              // can come back truncated, and "trim the script" is the wrong
+              // remedy for that.
+              if (evalRes?.failureClass === FAILURE_CLASS.ACOUSTIC) {
+                throw acousticBlockError(
+                  [
+                    {
+                      sceneId: res.sceneId,
+                      issues: evalRes.issues?.length ? evalRes.issues : ["acoustic failure"],
+                    },
+                  ],
+                  attempt + 1,
+                );
+              }
+              throw pacingFloorBlockError(
+                `scene ${res.sceneId} measured ${compensation.measuredWpm} WPM, compensated at ` +
+                  `${compensation.speed.toFixed(2)}x → still failing ` +
+                  `(${evalRes?.issues?.join(", ") || "gate fail"})`,
+              );
             } else {
-              // Compensation take failed the gate (e.g. truncation) — keep the
-              // original audio and drop the override so the cache meta stays
-              // consistent with the audio actually shipped.
+              // #252: a compensation of a gate-PASSED take may fall back to it —
+              // that take is shippable by definition. Drop the override so the
+              // cache meta stays consistent with the audio actually shipped.
               delete scene.ttsSpeed;
               console.warn(
                 `  ⚠️ [Pacing Loop] Scene ${res.sceneId} compensation take failed the gate ` +
@@ -369,10 +510,13 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         }
       }
     } catch (gateErr) {
-      if (gateErr?.code === "TTS_PACING_HARD_BLOCK") {
-        // #252 acceptance: >225 WPM is a hard block, never warning-and-continue
-        // (#246 shipped 257 WPM). Supersedes non-strict mode; the operator
-        // escape hatch is TTS_SKIP_QUALITY_GATE=1, which skips the loop above.
+      if (gateErr?.failClosed) {
+        // #252/#271 acceptance: hard blocks are never downgraded to
+        // warning-and-continue (#246 shipped 257 WPM; #271 shipped unrepaired
+        // slow takes). `markFailClosed` is the only producer of these errors,
+        // so the marker is the whole test. They supersede non-strict mode; the
+        // operator escape hatch is TTS_SKIP_QUALITY_GATE=1, which skips the
+        // gate block above.
         throw gateErr;
       }
       if (options.strictQualityGate || process.env.TTS_STRICT_QUALITY_GATE === "1") {

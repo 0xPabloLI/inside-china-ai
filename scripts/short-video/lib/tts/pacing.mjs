@@ -34,6 +34,8 @@
  * take cache-stable across re-runs).
  */
 
+import { FAILURE_CLASS } from "./failure-class.mjs";
+
 /** Hard speed ceiling — spectral-flux and industry-product bound. */
 export const MAX_TTS_SPEED = 1.2;
 
@@ -56,6 +58,12 @@ export const WPM_TARGET = 150;
  * Compensate below this measured WPM (not below the 140 sweet-spot edge —
  * measurement noise + take drift make chasing the edge oscillate; the
  * #252 review ladder fixes the trigger at 135 → native 1.1-1.2x).
+ *
+ * #271 coupling: this must stay ABOVE `quality-gate.mjs`
+ * MIN_ACCEPTABLE_WPM. A gate-failed pacing take is by definition below the
+ * gate floor, so it is only plannable here while the floor sits under this
+ * trigger; otherwise the registry has no repair plan for it and fail-closes
+ * the run. The relationship is pinned by a test in tts-quality-gate.test.mjs.
  */
 export const WPM_COMPENSATE_BELOW = 135;
 
@@ -199,18 +207,26 @@ export function planPacingResponse(scene, measuredWpm) {
 }
 
 /**
- * Batch-plan the feedback round from a Quality-Gate report. Only gate-PASSED
- * scenes are considered: gate-failed scenes are the self-heal loop's job, and
- * a double regeneration would race it.
+ * Batch-plan the feedback round from a Quality-Gate report.
+ *
+ * Two groups are planned (#252 + #271):
+ *  - gate-PASSED scenes, classified by MEASURED WPM (the #252 path);
+ *  - gate-FAILED scenes the gate tagged `failureClass: "pacing"` — a
+ *    phonetically clean take that only missed the WPM floor. Compensation is
+ *    the only repair that can help: the self-heal reroll regenerates the same
+ *    text at the same speed, which is exactly how a slow take used to reach
+ *    rendering (#271 现象). Acoustic failures stay out — they belong to the
+ *    reroll loop / fail-closed block in the registry, and a compensation take
+ *    would race those.
  *
  * Advisory: flags a hook that still measures ≥15 WPM slower than the slowest
  * narrative — the #246 inversion pattern — as a write-side hint (no forced
  * regeneration; the loop never manufactures pace the script does not have).
  *
  * @param {Array<object>} scenes
- * @param {Array<{sceneId: number, passed: boolean, wpm?: number}>} evaluations
+ * @param {Array<{sceneId: number, passed: boolean, wpm?: number, failureClass?: string|null}>} evaluations
  * @returns {{
- *   compensations: Array<{scene: object, speed: number, measuredWpm: number, reason: string}>,
+ *   compensations: Array<{scene: object, speed: number, measuredWpm: number, reason: string, originalPassed: boolean}>,
  *   rerolls: Array<{scene: object, measuredWpm: number, reason: string}>,
  *   advisory: string[],
  * }}
@@ -225,7 +241,10 @@ export function planPacingResponses(scenes, evaluations) {
   const narrativeWpms = [];
 
   for (const ev of evaluations || []) {
-    if (!ev?.passed) continue; // gate failures belong to the self-heal loop
+    // #271: gate-PASSED scenes keep the #252 path; gate-FAILED scenes enter
+    // only when the gate tagged them pacing-class. Anything else (acoustic, or
+    // unclassified) stays out.
+    if (!ev?.passed && ev?.failureClass !== FAILURE_CLASS.PACING) continue;
     const scene = byId.get(ev.sceneId);
     if (!scene) continue;
 
@@ -236,6 +255,11 @@ export function planPacingResponses(scenes, evaluations) {
         speed: plan.speed,
         measuredWpm: plan.measuredWpm,
         reason: plan.reason,
+        // #271: whether the SOURCE take passed the gate decides the fallback.
+        // A #252 compensation of a passing take may fall back to it; a
+        // compensation of a gate-REJECTED take must fail closed instead of
+        // shipping the very take the gate refused.
+        originalPassed: Boolean(ev.passed),
       });
     } else if (plan.action === "reroll") {
       rerolls.push({ scene, measuredWpm: plan.measuredWpm, reason: plan.reason });
