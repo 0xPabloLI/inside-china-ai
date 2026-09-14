@@ -23,6 +23,11 @@
  * 2026-08 observation): Node fetch can fail DNS resolution for
  * api.search.brave.com under TUN fake-ip routing. The chain degrades to the
  * next engine on that failure; the Grok bridge remains the final fallback.
+ * #281 retest (2026-09-14): NOT reproducing — fake-ip DNS still resolves
+ * (198.18.x) but TUN now proxies the host correctly; Node fetch returns
+ * HTTP 200 with results. If it recurs: add a proxy rule routing
+ * api.search.brave.com through the proxy (not DIRECT), or DoH-resolve the
+ * real IP and pin it with curl --resolve.
  *
  * CLI entry (#265): direct execution exposes an on-demand search CLI
  * (stdout = pure JSON, logs on stderr) — see the "CLI entry (#265)" section
@@ -40,6 +45,12 @@ const MAX_SNIPPET_LENGTH = 200;
  * Map a raw engine result entry into the article shape consumed by
  * search-sources.mjs. Entries without a usable url are dropped; snippets are
  * capped so long descriptions don't bloat downstream prompt payloads.
+ *
+ * Two field vocabularies reach this seam (#281): Brave/Tavily/Jina return
+ * `url` + `description`/`content`, while Serper.dev returns `link` +
+ * `snippet` — normalizing both here keeps every engine adapter on one path
+ * (the Serper-only `link`/`snippet` shape previously parsed as "0 results"
+ * and silently burned quota each run).
  */
 function toArticle(title, url, snippet) {
   const cleanUrl = typeof url === "string" ? url.trim() : "";
@@ -54,7 +65,7 @@ function toArticle(title, url, snippet) {
 function parseArticles(entries) {
   if (!Array.isArray(entries)) return [];
   return entries
-    .map((e) => toArticle(e?.title, e?.url, e?.description ?? e?.content))
+    .map((e) => toArticle(e?.title, e?.url ?? e?.link, e?.description ?? e?.snippet ?? e?.content))
     .filter(Boolean);
 }
 

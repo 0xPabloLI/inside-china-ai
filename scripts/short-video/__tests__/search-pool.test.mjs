@@ -46,8 +46,20 @@ const JINA_BODY = {
   data: [{ title: "Jina hit", url: "https://example.com/j", description: "Jina desc" }],
 };
 
+// Real Serper.dev response shape (#281, 2026-09-14 probe): organic entries
+// carry `link`/`snippet` (+ `date`/`position`) — NOT the `url`/`description`
+// vocabulary Brave/Tavily/Jina use. The article-mapping seam must normalize
+// both; this fixture mirrors the API contract, not the pool's mapping.
 const SERPER_BODY = {
-  organic: [{ title: "Serper hit", url: "https://example.com/s", description: "Serper desc" }],
+  organic: [
+    {
+      title: "Serper hit",
+      link: "https://example.com/s",
+      snippet: "Serper desc",
+      position: 1,
+      date: "1 day ago",
+    },
+  ],
 };
 
 // ─── isPoolEligible ───
