@@ -38,6 +38,7 @@ vi.mock("../lib/tts/cache.mjs", () => ({
   planTtsScenes: vi.fn((_dir, scenes) => ({ cached: [], pending: [...scenes] })),
   writeSceneMeta: vi.fn(),
   computeSceneKey: vi.fn(() => "test-key"),
+  resolveSceneInstruct: vi.fn((_engine, _scene) => ""),
 }));
 
 import { generateTTSWithEngine } from "../lib/tts/registry.mjs";

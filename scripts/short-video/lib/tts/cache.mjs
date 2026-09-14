@@ -67,6 +67,18 @@ export function writeSceneMeta(outputDir, sceneId, meta) {
 }
 
 /**
+ * Resolve the per-scene emotion instruct for the cache key (#244).
+ *
+ * Single source of truth shared by the cache-hit path here and the meta-write
+ * path in registry.mjs — computing the key in two places that drift apart
+ * would make a freshly generated take miss its own cache entry on the next
+ * run. Returns "" for engines without an instruct concept (legacy key shape).
+ */
+export function resolveSceneInstruct(engine, scene) {
+  return engine?.instructForScene?.(scene) ?? "";
+}
+
+/**
  * Split scenes into cache hits (reuse existing audio) and pending (must be
  * generated). A hit requires a readable meta whose key matches AND whose
  * audio file still exists — anything else falls back to regeneration. The
@@ -96,7 +108,7 @@ export function planTtsScenes(outputDir, scenes, engine) {
       const speed = resolved !== 1.0 || storedSpeed === null ? resolved : storedSpeed;
       // #244: engines that resolve a per-scene emotion instruct fold it into
       // the key so a map edit invalidates the affected scenes only.
-      const instruct = engine.instructForScene?.(scene) ?? "";
+      const instruct = resolveSceneInstruct(engine, scene);
       const key = computeSceneKey(engine, spokenText, speed, instruct);
       const audioPath = meta.audioPath ?? join(outputDir, `scene-${scene.id}.wav`);
       if (meta.key === key && typeof meta.duration === "number" && existsSync(audioPath)) {

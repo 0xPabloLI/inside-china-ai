@@ -36,7 +36,7 @@ import { createF5MLXEngine } from "./f5-mlx.mjs";
 import { createEdgeTTSEngine } from "./edge-tts.mjs";
 import { createSayEngine } from "./say.mjs";
 import { runForcedAlignment, getAtempo } from "./post-process.mjs";
-import { planTtsScenes, writeSceneMeta, computeSceneKey } from "./cache.mjs";
+import { planTtsScenes, writeSceneMeta, computeSceneKey, resolveSceneInstruct } from "./cache.mjs";
 import { resolveSceneSpeed } from "./pacing.mjs";
 
 /**
@@ -375,14 +375,14 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       if (scene) {
         const resolvedSpeed = resolveSceneSpeed(scene);
         writeSceneMeta(outputDir, r.sceneId, {
-          // #244: the instruct must resolve identically here and in
-          // planTtsScenes' cache-hit check — a mismatch would make a freshly
-          // generated take miss its own cache entry on the next run.
+          // #244: resolveSceneInstruct is the single source shared with
+          // planTtsScenes' cache-hit check in cache.mjs — a mismatch would
+          // make a freshly generated take miss its own cache entry.
           key: computeSceneKey(
             engine,
             scene.ttsText || scene.voiceover,
             resolvedSpeed,
-            engine.instructForScene?.(scene) ?? "",
+            resolveSceneInstruct(engine, scene),
           ),
           duration: r.duration,
           engine: engine.name,
