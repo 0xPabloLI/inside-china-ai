@@ -42,7 +42,9 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // guarantee meaningful against future changes.
     // #166 layer 2: warn went 5 → 3 — the two NEGATIVE-coverage warns on
     // scenes 5/6 are gone because the constants are code-injected now.
-    expect(before.pass).toHaveLength(47);
+    // #270: pass went 47 → 48 — checkInstructCoverage added one pre-render
+    // check (TTS instruct coverage, single source in lib/tts/instruct.mjs).
+    expect(before.pass).toHaveLength(48);
     expect(before.warn).toHaveLength(3);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });

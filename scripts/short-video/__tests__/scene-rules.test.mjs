@@ -38,6 +38,7 @@ import {
   MEDIA_STRATEGIES,
   checkMediaOptOutDeprecation,
   checkBrollPromptDimensions,
+  checkInstructCoverage,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
 import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
@@ -1645,5 +1646,90 @@ describe("ai-image strategy (#155)", () => {
         imageScene({ aiVideo: { prompt: "bars at 3 meters wide" }, aiImage: { prompt: "clean" } }),
       ]),
     ).toEqual([]);
+  });
+});
+
+// ── TTS instruct coverage (#270, absorbing #273 P1.3) ──
+// A style with no instruct entry used to reach the Kaggle kernel with no
+// instruct_text (→ 'CosyVoice3' object has no attribute 'inference'), and the
+// engines that did have a lookup carried drifting pre-#234 copies. Both are
+// decidable pre-render, so preflight fails instead of spending GPU time.
+describe("checkInstructCoverage (#270)", () => {
+  const scene = (over = {}) => ({
+    id: 1,
+    visualType: "narrative",
+    layout: "hero-center",
+    voiceover: "DeepSeek shipped a 1.4B parameter model.",
+    ...over,
+  });
+
+  it("passes for every visualType the renderer dispatches on", () => {
+    for (const style of [
+      "hook",
+      "cta",
+      "narrative",
+      "data",
+      "info-card",
+      "quote",
+      "context",
+      "contrast",
+      "stat-reveal",
+    ]) {
+      const results = checkInstructCoverage([scene({ visualType: style })]);
+      expect(results.map((r) => r.level)).toEqual(["pass"]);
+    }
+  });
+
+  it("fails a style that has no entry in the single source", () => {
+    const results = checkInstructCoverage([scene({ visualType: "benchmark" })]);
+    expect(results).toHaveLength(1);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].check).toBe("Scene 1 TTS instruct style resolves");
+    expect(results[0].detail).toContain('"benchmark"');
+    expect(results[0].fix).toContain("INSTRUCT_STANDARD.styles");
+  });
+
+  it("resolves through refStyle first, matching the engine adapters", () => {
+    expect(checkInstructCoverage([scene({ visualType: "narrative", refStyle: "data" })])).toEqual([
+      {
+        level: "pass",
+        category: "TTS",
+        check: "TTS instruct coverage (single source in lib/tts/instruct.mjs)",
+      },
+    ]);
+    expect(
+      checkInstructCoverage([scene({ visualType: "data", refStyle: "shouty" })])[0].detail,
+    ).toContain('"shouty"');
+  });
+
+  it("fails a scene with no style at all", () => {
+    const results = checkInstructCoverage([{ id: 7, voiceover: "orphan scene" }]);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].detail).toContain("neither refStyle nor visualType");
+  });
+
+  it("fails a hand-written instruct override that misses the standard", () => {
+    const results = checkInstructCoverage([
+      scene({ instruct: "Speak with a calm and measured tone, like a narrator." }),
+    ]);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].check).toBe("Scene 1 instruct override meets the 4D standard");
+    expect(results[0].detail).toContain("missing_system_prefix");
+    expect(results[0].detail).toContain("missing_accent_guidance");
+  });
+
+  it("accepts a compliant instruct override", () => {
+    const results = checkInstructCoverage([
+      scene({
+        instruct:
+          "You are a helpful assistant. You are a narrator. Speak in standard American English with a calm and steady tone.",
+      }),
+    ]);
+    expect(results.map((r) => r.level)).toEqual(["pass"]);
+  });
+
+  it("is included in runAllSceneDataChecks results", () => {
+    const results = runAllSceneDataChecks([scene({ visualType: "benchmark" })], null);
+    expect(results.fail.some((r) => r.check === "Scene 1 TTS instruct style resolves")).toBe(true);
   });
 });

@@ -13,6 +13,10 @@
  */
 
 import { getPlatformProfile } from "./platforms/index.mjs";
+// The TTS instruct coverage check (below) is a pre-render contract, so it reads
+// the standard from its single source. tts/instruct.mjs is pure data + pure
+// functions (no fs/child_process) — importing it does not drag the TTS stack in.
+import { hasInstructStyle, validateInstructSignature } from "./tts/instruct.mjs";
 import {
   AI_BLACKLIST as _AI_BLACKLIST,
   DASH_PATTERN,
@@ -1504,6 +1508,84 @@ export function checkVisualTypeWhitelist(scenes, opts = {}) {
   return results;
 }
 
+// ─── TTS instruct coverage (#270, absorbing #273 P1.3) ───
+
+// Every scene's style must resolve to an instruct in the single source
+// (lib/tts/instruct.mjs). Two real failures motivated this gate:
+//   1. #273: INSTRUCT_MAP covered only 4 of the 9 dispatched visualTypes, so
+//      contrast / info-card / stat-reveal / quote / context reached the Kaggle
+//      kernel with no instruct_text at all and fell into a method CosyVoice3
+//      does not have ('CosyVoice3' object has no attribute 'inference').
+//   2. #270: the engines that DID have a lookup carried drifting copies, so the
+//      same style produced the pre-#234 read (no persona, no accent guidance)
+//      depending on which engine ran. See the #270 baseline: 9/9 styles had
+//      engine-divergent instruct.
+// Both are decidable before any GPU time, so this fails preflight rather than
+// surfacing as a TTS error or a quietly wrong accent.
+export function checkInstructCoverage(scenes, opts = {}) {
+  void opts;
+  const results = [];
+
+  // Contract first: the Remotion dispatch table must be covered by the standard.
+  // This catches a NEW visualType at the moment it is added, before any content
+  // uses it — the per-scene loop below can only see styles content already has.
+  const uncoveredTypes = [...REMOTION_VISUAL_TYPES].filter((t) => !hasInstructStyle(t));
+  for (const type of uncoveredTypes) {
+    results.push({
+      level: "fail",
+      category: "TTS",
+      check: `Instruct standard covers visualType "${type}"`,
+      detail: `"${type}" is in the Remotion dispatch table but has no entry in lib/tts/instruct.mjs — TTS would run it without an instruct (or with a stale pre-#234 one)`,
+      fix: `Add a "${type}" entry to INSTRUCT_STANDARD.styles in scripts/short-video/lib/tts/instruct.mjs (Persona + Accent + Emotion + Pacing).`,
+    });
+  }
+
+  for (const scene of scenes) {
+    const style = scene.refStyle || scene.visualType;
+    if (!style) {
+      results.push({
+        level: "fail",
+        category: "TTS",
+        check: `Scene ${scene.id} has a TTS instruct style`,
+        detail: "neither refStyle nor visualType is set, so no emotion instruct can be resolved",
+        fix: `Set visualType (and refStyle if a styled reference audio is wanted) on scene ${scene.id}`,
+      });
+      continue;
+    }
+    if (!hasInstructStyle(style)) {
+      results.push({
+        level: "fail",
+        category: "TTS",
+        check: `Scene ${scene.id} TTS instruct style resolves`,
+        detail: `style "${style}" has no entry in lib/tts/instruct.mjs — TTS would run this scene without an instruct`,
+        fix: `Use a standard style, or add "${style}" to INSTRUCT_STANDARD.styles in scripts/short-video/lib/tts/instruct.mjs.`,
+      });
+      continue;
+    }
+    if (typeof scene.instruct === "string" && scene.instruct.trim() !== "") {
+      const report = validateInstructSignature(scene.instruct);
+      if (!report.ok) {
+        results.push({
+          level: "fail",
+          category: "TTS",
+          check: `Scene ${scene.id} instruct override meets the 4D standard`,
+          detail: `hand-written instruct fails: ${report.hardIssues.map((i) => i.code).join(", ")}`,
+          fix: `Delete scene ${scene.id}'s instruct override and rely on its style, or fix it to match lib/tts/instruct.mjs (#270; docs/tts-indian-accent-handoff.md).`,
+        });
+      }
+    }
+  }
+
+  if (results.length === 0) {
+    results.push({
+      level: "pass",
+      category: "TTS",
+      check: "TTS instruct coverage (single source in lib/tts/instruct.mjs)",
+    });
+  }
+  return results;
+}
+
 /**
  * B13: Inline [ASSET NEEDED: ...] markers must never leak into voiceover —
  * TTS would read them aloud. Asset requirements belong in the structured
@@ -2058,6 +2140,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkLoopClosureNarrative(scenes),
     ...checkTextWidthBudget(scenes),
     ...checkVisualTypeWhitelist(scenes, opts),
+    ...checkInstructCoverage(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),
