@@ -344,3 +344,33 @@ Step 8: 本地源码验证（当调研涉及「某库是否有 bug / 某功能�
 | Canary-Qwen  | CC-BY-NC   | ❌ CUDA        | —              | —       | ⚠️ NC + 无加速，未评分 |
 
 > 评分明细：whisper.cpp 加速5/许可5/精度4/社区5；mlx-whisper 5/5/5/3；Parakeet 5/5/3/3；whisperx 1/3/3/4。Canary-Qwen 两个门槛均未通过（NC + CUDA only），未进入评分。
+
+### 许可证核查案例：Z-Image-Turbo 量化版误标 tongyi-qianwen-license（2026-09-14，#274）
+
+> **触发条件**：使用或引入阿里系模型的第三方量化版时，先按本案例核查许可继承链，不要直接采信量化仓库的 license 标签。
+
+**结论**：在用模型 `filipstrand/Z-Image-Turbo-mflux-4bit`（`scripts/short-video/lib/b-roll/t2i-runner.mjs` 的 `DEFAULT_IMAGE_MODEL`）的 `tongyi-qianwen-license` 标注为**误标**，维持使用无合规风险。上游 `Tongyi-MAI/Z-Image-Turbo` 为 Apache-2.0，且 Z-Image 不属于 tongyi-qianwen-license 定义所覆盖的 Qwen 大语言模型系列。
+
+**证据**（2026-09-14 实测，HF API + raw 文件双源）：
+
+| 仓库 | 标注 | 关键证据 |
+| --- | --- | --- |
+| `Tongyi-MAI/Z-Image-Turbo`（上游 HF） | `apache-2.0` | API tag 与 README frontmatter 一致；**HF 仓库无 LICENSE 文件**——filipstrand README 引用的 `blob/main/LICENSE` 为死链 |
+| `Tongyi-MAI/Z-Image`（上游 GitHub） | `Apache-2.0` | 完整 Apache-2.0 许可文本 |
+| `filipstrand/Z-Image-Turbo-mflux-4bit`（在用） | `other` / `license_name: tongyi-qianwen-license` | 仅 metadata 标签，仓库内**无 LICENSE 文件**；README 声称"继承原仓库的 Tongyi Qianwen License"，与上游实际标注矛盾；仓库无公开许可讨论 |
+| `andrevp/Z-Image-Turbo-MLX-4bit`（备选） | `apache-2.0` | 2026-03-24 转换，diffusers-MLX 格式（含 `model_index.json` + `quantize_config.json`）；**mflux 兼容性未验证** |
+| `tongyi-qianwen-license` 原文（`Qwen/Qwen-7B/LICENSE`） | — | §1(e) 定义限定 "the large language models (including Qwen model and Qwen-Chat model)"——图像模型不在覆盖内；§4 商用门槛为月活 >1 亿；§5(b) 输出不得用于训练其他 LLM |
+
+**法理**：4-bit 量化是基础权重的衍生作品。Apache-2.0 §4 要求再分发时传递原许可；量化者不持有基础权重版权，无权对基础权重施加更严格条款——误标对基础权重的 Apache-2.0 授权不产生效力。**最坏情况解读**（即使误标有效）：本地推理生成短视频内容远低于 1 亿 MAU 商用门槛，§5(b) 与本管线用途无关，当前用法仍合规。
+
+**机制推断（假设，非事实）**：filipstrand 量化发布于 2025-12-02，上游仓库 lastModified 2026-01-30——疑似上游早期曾标注 tongyi-qianwen 后改为 Apache-2.0，filipstrand 快照保留了旧标注。HF 无历史状态可查，不影响结论。
+
+**替代路径**（均未执行，按需启用）：
+
+| 路径 | 成本 | 风险 |
+| --- | --- | --- |
+| **维持现状（采纳）** | 零改动 | 供应链标注含糊，但法理与最坏情况解读均无风险 |
+| 换 `andrevp/Z-Image-Turbo-MLX-4bit` | 改 `DEFAULT_IMAGE_MODEL` + smoke test | 标注干净，但 mflux 对 diffusers-MLX 格式的兼容性未验证；第三方个人转换（downloads≈0，按 §1.2 HITL 规则下载前需用户确认） |
+| 官方 Apache-2.0 权重自行量化 | mflux 原生 `quantize=4` 按需量化，一次性 ~33GB 下载 | 来源最干净、mflux 格式保证兼容；占磁盘与首次加载时间 |
+
+**上游确认说明**：未向 filipstrand 仓库发 issue/讨论（外部写入需用户授权）；上游自身证据（Apache-2.0 双源一致）已使问题确定，上游答复只影响存档完整性，不影响结论。
