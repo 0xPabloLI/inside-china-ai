@@ -67,6 +67,12 @@ jobs:
       - name: TODO marker gate
         run: npm run lint:todos
 
+      # Build BEFORE type check: src/routeTree.gen.ts is generated (gitignored)
+      # by the TanStack router plugin during vite build — a fresh checkout has
+      # no route tree, so tsc must run after generation.
+      - name: Production build
+        run: npm run build
+
       - name: Type check
         run: npx tsc --noEmit
 
@@ -80,9 +86,6 @@ jobs:
           name: coverage-report
           path: .scratch/coverage
           retention-days: 7
-
-      - name: Production build
-        run: npm run build
 
   security:
     name: Semgrep SAST
