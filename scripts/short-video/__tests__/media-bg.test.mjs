@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import {
   resolveMediaPath,
   mediaExists,
@@ -16,8 +17,10 @@ import {
 // ─── Mock paths ───
 
 const CONTENT_DIR = "/fake/content/unitree";
-const REAL_CONTENT_DIR =
-  "/Users/pabloli/Documents/code/inside-china-ai/scripts/short-video/content/deepseek";
+// Repo-relative so the suite runs on any checkout of this repository (the
+// deepseek logo is a tracked brand asset).
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
+const REAL_CONTENT_DIR = join(REPO_ROOT, "scripts/short-video/content/deepseek");
 
 // ─── resolveMediaPath ───
 

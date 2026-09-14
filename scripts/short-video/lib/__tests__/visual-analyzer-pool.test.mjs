@@ -48,9 +48,12 @@ describe("visual-analyzer worker pool (#189)", () => {
   });
 
   afterEach(async () => {
-    rmSync(workDir, { recursive: true, force: true });
+    // Close workers BEFORE removing workDir: exiting workers append an EXIT
+    // line to the log, which fails with FileNotFoundError if the directory is
+    // already gone.
     const m = globalThis.__vlmModule;
     if (m) await m.closeVisualAnalyzer();
+    rmSync(workDir, { recursive: true, force: true });
   });
 
   it("runs 2 requests concurrently with 2 workers", async () => {
@@ -73,11 +76,24 @@ describe("visual-analyzer worker pool (#189)", () => {
     expect(r1.description).toContain("one.png");
     expect(r2.description).toContain("two.png");
 
-    const starts = parseLog(logPath).filter((e) => e.kind === "START");
+    // Concurrency invariant: both requests were in flight at the same time —
+    // the second START lands before the first END (serial execution would
+    // only start request 2 after request 1 finished). Wall-clock bounds stay
+    // loose so the assertion doesn't flake on slow Python spawn under
+    // parallel test load.
+    const events = parseLog(logPath);
+    const starts = events
+      .filter((e) => e.kind === "START")
+      .map((e) => e.ts)
+      .sort((a, b) => a - b);
+    const ends = events
+      .filter((e) => e.kind === "END")
+      .map((e) => e.ts)
+      .sort((a, b) => a - b);
     expect(starts.length).toBe(2);
-    const gap = Math.abs(starts[1].ts - starts[0].ts);
-    expect(gap).toBeLessThan(400);
-    expect(total).toBeLessThan(1000);
+    expect(ends.length).toBe(2);
+    expect(starts[1]).toBeLessThan(ends[0]);
+    expect(total).toBeLessThan(2000);
   }, 20000);
 
   it("caps in-flight at pool size", async () => {
