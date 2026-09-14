@@ -10,7 +10,9 @@ export const scenes = [
     name: "hook",
     visualType: "hook",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "Anthropic revealed China stealing its AI. Then published the victims' secrets in a 154-page report.",
+    aiVideo: { prompt: "futuristic AI data center with glowing server racks, cinematic vertical" },
     texts: {
       subject: "ANTHROPIC",
       bigNumber: "154",
@@ -23,7 +25,9 @@ export const scenes = [
     name: "context",
     visualType: "contrast",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "To prove the theft, Anthropic stated what was in the stolen requests. But those requests came from real users.",
+    aiVideo: { prompt: "split screen comparison, transparency versus surveillance concept" },
     texts: {
       title: "EVIDENCE OR EXPOSURE?",
       left: ["PROVE THE THEFT"],
@@ -35,7 +39,9 @@ export const scenes = [
     name: "pla",
     visualType: "data",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "The report describes a PLA user loading CCTV surveillance from hundreds of cameras in Chengdu. Cameras outside military facilities.",
+    aiVideo: { prompt: "CCTV surveillance camera grid wall, security monitoring screens" },
     texts: {
       stat: "100+",
       label: "PLA CAMERAS, CHENGDU",
@@ -48,7 +54,9 @@ export const scenes = [
     name: "soe",
     visualType: "data",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "It reveals an engineer at a state owned enterprise who exposed internal code and live credentials from multiple companies.",
+    aiVideo: { prompt: "source code on dark computer screen, programming terminal" },
     texts: {
       stat: "SOE",
       label: "CODE + CREDENTIALS",
@@ -61,7 +69,9 @@ export const scenes = [
     name: "russia",
     visualType: "data",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "It discloses live credentials for a Russian defense ministry database, relayed through DeepSeek to Claude.",
+    aiVideo: { prompt: "source code on dark computer screen, programming terminal" },
     texts: {
       stat: "RU",
       label: "DEFENSE MINISTRY DB",
@@ -74,7 +84,9 @@ export const scenes = [
     name: "police",
     visualType: "data",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "It details a police case management system that tracks citizens by national ID number. All sent to Claude.",
+    aiVideo: { prompt: "police surveillance system interface, citizen tracking dashboard" },
     texts: {
       stat: "PD",
       label: "ID NUMBER TRACKING",
@@ -87,7 +99,9 @@ export const scenes = [
     name: "pharma",
     visualType: "data",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "The report even includes a pharmaceutical company's internal capex forecasts, with dollar amounts redacted.",
+    aiVideo: { prompt: "corporate proxy server, network routing diagram, business facade" },
     texts: {
       stat: "RX",
       label: "CAPEX FORECASTS",
@@ -100,7 +114,9 @@ export const scenes = [
     name: "question",
     visualType: "contrast",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "Anthropic caught the thieves. But it also published sensitive data from hundreds of users in a dozen languages.",
+    aiVideo: { prompt: "split screen comparison, transparency versus surveillance concept" },
     texts: {
       title: "WHO WATCHES THE WATCHER?",
       left: ["CAUGHT THE THIEVES"],
@@ -112,6 +128,7 @@ export const scenes = [
     name: "angle",
     visualType: "narrative",
     layout: "media-bottom-bar",
+    mediaStrategy: "asset-then-broll",
     voiceover: "The labs stole from their users. Anthropic caught them. Then Anthropic put the victims' data in a public PDF.",
     media: { type: "image", path: "assets/baidu_search-anthropic-01.jpg", source: "Baidu", animation: "ken-burns", overlay: 0.72 },
     texts: {
@@ -126,7 +143,9 @@ export const scenes = [
     name: "cta",
     visualType: "cta",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "Who watches the watcher? Follow China AI News.",
+    aiVideo: { prompt: "tech brand logo reveal on dark background, abstract digital particles" },
     texts: {
       brand: "CHINA AI NEWS",
       tagline: "CHINA AI, DECODED",

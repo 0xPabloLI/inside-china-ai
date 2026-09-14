@@ -10,7 +10,9 @@ export const scenes = [
     name: "hook",
     visualType: "hook",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "151 million times. That is how often Alibaba hit Claude to steal its reasoning. The largest attack ever measured.",
+    aiVideo: { prompt: "futuristic AI data center with glowing server racks, cinematic vertical" },
     texts: {
       subject: "ALIBABA",
       bigNumber: "151M",
@@ -23,6 +25,7 @@ export const scenes = [
     name: "context",
     visualType: "narrative",
     layout: "media-bottom-bar",
+    mediaStrategy: "asset-then-broll",
     voiceover: "According to Anthropic, China's Alibaba ran the biggest distillation campaign they have ever seen, from May to July 2026.",
     media: { type: "image", path: "assets/baidu_search-alibaba-02.jpg", source: "Baidu", animation: "ken-burns", overlay: 0.72 },
     texts: {
@@ -37,7 +40,9 @@ export const scenes = [
     name: "scale",
     visualType: "data",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "Anthropic reported peak loads of 3 million requests per day. Over 3,500 fake accounts. All targeting Claude Opus 4.6 and 4.7.",
+    aiVideo: { prompt: "cybersecurity dashboard, fake account detection, digital threat" },
     texts: {
       stat: "3M",
       label: "PEAK REQUEST RATE",
@@ -50,7 +55,9 @@ export const scenes = [
     name: "method",
     visualType: "info-card",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "Alibaba injected a fixed prompt forcing Claude to write out its reasoning traces before answering. Those traces became training data.",
+    aiVideo: { prompt: "data visualization dashboard, digital analytics, tech interface" },
     texts: {
       title: "CHAIN OF THOUGHT THEFT",
       subtitle: "ALIBABA'S METHOD",
@@ -62,7 +69,9 @@ export const scenes = [
     name: "target",
     visualType: "contrast",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "The stolen reasoning data was used to train Qwen 3.5, 3.6, and 3.7. Alibaba's own models, built on Claude's brain.",
+    aiVideo: { prompt: "split screen comparison, transparency versus surveillance concept" },
     texts: {
       title: "STOLEN COT TRAINING",
       left: ["CLAUDE OPUS"],
@@ -75,6 +84,7 @@ export const scenes = [
     name: "beyond",
     visualType: "narrative",
     layout: "media-bottom-bar",
+    mediaStrategy: "asset-then-broll",
     voiceover: "Alibaba did not just distill. It used Claude to build its reinforcement learning environments and advance model architecture research.",
     media: { type: "image", path: "assets/baidu_search-alibaba-03.jpg", source: "Baidu", animation: "ken-burns", overlay: 0.72 },
     texts: {
@@ -89,7 +99,9 @@ export const scenes = [
     name: "accounts",
     visualType: "data",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "Nearly 5,000 fraudulent accounts in the first pool. When banned, Alibaba shifted to a second pool within hours.",
+    aiVideo: { prompt: "cybersecurity dashboard, fake account detection, digital threat" },
     texts: {
       stat: "5K",
       label: "FAKE ACCOUNTS",
@@ -102,7 +114,9 @@ export const scenes = [
     name: "shared",
     visualType: "contrast",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "Some accounts were also funneling requests from DeepSeek and Xiaomi. The same proxy networks serve multiple labs.",
+    aiVideo: { prompt: "split screen comparison, transparency versus surveillance concept" },
     texts: {
       title: "SHARED INFRASTRUCTURE",
       left: ["DEEPSEEK"],
@@ -115,7 +129,9 @@ export const scenes = [
     name: "stakes",
     visualType: "contrast",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "Export controls exist to slow China's AI. Distillation steals the result without the compute. 151 million times.",
+    aiVideo: { prompt: "split screen comparison, transparency versus surveillance concept" },
     texts: {
       title: "EXPORT CONTROLS BYPASSED",
       left: ["CHIPS RESTRICTED"],
@@ -127,7 +143,9 @@ export const scenes = [
     name: "cta",
     visualType: "cta",
     layout: "hero-center",
+    mediaStrategy: "asset-then-broll",
     voiceover: "151 million times. Follow China AI News.",
+    aiVideo: { prompt: "tech brand logo reveal on dark background, abstract digital particles" },
     texts: {
       brand: "CHINA AI NEWS",
       tagline: "CHINA AI, DECODED",
