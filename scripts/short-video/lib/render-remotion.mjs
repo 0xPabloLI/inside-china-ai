@@ -20,7 +20,7 @@ import { fileURLToPath } from "url";
 import { finalizeRenderedVideo } from "./post-process.mjs";
 import { sceneClipFrames } from "./timeline.mjs";
 import { autoUpscaleIfNeeded } from "./upscale.mjs";
-import { assertAvatarScene } from "./avatar-guard.mjs";
+import { assertAvatarScene, isAvatarDeclared } from "./avatar-guard.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -71,11 +71,11 @@ export function rawOutputPathFor(finalPath) {
 export function stageAvatarVideos({ scenes, durations = [], contentDir = "", publicAssetsDir }) {
   let staged = 0;
   for (const [index, scene] of scenes.entries()) {
-    if (!scene.avatar || typeof scene.avatar !== "object") continue;
+    if (!isAvatarDeclared(scene)) continue;
 
     // Presence, readability and "long enough for this scene's current
     // voiceover" — one implementation, shared with main.mjs (#272).
-    assertAvatarScene({ scene, sceneDurationSec: durations[index], contentDir });
+    assertAvatarScene({ scene, voiceoverDurationSec: durations[index], contentDir });
 
     const avatarSrc = join(contentDir || ".", scene.avatar.videoPath);
     const filename = basename(avatarSrc);

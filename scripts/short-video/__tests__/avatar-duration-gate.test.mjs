@@ -85,14 +85,17 @@ describe("#272 avatar clip must cover its voiceover", () => {
     });
 
     const err = catchError(() =>
-      assertAvatarScene({ scene, sceneDurationSec: voiceoverSeconds, contentDir }),
+      assertAvatarScene({ scene, voiceoverDurationSec: voiceoverSeconds, contentDir }),
     );
 
     expect(err, "a stale avatar clip must not pass the gate").toBeTruthy();
     expect(err.message).toContain("5.00s");
     expect(err.message).toContain("7.24s");
-    // the fix is a regeneration, so the hint must name the generation CLI
+    // The fix is a REGENERATION, and a plain re-run would skip the scene
+    // (stale-plan protection) — so the hint must name the FORCE path (#233),
+    // otherwise the operator loops on a command that cannot change anything.
     expect(err.message).toContain("digital-human.mjs");
+    expect(err.message).toContain("--force");
     expect(err.message).toContain("Remediation");
   });
 
@@ -116,20 +119,20 @@ describe("#272 avatar clip must cover its voiceover", () => {
     });
     expect(
       catchError(() =>
-        assertAvatarScene({ scene, sceneDurationSec: voiceoverSeconds, contentDir }),
+        assertAvatarScene({ scene, voiceoverDurationSec: voiceoverSeconds, contentDir }),
       ),
     ).toBe(null);
   });
 
   it("accepts a clip exactly as long as the voiceover and one within sub-frame rounding", () => {
-    for (const clipSeconds of [7.24, 7.2]) {
+    for (const clipSeconds of [7.24, 7.22]) {
       const { scene, voiceoverSeconds, rel } = realClipCase({
         clipSeconds,
         voiceoverSeconds: 7.24,
       });
       expect(
         catchError(() =>
-          assertAvatarScene({ scene, sceneDurationSec: voiceoverSeconds, contentDir }),
+          assertAvatarScene({ scene, voiceoverDurationSec: voiceoverSeconds, contentDir }),
         ),
         `clip ${clipSeconds}s vs voiceover 7.24s`,
       ).toBe(null);
@@ -143,7 +146,7 @@ describe("#272 avatar clip must cover its voiceover", () => {
       voiceoverSeconds: 7.24,
     });
     const err = catchError(() =>
-      assertAvatarScene({ scene, sceneDurationSec: voiceoverSeconds, contentDir }),
+      assertAvatarScene({ scene, voiceoverDurationSec: voiceoverSeconds, contentDir }),
     );
     expect(err).toBeTruthy();
   });
@@ -167,14 +170,14 @@ describe("#272 avatar clip must cover its voiceover", () => {
   it("keeps the corrupt-file fail-closed message", () => {
     writeFileSync(join(contentDir, "assets", "avatar", "cta.mp4"), "this is not a video");
     const scene = sceneWith({ videoPath: "assets/avatar/cta.mp4" });
-    const err = catchError(() => assertAvatarScene({ scene, sceneDurationSec: 3, contentDir }));
+    const err = catchError(() => assertAvatarScene({ scene, voiceoverDurationSec: 3, contentDir }));
     expect(err.message).toContain("unreadable (ffprobe found no duration)");
     expect(err.message).toContain("Remediation");
   });
 
   it("keeps the pending-generation fail-closed message", () => {
     const scene = sceneWith({});
-    const err = catchError(() => assertAvatarScene({ scene, sceneDurationSec: 3, contentDir }));
+    const err = catchError(() => assertAvatarScene({ scene, voiceoverDurationSec: 3, contentDir }));
     expect(err.message).toContain("pending generation");
     expect(err.message).toContain("Remediation");
   });
@@ -190,19 +193,19 @@ describe("#272 avatar clip must cover its voiceover", () => {
       { id: 2, visualType: "narrative", voiceover: "No avatar here." },
       sceneWith({ videoPath: cta.rel }, 6),
     ];
-    const durationsById = new Map([
+    const voiceoverSecById = new Map([
       [1, 4.5], // clip 5s covers 4.5s
       [6, 7.24], // clip 2s does NOT cover 7.24s
     ]);
 
-    const err = catchError(() => assertAvatarVoiceovers({ scenes, durationsById, contentDir }));
+    const err = catchError(() => assertAvatarVoiceovers({ scenes, voiceoverSecById, contentDir }));
     expect(err).toBeTruthy();
     expect(err.message).toContain("Scene 6");
     expect(err.message).toContain("7.24s");
 
     // with the CTA voiceover shortened, both clips cover their scenes
-    durationsById.set(6, 1.9);
-    expect(catchError(() => assertAvatarVoiceovers({ scenes, durationsById, contentDir }))).toBe(
+    voiceoverSecById.set(6, 1.9);
+    expect(catchError(() => assertAvatarVoiceovers({ scenes, voiceoverSecById, contentDir }))).toBe(
       null,
     );
   });
@@ -210,7 +213,7 @@ describe("#272 avatar clip must cover its voiceover", () => {
   it("touches nothing for scenes without an avatar declaration", () => {
     const bare = { id: 3, visualType: "narrative", voiceover: "plain" };
     expect(
-      catchError(() => assertAvatarScene({ scene: bare, sceneDurationSec: 9, contentDir })),
+      catchError(() => assertAvatarScene({ scene: bare, voiceoverDurationSec: 9, contentDir })),
     ).toBe(null);
     expect(stageAvatarVideos({ scenes: [bare], durations: [9], contentDir, publicAssetsDir })).toBe(
       0,

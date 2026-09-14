@@ -8,7 +8,7 @@
  */
 
 import { existsSync } from "fs";
-import { exec } from "child_process";
+import { exec, execFileSync } from "child_process";
 import { promisify } from "util";
 
 const execAsync = promisify(exec);
@@ -28,4 +28,24 @@ export async function getDuration(audioPath) {
     `"${ffprobeCmd}" -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
   );
   return parseFloat(stdout.trim());
+}
+
+/**
+ * Same probe, synchronous — for the pre-render staging gates, which run
+ * synchronously (they copy assets before the Remotion CLI is invoked) and so
+ * cannot await `getDuration`.
+ *
+ * @param {string} mediaPath - audio or video file
+ * @returns {number} duration in seconds
+ * @throws when ffprobe cannot read a duration
+ */
+export function getDurationSync(mediaPath) {
+  const raw = execFileSync(
+    ffprobeCmd,
+    ["-i", mediaPath, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"],
+    { stdio: ["pipe", "pipe", "pipe"] },
+  )
+    .toString()
+    .trim();
+  return parseFloat(raw);
 }

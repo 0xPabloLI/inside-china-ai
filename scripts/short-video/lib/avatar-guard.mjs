@@ -17,21 +17,39 @@
  * voiceover (content/dh-pilot-qwen4 scene-10, #225/#272).
  */
 
-import { execFileSync } from "child_process";
 import { existsSync } from "fs";
 import { join } from "path";
-import { ffprobeCmd } from "./tts/ffmpeg-cmd.mjs";
+import { getDurationSync } from "./tts/ffmpeg-cmd.mjs";
 
 /**
- * Seconds of slack when comparing clip length to voiceover length. This absorbs
- * container/frame rounding only (one frame at 30fps ≈ 0.033s), never a real
- * mismatch — the failure this guard exists for was 2.24s.
+ * Seconds of slack when comparing clip length to voiceover length: just over one
+ * frame at 30fps (0.033s), so container/frame quantisation cannot fail a clip
+ * that was generated for exactly this voiceover. It never admits a real
+ * mismatch — the failure this guard exists for was 2.24s short.
  */
 export const AVATAR_DURATION_EPSILON_SEC = 0.05;
 
 /**
- * The remediation hint every avatar failure carries. Regenerating the clip is
- * the fix for a stale one, so the generation CLI must be named here.
+ * Whether a Scene declares the avatar layer at all. Scenes with no declaration
+ * must stay byte-identical through every gate, so this predicate is the single
+ * entry condition for all of them.
+ *
+ * @param {object} scene
+ * @returns {boolean}
+ */
+export function isAvatarDeclared(scene) {
+  return Boolean(scene?.avatar) && typeof scene.avatar === "object";
+}
+
+/**
+ * The remediation hint every avatar failure carries.
+ *
+ * A stale clip needs the FORCE path, not a plain re-run: `digital-human run`
+ * skips a scene whose `videoPath` is already set (its documented stale-plan
+ * protection, lib/digital-human.mjs), so an operator who re-runs it without
+ * `--force` watches the stale clip survive and the gate fire again. It must be
+ * the ORIGINAL approved plan: a re-planned file marks scenes already-generated
+ * (#233).
  *
  * @param {object} scene
  * @param {string} declared - the declared videoPath (or a placeholder)
@@ -39,8 +57,12 @@ export const AVATAR_DURATION_EPSILON_SEC = 0.05;
  */
 export function avatarRemediation(scene, declared) {
   return (
-    `\n   Remediation: restore the generated clip at ${declared},` +
-    `\n   or regenerate it: node scripts/short-video/digital-human.mjs run --content <package>  (generation CLI: #214 T3),` +
+    `\n   Remediation: regenerate it with the FORCE path — a plain run SKIPS scenes whose` +
+    `\n   videoPath is already set (stale-plan protection), so a stale clip survives it:` +
+    `\n     node scripts/short-video/digital-human.mjs run --plan <original plan.json> --force` +
+    `\n   (--force clears scene-data avatar.videoPath + the cached mp4 + the matching remote-task` +
+    `\n   records, #233; use the ORIGINAL approved plan),` +
+    `\n   or restore the clip at ${declared} by hand,` +
     `\n   or remove scene.avatar from scene ${scene.id} to render without the card.`
   );
 }
@@ -54,14 +76,7 @@ export function avatarRemediation(scene, declared) {
  */
 export function probeMediaDurationSeconds(mediaPath) {
   try {
-    const raw = execFileSync(
-      ffprobeCmd,
-      ["-i", mediaPath, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    )
-      .toString()
-      .trim();
-    const duration = parseFloat(raw);
+    const duration = getDurationSync(mediaPath);
     return Number.isFinite(duration) && duration > 0 ? duration : NaN;
   } catch {
     return NaN;
@@ -78,20 +93,21 @@ export function probeMediaDurationSeconds(mediaPath) {
  *
  * @param {object} options
  * @param {object} options.scene - scene with an optional `avatar` declaration
- * @param {number} [options.sceneDurationSec] - the scene's CURRENT voiceover
- *   duration. Omit it only where the pipeline genuinely does not know it yet
- *   (the pre-TTS pass), which downgrades this to a presence + readability check.
+ * @param {number} [options.voiceoverDurationSec] - the scene's CURRENT voiceover
+ *   duration (from the TTS results, not the scene's own length). Omit it only
+ *   where the pipeline genuinely does not know it yet (the pre-TTS pass), which
+ *   downgrades this to a presence + readability check.
  * @param {string} [options.contentDir] - base dir for the content-relative path
  * @param {(path: string) => number} [options.probe] - duration probe (test seam)
  * @returns {{avatarDurationSec: number|null}} what was checked
  */
 export function assertAvatarScene({
   scene,
-  sceneDurationSec,
+  voiceoverDurationSec,
   contentDir = "",
   probe = probeMediaDurationSeconds,
 }) {
-  if (!scene?.avatar || typeof scene.avatar !== "object") return { avatarDurationSec: null };
+  if (!isAvatarDeclared(scene)) return { avatarDurationSec: null };
 
   // Declared but never generated (the generation CLI writes videoPath back) —
   // fail-closed rather than shipping the video without its host.
@@ -123,7 +139,7 @@ export function assertAvatarScene({
   // as long as the audio it was generated from, so a shorter one means the
   // voiceover was regenerated and the clip went stale — exactly the lip-sync the
   // viewer would see. Nothing downstream re-checks this, hence fail-closed.
-  const voiceoverSec = Number(sceneDurationSec);
+  const voiceoverSec = Number(voiceoverDurationSec);
   if (
     Number.isFinite(voiceoverSec) &&
     voiceoverSec > 0 &&
@@ -148,23 +164,23 @@ export function assertAvatarScene({
  *
  * @param {object} options
  * @param {Array<object>} options.scenes
- * @param {Map<number, number>} [options.durationsById] - voiceover seconds per scene id
+ * @param {Map<number, number>} [options.voiceoverSecById] - voiceover seconds per scene id
  * @param {string} [options.contentDir]
  * @param {(path: string) => number} [options.probe]
  * @returns {{checked: number}} declared clips verified
  */
 export function assertAvatarVoiceovers({
   scenes,
-  durationsById,
+  voiceoverSecById,
   contentDir = "",
   probe = probeMediaDurationSeconds,
 }) {
   let checked = 0;
   for (const scene of scenes || []) {
-    if (!scene?.avatar || typeof scene.avatar !== "object") continue;
+    if (!isAvatarDeclared(scene)) continue;
     assertAvatarScene({
       scene,
-      sceneDurationSec: durationsById?.get(scene.id),
+      voiceoverDurationSec: voiceoverSecById?.get(scene.id),
       contentDir,
       probe,
     });

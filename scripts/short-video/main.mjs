@@ -35,7 +35,11 @@ import { selectBGM } from "./lib/bgm.mjs";
 import { createProfiler } from "./lib/pipeline-profile.mjs";
 import { runMediaTrack } from "./lib/media-track.mjs";
 import { closeAsrAnalyzer } from "./lib/asr-analyzer.mjs";
-import { assertAvatarScene, assertAvatarVoiceovers } from "./lib/avatar-guard.mjs";
+import {
+  assertAvatarScene,
+  assertAvatarVoiceovers,
+  isAvatarDeclared,
+} from "./lib/avatar-guard.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -161,7 +165,7 @@ async function main() {
   // invariant (#272: a clip must cover its scene's voiceover) cannot be judged
   // here because no voiceover exists yet; it is enforced after Step 1 and again
   // at render staging. lib/avatar-guard.mjs is the single implementation.
-  const avatarScenes = scenes.filter((s) => s.avatar && typeof s.avatar === "object");
+  const avatarScenes = scenes.filter(isAvatarDeclared);
   const avatarContentDir = resolve(__dirname, "content", contentDir);
   if (avatarScenes.length > 0) {
     for (const scene of avatarScenes) {
@@ -313,15 +317,13 @@ async function main() {
   // voiceover duration is known; render staging enforces the same contract again
   // so render-only / rerender / realign runs cannot skip it.
   {
-    const declaredClips = scenes.filter(
-      (s) => s.avatar && typeof s.avatar === "object" && s.avatar.videoPath,
-    );
+    const declaredClips = scenes.filter((s) => isAvatarDeclared(s) && s.avatar.videoPath);
     if (declaredClips.length > 0) {
-      const durationsById = new Map(ttsResults.map((t) => [t.sceneId, t.duration]));
+      const voiceoverSecById = new Map(ttsResults.map((t) => [t.sceneId, t.duration]));
       try {
         assertAvatarVoiceovers({
           scenes: declaredClips,
-          durationsById,
+          voiceoverSecById,
           contentDir: avatarContentDir,
         });
       } catch (err) {
