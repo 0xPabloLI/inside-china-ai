@@ -11,6 +11,11 @@ export const OG_DEFAULT = abs(ogDefault.url);
 export const OG_COMPARE = abs(ogCompare.url);
 export const OG_TIKTOK = abs(ogTiktok.url);
 
+export function articleOgImageUrl(slug: string, updatedAt?: string | null): string {
+  const version = updatedAt ? `?v=${encodeURIComponent(updatedAt)}` : "";
+  return `${SITE_URL}/api/public/og/posts/${encodeURIComponent(slug)}.png${version}`;
+}
+
 /**
  * Per-route og:image templates. First matching pattern wins; anything without
  * a match falls back to OG_DEFAULT, so no route ever ships without a preview
@@ -32,11 +37,14 @@ export function ogImageForPath(path: string, cover?: string | null): string {
 }
 
 /** og:image + twitter:image meta pair for a leaf route. */
-export const ogImageMeta = (url: string = OG_DEFAULT) => [
+export const ogImageMeta = (url: string = OG_DEFAULT, alt?: string) => [
   { property: "og:image", content: url },
+  { property: "og:image:type", content: "image/png" },
   { property: "og:image:width", content: "1200" },
   { property: "og:image:height", content: "630" },
+  ...(alt ? [{ property: "og:image:alt", content: alt }] : []),
   { name: "twitter:image", content: url },
+  ...(alt ? [{ name: "twitter:image:alt", content: alt }] : []),
 ];
 
 /** og:image meta pair resolved from the route path (with automatic fallback). */

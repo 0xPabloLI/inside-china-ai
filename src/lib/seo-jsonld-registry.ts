@@ -14,7 +14,7 @@ import {
   organization,
   type JsonLdNode,
 } from "@/lib/structured-data";
-import { OG_DEFAULT, OG_TIKTOK, ogImageForPath } from "@/lib/og";
+import { OG_DEFAULT, OG_TIKTOK, articleOgImageUrl, ogImageForPath } from "@/lib/og";
 import { compareJsonLd } from "@/routes/compare.deepseek-vs-qwen-vs-glm";
 import { companiesJsonLd } from "@/routes/companies";
 import { tiktokConnectJsonLd } from "@/routes/tiktok-connect";
@@ -28,6 +28,8 @@ const samplePostJsonLd = () =>
       "How DeepSeek keeps shipping frontier reasoning models on a fraction of the budget.",
     url: `${SITE}posts/deepseek-art-of-restraint`,
     datePublished: "2026-08-01T00:00:00.000Z",
+    dateModified: "2026-08-02T00:00:00.000Z",
+    image: articleOgImageUrl("deepseek-art-of-restraint", "2026-08-02T00:00:00.000Z"),
   });
 
 /** Guards the shared builders themselves, independent of any route. */

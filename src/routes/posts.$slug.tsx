@@ -1,6 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { ogMetaForPath } from "@/lib/og";
+import { articleOgImageUrl, ogImageMeta } from "@/lib/og";
 import { jsonLdScript } from "@/lib/structured-data";
 import { postJsonLd } from "@/lib/post-structured-data";
 import { getPublishedPost } from "@/lib/posts.functions";
@@ -94,6 +94,8 @@ export const Route = createFileRoute("/posts/$slug")({
     if (!loaderData) return { meta: [] };
     const url = `https://chinaai.news/posts/${params.slug}`;
     const description = clampDescription(loaderData.excerpt ?? loaderData.title);
+    const image = articleOgImageUrl(params.slug, loaderData.updated_at);
+    const imageAlt = `${loaderData.title} — China AI News`;
     return {
       meta: [
         { title: buildTitle(loaderData.title) },
@@ -105,7 +107,7 @@ export const Route = createFileRoute("/posts/$slug")({
         { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: loaderData.title },
         { name: "twitter:description", content: description },
-        ...ogMetaForPath(`/posts/${params.slug}`),
+        ...ogImageMeta(image, imageAlt),
       ],
 
       links: [{ rel: "canonical", href: url }],
@@ -116,6 +118,8 @@ export const Route = createFileRoute("/posts/$slug")({
             description,
             url,
             datePublished: loaderData.published_at ?? undefined,
+            dateModified: loaderData.updated_at ?? loaderData.published_at ?? undefined,
+            image,
           }),
         ),
         ...(loaderData.tiktok_url?.trim()

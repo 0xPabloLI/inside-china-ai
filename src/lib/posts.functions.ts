@@ -15,7 +15,7 @@ export const listPublishedPosts = createServerFn({ method: "GET" }).handler(asyn
   const sb = createPublicClient();
   const { data, error } = await sb
     .from("posts")
-    .select("id, title, slug, excerpt, published_at")
+    .select("id, title, slug, excerpt, published_at, updated_at")
     .eq("published", true)
     .order("published_at", { ascending: false })
     .limit(100);
@@ -29,7 +29,7 @@ export const getPublishedPost = createServerFn({ method: "GET" })
     const sb = createPublicClient();
     const { data: row, error } = await sb
       .from("posts")
-      .select("id, title, slug, excerpt, content, published_at, tiktok_url")
+      .select("id, title, slug, excerpt, content, published_at, updated_at, tiktok_url")
       .eq("slug", data.slug)
       .eq("published", true)
       .maybeSingle();
