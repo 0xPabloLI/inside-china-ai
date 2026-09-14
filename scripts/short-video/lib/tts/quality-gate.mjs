@@ -16,6 +16,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { transcribeVideo } from "../video-understand.mjs";
 import { FAILURE_CLASS } from "./failure-class.mjs";
+import { validateInstructSignature } from "./instruct.mjs";
 
 // Pacing boundaries for vertical short videos (English)
 export const MIN_ACCEPTABLE_WPM = 115; // Below 115 WPM indicates dragging / unnatural pause / accent drift
@@ -329,6 +330,49 @@ async function transcribeViaWhisperCpp(audioPath, { languageHint } = {}) {
 }
 
 /**
+ * Prefix every instruct-signature warning carries, so `runTtsQualityGate` can
+ * surface them as their own block instead of burying them among take warnings.
+ */
+export const INSTRUCT_WARNING_PREFIX = "Instruct signature";
+
+/**
+ * Validate the instruct the ENGINE actually resolved for a scene (#270).
+ *
+ * The Quality Gate is the last seam before rendering, so it re-validates the
+ * resolved text instead of trusting it: an engine that hand-rolls its own
+ * instruct map (exactly how modal/NPU drifted onto the pre-#234 wording) or a
+ * new call site that bypasses `lib/tts/instruct.mjs` shows up here, whereas the
+ * pre-render gate only covers style coverage.
+ *
+ * Advisory by design. Blocking here would spend the #271 acoustic reroll budget
+ * regenerating a take whose INSTRUCT is the defect, and then report the wrong
+ * failure family; the hard stops live where the manifest is built
+ * (`instruct.mjs` throws) and in the pre-render gate.
+ *
+ * @param {object} scene
+ * @param {(scene: object) => string|undefined} [instructForScene] - the selected engine's resolver
+ * @returns {string[]} warning strings (empty when there is nothing to report)
+ */
+export function collectInstructWarnings(scene, instructForScene) {
+  if (typeof instructForScene !== "function") return [];
+
+  let instruct;
+  try {
+    instruct = instructForScene(scene);
+  } catch (err) {
+    // The engine refuses this scene's instruct outright — surface the reason
+    // instead of letting the gate's catch-all absorb it.
+    return [`${INSTRUCT_WARNING_PREFIX} [unresolvable_instruct]: ${err.message}`];
+  }
+  if (typeof instruct !== "string" || instruct.trim() === "") return [];
+
+  // Soft issues (a missing persona) are legitimate for hook/cta — not reported.
+  return validateInstructSignature(instruct).hardIssues.map(
+    (issue) => `${INSTRUCT_WARNING_PREFIX} [${issue.code}]: ${issue.detail}`,
+  );
+}
+
+/**
  * Evaluate a single scene's generated audio against expected voiceover.
  *
  * @param {object} scene - { id, voiceover, ttsText, voiceoverTts }
@@ -344,6 +388,7 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     maxWpm = MAX_ACCEPTABLE_WPM,
     minSimilarity = MIN_TEXT_SIMILARITY,
     strict = false,
+    instructForScene = null,
   } = options;
 
   // 1. Verify audio file exists and has non-zero size
@@ -369,6 +414,10 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
 
   const issues = [];
   const warnings = [];
+
+  // 2b. Instruct signature (#270) — see collectInstructWarnings for why this
+  // reports a warning instead of an issue.
+  warnings.push(...collectInstructWarnings(scene, instructForScene));
 
   const isLikelyEnglish = /[a-zA-Z]/.test(expectedSpokenText);
   if (isLikelyEnglish && wordCount >= 3) {
@@ -489,6 +538,20 @@ export async function runTtsQualityGate(scenes, ttsResults, options = {}) {
 
     const evalResult = await evaluateSceneTts(scene, r.audioPath, r.duration, options);
     evaluations.push(evalResult);
+
+    // #270: instruct drift is a CONFIG defect, not a take defect, so it gets its
+    // own block rather than mixing into the take warnings below.
+    const instructWarnings = evalResult.warnings.filter((w) =>
+      w.startsWith(INSTRUCT_WARNING_PREFIX),
+    );
+    if (instructWarnings.length > 0) {
+      console.warn(
+        `  ⛔ [Instruct] Scene ${scene.id} instruct violates the 4D standard (#270):\n` +
+          instructWarnings.map((w) => `     ${w}`).join("\n") +
+          `\n     → fix scripts/short-video/lib/tts/instruct.mjs (INSTRUCT_STANDARD); ` +
+          `never hand-write instruct text at a call site`,
+      );
+    }
 
     if (!evalResult.passed) {
       failedCount++;

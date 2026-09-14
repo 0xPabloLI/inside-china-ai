@@ -13,11 +13,14 @@ import {
   isWordInAsr,
   buildExpandedAsrTokenSet,
   classifyFailure,
+  collectInstructWarnings,
+  INSTRUCT_WARNING_PREFIX,
   MIN_ACCEPTABLE_WPM,
   FAILURE_CLASS,
 } from "../lib/tts/quality-gate.mjs";
 import { WPM_COMPENSATE_BELOW, MAX_TTS_SPEED } from "../lib/tts/pacing.mjs";
-import { writeFileSync, unlinkSync, mkdirSync, rmSync } from "fs";
+import { INSTRUCT_FORMAT, buildInstruct, createInstructResolver } from "../lib/tts/instruct.mjs";
+import { writeFileSync, unlinkSync, mkdirSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -407,5 +410,82 @@ describe("#271 gate floor vs compensation trigger", () => {
 
   it("pins the failure-family strings the registry routes on", () => {
     expect(FAILURE_CLASS).toEqual({ PACING: "pacing", ACOUSTIC: "acoustic" });
+  });
+});
+
+// ─── #270: instruct-signature re-validation ───
+// The Quality Gate is the last seam before rendering, so it re-validates the
+// instruct the engine ACTUALLY resolved. It reports a warning, not an issue:
+// blocking here would spend the #271 reroll budget on a take whose instruct is
+// the defect and then report the wrong failure family. The hard stops live at
+// manifest build (instruct.mjs throws) and in the pre-render gate.
+describe("#270 instruct signature re-validation at the gate", () => {
+  const LEGACY = "Speak with a calm and measured tone, like a narrator.";
+
+  it("reports nothing when no resolver is supplied (engines without instruct)", () => {
+    expect(collectInstructWarnings({ id: 1, visualType: "hook" }, undefined)).toEqual([]);
+    expect(collectInstructWarnings({ id: 1, visualType: "hook" }, null)).toEqual([]);
+  });
+
+  it("accepts the standard instruct on every engine format", () => {
+    for (const format of [INSTRUCT_FORMAT.PYTORCH, INSTRUCT_FORMAT.MLX]) {
+      const resolve = createInstructResolver({ format });
+      for (const style of ["hook", "narrative", "contrast"]) {
+        expect(collectInstructWarnings({ id: 1, visualType: style }, resolve)).toEqual([]);
+      }
+    }
+  });
+
+  it("flags the pre-#234 wording a hand-rolled engine map would resolve", () => {
+    const warnings = collectInstructWarnings({ id: 1, visualType: "narrative" }, () => LEGACY);
+    expect(warnings).toHaveLength(2);
+    expect(warnings.every((w) => w.startsWith(INSTRUCT_WARNING_PREFIX))).toBe(true);
+    expect(warnings.join("\n")).toContain("missing_system_prefix");
+    expect(warnings.join("\n")).toContain("missing_accent_guidance");
+  });
+
+  it("surfaces a resolver that refuses the scene instead of throwing through the gate", () => {
+    const warnings = collectInstructWarnings({ id: 1, visualType: "narrative" }, () => {
+      throw new Error('No TTS instruct for style "narrative"');
+    });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("unresolvable_instruct");
+  });
+
+  it("keeps the warning advisory in evaluateSceneTts (take verdict unchanged)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-instruct-gate-"));
+    const audio = join(dir, "scene-1.wav");
+    writeFileSync(audio, "RIFFdummydata");
+    const transcriber = vi.fn().mockResolvedValue({
+      ok: true,
+      segments: [{ text: "DeepSeek announced V4.1 on September tenth." }],
+    });
+
+    const scene = {
+      id: 1,
+      visualType: "narrative",
+      voiceover: "DeepSeek announced V4.1 on September tenth.",
+    };
+    const withLegacy = await evaluateSceneTts(scene, audio, 3.0, {
+      transcriber,
+      instructForScene: () => LEGACY,
+    });
+    const withStandard = await evaluateSceneTts(scene, audio, 3.0, {
+      transcriber,
+      instructForScene: createInstructResolver({ format: INSTRUCT_FORMAT.PYTORCH }),
+    });
+
+    expect(withLegacy.passed).toBe(withStandard.passed);
+    expect(withLegacy.failureClass).toBe(withStandard.failureClass);
+    expect(withLegacy.warnings.join("\n")).toContain(INSTRUCT_WARNING_PREFIX);
+    expect(withStandard.warnings.join("\n")).not.toContain(INSTRUCT_WARNING_PREFIX);
+
+    // The gate accepts the same standard text the resolver builds, so a passing
+    // engine can never be flagged for following the single source.
+    expect(
+      collectInstructWarnings({ id: 1, visualType: "narrative" }, () => buildInstruct("narrative")),
+    ).toEqual([]);
+
+    rmSync(dir, { recursive: true, force: true });
   });
 });

@@ -223,6 +223,14 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   const { useCache = process.env.TTS_NO_CACHE !== "1", runAlignment = true } = options;
 
   const atempo = getAtempo();
+  // #270: hand the Quality Gate the SELECTED engine's instruct resolver so it
+  // re-validates the exact instruct this engine produced — a hand-rolled engine
+  // map shows up here instead of shipping silently. Merged once so every gate
+  // call site (initial, self-heal, re-gate, pacing re-gate) sees it.
+  const qualityGateOptions = {
+    ...options.qualityGateOptions,
+    instructForScene: engine.instructForScene ?? null,
+  };
   console.log(`  TTS engine: ${engine.info}`);
   // Log actual post-processing based on engine config
   const steps = [];
@@ -269,11 +277,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   if (!skipQualityGate && toGenerate.length > 0) {
     try {
       const { runTtsQualityGate } = await import("./quality-gate.mjs");
-      let gateReport = await runTtsQualityGate(
-        toGenerate,
-        validatedResults,
-        options.qualityGateOptions,
-      );
+      let gateReport = await runTtsQualityGate(toGenerate, validatedResults, qualityGateOptions);
 
       // If any scene failed Quality Gate and retry is enabled
       const maxRetries = options.maxRetries ?? parseInt(process.env.TTS_RETRY_COUNT || "2", 10);
@@ -301,11 +305,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         }
 
         if (retryResults.length > 0) {
-          const retryGate = await runTtsQualityGate(
-            retryScenes,
-            retryResults,
-            options.qualityGateOptions,
-          );
+          const retryGate = await runTtsQualityGate(retryScenes, retryResults, qualityGateOptions);
           for (const res of retryResults) {
             const evalRes = retryGate.evaluations.find((e) => e.sceneId === res.sceneId);
             if (evalRes && evalRes.passed) {
@@ -316,11 +316,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           }
         }
 
-        gateReport = await runTtsQualityGate(
-          toGenerate,
-          validatedResults,
-          options.qualityGateOptions,
-        );
+        gateReport = await runTtsQualityGate(toGenerate, validatedResults, qualityGateOptions);
         if (gateReport.passed) {
           console.log(`  🎉 [TTS Self-Healing Loop] All scenes healed and passed Quality Gate!`);
           break;
@@ -450,11 +446,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
             );
           }
         } else {
-          const regenGate = await runTtsQualityGate(
-            regenScenes,
-            regenResults,
-            options.qualityGateOptions,
-          );
+          const regenGate = await runTtsQualityGate(regenScenes, regenResults, qualityGateOptions);
           for (const res of regenResults) {
             const evalRes = regenGate.evaluations.find((e) => e.sceneId === res.sceneId);
             const scene = regenScenes.find((s) => s.id === res.sceneId);

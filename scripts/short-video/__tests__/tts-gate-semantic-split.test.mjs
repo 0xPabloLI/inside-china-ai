@@ -103,6 +103,48 @@ function stubGate(plan) {
   });
 }
 
+describe("#270 the registry hands the gate the engine's instruct resolver", () => {
+  let dir;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dir = mkdtempSync(join(tmpdir(), "tts-gate-split-"));
+    delete process.env.TTS_SKIP_QUALITY_GATE;
+    delete process.env.TTS_STRICT_QUALITY_GATE;
+    delete process.env.TTS_RETRY_COUNT;
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("passes engine.instructForScene through so the gate can re-validate the resolved text", async () => {
+    const resolve = (scene) => `standard instruct for ${scene.visualType}`;
+    const engine = { ...fakeEngine(dir), instructForScene: resolve };
+    stubGate(() => ({ passed: true, wpm: 150 }));
+
+    await generateTTSWithEngine([makeNarrativeScene()], dir, engine, {
+      useCache: false,
+      runAlignment: false,
+    });
+
+    expect(runTtsQualityGate).toHaveBeenCalled();
+    for (const call of runTtsQualityGate.mock.calls) {
+      expect(call[2]?.instructForScene).toBe(resolve);
+    }
+  });
+
+  it("passes null when the engine has no instruct concept (f5/edge/say)", async () => {
+    const engine = fakeEngine(dir);
+    stubGate(() => ({ passed: true, wpm: 150 }));
+
+    await generateTTSWithEngine([makeNarrativeScene()], dir, engine, {
+      useCache: false,
+      runAlignment: false,
+    });
+
+    expect(runTtsQualityGate.mock.calls[0][2]?.instructForScene).toBeNull();
+  });
+});
+
 describe("#271 pacing family → compensation loop, fail-closed on residual", () => {
   let dir;
   beforeEach(() => {
