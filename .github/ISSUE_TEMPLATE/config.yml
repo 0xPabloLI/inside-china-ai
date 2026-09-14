@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Agent operating instructions
+    url: https://github.com/0xPabloLI/inside-china-ai/blob/main/AGENTS.md
+    about: Start here — workflow router, hard safety gates, and engineering references.
+  - name: Triage labels reference
+    url: https://github.com/0xPabloLI/inside-china-ai/blob/main/docs/agents/triage-labels.md
+    about: Category / state / priority / signal label conventions.

@@ -1,0 +1,35 @@
+name: Feature / Improvement
+description: New capability or improvement for the platform or the content pipeline
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Triage convention (see `docs/agents/triage-labels.md`): every issue carries exactly one
+        category label and one state label. New issues start as `needs-triage`.
+        Priority (P0-P3) is set during triage. `ready-for-agent` requires full specification
+        with acceptance criteria.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What should be possible that is not possible today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed direction
+      description: Optional — tools/APIs must pass the tool-admission check in `docs/tools-catalog.md` before integration.
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How we verify this is done. Required before the issue can move to `ready-for-agent`.
+    validations:
+      required: false

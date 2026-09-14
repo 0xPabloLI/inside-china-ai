@@ -1,0 +1,43 @@
+name: Bug Report
+description: Something is broken (pipeline, website, scripts, docs)
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Triage convention (see `docs/agents/triage-labels.md`): every issue carries exactly one
+        category label and one state label. New issues start as `needs-triage`.
+        Priority (P0-P3) is set during triage.
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened, including command, file, or scene that misbehaves.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, test output, command + exit code, or runtime artifact. Prefer real evidence over description.
+    validations:
+      required: false
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. node scripts/short-video/...
+        2. ...
+    validations:
+      required: false
