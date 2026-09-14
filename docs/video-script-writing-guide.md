@@ -285,6 +285,8 @@ CTA 公式：`[Action Verb] + [What They Get]`
 
 **assetNeed 约定（Stage 3 必填实践）**：scene 的素材需求写入结构化字段 `assetNeed: "一句英文视觉描述"`（不是 voiceover 里的文字标注——TTS 会把内嵌 `[ASSET NEEDED` 标注读出来，scene-rules B13 会 FAIL）。asset-sourcer 消费 `assetNeed` 做 per-scene claim 搜索并绑定到该 scene；VLM 对照 voiceover 主张做相关性审查，低于阈值的素材宁缺毋滥（scene 保持纯 CSS 是合法结果）。公司实体关键词仅作为无 `assetNeed` scene 的 fallback。
 
+**mediaStrategy 约定（Stage 3 必填实践）**：每个 scene 必须显式设置 `mediaStrategy`，不要依赖缺省值。省略时 b-roll orchestrator 静默按 `"asset"` 处理——生成被完全跳过，sourced image 落空时该 scene 会复用其他 scene 的素材（didi-robotaxi-r2 scene 3 实证：内景 scene 复用了外景官方图）。五个可选值：`"asset"`（只用已搜素材，无素材则纯 CSS）、`"asset-then-broll"`（先搜素材，落空再生成 B-roll）、`"b-roll"`（跳过搜索直接生成）、`"asset-then-ai-image"`（先搜素材，落空再生成 T2I 静图）、`"ai-image"`（直接生成静图）。生成类策略必须配 prompt，且字段随策略分派——T2I 两值用 `aiImage.prompt`（6 维），其余用 `aiVideo.prompt`（8 维）。preflight（`verify-video.mjs --pre`）的 **B-roll strategy contract** 检查对省略 `mediaStrategy` 的 scene 发 WARN。
+
 **asset-sourcer 当前限制（2026-09-03 实测）**：
 
 - 中文新闻 CDP 源（如量子位 `qbitai`）`supportsKeyword=false` 且未在 `CDP_MEDIA_CAPABILITIES` 中注册 → asset-sourcer 无法按关键词搜索这些源，只能全量抓取最新文章列表
