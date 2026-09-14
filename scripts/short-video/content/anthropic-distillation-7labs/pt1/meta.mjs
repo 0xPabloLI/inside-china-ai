@@ -1,0 +1,24 @@
+export const meta = {
+  subject: "moonshot",
+  pipelineId: "anthropic-distillation-7labs-pt1",
+  title: "Moonshot and DeepSeek Secretly Routed Users to Claude",
+  article: "anthropic-distillation-7labs",
+  seriesId: "anthropic-distillation-7labs",
+  partNumber: 1,
+  totalParts: 4,
+  createdAt: "2026-09-12",
+  topics: ["anthropic", "distillation", "moonshot", "deepseek", "kimi", "claude", "data-leak", "pla", "russia"],
+  keyEntities: {
+    companies: ["anthropic", "moonshot", "deepseek", "alibaba"],
+    people: [],
+    models: ["claude_opus", "kimi", "deepseek"],
+  },
+  dataPoints: [
+    "23 million exchanges (Moonshot, May-Jul 2026)",
+    "300,000 requests relayed in 10 days",
+    "5,380 fraudulent accounts (Singapore and Japan)",
+    "12.1 million exchanges (DeepSeek, 14 days Jul 2026)",
+    "PLA CCTV surveillance from hundreds of cameras in Chengdu",
+    "Russian defense ministry database credentials exposed",
+  ],
+};

@@ -1,0 +1,24 @@
+export const meta = {
+  subject: "alibaba",
+  pipelineId: "anthropic-distillation-7labs-pt2",
+  title: "Alibaba Ran the Largest Distillation Attack Ever Measured",
+  article: "anthropic-distillation-7labs",
+  seriesId: "anthropic-distillation-7labs",
+  partNumber: 2,
+  totalParts: 4,
+  createdAt: "2026-09-12",
+  topics: ["anthropic", "distillation", "alibaba", "qwen", "claude", "opus", "cot", "export-controls"],
+  keyEntities: {
+    companies: ["anthropic", "alibaba", "deepseek", "xiaomi"],
+    people: [],
+    models: ["claude_opus_4_6", "claude_opus_4_7", "qwen_3_5", "qwen_3_6", "qwen_3_7"],
+  },
+  dataPoints: [
+    "151 million exchanges (May-Jul 2026)",
+    "Peak 3 million exchanges per day",
+    "3,500+ fraudulent accounts",
+    "Targeted Claude Opus 4.6 and 4.7 CoT reasoning",
+    "Trained Qwen 3.5, 3.6, and 3.7",
+    "Nearly 5,000 accounts in first pool",
+  ],
+};

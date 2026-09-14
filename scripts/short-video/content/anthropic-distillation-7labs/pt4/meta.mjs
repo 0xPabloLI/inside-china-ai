@@ -1,0 +1,24 @@
+export const meta = {
+  subject: "anthropic",
+  pipelineId: "anthropic-distillation-7labs-pt4",
+  title: "Anthropic Caught the Theft, Then Published the Victims' Secrets",
+  article: "anthropic-distillation-7labs",
+  seriesId: "anthropic-distillation-7labs",
+  partNumber: 4,
+  totalParts: 4,
+  createdAt: "2026-09-12",
+  topics: ["anthropic", "distillation", "privacy", "data-leak", "pla", "russia", "surveillance", "moonshot", "deepseek"],
+  keyEntities: {
+    companies: ["anthropic", "moonshot", "deepseek"],
+    people: [],
+    models: ["claude_opus"],
+  },
+  dataPoints: [
+    "154-page public PDF report",
+    "PLA CCTV surveillance from hundreds of cameras in Chengdu",
+    "State-owned enterprise internal code and live credentials",
+    "Russian defense ministry database credentials",
+    "Police case management system tracking citizens by national ID",
+    "Hundreds of users in at least a dozen languages",
+  ],
+};
