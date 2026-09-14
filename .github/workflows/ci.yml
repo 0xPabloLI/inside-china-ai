@@ -29,6 +29,11 @@ jobs:
         run: npm ci
 
       - name: Lint (changed files only)
+        env:
+          # Routed through env so event data never lands in the shell line
+          # directly (script-injection hygiene).
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
           # Incremental lint gate: the repo carries ~1000 pre-existing
           # prettier/prettier formatting errors (hooks never ran eslint), so a
@@ -37,9 +42,9 @@ jobs:
           # every file touched by a PR/push must be lint-clean; schedule a
           # dedicated `prettier --write` debt commit separately.
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-          elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-            BASE="${{ github.event.before }}"
+            BASE="$PR_BASE"
+          elif [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            BASE="$PUSH_BEFORE"
           else
             BASE=$(git rev-parse HEAD^)
           fi
@@ -55,7 +60,7 @@ jobs:
         run: npm run lint:docs
 
       - name: TODO marker gate
-        run: node scripts/lint-todos.mjs
+        run: npm run lint:todos
 
       - name: Type check
         run: npx tsc --noEmit

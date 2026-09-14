@@ -45,7 +45,8 @@ export default defineConfig({
       // .gitignore has no coverage/ entry and carries unrelated WIP.
       reportsDirectory: ".scratch/coverage",
       thresholds: {
-        // Ratchet: set from the measured full-suite baseline (2026-09-14,
+        // Ratchet: set from the measured CI-mode full-suite baseline
+        // (2026-09-14, VITEST_CI_SKIP_RESEARCH=1,
         // .scratch/coverage/coverage-summary.json: 74.2/73.37/74.96/67.79);
         // raise, never lower.
         lines: 72,

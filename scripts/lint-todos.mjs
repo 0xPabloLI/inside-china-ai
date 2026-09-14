@@ -35,10 +35,10 @@ const EXCLUDED_DIR_NAMES = new Set([
   ".git",
 ]);
 
-// Any directory whose name contains "output" is pipeline output (output/,
-// output_v22/, v33-output/, ...) holding vendored third-party source —
-// gitignored and never ours to lint.
-const OUTPUT_DIR_PATTERN = /output/i;
+// Pipeline output dirs (gitignored) hold vendored third-party source — never
+// ours to lint. Anchored so a legit source dir like "output-utils/" stays
+// scanned: matches output, output_v22, v33-output, v2-output, ...
+const OUTPUT_DIR_PATTERN = /^(?:v\d+-)?output(?:[_-]?v?\d+)?$/i;
 
 // The scanner and its tests mention TODO/FIXME as words they operate on —
 // they are the rule's implementation, not debt. Skip them entirely.

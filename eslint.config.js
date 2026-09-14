@@ -55,6 +55,10 @@ export default tseslint.config(
         },
       ],
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      // Cyclomatic complexity ceiling: flags functions that accrete branches
+      // and become agent-hostile to reason about. 25 is generous — it exists
+      // to stop new extremes, not to churn existing code.
+      complexity: ["error", 25],
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
