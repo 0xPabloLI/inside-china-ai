@@ -134,11 +134,10 @@ const EMOTION_PATTERN = /\bwith\s+(?:a|an)\b[^.]*\btone\b/i;
 
 /**
  * @param {string} style
- * @param {object} [standard]
  * @returns {boolean} whether the style has a standard entry
  */
-export function hasInstructStyle(style, standard = INSTRUCT_STANDARD) {
-  return Boolean(style) && Object.prototype.hasOwnProperty.call(standard.styles, style);
+export function hasInstructStyle(style) {
+  return Boolean(style) && Object.prototype.hasOwnProperty.call(INSTRUCT_STANDARD.styles, style);
 }
 
 /** Strip any engine terminator and surrounding whitespace. @param {string} text */
@@ -171,28 +170,24 @@ export function applyInstructFormat(text, format) {
  * @param {string} style - visualType / refStyle
  * @param {object} [opts]
  * @param {string} [opts.format] - INSTRUCT_FORMAT value (default PYTORCH)
- * @param {typeof INSTRUCT_STANDARD} [opts.standard]
  * @returns {string} instruct text in the requested engine format
  * @throws {Error} when the style has no standard entry — fail before any GPU
  *   push rather than letting a manifest reach the kernel with no instruct
  *   (which is how #273's missing contrast/info-card entries surfaced).
  */
-export function buildInstruct(
-  style,
-  { format = INSTRUCT_FORMAT.PYTORCH, standard = INSTRUCT_STANDARD } = {},
-) {
-  const spec = standard.styles?.[style];
+export function buildInstruct(style, { format = INSTRUCT_FORMAT.PYTORCH } = {}) {
+  const spec = INSTRUCT_STANDARD.styles[style];
   if (!spec) {
     throw new Error(
       `No TTS instruct for style "${style}" (#270). The instruct standard is the single ` +
         `source in scripts/short-video/lib/tts/instruct.mjs — add a "${style}" entry there ` +
         `(Persona + Accent + Emotion + Pacing) instead of hand-writing instruct text at the ` +
-        `call site. Known styles: ${Object.keys(standard.styles ?? {}).join(", ")}.`,
+        `call site. Known styles: ${Object.keys(INSTRUCT_STANDARD.styles).join(", ")}.`,
     );
   }
-  const parts = [standard.systemPrefix];
+  const parts = [INSTRUCT_STANDARD.systemPrefix];
   if (spec.persona) parts.push(spec.persona);
-  parts.push(standard.accent);
+  parts.push(INSTRUCT_STANDARD.accent);
   let body = `${parts.join(" ")} ${spec.emotion}`;
   if (spec.pacing) body += ` ${spec.pacing}`;
   return applyInstructFormat(body, format);
@@ -205,22 +200,20 @@ export function buildInstruct(
  * soft issues are advisory (Persona is legitimately absent for hook/cta).
  *
  * @param {string} text
- * @param {object} [opts]
- * @param {typeof INSTRUCT_STANDARD} [opts.standard]
  * @returns {{ok: boolean, issues: Array<{code: string, severity: "hard"|"soft", detail: string, fix?: string}>, hardIssues: Array<object>, softIssues: Array<object>, dimensions: {systemPrefix: boolean, accent: boolean, persona: boolean, emotion: boolean, pacing: boolean}}}
  */
-export function validateInstructSignature(text, { standard = INSTRUCT_STANDARD } = {}) {
+export function validateInstructSignature(text) {
   const body = stripInstructSuffix(text);
   const lower = body.toLowerCase();
-  const withoutPrefix = lower.replace(standard.systemPrefix.toLowerCase(), "");
-  const pacingMarkers = Object.values(standard.styles ?? {})
+  const withoutPrefix = lower.replace(INSTRUCT_STANDARD.systemPrefix.toLowerCase(), "");
+  const pacingMarkers = Object.values(INSTRUCT_STANDARD.styles)
     .map((s) => s.pacing)
     .filter(Boolean)
     .map((p) => p.toLowerCase());
 
   const dimensions = {
-    systemPrefix: lower.includes(standard.systemPrefix.toLowerCase()),
-    accent: lower.includes(standard.accent.toLowerCase()),
+    systemPrefix: lower.includes(INSTRUCT_STANDARD.systemPrefix.toLowerCase()),
+    accent: lower.includes(INSTRUCT_STANDARD.accent.toLowerCase()),
     persona: /\byou are\b/i.test(withoutPrefix),
     emotion: EMOTION_PATTERN.test(body),
     pacing: pacingMarkers.some((marker) => lower.includes(marker)),
@@ -231,16 +224,16 @@ export function validateInstructSignature(text, { standard = INSTRUCT_STANDARD }
     issues.push({
       code: "missing_system_prefix",
       severity: "hard",
-      detail: `the "${standard.systemPrefix}" prefix is mandatory (#234) — without it instruct words are read as content`,
-      fix: `prepend "${standard.systemPrefix}"`,
+      detail: `the "${INSTRUCT_STANDARD.systemPrefix}" prefix is mandatory (#234) — without it instruct words are read as content`,
+      fix: `prepend "${INSTRUCT_STANDARD.systemPrefix}"`,
     });
   }
   if (!dimensions.accent) {
     issues.push({
       code: "missing_accent_guidance",
       severity: "hard",
-      detail: `positive accent guidance ("${standard.accent}") is mandatory — it is the clause that suppressed the #234 Indian-accent regression`,
-      fix: `add "${standard.accent}"`,
+      detail: `positive accent guidance ("${INSTRUCT_STANDARD.accent}") is mandatory — it is the clause that suppressed the #234 Indian-accent regression`,
+      fix: `add "${INSTRUCT_STANDARD.accent}"`,
     });
   }
   if (!dimensions.emotion) {
@@ -258,7 +251,7 @@ export function validateInstructSignature(text, { standard = INSTRUCT_STANDARD }
       severity: "hard",
       detail:
         "negative accent prompting backfires (latent pink-elephant effect, #234) — state the target accent positively",
-      fix: `replace the negation with "${standard.accent}"`,
+      fix: `replace the negation with "${INSTRUCT_STANDARD.accent}"`,
     });
   }
   if (!dimensions.persona) {
@@ -291,11 +284,8 @@ export function validateInstructSignature(text, { standard = INSTRUCT_STANDARD }
  * @returns {string}
  * @throws {Error} when the override fails the standard
  */
-export function normalizeExplicitInstruct(
-  text,
-  { format = INSTRUCT_FORMAT.PYTORCH, standard = INSTRUCT_STANDARD } = {},
-) {
-  const report = validateInstructSignature(text, { standard });
+export function normalizeExplicitInstruct(text, { format = INSTRUCT_FORMAT.PYTORCH } = {}) {
+  const report = validateInstructSignature(text);
   if (!report.ok) {
     throw new Error(
       `TTS instruct override rejected (#270): ${report.hardIssues.map((i) => i.code).join(", ")}. ` +
@@ -318,33 +308,29 @@ export function normalizeExplicitInstruct(
  * @param {{visualType?: string, refStyle?: string, instruct?: string}} scene
  * @param {object} [opts]
  * @param {string} [opts.format]
- * @param {typeof INSTRUCT_STANDARD} [opts.standard]
  * @returns {string|undefined}
  */
-export function resolveInstructForScene(
-  scene,
-  { format = INSTRUCT_FORMAT.PYTORCH, standard = INSTRUCT_STANDARD } = {},
-) {
+export function resolveInstructForScene(scene, { format = INSTRUCT_FORMAT.PYTORCH } = {}) {
   const override = typeof scene?.instruct === "string" ? scene.instruct.trim() : "";
-  if (override) return normalizeExplicitInstruct(override, { format, standard });
+  if (override) return normalizeExplicitInstruct(override, { format });
 
   const style = scene?.refStyle || scene?.visualType;
   if (!style) return undefined;
-  return buildInstruct(style, { format, standard });
+  return buildInstruct(style, { format });
 }
 
 /**
  * Bind one engine family's format into a resolver — the per-engine seam
  * (`engine.instructForScene`, also used as the #244 cache-key input).
  *
+ * There is deliberately no `standard` injection here: INSTRUCT_STANDARD is a
+ * module constant, so "single source" is literal. A second language or engine
+ * standard would be added beside it in this file, not threaded in by callers.
+ *
  * @param {object} [opts]
  * @param {string} [opts.format]
- * @param {typeof INSTRUCT_STANDARD} [opts.standard]
  * @returns {(scene: object) => string|undefined}
  */
-export function createInstructResolver({
-  format = INSTRUCT_FORMAT.PYTORCH,
-  standard = INSTRUCT_STANDARD,
-} = {}) {
-  return (scene) => resolveInstructForScene(scene, { format, standard });
+export function createInstructResolver({ format = INSTRUCT_FORMAT.PYTORCH } = {}) {
+  return (scene) => resolveInstructForScene(scene, { format });
 }
