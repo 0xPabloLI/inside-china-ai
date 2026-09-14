@@ -28,7 +28,9 @@ export const Route = createFileRoute("/api/public/og/posts/$slug.png")({
   server: {
     handlers: {
       GET: async ({ params, request }) => {
-        const slug = params["slug.png"];
+        const routeValue = params["slug.png"];
+        const pathValue = decodeURIComponent(new URL(request.url).pathname.split("/").at(-1) ?? "");
+        const slug = (routeValue || pathValue).replace(/\.png$/, "");
         if (!SLUG_PATTERN.test(slug)) return new Response("Not found", { status: 404 });
 
         const sb = createPublicClient();
