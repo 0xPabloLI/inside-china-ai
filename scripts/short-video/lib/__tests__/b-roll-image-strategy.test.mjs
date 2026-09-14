@@ -47,7 +47,10 @@ describe("image strategy routing (#155)", () => {
 
   test("'asset-then-ai-image' with sourced media skips (asset wins, no GPU spent)", () => {
     const plans = planScenes([
-      imageScene({ mediaStrategy: "asset-then-ai-image", media: { type: "image", path: "assets/x.png" } }),
+      imageScene({
+        mediaStrategy: "asset-then-ai-image",
+        media: { type: "image", path: "assets/x.png" },
+      }),
     ]);
     expect(plans[0].action).toBe("skip");
     expect(plans[0].reason).toMatch(/has-media/);
@@ -100,7 +103,13 @@ describe("runBrollStage image strategy (#155)", () => {
       fileExists: () => true,
       generate: async () => ({ ok: true, fatal: null, results: [] }),
       resolveDeps: () => ({ ok: true, repo: "/repo", python: "/py", missing: [], message: null }),
-      resolveImageDeps: () => ({ ok: true, bin: "/bin/mflux", backend: "mflux-z-image-turbo", missing: [], message: null }),
+      resolveImageDeps: () => ({
+        ok: true,
+        bin: "/bin/mflux",
+        backend: "mflux-z-image-turbo",
+        missing: [],
+        message: null,
+      }),
       analyzer: async () => ({ relevance: 99, relevanceReason: "great" }),
       ...overrides,
     };
@@ -307,7 +316,12 @@ describe("runBrollStage image strategy (#155)", () => {
     };
     const scenes = [
       imageScene({ id: 11 }),
-      imageScene({ id: 5, mediaStrategy: "b-roll", aiImage: undefined, aiVideo: { prompt: "video prompt" } }),
+      imageScene({
+        id: 5,
+        mediaStrategy: "b-roll",
+        aiImage: undefined,
+        aiVideo: { prompt: "video prompt" },
+      }),
     ];
     const result = await runBrollStage(baseOpts(dirs, { scenes, generate }));
     expect(imageJobs.length).toBe(2);

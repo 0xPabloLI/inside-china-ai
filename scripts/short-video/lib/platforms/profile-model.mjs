@@ -77,10 +77,7 @@ export function validateProfileShape(profile) {
   // Publish HITL gate (#219 T03): the enabled set controls which methods a
   // platform may actually publish through — automation paths are closed until
   // per-platform authorization enables them (spec Implementation Decisions 4).
-  if (
-    !Array.isArray(profile.enabledPublishMethods) ||
-    profile.enabledPublishMethods.length === 0
-  ) {
+  if (!Array.isArray(profile.enabledPublishMethods) || profile.enabledPublishMethods.length === 0) {
     errors.push("enabledPublishMethods: non-empty array required");
   } else {
     for (const method of profile.enabledPublishMethods) {
@@ -146,7 +143,8 @@ export function validateProfileShape(profile) {
     errors.push("manualGuide.steps: non-empty array required");
   }
 
-  const declaresVideo = Array.isArray(profile.artifactTypes) && profile.artifactTypes.includes("video");
+  const declaresVideo =
+    Array.isArray(profile.artifactTypes) && profile.artifactTypes.includes("video");
   if (declaresVideo) {
     if (!profile.video || typeof profile.video !== "object") {
       errors.push("video: object required when artifactTypes includes 'video'");
@@ -154,13 +152,19 @@ export function validateProfileShape(profile) {
       if (!Number.isInteger(profile.video.maxSizeBytes) || profile.video.maxSizeBytes <= 0) {
         errors.push("video.maxSizeBytes: positive integer (bytes) required");
       }
-      if (!Number.isInteger(profile.video.maxDurationSeconds) || profile.video.maxDurationSeconds <= 0) {
+      if (
+        !Number.isInteger(profile.video.maxDurationSeconds) ||
+        profile.video.maxDurationSeconds <= 0
+      ) {
         errors.push("video.maxDurationSeconds: positive integer required");
       }
       if (typeof profile.video.minFps !== "number" || !(profile.video.minFps > 0)) {
         errors.push("video.minFps: positive number required");
       }
-      if (!Array.isArray(profile.video.containerFormats) || profile.video.containerFormats.length === 0) {
+      if (
+        !Array.isArray(profile.video.containerFormats) ||
+        profile.video.containerFormats.length === 0
+      ) {
         errors.push("video.containerFormats: non-empty array required");
       }
 

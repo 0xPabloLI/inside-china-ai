@@ -21,20 +21,20 @@
 
 每个来源保留既有注册表的通用字段，并新增明确的追踪元数据。
 
-| 字段                           | 值或格式                                        | 用途                                          |
-| ------------------------------ | ----------------------------------------------- | --------------------------------------------- |
-| `name`                         | 稳定 ASCII 标识，例如 `wechat2rss_jiqizhixin`   | 统计、去重来源标签与测试断言。                |
-| `label`                        | 公众号可读名称                                  | 日志和趋势输出。                              |
-| `category`                     | `wechat`                                        | 语义分类。                                    |
+| 字段                           | 值或格式                                        | 用途                                                                                             |
+| ------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `name`                         | 稳定 ASCII 标识，例如 `wechat2rss_jiqizhixin`   | 统计、去重来源标签与测试断言。                                                                   |
+| `label`                        | 公众号可读名称                                  | 日志和趋势输出。                                                                                 |
+| `category`                     | `wechat`                                        | 语义分类。                                                                                       |
 | `supportsKeyword`              | `false`                                         | 固定 Feed 不支持关键词；研究模式将其作为 `tracked-feed-context` 组每 run 拉取一次（issue #97）。 |
-| `accessMethod.primary`         | `api`                                           | 复用现有无认证 HTTP 拉取路径。                |
-| `apiSearch.url`                | 固定的 `https://wechat2rss.xlab.app/feed/*.xml` | 指向公共 RSS 输出。                           |
-| `apiSearch.parser`             | RSS 2.0 解析器                                  | 产出 `{ title, url, snippet, publishedAt }`。 |
-| `tracking.provider`            | `wechat2rss`                                    | 记录第三方提供者。                            |
-| `tracking.access`              | `public-rss`                                    | 表明项目只消费公共输出。                      |
-| `tracking.official`            | `false`                                         | 避免误解为公众平台官方 API。                  |
-| `tracking.freshnessWindowDays` | `14`                                            | 仅用于该来源的近期过滤。                      |
-| `tracking.stability`           | `third-party`                                   | 表明上游可能变更或失效。                      |
+| `accessMethod.primary`         | `api`                                           | 复用现有无认证 HTTP 拉取路径。                                                                   |
+| `apiSearch.url`                | 固定的 `https://wechat2rss.xlab.app/feed/*.xml` | 指向公共 RSS 输出。                                                                              |
+| `apiSearch.parser`             | RSS 2.0 解析器                                  | 产出 `{ title, url, snippet, publishedAt }`。                                                    |
+| `tracking.provider`            | `wechat2rss`                                    | 记录第三方提供者。                                                                               |
+| `tracking.access`              | `public-rss`                                    | 表明项目只消费公共输出。                                                                         |
+| `tracking.official`            | `false`                                         | 避免误解为公众平台官方 API。                                                                     |
+| `tracking.freshnessWindowDays` | `14`                                            | 仅用于该来源的近期过滤。                                                                         |
+| `tracking.stability`           | `third-party`                                   | 表明上游可能变更或失效。                                                                         |
 
 RSS 解析器必须读取每个 `<item>` 的 `<title>`、`<link>`、`<description>`/`<content:encoded>` 和 `<pubDate>`；标题和摘要需移除 CDATA/XML 包装，摘要最多 200 字。空标题或空链接的条目不进入后续处理。
 
@@ -82,15 +82,15 @@ RSS 解析器必须读取每个 `<item>` 的 `<title>`、`<link>`、`<descriptio
 
 ### Section 2: Behavioral Scenarios
 
-|   # | 场景                         | 预期行为                                                                       | 风险   | 缓解                                               |
-| --: | ---------------------------- | ------------------------------------------------------------------------------ | ------ | -------------------------------------------------- |
-|   1 | 读取 Source Registry         | 导出恰好 12 个 `wechat2rss_*` 来源，均具有公共 RSS、非官方与第三方稳定性标记。 | Medium | 配置测试验证名称唯一、URL 完整、元数据齐全。       |
-|   2 | 有效 RSS 条目                | 解析标题、原文链接、摘要和发布时间；摘要不超过 200 字。                        | Medium | 使用 CDATA 与普通 XML 的固定夹具测试。             |
-|   3 | 条目在 14 天内               | 条目进入现有中国 AI 过滤、分类与去重。                                         | Medium | 以固定时钟测试边界日期。                           |
-|   4 | 条目早于 14 天或日期无效     | 该条目不进入趋势输出。                                                         | Medium | 来源局部日期过滤，避免旧文反复成为热点。           |
-|   5 | 非 Wechat 来源没有新追踪标记 | 不执行新增日期过滤，保持现有行为。                                             | High   | 回归测试已有 API 来源的结果。                      |
-|   6 | 某个 Feed 超时/5xx/XML 损坏  | 该源返回空集；其余来源与最终输出继续产生。                                     | Medium | 沿用既有 `collectFromApi` 错误捕获并添加故障测试。 |
-|   7 | 多个来源报道同一主题         | 标题相似度去重合并来源与 URL，保持现有主题输出结构。                           | Medium | 集成夹具验证来源合并。                             |
+|   # | 场景                         | 预期行为                                                                                               | 风险   | 缓解                                                   |
+| --: | ---------------------------- | ------------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------ |
+|   1 | 读取 Source Registry         | 导出恰好 12 个 `wechat2rss_*` 来源，均具有公共 RSS、非官方与第三方稳定性标记。                         | Medium | 配置测试验证名称唯一、URL 完整、元数据齐全。           |
+|   2 | 有效 RSS 条目                | 解析标题、原文链接、摘要和发布时间；摘要不超过 200 字。                                                | Medium | 使用 CDATA 与普通 XML 的固定夹具测试。                 |
+|   3 | 条目在 14 天内               | 条目进入现有中国 AI 过滤、分类与去重。                                                                 | Medium | 以固定时钟测试边界日期。                               |
+|   4 | 条目早于 14 天或日期无效     | 该条目不进入趋势输出。                                                                                 | Medium | 来源局部日期过滤，避免旧文反复成为热点。               |
+|   5 | 非 Wechat 来源没有新追踪标记 | 不执行新增日期过滤，保持现有行为。                                                                     | High   | 回归测试已有 API 来源的结果。                          |
+|   6 | 某个 Feed 超时/5xx/XML 损坏  | 该源返回空集；其余来源与最终输出继续产生。                                                             | Medium | 沿用既有 `collectFromApi` 错误捕获并添加故障测试。     |
+|   7 | 多个来源报道同一主题         | 标题相似度去重合并来源与 URL，保持现有主题输出结构。                                                   | Medium | 集成夹具验证来源合并。                                 |
 |   8 | 研究模式运行                 | 固定 Wechat Feed 作为 `tracked-feed-context` 组每 run 拉取一次，但不进入 brief 的 `candidateSources`。 | Low    | `groupSourcesByEvidenceRole` + `buildBrief` 过滤断言。 |
 
 ## 非目标与后续

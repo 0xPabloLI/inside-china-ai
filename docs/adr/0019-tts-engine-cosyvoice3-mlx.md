@@ -13,6 +13,7 @@ then, Issue #179 conducted a comprehensive 8-engine comparison (48 samples,
 6 emotion scenarios × 8 engines) with human listening evaluation.
 
 User requirements (clarified 2026-09-07):
+
 - **Commercial license** (not limited to Apache, but must be commercially usable)
 - **Voice cloning** — zero-shot clone from reference audio
 - **Emotion control** — instruct-based emotion/style control
@@ -23,14 +24,14 @@ User requirements (clarified 2026-09-07):
 
 Engines meeting all three hard requirements (commercial + clone + emotion):
 
-| Engine | License | Emotion | Cloning | Local RTF | User Feedback |
-|--------|---------|---------|---------|-----------|---------------|
-| **CosyVoice3 (CUDA)** | Apache-2.0 ✅ | instruct2 ✅ | ✅ | N/A (remote) | emotion matches A100 |
-| CosyVoice3-MLX | Apache-2.0 ✅ | instruct2 ✅ | ✅ | 0.64-0.87x | emotion regression |
-| F5-TTS-MLX | CC-BY-NC ❌ | ❌ none | ✅ | 9-11x | (former default) |
-| Zonos v1 | Apache-2.0 ✅ | 8D+pitch ✅ | ✅ | 11.6x | "稳定合适" but v2 has电音 |
-| VoxCPM2 | Apache-2.0 ✅ | clone+style ✅ | ✅ | 0.33x (A100) | "中规中矩" |
-| Qwen3-TTS | Apache-2.0 ✅ | instruct ✅ | ⚠️ cannot coexist | 2x | "拖音太夸张" |
+| Engine                | License       | Emotion        | Cloning           | Local RTF    | User Feedback             |
+| --------------------- | ------------- | -------------- | ----------------- | ------------ | ------------------------- |
+| **CosyVoice3 (CUDA)** | Apache-2.0 ✅ | instruct2 ✅   | ✅                | N/A (remote) | emotion matches A100      |
+| CosyVoice3-MLX        | Apache-2.0 ✅ | instruct2 ✅   | ✅                | 0.64-0.87x   | emotion regression        |
+| F5-TTS-MLX            | CC-BY-NC ❌   | ❌ none        | ✅                | 9-11x        | (former default)          |
+| Zonos v1              | Apache-2.0 ✅ | 8D+pitch ✅    | ✅                | 11.6x        | "稳定合适" but v2 has电音 |
+| VoxCPM2               | Apache-2.0 ✅ | clone+style ✅ | ✅                | 0.33x (A100) | "中规中矩"                |
+| Qwen3-TTS             | Apache-2.0 ✅ | instruct ✅    | ⚠️ cannot coexist | 2x           | "拖音太夸张"              |
 
 ### MPS emotion regression investigation (2026-09-07)
 
@@ -45,6 +46,7 @@ regression** vs the CUDA version. Root causes identified:
    precision; MPS doesn't support float64, forced to use float32
 
 **MPS experiment results:**
+
 - `torch.backends.mps.matmul.allow_tf32` — doesn't exist in torch 2.3.1
 - `torch.set_float32_matmul_precision('highest')` — causes MPS float64 errors
 - `CoreMLExecutionProvider` — 795/1367 ONNX nodes use CoreML, rest CPU
@@ -68,6 +70,7 @@ doesn't consume Kaggle quota.
 
 Kaggle P100 CUDA matches the Modal A100 emotion baseline exactly (verified
 by user listening). Kaggle provides:
+
 - **Free** GPU compute (30h/week, P100 16GB)
 - **Full CUDA EP** for ONNX speech_tokenizer
 - **float64 support** for hifigan f0 predictor
@@ -99,6 +102,7 @@ backup, Qwen3-TTS as secondary fallback, edge-tts as cloud fallback, and macOS
 `say` as last resort.
 
 Engine priority:
+
 1. **CosyVoice3-Kaggle-CUDA** (DEFAULT — P100 GPU, full emotion fidelity, Apache-2.0, ~8-10min/batch)
 2. **CosyVoice3-Modal-CUDA** (PAID FALLBACK — A100 GPU, same CUDA emotion as Kaggle, ~$0.20-0.50/batch, used when Kaggle 30h/week quota exhausted)
 3. **CosyVoice3-NPU** (FREE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA, RTF ~2.2x, no Kaggle/Modal quota)
@@ -116,6 +120,7 @@ Modal is paid (~$30/mo) but has no weekly quota limit.
 ### Emotion mapping
 
 CosyVoice3 uses `instruct_text` per scene, mapped from `visualType`/`refStyle`:
+
 - `hook` → excited and shocked tone
 - `narrative` → calm and measured tone
 - `data` → clear and informative tone
@@ -151,25 +156,30 @@ MLX version auto-appends it — do NOT include it in instruct_text for MLX.
 ### Setup requirements
 
 Kaggle CUDA (default):
+
 - Kaggle CLI installed (`pip install kaggle`)
 - `~/.kaggle/kaggle.json` with API credentials
 - Internet + GPU enabled on kernel
 
 Modal CUDA (paid fallback, same emotion quality):
+
 - Modal CLI installed + authenticated (`modal token new`)
 - A100 GPU access (included in Modal paid plan)
 - First run downloads model to volume (~10min), cached after
 
 NPU fallback (free, in-China):
+
 - AtomGit Notebook with NPU 910B + 32GB CPU tier
 - `COSYVOICE3_NPU_JUPYTER_URL` env var set to Jupyter API base URL
 - torch_npu pre-installed in Notebook environment
 
 MLX fallback (optional, for offline/fast iteration):
+
 - `~/.video-tts-env` Python 3.12 venv with mlx-audio
 - `~/.cosyvoice3-mlx-model` model directory
 
 ### Future engine swap
 
 Requires: (1) new adapter in `lib/tts/`, (2) register in `ENGINE_FACTORIES`
-+ `PRIORITY`, (3) verify post-processing compatibility, (4) update tests.
+
+- `PRIORITY`, (3) verify post-processing compatibility, (4) update tests.

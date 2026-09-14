@@ -153,7 +153,9 @@ try {
   ).trim();
   const n = parseInt(probe, 10);
   if (Number.isFinite(n) && n > 0) actualFrames = n;
-} catch { /* fall back to schedule total */ }
+} catch {
+  /* fall back to schedule total */
+}
 
 // Extract ALL target frames (scene midpoints + final frame) in ONE ffmpeg
 // pass (#198 Item 5). The per-frame `select=eq(n,X)` spawn used to decode the
@@ -215,7 +217,9 @@ for (let i = 0; i < scenes.length; i++) {
 }
 
 // ─── Last frame: the CTA must hold to the very last frame ───
-console.log(`Final frame (${lastFrame}/${Math.min(totalFrames, actualFrames)}): CTA must still be on screen`);
+console.log(
+  `Final frame (${lastFrame}/${Math.min(totalFrames, actualFrames)}): CTA must still be on screen`,
+);
 
 const lastFramePath = extractedFrames.get(lastFrame);
 if (!lastFramePath) {

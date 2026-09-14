@@ -37,7 +37,14 @@
  */
 import { join, resolve } from "node:path";
 
-import { executeApprove, executePlan, MODEL_TIERS, readPlanFile, runPlan, resumePlan } from "./lib/digital-human.mjs";
+import {
+  executeApprove,
+  executePlan,
+  MODEL_TIERS,
+  readPlanFile,
+  runPlan,
+  resumePlan,
+} from "./lib/digital-human.mjs";
 import { auditDigitalHumanPackage, FRAME_AUDIT_RESULT_NAME } from "./lib/avatar-frame-audit.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
 
@@ -121,7 +128,9 @@ function printRunOutcome(result, subcommand) {
       }
       console.log(
         `   Units: ${report.totals.units}, generated scenes: ${report.totals.scenesGenerated}` +
-          (report.totals.scenesSkipped ? `, skipped (already generated): ${report.totals.scenesSkipped}` : ""),
+          (report.totals.scenesSkipped
+            ? `, skipped (already generated): ${report.totals.scenesSkipped}`
+            : ""),
       );
       console.log(
         `   耗时 ${report.totals.elapsedSeconds}s · 平台 ${report.totals.platform} · 费用 $${report.totals.costUsd.toFixed(2)}` +
@@ -166,7 +175,9 @@ async function main() {
     console.log(`✅ Plan approved (HITL gate passed)`);
     console.log(`   Plan: ${result.planPath}`);
     console.log(`   approvedAt: ${result.plan.approval.approvedAt}`);
-    console.log(`   Next: node scripts/short-video/digital-human.mjs run --plan ${result.planPath}`);
+    console.log(
+      `   Next: node scripts/short-video/digital-human.mjs run --plan ${result.planPath}`,
+    );
     return;
   }
 
@@ -236,7 +247,9 @@ async function runPlanSubcommand(args) {
 
   const plan = result.plan;
   console.log(`   Pipeline: ${plan.pipelineId}`);
-  console.log(`   Segmentation cap: ${plan.model.segmentCapSeconds}s/segment (silence-boundary split)`);
+  console.log(
+    `   Segmentation cap: ${plan.model.segmentCapSeconds}s/segment (silence-boundary split)`,
+  );
   console.log("");
   for (const s of plan.scenes) {
     if (s.status === "already-generated") {
@@ -255,7 +268,9 @@ async function runPlanSubcommand(args) {
   }
   console.log("");
   console.log(`   Scenes needing generation: ${plan.totals.scenesNeedingGeneration}`);
-  console.log(`   Segments: ${plan.totals.segments} → generation units: ${plan.totals.generationUnits}`);
+  console.log(
+    `   Segments: ${plan.totals.segments} → generation units: ${plan.totals.generationUnits}`,
+  );
   console.log(`   Generated audio: ${plan.totals.generatedSeconds}s`);
   console.log(
     `   Platform: ${plan.totals.platform} — est. ${plan.totals.estimatedMinutes} min` +
@@ -279,7 +294,9 @@ async function runAuditSubcommand(args) {
   const planDir = resolve(planPath, "..");
   const outputBase = resolve(planDir, "..");
   if (outputRoot && resolve(outputRoot) !== outputBase) {
-    console.error(`❌ --output-root ${outputRoot} does not match the plan's output dir ${outputBase}`);
+    console.error(
+      `❌ --output-root ${outputRoot} does not match the plan's output dir ${outputBase}`,
+    );
     process.exit(1);
   }
 
@@ -296,13 +313,17 @@ async function runAuditSubcommand(args) {
   // Scene count for timeline offsets comes from the package's scene-data.
   let totalSceneCount = 0;
   try {
-    const dataMod = await import(`${resolve(plan.contentDir, "scene-data.mjs").replace(/\\/g, "/")}`);
+    const dataMod = await import(
+      `${resolve(plan.contentDir, "scene-data.mjs").replace(/\\/g, "/")}`
+    );
     totalSceneCount = (dataMod.scenes ?? []).length;
   } catch {
     // readSceneDurationsForTimeline still validates completeness against this count.
   }
   if (!totalSceneCount) {
-    console.error(`❌ Cannot read scenes from ${plan.contentDir}/scene-data.mjs — timeline offsets unavailable`);
+    console.error(
+      `❌ Cannot read scenes from ${plan.contentDir}/scene-data.mjs — timeline offsets unavailable`,
+    );
     process.exit(1);
   }
 

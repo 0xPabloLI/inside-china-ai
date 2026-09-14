@@ -9,7 +9,12 @@ export const meta = {
   keyEntities: {
     companies: ["deepseek"],
     people: [],
-    models: ["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v4-flash-vision-exp", "deepseek-v4-1-flash"],
+    models: [
+      "deepseek-v4-flash",
+      "deepseek-v4-pro",
+      "deepseek-v4-flash-vision-exp",
+      "deepseek-v4-1-flash",
+    ],
   },
   dataPoints: [
     "V4.1 Flash internal test opened Sep 8, 2026 (DeepSeek official group)",

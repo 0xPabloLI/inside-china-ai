@@ -155,9 +155,7 @@ describe("measureAudioDrift (integration, real ffmpeg)", () => {
       const srcWav = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(srcWav, noise(seconds, seed), 44100);
       const mp3Path = join(audioDir, `scene-${id}.mp3`);
-      execSync(
-        `ffmpeg -y -i "${srcWav}" -codec:a libmp3lame -q:a 4 "${mp3Path}" 2>/dev/null`,
-      );
+      execSync(`ffmpeg -y -i "${srcWav}" -codec:a libmp3lame -q:a 4 "${mp3Path}" 2>/dev/null`);
       mp3Paths.push(mp3Path);
     }
 
@@ -307,9 +305,7 @@ describe("finalizeRenderedVideo (integration, real ffmpeg)", () => {
       const srcWav = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(srcWav, noise(seconds, seed), 44100);
       const mp3Path = join(audioDir, `scene-${id}.mp3`);
-      execSync(
-        `ffmpeg -y -i "${srcWav}" -codec:a libmp3lame -q:a 4 "${mp3Path}" 2>/dev/null`,
-      );
+      execSync(`ffmpeg -y -i "${srcWav}" -codec:a libmp3lame -q:a 4 "${mp3Path}" 2>/dev/null`);
       mp3Paths.push(mp3Path);
     }
 

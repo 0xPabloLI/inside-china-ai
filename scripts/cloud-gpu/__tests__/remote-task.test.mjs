@@ -36,9 +36,7 @@ describe("classifyTaskError", () => {
   });
 
   it("classifies kernel error/cancel as execution-failed (terminal)", () => {
-    expect(classifyTaskError("Kaggle kernel finished with status: error")).toBe(
-      "execution-failed",
-    );
+    expect(classifyTaskError("Kaggle kernel finished with status: error")).toBe("execution-failed");
   });
 
   it("classifies timeouts as timeout-resumable", () => {
@@ -93,7 +91,9 @@ describe("resumableTasks", () => {
     recordTask(tasksPath, { id: "complete-1", backend: "kaggle", state: "complete" });
     recordTask(tasksPath, { id: "failed-1", backend: "kaggle", state: "failed" });
 
-    const ids = resumableTasks(tasksPath).map((t) => t.id).sort();
+    const ids = resumableTasks(tasksPath)
+      .map((t) => t.id)
+      .sort();
     expect(ids).toEqual(["running-1", "timeout-1"]);
   });
 

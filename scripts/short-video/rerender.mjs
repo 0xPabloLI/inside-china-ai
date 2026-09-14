@@ -20,7 +20,9 @@ if (existsSync(patchPath)) {
   );
   if (assigned.length > 0) {
     const r = applyAssignedMedia(scenes, assigned, contentDirAbs);
-    console.log(`📦 Applied ${r.applied} media assignments to scenes: ${r.appliedSceneIds.join(", ")}`);
+    console.log(
+      `📦 Applied ${r.applied} media assignments to scenes: ${r.appliedSceneIds.join(", ")}`,
+    );
   }
 }
 
@@ -36,7 +38,12 @@ console.log(`🎬 Re-rendering ${scenes.length} scenes with ${audioPaths.length}
 console.log(`   Durations: ${durations.map((d) => d.toFixed(1) + "s").join(", ")}`);
 console.log(`   Total: ${durations.reduce((s, d) => s + d, 0).toFixed(1)}s`);
 console.log(`   Subtitles: ${existsSync(subtitlesPath) ? "yes" : "no"}`);
-console.log(`   Scenes with media: ${scenes.filter((s) => s.media?.path).map((s) => s.id).join(", ")}`);
+console.log(
+  `   Scenes with media: ${scenes
+    .filter((s) => s.media?.path)
+    .map((s) => s.id)
+    .join(", ")}`,
+);
 
 const result = renderRemotion({
   scenes,

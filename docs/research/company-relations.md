@@ -23,13 +23,13 @@
 
 `howToPresent(entity)`：低认知度实体返回 "Parent's Brand" 句式——
 
-| 实体 | 表述 | 认知度 |
-| --- | --- | --- |
-| ant-group | **Alibaba's Ant Group** | low（#245 用户反馈） |
-| lingbot | Alibaba's Ant Group LingBot | low |
-| doubao | ByteDance's Doubao AI | low |
-| hunyuan | Tencent's Hunyuan | low |
-| glm | Zhipu's GLM model | low |
+| 实体      | 表述                        | 认知度               |
+| --------- | --------------------------- | -------------------- |
+| ant-group | **Alibaba's Ant Group**     | low（#245 用户反馈） |
+| lingbot   | Alibaba's Ant Group LingBot | low                  |
+| doubao    | ByteDance's Doubao AI       | low                  |
+| hunyuan   | Tencent's Hunyuan           | low                  |
+| glm       | Zhipu's GLM model           | low                  |
 
 高认知度（alibaba/bytedance/tencent/baidu/huawei/xiaomi/deepseek/openai/google/meta/nvidia/capcut 等）直接用本名。
 

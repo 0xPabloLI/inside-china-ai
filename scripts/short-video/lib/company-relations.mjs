@@ -29,14 +29,17 @@ export function loadCompanyRelations() {
   const byId = new Map();
   for (const e of parsed.entities) {
     for (const field of ["entity", "hashtag", "matchKeys", "overseasAwareness"]) {
-      if (e[field] === undefined) throw new Error(`company-relations.json: ${e.entity ?? "?"} lacks ${field}`);
+      if (e[field] === undefined)
+        throw new Error(`company-relations.json: ${e.entity ?? "?"} lacks ${field}`);
     }
     if (byId.has(e.entity)) throw new Error(`company-relations.json: duplicate entity ${e.entity}`);
     byId.set(e.entity, e);
   }
   for (const e of parsed.entities) {
     if (e.parent && !byId.has(e.parent)) {
-      throw new Error(`company-relations.json: ${e.entity} parent ${e.parent} is not a known entity`);
+      throw new Error(
+        `company-relations.json: ${e.entity} parent ${e.parent} is not a known entity`,
+      );
     }
   }
   cache = parsed;

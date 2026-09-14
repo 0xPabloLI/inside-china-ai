@@ -7,7 +7,17 @@ export const meta = {
   partNumber: 1,
   totalParts: 4,
   createdAt: "2026-09-12",
-  topics: ["anthropic", "distillation", "moonshot", "deepseek", "kimi", "claude", "data-leak", "pla", "russia"],
+  topics: [
+    "anthropic",
+    "distillation",
+    "moonshot",
+    "deepseek",
+    "kimi",
+    "claude",
+    "data-leak",
+    "pla",
+    "russia",
+  ],
   keyEntities: {
     companies: ["anthropic", "moonshot", "deepseek", "alibaba"],
     people: [],

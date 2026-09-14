@@ -12,15 +12,15 @@
 
 ### 1.1 v1 vs v2 参数对比
 
-| 参数 | v1（稳定合适） | v2（电音/机械音） | 变化 |
-|------|----------------|-------------------|------|
-| pitch_std (hook) | 80 | 45 | ↓ 44% |
-| pitch_std (narrative) | 25 | 20 | ↓ 20% |
-| pitch_std (cta) | 60 | 40 | ↓ 33% |
-| speaking_rate (hook) | 16 | 20 | ↑ 25% |
-| speaking_rate (narrative) | 14 | 18 | ↑ 29% |
-| speaking_rate (cta) | 16 | 20 | ↑ 25% |
-| emotion vec | 同 | 同 | 不变 |
+| 参数                      | v1（稳定合适） | v2（电音/机械音） | 变化  |
+| ------------------------- | -------------- | ----------------- | ----- |
+| pitch_std (hook)          | 80             | 45                | ↓ 44% |
+| pitch_std (narrative)     | 25             | 20                | ↓ 20% |
+| pitch_std (cta)           | 60             | 40                | ↓ 33% |
+| speaking_rate (hook)      | 16             | 20                | ↑ 25% |
+| speaking_rate (narrative) | 14             | 18                | ↑ 29% |
+| speaking_rate (cta)       | 16             | 20                | ↑ 25% |
+| emotion vec               | 同             | 同                | 不变  |
 
 ### 1.2 用户听感反馈
 
@@ -29,12 +29,12 @@
 
 ### 1.3 客观指标对比
 
-| 指标 | v1 | v2 |
-|------|----|----|
-| 总耗时 | 1112s | 920s（快 17%） |
-| hook-en RTF | 27.0x | 22.4x |
-| 其他段 RTF | ~11.6x | ~12.0x |
-| 中文输出时长 | 14-18s | 11-15s（短 18%） |
+| 指标         | v1        | v2                 |
+| ------------ | --------- | ------------------ |
+| 总耗时       | 1112s     | 920s（快 17%）     |
+| hook-en RTF  | 27.0x     | 22.4x              |
+| 其他段 RTF   | ~11.6x    | ~12.0x             |
+| 中文输出时长 | 14-18s    | 11-15s（短 18%）   |
 | 英文输出时长 | 8.5-11.5s | 6.7-8.9s（短 22%） |
 
 v2 更快更短，但音质退化——**速度换质量的失败案例**。
@@ -50,6 +50,7 @@ v2 更快更短，但音质退化——**速度换质量的失败案例**。
 > `speaking_rate`: Default 15. Represents roughly 15 syllables per second. 30 is very fast. **Unrealistic speaking rates can be OOD and create undesirable effects.**
 
 v2 将 speaking_rate 从 14-16 提到 18-20（+25%），接近 OOD 边界。时间压缩导致：
+
 - 音素被挤压，产生机械感
 - 辅音/停顿被吞掉，自然度下降
 - 高频成分相对增强，听感"电音"
@@ -62,11 +63,11 @@ v2 将 speaking_rate 从 14-16 提到 18-20（+25%），接近 OOD 边界。时�
 
 v2 的 pitch_std 降低与高情感 emotion vec 冲突：
 
-| 场景 | emotion 强度 | v1 pitch_std | v2 pitch_std | 冲突？ |
-|------|-------------|-------------|-------------|--------|
-| hook-shock | Surprise=0.85, Anger=0.3 | 80（表达力强） | 45（正常上限） | ✅ 冲突 |
-| cta-call | Happiness=0.75, Surprise=0.4 | 60（表达力强） | 40（正常） | ✅ 冲突 |
-| narrative-calm | Neutral=0.9 | 25（正常） | 20（正常偏低） | ⚠️ 轻微 |
+| 场景           | emotion 强度                 | v1 pitch_std   | v2 pitch_std   | 冲突？  |
+| -------------- | ---------------------------- | -------------- | -------------- | ------- |
+| hook-shock     | Surprise=0.85, Anger=0.3     | 80（表达力强） | 45（正常上限） | ✅ 冲突 |
+| cta-call       | Happiness=0.75, Surprise=0.4 | 60（表达力强） | 40（正常）     | ✅ 冲突 |
+| narrative-calm | Neutral=0.9                  | 25（正常）     | 20（正常偏低） | ⚠️ 轻微 |
 
 hook 和 cta 场景的 emotion vec 要求高表现力，但 v2 的 pitch_std 降到"正常"范围，模型在"高情感文本 + 低 pitch_std"的矛盾下产生伪影。
 
@@ -110,24 +111,24 @@ v2 的参数组合（高 speaking_rate + 低 pitch_std + 高 emotion）不在官
 
 ### 3.2 Per-emotion 参数表
 
-| 场景 | emotion | emotion_vec 策略 | pitch_std | speaking_rate | cfg_scale |
-|------|---------|------------------|-----------|---------------|-----------|
-| hook-shock | unconditional | 让模型推断 | 70-80 | 15-16 | 2.0 |
-| narrative-calm | unconditional | 让模型推断 | 25-30 | 14-15 | 2.0 |
-| cta-call | unconditional | 让模型推断 | 55-65 | 15-16 | 2.0 |
-| 中性叙述 | unconditional | 让模型推断 | 40-45 | 15 | 2.0 |
+| 场景           | emotion       | emotion_vec 策略 | pitch_std | speaking_rate | cfg_scale |
+| -------------- | ------------- | ---------------- | --------- | ------------- | --------- |
+| hook-shock     | unconditional | 让模型推断       | 70-80     | 15-16         | 2.0       |
+| narrative-calm | unconditional | 让模型推断       | 25-30     | 14-15         | 2.0       |
+| cta-call       | unconditional | 让模型推断       | 55-65     | 15-16         | 2.0       |
+| 中性叙述       | unconditional | 让模型推断       | 40-45     | 15            | 2.0       |
 
 ### 3.3 手动 emotion vec 参考（高级用法）
 
 如需手动设 emotion vec，遵循以下规则：
 
-| 情感 | emotion_vec 模式 | 推荐 pitch_std |
-|------|------------------|---------------|
-| 震惊/惊讶 | Surprise=0.85, Anger=0.3 | 70-80 |
-| 平静/叙述 | Neutral=0.9 | 25-30 |
-| 号召/急迫 | Happiness=0.75, Surprise=0.4 | 55-65 |
-| 悲伤 | Sadness=0.8 | 30-40 |
-| 愤怒 | Anger=0.8 | 60-70 |
+| 情感      | emotion_vec 模式             | 推荐 pitch_std |
+| --------- | ---------------------------- | -------------- |
+| 震惊/惊讶 | Surprise=0.85, Anger=0.3     | 70-80          |
+| 平静/叙述 | Neutral=0.9                  | 25-30          |
+| 号召/急迫 | Happiness=0.75, Surprise=0.4 | 55-65          |
+| 悲伤      | Sadness=0.8                  | 30-40          |
+| 愤怒      | Anger=0.8                    | 60-70          |
 
 **关键**：emotion vec 中任何维度 >0.5 时，pitch_std 必须 ≥55。
 
@@ -166,6 +167,7 @@ v3 与 v1 的关键差异：emotion 改用 unconditional（减少手动调参风
 ### 4.1 GitHub Issues
 
 Zyphra/Zonos 仓库共 134 个 issue，未找到直接讨论 robotic/electronic sound 的 issue。相关讨论：
+
 - #42: "Audio quality degradation with high speaking_rate"（已关闭，建议 rate ≤17）
 - #78: "emotion vec vs unconditional comparison"（开放，用户报告 unconditional 更稳定）
 - #103: "pitch_std too low causes flat output"（已关闭，确认 pitch_std 需匹配 emotion）

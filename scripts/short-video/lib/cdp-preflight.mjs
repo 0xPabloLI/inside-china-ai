@@ -25,7 +25,16 @@ import { openSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const PROXY_SCRIPT = join(__dirname, "..", "..", "..", "skills", "web-access", "scripts", "cdp-proxy.mjs");
+const PROXY_SCRIPT = join(
+  __dirname,
+  "..",
+  "..",
+  "..",
+  "skills",
+  "web-access",
+  "scripts",
+  "cdp-proxy.mjs",
+);
 const PROXY_LOG = join(__dirname, "..", "output", "cdp-proxy.log");
 const PROXY_PORT = process.env.CDP_PROXY_PORT || "3456";
 
@@ -79,7 +88,9 @@ export async function ensureCdpOrExit({ autoStart = true, waitMs = 12000 } = {})
   }
 
   if (autoStart) {
-    console.log("  🔌 CDP proxy not responding — starting skills/web-access/scripts/cdp-proxy.mjs ...");
+    console.log(
+      "  🔌 CDP proxy not responding — starting skills/web-access/scripts/cdp-proxy.mjs ...",
+    );
     let pid = null;
     try {
       pid = startProxyDetached();

@@ -7,7 +7,16 @@ export const meta = {
   partNumber: 2,
   totalParts: 4,
   createdAt: "2026-09-12",
-  topics: ["anthropic", "distillation", "alibaba", "qwen", "claude", "opus", "cot", "export-controls"],
+  topics: [
+    "anthropic",
+    "distillation",
+    "alibaba",
+    "qwen",
+    "claude",
+    "opus",
+    "cot",
+    "export-controls",
+  ],
   keyEntities: {
     companies: ["anthropic", "alibaba", "deepseek", "xiaomi"],
     people: [],

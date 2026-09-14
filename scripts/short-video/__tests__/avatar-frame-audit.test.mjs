@@ -96,8 +96,12 @@ function buildCardClip(outPath, kind) {
     // E2E card (median 33); the (X+Y) phase term makes it read as moving
     // texture rather than a uniform flicker.
     args = [
-      "-f", "lavfi", "-i", `color=c=0x303030:s=${CARD_W}x${CARD_H}:r=${FPS}:d=${DUR},format=gray`,
-      "-vf", "geq=lum='48+45*sin(N*0.9+(X+Y)*0.15)':cb=128:cr=128",
+      "-f",
+      "lavfi",
+      "-i",
+      `color=c=0x303030:s=${CARD_W}x${CARD_H}:r=${FPS}:d=${DUR},format=gray`,
+      "-vf",
+      "geq=lum='48+45*sin(N*0.9+(X+Y)*0.15)':cb=128:cr=128",
     ];
   } else if (kind === "moving") {
     // Static gray "face" + a mouth patch whose luminance VARIES EVERY FRAME
@@ -107,19 +111,29 @@ function buildCardClip(outPath, kind) {
     // background luminance (48 ± 40, no DC jump at interval edges): an edge
     // spike several times the in-speech energy would alias the sync
     // cross-correlation onto the edge rhythm instead of the utterance.
-    const onExpr = MOUTH_ON.map(([a, b]) => `between(N,${Math.round(a * FPS)},${Math.round(b * FPS) - 1})`).join("+");
+    const onExpr = MOUTH_ON.map(
+      ([a, b]) => `between(N,${Math.round(a * FPS)},${Math.round(b * FPS) - 1})`,
+    ).join("+");
     args = [
-      "-f", "lavfi", "-i", `color=c=0x303030:s=${CARD_W}x${CARD_H}:r=${FPS}:d=${DUR},format=gray`,
+      "-f",
+      "lavfi",
+      "-i",
+      `color=c=0x303030:s=${CARD_W}x${CARD_H}:r=${FPS}:d=${DUR},format=gray`,
       // NOTE the parens around the on/off sum: without them the amplitude
       // would multiply only the LAST between() term (a + b * c == a + (b*c)).
-      "-vf", `geq=lum='if(${patchTest},48+(${onExpr})*(40*sin(N*2.4)),48)':cb=128:cr=128`,
+      "-vf",
+      `geq=lum='if(${patchTest},48+(${onExpr})*(40*sin(N*2.4)),48)':cb=128:cr=128`,
     ];
   } else {
     // Fully static card (static face + static mouth patch) — the "static face
     // fake video" fixture.
     args = [
-      "-f", "lavfi", "-i", `color=c=0x303030:s=${CARD_W}x${CARD_H}:r=${FPS}:d=${DUR},format=gray`,
-      "-vf", `geq=lum='if(${patchTest},200,48)':cb=128:cr=128`,
+      "-f",
+      "lavfi",
+      "-i",
+      `color=c=0x303030:s=${CARD_W}x${CARD_H}:r=${FPS}:d=${DUR},format=gray`,
+      "-vf",
+      `geq=lum='if(${patchTest},200,48)':cb=128:cr=128`,
     ];
   }
   execFileSync(
@@ -135,12 +149,36 @@ function buildToneWav(outPath, { delayMs = 0 } = {}) {
   // Multiply by the sum of between() gates (0/1) — no if(), whose unescaped
   // commas would be treated as lavfi filter separators.
   const expr = `0.6*sin(2*PI*440*t)*(${onExpr.replaceAll(",", "\\,")})`;
-  const base = ["-f", "lavfi", "-i", `aevalsrc=${expr}:s=16000:d=${DUR}`, "-c:a", "pcm_s16le", "-y", outPath];
+  const base = [
+    "-f",
+    "lavfi",
+    "-i",
+    `aevalsrc=${expr}:s=16000:d=${DUR}`,
+    "-c:a",
+    "pcm_s16le",
+    "-y",
+    outPath,
+  ];
   if (delayMs > 0) {
-    execFileSync(FFMPEG_PATH, ["-f", "lavfi", "-i", `aevalsrc=${expr}:s=16000:d=${DUR}`, "-af", `adelay=${delayMs}:all=1`, "-c:a", "pcm_s16le", "-y", outPath], {
-      stdio: ["pipe", "pipe", "pipe"],
-      timeout: 60_000,
-    });
+    execFileSync(
+      FFMPEG_PATH,
+      [
+        "-f",
+        "lavfi",
+        "-i",
+        `aevalsrc=${expr}:s=16000:d=${DUR}`,
+        "-af",
+        `adelay=${delayMs}:all=1`,
+        "-c:a",
+        "pcm_s16le",
+        "-y",
+        outPath,
+      ],
+      {
+        stdio: ["pipe", "pipe", "pipe"],
+        timeout: 60_000,
+      },
+    );
   } else {
     execFileSync(FFMPEG_PATH, base, { stdio: ["pipe", "pipe", "pipe"], timeout: 60_000 });
   }
@@ -150,13 +188,24 @@ function buildToneWav(outPath, { delayMs = 0 } = {}) {
 function buildFixtureVideo(outPath, cardClip, x, y, audioPath) {
   const args = [
     "-y",
-    "-f", "lavfi", "-i", `color=c=0x14141e:s=${CANVAS.width}x${CANVAS.height}:r=${FPS}:d=${DUR}`,
-    "-i", cardClip,
+    "-f",
+    "lavfi",
+    "-i",
+    `color=c=0x14141e:s=${CANVAS.width}x${CANVAS.height}:r=${FPS}:d=${DUR}`,
+    "-i",
+    cardClip,
     ...(audioPath ? ["-i", audioPath] : []),
-    "-filter_complex", `[0][1]overlay=x=${x}:y=${y}[v]`,
-    "-map", "[v]",
+    "-filter_complex",
+    `[0][1]overlay=x=${x}:y=${y}[v]`,
+    "-map",
+    "[v]",
     ...(audioPath ? ["-map", "2:a", "-c:a", "aac", "-shortest"] : []),
-    "-pix_fmt", "yuv420p", "-c:v", "libx264", "-crf", "28",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:v",
+    "libx264",
+    "-crf",
+    "28",
     outPath,
   ];
   execFileSync(FFMPEG_PATH, args, { stdio: ["pipe", "pipe", "pipe"], timeout: 120_000 });
@@ -332,7 +381,10 @@ describe("auditDigitalHumanPackage (plan-level)", () => {
       join(audioDir, "scene-1.tts-meta.json"),
       JSON.stringify({ duration: DUR, audioPath: "scene-1.wav" }),
     );
-    writeFileSync(join(audioDir, "scene-durations.json"), JSON.stringify([{ sceneId: 1, duration: DUR }]));
+    writeFileSync(
+      join(audioDir, "scene-durations.json"),
+      JSON.stringify([{ sceneId: 1, duration: DUR }]),
+    );
     return { contentRoot, outputRoot, pkg };
   }
 
@@ -364,7 +416,9 @@ describe("auditDigitalHumanPackage (plan-level)", () => {
       totalSceneCount: 1,
     });
     expect(result.ok).toBe(false);
-    expect(result.totals.failedGates.some((f) => f.gate === "safe-zone" && /action rail/.test(f.detail))).toBe(true);
+    expect(
+      result.totals.failedGates.some((f) => f.gate === "safe-zone" && /action rail/.test(f.detail)),
+    ).toBe(true);
     expect(existsSync(result.resultPath)).toBe(true);
   });
 });
@@ -390,31 +444,56 @@ describe("digital-human.mjs audit subcommand", () => {
       join(audioDir, "scene-1.tts-meta.json"),
       JSON.stringify({ duration: DUR, audioPath: "scene-1.wav" }),
     );
-    writeFileSync(join(audioDir, "scene-durations.json"), JSON.stringify([{ sceneId: 1, duration: DUR }]));
+    writeFileSync(
+      join(audioDir, "scene-durations.json"),
+      JSON.stringify([{ sceneId: 1, duration: DUR }]),
+    );
     return { contentRoot, outputRoot };
   }
 
   it("compliant render → exit 0 and per-gate PASS lines", async () => {
-    const { contentRoot, outputRoot } = makeCliPackage({ toneWav: alignedWav, pipelineId: "t05-cli-pass" });
+    const { contentRoot, outputRoot } = makeCliPackage({
+      toneWav: alignedWav,
+      pipelineId: "t05-cli-pass",
+    });
     const planResult = await executePlan({ contentSlug: "t05-cli-pass", contentRoot, outputRoot });
     const res = spawnSync(
       process.execPath,
-      [join(LIB_DIR, "..", "digital-human.mjs"), "audit", "--plan", planResult.planPath, "--video", fixtures.compliant],
+      [
+        join(LIB_DIR, "..", "digital-human.mjs"),
+        "audit",
+        "--plan",
+        planResult.planPath,
+        "--video",
+        fixtures.compliant,
+      ],
       { encoding: "utf8", timeout: 180_000 },
     );
     expect(res.status, res.stderr || res.stdout).toBe(0);
     expect(res.stdout).toContain("[safe-zone] PASS");
     expect(res.stdout).toContain("[lip-sync] PASS");
     expect(res.stdout).toContain("[av-sync] PASS");
-    expect(existsSync(join(outputRoot, "t05-cli-pass", "avatar", FRAME_AUDIT_RESULT_NAME))).toBe(true);
+    expect(existsSync(join(outputRoot, "t05-cli-pass", "avatar", FRAME_AUDIT_RESULT_NAME))).toBe(
+      true,
+    );
   }, 240_000);
 
   it("rail-intruding render → exit 1, gate + zone named, evidence dir cited (not publish-chain-eligible)", async () => {
-    const { contentRoot, outputRoot } = makeCliPackage({ toneWav: alignedWav, pipelineId: "t05-cli-fail" });
+    const { contentRoot, outputRoot } = makeCliPackage({
+      toneWav: alignedWav,
+      pipelineId: "t05-cli-fail",
+    });
     const planResult = await executePlan({ contentSlug: "t05-cli-fail", contentRoot, outputRoot });
     const res = spawnSync(
       process.execPath,
-      [join(LIB_DIR, "..", "digital-human.mjs"), "audit", "--plan", planResult.planPath, "--video", fixtures["zone-rail"]],
+      [
+        join(LIB_DIR, "..", "digital-human.mjs"),
+        "audit",
+        "--plan",
+        planResult.planPath,
+        "--video",
+        fixtures["zone-rail"],
+      ],
       { encoding: "utf8", timeout: 180_000 },
     );
     expect(res.status).toBe(1);
@@ -461,7 +540,10 @@ describe("protected-zone geometry", () => {
     expect(zones["top nav band"]).toEqual({ x: 0, y: 0, width: 1080, height: SAFE_ZONES.top });
     expect(zones["TikTok right action rail"].x).toBe(CANVAS.width - SAFE_ZONES.right);
     expect(zones["burned-subtitle lane"]).toEqual({
-      x: 0, y: SUBTITLE_LANE_TOP, width: 1080, height: SUBTITLE_LANE_BOTTOM - SUBTITLE_LANE_TOP,
+      x: 0,
+      y: SUBTITLE_LANE_TOP,
+      width: 1080,
+      height: SUBTITLE_LANE_BOTTOM - SUBTITLE_LANE_TOP,
     });
     expect(zones["bottom dead zone (platform caption / CTA area)"].y).toBe(1520);
   });
@@ -519,7 +601,13 @@ describe("safe-zone gate (pure)", () => {
       // Vertical stripe from inside the card rect down 30 rows INTO the lane —
       // the crossing signature (20 cols × 30 rows ≈ 5.4% of the lane area,
       // above the 2% intrusion ratio).
-      { x: expectedGrid.x + 40, y: expectedGrid.y + 20, w: 20, h: laneGridY + 30 - (expectedGrid.y + 20), amp: 120 },
+      {
+        x: expectedGrid.x + 40,
+        y: expectedGrid.y + 20,
+        w: 20,
+        h: laneGridY + 30 - (expectedGrid.y + 20),
+        amp: 120,
+      },
     ]);
     const g = evaluateSafeZoneGate({ varGrid: grid, scale: SCALE, expectedRect: AVATAR_CARD_RECT });
     expect(g.status).toBe("fail");
@@ -533,7 +621,8 @@ describe("lip gate (pure)", () => {
     const width = 100;
     const height = 100;
     const lum = new Float32Array(width * height);
-    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) lum[width * y + x] = lumAt(x, y);
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) lum[width * y + x] = lumAt(x, y);
     return { width, height, lum };
   };
 
@@ -570,8 +659,7 @@ describe("audio envelope + sync gate (pure)", () => {
 
   // Delta-train series with a realistic mouth inter-frame diff energy — it must
   // exceed LIP_ACTIVE_DIFF (4) or the gate skips the series as "flat mouth".
-  const series = (onsets, t0) =>
-    onsets.map((t) => ({ time: t0 + t, energy: 30 }));
+  const series = (onsets, t0) => onsets.map((t) => ({ time: t0 + t, energy: 30 }));
 
   it("aligned mouth/audio peaks at offset 0 and passes", () => {
     const on = [0.2, 0.9, 1.8, 2.6];
@@ -599,7 +687,10 @@ describe("audio envelope + sync gate (pure)", () => {
   });
 
   it("fewer than 4 aligned samples skips", () => {
-    const g = evaluateSyncGate({ mouthSeries: series([0.1, 0.2], 0), audioSeries: series([0.1, 0.2], 0) });
+    const g = evaluateSyncGate({
+      mouthSeries: series([0.1, 0.2], 0),
+      audioSeries: series([0.1, 0.2], 0),
+    });
     expect(g.status).toBe("skip");
   });
 
@@ -625,7 +716,10 @@ describe("readSceneDurationsForTimeline", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, "scene-durations.json"),
-      JSON.stringify([{ sceneId: 2, duration: 3 }, { sceneId: 1, duration: 4 }]),
+      JSON.stringify([
+        { sceneId: 2, duration: 3 },
+        { sceneId: 1, duration: 4 },
+      ]),
     );
     expect(readSceneDurationsForTimeline(dir, 2)).toEqual([
       { sceneId: 1, duration: 4 },

@@ -30,11 +30,19 @@ export function deriveChannels(source) {
   if (source.apiSearch) {
     let detail = "";
     try {
-      detail = typeof source.apiSearch.url === "function" ? source.apiSearch.url() : String(source.apiSearch.url);
+      detail =
+        typeof source.apiSearch.url === "function"
+          ? source.apiSearch.url()
+          : String(source.apiSearch.url);
     } catch {
       detail = "(url unresolved)";
     }
-    channels.push({ type: "api", detail, primary: source.accessMethod?.primary === "api", probe: "http" });
+    channels.push({
+      type: "api",
+      detail,
+      primary: source.accessMethod?.primary === "api",
+      probe: "http",
+    });
   }
   if (source.articleScript && !EMPTY_SCRIPT_RE.test(source.articleScript)) {
     let detail = "";
@@ -43,7 +51,12 @@ export function deriveChannels(source) {
     } catch {
       detail = "(url unresolved)";
     }
-    channels.push({ type: "cdp", detail, primary: source.accessMethod?.primary === "cdp", probe: "browser" });
+    channels.push({
+      type: "cdp",
+      detail,
+      primary: source.accessMethod?.primary === "cdp",
+      probe: "browser",
+    });
   }
   // #88 auto-generated fallbacks live under capabilities.articles (explicit
   // source-level config stays on the source itself) — read both.

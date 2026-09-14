@@ -20,8 +20,7 @@ export const scenes = [
       prompt:
         "SUBJECT: first-person shooter in a sci-fi snow world, explosions and energy shields. VISUAL METAPHOR: real-time world generation on consumer hardware. BRAND: dark cyber briefing, amber accent. REFERENCE: game engine B-roll. CAMERA: first-person forward motion. MOTION: continuous world unfolding. LIGHTING: dark sci-fi, amber explosions. NEGATIVE: no text, no UI, no logos.",
     },
-    voiceover:
-      "China's 1.3 billion world model runs real-time on one GPU.",
+    voiceover: "China's 1.3 billion world model runs real-time on one GPU.",
     texts: {
       badge: "OPEN SOURCE",
       subject: "LINGBOT-WORLD 2.0",
@@ -113,8 +112,7 @@ export const scenes = [
       prompt:
         "SUBJECT: abstract neural network nodes transforming from large dense cluster to small sparse graph. VISUAL METAPHOR: distillation, route change. BRAND: dark cyber briefing, amber accent. REFERENCE: tech explainer B-roll. CAMERA: slow push-in. MOTION: particles flowing large to small. LIGHTING: dark, amber glow. NEGATIVE: no text, no faces, no logos.",
     },
-    voiceover:
-      "They did not shrink the big model. They walked a different route.",
+    voiceover: "They did not shrink the big model. They walked a different route.",
     texts: {
       badge: "PATTERN INTERRUPT",
       company: "NOT JUST SMALLER",
@@ -178,8 +176,7 @@ export const scenes = [
       prompt:
         "SUBJECT: timeline of three milestone markers advancing, each smaller and more accessible than the last. VISUAL METAPHOR: progressive democratization. BRAND: dark cyber briefing, amber accent. REFERENCE: timeline explainer B-roll. CAMERA: slow rightward pan. MOTION: markers lighting up sequentially. LIGHTING: dark, amber markers. NEGATIVE: no text, no faces.",
     },
-    voiceover:
-      "Three releases in nine months. Build it, make it real, make it run on your card.",
+    voiceover: "Three releases in nine months. Build it, make it real, make it run on your card.",
     texts: {
       company: "THREE RELEASES IN 9 MONTHS",
       action: "BUILD, MAKE REAL, RUN LOCAL",
@@ -217,8 +214,7 @@ export const scenes = [
     layout: "hero-center",
     narrativeRole: "T-Tell",
     mediaStrategy: "asset",
-    voiceover:
-      "That 1.3 billion model is open source. Follow for what China builds next.",
+    voiceover: "That 1.3 billion model is open source. Follow for what China builds next.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

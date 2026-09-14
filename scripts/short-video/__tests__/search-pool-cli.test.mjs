@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  parseSearchPoolCliArgs,
-  runSearchPoolCli,
-} from "../lib/search-pool.mjs";
+import { parseSearchPoolCliArgs, runSearchPoolCli } from "../lib/search-pool.mjs";
 
 // #265 — CLI entry tests. The engine is injected via deps.searchPool, so no
 // test touches the network; `out`/`log` collectors keep stdout/stderr clean.
@@ -51,9 +48,13 @@ describe("parseSearchPoolCliArgs", () => {
   });
 
   it("throws on unknown options and missing flag values", () => {
-    expect(() => parseSearchPoolCliArgs(["q", "--mode", "parallel"])).toThrow("unknown option: --mode");
+    expect(() => parseSearchPoolCliArgs(["q", "--mode", "parallel"])).toThrow(
+      "unknown option: --mode",
+    );
     expect(() => parseSearchPoolCliArgs(["q", "--engine"])).toThrow("--engine requires a value");
-    expect(() => parseSearchPoolCliArgs(["q", "--max-results"])).toThrow("--max-results requires a value");
+    expect(() => parseSearchPoolCliArgs(["q", "--max-results"])).toThrow(
+      "--max-results requires a value",
+    );
   });
 
   it("throws on non-integer or non-positive --max-results", () => {
@@ -90,7 +91,11 @@ describe("runSearchPoolCli", () => {
   });
 
   it("exits 0 on an empty result set (empty result is a valid output)", async () => {
-    const { code, outLines } = await runCli(["q"], { articles: [], engine: null, attempts: [{ engine: "brave", ok: false, error: "0 results" }] });
+    const { code, outLines } = await runCli(["q"], {
+      articles: [],
+      engine: null,
+      attempts: [{ engine: "brave", ok: false, error: "0 results" }],
+    });
 
     expect(code).toBe(0);
     const parsed = JSON.parse(outLines[0]);

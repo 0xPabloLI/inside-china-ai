@@ -248,8 +248,8 @@ describe("remote task bookkeeping (#212)", () => {
       pollIntervalSec: 0.01,
     });
 
-    const pushRecord = writeFileSync.mock.calls.find(
-      ([f]) => String(f).includes("remote-tasks.json"),
+    const pushRecord = writeFileSync.mock.calls.find(([f]) =>
+      String(f).includes("remote-tasks.json"),
     );
     expect(pushRecord).toBeTruthy();
     expect(recordTask).toBeTruthy();
@@ -274,7 +274,9 @@ describe("remote task bookkeeping (#212)", () => {
     expect(result.success).toBe(true);
     const pushed = execSync.mock.calls.filter(([c]) => String(c).includes("kernels push"));
     expect(pushed).toHaveLength(0);
-    expect(execSync.mock.calls.some(([c]) => String(c).includes("kernels status xPabloLI/some-kernel"))).toBe(true);
+    expect(
+      execSync.mock.calls.some(([c]) => String(c).includes("kernels status xPabloLI/some-kernel")),
+    ).toBe(true);
   }, 10000);
 });
 

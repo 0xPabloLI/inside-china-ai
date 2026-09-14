@@ -57,7 +57,10 @@ describe("media-track", () => {
 
   /** Scene pair: A triggers sourcing (no media field), B triggers upscale (media file exists). */
   function scenePair() {
-    return [{ id: 1, voiceover: "v" }, { id: 2, voiceover: "w", media: { path: "exists.png" } }];
+    return [
+      { id: 1, voiceover: "v" },
+      { id: 2, voiceover: "w", media: { path: "exists.png" } },
+    ];
   }
 
   function writeSceneMedia() {

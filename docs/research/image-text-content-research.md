@@ -64,21 +64,21 @@ AI 资讯赛道的具体对标账号画像未在本轮深入（需小红书站�
 
 三条渲染路线：
 
-| 路线 | 代表 | 优劣 |
-| --- | --- | --- |
-| 前端 Canvas | XHS-TextCard | 零后端，但难嵌入服务端管线 |
+| 路线                          | 代表                              | 优劣                                                                       |
+| ----------------------------- | --------------------------------- | -------------------------------------------------------------------------- |
+| 前端 Canvas                   | XHS-TextCard                      | 零后端，但难嵌入服务端管线                                                 |
 | **HTML/CSS + Puppeteer 截图** | Markdown To Image Serve、html2img | **最适合本项目**：模板即代码、批量 API 化、复用现有 Chrome/Playwright 基建 |
-| satori (JSX→SVG) | Vercel @vercel/og | 无需浏览器、快，但 CSS 支持受限，复杂排版吃力 |
+| satori (JSX→SVG)              | Vercel @vercel/og                 | 无需浏览器、快，但 CSS 支持受限，复杂排版吃力                              |
 
 开源小红书卡片项目核实结果（2026-09-08 GitHub API）：
 
-| 项目 | Stars | 最近推送 | License | 判断 |
-| --- | --- | --- | --- | --- |
-| [XHS-TextCard](https://github.com/geekfoxcharlie/XHS-TextCard) | 98 | 2026-08 | MIT | 唯一活跃且有宽松 license，可借鉴模板设计 |
-| [Redbookcard](https://github.com/weierboge/Redbookcard) | 45 | 2025-03 | 无 | 停更 |
-| [ai-xiaohs](https://github.com/Aaronwn/ai-xiaohs) | 42 | 2026-03 | 无 | 小体量，无 license 不可安全复用 |
-| [md2card](https://github.com/aipickgold/md2card) | 3 | 2026-04 | 非标 | 忽略 |
-| [RedNoteCardCreate](https://github.com/prong879/RedNoteCardCreate) | 3 | 2025-05 | 无 | 忽略 |
+| 项目                                                               | Stars | 最近推送 | License | 判断                                     |
+| ------------------------------------------------------------------ | ----- | -------- | ------- | ---------------------------------------- |
+| [XHS-TextCard](https://github.com/geekfoxcharlie/XHS-TextCard)     | 98    | 2026-08  | MIT     | 唯一活跃且有宽松 license，可借鉴模板设计 |
+| [Redbookcard](https://github.com/weierboge/Redbookcard)            | 45    | 2025-03  | 无      | 停更                                     |
+| [ai-xiaohs](https://github.com/Aaronwn/ai-xiaohs)                  | 42    | 2026-03  | 无      | 小体量，无 license 不可安全复用          |
+| [md2card](https://github.com/aipickgold/md2card)                   | 3     | 2026-04  | 非标    | 忽略                                     |
+| [RedNoteCardCreate](https://github.com/prong879/RedNoteCardCreate) | 3     | 2025-05  | 无      | 忽略                                     |
 
 **对本项目的落地建议**（供 #208 立项参考，非实现授权）：自建 `md → HTML 模板 → Playwright screenshot` 渲染器（沿用 Remotion 管线的 TypeScript 栈与 design token），模板规格按 §2 硬约束（1080×1440、标题 ≤20 字埋词、尾页收藏引导）；不引入上表小项目为依赖，仅作视觉参考。发布保持 #206 的 HITL + 主动 AI 声明。
 
@@ -98,34 +98,34 @@ AI 资讯赛道的具体对标账号画像未在本轮深入（需小红书站�
 
 ## Sources
 
-| # | URL | 说明 | Tier |
-| --- | --- | --- | --- |
-| 1 | https://hashmeta.com/cn/posts/xiaohongshu-algorithm-content-strategy-2025-guide-brand-marketing | CES 模型与流量池 2025 解析 | 2 |
-| 2 | https://www.jzl.com/news/119 | CES+CQS 双分机制 | 2 |
-| 3 | https://zhuanlan.zhihu.com/p/1893766767685387727 | 召回→粗排→精排→重排流程 | 3 |
-| 4 | https://reditorapp.com（2026 最新流量机制，help.reditorapp.com） | 首小时互动激活建议 | 3 |
-| 5 | https://hashmeta.com/cn/posts/xiaohongshu-algorithm-2026-guide | 视频 1.8x 权重（单源） | 2 |
-| 6 | https://m.36kr.com/p/2929311388359552 | 图文是搜索流量载体 | 2 |
-| 7 | https://zhuanlan.zhihu.com/p/1996892751070000320 | 图文 vs 视频选择逻辑 | 3 |
-| 8 | https://focalflow.app/blog/xiaohongshu-image-guide-2026/ | 3:4 1080×1440 规范 | 2 |
-| 9 | https://www.canva.cn/sizes/little-red-book/ | 官方常用尺寸表 | 2 |
-| 10 | https://zhuanlan.zhihu.com/p/513868273 | 配图比例实测 | 3 |
-| 11 | https://news.qq.com/rain/a/20220819A09DVC00 | 封面形式与 4-9 张图 | 3 |
-| 12 | https://zhuanlan.zhihu.com/p/12861945097 | CTR 基准 6%/3%（单源） | 3 |
-| 13 | https://zhuanlan.zhihu.com/p/17846276251 | 标题前 18 字埋关键词 | 3 |
-| 14 | https://huasheng.ai/insights/xiaohongshu-best-practices/ | 正文前 100 字摘要、关键词库 | 2 |
-| 15 | https://hashmeta.com/cn/posts/xiaohongshu-search-optimization-keywords | 三级关键词布局法 | 2 |
-| 16 | https://zhuanlan.zhihu.com/p/720111903 | 干货图文：知识密度与价值 | 3 |
-| 17 | https://help.reditorapp.com/content/260221小红书图文模版.html | 6 大爆款图文结构 | 3 |
-| 18 | https://www.woshipm.com/share/6453990.html | 图文分工/评论区运营 | 3 |
-| 19 | https://www.eshutong.com/archives/83250.html | 收藏率与可回访性 | 3 |
-| 20 | https://www.cac.gov.cn/2025-03/14/c_1743654684782215.htm | **AI 标识办法官方原文**（2025-09-01 施行） | 1 |
-| 21 | https://finance.sina.com.cn/stock/t/2026-02-13/doc-inhmrnzm9056005.shtml | 薯管家 AI 标识公告报道 | 2 |
-| 22 | https://m.mp.oeeee.com/a/BAAFRD0000202602121524724.html | 南方都市报同源报道 | 2 |
-| 23 | https://zhuanlan.zhihu.com/p/1977324100629336343 | 主动声明不限流解读 | 3 |
-| 24 | https://www.tuokeba.com/jingyan/518.html | 新号 3-7 天考察期 | 3 |
-| 25 | https://a.newrank.cn/trade/news/3011 | 冷启动期每日 1-2 篇 | 2 |
-| 26 | https://zhuanlan.zhihu.com/p/1933847836614722834 | 早 8 点前发布、7-10 天起号 | 3 |
-| 27 | https://help.reditorapp.com/content/250607小红书运营｜避开这3个发布时间误区，流量翻倍不是梦.html | 避开晚高峰误区 | 3 |
+| #   | URL                                                                                              | 说明                                       | Tier |
+| --- | ------------------------------------------------------------------------------------------------ | ------------------------------------------ | ---- |
+| 1   | https://hashmeta.com/cn/posts/xiaohongshu-algorithm-content-strategy-2025-guide-brand-marketing  | CES 模型与流量池 2025 解析                 | 2    |
+| 2   | https://www.jzl.com/news/119                                                                     | CES+CQS 双分机制                           | 2    |
+| 3   | https://zhuanlan.zhihu.com/p/1893766767685387727                                                 | 召回→粗排→精排→重排流程                    | 3    |
+| 4   | https://reditorapp.com（2026 最新流量机制，help.reditorapp.com）                                 | 首小时互动激活建议                         | 3    |
+| 5   | https://hashmeta.com/cn/posts/xiaohongshu-algorithm-2026-guide                                   | 视频 1.8x 权重（单源）                     | 2    |
+| 6   | https://m.36kr.com/p/2929311388359552                                                            | 图文是搜索流量载体                         | 2    |
+| 7   | https://zhuanlan.zhihu.com/p/1996892751070000320                                                 | 图文 vs 视频选择逻辑                       | 3    |
+| 8   | https://focalflow.app/blog/xiaohongshu-image-guide-2026/                                         | 3:4 1080×1440 规范                         | 2    |
+| 9   | https://www.canva.cn/sizes/little-red-book/                                                      | 官方常用尺寸表                             | 2    |
+| 10  | https://zhuanlan.zhihu.com/p/513868273                                                           | 配图比例实测                               | 3    |
+| 11  | https://news.qq.com/rain/a/20220819A09DVC00                                                      | 封面形式与 4-9 张图                        | 3    |
+| 12  | https://zhuanlan.zhihu.com/p/12861945097                                                         | CTR 基准 6%/3%（单源）                     | 3    |
+| 13  | https://zhuanlan.zhihu.com/p/17846276251                                                         | 标题前 18 字埋关键词                       | 3    |
+| 14  | https://huasheng.ai/insights/xiaohongshu-best-practices/                                         | 正文前 100 字摘要、关键词库                | 2    |
+| 15  | https://hashmeta.com/cn/posts/xiaohongshu-search-optimization-keywords                           | 三级关键词布局法                           | 2    |
+| 16  | https://zhuanlan.zhihu.com/p/720111903                                                           | 干货图文：知识密度与价值                   | 3    |
+| 17  | https://help.reditorapp.com/content/260221小红书图文模版.html                                    | 6 大爆款图文结构                           | 3    |
+| 18  | https://www.woshipm.com/share/6453990.html                                                       | 图文分工/评论区运营                        | 3    |
+| 19  | https://www.eshutong.com/archives/83250.html                                                     | 收藏率与可回访性                           | 3    |
+| 20  | https://www.cac.gov.cn/2025-03/14/c_1743654684782215.htm                                         | **AI 标识办法官方原文**（2025-09-01 施行） | 1    |
+| 21  | https://finance.sina.com.cn/stock/t/2026-02-13/doc-inhmrnzm9056005.shtml                         | 薯管家 AI 标识公告报道                     | 2    |
+| 22  | https://m.mp.oeeee.com/a/BAAFRD0000202602121524724.html                                          | 南方都市报同源报道                         | 2    |
+| 23  | https://zhuanlan.zhihu.com/p/1977324100629336343                                                 | 主动声明不限流解读                         | 3    |
+| 24  | https://www.tuokeba.com/jingyan/518.html                                                         | 新号 3-7 天考察期                          | 3    |
+| 25  | https://a.newrank.cn/trade/news/3011                                                             | 冷启动期每日 1-2 篇                        | 2    |
+| 26  | https://zhuanlan.zhihu.com/p/1933847836614722834                                                 | 早 8 点前发布、7-10 天起号                 | 3    |
+| 27  | https://help.reditorapp.com/content/250607小红书运营｜避开这3个发布时间误区，流量翻倍不是梦.html | 避开晚高峰误区                             | 3    |
 
 GitHub 项目元数据为 2026-09-08 GitHub API 一手核实（Tier 1）。

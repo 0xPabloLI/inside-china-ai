@@ -108,23 +108,22 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 
 修复固化在代码与本文档，不依赖会话记忆。回归时按表定位。
 
-| # | 故障 | 固化位置 |
-|---|------|----------|
-| 1 | HookScene `<Circle>` 遮住 bigNumber | `remotion/src/components/shared.ts` ANNOTATION.circle（strokeWidth:3 + padding）；HookScene 显式传参 |
-| 2 | TTS 读错版本号/小数/日期（"V four [停] one"） | 双轨文本（上文节）+ `lib/normalize-tts-text.mjs` + kernel 前端限制认知 |
-| 3 | sourcing 跳过所有 assetNeed 场景 | `lib/claim-keywords.mjs` skipsMediaSourcing 的 `&& !scene.assetNeed` 守卫 |
-| 4 | TTS prosody/speed 偏离认可基线 | adapter 默认 `prosody:null`+无 speed，`TTS_PROSODY=1` opt-in；kernel `torch.manual_seed(20260907)` |
-| 5 | 重叠字幕 chunk 被丢弃 | `text-align.py` group_chunks 重叠合并（never `continue`） |
-| 7 | media-patch.json 缺 `type` 字段 → 图片被当视频加载 | 每个条目必须 `"type":"image"|"video"`；`remotion/src/components/MediaBackground.tsx:206` 按 type 分派 |
-| 8 | 亮背景图透过 overlay 进右侧安全区 | media-patch 条目加 `"overlay":0.88`（亮图/图表类）；frame analysis 右安全区阈值 |
-| 9 | sourcing 被杀后搜索缓存全丢（"0 entries loaded"） | `lib/asset-sourcer.mjs` 5 处搜索后立即 `saveSearchResultsCache()` 增量落盘 |
-| 10 | Kaggle kernel 每次全量下载模型（10+ min） | kernel metadata `dataset_sources` 含 `xPabloLI/cosyvoice3-model`；kernel 先查 `/kaggle/input/cosyvoice3-model/cosyvoice3.yaml` 再 symlink，HF 下载仅作 fallback |
-| 11 | CDP 中途才检查/静默降级 | Step 0.2 CDP hard gate（上文节）；asset-sourcer CDP 不可用即 `process.exit(1)` |
-| 12 | CosyVoice3-Kaggle 偶发印度口音/音素拖长/WPM骤降 | Kaggle 环境固化（`onnxruntime-gpu==1.20.0` + commit `074ca6d`）+ 四维 Prompt 规范（Persona+美音+情绪+节奏）+ TTS Quality Gate 自愈（#234） |
-| 13 | TTS Quality Gate 版本号/小数 Token 错配导致相似度假阳性扣分 | `quality-gate.mjs` 实现 `buildExpandedAsrTokenSet` 及 `point` 音素桥接映射，实现 100% 语义匹配 (#234) |
-| 14 | MRL-3 帧审计 final frame 提取越界误报 FAIL | `verify-remotion-frames.mjs` ffprobe 实测帧数 clamp lastFrame（scheduleTotalFrames 按预算算，TTS 音频短于预算时渲染帧数更少；4d6ebd4） |
-| 15 | Agent 嫌 f5-mlx 慢自行降级 edge-tts（声音机械） | `lib/tts/registry.mjs` PRIORITY 截断至 f5-mlx + 注释：自动 fallback 到 f5 为止，qwen/edge/say 仅 TTS_ENGINE 人工指定（2a36a48） |
-
+| #   | 故障                                                        | 固化位置                                                                                                                                                        |
+| --- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | HookScene `<Circle>` 遮住 bigNumber                         | `remotion/src/components/shared.ts` ANNOTATION.circle（strokeWidth:3 + padding）；HookScene 显式传参                                                            |
+| 2   | TTS 读错版本号/小数/日期（"V four [停] one"）               | 双轨文本（上文节）+ `lib/normalize-tts-text.mjs` + kernel 前端限制认知                                                                                          |
+| 3   | sourcing 跳过所有 assetNeed 场景                            | `lib/claim-keywords.mjs` skipsMediaSourcing 的 `&& !scene.assetNeed` 守卫                                                                                       |
+| 4   | TTS prosody/speed 偏离认可基线                              | adapter 默认 `prosody:null`+无 speed，`TTS_PROSODY=1` opt-in；kernel `torch.manual_seed(20260907)`                                                              |
+| 5   | 重叠字幕 chunk 被丢弃                                       | `text-align.py` group_chunks 重叠合并（never `continue`）                                                                                                       |
+| 7   | media-patch.json 缺 `type` 字段 → 图片被当视频加载          | 每个条目必须 `"type":"image"                                                                                                                                    | "video"`；`remotion/src/components/MediaBackground.tsx:206` 按 type 分派 |
+| 8   | 亮背景图透过 overlay 进右侧安全区                           | media-patch 条目加 `"overlay":0.88`（亮图/图表类）；frame analysis 右安全区阈值                                                                                 |
+| 9   | sourcing 被杀后搜索缓存全丢（"0 entries loaded"）           | `lib/asset-sourcer.mjs` 5 处搜索后立即 `saveSearchResultsCache()` 增量落盘                                                                                      |
+| 10  | Kaggle kernel 每次全量下载模型（10+ min）                   | kernel metadata `dataset_sources` 含 `xPabloLI/cosyvoice3-model`；kernel 先查 `/kaggle/input/cosyvoice3-model/cosyvoice3.yaml` 再 symlink，HF 下载仅作 fallback |
+| 11  | CDP 中途才检查/静默降级                                     | Step 0.2 CDP hard gate（上文节）；asset-sourcer CDP 不可用即 `process.exit(1)`                                                                                  |
+| 12  | CosyVoice3-Kaggle 偶发印度口音/音素拖长/WPM骤降             | Kaggle 环境固化（`onnxruntime-gpu==1.20.0` + commit `074ca6d`）+ 四维 Prompt 规范（Persona+美音+情绪+节奏）+ TTS Quality Gate 自愈（#234）                      |
+| 13  | TTS Quality Gate 版本号/小数 Token 错配导致相似度假阳性扣分 | `quality-gate.mjs` 实现 `buildExpandedAsrTokenSet` 及 `point` 音素桥接映射，实现 100% 语义匹配 (#234)                                                           |
+| 14  | MRL-3 帧审计 final frame 提取越界误报 FAIL                  | `verify-remotion-frames.mjs` ffprobe 实测帧数 clamp lastFrame（scheduleTotalFrames 按预算算，TTS 音频短于预算时渲染帧数更少；4d6ebd4）                          |
+| 15  | Agent 嫌 f5-mlx 慢自行降级 edge-tts（声音机械）             | `lib/tts/registry.mjs` PRIORITY 截断至 f5-mlx + 注释：自动 fallback 到 f5 为止，qwen/edge/say 仅 TTS_ENGINE 人工指定（2a36a48）                                 |
 
 ## Content Standards
 
@@ -158,14 +157,14 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 > If the machine cannot handle max effort (MPS OOM, excessive RTF),
 > the agent must explicitly notify the user and mark the run as degraded.
 
-| Priority | Engine                   | Max Effort Parameters                                            | Venv / Runtime                   | Notes                                                                                                                       |
-| -------- | ------------------------ | ---------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 1        | **CosyVoice3-Kaggle-CUDA** | instruct_text per visualType, `<\|endofprompt\|>` suffix          | Kaggle CLI + `~/.kaggle/kaggle.json` | **DEFAULT** (ADR-0019). Apache-2.0. P100 GPU, full emotion fidelity. ~8-10min/batch. Free 30h/week.                         |
-| 2        | **CosyVoice3-MLX**       | speed=1.0, instruct_text per visualType                          | `~/.video-tts-env` (Python 3.12) | **LOCAL FALLBACK**. Emotion regression vs CUDA but fast RTF 0.64-0.87x. Model: `~/.cosyvoice3-mlx-model` (1.7GB)            |
-| 3        | **F5-TTS-MLX**           | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12) | **BACKUP**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control. CC-BY-NC weights.               |
-| 4        | Qwen3-TTS                | `do_sample=False`, `repetition_penalty=1.3` (greedy search)      | `~/.video-tts-env` (Python 3.12) | Autoregressive LLM. Good emphasis on data points, but no duration control.                                                  |
-| 5        | edge-tts                 | en-US-BrianNeural                                                | npm                              | Network-dependent, retry 3x; no voice cloning. Template voice only.                                                         |
-| 6        | macOS say                | Daniel, 190 wpm                                                  | built-in                         | Last resort; no voice cloning                                                                                               |
+| Priority | Engine                     | Max Effort Parameters                                            | Venv / Runtime                       | Notes                                                                                                            |
+| -------- | -------------------------- | ---------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| 1        | **CosyVoice3-Kaggle-CUDA** | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Kaggle CLI + `~/.kaggle/kaggle.json` | **DEFAULT** (ADR-0019). Apache-2.0. P100 GPU, full emotion fidelity. ~8-10min/batch. Free 30h/week.              |
+| 2        | **CosyVoice3-MLX**         | speed=1.0, instruct_text per visualType                          | `~/.video-tts-env` (Python 3.12)     | **LOCAL FALLBACK**. Emotion regression vs CUDA but fast RTF 0.64-0.87x. Model: `~/.cosyvoice3-mlx-model` (1.7GB) |
+| 3        | **F5-TTS-MLX**             | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12)     | **BACKUP**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control. CC-BY-NC weights.   |
+| 4        | Qwen3-TTS                  | `do_sample=False`, `repetition_penalty=1.3` (greedy search)      | `~/.video-tts-env` (Python 3.12)     | Autoregressive LLM. Good emphasis on data points, but no duration control.                                       |
+| 5        | edge-tts                   | en-US-BrianNeural                                                | npm                                  | Network-dependent, retry 3x; no voice cloning. Template voice only.                                              |
+| 6        | macOS say                  | Daniel, 190 wpm                                                  | built-in                             | Last resort; no voice cloning                                                                                    |
 
 **M4A → WAV conversion**: M4A is not readable by Python audio libraries (`soundfile`/`torchaudio`/`librosa` are libsndfile-based) — `LibsndfileError: Format not recognised` means an M4A was passed. Convert first, matching the ref-audio spec (24 kHz mono):
 
@@ -283,15 +282,15 @@ Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
 
 Scene-matched generated video backgrounds, on-device (FastVideo `FastMetal-1.3B-QAD` on MLX — see Checkpoint below). Opt-in per scene; a scene-data file using none of these fields behaves exactly as before.
 
-| Field            | Value                    | Effect                                                                     |
-| ---------------- | ------------------------ | -------------------------------------------------------------------------- |
-| `mediaStrategy`  | absent or `"asset"`      | stock sourcing only (default)                                              |
-|                  | `"b-roll"`               | skip sourcing, generate 2 video candidates                                 |
-|                  | `"asset-then-broll"`     | source first; generate video only if the scene ended up without media      |
-|                  | `"ai-image"`             | skip sourcing, generate 2 static-image candidates (T2I, #155 — see below)  |
-|                  | `"asset-then-ai-image"`  | source first; generate an image only if the scene ended up without media   |
-| `aiVideo.prompt` | string                   | required for the video strategies — 8 dimensions below                     |
-| `aiImage.prompt` | string                   | required for the image strategies — 6 dimensions (video template minus CAMERA/MOTION) |
+| Field            | Value                   | Effect                                                                                |
+| ---------------- | ----------------------- | ------------------------------------------------------------------------------------- |
+| `mediaStrategy`  | absent or `"asset"`     | stock sourcing only (default)                                                         |
+|                  | `"b-roll"`              | skip sourcing, generate 2 video candidates                                            |
+|                  | `"asset-then-broll"`    | source first; generate video only if the scene ended up without media                 |
+|                  | `"ai-image"`            | skip sourcing, generate 2 static-image candidates (T2I, #155 — see below)             |
+|                  | `"asset-then-ai-image"` | source first; generate an image only if the scene ended up without media              |
+| `aiVideo.prompt` | string                  | required for the video strategies — 8 dimensions below                                |
+| `aiImage.prompt` | string                  | required for the image strategies — 6 dimensions (video template minus CAMERA/MOTION) |
 
 `verify-video.mjs --pre` enforces the contract (rule `B-roll strategy contract` in `lib/scene-rules.mjs`): an unknown strategy value FAILs, a video strategy with a missing or blank `aiVideo.prompt` FAILs, an image strategy with a missing or blank `aiImage.prompt` FAILs, and `mediaOptOut: true` on a generating scene WARNs and skips — a deliberate CSS-only scene is a choice, not an error.
 
@@ -377,13 +376,13 @@ Static-image counterpart of the video path above, for scenes that need a picture
 
 **Dependencies**:
 
-| Env var            | Default                                                            |
-| ------------------ | ------------------------------------------------------------------ |
-| `AI_IMAGE_BACKEND` | `mflux-z-image-turbo` (also accepts `mflux-z-image`, `sd3.5`)       |
-| `MFLUX_BIN`        | probes `~/.video-t2i-env/bin/mflux-generate-z-image-turbo`, then `~/.video-tts-env/bin/…`, then PATH |
-| `AI_IMAGE_MODEL`   | `filipstrand/Z-Image-Turbo-mflux-4bit`                             |
-| `AI_IMAGE_WIDTH` / `AI_IMAGE_HEIGHT` | 832 / 1216 (portrait, matching the 9:16 frame)  |
-| `AI_IMAGE_STEPS`   | 9 (the distilled schedule)                                         |
+| Env var                              | Default                                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `AI_IMAGE_BACKEND`                   | `mflux-z-image-turbo` (also accepts `mflux-z-image`, `sd3.5`)                                        |
+| `MFLUX_BIN`                          | probes `~/.video-t2i-env/bin/mflux-generate-z-image-turbo`, then `~/.video-tts-env/bin/…`, then PATH |
+| `AI_IMAGE_MODEL`                     | `filipstrand/Z-Image-Turbo-mflux-4bit`                                                               |
+| `AI_IMAGE_WIDTH` / `AI_IMAGE_HEIGHT` | 832 / 1216 (portrait, matching the 9:16 frame)                                                       |
+| `AI_IMAGE_STEPS`                     | 9 (the distilled schedule)                                                                           |
 
 Install mflux in its **own venv** — `python3 -m venv ~/.video-t2i-env && ~/.video-t2i-env/bin/pip install mflux` (or `uv tool install mflux`). mflux's dependency floor (`huggingface-hub>=1.1.6`, `pillow>=12.3`, `torch`) conflicts with the TTS pins in the shared `~/.video-tts-env` (`mlx-audio` needs `transformers<5`, `pillow<12`), which is why the probe order prefers the dedicated venv; putting it in the shared venv breaks TTS. First run downloads the checkpoint to the HF cache — like the video runner, the child defaults to `HF_HUB_OFFLINE=1`, so a deliberate first download or model upgrade runs with `HF_HUB_OFFLINE=0`. When the binary is missing the stage prints `⚠️ B-roll skipped: …` for the image kind only and the pipeline continues; video generation on the same run is unaffected (each backend kind probes and fails independently).
 
@@ -432,10 +431,10 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 
 ### Docs (2)
 
-| Doc            | Path                     | Role                                                                                        |
-| -------------- | ------------------------ | ------------------------------------------------------------------------------------------- |
+| Doc           | Path                               | Role                                                                                        |
+| ------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
 | Video runbook | `docs/video-production-runbook.md` | ← **THIS FILE** — best practices, publishing strategy, file inventory, optimization lessons |
-| Brand system   | `docs/brand-system.md`   | Color tokens, typography, animation library, 9 scene templates, media strategy (Route C)    |
+| Brand system  | `docs/brand-system.md`             | Color tokens, typography, animation library, 9 scene templates, media strategy (Route C)    |
 
 ### AGENTS.md (1)
 
@@ -581,14 +580,14 @@ Do NOT start a second pipeline while the first is still running — check `ps au
 
 When modifying rules in this file, consult these reference docs for root cause and rationale:
 
-| Topic                           | Reference                                                   | Content                                                                 |
-| ------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Topic                           | Reference                                                             | Content                                                                 |
+| ------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | TTS engine selection            | ADR-0019, ADR-0008, `docs/research/voice-cloning-solutions-m2-pro.md` | Engine comparison, alternatives survey                                  |
-| Audio drift fix                 | `docs/research/audio-drift-fix.md`                          | Root cause analysis, fix implementation, sync verification, diagnostics |
-| Per-scene prosody (pitch/tempo) | `docs/research/voice-prosody-hook-optimization.md`          | 15 sources, per-parameter rationale, research citations                 |
-| TikTok best practices           | `docs/tiktok/tiktok-best-practices.md`                      | Signal weights, voice rules, hook formulas, audit checklist             |
-| A/B testing methodology         | `docs/tiktok/ab-testing-methodology.md`                     | Element iteration method, single-variable testing philosophy            |
-| Multi-video splitting           | `docs/series-production-guide.md` (L1)                      | Episode splitting strategy, inter-episode linking, compilation          |
-| New content scaffold            | `docs/content-scaffold-guide.md` (L1)                       | Directory structure, file templates, CSS overflow checklist             |
-| Analytics & optimization        | `docs/analytics-workflow.md` (L1)                           | Analytics export, A/B test tracking, optimization loop                  |
-| Brand visual identity           | `docs/brand-system.md`                                      | Color tokens, typography, animation library, scene templates            |
+| Audio drift fix                 | `docs/research/audio-drift-fix.md`                                    | Root cause analysis, fix implementation, sync verification, diagnostics |
+| Per-scene prosody (pitch/tempo) | `docs/research/voice-prosody-hook-optimization.md`                    | 15 sources, per-parameter rationale, research citations                 |
+| TikTok best practices           | `docs/tiktok/tiktok-best-practices.md`                                | Signal weights, voice rules, hook formulas, audit checklist             |
+| A/B testing methodology         | `docs/tiktok/ab-testing-methodology.md`                               | Element iteration method, single-variable testing philosophy            |
+| Multi-video splitting           | `docs/series-production-guide.md` (L1)                                | Episode splitting strategy, inter-episode linking, compilation          |
+| New content scaffold            | `docs/content-scaffold-guide.md` (L1)                                 | Directory structure, file templates, CSS overflow checklist             |
+| Analytics & optimization        | `docs/analytics-workflow.md` (L1)                                     | Analytics export, A/B test tracking, optimization loop                  |
+| Brand visual identity           | `docs/brand-system.md`                                                | Color tokens, typography, animation library, scene templates            |

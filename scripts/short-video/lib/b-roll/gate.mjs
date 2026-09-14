@@ -23,9 +23,8 @@ export const GATE_THRESHOLD = 60;
 export function buildClaim(scene) {
   return {
     voiceover: scene.voiceover ?? "",
-    assetNeed: (isImageStrategy(scene.mediaStrategy)
-      ? scene.aiImage?.prompt
-      : scene.aiVideo?.prompt) ?? "",
+    assetNeed:
+      (isImageStrategy(scene.mediaStrategy) ? scene.aiImage?.prompt : scene.aiVideo?.prompt) ?? "",
   };
 }
 

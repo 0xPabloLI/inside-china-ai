@@ -171,7 +171,9 @@ async function selectByEnvPort() {
     throw new Error(`WEB_ACCESS_CDP_PORT="${raw}" 不是合法端口`);
   }
   if (!(await checkPort(port))) {
-    throw new Error(`WEB_ACCESS_CDP_PORT=${port} 没有监听，无法连接。确认该 Chrome 实例已带 --remote-debugging-port=${port} 启动`);
+    throw new Error(
+      `WEB_ACCESS_CDP_PORT=${port} 没有监听，无法连接。确认该 Chrome 实例已带 --remote-debugging-port=${port} 启动`,
+    );
   }
   let wsPath = null;
   try {

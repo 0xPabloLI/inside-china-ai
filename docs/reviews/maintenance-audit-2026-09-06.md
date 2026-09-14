@@ -10,25 +10,25 @@
 
 ## 1. 逐类复核
 
-| #87 原类别 | 当时 → 现状 | 兜底/自动化现状 | 判断 |
-| --- | --- | --- | --- |
-| extractScript（40） | articleScript（#88 Part 1 改名），43 个真实 per-site 脚本（56 articles 源 − 13 no-op） | 断了走 5 层链（apiSearch → CDP 重试一次 :238-244 → googleSiteFallback → apiFallback → pool/MCP）；15 源有文章兜底；**0 结果静默** | **部分解决**。值得投资的不是更多选择器自动化，而是 0 结果 health log + collectFromSource 全链集成测试（#77 测试缺口同款） |
-| primaryScript（9） | 字段消失，并入 `CDP_MEDIA_CAPABILITIES.imageScript`（10 源） | 与 articleScript 仍是两套选择器；真正能合并的只有 10/43 源 | **可接受人工** |
-| fallbackScript（9） | 10 个 imageFallbackScript + 通用 GENERIC_IMAGE_FALLBACK_SCRIPT（prog-search:312-321） | `searchCdpSource` 自动 retry + 自动落 fallback（prog-search:237-239） | **已解决（机制层）** |
-| loginCheckScript（6） | 仍是 6 个（xhs/sogou_weixin/douyin/tiktok_creator/zhihu/x_search） | 断了降级到兜底层，但同样静默 | **可接受人工** |
-| apiSearch.parser（23→24 源） | 12 直连 + 12 wechat2rss 共享 parseWechatRss（去重约 13 段） | parser 抛错 try/catch → `[]` → 自动落 CDP/兜底（search-sources.mjs:266-299）；wechat2rss/hn/reddit 同 URL 无下一层（设计合理） | **可接受人工**；真正单点是 wechat2rss.xlab.app 第三方服务本身 |
-| cdpFallback（1） | googleSiteFallback 15 源（x_search 显式 + 14 autogen，:3375-3391） | autogen + 共享 h3 脚本（:3294-3303）；死角 douyin 恒空、pexels_video typo（#77 P2/P3 在案） | **已解决** |
-| enrichWithImages（1） | enrichWithMedia（search-sources.mjs:124-190），扩到视频+og | — | **已解决**（:248 注释仍写旧名，stale） |
+| #87 原类别                   | 当时 → 现状                                                                            | 兜底/自动化现状                                                                                                                   | 判断                                                                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| extractScript（40）          | articleScript（#88 Part 1 改名），43 个真实 per-site 脚本（56 articles 源 − 13 no-op） | 断了走 5 层链（apiSearch → CDP 重试一次 :238-244 → googleSiteFallback → apiFallback → pool/MCP）；15 源有文章兜底；**0 结果静默** | **部分解决**。值得投资的不是更多选择器自动化，而是 0 结果 health log + collectFromSource 全链集成测试（#77 测试缺口同款） |
+| primaryScript（9）           | 字段消失，并入 `CDP_MEDIA_CAPABILITIES.imageScript`（10 源）                           | 与 articleScript 仍是两套选择器；真正能合并的只有 10/43 源                                                                        | **可接受人工**                                                                                                            |
+| fallbackScript（9）          | 10 个 imageFallbackScript + 通用 GENERIC_IMAGE_FALLBACK_SCRIPT（prog-search:312-321）  | `searchCdpSource` 自动 retry + 自动落 fallback（prog-search:237-239）                                                             | **已解决（机制层）**                                                                                                      |
+| loginCheckScript（6）        | 仍是 6 个（xhs/sogou_weixin/douyin/tiktok_creator/zhihu/x_search）                     | 断了降级到兜底层，但同样静默                                                                                                      | **可接受人工**                                                                                                            |
+| apiSearch.parser（23→24 源） | 12 直连 + 12 wechat2rss 共享 parseWechatRss（去重约 13 段）                            | parser 抛错 try/catch → `[]` → 自动落 CDP/兜底（search-sources.mjs:266-299）；wechat2rss/hn/reddit 同 URL 无下一层（设计合理）    | **可接受人工**；真正单点是 wechat2rss.xlab.app 第三方服务本身                                                             |
+| cdpFallback（1）             | googleSiteFallback 15 源（x_search 显式 + 14 autogen，:3375-3391）                     | autogen + 共享 h3 脚本（:3294-3303）；死角 douyin 恒空、pexels_video typo（#77 P2/P3 在案）                                       | **已解决**                                                                                                                |
+| enrichWithImages（1）        | enrichWithMedia（search-sources.mjs:124-190），扩到视频+og                             | —                                                                                                                                 | **已解决**（:248 注释仍写旧名，stale）                                                                                    |
 
 ## 2. #87 未列出的新维护面（2026-08 后新增）
 
-| 面 | 位置 | 风险 | 处置 |
-| --- | --- | --- | --- |
-| CDP_VIDEO_SCRIPT | source-registry.mjs:2548-2567，1 脚本 10 源共用 | 坏一处塌十源；有 `normalizeCdpVideoCandidates` defense-in-depth（prog-search:578） | 接受；#75 动 videos 标注时顺带冒烟 |
-| IMAGE_SEARCH_ENGINES | prog-search:635-682，6 引擎游离 registry 外；brave_image/searxng_image 双份定义 | 双份漂移 | → #77 P2 建议单独立票收编 |
-| parseYtdlpSearchOutput | asset-sourcer.mjs:1626-1654；yt-dlp 未锁版本 + Firefox cookies 隐含依赖 | #180 实证过 2026.07.04 全量垃圾（fe70670 修复）；失败静默 catch→[] | 建议锁版本或加烟测（小项，归 #75 或独立） |
-| SITE_RATE_CONFIG | rate-limiter.mjs:19-34，8 域名人工调参 | 低（消费方仅 cdp-client） | 接受 |
-| SearXNG theme 选择器 | source-registry.mjs:1762-1778 绑 simple theme + localhost:8888 | 自托管可控 | #92 已知决策，接受 |
+| 面                     | 位置                                                                            | 风险                                                                               | 处置                                      |
+| ---------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------- |
+| CDP_VIDEO_SCRIPT       | source-registry.mjs:2548-2567，1 脚本 10 源共用                                 | 坏一处塌十源；有 `normalizeCdpVideoCandidates` defense-in-depth（prog-search:578） | 接受；#75 动 videos 标注时顺带冒烟        |
+| IMAGE_SEARCH_ENGINES   | prog-search:635-682，6 引擎游离 registry 外；brave_image/searxng_image 双份定义 | 双份漂移                                                                           | → #77 P2 建议单独立票收编                 |
+| parseYtdlpSearchOutput | asset-sourcer.mjs:1626-1654；yt-dlp 未锁版本 + Firefox cookies 隐含依赖         | #180 实证过 2026.07.04 全量垃圾（fe70670 修复）；失败静默 catch→[]                 | 建议锁版本或加烟测（小项，归 #75 或独立） |
+| SITE_RATE_CONFIG       | rate-limiter.mjs:19-34，8 域名人工调参                                          | 低（消费方仅 cdp-client）                                                          | 接受                                      |
+| SearXNG theme 选择器   | source-registry.mjs:1762-1778 绑 simple theme + localhost:8888                  | 自托管可控                                                                         | #92 已知决策，接受                        |
 
 ## 3. 剩余真实维护负担与建议
 

@@ -63,7 +63,9 @@ describe("buildCV3CudaManifest — batch manifest shape", () => {
     const manifest = buildCV3CudaManifest(SCENES);
     expect(manifest).toHaveLength(3);
     expect(manifest.map((m) => m.sceneId)).toEqual([1, 2, 3]);
-    expect(manifest.every((m) => typeof m.text === "string" && m.output === `scene-${m.sceneId}.wav`)).toBe(true);
+    expect(
+      manifest.every((m) => typeof m.text === "string" && m.output === `scene-${m.sceneId}.wav`),
+    ).toBe(true);
   });
 });
 
@@ -97,9 +99,7 @@ describe("engine generate — one kernel push for the whole manifest (#241)", ()
       join(outDir, ".kaggle-kernel", "cosyvoice3_cuda_kernel.py"),
       "utf-8",
     );
-    const manifestLine = kernelScript
-      .split("\n")
-      .find((l) => l.startsWith("MANIFEST_JSON"));
+    const manifestLine = kernelScript.split("\n").find((l) => l.startsWith("MANIFEST_JSON"));
     expect(manifestLine).toBeTruthy();
     const manifest = JSON.parse(manifestLine.match(/r'''(.*)'''/)[1]);
     expect(manifest).toHaveLength(3);
@@ -124,8 +124,6 @@ describe("pollKernelStatus — RUNNING budget default is 30min (#241)", () => {
       log: () => {},
     };
     // No explicit runTimeoutMs — the module default is under test.
-    await expect(pollKernelStatus("u/k", {}, deps)).rejects.toThrow(
-      /run timeout 30min/,
-    );
+    await expect(pollKernelStatus("u/k", {}, deps)).rejects.toThrow(/run timeout 30min/);
   });
 });

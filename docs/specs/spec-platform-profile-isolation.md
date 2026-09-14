@@ -46,14 +46,14 @@ Status: active（2026-09-09，第三十 session） · Parent issue: #219 · Plan
 
 ## Behavioral Scenarios（R3）
 
-| # | 场景 | 期望 |
-| --- | --- | --- |
-| S1 | 单平台 TikTok 发布包生成 | 产物内容与迁移前等价，落 `publish/tiktok/` |
-| S2 | 多 Profile 共存 | 各平台包互不影响，逐平台独立目录 |
-| S3 | caption 超平台上限 | B6 fail-closed（行为与现状一致） |
-| S4 | 场景数据未声明任何平台语义 | 内核照常出片，Profile 只在发布包层生效 |
-| S5 | 发布包重生成 | 幂等，不触碰内核产物 |
-| S6 | TikTok commerce 声明约束 | commercial 与 brand 标志约束在 Profile 层保持 |
+| #   | 场景                       | 期望                                          |
+| --- | -------------------------- | --------------------------------------------- |
+| S1  | 单平台 TikTok 发布包生成   | 产物内容与迁移前等价，落 `publish/tiktok/`    |
+| S2  | 多 Profile 共存            | 各平台包互不影响，逐平台独立目录              |
+| S3  | caption 超平台上限         | B6 fail-closed（行为与现状一致）              |
+| S4  | 场景数据未声明任何平台语义 | 内核照常出片，Profile 只在发布包层生效        |
+| S5  | 发布包重生成               | 幂等，不触碰内核产物                          |
+| S6  | TikTok commerce 声明约束   | commercial 与 brand 标志约束在 Profile 层保持 |
 
 ## Testing Decisions
 

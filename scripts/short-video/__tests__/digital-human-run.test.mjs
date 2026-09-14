@@ -101,7 +101,9 @@ function makePackage({ scene1Avatar = {}, scene2Avatar = { present: [{ from: 0, 
   );
   writeFileSync(
     join(audioDir, "subtitle-timing.json"),
-    JSON.stringify([{ sceneId: 1, segments: [{ text: "W1 W2 W3 W4 W5 W6", words: SCENE1_WORDS }] }]),
+    JSON.stringify([
+      { sceneId: 1, segments: [{ text: "W1 W2 W3 W4 W5 W6", words: SCENE1_WORDS }] },
+    ]),
   );
 
   // Portrait for the Kaggle input dataset staging.
@@ -225,7 +227,9 @@ function makeDeps({ transport, ffmpeg, upscale }) {
 
 /** Load the current scene-data module of a fixture package. */
 async function loadScenes(pkg) {
-  const mod = await import(pathToFileURL(join(pkg, "scene-data.mjs")).href + `?t=${Date.now()}-${Math.random()}`);
+  const mod = await import(
+    pathToFileURL(join(pkg, "scene-data.mjs")).href + `?t=${Date.now()}-${Math.random()}`
+  );
   return mod.scenes;
 }
 
@@ -234,7 +238,10 @@ async function loadScenes(pkg) {
 describe("buildUnitKernelScript", () => {
   it("substitutes every __UNIT_CONFIG_JSON__ occurrence (docstring + code) with the unit config", async () => {
     const { buildUnitKernelScript } = await import("../lib/digital-human.mjs");
-    const script = buildUnitKernelScript({ audioFile: "s10-u0.wav", outputFile: "scene-10-u0.mp4" });
+    const script = buildUnitKernelScript({
+      audioFile: "s10-u0.wav",
+      outputFile: "scene-10-u0.mp4",
+    });
     // Regression: the template mentions the placeholder twice (docstring line
     // 10 + code line 31); String.replace only swapped the first and shipped a
     // kernel that died at import with JSONDecodeError (T6 E2E first run).
@@ -828,9 +835,9 @@ describe("applyVideoPathToSceneData", () => {
     expect(() => applyVideoPathToSceneData(`{ id: 1, voiceover: "x" }`, 1, "v.mp4")).toThrow(
       /avatar/,
     );
-    expect(() => applyVideoPathToSceneData(`{ id: 1, voiceover: "x", avatar: {} }`, 9, "v.mp4")).toThrow(
-      /Scene 9/,
-    );
+    expect(() =>
+      applyVideoPathToSceneData(`{ id: 1, voiceover: "x", avatar: {} }`, 9, "v.mp4"),
+    ).toThrow(/Scene 9/);
   });
 });
 
@@ -918,7 +925,11 @@ describe("runPlan --force (#233)", () => {
     const { planPath, pkg } = makePackage();
     executeApprove(planPath, { now: new Date("2026-09-07T12:00:00Z") });
 
-    const first = makeDeps({ transport: makeTransport().transport, ffmpeg: makeFfmpeg(), upscale: makeUpscale() });
+    const first = makeDeps({
+      transport: makeTransport().transport,
+      ffmpeg: makeFfmpeg(),
+      upscale: makeUpscale(),
+    });
     const run1 = await runPlan({ planPath, deps: first });
     expect(run1.outcome).toBe("completed");
     const scenesAfterRun1 = await loadScenes(pkg);
@@ -942,7 +953,9 @@ describe("runPlan --force (#233)", () => {
     expect(run2.forceReset.kernelTag).toMatch(/^f\d+$/);
     // New videoPaths written back and no leftover stale tag records.
     const scenesAfterRun2 = await loadScenes(pkg);
-    expect(scenesAfterRun2.find((s) => s.id === 1).avatar.videoPath).toBe("assets/avatar/scene-1.mp4");
+    expect(scenesAfterRun2.find((s) => s.id === 1).avatar.videoPath).toBe(
+      "assets/avatar/scene-1.mp4",
+    );
     const log = loadTaskLog(deps2.tasksPath);
     const tagged = Object.values(log.tasks).filter((t) => t.kind === "digital-human-unit");
     expect(tagged).toHaveLength(4);
@@ -952,7 +965,11 @@ describe("runPlan --force (#233)", () => {
   it("refuses to force while a matching remote task is still running", async () => {
     const { planPath, plan } = makePackage();
     executeApprove(planPath, { now: new Date("2026-09-07T12:00:00Z") });
-    const deps = makeDeps({ transport: makeTransport().transport, ffmpeg: makeFfmpeg(), upscale: makeUpscale() });
+    const deps = makeDeps({
+      transport: makeTransport().transport,
+      ffmpeg: makeFfmpeg(),
+      upscale: makeUpscale(),
+    });
     const run1 = await runPlan({ planPath, deps });
     expect(run1.outcome).toBe("completed");
     // Simulate a live kernel for one of the plan's units.

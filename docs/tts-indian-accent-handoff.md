@@ -82,23 +82,28 @@ CosyVoice3-Kaggle-CUDA TTS 引擎在生成英文语音时，Hook 场景出现印
 用 `git show 74dfcf5:scripts/short-video/kaggle/cosyvoice3_cuda_kernel.py` 对比初始版本和当前版本。
 
 **初始版本推理调用**：
+
 ```python
 cosyvoice.inference_instruct2(t["text"], instruct, ref_path, stream=False)
 ```
+
 无 seed、无 speed、无 inference_vc。
 
 **当前版本**（已恢复一致）：
+
 ```python
 speed = t.get("speed")  # None when not in manifest
 kwargs = {"stream": False}
 if speed is not None: kwargs["speed"] = speed
 cosyvoice.inference_instruct2(t["text"], instruct, ref_path, **kwargs)
 ```
+
 当 manifest 无 speed 时等价于 `inference_instruct2(text, instruct, ref, stream=False)`，与初始版本一致。
 
 ### 2. 对比 adapter 后处理参数
 
 初始版本和当前版本的后处理参数完全一致：
+
 - `TTS_HIGHPASS=0`
 - `TTS_DENOISE=0`
 - `useSilenceFilter: false`（后改为 `true` 解决停顿问题）

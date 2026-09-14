@@ -15,12 +15,12 @@
 
 能力覆盖统计（脚本枚举 `ALL_SOURCES` 实测）：
 
-| 能力 | 源数 | 明细 |
-| --- | --- | --- |
-| articles | 56 | method=api 20 / cdp 33 / mcp 1（mcp_grok_search）+ wechat2rss 11 为 tracked-feed-context |
-| images | 16 | cdp 10（qbitai/jiqizhixin/ithome/xinhua/thepaper/leiphone/xinzhiyuan/zhidx/google_news/bing_news）+ api 6（pexels/unsplash/wikimedia/pixabay/brave_image/searxng_image） |
-| videos | 14 | cdp 10（同上新闻源，共享 `CDP_VIDEO_SCRIPT` source-registry.mjs:2548）+ ytdlp 2（bilibili/youtube_search）+ api 2（pexels-video/coverr） |
-| articles 但无 videos | 44 | 明细见 §4 调研表 |
+| 能力                 | 源数 | 明细                                                                                                                                                                     |
+| -------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| articles             | 56   | method=api 20 / cdp 33 / mcp 1（mcp_grok_search）+ wechat2rss 11 为 tracked-feed-context                                                                                 |
+| images               | 16   | cdp 10（qbitai/jiqizhixin/ithome/xinhua/thepaper/leiphone/xinzhiyuan/zhidx/google_news/bing_news）+ api 6（pexels/unsplash/wikimedia/pixabay/brave_image/searxng_image） |
+| videos               | 14   | cdp 10（同上新闻源，共享 `CDP_VIDEO_SCRIPT` source-registry.mjs:2548）+ ytdlp 2（bilibili/youtube_search）+ api 2（pexels-video/coverr）                                 |
+| articles 但无 videos | 44   | 明细见 §4 调研表                                                                                                                                                         |
 
 fallback 链覆盖（apiSearch → googleSiteFallback → apiFallback(Bigsong) → search pool → mcpFallback 的配置面）：
 
@@ -35,6 +35,7 @@ fallback 链覆盖（apiSearch → googleSiteFallback → apiFallback(Bigsong) �
 ### P1 — 实质矛盾
 
 **疑点 1：baidu_news 缺 CDP 媒体能力 entry（三处自相矛盾）**
+
 - 区块注释声称「These sources have CDP_MEDIA_CAPABILITIES entries」（source-registry.mjs:317-319）；
 - baidu_news 的 accessMethod.notes 写「Articles + images from same DOM」（:511-513），articleScript 实际提取 `imageUrl`（:524-540）；
 - 但 `CDP_MEDIA_CAPABILITIES`（:2569-2897）无 `baidu_news` key → enrich 后无 images/videos 能力 → asset-sourcer 的 CDP_SOURCES/CDP_VIDEO_SOURCES 不收录它。
@@ -80,39 +81,41 @@ apiSearch → CDP（shouldSkipCdpOnApiFail 同 URL 短路）→ googleSiteFallba
 
 ### 4.1 应补录（#75 工作清单）
 
-| 源 | 建议标注 | 前置条件 | 依据 |
-| --- | --- | --- | --- |
-| baidu_news | images:cdp + videos:cdp（补 CDP_MEDIA_CAPABILITIES entry） | 无——实现侧已就绪（CDP_VIDEO_SCRIPT 共享脚本） | 疑点 1 三处自相矛盾；notes 自声明 images from same DOM |
-| xhs / douyin / weibo_hot | videos（method 待定：cdp 或 api） | **与下载器集成绑定**（RedNote-MCP / chubbyskills / weibo-downloader，#75 主体） | 内嵌视频概率高；但 CDP_VIDEO_SCRIPT 抽 `<video>` 标签对登录墙+懒加载平台基本无效，标注必须在下载器可用后同步落地，避免重蹈 P4 误标 |
-| tiktok_creator | videos:api（待确认） | 查 ScrapeCreators API 响应是否含 video 字段（paidApi，付费配额） | issue 高优先级表遗留项 |
+| 源                       | 建议标注                                                   | 前置条件                                                                        | 依据                                                                                                                               |
+| ------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| baidu_news               | images:cdp + videos:cdp（补 CDP_MEDIA_CAPABILITIES entry） | 无——实现侧已就绪（CDP_VIDEO_SCRIPT 共享脚本）                                   | 疑点 1 三处自相矛盾；notes 自声明 images from same DOM                                                                             |
+| xhs / douyin / weibo_hot | videos（method 待定：cdp 或 api）                          | **与下载器集成绑定**（RedNote-MCP / chubbyskills / weibo-downloader，#75 主体） | 内嵌视频概率高；但 CDP_VIDEO_SCRIPT 抽 `<video>` 标签对登录墙+懒加载平台基本无效，标注必须在下载器可用后同步落地，避免重蹈 P4 误标 |
+| tiktok_creator           | videos:api（待确认）                                       | 查 ScrapeCreators API 响应是否含 video 字段（paidApi，付费配额）                | issue 高优先级表遗留项                                                                                                             |
 
 ### 4.2 不标注（live 抽样定论）
 
-| 源 | 证据 | 结论 |
-| --- | --- | --- |
-| **guancha** | live 抽样 4 篇 2026-09 文章页（/politics/2026_09_*）：`<video>` 0、`.mp4` 0、bilibili 0 | 文章页无内嵌视频，**不标注** |
-| **36kr** | live 抽样文章页（/p/3969755274883328）无 video 标记；视频内容在独立频道页（information/video），不在普通文章 DOM | **不标注**；如未来要视频，走频道页新 script 而非复用 CDP_VIDEO_SCRIPT |
+| 源          | 证据                                                                                                             | 结论                                                                  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **guancha** | live 抽样 4 篇 2026-09 文章页（/politics/2026_09_*）：`<video>` 0、`.mp4` 0、bilibili 0                          | 文章页无内嵌视频，**不标注**                                          |
+| **36kr**    | live 抽样文章页（/p/3969755274883328）无 video 标记；视频内容在独立频道页（information/video），不在普通文章 DOM | **不标注**；如未来要视频，走频道页新 script 而非复用 CDP_VIDEO_SCRIPT |
 
 ### 4.3 不标注（结构性依据）
 
-| 组 | 源 | 依据 |
-| --- | --- | --- |
-| 聚合搜索 | google_search、baidu_search、duckduckgo_search、google_news、bing_news、mcp_grok_search、searxng_search | 聚合链接跳转目标页，本身无视频载荷；issue 低优先级表定论沿用 |
-| 学术/代码 | arxiv_search、github_search、core_search、openalex_search | 无视频 |
-| 社交（不可靠） | x_search、threads_search、reddit_search、hackernews_search | 偶有视频但不可稳定提取；issue 定论「暂不标注」沿用 |
-| 新闻 API | gnews、currents、noozra_search、datacube_ai | GNews/Currents API schema 无视频字段（公开文档）；datacube_ai/noozra 未查证 API schema，低置信——若 #75 想覆盖，先查响应字段再标 |
-| WeChat RSS | wechat2rss_*（11 源） | RSS 载荷无视频；文章内嵌腾讯视频 iframe 需 mp.weixin 二次抓取，属新能力而非标注 |
-| 英文付费墙 | techcrunch、bloomberg | 不在 #75 国内平台范围；bloomberg 付费墙（#85 另案） |
-| 其他 | zhihu、sogou_weixin、wechat_dongchabeating、polymarket_search、digg_search、techmeme_search | 文章型/聚合型，无稳定视频载荷；zhihu 视频在独立回答/视频页，复用文章 script 无效 |
+| 组             | 源                                                                                                      | 依据                                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 聚合搜索       | google_search、baidu_search、duckduckgo_search、google_news、bing_news、mcp_grok_search、searxng_search | 聚合链接跳转目标页，本身无视频载荷；issue 低优先级表定论沿用                                                                    |
+| 学术/代码      | arxiv_search、github_search、core_search、openalex_search                                               | 无视频                                                                                                                          |
+| 社交（不可靠） | x_search、threads_search、reddit_search、hackernews_search                                              | 偶有视频但不可稳定提取；issue 定论「暂不标注」沿用                                                                              |
+| 新闻 API       | gnews、currents、noozra_search、datacube_ai                                                             | GNews/Currents API schema 无视频字段（公开文档）；datacube_ai/noozra 未查证 API schema，低置信——若 #75 想覆盖，先查响应字段再标 |
+| WeChat RSS     | wechat2rss_*（11 源）                                                                                   | RSS 载荷无视频；文章内嵌腾讯视频 iframe 需 mp.weixin 二次抓取，属新能力而非标注                                                 |
+| 英文付费墙     | techcrunch、bloomberg                                                                                   | 不在 #75 国内平台范围；bloomberg 付费墙（#85 另案）                                                                             |
+| 其他           | zhihu、sogou_weixin、wechat_dongchabeating、polymarket_search、digg_search、techmeme_search             | 文章型/聚合型，无稳定视频载荷；zhihu 视频在独立回答/视频页，复用文章 script 无效                                                |
 
 ## 5. 测试覆盖盘点
 
 **已有**（`scripts/short-video/__tests__/`）：
+
 - schema presence 全量守卫（source-registry-capabilities.test.mjs:26-58）+ articles.method == accessMethod.primary（:397-400）；
 - CDP_VIDEO_SOURCES ≥10 回归 + bilibili 不在其中（asset-sourcer.test.mjs:2596-2607）；
 - ytdlp 白名单守卫（T2 交付）、evidence 分组、skip-cdp 同 URL 短路（search-sources-skip-cdp.test.mjs）。
 
 **缺口**（issue §4 要求 vs 现状）：
+
 1. **collectFromSource 全链降级行为无集成测试**：六层顺序与短路逻辑（googleSiteFallback 构造合成 source、pool 空结果才落 mcp、useCleanTitle 后置）零直接覆盖，仅 skip-cdp 单点被测。mock 各层 collector 的顺序断言测试是最有价值的补测。
 2. **CDP_MEDIA_CAPABILITIES 完整性守卫缺失**：「notes 声称 images/videos from same DOM 的源必须有 entry」这类断言可直接拦住疑点 1——审计即证明其缺位。
 3. **无 fallback 文章源显式清单测试**：9 源零 fallback 是设计内，但无测试锁定清单——未来新增源若意外落入零 fallback 组不会被发现。

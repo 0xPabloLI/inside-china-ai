@@ -34,7 +34,11 @@ const enNarrative = {
   visualType: "narrative",
   voiceover: "Alibaba revealed the weights for free and the race changed forever.",
 };
-const enHook = { id: 2, visualType: "hook", voiceover: "China just dropped a model that beats GPT." };
+const enHook = {
+  id: 2,
+  visualType: "hook",
+  voiceover: "China just dropped a model that beats GPT.",
+};
 const zhScene = {
   id: 3,
   visualType: "narrative",
@@ -58,7 +62,9 @@ describe("resolveSceneSpeed", () => {
   });
 
   it("honors refStyle like visualType when classifying the scene", () => {
-    expect(resolveSceneSpeed({ id: 4, refStyle: "hook", voiceover: "This model just beat GPT." })).toBe(1.0);
+    expect(
+      resolveSceneSpeed({ id: 4, refStyle: "hook", voiceover: "This model just beat GPT." }),
+    ).toBe(1.0);
   });
 
   it("never speeds up Chinese scenes (240-300 chars/min is already the fast tier)", () => {
@@ -228,9 +234,9 @@ describe("hook speed floor (#244, 2026-09-13 HITL verdict)", () => {
   });
 
   it("honors refStyle like visualType when applying the floor", () => {
-    expect(planPacingResponse({ ...enNarrative, visualType: "narrative", refStyle: "hook" }, 150).action).toBe(
-      "compensate",
-    );
+    expect(
+      planPacingResponse({ ...enNarrative, visualType: "narrative", refStyle: "hook" }, 150).action,
+    ).toBe("compensate");
   });
 
   it("is a floor, not a target — TTS_SPEED above 1.1 is not pulled down", () => {

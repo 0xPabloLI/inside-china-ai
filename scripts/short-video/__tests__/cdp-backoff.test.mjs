@@ -110,7 +110,9 @@ describe("matchAntiBotIndicators (#89 P2)", () => {
 
   it("matches 'robot' only on explicit interstitial phrases, not article prose", () => {
     // False-positive guard: AI news legitimately discusses robots
-    expect(matchAntiBotIndicators("Robots learned to dance — OpenAI released a new model")).toBeNull();
+    expect(
+      matchAntiBotIndicators("Robots learned to dance — OpenAI released a new model"),
+    ).toBeNull();
     expect(matchAntiBotIndicators("Are you a robot? Complete the check below")).toBe("robot");
     expect(matchAntiBotIndicators("Robot check required")).toBe("robot");
   });
@@ -138,6 +140,8 @@ describe("detectAntiBot (#89 P2)", () => {
         },
       }),
     ).toBeNull();
-    expect(await detectAntiBot("t1", { evalFn: async () => ({ result: { value: 42 } }) })).toBeNull();
+    expect(
+      await detectAntiBot("t1", { evalFn: async () => ({ result: { value: 42 } }) }),
+    ).toBeNull();
   });
 });

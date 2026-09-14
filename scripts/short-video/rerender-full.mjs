@@ -30,10 +30,14 @@ const patchPath = join(outputDir, "media-patch.json");
 if (existsSync(patchPath)) {
   const patch = JSON.parse(readFileSync(patchPath, "utf-8"));
   const { normalizeMediaPatch, applyAssignedMedia } = await import("./lib/apply-media-patch.mjs");
-  const assigned = normalizeMediaPatch(patch).filter((p) => p.status === "assigned" && p.media?.path);
+  const assigned = normalizeMediaPatch(patch).filter(
+    (p) => p.status === "assigned" && p.media?.path,
+  );
   if (assigned.length > 0) {
     const r = applyAssignedMedia(scenes, assigned, contentDirAbs);
-    console.log(`📦 Applied ${r.applied} media assignments: scenes ${r.appliedSceneIds.join(", ")}`);
+    console.log(
+      `📦 Applied ${r.applied} media assignments: scenes ${r.appliedSceneIds.join(", ")}`,
+    );
   }
 }
 

@@ -59,15 +59,15 @@ selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mj
 
 ## 已知修复台账
 
-| 日期 | 源 | 失效原因 | 修复要点 | 验证 |
-| --- | --- | --- | --- | --- |
-| 2026-09-07 | google_search | Google 新新闻垂直 SERP：结果块改 `div[data-ved][data-hveid]`，标题改 `div[role="heading"]`，`div.g`/`h3` 消失 | articleScript/imageScript 重写为新结构；缩略图为 base64 data URI，仅 http 图标记 type=image（可下载），data URI 降级 text；外链过滤 google 域 + URL 去重 | health --only 1/1 绿，10 条全结构（title/url/imageUrl） |
-| 2026-09-07 | leiphone | 搜索结果标题改为 `a.headTit` 链接，旧 `.article-list`/`article` 容器归零 | articleScript 改为 `a.headTit[href*=".html"]` 直取 | health --only 绿，16 条 |
-| 2026-09-07 | wechat_dongchabeating | Google 站内搜索同吃新 SERP 改版（`div.g` 归零） | 同 google_search 方案（新 DOM + 转载域白名单） | health --only 绿，1 条 |
-| 2026-09-07 | weibo_hot | 登录墙（Sina Visitor System） | **经调研破局**：切 60s 公共 API（60s.viki.moe/v2/weibo，开源可自托管），apiSearch 化 | health 绿，50 条/2.3s |
-| 2026-09-07 | zhidx | 搜索结果 XHR 渲染，CDP 抓不到 | **经调研破局**：站点是 WordPress，切 wp-json REST API，apiSearch 化 | health 绿，20 条/2.6s |
-| 2026-09-07（放弃） | xinzhiyuan | DNS 解析 overdue.aliyun.com——主机欠费停放 | 放弃；公众号内容已由 wechat2rss_zhinengyuan 覆盖 | — |
-| 2026-09-07（放弃） | baidu_news | 资讯索引功能性死亡（ns 端点空壳 218 字节，热词 0 结果） | 放弃；详见 docs/research/zh-source-recovery-research-2026-09.md | — |
+| 日期               | 源                    | 失效原因                                                                                                      | 修复要点                                                                                                                                                 | 验证                                                    |
+| ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| 2026-09-07         | google_search         | Google 新新闻垂直 SERP：结果块改 `div[data-ved][data-hveid]`，标题改 `div[role="heading"]`，`div.g`/`h3` 消失 | articleScript/imageScript 重写为新结构；缩略图为 base64 data URI，仅 http 图标记 type=image（可下载），data URI 降级 text；外链过滤 google 域 + URL 去重 | health --only 1/1 绿，10 条全结构（title/url/imageUrl） |
+| 2026-09-07         | leiphone              | 搜索结果标题改为 `a.headTit` 链接，旧 `.article-list`/`article` 容器归零                                      | articleScript 改为 `a.headTit[href*=".html"]` 直取                                                                                                       | health --only 绿，16 条                                 |
+| 2026-09-07         | wechat_dongchabeating | Google 站内搜索同吃新 SERP 改版（`div.g` 归零）                                                               | 同 google_search 方案（新 DOM + 转载域白名单）                                                                                                           | health --only 绿，1 条                                  |
+| 2026-09-07         | weibo_hot             | 登录墙（Sina Visitor System）                                                                                 | **经调研破局**：切 60s 公共 API（60s.viki.moe/v2/weibo，开源可自托管），apiSearch 化                                                                     | health 绿，50 条/2.3s                                   |
+| 2026-09-07         | zhidx                 | 搜索结果 XHR 渲染，CDP 抓不到                                                                                 | **经调研破局**：站点是 WordPress，切 wp-json REST API，apiSearch 化                                                                                      | health 绿，20 条/2.6s                                   |
+| 2026-09-07（放弃） | xinzhiyuan            | DNS 解析 overdue.aliyun.com——主机欠费停放                                                                     | 放弃；公众号内容已由 wechat2rss_zhinengyuan 覆盖                                                                                                         | —                                                       |
+| 2026-09-07（放弃） | baidu_news            | 资讯索引功能性死亡（ns 端点空壳 218 字节，热词 0 结果）                                                       | 放弃；详见 docs/research/zh-source-recovery-research-2026-09.md                                                                                          | —                                                       |
 
 ## CDP 代理 wsPath 陈旧坑（2026-09-07 修复）
 

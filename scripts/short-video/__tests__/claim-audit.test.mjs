@@ -53,7 +53,9 @@ describe("parseClaimAnnotations", () => {
 
 describe("parseVerificationSummary", () => {
   it("parses the summary table counts", () => {
-    const md = SAMPLE + `\n## Verification Summary\n\n| Status | Count |\n| --- | --- |\n| ✅ Verified | 23 claims |\n| ❌ Unverified | 14 claims |\n`;
+    const md =
+      SAMPLE +
+      `\n## Verification Summary\n\n| Status | Count |\n| --- | --- |\n| ✅ Verified | 23 claims |\n| ❌ Unverified | 14 claims |\n`;
     const summary = parseVerificationSummary(md);
     expect(summary.found).toBe(true);
     expect(summary.counts.verified).toBe(23);
@@ -67,14 +69,18 @@ describe("parseVerificationSummary", () => {
 
 describe("classifyClaimRisk", () => {
   it("hard-triggers financial claims to high", () => {
-    const r = classifyClaimRisk("MiniMax raised approximately HK$16B in an emergency capital round at a HK$186 valuation");
+    const r = classifyClaimRisk(
+      "MiniMax raised approximately HK$16B in an emergency capital round at a HK$186 valuation",
+    );
     expect(r.riskLevel).toBe("high");
     expect(r.riskReasons).toContain("financial_or_pricing");
     expect(r.requiresPrimarySource).toBe(true);
   });
 
   it("hard-triggers unverified annotation status", () => {
-    const r = classifyClaimRisk("The source claims Qwen was distilling GPT", { annotationStatus: "unverified" });
+    const r = classifyClaimRisk("The source claims Qwen was distilling GPT", {
+      annotationStatus: "unverified",
+    });
     expect(r.riskLevel).toBe("high");
     expect(r.riskReasons).toContain("unverified_or_conflicting");
   });
@@ -94,7 +100,9 @@ describe("classifyClaimRisk", () => {
 
 describe("auditClaims", () => {
   it("cross-checks inline counts against the Verification Summary", () => {
-    const md = SAMPLE + `\n## Verification Summary\n\n| Status | Count |\n| --- | --- |\n| ✅ Verified | 99 claims |\n`;
+    const md =
+      SAMPLE +
+      `\n## Verification Summary\n\n| Status | Count |\n| --- | --- |\n| ✅ Verified | 99 claims |\n`;
     const audit = auditClaims(md);
     expect(audit.warnings.some((w) => w.code === "summary_count_mismatch")).toBe(true);
   });
@@ -122,11 +130,20 @@ describe("auditClaims", () => {
 describe("matchEvidence", () => {
   it("matches claim notes against discovery evidence by token overlap", () => {
     const evidence = [
-      { title: "Anthropic detects and prevents distillation attacks", snippet: "IP correlation and request metadata" },
+      {
+        title: "Anthropic detects and prevents distillation attacks",
+        snippet: "IP correlation and request metadata",
+      },
       { title: " unrelated sports result ", snippet: "nothing to do with claims" },
     ];
     const matches = matchEvidence(
-      [{ status: "verified", note: "all figures match Anthropic's distillation blog", context: "IP correlation" }],
+      [
+        {
+          status: "verified",
+          note: "all figures match Anthropic's distillation blog",
+          context: "IP correlation",
+        },
+      ],
       evidence,
     );
     expect(matches[0].matches).toHaveLength(1);
@@ -134,7 +151,10 @@ describe("matchEvidence", () => {
   });
 
   it("returns no matches for evidence-free claims", () => {
-    const matches = matchEvidence([{ status: "unverified", note: "insider allegation about routing", context: "" }], []);
+    const matches = matchEvidence(
+      [{ status: "unverified", note: "insider allegation about routing", context: "" }],
+      [],
+    );
     expect(matches[0].matches).toHaveLength(0);
   });
 });

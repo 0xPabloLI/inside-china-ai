@@ -10,13 +10,13 @@
 
 ## 1. ADR-0016 五条 Already applied 复核（全部成立）
 
-| # | 声明 | 现状 |
-| --- | --- | --- |
-| 1 | VLM 单次 6 信号 | `vlm_analyzer.py:63-123`（prompt 6 段）+ `:317-456`（解析 8 字段，含 relevance/relevanceReason）— 实际 8 信号 |
-| 2 | pre-filter 阈值 20 下载前拦截 | `asset-sourcer.mjs:2266`，应用于全部 6 类下载点（:2526/:2651/:2745/:2819/:2883/:2986） |
-| 3 | pre-filter → focus → VLM 级联 | `asset-sourcer.mjs:1231-1450`（Phase 1/2/2.5/3a 逐层收缩） |
-| 4 | articleScript 同 DOM 产出文章+imageUrl | source-registry 多处 + `asset-sourcer.mjs:2500-2547` Phase 0 零请求消费；且 `search-sources.mjs:124-190` enrichWithMedia 同 tab 追加 video/og 信号（密度高于 ADR 描述） |
-| 5 | 9 CDP 源双能力 | `source-registry.mjs:3262-3270` 自动注入 + `asset-sourcer.mjs:1849` 消费 |
+| #   | 声明                                   | 现状                                                                                                                                                                    |
+| --- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | VLM 单次 6 信号                        | `vlm_analyzer.py:63-123`（prompt 6 段）+ `:317-456`（解析 8 字段，含 relevance/relevanceReason）— 实际 8 信号                                                           |
+| 2   | pre-filter 阈值 20 下载前拦截          | `asset-sourcer.mjs:2266`，应用于全部 6 类下载点（:2526/:2651/:2745/:2819/:2883/:2986）                                                                                  |
+| 3   | pre-filter → focus → VLM 级联          | `asset-sourcer.mjs:1231-1450`（Phase 1/2/2.5/3a 逐层收缩）                                                                                                              |
+| 4   | articleScript 同 DOM 产出文章+imageUrl | source-registry 多处 + `asset-sourcer.mjs:2500-2547` Phase 0 零请求消费；且 `search-sources.mjs:124-190` enrichWithMedia 同 tab 追加 video/og 信号（密度高于 ADR 描述） |
+| 5   | 9 CDP 源双能力                         | `source-registry.mjs:3262-3270` 自动注入 + `asset-sourcer.mjs:1849` 消费                                                                                                |
 
 ## 2. 残留违规（→ follow-up issue）
 

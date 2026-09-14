@@ -54,8 +54,18 @@ beforeAll(() => {
   execFileSync(
     "ffmpeg",
     [
-      "-f", "lavfi", "-i", "testsrc2=s=1248x1632:d=4:r=30",
-      "-pix_fmt", "yuv420p", "-c:v", "libx264", "-crf", "30", "-y", fixtureVideoPath,
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc2=s=1248x1632:d=4:r=30",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:v",
+      "libx264",
+      "-crf",
+      "30",
+      "-y",
+      fixtureVideoPath,
     ],
     { stdio: ["pipe", "pipe", "pipe"], timeout: 120_000 },
   );
@@ -78,9 +88,15 @@ function still(scenario, frame) {
   execFileSync(
     "npx",
     [
-      "remotion", "still", ENTRY, COMPOSITION, out,
-      "--props", JSON.stringify({ scenario }),
-      "--frame", String(frame),
+      "remotion",
+      "still",
+      ENTRY,
+      COMPOSITION,
+      out,
+      "--props",
+      JSON.stringify({ scenario }),
+      "--frame",
+      String(frame),
     ],
     { cwd: REMOTION_DIR, stdio: "pipe", timeout: 240_000 },
   );
@@ -89,11 +105,9 @@ function still(scenario, frame) {
   if (process.env.AVATAR_EVIDENCE === "1") {
     mkdirSync(EVIDENCE_DIR, { recursive: true });
     const evidencePath = join(EVIDENCE_DIR, `${key.replace("@", "-")}.png`);
-    execFileSync(
-      "ffmpeg",
-      ["-i", out, "-vf", "scale=540:960", "-y", evidencePath],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
+    execFileSync("ffmpeg", ["-i", out, "-vf", "scale=540:960", "-y", evidencePath], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
   }
   return out;
 }
@@ -133,66 +147,70 @@ function diffStats(pathA, pathB) {
 // plus this shadow tolerance.
 const SHADOW_TOLERANCE = 45;
 
-describe(
-  "AvatarCard (real Chromium via remotion still)",
-  { timeout: 300_000 },
-  () => {
-    it("declared avatar paints the card at the safe-zone rect (scale-in, no spill)", () => {
-      const card = still("avatar-card", 45);
-      const control = still("avatar-control", 45);
-      expect(existsSync(card)).toBe(true);
+describe("AvatarCard (real Chromium via remotion still)", { timeout: 300_000 }, () => {
+  it("declared avatar paints the card at the safe-zone rect (scale-in, no spill)", () => {
+    const card = still("avatar-card", 45);
+    const control = still("avatar-control", 45);
+    expect(existsSync(card)).toBe(true);
 
-      const stats = diffStats(card, control);
-      // The card is ON: a large content area differs from the control…
-      expect(stats.count).toBeGreaterThan(300 * 500);
-      // …and every differing pixel stays inside the card rect (+ shadow).
-      expect(stats.minX).toBeGreaterThanOrEqual(AVATAR_CARD_RECT.x - SHADOW_TOLERANCE);
-      expect(stats.maxX).toBeLessThanOrEqual(
-        AVATAR_CARD_RECT.x + AVATAR_CARD_RECT.width + SHADOW_TOLERANCE,
-      );
-      expect(stats.minY).toBeGreaterThanOrEqual(AVATAR_CARD_RECT.y - SHADOW_TOLERANCE);
-      expect(stats.maxY).toBeLessThanOrEqual(
-        AVATAR_CARD_RECT.y + AVATAR_CARD_RECT.height + SHADOW_TOLERANCE,
-      );
+    const stats = diffStats(card, control);
+    // The card is ON: a large content area differs from the control…
+    expect(stats.count).toBeGreaterThan(300 * 500);
+    // …and every differing pixel stays inside the card rect (+ shadow).
+    expect(stats.minX).toBeGreaterThanOrEqual(AVATAR_CARD_RECT.x - SHADOW_TOLERANCE);
+    expect(stats.maxX).toBeLessThanOrEqual(
+      AVATAR_CARD_RECT.x + AVATAR_CARD_RECT.width + SHADOW_TOLERANCE,
+    );
+    expect(stats.minY).toBeGreaterThanOrEqual(AVATAR_CARD_RECT.y - SHADOW_TOLERANCE);
+    expect(stats.maxY).toBeLessThanOrEqual(
+      AVATAR_CARD_RECT.y + AVATAR_CARD_RECT.height + SHADOW_TOLERANCE,
+    );
 
-      // The video fills the card (1248×1632 source cover-fits 420×550 exactly):
-      // sample a grid inside the card — every point must differ from control.
-      const cardPng = PNG.sync.read(readFileSync(card));
-      const controlPng = PNG.sync.read(readFileSync(control));
-      const inset = 12;
-      const step = 40;
-      for (let y = AVATAR_CARD_RECT.y + inset; y < AVATAR_CARD_RECT.y + AVATAR_CARD_RECT.height - inset; y += step) {
-        for (let x = AVATAR_CARD_RECT.x + inset; x < AVATAR_CARD_RECT.x + AVATAR_CARD_RECT.width - inset; x += step) {
-          const i = (cardPng.width * y + x) << 2;
-          const d =
-            Math.abs(cardPng.data[i] - controlPng.data[i]) +
-            Math.abs(cardPng.data[i + 1] - controlPng.data[i + 1]) +
-            Math.abs(cardPng.data[i + 2] - controlPng.data[i + 2]);
-          expect(d, `card interior point (${x},${y}) shows no video content`).toBeGreaterThan(40);
-        }
+    // The video fills the card (1248×1632 source cover-fits 420×550 exactly):
+    // sample a grid inside the card — every point must differ from control.
+    const cardPng = PNG.sync.read(readFileSync(card));
+    const controlPng = PNG.sync.read(readFileSync(control));
+    const inset = 12;
+    const step = 40;
+    for (
+      let y = AVATAR_CARD_RECT.y + inset;
+      y < AVATAR_CARD_RECT.y + AVATAR_CARD_RECT.height - inset;
+      y += step
+    ) {
+      for (
+        let x = AVATAR_CARD_RECT.x + inset;
+        x < AVATAR_CARD_RECT.x + AVATAR_CARD_RECT.width - inset;
+        x += step
+      ) {
+        const i = (cardPng.width * y + x) << 2;
+        const d =
+          Math.abs(cardPng.data[i] - controlPng.data[i]) +
+          Math.abs(cardPng.data[i + 1] - controlPng.data[i + 1]) +
+          Math.abs(cardPng.data[i + 2] - controlPng.data[i + 2]);
+        expect(d, `card interior point (${x},${y}) shows no video content`).toBeGreaterThan(40);
       }
-    });
+    }
+  });
 
-    it("present window: card visible inside [{1s,3s}], absent with NO residue outside", () => {
-      // One frame inside each edge + the middle: card painted (differs from control)
-      for (const frame of [WIN_FROM + 1, 45, WIN_TO - 1]) {
-        const stats = diffStats(still("avatar-present", frame), still("avatar-control", frame));
-        expect(stats.count, `frame ${frame} should show the card`).toBeGreaterThan(300 * 500);
-      }
-      // One frame before/after the window edges: byte-identical to the
-      // control — the card is fully unmounted, nothing lingers (切换帧无残留).
-      for (const frame of [WIN_FROM - 1, WIN_TO + 1]) {
-        const present = readFileSync(still("avatar-present", frame));
-        const control = readFileSync(still("avatar-control", frame));
-        expect(
-          present.equals(control),
-          `frame ${frame}: outside the present window the render must be identical to the no-avatar control`,
-        ).toBe(true);
-      }
-    });
+  it("present window: card visible inside [{1s,3s}], absent with NO residue outside", () => {
+    // One frame inside each edge + the middle: card painted (differs from control)
+    for (const frame of [WIN_FROM + 1, 45, WIN_TO - 1]) {
+      const stats = diffStats(still("avatar-present", frame), still("avatar-control", frame));
+      expect(stats.count, `frame ${frame} should show the card`).toBeGreaterThan(300 * 500);
+    }
+    // One frame before/after the window edges: byte-identical to the
+    // control — the card is fully unmounted, nothing lingers (切换帧无残留).
+    for (const frame of [WIN_FROM - 1, WIN_TO + 1]) {
+      const present = readFileSync(still("avatar-present", frame));
+      const control = readFileSync(still("avatar-control", frame));
+      expect(
+        present.equals(control),
+        `frame ${frame}: outside the present window the render must be identical to the no-avatar control`,
+      ).toBe(true);
+    }
+  });
 
-    it("control (no avatar) renders clean — the diff baseline is a real frame", () => {
-      expect(existsSync(still("avatar-control", 45))).toBe(true);
-    });
-  },
-);
+  it("control (no avatar) renders clean — the diff baseline is a real frame", () => {
+    expect(existsSync(still("avatar-control", 45))).toBe(true);
+  });
+});

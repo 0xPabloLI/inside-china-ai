@@ -28,7 +28,9 @@ describe("saliencyCropHint", () => {
   });
 
   it("returns null when saliency is unavailable or malformed", () => {
-    expect(saliencyCropHint({ saliency: { available: false, dispersion: 0.5, centroid: [0.3, 0.6] } })).toBeNull();
+    expect(
+      saliencyCropHint({ saliency: { available: false, dispersion: 0.5, centroid: [0.3, 0.6] } }),
+    ).toBeNull();
     expect(saliencyCropHint({ saliency: null })).toBeNull();
     expect(saliencyCropHint(null)).toBeNull();
     expect(saliencyCropHint({ saliency: { available: true, dispersion: 0.5 } })).toBeNull();

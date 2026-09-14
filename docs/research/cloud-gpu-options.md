@@ -29,13 +29,13 @@
 
 ### TTS 硬件路由（2026-09-06 实测）
 
-| 引擎 | 最优硬件 | RTF | 成本 | 许可 | 来源 |
-|------|---------|-----|------|------|------|
-| **CosyVoice3-MLX** | **MLX 本地** | **0.64-0.87x** | 免费 | Apache-2.0 | `voice-cloning-solutions-m2-pro.md` §8.8 |
-| F5-TTS-MLX | MLX 本地 | 1.78x | 免费 | CC-BY-NC | 管线默认引擎 |
-| Qwen3-TTS | MPS 本地 | ~2x | 免费 | Apache-2.0 | MLX 版待测 |
-| CosyVoice3 (PyTorch) | Modal A100 | ~1x | $2.10/h | Apache-2.0 | 已不如 MLX 本地版 |
-| VoxCPM2 | Modal A100 | 0.33x | $2.10/h | Apache-2.0 | MLX 版不兼容 |
+| 引擎                 | 最优硬件     | RTF            | 成本    | 许可       | 来源                                     |
+| -------------------- | ------------ | -------------- | ------- | ---------- | ---------------------------------------- |
+| **CosyVoice3-MLX**   | **MLX 本地** | **0.64-0.87x** | 免费    | Apache-2.0 | `voice-cloning-solutions-m2-pro.md` §8.8 |
+| F5-TTS-MLX           | MLX 本地     | 1.78x          | 免费    | CC-BY-NC   | 管线默认引擎                             |
+| Qwen3-TTS            | MPS 本地     | ~2x            | 免费    | Apache-2.0 | MLX 版待测                               |
+| CosyVoice3 (PyTorch) | Modal A100   | ~1x            | $2.10/h | Apache-2.0 | 已不如 MLX 本地版                        |
+| VoxCPM2              | Modal A100   | 0.33x          | $2.10/h | Apache-2.0 | MLX 版不兼容                             |
 
 > **规则**：TTS 优先 MLX 本地。仅当模型无 MLX 移植且 MPS 不可用/太慢时，才走 Kaggle → Modal。
 > **MLX 模型发现**：搜 `mlx-community` HuggingFace（见 `model-sources-reference.md` §1.2）。`mlx-audio` / `mlx-audio-plus` 库支持 cosyvoice3/qwen3/voxcpm/indextts/spark/bark/kokoro/chatterbox 等模型。
@@ -51,10 +51,10 @@
 
 ## 1. 本地设备现状
 
-| 设备               | GPU                | 显存          | CUDA                    | 能跑模型                                        |
-| ------------------ | ------------------ | ------------- | ----------------------- | ----------------------------------------------- |
+| 设备               | GPU                          | 显存          | CUDA                    | 能跑模型                                                                                       |
+| ------------------ | ---------------------------- | ------------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
 | MacBook Pro M2 Pro | Apple M2 Pro (**MLX + MPS**) | 32GB 统一内存 | ❌ 无 CUDA              | **MLX**: F5-TTS, CosyVoice3, Qwen3-TTS, mlx-lm, mlx-vlm; **MPS**: Hallo2 256px, LatentSync 1.5 |
-| Windows PC         | NVIDIA GTX 1080    | 8GB GDDR5X    | ✅ CUDA 11.x (算力 6.1) | LatentSync 1.5, HeyGem Lite, SadTalker, Wav2Lip |
+| Windows PC         | NVIDIA GTX 1080              | 8GB GDDR5X    | ✅ CUDA 11.x (算力 6.1) | LatentSync 1.5, HeyGem Lite, SadTalker, Wav2Lip                                                |
 
 > **M2 Pro MLX 是本地最优路径**：MLX 原生加速，TTS RTF 0.64-1.78x（比实时快或接近），LLM 推理也首选 mlx-lm。详见 §0 硬件路由优先级。
 > GTX 1080 是 2016 年 Pascal 架构，支持 CUDA 11.x 但不支持 CUDA 12.x。大多数数字人模型要求 CUDA 12.1+，需要检查兼容性。
@@ -666,16 +666,16 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 > **模型下载源选型**（2026-09-08 用户定则）：**国外云 GPU（Kaggle/Modal/Colab 等）主选 Hugging Face、备选 ModelScope；国内云 GPU（AtomGit/AMD Radeon Cloud/ModelScope Notebook 等）主选 ModelScope、备选 Hugging Face**。Kaggle 上拉 LFS 大文件必须用 `curl -L` 逐文件（`hf download`/`hf_hub_download` 产生 0 字节文件，见 `kaggle/infinitetalk-test` 踩坑记录）；2026-09-08 起已改：`short-video/kaggle/cosyvoice3_cuda_kernel.py`、`short-video/modal/cosyvoice3_cuda_modal.py`、`kaggle/wan22-s2v-test/wan22_s2v_inference.py`。
 
-| 优先级 | 平台                 . | 命令/入口                                               | GPU/NPU            | 免费额度                                         | 适用场景               |
-| ------ | --------------------- | ------------------------------------------------------- | ------------------ | ------------------------------------------------ | ---------------------- |
-| 1️⃣     | **Kaggle (T4 x2)**    | `kaggle kernels push` + `machine_shape: NvidiaTeslaT4`  | T4 x2 (15'GB×2)    | 30h/周刷新                                       | 自动化批量推理（默认） |
-| 2️⃣     | **AtomGit NPU 910B**  | ai.atomgit.com → 我的Notebook                            | NPU 910B (32GB)    | 1000 核时/月刷新                                 | 非 CUDA 模型/大显存需求 |
-| 3️⃣     | **Modal (T5)**        | `modal run script.py`                                   | T4 15GB            | $30/月（余额少，省用）                           | serverless 函数推理    |
-| 4️⃣     | **AMD Radeon Cloud**  | developer.amd.com.cn/radeon/ → JupyterLab/SSH           | AMD GPU (ROCm)     | credits 可重复获取（开发者活动赚 points→兑换）   | ROCm 生态/AMD GPU 验证 |
-| 5️⃣     | **ModelScope AMD GPU** | modelscope.cn → Notebook                                | AMD GPU (192GB)    | 100+0h 一次性                                    | 192GB 大显存一次性验证 |
-| 6️⃣     | **Colab CLI (T4)**    | `colab run --gpu T4 script.py`                          | T4 14.6GB          | 不固定，空闲90min                                | 一键运行单脚本         |
-| 7️⃣     | **Lightning AI (L4)** | Studio + SSH                                            | L4 22.5GB (bf16)   | ~8h/月                                           | 16GB 不够时（付费后）  |
-| 8️⃣     | **AutoDL$             | 手动租用                                                | RTX 4090 24GB      | ¥1.88/h                                          | 长时间或 >22.5GB 时    |
+| 优先级 | 平台 .                 | 命令/入口                                              | GPU/NPU          | 免费额度                                       | 适用场景                |
+| ------ | ---------------------- | ------------------------------------------------------ | ---------------- | ---------------------------------------------- | ----------------------- |
+| 1️⃣     | **Kaggle (T4 x2)**     | `kaggle kernels push` + `machine_shape: NvidiaTeslaT4` | T4 x2 (15'GB×2)  | 30h/周刷新                                     | 自动化批量推理（默认）  |
+| 2️⃣     | **AtomGit NPU 910B**   | ai.atomgit.com → 我的Notebook                          | NPU 910B (32GB)  | 1000 核时/月刷新                               | 非 CUDA 模型/大显存需求 |
+| 3️⃣     | **Modal (T5)**         | `modal run script.py`                                  | T4 15GB          | $30/月（余额少，省用）                         | serverless 函数推理     |
+| 4️⃣     | **AMD Radeon Cloud**   | developer.amd.com.cn/radeon/ → JupyterLab/SSH          | AMD GPU (ROCm)   | credits 可重复获取（开发者活动赚 points→兑换） | ROCm 生态/AMD GPU 验证  |
+| 5️⃣     | **ModelScope AMD GPU** | modelscope.cn → Notebook                               | AMD GPU (192GB)  | 100+0h 一次性                                  | 192GB 大显存一次性验证  |
+| 6️⃣     | **Colab CLI (T4)**     | `colab run --gpu T4 script.py`                         | T4 14.6GB        | 不固定，空闲90min                              | 一键运行单脚本          |
+| 7️⃣     | **Lightning AI (L4)**  | Studio + SSH                                           | L4 22.5GB (bf16) | ~8h/月                                         | 16GB 不够时（付费后）   |
+| 8️⃣     | **AutoDL$              | 手动租用                                               | RTX 4090 24GB    | ¥1.88/h                                        | 长时间或 >22.5GB 时     |
 
 > Cloud Studio 和 Saturn Cloud 已从 GPU pool 移除（Cloud Studio 无免费 GPU；Saturn Cloud 无免费 GPU 且 markup 50%）。详见下方
 > **ModelScope NVIDIA GPU**（36h 一次性）已从主列表移除，因 T4 需求走 Kaggle 更可持续；ModelScope AMD GPU 保留因 192GB 显存独特价值。
@@ -684,13 +684,13 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 
 > 以下平台提供一次性免费试用额度，用完即止。**仅作为 backup 资源记录**，不纳入 fallback 路由或生产管线。当主列表资源全部不可用时才考虑。
 
-| 平台 | GPU | 免费额度 | 性质 | 适用场景 |
-|------|-----|---------|------|---------|
-| **阿里云 PAI-DSW** | A10 24GB / V100 16GB | 250 计算时/月 × 3 月 = 750 计算时 | 一次性 | CUDA 原生（A10 Ampere），emotion 质量预期与 Kaggle 一致 |
-| **阿里云 PAI-EAS** | A10/T4/V100/P100 | 500 元额度 | 一次性（1 个月） | 模型在线服务部署 |
-| **阿里云 PAI-DLC** | A10/V100/G6 | 100 CU·H | 一次性（3 个月） | 分布式训练 |
-| **ModelScope NVIDIA GPU** | T4 16GB | 36h | 一次性 | 已从主列表移除，T4 走 Kaggle 更可持续 |
-| **ModelScope AMD GPU** | AMD GPU 192GB | 100h | 一次性 | 192GB 大显存独特价值，保留在主列表第 5 位 |
+| 平台                      | GPU                  | 免费额度                          | 性质             | 适用场景                                                |
+| ------------------------- | -------------------- | --------------------------------- | ---------------- | ------------------------------------------------------- |
+| **阿里云 PAI-DSW**        | A10 24GB / V100 16GB | 250 计算时/月 × 3 月 = 750 计算时 | 一次性           | CUDA 原生（A10 Ampere），emotion 质量预期与 Kaggle 一致 |
+| **阿里云 PAI-EAS**        | A10/T4/V100/P100     | 500 元额度                        | 一次性（1 个月） | 模型在线服务部署                                        |
+| **阿里云 PAI-DLC**        | A10/V100/G6          | 100 CU·H                          | 一次性（3 个月） | 分布式训练                                              |
+| **ModelScope NVIDIA GPU** | T4 16GB              | 36h                               | 一次性           | 已从主列表移除，T4 走 Kaggle 更可持续                   |
+| **ModelScope AMD GPU**    | AMD GPU 192GB        | 100h                              | 一次性           | 192GB 大显存独特价值，保留在主列表第 5 位               |
 
 > **阿里云 PAI-DSW 评估结论**（2026-09-08）：A10 24GB VRAM 比 Kaggle P100 16GB 大，750 计算时比 Kaggle 360h（3 个月）多一倍，CUDA 原生 emotion 有保障。但需阿里云账号 + 实名认证，且额度一次性用完即止。当前 fallback 链（Kaggle→Modal→NPU→MLX）已足够，暂不纳入路由。
 > **ModelScope CPU**（创空间）持续免费，但 CPU 跑 TTS RTF >10x 不实用，仅可跑 whisper 转文字或小 LLM 文本处理（本地 MLX 更快）。
@@ -1035,12 +1035,12 @@ GPU count: 2
 
 Issue #179 测试 3 个远程 TTS 引擎时直接上 Modal A100-40GB ($2.10/h)，**违反了先用 Kaggle 免费的原则**。复盘：
 
-| 引擎 | 模型大小 | 实际显存需求 | A100 是否必要 | 估算浪费 |
-|------|---------|-------------|-------------|---------|
-| VoxCPM2 | 0.5B | ~4-6GB | ❌ T4 16GB 够用 | ~$0.35 |
-| CosyVoice3 | 0.5B | ~6-8GB | ❌ T4 16GB 够用 | ~$0.50 |
-| Fish S2 | 4B | ~16-20GB | ⚠️ L4 24GB 可能够 | ~$0.70 |
-| **合计浪费** | | | | **~$1.5** |
+| 引擎         | 模型大小 | 实际显存需求 | A100 是否必要     | 估算浪费  |
+| ------------ | -------- | ------------ | ----------------- | --------- |
+| VoxCPM2      | 0.5B     | ~4-6GB       | ❌ T4 16GB 够用   | ~$0.35    |
+| CosyVoice3   | 0.5B     | ~6-8GB       | ❌ T4 16GB 够用   | ~$0.50    |
+| Fish S2      | 4B       | ~16-20GB     | ⚠️ L4 24GB 可能够 | ~$0.70    |
+| **合计浪费** |          |              |                   | **~$1.5** |
 
 ### 正确的 GPU 调用顺序（必须遵守，2026-09-05 用户指定）
 
@@ -1058,22 +1058,22 @@ Issue #179 测试 3 个远程 TTS 引擎时直接上 Modal A100-40GB ($2.10/h)�
 
 ### TTS 引擎显存估算参考
 
-| 引擎 | 参数量 | fp16 显存 | fp32 显存 | 推荐 GPU |
-|------|--------|----------|----------|---------|
-| VoxCPM2 | 0.5B | ~2GB | ~4GB | Kaggle T4 ✅ |
-| CosyVoice3 | 0.5B | ~2GB | ~4GB | Kaggle T4 ✅ |
-| Qwen3-TTS | 0.6B | ~2.5GB | ~5GB | Kaggle T4 ✅ |
-| IndexTTS-2.5 | ~4B | ~8GB | ~16GB | Kaggle T4 ⚠️ |
-| Fish S2 | 4B | ~8GB | ~16GB | Kaggle T4 ⚠️ |
-| Zonos | ~3B | ~6GB | ~12GB | Kaggle T4 ✅ |
+| 引擎         | 参数量 | fp16 显存 | fp32 显存 | 推荐 GPU     |
+| ------------ | ------ | --------- | --------- | ------------ |
+| VoxCPM2      | 0.5B   | ~2GB      | ~4GB      | Kaggle T4 ✅ |
+| CosyVoice3   | 0.5B   | ~2GB      | ~4GB      | Kaggle T4 ✅ |
+| Qwen3-TTS    | 0.6B   | ~2.5GB    | ~5GB      | Kaggle T4 ✅ |
+| IndexTTS-2.5 | ~4B    | ~8GB      | ~16GB     | Kaggle T4 ⚠️ |
+| Fish S2      | 4B     | ~8GB      | ~16GB     | Kaggle T4 ⚠️ |
+| Zonos        | ~3B    | ~6GB      | ~12GB     | Kaggle T4 ✅ |
 
 ### 本地硬件可行性
 
-| 硬件 | 显存 | bf16 | 可跑引擎 |
-|------|------|------|---------|
-| Apple M2 Pro (MPS) | 32GB 统一 | ✅ | F5-MLX ✅ Zonos ✅(fallback) IndexTTS ✅ Qwen3 ✅ |
-| GTX 1080 (Pascal) | 6GB | ❌ | VoxCPM2 ⚠️(fp32 勉强) CosyVoice3 ❌(需 bf16) |
-| Kaggle T4 (Turing) | 16GB | fp16 ✅ | VoxCPM2 ✅ CosyVoice3 ✅ Zonos ✅ Fish S2 ⚠️ |
+| 硬件               | 显存      | bf16    | 可跑引擎                                          |
+| ------------------ | --------- | ------- | ------------------------------------------------- |
+| Apple M2 Pro (MPS) | 32GB 统一 | ✅      | F5-MLX ✅ Zonos ✅(fallback) IndexTTS ✅ Qwen3 ✅ |
+| GTX 1080 (Pascal)  | 6GB       | ❌      | VoxCPM2 ⚠️(fp32 勉强) CosyVoice3 ❌(需 bf16)      |
+| Kaggle T4 (Turing) | 16GB      | fp16 ✅ | VoxCPM2 ✅ CosyVoice3 ✅ Zonos ✅ Fish S2 ⚠️      |
 
 ### 节约原则（2026-09-05 更新）
 

@@ -22,10 +22,10 @@ export const scenes = [
     retentionMechanism: null,
     layout: "hero-center",
     mediaStrategy: "asset",
-    assetNeed: "futuristic GPU server rack glowing blue lights in a dark data center, wide cinematic view",
+    assetNeed:
+      "futuristic GPU server rack glowing blue lights in a dark data center, wide cinematic view",
     subjectLogo: "runninghub",
-    voiceover:
-      "RunningHub made MiniMax H3 twelve times faster. 348 seconds down to 28.",
+    voiceover: "RunningHub made MiniMax H3 twelve times faster. 348 seconds down to 28.",
     texts: {
       badge: "BREAKING",
       subject: "RUNNINGHUB",
@@ -47,8 +47,7 @@ export const scenes = [
     layout: "stacked-cards",
     mediaStrategy: "asset",
     assetNeed: "multiple RTX graphics cards stacked inside a server chassis, high end hardware",
-    voiceover:
-      "Same 5 second video on 4 RTX 6000D cards. The open source model was just too slow.",
+    voiceover: "Same 5 second video on 4 RTX 6000D cards. The open source model was just too slow.",
     texts: {
       badge: "THE PROBLEM",
       company: "5s CLIP, QUAD RTX 6000D",
@@ -68,8 +67,7 @@ export const scenes = [
     layout: "stacked-cards",
     mediaStrategy: "asset",
     assetNeed: "high quality cinematic AI generated video frame, desert landscape with motorcycle",
-    voiceover:
-      "And they kept full BF16 precision. No quality shortcut, no degraded output.",
+    voiceover: "And they kept full BF16 precision. No quality shortcut, no degraded output.",
     texts: {
       badge: "NO COMPROMISE",
       company: "BF16 FULL PRECISION",
@@ -88,8 +86,7 @@ export const scenes = [
     layout: "stacked-cards",
     mediaStrategy: "asset",
     assetNeed: "neural network training visualization with nodes and connections, abstract tech",
-    voiceover:
-      "First cut: a custom post-training model. 50 steps down to 9. Eight times faster.",
+    voiceover: "First cut: a custom post-training model. 50 steps down to 9. Eight times faster.",
     texts: {
       badge: "CUT ONE",
       company: "STEP COUNT: 50 TO 9",
@@ -107,7 +104,8 @@ export const scenes = [
     retentionMechanism: null,
     layout: "stacked-cards",
     mediaStrategy: "asset",
-    assetNeed: "GPU computation optimization abstract visualization, data flowing through processors",
+    assetNeed:
+      "GPU computation optimization abstract visualization, data flowing through processors",
     voiceover:
       "Second cut: faster attention, cached compute, compiled code. 43 seconds down to 28.",
     texts: {
@@ -128,8 +126,7 @@ export const scenes = [
     layout: "stacked-cards",
     mediaStrategy: "asset",
     assetNeed: "multiple GPUs connected in parallel inside a workstation, circuit boards",
-    voiceover:
-      "Third cut: a smarter multi-GPU split. 12 percent faster, 14 gigs less memory.",
+    voiceover: "Third cut: a smarter multi-GPU split. 12 percent faster, 14 gigs less memory.",
     texts: {
       badge: "CUT THREE",
       company: "TP2 + ULYSSES4",
@@ -148,8 +145,7 @@ export const scenes = [
     layout: "media-overlay",
     mediaStrategy: "asset",
     assetNeed: "desktop workstation with multiple GPUs installed, developer hardware setup",
-    voiceover:
-      "It targets PCIe rigs without NVLink. RTX 6000D, a card anyone can buy.",
+    voiceover: "It targets PCIe rigs without NVLink. RTX 6000D, a card anyone can buy.",
     texts: {
       badge: "LOCAL DEPLOY",
       company: "PCIe MULTI-GPU",
@@ -168,8 +164,7 @@ export const scenes = [
     layout: "stacked-cards",
     mediaStrategy: "asset",
     assetNeed: "GitHub repository code on a computer screen, developer coding setup",
-    voiceover:
-      "The whole stack is open source on GitHub. Deploy it on your own machines.",
+    voiceover: "The whole stack is open source on GitHub. Deploy it on your own machines.",
     texts: {
       badge: "OPEN SOURCE",
       company: "FULL STACK ON GITHUB",
@@ -189,8 +184,7 @@ export const scenes = [
     layout: "stacked-cards",
     mediaStrategy: "asset",
     assetNeed: "creative professional editing video on a computer, content creator workspace",
-    voiceover:
-      "Remember 12 times faster? Now local creators get datacenter speed at home.",
+    voiceover: "Remember 12 times faster? Now local creators get datacenter speed at home.",
     texts: {
       badge: "LOOP CLOSURE",
       company: "REMEMBER 12×?",

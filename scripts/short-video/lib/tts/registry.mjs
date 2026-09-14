@@ -203,19 +203,28 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   const isFakeEngine =
     (engine.name && engine.name.toLowerCase().includes("fake")) ||
     (engine.info && engine.info.toLowerCase().includes("fake"));
-  const skipQualityGate = options.skipQualityGate ?? (isFakeEngine || process.env.TTS_SKIP_QUALITY_GATE === "1");
+  const skipQualityGate =
+    options.skipQualityGate ?? (isFakeEngine || process.env.TTS_SKIP_QUALITY_GATE === "1");
 
   if (!skipQualityGate && toGenerate.length > 0) {
     try {
       const { runTtsQualityGate } = await import("./quality-gate.mjs");
-      let gateReport = await runTtsQualityGate(toGenerate, validatedResults, options.qualityGateOptions);
+      let gateReport = await runTtsQualityGate(
+        toGenerate,
+        validatedResults,
+        options.qualityGateOptions,
+      );
 
       // If any scene failed Quality Gate and retry is enabled
       const maxRetries = options.maxRetries ?? parseInt(process.env.TTS_RETRY_COUNT || "2", 10);
       let attempt = 1;
       while (!gateReport.passed && attempt <= maxRetries) {
-        const failedSceneIds = new Set(gateReport.evaluations.filter((e) => !e.passed).map((e) => e.sceneId));
-        console.warn(`\n  🔄 [TTS Self-Healing Loop] Attempt ${attempt}/${maxRetries}: Regenerating ${failedSceneIds.size} failed scene(s)...`);
+        const failedSceneIds = new Set(
+          gateReport.evaluations.filter((e) => !e.passed).map((e) => e.sceneId),
+        );
+        console.warn(
+          `\n  🔄 [TTS Self-Healing Loop] Attempt ${attempt}/${maxRetries}: Regenerating ${failedSceneIds.size} failed scene(s)...`,
+        );
         const retryScenes = toGenerate.filter((s) => failedSceneIds.has(s.id));
 
         let retryResults = [];
@@ -226,7 +235,11 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         }
 
         if (retryResults.length > 0) {
-          const retryGate = await runTtsQualityGate(retryScenes, retryResults, options.qualityGateOptions);
+          const retryGate = await runTtsQualityGate(
+            retryScenes,
+            retryResults,
+            options.qualityGateOptions,
+          );
           for (const res of retryResults) {
             const evalRes = retryGate.evaluations.find((e) => e.sceneId === res.sceneId);
             if (evalRes && evalRes.passed) {
@@ -237,7 +250,11 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           }
         }
 
-        gateReport = await runTtsQualityGate(toGenerate, validatedResults, options.qualityGateOptions);
+        gateReport = await runTtsQualityGate(
+          toGenerate,
+          validatedResults,
+          options.qualityGateOptions,
+        );
         if (gateReport.passed) {
           console.log(`  🎉 [TTS Self-Healing Loop] All scenes healed and passed Quality Gate!`);
           break;
@@ -247,7 +264,9 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
 
       if (!gateReport.passed) {
         const failed = gateReport.evaluations.filter((e) => !e.passed);
-        const failSummary = failed.map((f) => `Scene ${f.sceneId} (${f.issues.join(", ")})`).join("; ");
+        const failSummary = failed
+          .map((f) => `Scene ${f.sceneId} (${f.issues.join(", ")})`)
+          .join("; ");
         const msg = `TTS Quality Gate failed after ${attempt} attempt(s): ${failSummary}`;
         if (options.strictQualityGate || process.env.TTS_STRICT_QUALITY_GATE === "1") {
           throw new Error(msg);
@@ -279,10 +298,17 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       ];
       if (regenScenes.length > 0) {
         const summary = [
-          ...pacing.compensations.map((c) => `scene ${c.scene.id} ${c.measuredWpm}→${Math.round(c.measuredWpm * c.speed)} WPM @ ${c.speed.toFixed(2)}x`),
-          ...pacing.rerolls.map((r) => `scene ${r.scene.id} ${r.measuredWpm} WPM > ${WPM_HARD_CEILING} → reroll`),
+          ...pacing.compensations.map(
+            (c) =>
+              `scene ${c.scene.id} ${c.measuredWpm}→${Math.round(c.measuredWpm * c.speed)} WPM @ ${c.speed.toFixed(2)}x`,
+          ),
+          ...pacing.rerolls.map(
+            (r) => `scene ${r.scene.id} ${r.measuredWpm} WPM > ${WPM_HARD_CEILING} → reroll`,
+          ),
         ].join("; ");
-        console.log(`  🔁 [Pacing Loop] Regenerating ${regenScenes.length} scene(s) from measured WPM: ${summary}`);
+        console.log(
+          `  🔁 [Pacing Loop] Regenerating ${regenScenes.length} scene(s) from measured WPM: ${summary}`,
+        );
 
         let regenResults = [];
         try {
@@ -298,11 +324,17 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           for (const c of pacing.compensations) delete c.scene.ttsSpeed;
           if (pacing.rerolls.length > 0) {
             throw pacingHardBlockError(
-              pacing.rerolls.map((r) => `scene ${r.scene.id} (${r.measuredWpm} WPM, reroll produced no audio)`).join("; "),
+              pacing.rerolls
+                .map((r) => `scene ${r.scene.id} (${r.measuredWpm} WPM, reroll produced no audio)`)
+                .join("; "),
             );
           }
         } else {
-          const regenGate = await runTtsQualityGate(regenScenes, regenResults, options.qualityGateOptions);
+          const regenGate = await runTtsQualityGate(
+            regenScenes,
+            regenResults,
+            options.qualityGateOptions,
+          );
           for (const res of regenResults) {
             const evalRes = regenGate.evaluations.find((e) => e.sceneId === res.sceneId);
             const scene = regenScenes.find((s) => s.id === res.sceneId);
@@ -311,7 +343,9 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
               const measured = evalRes?.wpm ?? rerolled.measuredWpm;
               if (evalRes?.passed && measured <= WPM_HARD_CEILING) {
                 replaceResult(validatedResults, res);
-                console.log(`  ✅ [Pacing Loop] Scene ${res.sceneId} reroll healed: ${measured} WPM ≤ ${WPM_HARD_CEILING}`);
+                console.log(
+                  `  ✅ [Pacing Loop] Scene ${res.sceneId} reroll healed: ${measured} WPM ≤ ${WPM_HARD_CEILING}`,
+                );
               } else {
                 throw pacingHardBlockError(
                   `scene ${res.sceneId} still measures ${measured} WPM after a reroll ` +

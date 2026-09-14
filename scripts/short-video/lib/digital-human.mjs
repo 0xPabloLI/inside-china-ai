@@ -72,14 +72,31 @@
  * @module digital-human
  */
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import { basename, dirname, join, resolve } from "path";
 import { pathToFileURL, fileURLToPath } from "url";
 import { execSync, spawnSync } from "child_process";
 import { FFMPEG_PATH } from "./upscale.mjs";
 import { upscaleDigitalHuman } from "./dh-upscale.mjs";
-import { REMOTE_TASKS_PATH, KAGGLE_USERNAME, KAGGLE_POLL_INTERVAL_SEC } from "../../cloud-gpu/run-gpu.mjs";
-import { classifyTaskError, loadTaskLog, markTask, recordTask } from "../../cloud-gpu/lib/remote-task.mjs";
+import {
+  REMOTE_TASKS_PATH,
+  KAGGLE_USERNAME,
+  KAGGLE_POLL_INTERVAL_SEC,
+} from "../../cloud-gpu/run-gpu.mjs";
+import {
+  classifyTaskError,
+  loadTaskLog,
+  markTask,
+  recordTask,
+} from "../../cloud-gpu/lib/remote-task.mjs";
 
 // ─── Model tiers (facts: docs/research/digital-human-test-progress.md) ───
 
@@ -240,8 +257,10 @@ export function splitAudioAtBoundaries({
   backoffSeconds = BACKOFF_SECONDS,
   minSegmentSeconds = MIN_SEGMENT_SECONDS,
 }) {
-  if (!(durationSeconds > 0)) throw new Error(`splitAudioAtBoundaries: duration must be > 0, got ${durationSeconds}`);
-  if (!(capSeconds > 0)) throw new Error(`splitAudioAtBoundaries: cap must be > 0, got ${capSeconds}`);
+  if (!(durationSeconds > 0))
+    throw new Error(`splitAudioAtBoundaries: duration must be > 0, got ${durationSeconds}`);
+  if (!(capSeconds > 0))
+    throw new Error(`splitAudioAtBoundaries: cap must be > 0, got ${capSeconds}`);
 
   const cuts = (cutPoints ?? [])
     .filter((c) => Number.isFinite(c?.at) && c.at > 0 && c.at < durationSeconds)
@@ -319,7 +338,12 @@ export function resolveGenerationUnits(segments, presentIntervals) {
       const from = Math.max(seg.from, iv.from);
       const to = Math.min(seg.to, iv.to);
       if (to - from > 0.01) {
-        units.push({ segmentIndex: seg.index, from: round6(from), to: round6(to), duration: round6(to - from) });
+        units.push({
+          segmentIndex: seg.index,
+          from: round6(from),
+          to: round6(to),
+          duration: round6(to - from),
+        });
       }
     }
   }
@@ -369,7 +393,14 @@ function round1(n) {
  * @param {boolean} p.alreadyGenerated - avatar.videoPath already written back
  * @returns {object} plan scene entry (see module JSDoc schema)
  */
-export function computeScenePlan({ scene, audioDuration, durationSource, words, tier, alreadyGenerated }) {
+export function computeScenePlan({
+  scene,
+  audioDuration,
+  durationSource,
+  words,
+  tier,
+  alreadyGenerated,
+}) {
   const presentIntervals =
     scene.avatar?.present?.map((iv) => ({ from: iv.from, to: iv.to })) ?? null;
 
@@ -443,7 +474,9 @@ export function readSceneAudioInfo(audioDir, scene) {
       const meta = JSON.parse(readFileSync(metaPath, "utf8"));
       if (typeof meta.duration === "number" && meta.duration > 0) {
         fromMeta = {
-          audioPath: meta.audioPath ? resolve(audioDir, meta.audioPath) : join(audioDir, `scene-${scene.id}.wav`),
+          audioPath: meta.audioPath
+            ? resolve(audioDir, meta.audioPath)
+            : join(audioDir, `scene-${scene.id}.wav`),
           duration: meta.duration,
           durationSource: "tts-meta",
         };
@@ -577,10 +610,18 @@ export function planDigitalHumanPackage({
 
   const sceneEntries = [];
   for (const scene of avatarScenes) {
-    const alreadyGenerated = typeof scene.avatar.videoPath === "string" && scene.avatar.videoPath.trim() !== "";
+    const alreadyGenerated =
+      typeof scene.avatar.videoPath === "string" && scene.avatar.videoPath.trim() !== "";
     let entry;
     if (alreadyGenerated) {
-      entry = computeScenePlan({ scene, audioDuration: 0, durationSource: "tts-meta", words: null, tier: tierInfo, alreadyGenerated: true });
+      entry = computeScenePlan({
+        scene,
+        audioDuration: 0,
+        durationSource: "tts-meta",
+        words: null,
+        tier: tierInfo,
+        alreadyGenerated: true,
+      });
     } else {
       const info = readSceneAudioInfo(audioDir, scene);
       const words = readSceneAlignmentWords(audioDir, scene);
@@ -602,8 +643,13 @@ export function planDigitalHumanPackage({
     scenesNeedingGeneration: needing.length,
     segments: needing.reduce((sum, s) => sum + s.segmentCount, 0),
     generationUnits: needing.reduce((sum, s) => sum + s.unitCount, 0),
-    generatedSeconds: round1(needing.reduce((sum, s) => sum + s.generationUnits.reduce((a, u) => a + u.duration, 0), 0)),
-    ...estimateCost(needing.reduce((sum, s) => sum + s.unitCount, 0), tierInfo),
+    generatedSeconds: round1(
+      needing.reduce((sum, s) => sum + s.generationUnits.reduce((a, u) => a + u.duration, 0), 0),
+    ),
+    ...estimateCost(
+      needing.reduce((sum, s) => sum + s.unitCount, 0),
+      tierInfo,
+    ),
   };
 
   return {
@@ -669,7 +715,13 @@ export function writePlanFile(planPath, plan) {
  *   refused → the caller prints the reason + switch and exits non-zero
  *   without writing anything (spec scenario 8).
  */
-export async function executePlan({ contentSlug, contentRoot, outputRoot, tier = "free", now = new Date() }) {
+export async function executePlan({
+  contentSlug,
+  contentRoot,
+  outputRoot,
+  tier = "free",
+  now = new Date(),
+}) {
   const here = dirname(fileURLToPath(import.meta.url));
   const contentBase = contentRoot ?? join(here, "..", "content");
   const outputBase = outputRoot ?? join(here, "..", "output");
@@ -704,7 +756,9 @@ export async function executePlan({ contentSlug, contentRoot, outputRoot, tier =
     throw new Error(`No valid scenes array in content/${contentSlug}/scene-data.mjs`);
   }
   if (!meta?.pipelineId) {
-    throw new Error(`content/${contentSlug}/meta.mjs is missing pipelineId — cannot resolve the package output dir`);
+    throw new Error(
+      `content/${contentSlug}/meta.mjs is missing pipelineId — cannot resolve the package output dir`,
+    );
   }
 
   const audioDir = join(outputBase, meta.pipelineId, "audio");
@@ -769,8 +823,15 @@ export function unitKeyFor(pipelineId, sceneId, unitIndex) {
  * COMPLETE, and the run harvests the old output instead of waiting for the
  * new version (observed 2026-09-09 on dh-pilot-qwen4 scene-10). */
 function unitSlugFor(pipelineId, sceneId, unitIndex) {
-  const slugified = String(pipelineId).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
-  const tag = process.env.DH_KERNEL_TAG ? `-${String(process.env.DH_KERNEL_TAG).replace(/[^a-z0-9-]+/gi, "").slice(0, 12)}` : "";
+  const slugified = String(pipelineId)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const tag = process.env.DH_KERNEL_TAG
+    ? `-${String(process.env.DH_KERNEL_TAG)
+        .replace(/[^a-z0-9-]+/gi, "")
+        .slice(0, 12)}`
+    : "";
   return `dh-${slugified.slice(0, 30)}-s${sceneId}x${unitIndex}${tag}`;
 }
 
@@ -804,7 +865,9 @@ export function readPlanFile(planPath) {
     throw new Error(`Plan file is not valid JSON: ${planPath} (${e.message})`);
   }
   if (plan?.kind !== "digital-human-plan") {
-    throw new Error(`Not a digital-human-plan file (kind=${JSON.stringify(plan?.kind)}): ${planPath}`);
+    throw new Error(
+      `Not a digital-human-plan file (kind=${JSON.stringify(plan?.kind)}): ${planPath}`,
+    );
   }
   if (plan.schemaVersion !== PLAN_SCHEMA_VERSION) {
     throw new Error(
@@ -887,7 +950,12 @@ export function applyVideoPathToSceneData(text, sceneId, videoPath) {
   }
 
   return {
-    text: text.slice(0, regionStart) + region.slice(0, braceOffset + 1) + newInner + region.slice(closeOffset) + text.slice(regionEnd),
+    text:
+      text.slice(0, regionStart) +
+      region.slice(0, braceOffset + 1) +
+      newInner +
+      region.slice(closeOffset) +
+      text.slice(regionEnd),
   };
 }
 
@@ -998,10 +1066,14 @@ function realFfmpeg() {
     async sliceAudio({ input, from, to, output }) {
       mkdirSync(dirname(output), { recursive: true });
       // Output-side -ss/-to with re-encode → sample-accurate cut.
-      const res = spawnSync(FFMPEG_PATH, ["-y", "-i", input, "-ss", String(from), "-to", String(to), output], {
-        encoding: "utf8",
-        timeout: 120000,
-      });
+      const res = spawnSync(
+        FFMPEG_PATH,
+        ["-y", "-i", input, "-ss", String(from), "-to", String(to), output],
+        {
+          encoding: "utf8",
+          timeout: 120000,
+        },
+      );
       if (res.status !== 0) {
         throw new Error(
           `ffmpeg audio slice failed (${input} [${from}–${to}s]): ${(res.stderr || "").slice(-400)}`,
@@ -1106,7 +1178,12 @@ export function createKaggleTransport() {
      * semantics as run-gpu.mjs harvestKaggleKernel (status strings, timeout
      * resumable vs error terminal, download failure non-terminal).
      */
-    async harvestUnit({ kernelId, outputDir, timeoutSec, pollIntervalSec = KAGGLE_POLL_INTERVAL_SEC }) {
+    async harvestUnit({
+      kernelId,
+      outputDir,
+      timeoutSec,
+      pollIntervalSec = KAGGLE_POLL_INTERVAL_SEC,
+    }) {
       const startTime = Date.now();
       let finalStatus = "unknown";
       while (Date.now() < startTime + timeoutSec * 1000) {
@@ -1189,7 +1266,11 @@ function findUnitRecord(log, unitKey, span) {
 }
 
 function unitOutputExists(record) {
-  return Boolean(record?.outputDir && record?.outputName && existsSync(join(record.outputDir, record.outputName)));
+  return Boolean(
+    record?.outputDir &&
+    record?.outputName &&
+    existsSync(join(record.outputDir, record.outputName)),
+  );
 }
 
 /** Mark a unit complete, accumulating elapsed seconds across sessions. */
@@ -1202,14 +1283,27 @@ function markUnitComplete(tasksPath, kernelId, priorElapsedSec, sessionElapsedSe
 // ─── Per-unit Kaggle kernel script + input dataset staging (layout only —
 //    submission happens exclusively inside an approved runPlan) ───
 
-const KERNEL_TEMPLATE_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "kaggle", "dh-generate", "echomimicv3_unit_kernel.py");
+const KERNEL_TEMPLATE_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "kaggle",
+  "dh-generate",
+  "echomimicv3_unit_kernel.py",
+);
 
 // Default presenter face for generation (user decision, 2026-09-08): packages
 // without their own content/<dir>/assets/avatar/portrait.jpg fall back to this
 // shared asset instead of failing. A package portrait, when present, always
 // wins; --portrait overrides both. Swap the default by replacing the fixture
 // or passing --portrait.
-const DEFAULT_PORTRAIT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "assets", "dh-fixtures", "portrait-face.jpg");
+const DEFAULT_PORTRAIT_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "assets",
+  "dh-fixtures",
+  "portrait-face.jpg",
+);
 export { DEFAULT_PORTRAIT_PATH };
 
 /**
@@ -1220,7 +1314,9 @@ export function buildUnitKernelScript({ audioFile, outputFile }) {
   const template = readFileSync(KERNEL_TEMPLATE_PATH, "utf8");
   const config = JSON.stringify({ audio_file: audioFile, output_file: outputFile });
   if (!template.includes("__UNIT_CONFIG_JSON__")) {
-    throw new Error(`Kernel template missing __UNIT_CONFIG_JSON__ placeholder: ${KERNEL_TEMPLATE_PATH}`);
+    throw new Error(
+      `Kernel template missing __UNIT_CONFIG_JSON__ placeholder: ${KERNEL_TEMPLATE_PATH}`,
+    );
   }
   // Replace ALL occurrences (the template mentions the placeholder in its
   // docstring too — String.replace would only swap the first one and ship a
@@ -1239,18 +1335,31 @@ export function buildUnitKernelScript({ audioFile, outputFile }) {
  */
 export function stageUnitDataset({ stageDir, portraitPath, items, pipelineId }) {
   mkdirSync(stageDir, { recursive: true });
-  const datasetSlug = `dh-${String(pipelineId).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30)}`;
+  const datasetSlug = `dh-${String(pipelineId)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 30)}`;
   const datasetId = `${KAGGLE_USERNAME.toLowerCase()}/${datasetSlug}`;
   writeFileSync(
     join(stageDir, "dataset-metadata.json"),
-    JSON.stringify({ title: datasetSlug, id: datasetId, licenses: [{ name: "CC0-1.0" }] }, null, 2) + "\n",
+    JSON.stringify(
+      { title: datasetSlug, id: datasetId, licenses: [{ name: "CC0-1.0" }] },
+      null,
+      2,
+    ) + "\n",
   );
   copyFileSync(portraitPath, join(stageDir, "portrait.jpg"));
   const manifest = [];
   for (const item of items) {
     const audioName = `s${item.sceneId}-u${item.unitIndex}.wav`;
     copyFileSync(item.slicePath, join(stageDir, audioName));
-    manifest.push({ sceneId: item.sceneId, unitIndex: item.unitIndex, audio: audioName, output: item.outputName });
+    manifest.push({
+      sceneId: item.sceneId,
+      unitIndex: item.unitIndex,
+      audio: audioName,
+      output: item.outputName,
+    });
   }
   writeFileSync(join(stageDir, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
   return { datasetId, manifest };
@@ -1370,7 +1479,9 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
     );
   }
   if (outputRoot && resolve(outputRoot) !== resolve(outputBase)) {
-    throw new Error(`--output-root ${outputRoot} does not match the plan's output dir ${outputBase}`);
+    throw new Error(
+      `--output-root ${outputRoot} does not match the plan's output dir ${outputBase}`,
+    );
   }
 
   // GATE 1 — approval (spec scenario 3): refuse before ANY remote call or write.
@@ -1415,7 +1526,9 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
     const forceScenes = plan.scenes.filter((s) => s.status === "needs-generation");
     const forceUnitKeys = new Set(
       forceScenes.flatMap((s) =>
-        (s.generationUnits ?? []).map((_, unitIndex) => unitKeyFor(plan.pipelineId, s.sceneId, unitIndex)),
+        (s.generationUnits ?? []).map((_, unitIndex) =>
+          unitKeyFor(plan.pipelineId, s.sceneId, unitIndex),
+        ),
       ),
     );
     const log = loadTaskLog(d.tasksPath);
@@ -1457,7 +1570,10 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
     if (!process.env.DH_KERNEL_TAG) {
       // 12 chars total so unitSlugFor's own slice(0, 12) never truncates it —
       // the reported tag must equal the suffix actually present in kernel ids.
-      process.env.DH_KERNEL_TAG = `f${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 11)}`;
+      process.env.DH_KERNEL_TAG = `f${new Date()
+        .toISOString()
+        .replace(/[-:.TZ]/g, "")
+        .slice(0, 11)}`;
     }
     forceReset = { scenes: resetScenes, removedRecords, kernelTag: process.env.DH_KERNEL_TAG };
   }
@@ -1468,7 +1584,9 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
     if (planScene.status !== "needs-generation") continue;
     const current = sceneById.get(planScene.sceneId);
     const alreadyGenerated =
-      current?.avatar && typeof current.avatar.videoPath === "string" && current.avatar.videoPath.trim() !== "";
+      current?.avatar &&
+      typeof current.avatar.videoPath === "string" &&
+      current.avatar.videoPath.trim() !== "";
     if (alreadyGenerated) {
       workScenes.push({ planScene, status: "skipped-already-generated" });
       continue;
@@ -1496,7 +1614,10 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
   // All-or-nothing: nothing is submitted while recoverable units exist.
   if (mode === "run") {
     const live = pendingItems.filter(
-      (i) => i.record && (RESUMABLE_STATES.has(i.record.state) || (i.record.state === "complete" && !unitOutputExists(i.record))),
+      (i) =>
+        i.record &&
+        (RESUMABLE_STATES.has(i.record.state) ||
+          (i.record.state === "complete" && !unitOutputExists(i.record))),
     );
     if (live.length > 0) {
       return {
@@ -1552,7 +1673,12 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
         };
       }
       item.slicePath = unitSlicePath(planDir, item.sceneId, item.unitIndex);
-      await d.ffmpeg.sliceAudio({ input: audioPath, from: item.unit.from, to: item.unit.to, output: item.slicePath });
+      await d.ffmpeg.sliceAudio({
+        input: audioPath,
+        from: item.unit.from,
+        to: item.unit.to,
+        output: item.slicePath,
+      });
     }
     const stageDir = join(planDir, "avatar", "kaggle-input");
     stageUnitDataset({ stageDir, portraitPath, items: submitItems, pipelineId: plan.pipelineId });
@@ -1573,7 +1699,10 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
         const kernelId = `${KAGGLE_USERNAME}/${slug}`;
         item.kernelId = kernelId;
         item.priorElapsedSec = item.record?.elapsedSec ?? 0;
-        const script = buildUnitKernelScript({ audioFile: `s${item.sceneId}-u${item.unitIndex}.wav`, outputFile: item.outputName });
+        const script = buildUnitKernelScript({
+          audioFile: `s${item.sceneId}-u${item.unitIndex}.wav`,
+          outputFile: item.outputName,
+        });
         try {
           await d.transport.submitUnit({
             slug,
@@ -1641,7 +1770,12 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
         pollIntervalSec: d.pollIntervalSec,
       });
       if (!res.success) {
-        const state = res.stage === "timeout" ? "timeout" : res.stage === "download" ? "download-failed" : "failed";
+        const state =
+          res.stage === "timeout"
+            ? "timeout"
+            : res.stage === "download"
+              ? "download-failed"
+              : "failed";
         markTask(d.tasksPath, harvestKernelId, state, { lastError: res.stderr });
         return {
           outcome: "failed",
@@ -1659,8 +1793,14 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
           failedUnit: item.unitKey,
         };
       }
-      markUnitComplete(d.tasksPath, harvestKernelId, item.priorElapsedSec ?? item.record?.elapsedSec ?? 0, res.elapsedSec);
-      item.completedElapsedSec = (item.priorElapsedSec ?? item.record?.elapsedSec ?? 0) + (res.elapsedSec ?? 0);
+      markUnitComplete(
+        d.tasksPath,
+        harvestKernelId,
+        item.priorElapsedSec ?? item.record?.elapsedSec ?? 0,
+        res.elapsedSec,
+      );
+      item.completedElapsedSec =
+        (item.priorElapsedSec ?? item.record?.elapsedSec ?? 0) + (res.elapsedSec ?? 0);
     }
   }
 
@@ -1669,7 +1809,13 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
   for (const work of workScenes) {
     if (work.status !== "pending") continue;
     try {
-      const videoPath = await finalizeScene({ plan, planScene: work.planScene, items: work.items, deps: d, planDir });
+      const videoPath = await finalizeScene({
+        plan,
+        planScene: work.planScene,
+        items: work.items,
+        deps: d,
+        planDir,
+      });
       work.status = "generated";
       work.videoPath = videoPath;
       writtenBack.push({ sceneId: work.planScene.sceneId, videoPath });

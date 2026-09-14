@@ -9,11 +9,11 @@
 
 仓库分三层，全部围绕"Agent 读 SKILL.md → 照单执行 CLI"的思路：
 
-| 层 | 内容 | 机制 |
-|---|---|---|
-| `/core/platform` | setup + 结果轮询 | `setup.sh`（auth）、`check-result.sh`（按 request_id 轮询/单查） |
-| `/core/media` `/core/edit` | 生成/编辑原语 | 8 个 bash 脚本，每个都是「提交→request_id→轮询→outputs[0]」的同构实现 |
-| `/library` | 41 个配方 SKILL.md | 纯文档：Inputs 表 + Steps 分阶段正文，Agent 自己串联 `/core` 的 CLI |
+| 层                         | 内容               | 机制                                                                  |
+| -------------------------- | ------------------ | --------------------------------------------------------------------- |
+| `/core/platform`           | setup + 结果轮询   | `setup.sh`（auth）、`check-result.sh`（按 request_id 轮询/单查）      |
+| `/core/media` `/core/edit` | 生成/编辑原语      | 8 个 bash 脚本，每个都是「提交→request_id→轮询→outputs[0]」的同构实现 |
+| `/library`                 | 41 个配方 SKILL.md | 纯文档：Inputs 表 + Steps 分阶段正文，Agent 自己串联 `/core` 的 CLI   |
 
 关键洞察：**异步编排逻辑不在库代码里，而在 SKILL.md 的文字协议里**；`/core` 只提供薄薄的任务原语。两个模式分别对应 §2 和 §3。
 
@@ -78,26 +78,33 @@ version: "1.0.0"
 description: 一句话能力描述
 acceptLicenseTerms: true
 ---
+
 # 标题 + 一句话定位
 
 ## Inputs
+
 | Name | Type | Required | Default | Description |
 | logo_image | image_url | yes | — | ... |
 | material_style | text | no | glossy glass and chrome | ... |
 
 ## Steps
+
 ### Phase A — ...（阶段化，每阶段产出是下一阶段的输入）
+
 1. **步骤名** — `muapi image edit` (model=`nano-banana-2-edit`)：
-   - Reference Image: `{{logo_image}}`        ← 占位符显式注入
+   - Reference Image: `{{logo_image}}` ← 占位符显式注入
    - Prompt: `...完整提示词模板，含 {{material_style}}...`
    - Aspect ratio: 1:1 or 4:3
-（每阶段之间插入人工确认点：Present to the user for approval.）
+     （每阶段之间插入人工确认点：Present to the user for approval.）
 
 ## Trigger Keywords
+
 `3d logo`, ...
 
 ---
+
 ## Notes for the Executing Agent（固定页脚，三件套）
+
 - 本配方是 LLM-orchestrated：读阶段→补齐缺失输入→调 CLI；key 未配置先跑 auth。
 - 无 CLI 别名的模型回退裸 curl POST + `muapi predict wait <request_id>`。
 - 调用前把 `{{input_name}}` 占位符替换为真实输入。
@@ -145,19 +152,19 @@ SKILL.md 配方格式对我们的可套用面较窄：我们已有 `short-video-
 
 ## 6. 取舍表
 
-| 对方机制 | 判定 | 理由 |
-|---|---|---|
-| submit → request_id → 轮询 → 结果的统一状态机 | **直接可用（思想）** | Kaggle/Modal 远端任务同构；配合现有 envelope 落地 |
-| 任务 ID 落盘 + 独立轮询入口（check-result.sh / `--async`） | **直接可用** | 补我们「远端任务中断可恢复」缺口；Kaggle kernel 必需 |
-| 错误三分类（提交失败/执行失败/超时可恢复） | **直接可用** | 简单充分，与我们 "never throws for expected failure" 一致 |
-| stdout=JSON / stderr=日志、`--json` 静音 | **直接可用** | 我们管线已同惯例，保持即可 |
-| schema_data.json 驱动端点/参数裁剪 | **暂不抄** | 我们多模型接入面小（本地 MLX/MPS + 少量云），数据驱动白增一层间接；模型多了再议 |
-| envelope / 版本键 / fail-open 缓存 / 纯函数路由 | **不用抄** | 对方没有，我们的 vlm-cache、tts/cache、b-roll 已更成熟 |
-| muapi-cli、`muapi predict wait`、19 个 MCP 工具 | **不抄** | 绑定 MuAPI 付费服务；本调研不注册、不付费、不装 CLI |
-| bash 实现（每个脚本复制一遍轮询循环） | **不抄** | 我们是 Node .mjs；且对方代码重复度高是反例，应抽成单文件 lib |
-| `--view`（macOS open）、`media_outputs/` 临时命名、每脚本 source .env | **不抄** | 与 `docs/media-asset-management.md` 及现有 env 约定冲突 |
-| SKILL.md frontmatter/Trigger Keywords/acceptLicenseTerms | **不抄** | 我们有 skill 体系与 content-pipeline，两套格式并存徒增维护 |
-| 配方的「Inputs 表 + 阶段化 Steps + {{占位符}} + 人工确认点」骨架 | **按需借鉴** | 仅在新增云端生成阶段的管线文档中使用 |
+| 对方机制                                                              | 判定                 | 理由                                                                            |
+| --------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------- |
+| submit → request_id → 轮询 → 结果的统一状态机                         | **直接可用（思想）** | Kaggle/Modal 远端任务同构；配合现有 envelope 落地                               |
+| 任务 ID 落盘 + 独立轮询入口（check-result.sh / `--async`）            | **直接可用**         | 补我们「远端任务中断可恢复」缺口；Kaggle kernel 必需                            |
+| 错误三分类（提交失败/执行失败/超时可恢复）                            | **直接可用**         | 简单充分，与我们 "never throws for expected failure" 一致                       |
+| stdout=JSON / stderr=日志、`--json` 静音                              | **直接可用**         | 我们管线已同惯例，保持即可                                                      |
+| schema_data.json 驱动端点/参数裁剪                                    | **暂不抄**           | 我们多模型接入面小（本地 MLX/MPS + 少量云），数据驱动白增一层间接；模型多了再议 |
+| envelope / 版本键 / fail-open 缓存 / 纯函数路由                       | **不用抄**           | 对方没有，我们的 vlm-cache、tts/cache、b-roll 已更成熟                          |
+| muapi-cli、`muapi predict wait`、19 个 MCP 工具                       | **不抄**             | 绑定 MuAPI 付费服务；本调研不注册、不付费、不装 CLI                             |
+| bash 实现（每个脚本复制一遍轮询循环）                                 | **不抄**             | 我们是 Node .mjs；且对方代码重复度高是反例，应抽成单文件 lib                    |
+| `--view`（macOS open）、`media_outputs/` 临时命名、每脚本 source .env | **不抄**             | 与 `docs/media-asset-management.md` 及现有 env 约定冲突                         |
+| SKILL.md frontmatter/Trigger Keywords/acceptLicenseTerms              | **不抄**             | 我们有 skill 体系与 content-pipeline，两套格式并存徒增维护                      |
+| 配方的「Inputs 表 + 阶段化 Steps + {{占位符}} + 人工确认点」骨架      | **按需借鉴**         | 仅在新增云端生成阶段的管线文档中使用                                            |
 
 ## 7. 落地建议（**需开独立 issue**，本文不动任何代码）
 

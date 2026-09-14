@@ -27,23 +27,66 @@
  */
 
 const DIGIT_WORDS = [
-  "zero", "one", "two", "three", "four",
-  "five", "six", "seven", "eight", "nine",
+  "zero",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
 ];
 
 const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 const ORDINAL_WORDS = [
-  "zeroth", "first", "second", "third", "fourth", "fifth",
-  "sixth", "seventh", "eighth", "ninth", "tenth",
-  "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth",
-  "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth",
-  "twenty-first", "twenty-second", "twenty-third", "twenty-fourth",
-  "twenty-fifth", "twenty-sixth", "twenty-seventh", "twenty-eighth",
-  "twenty-ninth", "thirtieth", "thirty-first",
+  "zeroth",
+  "first",
+  "second",
+  "third",
+  "fourth",
+  "fifth",
+  "sixth",
+  "seventh",
+  "eighth",
+  "ninth",
+  "tenth",
+  "eleventh",
+  "twelfth",
+  "thirteenth",
+  "fourteenth",
+  "fifteenth",
+  "sixteenth",
+  "seventeenth",
+  "eighteenth",
+  "nineteenth",
+  "twentieth",
+  "twenty-first",
+  "twenty-second",
+  "twenty-third",
+  "twenty-fourth",
+  "twenty-fifth",
+  "twenty-sixth",
+  "twenty-seventh",
+  "twenty-eighth",
+  "twenty-ninth",
+  "thirtieth",
+  "thirty-first",
 ];
 
 /**
@@ -54,10 +97,11 @@ const ORDINAL_WORDS = [
  * @returns {string} spoken form
  */
 function decimalToSpoken(intPart, decPart) {
-  const intSpoken = parseInt(intPart, 10) === 0
-    ? "zero"
-    : numberToWords(parseInt(intPart, 10));
-  const decDigits = decPart.split("").map((d) => DIGIT_WORDS[parseInt(d, 10)]).join(" ");
+  const intSpoken = parseInt(intPart, 10) === 0 ? "zero" : numberToWords(parseInt(intPart, 10));
+  const decDigits = decPart
+    .split("")
+    .map((d) => DIGIT_WORDS[parseInt(d, 10)])
+    .join(" ");
   return `${intSpoken} point ${decDigits}`;
 }
 
@@ -70,14 +114,38 @@ function numberToWords(n) {
   if (n === 0) return "zero";
   if (n < 0) return `negative ${numberToWords(-n)}`;
   const ones = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
-  const teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
-  const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+  const teens = [
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+  ];
+  const tens = [
+    "",
+    "",
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+    "sixty",
+    "seventy",
+    "eighty",
+    "ninety",
+  ];
 
   if (n < 10) return ones[n];
   if (n < 20) return teens[n - 10];
   if (n < 100) return `${tens[Math.floor(n / 10)]}${n % 10 ? ` ${ones[n % 10]}` : ""}`;
-  if (n < 1000) return `${ones[Math.floor(n / 100)]} hundred${n % 100 ? ` ${numberToWords(n % 100)}` : ""}`;
-  if (n < 10000) return `${ones[Math.floor(n / 1000)]} thousand${n % 1000 ? ` ${numberToWords(n % 1000)}` : ""}`;
+  if (n < 1000)
+    return `${ones[Math.floor(n / 100)]} hundred${n % 100 ? ` ${numberToWords(n % 100)}` : ""}`;
+  if (n < 10000)
+    return `${ones[Math.floor(n / 1000)]} thousand${n % 1000 ? ` ${numberToWords(n % 1000)}` : ""}`;
   return String(n);
 }
 
@@ -114,15 +182,25 @@ function mmddToDateSpoken(mmdd) {
  */
 const UNIT_SPOKEN = {
   // resolution / display
-  p: "P", k: "K",
+  p: "P",
+  k: "K",
   // acronyms read letter-by-letter
-  fps: "FPS", nm: "NM", kb: "KB", mb: "MB", gb: "GB", tb: "TB", km: "KM", kg: "KG",
+  fps: "FPS",
+  nm: "NM",
+  kb: "KB",
+  mb: "MB",
+  gb: "GB",
+  tb: "TB",
+  km: "KM",
+  kg: "KG",
   // Hz: TN expands to "hertz" when alive, letter-name fallback otherwise
   hz: "Hz",
   // "bit" stays a word (all-caps "BIT" risks letter-by-letter spelling)
   bit: "bit",
   // metric / magnitude letters
-  g: "G", t: "T", m: "M",
+  g: "G",
+  t: "T",
+  m: "M",
 };
 
 /** Longest-first alternation so "16GB" matches "gb", not "g". */
@@ -179,7 +257,10 @@ function normalizeVoiceover(str, replacements) {
 
   // 4. Hyphenated version: "GPT-4", "GPT-4o"
   str = str.replace(/\b([A-Z]{2,4})-(\d+)([a-z]?)\b/g, (match, prefix, num, suffix) => {
-    return record(match, `${prefix} ${numberToWords(parseInt(num, 10))}${suffix ? ` ${suffix}` : ""}`);
+    return record(
+      match,
+      `${prefix} ${numberToWords(parseInt(num, 10))}${suffix ? ` ${suffix}` : ""}`,
+    );
   });
 
   // 5. Four-digit dates in context: "expires on 0910", "deadline 0910"
@@ -202,13 +283,10 @@ function normalizeVoiceover(str, replacements) {
   });
 
   // 7. Bare 4-digit MMDD when preceded by "on" or "by"
-  str = str.replace(
-    /\b(?:on|by)\s+(\d{4})\b/gi,
-    (match, digits) => {
-      const dateSpoken = mmddToDateSpoken(digits);
-      return dateSpoken ? record(digits, dateSpoken) : match;
-    },
-  );
+  str = str.replace(/\b(?:on|by)\s+(\d{4})\b/gi, (match, digits) => {
+    const dateSpoken = mmddToDateSpoken(digits);
+    return dateSpoken ? record(digits, dateSpoken) : match;
+  });
 
   // 8. Digit + spec-unit splitting (#239): "720p" → "720 P".
   //    Runs LAST so version rules (1-4) have already consumed "V4.1" /
@@ -258,7 +336,9 @@ export function normalizeTtsText(scenes, _meta = {}) {
     }
   }
   if (changeCount > 0) {
-    console.log(`  📝 TTS dual-track normalization: ${changeCount} scene(s) — voiceover (display) untouched, ttsText (spoken) derived`);
+    console.log(
+      `  📝 TTS dual-track normalization: ${changeCount} scene(s) — voiceover (display) untouched, ttsText (spoken) derived`,
+    );
   }
   return scenes;
 }

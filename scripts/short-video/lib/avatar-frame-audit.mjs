@@ -222,7 +222,12 @@ export function protectedZones() {
     },
     {
       id: "left margin",
-      rect: { x: 0, y: SAFE_ZONES.top, width: SAFE_ZONES.left, height: bottomZoneTop - SAFE_ZONES.top },
+      rect: {
+        x: 0,
+        y: SAFE_ZONES.top,
+        width: SAFE_ZONES.left,
+        height: bottomZoneTop - SAFE_ZONES.top,
+      },
     },
     {
       id: "TikTok right action rail",
@@ -313,7 +318,13 @@ export function toLuminanceGrid(png) {
  * @returns {{sum: Float64Array, sumSq: Float64Array, count: number, width: number, height: number}}
  */
 export function createVarianceAccumulator(width, height) {
-  return { sum: new Float64Array(width * height), sumSq: new Float64Array(width * height), count: 0, width, height };
+  return {
+    sum: new Float64Array(width * height),
+    sumSq: new Float64Array(width * height),
+    count: 0,
+    width,
+    height,
+  };
 }
 
 /** Add one luminance grid to the accumulator. */
@@ -506,10 +517,21 @@ export function evaluateSafeZoneGate({ varGrid, scale, expectedRect }) {
   const scanZone = (zoneGrid) => {
     let strongCount = 0;
     let total = 0;
-    for (let y = Math.max(0, zoneGrid.y); y < Math.min(zoneGrid.y + zoneGrid.height, varGrid.height); y++) {
-      for (let x = Math.max(0, zoneGrid.x); x < Math.min(zoneGrid.x + zoneGrid.width, varGrid.width); x++) {
+    for (
+      let y = Math.max(0, zoneGrid.y);
+      y < Math.min(zoneGrid.y + zoneGrid.height, varGrid.height);
+      y++
+    ) {
+      for (
+        let x = Math.max(0, zoneGrid.x);
+        x < Math.min(zoneGrid.x + zoneGrid.width, varGrid.width);
+        x++
+      ) {
         const inExclusion =
-          x >= expanded.x && x < expanded.x + expanded.width && y >= expanded.y && y < expanded.y + expanded.height;
+          x >= expanded.x &&
+          x < expanded.x + expanded.width &&
+          y >= expanded.y &&
+          y < expanded.y + expanded.height;
         if (inExclusion) continue;
         total++;
         if (varGrid.lum[varGrid.width * y + x] > STRONG_MOTION_THRESHOLD) strongCount++;
@@ -537,10 +559,21 @@ export function evaluateSafeZoneGate({ varGrid, scale, expectedRect }) {
         const zoneGrid = scaleRect(zone.rect, scale);
         let connected = 0;
         let total = 0;
-        for (let y = Math.max(0, zoneGrid.y); y < Math.min(zoneGrid.y + zoneGrid.height, varGrid.height); y++) {
-          for (let x = Math.max(0, zoneGrid.x); x < Math.min(zoneGrid.x + zoneGrid.width, varGrid.width); x++) {
+        for (
+          let y = Math.max(0, zoneGrid.y);
+          y < Math.min(zoneGrid.y + zoneGrid.height, varGrid.height);
+          y++
+        ) {
+          for (
+            let x = Math.max(0, zoneGrid.x);
+            x < Math.min(zoneGrid.x + zoneGrid.width, varGrid.width);
+            x++
+          ) {
             const inExclusion =
-              x >= expanded.x && x < expanded.x + expanded.width && y >= expanded.y && y < expanded.y + expanded.height;
+              x >= expanded.x &&
+              x < expanded.x + expanded.width &&
+              y >= expanded.y &&
+              y < expanded.y + expanded.height;
             if (inExclusion) continue;
             total++;
             if (component[varGrid.width * y + x]) connected++;
@@ -564,7 +597,11 @@ export function evaluateSafeZoneGate({ varGrid, scale, expectedRect }) {
           width: gapBand.width,
           height: Math.max(1, gapBand.height - pad),
         };
-        zoneMetrics[lane.id].gapBandRatio = dynamicRatioInRect(varGrid, gapAboveLane, STRONG_MOTION_THRESHOLD);
+        zoneMetrics[lane.id].gapBandRatio = dynamicRatioInRect(
+          varGrid,
+          gapAboveLane,
+          STRONG_MOTION_THRESHOLD,
+        );
       }
     } else {
       // Subtle-motion card: no strong component to trace; presence and the
@@ -645,7 +682,11 @@ export function mouthRectForCard(cardRect) {
  */
 export function evaluateLipGate(grids, mouthRectGrid) {
   if (grids.length < 2) {
-    return { status: "fail", detail: "fewer than 2 frames sampled — lip movement unverifiable", metrics: { samples: grids.length } };
+    return {
+      status: "fail",
+      detail: "fewer than 2 frames sampled — lip movement unverifiable",
+      metrics: { samples: grids.length },
+    };
   }
   const acc = createVarianceAccumulator(grids[0].width, grids[0].height);
   for (const g of grids) accumulateFrame(acc, g);
@@ -740,16 +781,27 @@ function firstOnsetIndex(arr) {
  * @param {number} [p.tolerance] - default AV_SYNC_TOLERANCE_SECONDS
  * @returns {{status:"pass"|"fail"|"skip", detail:string, metrics:object}}
  */
-export function evaluateSyncGate({ mouthSeries, audioSeries, tolerance = AV_SYNC_TOLERANCE_SECONDS }) {
+export function evaluateSyncGate({
+  mouthSeries,
+  audioSeries,
+  tolerance = AV_SYNC_TOLERANCE_SECONDS,
+}) {
   const n = Math.min(mouthSeries.length, audioSeries.length);
   if (n < 4) {
-    return { status: "skip", detail: "too few aligned samples for a sync spot-check", metrics: { samples: n } };
+    return {
+      status: "skip",
+      detail: "too few aligned samples for a sync spot-check",
+      metrics: { samples: n },
+    };
   }
   const period = 1 / SYNC_ENVELOPE_FPS;
   const t0 = Math.min(mouthSeries[0].time, audioSeries[0].time);
   const index = (t) => Math.round((t - t0) / period);
   const gridLen =
-    Math.max(index(mouthSeries[mouthSeries.length - 1].time), index(audioSeries[audioSeries.length - 1].time)) + 1;
+    Math.max(
+      index(mouthSeries[mouthSeries.length - 1].time),
+      index(audioSeries[audioSeries.length - 1].time),
+    ) + 1;
   const m = new Float64Array(gridLen);
   const a = new Float64Array(gridLen);
   for (const s of mouthSeries) m[index(s.time)] = Math.max(m[index(s.time)], s.energy);
@@ -758,7 +810,11 @@ export function evaluateSyncGate({ mouthSeries, audioSeries, tolerance = AV_SYNC
   let aMax = 0;
   for (const v of a) if (v > aMax) aMax = v;
   if (aMax <= 0) {
-    return { status: "fail", detail: "audio envelope is flat — scene TTS audio has no usable energy", metrics: { samples: n } };
+    return {
+      status: "fail",
+      detail: "audio envelope is flat — scene TTS audio has no usable energy",
+      metrics: { samples: n },
+    };
   }
   let mMax = 0;
   for (const v of m) if (v > mMax) mMax = v;
@@ -805,7 +861,17 @@ export function evaluateSyncGate({ mouthSeries, audioSeries, tolerance = AV_SYNC
 export function probeVideoSize(videoPath) {
   const raw = execFileSync(
     FFPROBE_PATH,
-    ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", videoPath],
+    [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width,height",
+      "-of",
+      "csv=p=0",
+      videoPath,
+    ],
     { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
   ).trim();
   const [width, height] = raw.split(",").map((v) => parseInt(v, 10));
@@ -829,7 +895,15 @@ export function probeVideoSize(videoPath) {
  * @param {number} [p.width] - AUDIT_FRAME_WIDTH
  * @returns {string[]} absolute frame paths, time order
  */
-export function sampleWindowFrames({ videoPath, fromSeconds, durationSeconds, outDir, prefix, fps = AUDIT_SAMPLE_FPS, width = AUDIT_FRAME_WIDTH }) {
+export function sampleWindowFrames({
+  videoPath,
+  fromSeconds,
+  durationSeconds,
+  outDir,
+  prefix,
+  fps = AUDIT_SAMPLE_FPS,
+  width = AUDIT_FRAME_WIDTH,
+}) {
   mkdirSync(outDir, { recursive: true });
   const dur = Math.max(0.1, durationSeconds);
   // Cap the frame count by shrinking the sampled span from the window START
@@ -905,7 +979,9 @@ export async function auditScene({
   const expectedRect = AVATAR_CARD_RECT; // canvas px — the declared geometry
 
   // Audit windows = present intervals (or the whole audio span) in video time.
-  const windows = (presentIntervals?.length ? presentIntervals : [{ from: 0, to: sceneAudioDurationSeconds }])
+  const windows = (
+    presentIntervals?.length ? presentIntervals : [{ from: 0, to: sceneAudioDurationSeconds }]
+  )
     .map((iv) => ({
       from: Math.max(0, sceneStartSeconds + iv.from),
       to: sceneStartSeconds + iv.to,
@@ -934,7 +1010,9 @@ export async function auditScene({
       prefix: `scene-${sceneId}-w${w}`,
     });
     if (paths.length === 0) {
-      throw new Error(`Scene ${sceneId}: ffmpeg produced no audit frames for window ${w} — is the video readable?`);
+      throw new Error(
+        `Scene ${sceneId}: ffmpeg produced no audit frames for window ${w} — is the video readable?`,
+      );
     }
     paths.forEach((p, i) => {
       const png = PNG.sync.read(readFileSync(p));
@@ -981,7 +1059,9 @@ export async function auditScene({
   };
 
   // GATE 3 — A/V sync: TTS envelope (video time) vs mouth diff series.
-  const mouthSeries = grids.slice(1).map((g, i) => ({ time: frameTimes[i], energy: meanAbsDiff(grids[i], g, mouthGrid) }));
+  const mouthSeries = grids
+    .slice(1)
+    .map((g, i) => ({ time: frameTimes[i], energy: meanAbsDiff(grids[i], g, mouthGrid) }));
   let gateSync;
   if (!audioPath || !existsSync(audioPath)) {
     gateSync = {
@@ -1007,12 +1087,21 @@ export async function auditScene({
     // from before the window would otherwise count as "audio leading".
     const mFirst = mouthSeries[0].time;
     const mLast = mouthSeries[mouthSeries.length - 1].time;
-    const audioInWindow = audioSeries.filter((s) => s.time >= mFirst - 0.5 / SYNC_ENVELOPE_FPS && s.time <= mLast + 0.5 / SYNC_ENVELOPE_FPS);
+    const audioInWindow = audioSeries.filter(
+      (s) =>
+        s.time >= mFirst - 0.5 / SYNC_ENVELOPE_FPS && s.time <= mLast + 0.5 / SYNC_ENVELOPE_FPS,
+    );
     const sync = evaluateSyncGate({
       mouthSeries,
       audioSeries: audioInWindow.length >= 4 ? audioInWindow : audioSeries,
     });
-    gateSync = { gate: "av-sync", status: sync.status, detail: sync.detail, evidence: framePaths.slice(0, 6), metrics: sync.metrics };
+    gateSync = {
+      gate: "av-sync",
+      status: sync.status,
+      detail: sync.detail,
+      evidence: framePaths.slice(0, 6),
+      metrics: sync.metrics,
+    };
   }
 
   const gates = [gateSafeZone, gateLip, gateSync];
@@ -1049,8 +1138,12 @@ export function readSceneDurationsForTimeline(audioDir, expectedSceneCount) {
   if (existsSync(durationsPath)) {
     try {
       const all = JSON.parse(readFileSync(durationsPath, "utf8"));
-      for (const entry of Array.isArray(all) ? all : all?.scenes ?? []) {
-        if (typeof entry?.sceneId === "number" && typeof entry?.duration === "number" && entry.duration > 0) {
+      for (const entry of Array.isArray(all) ? all : (all?.scenes ?? [])) {
+        if (
+          typeof entry?.sceneId === "number" &&
+          typeof entry?.duration === "number" &&
+          entry.duration > 0
+        ) {
           byId.set(entry.sceneId, entry.duration);
         }
       }
@@ -1066,7 +1159,8 @@ export function readSceneDurationsForTimeline(audioDir, expectedSceneCount) {
       if (byId.has(sceneId)) continue;
       try {
         const meta = JSON.parse(readFileSync(join(audioDir, f), "utf8"));
-        if (typeof meta.duration === "number" && meta.duration > 0) byId.set(sceneId, meta.duration);
+        if (typeof meta.duration === "number" && meta.duration > 0)
+          byId.set(sceneId, meta.duration);
       } catch {
         // unreadable meta → the completeness check below reports it
       }
@@ -1100,7 +1194,13 @@ export function readSceneDurationsForTimeline(audioDir, expectedSceneCount) {
  * @param {string} [p.audioDir] - defaults to {outputDir}/audio
  * @returns {Promise<object>} result (also written to disk)
  */
-export async function auditDigitalHumanPackage({ plan, videoPath, outputDir, totalSceneCount, audioDir }) {
+export async function auditDigitalHumanPackage({
+  plan,
+  videoPath,
+  outputDir,
+  totalSceneCount,
+  audioDir,
+}) {
   if (plan?.kind !== "digital-human-plan") {
     throw new Error(`not a digital-human-plan (kind=${JSON.stringify(plan?.kind)})`);
   }
@@ -1127,7 +1227,9 @@ export async function auditDigitalHumanPackage({ plan, videoPath, outputDir, tot
   }
 
   const failedGates = sceneResults.flatMap((r) =>
-    r.gates.filter((g) => g.status === "fail").map((g) => ({ sceneId: r.sceneId, gate: g.gate, detail: g.detail })),
+    r.gates
+      .filter((g) => g.status === "fail")
+      .map((g) => ({ sceneId: r.sceneId, gate: g.gate, detail: g.detail })),
   );
   const result = {
     schemaVersion: 1,

@@ -21,7 +21,9 @@ describe("TTS Quality Gate - Token & Linguistic Helpers", () => {
   it("cleans and tokenizes text properly", () => {
     const raw = "On September 8, DeepSeek announced V4.1 Flash testing! The ID: expires on 0910.";
     const cleaned = cleanText(raw);
-    expect(cleaned).toContain("on september 8 deepseek announced v4 1 flash testing the id expires on 0910");
+    expect(cleaned).toContain(
+      "on september 8 deepseek announced v4 1 flash testing the id expires on 0910",
+    );
 
     const tokens = tokenize(raw);
     expect(tokens).toContain("september");
@@ -78,9 +80,13 @@ describe("TTS Quality Gate - Audio & ASR Evaluation", () => {
     });
 
     expect(res.passed).toBe(false);
-    expect(res.issues.some((i) => i.includes("missing tail word") || i.includes("missing key token"))).toBe(true);
+    expect(
+      res.issues.some((i) => i.includes("missing tail word") || i.includes("missing key token")),
+    ).toBe(true);
 
-    try { unlinkSync(dummyAudio); } catch {}
+    try {
+      unlinkSync(dummyAudio);
+    } catch {}
   });
 
   it("passes when all words and numbers match expected text", async () => {
@@ -104,7 +110,9 @@ describe("TTS Quality Gate - Audio & ASR Evaluation", () => {
     expect(res.passed).toBe(true);
     expect(res.issues).toEqual([]);
 
-    try { unlinkSync(dummyAudio); } catch {}
+    try {
+      unlinkSync(dummyAudio);
+    } catch {}
   });
 
   it("flags pacing when WPM is below minimum acceptable threshold (Indian accent drag)", async () => {
@@ -128,7 +136,9 @@ describe("TTS Quality Gate - Audio & ASR Evaluation", () => {
     expect(res.passed).toBe(false);
     expect(res.issues.some((i) => i.includes("Pacing too slow"))).toBe(true);
 
-    try { unlinkSync(dummyAudio); } catch {}
+    try {
+      unlinkSync(dummyAudio);
+    } catch {}
   });
 
   it("runs batch Quality Gate and returns overall pass/fail status", async () => {
@@ -144,7 +154,8 @@ describe("TTS Quality Gate - Audio & ASR Evaluation", () => {
       { sceneId: 2, audioPath: dummyAudio, duration: 3.0 },
     ];
 
-    const mockTranscriber = vi.fn()
+    const mockTranscriber = vi
+      .fn()
       .mockResolvedValueOnce({
         ok: true,
         segments: [{ text: "Hello world this is a test of TTS audio." }],
@@ -163,7 +174,9 @@ describe("TTS Quality Gate - Audio & ASR Evaluation", () => {
     expect(gateResult.evaluations[0].passed).toBe(true);
     expect(gateResult.evaluations[1].passed).toBe(false);
 
-    try { unlinkSync(dummyAudio); } catch {}
+    try {
+      unlinkSync(dummyAudio);
+    } catch {}
   });
 
   it("triggers self-healing retry loop in generateTTSWithEngine when quality gate fails", async () => {
@@ -188,12 +201,11 @@ describe("TTS Quality Gate - Audio & ASR Evaluation", () => {
       }),
     };
 
-    const scenes = [
-      { id: 1, voiceover: "The model ID says expires on September tenth." },
-    ];
+    const scenes = [{ id: 1, voiceover: "The model ID says expires on September tenth." }];
 
     // First attempt: missing "tenth", second attempt: full sentence
-    const mockTranscriber = vi.fn()
+    const mockTranscriber = vi
+      .fn()
       .mockResolvedValueOnce({
         ok: true,
         segments: [{ text: "The model ID says expires on September." }],
@@ -216,7 +228,9 @@ describe("TTS Quality Gate - Audio & ASR Evaluation", () => {
     // Verified: engine was called twice (initial + 1 retry healing)
     expect(engineCalls).toBe(2);
 
-    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+    try {
+      rmSync(testDir, { recursive: true, force: true });
+    } catch {}
   });
 });
 
@@ -227,7 +241,9 @@ describe("TTS Quality Gate - Audio & ASR Evaluation", () => {
 
 describe("#251 roman-numeral version equivalence", () => {
   it("critical token v4 is satisfied by ASR 'vi' + '4'", () => {
-    const asrSet = buildExpandedAsrTokenSet(tokenize("China's DeepSeq VI 4.1 flash beat the old Pro"));
+    const asrSet = buildExpandedAsrTokenSet(
+      tokenize("China's DeepSeq VI 4.1 flash beat the old Pro"),
+    );
     expect(asrSet.has("v")).toBe(true); // "vi" unpacks to the version letter
     expect(isWordInAsr("v4", asrSet)).toBe(true);
   });

@@ -53,9 +53,7 @@ const AVATAR_PRESENT_SCENE: SceneData = {
   avatar: {
     videoPath: AVATAR_FIXTURE_VIDEO,
     position: "right-card",
-    present: [
-      { from: 1, to: 3 },
-    ],
+    present: [{ from: 1, to: 3 }],
   },
 };
 

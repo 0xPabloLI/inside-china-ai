@@ -46,11 +46,17 @@ function makeMockDeps(outputs, { interval = 1000 } = {}) {
 
 describe("classifyKernelStatus", () => {
   it("maps kaggle CLI status lines to phases", () => {
-    expect(classifyKernelStatus("cosyvoice3-cuda-batch complete: 2026-09-11 10:00:00")).toBe("complete");
-    expect(classifyKernelStatus("cosyvoice3-cuda-batch running: 2026-09-11 10:00:00")).toBe("running");
+    expect(classifyKernelStatus("cosyvoice3-cuda-batch complete: 2026-09-11 10:00:00")).toBe(
+      "complete",
+    );
+    expect(classifyKernelStatus("cosyvoice3-cuda-batch running: 2026-09-11 10:00:00")).toBe(
+      "running",
+    );
     expect(classifyKernelStatus("cosyvoice3-cuda-batch queued: position 1")).toBe("queued");
     expect(classifyKernelStatus("cosyvoice3-cuda-batch error: OOM")).toBe("error");
-    expect(classifyKernelStatus("cosyvoice3-cuda-batch cancelAcknowledged: user cancel")).toBe("cancel");
+    expect(classifyKernelStatus("cosyvoice3-cuda-batch cancelAcknowledged: user cancel")).toBe(
+      "cancel",
+    );
   });
 
   it("maps empty/garbage output to unknown (never silently terminal)", () => {
@@ -75,12 +81,10 @@ describe("pollKernelStatus — phase tracking", () => {
   });
 
   it("keeps polling when the CLI exits non-zero (404 while QUEUED) instead of crashing", async () => {
-    const fail = Object.assign(new Error("Command failed"), { stdout: "404 Client Error: Not Found" });
-    const { deps, logs } = makeMockDeps([
-      fail,
-      fail,
-      "k complete: done",
-    ]);
+    const fail = Object.assign(new Error("Command failed"), {
+      stdout: "404 Client Error: Not Found",
+    });
+    const { deps, logs } = makeMockDeps([fail, fail, "k complete: done"]);
     const result = await pollKernelStatus("u/k", {}, deps);
     expect(result.queuedMs).toBeGreaterThanOrEqual(0);
     expect(logs.some((l) => l.includes("UNKNOWN"))).toBe(true);
@@ -133,11 +137,7 @@ describe("pollKernelStatus — queue timeout is separate from run timeout", () =
 describe("pollKernelStatus — status file visibility", () => {
   it("writes poll-status.json with the current phase and metering", async () => {
     const statusFile = join(tmpdir(), `tts-kaggle-poll-test-${process.pid}-${Date.now()}.json`);
-    const { deps } = makeMockDeps([
-      "k queued: p",
-      "k running: now",
-      "k complete: done",
-    ]);
+    const { deps } = makeMockDeps(["k queued: p", "k running: now", "k complete: done"]);
     await pollKernelStatus("u/k", { statusFile, pollIntervalMs: 1000 }, deps);
     const state = JSON.parse(readFileSync(statusFile, "utf8"));
     expect(state.kernelId).toBe("u/k");

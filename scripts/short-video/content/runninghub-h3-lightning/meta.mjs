@@ -5,7 +5,15 @@ export const meta = {
   article: "runninghub-h3-lightning",
   renderer: "remotion",
   createdAt: "2026-09-10",
-  topics: ["minimax", "h3", "runninghub", "video-generation", "open-source", "inference-acceleration", "china-ai"],
+  topics: [
+    "minimax",
+    "h3",
+    "runninghub",
+    "video-generation",
+    "open-source",
+    "inference-acceleration",
+    "china-ai",
+  ],
   keyEntities: {
     companies: ["minimax", "runninghub", "haimayun"],
     people: [],

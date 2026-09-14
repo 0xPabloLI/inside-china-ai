@@ -164,9 +164,7 @@ async function main() {
         const avatarPath = resolve(__dirname, "content", contentDir, scene.avatar.videoPath);
         if (!existsSync(avatarPath)) {
           console.error(`❌ Avatar video missing for scene ${scene.id}: ${scene.avatar.videoPath}`);
-          console.error(
-            `   Fail-closed: the render will not silently drop the digital human.`,
-          );
+          console.error(`   Fail-closed: the render will not silently drop the digital human.`);
           console.error(
             `   Restore the generated clip, or regenerate it (digital-human CLI, #214 T3), or remove scene.avatar from the scene.`,
           );
@@ -298,7 +296,11 @@ async function main() {
   }
   const totalDuration = ttsResults.reduce((s, t) => s + t.duration, 0);
   const ttsCached = ttsResults.filter((r) => r.cached).length;
-  console.log(`\n  Total voiceover: ${totalDuration.toFixed(1)}s` + (ttsCached ? ` (${ttsCached}/${scenes.length} from cache)` : "") + "\n");
+  console.log(
+    `\n  Total voiceover: ${totalDuration.toFixed(1)}s` +
+      (ttsCached ? ` (${ttsCached}/${scenes.length} from cache)` : "") +
+      "\n",
+  );
 
   // ── Step 3: Select background music (optional, --bgm flag) ──
   const useBGM = process.argv.includes("--bgm");

@@ -219,20 +219,19 @@ describe("runBrollStage", () => {
     expect(calls.length).toBe(1);
     const jobs = calls[0];
     // Two seeds per scene share ONE composed prompt...
-    const scene5Prompts = new Set(jobs.filter((j) => j.label.startsWith("scene-5-")).map((j) => j.prompt));
-    const scene6Prompts = new Set(jobs.filter((j) => j.label.startsWith("scene-6-")).map((j) => j.prompt));
+    const scene5Prompts = new Set(
+      jobs.filter((j) => j.label.startsWith("scene-5-")).map((j) => j.prompt),
+    );
+    const scene6Prompts = new Set(
+      jobs.filter((j) => j.label.startsWith("scene-6-")).map((j) => j.prompt),
+    );
     expect(scene5Prompts.size).toBe(1);
     expect(scene6Prompts.size).toBe(1);
     expect(scene5Prompts).not.toEqual(scene6Prompts);
     // ...and the two seed jobs of each prompt are adjacent, so scanning the
     // batch in order groups all work for a prompt before moving on.
     const promptRun = jobs.map((j) => j.prompt);
-    expect(promptRun).toEqual([
-      jobs[0].prompt,
-      jobs[0].prompt,
-      jobs[2].prompt,
-      jobs[2].prompt,
-    ]);
+    expect(promptRun).toEqual([jobs[0].prompt, jobs[0].prompt, jobs[2].prompt, jobs[2].prompt]);
   });
 
   test("#240 one scene's failed jobs do not drag down the other scenes", async () => {
@@ -702,10 +701,12 @@ describe("runBrollStage #166 wiring", () => {
   test("a prompt that covers every dimension generates unchanged (idempotent)", async () => {
     const dirs = stageDirs();
     const { generate, calls } = okGenerateMock();
-    const raw =
-      "Two lanes of glowing particles, dark studio, no text, no watermark, no hands";
+    const raw = "Two lanes of glowing particles, dark studio, no text, no watermark, no hands";
     await runBrollStage(
-      baseOpts(dirs, { scenes: [scene({ id: "8", mediaStrategy: "b-roll", aiVideo: { prompt: raw } })], generate }),
+      baseOpts(dirs, {
+        scenes: [scene({ id: "8", mediaStrategy: "b-roll", aiVideo: { prompt: raw } })],
+        generate,
+      }),
     );
     expect(calls[0].every((j) => j.prompt === raw)).toBe(true);
   });
@@ -746,15 +747,16 @@ describe("runBrollStage #166 wiring", () => {
     expect(result.counts.cached).toBe(1);
     const entry = readReport(reportPath(dirs.outputDir)).scenes["6"];
     expect(entry.injectionVersion).toBe(PROMPT_INJECTION_VERSION);
-    expect(entry.promptHash).toBe(promptHash(composeGenerationPrompt({ aiVideo: { prompt: raw } })));
+    expect(entry.promptHash).toBe(
+      promptHash(composeGenerationPrompt({ aiVideo: { prompt: raw } })),
+    );
   });
 
   test("legacy won entry whose prompt only dropped covered NEGATIVE clauses stays cached (#166 migration)", async () => {
     const dirs = stageDirs();
     // What a pre-#166 qwen4-preview scene-8 entry looked like: full
     // hand-written NEGATIVE coverage, art-directed prompt.
-    const prior =
-      "Two lanes of glowing particles, dark studio, no text, no watermark, no hands";
+    const prior = "Two lanes of glowing particles, dark studio, no text, no watermark, no hands";
     const raw = "Two lanes of glowing particles, dark studio"; // #166 stripped the clauses
     const legacy = {
       strategy: "b-roll",
@@ -782,7 +784,9 @@ describe("runBrollStage #166 wiring", () => {
     expect(result.counts.cached).toBe(1);
     const entry = readReport(reportPath(dirs.outputDir)).scenes["8"];
     expect(entry.injectionVersion).toBe(PROMPT_INJECTION_VERSION);
-    expect(entry.promptHash).toBe(promptHash(composeGenerationPrompt({ aiVideo: { prompt: raw } })));
+    expect(entry.promptHash).toBe(
+      promptHash(composeGenerationPrompt({ aiVideo: { prompt: raw } })),
+    );
   });
 
   test("a legacy entry whose prompt changed beyond NEGATIVE stripping regenerates", async () => {

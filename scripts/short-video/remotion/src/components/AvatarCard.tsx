@@ -72,12 +72,7 @@ export const AvatarCard: React.FC<{ avatar?: AvatarField; duration: number }> = 
   return (
     <>
       {windows.map((w, i) => (
-        <Sequence
-          key={i}
-          from={w.from}
-          durationInFrames={Math.max(1, w.to - w.from)}
-          layout="none"
-        >
+        <Sequence key={i} from={w.from} durationInFrames={Math.max(1, w.to - w.from)} layout="none">
           <div
             style={{
               position: "absolute",

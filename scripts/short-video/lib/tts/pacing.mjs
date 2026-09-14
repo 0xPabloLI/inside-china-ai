@@ -160,7 +160,11 @@ export function planPacingResponse(scene, measuredWpm) {
   const text = scene?.ttsText || scene?.voiceover || "";
   const wpm = Number(measuredWpm);
   if (!isEnglishText(text) || !Number.isFinite(wpm) || wpm <= 0) {
-    return { action: "keep", measuredWpm: wpm, reason: "no usable WPM measurement or non-EN scene" };
+    return {
+      action: "keep",
+      measuredWpm: wpm,
+      reason: "no usable WPM measurement or non-EN scene",
+    };
   }
   const role = scene?.refStyle || scene?.visualType;
   const isHook = role === "hook";
@@ -227,7 +231,12 @@ export function planPacingResponses(scenes, evaluations) {
 
     const plan = planPacingResponse(scene, ev.wpm);
     if (plan.action === "compensate") {
-      compensations.push({ scene, speed: plan.speed, measuredWpm: plan.measuredWpm, reason: plan.reason });
+      compensations.push({
+        scene,
+        speed: plan.speed,
+        measuredWpm: plan.measuredWpm,
+        reason: plan.reason,
+      });
     } else if (plan.action === "reroll") {
       rerolls.push({ scene, measuredWpm: plan.measuredWpm, reason: plan.reason });
     }

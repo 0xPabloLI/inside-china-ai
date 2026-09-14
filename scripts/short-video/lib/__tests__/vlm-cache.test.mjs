@@ -310,7 +310,13 @@ describe("wrapAnalyzerWithCache window normalization", () => {
     let calls = 0;
     const fake = async () => {
       calls += 1;
-      return { description: "d", subjects: [], contentKind: null, fit: null, criticalEdgeText: null };
+      return {
+        description: "d",
+        subjects: [],
+        contentKind: null,
+        fit: null,
+        criticalEdgeText: null,
+      };
     };
     const { wrapAnalyzerWithCache } = await import("../vlm-cache.mjs");
     const wrapped = wrapAnalyzerWithCache(fake, {

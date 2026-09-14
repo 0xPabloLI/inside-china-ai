@@ -48,9 +48,7 @@ export default defineConfig({
     exclude: [
       "**/node_modules/**",
       "scripts/short-video/experiments/**",
-      ...(CI_SKIP_ENV_BOUND
-        ? [...CI_SKIPPED_SUITES, ...CI_SKIPPED_MACHINE_BOUND]
-        : []),
+      ...(CI_SKIP_ENV_BOUND ? [...CI_SKIPPED_SUITES, ...CI_SKIPPED_MACHINE_BOUND] : []),
     ],
     // Timing/load-sensitive suites (real ffmpeg audio, worker-pool timers)
     // flake under full-parallel load — isolation re-runs stay green

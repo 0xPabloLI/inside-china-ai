@@ -14,12 +14,12 @@ The triage skill uses five canonical roles. Label strings match role names.
 Set during triage. Exactly one per triaged issue; guides pick-up order for
 human and agent work.
 
-| Label | Meaning                                                              |
-| ----- | -------------------------------------------------------------------- |
-| `P0`  | Blocks publishing or the live site — drop everything                 |
-| `P1`  | Breaks a core pipeline path with a workaround; fix this week         |
-| `P2`  | Normal backlog work; fix in planned order                            |
-| `P3`  | Nice-to-have; pick up when idle or batch with related work           |
+| Label | Meaning                                                      |
+| ----- | ------------------------------------------------------------ |
+| `P0`  | Blocks publishing or the live site — drop everything         |
+| `P1`  | Breaks a core pipeline path with a workaround; fix this week |
+| `P2`  | Normal backlog work; fix in planned order                    |
+| `P3`  | Nice-to-have; pick up when idle or batch with related work   |
 
 ## State Labels
 
@@ -33,8 +33,8 @@ human and agent work.
 
 ## Signal Labels (machine-managed)
 
-| Label             | Meaning                                                                                                                                                                |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Label             | Meaning                                                                                                                                                                 |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `comments-unread` | Auto-set by CI whenever a comment lands on an **open** issue; cleared by whichever session incorporates the new state. Not a triage state — exempt from the rule below. |
 
 ## Triage Flow

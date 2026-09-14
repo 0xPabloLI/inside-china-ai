@@ -15,10 +15,7 @@ let found = "";
 for (const m of SUB_MAX) {
   // JS:  process.env.ASR_MODEL || "base"
   // Py:  os.environ.get("ASR_MODEL", "base")
-  const patterns = [
-    `ASR_MODEL.{0,6}\\|\\|.{0,4}"${m}"`,
-    `ASR_MODEL"?,\\s*"${m}"`,
-  ];
+  const patterns = [`ASR_MODEL.{0,6}\\|\\|.{0,4}"${m}"`, `ASR_MODEL"?,\\s*"${m}"`];
   for (const pat of patterns) {
     try {
       const out = execSync(`rg -n --no-heading -e '${pat}' scripts/short-video/`, {

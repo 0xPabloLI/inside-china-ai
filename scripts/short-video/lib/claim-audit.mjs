@@ -71,18 +71,36 @@ export function parseVerificationSummary(markdown) {
 // ─── Risk classification (review doc §2 hard triggers, §3 four dimensions) ───
 
 const HARD_TRIGGERS = [
-  ["financial_or_pricing", /融资|估值|营收|利润|市场份额|定价|收购|上市|订单|现金流|市值|funding|valuation|revenue|profit|market share|acquisition|ipo\b|capital raise|pricing/i],
-  ["legal_policy_compliance", /禁令|制裁|监管|合规|出口管制|诉讼|立案|备案|sanction|regulat|lawsuit|antitrust|compliance|export control/i],
-  ["safety_public_interest", /安全事故|自动驾驶|医疗|关键基础设施|人命|伤亡|safety incident|fatal|critical infrastructure/i],
-  ["performance_comparison", /领先|第一|首款|超过|落后|跑分| Benchmark|基准|最优|outperform|state-of-the-art|first\b|fastest|largest/i],
-  ["personnel_org_attribution", /任命|离职|辞职|卸任|接任|创始人回归|ceo\b|appoint|resign|steps down|founder returns/i],
+  [
+    "financial_or_pricing",
+    /融资|估值|营收|利润|市场份额|定价|收购|上市|订单|现金流|市值|funding|valuation|revenue|profit|market share|acquisition|ipo\b|capital raise|pricing/i,
+  ],
+  [
+    "legal_policy_compliance",
+    /禁令|制裁|监管|合规|出口管制|诉讼|立案|备案|sanction|regulat|lawsuit|antitrust|compliance|export control/i,
+  ],
+  [
+    "safety_public_interest",
+    /安全事故|自动驾驶|医疗|关键基础设施|人命|伤亡|safety incident|fatal|critical infrastructure/i,
+  ],
+  [
+    "performance_comparison",
+    /领先|第一|首款|超过|落后|跑分| Benchmark|基准|最优|outperform|state-of-the-art|first\b|fastest|largest/i,
+  ],
+  [
+    "personnel_org_attribution",
+    /任命|离职|辞职|卸任|接任|创始人回归|ceo\b|appoint|resign|steps down|founder returns/i,
+  ],
   ["current_status", /已上线|目前|当前|现任|在售|最新|实时|currently|as of|latest|now live/i],
 ];
 
-const DIMENSION_IMPACT = /改变|影响|声誉|合规|政策|安全|商业判断|reputation|compliance|policy|safety|business/i;
+const DIMENSION_IMPACT =
+  /改变|影响|声誉|合规|政策|安全|商业判断|reputation|compliance|policy|safety|business/i;
 const DIMENSION_IMPACT_MILD = /产品|模型|公司|发布|更新|product|model|release|update/i;
-const DIMENSION_TIMELINESS_CURRENT = /目前|当前|最新|现在|刚刚|即将|today|currently|now|just announced|upcoming/i;
-const DIMENSION_TIMELINESS_MEDIUM = /本月|季度|版本|下周|下周|this month|quarter|version|next week/i;
+const DIMENSION_TIMELINESS_CURRENT =
+  /目前|当前|最新|现在|刚刚|即将|today|currently|now|just announced|upcoming/i;
+const DIMENSION_TIMELINESS_MEDIUM =
+  /本月|季度|版本|下周|下周|this month|quarter|version|next week/i;
 const DIMENSION_PRECISION = /\d+(\.\d+)?\s*(%|％|亿|万|美元|元|倍|条|款)|第一|排名|top\s?\d|首次/i;
 const DIMENSION_PRECISION_MILD = /\d{4}年|\d+\s*月|世纪|year|month/i;
 
@@ -154,7 +172,9 @@ export function auditClaims(markdown) {
   const warnings = [];
 
   for (const claim of claims) {
-    claim.risk = classifyClaimRisk(`${claim.context} ${claim.note}`, { annotationStatus: claim.status });
+    claim.risk = classifyClaimRisk(`${claim.context} ${claim.note}`, {
+      annotationStatus: claim.status,
+    });
     if (claim.note.length < 10) {
       warnings.push({
         code: "insufficient_annotation_note",
@@ -203,7 +223,9 @@ export function auditClaims(markdown) {
 export function matchEvidence(claims, evidenceArticles) {
   const tokenize = (text) => {
     const tokens = new Set();
-    for (const word of String(text ?? "").toLowerCase().match(/[a-z][a-z0-9-]{3,}/g) ?? []) {
+    for (const word of String(text ?? "")
+      .toLowerCase()
+      .match(/[a-z][a-z0-9-]{3,}/g) ?? []) {
       tokens.add(word);
     }
     const cjk = String(text ?? "").match(/[\u4e00-\u9fff]/g) ?? [];
@@ -237,18 +259,24 @@ export function generateCoverageReport(audit, evidenceMatches = []) {
   const lines = [];
   lines.push("## Evidence Coverage Report");
   lines.push("");
-  lines.push("> 非阻塞审计（#61）——仅输出 warning，不阻断发布 (non-blocking)。机器可读层：MRL-1 B4/B6 内联标注 → 结构化 claim。");
+  lines.push(
+    "> 非阻塞审计（#61）——仅输出 warning，不阻断发布 (non-blocking)。机器可读层：MRL-1 B4/B6 内联标注 → 结构化 claim。",
+  );
   lines.push("");
   lines.push(
     `内联标注 ${stats.total} 条（verified ${stats.verified} / partially-verified ${stats["partially-verified"]} / unverified ${stats.unverified} / contradicts ${stats.contradicts}）。`,
   );
   const highRisk = claims.filter((c) => c.risk?.riskLevel === "high");
   if (highRisk.length > 0) {
-    lines.push(`高风险 claim ${highRisk.length} 条（硬触发或评分 ≥6），行号：${highRisk.map((c) => c.line).join(", ")}。`);
+    lines.push(
+      `高风险 claim ${highRisk.length} 条（硬触发或评分 ≥6），行号：${highRisk.map((c) => c.line).join(", ")}。`,
+    );
   }
   if (evidenceMatches.length > 0) {
     const withMatch = evidenceMatches.filter((m) => m.matches.length > 0).length;
-    lines.push(`discovery 证据匹配：${withMatch}/${evidenceMatches.length} 条 claim 有公开证据重叠。`);
+    lines.push(
+      `discovery 证据匹配：${withMatch}/${evidenceMatches.length} 条 claim 有公开证据重叠。`,
+    );
   }
   if (warnings.length > 0) {
     lines.push("");

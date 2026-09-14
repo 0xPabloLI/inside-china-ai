@@ -17,11 +17,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 
-import {
-  auditClaims,
-  matchEvidence,
-  generateCoverageReport,
-} from "./lib/claim-audit.mjs";
+import { auditClaims, matchEvidence, generateCoverageReport } from "./lib/claim-audit.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -61,9 +57,13 @@ const evidenceMatches = matchEvidence(audit.claims, evidenceArticles);
 
 console.log(`📋 Evidence audit — ${articlePath}`);
 console.log("─".repeat(60));
-console.log(`  Inline annotations: ${audit.stats.total} (verified ${audit.stats.verified} / partially-verified ${audit.stats["partially-verified"]} / unverified ${audit.stats.unverified} / contradicts ${audit.stats.contradicts})`);
+console.log(
+  `  Inline annotations: ${audit.stats.total} (verified ${audit.stats.verified} / partially-verified ${audit.stats["partially-verified"]} / unverified ${audit.stats.unverified} / contradicts ${audit.stats.contradicts})`,
+);
 console.log(`  Summary section: ${audit.summary.found ? "found" : "missing"}`);
-console.log(`  Evidence matches: ${evidenceMatches.filter((m) => m.matches.length > 0).length}/${audit.claims.length} claims`);
+console.log(
+  `  Evidence matches: ${evidenceMatches.filter((m) => m.matches.length > 0).length}/${audit.claims.length} claims`,
+);
 if (audit.warnings.length > 0) {
   console.log("  Warnings:");
   for (const w of audit.warnings) {
@@ -81,7 +81,13 @@ if (hasFlag("json") || getArg("out")) {
   writeFileSync(
     outPath,
     JSON.stringify(
-      { auditedAt: new Date().toISOString(), article: articlePath, ...audit, evidenceMatches, coverageReport: report },
+      {
+        auditedAt: new Date().toISOString(),
+        article: articlePath,
+        ...audit,
+        evidenceMatches,
+        coverageReport: report,
+      },
       null,
       2,
     ) + "\n",

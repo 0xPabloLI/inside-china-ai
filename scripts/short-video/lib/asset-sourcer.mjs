@@ -2376,9 +2376,7 @@ export function recordRateLimitSkip(err, { sourceName, keyword, skipped, logger 
     keyword,
     reason: `rate limited (${domain}) — skipped, other sources continue`,
   });
-  logger.warn(
-    `  ⏭️  ${sourceName}: rate limited for "${keyword}" — skipped, trying other sources`,
-  );
+  logger.warn(`  ⏭️  ${sourceName}: rate limited for "${keyword}" — skipped, trying other sources`);
   return true;
 }
 

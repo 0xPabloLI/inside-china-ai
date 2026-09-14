@@ -52,7 +52,9 @@ export const MIN_SEC_PER_SYLLABLE = 0.12;
  * @returns {number} at least 1
  */
 export function estimateSyllables(word) {
-  const groups = String(word).toLowerCase().match(/[aeiouy]+/g);
+  const groups = String(word)
+    .toLowerCase()
+    .match(/[aeiouy]+/g);
   return groups ? groups.length : 1;
 }
 
@@ -137,7 +139,7 @@ export async function trimSceneTail(audioPath, cutSec) {
  * @returns {Promise<{cuts: Array<{sceneId: number, from: number, to: number}>, crushedWords: Array<{sceneId: number, word: string, duration: number, minDuration: number}>}>}
  */
 export async function runAlignmentGuards(ttsResults, timingData) {
-  const scenesTiming = Array.isArray(timingData) ? timingData : timingData?.scenes ?? [];
+  const scenesTiming = Array.isArray(timingData) ? timingData : (timingData?.scenes ?? []);
   const cuts = [];
   const crushedWords = [];
 

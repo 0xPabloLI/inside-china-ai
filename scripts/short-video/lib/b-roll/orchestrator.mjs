@@ -115,7 +115,9 @@ function migrateLegacyEntry(entry, rawPrompt, generationPrompt) {
   const negativesOnly =
     legacySelfHash &&
     declaresOwnArtDirection(prior) &&
-    Object.keys(NEGATIVE_GROUPS).every((group) => coversNegativeGroup(prior, NEGATIVE_GROUPS[group])) &&
+    Object.keys(NEGATIVE_GROUPS).every((group) =>
+      coversNegativeGroup(prior, NEGATIVE_GROUPS[group]),
+    ) &&
     stripNegativeClauses(prior) === stripNegativeClauses(rawPrompt);
   if (!unchanged && !negativesOnly) return false;
   entry.injectionVersion = PROMPT_INJECTION_VERSION;
@@ -269,7 +271,8 @@ export async function runBrollStage(opts) {
         generationPrompt,
         candidates: [],
         winner: null,
-        reason: `composed prompt exceeds the ${tokenBudget}-token budget ` +
+        reason:
+          `composed prompt exceeds the ${tokenBudget}-token budget ` +
           "(the encoder truncates silently) — shorten the declared prompt",
       };
       reportDirty = true;
@@ -288,7 +291,15 @@ export async function runBrollStage(opts) {
       counts.escalated += 1;
       continue;
     }
-    toGenerate.push({ scene, sceneId, isImage, rawPrompt, generationPrompt, round, prevEntry: entry ?? null });
+    toGenerate.push({
+      scene,
+      sceneId,
+      isImage,
+      rawPrompt,
+      generationPrompt,
+      round,
+      prevEntry: entry ?? null,
+    });
   }
 
   const limited = toGenerate.slice(0, maxScenes);
@@ -349,8 +360,9 @@ export async function runBrollStage(opts) {
       jobs.push(...sceneJobs);
     });
 
-    const batch = await (generate ??
-      (group.depsKind === "image" ? runImageGeneration : runGeneration))({
+    const batch = await (
+      generate ?? (group.depsKind === "image" ? runImageGeneration : runGeneration)
+    )({
       ...(group.depsKind === "image"
         ? { bin: group.deps.bin, backend: group.deps.backend }
         : { python: group.deps.python, repo: group.deps.repo }),
@@ -372,9 +384,7 @@ export async function runBrollStage(opts) {
 
   let gateAnalyzer = analyzer;
   if (!gateAnalyzer) {
-    const { analyzeAssetSemantics, DEFAULT_VLM_MODEL_ID } = await import(
-      "../visual-analyzer.mjs"
-    );
+    const { analyzeAssetSemantics, DEFAULT_VLM_MODEL_ID } = await import("../visual-analyzer.mjs");
     const { wrapAnalyzerWithCache } = await import("../vlm-cache.mjs");
     // Gate scoring rides the same vlm-cache as asset sourcing (#198 Item 4):
     // escalated reruns of an unchanged candidate skip the 20-120s VLM call.
@@ -427,9 +437,7 @@ export async function runBrollStage(opts) {
         ...failedCandidates,
       ];
 
-      const landedOn = winner
-        ? assignWinner(scene, basename(winner.file), isImage)
-        : null;
+      const landedOn = winner ? assignWinner(scene, basename(winner.file), isImage) : null;
       report.scenes[sceneId] = {
         strategy: scene.mediaStrategy,
         promptHash: promptHash(generationPrompt),

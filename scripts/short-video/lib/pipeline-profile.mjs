@@ -30,7 +30,12 @@ import { join } from "path";
  * @param {() => number} [opts.now] - monotonic ms clock (defaults to performance.now)
  * @param {boolean} [opts.onExit=true] - register a process exit hook that writes the profile
  */
-export function createProfiler({ outputDir, version, now = () => performance.now(), onExit = true } = {}) {
+export function createProfiler({
+  outputDir,
+  version,
+  now = () => performance.now(),
+  onExit = true,
+} = {}) {
   const steps = [];
   const open = new Map();
   const t0 = now();
@@ -78,7 +83,13 @@ export function createProfiler({ outputDir, version, now = () => performance.now
       const seen = new Set(snapshot.map((s) => s.name));
       for (const [name, o] of open) {
         if (!seen.has(name)) {
-          snapshot.push({ name, startedAt: o.start, durationMs: now() - o.start, unfinished: true, ...o.meta });
+          snapshot.push({
+            name,
+            startedAt: o.start,
+            durationMs: now() - o.start,
+            unfinished: true,
+            ...o.meta,
+          });
         }
       }
       mkdirSync(outputDir, { recursive: true });

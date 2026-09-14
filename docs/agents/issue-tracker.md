@@ -2,7 +2,7 @@
 
 Issues are tracked in **GitHub Issues** on this repo using the `gh` CLI.
 
-**Terminology**: this document uses *issue* exclusively for a GitHub Issue (a tracker entry). *Ticket* is reserved for the implementation tickets that `to-tickets` splits from a Spec in the S2 flow — the single definition source is `docs/DOCS-INDEX.md` §Spec/Ticket/Review Lifecycle. The two are not synonyms.
+**Terminology**: this document uses _issue_ exclusively for a GitHub Issue (a tracker entry). _Ticket_ is reserved for the implementation tickets that `to-tickets` splits from a Spec in the S2 flow — the single definition source is `docs/DOCS-INDEX.md` §Spec/Ticket/Review Lifecycle. The two are not synonyms.
 
 ## Workflow
 
@@ -71,13 +71,13 @@ Run `gh issue list --label <state-label> --state open` to see issues in each sta
 
 The tracker is the session's external memory: a fresh session must be able to reconstruct everything from durable sources alone — never from a conversation. Before ending a session, every state the work produced has one offload home, and none of it may remain conversation-only:
 
-| Produced state | Home | Done when |
-| --- | --- | --- |
+| Produced state                                                                              | Home                                                                                     | Done when                                                                              |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Per-issue delivery record (commits, tests, live evidence, mechanisms discovered, leftovers) | Closing comment on the issue, **opening with the marker `交付记录` / `Delivery record`** | A reader who never saw the session can resume or audit the work from the comment alone |
-| Roadmap state (tier, wave, blockers, labels) | `docs/issue-roadmap.md` tier/wave rows | `gh issue list --state open` and the tables agree |
-| Session narrative (what ran, in order) | inventory line atop `docs/issue-roadmap.md` + the pilot-log entry | The next session's "Last inventory" is the newest line and names the frontier |
-| Commit provenance | `Session-Id` trailer + pilot-log registration | `git log --all --format=...trailers` resolves every session commit |
-| User decisions and constraints that outlive the task | `docs/issue-roadmap.md` inventory, or agent memory for cross-task preferences | The next session does not re-ask a decided question |
+| Roadmap state (tier, wave, blockers, labels)                                                | `docs/issue-roadmap.md` tier/wave rows                                                   | `gh issue list --state open` and the tables agree                                      |
+| Session narrative (what ran, in order)                                                      | inventory line atop `docs/issue-roadmap.md` + the pilot-log entry                        | The next session's "Last inventory" is the newest line and names the frontier          |
+| Commit provenance                                                                           | `Session-Id` trailer + pilot-log registration                                            | `git log --all --format=...trailers` resolves every session commit                     |
+| User decisions and constraints that outlive the task                                        | `docs/issue-roadmap.md` inventory, or agent memory for cross-task preferences            | The next session does not re-ask a decided question                                    |
 
 Completion criterion: close the terminal and imagine a colleague opens a fresh one — if they would need to ask you anything the tracker already could have answered, the offload is incomplete.
 

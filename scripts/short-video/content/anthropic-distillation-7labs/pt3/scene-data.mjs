@@ -26,7 +26,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "Anthropic reported Alibaba ran 151 million exchanges to grab Claude's reasoning traces. The biggest operation of the bunch.",
+    voiceover:
+      "Anthropic reported Alibaba ran 151 million exchanges to grab Claude's reasoning traces. The biggest operation of the bunch.",
     aiVideo: { prompt: "data visualization dashboard, digital analytics, tech interface" },
     texts: {
       stat: "151M",
@@ -41,7 +42,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "Anthropic revealed Moonshot secretly routing your Kimi requests to Claude and passing the answers back. You never knew.",
+    voiceover:
+      "Anthropic revealed Moonshot secretly routing your Kimi requests to Claude and passing the answers back. You never knew.",
     aiVideo: { prompt: "data visualization of API requests, digital counter showing millions" },
     texts: {
       stat: "23M",
@@ -56,7 +58,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "DeepSeek tagged developers using Claude Code and the Agent SDK, then rerouted their requests to Claude Opus.",
+    voiceover:
+      "DeepSeek tagged developers using Claude Code and the Agent SDK, then rerouted their requests to Claude Opus.",
     aiVideo: { prompt: "source code on dark computer screen, programming terminal" },
     texts: {
       stat: "12M",
@@ -71,7 +74,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "Zhipu tried to steal Fable's cyber skills, failed, then used Opus 4.6 to grade other stolen models.",
+    voiceover:
+      "Zhipu tried to steal Fable's cyber skills, failed, then used Opus 4.6 to grade other stolen models.",
     aiVideo: { prompt: "data visualization dashboard, digital analytics, tech interface" },
     texts: {
       stat: "3.4M",
@@ -86,7 +90,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "Xiaomi launched a free trial to attract overseas developers, then replayed their coding sessions to Claude.",
+    voiceover:
+      "Xiaomi launched a free trial to attract overseas developers, then replayed their coding sessions to Claude.",
     aiVideo: { prompt: "data visualization dashboard, digital analytics, tech interface" },
     texts: {
       stat: "400K",
@@ -101,7 +106,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "SenseTime skipped the hacking. It just bought stolen user transcripts from third-party data vendors.",
+    voiceover:
+      "SenseTime skipped the hacking. It just bought stolen user transcripts from third-party data vendors.",
     aiVideo: { prompt: "data visualization dashboard, digital analytics, tech interface" },
     texts: {
       stat: "BUY",
@@ -116,7 +122,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "MiniMax built a shell company proxy that only sells access to Anthropic and OpenAI. No Chinese models offered.",
+    voiceover:
+      "MiniMax built a shell company proxy that only sells access to Anthropic and OpenAI. No Chinese models offered.",
     aiVideo: { prompt: "corporate proxy server, network routing diagram, business facade" },
     texts: {
       stat: "PXY",
@@ -131,7 +138,8 @@ export const scenes = [
     visualType: "contrast",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "Fake accounts, proxy networks, cross-session replay. Each lab in China picked a different path to the same goal.",
+    voiceover:
+      "Fake accounts, proxy networks, cross-session replay. Each lab in China picked a different path to the same goal.",
     aiVideo: { prompt: "split screen comparison, transparency versus surveillance concept" },
     texts: {
       title: "SAME GOAL, 7 PATHS",

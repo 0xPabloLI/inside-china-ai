@@ -24,11 +24,7 @@ import { ROOT_DIR } from "./types.mjs";
 import { ffmpegCmd, getDuration } from "./ffmpeg-cmd.mjs";
 import { runAlignmentGuards } from "./alignment-guards.mjs";
 import { splitDigitUnits } from "../normalize-tts-text.mjs";
-import {
-  computeAlignmentSignature,
-  alignmentCacheState,
-  writeAlignmentMeta,
-} from "./cache.mjs";
+import { computeAlignmentSignature, alignmentCacheState, writeAlignmentMeta } from "./cache.mjs";
 
 const execAsync = promisify(exec);
 

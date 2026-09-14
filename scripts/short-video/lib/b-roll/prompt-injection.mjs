@@ -116,7 +116,10 @@ export function stripNegativeClauses(prompt) {
       out = out.replace(new RegExp(`,?\\s*\\b${phrase}\\b`, "gi"), "");
     }
   }
-  return out.replace(/[.\s]+$/, "").replace(/\s{2,}/g, " ").trim();
+  return out
+    .replace(/[.\s]+$/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 /**

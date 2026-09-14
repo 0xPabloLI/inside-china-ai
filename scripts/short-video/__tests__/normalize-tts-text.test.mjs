@@ -9,15 +9,11 @@ import { normalizeTtsText } from "../lib/normalize-tts-text.mjs";
 
 describe("normalizeTtsText dual-track", () => {
   it("keeps voiceover untouched and writes ttsText + replacements", () => {
-    const scenes = [
-      { id: 1, voiceover: "DeepSeek just dropped V4.1 Flash today." },
-    ];
+    const scenes = [{ id: 1, voiceover: "DeepSeek just dropped V4.1 Flash today." }];
     normalizeTtsText(scenes);
 
     expect(scenes[0].voiceover).toBe("DeepSeek just dropped V4.1 Flash today.");
-    expect(scenes[0].ttsText).toBe(
-      "DeepSeek just dropped V four point one Flash today.",
-    );
+    expect(scenes[0].ttsText).toBe("DeepSeek just dropped V four point one Flash today.");
     expect(scenes[0].ttsReplacements).toEqual([
       { original: "V4.1", spoken: ["V", "four", "point", "one"] },
     ]);
@@ -27,8 +23,7 @@ describe("normalizeTtsText dual-track", () => {
     const scenes = [
       {
         id: 2,
-        voiceover:
-          "Pro costs 1.32 dollars. The model ID literally says expires on 0910.",
+        voiceover: "Pro costs 1.32 dollars. The model ID literally says expires on 0910.",
       },
     ];
     normalizeTtsText(scenes);
@@ -44,9 +39,7 @@ describe("normalizeTtsText dual-track", () => {
   });
 
   it("leaves scenes without special tokens untouched", () => {
-    const scenes = [
-      { id: 3, voiceover: "Follow China AI News for more." },
-    ];
+    const scenes = [{ id: 3, voiceover: "Follow China AI News for more." }];
     normalizeTtsText(scenes);
     expect(scenes[0].ttsText).toBeUndefined();
     expect(scenes[0].ttsReplacements).toBeUndefined();
@@ -73,8 +66,7 @@ describe("normalizeTtsText digit+unit splitting (#239)", () => {
     const scenes = [
       {
         id: 10,
-        voiceover:
-          "It hit 720p at 60 frames per second, and the Pro does 1080p.",
+        voiceover: "It hit 720p at 60 frames per second, and the Pro does 1080p.",
       },
     ];
     normalizeTtsText(scenes);
@@ -109,8 +101,7 @@ describe("normalizeTtsText digit+unit splitting (#239)", () => {
     const scenes = [
       {
         id: 12,
-        voiceover:
-          "H100 and B200 run 0x12a hex kernels; the API costs $1.4B and usage grew 10x.",
+        voiceover: "H100 and B200 run 0x12a hex kernels; the API costs $1.4B and usage grew 10x.",
       },
     ];
     normalizeTtsText(scenes);

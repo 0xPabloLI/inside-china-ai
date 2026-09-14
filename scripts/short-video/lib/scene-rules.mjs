@@ -1775,7 +1775,8 @@ export function checkBrollPromptDimensions(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail: `Scene ${scene.id} prompt contains Arabic numerals (${numerals.join(", ")})`,
-      fix: "Move data values into texts — T2V/T2I garbles glyphs; " +
+      fix:
+        "Move data values into texts — T2V/T2I garbles glyphs; " +
         "an element count (e.g. '3 layers') is fine as-is",
     });
   }
@@ -1923,7 +1924,10 @@ export function checkAvatarContract(scenes) {
       sceneFailed = true;
     }
 
-    if (avatar.videoPath !== undefined && (typeof avatar.videoPath !== "string" || avatar.videoPath.trim() === "")) {
+    if (
+      avatar.videoPath !== undefined &&
+      (typeof avatar.videoPath !== "string" || avatar.videoPath.trim() === "")
+    ) {
       results.push({
         level: "fail",
         category: CATEGORY,

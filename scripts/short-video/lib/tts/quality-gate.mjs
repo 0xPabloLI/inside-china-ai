@@ -65,9 +65,26 @@ export function extractGuardedTokens(text) {
 
   // Critical words: digits, dates, key technical terms
   const dateMonthWords = new Set([
-    "january", "february", "march", "april", "may", "june",
-    "july", "august", "september", "october", "november", "december",
-    "tenth", "10th", "eighth", "8th", "first", "second", "third", "fourth",
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+    "tenth",
+    "10th",
+    "eighth",
+    "8th",
+    "first",
+    "second",
+    "third",
+    "fourth",
   ]);
 
   const criticalWords = [];
@@ -142,29 +159,29 @@ export function isWordInAsr(expectedWord, asrTokenSet) {
   }
 
   const EQUIVALENTS = {
-    "1": ["one", "first", "1st"],
-    "one": ["1", "first", "1st"],
-    "first": ["1", "1st", "one"],
+    1: ["one", "first", "1st"],
+    one: ["1", "first", "1st"],
+    first: ["1", "1st", "one"],
     "1st": ["1", "first", "one"],
-    "2": ["two", "second", "2nd"],
-    "two": ["2", "second", "2nd"],
-    "second": ["2", "2nd", "two"],
+    2: ["two", "second", "2nd"],
+    two: ["2", "second", "2nd"],
+    second: ["2", "2nd", "two"],
     "2nd": ["2", "second", "two"],
-    "3": ["three", "third", "3rd"],
-    "three": ["3", "third", "3rd"],
-    "third": ["3", "3rd", "three"],
+    3: ["three", "third", "3rd"],
+    three: ["3", "third", "3rd"],
+    third: ["3", "3rd", "three"],
     "3rd": ["3", "third", "three"],
-    "4": ["four", "fourth", "4th"],
-    "four": ["4", "fourth", "4th"],
-    "fourth": ["4", "4th", "four"],
+    4: ["four", "fourth", "4th"],
+    four: ["4", "fourth", "4th"],
+    fourth: ["4", "4th", "four"],
     "4th": ["4", "fourth", "four"],
-    "8": ["eight", "eighth", "8th"],
-    "eight": ["8", "eighth", "8th"],
-    "eighth": ["8", "8th", "eight"],
+    8: ["eight", "eighth", "8th"],
+    eight: ["8", "eighth", "8th"],
+    eighth: ["8", "8th", "eight"],
     "8th": ["8", "eighth", "eight"],
-    "10": ["ten", "tenth", "10th"],
-    "ten": ["10", "tenth", "10th"],
-    "tenth": ["10", "10th", "ten"],
+    10: ["ten", "tenth", "10th"],
+    ten: ["10", "tenth", "10th"],
+    tenth: ["10", "10th", "ten"],
     "10th": ["10", "tenth", "ten"],
     "0910": ["september", "10", "10th", "tenth"],
   };
@@ -225,7 +242,10 @@ export function detectPhoneticConfusion(expected, asr) {
   // "v4.1" / "v four" -> "b4.1" / "b four"
   if (
     (expLower.includes("v4.1") || expLower.includes("v four") || expLower.includes("v4")) &&
-    (asrLower.includes("b4.1") || asrLower.includes("b four") || asrLower.includes("b4") || asrLower.includes("be four"))
+    (asrLower.includes("b4.1") ||
+      asrLower.includes("b four") ||
+      asrLower.includes("b4") ||
+      asrLower.includes("be four"))
   ) {
     issues.push("Phonetic confusion: 'V4' pronounced as 'B4'");
   }
@@ -332,7 +352,10 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
   try {
     const asrRes = await transcriber(audioPath, { languageHint: "en" });
     if (asrRes && asrRes.ok && Array.isArray(asrRes.segments)) {
-      asrText = asrRes.segments.map((s) => s.text).join(" ").trim();
+      asrText = asrRes.segments
+        .map((s) => s.text)
+        .join(" ")
+        .trim();
       asrOk = true;
     } else {
       warnings.push("ASR back-transcription unavailable or returned degraded result");
@@ -367,7 +390,9 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     // 5. Similarity Score
     const similarity = computeTokenSimilarity(expectedTokens, asrTokens);
     if (similarity < minSimilarity) {
-      issues.push(`Low text similarity: ${(similarity * 100).toFixed(1)}% (threshold: ${minSimilarity * 100}%)`);
+      issues.push(
+        `Low text similarity: ${(similarity * 100).toFixed(1)}% (threshold: ${minSimilarity * 100}%)`,
+      );
     }
 
     // 6. Phonetic Confusion
@@ -432,15 +457,16 @@ export async function runTtsQualityGate(scenes, ttsResults, options = {}) {
       failedCount++;
       console.warn(
         `  ❌ Scene ${scene.id} FAILED Quality Gate:\n` +
-        `     Expected: "${evalResult.expectedText}"\n` +
-        `     ASR Heard: "${evalResult.asrText || '(ASR unavailable)'}"\n` +
-        `     WPM: ${evalResult.wpm} | Issues: ${evalResult.issues.join("; ")}`,
+          `     Expected: "${evalResult.expectedText}"\n` +
+          `     ASR Heard: "${evalResult.asrText || "(ASR unavailable)"}"\n` +
+          `     WPM: ${evalResult.wpm} | Issues: ${evalResult.issues.join("; ")}`,
       );
     } else {
-      const warnInfo = evalResult.warnings.length > 0 ? ` (⚠️  ${evalResult.warnings.join("; ")})` : "";
+      const warnInfo =
+        evalResult.warnings.length > 0 ? ` (⚠️  ${evalResult.warnings.join("; ")})` : "";
       console.log(
         `  ✅ Scene ${scene.id} PASSED Quality Gate: ${evalResult.wpm} WPM, ` +
-        `similarity ${evalResult.similarity != null ? (evalResult.similarity * 100).toFixed(0) + "%" : "N/A"}${warnInfo}`,
+          `similarity ${evalResult.similarity != null ? (evalResult.similarity * 100).toFixed(0) + "%" : "N/A"}${warnInfo}`,
       );
     }
   }

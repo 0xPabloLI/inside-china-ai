@@ -26,20 +26,20 @@
 
 ### 1. MOSS-VL 存在性：确认存在（High confidence）
 
-| 维度 | 值 |
-|------|-----|
-| 仓库 | https://github.com/OpenMOSS/MOSS-VL |
-| 参数量 | 11B（三个变体均为 11B） |
-| 许可 | Apache-2.0 |
-| context | 256K |
-| last commit | 2026-09-07（GitHub），HF 权重 12 小时前更新 |
-| archived | 否（636 stars, 123 commits, 7 open issues） |
-| 定位 | 长视频 + 实时视频流理解（cross-attention 架构） |
-| 三个变体 | Realtime（实时流式）/ Instruct-0708（离线）/ Base-0708（预训练） |
-| 量化 | FP8 + NF4（24GB NVIDIA GPU 可跑） |
-| 技术报告 | arXiv:2608.15045（2026-08-15） |
-| 中文 | 支持（中英双语，基座致谢 Qwen，有 README_zh） |
-| 权重 | HF `OpenMOSS-Team/MOSS-VL-*` + ModelScope `openmoss/MOSS-VL-*` |
+| 维度        | 值                                                               |
+| ----------- | ---------------------------------------------------------------- |
+| 仓库        | https://github.com/OpenMOSS/MOSS-VL                              |
+| 参数量      | 11B（三个变体均为 11B）                                          |
+| 许可        | Apache-2.0                                                       |
+| context     | 256K                                                             |
+| last commit | 2026-09-07（GitHub），HF 权重 12 小时前更新                      |
+| archived    | 否（636 stars, 123 commits, 7 open issues）                      |
+| 定位        | 长视频 + 实时视频流理解（cross-attention 架构）                  |
+| 三个变体    | Realtime（实时流式）/ Instruct-0708（离线）/ Base-0708（预训练） |
+| 量化        | FP8 + NF4（24GB NVIDIA GPU 可跑）                                |
+| 技术报告    | arXiv:2608.15045（2026-08-15）                                   |
+| 中文        | 支持（中英双语，基座致谢 Qwen，有 README_zh）                    |
+| 权重        | HF `OpenMOSS-Team/MOSS-VL-*` + ModelScope `openmoss/MOSS-VL-*`   |
 
 **"MOSS"名字歧义澄清**：复旦 MOSS（邱锡鹏团队，现 OpenMOSS/SII）是独立系列；面壁智能 VisCPM/MiniCPM-V 基于 CPM-Bee，与 MOSS 无关。用户看到的"MOSS VL"是复旦官方 MOSS-VL，非混淆。
 
@@ -53,24 +53,25 @@
 
 ### 3. 2026 VLM 中文能力排行（MMBench-CN v1.1，三源交叉验证）
 
-| 排名 | 模型 | MMBench-CN | 参数量 | 许可 | MLX | 视频 |
-|------|------|-----------|--------|------|-----|------|
-| 1 | GLM-4.5V | 88.3 | 106B-A12B MoE | MIT | ✅ glm4v_moe | ✅ |
-| 2 | GLM-4.6V | 88.2 | 106B-A12B MoE | MIT | ✅ | ✅ |
-| 3 | InternVL3-78B | 87.9 | 78B | MIT | ⚠️ internvl_chat | ✅ |
-| 4 | Qwen2.5-VL-72B | 87.4 | 72B | Qwen Lic | ✅ qwen2_5_vl | ✅ |
-| 5 | **MiniCPM-o 4.5** | **87.2** | 9B | Apache-2.0 | ✅ minicpmo | ✅ |
-| 6 | Qwen3-VL-8B | 84.7 | 8B | Qwen Lic | ✅ qwen3_vl | ✅ |
-| 7 | GLM-4.1V-9B-Thinking | 84.7 | 9B | MIT | ✅ glm4v | ✅ |
-| 8 | LLaVA-OneVision-72B | 83.9 | 72B | Apache-2.0* | ✅ llava_onevision | ✅ |
-| 9 | DeepSeek-VL2 | 80.1 | 27.5B MoE | MIT | ✅ deepseek_vl_v2 | ❌ |
-| 10 | CogVLM2-19B | 68.6 | 19B | Apache+CogLic | ❌ | ✅ |
+| 排名 | 模型                 | MMBench-CN | 参数量        | 许可          | MLX                | 视频 |
+| ---- | -------------------- | ---------- | ------------- | ------------- | ------------------ | ---- |
+| 1    | GLM-4.5V             | 88.3       | 106B-A12B MoE | MIT           | ✅ glm4v_moe       | ✅   |
+| 2    | GLM-4.6V             | 88.2       | 106B-A12B MoE | MIT           | ✅                 | ✅   |
+| 3    | InternVL3-78B        | 87.9       | 78B           | MIT           | ⚠️ internvl_chat   | ✅   |
+| 4    | Qwen2.5-VL-72B       | 87.4       | 72B           | Qwen Lic      | ✅ qwen2_5_vl      | ✅   |
+| 5    | **MiniCPM-o 4.5**    | **87.2**   | 9B            | Apache-2.0    | ✅ minicpmo        | ✅   |
+| 6    | Qwen3-VL-8B          | 84.7       | 8B            | Qwen Lic      | ✅ qwen3_vl        | ✅   |
+| 7    | GLM-4.1V-9B-Thinking | 84.7       | 9B            | MIT           | ✅ glm4v           | ✅   |
+| 8    | LLaVA-OneVision-72B  | 83.9       | 72B           | Apache-2.0*   | ✅ llava_onevision | ✅   |
+| 9    | DeepSeek-VL2         | 80.1       | 27.5B MoE     | MIT           | ✅ deepseek_vl_v2  | ❌   |
+| 10   | CogVLM2-19B          | 68.6       | 19B           | Apache+CogLic | ❌                 | ✅   |
 
 > **10B 以下 + 中文 + 视频 + MLX + 商用**的最强候选：**MiniCPM-o 4.5 (9B, 87.2)** 和 **MiniCPM-V 4.6 (1.3B)**。
 
 ### 4. mlx-vlm 支持的 VLM 架构（源码验证）
 
 mlx-vlm `models/` 目录确认支持的 VLM 相关架构（部分）：
+
 - **Qwen 系列**：qwen_vl, qwen2_5_vl, qwen3_vl
 - **GLM 系列**：glm4v, glm4v_moe, glm5_next, glm_ocr
 - **Gemma 系列**：gemma3, gemma3n, **gemma4**, gemma4_text, gemma4_unified
@@ -84,24 +85,24 @@ mlx-vlm `models/` 目录确认支持的 VLM 相关架构（部分）：
 
 ### 5. 候选决策矩阵（针对我们的场景）
 
-| 模型 | 参数量 | 许可 | 中文 | 视频 | MLX | 32GB 可跑 | 决策 |
-|------|--------|------|------|------|-----|----------|------|
-| **MiniCPM-V 4.6** | 1.3B | Apache-2.0 | ✅ 87.2 | ✅ 原生 | ✅ | ✅ ~1GB | ⭐ **首选实测** |
-| **Gemma 4 E2B** | 2.3B | Apache-2.0 | ✅ 140+语言 | ✅ 原生 | ✅+MTP | ✅ ~1.5GB | ⭐ **并列实测** |
-| **Gemma 4 E4B** | 4.5B | Apache-2.0 | ✅ | ✅ | ✅+MTP | ✅ ~3GB | ⭐ 并列实测 |
-| Qwen3-VL-2B-4bit（现有） | 2B | Qwen Lic | ✅ | ✅ | ✅ | ✅ 1.8GB | 保留 |
-| GLM-4.1V-9B-4bit（现有） | 9B | MIT | ✅ 84.7 | ✅ | ✅ | ✅ 6.6GB | 保留 |
-| **MOSS-VL-Instruct-NF4** | 11B | Apache-2.0 | ✅ | ✅ 专长 | ❌ | ⚠️ ~6GB+MPS慢 | 质量基准 only |
-| DeepSeek-VL2-Tiny | 1B act | MIT | ✅ | ❌ | ✅ | ✅ | 图片备选 |
-| InternVL3.5-2B | 2B | MIT | ✅ | ✅ | ⚠️ 未确认 | ✅ | 待验证 MLX |
-| CogVLM2 | 19B | Apache+CogLic | ✅ | ✅ | ❌ | ❌ 太大 | 排除 |
-| mPLUG-Owl3 | 7B | MIT | ✅ | ❌ | ❌ | — | 排除（被 Qwen-VL 取代） |
-| LLaVA 原版 | 7B | Apache* | ❌ 弱 | ✅ | ❌ | — | 排除（停更） |
-| Phi-3.5/4 Vision | 4-5.6B | MIT | ❌ 弱 | ✅ | ✅ | ✅ | 排除（中文弱） |
-| PaliGemma2 | 3-28B | Gemma Lic | ❌ | ❌ | ❌ | — | 排除（非商用） |
-| Aya-Vision | 8-32B | CC-BY-NC | ✅ | ❌ | ✅ | — | 排除（非商用） |
-| Idefics3 | 8B | Apache* | ❌ 弱 | ❌ | ✅ | — | 排除 |
-| Moondream | 0.5-2B | Apache | ❌ 弱 | ❌ | ✅ | ✅ | 边缘兜底 only |
+| 模型                     | 参数量 | 许可          | 中文        | 视频    | MLX       | 32GB 可跑     | 决策                    |
+| ------------------------ | ------ | ------------- | ----------- | ------- | --------- | ------------- | ----------------------- |
+| **MiniCPM-V 4.6**        | 1.3B   | Apache-2.0    | ✅ 87.2     | ✅ 原生 | ✅        | ✅ ~1GB       | ⭐ **首选实测**         |
+| **Gemma 4 E2B**          | 2.3B   | Apache-2.0    | ✅ 140+语言 | ✅ 原生 | ✅+MTP    | ✅ ~1.5GB     | ⭐ **并列实测**         |
+| **Gemma 4 E4B**          | 4.5B   | Apache-2.0    | ✅          | ✅      | ✅+MTP    | ✅ ~3GB       | ⭐ 并列实测             |
+| Qwen3-VL-2B-4bit（现有） | 2B     | Qwen Lic      | ✅          | ✅      | ✅        | ✅ 1.8GB      | 保留                    |
+| GLM-4.1V-9B-4bit（现有） | 9B     | MIT           | ✅ 84.7     | ✅      | ✅        | ✅ 6.6GB      | 保留                    |
+| **MOSS-VL-Instruct-NF4** | 11B    | Apache-2.0    | ✅          | ✅ 专长 | ❌        | ⚠️ ~6GB+MPS慢 | 质量基准 only           |
+| DeepSeek-VL2-Tiny        | 1B act | MIT           | ✅          | ❌      | ✅        | ✅            | 图片备选                |
+| InternVL3.5-2B           | 2B     | MIT           | ✅          | ✅      | ⚠️ 未确认 | ✅            | 待验证 MLX              |
+| CogVLM2                  | 19B    | Apache+CogLic | ✅          | ✅      | ❌        | ❌ 太大       | 排除                    |
+| mPLUG-Owl3               | 7B     | MIT           | ✅          | ❌      | ❌        | —             | 排除（被 Qwen-VL 取代） |
+| LLaVA 原版               | 7B     | Apache*       | ❌ 弱       | ✅      | ❌        | —             | 排除（停更）            |
+| Phi-3.5/4 Vision         | 4-5.6B | MIT           | ❌ 弱       | ✅      | ✅        | ✅            | 排除（中文弱）          |
+| PaliGemma2               | 3-28B  | Gemma Lic     | ❌          | ❌      | ❌        | —             | 排除（非商用）          |
+| Aya-Vision               | 8-32B  | CC-BY-NC      | ✅          | ❌      | ✅        | —             | 排除（非商用）          |
+| Idefics3                 | 8B     | Apache*       | ❌ 弱       | ❌      | ✅        | —             | 排除                    |
+| Moondream                | 0.5-2B | Apache        | ❌ 弱       | ❌      | ✅        | ✅            | 边缘兜底 only           |
 
 ---
 
@@ -110,11 +111,13 @@ mlx-vlm `models/` 目录确认支持的 VLM 相关架构（部分）：
 ### MOSS-VL 深度档案
 
 MOSS-VL 是复旦邱锡鹏团队（OpenMOSS/SII）2026 年发布的视频理解 VLM，核心创新是 **cross-attention 架构 + XRoPE**，专为长视频和实时视频流设计。三个变体：
+
 - **Realtime**：连续视频流实时交互，可中断、主动发言、动态纠正（开源 SOTA latency）
 - **Instruct**：离线长视频理解 + 深度对话
 - **Base**：预训练基座
 
 **为何不适合我们生产**：
+
 1. **无 MLX 加速**——mlx-vlm 不支持，Mac 上只能 PyTorch + MPS，11B 在 MPS 上预计极慢（参考 CosyVoice3 MPS 20.5x RTF）
 2. **CUDA 依赖**——FlashAttention-3、Megatron-LM、SGLang 都是 CUDA 生态，Mac 上 fallback 到普通 attention
 3. **偏重视频流理解**——我们的场景是素材语义分析（图片为主 + 短视频），MOSS-VL 的实时流式能力过剩
@@ -125,6 +128,7 @@ MOSS-VL 是复旦邱锡鹏团队（OpenMOSS/SII）2026 年发布的视频理解 
 ### MiniCPM-V 4.6：最有潜力的新候选
 
 面壁智能 OpenBMB 2026-05 发布，1.3B（SigLIP2-400M + Qwen3.5-0.8B）：
+
 - **中文基因**：面壁智能主打中文，MiniCPM-o 4.5 (9B) MMBench-CN 87.2 是 10B 以下开源最高
 - **视频原生**：高 FPS、多帧、stack_frames 机制
 - **mlx-vlm 原生支持**：`mlx_vlm/models/minicpmv4_6` 有专属文档
@@ -137,6 +141,7 @@ MOSS-VL 是复旦邱锡鹏团队（OpenMOSS/SII）2026 年发布的视频理解 
 ### Gemma 4：2026 重大新候选
 
 Google DeepMind 2026-07 发布（arXiv:2607.02770），多尺寸 E2B(2.3B)/E4B(4.5B)/12B/26B-A4B/31B：
+
 - **140+ 预训练语言**，开箱 35+ 语言（中文覆盖待实测）
 - **原生视频 + 音频**（E2B/E4B/12B Unified encoder-free）
 - **mlx-vlm 原生支持**：`gemma4`, `gemma4_unified` + MTP 投机解码（2-3x 加速）+ EAGLE-3
@@ -179,17 +184,18 @@ Google DeepMind 2026-07 发布（arXiv:2607.02770），多尺寸 E2B(2.3B)/E4B(4
 
 ### 生产候选（有 MLX + 中文 + 视频 + 商用）
 
-| 优先级 | 模型 | 角色 | 理由 |
-|--------|------|------|------|
-| ⭐⭐ 首选实测 | **MiniCPM-V 4.6 (1.3B)** | Fast Path 候选 | 中文最强基因 + 视频 + Apache + MLX + 1.3B 极省 |
-| ⭐⭐ 并列实测 | **Gemma 4 E2B (2.3B)** | Fast Path 候选 | 140 语言 + 视频 + Apache + MLX + MTP 加速 |
-| 保留 | Qwen3-VL-2B-4bit | Fast Path（现有） | 已验证，3s/图，中文品牌识别可靠 |
-| 保留 | GLM-4.1V-9B-4bit | Deep Path（现有） | 10B 级最佳，MIT，中文 SOTA |
-| 质量基准 | MOSS-VL-Instruct-NF4 | 对比 only | 视频理解 SOTA，但无 MLX 不适合生产 |
+| 优先级        | 模型                     | 角色              | 理由                                           |
+| ------------- | ------------------------ | ----------------- | ---------------------------------------------- |
+| ⭐⭐ 首选实测 | **MiniCPM-V 4.6 (1.3B)** | Fast Path 候选    | 中文最强基因 + 视频 + Apache + MLX + 1.3B 极省 |
+| ⭐⭐ 并列实测 | **Gemma 4 E2B (2.3B)**   | Fast Path 候选    | 140 语言 + 视频 + Apache + MLX + MTP 加速      |
+| 保留          | Qwen3-VL-2B-4bit         | Fast Path（现有） | 已验证，3s/图，中文品牌识别可靠                |
+| 保留          | GLM-4.1V-9B-4bit         | Deep Path（现有） | 10B 级最佳，MIT，中文 SOTA                     |
+| 质量基准      | MOSS-VL-Instruct-NF4     | 对比 only         | 视频理解 SOTA，但无 MLX 不适合生产             |
 
 ### 建议实测矩阵
 
 用真实中文品牌视频片段（如 `unitree-building.jpg`, `unitree-demo.mp4`）跑同一 prompt，对比：
+
 1. MiniCPM-V 4.6 (1.3B, 4bit)
 2. Gemma 4 E2B (2.3B, 4bit)
 3. Gemma 4 E4B (4.5B, 4bit)
@@ -203,6 +209,7 @@ Google DeepMind 2026-07 发布（arXiv:2607.02770），多尺寸 E2B(2.3B)/E4B(4
 ## Sources
 
 ### Tier 1（官方一手）
+
 1. https://github.com/OpenMOSS/MOSS-VL — MOSS-VL 仓库，11B, Apache-2.0, 视频专长
 2. https://huggingface.co/collections/OpenMOSS-Team/moss-vl — HF 权重 collection（9 个变体）
 3. https://arxiv.org/abs/2608.15045 — MOSS-VL 技术报告（2026-08-15）
@@ -219,10 +226,12 @@ Google DeepMind 2026-07 发布（arXiv:2607.02770），多尺寸 E2B(2.3B)/E4B(4
 14. https://github.com/OpenBMB/VisCPM — VisCPM 基于 CPM-Bee 非 MOSS
 
 ### Tier 1（评测工具）
+
 15. OpenVLM.json / VLMEvalKit（285 模型，2025-09-17）— MMBench-CN/OCRBench 排行
 16. MiniCPM-o 4.5 官方 README 评测表 — Qwen3-VL-8B + MiniCPM-o 分数
 
 ### Tier 2（次级）
+
 17. https://huggingface.co/models?search=MOSS — HF MOSS 搜索结果
 18. https://github.com/OpenMOSS — OpenMOSS 组织页（Vision & multimodal 区块）
 19. https://github.com/fudanNLP — FudanNLP（指向 OpenMOSS）

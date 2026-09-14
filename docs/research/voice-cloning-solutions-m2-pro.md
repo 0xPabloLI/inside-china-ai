@@ -3,6 +3,7 @@
 > **调研日期**：2026-08-10
 > **目标设备**：MacBook Pro (Mac14,10), Apple M2 Pro, 32 GB, macOS 26.5.1, Metal 4
 > **核心需求**（2026-09-07 用户澄清完整版）：
+>
 > - **可商用 License** — 不限于 Apache，但必须可商用（排除 CC-BY-NC 等非商用许可）
 > - **语音克隆** — 用少量参考音频生成目标说话人的语音
 > - **情感控制** — 通过 instruct/参数控制情感、语速、风格
@@ -10,8 +11,8 @@
 > - **近实时** — 不要求（RTF 不是选型标准）
 > - **本地推理** — Apple Silicon 上可跑（优先），远程 GPU 作为备选
 > - **支持英文为主的视频旁白**
-> **方法论**：多源交叉验证，来源包括 arxiv 论文、GitHub README/API、HuggingFace 模型页、CosyVoice/Fish Audio 官方 benchmark
-> **关联文档**：`docs/research/digital-human-solutions-m2-pro.md`（数字人）、`docs/research/voice-prosody-hook-optimization.md`（prosody 优化）、`docs/video-production-runbook.md`（管线配置）
+>   **方法论**：多源交叉验证，来源包括 arxiv 论文、GitHub README/API、HuggingFace 模型页、CosyVoice/Fish Audio 官方 benchmark
+>   **关联文档**：`docs/research/digital-human-solutions-m2-pro.md`（数字人）、`docs/research/voice-prosody-hook-optimization.md`（prosody 优化）、`docs/video-production-runbook.md`（管线配置）
 
 ---
 
@@ -23,22 +24,22 @@
 
 **当前推荐路径**（按优先级排序）：
 
-| 优先级 | 方案                       | 类型 | 质量       | M2 Pro 兼容               | 商用                | 测试状态                    |
-| ------ | -------------------------- | ---- | ---------- | ------------------------- | ------------------- | --------------------------- |
-| 1      | **F5-TTS-MLX**（管线默认） | 本地 | ⭐⭐⭐⭐   | ✅ MLX 原生               | ⚠️ 权重 CC-BY-NC    | ✅ **已部署，默认引擎**     |
-| 1b     | **CosyVoice3-MLX**（最佳替代） | 本地 | ⭐⭐⭐⭐⭐ | ✅ **MLX RTF 0.64-0.87x** | ✅ Apache-2.0       | ✅ **已验证，克隆+情感+语速** |
-| 2      | **Qwen3-TTS**（备选）      | 本地 | ⭐⭐⭐⭐⭐ | ✅ **MPS 已验证**         | ✅ Apache-2.0       | ✅ **已采用**               |
-| —      | **CosyVoice 3.0** (MPS)    | 本地 | ⭐⭐⭐⭐⭐ | ⚠️ MPS RTF 39.8x          | ✅ Apache-2.0       | ❌ MPS 过慢，已切 MLX       |
-| 4      | **Zonos**（已放弃）        | 本地 | ⭐⭐⭐⭐⭐ | ⚠️ CPU only（MPS 有 bug） | ✅ Apache-2.0       | ❌ **已放弃**（四版调参不理想） |
-| 5      | **Sesame CSM**             | 本地 | ⭐⭐⭐⭐   | ❌ MPS 卡死，CPU RTF 120x | ✅ Apache-2.0       | ✅ **已测试**               |
-| 5b     | **Spark-TTS**              | 本地 | ⭐⭐⭐⭐   | ✅ **MPS 已验证**         | ⚠️ 模型 CC-BY-NC-SA | ✅ **已测试**               |
-| 5c     | **GPT-SoVITS**             | 本地 | ⭐⭐⭐⭐   | ❌ CPU RTF 321x           | ✅ MIT              | ✅ **已测试**               |
-| 6      | **VoxCPM2**                | 本地 | ⭐⭐⭐⭐⭐ | ❌ 需 CUDA 12.0+          | ✅ Apache-2.0       | 不兼容                      |
-| 6      | **Fish Speech S2**         | 本地 | ⭐⭐⭐⭐⭐ | ❌ 需 CUDA                | ❌ 非商用           | 不兼容                      |
-| 7      | **ElevenLabs API**         | 云端 | ⭐⭐⭐⭐⭐ | ✅ 无需 GPU               | ✅                  | 业界 SOTA                   |
-| 8      | **OpenAI TTS API**         | 云端 | ⭐⭐⭐⭐   | ✅ 无需 GPU               | ✅                  | 无克隆                      |
-| 9      | **XTTS v2**                | 本地 | ⭐⭐⭐     | ✅ MPS hybrid             | ✅ MPL-2.0          | ❌ 已从 registry 移除       |
-| 10     | **Kokoro**                 | 本地 | ⭐⭐⭐     | ✅ CPU 原生               | ✅ Apache-2.0       | ❌ 已从 registry 移除       |
+| 优先级 | 方案                           | 类型 | 质量       | M2 Pro 兼容               | 商用                | 测试状态                        |
+| ------ | ------------------------------ | ---- | ---------- | ------------------------- | ------------------- | ------------------------------- |
+| 1      | **F5-TTS-MLX**（管线默认）     | 本地 | ⭐⭐⭐⭐   | ✅ MLX 原生               | ⚠️ 权重 CC-BY-NC    | ✅ **已部署，默认引擎**         |
+| 1b     | **CosyVoice3-MLX**（最佳替代） | 本地 | ⭐⭐⭐⭐⭐ | ✅ **MLX RTF 0.64-0.87x** | ✅ Apache-2.0       | ✅ **已验证，克隆+情感+语速**   |
+| 2      | **Qwen3-TTS**（备选）          | 本地 | ⭐⭐⭐⭐⭐ | ✅ **MPS 已验证**         | ✅ Apache-2.0       | ✅ **已采用**                   |
+| —      | **CosyVoice 3.0** (MPS)        | 本地 | ⭐⭐⭐⭐⭐ | ⚠️ MPS RTF 39.8x          | ✅ Apache-2.0       | ❌ MPS 过慢，已切 MLX           |
+| 4      | **Zonos**（已放弃）            | 本地 | ⭐⭐⭐⭐⭐ | ⚠️ CPU only（MPS 有 bug） | ✅ Apache-2.0       | ❌ **已放弃**（四版调参不理想） |
+| 5      | **Sesame CSM**                 | 本地 | ⭐⭐⭐⭐   | ❌ MPS 卡死，CPU RTF 120x | ✅ Apache-2.0       | ✅ **已测试**                   |
+| 5b     | **Spark-TTS**                  | 本地 | ⭐⭐⭐⭐   | ✅ **MPS 已验证**         | ⚠️ 模型 CC-BY-NC-SA | ✅ **已测试**                   |
+| 5c     | **GPT-SoVITS**                 | 本地 | ⭐⭐⭐⭐   | ❌ CPU RTF 321x           | ✅ MIT              | ✅ **已测试**                   |
+| 6      | **VoxCPM2**                    | 本地 | ⭐⭐⭐⭐⭐ | ❌ 需 CUDA 12.0+          | ✅ Apache-2.0       | 不兼容                          |
+| 6      | **Fish Speech S2**             | 本地 | ⭐⭐⭐⭐⭐ | ❌ 需 CUDA                | ❌ 非商用           | 不兼容                          |
+| 7      | **ElevenLabs API**             | 云端 | ⭐⭐⭐⭐⭐ | ✅ 无需 GPU               | ✅                  | 业界 SOTA                       |
+| 8      | **OpenAI TTS API**             | 云端 | ⭐⭐⭐⭐   | ✅ 无需 GPU               | ✅                  | 无克隆                          |
+| 9      | **XTTS v2**                    | 本地 | ⭐⭐⭐     | ✅ MPS hybrid             | ✅ MPL-2.0          | ❌ 已从 registry 移除           |
+| 10     | **Kokoro**                     | 本地 | ⭐⭐⭐     | ✅ CPU 原生               | ✅ Apache-2.0       | ❌ 已从 registry 移除           |
 
 ---
 
@@ -853,11 +854,11 @@ Zonos       █████████████████████ 7100
 
 §8.1 的单一中性句测不出情感差异，本次用 **6 段多情感场景文本**（hook 震惊 / narrative 平静 / CTA 号召 × 中英），对比 **8 个引擎**的**原生抽情感能力**：
 
-| 场景 | 情感目标 | 英文示例 | 中文示例 |
-|------|----------|----------|----------|
-| hook-shock | 震惊/惊讶 | "This just broke the entire AI industry..." | "刚刚，整个AI圈被彻底炸翻了..." |
-| narrative-calm | 平静/叙述 | "DeepSeek's new model was trained on..." | "DeepSeek的新模型只花了..." |
-| cta-call | 号召/急迫 | "Follow for daily AI breakthroughs..." | "关注我，每天第一时间拿到..." |
+| 场景           | 情感目标  | 英文示例                                    | 中文示例                        |
+| -------------- | --------- | ------------------------------------------- | ------------------------------- |
+| hook-shock     | 震惊/惊讶 | "This just broke the entire AI industry..." | "刚刚，整个AI圈被彻底炸翻了..." |
+| narrative-calm | 平静/叙述 | "DeepSeek's new model was trained on..."    | "DeepSeek的新模型只花了..."     |
+| cta-call       | 号召/急迫 | "Follow for daily AI breakthroughs..."      | "关注我，每天第一时间拿到..."   |
 
 - **参考音频**：`scripts/short-video/voice-samples/voice-sample-24k.wav`（所有引擎共用）
 - **测试文本**：`/tmp/tts-emotion-test/texts.json`
@@ -866,53 +867,53 @@ Zonos       █████████████████████ 7100
 
 #### 八引擎横向对比
 
-| 指标 | F5-MLX | Zonos v1 | Zonos v2 | IndexTTS-2.5 | Qwen3-TTS | VoxCPM2 | Fish S2 | CosyVoice3 |
-|------|--------|----------|----------|--------------|-----------|---------|---------|------------|
-| **情感控制** | ❌ 无 | ✅ 8D+pitch | ✅ 调参后 | ✅ QwenEmo | ✅ instruct | ✅ clone+style | ✅ inline tags | ✅ instruct2 |
-| **采样率** | 24kHz | **44.1kHz** | **44.1kHz** | 22.05kHz | 24kHz | **48kHz** | **44.1kHz** | 24kHz |
-| **总耗时** | 684s | 1112s | 920s | **347.5s** | **141.9s** | ~38s | ~272s | ~68s |
-| **RTF** | ~9-11x | ~11.6x | ~12x | ~4.1x | **~2x** | **0.33x** | 4.54x | ~1.06x |
-| **设备** | MLX | MPS(fallback) | MPS(fallback) | MPS | MPS | **A100** | **A100** | **A100** |
-| **许可证** | ⚠️ CC-BY-NC | ✅ Apache | ✅ Apache | ⚠️ 非商用 | ✅ Apache | ✅ Apache | ⚠️ 非商用 | ✅ Apache |
-| **中文时长** | 9.5-10.5s | 14-18s | 11-15s | 8-12.8s | 10.5-12.1s | 7.8-10.7s | 9.4-10.1s | 9.8-10.1s |
-| **英文时长** | 9.4-9.8s | 8.5-11.5s | 6.7-8.9s | 8-10.3s | 9.8-12.8s | 7.7-11.4s | 9.4-11.3s | 7.6-11.9s |
+| 指标         | F5-MLX      | Zonos v1      | Zonos v2      | IndexTTS-2.5 | Qwen3-TTS   | VoxCPM2        | Fish S2        | CosyVoice3   |
+| ------------ | ----------- | ------------- | ------------- | ------------ | ----------- | -------------- | -------------- | ------------ |
+| **情感控制** | ❌ 无       | ✅ 8D+pitch   | ✅ 调参后     | ✅ QwenEmo   | ✅ instruct | ✅ clone+style | ✅ inline tags | ✅ instruct2 |
+| **采样率**   | 24kHz       | **44.1kHz**   | **44.1kHz**   | 22.05kHz     | 24kHz       | **48kHz**      | **44.1kHz**    | 24kHz        |
+| **总耗时**   | 684s        | 1112s         | 920s          | **347.5s**   | **141.9s**  | ~38s           | ~272s          | ~68s         |
+| **RTF**      | ~9-11x      | ~11.6x        | ~12x          | ~4.1x        | **~2x**     | **0.33x**      | 4.54x          | ~1.06x       |
+| **设备**     | MLX         | MPS(fallback) | MPS(fallback) | MPS          | MPS         | **A100**       | **A100**       | **A100**     |
+| **许可证**   | ⚠️ CC-BY-NC | ✅ Apache     | ✅ Apache     | ⚠️ 非商用    | ✅ Apache   | ✅ Apache      | ⚠️ 非商用      | ✅ Apache    |
+| **中文时长** | 9.5-10.5s   | 14-18s        | 11-15s        | 8-12.8s      | 10.5-12.1s  | 7.8-10.7s      | 9.4-10.1s      | 9.8-10.1s    |
+| **英文时长** | 9.4-9.8s    | 8.5-11.5s     | 6.7-8.9s      | 8-10.3s      | 9.8-12.8s   | 7.7-11.4s      | 9.4-11.3s      | 7.6-11.9s    |
 
 #### 速度排序（RTF，越低越快）
 
-| 排名 | 引擎 | RTF | 设备 | 总耗时 |
-|------|------|-----|------|--------|
-| 1 | **VoxCPM2** | **0.33x** | A100 | ~38s |
-| 2 | **CosyVoice3** | **~1.06x** | A100 | ~68s |
-| 3 | **Qwen3-TTS** | **~2x** | MPS | 141.9s |
-| 4 | **Fish S2** | 4.54x | A100 | ~272s |
-| 5 | IndexTTS-2.5 | ~4.1x | MPS | 347.5s |
-| 6 | F5-TTS-MLX | ~9-11x | MLX | 684s |
-| 7 | Zonos v2 | ~12x | MPS(fallback) | 920s |
-| 8 | Zonos v1 | ~11.6x | MPS(fallback) | 1112s |
+| 排名 | 引擎           | RTF        | 设备          | 总耗时 |
+| ---- | -------------- | ---------- | ------------- | ------ |
+| 1    | **VoxCPM2**    | **0.33x**  | A100          | ~38s   |
+| 2    | **CosyVoice3** | **~1.06x** | A100          | ~68s   |
+| 3    | **Qwen3-TTS**  | **~2x**    | MPS           | 141.9s |
+| 4    | **Fish S2**    | 4.54x      | A100          | ~272s  |
+| 5    | IndexTTS-2.5   | ~4.1x      | MPS           | 347.5s |
+| 6    | F5-TTS-MLX     | ~9-11x     | MLX           | 684s   |
+| 7    | Zonos v2       | ~12x       | MPS(fallback) | 920s   |
+| 8    | Zonos v1       | ~11.6x     | MPS(fallback) | 1112s  |
 
 #### 采样率排序
 
-| 排名 | 引擎 | 采样率 |
-|------|------|--------|
-| 1 | VoxCPM2 | 48 kHz |
-| 2 | Zonos v1/v2 | 44.1 kHz |
-| 2 | Fish S2 | 44.1 kHz |
-| 4 | F5-TTS-MLX | 24 kHz |
-| 4 | Qwen3-TTS | 24 kHz |
-| 4 | CosyVoice3 | 24 kHz |
-| 7 | IndexTTS-2.5 | 22.05 kHz |
+| 排名 | 引擎         | 采样率    |
+| ---- | ------------ | --------- |
+| 1    | VoxCPM2      | 48 kHz    |
+| 2    | Zonos v1/v2  | 44.1 kHz  |
+| 2    | Fish S2      | 44.1 kHz  |
+| 4    | F5-TTS-MLX   | 24 kHz    |
+| 4    | Qwen3-TTS    | 24 kHz    |
+| 4    | CosyVoice3   | 24 kHz    |
+| 7    | IndexTTS-2.5 | 22.05 kHz |
 
 #### 用户听感反馈（hook 段，HITL 已完成）
 
-| 引擎 | 用户反馈 | 判定 |
-|------|----------|------|
-| Zonos v1 | "比较稳定合适" | ✅ |
-| Zonos v2 | "电音/机械音" | ❌ |
-| IndexTTS-2.5 | "上气不接下气很累" | ⚠️ |
-| Qwen3-TTS | "拖音太夸张" | ⚠️ |
-| VoxCPM2 | "中规中矩，但不确定语速提上去效果怎么样" | ⚠️ |
-| Fish S2 | "感觉还是很平稳" | ✅ |
-| CosyVoice3 | "不错" | ✅ |
+| 引擎         | 用户反馈                                 | 判定 |
+| ------------ | ---------------------------------------- | ---- |
+| Zonos v1     | "比较稳定合适"                           | ✅   |
+| Zonos v2     | "电音/机械音"                            | ❌   |
+| IndexTTS-2.5 | "上气不接下气很累"                       | ⚠️   |
+| Qwen3-TTS    | "拖音太夸张"                             | ⚠️   |
+| VoxCPM2      | "中规中矩，但不确定语速提上去效果怎么样" | ⚠️   |
+| Fish S2      | "感觉还是很平稳"                         | ✅   |
+| CosyVoice3   | "不错"                                   | ✅   |
 
 **听感结论**：Zonos v1、Fish S2、CosyVoice3 获正面反馈；Zonos v2 电音不可接受；IndexTTS/Qwen3/VoxCPM2 有明显缺陷。
 
@@ -921,6 +922,7 @@ Zonos       █████████████████████ 7100
 Zonos v2 调参方向错误：speaking_rate 提 25%（→ OOD 边界）+ pitch_std 降 33-44%（与高情感 emotion vec 冲突）= 时间压缩 artifact + 情感-音高矛盾伪影。详见 `docs/research/zonos-configuration-research.md`。
 
 **Zonos 最佳配置建议**（基于源码+文档研究）：
+
 - speaking_rate 保持 15-16（不超过 17）
 - pitch_std 按情感匹配（表达力强 60-80，正常 30-45）
 - emotion 建议设 unconditional 让模型自动推断
@@ -932,17 +934,18 @@ Zonos v2 调参方向错误：speaking_rate 提 25%（→ OOD 边界）+ pitch_s
 
 **重大发现**：CosyVoice3 的 MLX 移植版（`mlx-community/Fun-CosyVoice3-0.5B-2512-fp16` + `mlx-audio-plus` 库）在 M2 Pro 上实现 **RTF 0.64-0.87x**（比实时还快），比 PyTorch MPS 版（RTF 39.8x）快 **46 倍**。
 
-| 指标 | CosyVoice3 MPS（旧） | CosyVoice3 MLX（新） | CosyVoice3 Modal A100 |
-|------|---------------------|---------------------|----------------------|
-| RTF | 39.83x ❌ | **0.64-0.87x** ✅ | ~1.06x |
-| 设备 | M2 Pro MPS | **M2 Pro MLX** | 远程 A100 ($2.10/h) |
-| 成本 | 免费 | **免费** | $2.10/h |
-| 许可 | Apache-2.0 | Apache-2.0 | Apache-2.0 |
-| 情感控制 | instruct2 | instruct2 | instruct2 |
-| 语音克隆 | ✅ | ✅ | ✅ |
-| 语速控制 | ✅ | ✅ | ✅ |
+| 指标     | CosyVoice3 MPS（旧） | CosyVoice3 MLX（新） | CosyVoice3 Modal A100 |
+| -------- | -------------------- | -------------------- | --------------------- |
+| RTF      | 39.83x ❌            | **0.64-0.87x** ✅    | ~1.06x                |
+| 设备     | M2 Pro MPS           | **M2 Pro MLX**       | 远程 A100 ($2.10/h)   |
+| 成本     | 免费                 | **免费**             | $2.10/h               |
+| 许可     | Apache-2.0           | Apache-2.0           | Apache-2.0            |
+| 情感控制 | instruct2            | instruct2            | instruct2             |
+| 语音克隆 | ✅                   | ✅                   | ✅                    |
+| 语速控制 | ✅                   | ✅                   | ✅                    |
 
 instruct 文本需注意 MLX 版与 PyTorch 版的差异：
+
 - **PyTorch 版**（`inference_instruct2`）：instruct_text 直接 tokenize，用户需手动传完整文本含 `<|endofprompt|>`
 - **MLX 版**（`generate`）：自动追加 `<|endofprompt|>`（line 1242），用户**不应**手动加，否则双重标记导致 instruct 被截断
 - 正确 MLX instruct 格式：`"You are a helpful assistant. <emotion instruction>."`（不加 `<|endofprompt|>`）
@@ -952,11 +955,11 @@ instruct 文本需注意 MLX 版与 PyTorch 版的差异：
 
 **版本对比**：
 
-| 版本 | instruct 格式 | 总长 | hook-shock-en | emotion | 内容 | 目录 |
-|------|-------------|------|---------------|---------|------|------|
-| v2（双重 EOP） | `...news.<|endofprompt|>` + MLX 自动加 | 99.3s | 27.2s | 弱 | ✅ | `cosyvoice3-mlx-v2-double-eop/` |
-| v3（修复） | `...news.` + MLX 自动加 | 87.9s | 15.8s | 强 | ✅ | `cosyvoice3-mlx-v3-stable/` |
-| Modal A100 | `...news.<|endofprompt|>` | 60.9s | — | 强 | ✅ | `cosyvoice3-emotion/` |
+| 版本           | instruct 格式           | 总长        | hook-shock-en   | emotion | 内容  | 目录                        |
+| -------------- | ----------------------- | ----------- | --------------- | ------- | ----- | --------------------------- |
+| v2（双重 EOP） | `...news.<              | endofprompt | >` + MLX 自动加 | 99.3s   | 27.2s | 弱                          | ✅  | `cosyvoice3-mlx-v2-double-eop/` |
+| v3（修复）     | `...news.` + MLX 自动加 | 87.9s       | 15.8s           | 强      | ✅    | `cosyvoice3-mlx-v3-stable/` |
+| Modal A100     | `...news.<              | endofprompt | >`              | 60.9s   | —     | 强                          | ✅  | `cosyvoice3-emotion/`           |
 
 #### MLX 硬件审计（2026-09-06）
 
@@ -964,32 +967,32 @@ instruct 文本需注意 MLX 版与 PyTorch 版的差异：
 
 **已测引擎 → MLX 可用性**：
 
-| 引擎 | 当前硬件 | 当前 RTF | MLX 模型 | MLX 库 | 切 MLX 后预期 | 状态 |
-|------|---------|---------|----------|--------|--------------|------|
-| F5-TTS-MLX | MLX | 1.78x | — | — | — | ✅ 已是 MLX |
-| CosyVoice3 | Modal A100 | 1.06x | `mlx-community/Fun-CosyVoice3-0.5B-2512-fp16` | mlx-audio-plus | **0.64-0.87x** ✅ | ✅ 已验证 |
-| Qwen3-TTS-0.6B | MPS | ~2x | `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16` | mlx-audio | 待测 | 可切 MLX |
-| Qwen3-TTS-1.7B-CV | — | — | `mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16` | mlx-audio | ❌ 架构不兼容 | talker./code_predictor. 前缀 |
-| IndexTTS-2.5 | MPS | ~4.1x | `mlx-community/IndexTTS-2.5-fp16` (2026-09-02) | mlx-audio | 待测 | 可切 MLX |
-| VoxCPM2 | Modal A100 | 0.33x | `mlx-community/VoxCPM2-bf16` | mlx-audio | ❌ 架构不兼容 | 仅 VoxCPM1.5 支持 |
-| Spark-TTS | MPS | 10.6x | `mlx-community/Spark-TTS-0.5B-bf16` | mlx-audio | 待测 | 可切 MLX |
-| Sesame CSM | MPS (挂死) | — | mlx-audio 有 sesame 模块 | mlx-audio | 待测 | 可试 MLX |
-| Zonos | MPS (broken) | 11.6x | ❌ 无 MLX 移植 | — | — | ❌ 已放弃 |
-| Fish S2 | Modal A100 | 4.54x | ❌ 无 MLX 移植 | — | — | 只能远程 |
+| 引擎              | 当前硬件     | 当前 RTF | MLX 模型                                             | MLX 库         | 切 MLX 后预期     | 状态                         |
+| ----------------- | ------------ | -------- | ---------------------------------------------------- | -------------- | ----------------- | ---------------------------- |
+| F5-TTS-MLX        | MLX          | 1.78x    | —                                                    | —              | —                 | ✅ 已是 MLX                  |
+| CosyVoice3        | Modal A100   | 1.06x    | `mlx-community/Fun-CosyVoice3-0.5B-2512-fp16`        | mlx-audio-plus | **0.64-0.87x** ✅ | ✅ 已验证                    |
+| Qwen3-TTS-0.6B    | MPS          | ~2x      | `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16`        | mlx-audio      | 待测              | 可切 MLX                     |
+| Qwen3-TTS-1.7B-CV | —            | —        | `mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16` | mlx-audio      | ❌ 架构不兼容     | talker./code_predictor. 前缀 |
+| IndexTTS-2.5      | MPS          | ~4.1x    | `mlx-community/IndexTTS-2.5-fp16` (2026-09-02)       | mlx-audio      | 待测              | 可切 MLX                     |
+| VoxCPM2           | Modal A100   | 0.33x    | `mlx-community/VoxCPM2-bf16`                         | mlx-audio      | ❌ 架构不兼容     | 仅 VoxCPM1.5 支持            |
+| Spark-TTS         | MPS          | 10.6x    | `mlx-community/Spark-TTS-0.5B-bf16`                  | mlx-audio      | 待测              | 可切 MLX                     |
+| Sesame CSM        | MPS (挂死)   | —        | mlx-audio 有 sesame 模块                             | mlx-audio      | 待测              | 可试 MLX                     |
+| Zonos             | MPS (broken) | 11.6x    | ❌ 无 MLX 移植                                       | —              | —                 | ❌ 已放弃                    |
+| Fish S2           | Modal A100   | 4.54x    | ❌ 无 MLX 移植                                       | —              | —                 | 只能远程                     |
 
 **新发现 MLX 模型**（mlx-community 上有，尚未测）：
 
-| 模型 | MLX 权重 | 许可 | 特点 | 优先级 |
-|------|---------|------|------|--------|
-| Qwen3-TTS-1.7B-CustomVoice | bf16/8bit/6bit/4bit | Apache-2.0 | 1.7B 带 CustomVoice（情感+克隆） | ⭐⭐⭐⭐⭐ |
-| Voxtral-4B-TTS | bf16/6bit/4bit | CC-BY-NC-4.0 | Mistral TTS，多语言 | ⭐⭐⭐ |
-| Pocket-TTS | 8bit/6bit/4bit | CC-BY-4.0 | Kyutai，语音克隆 | ⭐⭐⭐ |
-| MOSS-TTS-Nano-100M | — | Apache-2.0 | 复旦，100M 极小 | ⭐⭐⭐⭐ |
-| MOSS-TTS-Local-Transformer-v1.5 | bf16/8bit/4bit | Apache-2.0 | 复旦，语音克隆+流式 | ⭐⭐⭐⭐ |
-| Chatterbox / Turbo | fp16/8bit/4bit | — | ResembleAI | ⭐⭐ |
-| Breeze-TTS-2 | mlx/8bit/4bit | license:other | zh+en，克隆+设计 | ⭐⭐⭐ |
-| Kitten-TTS (nano/micro/mini) | — | Apache-2.0 | 轻声智能，超小 | ⭐⭐ |
-| Kokoro-82M | bf16/8bit/6bit/4bit | Apache-2.0 | English only，82M | ⭐⭐ |
+| 模型                            | MLX 权重            | 许可          | 特点                             | 优先级     |
+| ------------------------------- | ------------------- | ------------- | -------------------------------- | ---------- |
+| Qwen3-TTS-1.7B-CustomVoice      | bf16/8bit/6bit/4bit | Apache-2.0    | 1.7B 带 CustomVoice（情感+克隆） | ⭐⭐⭐⭐⭐ |
+| Voxtral-4B-TTS                  | bf16/6bit/4bit      | CC-BY-NC-4.0  | Mistral TTS，多语言              | ⭐⭐⭐     |
+| Pocket-TTS                      | 8bit/6bit/4bit      | CC-BY-4.0     | Kyutai，语音克隆                 | ⭐⭐⭐     |
+| MOSS-TTS-Nano-100M              | —                   | Apache-2.0    | 复旦，100M 极小                  | ⭐⭐⭐⭐   |
+| MOSS-TTS-Local-Transformer-v1.5 | bf16/8bit/4bit      | Apache-2.0    | 复旦，语音克隆+流式              | ⭐⭐⭐⭐   |
+| Chatterbox / Turbo              | fp16/8bit/4bit      | —             | ResembleAI                       | ⭐⭐       |
+| Breeze-TTS-2                    | mlx/8bit/4bit       | license:other | zh+en，克隆+设计                 | ⭐⭐⭐     |
+| Kitten-TTS (nano/micro/mini)    | —                   | Apache-2.0    | 轻声智能，超小                   | ⭐⭐       |
+| Kokoro-82M                      | bf16/8bit/6bit/4bit | Apache-2.0    | English only，82M                | ⭐⭐       |
 
 #### 关键发现
 
@@ -1008,14 +1011,14 @@ instruct 文本需注意 MLX 版与 PyTorch 版的差异：
 
 **Spark-TTS-MLX**（`mlx-community/Spark-TTS-0.5B-bf16`，本地 MLX）：
 
-| 场景 | 音频时长 | 生成时间 | RTF | 备注 |
-|------|---------|---------|-----|------|
-| hook-shock-en | 12.0s | 10.3s | 0.86x | |
-| narrative-calm-en | 17.5s | 10.8s | 0.62x | |
-| cta-call-en | **51.5s** | 31.7s | 0.62x | ⚠️ 异常长，疑似重复 |
-| hook-shock-zh | 12.3s | 19.2s | 1.56x | 中文最慢 |
-| narrative-calm-zh | 17.1s | 10.3s | 0.60x | |
-| cta-call-zh | **60.0s** | 32.5s | 0.54x | ⚠️ 异常长，疑似重复 |
+| 场景              | 音频时长  | 生成时间 | RTF   | 备注                |
+| ----------------- | --------- | -------- | ----- | ------------------- |
+| hook-shock-en     | 12.0s     | 10.3s    | 0.86x |                     |
+| narrative-calm-en | 17.5s     | 10.8s    | 0.62x |                     |
+| cta-call-en       | **51.5s** | 31.7s    | 0.62x | ⚠️ 异常长，疑似重复 |
+| hook-shock-zh     | 12.3s     | 19.2s    | 1.56x | 中文最慢            |
+| narrative-calm-zh | 17.1s     | 10.3s    | 0.60x |                     |
+| cta-call-zh       | **60.0s** | 32.5s    | 0.54x | ⚠️ 异常长，疑似重复 |
 
 - 采样率 16kHz（低于 CosyVoice3 的 24kHz）
 - 无情感控制参数（voice cloning only）
@@ -1023,14 +1026,14 @@ instruct 文本需注意 MLX 版与 PyTorch 版的差异：
 
 **Qwen3-TTS-1.7B-CustomVoice**（PyTorch MPS，float32）：
 
-| 场景 | 音频时长 | 生成时间 | RTF | 对比 0.6B RTF |
-|------|---------|---------|-----|--------------|
-| hook-shock-en | 11.7s | 28.4s | 2.43x | 0.6B: 2.09x |
-| narrative-calm-en | 11.0s | 30.6s | 2.79x | 0.6B: 1.82x |
-| cta-call-en | 8.7s | 27.3s | 3.13x | 0.6B: 1.92x |
-| hook-shock-zh | 11.3s | 33.1s | 2.93x | 0.6B: 2.32x |
-| narrative-calm-zh | 10.0s | 29.8s | 2.98x | 0.6B: 2.19x |
-| cta-call-zh | 10.8s | 31.4s | 2.91x | 0.6B: 2.23x |
+| 场景              | 音频时长 | 生成时间 | RTF   | 对比 0.6B RTF |
+| ----------------- | -------- | -------- | ----- | ------------- |
+| hook-shock-en     | 11.7s    | 28.4s    | 2.43x | 0.6B: 2.09x   |
+| narrative-calm-en | 11.0s    | 30.6s    | 2.79x | 0.6B: 1.82x   |
+| cta-call-en       | 8.7s     | 27.3s    | 3.13x | 0.6B: 1.92x   |
+| hook-shock-zh     | 11.3s    | 33.1s    | 2.93x | 0.6B: 2.32x   |
+| narrative-calm-zh | 10.0s    | 29.8s    | 2.98x | 0.6B: 2.19x   |
+| cta-call-zh       | 10.8s    | 31.4s    | 2.91x | 0.6B: 2.23x   |
 
 - 采样率 24kHz，speaker="eric"（内置音色），带 instruct 情感控制
 - 1.7B 比 0.6B 慢 ~50%，质量是否提升待用户听验
@@ -1040,21 +1043,22 @@ instruct 文本需注意 MLX 版与 PyTorch 版的差异：
 
 **CosyVoice3-MLX 是 F5-TTS-MLX 的最佳替代**。理由：
 
-| 候选 | 优势 | 劣势 | 结论 |
-|------|------|------|------|
-| **CosyVoice3-MLX** | **RTF 0.64-0.87x, Apache, 本地免费, 克隆+情感+语速** | 需 mlx-audio-plus 库 | ⭐ **最佳替代** |
-| Spark-TTS-MLX | RTF 0.54-1.56x, Apache, 本地免费, 克隆 | 无情感控制, CTA 段异常长(重复), 16kHz | ⚠️ 待用户听验 |
-| CosyVoice3 (Modal A100) | RTF ~1x, Apache, 听感好 | 需远程 A100 ($2.10/h) | 备选（已不如本地 MLX） |
-| Qwen3-TTS-1.7B-CV (PyTorch MPS) | Apache, 情感+克隆, 24kHz | RTF 2.43-3.13x, 比 0.6B 慢 | 待用户听验质量 |
-| VoxCPM2 (MLX) | Apache | mlx-audio 仅支持 VoxCPM1.5, 不支持 VoxCPM2 | ❌ MLX 架构不兼容 |
-| Qwen3-TTS-1.7B-CV (MLX) | Apache, 情感+克隆 | mlx-audio 权重前缀不兼容 | ❌ MLX 架构不兼容 |
-| F5-TTS-MLX (现状) | MLX 原生, 已部署, RTF 1.78x | CC-BY-NC, 无原生抽情感 | 保持默认直到切换 |
-| Zonos v1 | 44.1kHz, 8D emotion | MPS 11.6x, 听感不理想 | ❌ 已放弃 |
-| Fish S2 | 听感"平稳" | 非商用, RTF 4.54x, 无 MLX | ❌ 许可证不符 |
-| IndexTTS-2.5 | 本地最快 | 非商用, 听感累 | ❌ 许可证不符 |
-| Qwen3-TTS-0.6B | 本地 ~2x | 拖音, 克隆+情感冲突 | ❌ 听感不符 |
+| 候选                            | 优势                                                 | 劣势                                       | 结论                   |
+| ------------------------------- | ---------------------------------------------------- | ------------------------------------------ | ---------------------- |
+| **CosyVoice3-MLX**              | **RTF 0.64-0.87x, Apache, 本地免费, 克隆+情感+语速** | 需 mlx-audio-plus 库                       | ⭐ **最佳替代**        |
+| Spark-TTS-MLX                   | RTF 0.54-1.56x, Apache, 本地免费, 克隆               | 无情感控制, CTA 段异常长(重复), 16kHz      | ⚠️ 待用户听验          |
+| CosyVoice3 (Modal A100)         | RTF ~1x, Apache, 听感好                              | 需远程 A100 ($2.10/h)                      | 备选（已不如本地 MLX） |
+| Qwen3-TTS-1.7B-CV (PyTorch MPS) | Apache, 情感+克隆, 24kHz                             | RTF 2.43-3.13x, 比 0.6B 慢                 | 待用户听验质量         |
+| VoxCPM2 (MLX)                   | Apache                                               | mlx-audio 仅支持 VoxCPM1.5, 不支持 VoxCPM2 | ❌ MLX 架构不兼容      |
+| Qwen3-TTS-1.7B-CV (MLX)         | Apache, 情感+克隆                                    | mlx-audio 权重前缀不兼容                   | ❌ MLX 架构不兼容      |
+| F5-TTS-MLX (现状)               | MLX 原生, 已部署, RTF 1.78x                          | CC-BY-NC, 无原生抽情感                     | 保持默认直到切换       |
+| Zonos v1                        | 44.1kHz, 8D emotion                                  | MPS 11.6x, 听感不理想                      | ❌ 已放弃              |
+| Fish S2                         | 听感"平稳"                                           | 非商用, RTF 4.54x, 无 MLX                  | ❌ 许可证不符          |
+| IndexTTS-2.5                    | 本地最快                                             | 非商用, 听感累                             | ❌ 许可证不符          |
+| Qwen3-TTS-0.6B                  | 本地 ~2x                                             | 拖音, 克隆+情感冲突                        | ❌ 听感不符            |
 
 **推荐路径**：
+
 1. **立即**：将 CosyVoice3-MLX 集成进 TTS registry 作为 F5-TTS-MLX 的优先备选（Apache 许可 + 本地免费 + RTF <1x + 克隆+情感+语速）
 2. **短期**：保持 F5-TTS-MLX 默认（已部署验证），CosyVoice3-MLX 作为情感场景专用引擎
 3. **中期**：用户听验 Spark-TTS-MLX 和 Qwen3-TTS-1.7B-CV (PyTorch MPS) 后，决定是否作为备选
@@ -1062,18 +1066,18 @@ instruct 文本需注意 MLX 版与 PyTorch 版的差异：
 
 #### 测试脚本
 
-| 引擎 | 脚本 | 环境 | 设备 |
-|------|------|------|------|
-| F5-TTS-MLX | `/tmp/tts-emotion-test/run-f5-baseline.py` | `~/.video-tts-env` | 本地 MLX |
-| **CosyVoice3-MLX** | `/tmp/tts-emotion-test/run-cosyvoice3-mlx.py` | `~/.video-tts-env` | **本地 MLX** |
-| Spark-TTS-MLX | `/tmp/tts-emotion-test/run-spark-tts-mlx.py` | `~/.video-tts-env` | 本地 MLX |
-| Qwen3-TTS-1.7B-CV | `/tmp/tts-emotion-test/run-qwen3-17b-cv-pytorch.py` | `~/.qwen-tts-env` | 本地 MPS |
-| Zonos v1/v2 | `/tmp/tts-emotion-test/run-zonos.py` | `~/.zonos-env` | 本地 MPS（已放弃） |
-| IndexTTS-2.5 | `/tmp/tts-emotion-test/run-indextts.py` | `~/.indextts-env` | 本地 MPS |
-| Qwen3-TTS-0.6B | `/tmp/tts-emotion-test/run-qwen.py` | `~/.qwen-tts-env` | 本地 MPS |
-| VoxCPM2 | `/tmp/tts-emotion-test/modal-voxcpm2.py` | Modal | 远程 A100 |
-| Fish S2 | `/tmp/tts-emotion-test/modal-fish-s2.py` | Modal | 远程 A100 |
-| CosyVoice3 (A100) | `/tmp/tts-emotion-test/modal-cosyvoice3.py` | Modal | 远程 A100 |
+| 引擎               | 脚本                                                | 环境               | 设备               |
+| ------------------ | --------------------------------------------------- | ------------------ | ------------------ |
+| F5-TTS-MLX         | `/tmp/tts-emotion-test/run-f5-baseline.py`          | `~/.video-tts-env` | 本地 MLX           |
+| **CosyVoice3-MLX** | `/tmp/tts-emotion-test/run-cosyvoice3-mlx.py`       | `~/.video-tts-env` | **本地 MLX**       |
+| Spark-TTS-MLX      | `/tmp/tts-emotion-test/run-spark-tts-mlx.py`        | `~/.video-tts-env` | 本地 MLX           |
+| Qwen3-TTS-1.7B-CV  | `/tmp/tts-emotion-test/run-qwen3-17b-cv-pytorch.py` | `~/.qwen-tts-env`  | 本地 MPS           |
+| Zonos v1/v2        | `/tmp/tts-emotion-test/run-zonos.py`                | `~/.zonos-env`     | 本地 MPS（已放弃） |
+| IndexTTS-2.5       | `/tmp/tts-emotion-test/run-indextts.py`             | `~/.indextts-env`  | 本地 MPS           |
+| Qwen3-TTS-0.6B     | `/tmp/tts-emotion-test/run-qwen.py`                 | `~/.qwen-tts-env`  | 本地 MPS           |
+| VoxCPM2            | `/tmp/tts-emotion-test/modal-voxcpm2.py`            | Modal              | 远程 A100          |
+| Fish S2            | `/tmp/tts-emotion-test/modal-fish-s2.py`            | Modal              | 远程 A100          |
+| CosyVoice3 (A100)  | `/tmp/tts-emotion-test/modal-cosyvoice3.py`         | Modal              | 远程 A100          |
 
 #### Zonos 配置研究
 
@@ -1083,37 +1087,38 @@ Zonos v2 电音问题的深度研究（源码分析 + 官方文档 + 社区调�
 
 目标：验证 CosyVoice3 PyTorch 版在不同设备上的 emotion 一致性，确认 CUDA 环境是否可替代 A100。
 
-| 设备 | RTF | emotion 质量 | 结论 |
-|------|-----|-------------|------|
-| Modal A100-80GB | ~1.06x | ✅ 用户认可 | 基准 |
-| 本地 MPS (M2 Pro) | 20.5x | ⚠️ 比 A100 差比 MLX 好 | 数值精度+ONNX 后端差异，调 top_p 到 0.1 仍不够 |
-| Kaggle P100-16GB (CUDA) | ~1.0x | ✅ **与 A100 一致** | 免费 P100 即够，无需 Modal 付费 |
+| 设备                    | RTF    | emotion 质量           | 结论                                           |
+| ----------------------- | ------ | ---------------------- | ---------------------------------------------- |
+| Modal A100-80GB         | ~1.06x | ✅ 用户认可            | 基准                                           |
+| 本地 MPS (M2 Pro)       | 20.5x  | ⚠️ 比 A100 差比 MLX 好 | 数值精度+ONNX 后端差异，调 top_p 到 0.1 仍不够 |
+| Kaggle P100-16GB (CUDA) | ~1.0x  | ✅ **与 A100 一致**    | 免费 P100 即够，无需 Modal 付费                |
 
 **关键结论**：CUDA 环境emotion 与 A100 一致，MPS 差异根因是 Metal kernel 数值精度 + ONNX CPU EP。Kaggle 免费 P100 可作为 A100 替代。
 
 **MPS TF32 禁用 + CoreML EP 实验**（2026-09-07，验证 MPS 能否追上 CUDA）：
 
-| 实验项 | 结果 |
-|--------|------|
-| `torch.backends.mps.matmul.allow_tf32` | torch 2.3.1 不存在此属性 |
-| `torch.set_float32_matmul_precision('highest')` | 导致 MPS 尝试 float64（不支持），全部报错 |
-| `CoreMLExecutionProvider` for ONNX | 795/1367 节点用 CoreML，其余 CPU（部分改善） |
-| `PYTORCH_ENABLE_MPS_FALLBACK=1` for `torch.istft` | `aten::unfold_backward` MPS 不支持，需 CPU 回退 |
-| hifigan `float64 → float32` patch | f0_predictor 用 float64 精度，MPS 强制 float32 |
-| **最终结果** | 6/6 段生成成功，RTF ~3x，**但用户听音确认 emotion 仍明显不如 CUDA** |
+| 实验项                                            | 结果                                                                |
+| ------------------------------------------------- | ------------------------------------------------------------------- |
+| `torch.backends.mps.matmul.allow_tf32`            | torch 2.3.1 不存在此属性                                            |
+| `torch.set_float32_matmul_precision('highest')`   | 导致 MPS 尝试 float64（不支持），全部报错                           |
+| `CoreMLExecutionProvider` for ONNX                | 795/1367 节点用 CoreML，其余 CPU（部分改善）                        |
+| `PYTORCH_ENABLE_MPS_FALLBACK=1` for `torch.istft` | `aten::unfold_backward` MPS 不支持，需 CPU 回退                     |
+| hifigan `float64 → float32` patch                 | f0_predictor 用 float64 精度，MPS 强制 float32                      |
+| **最终结果**                                      | 6/6 段生成成功，RTF ~3x，**但用户听音确认 emotion 仍明显不如 CUDA** |
 
 **结论**：MPS 在 torch 2.3.1 上无法通过任何 patch/配置追上 CUDA emotion 质量。根因是 Metal kernel 数值精度 + ONNX EP 差异 + float64 不支持的综合问题，非单一可修复项。**最终引擎决策：Kaggle P100 CUDA 为默认**（ADR-0019）。
 
 **MPS 采样参数调优**（top_p 递减，均不够）：
 
-| top_p | top_k | 用户反馈 |
-|-------|-------|----------|
-| 0.8 | 25 | 比 A100 差比 MLX 好 |
-| 0.5 | 10 | 有改善但不够 |
-| 0.3 | 5 | 有改善但不够 |
-| 0.1 | 3 | 不够，转 Kaggle |
+| top_p | top_k | 用户反馈            |
+| ----- | ----- | ------------------- |
+| 0.8   | 25    | 比 A100 差比 MLX 好 |
+| 0.5   | 10    | 有改善但不够        |
+| 0.3   | 5     | 有改善但不够        |
+| 0.1   | 3     | 不够，转 Kaggle     |
 
 **Kaggle 环境配置**（torch 2.4.0+cu121 / numpy 2.0 / onnxruntime-gpu 1.20.1）：
+
 - 脚本：`/tmp/cosyvoice3-kaggle/cosyvoice3-kaggle.py`
 - 样本：`scripts/short-video/assets/tts-comparison/cosyvoice3-kaggle-p100-cuda/`
 

@@ -18,6 +18,7 @@
 - **没有模板系统**: 全屏实拍视频 + 底部字幕条 + BGM
 
 **值得吸收的**:
+
 1. stock-video-first 路线：整个视频 = 库存实拍视频拼接
 2. 搜索时 `orientation=portrait` + 精确分辨率匹配（不裁切）
 3. `_prioritize_unique_source_clips`：同源去重，避免素材重复
@@ -25,6 +26,7 @@
 5. 长视频按 max_clip_duration 切段，持续补充到覆盖音频时长
 
 **不适用的**:
+
 - 字幕弹跳动画（偏娱乐风格，新闻需克制）
 - 无模板设计（我们需要 Remotion 模板）
 

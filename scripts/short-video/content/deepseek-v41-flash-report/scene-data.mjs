@@ -52,7 +52,8 @@ export const scenes = [
     retentionMechanism: "open-loop",
     layout: "stacked-cards",
     mediaStrategy: "asset",
-    assetNeed: "API routing diagram showing Pro traffic redirecting to Flash, dark theme with blue arrows",
+    assetNeed:
+      "API routing diagram showing Pro traffic redirecting to Flash, dark theme with blue arrows",
     media: {
       type: "image",
       path: "assets/unsplash-traffic-02.jpg",
@@ -82,7 +83,8 @@ export const scenes = [
     retentionMechanism: "curiosity-gap",
     layout: "stacked-cards",
     mediaStrategy: "asset",
-    assetNeed: "Bar chart comparing three models across DeepSWE and Terminal-Bench, blue and amber bars, dark background",
+    assetNeed:
+      "Bar chart comparing three models across DeepSWE and Terminal-Bench, blue and amber bars, dark background",
     media: {
       type: "image",
       path: "assets/pexels-code-02.jpg",
@@ -113,7 +115,8 @@ export const scenes = [
     retentionMechanism: "pattern-interrupt",
     layout: "stacked-cards",
     mediaStrategy: "asset",
-    assetNeed: "Cost comparison visualization: cached vs uncached pricing, KV cache compression diagram, blue and green",
+    assetNeed:
+      "Cost comparison visualization: cached vs uncached pricing, KV cache compression diagram, blue and green",
     media: {
       type: "image",
       path: "assets/pixabay-across-01.jpg",
@@ -142,7 +145,8 @@ export const scenes = [
     retentionMechanism: "loop-closure",
     layout: "stacked-cards",
     mediaStrategy: "asset",
-    assetNeed: "Neural network architecture diagram showing encoder-decoder split with Engram memory module, dark tech",
+    assetNeed:
+      "Neural network architecture diagram showing encoder-decoder split with Engram memory module, dark tech",
     media: {
       type: "image",
       path: "assets/unsplash-code-01.jpg",

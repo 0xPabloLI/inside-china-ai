@@ -127,9 +127,7 @@ describe("buildManualPublishGuide renders profile.manualGuide.steps", () => {
       hasAIVoice: true,
     });
     for (const step of profile.manualGuide.steps) {
-      const label = step.label
-        .replace("{videoPath}", "/tmp/v.mp4")
-        .replace("{slug}", "s");
+      const label = step.label.replace("{videoPath}", "/tmp/v.mp4").replace("{slug}", "s");
       expect(guide).toContain(label);
     }
     expect(guide).toContain("TikTok algorithm favors content edited within the app.");
@@ -180,9 +178,9 @@ describe("buildTiktokSettings reads profile.privacy/commerce", () => {
 
   it("commerce disclosure rule enforced from profile.commerce.commercialContentRequiresBrand", () => {
     // TikTok profile: rule on → commercial without brand flag throws.
-    expect(() =>
-      buildTiktokSettings({ commercialContent: true }),
-    ).toThrow(/brandOrganic or brandedContent/);
+    expect(() => buildTiktokSettings({ commercialContent: true })).toThrow(
+      /brandOrganic or brandedContent/,
+    );
 
     // Hypothetical platform without the rule → same input accepted.
     const noRuleProfile = {
@@ -228,9 +226,7 @@ describe("resolvePublishMethod — per-platform publish gate", () => {
   });
 
   it("rejects unknown requested methods (not in the PUBLISH_METHODS enum)", () => {
-    expect(() => resolvePublishMethod(profile, { auto: true, method: "pigeon" })).toThrow(
-      /pigeon/,
-    );
+    expect(() => resolvePublishMethod(profile, { auto: true, method: "pigeon" })).toThrow(/pigeon/);
   });
 });
 

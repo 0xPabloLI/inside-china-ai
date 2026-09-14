@@ -18,12 +18,12 @@
 These live in `skills/` at the repo root. Symlinks in `.cursor/skills/` and
 `.agents/skills/` point back to the repo source.
 
-| Skill                  | Purpose                                                                     | Used by                                  |
-| ---------------------- | --------------------------------------------------------------------------- | ---------------------------------------- |
-| `web-deep-research`    | 8-phase deep research pipeline + web-access fetching + code verification    | `docs/tools-catalog.md` research routing |
-| `web-access`           | Chrome CDP proxy for web content retrieval (search, page loading, anti-bot) | web-deep-research Phase 3 dependency     |
-| `brand-system`         | Brand consistency enforcement for generated visual content                  | `short-video-pipeline` skill             |
-| `short-video-pipeline` | Video production pipeline orchestration                                     | AGENTS.md "Content and Video"            |
+| Skill                  | Purpose                                                                     | Used by                                       |
+| ---------------------- | --------------------------------------------------------------------------- | --------------------------------------------- |
+| `web-deep-research`    | 8-phase deep research pipeline + web-access fetching + code verification    | `docs/tools-catalog.md` research routing      |
+| `web-access`           | Chrome CDP proxy for web content retrieval (search, page loading, anti-bot) | web-deep-research Phase 3 dependency          |
+| `brand-system`         | Brand consistency enforcement for generated visual content                  | `short-video-pipeline` skill                  |
+| `short-video-pipeline` | Video production pipeline orchestration                                     | AGENTS.md "Content and Video"                 |
 | `search-pool`          | 3-route search dispatch: pool CLI / SearXNG / web-access CDP (#265)         | Agent search routing; `docs/tools-catalog.md` |
 
 ## Matt Pocock Skills

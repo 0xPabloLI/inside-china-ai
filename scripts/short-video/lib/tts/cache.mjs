@@ -170,8 +170,5 @@ export function alignmentCacheState(outputDir, signature) {
 
 /** Persist the alignment cache meta after a successful alignment run. */
 export function writeAlignmentMeta(outputDir, signature) {
-  writeFileSync(
-    join(outputDir, "subtitle-timing.meta.json"),
-    JSON.stringify({ signature }),
-  );
+  writeFileSync(join(outputDir, "subtitle-timing.meta.json"), JSON.stringify({ signature }));
 }

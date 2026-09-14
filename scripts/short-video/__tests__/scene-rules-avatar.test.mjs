@@ -86,7 +86,12 @@ describe("checkAvatarContract — accept matrix", () => {
 
   it("accepts out-of-order non-overlapping present intervals", () => {
     // Declaration order is author's choice — overlap is order-independent
-    const scene = ctaScene({ present: [{ from: 2, to: 3 }, { from: 0, to: 1 }] });
+    const scene = ctaScene({
+      present: [
+        { from: 2, to: 3 },
+        { from: 0, to: 1 },
+      ],
+    });
     scene.voiceover = "Follow for more China AI news that matters today ok";
     const results = checkAvatarContract([scene]);
     expect(results.filter((r) => r.level === "fail")).toEqual([]);
@@ -132,8 +137,9 @@ describe("checkAvatarContract — usage-strategy warnings (research-backed, warn
   });
 
   it("more than 4 avatar scenes warns (2-4 segment band for 30-60s packages)", () => {
-    const scenes = Array.from({ length: 5 }, (_, i) => ctaScene({ videoPath: "x.mp4" }, "ok"))
-      .map((s, i) => ({ ...s, id: i }));
+    const scenes = Array.from({ length: 5 }, (_, i) => ctaScene({ videoPath: "x.mp4" }, "ok")).map(
+      (s, i) => ({ ...s, id: i }),
+    );
     const warns = strategyWarns(checkAvatarContract(scenes));
     expect(warns.some((w) => w.detail.includes("5 scenes declare avatars"))).toBe(true);
   });
@@ -204,8 +210,24 @@ describe("checkAvatarContract — reject matrix (fail-closed)", () => {
   });
 
   it("rejects overlapping present intervals regardless of declaration order", () => {
-    expectFail({ present: [{ from: 0, to: 5 }, { from: 4, to: 8 }] }, "overlap");
-    expectFail({ present: [{ from: 4, to: 8 }, { from: 0, to: 5 }] }, "overlap");
+    expectFail(
+      {
+        present: [
+          { from: 0, to: 5 },
+          { from: 4, to: 8 },
+        ],
+      },
+      "overlap",
+    );
+    expectFail(
+      {
+        present: [
+          { from: 4, to: 8 },
+          { from: 0, to: 5 },
+        ],
+      },
+      "overlap",
+    );
   });
 
   it("rejects present interval far beyond estimated scene duration", () => {

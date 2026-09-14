@@ -63,23 +63,14 @@ export async function runMediaTrack({ scenes, contentDir, baseDir, broll, deps =
   // ── Stage 1.5c: Apply media-patch.json to scenes (auto-assign sourced assets) ──
   // Memory-only mutation — does NOT write back to scene-data.mjs.
   {
-    const patchPath = resolve(
-      contentDirAbs,
-      "..",
-      "..",
-      "output",
-      contentDir,
-      "media-patch.json",
-    );
+    const patchPath = resolve(contentDirAbs, "..", "..", "output", contentDir, "media-patch.json");
     prof.mark?.("step-1.5c-media-patch", { track: "media" });
     if (existsSync(patchPath)) {
       try {
         const patch = JSON.parse(readFileSync(patchPath, "utf-8"));
         // #199 2.5: normalizeMediaPatch accepts the {schemaVersion, patches}
         // envelope and the legacy top-level array.
-        const { normalizeMediaPatch, applyAssignedMedia } = await import(
-          "./apply-media-patch.mjs"
-        );
+        const { normalizeMediaPatch, applyAssignedMedia } = await import("./apply-media-patch.mjs");
         const assigned = normalizeMediaPatch(patch).filter(
           (p) => p.status === "assigned" && p.media?.path,
         );
@@ -180,8 +171,7 @@ export async function runMediaTrack({ scenes, contentDir, baseDir, broll, deps =
             `🎬 Step 1.5d: B-roll ${counts.generated} generated, ${counts.cached} cached, ` +
               `${counts.failed} failed, ${counts.escalated} escalated, ${counts.skipped} skipped`,
           );
-          if (result.reportFile)
-            console.log(`   Report: ${relative(baseDir, result.reportFile)}`);
+          if (result.reportFile) console.log(`   Report: ${relative(baseDir, result.reportFile)}`);
           if (counts.failed > 0 || counts.escalated > 0) {
             console.log(
               "   → Read the b-roll report, rewrite the failing prompts " +

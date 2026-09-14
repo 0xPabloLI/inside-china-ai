@@ -12,7 +12,8 @@ export const scenes = [
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
     aiVideo: { prompt: "futuristic AI data center with glowing server racks, cinematic vertical" },
-    voiceover: "23 million times. Moonshot secretly swapped Kimi's AI backend to Claude. You never knew.",
+    voiceover:
+      "23 million times. Moonshot secretly swapped Kimi's AI backend to Claude. You never knew.",
     texts: {
       subject: "MOONSHOT",
       bigNumber: "23M",
@@ -26,8 +27,15 @@ export const scenes = [
     visualType: "narrative",
     layout: "media-bottom-bar",
     mediaStrategy: "asset-then-broll",
-    voiceover: "Anthropic reported that China's Moonshot forwarded your requests to Claude, then passed Claude's answers back as Kimi's own work.",
-    media: { type: "image", path: "assets/baidu_search-moonshot-02.jpg", source: "Baidu", animation: "ken-burns", overlay: 0.72 },
+    voiceover:
+      "Anthropic reported that China's Moonshot forwarded your requests to Claude, then passed Claude's answers back as Kimi's own work.",
+    media: {
+      type: "image",
+      path: "assets/baidu_search-moonshot-02.jpg",
+      source: "Baidu",
+      animation: "ken-burns",
+      overlay: 0.72,
+    },
     texts: {
       company: "MOONSHOT SERVES CLAUDE",
       action: "FORWARDED TO CLAUDE",
@@ -42,7 +50,8 @@ export const scenes = [
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
     aiVideo: { prompt: "data visualization of API requests, digital counter showing millions" },
-    voiceover: "300,000 requests relayed in 10 days. 5,380 fake accounts across Singapore and Japan. 23 million exchanges total.",
+    voiceover:
+      "300,000 requests relayed in 10 days. 5,380 fake accounts across Singapore and Japan. 23 million exchanges total.",
     texts: {
       stat: "23M",
       label: "EXCHANGES, 300K IN 10 DAYS",
@@ -56,8 +65,15 @@ export const scenes = [
     visualType: "narrative",
     layout: "media-bottom-bar",
     mediaStrategy: "asset-then-broll",
-    voiceover: "Anthropic revealed DeepSeek tagging developers using Claude Code and the Agent SDK, then rerouting only them.",
-    media: { type: "image", path: "assets/baidu_search-deepseek-03.jpg", source: "Baidu", animation: "ken-burns", overlay: 0.72 },
+    voiceover:
+      "Anthropic revealed DeepSeek tagging developers using Claude Code and the Agent SDK, then rerouting only them.",
+    media: {
+      type: "image",
+      path: "assets/baidu_search-deepseek-03.jpg",
+      source: "Baidu",
+      animation: "ken-burns",
+      overlay: 0.72,
+    },
     texts: {
       company: "DEEPSEEK",
       action: "TAGGED CLAUDE CODE USERS",
@@ -71,7 +87,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "A PLA user loaded CCTV surveillance from hundreds of cameras in Chengdu. Cameras outside military facilities. All sent to Claude.",
+    voiceover:
+      "A PLA user loaded CCTV surveillance from hundreds of cameras in Chengdu. Cameras outside military facilities. All sent to Claude.",
     aiVideo: { prompt: "CCTV surveillance camera grid wall, security monitoring screens" },
     texts: {
       stat: "100+",
@@ -86,7 +103,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "An engineer at a state owned enterprise exposed internal code and live credentials from multiple Chinese tech companies.",
+    voiceover:
+      "An engineer at a state owned enterprise exposed internal code and live credentials from multiple Chinese tech companies.",
     aiVideo: { prompt: "source code on dark computer screen, programming terminal" },
     texts: {
       stat: "SOE",
@@ -101,7 +119,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "DeepSeek relayed requests from a Russian defense ministry IT operator. Live database credentials reached Anthropic.",
+    voiceover:
+      "DeepSeek relayed requests from a Russian defense ministry IT operator. Live database credentials reached Anthropic.",
     aiVideo: { prompt: "source code on dark computer screen, programming terminal" },
     texts: {
       stat: "RU",
@@ -116,7 +135,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "Engineers built a police case management system that tracks citizens by national ID. They sent it through DeepSeek to Claude.",
+    voiceover:
+      "Engineers built a police case management system that tracks citizens by national ID. They sent it through DeepSeek to Claude.",
     aiVideo: { prompt: "police surveillance system interface, citizen tracking dashboard" },
     texts: {
       stat: "PD",
@@ -131,7 +151,8 @@ export const scenes = [
     visualType: "contrast",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "Users in China thought they were using a local model. Their sensitive data went to an American company they never chose.",
+    voiceover:
+      "Users in China thought they were using a local model. Their sensitive data went to an American company they never chose.",
     aiVideo: { prompt: "split screen comparison, transparency versus surveillance concept" },
     texts: {
       title: "WHO IS WATCHING?",

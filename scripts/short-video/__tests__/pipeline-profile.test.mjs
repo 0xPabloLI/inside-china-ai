@@ -49,7 +49,12 @@ describe("pipeline-profile", () => {
   });
 
   it("returns null and does not throw when ending an unknown step", () => {
-    const prof = createProfiler({ outputDir: makeTmp(), version: "v-test", now: () => 0, onExit: false });
+    const prof = createProfiler({
+      outputDir: makeTmp(),
+      version: "v-test",
+      now: () => 0,
+      onExit: false,
+    });
     expect(prof.end("nope")).toBeNull();
     expect(prof.steps).toHaveLength(0);
   });
@@ -98,7 +103,12 @@ describe("pipeline-profile", () => {
   });
 
   it("mark() accepts meta and stores it on the step record", () => {
-    const prof = createProfiler({ outputDir: makeTmp(), version: "v-test", now: () => 0, onExit: false });
+    const prof = createProfiler({
+      outputDir: makeTmp(),
+      version: "v-test",
+      now: () => 0,
+      onExit: false,
+    });
     prof.mark("step-1-tts", { track: "voice", cacheHits: 3 });
     prof.end("step-1-tts");
     expect(prof.steps[0]).toMatchObject({ track: "voice", cacheHits: 3 });

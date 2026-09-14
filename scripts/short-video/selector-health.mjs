@@ -68,7 +68,13 @@ async function checkApiSource(source, keyword) {
     const url = api.url(keyword);
     const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
     if (!resp.ok) {
-      return { source: source.name, ok: false, count: 0, reason: `http_${resp.status}`, durationMs: Date.now() - started };
+      return {
+        source: source.name,
+        ok: false,
+        count: 0,
+        reason: `http_${resp.status}`,
+        durationMs: Date.now() - started,
+      };
     }
     const articles = api.parser(await resp.text());
     return {
@@ -79,7 +85,13 @@ async function checkApiSource(source, keyword) {
       durationMs: Date.now() - started,
     };
   } catch (e) {
-    return { source: source.name, ok: false, count: 0, reason: `error:${e.message}`, durationMs: Date.now() - started };
+    return {
+      source: source.name,
+      ok: false,
+      count: 0,
+      reason: `error:${e.message}`,
+      durationMs: Date.now() - started,
+    };
   }
 }
 
@@ -96,7 +108,13 @@ async function checkSource(source, keywords) {
     const loaded = await waitForPageLoad(tabId);
     const antiBot = await detectAntiBot(tabId);
     if (antiBot) {
-      return { source: source.name, ok: false, count: 0, reason: `anti_bot:${antiBot}`, durationMs: Date.now() - started };
+      return {
+        source: source.name,
+        ok: false,
+        count: 0,
+        reason: `anti_bot:${antiBot}`,
+        durationMs: Date.now() - started,
+      };
     }
     const needsAuth = cap?.needsAuth ?? source.needsAuth;
     const loginCheckScript = cap?.loginCheckScript ?? source.loginCheckScript;
@@ -104,7 +122,13 @@ async function checkSource(source, keywords) {
       const { checkLogin } = await import("./lib/cdp-client.mjs");
       const status = await checkLogin(tabId, loginCheckScript);
       if (status !== "ok") {
-        return { source: source.name, ok: false, count: 0, reason: status, durationMs: Date.now() - started };
+        return {
+          source: source.name,
+          ok: false,
+          count: 0,
+          reason: status,
+          durationMs: Date.now() - started,
+        };
       }
     }
     const articles = await extractFromTab(tabId, script);
@@ -117,7 +141,13 @@ async function checkSource(source, keywords) {
       durationMs: Date.now() - started,
     };
   } catch (e) {
-    return { source: source.name, ok: false, count: 0, reason: `error:${e.message}`, durationMs: Date.now() - started };
+    return {
+      source: source.name,
+      ok: false,
+      count: 0,
+      reason: `error:${e.message}`,
+      durationMs: Date.now() - started,
+    };
   } finally {
     if (tabId) await cdpCloseTab(tabId);
   }
@@ -134,14 +164,19 @@ async function main() {
   }
 
   const keywords = { zh: keyword, en: getArg("en-keyword") || "artificial intelligence" };
-  console.log(`🔍 Selector health — ${sources.length} CDP sources (zh: "${keywords.zh}" / en: "${keywords.en}")`);
+  console.log(
+    `🔍 Selector health — ${sources.length} CDP sources (zh: "${keywords.zh}" / en: "${keywords.en}")`,
+  );
   console.log("─".repeat(60));
 
   const results = [];
   for (const source of sources) {
     const result =
       source.accessMethod?.primary === "api"
-        ? await checkApiSource(source, keywords[source.locale === "zh-CN" ? "zh" : "en"] ?? keywords.zh)
+        ? await checkApiSource(
+            source,
+            keywords[source.locale === "zh-CN" ? "zh" : "en"] ?? keywords.zh,
+          )
         : await checkSource(source, keywords);
     results.push(result);
     const icon = result.ok ? "✅" : "❌";

@@ -102,7 +102,9 @@ function makePackage() {
   );
   writeFileSync(
     join(audioDir, "subtitle-timing.json"),
-    JSON.stringify([{ sceneId: 1, segments: [{ text: "W1 W2 W3 W4 W5 W6", words: SCENE1_WORDS }] }]),
+    JSON.stringify([
+      { sceneId: 1, segments: [{ text: "W1 W2 W3 W4 W5 W6", words: SCENE1_WORDS }] },
+    ]),
   );
   return { contentRoot, outputRoot, pkg, audioDir };
 }
@@ -195,7 +197,11 @@ describe("splitAudioAtBoundaries", () => {
 
   it("merges a sliver tail into the previous segment (flagged over-cap)", () => {
     const cuts = [{ at: CAP - 0.2, quality: 1 }];
-    const segs = splitAudioAtBoundaries({ durationSeconds: CAP + 0.25, cutPoints: cuts, capSeconds: CAP });
+    const segs = splitAudioAtBoundaries({
+      durationSeconds: CAP + 0.25,
+      cutPoints: cuts,
+      capSeconds: CAP,
+    });
     // [0, 3.04] + sliver [3.04, 3.49] → merged into one over-cap segment
     expect(segs).toHaveLength(1);
     expect(segs[0].to).toBeCloseTo(CAP + 0.25);
@@ -203,7 +209,9 @@ describe("splitAudioAtBoundaries", () => {
   });
 
   it("throws on non-positive duration (fail-closed)", () => {
-    expect(() => splitAudioAtBoundaries({ durationSeconds: 0, cutPoints: [], capSeconds: CAP })).toThrow();
+    expect(() =>
+      splitAudioAtBoundaries({ durationSeconds: 0, cutPoints: [], capSeconds: CAP }),
+    ).toThrow();
   });
 });
 
@@ -432,7 +440,9 @@ describe("executePlan", () => {
     const { contentRoot, outputRoot, pkg } = makePackage();
     const sceneDataPath = join(pkg, "scene-data.mjs");
     const beforeSceneData = readFileSync(sceneDataPath);
-    const beforeRemoteTasks = existsSync(REMOTE_TASKS_JSON) ? readFileSync(REMOTE_TASKS_JSON) : null;
+    const beforeRemoteTasks = existsSync(REMOTE_TASKS_JSON)
+      ? readFileSync(REMOTE_TASKS_JSON)
+      : null;
     const beforeTree = { content: treeSnapshot(contentRoot), output: treeSnapshot(outputRoot) };
 
     const result = await executePlan({
@@ -469,7 +479,10 @@ describe("executePlan", () => {
     const pkg = join(contentRoot, "plain-pkg");
     mkdirSync(pkg, { recursive: true });
     writeFileSync(join(pkg, "meta.mjs"), `export const meta = { pipelineId: "plain-pkg" };\n`);
-    writeFileSync(join(pkg, "scene-data.mjs"), `export const scenes = [{ id: 1, voiceover: "x" }];\n`);
+    writeFileSync(
+      join(pkg, "scene-data.mjs"),
+      `export const scenes = [{ id: 1, voiceover: "x" }];\n`,
+    );
 
     const result = await executePlan({ contentSlug: "plain-pkg", contentRoot, outputRoot });
     expect(result.outcome).toBe("no-avatar");
@@ -528,10 +541,13 @@ describe("executePlan", () => {
     const pkg = join(contentRoot, "no-tts");
     mkdirSync(pkg, { recursive: true });
     writeFileSync(join(pkg, "meta.mjs"), `export const meta = { pipelineId: "no-tts" };\n`);
-    writeFileSync(join(pkg, "scene-data.mjs"), `export const scenes = [{ id: 1, voiceover: "x", avatar: {} }];\n`);
-    await expect(
-      executePlan({ contentSlug: "no-tts", contentRoot, outputRoot }),
-    ).rejects.toThrow(/run the TTS pipeline/);
+    writeFileSync(
+      join(pkg, "scene-data.mjs"),
+      `export const scenes = [{ id: 1, voiceover: "x", avatar: {} }];\n`,
+    );
+    await expect(executePlan({ contentSlug: "no-tts", contentRoot, outputRoot })).rejects.toThrow(
+      /run the TTS pipeline/,
+    );
   });
 });
 
@@ -545,8 +561,18 @@ describe("digital-human.mjs CLI (plan)", () => {
     const audioDir = join(outputRoot, "avatar-declarations-fixture", "audio");
     mkdirSync(audioDir, { recursive: true });
     writeFileSync(join(audioDir, "scene-6.wav"), "RIFF....");
-    writeFileSync(join(audioDir, "scene-durations.json"), JSON.stringify([{ sceneId: 6, duration: 4.0 }]));
-    const fixtureSceneData = join(__dirname, "..", "content", "_test-fixtures", "avatar-declarations", "scene-data.mjs");
+    writeFileSync(
+      join(audioDir, "scene-durations.json"),
+      JSON.stringify([{ sceneId: 6, duration: 4.0 }]),
+    );
+    const fixtureSceneData = join(
+      __dirname,
+      "..",
+      "content",
+      "_test-fixtures",
+      "avatar-declarations",
+      "scene-data.mjs",
+    );
     const beforeSceneData = readFileSync(fixtureSceneData);
 
     const res = spawnSync(
@@ -582,7 +608,10 @@ describe("digital-human.mjs CLI (plan)", () => {
     const audioDir = join(outputRoot, "avatar-declarations-fixture", "audio");
     mkdirSync(audioDir, { recursive: true });
     writeFileSync(join(audioDir, "scene-6.wav"), "RIFF....");
-    writeFileSync(join(audioDir, "scene-durations.json"), JSON.stringify([{ sceneId: 6, duration: 4.0 }]));
+    writeFileSync(
+      join(audioDir, "scene-durations.json"),
+      JSON.stringify([{ sceneId: 6, duration: 4.0 }]),
+    );
     const env = { ...process.env };
     delete env.DIGITAL_HUMAN_QUALITY_AUTHORIZED;
 

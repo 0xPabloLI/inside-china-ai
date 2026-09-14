@@ -54,12 +54,12 @@ analytics"，但实际上 analytics 需要等数据沉淀。
 
 ### 数据地图与最少路径（2026-09-07 实测校准）
 
-| 数据 | 最少路径 | 单周期页数 |
-|---|---|---|
-| 账号级按日汇总（views/likes/search terms/流量来源） | overview 页 CDP 一次读取，或 Studio 快速导出 Overview.csv | 1 |
-| per-video 基础（播放/赞/评论/搜索词） | content 列表页 CDP 一次读取 | 1 |
-| 完播率 / 人均观看 / 留存洞察 / 单条流量拆分 | per-video 详情页 `tiktokstudio/analytics/<videoId>/overview`（`tiktok-video-details.mjs --fetch`） | 仅新增视频 |
-| 选题缺口 | CSI 双流程（`tiktok-csi.mjs --content-gap` / `--recommended`） | 2 |
+| 数据                                                | 最少路径                                                                                           | 单周期页数 |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------- |
+| 账号级按日汇总（views/likes/search terms/流量来源） | overview 页 CDP 一次读取，或 Studio 快速导出 Overview.csv                                          | 1          |
+| per-video 基础（播放/赞/评论/搜索词）               | content 列表页 CDP 一次读取                                                                        | 1          |
+| 完播率 / 人均观看 / 留存洞察 / 单条流量拆分         | per-video 详情页 `tiktokstudio/analytics/<videoId>/overview`（`tiktok-video-details.mjs --fetch`） | 仅新增视频 |
+| 选题缺口                                            | CSI 双流程（`tiktok-csi.mjs --content-gap` / `--recommended`）                                     | 2          |
 
 路径选择原则（web-access SKILL.md ⑤）：官方批量导出能覆盖数据需求时优先于逐页抓取；**完播率类指标导出不覆盖**（Content.csv 实为按日聚合、无完播率/收藏/观看时长；`analytics.tiktok.com` 老门户已 404），唯一来源是 per-video 详情页 CDP 抓取。旧周期视频低频复检，每周期只对新增视频跑 `--fetch`。
 
@@ -374,14 +374,14 @@ Analytics 复盘
 
 ## 文件参考
 
-| 文件                                  | 用途                                                   |
-| ------------------------------------- | ------------------------------------------------------ |
+| 文件                                  | 用途                                                                                                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `output/pending-analysis.json`        | 待分析视频记录（publish-tiktok.mjs 发布步骤运行时写入；manual-guide 档在指南生成时写，`postGroupId` 为 null） |
-| `output/analytics-export.json`        | 标准化分析数据（fetch-tiktok-analytics.mjs 输出）      |
-| `output/ab-test-results.json`         | A/B 测试追踪（ab-test-tracker.mjs）                    |
-| `output/hashtag-effect-tracker.jsonl` | Hashtag 效果追踪记录（Agent CDP 抓取后追加）           |
-| `output/analytics-conclusions.md`     | Analytics 结论摘要（Agent 生成，下一轮 Pipeline 读取） |
-| `output/reference-videos/`            | 用户手动下载的竞品参考视频（按需）                     |
+| `output/analytics-export.json`        | 标准化分析数据（fetch-tiktok-analytics.mjs 输出）                                                             |
+| `output/ab-test-results.json`         | A/B 测试追踪（ab-test-tracker.mjs）                                                                           |
+| `output/hashtag-effect-tracker.jsonl` | Hashtag 效果追踪记录（Agent CDP 抓取后追加）                                                                  |
+| `output/analytics-conclusions.md`     | Analytics 结论摘要（Agent 生成，下一轮 Pipeline 读取）                                                        |
+| `output/reference-videos/`            | 用户手动下载的竞品参考视频（按需）                                                                            |
 
 ## 相关文档
 

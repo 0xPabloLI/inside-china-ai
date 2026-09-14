@@ -284,7 +284,9 @@ async function connect() {
   }
 
   // 候选 wsPath：缓存值优先（省一次 HTTP），失败后用活值重试
-  const candidates = [...new Set([chromeWsPath, await fetchLiveWsPath(chromePort)].filter(Boolean))];
+  const candidates = [
+    ...new Set([chromeWsPath, await fetchLiveWsPath(chromePort)].filter(Boolean)),
+  ];
 
   return (connectingPromise = (async () => {
     let lastError = null;
@@ -325,9 +327,11 @@ async function connect() {
             // 拦截页面对 Chrome 调试端口的探测请求（反风控）
             if (msg.method === "Fetch.requestPaused") {
               const { requestId, sessionId: sid } = msg.params;
-              sendCDP("Fetch.failRequest", { requestId, errorReason: "ConnectionRefused" }, sid).catch(
-                () => {},
-              );
+              sendCDP(
+                "Fetch.failRequest",
+                { requestId, errorReason: "ConnectionRefused" },
+                sid,
+              ).catch(() => {});
             }
             if (msg.id && pending.has(msg.id)) {
               const { resolve: res, timer } = pending.get(msg.id);

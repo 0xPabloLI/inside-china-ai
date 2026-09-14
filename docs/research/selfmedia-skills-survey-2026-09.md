@@ -22,16 +22,16 @@
 
 ### 抓取器（`src/scrapers/`，httpx async + feedparser/BeautifulSoup）
 
-| 源 | 机制 | 凭证 |
-|---|---|---|
-| RSS | httpx 拉 feed → feedparser；URL 支持 `${ENV_VAR}` 展开传私有 token；可选 `content_extractor`（trafilatura）抓全文替换摘要 | 无 |
-| Hacker News | 官方 Firebase API（`hacker-news.firebaseio.com/v0/topstories.json`），取 top N、`min_score`（默认 100）过滤，并发抓每条前 5 条评论 | 无 |
-| Reddit | 三级 fallback：old.reddit HTML → www JSON listing（Chrome UA 伪装）→ RSS；评论并发限制 2；专用 `RedditBlockedError` | 无（匿名） |
-| Telegram | 公开频道 web 预览页（`t.me/s/`、`telegram.me/s`、`telegram.dog/s` 三端点轮试），解析 `div.tgme_widget_message`；429 读 Retry-After | 无（仅公开频道） |
-| Twitter/X | 默认 Apify `altimis/scweet` actor（需 `APIFY_TOKEN`，$49/月起）；免费模式 Playwright + 导出 cookie JSON，拦截页面 GraphQL，`x_cookies_*.json` 多账号轮询，5-10s 间隔，cookie 1-4 周过期 | 二选一 |
-| GitHub | 官方 REST API：`/users/{u}/events/public` + repo releases | 可选 `GITHUB_TOKEN` |
-| OpenBB | SDK `news.company()` 按 watchlist 拉；同步调用包 `asyncio.to_thread`；未装则跳过 | provider 凭证 |
-| 另有 | GDELT、Google News、Ossinsight 三个 scraper（README 未列） | 无 |
+| 源          | 机制                                                                                                                                                                                    | 凭证                |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| RSS         | httpx 拉 feed → feedparser；URL 支持 `${ENV_VAR}` 展开传私有 token；可选 `content_extractor`（trafilatura）抓全文替换摘要                                                               | 无                  |
+| Hacker News | 官方 Firebase API（`hacker-news.firebaseio.com/v0/topstories.json`），取 top N、`min_score`（默认 100）过滤，并发抓每条前 5 条评论                                                      | 无                  |
+| Reddit      | 三级 fallback：old.reddit HTML → www JSON listing（Chrome UA 伪装）→ RSS；评论并发限制 2；专用 `RedditBlockedError`                                                                     | 无（匿名）          |
+| Telegram    | 公开频道 web 预览页（`t.me/s/`、`telegram.me/s`、`telegram.dog/s` 三端点轮试），解析 `div.tgme_widget_message`；429 读 Retry-After                                                      | 无（仅公开频道）    |
+| Twitter/X   | 默认 Apify `altimis/scweet` actor（需 `APIFY_TOKEN`，$49/月起）；免费模式 Playwright + 导出 cookie JSON，拦截页面 GraphQL，`x_cookies_*.json` 多账号轮询，5-10s 间隔，cookie 1-4 周过期 | 二选一              |
+| GitHub      | 官方 REST API：`/users/{u}/events/public` + repo releases                                                                                                                               | 可选 `GITHUB_TOKEN` |
+| OpenBB      | SDK `news.company()` 按 watchlist 拉；同步调用包 `asyncio.to_thread`；未装则跳过                                                                                                        | provider 凭证       |
+| 另有        | GDELT、Google News、Ossinsight 三个 scraper（README 未列）                                                                                                                              | 无                  |
 
 ### 去重（两层，无 embedding）
 
@@ -144,15 +144,15 @@
 
 ## 结论汇总
 
-| # | Skill | 判定 | 关联 |
-|---|---|---|---|
-| 1 | Agent-Reach | 机制吸收（fallback 路由 + doctor），不装 | #209 |
-| 2 | Horizon | 机制吸收（去重/rubric/Telegram/Reddit fallback），不装不定时 | #203/#204 |
-| 3 | MediaCrawler | ❌ 明确不做（license 禁商用 + 机制等价） | — |
-| 4 | huashu-design | 收录备用（未来图文频道） | — |
-| 5 | Auto-Redbook | 待评估试点（用户接受平台风险） | #206 |
-| 6 | Generative-Media-Skills | ❌ 不接入本体；模式提炼 | #207 |
-| 7 | nuwa-skill | 理念采纳 → 账号文风档案 | #205 |
-| 8 | guizang-social-card | 收录备用（AGPL 注意） | #208 |
-| 9 | social-auto-upload | ❌ 不采用；官方 API 方向 → #210 | #210 |
-| 10 | linco-bridge | ❌ 明确不做（信任面 + 成熟度） | — |
+| #   | Skill                   | 判定                                                         | 关联      |
+| --- | ----------------------- | ------------------------------------------------------------ | --------- |
+| 1   | Agent-Reach             | 机制吸收（fallback 路由 + doctor），不装                     | #209      |
+| 2   | Horizon                 | 机制吸收（去重/rubric/Telegram/Reddit fallback），不装不定时 | #203/#204 |
+| 3   | MediaCrawler            | ❌ 明确不做（license 禁商用 + 机制等价）                     | —         |
+| 4   | huashu-design           | 收录备用（未来图文频道）                                     | —         |
+| 5   | Auto-Redbook            | 待评估试点（用户接受平台风险）                               | #206      |
+| 6   | Generative-Media-Skills | ❌ 不接入本体；模式提炼                                      | #207      |
+| 7   | nuwa-skill              | 理念采纳 → 账号文风档案                                      | #205      |
+| 8   | guizang-social-card     | 收录备用（AGPL 注意）                                        | #208      |
+| 9   | social-auto-upload      | ❌ 不采用；官方 API 方向 → #210                              | #210      |
+| 10  | linco-bridge            | ❌ 明确不做（信任面 + 成熟度）                               | —         |

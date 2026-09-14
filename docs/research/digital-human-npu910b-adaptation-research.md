@@ -19,21 +19,21 @@
 
 ## 汇总表格
 
-| # | 模型 | 参数量 | bf16 权重 | 32GB HBM 可驻留 | flash_attn | CUDA kernel | xformers | triton | bitsandbytes | 适配难度 | 预估推理时间 | NPU 先例 | 关键风险 |
-|---|------|--------|-----------|----------------|------------|-------------|----------|--------|--------------|----------|--------------|----------|----------|
-| 1 | SoulX-FlashTalk 14B | 18.88B | 54.46GB | ❌（需 int8/offload） | 有 SDPA fallback ✓ | 无 | **硬依赖无 fallback** ✗ | 无 | 无 | **Hard** | 10–30s/chunk | 无 | xformers+xfuser 两层 CUDA 库 + 显存缺口 |
-| 2 | LongCat-Video-Avatar-1.5 | 14.8B | ~33GB | ❌（需 INT8 ~18GB） | 需 fallback | 无 | 可选（CUDA-only） | **硬编码 CUDA backend** ✗ | 无（INT8 自实现）✓ | **Very Hard** | 2–5 min/段 | 无 | Triton BSA kernel 是核心效率特性 |
-| 3 | InfiniteTalk | ~14B | ~30–34GB | ⚠️（需 fp8/offload） | 有 SDPA fallback ✓ | 无 | 硬依赖（单卡可换 SDPA） | **无** ✓ | 无（用 optimum-quanto）✓ | **Medium** | 3–15 min/5s | **有 fork** | 已有 `rockie/InfiniteTalk-Ascend`，多卡未就绪 |
-| 4 | FeatherTalk | ~12M | ~27MB | ✅（绰绰有余） | 无 | 无 | 无 | 无 | 无 | **Easy** | 数十秒/60s 音频 | 无 | 极低，仅需 device 选择 patch |
-| 5 | SoulX-FlashHead Pro/Lite | 1.3B | ~4–6GB | ✅ | 有完整 SDPA fallback 链 ✓ | 无 | 冗余（未实际用） | 无 | 无 | **Easy→Medium** | 1–3 min/次 | **同团队有** | xfuser 硬 import（单卡可绕过） |
-| 6 | EchoMimicV3 Flash | 1.3B | ~4–6GB | ✅（12G 即可） | try/except 自动降级 SDPA ✓ | 无 | 无 | 无 | 无 | **Easy** | 1–3 min/次 | 无 | 仅字符串级 patch，最干净 |
-| 7 | Hallo3 | ~5B（CogVideoX） | 25–30GB | ⚠️（T5 需 offload） | 否（SAT 走 SDPA）✓ | SAT 框架 CUDA 耦合 | 无 | **3.0.0 硬依赖** ✗ | 无 | **Hard** | 50–100s/6s | 无 | triton + SAT 框架 + 大模型 offload |
-| 8 | Hallo2 | ~4.2B | 9–10GB | ✅ | 否（diffusers SDPA）✓ | 仅 4K 超分子模块 | 无 | 无 | 无 | **Medium** | 15–40s/100 帧 | 无 | CodeFormer 4K 超分 CUDA ops（可选） |
-| 9 | LatentSync | 1–2B | 3–5GB | ✅（8GB 即可） | 否（diffusers SDPA）✓ | 无 | 无 | 无 | 无 | **Easy** | 1–3s/16 帧窗口 | 无 | 仅 SDPA backend 探测，纯 diffusers |
-| 10 | Sonic | ~1.5B（SVD） | 3–4GB | ✅（32G 即可） | 否（diffusers SDPA）✓ | 无 | 无 | 无 | 无 | **Medium** | 60–120s/5s | 无 | 扩散多步去噪慢 + 非商用许可 |
-| 11 | MuseTalk | ~860M | 1–2GB | ✅（4GB 即可） | 无 | 无 | 无 | 无 | 无 | **Medium** | 30fps+ 实时 | **官方拒绝** | MMLab 生态（mmcv/mmdet/mmpose）CUDA op |
-| 12 | SadTalker | <1GB | <1GB | ✅ | 无 | GFPGAN（有 fallback） | 无 | 无 | 无 | **Easy** | <10s/10s 视频 | 无 | PyTorch 1.12→2.9 版本跨度 |
-| 13 | LivePortrait | ~200–400MB | 200–400MB | ✅ | 无 | Animals 模式有 CUDA op | 无 | 无 | 无 | **Medium**（Humans） | 30fps+ 实时 | 无 | onnxruntime-gpu + Animals 模式 CUDA op |
+| #   | 模型                     | 参数量           | bf16 权重 | 32GB HBM 可驻留       | flash_attn                 | CUDA kernel            | xformers                | triton                    | bitsandbytes             | 适配难度             | 预估推理时间    | NPU 先例     | 关键风险                                      |
+| --- | ------------------------ | ---------------- | --------- | --------------------- | -------------------------- | ---------------------- | ----------------------- | ------------------------- | ------------------------ | -------------------- | --------------- | ------------ | --------------------------------------------- |
+| 1   | SoulX-FlashTalk 14B      | 18.88B           | 54.46GB   | ❌（需 int8/offload） | 有 SDPA fallback ✓         | 无                     | **硬依赖无 fallback** ✗ | 无                        | 无                       | **Hard**             | 10–30s/chunk    | 无           | xformers+xfuser 两层 CUDA 库 + 显存缺口       |
+| 2   | LongCat-Video-Avatar-1.5 | 14.8B            | ~33GB     | ❌（需 INT8 ~18GB）   | 需 fallback                | 无                     | 可选（CUDA-only）       | **硬编码 CUDA backend** ✗ | 无（INT8 自实现）✓       | **Very Hard**        | 2–5 min/段      | 无           | Triton BSA kernel 是核心效率特性              |
+| 3   | InfiniteTalk             | ~14B             | ~30–34GB  | ⚠️（需 fp8/offload）  | 有 SDPA fallback ✓         | 无                     | 硬依赖（单卡可换 SDPA） | **无** ✓                  | 无（用 optimum-quanto）✓ | **Medium**           | 3–15 min/5s     | **有 fork**  | 已有 `rockie/InfiniteTalk-Ascend`，多卡未就绪 |
+| 4   | FeatherTalk              | ~12M             | ~27MB     | ✅（绰绰有余）        | 无                         | 无                     | 无                      | 无                        | 无                       | **Easy**             | 数十秒/60s 音频 | 无           | 极低，仅需 device 选择 patch                  |
+| 5   | SoulX-FlashHead Pro/Lite | 1.3B             | ~4–6GB    | ✅                    | 有完整 SDPA fallback 链 ✓  | 无                     | 冗余（未实际用）        | 无                        | 无                       | **Easy→Medium**      | 1–3 min/次      | **同团队有** | xfuser 硬 import（单卡可绕过）                |
+| 6   | EchoMimicV3 Flash        | 1.3B             | ~4–6GB    | ✅（12G 即可）        | try/except 自动降级 SDPA ✓ | 无                     | 无                      | 无                        | 无                       | **Easy**             | 1–3 min/次      | 无           | 仅字符串级 patch，最干净                      |
+| 7   | Hallo3                   | ~5B（CogVideoX） | 25–30GB   | ⚠️（T5 需 offload）   | 否（SAT 走 SDPA）✓         | SAT 框架 CUDA 耦合     | 无                      | **3.0.0 硬依赖** ✗        | 无                       | **Hard**             | 50–100s/6s      | 无           | triton + SAT 框架 + 大模型 offload            |
+| 8   | Hallo2                   | ~4.2B            | 9–10GB    | ✅                    | 否（diffusers SDPA）✓      | 仅 4K 超分子模块       | 无                      | 无                        | 无                       | **Medium**           | 15–40s/100 帧   | 无           | CodeFormer 4K 超分 CUDA ops（可选）           |
+| 9   | LatentSync               | 1–2B             | 3–5GB     | ✅（8GB 即可）        | 否（diffusers SDPA）✓      | 无                     | 无                      | 无                        | 无                       | **Easy**             | 1–3s/16 帧窗口  | 无           | 仅 SDPA backend 探测，纯 diffusers            |
+| 10  | Sonic                    | ~1.5B（SVD）     | 3–4GB     | ✅（32G 即可）        | 否（diffusers SDPA）✓      | 无                     | 无                      | 无                        | 无                       | **Medium**           | 60–120s/5s      | 无           | 扩散多步去噪慢 + 非商用许可                   |
+| 11  | MuseTalk                 | ~860M            | 1–2GB     | ✅（4GB 即可）        | 无                         | 无                     | 无                      | 无                        | 无                       | **Medium**           | 30fps+ 实时     | **官方拒绝** | MMLab 生态（mmcv/mmdet/mmpose）CUDA op        |
+| 12  | SadTalker                | <1GB             | <1GB      | ✅                    | 无                         | GFPGAN（有 fallback）  | 无                      | 无                        | 无                       | **Easy**             | <10s/10s 视频   | 无           | PyTorch 1.12→2.9 版本跨度                     |
+| 13  | LivePortrait             | ~200–400MB       | 200–400MB | ✅                    | 无                         | Animals 模式有 CUDA op | 无                      | 无                        | 无                       | **Medium**（Humans） | 30fps+ 实时     | 无           | onnxruntime-gpu + Animals 模式 CUDA op        |
 
 ## 详细分析
 
@@ -42,6 +42,7 @@
 #### 1. SoulX-FlashTalk 14B — Hard
 
 **证据来源**：
+
 - GitHub: https://github.com/Soul-AILab/SoulX-FlashTalk
 - HuggingFace: https://huggingface.co/Soul-AILab/SoulX-FlashTalk-14B
 - 论文: https://arxiv.org/abs/2512.23379
@@ -51,6 +52,7 @@
 #### 2. LongCat-Video-Avatar-1.5 — Very Hard
 
 **证据来源**：
+
 - GitHub: https://github.com/meituan-longcat/LongCat-Video
 - HuggingFace: https://huggingface.co/meituan-longcat/LongCat-Video-Avatar-1.5
 - 主页: https://meigen-ai.github.io/LongCat-Video-Avatar-1.5-Page/
@@ -60,6 +62,7 @@
 #### 3. InfiniteTalk — Medium ⭐（有现成 NPU fork）
 
 **证据来源**：
+
 - GitHub: https://github.com/MeiGen-AI/InfiniteTalk
 - HuggingFace: https://huggingface.co/MeiGen-AI/InfiniteTalk
 - 论文: https://arxiv.org/abs/2508.14033
@@ -74,6 +77,7 @@
 #### 4. FeatherTalk — Easy ⭐（最轻量）
 
 **证据来源**：
+
 - GitHub: https://github.com/anliyuan/FeatherTalk（权重存仓库内）
 
 **分析**：极小。视觉 UNet 5.46M + FeatherHuBERT 3.36M + SCRFD/PFLD ≈ 3.5M，推理总权重 **≈27MB**。32GB HBM 绰绰有余，甚至可纯 CPU 运行（README 明确声明）。CUDA 依赖极浅：无 flash_attn（手写 `nn.Linear+torch.softmax`）、无 CUDA kernel、无 triton、无 bitsandbytes、无 xformers、无 accelerate/diffusers/transformers。`torch.cuda.*` 仅用于 device 选择（3 处文件），requirements.txt 仅 8 个包。已内置 MPS fallback，说明作者已考虑非 CUDA 后端。仅需 device 选择加 npu 分支（3 文件约 5-10 行）+ `import torch_npu`。预估 60s 音频端到端数十秒级，瓶颈在 I/O 而非 NPU 计算。
@@ -81,6 +85,7 @@
 #### 5. SoulX-FlashHead Pro/Lite — Easy→Medium
 
 **证据来源**：
+
 - GitHub: https://github.com/Soul-AILab/SoulX-FlashHead
 - 论文: https://arxiv.org/pdf/2602.07449
 - 权重: https://huggingface.co/Soul-AILab/SoulX-FlashHead-1_3B
@@ -91,6 +96,7 @@
 #### 6. EchoMimicV3 Flash — Easy ⭐（CUDA 依赖最干净）
 
 **证据来源**：
+
 - GitHub: https://github.com/antgroup/echomimic_v3（蚂蚁集团，AAAI 2026）
 - 论文: https://arxiv.org/abs/2507.03905
 - 权重: https://huggingface.co/BadToBest/EchoMimicV3/tree/main/echomimicv3-flash-pro
@@ -105,6 +111,7 @@
 #### 7. Hallo3 — Hard
 
 **证据来源**：
+
 - GitHub: https://github.com/fudan-generative-vision/hallo3（1.4k stars，CVPR 2025）
 - HuggingFace: https://huggingface.co/fudan-generative-ai/hallo3
 - 论文: https://arxiv.org/abs/2412.00733
@@ -115,6 +122,7 @@
 #### 8. Hallo2 — Medium
 
 **证据来源**：
+
 - GitHub: https://github.com/fudan-generative-vision/hallo2（3737 stars，ICLR 2025）
 - HuggingFace: https://huggingface.co/fudan-generative-ai/hallo2
 - 论文: https://arxiv.org/abs/2410.07718
@@ -124,6 +132,7 @@
 #### 9. LatentSync — Easy ⭐（纯 diffusers 最干净）
 
 **证据来源**：
+
 - GitHub: https://github.com/bytedance/LatentSync（6.1k stars）
 - HuggingFace: https://huggingface.co/ByteDance/LatentSync-1.6
 - 论文: https://arxiv.org/abs/2412.09262
@@ -137,6 +146,7 @@
 #### 10. Sonic — Medium
 
 **证据来源**：
+
 - GitHub: https://github.com/jixiaozhong/Sonic（3.3k stars，CVPR 2025）
 - HuggingFace: https://huggingface.co/LeonJoe13/Sonic
 - 论文: CVPR 2025, "Sonic: Shifting Focus to Global Audio Perception in Portrait Animation"
@@ -146,6 +156,7 @@
 #### 11. MuseTalk — Medium
 
 **证据来源**：
+
 - GitHub: https://github.com/TMElyralab/MuseTalk（6.5k stars）
 - HuggingFace: https://huggingface.co/TMElyralab/MuseTalk
 - **昇腾 issue**: https://github.com/TMElyralab/MuseTalk/issues/46
@@ -155,6 +166,7 @@
 #### 12. SadTalker — Easy ⭐（最经典最易跑通）
 
 **证据来源**：
+
 - GitHub: https://github.com/OpenTalker/SadTalker（14.1k stars，CVPR 2023）
 - HF Space: https://huggingface.co/spaces/vinthony/SadTalker
 - 论文: CVPR 2023, arXiv 2211.12194
@@ -164,6 +176,7 @@
 #### 13. LivePortrait — Medium
 
 **证据来源**：
+
 - GitHub: https://github.com/KlingAIResearch/LivePortrait（19k stars，原 `KwaiVGI` 已迁移）
 - HuggingFace: https://huggingface.co/KlingTeam/LivePortrait
 - 论文: arXiv 2407.03168
@@ -176,36 +189,36 @@
 
 ### Tier 1 — 立即可尝试（Easy，预估 1–3 天跑通）
 
-| 优先级 | 模型 | 理由 |
-|--------|------|------|
-| 🥇 | **EchoMimicV3 Flash** | CUDA 依赖最干净，flash_attn 自动降级，xfuser try/except 可选，仅字符串级 patch。基于 Wan2.1-1.3B 与我们 Wan2.2 经验同源。12G VRAM 即可。 |
-| 🥈 | **FeatherTalk** | 最轻量（27MB），纯 PyTorch 无任何 CUDA-specific 依赖，仅需 device 选择 patch。与 Wan 经验无关但更简单。 |
-| 🥉 | **LatentSync** | 纯 diffusers 最干净，requirements 仅 6 包，无任何第三方 CUDA。与我们 Wan2.2 patch 经验几乎一一对应。 |
-| 4 | **SadTalker** | 3DMM 最经典，<1GB 纯 PyTorch，无 ONNX/扩散/CUDA kernel。先跑通验证流程。质量较低但最易。 |
-| 5 | **SoulX-FlashHead**（单卡） | 复用 Wan VAE+DiT 同源，flash_attn 有完整 SDPA fallback 链。仅 xfuser 硬 import 需 patch 成 try/except。同团队已有 NPU 适配先例。 |
+| 优先级 | 模型                        | 理由                                                                                                                                     |
+| ------ | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 🥇     | **EchoMimicV3 Flash**       | CUDA 依赖最干净，flash_attn 自动降级，xfuser try/except 可选，仅字符串级 patch。基于 Wan2.1-1.3B 与我们 Wan2.2 经验同源。12G VRAM 即可。 |
+| 🥈     | **FeatherTalk**             | 最轻量（27MB），纯 PyTorch 无任何 CUDA-specific 依赖，仅需 device 选择 patch。与 Wan 经验无关但更简单。                                  |
+| 🥉     | **LatentSync**              | 纯 diffusers 最干净，requirements 仅 6 包，无任何第三方 CUDA。与我们 Wan2.2 patch 经验几乎一一对应。                                     |
+| 4      | **SadTalker**               | 3DMM 最经典，<1GB 纯 PyTorch，无 ONNX/扩散/CUDA kernel。先跑通验证流程。质量较低但最易。                                                 |
+| 5      | **SoulX-FlashHead**（单卡） | 复用 Wan VAE+DiT 同源，flash_attn 有完整 SDPA fallback 链。仅 xfuser 硬 import 需 patch 成 try/except。同团队已有 NPU 适配先例。         |
 
 ### Tier 2 — 中等难度（Medium，预估 3–7 天）
 
-| 优先级 | 模型 | 理由 |
-|--------|------|------|
-| 6 | **InfiniteTalk** ⭐ | **已有 `rockie/InfiniteTalk-Ascend` 现成 NPU 适配层可借鉴**，风险最低的 talking body。底座与 Wan2.2 同源，无 triton/无 bitsandbytes。建议首发 talking body。 |
-| 7 | **Hallo2** | 核心推理纯 diffusers，9–10GB 全驻 HBM。仅 4K 超分有 CUDA ops（可选跳过）。 |
-| 8 | **LivePortrait**（Humans） | 核心纯 PyTorch 且支持 MPS，仅 onnxruntime-gpu 需 CPU fallback。实时高质量。 |
-| 9 | **MuseTalk** | 核心单步推理轻量，但 MMLab 生态 CUDA op 适配工作量大。官方明确不支持。 |
-| 10 | **Sonic** | 代码最干净（纯 diffusers）但扩散多步去噪慢，非商用许可。 |
+| 优先级 | 模型                       | 理由                                                                                                                                                         |
+| ------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 6      | **InfiniteTalk** ⭐        | **已有 `rockie/InfiniteTalk-Ascend` 现成 NPU 适配层可借鉴**，风险最低的 talking body。底座与 Wan2.2 同源，无 triton/无 bitsandbytes。建议首发 talking body。 |
+| 7      | **Hallo2**                 | 核心推理纯 diffusers，9–10GB 全驻 HBM。仅 4K 超分有 CUDA ops（可选跳过）。                                                                                   |
+| 8      | **LivePortrait**（Humans） | 核心纯 PyTorch 且支持 MPS，仅 onnxruntime-gpu 需 CPU fallback。实时高质量。                                                                                  |
+| 9      | **MuseTalk**               | 核心单步推理轻量，但 MMLab 生态 CUDA op 适配工作量大。官方明确不支持。                                                                                       |
+| 10     | **Sonic**                  | 代码最干净（纯 diffusers）但扩散多步去噪慢，非商用许可。                                                                                                     |
 
 ### Tier 3 — 困难（Hard，预估 1–2 周）
 
-| 优先级 | 模型 | 理由 |
-|--------|------|------|
-| 11 | **SoulX-FlashTalk 14B** | 无 triton/无自定义 kernel，但实际 18.88B 显存更大，xformers + xfuser 两层 CUDA 库。攻克 InfiniteTalk 的 xformers→SDPA 后可复用。 |
-| 12 | **Hallo3** | triton + SAT 框架 CUDA 耦合 + 大模型 offload。需先验证 triton 是否在推理路径实际触发。 |
+| 优先级 | 模型                    | 理由                                                                                                                             |
+| ------ | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 11     | **SoulX-FlashTalk 14B** | 无 triton/无自定义 kernel，但实际 18.88B 显存更大，xformers + xfuser 两层 CUDA 库。攻克 InfiniteTalk 的 xformers→SDPA 后可复用。 |
+| 12     | **Hallo3**              | triton + SAT 框架 CUDA 耦合 + 大模型 offload。需先验证 triton 是否在推理路径实际触发。                                           |
 
 ### Tier 4 — 极困难（Very Hard，预估 2+ 周）
 
-| 优先级 | 模型 | 理由 |
-|--------|------|------|
-| 13 | **LongCat-Video-Avatar-1.5** | Triton BSA kernel 硬编码 CUDA 是核心效率特性。先验证关闭 BSA 的 fallback 路径能否跑通再谈效率。 |
+| 优先级 | 模型                         | 理由                                                                                            |
+| ------ | ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| 13     | **LongCat-Video-Avatar-1.5** | Triton BSA kernel 硬编码 CUDA 是核心效率特性。先验证关闭 BSA 的 fallback 路径能否跑通再谈效率。 |
 
 ---
 
@@ -213,39 +226,39 @@
 
 ### 1. 已验证的 8 条 patch 模式（来自 Wan2.2-S2V-14B 成功案例）
 
-| # | patch | 适用场景 | 本次调研适用模型 |
-|---|-------|----------|------------------|
-| 1 | `torch.cuda.*` → `torch.npu.*` 字符串替换 | 所有 CUDA-based 模型 | 全部 13 个 |
-| 2 | `import torch_npu` 添加 | 所有模型入口 | 全部 13 个 |
-| 3 | NCCL → HCCL 分布后端 | 多卡分布式 | InfiniteTalk/SoulX-FlashTalk/LongCat（多卡） |
-| 4 | `flash_attention` → SDPA fallback | NPU 无 flash_attn 包 | SoulX-FlashTalk/LongCat/InfiniteTalk/SoulX-FlashHead/EchoMimicV3 |
-| 5 | `device_map='auto'` + `max_memory` 分阶段加载 | 大模型超 HBM | SoulX-FlashTalk/Hallo3/InfiniteTalk |
-| 6 | VAE dtype fix + dtype assert → .float() cast | VAE 数值稳定性 | 所有扩散模型（Wan 系尤甚） |
-| 7 | empty_cache before VAE decode | 显存回收 | 所有扩散模型 |
-| 8 | Skip .to(device)/.cpu() for accelerate-managed models | accelerate 托管 | 使用 accelerate 的模型 |
+| #   | patch                                                 | 适用场景             | 本次调研适用模型                                                 |
+| --- | ----------------------------------------------------- | -------------------- | ---------------------------------------------------------------- |
+| 1   | `torch.cuda.*` → `torch.npu.*` 字符串替换             | 所有 CUDA-based 模型 | 全部 13 个                                                       |
+| 2   | `import torch_npu` 添加                               | 所有模型入口         | 全部 13 个                                                       |
+| 3   | NCCL → HCCL 分布后端                                  | 多卡分布式           | InfiniteTalk/SoulX-FlashTalk/LongCat（多卡）                     |
+| 4   | `flash_attention` → SDPA fallback                     | NPU 无 flash_attn 包 | SoulX-FlashTalk/LongCat/InfiniteTalk/SoulX-FlashHead/EchoMimicV3 |
+| 5   | `device_map='auto'` + `max_memory` 分阶段加载         | 大模型超 HBM         | SoulX-FlashTalk/Hallo3/InfiniteTalk                              |
+| 6   | VAE dtype fix + dtype assert → .float() cast          | VAE 数值稳定性       | 所有扩散模型（Wan 系尤甚）                                       |
+| 7   | empty_cache before VAE decode                         | 显存回收             | 所有扩散模型                                                     |
+| 8   | Skip .to(device)/.cpu() for accelerate-managed models | accelerate 托管      | 使用 accelerate 的模型                                           |
 
 ### 2. CUDA 专用库的 NPU 替代方案
 
-| CUDA 专用库 | NPU 状态 | 替代方案 | 影响模型 |
-|-------------|----------|----------|----------|
-| **flash_attn** | ❌ 无包 | SDPA（`F.scaled_dot_product_attention`），torch_npu 2.9.0 支持 | SoulX-FlashTalk/LongCat/InfiniteTalk/SoulX-FlashHead/EchoMimicV3 |
-| **xformers** | ❌ CUDA-only | SDPA（单卡 `attn_bias=None` 时语义等价；多卡 `BlockDiagonalMask` 需手写） | SoulX-FlashTalk/InfiniteTalk/LongCat |
-| **triton** | ⚠️ 不成熟 | 纯 PyTorch 算子重写，或关闭对应功能 fallback | LongCat（BSA kernel）/Hallo3（SAT） |
-| **bitsandbytes** | ❌ CUDA-only | optimum-quanto（纯 PyTorch） | 无模型硬依赖（利好） |
-| **xfuser** | ❌ CUDA-only | try/except 包裹（单卡不调用），多卡需替换 | SoulX-FlashTalk（硬 import）/SoulX-FlashHead（硬 import）/EchoMimicV3（try/except ✓） |
-| **onnxruntime-gpu** | ⚠️ CUDA EP 不可用 | CPUExecutionProvider（预处理走 CPU）或 CANN EP | LivePortrait/LatentSync/MuseTalk |
-| **MMLab (mmcv/mmdet/mmpose)** | ⚠️ 含 CUDA 编译 op | CPU 预处理或 NPU 兼容版本 | MuseTalk |
-| **SAT (SwissArmyTransformer)** | ⚠️ `sat.mpu` CUDA 耦合 | monkey-patch mpu 模块 | Hallo3 |
-| **deepspeed** | ⚠️ 训练框架 | 推理路径可能可跳过 | Hallo3 |
+| CUDA 专用库                    | NPU 状态               | 替代方案                                                                  | 影响模型                                                                              |
+| ------------------------------ | ---------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **flash_attn**                 | ❌ 无包                | SDPA（`F.scaled_dot_product_attention`），torch_npu 2.9.0 支持            | SoulX-FlashTalk/LongCat/InfiniteTalk/SoulX-FlashHead/EchoMimicV3                      |
+| **xformers**                   | ❌ CUDA-only           | SDPA（单卡 `attn_bias=None` 时语义等价；多卡 `BlockDiagonalMask` 需手写） | SoulX-FlashTalk/InfiniteTalk/LongCat                                                  |
+| **triton**                     | ⚠️ 不成熟              | 纯 PyTorch 算子重写，或关闭对应功能 fallback                              | LongCat（BSA kernel）/Hallo3（SAT）                                                   |
+| **bitsandbytes**               | ❌ CUDA-only           | optimum-quanto（纯 PyTorch）                                              | 无模型硬依赖（利好）                                                                  |
+| **xfuser**                     | ❌ CUDA-only           | try/except 包裹（单卡不调用），多卡需替换                                 | SoulX-FlashTalk（硬 import）/SoulX-FlashHead（硬 import）/EchoMimicV3（try/except ✓） |
+| **onnxruntime-gpu**            | ⚠️ CUDA EP 不可用      | CPUExecutionProvider（预处理走 CPU）或 CANN EP                            | LivePortrait/LatentSync/MuseTalk                                                      |
+| **MMLab (mmcv/mmdet/mmpose)**  | ⚠️ 含 CUDA 编译 op     | CPU 预处理或 NPU 兼容版本                                                 | MuseTalk                                                                              |
+| **SAT (SwissArmyTransformer)** | ⚠️ `sat.mpu` CUDA 耦合 | monkey-patch mpu 模块                                                     | Hallo3                                                                                |
+| **deepspeed**                  | ⚠️ 训练框架            | 推理路径可能可跳过                                                        | Hallo3                                                                                |
 
 ### 3. 显存策略（32GB HBM + 64GB CPU）
 
-| 模型大小 | 策略 | 适用模型 |
-|----------|------|----------|
-| <10GB | 全驻留 HBM，无需 offload | FeatherTalk/SadTalker/LivePortrait/MuseTalk/LatentSync/Sonic/Hallo2 |
-| 10–32GB | 全驻留 HBM，注意激活值 | EchoMimicV3/SoulX-FlashHead |
-| 32–40GB | fp8/int8 量化全驻留，或 bf16 + 层级 offload | InfiniteTalk（fp8 ~15GB）/LongCat（INT8 ~18GB） |
-| >40GB | 必须 int8 量化 + 激进 offload | SoulX-FlashTalk（int8 ~19GB）/Hallo3（T5 offload） |
+| 模型大小 | 策略                                        | 适用模型                                                            |
+| -------- | ------------------------------------------- | ------------------------------------------------------------------- |
+| <10GB    | 全驻留 HBM，无需 offload                    | FeatherTalk/SadTalker/LivePortrait/MuseTalk/LatentSync/Sonic/Hallo2 |
+| 10–32GB  | 全驻留 HBM，注意激活值                      | EchoMimicV3/SoulX-FlashHead                                         |
+| 32–40GB  | fp8/int8 量化全驻留，或 bf16 + 层级 offload | InfiniteTalk（fp8 ~15GB）/LongCat（INT8 ~18GB）                     |
+| >40GB    | 必须 int8 量化 + 激进 offload               | SoulX-FlashTalk（int8 ~19GB）/Hallo3（T5 offload）                  |
 
 ### 4. 通用注意事项
 
@@ -293,6 +306,7 @@
 ## Sources
 
 ### 组 1：Talking Body 大模型
+
 1. https://github.com/Soul-AILab/SoulX-FlashTalk — SoulX-FlashTalk 官方 repo — Tier 1
 2. https://huggingface.co/Soul-AILab/SoulX-FlashTalk-14B — HF 模型卡 — Tier 1
 3. https://arxiv.org/abs/2512.23379 — SoulX-FlashTalk 论文 — Tier 1
@@ -305,6 +319,7 @@
 10. https://github.com/rockie/InfiniteTalk-Ascend — **InfiniteTalk NPU 适配 fork** — Tier 1
 
 ### 组 2：Wan 基座 Talking Head
+
 11. https://github.com/anliyuan/FeatherTalk — FeatherTalk 官方 repo — Tier 1
 12. https://github.com/Soul-AILab/SoulX-FlashHead — SoulX-FlashHead 官方 repo — Tier 1
 13. https://arxiv.org/pdf/2602.07449 — SoulX-FlashHead 论文 — Tier 1
@@ -315,6 +330,7 @@
 18. https://huggingface.co/alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP — EchoMimicV3 base — Tier 1
 
 ### 组 3：扩散类 Talking Head
+
 19. https://github.com/fudan-generative-vision/hallo3 — Hallo3 官方 repo — Tier 1
 20. https://huggingface.co/fudan-generative-ai/hallo3 — HF 模型卡 — Tier 1
 21. https://arxiv.org/abs/2412.00733 — Hallo3 论文 — Tier 1
@@ -327,6 +343,7 @@
 28. https://arxiv.org/abs/2412.09262 — LatentSync 论文 — Tier 1
 
 ### 组 4：经典 Talking Head
+
 29. https://github.com/jixiaozhong/Sonic — Sonic 官方 repo（腾讯） — Tier 1
 30. https://huggingface.co/LeonJoe13/Sonic — HF 模型卡 — Tier 1
 31. https://github.com/TMElyralab/MuseTalk — MuseTalk 官方 repo（腾讯音乐） — Tier 1
@@ -338,5 +355,6 @@
 37. https://huggingface.co/KlingTeam/LivePortrait — HF 模型卡 — Tier 1
 
 ### 通用参考
+
 38. https://github.com/rockie/InfiniteTalk-Ascend — NPU 适配参考实现 — Tier 1
 39. GitCode SoulX-Podcast-1.7B 昇腾 NPU 适配版本 — 同团队 NPU 先例 — Tier 2

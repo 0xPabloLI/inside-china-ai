@@ -193,8 +193,7 @@ export function buildFinalizeArgs({
   if (audioFilter) chains.push(`[0:a]${audioFilter}[tts]`);
   const loudnorm = `loudnorm=I=${loudnessTarget}:TP=-1.5:LRA=11`;
   if (useBgm) {
-    const fade =
-      `afade=t=in:st=0:d=0.1,afade=t=out:st=${bgmFadeOutStart.toFixed(2)}:d=3,volume=${bgmVolume}`;
+    const fade = `afade=t=in:st=0:d=0.1,afade=t=out:st=${bgmFadeOutStart.toFixed(2)}:d=3,volume=${bgmVolume}`;
     chains.push(`[1:a]${fade}[bgm]`);
     chains.push(`${ttsIn}[bgm]amix=inputs=2:duration=first:dropout_transition=0[mix]`);
     chains.push(`[mix]${loudnorm}[aout]`);
@@ -259,9 +258,7 @@ export function finalizeRenderedVideo({
       );
     } else if (m.driftMsBefore != null && Math.abs(m.driftMsBefore) > 20) {
       // Measurable but not corrected — surface why instead of failing silently.
-      console.log(
-        `  ⚠️ Audio drift ${m.driftMsBefore.toFixed(1)}ms NOT corrected: ${m.reason}`,
-      );
+      console.log(`  ⚠️ Audio drift ${m.driftMsBefore.toFixed(1)}ms NOT corrected: ${m.reason}`);
     }
   }
 

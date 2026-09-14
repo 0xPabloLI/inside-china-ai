@@ -5,7 +5,16 @@ export const meta = {
   article: "deepseek-v41-flash-report",
   renderer: "remotion",
   createdAt: "2026-09-10",
-  topics: ["deepseek", "v4-1-flash", "agent", "kv-cache", "ced-architecture", "china-ai", "llm", "api"],
+  topics: [
+    "deepseek",
+    "v4-1-flash",
+    "agent",
+    "kv-cache",
+    "ced-architecture",
+    "china-ai",
+    "llm",
+    "api",
+  ],
   keyEntities: {
     companies: ["deepseek"],
     people: [],
@@ -26,5 +35,6 @@ export const meta = {
   ],
   hashtags: ["#chinaai", "#deepseek", "#ai", "#technews", "#chinatech"],
   trendingChecked: true,
-  trendingNote: "Skipped web-access trending check; hashtags from analytics conclusions + brand defaults",
+  trendingNote:
+    "Skipped web-access trending check; hashtags from analytics conclusions + brand defaults",
 };

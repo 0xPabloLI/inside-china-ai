@@ -141,7 +141,7 @@ Fix all FAIL items before presenting to user. WARN items are acceptable.
 
 ## Design Decisions & References
 
-| Topic                     | Reference                     | Content                                                        |
-| ------------------------- | ----------------------------- | -------------------------------------------------------------- |
-| Brand visual identity     | `docs/brand-system.md` (L1)   | Color tokens, typography, animation library, 9 scene templates |
+| Topic                     | Reference                               | Content                                                        |
+| ------------------------- | --------------------------------------- | -------------------------------------------------------------- |
+| Brand visual identity     | `docs/brand-system.md` (L1)             | Color tokens, typography, animation library, 9 scene templates |
 | Video production workflow | `docs/video-production-runbook.md` (L1) | TTS engines, rendering, publishing strategy, file paths        |

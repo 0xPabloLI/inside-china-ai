@@ -307,7 +307,15 @@ describe("artifact type consumption", () => {
 // value asserts (a) the anchor sentence still exists in the source document
 // and (b) the Profile value matches the anchor's semantics.
 
-const BEST_PRACTICES_MD = join(__dirname, "..", "..", "..", "docs", "tiktok", "tiktok-best-practices.md");
+const BEST_PRACTICES_MD = join(
+  __dirname,
+  "..",
+  "..",
+  "..",
+  "docs",
+  "tiktok",
+  "tiktok-best-practices.md",
+);
 const PLATFORM_TIKTOK_MJS = join(__dirname, "..", "lib", "platforms", "tiktok.mjs");
 const PUBLISH_UTILS_MJS = join(__dirname, "..", "lib", "publish-utils.mjs");
 const bestPracticesDoc = readFileSync(BEST_PRACTICES_MD, "utf8");

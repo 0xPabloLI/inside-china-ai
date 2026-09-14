@@ -11,7 +11,8 @@ export const scenes = [
     visualType: "hook",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "Anthropic revealed China stealing its AI. Then published the victims' secrets in a 154-page report.",
+    voiceover:
+      "Anthropic revealed China stealing its AI. Then published the victims' secrets in a 154-page report.",
     aiVideo: { prompt: "futuristic AI data center with glowing server racks, cinematic vertical" },
     texts: {
       subject: "ANTHROPIC",
@@ -26,7 +27,8 @@ export const scenes = [
     visualType: "contrast",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "To prove the theft, Anthropic stated what was in the stolen requests. But those requests came from real users.",
+    voiceover:
+      "To prove the theft, Anthropic stated what was in the stolen requests. But those requests came from real users.",
     aiVideo: { prompt: "split screen comparison, transparency versus surveillance concept" },
     texts: {
       title: "EVIDENCE OR EXPOSURE?",
@@ -40,7 +42,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "The report describes a PLA user loading CCTV surveillance from hundreds of cameras in Chengdu. Cameras outside military facilities.",
+    voiceover:
+      "The report describes a PLA user loading CCTV surveillance from hundreds of cameras in Chengdu. Cameras outside military facilities.",
     aiVideo: { prompt: "CCTV surveillance camera grid wall, security monitoring screens" },
     texts: {
       stat: "100+",
@@ -55,7 +58,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "It reveals an engineer at a state owned enterprise who exposed internal code and live credentials from multiple companies.",
+    voiceover:
+      "It reveals an engineer at a state owned enterprise who exposed internal code and live credentials from multiple companies.",
     aiVideo: { prompt: "source code on dark computer screen, programming terminal" },
     texts: {
       stat: "SOE",
@@ -70,7 +74,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "It discloses live credentials for a Russian defense ministry database, relayed through DeepSeek to Claude.",
+    voiceover:
+      "It discloses live credentials for a Russian defense ministry database, relayed through DeepSeek to Claude.",
     aiVideo: { prompt: "source code on dark computer screen, programming terminal" },
     texts: {
       stat: "RU",
@@ -85,7 +90,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "It details a police case management system that tracks citizens by national ID number. All sent to Claude.",
+    voiceover:
+      "It details a police case management system that tracks citizens by national ID number. All sent to Claude.",
     aiVideo: { prompt: "police surveillance system interface, citizen tracking dashboard" },
     texts: {
       stat: "PD",
@@ -100,7 +106,8 @@ export const scenes = [
     visualType: "data",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "The report even includes a pharmaceutical company's internal capex forecasts, with dollar amounts redacted.",
+    voiceover:
+      "The report even includes a pharmaceutical company's internal capex forecasts, with dollar amounts redacted.",
     aiVideo: { prompt: "corporate proxy server, network routing diagram, business facade" },
     texts: {
       stat: "RX",
@@ -115,7 +122,8 @@ export const scenes = [
     visualType: "contrast",
     layout: "hero-center",
     mediaStrategy: "asset-then-broll",
-    voiceover: "Anthropic caught the thieves. But it also published sensitive data from hundreds of users in a dozen languages.",
+    voiceover:
+      "Anthropic caught the thieves. But it also published sensitive data from hundreds of users in a dozen languages.",
     aiVideo: { prompt: "split screen comparison, transparency versus surveillance concept" },
     texts: {
       title: "WHO WATCHES THE WATCHER?",
@@ -129,8 +137,15 @@ export const scenes = [
     visualType: "narrative",
     layout: "media-bottom-bar",
     mediaStrategy: "asset-then-broll",
-    voiceover: "The labs stole from their users. Anthropic caught them. Then Anthropic put the victims' data in a public PDF.",
-    media: { type: "image", path: "assets/baidu_search-anthropic-01.jpg", source: "Baidu", animation: "ken-burns", overlay: 0.72 },
+    voiceover:
+      "The labs stole from their users. Anthropic caught them. Then Anthropic put the victims' data in a public PDF.",
+    media: {
+      type: "image",
+      path: "assets/baidu_search-anthropic-01.jpg",
+      source: "Baidu",
+      animation: "ken-burns",
+      overlay: 0.72,
+    },
     texts: {
       company: "THE PRIVACY CHAIN",
       action: "LABS STOLE, ANTHROPIC PUBLISHES",

@@ -52,7 +52,9 @@ describe("computeSceneKey", () => {
 
   it("changes when a non-1.0 speed is given (#235)", () => {
     expect(computeSceneKey(engine, "同一句", 1.2)).not.toBe(computeSceneKey(engine, "同一句"));
-    expect(computeSceneKey(engine, "同一句", 1.2)).not.toBe(computeSceneKey(engine, "同一句", 1.15));
+    expect(computeSceneKey(engine, "同一句", 1.2)).not.toBe(
+      computeSceneKey(engine, "同一句", 1.15),
+    );
   });
 });
 
@@ -71,7 +73,11 @@ describe("planTtsScenes / writeSceneMeta", () => {
     // ever disagree: a 1.2-speed scene must hit the cache its own write wrote.
     const dir = mkdtempSync(join(tmpdir(), "tts-cache-"));
     dirs.push(dir);
-    const scene = { id: 1, visualType: "narrative", voiceover: "Alibaba revealed the weights for free." };
+    const scene = {
+      id: 1,
+      visualType: "narrative",
+      voiceover: "Alibaba revealed the weights for free.",
+    };
     writeSceneMeta(dir, 1, {
       key: computeSceneKey(engine, scene.voiceover, resolveSceneSpeed(scene)),
       duration: 1.5,
@@ -87,7 +93,10 @@ describe("planTtsScenes / writeSceneMeta", () => {
   it("plans every scene as pending when no meta exists", () => {
     const dir = mkdtempSync(join(tmpdir(), "tts-cache-"));
     dirs.push(dir);
-    const scenes = [{ id: 1, voiceover: "第一句" }, { id: 2, voiceover: "第二句" }];
+    const scenes = [
+      { id: 1, voiceover: "第一句" },
+      { id: 2, voiceover: "第二句" },
+    ];
 
     const plan = planTtsScenes(dir, scenes, engine);
     expect(plan.pending).toHaveLength(2);
@@ -161,7 +170,11 @@ describe("planTtsScenes / writeSceneMeta", () => {
     // re-run would regenerate the compensated take and re-compensate.
     const dir = mkdtempSync(join(tmpdir(), "tts-cache-"));
     dirs.push(dir);
-    const scene = { id: 1, visualType: "hook", voiceover: "China just dropped a model that beats GPT." };
+    const scene = {
+      id: 1,
+      visualType: "hook",
+      voiceover: "China just dropped a model that beats GPT.",
+    };
     writeFileSync(join(dir, "scene-1.wav"), "compensated-audio");
     writeSceneMeta(dir, 1, {
       key: computeSceneKey(engine, scene.voiceover, 1.2),
@@ -179,7 +192,11 @@ describe("planTtsScenes / writeSceneMeta", () => {
   it("an explicit scene/env speed override beats the stored compensation speed (#252)", () => {
     const dir = mkdtempSync(join(tmpdir(), "tts-cache-"));
     dirs.push(dir);
-    const scene = { id: 1, visualType: "hook", voiceover: "China just dropped a model that beats GPT." };
+    const scene = {
+      id: 1,
+      visualType: "hook",
+      voiceover: "China just dropped a model that beats GPT.",
+    };
     writeFileSync(join(dir, "scene-1.wav"), "compensated-audio");
     writeSceneMeta(dir, 1, {
       key: computeSceneKey(engine, scene.voiceover, 1.2),
@@ -208,7 +225,11 @@ describe("planTtsScenes / writeSceneMeta", () => {
   it("legacy meta without ttsSpeed keeps the baseline key behaviour (#252)", () => {
     const dir = mkdtempSync(join(tmpdir(), "tts-cache-"));
     dirs.push(dir);
-    const scene = { id: 1, visualType: "narrative", voiceover: "Alibaba revealed the weights for free." };
+    const scene = {
+      id: 1,
+      visualType: "narrative",
+      voiceover: "Alibaba revealed the weights for free.",
+    };
     writeFileSync(join(dir, "scene-1.wav"), "legacy-audio");
     writeSceneMeta(dir, 1, {
       key: computeSceneKey(engine, scene.voiceover), // 1.0 → legacy key shape
@@ -282,7 +303,10 @@ describe("generateTTSWithEngine caching (fake engine, no GPU)", () => {
     ];
     await generateTTSWithEngine(scenes, dir, engine, { runAlignment: false });
 
-    const edited = [{ id: 1, voiceover: "第一句" }, { id: 2, voiceover: "改写后的第二句" }];
+    const edited = [
+      { id: 1, voiceover: "第一句" },
+      { id: 2, voiceover: "改写后的第二句" },
+    ];
     const results = await generateTTSWithEngine(edited, dir, engine, { runAlignment: false });
     expect(engine.generatedSceneIds).toEqual([1, 2, 2]);
     expect(results.map((r) => r.sceneId)).toEqual([1, 2]);
@@ -344,7 +368,9 @@ describe("forced-alignment cache", () => {
     writeFileSync(results[0].audioPath, "different bytes now");
     expect(computeAlignmentSignature(scenes, results)).not.toBe(s1);
 
-    execSync(`ffmpeg -y -f lavfi -i sine=frequency=500:duration=0.3 "${results[0].audioPath}" 2>/dev/null`);
+    execSync(
+      `ffmpeg -y -f lavfi -i sine=frequency=500:duration=0.3 "${results[0].audioPath}" 2>/dev/null`,
+    );
     expect(computeAlignmentSignature(scenes, results)).not.toBe(s1);
     cleanup();
   });
@@ -357,9 +383,12 @@ describe("forced-alignment cache", () => {
 
     const timingPath = join(dir, "subtitle-timing.json");
     writeFileSync(timingPath, JSON.stringify({ cues: [] }));
-    writeFileSync(join(dir, "subtitle-timing.meta.json"), JSON.stringify({
-      signature: computeAlignmentSignature(scenes, results),
-    }));
+    writeFileSync(
+      join(dir, "subtitle-timing.meta.json"),
+      JSON.stringify({
+        signature: computeAlignmentSignature(scenes, results),
+      }),
+    );
 
     const result = await runForcedAlignment(scenes, results, dir);
     expect(result.skipped).toBe(true);
@@ -374,9 +403,12 @@ describe("forced-alignment cache", () => {
     const scenes = [{ id: 1, voiceover: "第一句" }];
 
     writeFileSync(join(dir, "subtitle-timing.json"), JSON.stringify({ cues: [] }));
-    writeFileSync(join(dir, "subtitle-timing.meta.json"), JSON.stringify({
-      signature: "stale-signature",
-    }));
+    writeFileSync(
+      join(dir, "subtitle-timing.meta.json"),
+      JSON.stringify({
+        signature: "stale-signature",
+      }),
+    );
 
     expect(alignmentCacheState(dir, computeAlignmentSignature(scenes, results))).toBe("stale");
     cleanup();
@@ -436,7 +468,10 @@ describe("planTtsScenes with mp3 engines (edge-tts / say)", () => {
 });
 
 describe("per-scene instruct in the cache key (#244, 2026-09-13)", () => {
-  const engine = { name: "cosyvoice3-kaggle-cuda", info: "CosyVoice3-Kaggle-CUDA (P100, cloned from ref.wav)" };
+  const engine = {
+    name: "cosyvoice3-kaggle-cuda",
+    info: "CosyVoice3-Kaggle-CUDA (P100, cloned from ref.wav)",
+  };
 
   it("mixes the per-scene emotion instruct into the key when provided", () => {
     const a = computeSceneKey(engine, "same text", 1.0, "anchor instruct");
@@ -449,7 +484,9 @@ describe("per-scene instruct in the cache key (#244, 2026-09-13)", () => {
 
   it("omitting the instruct keeps the legacy key shape (engines without instruct)", () => {
     expect(computeSceneKey(engine, "同一句", 1.0, "")).toBe(computeSceneKey(engine, "同一句"));
-    expect(computeSceneKey(engine, "同一句", 1.0, undefined)).toBe(computeSceneKey(engine, "同一句"));
+    expect(computeSceneKey(engine, "同一句", 1.0, undefined)).toBe(
+      computeSceneKey(engine, "同一句"),
+    );
   });
 
   it("pins the plan/write key invariant for instruct-resolved scenes", () => {

@@ -411,13 +411,19 @@ export const NEWS_SOURCES = [
       parser: (text) => {
         const posts = JSON.parse(text);
         if (!Array.isArray(posts)) return [];
-        const strip = (html) => String(html || "").replace(/<[^>]+>/g, "").replace(/&[#\w]+;/g, " ").trim();
-        return posts.map((p) => ({
-          title: strip(p?.title?.rendered),
-          url: p?.link || "",
-          snippet: strip(p?.excerpt?.rendered).substring(0, 200),
-          publishedAt: p?.date || undefined,
-        })).filter((a) => a.title && a.url);
+        const strip = (html) =>
+          String(html || "")
+            .replace(/<[^>]+>/g, "")
+            .replace(/&[#\w]+;/g, " ")
+            .trim();
+        return posts
+          .map((p) => ({
+            title: strip(p?.title?.rendered),
+            url: p?.link || "",
+            snippet: strip(p?.excerpt?.rendered).substring(0, 200),
+            publishedAt: p?.date || undefined,
+          }))
+          .filter((a) => a.title && a.url);
       },
       authRequired: false,
     },
@@ -480,7 +486,8 @@ export const SELF_MEDIA_SOURCES = [
       // #213 方案 A: dots-chat apiFallback retired — the Bigsong backend was
       // verified unreachable twice (session-19 0/10, #209 doctor-live probe).
       // A #88 auto-generated googleSiteFallback remains as the generic backup.
-      notes: "CDP (requires login) → auto googleSiteFallback. dots-chat apiFallback retired (#213). needsAuth=true.",
+      notes:
+        "CDP (requires login) → auto googleSiteFallback. dots-chat apiFallback retired (#213). needsAuth=true.",
     },
     needsAuth: true,
     useCleanTitle: true,
@@ -589,11 +596,13 @@ export const SELF_MEDIA_SOURCES = [
       parser: (text) => {
         const data = JSON.parse(text);
         if (!Array.isArray(data?.data)) return [];
-        return data.data.map((item) => ({
-          title: item?.title || "",
-          url: item?.link || "",
-          snippet: item?.hot_value ? `微博热搜 · 热度 ${item.hot_value}` : "微博热搜",
-        })).filter((a) => a.title && a.url);
+        return data.data
+          .map((item) => ({
+            title: item?.title || "",
+            url: item?.link || "",
+            snippet: item?.hot_value ? `微博热搜 · 热度 ${item.hot_value}` : "微博热搜",
+          }))
+          .filter((a) => a.title && a.url);
       },
       authRequired: false,
     },
@@ -3503,7 +3512,8 @@ function enrichWithCapabilities(sources) {
     if (CDP_MEDIA_CAPABILITIES[source.name]?.videoScript) {
       capabilities.videos = {
         method: "cdp",
-        url: CDP_MEDIA_CAPABILITIES[source.name].videoUrl || CDP_MEDIA_CAPABILITIES[source.name].url,
+        url:
+          CDP_MEDIA_CAPABILITIES[source.name].videoUrl || CDP_MEDIA_CAPABILITIES[source.name].url,
         videoScript: CDP_MEDIA_CAPABILITIES[source.name].videoScript,
       };
     }

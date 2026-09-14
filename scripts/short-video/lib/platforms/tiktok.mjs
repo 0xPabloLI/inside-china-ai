@@ -225,7 +225,10 @@ export const tiktokProfile = {
       },
       { id: "privacy", label: 'Set privacy to "Public" (or "Friends" for testing)' },
       { id: "publish", label: "Publish" },
-      { id: "first-hour-engagement", label: "First hour: Reply to EVERY comment (engagement signal)" },
+      {
+        id: "first-hour-engagement",
+        label: "First hour: Reply to EVERY comment (engagement signal)",
+      },
       {
         id: "pin-comment",
         label: "Pin a comment with article link (when domain is live):",

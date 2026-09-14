@@ -46,15 +46,15 @@
 
 ## Modified Files Impact（R3 必备）
 
-| 文件/区域 | 变更 | 风险 |
-| --- | --- | --- |
-| `scripts/short-video/lib/scene-rules.mjs` | avatar schema 校验进 `runAllSceneDataChecks`（fail-closed：未知 avatar 子字段、videoPath 类型合法性、present 区间合法性；videoPath **文件存在性**归渲染期/main.mjs 插桩——scene-rules 保持纯函数） | 共享校验面，MRL-2/preflight 消费——新检查必须对无 avatar 包零影响（已验证：qwen4-preview 聚合结果逐字节不变） |
-| `scripts/short-video/lib/safe-zones.mjs` | 新增 avatar 卡片矩形常量与「不侵入」断言 helper（复用现有 SAFE_ZONES 推导，不改既有常量） | 只增不改；既有 right-rail/subtitle-gap 消费方不受影响 |
-| `scripts/short-video/lib/digital-human.mjs`（新） | 生成编排：plan/run/resume、切段、调 run-gpu、超分、回写、report | 新模块；失败不得污染 scene-data（回写仅在全段成功后） |
-| `scripts/short-video/lib/render-remotion.mjs` | avatar 视频拷贝进 public + videoPath 相对化（镜像现有 media 机制） | 渲染前共享步骤；无 avatar 包路径零变化 |
-| `scripts/short-video/remotion/src/`（新 AvatarCard 组件 + CtaScene 挂载点） | 前景卡片层渲染 + present 区间序列裁切 | Remotion 渲染面；无 avatar 时组件返回 null |
-| `scripts/short-video/main.mjs` | 仅插桩：avatar 文件存在性校验（fail-closed）+ 计数日志；生成不在 main.mjs 内触发 | 主流程最小侵入 |
-| `scripts/short-video/content/_test-fixtures` | avatar 声明 fixture（合法/非法/present 区间） | 测试基建 |
+| 文件/区域                                                                   | 变更                                                                                                                                                                                              | 风险                                                                                                         |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `scripts/short-video/lib/scene-rules.mjs`                                   | avatar schema 校验进 `runAllSceneDataChecks`（fail-closed：未知 avatar 子字段、videoPath 类型合法性、present 区间合法性；videoPath **文件存在性**归渲染期/main.mjs 插桩——scene-rules 保持纯函数） | 共享校验面，MRL-2/preflight 消费——新检查必须对无 avatar 包零影响（已验证：qwen4-preview 聚合结果逐字节不变） |
+| `scripts/short-video/lib/safe-zones.mjs`                                    | 新增 avatar 卡片矩形常量与「不侵入」断言 helper（复用现有 SAFE_ZONES 推导，不改既有常量）                                                                                                         | 只增不改；既有 right-rail/subtitle-gap 消费方不受影响                                                        |
+| `scripts/short-video/lib/digital-human.mjs`（新）                           | 生成编排：plan/run/resume、切段、调 run-gpu、超分、回写、report                                                                                                                                   | 新模块；失败不得污染 scene-data（回写仅在全段成功后）                                                        |
+| `scripts/short-video/lib/render-remotion.mjs`                               | avatar 视频拷贝进 public + videoPath 相对化（镜像现有 media 机制）                                                                                                                                | 渲染前共享步骤；无 avatar 包路径零变化                                                                       |
+| `scripts/short-video/remotion/src/`（新 AvatarCard 组件 + CtaScene 挂载点） | 前景卡片层渲染 + present 区间序列裁切                                                                                                                                                             | Remotion 渲染面；无 avatar 时组件返回 null                                                                   |
+| `scripts/short-video/main.mjs`                                              | 仅插桩：avatar 文件存在性校验（fail-closed）+ 计数日志；生成不在 main.mjs 内触发                                                                                                                  | 主流程最小侵入                                                                                               |
+| `scripts/short-video/content/_test-fixtures`                                | avatar 声明 fixture（合法/非法/present 区间）                                                                                                                                                     | 测试基建                                                                                                     |
 
 ## Behavioral Scenarios（R3 必备）
 

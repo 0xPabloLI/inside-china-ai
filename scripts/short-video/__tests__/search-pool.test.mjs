@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { searchPool, isPoolEligible, POOL_ENGINE_NAMES, POOL_ENGINES } from "../lib/search-pool.mjs";
+import {
+  searchPool,
+  isPoolEligible,
+  POOL_ENGINE_NAMES,
+  POOL_ENGINES,
+} from "../lib/search-pool.mjs";
 
 // Pinned chain for the legacy three-engine behavior tests: opts.engines is the
 // test seam, so engine-list changes (serper joined in #226) can't skew these

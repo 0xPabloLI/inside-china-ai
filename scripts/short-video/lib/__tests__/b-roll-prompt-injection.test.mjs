@@ -28,7 +28,8 @@ function scene(overrides = {}) {
     voiceover: "Training cost just one ninth of Qwen3.7-Plus.",
     mediaStrategy: "b-roll",
     aiVideo: {
-      prompt: "One tall glowing vertical bar shrinking beside a short one, cinematic data visualization.",
+      prompt:
+        "One tall glowing vertical bar shrinking beside a short one, cinematic data visualization.",
     },
     ...overrides,
   };
@@ -44,9 +45,7 @@ describe("injection constants (#166)", () => {
 
   test("NEGATIVE_CONSTANTS covers all three semantic groups", () => {
     for (const phrases of Object.values(NEGATIVE_GROUPS)) {
-      const covered = phrases.some((p) =>
-        new RegExp(`\\b${p}\\b`, "i").test(NEGATIVE_CONSTANTS),
-      );
+      const covered = phrases.some((p) => new RegExp(`\\b${p}\\b`, "i").test(NEGATIVE_CONSTANTS));
       expect(covered).toBe(true);
     }
   });
@@ -100,8 +99,7 @@ describe("NEGATIVE injection (#166 R3 baseline)", () => {
   });
 
   test("a prompt already covering all three groups gets no NEGATIVE injection", () => {
-    const raw =
-      "Two lanes of glowing particles, dark studio, no text, no watermark, no hands";
+    const raw = "Two lanes of glowing particles, dark studio, no text, no watermark, no hands";
     expect(composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }))).toBe(raw);
   });
 
@@ -132,7 +130,8 @@ describe("BRAND base injection", () => {
   });
 
   test("a prompt that already declares a dark scene is not branded twice (agent wins)", () => {
-    const raw = "Two lanes of glowing particles across a dark studio, no text, no watermark, no hands";
+    const raw =
+      "Two lanes of glowing particles across a dark studio, no text, no watermark, no hands";
     const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }));
     expect(composed).not.toContain("#0a0a14");
     expect(composed).toBe(raw);
@@ -187,7 +186,8 @@ describe("entity color detection and injection", () => {
   });
 
   test("a prompt that already declares a palette keeps the agent's colors (no entity override)", () => {
-    const raw = "Two lanes of glowing particles in deep blue and cyan, no text, no watermark, no hands";
+    const raw =
+      "Two lanes of glowing particles in deep blue and cyan, no text, no watermark, no hands";
     const composed = composeGenerationPrompt(
       scene({ aiVideo: { prompt: raw }, voiceover: "Qwen ships it open-source." }),
     );
@@ -283,7 +283,9 @@ describe("token budget", () => {
 
   test("stripNegativeClauses removes exactly the injection-owned surface", () => {
     expect(
-      stripNegativeClauses("A glowing bar, dark studio floor, high detail, no text, no letters, no hands."),
+      stripNegativeClauses(
+        "A glowing bar, dark studio floor, high detail, no text, no letters, no hands.",
+      ),
     ).toBe("A glowing bar, dark studio floor, high detail");
     // "no texture" is not a NEGATIVE clause — it survives the strip.
     expect(stripNegativeClauses("A bar with no texture")).toBe("A bar with no texture");

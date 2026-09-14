@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { createRateLimiter, SITE_RATE_CONFIG, WINDOW_MS, SKIP_WAIT_MS } from "../lib/rate-limiter.mjs";
+import {
+  createRateLimiter,
+  SITE_RATE_CONFIG,
+  WINDOW_MS,
+  SKIP_WAIT_MS,
+} from "../lib/rate-limiter.mjs";
 
 // ─── Helpers ───
 

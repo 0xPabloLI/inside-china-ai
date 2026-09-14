@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       backfill:
-        description: '给所有「已有评论」的 open 票补打 comments-unread（默认关；开着会把 -50% 的 open 票标记为未读，稀释信号）'
+        description: "给所有「已有评论」的 open 票补打 comments-unread（默认关；开着会把 -50% 的 open 票标记为未读，稀释信号）"
         type: boolean
         default: false
 

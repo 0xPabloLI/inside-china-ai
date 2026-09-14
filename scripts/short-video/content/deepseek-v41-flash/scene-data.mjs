@@ -20,8 +20,7 @@ export const scenes = [
     mediaStrategy: "asset",
     assetNeed: "DeepSeek logo or AI neural network architecture concept, dark blue tech aesthetic",
     subjectLogo: "deepseek",
-    voiceover:
-      "DeepSeek just dropped V4.1 Flash with a new architecture and native multimodal.",
+    voiceover: "DeepSeek just dropped V4.1 Flash with a new architecture and native multimodal.",
     voiceoverTts:
       "DeepSeek just dropped V four point one Flash, with a new architecture and native multimodal.",
     texts: {
@@ -68,7 +67,8 @@ export const scenes = [
     retentionMechanism: "curiosity-gap",
     layout: "stacked-cards",
     mediaStrategy: "asset",
-    assetNeed: "AI vision architecture diagram showing integrated multimodal processing, dark tech theme",
+    assetNeed:
+      "AI vision architecture diagram showing integrated multimodal processing, dark tech theme",
     voiceover:
       "The big shift is native multimodal. In August, DeepSeek added a separate Vision experiment. Now V4.1 Flash builds vision into the base model.",
     texts: {
@@ -111,7 +111,8 @@ export const scenes = [
     retentionMechanism: null,
     layout: "stacked-cards",
     mediaStrategy: "asset",
-    assetNeed: "Price comparison or cost analysis visualization, dark tech theme with blue and amber",
+    assetNeed:
+      "Price comparison or cost analysis visualization, dark tech theme with blue and amber",
     voiceover:
       "Flash costs 44 cents per million input tokens. Pro costs 1.32 dollars. Three times cheaper, same pricing for the test.",
     voiceoverTts:

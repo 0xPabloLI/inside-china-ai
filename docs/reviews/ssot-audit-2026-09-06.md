@@ -22,15 +22,15 @@
 
 ## 2. 低影响违规（记录在案，择机修）
 
-| # | 违规 | 位置 | 最小修复 |
-| --- | --- | --- | --- |
-| 1 | CDP 候选 schema 无类型，20+ 处内联字面量；消费侧 JSDoc 已漂移（:312/:391/:483 的字段清单远小于真实对象） | source-registry.mjs:2581-2879、asset-sourcer.mjs | asset-sourcer 头部加 `@typedef MediaCandidate` + 更新漂移 JSDoc；不必给字符串内联脚本强加类型 |
-| 2 | trending-topics.json 读写两侧独立拼字段，读侧 parse 失败静默返回 `[]` | 写 trends-utils.mjs:343-410 / 读 asset-sourcer.mjs:1971-2008 | `images[].{url,sourceArticle}` 构造提为共享 helper，或两侧互写指向注释 + 读侧 warn |
-| 3 | asset-report.json / media-patch.json / asset-analysis.json 无 schemaVersion/校验器（media-patch entry 结构仅 JSDoc） | asset-sourcer.mjs:1144/781-783/1525 | 照抄 `lib/search-results-cache.mjs` envelope 模式补 schemaVersion 常量 |
-| 4 | `cap?.x ?? source.x` 双读约 14 处（enrich 后理论上只需读 capabilities） | search-sources.mjs:195-628 各处 | 定规则「enrich 之后只读 capabilities」逐步清理 |
-| 5 | KNOWN_COMPANIES 双份且内容不一致 | tiktok-rules.mjs:129 vs asset-sourcer.mjs:59 | 统一 import 或注释明确两个不同语义（语音关键词 vs 文案校验） |
-| 6 | MediaField 枚举 TS/.mjs 双写无互相指引 | types.ts:24 vs media-bg.mjs:46/51/56 | 两处互加指向注释 |
-| 7 | `lib/tts/types.mjs` 名不副实（只是路径常量） | lib/tts/types.mjs | 改名或加注释，避免误导 grep |
+| #   | 违规                                                                                                                 | 位置                                                         | 最小修复                                                                                      |
+| --- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| 1   | CDP 候选 schema 无类型，20+ 处内联字面量；消费侧 JSDoc 已漂移（:312/:391/:483 的字段清单远小于真实对象）             | source-registry.mjs:2581-2879、asset-sourcer.mjs             | asset-sourcer 头部加 `@typedef MediaCandidate` + 更新漂移 JSDoc；不必给字符串内联脚本强加类型 |
+| 2   | trending-topics.json 读写两侧独立拼字段，读侧 parse 失败静默返回 `[]`                                                | 写 trends-utils.mjs:343-410 / 读 asset-sourcer.mjs:1971-2008 | `images[].{url,sourceArticle}` 构造提为共享 helper，或两侧互写指向注释 + 读侧 warn            |
+| 3   | asset-report.json / media-patch.json / asset-analysis.json 无 schemaVersion/校验器（media-patch entry 结构仅 JSDoc） | asset-sourcer.mjs:1144/781-783/1525                          | 照抄 `lib/search-results-cache.mjs` envelope 模式补 schemaVersion 常量                        |
+| 4   | `cap?.x ?? source.x` 双读约 14 处（enrich 后理论上只需读 capabilities）                                              | search-sources.mjs:195-628 各处                              | 定规则「enrich 之后只读 capabilities」逐步清理                                                |
+| 5   | KNOWN_COMPANIES 双份且内容不一致                                                                                     | tiktok-rules.mjs:129 vs asset-sourcer.mjs:59                 | 统一 import 或注释明确两个不同语义（语音关键词 vs 文案校验）                                  |
+| 6   | MediaField 枚举 TS/.mjs 双写无互相指引                                                                               | types.ts:24 vs media-bg.mjs:46/51/56                         | 两处互加指向注释                                                                              |
+| 7   | `lib/tts/types.mjs` 名不副实（只是路径常量）                                                                         | lib/tts/types.mjs                                            | 改名或加注释，避免误导 grep                                                                   |
 
 ## 3. 已解决（开票后交付，复核确认）
 

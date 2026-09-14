@@ -385,10 +385,10 @@ pip3 install pysubs2   # ASS subtitle generation
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `content/{article}/scene-data.mjs`   | Scene definitions: voiceover + visual metadata. **Edit this first** to change content.                                                                         |
 | `content/{article}/meta.mjs`         | Pipeline metadata: `{ pipelineId, title }`.                                                                                                                    |
-| `lib/tts/registry.mjs`               | TTS engine selector. Engine priority: CosyVoice3-Kaggle-CUDA > CosyVoice3-MLX > F5-TTS-MLX > Qwen3-TTS > edge-tts > say.                                      |
+| `lib/tts/registry.mjs`               | TTS engine selector. Engine priority: CosyVoice3-Kaggle-CUDA > CosyVoice3-MLX > F5-TTS-MLX > Qwen3-TTS > edge-tts > say.                                       |
 | `lib/tts/cosyvoice3-kaggle-cuda.mjs` | CosyVoice3-Kaggle-CUDA engine adapter (default — P100 GPU, full emotion fidelity, Apache-2.0, ~8-10min/batch).                                                 |
-| `kaggle/cosyvoice3_cuda_kernel.py`   | Kaggle kernel template for CosyVoice3 CUDA inference (deps + model download + batch inference).                                                               |
-| `lib/tts/cosyvoice3-mlx.mjs`         | CosyVoice3-MLX engine adapter (local fallback — emotion regression vs CUDA, but fast RTF 0.64-0.87x).                                                         |
+| `kaggle/cosyvoice3_cuda_kernel.py`   | Kaggle kernel template for CosyVoice3 CUDA inference (deps + model download + batch inference).                                                                |
+| `lib/tts/cosyvoice3-mlx.mjs`         | CosyVoice3-MLX engine adapter (local fallback — emotion regression vs CUDA, but fast RTF 0.64-0.87x).                                                          |
 | `lib/tts/f5-mlx.mjs`                 | F5-TTS-MLX engine adapter (backup — good rhythm, CC-BY-NC).                                                                                                    |
 | `lib/tts/qwen-tts.mjs`               | Qwen3-TTS engine adapter (backup).                                                                                                                             |
 | `lib/tts/post-process.mjs`           | Runs `text-align.py` after TTS for subtitle timing.                                                                                                            |

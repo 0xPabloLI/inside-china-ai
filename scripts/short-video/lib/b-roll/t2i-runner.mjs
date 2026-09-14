@@ -235,7 +235,12 @@ export function runImageGeneration(opts) {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        resolve({ label: job.label, ok: false, file: job.output_path, error: `spawn failed: ${error.message}` });
+        resolve({
+          label: job.label,
+          ok: false,
+          file: job.output_path,
+          error: `spawn failed: ${error.message}`,
+        });
       });
       child.on("close", (code) => {
         if (settled) return;

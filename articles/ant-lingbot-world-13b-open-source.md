@@ -17,7 +17,7 @@ Huynh's verdict was a single sentence:
 
 > "This is the future of Personal AI."
 
-*(Verified: [QbitAI report](https://mp.weixin.qq.com/s/fOoXddwWjKixTbrMQiyd8Q))*
+_(Verified: [QbitAI report](https://mp.weixin.qq.com/s/fOoXddwWjKixTbrMQiyd8Q))_
 
 ## From 14B to 1.3B: not just smaller
 
@@ -40,11 +40,11 @@ A high-quality backbone is also slow. Each frame needs many denoising steps, too
 
 ## Three releases, one theme: lowering the barrier
 
-| Date | Version | What it proved |
-|------|---------|---------------|
-| Jan 2026 | LingBot-World 1.0 | Can it be built? |
-| Jul 2026 | LingBot-World 2.0 (14B) | Can it run long and look real? |
-| Sep 2026 | LingBot-World 2.0 (1.3B) | Can anyone run it? |
+| Date     | Version                  | What it proved                 |
+| -------- | ------------------------ | ------------------------------ |
+| Jan 2026 | LingBot-World 1.0        | Can it be built?               |
+| Jul 2026 | LingBot-World 2.0 (14B)  | Can it run long and look real? |
+| Sep 2026 | LingBot-World 2.0 (1.3B) | Can anyone run it?             |
 
 Each release answered a different question. The 1.3B version, plus the open release of the Causal Pretrain backbone and bidirectional teacher, extends the research pipeline outward. The small model lets more people run world models locally. The upstream models let the community fine-tune, distill, compress, and adapt to vertical scenarios ([QbitAI, Sep 10, 2026](https://mp.weixin.qq.com/s/fOoXddwWjKixTbrMQiyd8Q)).
 

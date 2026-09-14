@@ -83,7 +83,9 @@ async function main() {
     console.log(`   Title (SEO): ${pkg.title} (${pkg.title.length} chars)`);
     console.log(`   Description: ${pkg.description.length} chars (incl. CTA)`);
     console.log(`   Hashtags:    ${pkg.hashtags.join(" ")} (${pkg.hashtags.length})`);
-    console.log(`   Total caption: ${pkg.captionText.length} chars (limit: ${profile.caption.maxLength})`);
+    console.log(
+      `   Total caption: ${pkg.captionText.length} chars (limit: ${profile.caption.maxLength})`,
+    );
     console.log(`   Pinned comment: ${pkg.pinnedComment || "(none — AITL not set)"}`);
     console.log(`   Source:      ${pkg.metadataJson.source}`);
     console.log(`📁 Files written (${paths.dir}):`);

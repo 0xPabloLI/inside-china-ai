@@ -175,7 +175,11 @@ describe("S3: Partial metadata (title only)", () => {
     expect(desc).toBeTruthy();
     expect(desc).not.toBe(partialMetadata.description); // derived, not from metadata
 
-    const tags = deriveHashtags(mockScenes, { keyEntitiesCompanies: ["deepseek"] }, HASHTAGS_LIMITS);
+    const tags = deriveHashtags(
+      mockScenes,
+      { keyEntitiesCompanies: ["deepseek"] },
+      HASHTAGS_LIMITS,
+    );
     expect(tags.length).toBeGreaterThanOrEqual(3);
   });
 });
@@ -373,7 +377,11 @@ describe("S17: Dynamic primary entity", () => {
       { id: 1, voiceover: "A new AI model broke containment.", texts: { line1: "BREAKING" } },
       { id: 2, voiceover: "The model escaped during testing.", texts: { line1: "ESCAPE" } },
     ];
-    const result = deriveDescription(genericScenes, { primaryEntity: "Moonshot" }, DESCRIPTION_LIMITS);
+    const result = deriveDescription(
+      genericScenes,
+      { primaryEntity: "Moonshot" },
+      DESCRIPTION_LIMITS,
+    );
     // "Moonshot" not in voiceover → should be prepended
     expect(result).toContain("Moonshot analysis.");
   });
@@ -425,7 +433,11 @@ describe("S7: Pinned Comment (AITL-driven)", () => {
   });
 
   it("comment hook is NOT included in description", () => {
-    const desc = deriveDescription(mockScenes, { commentHook: "Some question?" }, DESCRIPTION_LIMITS);
+    const desc = deriveDescription(
+      mockScenes,
+      { commentHook: "Some question?" },
+      DESCRIPTION_LIMITS,
+    );
     expect(desc).not.toContain("Some question?");
   });
 });

@@ -22,21 +22,28 @@ const patchPath = join(outputDir, "media-patch.json");
 if (existsSync(patchPath)) {
   const patch = JSON.parse(readFileSync(patchPath, "utf-8"));
   const { normalizeMediaPatch, applyAssignedMedia } = await import("./lib/apply-media-patch.mjs");
-  const assigned = normalizeMediaPatch(patch).filter((p) => p.status === "assigned" && p.media?.path);
+  const assigned = normalizeMediaPatch(patch).filter(
+    (p) => p.status === "assigned" && p.media?.path,
+  );
   if (assigned.length > 0) {
     applyAssignedMedia(scenes, assigned, contentDirAbs);
     console.log(`📦 Applied ${assigned.length} media assignments`);
   }
 }
 
-const durationsRaw = JSON.parse(readFileSync(join(audioDir, "scene-durations.json"), "utf-8"))
-  .sort((a, b) => a.sceneId - b.sceneId);
+const durationsRaw = JSON.parse(readFileSync(join(audioDir, "scene-durations.json"), "utf-8")).sort(
+  (a, b) => a.sceneId - b.sceneId,
+);
 const durations = durationsRaw.map((d) => d.duration);
 const audioPaths = scenes.map((_, i) => join(audioDir, `scene-${i + 1}.wav`));
 
 console.log(`\n🎯 Running forced alignment...`);
 const { generateTTS } = await import("./lib/generate-tts.mjs");
-const ttsResults = audioPaths.map((p, i) => ({ sceneId: i + 1, audioPath: p, duration: durations[i] }));
+const ttsResults = audioPaths.map((p, i) => ({
+  sceneId: i + 1,
+  audioPath: p,
+  duration: durations[i],
+}));
 const { runForcedAlignment } = await import("./lib/tts/post-process.mjs");
 await runForcedAlignment(scenes, ttsResults, audioDir, { force: true });
 
@@ -54,8 +61,12 @@ if (existsSync(timingPath)) {
 console.log("\n🎬 Rendering...");
 const { renderRemotion } = await import("./lib/render-remotion.mjs");
 const result = renderRemotion({
-  scenes, audioPaths, durations, outputDir,
-  pipelineId: meta.pipelineId, contentDir: contentDirAbs,
+  scenes,
+  audioPaths,
+  durations,
+  outputDir,
+  pipelineId: meta.pipelineId,
+  contentDir: contentDirAbs,
   subtitlesPath: subtitlesArg,
   version: new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19),
   subject: meta.subject,

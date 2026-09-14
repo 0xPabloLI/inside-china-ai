@@ -27,8 +27,18 @@ const tiktok = getPlatformProfile("tiktok");
 // ─── Fixture (minimal scene-data + metadata + meta.mjs shape) ───
 
 const SCENES = [
-  { id: 1, visualType: "hook", voiceover: "DeepSeek just shipped a new model.", onScreenText: "DeepSeek ships again" },
-  { id: 2, visualType: "body", voiceover: "The benchmarks beat every frontier lab.", onScreenText: "Benchmarks" },
+  {
+    id: 1,
+    visualType: "hook",
+    voiceover: "DeepSeek just shipped a new model.",
+    onScreenText: "DeepSeek ships again",
+  },
+  {
+    id: 2,
+    visualType: "body",
+    voiceover: "The benchmarks beat every frontier lab.",
+    onScreenText: "Benchmarks",
+  },
   {
     id: 3,
     visualType: "body",
@@ -91,7 +101,11 @@ describe("buildPublishPackage", () => {
       caption: { ...tiktok.caption, maxLength: 100, titleMaxLength: 20 },
       hashtags: { ...tiktok.hashtags, min: 1, max: 2 },
     };
-    const pkg = buildPublishPackage(tinyProfile, { scenes: SCENES, metadata: METADATA, meta: META });
+    const pkg = buildPublishPackage(tinyProfile, {
+      scenes: SCENES,
+      metadata: METADATA,
+      meta: META,
+    });
     expect(pkg.description.length).toBeLessThanOrEqual(100);
     expect(pkg.title.length).toBeLessThanOrEqual(20);
     expect(pkg.hashtags.length).toBeLessThanOrEqual(2);
@@ -113,7 +127,13 @@ describe("writePublishPackage + generatePublishPackages", () => {
 
     const captionPath = join(outputRoot, "dh-pilot", "publish", "tiktok", "tiktok-caption.txt");
     const metaPath = join(outputRoot, "dh-pilot", "publish", "tiktok", "tiktok-metadata.json");
-    const pinnedPath = join(outputRoot, "dh-pilot", "publish", "tiktok", "tiktok-pinned-comment.txt");
+    const pinnedPath = join(
+      outputRoot,
+      "dh-pilot",
+      "publish",
+      "tiktok",
+      "tiktok-pinned-comment.txt",
+    );
     expect(existsSync(captionPath)).toBe(true);
     expect(existsSync(metaPath)).toBe(true);
     expect(existsSync(pinnedPath)).toBe(true);

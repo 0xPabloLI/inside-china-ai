@@ -130,7 +130,9 @@ export async function createCosyVoice3ModalCudaEngine() {
 
       // ── Run Modal script ──
       console.log(`  📤 Running Modal CosyVoice3 CUDA (${manifest.length} segments)...`);
-      console.log(`  ⏳ Timeout: ${Math.round(MODAL_TIMEOUT_MS / 60000)}min (first run includes model download)`);
+      console.log(
+        `  ⏳ Timeout: ${Math.round(MODAL_TIMEOUT_MS / 60000)}min (first run includes model download)`,
+      );
 
       const { stdout, stderr } = await execAsync(
         `modal run "${MODAL_SCRIPT}" --manifest-file "${manifestPath}" --ref-audio "${CV3_REF_AUDIO}" --output-file "${outputPath}"`,

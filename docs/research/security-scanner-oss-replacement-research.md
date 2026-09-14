@@ -17,27 +17,27 @@ Bearer CLI（ELv2，源码可见非 OSI）是 PII/敏感数据流分析的最佳
 
 两者引擎均 LGPL-2.1，官方 FAQ（docs.semgrep.dev，2026-09-03 更新）确认：同规则语法、同单文件扫描范围、按需/单 CI job 扫描免费。关键差异：
 
-| 维度 | Semgrep CE | Opengrep |
-|---|---|---|
-| 引擎许可 | LGPL-2.1 | LGPL-2.1 |
-| 规则 | 自带 Semgrep Registry 社区规则 | 不自带，BYO（兼容 Semgrep 规则语法） |
-| 规则许可 | Semgrep Rules License v1.0（**非开源**，但允许内部使用） | 第三方规则保留各自许可 |
-| 分发 | Python（brew/pip） | 自包含二进制 + Cosign 签名，无 Python 依赖 |
-| taint 分析 | 单函数 | 跨函数（`--taint-intrafile`） |
-| 维护 | v1.176.0，pushed 2026-09-04 | v1.29.0，pushed 2026-09-05，Aikido/Endor Labs 等联盟支持 |
+| 维度       | Semgrep CE                                               | Opengrep                                                 |
+| ---------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| 引擎许可   | LGPL-2.1                                                 | LGPL-2.1                                                 |
+| 规则       | 自带 Semgrep Registry 社区规则                           | 不自带，BYO（兼容 Semgrep 规则语法）                     |
+| 规则许可   | Semgrep Rules License v1.0（**非开源**，但允许内部使用） | 第三方规则保留各自许可                                   |
+| 分发       | Python（brew/pip）                                       | 自包含二进制 + Cosign 签名，无 Python 依赖               |
+| taint 分析 | 单函数                                                   | 跨函数（`--taint-intrafile`）                            |
+| 维护       | v1.176.0，pushed 2026-09-04                              | v1.29.0，pushed 2026-09-05，Aikido/Endor Labs 等联盟支持 |
 
 **推荐 Semgrep CE**：规则即装即用、pre-commit 官方支持、与 mimosa 行为对齐（其引擎即 semgrep）。Semgrep Rules License 明确允许内部扫描使用；若未来需要"规则也全开源"的纯度，Opengrep 是现成退路（v1.29.0 有 `osx_arm64`/`osx_aarch64` 产物，M 系列原生）。两仓均无 archived、近 48h 内有提交（gh api 实测）。
 
 ### 2. Agent/MCP 配置扫描：Cisco mcp-scanner（推荐）vs Snyk Agent Scan（备选）
 
-| 维度 | cisco-ai-defense/mcp-scanner | snyk/agent-scan |
-|---|---|---|
-| 许可 | Apache-2.0 | Apache-2.0（客户端开源） |
-| 分析位置 | **YARA 分析器纯本地，零 API key**；LLM/API 分析器可选 | 本地检查 + Snyk 云 API（**必须 SNYK_TOKEN**） |
-| 扫描目标 | MCP tools/prompts/resources/instructions、配置文件、静态离线模式 | MCP 配置 + agent skills（更广的自动发现） |
-| 输出稳定性 | 稳定 | 官方明示 experimental、字段可能变 |
-| 维护 | v0.x 活跃，pushed 2026-09-04 | v0.6+，pushed 2026-09-04 |
-| 安装 | `uv tool install cisco-ai-mcp-scanner`（Python 3.11+） | `uvx snyk-agent-scan` 或 standalone binary |
+| 维度       | cisco-ai-defense/mcp-scanner                                     | snyk/agent-scan                               |
+| ---------- | ---------------------------------------------------------------- | --------------------------------------------- |
+| 许可       | Apache-2.0                                                       | Apache-2.0（客户端开源）                      |
+| 分析位置   | **YARA 分析器纯本地，零 API key**；LLM/API 分析器可选            | 本地检查 + Snyk 云 API（**必须 SNYK_TOKEN**） |
+| 扫描目标   | MCP tools/prompts/resources/instructions、配置文件、静态离线模式 | MCP 配置 + agent skills（更广的自动发现）     |
+| 输出稳定性 | 稳定                                                             | 官方明示 experimental、字段可能变             |
+| 维护       | v0.x 活跃，pushed 2026-09-04                                     | v0.6+，pushed 2026-09-04                      |
+| 安装       | `uv tool install cisco-ai-mcp-scanner`（Python 3.11+）           | `uvx snyk-agent-scan` 或 standalone binary    |
 
 **推荐 mcp-scanner**：`mcp-scanner --config-path .mcp.json --analyzers yara,prompt_defense` 纯本地运行。两个候选都覆盖 mimosa agent-check 实测发现的问题类别（npx 未固定版本的 supply-chain 风险）。
 
@@ -73,17 +73,17 @@ mimosa llm-check 是静态提示注入→危险 sink 的流向分析。开源等
 
 ## 功能覆盖对比表（验收标准第 1 项）
 
-| mimosa 功能 | 开源替代 | 覆盖判定 | 备注 |
-|---|---|---|---|
-| `audit`（项目静态审计） | Semgrep CE | ✅ 可覆盖 | 引擎同源（semgrep），规则即装即用 |
-| `agent-check`（Agent/MCP 配置） | Cisco mcp-scanner | ✅ 可覆盖 | YARA 本地分析，零 API key；agent-scan 备选（需 SNYK_TOKEN） |
-| `llm-check`（LLM 应用安全） | Semgrep CE 社区规则 | ⚠️ 部分覆盖 | 静态常见模式可覆盖；专项深度放弃；本仓库零发现基线无回退 |
-| `pii-check` | Bearer CLI（可选） | ✅ 可覆盖 / 可选 | ELv2 source-available，内部使用无限制 |
-| `git-secrets` | gitleaks | ✅ 已覆盖 | 现有 pre-commit 已有，功能重复 |
-| `supply-chain-check` | osv-scanner | ✅ 可覆盖 | OSV 数据库，lockfile 扫描 |
-| `license-check` | osv-scanner `--licenses` | ✅ 可覆盖 | 同一二进制 |
-| CI 消费（json/sarif/fail-on） | 全部替代工具 | ✅ 可覆盖 | Semgrep/Opengrep/mcp-scanner/osv-scanner 均有 JSON/SARIF |
-| 写入前 hooks / ledger | — | ❌ 明确放弃 | 上次评估已判 don't migrate；504MB 状态目录为负资产 |
+| mimosa 功能                     | 开源替代                 | 覆盖判定         | 备注                                                        |
+| ------------------------------- | ------------------------ | ---------------- | ----------------------------------------------------------- |
+| `audit`（项目静态审计）         | Semgrep CE               | ✅ 可覆盖        | 引擎同源（semgrep），规则即装即用                           |
+| `agent-check`（Agent/MCP 配置） | Cisco mcp-scanner        | ✅ 可覆盖        | YARA 本地分析，零 API key；agent-scan 备选（需 SNYK_TOKEN） |
+| `llm-check`（LLM 应用安全）     | Semgrep CE 社区规则      | ⚠️ 部分覆盖      | 静态常见模式可覆盖；专项深度放弃；本仓库零发现基线无回退    |
+| `pii-check`                     | Bearer CLI（可选）       | ✅ 可覆盖 / 可选 | ELv2 source-available，内部使用无限制                       |
+| `git-secrets`                   | gitleaks                 | ✅ 已覆盖        | 现有 pre-commit 已有，功能重复                              |
+| `supply-chain-check`            | osv-scanner              | ✅ 可覆盖        | OSV 数据库，lockfile 扫描                                   |
+| `license-check`                 | osv-scanner `--licenses` | ✅ 可覆盖        | 同一二进制                                                  |
+| CI 消费（json/sarif/fail-on）   | 全部替代工具             | ✅ 可覆盖        | Semgrep/Opengrep/mcp-scanner/osv-scanner 均有 JSON/SARIF    |
+| 写入前 hooks / ledger           | —                        | ❌ 明确放弃      | 上次评估已判 don't migrate；504MB 状态目录为负资产          |
 
 ## Contrarian Views & Risks
 

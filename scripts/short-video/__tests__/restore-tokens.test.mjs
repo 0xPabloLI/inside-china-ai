@@ -100,7 +100,9 @@ describe("restoreTimingTokens", () => {
   });
 
   it("leaves scenes without replacements untouched", () => {
-    const timing = [{ sceneId: 9, segments: [{ text: "x", start: 0, end: 1, words: [word("x", 0, 1)] }] }];
+    const timing = [
+      { sceneId: 9, segments: [{ text: "x", start: 0, end: 1, words: [word("x", 0, 1)] }] },
+    ];
     const before = JSON.stringify(timing);
     restoreTimingTokens(timing, scenes);
     expect(JSON.stringify(timing)).toBe(before);

@@ -154,7 +154,12 @@ describe("runImageGeneration (#155, same protocol as the video runner)", () => {
     expect(result.ok).toBe(true);
     expect(result.fatal).toBeNull();
     expect(result.results).toHaveLength(1);
-    expect(result.results[0]).toMatchObject({ label: "scene-11-seed1024.png", ok: true, file: out, error: null });
+    expect(result.results[0]).toMatchObject({
+      label: "scene-11-seed1024.png",
+      ok: true,
+      file: out,
+      error: null,
+    });
     expect(existsSync(out)).toBe(true);
   });
 

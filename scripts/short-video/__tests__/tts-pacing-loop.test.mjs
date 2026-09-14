@@ -54,7 +54,11 @@ function fakeEngine() {
 }
 
 /** Fresh scene objects per test — the loop mutates ttsSpeed on them. */
-const makeHook = () => ({ id: 1, visualType: "hook", voiceover: "China just dropped a model that beats GPT." });
+const makeHook = () => ({
+  id: 1,
+  visualType: "hook",
+  voiceover: "China just dropped a model that beats GPT.",
+});
 const makeNarrative = () => ({
   id: 2,
   visualType: "narrative",
@@ -106,7 +110,11 @@ describe("pacing feedback loop (#252)", () => {
   function engineReturningAudio() {
     const engine = fakeEngine();
     engine.generate.mockImplementation(async (scenes) =>
-      scenes.map((s) => ({ sceneId: s.id, audioPath: join(dir, `scene-${s.id}.wav`), duration: 5 })),
+      scenes.map((s) => ({
+        sceneId: s.id,
+        audioPath: join(dir, `scene-${s.id}.wav`),
+        duration: 5,
+      })),
     );
     return engine;
   }
@@ -176,7 +184,10 @@ describe("pacing feedback loop (#252)", () => {
   it("falls back to the original audio and drops the override when the compensation take fails the gate", async () => {
     const engine = engineReturningAudio();
     // Call-1 take fails the gate (e.g. truncation on the new take).
-    stubGate((id, call) => (call === 0 ? 116 : 142), (id, call) => call === 0);
+    stubGate(
+      (id, call) => (call === 0 ? 116 : 142),
+      (id, call) => call === 0,
+    );
 
     const results = await generateTTSWithEngine([makeHook()], dir, engine, {
       useCache: true,
@@ -213,7 +224,10 @@ describe("pacing feedback loop (#252)", () => {
     stubGate(() => 250);
 
     await expect(
-      generateTTSWithEngine([makeNarrative()], dir, engine, { useCache: false, runAlignment: false }),
+      generateTTSWithEngine([makeNarrative()], dir, engine, {
+        useCache: false,
+        runAlignment: false,
+      }),
     ).rejects.toThrow(/TTS_PACING_HARD_BLOCK/);
     expect(engine.generate).toHaveBeenCalledTimes(2); // baseline + one reroll
   });
@@ -223,7 +237,10 @@ describe("pacing feedback loop (#252)", () => {
     stubGate(() => 257);
 
     await expect(
-      generateTTSWithEngine([makeNarrative()], dir, engine, { useCache: false, runAlignment: false }),
+      generateTTSWithEngine([makeNarrative()], dir, engine, {
+        useCache: false,
+        runAlignment: false,
+      }),
     ).rejects.toThrow(/257/);
   });
 
@@ -231,7 +248,10 @@ describe("pacing feedback loop (#252)", () => {
     process.env.TTS_SKIP_QUALITY_GATE = "1";
     const engine = engineReturningAudio();
 
-    await generateTTSWithEngine([makeHook()], dir, engine, { useCache: false, runAlignment: false });
+    await generateTTSWithEngine([makeHook()], dir, engine, {
+      useCache: false,
+      runAlignment: false,
+    });
 
     expect(runTtsQualityGate).not.toHaveBeenCalled();
     expect(engine.generate).toHaveBeenCalledTimes(1);

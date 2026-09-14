@@ -47,7 +47,10 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
     git(repo, "worktree", "add", "-b", branch, wt);
     const wtGitDir = git(wt, "rev-parse", "--absolute-git-dir").trim();
     mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true });
-    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), branch.replace(/^session\//, "") + "\n");
+    writeFileSync(
+      join(wtGitDir, "session-pilot", "current-session"),
+      branch.replace(/^session\//, "") + "\n",
+    );
     return wtGitDir;
   }
 
@@ -55,7 +58,9 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
     const wtGitDir = makeWorktree("session/20260101-merged-abc123");
     const out = stop(wt);
     expect(existsSync(wt)).toBe(false);
-    expect(existsSync(join(repo, ".git", "refs", "heads", "session", "20260101-merged-abc123"))).toBe(false);
+    expect(
+      existsSync(join(repo, ".git", "refs", "heads", "session", "20260101-merged-abc123")),
+    ).toBe(false);
     expect(out).toContain("merged session branch deleted: session/20260101-merged-abc123");
   });
 
@@ -67,7 +72,9 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
     git(wt, "commit", "-q", "-m", "wip on branch");
     const out = stop(wt);
     expect(existsSync(wt)).toBe(false); // worktree itself is clean → removed
-    expect(existsSync(join(repo, ".git", "refs", "heads", "session", "20260101-unmerged-def456"))).toBe(true);
+    expect(
+      existsSync(join(repo, ".git", "refs", "heads", "session", "20260101-unmerged-def456")),
+    ).toBe(true);
     expect(out).toContain(
       "session branch kept (branch -d refused: unmerged or already merged elsewhere): session/20260101-unmerged-def456",
     );
@@ -78,7 +85,9 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
     writeFileSync(join(wt, "dirty.txt"), "uncommitted");
     const out = stop(wt);
     expect(existsSync(wt)).toBe(true);
-    expect(existsSync(join(repo, ".git", "refs", "heads", "session", "20260101-dirty-789abc"))).toBe(true);
+    expect(
+      existsSync(join(repo, ".git", "refs", "heads", "session", "20260101-dirty-789abc")),
+    ).toBe(true);
     expect(out).toContain("worktree kept (dirty or locked)");
     expect(out).toContain("session branch kept (worktree dirty)");
   });
