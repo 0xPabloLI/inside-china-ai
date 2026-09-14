@@ -325,6 +325,8 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 - **acoustic 类**（截断 / 漏词 / 相似度低 / 无音频）：**禁止进补差环**（再提速只会把糊音推得更糊），走 self-heal 重抽（默认 ≤2 次）；超限 → **`TTS_ACOUSTIC_HARD_BLOCK` 硬阻断**。
 - 两类硬阻断均**不受 strict/non-strict 影响**——非 strict 的 warn-and-continue 不再软化任何一类 gate 分类失败（只剩 gate 未分类的失败仍走旧语义）。唯一能绕过硬阻断的开关是 `TTS_SKIP_QUALITY_GATE=1`；`TTS_SPEED` 只改基线速度，不构成绕过。
 
+**TTS instruct（音色/口音）**：scene 的 emotion instruct 取自 `visualType`/`refStyle`，**写稿侧只需选标准风格**——不要写 `scene.instruct` 覆盖、不要写 instruct 文本。风格清单与四维标准（Persona + Accent + Emotion + Pacing）的唯一来源是 `scripts/short-video/lib/tts/instruct.mjs` 的 `INSTRUCT_STANDARD`；风格缺失时 pre-render gate 直接 FAIL，并指明该加哪个条目。机制选型与三层门控的理由见 `docs/tts-indian-accent-handoff.md` → 「单一来源与防回归门控（#270）」。
+
 ### AI Outline 话题描述规则（Step 5 细则，仅 opt-in 时适用）
 
 > TikTok AI Outline 仅移动端可用。输出质量取决于输入具体度——含公司名+数字时大幅提升。实测（2026-08-27）：泛输入→clickbait；具体输入→Title/Hook/Hashtags 均可用。

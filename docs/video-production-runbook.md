@@ -210,7 +210,9 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 > 关闭此表（kernel `torch.manual_seed(20260907)` 固定采样）；需要时显式 `TTS_PROSODY=1`
 > opt-in。全局语速用 `TTS_ATEMPO`（不改音高）。
 > 推理调用基线：`inference_instruct2(text, instruct_text, ref_path, stream=False)`，
-> instruct 用 `INSTRUCT_MAP`（`lib/tts/cosyvoice3-kaggle-cuda.mjs`）+ `<|endofprompt|>` 后缀。
+> instruct 用**单一来源** `lib/tts/instruct.mjs`（`INSTRUCT_STANDARD`，#270），
+> PyTorch/CUDA 引擎经 `createInstructResolver({ format: PYTORCH })` 自动带 `<|endofprompt|>` 后缀；
+> 各 adapter 不再自带 instruct 表。
 
 | visualType | Pitch  | Tempo  | Volume | Label                            |
 | ---------- | ------ | ------ | ------ | -------------------------------- |

@@ -49,6 +49,21 @@ CosyVoice3-Kaggle-CUDA TTS 引擎在生成英文语音时，Hook 场景出现印
 
 ---
 
+## 单一来源与防回归门控（#270，2026-09-14）
+
+#234 的修复当时是**调用点级**的：四维标准只落在产线 adapter 的 `INSTRUCT_MAP` 上。两天后 #257 Spark-TTS 实验手写自己的 `refs-manifest.json`，instruct 退回老式写法，同一坑在新生成路径原样复现（`ref-emotional-shock.wav` 带印度口音）。#270 把它升级为**机制级**：
+
+- **唯一来源**：`scripts/short-video/lib/tts/instruct.mjs` → `INSTRUCT_STANDARD`（systemPrefix + accent + 每 style 的 persona/emotion/pacing）。**全部 TTS 引擎**（Kaggle CUDA / Modal CUDA / Ascend NPU / MLX）经 `createInstructResolver()` 继承同一张表，`INSTRUCT_MAP` 已从各 adapter 删除。改文案只改这里，引擎侧不再有第二份拷贝。
+- **格式（后缀）由引擎族决定，不由内容决定**：PyTorch/CUDA 与 NPU（`inference_instruct2`）需要 `<|endofprompt|>` 后缀；MLX 运行时自动追加，故同一文本不得带后缀。二者共用一张表，只在 `format` 上分叉。
+- **三层门控**（每一层放在最省成本的位置）：
+  1. **阻止（构建 manifest 时）**：未知 style 抛错；手写 `scene.instruct` 覆盖若不合四维标准抛错——都在推送 Kaggle/Modal **之前**失败，不浪费远程 GPU。负面否定式（如 "avoid Indian accent"）按本文件记录判定为硬错误。
+  2. **出片前拦截**：`scripts/short-video/lib/scene-rules.mjs` → `checkInstructCoverage`（pre-render gate）对"新增 visualType 却没有 instruct 条目"直接 FAIL——这就是 #273 P1.3 的场景（`contrast`/`info-card`/`stat-reveal`/`quote`/`context` 曾静默无 instruct，落到 CosyVoice3 不存在的 `inference()` 方法上）。
+  3. **出片前告警**：Quality Gate 复验引擎**实际解析出**的 instruct（`collectInstructWarnings`，registry 传入 `engine.instructForScene`）。此处只告警不阻断——此刻 take 已生成，把配置错误判成 acoustic 失败会耗尽 #271 的重抽预算且报错家族失准。
+
+**下表 §2 的四条字符串是 2026-09-10 定案记录（历史）**：hook 一条随后被 #244（2026-09-13 HITL A/B）替换为 `confident, dynamic` 版本。**生效文案一律以 `instruct.mjs` 为准**，本节不随代码同步更新。
+
+---
+
 ## 交付与验证结果
 
 - **Scene 1 实测数据**：
@@ -145,6 +160,7 @@ cosyvoice.inference_instruct2(t["text"], instruct, ref_path, **kwargs)
 6. **instruct text 差异**：`INSTRUCT_MAP` 可能改过。
    - **验证方法**：`git show 74dfcf5:scripts/short-video/lib/tts/cosyvoice3-kaggle-cuda.mjs` 对比 INSTRUCT_MAP。
    - **已验证**：INSTRUCT_MAP 未变。
+   - **注（#270 之后）**：instruct 表已迁至 `scripts/short-video/lib/tts/instruct.mjs` 的 `INSTRUCT_STANDARD`，各 adapter 不再自带。本节保留为 2026-09-09 当时的排查记录。
 
 ## 关键文件
 
@@ -153,9 +169,9 @@ cosyvoice.inference_instruct2(t["text"], instruct, ref_path, **kwargs)
   - `git clone https://github.com/FunAudioLLM/CosyVoice.git` — **每次 clone 最新版**
   - 模型：`FunAudioLLM/Fun-CosyVoice3-0.5B-2512`（从 Kaggle dataset `xPabloLI/cosyvoice3-model` 挂载）
 - **Adapter**：`scripts/short-video/lib/tts/cosyvoice3-kaggle-cuda.mjs`
-  - `INSTRUCT_MAP`（第 49-55 行）
-  - `buildCV3CudaManifest`（第 82-102 行）
-  - 后处理（第 268-300 行）
+  - `resolveInstructForScene` = `createInstructResolver({ format: PYTORCH })` —— 文本来自**单一来源** `scripts/short-video/lib/tts/instruct.mjs`（#270）；本文件不再自带 instruct 表
+  - `buildCV3CudaManifest`
+  - 后处理
 - **Voice sample**：`scripts/short-video/voice-samples/voice-sample-24k.wav`（通过 Kaggle dataset `xPabloLI/tts-ref-audio` 挂载）
 - **初始版本**：`git show 74dfcf5:scripts/short-video/kaggle/cosyvoice3_cuda_kernel.py`
 - **P100 基准样本**：`scripts/short-video/assets/tts-comparison/cosyvoice3-kaggle-p100-cuda/`
