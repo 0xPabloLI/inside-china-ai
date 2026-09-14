@@ -198,13 +198,15 @@ collectFromSource() 层次：
 | **#276** | 2026-09-13 | web-deep-research 检索路由接入 search-pool CLI——消掉 Brave/Tavily/Jina 双份路由分裂（保留 Grok 桥） | ⏳ 待 triage（enhancement：#265 后 pool 与 SEARCH_TOOLS 重复建设。**裁决（2026-09-13，#277 交付时）**：agent 面兜底串接已由 #277 在 web-access 工具表落地（web-deep-research RETRIEVE 委托该表自动跟随）；本票收敛为 SEARCH_TOOLS 多路由分裂 + 额度控制两个独有议题） |
 | ~~**#277**~~ | ✅ web-access 工具选择表加 search-pool CLI 兜底行：宿主 WebSearch 优先，不可用/连续无果时降级 | — | — | ✅ 关闭（2026-09-13，`ef50781`：工具表兜底行 + RETRIEVE 否定句去冗余；纯指令零代码宿主无关。扩散链：harness `0c52ee8` 已同步（连带 cdp-proxy wsPath 修复等积压），各 adopting repo 待拷）。详情：GitHub 关票评论 |
 | **#283** | 2026-09-13 | search-sources fallback 链语义重审：pool 统一兜底专用源与 #65 原意偏离，应分专用/通用两条路径 | ⏳ 待 triage（enhancement：collectFromSource 单链 pool 兜底 vs #65「pool 仅替换通用 web_search 类」；专用源死 CDP 后应走专用 mcpFallback） |
-| **#284** | 2026-09-13 | search-pool SKILL.md Route C 与 web-access 双向引用残余：agent 路由指令循环引用 | ⏳ 待 triage（bug：#277 只改 web-access 工具表，Route C 原文仍回指 web-access；语义不真循环但文档双向指） |
+| **#284** | 2026-09-13 | search-pool SKILL.md Route C 与 web-access 双向引用残余：agent 路由指令循环引用 | ⏳ 待 triage（bug，2026-09-14 升级为改动票：拆 Route C + 加显式 guard + 消除双向引用；#277 只改工具表未动 Route C 原文） |
 | **#285** | 2026-09-13 | URL 前置探针对 login-gated 站点（知乎）403 误杀面——needsAuth 源应放宽或白名单 | ⏳ 待 triage（enhancement：#269 Phase 1 遗留；HEAD/GET 复核已降误杀，仍可能误杀登录门控源） |
 | **#286** | 2026-09-13 | trend 模式（无 keyword）关键词相关性护栏盲区——首页误抓垃圾仍可能入库 | ⏳ 待 triage（enhancement：#269 Phase 1 遗留；护栏只在有 keyword 时生效） |
 | **#287** | 2026-09-13 | search-sources/管线入口统一加载 .env.local：dotenv 在应用入口加载一次，库绝不自己 load（#275 落地） | ⏳ 待 triage（bug：#275 落地子票；用户 2026-09-13 裁决：入口加载一次，Node ≥20.12 `process.loadEnvFile`） |
+| **#292** | 2026-09-14 | search-sources 体系性重审——apiFallback/mcpFallback/pool 触发语义与专用/通用源分流 | ⏳ 待 triage（enhancement：#283 上游大盘票；apiFallback 仅 x_search 1 处；pool 单源失败即进 vs #65 L3 兜底；mcpFallback 14 处未按专用/通用分流） |
 | ~~**#280**~~ | 2026-09-13 | search-sources.mjs 不自载 .env.local——管线内 search pool 引擎恒缺 key（Layer 3 静默失效） | ✅ 关闭（dup of #275——同一定位已由并行 session 先行开票，以 #275 为单一 home） |
 | **#281** | 2026-09-13 | search pool 引擎可用性核查：Serper 恒 "0 results" / Brave TUN DNS fetch failed | ✅ 分流 Tier 3 · `ready-for-agent`（#265 smoke 顺带发现；每引擎单独复测定性，只核查记录不预先设计；无既有票覆盖，与 #276 路由收敛不重叠） |
 | ~~**#282**~~ | 2026-09-13 | search-pool skill 跨 repo 同步：agent-harness 旧 MCP 形态需更新为 #265 CLI 消费 + env 指路 | ✅ 关闭（已落地——本 repo SKILL.md env 指路 `6e8cf9d` + harness `bc2f001`/`0c52ee8` 同步，均先于本票存在；无剩余 scope） |
+| **#288** | 2026-09-14 | 媒体素材补全:中国公司与模型 + 术语代表图,写 catalog 进 RAG 兜底(基于 scene-data 实证实体;#186 结构性稀缺的可执行落地) | ⏳ 待 triage(enhancement:实体清单已从全部 scene-data 实证;**范围已含人物肖像(典型照 + 采访视频截图,2026-09-14 用户裁决,见评论)**;选型等 Open Questions 实现时裁决) |
 
 ## Execution Tiers
 
