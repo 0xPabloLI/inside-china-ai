@@ -248,6 +248,28 @@ RESET15_EXIT="$(cd "$R15" && git reset --hard "$ROOT15" >/dev/null 2>&1; echo $?
 check "S29 warn-mode reset succeeds (no state file)" 0 "$RESET15_EXIT"
 case "$WARN_OUT" in *"provenanced to another session"*) echo "PASS: S29b warn message printed"; pass=$((pass+1)) ;; *) echo "FAIL: S29b warn message missing (got: $WARN_OUT)"; fail=$((fail+1)) ;; esac
 
+# S29c-S29e a SECOND worktree proves a parallel writer -> the same foreign-id
+# drop is BLOCKED even with no state file. This is the 2026-09-14 hardening: the
+# damaging session ran launcher-less in a checkout that had another worktree.
+R17=$(new_repo "reftx-second-worktree")
+( cd "$R17" && mkdir -p .githooks && cp "$REFTX" .githooks/reference-transaction && chmod +x .githooks/reference-transaction &&
+  git checkout -q -b other && echo b > b.txt && git add b.txt &&
+  git commit -q -m "theirs" --trailer "Session-Id: 20260903-foreign-444444" &&
+  git checkout -q main && git merge -q --no-ff other -m "merge" >/dev/null 2>&1 &&
+  git worktree add -q "$TMP_ROOT/reftx-second-wt" -b second
+) >/dev/null 2>&1
+BEFORE17=$(cd "$R17" && git rev-parse HEAD)
+ROOT17=$(cd "$R17" && git rev-list --max-parents=0 HEAD)
+BLOCK17_OUT="$(cd "$R17" && git reset --hard "$ROOT17" 2>&1 >/dev/null)"
+BLOCK17_EXIT="$(cd "$R17" && git reset --hard "$ROOT17" >/dev/null 2>&1; echo $?)"
+check "S29c second worktree -> foreign-id drop blocked without state file (exit 128)" 128 "$BLOCK17_EXIT"
+check "S29d ref untouched after blocked reset" "$BEFORE17" "$(cd "$R17" && git rev-parse HEAD)"
+case "$BLOCK17_OUT" in *"do NOT belong to the session writing here"*) echo "PASS: S29e block message names the foreign authorship"; pass=$((pass+1)) ;; *) echo "FAIL: S29e block message missing (got: $BLOCK17_OUT)"; fail=$((fail+1)) ;; esac
+
+# S29f branch deletion stays a warning in the same multi-worktree checkout:
+# routine hygiene must not be blocked by the foreign-id rule.
+
+
 # S30 state file present -> foreign-id drop is BLOCKED, ref untouched
 R16=$(new_repo "reftx-block")
 ( cd "$R16" && mkdir -p .githooks && cp "$REFTX" .githooks/reference-transaction && chmod +x .githooks/reference-transaction &&
@@ -270,6 +292,14 @@ FF31_EXIT="$(cd "$R16" && echo f >> a.txt && git add a.txt && git commit -q -m "
 check "S31a normal FF commit passes the gate" 0 "$FF31_EXIT"
 OWN31_EXIT="$(cd "$R16" && git reset --hard HEAD~1 >/dev/null 2>&1; echo $?)"
 check "S31b own-id rewind allowed (rebase/amend of own work)" 0 "$OWN31_EXIT"
+
+# S31c INSURANCE: branch deletion is never blocked, even in block mode.
+# Measured 2026-09-14 (git 2.50.1): `git branch -D` reaches this hook only as
+# `aborted`, never `prepared` — so today this passes trivially and catches the
+# day a git version starts calling `prepared` on deletion, which would otherwise
+# turn routine hygiene (`git branch -d` of a merged session branch) into a block.
+BLOCK_DEL_EXIT="$(cd "$R16" && git branch -D other >/dev/null 2>&1; echo $?)"
+check "S31c branch deletion is not blocked in block mode" 0 "$BLOCK_DEL_EXIT"
 
 # --- Group I: session launcher + prepare-commit-msg auto-fill (concurrency plan A)
 PCM="$REPO_ROOT/.githooks/prepare-commit-msg"

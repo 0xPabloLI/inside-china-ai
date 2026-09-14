@@ -115,7 +115,7 @@ session_id=""
 if [ -n "$WT_GITDIR" ] && [ -f "$WT_GITDIR/session-pilot/current-session" ]; then
   session_id=$(head -n 1 "$WT_GITDIR/session-pilot/current-session" | tr -d '[:space:]')
   rm -f "$WT_GITDIR/session-pilot/current-session"
-  echo "[session] state cleared (auto-fill off, ref-gate back to warn mode)"
+  echo "[session] state cleared (auto-fill off; ref-gate block mode now keys on worktree count)"
 fi
 if git worktree remove "$wtpath" >/dev/null 2>&1; then
   echo "[session] worktree removed: $wtpath"

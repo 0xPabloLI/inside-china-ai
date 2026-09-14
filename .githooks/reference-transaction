@@ -15,12 +15,23 @@
 #   and branch creation pass silently. Rebase discards of own old SHAs are
 #   therefore never flagged.
 #
-# Mode depends on the per-session state file written by the session launcher:
-#   $(git rev-parse --git-common-dir)/session-pilot/current-session
-#   - file exists  -> BLOCK (exit 1 aborts the transaction, fail-closed)
-#   - file missing -> WARN only (exit 0) — until every session runs the
-#     launcher, warning is the only safe default; still turns silent loss
-#     into a loud signal.
+# Mode — how loud the gate gets once it sees another session's commits dropped:
+#   - a per-session state file exists (the launcher ran in this checkout), OR a
+#     second worktree exists (someone else has a checkout) -> BLOCK (exit 1
+#     aborts the transaction, fail-closed).
+#   - neither -> WARN only (exit 0). Without a state file the gate cannot tell
+#     "my own earlier session" from "someone else" (ids are per-session), so a
+#     blanket block would stop legitimate solo work — e.g. `git branch -d` of a
+#     stale session branch. The 2026-09-14 incident (docs/agents/git-workflow.md
+#     §9) is why the second-worktree signal exists: a launcher-less session in
+#     the shared checkout was the damaging one.
+#   - branch deletion (`new` all-zero) always warns: it is deliberate, visible
+#     hygiene, and its dropped range is the whole branch. MEASURED 2026-09-14
+#     (git 2.50.1): `git branch -D` reaches this hook only as the `aborted`
+#     stage, never `prepared`, so this branch is defensive — a future git that
+#     starts calling `prepared` on deletion must not turn hygiene into a block.
+#     Consequence worth knowing: branch deletion is NOT gate-covered today, so
+#     `git branch -D <unmerged session branch>` destroys work silently.
 #
 # Emergency bypass (discouraged):
 #   git -c core.hooksPath=<empty dir> reset --hard <target>
@@ -38,6 +49,10 @@ CURRENT_ID=""
 if [ -n "$STATE" ] && [ -f "$STATE" ]; then
   CURRENT_ID=$(head -n 1 "$STATE" | tr -d '[:space:]')
 fi
+
+# Evidence of a parallel writer: a second worktree. awk (not `grep -c || echo 0`:
+# grep prints 0 AND exits 1 on no match, and the doubled output breaks -gt).
+WORKTREES=$(git worktree list --porcelain 2>/dev/null | awk '/^worktree /{n++} END{print n+0}')
 
 while read -r old new ref; do
   case "$ref" in refs/heads/*) ;; *) continue ;; esac
@@ -63,25 +78,44 @@ EOF_DROPPED
 
   [ -n "$FOREIGN" ] || continue
 
-  if [ -n "$CURRENT_ID" ]; then
-    echo ""
-    echo "[ref-gate] BLOCKED: this update would drop commits provenanced to ANOTHER session:" >&2
+  # Branch deletion: deliberate, visible hygiene, and its dropped range is the
+  # whole branch — blocking it would break routine cleanup (e.g. `git branch -d`
+  # after a merge). Always a warning.
+  if [ "$new" = "$Z" ]; then
+    echo "[ref-gate] WARNING: dropping commits provenanced to another session (branch deletion — deliberate hygiene, not blocked):" >&2
     printf '%s' "$FOREIGN" >&2
     echo "branch: $ref" >&2
-    echo "Your session id: $CURRENT_ID (from $STATE)" >&2
+    continue
+  fi
+
+  if [ -n "$CURRENT_ID" ] || [ "$WORKTREES" -gt 1 ]; then
+    echo ""
+    echo "[ref-gate] BLOCKED: this update would drop commits that do NOT belong to the session writing here." >&2
+    printf '  dropped commit(s) and the session(s) they belong to:\n%s' "$FOREIGN" >&2
+    echo "  branch: $ref" >&2
+    if [ -n "$CURRENT_ID" ]; then
+      echo "  this checkout's session id: $CURRENT_ID (from $STATE)" >&2
+    else
+      echo "  this checkout has no session state file, but $WORKTREES worktrees exist — a parallel writer is present." >&2
+    fi
     echo "" >&2
-    echo "This is how silently-lost work happens (3 incidents on record). Instead:" >&2
-    echo "  - recover/later:    the dropped commits stay reachable via git reflog" >&2
+    echo "  Read the list above before assuming anything: those commits are ANOTHER" >&2
+    echo "  session's work and may have landed seconds ago (2026-09-14: an amend was" >&2
+    echo "  mistaken for rewriting one's own previous commit, and the other session's" >&2
+    echo "  message was replaced)." >&2
+    echo "" >&2
+    echo "  - interrupted mid-rebase?          git rebase --abort" >&2
+    echo "  - the dropped commits stay reachable via git reflog" >&2
     echo "  - legitimate rewrite of mixed work: re-land foreign commits first" >&2
     echo "    (see docs/agents/git-concurrent-recovery.md), then retry" >&2
     echo "  - emergency bypass (discouraged): git -c core.hooksPath=<empty dir> <cmd>" >&2
     echo "" >&2
     exit 1
-  else
-    echo "[ref-gate] WARNING: dropping commits provenanced to another session (no current-session state file, so not blocking):" >&2
-    printf '%s' "$FOREIGN" >&2
-    echo "branch: $ref — enable blocking via the session launcher (writes $STATE)" >&2
   fi
+
+  echo "[ref-gate] WARNING: dropping commits provenanced to another session (single-worktree checkout, so not blocking):" >&2
+  printf '%s' "$FOREIGN" >&2
+  echo "branch: $ref — blocking engages with a session state file or a second worktree ($STATE)" >&2
 done
 
 exit 0
