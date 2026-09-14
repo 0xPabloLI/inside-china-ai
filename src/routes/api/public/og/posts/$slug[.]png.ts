@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Resvg } from "@cf-wasm/resvg/workerd";
+import { Resvg } from "@cf-wasm/resvg";
 import sourceSerifUrl from "@/assets/fonts/SourceSerif4.ttf?url";
 import interUrl from "@/assets/fonts/Inter-Bold.ttf?url";
 import {
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/public/og/posts/$slug.png")({
   server: {
     handlers: {
       GET: async ({ params, request }) => {
-        const slug = params.slug;
+        const slug = params["slug.png"];
         if (!SLUG_PATTERN.test(slug)) return new Response("Not found", { status: 404 });
 
         const sb = createPublicClient();
@@ -57,7 +57,9 @@ export const Route = createFileRoute("/api/public/og/posts/$slug.png")({
           if (rendered.width !== ARTICLE_OG_WIDTH || rendered.height !== ARTICLE_OG_HEIGHT) {
             return new Response("Unable to render article image", { status: 500 });
           }
-          return new Response(rendered.asPng(), {
+          const png = rendered.asPng();
+          const body = png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength) as ArrayBuffer;
+          return new Response(body, {
             headers: {
               "Content-Type": "image/png",
               "Cache-Control": "public, max-age=3600, s-maxage=31536000, immutable",
