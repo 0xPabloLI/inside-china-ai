@@ -18,8 +18,8 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 15
     env:
-      # Bridge while the research suites are mid-refactor (see vitest.config.ts)
-      VITEST_CI_SKIP_RESEARCH: "1"
+      # Bridge: env-bound suites (see vitest.config.ts) can't run on CI
+      VITEST_CI_SKIP_ENV_BOUND: "1"
     steps:
       - uses: actions/checkout@v4
 
