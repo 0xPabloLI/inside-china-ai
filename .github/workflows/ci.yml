@@ -78,19 +78,17 @@ jobs:
           git config --global user.name "CI Runner"
           git config --global user.email "ci@users.noreply.github.com"
 
-      # Diagnostic + gate: several suites shell out to ffmpeg with libmp3lame
-      # (audio-sync fixtures). Probe the exact encode path they use so a
-      # runner-image regression shows up as a clear message here.
-      - name: Verify ffmpeg libmp3lame encode
+      # Several suites shell out to ffmpeg with libmp3lame (audio-sync
+      # fixtures). The runner image ships no ffmpeg — install distro ffmpeg
+      # (includes libmp3lame) and gate on the exact encode path they use.
+      - name: Install ffmpeg and verify libmp3lame
         run: |
           set -e
-          which ffmpeg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
           ffmpeg -version | head -1
           TMP=$(mktemp -d)
-          if ! ffmpeg -hide_banner -f lavfi -i "sine=frequency=440:duration=1" -codec:a libmp3lame -q:a 4 "$TMP/t.mp3" 2>&1 | tail -3; then
-            echo "::error::ffmpeg on this runner cannot encode libmp3lame — audio-sync suites would fail"
-            exit 1
-          fi
+          ffmpeg -hide_banner -f lavfi -i "sine=frequency=440:duration=1" -codec:a libmp3lame -q:a 4 "$TMP/t.mp3" 2>/dev/null
           rm -rf "$TMP"
           echo "mp3 encode OK"
 
