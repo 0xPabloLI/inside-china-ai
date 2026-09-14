@@ -51,9 +51,10 @@
 | `scripts/short-video/lib/scene-rules.mjs`                                   | avatar schema 校验进 `runAllSceneDataChecks`（fail-closed：未知 avatar 子字段、videoPath 类型合法性、present 区间合法性；videoPath **文件存在性**归渲染期/main.mjs 插桩——scene-rules 保持纯函数） | 共享校验面，MRL-2/preflight 消费——新检查必须对无 avatar 包零影响（已验证：qwen4-preview 聚合结果逐字节不变） |
 | `scripts/short-video/lib/safe-zones.mjs`                                    | 新增 avatar 卡片矩形常量与「不侵入」断言 helper（复用现有 SAFE_ZONES 推导，不改既有常量）                                                                                                         | 只增不改；既有 right-rail/subtitle-gap 消费方不受影响                                                        |
 | `scripts/short-video/lib/digital-human.mjs`（新）                           | 生成编排：plan/run/resume、切段、调 run-gpu、超分、回写、report                                                                                                                                   | 新模块；失败不得污染 scene-data（回写仅在全段成功后）                                                        |
-| `scripts/short-video/lib/render-remotion.mjs`                               | avatar 视频拷贝进 public + videoPath 相对化（镜像现有 media 机制）                                                                                                                                | 渲染前共享步骤；无 avatar 包路径零变化                                                                       |
+| `scripts/short-video/lib/render-remotion.mjs`                               | avatar 视频拷贝进 public + videoPath 相对化（镜像现有 media 机制）；staging 委托 `avatar-guard.mjs` 做 fail-closed 校验                                                                           | 渲染前共享步骤；无 avatar 包路径零变化                                                                       |
 | `scripts/short-video/remotion/src/`（新 AvatarCard 组件 + CtaScene 挂载点） | 前景卡片层渲染 + present 区间序列裁切                                                                                                                                                             | Remotion 渲染面；无 avatar 时组件返回 null                                                                   |
-| `scripts/short-video/main.mjs`                                              | 仅插桩：avatar 文件存在性校验（fail-closed）+ 计数日志；生成不在 main.mjs 内触发                                                                                                                  | 主流程最小侵入                                                                                               |
+| `scripts/short-video/main.mjs`                                              | 插桩：TTS 前 avatar 文件存在性校验（fail-closed）+ 计数日志；**TTS 后 Step 2.5 片段↔旁白时长一致性 Gate（#272）**；生成不在 main.mjs 内触发                                                       | 主流程最小侵入                                                                                               |
+| `scripts/short-video/lib/avatar-guard.mjs`（新，#272）                      | avatar 契约的单一实现：声明态 / 文件存在 / 可读 / **片段时长 ≥ 该 scene 当前 TTS 音频时长**；main.mjs 与渲染 staging 共用同一实现                                                                 | 新叶子模块；无 avatar 声明时完全不入内（零影响）                                                             |
 | `scripts/short-video/content/_test-fixtures`                                | avatar 声明 fixture（合法/非法/present 区间）                                                                                                                                                     | 测试基建                                                                                                     |
 
 ## Behavioral Scenarios（R3 必备）
@@ -66,6 +67,7 @@
 6. avatar 卡片与字幕带/CTA 区重叠（position 非法值或未来模板改动）→ 帧审计 FAIL，指明侵入的 safe zone 名称。
 7. present 区间越界（from/to 超出 scene 时长）→ scene-rules 校验 FAIL。
 8. 质量档（Modal）未授权却在 plan 中出现 → plan 拒绝执行并提示授权开关。
+9. **（#272）TTS 重生成后 avatar 片段未失效**（片段 5.00s < 当前音频 7.24s，无 `present` 声明）**→ Step 2.5（TTS 后）与渲染 staging（`avatar-guard.mjs`）双双 fail-closed，错误含实测两个时长与重生成命令**。旧检查只问「文件在不在」，所以该缺陷曾静默出片（实证：`content/dh-pilot-qwen4` scene-10，5.00s 片段 vs 7.24s 旁白）。契约依据见 `AvatarCard.tsx`：片段按该 scene **完整** TTS 音频生成，`present` 只是渲染期裁切，故片段必须覆盖完整旁白。
 
 ## Testing Decisions
 

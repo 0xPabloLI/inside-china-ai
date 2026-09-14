@@ -35,6 +35,7 @@ import { selectBGM } from "./lib/bgm.mjs";
 import { createProfiler } from "./lib/pipeline-profile.mjs";
 import { runMediaTrack } from "./lib/media-track.mjs";
 import { closeAsrAnalyzer } from "./lib/asr-analyzer.mjs";
+import { assertAvatarScene, assertAvatarVoiceovers } from "./lib/avatar-guard.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -151,25 +152,26 @@ async function main() {
   console.log(`   Renderer: Remotion (React → frame-by-frame)`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
-  // ── Avatar instrumentation (#214 ticket 02) ──
-  // Minimal fail-closed check ONLY: a declared avatar videoPath whose file is
-  // missing aborts here, before TTS spend. Generation itself is a separate
-  // CLI (lands with #214 T3) and is never triggered from main.mjs. The
-  // render layer re-checks at staging time (render-remotion.mjs), so
-  // render-only runs get the same fail-closed guarantee.
+  // ── Avatar instrumentation (#214 ticket 02, presence pass) ──
+  // Presence + readability ONLY, to abort before TTS spend when the clip is
+  // gone or unreadable. Generation is a separate CLI (lands with #214 T3) and is
+  // never triggered from main.mjs, so a declaration still awaiting generation is
+  // reported below and left for the render's fail-closed staging — the
+  // TTS → digital-human → render workflow needs that window. The duration
+  // invariant (#272: a clip must cover its scene's voiceover) cannot be judged
+  // here because no voiceover exists yet; it is enforced after Step 1 and again
+  // at render staging. lib/avatar-guard.mjs is the single implementation.
   const avatarScenes = scenes.filter((s) => s.avatar && typeof s.avatar === "object");
+  const avatarContentDir = resolve(__dirname, "content", contentDir);
   if (avatarScenes.length > 0) {
     for (const scene of avatarScenes) {
-      if (scene.avatar.videoPath) {
-        const avatarPath = resolve(__dirname, "content", contentDir, scene.avatar.videoPath);
-        if (!existsSync(avatarPath)) {
-          console.error(`❌ Avatar video missing for scene ${scene.id}: ${scene.avatar.videoPath}`);
-          console.error(`   Fail-closed: the render will not silently drop the digital human.`);
-          console.error(
-            `   Restore the generated clip, or regenerate it (digital-human CLI, #214 T3), or remove scene.avatar from the scene.`,
-          );
-          process.exit(1);
-        }
+      if (!scene.avatar.videoPath) continue; // pending generation: enforced at staging
+      try {
+        assertAvatarScene({ scene, contentDir: avatarContentDir });
+      } catch (err) {
+        console.error(`❌ ${err.message}`);
+        console.error(`   Fail-closed: the render will not silently drop the digital human.`);
+        process.exit(1);
       }
     }
     const pending = avatarScenes.filter((s) => !s.avatar.videoPath).length;
@@ -301,6 +303,39 @@ async function main() {
       (ttsCached ? ` (${ttsCached}/${scenes.length} from cache)` : "") +
       "\n",
   );
+
+  // ── Step 2.5: Avatar clip ↔ voiceover consistency (#272) ──
+  // Regenerating TTS does NOT invalidate a scene's avatar clip (avatar.videoPath
+  // carries no link to the audio that produced it), so a clip generated for an
+  // older take keeps declaring itself valid. The pilot shipped a 5.00s clip
+  // against a 7.24s voiceover and every existing check passed — they only asked
+  // whether the file existed. This is the first point where the CURRENT
+  // voiceover duration is known; render staging enforces the same contract again
+  // so render-only / rerender / realign runs cannot skip it.
+  {
+    const declaredClips = scenes.filter(
+      (s) => s.avatar && typeof s.avatar === "object" && s.avatar.videoPath,
+    );
+    if (declaredClips.length > 0) {
+      const durationsById = new Map(ttsResults.map((t) => [t.sceneId, t.duration]));
+      try {
+        assertAvatarVoiceovers({
+          scenes: declaredClips,
+          durationsById,
+          contentDir: avatarContentDir,
+        });
+      } catch (err) {
+        console.error(`❌ Step 2.5: ${err.message}`);
+        console.error(
+          `   Fail-closed: a clip shorter than its voiceover renders stale lip-sync, so this run stops here (#272).`,
+        );
+        process.exit(1);
+      }
+      console.log(
+        `✅ Step 2.5: ${declaredClips.length} avatar clip(s) cover their scene's voiceover\n`,
+      );
+    }
+  }
 
   // ── Step 3: Select background music (optional, --bgm flag) ──
   const useBGM = process.argv.includes("--bgm");

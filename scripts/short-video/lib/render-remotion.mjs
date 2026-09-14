@@ -13,13 +13,14 @@
  * The CLI renders to an intermediate MP4, then FFmpeg post-processes it.
  */
 
-import { execSync, execFileSync } from "child_process";
+import { execSync } from "child_process";
 import { existsSync, writeFileSync, unlinkSync, mkdirSync, copyFileSync, rmSync } from "fs";
 import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 import { finalizeRenderedVideo } from "./post-process.mjs";
 import { sceneClipFrames } from "./timeline.mjs";
 import { autoUpscaleIfNeeded } from "./upscale.mjs";
+import { assertAvatarScene } from "./avatar-guard.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -48,68 +49,35 @@ export function rawOutputPathFor(finalPath) {
  * resolves staticFile(`assets/${videoPath})`), same skip-if-copied cache.
  * One deliberate difference: media missing → warn and strip (sourcing finds
  * another asset); avatar missing → FAIL. The user paid to generate the
- * digital human, so a render without the card is never acceptable — and per
- * spec Scenario 2 even a declaration still awaiting generation fails here
- * (the generation CLI writes videoPath back; see the remediation hint).
- * Corruption is caught the same way: ffprobe must read a positive duration
- * before the file is considered usable.
+ * digital human, so a render without the card is never acceptable.
+ *
+ * The checks themselves live in ./avatar-guard.mjs (#272) so the render doors
+ * and main.mjs enforce one contract: pending generation, missing,
+ * corrupt/unreadable, and — new in #272 — a clip too short for this scene's
+ * CURRENT voiceover. Sequential, so the first bad scene aborts before any later
+ * clip is staged.
  *
  * Pure pre-render staging: throws BEFORE the Remotion CLI is invoked.
  *
  * @param {object} options
  * @param {Array} options.scenes - Sanitized scene array (mutated: videoPath relativized)
+ * @param {Array<number>} [options.durations] - TTS voiceover seconds, index-aligned
+ *   with `scenes` (same array the props hand-off uses). Omit only when the
+ *   caller genuinely has no durations.
  * @param {string} options.contentDir - Content directory (videoPath is content-relative)
  * @param {string} options.publicAssetsDir - remotion/public/assets target
  * @returns {number} staged avatar scene count
  */
-export function stageAvatarVideos({ scenes, contentDir = "", publicAssetsDir }) {
-  const remediation = (scene, declared) =>
-    `\n   Remediation: restore the generated clip at ${declared},` +
-    `\n   or regenerate it: node scripts/short-video/digital-human.mjs run --content <package>  (generation CLI: #214 T3),` +
-    `\n   or remove scene.avatar from scene ${scene.id} to render without the card.`;
-
+export function stageAvatarVideos({ scenes, durations = [], contentDir = "", publicAssetsDir }) {
   let staged = 0;
-  for (const scene of scenes) {
+  for (const [index, scene] of scenes.entries()) {
     if (!scene.avatar || typeof scene.avatar !== "object") continue;
 
-    // Declared but never generated (generation step writes videoPath back) —
-    // fail-closed rather than silently shipping the video without its host.
-    if (!scene.avatar.videoPath) {
-      throw new Error(
-        `[AvatarCard] Scene ${scene.id}: avatar declared but no videoPath (still pending generation).` +
-          remediation(scene, "<generated clip>"),
-      );
-    }
+    // Presence, readability and "long enough for this scene's current
+    // voiceover" — one implementation, shared with main.mjs (#272).
+    assertAvatarScene({ scene, sceneDurationSec: durations[index], contentDir });
 
     const avatarSrc = join(contentDir || ".", scene.avatar.videoPath);
-    if (!existsSync(avatarSrc)) {
-      throw new Error(
-        `[AvatarCard] Scene ${scene.id}: avatar video not found: ${scene.avatar.videoPath}` +
-          remediation(scene, scene.avatar.videoPath),
-      );
-    }
-
-    // Corrupt/unreadable file → same fail-closed fate (ffprobe is already a
-    // hard pipeline dependency — see the duration probe in the finalize step).
-    let duration = 0;
-    try {
-      duration = parseFloat(
-        execFileSync(
-          "ffprobe",
-          ["-i", avatarSrc, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"],
-          { stdio: ["pipe", "pipe", "pipe"] },
-        )
-          .toString()
-          .trim(),
-      );
-    } catch {}
-    if (!Number.isFinite(duration) || duration <= 0) {
-      throw new Error(
-        `[AvatarCard] Scene ${scene.id}: avatar video unreadable (ffprobe found no duration): ${scene.avatar.videoPath}` +
-          remediation(scene, scene.avatar.videoPath),
-      );
-    }
-
     const filename = basename(avatarSrc);
     const avatarDest = join(publicAssetsDir, filename);
     if (!existsSync(avatarDest)) {
@@ -242,6 +210,7 @@ export function renderRemotion({
   // videoPath relativization (mirrors the media copy mechanism above).
   const avatarCount = stageAvatarVideos({
     scenes: sanitizedScenes,
+    durations,
     contentDir,
     publicAssetsDir,
   });
