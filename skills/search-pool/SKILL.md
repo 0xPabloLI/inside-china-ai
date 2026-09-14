@@ -68,6 +68,8 @@ API key 从仓库根 `.env.local` 读取（`SERPER_API_KEY` / `BRAVE_SEARCH_API_
 
 适用：中文或英文的主流新闻检索、论文发现、技术事实核实。额度敏感——单次查询即可命中时优先 `--max-results` 截取，避免为凑数反复搜索。
 
+**引擎可用性记录（#281，2026-09-14 复测）**：Serper 与 Brave 均实测可用（Serper HTTP 200 + organic 命中；Brave Node fetch HTTP 200 + 20 条，fake-ip DNS 下不再 fetch failed）。Brave 历史故障特征（2026-08 观察，供复发时对照）：TUN fake-ip 把 `api.search.brave.com` 解析到 198.18.x 且 Node fetch 报 fetch failed——绕行方法：代理规则让该域名走代理（非 DIRECT），或 DoH 解析真实 IP 后 `curl --resolve` 钉住。另：`JINA_API_KEY` 当前未配置（key 缺失时该引擎自动跳过，非故障）。
+
 ## Route B — curl SearXNG
 
 本地自托管 metasearch，无额度限制，适合广度探索和多角度扫描：
