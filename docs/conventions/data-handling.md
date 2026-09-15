@@ -40,3 +40,26 @@ never leave the machine.
 Subscriber rows live until unsubscribed (event sync) or admin-deleted.
 Account rows are Supabase Auth's lifecycle. No other copies are authorized to
 exist — which is exactly why rule 1 and rule 4 matter.
+
+## Subject requests (GDPR / CCPA)
+
+The product's data-minimization posture keeps the request surface small: the
+only personal data is the subscriber list and auth accounts, so every request
+type maps onto an existing, admin-operated path:
+
+| Request type                    | Path                                                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Deletion (GDPR erasure / CCPA)  | Admin deletes the subscriber row (RLS policy) or the account (Supabase Auth); email-event sync keeps `subscribers` consistent |
+| Access / export (GDPR Art. 15)  | Admin reads the subscriber's own row via the admin UI — the row contains only the fields in the inventory above |
+| Opt-out (GDPR objection / sale) | Unsubscribe link in every email → bounce/complaint event sync removes the row                     |
+
+No manual database surgery is authorized for requests — the paths above are
+auditable and RLS-respecting (rule 3 and rule 5).
+
+## Tracking and consent
+
+The product ships no third-party tracking or advertising SDK — no cookies for
+ad measurement, no cross-site identifiers — so there is no tracking-consent
+surface to manage. If a product analytics SDK is ever introduced, it must be
+evaluated through the proposal review (`docs/agents/proposal-review.md`) and
+this section updated with the consent mechanism before it ships.
