@@ -596,11 +596,17 @@ export const SELF_MEDIA_SOURCES = [
       parser: (text) => {
         const data = JSON.parse(text);
         if (!Array.isArray(data?.data)) return [];
+        // #309 (news contract, fail-closed): a hot list has no per-item date —
+        // an item's validity window IS its time on the board, so fetch time is
+        // the honest publishedAt. Stamped per parse, ISO, for the freshness
+        // filters (filterRecentTrackedArticles needs a Date-parseable value).
+        const observedAt = new Date().toISOString();
         return data.data
           .map((item) => ({
             title: item?.title || "",
             url: item?.link || "",
             snippet: item?.hot_value ? `微博热搜 · 热度 ${item.hot_value}` : "微博热搜",
+            publishedAt: observedAt,
           }))
           .filter((a) => a.title && a.url);
       },
@@ -775,6 +781,11 @@ export const SELF_MEDIA_SOURCES = [
               title: title.substring(0, 200) || `@${authorName} video ${videoId}`,
               url,
               author: authorName,
+              // #309 (news contract, fail-closed): aweme create_time is unix
+              // seconds — same epoch→ISO mapping as reddit/hackernews.
+              publishedAt: info.create_time
+                ? new Date(Number(info.create_time) * 1000).toISOString()
+                : "",
               snippet: stats.play_count
                 ? `${stats.play_count} views, ${stats.digg_count || 0} likes`
                 : "",
@@ -1183,6 +1194,9 @@ export const INTERNATIONAL_SOURCES = [
           title: item.full_name || item.name || "",
           url: item.html_url || "",
           snippet: item.description ? item.description.substring(0, 200) : "",
+          // #309 (news contract, fail-closed): pushed_at ships with the Search
+          // API and was previously dropped — map it raw (already ISO 8601).
+          publishedAt: item.pushed_at || "",
         }));
       },
       authRequired: false,

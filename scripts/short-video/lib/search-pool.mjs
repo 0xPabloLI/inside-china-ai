@@ -44,6 +44,75 @@ import { loadEnv } from "./load-env.mjs";
 const DEFAULT_TIMEOUT_MS = 15000;
 const MAX_SNIPPET_LENGTH = 200;
 
+// ─── publishedAt normalization (#309 news contract) ───
+//
+// The pool previously dropped every engine's date field in toArticle,
+// leaving pool results outside any fail-closed freshness filter
+// (filterRecentTrackedArticles needs a Date-parseable publishedAt). The
+// 2026-09-16 probe confirmed: with news params on, Serper/Tavily/Brave
+// carry dates on 100% of results (probe 1, #309). Normalize at this seam —
+// relative strings ("1 day ago") degenerate to NaN downstream if passed raw.
+
+const RELATIVE_AGO_RE = /^(\d+)\s*(second|minute|hour|day|week|month|year)s?\s+ago$/i;
+const RELATIVE_UNIT_MS = {
+  second: 1e3,
+  minute: 6e4,
+  hour: 36e5,
+  day: 864e5,
+  week: 6048e5,
+  month: 2592e6, // 30d approximation — freshness buckets, not calendar math
+  year: 31536e6, // 365d approximation
+};
+
+/**
+ * Normalize an engine date field into an ISO string.
+ * Accepts RFC2822 / ISO / "Aug 9, 2025" (via Date), relative "N units ago",
+ * and "Yesterday". Unparseable or missing input → undefined, so the entry
+ * simply has no publishedAt (fail-closed consumers drop it downstream)
+ * instead of a garbage date.
+ *
+ * @param {string|null|undefined} raw
+ * @returns {string|undefined}
+ */
+export function normalizePublishedDate(raw) {
+  if (typeof raw !== "string") return undefined;
+  const s = raw.trim();
+  if (!s) return undefined;
+
+  if (/^just now$/i.test(s)) return new Date().toISOString();
+  if (/^yesterday$/i.test(s)) return new Date(Date.now() - 864e5).toISOString();
+  const rel = s.match(RELATIVE_AGO_RE);
+  if (rel) {
+    const n = Number(rel[1]);
+    const unitMs = RELATIVE_UNIT_MS[rel[2].toLowerCase()];
+    if (Number.isFinite(n) && unitMs) return new Date(Date.now() - n * unitMs).toISOString();
+    return undefined;
+  }
+
+  const t = new Date(s).getTime();
+  return Number.isFinite(t) ? new Date(t).toISOString() : undefined;
+}
+
+// ─── news-mode window buckets (#309 ruling (b)) ───
+//
+// Engines express a recency window differently: Serper tbs qdr:d/w/m/y,
+// Brave freshness pd/pw/pm/py, Tavily a plain integer `days`. Bucket the
+// requested window onto the smallest engine bucket that covers it.
+
+export function tbsForDays(days) {
+  if (days <= 1) return "qdr:d";
+  if (days <= 7) return "qdr:w";
+  if (days <= 30) return "qdr:m";
+  return "qdr:y";
+}
+
+export function freshnessForDays(days) {
+  if (days <= 1) return "pd";
+  if (days <= 7) return "pw";
+  if (days <= 30) return "pm";
+  return "py";
+}
+
 /**
  * Map a raw engine result entry into the article shape consumed by
  * search-sources.mjs. Entries without a usable url are dropped; snippets are
@@ -54,27 +123,42 @@ const MAX_SNIPPET_LENGTH = 200;
  * `snippet` — normalizing both here keeps every engine adapter on one path
  * (the Serper-only `link`/`snippet` shape previously parsed as "0 results"
  * and silently burned quota each run).
+ *
+ * `publishedAt` (#309): each engine's date field is normalized to ISO here
+ * (see normalizePublishedDate); entries without a usable date carry none —
+ * fail-closed freshness filters drop them downstream.
  */
-function toArticle(title, url, snippet) {
+function toArticle(title, url, snippet, dateRaw) {
   const cleanUrl = typeof url === "string" ? url.trim() : "";
   if (!cleanUrl.startsWith("http")) return null;
-  return {
+  const article = {
     title: (title || "").trim(),
     url: cleanUrl,
     snippet: (snippet || "").trim().slice(0, MAX_SNIPPET_LENGTH),
   };
+  const publishedAt = normalizePublishedDate(dateRaw);
+  if (publishedAt) article.publishedAt = publishedAt;
+  return article;
 }
 
 function parseArticles(entries) {
   if (!Array.isArray(entries)) return [];
   return entries
-    .map((e) => toArticle(e?.title, e?.url ?? e?.link, e?.description ?? e?.snippet ?? e?.content))
+    .map((e) =>
+      toArticle(
+        e?.title,
+        e?.url ?? e?.link,
+        e?.description ?? e?.snippet ?? e?.content,
+        e?.published_date ?? e?.page_age ?? e?.date ?? e?.age,
+      ),
+    )
     .filter(Boolean);
 }
 
 /** Brave Search: GET + X-Subscription-Token header, results under web.results. */
-async function searchBrave(keyword, apiKey, timeoutMs) {
-  const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(keyword)}&count=20`;
+async function searchBrave(keyword, apiKey, timeoutMs, news) {
+  const freshness = news ? `&freshness=${freshnessForDays(news.days)}` : "";
+  const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(keyword)}&count=20${freshness}`;
   const resp = await fetch(url, {
     headers: { Accept: "application/json", "X-Subscription-Token": apiKey },
     signal: AbortSignal.timeout(timeoutMs),
@@ -85,11 +169,15 @@ async function searchBrave(keyword, apiKey, timeoutMs) {
 }
 
 /** Tavily: POST with bearer auth, results under results[].content. */
-async function searchTavily(keyword, apiKey, timeoutMs) {
+async function searchTavily(keyword, apiKey, timeoutMs, news) {
   const resp = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "content-type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ query: keyword, max_results: 20 }),
+    body: JSON.stringify({
+      query: keyword,
+      max_results: 20,
+      ...(news ? { topic: "news", days: news.days } : {}),
+    }),
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!resp.ok) return { ok: false, error: `Tavily HTTP ${resp.status}` };
@@ -98,11 +186,11 @@ async function searchTavily(keyword, apiKey, timeoutMs) {
 }
 
 /** Serper.dev: POST with X-API-KEY header, results under organic[].link. */
-async function searchSerper(keyword, apiKey, timeoutMs) {
+async function searchSerper(keyword, apiKey, timeoutMs, news) {
   const resp = await fetch("https://google.serper.dev/search", {
     method: "POST",
     headers: { "content-type": "application/json", "X-API-KEY": apiKey },
-    body: JSON.stringify({ q: keyword, num: 20 }),
+    body: JSON.stringify({ q: keyword, num: 20, ...(news ? { tbs: tbsForDays(news.days) } : {}) }),
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!resp.ok) return { ok: false, error: `Serper HTTP ${resp.status}` };
@@ -123,12 +211,17 @@ async function searchJina(keyword, apiKey, timeoutMs) {
 }
 
 /** Fixed priority order — Serper (2500/mo, Google results) > Brave (2000/mo) > Tavily (1000/mo) > Jina.
+ *  `newsCapable` (#309): engines that honor a news window (tbs/freshness/topic)
+ *  AND return per-entry dates on every result. Jina has no news param and
+ *  only partial per-entry dates (probe 2026-09-16: 5/8 dated, 58.9k tokens
+ *  per call) — it exits the news chain fail-closed and stays in the general
+ *  chain.
  *  Exported so tests can pin an explicit engine list via the opts.engines seam. */
 export const POOL_ENGINES = [
-  { name: "serper", apiKeyEnv: "SERPER_API_KEY", search: searchSerper },
-  { name: "brave", apiKeyEnv: "BRAVE_SEARCH_API_KEY", search: searchBrave },
-  { name: "tavily", apiKeyEnv: "TAVILY_API_KEY", search: searchTavily },
-  { name: "jina", apiKeyEnv: "JINA_API_KEY", search: searchJina },
+  { name: "serper", apiKeyEnv: "SERPER_API_KEY", newsCapable: true, search: searchSerper },
+  { name: "brave", apiKeyEnv: "BRAVE_SEARCH_API_KEY", newsCapable: true, search: searchBrave },
+  { name: "tavily", apiKeyEnv: "TAVILY_API_KEY", newsCapable: true, search: searchTavily },
+  { name: "jina", apiKeyEnv: "JINA_API_KEY", newsCapable: false, search: searchJina },
 ];
 
 /** Engine names in priority order — exported for tests and status logs. */
@@ -164,6 +257,10 @@ export function isPoolEligible(source) {
  * @param {Array} [opts.engines] - Engine override (test seam); defaults to the
  *   fixed Serper > Brave > Tavily > Jina order
  * @param {number} [opts.timeoutMs] - Per-engine fetch timeout (default 15s)
+ * @param {boolean|{days: number}} [opts.news] - News-contract mode (#309):
+ *   engines receive a recency window (Serper tbs / Brave freshness /
+ *   Tavily topic:"news"+days; default 7 days) and non-newsCapable engines
+ *   (Jina) are skipped fail-closed. Omit for the general web chain.
  * @param {string} [opts.mode] - "parallel" runs all engines simultaneously and
  *   merges/deduplicates results by URL; default (serial) returns first success
  * @returns {Promise<{articles: Array, engine: string|null, attempts: Array}>}
@@ -174,14 +271,24 @@ export function isPoolEligible(source) {
 export async function searchPool(keyword, opts = {}) {
   const engines = opts.engines ?? POOL_ENGINES;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const news = opts.news ? { days: opts.news?.days ?? 7 } : null;
 
   if (opts.mode === "parallel") {
-    return searchPoolParallel(keyword, engines, timeoutMs);
+    return searchPoolParallel(keyword, engines, timeoutMs, news);
   }
 
   const attempts = [];
 
   for (const engine of engines) {
+    if (news && engine.newsCapable === false) {
+      attempts.push({
+        engine: engine.name,
+        ok: false,
+        error:
+          "skipped: no news window and only partial per-entry dates — fail-closed news exit (#309)",
+      });
+      continue;
+    }
     const apiKey = process.env[engine.apiKeyEnv] || "";
     if (!apiKey) {
       attempts.push({ engine: engine.name, ok: false, error: `missing ${engine.apiKeyEnv}` });
@@ -190,7 +297,7 @@ export async function searchPool(keyword, opts = {}) {
 
     let result;
     try {
-      result = await engine.search(keyword, apiKey, timeoutMs);
+      result = await engine.search(keyword, apiKey, timeoutMs, news);
     } catch (err) {
       const reason =
         err.name === "TimeoutError" || err.name === "AbortError"
@@ -218,11 +325,22 @@ export async function searchPool(keyword, opts = {}) {
 /**
  * Parallel mode: fire all engines simultaneously, merge + deduplicate by URL.
  * Best for deep research where coverage matters more than quota efficiency.
+ * News-mode handling matches serial: non-newsCapable engines are skipped
+ * fail-closed (#309).
  */
-async function searchPoolParallel(keyword, engines, timeoutMs) {
+async function searchPoolParallel(keyword, engines, timeoutMs, news = null) {
   const attempts = [];
 
   const activeEngines = engines.filter((engine) => {
+    if (news && engine.newsCapable === false) {
+      attempts.push({
+        engine: engine.name,
+        ok: false,
+        error:
+          "skipped: no news window and only partial per-entry dates — fail-closed news exit (#309)",
+      });
+      return false;
+    }
     const apiKey = process.env[engine.apiKeyEnv] || "";
     if (!apiKey) {
       attempts.push({ engine: engine.name, ok: false, error: `missing ${engine.apiKeyEnv}` });
@@ -234,7 +352,7 @@ async function searchPoolParallel(keyword, engines, timeoutMs) {
   const results = await Promise.allSettled(
     activeEngines.map(async (engine) => {
       const apiKey = process.env[engine.apiKeyEnv];
-      const result = await engine.search(keyword, apiKey, timeoutMs);
+      const result = await engine.search(keyword, apiKey, timeoutMs, news);
       return { name: engine.name, result };
     }),
   );

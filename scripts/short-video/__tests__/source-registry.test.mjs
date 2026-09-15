@@ -1383,3 +1383,82 @@ describe("CDP video capabilities (#183)", () => {
     expect(qbitai.capabilities.videos.method).toBe("cdp");
   });
 });
+
+// ─── #309 publishedAt parser mappings (news contract fail-closed) ───
+//
+// Ruling (2026-09-15): API/RSS/pool-family sources must carry publishedAt —
+// the audit found three parsers dropping fields their APIs already provide
+// (github `pushed_at`, tiktok `create_time`), and weibo_hot whose hot-list
+// semantics make fetch time the item's validity time.
+
+describe("#309 publishedAt parser mappings", () => {
+  it("github_search maps pushed_at to publishedAt", () => {
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "github_search");
+    const articles = src.apiSearch.parser(
+      JSON.stringify({
+        items: [
+          {
+            full_name: "a/b",
+            html_url: "https://github.com/a/b",
+            description: "d",
+            pushed_at: "2026-09-14T10:00:00Z",
+          },
+        ],
+      }),
+    );
+    expect(articles[0].publishedAt).toBe("2026-09-14T10:00:00Z");
+  });
+
+  it("github_search leaves publishedAt empty when pushed_at is missing", () => {
+    const src = INTERNATIONAL_SOURCES.find((s) => s.name === "github_search");
+    const articles = src.apiSearch.parser(
+      JSON.stringify({ items: [{ full_name: "a/b", html_url: "https://github.com/a/b" }] }),
+    );
+    expect(articles[0].publishedAt).toBe("");
+  });
+
+  it("tiktok_creator maps aweme create_time (unix seconds) to ISO publishedAt", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    const articles = src.apiSearch.parser(
+      JSON.stringify({
+        search_item_list: [
+          {
+            aweme_info: {
+              aweme_id: "v1",
+              desc: "clip",
+              create_time: 1757836800,
+              author: { unique_id: "u" },
+            },
+          },
+        ],
+      }),
+    );
+    expect(articles[0].publishedAt).toBe(new Date(1757836800 * 1000).toISOString());
+  });
+
+  it("tiktok_creator leaves publishedAt empty when create_time is missing", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "tiktok_creator");
+    const articles = src.apiSearch.parser(
+      JSON.stringify({
+        search_item_list: [
+          { aweme_info: { aweme_id: "v1", desc: "clip", author: { unique_id: "u" } } },
+        ],
+      }),
+    );
+    expect(articles[0].publishedAt).toBe("");
+  });
+
+  it("weibo_hot stamps fetch time as publishedAt (hot-list semantics)", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "weibo_hot");
+    const before = Date.now();
+    const articles = src.apiSearch.parser(
+      JSON.stringify({
+        data: [{ title: "热词", link: "https://s.weibo.com/weibo?q=x", hot_value: 123 }],
+      }),
+    );
+    const ts = new Date(articles[0].publishedAt).getTime();
+    expect(Number.isFinite(ts)).toBe(true);
+    expect(ts).toBeGreaterThanOrEqual(before - 5000);
+    expect(ts).toBeLessThanOrEqual(Date.now() + 5000);
+  });
+});

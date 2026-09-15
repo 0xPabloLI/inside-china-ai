@@ -168,6 +168,19 @@ describe("collectFromSource fallback chain order", () => {
     ]);
   });
 
+  it("passes news-contract opts to the pool call (#309: 7-day recency default)", async () => {
+    const { promise, calls } = harness(
+      {
+        searchPoolFn: async () => ({ attempts: [], articles: [] }),
+        isPoolEligibleFn: () => true,
+      },
+      { mcpFallback: { command: "x" } },
+    );
+    await promise;
+    const poolCall = calls.find((c) => c.fn === "searchPoolFn");
+    expect(poolCall.args[1]).toEqual({ news: { days: 7 } });
+  });
+
   it("skips the pool for platform-specific MCP sources (direct mcpFallback)", async () => {
     const { promise, calls } = harness(
       { collectMcp: async () => [{ title: "m", url: "u" }] },

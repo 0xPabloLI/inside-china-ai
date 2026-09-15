@@ -149,6 +149,7 @@ describe("searchPool", () => {
       title: "Serper hit",
       url: "https://example.com/s",
       snippet: "Serper desc",
+      publishedAt: expect.stringMatching(/^20\d\d-/),
     });
   });
 
@@ -351,5 +352,277 @@ describe("searchPool", () => {
     const result = await searchPool("DeepSeek V4", { engines: jinaOnly });
     expect(result.engine).toBe("jina");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+// ─── publishedAt preservation (#309 news contract) ───
+//
+// The grilling ruling (2026-09-15): pool `toArticle` dropped every engine's
+// date field (Serper `date`, Brave `age`/`page_age`, Tavily `published_date`,
+// Jina `date`), leaving pool results outside any fail-closed freshness filter
+// (filterRecentTrackedArticles needs a Date-parseable publishedAt). The
+// #309 probe (2026-09-16) confirmed: with news params on, Serper/Tavily/Brave
+// carry dates on 100% of results; normalization to ISO happens at the pool
+// seam so relative strings ("1 day ago") don't degenerate into NaN.
+
+const only = (name) => [POOL_ENGINES.find((e) => e.name === name)];
+
+describe("publishedAt preservation (#309)", () => {
+  beforeEach(() => {
+    vi.stubEnv("SERPER_API_KEY", "serper-test-key");
+    vi.stubEnv("BRAVE_SEARCH_API_KEY", "brave-test-key");
+    vi.stubEnv("TAVILY_API_KEY", "tavily-test-key");
+    vi.stubEnv("JINA_API_KEY", "jina-test-key");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("normalizes Serper relative date ('1 day ago') to a recent ISO timestamp", async () => {
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch(() => ({
+        status: 200,
+        body: {
+          organic: [{ title: "t", link: "https://e.com/a", snippet: "s", date: "1 day ago" }],
+        },
+      })),
+    );
+    const { articles } = await searchPool("k", { engines: only("serper") });
+    const ts = new Date(articles[0].publishedAt).getTime();
+    expect(Number.isFinite(ts)).toBe(true);
+    expect(ts).toBeLessThanOrEqual(Date.now());
+    expect(ts).toBeGreaterThan(Date.now() - 26 * 3600e3);
+  });
+
+  it("prefers Brave page_age (ISO) over the relative age", async () => {
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch(() => ({
+        status: 200,
+        body: {
+          web: {
+            results: [
+              {
+                title: "t",
+                url: "https://e.com/b",
+                description: "d",
+                age: "2 days ago",
+                page_age: "2026-09-13T15:33:21Z",
+              },
+            ],
+          },
+        },
+      })),
+    );
+    const { articles } = await searchPool("k", { engines: only("brave") });
+    expect(articles[0].publishedAt).toBe(new Date("2026-09-13T15:33:21Z").toISOString());
+  });
+
+  it("falls back to Brave relative age when page_age is absent", async () => {
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch(() => ({
+        status: 200,
+        body: {
+          web: {
+            results: [{ title: "t", url: "https://e.com/b", description: "d", age: "2 days ago" }],
+          },
+        },
+      })),
+    );
+    const { articles } = await searchPool("k", { engines: only("brave") });
+    const ts = new Date(articles[0].publishedAt).getTime();
+    expect(Number.isFinite(ts)).toBe(true);
+    expect(ts).toBeGreaterThan(Date.now() - 3 * 864e5);
+  });
+
+  it("normalizes Tavily RFC2822 published_date to ISO", async () => {
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch(() => ({
+        status: 200,
+        body: {
+          results: [
+            {
+              title: "t",
+              url: "https://e.com/t",
+              content: "c",
+              published_date: "Thu, 10 Sep 2026 23:33:41 GMT",
+            },
+          ],
+        },
+      })),
+    );
+    const { articles } = await searchPool("k", { engines: only("tavily") });
+    expect(articles[0].publishedAt).toBe("2026-09-10T23:33:41.000Z");
+  });
+
+  it("maps Jina date strings to ISO when parseable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch(() => ({
+        status: 200,
+        body: {
+          data: [{ title: "t", url: "https://e.com/j", description: "d", date: "2025-08-09" }],
+        },
+      })),
+    );
+    const { articles } = await searchPool("k", { engines: only("jina") });
+    expect(articles[0].publishedAt).toBe("2025-08-09T00:00:00.000Z");
+  });
+
+  it("omits publishedAt when the engine carries no date field (unchanged shape)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch(() => ({ status: 200, body: TAVILY_BODY })),
+    );
+    const { articles } = await searchPool("k", { engines: only("tavily") });
+    expect(articles[0].publishedAt).toBeUndefined();
+    expect(articles[0]).toEqual({
+      title: "Tavily hit",
+      url: "https://example.com/t",
+      snippet: "Tavily content",
+    });
+  });
+
+  it("omits publishedAt when the date string is unparseable (fail-closed, no garbage)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch(() => ({
+        status: 200,
+        body: {
+          organic: [{ title: "t", link: "https://e.com/a", snippet: "s", date: "soon-ish" }],
+        },
+      })),
+    );
+    const { articles } = await searchPool("k", { engines: only("serper") });
+    expect(articles[0].publishedAt).toBeUndefined();
+  });
+});
+
+// ─── news-mode engine params (#309 news contract, ruling (b)) ───
+//
+// Ruling: pool calls gain news params — Serper `tbs`, Tavily `topic:"news"` +
+// `days`, Brave `freshness`; recency defaults to 7 days. Jina has no news
+// param and only 62.5% per-entry dates (probe: 5/8 dated, 58.9k tokens/call)
+// — it exits the news chain fail-closed and stays in the general chain.
+
+describe("news-mode engine params (#309)", () => {
+  beforeEach(() => {
+    vi.stubEnv("SERPER_API_KEY", "serper-test-key");
+    vi.stubEnv("BRAVE_SEARCH_API_KEY", "brave-test-key");
+    vi.stubEnv("TAVILY_API_KEY", "tavily-test-key");
+    vi.stubEnv("JINA_API_KEY", "jina-test-key");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("Serper: adds tbs=qdr:w for the default 7-day window", async () => {
+    let seenBody;
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch((_url, init) => {
+        seenBody = JSON.parse(init.body);
+        return { status: 200, body: SERPER_BODY };
+      }),
+    );
+    await searchPool("k", { news: true, engines: only("serper") });
+    expect(seenBody.tbs).toBe("qdr:w");
+  });
+
+  it("Tavily: adds topic:news + days=7 for the default window", async () => {
+    let seenBody;
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch((_url, init) => {
+        seenBody = JSON.parse(init.body);
+        return { status: 200, body: TAVILY_BODY };
+      }),
+    );
+    await searchPool("k", { news: true, engines: only("tavily") });
+    expect(seenBody.topic).toBe("news");
+    expect(seenBody.days).toBe(7);
+  });
+
+  it("Brave: adds freshness=pw for the default window", async () => {
+    let seenUrl;
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch((url) => {
+        seenUrl = String(url);
+        return { status: 200, body: BRAVE_BODY };
+      }),
+    );
+    await searchPool("k", { news: true, engines: only("brave") });
+    expect(seenUrl).toContain("freshness=pw");
+  });
+
+  it("buckets explicit day windows (1 day → qdr:d / pd, 30 days → qdr:m / pm)", async () => {
+    const seen = [];
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch((url, init) => {
+        if (String(url).includes("brave")) seen.push(["brave", String(url)]);
+        else seen.push(["serper", JSON.parse(init.body)]);
+        return String(url).includes("brave")
+          ? { status: 200, body: BRAVE_BODY }
+          : { status: 200, body: SERPER_BODY };
+      }),
+    );
+    await searchPool("k", { news: { days: 1 }, engines: only("serper") });
+    await searchPool("k", { news: { days: 30 }, engines: only("serper") });
+    await searchPool("k", { news: { days: 1 }, engines: only("brave") });
+    await searchPool("k", { news: { days: 30 }, engines: only("brave") });
+    expect(seen.map(([e, v]) => [e, v.tbs ?? v.match(/freshness=(\w+)/)?.[1] ?? null])).toEqual([
+      ["serper", "qdr:d"],
+      ["serper", "qdr:m"],
+      ["brave", "pd"],
+      ["brave", "pm"],
+    ]);
+  });
+
+  it("skips Jina in news mode without a network call (fail-closed news exit)", async () => {
+    const fetchMock = jsonFetch((url) => {
+      if (String(url).includes("s.jina.ai"))
+        throw new Error("jina must not be called in news mode");
+      return { status: 500, body: {} };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchPool("k", { news: true });
+    expect(result.engine).toBeNull();
+    expect(result.articles).toEqual([]);
+    expect(result.attempts.map((a) => a.engine)).toEqual(["serper", "brave", "tavily", "jina"]);
+    expect(result.attempts[3].error).toContain("fail-closed");
+  });
+
+  it("keeps Jina in the chain outside news mode (general fallback unchanged)", async () => {
+    const fetchMock = jsonFetch((url) => {
+      if (String(url).includes("s.jina.ai")) return { status: 200, body: JINA_BODY };
+      return { status: 500, body: {} };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchPool("k", { engines: LEGACY_CHAIN });
+    expect(result.engine).toBe("jina");
+  });
+
+  it("adds no news params without opts.news (backward compat)", async () => {
+    const seen = [];
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch((url, init) => {
+        seen.push({ url: String(url), body: init?.body ? JSON.parse(init.body) : null });
+        return { status: 200, body: TAVILY_BODY };
+      }),
+    );
+    await searchPool("k", { engines: [POOL_ENGINES.find((e) => e.name === "serper")] });
+    expect(seen[0].body.tbs).toBeUndefined();
+    expect(seen[0].url).not.toContain("freshness");
+    expect(seen[0].body.topic).toBeUndefined();
   });
 });

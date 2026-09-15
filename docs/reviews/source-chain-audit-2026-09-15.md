@@ -1,7 +1,7 @@
 # Source-Chain 逐源审计报告（静态部分）— #309
 
-> **Issue**: [#309](https://github.com/0xPabloLI/inside-china-ai/issues/309) · **日期**: 2026-09-15 · **Session-Id**: `20260915-fix-308-401670`
-> **范围**: 静态逐源链路审计（62 源 × 两条契约 × fallback 层）。live 探针（Jina 配额/date、weibo yt-dlp 真实样本、引擎排序对比、video capability 实测下载）另行执行后补挂票。
+> **Issue**: [#309](https://github.com/0xPabloLI/inside-china-ai/issues/309) · **日期**: 2026-09-15 · **Session-Id**: `20260915-fix-308-401670`（静态部分）/ `20260916-probe309-live`（live 探针 + 新闻契约实施，§F）
+> **范围**: 静态逐源链路审计（62 源 × 两条契约 × fallback 层）+ live 探针（§F：Jina 配额/date、weibo yt-dlp 真实样本、引擎排序对比、video capability 14 源实测下载）。
 > **方法**: 全读 `source-registry.mjs`（3557 行）+ 交叉核对 `search-sources.mjs` / `lib/search-pool.mjs` / `lib/progressive-search.mjs` / `lib/video-downloaders.mjs` / `lib/asset-sourcer.mjs`。每条结论带 file:line 锚点。
 
 **实际计数（与预期核对）**：`ALL_SOURCES` = **62 源**：NEWS 12 + SELF_MEDIA 8 + INTERNATIONAL 10 + GENERAL 5 + LAST30DAYS 5 + WECHAT_ACCOUNT 1 + WECHAT_RSS 12 + TELEGRAM 1 + STOCK_MEDIA 8。articles-capable = 54（stock 8 个 `articleScript: ""` 为 falsy）。`capabilities.videos` = **14 源**（§E）。⚠️ `search-sources.mjs:19` 头注释仍写 "65 sources total"——文档漂移（§D-7）。
@@ -128,6 +128,61 @@ Pool 保留对象（裁决后）：`google_search`、`mcp_grok_search`（+ 视 t
 | `coverr` | api (COVERR_API_KEY) | CDN mp4+token → `downloadDirectHttp` |
 
 CDP 10 源共享 `CDP_VIDEO_SCRIPT`（self-hosted `<video>` + bilibili/youtube embed，:2745-2770 附近），候选归一为 bilibili/youtube/direct 三类，下载收敛到 `selectStrategy`（video-downloaders.mjs:281）。live "能不能真拿到" 验证另行执行。
+
+---
+
+## F. Live 探针结果（2026-09-16，#309 执行轮）
+
+探针脚本留档 `scripts/short-video/output/probe-309/`（gitignored）：`probe-engines.mjs`（引擎对比 + Jina）、`probe-video.mjs`（14 源实测）、`probe-weibo.mjs`（weibo 下载）、原始 JSON 与本文档同目录同名。
+
+### F.1 探针 1 — 引擎新闻参数对比（3 关键词 × 3 引擎，同查询集）
+
+| 引擎 | news 参数 | 结果/词 | 日期字段覆盖 | 质量判读 |
+|---|---|---|---|---|
+| Serper | `tbs=qdr:w` | 9 | **100%**（`date`，相对串 "1 day ago"） | 混合：Reuters/AlJazeera 新闻 + YouTube/reddit/文档页 |
+| Tavily | `topic:news` + `days:7` | 9 | **100%**（`published_date`，RFC2822） | **最好**：VentureBeat/Register/SCMP/NPR/36kr 全新闻 |
+| Brave | `freshness=pw` | 19–20 | **100%**（`page_age` ISO + `age` 相对） | 混合：题材词命中 NYT/SCMP；产品词（"Qwen"）混 Wikipedia/文档/市场页 |
+
+**参数映射定案**：三引擎参数全部启用；引擎优先级不变（配额经济：Serper 2500 > Brave 2000 > Tavily 1000 /月）；日期在 pool `toArticle` 归一化 ISO（相对串/RFCC2822/month-name 全支持，不可解析 → 无 publishedAt，fail-closed 下游丢弃）。
+
+**网络环境发现（推翻 #281 结论）**：Brave 从本机 **Node fetch 直连再次失败**——DNS 污染复发（`api.search.brave.com` → 66.220.147.11、`s.jina.ai` → 31.13.95.33，均 Facebook 网段污染记录），curl 直连同样 HTTP 000；**走本地代理（127.0.0.1:7897）恢复**。#281 的"未复现"结论只代表当时；pool 的 Brave/Jina 链路在本机需要代理路由（`search-pool.mjs` 头注的已知环境约束条款继续有效）。
+
+### F.2 探针 2 — Jina s.jina.ai 实测（判决输入）
+
+- **date 字段：存在但仅 62.5%**（8 条中 5 条），且格式模糊（"8 days ago" / "Aug 9, 2025" / "1 year ago"）——不满足 fail-closed 新闻契约的每条必有日期。
+- **配额经济学：单次 `x-usage-tokens: 58958`**（约烧掉 1M/月免费配额的 ~6%）——作为第 4 备胎引擎成本过高。
+- 质量差：返回博客索引页（"DeepSeek AI Blog (2026)"）与一年旧文，无新闻垂直。
+- **判决（按裁决框架）**：Jina **退出 fail-closed 新闻链**（news 模式跳过，attempts 留 `fail-closed` 记录）；通用链保留原位。已实施（`newsCapable: false`）。
+
+### F.3 探针 3 — weibo yt-dlp 真实样本（判决延后）
+
+- 样本：weibo 首页 feed 实抓 4 条真实帖 URL（CDP 代理，登录态正常）。
+- 结果：**4/4 失败**——`ERROR: [Weibo] ...: Failed to parse JSON (JSONDecodeError)`（extractor 的 JSON metadata 步骤拿到非 JSON，登录墙/验证页 HTML；firefox 524 cookies 不够）。
+- **配置说明**：本次运行 `WEIBO_COOKIE` **未设置**（用户答应补、截至探针时未入 `.env.local`）——#75 Batch 2 的 cookie 管线**从未被行使**，"败"证据不充分，**不足以判删路由**。判决延后：等 `WEIBO_COOKIE` 就位后复测一次；届时再失败 → 删路由（按任务定案）。
+- 附带发现：**weibo_hot 主 API（60s.viki.moe）全程 429**（直连 + 代理都限流）——该源 API 层当前不可用，#140 P5 的"第三方生存风险"注释应验。
+
+### F.4 探针 4 — video capability 14 源逐源实测（验收：拿到 ≠ 搜到）
+
+**2/14 拿到**。逐源：
+
+| 源 | 结果 | 证据/根因 |
+|---|---|---|
+| `baidu_search` | ✅ 拿到 | CDP `tn=vsearch` 真视频垂直页 → bdstatic 直链 mp4（2.3MB）。**唯一下单层即视频垂直的 CDP 源** |
+| `pexels-video` | ✅ 拿到 | API 10 候选 → 1080p mp4（53MB）。⚠️ 超 20M cap——管线直连路径（`downloadDirectHttp` 的 `exceeds-size-limit`）会 skip；探针用无 cap 的 `downloadAsset` 才落盘 |
+| `bilibili` | ❌→✅* | 直连 **SSL EOF**（网络层，yt-dlp→bilibili 被掐）；`--proxy 7897` 后 **搜索+下载全通**（8s mp4 143KB）——能力成立，本机路由问题。管线 execSync 无代理配置，当前环境实际拿不到 |
+| `youtube_search` | ❌ | `ytsearch10` 搜到 10 条，下载全部 **bot-check**（"Sign in to confirm you're not a bot"；`--cookies-from-browser firefox` 的 cookies 无效/无 YouTube 登录态） |
+| 其余 9 个 CDP 新闻源（qbitai/jiqizhixin/ithome/xinhua/thepaper/leiphone/zhidx/bing_news/google_search） | ❌ 0 候选 | **结构性弱项**：`CDP_VIDEO_SCRIPT` 扫**搜索结果页**本身的自托管 `<video>` + B站/YT embed——新闻站搜索页不嵌播放器（视频在文章页内）；qbitai 的 video URL 甚至只是**首页**（手动验证：0 video / 0 iframe）。唯 baidu（真视频垂直）例外 |
+| `coverr` | ❌ | 搜索 API 活着（`query=technology` 27 页）但 **DeepSeek 0 库存**（题材词问题非链路问题）；**下载链漂移**：`data.params.userToken` 现为字符串非对象（parser 取不到 token）且旧 CDN URL `cdn.coverr.co/videos/{base}/mp4?token=` 对正确 token 也 404——hit 内 `playback_id` 表明已迁 Mux 托管（`stream.mux.com` 直链 403/404，需签名）→ **需要修 parser + 换下载模式，建议另开小票** |
+
+**结论**：`capabilities.videos` 的声明与实得差距大——CDP 10 源中 9 个的"视频能力"实为"搜索页偶见 embed"，架构上不满足素材契约的定向获取；真正可靠的拿到路径 = baidu vsearch（垂直页）、pexels（API）、bilibili（需代理路由修复）。site: 推广与素材库体系（#310）设计时应以此为基线。
+
+### F.5 新闻契约最短路径实施（本轮 commit）
+
+- **三个 parser 映射**：`github_search.pushed_at`（raw ISO）、`tiktok_creator.create_time`（unix 秒 → ISO）、`weibo_hot`（fetch 时间戳——热榜语义：条目有效期 = 在榜时间）。
+- **pool `toArticle` 日期保留**：`normalizePublishedDate`（相对串/ISO/RFC2822/month-name → ISO；不可解析 → 省略字段）；`parseArticles` 采集 `published_date`/`page_age`/`date`/`age`。
+- **引擎 news 参数**：`opts.news`（`true` → 7 天默认；`{days:N}` 显式窗口；bucket 1→d/pd、7→w/pw、30→m/pm、else→y/py）→ Serper `tbs` / Brave `freshness` / Tavily `topic:news`+`days`；Jina `newsCapable: false` news 模式跳过（F.2 判决）。
+- **接线**：`search-sources.mjs` pool 调用传 `{ news: { days: 7 } }`（裁决默认窗；空结果照旧落 Grok MCP 兜底）。
+- **验证**：TDD red 17 → green；受影响 8 测试文件 326/326 + 关联 6 文件 434/434 全绿（vitest）；改动文件 eslint 清零（`search-sources.mjs:328` 一处 prettier 报错属 #308 既有代码，不动）。
 
 ---
 
