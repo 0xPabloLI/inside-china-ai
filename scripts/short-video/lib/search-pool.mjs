@@ -19,8 +19,7 @@
  *
  * Engine priority: Serper (2500 q/mo, Google results) > Brave (2000 q/mo,
  * best quality) > Tavily (1000 credits/mo, AI-optimized) > Jina (1M tokens/mo).
- * GoogleCSE is NOT in the pool — it is site-scoped (50 AI news domains) and
- * belongs in the content pipeline, not general web search. Engines whose API
+ * Engines whose API
  * key is missing are skipped without a network call. Credentials live in repo-root .env.local.
  *
  * Known environment constraint (scripts/short-video/test-search-engines.mjs,
@@ -111,19 +110,6 @@ async function searchSerper(keyword, apiKey, timeoutMs) {
   return { ok: true, articles: parseArticles(data?.organic) };
 }
 
-/** Google CSE: GET with key+cx params, results under items[].link. */
-async function searchGoogleCse(keyword, apiKey, timeoutMs) {
-  const cx = process.env.GOOGLE_CSE_ID || "";
-  if (!cx) return { ok: false, error: "missing GOOGLE_CSE_ID" };
-  const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(keyword)}&num=20`;
-  const resp = await fetch(url, {
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!resp.ok) return { ok: false, error: `GoogleCSE HTTP ${resp.status}` };
-  const data = await resp.json();
-  return { ok: true, articles: parseArticles(data?.items) };
-}
-
 /** Jina Search: GET s.jina.ai/{query}, results under data[].description. */
 async function searchJina(keyword, apiKey, timeoutMs) {
   const url = `https://s.jina.ai/${encodeURIComponent(keyword)}`;
@@ -137,8 +123,6 @@ async function searchJina(keyword, apiKey, timeoutMs) {
 }
 
 /** Fixed priority order — Serper (2500/mo, Google results) > Brave (2000/mo) > Tavily (1000/mo) > Jina.
- *  GoogleCSE removed from pool: it is site-scoped (50 AI news domains), not general web search.
- *  CSE lives in the content pipeline as a dedicated site-scoped source instead.
  *  Exported so tests can pin an explicit engine list via the opts.engines seam. */
 export const POOL_ENGINES = [
   { name: "serper", apiKeyEnv: "SERPER_API_KEY", search: searchSerper },
