@@ -45,7 +45,11 @@ export const Route = createFileRoute("/api/public/og/posts/$slug.png")({
         if (!post) return new Response("Not found", { status: 404 });
 
         try {
+          // Loaded lazily: the WASM renderer must never run at worker startup, or a
+          // failure there would take down every route on the site.
+          const { Resvg } = await import("@cf-wasm/resvg");
           const svg = createArticleOgSvg({ title: post.title, publishedAt: post.published_at });
+
           const resvg = await Resvg.async(svg, {
             font: {
               fontBuffers: await loadFontBuffers(request),
