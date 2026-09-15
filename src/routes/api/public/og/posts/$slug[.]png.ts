@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import sourceSerifUrl from "@/assets/fonts/SourceSerif4.ttf?url";
 import interUrl from "@/assets/fonts/Inter-Bold.ttf?url";
-
 import {
   ARTICLE_OG_HEIGHT,
   ARTICLE_OG_WIDTH,
@@ -22,6 +21,23 @@ function loadFontBuffers(request: Request): Promise<Uint8Array[]> {
     }),
   );
   return fontBuffersPromise;
+}
+
+type ResvgCtor = typeof import("@cf-wasm/resvg").Resvg;
+
+/**
+ * Loaded lazily so the WASM renderer never runs at worker startup — a failure there
+ * would take down every route on the site. The workerd build is tried first for
+ * production; the default build serves local development.
+ */
+async function loadResvg(): Promise<ResvgCtor> {
+  try {
+    const mod = await import("@cf-wasm/resvg/workerd");
+    return mod.Resvg as ResvgCtor;
+  } catch {
+    const mod = await import("@cf-wasm/resvg");
+    return mod.Resvg;
+  }
 }
 
 export const Route = createFileRoute("/api/public/og/posts/$slug.png")({
@@ -45,11 +61,8 @@ export const Route = createFileRoute("/api/public/og/posts/$slug.png")({
         if (!post) return new Response("Not found", { status: 404 });
 
         try {
-          // Loaded lazily: the WASM renderer must never run at worker startup, or a
-          // failure there would take down every route on the site.
-          const { Resvg } = await import("@cf-wasm/resvg");
+          const Resvg = await loadResvg();
           const svg = createArticleOgSvg({ title: post.title, publishedAt: post.published_at });
-
           const resvg = await Resvg.async(svg, {
             font: {
               fontBuffers: await loadFontBuffers(request),
@@ -73,7 +86,8 @@ export const Route = createFileRoute("/api/public/og/posts/$slug.png")({
               "X-Content-Type-Options": "nosniff",
             },
           });
-        } catch {
+        } catch (err) {
+          console.error("OG image render failed", err);
           return new Response("Unable to render article image", { status: 500 });
         }
       },

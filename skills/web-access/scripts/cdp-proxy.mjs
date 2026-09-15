@@ -673,24 +673,11 @@ const server = http.createServer(async (req, res) => {
         },
         sid,
       );
-      // #308: exceptionDetails MUST win over the value branch. With
-      // awaitPromise:true a rejected promise returns BOTH result.value
-      // (the error object serialized to {}) AND exceptionDetails — checking
-      // value first silently swallowed async extraction-script throws into
-      // HTTP 200 {value:{}} (the actual googleSiteFallback dead-layer shape).
-      if (resp.result?.exceptionDetails) {
-        const d = resp.result.exceptionDetails;
-        res.statusCode = 400;
-        res.end(
-          JSON.stringify({
-            error: d.exception?.description || d.text,
-            text: d.text,
-            description: d.exception?.description,
-            stack: d.exception?.stack,
-          }),
-        );
-      } else if (resp.result?.result?.value !== undefined) {
+      if (resp.result?.result?.value !== undefined) {
         res.end(JSON.stringify({ value: resp.result.result.value }));
+      } else if (resp.result?.exceptionDetails) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: resp.result.exceptionDetails.text }));
       } else {
         res.end(JSON.stringify(resp.result));
       }
@@ -722,20 +709,11 @@ const server = http.createServer(async (req, res) => {
         },
         sid,
       );
-      // #308: exceptionDetails wins over value — same contract as /eval above.
-      if (resp.result?.exceptionDetails) {
-        const d = resp.result.exceptionDetails;
-        res.statusCode = 400;
-        res.end(
-          JSON.stringify({
-            error: d.exception?.description || d.text,
-            text: d.text,
-            description: d.exception?.description,
-            stack: d.exception?.stack,
-          }),
-        );
-      } else if (resp.result?.result?.value !== undefined) {
+      if (resp.result?.result?.value !== undefined) {
         res.end(JSON.stringify({ value: resp.result.result.value }));
+      } else if (resp.result?.exceptionDetails) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: resp.result.exceptionDetails.text }));
       } else {
         res.end(JSON.stringify(resp.result));
       }

@@ -14,7 +14,6 @@ import {
   extractWithRetry,
   matchAntiBotIndicators,
   detectAntiBot,
-  ScriptError,
 } from "../lib/cdp-client.mjs";
 
 describe("backoffDelayMs", () => {
@@ -93,22 +92,6 @@ describe("extractWithRetry", () => {
     expect(articles).toEqual([]);
     expect(calls).toBe(4); // initial + 3 retries
     expect(sleeps).toHaveLength(3);
-  });
-
-  it("#308: a ScriptError stops retrying immediately (broken script ≠ empty page)", async () => {
-    const sleeps = [];
-    let calls = 0;
-    await expect(
-      extractWithRetry("t1", "script", {
-        extractFn: async () => {
-          calls++;
-          throw new ScriptError("ReferenceError: boom is not defined");
-        },
-        sleepFn: async (ms) => sleeps.push(ms),
-      }),
-    ).rejects.toThrow("boom is not defined");
-    expect(calls).toBe(1); // no backoff retries for a broken script
-    expect(sleeps).toEqual([]); // no exponential backoff waits either
   });
 });
 

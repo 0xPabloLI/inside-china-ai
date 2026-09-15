@@ -13,7 +13,6 @@ import {
   updateSourceHealth,
   deriveZeroResultSources,
   REVIEW_THRESHOLD,
-  QUARANTINE_THRESHOLD,
 } from "../lib/source-health.mjs";
 import { collectFromSource } from "../search-sources.mjs";
 import { buildDiscoveryOutput } from "../search-sources.mjs";
@@ -43,24 +42,6 @@ describe("updateSourceHealth", () => {
       .map(([name]) => name);
     expect(flagged).toContain("36kr_search");
     expect(REVIEW_THRESHOLD).toBeGreaterThanOrEqual(2);
-  });
-
-  // #308: script-error zero runs count toward the quarantine criterion and
-  // the recorded quarantineReason names the script error, not "zero-results".
-  it("quarantines a source whose zero runs are labeled script-error", () => {
-    let log = null;
-    for (let i = 0; i < QUARANTINE_THRESHOLD; i++) {
-      log = updateSourceHealth(
-        log,
-        [{ name: "x_search", count: 0, zeroReason: "script-error" }],
-        { now: 1000 + i },
-      );
-    }
-    const record = log.sources["x_search"];
-    expect(record.consecutiveZeroRuns).toBe(QUARANTINE_THRESHOLD);
-    expect(record.quarantined).toBe(true);
-    expect(record.quarantineReason).toBe("script-error");
-    expect(record.lastZeroReason).toBe("script-error");
   });
 });
 

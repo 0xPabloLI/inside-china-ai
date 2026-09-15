@@ -225,8 +225,7 @@ export function clearQuarantine(log, name) {
  *   per-source collected-article counts for THIS run (sources that threw are
  *   excluded by the caller — they are already visible in failedSources).
  *   #269 Phase 1 extras: zeroReason labels why the run produced nothing
- *   ("zero-results" | "invalid-relevance" | "dead-url" | "dead-url-recheck" |
- *   "script-error" — #308 broken extraction script);
+ *   ("zero-results" | "invalid-relevance" | "dead-url" | "dead-url-recheck");
  *   probe persists the pre-flight URL probe outcome for observability.
  * @param {object} [opts]
  * @param {number} [opts.now] - timestamp override (tests)
