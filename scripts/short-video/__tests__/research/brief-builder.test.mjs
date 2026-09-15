@@ -8,6 +8,14 @@ import {
 } from "../../lib/research/brief-builder.mjs";
 import { DISCOVERY_SCHEMA_VERSION } from "../../lib/research/schemas.mjs";
 
+// Issue #306: `buildBrief` filters against the real clock (no fake timers), so
+// every fixture date must be derived from `Date.now()`. Absolute dates silently
+// age out of the 30-day window and take the whole suite red — and the decay
+// only ever gets worse, never self-heals.
+function daysAgo(days) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 // ─── normalizeUrl ───
 
 describe("normalizeUrl", () => {
@@ -215,26 +223,26 @@ describe("buildBrief", () => {
         url: "https://official.com/announcement?utm_source=newsletter",
         title: "Official Announcement",
         sourceType: "primary",
-        publishedAt: "2026-08-15",
+        publishedAt: daysAgo(3),
       },
       {
         url: "https://techcrunch.com/coverage",
         title: "TechCrunch Coverage",
         sourceType: "authoritative-secondary",
-        publishedAt: "2026-08-16",
+        publishedAt: daysAgo(2),
       },
       {
         url: "https://blog.com/opinion",
         title: "Random Blog Opinion",
         sourceType: "community",
-        publishedAt: "2026-06-01", // Old — should be filtered
+        publishedAt: daysAgo(120), // Old — should be filtered
       },
       // Duplicate of official.com (after normalization strips utm)
       {
         url: "https://official.com/announcement",
         title: "Duplicate of Official",
         sourceType: "community",
-        publishedAt: "2026-08-16",
+        publishedAt: daysAgo(2),
       },
     ],
     sourceCount: 4,
@@ -260,7 +268,7 @@ describe("buildBrief", () => {
       claimsToVerify: [],
     });
     // After dedup: official.com (primary wins over community dup) + techcrunch + blog.com
-    // After time filter (30 days from 2026-08-18): blog.com (June) filtered out
+    // After time filter (30 days from today): blog.com (daysAgo(120)) filtered out
     expect(result.brief.candidateSources).toHaveLength(2);
   });
 
@@ -327,13 +335,13 @@ describe("buildBrief", () => {
             url: "https://mp.weixin.qq.com/s/rss-post",
             title: "WeChat feed post",
             sourceRole: "tracked-feed-context",
-            publishedAt: "2026-08-15",
+            publishedAt: daysAgo(3),
           },
           {
             url: "https://qbitai.com/post",
             title: "Direct article",
             sourceRole: "direct-evidence",
-            publishedAt: "2026-08-15",
+            publishedAt: daysAgo(3),
           },
         ],
         sourceCount: 2,
@@ -357,7 +365,7 @@ describe("buildBrief", () => {
             url: "https://qbitai.com/post",
             title: "Direct article",
             sourceRole: "direct-evidence",
-            publishedAt: "2026-08-15",
+            publishedAt: daysAgo(3),
           },
         ],
         sourceCount: 1,

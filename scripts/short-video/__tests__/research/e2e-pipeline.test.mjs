@@ -34,6 +34,19 @@ function runPipeline(args = []) {
   }
 }
 
+// Issue #306: the pipeline filters sources against the real clock, so fixture
+// dates must be derived from `Date.now()` — absolute dates age out of the
+// 30-day window and silently empty `candidateSources`.
+function daysAgo(days) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+// Same class of drift on the other side of the clock: the auditor treats
+// `validUntil` as stale once the real clock passes it, so keep it derived.
+function daysFromNow(days) {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 // Helper: create a valid discovery
 function makeDiscovery() {
   return {
@@ -48,7 +61,7 @@ function makeDiscovery() {
         title: "Article 1",
         sourceName: "qbitai",
         sourceCategory: "news",
-        publishedAt: "2026-08-15",
+        publishedAt: daysAgo(3),
         collectionMethod: "cdp",
         collectionStatus: "ok",
       },
@@ -57,7 +70,7 @@ function makeDiscovery() {
         title: "Article 2",
         sourceName: "36kr",
         sourceCategory: "news",
-        publishedAt: "2026-08-16",
+        publishedAt: daysAgo(2),
         collectionMethod: "cdp",
         collectionStatus: "ok",
       },
@@ -145,7 +158,7 @@ describe("E2E: research-pipeline.mjs CLI", () => {
           status: "verified",
           crossVerificationIds: [],
           confidence: "high",
-          validUntil: "2027-12-31",
+          validUntil: daysFromNow(365),
           conflictNote: "",
         },
       },
@@ -225,7 +238,7 @@ describe("E2E: research-pipeline.mjs CLI", () => {
           status: "conflicted",
           crossVerificationIds: [],
           confidence: "medium",
-          validUntil: "2027-12-31",
+          validUntil: daysFromNow(365),
           conflictNote: "sources disagree",
         },
       },

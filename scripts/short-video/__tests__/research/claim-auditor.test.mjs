@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { auditClaims } from "../../lib/research/claim-auditor.mjs";
 
+// Issue #306: `isStale` compares `validUntil` against the real clock, so a
+// fixed "not expired" date silently flips to stale once the calendar passes it
+// (2027-12-31 would take every case below red on 2028-01-01). Derive it.
+const VALID_UNTIL_FUTURE = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .slice(0, 10);
+
 // ─── Fixtures ───
 
 function makeEvidenceItem(id, claimId, overrides = {}) {
@@ -19,7 +26,7 @@ function makeEvidenceItem(id, claimId, overrides = {}) {
       status: "verified",
       crossVerificationIds: [],
       confidence: "high",
-      validUntil: "2027-12-31",
+      validUntil: VALID_UNTIL_FUTURE,
       conflictNote: "",
     },
     ...overrides,
@@ -88,7 +95,7 @@ describe("auditClaims — passing scenarios", () => {
           status: "verified",
           crossVerificationIds: ["e2"],
           confidence: "high",
-          validUntil: "2027-12-31",
+          validUntil: VALID_UNTIL_FUTURE,
         },
       }),
       makeEvidenceItem("e2", "c1", {
@@ -142,7 +149,7 @@ describe("auditClaims — failing scenarios", () => {
           status: "rejected",
           crossVerificationIds: [],
           confidence: "low",
-          validUntil: "2027-12-31",
+          validUntil: VALID_UNTIL_FUTURE,
           conflictNote: "source retracted",
         },
       }),
@@ -182,7 +189,7 @@ describe("auditClaims — failing scenarios", () => {
           status: "stale",
           crossVerificationIds: [],
           confidence: "low",
-          validUntil: "2027-12-31",
+          validUntil: VALID_UNTIL_FUTURE,
           conflictNote: "",
         },
       }),
@@ -202,7 +209,7 @@ describe("auditClaims — failing scenarios", () => {
           status: "conflicted",
           crossVerificationIds: [],
           confidence: "medium",
-          validUntil: "2027-12-31",
+          validUntil: VALID_UNTIL_FUTURE,
           conflictNote: "sources disagree",
         },
       }),
@@ -222,7 +229,7 @@ describe("auditClaims — failing scenarios", () => {
           status: "context",
           crossVerificationIds: [],
           confidence: "medium",
-          validUntil: "2027-12-31",
+          validUntil: VALID_UNTIL_FUTURE,
           conflictNote: "",
         },
       }),
@@ -242,7 +249,7 @@ describe("auditClaims — failing scenarios", () => {
           status: "analysis",
           crossVerificationIds: [],
           confidence: "medium",
-          validUntil: "2027-12-31",
+          validUntil: VALID_UNTIL_FUTURE,
           conflictNote: "",
         },
       }),
@@ -263,7 +270,7 @@ describe("auditClaims — failing scenarios", () => {
           status: "verified",
           crossVerificationIds: [],
           confidence: "high",
-          validUntil: "2027-12-31",
+          validUntil: VALID_UNTIL_FUTURE,
         },
       }),
     ];
@@ -283,7 +290,7 @@ describe("auditClaims — failing scenarios", () => {
           status: "verified",
           crossVerificationIds: ["e2"],
           confidence: "high",
-          validUntil: "2027-12-31",
+          validUntil: VALID_UNTIL_FUTURE,
         },
       }),
       makeEvidenceItem("e2", "c1", {
@@ -375,7 +382,7 @@ describe("auditClaims — edge cases", () => {
           status: "rejected",
           crossVerificationIds: [],
           confidence: "low",
-          validUntil: "2027-12-31",
+          validUntil: VALID_UNTIL_FUTURE,
           conflictNote: "",
         },
       }),
