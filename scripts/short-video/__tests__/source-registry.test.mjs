@@ -632,6 +632,19 @@ describe("MCP fallback configuration", () => {
     expect(src.accessMethod.notes).toContain("#213");
   });
 
+  // #292 invariant: isPoolEligible treats ANY apiFallback as pool-eligible
+  // (the direct Bigsong bridge ≡ mcp-search-bridge backend). That is only
+  // correct while x_search is the sole apiFallback carrier — a future
+  // platform-specific source gaining apiFallback would silently enter the
+  // pool, violating triage rule 1 (platform sources never pool).
+  it("only x_search carries apiFallback across the whole registry (#292 pool-eligibility precondition)", () => {
+    const carriers = ALL_SOURCES.filter((s) => s.apiFallback).map((s) => s.name);
+    expect(carriers).toEqual(["x_search"]);
+    for (const name of ["xhs", "sogou_weixin", "weibo_hot", "bilibili", "douyin"]) {
+      expect(ALL_SOURCES.find((s) => s.name === name)?.apiFallback).toBeUndefined();
+    }
+  });
+
   it("sogou_weixin has mcpFallback", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "sogou_weixin");
     expect(src.mcpFallback).toBeDefined();
