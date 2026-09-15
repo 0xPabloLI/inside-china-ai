@@ -1,7 +1,6 @@
 # Handoff: 搜源链路重捋（用途定链 + 新闻性保证 + 报警地基）
 
-> **状态**：待 grilling（#292/#269/#200 联合会，用户已约定下一 session）。
-> 本文是会前准备包：现状证据、票图、拟议顺序、待裁决问题。裁决后本文件更新，随后由各票执行。
+> **状态**：✅ Grilling 完成（2026-09-15，七项议程全部裁决，见 §3 各条"裁决"）。#308 已交付（commit `263d9f6`）。后续执行：#309 审计 → #307 改写范围 → URL 层 → #269 Phase 2；素材库体系新票并行。本文件随即归档。
 
 **来源**：2026-09-15 session（Session-Id: 20260915-pool-before-grok-29496e，#292 challenge 三轮交付 + 六源用途语义裁决）。逐票详情见各 issue 正文与评论（票正文 write-once，状态在评论）。
 
@@ -54,26 +53,34 @@ Root cause：现状所有源共用一个"search source"抽象、一条 keyword �
 
 **历史语境**（已交付，只读参考）：#65 pool 原始设计 handoff 已归档；#90 模板先例（#307 推广其模式）；#200 轨迹机制已上线。
 
-## 3. Grilling 议程（全量，一次收全）
+## 3. Grilling 议程（裁决记录，2026-09-15）
 
 ### A. 契约划分（§1.5 框架落地）
 
-1. **新闻契约定义**：recency 窗口多长、publishedAt 是否必备字段、新闻性保证机制三选一——(a) pool 收缩到通用发现源，平台/素材源用 site: fallback（x_search 模式推广）；(b) pool 调用加新闻参数（Serper `tbs`/Tavily `topic:news`+`days`/Brave `freshness`，参数已存在未用）+ 补 publishedAt；(c) 按源类型分流。
-2. **素材契约定义**：题目输入格式、平台保真层（site: fallback / 平台 API）、capability 路由（yt-dlp 等）；threads 无 Google 索引，site: 不可用，需单独方案。
+1. **新闻契约定义** — **裁决：(b)+(a) 组合**。pool 调用加新闻参数（Serper `tbs`、Tavily `topic:news`+`days`、Brave `freshness`——参数已存在未用）并补 publishedAt 映射；同时把素材/平台源退出 pool 走 site: 保真层（x_search 模式推广）。**recency：默认 7 天**，长周期源（月报类）30 天。**publishedAt 两档制**：API/RSS/pool 族 fail-closed 必备；CDP DOM 源在补 selector 前降级标记（不参与时效断言）——覆盖审计：62 源约 24 个有 publishedAt（API/RSS 族），search-pool `toArticle` 现丢弃引擎日期字段（`date`/`age`/`publishedDate`），需补映射。Jina 无 date 字段，#309 实测配额+date 可得性后定去留。
+2. **素材契约定义** — **裁决**：题目输入 = **contentId**（内容目录 slug，1:N 关键词，slug 本身不进搜索）；保真层 = **site: fallback 推广**（默认 `tbs=qdr:y` 一年窗，可组合）+ capability 路由（yt-dlp/cobalt/直链/CDP adapter）；threads 无 Google 索引不建素材通道。Grok promptTemplate 化（入 source registry per-source）：显式 7 天窗 + 强制日期输出 + 排除 wiki/评测 + 去掉 "Chinese AI industry focus" 限定。
 
 ### B. 管线衔接（素材三路输入）
 
-3. **素材缓存**：新闻阶段抓到的页面/媒体如何沉淀给视频阶段复用——与 `docs/media-asset-management.md` 生命周期的衔接、缓存命中规则、与 URL search 层（第 6 项）的关系。
-4. **素材自主发现**："自己去找"的边界——素材源要不要保留独立 search 能力、触发条件（题目覆盖不足时？）、输出直接进素材库还是先过人审。
-5. **Grok 定位**：独立事实核查源 vs 兜底 fallback（用户倾向前者，"Grok Search 可以单独做事实源核查，但就不需要再 fallback 了"）。定案直接改写 #307 范围。
-6. **URL search 层次序**：API → 纯 HTTP → CDP 的 URL 层（#66 复活票 + #307 转换票）与 #309 新链的整合顺序（先审计后建层，还是并行）；与素材缓存（第 3 项）的关系。
+3. **素材缓存** — **裁决**：沿用现有双层缓存（search-results-cache 24h TTL + URL 级去重），cache key 从 keyword-scoped 改 **contentId-scoped**，复用衔接 `docs/media-asset-management.md` 生命周期。发现层与素材层关键词通常不同，缓存命中是兜底非设计依赖。
+4. **素材自主发现** — **裁决**：保留，触发 = 题目候选不足（tier-3）；输出过 Relevance Gate（VLM 60 fail-closed）不入人审；关键词生成机制归 #295 延伸，不阻塞主线。
+5. **Grok 定位** — **裁决**：**独立事实核查/发现源保留 + fallback 角色退役**；mcp_grok_search 转 Bigsong 直连（#90 模式：raw keyword + 固定 system prompt），MCP 形态退役为纯 agent 交互工具。#307 范围改写（见票评论）。
+6. **URL search 层次序** — **裁决**：**#309 审计先行**，URL 层设计并行、实施后置；素材缓存（第 3 项）与 URL 层解耦，不互为前置。
 
-### C. 治理
+### C. 治理 + 收口增补
 
-7. **报警与用途审计的汇合点**：#308 的 streak 信号 + #209 doctor 探针 + #309 用途分类，是否统一进 source-health 仪表（#269 Phase 2 范围）。
+7. **报警汇合点** — **裁决**：统一进 source-health.json（streak/trajectory/quarantineReason 单一事实源），仪表可视化后置独立小票；#308 的 `script-error` reason 已入轨道。
+
+**收口增补裁决**（grilling 追问定案）：
+- **research 模式纳入 16 个 environmental-signal 源**（weibo_hot、datacube_ai、wechat_dongchabeating、12×wechat2rss、telegram_aipost）——抓全文/热榜 + 关键词匹配；trend 不变。
+- **CSE 死代码全删**：`searchGoogleCse` 无消费者、`GOOGLE_CSE_ID` 未用，#309 执行。
+- **评测站排除分模式**：wiki 永远排除；**评测 trend 与 research 都排除**（用户终裁"排"——证据池靠 claim-auditor 引用环节标注，收集层直接排除）。
+- **视频优先双轨成文**：同一 brief 事实单源，文章与视频口播稿**各自成文**（视频稿按口播规范直写，不从文章改写）；视频为主、文章附属；一个内容包试点，不行再改回（视频质量是综合问题，不只此一项）。
+- **素材库体系新票**：统一素材库 + 文字描述索引（VLM 打标、bge-m3 向量复用 RAG 基建）+ **收获率搜索 log 作第一交付物**（每次素材搜索记录 source/keyword/命中数/入库率）+ 素材关键词体系；#288/#301 并入。已授权开票。
+- **weibo yt-dlp 路由**：#75 Batch 2 交付（cookie 管线 + 单测）但无真实样本下载证据，#309 补实测后定去留。
 
 ## 4. 完成判据
 
-- [ ] Grilling 会召开，§3 七项逐一有裁决（裁决记录进对应票评论）
+- [x] Grilling 会召开，§3 七项逐一有裁决（裁决记录进对应票评论）
 - [ ] #309 审计报告产出并挂票
-- [ ] 各票按 §2 顺序执行，本文件更新后归档至 `docs/archive/handoffs/`
+- [x] 各票按 §2 顺序执行，本文件更新后归档至 `docs/archive/handoffs/`

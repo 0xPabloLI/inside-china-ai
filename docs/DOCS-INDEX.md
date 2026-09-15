@@ -49,6 +49,7 @@
 | `video-script-writing-guide.md`                                | Short video script writing methodology — S.T.A.R.T. primary framework + AI Outline opt-in tool (default off) + retention engine, per-scene asset requirements, hook/CTA formulas, W7/W8/W9 narrative checks | `content-pipeline.md` Stage 3                                          |
 | `archive/handoff-video-layout-standard.md`                     | 视频布局安全区 session 交接（已归档，内容已集成到 `brand-system.md` Layout Safety 章节）                                                                                                                    | —                                                                      |
 | `archive/handoffs/handoff-qwen4-preview-pipeline-hardening.md` | Qwen4-preview 视频 + 管线加固 session 交接（已归档，发布由用户自洽）                                                                                                                                        | —                                                                      |
+| `archive/handoffs/handoff-source-chain-rework.md`              | 搜源链路重捋 handoff（已归档）——两条契约（新闻契约/素材契约）+ grilling 七项议程全部裁决（#292/#269/#200 联合会，2026-09-15）；裁决执行见 #309/#307/#269                                                  | #292/#269/#200/#307/#309                                               |
 | `archive/spec-cta-end-card-standard.md`                        | 标准 CTA 结尾页设计（已归档）                                                                                                                                                                               | video pipeline                                                         |
 | `archive/spec-video-layout-safe-zones.md`                      | 视频布局安全区 + 槽位 + 竖向堆叠规范（已归档；现行行为见 brand-system.md）                                                                                                                                  | video pipeline                                                         |
 
@@ -135,7 +136,6 @@ Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | `tts-indian-accent-handoff.md`             | TTS 印度口音回归 handoff（CosyVoice3-Kaggle-CUDA deepseek-v41-flash；基线样本参数未记录，未解决待处理；issue #234） |
 | `handoff-on-demand-audit.md`               | On-Demand Content Audit feature design (Issue #60/#61 OPEN)                                                         |
-| `handoff-source-chain-rework.md`           | 搜源链路重捋 handoff——用途定链 + 新闻性保证证据 + 票图（#308→grilling→#309→#307/URL 层→#269）与 grilling 议程（#292/#269/#200 联合会输入，2026-09-15） |
 | `handoff-qwen4-preview-r2-visual-audit.md` | qwen4-preview R2 视觉审计 — 仅诊断+方案设计未改代码，渲染 6 FAIL 待独立 triage（2026-09-06 补登）                   |
 
 ### `reviews/` — Active review records
