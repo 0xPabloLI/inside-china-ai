@@ -1,0 +1,68 @@
+name: Production Health Check
+
+# Post-deploy observability: poll the live health endpoint on a schedule and
+# open an issue the moment it stops answering, so a broken deploy surfaces
+# without anyone remembering to check.
+#
+# One-time setup: set the repository variable PROD_URL to the site origin
+# (e.g. https://<project>.lovable.app). While it is unset the job skips, so
+# the schedule never produces red noise for a misconfigured repo.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: health-check
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve production URL
+        id: url
+        run: |
+          if [ -z "${{ vars.PROD_URL }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "PROD_URL repository variable is not set — skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Poll /api/public/health
+        if: steps.url.outputs.skip == 'false'
+        run: |
+          STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 15 "${{ vars.PROD_URL }}/api/public/health")
+          echo "HTTP $STATUS"
+          cat /tmp/health.json || true
+          [ "$STATUS" = "200" ]
+
+      - name: Open failure issue
+        if: failure() && steps.url.outputs.skip == 'false'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = `Health check failed for ${process.env.PROD_URL} (${new Date().toISOString()})`;
+            const body = [
+              'Scheduled production health check failed.',
+              '',
+              `- Target: `${process.env.PROD_URL}/api/public/health``,
+              `- [Run logs](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})`,
+              '',
+              'If this deploy is bad, consider reverting the latest main commit.',
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['bug'],
+            });
+        env:
+          PROD_URL: ${{ vars.PROD_URL }}
