@@ -94,6 +94,42 @@ describe("collectFromSource fallback chain order", () => {
     expect(fallbackSource.url("kw")).toContain("site:test.test");
   });
 
+  // #292 root-cause fix: collectFromCdp reads `cap?.url ?? source.url` and
+  // `cap?.articleScript ?? source.articleScript` (#199 rule — cap wins). The
+  // synthesized fallback source spreads `...source` and therefore inherits the
+  // ORIGINAL capabilities, which shadow the Google fallback URL/script — the
+  // "Google site: fallback" silently re-scraped the original page and always
+  // recorded zero-results. The synthesis must override the shadowed fields.
+  it("googleSiteFallback overrides the shadowed capabilities fields (cap must not win)", async () => {
+    const { promise, calls } = harness(
+      { collectCdp: async () => ({ articles: [], status: null }) },
+      {
+        url: () => "https://search.test/q",
+        googleSiteFallback: {
+          url: (kw) => `https://www.google.com/search?q=site:test.test+${kw}`,
+          articleScript: "return ['from-google'];",
+        },
+      },
+      {
+        // Pre-enriched source: capabilities.articles carries the original
+        // url/articleScript — the shadowing trigger in production.
+        capabilities: {
+          articles: {
+            url: (kw) => `https://original.test/q=${kw}`,
+            articleScript: "return ['from-original'];",
+          },
+        },
+      },
+    );
+    await promise;
+    const fallbackSource = calls[1].args[0];
+    const cap = fallbackSource.capabilities?.articles;
+    expect((cap?.url ?? fallbackSource.url)("DeepSeek")).toContain("site:test.test");
+    expect(cap?.articleScript).toBe("return ['from-google'];");
+    expect(cap?.loginCheckScript).toBeNull();
+    expect(cap?.needsAuth).toBe(false);
+  });
+
   it("hits apiFallback (Bigsong) before MCP when configured", async () => {
     const { promise, calls } = harness(
       {

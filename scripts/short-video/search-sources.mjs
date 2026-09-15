@@ -712,6 +712,21 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
       articleScript: googleSiteFallback.articleScript,
       loginCheckScript: null,
       needsAuth: false,
+      // #292 root-cause fix: collectFromCdp reads `cap?.url ?? source.url` and
+      // `cap?.articleScript ?? source.articleScript` (#199 rule — cap wins).
+      // The spread above inherits the ORIGINAL capabilities, whose url/
+      // articleScript shadowed the Google fallback — the fallback silently
+      // re-scraped the original page and always recorded zero-results.
+      capabilities: {
+        ...(source.capabilities ?? {}),
+        articles: {
+          ...(cap ?? {}),
+          url: googleSiteFallback.url,
+          articleScript: googleSiteFallback.articleScript,
+          loginCheckScript: null,
+          needsAuth: false,
+        },
+      },
     };
     const { articles: fbArticles, status } = await collectCdp(fallbackSource, keyword);
     const fbExtractedCount = fbArticles.length;
