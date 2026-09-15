@@ -21,6 +21,23 @@
 
 **结论**：目前**没有任何一层在系统级保证"每个源搜出来都是新闻"**。保证只存在于继承源页面性质的层；pool/mcp 层结构性绕过新闻性与时效性。相关性护栏（`applyRelevanceGuard`）只作用于 CDP/fallback 结果，pool/mcp 结果跳过（#286 相关性护栏票的管辖范围）。
 
+## 1.5 两条契约（用户定案框架，2026-09-15）
+
+> 用户裁决："把 search source 作为专门搜新闻的 source"；管线天然分两步：前期**新闻收集**、后期**视频素材**。素材"可能会有一些前面的缓存，也会自己去找一些"。
+
+Root cause：现状所有源共用一个"search source"抽象、一条 keyword 路径（`collectFromSource` 单关键词流），两类需求被塞进同一契约——"YouTube 切 pool 搜出网页文章"是这条单一契约的必然产物。
+
+| | 新闻契约 | 素材契约 |
+|---|---|---|
+| 输入 | 关键词/趋势 | **新闻管线选定的题目**（非裸关键词）+ 缓存复用 + 自主发现 |
+| 输出 | 带 publishedAt 的新闻条目 | 平台物：视频/论文/repo/资产文件 |
+| 保证 | 新闻性 + 时效 | 平台保真 + capability 路由（yt-dlp 等） |
+| 管线角色 | 发现（前端） | 获取（后端，串联在题目确定之后） |
+
+- **串联非并列**：新闻源发现 → 产出题目 → 素材源按题目取物。
+- **同一底层源可双役**（Google 搜新闻 / `site:youtube.com` 找素材线索），按**查询角色**走不同契约，不复制两套源。
+- 素材管线三个输入来源（grilling 逐项定）：① 前期新闻阶段已抓取并缓存的素材（衔接 `docs/media-asset-management.md` 生命周期）② 按题目定向搜索 ③ 素材源自主发现（范围与触发条件待定）。
+
 **错误可见性**：脚本错误全链静默（#308），#292 googleSiteFallback 死层数周无人知为实证。
 
 ## 2. 票图与拟议顺序
@@ -37,17 +54,26 @@
 
 **历史语境**（已交付，只读参考）：#65 pool 原始设计 handoff 已归档；#90 模板先例（#307 推广其模式）；#200 轨迹机制已上线。
 
-## 3. Grilling 议程（待裁决）
+## 3. Grilling 议程（全量，一次收全）
 
-1. **用途分类学**：素材/研究源（youtube→yt-dlp、arxiv→论文、github→repo、threads→帖）vs 通用发现源（google_search=Google News 垂直、mcp_grok_search）。用户六源 challenge 已确立方向，62 源全量归类由 #309 执行，会前确认框架。
-2. **pool 的新闻性**：三选一——(a) pool 收缩到通用发现源，平台/素材源用 site: fallback（x_search 模式推广）；(b) 给 pool 调用加新闻参数（Serper `tbs`/Tavily `topic:news`+`days`/Brave `freshness`，参数已存在但 adapters 未用）+ 补 publishedAt；(c) (a)+(b) 按源类型分流。**本 handoff §1 证据是会前输入。**
-3. **Grok 定位**：独立事实核查源 vs 兜底 fallback（用户倾向前者，"Grok Search 可以单独做事实源核查，但就不需要再 fallback 了"）。定案直接改写 #307 范围。
-4. **URL search 层次序**：与 #309 新链的整合顺序（先审计后建层，还是并行）。
-5. **threads 特殊处理**：无 Google 索引，site: 不可用，需单独方案。
-6. **报警与用途审计的汇合点**：#308 的 streak 信号 + #209 doctor 探针 + #309 用途分类，是否统一进 source-health 仪表（#269 Phase 2 范围）。
+### A. 契约划分（§1.5 框架落地）
+
+1. **新闻契约定义**：recency 窗口多长、publishedAt 是否必备字段、新闻性保证机制三选一——(a) pool 收缩到通用发现源，平台/素材源用 site: fallback（x_search 模式推广）；(b) pool 调用加新闻参数（Serper `tbs`/Tavily `topic:news`+`days`/Brave `freshness`，参数已存在未用）+ 补 publishedAt；(c) 按源类型分流。
+2. **素材契约定义**：题目输入格式、平台保真层（site: fallback / 平台 API）、capability 路由（yt-dlp 等）；threads 无 Google 索引，site: 不可用，需单独方案。
+
+### B. 管线衔接（素材三路输入）
+
+3. **素材缓存**：新闻阶段抓到的页面/媒体如何沉淀给视频阶段复用——与 `docs/media-asset-management.md` 生命周期的衔接、缓存命中规则、与 URL search 层（第 6 项）的关系。
+4. **素材自主发现**："自己去找"的边界——素材源要不要保留独立 search 能力、触发条件（题目覆盖不足时？）、输出直接进素材库还是先过人审。
+5. **Grok 定位**：独立事实核查源 vs 兜底 fallback（用户倾向前者，"Grok Search 可以单独做事实源核查，但就不需要再 fallback 了"）。定案直接改写 #307 范围。
+6. **URL search 层次序**：API → 纯 HTTP → CDP 的 URL 层（#66 复活票 + #307 转换票）与 #309 新链的整合顺序（先审计后建层，还是并行）；与素材缓存（第 3 项）的关系。
+
+### C. 治理
+
+7. **报警与用途审计的汇合点**：#308 的 streak 信号 + #209 doctor 探针 + #309 用途分类，是否统一进 source-health 仪表（#269 Phase 2 范围）。
 
 ## 4. 完成判据
 
-- [ ] Grilling 会召开，§3 六项逐一有裁决（裁决记录进对应票评论）
+- [ ] Grilling 会召开，§3 七项逐一有裁决（裁决记录进对应票评论）
 - [ ] #309 审计报告产出并挂票
 - [ ] 各票按 §2 顺序执行，本文件更新后归档至 `docs/archive/handoffs/`
