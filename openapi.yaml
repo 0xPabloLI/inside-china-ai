@@ -1,0 +1,152 @@
+openapi: 3.1.0
+info:
+  title: China AI News API
+  description: |
+    HTTP surface of the TanStack Start server (src/routes/api/**).
+
+    Two conventions apply:
+    - `/api/public/*` routes bypass site-level authentication; routes under
+      `/api/public/hooks/*` instead require the Supabase publishable key as
+      proof of caller identity (they are cron targets, not user endpoints).
+    - `/api/tiktok/*` implements the TikTok OAuth callback flow.
+  version: 1.0.0
+servers:
+  - url: /
+    description: Same-origin (relative) — the deployed site itself
+paths:
+  /api/public/health:
+    get:
+      operationId: getHealth
+      summary: Liveness probe
+      description: Returns 200 while the server is up. Safe for uptime monitors and local agents; no auth.
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /api/public/hooks/refresh-keyword-snapshots:
+    post:
+      operationId: refreshKeywordSnapshots
+      summary: Refresh keyword snapshots (cron)
+      description: |
+        Refreshes keyword ranking snapshots once per invocation and emails
+        admins about ranking drops. Intended to be called by pg_cron with the
+        project's publishable key.
+      security:
+        - PublishableKey: []
+      responses:
+        "200":
+          description: Snapshots refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  updated:
+                    type: integer
+                  alerts:
+                    type: array
+                    items:
+                      type: string
+        "401":
+          description: Missing or wrong publishable key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Refresh failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/public/hooks/dispatch-newsletters:
+    post:
+      operationId: dispatchNewsletters
+      summary: Dispatch pending newsletters (cron)
+      security:
+        - PublishableKey: []
+      responses:
+        "200":
+          description: Dispatch result
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Missing or wrong publishable key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/public/og/posts/{slug}.png:
+    get:
+      operationId: getPostOgImage
+      summary: Open Graph image for a post
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rendered OG image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Post not found
+  /api/tiktok/callback:
+    get:
+      operationId: tiktokOAuthCallback
+      summary: TikTok OAuth callback
+      description: Receives the TikTok authorization code and stores tokens for the admin account.
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: error
+          in: query
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to admin after handling
+        "400":
+          description: Invalid callback parameters
+components:
+  securitySchemes:
+    PublishableKey:
+      type: apiKey
+      in: header
+      name: apikey
+      description: >
+        Supabase publishable (anon) key — accepted either as `apikey` header or
+        `Authorization: Bearer <key>`. Identifies the caller as the cron
+        runner; it is not a user credential.
+  schemas:
+    Error:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: string
