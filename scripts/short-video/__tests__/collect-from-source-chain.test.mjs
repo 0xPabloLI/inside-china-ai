@@ -2,18 +2,20 @@
  * Integration tests for collectFromSource's six-layer fallback chain
  * (test gap #3 of the #77 audit, implemented on the #200 deps seam).
  *
- * Chain order (#292 rerouting — pool before the Grok last resort):
+ * Chain order (#292 verdict, 2026-09-15 — platform-faithful layers before
+ * generic ones):
  *   apiSearch → CDP (same-URL short-circuit) → googleSiteFallback
- *     → search pool (pool-eligible only) → apiFallback(Bigsong ≡ Grok bridge,
- *     x_search) / mcpFallback (Grok bridge for eligible sources; dedicated
- *     platform MCP otherwise)
+ *     → apiFallback(Bigsong ≡ Grok bridge backend, x_search only — platform-
+ *     faithful, never preempted by the pool) → search pool (pool-eligible
+ *     generic web_search sources only) → mcpFallback (Grok bridge after an
+ *     empty pool; dedicated platform MCPs go straight here)
  *
  * Each layer runs only when the previous one produced zero results; the
  * googleSiteFallback step synthesizes a `{name}_fallback` source; pool runs
- * before the Grok last resort (Bigsong direct bridge or Grok MCP) only for
- * pool-eligible sources; useCleanTitle is applied after collection. These are
- * characterization tests — the layer behaviors exist; the seam makes the ORDER
- * finally assertable.
+ * after the Bigsong bridge and before the Grok MCP only for pool-eligible
+ * sources; x_search is NOT pool-eligible (platform-faithful chain); useCleanTitle
+ * is applied after collection. These are characterization tests — the layer
+ * behaviors exist; the seam makes the ORDER finally assertable.
  */
 import { describe, it, expect } from "vitest";
 import { collectFromSource } from "../search-sources.mjs";
@@ -103,48 +105,12 @@ describe("collectFromSource fallback chain order", () => {
     );
     const articles = await promise;
     expect(articles.map((a) => a.title)).toEqual(["b"]);
-    // #292: the pool gate is consulted before the Bigsong bridge (x_search
-    // is pool-eligible via its apiFallback) — with the harness's
-    // non-eligible stub the pool never runs and Bigsong follows directly.
-    expect(calls.map((c) => c.fn)).toEqual(["collectCdp", "isPoolEligibleFn", "collectBigsong"]);
+    // #292 verdict (2026-09-15): x_search's apiFallback chain is platform-
+    // faithful end to end — the pool gate is never consulted (it lives in the
+    // mcpFallback branch) and Bigsong is never preempted by generic results.
+    expect(calls.map((c) => c.fn)).toEqual(["collectCdp", "collectBigsong"]);
+    expect(calls.some((c) => c.fn === "searchPoolFn")).toBe(false);
     expect(calls.some((c) => c.fn === "collectMcp")).toBe(false);
-  });
-
-  // #292: x_search ends in the Bigsong direct bridge (≡ mcp-search-bridge
-  // backend), so it is pool-eligible — the pool must run BEFORE the Grok
-  // last resort (#65 priority: quota engines before unlimited Grok).
-  it("runs the pool before the Bigsong bridge for x_search-shaped sources (pool wins)", async () => {
-    const { promise, calls } = harness(
-      {
-        searchPoolFn: async () => ({ attempts: [], articles: [{ title: "p", url: "u" }] }),
-        isPoolEligibleFn: () => true,
-        collectBigsong: async () => [{ title: "b", url: "u" }],
-      },
-      { apiFallback: { type: "http" } },
-    );
-    const articles = await promise;
-    expect(articles.map((a) => a.title)).toEqual(["p"]);
-    expect(calls.map((c) => c.fn)).toEqual(["collectCdp", "isPoolEligibleFn", "searchPoolFn"]);
-    expect(calls.some((c) => c.fn === "collectBigsong")).toBe(false);
-  });
-
-  it("falls to the Bigsong bridge when the pool comes up empty", async () => {
-    const { promise, calls } = harness(
-      {
-        searchPoolFn: async () => ({ attempts: [], articles: [] }),
-        isPoolEligibleFn: () => true,
-        collectBigsong: async () => [{ title: "b", url: "u" }],
-      },
-      { apiFallback: { type: "http" } },
-    );
-    const articles = await promise;
-    expect(articles.map((a) => a.title)).toEqual(["b"]);
-    expect(calls.map((c) => c.fn)).toEqual([
-      "collectCdp",
-      "isPoolEligibleFn",
-      "searchPoolFn",
-      "collectBigsong",
-    ]);
   });
 
   it("runs the pool before MCP for pool-eligible sources, then MCP on empty pool", async () => {

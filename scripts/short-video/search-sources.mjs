@@ -14,14 +14,14 @@
  * (NEWS/SELF_MEDIA/INTERNATIONAL/GENERAL/LAST30DAYS/WECHAT_ACCOUNT/WECHAT_RSS/
  * TELEGRAM/STOCK arrays).
  *
- * Fallback chain (#292): apiSearch (if configured) → CDP → googleSiteFallback
- * (Google site: search) → search pool (Serper > Brave > Tavily > Jina, #65;
- * pool-eligible sources only) → Grok last resort: apiFallback (direct Bigsong
- * bridge ≡ mcp-search-bridge backend, x_search #90) or mcpFallback (Grok
- * bridge for generic web_search sources after an empty pool; dedicated
+ * Fallback chain (#292, 2026-09-15 verdict): apiSearch (if configured) → CDP
+ * → googleSiteFallback (Google site: search) → apiFallback (direct Bigsong
+ * bridge ≡ mcp-search-bridge backend, x_search only — platform-faithful) →
+ * pool (Serper > Brave > Tavily > Jina, pool-eligible sources only) →
+ * mcpFallback (Grok bridge for pool-eligible web_search sources; dedicated
  * platform MCPs like xhs/sogou_weixin/weibo_hot/bilibili go straight here).
- * X search's Grok access is the direct Bigsong apiFallback (#90) — the same
- * backend the mcp-search-bridge wraps, without the MCP subprocess hop (#292).
+ * x_search is NOT pool-eligible: platform-specific chain end to end, and
+ * generic pool results would carry the x_search label without being X content.
  * International/general sources primarily use mcp-search-bridge (Grok web search).
  * Sources with free APIs (arXiv, Reddit, HN, GitHub) use API direct-connect as first layer (Issue #34).
  *
@@ -734,43 +734,42 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     );
   }
 
-  // Step 2.5 (#65/#292): Search Pool (Layer 3) — for pool-eligible sources
-  // (generic Grok web-search access: web_search MCP bridge or the direct
-  // Bigsong apiFallback) the pool runs BEFORE the Grok last resort, per #65's
-  // priority: quota engines Serper > Brave > Tavily > Jina before unlimited
-  // Grok. Platform-specific MCP sources are not pool-eligible and skip this.
-  // Sources with no fallback slot at all can never be eligible — skip the
-  // check entirely (pure short-circuit, no behavior change).
-  if (articles.length === 0 && (apiFallback || mcpFallback) && isPoolEligibleFn(source)) {
-    console.log(`  🏊 Trying search pool for ${source.label}...`);
-    const poolResult = await searchPoolFn(keyword || DEFAULT_KEYWORDS[0]);
-    for (const attempt of poolResult.attempts) {
-      console.warn(`  ⚠️  Pool engine ${attempt.engine}: ${attempt.error}`);
-    }
-    if (poolResult.articles.length > 0) {
-      articles = poolResult.articles;
-      console.log(`  📊 Pool (${poolResult.engine}) extracted ${articles.length} articles`);
-    }
-    record(
-      "pool",
-      poolResult.articles.length,
-      poolResult.articles.length === 0 ? "zero-results" : undefined,
-    );
-  }
-
-  // Step 3 (Issue #90/#292): Grok last resort, in backend order — the direct
-  // Bigsong bridge (x_search; Bigsong is the backend the mcp-search-bridge
-  // wraps, no subprocess) or the generic Grok MCP bridge (other web_search
-  // sources, after an empty pool). Platform-specific MCP fallbacks
-  // (xhs/sogou_weixin/weibo_hot/bilibili) land here directly on CDP failure —
-  // the pool does not replace them.
+  // Step 2.5 (Issue #90): If still failed and a direct Bigsong API fallback is
+  // configured, call lib/bigsong-api.mjs directly — no subprocess, no JSON-RPC.
+  // x_search only (#292 verdict, 2026-09-15): platform-faithful X results —
+  // this layer runs BEFORE the generic pool and is never preempted by it.
   if (articles.length === 0 && apiFallback) {
     articles = await collectBigsong(source, keyword, apiFallback);
     record("api-fallback", articles.length, articles.length === 0 ? "zero-results" : undefined);
   }
+
+  // Step 3: Generic layers last. For pool-eligible sources (generic web_search
+  // bridge: youtube/arxiv/github/threads/google/mcp_grok_search) the REST pool
+  // (Serper > Brave > Tavily > Jina) runs first; the Grok MCP bridge stays as
+  // the last resort. x_search is NOT pool-eligible — its chain above is
+  // platform-faithful end to end, and generic pool results would carry the
+  // x_search label without being X content (#292 verdict, 2026-09-15).
+  // Platform-specific MCP fallbacks (xhs/sogou_weixin/weibo_hot/bilibili) go
+  // straight to their dedicated MCP — the pool does not replace them.
   if (articles.length === 0 && mcpFallback) {
-    articles = await collectMcp(source, keyword);
-    record("mcp", articles.length, articles.length === 0 ? "zero-results" : undefined);
+    if (isPoolEligibleFn(source)) {
+      console.log(`  🏊 Trying search pool for ${source.label}...`);
+      const poolResult = await searchPoolFn(keyword || DEFAULT_KEYWORDS[0]);
+      for (const attempt of poolResult.attempts) {
+        console.warn(`  ⚠️  Pool engine ${attempt.engine}: ${attempt.error}`);
+      }
+      if (poolResult.articles.length > 0) {
+        articles = poolResult.articles;
+        console.log(`  📊 Pool (${poolResult.engine}) extracted ${articles.length} articles`);
+      } else {
+        articles = await collectMcp(source, keyword);
+      }
+      record("pool", articles.length, articles.length === 0 ? "zero-results" : undefined);
+    } else {
+      const mcpArticles = await collectMcp(source, keyword);
+      articles = mcpArticles;
+      record("mcp", articles.length, articles.length === 0 ? "zero-results" : undefined);
+    }
   }
 
   // Step 4: Clean titles if needed

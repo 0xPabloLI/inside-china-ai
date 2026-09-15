@@ -78,21 +78,23 @@ describe("isPoolEligible", () => {
     expect(isPoolEligible(source)).toBe(true);
   });
 
-  // #292: x_search's Grok access is the direct Bigsong apiFallback (#90) —
-  // no mcpFallback config. Bigsong IS the mcp-search-bridge backend (user
-  // verdict, 2026-09-15), so an apiFallback-ending source is pool-eligible
-  // exactly like its web_search siblings; the pool must run before it.
-  it("true when the source ends in the Bigsong direct bridge (apiFallback, x_search)", () => {
+  // #292 verdict (2026-09-15, user): x_search is a PLATFORM source — its
+  // Bigsong apiFallback returns platform-faithful X tweets, and generic pool
+  // results would carry the x_search label without being X content (smoke:
+  // Tavily hit Wikipedia/TechRadar) while preempting the higher-quality
+  // Bigsong take. Platform sources never enter the generic pool (triage
+  // rule 1) — #65's 7-source letter is superseded.
+  it("false for the Bigsong direct bridge (x_search, apiFallback) — platform-faithful chain, never pool", () => {
     const source = { name: "x_search", apiFallback: { type: "http", resultMapper: () => [] } };
-    expect(isPoolEligible(source)).toBe(true);
+    expect(isPoolEligible(source)).toBe(false);
   });
 
-  it("true for apiFallback nested in capabilities.articles (enriched registry)", () => {
+  it("false for apiFallback nested in capabilities.articles (enriched registry)", () => {
     const source = {
       name: "x_search",
       capabilities: { articles: { apiFallback: { type: "http" } } },
     };
-    expect(isPoolEligible(source)).toBe(true);
+    expect(isPoolEligible(source)).toBe(false);
   });
 
   it("false for platform-specific MCP fallbacks (sogou_weixin)", () => {
