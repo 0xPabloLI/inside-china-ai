@@ -1,0 +1,62 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "include": ["files", "dependencies", "devDependencies", "unlisted", "binaries", "unresolved"],
+  "ignore": [
+    "scripts/short-video/retired-html-path/**",
+    "scripts/short-video/experiments/**",
+    "scripts/short-video/.tmp-dump-cookies.mjs"
+  ],
+  "ignoreDependencies": [
+    "@lovable.dev/vite-tanstack-config",
+    "@tanstack/router-plugin",
+    "nitro",
+    "tailwindcss",
+    "tw-animate-css",
+    "jscpd",
+    "@remotion/effects",
+    "@remotion/renderer"
+  ],
+  "ignoreBinaries": [
+    "semgrep",
+    "mcp-scanner",
+    "osv-scanner",
+    "kaggle",
+    "sqlite3",
+    "rg",
+    "ffmpeg",
+    "ffprobe",
+    "say",
+    "yt-dlp",
+    "nslookup"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "src/{router,server,start}.tsx",
+        "src/{router,server,start}.ts",
+        "src/routes/**/*.{ts,tsx}",
+        "src/components/ui/**/*.{ts,tsx}",
+        "src/hooks/*.tsx",
+        "scripts/*.mjs",
+        "scripts/article/*.mjs",
+        "scripts/cloud-studio/*.mjs",
+        "scripts/rag/*.mjs",
+        "scripts/seo/**/*.mjs",
+        "scripts/short-video/*.mjs",
+        "scripts/short-video/__tests__/*.mjs",
+        "scripts/short-video/evergreen-templates/*.mjs",
+        "scripts/short-video/content/**/*.mjs",
+        "skills/web-access/scripts/*.mjs"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "scripts/**/*.{ts,tsx,mjs}",
+        "skills/**/*.{ts,tsx,mjs}"
+      ]
+    },
+    "scripts/short-video/remotion": {
+      "entry": ["remotion.config.ts", "src/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}"]
+    }
+  }
+}

@@ -16,7 +16,7 @@
  * 开机启动：见 setup-launchd.sh
  */
 
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";

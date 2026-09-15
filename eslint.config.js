@@ -59,7 +59,20 @@ export default tseslint.config(
       // and become agent-hostile to reason about. 25 is generous — it exists
       // to stop new extremes, not to churn existing code.
       complexity: ["error", 25],
+      // File-size ceiling (large-file detection): flags runaway files that
+      // accrete responsibilities. 4000 is a ratchet — the current maximum
+      // (source-registry.mjs) sits below it — so it stops new extremes
+      // without churning existing code. Split a file before extending it.
+      "max-lines": ["error", { max: 4000, skipBlankLines: true, skipComments: true }],
       "@typescript-eslint/no-unused-vars": "off",
+    },
+  },
+  {
+    // Pipeline/skill scripts are plain ESM (.mjs) — the ts/tsx block above
+    // doesn't match them, so the file-size ceiling needs its own block.
+    files: ["**/*.mjs"],
+    rules: {
+      "max-lines": ["error", { max: 4000, skipBlankLines: true, skipComments: true }],
     },
   },
   {

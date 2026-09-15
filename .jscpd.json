@@ -1,0 +1,13 @@
+{
+  "threshold": 3.5,
+  "min-tokens": 60,
+  "reporters": ["console"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/retired-html-path/**",
+    "**/experiments/**",
+    "**/content/**",
+    "**/*.test.*",
+    "**/*.gen.*"
+  ]
+}

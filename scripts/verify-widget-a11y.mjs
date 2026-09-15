@@ -24,7 +24,7 @@
  *   --preview:  verify every registered widget through the dev-only
  *               /widgets/<name> preview route instead of article pages
  */
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 
 const argUrl = process.argv.indexOf("--url");
 const BASE = argUrl >= 0 ? process.argv[argUrl + 1] : "http://localhost:8083";
