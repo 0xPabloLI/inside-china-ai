@@ -100,15 +100,26 @@ export const Route = createFileRoute("/posts/$slug")({
       meta: [
         { title: buildTitle(loaderData.title) },
         { name: "description", content: description },
+        { name: "news_keywords", content: newsKeywords(loaderData.title) },
+        { property: "og:site_name", content: "China AI News" },
         { property: "og:title", content: loaderData.title },
         { property: "og:description", content: description },
         { property: "og:type", content: "article" },
         { property: "og:url", content: url },
+        { property: "og:locale", content: "en_US" },
+        { property: "article:section", content: "China AI" },
+        ...(loaderData.published_at
+          ? [{ property: "article:published_time", content: loaderData.published_at }]
+          : []),
+        ...(loaderData.updated_at
+          ? [{ property: "article:modified_time", content: loaderData.updated_at }]
+          : []),
         { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: loaderData.title },
         { name: "twitter:description", content: description },
         ...ogImageMeta(image, imageAlt),
       ],
+
 
       links: [{ rel: "canonical", href: url }],
       scripts: [

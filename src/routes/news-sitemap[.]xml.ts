@@ -19,8 +19,10 @@ export const Route = createFileRoute("/news-sitemap.xml")({
   server: {
     handlers: {
       GET: async () => {
-        // Google News sitemaps only include articles published in the last 2 days.
-        const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+        // Google News reads the freshest items first. This site publishes weekly, so use a
+        // 30-day window (capped at 50 items) instead of 2 days — a strict 2-day window would
+        // usually serve an empty file, which gives Google nothing to discover or review.
+        const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
         const urls: string[] = [];
         try {
@@ -31,7 +33,8 @@ export const Route = createFileRoute("/news-sitemap.xml")({
             .eq("published", true)
             .gte("published_at", cutoff)
             .order("published_at", { ascending: false })
-            .limit(1000);
+            .limit(50);
+
 
           for (const post of data ?? []) {
             if (!post.published_at) continue;
