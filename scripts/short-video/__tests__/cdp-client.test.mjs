@@ -35,6 +35,7 @@ import {
   findCdpProxyScript,
   ensureCdpProxy,
   CDP_BASE,
+  ScriptError,
 } from "../lib/cdp-client.mjs";
 
 // #89 P0: the per-domain rate limiter is unit-tested separately
@@ -233,11 +234,25 @@ describe("extractFromTab", () => {
     expect(result[0].title).toBe("Parsed");
   });
 
-  it("S3: returns empty array when fetch throws", async () => {
+  it("S3 (#308): propagates transport errors instead of swallowing them into []", async () => {
     global.fetch.mockRejectedValue(new Error("Connection lost"));
 
-    const result = await extractFromTab("tab_123", "return []");
-    expect(result).toEqual([]);
+    await expect(extractFromTab("tab_123", "return []")).rejects.toThrow("Connection lost");
+  });
+
+  it("S3b (#308): throws ScriptError when the proxy reports a page-script exception", async () => {
+    // cdp-proxy /eval answers HTTP 400 {error} for a throwing page script —
+    // the error text must surface as a typed ScriptError, never as a silent [].
+    global.fetch.mockResolvedValue(
+      mockFetchResponse({
+        error: "ReferenceError: foo is not defined\n    at <anonymous>:1:1",
+      }),
+    );
+
+    const err = await extractFromTab("tab_123", "return []").catch((e) => e);
+    expect(err).toBeInstanceOf(ScriptError);
+    expect(err.name).toBe("ScriptError");
+    expect(err.message).toContain("foo is not defined");
   });
 
   it("S3b: returns empty array when response is not array or JSON", async () => {

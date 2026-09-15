@@ -26,11 +26,12 @@ import {
   searchDuckDuckGoImages,
   parseTavilyImagesResponse,
   searchTavilyImages,
+  searchCdpSource,
   searchCdpVideoSource,
   normalizeCdpVideoCandidates,
 } from "../lib/progressive-search.mjs";
 import { ALL_SOURCES } from "../lib/source-registry.mjs";
-import { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad } from "../lib/cdp-client.mjs";
+import { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad, ScriptError } from "../lib/cdp-client.mjs";
 
 vi.mock("../lib/cdp-client.mjs", () => ({
   CDP_BASE: "http://localhost:3456",
@@ -42,6 +43,14 @@ vi.mock("../lib/cdp-client.mjs", () => ({
   checkLogin: vi.fn(),
   findCdpProxyScript: vi.fn(),
   ensureCdpProxy: vi.fn(),
+  // #308: searchCdpSource/searchCdpVideoSource do `instanceof ScriptError` —
+  // the mock must export a class with matching identity semantics.
+  ScriptError: class ScriptError extends Error {
+    constructor(message) {
+      super(message);
+      this.name = "ScriptError";
+    }
+  },
 }));
 
 // ─── shouldTriggerTier3 ───
@@ -1053,5 +1062,44 @@ describe("searchCdpVideoSource rate-limit skip propagation (#249)", () => {
       videoScript: "return results;",
     };
     await expect(searchCdpVideoSource(source, "kw")).resolves.toEqual([]);
+  });
+});
+
+// ─── #308: extraction script errors fail open, but LOUD ───
+
+describe("searchCdpSource ScriptError fail-open (#308)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("closes the tab and returns [] when the image script throws a ScriptError", async () => {
+    const source = {
+      name: "img_src",
+      url: (kw) => `https://img.example/?q=${kw}`,
+      imageScript: "return items;",
+    };
+    cdpNewTab.mockResolvedValue("tab-img");
+    waitForPageLoad.mockResolvedValue(true);
+    extractFromTab.mockRejectedValue(new ScriptError("ReferenceError: items is not defined"));
+    cdpCloseTab.mockResolvedValue(undefined);
+
+    await expect(searchCdpSource(source, "kw")).resolves.toEqual([]);
+    // The tab must not leak when extraction errors
+    expect(cdpCloseTab).toHaveBeenCalledWith("tab-img");
+  });
+
+  it("closes the tab and returns [] when the video script throws a ScriptError", async () => {
+    const source = {
+      name: "vid_src",
+      url: (kw) => `https://vid.example/?q=${kw}`,
+      videoScript: "return results;",
+    };
+    cdpNewTab.mockResolvedValue("tab-vid");
+    waitForPageLoad.mockResolvedValue(true);
+    extractFromTab.mockRejectedValue(new ScriptError("SyntaxError: unexpected token"));
+    cdpCloseTab.mockResolvedValue(undefined);
+
+    await expect(searchCdpVideoSource(source, "kw")).resolves.toEqual([]);
+    expect(cdpCloseTab).toHaveBeenCalledWith("tab-vid");
   });
 });
