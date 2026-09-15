@@ -391,8 +391,8 @@ async function autoSaveTikTokUrl(postGroupId, slug, apiKey, publoraGet) {
   // Save to Supabase via REST API
   try {
     const { loginAdmin, loadDotEnvFiles, getEnvVar } =
-      await import("../../article/lib/supabase-auth.mjs");
-    const { buildAttachmentHeaders } = await import("../../article/lib/attachment-utils.mjs");
+      await import("../article/lib/supabase-auth.mjs");
+    const { buildAttachmentHeaders } = await import("../article/lib/attachment-utils.mjs");
 
     const dotenv = loadDotEnvFiles();
     const supabaseUrl = getEnvVar("SUPABASE_URL", dotenv);
