@@ -72,8 +72,25 @@ describe("isPoolEligible", () => {
 
   it("true when toolName lives in capabilities.articles (enriched registry)", () => {
     const source = {
-      name: "x_search",
+      name: "google_search",
       capabilities: { articles: { mcpFallback: { toolName: "web_search" } } },
+    };
+    expect(isPoolEligible(source)).toBe(true);
+  });
+
+  // #292: x_search's Grok access is the direct Bigsong apiFallback (#90) —
+  // no mcpFallback config. Bigsong IS the mcp-search-bridge backend (user
+  // verdict, 2026-09-15), so an apiFallback-ending source is pool-eligible
+  // exactly like its web_search siblings; the pool must run before it.
+  it("true when the source ends in the Bigsong direct bridge (apiFallback, x_search)", () => {
+    const source = { name: "x_search", apiFallback: { type: "http", resultMapper: () => [] } };
+    expect(isPoolEligible(source)).toBe(true);
+  });
+
+  it("true for apiFallback nested in capabilities.articles (enriched registry)", () => {
+    const source = {
+      name: "x_search",
+      capabilities: { articles: { apiFallback: { type: "http" } } },
     };
     expect(isPoolEligible(source)).toBe(true);
   });

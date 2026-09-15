@@ -14,8 +14,14 @@
  * (NEWS/SELF_MEDIA/INTERNATIONAL/GENERAL/LAST30DAYS/WECHAT_ACCOUNT/WECHAT_RSS/
  * TELEGRAM/STOCK arrays).
  *
- * Fallback chain: apiSearch (if configured) → CDP → googleSiteFallback (Google site: search) → apiFallback (direct Bigsong API, #90) → search pool (Brave > Tavily > Jina, #65) → mcpFallback (mcp-search-bridge/Grok, generic web_search sources only; other MCPs go straight to mcpFallback)
- * X search has mcp-search-bridge as MCP fallback (Grok has native X/Twitter data access).
+ * Fallback chain (#292): apiSearch (if configured) → CDP → googleSiteFallback
+ * (Google site: search) → search pool (Serper > Brave > Tavily > Jina, #65;
+ * pool-eligible sources only) → Grok last resort: apiFallback (direct Bigsong
+ * bridge ≡ mcp-search-bridge backend, x_search #90) or mcpFallback (Grok
+ * bridge for generic web_search sources after an empty pool; dedicated
+ * platform MCPs like xhs/sogou_weixin/weibo_hot/bilibili go straight here).
+ * X search's Grok access is the direct Bigsong apiFallback (#90) — the same
+ * backend the mcp-search-bridge wraps, without the MCP subprocess hop (#292).
  * International/general sources primarily use mcp-search-bridge (Grok web search).
  * Sources with free APIs (arXiv, Reddit, HN, GitHub) use API direct-connect as first layer (Issue #34).
  *
@@ -728,38 +734,43 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     );
   }
 
-  // Step 2.5 (Issue #90): If still failed and a direct Bigsong API fallback is
-  // configured, call lib/bigsong-api.mjs directly — no subprocess, no JSON-RPC.
+  // Step 2.5 (#65/#292): Search Pool (Layer 3) — for pool-eligible sources
+  // (generic Grok web-search access: web_search MCP bridge or the direct
+  // Bigsong apiFallback) the pool runs BEFORE the Grok last resort, per #65's
+  // priority: quota engines Serper > Brave > Tavily > Jina before unlimited
+  // Grok. Platform-specific MCP sources are not pool-eligible and skip this.
+  // Sources with no fallback slot at all can never be eligible — skip the
+  // check entirely (pure short-circuit, no behavior change).
+  if (articles.length === 0 && (apiFallback || mcpFallback) && isPoolEligibleFn(source)) {
+    console.log(`  🏊 Trying search pool for ${source.label}...`);
+    const poolResult = await searchPoolFn(keyword || DEFAULT_KEYWORDS[0]);
+    for (const attempt of poolResult.attempts) {
+      console.warn(`  ⚠️  Pool engine ${attempt.engine}: ${attempt.error}`);
+    }
+    if (poolResult.articles.length > 0) {
+      articles = poolResult.articles;
+      console.log(`  📊 Pool (${poolResult.engine}) extracted ${articles.length} articles`);
+    }
+    record(
+      "pool",
+      poolResult.articles.length,
+      poolResult.articles.length === 0 ? "zero-results" : undefined,
+    );
+  }
+
+  // Step 3 (Issue #90/#292): Grok last resort, in backend order — the direct
+  // Bigsong bridge (x_search; Bigsong is the backend the mcp-search-bridge
+  // wraps, no subprocess) or the generic Grok MCP bridge (other web_search
+  // sources, after an empty pool). Platform-specific MCP fallbacks
+  // (xhs/sogou_weixin/weibo_hot/bilibili) land here directly on CDP failure —
+  // the pool does not replace them.
   if (articles.length === 0 && apiFallback) {
     articles = await collectBigsong(source, keyword, apiFallback);
     record("api-fallback", articles.length, articles.length === 0 ? "zero-results" : undefined);
   }
-
-  // Step 3: If still failed and MCP fallback is configured, try MCP.
-  // #65: For the generic web_search sources (x_search/youtube/arxiv/github/
-  // threads/google/mcp_grok_search), the REST pool (Brave > Tavily > Jina)
-  // runs first; the Grok bridge stays as the last resort. Platform-specific
-  // MCP fallbacks (xhs/sogou_weixin/weibo_hot/bilibili) keep the direct MCP
-  // path — the pool does not replace them.
   if (articles.length === 0 && mcpFallback) {
-    if (isPoolEligibleFn(source)) {
-      console.log(`  🏊 Trying search pool for ${source.label}...`);
-      const poolResult = await searchPoolFn(keyword || DEFAULT_KEYWORDS[0]);
-      for (const attempt of poolResult.attempts) {
-        console.warn(`  ⚠️  Pool engine ${attempt.engine}: ${attempt.error}`);
-      }
-      if (poolResult.articles.length > 0) {
-        articles = poolResult.articles;
-        console.log(`  📊 Pool (${poolResult.engine}) extracted ${articles.length} articles`);
-      } else {
-        articles = await collectMcp(source, keyword);
-      }
-      record("pool", articles.length, articles.length === 0 ? "zero-results" : undefined);
-    } else {
-      const mcpArticles = await collectMcp(source, keyword);
-      articles = mcpArticles;
-      record("mcp", articles.length, articles.length === 0 ? "zero-results" : undefined);
-    }
+    articles = await collectMcp(source, keyword);
+    record("mcp", articles.length, articles.length === 0 ? "zero-results" : undefined);
   }
 
   // Step 4: Clean titles if needed

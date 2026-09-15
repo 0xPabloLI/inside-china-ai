@@ -1,17 +1,22 @@
 /**
  * General Search Pool (#65) — REST engine chain for Layer 3 fallback.
  *
- * Replaces the Grok-only mcpFallback for the 7 generic `web_search` sources
+ * Sits ahead of the Grok last resort for the 7 generic `web_search` sources
  * (x_search, youtube_search, arxiv_search, github_search, threads_search,
- * google_search, mcp_grok_search). Platform-specific MCP fallbacks
- * (xhs, sogou_weixin, weibo_hot, bilibili) are NOT pool-eligible.
+ * google_search, mcp_grok_search): quota engines (Serper > Brave > Tavily >
+ * Jina) run before unlimited Grok. x_search reaches the pool through its
+ * direct Bigsong apiFallback (#90) — Bigsong is the backend the
+ * mcp-search-bridge wraps (#292) — the other six via their web_search
+ * mcpFallback. Platform-specific MCP fallbacks (xhs, sogou_weixin,
+ * weibo_hot, bilibili) are NOT pool-eligible.
  *
  * Design (issue #65, 2026-08-25 精简版 — supersedes the 2026-08-20 handoff):
  * try-catch serial chain, NO quota tracking, NO persistence, NO monthly/day
  * resets. Each engine is called directly; an error, an HTTP 429/5xx, or an
  * empty result set falls through to the next engine. Grok (mcp-search-bridge)
- * remains the last resort but stays wired in search-sources.mjs Step 3 via
- * the existing collectFromMcp path — this module is pure REST.
+ * remains the last resort and stays wired in search-sources.mjs via the
+ * existing collectFromMcp path (or the direct Bigsong apiFallback for
+ * x_search) — this module is pure REST.
  *
  * Engine priority: Serper (2500 q/mo, Google results) > Brave (2000 q/mo,
  * best quality) > Tavily (1000 credits/mo, AI-optimized) > Jina (1M tokens/mo).
@@ -147,16 +152,27 @@ export const POOL_ENGINES = [
 export const POOL_ENGINE_NAMES = POOL_ENGINES.map((e) => e.name);
 
 /**
- * A source is pool-eligible when its mcpFallback is the generic Grok
- * web_search bridge (toolName "web_search") — the layer this pool replaces.
- * Platform-specific MCP fallbacks keep their dedicated MCP path.
+ * A source is pool-eligible when its final fallback is the generic Grok
+ * web-search access — the layer this pool sits ahead of (#65: quota engines
+ * run before unlimited Grok). Two forms reach the same backend:
+ *
+ * - `mcpFallback` with toolName "web_search" (the mcp-search-bridge Grok MCP,
+ *   e.g. youtube/arxiv/github/threads/google/mcp_grok_search)
+ * - `apiFallback` — the direct Bigsong bridge (x_search only, #90), which
+ *   wraps the same backend the MCP bridge wraps (#292 user verdict:
+ *   Bigsong ≡ mcp-search-bridge, minus the subprocess hop)
+ *
+ * Platform-specific MCP fallbacks (xhs, sogou_weixin, weibo_hot, bilibili)
+ * keep their dedicated MCP path and never see the pool.
  *
  * @param {Object|null} source - Source definition from source-registry
  * @returns {boolean}
  */
 export function isPoolEligible(source) {
   const fb = source?.capabilities?.articles?.mcpFallback ?? source?.mcpFallback;
-  return fb?.toolName === "web_search";
+  if (fb?.toolName === "web_search") return true;
+  const bigsongBridge = source?.capabilities?.articles?.apiFallback ?? source?.apiFallback;
+  return !!bigsongBridge;
 }
 
 /**
