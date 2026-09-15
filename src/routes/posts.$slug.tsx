@@ -84,6 +84,36 @@ function clampDescription(text: string): string {
   return clean.length <= 160 ? clean : `${clean.slice(0, 157).trimEnd()}…`;
 }
 
+/** Topic terms Google News uses alongside the headline, seeded from the article title. */
+const BASE_KEYWORDS = ["China AI news", "Chinese AI models", "China AI"];
+const TOPIC_TERMS = [
+  "DeepSeek",
+  "Qwen",
+  "Alibaba",
+  "GLM",
+  "Zhipu",
+  "Moonshot",
+  "Kimi",
+  "ByteDance",
+  "Ant Group",
+  "Unitree",
+  "MiniMax",
+  "Baidu",
+  "Tencent",
+  "Huawei",
+  "world model",
+  "humanoid robot",
+  "open source",
+  "regulation",
+];
+
+function newsKeywords(title: string): string {
+  const haystack = title.toLowerCase();
+  const matched = TOPIC_TERMS.filter((term) => haystack.includes(term.toLowerCase()));
+  return [...BASE_KEYWORDS, ...matched].slice(0, 10).join(", ");
+}
+
+
 export const Route = createFileRoute("/posts/$slug")({
   loader: async ({ context, params }) => {
     const post = await context.queryClient.ensureQueryData(postQuery(params.slug));
@@ -100,15 +130,26 @@ export const Route = createFileRoute("/posts/$slug")({
       meta: [
         { title: buildTitle(loaderData.title) },
         { name: "description", content: description },
+        { name: "news_keywords", content: newsKeywords(loaderData.title) },
+        { property: "og:site_name", content: "China AI News" },
         { property: "og:title", content: loaderData.title },
         { property: "og:description", content: description },
         { property: "og:type", content: "article" },
         { property: "og:url", content: url },
+        { property: "og:locale", content: "en_US" },
+        { property: "article:section", content: "China AI" },
+        ...(loaderData.published_at
+          ? [{ property: "article:published_time", content: loaderData.published_at }]
+          : []),
+        ...(loaderData.updated_at
+          ? [{ property: "article:modified_time", content: loaderData.updated_at }]
+          : []),
         { name: "twitter:card", content: "summary_large_image" },
         { name: "twitter:title", content: loaderData.title },
         { name: "twitter:description", content: description },
         ...ogImageMeta(image, imageAlt),
       ],
+
 
       links: [{ rel: "canonical", href: url }],
       scripts: [
