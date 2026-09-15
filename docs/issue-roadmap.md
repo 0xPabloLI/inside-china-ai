@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行波次（Wave）+ 价值分层（Tier）+ 主导层级（Dominant/Satellite）+ 状态追踪。每次 triage 后更新。
 
-> **Last inventory**: 2026-09-15（W2B：🎯 #292 交付 + 两轮 challenge 裁决落地；六源用途 challenge → #308/#309 开票 + URL 层票批准；用户约定下 session #292/#269/#200 联合 grilling）
+> **Last inventory**: 2026-09-15（#308 session：🎯 #308 代码交付——proxy exceptionDetails 透传（发现 rejected-promise 双载荷形状）+ ScriptError + script-error 轨迹/streak，grilling 会待开；上一轮：W2B #292 交付 + 两轮 challenge 裁决落地，#308/#309 开票 + URL 层票批准）
 >
 > - **#292 challenge 第三轮：六源用途语义 + 治理定界**（用户 challenge「YouTube 切 pool/Grok 有什么用？YouTube 要下载视频的呀」——**成立**：`youtube_search` 带 `capabilities.videos={method:ytdlp}`、youtube 在 `SUPPORTED_YTDLP_PLATFORMS`，是素材源；pool/Grok 返回网页文章对素材管线无用。6 源按用途两类：**素材/研究源**（youtube/arxiv/github/threads——`site:` fallback 保平台约束更合理，threads 无索引需单独方案）vs **通用发现源**（google_search=Google News 垂直页 tbm=nws、mcp_grok_search——pool 合理）。**用户裁决**：① 每源像 x_search 一样重捋 + 常设报警机制 → 开票 **#309**（逐源链路审计，62 源按用途定链，作 grilling 输入）+ **#308**（脚本错误显性化报警，proxy 透传/不吞错/script-error 轨迹，#269 Phase 2 地基）；② URL search 层（API → 纯 HTTP → CDP，#66 fetch-page 复活）批准开票走 proposal-review；③ Grok 重新定位倾向：独立事实核查源、不再当 fallback；④ **下一 session 约定 #292/#269/#200 联合 grilling 会**，核心输入 = #309 审计。#292 范围界定：路由语义（已收口，open 待复核闭票），报警/审计/新层均不塞回。**执行顺序与新闻性证据**：`docs/handoffs/handoff-source-chain-rework.md`（pool 关键词原样透传、adapters 无新闻参数、pool 文章无 publishedAt——"每源保证是新闻"当前无系统级保证，待 grilling 裁决）。
 >
@@ -220,7 +220,7 @@ GitHub Issues 依赖关系 + 执行波次（Wave）+ 价值分层（Tier）+ 主
 | #    | 开票日     | 一句话描述                                                                               | 分流结果                                              |
 | ---- | ---------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | **#309** | 2026-09-15 | audit: 62 源 fallback 链路逐源重捋——按用途（素材/研究/发现）定链，x_search 模式推广；6 源 challenge 实证（youtube→yt-dlp 素材源 fallback 到 pool 无用），产出作 grilling 会输入 | ⏳ 待分流（`needs-triage`）                           |
-| **#308** | 2026-09-15 | fix: CDP 提取脚本错误显性化——proxy 异常透传 + extractFromTab 不吞错 + script-error 轨迹与 streak（#269 Phase 2 地基） | ⏳ 待分流（`needs-triage`）                           |
+| **#308** | 2026-09-15 | fix: CDP 提取脚本错误显性化——proxy 异常透传 + extractFromTab 不吞错 + script-error 轨迹与 streak（#269 Phase 2 地基） | ✅ 代码交付（commit `263d9f6`，本地 main 未推送；开票评论含交付记录；附加发现：rejected-promise 双载荷形状 `value:{}+exceptionDetails` 是提取链实际命中的静默形状，exceptionDetails 分支已前移） |
 | **#307** | 2026-09-15 | 6 个 web_search 源的 mcp-search-bridge fallback 转直连 Bigsong API（推广 #90 同 upstream/system prompt/env 模式，去掉 MCP 子进程跳；MCP 保留给大模型/Agent 消费方）——#292 裁决现场用户批准开票 | ⏳ 待分流（`needs-triage`）                           |
 | **#306** | 2026-09-15 | brief-builder 测试日期衰减：fixture 硬编码 2026-08-15 + 30 天真实时钟过滤，2026-09-15 起恒挂 6 例（#292 review 期间发现，与搜源改动无关） | ⏳ 待分流（`needs-triage`）                           |
 | **#305** | 2026-09-14 | Search Pool 引擎静默零结果自动发现：parse-drop 告警（A）+ 零结果 streak（B）+ CI canary 自动开票（C）——#281 静默烧 credit 三周的教训，用户已批准三层方向 | ⏳ 待分流（`needs-triage`）                           |
