@@ -2,7 +2,9 @@
 
 GitHub Issues 依赖关系 + 执行波次（Wave）+ 价值分层（Tier）+ 主导层级（Dominant/Satellite）+ 状态追踪。每次 triage 后更新。
 
-> **Last inventory**: 2026-09-15（W2B 开工：🎯 #292 Dominant 交付 + 同日 challenge 裁决修订——x_search 平台保真链退出 pool；W2B 剩余卫星票）
+> **Last inventory**: 2026-09-15（W2B：🎯 #292 交付 + 两轮 challenge 裁决落地；六源用途 challenge → #308/#309 开票 + URL 层票批准；用户约定下 session #292/#269/#200 联合 grilling）
+>
+> - **#292 challenge 第三轮：六源用途语义 + 治理定界**（用户 challenge「YouTube 切 pool/Grok 有什么用？YouTube 要下载视频的呀」——**成立**：`youtube_search` 带 `capabilities.videos={method:ytdlp}`、youtube 在 `SUPPORTED_YTDLP_PLATFORMS`，是素材源；pool/Grok 返回网页文章对素材管线无用。6 源按用途两类：**素材/研究源**（youtube/arxiv/github/threads——`site:` fallback 保平台约束更合理，threads 无索引需单独方案）vs **通用发现源**（google_search=Google News 垂直页 tbm=nws、mcp_grok_search——pool 合理）。**用户裁决**：① 每源像 x_search 一样重捋 + 常设报警机制 → 开票 **#309**（逐源链路审计，62 源按用途定链，作 grilling 输入）+ **#308**（脚本错误显性化报警，proxy 透传/不吞错/script-error 轨迹，#269 Phase 2 地基）；② URL search 层（API → 纯 HTTP → CDP，#66 fetch-page 复活）批准开票走 proposal-review；③ Grok 重新定位倾向：独立事实核查源、不再当 fallback；④ **下一 session 约定 #292/#269/#200 联合 grilling 会**，核心输入 = #309 审计。#292 范围界定：路由语义（已收口，open 待复核闭票），报警/审计/新层均不塞回。
 >
 > - **#292 challenge 深挖第二层：googleSiteFallback 死层根因修复**（用户连问「fallback 有用吗」→ 探针 + 隔离测试定根因）：Google `site:x.com` 索引本身健康（9 h3 + 真实推文 URL，无 consent/captcha），但真实管线恒 0——**根因**：`collectFromCdp` 按 #199 规则读 `cap?.url ?? source.url`（cap 优先），而 Step 2 合成的 fallbackSource `...source` 展开继承了原源 `capabilities.articles`（x.com url + X SPA 脚本），顶层 Google 覆盖被 cap 静默遮蔽——**所有 googleSiteFallback 源自 capabilities enrichment 时代起 fallback 实际重抓原页面、恒 0**（proxy 的 `{"error":"Uncaught"}` 被 extractFromTab 吞成空数组，轨迹只见 zero-results）。修复 `f3d10ba`：fallbackSource 同步覆盖 capabilities.articles 四字段；真实 smoke **首次跑通**：`cdp 0 → google-fallback 9`（9 条真实 X 帖子，免登录零 pool credit）。red 1 → green 211/211。
 > - **#292 同日 challenge 裁决（交付修订）**：用户 challenge「x_search 为什么需要 googleSiteFallback / 它跟 Tavily 命中什么关系」——**成立**：smoke 实证 pool 命中 13 条全非 x.com 内容却挂 `source: "x_search"` 标签，且抢占更高质量的 Bigsong 推文；根因是 #65 七源名单写于 #90 之前（当时 x_search fallback 是通用 Grok MCP）。**用户裁决**：① x_search 退出 pool，平台保真链 `CDP → site:x.com → Bigsong`，triage 规则 1 精神优先于 #65 字面；② 6 个 web_search 源的 mcp-search-bridge fallback 转直连 Bigsong API（推广 #90 同 upstream/system prompt/env 模式，MCP 保留给大模型消费方）→ 开票 **#307**。代码修订：`isPoolEligible` 回滚 apiFallback 分支（pool-eligible = 6 源）、层级次序还原（apiFallback → pool → 专用 MCP）。裁决评论 issuecomment-5673271677。
@@ -217,6 +219,8 @@ GitHub Issues 依赖关系 + 执行波次（Wave）+ 价值分层（Tier）+ 主
 
 | #    | 开票日     | 一句话描述                                                                               | 分流结果                                              |
 | ---- | ---------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **#309** | 2026-09-15 | audit: 62 源 fallback 链路逐源重捋——按用途（素材/研究/发现）定链，x_search 模式推广；6 源 challenge 实证（youtube→yt-dlp 素材源 fallback 到 pool 无用），产出作 grilling 会输入 | ⏳ 待分流（`needs-triage`）                           |
+| **#308** | 2026-09-15 | fix: CDP 提取脚本错误显性化——proxy 异常透传 + extractFromTab 不吞错 + script-error 轨迹与 streak（#269 Phase 2 地基） | ⏳ 待分流（`needs-triage`）                           |
 | **#307** | 2026-09-15 | 6 个 web_search 源的 mcp-search-bridge fallback 转直连 Bigsong API（推广 #90 同 upstream/system prompt/env 模式，去掉 MCP 子进程跳；MCP 保留给大模型/Agent 消费方）——#292 裁决现场用户批准开票 | ⏳ 待分流（`needs-triage`）                           |
 | **#306** | 2026-09-15 | brief-builder 测试日期衰减：fixture 硬编码 2026-08-15 + 30 天真实时钟过滤，2026-09-15 起恒挂 6 例（#292 review 期间发现，与搜源改动无关） | ⏳ 待分流（`needs-triage`）                           |
 | **#305** | 2026-09-14 | Search Pool 引擎静默零结果自动发现：parse-drop 告警（A）+ 零结果 streak（B）+ CI canary 自动开票（C）——#281 静默烧 credit 三周的教训，用户已批准三层方向 | ⏳ 待分流（`needs-triage`）                           |
