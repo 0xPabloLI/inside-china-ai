@@ -84,6 +84,36 @@ function clampDescription(text: string): string {
   return clean.length <= 160 ? clean : `${clean.slice(0, 157).trimEnd()}…`;
 }
 
+/** Topic terms Google News uses alongside the headline, seeded from the article title. */
+const BASE_KEYWORDS = ["China AI news", "Chinese AI models", "China AI"];
+const TOPIC_TERMS = [
+  "DeepSeek",
+  "Qwen",
+  "Alibaba",
+  "GLM",
+  "Zhipu",
+  "Moonshot",
+  "Kimi",
+  "ByteDance",
+  "Ant Group",
+  "Unitree",
+  "MiniMax",
+  "Baidu",
+  "Tencent",
+  "Huawei",
+  "world model",
+  "humanoid robot",
+  "open source",
+  "regulation",
+];
+
+function newsKeywords(title: string): string {
+  const haystack = title.toLowerCase();
+  const matched = TOPIC_TERMS.filter((term) => haystack.includes(term.toLowerCase()));
+  return [...BASE_KEYWORDS, ...matched].slice(0, 10).join(", ");
+}
+
+
 export const Route = createFileRoute("/posts/$slug")({
   loader: async ({ context, params }) => {
     const post = await context.queryClient.ensureQueryData(postQuery(params.slug));
