@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Resvg } from "@cf-wasm/resvg";
 import sourceSerifUrl from "@/assets/fonts/SourceSerif4.ttf?url";
 import interUrl from "@/assets/fonts/Inter-Bold.ttf?url";
+
 import {
   ARTICLE_OG_HEIGHT,
   ARTICLE_OG_WIDTH,
