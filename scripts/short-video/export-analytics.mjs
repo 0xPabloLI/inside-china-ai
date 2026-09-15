@@ -13,6 +13,13 @@
 import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { createLogger } from "./lib/logger.mjs";
+
+// Status/diagnostics go to stderr as structured log lines (JSON default,
+// LOG_FORMAT=text for interactive runs); stdout stays reserved for the
+// human-readable post summary. The key never appears in log output — the
+// logger scrubs it, but we also simply never pass it anywhere.
+const log = createLogger("export-analytics");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, "output");
@@ -34,12 +41,11 @@ async function getApiKey() {
 }
 
 async function main() {
-  console.log("📊 Analytics Export");
-  console.log("=".repeat(50));
+  log.info("analytics export start");
 
   const apiKey = await getApiKey();
   if (!apiKey) {
-    console.error("❌ No Publora API key found");
+    log.error("no Publora API key found");
     process.exit(1);
   }
 
@@ -50,7 +56,7 @@ async function main() {
   const data = await resp.json();
   const posts = data.posts || [];
 
-  console.log(`  Found ${posts.length} published posts`);
+  log.info("posts fetched", { count: posts.length });
 
   const export_ = {
     exportedAt: new Date().toISOString(),
@@ -70,7 +76,7 @@ async function main() {
   if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
   writeFileSync(OUTPUT_PATH, JSON.stringify(export_, null, 2) + "\n", "utf8");
 
-  console.log(`\n📁 ${OUTPUT_PATH}`);
+  log.info("analytics export written", { path: OUTPUT_PATH, count: posts.length });
   if (posts.length > 0) {
     console.log("\n📌 Published posts:");
     for (const p of posts.slice(0, 5)) {
@@ -80,6 +86,8 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error(`❌ ${e.message}`);
+  // e.message only — never the error object, which can carry request headers
+  // (including the API key) in its stack or cause fields.
+  log.error("analytics export failed", { err: e?.message });
   process.exit(1);
 });
