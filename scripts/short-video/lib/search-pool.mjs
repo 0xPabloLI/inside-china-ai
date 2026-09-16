@@ -97,20 +97,22 @@ export function normalizePublishedDate(raw) {
 //
 // Engines express a recency window differently: Serper tbs qdr:d/w/m/y,
 // Brave freshness pd/pw/pm/py, Tavily a plain integer `days`. Bucket the
-// requested window onto the smallest engine bucket that covers it.
+// requested window onto the smallest engine bucket that covers it — one
+// shared table so the two ladders cannot drift (review 2026-09-16).
+
+const NEWS_WINDOW_BUCKETS = [
+  { maxDays: 1, tbs: "qdr:d", freshness: "pd" },
+  { maxDays: 7, tbs: "qdr:w", freshness: "pw" },
+  { maxDays: 30, tbs: "qdr:m", freshness: "pm" },
+  { maxDays: Infinity, tbs: "qdr:y", freshness: "py" },
+];
 
 export function tbsForDays(days) {
-  if (days <= 1) return "qdr:d";
-  if (days <= 7) return "qdr:w";
-  if (days <= 30) return "qdr:m";
-  return "qdr:y";
+  return NEWS_WINDOW_BUCKETS.find((b) => days <= b.maxDays).tbs;
 }
 
 export function freshnessForDays(days) {
-  if (days <= 1) return "pd";
-  if (days <= 7) return "pw";
-  if (days <= 30) return "pm";
-  return "py";
+  return NEWS_WINDOW_BUCKETS.find((b) => days <= b.maxDays).freshness;
 }
 
 /**
@@ -224,6 +226,11 @@ export const POOL_ENGINES = [
   { name: "jina", apiKeyEnv: "JINA_API_KEY", newsCapable: false, search: searchJina },
 ];
 
+/** Recorded when a non-newsCapable engine is skipped in news mode — shared by
+ *  the serial and parallel paths so the two cannot drift (review 2026-09-16). */
+const NEWS_SKIP_REASON =
+  "skipped: engine cannot honor a news window and returns only partial per-entry dates — fail-closed news exit (#309)";
+
 /** Engine names in priority order — exported for tests and status logs. */
 export const POOL_ENGINE_NAMES = POOL_ENGINES.map((e) => e.name);
 
@@ -281,12 +288,7 @@ export async function searchPool(keyword, opts = {}) {
 
   for (const engine of engines) {
     if (news && engine.newsCapable === false) {
-      attempts.push({
-        engine: engine.name,
-        ok: false,
-        error:
-          "skipped: no news window and only partial per-entry dates — fail-closed news exit (#309)",
-      });
+      attempts.push({ engine: engine.name, ok: false, error: NEWS_SKIP_REASON });
       continue;
     }
     const apiKey = process.env[engine.apiKeyEnv] || "";
@@ -333,12 +335,7 @@ async function searchPoolParallel(keyword, engines, timeoutMs, news = null) {
 
   const activeEngines = engines.filter((engine) => {
     if (news && engine.newsCapable === false) {
-      attempts.push({
-        engine: engine.name,
-        ok: false,
-        error:
-          "skipped: no news window and only partial per-entry dates — fail-closed news exit (#309)",
-      });
+      attempts.push({ engine: engine.name, ok: false, error: NEWS_SKIP_REASON });
       return false;
     }
     const apiKey = process.env[engine.apiKeyEnv] || "";

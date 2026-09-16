@@ -325,9 +325,7 @@ async function collectFromCdp(source, keyword) {
   } catch (e) {
     await cdpCloseTab(tabId);
     if (e instanceof ScriptError) {
-      console.warn(
-        `  🚨 ${source.label} extraction script broken (no retry, #308): ${e.message}`,
-      );
+      console.warn(`  🚨 ${source.label} extraction script broken (no retry, #308): ${e.message}`);
       return { articles: [], status: "script-error" };
     }
     throw e;
@@ -790,11 +788,13 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     if (isPoolEligibleFn(source)) {
       console.log(`  🏊 Trying search pool for ${source.label}...`);
       // #309 (news contract, ruling (b), 2026-09-15): pool calls carry the
-      // recency window (default 7 days) — Serper tbs / Brave freshness /
-      // Tavily topic:"news"+days; Jina skips fail-closed. An empty
-      // news-windowed pool still falls through to the Grok bridge below.
+      // recency window — Serper tbs / Brave freshness / Tavily topic:"news"+
+      // days; Jina skips fail-closed. Default 7 days (ruling); a source's own
+      // tracking window (月报类 30 天) overrides so the engine fetch and the
+      // downstream freshness filter share one bound. An empty news-windowed
+      // pool still falls through to the Grok bridge below.
       const poolResult = await searchPoolFn(keyword || DEFAULT_KEYWORDS[0], {
-        news: { days: 7 },
+        news: { days: source.tracking?.freshnessWindowDays ?? 7 },
       });
       for (const attempt of poolResult.attempts) {
         console.warn(`  ⚠️  Pool engine ${attempt.engine}: ${attempt.error}`);

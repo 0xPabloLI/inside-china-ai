@@ -181,6 +181,19 @@ describe("collectFromSource fallback chain order", () => {
     expect(poolCall.args[1]).toEqual({ news: { days: 7 } });
   });
 
+  it("inherits the source tracking window for long-period sources (#309: 月报类 30 天)", async () => {
+    const { promise, calls } = harness(
+      {
+        searchPoolFn: async () => ({ attempts: [], articles: [] }),
+        isPoolEligibleFn: () => true,
+      },
+      { mcpFallback: { command: "x" }, tracking: { freshnessWindowDays: 30 } },
+    );
+    await promise;
+    const poolCall = calls.find((c) => c.fn === "searchPoolFn");
+    expect(poolCall.args[1]).toEqual({ news: { days: 30 } });
+  });
+
   it("skips the pool for platform-specific MCP sources (direct mcpFallback)", async () => {
     const { promise, calls } = harness(
       { collectMcp: async () => [{ title: "m", url: "u" }] },
