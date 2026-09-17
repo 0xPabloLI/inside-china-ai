@@ -30,6 +30,14 @@ import {
 } from "fs";
 import { join, dirname } from "path";
 import { execSync } from "child_process";
+import {
+  YTDLP_BROWSER_UA,
+  ytdlpDomain,
+  ytdlpGate,
+  ytdlpRecord412,
+  ytdlpRecordSuccess,
+  matchYtdlp412,
+} from "./ytdlp-guard.mjs";
 import { tmpdir, homedir } from "os";
 import { fileURLToPath } from "url";
 import { dirname as _dirname } from "path";
@@ -450,7 +458,9 @@ export function weiboCookieNetscape(cookieStr) {
  * `WEIBO_COOKIE` env, see weiboCookieNetscape) guards against the
  * visitor-cookie system changing again (the 2025 403 outage class).
  * yt-dlp rejects Cookie headers outright, so the file is the only channel.
- * Non-weibo URLs are byte-identical to the pre-#75 command.
+ * All URLs carry a browser-like `--user-agent` (ytdlp-guard.mjs): the
+ * default python UA is part of what bilibili's 412 risk control flags
+ * (yt-dlp #16571 workaround reports).
  *
  * @param {string} url
  * @param {{tmpPath: string, cookieFile?: string}} opts
@@ -461,6 +471,7 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
   const parts = [
     "yt-dlp",
     "--cookies-from-browser firefox",
+    `--user-agent "${YTDLP_BROWSER_UA}"`,
     '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
     "--max-filesize 20M",
     '--download-sections "*0:00-0:08"',
@@ -479,6 +490,19 @@ export function downloadYtdlpAdapter(url) {
   const source = isYoutubeUrl(url) ? "youtube" : isWeiboUrl(url) ? "weibo" : "bilibili";
   const tmpPath = join(tmpdir(), `vdl-ytdlp-${Date.now()}.mp4`);
   const cookieFile = join(tmpdir(), `vdl-ytdlp-cookies-${Date.now()}.txt`);
+
+  // Persistent 412 backoff — skip the invocation entirely while penalized.
+  const domain = ytdlpDomain(url);
+  if (ytdlpGate(domain)) {
+    return makeResult({
+      status: "failed",
+      strategy: ADAPTER_IDS.YTDLP,
+      source,
+      sourceUrl: url,
+      reason: "yt-dlp 412 backoff active — skipped",
+      retryable: false,
+    });
+  }
 
   // Ensure dir exists
   const dir = dirname(tmpPath);
@@ -535,6 +559,8 @@ export function downloadYtdlpAdapter(url) {
       });
     }
 
+    ytdlpRecordSuccess(domain);
+
     return makeResult({
       status: "downloaded",
       strategy: ADAPTER_IDS.YTDLP,
@@ -556,6 +582,10 @@ export function downloadYtdlpAdapter(url) {
     } catch {}
 
     const stderr = e.stderr?.toString()?.substring(0, 200) ?? "";
+    // 412 penalty box — record before the generic classifications below.
+    if (matchYtdlp412(e)) {
+      ytdlpRecord412(domain);
+    }
     if (stderr.toLowerCase().includes("login")) {
       return makeResult({
         status: "failed",

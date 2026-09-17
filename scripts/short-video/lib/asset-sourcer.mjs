@@ -70,6 +70,14 @@ import {
 } from "./progressive-search.mjs";
 import { downloadCandidate } from "./download-candidate.mjs";
 import { RateLimitedSkipError } from "./cdp-client.mjs";
+import {
+  YTDLP_BROWSER_UA,
+  ytdlpDomain,
+  ytdlpGate,
+  ytdlpRecord412,
+  ytdlpRecordSuccess,
+  matchYtdlp412,
+} from "./ytdlp-guard.mjs";
 // Artifact schema versions (#199 2.5) — bump on breaking shape changes so
 // consumers can branch. asset-analysis.json carries its own `version: 1`.
 export const ASSET_REPORT_SCHEMA_VERSION = 1;
@@ -1731,14 +1739,28 @@ export function searchYtdlp(keyword, platform) {
   const modeArgs =
     platform === "bilibili" ? "--playlist-items 1-6 --no-warnings" : "--flat-playlist";
 
+  // Persistent 412 backoff (#ytdlp-guard): bilibili 412s are a rate-limit
+  // penalty that outlives sessions — skip the call entirely while penalized.
+  const domain = ytdlpDomain(platform, "search");
+  if (ytdlpGate(domain)) {
+    return [];
+  }
+
   try {
     const output = execSync(
-      `yt-dlp --cookies-from-browser firefox ${modeArgs} --print "%(id)s\t%(title)s\t%(duration)s" "${searchUrl}" 2>/dev/null`,
+      `yt-dlp --cookies-from-browser firefox --user-agent "${YTDLP_BROWSER_UA}" ${modeArgs} --print "%(id)s\t%(title)s\t%(duration)s" "${searchUrl}"`,
       { encoding: "utf8", timeout: 120000 },
     );
 
-    return parseYtdlpSearchOutput(output, platform);
-  } catch {
+    const candidates = parseYtdlpSearchOutput(output, platform);
+    ytdlpRecordSuccess(domain);
+    return candidates;
+  } catch (e) {
+    // 412 = upstream rate-limit penalty (yt-dlp #5083/#14830) — record it so
+    // every yt-dlp call for this domain (this session or the next) backs off.
+    if (matchYtdlp412(e)) {
+      ytdlpRecord412(domain);
+    }
     return [];
   }
 }
@@ -1756,6 +1778,12 @@ export function downloadYtdlp(url, destPath) {
     return { success: true, path: destPath, skipped: true };
   }
 
+  // Persistent 412 backoff — cache hits above still work during a penalty.
+  const domain = ytdlpDomain(url);
+  if (ytdlpGate(domain)) {
+    return { success: false, error: `yt-dlp 412 backoff active for ${domain} — skipped` };
+  }
+
   // Ensure directory exists
   const dir = dirname(destPath);
   if (!existsSync(dir)) {
@@ -1765,6 +1793,7 @@ export function downloadYtdlp(url, destPath) {
   const cmd = [
     "yt-dlp",
     "--cookies-from-browser firefox",
+    `--user-agent "${YTDLP_BROWSER_UA}"`,
     '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
     "--max-filesize 20M",
     '--download-sections "*0:00-0:08"',
@@ -1784,9 +1813,15 @@ export function downloadYtdlp(url, destPath) {
       return { success: false, error: "Downloaded file too small (<1KB)" };
     }
 
+    ytdlpRecordSuccess(domain);
     return { success: true, path: destPath };
   } catch (e) {
     const stderr = e.stderr?.toString()?.substring(0, 200) ?? "";
+    // 412 penalty box — record before the generic classifications below.
+    if (matchYtdlp412(e)) {
+      ytdlpRecord412(domain);
+      return { success: false, error: `yt-dlp 412 rate limit (${domain}) — backoff recorded` };
+    }
     // Detect login requirement
     if (stderr.toLowerCase().includes("login")) {
       return { success: false, error: "needs auth" };
