@@ -88,8 +88,17 @@ export const Route = createFileRoute("/api/public/og/posts/$slug.png")({
           });
         } catch (err) {
           console.error("OG image render failed", err);
-          return new Response("Unable to render article image", { status: 500 });
+          // Never leave a social/search crawler without an image: fall back to the
+          // static branded 1200x630 file so the declared dimensions still hold.
+          return new Response(null, {
+            status: 302,
+            headers: {
+              Location: "/og-default.png",
+              "Cache-Control": "public, max-age=300",
+            },
+          });
         }
+
       },
     },
   },
