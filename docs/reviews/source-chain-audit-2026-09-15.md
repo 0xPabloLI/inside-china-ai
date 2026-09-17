@@ -154,11 +154,12 @@ CDP 10 源共享 `CDP_VIDEO_SCRIPT`（self-hosted `<video>` + bilibili/youtube e
 - 质量差：返回博客索引页（"DeepSeek AI Blog (2026)"）与一年旧文，无新闻垂直。
 - **判决（按裁决框架）**：Jina **退出 fail-closed 新闻链**（news 模式跳过，attempts 留 `fail-closed` 记录）；通用链保留原位。已实施（`newsCapable: false`）。
 
-### F.3 探针 3 — weibo yt-dlp 真实样本（判决延后）
+### F.3 探针 3 — weibo yt-dlp 真实样本（复测成功）
 
 - 样本：weibo 首页 feed 实抓 4 条真实帖 URL（CDP 代理，登录态正常）。
-- 结果：**4/4 失败**——`ERROR: [Weibo] ...: Failed to parse JSON (JSONDecodeError)`（extractor 的 JSON metadata 步骤拿到非 JSON，登录墙/验证页 HTML；firefox 524 cookies 不够）。
-- **配置说明**：本次运行 `WEIBO_COOKIE` **未设置**（用户答应补、截至探针时未入 `.env.local`）——#75 Batch 2 的 cookie 管线**从未被行使**，"败"证据不充分，**不足以判删路由**。判决延后：等 `WEIBO_COOKIE` 就位后复测一次；届时再失败 → 删路由（按任务定案）。
+- 首测：**4/4 失败**——`ERROR: [Weibo] ...: Failed to parse JSON (JSONDecodeError)`（extractor 的 JSON metadata 步骤拿到非 JSON，登录墙/验证页 HTML；firefox 524 cookies 不够）。
+- **复测（用户授权从 Chrome 会话取 cookie）**：`WEIBO_COOKIE` env 通道仍未行使；改走 `--cookies-from-browser chrome`（Keychain 静默授权，978 cookies 解出）→ 登录墙破（JSON metadata 正常返回）。随后仍 `No video formats found`——根因是**选样**：随手抓的 feed 帖在 `ajax/statuses/show` 响应里没有 `page_info.media_info.playback_list`（非视频帖）。CDP 在登录页上下文对 6 个候选逐一 fetch 验证，锁定真视频帖 `Ri5ajjFK0` → **live-fire 下载成功：517,603 bytes / 8.00s mp4**（证据归档 `scripts/short-video/experiments/probe-309/weibo/weibo-livefire.mp4`，gitignored）。
+- **判决：路由成，可进白名单**，条件：(1) 有效 cookie 源——Chrome cookie 通道已实证，或完整 `WEIBO_COOKIE`（注意页面 `document.cookie` 拿不到 HttpOnly 的 `SUB`，env 通道需从 DevTools 请求头复制完整 Cookie 串）；(2) 选样前置视频判定（`playback_list` 存在性），weibo extractor 对非视频帖只报 `No video formats found`，不区分"非视频"与"不可下"。
 - 附带发现：**weibo_hot 主 API（60s.viki.moe）全程 429**（直连 + 代理都限流）——该源 API 层当前不可用，#140 P5 的"第三方生存风险"注释应验。
 
 ### F.4 探针 4 — video capability 14 源逐源实测（验收：拿到 ≠ 搜到）
@@ -169,7 +170,7 @@ CDP 10 源共享 `CDP_VIDEO_SCRIPT`（self-hosted `<video>` + bilibili/youtube e
 |---|---|---|
 | `baidu_search` | ✅ 拿到 | CDP `tn=vsearch` 真视频垂直页 → bdstatic 直链 mp4（2.3MB）。**唯一下单层即视频垂直的 CDP 源** |
 | `pexels-video` | ✅ 拿到 | API 10 候选 → 1080p mp4（53MB）。⚠️ 超 20M cap——管线直连路径（`downloadDirectHttp` 的 `exceeds-size-limit`）会 skip；探针用无 cap 的 `downloadAsset` 才落盘 |
-| `bilibili` | ❌→✅* | 直连 **SSL EOF**（网络层，yt-dlp→bilibili 被掐）；`--proxy 7897` 后 **搜索+下载全通**（8s mp4 143KB）——能力成立，本机路由问题。管线 execSync 无代理配置，当前环境实际拿不到 |
+| `bilibili` | ❌→✅* | 直连 **SSL EOF**（网络层，yt-dlp→bilibili 被掐）；`--proxy 7897` 后 **搜索+下载全通**（8s mp4 143KB）——能力成立，本机路由问题。管线 execSync 无代理配置，当前环境实际拿不到。**后记（同日稍后）**：代理出口触发 bilibili 搜索限流（HTTP 412；直连亦然、yt-dlp 2026.07.04↔2026.08.19 无差、cookie 与否无差）——探测频次触发的临时反爬，非升级回归；管线 bilisearch 低频直连不受影响，冷却即恢复。yt-dlp 保持 2026.07.04 pin（管线注释锚定该版本；2026.08.19 未验证 bilibili flat-entry 行为） |
 | `youtube_search` | ❌ | `ytsearch10` 搜到 10 条，下载全部 **bot-check**（"Sign in to confirm you're not a bot"；`--cookies-from-browser firefox` 的 cookies 无效/无 YouTube 登录态） |
 | 其余 9 个 CDP 新闻源（qbitai/jiqizhixin/ithome/xinhua/thepaper/leiphone/zhidx/bing_news/google_search） | ❌ 0 候选 | **结构性弱项**：`CDP_VIDEO_SCRIPT` 扫**搜索结果页**本身的自托管 `<video>` + B站/YT embed——新闻站搜索页不嵌播放器（视频在文章页内）；qbitai 的 video URL 甚至只是**首页**（手动验证：0 video / 0 iframe）。唯 baidu（真视频垂直）例外 |
 | `coverr` | ❌ | 搜索 API 活着（`query=technology` 27 页）但 **DeepSeek 0 库存**（题材词问题非链路问题）；**下载链漂移**：`data.params.userToken` 现为字符串非对象（parser 取不到 token）且旧 CDN URL `cdn.coverr.co/videos/{base}/mp4?token=` 对正确 token 也 404——hit 内 `playback_id` 表明已迁 Mux 托管（`stream.mux.com` 直链 403/404，需签名）→ **需要修 parser + 换下载模式，建议另开小票** |
