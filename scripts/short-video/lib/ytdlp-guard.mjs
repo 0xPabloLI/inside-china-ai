@@ -58,7 +58,10 @@ export function matchYtdlp412(errLike) {
   const stderr =
     typeof errLike.stderr === "string" ? errLike.stderr : (errLike.stderr?.toString?.() ?? "");
   const message = errLike.message ?? "";
-  return /412|precondition failed/i.test(stderr) || /412|precondition failed/i.test(message);
+  // Anchored: a bare "412" would false-positive on ids/durations/URL paths
+  // in yt-dlp output. Both observed spellings covered (yt-dlp #5083/#14830).
+  const pat = /HTTP Error 412|412: Precondition/i;
+  return pat.test(stderr) || pat.test(message);
 }
 
 /**
@@ -118,7 +121,13 @@ export function createYtdlp412Guard({
     if (isDisabled()) return;
     const domains = read();
     const previous = domains[domain];
-    const consecutive = (typeof previous?.consecutive === "number" ? previous.consecutive : 0) + 1;
+    // Escalate only while the previous penalty is still active; a re-hit
+    // after expiry starts a fresh 1h window (otherwise a single false
+    // positive per cooldown cycle could ratchet a healthy domain to 24h).
+    const stillPenalized = previous && typeof previous.until === "number" && previous.until > now();
+    const consecutive = stillPenalized
+      ? (typeof previous.consecutive === "number" ? previous.consecutive : 1) + 1
+      : 1;
     const duration = Math.min(YTDLP_412_BASE_MS * 2 ** (consecutive - 1), YTDLP_412_MAX_MS);
     domains[domain] = { until: now() + duration, consecutive, lastAt: now() };
     write(domains);

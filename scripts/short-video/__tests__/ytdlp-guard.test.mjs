@@ -127,6 +127,21 @@ describe("matchYtdlp412", () => {
     expect(matchYtdlp412(new Error("timed out"))).toBe(false);
     expect(matchYtdlp412(null)).toBe(false);
   });
+
+  it("does not fire on incidental 412 substrings (ids, durations, urls)", () => {
+    expect(matchYtdlp412({ stderr: "ERROR: [Weibo] BV1412xyz: no formats" })).toBe(false);
+    expect(matchYtdlp412(new Error("412000 bytes downloaded"))).toBe(false);
+  });
+
+  it("resets the escalation ladder after a penalty has expired", () => {
+    const { guard, advance, now } = makeGuard();
+    guard.record412("bilibili.com");
+    guard.record412("bilibili.com"); // still penalized → escalates to 2h
+    advance(3 * HOUR); // both windows lapsed
+    guard.record412("bilibili.com");
+    const { until } = guard.isBlocked("bilibili.com");
+    expect(until - now()).toBe(HOUR); // fresh 1h, not 4h
+  });
 });
 
 // ─── Wiring tests (mocked execSync, tmp state file) ───
