@@ -211,7 +211,7 @@ export async function searchSearXngImages(keyword, options = {}) {
 export async function searchCdpSource(source, keyword, options = {}) {
   const { waitMs = 3000 } = options;
   // Dynamic import to avoid hard dependency when CDP not needed
-  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad } =
+  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad, ScriptError } =
     await import("./cdp-client.mjs");
 
   const url = source.url(keyword);
@@ -230,24 +230,34 @@ export async function searchCdpSource(source, keyword, options = {}) {
   await new Promise((r) => setTimeout(r, waitMs));
   await waitForPageLoad(tabId);
 
-  // Primary extraction
-  let candidates = await extractFromTab(tabId, source.imageScript);
+  // #308: a broken imageScript is not "no images" — fail the source LOUDLY
+  // (fail-open: the caller keeps its fallback chain, the tab is released).
+  try {
+    let candidates = await extractFromTab(tabId, source.imageScript);
 
-  // Retry once if empty
-  if (candidates.length === 0) {
-    await new Promise((r) => setTimeout(r, waitMs));
-    candidates = await extractFromTab(tabId, source.imageScript);
+    // Retry once if empty
+    if (candidates.length === 0) {
+      await new Promise((r) => setTimeout(r, waitMs));
+      candidates = await extractFromTab(tabId, source.imageScript);
+    }
+
+    // Fallback to generic extraction
+    if (candidates.length === 0 && source.imageFallbackScript) {
+      candidates = await extractFromTab(tabId, source.imageFallbackScript);
+    }
+
+    // Close tab
+    await cdpCloseTab(tabId);
+
+    return candidates;
+  } catch (e) {
+    await cdpCloseTab(tabId);
+    if (e instanceof ScriptError) {
+      console.warn(`  🚨 ${source.name} imageScript broken (no retry, #308): ${e.message}`);
+      return [];
+    }
+    throw e;
   }
-
-  // Fallback to generic extraction
-  if (candidates.length === 0 && source.imageFallbackScript) {
-    candidates = await extractFromTab(tabId, source.imageFallbackScript);
-  }
-
-  // Close tab
-  await cdpCloseTab(tabId);
-
-  return candidates;
 }
 
 // ─── CDP image engine shared normalization (#112) ───
@@ -544,7 +554,7 @@ export async function searchTavilyImages(keyword, apiKey) {
  */
 export async function searchCdpVideoSource(source, keyword, options = {}) {
   const { waitMs = 3000 } = options;
-  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad } =
+  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad, ScriptError } =
     await import("./cdp-client.mjs");
 
   let tabId;
@@ -560,14 +570,25 @@ export async function searchCdpVideoSource(source, keyword, options = {}) {
   await new Promise((r) => setTimeout(r, waitMs));
   await waitForPageLoad(tabId);
 
-  let candidates = await extractFromTab(tabId, source.videoScript);
-  if (candidates.length === 0) {
-    await new Promise((r) => setTimeout(r, waitMs));
-    candidates = await extractFromTab(tabId, source.videoScript);
-  }
+  // #308: a broken videoScript is not "no videos" — fail the source LOUDLY
+  // (fail-open: the caller keeps its fallback chain, the tab is released).
+  try {
+    let candidates = await extractFromTab(tabId, source.videoScript);
+    if (candidates.length === 0) {
+      await new Promise((r) => setTimeout(r, waitMs));
+      candidates = await extractFromTab(tabId, source.videoScript);
+    }
 
-  await cdpCloseTab(tabId);
-  return candidates;
+    await cdpCloseTab(tabId);
+    return candidates;
+  } catch (e) {
+    await cdpCloseTab(tabId);
+    if (e instanceof ScriptError) {
+      console.warn(`  🚨 ${source.name} videoScript broken (no retry, #308): ${e.message}`);
+      return [];
+    }
+    throw e;
+  }
 }
 
 /**

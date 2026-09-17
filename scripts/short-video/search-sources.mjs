@@ -131,6 +131,7 @@ import {
   checkLogin,
   ensureCdpProxy,
   CDP_BASE,
+  ScriptError,
 } from "./lib/cdp-client.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -254,8 +255,10 @@ async function enrichWithMedia(tabId, articles) {
  * Collect articles from one source via CDP.
  *
  * Returns `{articles, status}` — status carries the non-zero-result outcome
- * ("need_login" | "captcha" | null) so the collectFromSource trajectory
- * recorder (#200) can label WHY a layer produced nothing.
+ * ("need_login" | "captcha" | "script-error" | null) so the collectFromSource
+ * trajectory recorder (#200) can label WHY a layer produced nothing.
+ * "script-error" (#308): the extraction script itself threw — no retry,
+ * reported loudly, the caller's fallback chain takes over.
  */
 async function collectFromCdp(source, keyword) {
   if (!cdpAvailable) return { articles: [], status: null };
@@ -311,8 +314,24 @@ async function collectFromCdp(source, keyword) {
 
   // Extract articles — #89 P1: up to 3 escalating-backoff retries in
   // extractWithRetry instead of a single fixed 3s retry.
+  // #308: a broken extraction script (ScriptError) stops the retry loop
+  // immediately and is reported as status "script-error" — the trajectory
+  // and source-health streak see it while the chain stays fail-open.
+  // Transport failures rethrow and surface in failedSources as before.
   const articleScript = cap?.articleScript ?? source.articleScript;
-  let articles = await extractWithRetry(tabId, articleScript);
+  let articles;
+  try {
+    articles = await extractWithRetry(tabId, articleScript);
+  } catch (e) {
+    await cdpCloseTab(tabId);
+    if (e instanceof ScriptError) {
+      console.warn(
+        `  🚨 ${source.label} extraction script broken (no retry, #308): ${e.message}`,
+      );
+      return { articles: [], status: "script-error" };
+    }
+    throw e;
+  }
   console.log(`  📊 Extracted ${articles.length} articles`);
 
   // R1: Extract imageUrl from the same DOM — zero additional requests.
@@ -597,6 +616,7 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
   // "need_login", "captcha", "api-parse-error", "skipped-same-url-as-api").
   // #269 extras: "dead-url" (probe verdict), "invalid-relevance" (keyword
   // guard) — plus optional `probe`/`extracted` fields, add-only.
+  // #308 extra: "script-error" (broken extraction script, no retry).
   const record = (layer, count, reason = undefined, extras = undefined) => {
     try {
       recorder?.({
@@ -1114,9 +1134,17 @@ async function main() {
       const probeEvent = [...sourceAttempts]
         .reverse()
         .find((e) => e.source === source.name && e.probe);
+      // #308: label zero runs with the trajectory's last recorded reason
+      // ("script-error", "zero-results", "invalid-relevance", ...) so the
+      // streak/quarantine record says WHY, not just that it happened.
+      const zeroReason =
+        fetchedArticles.length === 0
+          ? [...sourceAttempts].reverse().find((e) => e.source === source.name && e.reason)?.reason
+          : undefined;
       healthRunEntries.push({
         name: source.name,
         count: fetchedArticles.length,
+        ...(zeroReason ? { zeroReason } : {}),
         ...(probeEvent ? { probe: probeEvent.probe } : {}),
       });
       if (isResearchMode) {

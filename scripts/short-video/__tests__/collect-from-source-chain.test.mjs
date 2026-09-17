@@ -197,4 +197,37 @@ describe("collectFromSource fallback chain order", () => {
     expect(events.every((e) => e.source === "test_src")).toBe(true);
     expect(events[0].reason).toBe("zero-results");
   });
+
+  // #308: a broken extraction script surfaces as status "script-error" from
+  // collectCdp — the trajectory must carry that reason (streak/quarantine
+  // signal) and the chain must stay fail-open (fallback layers still run).
+  it("records reason script-error from collectCdp status and keeps the fallback chain running (#308)", async () => {
+    const { promise, events, calls } = harness(
+      { collectCdp: async () => ({ articles: [], status: "script-error" }) },
+      {
+        url: () => "https://search.test/q",
+        googleSiteFallback: {
+          url: (kw) => `https://www.google.com/search?q=site:test.test+${kw}`,
+          articleScript: "return [];",
+        },
+        apiFallback: { endpoint: "x" },
+        mcpFallback: { command: "x" },
+      },
+    );
+    await promise;
+    const cdpEvent = events.find((e) => e.layer === "cdp");
+    expect(cdpEvent.reason).toBe("script-error");
+    const fbEvent = events.find((e) => e.layer === "google-fallback");
+    expect(fbEvent.reason).toBe("script-error");
+    // Fail-open: both CDP rounds (primary + synthesized fallback) ran, then
+    // the Bigsong and MCP layers were still consulted (pool gate checked,
+    // not eligible → straight to MCP).
+    expect(calls.map((c) => c.fn)).toEqual([
+      "collectCdp",
+      "collectCdp",
+      "collectBigsong",
+      "isPoolEligibleFn",
+      "collectMcp",
+    ]);
+  });
 });

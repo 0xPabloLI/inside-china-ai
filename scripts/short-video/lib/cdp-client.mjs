@@ -146,6 +146,28 @@ export async function cdpNewTab(url) {
 }
 
 /**
+ * Thrown when a page-side extraction script fails (#308).
+ *
+ * The CDP proxy answers an eval of a throwing page script with HTTP 400
+ * `{error: <description>}`. Before #308 both that error AND transport
+ * failures were collapsed to a silent `[]` by extractFromTab — a rotted
+ * selector looked exactly like "no news today" (the googleSiteFallback
+ * dead layer stayed invisible for weeks). A ScriptError means "the script
+ * is broken" — retrying it is pointless, so extractWithRetry lets it
+ * propagate immediately while empty-array results keep their backoff.
+ *
+ * Callers decide the fail-open boundary: search-sources records the
+ * `script-error` trajectory reason and continues its fallback chain;
+ * asset-sourcer logs loudly and skips the source.
+ */
+export class ScriptError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ScriptError";
+  }
+}
+
+/**
  * Evaluate a JavaScript expression in a tab.
  *
  * @param {string} tabId - Tab ID from cdpNewTab
@@ -208,12 +230,19 @@ export async function waitForPageLoad(tabId, retries = 2) {
  * Up to 3 retries (3-5s → 6-10s → 12-20s, randomized); gives up after that
  * so the caller's fallback chain (googleSiteFallback → MCP) takes over.
  *
+ * #308: extraction errors are NOT retried — a ScriptError (broken page
+ * script) or a transport failure propagates immediately. The backoff loop
+ * only covers "page loaded but selector found nothing yet", where waiting
+ * genuinely helps.
+ *
  * @param {string} tabId - Tab ID
  * @param {string} script - JS expression that returns an array
  * @param {object} [opts]
  * @param {(tabId: string, script: string) => Promise<Array>} [opts.extractFn] - extraction seam (tests)
  * @param {(ms: number) => Promise<void>} [opts.sleepFn] - sleep seam (tests)
  * @returns {Promise<Array>} Extracted articles (empty array after exhaustion)
+ * @throws {ScriptError} When the extraction script itself is broken
+ * @throws {Error} When the eval transport fails
  */
 export async function extractWithRetry(tabId, script, opts = {}) {
   const extractFn = opts.extractFn || extractFromTab;
@@ -318,35 +347,43 @@ export async function detectAntiBot(tabId, opts = {}) {
  * The script is wrapped in an IIFE (CDP eval doesn't support top-level return).
  * Handles various CDP response formats: result.value, value, JSON string, or null.
  *
+ * #308: extraction no longer swallows failures into a silent []. A
+ * proxy-reported page-script exception throws ScriptError; a transport
+ * failure (proxy down, tab closed) rethrows the original error. Only
+ * legitimate "nothing extracted" shapes (null, non-JSON string, non-array
+ * value) still resolve to [] so the retry/fallback machinery keeps working.
+ *
  * @param {string} tabId - Tab ID
  * @param {string} script - JS expression that returns an array
- * @returns {Promise<Array>} Extracted articles (empty array on failure)
+ * @returns {Promise<Array>} Extracted articles
+ * @throws {ScriptError} When the page script throws (proxy HTTP 400 {error})
+ * @throws {Error} When the eval transport fails (proxy unreachable, tab gone)
  */
 export async function extractFromTab(tabId, script) {
-  try {
-    // Wrap in async IIFE — supports both sync and async scripts.
-    // CDP eval has awaitPromise:true, so async scripts are properly awaited.
-    const wrappedScript = `(async function(){${script}})()`;
-    const resp = await cdpEval(tabId, wrappedScript);
-    // CDP eval returns { value: ... } — value may be array, string, or null
-    let articles = resp?.result?.value || resp?.value || resp;
-    if (Array.isArray(articles)) {
-      return articles;
-    }
-    // Try parsing if it's a string (some CDP proxies serialize arrays as JSON strings)
-    if (typeof articles === "string") {
-      try {
-        const parsed = JSON.parse(articles);
-        if (Array.isArray(parsed)) return parsed;
-      } catch {
-        // Not JSON — return empty
-      }
-    }
-    return [];
-  } catch (e) {
-    console.warn(`  ⚠️  Extract failed: ${e.message}`);
-    return [];
+  // Wrap in async IIFE — supports both sync and async scripts.
+  // CDP eval has awaitPromise:true, so async scripts are properly awaited.
+  const wrappedScript = `(async function(){${script}})()`;
+  const resp = await cdpEval(tabId, wrappedScript);
+  // #308: the proxy turns a page-script exception into {error} (HTTP 400) —
+  // surface it as a typed ScriptError instead of a silent zero-result.
+  if (resp?.error) {
+    throw new ScriptError(resp.error);
   }
+  // CDP eval returns { value: ... } — value may be array, string, or null
+  let articles = resp?.result?.value || resp?.value || resp;
+  if (Array.isArray(articles)) {
+    return articles;
+  }
+  // Try parsing if it's a string (some CDP proxies serialize arrays as JSON strings)
+  if (typeof articles === "string") {
+    try {
+      const parsed = JSON.parse(articles);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Not JSON — return empty
+    }
+  }
+  return [];
 }
 
 /**

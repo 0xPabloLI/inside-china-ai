@@ -73,6 +73,12 @@ _Avoid_: Feed, scraper
 **Capabilities**: An optional field on each source in the Source Registry, declaring what data types the source can provide and the access method for each. Shape: `{ articles?: {...}, images?: {...}, videos?: {...} }`. A source can have one, two, or all three capabilities (e.g., all 9 CDP search sources have `articles` + `images`; Pexels has `images` + `videos`; arXiv has `articles` only). For dual-capability CDP sources, `extractScript` returns `{ url: articleUrl, imageUrl }` for trend discovery, while `capabilities.images.primaryScript` returns `{ url: imageUrl, type: 'image' }` for asset sourcing — same DOM, different field semantics.
 _Avoid_: Source config, source flags
 
+**News Contract (新闻契约)**: The collection discipline for sources serving trend/news discovery — every result must be news with a defensible time: pool/API calls carry news parameters and map `publishedAt` (fail-closed for API/RSS/pool sources; CDP DOM sources degraded until selectors land), with a default 7-day recency window (30 for long-cycle sources). Ruled in the source-chain rework grilling (2026-09-15); execution in #309.
+_Avoid_: Search source (the old single-contract abstraction), news filter
+
+**Material Contract (素材契约)**: The acquisition discipline for sources serving video material — platform-faithful acquisition anchored on a contentId: site: fallback (default year window) + capability routing (yt-dlp/cobalt/direct/CDP adapter), chained after the topic is chosen. A source can serve both contracts; the query role, not the source, picks the contract.
+_Avoid_: Footage pipeline, asset search (too generic)
+
 ## TTS & Voice
 
 **TTS Engine Adapter**: A module in `lib/tts/` that implements a common interface (`isAvailable()`, `generate()`, `info`) for a specific TTS provider. Registered in `registry.mjs` via `ENGINE_FACTORIES` and selected by `PRIORITY` order or `TTS_ENGINE` env override. Current engines: F5-TTS-MLX (default), Qwen3-TTS (backup), edge-tts (fallback), macOS `say` (last resort).
