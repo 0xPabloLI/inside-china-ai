@@ -162,10 +162,14 @@ jobs:
             // ⚠️ 只有 sweep（手工触发）才受 apply 开关约束。
             // issues.closed 事件下 context.payload.inputs 是 undefined，
             // 若统一读 inputs?.apply 会恒为 false —— 常态路径退化成只打印不删的静默空转。
-            const apply = github.event_name === 'workflow_dispatch'
+            // ⚠️ 事件名在脚本里只能读 context.eventName —— 这里的 `github` 是 Octokit 实例，
+            // 没有 event_name 字段（写 github.event_name 会静默得到 undefined，
+            // 首版正是这样把 sweep 判成 false、走进闭票分支读 undefined.issue 崩掉的）。
+            // `if:` 里的 github.event_name 是 Actions 表达式上下文，那是另一回事，别混用。
+            const apply = context.eventName === 'workflow_dispatch'
               ? String(context.payload.inputs?.apply) === 'true'
               : true;
-            const sweep = github.event_name === 'workflow_dispatch';
+            const sweep = context.eventName === 'workflow_dispatch';
 
             let inspected = 0;
             let wouldStrip = 0;
