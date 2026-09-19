@@ -5,6 +5,9 @@ name: Issue tracker signals
 #      （信号出现在 `gh issue list` 的输出里 —— agent triage 时本来就会跑这条命令，
 #       零额外调用、零额外自觉；读完并把状态落进 roadmap 后由该 session 摘掉）
 #   2. 关票 → 校验存在交付记录评论；缺失则在原票留言提示，不改状态
+#   3. 关票 → 剥掉 state / priority / signal 三类标签（deny-list），只留 category 与语义标签
+#      —— 第 1 条是「发记录评论 → CI 打 comments-unread → 闭票」的必经链，
+#         纯靠约定的清理规则在这里**机制性不可执行**，必须机器兜底
 #
 # 规则出处：docs/agents/issue-tracker.md（Conventions 的 read-before-claim + Session cognitive offload）
 # 标签定义：docs/agents/triage-labels.md（Signal Labels，由 CI 管理，不计入 triage 的 category/state 约定）
@@ -20,6 +23,14 @@ on:
     inputs:
       backfill:
         description: "给所有「已有评论」的 open 票补打 comments-unread（默认关；开着会把 -50% 的 open 票标记为未读，稀释信号）"
+        type: boolean
+        default: false
+      sweep_closed:
+        description: "扫存量已关闭票的 state/P/signal 标签残留（默认关；开着才跑 sweep-closed-labels job）"
+        type: boolean
+        default: false
+      apply:
+        description: "配合 sweep_closed：勾上才真的删标签，不勾只打印清单（dry-run）"
         type: boolean
         default: false
 
@@ -42,14 +53,30 @@ jobs:
       - uses: actions/github-script@v7
         with:
           script: |
+            // ⚠️ 回读当前 state —— 事件 payload 里的 issue.state 是「评论创建那一刻」的快照。
+            // 必经链是「发交付记录评论 → 关票」，而本 job 排在评论事件之后才跑完：
+            // payload 仍写 open，于是给一张**已经关闭**的票打上 comments-unread。
+            // #307/#309/#316/#317 四张已闭票全带 comments-unread，根因就在这里
+            // （不只是时序，是这个晚到的 job 在闭票之后补刀）。
+            const issueNumber = context.issue?.number ?? context.payload.issue?.number;
+            const { data: current } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+            if (current.state !== 'open') {
+              core.info(`#${issueNumber} is ${current.state} — skip comments-unread`);
+              return;
+            }
+
             // 幂等：标签已存在时 addLabels 不报错
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: issueNumber,
               labels: ['comments-unread'],
             });
-            core.info(`comments-unread marked on #${context.issue.number}`);
+            core.info(`comments-unread marked on #${issueNumber}`);
 
   check-delivery-record:
     name: Check delivery record on close
@@ -97,6 +124,106 @@ jobs:
               ].join('\n'),
             });
             core.info(`delivery record missing on #${issue.number} — reminder posted`);
+
+  # 机器兜底替代「靠自觉」的清理规则。
+  # 两种触发：
+  #   · issues.closed          → 只处理刚关的那一票（常态路径）
+  #   · workflow_dispatch + sweep_closed → 扫存量（job 只对未来闭票生效，存量必须回填）
+  # dry-run / 实跑由 apply 输入区分（默认 dry-run，只打印清单不写）。
+  strip-closed-labels:
+    name: Strip state/priority/signal labels on close
+    if: >-
+      (github.event_name == 'issues' && github.event.action == 'closed') ||
+      (github.event_name == 'workflow_dispatch' && inputs.sweep_closed)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            // deny-list —— 与 docs/agents/issue-tracker.md「闭票只留 category」同源，
+            // 改动规则文档时必须同步这里（两处都改，job 不会自己跟着文档变）。
+            const STRIP = new Set([
+              // state labels（triage-labels.md State Labels）
+              // 注意 dormant：taxonomy 里长期未定义但已广泛使用，2026-09-20 补进文档
+              'needs-triage', 'needs-info', 'ready-for-agent', 'ready-for-human', 'dormant',
+              // signal labels（machine-managed）
+              'comments-unread',
+            ]);
+            const isPriority = (name) => /^P[0-3]$/.test(name);
+
+            // 保留：category（bug / enhancement / documentation / duplicate）、
+            //       wontfix（「为什么关」的标记，剥了就丢语义）、
+            //       roadmap 语义标签（video-automation / phase-* / wayfinder:map）
+            const toStrip = (issue) =>
+              (issue.labels || [])
+                .map((l) => (typeof l === 'string' ? l : l.name))
+                .filter((n) => STRIP.has(n) || isPriority(n));
+
+            // ⚠️ 只有 sweep（手工触发）才受 apply 开关约束。
+            // issues.closed 事件下 context.payload.inputs 是 undefined，
+            // 若统一读 inputs?.apply 会恒为 false —— 常态路径退化成只打印不删的静默空转。
+            const apply = github.event_name === 'workflow_dispatch'
+              ? String(context.payload.inputs?.apply) === 'true'
+              : true;
+            const sweep = github.event_name === 'workflow_dispatch';
+
+            let inspected = 0;
+            let wouldStrip = 0;
+            let stripped = 0;
+
+            const handle = async (issue) => {
+              inspected += 1;
+              const targets = toStrip(issue);
+              if (!targets.length) return;
+              wouldStrip += 1;
+              core.info(`#${issue.number} -> strip [${targets.join(', ')}]${
+                sweep ? `  keep [${(issue.labels||[]).map(l=>l.name||l).filter(n=>!targets.includes(n)).join(', ')}]` : ''}`);
+              if (!apply) return;
+              for (const name of targets) {
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    name,
+                  });
+                  stripped += 1;
+                } catch (err) {
+                  // 404 = 已经被别的并发动作摘掉了，不算失败
+                  if (err.status !== 404) throw err;
+                  core.info(`#${issue.number} ${name} already gone (404) — ignored`);
+                }
+              }
+            };
+
+            if (sweep) {
+              const issues = await github.paginate(github.rest.issues.listForRepo, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'closed',
+                per_page: 100,
+              });
+              for (const issue of issues) {
+                if (issue.pull_request) continue; // issue 端点会把 PR 一起返回
+                await handle(issue);
+              }
+            } else {
+              await handle(context.payload.issue);
+            }
+
+            core.info(
+              [
+                `mode=${sweep ? 'sweep' : 'on-close'}`,
+                `apply=${apply}`,
+                `inspected=${inspected}`,
+                `issues_with_targets=${wouldStrip}`,
+                `labels_removed=${stripped}`,
+              ].join(' '),
+            );
+
+            if (!apply && wouldStrip > 0) {
+              core.info('dry-run — no labels removed. Re-run with apply=true to strip.');
+            }
 
   manual:
     name: Manual smoke test / backfill

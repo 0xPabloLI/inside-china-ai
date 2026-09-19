@@ -30,6 +30,7 @@ human and agent work.
 | `ready-for-agent` | Fully specified, ready for an AFK agent  |
 | `ready-for-human` | Needs human implementation               |
 | `wontfix`         | Will not be actioned                     |
+| `dormant`         | Parked — 暂不做，等前置解锁（2026-09-20 补登记：此前是**既成事实标签**，本表长期未定义却在 ~25 张 open 票上使用；闭票时按 state 标签一并剥离） |
 
 ## Signal Labels (machine-managed)
 
