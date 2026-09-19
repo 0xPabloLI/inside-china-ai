@@ -112,6 +112,132 @@ export function judgeUrlProbe({ searchUrl, finalUrl, httpStatus, error } = {}) {
 }
 
 /**
+ * #285: can an unauthenticated URL probe speak for this source at all?
+ *
+ * A login-walled search page answers a bare probe fetch with 403/404 even
+ * though the cookie-carrying CDP layer renders it fine — the probe has no
+ * session, so it can only report "no session", never "no source". Live
+ * evidence (#317): `s.weibo.com/weibo?q=` probed 404 while CDP with the Chrome
+ * cookie jar extracted 19/19 real posts. Every probe gate has to ask this
+ * before trusting a verdict, otherwise the false-negative is indistinguishable
+ * from a genuinely dead search route.
+ *
+ * Unknown sources stay probeable (fail-open): widening this predicate into a
+ * blanket opt-out would hide the real dead-source cases this exists to catch.
+ *
+ * Rule (#199 2.6): capabilities.articles wins; the top-level field is only for
+ * pre-enrichment callers.
+ *
+ * @param {object} [source]
+ * @returns {boolean}
+ */
+export function isProbeAuthoritative(source) {
+  const needsAuth = source?.capabilities?.articles?.needsAuth ?? source?.needsAuth;
+  return needsAuth !== true;
+}
+
+/**
+ * #285: source-aware entry point over {@link judgeUrlProbe}.
+ *
+ * Call sites must turn probe outcomes into verdicts through here, not through
+ * judgeUrlProbe directly — the source-less judge cannot know it is looking at
+ * a login wall, which is exactly how #317's pre-flight fix left the quarantine
+ * recheck path judging auth-walled sources dead.
+ *
+ * @param {object} [source]
+ * @param {object} probe - see judgeUrlProbe
+ * @returns {{dead: boolean, reason: string|null, detail: string, probeSkipped?: true}}
+ */
+export function judgeUrlProbeForSource(source, probe = {}) {
+  if (!isProbeAuthoritative(source)) {
+    return {
+      dead: false,
+      reason: null,
+      detail: "login-gated source — the unauthenticated probe cannot judge it (#285)",
+      probeSkipped: true,
+    };
+  }
+  return judgeUrlProbe(probe);
+}
+
+/**
+ * #285: decide what a quarantine recheck for this source may do.
+ *
+ * Three outcomes, all fail-open in the direction of actually trying:
+ *
+ * - `skip` — the probe judged the URL dead. Only reachable for sources the
+ *   probe can speak for, so the death verdict is trustworthy.
+ * - `attempt` + `releaseNow: true` — the probe says the URL is alive, so the
+ *   prior quarantine is lifted and the source is retried.
+ * - `attempt` + `releaseNow: false` — login-gated source, so no probe is fired
+ *   (`probeFn` untouched) and no verdict exists. The recheck window is spent
+ *   on one supervised collection instead: if it yields articles the health
+ *   fold clears the quarantine, and if it does not the streak — and the
+ *   quarantine — stay untouched. Releasing preemptively here would gift every
+ *   login-walled source a free streak reset every QUARANTINE_RECHECK_DAYS
+ *   regardless of whether it actually came back.
+ *
+ * @param {object} args
+ * @param {object} args.source
+ * @param {string|null} args.searchUrl - registered search URL for the source
+ * @param {(url: string) => Promise<object>} [args.probeFn]
+ * @returns {Promise<{action: "skip"|"attempt", releaseNow: boolean, verdict: object, probe: object}>}
+ */
+export async function planQuarantineRecheck({ source, searchUrl, probeFn } = {}) {
+  const noUrlVerdict = {
+    dead: false,
+    reason: null,
+    probeSkipped: false,
+    detail: "no registered search url",
+  };
+  if (!searchUrl) {
+    return {
+      action: "attempt",
+      releaseNow: true,
+      verdict: noUrlVerdict,
+      probe: {
+        at: Date.now(),
+        url: null,
+        httpStatus: null,
+        finalUrl: null,
+        ...noUrlVerdict,
+        recheck: true,
+      },
+    };
+  }
+  const skippedVerdict = judgeUrlProbeForSource(source, { searchUrl });
+  if (skippedVerdict.probeSkipped) {
+    return {
+      action: "attempt",
+      releaseNow: false,
+      verdict: skippedVerdict,
+      probe: {
+        at: Date.now(),
+        url: searchUrl,
+        httpStatus: null,
+        finalUrl: null,
+        ...skippedVerdict,
+        recheck: true,
+      },
+    };
+  }
+  const raw = (await probeFn?.(searchUrl)) ?? { httpStatus: null, finalUrl: null };
+  const verdict = judgeUrlProbe({ searchUrl, ...raw });
+  const probe = {
+    at: Date.now(),
+    url: searchUrl,
+    ...raw,
+    reason: verdict.reason,
+    detail: verdict.detail,
+    recheck: true,
+  };
+  if (verdict.dead) {
+    return { action: "skip", releaseNow: false, verdict, probe };
+  }
+  return { action: "attempt", releaseNow: true, verdict, probe };
+}
+
+/**
  * #269 Phase 1: split a search keyword into matchable tokens.
  * Chinese keywords (no spaces) survive as whole tokens — substring matching
  * applies. ASCII tokens match as whole words downstream; tokens shorter than

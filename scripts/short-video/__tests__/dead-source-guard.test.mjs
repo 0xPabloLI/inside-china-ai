@@ -21,6 +21,9 @@ import {
   QUARANTINE_RECHECK_DAYS,
   RELEVANCE_MIN_RESULTS,
   judgeUrlProbe,
+  judgeUrlProbeForSource,
+  isProbeAuthoritative,
+  planQuarantineRecheck,
   judgeRelevance,
   isKeywordRelevant,
   isQuarantined,
@@ -71,6 +74,62 @@ describe("judgeUrlProbe", () => {
     });
     expect(v.dead).toBe(false);
     expect(v.reason).toBeNull();
+  });
+});
+
+// ─── #285: login-gated sources cannot be judged by an unauthenticated probe ───
+
+describe("judgeUrlProbeForSource (#285 — login-gated sources)", () => {
+  // Live evidence (#317, s.weibo.com/weibo?q=): an auth-walled search page
+  // answers the unauthenticated probe fetch with 404 while the cookie-carrying
+  // CDP layer renders 19/19 real posts. The probe cannot speak for such a
+  // source, so any verdict derived from it is noise.
+  const loginGated = () => ({
+    name: "zhihu",
+    needsAuth: true,
+    capabilities: { articles: { needsAuth: true } },
+  });
+
+  it("never marks a needsAuth source dead — the probe is not authoritative there", () => {
+    const v = judgeUrlProbeForSource(loginGated(), {
+      searchUrl: "https://www.zhihu.com/search?q=DeepSeek",
+      finalUrl: "https://www.zhihu.com/search?q=DeepSeek",
+      httpStatus: 403,
+    });
+    expect(v.dead).toBe(false);
+    expect(v.probeSkipped).toBe(true);
+    expect(v.reason).toBeNull();
+  });
+
+  it("reads capabilities.articles.needsAuth before the top-level field (#199)", () => {
+    const v = judgeUrlProbeForSource(
+      { name: "zhihu", needsAuth: false, capabilities: { articles: { needsAuth: true } } },
+      { searchUrl: "https://www.zhihu.com/search?q=DeepSeek", httpStatus: 403 },
+    );
+    expect(v.dead).toBe(false);
+    expect(v.probeSkipped).toBe(true);
+  });
+
+  it("keeps judging non-login-gated sources exactly as before (403 still kills)", () => {
+    const v = judgeUrlProbeForSource(
+      { name: "ithome", needsAuth: false },
+      {
+        searchUrl: "https://www.ithome.com/search?word=x",
+        finalUrl: "https://www.ithome.com/search?word=x",
+        httpStatus: 403,
+      },
+    );
+    expect(v.dead).toBe(true);
+    expect(v.reason).toBe("http-status");
+    expect(v.probeSkipped).toBeFalsy();
+  });
+
+  it("isProbeAuthoritative mirrors the same rule for callers that gate on it", () => {
+    expect(isProbeAuthoritative(loginGated())).toBe(false);
+    expect(isProbeAuthoritative({ name: "ithome", needsAuth: false })).toBe(true);
+    // unknown/absent → still probeable: the wider false-negative net must not
+    // become a blanket opt-out that hides genuinely dead sources.
+    expect(isProbeAuthoritative({})).toBe(true);
   });
 });
 
@@ -209,6 +268,68 @@ describe("quarantine marking", () => {
     });
     expect(isQuarantined(null, 9999)).toEqual({ quarantined: false, recheckDue: false });
     expect(isQuarantined({ quarantined: false }, 9999).quarantined).toBe(false);
+  });
+});
+
+// ─── #285: quarantine recheck planning ───
+
+describe("planQuarantineRecheck (#285 — the recheck must not misjudge login-gated sources)", () => {
+  const searchUrl = "https://www.zhihu.com/search?q=DeepSeek";
+
+  it("skips the probe for a needsAuth source and hands the window to a real attempt", async () => {
+    const calls = [];
+    const plan = await planQuarantineRecheck({
+      source: { name: "zhihu", needsAuth: true },
+      searchUrl,
+      probeFn: async (u) => {
+        calls.push(u);
+        return { httpStatus: 403, finalUrl: searchUrl };
+      },
+    });
+    expect(calls).toEqual([]); // no unauthenticated fetch was fired…
+    expect(plan.verdict.dead).toBe(false); // …so it cannot be judged dead…
+    expect(plan.action).toBe("attempt"); // …the recheck window gets a real attempt…
+    expect(plan.releaseNow).toBe(false); // …without a preemptive release.
+  });
+
+  it("still skips a non-login-gated source whose URL probes dead", async () => {
+    const plan = await planQuarantineRecheck({
+      source: { name: "ithome", needsAuth: false },
+      searchUrl: "https://www.ithome.com/search?word=x",
+      probeFn: async () => ({
+        httpStatus: 404,
+        finalUrl: "https://www.ithome.com/search?word=x",
+      }),
+    });
+    expect(plan.verdict.dead).toBe(true);
+    expect(plan.action).toBe("skip");
+    expect(plan.releaseNow).toBe(false);
+    expect(plan.probe.recheck).toBe(true);
+    expect(plan.probe.httpStatus).toBe(404);
+  });
+
+  it("releases a non-login-gated source whose URL probes live (unchanged behavior)", async () => {
+    const plan = await planQuarantineRecheck({
+      source: { name: "ithome", needsAuth: false },
+      searchUrl: "https://www.ithome.com/search?word=x",
+      probeFn: async () => ({
+        httpStatus: 200,
+        finalUrl: "https://www.ithome.com/search?word=x",
+      }),
+    });
+    expect(plan.verdict.dead).toBe(false);
+    expect(plan.action).toBe("attempt");
+    expect(plan.releaseNow).toBe(true);
+  });
+
+  it("fails open when the source registers no search URL (nothing to judge)", async () => {
+    const plan = await planQuarantineRecheck({
+      source: { name: "rss-only", needsAuth: false },
+      searchUrl: null,
+      probeFn: async () => ({ httpStatus: 404, finalUrl: null }),
+    });
+    expect(plan.verdict.dead).toBe(false);
+    expect(plan.releaseNow).toBe(true);
   });
 });
 

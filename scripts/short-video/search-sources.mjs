@@ -81,7 +81,11 @@ import {
   REVIEW_THRESHOLD,
   QUARANTINE_THRESHOLD,
   QUARANTINE_RECHECK_DAYS,
-  judgeUrlProbe,
+  // #285: judgeUrlProbe stays internal to lib/source-health.mjs — callers use
+  // the source-aware wrapper so a login-gated source is never judged dead.
+  judgeUrlProbeForSource,
+  isProbeAuthoritative,
+  planQuarantineRecheck,
   judgeRelevance,
   isQuarantined,
   clearQuarantine,
@@ -686,14 +690,21 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
 
   // #269 Phase 1: pre-flight probe of the source's own search URL before the
   // CDP layer opens a tab. Cached per URL within the run; verdicts are judged
-  // by judgeUrlProbe (fail-open on network errors). A dead URL skips the CDP
-  // layer with reason "dead-url" so googleSiteFallback/mcpFallback take over.
+  // by judgeUrlProbeForSource (fail-open on network errors, and never against a
+  // login-gated source — #285). A dead URL skips the CDP layer with reason
+  // "dead-url" so googleSiteFallback/mcpFallback take over.
   async function probeSearchUrlGate() {
     const searchUrl = buildSourceSearchUrl(source, keyword);
     if (!searchUrl) return null;
     if (!probeCache.has(searchUrl)) {
       const raw = await probeFn(searchUrl);
-      probeCache.set(searchUrl, { searchUrl, ...raw, ...judgeUrlProbe({ searchUrl, ...raw }) });
+      probeCache.set(
+        searchUrl,
+        // #285: source-aware judging — the raw judge cannot tell a login wall
+        // from a dead route, which is how #317 left the recheck path misjudging
+        // auth-walled sources. Belt and braces alongside the caller-level gate.
+        { searchUrl, ...raw, ...judgeUrlProbeForSource(source, { searchUrl, ...raw }) },
+      );
     }
     return probeCache.get(searchUrl);
   }
@@ -730,20 +741,18 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     // CDP is actually available (otherwise the layer no-ops anyway) and only
     // for sources that register their own search URL.
     let probeVerdict = null;
-    if (cdpAvailable) {
-      // #317: an auth-walled page (needsAuth) answers an unauthenticated probe
-      // fetch with 4xx even though the CDP layer with the cookie session
-      // renders it fine (s.weibo.com 404 case, live-verified). The pre-flight
-      // cannot speak for a login-walled endpoint — skip it and let the CDP
-      // layer's own loginCheck decide (fail-open).
-      const needsAuthSource =
-        (source.capabilities?.articles?.needsAuth ?? source.needsAuth) === true;
-      if (!needsAuthSource) {
-        try {
-          probeVerdict = await probeSearchUrlGate();
-        } catch {
-          probeVerdict = null; // probe must never break collection
-        }
+    if (cdpAvailable && isProbeAuthoritative(source)) {
+      // #285 (generalizing #317): an auth-walled page answers the bare probe
+      // fetch with 4xx while the cookie-carrying CDP layer renders it fine
+      // (s.weibo.com 404 → CDP 19/19, live-verified). The probe has no session,
+      // so it can only report "no session", never "no source" — skip it and let
+      // the CDP layer's own loginCheck decide (fail-open). The same predicate
+      // guards the quarantine recheck path below; both live in
+      // lib/source-health.mjs so future gates cannot drift apart again.
+      try {
+        probeVerdict = await probeSearchUrlGate();
+      } catch {
+        probeVerdict = null; // probe must never break collection
       }
     }
     if (probeVerdict?.dead) {
@@ -1166,41 +1175,41 @@ async function main() {
     }
     if (qState.quarantined && qState.recheckDue) {
       const searchUrl = buildSourceSearchUrl(source, keywordArg);
-      const raw = searchUrl
-        ? await probeSourceUrl(searchUrl)
-        : { httpStatus: null, finalUrl: null, error: "no registered search url" };
-      const verdict = judgeUrlProbe({ searchUrl, ...raw });
-      const probe = {
-        at: Date.now(),
-        url: searchUrl,
-        ...raw,
-        reason: verdict.reason,
-        detail: verdict.detail,
-        recheck: true,
-      };
-      if (verdict.dead) {
+      const recheck = await planQuarantineRecheck({ source, searchUrl, probeFn: probeSourceUrl });
+      if (recheck.action === "skip") {
         console.log(
-          `⏭️  Skipping ${source.name} — quarantine recheck probe still dead (${verdict.detail}, #269)`,
+          `⏭️  Skipping ${source.name} — quarantine recheck probe still dead (${recheck.verdict.detail}, #269)`,
         );
         sourceAttempts.push({
           source: source.name,
           layer: "probe-recheck",
           count: null,
           reason: "dead-url-recheck",
-          probe,
+          probe: recheck.probe,
         });
         healthRunEntries.push({
           name: source.name,
           count: 0,
           zeroReason: "dead-url-recheck",
-          probe,
+          probe: recheck.probe,
         });
         continue;
       }
-      console.log(
-        `✅ ${source.name} quarantine recheck probe passed (${verdict.detail}) — re-enabling (#269)`,
-      );
-      clearQuarantine(prevHealthLog, source.name);
+      if (recheck.releaseNow) {
+        clearQuarantine(prevHealthLog, source.name);
+        console.log(
+          `✅ ${source.name} quarantine recheck probe passed (${recheck.verdict.detail}) — re-enabling (#269)`,
+        );
+      } else {
+        // #285: the source is login-gated, so no probe ran and there is no
+        // verdict to trust. Spend the recheck window on one supervised
+        // collection instead — a real result clears the quarantine via
+        // updateSourceHealth, another zero keeps it. Releasing preemptively
+        // would hand every login-walled source a free streak reset each cycle.
+        console.log(
+          `🔓 ${source.name} needs a login session the probe cannot carry (#285) — running one supervised attempt; a result clears the quarantine, another zero keeps it`,
+        );
+      }
     }
 
     try {
