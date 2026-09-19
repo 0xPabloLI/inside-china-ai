@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      ask_queries: {
+        Row: {
+          created_at: string
+          id: string
+          ip_hash: string
+          question: string
+          source_slugs: string[]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip_hash: string
+          question: string
+          source_slugs?: string[]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip_hash?: string
+          question?: string
+          source_slugs?: string[]
+        }
+        Relationships: []
+      }
       content_embeddings: {
         Row: {
           chunk_hash: string | null

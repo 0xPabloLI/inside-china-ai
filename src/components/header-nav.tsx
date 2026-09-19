@@ -41,6 +41,9 @@ export function HeaderNav({ pathname, isAdmin, onArticlesClick }: HeaderNavProps
       <Link to="/companies" className={staticLinkClass(pathname.startsWith("/companies"))}>
         Companies
       </Link>
+      <Link to="/ask" className={staticLinkClass(pathname.startsWith("/ask"))}>
+        Ask
+      </Link>
 
       {isAdmin ? (
         <Link to="/admin" className={staticLinkClass(pathname.startsWith("/admin"))}>
@@ -67,6 +70,12 @@ export function HeaderNav({ pathname, isAdmin, onArticlesClick }: HeaderNavProps
           Companies
         </Link>
       </SheetClose>
+      <SheetClose asChild>
+        <Link to="/ask" className={staticLinkClass(pathname.startsWith("/ask"))}>
+          Ask
+        </Link>
+      </SheetClose>
+
 
       {isAdmin ? (
         <SheetClose asChild>
