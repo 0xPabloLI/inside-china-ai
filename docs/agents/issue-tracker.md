@@ -44,7 +44,7 @@ Wayfinder is only for S3 work defined in `docs/agents/implementation-workflow.md
 - Create one child issue per answerable decision, sized for one context. Add exactly one type label: `wayfinder:research`, `wayfinder:prototype`, `wayfinder:grilling` or `wayfinder:task`.
 - Keep the normal category/state labels from `triage-labels.md`. `research` or well-specified `task` issues may be `ready-for-agent`; HITL `grilling` and `prototype` issues are not AFK work.
 - Fog stays in the map's Not yet specified section until it can be phrased as a decision question. Do not create vague placeholder issues.
-- Claim an issue before work by assigning it to the active developer (`gh issue edit <number> --add-assignee "@me"` is supported by the installed CLI). Concurrent sessions skip assigned issues.
+- Claim an issue before work through `scripts/claim-issue.sh <number>` — it prints the body + all comments, then assigns with an explicit login and a read-back assertion before reporting success (#311: the REST assignees endpoint does not resolve `@me` and can return 201 with an empty assignees array). Concurrent sessions skip assigned issues.
 
 Prefer GitHub's native sub-issue and blocking relationships when the available UI/API supports them. The installed `gh` 2.62.0 `issue create/edit` commands do not expose parent or blocking flags, so do not invent CLI options. If native relationships cannot be set through an authorized supported surface, use this body fallback:
 
