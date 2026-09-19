@@ -714,8 +714,22 @@ export const SELF_MEDIA_SOURCES = [
         var link = card.querySelector('a[href*="weibo.com"], a[href*="weibo.cn"]');
         if (!link || HOTPAGE.test(link.href)) return;
         var item = { title: content.slice(0, 140), url: link.href, snippet: content };
-        var timeEl = from ? from.querySelector('a, span') : null;
-        var timeRaw = timeEl ? timeEl.textContent : (from ? from.textContent : '');
+        // Time element: classic markup nests it in .from > a, but the live DOM
+        // (verified 2026-09-19, logged-in) renders it as a bare <a> with no
+        // class — scan the card's leaf elements for time-shaped text instead.
+        var timeEl = card.querySelector('.from a, .from span');
+        if (!timeEl) {
+          var cands = card.querySelectorAll('a, span, div');
+          for (var i = 0; i < cands.length; i++) {
+            var t = (cands[i].textContent || '').trim();
+            if (t && t.length < 25 && cands[i].children.length === 0
+                && /(\\d+\\s*(秒|分钟|小时)前)|^今天|^昨天|\\d{1,2}月\\d{1,2}日|\\d{4}-\\d{1,2}-\\d{1,2}/.test(t)) {
+              timeEl = cands[i];
+              break;
+            }
+          }
+        }
+        var timeRaw = timeEl ? timeEl.textContent : '';
         var d = parseRelativeTime(timeRaw);
         if (d && !isNaN(d.getTime())) item.publishedAt = d.toISOString();
         seen[content] = true;
