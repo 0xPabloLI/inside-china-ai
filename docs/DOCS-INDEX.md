@@ -132,11 +132,11 @@ Numbered sequence. Current: 0001–0019 (0006 moved to archive).
 
 Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 
-| Document                                   | Purpose                                                                                                             |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `tts-indian-accent-handoff.md`             | TTS 印度口音回归 handoff（CosyVoice3-Kaggle-CUDA deepseek-v41-flash；基线样本参数未记录，未解决待处理；issue #234） |
-| `handoff-on-demand-audit.md`               | On-Demand Content Audit feature design (Issue #60/#61 OPEN)                                                         |
-| `handoff-qwen4-preview-r2-visual-audit.md` | qwen4-preview R2 视觉审计 — 仅诊断+方案设计未改代码，渲染 6 FAIL 待独立 triage（2026-09-06 补登）                   |
+| Document                                       | Purpose                                                                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~`tts-indian-accent-handoff.md`~~             | ✅ 已归档至 `archive/handoffs/`（追踪 Issue #234 闭票，四维标准与 Quality Gate 解包落地已解决）                                                      |
+| `handoff-on-demand-audit.md`                   | On-Demand Content Audit feature design (Issue #60/#61 OPEN)                                                                                       |
+| ~~`handoff-qwen4-preview-r2-visual-audit.md`~~ | ✅ 已归档至 `archive/handoffs/`（转化入 Epic #141 Text Overflow Hardening 12 票收官，全片 71/71 帧重渲染验收通过）                                 |
 
 ### `reviews/` — Active review records
 
@@ -153,7 +153,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | ~~`session-id-provenance-review-brief-2026-09-04.md`~~       | ✅ 已归档至 `archive/reviews/`（提案 v5 已结项，复核意见全部吸收进 proposal 与 git-workflow.md §8）                                                                                                                                                                                                     |
 | `ponytail-adoption-review-brief-2026-09-04.md`               | ponytail 改造的第三方独立复核材料 **v3** — 上游分层体积实测（固定 SHA，合计闭合）、适配器逐目录层级表（4 注入 + 9 指令层）、三处落地文本与统一字节口径、逐 tag 拒绝理由、证据分级与自我反驳、两轮复核（Q1–Q7、R1–R6）裁决落实                                                                           |
 | ~~`ponytail-lite-pilot-2026-09.md`~~                         | ✅ 已归档至 `archive/reviews/`（2026-09-12 期满结项：A-lite 保留 / B-lite 未验证移除 / D 保留；结论固化进 implementation-workflow.md §6/§8/§12）                                                                                                                                                        |
-| `issue-roadmap-review-2026-09-10.md`                         | Issue Roadmap 待做 issue 第三方方案 Review（2026-09-10）— 19 票逐票判定（前沿 #219/#235/#232/#229/#221 · HITL #225/#216/#230 · 深水区 #191/#192/#185/#186 · dormant 6 张）；结论已吸收进 `issue-roadmap.md` 各 Tier 行 + §推荐推进顺序（六项代码级断言核验通过；#229 运行时复现受沙箱 broker 限制未做） |
+| ~~`issue-roadmap-review-2026-09-10.md`~~                     | ✅ 已归档至 `archive/reviews/`（结论已吸收进 `issue-roadmap.md` 各 Tier 行与历史轮次下沉说明）                                                                                                                                                                                                           |
 
 ### `archive/` — Completed work
 

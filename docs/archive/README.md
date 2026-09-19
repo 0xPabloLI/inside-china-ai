@@ -159,11 +159,12 @@
 | `handoff-hashtag-pipeline-gaps.md`              | 2026-08-26 | Hashtag 管线缺口修复 — 缺口 A（trendingHashtags 消费：normalizeHashtag + deriveHashtags 优先级分层 + 满 5 替换 + 人工覆盖锁定）+ 缺口 B（Apify JS 客户端：runActor + fetchHashtagVideos + LRU 缓存 + 成本护栏 + research-hashtags.mjs CLI）+ P1/P2/P3 修复。84 tests passing。                        |
 | `handoff-video-download-breakthrough.md`        | 2026-08-27 | 视频下载突破研究 — 旧版 handoff（伪代码 + Cobalt-first 方案）。已被 VDL 实际代码（`video-downloaders.mjs` + 42 tests）和新版 handoff（`handoff-video-download-pipeline-integration.md`）替代。保留作历史参考。                                                                                        |
 | `handoff-text-overflow-hardening-2026-08-31.md` | 2026-09-03 | 短视频文本溢出根治 epic 实施 handoff — T1–T12 进度追踪 + 逐 session 交付记录 + 下一 session 启动导航（12/12 完成，父票 #141 收官；spec/tickets 见 `docs/archive/spec-text-overflow-hardening.md`，最终契约在 `scripts/short-video/lib/text-slots.mjs` + TextGate 几何硬门）。余 #165 中文分词 dormant |
+| `handoffs/handoff-qwen4-preview-r2-visual-audit.md` | 2026-09-03 | qwen4-preview R2 视觉审计——提出的文字截断、橙色椭圆遮挡、结尾全黑帧等问题已全部转化为 Epic #141（Text Overflow Hardening，12 张 tickets）交付，A2 重叠时间轴 + `lib/text-slots.mjs` (TextGate) 落地，全片 71/71 帧重渲染验收通过。 |
+| `handoffs/tts-indian-accent-handoff.md`             | 2026-09-10 | TTS 印度口音回归 handoff——追踪 Issue #234 闭票，四大根因定位并修复，落地 `lib/tts/instruct.mjs` 单一事实源与 Quality Gate 复合 token 解包，词准恢复 100%（commit `7a61629` / `9dc759a`）。 |
 
-> **未归档的 handoff**（`docs/handoffs/` 中仍活跃，2026-09-06 梳理后仅 2 件）：
+> **未归档的 handoff**（`docs/handoffs/` 中仍活跃，2026-09-19 梳理后仅 1 件）：
 >
-> - `handoff-on-demand-audit.md` — On-Demand Content Audit 设计（#60/#61 仍 OPEN）
-> - `handoff-qwen4-preview-r2-visual-audit.md` — qwen4-preview R2 视觉审计（渲染 6 FAIL 待独立 triage；2026-09-06 补登 DOCS-INDEX）
+> - `handoff-on-demand-audit.md` — On-Demand Content Audit 设计储备（#60/#61 仍 OPEN，非阻断项）
 >
 > 注：此前本节列出的 asset-source-unification / license-risk-policy / realesrgan / write-for-agents-enforcement / verify-retry-loop / source-layer-comparison 六件实际均已在 `archive/handoffs/`，属清单过期，已更正。
 
@@ -194,6 +195,7 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `reviews/issue-tracker-review-2026-08-26.md`                               | 2026-08-28 | —              | Issue tracker 全量逐项审阅——38 open issues，19 pass / 19 comment (8 P1 + 11 P2)。2026-08-28 全部 19 项修复后归档。含修复状态追踪表。                                                                                                                                                                                                                                 |
 | `reviews/review-asset-sourcer-techdebt-cleanup.md`                         | 2026-08-30 | —              | asset-sourcer 技术债清理双轴审查——Standards 0 hard violations（1 judgement 已修复）；Spec 轴全对齐、无 scope creep。330 tests + 真实数据冒烟。                                                                                                                                                                                                                       |
 | `reviews/review-issue-89-rate-limiter-2026-08-30.md`                       | 2026-08-30 | #89            | #89 P0 rate limiter 双轴审查——Standards 1 hard violation（ESM `__dirname` 未定义，已修复 + 真实 node import 验证）；Spec 轴 17/17 场景矩阵全覆盖，1 scope creep（smoke 脚本，已验证后待删）。47 tests + 真实数据冒烟。                                                                                                                                               |
+| `reviews/issue-roadmap-review-2026-09-10.md`                               | 2026-09-10 | —              | Issue Roadmap 待做 issue 第三方方案 Review——19 票逐票判定，结论已吸收进 `issue-roadmap.md` 各 Tier 行与推荐推进顺序，历史轮次已下沉。                                                                                                                                                                 |
 
 > **未归档的 review**（`docs/reviews/` 或 `docs/research/` 中仍活跃）：
 >
@@ -228,3 +230,14 @@ Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸
 | `research/` | `agent-doc-token-audit-2026-09-02.md`                                                    | 审计实施完毕（新建 `archive/research/` 收纳）                                                                                                  |
 | （tracker） | `tracker-rotation-history-2026-09-06.md`                                                 | issue-tracker.md 头部 21+ 轮 Last inventory/Previous 轮换历史从 51K 字符单行下沉（tracker 272KB→224KB）；Closed Issues 明细表仍留 tracker 正文 |
 | `reviews/`  | `ponytail-lite-pilot-2026-09.md`                                                         | 试点期满结项（2026-09-12：A-lite 保留 / B-lite 未验证移除 / D 保留）——裁决已固化进 implementation-workflow.md §6/§8/§12，试点路由步已删        |
+
+### 2026-09-19 日常文档清理（第三十九 session）
+
+已完成使命的 2 篇 Handoff 与 1 篇已吸收 Review 下沉本目录；`DOCS-INDEX.md` 已同步为划线归档注记。
+
+| 归档位置    | 文件                                      | 说明                                                                                                           |
+| ----------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `handoffs/` | `handoff-qwen4-preview-r2-visual-audit.md` | 转化为 Epic #141 Text Overflow Hardening（12 票全部交付），71/71 帧重渲染验收全绿                                 |
+| `handoffs/` | `tts-indian-accent-handoff.md`            | 追踪 Issue #234（已闭票），TTS 四维标准与 Quality Gate 解包落地已解决（commit `7a61629` / `9dc759a`）           |
+| `reviews/`  | `issue-roadmap-review-2026-09-10.md`      | 方案 review 结论已全量吸收进 `issue-roadmap.md` 各 Tier 与历史下沉说明                                          |
+
