@@ -46,7 +46,7 @@
 | 32 | baidu_search | CDP only | ❌ | news (zh) | ✅（单层） | absent-CDP-DOM | videos✅(cdp, tn=vsearch) images✅ |
 | 33 | duckduckgo_search | CDP only（html 端点） | ❌ | news (通用发现) | ✅ | absent-CDP-DOM | — |
 | 34 | searxng_search | API (localhost:8888 JSON) → CDP | ❌ | news (通用发现) | ✅ | have 但**常为空**（引擎多不带 publishedDate） | — |
-| 35 | mcp_grok_search | MCP only（url 为空，CDP 层 no-op） | ✅ | fact-check / 通用发现 | ✅（#307：Grok 独立源，fallback 退役待执行） | dropped-at-pool | — |
+| 35 | mcp_grok_search | **API（Bigsong searchX 直连，#307）**（url 为空，CDP 层 no-op） | ✅ | fact-check / 通用发现 | ❌ 不进 pool（#307 用户签字：独立源语义，pool 先行会埋掉 Grok 结果） | dropped-at-pool | — |
 | 36 | reddit_search | API (.json) → CDP **跳过**（同 URL） | ❌ | news/discussion | ✅ 实际单层 API | have (`created_utc`) | — |
 | 37 | hackernews_search | API (Algolia) → CDP **跳过**（同 URL） | ❌ | news | ✅ 实际单层 API | have (`created_at_i`) | — |
 | 38 | polymarket_search | CDP only | ❌ | env-signal | ✅ | absent-CDP-DOM | — |
@@ -80,7 +80,7 @@
 | `xhs` / `douyin` | 已有 autogen site:，但 xhs 索引差、**douyin 恒空** | 素材化需显式评估替代（douyin 实际靠 CDP 登录搜索 + douyin-cdp 下载） | — |
 | `zhihu` / `sogou_weixin` / `tiktok_creator` | zhihu 已有 autogen site:；后两者无 site: 层 | 视裁决决定是否补 | — |
 
-Pool 保留对象（裁决后）：`google_search`、`mcp_grok_search`（+ 视 threads 裁决）。**pool-eligible 从 6 → 2**。
+Pool 保留对象（裁决后）：`google_search`、`mcp_grok_search`（+ 视 threads 裁决）。**pool-eligible 从 6 → 2**。（#307 实施后 **2 → 1**：mcp_grok_search 转 Bigsong 直连独立源、退出 pool——用户签字；google_search 是唯一 pool-eligible 源，链止于 pool。）
 
 ## B. publishedAt 缺口分层
 
@@ -194,8 +194,17 @@ CDP 10 源共享 `CDP_VIDEO_SCRIPT`（self-hosted `<video>` + bilibili/youtube e
 - **threads 判决**（用户 2026-09-19："fallback 到其他 search 没有意义……你要看清楚它为什么不可用"）：live 探针（threads.net 搜索页 ×2 关键词）判定——**无登录墙、无 anti-bot、页面正常渲染**，"CDP 弱"的根因是旧 articleScript 不提取 URL（恒空）与日期；已重写为 perma-link（`a[href*="/post/"]`，quoted-post 去重）+ `time[datetime]` ISO + handle（自 perma-link 解析，DOM 锚点序不可靠）。链止于 CDP（无 Google 索引，入 `AUTOGEN_EXCLUDED_SOURCES` 防 douyin 式死层）；`mcpFallback` 删除。smoke：20 条全带 permalink + ISO 日期。相关性观察：Threads 搜索对冷词返回近期热门贴（非严格匹配）——按 #286 裁决归 Stage 1 语义层，不在此修。
 - **CDP-DOM 日期两档制落地**（`search-sources.mjs` `applyCdpPostGuards` = relevance guard → `markCdpDomDateSemantics`，两处 CDP 结果统一走此组合）：articleScript 日期不动（x_search/threads 真实 DOM 断言）→ og-meta `article:published_time`（enrichWithMedia 已采）经 `normalizePublishedDate` 提升为顶层 `publishedAt`（页面自 assert 的真实日期，审计 §B"现成的补齐入口"）→ 仍无日期打 `dateDegraded: true`（fail-closed 不造日期，"不参与时效断言"显式化）。
 - **验证**：TDD red 8 → green；受影响 4 测试文件 215/215 + 全量 3919/3919（rate-limiter 计时用例为套件负载下墙钟 flake，隔离重跑绿）+ eslint 清零；live smoke 双通过（threads 20 条/permalink/日期；`site:youtube.com` qdr:y 命中 9/9 真实视频 URL，同 x_search smoke 先例量级）。code-review 双轴无阻塞 finding；采纳 3 项小修（fallback 工厂收敛、post-guard 组合去双写、threads publishedAt 条件输出）。
-- **#309 剩余**（本票保持 open）：research 模式让 3 个 environmentalSignals（weibo_hot/datacube_ai/wechat_dongchabeating）真实抓取（§C 裁决项，未实施）；#307（Grok 独立源/promptTemplate，剩余范围 = google_search/mcp_grok_search/threads 相关）与 #285 依串行规则随后。
+- **#309 剩余**（本票保持 open）：research 模式让 3 个 environmentalSignals（weibo_hot/datacube_ai/wechat_dongchabeating）真实抓取（§C 裁决项，未实施）；#307 已交付（§F.7）；#285 依串行规则随后。
+
+### F.7 Grok MCP 桥退役——Bigsong 直连 + 显式 pool 资格（2026-09-19，commit `2f97be9`，#307 闭票）
+
+- **mcp_grok_search 转直连**：`mcpFallback`（mcp-search-bridge 子进程）→ `apiFallback`（`searchX` 纯 HTTP，同 grok-chat-fast 上游/env，#90 模式第二例）。查询模板入 registry per-source 字段 `promptTemplate.buildQuery`（grilling 裁决 3 四要素：显式 7 天窗 + 强制日期输出 + 排除 Wikipedia/评测站 + 去 China-AI 限定），插值在 `collectFromBigsong`（`today` 由调用方注入）；x_search 保持裸关键词（平台查询即关键词）。accessMethod 改 `primary: "api"`。
+- **google_search Grok 退役**（裁决 5 同逻辑 + 用户同日质疑「Grok 不需要都做 fallback」）：`mcpFallback` 删除，链止于 REST pool；入 `AUTOGEN_EXCLUDED_SOURCES`（search engine 无自有域）。
+- **pool 资格显式化**：`isPoolEligible` 改读显式 `poolEligible: true` 声明（cap 优先），`mcpFallback.toolName === "web_search"` 派生删除——两机制解耦（#292 派生的存在前提 = 桥本身，已退役）。pool 门从 mcpFallback 分支内提升为独立链层：apiFallback → pool → 专属 MCP。**mcp_grok_search 不进 pool 经用户签字**（OQ3 六源配额经济学前提消失；pool 先行会让 Grok 结果几乎总被 Serper 埋掉）。终态：apiFallback 载体 = x_search + mcp_grok_search；pool-eligible = google_search 仅一源。
+- **常量清理**：`MCP_SEARCH_BRIDGE_SERVER`/`NODE_BIN` 移除（零消费者）；`mcp-client.mjs` 保留（头注例外条款：Bigsong 支持 toolcall 时 tools/call 派发重新有用）。
+- **验证**：TDD red 15 正中目标 → green；受影响 4 测试文件 222/222 + 全量 3926 绿 + eslint 清零；code-review 双轴（baseline `27f584a`）Standards 4 判断 + Spec 无阻塞，采纳 4 项修复（CONTEXT.md Collection Layer 定义同步、isPoolEligible 双 JSDoc 去叠、Step 3.5 注释引用组合测试、链序测试绑定真实源命名）。
+- **运行时观察**（smoke，2026-09-19）：Bigsong live-search 上游对新旧查询一律 90s+ 超时（纯 chat 4.2s 正常）——上游降级，与本次改动无关（MCP 桥同受累）；fail-closed 语义返回空数组。复测建议随 #281 类引擎复测轮进行。
 
 ---
 
-**Coverage: 62/62 sources classified**（链路、契约、pool 资格、publishedAt、media caps 五列全填；pool-eligible 实测 6→**实施后 2**、videos 声明 14、环境信号严格 3 + tracked-feed 13 = 16）。
+**Coverage: 62/62 sources classified**（链路、契约、pool 资格、publishedAt、media caps 五列全填；pool-eligible 实测 6→**#309 后 2**→**#307 后 1**（google_search）、videos 声明 14、环境信号严格 3 + tracked-feed 13 = 16）。

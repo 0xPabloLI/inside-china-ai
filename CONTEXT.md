@@ -135,7 +135,7 @@ _Avoid_: Scene template, scene renderer
 **Unified Venv**: A single Python 3.12 virtual environment at `~/.video-tts-env` containing F5-TTS-MLX, Qwen3-TTS, whisperx, and mlx-vlm. Replaces 3-4 separate venvs. See ADR-0011.
 _Avoid_: Python env, venv (too generic — use Unified Venv for this specific shared environment)
 
-**Collection Layer**: The access method hierarchy for a source in the Source Registry: API → CDP → CDP fallback (Google site: search) → MCP fallback (Grok). Each source defines its own `accessMethod` with primary and fallbacks. See ADR-0013.
+**Collection Layer**: The access method hierarchy for a source in the Source Registry: API → CDP → CDP fallback (Google site: search) → Bigsong direct / REST pool / dedicated MCP, per source declaration (#307: the Grok MCP bridge is retired; pool eligibility and the Bigsong bridge are explicit per-source flags). Each source defines its own `accessMethod` with primary and fallbacks. See ADR-0013.
 _Avoid_: Access method, fetch strategy
 
 ## Content Pipeline
