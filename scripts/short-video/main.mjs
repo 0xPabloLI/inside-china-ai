@@ -105,6 +105,18 @@ async function main() {
   });
   const prof = { mark: profiler.mark, end: profiler.end, wrap: profiler.wrap };
 
+  // ── Renderer guard ──
+  // The HTML/Playwright path was retired (decision 59): Remotion is the only
+  // renderer. Fail fast before any real work on attempts to opt back in.
+  // #321: guarded BEFORE the CDP preflight — refusing a retired flag must not
+  // require the CDP proxy to be reachable (offline test runs, CI runners).
+  try {
+    assertRemotionRenderer({ argv: args, meta });
+  } catch (e) {
+    console.error(`❌ ${e.message}`);
+    process.exit(1);
+  }
+
   // ── Step 0.2: CDP preflight (hard gate — fail fast, never degrade) ──
   // Without the CDP proxy the CDP-backed media sources cannot search and the
   // video ships without background media (2026-09-08/09 incidents). Check is
@@ -147,15 +159,6 @@ async function main() {
   console.log(`   Content: ${meta.title || contentDir}`);
   console.log(`   Pipeline ID: ${meta.pipelineId}`);
   console.log(`   Version: ${version}`);
-  // ── Renderer guard ──
-  // The HTML/Playwright path was retired (decision 59): Remotion is the only
-  // renderer. Fail fast before any real work on attempts to opt back in.
-  try {
-    assertRemotionRenderer({ argv: args, meta });
-  } catch (e) {
-    console.error(`❌ ${e.message}`);
-    process.exit(1);
-  }
   console.log(`   Renderer: Remotion (React → frame-by-frame)`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 

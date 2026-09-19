@@ -17,6 +17,9 @@ on:
     types: [created]
   issues:
     types: [closed]
+  # 日跑一次 triage 陈旧度扫描（守卫：needs-triage 挂着没人管会重演 #318/319/320）
+  schedule:
+    - cron: "17 21 * * *" # 21:17 UTC = 每日 05:17 北京时间
   # 手工触发。默认 backfill=false 只做冒烟（证明本 workflow 真的能跑），不写任何标签。
   # 只有当存量票确实需要补信号时才用 backfill=true —— 见下方 manual job 的说明。
   workflow_dispatch:
@@ -31,6 +34,10 @@ on:
         default: false
       apply:
         description: "配合 sweep_closed：勾上才真的删标签，不勾只打印清单（dry-run）"
+        type: boolean
+        default: false
+      triage_stale:
+        description: "扫 needs-triage 超 3 天的 open 票并留言提醒分流（schedule 常态自动跑；这里用于手工补跑）"
         type: boolean
         default: false
 
@@ -300,3 +307,64 @@ jobs:
                 'smoke only — no labels written. Re-run with backfill=true to tag the with_comments tickets.',
               );
             }
+
+  # 守卫（#321）：needs-triage 挂着没人管会重演（#318/319/320 三票悬空数日）。
+  # 日跑：open + needs-triage 超过 3 天且尚未被提醒过（幂等 marker 查重）→ 留言
+  # 提醒分流（落 roadmap 行或关票），不改状态、不摘标签 —— 那是 triage 的决定。
+  triage-staleness:
+    name: Remind on stale needs-triage issues
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.triage_stale)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            // 幂等 marker：已提醒过的票跳过，绝不复读刷屏。
+            const MARKER = '<!-- triage-stale-reminder -->';
+            const STALE_DAYS = 3;
+
+            const { data: staleCandidates } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'needs-triage',
+              per_page: 100,
+            });
+
+            const cutoff = Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000;
+            let reminded = 0;
+            for (const issue of staleCandidates) {
+              if (new Date(issue.created_at).getTime() >= cutoff) continue;
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                per_page: 100,
+              });
+              if (comments.some((c) => c.body && c.body.includes(MARKER))) continue;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: [
+                  MARKER,
+                  `⏳ 这张票挂 \`needs-triage\` 已超过 ${STALE_DAYS} 天，尚未分流。`,
+                  '',
+                  '分流动作：在 `docs/issue-roadmap.md` 的 Triage Inbox 落行（Phase / Wave / Tier），按 `docs/agents/triage-labels.md` 定 P 标签与 state 标签（`ready-for-agent` / 关闭），然后摘掉 `needs-triage`。分流前不要开工。',
+                ].join('\n'),
+              });
+              reminded += 1;
+              core.info(`#${issue.number} stale reminder posted`);
+            }
+
+            core.info(
+              [
+                `mode=triage-staleness`,
+                `needs_triage_open=${staleCandidates.length}`,
+                `stale_over_${STALE_DAYS}d=${staleCandidates.filter((i) => new Date(i.created_at).getTime() < cutoff).length}`,
+                `reminded_now=${reminded}`,
+              ].join(' '),
+            );

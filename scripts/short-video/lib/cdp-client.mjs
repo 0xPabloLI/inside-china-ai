@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 
 import { createRateLimiter } from "./rate-limiter.mjs";
 
-export const CDP_BASE = "http://localhost:3456";
+export const CDP_BASE = process.env.CDP_BASE_URL || "http://localhost:3456";
 
 // #89 P1: escalating random backoff replaces the fixed 3s retry wait.
 // Deterministic ranges keep waits auditable; an attempt beyond the schedule
