@@ -68,6 +68,8 @@
 
 裁决：素材/研究源退出通用 pool，改走 site: 保真链（默认窗 `tbs=qdr:y`；news 角色可另配 `qdr:w`）。
 
+> **✅ 已实施（2026-09-19，commit `4d30d46`）**：youtube/arxiv/github/bilibili/sogou_weixin（`site:mp.weixin.qq.com`——微信文章实体域）/tiktok_creator 六源显式 `googleSiteFallback`（共享 h3 脚本 + `SITE_FALLBACK_WINDOW=qdr:y`）；youtube/arxiv/github/threads 四源 Grok web_search fallback 退役（grilling 裁决 5），**pool-eligible 6→2**（google_search + mcp_grok_search）；threads 入 `AUTOGEN_EXCLUDED_SOURCES`（无 Google 索引，防 douyin 式死层），链止于 CDP——live 探针判定 CDP 层无登录墙、本就可用，弱因是旧脚本不提取 URL/日期（已重写：perma-link + `time[datetime]` + handle）。下表为开票时的建议清单，保留作决策依据。
+
 | Source | 现状 | 建议 site: 域 | 默认窗 |
 |---|---|---|---|
 | `youtube_search` | pool-eligible，pool 返回网页文章与视频契约冲突 | `site:youtube.com` | `qdr:y` |
@@ -185,6 +187,15 @@ CDP 10 源共享 `CDP_VIDEO_SCRIPT`（self-hosted `<video>` + bilibili/youtube e
 - **接线**：`search-sources.mjs` pool 调用传 `{ news: { days: 7 } }`（裁决默认窗；空结果照旧落 Grok MCP 兜底）。
 - **验证**：TDD red 17 → green；受影响 8 测试文件 326/326 + 关联 6 文件 434/434 全绿（vitest）；改动文件 eslint 清零（`search-sources.mjs:328` 一处 prettier 报错属 #308 既有代码，不动）。
 
+### F.6 site: 推广实施 + threads 判决 + CDP-DOM 日期两档制（2026-09-19，commit `bc34f67`）
+
+- **site: 推广**（§A 清单 + 用户"全部补齐"裁决）：六源显式 `googleSiteFallback`（`makeGoogleSiteFallback(domain)` 工厂 + `SITE_FALLBACK_WINDOW="qdr:y"` + 共享 h3 脚本）。域选定注：sogou_weixin 取 `site:mp.weixin.qq.com`（微信文章实体域，源自身 articleScript 亦过滤 `mp.weixin` 链接），非 sogou.com；tiktok_creator 由此首次获得真实关键词层（CDP 层是忽略关键词的 Creator Center 首页，§D9）。
+- **Grok fallback 退役 + pool 收缩**：youtube/arxiv/github/threads 四源 `mcpFallback`（web_search）删除——pool/Grok 返回网页文章，违反素材契约（grilling 裁决 5）。**pool-eligible 6→2**（google_search + mcp_grok_search）；"仅 x_search 携带 apiFallback"不变量不变。
+- **threads 判决**（用户 2026-09-19："fallback 到其他 search 没有意义……你要看清楚它为什么不可用"）：live 探针（threads.net 搜索页 ×2 关键词）判定——**无登录墙、无 anti-bot、页面正常渲染**，"CDP 弱"的根因是旧 articleScript 不提取 URL（恒空）与日期；已重写为 perma-link（`a[href*="/post/"]`，quoted-post 去重）+ `time[datetime]` ISO + handle（自 perma-link 解析，DOM 锚点序不可靠）。链止于 CDP（无 Google 索引，入 `AUTOGEN_EXCLUDED_SOURCES` 防 douyin 式死层）；`mcpFallback` 删除。smoke：20 条全带 permalink + ISO 日期。相关性观察：Threads 搜索对冷词返回近期热门贴（非严格匹配）——按 #286 裁决归 Stage 1 语义层，不在此修。
+- **CDP-DOM 日期两档制落地**（`search-sources.mjs` `applyCdpPostGuards` = relevance guard → `markCdpDomDateSemantics`，两处 CDP 结果统一走此组合）：articleScript 日期不动（x_search/threads 真实 DOM 断言）→ og-meta `article:published_time`（enrichWithMedia 已采）经 `normalizePublishedDate` 提升为顶层 `publishedAt`（页面自 assert 的真实日期，审计 §B"现成的补齐入口"）→ 仍无日期打 `dateDegraded: true`（fail-closed 不造日期，"不参与时效断言"显式化）。
+- **验证**：TDD red 8 → green；受影响 4 测试文件 215/215 + 全量 3919/3919（rate-limiter 计时用例为套件负载下墙钟 flake，隔离重跑绿）+ eslint 清零；live smoke 双通过（threads 20 条/permalink/日期；`site:youtube.com` qdr:y 命中 9/9 真实视频 URL，同 x_search smoke 先例量级）。code-review 双轴无阻塞 finding；采纳 3 项小修（fallback 工厂收敛、post-guard 组合去双写、threads publishedAt 条件输出）。
+- **#309 剩余**（本票保持 open）：research 模式让 3 个 environmentalSignals（weibo_hot/datacube_ai/wechat_dongchabeating）真实抓取（§C 裁决项，未实施）；#307（Grok 独立源/promptTemplate，剩余范围 = google_search/mcp_grok_search/threads 相关）与 #285 依串行规则随后。
+
 ---
 
-**Coverage: 62/62 sources classified**（链路、契约、pool 资格、publishedAt、media caps 五列全填；pool-eligible 实测 6、videos 声明 14、环境信号严格 3 + tracked-feed 13 = 16）。
+**Coverage: 62/62 sources classified**（链路、契约、pool 资格、publishedAt、media caps 五列全填；pool-eligible 实测 6→**实施后 2**、videos 声明 14、环境信号严格 3 + tracked-feed 13 = 16）。
