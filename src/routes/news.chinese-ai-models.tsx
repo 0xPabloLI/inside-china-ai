@@ -4,6 +4,7 @@ import { ogMetaForPath, SITE_URL } from "@/lib/og";
 import { listPublishedPosts } from "@/lib/posts.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
+import { AskChinaAi } from "@/components/ask-china-ai";
 import { topicForPost } from "@/lib/news-topics";
 import {
   breadcrumbListJsonLd,
@@ -200,6 +201,13 @@ function ChineseAiModels() {
                 ))}
               </ul>
             )}
+
+            <div className="mt-12 rounded-lg border border-border/60 p-5">
+              <h2 className="font-serif text-2xl">Ask about Chinese AI models</h2>
+              <div className="mt-3">
+                <AskChinaAi />
+              </div>
+            </div>
 
             <h2 className="mt-12 font-serif text-2xl">Common questions</h2>
             <dl className="mt-4 divide-y divide-border/60 border-t border-border/60">
