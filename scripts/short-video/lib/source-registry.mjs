@@ -570,26 +570,12 @@ export const SELF_MEDIA_SOURCES = [
     accessMethod: {
       primary: "cdp",
       notes:
-        "CDP → googleSiteFallback (site:mp.weixin.qq.com, qdr:y) → MCP fallback (search_wechat_articles). Has captcha check. #309 (2026-09-19): site: layer added — WeChat article bodies live on mp.weixin.qq.com (the Google-indexed domain), not on sogou.com.",
+        "CDP → googleSiteFallback (site:mp.weixin.qq.com, qdr:y). Has captcha check. #309 (2026-09-19): site: layer added — WeChat article bodies live on mp.weixin.qq.com (the Google-indexed domain), not on sogou.com. #316 (2026-09-19): MCP fallback retired — live test: uvx server times out on MCP initialize (reproducible warm); silent-zero class.",
     },
     needsAuth: false,
     useCleanTitle: false,
     url: (keyword) => `https://weixin.sogou.com/weixin?type=2&query=${encodeURIComponent(keyword)}`,
-    mcpFallback: {
-      command: "uvx",
-      args: [
-        "--from",
-        "git+https://github.com/ptbsare/sogou-weixin-mcp-server",
-        "sogou_weixin_mcp",
-      ],
-      toolName: "search_wechat_articles",
-      toolArgs: (keyword) => ({ keyword, count: 20 }),
-      resultMapper: (items) =>
-        items.map((item) => ({
-          title: item.title || item.article_title || "",
-          url: item.url || item.link || item.article_url || "",
-        })),
-    },
+
     loginCheckScript: `
       var body = document.body ? document.body.innerText : '';
       (body.includes('请输入验证码') || document.querySelector('img[src*="captcha"]') || document.querySelector('#seccodeForm')) ? 'captcha' : 'ok'
@@ -630,7 +616,7 @@ export const SELF_MEDIA_SOURCES = [
     accessMethod: {
       primary: "api",
       notes:
-        "60s public hot-list API (open-source, #140 P5 research) — s.weibo.com redirects to Sina Visitor System without login. CDP (login) → MCP fallback (get_hot_search) kept behind it.",
+        "60s public hot-list API (open-source, #140 P5 research) — s.weibo.com redirects to Sina Visitor System without login. #316 (2026-09-19): MCP fallback (get_hot_search) retired — live test: the python module was never installed (ModuleNotFoundError, instant spawn death); the API layer is verified working.",
     },
     needsAuth: false,
     useCleanTitle: false,
@@ -658,20 +644,6 @@ export const SELF_MEDIA_SOURCES = [
       },
       authRequired: false,
     },
-    mcpFallback: {
-      command: "python",
-      args: ["-m", "mcp_server_weibo"],
-      toolName: "get_hot_search",
-      toolArgs: () => ({}),
-      resultMapper: (items) =>
-        items.map((item) => ({
-          title: item.word || item.title || item.query || "",
-          url:
-            item.url ||
-            item.link ||
-            `https://s.weibo.com/weibo?q=${encodeURIComponent(item.word || item.title || "")}`,
-        })),
-    },
     articleScript: `
       var items = document.querySelectorAll('td.td-02 a');
       var results = [];
@@ -693,22 +665,11 @@ export const SELF_MEDIA_SOURCES = [
     accessMethod: {
       primary: "cdp",
       notes:
-        "CDP (search page) → googleSiteFallback (site:bilibili.com, qdr:y) → MCP fallback (search_videos). Has 412 anti-bot intermittent issues. #309 (2026-09-19): site: layer added as the platform-faithful middle fallback.",
+        "CDP (search page) → googleSiteFallback (site:bilibili.com, qdr:y). Has 412 anti-bot intermittent issues. #309 (2026-09-19): site: layer added as the platform-faithful middle fallback. #316 (2026-09-19): MCP fallback (search_videos) retired — live test: the python module was never installed (ModuleNotFoundError, instant spawn death); chain ends at site:.",
     },
     needsAuth: false,
     useCleanTitle: true,
     url: (keyword) => `https://search.bilibili.com/all?keyword=${encodeURIComponent(keyword)}`,
-    mcpFallback: {
-      command: "python",
-      args: ["-m", "bilibili_mcp_server"],
-      toolName: "search_videos",
-      toolArgs: (keyword) => ({ keyword, count: 20 }),
-      resultMapper: (items) =>
-        items.map((item) => ({
-          title: item.title || item.name || "",
-          url: item.url || item.link || item.bvid || "",
-        })),
-    },
     articleScript: `
       var items = document.querySelectorAll('.video-list-item, .bili-video-card, .video-item');
       var results = [];
@@ -1062,59 +1023,20 @@ function parseTweetList(text) {
 // cross-platform coverage. They may contain Chinese-language content
 // relevant to China AI topics.
 //
-// Primary collection method: mcp-search-bridge (Grok model with web search).
-// CDP is attempted first (if a search page URL exists), but these international
-// platforms often don't have China-optimized search pages, so the MCP
-// fallback is the main workhorse.
+// Collection method (#309/#307/#316): CDP + explicit googleSiteFallback —
+// the mcp-search-bridge MCP fallback is retired (last consumer gone 2026-09-19).
+// Bigsong direct web search (mcp_grok_search) lives in GENERAL_SEARCH_SOURCES
+// with its own promptTemplate + parseGrokWebSearchResult mapper.
 //
 // Env vars required: SEARCH_BASE_URL, SEARCH_API_KEY, SEARCH_MODEL
-
-// Shared mcp-search-bridge resultMapper for list-style search results.
-// Grok returns numbered lists with title, URL, and optional metadata.
-function parseGrokListResult(items) {
-  const text = items[0]?.text || "";
-  const results = [];
-  const lines = text.split("\n");
-  let current = null;
-  for (const line of lines) {
-    // Match numbered list entries with bold title or quoted text
-    const titleMatch = line.match(/^\*?(\d+)\.\s*\*\*(.+?)\*\*/);
-    const quoteMatch = line.match(/^\*?(\d+)\.\s*"(.+?)"/);
-    const plainMatch = line.match(/^\*?(\d+)\.\s*(.+)/);
-    if (titleMatch) {
-      if (current) results.push(current);
-      current = { title: titleMatch[2].substring(0, 200), url: "", author: "" };
-      continue;
-    } else if (quoteMatch) {
-      if (current) results.push(current);
-      current = { title: quoteMatch[2].substring(0, 200), url: "", author: "" };
-      continue;
-    } else if (plainMatch && !current) {
-      current = { title: plainMatch[2].substring(0, 200), url: "", author: "" };
-      continue;
-    }
-    if (current) {
-      // Extract URLs
-      const urlMatch = line.match(/\*\*URL\*\*:\s*(https?:\/\/[\w./\-?=&]+)/i);
-      if (urlMatch) current.url = urlMatch[1];
-      const inlineUrl = line.match(/(https?:\/\/[\w./\-?=&]+)/);
-      if (inlineUrl && !current.url) current.url = inlineUrl[1];
-      // Extract author
-      const authorMatch = line.match(/\*\*Author\*\*:\s*(.+?)(?:\s*\((@[\w]+)\))?/i);
-      if (authorMatch) current.author = authorMatch[2] || authorMatch[1];
-    }
-  }
-  if (current) results.push(current);
-  return results;
-}
 
 /**
  * mcp_grok_search resultMapper (#307 follow-up, live smoke 2026-09-19).
  *
- * parseGrokListResult expects the Bigsong tweet-list format (**Full text** /
- * **URL** lines) — but the web-search template's contract produces (and the
- * live model produces, unconstrained, PROSE + citations that parse to zero).
- * The template therefore pins a strict per-line contract and this mapper
+ * The Bigsong tweet-list format (**Full text** / **URL** lines, parsed by
+ * parseTweetList for x_search) is NOT what the web-search model returns —
+ * unconstrained, it answers in PROSE + citations which parse to zero. The
+ * template therefore pins a strict per-line contract and this mapper
  * parses exactly that:
  *
  *   1. **Title** — https://url — YYYY-MM-DD

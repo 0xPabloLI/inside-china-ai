@@ -652,23 +652,25 @@ describe("MCP fallback configuration", () => {
     }
   });
 
-  it("sogou_weixin has mcpFallback", () => {
+  // #316 (2026-09-19): all three dedicated MCP fallbacks retired — live test
+  // showed every one dead (two python modules never installed → instant spawn
+  // death; sogou uvx server times out on MCP initialize, reproducible warm).
+  // All three produced the silent-zero class (#305) when their layer was
+  // reached; the primary layers (CDP/site:/API) are verified working.
+  it("sogou_weixin has NO mcpFallback (#316: uvx server init timeout, retired)", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "sogou_weixin");
-    expect(src.mcpFallback).toBeDefined();
-    expect(src.mcpFallback.command).toBe("uvx");
-    expect(src.mcpFallback.toolName).toBe("search_wechat_articles");
+    expect(src.mcpFallback).toBeUndefined();
   });
 
-  it("weibo_hot has mcpFallback", () => {
+  it("weibo_hot has NO mcpFallback (#316: python module never installed, retired)", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "weibo_hot");
-    expect(src.mcpFallback).toBeDefined();
-    expect(src.mcpFallback.toolName).toBe("get_hot_search");
+    expect(src.mcpFallback).toBeUndefined();
+    expect(src.apiSearch).toBeDefined();
   });
 
-  it("bilibili has mcpFallback", () => {
+  it("bilibili has NO mcpFallback (#316: python module never installed, retired)", () => {
     const src = SELF_MEDIA_SOURCES.find((s) => s.name === "bilibili");
-    expect(src.mcpFallback).toBeDefined();
-    expect(src.mcpFallback.toolName).toBe("search_videos");
+    expect(src.mcpFallback).toBeUndefined();
   });
 
   it("douyin does NOT have mcpFallback (douyin_mcp never installed, iesdouyin CDP download verified 2026-09-03)", () => {
@@ -699,13 +701,15 @@ describe("MCP fallback configuration", () => {
     expect(mapped[1].url).toBe("https://xhs.com/2");
   });
 
-  it("weibo_hot resultMapper builds URL from query", () => {
+  it("weibo_hot API parser stamps fetch time as publishedAt (hot-list semantics, mcpFallback retired #316)", () => {
     const weibo = SELF_MEDIA_SOURCES.find((s) => s.name === "weibo_hot");
-    const mockItems = [{ word: "AI热搜" }];
-    const mapped = weibo.mcpFallback.resultMapper(mockItems);
-    expect(mapped[0].title).toBe("AI热搜");
-    expect(mapped[0].url).toContain("s.weibo.com");
-    expect(mapped[0].url).toContain(encodeURIComponent("AI热搜"));
+    expect(weibo.mcpFallback).toBeUndefined();
+    const before = Date.now();
+    const articles = weibo.apiSearch.parser(
+      JSON.stringify({ data: [{ title: "AI热搜", link: "https://s.weibo.com/x", hot_value: 9 }] }),
+    );
+    expect(articles[0].title).toBe("AI热搜");
+    expect(new Date(articles[0].publishedAt).getTime()).toBeGreaterThanOrEqual(before - 5000);
   });
 });
 
@@ -1520,17 +1524,19 @@ describe("site: promotion — material/research sources exit the pool (#309)", (
   });
 
   it("Grok web_search fallback is retired from youtube/arxiv/github/threads (grilling ruling 5)", () => {
-    // bilibili/sogou_weixin KEEP their dedicated (non-web_search) MCP fallbacks
-    // — platform-faithful, never gated by the pool; tiktok_creator stays
-    // API+CDP only. Only the four generic web_search carriers lose Grok.
+    // #316 (2026-09-19): the last dedicated MCP fallbacks (bilibili/sogou_weixin)
+    // are retired too — live-tested dead (modules never installed / init
+    // timeout). tiktok_creator stays API+CDP only. The registry now carries
+    // ZERO mcpFallback configs.
     for (const name of ["youtube_search", "arxiv_search", "github_search", "threads_search"]) {
       const src = ALL_SOURCES.find((s) => s.name === name);
       expect(src.mcpFallback, `${name} mcpFallback removed`).toBeUndefined();
     }
-    for (const name of ["bilibili", "sogou_weixin"]) {
+    for (const name of ["bilibili", "sogou_weixin", "weibo_hot"]) {
       const src = ALL_SOURCES.find((s) => s.name === name);
-      expect(src.mcpFallback?.toolName, `${name} dedicated MCP kept`).not.toBe("web_search");
+      expect(src.mcpFallback, `${name} dedicated MCP retired (#316)`).toBeUndefined();
     }
+    expect(ALL_SOURCES.filter((s) => s.mcpFallback)).toHaveLength(0);
   });
 
   it("threads_search is excluded from site: autogen — no Google index, the layer would be dead (douyin precedent #77)", () => {
