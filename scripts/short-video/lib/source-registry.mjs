@@ -41,21 +41,11 @@
  * Used by search-sources.mjs.
  */
 
-import { join, dirname } from "path";
+import { dirname } from "path";
 import { fileURLToPath } from "url";
-import { homedir } from "os";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-// mcp-search-bridge server.js path.
-// Installed at ~/mcp-search-bridge/server.js (git clone).
-// Override with MCP_SEARCH_BRIDGE_PATH env var if installed elsewhere.
-const MCP_SEARCH_BRIDGE_SERVER =
-  process.env.MCP_SEARCH_BRIDGE_PATH || join(homedir(), "mcp-search-bridge", "server.js");
-
-// Node executable (for spawning MCP server via mcp-search-bridge)
-const NODE_BIN = "node";
 
 // ─── Google site: fallback shared pieces (#88 autogen + #309 explicit promotion) ───
 
@@ -1630,9 +1620,11 @@ export const INTERNATIONAL_SOURCES = [
 // search the entire web (not a specific platform). Useful for broad coverage
 // in both --trend and --research modes.
 //
-// google_search:   Google CDP + MCP fallback (was "web_grounding")
-// baidu_search:    Baidu CDP (Chinese-language search, no MCP fallback needed)
-// mcp_grok_search: mcp-search-bridge only (Grok web search, no CDP)
+// google_search:   Google CDP (news vertical) → REST pool last layer (#307:
+//                  Grok bridge retired; explicit poolEligible)
+// baidu_search:    Baidu CDP (Chinese-language search, no fallback needed)
+// mcp_grok_search: Bigsong direct HTTP only (#307 — name is historical; the
+//                  MCP bridge hop is gone)
 
 export const GENERAL_SEARCH_SOURCES = [
   {
@@ -1644,8 +1636,13 @@ export const GENERAL_SEARCH_SOURCES = [
     accessMethod: {
       primary: "cdp",
       notes:
-        "#89 P4 整合 (#140): merged with google_news — CDP primary now points at the Google news vertical (tbm=nws, qdr:w), one Google navigation per run instead of two. → MCP fallback (mcp-search-bridge/Grok).",
+        "#89 P4 整合 (#140): merged with google_news — CDP primary now points at the Google news vertical (tbm=nws, qdr:w), one Google navigation per run instead of two. #307: Grok MCP fallback retired — the REST search pool is the last layer (explicit poolEligible).",
     },
+    // #307 (2026-09-19): explicit pool declaration, decoupled from the Grok
+    // bridge (which is retired here — grilling ruling 5). google_search is the
+    // generic engine's generic discovery fallback: pool-eligible, chain ends
+    // at the pool.
+    poolEligible: true,
     useCleanTitle: false,
     url: (keyword) =>
       `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
@@ -1671,16 +1668,6 @@ export const GENERAL_SEARCH_SOURCES = [
       });
       return results.slice(0, 20);
     `,
-    mcpFallback: {
-      command: NODE_BIN,
-      args: [MCP_SEARCH_BRIDGE_SERVER],
-      toolName: "web_search",
-      toolArgs: (keyword) => ({
-        query: `Search the web for recent news and discussions about "${keyword}" or "China AI" in Chinese (中文) and English. List the top 10 most relevant articles or posts. For each, include: title, source name, and URL.`,
-      }),
-      timeoutMs: 60000,
-      resultMapper: parseGrokListResult,
-    },
   },
   {
     name: "baidu_search",
@@ -1809,22 +1796,27 @@ export const GENERAL_SEARCH_SOURCES = [
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
-      primary: "mcp",
-      notes: "MCP only (mcp-search-bridge/Grok). No CDP page. Grok web search with China AI focus.",
+      primary: "api",
+      notes:
+        "Bigsong direct HTTP (searchX / grok-chat-fast via SEARCH_* env), #307: the mcp-search-bridge MCP hop is retired (same upstream, minus subprocess+JSON-RPC). No CDP page. Independent fact-check/discovery source — deliberately NOT pool-eligible: its Grok-ness is the point, pool-first would bury it under Serper results.",
     },
     useCleanTitle: false,
-    // No CDP page — MCP is the only method
+    // No CDP page — API is the only method
     url: () => "",
     articleScript: `return [];`,
-    mcpFallback: {
-      command: NODE_BIN,
-      args: [MCP_SEARCH_BRIDGE_SERVER],
-      toolName: "web_search",
-      toolArgs: (keyword) => ({
-        query: `Search the web for the latest news about "${keyword}" focusing on Chinese AI companies, products, and developments. Include both Chinese and English sources. List the top 10 results with title, source, and URL.`,
-      }),
-      timeoutMs: 60000,
+    // #307 grilling verdict 3: the query template lives in the registry as a
+    // per-source field (interpolated by collectFromBigsong at call time).
+    // Contract vs the old bridge toolArgs query: explicit 7-day window,
+    // mandatory dated results, wiki/review-site exclusion, and the China-AI
+    // focus qualifier dropped (generic web search, any topic).
+    apiFallback: {
       resultMapper: parseGrokListResult,
+      promptTemplate: {
+        buildQuery: (keyword, { today } = {}) =>
+          `Search the web for the latest news about "${keyword}" from the last 7 days (today is ${today ?? "unspecified"}). ` +
+          "Only include results that carry an explicit date. List the top 10 results with title, source, URL, and date. " +
+          "Exclude Wikipedia and review/comparison aggregator pages.",
+      },
     },
   },
 ];
@@ -3438,6 +3430,7 @@ const API_KEY_ENV_MAP = {
  */
 export const AUTOGEN_EXCLUDED_SOURCES = new Set([
   // Search engines — they ARE search, no "own domain" to site:
+  "google_search",
   "bing_news",
   "baidu_search",
   "duckduckgo_search",

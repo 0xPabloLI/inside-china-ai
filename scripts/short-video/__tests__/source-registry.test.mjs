@@ -304,8 +304,9 @@ describe("Extract scripts", () => {
     for (const src of ALL_SOURCES) {
       // Skip stock API sources (no CDP article extraction)
       if (src.category === "stock_media") continue;
-      // MCP-only sources (like mcp_grok_search) may have minimal articleScript
-      if (src.mcpFallback && !src.url()) continue;
+      // Sources without a CDP page (mcp_grok_search: Bigsong API only, #307)
+      // may have a minimal articleScript
+      if (!src.url()) continue;
       expect(src.articleScript).toContain("return results");
     }
   });
@@ -485,13 +486,15 @@ describe("General search sources", () => {
     expect(src.supportsKeyword).toBe(true);
   });
 
-  it("includes mcp_grok_search (MCP-only)", () => {
+  it("includes mcp_grok_search (Bigsong direct, #307: MCP bridge hop retired)", () => {
     const src = GENERAL_SEARCH_SOURCES.find((s) => s.name === "mcp_grok_search");
     expect(src).toBeDefined();
     expect(src.label).toBe("Grok Web Search");
     expect(src.category).toBe("general");
     expect(src.supportsKeyword).toBe(true);
-    expect(src.mcpFallback).toBeDefined();
+    expect(src.accessMethod.primary).toBe("api");
+    expect(src.mcpFallback).toBeUndefined();
+    expect(src.apiFallback).toBeDefined();
   });
 
   it("baidu_search does NOT have mcpFallback (CDP-only)", () => {
@@ -635,15 +638,15 @@ describe("MCP fallback configuration", () => {
     expect(src.accessMethod.notes).toContain("#213");
   });
 
-  // #292 invariant (2026-09-15 verdict): apiFallback is exclusively the
-  // direct Bigsong platform bridge — platform-faithful chains that must
-  // never be preempted by (or re-labeled with) generic pool results. Pinning
-  // the carrier set to x_search keeps every apiFallback source outside the
-  // pool by construction: if a future source gains apiFallback it is a
-  // platform bridge too and must NOT become pool-eligible.
-  it("only x_search carries apiFallback across the whole registry (#292 platform-fidelity invariant)", () => {
+  // #307 (2026-09-19): mcp_grok_search joins as the second Bigsong carrier —
+  // same upstream (grok-chat-fast via searchX), query shaped by promptTemplate
+  // instead of the raw platform keyword. The invariant still pins every
+  // apiFallback source OUTSIDE the pool by construction: a carrier is either
+  // a platform bridge (x_search) or an independent single-source chain
+  // (mcp_grok_search) — never pool-eligible.
+  it("only Bigsong-backed sources carry apiFallback across the whole registry (#292/#307 invariant)", () => {
     const carriers = ALL_SOURCES.filter((s) => s.apiFallback).map((s) => s.name);
-    expect(carriers).toEqual(["x_search"]);
+    expect(carriers).toEqual(["x_search", "mcp_grok_search"]);
     for (const name of ["xhs", "sogou_weixin", "weibo_hot", "bilibili", "douyin"]) {
       expect(ALL_SOURCES.find((s) => s.name === name)?.apiFallback).toBeUndefined();
     }
@@ -1490,9 +1493,12 @@ describe("site: promotion — material/research sources exit the pool (#309)", (
     { name: "tiktok_creator", domain: "tiktok.com" },
   ];
 
-  it("pool-eligible sources are exactly the generic discovery pair google_search + mcp_grok_search (6→2)", () => {
+  it("pool-eligible sources are exactly [google_search] — declared via explicit poolEligible (#307: 2→1, decoupled from the Grok bridge)", () => {
     const eligible = ALL_SOURCES.filter((s) => isPoolEligible(s)).map((s) => s.name);
-    expect(eligible).toEqual(["google_search", "mcp_grok_search"]);
+    expect(eligible).toEqual(["google_search"]);
+    const google = ALL_SOURCES.find((s) => s.name === "google_search");
+    expect(google.poolEligible).toBe(true);
+    expect(ALL_SOURCES.find((s) => s.name === "mcp_grok_search")?.poolEligible).toBeUndefined();
   });
 
   it("promoted sources carry an explicit googleSiteFallback (site: domain + qdr:y year window)", () => {
@@ -1540,15 +1546,60 @@ describe("site: promotion — material/research sources exit the pool (#309)", (
     expect(src.articleScript).toContain("datetime");
   });
 
-  it("generic discovery pair keeps its web_search fallback (pool-eligible as before)", () => {
-    for (const name of ["google_search", "mcp_grok_search"]) {
-      const src = ALL_SOURCES.find((s) => s.name === name);
-      expect(src.mcpFallback?.toolName, `${name} keeps web_search`).toBe("web_search");
-    }
+  it("google_search keeps pool as its last layer and enters AUTOGEN_EXCLUDED (it IS search — no own domain to site:)", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "google_search");
+    expect(src.mcpFallback, "Grok bridge retired (grilling ruling 5, #307)").toBeUndefined();
+    expect(src.googleSiteFallback).toBeUndefined();
+    expect(AUTOGEN_EXCLUDED_SOURCES.has("google_search")).toBe(true);
+    expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
   });
 
-  it("apiFallback invariant is untouched (only x_search carries the Bigsong bridge)", () => {
-    const carriers = ALL_SOURCES.filter((s) => s.apiFallback).map((s) => s.name);
-    expect(carriers).toEqual(["x_search"]);
+  it("mcp_grok_search is the second Bigsong carrier — apiFallback, never pool-eligible (#307)", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "mcp_grok_search");
+    expect(src.apiFallback).toBeDefined();
+    expect(src.apiFallback.resultMapper).toBeTypeOf("function");
+    expect(src.apiFallback.promptTemplate).toBeDefined();
+    expect(src.poolEligible).toBeUndefined();
+    expect(isPoolEligible(src)).toBe(false);
+  });
+});
+
+// ─── #307 promptTemplate (2026-09-19 grilling verdicts) ───
+//
+// 裁决 3：Grok 查询模板入 registry per-source 字段——显式 7 天窗 + 强制
+// 日期输出 + 排除 wiki/评测站 + 去掉 China-AI 限定（旧 bridge toolArgs 查询
+// 为基型）。插值发生在 collectFromBigsong（search-sources.mjs），registry 只
+// 锁模板契约；x_search 保持裸关键词（平台查询即关键词本身）。
+
+describe("#307 mcp_grok_search promptTemplate", () => {
+  const src = ALL_SOURCES.find((s) => s.name === "mcp_grok_search");
+
+  it("exists only on mcp_grok_search — x_search keeps the raw-keyword query", () => {
+    expect(src.apiFallback.promptTemplate).toBeDefined();
+    const xSearch = ALL_SOURCES.find((s) => s.name === "x_search");
+    expect(xSearch.apiFallback.promptTemplate).toBeUndefined();
+  });
+
+  it("buildQuery pins an explicit 7-day window and injects today's date", () => {
+    const q = src.apiFallback.promptTemplate.buildQuery("DeepSeek", {
+      today: "2026-09-19",
+    });
+    expect(q).toContain("last 7 days");
+    expect(q).toContain("2026-09-19");
+  });
+
+  it("buildQuery forces dated results and excludes wiki/review pages", () => {
+    const q = src.apiFallback.promptTemplate.buildQuery("DeepSeek", { today: "2026-09-19" });
+    expect(q.toLowerCase()).toContain("date");
+    expect(q).toContain("Wikipedia");
+  });
+
+  it("buildQuery drops the China-AI focus qualifier (generic web search, #307)", () => {
+    const q = src.apiFallback.promptTemplate.buildQuery("DeepSeek", { today: "2026-09-19" });
+    expect(q).not.toMatch(/chinese ai|china ai/i);
+  });
+
+  it("buildQuery tolerates a missing today arg (defensive default)", () => {
+    expect(() => src.apiFallback.promptTemplate.buildQuery("DeepSeek")).not.toThrow();
   });
 });

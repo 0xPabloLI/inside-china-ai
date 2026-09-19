@@ -65,35 +65,28 @@ const SERPER_BODY = {
 // ─── isPoolEligible ───
 
 describe("isPoolEligible", () => {
-  it("true when the source mcpFallback is the generic web_search bridge", () => {
-    const source = { name: "google_search", mcpFallback: { toolName: "web_search" } };
+  // #307 (2026-09-19): pool eligibility is an EXPLICIT declaration on the
+  // source (poolEligible: true), decoupled from the Grok bridge. The old
+  // mcpFallback.toolName === "web_search" derivation died with the bridge
+  // retirement — the two mechanisms are independent concerns.
+  it("true when the source declares poolEligible at top level", () => {
+    expect(isPoolEligible({ name: "google_search", poolEligible: true })).toBe(true);
+  });
+
+  it("true when the flag lives in capabilities.articles (enriched registry)", () => {
+    const source = { name: "google_search", capabilities: { articles: { poolEligible: true } } };
     expect(isPoolEligible(source)).toBe(true);
   });
 
-  it("true when toolName lives in capabilities.articles (enriched registry)", () => {
-    const source = {
-      name: "google_search",
-      capabilities: { articles: { mcpFallback: { toolName: "web_search" } } },
-    };
-    expect(isPoolEligible(source)).toBe(true);
-  });
-
-  // #292 verdict (2026-09-15, user): x_search is a PLATFORM source — its
-  // Bigsong apiFallback returns platform-faithful X tweets, and generic pool
-  // results would carry the x_search label without being X content (smoke:
-  // Tavily hit Wikipedia/TechRadar) while preempting the higher-quality
-  // Bigsong take. Platform sources never enter the generic pool (triage
-  // rule 1) — #65's 7-source letter is superseded.
-  it("false for the Bigsong direct bridge (x_search, apiFallback) — platform-faithful chain, never pool", () => {
-    const source = { name: "x_search", apiFallback: { type: "http", resultMapper: () => [] } };
+  it("false for the legacy mcpFallback.web_search derivation — decoupled (#307)", () => {
+    const source = { name: "legacy", mcpFallback: { toolName: "web_search" } };
     expect(isPoolEligible(source)).toBe(false);
   });
 
-  it("false for apiFallback nested in capabilities.articles (enriched registry)", () => {
-    const source = {
-      name: "x_search",
-      capabilities: { articles: { apiFallback: { type: "http" } } },
-    };
+  // #292 verdict (2026-09-15, user): platform sources never enter the
+  // generic pool. x_search keeps no flag — the absence IS the declaration.
+  it("false for the Bigsong direct bridge (x_search, apiFallback) — platform-faithful chain, never pool", () => {
+    const source = { name: "x_search", apiFallback: { type: "http", resultMapper: () => [] } };
     expect(isPoolEligible(source)).toBe(false);
   });
 
@@ -105,7 +98,7 @@ describe("isPoolEligible", () => {
     expect(isPoolEligible(source)).toBe(false);
   });
 
-  it("false when there is no mcpFallback at all", () => {
+  it("false when there is no poolEligible flag at all", () => {
     expect(isPoolEligible({ name: "qbitai" })).toBe(false);
     expect(isPoolEligible(null)).toBe(false);
   });

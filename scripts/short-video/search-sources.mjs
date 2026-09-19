@@ -478,21 +478,31 @@ async function collectFromMcp(source, keyword) {
 }
 
 /**
- * Issue #90: direct Bigsong API fallback — same upstream as the MCP bridge,
- * minus the subprocess + JSON-RPC hop. apiFallback carries the resultMapper;
- * the search function is picked per source (xhs → dots-chat, x → SEARCH_MODEL).
+ * Issue #90: direct Bigsong API fallback — same upstream as the (retired) MCP
+ * bridge, minus the subprocess + JSON-RPC hop. apiFallback carries the
+ * resultMapper; the search function is picked per source (xhs → dots-chat,
+ * x → SEARCH_MODEL).
+ *
+ * #307: when apiFallback.promptTemplate is set (mcp_grok_search), the query
+ * is built from the registry-owned template (explicit 7-day window, dated
+ * results, wiki/review exclusion) instead of passing the raw keyword —
+ * x_search keeps the raw keyword (the platform query IS the keyword).
  *
  * @param {Object} source - Source definition from source-registry
  * @param {string|null} keyword - Search keyword (null → DEFAULT_KEYWORDS[0])
- * @param {Object} apiFallback - apiFallback config (resultMapper + optional model)
+ * @param {Object} apiFallback - apiFallback config (resultMapper + optional
+ *   promptTemplate)
  * @returns {Array} Extracted articles, or empty array on failure
  */
 async function collectFromBigsong(source, keyword, apiFallback) {
   console.log(`  🔎 Trying Bigsong API for ${source.label}...`);
 
   const kw = keyword || DEFAULT_KEYWORDS[0];
+  const query = apiFallback.promptTemplate
+    ? apiFallback.promptTemplate.buildQuery(kw, { today: new Date().toISOString().slice(0, 10) })
+    : kw;
   const search = source.name === "xhs" ? searchXhs : searchX;
-  const result = await search(kw, apiFallback);
+  const result = await search(query, apiFallback);
 
   if (!result.success) {
     console.warn(`  ⚠️  Bigsong API failed: ${result.error}`);
@@ -814,48 +824,47 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
 
   // Step 2.5 (Issue #90): If still failed and a direct Bigsong API fallback is
   // configured, call lib/bigsong-api.mjs directly — no subprocess, no JSON-RPC.
-  // x_search only (#292 verdict, 2026-09-15): platform-faithful X results —
-  // this layer runs BEFORE the generic pool and is never preempted by it.
+  // Carriers (#307): x_search (platform-faithful X results, never preempted
+  // by the pool) and mcp_grok_search (independent Grok web-search source,
+  // query shaped by its registry promptTemplate).
   if (articles.length === 0 && apiFallback) {
     articles = await collectBigsong(source, keyword, apiFallback);
     record("api-fallback", articles.length, articles.length === 0 ? "zero-results" : undefined);
   }
 
-  // Step 3: Generic layers last. For pool-eligible sources (generic web_search
-  // bridge: youtube/arxiv/github/threads/google/mcp_grok_search) the REST pool
-  // (Serper > Brave > Tavily > Jina) runs first; the Grok MCP bridge stays as
-  // the last resort. x_search is NOT pool-eligible — its chain above is
-  // platform-faithful end to end, and generic pool results would carry the
-  // x_search label without being X content (#292 verdict, 2026-09-15).
-  // Platform-specific MCP fallbacks (xhs/sogou_weixin/weibo_hot/bilibili) go
-  // straight to their dedicated MCP — the pool does not replace them.
-  if (articles.length === 0 && mcpFallback) {
-    if (isPoolEligibleFn(source)) {
-      console.log(`  🏊 Trying search pool for ${source.label}...`);
-      // #309 (news contract, ruling (b), 2026-09-15): pool calls carry the
-      // recency window — Serper tbs / Brave freshness / Tavily topic:"news"+
-      // days; Jina skips fail-closed. Default 7 days (ruling); a source's own
-      // tracking window (月报类 30 天) overrides so the engine fetch and the
-      // downstream freshness filter share one bound. An empty news-windowed
-      // pool still falls through to the Grok bridge below.
-      const poolResult = await searchPoolFn(keyword || DEFAULT_KEYWORDS[0], {
-        news: { days: source.tracking?.freshnessWindowDays ?? 7 },
-      });
-      for (const attempt of poolResult.attempts) {
-        console.warn(`  ⚠️  Pool engine ${attempt.engine}: ${attempt.error}`);
-      }
-      if (poolResult.articles.length > 0) {
-        articles = poolResult.articles;
-        console.log(`  📊 Pool (${poolResult.engine}) extracted ${articles.length} articles`);
-      } else {
-        articles = await collectMcp(source, keyword);
-      }
-      record("pool", articles.length, articles.length === 0 ? "zero-results" : undefined);
-    } else {
-      const mcpArticles = await collectMcp(source, keyword);
-      articles = mcpArticles;
-      record("mcp", articles.length, articles.length === 0 ? "zero-results" : undefined);
+  // Step 3 (#307): Generic pool layer — explicit poolEligible sources only
+  // (currently google_search). The gate no longer lives inside the
+  // mcpFallback branch: the Grok bridge is retired from every material and
+  // general source (#309/#307), so a pool-eligible source's chain ends here.
+  if (articles.length === 0 && isPoolEligibleFn(source)) {
+    console.log(`  🏊 Trying search pool for ${source.label}...`);
+    // #309 (news contract, ruling (b), 2026-09-15): pool calls carry the
+    // recency window — Serper tbs / Brave freshness / Tavily topic:"news"+
+    // days; Jina skips fail-closed. Default 7 days (ruling); a source's own
+    // tracking window (月报类 30 天) overrides so the engine fetch and the
+    // downstream freshness filter share one bound.
+    const poolResult = await searchPoolFn(keyword || DEFAULT_KEYWORDS[0], {
+      news: { days: source.tracking?.freshnessWindowDays ?? 7 },
+    });
+    for (const attempt of poolResult.attempts) {
+      console.warn(`  ⚠️  Pool engine ${attempt.engine}: ${attempt.error}`);
     }
+    if (poolResult.articles.length > 0) {
+      articles = poolResult.articles;
+      console.log(`  📊 Pool (${poolResult.engine}) extracted ${articles.length} articles`);
+    }
+    record("pool", articles.length, articles.length === 0 ? "zero-results" : undefined);
+  }
+
+  // Step 3.5 (#307): Dedicated MCP fallbacks last — platform-specific bridges
+  // (sogou_weixin/bilibili/weibo_hot) that the pool never replaces (#292).
+  // No registry source pairs an mcpFallback with poolEligible today, but the
+  // combination's semantics (empty pool → MCP) is chain-tested:
+  // collect-from-source-chain.test.mjs "runs the pool before MCP for
+  // pool-eligible sources, then MCP on empty pool".
+  if (articles.length === 0 && mcpFallback) {
+    articles = await collectMcp(source, keyword);
+    record("mcp", articles.length, articles.length === 0 ? "zero-results" : undefined);
   }
 
   // Step 4: Clean titles if needed

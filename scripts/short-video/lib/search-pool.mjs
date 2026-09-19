@@ -1,13 +1,15 @@
 /**
- * General Search Pool (#65) — REST engine chain for Layer 3 fallback.
+ * General Search Pool (#65) — REST engine chain for the Layer-3 fallback.
  *
- * Sits ahead of the Grok last resort for the 6 generic `web_search` sources
- * (youtube_search, arxiv_search, github_search, threads_search, google_search,
- * mcp_grok_search): quota engines (Serper > Brave > Tavily > Jina) run before
- * unlimited Grok. x_search is NOT pool-eligible by design (2026-09-15 user
- * verdict, #292): platform-specific, its Bigsong apiFallback returns
- * platform-faithful X tweets. Platform-specific MCP fallbacks (xhs,
- * sogou_weixin, weibo_hot, bilibili) are likewise excluded.
+ * Pool eligibility is an explicit `poolEligible: true` declaration (#307,
+ * 2026-09-19) — currently only google_search, the generic engine's generic
+ * discovery fallback. The 2026-09-15 #292 derivation (mcpFallback.web_search
+ * carriers) is gone: #309 retired the Grok bridge from the material/research
+ * sources, and #307 retired it from google_search/mcp_grok_search too —
+ * x_search stays OUT by design (platform-faithful Bigsong chain), and
+ * mcp_grok_search is now an independent Bigsong source, deliberately not
+ * pool-first (its Grok-ness is the point). Platform-specific MCP fallbacks
+ * (xhs, sogou_weixin, weibo_hot, bilibili) are likewise excluded.
  *
  * Design (issue #65, 2026-08-25 精简版 — supersedes the 2026-08-20 handoff):
  * try-catch serial chain, NO quota tracking, NO persistence, NO monthly/day
@@ -235,25 +237,20 @@ const NEWS_SKIP_REASON =
 export const POOL_ENGINE_NAMES = POOL_ENGINES.map((e) => e.name);
 
 /**
- * A source is pool-eligible when its mcpFallback is the generic Grok
- * web_search bridge (toolName "web_search") — the generic layer this pool
- * sits ahead of (#65: quota engines run before unlimited Grok). Six sources:
- * youtube_search, arxiv_search, github_search, threads_search, google_search,
- * mcp_grok_search.
+ * Pool eligibility — an EXPLICIT declaration on the source (#307,
+ * 2026-09-19): `poolEligible: true` at top level or in
+ * capabilities.articles. Decoupled from the Grok bridge: the old
+ * `mcpFallback.toolName === "web_search"` derivation died with the bridge
+ * retirement (#309/#307) — the mechanisms are independent concerns. The
+ * only current carrier is google_search (the generic engine's generic
+ * discovery fallback); platform sources (x_search apiFallback, dedicated
+ * MCPs) never enter the pool (#292 verdict).
  *
- * x_search is deliberately EXCLUDED (2026-09-15 user verdict, #292): it is a
- * platform-specific source (needsAuth) whose Grok access is the direct
- * Bigsong apiFallback (#90) returning platform-faithful X tweets. Generic
- * pool results would carry the x_search label without being X content and
- * preempt the higher-quality Bigsong take. Triage rule 1 (platform sources
- * never enter the generic pool) prevails over #65's stale 7-source letter.
- *
- * @param {Object|null} source - Source definition from source-registry
- * @returns {boolean}
+ * @param {Object} source - Source definition from source-registry
+ * @returns {boolean} true when the source may fall back to the REST pool
  */
 export function isPoolEligible(source) {
-  const fb = source?.capabilities?.articles?.mcpFallback ?? source?.mcpFallback;
-  return fb?.toolName === "web_search";
+  return (source?.capabilities?.articles?.poolEligible ?? source?.poolEligible) === true;
 }
 
 /**

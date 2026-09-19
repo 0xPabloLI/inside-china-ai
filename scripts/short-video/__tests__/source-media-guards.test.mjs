@@ -14,6 +14,7 @@
 import { describe, it, expect } from "vitest";
 import { join } from "path";
 import { ALL_SOURCES, AUTOGEN_EXCLUDED_SOURCES } from "../lib/source-registry.mjs";
+import { isPoolEligible } from "../lib/search-pool.mjs";
 
 // ALL_SOURCES ships pre-enriched capabilities (enrichWithCapabilities runs
 // per universe list at module load).
@@ -55,13 +56,17 @@ describe("zero-fallback list lock", () => {
     // (设计内——聚合/搜索类自为兜底；#140 P4 后 google_news 并入 google_search，
     // google_search 有 mcpFallback 不在此组，剩 8 个)；a future source silently
     // landing in this group must update the snapshot deliberately, not slip through.
+    // #307: the explicit poolEligible pool layer counts as a fallback too —
+    // google_search (Grok bridge retired) stays out of the group via the real
+    // isPoolEligible predicate.
     const zeroFallback = articlesCapable
       .filter(
         (s) =>
           !(s.googleSiteFallback || s.capabilities?.articles?.googleSiteFallback) &&
           !s.apiSearch &&
           !s.apiFallback &&
-          !s.mcpFallback,
+          !s.mcpFallback &&
+          !isPoolEligible(s),
       )
       .map((s) => s.name)
       .sort();

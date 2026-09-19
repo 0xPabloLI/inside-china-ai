@@ -2,13 +2,13 @@
  * Integration tests for collectFromSource's six-layer fallback chain
  * (test gap #3 of the #77 audit, implemented on the #200 deps seam).
  *
- * Chain order (#292 verdict, 2026-09-15 — platform-faithful layers before
- * generic ones):
+ * Chain order (#292 verdict, 2026-09-15; pool gate made explicit in #307):
  *   apiSearch → CDP (same-URL short-circuit) → googleSiteFallback
- *     → apiFallback(Bigsong ≡ Grok bridge backend, x_search only — platform-
- *     faithful, never preempted by the pool) → search pool (pool-eligible
- *     generic web_search sources only) → mcpFallback (Grok bridge after an
- *     empty pool; dedicated platform MCPs go straight here)
+ *     → apiFallback (Bigsong direct: x_search platform bridge, mcp_grok_search
+ *     independent source) → search pool (explicit poolEligible sources only —
+ *     google_search; the Grok bridge is retired) → mcpFallback (dedicated
+ *     platform MCPs: sogou_weixin/bilibili/weibo_hot; a pool-eligible source
+ *     with an mcpFallback still lands here after an empty pool)
  *
  * Each layer runs only when the previous one produced zero results; the
  * googleSiteFallback step synthesizes a `{name}_fallback` source; pool runs
@@ -87,7 +87,14 @@ describe("collectFromSource fallback chain order", () => {
       },
     );
     await promise;
-    expect(calls.map((c) => c.fn)).toEqual(["collectApi", "collectCdp", "collectCdp"]);
+    // #307: the pool gate is its own step now — consulted once after the
+    // site: fallback comes up empty (default gate says not eligible).
+    expect(calls.map((c) => c.fn)).toEqual([
+      "collectApi",
+      "collectCdp",
+      "collectCdp",
+      "isPoolEligibleFn",
+    ]);
     // The second CDP call is the synthesized fallback source
     const fallbackSource = calls[2].args[0];
     expect(fallbackSource.name).toBe("test_src_fallback");
@@ -130,7 +137,7 @@ describe("collectFromSource fallback chain order", () => {
     expect(cap?.needsAuth).toBe(false);
   });
 
-  it("hits apiFallback (Bigsong) before MCP when configured", async () => {
+  it("apiFallback carriers (x_search / mcp_grok_search #307): full chain CDP → Bigsong → end on success", async () => {
     const { promise, calls } = harness(
       {
         collectBigsong: async () => [{ title: "b", url: "u" }],
@@ -141,12 +148,42 @@ describe("collectFromSource fallback chain order", () => {
     );
     const articles = await promise;
     expect(articles.map((a) => a.title)).toEqual(["b"]);
-    // #292 verdict (2026-09-15): x_search's apiFallback chain is platform-
-    // faithful end to end — the pool gate is never consulted (it lives in the
-    // mcpFallback branch) and Bigsong is never preempted by generic results.
+    // #292 verdict (2026-09-15) + #307 restructure: apiFallback runs at its
+    // own step BEFORE the pool; the pool gate is only consulted if Bigsong
+    // returned nothing, so a successful Bigsong call is never preempted by
+    // generic results.
     expect(calls.map((c) => c.fn)).toEqual(["collectCdp", "collectBigsong"]);
     expect(calls.some((c) => c.fn === "searchPoolFn")).toBe(false);
     expect(calls.some((c) => c.fn === "collectMcp")).toBe(false);
+  });
+
+  // #307: pool eligibility is explicit (poolEligible flag) and no longer
+  // lives inside the mcpFallback branch. This is the google_search chain
+  // lock (OQ3, two-source case): CDP → pool → end — no MCP layer follows.
+  it("google_search chain: poolEligible source without mcpFallback stops at the pool on empty pool", async () => {
+    const { promise, calls } = harness(
+      {
+        searchPoolFn: async () => ({ attempts: [], articles: [] }),
+        isPoolEligibleFn: () => true,
+      },
+      { poolEligible: true },
+    );
+    await promise;
+    expect(calls.map((c) => c.fn)).toEqual(["collectCdp", "isPoolEligibleFn", "searchPoolFn"]);
+    expect(calls.some((c) => c.fn === "collectMcp")).toBe(false);
+  });
+
+  it("returns pool results directly when the pool succeeds for a poolEligible source (#307)", async () => {
+    const { promise, calls } = harness(
+      {
+        searchPoolFn: async () => ({ attempts: [], articles: [{ title: "p", url: "u" }] }),
+        isPoolEligibleFn: () => true,
+      },
+      { poolEligible: true },
+    );
+    const articles = await promise;
+    expect(articles.map((a) => a.title)).toEqual(["p"]);
+    expect(calls.map((c) => c.fn)).toEqual(["collectCdp", "isPoolEligibleFn", "searchPoolFn"]);
   });
 
   it("runs the pool before MCP for pool-eligible sources, then MCP on empty pool", async () => {
