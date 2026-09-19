@@ -1602,4 +1602,45 @@ describe("#307 mcp_grok_search promptTemplate", () => {
   it("buildQuery tolerates a missing today arg (defensive default)", () => {
     expect(() => src.apiFallback.promptTemplate.buildQuery("DeepSeek")).not.toThrow();
   });
+
+  it("buildQuery pins a machine-parseable output contract (mapper depends on it)", () => {
+    const q = src.apiFallback.promptTemplate.buildQuery("DeepSeek", { today: "2026-09-19" });
+    // The strict per-line format the mapper parses (title — URL — date)
+    expect(q).toContain("**");
+    expect(q).toMatch(/YYYY-MM-DD/);
+    expect(q).toContain("NO_RESULTS");
+  });
+
+  // Live smoke 2026-09-19 (recovered upstream): the model returns PROSE +
+  // citations when unconstrained — parseGrokListResult (numbered-list format)
+  // extracts 0 items from it. The web mapper parses the contract format and
+  // maps the trailing date to publishedAt (news contract).
+  it("resultMapper parses the contract line format with publishedAt", () => {
+    const text = [
+      "1. **DeepSeek V4.1 Flash Launches with Multimodal Capabilities** — https://emergent.sh/deepseek — 2026-09-10",
+      "2. **DeepSeek ships V4.1 Flash** — https://example.com/v4 — 2026-09-12",
+      "",
+      "NO_RESULTS is returned when nothing qualifies.",
+    ].join("\n");
+    const mapped = src.apiFallback.resultMapper(text);
+    expect(mapped).toHaveLength(2);
+    expect(mapped[0].title).toBe("DeepSeek V4.1 Flash Launches with Multimodal Capabilities");
+    expect(mapped[0].url).toBe("https://emergent.sh/deepseek");
+    expect(mapped[0].publishedAt).toBe("2026-09-10");
+    expect(mapped[1].url).toBe("https://example.com/v4");
+  });
+
+  it("resultMapper keeps a lenient numbered-bold path (URL found, date optional)", () => {
+    const text = "1. **Some headline** — https://example.com/a";
+    const mapped = src.apiFallback.resultMapper(text);
+    expect(mapped).toHaveLength(1);
+    expect(mapped[0].url).toBe("https://example.com/a");
+    expect(mapped[0].publishedAt).toBeUndefined();
+  });
+
+  it("resultMapper returns empty for prose responses (fail-closed, no invention)", () => {
+    const prose =
+      '**No news articles or results published in the last 7 days were found for "DeepSeek".**[[1]](https://designforonline.com/x)\n\nAll web search results in this timeframe were either:\n- Pages with publication dates from earlier, or\n- Review/comparison aggregator pages.';
+    expect(src.apiFallback.resultMapper(prose)).toEqual([]);
+  });
 });

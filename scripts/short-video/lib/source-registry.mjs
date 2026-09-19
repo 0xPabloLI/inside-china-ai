@@ -1108,6 +1108,57 @@ function parseGrokListResult(items) {
   return results;
 }
 
+/**
+ * mcp_grok_search resultMapper (#307 follow-up, live smoke 2026-09-19).
+ *
+ * parseGrokListResult expects the Bigsong tweet-list format (**Full text** /
+ * **URL** lines) — but the web-search template's contract produces (and the
+ * live model produces, unconstrained, PROSE + citations that parse to zero).
+ * The template therefore pins a strict per-line contract and this mapper
+ * parses exactly that:
+ *
+ *   1. **Title** — https://url — YYYY-MM-DD
+ *
+ * with a lenient fallback for numbered-bold lines carrying an inline URL
+ * (date optional → no publishedAt, fail-closed downstream). Prose/NO_RESULTS
+ * responses map to [] — no invention.
+ *
+ * @param {Array<{text?: string>}|string} items - Bigsong response payload
+ * @returns {Array} Parsed articles { title, url, publishedAt? }
+ */
+function parseGrokWebSearchResult(items) {
+  const text = Array.isArray(items) ? items[0]?.text || "" : String(items || "");
+  const results = [];
+  for (const line of text.split("\n")) {
+    // Contract format: `1. **Title** — https://url — 2026-09-19`
+    const contract = line.match(
+      /^\*?\d+\.\s*\*\*(.+?)\*\*\s*[—–-]\s*(https?:\/\/\S+?)\s*[—–-]\s*(\d{4}-\d{2}-\d{2})/i,
+    );
+    if (contract) {
+      results.push({
+        title: contract[1].substring(0, 200),
+        url: contract[2],
+        publishedAt: contract[3],
+      });
+      continue;
+    }
+    // Lenient: numbered bold title with an inline URL (date optional)
+    const bold = line.match(/^\*?\d+\.\s*\*\*(.+?)\*\*/);
+    if (bold) {
+      const url = line.match(/(https?:\/\/[^\s—–-]+)/);
+      if (url) {
+        const date = line.match(/(\d{4}-\d{2}-\d{2})/);
+        results.push({
+          title: bold[1].substring(0, 200),
+          url: url[1],
+          ...(date ? { publishedAt: date[1] } : {}),
+        });
+      }
+    }
+  }
+  return results;
+}
+
 export const INTERNATIONAL_SOURCES = [
   {
     name: "youtube_search",
@@ -1809,13 +1860,19 @@ export const GENERAL_SEARCH_SOURCES = [
     // Contract vs the old bridge toolArgs query: explicit 7-day window,
     // mandatory dated results, wiki/review-site exclusion, and the China-AI
     // focus qualifier dropped (generic web search, any topic).
+    // Live smoke 2026-09-19: unconstrained, the model answers in prose +
+    // citations which no list mapper can parse — so the template also pins a
+    // strict per-line output contract that parseGrokWebSearchResult parses
+    // (and "NO_RESULTS" as the deterministic empty answer).
     apiFallback: {
-      resultMapper: parseGrokListResult,
+      resultMapper: parseGrokWebSearchResult,
       promptTemplate: {
         buildQuery: (keyword, { today } = {}) =>
           `Search the web for the latest news about "${keyword}" from the last 7 days (today is ${today ?? "unspecified"}). ` +
           "Only include results that carry an explicit date. List the top 10 results with title, source, URL, and date. " +
-          "Exclude Wikipedia and review/comparison aggregator pages.",
+          "Exclude Wikipedia and review/comparison aggregator pages. " +
+          "Output format — one result per line, exactly: `1. **Title** — https://url — YYYY-MM-DD`. No prose, no commentary. " +
+          "If nothing qualifies, output exactly: NO_RESULTS",
       },
     },
   },
