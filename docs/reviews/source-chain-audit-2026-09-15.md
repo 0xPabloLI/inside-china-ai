@@ -28,6 +28,7 @@
 | 14 | sogou_weixin | CDP（captcha 风险）→ site:mp.weixin.qq.com（#309）——**MCP 退役（#316：uvx init 超时，暖复现）** | ❌（专属 MCP） | news | ✅ site: 平台忠实 | absent-CDP-DOM | — |
 | 15 | weibo_hot | API (60s.viki.moe) → CDP——**MCP 退役（#316：python 模块从未安装）** | ❌ | env-signal / fact-check | ✅ 热榜语义 | **absent（API parser 无 publishedAt）** | — |
 | 16 | bilibili | CDP → site:bilibili.com（#309）——**MCP 退役（#316：python 模块从未安装）** | ❌（专属 MCP） | material | ✅ site: 返回视频域，平台忠实 | absent-CDP-DOM | videos✅(ytdlp) |
+| 17 | weibo_search | CDP（s.weibo.com/weibo?q=，登录墙 fail-fast）→ site:weibo.com——**#317 新源**：needsAuth 源跳过 #269 预检（裸探针 404 误判修复） | ❌ | fact-check / trend | ✅ 平台忠实 | ✅ **fetch-time（相对时间→ISO，19/19 实测）** | — |
 | 17 | douyin | CDP (needsAuth) → site:douyin.com (autogen) | ❌ | material | ⚠️ site: 兜底**恒空**（Google 不索引抖音，#77 在案） | absent-CDP-DOM | —（下载走 selectStrategy→douyin-cdp） |
 | 18 | tiktok_creator | API (ScrapeCreators, paidApi, 默认跳过) → CDP (Creator Center 首页, needsAuth) | ❌ | material | ⚠️ CDP 兜底是首页抓取非搜索（`supportsKeyword: true` 但 top-level `url` 忽略 keyword） | **absent（`create_time` 未映射）** | — |
 | 19 | zhihu | CDP → site:zhihu.com (autogen) | ❌ | news/dual | ✅ | absent-CDP-DOM | — |
@@ -217,6 +218,13 @@ CDP 10 源共享 `CDP_VIDEO_SCRIPT`（self-hosted `<video>` + bilibili/youtube e
 - **落地**：三块删除 + notes 记证据；`parseGrokListResult` 孤儿删除；`parseTweetList` 保留（x_search）；`collectFromMcp`/`mcp-client.mjs` 机器保留（未来 toolcall 条款）。**registry 现在零 mcpFallback**——管线程序化抓取路径上 MCP 彻底清零（#90 → #307 → #316 三步收口）。
 - **终态链**：bilibili CDP → site:bilibili.com → 终；sogou_weixin CDP → site:mp.weixin.qq.com → 终；weibo_hot API → 终。
 - **验证**：受影响 202/202 + 全量 3935/3935 + eslint 清零。规则沉淀：未来任何 MCP 兜底须实测探针绿了再登记。
+
+### F.10 weibo_search 新源落地 + #269 预检 needsAuth 豁免（2026-09-19，#317 闭票）
+
+- **新源**：`weibo_search`（self_media，supportsKeyword，CDP 主层）——`s.weibo.com/weibo?q=` 关键词 SERP，登录墙 fail-fast（Sina Visitor System + 二维码扫码墙双识别），`site:weibo.com` 平台忠实中层（#309 bilibili/sogou 同构）。文章脚本解析相对时间（秒/分钟/小时前、今天/昨天、M月D日）fetch-time 转 ISO publishedAt（#309 两档制首例 CDP 主层满配），垃圾过滤（评论占位/`/a/hot/` grab 链接）。
+- **系统性发现**：#269 预检探针对登录墙源误判——s.weibo.com 对无 cookie 裸探针回 404 → 判死 URL → 主层被静默跳过，链永远落 site: 兜底（#305 静默降级类的预检版）。修复：needsAuth 源跳过预检（探针无权替登录墙端点说话，fail-open 交 CDP 层 loginCheck）。red 正中 → green，全 needsAuth 源受益。
+- **运维事实**：主层依赖自动化 Profile（`~/chrome-tiktok-profile`，CDP 9229）里的微博登录态——用户在 CDP tab 内扫码后 19/19 满配；会话过期时链自动落 site: 兜底（行为已验证），重登即恢复。
+- **验证**：smoke 19 条真实帖全带 publishedAt；registry 199/199；受影响 24/24；全量隔离复跑绿（8 个预存环境类超时失败经 stash 二分证明与本改动无关）。commits `32d173e` + `f7e18df`。
 
 ---
 
