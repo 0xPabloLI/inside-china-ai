@@ -25,9 +25,9 @@
 | 11 | zhidx | API (wp-json) → CDP | ❌ | news | ⚠️ API 层有日期，CDP 兜底层无日期且无 site:/pool 兜底 | have (API `p.date`) / absent-CDP | videos✅ images✅ |
 | 12 | bing_news | CDP only（`AUTOGEN_EXCLUDED_SOURCES`） | ❌ | news | ✅（单层；URL 自带 7 日窗 `qft=interval"7"`） | absent-CDP-DOM | videos✅ images✅ |
 | 13 | xhs | CDP (needsAuth) → site:xiaohongshu.com (autogen) | ❌ | material/dual | ⚠️ Google 对小红书索引差，site: 兜底接近恒空 | absent-CDP-DOM | — |
-| 14 | sogou_weixin | CDP（captcha 风险）→ MCP (`search_wechat_articles`) | ❌（专属 MCP） | news | ✅ MCP 平台忠实 | absent-CDP-DOM | — |
-| 15 | weibo_hot | API (60s.viki.moe) → CDP → MCP (`get_hot_search`) | ❌ | env-signal / fact-check | ✅ 热榜语义 | **absent（API parser 无 publishedAt）** | — |
-| 16 | bilibili | CDP → MCP (`search_videos`) | ❌（专属 MCP） | material | ✅ MCP 返回视频，平台忠实 | absent-CDP-DOM | videos✅(ytdlp) |
+| 14 | sogou_weixin | CDP（captcha 风险）→ site:mp.weixin.qq.com（#309）——**MCP 退役（#316：uvx init 超时，暖复现）** | ❌（专属 MCP） | news | ✅ site: 平台忠实 | absent-CDP-DOM | — |
+| 15 | weibo_hot | API (60s.viki.moe) → CDP——**MCP 退役（#316：python 模块从未安装）** | ❌ | env-signal / fact-check | ✅ 热榜语义 | **absent（API parser 无 publishedAt）** | — |
+| 16 | bilibili | CDP → site:bilibili.com（#309）——**MCP 退役（#316：python 模块从未安装）** | ❌（专属 MCP） | material | ✅ site: 返回视频域，平台忠实 | absent-CDP-DOM | videos✅(ytdlp) |
 | 17 | douyin | CDP (needsAuth) → site:douyin.com (autogen) | ❌ | material | ⚠️ site: 兜底**恒空**（Google 不索引抖音，#77 在案） | absent-CDP-DOM | —（下载走 selectStrategy→douyin-cdp） |
 | 18 | tiktok_creator | API (ScrapeCreators, paidApi, 默认跳过) → CDP (Creator Center 首页, needsAuth) | ❌ | material | ⚠️ CDP 兜底是首页抓取非搜索（`supportsKeyword: true` 但 top-level `url` 忽略 keyword） | **absent（`create_time` 未映射）** | — |
 | 19 | zhihu | CDP → site:zhihu.com (autogen) | ❌ | news/dual | ✅ | absent-CDP-DOM | — |
@@ -210,6 +210,13 @@ CDP 10 源共享 `CDP_VIDEO_SCRIPT`（self-hosted `<video>` + bilibili/youtube e
 - **裁决落地**（§C）：`selectSourcesForRun(mode, articlesCapableSources)` 从 main() 内联抽出为导出函数并测试锁定——research 模式抓取全三组（directEvidence → trackedFeedContext → environmentalSignals），3 个关键词无关背景源（weibo_hot/datacube_ai/wechat_dongchabeating）每 run 抓一次（同 tracked feeds 节奏），证据角色保持 environmental-signal（背景信号，永不做 direct evidence）。trend 选择不变（本就全抓）。
 - **真实 smoke**：weibo_hot 50 条（2.4s，60s API）、datacube_ai 50 条（1.8s，RSS）、wechat_dongchabeating 1 条（13.3s CDP——命中 Google AI Overview 块而非正文结果，该源自身抽取质量先在问题，不属本票阻断，留观）。
 - **验证**：TDD red 4 → green（56/56 三测试文件）+ 全量 3931/3931 + eslint 清零。**#309 至此全部交付，闭票。**
+
+### F.9 专属 MCP 全量退役（2026-09-19，commit `e982c94`，#316 闭票）
+
+- **实测判决**（用户裁决"先实测再定"，probe-dedicated-mcps.mjs）：三 mcpFallback 全部失效——bilibili（`python -m bilibili_mcp_server` 模块未安装，30ms 即死）、weibo_hot（`python -m mcp_server_weibo` 模块未安装，38ms 即死）、sogou_weixin（uvx git 服务器 MCP initialize timeout，暖缓存复跑 ×2 同样——服务器 init 挂起，非冷启动）。三者落到 MCP 层均为**静默 0 条**（#305 问题类活例）。
+- **落地**：三块删除 + notes 记证据；`parseGrokListResult` 孤儿删除；`parseTweetList` 保留（x_search）；`collectFromMcp`/`mcp-client.mjs` 机器保留（未来 toolcall 条款）。**registry 现在零 mcpFallback**——管线程序化抓取路径上 MCP 彻底清零（#90 → #307 → #316 三步收口）。
+- **终态链**：bilibili CDP → site:bilibili.com → 终；sogou_weixin CDP → site:mp.weixin.qq.com → 终；weibo_hot API → 终。
+- **验证**：受影响 202/202 + 全量 3935/3935 + eslint 清零。规则沉淀：未来任何 MCP 兜底须实测探针绿了再登记。
 
 ---
 
