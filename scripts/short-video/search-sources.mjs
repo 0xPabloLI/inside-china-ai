@@ -10,7 +10,7 @@
  *              research-results.json grouped by source.
  *
  * Sources are defined in lib/source-registry.mjs (single source of source).
- * 65 sources total — the per-category breakdown lives in source-registry.mjs
+ * 62 sources total — the per-category breakdown lives in source-registry.mjs
  * (NEWS/SELF_MEDIA/INTERNATIONAL/GENERAL/LAST30DAYS/WECHAT_ACCOUNT/WECHAT_RSS/
  * TELEGRAM/STOCK arrays).
  *
@@ -22,7 +22,16 @@
  * platform MCPs like xhs/sogou_weixin/weibo_hot/bilibili go straight here).
  * x_search is NOT pool-eligible: platform-specific chain end to end, and
  * generic pool results would carry the x_search label without being X content.
- * International/general sources primarily use mcp-search-bridge (Grok web search).
+ *
+ * #309 (2026-09-19 verdict): material/research sources are platform-faithful
+ * end to end — youtube/arxiv/github gained explicit site: fallbacks (qdr:y
+ * year window) and, with threads, retired their Grok web_search fallback and
+ * exited the pool; pool-eligible shrank 6→2 (google_search + mcp_grok_search).
+ * threads ends at CDP (no Google index, site: N/A; live-verified 2026-09-19).
+ * bilibili/sogou_weixin/tiktok_creator gained the site: layer before their
+ * dedicated MCPs/API-only tail. CDP-DOM articles carry the two-tier date
+ * semantics: og-meta promoted to publishedAt when present, `dateDegraded`
+ * marker otherwise (no fabricated dates, fail-closed).
  * Sources with free APIs (arXiv, Reddit, HN, GitHub) use API direct-connect as first layer (Issue #34).
  *
  * Env vars for mcp-search-bridge:
@@ -118,7 +127,7 @@ import {
 } from "./lib/search-results-cache.mjs";
 import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
 import { searchX, searchXhs } from "./lib/bigsong-api.mjs";
-import { searchPool, isPoolEligible } from "./lib/search-pool.mjs";
+import { searchPool, isPoolEligible, normalizePublishedDate } from "./lib/search-pool.mjs";
 import { loadEnv } from "./lib/load-env.mjs";
 import {
   cdpNewTab,
@@ -260,6 +269,42 @@ async function enrichWithMedia(tabId, articles) {
  * "script-error" (#308): the extraction script itself threw — no retry,
  * reported loudly, the caller's fallback chain takes over.
  */
+/**
+ * CDP-DOM date semantics (#309 publishedAt two-tier ruling, 2026-09-15
+ * grilling verdict): API/RSS/pool tiers must carry publishedAt (fail-closed);
+ * CDP DOM extractions are the degraded tier until selectors land. Applied to
+ * every article that survived the CDP layers (primary + site: fallback):
+ *
+ * - an articleScript-extracted publishedAt stays untouched (x_search and
+ *   threads `time[datetime]` are real DOM date assertions);
+ * - otherwise og-meta `article:published_time` (collected by enrichWithMedia)
+ *   is promoted to the top level via normalizePublishedDate — a real date
+ *   assertion from the page itself;
+ * - articles still without a date get `dateDegraded: true` — fail-closed (no
+ *   fabricated dates), and the marker makes "no recency assertion" explicit
+ *   and auditable instead of an indistinguishable absent field.
+ */
+function markCdpDomDateSemantics(articles) {
+  return articles.map((a) => {
+    if (a.publishedAt) return a;
+    const promoted = a.metadata?.publishedTime
+      ? normalizePublishedDate(a.metadata.publishedTime)
+      : undefined;
+    if (promoted) return { ...a, publishedAt: promoted };
+    return { ...a, dateDegraded: true };
+  });
+}
+
+/**
+ * Post-guards applied to every article batch that survived a CDP layer
+ * (primary + site: fallback — review 2026-09-19: one composition so the two
+ * call sites cannot drift): relevance guard first, then the #309 CDP-DOM
+ * date semantics.
+ */
+function applyCdpPostGuards(keyword, articles, label) {
+  return markCdpDomDateSemantics(applyRelevanceGuard(keyword, articles, label));
+}
+
 async function collectFromCdp(source, keyword) {
   if (!cdpAvailable) return { articles: [], status: null };
   // #67: Read from capabilities.articles with top-level fallback
@@ -699,7 +744,7 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     } else {
       const { articles: cdpArticles, status } = await collectCdp(source, keyword);
       const extractedCount = cdpArticles.length;
-      articles = applyRelevanceGuard(keyword, cdpArticles, source.label);
+      articles = applyCdpPostGuards(keyword, cdpArticles, source.label);
       const guardInvalidated = articles.length === 0 && extractedCount > 0;
       record(
         "cdp",
@@ -752,7 +797,7 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     // (run-1 evidence: Google's consent/anti-bot page fed the shared script's
     // link-grab fallback → 534 junk links), so the relevance guard applies here
     // exactly as it does to the primary CDP layer.
-    articles = applyRelevanceGuard(keyword, fbArticles, `${source.label} (fallback)`);
+    articles = applyCdpPostGuards(keyword, fbArticles, `${source.label} (fallback)`);
     const fbGuardInvalidated = articles.length === 0 && fbExtractedCount > 0;
     record(
       "google-fallback",

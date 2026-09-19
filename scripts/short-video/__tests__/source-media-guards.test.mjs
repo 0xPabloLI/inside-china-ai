@@ -72,6 +72,7 @@ describe("zero-fallback list lock", () => {
       "duckduckgo_search",
       "polymarket_search",
       "techmeme_search",
+      "threads_search", // #309 (2026-09-19): Grok web_search fallback retired; no Google index → autogen-excluded
       "wechat_dongchabeating",
     ]);
     for (const name of zeroFallback) {

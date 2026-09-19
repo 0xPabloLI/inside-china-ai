@@ -257,3 +257,115 @@ describe("collectFromSource fallback chain order", () => {
     ]);
   });
 });
+
+// ─── CDP-DOM date semantics (#309 publishedAt two-tier ruling) ───
+//
+// 裁决（归档 handoff §3）：publishedAt 两档制——API/RSS/pool 族 fail-closed
+// 必备；CDP DOM 源在补 selector 前降级标记（不参与时效断言）。落地 = ①
+// metadata.publishedTime（og meta，enrichWithMedia 已采）提升为顶层
+// publishedAt（真实日期断言，经 normalizePublishedDate 归一）；② 仍无日期的
+// 条目打 dateDegraded 标记——fail-closed 不造日期，标记让"无日期"显式可审计。
+
+describe("CDP-DOM date semantics (#309 two-tier publishedAt)", () => {
+  it("marks dateless CDP articles as degraded", async () => {
+    const { promise } = harness({
+      collectCdp: async () => ({ articles: [{ title: "t", url: "u" }], status: null }),
+    });
+    const articles = await promise;
+    expect(articles[0].dateDegraded).toBe(true);
+  });
+
+  it("promotes metadata.publishedTime to top-level publishedAt when the article lacks one", async () => {
+    const { promise } = harness({
+      collectCdp: async () => ({
+        articles: [
+          {
+            title: "t",
+            url: "u",
+            metadata: { publishedTime: "Wed, 10 Sep 2026 08:00:00 GMT" },
+          },
+        ],
+        status: null,
+      }),
+    });
+    const articles = await promise;
+    expect(articles[0].publishedAt).toBe("2026-09-10T08:00:00.000Z");
+    expect(articles[0].dateDegraded).toBeUndefined();
+  });
+
+  it("keeps an existing articleScript publishedAt — og meta never overwrites a DOM date", async () => {
+    const { promise } = harness({
+      collectCdp: async () => ({
+        articles: [
+          {
+            title: "t",
+            url: "u",
+            publishedAt: "2026-09-01T00:00:00.000Z",
+            metadata: { publishedTime: "Wed, 10 Sep 2025 08:00:00 GMT" },
+          },
+        ],
+        status: null,
+      }),
+    });
+    const articles = await promise;
+    expect(articles[0].publishedAt).toBe("2026-09-01T00:00:00.000Z");
+    expect(articles[0].dateDegraded).toBeUndefined();
+  });
+
+  it("marks site:-fallback results too — they are CDP DOM extractions", async () => {
+    const { promise, calls } = harness(
+      {
+        collectCdp: (() => {
+          let n = 0;
+          return async () => ({
+            articles: n++ === 0 ? [] : [{ title: "from-google", url: "u" }],
+            status: null,
+          });
+        })(),
+      },
+      {
+        url: () => "https://search.test/q",
+        googleSiteFallback: {
+          url: (kw) => `https://www.google.com/search?q=site:test.test+${kw}`,
+          articleScript: "return [];",
+        },
+      },
+    );
+    const articles = await promise;
+    expect(calls.map((c) => c.fn)).toEqual(["collectCdp", "collectCdp"]);
+    expect(articles[0].dateDegraded).toBe(true);
+  });
+
+  it("site: fallback is terminal without mcpFallback — pool and MCP are never consulted", async () => {
+    const { promise, calls } = harness(
+      {
+        collectCdp: (() => {
+          let n = 0;
+          return async () => ({
+            articles: n++ === 0 ? [] : [{ title: "from-google", url: "u" }],
+            status: null,
+          });
+        })(),
+        isPoolEligibleFn: () => {
+          throw new Error("pool gate must not be reached after site: promotion");
+        },
+        collectMcp: async () => {
+          throw new Error("MCP must not be reached after site: promotion");
+        },
+        searchPoolFn: async () => {
+          throw new Error("pool must not be reached after site: promotion");
+        },
+      },
+      {
+        url: () => "https://search.test/q",
+        googleSiteFallback: {
+          url: (kw) => `https://www.google.com/search?q=site:test.test+${kw}`,
+          articleScript: "return [];",
+        },
+      },
+    );
+    const articles = await promise;
+    expect(articles.map((a) => a.title)).toEqual(["from-google"]);
+    expect(calls.map((c) => c.fn)).toEqual(["collectCdp", "collectCdp"]);
+  });
+});
