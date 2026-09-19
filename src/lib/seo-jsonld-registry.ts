@@ -18,6 +18,7 @@ import { OG_DEFAULT, OG_TIKTOK, articleOgImageUrl, ogImageForPath } from "@/lib/
 import { compareJsonLd } from "@/routes/compare.deepseek-vs-qwen-vs-glm";
 import { companiesJsonLd } from "@/routes/companies";
 import { tiktokConnectJsonLd } from "@/routes/tiktok-connect";
+import { chineseAiModelsJsonLd } from "@/routes/news.chinese-ai-models";
 import { postJsonLd } from "@/lib/post-structured-data";
 
 /** A representative article graph, standing in for every /posts/$slug page. */
