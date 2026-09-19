@@ -108,6 +108,9 @@ scripts/short-video/assets/MSEP07 VIDEO.mov
 # Remotion public audio (render-time artifacts, not source content)
 scripts/short-video/remotion/public/audio/
 
+# IDE local settings (per-machine, not repo content)
+.codebuddy/
+
 # Top-level asset duplicates (per-content assets live in content/{slug}/assets/)
 scripts/short-video/assets/Weixin Image_*.jpg
 scripts/short-video/assets/ai-robot-hand.jpg
