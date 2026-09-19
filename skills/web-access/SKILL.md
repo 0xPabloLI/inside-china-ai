@@ -62,12 +62,12 @@ node ~/.agents/skills/web-access/scripts/check-deps.mjs
 
 | 场景                                                                           | 工具                                                                                                                                         |
 | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 搜索摘要或关键词结果，发现信息来源                                             | **WebSearch**（宿主无此工具时直接落到下行 search-pool）                                                                                      |
+| 搜索摘要或关键词结果，发现信息来源                                             | **WebSearch**（宿主无此工具时直接落到下行 SearXNG）                                                                                          |
 | URL 已知，需要从页面定向提取特定信息                                           | **WebFetch**（拉取网页内容，由小模型根据 prompt 提取，返回处理后结果）                                                                       |
 | URL 已知，需要原始 HTML 源码（meta、JSON-LD 等结构化字段）                     | **curl**                                                                                                                                     |
 | 非公开内容，或已知静态层无效的平台（小红书、微信公众号等公开内容也被反爬限制） | **浏览器 CDP**（直接，跳过静态层）                                                                                                           |
 | 需要登录态、交互操作，或需要像人一样在浏览器内自由导航探索                     | **浏览器 CDP**                                                                                                                               |
-| WebSearch 不可用，或多次搜索仍无质的改进                                       | **search-pool CLI**（多引擎 fallback：Serper > Brave > Tavily > Jina；见 `skills/search-pool/SKILL.md`，跨 repo 经 `$INSIDE_CHINA_AI_REPO`） |
+| WebSearch 不可用、无额度，或多次搜索仍无质的改进                               | **curl SearXNG**（本地聚合 `localhost:8888`，零费用、引擎表广；再不行落 search-pool CLI——多引擎有额度 API：Serper > Brave > Tavily > Jina，见 `skills/search-pool/SKILL.md`，跨 repo 经 `$INSIDE_CHINA_AI_REPO`） |
 
 浏览器 CDP 不要求 URL 已知——可从任意入口出发，通过页面内搜索、点击、跳转等方式找到目标内容。WebSearch、WebFetch、curl 均不处理登录态。
 
