@@ -122,11 +122,20 @@ export function judgeUrlProbe({ searchUrl, finalUrl, httpStatus, error } = {}) {
  * before trusting a verdict, otherwise the false-negative is indistinguishable
  * from a genuinely dead search route.
  *
+ * Evidence is not status-specific: the probe answers a login wall with 403,
+ * 404 or anything else depending on the site, so this is a blanket skip for
+ * login-gated sources, not a relaxation of the 403 branch (Open Question 3 of
+ * the issue). None of those answers carry information about the
+ * cookie-carrying path, including a 200.
+ *
  * Unknown sources stay probeable (fail-open): widening this predicate into a
  * blanket opt-out would hide the real dead-source cases this exists to catch.
  *
- * Rule (#199 2.6): capabilities.articles wins; the top-level field is only for
- * pre-enrichment callers.
+ * Rule (#199 2.6): capabilities.articles wins; the top-level `?? source.needsAuth`
+ * here is the *only* surviving copy of that pre-enrichment fallback — it exists
+ * precisely so no call site has to repeat it (search-sources.mjs used to, and
+ * that duplication is what let the two probe gates drift apart). New code should
+ * call this predicate rather than adding another fallback read of its own.
  *
  * @param {object} [source]
  * @returns {boolean}
@@ -184,45 +193,26 @@ export function judgeUrlProbeForSource(source, probe = {}) {
  * @returns {Promise<{action: "skip"|"attempt", releaseNow: boolean, verdict: object, probe: object}>}
  */
 export async function planQuarantineRecheck({ source, searchUrl, probeFn } = {}) {
-  const noUrlVerdict = {
-    dead: false,
-    reason: null,
-    probeSkipped: false,
-    detail: "no registered search url",
-  };
   if (!searchUrl) {
+    const verdict = { dead: false, reason: null, detail: "no registered search url" };
     return {
       action: "attempt",
       releaseNow: true,
-      verdict: noUrlVerdict,
+      verdict,
       probe: {
         at: Date.now(),
         url: null,
         httpStatus: null,
         finalUrl: null,
-        ...noUrlVerdict,
+        ...verdict,
         recheck: true,
       },
     };
   }
-  const skippedVerdict = judgeUrlProbeForSource(source, { searchUrl });
-  if (skippedVerdict.probeSkipped) {
-    return {
-      action: "attempt",
-      releaseNow: false,
-      verdict: skippedVerdict,
-      probe: {
-        at: Date.now(),
-        url: searchUrl,
-        httpStatus: null,
-        finalUrl: null,
-        ...skippedVerdict,
-        recheck: true,
-      },
-    };
-  }
-  const raw = (await probeFn?.(searchUrl)) ?? { httpStatus: null, finalUrl: null };
-  const verdict = judgeUrlProbe({ searchUrl, ...raw });
+  const raw = isProbeAuthoritative(source)
+    ? ((await probeFn?.(searchUrl)) ?? { httpStatus: null, finalUrl: null })
+    : { httpStatus: null, finalUrl: null };
+  const verdict = judgeUrlProbeForSource(source, { searchUrl, ...raw });
   const probe = {
     at: Date.now(),
     url: searchUrl,
@@ -234,7 +224,9 @@ export async function planQuarantineRecheck({ source, searchUrl, probeFn } = {})
   if (verdict.dead) {
     return { action: "skip", releaseNow: false, verdict, probe };
   }
-  return { action: "attempt", releaseNow: true, verdict, probe };
+  // A login-gated source never reached the probe, so there is no verdict to
+  // release it on — supervised attempt instead of a preemptive clear.
+  return { action: "attempt", releaseNow: !verdict.probeSkipped, verdict, probe };
 }
 
 /**
