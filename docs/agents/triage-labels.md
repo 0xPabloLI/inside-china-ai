@@ -55,3 +55,4 @@ needs-info + reporter replies → needs-triage
 - Clear `comments-unread` once you have read the ticket's comments and incorporated the new state (roadmap row / delivery record / your own work). Labels are removed by PUTting the remaining set, per the DELETE workaround in `issue-tracker.md`.
 - `ready-for-agent` requires: (1) fully specified with acceptance criteria, (2) correct priority, (3) actionable by an agent without further human input.
 - `wontfix` issues should be closed with an explanation comment.
+- Closing an issue removes all state labels, priority labels (`P0`–`P3`), and signal labels (`comments-unread`), leaving only its category label (see `issue-tracker.md`). Priority labels apply strictly to open backlog issues to guide pick-up order.
