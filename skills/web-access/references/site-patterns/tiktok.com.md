@@ -70,3 +70,5 @@ updated: 2026-08-26
 - （2026-09-07，已验证）**per-video 完整指标页**：`tiktokstudio/analytics/<videoId>/overview`，字段含 Video views / Total play time / **Average watch time** / **Watched full video %（完播率）** / New followers / **Retention rate 文字洞察**（"Most viewers stopped watching at 0:01"）/ 单条视频 Traffic source 拆分。videoId 从 `tiktokstudio/content` 列表页 `a[href*="/video/"]` 提取。**比快速导出 CSV 更全，completion rate 无需 CSV**。
 - （2026-09-07，已验证）**重页挂起真因与规避**：`analytics/content` 等重渲染页在首绘期间收到 Runtime.evaluate 会间歇性挂死渲染进程（eval/screenshot 全超时）。规避：navigate 后**静默等 40-45s（期间零 eval）**再首次 eval，之后正常。
 - （2026-09-07）`analytics.tiktok.com` 老门户已下线（根路径与 /content 均 nginx 404）。manual-ops 中"老门户导出含完成率的 CSV"说明已过时，全字段走 per-video 详情页。
+- （2026-09-19）Studio 快速导出的**「内容」页 CSV 档不可用**（两次复现：radio 确认选中 CSV 后点下载，弹窗关闭但无文件落盘）；XLSX 档正常。要 per-video 数据直接用 XLSX 档（stdlib/pandas 解析）或 per-video 详情页。
+- （2026-09-19）TUX 导出弹窗的格式 radio：`input[type=radio]` 本体视觉隐藏，`el.click()`/`clickAt` 打在覆盖层上都不改 React 受控状态——**必须点与 input 关联的 `<label for>`**（`document.querySelector('label[for="'+input.id+'"]')`）。点完回读 `checked` 确认后再点「下载」。
