@@ -276,6 +276,10 @@ export async function fetchVideoDetails(opts = {}) {
   const sleepFn = opts.sleepFn || sleep;
   const newTabFn = opts.cdpNewTab || cdpNewTab;
   const closeTabFn = opts.cdpCloseTab || cdpCloseTab;
+  // #317-followup: forward the navigation seam — fetchDetailText navigates per
+  // video, and the default navigateTab is a real proxy round-trip. Tests stub
+  // everything else; without this seam they silently depended on the network.
+  const navigateFn = opts.navigateFn || navigateTab;
 
   const tabId = await newTabFn(CONTENT_LIST_URL);
   let videoList;
@@ -307,7 +311,7 @@ export async function fetchVideoDetails(opts = {}) {
       const { videoId, title } = videoList[i];
       if (i > 0) await sleepFn(pacingDelayMs(rand));
 
-      const text = await fetchDetailText(tabId, videoId, { renderWaitMs, evalFn, sleepFn });
+      const text = await fetchDetailText(tabId, videoId, { renderWaitMs, evalFn, sleepFn, navigateFn });
       if (!text) {
         failed.push({ videoId, title, reason: "eval failed" });
         continue;

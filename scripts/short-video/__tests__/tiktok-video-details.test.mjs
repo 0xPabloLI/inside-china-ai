@@ -219,6 +219,7 @@ describe("fetchDetailText", () => {
         return { value: REAL_DETAIL_TEXT };
       },
       sleepFn: immediateSleep,
+      navigateFn: async () => {},
     });
     expect(text).toBe(REAL_DETAIL_TEXT);
     expect(evals).toHaveLength(1);
@@ -250,6 +251,7 @@ describe("fetchDetailText", () => {
       renderWaitMs: 1,
       evalFn: async () => ({ error: "Execution context was destroyed" }),
       sleepFn: immediateSleep,
+      navigateFn: async () => {},
     });
     expect(text).toBeNull();
   });
@@ -293,6 +295,7 @@ describe("fetchVideoDetails", () => {
       cdpNewTab: cdp.cdpNewTab,
       cdpCloseTab: cdp.cdpCloseTab,
       evalFn: cdp.evalFn,
+      navigateFn: async () => {},
     });
 
     expect(cdp.calls.newTab).toBe(1);
@@ -338,6 +341,7 @@ describe("fetchVideoDetails", () => {
         calls.closedTabs.push(tabId);
       },
       evalFn,
+      navigateFn: async () => {},
     });
 
     expect(result.videos).toHaveLength(0);
@@ -364,6 +368,7 @@ describe("fetchVideoDetails", () => {
       cdpNewTab: cdp.cdpNewTab,
       cdpCloseTab: cdp.cdpCloseTab,
       evalFn: cdp.evalFn,
+      navigateFn: async () => {},
     });
     expect(limited.videos).toHaveLength(2);
 
@@ -374,6 +379,7 @@ describe("fetchVideoDetails", () => {
       cdpNewTab: cdp.cdpNewTab,
       cdpCloseTab: cdp.cdpCloseTab,
       evalFn: cdp.evalFn,
+      navigateFn: async () => {},
     });
     expect(explicit.videos).toHaveLength(1);
     expect(explicit.videos[0].videoId).toBe("999");
@@ -398,6 +404,7 @@ describe("fetchVideoDetails", () => {
       cdpNewTab: cdp.cdpNewTab,
       cdpCloseTab: cdp.cdpCloseTab,
       evalFn: cdp.evalFn,
+      navigateFn: async () => {},
     });
 
     expect(result.failed).toHaveLength(0);
@@ -423,6 +430,7 @@ describe("fetchVideoDetails", () => {
       cdpNewTab: async () => "tab1",
       cdpCloseTab: async () => {},
       evalFn,
+      navigateFn: async () => {},
     });
 
     expect(result.failed).toHaveLength(1);

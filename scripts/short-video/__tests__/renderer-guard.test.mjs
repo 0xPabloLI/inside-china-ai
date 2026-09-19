@@ -73,11 +73,11 @@ describe("pipeline entrypoints fail fast on --playwright", () => {
     const { status, output } = runEntrypoint("render-only.mjs");
     expect(status).not.toBe(0);
     expect(output).toMatch(/retired/i);
-  });
+  }, 30_000); // match runEntrypoint's own child timeout — full node boot must not race vitest
 
   it("main.mjs refuses --playwright with the retirement message", () => {
     const { status, output } = runEntrypoint("main.mjs");
     expect(status).not.toBe(0);
     expect(output).toMatch(/retired/i);
-  });
+  }, 30_000); // match runEntrypoint's own child timeout — full node boot must not race vitest
 });
