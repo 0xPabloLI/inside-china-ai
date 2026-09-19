@@ -5,20 +5,26 @@ import { listPublishedPosts } from "@/lib/posts.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
 import { topicForPost } from "@/lib/news-topics";
+import {
+  breadcrumbListJsonLd,
+  faqPageJsonLd,
+  graph,
+  type JsonLdNode,
+} from "@/lib/structured-data";
 
 const postsQuery = queryOptions({
   queryKey: ["published-posts"],
   queryFn: () => listPublishedPosts(),
 });
 
-const PATH = "/news/chinese-ai-models";
-const URL = `${SITE_URL}${PATH}`;
-const TITLE = "Chinese AI Models (中国AI模型): DeepSeek, Qwen, Kimi & GLM News";
-const DESCRIPTION =
+export const PATH = "/news/chinese-ai-models";
+export const URL = `${SITE_URL}${PATH}`;
+export const TITLE = "Chinese AI Models (中国AI模型): DeepSeek, Qwen, Kimi & GLM News";
+export const DESCRIPTION =
   "A topic page on Chinese AI models — DeepSeek, Qwen, Kimi, GLM and MiniMax releases, benchmarks, open weights and pricing, with every story we've published.";
 
 /** Keyword cluster this page aggregates around. */
-const KEYWORDS = [
+export const KEYWORDS = [
   "Chinese AI models",
   "中国AI模型",
   "DeepSeek",
@@ -35,24 +41,62 @@ const KEYWORDS = [
   "China AI news",
 ];
 
-const FAQ = [
+export const FAQ = [
   {
-    q: "What are the leading Chinese AI models?",
-    a: "DeepSeek, Alibaba's Qwen, Moonshot's Kimi, Zhipu's GLM and MiniMax lead the field. Most ship open weights, which is why they spread fast outside China.",
+    q: "What are the leading Chinese AI models in 2026?",
+    a: "DeepSeek, Alibaba's Qwen, Moonshot's Kimi, Zhipu's GLM and MiniMax lead the field. Most ship open weights, which is why they spread fast outside China — DeepSeek's reasoning models and Qwen's multilingual range are the most widely adopted.",
+  },
+  {
+    q: "What is DeepSeek and why is it important?",
+    a: "DeepSeek is a Hangzhou-based lab whose open-weight reasoning models (DeepSeek-R1 and successors) matched frontier US reasoning performance at a fraction of the training cost, proving that efficient distillation and reinforcement learning can close the compute gap.",
+  },
+  {
+    q: "What is Qwen and how does it compare with DeepSeek?",
+    a: "Qwen is Alibaba's model family, released across many sizes and languages. Where DeepSeek focuses on reasoning, Qwen targets broad multilingual and multimodal use, with strong coding and tool-use — both are open-weight, so developers often run them side by side.",
   },
   {
     q: "Are Chinese AI models open source?",
-    a: "Many are released as open-weight models under permissive licences, so anyone can download and run them. Frontier variants are sometimes API-only at launch.",
+    a: "Many are released as open-weight models under permissive licences, so anyone can download and run them. Frontier variants are sometimes API-only at launch, then the weights follow weeks or months later.",
   },
   {
-    q: "How do Chinese AI models compare with US models on price?",
-    a: "Token pricing is usually a fraction of comparable US frontier models, which is the main reason developers adopt them for high-volume workloads.",
+    q: "How much do Chinese AI models cost to run?",
+    a: "Token pricing is usually a fraction of comparable US frontier models — often 10× to 20× cheaper per million tokens. Self-hosting open weights on your own GPUs removes per-token cost entirely, which is the main reason high-volume workloads adopt them.",
+  },
+  {
+    q: "Which Chinese AI model is best for coding?",
+    a: "Qwen's coder variants and DeepSeek's reasoning models are the strongest for programming tasks, regularly topping open leaderboards for code generation and agentic tool use. GLM also performs well on Chinese-language codebases.",
+  },
+  {
+    q: "What is the difference between DeepSeek-R1 and a regular LLM?",
+    a: "DeepSeek-R1 is a reasoning model: it spends extra compute 'thinking' through multi-step problems before answering, which improves math, logic and coding at the cost of longer responses. Regular LLMs answer in one pass without an explicit reasoning stage.",
   },
   {
     q: "Where can I follow new Chinese AI model releases?",
-    a: "This page collects every model story we publish, and the weekly email sends one new piece on China's AI industry each week.",
+    a: "This page collects every model story we publish, and the weekly email sends one new piece on China's AI industry each week. For a side-by-side comparison, see our DeepSeek vs Qwen vs GLM guide.",
   },
 ];
+
+/** Full JSON-LD graph for this topic page, validated by the SEO gate. */
+export function chineseAiModelsJsonLd(): JsonLdNode {
+  return graph(
+    {
+      "@type": "CollectionPage",
+      "@id": `${URL}#collection`,
+      name: TITLE,
+      description: DESCRIPTION,
+      url: URL,
+      inLanguage: "en",
+      isPartOf: { "@id": `${SITE_URL}/#website` },
+      about: KEYWORDS.map((k) => ({ "@type": "Thing", name: k })),
+    },
+    breadcrumbListJsonLd([
+      { name: "Home", item: `${SITE_URL}/` },
+      { name: "News", item: `${SITE_URL}/news` },
+      { name: "Chinese AI models", item: URL },
+    ]),
+    faqPageJsonLd(FAQ),
+  );
+}
 
 export const Route = createFileRoute("/news/chinese-ai-models")({
   head: () => ({
@@ -74,37 +118,7 @@ export const Route = createFileRoute("/news/chinese-ai-models")({
     scripts: [
       {
         type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@graph": [
-            {
-              "@type": "CollectionPage",
-              "@id": `${URL}#collection`,
-              name: TITLE,
-              description: DESCRIPTION,
-              url: URL,
-              inLanguage: "en",
-              isPartOf: { "@id": `${SITE_URL}/#website` },
-              about: KEYWORDS.map((k) => ({ "@type": "Thing", name: k })),
-            },
-            {
-              "@type": "BreadcrumbList",
-              itemListElement: [
-                { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
-                { "@type": "ListItem", position: 2, name: "News", item: `${SITE_URL}/news` },
-                { "@type": "ListItem", position: 3, name: "Chinese AI models", item: URL },
-              ],
-            },
-            {
-              "@type": "FAQPage",
-              mainEntity: FAQ.map((f) => ({
-                "@type": "Question",
-                name: f.q,
-                acceptedAnswer: { "@type": "Answer", text: f.a },
-              })),
-            },
-          ],
-        }),
+        children: JSON.stringify(chineseAiModelsJsonLd()),
       },
     ],
   }),
