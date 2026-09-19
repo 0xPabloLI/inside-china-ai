@@ -287,6 +287,48 @@ describe("collectFromSource dead-url probe + relevance guard", () => {
     expect(events.find((e) => e.layer === "cdp")?.reason).toBe("dead-url");
   });
 
+  it("#317: needsAuth sources skip the pre-flight probe — an auth-walled page 4xxs on bare fetch while the cookie-carrying CDP layer renders fine", async () => {
+    // s.weibo.com/weibo?q= answers 404 to the unauthenticated probe fetch, but
+    // the CDP layer with the Chrome-cookie session renders it (verified live).
+    // The probe verdict is noise for login-walled sources — the CDP layer's
+    // own loginCheck is the authority.
+    const needsAuthSource = {
+      ...source,
+      needsAuth: true,
+      capabilities: {
+        ...source.capabilities,
+        articles: { ...source.capabilities.articles, needsAuth: true },
+      },
+    };
+    const events = [];
+    const cdpCalls = [];
+    const probeUrls = [];
+    const collected = await collectFromSource(
+      needsAuthSource,
+      "DeepSeek",
+      (e) => events.push(e),
+      stubDeps({
+        probeFn: async (url) => {
+          probeUrls.push(url);
+          return { httpStatus: 404, finalUrl: "https://www.ithome.com/search?word=x" };
+        },
+        collectCdp: async (src) => {
+          cdpCalls.push(src.name);
+          return { articles: [], status: null };
+        },
+      }),
+    );
+    // the probe never fired…
+    expect(probeUrls).toEqual([]);
+    // …no dead-url verdict was recorded…
+    expect(events.find((e) => e.layer === "cdp")?.reason).not.toBe("dead-url");
+    // …and the primary CDP layer still ran (alongside the fallback after it
+    // returned zero).
+    expect(cdpCalls).toContain("ithome");
+    expect(cdpCalls).toContain("ithome_fallback");
+    expect(collected).toEqual([]);
+  });
+
   it("caches the probe verdict within the run (one probe per URL)", async () => {
     const probeUrls = [];
     const probeFn = async (url) => {

@@ -731,10 +731,19 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     // for sources that register their own search URL.
     let probeVerdict = null;
     if (cdpAvailable) {
-      try {
-        probeVerdict = await probeSearchUrlGate();
-      } catch {
-        probeVerdict = null; // probe must never break collection
+      // #317: an auth-walled page (needsAuth) answers an unauthenticated probe
+      // fetch with 4xx even though the CDP layer with the cookie session
+      // renders it fine (s.weibo.com 404 case, live-verified). The pre-flight
+      // cannot speak for a login-walled endpoint — skip it and let the CDP
+      // layer's own loginCheck decide (fail-open).
+      const needsAuthSource =
+        (source.capabilities?.articles?.needsAuth ?? source.needsAuth) === true;
+      if (!needsAuthSource) {
+        try {
+          probeVerdict = await probeSearchUrlGate();
+        } catch {
+          probeVerdict = null; // probe must never break collection
+        }
       }
     }
     if (probeVerdict?.dead) {
