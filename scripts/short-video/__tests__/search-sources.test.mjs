@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   groupSourcesByEvidenceRole,
+  selectSourcesForRun,
   deriveCollectionMethod,
   buildDiscoveryOutput,
 } from "../search-sources.mjs";
@@ -61,6 +62,73 @@ describe("groupSourcesByEvidenceRole", () => {
     ];
     const groups = groupSourcesByEvidenceRole(mockSources);
     expect(groups.directEvidence.map((s) => s.name)).toEqual(["enriched"]);
+  });
+});
+
+// ─── #309 §C ruling: research mode fetches environmentalSignals for real ───
+//
+// 裁决（审计 §C）：research 模式此前只抓 directEvidence + trackedFeedContext
+// （51 源），3 个 environmentalSignals（weibo_hot/datacube_ai/wechat_dongchabeating
+// ——均 supportsKeyword=false、静态/固定 URL）注册不抓。落地 = research 同样
+// 抓取（每 run 一次，同 tracked feeds 节奏），证据角色仍是 environmental-signal
+// （背景信号，永不做 direct evidence）。
+
+describe("selectSourcesForRun (#309 §C: research fetches environmentalSignals)", () => {
+  const ENV_SIGNAL_NAMES = ["weibo_hot", "datacube_ai", "wechat_dongchabeating"];
+
+  it("real registry pins the environmentalSignals group to exactly the 3 audit sources", () => {
+    const groups = groupSourcesByEvidenceRole(articlesCapableSources);
+    expect(groups.environmentalSignals.map((s) => s.name).sort()).toEqual(
+      ENV_SIGNAL_NAMES.slice().sort(),
+    );
+  });
+
+  it("research selection includes every articles-capable source — the 3 env signals are now fetched", () => {
+    const selected = selectSourcesForRun(true, articlesCapableSources);
+    expect(selected.map((s) => s.name).sort()).toEqual(
+      articlesCapableSources.map((s) => s.name).sort(),
+    );
+    for (const name of ENV_SIGNAL_NAMES) {
+      expect(
+        selected.some((s) => s.name === name),
+        `${name} fetched`,
+      ).toBe(true);
+    }
+  });
+
+  it("research selection orders direct evidence → tracked feeds → environmental signals", () => {
+    const selected = selectSourcesForRun(true, articlesCapableSources);
+    const names = selected.map((s) => s.name);
+    const groups = groupSourcesByEvidenceRole(articlesCapableSources);
+    const expected = [
+      ...groups.directEvidence,
+      ...groups.trackedFeedContext,
+      ...groups.environmentalSignals,
+    ].map((s) => s.name);
+    expect(names).toEqual(expected);
+  });
+
+  it("trend selection is unchanged — all articles-capable sources", () => {
+    expect(selectSourcesForRun(false, articlesCapableSources)).toEqual(articlesCapableSources);
+  });
+
+  it("collected env-signal articles keep the environmental-signal role in discovery output", () => {
+    const groups = groupSourcesByEvidenceRole(articlesCapableSources);
+    const discovery = buildDiscoveryOutput(
+      [{ title: "热词", url: "https://s.weibo.com/x", source: "weibo_hot" }],
+      [],
+      {
+        contentId: "c1",
+        runId: "r1",
+        keyword: "DeepSeek",
+        sources: selectSourcesForRun(true, articlesCapableSources),
+      },
+    );
+    expect(discovery.evidenceGroups.environmentalSignals).toEqual(
+      groups.environmentalSignals.map((s) => s.name),
+    );
+    const item = discovery.sources.find((s) => s.url === "https://s.weibo.com/x");
+    expect(item.sourceRole).toBe("environmental-signal");
   });
 });
 

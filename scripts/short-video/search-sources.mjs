@@ -923,6 +923,29 @@ export function groupSourcesByEvidenceRole(sources) {
 }
 
 /**
+ * Mode-based source selection for a collection run (#97 evidence groups,
+ * #309 §C ruling).
+ *
+ * - research: direct evidence (keyword-capable) + tracked-feed context (fixed
+ *   public feeds, fetched once per run) + environmental signals — the three
+ *   keyword-independent background sources (weibo_hot/datacube_ai/
+ *   wechat_dongchabeating) are now ALSO collected, once per run like the
+ *   tracked feeds (#309 §C ruling: they were registered-but-never-fetched
+ *   before). Background role unchanged — never direct evidence.
+ * - trend: all articles-capable sources (env signals were always included).
+ *
+ * @param {boolean} isResearchMode
+ * @param {Array<Object>} articlesCapableSources — sources with capabilities.articles
+ * @returns {Array<Object>} sources to collect from, in collection order
+ */
+export function selectSourcesForRun(isResearchMode, articlesCapableSources) {
+  const groups = groupSourcesByEvidenceRole(articlesCapableSources);
+  return isResearchMode
+    ? [...groups.directEvidence, ...groups.trackedFeedContext, ...groups.environmentalSignals]
+    : articlesCapableSources;
+}
+
+/**
  * Derives the collection method recorded per discovery item (issue #97).
  * Tracked public feeds report their tracking.access ("public-rss") instead of
  * the previously hardcoded "cdp" fallback.
@@ -1033,13 +1056,12 @@ async function main() {
   // capabilities.images/videos and should not be used for article/trend discovery.
   // Issue #97: research mode routes sources into evidence groups — direct
   // evidence (keyword-capable) plus tracked-feed context (fixed public feeds,
-  // fetched once per run) are collected; environmental signals (homepage-only)
-  // are registered in the artifact as background only and never fetched here.
+  // fetched once per run) are collected. #309 §C ruling: environmental signals
+  // (keyword-independent background: weibo_hot/datacube_ai/wechat_dongchabeating)
+  // are now collected too — once per run, same cadence as the tracked feeds —
+  // while keeping their background role (never direct evidence) in the artifact.
   const articlesCapableSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
-  const evidenceGroupsAll = groupSourcesByEvidenceRole(articlesCapableSources);
-  let sources = isResearchMode
-    ? [...evidenceGroupsAll.directEvidence, ...evidenceGroupsAll.trackedFeedContext]
-    : articlesCapableSources;
+  const sources = selectSourcesForRun(isResearchMode, articlesCapableSources);
 
   // Filter out paid-API sources unless --include-paid is passed
   // #67: Read paidApi from capabilities.articles with top-level fallback
