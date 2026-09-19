@@ -24,13 +24,14 @@ describe("Source structure", () => {
     expect(NEWS_SOURCES).toHaveLength(12);
   });
 
-  it("SELF_MEDIA_SOURCES has 8 sources", () => {
-    expect(SELF_MEDIA_SOURCES).toHaveLength(8);
+  it("SELF_MEDIA_SOURCES has 9 sources", () => {
+    // #317 (2026-09-19): weibo_search keyword source added
+    expect(SELF_MEDIA_SOURCES).toHaveLength(9);
   });
 
-  it("ALL_SOURCES has 62 sources", () => {
-    // 64 − xinzhiyuan/baidu_news (dead upstream, removed #140 P5)
-    expect(ALL_SOURCES).toHaveLength(62);
+  it("ALL_SOURCES has 63 sources", () => {
+    // 64 − xinzhiyuan/baidu_news (dead upstream, removed #140 P5) + weibo_search (#317)
+    expect(ALL_SOURCES).toHaveLength(63);
   });
 
   it("each source has required fields", () => {
@@ -613,8 +614,9 @@ describe("supportsKeyword validation", () => {
     // + ithome, jiqizhixin (now search-page based)
     // + 6 stock_media sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
     // + duckduckgo_search (#91) + baidu_news (#64) + searxng_search (#92)
+    // + weibo_search (#317, CDP keyword SERP)
     // − google_news (merged #140 P4) − xinzhiyuan/baidu_news (dead upstream, #140 P5)
-    expect(keywordSources.length).toBe(41);
+    expect(keywordSources.length).toBe(42);
   });
 });
 
@@ -752,16 +754,17 @@ describe("CDP fallback configuration", () => {
     expect(src.articleScript).toContain("section.note-item");
   });
 
-  it("explicit googleSiteFallback carriers in SELF_MEDIA/NEWS are exactly the promoted + x_search set (#309)", () => {
+  it("explicit googleSiteFallback carriers in SELF_MEDIA/NEWS are exactly the promoted + x_search + weibo_search set (#309, #317)", () => {
     // #309 (2026-09-19, 用户裁决"全部补齐")：bilibili/sogou_weixin/tiktok_creator
-    // 加入 x_search 成为显式 site: 载体；其余 SELF_MEDIA（weibo_hot/douyin/zhihu）
+    // 加入 x_search 成为显式 site: 载体；#317 (2026-09-19)：weibo_search 同构加入
+    // （CDP 主层 + site:weibo.com 平台忠实中层）；其余 SELF_MEDIA（weibo_hot/douyin/zhihu）
     // 与 NEWS 全族不变——douyin/zhihu 的 site: 来自 #88 autogen（落在
     // capabilities.articles，非源字面量），不在此列。
     const explicitCarriers = [...SELF_MEDIA_SOURCES, ...NEWS_SOURCES]
       .filter((s) => s.googleSiteFallback)
       .map((s) => s.name);
     expect(explicitCarriers.sort()).toEqual(
-      ["bilibili", "sogou_weixin", "tiktok_creator", "x_search"].sort(),
+      ["bilibili", "sogou_weixin", "tiktok_creator", "weibo_search", "x_search"].sort(),
     );
   });
 });
@@ -1648,5 +1651,55 @@ describe("#307 mcp_grok_search promptTemplate", () => {
     const prose =
       '**No news articles or results published in the last 7 days were found for "DeepSeek".**[[1]](https://designforonline.com/x)\n\nAll web search results in this timeframe were either:\n- Pages with publication dates from earlier, or\n- Review/comparison aggregator pages.';
     expect(src.apiFallback.resultMapper(prose)).toEqual([]);
+  });
+});
+
+// ─── #317: weibo_search keyword source (CDP + Chrome cookie channel) ───
+
+describe("#317 weibo_search source", () => {
+  it("exists as a keyword-capable CDP source in SELF_MEDIA_SOURCES", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "weibo_search");
+    expect(src).toBeDefined();
+    expect(src.supportsKeyword).toBe(true);
+    expect(src.accessMethod?.primary).toBe("cdp");
+    expect(src.needsAuth).toBe(true);
+    expect(src.category).toBe("self_media");
+    expect(src.locale).toBe("zh-CN");
+  });
+
+  it("targets the s.weibo.com keyword SERP with q param", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "weibo_search");
+    expect(src.url("DeepSeek")).toContain("s.weibo.com/weibo?q=");
+    expect(src.url("DeepSeek")).toContain(encodeURIComponent("DeepSeek"));
+  });
+
+  it("loginCheckScript detects the Sina Visitor System wall", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "weibo_search");
+    expect(src.loginCheckScript).toBeTruthy();
+    expect(src.loginCheckScript).toContain("Visitor System");
+  });
+
+  it("articleScript parses relative times into publishedAt at fetch time", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "weibo_search");
+    // 09-17 inventory: post cards carry relative times, parseable (20/20).
+    // #309 two-tier ruling: fetch-time DOM date assertion stays untouched.
+    expect(src.articleScript).toContain("分钟前");
+    expect(src.articleScript).toContain("小时前");
+    expect(src.articleScript).toContain("toISOString");
+    // fail-closed: items without a parseable time carry no publishedAt field
+    expect(src.articleScript).toContain("if (d && !isNaN(d.getTime()))");
+  });
+
+  it("has a platform-faithful site:weibo.com middle fallback", () => {
+    const src = SELF_MEDIA_SOURCES.find((s) => s.name === "weibo_search");
+    expect(src.googleSiteFallback).toBeDefined();
+    const url = src.googleSiteFallback.url("DeepSeek");
+    expect(url).toContain("google.com/search");
+    expect(url).toContain(encodeURIComponent("site:weibo.com "));
+    expect(src.googleSiteFallback.articleScript).toContain("return results");
+  });
+
+  it("lands in the enriched ALL_SOURCES registry", () => {
+    expect(ALL_SOURCES.some((s) => s.name === "weibo_search")).toBe(true);
   });
 });

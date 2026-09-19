@@ -657,6 +657,76 @@ export const SELF_MEDIA_SOURCES = [
     `,
   },
   {
+    name: "weibo_search",
+    label: "微博搜索",
+    category: "self_media",
+    locale: "zh-CN",
+    supportsKeyword: true,
+    accessMethod: {
+      primary: "cdp",
+      notes:
+        "CDP keyword search (s.weibo.com/weibo?q=, Chrome cookie channel beats the Sina Visitor System — verified 2026-09-17 with 978 cookies) → googleSiteFallback (site:weibo.com). Post cards carry relative times (09-17 inventory: 20/20 cards parseable), converted to publishedAt at fetch time in the page script (#309 two-tier ruling: fetch-time DOM date assertion).",
+    },
+    needsAuth: true,
+    useCleanTitle: false,
+    url: (keyword) => `https://s.weibo.com/weibo?q=${encodeURIComponent(keyword)}`,
+
+    loginCheckScript: `
+      var body = document.body ? document.body.innerText : '';
+      var wall = body.indexOf('Visitor System') !== -1 || body.indexOf('访客系统') !== -1
+        || body.indexOf('扫描二维码登录') !== -1;
+      return wall ? 'need_login' : 'ok'
+    `,
+    articleScript: `
+      function parseRelativeTime(raw) {
+        var text = (raw || '').trim();
+        var now = new Date();
+        var m;
+        m = text.match(/(\\d+)\\s*秒前/);
+        if (m) return new Date(now.getTime() - parseInt(m[1], 10) * 1000);
+        m = text.match(/(\\d+)\\s*分钟前/);
+        if (m) return new Date(now.getTime() - parseInt(m[1], 10) * 60000);
+        m = text.match(/(\\d+)\\s*小时前/);
+        if (m) return new Date(now.getTime() - parseInt(m[1], 10) * 3600000);
+        m = text.match(/今天\\s*(\\d{1,2}):(\\d{2})/);
+        if (m) { var d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(m[1], 10), parseInt(m[2], 10)); if (d <= now) return d; return null; }
+        m = text.match(/昨天\\s*(\\d{1,2}):(\\d{2})/);
+        if (m) { return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, parseInt(m[1], 10), parseInt(m[2], 10)); }
+        m = text.match(/(\\d{1,2})月(\\d{1,2})日\\s*(\\d{1,2}):(\\d{2})/);
+        if (m) { var dm = new Date(now.getFullYear(), parseInt(m[1], 10) - 1, parseInt(m[2], 10), parseInt(m[3], 10), parseInt(m[4], 10)); if (dm > now) dm.setFullYear(dm.getFullYear() - 1); return dm; }
+        m = text.match(/(\\d{1,2})月(\\d{1,2})日/);
+        if (m) { var d2 = new Date(now.getFullYear(), parseInt(m[1], 10) - 1, parseInt(m[2], 10)); if (d2 > now) d2.setFullYear(d2.getFullYear() - 1); return d2; }
+        m = text.match(/(\\d{4})-(\\d{1,2})-(\\d{1,2})/);
+        if (m) return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+        return null;
+      }
+      var results = [];
+      var seen = {};
+      var PLACEHOLDER = /还没有人评论|抢沙发|转发微博|微博视频/;
+      var HOTPAGE = /weibo\\.com\\/a\\/hot\\//;
+      document.querySelectorAll('.card-wrap[mid], .card-wrap[action-data]').forEach(function(card) {
+        var txt = card.querySelector('.txt');
+        var from = card.querySelector('.from');
+        if (!txt) return;
+        var content = txt.textContent.replace(/\\s+/g, ' ').trim();
+        if (!content || content.length < 6 || seen[content]) return;
+        if (PLACEHOLDER.test(content)) return;
+        var link = card.querySelector('a[href*="weibo.com"], a[href*="weibo.cn"]');
+        if (!link || HOTPAGE.test(link.href)) return;
+        var item = { title: content.slice(0, 140), url: link.href, snippet: content };
+        var timeEl = from ? from.querySelector('a, span') : null;
+        var timeRaw = timeEl ? timeEl.textContent : (from ? from.textContent : '');
+        var d = parseRelativeTime(timeRaw);
+        if (d && !isNaN(d.getTime())) item.publishedAt = d.toISOString();
+        seen[content] = true;
+        results.push(item);
+      });
+      return results;
+    `,
+    // Platform-faithful middle layer (#309 pattern, same shape as bilibili/sogou).
+    googleSiteFallback: makeGoogleSiteFallback("weibo.com"),
+  },
+  {
     name: "bilibili",
     label: "B站搜索",
     category: "self_media",
@@ -3115,6 +3185,11 @@ export const SOURCE_ATTRIBUTIONS = {
     logoRequired: false,
   },
   weibo_hot: {
+    text: (a) => `Contains footage from ${a.author || "Unknown"} (微博)`,
+    license: "Fair use",
+    logoRequired: false,
+  },
+  weibo_search: {
     text: (a) => `Contains footage from ${a.author || "Unknown"} (微博)`,
     license: "Fair use",
     logoRequired: false,

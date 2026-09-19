@@ -277,11 +277,12 @@ describe("SOURCE_ATTRIBUTIONS in source-registry", () => {
 // ─── Updated count assertions ───
 
 describe("updated source counts", () => {
-  it("ALL_SOURCES has 62 sources (google_news merged #140 P4; xinzhiyuan/baidu_news removed #140 P5)", () => {
+  it("ALL_SOURCES has 63 sources (#140 P4/P5 trims; +weibo_search #317)", () => {
     // 46 existing + 7 CDP image search + 8 stock_media + duckduckgo + baidu_news
     // + searxng_search = 64, + telegram_aipost (#204) = 65, − google_news (#140 P4) = 64
     // (Lorem Picsum was in asset-sourcer's API_SOURCES, never in source-registry)
-    expect(ALL_SOURCES).toHaveLength(62);
+    // − xinzhiyuan/baidu_news (dead upstream, #140 P5) = 62, + weibo_search (#317) = 63
+    expect(ALL_SOURCES).toHaveLength(63);
   });
 
   it("source names are still unique after merge", () => {
