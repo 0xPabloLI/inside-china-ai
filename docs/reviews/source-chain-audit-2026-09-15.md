@@ -102,7 +102,7 @@ Pool 保留对象（裁决后）：`google_search`、`mcp_grok_search`（+ 视 t
 - **environmentalSignals 组 = 3 源**（非 16）：`weibo_hot`、`datacube_ai`、`wechat_dongchabeating`
 - **trackedFeedContext 组 = 13 源**：12×`wechat2rss_*` + `telegram_aipost`
 - **3 + 13 = 16**——裁决的"16 环境信号源"对应两个 background 组之和；严格语义下 environmental-signal 仅 3 源。
-- **关键机制**：research 模式**只抓取** directEvidence (38) + trackedFeedContext (13) = 51 源；3 个 environmentalSignals **注册不抓取**（main 注释 "registered in the artifact as background only and never fetched here"）。**裁决落地 = 让 3 个 environmentalSignals 在 research 真实抓取**，其余 13 个已在抓。
+- **关键机制**：research 模式**只抓取** directEvidence (38) + trackedFeedContext (13) = 51 源；3 个 environmentalSignals **注册不抓取**（main 注释 "registered in the artifact as background only and never fetched here"）。**裁决落地 = 让 3 个 environmentalSignals 在 research 真实抓取**，其余 13 个已在抓。→ **已实施（2026-09-19，§F.8，commit `d0f2ea0`）**：`selectSourcesForRun` 导出并测试锁定，research 抓取全三组（env 信号每 run 一次，角色不变）。
 
 ## D. 异常清单
 
@@ -204,6 +204,12 @@ CDP 10 源共享 `CDP_VIDEO_SCRIPT`（self-hosted `<video>` + bilibili/youtube e
 - **常量清理**：`MCP_SEARCH_BRIDGE_SERVER`/`NODE_BIN` 移除（零消费者）；`mcp-client.mjs` 保留（头注例外条款：Bigsong 支持 toolcall 时 tools/call 派发重新有用）。
 - **验证**：TDD red 15 正中目标 → green；受影响 4 测试文件 222/222 + 全量 3926 绿 + eslint 清零；code-review 双轴（baseline `27f584a`）Standards 4 判断 + Spec 无阻塞，采纳 4 项修复（CONTEXT.md Collection Layer 定义同步、isPoolEligible 双 JSDoc 去叠、Step 3.5 注释引用组合测试、链序测试绑定真实源命名）。
 - **运行时观察**（smoke，2026-09-19）：Bigsong live-search 上游对新旧查询一律 90s+ 超时（纯 chat 4.2s 正常）——上游降级，与本次改动无关（MCP 桥同受累）；fail-closed 语义返回空数组。复测建议随 #281 类引擎复测轮进行。
+
+### F.8 #309 收尾——research 真实抓取 3 个 environmentalSignals（2026-09-19，commit `d0f2ea0`）
+
+- **裁决落地**（§C）：`selectSourcesForRun(mode, articlesCapableSources)` 从 main() 内联抽出为导出函数并测试锁定——research 模式抓取全三组（directEvidence → trackedFeedContext → environmentalSignals），3 个关键词无关背景源（weibo_hot/datacube_ai/wechat_dongchabeating）每 run 抓一次（同 tracked feeds 节奏），证据角色保持 environmental-signal（背景信号，永不做 direct evidence）。trend 选择不变（本就全抓）。
+- **真实 smoke**：weibo_hot 50 条（2.4s，60s API）、datacube_ai 50 条（1.8s，RSS）、wechat_dongchabeating 1 条（13.3s CDP——命中 Google AI Overview 块而非正文结果，该源自身抽取质量先在问题，不属本票阻断，留观）。
+- **验证**：TDD red 4 → green（56/56 三测试文件）+ 全量 3931/3931 + eslint 清零。**#309 至此全部交付，闭票。**
 
 ---
 
