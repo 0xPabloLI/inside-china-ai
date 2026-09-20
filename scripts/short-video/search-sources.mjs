@@ -78,6 +78,7 @@ import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/source-registry.mjs";
 import {
   updateSourceHealth,
   deriveZeroResultSources,
+  mergeRunEntries,
   REVIEW_THRESHOLD,
   QUARANTINE_THRESHOLD,
   QUARANTINE_RECHECK_DAYS,
@@ -131,7 +132,12 @@ import {
 } from "./lib/search-results-cache.mjs";
 import { callMcpTool, parseMcpResult } from "./lib/mcp-client.mjs";
 import { searchX, searchXhs } from "./lib/bigsong-api.mjs";
-import { searchPool, isPoolEligible, normalizePublishedDate } from "./lib/search-pool.mjs";
+import {
+  searchPool,
+  isPoolEligible,
+  poolHealthEntries,
+  normalizePublishedDate,
+} from "./lib/search-pool.mjs";
 import { loadEnv } from "./lib/load-env.mjs";
 import {
   cdpNewTab,
@@ -871,7 +877,11 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
       articles = poolResult.articles;
       console.log(`  📊 Pool (${poolResult.engine}) extracted ${articles.length} articles`);
     }
-    record("pool", articles.length, articles.length === 0 ? "zero-results" : undefined);
+    record("pool", articles.length, articles.length === 0 ? "zero-results" : undefined, {
+      // #305 B: per-engine outcomes ride the pool trajectory event so the
+      // run fold tracks pool:<engine> zero streaks in the shared ledger.
+      poolEngines: poolHealthEntries(poolResult),
+    });
   }
 
   // Step 3.5 (#307): Dedicated MCP fallbacks last — platform-specific bridges
@@ -1260,6 +1270,14 @@ async function main() {
       failedSources.push({ name: source.name, reason: e.message || "unknown" });
     }
   }
+
+  // #305 B: fold pool engine outcomes into the same ledger — one entry per
+  // engine per run (the pool may serve several sources per run;
+  // mergeRunEntries keeps one call's delivery from double-counting another
+  // call's zero). pool:<engine> records share the streak/quarantine
+  // vocabulary with CDP sources and are observability-only — nothing skips
+  // collection based on them.
+  healthRunEntries.push(...mergeRunEntries(sourceAttempts.flatMap((e) => e.poolEngines ?? [])));
 
   // #200: persist the streak log and surface review candidates.
   const healthLog = updateSourceHealth(prevHealthLog, healthRunEntries);

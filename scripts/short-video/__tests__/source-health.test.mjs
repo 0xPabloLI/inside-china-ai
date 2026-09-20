@@ -12,9 +12,11 @@ import { describe, it, expect } from "vitest";
 import {
   updateSourceHealth,
   deriveZeroResultSources,
+  mergeRunEntries,
   REVIEW_THRESHOLD,
   QUARANTINE_THRESHOLD,
 } from "../lib/source-health.mjs";
+import { poolHealthEntries } from "../lib/search-pool.mjs";
 import { collectFromSource } from "../search-sources.mjs";
 import { buildDiscoveryOutput } from "../search-sources.mjs";
 
@@ -50,11 +52,9 @@ describe("updateSourceHealth", () => {
   it("quarantines a source whose zero runs are labeled script-error", () => {
     let log = null;
     for (let i = 0; i < QUARANTINE_THRESHOLD; i++) {
-      log = updateSourceHealth(
-        log,
-        [{ name: "x_search", count: 0, zeroReason: "script-error" }],
-        { now: 1000 + i },
-      );
+      log = updateSourceHealth(log, [{ name: "x_search", count: 0, zeroReason: "script-error" }], {
+        now: 1000 + i,
+      });
     }
     const record = log.sources["x_search"];
     expect(record.consecutiveZeroRuns).toBe(QUARANTINE_THRESHOLD);
@@ -193,5 +193,86 @@ describe("buildDiscoveryOutput sourceHealth", () => {
       sources,
     });
     expect(discovery.sourceHealth).toBeUndefined();
+  });
+});
+
+// ─── #305 B: pool engine zero streaks in the shared ledger ───
+//
+// A pool engine that silently stopped delivering (the #281 parse bug, an
+// expired key) had no cross-run memory — "0 results" read the same as "no
+// news today". Per-call outcomes (poolHealthEntries) are merged to one
+// entry per engine per RUN (the pool may serve several sources in a run;
+// without the merge each call would double-count the streak) and fold into
+// updateSourceHealth, so pool:<engine> records share the quarantine
+// vocabulary with CDP sources: REVIEW/QUARANTINE_THRESHOLD consecutive zero
+// runs surface the engine; a delivering run clears the flag.
+
+describe("mergeRunEntries (#305 B)", () => {
+  it("dedupes by name — a delivery beats a zero from the same run", () => {
+    const merged = mergeRunEntries([
+      { name: "pool:serper", count: 0, zeroReason: "0 results" },
+      { name: "pool:serper", count: 8 },
+    ]);
+    expect(merged).toEqual([{ name: "pool:serper", count: 8 }]);
+  });
+
+  it("keeps the first-seen zeroReason when every call zeroed", () => {
+    const merged = mergeRunEntries([
+      { name: "pool:serper", count: 0, zeroReason: "0 results" },
+      { name: "pool:serper", count: 0, zeroReason: "Serper HTTP 500" },
+    ]);
+    expect(merged).toEqual([{ name: "pool:serper", count: 0, zeroReason: "0 results" }]);
+  });
+
+  it("preserves first-occurrence order across distinct engines", () => {
+    const merged = mergeRunEntries([
+      { name: "pool:brave", count: 0, zeroReason: "Brave HTTP 429" },
+      { name: "pool:serper", count: 3 },
+    ]);
+    expect(merged.map((e) => e.name)).toEqual(["pool:brave", "pool:serper"]);
+  });
+});
+
+describe("pool engine zero streak (#305 B)", () => {
+  const zeroPoolRun = () =>
+    poolHealthEntries({
+      attempts: [
+        { engine: "serper", ok: false, error: "0 results" },
+        { engine: "brave", ok: false, error: "Brave HTTP 429" },
+      ],
+      engine: null,
+      articles: [],
+    });
+
+  it("flags pool:<engine> after N consecutive zero runs and clears on delivery", () => {
+    let log = null;
+    for (let i = 0; i < QUARANTINE_THRESHOLD; i++) {
+      log = updateSourceHealth(log, mergeRunEntries(zeroPoolRun()), { now: 1000 + i });
+    }
+    const rec = log.sources["pool:serper"];
+    expect(rec.consecutiveZeroRuns).toBe(QUARANTINE_THRESHOLD);
+    expect(rec.quarantined).toBe(true);
+    expect(rec.quarantineReason).toBe("0 results");
+
+    // A delivering run clears the flag through the same recovery path the
+    // CDP sources use; engines that failed that run keep counting.
+    const okRun = poolHealthEntries({
+      attempts: [{ engine: "serper", ok: false, error: "Serper HTTP 500" }],
+      engine: "brave",
+      articles: [{ url: "https://a" }],
+    });
+    log = updateSourceHealth(log, mergeRunEntries(okRun), { now: 9999 });
+    expect(log.sources["pool:brave"].quarantined).toBeUndefined();
+    expect(log.sources["pool:brave"].consecutiveZeroRuns).toBe(0);
+    expect(log.sources["pool:serper"].consecutiveZeroRuns).toBe(QUARANTINE_THRESHOLD + 1);
+  });
+
+  it("never-flagged threshold: fewer zero runs than the threshold stay unflagged", () => {
+    let log = null;
+    for (let i = 0; i < QUARANTINE_THRESHOLD - 1; i++) {
+      log = updateSourceHealth(log, mergeRunEntries(zeroPoolRun()), { now: 1000 + i });
+    }
+    expect(log.sources["pool:serper"].quarantined).toBeUndefined();
+    expect(log.sources["pool:serper"].consecutiveZeroRuns).toBe(QUARANTINE_THRESHOLD - 1);
   });
 });

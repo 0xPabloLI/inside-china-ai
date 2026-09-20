@@ -173,6 +173,27 @@ describe("collectFromSource fallback chain order", () => {
     expect(calls.some((c) => c.fn === "collectMcp")).toBe(false);
   });
 
+  // #305 B: the pool trajectory event carries per-engine outcomes so the run
+  // fold can track pool:<engine> zero streaks in the shared ledger.
+  it("pool branch records poolEngines health entries on the pool trajectory event", async () => {
+    const { promise, events } = harness(
+      {
+        searchPoolFn: async () => ({
+          attempts: [{ engine: "serper", ok: false, error: "0 results" }],
+          engine: null,
+          articles: [],
+        }),
+        isPoolEligibleFn: () => true,
+      },
+      { poolEligible: true },
+    );
+    await promise;
+    const poolEvent = events.find((e) => e.layer === "pool");
+    expect(poolEvent?.poolEngines).toEqual([
+      { name: "pool:serper", count: 0, zeroReason: "0 results" },
+    ]);
+  });
+
   it("returns pool results directly when the pool succeeds for a poolEligible source (#307)", async () => {
     const { promise, calls } = harness(
       {

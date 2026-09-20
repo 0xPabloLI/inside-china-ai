@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   searchPool,
   isPoolEligible,
+  poolHealthEntries,
   POOL_ENGINE_NAMES,
   POOL_ENGINES,
 } from "../lib/search-pool.mjs";
@@ -617,5 +618,202 @@ describe("news-mode engine params (#309)", () => {
     expect(seen[0].body.tbs).toBeUndefined();
     expect(seen[0].url).not.toContain("freshness");
     expect(seen[0].body.topic).toBeUndefined();
+  });
+});
+
+// ─── parse-drop precise warning (#305 A) ───
+//
+// #281's silent failure class: HTTP 200 with a NON-empty entry list whose
+// shape the mapping seam doesn't understand parses as "0 results" and falls
+// through the chain silently — quota burned, nothing surfaced (the Serper
+// `link`-vs-`url` bug lived ~3 weeks that way). When the raw response carried
+// entries but parse produced none, the attempt must say
+// "parse-drop: N entries dropped (HTTP 200)" — distinct from a genuine
+// "0 results" — and warn on stderr, so a future engine vocabulary drift is
+// loud on its first occurrence.
+describe("parse-drop precise warning (#305 A)", () => {
+  beforeEach(() => {
+    vi.stubEnv("SERPER_API_KEY", "serper-test-key");
+    vi.stubEnv("TAVILY_API_KEY", "tavily-test-key");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  // The future #281 shape: Serper renames `link` → entries exist, none parse.
+  it("records parse-drop (not '0 results') when entries exist but none parse, and falls through", async () => {
+    const fetchMock = jsonFetch((url) => {
+      if (String(url).includes("serper")) {
+        return { status: 200, body: { organic: [{ title: "t", href: "https://e.com/a" }] } };
+      }
+      return { status: 200, body: TAVILY_BODY };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchPool("k", {
+      engines: POOL_ENGINES.filter((e) => ["serper", "tavily"].includes(e.name)),
+    });
+    expect(result.engine).toBe("tavily"); // chain falls through, fail-open
+    expect(result.attempts[0]).toEqual({
+      engine: "serper",
+      ok: false,
+      error: "parse-drop: 1 entries dropped (HTTP 200)",
+    });
+  });
+
+  it("warns on stderr when a parse-drop happens", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch(() => ({
+        status: 200,
+        body: { organic: [{ title: "t", href: "https://e.com/a" }] },
+      })),
+    );
+
+    await searchPool("k", { engines: only("serper") });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain("parse-drop: 1 entries dropped (HTTP 200)");
+  });
+
+  it("keeps a genuine empty result set distinct — '0 results', no parse-drop warn", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch(() => ({ status: 200, body: { organic: [] } })),
+    );
+
+    const result = await searchPool("k", { engines: only("serper") });
+    expect(result.attempts[0].error).toBe("0 results");
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("a partial drop (some entries survive) is not a parse-drop", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch(() => ({
+        status: 200,
+        body: {
+          organic: [
+            { title: "drifted", href: "https://e.com/x" },
+            { title: "kept", link: "https://e.com/ok", snippet: "s" },
+          ],
+        },
+      })),
+    );
+
+    const result = await searchPool("k", { engines: only("serper") });
+    expect(result.engine).toBe("serper");
+    expect(result.articles).toHaveLength(1);
+    expect(result.articles[0].url).toBe("https://e.com/ok");
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("parallel mode: a parse-drop engine contributes nothing while others merge", async () => {
+    const fetchMock = jsonFetch((url) => {
+      if (String(url).includes("serper"))
+        return { status: 200, body: { organic: [{ title: "t", href: "https://e.com/a" }] } };
+      return { status: 200, body: TAVILY_BODY };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchPool("k", {
+      mode: "parallel",
+      engines: POOL_ENGINES.filter((e) => ["serper", "tavily"].includes(e.name)),
+    });
+    expect(result.engine).toBe("tavily");
+    expect(result.articles).toHaveLength(1);
+    expect(result.attempts).toEqual([
+      { engine: "serper", ok: false, error: "parse-drop: 1 entries dropped (HTTP 200)" },
+    ]);
+  });
+});
+
+// ─── poolHealthEntries (#305 B) ───
+//
+// The pool's engine outcomes used to die in console.warn — a silently zeroed
+// engine (the #281 class, or an expired key) was indistinguishable from "no
+// news today". poolHealthEntries maps ONE poolResult into source-health
+// ledger entries (name "pool:<engine>") so the fold into updateSourceHealth
+// tracks per-run zero streaks. Rules:
+// - a failed attempt (HTTP error, timeout, parse-drop, "0 results", missing
+//   key) is a zero entry carrying the attempt error as zeroReason;
+// - the engine that delivered (serial winner / parallel contributors) gets
+//   count = delivered articles — only >0 vs 0 matters downstream;
+// - news-skip attempts are BY-DESIGN fail-closed exits, not faults — excluded;
+// - engines never attempted (post-success in serial) get no entry — no
+//   information, no streak change.
+describe("poolHealthEntries (#305 B)", () => {
+  it("maps failed attempts to zero entries carrying the attempt error", () => {
+    const entries = poolHealthEntries({
+      attempts: [
+        { engine: "serper", ok: false, error: "0 results" },
+        { engine: "brave", ok: false, error: "Brave HTTP 429" },
+      ],
+      engine: null,
+      articles: [],
+    });
+    expect(entries).toEqual([
+      { name: "pool:serper", count: 0, zeroReason: "0 results" },
+      { name: "pool:brave", count: 0, zeroReason: "Brave HTTP 429" },
+    ]);
+  });
+
+  it("the serial winner delivers — count = articles.length, no zeroReason", () => {
+    const entries = poolHealthEntries({
+      attempts: [{ engine: "serper", ok: false, error: "Serper HTTP 500" }],
+      engine: "brave",
+      articles: [{ url: "https://a" }, { url: "https://b" }],
+    });
+    expect(entries).toEqual([
+      { name: "pool:serper", count: 0, zeroReason: "Serper HTTP 500" },
+      { name: "pool:brave", count: 2 },
+    ]);
+  });
+
+  it("a missing API key is a zero entry — a silently unauthenticated engine must surface", () => {
+    const entries = poolHealthEntries({
+      attempts: [{ engine: "serper", ok: false, error: "missing SERPER_API_KEY" }],
+      engine: null,
+      articles: [],
+    });
+    expect(entries).toEqual([
+      { name: "pool:serper", count: 0, zeroReason: "missing SERPER_API_KEY" },
+    ]);
+  });
+
+  it("news-skip attempts are excluded (by-design fail-closed exit, not a fault)", async () => {
+    // Drive a REAL news-mode run so the exclusion locks against the live
+    // NEWS_SKIP_REASON constant, not a copied string.
+    vi.stubEnv("SERPER_API_KEY", "serper-test-key");
+    vi.stubEnv("JINA_API_KEY", "jina-test-key");
+    vi.stubGlobal(
+      "fetch",
+      jsonFetch(() => ({ status: 500, body: {} })),
+    );
+
+    const result = await searchPool("k", {
+      news: true,
+      engines: POOL_ENGINES.filter((e) => ["serper", "jina"].includes(e.name)),
+    });
+    const entries = poolHealthEntries(result);
+    expect(entries.map((e) => e.name)).toEqual(["pool:serper"]);
+    expect(entries[0].zeroReason).toContain("Serper HTTP 500");
+  });
+
+  it("parallel contributors each deliver (attempted failures keep their zero)", () => {
+    const entries = poolHealthEntries({
+      attempts: [{ engine: "brave", ok: false, error: "Brave HTTP 429" }],
+      engine: "serper+tavily",
+      articles: [{ url: "https://a" }],
+    });
+    expect(entries).toEqual([
+      { name: "pool:brave", count: 0, zeroReason: "Brave HTTP 429" },
+      { name: "pool:serper", count: 1 },
+      { name: "pool:tavily", count: 1 },
+    ]);
   });
 });

@@ -1,0 +1,28 @@
+{
+  "results": [
+    {
+      "url": "https://www.kdnuggets.com/why-deepseek-v4-1-flash-is-such-an-exciting-open-model-release",
+      "title": "Why DeepSeek-V4.1-Flash Is Such an Exciting Open Model Release",
+      "content": "DeepSeek is tackling several problems that are becoming increasingly important as AI moves toward long-running agents: expensive prefill, huge KV caches, long contexts, memory bandwidth, and the cost of maintaining agent state across interactions.\n\nRather than simply making the model larger, DeepSeek has redesigned several parts of the architecture and inference stack to make long-context AI much ",
+      "score": 0.82254606,
+      "published_date": "Tue, 15 Sep 2026 07:00:00 GMT",
+      "id": "e14d02-00"
+    },
+    {
+      "url": "https://www.reuters.com/legal/government/chinas-deepseek-hires-dealmaker-cfo-ahead-possible-ipo-2026-09-14",
+      "title": "China's DeepSeek hires dealmaker as CFO ahead of possible IPO",
+      "content": "Sept 14 (Reuters) - DeepSeek plans to hire Yan ‌Wentao, a partner at venture-capital firm GL Ventures, as its first chief financial officer, two people with knowledge of the matter said, as the Chinese AI startup prepares for a potential initial public offering.\n\nReuters reported last ​week that Hangzhou-based DeepSeek had hired Chinese brokerage CITIC Securities to prepare for a ​possible listing",
+      "score": 0.767847,
+      "published_date": "Mon, 14 Sep 2026 16:37:13 GMT",
+      "id": "9d9f9c-01"
+    },
+    {
+      "url": "https://tech-insider.org/deepseek-v4-1-flash-uncensored-abliterated-huggingface-2026",
+      "title": "DeepSeek V4.1 Flash Uncensored Builds Hit HuggingFace",
+      "content": "## Frequently asked questions\n\n### What is DeepSeek V4.1 Flash?\n\nDeepSeek V4.1 Flash is an open-weight, multimodal Mixture-of-Experts AI model released by DeepSeek on September 10, 2026, under an MIT license. It has a 552-billion-parameter backbone with 8 billion active parameters during prefill and 16 billion during decoding, a 1-million-token context window, and native image-and-text processing.",
+      "score": 0.7067782,
+      "published_date": "Mon, 14 Sep 2026 09:46:34 GMT",
+      "id": "57840f-02"
+    }
+  ]
+}

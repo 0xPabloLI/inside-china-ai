@@ -1,0 +1,26 @@
+{
+  "code": 200,
+  "data": [
+    {
+      "title": "DeepSeek | Into the Unknown",
+      "url": "https://www.deepseek.com/en/",
+      "description": "DeepSeek is an AI research company focused on building world-leading general artificial intelligence. We develop and open-source frontier LLMs including DeepSeek-V4, DeepSeek-R1, and DeepSeek-Coder. Chat with DeepSeek AI or integrate via API.",
+      "content": "[](https://www.deepseek.com/en/)\n\nGet App\n\n![Image 1: QR Code](https://www.deepseek.com/images/app-qrcode.svg)Scan to get DeepSeek App\n\n中文 EN\n\n[](https://www.deepseek.com/en/)\n\n[DeepSeek Web](https://chat.deepseek.com/)[DeepSeek App](https://download.deepseek.com/)[API Platform](https://platform.deepseek.com/)[DeepSeek Harness](https://www.deepseek.com/harness/en/)[API Docs](https://api-docs.deeps",
+      "publishedTime": "Fri, 18 Sep 2026 03:53:14 GMT"
+    },
+    {
+      "title": "DeepSeek Platform",
+      "url": "https://platform.deepseek.com/",
+      "description": "Join DeepSeek API platform to access our AI models, developer resources and API documentation.",
+      "content": "Cookie Settings\n\nWe use cookies to provide and improve services and ensure security. Click to view our [cookie policy](https://cdn.deepseek.com/policies/en-US/cookies-policy.html). You can choose to accept all or only necessary cookies, which may affect some functionalities.\n\nNecessary cookies only\n\nAccept all cookies\n\nThe official version of DeepSeek-V4.1-Flash has been released, featuring compre",
+      "warning": ""
+    },
+    {
+      "title": "deepseek-ai (DeepSeek)",
+      "url": "https://huggingface.co/deepseek-ai",
+      "description": "Org profile for DeepSeek on Hugging Face, the AI community building the future.",
+      "content": "[![Image 1: Hugging Face's logo](https://huggingface.co/front/assets/huggingface_logo-noborder.svg)Hugging Face](https://huggingface.co/)\n\n*   [Models](https://huggingface.co/models)\n*   [Datasets](https://huggingface.co/datasets)\n*   [Spaces](https://huggingface.co/spaces)\n*   [Buckets new](https://huggingface.co/storage)\n*   [Docs](https://huggingface.co/docs)\n*   [Enterprise](https://huggingfac",
+      "publishedTime": "Wed, 10 Sep 2025 21:05:01 GMT"
+    }
+  ]
+}

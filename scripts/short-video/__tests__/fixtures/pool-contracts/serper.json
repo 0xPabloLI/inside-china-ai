@@ -1,0 +1,31 @@
+{
+  "organic": [
+    {
+      "title": "DeepSeek - AI Assistant - Apps on Google Play",
+      "link": "https://play.google.com/store/apps/details?id=com.deepseek.chat&hl=en_US",
+      "snippet": "Experience seamless interaction with DeepSeek's official AI assistant for free! Powered by DeepSeek's latest flagship model, it delivers faster responses and ...",
+      "date": "3 days ago",
+      "sitelinks": [
+        {
+          "title": "DeepSeek",
+          "link": "https://play.google.com/store/apps/details/DeepSeek_AI_Assistant?id=com.deepseek.chat&hl=en_ZA"
+        }
+      ],
+      "position": 1
+    },
+    {
+      "title": "DeepSeek V4.1 Flash Is WAY Better Than I Expected - YouTube",
+      "link": "https://www.youtube.com/watch?v=ztgFE6OGT04",
+      "snippet": "DeepSeek V4.1 Flash is built around one idea: make long-context AI dramatically more efficient. In this video, I break down how DeepSeek shrinks KV-cache ...",
+      "date": "6 days ago",
+      "position": 2
+    },
+    {
+      "title": "Why DeepSeek's New Architecture Is a Huge Breakthrough - YouTube",
+      "link": "https://www.youtube.com/watch?v=nriu4twWHz4",
+      "snippet": "DeepSeek V4.1 Flash is built around one idea: make long-context AI dramatically more efficient. In this video, I break down how DeepSeek shrinks KV-cache ...",
+      "date": "7 days ago",
+      "position": 3
+    }
+  ]
+}

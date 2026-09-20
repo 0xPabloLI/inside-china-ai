@@ -153,10 +153,33 @@ function parseArticles(entries) {
         e?.title,
         e?.url ?? e?.link,
         e?.description ?? e?.snippet ?? e?.content,
-        e?.published_date ?? e?.page_age ?? e?.date ?? e?.age,
+        // Date-field vocabulary — locked per engine by the #305 wire fixtures:
+        // Serper `date` (relative), Tavily `published_date` (RFC2822), Brave
+        // `page_age`/`age`, Jina `publishedTime` (the fixtures caught the old
+        // `date` field drifting away — 2026-09-20 capture).
+        e?.published_date ?? e?.page_age ?? e?.publishedTime ?? e?.date ?? e?.age,
       ),
     )
     .filter(Boolean);
+}
+
+/**
+ * #305 A: parse an engine's raw entry list, distinguishing #281's silent
+ * failure class — entries present but none parseable is NOT "0 results": it
+ * is a mapping-vocabulary drift (Serper's `link`-vs-`url` lived ~3 weeks as
+ * silent quota burn). Returns a failed attempt carrying the parse-drop
+ * signature so the chain falls through while the drift is loud on stderr.
+ * A partial drop (some entries survive) stays a success, as before.
+ */
+function parseEngineEntries(engineName, entries) {
+  const raw = Array.isArray(entries) ? entries : [];
+  const articles = parseArticles(raw);
+  if (raw.length > 0 && articles.length === 0) {
+    const error = `parse-drop: ${raw.length} entries dropped (HTTP 200)`;
+    console.warn(`[search-pool] ${engineName}: ${error}`);
+    return { ok: false, error };
+  }
+  return { ok: true, articles };
 }
 
 /** Brave Search: GET + X-Subscription-Token header, results under web.results. */
@@ -169,7 +192,7 @@ async function searchBrave(keyword, apiKey, timeoutMs, news) {
   });
   if (!resp.ok) return { ok: false, error: `Brave HTTP ${resp.status}` };
   const data = await resp.json();
-  return { ok: true, articles: parseArticles(data?.web?.results) };
+  return parseEngineEntries("brave", data?.web?.results);
 }
 
 /** Tavily: POST with bearer auth, results under results[].content. */
@@ -186,7 +209,7 @@ async function searchTavily(keyword, apiKey, timeoutMs, news) {
   });
   if (!resp.ok) return { ok: false, error: `Tavily HTTP ${resp.status}` };
   const data = await resp.json();
-  return { ok: true, articles: parseArticles(data?.results) };
+  return parseEngineEntries("tavily", data?.results);
 }
 
 /** Serper.dev: POST with X-API-KEY header, results under organic[].link. */
@@ -199,7 +222,7 @@ async function searchSerper(keyword, apiKey, timeoutMs, news) {
   });
   if (!resp.ok) return { ok: false, error: `Serper HTTP ${resp.status}` };
   const data = await resp.json();
-  return { ok: true, articles: parseArticles(data?.organic) };
+  return parseEngineEntries("serper", data?.organic);
 }
 
 /** Jina Search: GET s.jina.ai/{query}, results under data[].description. */
@@ -211,7 +234,7 @@ async function searchJina(keyword, apiKey, timeoutMs) {
   });
   if (!resp.ok) return { ok: false, error: `Jina HTTP ${resp.status}` };
   const data = await resp.json();
-  return { ok: true, articles: parseArticles(data?.data) };
+  return parseEngineEntries("jina", data?.data);
 }
 
 /** Fixed priority order — Serper (2500/mo, Google results) > Brave (2000/mo) > Tavily (1000/mo) > Jina.
@@ -381,6 +404,52 @@ async function searchPoolParallel(keyword, engines, timeoutMs, news = null) {
   }
 
   return { articles: merged, engine: contributors.join("+") || null, attempts };
+}
+
+// ─── source-health ledger entries (#305 B) ───
+
+/**
+ * Map one poolResult ({attempts, engine, articles}) into source-health
+ * ledger entries — one per engine the call actually consulted, named
+ * "pool:<engine>" so they share the health log with CDP sources without
+ * colliding (#305 B). Delivery (serial winner / parallel contributors) is
+ * count = delivered articles; every failed attempt (HTTP error, timeout,
+ * parse-drop, "0 results", missing key) is a zero entry carrying the attempt
+ * error as zeroReason. Accepts a single result or an array of them.
+ *
+ * News-skip attempts are by-design fail-closed exits (#309), not engine
+ * faults — they carry no health information and never enter the ledger.
+ * Parallel contributors can't be split post-merge — each records the merged
+ * count; the ledger only distinguishes delivered (>0) from zero. A delivery
+ * in a later call of the same run beats an earlier zero (review the fold in
+ * source-health.mjs mergeRunEntries).
+ *
+ * @param {Object|Array<Object>} results - poolResult(s) from searchPool
+ * @returns {Array<{name: string, count: number, zeroReason?: string}>}
+ */
+export function poolHealthEntries(results) {
+  const list = Array.isArray(results) ? results : [results];
+  const entries = new Map();
+  for (const result of list) {
+    for (const attempt of result?.attempts ?? []) {
+      if (attempt.error === NEWS_SKIP_REASON) continue;
+      if (!entries.has(attempt.engine)) {
+        entries.set(attempt.engine, {
+          name: `pool:${attempt.engine}`,
+          count: 0,
+          ...(attempt.error ? { zeroReason: attempt.error } : {}),
+        });
+      }
+    }
+    if (!result?.engine) continue;
+    for (const name of String(result.engine).split("+")) {
+      const entry = entries.get(name) ?? { name: `pool:${name}`, count: 0 };
+      entry.count = Math.max(entry.count ?? 0, (result.articles ?? []).length);
+      delete entry.zeroReason;
+      entries.set(name, entry);
+    }
+  }
+  return [...entries.values()];
 }
 
 // ─── CLI entry (#265) ───

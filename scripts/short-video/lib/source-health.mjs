@@ -336,6 +336,33 @@ export function clearQuarantine(log, name) {
 }
 
 /**
+ * #305 B: merge per-call ledger entries into one entry per name for a run.
+ *
+ * The pool may serve several sources in one run; folding each call's entries
+ * straight into updateSourceHealth would double-count the zero-streak within
+ * the run. A delivery in any call wins (count = max, zeroReason dropped);
+ * otherwise the first-seen zeroReason is kept. Output feeds directly into
+ * updateSourceHealth.
+ *
+ * @param {Array<{name: string, count: number, zeroReason?: string}>} entries
+ * @returns {Array<{name: string, count: number, zeroReason?: string}>}
+ */
+export function mergeRunEntries(entries) {
+  const merged = new Map();
+  for (const entry of entries ?? []) {
+    if (!entry?.name) continue;
+    const prev = merged.get(entry.name);
+    if (!prev) {
+      merged.set(entry.name, { ...entry });
+      continue;
+    }
+    prev.count = Math.max(prev.count ?? 0, entry.count ?? 0);
+    if ((prev.count ?? 0) > 0) delete prev.zeroReason;
+  }
+  return [...merged.values()];
+}
+
+/**
  * Fold one run's per-source outcomes into the health log.
  *
  * @param {object|null} prevLog - previously loaded health log (null = fresh)
