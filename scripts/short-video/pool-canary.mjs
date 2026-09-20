@@ -3,8 +3,9 @@
  * Pool engine canary — #305 C. Mechanizes the drift detection that until now
  * depended on someone noticing a bad run (the #281 class).
  *
- * Scheduled (GitHub Actions, daily 22:37 UTC), it calls each canary engine
- * ONCE with a must-hit query in news mode and asserts the delivery contract:
+ * Scheduled (GitHub Actions, twice weekly Mon/Thu 22:37 UTC), it calls each
+ * canary engine ONCE with a must-hit query in news mode and asserts the
+ * delivery contract:
  *   - parsed > 0                → catches url/link vocabulary drift (parse-drop)
  *                                 and engine death
  *   - 100% publishedAt coverage → catches date-field vocabulary drift, the
@@ -12,8 +13,9 @@
  *     publishedAt silently becomes undefined downstream.
  *
  * Engines: the three newsCapable engines only. Jina is excluded on purpose —
- * one call ≈ 59k tokens ≈ 6% of its monthly free quota (#309 probe), so daily
- * probing would drain it in ~17 days. Jina drift is covered by the B zero
+ * one call ≈ 59k tokens ≈ 6% of its monthly free quota (#309 probe), so even
+ * the twice-weekly cadence would burn ~47% of the monthly tier for a probe.
+ * Jina drift is covered by the B zero
  * streak (delivery loss) and the wire fixtures (vocabulary lock).
  *
  * Issue write path (#305 C ruling): with --update-issues (CI only) each failed

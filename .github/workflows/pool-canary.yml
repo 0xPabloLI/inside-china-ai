@@ -1,7 +1,7 @@
 name: Pool engine canary
 
 # #305 C —— 机制化抓引擎漂移，替代「靠业务跑批时偶尔发现」：
-# 每天对三个 newsCapable 引擎各发 1 次 must-hit 调用（news 模式 7 天窗），断言
+# 每周 2 次对三个 newsCapable 引擎各发 1 次 must-hit 调用（news 模式 7 天窗），断言
 #   1. 能解析出条目（url/link 词表漂移 → parse-drop）；
 #   2. newsCapable 引擎 publishedAt 覆盖率 100%（日期字段漂移 —— jina
 #      `publishedTime` 那次的教训：文章照常解析、日期静默丢失）。
@@ -12,7 +12,10 @@ name: Pool engine canary
 # 日烧 17 天见底 —— 它由 B 的 zero streak（交付损失）+ wire fixture（词表）覆盖。
 on:
   schedule:
-    - cron: "37 22 * * *" # 22:37 UTC = 每日 06:37 北京时间，与 issue-tracker-signals 的 21:17 错峰
+    # 每周 2 次（周一/四，2026-09-20 用户裁决降频）：词表漂移是低频事件，
+    # 3.5 天延迟上限足够；配额消耗降至 ~0.5-1.2%/月。22:37 UTC = 北京 06:37，
+    # 与 issue-tracker-signals 的 21:17 错峰。
+    - cron: "37 22 * * 1,4"
   workflow_dispatch: {}
 
 permissions:
