@@ -2,7 +2,7 @@
 
 GitHub Issues 依赖关系 + 执行波次（Wave）+ 价值分层（Tier）+ 主导层级（Dominant/Satellite）+ 状态追踪。每次 triage 后更新。
 
-> **Last inventory**: 2026-09-20（**#285 needsAuth 源探针误杀面收口**：#317 只让 `collectFromSource` 的前置探针跳过 needsAuth 源，**quarantine 复检仍是裸探针判死**——改动前复检直接 `judgeUrlProbe`，登录门控源每 7 天被 403 复判一次 `dead-url-recheck` 永不释放；健康日志里 xhs/douyin/x_search 已 consecutiveZeroRuns=4 而阈值是 3，场景可及而非理论。修在 seam：`lib/source-health.mjs` 新增 `isProbeAuthoritative` / `judgeUrlProbeForSource` / `planQuarantineRecheck`，前置探针与复检两处共用同一判决；needsAuth 源复检不发探针、不预解押，改为花一个复检窗口跑一次受监督抓取，由 `updateSourceHealth` 依真实结果裁决——**该项是 triage 裁决未覆盖的 session 自主决定（裁决只说到前置探针放行），待用户复核**。非 needsAuth 源 403/404 仍判死 + 仍 quarantine。red 8 → green，受影响 91/91 + 全量 3947 passed／3 条超时与计时失败隔离重跑全绿且不涉及本模块，eslint 清零；commits `47fbeaf` + `c957bdc` + `fada1ac` + `0824373`——**4 个全部已推 main（远端 HEAD = `0824373`，`gh api` 核验，不凭 git 输出）**，#285 远端 `state=closed` 且标签收敛为 `enhancement`；下一 frontier = W2B Tier 2 剩余（#312 coverr / #313 youtube cookie / #305 pool 零结果告警）；#315 已由并行 session 落地）
+> **Last inventory**: 2026-09-20（**#285 needsAuth 源探针误杀面收口**：#317 只让 `collectFromSource` 的前置探针跳过 needsAuth 源，**quarantine 复检仍是裸探针判死**——改动前复检直接 `judgeUrlProbe`，登录门控源每 7 天被 403 复判一次 `dead-url-recheck` 永不释放；健康日志里 xhs/douyin/x_search 已 consecutiveZeroRuns=4 而阈值是 3，场景可及而非理论。修在 seam：`lib/source-health.mjs` 新增 `isProbeAuthoritative` / `judgeUrlProbeForSource` / `planQuarantineRecheck`，前置探针与复检两处共用同一判决；needsAuth 源复检不发探针、不预解押，改为花一个复检窗口跑一次受监督抓取，由 `updateSourceHealth` 依真实结果裁决——**该项是 triage 裁决未覆盖的 session 自主决定（裁决只说到前置探针放行），待用户复核**。非 needsAuth 源 403/404 仍判死 + 仍 quarantine。red 8 → green，受影响 91/91 + 全量 3947 passed／3 条超时与计时失败隔离重跑全绿且不涉及本模块，eslint 清零；commits `47fbeaf` + `c957bdc` + `fada1ac` + `0824373`——**4 个全部已推 main（远端 HEAD = `0824373`，`gh api` 核验，不凭 git 输出）**，#285 远端 `state=closed` 且标签收敛为 `enhancement`；**同日新开 #322**（needsAuth 源差异化 strike 计数，`P3` + `dormant`——#285 收口后的残留语义缺口：受监督抓取若仍出零，这次零仍按普通零累加 streak、与死源不可区分；经 `search/issues` 三关键词核验确认此前无票覆盖，前置为积累真实零结果数据而非预设阈值）；下一 frontier = W2B Tier 2 剩余（#312 coverr / #313 youtube cookie / #305 pool 零结果告警）；#315 已由并行 session 落地）
 
 > - **2026-09-19 inventory（前次）**：**#317 weibo_search 新源落地闭票 + web-access 阶梯 SearXNG 前移**：① `weibo_search` 入 registry（CDP 主层 + 登录墙 fail-fast 双识别 + site:weibo.com 中层 + 相对时间 fetch-time 转 publishedAt），**真实 smoke 19/19 带 publishedAt、0 degraded**；② 过程中抓到 #269 预检探针误杀登录墙源（s.weibo.com 裸探针 404 判死 → 主层被静默跳过）——修复：needsAuth 源跳过预检，fail-open 交 CDP 层 loginCheck，全 needsAuth 源受益；③ 用户裁决 web-access 阶梯重排：WebSearch → **SearXNG（本地免费）** → search-pool CLI（计费）→ CDP，先烧免费额度；④ 同日：Grok MCP（mcp-search-bridge）确认保留装进 Droid MCP 配置（LLM 直用），#320 开票（自建 wechat→RSS 登记动察Beating，proposal 阶段）；⑤ CDP profile 盘点：仅 1 个自动化罐（chrome-tiktok-profile），无冗余；⑥ 下一 frontier = W2B Tier 2（#312 coverr / #313 youtube bot-check / #315 交付门禁 / #305 pool 零结果告警 / #285 403 探针）+ #320 proposal）
 
@@ -248,6 +248,7 @@ GitHub Issues 依赖关系 + 执行波次（Wave）+ 价值分层（Tier）+ 主
 | **#158** | B-roll ComfyUI / MCP 迭代式后端    | Phase 3 | 等 #157 横评定案                                 |
 | **#228** | 管线提速二期（scene batch/daemon） | Phase 1 | 数据驱动触发：等下次真实冷跑 profile 出现新瓶颈  |
 | **#222** | 抽象短视频引擎为独立 repo          | Phase 4 | 前置：落地并行工作 → Email POC 视频跑通 → 再抽取 |
+| **#322** | needsAuth 源零结果差异化计数       | Phase 2 | 等 #285 受监督复检积累真实零结果数据后再定阈值   |
 
 ---
 
@@ -257,6 +258,7 @@ GitHub Issues 依赖关系 + 执行波次（Wave）+ 价值分层（Tier）+ 主
 
 | #    | 开票日     | 一句话描述                                                                               | 分流结果                                              |
 | ---- | ---------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **#322** | 2026-09-20 | enhancement: needsAuth 源零结果与死源共用 3-strike 隔离账本——登录门控源（会话过期 / 该平台无相关内容 / 反爬临时拦截）的零与「真坏」用同一把尺子；#285 收口探针越权判决后的残留语义问题 | ✅ **已分流**：Phase 2 · **W2B** / Tier 2 / Satellite / `P3` + `dormant`。事实核验：5 个 needsAuth 源实测全有有效 searchUrl + loginCheckScript，xhs/douyin/x_search 已 `consecutiveZeroRuns=4`（阈值 3）。差异化形态与阈值留实施时裁决，**前置：等 #285 受监督复检积累真实零结果数据**；经 `search/issues` 三关键词核验确认此前无票覆盖 |
 | **#315** | 2026-09-19 | ci: 交付记录门禁软提醒无人收账——`check-delivery-record` 仅 `issues.closed` 时校验一次，缺失只留言不复检、告警无归属；存量 10 张告警（9 张缺记录 2026-09-19 已补登 + #252 stale 案例） | ✅ **已分流**：Phase 2 · **W2B** / Tier 2 / Satellite / `ready-for-agent`。问题在 issue-tracker-signals.yml 门禁设计；复检机制形态与告警归属实施时裁决，与搜源零冲突可独立推进 |
 | **#314** | 2026-09-17 | feat: 抖音与小红书视频素材源——搜索发现入口 + registry 声明白名单语义；**2026-09-19 用户裁决**：9 个 CDP 新闻源摘除 capabilities.videos 声明，文章页改做 `<video>` + `<iframe>` 播放器双检测 | ✅ **已分流**：Phase 3 · **W3B** / Tier 2 / Satellite / `ready-for-agent`。下载层已备，缺发现层与白名单语义收敛 |
 | **#313** | 2026-09-17 | fix: youtube_search bot-check 验证 Chrome 登录 cookie 通道——探针 4 发现 ytsearch10 命中了 10 条但下载全撞 bot-check（firefox 无登录态），验证 youtube 路由换 Chrome cookie 能否解 | ✅ **已分流**：Phase 2 · **W2B** / Tier 2 / Satellite（bug）/ `ready-for-agent`。定界只解 youtube 单源，不全局动 firefox 默认管线 |
