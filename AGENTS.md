@@ -79,7 +79,7 @@
 
 ## Session Start
 
-1. If `scripts/short-video/output/pending-analysis.json` exists and `publishedAt` is more than 48 hours old, remind the user to export Analytics CSV.
+1. If `scripts/short-video/output/pending-analysis.json` exists, its `status` is not `"done"`, and `publishedAt` is more than 48 hours old, remind the user to export Analytics CSV.
 2. Check for an unfinished content pipeline or a pending HITL checkpoint before starting conflicting pipeline work.
 3. If the user supplied no task, offer the content entry points: “写文章（给素材）” or “做视频（给话题/跑 trends）”.
 
