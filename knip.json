@@ -2,9 +2,7 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "include": ["files", "dependencies", "devDependencies", "unlisted", "binaries", "unresolved"],
   "ignore": [
-    "scripts/short-video/retired-html-path/**",
-    "scripts/short-video/experiments/**",
-    "scripts/short-video/.tmp-dump-cookies.mjs"
+    "scripts/short-video/experiments/**"
   ],
   "ignoreDependencies": [
     "@lovable.dev/vite-tanstack-config",
@@ -43,6 +41,7 @@
         "scripts/rag/*.mjs",
         "scripts/seo/**/*.mjs",
         "scripts/short-video/*.mjs",
+        "scripts/short-video/lib/tiktok-csi.mjs",
         "scripts/short-video/__tests__/*.mjs",
         "scripts/short-video/evergreen-templates/*.mjs",
         "scripts/short-video/content/**/*.mjs",
