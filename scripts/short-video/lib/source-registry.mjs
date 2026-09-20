@@ -2594,10 +2594,22 @@ export const STOCK_MEDIA_SOURCES = [
         searchUrl: (keyword, key) =>
           `https://api.coverr.co/videos?query=${encodeURIComponent(keyword)}`,
         parseResponse: (data, keyword) => {
+          // #312 (2026-09-20 live probe): the legacy
+          // `/mp4?token=<data.params.userToken>` download URL is dead twice
+          // over — `params` is now a query-string echo (not an object), and
+          // Coverr migrated to Mux hosting so the old CDN path 404s even with
+          // a valid token. Free renditions are public direct URLs —
+          // `cdn.coverr.co/videos/{base_filename}/{360p,720p,1080p}.mp4`
+          // (verified 206 on no-auth range GETs, horizontal and vertical
+          // alike; `original.mp4` is is_plus-gated and 404s). Build the
+          // highest free rendition directly from `base_filename`, matching
+          // the pexels-video quality-first precedent — the pipeline's 20M
+          // per-candidate cap (video-downloaders `exceeds-size-limit`) is the
+          // oversize guard.
           const hits = data.hits || [];
           return hits.map((v) => ({
             title: v.title || keyword,
-            url: `https://cdn.coverr.co/videos/${v.base_filename}/mp4?token=${data.params?.userToken || ""}`,
+            url: `https://cdn.coverr.co/videos/${v.base_filename}/1080p.mp4`,
             type: "video",
             resolution: v.is_vertical ? "vertical" : "horizontal",
             fileSize: undefined,

@@ -1469,17 +1469,32 @@ describe("Coverr API fix", () => {
     expect(coverr.authValue("mykey")).toBe("Bearer mykey");
   });
 
-  it("parses hits array from Coverr response", () => {
+  it("parses hits array from Coverr response (#312: live API shape, 2026-09-20)", () => {
     const coverr = API_SOURCES.find((s) => s.name === "coverr");
     const mockData = {
       hits: [{ title: "Robot vacuum", base_filename: "coverr-robot-123", is_vertical: false }],
-      params: { userToken: "abc123" },
+      // Live API (probe-312, 2026-09-20): params is a query-string ECHO, not an object —
+      // the old `data.params?.userToken` object read yields undefined.
+      params: "query=robot&userToken=abc123def456ghi789jkl",
     };
     const result = coverr.parseResponse(mockData, "robot");
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe("Robot vacuum");
-    expect(result[0].url).toContain("coverr-robot-123");
+    // URL-shape evidence lives in the parseResponse comment in source-registry.mjs (#312).
+    expect(result[0].url).toBe("https://cdn.coverr.co/videos/coverr-robot-123/1080p.mp4");
     expect(result[0].type).toBe("video");
+  });
+  it("builds rendition URL without any token dependency (#312)", () => {
+    const coverr = API_SOURCES.find((s) => s.name === "coverr");
+    // No params field at all — the parser must not depend on the drifted
+    // params structure (neither the legacy object nor the string echo).
+    const result = coverr.parseResponse(
+      { hits: [{ title: "City", base_filename: "coverr-city-9", is_vertical: true }] },
+      "city",
+    );
+    expect(result[0].url).toBe("https://cdn.coverr.co/videos/coverr-city-9/1080p.mp4");
+    expect(result[0].url).not.toContain("token");
+    expect(result[0].resolution).toBe("vertical");
   });
 });
 
