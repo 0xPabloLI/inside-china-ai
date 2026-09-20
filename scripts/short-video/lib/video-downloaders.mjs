@@ -28,16 +28,19 @@ import {
   rmSync,
   mkdtempSync,
 } from "fs";
-import { join, dirname } from "path";
+import { dirname, extname, join } from "path";
 import { execSync } from "child_process";
 import {
   YTDLP_BROWSER_UA,
   ytdlpCookieBrowser,
+  ytdlpContainerMime,
   ytdlpDomain,
   ytdlpGate,
   ytdlpRecord412,
   ytdlpRecordSuccess,
   matchYtdlp412,
+  removeYtdlpStaleOutput,
+  resolveYtdlpOutputPath,
 } from "./ytdlp-guard.mjs";
 import { tmpdir, homedir } from "os";
 import { fileURLToPath } from "url";
@@ -519,10 +522,17 @@ export function downloadYtdlpAdapter(url) {
     cmd = buildYtdlpCommand(url, { tmpPath, cookieFile });
   }
 
+  // #323 review: clear stale suffixed siblings so the resolver only sees THIS
+  // invocation's output (pre-fix-era orphans must not pass as fresh).
+  removeYtdlpStaleOutput(tmpPath);
+
   try {
     execSync(cmd, { encoding: "utf8", timeout: 120000, stdio: ["pipe", "pipe", "pipe"] });
 
-    if (!existsSync(tmpPath)) {
+    // #323: resolve the actual output — a webm-only source lands at
+    // `<tmpPath>.webm` (yt-dlp appends the real container extension).
+    const produced = resolveYtdlpOutputPath(tmpPath);
+    if (!produced) {
       return makeResult({
         status: "failed",
         strategy: ADAPTER_IDS.YTDLP,
@@ -532,11 +542,11 @@ export function downloadYtdlpAdapter(url) {
       });
     }
 
-    const buffer = readFileSync(tmpPath);
+    const buffer = readFileSync(produced);
 
-    // Cleanup temp files
+    // Cleanup temp files (the actually produced file + cookie file)
     try {
-      unlinkSync(tmpPath);
+      unlinkSync(produced);
     } catch {}
     try {
       unlinkSync(cookieFile);
@@ -564,14 +574,16 @@ export function downloadYtdlpAdapter(url) {
 
     ytdlpRecordSuccess(domain);
 
+    // #323: report the container actually produced, not the requested one.
+    const ext = extname(produced).slice(1) || "mp4";
     return makeResult({
       status: "downloaded",
       strategy: ADAPTER_IDS.YTDLP,
       source,
       sourceUrl: url,
       finalUrl: url,
-      mimeType: "video/mp4",
-      extension: "mp4",
+      mimeType: ytdlpContainerMime(ext),
+      extension: ext,
       byteLength: buffer.length,
       buffer,
     });

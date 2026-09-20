@@ -78,6 +78,8 @@ import {
   ytdlpRecord412,
   ytdlpRecordSuccess,
   matchYtdlp412,
+  removeYtdlpStaleOutput,
+  resolveYtdlpOutputPath,
 } from "./ytdlp-guard.mjs";
 // Artifact schema versions (#199 2.5) — bump on breaking shape changes so
 // consumers can branch. asset-analysis.json carries its own `version: 1`.
@@ -1804,20 +1806,28 @@ export function downloadYtdlp(url, destPath) {
     `"${url}"`,
   ].join(" ");
 
+  // #323 review: clear stale suffixed siblings (orphaned `<dest>.mp4.webm`
+  // from pre-fix failed runs) so the resolver only sees THIS run's output.
+  removeYtdlpStaleOutput(destPath);
+
   try {
     execSync(cmd, { encoding: "utf8", timeout: 120000, stdio: ["pipe", "pipe", "pipe"] });
 
-    if (!existsSync(destPath)) {
+    // #323: yt-dlp appends the real container extension when the -o template's
+    // extension doesn't match the final format (webm-only source lands at
+    // `<dest>.mp4.webm`) — resolve the actual output before declaring loss.
+    const produced = resolveYtdlpOutputPath(destPath);
+    if (!produced) {
       return { success: false, error: "yt-dlp completed but file not found" };
     }
 
-    const stat = statSync(destPath);
+    const stat = statSync(produced);
     if (stat.size < 1024) {
       return { success: false, error: "Downloaded file too small (<1KB)" };
     }
 
     ytdlpRecordSuccess(domain);
-    return { success: true, path: destPath };
+    return { success: true, path: produced };
   } catch (e) {
     const stderr = e.stderr?.toString()?.substring(0, 200) ?? "";
     // 412 penalty box — record before the generic classifications below.

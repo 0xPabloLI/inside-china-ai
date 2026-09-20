@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "path";
 
@@ -26,7 +26,14 @@ vi.mock("child_process", async (importOriginal) => {
   return { ...actual, execSync: (...args) => execSyncMock(...args) };
 });
 
-import { createYtdlp412Guard, matchYtdlp412, ytdlpCookieBrowser } from "../lib/ytdlp-guard.mjs";
+import {
+  createYtdlp412Guard,
+  matchYtdlp412,
+  removeYtdlpStaleOutput,
+  resolveYtdlpOutputPath,
+  ytdlpContainerMime,
+  ytdlpCookieBrowser,
+} from "../lib/ytdlp-guard.mjs";
 import { searchYtdlp, downloadYtdlp } from "../lib/asset-sourcer.mjs";
 import { downloadYtdlpAdapter } from "../lib/video-downloaders.mjs";
 
@@ -268,5 +275,104 @@ describe("yt-dlp wiring", () => {
     const res = downloadYtdlpAdapter("https://weibo.com/5468142257/Ri5ajjFK0");
     expect(res.status).toBe("failed");
     expect(readFileSync(process.env.YTDLP_412_STATE_PATH, "utf8")).toContain("weibo.com");
+  });
+
+  it("#323: downloadYtdlp succeeds when yt-dlp falls back to a webm container", () => {
+    const dest = join(tmp, "clip.mp4");
+    execSyncMock.mockImplementation(() => {
+      // webm-only source: yt-dlp appends the real container extension to the
+      // -o template (empirical #313 probe: `-o /tmp/x.mp4` → /tmp/x.mp4.webm).
+      writeFileSync(`${dest}.webm`, Buffer.alloc(2048), "utf8");
+    });
+    const res = downloadYtdlp("https://www.youtube.com/watch?v=abc", dest);
+    expect(res.success).toBe(true);
+    expect(res.path).toBe(`${dest}.webm`);
+  });
+
+  it("#323: downloadYtdlp still reports failure when nothing landed on disk", () => {
+    const dest = join(tmp, "clip.mp4");
+    execSyncMock.mockImplementation(() => {});
+    const res = downloadYtdlp("https://www.youtube.com/watch?v=abc", dest);
+    expect(res.success).toBe(false);
+    expect(res.error).toContain("file not found");
+  });
+
+  it("#323: downloadYtdlpAdapter reads the webm fallback, reports the real container, leaves no orphan", () => {
+    let produced = null;
+    execSyncMock.mockImplementation((cmd) => {
+      const template = cmd.match(/-o "([^"]+)"/)[1];
+      produced = `${template}.webm`;
+      writeFileSync(produced, Buffer.alloc(2048), "utf8");
+    });
+    const res = downloadYtdlpAdapter("https://www.youtube.com/watch?v=abc");
+    expect(res.status).toBe("downloaded");
+    expect(res.extension).toBe("webm");
+    expect(res.mimeType).toBe("video/webm");
+    expect(res.buffer.length).toBe(2048);
+    expect(existsSync(produced)).toBe(false); // consumed, not orphaned
+  });
+
+  it("#323: a stale webm orphan from a previous failed run is not sold as today's download", () => {
+    const dest = join(tmp, "clip.mp4");
+    // pre-fix-era orphan: a failed run left <dest>.webm on disk
+    writeFileSync(`${dest}.webm`, Buffer.alloc(2048), "utf8");
+    execSyncMock.mockImplementation(() => {}); // this run exits 0 producing nothing
+    const res = downloadYtdlp("https://www.youtube.com/watch?v=abc", dest);
+    expect(res.success).toBe(false);
+    expect(res.error).toContain("file not found");
+    expect(existsSync(`${dest}.webm`)).toBe(false); // stale sibling cleared pre-download
+  });
+});
+
+// ─── #323: yt-dlp output resolution (pure fs, real tmpdir) ───
+
+describe("resolveYtdlpOutputPath", () => {
+  let tmp;
+
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "ytdlp-resolve-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it("returns the exact path when yt-dlp landed the template name", () => {
+    const dest = join(tmp, "clip.mp4");
+    writeFileSync(dest, Buffer.alloc(16), "utf8");
+    expect(resolveYtdlpOutputPath(dest)).toBe(dest);
+  });
+
+  it("resolves the container-suffixed output when the template extension mismatches (#323)", () => {
+    const dest = join(tmp, "clip.mp4");
+    writeFileSync(`${dest}.webm`, Buffer.alloc(16), "utf8");
+    expect(resolveYtdlpOutputPath(dest)).toBe(`${dest}.webm`);
+  });
+
+  it("picks the newest produced file when several suffixed siblings exist", () => {
+    const dest = join(tmp, "clip.mp4");
+    writeFileSync(`${dest}.webm`, Buffer.alloc(16), "utf8");
+    writeFileSync(`${dest}.mkv`, Buffer.alloc(16), "utf8");
+    // pin mtime ordering — same-ms writes would tie and make this ambiguous
+    utimesSync(`${dest}.webm`, new Date(1000), new Date(1000));
+    utimesSync(`${dest}.mkv`, new Date(2000), new Date(2000));
+    expect(resolveYtdlpOutputPath(dest)).toBe(`${dest}.mkv`);
+  });
+
+  it("returns null when nothing was produced", () => {
+    expect(resolveYtdlpOutputPath(join(tmp, "missing.mp4"))).toBeNull();
+  });
+
+  it("removeYtdlpStaleOutput clears suffixed siblings and keeps the exact path", () => {
+    const dest = join(tmp, "clip.mp4");
+    writeFileSync(dest, Buffer.alloc(16), "utf8");
+    writeFileSync(`${dest}.webm`, Buffer.alloc(16), "utf8");
+    removeYtdlpStaleOutput(dest);
+    expect(existsSync(dest)).toBe(true);
+    expect(existsSync(`${dest}.webm`)).toBe(false);
+  });
+
+  it("ytdlpContainerMime reports octet-stream for unknown containers instead of a false mp4", () => {
+    expect(ytdlpContainerMime("avi")).toBe("application/octet-stream");
   });
 });

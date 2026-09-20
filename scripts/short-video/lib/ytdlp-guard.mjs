@@ -24,8 +24,16 @@
  * the 412 risk control flags (#16571 workaround reports).
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, dirname } from "path";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { matchDomain } from "./rate-limiter.mjs";
 
@@ -71,6 +79,89 @@ export function ytdlpCookieBrowser(url) {
 }
 
 const STATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "output");
+
+/**
+ * Resolve the file yt-dlp actually produced for a `-o <destPath>` template.
+ *
+ * yt-dlp appends the real container extension when the template's extension
+ * doesn't match the final merged format (#323: `-o clip.mp4` on a video with
+ * no mp4 format ≤720p merges webm+opus and lands at `clip.mp4.webm`). The
+ * exact template path wins; otherwise the newest sibling that extends the
+ * template name with a container suffix is the produced file. Returns null
+ * when nothing landed on disk.
+ *
+ * @param {string} destPath - the `-o` output template path
+ * @returns {string|null} produced file path, or null when absent
+ */
+export function resolveYtdlpOutputPath(destPath) {
+  if (existsSync(destPath)) return destPath;
+  const dir = dirname(destPath);
+  const prefix = `${basename(destPath)}.`;
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return null;
+  }
+  const produced = entries
+    .filter((name) => name.startsWith(prefix))
+    .map((name) => {
+      const full = join(dir, name);
+      try {
+        return { full, mtimeMs: statSync(full).mtimeMs };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return produced[0]?.full ?? null;
+}
+
+/**
+ * Remove stale suffixed siblings of the `-o` template before a download
+ * (#323 review finding: without this, an orphan `<dest>.mp4.webm` left by a
+ * pre-fix failed run is re-resolved as a fresh success even when the current
+ * run produces nothing). The exact template path is left untouched — the
+ * entry fast path owns it.
+ *
+ * @param {string} destPath - the `-o` output template path
+ */
+export function removeYtdlpStaleOutput(destPath) {
+  const dir = dirname(destPath);
+  const prefix = `${basename(destPath)}.`;
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
+    if (!name.startsWith(prefix)) continue;
+    try {
+      unlinkSync(join(dir, name));
+    } catch {}
+  }
+}
+
+/** Mime types for the containers yt-dlp can actually produce (#323). */
+const YTDLP_CONTAINER_MIME = {
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
+  mkv: "video/x-matroska",
+};
+
+/**
+ * Mime type for a resolved yt-dlp output extension (#323) — the download
+ * result must describe the container on disk, not the requested one.
+ *
+ * @param {string} ext - extension without the leading dot
+ * @returns {string} mime type (octet-stream fallback for unknown containers)
+ */
+export function ytdlpContainerMime(ext) {
+  return YTDLP_CONTAINER_MIME[ext] ?? "application/octet-stream";
+}
 
 /** Default persistent state file (gitignored output dir — survives sessions). */
 export const YTDLP_412_STATE_PATH = join(STATE_DIR, "yt-dlp-412-state.json");
