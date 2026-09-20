@@ -24,7 +24,8 @@ analytics"，但实际上 analytics 需要等数据沉淀。
    │  新 session 时 agent 被动检查
    │  发布步骤运行时脚本自动写入（manual-guide 档 = 发布指南生成时，
    │  publishedAt 为真实发布时间的最佳估计）
-   │  超过 48h → 提醒导出 CSV
+   │  status ≠ "done" 且超过 48h → 提醒导出 CSV
+   │  （status 已是 "done" 的记录不再提醒——防误报，2026-09-20 口径统一）
    │
 ② 导出 TikTok Analytics CSV
    │  登录 https://analytics.tiktok.com

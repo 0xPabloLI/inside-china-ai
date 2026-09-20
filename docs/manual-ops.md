@@ -87,7 +87,8 @@ node scripts/short-video/trending-sounds.mjs --content <dir>
 ```
 ① 检查 pending-analysis.json
    │  新 session 时 agent 自动检查
-   │  超过 48h → 提醒导出 CSV
+   │  status ≠ "done" 且超过 48h → 提醒导出 CSV
+   │  （status 已是 "done" 的记录不再提醒——防误报，2026-09-20 口径统一）
    │
 ② CDP 抓取（默认路径，无需手动 CSV）
    │  TikTok Studio Analytics + CSI 直接抓取
