@@ -541,7 +541,7 @@
 
 - **日期**：2026-08-23
 - **平台**：Modal.com T4 GPU（Tesla T4, 14.6GB VRAM, 32GB CPU RAM 请求→实际计费 32.1 GiB）
-- **脚本**：`scripts/short-video/experiments/modal-echomimicv3-nf4.py`（Modal 函数，Volume 缓存模型 + 持久化输出。旧版 `/tmp/modal-nf4-v2.py` 已清理）
+- **脚本**：`scripts/short-video/experiments/modal-echomimicv3-nf4.py`（Modal 函数，Volume 缓存模型 + 持久化输出。旧版 `/tmp/modal-nf4-v2.py` 已清理。**注：该脚本已于 2026-09-20 dead-code 清理中删除**）
 - **脚本特性**：(1) 自动检测 Volume 上的真实素材（`inputs/portrait.jpg` + `inputs/audio.mp3`），不存在则生成 placeholder；(2) 输出保存到 Volume `outputs/` 目录持久化，容器销毁后不丢失；(3) 运行前需 `modal volume put echomimicv3-models <本地照片> inputs/portrait.jpg` 和 `modal volume put echomimicv3-models <本地音频> inputs/audio.mp3` 上传素材
 - **依赖版本**：bitsandbytes 0.45.1, accelerate 0.34.2, diffusers 0.31.0, PyTorch 2.5.1+cu124
 - **NF4 实现**：patch `infer_flash.py`，在 `pipeline.to(device)` 前用 `bnb.nn.Linear4bit` 替换 transformer 中所有 `torch.nn.Linear`（462 层），然后 `enable_model_cpu_offload()` 而非 `pipeline.to(device)` 避免 OOM
@@ -656,7 +656,7 @@
 
 ### ✅ LongCat-Video-Avatar-1.5 云端原版（Modal A100-80GB，bf16 + DMD 蒸馏）— v11.1
 
-- **日期**：2026-09-02；脚本：`scripts/short-video/experiments/modal-longcat-avatar.py`（v11.1）
+- **日期**：2026-09-02；脚本：`scripts/short-video/experiments/modal-longcat-avatar.py`（v11.1。**注：该脚本已于 2026-09-20 dead-code 清理中删除**）
 - **许可**：MIT ✅（符合 License 门禁）
 - **参数**（全部官方信源，2026-09-02 抓取）：HF 模型卡 Quick Inference 命令 + 官方源码 `run_demo_avatar_single_audio_to_video.py`
   - steps=8：源码 L71-72，`use_distill + avatar-v1.5` 硬编码（DMD2 蒸馏 50→8）

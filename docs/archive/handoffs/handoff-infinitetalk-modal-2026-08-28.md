@@ -1,5 +1,7 @@
 # InfiniteTalk Modal 推理 Handoff
 
+> **注（2026-09-20）**：本档引用的 `scripts/short-video/experiments/modal-infinitetalk.py` 已在 dead-code 清理中删除。文中脚本版本记录（v10.17/v10.18）与参数自检表保留为历史参考；如需复现，参照本档「方案 B」参数自建 Modal 脚本，或见 `docs/research/digital-human-test-progress.md`。
+
 **日期**: 2026-08-30
 **状态**: ❌ Modal A100 标准推理超时，需换平台/方案
 

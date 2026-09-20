@@ -40,7 +40,7 @@ HTTPS_PROXY=http://127.0.0.1:7897 colab --auth=adc run --gpu T4 --timeout 36000 
 
 ### 方案 2：Modal T4（$30/月 free credits）
 
-- 参考 `scripts/short-video/experiments/modal-echomimicv3-nf4.py`
+- 参考 `scripts/short-video/experiments/modal-echomimicv3-nf4.py`（脚本已于 2026-09-20 删除，做法见 `docs/research/digital-human-test-progress.md`）
 - Modal Volume 可以持久化模型文件，不用每次下载
 - 定价：$0.59/h T4（[[memory:17867091779830351596]]）
 - 不需要代理，直连 HuggingFace
