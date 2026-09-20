@@ -124,7 +124,7 @@ _Avoid_: Heatmap, attention map
 **Remotion**: A React-based video rendering framework used as the primary rendering engine. Renders frames deterministically via server-side rendering (frame-accurate). Replaces Playwright screencast recording. See ADR-0010.
 _Avoid_: Video framework, renderer (too generic)
 
-**Playwright Recording** (retired): Previous HTML/CSS + Playwright `page.screencast()` renderer; retired (decision 59, #147), tooling in `scripts/short-video/retired-html-path/`. `renderer-guard.mjs` fails fast on the retired flag; Remotion is the only renderer.
+**Playwright Recording** (retired): Previous HTML/CSS + Playwright `page.screencast()` renderer; retired (decision 59, #147), tooling removed on 2026-09-20 (recoverable from git history). `renderer-guard.mjs` fails fast on the retired flag; Remotion is the only renderer.
 _Avoid_: Browser recording, screencast
 
 **Scene Component**: A Remotion React component that renders one scene type (HookScene, ContentScene, NarrativeScene, DataScene, QuoteScene, CtaScene). Each maps to a `visualType` in Scene Data. See ADR-0010.

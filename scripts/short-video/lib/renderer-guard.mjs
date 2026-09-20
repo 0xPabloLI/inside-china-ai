@@ -7,8 +7,9 @@
  *
  * Any attempt to opt back into the retired path (`--playwright` flag or
  * `meta.renderer = "playwright"`) fails fast here, before preflight/TTS,
- * with a pointer to the retirement note. The frozen HTML tooling lives in
- * `scripts/short-video/retired-html-path/` for reference only.
+ * with a pointer to the retirement note. The retired HTML tooling was
+ * removed on 2026-09-20 (dead-code cleanup); see the git history of
+ * `scripts/short-video/retired-html-path/` if you need it.
  */
 
 /**
@@ -23,6 +24,6 @@ export function assertRemotionRenderer({ argv = [], meta = {} } = {}) {
   throw new Error(
     `The HTML/Playwright render path was retired on 2026-09-01 (decision 59, ` +
       `docs/archive/spec-text-overflow-hardening.md) — Remotion is the only renderer, but this run requested ` +
-      `${source}. Remove it; archived HTML tooling lives in scripts/short-video/retired-html-path/.`,
+      `${source}. Remove it; the retired HTML tooling was removed on 2026-09-20 (see git history).`,
   );
 }

@@ -228,7 +228,7 @@ Same as color tokens — each company has a consistent semantic color:
 
 ## Layout Safety (Safe Zones & Watermark)
 
-TikTok overlays (caption, like/comment buttons, bottom progress bar) can cover content. All scenes must respect these safe zones — enforced at render time by TextGate in `scripts/short-video/remotion/src/` + `lib/text-geometry.mjs` (slot geometry FAIL-gate wired into the Remotion renderer). The former DOM verifier (`verify-scene-dom.mjs`) was retired with the HTML render path (decision 59); archive: `scripts/short-video/retired-html-path/`.
+TikTok overlays (caption, like/comment buttons, bottom progress bar) can cover content. All scenes must respect these safe zones — enforced at render time by TextGate in `scripts/short-video/remotion/src/` + `lib/text-geometry.mjs` (slot geometry FAIL-gate wired into the Remotion renderer). The former DOM verifier (`verify-scene-dom.mjs`) was retired with the HTML render path (decision 59; archive deleted 2026-09-20, see git history).
 
 Calibrated against real FYP playback screenshots cross-checked with 2026 research. Full calibration history and OCR evidence: `docs/research/safe-zone-calibration-log.md`.
 
@@ -372,7 +372,6 @@ The CSS implementation of these specs lives in:
 - `scripts/short-video/lib/safe-zones.mjs` — **single source of truth** for safe-zone + subtitle-lane + watermark constants. Every other layer (slot layout, subtitle ASS, TextGate) derives from these values; never hardcode them elsewhere.
 - `scripts/short-video/lib/scene-layout.mjs` — the fixed slot system (`SLOTS`, `slotCss()`, `sceneFrame()`). All scenes compose into kicker/hero/support slots.
 - `scripts/short-video/remotion/src/` — Remotion scene components (hook/cta/narrative/…); scene building blocks live in `components/`. Display copy comes from `scene-data.mjs`.
-- `scripts/short-video/retired-html-path/` — frozen archive of the retired HTML/CSS layer (`base-styles.mjs`, `scene-templates.mjs`, …). Reference only, not imported.
 - `scripts/youtube-thumbnail.html` — thumbnail HTML/CSS
 
 ### Enforcement (how the standard is applied to every video)

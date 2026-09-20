@@ -159,7 +159,7 @@ node scripts/short-video/main.mjs           # No BGM (default)
 node scripts/short-video/main.mjs --bgm     # With procedural BGM
 ```
 
-Pipeline stages: media gate → TTS → validate TTS results → (BGM if --bgm) → ASS subtitles → Remotion render → subtitle verification. Remotion is the only renderer — the HTML/Playwright path was retired (decision 59, archive: `scripts/short-video/retired-html-path/`).
+Pipeline stages: media gate → TTS → validate TTS results → (BGM if --bgm) → ASS subtitles → Remotion render → subtitle verification. Remotion is the only renderer — the HTML/Playwright path was retired (decision 59; the archive itself was deleted on 2026-09-20, see git history).
 
 Output: `scripts/short-video/output/{pipelineId}/{subject}-{pipelineId}-v{version}-short.mp4` (versioned, timestamp-based, canonical — no symlink). The `subject` field in `meta.mjs` (e.g. "deepseek", "china-llm") ensures the filename identifies WHO the video is about.
 
@@ -395,7 +395,7 @@ pip3 install pysubs2   # ASS subtitle generation
 | `text-align.py`                      | Forced alignment: wav2vec2 aligns KNOWN text to audio → per-word timestamps in `subtitle-timing.json`. Replaces Whisper (which tries to RECOGNIZE, not ALIGN). |
 | `lib/subtitles/cues.mjs` + `ass.mjs` | Subtitles: pixel-width chunking (cues; ≤720px hard, ≤6 words) + ASS render with `\kf` karaoke tags (ass.mjs). Values derive from `SUBTITLE_LANE`.              |
 | `lib/generate-bgm.mjs`               | Procedural cyber-ambient background music via FFmpeg audio synthesis (7-layer mix at 12% volume).                                                              |
-| `lib/render-remotion.mjs`            | Remotion renderer: React scene components → frame-by-frame → final MP4 (single renderer; the HTML/Playwright path was retired, see `retired-html-path/`).      |
+| `lib/render-remotion.mjs`            | Remotion renderer: React scene components → frame-by-frame → final MP4 (single renderer; the HTML/Playwright path was retired, decision 59).                   |
 | `main.mjs`                           | Orchestrator: media gate → TTS → validate → (BGM) → ASS → Remotion render (TextGate enforced in-render) → verify.                                              |
 | `lib/verify-subtitles.mjs`           | Subtitle coverage + sync verification.                                                                                                                         |
 | `verify-video.mjs`                   | TikTok best practices compliance gate (MRL-3).                                                                                                                 |

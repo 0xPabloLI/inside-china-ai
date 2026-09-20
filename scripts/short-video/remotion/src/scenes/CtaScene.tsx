@@ -2,7 +2,7 @@
  * CtaScene — the standard end card.
  *
  * Derived from the retired ctaScene() HTML template
- * (retired-html-path/scene-templates.mjs).
+ * (removed 2026-09-20, see git history).
  * All font sizes, colors, positions are精确对照 from its templateCss().
  */
 import { staticFile, CanvasImage, Interactive } from "remotion";

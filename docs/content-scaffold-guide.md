@@ -86,7 +86,7 @@ export const scenes = [
 
 ## Scene Visuals (Remotion)
 
-内容包只提供数据（`meta.mjs` + `scene-data.mjs`）；视觉渲染完全由 `scripts/short-video/remotion/src/` 的 React 场景组件承担（Remotion 是唯一渲染器——HTML/Playwright 路径已于 2026-09-01 退役，决策 59，冻结归档在 `scripts/short-video/retired-html-path/`）。
+内容包只提供数据（`meta.mjs` + `scene-data.mjs`）；视觉渲染完全由 `scripts/short-video/remotion/src/` 的 React 场景组件承担（Remotion 是唯一渲染器——HTML/Playwright 路径已于 2026-09-01 退役，决策 59；冻结归档已于 2026-09-20 删除，可从 git 历史恢复）。
 
 新内容包的视觉工作 = 选对 `visualType`，让场景调度器分发到正确的组件（`hook` → HookScene、`cta` → CtaScene、其余 → 叙事/数据组件）。需要新视觉类型时才改 `remotion/src/`（走 Substantial 工作流），不要在内容包里写一次性视觉代码。
 

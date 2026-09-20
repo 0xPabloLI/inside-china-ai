@@ -4,7 +4,6 @@
   "reporters": ["console"],
   "ignore": [
     "**/node_modules/**",
-    "**/retired-html-path/**",
     "**/experiments/**",
     "**/content/**",
     "**/*.test.*",

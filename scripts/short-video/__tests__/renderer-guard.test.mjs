@@ -41,7 +41,7 @@ describe("assertRemotionRenderer", () => {
       expect.unreachable("guard should have thrown");
     } catch (e) {
       expect(e.message).toContain("59");
-      expect(e.message).toContain("retired-html-path");
+      expect(e.message).toContain("retired");
     }
   });
 });

@@ -22,9 +22,6 @@ export default tseslint.config(
       // Agent skill installs (mirrored skill trees, not repo content).
       ".agents/**",
       "agent/**",
-      // Frozen archive of the retired HTML/Playwright render path — kept verbatim
-      // for reference, deliberately not lint/formatted.
-      "scripts/short-video/retired-html-path/**",
       // Spike/experiment workspace incl. vendored third-party repos with Python
       // site-packages (.venv) — linting these stalls the full-repo run.
       "scripts/short-video/experiments/**",

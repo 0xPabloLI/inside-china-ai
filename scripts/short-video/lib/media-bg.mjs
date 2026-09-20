@@ -6,7 +6,7 @@
  *     are consumed by verify-video.mjs preflight and apply-media-patch.mjs)
  *   - Validation: file existence, preset compatibility
  *
- * Legacy (retired HTML/Playwright path, see retired-html-path/README.md):
+ * Legacy (retired HTML/Playwright path, removed 2026-09-20 — see git history):
  *   `animationCss()` and `mediaLayer()` generated the CSS/HTML the Playwright
  *   recorder used. Kept exported as the media-contract CSS reference (zero
  *   production consumers, test-locked); the Remotion renderer uses

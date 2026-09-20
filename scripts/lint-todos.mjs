@@ -28,7 +28,6 @@ const EXCLUDED_DIR_NAMES = new Set([
   "node_modules",
   "__pycache__",
   "experiments",
-  "retired-html-path",
   ".venv",
   "test-results",
   ".scratch",

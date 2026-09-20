@@ -102,7 +102,7 @@ describe("applyAudioSyncToSummary", () => {
  * Scene voiceovers are deterministic noise bursts (unique correlation peak),
  * encoded to actual mp3s; the "final video" is assembled from those mp3s by
  * buildVoiceoverTrack — exactly what the retired FFmpeg assembler
- * (retired-html-path/) did — so encoder delay affects needle and haystack
+ * did — so encoder delay affects needle and haystack
  * identically and cancels out.
  */
 describe("verifyAudioSync (integration, real ffmpeg)", () => {

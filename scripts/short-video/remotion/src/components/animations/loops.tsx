@@ -2,7 +2,7 @@
  * Loop animation components — infinite repeating animations.
  *
  * These map from CSS @keyframes with `infinite` in the retired
- * base-styles.mjs (retired-html-path/).
+ * base-styles.mjs (removed 2026-09-20, see git history).
  * Use modular arithmetic on the frame count to create loops.
  */
 import { type ReactNode } from "react";

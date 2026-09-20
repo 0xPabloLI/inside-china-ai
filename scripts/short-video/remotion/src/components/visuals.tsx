@@ -2,7 +2,7 @@
  * Visual components — brand system elements shared across all scenes.
  *
  * These replace the CSS classes of the retired HTML templates
- * (retired-html-path/base-styles.mjs + scene-templates.mjs)
+ * (removed 2026-09-20, see git history)
  * with React components using safe-zones.mjs constants for positioning.
  *
  * All values are精确对照 from their templateCss() / baseStyles().

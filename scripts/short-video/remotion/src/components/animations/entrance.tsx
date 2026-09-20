@@ -1,6 +1,6 @@
 /**
  * Entrance animation components — map from CSS @keyframes in the retired
- * base-styles.mjs (retired-html-path/).
+ * base-styles.mjs (removed 2026-09-20, see git history).
  *
  * Each component takes `delay` (seconds) and wraps children in a div with
  * the interpolated animation. Uses useCurrentFrame() for frame-exact timing.

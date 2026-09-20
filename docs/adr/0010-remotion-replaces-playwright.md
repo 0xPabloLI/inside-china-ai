@@ -2,7 +2,7 @@
 
 The short video pipeline needs frame-accurate rendering of 9:16 vertical scenes (1080×1920) with animated text overlays, background media, brand watermark, burned-in subtitles, BGM, and scene transitions. Playwright screencast caused timing drift (50-200ms per scene), making karaoke subtitles impossible.
 
-> **Status update (2026-09-02, decision 59, #147)**: the HTML/Playwright fallback described below has been fully retired — tooling archived to `scripts/short-video/retired-html-path/`, Remotion is the only renderer.
+> **Status update (2026-09-02, decision 59, #147)**: the HTML/Playwright fallback described below has been fully retired — Remotion is the only renderer. (The frozen archive `scripts/short-video/retired-html-path/` was deleted on 2026-09-20; recover it from git history if ever needed.)
 
 **Migrate to Remotion** as the video rendering engine. Remotion renders frames deterministically via server-side rendering (frame-accurate), supports composition of video/audio/images/animations in a single timeline, and provides `TransitionSeries` for scene transitions.
 

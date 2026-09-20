@@ -105,7 +105,7 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 #### Sync（一致性）
 
-> Remotion 是唯一渲染器后（决策 59，2026-09-01），不再有 React ↔ HTML 双源，原 `verify-template-sync.mjs` 随 HTML 路径退役（`retired-html-path/`）。一致性现在由单一真源保证：间距/安全区常量只在 `lib/scene-layout.mjs` / `lib/safe-zones.mjs` 定义。
+> Remotion 是唯一渲染器后（决策 59，2026-09-01），不再有 React ↔ HTML 双源，原 `verify-template-sync.mjs` 随 HTML 路径退役（归档已于 2026-09-20 删除）。一致性现在由单一真源保证：间距/安全区常量只在 `lib/scene-layout.mjs` / `lib/safe-zones.mjs` 定义。
 
 ### 间距语义角色参考
 

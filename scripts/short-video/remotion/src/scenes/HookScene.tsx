@@ -2,7 +2,7 @@
  * HookScene — the opening "hook" scene template.
  *
  * Derived from the retired hookScene() HTML template
- * (retired-html-path/scene-templates.mjs).
+ * (removed 2026-09-20, see git history).
  * All font sizes, colors, positions are精确对照 from its templateCss().
  *
  * Two variants: number-led (bigNumber) or claim-led (hookText + revealText).

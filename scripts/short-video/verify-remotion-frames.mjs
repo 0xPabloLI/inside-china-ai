@@ -8,7 +8,8 @@
  *
  * Since Remotion renders to pixels not DOM, we analyze the actual rendered
  * output. (This replaced the DOM-based verify-scene-dom.mjs gate when the
- * HTML/Playwright render path was retired — see retired-html-path/README.md.)
+ * HTML/Playwright render path was retired — archive removed 2026-09-20,
+ * see git history.)
  *
  * Usage:
  *   node verify-remotion-frames.mjs --content <dir> [--video <path>]

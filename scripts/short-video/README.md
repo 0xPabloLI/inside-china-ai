@@ -97,7 +97,6 @@ scripts/short-video/
 │   ├── assemble.mjs          # Output-path helpers (resolveOutputVideo)
 │   ├── renderer-guard.mjs    # Fail-fast on the retired HTML/Playwright path
 │   └── render-remotion.mjs   # Remotion CLI wrapper
-├── retired-html-path/        # Frozen archive of the retired HTML/Playwright renderer
 ├── assets/                   # Brand logos, BGM, shared images
 └── output/                   # Per-pipeline output (video, audio)
 ```

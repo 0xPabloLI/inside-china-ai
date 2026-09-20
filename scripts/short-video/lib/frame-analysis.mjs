@@ -178,7 +178,7 @@ export function countBrightPixels(buf, region, threshold, step, exemptRegions = 
  *   top: 140, left: 60, right: 200 (→ xEnd = width - 200)
  *   Approximate height: 50px (logo 48px + padding)
  * This is the same exemption the retired verify-scene-dom.mjs DOM gate used
- * (EXEMPT_SELECTORS — see retired-html-path/).
+ * (EXEMPT_SELECTORS — archive removed 2026-09-20, see git history).
  */
 const BRAND_BAR_REGION = {
   xStart: 60,

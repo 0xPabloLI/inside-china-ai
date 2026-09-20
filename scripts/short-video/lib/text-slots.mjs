@@ -7,7 +7,8 @@
  *   - the verifier (what to assert the DOM against)
  *
  * (A fourth consumer, the HTML scene templates of the retired Playwright
- * path, was removed on 2026-09-01 — see retired-html-path/README.md.)
+ * path, was removed on 2026-09-01; the archive itself was deleted on
+ * 2026-09-20 — see git history.)
  *
  * Before this module existed each of those hardcoded its own sizes, which is how
  * the same scene-data ended up rendering at 64px on one path and 80px on the

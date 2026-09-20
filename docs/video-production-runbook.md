@@ -498,7 +498,6 @@ scripts/short-video/
 │   │   ├── gate.mjs        # VLM relevance gate (threshold 60, fail-closed)
 │   │   └── report.mjs      # b-roll-report.json read/write, promptHash, round rules
 │   └── audio/              # Gapless master (track.mjs) + FFT onset sync (sync.mjs, >80ms drift = FAIL) + FAIL diagnostics (diagnostics.mjs)
-├── retired-html-path/      # Frozen archive of the retired HTML/Playwright renderer (decision 59)
 ├── content/                # One dir per article (meta.mjs + scene-data.mjs required)
 ├── assets/logos/           # Company logos
 ├── voice-samples/          # TTS ref audio/text (gitignored, personal)
