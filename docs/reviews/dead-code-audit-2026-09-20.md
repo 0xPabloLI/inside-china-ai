@@ -336,20 +336,20 @@ review 者请逐条确认后签字。每条均可独立复现（见 §0 方法�
 ### A 类（可直接删）
 
 - [x] ~~A-1 `tiktok-csi.mjs`~~ — 🔴 v2 撤回，不删
-- [ ] A-2 `registry.ts` 的 `getWidget()` — 确认无调用且无文档引用 → 删函数
+- [x] A-2 `registry.ts` 的 `getWidget()` — 确认无调用且无文档引用 → 已删（2026-09-20）
 - [x] ~~A-3~A-8 邮件模板 default export~~ — 🟠 v2 降级，保留现状
 
 ### B 类（删前确认归档）
 
-- [ ] B-1 `.scratch/` 30 个文件 — 确认 issue 已在 tracker 关闭且无需本地留档 → 删目录
-- [ ] B-2 `experiments/` 3 个 .py — **删前必须先更新 `docs/research/` 和 `docs/archive/handoffs/` 中的引用指针**；4.6GB 本地 venv 可单独清理
-- [ ] B-3 `retired-html-path/` 7 个文件 — 确认无人再查阅 → 删目录 + 清理指向它的 9 处注释
-- [ ] B-4 `.tmp-dump-cookies.mjs` — 删本地文件 + 从 knip.json ignore 移除
+- [x] B-1 `.scratch/` 30 个文件 — 确认 issue 已在 tracker 关闭且无需本地留档 → 已删目录（2026-09-20）
+- [x] B-2 `experiments/` 3 个 .py — 已先更新 `docs/research/` 与 `docs/archive/handoffs/` 引用指针（标注 2026-09-20 删除）后删；本地 4.6GB venv 保留（用户决定）
+- [x] B-3 `retired-html-path/` 7 个文件 — 已删目录 + 清理指向注释/错误信息/配置（12 处代码、4 处配置、7 处活跃文档，归档文档保留历史原文）（2026-09-20）
+- [x] B-4 `.tmp-dump-cookies.mjs` — 已删本地文件 + 从 knip.json ignore 移除（2026-09-20）
 
 ### C 类（去掉 export，跑测试确认）
 
-- [ ] C-3 表中 15 个文件、26 个符号 — 逐文件去掉 `export` → `bun test` + `vite build` 确认
-- [ ] C-4 Supabase 生成类型 — 不动
+- [x] C-3 表中 15 个文件、26 个符号 — 已逐文件去掉 `export`，`vitest run src/ scripts/` 3988 测试通过（2026-09-20）
+- [x] C-4 Supabase 生成类型 — 确认不动
 
 ### D 类
 
@@ -357,13 +357,15 @@ review 者请逐条确认后签字。每条均可独立复现（见 §0 方法�
 
 ### E 类（修配置）
 
-- [ ] E-1 `knip.json` include 渐进式加 `exports`/`types`（按 workspace 或加 ignore 排除脚本库）→ 本地确认 0 报警后再入 CI
-- [ ] E-2 清理 knip 提示的 stale ignore 项（逐条确认）
-- [ ] E-3 knip entry 精确添加 `scripts/short-video/lib/tiktok-csi.mjs`（单点，不用 `lib/*.mjs` 通配符）
+- [ ] E-1 `knip.json` include 渐进式加 `exports`/`types`（按 workspace 或加 ignore 排除脚本库）→ 本地确认 0 报警后再入 CI（**未执行**，留待后续）
+- [x] E-2 清理 knip 提示的 stale ignore 项 — `.tmp-dump-cookies.mjs`、`retired-html-path/**` 已移除；`experiments/**` 因本地 venv 保留暂不动；3 条 ignoreDependencies 与 `.css` hint 属 knip 正常提示，保留（2026-09-20）
+- [x] E-3 knip entry 精确添加 `scripts/short-video/lib/tiktok-csi.mjs`（单点，不用 `lib/*.mjs` 通配符）→ `npx knip` Unused files 报警消失（2026-09-20）
 
 ### F 类（本地清理，可选）
 
-- [ ] 确认后清理本地未追踪目录
+- [x] 用户确认：各 agent/编程工具工作目录（`.claude/`、`.codebuddy/` 等）**均在用，保留不删**；构建产物类（`output/`、`.output/`、`test-results/`、`.playwright-cli/`）可日后按需手动清理，不入仓库（2026-09-20）
+
+> **执行记录（2026-09-20）**：上述已勾选项由 Droid session `20260920-deadcode-cleanup-9f3e2a` 按 §10 顺序实施，6 个原子提交；验证证据：`npx knip` 零报警 + `npx vitest run src/ scripts/` 3988 passed。E-1 未执行，见 checklist。
 
 ---
 
@@ -432,3 +434,19 @@ review 者请逐条确认后签字。每条均可独立复现（见 §0 方法�
 | 3 | C-3 符号数写"~29" | 实际 26 个（逐行核实） | §2 汇总 + §9 checklist 均改为"26" |
 
 **v3 状态**：已采纳全部 3 点微调，文档达可批准执行标准。
+
+### 执行记录（2026-09-20，v3 批准后实施）
+
+v3 批准后由 Droid session `20260920-deadcode-cleanup-9f3e2a` 按 §10 顺序实施：
+
+| 步骤 | 结果 | 提交 |
+|---|---|---|
+| E-3 | ✅ knip entry 已加，Unused files 报警消失 | `chore(knip)` |
+| A-2 | ✅ `getWidget()` 已删 | `refactor(src)` |
+| E-1 | ⏸ 未执行（渐进式开 exports/types 留待后续） | — |
+| C-3 | ✅ 26 符号去 export，vitest 3988 passed | `refactor(src)` |
+| B-1~B-4 | ✅ 全部执行（B-2 先更新文档指针；B-3 清理 12 处代码 + 4 处配置 + 7 处活跃文档引用） | `chore(scratch)` / `chore(experiments)` / `chore(render)` |
+| E-2 | ✅ 部分清理（`experiments/**` ignore 因本地 venv 保留暂不动） | `chore(knip)` / `chore(render)` |
+| F 类 | ✅ 用户确认 agent/编程工具目录在用，保留 | — |
+
+验证证据：`npx knip` 零报警（仅剩 Configuration hints）+ `npx vitest run src/ scripts/` 3988 passed / 205 files。B-4 `.tmp-dump-cookies.mjs` 与 `retired-html-path/**` 的 stale ignore 已随对应提交移除。
