@@ -26,7 +26,7 @@ vi.mock("child_process", async (importOriginal) => {
   return { ...actual, execSync: (...args) => execSyncMock(...args) };
 });
 
-import { createYtdlp412Guard, matchYtdlp412 } from "../lib/ytdlp-guard.mjs";
+import { createYtdlp412Guard, matchYtdlp412, ytdlpCookieBrowser } from "../lib/ytdlp-guard.mjs";
 import { searchYtdlp, downloadYtdlp } from "../lib/asset-sourcer.mjs";
 import { downloadYtdlpAdapter } from "../lib/video-downloaders.mjs";
 
@@ -144,6 +144,30 @@ describe("matchYtdlp412", () => {
   });
 });
 
+// ─── #313: youtube cookie-source policy ───
+
+describe("ytdlpCookieBrowser", () => {
+  it("routes youtube video URLs to the chrome cookie store", () => {
+    expect(ytdlpCookieBrowser("https://www.youtube.com/watch?v=abc")).toBe("chrome");
+    expect(ytdlpCookieBrowser("https://youtu.be/abc")).toBe("chrome");
+    expect(ytdlpCookieBrowser("https://m.youtube.com/watch?v=abc")).toBe("chrome");
+  });
+
+  it("keeps firefox for every other platform (pipeline default untouched)", () => {
+    expect(ytdlpCookieBrowser("https://www.bilibili.com/video/BV1E7wtzaEdq")).toBe("firefox");
+    expect(ytdlpCookieBrowser("https://weibo.com/5468142257/Ri5ajjFK0")).toBe("firefox");
+  });
+
+  it("ytsearch pseudo-URLs stay firefox — the working search path gains no Keychain dependency", () => {
+    expect(ytdlpCookieBrowser("ytsearch10:deepseek")).toBe("firefox");
+  });
+
+  it("falls back to firefox on non-URL input", () => {
+    expect(ytdlpCookieBrowser("")).toBe("firefox");
+    expect(ytdlpCookieBrowser(null)).toBe("firefox");
+  });
+});
+
 // ─── Wiring tests (mocked execSync, tmp state file) ───
 
 describe("yt-dlp wiring", () => {
@@ -216,6 +240,22 @@ describe("yt-dlp wiring", () => {
     expect(res.success).toBe(false);
     expect(res.error).toContain("412");
     expect(readFileSync(process.env.YTDLP_412_STATE_PATH, "utf8")).toContain("bilibili.com");
+  });
+
+  it("#313: downloadYtdlp routes youtube downloads through the chrome cookie store", () => {
+    execSyncMock.mockImplementation(() => {
+      throw new Error("failed");
+    });
+    downloadYtdlp("https://www.youtube.com/watch?v=abc", join(tmp, "yt.mp4"));
+    expect(execSyncMock.mock.calls[0][0]).toContain("--cookies-from-browser chrome");
+  });
+
+  it("#313: downloadYtdlp keeps firefox for bilibili downloads", () => {
+    execSyncMock.mockImplementation(() => {
+      throw new Error("failed");
+    });
+    downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "bili.mp4"));
+    expect(execSyncMock.mock.calls[0][0]).toContain("--cookies-from-browser firefox");
   });
 
   it("downloadYtdlpAdapter (weibo route) also gates and records", () => {

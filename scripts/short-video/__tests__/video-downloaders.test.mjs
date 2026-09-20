@@ -951,6 +951,21 @@ describe("weibo routing (#75 Batch 2)", () => {
     expect(ytCmd).not.toContain("--playlist-items");
   });
 
+  it("#313: youtube routes through the chrome cookie store; firefox elsewhere", () => {
+    const yt = buildYtdlpCommand("https://www.youtube.com/watch?v=abc", {
+      tmpPath: "/tmp/v.mp4",
+    });
+    expect(yt).toContain("--cookies-from-browser chrome");
+
+    const bili = buildYtdlpCommand("https://www.bilibili.com/video/BV1E7wtzaEdq", {
+      tmpPath: "/tmp/v.mp4",
+    });
+    expect(bili).toContain("--cookies-from-browser firefox");
+
+    const weibo = buildYtdlpCommand("https://weibo.com/1/x", { tmpPath: "/tmp/v.mp4" });
+    expect(weibo).toContain("--cookies-from-browser firefox");
+  });
+
   it("weiboCookieNetscape formats a raw cookie header for the weibo domains", () => {
     const content = weiboCookieNetscape("SUB=abc; SUBP=def");
     const lines = content

@@ -33,6 +33,43 @@ import { matchDomain } from "./rate-limiter.mjs";
 export const YTDLP_BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
+/** YouTube hosts for the cookie-source policy (#313) — keep in sync with
+ * YOUTUBE_HOSTS in video-downloaders.mjs (importing it from there would
+ * create a cycle: video-downloaders imports this module). */
+const YOUTUBE_COOKIE_HOSTS = ["youtube.com", "youtu.be", "m.youtube.com"];
+
+/**
+ * Per-platform cookie source for yt-dlp downloads (#313).
+ *
+ * youtube → "chrome": the machine's YouTube login state lives in Chrome's
+ * cookie store (SID/SAPISID/HSID/SSID/APISID on .google.com plus
+ * __Secure-3PSID on .youtube.com — read-only probe 2026-09-20); firefox has
+ * none, and probe 4 (#309 §F.4) hit YouTube's "Sign in to confirm you're not
+ * a bot" wall on every download. The chrome channel is proven on this host
+ * (weibo retest 2026-09-17 with silent Keychain authorization; youtube live
+ * download 2026-09-20 — no bot-check, valid mp4).
+ *
+ * Everything else keeps "firefox": the pipeline default has no Keychain
+ * dependency and minimal credential exposure (bilibili firefox is enough,
+ * #309 §F.4; weibo routes its own cookie file via WEIBO_COOKIE). Search
+ * pseudo-URLs (ytsearch10:…) also stay firefox — search metadata has not
+ * been bot-checked (#309 probe 4) and the working path gains no Keychain
+ * dependency.
+ *
+ * @param {string} url - download target URL (or search pseudo-URL)
+ * @returns {"chrome"|"firefox"} browser whose cookie store yt-dlp reads
+ */
+export function ytdlpCookieBrowser(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return YOUTUBE_COOKIE_HOSTS.some((h) => host === h || host.endsWith("." + h))
+      ? "chrome"
+      : "firefox";
+  } catch {
+    return "firefox";
+  }
+}
+
 const STATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "output");
 
 /** Default persistent state file (gitignored output dir — survives sessions). */

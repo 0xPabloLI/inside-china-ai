@@ -72,6 +72,7 @@ import { downloadCandidate } from "./download-candidate.mjs";
 import { RateLimitedSkipError } from "./cdp-client.mjs";
 import {
   YTDLP_BROWSER_UA,
+  ytdlpCookieBrowser,
   ytdlpDomain,
   ytdlpGate,
   ytdlpRecord412,
@@ -1792,7 +1793,9 @@ export function downloadYtdlp(url, destPath) {
 
   const cmd = [
     "yt-dlp",
-    "--cookies-from-browser firefox",
+    // #313: youtube reads the Chrome cookie store (the YouTube login state);
+    // every other platform keeps the firefox default.
+    `--cookies-from-browser ${ytdlpCookieBrowser(url)}`,
     `--user-agent "${YTDLP_BROWSER_UA}"`,
     '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
     "--max-filesize 20M",
