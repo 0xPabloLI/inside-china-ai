@@ -14,6 +14,11 @@ export default tseslint.config(
       // Reference material mirrors (third-party code + skill docs) — not ours.
       "docs/refs/**",
       "docs/handoff-*/**",
+      // Research mirrors of third-party repos (#302): vendored Python
+      // site-packages ship bundled minified JS (e.g. litellm's Next.js build
+      // output) — linting these stalls the full-repo run (2026-09-20).
+      "docs/research/MoneyPrinterTurbo/**",
+      "docs/research/**/.venv/**",
       // Agent skill installs (mirrored skill trees, not repo content).
       ".agents/**",
       "agent/**",
