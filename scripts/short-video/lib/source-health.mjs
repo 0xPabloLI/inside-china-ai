@@ -340,8 +340,10 @@ export function clearQuarantine(log, name) {
  *
  * The pool may serve several sources in one run; folding each call's entries
  * straight into updateSourceHealth would double-count the zero-streak within
- * the run. A delivery in any call wins (count = max, zeroReason dropped);
- * otherwise the first-seen zeroReason is kept. Output feeds directly into
+ * the run. The first entry seen for a name sets the record's shape (count and
+ * zeroReason if present); each later entry only raises count — a delivery in
+ * any call wins (count = max, zeroReason dropped), and a later zero never
+ * backfills a zeroReason onto a delivery. Output feeds directly into
  * updateSourceHealth.
  *
  * @param {Array<{name: string, count: number, zeroReason?: string}>} entries

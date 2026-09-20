@@ -415,39 +415,36 @@ async function searchPoolParallel(keyword, engines, timeoutMs, news = null) {
  * colliding (#305 B). Delivery (serial winner / parallel contributors) is
  * count = delivered articles; every failed attempt (HTTP error, timeout,
  * parse-drop, "0 results", missing key) is a zero entry carrying the attempt
- * error as zeroReason. Accepts a single result or an array of them.
+ * error as zeroReason.
  *
  * News-skip attempts are by-design fail-closed exits (#309), not engine
  * faults — they carry no health information and never enter the ledger.
  * Parallel contributors can't be split post-merge — each records the merged
- * count; the ledger only distinguishes delivered (>0) from zero. A delivery
- * in a later call of the same run beats an earlier zero (review the fold in
- * source-health.mjs mergeRunEntries).
+ * count; the ledger only distinguishes delivered (>0) from zero. Multiple
+ * pool calls in one run are merged one ledger level up (see
+ * mergeRunEntries in source-health.mjs).
  *
- * @param {Object|Array<Object>} results - poolResult(s) from searchPool
+ * @param {Object} result - poolResult from searchPool
  * @returns {Array<{name: string, count: number, zeroReason?: string}>}
  */
-export function poolHealthEntries(results) {
-  const list = Array.isArray(results) ? results : [results];
+export function poolHealthEntries(result) {
   const entries = new Map();
-  for (const result of list) {
-    for (const attempt of result?.attempts ?? []) {
-      if (attempt.error === NEWS_SKIP_REASON) continue;
-      if (!entries.has(attempt.engine)) {
-        entries.set(attempt.engine, {
-          name: `pool:${attempt.engine}`,
-          count: 0,
-          ...(attempt.error ? { zeroReason: attempt.error } : {}),
-        });
-      }
+  for (const attempt of result?.attempts ?? []) {
+    if (attempt.error === NEWS_SKIP_REASON) continue;
+    if (!entries.has(attempt.engine)) {
+      entries.set(attempt.engine, {
+        name: `pool:${attempt.engine}`,
+        count: 0,
+        ...(attempt.error ? { zeroReason: attempt.error } : {}),
+      });
     }
-    if (!result?.engine) continue;
-    for (const name of String(result.engine).split("+")) {
-      const entry = entries.get(name) ?? { name: `pool:${name}`, count: 0 };
-      entry.count = Math.max(entry.count ?? 0, (result.articles ?? []).length);
-      delete entry.zeroReason;
-      entries.set(name, entry);
-    }
+  }
+  if (!result?.engine) return [...entries.values()];
+  for (const name of String(result.engine).split("+")) {
+    const entry = entries.get(name) ?? { name: `pool:${name}`, count: 0 };
+    entry.count = Math.max(entry.count ?? 0, (result.articles ?? []).length);
+    delete entry.zeroReason;
+    entries.set(name, entry);
   }
   return [...entries.values()];
 }
