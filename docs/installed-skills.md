@@ -24,7 +24,7 @@ These live in `skills/` at the repo root. Symlinks in `.cursor/skills/` and
 | `web-access`           | Chrome CDP proxy for web content retrieval (search, page loading, anti-bot) | web-deep-research Phase 3 dependency          |
 | `brand-system`         | Brand consistency enforcement for generated visual content                  | `short-video-pipeline` skill                  |
 | `short-video-pipeline` | Video production pipeline orchestration                                     | AGENTS.md "Content and Video"                 |
-| `search-pool`          | 3-route search dispatch: pool CLI / SearXNG / web-access CDP (#265)         | Agent search routing; `docs/tools-catalog.md` |
+| `search-pool`          | Search Pool CLI (Serper > Brave > Tavily > Jina fallback) + curl SearXNG usage (#265); search ladder single source lives in web-access tool table (#284) | Agent search tools; `docs/tools-catalog.md` |
 | `open-code-review`     | OCR CLI 代码审查：B 模式（Delegation）日常 PR + A 模式（本地 Ollama）核心 PR | 代码审查请求；补充 code-review skill 的行级定位 |
 
 ## Matt Pocock Skills

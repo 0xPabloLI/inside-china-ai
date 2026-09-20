@@ -1,31 +1,24 @@
 ---
 name: search-pool
 description: |
-  三路搜索分流决策树：Search Pool CLI（多引擎 fallback REST 搜索）、curl SearXNG（本地聚合、无额度）、web-access CDP（登录态/反爬站点）。
-  触发场景：agent 需要搜索主流新闻/论文/深度技术信息（Search Pool CLI）、广度探索聚合结果（SearXNG）、或抓取微信公众号/知乎/微博等需要登录态或反反爬的内容（web-access CDP）。
+  Search Pool CLI（多引擎 fallback REST 搜索：Serper > Brave > Tavily > Jina）与 curl SearXNG（本地聚合、无额度广度扫描）的使用说明。
+  触发场景：agent 需要搜索主流新闻/论文/深度技术信息（Search Pool CLI），或做无额度顾虑的多引擎聚合扫描（SearXNG）。
+  登录态/反爬站点（微信公众号、知乎、微博、小红书等需要浏览器的内容）不在本 skill 范围——直接用 web-access skill，不经本 skill 中转。
 metadata:
   author: inside-china-ai
-  version: "1.0.0"
+  version: "1.1.0"
   issue: "#265"
 ---
 
 # search-pool Skill
 
-搜索方式按目标分流：先用下表选路，不确定时从 Route A 起步，失败再降级。
-
-## 三路分流决策树
-
-| 目标                                                                | 路由                          |
-| ------------------------------------------------------------------- | ----------------------------- |
-| 主流新闻、论文、深度技术信息，质量优先，需要结构化结果              | **Route A — Search Pool CLI** |
-| 广度探索、多引擎聚合、无额度顾虑的快速扫描                          | **Route B — curl SearXNG**    |
-| 登录态/反爬站点：微信公众号、知乎、微博、小红书等；需要浏览器内交互 | **Route C — web-access CDP**  |
+本 skill 只覆盖两档 REST 搜索：**Route A — Search Pool CLI**（质量优先、消耗付费额度）与 **Route B — curl SearXNG**（零额度广度扫描）。搜索工具的整体降级阶梯（WebSearch → SearXNG → search-pool CLI → 浏览器 CDP）以 web-access skill 的工具选择表为单一来源，本文件不复述路由；两 skill 不互为 fallback（#284）。
 
 判断要点：
 
 - Route A 是 REST API 链（Serper > Brave > Tavily > Jina），结果干净、snippet 截断到 200 字符，消耗付费额度——不要用它做广撒网式扫描。
 - Route B 是自托管 metasearch（localhost:8888），零限额、聚合最多 269 个引擎，约 2s 返回；结果是原始 JSON，相关性质量不如 Route A 的商业引擎。
-- Route C 不走搜索 API——对已知反爬平台直接用浏览器 CDP 访问主站，绕过静态层。加载 `web-access` skill 后按其指引操作。
+- 登录态/反爬站点不是本 skill 的路由分支——web-access skill 的工具表用 CDP 行直接承接，不经本 skill 中转。
 - 平台专有搜索（X/Twitter、arXiv、GitHub 等专源）不在此 skill 范围；见 `docs/tools-catalog.md` 的搜索工具表。
 
 ## Route A — Search Pool CLI
@@ -83,16 +76,6 @@ curl -s 'http://localhost:8888/search?q=<url-encoded-keyword>&format=json'
 运维提示：容器由 colima 托管（Watchtower 24h 自动更新）；若 JSON 返回 403，是 `settings.yml` 的 `search.formats` 被镜像更新回退，需复查配置——详见 `docs/tools-catalog.md` → SearXNG 章节。
 
 适用：关键词发散、竞品/话题面扫描、不需要高质量排序的批量发现。不可用时（容器未启动）降级回 Route A。
-
-## Route C — web-access CDP
-
-登录态或反爬站点（微信公众号文章、知乎、微博、小红书等），静态搜索层拿不到内容时，直接走浏览器 CDP：
-
-1. 加载 `web-access` skill，运行其 `check-deps.mjs` 前置检查。
-2. 对目标平台优先访问主站内搜索/导航（用户浏览器天然携带登录态），而不是先构造外部搜索引擎 query。
-3. 遵循 web-access 的最小交互原则：只读目标数据页、单遍顺序访问、页间拟人间隔。
-
-适用：公开搜索引擎被 robots/反爬挡住、内容只在登录后可见、需要浏览器内翻页或交互的场景。
 
 ## 参考
 

@@ -69,6 +69,8 @@ node ~/.agents/skills/web-access/scripts/check-deps.mjs
 | 需要登录态、交互操作，或需要像人一样在浏览器内自由导航探索                     | **浏览器 CDP**                                                                                                                               |
 | WebSearch 不可用、无额度，或多次搜索仍无质的改进                               | **curl SearXNG**（本地聚合 `localhost:8888`，零费用、引擎表广；再不行落 search-pool CLI——多引擎有额度 API：Serper > Brave > Tavily > Jina，见 `skills/search-pool/SKILL.md`，跨 repo 经 `$INSIDE_CHINA_AI_REPO`） |
 
+**单向阶梯 guard（#284）**：上表是搜索降级阶梯（WebSearch → SearXNG → search-pool CLI）的单一来源，方向单向不回环——search-pool CLI 只是阶梯中的一档，其文档只讲 CLI 用法，不含指回本表的路由（其原 Route C 已拆除）；登录态/反爬站点由上表 CDP 行直接承接，不经 search-pool 中转。两 skill 严禁互相 fallback 形成递归循环。
+
 浏览器 CDP 不要求 URL 已知——可从任意入口出发，通过页面内搜索、点击、跳转等方式找到目标内容。WebSearch、WebFetch、curl 均不处理登录态。
 
 **Jina**（可选预处理层，可与 WebFetch/curl 组合使用，由于其特性可节省 tokens 消耗，请积极在任务合适时组合使用）：第三方网络服务，可将网页转为 Markdown，大幅节省 token 但可能有信息损耗。调用方式为 `r.jina.ai/example.com`（URL 前加前缀，不保留原网址 http 前缀），限 20 RPM。适合文章、博客、文档、PDF 等以正文为核心的页面；对数据面板、商品页等非文章结构页面可能提取到错误区块。
