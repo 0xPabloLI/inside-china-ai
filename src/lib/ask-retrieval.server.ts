@@ -32,7 +32,7 @@ const MAX_PASSAGE_CHARS = 1600;
 const PASSAGE_WINDOW = 1400;
 
 /** Split a question into scoring terms: latin words plus CJK bigrams. */
-export function extractTerms(question: string): string[] {
+function extractTerms(question: string): string[] {
   const lower = question.toLowerCase();
   const terms = new Set<string>();
 

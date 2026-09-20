@@ -6,7 +6,7 @@ import { createPublicClient } from "@/integrations/supabase/public-client";
 const STORAGE_BUCKET = "post-attachments";
 
 /** Build the public URL for a file in the post-attachments bucket. */
-export function attachmentPublicUrl(storagePath: string): string {
+function attachmentPublicUrl(storagePath: string): string {
   const url = process.env.SUPABASE_URL!;
   return `${url}/storage/v1/object/public/${STORAGE_BUCKET}/${storagePath}`;
 }

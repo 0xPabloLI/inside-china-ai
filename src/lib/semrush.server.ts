@@ -7,7 +7,7 @@
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/semrush";
 
-export type SemrushRow = Record<string, string>;
+type SemrushRow = Record<string, string>;
 
 function normalizeRows(payload: unknown): SemrushRow[] {
   const data = (payload as { data?: { columnNames?: string[]; rows?: unknown[] } })?.data;
@@ -29,7 +29,7 @@ function normalizeRows(payload: unknown): SemrushRow[] {
 }
 
 /** Perform a GET against a Semrush resource through the gateway. */
-export async function semrushGet(
+async function semrushGet(
   path: string,
   params: Record<string, string | number>,
 ): Promise<SemrushRow[]> {

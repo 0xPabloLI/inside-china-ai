@@ -1,11 +1,11 @@
 /** The domain whose rankings the keyword dashboard tracks. */
-export const DOMAIN = "chinaai.news";
+const DOMAIN = "chinaai.news";
 
 /** Fallbacks used when the settings row is missing. */
-export const DEFAULT_DROP_THRESHOLD = 3;
-export const DEFAULT_ALERT_ON_LOST_RANKING = true;
+const DEFAULT_DROP_THRESHOLD = 3;
+const DEFAULT_ALERT_ON_LOST_RANKING = true;
 
-export type AlertSettings = {
+type AlertSettings = {
   dropThreshold: number;
   alertOnLostRanking: boolean;
 };
@@ -17,7 +17,7 @@ function isDrop(current: number | null, previous: number | null, settings: Alert
 }
 
 /** Reads the admin-configured alert thresholds (service-role client). */
-export async function loadAlertSettings(): Promise<AlertSettings> {
+async function loadAlertSettings(): Promise<AlertSettings> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("ranking_alert_settings")

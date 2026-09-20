@@ -1,4 +1,4 @@
-export interface PricingModel {
+interface PricingModel {
   name: string;
   input: number;
   output: number;

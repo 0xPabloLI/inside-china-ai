@@ -9,8 +9,8 @@ const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/responses";
 const MODEL = "openai/gpt-6-astra";
 const RUN_ID_HEADER = "X-Lovable-AIG-Run-ID";
 
-export const HOURLY_LIMIT = 10;
-export const DAILY_LIMIT = 40;
+const HOURLY_LIMIT = 10;
+const DAILY_LIMIT = 40;
 
 /** Stable, non-reversible visitor key — we never store the raw IP. */
 export async function hashVisitor(request: Request): Promise<string> {
@@ -80,7 +80,7 @@ Rules:
 - Be concise: 120-220 words, plain prose or short bullets, no headings, no preamble.
 - Answer in the language of the question (Chinese question -> Chinese answer).`;
 
-export function buildInput(question: string, sources: RetrievedSource[]): string {
+function buildInput(question: string, sources: RetrievedSource[]): string {
   const context = sources
     .map((s, i) => {
       const date = s.publishedAt ? new Date(s.publishedAt).toISOString().slice(0, 10) : "undated";

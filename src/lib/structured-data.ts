@@ -9,7 +9,7 @@
  */
 
 export const SITE = "https://chinaai.news/";
-export const ORG_ID = `${SITE}#organization`;
+const ORG_ID = `${SITE}#organization`;
 const LOGO = `${SITE}china-ai-news-logo-gpt.png`;
 
 export type JsonLdNode = Record<string, unknown>;
@@ -24,7 +24,7 @@ export function organization(): JsonLdNode {
   };
 }
 
-export const orgRef = () => ({ "@id": ORG_ID });
+const orgRef = () => ({ "@id": ORG_ID });
 
 export function articleJsonLd(opts: {
   headline: string;

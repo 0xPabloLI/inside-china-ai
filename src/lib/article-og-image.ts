@@ -9,7 +9,7 @@ const XML_ENTITIES: Record<string, string> = {
   "'": "&apos;",
 };
 
-export function escapeSvg(value: string): string {
+function escapeSvg(value: string): string {
   return value.replace(/[&<>"']/g, (character) => XML_ENTITIES[character] ?? character);
 }
 
@@ -23,7 +23,7 @@ function estimatedWidth(value: string): number {
   }, 0);
 }
 
-export function wrapArticleTitle(title: string): { lines: string[]; fontSize: number } {
+function wrapArticleTitle(title: string): { lines: string[]; fontSize: number } {
   const normalized = title.replace(/\s+/g, " ").trim();
   const words = normalized.split(" ").filter(Boolean);
   const configurations = [
@@ -57,7 +57,7 @@ export function wrapArticleTitle(title: string): { lines: string[]; fontSize: nu
   return { lines: visible, fontSize: 48 };
 }
 
-export function formatArticleDate(value: string | null): string {
+function formatArticleDate(value: string | null): string {
   if (!value) return "CHINA AI NEWS";
   return new Date(value).toLocaleDateString("en-US", {
     month: "long",

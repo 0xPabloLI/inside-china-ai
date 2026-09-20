@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-admin";
 
 /** A position drop of this many places (or losing the ranking) raises an alert. */
-export const DROP_THRESHOLD = 3;
+const DROP_THRESHOLD = 3;
 
 export type KeywordRow = {
   id: string;

@@ -1,4 +1,4 @@
-export type FundingStatus = "completed" | "target" | "denied" | "product";
+type FundingStatus = "completed" | "target" | "denied" | "product";
 
 export interface FundingEvent {
   date: string;

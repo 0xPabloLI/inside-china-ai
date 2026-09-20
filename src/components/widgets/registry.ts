@@ -2,7 +2,7 @@ import { lazy, type LazyExoticComponent, type ComponentType } from "react";
 
 // Widgets render English-only (content pipeline rule — the EN/中文 toggle
 // was removed). Components take no props.
-export type WidgetComponent = ComponentType;
+type WidgetComponent = ComponentType;
 export type LazyWidget = LazyExoticComponent<WidgetComponent>;
 
 /**
@@ -24,7 +24,7 @@ export type LazyWidget = LazyExoticComponent<WidgetComponent>;
  * Typically: two-column layouts, wide matrices, or complex chart panels
  * that look cramped at 65ch.
  */
-export const BREAKOUT_WIDGETS = new Set<string>([
+const BREAKOUT_WIDGETS = new Set<string>([
   "deepseek-funding", // donut chart + investor legend side-by-side
 ]);
 
@@ -117,10 +117,6 @@ export function getWidgetNames(): string[] {
   return Object.keys(WIDGETS);
 }
 
-/** Look up a widget by ID. Returns null if not found. */
-export function getWidget(id: string): LazyWidget | null {
-  return WIDGETS[id] ?? null;
-}
 
 /** Check if a widget name is registered. */
 export function isRegisteredWidget(name: string): boolean {

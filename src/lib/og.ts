@@ -8,7 +8,7 @@ const abs = (url: string) => (/^https?:\/\//.test(url) ? url : `${SITE_URL}${url
 
 /** Branded social preview images (1200x630). OG_DEFAULT is the fallback. */
 export const OG_DEFAULT = abs(ogDefault.url);
-export const OG_COMPARE = abs(ogCompare.url);
+const OG_COMPARE = abs(ogCompare.url);
 export const OG_TIKTOK = abs(ogTiktok.url);
 
 export function articleOgImageUrl(slug: string, updatedAt?: string | null): string {

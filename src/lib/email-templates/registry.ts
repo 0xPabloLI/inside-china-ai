@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import { template as newsletterTemplate } from "./newsletter-template";
 import { template as rankingAlertTemplate } from "./ranking-alert";
 
-export type TemplateData = Record<string, unknown>;
+type TemplateData = Record<string, unknown>;
 
 export interface TemplateEntry {
   component: ComponentType<TemplateData>;

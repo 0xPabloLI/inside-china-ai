@@ -3,7 +3,7 @@ export interface CompanyGroup {
   name: string;
 }
 
-export interface Quote {
+interface Quote {
   page: number;
   tone: string;
   toneClass: string;
