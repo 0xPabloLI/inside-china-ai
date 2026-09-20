@@ -82,7 +82,7 @@ The tracker is the session's external memory: a fresh session must be able to re
 
 Completion criterion: close the terminal and imagine a colleague opens a fresh one — if they would need to ask you anything the tracker already could have answered, the offload is incomplete.
 
-That marker is machine-checked: `.github/workflows/issue-tracker-signals.yml` posts a reminder when a non-`wontfix` issue closes with no delivery-record comment, and (#315) the missing case is a ledger, not a one-shot reminder — the closed issue carries `delivery-record-missing`, a later user comment with the marker (or an explicit `无需交付记录` waiver) clears it, a daily recheck escalates once after 3 days, and the backlog is auditable via `gh issue list --label delivery-record-missing --state closed`. The marker is the only part of the comment the machine reads — write the record itself for a human.
+That marker is machine-checked: `.github/workflows/issue-tracker-signals.yml` posts a reminder when a non-`wontfix` issue closes with no delivery-record comment, and (#315) the missing case is a ledger, not a one-shot reminder — the closed issue carries `delivery-record-missing`, a later user comment with the marker (or an explicit `无需交付记录` waiver) clears it, a daily recheck escalates once after 3 days, and the backlog is auditable via `gh issue list --label delivery-record-missing --state closed` (grandfathered: only issues closed on/after 2026-09-19, the gate's CI rollout date, participate). The marker is the only part of the comment the machine reads — write the record itself for a human.
 
 ## Roadmap & execution order
 

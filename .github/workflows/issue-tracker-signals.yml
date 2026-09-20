@@ -242,6 +242,9 @@ jobs:
             const LEDGER = 'delivery-record-missing';
             const ESCALATION = '<!-- delivery-record-escalation -->';
             const STALE_DAYS = 3;
+            // 祖父化（用户裁决 2026-09-20）：cutoff = 门禁 CI 化 + 存量补登日。
+            // 161 张约定前的旧闭票（dry-run 35511083073 实测）永不入账本、永不催办。
+            const LEDGER_CUTOFF = Date.parse('2026-09-19T00:00:00Z');
 
             // 只扫账本内的票（服务端过滤），不重扫全量闭票
             const labeled = await github.paginate(github.rest.issues.listForRepo, {
@@ -256,6 +259,21 @@ jobs:
             let escalated = 0;
             let pending = 0;
             for (const issue of labeled) {
+              // 祖父化：cutoff 前闭票豁免账本 —— 不应有标签，有则静默摘除，绝不催办
+              if (new Date(issue.closed_at).getTime() < LEDGER_CUTOFF) {
+                await github.rest.issues
+                  .removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    name: LEDGER,
+                  })
+                  .catch((err) => {
+                    if (err.status !== 404) throw err;
+                  });
+                cleared += 1;
+                continue;
+              }
               const comments = await github.paginate(github.rest.issues.listComments, {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -339,6 +357,8 @@ jobs:
             // 与 strip-closed-labels 同一套 apply 门控：默认 dry-run 只打印清单
             const apply = String(context.payload.inputs?.apply) === 'true';
             const LEDGER = 'delivery-record-missing';
+            // 祖父化（用户裁决 2026-09-20）：cutoff 前闭票不进账本（161 张历史票实测）
+            const LEDGER_CUTOFF = Date.parse('2026-09-19T00:00:00Z');
             const marker = /交付记录|Delivery record/i;
 
             const issues = await github.paginate(github.rest.issues.listForRepo, {
@@ -359,6 +379,8 @@ jobs:
                 issue.state_reason === 'not_planned' ||
                 issue.labels.some((l) => l.name === 'wontfix');
               if (rejected) continue;
+              // 祖父化：cutoff（2026-09-19 门禁 CI 化 + 存量补登日）前闭票不进账本
+              if (new Date(issue.closed_at).getTime() < LEDGER_CUTOFF) continue;
               const hasLedgerLabel = (issue.labels || []).some(
                 (l) => (typeof l === 'string' ? l : l.name) === LEDGER,
               );

@@ -176,4 +176,14 @@ describe("#315 delivery-record gate (workflow contract)", () => {
     }
     expect(compiled).toBeGreaterThanOrEqual(6);
   });
+
+  it("grandfather cutoff: closures before 2026-09-19 are exempt from the ledger", () => {
+    // 161 pre-convention closures (sweep dry-run 35511083073) must never be
+    // labeled or escalated — the ledger only governs post-cutoff closures.
+    for (const id of ["delivery-record-recheck", "sweep-delivery-records"]) {
+      const body = jobs[id];
+      expect(body).toContain("LEDGER_CUTOFF = Date.parse('2026-09-19T00:00:00Z')");
+      expect(body).toContain(".getTime() < LEDGER_CUTOFF");
+    }
+  });
 });
