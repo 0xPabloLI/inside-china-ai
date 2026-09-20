@@ -362,4 +362,4 @@ export async function listAttachments(postId, accessToken, supabaseUrl, supabase
   return data ?? [];
 }
 
-export { MAX_FILE_SIZE, STORAGE_BUCKET };
+export { MAX_FILE_SIZE };

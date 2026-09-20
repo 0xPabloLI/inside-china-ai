@@ -1,8 +1,20 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "include": ["files", "dependencies", "devDependencies", "unlisted", "binaries", "unresolved"],
+  "include": [
+    "files",
+    "dependencies",
+    "devDependencies",
+    "unlisted",
+    "binaries",
+    "unresolved",
+    "exports",
+    "types"
+  ],
   "ignore": [
-    "scripts/short-video/experiments/**"
+    "scripts/short-video/experiments/**",
+    "scripts/short-video/lib/**",
+    "src/integrations/supabase/types.ts",
+    "src/lib/email-templates/**"
   ],
   "ignoreDependencies": [
     "@lovable.dev/vite-tanstack-config",
