@@ -16,29 +16,22 @@ const workflowText = readFileSync(
   new URL(".github/workflows/issue-tracker-signals.yml", repoRoot),
   "utf8",
 );
-const labelsDocText = readFileSync(
-  new URL("docs/agents/triage-labels.md", repoRoot),
-  "utf8",
-);
+const labelsDocText = readFileSync(new URL("docs/agents/triage-labels.md", repoRoot), "utf8");
 
 /** Labels in the workflow's STRIP set (the `new Set([...])` literal). */
 function workflowStripSet() {
   const m = workflowText.match(/const STRIP = new Set\(\[([^\]]*)\]\)/);
   if (!m) throw new Error("STRIP set not found in issue-tracker-signals.yml");
-  return new Set(
-    [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]),
-  );
+  return new Set([...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]));
 }
 
-/** Backticked label names under a `## Section` heading of triage-labels.md. */
+/** Label names (first column of table rows) under a `## Section` heading of triage-labels.md. */
 function docSectionLabels(heading) {
-  const section = labelsDocText.match(
-    new RegExp(`## ${heading}[\\s\\S]*?(?=\\n## |$)`),
-  );
+  const section = labelsDocText.match(new RegExp(`## ${heading}[\\s\\S]*?(?=\\n## |$)`));
   if (!section) throw new Error(`section "${heading}" not found in triage-labels.md`);
-  return new Set(
-    [...section[0].matchAll(/`([a-z0-9: -]+)`/gi)].map((x) => x[1]),
-  );
+  // First table column only — the Meaning column carries prose backticks
+  // (commands, marker words) that must not read as label names.
+  return new Set([...section[0].matchAll(/^\| `([^`]+)`/gm)].map((x) => x[1]));
 }
 
 /** The workflow's priority matcher, as written (`/^P[0-3]$/`). */
@@ -51,7 +44,10 @@ function workflowPriorityRegex() {
 describe("#321 closed-label deny-list sync (workflow ↔ triage-labels.md)", () => {
   // wontfix lives in the State Labels table but is deliberately KEPT on
   // closed issues — it answers "why closed", which is semantics, not state.
-  const KEEP_ON_CLOSE = new Set(["wontfix"]);
+  // delivery-record-missing (#315) is ADDED after close by check-delivery-record
+  // and must survive the strip — it is the missing-record ledger, cleared when
+  // the record lands (behavioral contract: delivery-record-guard.test.mjs).
+  const KEEP_ON_CLOSE = new Set(["wontfix", "delivery-record-missing"]);
 
   it("STRIP set == (state ∪ signal labels) − keep-on-close", () => {
     const expected = new Set([

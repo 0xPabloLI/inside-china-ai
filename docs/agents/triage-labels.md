@@ -37,6 +37,7 @@ human and agent work.
 | Label             | Meaning                                                                                                                                                                 |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `comments-unread` | Auto-set by CI whenever a comment lands on an **open** issue; cleared by whichever session incorporates the new state. Not a triage state — exempt from the rule below. |
+| `delivery-record-missing` | Auto-set by CI on **close** when no user comment carries the `交付记录` / `Delivery record` marker (#315). Self-clearing: a later user comment with the marker — or an explicit waiver (`无需交付记录`) — removes it (event or daily recheck). The missing-record ledger: `gh issue list --label delivery-record-missing --state closed`. |
 
 ## Triage Flow
 
@@ -57,3 +58,4 @@ needs-info + reporter replies → needs-triage
 - `ready-for-agent` requires: (1) fully specified with acceptance criteria, (2) correct priority, (3) actionable by an agent without further human input.
 - `wontfix` issues should be closed with an explanation comment.
 - Closing an issue removes all state labels, priority labels (`P0`–`P3`), and signal labels (`comments-unread`), leaving only its category label (see `issue-tracker.md`). Priority labels apply strictly to open backlog issues to guide pick-up order.
+- `delivery-record-missing` is applied **after** close by CI (#315) and is the one signal label that persists on closed tickets — the missing-record ledger, not triage state; it survives the closing label sweep by design. Backfill the delivery record anytime.

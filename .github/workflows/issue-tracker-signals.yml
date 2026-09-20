@@ -1,13 +1,16 @@
 name: Issue tracker signals
 
-# 两条机器兜底，替代「靠自觉」：
+# 四条机器兜底，替代「靠自觉」：
 #   1. open 票收到任何新评论 → 自动打 comments-unread
 #      （信号出现在 `gh issue list` 的输出里 —— agent triage 时本来就会跑这条命令，
 #       零额外调用、零额外自觉；读完并把状态落进 roadmap 后由该 session 摘掉）
-#   2. 关票 → 校验存在交付记录评论；缺失则在原票留言提示，不改状态
+#   2. 关票 → 校验存在交付记录评论；缺失则在原票留言提示并打 delivery-record-missing
+#      （#315 账本：label 是可查询的持久状态，不再是一次性提醒）
 #   3. 关票 → 剥掉 state / priority / signal 三类标签（deny-list），只留 category 与语义标签
 #      —— 第 1 条是「发记录评论 → CI 打 comments-unread → 闭票」的必经链，
 #         纯靠约定的清理规则在这里**机制性不可执行**，必须机器兜底
+#   4. #315 交付记录账本闭环：补记录评论落地即摘标（事件驱动）+ 日 cron 兜底复检
+#      与逾期催办 + 存量回填（workflow_dispatch + sweep_delivery）
 #
 # 规则出处：docs/agents/issue-tracker.md（Conventions 的 read-before-claim + Session cognitive offload）
 # 标签定义：docs/agents/triage-labels.md（Signal Labels，由 CI 管理，不计入 triage 的 category/state 约定）
@@ -33,11 +36,19 @@ on:
         type: boolean
         default: false
       apply:
-        description: "配合 sweep_closed：勾上才真的删标签，不勾只打印清单（dry-run）"
+        description: "配合 sweep_closed / sweep_delivery：勾上才真的写标签，不勾只打印清单（dry-run）"
         type: boolean
         default: false
       triage_stale:
         description: "扫 needs-triage 超 3 天的 open 票并留言提醒分流（schedule 常态自动跑；这里用于手工补跑）"
+        type: boolean
+        default: false
+      delivery_recheck:
+        description: "复检交付记录账本 + 逾期催办（schedule 常态自动跑；这里用于手工补跑）"
+        type: boolean
+        default: false
+      sweep_delivery:
+        description: "扫存量已关闭票的「缺交付记录」并打 delivery-record-missing 标（默认关；配合 apply 才写）"
         type: boolean
         default: false
 
@@ -111,12 +122,39 @@ jobs:
               per_page: 100,
             });
 
-            // 交付记录的唯一 home 是评论（正文 write-once），以固定标记开头以便机器校验
+            // 交付记录的唯一 home 是评论（正文 write-once），以固定标记开头以便机器校验。
+            // ⚠️ Bot 评论不算数 —— 本 bot 自己发的缺失告警正文里就含「交付记录缺失」，
+            // 会被 marker 误判成已补登（重开再关的场景：上一次的告警评论还在场）。
+            // 交付记录只会由 session 以真实账号发出。
             const marker = /交付记录|Delivery record/i;
-            if (comments.some((c) => marker.test(c.body || ''))) {
+            const hasRecord = comments.some(
+              (c) => c.user.type !== 'Bot' && marker.test(c.body || ''),
+            );
+            if (hasRecord) {
+              // 重开再关且账本标签还挂着：顺手清掉，避免「有记录却带缺失标」的脏状态
+              await github.rest.issues
+                .removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  name: 'delivery-record-missing',
+                })
+                .catch((err) => {
+                  if (err.status !== 404) throw err;
+                });
               core.info(`delivery record found on #${issue.number} (${comments.length} comments)`);
               return;
             }
+
+            // #315：缺失进账本 —— label 是可查询的持久状态
+            // （gh issue list --label delivery-record-missing --state closed），
+            // 不再是一次性留言；摘除与催办见下面两个 job。
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              labels: ['delivery-record-missing'],
+            });
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
@@ -128,9 +166,240 @@ jobs:
                 '按 `docs/agents/issue-tracker.md` 的 Session cognitive offload：per-issue 交付记录的**唯一 home 是评论**（正文是 write-once，不改）。',
                 '',
                 '请补一条**自包含**的交付记录评论——commit sha、验证证据（测试 / live evidence）、发现的机制、遗留项；标准是「没见过这个 session 的读者仅凭该评论就能恢复或审计这项工作」。',
+                '',
+                '补登后 `delivery-record-missing` 自动摘除；缺失超 3 天未补，日检会催办一次。',
               ].join('\n'),
             });
-            core.info(`delivery record missing on #${issue.number} — reminder posted`);
+            core.info(`delivery record missing on #${issue.number} — reminder posted + ledger label set`);
+
+  # #315：交付记录补登 → 立即摘账本标签（事件驱动，不等 cron）。
+  # #252 的场景：记录在闭票同一分钟落地，旧门禁不复检、告警永不消。
+  clear-delivery-record:
+    name: Clear delivery-record-missing when a record lands
+    if: github.event_name == 'issue_comment' && github.event.action == 'created'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = context.payload.comment;
+
+            // 回读当前 state（与 mark-unread 同因：payload 是评论创建那一刻的快照）
+            const { data: current } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            // 账本标签只存在于 closed 票；open 票归 mark-unread 管
+            if (current.state !== 'closed') return;
+            // Bot 评论不算数：缺失告警与催办都是 bot 发的
+            if (comment.user.type === 'Bot') return;
+
+            const hasLedgerLabel = current.labels.some(
+              (l) => (typeof l === 'string' ? l : l.name) === 'delivery-record-missing',
+            );
+            if (!hasLedgerLabel) return;
+
+            const marker = /交付记录|Delivery record/i;
+            const WAIVER = /无需交付记录|delivery-record-waived/i;
+            // 豁免先判 —— 「无需交付记录」子串含「交付记录」，marker 先判会把豁免走成补登确认
+            const isWaiver = WAIVER.test(comment.body || '');
+            const isRecord = !isWaiver && marker.test(comment.body || '');
+            if (!isRecord && !isWaiver) return;
+
+            await github.rest.issues
+              .removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: current.number,
+                name: 'delivery-record-missing',
+              })
+              .catch((err) => {
+                // 404 = 已被并发动作（如日 cron 复检）摘掉，不算失败
+                if (err.status !== 404) throw err;
+              });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: current.number,
+              body: isWaiver
+                ? '✅ 交付记录已豁免，摘除 `delivery-record-missing`。'
+                : '✅ 交付记录已补登，摘除 `delivery-record-missing`（#315 账本闭环）。',
+            });
+            core.info(`#${current.number} delivery-record-missing cleared by user comment`);
+
+  # #315：日 cron 复检账本 —— 兜底 comment 事件的竞态/漏网 + 逾期催办一次。
+  delivery-record-recheck:
+    name: Recheck delivery-record ledger
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.delivery_recheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const LEDGER = 'delivery-record-missing';
+            const ESCALATION = '<!-- delivery-record-escalation -->';
+            const STALE_DAYS = 3;
+
+            // 只扫账本内的票（服务端过滤），不重扫全量闭票
+            const labeled = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              labels: LEDGER,
+              per_page: 100,
+            });
+
+            let cleared = 0;
+            let escalated = 0;
+            let pending = 0;
+            for (const issue of labeled) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                per_page: 100,
+              });
+              // Bot 评论不算数 —— 告警与催办评论都含「交付记录」字样，会假阳性
+              const marker = /交付记录|Delivery record/i;
+              const hasRecord = comments.some(
+                (c) => c.user.type !== 'Bot' && marker.test(c.body || ''),
+              );
+              // 显式豁免先判（#315 review 补的转移）：用户确认无需交付记录即清账；
+              // 「无需交付记录」子串含「交付记录」，marker 先判会吞掉豁免分支
+              const WAIVER = /无需交付记录|delivery-record-waived/i;
+              const hasWaiver = comments.some(
+                (c) => c.user.type !== 'Bot' && WAIVER.test(c.body || ''),
+              );
+              const hasRecord =
+                !hasWaiver &&
+                comments.some((c) => c.user.type !== 'Bot' && marker.test(c.body || ''));
+
+              // 拒绝项没有交付记录可言 —— 摘掉误挂的账本标签即可
+              const rejected =
+                issue.state_reason === 'not_planned' ||
+                issue.labels.some((l) => l.name === 'wontfix');
+              if (rejected || hasRecord || hasWaiver) {
+                await github.rest.issues
+                  .removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    name: LEDGER,
+                  })
+                  .catch((err) => {
+                    if (err.status !== 404) throw err;
+                  });
+                cleared += 1;
+                continue;
+              }
+
+              pending += 1;
+              const closedForDays =
+                (Date.now() - new Date(issue.closed_at).getTime()) / 86_400_000;
+              if (closedForDays < STALE_DAYS) continue;
+              // 幂等催办：补登之前一张票只 @ 一次（marker 查重）
+              if (comments.some((c) => c.body && c.body.includes(ESCALATION))) continue;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: [
+                  ESCALATION,
+                  `🏳️ 这张票已关闭超过 ${STALE_DAYS} 天，仍没有带 \`交付记录\` / \`Delivery record\` 标记的评论。`,
+                  '',
+                  `@${context.repo.owner} 请补登交付记录（commit / 证据 / 遗留项）；确认无需交付记录（如拒绝项）时，回复包含 \`无需交付记录\` 的评论即可清账。`,
+                  '账本查询：`gh issue list --label delivery-record-missing --state closed`。',
+                ].join('\n'),
+              });
+              escalated += 1;
+              core.info(`#${issue.number} escalation posted (closed ${Math.floor(closedForDays)}d, still missing)`);
+            }
+
+            core.info(
+              [
+                `mode=delivery-record-recheck`,
+                `ledger_size=${labeled.length}`,
+                `cleared=${cleared}`,
+                `pending=${pending}`,
+                `escalated_now=${escalated}`,
+              ].join(' '),
+            );
+
+  # #315：存量回填 —— 给全部已闭票中「缺交付记录」的打账本标签。
+  # 只打标不留言：催办统一交给日 cron（回填当天不轰炸）。
+  sweep-delivery-records:
+    name: Sweep closed issues missing delivery records
+    if: github.event_name == 'workflow_dispatch' && inputs.sweep_delivery
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            // 与 strip-closed-labels 同一套 apply 门控：默认 dry-run 只打印清单
+            const apply = String(context.payload.inputs?.apply) === 'true';
+            const LEDGER = 'delivery-record-missing';
+            const marker = /交付记录|Delivery record/i;
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              per_page: 100,
+            });
+
+            let inspected = 0;
+            let missing = 0;
+            let labeledNow = 0;
+            for (const issue of issues) {
+              if (issue.pull_request) continue; // issue 端点会把 PR 一起返回
+              inspected += 1;
+              // 拒绝项没有交付记录可言
+              const rejected =
+                issue.state_reason === 'not_planned' ||
+                issue.labels.some((l) => l.name === 'wontfix');
+              if (rejected) continue;
+              const hasLedgerLabel = (issue.labels || []).some(
+                (l) => (typeof l === 'string' ? l : l.name) === LEDGER,
+              );
+              if (hasLedgerLabel) continue;
+
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                per_page: 100,
+              });
+              // 旧 era 的 bot 告警评论含「交付记录」字样 —— 排除 Bot，否则漏挂账本
+              if (comments.some((c) => c.user.type !== 'Bot' && marker.test(c.body || ''))) continue;
+
+              missing += 1;
+              core.info(`#${issue.number} missing delivery record${apply ? ' -> labeling' : ' (dry-run)'}`);
+              if (!apply) continue;
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: [LEDGER],
+              });
+              labeledNow += 1;
+            }
+
+            core.info(
+              [
+                `mode=sweep-delivery-records`,
+                `apply=${apply}`,
+                `inspected=${inspected}`,
+                `missing=${missing}`,
+                `labeled_now=${labeledNow}`,
+              ].join(' '),
+            );
+            if (!apply && missing > 0) {
+              core.info('dry-run — no labels written. Re-run with apply=true to label the backlog.');
+            }
 
   # 机器兜底替代「靠自觉」的清理规则。
   # 两种触发：
