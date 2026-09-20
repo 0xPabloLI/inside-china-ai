@@ -69,7 +69,7 @@ node ~/.agents/skills/web-access/scripts/check-deps.mjs
 | 需要登录态、交互操作，或需要像人一样在浏览器内自由导航探索                     | **浏览器 CDP**                                                                                                                               |
 | WebSearch 不可用、无额度，或多次搜索仍无质的改进                               | **curl SearXNG**（本地聚合 `localhost:8888`，零费用、引擎表广；再不行落 search-pool CLI——多引擎有额度 API：Serper > Brave > Tavily > Jina，见 `skills/search-pool/SKILL.md`，跨 repo 经 `$INSIDE_CHINA_AI_REPO`） |
 
-**单向阶梯 guard（#284）**：上表是搜索降级阶梯（WebSearch → SearXNG → search-pool CLI）的单一来源，方向单向不回环——search-pool CLI 只是阶梯中的一档，其文档只讲 CLI 用法，不含指回本表的路由（其原 Route C 已拆除）；登录态/反爬站点由上表 CDP 行直接承接，不经 search-pool 中转。两 skill 严禁互相 fallback 形成递归循环。
+**单向阶梯 guard（#284）**：上表是搜索降级阶梯的单一来源，方向单向不回环——search-pool CLI 只是其中一档，其文档只讲 CLI 用法，路由以本表为准；登录态/反爬站点由上表 CDP 行直接承接。两 skill 严禁互相 fallback 形成递归循环。
 
 浏览器 CDP 不要求 URL 已知——可从任意入口出发，通过页面内搜索、点击、跳转等方式找到目标内容。WebSearch、WebFetch、curl 均不处理登录态。
 
