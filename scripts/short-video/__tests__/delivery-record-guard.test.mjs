@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { parse } from "yaml";
 
 /**
  * #315 guard: the delivery-record gate must not be a one-shot reminder.
@@ -154,5 +155,25 @@ describe("#315 delivery-record gate (workflow contract)", () => {
     expect(body).toMatch(/state: 'closed'/);
     // Old-era bot warning comments contain the marker words — must be excluded.
     expect(body).toMatch(BOT_GUARD);
+  });
+
+  it("every inline github-script compiles (smoke 35510954855: dup const = SyntaxError text contracts cannot see)", () => {
+    const workflow = parse(workflowText);
+    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+    let compiled = 0;
+    for (const [id, job] of Object.entries(workflow.jobs ?? {})) {
+      for (const step of job.steps ?? []) {
+        if (step.uses?.startsWith("actions/github-script") && step.with?.script) {
+          compiled += 1;
+          // Compile-only: parses the body (catches duplicate declarations,
+          // stray syntax) without executing any API call.
+          expect(
+            () => new AsyncFunction("github", "context", "core", step.with.script),
+            `job ${id}: inline script has a JS syntax error`,
+          ).not.toThrow();
+        }
+      }
+    }
+    expect(compiled).toBeGreaterThanOrEqual(6);
   });
 });

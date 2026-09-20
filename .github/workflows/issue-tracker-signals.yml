@@ -264,9 +264,6 @@ jobs:
               });
               // Bot 评论不算数 —— 告警与催办评论都含「交付记录」字样，会假阳性
               const marker = /交付记录|Delivery record/i;
-              const hasRecord = comments.some(
-                (c) => c.user.type !== 'Bot' && marker.test(c.body || ''),
-              );
               // 显式豁免先判（#315 review 补的转移）：用户确认无需交付记录即清账；
               // 「无需交付记录」子串含「交付记录」，marker 先判会吞掉豁免分支
               const WAIVER = /无需交付记录|delivery-record-waived/i;
