@@ -321,10 +321,14 @@ export async function searchPool(keyword, opts = {}) {
     try {
       result = await engine.search(keyword, apiKey, timeoutMs, news);
     } catch (err) {
+      // "fetch failed" alone is undiagnosable — keep the cause (ECONNRESET,
+      // ENOTFOUND, cert errors) so canary tickets and health zeroReasons
+      // distinguish connectivity loss from drift (#305 C).
+      const cause = err.cause?.code ? ` (${err.cause.code})` : "";
       const reason =
         err.name === "TimeoutError" || err.name === "AbortError"
           ? `${engine.name} timed out after ${timeoutMs}ms`
-          : err.message;
+          : `${err.message}${cause}`;
       attempts.push({ engine: engine.name, ok: false, error: reason });
       continue;
     }

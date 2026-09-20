@@ -357,7 +357,7 @@ review 者请逐条确认后签字。每条均可独立复现（见 §0 方法�
 
 ### E 类（修配置）
 
-- [ ] E-1 `knip.json` include 渐进式加 `exports`/`types`（按 workspace 或加 ignore 排除脚本库）→ 本地确认 0 报警后再入 CI（**未执行**，留待后续）
+- [x] E-1 `knip.json` include 渐进式加 `exports`/`types` — 已按方案 B 实施：include 开启，`scripts/short-video/lib/**`（107 项内部库）、Supabase 生成类型（C-4）、邮件模板 default（A-3~A-8）以 ignore 豁免；顺手去 export 漏网的 `STORAGE_BUCKET`。`npx knip` 零报警（2026-09-20）
 - [x] E-2 清理 knip 提示的 stale ignore 项 — `.tmp-dump-cookies.mjs`、`retired-html-path/**` 已移除；`experiments/**` 因本地 venv 保留暂不动；3 条 ignoreDependencies 与 `.css` hint 属 knip 正常提示，保留（2026-09-20）
 - [x] E-3 knip entry 精确添加 `scripts/short-video/lib/tiktok-csi.mjs`（单点，不用 `lib/*.mjs` 通配符）→ `npx knip` Unused files 报警消失（2026-09-20）
 
@@ -443,7 +443,7 @@ v3 批准后由 Droid session `20260920-deadcode-cleanup-9f3e2a` 按 §10 顺序
 |---|---|---|
 | E-3 | ✅ knip entry 已加，Unused files 报警消失 | `chore(knip)` |
 | A-2 | ✅ `getWidget()` 已删 | `refactor(src)` |
-| E-1 | ⏸ 未执行（渐进式开 exports/types 留待后续） | — |
+| E-1 | ✅ 方案 B 实施：include 开 exports/types + ignore lib/107 项与两类豁免；knip 零报警 | `chore(knip)` |
 | C-3 | ✅ 26 符号去 export，vitest 3988 passed | `refactor(src)` |
 | B-1~B-4 | ✅ 全部执行（B-2 先更新文档指针；B-3 清理 12 处代码 + 4 处配置 + 7 处活跃文档引用） | `chore(scratch)` / `chore(experiments)` / `chore(render)` |
 | E-2 | ✅ 部分清理（`experiments/**` ignore 因本地 venv 保留暂不动） | `chore(knip)` / `chore(render)` |

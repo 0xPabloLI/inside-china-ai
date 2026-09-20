@@ -1,0 +1,40 @@
+name: Pool engine canary
+
+# #305 C —— 机制化抓引擎漂移，替代「靠业务跑批时偶尔发现」：
+# 每天对三个 newsCapable 引擎各发 1 次 must-hit 调用（news 模式 7 天窗），断言
+#   1. 能解析出条目（url/link 词表漂移 → parse-drop）；
+#   2. newsCapable 引擎 publishedAt 覆盖率 100%（日期字段漂移 —— jina
+#      `publishedTime` 那次的教训：文章照常解析、日期静默丢失）。
+# 失败 → 每引擎一张 `[pool-canary] <engine>` 票（标题去重：重失败追加评论，
+# 恢复则在 open 票留言），走 bug + needs-triage 正常分流；
+# triage-staleness 守卫（issue-tracker-signals）兜底 3 天无人管会提醒。
+# jina 刻意排除：单次调用 ≈ 5.9 万 token（月免费额度 ~6%，#309 探针），
+# 日烧 17 天见底 —— 它由 B 的 zero streak（交付损失）+ wire fixture（词表）覆盖。
+on:
+  schedule:
+    - cron: "37 22 * * *" # 22:37 UTC = 每日 06:37 北京时间，与 issue-tracker-signals 的 21:17 错峰
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  canary:
+    name: Probe pool engines
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      # 报告是只读的；写路径（开票/评论）由 --update-issues 门控，只在 CI 开。
+      # 本地跑 `node scripts/short-video/pool-canary.mjs` 永不写票。
+      - name: Run pool canary
+        env:
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/short-video/pool-canary.mjs --update-issues
