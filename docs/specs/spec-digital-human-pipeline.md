@@ -33,7 +33,7 @@
 
 1. **契约形态（grill 定案 3）**：`scene.media` 背景语义不动；新增 `scene.avatar = { videoPath, position, scale? }` 独立前景层。`videoPath` 由生成步骤回写；声明态只需 `avatar: {}`（或 `avatar: { intent: true }` 语义占位——tickets 阶段定稿最小 schema）。position 默认 `right-card`（变体 1′）。
 2. **版面（grill 定案 4 / 调研裁决）**：右中竖形卡片 ≈420×550px @1080×1920，右缘 ≥180px（TikTok action rail 死区）、底缘在底部死区（≈400px）与烧录字幕带之上，与字幕带的 gap 在 safe-zones 体系中显式声明；卡片圆角+阴影，z 序在文字层之上、平台 UI 之下（平台 UI 由平台叠加，管线无需处理）。
-3. **模型档（grill 定案 5）**：默认 EchoMimicV3 Flash v51（Kaggle T4，`scripts/kaggle/echomimicv3-test/echomimicv3_inference.py` v25/v51 配置，~14min/3.24s 段）；质量档 SoulX-FlashTalk 14B（Modal A100，$0.20/5.2s 段）仅在用户对包显式授权时启用。GPU 路由遵守 AGENTS.md 硬门槛——MLX/MPS 已有不可用实测记录（LongCat q4 / V-Express），Kaggle 免费 T4 为默认满足门槛。
+3. **模型档（grill 定案 5）**：默认 EchoMimicV3 Flash v51（Kaggle T4，`scripts/kaggle/dh-generate/echomimicv3_unit_kernel.py` v51 配置，~14min/3.24s 段）；质量档 SoulX-FlashTalk 14B（Modal A100，$0.20/5.2s 段）仅在用户对包显式授权时启用。GPU 路由遵守 AGENTS.md 硬门槛——MLX/MPS 已有不可用实测记录（LongCat q4 / V-Express），Kaggle 免费 T4 为默认满足门槛。
 4. **音频驱动（grill 定案 2）**：数字人生成的输入音频 = 该 scene 的 TTS 产物（现有 M4A→WAV 链）；scene 音频超出生成模型单段上限（如 EchoMimicV3 ~3.24s/段）时按既有音频对齐信息静音边界切段，段落拼接由 ffmpeg concat（帧数/时间戳严格顺序）。
 5. **生成编排**：新独立 CLI（计划/批准/执行三态）：`plan` 输出 dry-run 计划文件；`run --plan` 经用户批准后执行——远端任务走 `run-gpu`（Kaggle kernel）+ `remote-task` 状态机（断点恢复沿用 `--resume` 机制）；产物经 `upscaleDigitalHuman()` 超分后回写 `scene.avatar.videoPath`。生成耗时/平台/费用落包内 report。
 6. **主流程接线**：Remotion 渲染前若 `scene.avatar.videoPath` 存在且文件存在 → 拷贝进 `remotion/public/`（同 media 路径改写机制）并启用卡片层；缺失/损坏 → fail-closed 报错（不静默降级为无数字人，因为用户已为该 scene 付费生成）。
