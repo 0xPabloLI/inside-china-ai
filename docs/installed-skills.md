@@ -7,7 +7,7 @@
 
 | Source                                           | Install method                                                   | Git tracked?             | Count |
 | ------------------------------------------------ | ---------------------------------------------------------------- | ------------------------ | ----- |
-| **Repo skills** (`skills/`)                      | Self-written, symlinked to `.cursor/skills/` + `.agents/skills/` | ✅ Yes (repo)            | 5     |
+| **Repo skills** (`skills/`)                      | Self-written, symlinked to `.cursor/skills/` + `.agents/skills/` | ✅ Yes (repo)            | 6     |
 | **Matt Pocock skills**                           | `npx skills add mattpocock/skills`                               | ❌ No (local `.agents/`) | 22    |
 | **last30days** (3rd party)                       | Symlink to `~/last30days-skill/`                                 | ❌ No                    | 1     |
 | **Other 3rd party** (Vercel/Anthropic/community) | Various (`npx skills add` from other repos)                      | ❌ No                    | ~134  |
@@ -25,6 +25,7 @@ These live in `skills/` at the repo root. Symlinks in `.cursor/skills/` and
 | `brand-system`         | Brand consistency enforcement for generated visual content                  | `short-video-pipeline` skill                  |
 | `short-video-pipeline` | Video production pipeline orchestration                                     | AGENTS.md "Content and Video"                 |
 | `search-pool`          | 3-route search dispatch: pool CLI / SearXNG / web-access CDP (#265)         | Agent search routing; `docs/tools-catalog.md` |
+| `open-code-review`     | OCR CLI 代码审查：B 模式（Delegation）日常 PR + A 模式（本地 Ollama）核心 PR | 代码审查请求；补充 code-review skill 的行级定位 |
 
 ## Matt Pocock Skills
 
