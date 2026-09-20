@@ -106,7 +106,7 @@ describe("runBrollStage image strategy (#155)", () => {
       resolveImageDeps: () => ({
         ok: true,
         bin: "/bin/mflux",
-        backend: "mflux-z-image-turbo",
+        backend: "mflux-boogu",
         missing: [],
         message: null,
       }),
@@ -287,7 +287,7 @@ describe("runBrollStage image strategy (#155)", () => {
         resolveImageDeps: () => ({
           ok: false,
           bin: null,
-          backend: "mflux-z-image-turbo",
+          backend: "mflux-boogu",
           missing: ["bin"],
           message: "mflux binary not found; install mflux first",
         }),

@@ -1,5 +1,5 @@
 /**
- * Z-Image Turbo (mflux, MLX) text-to-image runner for the B-roll stage (#155).
+ * Boogu Image Turbo (mflux, MLX) text-to-image runner for the B-roll stage (#155).
  *
  * Implements the same {ok, fatal, results[]} protocol as runner.mjs (the
  * FastVideo video runner) so the orchestrator can dispatch on strategy
@@ -10,21 +10,25 @@
  * per-job { ok: false, error } and decide how to degrade.
  *
  * Backend contract (#155): `negative_prompt` is carried in the job spec and
- * passed to the CLI ONLY when the backend actually encodes it. Z-Image Turbo
- * is guidance-distilled (CFG disabled) — mflux accepts --negative-prompt on
- * this path but warns and never encodes it (the same architectural drop as
- * FLUX schnell/dev, mflux issue #498). The NEGATIVE clauses still ride the
- * composed prompt from prompt-injection.mjs, where they act on CFG-capable
+ * passed to the CLI ONLY when the backend actually encodes it. Boogu Image
+ * Turbo is guidance-distilled (CFG disabled) — mflux accepts --negative-prompt
+ * on this path but warns and never encodes it. The NEGATIVE clauses still ride
+ * the composed prompt from prompt-injection.mjs, where they act on CFG-capable
  * backends (Z-Image base, SD3.5); on the Turbo default path image quality is
  * backstopped by the VLM relevance gate instead. This trade-off is recorded
  * in docs/video-production-runbook.md → "AI Image (T2I) generation".
+ *
+ * Model: Boogu/Boogu-Image-0.1-Turbo — 10B params, Apache 2.0, CUHK + HKUST.
+ * Selected via 6-model VLM comparison (2026-09-20): best prompt adherence,
+ * zero "no hands" violations across 3 test prompts. ~364s/image on M2 Pro 32GB
+ * with 4-bit quantization.
  */
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export const DEFAULT_IMAGE_BACKEND = "mflux-z-image-turbo";
+export const DEFAULT_IMAGE_BACKEND = "mflux-boogu";
 // Default install locations, probed in order. mflux's dependency floor
 // (huggingface-hub>=1.1.6, pillow>=12.3) conflicts with the TTS packages in
 // the shared ~/.video-tts-env (mlx-audio needs transformers<5, pillow<12),
@@ -32,20 +36,21 @@ export const DEFAULT_IMAGE_BACKEND = "mflux-z-image-turbo";
 // shared-venv path stays in the probe for setups where the conflict has been
 // resolved deliberately.
 export const MFLUX_BIN_CANDIDATES = [
-  join(homedir(), ".video-t2i-env", "bin", "mflux-generate-z-image-turbo"),
-  join(homedir(), ".video-tts-env", "bin", "mflux-generate-z-image-turbo"),
+  join(homedir(), ".video-t2i-env", "bin", "mflux-generate-boogu"),
+  join(homedir(), ".video-tts-env", "bin", "mflux-generate-boogu"),
 ];
 export const DEFAULT_MFLUX_BIN = MFLUX_BIN_CANDIDATES[0];
-// The pre-quantized 4-bit checkpoint — a fraction of the ~31 GB full-precision
-// Z-Image weights, and the variant the M3 Max ~30s/image measurement used.
-export const DEFAULT_IMAGE_MODEL = "filipstrand/Z-Image-Turbo-mflux-4bit";
+// Boogu-Image-0.1-Turbo: 10B params, Apache 2.0, CUHK + HKUST.
+// Requires 4-bit quantization to fit in 32GB unified memory.
+export const DEFAULT_IMAGE_MODEL = "Boogu/Boogu-Image-0.1-Turbo";
+export const DEFAULT_IMAGE_QUANTIZE = 4;
 // Portrait native, matching the b-roll video's 9:16 frame.
 export const DEFAULT_IMAGE_WIDTH = 832;
 export const DEFAULT_IMAGE_HEIGHT = 1216;
-// Z-Image Turbo is distilled to 9 steps (mflux README example).
-export const DEFAULT_IMAGE_STEPS = 9;
-// Measured ≈30s per 4-bit image on M3 Max; the CLI estimate prints from this.
-export const EST_SECONDS_PER_IMAGE = 30;
+// Boogu Turbo is guidance-distilled; 4 steps per mflux default for Turbo variants.
+export const DEFAULT_IMAGE_STEPS = 4;
+// Measured ≈364s per 4-bit image on M2 Pro 32GB; the CLI estimate prints from this.
+export const EST_SECONDS_PER_IMAGE = 364;
 // One image is quick once weights are loaded, but a cold first run downloads
 // several GB before the first denoise — the timeout covers that on purpose.
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
@@ -61,7 +66,7 @@ export function supportsNegativePrompt(backend) {
 
 /**
  * Probe the mflux dependency. Environment overrides:
- * - AI_IMAGE_BACKEND — backend key (default mflux-z-image-turbo); decides the
+ * - AI_IMAGE_BACKEND — backend key (default mflux-boogu); decides the
  *   negative-prompt contract, not the binary.
  * - MFLUX_BIN — explicit binary override, honored strictly (no fallback
  *   probing when set).
@@ -81,7 +86,7 @@ export function resolveImageDependencies(env = process.env) {
   }
   if (!bin) {
     // PATH probe honors the caller's env (tests stub PATH).
-    const which = spawnSync("which", ["mflux-generate-z-image-turbo"], {
+    const which = spawnSync("which", ["mflux-generate-boogu"], {
       encoding: "utf8",
       env: { ...env },
     });
@@ -98,7 +103,7 @@ export function resolveImageDependencies(env = process.env) {
         `mflux binary not found (probed MFLUX_BIN, ${MFLUX_BIN_CANDIDATES.join(", ")}, PATH). ` +
         "Install mflux first: python3 -m venv ~/.video-t2i-env && ~/.video-t2i-env/bin/pip install mflux " +
         "(its dependency floor conflicts with the TTS pins in ~/.video-tts-env), " +
-        "or point MFLUX_BIN at mflux-generate-z-image-turbo; skipping AI image generation.",
+        "or point MFLUX_BIN at mflux-generate-boogu; skipping AI image generation.",
     };
   }
   return { ok: true, backend, bin, missing, message: null };
@@ -118,6 +123,7 @@ export function buildImageArgs(opts) {
     steps = DEFAULT_IMAGE_STEPS,
     model = DEFAULT_IMAGE_MODEL,
     backend = DEFAULT_IMAGE_BACKEND,
+    quantize = DEFAULT_IMAGE_QUANTIZE,
     negativePrompt = "",
   } = opts;
   const args = [
@@ -136,6 +142,7 @@ export function buildImageArgs(opts) {
   ];
   // Unset model → mflux resolves its own default checkpoint.
   if (model) args.push("--model", model);
+  if (quantize) args.push("--quantize", String(quantize));
   if (negativePrompt && supportsNegativePrompt(backend)) {
     args.push("--negative-prompt", negativePrompt);
   }
@@ -171,6 +178,7 @@ export function runImageGeneration(opts) {
     height = envInt(opts.env, "AI_IMAGE_HEIGHT", DEFAULT_IMAGE_HEIGHT),
     steps = envInt(opts.env, "AI_IMAGE_STEPS", DEFAULT_IMAGE_STEPS),
     model = opts.env?.AI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
+    quantize = envInt(opts.env, "AI_IMAGE_QUANTIZE", DEFAULT_IMAGE_QUANTIZE),
     negativePrompt = "",
     timeoutMs = DEFAULT_TIMEOUT_MS,
     onProgress = null,
@@ -192,6 +200,7 @@ export function runImageGeneration(opts) {
           steps,
           model,
           backend,
+          quantize,
           negativePrompt,
         }),
       ];

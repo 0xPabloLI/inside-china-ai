@@ -1,38 +1,63 @@
-# Deep Research: M2 Pro 32GB 本地图片生成模型选型（2026-09-19）
+# 本地图片生成模型选型（2026-09-20 最终版）
 
 ## 背景
-- 硬件：Apple M2 Pro / 32GB 统一内存
-- 当前：Z-Image Turbo 4bit (6B, ~5.5GB)，每张 1024×1024 约 3-4 分钟
+- 硬件：Apple M2 Pro / 32GB 统一内存 / MLX
 - 用途：短视频 B-roll 背景生成（抽象数据可视化、科技氛围图，无文字）
-- 限制：huggingface.co 被 Clash TUN 拦截，hf-mirror.com 可用
+- 限制：huggingface.co 被 Clash TUN 拦截，hf-mirror.com 可用；gated 模型需 Chrome 手动授权
+- VLM 评估：CodeArts 内置 analyzeImage 工具（多模态视觉模型，具体模型名未暴露）
 
-## Top 3 推荐
+## 对比方法
+- 3 个相同 B-roll prompt（柱状图 / 架构图 / 数据流）+ 相同 seed=42 + 1024×1024
+- 每个模型生成 3 张图，VLM 客观评分 prompt 遵循度 / 视觉质量 / B-roll 适用性 / 缺陷
 
-### 1. FLUX.2-klein-4B（首选）
-- 4B 参数，4 步，4bit ~3GB，预计 ~1-1.5 min/张
-- Apache 2.0，非 gated，可直接通过 hf-mirror 下载
-- Black Forest Labs 2026-01 发布，FLUX 下一代
-- 命令：`mflux-generate-flux2 --model flux2-klein-4b`
+## 6 模型参数对比
 
-### 2. ERNIE-Image-Turbo
-- 8B 参数，8 步，4bit ~5GB，预计 ~4-5 min/张
-- Apache 2.0，非 gated（百度出品）
-- "vivid high-contrast output" 适合科技氛围图
-- 命令：`mflux-generate-ernie-image-turbo`
+| 模型 | Repo | 参数 | 量化 | 步数 | 速度 | Peak MLX | 缓存 | License |
+|------|------|------|------|------|------|----------|------|---------|
+| Z-Image Turbo | filipstrand/Z-Image-Turbo-mflux-4bit | 6B | 4bit | 9 | 158s | 10.7GB | 5.5GB | Tongyi Qianwen |
+| FLUX.2-klein-4B | black-forest-labs/FLUX.2-klein-4B | 4B | bf16 | 4 | 42s | 12.4GB | 20GB | Apache 2.0 |
+| ERNIE-Turbo | baidu/ERNIE-Image-Turbo | 8B | 4bit | - | 265s | - | 31GB | - |
+| FLUX.2-klein-9B | black-forest-labs/FLUX.2-klein-9B | 9B | 4bit | 4 | 120s | 15.3GB | 49GB | ⚠️ 非商业 |
+| **Boogu Turbo** | **Boogu/Boogu-Image-0.1-Turbo** | **10B** | **4bit** | **4** | **364s** | **-** | **36GB** | **Apache 2.0** |
+| Krea 2 Turbo | krea/Krea-2-Turbo | 12B | 4bit | - | 271s | - | 58GB | - |
 
-### 3. Boogu Image Turbo
-- 10B 参数，1024² 需 8 步，4bit ~6GB，预计 ~2-3 min/张
-- Apache 2.0，非 gated
-- 命令：`mflux-generate-boogu`
+## VLM 客观排名
 
-### 备选：Krea 2 Turbo（效果最强但 gated）
-- 12B，Artificial Analysis leaderboard top 10
-- 需先在 huggingface.co 接受协议（被 Clash TUN 拦截）
+| Prompt | Z-Image 6B | FLUX.8B 4B | ERNIE 8B | FLUX.2 9B | Boogu 10B | Krea 2 12B |
+|--------|-----------|-----------|---------|----------|----------|-----------|
+| 柱状图 | ❌ 误解为箭头 | ✅ 2柱正确 | ✅ 2柱平淡 | ⭐5.0 完美 | ⭐5.0 3柱递减 | ⚠️ 多余元素 |
+| 架构图 | ❌ 生成了手 | ✅ 完全符合 | ✅ 平淡 | ⭐4.8 优秀 | ⭐5.0 电路板 | ⚠️ 偏离prompt |
+| 数据流 | ❌ 又生成了手 | ✅ 过曝但可用 | - | ⭐5.0 卓越 | - | - |
 
-## 不推荐
-- Qwen-Image-2512：30 步太慢（~35-40 min/张），图像偏 soft
-- Ideogram 4：gated + 擅长文字（B-roll 不需要）
-- FIBO：gated + 需 JSON prompt
+## 最终排名与选型决策
 
-## 决策建议
-先试 FLUX.2-klein-4B（最快最省），不满意再试 ERNIE-Image-Turbo（8B 更大），都不满意再解决 Krea 2 gated 问题。
+| 排名 | 模型 | 优势 | 劣势 |
+|------|------|------|------|
+| 🥇 | FLUX.2-klein-9B | 3张全5/5零缺陷，120s/张 | ⚠️ **非商业许可** → 淘汰 |
+| 🥈 | **Boogu Turbo** | 2个prompt第一，Apache 2.0 | 364s/张较慢 |
+| 🥉 | FLUX.2-klein-4B | 42s最快，3prompt全正确 | 4B参数上限 |
+| 4 | ERNIE 8B | 正确无缺陷 | 视觉平淡 |
+| 5 | Krea 2 12B | 视觉精致 | 偏离prompt加多余元素 |
+| 6 | Z-Image Turbo 6B | - | 2/3生成了手（"no hands"理解失败） |
+
+**最终选定：Boogu Image Turbo** — FLUX.2-9B 质量最好但非商业许可不可用；Boogu 是 Apache 2.0 可商用、质量仅次于 FLUX.2-9B 的最佳选择。
+
+## Boogu 模型背景
+- 来源：香港中文大学 (CUHK) + 香港科技大学 (HKUST) 学术团队
+- 论文：arXiv:2607.13125 (2026.07.14)，33 位作者
+- 训练成本：仅 ~$400K（208M 图片）
+- 特色：中英双语、理解+生成统一模型、agentic prompt rewriting
+- 变体：Base / Turbo / Edit / Edit-Turbo
+- 注意：标注 "research project only, not an official model release"
+
+## 代码变更
+- `scripts/short-video/lib/b-roll/t2i-runner.mjs`：默认模型从 Z-Image Turbo 切换为 Boogu
+  - DEFAULT_IMAGE_BACKEND = "mflux-boogu"
+  - DEFAULT_IMAGE_MODEL = "Boogu/Boogu-Image-0.1-Turbo"
+  - DEFAULT_IMAGE_QUANTIZE = 4
+  - DEFAULT_IMAGE_STEPS = 4
+  - EST_SECONDS_PER_IMAGE = 364
+- 测试文件同步更新，28 个测试全部通过
+
+## 已删除模型缓存
+Z-Image Turbo (5.5GB) + FLUX.2-klein-4B (20GB) + ERNIE (31GB) + FLUX.2-klein-9B (49GB) + Krea 2 (58GB) = ~163GB 释放

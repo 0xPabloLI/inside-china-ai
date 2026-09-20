@@ -37,7 +37,7 @@ Environment:
   FASTVIDEO_PYTHON         Interpreter override (honored strictly, no probing)
   BROLL_MODEL_ROOT         Pin the weights dir instead of re-resolving the HF cache
   BROLL_MLX_CHECKPOINT     Pin the packed MLX DiT dir (mlx_dit.json + mlx_dit.safetensors)
-  AI_IMAGE_BACKEND         T2I backend (default mflux-z-image-turbo; mflux-z-image / sd3.5)
+  AI_IMAGE_BACKEND         T2I backend (default mflux-boogu; mflux-z-image / sd3.5)
   MFLUX_BIN                mflux binary override (default probes ~/.video-t2i-env, then PATH)
 
 Candidates: 2 per scene, portrait 480x832 video / 832x1216 image, Tier A params.

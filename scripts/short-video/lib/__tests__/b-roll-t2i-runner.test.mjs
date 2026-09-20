@@ -23,7 +23,7 @@ describe("resolveImageDependencies (#155)", () => {
   });
 
   test("MFLUX_BIN override is honored strictly when it exists", () => {
-    const bin = join(dir, "mflux-generate-z-image-turbo");
+    const bin = join(dir, "mflux-generate-boogu");
     writeFileSync(bin, "#!/bin/sh\n");
     const res = resolveImageDependencies({ MFLUX_BIN: bin });
     expect(res.ok).toBe(true);
@@ -55,7 +55,7 @@ describe("resolveImageDependencies (#155)", () => {
   });
 
   test("AI_IMAGE_BACKEND override is surfaced for the negative-prompt contract", () => {
-    const bin = join(dir, "mflux-generate-z-image-turbo");
+    const bin = join(dir, "mflux-generate-boogu");
     writeFileSync(bin, "#!/bin/sh\n");
     const res = resolveImageDependencies({ MFLUX_BIN: bin, AI_IMAGE_BACKEND: "mflux-z-image" });
     expect(res.ok).toBe(true);
@@ -81,11 +81,11 @@ describe("buildImageArgs (#155)", () => {
   });
 
   test("the Turbo default backend NEVER receives --negative-prompt (CFG disabled)", () => {
-    // mflux accepts the flag but warns and drops it on Z-Image Turbo — the
+    // mflux accepts the flag but warns and drops it on Boogu Turbo — the
     // runner must not send it (backend contract, #155).
     const args = buildImageArgs({
       ...base,
-      backend: "mflux-z-image-turbo",
+      backend: "mflux-boogu",
       negativePrompt: "no text, no watermark",
     });
     expect(args).not.toContain("--negative-prompt");
@@ -254,7 +254,7 @@ describe("runImageGeneration (#155, same protocol as the video runner)", () => {
       "stub-progress.mjs",
       `
       import { writeFileSync } from "node:fs";
-      console.log("loading Z-Image Turbo (4-bit) ...");
+      console.log("loading Boogu Turbo (4-bit) ...");
       const i = process.argv.indexOf("--output");
       writeFileSync(process.argv[i + 1], "fake");
       console.log("saved");
@@ -268,7 +268,7 @@ describe("runImageGeneration (#155, same protocol as the video runner)", () => {
       jobs: [{ label: "progress.png", prompt: "p", output_path: out, seed: 1 }],
       onProgress: (line) => lines.push(line),
     });
-    expect(lines).toContain("loading Z-Image Turbo (4-bit) ...");
+    expect(lines).toContain("loading Boogu Turbo (4-bit) ...");
     expect(lines).toContain("saved");
   });
 });
