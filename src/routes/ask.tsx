@@ -97,21 +97,34 @@ function AskPage() {
             Home
           </Link>
           <span aria-hidden="true"> / </span>
-          <span className="text-foreground">Ask</span>
+          <span className="text-foreground">Chinese AI Q&amp;A</span>
         </nav>
 
         <header className="mt-4 border-b border-border/60 pb-8">
           <h1 className="font-serif text-4xl leading-tight tracking-tight sm:text-5xl">
-            Ask China AI
+            Chinese AI Q&amp;A
           </h1>
           <p className="mt-3 text-lg text-muted-foreground">
-            Questions about DeepSeek, Qwen, GLM, Kimi or China&apos;s AI rules, answered from our own
-            published articles — never from guesswork.
+            Ask anything about Chinese AI models — DeepSeek, Qwen, GLM, Kimi — or China&apos;s AI
+            rules. Every answer comes from our published reporting, with citations, never from
+            guesswork.
           </p>
         </header>
 
         <section className="mt-8">
           <AskChinaAi autoFocus />
+        </section>
+
+        <section className="mt-16 border-t border-border/60 pt-8">
+          <h2 className="font-serif text-xl">Questions about this Q&amp;A</h2>
+          <dl className="mt-4 space-y-6">
+            {FAQ.map((item) => (
+              <div key={item.q}>
+                <dt className="font-medium">{item.q}</dt>
+                <dd className="mt-1 text-sm text-muted-foreground">{item.a}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
 
         <section className="mt-16 border-t border-border/60 pt-8">
