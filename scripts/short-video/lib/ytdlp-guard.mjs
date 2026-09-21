@@ -114,7 +114,7 @@ const SCUTIL_BIN = "/usr/sbin/scutil";
  * numeric-keyed entries inside it — are skipped without a real parser.
  *
  * @param {string} text - raw `scutil --proxy` stdout
- * @returns {{httpProxy: string|null, httpsProxy: string|null, socksProxy: string|null}} `host:port` per protocol, null when disabled
+ * @returns {{httpProxy: string|null, httpsProxy: string|null}} `host:port` per enabled protocol, null when disabled
  */
 export function parseMacSystemProxy(text) {
   /** @type {Record<string, string>} */
@@ -127,21 +127,27 @@ export function parseMacSystemProxy(text) {
     dict[`${proto}Enable`] === "1" && dict[`${proto}Proxy`] && dict[`${proto}Port`]
       ? `${dict[`${proto}Proxy`]}:${dict[`${proto}Port`]}`
       : null;
+  // SOCKS is deliberately not surfaced: ffmpeg cannot use it, so no caller
+  // has anything to do with the endpoint (see resolveYtdlpProxy).
   return {
     httpProxy: endpoint("HTTP"),
     httpsProxy: endpoint("HTTPS"),
-    socksProxy: endpoint("SOCKS"),
   };
 }
 
-/** Cache the scutil read — it is a subprocess, and callers are per-candidate. */
+/**
+ * Cache the scutil read — it is a subprocess and callers are per-candidate.
+ * Process-lifetime by design: a long-running process whose proxy is
+ * reconfigured mid-run keeps the first value until it restarts.
+ */
 let systemProxyCache;
 
 /**
- * Read the macOS system proxy. Returns null off-macOS, on a PAC-only config,
- * or whenever scutil fails — this must never break a download.
+ * Read the macOS system proxy. Returns null off-macOS or whenever scutil
+ * fails; a PAC-only config parses to an all-null endpoint pair. Never
+ * throws — this must never break a download.
  *
- * @returns {{httpProxy: string|null, httpsProxy: string|null, socksProxy: string|null}|null}
+ * @returns {{httpProxy: string|null, httpsProxy: string|null}|null}
  */
 export function readMacSystemProxy() {
   if (process.platform !== "darwin") return null;
@@ -174,11 +180,12 @@ function withScheme(value) {
  *
  * A SOCKS-only system config yields null: ffmpeg cannot use SOCKS, and
  * yt-dlp's own layer already resolves SystemConfiguration by itself, so
- * injecting would add a warning without fixing the section download.
+ * injecting would add a warning without fixing the section download. That is
+ * also why parseMacSystemProxy does not surface the SOCKS endpoint.
  *
  * @param {Object} [deps]
  * @param {Record<string, string|undefined>} [deps.env] - Environment to read
- * @param {() => ({httpProxy: string|null, httpsProxy: string|null, socksProxy: string|null}|null)} [deps.readSystemProxy] - System proxy source
+ * @param {() => ({httpProxy: string|null, httpsProxy: string|null}|null)} [deps.readSystemProxy] - System proxy source
  * @returns {string|null} proxy URL to pass as `--proxy`, or null
  */
 export function resolveYtdlpProxy({

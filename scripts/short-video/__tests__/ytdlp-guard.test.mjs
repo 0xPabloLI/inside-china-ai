@@ -432,11 +432,10 @@ const SCUTIL_ALL_ENABLED = `<dictionary> {
 }`;
 
 describe("#324 system proxy parsing", () => {
-  it("reads every enabled protocol, skipping the nested ExceptionsList entries", () => {
+  it("reads every enabled HTTP(S) protocol, skipping the nested ExceptionsList entries", () => {
     expect(parseMacSystemProxy(SCUTIL_ALL_ENABLED)).toEqual({
       httpProxy: "127.0.0.1:7897",
       httpsProxy: "127.0.0.1:7897",
-      socksProxy: "127.0.0.1:7897",
     });
   });
 
@@ -450,21 +449,12 @@ describe("#324 system proxy parsing", () => {
     expect(parseMacSystemProxy(SCUTIL_PAC_ONLY)).toEqual({
       httpProxy: null,
       httpsProxy: null,
-      socksProxy: null,
     });
   });
 
   it("survives empty or missing input", () => {
-    expect(parseMacSystemProxy("")).toEqual({
-      httpProxy: null,
-      httpsProxy: null,
-      socksProxy: null,
-    });
-    expect(parseMacSystemProxy(null)).toEqual({
-      httpProxy: null,
-      httpsProxy: null,
-      socksProxy: null,
-    });
+    expect(parseMacSystemProxy("")).toEqual({ httpProxy: null, httpsProxy: null });
+    expect(parseMacSystemProxy(null)).toEqual({ httpProxy: null, httpsProxy: null });
   });
 });
 
@@ -506,25 +496,22 @@ describe("#324 proxy resolution", () => {
     expect(
       resolveYtdlpProxy({
         env: {},
-        readSystemProxy: () => ({
-          httpProxy: "127.0.0.1:7897",
-          httpsProxy: null,
-          socksProxy: null,
-        }),
+        readSystemProxy: () => ({ httpProxy: "127.0.0.1:7897", httpsProxy: null }),
       }),
     ).toBe("http://127.0.0.1:7897");
   });
 
-  it("returns null for a SOCKS-only configuration (ffmpeg cannot use SOCKS)", () => {
+  it("returns null when only SOCKS is enabled (ffmpeg cannot use SOCKS)", () => {
+    // Real scutil shape: SOCKS on, HTTP/HTTPS off. parseMacSystemProxy does
+    // not surface SOCKS, so this resolves to nothing rather than to an
+    // endpoint ffmpeg would reject.
+    const socksOnly = SCUTIL_ALL_ENABLED.replace("HTTPEnable : 1", "HTTPEnable : 0").replace(
+      "HTTPSEnable : 1",
+      "HTTPSEnable : 0",
+    );
+    expect(socksOnly).toContain("SOCKSEnable : 1");
     expect(
-      resolveYtdlpProxy({
-        env: {},
-        readSystemProxy: () => ({
-          httpProxy: null,
-          httpsProxy: null,
-          socksProxy: "127.0.0.1:7897",
-        }),
-      }),
+      resolveYtdlpProxy({ env: {}, readSystemProxy: () => parseMacSystemProxy(socksOnly) }),
     ).toBeNull();
   });
 
