@@ -161,7 +161,7 @@
 - HuggingFace：`https://huggingface.co/0xpabloli/Wan2.2-S2V-14B-NPU`
 - ModelScope：`https://modelscope.cn/models/pabloli/Wan2.2-S2V-14B-NPU`
 - AtomGit（代码）：`https://atomgit.com/gcw_GGihkrEm/Wan2.2-S2V-14B-NPU`
-- 关键文件：`patch_npu.py`（10 个 patch）+ `NPU_SUPPORT.md`（适配文档）+ `wan22_s2v_allinone.py`（一体化脚本，**已于 2026-09-20 dead-code 清理中删除**）
+- 关键文件：`patch_npu.py`（10 个 patch）+ `NPU_SUPPORT.md`（适配文档）+ `wan22_s2v_allinone.py`（一体化脚本，保留为 NPU 备选）
 
 ### 云端 API
 
@@ -1417,7 +1417,7 @@ else:
 - **⚠️ 唯一问题**：Notebook 缺 `ffmpeg`，视频生成成功但 audio merge 失败（`merge_video_audio failed: No such file or directory: 'ffmpeg'`）。输出为**纯视频无音频**。修复：`pip install imageio-ffmpeg` 或 `apt install ffmpeg`
 - **历史**：8GB 档 4 次失败（cgroup OOM / device bug / Notebook 过期），64GB 档 15 次 fix 迭代后成功
 - **核时成本**：1000 核时/月 ÷ 2.47 核时/次 ≈ **405 次/月**免费推理
-- **脚本**：`scripts/atomgit/wan22_s2v_allinone.py`（一体化）、`scripts/atomgit/wan22_s2v_fix15.py`（最终成功配置）— **均已于 2026-09-20 dead-code 清理中删除**
+- **脚本**：`scripts/atomgit/wan22_s2v_allinone.py`（一体化）、`scripts/atomgit/wan22_s2v_fix15.py`（最终成功配置）— **保留为 NPU 备选**
 
 **② AMD Radeon Cloud — ✅ 可行，credits 可重复获取（2026-09-07 调研）**
 
