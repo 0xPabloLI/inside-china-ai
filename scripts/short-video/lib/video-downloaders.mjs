@@ -41,6 +41,7 @@ import {
   matchYtdlp412,
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
+  ytdlpProxyArg,
 } from "./ytdlp-guard.mjs";
 import { tmpdir, homedir } from "os";
 import { fileURLToPath } from "url";
@@ -481,7 +482,10 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
     '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
     "--max-filesize 20M",
     '--download-sections "*0:00-0:08"',
-  ];
+    // #324: --download-sections delegates the fetch to ffmpeg, which only
+    // reads a lowercase http_proxy — hand yt-dlp the proxy explicitly.
+    ytdlpProxyArg(),
+  ].filter(Boolean);
   if (isWeibo) {
     parts.push("--playlist-items 1");
     if (cookieFile) {

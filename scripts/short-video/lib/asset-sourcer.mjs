@@ -80,6 +80,7 @@ import {
   matchYtdlp412,
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
+  ytdlpProxyArg,
 } from "./ytdlp-guard.mjs";
 // Artifact schema versions (#199 2.5) — bump on breaking shape changes so
 // consumers can branch. asset-analysis.json carries its own `version: 1`.
@@ -1750,8 +1751,9 @@ export function searchYtdlp(keyword, platform) {
   }
 
   try {
+    const proxyArg = ytdlpProxyArg();
     const output = execSync(
-      `yt-dlp --cookies-from-browser firefox --user-agent "${YTDLP_BROWSER_UA}" ${modeArgs} --print "%(id)s\t%(title)s\t%(duration)s" "${searchUrl}"`,
+      `yt-dlp --cookies-from-browser firefox --user-agent "${YTDLP_BROWSER_UA}" ${modeArgs}${proxyArg ? " " + proxyArg : ""} --print "%(id)s\t%(title)s\t%(duration)s" "${searchUrl}"`,
       { encoding: "utf8", timeout: 120000 },
     );
 
@@ -1802,9 +1804,14 @@ export function downloadYtdlp(url, destPath) {
     '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
     "--max-filesize 20M",
     '--download-sections "*0:00-0:08"',
+    // #324: --download-sections delegates the fetch to ffmpeg, which only
+    // reads a lowercase http_proxy — hand yt-dlp the proxy explicitly.
+    ytdlpProxyArg(),
     `-o "${destPath}"`,
     `"${url}"`,
-  ].join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   // #323 review: clear stale suffixed siblings (orphaned `<dest>.mp4.webm`
   // from pre-fix failed runs) so the resolver only sees THIS run's output.

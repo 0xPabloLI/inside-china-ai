@@ -29,10 +29,13 @@ vi.mock("child_process", async (importOriginal) => {
 import {
   createYtdlp412Guard,
   matchYtdlp412,
+  parseMacSystemProxy,
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
+  resolveYtdlpProxy,
   ytdlpContainerMime,
   ytdlpCookieBrowser,
+  ytdlpProxyArg,
 } from "../lib/ytdlp-guard.mjs";
 import { searchYtdlp, downloadYtdlp } from "../lib/asset-sourcer.mjs";
 import { downloadYtdlpAdapter } from "../lib/video-downloaders.mjs";
@@ -374,5 +377,245 @@ describe("resolveYtdlpOutputPath", () => {
 
   it("ytdlpContainerMime reports octet-stream for unknown containers instead of a false mp4", () => {
     expect(ytdlpContainerMime("avi")).toBe("application/octet-stream");
+  });
+});
+
+// ─── #324: proxy hand-off to the ffmpeg child ───
+//
+// yt-dlp delegates `--download-sections` to a spawned ffmpeg. yt-dlp's own
+// HTTP layer resolves the macOS system proxy (Python getproxies), but ffmpeg
+// only reads the LOWERCASE http_proxy/https_proxy env vars — so in a session
+// with no lowercase var exported the CDN segment goes direct and times out
+// (ffmpeg exited with code 196). Upstream yt-dlp already solved this the right
+// way: when `--proxy` is given, FFmpegFD hands the ffmpeg child BOTH
+// HTTP_PROXY and http_proxy (yt_dlp/downloader/external.py). So the fix is to
+// resolve the proxy our side already has and pass it as `--proxy` — no
+// hand-rolled env injection.
+//
+// Observed on this host (2026-09-21): without `--proxy` the ffmpeg child saw
+// only the uppercase vars; with `--proxy` it also saw the lowercase one.
+
+// Observed shape on this host (2026-09-21): every protocol disabled, PAC
+// autodiscovery on. Used as the "nothing usable" fixture.
+const SCUTIL_PAC_ONLY = `<dictionary> {
+  ExceptionsList : <array> {
+    0 : 127.0.0.1
+    1 : 192.168.0.0/16
+    2 : localhost
+    3 : *.local
+  }
+  FTPPassive : 1
+  HTTPEnable : 0
+  HTTPSEnable : 0
+  ProxyAutoConfigEnable : 1
+  ProxyAutoConfigURLString : http://wpad/wpad.dat
+  ProxyAutoDiscoveryEnable : 1
+  SOCKSEnable : 0
+}`;
+
+// The ticket's failing configuration (#324 body): all three protocols enabled
+// on the 7897 mixed port.
+const SCUTIL_ALL_ENABLED = `<dictionary> {
+  ExceptionsList : <array> {
+    0 : 127.0.0.1
+    1 : *.local
+  }
+  HTTPEnable : 1
+  HTTPPort : 7897
+  HTTPProxy : 127.0.0.1
+  HTTPSEnable : 1
+  HTTPSPort : 7897
+  HTTPSProxy : 127.0.0.1
+  SOCKSEnable : 1
+  SOCKSPort : 7897
+  SOCKSProxy : 127.0.0.1
+}`;
+
+describe("#324 system proxy parsing", () => {
+  it("reads every enabled protocol, skipping the nested ExceptionsList entries", () => {
+    expect(parseMacSystemProxy(SCUTIL_ALL_ENABLED)).toEqual({
+      httpProxy: "127.0.0.1:7897",
+      httpsProxy: "127.0.0.1:7897",
+      socksProxy: "127.0.0.1:7897",
+    });
+  });
+
+  it("reports a disabled protocol as null even when its host/port are present", () => {
+    const partial = SCUTIL_ALL_ENABLED.replace("HTTPEnable : 1", "HTTPEnable : 0");
+    expect(parseMacSystemProxy(partial).httpProxy).toBeNull();
+    expect(parseMacSystemProxy(partial).httpsProxy).toBe("127.0.0.1:7897");
+  });
+
+  it("yields all-null on the PAC-only configuration observed on this host", () => {
+    expect(parseMacSystemProxy(SCUTIL_PAC_ONLY)).toEqual({
+      httpProxy: null,
+      httpsProxy: null,
+      socksProxy: null,
+    });
+  });
+
+  it("survives empty or missing input", () => {
+    expect(parseMacSystemProxy("")).toEqual({
+      httpProxy: null,
+      httpsProxy: null,
+      socksProxy: null,
+    });
+    expect(parseMacSystemProxy(null)).toEqual({
+      httpProxy: null,
+      httpsProxy: null,
+      socksProxy: null,
+    });
+  });
+});
+
+describe("#324 proxy resolution", () => {
+  it("does not inject when the lowercase http_proxy is already exported", () => {
+    // The ffmpeg child inherits it through env inheritance; injecting would
+    // additionally override yt-dlp's own no_proxy handling.
+    expect(
+      resolveYtdlpProxy({
+        env: { http_proxy: "http://127.0.0.1:7897", HTTP_PROXY: "http://127.0.0.1:51079" },
+        readSystemProxy: () => {
+          throw new Error("must not be consulted");
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("mirrors the uppercase env proxy when only that spelling exists", () => {
+    expect(
+      resolveYtdlpProxy({
+        env: { HTTP_PROXY: "http://127.0.0.1:7897" },
+        readSystemProxy: () => {
+          throw new Error("must not be consulted");
+        },
+      }),
+    ).toBe("http://127.0.0.1:7897");
+  });
+
+  it("falls back to the macOS system proxy when no env proxy exists", () => {
+    expect(
+      resolveYtdlpProxy({
+        env: {},
+        readSystemProxy: () => parseMacSystemProxy(SCUTIL_ALL_ENABLED),
+      }),
+    ).toBe("http://127.0.0.1:7897");
+  });
+
+  it("adds the http:// scheme to a bare system endpoint", () => {
+    expect(
+      resolveYtdlpProxy({
+        env: {},
+        readSystemProxy: () => ({
+          httpProxy: "127.0.0.1:7897",
+          httpsProxy: null,
+          socksProxy: null,
+        }),
+      }),
+    ).toBe("http://127.0.0.1:7897");
+  });
+
+  it("returns null for a SOCKS-only configuration (ffmpeg cannot use SOCKS)", () => {
+    expect(
+      resolveYtdlpProxy({
+        env: {},
+        readSystemProxy: () => ({
+          httpProxy: null,
+          httpsProxy: null,
+          socksProxy: "127.0.0.1:7897",
+        }),
+      }),
+    ).toBeNull();
+  });
+
+  it("returns null on a PAC-only / no-proxy configuration", () => {
+    expect(
+      resolveYtdlpProxy({ env: {}, readSystemProxy: () => parseMacSystemProxy(SCUTIL_PAC_ONLY) }),
+    ).toBeNull();
+    expect(resolveYtdlpProxy({ env: {}, readSystemProxy: () => null })).toBeNull();
+  });
+
+  it("fails open when the system proxy read throws", () => {
+    expect(
+      resolveYtdlpProxy({
+        env: {},
+        readSystemProxy: () => {
+          throw new Error("scutil exploded");
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("ytdlpProxyArg renders the shell fragment, or nothing when no proxy applies", () => {
+    // Isolate all four spellings — the host environment may export any of them.
+    const KEYS = ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"];
+    const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+    try {
+      for (const k of KEYS) delete process.env[k];
+      process.env.HTTP_PROXY = "http://127.0.0.1:7897";
+      expect(ytdlpProxyArg()).toBe('--proxy "http://127.0.0.1:7897"');
+      process.env.http_proxy = "http://127.0.0.1:7897";
+      expect(ytdlpProxyArg()).toBe("");
+    } finally {
+      for (const k of KEYS) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    }
+  });
+});
+
+describe("#324 yt-dlp proxy hand-off", () => {
+  const PROXY_KEYS = ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"];
+  let saved;
+  let tmp;
+
+  beforeEach(() => {
+    saved = Object.fromEntries(PROXY_KEYS.map((k) => [k, process.env[k]]));
+    tmp = mkdtempSync(join(tmpdir(), "ytdlp-proxy-"));
+    process.env.YTDLP_412_STATE_PATH = join(tmp, "state.json");
+    execSyncMock.mockReset();
+    execSyncMock.mockImplementation(() => {
+      throw new Error("failed");
+    });
+  });
+
+  afterEach(() => {
+    for (const k of PROXY_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+    delete process.env.YTDLP_412_STATE_PATH;
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  /** Drop the lowercase vars, keep the uppercase ones — the ticket's failing mode. */
+  function uppercaseOnly() {
+    delete process.env.http_proxy;
+    delete process.env.https_proxy;
+    process.env.HTTP_PROXY = "http://127.0.0.1:7897";
+    process.env.HTTPS_PROXY = "http://127.0.0.1:7897";
+  }
+
+  it("downloadYtdlp passes --proxy when only the uppercase env proxy is exported", () => {
+    uppercaseOnly();
+    downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "a.mp4"));
+    expect(execSyncMock.mock.calls[0][0]).toContain('--proxy "http://127.0.0.1:7897"');
+  });
+
+  it("downloadYtdlp omits --proxy when the lowercase proxy is already exported", () => {
+    // The child inherits it through env inheritance — injecting would only
+    // override yt-dlp's own no_proxy handling.
+    process.env.http_proxy = "http://127.0.0.1:7897";
+    process.env.https_proxy = "http://127.0.0.1:7897";
+    downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "b.mp4"));
+    expect(execSyncMock.mock.calls[0][0]).not.toContain("--proxy ");
+  });
+
+  it("searchYtdlp passes --proxy on the same terms", () => {
+    uppercaseOnly();
+    execSyncMock.mockImplementation(() => "BV1E7wtzaEdq\ttitle\t120\n");
+    searchYtdlp("DeepSeek", "bilibili");
+    expect(execSyncMock.mock.calls[0][0]).toContain('--proxy "http://127.0.0.1:7897"');
   });
 });

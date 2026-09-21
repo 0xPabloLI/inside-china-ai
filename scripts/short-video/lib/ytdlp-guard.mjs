@@ -35,6 +35,7 @@ import {
 } from "node:fs";
 import { basename, join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { execSync } from "node:child_process";
 import { matchDomain } from "./rate-limiter.mjs";
 
 /** Browser-like UA for yt-dlp invocations (#16571: UA is part of the fingerprint). */
@@ -79,6 +80,134 @@ export function ytdlpCookieBrowser(url) {
 }
 
 const STATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "output");
+
+// ─── Proxy hand-off to the ffmpeg child (#324) ───
+//
+// `--download-sections` makes yt-dlp delegate the media fetch to a spawned
+// ffmpeg. The two layers read proxies from different places:
+//   - yt-dlp's own HTTP layer: Python `getproxies()`, which resolves the macOS
+//     SystemConfiguration proxy (scutil --proxy) — metadata/format parsing works;
+//   - ffmpeg: only the LOWERCASE http_proxy/https_proxy env vars — no macOS
+//     system lookup at all.
+// A session with no lowercase var exported therefore parses metadata fine and
+// then dies at the CDN segment (`Error opening input ... timed out`,
+// `ffmpeg exited with code 196`).
+//
+// Upstream yt-dlp already solves this in FFmpegFD: when `--proxy` is given it
+// hands the ffmpeg child BOTH HTTP_PROXY and http_proxy
+// (yt_dlp/downloader/external.py). So this module resolves the proxy the
+// caller already has and hands it to yt-dlp — it does NOT grow its own
+// env-injection path, which would have to track ffmpeg's own semantics.
+//
+// Observed on this host 2026-09-21 (ffmpeg-wrapper probe): without `--proxy`
+// the child saw only HTTP_PROXY/HTTPS_PROXY; with `--proxy` it also saw
+// `http_proxy`.
+
+/** `scutil` is /usr/sbin/scutil and is absent from a minimal PATH. */
+const SCUTIL_BIN = "/usr/sbin/scutil";
+
+/**
+ * Parse `scutil --proxy` output into the endpoints macOS currently enables.
+ *
+ * Only top-level `Key : value` lines are read (2-space indent, single-token
+ * value), so nested blocks — `ExceptionsList : <array> { ... }` and the
+ * numeric-keyed entries inside it — are skipped without a real parser.
+ *
+ * @param {string} text - raw `scutil --proxy` stdout
+ * @returns {{httpProxy: string|null, httpsProxy: string|null, socksProxy: string|null}} `host:port` per protocol, null when disabled
+ */
+export function parseMacSystemProxy(text) {
+  /** @type {Record<string, string>} */
+  const dict = {};
+  for (const line of String(text ?? "").split("\n")) {
+    const m = line.match(/^\s{2}([A-Za-z]+) : (\S+)\s*$/);
+    if (m) dict[m[1]] = m[2];
+  }
+  const endpoint = (proto) =>
+    dict[`${proto}Enable`] === "1" && dict[`${proto}Proxy`] && dict[`${proto}Port`]
+      ? `${dict[`${proto}Proxy`]}:${dict[`${proto}Port`]}`
+      : null;
+  return {
+    httpProxy: endpoint("HTTP"),
+    httpsProxy: endpoint("HTTPS"),
+    socksProxy: endpoint("SOCKS"),
+  };
+}
+
+/** Cache the scutil read — it is a subprocess, and callers are per-candidate. */
+let systemProxyCache;
+
+/**
+ * Read the macOS system proxy. Returns null off-macOS, on a PAC-only config,
+ * or whenever scutil fails — this must never break a download.
+ *
+ * @returns {{httpProxy: string|null, httpsProxy: string|null, socksProxy: string|null}|null}
+ */
+export function readMacSystemProxy() {
+  if (process.platform !== "darwin") return null;
+  if (systemProxyCache !== undefined) return systemProxyCache;
+  try {
+    const out = execSync(`${SCUTIL_BIN} --proxy`, {
+      encoding: "utf8",
+      timeout: 5000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    systemProxyCache = parseMacSystemProxy(out);
+  } catch {
+    systemProxyCache = null;
+  }
+  return systemProxyCache;
+}
+
+/** Add the http:// scheme ffmpeg and yt-dlp both expect on a bare host:port. */
+function withScheme(value) {
+  return /^[0-9a-zA-Z+.-]+:\/\//.test(value) ? value : `http://${value}`;
+}
+
+/**
+ * Resolve the proxy to hand to yt-dlp via `--proxy`, or null when none is needed.
+ *
+ * A lowercase `http_proxy` means the ffmpeg child already inherits the exact
+ * variable it reads, so nothing is injected — injecting anyway would override
+ * yt-dlp's own no_proxy handling for no gain. Every other case (uppercase-only
+ * env, or nothing but the macOS system proxy) leaves the child without it.
+ *
+ * A SOCKS-only system config yields null: ffmpeg cannot use SOCKS, and
+ * yt-dlp's own layer already resolves SystemConfiguration by itself, so
+ * injecting would add a warning without fixing the section download.
+ *
+ * @param {Object} [deps]
+ * @param {Record<string, string|undefined>} [deps.env] - Environment to read
+ * @param {() => ({httpProxy: string|null, httpsProxy: string|null, socksProxy: string|null}|null)} [deps.readSystemProxy] - System proxy source
+ * @returns {string|null} proxy URL to pass as `--proxy`, or null
+ */
+export function resolveYtdlpProxy({
+  env = process.env,
+  readSystemProxy = readMacSystemProxy,
+} = {}) {
+  if (env.http_proxy) return null;
+  const fromEnv = env.https_proxy || env.HTTP_PROXY || env.HTTPS_PROXY;
+  if (fromEnv) return withScheme(fromEnv);
+  let system;
+  try {
+    system = readSystemProxy();
+  } catch {
+    return null;
+  }
+  const endpoint = system?.httpsProxy || system?.httpProxy;
+  return endpoint ? withScheme(endpoint) : null;
+}
+
+/**
+ * Shell fragment for the yt-dlp proxy hand-off — empty when no proxy applies.
+ * One place owns the quoting so every call site composes the same way.
+ *
+ * @returns {string} `--proxy "<url>"`, or "" when nothing is injected
+ */
+export function ytdlpProxyArg() {
+  const proxy = resolveYtdlpProxy();
+  return proxy ? `--proxy "${proxy}"` : "";
+}
 
 /**
  * Resolve the file yt-dlp actually produced for a `-o <destPath>` template.

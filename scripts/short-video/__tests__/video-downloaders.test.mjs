@@ -951,6 +951,31 @@ describe("weibo routing (#75 Batch 2)", () => {
     expect(ytCmd).not.toContain("--playlist-items");
   });
 
+  it("#324: buildYtdlpCommand hands the resolved proxy to yt-dlp for the ffmpeg child", () => {
+    const KEYS = ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"];
+    const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+    try {
+      // Uppercase-only: the exact session shape that starves the ffmpeg child.
+      for (const k of KEYS) delete process.env[k];
+      process.env.HTTPS_PROXY = "http://127.0.0.1:7897";
+      expect(
+        buildYtdlpCommand("https://www.youtube.com/watch?v=abc", { tmpPath: "/tmp/v.mp4" }),
+      ).toContain('--proxy "http://127.0.0.1:7897"');
+
+      // Only the lowercase http_proxy reaches ffmpeg, so that var alone means
+      // the child already inherits it — no injection.
+      process.env.http_proxy = "http://127.0.0.1:7897";
+      expect(
+        buildYtdlpCommand("https://www.youtube.com/watch?v=abc", { tmpPath: "/tmp/v.mp4" }),
+      ).not.toContain("--proxy ");
+    } finally {
+      for (const k of KEYS) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    }
+  });
+
   it("#313: youtube routes through the chrome cookie store; firefox elsewhere", () => {
     const yt = buildYtdlpCommand("https://www.youtube.com/watch?v=abc", {
       tmpPath: "/tmp/v.mp4",
