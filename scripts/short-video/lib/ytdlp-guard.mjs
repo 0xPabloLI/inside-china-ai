@@ -136,9 +136,10 @@ export function parseMacSystemProxy(text) {
 }
 
 /**
- * Cache the scutil read — it is a subprocess and callers are per-candidate.
- * Process-lifetime by design: a long-running process whose proxy is
- * reconfigured mid-run keeps the first value until it restarts.
+ * Cache a successful scutil read — it is a subprocess and callers are
+ * per-candidate. Process-lifetime by design: a long-running process whose
+ * proxy is reconfigured mid-run keeps the first value until it restarts.
+ * Failures are deliberately not cached (see readMacSystemProxy).
  */
 let systemProxyCache;
 
@@ -206,6 +207,17 @@ export function resolveYtdlpProxy({
 }
 
 /**
+ * Escape a value for a double-quoted shell word. All three call sites compose
+ * `execSync` command strings, so the quoting is decided here and nowhere else.
+ *
+ * @param {string} value
+ * @returns {string} the value wrapped in double quotes, with shell metacharacters escaped
+ */
+function shellQuote(value) {
+  return `"${value.replace(/([\\"`$])/g, "\\$1")}"`;
+}
+
+/**
  * Shell fragment for the yt-dlp proxy hand-off — empty when no proxy applies.
  * One place owns the quoting so every call site composes the same way.
  *
@@ -213,7 +225,7 @@ export function resolveYtdlpProxy({
  */
 export function ytdlpProxyArg() {
   const proxy = resolveYtdlpProxy();
-  return proxy ? `--proxy "${proxy}"` : "";
+  return proxy ? `--proxy ${shellQuote(proxy)}` : "";
 }
 
 /**

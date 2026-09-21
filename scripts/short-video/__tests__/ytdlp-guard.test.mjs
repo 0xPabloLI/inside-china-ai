@@ -550,6 +550,26 @@ describe("#324 proxy resolution", () => {
       }
     }
   });
+
+  it("escapes shell metacharacters so a hostile proxy value cannot break out", () => {
+    // The fragment lands inside a double-quoted shell word at every call site.
+    // BS is kept out of the source literal so the expectation stays readable.
+    const BS = String.fromCharCode(92);
+    const hostile = `http://h:a"b$c${BS}d`;
+    const expected = `--proxy "http://h:a${BS}"b${BS}$c${BS}${BS}d"`;
+    const KEYS = ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"];
+    const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+    try {
+      for (const k of KEYS) delete process.env[k];
+      process.env.HTTP_PROXY = hostile;
+      expect(ytdlpProxyArg()).toBe(expected);
+    } finally {
+      for (const k of KEYS) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    }
+  });
 });
 
 describe("#324 yt-dlp proxy hand-off", () => {
