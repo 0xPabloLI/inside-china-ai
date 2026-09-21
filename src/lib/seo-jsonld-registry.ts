@@ -61,6 +61,7 @@ export const JSONLD_REGISTRY: { label: string; doc: () => JsonLdNode }[] = [
   { label: "/companies", doc: companiesJsonLd },
   { label: "/tiktok-connect", doc: tiktokConnectJsonLd },
   { label: "/news/chinese-ai-models", doc: chineseAiModelsJsonLd },
+  { label: "/ask", doc: askJsonLd },
   { label: "/posts/$slug (sample)", doc: samplePostJsonLd },
   { label: "shared builders", doc: builderSmokeJsonLd },
 ];
