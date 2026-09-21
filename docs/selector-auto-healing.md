@@ -57,6 +57,57 @@ selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mj
 - **CDP 代理僵死的恢复阶梯**：① 只重启代理（`skills/web-access/scripts/cdp-proxy.mjs`，仓库自有工具，与 Chrome 零接触）；② 代理重启后仍 WS 连接失败而 `curl localhost:9222/json/version` 正常 → Chrome DevTools 层卡死，**由用户**优雅退出 Chrome（⌘Q 或 `osascript -e 'quit app "Google Chrome"'`）再带 `--remote-debugging-port=9222` 重启——优雅退出不触碰 profile 数据。Agent 不得代替用户杀/退 Chrome。
 - 长跑注意：一次体检 ≈30 次导航，连续多轮压测会让 DevTools WS 层进入僵死——多轮之间留冷却，或分批 `--only` 跑。
 
+## 逐源修复方法论（#269 Phase 2 定案，2026-09-21）
+
+> 上游 runbook 修的是**选择器**（DOM 变了、articleScript 抓空）。本节修的是更靠前的一层：**搜索 URL 模式本身死了**（404 / 被重定向回首页）。两者失败层级不同——ITHome 案例里 articleScript 完全正常，死的是 `search?word=` 端点，且兜底分支把首页 534 条链接当成「搜索结果」静默入库（#269 Phase 1 实证）。本节是这一层的执行方法论。
+
+### 触发与对象
+
+- **触发**：`judgeUrlProbe`（Phase 1）判 `http-status` / `redirected-home` / `redirected-off-search`，或 quarantine 名单里带这类探针证据的源。
+- **对象**：按源批量清扫，**不为每个失败单独开票**；失败已有三层记录（source-health 连败名单 / quarantine 名单含探针证据 / 逐 run trajectory）。
+- **前置**：先跑批量诊断 `node scripts/short-video/source-url-sweep.mjs`，产物 `output/source-url-sweep-<date>.json` 是本节五步法的输入。
+
+### 五步法（每源）
+
+| 步 | 动作 | 判据（怎样算成立） |
+| --- | --- | --- |
+| 1 | **URL 探针**：GET 该源 `url(keyword)`，跟随重定向 | ≥400 → `http-dead`；final path ≡ 首页路径 → `redirected-home`；跨域 → `redirected-off-site`；200 但关键词 0 命中 → `alive-no-keyword`（JS 渲染或内容真空，转第 2/5 步） |
+| 2 | **静态发现**：抓首页 HTML，抽 `<form action> + <input name>` 拼新搜索 URL；再看首页 search 形态链接；最后才试已知模板（`/search?q=` 等） | 候选 200 **且**关键词命中 > 0 → 新 URL 模式确认 |
+| 3 | **RSS 对照探测**：首页 `<link rel=alternate type=application/rss+xml>` + 常见 feed 路径 | `itemCount > 0` 且 pubDate 落在关注窗口内 → feed 形态确认 |
+| 4 | **形态对比选优**：在确认的形态里排优先级——**RSS/API > 新 URL 模式 > 页内搜索配方**（配方依赖选择器，最脆弱，只作备选降级形态，不作主路径） | 最优做主形态，其余登记为该源 fallback |
+| 5 | **CDP 兜底**：1–4 全部无解时才上交互式 CDP（首页 → 定位搜索框 → 输入关键词 → 提交 → 收割结果链接），用于发现 JS 渲染站点的新端点 | 实测 ≥3 条且每条有 title + url，抽样 URL 真实可访问 |
+
+### 落库与开票规则
+
+- **有可行修复** → 为该源开一张修复建议票（同源去重：该源已有 open 票则不重开），票面必须带：探针证据、候选 URL 或 feed 的实测计数、registry diff 草案。
+- **全部不可行** → 维持 quarantine + 7 天复检，**不开票**（沿用「不可修 ≠ 删源」：上游死亡保留条目零成本观察）。
+- **needsAuth 源**（xhs/douyin）若失败原因是登录态过期，不修 URL 也不修选择器——提示用户人工登录。
+- **anti_bot** 失败不修——那是风控，不是 URL 模式问题。
+- **healthy 源禁止顺手优化**：批量诊断里 `alive` 的源一律不动。
+
+### 判据的三个坑（首轮清扫实测踩到，2026-09-21）
+
+1. **必须先分清探测的是哪条链**：`api` 源的失效发生在 `apiSearch.url`，不是遗留的 CDP `url` 字段。首轮先探 `url` 时 openalex（403）、gnews（404）、zhidx（重定向首页）三个**本健康的源**被误报成死源；改探 `apiSearch.url` 后三者全绿（openalex 200/171 命中）。
+2. **200 + 关键词命中 ≠ 结果页**：新华 `www.news.cn/search?q=…` 返回 200 且正文含关键词，实为错误模板页 → 加 `looksLikeResults()`（排除 ErrorPageTemplate/40x 标题，并要求 ≥3 条有真实锚文本的链接）。同理，从 `redirected-off-site` 页面推出的候选（google/techmeme 被弹到 `howsearchworks`）一律视为**弱证据**，需人工或 CDP 复核。
+3. **状态码语义要分开**：429（限流）、401（凭据）、403（反爬/风控）都不是「URL 模式死亡」，但旧判据一律归 `http-dead` → core_search 429 被判死、reddit 403 被判死。语义分流留作独立小票（见 #269 评论与 triage 台账）。
+
+### 为什么「发现」要脚本化而「修复」不
+
+发现是确定性的（HTTP 状态、关键词命中、feed 条数），可以全量自动跑且证据可复现；修复要判断形态取舍与语义等价性（feed 覆盖度是否等价于搜索结果），交给 agent。所以本节的脚本只产出**诊断结论 + 候选证据**，registry 改动仍走人工/agent 裁决后的独立提交。
+
+### 首轮全量清扫台账（2026-09-21，34 源，keyword zh=人工智能 / en=AI）
+
+产物：`scripts/short-video/output/source-url-sweep-2026-09-21.json`；命令 `NODE_USE_ENV_PROXY=1 node scripts/short-video/source-url-sweep.mjs`。
+
+| 处置 | 源 | 实测 |
+| --- | --- | --- |
+| **可修 → 已开票** | ithome | `search?word=` 404（首页 200，站点活）；首页无搜索表单（JS 渲染）；`https://www.ithome.com/rss/` 200 / 60 条 / 最新 2026-09-21T16:17Z |
+| **静态无解，待 CDP → 已开票** | xinhua、jiqizhixin | xinhua `search/news.htm?keyword=` 404，6 个候选全死（含错误模板页误报）；jiqizhixin 200 但 0 命中（SPA，静态看不到结果） |
+| **判据缺陷（非 URL 死）→ 已开票** | core_search、gnews、reddit_search、google_search / bing_news / techmeme_search | 429 限流 / 400 缺 key / 403 反爬 / 重定向到 consent 页，被旧判据一律归 `http-dead` |
+| **登录态与反爬，按边界不修** | weibo_search、douyin、zhihu、threads_search、tiktok_creator | 登录墙跳转（passport.weibo.com）/ 403 / 401 / JS+登录 |
+| **环境依赖，不修** | searxng_search（localhost:8888 未起）、mcp_grok_search（无 url）、currents（超时） | 自托管实例与网络 |
+| **健康，禁止顺手优化** | thepaper、leiphone、zhidx(api)、xhs、sogou_weixin、bilibili、x_search、youtube_search、arxiv_search、github_search、noozra_search、openalex_search、hackernews_search、polymarket_search、digg_search、duckduckgo_search | 200 + 关键词命中 + 结果页形态 |
+
 ## 已知修复台账
 
 | 日期               | 源                    | 失效原因                                                                                                      | 修复要点                                                                                                                                                 | 验证                                                    |
