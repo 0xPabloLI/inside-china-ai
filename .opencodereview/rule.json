@@ -1,0 +1,14 @@
+{
+  "rules": [
+    {
+      "path": "src/integrations/supabase/**/*.ts",
+      "rule": "This file interacts with Supabase. When reviewing changes, enforce:\n\n## SQL Injection Protection\n- Never use raw SQL string concatenation with user input in `.rpc()` calls\n- Parameterized queries only: use Supabase client's built-in query builder or parameterized `.rpc()` with named params\n- Flag any `supabase.rpc('function_name', { param: userInput })` where userInput is not sanitized\n- Flag any template literal SQL like `\\`SELECT * FROM ${table}\\``\n\n## RLS (Row Level Security)\n- Verify that tables accessed have RLS policies enabled\n- Flag any query that bypasses RLS (e.g., using service_role key in client-side code)\n- Client-side code MUST use anon key, not service_role key\n- Flag any `createClient(url, SERVICE_ROLE_KEY)` in non-server files\n\n## Auth Boundary\n- Verify auth state is checked before data access\n- Flag data access without `await getUser()` or session check in protected routes",
+      "merge_system_rule": true
+    },
+    {
+      "path": "src/routes/**/*.tsx",
+      "rule": "This is a TanStack Start route file. When reviewing changes, enforce:\n\n## Server Function Boundary\n- Server functions (createServerFn) MUST NOT leak secrets to client\n- Flag any `export const` in route that exposes server-only data without createServerFn wrapper\n- Verify `isAdmin` check exists on admin routes (per AGENTS.md security boundary)\n\n## Data Fetching\n- Flag direct Supabase queries in route components without going through defined loaders\n- Verify error boundaries wrap async route data",
+      "merge_system_rule": true
+    }
+  ]
+}
