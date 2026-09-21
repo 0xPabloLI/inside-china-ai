@@ -19,6 +19,7 @@ import { compareJsonLd } from "@/routes/compare.deepseek-vs-qwen-vs-glm";
 import { companiesJsonLd } from "@/routes/companies";
 import { tiktokConnectJsonLd } from "@/routes/tiktok-connect";
 import { chineseAiModelsJsonLd } from "@/routes/news.chinese-ai-models";
+import { askJsonLd } from "@/routes/ask";
 import { postJsonLd } from "@/lib/post-structured-data";
 
 /** A representative article graph, standing in for every /posts/$slug page. */
@@ -60,6 +61,7 @@ export const JSONLD_REGISTRY: { label: string; doc: () => JsonLdNode }[] = [
   { label: "/companies", doc: companiesJsonLd },
   { label: "/tiktok-connect", doc: tiktokConnectJsonLd },
   { label: "/news/chinese-ai-models", doc: chineseAiModelsJsonLd },
+  { label: "/ask", doc: askJsonLd },
   { label: "/posts/$slug (sample)", doc: samplePostJsonLd },
   { label: "shared builders", doc: builderSmokeJsonLd },
 ];
