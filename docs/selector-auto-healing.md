@@ -77,6 +77,12 @@ selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mj
 | 4 | **形态对比选优**：在确认的形态里排优先级——**RSS/API > 新 URL 模式 > 页内搜索配方**（配方依赖选择器，最脆弱，只作备选降级形态，不作主路径） | 最优做主形态，其余登记为该源 fallback |
 | 5 | **CDP 兜底**：1–4 全部无解时才上交互式 CDP（首页 → 定位搜索框 → 输入关键词 → 提交 → 收割结果链接），用于发现 JS 渲染站点的新端点 | 实测 ≥3 条且每条有 title + url，抽样 URL 真实可访问 |
 
+### 探针纪律（三条实测教训）
+
+1. **api 源必须探 `apiSearch.url`，不能探它的 CDP `url` 字段**——后者只是历史遗留形态。误探会把健康源报成死源：gnews（CDP 字段 404，真实端点 `/api/v4/search` 400 = 缺 key）、openalex（CDP 字段 403，真实端点 200）都是这么被冤枉的。
+2. **`supportsKeyword: false` 的 listing/feed 源同样要扫**——URL 不带关键词不代表不会死（techcrunch / guancha / qbitai / telegram_aipost 都在连败名单里）。这类源跳过关键词相关性判据（`keywordHits` 传 null），只判状态与重定向。
+3. **网络抖动必须重试后再定性**：本机代理会间歇断连，单次失败直接记 `network-error` 会产生假死源。脚本对每个源的主探针自带一次重试；报告里仍出现 `network-error` 的，需人工复测后再下结论。另：Node 的 fetch 默认**不读** `HTTP_PROXY`，须 `NODE_USE_ENV_PROXY=1`（Node ≥ 22.15），否则全量 ENOTFOUND。
+
 ### 落库与开票规则
 
 - **有可行修复** → 为该源开一张修复建议票（同源去重：该源已有 open 票则不重开），票面必须带：探针证据、候选 URL 或 feed 的实测计数、registry diff 草案。

@@ -89,6 +89,34 @@ describe("classifyProbe", () => {
     ).toBe("alive-no-keyword");
   });
 
+  it("does not call a listing source redirected-home when its URL IS the homepage", () => {
+    // qbitai/36kr/guancha carry the site root as their url — home is where
+    // they were sent, so "bounced back to home" is meaningless for them.
+    // keywordHits is positive here so the only thing under test is the guard.
+    expect(
+      classifyProbe({
+        status: 200,
+        finalUrl: "https://www.qbitai.com/",
+        homeUrl: "https://www.qbitai.com/",
+        keywordHits: 5,
+        requestedUrl: "https://www.qbitai.com/",
+      }),
+    ).toBe("alive");
+  });
+
+  it("skips the relevance gate when no keyword is in play", () => {
+    // keywordHits === null = listing/feed source (no query term to echo).
+    expect(
+      classifyProbe({
+        status: 200,
+        finalUrl: "https://36kr.com/",
+        homeUrl: "https://36kr.com/",
+        keywordHits: null,
+        requestedUrl: "https://36kr.com/",
+      }),
+    ).toBe("alive");
+  });
+
   it("keeps a real search page alive", () => {
     expect(
       classifyProbe({

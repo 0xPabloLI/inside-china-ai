@@ -61,16 +61,22 @@ function hasFlag(name) {
   return process.argv.includes(`--${name}`);
 }
 
-/** Every keyword-driven source with a search URL. `api` sources are included
- * too: their CDP/URL layer can still be the registered fallback form even when
- * the primary channel is an API, and a dead URL pattern there is the same
- * failure class. `primary` is recorded per row so the two classes stay
+/** Every source with a probeable URL. Two rules learned the hard way:
+ *  · `api` sources are included — an `api` source fails at its endpoint, and
+ *    probing its legacy CDP `url` instead reports healthy sources as dead
+ *    (gnews 404 / openalex 403 were both artifacts of probing the wrong URL).
+ *  · `supportsKeyword: false` sources are included — a listing or feed URL can
+ *    die exactly like a search pattern (techcrunch/guancha/qbitai all live in
+ *    the source-health zero-streak list while carrying no keyword).
+ * `channel` and `keywordDriven` are recorded per row so the classes stay
  * separable in the report. */
 export function selectSweepTargets(sources = ALL_SOURCES) {
-  return sources.filter((s) => typeof s.url === "function" && s.supportsKeyword !== false);
+  return sources.filter((s) => typeof s.url === "function");
 }
 
+/** Empty keyword for sources whose URL carries no query term. */
 export function keywordForSource(source, zhKeyword, enKeyword) {
+  if (source.supportsKeyword === false) return "";
   return (source.locale ?? "en") === "zh-CN" ? zhKeyword : enKeyword;
 }
 
@@ -116,13 +122,21 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
   const searchUrl = redactSecrets(probedUrl);
   const homeUrl = safeOrigin(probedUrl) ? new URL(probedUrl).origin + "/" : probedUrl;
 
-  const primary = await probe(probedUrl);
+  // One retry: the local proxy drops connections intermittently, and a
+  // dropped probe would otherwise be recorded as a dead source.
+  let primary = await probe(probedUrl);
+  if (primary.status === null) {
+    await sleep(600);
+    primary = await probe(probedUrl);
+  }
   const hits = countKeywordHits(primary.text, keyword);
   const verdict = classifyProbe({
     status: primary.status,
     finalUrl: primary.finalUrl,
     homeUrl,
-    keywordHits: hits,
+    // null = no keyword in play (listing/feed source) → relevance gate N/A.
+    keywordHits: keyword ? hits : null,
+    requestedUrl: probedUrl,
   });
 
   const row = {
@@ -131,6 +145,7 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
     locale: source.locale ?? "en",
     channel: source.accessMethod?.primary ?? "cdp",
     hasApiSearch: Boolean(source.apiSearch),
+    keywordDriven: Boolean(keyword),
     needsAuth: Boolean(source.needsAuth),
     keyword,
     probedKind: useApi ? "apiSearch" : "url",
@@ -162,7 +177,9 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
     error: home.error ?? null,
   };
   if (home.status && home.status < 400 && home.text) {
-    const candidates = deriveCandidates(home.text, homeUrl, keyword);
+    // Candidate discovery needs a keyword to substitute; listing sources keep
+    // only the feed half of the ladder.
+    const candidates = keyword ? deriveCandidates(home.text, homeUrl, keyword) : [];
     for (const cand of candidates.slice(0, MAX_CANDIDATES)) {
       await sleep(150);
       const p = await probe(cand.url);

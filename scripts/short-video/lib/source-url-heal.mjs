@@ -77,7 +77,7 @@ export function countKeywordHits(text, keyword) {
  * ithome failure mode from #269 Phase 1 (534 homepage links harvested as
  * "search results").
  */
-export function classifyProbe({ status, finalUrl, homeUrl, keywordHits = 0 }) {
+export function classifyProbe({ status, finalUrl, homeUrl, keywordHits = 0, requestedUrl = null }) {
   if (status === null) return "network-error";
   if (status >= 400) return "http-dead";
   let final;
@@ -91,8 +91,14 @@ export function classifyProbe({ status, finalUrl, homeUrl, keywordHits = 0 }) {
   if (final.host !== home.host) return "redirected-off-site";
   const finalPath = final.pathname.replace(/\/+$/, "") || "/";
   const homePath = home.pathname.replace(/\/+$/, "") || "/";
-  if (finalPath === homePath) return "redirected-home";
-  if (keywordHits === 0) return "alive-no-keyword";
+  // A listing source whose URL *is* the site root cannot "bounce back to the
+  // homepage" — home is where it was sent. Without this guard qbitai/36kr/
+  // guancha all read as redirected-home by construction.
+  const requestedPath = requestedUrl ? new URL(requestedUrl, homeUrl).pathname.replace(/\/+$/, "") || "/" : null;
+  if (finalPath === homePath && requestedPath !== homePath) return "redirected-home";
+  // keywordHits === null means "no keyword in play" (listing/API sources whose
+  // URL carries no query term) — the relevance gate does not apply to them.
+  if (keywordHits !== null && keywordHits === 0) return "alive-no-keyword";
   return "alive";
 }
 
