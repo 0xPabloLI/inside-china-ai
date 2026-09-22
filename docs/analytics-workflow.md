@@ -93,6 +93,8 @@ Agent 通过 `tiktok-csi.mjs` 抓取 TikTok Creator Search Insights 数据：
 >
 > **TikTok 专用登录实例（默认路线，2026-09-07 起）**：TikTok 登录一律用全新 profile 启动的独立 Chrome 实例（指纹等效无痕）——常规浏览器/常规 CDP profile 登录已被风控拦截，不再尝试。启动并让 proxy 指向该实例：
 >
+> **两点别漏**：① **它不是 TikTok 专用**——这个实例同时是**需登录态的 CDP 主层源（微博等）的通用自动化 profile**，微博登录态也落在这里（见 `docs/reviews/source-chain-audit-2026-09-15.md` §运维事实：重登即恢复）；② **本块是启动命令的唯一权威副本**，其他文档（如 `docs/selector-auto-healing.md` §Chrome 安全规程）只做指针、不得各抄一份。
+>
 > ```bash
 > # 1. 启动全新 profile 实例（勿用默认 profile，Chrome 136+ 禁调试；
 > #    profile 放稳定目录 —— 登录态落盘可复用，勿放 $TMPDIR 会被系统清理）

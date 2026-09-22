@@ -54,14 +54,10 @@ selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mj
 ## Chrome 安全规程（profile 守卫）
 
 - **绝对禁止**：`pkill -9 Chrome` / `killall Chrome`（unclean kill 可损坏 profile 的 LevelDB——锁文件与 session 数据）；`rm`/移动 `~/Library/Application Support/Google/Chrome/` 下任何内容；任何 "Reset/Cleanup" 类操作。杀进程不等于删 profile，但 unclean kill 是 profile 损坏的最常见来源。
-- **CDP 代理僵死的恢复阶梯**：① 只重启代理（`skills/web-access/scripts/cdp-proxy.mjs`，仓库自有工具，与 Chrome 零接触）；② 代理重启后仍 WS 连接失败而 `curl localhost:9222/json/version` 正常 → Chrome DevTools 层卡死，**由用户**优雅退出 Chrome（⌘Q 或 `osascript -e 'quit app "Google Chrome"'`）再带 `--remote-debugging-port=9222` 重启——优雅退出不触碰 profile 数据。Agent 不得代替用户杀/退 Chrome。
+- **CDP 代理僵死的恢复阶梯**：① 只重启代理（`skills/web-access/scripts/cdp-proxy.mjs`，仓库自有工具，与 Chrome 零接触）；② 代理重启后仍 WS 连接失败而 `curl localhost:9229/json/version` 正常 → Chrome DevTools 层卡死，**由用户**优雅退出该实例（⌘Q 或 `osascript -e 'quit app "Google Chrome"'`）再按上条与 `docs/analytics-workflow.md` 的启动块重启——优雅退出不触碰 profile 数据。Agent 不得代替用户杀/退 Chrome。**注意 9222 不能用作这个判据**：Chrome 136+ 禁止在默认 profile 目录上开远程调试，你日常 Chrome 的 9222 虽然 LISTEN 但 `/json/version` 与 `/json/list` **一律 404**（2026-09-22 实测），拿它做探活永远是假阴性。
 - 长跑注意：一次体检 ≈30 次导航，连续多轮压测会让 DevTools WS 层进入僵死——多轮之间留冷却，或分批 `--only` 跑。
-- **用哪个 profile 决定了「登录门」结论的真假（2026-09-22 三补轮，用户当场纠正）**：本机既有的专用 CDP profile 是 **`~/chrome-tiktok-profile`**（9/7 建立，带 TikTok / Google 全家桶 / Bing / 微博 / ithome 登录态），端口 **9229**——agent-harness 的 3456 代理自 9/19 起就钉在 9229。**不要另起空 profile**：`~/.chrome-cdp` 是个无登录态的闲 profile，`WEB_ACCESS_CDP_PORT` 一旦指到它，所有「登录墙」判决都会变成「这个 profile 没登录」的投影。启动命令（独立 profile，不触碰用户日常 Chrome，仍符合本节守卫）：
-
-  ```bash
-  open -na "Google Chrome" --args --user-data-dir="$HOME/chrome-tiktok-profile" \
-    --remote-debugging-port=9229 --no-first-run --no-default-browser-check about:blank
-  ```
+- **用哪个 profile 决定了「登录门」结论的真假（2026-09-22 三补轮，用户当场纠正）**：CDP 实例必须是 **`~/chrome-tiktok-profile`**，端口 **9229**（agent-harness 的 3456 代理自 9/19 起就钉在 9229）。**不要另起空 profile**：`~/.chrome-cdp` 是个无登录态的闲 profile，`WEB_ACCESS_CDP_PORT` 一旦指到它，所有「登录墙」判决都会变成「这个 profile 没登录」的投影。
+- **这条约定仓库里早就写了——别重新发现一遍（本轮的实际教训）**：启动命令的唯一权威副本在 `docs/analytics-workflow.md` §TikTok 专用登录实例（含 `pkill -f cdp-proxy.mjs` 重置 + 指向 9229 两步），profile 归属见 `docs/reviews/source-chain-audit-2026-09-15.md` §运维事实，`docs/issue-roadmap.md` 2026-09-19 inventory ⑤ 也记了「仅 1 个自动化罐（chrome-tiktok-profile），无冗余」。**动手前先 `grep -rn "chrome-tiktok-profile\|9229" docs/`**。本轮之所以另起空 profile，就是没查这一步——把「登录门」探针跑成了「这个 profile 没登录」的投影，白跑一轮。此处只做指针，不复制启动命令（两处各存一份必然漂移）。
 
 ## 逐源修复方法论（#269 Phase 2 定案，2026-09-21）
 
@@ -228,4 +224,4 @@ node scripts/short-video/source-url-discover.mjs --only xinhua,ithome --json
 
 ## CDP 代理 wsPath 陈旧坑（2026-09-07 修复）
 
-`DevToolsActivePort` 文件缓存的浏览器级 WS 路径与 Chrome 活值脱节时，代理报「连接失败」而 `curl localhost:9222/json/version` 正常——其他 session 正常、本 session 不通的假象即来源于此。已修 `skills/web-access/scripts/cdp-proxy.mjs`：WS 握手失败自动回退 `/json/version` 活值重试。注意 `skills/` 与 agent-harness 仓手动同步，此修复需带过去。
+`DevToolsActivePort` 文件缓存的浏览器级 WS 路径与 Chrome 活值脱节时，代理报「连接失败」而 `curl localhost:9222/json/version` 正常（**当时的约定端口是 9222；2026-09-07 起 TikTok/自动化实例改用 9229，且 9222 因 Chrome 136+ 默认 profile 禁调试已全 404——照抄本条时把端口换成 9229**）——其他 session 正常、本 session 不通的假象即来源于此。已修 `skills/web-access/scripts/cdp-proxy.mjs`：WS 握手失败自动回退 `/json/version` 活值重试。注意 `skills/` 与 agent-harness 仓手动同步，此修复需带过去。
