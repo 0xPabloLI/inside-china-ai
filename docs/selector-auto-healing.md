@@ -56,6 +56,12 @@ selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mj
 - **绝对禁止**：`pkill -9 Chrome` / `killall Chrome`（unclean kill 可损坏 profile 的 LevelDB——锁文件与 session 数据）；`rm`/移动 `~/Library/Application Support/Google/Chrome/` 下任何内容；任何 "Reset/Cleanup" 类操作。杀进程不等于删 profile，但 unclean kill 是 profile 损坏的最常见来源。
 - **CDP 代理僵死的恢复阶梯**：① 只重启代理（`skills/web-access/scripts/cdp-proxy.mjs`，仓库自有工具，与 Chrome 零接触）；② 代理重启后仍 WS 连接失败而 `curl localhost:9222/json/version` 正常 → Chrome DevTools 层卡死，**由用户**优雅退出 Chrome（⌘Q 或 `osascript -e 'quit app "Google Chrome"'`）再带 `--remote-debugging-port=9222` 重启——优雅退出不触碰 profile 数据。Agent 不得代替用户杀/退 Chrome。
 - 长跑注意：一次体检 ≈30 次导航，连续多轮压测会让 DevTools WS 层进入僵死——多轮之间留冷却，或分批 `--only` 跑。
+- **用哪个 profile 决定了「登录门」结论的真假（2026-09-22 三补轮，用户当场纠正）**：本机既有的专用 CDP profile 是 **`~/chrome-tiktok-profile`**（9/7 建立，带 TikTok / Google 全家桶 / Bing / 微博 / ithome 登录态），端口 **9229**——agent-harness 的 3456 代理自 9/19 起就钉在 9229。**不要另起空 profile**：`~/.chrome-cdp` 是个无登录态的闲 profile，`WEB_ACCESS_CDP_PORT` 一旦指到它，所有「登录墙」判决都会变成「这个 profile 没登录」的投影。启动命令（独立 profile，不触碰用户日常 Chrome，仍符合本节守卫）：
+
+  ```bash
+  open -na "Google Chrome" --args --user-data-dir="$HOME/chrome-tiktok-profile" \
+    --remote-debugging-port=9229 --no-first-run --no-default-browser-check about:blank
+  ```
 
 ## 逐源修复方法论（#269 Phase 2 定案，2026-09-21）
 
@@ -168,6 +174,19 @@ node scripts/short-video/source-url-discover.mjs --only xinhua,ithome --json
 - `probe-not-authoritative` + `blocked-in-browser-too` ⇒ 封锁是真的，改 URL 无用（reddit）；
 - `url-recovered-but-login-gated` ⇒ **URL 是错的、端点也是登录门**，两件事要分开处置（ithome）。
 
+### 第二次意见必须跑在【带登录态的 profile】上（2026-09-22 三补轮）
+
+在无登录态的 profile 上复检，**凡是登录门都只会复现登录门**——分不清「站点真的要登录」与「只是这个 profile 没登录」。同一批 URL、两个 profile 的实测对照：
+
+| 源 | 空 profile（`~/.chrome-cdp`） | 带登录态（`~/chrome-tiktok-profile`） | 结论 |
+| --- | --- | --- | --- |
+| weibo_search | 跳 `passport.weibo.com` ⇒ 判 `login-wall` | **5350 字符真结果，零登录提示** | **判据假阳**，URL 本就可用 |
+| ithome | 302 到登录页 | **仍 302 到登录页** | 登录门是真的，`needsAuth: true` 站得住 |
+| douyin | 内容加载失败 | 内容加载失败 +「登录账号」 | 仍需登录 |
+| zhihu | 「未搜索到相关内容」 | 同左 + 扫码提示 | 仍需登录 |
+
+所以「登录门」判决**必须标注在哪个 profile 下测得**；只有带登录态的 profile 也过不去，才算站点的登录门（否则只是探针环境问题）。
+
 ### 驱动搜索框：找真实 URL 的权威方式（实测要点）
 
 站点自己的搜索 UI 就是它自己的路由——**比任何模板表都权威**。ithome 的 registry 写着 `/search?word=`（404）、模板表 9 个猜测全死，而搜索框提交后落在 `/search/{kw}.html`（路径段 + `.html`，**根本没有 query 参数**）。五个实测要点：
@@ -188,10 +207,10 @@ node scripts/short-video/source-url-discover.mjs --only xinhua,ithome --json
 | --- | --- | --- |
 | **已修 + 已落库** | xinhua | 旧 `www.news.cn/search/news.htm?keyword=` 404；`www.news.cn/search?q=` 是 ErrorPageTemplate 假页；JSON 端点 `so.news.cn/getNews` 对 Node fetch 403（openresty，159B）、浏览器内 200 + JSON。真实页面路由 `so.news.cn/#search/0/{kw}/1/` 经双关键词证伪（量子计算→量子聚力/潘建伟，人工智能→人形机器人），结果容器 `.items`，`selector-health --only xinhua` **6 条绿** |
 | **诊断收口，未改行为** | jiqizhixin | 关键词搜索是**服务端故障**（浏览器内一样 500 +「服务器内部故障」），不是 SPA 渲染问题；存在可用的 `api/article_library/articles.json` 但**忽略一切关键词参数**（latest-flow）；机器之心内容已由 `wechat2rss_jiqizhixin` 覆盖 → 改成 listing 源只会重复入库，维持原状待裁决 |
-| **已修 + 已落库（needsAuth）** | ithome | 真实形态 `/search/{kw}.html`；对匿名（含无 cookie 的纯 HTTP）一律 302 到 `user-login/index.htm?tip=登录以查看搜索结果` → URL 改正 + `needsAuth: true`；匿名通道是 `/rss/`（60 条，当日） |
+| **已修 + 已落库（needsAuth）** | ithome | 真实形态 `/search/{kw}.html`；对匿名（含无 cookie 的纯 HTTP）一律 302 到 `user-login/index.htm?tip=登录以查看搜索结果` → URL 改正 + `needsAuth: true`；匿名通道是 `/rss/`（60 条，当日）。**三补轮：在带登录态的 profile 下仍被同一门禁 302 拦下**——登录门是站点侧的，不是探针环境造成的（登录表单在 `my.ruanmei.com` 的 **iframe** 内，页面上有微信扫码面板） |
 | **判据修正，无需修源** | bloomberg、thepaper、threads_search、reddit_search、zhihu、tiktok_creator、core_search、google_search、techmeme_search、wechat_dongchabeating、weibo_search | 见上表五类误判；红黑名单归属由新判决自动分流 |
 | **确认真实封锁，按边界不修** | reddit_search（浏览器内也是 network-security 拦截页）、tiktok_creator（401：探针带不上 API key 头） | `blocked-in-browser-too` |
-| **真 URL 已回收但被门禁** | weibo_search → `s.weibo.com/weibo?q={kw}&Refer=index`；douyin → `so.douyin.com/s?search_entrance=aweme&keyword={kw}` | `url-recovered-but-login-gated` / 待裁决 |
+| **真 URL 已回收；weibo 在登录态下已验证可用** | weibo_search → `s.weibo.com/weibo?q={kw}&Refer=index`（**带登录态 profile 下 5350 字符真结果、零登录提示** → 旧 `login-wall` 判决系空 profile 造成的假阳）；douyin → `so.douyin.com/s?search_entrance=aweme&keyword={kw}`（内容加载失败 + 需登录账号） | weibo = **可用**，待落库裁决；douyin = `url-recovered-but-login-gated` 待裁决 |
 
 ## 已知修复台账
 
