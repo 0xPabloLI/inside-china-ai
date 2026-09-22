@@ -21,6 +21,7 @@ import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
+import { loadEnv } from "./lib/load-env.mjs";
 import { ALL_SOURCES } from "./lib/source-registry.mjs";
 import {
   classifyProbe,
@@ -231,6 +232,26 @@ function safeOrigin(url) {
 }
 
 async function main() {
+  // This CLI is an entry point, so it owns the .env.local load (lib/** never
+  // self-loads — #287/#275). Without it, every keyed api source probes with an
+  // empty `apikey=`, and a server-side "you did not provide an API key" reads
+  // as a dead source: the 2026-09-21 sweep reported gnews 400 and currents 401
+  // that way, both of which read 200/alive once the keys were loaded.
+  //
+  // `--env <path>` exists because a git worktree has no .env.local of its own
+  // (the file is gitignored and lives in the main checkout) — point it at the
+  // main checkout's copy instead of copying secrets around.
+  loadEnv(getArg("env") || undefined);
+  const envKeys = [
+    "GNEWS_API_KEY",
+    "CURRENTS_API_KEY",
+    "SCRAPECREATORS_API_KEY",
+    "BRAVE_SEARCH_API_KEY",
+    "SERPER_API_KEY",
+    "TAVILY_API_KEY",
+  ];
+  const keyPresence = Object.fromEntries(envKeys.map((k) => [k, Boolean(process.env[k])]));
+
   const only = getArg("only");
   const limit = Number(getArg("limit") || 0);
   const zhKeyword = getArg("keyword-zh") || "人工智能";
@@ -262,6 +283,8 @@ async function main() {
   const report = {
     generatedAt: new Date().toISOString(),
     keyword: { zh: zhKeyword, en: enKeyword },
+    envLoaded: true,
+    keyPresence,
     targetCount: targets.length,
     rows,
   };
