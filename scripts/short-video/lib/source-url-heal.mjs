@@ -53,22 +53,104 @@ function normalizeCharset(label) {
   return l;
 }
 
-/** Occurrences of `keyword` in `text`. Latin keywords are matched
- * case-insensitively; CJK has no case, and `indexOf` is enough for a
- * presence/absence signal (we never need the positions). */
+/** Occurrences of `keyword` in `text`.
+ *
+ * ASCII keywords must match on **word boundaries**, not as substrings. The
+ * 2026-09-22 sweep scored 237 hits for keyword "AI" on a Reddit 403 block page
+ * whose actual text contains no result — every hit was inside "email",
+ * "certain", "domain". A phantom hit count is the worst kind of wrong: it
+ * flips `alive-no-keyword` into `alive` and makes a blocked source look
+ * healthy. CJK has no word separators, so `indexOf` stays correct there. */
 export function countKeywordHits(text, keyword) {
   if (!text || !keyword) return 0;
-  const haystack = /[a-z]/i.test(keyword) && !/[^\x00-\x7F]/.test(keyword)
-    ? text.toLowerCase()
-    : text;
-  const needle = haystack === text ? keyword : keyword.toLowerCase();
+  if (/^[\x00-\x7F]+$/.test(keyword)) {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, "gi");
+    return (text.match(re) || []).length;
+  }
   let n = 0;
-  let i = haystack.indexOf(needle);
+  let i = text.indexOf(keyword);
   while (i !== -1) {
     n += 1;
-    i = haystack.indexOf(needle, i + needle.length);
+    i = text.indexOf(keyword, i + keyword.length);
   }
   return n;
+}
+
+/**
+ * Login endpoints, by path/host shape. Deliberately narrow: a bare
+ * "登录/注册" in the page chrome appears on healthy anonymous pages too
+ * (zhihu renders it while serving real content), so only an actual login
+ * *destination* counts.
+ */
+const LOGIN_URL_RE =
+  /(\/user-login[/.?]|\/login\b|\/signin\b|\/sign-in\b|passport\.|accounts\.google\.com|\/sso\/|\/cas\/login|member\.)/i;
+
+/** A login *wall* is a page that would serve results to a logged-in visitor
+ * and refuses an anonymous one. Two shapes, both observed on 2026-09-22:
+ *   · the fetch lands on a login endpoint (ithome: `/search/{kw}.html` 302s to
+ *     `/user-login/index.htm?url=…&tip=登录以查看搜索结果`);
+ *   · the page renders in place but announces the gate (zhihu search: HTTP 200,
+ *     "未搜索到相关内容" + 登录/注册, no results for an anonymous visitor).
+ *
+ * This is NOT a dead URL and must not be repaired by changing the URL — the
+ * same #285 rule that keeps login-gated sources out of the dead-source
+ * ledger. */
+export function detectLoginWall({ finalUrl = "", html = "" } = {}) {
+  if (finalUrl && LOGIN_URL_RE.test(String(finalUrl))) return true;
+  return /登录以查看搜索结果|请先登录|登录后查看|需要登录后|Login required|Sign in to (?:continue|view)|You must be logged in/i.test(
+    html || "",
+  );
+}
+
+/** Anti-bot / WAF / rate-limit signatures. A 403 that comes from a WAF says
+ * nothing about whether the URL pattern is alive: xinhua's `so.news.cn/getNews`
+ * answers a real browser with 200 + JSON and a Node fetch with 403 (openresty),
+ * and reddit answers *everything* non-browser with a network-security block. */
+const BLOCK_PAGE_RE =
+  /403 Forbidden|Access Denied|blocked by network security|安全验证|异常流量|请求过于频繁|访问频率|verify you are human|cf-browser-verification|Just a moment|Attention Required|Enable JavaScript and cookies/i;
+
+export function detectBlockPage({ status, html = "" } = {}) {
+  if (status === 429 || status === 503) return true;
+  if (status !== 401 && status !== 403 && status !== 405) return false;
+  if (BLOCK_PAGE_RE.test(html || "")) return true;
+  // A 4xx that carries almost no body is an edge/WAF rejection, not a page that
+  // decided the URL does not exist (xinhua's openresty 403 is 159 bytes).
+  return (html || "").length < 2000;
+}
+
+/**
+ * "Found ~0 results" — the page's own verdict on its own query.
+ *
+ * Keyword presence alone is a weak signal: a search page carries its query in
+ * the header, in a breadcrumb, in an "you searched for X" strip, and in the
+ * sidebar's hot-topic list. thepaper's `?keyword=AI` page says 找到约0个结果 in
+ * plain text and still scored a keyword hit elsewhere, which read as `alive`
+ * (2026-09-22). The result count the page states about itself beats any
+ * inference from the surrounding chrome.
+ *
+ * Exported so the CDP snapshot script can evaluate the *same* list in-page —
+ * one definition, two consumers.
+ */
+export const ZERO_RESULTS_PATTERNS = [
+  "找到约\\s*0\\s*个结果",
+  "找到\\s*0\\s*个结果",
+  "约\\s*0\\s*个结果",
+  "没有找到(?:相关|任何)?(?:结果|内容|文章)",
+  "未找到(?:相关|任何)?(?:结果|内容|文章)",
+  "没有搜索到",
+  "暂无(?:相关)?(?:结果|内容|数据|文章)",
+  "无相关结果",
+  "did not match any",
+  "no results found",
+  "no results were found",
+  "\\b0 results\\b",
+  "About 0 results",
+];
+
+export function detectZeroResults(text) {
+  if (!text) return false;
+  return ZERO_RESULTS_PATTERNS.some((p) => new RegExp(p, "i").test(text));
 }
 
 /**
@@ -76,10 +158,42 @@ export function countKeywordHits(text, keyword) {
  * recognise "the search page silently bounced me to the homepage" — the exact
  * ithome failure mode from #269 Phase 1 (534 homepage links harvested as
  * "search results").
+ *
+ * Verdict vocabulary, and which half of it is about the *source*:
+ *
+ *   alive                  results present, on-site
+ *   alive-off-site         results present, but the configured URL lands on a
+ *                          different host — a canonical hop, not a failure
+ *                          (google.com → google.com.hk, threads.net →
+ *                          threads.com). 2026-09-22: this class was being
+ *                          reported as `redirected-off-site` for four healthy
+ *                          sources, three of which were carrying 28–148
+ *                          keyword hits.
+ *   alive-no-keyword       reachable but the term appears nowhere
+ *   alive-zero-results     the page states its own query returned 0 results —
+ *                          the URL works, the query does not (thepaper)
+ *   redirected-home        search URL bounced to the site root
+ *   redirected-off-site    landed on another host *without* the term
+ *   http-dead              404/410/5xx — a real endpoint-death signal
+ *   network-error          transport failure
+ *   login-wall             the answer depends on cookies, not on the URL
+ *   probe-not-authoritative 401/403/405/429 — an edge/WAF/credential answer
+ *                          about the *probe*; a real browser may differ
+ *
+ * The last two are the accuracy fix of 2026-09-22: calling them "dead" is what
+ * sent live sources to the repair queue while the actual repair was "look at it
+ * from a browser" (#269 Phase 2 methodology step 5).
  */
-export function classifyProbe({ status, finalUrl, homeUrl, keywordHits = 0, requestedUrl = null }) {
+export function classifyProbe({ status, finalUrl, homeUrl, keywordHits = 0, requestedUrl = null, html = "" }) {
   if (status === null) return "network-error";
-  if (status >= 400) return "http-dead";
+  if (status >= 400) {
+    // Order matters: status-specific edges are asked about *before* declaring
+    // the URL dead, because both answers come back as 4xx.
+    if (detectLoginWall({ finalUrl, html })) return "login-wall";
+    if (detectBlockPage({ status, html })) return "probe-not-authoritative";
+    return "http-dead";
+  }
+  if (detectLoginWall({ finalUrl, html })) return "login-wall";
   let final;
   let home;
   try {
@@ -88,7 +202,14 @@ export function classifyProbe({ status, finalUrl, homeUrl, keywordHits = 0, requ
   } catch {
     return "unknown";
   }
-  if (final.host !== home.host) return "redirected-off-site";
+  // `keywordHits === null` means "no keyword in play" (listing/API sources whose
+  // URL carries no query term) — the relevance gate does not apply to them.
+  const hasKeyword = keywordHits !== null && keywordHits > 0;
+  if (final.host !== home.host) {
+    // A cross-host hop that still carries the term is a canonical-domain move,
+    // not a broken URL: the page we landed on is the page we wanted.
+    return hasKeyword ? "alive-off-site" : "redirected-off-site";
+  }
   const finalPath = final.pathname.replace(/\/+$/, "") || "/";
   const homePath = home.pathname.replace(/\/+$/, "") || "/";
   // A listing source whose URL *is* the site root cannot "bounce back to the
@@ -96,10 +217,32 @@ export function classifyProbe({ status, finalUrl, homeUrl, keywordHits = 0, requ
   // guancha all read as redirected-home by construction.
   const requestedPath = requestedUrl ? new URL(requestedUrl, homeUrl).pathname.replace(/\/+$/, "") || "/" : null;
   if (finalPath === homePath && requestedPath !== homePath) return "redirected-home";
-  // keywordHits === null means "no keyword in play" (listing/API sources whose
-  // URL carries no query term) — the relevance gate does not apply to them.
   if (keywordHits !== null && keywordHits === 0) return "alive-no-keyword";
+  // The page's own result count beats any inference from the surrounding chrome
+  // (thepaper says 找到约0个结果 on a 200 page that still echoes the term).
+  if (detectZeroResults(html)) return "alive-zero-results";
   return "alive";
+}
+
+/** Verdicts that mean "this source is fine" — no repair, no quarantine. */
+export const HEALTHY_VERDICTS = new Set(["alive", "alive-off-site"]);
+
+/**
+ * Verdicts where the probe's answer is about the *probe*, not the source.
+ * These must not feed the dead-source ledger: #285 already established this for
+ * login-gated sources, and the WAF case is the same argument one layer up.
+ */
+export const PROBE_UNAUTHORITATIVE_VERDICTS = new Set(["login-wall", "probe-not-authoritative"]);
+
+/** True when the verdict means the source itself needs repair or quarantine. */
+export function isFailureVerdict(verdict) {
+  return !HEALTHY_VERDICTS.has(verdict) && !PROBE_UNAUTHORITATIVE_VERDICTS.has(verdict);
+}
+
+/** Every non-healthy verdict is worth a browser second opinion: a 404 can be a
+ * JS-routed endpoint (xinhua), and a 403 can be a WAF (xinhua again, reddit). */
+export function needsCdpSecondOpinion(verdict) {
+  return !HEALTHY_VERDICTS.has(verdict);
 }
 
 /**
@@ -240,6 +383,326 @@ export function deriveCandidates(html, baseUrl, keyword) {
     ...extractSearchLinks(html, baseUrl),
     ...buildTemplateCandidates(baseUrl, keyword),
   ];
+}
+
+// ─── in-page search-box discovery (methodology step 5) ───
+//
+// Static HTML cannot see a JS-rendered search box, and the template table is
+// only a guess list. The authoritative source of "what is the real search URL"
+// is the site's own search UI: put the term in its box, submit, and read the
+// address bar. These builders return the CDP scripts that do that; they are
+// pure string builders so tests can lock the selector list.
+
+/** Knows-name list, kept exported so tests can lock it. Selection itself is
+ * score-based (see `boxScoringPrelude`) because a pure first-match selector walk
+ * is wrong on component-library SPAs. */
+export const SEARCH_BOX_SELECTORS = [
+  'input[type="search"]',
+  'form[role="search"] input',
+  'input[name="q"]',
+  'input[name="wd"]',
+  'input[name="word"]',
+  'input[name="kw"]',
+  'input[name="keyword"]',
+  'input[name="keywords"]',
+  'input[name="query"]',
+  'input[name="searchword"]',
+  'input[name="search_keyword"]',
+  'input[name="key"]',
+  'input[name="text"]',
+  'input[placeholder*="搜索"]',
+  'input[placeholder*="Search" i]',
+  'input[aria-label*="搜索"]',
+  'input[aria-label*="Search" i]',
+  '[class*="search"] input[type="text"]',
+  "#search input",
+  "#searchInput",
+];
+
+/**
+ * Shared in-page scoring, injected into both scripts so the box that gets
+ * *reported* is the box that gets *driven*.
+ *
+ * The `input[type=search]` trap: on Ant-Design sites that element is a
+ * `<Select>`'s hidden filter input (`ant-select-selection-search-input`), not
+ * the site search box — submitting it does nothing. so.news.cn cost a wasted
+ * diagnostic round to that on 2026-09-22, hence the explicit combobox penalty.
+ */
+function boxScoringPrelude() {
+  const names = "/^(q|s|word|words|wd|kw|keyword|keywords|query|search|searchword|searchkey|key|text|title)$/i";
+  const combobox = "'.ant-select, [role=\"combobox\"], [class*=combobox], [class*=el-select], [class*=select2], [aria-haspopup=\"listbox\"]'";
+  return `
+  var SEARCH_NAMES = ${names};
+  var COMBOBOX_SCOPE = ${combobox};
+  function boxScore(el) {
+    if (!el || el.disabled || el.readOnly) return -99;
+    var t = (el.type || 'text').toLowerCase();
+    if (t !== 'text' && t !== 'search') return -99;
+    var r = el.getBoundingClientRect();
+    if (r.width < 40 || r.height < 8) return -99;
+    var s = 0;
+    if (el.name && SEARCH_NAMES.test(el.name)) s += 4;
+    if (/搜索|search/i.test(el.placeholder || '')) s += 3;
+    if (/搜索|search/i.test(el.getAttribute('aria-label') || '')) s += 2;
+    if (/search|sousuo|query|ss-|top-search/i.test((el.id || '') + ' ' + (el.className || ''))) s += 2;
+    if (t === 'search') s += 1;
+    if (r.width > 120) s += 1;
+    if (el.closest('[class*=search], [id*=search]')) s += 2;
+    if (el.closest(COMBOBOX_SCOPE) || el.getAttribute('aria-autocomplete') === 'list') s -= 8;
+    // The site-search box is normally alone in its form, while an *advanced*
+    // search panel (xinhua's AdvancedSearchForm_a_keyWordAll) packs many
+    // fields and steals the name/id hints. Prefer the lonely box.
+    var f = el.closest('form');
+    if (f) {
+      var n = f.querySelectorAll('input').length;
+      if (n > 2) s -= 3 * Math.min(n - 1, 3);
+    }
+    return s;
+  }
+  function rankBoxes() {
+    var all = [].slice.call(document.querySelectorAll('input'));
+    var scored = [];
+    for (var i = 0; i < all.length; i++) {
+      var sc = boxScore(all[i]);
+      if (sc > 0) scored.push({ el: all[i], score: sc });
+    }
+    scored.sort(function (a, b) { return b.score - a.score; });
+    return scored;
+  }
+  function submitBox(el) {
+    var btns = [].slice.call(document.querySelectorAll('button, input[type=submit], [role=button]'));
+    var best = null, bestScore = 0;
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i];
+      var txt = ((b.innerText || b.value || '') + '').replace(/\\s+/g, '').trim();
+      var hay = (b.className || '') + ' ' + (b.id || '');
+      var sc = 0;
+      if (/^(搜索|search|go|查询)$/i.test(txt)) sc += 4;
+      else if (/搜索|search/i.test(txt)) sc += 2;
+      if (/search|sousuo/i.test(hay)) sc += 2;
+      if (!sc) continue;
+      var r = b.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8) continue;
+      if (sc > bestScore) { bestScore = sc; best = b; }
+    }
+    if (best) { best.click(); return 'button:' + ((best.innerText || best.value || '').trim().slice(0, 8)); }
+    var f = el.closest('form');
+    if (f) { if (f.requestSubmit) f.requestSubmit(); else f.submit(); return 'form-submit'; }
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+    return 'synthetic-enter';
+  }`;
+}
+
+/** Report which box would be driven, and why. Returns JSON; never throws. */
+export function buildFindSearchBoxScript() {
+  return `(function () {${boxScoringPrelude()}
+  var ranked = rankBoxes();
+  if (!ranked.length) return JSON.stringify({ found: false, candidates: 0 });
+  var el = ranked[0].el;
+  return JSON.stringify({
+    found: true,
+    score: ranked[0].score,
+    candidates: ranked.length,
+    name: el.name || '', id: el.id || '', type: el.type || '',
+    placeholder: el.placeholder || '', inForm: !!el.closest('form'),
+    runnerUp: ranked.length > 1 ? { name: ranked[1].el.name || '', id: ranked[1].el.id || '', score: ranked[1].score } : null
+  });
+})()`;
+}
+
+/** Fill the best-scoring box and submit it the way a human would: click the
+ * search button when one is identifiable, else submit the form, else Enter.
+ * `rank` picks which of the ranked boxes to drive — a page can carry both the
+ * simple site-search box and an advanced-search panel, and only one of them may
+ * route to a keyword-bearing URL. */
+export function buildSubmitSearchScript(keyword, rank = 0) {
+  const kw = JSON.stringify(String(keyword));
+  return `(function () {
+  var SETTER = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+  function setValue(el, v) {
+    // React/Vue keep their own copy of the value and ignore a direct
+    // assignment: writing el.value updates the DOM but not the component
+    // state, so the submit handler reads an empty box and nothing happens.
+    // Going through the prototype setter makes the framework's onChange fire.
+    // so.news.cn (Ant Design) needs this; so do most React sites.
+    if (SETTER && SETTER.set) SETTER.set.call(el, v); else el.value = v;
+  }${boxScoringPrelude()}
+  var ranked = rankBoxes();
+  if (!ranked.length) return 'no-box';
+  var pick = ranked[${Number(rank) || 0}];
+  if (!pick) return 'no-box-at-rank';
+  var el = pick.el;
+  var before = location.href;
+  el.focus();
+  setValue(el, ${kw});
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  var via = submitBox(el);
+  return 'submitted-via-' + via + '-from:' + before;
+})()`;
+}
+
+/** Page snapshot used to judge a CDP landing: where we are, whether a login
+ * gate or block page is showing, and how many result-shaped links exist.
+ * `status` comes from `PerformanceNavigationTiming.responseStatus` — the CDP
+ * client has no status channel, and without it a WAF 403 and a real 200 are
+ * indistinguishable from the DOM alone.
+ *
+ * `keywordHits` is counted in-page so the CDP verdict can reuse `classifyProbe`
+ * verbatim instead of inventing a second relevance rule. */
+export function buildSnapshotScript(keyword = "") {
+  const kw = JSON.stringify(String(keyword || ""));
+  const zeroPatterns = JSON.stringify(ZERO_RESULTS_PATTERNS);
+  return `JSON.stringify((function () {
+  var links = [].slice.call(document.querySelectorAll('a[href]'));
+  var dated = links.filter(function (a) { return /\\/20\\d\\d[-\\/]/.test(a.getAttribute('href') || ''); });
+  var text = document.body ? document.body.innerText : '';
+  var nav = performance.getEntriesByType('navigation')[0];
+  var kw = ${kw};
+  var ZERO = ${zeroPatterns};
+  var hits = 0;
+  if (kw) {
+    if (/^[\\x00-\\x7F]+$/.test(kw)) {
+      var esc = kw.replace(/[-[\\]{}()*+?.,\\\\^$|#\\s]/g, '\\\\$&');
+      hits = (text.match(new RegExp('(?<![A-Za-z0-9])' + esc + '(?![A-Za-z0-9])', 'gi')) || []).length;
+    } else {
+      var i = text.indexOf(kw);
+      while (i !== -1) { hits += 1; i = text.indexOf(kw, i + kw.length); }
+    }
+  }
+  return {
+    url: location.href,
+    status: nav && nav.responseStatus ? nav.responseStatus : null,
+    title: document.title,
+    textLength: text.length,
+    anchorCount: links.length,
+    datedLinkCount: dated.length,
+    keywordHits: hits,
+    zeroResults: ZERO.some(function (p) { return new RegExp(p, 'i').test(text); }),
+    sampleTitles: links.slice(0, 40).map(function (a) { return a.innerText.trim(); })
+      .filter(function (t) { return t.length > 7; }).slice(0, 5),
+    loginHint: /登录以查看搜索结果|请先登录|登录后查看|需要登录后|Sign in to (?:continue|view)|You must be logged in/i.test(text),
+    blockHint: /安全验证|异常流量|请求过于频繁|访问频率|verify you are human|Access Denied|blocked by network security/i.test(text),
+    bodyHead: text.slice(0, 160).replace(/\\s+/g, ' ')
+  };
+})())`;
+}
+
+/**
+ * Turn the URL the site's own search box landed on into a `{kw}` template.
+ *
+ * This is the piece the user asked for: instead of guessing
+ * `/search?word={kw}` and reading the 404 as "the source is dead", drive the
+ * real search UI and read back the truth (ithome:
+ * `/search/{kw}.html` — path segment, `.html` suffix, no query param at all).
+ *
+ * Returns `null` when the landed page cannot carry the term (site root, login
+ * page, or a search that navigated nowhere).
+ */
+export function templateFromLandedUrl(landedUrl, keyword) {
+  if (!landedUrl || !keyword) return null;
+  let u;
+  try {
+    u = new URL(landedUrl);
+  } catch {
+    return null;
+  }
+  if (detectLoginWall({ finalUrl: landedUrl })) return null;
+  const forms = [String(keyword), encodeURIComponent(keyword)].filter((f, i, a) => a.indexOf(f) === i);
+  const hash = u.hash || "";
+  for (const f of forms) {
+    if (u.search.includes(f)) {
+      const param =
+        [...u.searchParams.keys()].find((k) => {
+          const v = u.searchParams.get(k) || "";
+          return v.includes(f) || v === keyword;
+        }) ?? null;
+      return { template: u.origin + u.pathname + u.search.replace(f, "{kw}") + hash, param, shape: "query" };
+    }
+    if (hash.includes(f)) {
+      return { template: u.origin + u.pathname + u.search + hash.replace(f, "{kw}"), param: null, shape: "hash" };
+    }
+    if (u.pathname.includes(f)) {
+      return { template: u.origin + u.pathname.replace(f, "{kw}") + u.search + hash, param: null, shape: "path" };
+    }
+  }
+  return null;
+}
+
+/**
+ * Read the destination out of a login redirect.
+ *
+ * A gated site still tells us which URL it *would* have served — ithome's
+ * redirect carries `?url=https%3a%2f%2fwww.ithome.com%2fsearch%2f%25e4%25ba…html`,
+ * the target percent-encoded twice. That turns "we cannot see the search URL
+ * because of the login gate" into "the search URL is `/search/{kw}.html`, and
+ * anonymous visitors are gated" — two different facts, and only the second one
+ * is about auth.
+ */
+export function loginRedirectTarget(landedUrl) {
+  if (!landedUrl) return null;
+  let u;
+  try {
+    u = new URL(landedUrl);
+  } catch {
+    return null;
+  }
+  const raw =
+    u.searchParams.get("url") ||
+    u.searchParams.get("redirect") ||
+    u.searchParams.get("redirectUrl") ||
+    u.searchParams.get("next") ||
+    u.searchParams.get("returnUrl");
+  if (!raw) return null;
+  // `searchParams.get` already decodes one layer; the parameter often carries a
+  // second encoded layer of its own.
+  let decoded = raw;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      break;
+    }
+  }
+  try {
+    const target = new URL(decoded);
+    return /^https?:$/.test(target.protocol) ? target.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Home pages worth driving a search box on, in order.
+ *
+ * The configured URL's own origin is the obvious first choice, but the search
+ * UI is frequently on a sibling subdomain: xinhua's registry URL lives on
+ * `www.news.cn` while its real search page is `so.news.cn`. Guessing is fine
+ * here because a guess is only *accepted* when the template it produces verifies
+ * as healthy — an unverified guess is reported, never written to the registry.
+ */
+export function homeCandidates(probedUrl) {
+  const out = [];
+  const origin = safeOrigin(probedUrl);
+  if (origin) out.push(origin + "/");
+  try {
+    const u = new URL(probedUrl);
+    const bare = u.host.replace(/^www\./, "");
+    if (bare !== u.host) out.push(`${u.protocol}//so.${bare}/`);
+  } catch {
+    /* unparseable — keep the origin candidate */
+  }
+  try {
+    const u = new URL(probedUrl);
+    const bare = u.host.replace(/^www\./, "");
+    if (bare !== u.host) out.push(`${u.protocol}//search.${bare}/`);
+  } catch {
+    /* ignore */
+  }
+  return [...new Set(out)];
 }
 
 // ─── helpers ───

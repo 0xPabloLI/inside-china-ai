@@ -15,7 +15,19 @@ import {
   decodeHtml,
   countKeywordHits,
   classifyProbe,
+  detectBlockPage,
+  detectLoginWall,
+  detectZeroResults,
+  HEALTHY_VERDICTS,
+  homeCandidates,
+  isFailureVerdict,
+  loginRedirectTarget,
   looksLikeResults,
+  needsCdpSecondOpinion,
+  PROBE_UNAUTHORITATIVE_VERDICTS,
+  buildFindSearchBoxScript,
+  buildSubmitSearchScript,
+  templateFromLandedUrl,
   extractSearchForms,
   extractSearchLinks,
   buildTemplateCandidates,
@@ -50,6 +62,69 @@ describe("countKeywordHits", () => {
     expect(countKeywordHits("ai AI Ai", "ai")).toBe(3);
     expect(countKeywordHits("人工智能", "AI")).toBe(0);
   });
+
+  it("matches short latin keywords on word boundaries, not substrings", () => {
+    // 2026-09-22: a Reddit 403 block page scored 237 hits for "AI" — every one
+    // of them inside email/certain/domain. A phantom hit count is the worst
+    // kind of wrong: it turns a blocked source into a "healthy" one.
+    expect(countKeywordHits("Email certain domain available", "AI")).toBe(0);
+    expect(countKeywordHits("Email: AI certain domain", "AI")).toBe(1);
+    expect(countKeywordHits("AI-powered and AIs", "AI")).toBe(1);
+  });
+});
+
+describe("detectLoginWall", () => {
+  it("recognises a login destination", () => {
+    expect(
+      detectLoginWall({ finalUrl: "https://www.ithome.com/user-login/index.htm?url=x&tip=登录以查看搜索结果" }),
+    ).toBe(true);
+    expect(detectLoginWall({ finalUrl: "https://passport.weibo.com/visitor/visitor?a=enter" })).toBe(true);
+  });
+
+  it("recognises an in-place gate that never leaves the URL", () => {
+    // zhihu search: HTTP 200 on the search URL, but the anonymous visitor gets
+    // "未搜索到相关内容" and a login call-to-action instead of results.
+    expect(detectLoginWall({ finalUrl: "https://www.zhihu.com/search?q=x", html: "未搜索到相关内容 登录/注册" })).toBe(
+      false,
+    );
+    expect(
+      detectLoginWall({ finalUrl: "https://www.zhihu.com/search?q=x", html: "登录以查看搜索结果" }),
+    ).toBe(true);
+  });
+
+  it("does not fire on an ordinary page that merely links a login", () => {
+    expect(detectLoginWall({ finalUrl: "https://www.qbitai.com/a/b", html: "<a href='/login'>登录</a>" })).toBe(false);
+  });
+});
+
+describe("detectBlockPage", () => {
+  it("treats an edge-WAF 403 as not-authoritative, not as a dead URL", () => {
+    // xinhua so.news.cn: 403 + 159 bytes from openresty, 200 + JSON in a browser.
+    expect(detectBlockPage({ status: 403, html: "<html><head><title>403 Forbidden</title></head></html>" })).toBe(true);
+  });
+
+  it("does not rescue a real 404", () => {
+    expect(detectBlockPage({ status: 404, html: "<html>Not Found</html>" })).toBe(false);
+  });
+
+  it("treats 429/503 as rate limiting whatever the body says", () => {
+    expect(detectBlockPage({ status: 429, html: "" })).toBe(true);
+  });
+});
+
+describe("detectZeroResults", () => {
+  it("reads the page's own result count", () => {
+    // thepaper's search page: HTTP 200, term echoed in the chrome, and the
+    // page itself saying 找到约0个结果.
+    expect(detectZeroResults("正在搜索 找到约0个结果 1中共中央政治局召开会议")).toBe(true);
+    expect(detectZeroResults("没有找到相关内容")).toBe(true);
+    expect(detectZeroResults("did not match any documents")).toBe(true);
+  });
+
+  it("does not fire on a page that has results", () => {
+    expect(detectZeroResults("找到约 1,284 个结果")).toBe(false);
+    expect(detectZeroResults("About 12,300 results")).toBe(false);
+  });
 });
 
 describe("classifyProbe", () => {
@@ -68,12 +143,52 @@ describe("classifyProbe", () => {
     ).toBe("redirected-home");
   });
 
-  it("marks a login-wall bounce as redirected-off-site", () => {
+  it("marks a login-wall bounce as login-wall, not as a dead URL", () => {
+    // Updated 2026-09-22: this used to assert `redirected-off-site`, which lumped
+    // a login gate in with "the proxy sent us somewhere strange". The verdict now
+    // names the actual cause, because the two need opposite follow-ups: a login
+    // gate is a needsAuth finding, an off-site bounce is a probe bug.
     expect(
       classifyProbe({
         status: 200,
         finalUrl: "https://passport.weibo.com/visitor/visitor?a=enter",
         homeUrl: "https://s.weibo.com/",
+      }),
+    ).toBe("login-wall");
+  });
+
+  it("calls an edge-WAF 403 probe-not-authoritative", () => {
+    expect(
+      classifyProbe({
+        status: 403,
+        finalUrl: "https://so.news.cn/getNews?keyword=AI",
+        homeUrl: "https://so.news.cn/",
+        html: "<html><head><title>403 Forbidden</title></head></html>",
+      }),
+    ).toBe("probe-not-authoritative");
+  });
+
+  it("calls a cross-host hop that still carries the term alive-off-site", () => {
+    // google.com → google.com.hk and threads.net → threads.com are canonical
+    // hops; reporting them as failures put four healthy sources in the repair
+    // queue (three with 28–148 keyword hits).
+    expect(
+      classifyProbe({
+        status: 200,
+        finalUrl: "https://www.google.com.hk/search?q=AI&tbm=nws",
+        homeUrl: "https://www.google.com/",
+        keywordHits: 39,
+      }),
+    ).toBe("alive-off-site");
+  });
+
+  it("still flags a cross-host hop that lost the term", () => {
+    expect(
+      classifyProbe({
+        status: 200,
+        finalUrl: "https://www.google.com.hk/",
+        homeUrl: "https://www.google.com/",
+        keywordHits: 0,
       }),
     ).toBe("redirected-off-site");
   });
@@ -87,6 +202,30 @@ describe("classifyProbe", () => {
         keywordHits: 0,
       }),
     ).toBe("alive-no-keyword");
+  });
+
+  it("lets the page's own result count outweigh an echoed keyword", () => {
+    expect(
+      classifyProbe({
+        status: 200,
+        finalUrl: "https://www.thepaper.cn/searchResult?keyword=AI",
+        homeUrl: "https://www.thepaper.cn/",
+        keywordHits: 1,
+        html: "正在搜索 找到约0个结果",
+      }),
+    ).toBe("alive-zero-results");
+  });
+
+  it("still calls a page with both a keyword and results alive", () => {
+    expect(
+      classifyProbe({
+        status: 200,
+        finalUrl: "https://www.thepaper.cn/searchResult?keyword=AI",
+        homeUrl: "https://www.thepaper.cn/",
+        keywordHits: 40,
+        html: "找到约 1,204 个结果",
+      }),
+    ).toBe("alive");
   });
 
   it("does not call a listing source redirected-home when its URL IS the homepage", () => {
@@ -215,5 +354,110 @@ describe("deriveCandidates", () => {
     expect(sources[0]).toBe("form");
     expect(sources).toContain("link");
     expect(sources.indexOf("template")).toBeGreaterThan(sources.indexOf("link"));
+  });
+});
+
+describe("verdict sets", () => {
+  it("keeps probe-side answers out of the failure ledger", () => {
+    // The whole point of the 2026-09-22 accuracy pass: a WAF 403 and a login
+    // gate say nothing about whether the source is dead.
+    expect(isFailureVerdict("probe-not-authoritative")).toBe(false);
+    expect(isFailureVerdict("login-wall")).toBe(false);
+    expect(isFailureVerdict("alive")).toBe(false);
+    expect(isFailureVerdict("alive-off-site")).toBe(false);
+    for (const v of ["http-dead", "redirected-home", "redirected-off-site", "alive-no-keyword", "network-error"]) {
+      expect(isFailureVerdict(v)).toBe(true);
+    }
+  });
+
+  it("asks for a browser second opinion on everything that is not healthy", () => {
+    for (const v of [...HEALTHY_VERDICTS]) expect(needsCdpSecondOpinion(v)).toBe(false);
+    for (const v of [...PROBE_UNAUTHORITATIVE_VERDICTS, "http-dead", "redirected-home"]) {
+      expect(needsCdpSecondOpinion(v)).toBe(true);
+    }
+  });
+});
+
+describe("templateFromLandedUrl", () => {
+  it("recovers a path-shaped search URL (ithome's real shape)", () => {
+    // The registry carried `/search?word=…` (404); driving the site's own search
+    // box lands on `/search/{kw}.html` — no query parameter at all.
+    expect(templateFromLandedUrl("https://www.ithome.com/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD.html", "人工智能")).toMatchObject({
+      template: "https://www.ithome.com/search/{kw}.html",
+      shape: "path",
+    });
+  });
+
+  it("recovers a hash-route search URL (xinhua's so.news.cn)", () => {
+    expect(templateFromLandedUrl("https://so.news.cn/#search/0/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD/1/", "人工智能")).toMatchObject({
+      template: "https://so.news.cn/#search/0/{kw}/1/",
+      shape: "hash",
+    });
+  });
+
+  it("recovers a query-parameter search URL and names the parameter", () => {
+    expect(templateFromLandedUrl("https://www.google.com/search?q=AI&tbm=nws", "AI")).toMatchObject({
+      template: "https://www.google.com/search?q={kw}&tbm=nws",
+      param: "q",
+      shape: "query",
+    });
+  });
+
+  it("refuses to invent a template from a page that cannot carry the term", () => {
+    expect(templateFromLandedUrl("https://www.ithome.com/", "人工智能")).toBeNull();
+    expect(templateFromLandedUrl("https://www.ithome.com/user-login/index.htm?url=x", "人工智能")).toBeNull();
+  });
+});
+
+describe("loginRedirectTarget", () => {
+  it("reads the destination out of a double-encoded login redirect", () => {
+    // The gated site still tells us which URL it would have served. The result
+    // keeps percent-encoding (URL.toString() normalises rather than decodes),
+    // which is what templateFromLandedUrl expects.
+    const redirect =
+      "https://www.ithome.com/user-login/index.htm?url=https%3a%2f%2fwww.ithome.com%2fsearch%2f%25e4%25ba%25ba%25e5%25b7%25a5%25e6%2599%25ba%25e8%2583%25bd.html&_id=redirect&tip=x";
+    const target = loginRedirectTarget(redirect);
+    expect(target).toBe("https://www.ithome.com/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD.html");
+    // …and the recovered URL round-trips into the template the registry needs.
+    expect(templateFromLandedUrl(target, "人工智能").template).toBe("https://www.ithome.com/search/{kw}.html");
+  });
+
+  it("returns null when the redirect carries no destination", () => {
+    expect(loginRedirectTarget("https://passport.weibo.com/visitor/visitor?a=enter")).toBeNull();
+  });
+});
+
+describe("homeCandidates", () => {
+  it("adds the sibling search subdomains the registry URL does not reveal", () => {
+    // xinhua's registry URL lives on www.news.cn while the real search page is
+    // so.news.cn — the origin alone would never find it.
+    const candidates = homeCandidates("https://www.news.cn/search/news.htm?keyword=AI");
+    expect(candidates[0]).toBe("https://www.news.cn/");
+    expect(candidates).toContain("https://so.news.cn/");
+  });
+});
+
+describe("search-box driving scripts", () => {
+  it("penalises component-library combobox inputs", () => {
+    // An Ant-Design <Select>'s hidden filter input carries type="search" and
+    // would otherwise win the naive selector walk; submitting it does nothing.
+    const script = buildFindSearchBoxScript();
+    expect(script).toContain("ant-select");
+    expect(script).toContain("aria-autocomplete");
+  });
+
+  it("drives React/Vue controlled inputs through the native value setter", () => {
+    const script = buildSubmitSearchScript("人工智能", 0);
+    expect(script).toContain("HTMLInputElement.prototype");
+    expect(script).toContain("人工智能");
+    expect(script).toContain("ranked[0]");
+  });
+
+  it("prefers a clickable search button and falls back to form then Enter", () => {
+    const script = buildSubmitSearchScript("AI", 1);
+    expect(script).toContain("button:");
+    expect(script).toContain("form-submit");
+    expect(script).toContain("synthetic-enter");
+    expect(script).toContain("ranked[1]");
   });
 });

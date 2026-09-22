@@ -114,10 +114,91 @@ selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mj
 | **环境依赖，不修** | searxng_search（localhost:8888 未起）、mcp_grok_search（无 url）、currents（超时） | 自托管实例与网络 |
 | **健康，禁止顺手优化** | thepaper、leiphone、zhidx(api)、xhs、sogou_weixin、bilibili、x_search、youtube_search、arxiv_search、github_search、noozra_search、openalex_search、hackernews_search、polymarket_search、digg_search、duckduckgo_search | 200 + 关键词命中 + 结果页形态 |
 
+## 判据准确度：裸探针只是筛选，不是判决（2026-09-22 二轮）
+
+> 一轮全量清扫后暴露的问题不是「扫得不够多」，而是**判决不准**：14 个非存活源里，只有 3 个是真的坏了。裸 HTTP 探针对其中几类源给不出可信答案，二轮逐类拆开（下表五类）并配了浏览器第二次意见。
+
+### 判决词汇表：先分清「谁的问题」
+
+```text
+健康        alive                    结果在，站点内
+            alive-off-site           结果在，但配置的 URL 落在另一个主机（规范化跳转，非故障）
+失败        http-dead                404/410/5xx —— 端点真的没了
+（源的问题）network-error            传输失败
+            redirected-home          搜索 URL 被弹回站点根
+            redirected-off-site      落到别的主机且丢了关键词
+            alive-no-keyword         能打开但关键词不出现
+            alive-zero-results       页面自述该查询 0 条结果（URL 活着，查询没结果）
+探针问题    login-wall               答案取决于 cookie，不取决于 URL
+（不是源的  probe-not-authoritative 401/403/405/429 —— 边缘/WAF/凭据在回答「探针」
+ 问题）                            的问题，真浏览器可能不同
+```
+
+判据统一落在 `isFailureVerdict()` / `needsCdpSecondOpinion()`（`lib/source-url-heal.mjs`）这两个 seam：**只有「失败」那一栏才进死源台账**，#285 建立的 login-wall 语义在 2026-09-22 扩到了 WAF 一层。下游消费方不要各自再判一次。
+
+### 裸探针实测的五类误判（都是二轮修的）
+
+| 类 | 实例 | 裸探针说的 | 真相 | 修法 |
+| --- | --- | --- | --- | --- |
+| **主机别名跳转** | google_search、techmeme_search、wechat_dongchabeating、threads_search | `redirected-off-site`（4 个"故障"） | 规范域跳转（google.com→google.com.hk、threads.net→threads.com），其中 3 个带 28–148 关键词命中 | 跨主机 **且仍带词** → `alive-off-site`（`classifyProbe`） |
+| **短 ASCII 关键词按子串计数** | reddit_search 403 页 | `keywordHits: 237` | 命中全部来自 email / certain / domain，页面无结果 | ASCII 关键词一律**词边界**匹配（`countKeywordHits`） |
+| **状态码一刀切** | bloomberg/zhihu 403、tiktok_creator 401、core_search/google_search 429 | `http-dead` | 浏览器里 bloomberg 就是 200/alive；其余是边缘/WAF/限流在回答探针 | 401/403/405/429 或短响应体 → `probe-not-authoritative`（`detectBlockPage`） |
+| **登录门混进"跨域跳转"** | weibo_search | `redirected-off-site` | 跳到 `passport.weibo.com` —— 是登录门 | 登录端点/登录文案 → `login-wall`（`detectLoginWall`） |
+| **页面自述 0 结果仍判 alive** | thepaper | `alive`（浏览器二次意见也一度误判） | 页面明文写「找到约 0 个结果」 | 页面自述结果数优先于关键词命中 → `alive-zero-results`（`detectZeroResults`，正则表 `ZERO_RESULTS_PATTERNS` 由 HTTP 与 CDP 两条链共用） |
+
+### 第二次意见：`source-url-discover.mjs`（CDP）
+
+裸探针给出非健康判决后，**用真浏览器重问一遍**。这是五步法第 5 步的工具化——交互式 CDP 不该再是「1–4 全无解才上」的最后兜底，而是**非健康判决的常规复核**。
+
+```bash
+# 从一轮清扫报告里取出所有非健康行（含 probe-not-authoritative）
+NODE_USE_ENV_PROXY=1 node scripts/short-video/source-url-discover.mjs \
+  --from output/source-url-sweep-2026-09-22.json \
+  --env <主 checkout>/.env.local
+
+# 也可点名
+node scripts/short-video/source-url-discover.mjs --only xinhua,ithome --json
+```
+
+每个源最多 4 步：**A 复探**配置 URL（真浏览器，含 `PerformanceNavigationTiming.responseStatus` 取真实状态码）→ **B 驱动搜索框**（首页定位搜索框、输入关键词、提交、读地址栏）→ **C 回收模板**（把落地点 URL 里的关键词换回 `{kw}`）→ **D 验证模板**（再导航一次，确认它真出结果）。
+
+读表方式：**`http` 列与 `browser` 列对照**才是结论——
+
+- `probe-not-authoritative` + `alive` ⇒ 裸探针是假象（bloomberg）；
+- `probe-not-authoritative` + `blocked-in-browser-too` ⇒ 封锁是真的，改 URL 无用（reddit）；
+- `url-recovered-but-login-gated` ⇒ **URL 是错的、端点也是登录门**，两件事要分开处置（ithome）。
+
+### 驱动搜索框：找真实 URL 的权威方式（实测要点）
+
+站点自己的搜索 UI 就是它自己的路由——**比任何模板表都权威**。ithome 的 registry 写着 `/search?word=`（404）、模板表 9 个猜测全死，而搜索框提交后落在 `/search/{kw}.html`（路径段 + `.html`，**根本没有 query 参数**）。五个实测要点：
+
+1. **组件库的 `input[type=search]` 常常不是搜索框**：Ant Design 的 `<Select>` 隐藏过滤框就是这个类型（so.news.cn 的 `ant-select-selection-search-input`），提交它什么都不会发生 → 打分时对 `[role=combobox]` / `ant-select` / `aria-autocomplete=list` 重罚。
+2. **受控输入必须走原生 setter**：React/Vue 自己存值，直接写 `el.value` 只改 DOM 不改组件状态，提交处理器读到空字符串 → 用 `HTMLInputElement.prototype.value` 的 setter + `input`/`change` 事件。
+3. **提交优先级：搜索按钮 > 表单 > Enter**。按文本（`搜索`/`Search`/`Go`）或 class 找按钮并 `click()`；很多 JS 渲染的框没有表单。
+4. **高级搜索面板会偷走分数**：站点搜索框通常**独占一个表单**，而高级检索面板字段多、名字更像搜索（xinhua 的 `AdvancedSearchForm_a_keyWordAll`）→ 按所在表单的 `input` 数量扣分。
+5. **登录重定向里藏着答案**：被门禁的站点仍会告诉你它本来要送你去哪。ithome 的 302 参数带 `url=https%3a%2f%2fwww.ithome.com%2fsearch%2f%25e4%25ba…html`（双层编码）→ 解出来就是真实搜索 URL。`loginRedirectTarget()` 把「被登录门挡住所以看不到 URL」拆成「URL 是 X，且匿名被门禁」两个独立事实。
+
+**已知边界**：受控组件的复杂 SPA（xinhua 的 `so.news.cn`）点不出正确 URL——工具会诚实报 `dismissed`，不会编一个模板出来。这类站点靠人工诊断补上端点（xinhua 走的就是这条路），工具只负责**验证**。
+
+### 二轮台账（2026-09-22，55 源清扫 + 10 源 CDP 复核）
+
+清扫产物 `output/source-url-sweep-2026-09-22.json`；CDP 复核产物 `output/source-url-discover-batch1.json` / `batch2.json`。
+
+| 处置 | 源 | 实测证据 |
+| --- | --- | --- |
+| **已修 + 已落库** | xinhua | 旧 `www.news.cn/search/news.htm?keyword=` 404；`www.news.cn/search?q=` 是 ErrorPageTemplate 假页；JSON 端点 `so.news.cn/getNews` 对 Node fetch 403（openresty，159B）、浏览器内 200 + JSON。真实页面路由 `so.news.cn/#search/0/{kw}/1/` 经双关键词证伪（量子计算→量子聚力/潘建伟，人工智能→人形机器人），结果容器 `.items`，`selector-health --only xinhua` **6 条绿** |
+| **诊断收口，未改行为** | jiqizhixin | 关键词搜索是**服务端故障**（浏览器内一样 500 +「服务器内部故障」），不是 SPA 渲染问题；存在可用的 `api/article_library/articles.json` 但**忽略一切关键词参数**（latest-flow）；机器之心内容已由 `wechat2rss_jiqizhixin` 覆盖 → 改成 listing 源只会重复入库，维持原状待裁决 |
+| **已修 + 已落库（needsAuth）** | ithome | 真实形态 `/search/{kw}.html`；对匿名（含无 cookie 的纯 HTTP）一律 302 到 `user-login/index.htm?tip=登录以查看搜索结果` → URL 改正 + `needsAuth: true`；匿名通道是 `/rss/`（60 条，当日） |
+| **判据修正，无需修源** | bloomberg、thepaper、threads_search、reddit_search、zhihu、tiktok_creator、core_search、google_search、techmeme_search、wechat_dongchabeating、weibo_search | 见上表五类误判；红黑名单归属由新判决自动分流 |
+| **确认真实封锁，按边界不修** | reddit_search（浏览器内也是 network-security 拦截页）、tiktok_creator（401：探针带不上 API key 头） | `blocked-in-browser-too` |
+| **真 URL 已回收但被门禁** | weibo_search → `s.weibo.com/weibo?q={kw}&Refer=index`；douyin → `so.douyin.com/s?search_entrance=aweme&keyword={kw}` | `url-recovered-but-login-gated` / 待裁决 |
+
 ## 已知修复台账
 
 | 日期               | 源                    | 失效原因                                                                                                      | 修复要点                                                                                                                                                 | 验证                                                    |
 | ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| 2026-09-22         | xinhua                | `www.news.cn/search/news.htm?keyword=` 404；`search?q=` 是错误模板页；JSON 端点 `so.news.cn/getNews` 被 WAF 拦（Node 403 / 浏览器 200） | url 换真实页面路由 `so.news.cn/#search/0/{kw}/1/`，articleScript 收到 `.items a[href*="news.cn/20"]`（含重命名兜底）                                            | 双关键词证伪（量子计算/人工智能 标题随词变化）+ `selector-health --only xinhua` 绿 / 6 条 |
+| 2026-09-22         | ithome                | 真实形态是 `/search/{kw}.html`（非 query 参数），且对匿名一律 302 到登录页——两个事实被旧判据混成一个 404        | url 改为真实形态；`needsAuth: true`（登录门由用户处置）；匿名通道沿用 `/rss/`（60 条 / 当日）                                                              | CDP 驱动搜索框回收模板 + 裸 HTTP 无 cookie 复现 302      |
 | 2026-09-07         | google_search         | Google 新新闻垂直 SERP：结果块改 `div[data-ved][data-hveid]`，标题改 `div[role="heading"]`，`div.g`/`h3` 消失 | articleScript/imageScript 重写为新结构；缩略图为 base64 data URI，仅 http 图标记 type=image（可下载），data URI 降级 text；外链过滤 google 域 + URL 去重 | health --only 1/1 绿，10 条全结构（title/url/imageUrl） |
 | 2026-09-07         | leiphone              | 搜索结果标题改为 `a.headTit` 链接，旧 `.article-list`/`article` 容器归零                                      | articleScript 改为 `a.headTit[href*=".html"]` 直取                                                                                                       | health --only 绿，16 条                                 |
 | 2026-09-07         | wechat_dongchabeating | Google 站内搜索同吃新 SERP 改版（`div.g` 归零）                                                               | 同 google_search 方案（新 DOM + 转载域白名单）                                                                                                           | health --only 绿，1 条                                  |

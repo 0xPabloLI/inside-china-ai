@@ -145,7 +145,21 @@ export const NEWS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP search page. No public API.",
+      // #333 (2026-09-22, CDP-verified). The keyword search is broken
+      // *server-side*, not merely client-rendered: the page renders
+      // "抱歉，服务器内部故障了" on an HTTP 500, in a browser as well as from a
+      // bare fetch — so this is not the "SPA needs JS" class #269 Phase 2 was
+      // built for, and no URL rewrite can fix it.
+      //
+      // A working JSON listing endpoint does exist
+      // (/api/article_library/articles.json?sort=time&page=1&per=12 → 200 from
+      // a plain Node fetch), but it ignores every keyword parameter tried
+      // (search=, keyword=, query=, search_keyword= all return byte-identical
+      // bodies), i.e. it is a latest-flow, not a search. 机器之心 is already
+      // ingested through wechat2rss_jiqizhixin, so re-forming this entry as a
+      // listing source would duplicate coverage rather than restore a lost
+      // channel. Left as-is pending that call; see #333.
+      notes: "CDP search page. Keyword search broken server-side (HTTP 500); no public search API.",
     },
     needsAuth: false,
     useCleanTitle: false,
@@ -325,11 +339,23 @@ export const NEWS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP search page. No public API.",
+      // #331 (2026-09-22, CDP-verified). Two separate facts were tangled into
+      // one "404":
+      //   · the URL *shape* was simply wrong — `/search?word={kw}` is 404, and
+      //     every template guess (`/search?q=`, `/search/{kw}`, `/s?q=`) failed
+      //     too. Driving the site's own search box (input[name=q],
+      //     placeholder 请输入关键词) lands on `/search/{kw}.html`: a path
+      //     segment with an .html suffix and no query parameter at all.
+      //   · that real endpoint is login-gated — `/search/{kw}.html` 302s an
+      //     anonymous request to `/user-login/index.htm?url=…&tip=登录以查看搜索结果`.
+      // Only the second fact needs a human. The anonymous channel is the RSS
+      // feed (`/rss/`, 60 items, same-day freshness), already surfaced as a
+      // feed-candidate by the sweep.
+      notes: "CDP search page — real shape is /search/{kw}.html, login-gated for anonymous visitors.",
     },
-    needsAuth: false,
+    needsAuth: true,
     useCleanTitle: false,
-    url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
+    url: (keyword) => `https://www.ithome.com/search/${encodeURIComponent(keyword)}.html`,
     articleScript: `
       var items = document.querySelectorAll('.list .item, .news-list .item, .lst .item, article, .search-result .item');
       var results = [];
@@ -365,19 +391,34 @@ export const NEWS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP search page. Articles + images from same DOM.",
+      // #333 (2026-09-22, CDP-verified). Three shapes were tried:
+      //   · `www.news.cn/search/news.htm?keyword=` (the old value) → 404;
+      //   · `www.news.cn/search?q=` → 200 with the term echoed, but it is the
+      //     ErrorPageTemplate page, not results;
+      //   · `so.news.cn/getNews` (the JSON endpoint the search page itself
+      //     calls) → WAF: 403 openresty to a Node fetch even with referer and
+      //     origin set, 200 + JSON inside a browser.
+      // The hash route below is the page the site's own UI drives, and its
+      // results render client-side, so this source only works over CDP.
+      notes: "CDP search page (so.news.cn hash route). Articles + images from same DOM.",
     },
     needsAuth: false,
     useCleanTitle: false,
-    url: (keyword) => `https://www.news.cn/search/news.htm?keyword=${encodeURIComponent(keyword)}`,
+    url: (keyword) => `https://so.news.cn/#search/0/${encodeURIComponent(keyword)}/1/`,
     articleScript: `
-      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
+      // Results live in .items (DIV.item > DIV.items > DIV.content under an
+      // ant-spin container); the fallback keeps the source alive if the
+      // container is renamed. Verified 2026-09-22 by driving two keywords
+      // through the page: 量子计算 surfaces 量子聚力 / 潘建伟 items, 人工智能
+      // surfaces 人形机器人. Note the site searches full text (searchFields=0),
+      // so a hit means the term appears somewhere in the article, not in the title.
+      var links = document.querySelectorAll('.items a[href*="news.cn/20"]');
+      if (links.length === 0) links = document.querySelectorAll('a[href*="news.cn/20"]');
       var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        if (link) {
-          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+      links.forEach(function(a) {
+        var title = (a.getAttribute('title') || a.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (title.length > 5 && title.length < 200) {
+          results.push({ title: title, url: a.href, imageUrl: null });
         }
       });
       return results;
