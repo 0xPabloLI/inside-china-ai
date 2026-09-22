@@ -120,10 +120,21 @@ if (args.includes("--list")) {
   process.exit(0);
 }
 
+// 位置参数要排除已被 flag 消费掉的值，否则 `--source zhihu` 里的 zhihu
+// 会被当成 URL（实测：因此打开 about:blank，点击段被跳过）。
+const consumed = new Set();
 const flag = (name, fallback = null) => {
-  const hit = args.find((a) => a.startsWith(`--${name}=`));
-  return hit ? hit.slice(`--${name}=`.length) : fallback;
+  const eqIdx = args.findIndex((a) => a.startsWith(`--${name}=`));
+  if (eqIdx >= 0) return args[eqIdx].slice(`--${name}=`.length);
+  const spIdx = args.indexOf(`--${name}`);
+  if (spIdx >= 0 && spIdx + 1 < args.length && !args[spIdx + 1].startsWith("--")) {
+    consumed.add(spIdx + 1);
+    return args[spIdx + 1];
+  }
+  return fallback;
 };
+const positional = () =>
+  args.find((a, i) => !a.startsWith("--") && !consumed.has(i));
 const numFlag = (name, fallback) => {
   const v = flag(name);
   const n = Number.parseInt(String(v ?? ""), 10);
@@ -137,18 +148,20 @@ if (sourceKey && !source) {
   process.exit(2);
 }
 
-const url = source ? source.loginUrl : args.find((a) => !a.startsWith("--"));
-if (!url) {
-  console.error("usage: cdp-wx-login.mjs --source <key> | <url> [--click] [--keep] [--reuse] [--wait-login <min>]");
-  process.exit(2);
-}
-
+// 先把所有 flag 解析完（填充 consumed），再取位置 URL —— 顺序反了会把
+// `--wait-login 10` 的 10 当成 URL。
 const keep = args.includes("--keep") || !!source; // 扫码场景默认保留
 const doClick = args.includes("--click") || !!source;
 const reuse = args.includes("--reuse");
 const clickText =
   flag("click-text") || (source ? source.clickText : "微信登录|wechat|weixin|微信");
 const waitMin = numFlag("wait-login", 0);
+
+const url = source ? source.loginUrl : positional();
+if (!url) {
+  console.error("usage: cdp-wx-login.mjs --source <key> | <url> [--click] [--keep] [--reuse] [--wait-login <min>]");
+  process.exit(2);
+}
 
 // ---- 前置守卫：用错 profile 时一切「登录墙」结论都是假的 ----
 if (!args.includes("--no-guard")) {
