@@ -12,8 +12,15 @@
  * Usage:
  *   node scripts/short-video/source-url-sweep.mjs [--only a,b] [--limit N]
  *   node scripts/short-video/source-url-sweep.mjs --json
+ *   node scripts/short-video/source-url-sweep.mjs --out output/keep-this.json
+ *   node scripts/short-video/source-url-sweep.mjs --env <main-checkout>/.env.local
  *
- * Writes scripts/short-video/output/source-url-sweep-<date>.json.
+ * Writes scripts/short-video/output/source-url-sweep-<date>.json unless `--out`
+ * names a path (the default name is date-only, so two sweeps in one day would
+ * otherwise overwrite each other). Loads repo-root .env.local via loadEnv():
+ * this is an entry point, and keyed api sources read `process.env` at call time
+ * (#287/#275). In a git worktree there is no .env.local of its own — pass
+ * `--env <main-checkout>/.env.local`.
  * Read-only against sources: GET only, no login, no writes.
  */
 
@@ -290,7 +297,15 @@ async function main() {
   };
   const outDir = join(__dirname, "output");
   mkdirSync(outDir, { recursive: true });
-  const outPath = join(outDir, `source-url-sweep-${new Date().toISOString().slice(0, 10)}.json`);
+  // Default name is date-only, so a second sweep on the same day OVERWRITES the
+  // first one's dataset — 2026-09-21 lost the 55-source run to a 5-source
+  // re-test that way. `--out <path>` keeps a run worth citing (relative paths
+  // resolve against the repo, absolute ones are used as given).
+  const outArg = getArg("out");
+  const outPath = outArg
+    ? (outArg.startsWith("/") ? outArg : join(__dirname, outArg))
+    : join(outDir, `source-url-sweep-${new Date().toISOString().slice(0, 10)}.json`);
+  report.outPath = outPath;
   writeFileSync(outPath, JSON.stringify(report, null, 2));
 
   if (hasFlag("json")) {
