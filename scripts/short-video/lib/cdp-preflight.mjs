@@ -22,6 +22,7 @@ import { spawn } from "child_process";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { openSync } from "fs";
+import { automationPort } from "./cdp-profile-guard.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -82,6 +83,28 @@ function startProxyDetached() {
  * @returns {Promise<{ok: boolean, started: boolean}>}
  */
 export async function ensureCdpOrExit({ autoStart = true, waitMs = 12000 } = {}) {
+  // Step 0.1: 自动化 profile 守卫。用错 profile 不会报错，只会静默得出假的
+  // 「登录墙」结论（2026-09-22：weibo 在 ~/.chrome-cdp 上被判 login-wall，
+  // 实际在 chrome-tiktok-profile 下返回 5500+ 字符真结果）。
+  // 默认告警；CDP_REQUIRE_AUTOMATION_PROFILE=1 时改为硬失败。
+  if (process.platform === "darwin") {
+    try {
+      const { checkAutomationProfile, formatVerdict } = await import("./cdp-profile-guard.mjs");
+      const guard = await checkAutomationProfile();
+      if (guard.status === "ok") {
+        console.log(`✅ Step 0.1: CDP automation profile ok (${guard.expectedDir}:${guard.port})`);
+      } else if (process.env.CDP_REQUIRE_AUTOMATION_PROFILE === "1") {
+        console.error(`❌ Step 0.1: ${formatVerdict(guard)}`);
+        process.exit(1);
+      } else {
+        console.warn(`⚠️  Step 0.1: ${formatVerdict(guard)}`);
+        console.warn("   （此环境下「登录墙」判决不可信；设 CDP_REQUIRE_AUTOMATION_PROFILE=1 可改为硬失败）");
+      }
+    } catch (e) {
+      console.warn(`⚠️  Step 0.1: automation profile guard 跳过（${e.message}）`);
+    }
+  }
+
   if (await targetsOk()) {
     console.log("✅ Step 0.2: CDP proxy available (localhost:3456/targets ok)");
     return { ok: true, started: false };
@@ -114,9 +137,9 @@ export async function ensureCdpOrExit({ autoStart = true, waitMs = 12000 } = {})
   if (health && health.connected === false) {
     console.error(
       `   Proxy is up on :${PROXY_PORT} but connected=false — Chrome remote-debugging ` +
-        `port (${health.chromePort ?? 9222}) is not reachable.`,
+        `port (${health.chromePort ?? automationPort()}) is not reachable.`,
     );
-    console.error("   → Relaunch Chrome with --remote-debugging-port=9222 (user action),");
+    console.error("   → npm run cdp:ensure -- --start   (starts the automation-profile instance)");
     console.error("     then re-run. Per AGENTS.md the agent must not restart Chrome itself.");
   } else {
     console.error(`   Nothing listening on localhost:${PROXY_PORT}.`);

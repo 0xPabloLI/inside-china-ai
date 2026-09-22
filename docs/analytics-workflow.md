@@ -93,18 +93,21 @@ Agent 通过 `tiktok-csi.mjs` 抓取 TikTok Creator Search Insights 数据：
 >
 > **TikTok 专用登录实例（默认路线，2026-09-07 起）**：TikTok 登录一律用全新 profile 启动的独立 Chrome 实例（指纹等效无痕）——常规浏览器/常规 CDP profile 登录已被风控拦截，不再尝试。启动并让 proxy 指向该实例：
 >
-> **两点别漏**：① **它不是 TikTok 专用**——这个实例同时是**需登录态的 CDP 主层源（微博等）的通用自动化 profile**，微博登录态也落在这里（见 `docs/reviews/source-chain-audit-2026-09-15.md` §运维事实：重登即恢复）；② **本块是启动命令的唯一权威副本**，其他文档（如 `docs/selector-auto-healing.md` §Chrome 安全规程）只做指针、不得各抄一份。
+> **三点别漏**：① **它不是 TikTok 专用**——这个实例同时是**需登录态的 CDP 主层源（微博等）的通用自动化 profile**，微博登录态也落在这里（见 `docs/reviews/source-chain-audit-2026-09-15.md` §运维事实：重登即恢复）；② **profile 目录固定为 `~/chrome-tiktok-profile`，每次复用，不是每次新建**；③ **启动命令的唯一权威副本已搬到代码**（`scripts/short-video/lib/cdp-profile-guard.mjs` 的 `launchCommand()`）——文档不再抄命令（两处必然漂移）。要启动/校验就跑：
 >
 > ```bash
-> # 1. 启动全新 profile 实例（勿用默认 profile，Chrome 136+ 禁调试；
-> #    profile 放稳定目录 —— 登录态落盘可复用，勿放 $TMPDIR 会被系统清理）
-> open -na "Google Chrome" --args --user-data-dir="/Users/pabloli/chrome-tiktok-profile" \
->   --remote-debugging-port=9229 --no-first-run "https://www.tiktok.com/login"
-> # 2. 用户在该窗口登录 TikTok（登录态留在该 profile，可复用）
-> # 3. 重置 proxy 并指向 9229
-> pkill -f cdp-proxy.mjs
-> WEB_ACCESS_CDP_PORT=9229 node ~/.agents/skills/web-access/scripts/check-deps.mjs
+> npm run cdp:ensure                 # 校验 9229 上是不是自动化 profile（exit 0/1）
+> npm run cdp:ensure -- --start      # 端口空闲时按权威命令启动
+> npm run cdp:ensure -- --print-cmd  # 打印那条命令（人肉执行时用这个，别手抄）
 > ```
+>
+> 生产管线（`main.mjs`）在 Step 0.1 自动跑同一守卫（`cdp-preflight.mjs`），默认告警；设 `CDP_REQUIRE_AUTOMATION_PROFILE=1` 改硬失败。
+>
+> 需要登录 / 重登时（**唯一权威命令由 `npm run cdp:ensure -- --print-cmd` 输出**，下面是等价说明）：
+>
+> 1. 启动**固定目录** profile 的实例（**勿用默认 profile**，Chrome 136+ 禁调试；**勿放 `$TMPDIR`**，会被系统清理，登录态就丢了）；
+> 2. 用户在该窗口登录（登录态留在该 profile，后续复用）；
+> 3. 重置 proxy 并指向 9229：`pkill -f cdp-proxy.mjs` 后重启代理。
 >
 > 注意：`/csi` 页在新 profile 实例上 `body.innerText` 为空，需从 `#app` 容器提取（`tiktok-csi.mjs` 可能因此抓 0，手动 eval 提取 `tr/td` 即可）。见 `~/.agents/skills/web-access/references/site-patterns/tiktok.com.md`。
 

@@ -43,6 +43,7 @@
 - The content-pipeline HITL in `docs/content-pipeline.md` is mandatory. Do not publish the article or TikTok package before explicit approval.
 - **Remote GPU 优先级**：必须先试 MLX 本地 → MPS 本地 → Kaggle 免费 T4/P100 16GB（30h/周），不够才 Modal T4（$30/月包干）→ L4 → A100。绝不在未试 MLX/MPS/Kaggle 的情况下直接用 Modal A100。详见 `docs/research/cloud-gpu-options.md` §0 硬件路由优先级。
 - **Chrome 进程与 profile 守卫**：禁止对 Chrome 用 `pkill -9`/`killall`（unclean kill 损坏 profile 数据）；禁止写入或删除 `~/Library/Application Support/Google/Chrome/` 下任何内容。CDP 连接故障的恢复阶梯：先重启仓库自有 CDP 代理（`skills/web-access/scripts/cdp-proxy.mjs`）→ 仍失败由用户优雅退出并重启 Chrome（操作细则见 `docs/selector-auto-healing.md`）。Agent 不得代替用户退出或杀 Chrome。
+- **CDP 一律跑在自动化 profile `~/chrome-tiktok-profile`（端口 9229）上，开工先跑 `npm run cdp:ensure`**：它是**所有需登录态 CDP 主层源的通用自动化 profile**（微博/TikTok/Google/Bing/ithome 登录态都在里面，固定目录、每次复用）。用错 profile 不报错，只会**静默**把「登录墙」变成「这个 profile 没登录」的投影（2026-09-22 事故：weibo 被误判死源，实为 5500+ 字符真结果）——故必须是代码门禁而非文档约定。判据与启动命令见 `scripts/short-video/lib/cdp-profile-guard.mjs`，操作细则见 `docs/selector-auto-healing.md` §Chrome 安全规程。
 
 ## Engineering References
 

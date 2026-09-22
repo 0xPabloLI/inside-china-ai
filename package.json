@@ -30,7 +30,9 @@
     "scan:deps": "osv-scanner --lockfile ./package-lock.json",
     "prebuild": "node scripts/seo/validate-jsonld.mjs",
     "test": "vitest run",
-    "test:offline": "CDP_BASE_URL=http://localhost:9 vitest run"
+    "test:offline": "CDP_BASE_URL=http://localhost:9 vitest run",
+    "cdp:ensure": "node scripts/short-video/cdp-ensure.mjs",
+    "cdp:wx-login": "node scripts/short-video/cdp-wx-login.mjs"
   },
   "dependencies": {
     "@cf-wasm/resvg": "^0.4.0",

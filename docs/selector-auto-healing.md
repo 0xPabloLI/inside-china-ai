@@ -57,7 +57,9 @@ selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mj
 - **CDP 代理僵死的恢复阶梯**：① 只重启代理（`skills/web-access/scripts/cdp-proxy.mjs`，仓库自有工具，与 Chrome 零接触）；② 代理重启后仍 WS 连接失败而 `curl localhost:9229/json/version` 正常 → Chrome DevTools 层卡死，**由用户**优雅退出该实例（⌘Q 或 `osascript -e 'quit app "Google Chrome"'`）再按上条与 `docs/analytics-workflow.md` 的启动块重启——优雅退出不触碰 profile 数据。Agent 不得代替用户杀/退 Chrome。**注意 9222 不能用作这个判据**：Chrome 136+ 禁止在默认 profile 目录上开远程调试，你日常 Chrome 的 9222 虽然 LISTEN 但 `/json/version` 与 `/json/list` **一律 404**（2026-09-22 实测），拿它做探活永远是假阴性。
 - 长跑注意：一次体检 ≈30 次导航，连续多轮压测会让 DevTools WS 层进入僵死——多轮之间留冷却，或分批 `--only` 跑。
 - **用哪个 profile 决定了「登录门」结论的真假（2026-09-22 三补轮，用户当场纠正）**：CDP 实例必须是 **`~/chrome-tiktok-profile`**，端口 **9229**（agent-harness 的 3456 代理自 9/19 起就钉在 9229）。**不要另起空 profile**：`~/.chrome-cdp` 是个无登录态的闲 profile，`WEB_ACCESS_CDP_PORT` 一旦指到它，所有「登录墙」判决都会变成「这个 profile 没登录」的投影。
-- **这条约定仓库里早就写了——别重新发现一遍（本轮的实际教训）**：启动命令的唯一权威副本在 `docs/analytics-workflow.md` §TikTok 专用登录实例（含 `pkill -f cdp-proxy.mjs` 重置 + 指向 9229 两步），profile 归属见 `docs/reviews/source-chain-audit-2026-09-15.md` §运维事实，`docs/issue-roadmap.md` 2026-09-19 inventory ⑤ 也记了「仅 1 个自动化罐（chrome-tiktok-profile），无冗余」。**动手前先 `grep -rn "chrome-tiktok-profile\|9229" docs/`**。本轮之所以另起空 profile，就是没查这一步——把「登录门」探针跑成了「这个 profile 没登录」的投影，白跑一轮。此处只做指针，不复制启动命令（两处各存一份必然漂移）。
+- **这条约定仓库里早就写了，且 2026-09-23 已升级为代码级守卫**：`docs/analytics-workflow.md` §TikTok 专用登录实例 / `docs/reviews/source-chain-audit-2026-09-15.md` §运维事实 / `docs/issue-roadmap.md` 2026-09-19 inventory ⑤（「仅 1 个自动化罐，无冗余」）三处均有记载，AGENTS.md §Chrome 守卫也钉了硬规则。**动手前跑 `npm run cdp:ensure`**（exit 1 = 端口跑的不是自动化 profile 或没起；`--start` 可起，`--print-cmd` 打印权威命令）。
+  - 代码守卫 = `scripts/short-video/lib/cdp-profile-guard.mjs`（四态判定 `ok` / `no-chrome` / `wrong-profile` / `unknown-profile`；**启动命令的唯一权威副本是 `launchCommand()`，文档不得抄**）；生产管线 `main.mjs` 在 Step 0.1 自动跑（`cdp-preflight.mjs`），默认告警、`CDP_REQUIRE_AUTOMATION_PROFILE=1` 改硬失败。
+  - 为什么必须是代码：用错 profile **不会报错**，只会静默把「登录墙」变成「这个 profile 没登录」的投影（2026-09-22 事故）——文档和记忆都拦不住，只有门禁拦得住。
 
 ## 逐源修复方法论（#269 Phase 2 定案，2026-09-21）
 
