@@ -20,7 +20,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           { path: "/news", changefreq: "daily", priority: "0.9" },
           { path: "/news/chinese-ai-models", changefreq: "daily", priority: "0.9" },
           { path: "/companies", changefreq: "weekly", priority: "0.9" },
-          { path: "/ask", changefreq: "weekly", priority: "0.6" },
+          { path: "/ask", changefreq: "daily", priority: "0.8" },
 
           {
             path: "/compare/deepseek-vs-qwen-vs-glm",
