@@ -2,14 +2,54 @@
 
 > 触发：`node scripts/short-video/selector-health.mjs` 报某 CDP 源 `zero_results`（或 #200 sourceHealth 连续零结果 streak ≥3）。
 > 本文档是修复 agent 的执行手册——修复是 agent 驱动的，脚本只负责发现。
+>
+> **动手前先看「修复步骤」的第 0 步**：判决来自四条轴（URL 可达 / 真浏览器 / 抽取 / 凭据），**一半的「源坏了」其实是「测量坏了」**——对测量动手只会把源改坏。
 
 ## 循环
 
 ```
-selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mjs --only <源>（验证）
+selector-health.mjs --keys（凭据就绪）
+      ↓
+selector-health.mjs（发现：轴 3 抽取）
+      ↓
+source-url-sweep.mjs（轴 1）→ source-url-discover.mjs（轴 2+3，回收 registry 行）
+      ↓
+本 runbook（修复）→ selector-health.mjs --only <源>（验证）
 ```
 
 ## 修复步骤（对每个 failing 源）
+
+**第 0 步先分清「谁坏了」，再动手。** 判决分四条轴（URL 可达 / 真浏览器 / 抽取 / 凭据），修复路径完全不同——**一半的「源坏了」其实是「测量坏了」**，对测量动手只会把源改坏：
+
+| 现象                                             | 性质                     | 动作                                                  |
+| ------------------------------------------------ | ------------------------ | ----------------------------------------------------- |
+| `--keys` 报某变量 MISSING                        | 测量缺陷                 | 配 key；**不要碰源**                                  |
+| `probe-no-egress`                                | 测量缺陷（无路由）       | 查代理/出口；**不要碰源**                             |
+| `probe-not-authoritative` / `login-wall`         | 测量缺陷（答复关于探针） | 用真浏览器复核；先看请求头，再看登录态                |
+| `extracts-despite-verdict`                       | 轴 2 误读                | **什么都不改**；改轴 2 的判据                         |
+| `http-dead` / `redirected-home` / `still-broken` | 源侧真问题               | 先走 **A. URL 修复**                                  |
+| `url-alive-but-extraction-empty`                 | registry 脚本腐烂        | 先走 A（URL 可能本就不对），A 出来仍是 0 条再走 **B** |
+
+```bash
+# 凭据就绪（唯一权威检查；缺 key 时服务端答复与「端点已死」无法区分）
+node scripts/short-video/selector-health.mjs --keys --env <主检出>/.env.local
+```
+
+### A. URL 模板不对 → 驱动搜索框（搜索 URL 的权威修复方式）
+
+```bash
+node scripts/short-video/source-url-discover.mjs --only <源名> --keyword-zh 人工智能 --env <主检出>/.env.local
+```
+
+终端会打印可粘贴的 registry 行，`--out` 的报告里有 `registryPatches[]`。**完成判据**：回收到的 URL 跑该源自己的 `articleScript` 抽出 ≥1 条。规则、易失参数与两种失败标签见下文[《驱动搜索框就是搜索 URL 的修复方式》](#驱动搜索框就是搜索-url-的修复方式2026-09-23-定案)。
+
+**不要**在 A 里手写模板——那正是丢掉关键参数的环节。
+
+### B. 选择器腐烂 → 五步
+
+> **B 的第一个坑：测的必须是 registry 里那个脚本，不能是自己重写的一半。**
+> 2026-09-23 实测代价：qbitai 被判「首页列表选择器腐烂、匹配 0 项」并据此开票，但那次 triage 只复刻了 `articleScript` 的**第一阶段**（`.article-item, .post-item, .list-item` + 标题），而脚本自带第二阶段兜底（泛扫同域 `a[href]`）。真值：阶段一容器命中 **0**、泛扫命中 **33**、**整脚本返回 33** —— 源是健康的，票是错的。
+> 教训与前几条同源：**「0 条」在分清「谁坏了」之前不是证据**。要测就整脚本跑（`extractFromTab(tab, source.articleScript)` 或直接 `selector-health --only <源>`），不要手搓一个子集。
 
 1. **确认是 DOM 变更，不是内容真空**：换一个常见关键词（如「人工智能」）再跑一次该源。多关键词仍 0 条才继续；单关键词 0 条可能是当天没新闻。
 2. **打开真实页面检查 DOM**：
@@ -60,6 +100,9 @@ selector-health.mjs（发现）→ 本 runbook（修复）→ selector-health.mj
 - **这条约定仓库里早就写了，且 2026-09-23 已升级为代码级守卫**：`docs/analytics-workflow.md` §TikTok 专用登录实例 / `docs/reviews/source-chain-audit-2026-09-15.md` §运维事实 / `docs/issue-roadmap.md` 2026-09-19 inventory ⑤（「仅 1 个自动化罐，无冗余」）三处均有记载，AGENTS.md §Chrome 守卫也钉了硬规则。**动手前跑 `npm run cdp:ensure`**（exit 1 = 端口跑的不是自动化 profile 或没起；`--start` 可起，`--print-cmd` 打印权威命令）。
   - 代码守卫 = `scripts/short-video/lib/cdp-profile-guard.mjs`（四态判定 `ok` / `no-chrome` / `wrong-profile` / `unknown-profile`；**启动命令的唯一权威副本是 `launchCommand()`，文档不得抄**）；生产管线 `main.mjs` 在 Step 0.1 自动跑（`cdp-preflight.mjs`），默认告警、`CDP_REQUIRE_AUTOMATION_PROFILE=1` 改硬失败。
   - 为什么必须是代码：用错 profile **不会报错**，只会静默把「登录墙」变成「这个 profile 没登录」的投影（2026-09-22 事故）——文档和记忆都拦不住，只有门禁拦得住。
+- **守卫必须在每个入口，而它原来只长在 main.mjs 里（2026-09-23 修）**：Step 0.1 原本写在 `ensureCdpOrExit()` **内部**，那就只有走 main.mjs 的路径吃到；而 `selector-health.mjs`、`search-sources.mjs`、`source-url-discover.mjs` 都是各自调 `cdp-client.ensureCdpProxy()` 的**旁路入口**——诊断路径恰恰是最需要看真话的地方。现在守卫抽成 `cdp-preflight.ensureCdpProfileGuard()`，四个入口共用一份实现。**别在入口点重写它**：`selector-health` 现在只在选中集里真有 CDP 源时才调（纯 api 运行不该连浏览器）。
+- **端口由守卫钉住，消除「选到哪个 Chrome」这件事（2026-09-23 修）**：只告警不够——代理按 `DevToolsActivePort` 探测浏览器，日常 Chrome（9222）与自动化实例（9229）同时在跑时它可能落到任意一个。`ensureCdpProfileGuard()` 现在设 `WEB_ACCESS_CDP_PORT=<automationPort()>`，这是代理的**最高优先覆盖**，且**端口没监听时硬错**——失败形态从「静默连错浏览器、给出可信但错的答案」变成「代理起不来」（响亮、可操作）。子进程继承 `process.env`，所以 `cdp-client.ensureCdpProxy()` 自己 spawn 的那条路径一并覆盖。
+- **两份 `cdp-proxy.mjs` 不是同一个文件（2026-09-23 修）**：`scripts/short-video/lib/cdp-client.mjs#findCdpProxyScript()` 原来**偏好全局副本**（`~/.agents/skills/web-access/scripts/cdp-proxy.mjs`），而 `cdp-preflight.mjs` 用**仓库内副本**（`skills/web-access/scripts/cdp-proxy.mjs`）。实测两者相差 105 行——仓库内那份带本仓自己的修复（#273 并发守卫、#308 `exceptionDetails` 优先），全局那份是全局安装留下的旧版。后果：同仓两套代理，走体检/生产路径起的是**旧的那份**。现在**仓库内优先**，全局只作 fallback。
 
 ## 逐源修复方法论（#269 Phase 2 定案，2026-09-21）
 
@@ -228,6 +271,82 @@ node scripts/short-video/source-url-discover.mjs --only xinhua,ithome --json
 
 所以结论是「**作备选、不作主路径，且触发条件要窄**」——不是「不进工作流」。降级层的选择器一样要进自愈循环、一样要有健康检查。
 
+### 驱动搜索框**就是搜索 URL 的修复方式**（2026-09-23 定案）
+
+上一节讲的是「降级层」，容易读成「驱动搜索框只是运行时备胎」。**它不是备胎，它是 URL 修复的正路**：registry 里的 `url:` 模板一旦不对，唯一权威的正确答案只能由站点自己的搜索 UI 给出。两者是同一件事的两面——诊断侧回收 URL，修复侧把回收结果写回 registry。
+
+修复跑一次，看三样东西：
+
+| 阶段        | 命令                                                           | 产物                                      |
+| ----------- | -------------------------------------------------------------- | ----------------------------------------- |
+| 筛选        | `source-url-sweep.mjs`（轴 1）                                 | 哪些源的 URL 判决不健康                   |
+| 复核 + 回收 | `source-url-discover.mjs --only <名> --keyword-zh …`（轴 2+3） | `registryPatches[]`：可粘贴的 registry 行 |
+| 落库        | 手工把那一行贴进 `lib/source-registry.mjs`                     | 修好的模板                                |
+
+`--out <path>` 的报告里 `registryPatches` 是机器可读的那一半，终端里同时打印可粘贴块：
+
+```js
+### douyin  (variant: volatile-stripped; dropped volatile: aid)
+url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}?type=video`,
+```
+
+**为什么要打印一整行而不是一段 JSON**：修复原来停在 JSON blob，最后「把 `…/{kw}?type=video` 变成 `url: (keyword) => …`」这一步留给了读的人。而手工誊写正是**丢掉那个起决定作用的参数**的地方（douyin 的 `?type=video`）。`registryUrlLine()` 把这一步去掉。
+
+**三条写入规则**（都是实测踩出来的）：
+
+1. **易失参数必须剔除，功能性参数必须保留**。驱动搜索框回来的是**地址栏原文**，而地址栏带着会话杂物——douyin 自己的落点是
+   `/jingxuan/search/人工智能?aid=e5019d6d-8cc1-4251-b58f-176f8eb02438&type=general`。
+   `aid` 每次访问重新生成，`type` 才决定渲染哪个 tab。把整条地址栏冻进模板 = 交付一个只对那一秒成立的 URL，下一次跑又像新坏了一次。
+   `stripVolatileParams()` 按两条独立信号判：**名字**（`aid`/`spm`/`uuid`/`_t`… 自称是「本次客户端/会话的标识」）与**形状**（uuid、长 hex、长不透明串）。看起来像页面状态的（`type=video`、`page=3`、`v=2`）两条都不碰；**空值参数保留**（`?tab=` 是真开关）。
+2. **剔除动作必须可回退，判决权交给抽取**。模板先用剔除版验证（它才是能入库的那个），失败再验原文版——`templateFromLandedUrl()` 同时返回 `template` 与 `templateVerbatim`，`discoverSource` 两个都试、谁 **extract > 0** 就留谁，报告里记 `variant: volatile-stripped | as-landed`。启发式只负责**提议**，源的 `articleScript` 负责**决定**。
+3. **完成判据只有一个**：回收到的 URL 跑该源自己的 `articleScript` **抽到 ≥1 条**。只验到「页面打开了」等于没修——那是 douyin 的形状（前两轴全绿、源是死的）。抽 0 条时报告 `usable: false`，并区分 `url-recovered-but-login-gated`（找到对的 URL 但被门禁 → 改 `needsAuth`）与 `url-alive-but-extraction-empty`（URL 根本不是问题）。
+
+**触发面（同日两次收紧）**：`needsSearchBoxDrive({verdict, extracted, keyword})`——① 没有关键词就不驱动（api/图库源没有搜索框可驱动）；② `extracted === 0` → 驱动；③ **`extracted > 0` → 不驱动**（见下节「抽取优先」）；④ `extracted === null`（没测/脚本抛错）才回落到「判决不健康就驱动」。**`null` 不是 `0`**，不得据「没测」定罪。
+
+### 第四个假判决：抽取层比其余两轴更权威（2026-09-23，guancha 定案）
+
+前三条轴是按顺序加的，加完才发现它们**不是平权的**——前两轴问的是**代理问题**（「这个 URL 看起来像结果页吗」），第三轴问的是**管线真正要问的问题**（「我们的契约还能不能从这页上拿到东西」）。两者背离时，第三轴赢，理由是硬的：**拦截页无法满足一个源的抽取契约**。
+
+两个镜像实例，同一天测出：
+
+| 源      | 轴 1/2 判决                    | 轴 3 抽取 | 谁对 | 旧写法会怎么错               |
+| ------- | ------------------------------ | --------- | ---- | ---------------------------- |
+| douyin  | 轴 2 `alive`、20 张卡在屏上    | **0**     | 轴 3 | 把死源留在健康栏             |
+| guancha | 轴 2 `probe-not-authoritative` | **230**   | 轴 3 | 把活源写进「真封锁、别碰」栏 |
+
+guancha 的假封锁查出机制：snapshot 的 `blockHint` 扫的是**整页 `innerText`**，正则里有 `安全验证`，而观网页面上确实出现了这个词（页脚/导航），于是判决变成 `probe-not-authoritative` → `resolvesTo: blocked-in-browser-too`，读起来就是「封锁是真的，换 URL 也没用」。同一页，该源自己的脚本抽出 **230** 条。
+
+修法做成 seam `resolveHealth({verdict, extracted})`，并**把背离显式标出来**而不是静默压平：
+
+| extracted      | verdict 健康                     | verdict 不健康                            |
+| -------------- | -------------------------------- | ----------------------------------------- |
+| `> 0`          | `healthy-in-browser`             | **`extracts-despite-verdict`**            |
+| `0`            | `url-alive-but-extraction-empty` | `still-broken`                            |
+| `null`（没测） | `healthy-in-browser`             | `blocked-in-browser-too` / `still-broken` |
+
+`extracts-despite-verdict` 是给读者看的：抽取赢了，但**轴 2 说过别的话**，值得去看一眼。同理 `usable` 判据从「verdict 健康 **且** 抽取非 0」收紧成「**抽取 > 0**」——否则轴 2 误读一次，就会把已经验证可用的替换 URL 判成不可用。
+
+注意 `alive-no-keyword` **不入**健康集：它是「页面在、但没有这个词」，即 URL 不对，属 `still-broken`；不能借 `url-alive-but-extraction-empty` 这个标签（后者的全部含义是「URL 没问题，去看脚本」）。
+
+### 第五个假判决：200 状态码的 JS 挑战页（2026-09-23，36kr 定案）
+
+反爬词表只在 4xx 分支生效（`detectBlockPage` 先判 `status`），而**挑战页可以是 200**。36kr 实测两种形态交替出现：
+
+- 挑战形态：HTTP **200**，正文是「火山引擎 正在进行安全检测… 系统正在检测当前网络环境」→ 抽出 **0** 条；
+- 正常形态：同一 URL 抽出 **97** 条。
+
+按旧判据，挑战形态会被写成 `url-alive-but-extraction-empty`——把读者送去「你的 URL 或脚本错了」的手册，而正确动作是「**离开这个源**」。修法：把 `安全检测`/`Verifying you are human`/`Checking your browser` 一类加进 snapshot 的 `blockHint`（它在页内、与状态码无关，正是 JS 插页该待的地方）。
+
+**但词表永远是残缺的，不要把它当检测器**：它是「见过的插页」的词汇表。真正的结构性保护是上一节的抽取优先——**词表漏掉时降级的是标签，不是决策**。所以加模式的门槛是「有真页面作证」，不是「想象它可能出现」；而加了也不怕，因为 `extracts-despite-verdict` 会替抽取到的源兜住。
+
+### 第六个假判决：轴 1 的 `network-error` 也可能是「探针没有路由」（2026-09-23）
+
+`network-error` 是**失败判决**，会进死源台账。但「连不上」和「连上了但没内容」是两件事。实测：4 个源（`polymarket_search`/`digg_search` + 两个 Google `site:` 源）全部 `UND_ERR_CONNECT_TIMEOUT`，而**同一个出口连 `google.com` 都不通**（`curl` 超时，`gh` 却完全正常）。
+
+修法：连接级失败时，用**同一个探针**再请求一次 `<origin>/`（裸根、无关键词、无凭据、短预算）。控制组也失败 ⇒ 记 `probe-no-egress`，**不进死源台账**；控制组通了 ⇒ 保持 `network-error`（这个 URL 不行，但主机可达）。未做控制（`null`）不猜，保持 `network-error`。
+
+`probe-no-egress` 与 `probe-not-authoritative` **故意分开**：后者是「主机答了，答案是关于探针的」（WAF/凭据），下一步是看请求头；前者是「**根本没有回答**」，下一步是查代理/出口。轴 3 的 api 路径同样接了这条控制（`tiktok_creator` 实测 `network-error` → `probe-no-egress`：`api.scrapecreators.com` 直接 `ECONNRESET`）。
+
 ### 第三条轴：URL 可达 ≠ 可抽取（2026-09-23，douyin 定案）
 
 前两条轴问的都是「这个 URL 是不是结果页」。决定管线生死的是第三个问题：**registry 自己的 `articleScript` 现在还抽不抽得出东西**。两者会背离——douyin 就是前两条轴全绿、源却是死的：
@@ -310,15 +429,15 @@ https://www.douyin.com/jingxuan/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD
 
 实测（`checkApiSource` 直调，绕开 CDP；keyword = artificial intelligence）：
 
-| 源             | 不带凭据                                  | 带 `.env.local`              |
-| -------------- | ----------------------------------------- | ---------------------------- |
-| gnews          | `probe-not-authoritative`（缺 GNEWS…）    | **10 条 ✅**                 |
-| currents       | `probe-not-authoritative`（缺 CURRENTS…） | **10 条 ✅**                 |
-| tiktok_creator | `probe-not-authoritative`（缺 SCRAPE…）   | `network-error`（key 已送出）|
-| github_search  | 10 条 ✅                                  | 10 条 ✅                     |
-| openalex       | 10 条 ✅                                  | 10 条 ✅                     |
+| 源             | 不带凭据                                  | 带 `.env.local`                                                      |
+| -------------- | ----------------------------------------- | -------------------------------------------------------------------- |
+| gnews          | `probe-not-authoritative`（缺 GNEWS…）    | **10 条 ✅**                                                         |
+| currents       | `probe-not-authoritative`（缺 CURRENTS…） | **10 条 ✅**                                                         |
+| tiktok_creator | `probe-not-authoritative`（缺 SCRAPE…）   | `network-error`（key 已送出）                                        |
+| github_search  | 10 条 ✅                                  | 10 条 ✅                                                             |
+| openalex       | 10 条 ✅                                  | 10 条 ✅                                                             |
 | core_search    | 10 条 ✅                                  | `probe-not-authoritative`（第二次调用被限流 → 正确读作「关于探针」） |
-| reddit_search  | `network-error`                           | `network-error`              |
+| reddit_search  | `network-error`                           | `network-error`                                                      |
 
 **哪些源真的要 key**（可机读，`capabilities.articles.apiKeyEnv`）：只有 `gnews` → `GNEWS_API_KEY`、`currents` → `CURRENTS_API_KEY`、`tiktok_creator` → `SCRAPECREATORS_API_KEY`（付费，默认跳过）。`github_search` 的 `GITHUB_TOKEN` **不算**——缺它只是 60→5000 req/hour 的差别，所以它不在 `API_KEY_ENV_MAP` 里，也永远不会被读成「缺凭据」。其余 key（BRAVE/SERPER/TAVILY/JINA）属于 #65 的 web 搜索回退池与图片库，不在这条链上。
 
@@ -343,20 +462,24 @@ https://www.douyin.com/jingxuan/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD
 
 ## 已知修复台账
 
-| 日期               | 源                                             | 失效原因                                                                                                                                                                                                | 修复要点                                                                                                                                                                                                           | 验证                                                                                                       |
-| ------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| 2026-09-23         | techcrunch / guancha / douyin / thepaper / xhs | `detectAntiBot` 把「页面里有 captcha 容器」编码成 `" captcha-dom"` 字面串 → 被 `includes("captcha")` 命中 → **前置**检查在抽取前就判 `anti_bot`（生产里是整层 CDP 失败交回退链）                        | 页面脚本改结构化 `{text, captchaVisible}`；容器须可见（≥100×40）且仅在「抽取为空」时才算（`allowDomHint` opt-in）；`429` 改词边界                                                                                  | techcrunch **68** / guancha **240** / douyin **20** / thepaper 25；xhs 仍真封锁（`anti_bot:验证码`）       |
-| 2026-09-23         | thepaper                                       | 查询参数是 `id=` **不是** `keyword=`：`?keyword=` 是 200 +「找到约0个结果」的假页（旧探针因此只到 `alive-zero-results`）；结果链接是 `/newsDetail_forward_<id>`，容器类名是 CSP hash（`.first__TIDm_`） | url 改 `?id={kw}`；articleScript 改为按 URL 形态取锚点 + 非空标题守卫 + 就近取图                                                                                                                                   | `selector-health --only thepaper` **25 条绿**                                                              |
-| 2026-09-23         | douyin                                         | 配置 URL 少了 `?type=video`：综合 tab 的结果卡是纯 div + 背景图（卡内 `<a href>` = 0/20），旧 articleScript 恒抽 0 条                                                                                   | url 加 `?type=video`；articleScript 改为只按语义锚点 `a[href*="/video/"]` 取，标题按「锚内最长单个文本块」过滤掉时长/播放量/作者/日期的脏拼接；`loginCheckScript` 改为「无结果链接 **且** 页面在喊登录」才算未登录 | 三个候选 URL 对照（综合 0 / `?type=video` 20 / 搜索框落点 0）+ `selector-health --only douyin` **20 条绿** |
-| 2026-09-22         | xinhua                                         | `www.news.cn/search/news.htm?keyword=` 404；`search?q=` 是错误模板页；JSON 端点 `so.news.cn/getNews` 被 WAF 拦（Node 403 / 浏览器 200）                                                                 | url 换真实页面路由 `so.news.cn/#search/0/{kw}/1/`，articleScript 收到 `.items a[href*="news.cn/20"]`（含重命名兜底）                                                                                               | 双关键词证伪（量子计算/人工智能 标题随词变化）+ `selector-health --only xinhua` 绿 / 6 条                  |
-| 2026-09-22         | ithome                                         | 真实形态是 `/search/{kw}.html`（非 query 参数），且对匿名一律 302 到登录页——两个事实被旧判据混成一个 404                                                                                                | url 改为真实形态；`needsAuth: true`（登录门由用户处置）；匿名通道沿用 `/rss/`（60 条 / 当日）                                                                                                                      | CDP 驱动搜索框回收模板 + 裸 HTTP 无 cookie 复现 302                                                        |
-| 2026-09-07         | google_search                                  | Google 新新闻垂直 SERP：结果块改 `div[data-ved][data-hveid]`，标题改 `div[role="heading"]`，`div.g`/`h3` 消失                                                                                           | articleScript/imageScript 重写为新结构；缩略图为 base64 data URI，仅 http 图标记 type=image（可下载），data URI 降级 text；外链过滤 google 域 + URL 去重                                                           | health --only 1/1 绿，10 条全结构（title/url/imageUrl）                                                    |
-| 2026-09-07         | leiphone                                       | 搜索结果标题改为 `a.headTit` 链接，旧 `.article-list`/`article` 容器归零                                                                                                                                | articleScript 改为 `a.headTit[href*=".html"]` 直取                                                                                                                                                                 | health --only 绿，16 条                                                                                    |
-| 2026-09-07         | wechat_dongchabeating                          | Google 站内搜索同吃新 SERP 改版（`div.g` 归零）                                                                                                                                                         | 同 google_search 方案（新 DOM + 转载域白名单）                                                                                                                                                                     | health --only 绿，1 条                                                                                     |
-| 2026-09-07         | weibo_hot                                      | 登录墙（Sina Visitor System）                                                                                                                                                                           | **经调研破局**：切 60s 公共 API（60s.viki.moe/v2/weibo，开源可自托管），apiSearch 化                                                                                                                               | health 绿，50 条/2.3s                                                                                      |
-| 2026-09-07         | zhidx                                          | 搜索结果 XHR 渲染，CDP 抓不到                                                                                                                                                                           | **经调研破局**：站点是 WordPress，切 wp-json REST API，apiSearch 化                                                                                                                                                | health 绿，20 条/2.6s                                                                                      |
-| 2026-09-07（放弃） | xinzhiyuan                                     | DNS 解析 overdue.aliyun.com——主机欠费停放                                                                                                                                                               | 放弃；公众号内容已由 wechat2rss_zhinengyuan 覆盖                                                                                                                                                                   | —                                                                                                          |
-| 2026-09-07（放弃） | baidu_news                                     | 资讯索引功能性死亡（ns 端点空壳 218 字节，热词 0 结果）                                                                                                                                                 | 放弃；详见 docs/research/zh-source-recovery-research-2026-09.md                                                                                                                                                    | —                                                                                                          |
+| 日期               | 源                                                               | 失效原因                                                                                                                                                                                                | 修复要点                                                                                                                                                                                                           | 验证                                                                                                       |
+| ------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| 2026-09-23         | qbitai                                                           | **无源侧修复——误判撤销**。triage 只复刻了 `articleScript` 的阶段一（`.article-item/.post-item/.list-item`），得到 0 就宣布「选择器腐烂」；脚本自带阶段二泛扫兜底                                        | 不改 registry。教训写进 §B 首坑：**要测就测 registry 里那个整脚本**，别手搓子集                                                                                                                                    | 阶段一容器命中 **0** / 泛扫命中 **33** / **整脚本返回 33** → 源健康，票作废                                |
+| 2026-09-23         | guancha                                                          | 轴 2 误读：snapshot 的 `blockHint` 扫**整页 `innerText`**，正则里的 `安全验证` 命中了页面自身的文本 → `probe-not-authoritative` → 「真封锁、别碰」                                                      | 新增 seam `resolveHealth({verdict, extracted})`：**抽取 > 0 时轴 3 赢**，并显式标 `extracts-despite-verdict` 而不是静默压平；候选 `usable` 判据同步收紧为「抽取 > 0」                                              | 同页 extract **230**，`resolvesTo` 由 `blocked-in-browser-too` 改为 `extracts-despite-verdict`             |
+| 2026-09-23         | 36kr                                                             | **200 状态码的 JS 挑战页**（火山引擎「正在进行安全检测」）：词表只在 4xx 分支生效，200 + 挑战正文抽 0 条被读成 `url-alive-but-extraction-empty`（送错手册）。形态**间歇**出现                           | `blockHint` 词表补 `安全检测` / `Verifying you are human` / `Checking your browser`；词表残缺由上一行的抽取优先兜底                                                                                                | 挑战形态抽 0（现标为 blocked）/ 正常形态同 URL 抽 **97**，`healthy-in-browser`                             |
+| 2026-09-23         | tiktok_creator、polymarket_search、digg_search、2×Google `site:` | 轴 1/3 的 `network-error` 被当失败判决：实为**探针没有到该主机的路由**（`api.scrapecreators.com` `ECONNRESET`；同出口连 `google.com` 都不通，`gh` 正常）                                                | 新增 `probe-no-egress`：连接级失败后用同探针请求裸 `<origin>/` 作控制组，也失败即改判且**不进死源台账**；轴 1（sweep）与轴 3（api）都接                                                                            | `selector-health --only tiktok_creator` 由 ❌ `network-error` 改 ⚠️ `probe-no-egress`，退出码由 1 归 0     |
+| 2026-09-23         | techcrunch / guancha / douyin / thepaper / xhs                   | `detectAntiBot` 把「页面里有 captcha 容器」编码成 `" captcha-dom"` 字面串 → 被 `includes("captcha")` 命中 → **前置**检查在抽取前就判 `anti_bot`（生产里是整层 CDP 失败交回退链）                        | 页面脚本改结构化 `{text, captchaVisible}`；容器须可见（≥100×40）且仅在「抽取为空」时才算（`allowDomHint` opt-in）；`429` 改词边界                                                                                  | techcrunch **68** / guancha **240** / douyin **20** / thepaper 25；xhs 仍真封锁（`anti_bot:验证码`）       |
+| 2026-09-23         | thepaper                                                         | 查询参数是 `id=` **不是** `keyword=`：`?keyword=` 是 200 +「找到约0个结果」的假页（旧探针因此只到 `alive-zero-results`）；结果链接是 `/newsDetail_forward_<id>`，容器类名是 CSP hash（`.first__TIDm_`） | url 改 `?id={kw}`；articleScript 改为按 URL 形态取锚点 + 非空标题守卫 + 就近取图                                                                                                                                   | `selector-health --only thepaper` **25 条绿**                                                              |
+| 2026-09-23         | douyin                                                           | 配置 URL 少了 `?type=video`：综合 tab 的结果卡是纯 div + 背景图（卡内 `<a href>` = 0/20），旧 articleScript 恒抽 0 条                                                                                   | url 加 `?type=video`；articleScript 改为只按语义锚点 `a[href*="/video/"]` 取，标题按「锚内最长单个文本块」过滤掉时长/播放量/作者/日期的脏拼接；`loginCheckScript` 改为「无结果链接 **且** 页面在喊登录」才算未登录 | 三个候选 URL 对照（综合 0 / `?type=video` 20 / 搜索框落点 0）+ `selector-health --only douyin` **20 条绿** |
+| 2026-09-22         | xinhua                                                           | `www.news.cn/search/news.htm?keyword=` 404；`search?q=` 是错误模板页；JSON 端点 `so.news.cn/getNews` 被 WAF 拦（Node 403 / 浏览器 200）                                                                 | url 换真实页面路由 `so.news.cn/#search/0/{kw}/1/`，articleScript 收到 `.items a[href*="news.cn/20"]`（含重命名兜底）                                                                                               | 双关键词证伪（量子计算/人工智能 标题随词变化）+ `selector-health --only xinhua` 绿 / 6 条                  |
+| 2026-09-22         | ithome                                                           | 真实形态是 `/search/{kw}.html`（非 query 参数），且对匿名一律 302 到登录页——两个事实被旧判据混成一个 404                                                                                                | url 改为真实形态；`needsAuth: true`（登录门由用户处置）；匿名通道沿用 `/rss/`（60 条 / 当日）                                                                                                                      | CDP 驱动搜索框回收模板 + 裸 HTTP 无 cookie 复现 302                                                        |
+| 2026-09-07         | google_search                                                    | Google 新新闻垂直 SERP：结果块改 `div[data-ved][data-hveid]`，标题改 `div[role="heading"]`，`div.g`/`h3` 消失                                                                                           | articleScript/imageScript 重写为新结构；缩略图为 base64 data URI，仅 http 图标记 type=image（可下载），data URI 降级 text；外链过滤 google 域 + URL 去重                                                           | health --only 1/1 绿，10 条全结构（title/url/imageUrl）                                                    |
+| 2026-09-07         | leiphone                                                         | 搜索结果标题改为 `a.headTit` 链接，旧 `.article-list`/`article` 容器归零                                                                                                                                | articleScript 改为 `a.headTit[href*=".html"]` 直取                                                                                                                                                                 | health --only 绿，16 条                                                                                    |
+| 2026-09-07         | wechat_dongchabeating                                            | Google 站内搜索同吃新 SERP 改版（`div.g` 归零）                                                                                                                                                         | 同 google_search 方案（新 DOM + 转载域白名单）                                                                                                                                                                     | health --only 绿，1 条                                                                                     |
+| 2026-09-07         | weibo_hot                                                        | 登录墙（Sina Visitor System）                                                                                                                                                                           | **经调研破局**：切 60s 公共 API（60s.viki.moe/v2/weibo，开源可自托管），apiSearch 化                                                                                                                               | health 绿，50 条/2.3s                                                                                      |
+| 2026-09-07         | zhidx                                                            | 搜索结果 XHR 渲染，CDP 抓不到                                                                                                                                                                           | **经调研破局**：站点是 WordPress，切 wp-json REST API，apiSearch 化                                                                                                                                                | health 绿，20 条/2.6s                                                                                      |
+| 2026-09-07（放弃） | xinzhiyuan                                                       | DNS 解析 overdue.aliyun.com——主机欠费停放                                                                                                                                                               | 放弃；公众号内容已由 wechat2rss_zhinengyuan 覆盖                                                                                                                                                                   | —                                                                                                          |
+| 2026-09-07（放弃） | baidu_news                                                       | 资讯索引功能性死亡（ns 端点空壳 218 字节，热词 0 结果）                                                                                                                                                 | 放弃；详见 docs/research/zh-source-recovery-research-2026-09.md                                                                                                                                                    | —                                                                                                          |
 
 ## CDP 代理 wsPath 陈旧坑（2026-09-07 修复）
 
