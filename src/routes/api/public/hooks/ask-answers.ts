@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/public/hooks/ask-answers")({
         }
         const { runAskAnswersJob } = await import("@/lib/ask-answers.server");
         const result = await runAskAnswersJob({ resume });
-        return Response.json(result, { status: result.error ? 500 : 200 });
+        return Response.json(result, { status: "error" in result && result.error ? 500 : 200 });
       },
     },
   },
