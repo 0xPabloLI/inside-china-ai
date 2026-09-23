@@ -161,7 +161,7 @@
 - HuggingFace：`https://huggingface.co/0xpabloli/Wan2.2-S2V-14B-NPU`
 - ModelScope：`https://modelscope.cn/models/pabloli/Wan2.2-S2V-14B-NPU`
 - AtomGit（代码）：`https://atomgit.com/gcw_GGihkrEm/Wan2.2-S2V-14B-NPU`
-- 关键文件：`patch_npu.py`（10 个 patch）+ `NPU_SUPPORT.md`（适配文档）+ `wan22_s2v_allinone.py`（一体化脚本）
+- 关键文件：`patch_npu.py`（10 个 patch）+ `NPU_SUPPORT.md`（适配文档）+ `wan22_s2v_allinone.py`（一体化脚本，保留为 NPU 备选）
 
 ### 云端 API
 
@@ -414,7 +414,7 @@
   - 推理时间：24.6 分钟（sequential_cpu_offload 模式）
 - **输出**：portrait_output.mp4, 210KB, 768×768, 81帧
 - **Kaggle kernel slug**: `xpabloli/echomimicv3-flash-test`
-- **自动化脚本**：`scripts/kaggle/echomimicv3-test/echomimicv3_inference.py`（v25）
+- **自动化脚本**：`scripts/kaggle/echomimicv3-test/echomimicv3_inference.py`（v25，**已于 2026-09-20 dead-code 清理中删除**；v51 生产 kernel 见 `scripts/kaggle/dh-generate/echomimicv3_unit_kernel.py`）
 - **本地测试历史**：
   - 2026-08-12：模型文件下载不完整
   - 2026-08-13：所有模型文件下载完成，但推理报 `KeyError: 'patch_embedding.weight'`
@@ -1196,7 +1196,7 @@
 | 信源                                                                    | 性质                         | 结论                                              |
 | ----------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------- |
 | `/tmp/leaptalk_out/C_05.png` vs `B_05.png`（2026-09-02 22:39 肉眼复核） | **直接证据（ground truth）** | C/D 视觉干净（无色块），A/B 有明显油画/水彩伪影   |
-| `scripts/kaggle/leaptalk-test/leaptalk_inference.py` v7 commit          | 间接                         | `--lite` 默认走 TAEHV；切 WanVAE 必须 `--no_lite` |
+| `scripts/kaggle/leaptalk-test/leaptalk_inference.py` v7 commit（**已于 2026-09-20 dead-code 清理中删除**）          | 间接                         | `--lite` 默认走 TAEHV；切 WanVAE 必须 `--no_lite` |
 | LeapTalk 论文 Table 1（arXiv 2608.00079）                               | 官方                         | Pro+WanVAE **FID 21** vs Pro+TAEHV **FID 38**     |
 
 **2. 步数：1 步（不变）—— 不是被官方禁止多步，是 v5 已证多步无收益**
@@ -1261,7 +1261,7 @@
 - 所有实测数据采集日期：**2026-09-02（CST，星期三）**
 - 引用论文：arXiv **2608.00079v1**（若 v2 发布需重读）
 - HuggingFace 权重卡：`z-rx/leaptalk`（若权重更新需重测）
-- 引用脚本基线：`scripts/kaggle/leaptalk-test/leaptalk_inference.py`（v7 commit，本次将改为 v8 commit）
+- 引用脚本基线：`scripts/kaggle/leaptalk-test/leaptalk_inference.py`（v7 commit，本次将改为 v8 commit；**该脚本已于 2026-09-20 dead-code 清理中删除**）
 
   **v5+v6 合并 CFG 响应曲线**（Pro DiT + TAEHV + 1 步，512×512，77 帧，同素材）：
 
@@ -1417,7 +1417,7 @@ else:
 - **⚠️ 唯一问题**：Notebook 缺 `ffmpeg`，视频生成成功但 audio merge 失败（`merge_video_audio failed: No such file or directory: 'ffmpeg'`）。输出为**纯视频无音频**。修复：`pip install imageio-ffmpeg` 或 `apt install ffmpeg`
 - **历史**：8GB 档 4 次失败（cgroup OOM / device bug / Notebook 过期），64GB 档 15 次 fix 迭代后成功
 - **核时成本**：1000 核时/月 ÷ 2.47 核时/次 ≈ **405 次/月**免费推理
-- **脚本**：`scripts/atomgit/wan22_s2v_allinone.py`（一体化）、`scripts/atomgit/wan22_s2v_fix15.py`（最终成功配置）
+- **脚本**：`scripts/atomgit/wan22_s2v_allinone.py`（一体化）、`scripts/atomgit/wan22_s2v_fix15.py`（最终成功配置）— **保留为 NPU 备选**
 
 **② AMD Radeon Cloud — ✅ 可行，credits 可重复获取（2026-09-07 调研）**
 
