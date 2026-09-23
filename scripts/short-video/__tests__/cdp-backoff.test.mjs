@@ -7,6 +7,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  ANTI_BOT_CHECK_SCRIPT,
   BACKOFF_RANGES_MS,
   RATE_LIMIT_BACKOFF_MS,
   backoffDelayMs,
@@ -14,6 +15,7 @@ import {
   extractWithRetry,
   matchAntiBotIndicators,
   detectAntiBot,
+  parseAntiBotSample,
   ScriptError,
 } from "../lib/cdp-client.mjs";
 
@@ -139,6 +141,13 @@ describe("matchAntiBotIndicators (#89 P2)", () => {
     expect(matchAntiBotIndicators("")).toBeNull();
     expect(matchAntiBotIndicators(undefined)).toBeNull();
   });
+
+  it("requires 429 to be a token, not a digit run inside a number", () => {
+    // A bare `.includes("429")` fires on view counts, prices and ids.
+    expect(matchAntiBotIndicators("4290 views on this video")).toBeNull();
+    expect(matchAntiBotIndicators("order id 1429 shipped")).toBeNull();
+    expect(matchAntiBotIndicators("HTTP 429 Too Many Requests")).toBe("429");
+  });
 });
 
 describe("detectAntiBot (#89 P2)", () => {
@@ -160,5 +169,70 @@ describe("detectAntiBot (#89 P2)", () => {
     expect(
       await detectAntiBot("t1", { evalFn: async () => ({ result: { value: 42 } }) }),
     ).toBeNull();
+  });
+
+  it("reads the structured sample: clean text + hidden captcha widget is clean", async () => {
+    // Regression, measured 2026-09-23: techcrunch / guancha / thepaper / xhs /
+    // douyin all embed an invisible captcha container (or merely use "captcha"
+    // in a class name). The old script appended a literal " captcha-dom" marker
+    // to the text sample, which then matched the `captcha` substring — so these
+    // five healthy sources were labelled anti-bot and the CDP layer returned
+    // before extraction ever ran.
+    const value = JSON.stringify({ text: "TechCrunch search results", captchaVisible: false });
+    expect(await detectAntiBot("t1", { evalFn: async () => ({ result: { value } }) })).toBeNull();
+  });
+
+  it("still reports a visible captcha widget, under its own label", async () => {
+    const value = JSON.stringify({ text: "搜索", captchaVisible: true });
+    expect(
+      await detectAntiBot("t1", {
+        evalFn: async () => ({ result: { value } }),
+        allowDomHint: true,
+      }),
+    ).toBe("captcha-dom");
+    // Text evidence still wins when both are present.
+    const both = JSON.stringify({ text: "请输入验证码", captchaVisible: true });
+    expect(await detectAntiBot("t1", { evalFn: async () => ({ result: { value: both } }) })).toBe(
+      "验证码",
+    );
+  });
+
+  it("keeps the weak DOM hint opt-in, so a widget alone cannot fail the layer", async () => {
+    // Evidence asymmetry: text describes an interstitial; a widget may just be
+    // the site's own form furniture (techcrunch / guancha both embed one on a
+    // page that renders results fine).
+    const value = JSON.stringify({
+      text: "You searched for AI | TechCrunch",
+      captchaVisible: true,
+    });
+    expect(await detectAntiBot("t1", { evalFn: async () => ({ result: { value } }) })).toBeNull();
+    expect(
+      await detectAntiBot("t1", {
+        evalFn: async () => ({ result: { value } }),
+        allowDomHint: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("gates the DOM hint on element size, never on a class name alone", () => {
+    // The page script must ask for real layout before treating a captcha
+    // container as an interstitial.
+    expect(ANTI_BOT_CHECK_SCRIPT).toContain("getBoundingClientRect");
+    expect(ANTI_BOT_CHECK_SCRIPT).toContain("captchaVisible");
+  });
+
+  it("parseAntiBotSample keeps both the JSON and the legacy string shapes", () => {
+    expect(parseAntiBotSample(JSON.stringify({ text: "abc", captchaVisible: true }))).toEqual({
+      text: "abc",
+      captchaVisible: true,
+    });
+    // Pre-JSON shape (and old stubs) must keep working.
+    expect(parseAntiBotSample("plain sample")).toEqual({
+      text: "plain sample",
+      captchaVisible: false,
+    });
+    // Malformed JSON falls back to treating the raw value as text.
+    expect(parseAntiBotSample("{not json")).toEqual({ text: "{not json", captchaVisible: false });
+    expect(parseAntiBotSample(42)).toEqual({ text: "", captchaVisible: false });
   });
 });

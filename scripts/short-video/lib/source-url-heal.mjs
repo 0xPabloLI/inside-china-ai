@@ -184,7 +184,14 @@ export function detectZeroResults(text) {
  * sent live sources to the repair queue while the actual repair was "look at it
  * from a browser" (#269 Phase 2 methodology step 5).
  */
-export function classifyProbe({ status, finalUrl, homeUrl, keywordHits = 0, requestedUrl = null, html = "" }) {
+export function classifyProbe({
+  status,
+  finalUrl,
+  homeUrl,
+  keywordHits = 0,
+  requestedUrl = null,
+  html = "",
+}) {
   if (status === null) return "network-error";
   if (status >= 400) {
     // Order matters: status-specific edges are asked about *before* declaring
@@ -215,7 +222,9 @@ export function classifyProbe({ status, finalUrl, homeUrl, keywordHits = 0, requ
   // A listing source whose URL *is* the site root cannot "bounce back to the
   // homepage" — home is where it was sent. Without this guard qbitai/36kr/
   // guancha all read as redirected-home by construction.
-  const requestedPath = requestedUrl ? new URL(requestedUrl, homeUrl).pathname.replace(/\/+$/, "") || "/" : null;
+  const requestedPath = requestedUrl
+    ? new URL(requestedUrl, homeUrl).pathname.replace(/\/+$/, "") || "/"
+    : null;
   if (finalPath === homePath && requestedPath !== homePath) return "redirected-home";
   if (keywordHits !== null && keywordHits === 0) return "alive-no-keyword";
   // The page's own result count beats any inference from the surrounding chrome
@@ -246,6 +255,39 @@ export function needsCdpSecondOpinion(verdict) {
 }
 
 /**
+ * Label for "the page opens fine and even looks healthy, but the registry's own
+ * `articleScript` extracts nothing" — the third health axis.
+ *
+ * The first two axes can both pass while the source is in fact dead: on
+ * 2026-09-23 douyin's configured URL scored `alive-no-keyword` over bare HTTP
+ * and `alive` in the browser (20 real result cards on screen), yet returned
+ * **0 items** because the default tab renders cards with no `<a href>` at all.
+ * URL-level health and extraction-level health are different facts, and only
+ * the second one is what the pipeline consumes.
+ */
+export const EXTRACTION_EMPTY_LABEL = "url-alive-but-extraction-empty";
+
+/**
+ * Should the discovery pass drive the site's own search box?
+ *
+ * Three axes, one gate. A URL that resolves is not a URL that yields items, so
+ * the search box is worth driving both when the configured URL is unhealthy
+ * **and** when it is healthy but extracts nothing — otherwise a source can sit
+ * in the "healthy" column while producing zero rows forever (douyin).
+ *
+ * `extracted === null` means "not measured" (no articleScript, or the script
+ * threw) and must not by itself trigger a drive: absence of a measurement is
+ * not evidence of an empty extraction.
+ *
+ * @param {{ verdict: string, extracted?: number|null, keyword?: string|null }} probe
+ */
+export function needsSearchBoxDrive({ verdict, extracted = null, keyword = null } = {}) {
+  if (!keyword) return false;
+  if (extracted === 0) return true;
+  return !HEALTHY_VERDICTS.has(verdict);
+}
+
+/**
  * "200 + the keyword appears" is necessary but NOT sufficient: a site's error
  * template echoes the query too (xinhua `www.news.cn/search?q=…` returns a
  * 200 error page that contains the keyword), and #269 Phase 1 already showed
@@ -254,9 +296,12 @@ export function needsCdpSecondOpinion(verdict) {
  */
 export function looksLikeResults(html, minLinks = 3) {
   if (!html) return false;
-  if (/ErrorPageTemplate|<title>\s*(40[0-9]|50[0-9])\b|403 Forbidden|404 Not Found/i.test(html)) return false;
+  if (/ErrorPageTemplate|<title>\s*(40[0-9]|50[0-9])\b|403 Forbidden|404 Not Found/i.test(html))
+    return false;
   let n = 0;
-  for (const m of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]{0,300}?)<\/a>/gi)) {
+  for (const m of html.matchAll(
+    /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]{0,300}?)<\/a>/gi,
+  )) {
     const href = m[1] || "";
     const text = (m[2] || "").replace(/<[^>]*>/g, "").trim();
     if (text.length < 8) continue;
@@ -267,7 +312,8 @@ export function looksLikeResults(html, minLinks = 3) {
   return false;
 }
 
-const SEARCH_PARAM_NAMES = /^(q|s|word|words|wd|kw|keyword|keywords|query|search|searchword|searchkey|key|text|title)$/i;
+const SEARCH_PARAM_NAMES =
+  /^(q|s|word|words|wd|kw|keyword|keywords|query|search|searchword|searchkey|key|text|title)$/i;
 
 /** Search forms declared in static HTML: `<form action> + <input name>`.
  * Returns candidate URLs with the keyword already substituted. */
@@ -299,12 +345,17 @@ export function extractSearchForms(html, baseUrl, keyword) {
  * anchor text 搜索/Search). Used when the site renders its form via JS. */
 export function extractSearchLinks(html, baseUrl) {
   const out = [];
-  for (const m of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]{0,80}?)<\/a>/gi)) {
+  for (const m of html.matchAll(
+    /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]{0,80}?)<\/a>/gi,
+  )) {
     const href = m[1];
     const text = m[2].replace(/<[^>]*>/g, "").trim();
     // Anchor text alone is not evidence — an article titled "…AI搜索内容" also
     // contains 搜索. The href must itself look like a search endpoint.
-    const isSearchHref = /(\/(search|sousuo|searchresult)(\.[\w]+)?($|[/?]))|(\/so($|[/?]))|([?&](q|word|keyword|wd)=)/i.test(href);
+    const isSearchHref =
+      /(\/(search|sousuo|searchresult)(\.[\w]+)?($|[/?]))|(\/so($|[/?]))|([?&](q|word|keyword|wd)=)/i.test(
+        href,
+      );
     if (!isSearchHref) continue;
     const abs = resolveUrl(href, baseUrl);
     if (abs) out.push({ url: abs, source: "link", text });
@@ -429,8 +480,10 @@ export const SEARCH_BOX_SELECTORS = [
  * diagnostic round to that on 2026-09-22, hence the explicit combobox penalty.
  */
 function boxScoringPrelude() {
-  const names = "/^(q|s|word|words|wd|kw|keyword|keywords|query|search|searchword|searchkey|key|text|title)$/i";
-  const combobox = "'.ant-select, [role=\"combobox\"], [class*=combobox], [class*=el-select], [class*=select2], [aria-haspopup=\"listbox\"]'";
+  const names =
+    "/^(q|s|word|words|wd|kw|keyword|keywords|query|search|searchword|searchkey|key|text|title)$/i";
+  const combobox =
+    '\'.ant-select, [role="combobox"], [class*=combobox], [class*=el-select], [class*=select2], [aria-haspopup="listbox"]\'';
   return `
   var SEARCH_NAMES = ${names};
   var COMBOBOX_SCOPE = ${combobox};
@@ -609,7 +662,9 @@ export function templateFromLandedUrl(landedUrl, keyword) {
     return null;
   }
   if (detectLoginWall({ finalUrl: landedUrl })) return null;
-  const forms = [String(keyword), encodeURIComponent(keyword)].filter((f, i, a) => a.indexOf(f) === i);
+  const forms = [String(keyword), encodeURIComponent(keyword)].filter(
+    (f, i, a) => a.indexOf(f) === i,
+  );
   const hash = u.hash || "";
   for (const f of forms) {
     if (u.search.includes(f)) {
@@ -618,13 +673,25 @@ export function templateFromLandedUrl(landedUrl, keyword) {
           const v = u.searchParams.get(k) || "";
           return v.includes(f) || v === keyword;
         }) ?? null;
-      return { template: u.origin + u.pathname + u.search.replace(f, "{kw}") + hash, param, shape: "query" };
+      return {
+        template: u.origin + u.pathname + u.search.replace(f, "{kw}") + hash,
+        param,
+        shape: "query",
+      };
     }
     if (hash.includes(f)) {
-      return { template: u.origin + u.pathname + u.search + hash.replace(f, "{kw}"), param: null, shape: "hash" };
+      return {
+        template: u.origin + u.pathname + u.search + hash.replace(f, "{kw}"),
+        param: null,
+        shape: "hash",
+      };
     }
     if (u.pathname.includes(f)) {
-      return { template: u.origin + u.pathname.replace(f, "{kw}") + u.search + hash, param: null, shape: "path" };
+      return {
+        template: u.origin + u.pathname.replace(f, "{kw}") + u.search + hash,
+        param: null,
+        shape: "path",
+      };
     }
   }
   return null;

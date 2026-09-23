@@ -387,6 +387,23 @@ async function collectFromCdp(source, keyword) {
   }
   console.log(`  📊 Extracted ${articles.length} articles`);
 
+  // #89 P2 (2026-09-23): the captcha *widget* is only evidence of an
+  // interstitial together with an empty extraction. Consulting it in the
+  // pre-flight gate above made the CDP layer fail outright on any page that
+  // merely embeds a captcha container — measured on techcrunch / guancha,
+  // whose search pages render results normally — so the strong answer is asked
+  // for here, at the "and nothing came back either" checkpoint.
+  if (articles.length === 0) {
+    const domAntiBot = await detectAntiBot(tabId, { allowDomHint: true });
+    if (domAntiBot) {
+      await cdpCloseTab(tabId);
+      console.warn(
+        `  ⚠️  ${source.label} anti-bot interstitial detected ("${domAntiBot}") on an empty extraction — CDP layer fails, fallback chain takes over`,
+      );
+      return { articles: [], status: "anti_bot" };
+    }
+  }
+
   // R1: Extract imageUrl from the same DOM — zero additional requests.
   // The tab is still open; we run a second eval to find images alongside
   // the same article items. enrichWithImages adds imageUrl/hasImage to

@@ -46,10 +46,12 @@ import {
   buildSubmitSearchScript,
   classifyProbe,
   countKeywordHits,
+  EXTRACTION_EMPTY_LABEL,
   HEALTHY_VERDICTS,
   homeCandidates,
   loginRedirectTarget,
   needsCdpSecondOpinion,
+  needsSearchBoxDrive,
   PROBE_UNAUTHORITATIVE_VERDICTS,
   templateFromLandedUrl,
 } from "./lib/source-url-heal.mjs";
@@ -110,7 +112,42 @@ async function snapshot(tabId, keyword) {
 }
 
 /**
- * Verdict for a browser snapshot. Login and block hints are read first: the
+ * The third health axis: run the source's **own** `articleScript` in the page.
+ *
+ * Axis 1 (bare HTTP) and axis 2 (browser navigation) both answer "is this URL a
+ * result page?". Neither answers "does the registry's extraction still work" —
+ * and that is the only question the pipeline actually depends on. Measured gap
+ * (2026-09-23, douyin): axis 1 said `alive-no-keyword`, axis 2 said `alive` with
+ * 20 real result cards on screen, axis 3 returned **0 items** because the
+ * default tab renders cards without a single `<a href>`. Two green axes, dead
+ * source.
+ */
+async function extractionProbe(tabId, source) {
+  const script = source?.capabilities?.articles?.articleScript ?? source?.articleScript;
+  if (!script) return { count: null, reason: "no-article-script" };
+  // `articleScript` is a statement list ending in `return`, so it only evaluates
+  // inside a function body of its own: a bare eval throws, and a caller that
+  // swallows the throw reads that as "0 items" (trap hit twice — 2026-09-22 and
+  // again on 2026-09-23 while diagnosing douyin). The `try` here is therefore
+  // inside the page, and a throw reports `count: null` (not measured) rather
+  // than 0 (measured empty).
+  const wrapped = `JSON.stringify((function () {
+  try {
+    var out = (function () {${script}})();
+    return {
+      count: Array.isArray(out) ? out.length : out ? 1 : 0,
+      sample: (Array.isArray(out) ? out : []).slice(0, 3).map(function (r) {
+        return String((r && r.title) || "").slice(0, 70);
+      }),
+    };
+  } catch (e) {
+    return { count: null, reason: "script-error", message: String((e && e.message) || e).slice(0, 120) };
+  }
+})())`;
+  return (await evalJson(tabId, wrapped)) ?? { count: null, reason: "eval-failed" };
+}
+
+/** Verdict for a browser snapshot. Login and block hints are read first: the
  * browser is looking at the real page, so its own text beats any status-code
  * guess. Everything else defers to the shared `classifyProbe` so the CDP path
  * cannot drift from the HTTP path.
@@ -146,13 +183,17 @@ function safeOrigin(url) {
 }
 
 /** Open `url`, let the page settle, and report what the browser sees. */
-async function browse(url, keyword) {
+async function browse(url, keyword, source = null) {
   let tabId = null;
   try {
     tabId = await cdpNewTab(url);
     await waitForPageLoad(tabId);
     await sleep(SETTLE_MS);
-    return await snapshot(tabId, keyword);
+    const snap = await snapshot(tabId, keyword);
+    // Same tab, same moment: what would the pipeline have extracted from this
+    // very page? Reported alongside the verdict, never in place of it.
+    if (snap && source) snap.extraction = await extractionProbe(tabId, source);
+    return snap;
   } catch (err) {
     return { error: String(err?.message ?? err).slice(0, 160), url };
   } finally {
@@ -180,10 +221,22 @@ async function attemptDrive(url, keyword, rank) {
     await sleep(2500);
     const box = await evalJson(tabId, buildFindSearchBoxScript());
     if (!box?.found) return { url, rank, boxFound: false, dismissed: "no visible search box" };
-    const shape = [box.type, box.name && `name=${box.name}`, box.id && `id=${box.id}`, box.placeholder && `ph=${box.placeholder}`]
+    const shape = [
+      box.type,
+      box.name && `name=${box.name}`,
+      box.id && `id=${box.id}`,
+      box.placeholder && `ph=${box.placeholder}`,
+    ]
       .filter(Boolean)
       .join(" ");
-    if (rank >= (box.candidates ?? 1)) return { url, rank, boxFound: true, boxShape: shape, dismissed: "rank exceeds candidate count" };
+    if (rank >= (box.candidates ?? 1))
+      return {
+        url,
+        rank,
+        boxFound: true,
+        boxShape: shape,
+        dismissed: "rank exceeds candidate count",
+      };
     // Submitting navigates, so the eval's own response is expected to be lost.
     const via = await evalText(tabId, buildSubmitSearchScript(keyword, rank));
     await sleep(3500);
@@ -202,7 +255,12 @@ async function attemptDrive(url, keyword, rank) {
       landedSampleTitles: after?.sampleTitles ?? [],
     };
   } catch (err) {
-    return { url, rank, boxFound: false, dismissed: `drive failed: ${String(err?.message ?? err).slice(0, 120)}` };
+    return {
+      url,
+      rank,
+      boxFound: false,
+      dismissed: `drive failed: ${String(err?.message ?? err).slice(0, 120)}`,
+    };
   } finally {
     if (tabId) {
       try {
@@ -279,12 +337,17 @@ async function discoverViaSearchBox(homeUrls, keyword) {
 
 async function discoverSource(source, { zhKeyword, enKeyword }) {
   const keyword = keywordForSource(source, zhKeyword, enKeyword);
-  const useApi = source.accessMethod?.primary === "api" && typeof source.apiSearch?.url === "function";
+  const useApi =
+    source.accessMethod?.primary === "api" && typeof source.apiSearch?.url === "function";
   const probedUrl = useApi ? source.apiSearch.url(keyword) : source.url(keyword);
   const homeUrl = safeOrigin(probedUrl) ? new URL(probedUrl).origin + "/" : probedUrl;
 
-  const snapA = await browse(probedUrl, keyword);
+  const snapA = await browse(probedUrl, keyword, source);
   const verdictA = verdictFromSnapshot(snapA, { homeUrl, requestedUrl: probedUrl, keyword });
+  // Axis 3. `null` = not measured (no articleScript / the script threw); `0` =
+  // measured and empty. Only the latter is evidence of a dead source.
+  const extractedA = snapA?.extraction?.count ?? null;
+  const extractionEmpty = extractedA === 0;
 
   const row = {
     name: source.name,
@@ -295,43 +358,60 @@ async function discoverSource(source, { zhKeyword, enKeyword }) {
     configuredUrl: probedUrl,
     homeUrl,
     cdp: { verdict: verdictA, snapshot: snapA },
+    extraction: {
+      configured: extractedA,
+      reason: snapA?.extraction?.reason ?? null,
+      sample: snapA?.extraction?.sample ?? [],
+    },
     searchBox: null,
     candidate: null,
     // Read this against the HTTP column: `probe-not-authoritative` + `alive`
     // means the HTTP verdict was a probe artifact (bloomberg 403 → 200 in a
     // browser), while `probe-not-authoritative` + `blocked-in-browser-too`
     // means the block is real and no rewrite of the URL will help (reddit).
+    // A healthy URL that extracts nothing gets its own label (douyin): the fix
+    // is not a different URL for the probe, it is a different URL for the
+    // *extraction*, and only the browser can tell the two apart.
     resolvesTo: HEALTHY_VERDICTS.has(verdictA)
-      ? "healthy-in-browser"
+      ? extractionEmpty
+        ? EXTRACTION_EMPTY_LABEL
+        : "healthy-in-browser"
       : PROBE_UNAUTHORITATIVE_VERDICTS.has(verdictA)
         ? "blocked-in-browser-too"
         : "still-broken",
   };
 
-  // Step 5 of the methodology: only worth driving the search UI when a keyword
-  // is in play and the configured URL did not already work.
-  if (!HEALTHY_VERDICTS.has(verdictA) && keyword) {
+  // Step 5 of the methodology: drive the site's own search UI when a keyword is
+  // in play and the configured URL did not demonstrably work — where
+  // "demonstrably worked" now means *yields items*, not merely *resolves*.
+  if (needsSearchBoxDrive({ verdict: verdictA, extracted: extractedA, keyword })) {
     row.searchBox = await discoverViaSearchBox(homeCandidates(probedUrl), keyword);
     const proposed = row.searchBox.template ?? row.searchBox.gatedTemplate ?? null;
     if (proposed) {
       const verifyUrl = proposed.replace("{kw}", encodeURIComponent(keyword));
-      const snapC = await browse(verifyUrl, keyword);
+      const snapC = await browse(verifyUrl, keyword, source);
       const verdictC = verdictFromSnapshot(snapC, { homeUrl, requestedUrl: verifyUrl, keyword });
+      const extractedC = snapC?.extraction?.count ?? null;
       row.candidate = {
         template: proposed,
         shape: row.searchBox.templateShape ?? row.searchBox.gatedBy ?? null,
         recoveredFrom: row.searchBox.template ? "search-box" : row.searchBox.gatedBy,
         verifyUrl,
         verdict: verdictC,
+        extracted: extractedC,
         snapshot: snapC,
-        // A template that reproduces the site's own result page is the fix; one
-        // that lands on a login wall is a finding about the site, not a fix.
-        usable: HEALTHY_VERDICTS.has(verdictC),
+        // A template that reproduces the site's own result page **and extracts
+        // items** is the fix. A page that renders but yields nothing is not a
+        // fix at all — it is the douyin shape, where the URL was never the
+        // problem. Landing on a login wall stays a finding about the site.
+        usable: HEALTHY_VERDICTS.has(verdictC) && extractedC !== 0,
       };
       // Distinguish "we found the right URL and it is gated" from "we found
       // nothing" — they call for different follow-ups (needsAuth vs quarantine).
       if (!row.candidate.usable && verdictC === "login-wall") {
         row.resolvesTo = "url-recovered-but-login-gated";
+      } else if (!row.candidate.usable && extractedC === 0) {
+        row.resolvesTo = EXTRACTION_EMPTY_LABEL;
       }
     }
   }
@@ -341,7 +421,9 @@ async function discoverSource(source, { zhKeyword, enKeyword }) {
 function resolveTargets({ only, from, limit }) {
   let targets = selectSweepTargets();
   if (from) {
-    const report = JSON.parse(readFileSync(from.startsWith("/") ? from : join(__dirname, from), "utf8"));
+    const report = JSON.parse(
+      readFileSync(from.startsWith("/") ? from : join(__dirname, from), "utf8"),
+    );
     // Everything that is not already healthy gets a browser second opinion —
     // explicitly including `probe-not-authoritative`, which is the class that
     // most needs one (a WAF 403 is exactly where the browser changes the answer).
@@ -351,10 +433,15 @@ function resolveTargets({ only, from, limit }) {
       (report.rows || []).filter((r) => needsCdpSecondOpinion(r.verdict)).map((r) => r.name),
     );
     targets = targets.filter((s) => names.has(s.name));
-    process.stderr.write(`· --from ${from}: ${targets.length} row(s) need a browser second opinion\n`);
+    process.stderr.write(
+      `· --from ${from}: ${targets.length} row(s) need a browser second opinion\n`,
+    );
   }
   if (only) {
-    const names = only.split(",").map((s) => s.trim()).filter(Boolean);
+    const names = only
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     targets = targets.filter((s) => names.includes(s.name));
   }
   if (limit > 0) targets = targets.slice(0, limit);
@@ -368,7 +455,11 @@ async function main() {
 
   const zhKeyword = getArg("keyword-zh") || "人工智能";
   const enKeyword = getArg("keyword-en") || "AI";
-  const targets = resolveTargets({ only: getArg("only"), from: getArg("from"), limit: Number(getArg("limit") || 0) });
+  const targets = resolveTargets({
+    only: getArg("only"),
+    from: getArg("from"),
+    limit: Number(getArg("limit") || 0),
+  });
   if (targets.length === 0) {
     console.log("no targets — pass --only <names> or --from <sweep-report.json>");
     return;
@@ -380,7 +471,8 @@ async function main() {
     rows.push(row);
     process.stderr.write(
       `· ${row.name.padEnd(22)} http->${String(row.cdp.snapshot?.status ?? "err").padEnd(4)} ` +
-        `${row.cdp.verdict.padEnd(24)} ${row.resolvesTo.padEnd(19)} ` +
+        `${row.cdp.verdict.padEnd(24)} extract=${String(row.extraction?.configured ?? "n/a").padEnd(4)} ` +
+        `${row.resolvesTo.padEnd(31)} ` +
         `${row.candidate ? (row.candidate.usable ? "candidate ✓ " + row.candidate.template : "candidate ✗") : ""}\n`,
     );
     // The DevTools WS layer goes stale under back-to-back navigation storms
@@ -399,7 +491,11 @@ async function main() {
     ? outArg.startsWith("/")
       ? outArg
       : join(__dirname, outArg)
-    : join(__dirname, "output", `source-url-discover-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+    : join(
+        __dirname,
+        "output",
+        `source-url-discover-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+      );
   mkdirSync(dirname(outPath), { recursive: true });
   report.outPath = outPath;
   writeFileSync(outPath, JSON.stringify(report, null, 2));
@@ -411,8 +507,10 @@ async function main() {
   console.log(`\n# source-url-discover — ${report.generatedAt}`);
   console.log(`targets=${report.targetCount}  keyword(zh)=${zhKeyword} keyword(en)=${enKeyword}`);
   console.log(`report: ${outPath}\n`);
-  console.log("| source | http status | browser verdict | resolves to | search box | candidate URL |");
-  console.log("| --- | --- | --- | --- | --- | --- |");
+  console.log(
+    "| source | http status | browser verdict | extract | resolves to | search box | candidate URL |",
+  );
+  console.log("| --- | --- | --- | --- | --- | --- | --- |");
   for (const r of rows) {
     const sb = r.searchBox;
     const foundBox = sb?.attempts?.find((a) => a.boxFound);
@@ -421,11 +519,16 @@ async function main() {
         ? `${foundBox.boxShape || "box"} (score ${foundBox.boxScore})`
         : `none (${sb.dismissed ?? sb.attempts?.[0]?.dismissed ?? "not attempted"})`
       : "-";
-    const cand = r.candidate ? `\`${r.candidate.template}\` → ${r.candidate.verdict}` : "-";
+    const cand = r.candidate
+      ? `\`${r.candidate.template}\` → ${r.candidate.verdict} / extract ${r.candidate.extracted ?? "n/a"}`
+      : "-";
     console.log(
-      `| ${r.name} | ${r.cdp.snapshot?.status ?? "err"} | ${r.cdp.verdict} | ${r.resolvesTo} | ${truncate(box, 46)} | ${truncate(cand, 70)} |`,
+      `| ${r.name} | ${r.cdp.snapshot?.status ?? "err"} | ${r.cdp.verdict} | ${r.extraction?.configured ?? "n/a"} | ${r.resolvesTo} | ${truncate(box, 46)} | ${truncate(cand, 78)} |`,
     );
   }
+  console.log("\nHow to read the `extract` column: `/` = the configured URL, measured by");
+  console.log("running this source's own articleScript in the page. `n/a` = not measured");
+  console.log("(no script / it threw) — not the same as `0` = measured and empty.");
   console.log("\nSample of what the browser actually saw (first 3):");
   for (const r of rows.slice(0, 3)) {
     console.log(`· ${r.name}: ${truncate(r.cdp.snapshot?.bodyHead ?? "(no snapshot)", 150)}`);

@@ -351,7 +351,8 @@ export const NEWS_SOURCES = [
       // Only the second fact needs a human. The anonymous channel is the RSS
       // feed (`/rss/`, 60 items, same-day freshness), already surfaced as a
       // feed-candidate by the sweep.
-      notes: "CDP search page — real shape is /search/{kw}.html, login-gated for anonymous visitors.",
+      notes:
+        "CDP search page — real shape is /search/{kw}.html, login-gated for anonymous visitors.",
     },
     needsAuth: true,
     useCleanTitle: false,
@@ -431,19 +432,28 @@ export const NEWS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP search page. Articles + images from same DOM.",
+      notes:
+        "CDP search page. Articles + images from same DOM. Query param is `id=`, not `keyword=` (2026-09-23).",
     },
     needsAuth: false,
     useCleanTitle: false,
-    url: (keyword) => `https://www.thepaper.cn/searchResult?keyword=${encodeURIComponent(keyword)}`,
+    // `?keyword=` renders the site's chrome around a **zero-result** search
+    // ("找到约0个结果", 982 chars) — a 200 page that looks like a working URL and
+    // is why the earlier probe only ever reached `alive-zero-results`. The real
+    // param is `id=`: same page reports 找到约10000个结果 and 33 article links.
+    url: (keyword) => `https://www.thepaper.cn/searchResult?id=${encodeURIComponent(keyword)}`,
     articleScript: `
-      var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
+      // Result links are /newsDetail_forward_<id>; the list container's class is
+      // a CSP-style hash (.first__TIDm_), so anchor on the URL shape instead.
+      // Titles live in the anchor text (a sibling <a> with no text carries the
+      // same href and is skipped by the empty-title guard).
       var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        if (link) {
-          results.push({ title: (el.querySelector('h3, h2, .title')?.textContent || link.textContent || '').trim(), url: link.href, imageUrl: img ? img.src : null });
+      document.querySelectorAll('a[href*="/newsDetail_forward_"]').forEach(function(a) {
+        var title = (a.textContent || '').trim() || (a.getAttribute('title') || '').trim();
+        if (title && title.length > 4) {
+          var el = a.closest('div, li, article') || a.parentElement;
+          var img = el ? el.querySelector('img[src]') : null;
+          results.push({ title: title, url: a.href, imageUrl: img ? img.src : null });
         }
       });
       return results;
@@ -833,40 +843,46 @@ export const SELF_MEDIA_SOURCES = [
     accessMethod: {
       primary: "cdp",
       notes:
-        "CDP (requires login for search) → iesdouyin share page (no login for download, verified 2026-09-03). needsAuth=true for search only.",
+        "CDP search (requires login) at /search/{kw}?type=video → iesdouyin share page (no login for download, verified 2026-09-03). needsAuth=true for search only.",
     },
     needsAuth: true,
     useCleanTitle: true,
-    url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}`,
+    // `?type=video` 是必需的，不是可选参数（2026-09-23 实测）：综合 tab（默认无参数）
+    // 的 20 张结果卡是纯 div + 背景图，卡内**一个 <a href> 都没有**（含 anchor 的卡
+    // = 0/20），旧 articleScript 因此抽 0 条——源被判「已烂」。视频 tab 每张卡都带
+    // //www.douyin.com/video/{id} → 20 条真结果。
+    // 搜索框驱动回收的落点是 /jingxuan/search/{kw}?type=general（同样无 anchor），
+    // 所以「驱动搜索框」在本源上只能证明 URL 可达、不能证明可抽取——`/search/{kw}`
+    // 才是可用路由。复测证据见 docs/selector-auto-healing.md。
+    url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}?type=video`,
 
+    // 旧的 `[class*="login"]` + 正文含「登录」在登录态下会假阳（导航里有登录相关
+    // 文案），改为「没有结果链接 **且** 页面在喊登录」才算未登录。
     loginCheckScript: `
-      var loginModal = document.querySelector('[class*="login"], [class*="Login"]');
       var body = document.body ? document.body.innerText : '';
-      (loginModal && body.includes('登录')) ? 'need_login' : 'ok'
+      var videos = document.querySelectorAll('a[href*="/video/"]').length;
+      (videos === 0 && /登录账号|登录后查看|请先登录/.test(body)) ? 'need_login' : 'ok'
     `,
     articleScript: `
-      var items = document.querySelectorAll('[data-e2e="search_video-item"], ul[data-e2e="search-result-list"] li, .search-result-card');
       var results = [];
-      if (items.length > 0) {
-        items.forEach(function(el) {
-          var link = el.querySelector('a[href]');
-          var title = el.querySelector('.title, [data-e2e="video-title"], a[title]');
-          if (link) {
-            var titleText = title ? title.textContent.trim() : (link.getAttribute('title') || link.textContent.trim());
-            if (titleText && titleText.length > 2) {
-              results.push({ title: titleText, url: link.href });
-            }
+      // 卡片类名是 CSS-module hash（search-result-card / PtY9QFFE），DOM 一改就漂，
+      // 所以只用语义锚点：视频详情链接。综合 tab 无此链接，故 url 必须带 type=video。
+      document.querySelectorAll('a[href*="/video/"]').forEach(function(a) {
+        // 锚文本是「时长 + 播放量 + 标题 + 话题 + 作者 + 日期」的拼接，直接取会得到
+        // "04:181195Meta的Muse真的…" 这种脏标题。标题是锚内**最长的单个文本块**
+        // （实测：标题 65/114/90 字符 vs 时长 5、播放量 4、作者 9）——按最长块取。
+        var best = '';
+        a.querySelectorAll('div, span, p').forEach(function(el) {
+          var own = '';
+          for (var i = 0; i < el.childNodes.length; i++) {
+            if (el.childNodes[i].nodeType === 3) own += el.childNodes[i].textContent;
           }
+          own = own.trim();
+          if (own.length > best.length) best = own;
         });
-      }
-      if (results.length === 0) {
-        document.querySelectorAll('a[href*="/video/"]').forEach(function(a) {
-          var text = (a.getAttribute('title') || a.textContent || '').trim();
-          if (text.length > 5 && text.length < 200) {
-            results.push({ title: text, url: a.href });
-          }
-        });
-      }
+        var title = best || (a.getAttribute('title') || a.textContent || '').trim();
+        if (title && title.length > 5) results.push({ title: title, url: a.href });
+      });
       return results;
     `,
   },

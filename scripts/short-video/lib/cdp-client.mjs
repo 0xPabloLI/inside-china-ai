@@ -296,27 +296,67 @@ export function matchAntiBotIndicators(text) {
       if (ROBOT_PHRASES.some((re) => re.test(text))) return indicator;
       continue;
     }
+    // `429` is a number: as a bare substring it also matches "4290 views",
+    // "id=1429" and "¥429" — an interstitial names the status as a token.
+    if (indicator === "429") {
+      if (/\b429\b/.test(text)) return indicator;
+      continue;
+    }
     if (lower.includes(indicator)) return indicator;
   }
   return null;
 }
 
 // Evaluates cheap signals only: title, first heading, the first 600 chars of
-// body text, and well-known CAPTCHA containers. Full-page scans would
-// false-positive on legitimate article content.
-const ANTI_BOT_CHECK_SCRIPT = `
+// body text, and CAPTCHA containers that are actually on screen. Full-page
+// scans would false-positive on legitimate article content.
+// Exported for tests: the size gate is the whole point of this script.
+export const ANTI_BOT_CHECK_SCRIPT = `
   (() => {
     const title = document.title || "";
     const h1 = document.querySelector("h1")?.innerText || "";
     const bodyHead = (document.body?.innerText || "").slice(0, 600);
-    const captchaDom = document.querySelector(
-      'iframe[src*="captcha"], .g-recaptcha, #captcha, [class*="captcha" i], [id*="captcha" i]'
-    )
-      ? " captcha-dom"
-      : "";
-    return title + " " + h1 + " " + bodyHead + captchaDom;
+    // A captcha *container* only evidences an interstitial when it is visible.
+    // Legitimate sites embed invisible reCAPTCHA / Turnstile widgets (and use
+    // "captcha" in class names) for their own forms — the previous "any
+    // matching element counts" rule labelled techcrunch / guancha / thepaper /
+    // xhs / douyin as anti-bot and returned before extraction ever ran
+    // (measured 2026-09-23: all five render a clean result page at t+5s).
+    const visible = (el) => {
+      const r = el.getBoundingClientRect();
+      return r.width >= 100 && r.height >= 40;
+    };
+    const sel = 'iframe[src*="captcha" i], .g-recaptcha, #captcha, [class*="captcha" i], [id*="captcha" i]';
+    let captchaVisible = false;
+    for (const el of document.querySelectorAll(sel)) {
+      if (visible(el)) { captchaVisible = true; break; }
+    }
+    return JSON.stringify({ text: title + " " + h1 + " " + bodyHead, captchaVisible });
   })()
 `;
+
+/**
+ * Read the page sample returned by `ANTI_BOT_CHECK_SCRIPT`. Kept separate so
+ * the JSON shape and the legacy concatenated-string shape (older stubs, tests)
+ * are decided in one place.
+ *
+ * @param {unknown} value - the eval result
+ * @returns {{ text: string, captchaVisible: boolean }}
+ */
+export function parseAntiBotSample(value) {
+  if (typeof value !== "string") return { text: "", captchaVisible: false };
+  if (value.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object") {
+        return { text: String(parsed.text ?? ""), captchaVisible: Boolean(parsed.captchaVisible) };
+      }
+    } catch {
+      /* not JSON after all — fall through to the legacy shape */
+    }
+  }
+  return { text: value, captchaVisible: false };
+}
 
 /**
  * Detect generic anti-bot / CAPTCHA interstitials on a tab (#89 P2).
@@ -325,17 +365,32 @@ const ANTI_BOT_CHECK_SCRIPT = `
  * loginCheckScript. Fail-open: if the check itself errors, the page is
  * treated as clean — a broken check must not block scraping.
  *
+ * Evidence strength is deliberately asymmetric. *Text* evidence (the page says
+ * "unusual traffic" / "验证码" / "are you a robot") describes an interstitial and
+ * is reported either way. A *widget* is much weaker: plenty of healthy pages
+ * embed a visible captcha container for their own forms, so the DOM hint is
+ * opt-in via `allowDomHint` and belongs at the "and nothing was extracted
+ * either" checkpoint, not in the pre-flight gate.
+ *
  * @param {string} tabId - Tab ID
  * @param {object} [opts]
  * @param {(tabId: string, script: string) => Promise<object>} [opts.evalFn] - eval seam (tests)
+ * @param {boolean} [opts.allowDomHint=false] - also report a visible captcha widget
  * @returns {Promise<string|null>} the matched indicator, or null when clean
  */
 export async function detectAntiBot(tabId, opts = {}) {
   const evalFn = opts.evalFn || cdpEval;
+  const allowDomHint = opts.allowDomHint === true;
   try {
     const resp = await evalFn(tabId, ANTI_BOT_CHECK_SCRIPT);
     const value = resp?.result?.value ?? resp?.value ?? "";
-    return typeof value === "string" ? matchAntiBotIndicators(value) : null;
+    const { text, captchaVisible } = parseAntiBotSample(value);
+    const fromText = matchAntiBotIndicators(text);
+    if (fromText) return fromText;
+    // The DOM hint is its own answer, not a magic string smuggled into the text
+    // sample (which is how every "captcha" in the DOM used to be reported as a
+    // text match on the word "captcha").
+    return allowDomHint && captchaVisible ? "captcha-dom" : null;
   } catch {
     return null;
   }

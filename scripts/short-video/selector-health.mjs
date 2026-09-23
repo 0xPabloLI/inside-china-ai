@@ -161,7 +161,11 @@ async function checkSource(source, keywords) {
     // escalation/backoff seam the production path uses (search-sources).
     // Only "empty after all retries" is now reported as zero_results.
     const articles = await extractWithRetry(tabId, script);
-    const lateAntiBot = articles.length === 0 ? await detectAntiBot(tabId) : null;
+    // Only now does a captcha *widget* mean anything: a container on a page that
+    // still rendered results is the site's own form furniture, not an
+    // interstitial (techcrunch / guancha both embed one on a healthy page).
+    const lateAntiBot =
+      articles.length === 0 ? await detectAntiBot(tabId, { allowDomHint: true }) : null;
     return {
       source: source.name,
       ok: articles.length > 0,

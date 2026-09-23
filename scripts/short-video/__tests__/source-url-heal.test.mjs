@@ -18,12 +18,14 @@ import {
   detectBlockPage,
   detectLoginWall,
   detectZeroResults,
+  EXTRACTION_EMPTY_LABEL,
   HEALTHY_VERDICTS,
   homeCandidates,
   isFailureVerdict,
   loginRedirectTarget,
   looksLikeResults,
   needsCdpSecondOpinion,
+  needsSearchBoxDrive,
   PROBE_UNAUTHORITATIVE_VERDICTS,
   buildFindSearchBoxScript,
   buildSubmitSearchScript,
@@ -76,31 +78,48 @@ describe("countKeywordHits", () => {
 describe("detectLoginWall", () => {
   it("recognises a login destination", () => {
     expect(
-      detectLoginWall({ finalUrl: "https://www.ithome.com/user-login/index.htm?url=x&tip=登录以查看搜索结果" }),
+      detectLoginWall({
+        finalUrl: "https://www.ithome.com/user-login/index.htm?url=x&tip=登录以查看搜索结果",
+      }),
     ).toBe(true);
-    expect(detectLoginWall({ finalUrl: "https://passport.weibo.com/visitor/visitor?a=enter" })).toBe(true);
+    expect(
+      detectLoginWall({ finalUrl: "https://passport.weibo.com/visitor/visitor?a=enter" }),
+    ).toBe(true);
   });
 
   it("recognises an in-place gate that never leaves the URL", () => {
     // zhihu search: HTTP 200 on the search URL, but the anonymous visitor gets
     // "未搜索到相关内容" and a login call-to-action instead of results.
-    expect(detectLoginWall({ finalUrl: "https://www.zhihu.com/search?q=x", html: "未搜索到相关内容 登录/注册" })).toBe(
-      false,
-    );
+    expect(
+      detectLoginWall({
+        finalUrl: "https://www.zhihu.com/search?q=x",
+        html: "未搜索到相关内容 登录/注册",
+      }),
+    ).toBe(false);
     expect(
       detectLoginWall({ finalUrl: "https://www.zhihu.com/search?q=x", html: "登录以查看搜索结果" }),
     ).toBe(true);
   });
 
   it("does not fire on an ordinary page that merely links a login", () => {
-    expect(detectLoginWall({ finalUrl: "https://www.qbitai.com/a/b", html: "<a href='/login'>登录</a>" })).toBe(false);
+    expect(
+      detectLoginWall({
+        finalUrl: "https://www.qbitai.com/a/b",
+        html: "<a href='/login'>登录</a>",
+      }),
+    ).toBe(false);
   });
 });
 
 describe("detectBlockPage", () => {
   it("treats an edge-WAF 403 as not-authoritative, not as a dead URL", () => {
     // xinhua so.news.cn: 403 + 159 bytes from openresty, 200 + JSON in a browser.
-    expect(detectBlockPage({ status: 403, html: "<html><head><title>403 Forbidden</title></head></html>" })).toBe(true);
+    expect(
+      detectBlockPage({
+        status: 403,
+        html: "<html><head><title>403 Forbidden</title></head></html>",
+      }),
+    ).toBe(true);
   });
 
   it("does not rescue a real 404", () => {
@@ -296,7 +315,9 @@ describe("extractSearchForms", () => {
     const found = extractSearchForms(html, HOME, "人工智能");
     expect(found).toHaveLength(1);
     expect(found[0].param).toBe("word");
-    expect(found[0].url).toBe("https://www.ithome.com/search?word=%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD");
+    expect(found[0].url).toBe(
+      "https://www.ithome.com/search?word=%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD",
+    );
   });
 
   it("skips POST forms (no URL can carry the keyword)", () => {
@@ -365,7 +386,13 @@ describe("verdict sets", () => {
     expect(isFailureVerdict("login-wall")).toBe(false);
     expect(isFailureVerdict("alive")).toBe(false);
     expect(isFailureVerdict("alive-off-site")).toBe(false);
-    for (const v of ["http-dead", "redirected-home", "redirected-off-site", "alive-no-keyword", "network-error"]) {
+    for (const v of [
+      "http-dead",
+      "redirected-home",
+      "redirected-off-site",
+      "alive-no-keyword",
+      "network-error",
+    ]) {
       expect(isFailureVerdict(v)).toBe(true);
     }
   });
@@ -382,30 +409,44 @@ describe("templateFromLandedUrl", () => {
   it("recovers a path-shaped search URL (ithome's real shape)", () => {
     // The registry carried `/search?word=…` (404); driving the site's own search
     // box lands on `/search/{kw}.html` — no query parameter at all.
-    expect(templateFromLandedUrl("https://www.ithome.com/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD.html", "人工智能")).toMatchObject({
+    expect(
+      templateFromLandedUrl(
+        "https://www.ithome.com/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD.html",
+        "人工智能",
+      ),
+    ).toMatchObject({
       template: "https://www.ithome.com/search/{kw}.html",
       shape: "path",
     });
   });
 
   it("recovers a hash-route search URL (xinhua's so.news.cn)", () => {
-    expect(templateFromLandedUrl("https://so.news.cn/#search/0/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD/1/", "人工智能")).toMatchObject({
+    expect(
+      templateFromLandedUrl(
+        "https://so.news.cn/#search/0/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD/1/",
+        "人工智能",
+      ),
+    ).toMatchObject({
       template: "https://so.news.cn/#search/0/{kw}/1/",
       shape: "hash",
     });
   });
 
   it("recovers a query-parameter search URL and names the parameter", () => {
-    expect(templateFromLandedUrl("https://www.google.com/search?q=AI&tbm=nws", "AI")).toMatchObject({
-      template: "https://www.google.com/search?q={kw}&tbm=nws",
-      param: "q",
-      shape: "query",
-    });
+    expect(templateFromLandedUrl("https://www.google.com/search?q=AI&tbm=nws", "AI")).toMatchObject(
+      {
+        template: "https://www.google.com/search?q={kw}&tbm=nws",
+        param: "q",
+        shape: "query",
+      },
+    );
   });
 
   it("refuses to invent a template from a page that cannot carry the term", () => {
     expect(templateFromLandedUrl("https://www.ithome.com/", "人工智能")).toBeNull();
-    expect(templateFromLandedUrl("https://www.ithome.com/user-login/index.htm?url=x", "人工智能")).toBeNull();
+    expect(
+      templateFromLandedUrl("https://www.ithome.com/user-login/index.htm?url=x", "人工智能"),
+    ).toBeNull();
   });
 });
 
@@ -419,7 +460,9 @@ describe("loginRedirectTarget", () => {
     const target = loginRedirectTarget(redirect);
     expect(target).toBe("https://www.ithome.com/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD.html");
     // …and the recovered URL round-trips into the template the registry needs.
-    expect(templateFromLandedUrl(target, "人工智能").template).toBe("https://www.ithome.com/search/{kw}.html");
+    expect(templateFromLandedUrl(target, "人工智能").template).toBe(
+      "https://www.ithome.com/search/{kw}.html",
+    );
   });
 
   it("returns null when the redirect carries no destination", () => {
@@ -459,5 +502,47 @@ describe("search-box driving scripts", () => {
     expect(script).toContain("form-submit");
     expect(script).toContain("synthetic-enter");
     expect(script).toContain("ranked[1]");
+  });
+});
+
+describe("needsSearchBoxDrive — the third axis", () => {
+  // 2026-09-23, douyin: axis 1 said `alive-no-keyword`, axis 2 said `alive` with
+  // 20 real result cards on screen, and the source still produced 0 rows. The
+  // old gate ("drive the search box only when the URL is unhealthy") therefore
+  // left a dead source sitting in the healthy column forever.
+  it("drives the box when the URL is healthy but the extraction is empty", () => {
+    expect(needsSearchBoxDrive({ verdict: "alive", extracted: 0, keyword: "人工智能" })).toBe(true);
+  });
+
+  it("leaves a healthy URL that really extracts alone", () => {
+    expect(needsSearchBoxDrive({ verdict: "alive", extracted: 20, keyword: "人工智能" })).toBe(
+      false,
+    );
+  });
+
+  it("treats 'not measured' as unknown, not as empty", () => {
+    // `null` = no articleScript, or the script threw. Absence of a measurement
+    // must never be read as evidence of a broken extraction, or every api
+    // source without a script would get driven through a search box.
+    expect(needsSearchBoxDrive({ verdict: "alive", extracted: null, keyword: "AI" })).toBe(false);
+  });
+
+  it("still drives the box for an unhealthy URL, measured or not", () => {
+    expect(needsSearchBoxDrive({ verdict: "http-dead", extracted: null, keyword: "AI" })).toBe(
+      true,
+    );
+    expect(
+      needsSearchBoxDrive({ verdict: "probe-not-authoritative", extracted: null, keyword: "AI" }),
+    ).toBe(true);
+  });
+
+  it("never drives anything without a keyword in play", () => {
+    expect(needsSearchBoxDrive({ verdict: "http-dead", extracted: 0, keyword: null })).toBe(false);
+    expect(needsSearchBoxDrive({ verdict: "http-dead", extracted: 0, keyword: "" })).toBe(false);
+  });
+
+  it("names the third-axis label distinctly from the other outcomes", () => {
+    expect(EXTRACTION_EMPTY_LABEL).toBe("url-alive-but-extraction-empty");
+    expect(HEALTHY_VERDICTS.has(EXTRACTION_EMPTY_LABEL)).toBe(false);
   });
 });

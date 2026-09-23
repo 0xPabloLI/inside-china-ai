@@ -54,16 +54,21 @@ export const LOGIN_SOURCES = {
     name: "抖音",
     loginUrl: "https://www.douyin.com/passport/login",
     clickText: "登录|登录账号",
-    verifyUrl: (kw = AI) =>
-      `https://so.douyin.com/s?search_entrance=aweme&keyword=${encodeURIComponent(kw)}`,
-    loggedIn: ({ text = "" }) => !/登录账号/.test(text) && text.length > 1000,
+    // 验证路由必须是**可用路由**：so.douyin.com/s?keyword= 只显示「登录账号 /
+    // 正在生成回答…」（AI 搜索要另开），拿它验证会把「路由不对」读成「没登录」。
+    verifyUrl: (kw = AI) => `https://www.douyin.com/search/${encodeURIComponent(kw)}?type=video`,
+    // 登录判据 = 结果链接存在，而不是「页面里没有登录二字」。
+    loggedIn: ({ text = "" }) => text.length > 600 && !/登录账号|登录后查看/.test(text),
     note:
-      "⚠️ 2026-09-23 实测：`/passport/login` 直接返回 `{error_code:22,description:非法应用}`，" +
-      "合成指针事件也撑不开登录弹窗——抖音风控把自动化 profile 判为非法应用。" +
-      "（例外：so.douyin.com 的「AI搜索」正文有时能出内容，属偶发，不算登录成功。）" +
-      "❌ 2026-09-23 复测（用户已登录）：登录在 `www.douyin.com` 确实生效（无登录提示、有「我的」），" +
-      "但 `www.douyin.com/search/` 的结果容器 `scroll-list` 始终为空（0 卡片 / 0 video 链接 / title 空），" +
-      "反爬插页 t+3.5s 起稳定命中 `captcha` → **登录不是它的修复路径**，要搜索得改走 iesdouyin 分享页思路。",
+      "⚠️ `/passport/login` 直接返回 `{error_code:22,description:非法应用}`（风控定向拦自动化" +
+      "profile），**登录按钮点不动，必须由人手动登录**——这一点截至 2026-09-23 未变。" +
+      "✅ 2026-09-23 复测（用户手动登录后）：搜索**通了**。`/search/{kw}?type=video` 抽出 20 条" +
+      "真结果（`//www.douyin.com/video/{id}` + 真标题）。" +
+      "❗同日更正：上一轮「登录也救不了 / 结果容器始终为空」是**测量方法造成的假结论**——" +
+      "（a）综合 tab（默认无参数）的结果卡是纯 div + 背景图，卡内没有 `<a href>`，旧 articleScript" +
+      "因此恒抽 0 条；`?type=video` 才有视频链接。（b）`/passport/login` 的 error_code:22 是" +
+      "**登录入口**被拦，不是搜索页被拦，两件事被混成了「搜索不可用」。" +
+      "脚本、`?type=video` 与报告字段都已在 lib 里同步修正（见 docs/selector-auto-healing.md 第三条轴）。",
   },
 
   weibo: {

@@ -1703,3 +1703,34 @@ describe("#317 weibo_search source", () => {
     expect(ALL_SOURCES.some((s) => s.name === "weibo_search")).toBe(true);
   });
 });
+
+describe("#269 douyin search URL shape (2026-09-23)", () => {
+  const douyin = ALL_SOURCES.find((s) => s.name === "douyin");
+
+  it("keeps ?type=video on the search URL", () => {
+    // Without it the default (综合) tab renders 20 cards with **no** <a href>,
+    // so the articleScript below returns 0 items while the page looks healthy —
+    // the exact shape that let this source read as "dead" for a day.
+    expect(douyin.url("人工智能")).toContain("?type=video");
+    expect(douyin.url("人工智能")).toContain(encodeURIComponent("人工智能"));
+  });
+
+  it("selects by semantic anchor, not by CSS-module class hash", () => {
+    const script = douyin.capabilities?.articles?.articleScript ?? douyin.articleScript;
+    expect(script).toContain('a[href*="/video/"]');
+    // `search-result-card` / `PtY9QFFE` / `VDYK8Xd7` are build-generated names
+    // that change with every front-end deploy — they must not be load-bearing.
+    // (Assert on the *selector* form so the comment above may still name them.)
+    expect(script).not.toContain(".search-result-card");
+    expect(script).not.toContain('[class*="PtY"');
+  });
+
+  it("reports need_login only when there are no results AND a login prompt", () => {
+    const check = douyin.loginCheckScript;
+    // The old check fired on any element whose class contained "login", which
+    // reads a logged-in page as logged-out.
+    expect(check).toContain('a[href*="/video/"]');
+    expect(check).toContain("登录账号");
+    expect(check).not.toContain('[class*="login"]');
+  });
+});
