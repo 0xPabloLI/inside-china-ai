@@ -42,8 +42,14 @@ const GATE_POINTER_PATTERNS = [/→/, LOCAL_MARKDOWN_LINK_PATTERN, BACKTICKED_LO
 // replacement is re-inventory, not an authoring decision (issue #178).
 // Net deletion — an inventory line removed with no replacement — is
 // still an authoring decision and still warns.
+//
+// Match the line as it is actually written: `> **Last inventory**: …`. The
+// first version of this pattern only accepted a bare `Last inventory:` at the
+// start of the line, so every rotation warned (issue #178's exemption was dead
+// code on this repo's own format). Optional blockquote marker and optional
+// emphasis are part of the shape, not decoration.
 const TRACKER_PATH = "docs/issue-roadmap.md";
-const LAST_INVENTORY_LINE_PATTERN = /^\s*Last inventory:?/i;
+const LAST_INVENTORY_LINE_PATTERN = /^\s*>?\s*\*{0,2}Last inventory\*{0,2}:?/i;
 
 // Files excluded from checks (index itself, ephemeral specs)
 const EXCLUDED_FILES = new Set([

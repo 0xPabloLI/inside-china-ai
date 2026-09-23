@@ -469,6 +469,51 @@ describe("checkWritingForAgentsGate", () => {
     expect(findings).toHaveLength(0);
   });
 
+  it("PASS: the exemption matches the tracker's REAL line shape `> **Last inventory**: …` (#269)", () => {
+    // #178's exemption was dead code on this repo's own format: the roadmap
+    // writes the pointer as a bolded blockquote line, which the original
+    // pattern (`^\s*Last inventory:?`) never matched — so every rotation
+    // warned. Guard the shape we actually write, not the shape we imagined.
+    const stagedDiffs = [
+      {
+        filename: "docs/issue-roadmap.md",
+        diffLines: [
+          {
+            type: "del",
+            content:
+              "> **Last inventory**: 2026-09-22（**#269 后续 Round B：源健康三轴**）—— 含 `docs/selector-auto-healing.md` 引用",
+          },
+          {
+            type: "add",
+            content:
+              "> **Last inventory**: 2026-09-23（**#269 后续 Round C：抽取层第三轴**）—— 含 `docs/selector-auto-healing.md` 引用",
+          },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(findings).toHaveLength(0);
+  });
+
+  it("WARN: a non-inventory pointer line in the tracker still warns", () => {
+    // The widened pattern must not become a blanket exemption for every
+    // blockquoted pointer line in the tracker.
+    const stagedDiffs = [
+      {
+        filename: "docs/issue-roadmap.md",
+        diffLines: [
+          {
+            type: "add",
+            content: "> frontier = #333（36kr/guancha 收敛）→ `docs/issue-roadmap.md` 未更新",
+          },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].level).toBe("WARN");
+  });
+
   it("WARN: tracker Last-inventory line net-deleted (no replacement) (#178)", () => {
     const stagedDiffs = [
       {
