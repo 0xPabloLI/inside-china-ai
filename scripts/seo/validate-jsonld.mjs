@@ -27,7 +27,55 @@ const DEFAULT_ONLINE_URLS = [
   "https://chinaai.news/companies",
   "https://chinaai.news/compare/deepseek-vs-qwen-vs-glm",
   "https://chinaai.news/tiktok-connect",
+  "https://chinaai.news/ask",
+  "https://chinaai.news/news/chinese-ai-models",
 ];
+
+/** Pages that must stay crawlable; robots.txt must not block them. */
+const MUST_CRAWL = ["/", "/ask", "/news/chinese-ai-models", "/companies"];
+const REQUIRED_SITEMAPS = [
+  "https://chinaai.news/sitemap.xml",
+  "https://chinaai.news/news-sitemap.xml",
+];
+
+async function runRobotsCheck() {
+  let ok = true;
+  try {
+    const res = await fetch("https://chinaai.news/robots.txt");
+    if (!res.ok) {
+      console.error(`  ✗ robots.txt — HTTP ${res.status}`);
+      return false;
+    }
+    const txt = await res.text();
+    // Collect Disallow rules for the wildcard agent.
+    const disallow = [];
+    let star = false;
+    for (const raw of txt.split("\n")) {
+      const line = raw.split("#")[0].trim();
+      const [k, ...rest] = line.split(":");
+      const v = rest.join(":").trim();
+      if (/^user-agent$/i.test(k)) star = v === "*";
+      else if (star && /^disallow$/i.test(k) && v) disallow.push(v);
+    }
+    for (const path of MUST_CRAWL) {
+      const hit = disallow.find((d) => d === "/" || path.startsWith(d));
+      if (hit) {
+        ok = false;
+        console.error(`  ✗ robots.txt blocks ${path} (Disallow: ${hit})`);
+      } else console.log(`  ✓ robots.txt allows ${path}`);
+    }
+    for (const sm of REQUIRED_SITEMAPS) {
+      if (!txt.includes(`Sitemap: ${sm}`)) {
+        ok = false;
+        console.error(`  ✗ robots.txt missing Sitemap: ${sm}`);
+      }
+    }
+  } catch (e) {
+    console.error(`  ✗ robots.txt — ${e instanceof Error ? e.message : String(e)}`);
+    return false;
+  }
+  return ok;
+}
 
 function runLocalGate() {
   console.log("🔎 Validating registered JSON-LD (offline)…");
@@ -79,6 +127,8 @@ let onlineOk = true;
 if (online) {
   console.log("\n🌐 Spot-checking live URLs…");
   onlineOk = await runOnlineCheck();
+  console.log("\n🤖 Checking robots.txt…");
+  onlineOk = (await runRobotsCheck()) && onlineOk;
 }
 
 if (!localOk || !onlineOk) {

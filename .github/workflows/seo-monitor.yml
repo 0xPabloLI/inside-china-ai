@@ -1,0 +1,49 @@
+name: SEO Monitor
+
+# Continuous SEO gate against production: validates live JSON-LD (incl. /ask
+# and /news/chinese-ai-models) and robots.txt crawlability every 6 hours.
+# On failure it opens (or comments on) a GitHub issue, which notifies you.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: seo-monitor
+  cancel-in-progress: false
+
+jobs:
+  seo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci --ignore-scripts
+      - name: Run SEO gate (offline + live)
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/seo/validate-jsonld.mjs --online 2>&1 | tee /tmp/seo.log
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const log = fs.existsSync('/tmp/seo.log') ? fs.readFileSync('/tmp/seo.log','utf8') : '';
+            const fails = log.split('\n').filter(l => l.includes('✗')).join('\n') || '(see run logs)';
+            const run = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const body = `SEO monitor failed on chinaai.news.\n\n\`\`\`\n${fails}\n\`\`\`\n\n[Run logs](${run})`;
+            const { data: open } = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: 'open', labels: 'seo-monitor' });
+            if (open.length) {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: open[0].number, body });
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title: 'SEO monitor failing: structured data / robots.txt', body, labels: ['seo-monitor', 'bug'] });
+            }
