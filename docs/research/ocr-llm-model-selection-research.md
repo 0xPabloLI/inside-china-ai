@@ -158,9 +158,96 @@ Meta 在 Muse Glimmer 发布时提供了三方对比，这是目前最权威的�
 | 模型 | 大小 | 用途 |
 |------|------|------|
 | bge-m3:latest | 1.2GB | embedding，非代码审查用 |
-| qwen3.8:27b-mlx | 18GB | VLM（视觉），不支持 tools，OCR 用不了 |
+| qwen3.6:27b-mlx | 18GB | VLM + tools（vision + function calling），可接 OCR |
 
-**注意**：`qwen3.8:27b-mlx` 是 VLM（视觉模型），不支持 tools（function calling），OCR 无法使用。需安装上述推荐模型之一。
+**注意**：`qwen3.6:27b-mlx` 支持 tools + vision（本地 `ollama show` 确认 capabilities 含 tools），可接 OCR（SWE-Bench Verified 77.2）。详见下方"引擎 Tools 支持确认"。
+
+## 实测经验与约束修正（2026-09-23 更新）
+
+### 三条硬约束（按重要性）
+
+1. **支持 tools（function calling）是硬门槛**：不支持 tools 的模型彻底接不了 OCR 的 review agent，跟快慢无关。（注：qwen3.8-27B 和 qwen3.6-27B 都支持 tools，详见下方"引擎 Tools 支持确认"）
+2. **dense 优先，避开 MoE**：MoE 在长上下文 prefill（代码审查 scan 是"输入大输出小"典型）慢 + 高失败率（qwen3:30b-a3b 实测 15 错/27 次 ≈55% 失败）。
+3. **纯文本 > VLM 只是次要优化**：VLM 的 Vision Tower 仅占约 0.5-1GB（总模型 3-5%），浪费"还好"，不是主要矛盾。
+
+### 误区纠正
+
+上文"纯文本"曾列为硬约束，但随后仍推荐了带 vision 的 qwen3.6:27b，自相矛盾。实际结论是：**"VLM 不能用于 OCR"是错的**——qwen3.8-27B 和 qwen3.6-27B 都支持 tools（Ollama 官方页面确认 + 本地 `ollama show` 验证），都能接 OCR。选择面应为"支持 tools 的 dense 模型"，纯文本是加分项而非硬约束。详见下方"引擎 Tools 支持确认"。
+
+### 待验证坑
+
+- `qwen3.6:27b-mlx` 量化是 **nvfp4**（NVIDIA 专属 FP4），tag 却叫 -mlx，Apple Silicon Metal 兼容性存疑，需重启 Mac 恢复 Metal 后实测。
+- 本地上次测速时叠加了 Metal GPU 故障（Ollama MLX runner 报 `metal::Device` kernel 加载失败，GGUF 引擎报 `failed to create library`），系统级故障需重启 Mac 恢复，并非模型问题。
+
+## Deep Research 更新（2026-09-23 第二轮）
+
+### 引擎 Tools 支持确认
+
+| 引擎 | Apple Silicon | Tools | 证据 |
+|------|--------------|-------|------|
+| **Ollama** | ✅ | ✅ | 实测 `qwen3.6:27b-mlx` capabilities 有 tools |
+| **mlx-lm server** | ✅ | ✅ | 源码有 `ToolCallFormatter` + `tool_parser`（v0.31.3） |
+| **llama.cpp server** | ✅ | ✅ | Ollama 的底层引擎 |
+
+→ **三种引擎都支持 tools**。不在 Ollama 上的模型（如 Ornith-1.5-9B）也能用 mlx-lm server 或 llama.cpp server 跑。
+
+### nvfp4 坑确认
+
+- `qwen3.6:27b-mlx` = nvfp4（digest `d49fd9e0da45` 与 `qwen3.6:27b-nvfp4` 相同）
+- `qwen3.8:27b-mlx` = nvfp4（digest `5642e97495e1` 与 `qwen3.8:27b-nvfp4` 相同）
+- **避坑方式**：用 `q4_K_M` 版（标准 GGUF，走 llama.cpp 引擎）
+
+### 精确分数对比（含 hf-mirror 查到的 HuggingFace README 数据）
+
+#### 纯文本 dense + tools + ≤20GB
+
+| 模型 | SWE-bench Verified | SWE-bench Pro | Terminal-Bench 2.1 | 大小 | Context | 备注 |
+|------|-------------------|---------------|-------------------|------|---------|------|
+| **Ornith-1.5-9B** | **70.6** | **47.5** | **46.2** | 5.6GB | 256K | 最新，RL agentic coding，MIT |
+| **Ornith-1.0-9B** | 69.4 | 42.9 | 43.1 | 5.6GB | 256K | Ollama 直接可用 |
+| granite4.1:30b | ? | ? | ? | 17GB | 128K | IBM，仅 HumanEval 81.7，无 SWE-Bench |
+| qwen3:32b | <70 | ? | ? | 20GB | 40K | 1 年前老模型 |
+| granite4.1:8b | ? | ? | ? | 5.3GB | 128K | IBM |
+| qwen3:14b | ? | ? | ? | 9.3GB | 40K | 1 年前 |
+
+#### VLM + tools + dense（代码更强但 VLM）
+
+| 模型 | SWE-bench Verified | SWE-bench Pro | Terminal-Bench 2.1 | 大小 | Context | 备注 |
+|------|-------------------|---------------|-------------------|------|---------|------|
+| **Qwen3.8-27B** | >77.2(推断) | **61.7** | **73.0** | 18GB | 256K | 最新最强，Ollama 标了 tools |
+| Qwen3.6-27B | 77.2 | 50.2 | 60.7 | 17GB | — | 已知代码强 |
+
+#### Ornith-1.5-9B vs 同尺寸对比（HuggingFace README 精确数据）
+
+| 基准 | Ornith-1.5-9B | Ornith-1.0-9B | Qwen3.5-9B | Qwen3.6-35B-A3B | Gemma-4-31B |
+|------|---------------|---------------|------------|------------------|-------------|
+| SWE-bench Verified | **70.6** | 69.4 | 53.2 | 73.4 | 52 |
+| SWE-bench Pro | **47.5** | 42.9 | 31.3 | 49.5 | 35.7 |
+| Terminal-Bench 2.1 | **46.2** | 43.1 | 21.3 | 52.5 | 42.1 |
+
+→ **9B 级别 Ornith 无对手**：SWE-bench Verified 70.6 vs Qwen3.5-9B 53.2，差距 17.4 分
+
+### 新发现
+
+1. **Ornith-1.5-9B 已发布**（HuggingFace `ornith-ai/Ornith-1.5-9B-GGUF`），比 1.0 全面提升，但 Ollama 还没更新到 1.5
+2. **granite4.1:30b** — IBM 30B dense + 纯文本 + tools + 17GB，但无 SWE-Bench 分数，代码能力不确定
+3. **qwen3.8:27b 在 Ollama 上标了 tools**（之前误记为不支持）
+4. **Ornith 在 HuggingFace 上是 VLM**（image-text-to-text），但 GGUF 版只跑文本 → Ollama 上等同纯文本
+5. **Ornith 没有 31B Dense 版本**（blog 说有但 HuggingFace 未发布）；更大的只有 35B MoE（21GB，不满足约束）
+6. **Llama/Gemma 在代码基准上落后太多**：Gemma4-31B SWE-bench Verified 仅 52，Llama 系列都是 1 年前老模型
+
+### 最终推荐
+
+| 优先级 | 模型 | 理由 |
+|--------|------|------|
+| **纯文本 + 小快** | Ornith-1.0-9B (Ollama) 或 Ornith-1.5-9B (HF GGUF) | SWE-bench 69.4/70.6，5.6GB，prefill 快，KV cache 富余 |
+| **代码最强** | Qwen3.8-27B q4_K_M | SWE-bench Pro 61.7, Terminal-Bench 73.0，但 VLM + 18GB + prefill 慢 |
+
+### 当前状态
+
+- `ollama pull ornith:9b` 后台下载中（5.6GB，Ollama CDN ~1.1MB/s）
+- Metal GPU 已修复（用户重启 Mac）
+- 待实测：ornith:9b 的 tools 路径 + 代码审查质量
 
 ## Sources
 
@@ -174,3 +261,9 @@ Meta 在 Muse Glimmer 发布时提供了三方对比，这是目前最权威的�
 8. https://ollama.com/library/granite4.1 — Granite4.1 官方页面 — Tier 1
 9. https://ollama.com/library/qwen3.8-flash-next — Qwen3.8-Flash-Next 官方页面（含基准对比）— Tier 1
 10. https://ollama.com/blog — Ollama Blog（发布时间线）— Tier 1
+11. https://deep-reinforce.com/ornith_1_0.html — Ornith-1.0 blog（含 SWE-Bench 分数）— Tier 1
+12. https://hf-mirror.com/ornith-ai/Ornith-1.5-9B — Ornith-1.5-9B HuggingFace README（含精确基准表）— Tier 1
+13. https://hf-mirror.com/Qwen/Qwen3.8-27B — Qwen3.8-27B HuggingFace README（含精确基准表）— Tier 1
+14. https://hf-mirror.com/ibm-granite/granite-4.1-30b — Granite 4.1 30B HuggingFace README（含 HumanEval/MBPP 分数）— Tier 1
+15. https://raw.githubusercontent.com/ibm-granite/granite-4.1-language-models/main/README.md — Granite 4.1 GitHub README — Tier 1
+16. mlx-lm server.py 源码（`ToolCallFormatter` + `tool_parser`）— Tier 1（本地源码验证）
