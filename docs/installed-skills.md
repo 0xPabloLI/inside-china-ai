@@ -142,9 +142,10 @@ repository overrides in `docs/agents/implementation-workflow.md`.
 | `last30days`              | External (`~/last30days-skill/`)                      | 30-day trend discovery across Reddit/X/YouTube/TikTok/HN/Polymarket/GitHub                   | Symlink            |
 | `source-health-four-axis` | Locally authored (`~/.agents/skills/`, agent_created) | 源健康判据手册：四条轴（URL 可达 / 真浏览器 / **抽取层** / 凭据）+ 假判决分诊 + URL 对齐审计 | Symlink (3 mounts) |
 
-`source-health-four-axis` 是 `.agents/skills/` 里的本地自建 skill（非上游安装），三处挂载
-（`.claude` / `.codex` / `.workbuddy`）均为绝对软链指向 `~/.agents/skills/source-health-four-axis`。
-原名 `source-health-three-axis`，2026-09-23 补第四轴（凭据）后改名。
+`source-health-four-axis` 是 `.agents/skills/` 里的本地自建 skill（非上游安装），**不在
+`skills-lock.json` 里**——上游安装器管不到它，所以只有这里登记，否则它只活在人的记忆里。
+原名 `source-health-three-axis`；2026-09-23 补第四轴（凭据）后改名，因为内容早已是四轴、
+名字才是错的那个。
 
 ### Other 3rd Party (~134 skills)
 

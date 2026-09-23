@@ -46,12 +46,7 @@ node scripts/short-video/source-url-discover.mjs --only <源名> --keyword-zh �
 
 **不要**在 A 里手写模板——那正是丢掉关键参数的环节。
 
-**URL 已经能用、只想确认它是不是搜索 URL** → 走审计模式（不修，只问）：
-
-```bash
-node scripts/short-video/source-url-discover.mjs --compare --only <源名> --env <主检出>/.env.local
-node scripts/short-video/source-url-discover.mjs --all --env <主检出>/.env.local   # 全量（55 源）
-```
+**URL 已经能用、只想确认它是不是搜索 URL** → 走 `--compare` / `--all` 审计模式；命令与判定口径见下文[《对齐审计：URL「能用」不等于「对」》](#对齐审计url能用于不等于对2026-09-23)。
 
 ### B. 选择器腐烂 → 五步
 
@@ -321,6 +316,14 @@ url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}?
 | ------------ | ---------------------------------------------------- | ------------------------------------------- |
 | 修复（默认） | `source-url-discover.mjs --only <名> --keyword-zh …` | 这个 URL 抽不出东西，正确的 URL 是什么      |
 | 审计         | `--compare`（配 `--only`）/ `--all`（全量）          | **已在用的 URL 是不是搜索框真实产出的那个** |
+
+```bash
+# 全量（55 源，约 13 分钟）
+node scripts/short-video/source-url-discover.mjs --all --env <主检出>/.env.local
+
+# 单源
+node scripts/short-video/source-url-discover.mjs --compare --only <源名> --env <主检出>/.env.local
+```
 
 判定：把两侧 URL 归一化后逐段比（`classifyUrlDiff(configuredUrl, recoveredTemplate, keyword)`）。归一化三件事**每件都由一次假阳买来**：
 
