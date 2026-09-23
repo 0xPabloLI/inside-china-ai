@@ -47,7 +47,7 @@ ocr review --commit abc123              # 审查单个 commit
 ocr review --format json --output result.json  # JSON 输出给我解析
 ```
 
-**耗时参考**（ornith:9b on M2 Pro）：10 行 3m55s（含模型加载），13.9K tokens。
+**耗时参考**（ornith:1.5-9b on M2 Pro）：10 行 3m55s（含模型加载），13.9K tokens。
 典型 PR（~300 行）≈ 18 分钟。用完关 Ollama：`pkill -f "ollama serve"`。
 
 ## 配置（已完成）
@@ -57,7 +57,7 @@ provider: ollama (custom)
 url: http://localhost:11434/v1
 protocol: openai
 api_key: ollama-dummy（Ollama 不需要认证但 OCR 强制要求）
-model: ornith:9b
+model: ornith:1.5-9b
 ```
 
 换模型：`ocr config set model qwen3.8:27b-mlx`（SWE-Bench Pro 61.7，更强但 18GB 慢，需 `ollama pull`）

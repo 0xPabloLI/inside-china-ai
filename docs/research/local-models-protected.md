@@ -26,7 +26,7 @@
 
 | 模型 | 用途 | 大小 | 删除后果 |
 |------|------|------|----------|
-| ornith:9b | OCR 代码审查（纯文本 + tools） | 5.6GB | OCR 断 |
+| ornith:1.5-9b | OCR 代码审查（纯文本 + tools） | 5.8GB | OCR 断 |
 | bge-m3 | embedding | 1.2GB | embedding 断 |
 
 ## venvs
