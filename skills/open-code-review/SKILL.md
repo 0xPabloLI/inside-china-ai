@@ -60,7 +60,7 @@ api_key: ollama-dummy（Ollama 不需要认证但 OCR 强制要求）
 model: ornith:9b
 ```
 
-换模型：`ocr config set model qwen3.6:27b-mlx`（SWE-Bench 77.2，更强但 18GB 慢）
+换模型：`ocr config set model qwen3.8:27b-mlx`（SWE-Bench Pro 61.7，更强但 18GB 慢，需 `ollama pull`）
 
 ## 规则覆盖度
 

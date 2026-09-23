@@ -26,7 +26,7 @@
 
 | 模型 | 用途 | 大小 | 删除后果 |
 |------|------|------|----------|
-| qwen3.6:27b-mlx | VLM Ollama 后端 | 18GB | wrapper Ollama 后端断 |
+| ornith:9b | OCR 代码审查（纯文本 + tools） | 5.6GB | OCR 断 |
 | bge-m3 | embedding | 1.2GB | embedding 断 |
 
 ## venvs
