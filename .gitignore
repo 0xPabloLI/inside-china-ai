@@ -51,6 +51,13 @@ scripts/short-video/record-tiktok-demo.mjs
 output/
 test-results/
 .playwright-cli/
+
+# short-video 测试在 cwd 落的临时目录前缀（沙箱 safe-delete 拦截导致测试无法自清）
+# 来源：__tests__/media-track.test.mjs、pipeline-profile.test.mjs、asset-sourcer-visual-integration.test.mjs
+media-track-test-*/
+prof-test-*/
+tmp-test-output-*/
+tmp-test-slug*/
 docs/refs/postiz-app/
 
 # Agent skill installs (mirrored skill trees, not repo content)

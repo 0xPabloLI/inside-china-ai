@@ -29,7 +29,7 @@
 | 18  | **新华网**            | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)                    | Official event photos                     |
 | 19  | **澎湃新闻**          | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)                    | Mainstream news images                    |
 | 20  | **雷锋网**            | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)                    | Tech media images                         |
-| 21  | **新智元**            | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)                    | AI media images                           |
+| 21  | **新智元**            | Image        | ❌ No                    | CDP                                                                                                                                       | ❌ 已移除 2026-09-07                        | 内容由 wechat2rss_zhinengyuan 覆盖        |
 | 22  | **智东西**            | Image        | ❌ No                    | CDP                                                                                                                                       | ✅ Working (in pipeline)                    | AI media images                           |
 
 ## API Keys
@@ -97,16 +97,18 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 
 搜索方法 = `search-sources.mjs` 如何发现内容；下载方法 = `asset-sourcer.mjs` 如何获取媒体文件。
 
-| Platform    | Search Method                                    | Download Method                                                           | Login?                     | Status                                                 |
-| ----------- | ------------------------------------------------ | ------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------ |
-| **YouTube** | MCP fallback (search)                            | `yt-dlp --cookies-from-browser firefox`                                   | No                         | ✅ Download re-verified 2026-09-04                     |
-| **B站**     | `bilibili-api-python` (search) + CDP fallback    | `yt-dlp --cookies-from-browser firefox`                                   | No                         | ✅ Search + Download re-verified 2026-09-04            |
-| **抖音**    | CDP (needs login) → MCP fallback                 | CDP `iesdouyin.com/share/video/` → `video.currentSrc` → curl with Referer | Search: yes, Download: yes | ✅ Download verified 2026-09-03                        |
-| **小红书**  | CDP (needs login) → MCP fallback (RedNote-MCP)   | RedNote-MCP or XHS-Downloader                                             | Yes (both)                 | ✅ search_notes verified 2026-09-04; download untested |
-| **微博**    | CDP (search needs login) → Google site: fallback | weibo-downloader-skill (visitor cookie, no login)                         | Search: yes, Download: no  | ✅ Download API tested                                 |
-| **TikTok**  | ScrapeCreators API (primary, no login)           | CDP `item/detail` API (default) → manual (fallback)                       | No (search)                | ✅ Search + Download verified                          |
+| Platform    | Search Method                                    | Download Method                                                           | Login?                                                 | Status                                                 |
+| ----------- | ------------------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------ |
+| **YouTube** | MCP fallback (search)                            | `yt-dlp --cookies-from-browser firefox`                                   | No                                                     | ✅ Download re-verified 2026-09-04                     |
+| **B站**     | `bilibili-api-python` (search) + CDP fallback    | `yt-dlp --cookies-from-browser firefox`                                   | No                                                     | ✅ Search + Download re-verified 2026-09-04            |
+| **抖音**    | CDP（需登录）`/search/{kw}?type=video`           | CDP `iesdouyin.com/share/video/` → `video.currentSrc` → curl with Referer | Search ✅ 2026-09-23（需登录）+ Download ✅ 2026-09-03 |
+| **小红书**  | CDP (needs login) → MCP fallback (RedNote-MCP)   | RedNote-MCP or XHS-Downloader                                             | Yes (both)                                             | ✅ search_notes verified 2026-09-04; download untested |
+| **微博**    | CDP (search needs login) → Google site: fallback | weibo-downloader-skill (visitor cookie, no login)                         | Search: yes, Download: no                              | ✅ Download API tested                                 |
+| **TikTok**  | ScrapeCreators API (primary, no login)           | CDP `item/detail` API (default) → manual (fallback)                       | No (search)                                            | ✅ Search + Download verified                          |
 
 > **抖音下载** (verified 2026-09-03) — CDP 访问 `https://www.iesdouyin.com/share/video/{video_id}`（无需 cookie/登录），从 `<video>` 元素的 `currentSrc` 提取 CDN 下载链接，用 `curl -H "Referer: https://www.douyin.com/"` 下载。注意：chubbyskills 的 SSR 方案（从 `window._ROUTER_DATA` 提取 `videoInfoRes`）已失效——页面结构变化，`videoInfoRes` 不再存在；但 CDP 方案（客户端 JS 渲染后从 video 元素提取）可用。测试样本：video ID `7680095489249536842`（滴滴自动驾驶 R2），下载 327KB MP4 成功。
+
+> **抖音搜索（正确路由，2026-09-23 实测）** — `https://www.douyin.com/search/{keyword}?type=video`，**`?type=video` 是必需的**：综合 tab（默认）的结果卡是纯 `div` + 背景图，卡内一个 `<a href>` 都没有 → 抽取恒为 0 条（看着「源已烂」）；视频 tab 每张卡带 `//www.douyin.com/video/{id}` → 实测 20 条真结果。从首页搜索框提交会落到 `/jingxuan/search/{kw}?type=general`（**可达但同样抽不到**）——所以别拿搜索框落点当修复。登录入口 `/passport/login` 被风控拦（`error_code:22` 非法应用），登录必须手动做，但**登录本身有效**。详见 `docs/selector-auto-healing.md` §第三条轴。
 
 > **TikTok 下载** (verified 2026-08-24) — CDP `item/detail` API 是默认方法：浏览器内 `fetch('/aweme/v1/web/item/detail/?itemId=ID&aid=1988')` → `playAddr` → `fetch(playAddr, {credentials:'include'})` → Blob → base64 分块下载。无需逆向签名、无需第三方服务。详细 JS 代码见 `docs/research/reference-video-extraction.md` TikTok section。第三方方案对比（TikTokApi, Cobalt, Douyin_TikTok_Download_API, tiktok-api-dl, yt-dlp）也见该文档。
 
@@ -148,7 +150,7 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 - **新华网** — Official state event photos
 - **澎湃新闻** — Mainstream news
 - **雷锋网** — Tech media
-- **新智元** — AI media
+- ~~**新智元**~~ — 已移除（独立站 DNS 欠费停放，2026-09-07）
 - **智东西** — AI media
 
 ### Search Engines (CDP)
@@ -174,16 +176,16 @@ Text sources collect article titles + URLs for trend discovery and script writin
 
 ### Self-Media & Social (CDP)
 
-| #   | Source                      | Type         | Auth?       | Status              | Best For                          |
-| --- | --------------------------- | ------------ | ----------- | ------------------- | --------------------------------- |
-| T8  | **小红书** (xhs)            | Article URLs | Yes (login) | ⚠️ Needs login      | Trending topics, product buzz     |
-| T9  | **搜狗微信** (sogou_weixin) | Article URLs | No          | ✅ Working          | WeChat公众号文章搜索              |
-| T10 | **微博热搜** (weibo_hot)    | Hot topics   | No          | ✅ Working          | Trending topics, public sentiment |
-| T11 | **B站搜索** (bilibili)      | Video URLs   | No          | ⚠️ 412 intermittent | Tech video search                 |
-| T12 | **抖音搜索** (douyin)       | Video URLs   | Yes (login) | ⚠️ Needs login      | Viral content discovery           |
-| T13 | **TikTok Creator**          | Video URLs   | Yes (login) | ⚠️ Needs login      | International TikTok trends       |
-| T14 | **知乎** (zhihu)            | Q&A URLs     | No          | ✅ Working          | Deep-dive discussions             |
-| T15 | **X (Twitter)**             | Posts        | Yes (login) | ⚠️ Needs login      | International AI discourse        |
+| #   | Source                      | Type         | Auth?       | Status                                | Best For                          |
+| --- | --------------------------- | ------------ | ----------- | ------------------------------------- | --------------------------------- |
+| T8  | **小红书** (xhs)            | Article URLs | Yes (login) | ⚠️ Needs login                        | Trending topics, product buzz     |
+| T9  | **搜狗微信** (sogou_weixin) | Article URLs | No          | ✅ Working                            | WeChat公众号文章搜索              |
+| T10 | **微博热搜** (weibo_hot)    | Hot topics   | No          | ✅ Working                            | Trending topics, public sentiment |
+| T11 | **B站搜索** (bilibili)      | Video URLs   | No          | ⚠️ 412 intermittent                   | Tech video search                 |
+| T12 | **抖音搜索** (douyin)       | Video URLs   | Yes (login) | ✅ 2026-09-23（登录 + `?type=video`） | Viral content discovery           |
+| T13 | **TikTok Creator**          | Video URLs   | Yes (login) | ⚠️ Needs login                        | International TikTok trends       |
+| T14 | **知乎** (zhihu)            | Q&A URLs     | No          | ✅ Working                            | Deep-dive discussions             |
+| T15 | **X (Twitter)**             | Posts        | Yes (login) | ⚠️ Needs login                        | International AI discourse        |
 
 ### WeChat Official Accounts
 
