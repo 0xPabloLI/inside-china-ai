@@ -217,6 +217,17 @@ node scripts/short-video/source-url-discover.mjs --only xinhua,ithome --json
 
 **已知边界**：受控组件的复杂 SPA（xinhua 的 `so.news.cn`）点不出正确 URL——工具会诚实报 `dismissed`，不会编一个模板出来。这类站点靠人工诊断补上端点（xinhua 走的就是这条路），工具只负责**验证**。
 
+**触发条件（2026-09-23 窄化）**：只在「**URL 模式已死 且 站内搜索框还在**」时降级到驱动搜索框，不是「每次搜索失败都试」。生产路径 `search-sources.mjs` 尚未接这一层（当前驱动函数只被诊断脚本 `source-url-discover.mjs` 调用）。
+
+**窄化的理由要修正一次**：不用「驱动搜索框依赖真实前端结构，站点改一次前端就废」当理由——那站不住。① 结构变了**是可观测的**：`source-url-discover.mjs` 本来就在真浏览器里跑，CDP 快照能告诉我们前端改成了什么样；② 驱动搜索框的选择器（`SEARCH_BOX_SELECTORS` / `buildFindSearchBoxScript()`）**也只是选择器**，和 `articleScript` 同处一个自愈循环——站点改版后由 `selector-health` 报空、走本文件的手册重新 derive 即可，这正是本文件存在的意义。
+
+真正的理由是两个不同的东西：
+
+1. **每次运行的代价与不确定性**：驱动搜索框要一次**有状态的真浏览器交互**（登录态、页面节奏、验证码风险、动画与提交时序），而 URL 模板是**无状态的一跳**。同一轮跑 50 个源时，前者把一个源的问题放大成整轮的抖动。
+2. **契约形态**：URL 模板是可钉住的字符串（可 diff、可回归测试），UI 驱动是「一次会话的结果」。前者能进 registry 当契约，后者只能当**降级层**。
+
+所以结论是「**作备选、不作主路径，且触发条件要窄**」——不是「不进工作流」。降级层的选择器一样要进自愈循环、一样要有健康检查。
+
 ### 第三条轴：URL 可达 ≠ 可抽取（2026-09-23，douyin 定案）
 
 前两条轴问的都是「这个 URL 是不是结果页」。决定管线生死的是第三个问题：**registry 自己的 `articleScript` 现在还抽不抽得出东西**。两者会背离——douyin 就是前两条轴全绿、源却是死的：
@@ -280,6 +291,42 @@ https://www.douyin.com/jingxuan/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD
 另外收紧 `429`：裸子串会命中 `4290 views`、`id=1429`，改词边界 `\b429\b`。
 
 **教训**：判决的两个来源——页面的**话**与页面的**物件**——证据强度不同，不能合并成一条 `includes`。把弱证据塞进强证据的通道，就会造出「源明明是好的、却从来没被测过」这种最难发现的假判决。
+
+### 第三个假判决：第三轴比第一轴更不懂凭据（2026-09-23，同一课上了两遍）
+
+`source-url-sweep`（轴 1）在 #332 上已经修过「探针带不上凭据」：入口 `loadEnv()` + `--env`。但 `selector-health`（轴 3）的 `checkApiSource()` 是**裸 `fetch(url)`——既不加载 `.env.local`，也没有 header 能力**。于是六个 api 源红了一片，而红的原因是探针，不是端点。
+
+两条独立的缺陷叠在一起：
+
+1. **不加载 env**：Node fetch 只认 `process.env`，`.env.local` 里的 key 从没进过进程。`apiSearch.url()` 用 `process.env.GNEWS_API_KEY` 拼 `apikey=`，拿到空串 → 服务端答「你没给 key」（gnews 400 / currents 401）。
+2. **模块作用域读取 env（更隐蔽）**：`headers` 写成模块级对象字面量时，`process.env` 在 **import 时刻**就被快照了 —— 而 ESM 的 import 求值先于入口点的 `loadEnv()`（#287 规定 env 由入口加载），所以 key 在对象构造时就已经是 undefined，`headers` 冻成 `{}`。**生产 `search-sources.mjs` 也踩这个坑**：它确实传了 `api.headers`，但收到的是那个冻住的空对象。
+
+修法：
+
+- `resolveApiHeaders(api)`（`lib/source-registry.mjs`）：对象或 getter/函数两种形态都收，请求时解析。注册表里 `tiktok_creator` / `github_search` 的 headers 改成 **getter**，所以调用点（`search-sources`、两个探针）一行都不用改，而 key 一定在请求时读取。
+- `missingApiKey(capabilities.articles)`：读 #67 已定的凭据权威（`requiresApiKey` + `apiKeyEnv`，后者来自 `API_KEY_ENV_MAP`），**只对声明必需的 key 生效**。
+- `checkApiSource()`：缺 key **在发请求之前**就判 `probe-not-authoritative`；其余 4xx 交给轴 1 同款 `classifyProbe` —— 401/403/405/429/503 是「关于探针的回答」，404/410 才是「关于端点的回答」。
+- `failureClass(result)` 三分类：`none` / `source`（真失败，进修复手册）/ `probe`（`anti_bot:*`、`need_login`、`login-wall`、`probe-not-authoritative`——隔离，不进台账）。**只有 `source` 才让退出码非零**，避免「缺 key」或「没登录」把健康检查染红。
+
+实测（`checkApiSource` 直调，绕开 CDP；keyword = artificial intelligence）：
+
+| 源             | 不带凭据                                  | 带 `.env.local`              |
+| -------------- | ----------------------------------------- | ---------------------------- |
+| gnews          | `probe-not-authoritative`（缺 GNEWS…）    | **10 条 ✅**                 |
+| currents       | `probe-not-authoritative`（缺 CURRENTS…） | **10 条 ✅**                 |
+| tiktok_creator | `probe-not-authoritative`（缺 SCRAPE…）   | `network-error`（key 已送出）|
+| github_search  | 10 条 ✅                                  | 10 条 ✅                     |
+| openalex       | 10 条 ✅                                  | 10 条 ✅                     |
+| core_search    | 10 条 ✅                                  | `probe-not-authoritative`（第二次调用被限流 → 正确读作「关于探针」） |
+| reddit_search  | `network-error`                           | `network-error`              |
+
+**哪些源真的要 key**（可机读，`capabilities.articles.apiKeyEnv`）：只有 `gnews` → `GNEWS_API_KEY`、`currents` → `CURRENTS_API_KEY`、`tiktok_creator` → `SCRAPECREATORS_API_KEY`（付费，默认跳过）。`github_search` 的 `GITHUB_TOKEN` **不算**——缺它只是 60→5000 req/hour 的差别，所以它不在 `API_KEY_ENV_MAP` 里，也永远不会被读成「缺凭据」。其余 key（BRAVE/SERPER/TAVILY/JINA）属于 #65 的 web 搜索回退池与图片库，不在这条链上。
+
+顺带：`source-url-sweep` 的 `keyPresence` 改为从注册表派生，不再手抄一份会漂移的清单。`selector-health` 也加了入口守卫（`import.meta.url === file://${process.argv[1]}`，与 sweep 一致），否则单测为了拿纯函数而 import 它，会顺带启动一次 CDP 全量体检。
+
+**为什么必须用 `--env`**：`.env.local` 是 gitignored 的，**只在主检出里**，worktree 没有自己的那份。而 `loadEnv()` 的默认路径是「本仓库根」——在 worktree 里跑就是 worktree 根，等于没有。所以要么在主检出里跑，要么 `--env <主检出>/.env.local`（别把密钥拷来拷去）。
+
+**教训**（与 `captcha` 那条同源）：**同一个假判决会在每个探针层各犯一次**。轴 1 修好凭据入口不等于轴 3 也修好了；修完轴 3 之后还要回头看轴 1 有没有同一个洞（header 型凭据 —— 有，已一并补上）。判据要落在共享 seam（`classifyProbe` / `PROBE_UNAUTHORITATIVE_VERDICTS` / `failureClass`）而不是各写一份，否则每加一条轴就多一份要同步的逻辑。
 
 ### 二轮台账（2026-09-22，55 源清扫 + 10 源 CDP 复核）
 
