@@ -32,18 +32,22 @@ export const LOGIN_SOURCES = {
     // 匿名一律 302 到 /user-login/index.htm?...&tip=登录以查看搜索结果
     loggedIn: ({ url = "", text = "" }) =>
       !/\/user-login\//i.test(url) && !/登录以查看搜索结果/.test(text) && text.length > 400,
-    note: "匿名与已登录都会被门禁 302；成功登录后搜索页应有正文且不再跳 /user-login/。",
+    note:
+      "匿名与已登录都会被门禁 302；成功登录后搜索页应有正文且不再跳 /user-login/。" +
+      "✅ 2026-09-23 实测：用户在本 profile 登录后搜索页出 64 条真结果（页眉带登录账号）——功能级收口。",
   },
 
   zhihu: {
     name: "知乎",
     loginUrl: "https://www.zhihu.com/signin",
     clickText: "微信",
-    verifyUrl: (kw = AI) =>
-      `https://www.zhihu.com/search?type=content&q=${encodeURIComponent(kw)}`,
+    verifyUrl: (kw = AI) => `https://www.zhihu.com/search?type=content&q=${encodeURIComponent(kw)}`,
     loggedIn: ({ text = "" }) =>
       !/登录\/注册/.test(text) && !/未搜索到相关内容/.test(text) && text.length > 200,
-    note: "除微信扫码外还提供【验证码登录 / 密码登录】（中国 +86 短信）——不想扫码可走短信。",
+    note:
+      "除微信扫码外还提供【验证码登录 / 密码登录】（中国 +86 短信）——不想扫码可走短信。" +
+      "✅ 2026-09-23 实测：登录态下搜索页出 31 条真结果（页眉有「消息 / 私信」，无「登录 / 注册」）。" +
+      "注意：`selector-health` 的 `zero_results` 曾是**水合竞态**（加载后立刻抽 0 条、1.6s 后 31 条），已改走 retry seam。",
   },
 
   douyin: {
@@ -56,7 +60,10 @@ export const LOGIN_SOURCES = {
     note:
       "⚠️ 2026-09-23 实测：`/passport/login` 直接返回 `{error_code:22,description:非法应用}`，" +
       "合成指针事件也撑不开登录弹窗——抖音风控把自动化 profile 判为非法应用。" +
-      "（例外：so.douyin.com 的「AI搜索」正文有时能出内容，属偶发，不算登录成功。）",
+      "（例外：so.douyin.com 的「AI搜索」正文有时能出内容，属偶发，不算登录成功。）" +
+      "❌ 2026-09-23 复测（用户已登录）：登录在 `www.douyin.com` 确实生效（无登录提示、有「我的」），" +
+      "但 `www.douyin.com/search/` 的结果容器 `scroll-list` 始终为空（0 卡片 / 0 video 链接 / title 空），" +
+      "反爬插页 t+3.5s 起稳定命中 `captcha` → **登录不是它的修复路径**，要搜索得改走 iesdouyin 分享页思路。",
   },
 
   weibo: {

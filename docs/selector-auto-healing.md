@@ -185,6 +185,26 @@ node scripts/short-video/source-url-discover.mjs --only xinhua,ithome --json
 
 所以「登录门」判决**必须标注在哪个 profile 下测得**；只有带登录态的 profile 也过不去，才算站点的登录门（否则只是探针环境问题）。
 
+（**2026-09-23 更新**：上表的 ithome / zhihu 行已过期——用户在自动化 profile 里登录后复测，两者都出真结果；douyin 的最终结论也变了。见下节。）
+
+### 登录态复测：3/4 可用 + 两个「时序竞态 ⇒ 假判决」（2026-09-23）
+
+用户在自动化 profile（`~/chrome-tiktok-profile`，9229）里登录 ithome / 知乎 / 抖音之后复测：
+
+| 源 | 复测结果 | 结论 |
+| --- | --- | --- |
+| ithome | **64 条真结果**（落在 `/search/{kw}.html`，页眉是「软媒新友2707533 退出登录」） | ✅ 登录生效 → **功能级收口**（此前是 302 登录门） |
+| weibo_search | 16 条 | ✅ 本就可用（无需登录） |
+| zhihu | 31 条（登录态：页眉有「消息 / 私信」，无「登录 / 注册」） | ✅ 可用；首轮报的 `zero_results` 是**判据竞态**，不是源坏 |
+| douyin | 0 条，`anti_bot:captcha` | ❌ **不可用**（见下） |
+
+两个竞态都是**测量方式**造成的假判决，已修在 `selector-health.mjs`：
+
+1. **单发抽取 vs SPA 水合（zhihu）**：同一页面「加载后立刻抽」= 0 张卡，「1.6s 后」= 31 张 → 多源连跑时判决在 0 / 31 之间翻（实测 0、31、0、31、0）。改走生产同款 `extractWithRetry`（既有 backoff seam，只有全部重试后仍空才算 `zero_results`）。修后连跑 5 次稳定 31/31/27/31/31。
+2. **反爬插页晚到 vs 前置检测（douyin）**：t+0 页面仅 106 字符、无标记；t+3.5s 起 `captcha` 稳定命中并持续到 t+10s。旧顺序会把这种页面判成 `zero_results`——那是「选择器腐烂」的 runbook，而正确指令是「别碰这个源」。新增纯函数 `verdictReason()`（带单测）：空结果 + 晚到反爬标记 ⇒ `anti_bot` 优先。
+
+**douyin 结论升级为「登录也救不了」**：登录在 `www.douyin.com` 确实生效（无登录提示、有「我的」），但 `www.douyin.com/search/` 的结果容器 `scroll-list` 始终空（0 卡片、0 个 `a[href*="/video/"]`、页面 title 为空），且 `/passport/login` 曾直接返回 `{error_code:22,description:"非法应用"}`（风控定向拦截自动化 profile）。`needsAuth: true` 保留，但**不要再把「登录」当它的修复路径**；若将来要拿抖音搜索，改走 `iesdouyin` 分享页（无需登录，仅下载链路）才是可行方向。
+
 ### 驱动搜索框：找真实 URL 的权威方式（实测要点）
 
 站点自己的搜索 UI 就是它自己的路由——**比任何模板表都权威**。ithome 的 registry 写着 `/search?word=`（404）、模板表 9 个猜测全死，而搜索框提交后落在 `/search/{kw}.html`（路径段 + `.html`，**根本没有 query 参数**）。五个实测要点：

@@ -27,7 +27,7 @@ import {
   cdpNewTab,
   cdpCloseTab,
   waitForPageLoad,
-  extractFromTab,
+  extractWithRetry,
   detectAntiBot,
   ensureCdpProxy,
 } from "./lib/cdp-client.mjs";
@@ -95,6 +95,28 @@ async function checkApiSource(source, keyword) {
   }
 }
 
+/**
+ * Verdict reason for a CDP source check (#269, 2026-09-23).
+ *
+ * Two races used to produce wrong verdicts, and both mislead whoever reads
+ * the report:
+ *   - extraction ran once, before SPA hydration (zhihu: 0 cards right after
+ *     load, 31 cards 1.6s later) → fix at the call site: extractWithRetry;
+ *   - the anti-bot interstitial mounts *after* the pre-check (douyin: no
+ *     marker at load, `captcha` from ~3.5s on) → fixed here: a late detection
+ *     must still win over `zero_results`, because `anti_bot` means "leave this
+ *     source alone" while `zero_results` sends the reader to the
+ *     "selector rotted" runbook.
+ *
+ * @param {{length: number}} articles - Extracted articles (empty = failed).
+ * @param {string|null} lateAntiBot - Anti-bot marker found after extraction.
+ * @returns {string|null} Verdict reason, or null when the source is healthy.
+ */
+export function verdictReason(articles, lateAntiBot) {
+  if (articles.length > 0) return null;
+  return lateAntiBot ? `anti_bot:${lateAntiBot}` : "zero_results";
+}
+
 async function checkSource(source, keywords) {
   const cap = source.capabilities?.articles;
   const keyword = keywords[source.locale === "zh-CN" ? "zh" : "en"] ?? keywords.zh;
@@ -131,13 +153,21 @@ async function checkSource(source, keywords) {
         };
       }
     }
-    const articles = await extractFromTab(tabId, script);
+    // #269 (2026-09-23): single-shot extraction raced SPA hydration and
+    // reported a healthy source as `zero_results` — measured on zhihu, the
+    // same page yields 0 cards right after load and 31 cards 1.6s later, so
+    // the verdict flipped run-to-run (0/31/0). A health check must measure the
+    // selector, not the render race, so it goes through the same
+    // escalation/backoff seam the production path uses (search-sources).
+    // Only "empty after all retries" is now reported as zero_results.
+    const articles = await extractWithRetry(tabId, script);
+    const lateAntiBot = articles.length === 0 ? await detectAntiBot(tabId) : null;
     return {
       source: source.name,
       ok: articles.length > 0,
       count: articles.length,
       loaded,
-      reason: articles.length === 0 ? "zero_results" : null,
+      reason: verdictReason(articles, lateAntiBot),
       durationMs: Date.now() - started,
     };
   } catch (e) {
