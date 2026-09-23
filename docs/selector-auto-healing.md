@@ -13,7 +13,7 @@ selector-health.mjs --keys（凭据就绪）
 selector-health.mjs（发现：轴 3 抽取）
       ↓
 source-url-sweep.mjs（轴 1）→ source-url-discover.mjs（轴 2+3，回收 registry 行）
-      ↓
+      ↓                                  └─ 审计分支：--compare / --all（URL 对齐：「能用」≠「对」）
 本 runbook（修复）→ selector-health.mjs --only <源>（验证）
 ```
 
@@ -21,14 +21,15 @@ source-url-sweep.mjs（轴 1）→ source-url-discover.mjs（轴 2+3，回收 re
 
 **第 0 步先分清「谁坏了」，再动手。** 判决分四条轴（URL 可达 / 真浏览器 / 抽取 / 凭据），修复路径完全不同——**一半的「源坏了」其实是「测量坏了」**，对测量动手只会把源改坏：
 
-| 现象                                             | 性质                     | 动作                                                  |
-| ------------------------------------------------ | ------------------------ | ----------------------------------------------------- |
-| `--keys` 报某变量 MISSING                        | 测量缺陷                 | 配 key；**不要碰源**                                  |
-| `probe-no-egress`                                | 测量缺陷（无路由）       | 查代理/出口；**不要碰源**                             |
-| `probe-not-authoritative` / `login-wall`         | 测量缺陷（答复关于探针） | 用真浏览器复核；先看请求头，再看登录态                |
-| `extracts-despite-verdict`                       | 轴 2 误读                | **什么都不改**；改轴 2 的判据                         |
-| `http-dead` / `redirected-home` / `still-broken` | 源侧真问题               | 先走 **A. URL 修复**                                  |
-| `url-alive-but-extraction-empty`                 | registry 脚本腐烂        | 先走 A（URL 可能本就不对），A 出来仍是 0 条再走 **B** |
+| 现象                                             | 性质                       | 动作                                                                   |
+| ------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------- |
+| `--keys` 报某变量 MISSING                        | 测量缺陷                   | 配 key；**不要碰源**                                                   |
+| `probe-no-egress`                                | 测量缺陷（无路由）         | 查代理/出口；**不要碰源**                                              |
+| `probe-not-authoritative` / `login-wall`         | 测量缺陷（答复关于探针）   | 用真浏览器复核；先看请求头，再看登录态                                 |
+| `extracts-despite-verdict`                       | 轴 2 误读                  | **什么都不改**；改轴 2 的判据                                          |
+| `http-dead` / `redirected-home` / `still-broken` | 源侧真问题                 | 先走 **A. URL 修复**                                                   |
+| `url-alive-but-extraction-empty`                 | registry 脚本腐烂          | 先走 A（URL 可能本就不对），A 出来仍是 0 条再走 **B**                  |
+| 审计报 `differs`（默认模式下不会出现）           | 对齐问题，**不是**健康问题 | 见下文[《对齐审计》](#对齐审计url能用于不等于对2026-09-23)；换不换人判 |
 
 ```bash
 # 凭据就绪（唯一权威检查；缺 key 时服务端答复与「端点已死」无法区分）
@@ -44,6 +45,13 @@ node scripts/short-video/source-url-discover.mjs --only <源名> --keyword-zh �
 终端会打印可粘贴的 registry 行，`--out` 的报告里有 `registryPatches[]`。**完成判据**：回收到的 URL 跑该源自己的 `articleScript` 抽出 ≥1 条。规则、易失参数与两种失败标签见下文[《驱动搜索框就是搜索 URL 的修复方式》](#驱动搜索框就是搜索-url-的修复方式2026-09-23-定案)。
 
 **不要**在 A 里手写模板——那正是丢掉关键参数的环节。
+
+**URL 已经能用、只想确认它是不是搜索 URL** → 走审计模式（不修，只问）：
+
+```bash
+node scripts/short-video/source-url-discover.mjs --compare --only <源名> --env <主检出>/.env.local
+node scripts/short-video/source-url-discover.mjs --all --env <主检出>/.env.local   # 全量（55 源）
+```
 
 ### B. 选择器腐烂 → 五步
 
@@ -302,6 +310,59 @@ url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}?
 3. **完成判据只有一个**：回收到的 URL 跑该源自己的 `articleScript` **抽到 ≥1 条**。只验到「页面打开了」等于没修——那是 douyin 的形状（前两轴全绿、源是死的）。抽 0 条时报告 `usable: false`，并区分 `url-recovered-but-login-gated`（找到对的 URL 但被门禁 → 改 `needsAuth`）与 `url-alive-but-extraction-empty`（URL 根本不是问题）。
 
 **触发面（同日两次收紧）**：`needsSearchBoxDrive({verdict, extracted, keyword})`——① 没有关键词就不驱动（api/图库源没有搜索框可驱动）；② `extracted === 0` → 驱动；③ **`extracted > 0` → 不驱动**（见下节「抽取优先」）；④ `extracted === null`（没测/脚本抛错）才回落到「判决不健康就驱动」。**`null` 不是 `0`**，不得据「没测」定罪。
+
+### 对齐审计：URL「能用」不等于「对」（2026-09-23）
+
+抽取层回答的是「这个 URL 出不出得来东西」，**不是**「这个 URL 是不是搜索 URL」。一个本来就在列文章的页面自己就能抽出条目，所以**健康信号永远不会去看它的搜索 URL 长什么样**——这类源的健康是真的、URL 却不是搜索 URL。两条结论不矛盾，它们回答的是不同问题。
+
+于是修复触发条件（`extracted > 0 → 不驱动搜索框`）**结构上无法**发现对齐问题：要审计就必须**绕过**它，而不是收紧它。
+
+| 模式         | 命令                                                 | 问的问题                                    |
+| ------------ | ---------------------------------------------------- | ------------------------------------------- |
+| 修复（默认） | `source-url-discover.mjs --only <名> --keyword-zh …` | 这个 URL 抽不出东西，正确的 URL 是什么      |
+| 审计         | `--compare`（配 `--only`）/ `--all`（全量）          | **已在用的 URL 是不是搜索框真实产出的那个** |
+
+判定：把两侧 URL 归一化后逐段比（`classifyUrlDiff(configuredUrl, recoveredTemplate, keyword)`）。归一化三件事**每件都由一次假阳买来**：
+
+1. **剔易失参数**——否则 douyin 的 `aid=<uuid>` 会让同一个 URL 每次运行都算「不一致」；
+2. **关键词折成 `{kw}`**——否则**每个源**都不一致：一边是填好的 URL（`?s=%E4%BA%BA…`），一边是模板（`?s={kw}`）；
+3. **尾斜杠与 host 大小写压平**。
+
+词汇表要能分开「问了并发现不同」与「没问」——压平会让报告看起来比实际干净：
+
+| `match`                       | 含义                                                                             |
+| ----------------------------- | -------------------------------------------------------------------------------- |
+| `same`                        | registry 已经指向搜索 URL                                                        |
+| `differs`                     | 指向别处；`diffs` 说明差在哪（`host`/`path`/`query-keys`/`query-values`/`hash`） |
+| `no-search-box`               | 驱动了，但首页候选上找不到搜索框                                                 |
+| `not-measured`                | 没驱动（修复模式下 URL 出得来东西）——**不是 `same`**                             |
+| `not-applicable`              | 没有搜索 URL 可对齐：无关键词源（栏目 / RSS / Telegram）或 API 直连源            |
+| `no-keyword-in-recovered-url` | 框提交了，但落地 URL 里没有关键词（POST 表单 / 前端路由）                        |
+| `uncomparable`                | 两侧有一侧没有可比的东西——**不猜**                                               |
+
+`differs` 是**发现不是故障**：栏目页源可以就配在栏目页上。所以报告只列差异项与两侧抽取数（`extract now → recovered`），**换不换由人判**——回收来的 URL 反而抽得更少就不是升级。
+
+两个坑（本轮实测踩到）：
+
+- **别拿「栏目页型」源当反例**：我一度把 qbitai 说成「配在首页、抽出 33 条、所以 URL 不对齐」。实测它 `supportsKeyword: false`（`keywordForSource` 给它返回空串）——它是**设计上**抓栏目页的源，不是对齐失败。判「对齐」之前先确认这个源**声明了关键词**。
+- **recovered 与 configured 相同就不是补丁**：审计模式会对已对齐的源照样回收出同一个 URL 并验证通过。若补丁列表只按「candidate 可用」过滤，就会产出一次**什么都不改的编辑**，还让干净的报告读起来像修了一批。`registryPatches` 必须按**对齐结果**过滤——`ithome`/`thepaper` 正是这样暴露的。
+
+**首轮全量审计台账（2026-09-23，`--all`，55 源，keyword zh=人工智能 / en=AI，13m16s）**
+
+| `match`                       | 数量 | 源                                                                                                                                                                                     |
+| ----------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `not-applicable`              | 33   | 27 个 API 直连源 + 6 个无关键词源（两者都没有搜索 URL 可对齐）                                                                                                                         |
+| `no-search-box`               | 13   | jiqizhixin / leiphone / bing_news / sogou_weixin / zhihu / x_search / youtube_search / threads_search / google_search / baidu_search / mcp_grok_search / digg_search / techmeme_search |
+| `no-keyword-in-recovered-url` | 5    | xinhua / xhs / weibo_search / duckduckgo_search / polymarket_search                                                                                                                    |
+| `same`                        | 3    | ithome / thepaper / bilibili（bilibili 是「现用 = 产出减装饰参数」，多出 `vt`/`from_source`）                                                                                          |
+| `differs`                     | 1    | douyin                                                                                                                                                                                 |
+
+**结论：`registryPatches: 0`——没有一条需要改 registry。** 唯一 `differs` 的 douyin 现用版本还**更好**：现用 `/search/{kw}?type=video` vs 搜索框产出的 `/jingxuan/search/{kw}?type=general`，Round C 实测过 20 条 vs 0 条（本轮该源 configured 也读到 0，是它已知的形态间歇，不影响 path 与 `type` 值都不同这个判定）。
+
+**两种「没结论」要分开读，都不能当成「已对齐」**：
+
+- `no-search-box`（13）：**未测到**。首页候选（`origin/` + `so.<域>/` + `search.<域>/`）上都找不到可驱动的搜索框——多数是 app 型或登录墙站点。这不是「对齐了」，是「这一层没有结论」，要测得更细得先扩首页候选或选择器。
+- `no-keyword-in-recovered-url`（5）：**框提交了，但落地地址栏不带关键词**（xinhua 落回 `so.news.cn/`、weibo 落回 `s.weibo.com/`、duckduckgo 落回 `html.duckduckgo.com/html/`）——它们的搜索走前端路由/POST。**推论：对这 5 个源，「驱动搜索框回收 URL」这条修复路径本来就不适用**（xinhua 的 hash 形式 URL 有效，但不是从地址栏回收来的）。下次别在这几个源上白费这一跳。
 
 ### 第四个假判决：抽取层比其余两轴更权威（2026-09-23，guancha 定案）
 

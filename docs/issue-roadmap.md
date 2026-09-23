@@ -4,13 +4,15 @@ GitHub Issues 依赖关系 + 执行波次（Wave）+ 价值分层（Tier）+ 主
 
 ## 当前状态
 
-> **Last inventory**: 2026-09-23（**#269 后续 Round E：四轴定案 + 抽取层优先 + 驱动搜索框翻转成「搜索 URL 的修复正路」+ 凭据就绪固化（9/9）+ `probe-no-egress`**）。
+> **Last inventory**: 2026-09-23（**#269 后续 Round F：URL 对齐审计 —— 全量 55 源校验「现用的 URL 是不是搜索框真实产出的那个」，结论 `registryPatches: 0`（无需改 registry）**）。
 >
 > **frontier = #333（静态发现无解）/ #326（ML 栈安全升级）/ #330（CI knip 红灯）**。
 >
+> **Round F 审计结论（`source-url-discover --all`，55 源，13m16s）**：`differs` **1**（douyin——且现用的 `?type=video` 比搜索框产出的 `?type=general` 更好）/ `same` **3**（ithome·thepaper·bilibili，后者是「现用 = 产出减装饰参数」）/ `no-search-box` **13**（**未测到，不是已对齐**）/ `no-keyword-in-recovered-url` **5**（xinhua·xhs·weibo·duckduckgo·polymarket：落地地址栏不带关键词 → **该修复路径对它们不适用**）/ `not-applicable` **33**（27 API 直连 + 6 无关键词）。新增 `--compare`（配 `--only`）/ `--all` 审计模式 + `classifyUrlDiff()`。
+>
 > **#335 已撤销**：qbitai 实测整脚本抽出 33 条（阶段一容器 0 + 泛扫 33），误判源于 triage 只复刻了脚本第一阶段。四条轴现在是 **URL 可达 / 真浏览器 / 抽取 / 凭据**，且**抽取层最权威**（`resolveHealth`）。
 >
-> 逐 session 盘点历史（Round D 及此前 57+ 轮）已下沉 → [`archive/roadmap-inventory-history-2026-09-23.md`](archive/roadmap-inventory-history-2026-09-23.md)。
+> 逐 session 盘点历史（Round E 及此前 58+ 轮）已下沉 → [`archive/roadmap-inventory-history-2026-09-23.md`](archive/roadmap-inventory-history-2026-09-23.md)。
 > **交付细节的唯一权威源是 issue 评论**（`gh issue view <N> --comments`），本文件的盘点条目只作对话式上下文。
 
 ---

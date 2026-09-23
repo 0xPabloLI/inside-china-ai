@@ -18,14 +18,14 @@
 These live in `skills/` at the repo root. Symlinks in `.cursor/skills/` and
 `.agents/skills/` point back to the repo source.
 
-| Skill                  | Purpose                                                                     | Used by                                       |
-| ---------------------- | --------------------------------------------------------------------------- | --------------------------------------------- |
-| `web-deep-research`    | 8-phase deep research pipeline + web-access fetching + code verification    | `docs/tools-catalog.md` research routing      |
-| `web-access`           | Chrome CDP proxy for web content retrieval (search, page loading, anti-bot) | web-deep-research Phase 3 dependency          |
-| `brand-system`         | Brand consistency enforcement for generated visual content                  | `short-video-pipeline` skill                  |
-| `short-video-pipeline` | Video production pipeline orchestration                                     | AGENTS.md "Content and Video"                 |
-| `search-pool`          | Search Pool CLI + curl SearXNG usage (#265); search ladder single-sourced in web-access tool table (#284) | Agent search tools; `docs/tools-catalog.md` |
-| `open-code-review`     | OCR CLI 代码审查：B 模式（Delegation）日常 PR + A 模式（本地 Ollama）核心 PR | 代码审查请求；补充 code-review skill 的行级定位 |
+| Skill                  | Purpose                                                                                                   | Used by                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `web-deep-research`    | 8-phase deep research pipeline + web-access fetching + code verification                                  | `docs/tools-catalog.md` research routing        |
+| `web-access`           | Chrome CDP proxy for web content retrieval (search, page loading, anti-bot)                               | web-deep-research Phase 3 dependency            |
+| `brand-system`         | Brand consistency enforcement for generated visual content                                                | `short-video-pipeline` skill                    |
+| `short-video-pipeline` | Video production pipeline orchestration                                                                   | AGENTS.md "Content and Video"                   |
+| `search-pool`          | Search Pool CLI + curl SearXNG usage (#265); search ladder single-sourced in web-access tool table (#284) | Agent search tools; `docs/tools-catalog.md`     |
+| `open-code-review`     | OCR CLI 代码审查：B 模式（Delegation）日常 PR + A 模式（本地 Ollama）核心 PR                              | 代码审查请求；补充 code-review skill 的行级定位 |
 
 ## Matt Pocock Skills
 
@@ -137,9 +137,14 @@ repository overrides in `docs/agents/implementation-workflow.md`.
 
 ### Research / Search
 
-| Skill        | Author / Source                  | Purpose                                                                    | Install |
-| ------------ | -------------------------------- | -------------------------------------------------------------------------- | ------- |
-| `last30days` | External (`~/last30days-skill/`) | 30-day trend discovery across Reddit/X/YouTube/TikTok/HN/Polymarket/GitHub | Symlink |
+| Skill                     | Author / Source                                       | Purpose                                                                                      | Install            |
+| ------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------ |
+| `last30days`              | External (`~/last30days-skill/`)                      | 30-day trend discovery across Reddit/X/YouTube/TikTok/HN/Polymarket/GitHub                   | Symlink            |
+| `source-health-four-axis` | Locally authored (`~/.agents/skills/`, agent_created) | 源健康判据手册：四条轴（URL 可达 / 真浏览器 / **抽取层** / 凭据）+ 假判决分诊 + URL 对齐审计 | Symlink (3 mounts) |
+
+`source-health-four-axis` 是 `.agents/skills/` 里的本地自建 skill（非上游安装），三处挂载
+（`.claude` / `.codex` / `.workbuddy`）均为绝对软链指向 `~/.agents/skills/source-health-four-axis`。
+原名 `source-health-three-axis`，2026-09-23 补第四轴（凭据）后改名。
 
 ### Other 3rd Party (~134 skills)
 
