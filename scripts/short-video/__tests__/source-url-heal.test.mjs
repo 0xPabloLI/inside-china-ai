@@ -15,6 +15,8 @@ import {
   decodeHtml,
   countKeywordHits,
   classifyProbe,
+  classifyUrlDiff,
+  normalizeForCompare,
   detectBlockPage,
   detectLoginWall,
   detectZeroResults,
@@ -761,5 +763,164 @@ describe("blockPage vocabulary — 200-status interstitials (2026-09-23)", () =>
   it("keeps a 404 with a short body in the endpoint-death column", () => {
     // The 4xx branch must not start labelling real 404s as WAF rejections.
     expect(detectBlockPage({ status: 404, html: "not found" })).toBe(false);
+  });
+});
+
+describe("classifyUrlDiff — is the configured URL the site's own search URL? (2026-09-23)", () => {
+  const KW = "人工智能";
+  const enc = encodeURIComponent(KW);
+
+  it("reads a registry already pointing at the search URL as `same`", () => {
+    expect(
+      classifyUrlDiff(`https://www.qbitai.com/?s=${enc}`, "https://www.qbitai.com/?s={kw}", KW),
+    ).toEqual({ match: "same", diffs: [] });
+  });
+
+  it("catches a configured URL that is not the search URL at all", () => {
+    // The shape that motivated a separate check: a page that already lists
+    // articles extracts items fine, so extraction health can never tell "this is
+    // the search URL" from "this page happens to work".
+    const r = classifyUrlDiff("https://example.com/", "https://example.com/?s={kw}", KW);
+    expect(r.match).toBe("differs");
+    expect(r.diffs).toContain("query-keys");
+  });
+
+  it("does not count a volatile param as a difference", () => {
+    // douyin's landing URL carries `aid=<uuid>`, regenerated per visit. Comparing
+    // verbatim would report douyin as misaligned on every single run.
+    expect(
+      classifyUrlDiff(
+        `https://www.douyin.com/jingxuan/search/${enc}?aid=e5019d6d-8cc1-4251-b58f-176f8eb02438&type=general`,
+        "https://www.douyin.com/jingxuan/search/{kw}?type=general",
+        KW,
+      ),
+    ).toEqual({ match: "same", diffs: [] });
+  });
+
+  it("does not count the keyword's encoding as a difference", () => {
+    // The configured side is a filled-in URL and the recovered side is a
+    // template; without folding the term, every source would read as misaligned.
+    expect(classifyUrlDiff(`https://x.com/s?q=${enc}`, "https://x.com/s?q={kw}", KW).match).toBe(
+      "same",
+    );
+  });
+
+  it("names a host change (xinhua: registry on www.news.cn, search on so.news.cn)", () => {
+    const r = classifyUrlDiff(
+      `https://so.news.cn/#search/0/${enc}/1/`,
+      "https://www.news.cn/#search/0/{kw}/1/",
+      KW,
+    );
+    expect(r.diffs).toContain("host");
+  });
+
+  it("accepts a path-shaped search URL (ithome) as the same URL", () => {
+    expect(
+      classifyUrlDiff(
+        `https://www.ithome.com/search/${enc}.html`,
+        "https://www.ithome.com/search/{kw}.html",
+        KW,
+      ),
+    ).toEqual({ match: "same", diffs: [] });
+  });
+
+  it("reports a differing value under the same key", () => {
+    const r = classifyUrlDiff("https://x.com/s?q={kw}&page=1", "https://x.com/s?q={kw}&page=2", KW);
+    expect(r.match).toBe("differs");
+    expect(r.diffs).toEqual(["query-values"]);
+  });
+
+  it("ignores trailing slash and host case", () => {
+    expect(
+      classifyUrlDiff("https://X.com/search/?q={kw}", "https://x.com/search?q={kw}", KW),
+    ).toEqual({ match: "same", diffs: [] });
+  });
+
+  it("returns `uncomparable` rather than guessing when one side is missing", () => {
+    // The rule the whole module keeps: no measurement is not a finding.
+    expect(classifyUrlDiff("https://x.com/s?q={kw}", null, KW)).toEqual({
+      match: "uncomparable",
+      diffs: [],
+    });
+    expect(classifyUrlDiff(null, "https://x.com/s?q={kw}", KW)).toEqual({
+      match: "uncomparable",
+      diffs: [],
+    });
+  });
+
+  it("never silently promotes an unexplained difference to `same`", () => {
+    // Same path, same keys, same values, different order: still `differs`, with
+    // the residue named instead of an empty diffs list.
+    const r = classifyUrlDiff("https://x.com/s?a=1&b=2", "https://x.com/s?b=2&a=1", KW);
+    expect(r.match).toBe("differs");
+    expect(r.diffs).toEqual(["order-or-encoding"]);
+  });
+
+  it("falls back to literal comparison for values that are not URLs", () => {
+    expect(classifyUrlDiff("not-a-url", "not-a-url", KW)).toEqual({ match: "same", diffs: [] });
+    expect(classifyUrlDiff("not-a-url", "other", KW).match).toBe("differs");
+  });
+});
+
+describe("normalizeForCompare", () => {
+  it("folds the keyword in both raw and plus-joined spellings", () => {
+    expect(normalizeForCompare("https://x.com/s?q=AI+news", "AI news")).toContain("{kw}");
+    expect(normalizeForCompare("https://x.com/s?q=AI%20news", "AI news")).toContain("{kw}");
+  });
+
+  it("returns null when there is nothing to normalize", () => {
+    expect(normalizeForCompare("")).toBeNull();
+    expect(normalizeForCompare(null)).toBeNull();
+  });
+});
+
+describe("classifyUrlDiff — decorative params are not misalignment (2026-09-23 audit)", () => {
+  const KW = "人工智能";
+  const enc = encodeURIComponent(KW);
+
+  it("accepts the configured URL as the recovered one minus decorating params", () => {
+    // bilibili, measured 2026-09-23: driving its own search box returns
+    //   /all?vt=68448060&from_source=web_search&keyword=…
+    // while the registry carries `/all?keyword=…`. Both extract 42 items, so
+    // reporting the registry as misaligned would be a false alarm — and it would
+    // have emitted a no-op patch, because the recovered URL is not an upgrade.
+    const r = classifyUrlDiff(
+      `https://search.bilibili.com/all?keyword=${enc}`,
+      `https://search.bilibili.com/all?vt=68448060&from_source=web_search&keyword={kw}`,
+      KW,
+    );
+    expect(r.match).toBe("same");
+    expect(r.subset).toBe(true);
+    expect(r.extraParams).toEqual(["vt", "from_source"]);
+  });
+
+  it("does NOT treat a param-less configured URL as a subset (front page vs search page)", () => {
+    // The load-bearing guard: without `a.query.size > 0`, every source configured
+    // on a bare path would be reported as aligned with its search URL.
+    const r = classifyUrlDiff("https://example.com/", "https://example.com/?s={kw}", KW);
+    expect(r.match).toBe("differs");
+    expect(r.diffs).toContain("query-keys");
+  });
+
+  it("does NOT treat a different path as a subset (douyin's /search vs /jingxuan/search)", () => {
+    // douyin, measured: the box lands on `/jingxuan/search/{kw}?type=general`
+    // (extract 0) while the registry uses `/search/{kw}?type=video` (extract 20).
+    // The params are a subset, but the path is not — and the registry wins.
+    const r = classifyUrlDiff(
+      `https://www.douyin.com/search/${enc}?type=video`,
+      "https://www.douyin.com/jingxuan/search/{kw}?type=general",
+      KW,
+    );
+    expect(r.match).toBe("differs");
+    expect(r.diffs).toContain("path");
+  });
+
+  it("does NOT treat a differing param value as a subset", () => {
+    const r = classifyUrlDiff(
+      "https://x.com/s?q={kw}&page=3",
+      "https://x.com/s?q={kw}&page=1&v=2",
+      KW,
+    );
+    expect(r.match).toBe("differs");
   });
 });

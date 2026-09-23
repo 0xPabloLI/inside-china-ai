@@ -26,6 +26,19 @@
  *   node scripts/short-video/source-url-discover.mjs --only xinhua --json
  *   node scripts/short-video/source-url-discover.mjs --only xinhua --out output/keep.json
  *   node scripts/short-video/source-url-discover.mjs --only xinhua --env <main-checkout>/.env.local
+ *   node scripts/short-video/source-url-discover.mjs --all --env <main-checkout>/.env.local
+ *
+ * Two modes, because there are two questions:
+ *   · default — **repair**. Drive the search box only where the configured URL
+ *     fails to yield items, and emit the replacement URL.
+ *   · `--compare` / `--all` — **alignment audit**. Drive it everywhere a keyword
+ *     applies, including on healthy sources, and answer "is the URL in the
+ *     registry the one this site's own search box produces?" A working URL is not
+ *     evidence of alignment: a source configured on a page that already lists
+ *     articles yields items, so no health signal would ever look at its search
+ *     URL. Sources that take no keyword (column / RSS / Telegram) and API-direct
+ *     sources are out of scope by construction — they have no search box to
+ *     drive, and the audit says so instead of inventing a finding.
  *
  * Requires a Chrome reachable through the repo's CDP proxy (see
  * docs/selector-auto-healing.md — the proxy is ours to restart; Chrome is the
@@ -45,6 +58,7 @@ import {
   buildSnapshotScript,
   buildSubmitSearchScript,
   classifyProbe,
+  classifyUrlDiff,
   countKeywordHits,
   EXTRACTION_EMPTY_LABEL,
   homeCandidates,
@@ -289,13 +303,18 @@ async function attemptDrive(url, keyword, rank) {
  * `so.news.cn`). Two box ranks are tried per home because a page can carry both
  * the simple site-search box and a bigger advanced-search panel.
  */
-async function discoverViaSearchBox(homeUrls, keyword) {
-  const out = { attempts: [], template: null, dismissed: null };
+async function discoverViaSearchBox(homeUrls, keyword, { firstLanded = false } = {}) {
+  // `boxFound` is tracked separately from `template` because "there is no search
+  // box to drive" and "the box exists but its URL never carries the term" are
+  // different findings with different follow-ups. Collapsing them (both have a
+  // null template) made the first audit run report 12 sources as the second.
+  const out = { attempts: [], template: null, dismissed: null, boxFound: false };
   for (const homeUrl of homeUrls) {
     for (let rank = 0; rank < MAX_BOX_RANKS; rank++) {
       const attempt = await attemptDrive(homeUrl, keyword, rank);
       out.attempts.push(attempt);
       if (!attempt.boxFound) break; // nothing to drive on this home
+      out.boxFound = true;
       if (!attempt.landedUrl) continue;
       const tpl = templateFromLandedUrl(attempt.landedUrl, keyword);
       if (tpl) {
@@ -335,6 +354,27 @@ async function discoverViaSearchBox(homeUrls, keyword) {
         });
         return out;
       }
+      // Audit mode (`--compare` / `--all`): the box submitted and we have a
+      // landing URL, but it carries no keyword — a POST form or a client-side
+      // route that never puts the term in the address bar. That is already the
+      // answer to "is the configured URL the site's search URL?" (no), and a
+      // second box rank cannot change it. Record the landing and stop, so a
+      // 55-source audit does not pay a navigation storm per source.
+      if (firstLanded) {
+        Object.assign(out, {
+          homeUrl,
+          rank,
+          landedUrl: attempt.landedUrl,
+          landedStatus: attempt.landedStatus,
+          landedKeywordHits: attempt.landedKeywordHits,
+          landedSampleTitles: attempt.landedSampleTitles,
+          boxShape: attempt.boxShape,
+          boxScore: attempt.boxScore,
+          via: attempt.via,
+          dismissed: "search box submitted but the landing URL carries no keyword",
+        });
+        return out;
+      }
     }
   }
   const last = out.attempts[out.attempts.length - 1];
@@ -346,7 +386,7 @@ async function discoverViaSearchBox(homeUrls, keyword) {
   return out;
 }
 
-async function discoverSource(source, { zhKeyword, enKeyword }) {
+async function discoverSource(source, { zhKeyword, enKeyword, compareBoxes = false }) {
   const keyword = keywordForSource(source, zhKeyword, enKeyword);
   const useApi =
     source.accessMethod?.primary === "api" && typeof source.apiSearch?.url === "function";
@@ -393,8 +433,21 @@ async function discoverSource(source, { zhKeyword, enKeyword }) {
   // Step 5 of the methodology: drive the site's own search UI when a keyword is
   // in play and the configured URL did not demonstrably work — where
   // "demonstrably worked" now means *yields items*, not merely *resolves*.
-  if (needsSearchBoxDrive({ verdict: verdictA, extracted: extractedA, keyword })) {
-    row.searchBox = await discoverViaSearchBox(homeCandidates(probedUrl), keyword);
+  //
+  // `--compare` / `--all` adds the second reason to drive it: **alignment**. The
+  // repair trigger structurally cannot see whether a *working* URL is the site's
+  // search URL, because extraction health answers "does it yield items?" and a
+  // page that is already a result page answers yes. Auditing every keyword-bearing
+  // source therefore has to bypass the trigger, not tighten it — while API-direct
+  // sources are excluded outright: they have no search box, so driving one would
+  // manufacture a finding about the audit rather than about the source.
+  const shouldDrive = compareBoxes
+    ? Boolean(keyword) && !useApi
+    : needsSearchBoxDrive({ verdict: verdictA, extracted: extractedA, keyword });
+  if (shouldDrive) {
+    row.searchBox = await discoverViaSearchBox(homeCandidates(probedUrl), keyword, {
+      firstLanded: compareBoxes,
+    });
     const proposed = row.searchBox.template ?? row.searchBox.gatedTemplate ?? null;
     if (proposed) {
       // The driven URL carries session furniture with it (douyin's own landing
@@ -405,7 +458,14 @@ async function discoverSource(source, { zhKeyword, enKeyword }) {
       // something the page actually needed. Which one wins is decided by the
       // source's own `articleScript`, not by the heuristic.
       const verbatim = row.searchBox.templateVerbatim ?? null;
-      const variants = [...new Set([proposed, verbatim].filter((t) => t && t.includes("{kw}")))];
+      // Repair mode verifies both spellings, stripped first — the stripped form is
+      // the only one that can be committed, and the verbatim fallback is what
+      // catches a site that needs the session furniture. An audit has no such
+      // stake, and 55 sources × 2 navigations is a different budget, so it
+      // verifies the committable spelling only.
+      const variants = compareBoxes
+        ? [proposed ?? verbatim].filter((t) => t && t.includes("{kw}"))
+        : [...new Set([proposed, verbatim].filter((t) => t && t.includes("{kw}")))];
       let chosen = null;
       for (const tpl of variants) {
         const verifyUrl = tpl.replace("{kw}", encodeURIComponent(keyword));
@@ -455,7 +515,129 @@ async function discoverSource(source, { zhKeyword, enKeyword }) {
       }
     }
   }
+
+  // ─── Alignment: is the configured URL the one the site's own search UI makes? ───
+  // Deliberately separate from `candidate`, which is about *repairing* a broken
+  // URL. The two disagree by design: a source can be misaligned **and** healthy,
+  // and that is a finding about the registry rather than a health problem.
+  // Read the answer as a question, not a verdict — a feed-shaped source may sit
+  // on its front page on purpose, so `differs` names what changed and leaves the
+  // decision with the reader.
+  row.consistency = buildConsistency({
+    box: row.searchBox,
+    shouldDrive,
+    keyword,
+    configuredUrl: probedUrl,
+    recoveredTemplate:
+      row.searchBox?.templateVerbatim ?? row.searchBox?.gatedTemplateVerbatim ?? null,
+    probedKind: useApi ? "apiSearch" : "url",
+  });
   return row;
+}
+
+/**
+ * Classify the alignment between the configured URL and the URL the site's own
+ * search box produced.
+ *
+ * `match` vocabulary:
+ *   · `same`                        — the registry already points at the site's search URL
+ *                                     (or at it minus decorating params — see `subset`)
+ *   · `differs`                     — it points somewhere else; `diffs` says where
+ *   · `no-search-box`               — driven, and no box exists on any home candidate
+ *   · `not-measured`               — not driven: the configured URL yields items (repair mode)
+ *   · `not-applicable`             — no search URL exists to align with (no keyword, or API-direct)
+ *   · `no-keyword-in-recovered-url` — a box exists and submitted, but the landing URL has no term
+ *   · `uncomparable`               — nothing to compare on one of the two sides
+ */
+function buildConsistency({
+  box,
+  shouldDrive,
+  keyword,
+  configuredUrl,
+  recoveredTemplate,
+  probedKind,
+}) {
+  if (probedKind === "apiSearch") {
+    return {
+      match: "not-applicable",
+      reason: "API-direct source: it queries the API, there is no search box to drive",
+      diffs: [],
+    };
+  }
+  if (!keyword) {
+    return {
+      match: "not-applicable",
+      reason: "this source carries no keyword (supportsKeyword: false)",
+      diffs: [],
+    };
+  }
+  if (!box) {
+    return {
+      match: shouldDrive ? "no-search-box" : "not-measured",
+      reason: shouldDrive
+        ? "no search box found on any home candidate"
+        : "configured URL yields items; pass --compare to audit the URL anyway",
+      diffs: [],
+    };
+  }
+  if (box.boxFound === false) {
+    // Driven, but no box exists on any home candidate. Its own answer — not a
+    // variant of "the box produced no keyword URL".
+    return {
+      match: "no-search-box",
+      reason: box.dismissed ?? "no search box found on any home candidate",
+      diffs: [],
+    };
+  }
+  if (recoveredTemplate) {
+    const diff = classifyUrlDiff(configuredUrl, recoveredTemplate, keyword);
+    return {
+      match: diff.match,
+      diffs: diff.diffs,
+      // `same` reached as "configured is the recovered URL minus decorating
+      // params" — kept visible so a reader can see the box adds `vt`/`from_source`
+      // and re-decide later, rather than losing the information to a bare `same`.
+      ...(diff.subset ? { subset: true, extraParams: diff.extraParams } : {}),
+      recoveredTemplate,
+      recoveredUrl: recoveredTemplate.replace("{kw}", encodeURIComponent(keyword)),
+      recoveredFrom: box.template ? "search-box" : box.gatedBy,
+    };
+  }
+  return {
+    match: "no-keyword-in-recovered-url",
+    reason: box.dismissed ?? "search box produced no keyword-bearing URL",
+    landedUrl: box.landedUrl ?? null,
+    diffs: [],
+  };
+}
+
+/**
+ * Roll the per-row alignment answers up, and pull the misaligned ones out — they
+ * are the whole point of an audit run, and burying them in 55 rows would make
+ * the report read the same as a clean one.
+ */
+function summarizeConsistency(rows) {
+  const counts = {};
+  for (const r of rows) {
+    const m = r.consistency?.match ?? "unknown";
+    counts[m] = (counts[m] ?? 0) + 1;
+  }
+  return {
+    counts,
+    misaligned: rows
+      .filter((r) => r.consistency?.match === "differs")
+      .map((r) => ({
+        source: r.name,
+        configuredUrl: r.configuredUrl,
+        recoveredUrl: r.consistency.recoveredUrl,
+        diffs: r.consistency.diffs,
+        // Both sides, so "switch to the recovered URL" can be weighed: a recovered
+        // URL that extracts 0 is not an upgrade, whatever the alignment says.
+        extractedFromConfigured: r.extraction?.configured ?? null,
+        extractedFromRecovered: r.candidate?.extracted ?? null,
+        recoveredUsable: Boolean(r.candidate?.usable),
+      })),
+  };
 }
 
 function resolveTargets({ only, from, limit }) {
@@ -510,6 +692,11 @@ async function main() {
 
   const zhKeyword = getArg("keyword-zh") || "人工智能";
   const enKeyword = getArg("keyword-en") || "AI";
+  // `--compare` (with `--only`) and `--all` audit URL alignment rather than repair
+  // breakage: every keyword-bearing source gets its search box driven even when
+  // the configured URL is healthy. `--all` additionally means "the whole registry
+  // minus the media sources" (`selectSweepTargets` drops the `url`-less ones).
+  const compareBoxes = hasFlag("compare") || hasFlag("all");
   const targets = resolveTargets({
     only: getArg("only"),
     from: getArg("from"),
@@ -522,12 +709,13 @@ async function main() {
 
   const rows = [];
   for (const source of targets) {
-    const row = await discoverSource(source, { zhKeyword, enKeyword });
+    const row = await discoverSource(source, { zhKeyword, enKeyword, compareBoxes });
     rows.push(row);
     process.stderr.write(
       `· ${row.name.padEnd(22)} http->${String(row.cdp.snapshot?.status ?? "err").padEnd(4)} ` +
         `${row.cdp.verdict.padEnd(24)} extract=${String(row.extraction?.configured ?? "n/a").padEnd(4)} ` +
         `${row.resolvesTo.padEnd(31)} ` +
+        `align=${String(row.consistency?.match ?? "?").padEnd(28)} ` +
         `${row.candidate ? (row.candidate.usable ? "candidate ✓ " + row.candidate.template : "candidate ✗") : ""}` +
         `${row.candidate?.droppedParams?.length ? ` [dropped ${row.candidate.droppedParams.join(",")}]` : ""}\n`,
     );
@@ -540,11 +728,27 @@ async function main() {
     generatedAt: new Date().toISOString(),
     keyword: { zh: zhKeyword, en: enKeyword },
     targetCount: targets.length,
+    // An audit answers a different question from a repair, and the report has to
+    // say which one it is, because `not-measured` and `same` both look like
+    // "nothing wrong" unless you know which question was asked.
+    audit: compareBoxes ? "url-alignment" : "repair",
+    consistencySummary: summarizeConsistency(rows),
     // Machine-readable half of the repair: one entry per source whose recovered
     // URL actually extracts, carrying the literal registry line. A repair run is
     // supposed to end at an edit, so the artifact that ends it is in the report.
+    //
+    // Filtered on alignment, not just on usability. Driving a search box on a
+    // source whose configured URL is *already* the search URL ("same") recovers
+    // that same URL and verifies fine — listing it as a patch would recommend an
+    // edit that changes nothing, and make a clean audit read like a repair list.
+    // Found by running `--compare` on ithome/thepaper, which are aligned.
     registryPatches: rows
-      .filter((r) => r.candidate?.usable && r.candidate.registryLine)
+      .filter(
+        (r) =>
+          r.candidate?.usable &&
+          r.candidate.registryLine &&
+          classifyUrlDiff(r.configuredUrl, r.candidate.template, r.keyword).match !== "same",
+      )
       .map((r) => ({
         source: r.name,
         configuredUrl: r.configuredUrl,
@@ -576,12 +780,13 @@ async function main() {
     return;
   }
   console.log(`\n# source-url-discover — ${report.generatedAt}`);
-  console.log(`targets=${report.targetCount}  keyword(zh)=${zhKeyword} keyword(en)=${enKeyword}`);
+  console.log(`mode=${report.audit}  targets=${report.targetCount}`);
+  console.log(`keyword(zh)=${zhKeyword} keyword(en)=${enKeyword}`);
   console.log(`report: ${outPath}\n`);
   console.log(
-    "| source | http status | browser verdict | extract | resolves to | search box | candidate URL |",
+    "| source | http | browser verdict | extract | resolves to | URL alignment | search box | candidate URL |",
   );
-  console.log("| --- | --- | --- | --- | --- | --- | --- |");
+  console.log("| --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const r of rows) {
     const sb = r.searchBox;
     const foundBox = sb?.attempts?.find((a) => a.boxFound);
@@ -593,13 +798,49 @@ async function main() {
     const cand = r.candidate
       ? `\`${r.candidate.template}\` → ${r.candidate.verdict} / extract ${r.candidate.extracted ?? "n/a"}`
       : "-";
+    const align = r.consistency
+      ? r.consistency.diffs?.length
+        ? `${r.consistency.match} (${r.consistency.diffs.join("+")})`
+        : r.consistency.match
+      : "-";
     console.log(
-      `| ${r.name} | ${r.cdp.snapshot?.status ?? "err"} | ${r.cdp.verdict} | ${r.extraction?.configured ?? "n/a"} | ${r.resolvesTo} | ${truncate(box, 46)} | ${truncate(cand, 78)} |`,
+      `| ${r.name} | ${r.cdp.snapshot?.status ?? "err"} | ${r.cdp.verdict} | ${r.extraction?.configured ?? "n/a"} | ${r.resolvesTo} | ${truncate(align, 40)} | ${truncate(box, 46)} | ${truncate(cand, 78)} |`,
     );
   }
   console.log("\nHow to read the `extract` column: `/` = the configured URL, measured by");
   console.log("running this source's own articleScript in the page. `n/a` = not measured");
   console.log("(no script / it threw) — not the same as `0` = measured and empty.");
+
+  // Alignment is a question about the *registry*, not about source health, so it
+  // gets its own section: a source can be misaligned and perfectly healthy, and
+  // reading that off the health columns is impossible.
+  const summary = report.consistencySummary;
+  console.log(`\n## URL alignment — ${JSON.stringify(summary.counts)}`);
+  if (summary.misaligned.length === 0) {
+    console.log("No misaligned source: every audited source already points at the URL its");
+    console.log("own search box produces (or the check did not apply — see the counts).");
+  } else {
+    console.log(
+      `${summary.misaligned.length} source(s) point somewhere other than their own search box's URL:`,
+    );
+    console.log("");
+    console.log(
+      "| source | configured | search box produces | differs in | extract now → recovered |",
+    );
+    console.log("| --- | --- | --- | --- | --- |");
+    for (const m of summary.misaligned) {
+      console.log(
+        `| ${m.source} | \`${truncate(m.configuredUrl, 60)}\` | \`${truncate(m.recoveredUrl ?? "?", 60)}\` | ${m.diffs.join("+")} | ${m.extractedFromConfigured ?? "n/a"} → ${m.extractedFromRecovered ?? "not verified"} |`,
+      );
+    }
+    console.log(
+      "\n`differs` is a finding, not a fault: a feed-shaped source may be configured on its",
+    );
+    console.log(
+      "front page deliberately. Weigh a switch by the two extract numbers — a recovered URL",
+    );
+    console.log("that extracts fewer items than the configured one is not an upgrade.");
+  }
 
   // The last mile of the repair: recovered URL → registry line. Printed as a
   // paste-ready block because the hand-typed version of this step is where the

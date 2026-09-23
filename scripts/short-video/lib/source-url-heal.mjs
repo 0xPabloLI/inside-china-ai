@@ -930,6 +930,156 @@ export function registryUrlLine(template) {
 }
 
 /**
+ * Normalize a URL so two spellings of the same destination compare equal.
+ *
+ * Three normalizations, each earning its place from an observed false alarm:
+ *   · volatile params dropped — douyin regenerates `aid=<uuid>` per visit, so
+ *     the two sides differ on every run while naming the same URL;
+ *   · the keyword folded to `{kw}` in whatever encoding the site used
+ *     (`人工智能` / `%E4%BA%BA…` / `+`-joined) — the configured side is a filled-in
+ *     URL and the recovered side is a template, so without this *every* source
+ *     would look misaligned and the check would report nothing useful;
+ *   · trailing slash and host case flattened.
+ *
+ * @param {string} rawUrl
+ * @param {string|null} keyword
+ * @returns {string|null} null when there is nothing to compare (never a guess)
+ */
+export function normalizeForCompare(rawUrl, keyword = null) {
+  if (!rawUrl) return null;
+  const raw = String(rawUrl).trim();
+  if (!raw) return null;
+  let out = raw;
+  try {
+    const u = new URL(raw);
+    const { search } = stripVolatileParams(u.search);
+    let path = u.pathname.replace(/\/+$/, "");
+    if (!path) path = "/";
+    out = `${u.protocol}//${u.host.toLowerCase()}${path}${search}${u.hash}`;
+  } catch {
+    /* not a URL — fold the keyword into the literal string below */
+  }
+  if (keyword) {
+    try {
+      out = decodeURIComponent(out);
+    } catch {
+      /* keep the raw form when it is not valid percent-encoding */
+    }
+    for (const f of new Set([String(keyword), String(keyword).replace(/ /g, "+")])) {
+      if (f) out = out.split(f).join("{kw}");
+    }
+  }
+  return out;
+}
+
+/**
+ * Is the URL the registry uses today the same URL the site's own search box
+ * produces?
+ *
+ * This is the question the repair path answers as a side effect but never asks
+ * directly: extraction success only proves the configured URL *works*, not that
+ * it is the site's search URL. A source configured on a page that is already a
+ * result page — every `supportsKeyword: false` column source is — yields items by
+ * design, so no health signal can tell "this is the search URL" from "this is a
+ * page that happens to work". Alignment has to be asked separately.
+ *
+ * The check only applies to keyword-bearing sources: a source whose registry
+ * entry takes no keyword has no search URL to be aligned with, and inventing one
+ * for it would report a finding about the question rather than about the source.
+ *
+ * `match: "differs"` is a finding, not a failure — a source may sit on a column
+ * page on purpose. The `diffs` list says *what* differs so a reader can decide,
+ * rather than a verdict deciding for them.
+ *
+ * @param {string} configuredUrl - what the registry uses today
+ * @param {string} recoveredUrl - what the search box produced (template or URL)
+ * @param {string|null} keyword
+ * @returns {{match: "same"|"differs"|"uncomparable", diffs: string[]}}
+ */
+export function classifyUrlDiff(configuredUrl, recoveredUrl, keyword = null) {
+  const a = normalizeForCompare(configuredUrl, keyword);
+  const b = normalizeForCompare(recoveredUrl, keyword);
+  if (!a || !b) return { match: "uncomparable", diffs: [] };
+  if (a === b) return { match: "same", diffs: [] };
+  const diffs = [];
+  const pa = splitUrlParts(a);
+  const pb = splitUrlParts(b);
+  // The configured URL is the recovered one minus decorating params.
+  //
+  // A site's search box hands back entry/session furniture that the registry
+  // deliberately does not carry. Measured 2026-09-23, bilibili: driving the box
+  // produces `?vt=68448060&from_source=web_search&keyword=…` while the registry
+  // uses `?keyword=…`; both extract the same 42 items. Calling that "misaligned"
+  // would be a false alarm about a URL that is already the search URL — and it
+  // would have emitted a no-op registry patch, since the recovered URL extracts
+  // just as well.
+  //
+  // `pa.query.size > 0` is load-bearing: without it, "configured has no query at
+  // all, recovered has one" (the front-page-vs-search-page shape) would count as
+  // a subset and every such source would be falsely reported as aligned.
+  if (isQuerySubset(pa, pb)) {
+    return {
+      match: "same",
+      diffs: [],
+      subset: true,
+      // Named, not hidden: the reader should still see what the box adds, in case
+      // one of those params turns out to matter later.
+      extraParams: [...pb.query.keys()].filter((k) => !pa.query.has(k)),
+    };
+  }
+  if (pa.origin !== pb.origin) diffs.push("host");
+  if (pa.path !== pb.path) diffs.push("path");
+  const keysA = [...pa.query.keys()].sort();
+  const keysB = [...pb.query.keys()].sort();
+  if (keysA.join(",") !== keysB.join(",")) {
+    diffs.push("query-keys");
+  } else {
+    for (const k of keysA) {
+      if (pa.query.get(k) !== pb.query.get(k)) {
+        diffs.push("query-values");
+        break;
+      }
+    }
+  }
+  if (pa.hash !== pb.hash) diffs.push("hash");
+  // Same string length and no structural part differs: the foldings above left a
+  // residual difference (e.g. param order). Still `differs` — never silently
+  // promoted to `same` — but say so instead of shipping an empty diffs list.
+  if (diffs.length === 0) diffs.push("order-or-encoding");
+  return { match: "differs", diffs };
+}
+
+/** Same origin/path/hash, and every one of `a`'s params present with the same
+ * value in `b` — with `b` carrying at least one more, and `a` carrying some. */
+function isQuerySubset(a, b) {
+  if (a.origin !== b.origin || a.path !== b.path || a.hash !== b.hash) return false;
+  if (a.query.size === 0 || b.query.size <= a.query.size) return false;
+  for (const [k, v] of a.query) {
+    if (b.query.get(k) !== v) return false;
+  }
+  return true;
+}
+
+function splitUrlParts(normalized) {
+  const out = { origin: "", path: "", query: new Map(), hash: "" };
+  if (!normalized) return out;
+  const m = /^([a-z][a-z0-9+.-]*:\/\/[^/?#]*)?([^?#]*)(\?[^#]*)?(#.*)?$/i.exec(normalized);
+  if (!m) {
+    out.path = normalized;
+    return out;
+  }
+  out.origin = (m[1] || "").toLowerCase();
+  out.path = m[2] || "";
+  for (const pair of (m[3] || "").replace(/^\?/, "").split("&")) {
+    if (!pair) continue;
+    const eq = pair.indexOf("=");
+    out.query.set(eq >= 0 ? pair.slice(0, eq) : pair, eq >= 0 ? pair.slice(eq + 1) : "");
+  }
+  out.hash = m[4] || "";
+  return out;
+}
+
+/**
  * Read the destination out of a login redirect.
  *
  * A gated site still tells us which URL it *would* have served — ithome's
