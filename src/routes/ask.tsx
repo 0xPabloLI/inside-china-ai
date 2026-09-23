@@ -3,6 +3,7 @@ import { AskChinaAi } from "@/components/ask-china-ai";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
 import { OG_DEFAULT, ogImageMeta } from "@/lib/og";
+import { listAskAnswers } from "@/lib/ask-answers.functions";
 import {
   SITE,
   breadcrumbListJsonLd,
@@ -81,10 +82,12 @@ export const Route = createFileRoute("/ask")({
     links: [{ rel: "canonical", href: URL }],
     scripts: [jsonLdScript(askJsonLd())],
   }),
+  loader: () => listAskAnswers().catch(() => []),
   component: AskPage,
 });
 
 function AskPage() {
+  const answers = Route.useLoaderData();
   return (
     <div className="min-h-screen">
       <SiteHeader />
@@ -114,6 +117,22 @@ function AskPage() {
         <section className="mt-8">
           <AskChinaAi autoFocus />
         </section>
+
+        {answers.length > 0 && (
+          <section className="mt-16 border-t border-border/60 pt-8">
+            <h2 className="font-serif text-xl">Popular questions</h2>
+            <ul className="mt-4 space-y-2">
+              {answers.map((a) => (
+                <li key={a.slug}>
+                  <Link to="/ask/$slug" params={{ slug: a.slug }} className="hover:underline">
+                    {a.question}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
 
         <section className="mt-16 border-t border-border/60 pt-8">
           <h2 className="font-serif text-xl">Questions about this Q&amp;A</h2>
