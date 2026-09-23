@@ -28,6 +28,9 @@
  *     { url(keyword), parser(responseText), authRequired, headers, paidApi }
  *     paidApi: true if the API consumes a limited credits quota (e.g. ScrapeCreators).
  *     Sources with paidApi=true are skipped by default unless --include-paid flag is passed.
+ *     headers: a plain object OR a getter/function — see resolveApiHeaders().
+ *       Credentials live in `capabilities.articles.{requiresApiKey, apiKeyEnv}`
+ *       (#67), never in this block.
  * - googleSiteFallback: Google site: search fallback config (optional)
  * - mcpFallback: MCP server fallback config (optional)
  *
@@ -46,6 +49,47 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// ─── apiSearch credential seams (#269, 2026-09-23) ───
+
+/**
+ * Resolve an `apiSearch.headers` declaration into a plain object.
+ *
+ * Accepts an object OR a getter/function. The lazy form is not a style
+ * preference: a module-scope object literal reads `process.env` at *import*
+ * time, and ESM imports are evaluated before the entry point's `loadEnv()`
+ * runs (#287 owns env loading at entry points). A key that lives only in
+ * .env.local was therefore already missing when the object was built, so
+ * `headers` froze to `{}` and the request went out unauthenticated — true in
+ * `selector-health.mjs` *and* in production `search-sources.mjs`, which does
+ * pass `api.headers` but received the frozen empty object.
+ *
+ * @param {{ headers?: object|Function }} [api]
+ * @returns {object} headers to send (empty object when undeclared)
+ */
+export function resolveApiHeaders(api = {}) {
+  const declared = typeof api.headers === "function" ? api.headers() : api.headers;
+  return declared && typeof declared === "object" ? { ...declared } : {};
+}
+
+/**
+ * Name of the required env var that is not set, or null when the endpoint is
+ * usable. A caller that honours this can say "the probe is not authorised"
+ * instead of "the endpoint is dead" — the two readings differ by orders of
+ * magnitude in what they cost the reader (#269 axis 3).
+ *
+ * Reads `capabilities.articles`, which #67 made the authority for credentials:
+ * `requiresApiKey` is derived from `apiSearch.authRequired` and `apiKeyEnv`
+ * from API_KEY_ENV_MAP — the same two fields the asset layer reads, so a probe
+ * cannot disagree with the pipeline about whether a key is needed.
+ *
+ * @param {{ requiresApiKey?: boolean, apiKeyEnv?: string|null }} [cap] - capabilities.articles
+ * @returns {string|null}
+ */
+export function missingApiKey(cap = {}) {
+  if (!cap.requiresApiKey || !cap.apiKeyEnv) return null;
+  return process.env[cap.apiKeyEnv] ? null : cap.apiKeyEnv;
+}
 
 // ─── Google site: fallback shared pieces (#88 autogen + #309 explicit promotion) ───
 
@@ -948,9 +992,16 @@ export const SELF_MEDIA_SOURCES = [
       authRequired: true,
       // ScrapeCreators: 10,000 free calls then PAYG — opt-in only (--include-paid)
       paidApi: true,
-      headers: process.env.SCRAPECREATORS_API_KEY
-        ? { "x-api-key": process.env.SCRAPECREATORS_API_KEY, "Content-Type": "application/json" }
-        : {},
+      // Lazy on purpose: see resolveApiHeaders(). The key must be read when the
+      // request is built, not when this module is imported.
+      get headers() {
+        return process.env.SCRAPECREATORS_API_KEY
+          ? {
+              "x-api-key": process.env.SCRAPECREATORS_API_KEY,
+              "Content-Type": "application/json",
+            }
+          : {};
+      },
     },
     url: () => "https://www.tiktok.com/creator-center",
     loginCheckScript: `
@@ -1357,13 +1408,19 @@ export const INTERNATIONAL_SOURCES = [
         }));
       },
       authRequired: false,
-      // Optional: set GITHUB_TOKEN env var to increase rate limit from 60 to 5000 req/hour
-      headers: process.env.GITHUB_TOKEN
-        ? {
-            Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-            Accept: "application/vnd.github+json",
-          }
-        : { Accept: "application/vnd.github+json" },
+      // Optional: set GITHUB_TOKEN env var to increase rate limit from 60 to
+      // 5000 req/hour. Lazy on purpose (see resolveApiHeaders) — a module-scope
+      // read would freeze the token before loadEnv() ran. Not in
+      // API_KEY_ENV_MAP: an absent token is not a broken probe, it is a lower
+      // rate limit, so it must never read as "missing credential".
+      get headers() {
+        return process.env.GITHUB_TOKEN
+          ? {
+              Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+              Accept: "application/vnd.github+json",
+            }
+          : { Accept: "application/vnd.github+json" };
+      },
     },
     url: (keyword) =>
       `https://github.com/search?q=${encodeURIComponent(keyword)}&type=repositories&s=updated&o=desc`,

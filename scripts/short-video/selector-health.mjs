@@ -13,16 +13,21 @@
  * Usage:
  *   node scripts/short-video/selector-health.mjs [--keyword <kw>] [--json]
  *   node scripts/short-video/selector-health.mjs --only baidu_news,qbitai
+ *   node scripts/short-video/selector-health.mjs --env <main-checkout>/.env.local
  *
  * Requires the CDP proxy (localhost:3456) and a running Chrome with the
  * usual login states; per-domain pacing comes from the #89 P0 rate limiter.
+ * `--env` points at the main checkout's .env.local (a worktree has none of its
+ * own) so keyed api sources are probed with credentials, not without.
  */
 
 import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
-import { ALL_SOURCES } from "./lib/source-registry.mjs";
+import { ALL_SOURCES, missingApiKey, resolveApiHeaders } from "./lib/source-registry.mjs";
+import { classifyProbe, isFailureVerdict } from "./lib/source-url-heal.mjs";
+import { loadEnv } from "./lib/load-env.mjs";
 import {
   cdpNewTab,
   cdpCloseTab,
@@ -60,23 +65,48 @@ export function keywordForSource(source, zhKeyword, enKeyword) {
   return (source.locale ?? "en") === "zh-CN" ? zhKeyword : enKeyword;
 }
 
-/** Live-test an apiSearch source: fetch + parser, count parsed results. */
-async function checkApiSource(source, keyword) {
+/** Live-test an apiSearch source: fetch + parser, count parsed results.
+ *
+ * #269 (2026-09-23): axis 3 used to be *less* credential-aware than axis 1
+ * (source-url-sweep) — it never loaded .env.local and never sent
+ * `api.headers`, so every keyed endpoint was reported as an authoritative
+ * `http_401`/`http_400` failure. Missing keys are now decided before the
+ * request and 4xx answers go through the shared probe classifier.
+ *
+ * Exported so the credential path can be exercised without a CDP proxy.
+ */
+export async function checkApiSource(source, keyword) {
   const started = Date.now();
-  const api = source.capabilities?.articles?.apiSearch ?? source.apiSearch;
+  const cap = source.capabilities?.articles ?? {};
+  const api = cap.apiSearch ?? source.apiSearch;
+  const missingKey = missingApiKey(cap);
+  if (missingKey) {
+    return {
+      source: source.name,
+      ok: false,
+      count: 0,
+      reason: "probe-not-authoritative",
+      missingKey,
+      durationMs: Date.now() - started,
+    };
+  }
   try {
     const url = api.url(keyword);
-    const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const resp = await fetch(url, {
+      headers: resolveApiHeaders(api),
+      signal: AbortSignal.timeout(15000),
+    });
+    const body = await resp.text();
     if (!resp.ok) {
       return {
         source: source.name,
         ok: false,
         count: 0,
-        reason: `http_${resp.status}`,
+        reason: apiFailureVerdict({ status: resp.status, body, cap }).reason,
         durationMs: Date.now() - started,
       };
     }
-    const articles = api.parser(await resp.text());
+    const articles = api.parser(body);
     return {
       source: source.name,
       ok: articles.length > 0,
@@ -89,10 +119,59 @@ async function checkApiSource(source, keyword) {
       source: source.name,
       ok: false,
       count: 0,
-      reason: `error:${e.message}`,
+      reason: "network-error",
+      error: e.message,
       durationMs: Date.now() - started,
     };
   }
+}
+
+/**
+ * Verdict for an api probe whose response was not OK (#269, 2026-09-23).
+ *
+ * Two corrections, both about keeping the answer about the probe rather than
+ * about the endpoint:
+ *   · a required-but-absent key is decided before the request — gnews answers
+ *     such a call with 400, which has no other reading than http-dead;
+ *   · a 4xx that survives that check goes through `classifyProbe`, the same
+ *     classifier axis 1 uses, so 403/429 from an edge or rate limiter stays
+ *     "about the probe" while 404/410 remains a statement about the endpoint.
+ *
+ * @param {{ status: number, body?: string, cap?: object }} probe
+ * @returns {{ reason: string, missingKey: string|null }}
+ */
+export function apiFailureVerdict({ status, body = "", cap = {} } = {}) {
+  const missingKey = missingApiKey(cap);
+  if (missingKey) return { reason: "probe-not-authoritative", missingKey };
+  return {
+    // finalUrl/homeUrl are empty on purpose: for an api probe there is no
+    // landing page to compare against a site root, and keyword hits are not
+    // what a 4xx is answering about.
+    reason: classifyProbe({ status, finalUrl: "", homeUrl: "", html: body, keywordHits: null }),
+    missingKey: null,
+  };
+}
+
+/**
+ * Three-way failure class for a report row — the axis-3 form of "only the
+ * failure column feeds the dead-source ledger" (#269/#285):
+ *
+ *   "none"   — the row produced items.
+ *   "source" — the verdict is about the source: `zero_results` (selector rot),
+ *              `http-dead`, `network-error` — this is what the repair runbook is for.
+ *   "probe"  — the verdict is about the probe: `anti_bot:*` and `need_login`
+ *              depend on the browser session, and `login-wall` /
+ *              `probe-not-authoritative` are the shared vocabulary's
+ *              "the answer is about the probe" class. Quarantine, do not repair.
+ *
+ * @param {{ ok: boolean, reason?: string|null }} result
+ * @returns {"none"|"source"|"probe"}
+ */
+export function failureClass(result) {
+  if (result.ok) return "none";
+  const reason = String(result.reason ?? "");
+  if (reason.startsWith("anti_bot") || reason === "need_login") return "probe";
+  return isFailureVerdict(reason) ? "source" : "probe";
 }
 
 /**
@@ -188,6 +267,14 @@ async function checkSource(source, keywords) {
 }
 
 async function main() {
+  // This CLI is an entry point, so it owns the .env.local load (#287/#275).
+  // Without it every keyed api source probes with an empty credential and a
+  // server-side "no API key" answer was recorded as a dead endpoint — the
+  // 2026-09-23 axis-3 run reported gnews 400 / currents 401 / tiktok_creator
+  // 401 that way while `source-url-sweep --env …` read the same endpoints
+  // 200/alive. `--env <path>` exists because a git worktree has no .env.local
+  // of its own (gitignored, lives in the main checkout).
+  loadEnv(getArg("env") || undefined);
   await ensureCdpProxy();
   const keyword = getArg("keyword") || "AI大模型";
   const only = getArg("only");
@@ -213,32 +300,59 @@ async function main() {
           )
         : await checkSource(source, keywords);
     results.push(result);
-    const icon = result.ok ? "✅" : "❌";
+    const cls = failureClass(result);
+    const icon = cls === "none" ? "✅" : cls === "source" ? "❌" : "⚠️";
+    const hint = result.missingKey ? ` (missing ${result.missingKey})` : "";
     console.log(
-      `  ${icon} ${result.source}: ${result.count} results (${(result.durationMs / 1000).toFixed(1)}s)${result.reason ? ` — ${result.reason}` : ""}`,
+      `  ${icon} ${result.source}: ${result.count} results (${(result.durationMs / 1000).toFixed(1)}s)${result.reason ? ` — ${result.reason}${hint}` : ""}`,
     );
   }
 
-  const broken = results.filter((r) => !r.ok);
+  const byClass = { none: 0, source: 0, probe: 0 };
+  for (const r of results) byClass[failureClass(r)] += 1;
   console.log("─".repeat(60));
-  console.log(
-    `  ${results.length - broken.length}/${results.length} healthy` +
-      (broken.length > 0 ? ` — repair runbook: docs/selector-auto-healing.md` : ""),
-  );
+  console.log(`  ${byClass.none}/${results.length} healthy`);
+  if (byClass.probe > 0) {
+    console.log(
+      `  ⚠️  ${byClass.probe} probe-not-authoritative / session-dependent — not source death, not for the ledger`,
+    );
+  }
+  if (byClass.source > 0) {
+    console.log(
+      `  ❌ ${byClass.source} real failures — repair runbook: docs/selector-auto-healing.md`,
+    );
+  }
 
-  if (hasFlag("json") || broken.length > 0) {
+  if (hasFlag("json") || byClass.source + byClass.probe > 0) {
     mkdirSync(dirname(REPORT_PATH), { recursive: true });
     writeFileSync(
       REPORT_PATH,
-      JSON.stringify({ checkedAt: new Date().toISOString(), keyword, results }, null, 2) + "\n",
+      JSON.stringify(
+        {
+          checkedAt: new Date().toISOString(),
+          keyword,
+          envLoaded: true,
+          summary: byClass,
+          results: results.map((r) => ({ ...r, failureClass: failureClass(r) })),
+        },
+        null,
+        2,
+      ) + "\n",
       "utf8",
     );
     if (hasFlag("json")) console.log(`  📁 Report: ${REPORT_PATH}`);
   }
-  process.exit(broken.length > 0 ? 1 : 0);
+  // Only a verdict about the *source* is a failed health check. A missing key
+  // or a browser-session answer would otherwise make CI red for a reason the
+  // reader cannot act on in the source.
+  process.exit(byClass.source > 0 ? 1 : 0);
 }
 
-main().catch((e) => {
-  console.error(`❌ ${e.message}`);
-  process.exit(1);
-});
+// Entry-point guard, matching source-url-sweep: importing this module for its
+// pure helpers (verdictReason / failureClass tests) must not start a CDP run.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((e) => {
+    console.error(`❌ ${e.message}`);
+    process.exit(1);
+  });
+}

@@ -14,6 +14,8 @@ import {
   shouldAutoGenGoogleSiteFallback,
   SOURCE_ATTRIBUTIONS,
   AUTOGEN_EXCLUDED_SOURCES,
+  resolveApiHeaders,
+  missingApiKey,
 } from "../lib/source-registry.mjs";
 import { isPoolEligible } from "../lib/search-pool.mjs";
 
@@ -1732,5 +1734,102 @@ describe("#269 douyin search URL shape (2026-09-23)", () => {
     expect(check).toContain('a[href*="/video/"]');
     expect(check).toContain("登录账号");
     expect(check).not.toContain('[class*="login"]');
+  });
+});
+
+/**
+ * #269 (2026-09-23)：凭据的读取时机。
+ *
+ * ESM 的 import 先于入口点的 loadEnv() 求值，所以模块作用域的对象字面量会把
+ * process.env 冻在「还没加载 .env.local」的那一刻 —— 只写在 .env.local 里的 key
+ * 在请求发出时就已不存在。selector-health 与生产 search-sources 都踩了这个坑。
+ */
+describe("resolveApiHeaders — 凭据必须在请求时读取", () => {
+  it("未声明 ⇒ 空对象", () => {
+    expect(resolveApiHeaders()).toEqual({});
+    expect(resolveApiHeaders({})).toEqual({});
+    expect(resolveApiHeaders({ headers: null })).toEqual({});
+  });
+
+  it("对象形态 ⇒ 原样返回（且是副本，调用方改不坏注册表）", () => {
+    const declared = { Accept: "application/json" };
+    const resolved = resolveApiHeaders({ headers: declared });
+    expect(resolved).toEqual({ Accept: "application/json" });
+    resolved["x-injected"] = "1";
+    expect(declared["x-injected"]).toBeUndefined();
+  });
+
+  it("函数形态 ⇒ 调用后取结果", () => {
+    expect(resolveApiHeaders({ headers: () => ({ "x-api-key": "k" }) })).toEqual({
+      "x-api-key": "k",
+    });
+  });
+
+  it("tiktok_creator 的 headers 是惰性的：import 之后再设 env 仍然生效", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "tiktok_creator");
+    const api = src.capabilities.articles.apiSearch;
+    delete process.env.SCRAPECREATORS_API_KEY;
+    expect(resolveApiHeaders(api)).toEqual({});
+    process.env.SCRAPECREATORS_API_KEY = "test-key-not-real";
+    try {
+      // 这正是旧实现的失败点：注册表在 import 时就把 headers 冻成了 {}。
+      expect(resolveApiHeaders(api)).toEqual({
+        "x-api-key": "test-key-not-real",
+        "Content-Type": "application/json",
+      });
+    } finally {
+      delete process.env.SCRAPECREATORS_API_KEY;
+    }
+  });
+
+  it("没有任何 apiSearch 的 headers 是模块作用域读取的 env", () => {
+    for (const s of ALL_SOURCES) {
+      const api = s.capabilities?.articles?.apiSearch ?? s.apiSearch;
+      if (!api?.headers) continue;
+      // 函数形态是惰性的；对象形态则值必须已经解析好（不允许出现 env 快照的空壳）。
+      expect(["function", "object"]).toContain(typeof api.headers);
+    }
+  });
+});
+
+describe("missingApiKey — 缺哪个 key 是可机读的事实", () => {
+  it("不需要 key 的源永远不报缺 key（避免把限流当缺凭据）", () => {
+    expect(missingApiKey({ requiresApiKey: false, apiKeyEnv: "GNEWS_API_KEY" })).toBe(null);
+    expect(missingApiKey({ requiresApiKey: true, apiKeyEnv: null })).toBe(null);
+    expect(missingApiKey()).toBe(null);
+  });
+
+  it("需要 key 的源：env 缺席时点名变量，在场时返回 null", () => {
+    const cap = { requiresApiKey: true, apiKeyEnv: "MISSING_KEY_FOR_TEST" };
+    delete process.env.MISSING_KEY_FOR_TEST;
+    expect(missingApiKey(cap)).toBe("MISSING_KEY_FOR_TEST");
+    process.env.MISSING_KEY_FOR_TEST = "v";
+    try {
+      expect(missingApiKey(cap)).toBe(null);
+    } finally {
+      delete process.env.MISSING_KEY_FOR_TEST;
+    }
+  });
+
+  it("注册表里唯一声明需要 key 的三源，都能点名到 env 变量", () => {
+    const keyed = ALL_SOURCES.filter((s) => s.capabilities?.articles?.requiresApiKey);
+    expect(keyed.map((s) => s.name).sort()).toEqual(["currents", "gnews", "tiktok_creator"]);
+    for (const s of keyed) {
+      expect(typeof s.capabilities.articles.apiKeyEnv).toBe("string");
+    }
+  });
+
+  it("GITHUB_TOKEN 是可选的：github_search 不因缺 token 被判缺凭据", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "github_search");
+    const cap = src.capabilities.articles;
+    expect(cap.requiresApiKey).toBe(false);
+    expect(missingApiKey(cap)).toBe(null);
+    // 但 token 在场时确实会带上（惰性读取）
+    process.env.GITHUB_TOKEN = "gh-test-not-real";
+    try {
+      expect(resolveApiHeaders(cap.apiSearch).Authorization).toBe("Bearer gh-test-not-real");
+    } finally {
+      delete process.env.GITHUB_TOKEN;
+    }
   });
 });

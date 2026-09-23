@@ -29,7 +29,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 import { loadEnv } from "./lib/load-env.mjs";
-import { ALL_SOURCES } from "./lib/source-registry.mjs";
+import { ALL_SOURCES, resolveApiHeaders } from "./lib/source-registry.mjs";
 import {
   classifyProbe,
   countKeywordHits,
@@ -88,7 +88,7 @@ export function keywordForSource(source, zhKeyword, enKeyword) {
   return (source.locale ?? "en") === "zh-CN" ? zhKeyword : enKeyword;
 }
 
-async function probe(url) {
+async function probe(url, extraHeaders = null) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const started = Date.now();
@@ -96,7 +96,11 @@ async function probe(url) {
     const res = await fetch(url, {
       redirect: "follow",
       signal: controller.signal,
-      headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
+      headers: {
+        "user-agent": UA,
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        ...(extraHeaders ?? {}),
+      },
     });
     const buf = new Uint8Array(await res.arrayBuffer());
     const { text, charset } = decodeHtml(buf, res.headers.get("content-type") || "");
@@ -112,7 +116,14 @@ async function probe(url) {
     // Surface the cause code: ENOTFOUND here almost always means Node's fetch
     // ignored HTTP(S)_PROXY (see the hint at the end of main()).
     const code = err?.cause?.code || err?.code || err?.name || "error";
-    return { status: null, error: String(code), finalUrl: url, bytes: 0, text: "", ms: Date.now() - started };
+    return {
+      status: null,
+      error: String(code),
+      finalUrl: url,
+      bytes: 0,
+      text: "",
+      ms: Date.now() - started,
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -125,17 +136,25 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
   // An `api` source fails at its API endpoint, not at its legacy CDP `url` —
   // probing the wrong one reports a dead source that is actually healthy
   // (openalex/gnews both looked "404/403" until apiSearch.url was probed).
-  const useApi = source.accessMethod?.primary === "api" && typeof source.apiSearch?.url === "function";
+  const useApi =
+    source.accessMethod?.primary === "api" && typeof source.apiSearch?.url === "function";
   const probedUrl = useApi ? source.apiSearch.url(keyword) : source.url(keyword);
+  // Header-riding credentials (ScrapeCreators `x-api-key`) are invisible to a
+  // bare fetch, so a keyed endpoint answered "no API key" and read as dead —
+  // the same defect axis 3 had (#269). URL-riding keys (`apikey=`) already
+  // worked because apiSearch.url() reads process.env at call time.
+  const apiHeaders = useApi
+    ? resolveApiHeaders(source.capabilities?.articles?.apiSearch ?? source.apiSearch)
+    : null;
   const searchUrl = redactSecrets(probedUrl);
   const homeUrl = safeOrigin(probedUrl) ? new URL(probedUrl).origin + "/" : probedUrl;
 
   // One retry: the local proxy drops connections intermittently, and a
   // dropped probe would otherwise be recorded as a dead source.
-  let primary = await probe(probedUrl);
+  let primary = await probe(probedUrl, apiHeaders);
   if (primary.status === null) {
     await sleep(600);
-    primary = await probe(probedUrl);
+    primary = await probe(probedUrl, apiHeaders);
   }
   const hits = countKeywordHits(primary.text, keyword);
   const verdict = classifyProbe({
@@ -196,8 +215,8 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
       // echo the query, and harvesting a non-results page is exactly the
       // #269 Phase 1 failure mode.
       const verdict =
-        classifyProbe({ status: p.status, finalUrl: p.finalUrl, homeUrl, keywordHits: h }) === "alive" &&
-        looksLikeResults(p.text)
+        classifyProbe({ status: p.status, finalUrl: p.finalUrl, homeUrl, keywordHits: h }) ===
+          "alive" && looksLikeResults(p.text)
           ? "alive"
           : p.status === 200
             ? "alive-no-results"
@@ -224,9 +243,11 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
     }
   }
 
-  row.repairable = row.candidates.some((c) => c.verdict === "alive") ? "url-candidate"
-    : row.feeds.some((f) => f.itemCount > 0) ? "feed-candidate"
-    : "none";
+  row.repairable = row.candidates.some((c) => c.verdict === "alive")
+    ? "url-candidate"
+    : row.feeds.some((f) => f.itemCount > 0)
+      ? "feed-candidate"
+      : "none";
   return row;
 }
 
@@ -250,9 +271,10 @@ async function main() {
   // main checkout's copy instead of copying secrets around.
   loadEnv(getArg("env") || undefined);
   const envKeys = [
-    "GNEWS_API_KEY",
-    "CURRENTS_API_KEY",
-    "SCRAPECREATORS_API_KEY",
+    // Declared by the registry itself (capabilities.articles.apiKeyEnv, #67) so
+    // this presence report cannot drift from the sources it describes.
+    ...new Set(ALL_SOURCES.map((s) => s.capabilities?.articles?.apiKeyEnv).filter(Boolean)),
+    // Web-search fallback pool (#65) — engines, not registry sources.
     "BRAVE_SEARCH_API_KEY",
     "SERPER_API_KEY",
     "TAVILY_API_KEY",
@@ -265,7 +287,10 @@ async function main() {
   const enKeyword = getArg("keyword-en") || "AI";
   let targets = selectSweepTargets();
   if (only) {
-    const names = only.split(",").map((s) => s.trim()).filter(Boolean);
+    const names = only
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     targets = targets.filter((s) => names.includes(s.name));
   }
   if (limit > 0) targets = targets.slice(0, limit);
@@ -303,7 +328,9 @@ async function main() {
   // resolve against the repo, absolute ones are used as given).
   const outArg = getArg("out");
   const outPath = outArg
-    ? (outArg.startsWith("/") ? outArg : join(__dirname, outArg))
+    ? outArg.startsWith("/")
+      ? outArg
+      : join(__dirname, outArg)
     : join(outDir, `source-url-sweep-${new Date().toISOString().slice(0, 10)}.json`);
   report.outPath = outPath;
   writeFileSync(outPath, JSON.stringify(report, null, 2));
