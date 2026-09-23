@@ -3792,6 +3792,51 @@ export const ALL_SOURCES = [
 ];
 
 /**
+ * Credential readiness across every source that declares a required key.
+ *
+ * `missingApiKey()` answers the per-source question at probe time; this answers
+ * the run-level one *before* any probe — are the credentials this suite needs
+ * actually on this machine? Known-up-front beats discovered-late: on 2026-09-23
+ * three keyed sources were reported as dead endpoints (`http_400` / `http_401`)
+ * purely because the probe ran without `.env.local` loaded, and the "fix" then
+ * looked like it belonged to the sources.
+ *
+ * Keys are read off the same `capabilities.*` fields that the probe and the
+ * pipeline read (`requiresApiKey` + `apiKeyEnv`), so this cannot disagree with
+ * `missingApiKey()` about which source needs what. Every capability channel is
+ * walked — not just `articles`: gallery credentials live under `images`
+ * (pexels/unsplash/pixabay) and stock video under `videos` (coverr), and a
+ * readiness check that silently skipped a channel would be the same class of
+ * blind spot it exists to remove.
+ *
+ * @param {Array} [sources]
+ * @returns {{required: number, present: number, ready: boolean, missing: string[],
+ *           entries: Array<{source: string, channel: string, env: string, present: boolean}>}}
+ */
+export function keyReadiness(sources = ALL_SOURCES) {
+  const entries = [];
+  for (const s of sources) {
+    for (const [channel, cap] of Object.entries(s.capabilities ?? {})) {
+      if (!cap?.requiresApiKey || !cap.apiKeyEnv) continue;
+      entries.push({
+        source: s.name,
+        channel,
+        env: cap.apiKeyEnv,
+        present: Boolean(process.env[cap.apiKeyEnv]),
+      });
+    }
+  }
+  const missing = entries.filter((e) => !e.present);
+  return {
+    required: entries.length,
+    present: entries.length - missing.length,
+    ready: missing.length === 0,
+    missing: [...new Set(missing.map((e) => e.env))].sort(),
+    entries,
+  };
+}
+
+/**
  * Default search keywords for self-media sources that require a keyword.
  */
 export const DEFAULT_KEYWORDS = ["AI大模型", "China AI"];

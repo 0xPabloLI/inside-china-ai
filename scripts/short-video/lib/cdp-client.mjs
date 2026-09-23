@@ -468,6 +468,16 @@ export async function checkLogin(tabId, loginCheckScript) {
  * browser-discovery.mjs in the same directory. We search known locations
  * rather than hard-coding a single path.
  *
+ * **Repo-local copy wins** (2026-09-23). The order used to be global-first, and
+ * the two copies are not the same file: the repo's `skills/web-access/scripts/`
+ * copy carries this repository's own fixes (#273 并发守卫, #308 exceptionDetails
+ * 优先), while the `~/.agents/skills/` copy is whatever the global skill install
+ * last left there (measured 2026-09-23: 105 diff lines apart). Global-first meant
+ * the health-check and production paths silently launched a **stale proxy** while
+ * `cdp-preflight.mjs` launched the current one — same repo, two proxies. Prefer
+ * the copy that is versioned with the code that depends on it; the global install
+ * stays as the fallback for checkouts without the skill directory.
+ *
  * @returns {string|null} Absolute path to cdp-proxy.mjs, or null if not found.
  */
 export function findCdpProxyScript() {
@@ -475,10 +485,12 @@ export function findCdpProxyScript() {
   const here = dirname(fileURLToPath(import.meta.url));
 
   const candidates = [
-    // Global skill install (most common)
-    join(home, ".agents", "skills", "web-access", "scripts", "cdp-proxy.mjs"),
+    // Repo-local skill (tracked with the code, carries this repo's proxy fixes)
+    join(here, "..", "..", "..", "skills", "web-access", "scripts", "cdp-proxy.mjs"),
     // Project-local skill (checked out in .cursor/skills/)
     join(here, "..", "..", ".cursor", "skills", "web-access", "scripts", "cdp-proxy.mjs"),
+    // Global skill install (~/.agents/skills) — fallback when the repo has none
+    join(home, ".agents", "skills", "web-access", "scripts", "cdp-proxy.mjs"),
     // Future: project-local copy in lib/
     join(here, "cdp-proxy.mjs"),
   ];

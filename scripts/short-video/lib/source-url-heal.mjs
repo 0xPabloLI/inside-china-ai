@@ -106,9 +106,18 @@ export function detectLoginWall({ finalUrl = "", html = "" } = {}) {
 /** Anti-bot / WAF / rate-limit signatures. A 403 that comes from a WAF says
  * nothing about whether the URL pattern is alive: xinhua's `so.news.cn/getNews`
  * answers a real browser with 200 + JSON and a Node fetch with 403 (openresty),
- * and reddit answers *everything* non-browser with a network-security block. */
+ * and reddit answers *everything* non-browser with a network-security block.
+ *
+ * This list is necessarily incomplete and should be treated as such — it is a
+ * vocabulary of observed interstitials, not a detector. The structural protection
+ * is elsewhere: `resolveHealth()` lets a source that still extracts items win
+ * regardless of what this list missed, so a missing pattern degrades the *label*
+ * rather than the *decision*. Add a pattern when a real page proves it
+ * (36kr, 2026-09-23: Volcengine returns **200** with 正在进行安全检测, which no
+ * status-based rule can see).
+ */
 const BLOCK_PAGE_RE =
-  /403 Forbidden|Access Denied|blocked by network security|安全验证|异常流量|请求过于频繁|访问频率|verify you are human|cf-browser-verification|Just a moment|Attention Required|Enable JavaScript and cookies/i;
+  /403 Forbidden|Access Denied|blocked by network security|安全验证|安全检测|异常流量|请求过于频繁|访问频率|访问过于频繁|verify you are human|Verifying you are human|Checking your browser|cf-browser-verification|Just a moment|Attention Required|Enable JavaScript and cookies/i;
 
 export function detectBlockPage({ status, html = "" } = {}) {
   if (status === 429 || status === 503) return true;
@@ -175,15 +184,29 @@ export function detectZeroResults(text) {
  *   redirected-home        search URL bounced to the site root
  *   redirected-off-site    landed on another host *without* the term
  *   http-dead              404/410/5xx — a real endpoint-death signal
- *   network-error          transport failure
+ *   network-error          transport failure, but the probe reached the host
+ *   probe-no-egress        the probe could not reach that host at all (a bare
+ *                          `<origin>/` failed too) — says nothing about the source
  *   login-wall             the answer depends on cookies, not on the URL
  *   probe-not-authoritative 401/403/405/429 — an edge/WAF/credential answer
  *                          about the *probe*; a real browser may differ
  *
- * The last two are the accuracy fix of 2026-09-22: calling them "dead" is what
- * sent live sources to the repair queue while the actual repair was "look at it
- * from a browser" (#269 Phase 2 methodology step 5).
+ * The last three are the accuracy fixes of 2026-09-22/23: calling them "dead" is
+ * what sent live sources to the repair queue while the actual repair was "look
+ * at it from a browser", or "the probe has no route to this host" (#269 Phase 2
+ * methodology step 5).
  */
+
+/**
+ * The probe could not open a connection to the host at all.
+ *
+ * Kept separate from `probe-not-authoritative` on purpose: that verdict means
+ * *the host answered and the answer was about the probe* (WAF/credential); this
+ * one means **there was no answer**, and the reader's next move differs — check
+ * the proxy/egress, not the headers.
+ */
+export const EGRESS_UNREACHABLE_VERDICT = "probe-no-egress";
+
 export function classifyProbe({
   status,
   finalUrl,
@@ -191,8 +214,19 @@ export function classifyProbe({
   keywordHits = 0,
   requestedUrl = null,
   html = "",
+  controlReachable = null,
 }) {
-  if (status === null) return "network-error";
+  if (status === null) {
+    // A connect-level failure is a fact about the *probe's* route until the probe
+    // shows otherwise. `network-error` is a failure verdict and feeds the
+    // dead-source ledger, so writing a source off on it is a claim the probe
+    // cannot support: on 2026-09-23 four sources came back `UND_ERR_CONNECT_TIMEOUT`
+    // while google.com itself was unreachable from the probe (and `gh` was fine).
+    // `controlReachable === false` = a bare `<origin>/` did not connect either, so
+    // nothing was learned about the source's search endpoint.
+    if (controlReachable === false) return EGRESS_UNREACHABLE_VERDICT;
+    return "network-error";
+  }
   if (status >= 400) {
     // Order matters: status-specific edges are asked about *before* declaring
     // the URL dead, because both answers come back as 4xx.
@@ -240,8 +274,14 @@ export const HEALTHY_VERDICTS = new Set(["alive", "alive-off-site"]);
  * Verdicts where the probe's answer is about the *probe*, not the source.
  * These must not feed the dead-source ledger: #285 already established this for
  * login-gated sources, and the WAF case is the same argument one layer up.
+ * `probe-no-egress` is the third member (2026-09-23): no route to the host is a
+ * statement about the measurement's network path, not about the endpoint.
  */
-export const PROBE_UNAUTHORITATIVE_VERDICTS = new Set(["login-wall", "probe-not-authoritative"]);
+export const PROBE_UNAUTHORITATIVE_VERDICTS = new Set([
+  "login-wall",
+  "probe-not-authoritative",
+  EGRESS_UNREACHABLE_VERDICT,
+]);
 
 /** True when the verdict means the source itself needs repair or quarantine. */
 export function isFailureVerdict(verdict) {
@@ -284,7 +324,46 @@ export const EXTRACTION_EMPTY_LABEL = "url-alive-but-extraction-empty";
 export function needsSearchBoxDrive({ verdict, extracted = null, keyword = null } = {}) {
   if (!keyword) return false;
   if (extracted === 0) return true;
+  // Items in hand end the question. Axis 1/2 verdicts are proxies ("is this URL
+  // a result page?"); extraction is the contract the pipeline actually runs, and
+  // a source that satisfies it has nothing to repair. Measured 2026-09-23,
+  // guancha: axis 2 read `probe-not-authoritative` off a block phrase in the page
+  // text while the source's own script pulled 230 items from the same page —
+  // driving a search box there would have been pure noise.
+  if (extracted !== null && extracted > 0) return false;
   return !HEALTHY_VERDICTS.has(verdict);
+}
+
+/**
+ * Which health label does a (verdict, extraction) pair actually earn?
+ *
+ * Axis 3 outranks axes 1 and 2 when they disagree, and not because extraction is
+ * more precise — because the other two answer a *proxy* question ("does this URL
+ * look like a result page?") while extraction answers the one the pipeline asks.
+ * A block page cannot satisfy a source's extraction contract, so items in hand
+ * are proof that a "blocked" reading was wrong.
+ *
+ * The disagreement is labelled rather than flattened: `extracts-despite-verdict`
+ * keeps it visible that axis 2 said something else, so a reader can go look
+ * instead of trusting a silent override.
+ *
+ * @param {{ verdict: string, extracted?: number|null }} probe
+ * @returns {string}
+ */
+export function resolveHealth({ verdict, extracted = null } = {}) {
+  if (extracted !== null && extracted > 0) {
+    return HEALTHY_VERDICTS.has(verdict) ? "healthy-in-browser" : "extracts-despite-verdict";
+  }
+  if (extracted === 0) {
+    // Healthy URL, nothing extracted — the douyin shape. The fix is not a
+    // different URL for the probe, it is a different URL for the *extraction*.
+    return HEALTHY_VERDICTS.has(verdict) ? EXTRACTION_EMPTY_LABEL : "still-broken";
+  }
+  // Not measured: fall back to what the browser said. `probe-not-authoritative`
+  // means the block is real and no rewrite of the URL will help (reddit).
+  if (HEALTHY_VERDICTS.has(verdict)) return "healthy-in-browser";
+  if (PROBE_UNAUTHORITATIVE_VERDICTS.has(verdict)) return "blocked-in-browser-too";
+  return "still-broken";
 }
 
 /**
@@ -636,7 +715,7 @@ export function buildSnapshotScript(keyword = "") {
     sampleTitles: links.slice(0, 40).map(function (a) { return a.innerText.trim(); })
       .filter(function (t) { return t.length > 7; }).slice(0, 5),
     loginHint: /登录以查看搜索结果|请先登录|登录后查看|需要登录后|Sign in to (?:continue|view)|You must be logged in/i.test(text),
-    blockHint: /安全验证|异常流量|请求过于频繁|访问频率|verify you are human|Access Denied|blocked by network security/i.test(text),
+    blockHint: /安全验证|安全检测|异常流量|请求过于频繁|访问频率|访问过于频繁|verify you are human|Verifying you are human|Checking your browser|Access Denied|blocked by network security/i.test(text),
     bodyHead: text.slice(0, 160).replace(/\\s+/g, ' ')
   };
 })())`;
@@ -653,7 +732,7 @@ export function buildSnapshotScript(keyword = "") {
  * Returns `null` when the landed page cannot carry the term (site root, login
  * page, or a search that navigated nowhere).
  */
-export function templateFromLandedUrl(landedUrl, keyword) {
+export function templateFromLandedUrl(landedUrl, keyword, { dropVolatile = true } = {}) {
   if (!landedUrl || !keyword) return null;
   let u;
   try {
@@ -666,6 +745,9 @@ export function templateFromLandedUrl(landedUrl, keyword) {
     (f, i, a) => a.indexOf(f) === i,
   );
   const hash = u.hash || "";
+  const { search: stableSearch, dropped } = dropVolatile
+    ? stripVolatileParams(u.search)
+    : { search: u.search, dropped: [] };
   for (const f of forms) {
     if (u.search.includes(f)) {
       const param =
@@ -673,28 +755,178 @@ export function templateFromLandedUrl(landedUrl, keyword) {
           const v = u.searchParams.get(k) || "";
           return v.includes(f) || v === keyword;
         }) ?? null;
+      // The keyword pair is never volatile, but a site could name it something
+      // that trips the name heuristic; if stripping lost the term, the stripped
+      // form is not a template at all. Fall back rather than emit a URL with no
+      // keyword in it.
+      const keptSearch = stableSearch.includes(f) ? stableSearch : u.search;
       return {
-        template: u.origin + u.pathname + u.search.replace(f, "{kw}") + hash,
+        template: u.origin + u.pathname + keptSearch.replace(f, "{kw}") + hash,
+        templateVerbatim: u.origin + u.pathname + u.search.replace(f, "{kw}") + hash,
         param,
         shape: "query",
+        droppedParams: keptSearch === u.search ? [] : dropped,
       };
     }
     if (hash.includes(f)) {
       return {
-        template: u.origin + u.pathname + u.search + hash.replace(f, "{kw}"),
+        template: u.origin + u.pathname + stableSearch + hash.replace(f, "{kw}"),
+        templateVerbatim: u.origin + u.pathname + u.search + hash.replace(f, "{kw}"),
         param: null,
         shape: "hash",
+        droppedParams: dropped,
       };
     }
     if (u.pathname.includes(f)) {
       return {
-        template: u.origin + u.pathname.replace(f, "{kw}") + u.search + hash,
+        template: u.origin + u.pathname.replace(f, "{kw}") + stableSearch + hash,
+        templateVerbatim: u.origin + u.pathname.replace(f, "{kw}") + u.search + hash,
         param: null,
         shape: "path",
+        droppedParams: dropped,
       };
     }
   }
   return null;
+}
+
+/**
+ * Params that must not be frozen into a registry template.
+ *
+ * Driving the search box hands back the address bar **verbatim**, and the address
+ * bar carries session furniture. Measured 2026-09-23, douyin's own landing page:
+ *
+ *     /jingxuan/search/人工智能?aid=e5019d6d-8cc1-4251-b58f-176f8eb02438&type=general
+ *
+ * `aid` is regenerated per visit; `type=general` is what decides which tab
+ * renders. Freezing the whole string into `url: (keyword) => …` would ship a
+ * template that was true for one second, and the very next run would look like a
+ * fresh break — the repair would have to be redone, and the ledger would blame
+ * the source.
+ *
+ * Two independent signals, because either alone is wrong:
+ *   · **name** — the param announces itself as an identifier for *this*
+ *     client/session (`aid`, `spm`, `uuid`, `_t`, …);
+ *   · **shape** — the value is a generated token (uuid, long hex, long
+ *     opaque string) whatever it is called.
+ * A param that merely looks functional (`type=video`, `v=2`, `page=3`) trips
+ * neither. Neither signal is a proof, so the derived template is **always**
+ * verified by re-running the source's own `articleScript` before it is usable —
+ * that check, not this heuristic, is what makes the repair safe.
+ */
+export const VOLATILE_PARAM_NAMES = new Set([
+  "aid",
+  "sid",
+  "sessionid",
+  "session_id",
+  "traceid",
+  "trace_id",
+  "requestid",
+  "request_id",
+  "reqid",
+  "spm",
+  "from_spmid",
+  "uuid",
+  "guid",
+  "nonce",
+  "ts",
+  "timestamp",
+  "_ts",
+  "t",
+  "_",
+  "cb",
+  "callback",
+  "token",
+  "csrf",
+  "csrf_token",
+  "xsrf",
+  "rand",
+  "random",
+  "r",
+  "_r",
+  "scm",
+  "buvid",
+  "msource",
+  "ttwid",
+  "referer",
+  "ref",
+]);
+
+const UUID_VALUE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LONG_HEX_VALUE_RE = /^[0-9a-f]{16,}$/i;
+const LONG_OPAQUE_VALUE_RE = /^[A-Za-z0-9_-]{24,}$/;
+
+/**
+ * True when a query param looks like session furniture rather than page state.
+ * `null`/empty values are kept: an empty param is usually a real switch
+ * (`?tab=`), and dropping it changes the page.
+ *
+ * @param {string} name
+ * @param {string} value
+ * @returns {boolean}
+ */
+export function isVolatileParam(name, value) {
+  if (VOLATILE_PARAM_NAMES.has(String(name).toLowerCase())) return true;
+  const v = String(value ?? "");
+  if (!v) return false;
+  return UUID_VALUE_RE.test(v) || LONG_HEX_VALUE_RE.test(v) || LONG_OPAQUE_VALUE_RE.test(v);
+}
+
+/**
+ * Remove volatile pairs from a raw query string.
+ *
+ * Works on the **raw** `k=v` pairs rather than round-tripping through
+ * `URLSearchParams`: re-serializing would re-encode every value (a `+` becomes
+ * `%20`, a nested `%2F` becomes `%2F` again) and change parts of the URL that
+ * had nothing to do with volatility.
+ *
+ * @param {string} search - raw search string, with or without the leading `?`
+ * @returns {{search: string, dropped: string[]}}
+ */
+export function stripVolatileParams(search) {
+  const raw = String(search || "").replace(/^\?/, "");
+  if (!raw) return { search: "", dropped: [] };
+  const kept = [];
+  const dropped = [];
+  for (const pair of raw.split("&")) {
+    if (!pair) continue;
+    const eq = pair.indexOf("=");
+    const rawKey = eq >= 0 ? pair.slice(0, eq) : pair;
+    const rawVal = eq >= 0 ? pair.slice(eq + 1) : "";
+    let key = rawKey;
+    let val = rawVal;
+    try {
+      key = decodeURIComponent(rawKey.replace(/\+/g, " "));
+    } catch {
+      /* keep the raw form when it is not valid percent-encoding */
+    }
+    try {
+      val = decodeURIComponent(rawVal.replace(/\+/g, " "));
+    } catch {
+      /* same */
+    }
+    if (isVolatileParam(key, val)) dropped.push(key);
+    else kept.push(pair);
+  }
+  return { search: kept.length > 0 ? `?${kept.join("&")}` : "", dropped };
+}
+
+/**
+ * Render a recovered template as the registry line a repair should paste.
+ *
+ * The repair used to end at a JSON blob, which left the last mile — turning
+ * `…/{kw}?type=video` into `url: (keyword) => \`…\`` — to whoever read it. That
+ * mile is exactly where a hand-typed template loses the one param that mattered
+ * (douyin's `?type=video`). Emitting the literal line removes the transcription
+ * step entirely.
+ *
+ * @param {string} template - template with a `{kw}` placeholder
+ * @returns {string|null}
+ */
+export function registryUrlLine(template) {
+  if (!template || !template.includes("{kw}")) return null;
+  const literal = template.replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
+  return `url: (keyword) => \`${literal.replace("{kw}", "${encodeURIComponent(keyword)}")}\`,`;
 }
 
 /**

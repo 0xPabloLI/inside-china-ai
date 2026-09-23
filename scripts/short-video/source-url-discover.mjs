@@ -47,15 +47,22 @@ import {
   classifyProbe,
   countKeywordHits,
   EXTRACTION_EMPTY_LABEL,
-  HEALTHY_VERDICTS,
   homeCandidates,
   loginRedirectTarget,
   needsCdpSecondOpinion,
   needsSearchBoxDrive,
-  PROBE_UNAUTHORITATIVE_VERDICTS,
+  registryUrlLine,
+  resolveHealth,
   templateFromLandedUrl,
 } from "./lib/source-url-heal.mjs";
-import { cdpCloseTab, cdpEval, cdpNewTab, waitForPageLoad } from "./lib/cdp-client.mjs";
+import {
+  cdpCloseTab,
+  cdpEval,
+  cdpNewTab,
+  waitForPageLoad,
+  ensureCdpProxy,
+} from "./lib/cdp-client.mjs";
+import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import { keywordForSource, selectSweepTargets } from "./source-url-sweep.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -296,6 +303,8 @@ async function discoverViaSearchBox(homeUrls, keyword) {
           homeUrl,
           rank,
           template: tpl.template,
+          templateVerbatim: tpl.templateVerbatim ?? tpl.template,
+          templateDropped: tpl.droppedParams ?? [],
           templateShape: tpl.shape,
           templateParam: tpl.param,
           boxShape: attempt.boxShape,
@@ -316,6 +325,8 @@ async function discoverViaSearchBox(homeUrls, keyword) {
           homeUrl,
           rank,
           gatedTemplate: gated.template,
+          gatedTemplateVerbatim: gated.templateVerbatim ?? gated.template,
+          gatedTemplateDropped: gated.droppedParams ?? [],
           gatedBy: "login-redirect",
           boxShape: attempt.boxShape,
           via: attempt.via,
@@ -345,9 +356,9 @@ async function discoverSource(source, { zhKeyword, enKeyword }) {
   const snapA = await browse(probedUrl, keyword, source);
   const verdictA = verdictFromSnapshot(snapA, { homeUrl, requestedUrl: probedUrl, keyword });
   // Axis 3. `null` = not measured (no articleScript / the script threw); `0` =
-  // measured and empty. Only the latter is evidence of a dead source.
+  // measured and empty. Only the latter is evidence of a dead source, and any
+  // count above zero is evidence the source works whatever the other axes said.
   const extractedA = snapA?.extraction?.count ?? null;
-  const extractionEmpty = extractedA === 0;
 
   const row = {
     name: source.name,
@@ -372,13 +383,11 @@ async function discoverSource(source, { zhKeyword, enKeyword }) {
     // A healthy URL that extracts nothing gets its own label (douyin): the fix
     // is not a different URL for the probe, it is a different URL for the
     // *extraction*, and only the browser can tell the two apart.
-    resolvesTo: HEALTHY_VERDICTS.has(verdictA)
-      ? extractionEmpty
-        ? EXTRACTION_EMPTY_LABEL
-        : "healthy-in-browser"
-      : PROBE_UNAUTHORITATIVE_VERDICTS.has(verdictA)
-        ? "blocked-in-browser-too"
-        : "still-broken",
+    // Axis 3 outranks axes 1 and 2 when they disagree — see `resolveHealth()`.
+    // `probe-not-authoritative` + 230 items (guancha) and `alive` + 0 items
+    // (douyin) are the two mirror-image cases that made this a shared rule
+    // instead of two ad-hoc comparisons.
+    resolvesTo: resolveHealth({ verdict: verdictA, extracted: extractedA }),
   };
 
   // Step 5 of the methodology: drive the site's own search UI when a keyword is
@@ -388,29 +397,60 @@ async function discoverSource(source, { zhKeyword, enKeyword }) {
     row.searchBox = await discoverViaSearchBox(homeCandidates(probedUrl), keyword);
     const proposed = row.searchBox.template ?? row.searchBox.gatedTemplate ?? null;
     if (proposed) {
-      const verifyUrl = proposed.replace("{kw}", encodeURIComponent(keyword));
-      const snapC = await browse(verifyUrl, keyword, source);
-      const verdictC = verdictFromSnapshot(snapC, { homeUrl, requestedUrl: verifyUrl, keyword });
-      const extractedC = snapC?.extraction?.count ?? null;
+      // The driven URL carries session furniture with it (douyin's own landing
+      // page appends `aid=<uuid>`, regenerated per visit), so the template that
+      // came back from `templateFromLandedUrl` has already had those pairs
+      // stripped. Verify the stripped form first — it is the only one that can be
+      // committed — and fall back to the verbatim form when stripping removed
+      // something the page actually needed. Which one wins is decided by the
+      // source's own `articleScript`, not by the heuristic.
+      const verbatim = row.searchBox.templateVerbatim ?? null;
+      const variants = [...new Set([proposed, verbatim].filter((t) => t && t.includes("{kw}")))];
+      let chosen = null;
+      for (const tpl of variants) {
+        const verifyUrl = tpl.replace("{kw}", encodeURIComponent(keyword));
+        const snapC = await browse(verifyUrl, keyword, source);
+        const verdictC = verdictFromSnapshot(snapC, { homeUrl, requestedUrl: verifyUrl, keyword });
+        const extractedC = snapC?.extraction?.count ?? null;
+        const attempt = {
+          template: tpl,
+          verifyUrl,
+          verdict: verdictC,
+          extracted: extractedC,
+          snapshot: snapC,
+          // A template that reproduces the site's own result page **and extracts
+          // items** is the fix. A page that renders but yields nothing is not a
+          // fix at all — it is the douyin shape, where the URL was never the
+          // problem. Landing on a login wall stays a finding about the site.
+          // Items in hand is the whole test. It used to also require the browser
+          // verdict to be healthy, which rejected working replacements whenever
+          // axis 2 misread a block phrase (guancha). A block page cannot satisfy
+          // a source's extraction contract, so this is the stronger evidence.
+          usable: extractedC !== null && extractedC > 0,
+        };
+        if (!chosen) chosen = attempt;
+        if (attempt.usable) {
+          chosen = attempt;
+          break;
+        }
+      }
+      const usedStripped = chosen.template === proposed && verbatim !== proposed;
       row.candidate = {
-        template: proposed,
+        ...chosen,
         shape: row.searchBox.templateShape ?? row.searchBox.gatedBy ?? null,
         recoveredFrom: row.searchBox.template ? "search-box" : row.searchBox.gatedBy,
-        verifyUrl,
-        verdict: verdictC,
-        extracted: extractedC,
-        snapshot: snapC,
-        // A template that reproduces the site's own result page **and extracts
-        // items** is the fix. A page that renders but yields nothing is not a
-        // fix at all — it is the douyin shape, where the URL was never the
-        // problem. Landing on a login wall stays a finding about the site.
-        usable: HEALTHY_VERDICTS.has(verdictC) && extractedC !== 0,
+        // What the repair removed, and whether the kept form is the stripped one.
+        droppedParams: usedStripped ? (row.searchBox.templateDropped ?? []) : [],
+        variant: usedStripped ? "volatile-stripped" : "as-landed",
+        // The literal registry line for a usable candidate — the repair ends at a
+        // paste, not at a JSON blob. See `registryUrlLine()`.
+        registryLine: registryUrlLine(chosen.template),
       };
       // Distinguish "we found the right URL and it is gated" from "we found
       // nothing" — they call for different follow-ups (needsAuth vs quarantine).
-      if (!row.candidate.usable && verdictC === "login-wall") {
+      if (!row.candidate.usable && chosen.verdict === "login-wall") {
         row.resolvesTo = "url-recovered-but-login-gated";
-      } else if (!row.candidate.usable && extractedC === 0) {
+      } else if (!row.candidate.usable && chosen.extracted === 0) {
         row.resolvesTo = EXTRACTION_EMPTY_LABEL;
       }
     }
@@ -453,6 +493,21 @@ async function main() {
   // the worktree has no .env.local of its own, hence `--env`.
   loadEnv(getArg("env") || undefined);
 
+  // The repair tool drives a real browser, so it owns the same Step 0.1 + 0.2
+  // ladder the pipeline uses — and for the same reason: it used to assume a
+  // proxy was already up, so a standalone repair run either failed obscurely or
+  // attached to whichever Chrome the proxy's port discovery found. Reading the
+  // wrong profile does not error; it just reports believable wrong answers,
+  // which is the worst possible failure mode for the tool that decides what the
+  // registry should say.
+  await ensureCdpProfileGuard();
+  if (!(await ensureCdpProxy())) {
+    console.error(
+      "❌ CDP proxy unavailable — repair cannot drive the search box. See the runbook.",
+    );
+    process.exit(1);
+  }
+
   const zhKeyword = getArg("keyword-zh") || "人工智能";
   const enKeyword = getArg("keyword-en") || "AI";
   const targets = resolveTargets({
@@ -473,7 +528,8 @@ async function main() {
       `· ${row.name.padEnd(22)} http->${String(row.cdp.snapshot?.status ?? "err").padEnd(4)} ` +
         `${row.cdp.verdict.padEnd(24)} extract=${String(row.extraction?.configured ?? "n/a").padEnd(4)} ` +
         `${row.resolvesTo.padEnd(31)} ` +
-        `${row.candidate ? (row.candidate.usable ? "candidate ✓ " + row.candidate.template : "candidate ✗") : ""}\n`,
+        `${row.candidate ? (row.candidate.usable ? "candidate ✓ " + row.candidate.template : "candidate ✗") : ""}` +
+        `${row.candidate?.droppedParams?.length ? ` [dropped ${row.candidate.droppedParams.join(",")}]` : ""}\n`,
     );
     // The DevTools WS layer goes stale under back-to-back navigation storms
     // (see the runbook's cold-down note) — pace the batch.
@@ -484,6 +540,21 @@ async function main() {
     generatedAt: new Date().toISOString(),
     keyword: { zh: zhKeyword, en: enKeyword },
     targetCount: targets.length,
+    // Machine-readable half of the repair: one entry per source whose recovered
+    // URL actually extracts, carrying the literal registry line. A repair run is
+    // supposed to end at an edit, so the artifact that ends it is in the report.
+    registryPatches: rows
+      .filter((r) => r.candidate?.usable && r.candidate.registryLine)
+      .map((r) => ({
+        source: r.name,
+        configuredUrl: r.configuredUrl,
+        template: r.candidate.template,
+        registryLine: r.candidate.registryLine,
+        variant: r.candidate.variant,
+        droppedParams: r.candidate.droppedParams ?? [],
+        shape: r.candidate.shape,
+        verified: { verdict: r.candidate.verdict, extracted: r.candidate.extracted },
+      })),
     rows,
   };
   const outArg = getArg("out");
@@ -529,6 +600,33 @@ async function main() {
   console.log("\nHow to read the `extract` column: `/` = the configured URL, measured by");
   console.log("running this source's own articleScript in the page. `n/a` = not measured");
   console.log("(no script / it threw) — not the same as `0` = measured and empty.");
+
+  // The last mile of the repair: recovered URL → registry line. Printed as a
+  // paste-ready block because the hand-typed version of this step is where the
+  // param that mattered gets lost (`?type=video`).
+  const fixable = report.registryPatches;
+  if (fixable.length > 0) {
+    console.log(
+      `\n## Registry patch — ${fixable.length} source(s) with a verified replacement URL`,
+    );
+    console.log("Verified = the recovered URL renders the site's own result page **and** this");
+    console.log("source's articleScript extracts ≥1 item from it. Replace the matching `url:` in");
+    console.log("scripts/short-video/lib/source-registry.mjs.\n");
+    for (const p of fixable) {
+      const notes = [`variant: ${p.variant}`];
+      if (p.droppedParams.length > 0) notes.push(`dropped volatile: ${p.droppedParams.join(", ")}`);
+      console.log(`### ${p.source}  (${notes.join("; ")})`);
+      console.log("```js");
+      console.log(p.registryLine);
+      console.log("```");
+      console.log(`was: \`${truncate(p.configuredUrl, 110)}\``);
+      console.log(`now: \`${p.template}\` → extract ${p.verified.extracted}\n`);
+    }
+  } else {
+    console.log("\n## Registry patch — none: no source produced a URL that both resolves");
+    console.log("   and extracts. Nothing to paste; see the `resolves to` column above.");
+  }
+
   console.log("\nSample of what the browser actually saw (first 3):");
   for (const r of rows.slice(0, 3)) {
     console.log(`· ${r.name}: ${truncate(r.cdp.snapshot?.bodyHead ?? "(no snapshot)", 150)}`);

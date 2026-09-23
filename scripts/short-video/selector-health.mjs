@@ -19,15 +19,28 @@
  * usual login states; per-domain pacing comes from the #89 P0 rate limiter.
  * `--env` points at the main checkout's .env.local (a worktree has none of its
  * own) so keyed api sources are probed with credentials, not without.
+ * CDP is only touched when the selected set actually contains a CDP source
+ * (api-only runs never open a browser) and it goes through Step 0.1's
+ * automation-profile guard first.
  */
 
 import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
-import { ALL_SOURCES, missingApiKey, resolveApiHeaders } from "./lib/source-registry.mjs";
-import { classifyProbe, isFailureVerdict } from "./lib/source-url-heal.mjs";
+import {
+  ALL_SOURCES,
+  missingApiKey,
+  resolveApiHeaders,
+  keyReadiness,
+} from "./lib/source-registry.mjs";
+import {
+  classifyProbe,
+  EGRESS_UNREACHABLE_VERDICT,
+  isFailureVerdict,
+} from "./lib/source-url-heal.mjs";
 import { loadEnv } from "./lib/load-env.mjs";
+import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import {
   cdpNewTab,
   cdpCloseTab,
@@ -73,6 +86,11 @@ export function keywordForSource(source, zhKeyword, enKeyword) {
  * `http_401`/`http_400` failure. Missing keys are now decided before the
  * request and 4xx answers go through the shared probe classifier.
  *
+ * A connect-level failure is checked the same way axis 1 checks it: before the
+ * row can read `network-error` (a failure verdict), the source's own origin is
+ * requested bare. No route to the origin means `probe-no-egress` — the same
+ * `ECONNRESET`-while-google-is-unreachable shape measured on 2026-09-23.
+ *
  * Exported so the credential path can be exercised without a CDP proxy.
  */
 export async function checkApiSource(source, keyword) {
@@ -90,8 +108,8 @@ export async function checkApiSource(source, keyword) {
       durationMs: Date.now() - started,
     };
   }
+  const url = api.url(keyword);
   try {
-    const url = api.url(keyword);
     const resp = await fetch(url, {
       headers: resolveApiHeaders(api),
       signal: AbortSignal.timeout(15000),
@@ -119,10 +137,32 @@ export async function checkApiSource(source, keyword) {
       source: source.name,
       ok: false,
       count: 0,
-      reason: "network-error",
+      reason: (await originReachable(url)) ? "network-error" : EGRESS_UNREACHABLE_VERDICT,
       error: e.message,
       durationMs: Date.now() - started,
     };
+  }
+}
+
+/**
+ * Can this process open a connection to the URL's origin at all?
+ *
+ * The control for a connect-level failure: bare `<origin>/`, no credentials, no
+ * keyword, short budget. **Any** HTTP answer proves a route exists — a 403 is
+ * still an answer, and the caller's question is whether there is a route, not
+ * whether the endpoint likes us. Only a thrown fetch means "no route", and that
+ * is what turns a row into `probe-no-egress` instead of `network-error`.
+ *
+ * @param {string} url
+ * @returns {Promise<boolean>}
+ */
+async function originReachable(url) {
+  try {
+    const origin = new URL(url).origin;
+    await fetch(`${origin}/`, { signal: AbortSignal.timeout(8000) });
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -158,11 +198,13 @@ export function apiFailureVerdict({ status, body = "", cap = {} } = {}) {
  *
  *   "none"   — the row produced items.
  *   "source" — the verdict is about the source: `zero_results` (selector rot),
- *              `http-dead`, `network-error` — this is what the repair runbook is for.
+ *              `http-dead`, `network-error` (the host answered nothing but was
+ *              reachable) — this is what the repair runbook is for.
  *   "probe"  — the verdict is about the probe: `anti_bot:*` and `need_login`
  *              depend on the browser session, and `login-wall` /
- *              `probe-not-authoritative` are the shared vocabulary's
- *              "the answer is about the probe" class. Quarantine, do not repair.
+ *              `probe-not-authoritative` / `probe-no-egress` are the shared
+ *              vocabulary's "the answer is about the probe" class. Quarantine,
+ *              do not repair.
  *
  * @param {{ ok: boolean, reason?: string|null }} result
  * @returns {"none"|"source"|"probe"}
@@ -275,7 +317,6 @@ async function main() {
   // 200/alive. `--env <path>` exists because a git worktree has no .env.local
   // of its own (gitignored, lives in the main checkout).
   loadEnv(getArg("env") || undefined);
-  await ensureCdpProxy();
   const keyword = getArg("keyword") || "AI大模型";
   const only = getArg("only");
   let sources = selectCheckableSources();
@@ -284,10 +325,54 @@ async function main() {
     sources = sources.filter((s) => wanted.has(s.name));
   }
 
+  // ── 凭据前置检查（修复方法的一步，且必须在任何探针之前）──────────────
+  // keyed 源缺凭据时，服务端回来的是「没有 key」而不是「端点错了」，两者在状态码
+  // 上无法区分——这就是 2026-09-23 之前 gnews/currents 被记成 http_400/http_401
+  // 死源的原因。先声明「谁需要什么、在不在」，后面每一条红才读得懂。
+  const keyReport = keyReadiness();
+  if (hasFlag("keys")) {
+    console.log("🔑 Credential readiness — registry-declared keys only");
+    console.log("─".repeat(72));
+    for (const e of keyReport.entries) {
+      console.log(
+        `  ${e.present ? "✅" : "❌"} ${e.source.padEnd(20)} ${e.channel.padEnd(9)} ${e.env}`,
+      );
+    }
+    console.log("─".repeat(72));
+    console.log(
+      `  ${keyReport.present}/${keyReport.required} present` +
+        (keyReport.ready ? "" : ` — MISSING: ${keyReport.missing.join(", ")}`),
+    );
+    return;
+  }
+  const keyedInPlay = keyReport.entries.filter((e) => sources.some((s) => s.name === e.source));
+  const keyedMissing = keyedInPlay.filter((e) => !e.present);
+
+  // CDP 只在**真要测 CDP 源**时才碰。
+  //
+  // 这里原来是无条件 `ensureCdpProxy()`：于是一次纯 api 运行（`--only gnews,currents`）
+  // 也会去连一个浏览器，而代理选哪个 Chrome 不由调用方决定（按 DevToolsActivePort
+  // 探测，日常 Chrome 常常先被找到）。2026-09-23 实测误连到 9222（用户日常 Chrome）。
+  // 同一个洞还有第二个：`ensureCdpProxy()` 不含 Step 0.1 的 profile 守卫——那是
+  // `cdp-preflight.mjs` 里 main.mjs 的私有步骤，旁路入口全都跳过了。两个一起补。
+  const cdpSources = sources.filter((s) => s.accessMethod?.primary !== "api");
+  if (cdpSources.length > 0) {
+    await ensureCdpProfileGuard();
+    await ensureCdpProxy();
+  }
+
   const keywords = { zh: keyword, en: getArg("en-keyword") || "artificial intelligence" };
   console.log(
     `🔍 Selector health — ${sources.length} CDP sources (zh: "${keywords.zh}" / en: "${keywords.en}")`,
   );
+  if (keyedInPlay.length > 0) {
+    console.log(
+      `  🔑 credentials: ${keyedInPlay.length - keyedMissing.length}/${keyedInPlay.length} present` +
+        (keyedMissing.length > 0
+          ? ` — missing ${[...new Set(keyedMissing.map((e) => e.env))].join(", ")} (those will read as probe-not-authoritative, not as dead sources)`
+          : ""),
+    );
+  }
   console.log("─".repeat(60));
 
   const results = [];
@@ -332,6 +417,12 @@ async function main() {
           checkedAt: new Date().toISOString(),
           keyword,
           envLoaded: true,
+          credentials: {
+            required: keyReport.required,
+            present: keyReport.present,
+            missing: keyReport.missing,
+            entries: keyReport.entries,
+          },
           summary: byClass,
           results: results.map((r) => ({ ...r, failureClass: failureClass(r) })),
         },

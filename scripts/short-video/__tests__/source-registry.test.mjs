@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
   NEWS_SOURCES,
   SELF_MEDIA_SOURCES,
@@ -16,6 +16,7 @@ import {
   AUTOGEN_EXCLUDED_SOURCES,
   resolveApiHeaders,
   missingApiKey,
+  keyReadiness,
 } from "../lib/source-registry.mjs";
 import { isPoolEligible } from "../lib/search-pool.mjs";
 
@@ -1831,5 +1832,76 @@ describe("missingApiKey — 缺哪个 key 是可机读的事实", () => {
     } finally {
       delete process.env.GITHUB_TOKEN;
     }
+  });
+});
+
+// ─── keyReadiness (#269 — 凭据前置检查) ───
+
+describe("keyReadiness", () => {
+  const KEYED = "TEST_KEY_READINESS_VAR";
+
+  afterEach(() => {
+    delete process.env[KEYED];
+  });
+
+  it("counts a declared key as missing until its env var exists", () => {
+    const fake = [
+      {
+        name: "fake_keyed",
+        capabilities: { articles: { requiresApiKey: true, apiKeyEnv: KEYED } },
+      },
+    ];
+    delete process.env[KEYED];
+    expect(keyReadiness(fake)).toMatchObject({
+      required: 1,
+      present: 0,
+      ready: false,
+      missing: [KEYED],
+    });
+
+    process.env[KEYED] = "set";
+    expect(keyReadiness(fake)).toMatchObject({
+      required: 1,
+      present: 1,
+      ready: true,
+      missing: [],
+    });
+  });
+
+  it("ignores an optional key — GITHUB_TOKEN raises a rate limit, it is not required", () => {
+    const fake = [
+      {
+        name: "github_search",
+        capabilities: { articles: { requiresApiKey: false, apiKeyEnv: "GITHUB_TOKEN" } },
+      },
+    ];
+    expect(keyReadiness(fake)).toMatchObject({ required: 0, ready: true });
+  });
+
+  it("cannot disagree with missingApiKey() about which source needs what", () => {
+    // Both read capabilities.{articles,images}.{requiresApiKey,apiKeyEnv} — the
+    // seam exists so a run cannot report "key missing" from one and "endpoint
+    // dead" from the other.
+    const cap = { requiresApiKey: true, apiKeyEnv: KEYED };
+    delete process.env[KEYED];
+    expect(missingApiKey(cap)).toBe(KEYED);
+    expect(keyReadiness([{ name: "s", capabilities: { articles: cap } }]).missing).toEqual([KEYED]);
+  });
+
+  it("walks every capability channel, not just articles", () => {
+    // Gallery credentials live under `images`, stock video under `videos`
+    // (coverr) — a check that skipped a channel would recreate the blind spot it
+    // exists to remove.
+    const r = keyReadiness();
+    expect(r.entries.some((e) => e.channel === "images")).toBe(true);
+    expect(r.entries.some((e) => e.channel === "videos")).toBe(true);
+  });
+
+  it("reports the real registry: every keyed source names exactly one env var", () => {
+    const r = keyReadiness();
+    expect(r.required).toBe(r.entries.length);
+    for (const e of r.entries) expect(e.env).toMatch(/^[A-Z_0-9]+$/);
+    expect(r.entries.map((e) => e.source)).toContain("gnews");
+    expect(r.entries.map((e) => e.source)).toContain("currents");
   });
 });

@@ -19,9 +19,11 @@ import {
   detectLoginWall,
   detectZeroResults,
   EXTRACTION_EMPTY_LABEL,
+  EGRESS_UNREACHABLE_VERDICT,
   HEALTHY_VERDICTS,
   homeCandidates,
   isFailureVerdict,
+  isVolatileParam,
   loginRedirectTarget,
   looksLikeResults,
   needsCdpSecondOpinion,
@@ -29,6 +31,9 @@ import {
   PROBE_UNAUTHORITATIVE_VERDICTS,
   buildFindSearchBoxScript,
   buildSubmitSearchScript,
+  registryUrlLine,
+  resolveHealth,
+  stripVolatileParams,
   templateFromLandedUrl,
   extractSearchForms,
   extractSearchLinks,
@@ -544,5 +549,217 @@ describe("needsSearchBoxDrive — the third axis", () => {
   it("names the third-axis label distinctly from the other outcomes", () => {
     expect(EXTRACTION_EMPTY_LABEL).toBe("url-alive-but-extraction-empty");
     expect(HEALTHY_VERDICTS.has(EXTRACTION_EMPTY_LABEL)).toBe(false);
+  });
+});
+
+describe("volatile params — driven URL → committable template (#269)", () => {
+  it("drops douyin's per-visit `aid` and keeps the param that decides the tab", () => {
+    // Measured 2026-09-23: the search box lands on
+    //   /jingxuan/search/{kw}?aid=<uuid>&type=general
+    // `aid` is regenerated on every visit; `type` is what selects the tab.
+    // Freezing the address bar verbatim would ship a template that was true for
+    // one second, and the next run would look like a fresh break.
+    const tpl = templateFromLandedUrl(
+      "https://www.douyin.com/jingxuan/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD" +
+        "?aid=e5019d6d-8cc1-4251-b58f-176f8eb02438&type=general",
+      "人工智能",
+    );
+    expect(tpl.shape).toBe("path");
+    expect(tpl.droppedParams).toContain("aid");
+    expect(tpl.template).toContain("{kw}");
+    expect(tpl.template).not.toContain("aid");
+    expect(tpl.template).toContain("type=general");
+    // The verbatim form survives as the fallback the caller verifies second.
+    expect(tpl.templateVerbatim).toContain("aid=e5019d6d");
+  });
+
+  it("never drops a param that looks like page state", () => {
+    expect(isVolatileParam("type", "video")).toBe(false);
+    expect(isVolatileParam("page", "3")).toBe(false);
+    expect(isVolatileParam("v", "2")).toBe(false);
+    // An empty param is usually a real switch (?tab=); dropping it changes the
+    // page, so the name alone must not decide.
+    expect(isVolatileParam("tab", "")).toBe(false);
+  });
+
+  it("drops by name and by value shape, independently", () => {
+    expect(isVolatileParam("aid", "abc")).toBe(true); // name
+    expect(isVolatileParam("uid", "e5019d6d-8cc1-4251-b58f-176f8eb02438")).toBe(true); // uuid
+    expect(isVolatileParam("uid", "9f3ac41b7e52d8a06c1f")).toBe(true); // long hex
+    expect(isVolatileParam("uid", "AbCdEf0123456789AbCdEf01")).toBe(true); // long opaque
+    expect(isVolatileParam("uid", "42")).toBe(false);
+  });
+
+  it("strips without re-encoding the pairs it keeps", () => {
+    // Round-tripping through URLSearchParams would turn `+` into `%20` and
+    // re-encode nested values — changing parts of the URL that had nothing to
+    // do with volatility.
+    expect(stripVolatileParams("?q=%E4%BA%BA%E5%B7%A5&aid=x&b=2")).toEqual({
+      search: "?q=%E4%BA%BA%E5%B7%A5&b=2",
+      dropped: ["aid"],
+    });
+    expect(stripVolatileParams("?a=1+2&cb=0.5")).toEqual({ search: "?a=1+2", dropped: ["cb"] });
+    expect(stripVolatileParams("")).toEqual({ search: "", dropped: [] });
+    expect(stripVolatileParams("?aid=x")).toEqual({ search: "", dropped: ["aid"] });
+  });
+
+  it("keeps the keyword pair even if the site names it something volatile-looking", () => {
+    // Stripping must never produce a template with no keyword in it — if the
+    // term lived in a pair the heuristic removed, the verbatim form is the only
+    // honest answer.
+    const tpl = templateFromLandedUrl("https://x.com/s?ts=AI", "AI");
+    expect(tpl.template).toBe("https://x.com/s?ts={kw}");
+    expect(tpl.droppedParams).toEqual([]);
+  });
+
+  it("can be asked for the verbatim template on purpose", () => {
+    const tpl = templateFromLandedUrl(
+      "https://x.com/s?kw=AI&aid=e5019d6d-8cc1-4251-b58f-176f8eb02438",
+      "AI",
+      { dropVolatile: false },
+    );
+    expect(tpl.droppedParams).toEqual([]);
+    expect(tpl.template).toContain("aid=");
+  });
+});
+
+describe("registryUrlLine — the repair's last mile", () => {
+  it("renders the literal registry line, keyword encoded at call time", () => {
+    const line = registryUrlLine("https://www.douyin.com/search/{kw}?type=video");
+    expect(line).toBe(
+      "url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}?type=video`,",
+    );
+  });
+
+  it("refuses a template with no placeholder rather than emitting a fixed URL", () => {
+    expect(registryUrlLine("https://x.com/search")).toBe(null);
+    expect(registryUrlLine(null)).toBe(null);
+  });
+
+  it("escapes a backtick or interpolation opener in the recovered path (it becomes source code)", () => {
+    const line = registryUrlLine("https://x.com/`a/${b}/{kw}");
+    expect(line).toContain("\\`");
+    expect(line).toContain("\\${b}");
+    expect(line).toContain("${encodeURIComponent(keyword)}");
+  });
+});
+
+describe("probe-no-egress — a connect failure is not a dead source", () => {
+  const base = {
+    finalUrl: "https://example.com/search?q=AI",
+    homeUrl: "https://example.com/",
+    keywordHits: 0,
+  };
+
+  it("blames the probe when even the bare origin did not connect", () => {
+    // 2026-09-23: four sources came back UND_ERR_CONNECT_TIMEOUT while
+    // google.com itself was unreachable from the probe (and `gh` was fine).
+    expect(classifyProbe({ ...base, status: null, controlReachable: false })).toBe(
+      EGRESS_UNREACHABLE_VERDICT,
+    );
+  });
+
+  it("keeps network-error when the host answered but this URL did not", () => {
+    expect(classifyProbe({ ...base, status: null, controlReachable: true })).toBe("network-error");
+  });
+
+  it("does not guess when no control was attempted", () => {
+    expect(classifyProbe({ ...base, status: null, controlReachable: null })).toBe("network-error");
+  });
+
+  it("keeps the new verdict out of the failure ledger, in the probe family", () => {
+    expect(isFailureVerdict(EGRESS_UNREACHABLE_VERDICT)).toBe(false);
+    expect(PROBE_UNAUTHORITATIVE_VERDICTS.has(EGRESS_UNREACHABLE_VERDICT)).toBe(true);
+    expect(needsCdpSecondOpinion(EGRESS_UNREACHABLE_VERDICT)).toBe(true);
+  });
+
+  it("does not touch the verdict when the probe did connect", () => {
+    // finalUrl differs from home on purpose: home-vs-final comparison is a
+    // separate rule (redirected-home) and must not be disturbed by the new arg.
+    const ok = { finalUrl: "https://example.com/news?q=AI", homeUrl: "https://example.com/" };
+    expect(classifyProbe({ ...ok, status: 200, keywordHits: 3, controlReachable: false })).toBe(
+      "alive",
+    );
+  });
+});
+
+describe("resolveHealth — axis 3 outranks the proxies (2026-09-23)", () => {
+  it("labels a working source healthy even when axis 2 read a block", () => {
+    // guancha, measured: axis 2 verdict `probe-not-authoritative` off a block
+    // phrase in the page text, while the source's own script pulled 230 items
+    // from the same page. A block page cannot satisfy an extraction contract.
+    expect(resolveHealth({ verdict: "probe-not-authoritative", extracted: 230 })).toBe(
+      "extracts-despite-verdict",
+    );
+    // ...and the disagreement stays visible rather than being flattened.
+    expect(resolveHealth({ verdict: "alive", extracted: 230 })).toBe("healthy-in-browser");
+  });
+
+  it("keeps the douyin shape: healthy URL, empty extraction", () => {
+    expect(resolveHealth({ verdict: "alive", extracted: 0 })).toBe(EXTRACTION_EMPTY_LABEL);
+  });
+
+  it("splits 'the URL is wrong' from 'the extraction is wrong' when both are empty", () => {
+    // `alive-no-keyword` = reachable but the term is not on the page, i.e. the
+    // configured URL is not a working search URL. That is a URL problem, so it
+    // must not borrow EXTRACTION_EMPTY_LABEL, whose whole message is "the URL is
+    // fine, go look at the script". The douyin case (axis 2 `alive`, extraction
+    // 0) is the mirror image.
+    expect(resolveHealth({ verdict: "alive-no-keyword", extracted: 0 })).toBe("still-broken");
+    expect(resolveHealth({ verdict: "http-dead", extracted: 0 })).toBe("still-broken");
+  });
+
+  it("does not let an absent measurement overrule anything", () => {
+    // `null` = no articleScript / it threw. Falling back to the browser's reading
+    // is the only honest option, and the probe family keeps its own label.
+    expect(resolveHealth({ verdict: "alive", extracted: null })).toBe("healthy-in-browser");
+    expect(resolveHealth({ verdict: "probe-not-authoritative", extracted: null })).toBe(
+      "blocked-in-browser-too",
+    );
+    expect(resolveHealth({ verdict: "http-dead", extracted: null })).toBe("still-broken");
+  });
+
+  it("refuses to call an unhealthy URL healthy just because extraction threw", () => {
+    expect(resolveHealth({ verdict: "http-dead", extracted: null })).toBe("still-broken");
+    expect(resolveHealth({ verdict: "http-dead", extracted: 0 })).toBe("still-broken");
+  });
+});
+
+describe("needsSearchBoxDrive — items in hand end the question", () => {
+  it("does not drive a source that already extracts, whatever the verdict says", () => {
+    // Driving is not free (a real browser interaction). A source satisfying its
+    // extraction contract has nothing to repair, even if axis 2 misread the page.
+    expect(
+      needsSearchBoxDrive({ verdict: "probe-not-authoritative", extracted: 230, keyword: "AI" }),
+    ).toBe(false);
+    expect(needsSearchBoxDrive({ verdict: "login-wall", extracted: 12, keyword: "AI" })).toBe(
+      false,
+    );
+  });
+});
+
+describe("blockPage vocabulary — 200-status interstitials (2026-09-23)", () => {
+  it("recognises the Volcengine challenge that returns HTTP 200", () => {
+    // 36kr, measured: a plain 200 whose body is
+    //   火山引擎 正在进行安全检测... 为保障您的访问安全，系统正在检测当前网络环境
+    // No status-based rule can see this, so it was being read as
+    // `url-alive-but-extraction-empty` — which sends the reader to the
+    // "your URL or script is wrong" runbook instead of "leave this source alone".
+    const body =
+      "火山引擎 正在进行安全检测... 为保障您的访问安全，系统正在检测当前网络环境，该过程通常需要几秒钟，请耐心等待";
+    expect(detectBlockPage({ status: 403, html: body })).toBe(true);
+  });
+
+  it("still refuses to call a healthy page blocked just for mentioning the words", () => {
+    // The extraction-arbitration rule (resolveHealth) is what makes the wider
+    // vocabulary safe: a page that yields items wins even if a pattern matches.
+    expect(resolveHealth({ verdict: "probe-not-authoritative", extracted: 42 })).toBe(
+      "extracts-despite-verdict",
+    );
+  });
+
+  it("keeps a 404 with a short body in the endpoint-death column", () => {
+    // The 4xx branch must not start labelling real 404s as WAF rejections.
+    expect(detectBlockPage({ status: 404, html: "not found" })).toBe(false);
   });
 });

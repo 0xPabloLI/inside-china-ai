@@ -152,6 +152,7 @@ import {
   CDP_BASE,
   ScriptError,
 } from "./lib/cdp-client.mjs";
+import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1141,7 +1142,16 @@ async function main() {
   // CDP is required for most sources, but MCP-only sources (e.g. mcp_grok_search)
   // and API-based sources (e.g. reddit_search, hackernews_search) can work without it.
   // #116: Auto-start CDP proxy if not running. Graceful degradation on failure.
+  //
+  // Step 0.1 first. main.mjs runs the profile guard before calling us, but this
+  // module is also runnable on its own (`node search-sources.mjs …`) and the
+  // guard used to live *inside* `ensureCdpOrExit` — so the standalone path went
+  // straight to `ensureCdpProxy()`, which picks whichever Chrome its port
+  // discovery finds. Using the wrong profile does not error; it silently turns
+  // real results into "login wall". Idempotent, so the main.mjs path pays
+  // nothing for it.
   console.log("\n🔌 Checking CDP proxy...");
+  await ensureCdpProfileGuard();
   cdpAvailable = await ensureCdpProxy();
   if (!cdpAvailable) {
     const mcpOrApiSources = sources.filter(

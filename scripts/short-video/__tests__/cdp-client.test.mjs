@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // vi.hoisted runs before vi.mock hoisting, so variables are available in mock factories
 const { mockSpawn, mockHomedir, mockExistsSync, mockOpenSync, mockCloseSync } = vi.hoisted(() => ({
@@ -349,7 +351,7 @@ describe("findCdpProxyScript", () => {
     expect(result).toBeNull();
   });
 
-  it("S3b: returns path when cdp-proxy.mjs found in skill dir", () => {
+  it("S3b: returns path when cdp-proxy.mjs found only in the global skill dir", () => {
     const fakeHome = "/fake/home";
     mockHomedir.mockReturnValue(fakeHome);
     const expectedPath = `${fakeHome}/.agents/skills/web-access/scripts/cdp-proxy.mjs`;
@@ -357,6 +359,34 @@ describe("findCdpProxyScript", () => {
 
     const result = findCdpProxyScript();
     expect(result).toBe(expectedPath);
+  });
+
+  it("prefers the repo-local copy when both exist (2026-09-23 divergence fix)", () => {
+    // The two copies are not the same file. The repo's own copy carries this
+    // repo's proxy fixes (#273 concurrency guard, #308 exceptionDetails-first);
+    // ~/.agents/skills holds whatever the global skill install last left there
+    // (measured 2026-09-23: 105 diff lines apart). Global-first meant the
+    // health-check and production paths silently launched a *stale* proxy while
+    // cdp-preflight launched the current one — same repo, two proxies.
+    const fakeHome = "/fake/home";
+    mockHomedir.mockReturnValue(fakeHome);
+    const globalPath = `${fakeHome}/.agents/skills/web-access/scripts/cdp-proxy.mjs`;
+    // Built with the same join() composition the module uses, so the `..`
+    // segments match literally.
+    const libDir = join(dirname(fileURLToPath(import.meta.url)), "..", "lib");
+    const repoLocal = join(
+      libDir,
+      "..",
+      "..",
+      "..",
+      "skills",
+      "web-access",
+      "scripts",
+      "cdp-proxy.mjs",
+    );
+    mockExistsSync.mockImplementation((p) => p === globalPath || p === repoLocal);
+
+    expect(findCdpProxyScript()).toBe(repoLocal);
   });
 });
 

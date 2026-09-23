@@ -58,6 +58,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36";
 const TIMEOUT_MS = 15000;
+/** Control-probe budget for the `<origin>/` reachability check — shorter than
+ * `TIMEOUT_MS` because it only runs after the real probe already timed out
+ * twice, and it answers a yes/no question about the network path. */
+const CONTROL_TIMEOUT_MS = 8000;
 const MAX_CANDIDATES = 6;
 const MAX_FEEDS = 4;
 
@@ -88,9 +92,9 @@ export function keywordForSource(source, zhKeyword, enKeyword) {
   return (source.locale ?? "en") === "zh-CN" ? zhKeyword : enKeyword;
 }
 
-async function probe(url, extraHeaders = null) {
+async function probe(url, extraHeaders = null, timeoutMs = TIMEOUT_MS) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = Date.now();
   try {
     const res = await fetch(url, {
@@ -157,6 +161,22 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
     primary = await probe(probedUrl, apiHeaders);
   }
   const hits = countKeywordHits(primary.text, keyword);
+
+  // Connect-level failure: before it is written down as a dead source, ask the
+  // same probe whether it can reach that host *at all*. The control is a bare
+  // `<origin>/` with no keyword and no deep path, so its failure cannot be
+  // blamed on the search endpoint — and a control that also fails turns the row
+  // into `probe-no-egress` (about the measurement, not the source). Shorter
+  // budget on purpose: the real probe already spent its two timeouts.
+  let controlReachable = null;
+  if (primary.status === null) {
+    const origin = safeOrigin(probedUrl);
+    if (origin) {
+      const control = await probe(`${origin}/`, null, CONTROL_TIMEOUT_MS);
+      controlReachable = control.status !== null;
+    }
+  }
+
   const verdict = classifyProbe({
     status: primary.status,
     finalUrl: primary.finalUrl,
@@ -164,6 +184,7 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
     // null = no keyword in play (listing/feed source) → relevance gate N/A.
     keywordHits: keyword ? hits : null,
     requestedUrl: probedUrl,
+    controlReachable,
   });
 
   const row = {
@@ -187,6 +208,10 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
       ms: primary.ms,
       error: primary.error ?? null,
     },
+    // `null` = no connect-level failure, so no control was needed. Recorded so a
+    // reader can tell `network-error` (host answered nothing but was reachable)
+    // from `probe-no-egress` (no route to the host) without re-running.
+    controlReachable,
     verdict,
     candidates: [],
     feeds: [],
