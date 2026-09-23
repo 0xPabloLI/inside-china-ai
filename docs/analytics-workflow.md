@@ -93,7 +93,7 @@ Agent 通过 `tiktok-csi.mjs` 抓取 TikTok Creator Search Insights 数据：
 >
 > **TikTok 专用登录实例（默认路线，2026-09-07 起）**：TikTok 登录一律用全新 profile 启动的独立 Chrome 实例（指纹等效无痕）——常规浏览器/常规 CDP profile 登录已被风控拦截，不再尝试。启动并让 proxy 指向该实例：
 >
-> **三点别漏**：① **它不是 TikTok 专用**——这个实例同时是**需登录态的 CDP 主层源的通用自动化 profile**，TikTok / Google 全家桶 / Bing / 微博 / IT之家 / 知乎 的登录态都落在这里（微博见 `docs/reviews/source-chain-audit-2026-09-15.md` §运维事实：重登即恢复；后两者 2026-09-23 登录生效，复测结果见 `docs/selector-auto-healing.md`）；② **profile 目录固定为 `~/chrome-tiktok-profile`，每次复用，不是每次新建**；③ **启动命令的唯一权威副本已搬到代码**（`scripts/short-video/lib/cdp-profile-guard.mjs` 的 `launchCommand()`）——文档不再抄命令（两处必然漂移）。要启动/校验就跑：
+> **三点别漏**：① **它不是 TikTok 专用**——这个实例同时是**需登录态的 CDP 主层源的通用自动化 profile**：凡需登录态的源，其登录态都落在这里，**当前清单以 `docs/selector-auto-healing.md` §「登录态复测」为准**（本文不列清单，登录态会过期；微博的重登即恢复见 `docs/reviews/source-chain-audit-2026-09-15.md` §运维事实）；② **profile 目录固定为 `~/chrome-tiktok-profile`，每次复用，不是每次新建**；③ **启动命令的唯一权威副本已搬到代码**（`scripts/short-video/lib/cdp-profile-guard.mjs` 的 `launchCommand()`）——文档不再抄命令（两处必然漂移）。要启动/校验就跑：
 >
 > ```bash
 > npm run cdp:ensure                 # 校验 9229 上是不是自动化 profile（exit 0/1）
