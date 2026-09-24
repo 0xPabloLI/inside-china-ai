@@ -7,7 +7,7 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-09-24（**Round K**：#297 fail-closed 落地并闭票——gated 素材分配收口为 claim+VLM 唯一通道，无 claim 绑定资产一律留空交 B-roll/版式承接（moonshot 回归测试锁定），token-overlap 机制退役，`a4ce959` 已推 main，交付记录见票评；真实 scene-data smoke PASS）。
+> **Last inventory**: 2026-09-24（**Round K**：#297 fail-closed 落地并闭票——gated 素材分配收口为 claim+VLM 唯一通道，无 claim 绑定资产一律留空交 B-roll/版式承接（moonshot 回归测试锁定），token-overlap 机制退役，`a4ce959` 已推 main，交付记录见票评；真实 scene-data smoke PASS。E2 跟进 `4aa551d`：legacy 非门控模式删除，相关性门控成为唯一模式，`DEFAULT_RELEVANCE_THRESHOLD` 导出，26 测试迁移认领绑定）。
 >
 > Round J（#333 收口 / #269 母票闭票 / 结构精简）一句话档案：源健康取证收敛，卫星全闭，本文件完成结构精简。
 >
@@ -107,7 +107,7 @@
     - **#302**：深度学习吸收外部开源项目（MoneyPrinterTurbo 等）在分镜和调度上的成熟经验；
     - 🎯 **#298**：本地 MLX → 免费云端（AtomGit/Kaggle）→ 付费云端（Modal L4）模型画质横评（吸收 **#290** 文字测试集）；
     - 🎯 **#291**：汇总调研成果，确立 S3 视觉重做 Wayfinder Map。
-  - **Wave 3B（媒体底座与素材兜底）**：🎯 **#310**（素材库体系统一——统一素材库 + 文字描述索引 + **收获率搜索 log（第一交付物，可先行）** + 素材关键词体系；**吸收 #288 + #301**）+ ✅ **#297**（素材匹配 Fail-closed 留空绝不硬塞无关图，已闭票 `a4ce959`）+ **#293**（Stage 0 素材预获取与缺口回流）。
+  - **Wave 3B（媒体底座与素材兜底）**：🎯 **#310**（素材库体系统一——统一素材库 + 文字描述索引 + **收获率搜索 log（第一交付物，可先行）** + 素材关键词体系；**吸收 #288 + #301**）+ ✅ **#297**（素材匹配 Fail-closed 留空绝不硬塞无关图，已闭票 `a4ce959`，E2 `4aa551d` 删 legacy 模式）+ **#293**（Stage 0 素材预获取与缺口回流）。
   - **Wave 3C（画面适配与智能生成）**：**#289**（专属 aiVideo.prompt 适配层）+ **#299**（Hook 前 3 秒专属视觉）+ **#294**（VLM borderline 二度校验）+ **#295**（写稿 scene-data 概念泛化）+ **#253**（行业坐标系与版式库）+ **#244**/**#256**/**#263**（策略与创意 HITL）。
 
 ---
@@ -229,7 +229,7 @@
 | `lib/source-registry.mjs`<br>`lib/search-sources.mjs` | #314 | 🔴 核心搜源调度。#285 的探针不变量在 `lib/source-health.mjs` seam（`isProbeAuthoritative` 等）；registry 改动与判据改动同批，勿并行开 session |
 | `lib/source-url-heal.mjs`<br>`source-url-sweep.mjs`<br>`source-url-discover.mjs` | —（#269 家族已闭） | 🟡 判据改动必须加在 `isFailureVerdict()` / `needsCdpSecondOpinion()` seam 上，不在调用点各写一份；sweep/discover 是只读消费者，可与 registry 并行；产物落 gitignored `output/` |
 | `lib/video-downloaders.mjs` | #314 | 🟡 下载适配器层；douyin/xhs 适配器改动在此排队 |
-| `asset-sourcer.mjs` | #294 #299（D：#301） | 🟡 素材匹配评分流水线，串行；#297 fail-closed 已闭票（`a4ce959`） |
+| `asset-sourcer.mjs` | #294 #299（D：#301） | 🟡 素材匹配评分流水线，串行；#297 fail-closed 已闭票（`a4ce959`，E2 `4aa551d` 单模式化） |
 | `knowledge/media-catalog.json`<br>`asset-gaps.json` | #310 #293 #294 #299 | 🟡 #310 为 W3B Dominant；收获率 log 与其余低耦合可先行 |
 | `lib/b-roll/` | #298 #289 #304 | 🟡 #298 定选型 → #289 定 prompt 模板；#304 只读调研可并行 |
 | `lib/source-health.mjs`<br>`lib/search-pool.mjs` | D：#286 #322 | 🟡 统一信号事实源；改动遵循 fail-open |
