@@ -2167,16 +2167,25 @@ export const LAST30DAYS_SOURCES = [
     // Techmeme doesn't have search; use Google site:techmeme.com
     url: (keyword) =>
       `https://www.google.com/search?q=${encodeURIComponent("site:techmeme.com " + keyword)}`,
+    // #336: 2026-09 Google SERP DOM dropped the legacy div.g/.Gx5Zad/.fP1Qef
+    // blocks (0 results across 3/3 retries); h3 remains. h3-based like
+    // SHARED_GOOGLE_SITE_SEARCH_SCRIPT but keeps the techmeme.com filter and
+    // falls back to the SERP snippet for permalink results whose h3 is the
+    // generic site name "Techmeme" — the real headline lives in the snippet,
+    // and the set (9 < RELEVANCE_MIN_RESULTS=10) never reaches the relevance
+    // guard, so junk titles must be handled here.
     articleScript: `
       var results = [];
-      document.querySelectorAll('div.g, .Gx5Zad, .fP1Qef').forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var title = el.querySelector('h3, .LC20lb');
-        if (link && title) {
-          if (link.href.includes('techmeme.com')) {
-            results.push({ title: title.textContent.trim(), url: link.href });
-          }
+      document.querySelectorAll('h3').forEach(function(h3) {
+        var a = h3.closest('a') || h3.parentElement.querySelector('a');
+        if (!a || !a.href || a.href.indexOf('techmeme.com') === -1) return;
+        var title = h3.textContent.trim();
+        var block = a.closest('div[data-ved][data-hveid]') || a.parentElement;
+        var snippet = block ? block.querySelector('.VwiC3b, [data-sncf]') : null;
+        if (snippet && (!title || title === 'Techmeme')) {
+          title = snippet.textContent.trim().substring(0, 200);
         }
+        results.push({ title: title, url: a.href });
       });
       return results.slice(0, 20);
     `,
@@ -2213,29 +2222,12 @@ export const WECHAT_ACCOUNT_SOURCES = [
     // Search for articles citing this WeChat account via republish platforms
     url: () =>
       `https://www.google.com/search?q=${encodeURIComponent('"来自微信公众号" "动察Beating"')}`,
-    articleScript: `
-      var results = [];
-      // 2026-09 Google SERP DOM: blocks = div[data-ved][data-hveid], headings =
-      // div[role="heading"] — legacy div.g/.Gx5Zad/.fP1Qef markup is gone (#140 P5).
-      var allowed = ['mp.weixin.qq.com','huxiu.com','sina.com.cn','myzaker.com','qq.com','ifeng.com','bohaishibei.com','eastmoney.com','binance.com','t.me','x.com','ithome.com'];
-      document.querySelectorAll('div[data-ved][data-hveid]').forEach(function(el) {
-        var heading = el.querySelector('div[role="heading"]');
-        var link = el.querySelector('a[href]');
-        if (!heading || !link) return;
-        var url = link.href;
-        if (!url || url.indexOf('google.') !== -1) return;
-        var hit = allowed.some(function(d) { return url.indexOf(d) !== -1; });
-        if (!hit) return;
-        for (var i = 0; i < results.length; i++) { if (results[i].url === url) return; }
-        var snippet = el.querySelector('.VwiC3b, .IsZvec, [data-sncf]');
-        results.push({
-          title: heading.textContent.trim(),
-          url: url,
-          snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
-        });
-      });
-      return results;
-    `,
+    // #336: legacy div[data-ved][data-hveid] + div[role="heading"] extraction
+    // returned 0 (2026-09 SERP DOM, A/B: own script 0 vs shared h3 script 10).
+    // Shared h3 script reused verbatim — the query's quoted phrases do the
+    // sourcing, no bespoke domain whitelist needed (old whitelist dropped real
+    // republishes on sohu/163/ifeed).
+    articleScript: SHARED_GOOGLE_SITE_SEARCH_SCRIPT,
   },
 ];
 
