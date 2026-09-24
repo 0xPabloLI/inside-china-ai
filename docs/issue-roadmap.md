@@ -1,6 +1,6 @@
 # Issue Roadmap — Open Issues 依赖关系与执行顺序
 
-> **本文件是放置与依赖索引，不是台账**（2026-09-24 Round J 结构精简，296KB → 约 40KB）：每票一行，只回答「在哪条 Wave / 哪层 Tier / 与谁冲突」。
+> **本文件是放置与依赖索引，不是台账**（2026-09-24 Round J 结构精简，296KB → 约 35KB）：每票一行，只回答「在哪条 Wave / 哪层 Tier / 与谁冲突」。
 > 票的实时状态与标签以 `gh issue list --state open` 为准，**本文件不缓存状态**；交付叙事与证据的唯一权威源是 **issue 评论**（`gh issue view <N> --comments`）。
 > 历史叙事与已闭票行 → [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md)；更早逐轮盘点 → [`archive/roadmap-inventory-history-2026-09-23.md`](archive/roadmap-inventory-history-2026-09-23.md)。
 > **维护规则**：新票分流后加一行；**闭票即删行**（交付记录写进闭票评论）；每轮盘点只改「当前状态」的 Last inventory 一行。
@@ -213,6 +213,8 @@
 | #329 | yt-dlp 代理 hand-off 残余覆盖（#324 后续） | bug |
 | #334 | VLM Prompt 优化（Fit/claim/Reason） | 无标签 |
 | #339 | SEO monitor failing（structured data / robots.txt） | bug, seo-monitor |
+| #351 | vlm 缓存 key 与实际产出模型脱钩（stale cache） | bug；PR #350 droid P2 已核实 |
+| #352 | transformers 5.x 升级链评估（解除 3 条 High 告警） | enhancement；告警已 dismiss tolerable_risk |
 
 ---
 

@@ -4,7 +4,7 @@ The video pipeline needs to understand visual assets (images, videos) before ass
 
 **Use `Qwen3-VL-30B-A3B-Instruct-4bit` (17GB, MoE 30B/3B active)** via mlx-vlm as the single VLM model. Running as an on-demand Python subprocess managed by `visual-analyzer.mjs`. Local-first is a design principle (same as TTS — see ADR-0008). Cloud VLM APIs ($0.01-0.03/image) are a fallback, not primary.
 
-> **Benchmark and selection rationale**: `docs/research/vlm-model-selection-benchmark.md`. R10 benchmark + relevance accuracy test (17 asset-claim pairs × 3 models) confirmed 30B superior: 100% parse rate (vs 2B 59% / GLM 76%), 0% false-positive rate (vs 2B 10% / GLM 8%), gate accuracy 88% (vs 80% / 85%). Native video path on mlx-vlm 0.7.2 is 3.4x faster than frame extraction.
+> **Benchmark and selection rationale**: `docs/research/vlm-model-selection-benchmark.md`. R10 benchmark + relevance accuracy test (17 asset-claim pairs × 3 models) confirmed 30B superior: 100% parse rate (vs 2B 59% / GLM 76%), 0% false-positive rate (vs 2B 10% / GLM 8%), gate accuracy 88% (vs 80% / 85%). Native video input (`generate(video=)`) proved unreliable for all three models on mlx-vlm 0.5.0 (R10f) — frame extraction is the only reliable path; re-evaluate if upstream fixes native video support.
 
 ## Architecture
 
@@ -13,8 +13,8 @@ The video pipeline needs to understand visual assets (images, videos) before ass
 | Qwen3-VL-30B-A3B-Instruct-4bit (17GB) | ~10-60s/asset | Single model for all assets |
 
 - **Images**: simulate 9:16 crop → resize if >1920px → generate
-- **Video (full)**: native video input via `generate(video=)` — processor handles temporal sampling
-- **Video (windowed)**: ffmpeg frame extraction (native video can't select a time range)
+- **Video (full)**: ffmpeg frame extraction — native video input (`generate(video=)`) proved unreliable on mlx-vlm 0.5.0 (R10f); re-evaluate if upstream fixes it
+- **Video (windowed)**: ffmpeg frame extraction over the selected time range
 
 Previous cascade router (2B fast path + GLM-4.1V-9B deep path) was removed. The 30B MoE model activates only 3B parameters per token, giving 2B-class latency on simple inputs while matching GLM-class quality on complex inputs — no escalation needed.
 
