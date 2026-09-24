@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  assignAssetsToScenes,
-  scoreRelevanceOverlap,
-  makeRelevance,
-  RELEVANCE_SOURCE,
-} from "../lib/asset-sourcer.mjs";
+import { assignAssetsToScenes, makeRelevance, RELEVANCE_SOURCE } from "../lib/asset-sourcer.mjs";
 
 // ── Fixtures ──
 
@@ -31,6 +26,16 @@ const scenes = [
   },
   { id: 4, name: "specs", visualType: "data", voiceover: "Numbers only." },
   { id: 5, name: "cta", visualType: "cta", voiceover: "Follow for more." },
+  // #297 regression scene: entity-name claim (Moonshot). Token overlap
+  // matches a building photo 1:1 while the visual content is irrelevant to
+  // the claim's action — exactly the baidu_search-moonshot-02.jpg incident.
+  {
+    id: 6,
+    name: "moonshot",
+    visualType: "narrative",
+    voiceover: "Moonshot office",
+    assetNeed: "moonshot office",
+  },
 ];
 
 const img = (over = {}) => ({
@@ -96,16 +101,25 @@ describe("assignAssetsToScenes — relevance gate", () => {
     expect(result.find((r) => r.sceneId != null)).toBeUndefined();
   });
 
-  it("gates fallback assets per scene via token overlap and rejects when all scenes fail", () => {
+  it("fail-closes an unbound asset even at perfect token overlap (moonshot regression, #297)", () => {
+    // VLM relevance is claim-mode-only: an asset without claimSceneId has no
+    // relevance judgment, and token overlap (description vs claim wording)
+    // must never substitute for it in the assignment decision. The slot
+    // stays empty; mediaStrategy "asset-then-broll" fills it downstream.
     const assets = [
-      img({ description: "alipay qr code payment", subjects: ["alipay", "qr code"] }),
+      img({
+        path: "assets/baidu_search-moonshot-02.jpg",
+        description: "Moonshot office building",
+        subjects: ["moonshot", "office"],
+      }),
     ];
     const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
     expect(result[0].status).toBe("unassigned");
-    expect(result[0].reason).toMatch(/relevance/i);
+    expect(result[0].reason).toMatch(/fail-closed|claim/i);
+    expect(result[0].path).toBe("assets/baidu_search-moonshot-02.jpg");
   });
 
-  it("assigns a fallback asset to the first scene whose overlap clears the threshold", () => {
+  it("fail-closes unbound assets regardless of description strength (#297)", () => {
     const assets = [
       img({
         description: "hugging face model page screenshot showing open weights download",
@@ -113,9 +127,31 @@ describe("assignAssetsToScenes — relevance gate", () => {
       }),
     ];
     const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    expect(result.every((r) => r.status === "unassigned")).toBe(true);
+    expect(result[0].reason).toMatch(/fail-closed|claim/i);
+  });
+
+  it("still assigns a claim-bound asset that clears VLM relevance (#297 contract)", () => {
+    const assets = [img({ claimSceneId: 6, relevanceScore: 85 })];
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
     expect(result[0].status).toBe("assigned");
-    expect(result[0].sceneId).toBe(2);
-    expect(result[0].relevanceSource).toBe("overlap");
+    expect(result[0].sceneId).toBe(6);
+    expect(result[0].relevanceSource).toBe("vlm");
+  });
+
+  it("claim-bound asset targeting a NO_MEDIA_TYPES scene → unassigned", () => {
+    const assets = [img({ claimSceneId: 4, relevanceScore: 90 })]; // id 4 = data
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    expect(result[0].status).toBe("unassigned");
+    expect(result[0].reason).toMatch(/unavailable/i);
+  });
+
+  it("legacy mode still skips NO_MEDIA_TYPES scenes (unbound fallback pool)", () => {
+    const assets = [img({ description: "some office photo", subjects: [] })];
+    const result = assignAssetsToScenes(assets, scenes); // no opts → legacy
+    const ids = result.filter((r) => r.status === "assigned").map((r) => r.sceneId);
+    expect(ids).not.toContain(4);
+    expect(ids).not.toContain(5);
   });
 
   it("stacks the relevance gate on top of the hook gates (score + fit=cover)", () => {
@@ -134,38 +170,24 @@ describe("assignAssetsToScenes — relevance gate", () => {
     const result2 = assignAssetsToScenes([containAsset], scenes, THRESHOLD);
     expect(result2[0].status).toBe("unassigned");
   });
-
-  it("never assigns to NO_MEDIA_TYPES scenes or scenes with manual media", () => {
-    const assets = [
-      img({
-        description: "hugging face model page screenshot showing open weights download",
-        subjects: ["hugging face", "open weights", "model page"],
-      }),
-    ];
-    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
-    const assignedScene = result[0];
-    expect([4, 5]).not.toContain(assignedScene.sceneId);
-  });
 });
 
 // ── Reused cap (online greedy) ──
 
 describe("assignAssetsToScenes — reused cap", () => {
-  // 5 identical eligible narrative scenes so fallback assets fill them in
-  // order without fighting over hook gates or claim bindings.
+  // Claim-bound reused-cap probes: each asset binds to its own narrative
+  // scene so the online cap counters run through the claim path (#297:
+  // unbound fallback assets fail closed and can no longer carry this
+  // machinery). Distinct scores pin the greedy processing order.
   const capScenes = [1, 2, 3, 4, 5].map((id) => ({
     id,
     name: `n${id}`,
     visualType: "narrative",
-    voiceover: "hugging face open weights free download",
+    voiceover: `narrative ${id}`,
     assetNeed: "",
   }));
-  const relevantFallback = (over) =>
-    img({
-      description: "hugging face open weights download page screenshot",
-      subjects: [],
-      ...over,
-    });
+  const claimed = (sceneId, over = {}) =>
+    img({ claimSceneId: sceneId, relevanceScore: 90, ...over });
   const CAP_OPTS = {
     ...THRESHOLD,
     usedIndex: { hashes: new Set(), urls: new Set() },
@@ -174,10 +196,15 @@ describe("assignAssetsToScenes — reused cap", () => {
   it("accepts a reused asset while the running ratio stays <= 40%", () => {
     // 3 fresh first → reused 4th: (0+1)/(3+1)=0.25 <= 0.4 → accepted
     const assets = [
-      relevantFallback({ path: "assets/f1.jpg" }),
-      relevantFallback({ path: "assets/f2.jpg" }),
-      relevantFallback({ path: "assets/f3.jpg" }),
-      relevantFallback({ path: "assets/r1.jpg", url: "https://old.example/1.jpg", reused: true }),
+      claimed(1, { path: "assets/f1.jpg", score: 83 }),
+      claimed(2, { path: "assets/f2.jpg", score: 82 }),
+      claimed(3, { path: "assets/f3.jpg", score: 81 }),
+      claimed(4, {
+        path: "assets/r1.jpg",
+        url: "https://old.example/1.jpg",
+        reused: true,
+        score: 80,
+      }),
     ];
     const result = assignAssetsToScenes(assets, capScenes, CAP_OPTS);
     expect(result.filter((r) => r.status === "assigned")).toHaveLength(4);
@@ -185,9 +212,9 @@ describe("assignAssetsToScenes — reused cap", () => {
 
   it("rejects a reused asset that would push the ratio above 40% and keeps accepting fresh ones", () => {
     const assets = [
-      relevantFallback({ path: "assets/f1.jpg" }),
-      relevantFallback({ path: "assets/r1.jpg", reused: true }), // (0+1)/(1+1)=0.5 > 0.4 → reject
-      relevantFallback({ path: "assets/f2.jpg" }),
+      claimed(1, { path: "assets/f1.jpg", score: 85 }),
+      claimed(2, { path: "assets/r1.jpg", reused: true, score: 84 }), // (0+1)/(1+1)=0.5 > 0.4 → reject
+      claimed(3, { path: "assets/f2.jpg", score: 83 }),
     ];
     const result = assignAssetsToScenes(assets, capScenes, CAP_OPTS);
     const byPath = Object.fromEntries(result.map((r) => [r.media?.path ?? r.path, r]));
@@ -199,8 +226,8 @@ describe("assignAssetsToScenes — reused cap", () => {
 
   it("ends with zero assignments when every candidate is reused", () => {
     const assets = [
-      relevantFallback({ path: "assets/r1.jpg", reused: true }),
-      relevantFallback({ path: "assets/r2.jpg", reused: true }),
+      claimed(1, { path: "assets/r1.jpg", reused: true }),
+      claimed(2, { path: "assets/r2.jpg", reused: true }),
     ];
     const result = assignAssetsToScenes(assets, capScenes, CAP_OPTS);
     expect(result.every((r) => r.status === "unassigned")).toBe(true);
@@ -208,49 +235,20 @@ describe("assignAssetsToScenes — reused cap", () => {
 
   it("marks reused flag on assigned entries", () => {
     const assets = [
-      relevantFallback({ path: "assets/f1.jpg" }),
-      relevantFallback({ path: "assets/f2.jpg" }),
-      relevantFallback({ path: "assets/r1.jpg", url: "https://old.example/1.jpg", reused: true }),
+      claimed(1, { path: "assets/f1.jpg", score: 82 }),
+      claimed(2, { path: "assets/f2.jpg", score: 81 }),
+      claimed(3, {
+        path: "assets/r1.jpg",
+        url: "https://old.example/1.jpg",
+        reused: true,
+        score: 80,
+      }),
     ];
     const result = assignAssetsToScenes(assets, capScenes, CAP_OPTS);
     const reusedEntry = result.find((r) => r.media?.path === "assets/r1.jpg");
     expect(reusedEntry.status).toBe("assigned");
     expect(reusedEntry.reused).toBe(true);
     expect(result.filter((r) => r.reused === true)).toHaveLength(1);
-  });
-});
-
-// ── scoreRelevanceOverlap ──
-
-describe("scoreRelevanceOverlap", () => {
-  it("scores 100 when asset description covers the scene claim", () => {
-    const asset = {
-      description:
-        "hugging face model page showing published open weights available for free download",
-      subjects: [],
-    };
-    const scene = {
-      voiceover: "Open weights published on Hugging Face for free download.",
-      assetNeed: "hugging face model page",
-    };
-    // Worked example: scene tokens {open, weights, published, hugging, face,
-    // free, download, model, page} = 9; asset covers all 9 → 100.
-    expect(scoreRelevanceOverlap(asset, scene)).toBe(100);
-  });
-
-  it("scores partially for partial coverage and 0 for unrelated content", () => {
-    const scene = { voiceover: "open weights on hugging face", assetNeed: "" };
-    const partial = { description: "hugging face logo", subjects: [] };
-    const unrelated = { description: "balloon parade in a plaza", subjects: [] };
-    const p = scoreRelevanceOverlap(partial, scene);
-    expect(p).toBeGreaterThan(0);
-    expect(p).toBeLessThan(100);
-    expect(scoreRelevanceOverlap(unrelated, scene)).toBe(0);
-  });
-
-  it("handles missing fields gracefully", () => {
-    expect(scoreRelevanceOverlap({}, {})).toBe(0);
-    expect(scoreRelevanceOverlap(null, null)).toBe(0);
   });
 });
 
@@ -275,21 +273,21 @@ describe("makeRelevance — relevance field group factory", () => {
 
   it("preserves the ||-semantics: falsy reason ('' or null) becomes null", () => {
     expect(
-      makeRelevance({ score: 0, source: RELEVANCE_SOURCE.OVERLAP, reason: "", reused: true })
+      makeRelevance({ score: 0, source: RELEVANCE_SOURCE.VLM, reason: "", reused: true })
         .relevanceReason,
     ).toBe(null);
     expect(
-      makeRelevance({ score: 0, source: RELEVANCE_SOURCE.OVERLAP, reason: null, reused: true })
+      makeRelevance({ score: 0, source: RELEVANCE_SOURCE.VLM, reason: null, reused: true })
         .relevanceReason,
     ).toBe(null);
     expect(
-      makeRelevance({ score: 0, source: RELEVANCE_SOURCE.OVERLAP, reason: "x", reused: true })
+      makeRelevance({ score: 0, source: RELEVANCE_SOURCE.VLM, reason: "x", reused: true })
         .relevanceReason,
     ).toBe("x");
   });
 
-  it("exposes the two canonical relevance sources", () => {
-    expect(RELEVANCE_SOURCE).toEqual({ VLM: "vlm", OVERLAP: "overlap" });
+  it("exposes the single canonical relevance source (overlap retired by #297)", () => {
+    expect(RELEVANCE_SOURCE).toEqual({ VLM: "vlm" });
   });
 });
 
@@ -301,21 +299,21 @@ describe("assignAssetsToScenes — mediaReject (#192)", () => {
       img({
         path: "assets/rejected.jpg",
         url: "https://x.example/r.jpg",
-        description: "stock office",
+        claimSceneId: 2,
+        relevanceScore: 90,
       }),
       img({
         path: "assets/better.jpg",
         url: "https://x.example/b.jpg",
-        description: "stock office",
+        claimSceneId: 2,
+        relevanceScore: 85,
       }),
     ];
     const rejecting = {
       ...scenes[1],
       mediaReject: { reason: "irrelevant", rejected: ["assets/rejected.jpg"] },
     };
-    const result = assignAssetsToScenes(assets, [scenes[0], rejecting, scenes[2]], {
-      relevanceThreshold: 0,
-    });
+    const result = assignAssetsToScenes(assets, [scenes[0], rejecting], THRESHOLD);
     // assets/rejected.jpg must never land on scene 2 (the rejector)
     const rejectedOnScene2 = result.find(
       (r) => r.status === "assigned" && r.sceneId === 2 && r.media?.path === "assets/rejected.jpg",
@@ -327,17 +325,26 @@ describe("assignAssetsToScenes — mediaReject (#192)", () => {
   });
 
   it("matches rejections by URL as well as by path", () => {
-    const assets = [img({ path: "assets/a.jpg", url: "https://x.example/a.jpg" })];
+    const assets = [
+      img({
+        path: "assets/a.jpg",
+        url: "https://x.example/a.jpg",
+        claimSceneId: 2,
+        relevanceScore: 90,
+      }),
+    ];
     const rejecting = { ...scenes[1], mediaReject: { rejected: ["https://x.example/a.jpg"] } };
-    const result = assignAssetsToScenes(assets, [scenes[0], rejecting], { relevanceThreshold: 0 });
+    const result = assignAssetsToScenes(assets, [scenes[0], rejecting], THRESHOLD);
     const onScene2 = result.find((r) => r.status === "assigned" && r.sceneId === 2);
     expect(onScene2).toBeUndefined();
   });
 
-  it("a rejected-for-scene-A asset can still be assigned to scene B", () => {
-    const assets = [img({ path: "assets/rejected.jpg", description: "stock office" })];
+  it("a rejected-for-scene-A asset can still be assigned to scene B (legacy mode)", () => {
+    const assets = [
+      img({ path: "assets/rejected.jpg", description: "stock office", subjects: [] }),
+    ];
     const rejecting = { ...scenes[1], mediaReject: { rejected: ["assets/rejected.jpg"] } };
-    const result = assignAssetsToScenes(assets, [scenes[0], rejecting], { relevanceThreshold: 0 });
+    const result = assignAssetsToScenes(assets, [scenes[0], rejecting]); // no opts → legacy
     // Scene 1 (hook, score 80 fit cover) is eligible and has no reject flag
     expect(result.find((r) => r.status === "assigned" && r.sceneId === 1)).toBeTruthy();
   });
@@ -351,8 +358,8 @@ describe("assignAssetsToScenes — mediaReject (#192)", () => {
   });
 
   it("scenes without mediaReject are unaffected", () => {
-    const assets = [img({ path: "assets/ok.jpg", description: "stock office" })];
-    const result = assignAssetsToScenes(assets, scenes, { relevanceThreshold: 0 });
-    expect(result.filter((r) => r.status === "assigned").length).toBeGreaterThan(0);
+    const assets = [img({ path: "assets/ok.jpg", claimSceneId: 2, relevanceScore: 90 })];
+    const result = assignAssetsToScenes(assets, [scenes[0], scenes[1]], THRESHOLD);
+    expect(result.find((r) => r.status === "assigned" && r.sceneId === 2)).toBeTruthy();
   });
 });

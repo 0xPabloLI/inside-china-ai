@@ -88,7 +88,6 @@ export const ASSET_REPORT_SCHEMA_VERSION = 1;
 export const MEDIA_PATCH_SCHEMA_VERSION = 1;
 
 import {
-  tokenizeClaimWords,
   extractSceneClaims,
   claimToKeywords,
   extractZhKeywords,
@@ -731,38 +730,11 @@ export function normalizePathForPatch(assetPath, contentDir) {
 }
 
 /**
- * Score how well an asset supports a scene's claim via deterministic token
- * overlap between the asset's VLM description/subjects and the scene's
- * voiceover + assetNeed. Scene-anchored: coverage of the scene's claim
- * tokens. 0-100. Used for fallback (unbound) assets — claim-bound assets
- * use the VLM's own Relevance score instead.
- *
- * @param {Object|null} asset - { description?, subjects? }
- * @param {Object|null} scene - { voiceover?, assetNeed? }
- * @returns {number} 0-100
+ * Canonical relevance source recorded in assigned entries. #297: VLM is the
+ * only admission judgment — the token-overlap fallback path is retired.
  */
-export function scoreRelevanceOverlap(asset, scene) {
-  if (!asset || !scene) return 0;
-
-  const assetText = [asset.description || "", ...(asset.subjects || [])].join(" ");
-  const assetTokens = new Set(tokenizeClaimWords(assetText));
-  if (assetTokens.size === 0) return 0;
-
-  const sceneText = [scene.voiceover || "", scene.assetNeed || ""].join(" ");
-  const sceneTokens = [...new Set(tokenizeClaimWords(sceneText))];
-  if (sceneTokens.length === 0) return 0;
-
-  let matched = 0;
-  for (const token of sceneTokens) {
-    if (assetTokens.has(token)) matched++;
-  }
-  return Math.min(100, Math.round((matched / sceneTokens.length) * 100));
-}
-
-/** Canonical relevance sources recorded in assigned entries. */
 export const RELEVANCE_SOURCE = {
   VLM: "vlm",
-  OVERLAP: "overlap",
 };
 
 /**
@@ -818,7 +790,10 @@ function isRejectedFor(asset, scene) {
  * from spec #130:
  *   - claim binding: assets with `claimSceneId` only enter their bound scene
  *     and must carry a VLM `relevanceScore` >= threshold (missing → fail-closed)
- *   - fallback assets are overlap-scored per scene (scoreRelevanceOverlap)
+ *   - #297 fail-closed: assets without a claim binding are never assigned —
+ *     VLM relevance is claim-mode-only, so no relevance judgment exists to
+ *     admit them and token overlap must not substitute. Slots stay empty;
+ *     mediaStrategy "asset-then-broll" fills them downstream (B-roll/layout)
  *   - cross-content reuse cap: a reused asset is rejected when accepting it
  *     would push reused/total above opts.reusedCap (default 0.4); rejection
  *     happens before scene search so it never consumes a scene slot
@@ -860,15 +835,6 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
     if (!opts.usedIndex) return false;
     return isReusedAsset({ url: asset.url, filePath: asset.absPath }, opts.usedIndex);
   };
-
-  /** Gated-mode audit fields shared by the hook and general assignment passes. */
-  const gatedEntryFields = (asset, scene, reused, overlap) =>
-    makeRelevance({
-      score: overlap,
-      source: RELEVANCE_SOURCE.OVERLAP,
-      reason: `token overlap vs scene ${scene.id} claim`,
-      reused,
-    });
 
   const unassignedEntry = (asset, reason) => {
     const entry = {
@@ -980,6 +946,20 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         if (reused) acceptedReused++;
         continue;
       }
+
+      // ── #297 fail-closed: no claim binding → no VLM relevance ──
+      // VLM relevance is claim-mode-only (visual-analyzer.mjs). Token overlap
+      // against description wording is not a visual judgment and used to let
+      // irrelevant media through (baidu_search-moonshot-02.jpg). Leave the
+      // slot empty — mediaStrategy "asset-then-broll" fills it downstream via
+      // B-roll generation or the static layout.
+      result.push(
+        unassignedEntry(
+          asset,
+          "no claim binding — no VLM relevance available, fail-closed (宁缺毋滥)",
+        ),
+      );
+      continue;
     }
 
     // Pass 1: hook scenes (require score>=60 and aiFit="cover")
@@ -992,12 +972,6 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       // Hook gate: score >= 60 AND fit === "cover"
       if ((asset.score || 0) < HOOK_MIN_SCORE) continue;
       if (asset.fit !== HOOK_REQUIRED_FIT) continue;
-
-      // Relevance gate (gated mode): hook must also clear the overlap check
-      if (gated) {
-        const ov = scoreRelevanceOverlap(asset, scene);
-        if (ov < threshold) continue;
-      }
 
       const media = {
         type: asset.type,
@@ -1023,12 +997,6 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         attribution: asset.attribution || null,
         status: "assigned",
       };
-      if (gated) {
-        Object.assign(
-          entry,
-          gatedEntryFields(asset, scene, reused, scoreRelevanceOverlap(asset, scene)),
-        );
-      }
       result.push(entry);
 
       assignedSceneIds.add(scene.id);
@@ -1047,12 +1015,6 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       if (scene.visualType === "hook") continue; // already handled in pass 1
       if (scene.media) continue;
       if (isRejectedFor(asset, scene)) continue; // #192
-
-      // Relevance gate (gated mode): per-scene overlap check
-      if (gated) {
-        const ov = scoreRelevanceOverlap(asset, scene);
-        if (ov < threshold) continue;
-      }
 
       // Assign this asset to this scene
       const vt = scene.visualType;
@@ -1121,12 +1083,6 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         attribution: asset.attribution || null,
         status: "assigned",
       };
-      if (gated) {
-        Object.assign(
-          entry,
-          gatedEntryFields(asset, scene, reused, scoreRelevanceOverlap(asset, scene)),
-        );
-      }
       result.push(entry);
 
       assignedSceneIds.add(scene.id);
@@ -1138,12 +1094,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
     }
 
     if (!assigned) {
-      result.push(
-        unassignedEntry(
-          asset,
-          gated ? "relevance below threshold for all eligible scenes" : undefined,
-        ),
-      );
+      result.push(unassignedEntry(asset));
     }
   }
 
@@ -2645,7 +2596,8 @@ export async function main(args = process.argv.slice(2)) {
 
   // ── Phase 0: Cached-image flow (from trend discovery) ──
   // Cached trend images enter the fallback pool (claimSceneId: null) —
-  // gated assignment relevance-screens them via token overlap (spec #130).
+  // gated assignment fail-closes them (#297): they surface in the report for
+  // manual/catalog use while scenes fall through to B-roll/layout.
   // R1: Check trending-topics.json for cached image URLs before making new CDP/API requests.
   // Images are filtered by keyword match + URL pattern (exclude logos/icons), then
   // pre-download filtered (technicalScore >= 20), then downloaded.
@@ -3278,9 +3230,9 @@ export async function main(args = process.argv.slice(2)) {
       asset.path = normalizePathForPatch(asset.path, contentDir);
     }
   }
-  // Relevance-gated assignment (spec #130 D6/D7): claim-bound assets need VLM
-  // relevance >= threshold; fallback assets are overlap-scored per scene;
-  // cross-content reuse capped online at 40%.
+  // Relevance-gated assignment (spec #130 D6/D7 + #297): claim-bound assets
+  // need VLM relevance >= threshold; unbound fallback-pool assets fail closed
+  // (slot left empty for B-roll/layout); cross-content reuse capped at 40%.
   let usedAssetIndex = null;
   try {
     usedAssetIndex = buildUsedAssetIndex({
