@@ -439,7 +439,10 @@ async function collectFromApi(source, keyword) {
     const fetchOptions = {
       method: "GET",
       headers: api.headers || {},
-      signal: AbortSignal.timeout(15000),
+      // api.timeoutMs lets a source opt into a longer budget (searxng_search:
+      // self-hosted metasearch aggregates 200+ engines, ~10-20s per query —
+      // the 15s default aborts it mid-flight and reads as network-error).
+      signal: AbortSignal.timeout(api.timeoutMs ?? 15000),
     };
 
     const resp = await fetch(url, fetchOptions);

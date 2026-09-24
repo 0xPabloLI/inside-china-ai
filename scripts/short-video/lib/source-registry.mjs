@@ -1889,6 +1889,10 @@ export const GENERAL_SEARCH_SOURCES = [
     // in the container's settings.yml and outgoing.proxies pointing at the
     // host proxy — SearXNG's httpx client ignores proxy environment variables.
     apiSearch: {
+      // Aggregates 200+ engines per query; measured 10-20s wall time even
+      // after pruning chronically-failed engines (2026-09-24) — the 15s
+      // default aborted it mid-flight and read as network-error.
+      timeoutMs: 30000,
       url: (keyword) =>
         `http://localhost:8888/search?q=${encodeURIComponent(keyword + " China AI")}&format=json&categories=general&language=en`,
       parser: (text) => {

@@ -119,7 +119,9 @@ export async function checkApiSource(source, keyword) {
   try {
     const resp = await fetch(url, {
       headers: resolveApiHeaders(api),
-      signal: AbortSignal.timeout(15000),
+      // Same seam as collectFromApi (search-sources.mjs): a source may opt
+      // into a longer budget via api.timeoutMs (searxng_search needs it).
+      signal: AbortSignal.timeout(api.timeoutMs ?? 15000),
     });
     const body = await resp.text();
     if (!resp.ok) {
@@ -243,6 +245,36 @@ export function failureClass(result) {
 export function verdictReason(articles, lateAntiBot) {
   if (articles.length > 0) return null;
   return lateAntiBot ? `anti_bot:${lateAntiBot}` : "zero_results";
+}
+
+/**
+ * Production-availability takeover (2026-09-24): merge a primary-layer
+ * failure with a fallback-layer probe result. The source is reported
+ * production-usable when the site: fallback extracted anything — the reader's
+ * question is "can we get data in the end", not "is the configured URL
+ * healthy" (jiqizhixin: primary 0 while the site: layer extracted 10).
+ *
+ * Pure function so the takeover rule is unit-testable without a CDP run.
+ * Only a real fallback extraction flips the verdict; a fallback that also
+ * fails keeps the primary failure untouched (its layer/reason are the truth).
+ *
+ * @param {object} primary   - checkSource/checkApiSource result (ok:false, source-verdict).
+ * @param {object} fallback  - checkFallbackSource result for the same source.
+ * @returns {object} the result row to report.
+ */
+export function applyFallbackTakeover(primary, fallback) {
+  if (fallback.ok && fallback.count > 0) {
+    return {
+      ...primary,
+      ok: true,
+      count: fallback.count,
+      via: "site-fallback",
+      reason: null,
+      primaryReason: primary.reason ?? "zero_results",
+      note: `primary layer failed (${primary.reason}) — site: fallback layer is serving`,
+    };
+  }
+  return primary;
 }
 
 /**
@@ -546,7 +578,7 @@ async function main() {
 
   const results = [];
   for (const source of sources) {
-    const result = fallbackMode
+    let result = fallbackMode
       ? await checkFallbackSource(source, keywords)
       : source.accessMethod?.primary === "api"
         ? await checkApiSource(
@@ -554,6 +586,23 @@ async function main() {
             keywords[source.locale === "zh-CN" ? "zh" : "en"] ?? keywords.zh,
           )
         : await checkSource(source, keywords);
+    // Production-availability takeover: when the primary layer fails with a
+    // source-verdict (zero_results) and the registry carries a site: fallback
+    // layer, probe the fallback right away. If it extracts, the source is
+    // production-usable (ok: true, via: "site-fallback") instead of reading
+    // as dead — jiqizhixin 2026-09-24: primary 0 for weeks while its site:
+    // layer extracted 10. Only "source" verdicts take over; probe-class
+    // failures (probe-not-authoritative / probe-no-egress / anti_bot) mean
+    // "we cannot measure" and must not be flipped by the fallback layer.
+    if (
+      !fallbackMode &&
+      failureClass(result) === "source" &&
+      (source.capabilities?.articles?.googleSiteFallback ?? source.googleSiteFallback)
+    ) {
+      console.log(`      ↳ primary failed — probing site: fallback layer...`);
+      const fb = await checkFallbackSource(source, keywords);
+      result = applyFallbackTakeover(result, fb);
+    }
     results.push(result);
     const cls = failureClass(result);
     const icon = cls === "none" ? "✅" : cls === "source" ? "❌" : "⚠️";
@@ -573,8 +622,14 @@ async function main() {
 
   const byClass = { none: 0, source: 0, probe: 0 };
   for (const r of results) byClass[failureClass(r)] += 1;
+  const viaFallback = results.filter((r) => r.via === "site-fallback");
   console.log("─".repeat(60));
-  console.log(`  ${byClass.none}/${results.length} healthy`);
+  console.log(
+    `  ${byClass.none}/${results.length} healthy` +
+      (viaFallback.length > 0
+        ? ` (incl. ${viaFallback.length} production-usable via site-fallback: ${viaFallback.map((r) => r.source).join(", ")})`
+        : ""),
+  );
   if (byClass.probe > 0) {
     console.log(
       `  ⚠️  ${byClass.probe} probe-not-authoritative / session-dependent — not source death, not for the ledger`,

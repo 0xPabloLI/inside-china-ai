@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { verdictReason, apiFailureVerdict, failureClass } from "../selector-health.mjs";
+import { verdictReason, apiFailureVerdict, failureClass, applyFallbackTakeover } from "../selector-health.mjs";
 
 /**
  * #269 (2026-09-23): 两个「时序竞态 ⇒ 假判决」的回归锚点。
@@ -105,5 +105,54 @@ describe("failureClass — 只有关于源的失败才算失败", () => {
 
   it("network-error ⇒ source（与第一轴口径一致）", () => {
     expect(failureClass({ ok: false, reason: "network-error" })).toBe("source");
+  });
+});
+
+/**
+ * 2026-09-24：生产可用接管（applyFallbackTakeover）——用户口径「只关心最终
+ * 能不能抓到数据」。主层 zero_results 但 site: 兜底层能抽出 ⇒ 生产可用
+ * （jiqizhixin 实测：主层 0、site: 层 10）。兜底也失败 ⇒ 保留主层判决。
+ */
+describe("applyFallbackTakeover — 主层失败时的 site: 兜底接管", () => {
+  const primary = {
+    source: "jiqizhixin",
+    ok: false,
+    count: 0,
+    reason: "zero_results",
+    durationMs: 36700,
+  };
+
+  it("兜底抽出 >0 ⇒ ok:true + via:site-fallback，保留主层失败原因", () => {
+    const merged = applyFallbackTakeover(primary, {
+      source: "jiqizhixin",
+      ok: true,
+      count: 10,
+      layer: "fallback",
+    });
+    expect(merged.ok).toBe(true);
+    expect(merged.via).toBe("site-fallback");
+    expect(merged.count).toBe(10);
+    expect(merged.primaryReason).toBe("zero_results");
+  });
+
+  it("兜底抽出 0 ⇒ 原样保留主层失败（不翻转）", () => {
+    const merged = applyFallbackTakeover(primary, {
+      source: "jiqizhixin",
+      ok: true,
+      count: 0,
+      layer: "fallback",
+    });
+    expect(merged).toBe(primary);
+  });
+
+  it("兜底层也失败 ⇒ 原样保留主层失败", () => {
+    const merged = applyFallbackTakeover(primary, {
+      source: "jiqizhixin",
+      ok: false,
+      count: 0,
+      reason: "anti_bot:captcha",
+      layer: "fallback",
+    });
+    expect(merged).toBe(primary);
   });
 });
