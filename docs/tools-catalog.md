@@ -151,13 +151,14 @@
 - **分类**：搜索（自托管 metasearch，聚合最多 269 个引擎）
 - **费用**：免费（Docker 自托管，无 API key、无每查询成本、无前端层限额）
 - **状态**：✅ 已部署并接入管线（#92，2026-09-05）
-- **部署**：colima 里 `searxng/searxng:latest` 容器，宿主端口 `8888`；Watchtower 每 24h 自动更新；JSON API 已启用
+- **部署**：colima 里 `searxng/searxng:latest` 容器，宿主端口 `8888`；配置固化在宿主 `~/searxng/settings.yml`（挂载进容器——Watchtower 每 24h 自动更新镜像**不丢配置**）；JSON API 已启用
 - **管线接入**：`source-registry.mjs` 的 `searxng_search` 源（GENERAL_SEARCH_SOURCES）——apiSearch 直连 JSON API（collectFromSource Layer 0），CDP HTML 结果页兜底；rate-limiter 对 `localhost` 零延迟、无小时上限（自托管前端不设限）
 - **搜索位置**：fast-first——SearXNG ~2s 返回聚合结果；其后仍是 Brave/Tavily/Jina pool（#65）与 CDP 精度兜底
-- **运维要点（2026-09-05 实测教训）**：
-  - `settings.yml` 必须含 `search.formats: [html, json]`，否则 JSON API 返回 403——容器 volume 里的配置可能被镜像更新回退，需复查
-  - SearXNG 的 httpx 客户端**不读** `HTTP_PROXY` 环境变量，代理必须写进 `settings.yml` 的 `outgoing.proxies`（当前指向宿主代理 `http://192.168.5.2:7897`；代理端口变化后要同步更新并重建容器）
-  - 后端引擎走宿主代理出口，公共出口可能 rate-limit/CAPTCHA（brave/DDG/startpage），Google CSE 通常可用——多引擎冗余兜住，单查询 20 条结果可稳定拿到
+- **运维要点（2026-09-05 / 2026-09-24 两轮实测）**：
+  - `settings.yml` 必须含 `search.formats: [html, json]`，否则 JSON API 返回 403
+  - SearXNG 的 httpx 客户端**不读** `HTTP_PROXY` 环境变量，代理必须写进 `settings.yml` 的 `outgoing.proxies`，且**必须走 VM 网关地址** `http://192.168.5.2:7890`（colima VM 到宿主的路径；端口跟随宿主 Clash 当前端口，变化后改 settings.yml + `docker restart searxng`）
+  - **症状→根因速查**：`unresponsive_engines` 全 HTTP connection error = 容器无出口，按序排查：容器内 DNS 是否被污染（`nslookup duckduckgo.com` 返回错误 IP）→ VM 网关代理可达性（容器内 `wget http://192.168.5.2:7890`）→ 宿主代理端口是否变更；colima VM 状态 `error` 起不来 → `brew upgrade colima && colima start`
+  - 出口 IP 被反爬时单引擎照挂（DDG 引擎同出口也 CAPTCHA）——多引擎聚合冗余兜底，属预期非故障
 - **何时用**：管线自动使用（trend/research 的 general 源之一）；人工调试用 `curl 'http://localhost:8888/search?q=<kw>&format=json'`
 
 ### pdf-parse (npm)
