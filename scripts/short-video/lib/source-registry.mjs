@@ -1882,7 +1882,7 @@ export const GENERAL_SEARCH_SOURCES = [
     accessMethod: {
       primary: "cdp",
       notes:
-        "CDP (html.duckduckgo.com non-JS endpoint — no rendering needed). Lenient rate limit, no CAPTCHA (#91). Best scraping-friendly search engine.",
+        "RETIRED 2026-09-24 (#269 Round I): html.duckduckgo.com now serves a bot-verification challenge page (\"Unfortunately, bots use DuckDuckGo too\") to automated traffic including real-Chrome CDP; bare-HTTP control group on the same egress also fails — egress-IP reputation, not selector rot. Selector repair is ineffective. Retrieval fallback: search-pool (Serper/Brave/Tavily/Jina) and SearXNG aggregate (ships its own DDG engine, no API key needed). Supersedes the obsolete #91 \"lenient, no CAPTCHA\" note.",
     },
     useCleanTitle: false,
     url: (keyword) =>
@@ -2112,20 +2112,27 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP only. Search page DOM scraping. No public API.",
+      notes:
+        "CDP only. 2026-09-24: /search?q= 302-redirects to /zh/predictions?q= (localized browse page); query results DO render there as overlay anchors (a[href*='/event/'], title in aria-label) — verified 56 event links after full SPA settle. Selector rewritten accordingly (#269 Round I). No public API.",
     },
     useCleanTitle: false,
-    url: (keyword) => `https://polymarket.com/search?q=${encodeURIComponent(keyword)}`,
+    url: (keyword) => `https://polymarket.com/zh/predictions?q=${encodeURIComponent(keyword)}`,
     articleScript: `
       var results = [];
-      document.querySelectorAll('[class*="market"], [class*="card"]').forEach(function(el) {
-        var title = el.querySelector('h2, h3, [class*="title"], [class*="question"]');
-        var link = el.querySelector('a[href]');
-        if (title) {
-          results.push({ title: title.textContent.trim(), url: link ? link.href : "" });
+      document.querySelectorAll('a[href*="/event/"]').forEach(function(a) {
+        var href = a.getAttribute("href") || "";
+        var title = a.getAttribute("aria-label");
+        if (!title) {
+          var m = href.match(/\\/event\\/([a-z0-9-]+?)-\\d{10,}$/);
+          if (m) title = m[1].replace(/-/g, " ");
         }
+        if (!title || !href) return;
+        results.push({
+          title: title.trim(),
+          url: href.indexOf("http") === 0 ? href : "https://polymarket.com" + href,
+        });
       });
-      return results.slice(0, 20);
+      return results.slice(0, 30);
     `,
   },
   {
