@@ -523,7 +523,7 @@ https://www.douyin.com/jingxuan/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD
 
 ### 第八个假判决：SPA 渲染未完成被定界成死页（2026-09-24，polymarket 更正）
 
-polymarket 定界时在落地页抽到「9 个 h3 全是 UI chrome、0 个 event 链接」，判成改版无解——**抽样早于 SPA 渲染完成**。等足 9s 实测：56 条 `/event/` 覆盖锚、标题在 `aria-label`。定界纪律：**SPA 页面必须双时刻抽样**（首探 + 至少 8s 后复探）再下「无内容」结论；覆盖锚（`absolute inset-0` 空锚）的标题常在 `aria-label`/子节点而非 textContent。同日 digg_search 走同型坑的另一半：`/search?q=` 302 到 `/tech` 分类页、**查询参数被丢弃**——落地页有内容但与关键词无关，relevance 过滤后 0。二者外表都是「有页面没结果」，区别在落地后 `q` 是否存活：存活 → 修 articleScript（polymarket 路径）；被丢弃 → 搜索移除，标记放弃或降级兜底（digg 路径）。
+polymarket 定界时在落地页抽到「9 个 h3 全是 UI chrome、0 个 event 链接」，判成改版无解——**抽样早于 SPA 渲染完成**。等足 9s 实测：56 条 `/event/` 覆盖锚、标题在 `aria-label`。定界纪律：**SPA 页面必须双时刻抽样**（首探 + 至少 8s 后复探）再下「无内容」结论；覆盖锚（`absolute inset-0` 空锚）的标题常在 `aria-label`/子节点而非 textContent。同日 digg_search 走同型坑的另一半：`/search?q=` 302 到 `/tech` 分类页、**查询参数被丢弃**——落地页有内容但与关键词无关，relevance 过滤后 0。二者外表都是「有页面没结果」，区别在落地后 `q` 是否存活：存活 → 修 articleScript（polymarket 路径）；被丢弃 → 搜索移除，标记放弃或降级兜底。**digg 已落地降级**：主层换 Google `site:digg.com`（qdr:y）+ h3 + digg.com 域过滤（techmeme 模式），`selector-health` 10 条过 relevance guard——不再浪费主层 36s 重试。
 
 ### 二轮台账（2026-09-22，55 源清扫 + 10 源 CDP 复核）
 
