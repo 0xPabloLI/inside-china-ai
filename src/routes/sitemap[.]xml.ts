@@ -54,6 +54,26 @@ export const Route = createFileRoute("/sitemap.xml")({
           // Fall back to static routes only
         }
 
+        try {
+          const sb = createPublicClient();
+          const { data } = await sb
+            .from("ask_answers")
+            .select("slug, answered_at")
+            .eq("status", "published")
+            .order("ask_count", { ascending: false })
+            .limit(500);
+          for (const a of data ?? []) {
+            entries.push({
+              path: `/ask/${a.slug}`,
+              lastmod: new Date(a.answered_at).toISOString(),
+              changefreq: "weekly",
+              priority: "0.6",
+            });
+          }
+        } catch {
+          // Answer pages are optional
+        }
+
         const urls = entries.map((e) =>
           [
             `  <url>`,

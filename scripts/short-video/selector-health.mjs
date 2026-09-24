@@ -14,6 +14,11 @@
  *   node scripts/short-video/selector-health.mjs [--keyword <kw>] [--json]
  *   node scripts/short-video/selector-health.mjs --only baidu_news,qbitai
  *   node scripts/short-video/selector-health.mjs --env <main-checkout>/.env.local
+ *   node scripts/short-video/selector-health.mjs --fallback [--json]
+ *                                                     (#337: audit the site:
+ *     fallback layer itself — every source that has a googleSiteFallback is
+ *     probed on googleSiteFallback.url(keyword) + its own articleScript,
+ *     with sample titles and a three-way quality verdict per source)
  *
  * Requires the CDP proxy (localhost:3456) and a running Chrome with the
  * usual login states; per-domain pacing comes from the #89 P0 rate limiter.
@@ -39,11 +44,13 @@ import {
   EGRESS_UNREACHABLE_VERDICT,
   isFailureVerdict,
 } from "./lib/source-url-heal.mjs";
+import { judgeRelevance } from "./lib/source-health.mjs";
 import { loadEnv } from "./lib/load-env.mjs";
 import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import {
   cdpNewTab,
   cdpCloseTab,
+  cdpEval,
   waitForPageLoad,
   extractWithRetry,
   detectAntiBot,
@@ -238,6 +245,59 @@ export function verdictReason(articles, lateAntiBot) {
   return lateAntiBot ? `anti_bot:${lateAntiBot}` : "zero_results";
 }
 
+/**
+ * Did Chrome actually render a page? A `chrome-error://chromewebdata/` landing
+ * means navigation itself failed (DNS / proxy / transport) — there is no DOM
+ * to extract from, and running the extraction anyway is how a network failure
+ * used to surface as a misleading `zero_results` (digg_search, #337).
+ */
+export async function landedChromeError(tabId) {
+  const r = await cdpEval(tabId, "location.href");
+  const href = String(r?.result?.value ?? r?.value ?? "");
+  return href.startsWith("chrome-error://") || href.startsWith("chrome://");
+}
+
+/**
+ * Network-layer verdict for a URL Chrome could not load at all (#337, AC5) —
+ * the same control-group criterion the HTTP probe applies to connect-level
+ * failures: navigate a bare `<origin>/` with the same probe. If even that
+ * never renders there is no route to this host, and the answer is about the
+ * probe's network path (`probe-no-egress` — not a source verdict, not for the
+ * dead-source ledger); if the origin loads while the target URL failed, the
+ * transport failure belongs to the URL (`network-error`, a failure verdict).
+ * Both values come from the shared vocabulary — no new verdict is invented.
+ */
+export async function networkLayerVerdict(url) {
+  let ctrl = null;
+  try {
+    ctrl = await cdpNewTab(new URL(url).origin + "/");
+    await new Promise((r) => setTimeout(r, 2000));
+    return (await landedChromeError(ctrl)) ? "probe-no-egress" : "network-error";
+  } catch {
+    return "probe-no-egress";
+  } finally {
+    if (ctrl) await cdpCloseTab(ctrl);
+  }
+}
+
+/**
+ * #337 AC2: three-way quality bucket for a fallback-layer extraction. Count
+ * alone misreads both known failure modes: a consent-page link-grab returns
+ * hundreds of junk rows (the #269 history), and sogou_weixin returns 1 row
+ * whose "title" is the bare URL. Uses the same relevance seam
+ * (judgeRelevance) applyRelevanceGuard applies in production.
+ *
+ * @param {Array<{title?: string, url?: string}>} articles
+ * @param {{invalid: boolean, hits: number, total: number}} relevance
+ * @returns {"zero"|"low-quality"|"real"}
+ */
+export function fallbackQuality(articles, relevance) {
+  const list = Array.isArray(articles) ? articles : [];
+  if (list.length === 0) return "zero";
+  const urlTitled = list.filter((a) => /^https?:\/\//.test(String(a?.title ?? ""))).length;
+  return relevance?.invalid || urlTitled === list.length ? "low-quality" : "real";
+}
+
 async function checkSource(source, keywords) {
   const cap = source.capabilities?.articles;
   const keyword = keywords[source.locale === "zh-CN" ? "zh" : "en"] ?? keywords.zh;
@@ -248,6 +308,27 @@ async function checkSource(source, keywords) {
   try {
     tabId = await cdpNewTab(url);
     await new Promise((r) => setTimeout(r, 1500));
+    // #337 AC5: a chrome-error landing means navigation never produced a page —
+    // extraction there is meaningless and used to surface as zero_results.
+    // Network jitter must be re-tested before a verdict: one fresh-tab retry,
+    // then the bare-origin control probe separates probe-no-egress (no route
+    // to the host — not a source verdict) from network-error (this URL's own
+    // transport failure).
+    if (await landedChromeError(tabId)) {
+      const retryTab = await cdpNewTab(url);
+      await cdpCloseTab(tabId);
+      tabId = retryTab;
+      await new Promise((r) => setTimeout(r, 1500));
+      if (await landedChromeError(tabId)) {
+        return {
+          source: source.name,
+          ok: false,
+          count: 0,
+          reason: await networkLayerVerdict(url),
+          durationMs: Date.now() - started,
+        };
+      }
+    }
     const loaded = await waitForPageLoad(tabId);
     const antiBot = await detectAntiBot(tabId);
     if (antiBot) {
@@ -308,6 +389,86 @@ async function checkSource(source, keywords) {
   }
 }
 
+/**
+ * #337 AC1: live-test one source's googleSiteFallback layer in isolation.
+ *
+ * Production only reaches this layer when the primary layer fails, so a dead
+ * fallback layer stays invisible until the day it is needed (jiqizhixin's CDP
+ * layer failed 2026-09-24 and its site: layer was the only thing left). This
+ * probe asks the layer directly: navigate googleSiteFallback.url(keyword) and
+ * extract with the layer's own articleScript — the same "test the registry's
+ * script, not a hand-written subset" rule the primary check follows.
+ *
+ * The row carries samples and a quality verdict because count alone misreads:
+ * the relevance seam (judgeRelevance, the one applyRelevanceGuard uses) flags
+ * large all-unrelated sets (consent-page link-grabs), and fallbackQuality
+ * flags bare-URL titles (sogou_weixin's 1 url-only row).
+ */
+export async function checkFallbackSource(source, keywords) {
+  const fb = source.capabilities?.articles?.googleSiteFallback ?? source.googleSiteFallback;
+  const keyword = keywords[source.locale === "zh-CN" ? "zh" : "en"] ?? keywords.zh;
+  const url = typeof fb.url === "function" ? fb.url(keyword) : fb.url;
+  const started = Date.now();
+  let tabId = null;
+  try {
+    tabId = await cdpNewTab(url);
+    await new Promise((r) => setTimeout(r, 1500));
+    if (await landedChromeError(tabId)) {
+      const retryTab = await cdpNewTab(url);
+      await cdpCloseTab(tabId);
+      tabId = retryTab;
+      await new Promise((r) => setTimeout(r, 1500));
+      if (await landedChromeError(tabId)) {
+        return {
+          source: source.name,
+          ok: false,
+          count: 0,
+          reason: await networkLayerVerdict(url),
+          layer: "fallback",
+          durationMs: Date.now() - started,
+        };
+      }
+    }
+    const antiBot = await detectAntiBot(tabId);
+    if (antiBot) {
+      return {
+        source: source.name,
+        ok: false,
+        count: 0,
+        reason: `anti_bot:${antiBot}`,
+        layer: "fallback",
+        durationMs: Date.now() - started,
+      };
+    }
+    const articles = await extractWithRetry(tabId, fb.articleScript);
+    const lateAntiBot =
+      articles.length === 0 ? await detectAntiBot(tabId, { allowDomHint: true }) : null;
+    const relevance = judgeRelevance(keyword, articles);
+    return {
+      source: source.name,
+      ok: articles.length > 0,
+      count: articles.length,
+      reason: verdictReason(articles, lateAntiBot),
+      layer: "fallback",
+      quality: fallbackQuality(articles, relevance),
+      relevance: { hits: relevance.hits, total: relevance.total },
+      samples: articles.slice(0, 3).map((a) => String(a.title ?? "").slice(0, 80)),
+      durationMs: Date.now() - started,
+    };
+  } catch (e) {
+    return {
+      source: source.name,
+      ok: false,
+      count: 0,
+      reason: `error:${e.message}`,
+      layer: "fallback",
+      durationMs: Date.now() - started,
+    };
+  } finally {
+    if (tabId) await cdpCloseTab(tabId);
+  }
+}
+
 async function main() {
   // This CLI is an entry point, so it owns the .env.local load (#287/#275).
   // Without it every keyed api source probes with an empty credential and a
@@ -319,7 +480,15 @@ async function main() {
   loadEnv(getArg("env") || undefined);
   const keyword = getArg("keyword") || "AI大模型";
   const only = getArg("only");
-  let sources = selectCheckableSources();
+  // #337: --fallback audits the site: fallback layer itself — only sources
+  // that actually have a googleSiteFallback (auto or explicit) are checkable.
+  const fallbackMode = hasFlag("fallback");
+  let sources = fallbackMode
+    ? ALL_SOURCES.filter((s) => {
+        const fb = s.capabilities?.articles?.googleSiteFallback ?? s.googleSiteFallback;
+        return Boolean(fb?.url && fb.articleScript);
+      })
+    : selectCheckableSources();
   if (only) {
     const wanted = new Set(only.split(",").map((s) => s.trim()));
     sources = sources.filter((s) => wanted.has(s.name));
@@ -363,7 +532,7 @@ async function main() {
 
   const keywords = { zh: keyword, en: getArg("en-keyword") || "artificial intelligence" };
   console.log(
-    `🔍 Selector health — ${sources.length} CDP sources (zh: "${keywords.zh}" / en: "${keywords.en}")`,
+    `🔍 Selector health — ${sources.length} ${fallbackMode ? "fallback-layer (site:)" : "CDP"} sources (zh: "${keywords.zh}" / en: "${keywords.en}")`,
   );
   if (keyedInPlay.length > 0) {
     console.log(
@@ -377,8 +546,9 @@ async function main() {
 
   const results = [];
   for (const source of sources) {
-    const result =
-      source.accessMethod?.primary === "api"
+    const result = fallbackMode
+      ? await checkFallbackSource(source, keywords)
+      : source.accessMethod?.primary === "api"
         ? await checkApiSource(
             source,
             keywords[source.locale === "zh-CN" ? "zh" : "en"] ?? keywords.zh,
@@ -391,6 +561,14 @@ async function main() {
     console.log(
       `  ${icon} ${result.source}: ${result.count} results (${(result.durationMs / 1000).toFixed(1)}s)${result.reason ? ` — ${result.reason}${hint}` : ""}`,
     );
+    // #337 AC2/AC4: count alone misreads junk — print the quality verdict and
+    // sample titles so a "healthy count" cannot hide a link-grab or bare URLs.
+    if (fallbackMode && result.quality) {
+      console.log(
+        `      ↳ ${result.quality} (relevance ${result.relevance.hits}/${result.relevance.total})`,
+      );
+      for (const s of result.samples) console.log(`        · ${s}`);
+    }
   }
 
   const byClass = { none: 0, source: 0, probe: 0 };
@@ -417,6 +595,7 @@ async function main() {
           checkedAt: new Date().toISOString(),
           keyword,
           envLoaded: true,
+          layer: fallbackMode ? "fallback" : "primary",
           credentials: {
             required: keyReport.required,
             present: keyReport.present,

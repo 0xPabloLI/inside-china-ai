@@ -11,18 +11,12 @@
     "types"
   ],
   "ignore": [
-    "scripts/short-video/experiments/**",
     "scripts/short-video/lib/**",
     "src/integrations/supabase/types.ts",
     "src/lib/email-templates/**"
   ],
   "ignoreDependencies": [
-    "@lovable.dev/vite-tanstack-config",
     "@tanstack/router-plugin",
-    "nitro",
-    "tailwindcss",
-    "tw-animate-css",
-    "jscpd",
     "@remotion/effects",
     "@remotion/renderer"
   ],
@@ -36,7 +30,6 @@
     "ffmpeg",
     "ffprobe",
     "say",
-    "yt-dlp",
     "nslookup"
   ],
   "workspaces": {
@@ -61,13 +54,16 @@
       ],
       "project": [
         "src/**/*.{ts,tsx}",
+        "src/**/*.css",
         "scripts/**/*.{ts,tsx,mjs}",
         "skills/**/*.{ts,tsx,mjs}"
       ]
     },
     "scripts/short-video/remotion": {
       "entry": ["remotion.config.ts", "src/**/*.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}"]
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignoreDependencies": ["react-dom"],
+      "ignoreBinaries": ["remotion"]
     }
   }
 }

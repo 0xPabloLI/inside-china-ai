@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      ask_answers: {
+        Row: {
+          answer: string
+          answered_at: string
+          ask_count: number
+          created_at: string
+          id: string
+          question: string
+          question_key: string
+          seo_description: string
+          seo_rewritten_at: string | null
+          seo_title: string
+          slug: string
+          source_slugs: string[]
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          answer: string
+          answered_at?: string
+          ask_count?: number
+          created_at?: string
+          id?: string
+          question: string
+          question_key: string
+          seo_description: string
+          seo_rewritten_at?: string | null
+          seo_title: string
+          slug: string
+          source_slugs?: string[]
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: string
+          answered_at?: string
+          ask_count?: number
+          created_at?: string
+          id?: string
+          question?: string
+          question_key?: string
+          seo_description?: string
+          seo_rewritten_at?: string | null
+          seo_title?: string
+          slug?: string
+          source_slugs?: string[]
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ask_job_state: {
+        Row: {
+          last_result: Json | null
+          last_run_at: string | null
+          locked_until: string | null
+          name: string
+          paused_reason: string | null
+        }
+        Insert: {
+          last_result?: Json | null
+          last_run_at?: string | null
+          locked_until?: string | null
+          name: string
+          paused_reason?: string | null
+        }
+        Update: {
+          last_result?: Json | null
+          last_run_at?: string | null
+          locked_until?: string | null
+          name?: string
+          paused_reason?: string | null
+        }
+        Relationships: []
+      }
       ask_queries: {
         Row: {
           created_at: string
@@ -427,6 +502,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acquire_ask_job_lease: {
+        Args: { _name: string; _seconds: number }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

@@ -13,9 +13,9 @@ import {
 } from "@/lib/structured-data";
 import { SubscribeForm } from "@/components/subscribe-form";
 
-const TITLE = "Chinese AI Companies: The 2026 Guide to China's Top AI Labs";
+const TITLE = "Best AI Companies in China (2026): Top Chinese AI Labs Ranked";
 const DESCRIPTION =
-  "A curated directory of China's top AI companies and open model labs: DeepSeek, Moonshot AI, Zhipu AI, Alibaba Qwen, ByteDance Seed, MiniMax and more.";
+  "The top AI companies in China compared: DeepSeek, Alibaba Qwen, Moonshot AI (Kimi), Zhipu AI (GLM), ByteDance Seed, MiniMax — models, strengths and who leads.";
 const URL = "https://chinaai.news/companies";
 
 type Company = {
@@ -293,7 +293,7 @@ export const companiesJsonLd = () =>
 export const Route = createFileRoute("/companies")({
   head: () => ({
     meta: [
-      { title: "Chinese AI Companies — Top AI Labs in China (2026 Guide)" },
+      { title: TITLE },
       { name: "description", content: DESCRIPTION },
       { property: "og:title", content: TITLE },
       { property: "og:description", content: DESCRIPTION },
@@ -358,7 +358,7 @@ function CompaniesPage() {
           <header className="mb-12">
             <div className="text-xs uppercase tracking-wider text-muted-foreground">Guide</div>
             <h1 className="mt-2 font-serif text-4xl leading-tight tracking-tight sm:text-5xl">
-              Chinese AI companies: a guide to China's top AI labs
+              The best AI companies in China: top Chinese AI labs compared
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
               A working map of the organisations that matter in China's AI industry — the frontier

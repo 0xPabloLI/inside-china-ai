@@ -21,6 +21,7 @@ import { tiktokConnectJsonLd } from "@/routes/tiktok-connect";
 import { chineseAiModelsJsonLd } from "@/routes/news.chinese-ai-models";
 import { askJsonLd } from "@/routes/ask";
 import { postJsonLd } from "@/lib/post-structured-data";
+import { qaPageJsonLd } from "@/routes/ask_.$slug";
 
 /** A representative article graph, standing in for every /posts/$slug page. */
 const samplePostJsonLd = () =>
@@ -62,6 +63,17 @@ export const JSONLD_REGISTRY: { label: string; doc: () => JsonLdNode }[] = [
   { label: "/tiktok-connect", doc: tiktokConnectJsonLd },
   { label: "/news/chinese-ai-models", doc: chineseAiModelsJsonLd },
   { label: "/ask", doc: askJsonLd },
+  {
+    label: "/ask/$slug (sample)",
+    doc: () =>
+      qaPageJsonLd({
+        slug: "what-is-deepseek-r2",
+        question: "What is DeepSeek R2?",
+        answer: "DeepSeek R2 is the lab's reasoning model [1].",
+        created_at: "2026-09-01T00:00:00.000Z",
+        answered_at: "2026-09-02T00:00:00.000Z",
+      }),
+  },
   { label: "/posts/$slug (sample)", doc: samplePostJsonLd },
   { label: "shared builders", doc: builderSmokeJsonLd },
 ];
