@@ -42,6 +42,21 @@ export const getAskAnswer = createServerFn({ method: "GET" })
     };
   });
 
+/** Published answers that cite a given article — rendered as crawlable links on the article page. */
+export const listAnswersForPost = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ slug: z.string().min(1).max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const sb = createPublicClient();
+    const { data: rows } = await sb
+      .from("ask_answers")
+      .select("slug, question")
+      .eq("status", "published")
+      .contains("source_slugs", [data.slug])
+      .order("ask_count", { ascending: false })
+      .limit(6);
+    return rows ?? [];
+  });
+
 export const listAskAnswers = createServerFn({ method: "GET" }).handler(async () => {
   const sb = createPublicClient();
   const { data } = await sb
