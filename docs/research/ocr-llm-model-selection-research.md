@@ -4,9 +4,9 @@
 
 针对 alibaba/open-code-review (OCR) 代码审查工具的 LLM 选型需求（必须支持 function calling/tools、强代码理解、可在 M2 Pro 32GB 本地运行），对 Ollama 平台 2026 年 9 月所有支持 tools 的模型进行了系统调研。
 
-**结论：`qwen3.6:27b-mlx` 是最佳选择。** 它在 SWE-Bench Verified（代码 bug 发现与修复基准）上得分 77.2，在同类 27B-30B 模型中排名第一；有 MLX 版本专为 Apple Silicon 优化（19GB，32GB 机器可跑）；2 周前发布，6.7M 下载量，是 Ollama 上最受欢迎的 tools 模型。
+**结论：`ornith:1.5-9b`（Q8_0，9.8GB）是最终采用方案。** Ornith-1.5-9B 在 SWE-bench Verified 得分 70.6，9B 级别无对手（Qwen3.5-9B 仅 53.2，差距 17.4 分）；纯文本 dense，MIT 许可，262K context。从 HuggingFace 下载 GGUF 通过 `ollama create` 导入 Ollama，tools + thinking 实测通过，OCR 代码审查实测通过。用户最终选择 Q8_0（质量优先于速度），Q4_K_M（5.4GB）作为快速备选。
 
-**备选：`muse-glimmer:30b-mlx`**（Meta 出品，工具调用基准 MCP Atlas 得分 75.5 远超 Qwen3.6 的 62.5，内置失败恢复机制适合 OCR 多次 API 调用场景）和 **`ornith:9b`**（仅 5.6GB，速度快，纯文本，MIT 许可，适合快速扫描）。
+**备选：`Ornith-1.5-35B-A3B`（MoE，Q4_K_M 20.2GiB）**— 激活仅 3B 推理快，质量更好，但 20GB 内存占用紧张，32GB 机器可能 swap。如 9B 质量不够可升级。
 
 ## 关键约束
 
@@ -248,6 +248,92 @@ Meta 在 Muse Glimmer 发布时提供了三方对比，这是目前最权威的�
 - `ollama pull ornith:9b` 后台下载中（5.6GB，Ollama CDN ~1.1MB/s）
 - Metal GPU 已修复（用户重启 Mac）
 - 待实测：ornith:9b 的 tools 路径 + 代码审查质量
+
+## Deep Research 更新（2026-09-24 第三轮：最终采用）
+
+### Ornith-1.5-9B 导入 Ollama 实测
+
+从 HuggingFace（hf-mirror）下载 GGUF，通过 `ollama create` 导入：
+
+```
+aria2c -x16 -s16 -k1M -d /tmp/ornith15 -o Ornith-1.5-9B-Q4_K_M.gguf \
+  "https://hf-mirror.com/ornith-ai/Ornith-1.5-9B-GGUF/resolve/main/Ornith-1.5-9B-Q4_K_M.gguf"
+
+# Modelfile
+FROM /tmp/ornith15/Ornith-1.5-9B-Q4_K_M.gguf
+SYSTEM You are Ornith, an open-source agentic coding assistant...
+PARAMETER stop <|im_end|>
+PARAMETER temperature 0.6
+PARAMETER top_k 20
+PARAMETER top_p 0.95
+
+ollama create ornith:1.5-9b -f /tmp/ornith15/Modelfile
+```
+
+**导入结果**：
+
+```
+Model
+  architecture        qwen35
+  parameters          9.2B
+  context length      262144
+  quantization        Q4_K_M
+
+Capabilities
+  tools
+  thinking
+  completion
+```
+
+**Tools 实测**：发送带 `get_weather` tool 的请求，模型正确返回 `tool_calls`（`get_weather(city="Beijing")`）+ `thinking` 块。加载 5.6s，推理 1.8s。
+
+**OCR 审查实测**：`ocr review --commit 8b10b96` 审查 `src/routes/sitemap[.]xml.ts`，调用 `file_read` tool 成功，52s 完成，0 findings（代码无问题）。
+
+### Ornith-1.5-9B 可用量化版本
+
+| 量化 | 大小 | 备注 |
+|------|------|------|
+| Q4_K_M | 5.4 GB | 已导入实测 |
+| Q5_K_M | 6.6 GB | 质量提升 |
+| Q6_K | 7.6 GB | 接近 FP16 |
+| Q8_0 | 9.8 GB | ✅ 用户最终选择（质量优先于速度） |
+| BF16 | 18.4 GB | 不必要 |
+
+### Ornith-1.5-35B-A3B MoE 发现
+
+HuggingFace 上存在 `ornith-ai/Ornith-1.5-35B-A3B-GGUF`（架构 `qwen35moe`）：
+
+| 量化 | 大小 | 32GB 能跑？ |
+|------|------|------------|
+| Q4_K_M | 20.2 GiB | 紧张但可行（剩余 ~11 GiB） |
+| Q5_K_M | 25.3 GB | ❌ |
+| Q6_K | 29.2 GB | ❌ |
+| Q8_0 | 37.8 GB | ❌ |
+
+- **优势**：激活仅 3B，推理速度接近 3B dense，可能比 9B Q4_K_M 还快；35B 总参数质量更好
+- **风险**：20.2 GiB + Chrome/IDE/OCR，32GB 可能 swap
+- **决策**：暂不采用，优先 9B Q4_K_M。如需更强可后续试 35B MoE
+
+### 最终采用
+
+**`ornith:1.5-9b`（Q8_0，9.8GB）**
+
+理由：
+1. SWE-bench Verified 70.6 — 9B 级别无对手（Qwen3.5-9B 仅 53.2）
+2. Q8_0 近无损量化 — 质量优先于速度
+3. 9.8GB — 32GB 机器内存无压力
+4. 纯文本 dense — 符合所有约束
+5. tools + thinking — OCR 实测通过
+6. MIT 许可 — 最宽松
+7. 262K context — 可处理大文件
+
+**快速备选**：Q4_K_M（5.4GB）速度更快，单文件 52s，多文件 10min 完成。
+
+**OCR 配置**：`~/.opencodereview/config.json` → `provider=ollama, model=ornith:1.5-9b`
+
+### 非本渠道模型导入 Ollama 方法
+
+从 HuggingFace / ModelScope / 手动下载的 GGUF 文件，可通过 `ollama create` + Modelfile `FROM /path/to/file.gguf` 导入 Ollama。GGUF 内置 chat template，无需额外配置。不限于 Ollama 官方库。
 
 ## Sources
 
