@@ -7,9 +7,11 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-09-24（**Round J**：#333 收口——36kr/guancha CDP 取证收敛，selector-health 双绿 95/239 + 抽样文章页 4/4 可达，无需改 registry；**#269 母票闭票**——卫星 #331/#332/#333/#336/#337/#330 全闭，遗留项归 #286/#346 与用户级裁决；本文件完成结构精简）。
+> **Last inventory**: 2026-09-24（**Round K**：#297 fail-closed 落地——gated 素材分配收口为 claim+VLM 唯一通道，无 claim 绑定资产一律留空交 B-roll/版式承接（moonshot 回归测试锁定），token-overlap 机制退役，commit `a4ce959` 待 push/闭票裁决；真实 scene-data smoke PASS）。
 >
-> **frontier**：Tier 1 可立即开工 **#298**（P1）/ **#297**（P1）；#300/#302 并行调研（W3A）；#326/#346/#347 等 `needs-triage` 先分流再开工。
+> Round J（#333 收口 / #269 母票闭票 / 结构精简）一句话档案：源健康取证收敛，卫星全闭，本文件完成结构精简。
+>
+> **frontier**：Tier 1 可立即开工 **#298**（P1）/ **#297**（P1，本 session 已认领实施、待闭票）；#300/#302 并行调研（W3A）；#326/#346/#347 等 `needs-triage` 先分流再开工。
 >
 > 近轮一句话档案：**Round I + 续波**（源健康收口：polymarket 修复 / duckduckgo RETIRED / digg 降级 site: / xhs 登录修复 / SearXNG 复活）；**Round F**（URL 对齐审计 `registryPatches: 0`）；**#335 已撤销**（四轴定案：抽取层最权威）。全文见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
 
