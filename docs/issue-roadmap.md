@@ -4,7 +4,7 @@ GitHub Issues 依赖关系 + 执行波次（Wave）+ 价值分层（Tier）+ 主
 
 ## 当前状态
 
-> **Last inventory**: 2026-09-24（**#269 后续 Round I：源健康遗留收口 —— #336 两 Google SERP 源选择器修复、#337 site: 层存活巡检脚本化 + chrome-error 网络层定界、#330 CI knip 红灯清零；另出三源定界结论：duckduckgo=反爬挑战页、polymarket=改版重定向、xhs=登录态过期（登录即修复路径）**）。
+> **Last inventory**: 2026-09-24（**#269 后续 Round I：源健康遗留收口 —— #336 两 Google SERP 源选择器修复、#337 site: 层存活巡检脚本化 + chrome-error 网络层定界、#330 CI knip 红灯清零；同日三源处置落定：polymarket 改版重定向→已修复（predictions?q= 落地页 event 覆盖锚，30 条）、duckduckgo=反爬挑战页→标记放弃、digg=搜索端点 302 丢参→待裁决；xhs 登录态过期→用户登录后复测 20 条 ✅**）。
 >
 > **frontier = #333（36kr / guancha CDP 诊断收口）/ #326（ML 栈安全升级）**。
 >
