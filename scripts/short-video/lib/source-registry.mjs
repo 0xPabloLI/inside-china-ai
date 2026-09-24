@@ -1874,42 +1874,6 @@ export const GENERAL_SEARCH_SOURCES = [
     `,
   },
   {
-    name: "duckduckgo_search",
-    label: "DuckDuckGo Search",
-    category: "general",
-    needsAuth: false,
-    supportsKeyword: true,
-    accessMethod: {
-      primary: "cdp",
-      notes:
-        "RETIRED 2026-09-24 (#269 Round I): html.duckduckgo.com now serves a bot-verification challenge page (\"Unfortunately, bots use DuckDuckGo too\") to automated traffic including real-Chrome CDP; bare-HTTP control group on the same egress also fails — egress-IP reputation, not selector rot. Selector repair is ineffective. Retrieval fallback: search-pool (Serper/Brave/Tavily/Jina) and SearXNG aggregate (ships its own DDG engine, no API key needed). Supersedes the obsolete #91 \"lenient, no CAPTCHA\" note.",
-    },
-    useCleanTitle: false,
-    url: (keyword) =>
-      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(keyword + " China AI")}`,
-    articleScript: `
-      var results = [];
-      document.querySelectorAll('.result, .web-result, .results_links').forEach(function(el) {
-        var link = el.querySelector('a.result__a, a[href]');
-        var title = el.querySelector('.result__a, .result__title, h2, a');
-        var snippet = el.querySelector('.result__snippet, .snippet');
-        if (link && title) {
-          var rawUrl = link.href;
-          // html.duckduckgo.com wraps result URLs in /l/?uddg=<encoded> — unwrap
-          // so downstream dedup/attribution sees the real target URL (#91).
-          var m = rawUrl.match(/[?&]uddg=([^&]+)/);
-          if (m) rawUrl = decodeURIComponent(m[1]);
-          results.push({
-            title: title.textContent.trim(),
-            url: rawUrl,
-            snippet: snippet ? snippet.textContent.trim().substring(0, 200) : ''
-          });
-        }
-      });
-      return results.slice(0, 20);
-    `,
-  },
-  {
     name: "searxng_search",
     label: "SearXNG (self-hosted)",
     category: "general",
@@ -3365,11 +3329,6 @@ export const SOURCE_ATTRIBUTIONS = {
     license: "News copyright",
     logoRequired: false,
   },
-  duckduckgo_search: {
-    text: (a) => `Source: ${a.sourceUrl || "DuckDuckGo"} (via DuckDuckGo Search)`,
-    license: "Varies",
-    logoRequired: false,
-  },
   searxng_search: {
     text: (a) => `Source: ${a.sourceUrl || "SearXNG"} (via SearXNG metasearch)`,
     license: "Varies",
@@ -3628,7 +3587,6 @@ export const AUTOGEN_EXCLUDED_SOURCES = new Set([
   "google_search",
   "bing_news",
   "baidu_search",
-  "duckduckgo_search",
   "digg_search",
   "techmeme_search",
   "polymarket_search",

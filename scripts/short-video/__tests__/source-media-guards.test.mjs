@@ -74,7 +74,6 @@ describe("zero-fallback list lock", () => {
       "baidu_search",
       "bing_news",
       "digg_search",
-      "duckduckgo_search",
       "polymarket_search",
       "techmeme_search",
       "threads_search", // #309 (2026-09-19): Grok web_search fallback retired; no Google index → autogen-excluded

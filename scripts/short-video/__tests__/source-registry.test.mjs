@@ -32,9 +32,10 @@ describe("Source structure", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(9);
   });
 
-  it("ALL_SOURCES has 63 sources", () => {
+  it("ALL_SOURCES has 62 sources", () => {
     // 64 − xinzhiyuan/baidu_news (dead upstream, removed #140 P5) + weibo_search (#317)
-    expect(ALL_SOURCES).toHaveLength(63);
+    // − duckduckgo_search (retired 2026-09-24, #269 Round I)
+    expect(ALL_SOURCES).toHaveLength(62);
   });
 
   it("each source has required fields", () => {
@@ -460,8 +461,8 @@ describe("Locale field", () => {
 // ─── General search sources ───
 
 describe("General search sources", () => {
-  it("GENERAL_SEARCH_SOURCES has 5 sources (currents/noozra moved to INTERNATIONAL_SOURCES #64, +searxng_search #92)", () => {
-    expect(GENERAL_SEARCH_SOURCES).toHaveLength(5);
+  it("GENERAL_SEARCH_SOURCES has 4 sources (currents/noozra moved to INTERNATIONAL_SOURCES #64, +searxng_search #92, −duckduckgo_search retired #269 R1)", () => {
+    expect(GENERAL_SEARCH_SOURCES).toHaveLength(4);
   });
 
   it("includes google_search (news vertical, #140 P4)", () => {
@@ -506,32 +507,9 @@ describe("General search sources", () => {
     expect(src.mcpFallback).toBeUndefined();
   });
 
-  it("includes duckduckgo_search on the non-JS HTML endpoint (#91)", () => {
-    const src = GENERAL_SEARCH_SOURCES.find((s) => s.name === "duckduckgo_search");
-    expect(src).toBeDefined();
-    expect(src.label).toBe("DuckDuckGo Search");
-    expect(src.category).toBe("general");
-    expect(src.supportsKeyword).toBe(true);
-    expect(src.needsAuth).toBe(false);
-    // html.duckduckgo.com — non-JS endpoint, no rendering required
-    expect(src.url("qwen").toString()).toContain("html.duckduckgo.com/html/?q=");
-    expect(src.url("qwen").toString()).toContain("China%20AI");
-    expect(src.accessMethod.primary).toBe("cdp");
-    expect(src.articleScript.length).toBeGreaterThan(50);
-    // HTML endpoint selectors
-    expect(src.articleScript).toContain("result__a");
-    expect(src.articleScript).toContain("result__snippet");
-    // DDG wraps result URLs in /l/?uddg= — extractScript must unwrap them
-    expect(src.articleScript).toContain("uddg=");
-    expect(src.articleScript).toContain("decodeURIComponent");
-    // CDP-only like baidu: no MCP fallback
-    expect(src.mcpFallback).toBeUndefined();
-  });
-
-  it("duckduckgo_search is excluded from googleSiteFallback auto-gen (search engine)", () => {
-    const src = GENERAL_SEARCH_SOURCES.find((s) => s.name === "duckduckgo_search");
-    expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
-  });
+  // duckduckgo_search tests removed with the source itself — retired
+  // 2026-09-24 (#269 Round I): html endpoint serves a bot-verification
+  // challenge to all automated traffic. See selector-auto-healing.md ledger.
 });
 
 // ─── Issue #64: Currents/Noozra reclassification ───
@@ -616,10 +594,10 @@ describe("supportsKeyword validation", () => {
     // tiktok_creator (via ScrapeCreators API)
     // + ithome, jiqizhixin (now search-page based)
     // + 6 stock_media sources (pexels, pexels-video, unsplash, wikimedia, coverr, pixabay)
-    // + duckduckgo_search (#91) + baidu_news (#64) + searxng_search (#92)
-    // + weibo_search (#317, CDP keyword SERP)
+    // + baidu_news (#64) + searxng_search (#92)
     // − google_news (merged #140 P4) − xinzhiyuan/baidu_news (dead upstream, #140 P5)
-    expect(keywordSources.length).toBe(42);
+    // − duckduckgo_search (retired 2026-09-24, #269 Round I)
+    expect(keywordSources.length).toBe(41);
   });
 });
 

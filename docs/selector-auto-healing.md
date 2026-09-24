@@ -92,6 +92,7 @@ node scripts/short-video/source-url-discover.mjs --only <源名> --keyword-zh �
 - **health 覆盖双主通道**：apiSearch 化的源（如 zhidx/weibo_hot）从 CDP 体检转入 `checkApiSource`（fetch + parser），保证主通道变更不产生体检盲区。
 - **healthy 源禁止顺手优化**：每个 health 转绿的源都是活体证据；无症状重写选择器只会引入新回归。
 - **不可修 ≠ 删源**：上游死亡（xinzhiyuan/baidu_news）保留 registry 条目零成本观察，移除属用户裁决；修复手段优先于移除（zhidx/weibo_hot 均为 API 破局而非弃用）。
+- **site: 兜底按语义契约配，不追求全覆盖**（#309 裁决收敛）：Google `site:` 返回的是网页文章，只配给「产物本来就是网页文章/平台帖子」的源（21/62，auto 条件 + explicit）；API 直连源（arxiv/github/openalex 返回论文/仓库对象）与图库（pexels 等）不配——兜底会把结构化对象降级成网页文章，违反素材契约；聚合器自身即搜索页的（google/bing/baidu）天然无需。配了也不保证可用（xinhua 的 site: 层因 Google 索引覆盖差恒 0）。
 - **Chrome 恢复阶梯**：代理是仓库自有工具可自由重启；Chrome 属用户资产，agent 永不代杀（见 Hard Safety Gates）。
 
 ## Chrome 安全规程（profile 守卫）
@@ -162,7 +163,7 @@ node scripts/short-video/source-url-discover.mjs --only <源名> --keyword-zh �
 | **判据缺陷（非 URL 死）→ 已开票** | core_search、gnews、reddit_search、google_search / bing_news / techmeme_search                                                                                                                                           | 429 限流 / 400 缺 key / 403 反爬 / 重定向到 consent 页，被旧判据一律归 `http-dead`                                                    |
 | **登录态与反爬，按边界不修**      | weibo_search、douyin、zhihu、threads_search、tiktok_creator                                                                                                                                                              | 登录墙跳转（passport.weibo.com）/ 403 / 401 / JS+登录                                                                                 |
 | **环境依赖，不修**                | searxng_search（localhost:8888 未起）、mcp_grok_search（无 url）、currents（超时）                                                                                                                                       | 自托管实例与网络                                                                                                                      |
-| **健康，禁止顺手优化**            | thepaper、leiphone、zhidx(api)、xhs、sogou_weixin、bilibili、x_search、youtube_search、arxiv_search、github_search、noozra_search、openalex_search、hackernews_search、polymarket_search、digg_search、duckduckgo_search | 200 + 关键词命中 + 结果页形态                                                                                                         |
+| **健康，禁止顺手优化**            | thepaper、leiphone、zhidx(api)、xhs、sogou_weixin、bilibili、x_search、youtube_search、arxiv_search、github_search、noozra_search、openalex_search、hackernews_search | 200 + 关键词命中 + 结果页形态                                                                                                         |
 
 ## 判据准确度：裸探针只是筛选，不是判决（2026-09-22 二轮）
 
