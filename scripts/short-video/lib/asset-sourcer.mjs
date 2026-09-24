@@ -948,11 +948,8 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       }
 
       // ── #297 fail-closed: no claim binding → no VLM relevance ──
-      // VLM relevance is claim-mode-only (visual-analyzer.mjs). Token overlap
-      // against description wording is not a visual judgment and used to let
-      // irrelevant media through (baidu_search-moonshot-02.jpg). Leave the
-      // slot empty — mediaStrategy "asset-then-broll" fills it downstream via
-      // B-roll generation or the static layout.
+      // Contract + incident rationale live in the JSDoc above; the slot is
+      // left empty for mediaStrategy "asset-then-broll" to fill downstream.
       result.push(
         unassignedEntry(
           asset,
