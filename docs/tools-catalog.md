@@ -159,6 +159,18 @@
   - SearXNG 的 httpx 客户端**不读** `HTTP_PROXY` 环境变量，代理必须写进 `settings.yml` 的 `outgoing.proxies`，且**必须走 VM 网关地址** `http://192.168.5.2:7890`（colima VM 到宿主的路径；端口跟随宿主 Clash 当前端口，变化后改 settings.yml + `docker restart searxng`）
   - **症状→根因速查**：`unresponsive_engines` 全 HTTP connection error = 容器无出口，按序排查：容器内 DNS 是否被污染（`nslookup duckduckgo.com` 返回错误 IP）→ VM 网关代理可达性（容器内 `wget http://192.168.5.2:7890`）→ 宿主代理端口是否变更；colima VM 状态 `error` 起不来 → `brew upgrade colima && colima start`
   - 出口 IP 被反爬时单引擎照挂（DDG 引擎同出口也 CAPTCHA）——多引擎聚合冗余兜底，属预期非故障
+  - **禁用引擎台账（2026-09-24 快照，可重审）**：聚合墙钟时间 = 参与引擎数 × 各自超时等待，188 个参与引擎里
+    21 个长期不响应，把每次查询拖到 10-20s。已在 `~/searxng/settings.yml` 对这 21 个置 `disabled: true`
+    （备份：`~/searxng/settings.yml.bak-20260924-2015`）：
+    `baidu, duckduckgo, duckduckgo web, fastbot, fireball, gabanza, gmx, google, openlibrary, privacywall, qwant, resulthunter, searchmysite, seznam, sogou, tagesschau, tusksearch, vuhuv, wikidata, wolframalpha, yep`
+    这份名单是**一次 `unresponsive_engines` 测量的快照，不是永久判死**。复核一条命令：
+    `curl -s 'http://127.0.0.1:8888/search?q=<kw>&format=json' | python3 -c "import json,sys; print(json.load(sys.stdin)['unresponsive_engines'])"`；
+    对**已不在**该列表里的条目，改回 `disabled: false` 或整段删除后用 `docker restart searxng` 生效。一次别恢复超过
+    5 个——墙钟时间按恢复个数线性回涨。
+  - **慢是常态不是故障（2026-09-24 根因）**：本实例每次查询都要 10-20s（多引擎串行 + 每引擎最长等
+    `outgoing.request_timeout`，已从 `10.0` 压到 `4.0`）。调用侧 15s 的默认 fetch 超时会把一次正常的慢撑到最后
+    掐断，读成 `network-error`。逃生口是 registry 的 `api.timeoutMs`（默认仍是 15000，**只有 opt-in 的源**拉长；
+    `collectFromApi` 与体检 `checkApiSource` 两条 fetch seam 同读这一个字段）——`searxng_search` 设为 `30000`。
 - **何时用**：管线自动使用（trend/research 的 general 源之一）；人工调试用 `curl 'http://localhost:8888/search?q=<kw>&format=json'`
 
 ### pdf-parse (npm)
