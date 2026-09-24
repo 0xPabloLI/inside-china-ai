@@ -1,9 +1,10 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { useSuspenseQuery, useQuery, queryOptions } from "@tanstack/react-query";
 import { articleOgImageUrl, ogImageMeta } from "@/lib/og";
 import { jsonLdScript } from "@/lib/structured-data";
 import { postJsonLd } from "@/lib/post-structured-data";
 import { getPublishedPost } from "@/lib/posts.functions";
+import { listAnswersForPost } from "@/lib/ask-answers.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
 import { MarkdownContent } from "@/components/markdown-content";
@@ -68,6 +69,32 @@ const postQuery = (slug: string) =>
     gcTime: 30 * 60 * 1000,
   });
 
+const answersForPostQuery = (slug: string) =>
+  queryOptions({
+    queryKey: ["post-answers", slug],
+    queryFn: () => listAnswersForPost({ data: { slug } }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+function ReaderQuestions({ slug }: { slug: string }) {
+  const { data } = useQuery(answersForPostQuery(slug));
+  if (!data || data.length === 0) return null;
+  return (
+    <section className="mt-12 border-t border-border/60 pt-8">
+      <h2 className="mb-4 font-serif text-2xl">Questions readers asked</h2>
+      <ul className="space-y-2">
+        {data.map((a) => (
+          <li key={a.slug}>
+            <Link to="/ask/$slug" params={{ slug: a.slug }} className="underline underline-offset-4">
+              {a.question}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 const SUFFIX = " — China AI News";
 
 /** Keep the rendered <title> under 60 characters. */
@@ -116,7 +143,10 @@ function newsKeywords(title: string): string {
 
 export const Route = createFileRoute("/posts/$slug")({
   loader: async ({ context, params }) => {
-    const post = await context.queryClient.ensureQueryData(postQuery(params.slug));
+    const [post] = await Promise.all([
+      context.queryClient.ensureQueryData(postQuery(params.slug)),
+      context.queryClient.ensureQueryData(answersForPostQuery(params.slug)).catch(() => []),
+    ]);
     if (!post) throw notFound();
     return post;
   },
@@ -248,6 +278,8 @@ function PostPage() {
         {post.attachments && post.attachments.length > 0 ? (
           <AttachmentList attachments={post.attachments} />
         ) : null}
+        <ReaderQuestions slug={params.slug} />
+
         <div className="mt-16">
           <SubscribeForm />
         </div>
