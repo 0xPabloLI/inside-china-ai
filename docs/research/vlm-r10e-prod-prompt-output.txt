@@ -1,0 +1,739 @@
+# 三模型生产 prompt 完整输出对比
+
+> 生产 prompt: SEMANTICS_PROMPT_IMAGE/VIDEO（## Section 结构）
+
+> 6 图片（1280px）+ 2 视频（帧提取）| temperature=0.0 | max_tokens=1000
+
+
+
+================================================================================
+
+## 图片 1: pexels-alibaba-01.jpg
+
+2B: 4.4s | GLM: 39.9s | 30B: 11.6s
+
+
+### 2B（642 chars）
+
+```
+## Description
+A red and silver bus is stopped at a bus stop in front of a modern building with "阿里中心" (Alibaba Center) written in large orange characters on the facade.
+
+## Subjects
+bus, building, street
+
+## Content Kind
+text_screenshot
+
+## Fit
+contain
+
+## Critical Edge Text
+yes — blue sign with road directions is partially cut off on the right edge
+
+## Reason
+The blue sign with road directions is partially cut off on the right edge, which is a minor issue for a 9:16 vertical format. The main subject, the bus, is well-framed and the building is fully visible, so the fit is best described as "contain" as the edge text is not critical.
+```
+
+
+### GLM-9B（2917 chars）
+
+```
+<think>Got it, let's analyze the image for a 9:16 vertical video. First, let's break down each section.
+
+## Description
+The image shows a modern bus at a bus stop with the "阿里中心" (Ali Center) building in the background, indicating an urban transit scene near a major corporate building.
+
+## Subjects
+bus, bus_stop, ali_center, urban, transit
+
+## Content Kind
+other (since it's not a product demo, talking head, etc., but a general urban scene)
+
+## Fit
+Need to check if the image fits 9:16. The vertical aspect would need to see if the content is centered. The main elements are the bus, bus stop, and building. Since the edges might not have critical text, but let's check. The image has a bus stop, building, so maybe "cover" if we can crop edges, but need to see. Wait, the bus stop is in the lower part, building in upper. For vertical, the height is more than width, so maybe "cover" if we can have the building and bus centered vertically.
+
+Wait, 9:16 is tall, so the image's height is more than width. The main action is the bus at the stop, building in back. So when placing in vertical, the image might need to be cropped to fit, so "cover" if edge content is non-critical. But let's check critical edge text. The image has signs, but no critical text on edges that must be kept.
+
+## Critical Edge Text
+no (since there's no critical text on edges that need to be preserved)
+
+## Reason
+The image's content (bus, building, bus stop) can be centered in a vertical canvas without cropping critical elements, so fit as cover.
+
+Wait, let's re-examine. The image has a bus stop, bus, and the Ali Center building. For a 9:16 vertical video, the image's height is more than width, so when placed vertically, the top and bottom might be cropped, but the main content (bus, building) is centered. So "cover" is appropriate if edge content isn't critical. Since there's no text that must be kept, "cover" makes sense.
+
+Now, let's structure each section:
+
+## Description
+A modern bus is stopped at a bus stop with the "阿里中心" (Ali Center) building visible in the background, depicting an urban transit scene near a major corporate headquarters.
+
+## Subjects
+bus, bus_stop, ali_center, urban_transit, corporate_building
+
+## Content Kind
+other
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image's content is centered with no critical edge text, so it can be cropped to fit a 9:16 vertical canvas without losing key elements.</think><answer>## Description
+A modern bus is stopped at a bus stop with the "阿里中心" (Ali Center) building visible in the background, depicting an urban transit scene near a major corporate headquarters.
+
+## Subjects
+bus, bus_stop, ali_center, urban_transit, corporate_building
+
+## Content Kind
+other
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image's content is centered with no critical edge text, so it can be cropped to fit a 9:16 vertical canvas without losing key elements.
+```
+
+
+### 30B（505 chars）
+
+```
+## Description
+A red and silver trolley bus is at a modern bus stop in a city, with a large glass building featuring the Chinese characters "阿里中心" (Ali Center) in the background.
+
+## Subjects
+trolley bus, city street, modern building, bus stop, road sign
+
+## Content Kind
+landscape
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image is a wide-angle shot that can be cropped to a vertical 9:16 format without losing any critical information, as the main subject and context are centrally located.
+```
+
+
+================================================================================
+
+## 图片 2: pexels-alibaba-02.jpg
+
+2B: 5.0s | GLM: 52.2s | 30B: 11.3s
+
+
+### 2B（784 chars）
+
+```
+## Description
+A large, whimsical, white, cat-like statue with star-shaped glasses stands in front of a building, holding a sign that says "Hello Future". The statue is at the Alibaba Center in Shanghai, with a clear blue sky and some flags above it.
+
+## Subjects
+cat, statue, Hello Future, Alibaba Center, Shanghai
+
+## Content Kind
+landscape
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image is a wide landscape shot with the subject being the large statue. The text on the base is partially cut off on the right and bottom edges, but the main subject and the location are fully visible. The top and left edges are also clear, and the content is well-framed for a vertical video. Therefore, it can be covered in a 9:16 vertical canvas without losing important information.
+```
+
+
+### GLM-9B（4102 chars）
+
+```
+<think>Got it, let's analyze the image for a 9:16 vertical video. First, let's break down each section.
+
+## Description
+The image shows a colorful, cartoonish robot statue with "Hello Future" at the Alibaba Center in Shanghai, with modern buildings and banners in the background. 
+
+## Subjects
+I need to identify key terms. The main subject is the robot statue, location is Alibaba Center, maybe "robot, statue, Shanghai, Alibaba Center". Wait, let's check: the robot is the main subject, so "robot, statue, building, banner".
+
+## Content Kind
+The image has a mix of a statue (art) and location, but since it's a public art installation, maybe "other" because it's not a product demo, talking head, etc. Wait, content kind options: product_demo, talking_head, landscape, chart, text_screenshot, other. Since it's an artistic installation in a public space, "other" is appropriate.
+
+## Fit
+For 9:16 vertical, need to see if the image can be cropped. The robot is centered, but the bottom has text "阿里中心·上海虹桥" which is important? Wait, the base has text, but the main subject is the robot. Let's check the composition: the robot is in the center, with buildings around. For vertical, if we use "cover", we can crop edges, but if there's critical text, use "contain". The bottom has the text "阿里中心·上海虹桥" which is on the base. If we crop, would we lose the text? The question is whether edges have non-critical content. The banners at the top are decorative, maybe non-critical. The bottom text is on the base, which is part of the display. Wait, the base has the text, but in a vertical video, if we use "cover", we can have the robot centered, but the bottom text might be cropped. Wait, the base is a circle with text, so if we use "contain", we need to fit the entire image without cropping. But the robot is the main subject, so maybe "cover" is better if we can center the robot. Wait, let's check the image: the robot is the central focus, with buildings on sides. For vertical, the robot would be centered vertically, so maybe "cover" is possible. But the bottom text is on the base, which is part of the display. Hmm, the critical edge text: the bottom has "阿里中心·上海虹桥" which is on the base. If we use "contain", we need to include the entire base, but the vertical space might not fit. Alternatively, if we use "cover", we can crop the top and bottom, but the robot is tall. Wait, the image has the robot with the base, so maybe "contain" is safer if there's text that must not be cropped. Wait, the question is "will this image be placed in a 9:16 vertical canvas? Use 'cover' if edge content is non-critical and can be cropped. Use 'contain' if edges have text/UI that must not be cropped." The base has the text "阿里中心·上海虹桥" which is on the bottom edge. If we crop, we might lose that text, so maybe "contain" is better? Wait, no, the robot is the main subject, and the base is part of the display. But the text is on the base, which is part of the image. So if we use "contain", we need to fit the entire image without cropping, but 9:16 vertical might not fit the entire image. Alternatively, maybe "cover" is better because the robot is centered, and the background can be cropped. Let's think again. The image has the robot statue, with the base having text. The top has banners, which are decorative. The sides have buildings. For a vertical video, the robot is the main subject, so centering the robot would make sense. So "cover" might work if we can crop the top and bottom, but the base's text is on the bottom edge. If the text is critical (like branding), then "contain" would be needed. But the text "阿里中心·上海虹桥" is on the base, which is part of the display. If we crop the bottom, we lose the text, so maybe "contain" is necessary. Wait, the question is about whether edges have text/UI that must not be cropped. The base has the text, so if we use "contain", we need to include the entire image, but 9:16 vertical might not fit. Alternatively, maybe the text is not critical, so "cover" is okay. Hmm, this is a bit tricky. Let's check the image again. The base has the text "阿里中心·上海
+```
+
+
+### 30B（818 chars）
+
+```
+## Description
+A large, colorful, cartoonish sculpture of a bear-like character with star-shaped glasses stands in a plaza. The sculpture is part of a promotional display for Alibaba Center Shanghai, with banners and a sign that reads "Hello Future" against a backdrop of modern skyscrapers.
+
+## Subjects
+sculpture, bear, star glasses, banner, skyscraper, plaza, Alibaba Center
+
+## Content Kind
+other
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image is a wide-angle shot that captures the full subject and its context. When placed in a 9:16 vertical canvas, the top and bottom edges will be cropped, but the most important elements—the sculpture and the "Hello Future" sign—are centrally located and will remain fully visible. The text on the base is not critical to the image's message and can be cropped.
+```
+
+
+================================================================================
+
+## 图片 3: pexels-chart-01.jpg
+
+2B: 12.3s | GLM: 50.9s | 30B: 9.5s
+
+
+### 2B（4324 chars）
+
+```
+## Description
+A smartphone displaying a bar chart is placed on a calendar with months labeled from January to September.
+
+## Subjects
+smartphone, bar chart, calendar, notebook
+
+## Content Kind
+chart
+
+## Fit
+contain
+
+## Critical Edge Text
+no
+
+## Reason
+The smartphone and the calendar are positioned in the center of the frame, and while the notebook is partially visible on the right, the phone and the calendar are not at the edges. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the center, and the calendar is behind it, so the edges are not critical. The phone is in the
+```
+
+
+### GLM-9B（4241 chars）
+
+```
+<think>Got it, let's analyze the image for a 9:16 vertical video. First, let's look at each section.
+
+## Description
+The image shows a smartphone displaying a bar chart with monthly labels (Jan-Sep) alongside a printed chart with similar color-coded bars, likely for data comparison or visualization.
+
+## Subjects
+smartphone, chart, data, visualization
+
+## Content Kind
+chart
+
+## Fit
+Need to check if the image fits 9:16. The image has a smartphone and charts, but the layout—since 9:16 is vertical, the image's content might need to be centered. Let's see if edges can be cropped. The critical part is the smartphone and charts; if we crop, do we lose important elements? The smartphone is central, but the printed chart is also there. Let's check "cover" or "contain". Since the smartphone and charts are the main content, maybe "cover" if we can crop edges, but need to see if text is critical. Wait, the printed chart has months like April, May, June, July, etc. If we crop, do we lose text? But the question is about fit: "cover" if edge content is non-critical, "contain" if edges have text/UI must not be cropped. The image's main content is the smartphone and charts, so maybe "cover" since we can crop edges without losing key elements.
+
+Wait, let's check the image again. The smartphone is on the printed chart. The printed chart has months, and the smartphone's chart matches. For a 9:16 vertical video, the image's aspect ratio is probably not 9:16, so we need to decide if it's "cover" or "contain". If we use "cover", we can crop the top and bottom or sides to fit 9:16, keeping the main elements (smartphone and charts) centered. If "contain", we need to fit the entire image without cropping, which might include extra space. Since the image has a smartphone and charts as the main focus, and the background (printed chart) might be secondary, "cover" is better if we can crop edges.
+
+## Fit
+cover
+
+## Critical Edge Text
+Check if there's text on edges. The printed chart has months like April, May, June, July, etc. If we crop, do we lose text? But the smartphone is the main subject. Wait, the printed chart's text is part of the background. If we use "cover", maybe we can crop the top and bottom to fit 9:16, so no critical edge text? Wait, the question is "Critical Edge Text" — "yes" or "no". Let's check the image: the printed chart has text (months), but is that critical? If the video is about the smartphone's chart, maybe the printed chart's text is not critical. So "no" — no critical edge text.
+
+Wait, let's re-examine. The image has a smartphone with a bar chart (Jan-Sep) and a printed chart with color bars and month labels. For a 9:16 vertical video, the layout would need to fit. The smartphone is in the center, so if we crop the top and bottom, the smartphone and the printed chart's central part would fit. So "cover" is appropriate. Then Critical Edge Text: if there's no critical text on edges, then "no".
+
+## Reason
+The image's main content (smartphone and charts) can be centered in a 9:16 vertical canvas without cropping critical elements, so "cover" is used.
+
+Now, let's structure each section:
+
+## Description
+A smartphone displaying a monthly bar chart is placed on a printed chart with similar color-coded bars, both featuring monthly labels (January to September).
+
+## Subjects
+smartphone, chart, data visualization, monthly data
+
+## Content Kind
+chart
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image’s central focus (smartphone and charts) can be centered in a 9:16 vertical canvas without cropping critical elements, so "cover" is appropriate.
+
+Wait, let's check the image again. The printed chart has months like April, May, June, July, etc., and the smartphone's chart has Jan-Sep. The image's aspect ratio is probably wider than 9:16, so when converting to 9:16, we might need to crop the sides or top/bottom. But since the main content is the smartphone and the charts, and the background (printed chart) is part of the scene, but not critical, "cover" is better. Also, Critical Edge Text: if there's no text on the edges that's critical, then "no".
+
+Let me adjust:
+
+## Description
+A smartphone with a monthly bar chart is placed on a printed chart featuring color-coded bars
+```
+
+
+### 30B（604 chars）
+
+```
+## Description
+A smartphone displaying a bar chart of monthly data is placed on top of a larger, colorful printed chart, with a red notebook partially visible in the corner.
+
+## Subjects
+smartphone, chart, notebook, data visualization
+
+## Content Kind
+chart
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image is a wide, landscape-oriented composition, so when placed in a 9:16 vertical canvas, the left and right edges will be cropped. However, the central subject—the smartphone with its chart—is the most important element and is fully contained in the center, making the cropping acceptable.
+```
+
+
+================================================================================
+
+## 图片 4: pexels-code-02.jpg
+
+2B: 4.1s | GLM: 52.6s | 30B: 9.8s
+
+
+### 2B（508 chars）
+
+```
+## Description
+A close-up, slightly blurred view of computer code on a dark background, with syntax highlighting in various colors.
+
+## Subjects
+code, HTML, div, header, footer, h1, h2, hr, ul, li, a, href
+
+## Content Kind
+text_screenshot
+
+## Fit
+contain
+
+## Critical Edge Text
+no
+
+## Reason
+The image is tightly framed on the code, and while there is some blurriness and slight distortion, the content is fully contained within the 9:16 vertical canvas. There is no critical edge text that would be cropped.
+```
+
+
+### GLM-9B（4128 chars）
+
+```
+<think>Got it, let's analyze the image. First, the image shows a close-up of HTML code on a dark background, which is a text screenshot. For a 9:16 vertical video, we need to check how the content fits. The code is a screenshot, so the content is text-based. Let's break down each section.
+
+First, Description: The image shows a close-up of HTML code displayed on a dark screen, likely from a code editor. 
+
+Subjects: The key terms would be "html_code", "code_editor", "web_development".
+
+Content Kind: Since it's code, that's a text_screenshot.
+
+Fit: For 9:16 vertical, we need to see if the content can be cropped. The code is a screenshot, and if we use "cover" or "contain". Since the code is a single block, maybe "cover" if we want to show the code fully, but need to check if edges matter. But the code is a screenshot, so maybe "contain" if we need to fit without cropping critical parts. Wait, the code is a screenshot, so the content is the code. Let's check if the edges have critical text. The code is a screenshot, so if we use "cover", we might crop, but if "contain" we fit without cropping. But the code is a single image, so maybe "cover" is better? Wait, the image is a screenshot of code, so when placed in 9:16, if we use "cover", it might stretch, but "contain" would fit the code within the frame without cropping. Wait, the code is a screenshot, so the content is the code. Let's think: the code is a screenshot, so the content is text. So Content Kind is text_screenshot. Then Fit: "cover" or "contain". Since the code is a screenshot, and the image is a close-up, maybe "contain" is better if we need to show the code without cropping important parts. But let's check Critical Edge Text: Is there any text at the edges that's critical? The code is a screenshot, so if we crop, do we lose important code? Probably not, since it's a screenshot of code, and the code is the main content. So Fit would be "cover" if we can crop edges, "contain" if not. Wait, the image is a screenshot of code, so when placed in a vertical frame, if we use "cover", it might stretch the code, but "contain" would center it and crop if needed. But the code is a single block, so maybe "contain" is better. Wait, let's check the image again. The code is a screenshot, so the content is the code. So Content Kind is text_screenshot. Then:
+
+## Description
+A close-up view of HTML code displayed on a dark screen, likely from a code editor.
+
+## Subjects
+html_code, code_editor, web_development
+
+## Content Kind
+text_screenshot
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The code content is a screenshot, and edge cropping is non-critical as the code structure is clear without losing key elements when using "cover" fit.
+
+Wait, but let's check the image again. The code is a screenshot, so when placed in a vertical video, if we use "cover", we can have the code fill the vertical space, cropping the top and bottom if needed. But the code is a screenshot, so the content is the code. So maybe "cover" is appropriate. Alternatively, if the code is too long, "contain" would fit it within the frame. But the image shows a section of code, so maybe "contain" is better. Let's adjust.
+
+Wait, the image is a screenshot of code, so the content is text. For a 9:16 vertical video, the best fit is usually "cover" if the image is taller than wider, but this image is a screenshot of code, which is a rectangle. Let's check the aspect ratio of the image. The image is a screenshot of code, which is likely a landscape orientation (since code is usually wider), but the video is vertical (9:16). So when placing a landscape image in a vertical frame, "cover" would stretch it vertically, "contain" would center it and crop the sides. But the code is the main content, so if we use "contain", we might lose some code on the sides, but if we use "cover", we might stretch the code. Hmm. Alternatively, maybe "contain" is better because the code is a screenshot, and the text is important, so we don't want to crop the code. But the image shows a section of code, so maybe "contain" is better. Let's re-express.
+
+Wait, the image is a
+```
+
+
+### 30B（615 chars）
+
+```
+## Description
+A close-up, angled view of a computer screen displaying HTML code with syntax highlighting. The code includes elements like `<div>`, `<a>`, and `<li>`, with some text in Russian, such as "Коротко, и максимально информативно" and "Поехали".
+
+## Subjects
+HTML code, syntax highlighting, computer screen, programming
+
+## Content Kind
+text_screenshot
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image is a vertical screenshot of code, and its content is centered and readable. The edges are not critical, so it can be cropped to fit a 9:16 vertical format without losing essential information.
+```
+
+
+================================================================================
+
+## 图片 5: pexels-dc-server.jpg
+
+2B: 4.0s | GLM: 24.3s | 30B: 9.0s
+
+
+### 2B（510 chars）
+
+```
+## Description
+A close-up view of a row of black server racks in a data center, with a focus on the front of the closest unit.
+
+## Subjects
+server racks, data center, cables
+
+## Content Kind
+landscape
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image is tightly framed on the server racks, and while the background is slightly out of focus, the main subject is well-framed and the content is primarily the server racks. There is no critical edge text that would be cropped in a 9:16 vertical format.
+```
+
+
+### GLM-9B（1270 chars）
+
+```
+<think>Got it, let's analyze the image for a 9:16 vertical video. First, the image shows server racks in a data center. Let's break down each section.
+
+## Description
+The image shows a row of server racks in a data center, with mesh-fronted cabinets and visible cables, indicating a high-tech infrastructure environment.
+
+## Subjects
+server_rack, data_center, infrastructure
+
+## Content Kind
+other (since it's not a product demo, talking head, etc., but a general scene)
+
+## Fit
+cover (since the vertical format can crop edges as the main content is the server racks, and no critical text is visible)
+
+## Critical Edge Text
+no (there's no text that's critical, so no need to worry about cropping text)
+
+## Reason
+The image's main content is the server racks, and the vertical crop can focus on the central area without losing key elements, so "cover" is appropriate.</think><answer>## Description
+A row of server racks with mesh-fronted cabinets and visible cables in a data center environment.  
+
+## Subjects
+server_rack, data_center, infrastructure  
+
+## Content Kind
+other  
+
+## Fit
+cover  
+
+## Critical Edge Text
+no  
+
+## Reason
+The image’s main content (server racks) can be centered in a vertical canvas without losing key elements, so edge cropping is acceptable.
+```
+
+
+### 30B（509 chars）
+
+```
+## Description
+A row of server racks in a data center, with a shallow depth of field focusing on the rightmost rack. The image captures the organized infrastructure of a modern server room.
+
+## Subjects
+server racks, data center, technology
+
+## Content Kind
+other
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image is a vertical shot that naturally fits a 9:16 canvas without cropping any critical content; the focus on the server racks is central and the edges are not essential to the composition.
+```
+
+
+================================================================================
+
+## 图片 6: unsplash-nvidia-01.jpg
+
+2B: 4.4s | GLM: 55.0s | 30B: 10.7s
+
+
+### 2B（539 chars）
+
+```
+## Description
+A modern, multi-story building with the NVIDIA logo prominently displayed on the facade.
+
+## Subjects
+NVIDIA, building, logo
+
+## Content Kind
+text_screenshot
+
+## Fit
+contain
+
+## Critical Edge Text
+yes — bottom edge has NVIDIA logo text
+
+## Reason
+The NVIDIA logo and text are located at the bottom of the image, which would be cropped in a vertical 9:16 format. The logo is partially visible, but the full text is not present in the frame. Therefore, it is best to use "contain" to ensure the full logo and text are visible.
+```
+
+
+### GLM-9B（4229 chars）
+
+```
+<think>Got it, let's analyze the image for a 9:16 vertical video. First, let's look at the image content. The image shows a building with the NVIDIA logo and text in another language (probably Hindi, given the script). The building is modern, with multiple floors, balconies, and glass windows. 
+
+For the sections:
+
+## Description
+Need 1-2 sentences. The image shows a modern multi-story building with the NVIDIA logo and text in a local language, likely a corporate office or facility.
+
+## Subjects
+Key terms: nvidia, building, corporate, office. So comma-separated: "nvidia, building, corporate"
+
+## Content Kind
+The image is a corporate building, so maybe "other" since it's not a product demo, talking head, etc. Wait, content kind options: product_demo, talking_head, landscape, chart, text_screenshot, other. Since it's a building with company branding, maybe "other" or "corporate". Let's go with "other" for now.
+
+## Fit
+For 9:16 vertical, need to check if the image can be cropped. The building is tall, so vertical might need to crop. But the logo and text are at the top. Wait, the image's aspect ratio is wider than 9:16 (which is tall). So when placing in 9:16, would it cover or contain? Let's see: 9:16 is vertical, so the image is horizontal. If we use "cover", we can crop sides, but if there's critical text, use contain. The logo and text are at the top, so if we crop the bottom, maybe? Wait, the building has multiple floors, so in vertical, maybe the top part (logo) is important, but the bottom might have less. Wait, the image's main subject is the building with the company name, so if we use "cover", we can have the building centered vertically, cropping sides. But need to check critical edge text. The logo and text are at the top, so bottom might not have critical text. So maybe "cover" or "contain"? Let's think: the text "NVIDIA" and the logo are at the top, so if we use "cover", we can have the top part (logo) in the vertical frame, cropping the sides. But the building has multiple floors, so maybe "cover" is better if we can crop the sides. But let's check the critical edge text. Is there any text at the bottom? The bottom has some greenery, no critical text. So maybe "cover" is possible. Wait, the image's aspect ratio is wider than 9:16, so when making a vertical video, the image would be cropped on the sides (left and right) to fit 9:16. So "cover" would mean it's cropped to fit the vertical canvas, with non-critical edges (sides) cropped. So "cover" is appropriate.
+
+## Critical Edge Text
+Is there any critical text? The text "NVIDIA" and the local language text are at the top. The bottom has greenery, no critical text. So "no" — no critical edge text.
+
+## Reason
+Explain the fit decision. Since the image's aspect ratio is wider than 9:16, cropping the sides (non-critical areas) allows the building and logo to fit the vertical canvas without cropping critical text or UI elements.
+
+Now, let's structure each section:
+
+## Description
+A modern multi-story building featuring the NVIDIA logo and local language text, likely a corporate office or facility.
+
+## Subjects
+nvidia, building, corporate, office
+
+## Content Kind
+other
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image's aspect ratio is wider than 9:16, so cropping non-critical side areas allows the building and logo to fit the vertical canvas without cropping critical elements.
+
+Wait, let's check the image again. The building has the NVIDIA logo at the top, so in a vertical video, the logo would be near the top, and the rest of the building is below. So when using "cover", the image is scaled to fit the vertical frame, with the top part (logo) centered. The sides (left and right) are cropped, which are non-critical (since the main subject is the building with the logo). So the fit is "cover". Critical edge text: no, because the bottom doesn't have important text, and the top's text is part of the main subject, not edge text.</think><answer>## Description
+A modern multi-story building displaying the NVIDIA logo and local language text, likely a corporate office or facility.  
+
+## Subjects
+nvidia, building, corporate, office  
+
+## Content Kind
+other  
+
+## Fit
+cover  
+
+## Critical Edge Text
+```
+
+
+### 30B（674 chars）
+
+```
+## Description
+A modern, multi-story building with a large "NVIDIA" logo and the Hindi text "एनविडिया" on its facade. The structure features a grid of dark glass windows and balconies, viewed from a low angle with green foliage in the foreground.
+
+## Subjects
+building, logo, text, glass, foliage
+
+## Content Kind
+landscape
+
+## Fit
+cover
+
+## Critical Edge Text
+no
+
+## Reason
+The image is a vertical shot of a building, and while the top of the frame shows the sky, the most important content—the building's signage and architecture—is centered and fully visible. The foliage at the bottom is a natural framing element that can be cropped without losing critical information.
+```
+
+
+================================================================================
+
+## 视频 1: pexels-video-alibaba-01.mp4
+
+2B: 25.1s | GLM: 138.4s | 30B: 211.6s
+
+
+### 2B（253 chars）
+
+```
+## Description
+A large, colorful, inflatable character of Aladdin is shown floating in the sky against a backdrop of clouds and blue sky.
+
+## Subjects
+Aladdin, inflatable, balloon, kite, sky, clouds, blue sky, palm tree, trees
+
+## Content Kind
+landscape
+```
+
+
+### GLM-9B（1261 chars）
+
+```
+<think> ePub format, I need to analyze the video for a 9:16 vertical video. First, I need to look at the content. The video shows a large inflatable figure, likely a character balloon, floating in the sky. It's colorful, with a yellow turban, green vest, purple pants, and red arms. The setting seems to be an outdoor event with a blue sky, clouds, and some trees and palm trees. So, the description should capture the inflatable character and the scene. For subjects, the key terms would be the inflatable character, sky, event, maybe festival. Content kind is probably other since it's not a product demo, talking head, etc. Let's structure the markdown.
+
+First, the description: The video features a large, colorful inflatable character balloon floating in a bright blue sky with scattered clouds, showcasing vibrant designs and festive atmosphere. For subjects, maybe "inflatable character, sky, festival, balloon". Content kind is "other" because it's not a specific category like product demo.</think><answer>## Description
+A large, colorful inflatable character balloon floats in a bright blue sky with scattered clouds, showcasing vibrant designs and a festive atmosphere.
+
+## Subjects
+inflatable character, sky, festival, balloon
+
+## Content Kind
+other
+```
+
+
+### 30B（422 chars）
+
+```
+## Description
+A large, colorful inflatable character shaped like a genie or genie-like figure floats in the sky. The character is adorned with a yellow hat, a green vest, and purple pants with stars, and it is tethered by lines against a backdrop of a blue sky with scattered white clouds. The camera angle is low, looking up at the inflatable.
+
+## Subjects
+inflatable, character, sky, clouds, kite
+
+## Content Kind
+other
+```
+
+
+================================================================================
+
+## 视频 2: scene-1-seed1024.mp4
+
+2B: 14.3s | GLM: 54.5s | 30B: 11.1s
+
+
+### 2B（4423 chars）
+
+```
+## Description
+A first-person perspective from a player's point of view, showing them playing a video game. The player is using a large, multi-button controller to play a game of vehicular combat in a snowy, futuristic environment.
+
+## Subjects
+player, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow, vehicle, controller, game, explosion, snow,
+```
+
+
+### GLM-9B（3791 chars）
+
+```
+<think>Got it, let's analyze the video for a 9:16 vertical video. First, let's look at the content. The video shows someone playing a video game, likely on a gaming setup with a controller and a monitor displaying the game. The game has a futuristic, snowy environment with explosions, so it's a first-person shooter or action game. 
+
+For the Description, need 1-2 sentences. Let's say: "A person plays a futuristic action game on a gaming setup, with a monitor showing a snowy, explosive environment." 
+
+Subjects would be terms like "gaming", "controller", "video game", "explosions", "futuristic environment" – but need comma-separated key terms. Maybe "gaming setup, video game, explosions, futuristic environment" or more specific like "controller, monitor, action game, explosions".
+
+Content Kind: Since it's showing a gaming setup and gameplay, maybe "product_demo" if it's demonstrating a gaming product, or "other" if not. But since it's a gaming setup with gameplay, maybe "product_demo" or "gameplay".
+
+Wait, let's check the images. The person is using a controller (like a Steam controller or similar) and a monitor, so the content is about gaming, so Content Kind could be "product_demo" if it's showcasing the gaming setup, or "gameplay" if it's just the game. But the question says "Content Kind" as one of the options: product_demo, talking_head, landscape, chart, text_screenshot, other. Since it's not a talking head, landscape, chart, etc., maybe "product_demo" if it's demonstrating the gaming hardware, or "other" if it's just gameplay. But the images show the gaming setup with the game, so maybe "product_demo" as it's showing the gaming experience with the controller and monitor.
+
+Now, let's structure:
+
+## Description
+A person uses a gaming controller to play a futuristic action game displayed on a monitor, featuring a snowy, explosive environment.
+
+## Subjects
+gaming controller, monitor, action game, explosions, futuristic environment
+
+## Content Kind
+product_demo
+
+Wait, but let's check the images again. The video (even though it's a sequence of images) shows the gaming setup with the game, so the content is about gaming, so maybe "gameplay" as Content Kind? But the options are limited. Let's confirm the options: product_demo, talking_head, landscape, chart, text_screenshot, other. Since it's not a talking head, landscape, chart, text_screenshot, then maybe "other" or "product_demo" if it's a product demo (like showing the gaming controller and monitor). Alternatively, "gameplay" could be a custom, but since the options don't have that, maybe "product_demo" as it's demonstrating the gaming hardware and the game experience.
+
+So finalizing:
+
+## Description
+A person plays a futuristic action game using a gaming controller, with the game displayed on a monitor showing a snowy, explosive environment.
+
+## Subjects
+gaming controller, monitor, action game, explosions, futuristic environment
+
+## Content Kind
+product_demo
+
+Wait, but let's check the images again. The images show the controller and monitor, so the setup is being showcased, so "product_demo" makes sense. Alternatively, if the focus is on the game, maybe "gameplay", but since the options don't have that, "other" might be safer, but let's see. The question says "analyze this video for use in a 9:16 vertical video" – vertical videos often show gameplay or product demos. Given the setup with the controller and monitor, it's a product demo of the gaming setup. So Content Kind as product_demo.</think><answer>## Description
+A person uses a gaming controller to play a futuristic action game, with the game’s snowy, explosive environment displayed on a monitor.  
+
+## Subjects
+gaming controller, monitor, action game, explosions, futuristic environment  
+
+## Content Kind
+product_demo
+```
+
+
+### 30B（347 chars）
+
+```
+## Description
+A first-person view of a person playing a video game on a large monitor, with the game itself showing a snowy, futuristic landscape where a large explosion occurs. The player's hands are visible on a game controller.
+
+## Subjects
+player, game controller, monitor, video game, explosion, snowy landscape
+
+## Content Kind
+product_demo
+```

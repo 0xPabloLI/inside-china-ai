@@ -118,22 +118,6 @@ describe("analyzeAssets VLM cache + concurrency wiring (#189)", () => {
     expect(analyzeAssetSemantics).toHaveBeenCalledTimes(2);
   });
 
-  it("stores the escalated flag inside the v2 envelope's data (#100)", async () => {
-    analyzeAssetSemantics.mockImplementation(async (p) => ({
-      ...fakeSemantics(p),
-      escalated: true,
-    }));
-    await analyzeAssets(assets(1), { outputDir: dir, contentDir, contentSlug: "s4" });
-    const cacheDir = join(contentDir, ".vlm-cache");
-    const file = readdirSync(cacheDir)[0];
-    const value = JSON.parse(readFileSync(join(cacheDir, file), "utf-8"));
-    expect(value.ok).toBe(true);
-    expect(value.data.escalated).toBe(true);
-    expect(value.meta.model).toBeTruthy();
-    expect(typeof value.meta.durationMs).toBe("number");
-    expect(value.meta.generatedAt).toBeTruthy();
-  });
-
   it("caches focus analysis — detectFocus runs once across two runs (#100)", async () => {
     analyzeAssetSemantics.mockImplementation(async (p) => fakeSemantics(p));
     detectFocus.mockResolvedValue({

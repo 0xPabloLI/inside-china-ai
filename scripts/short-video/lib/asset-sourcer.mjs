@@ -1475,7 +1475,7 @@ export async function analyzeAssets(assets, opts = {}) {
           meta: {
             model: modelId,
             durationMs: Date.now() - startTime,
-            escalated: semantics.escalated ?? null,
+
             sourceMode: semantics.sourceMode ?? null,
           },
         });

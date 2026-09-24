@@ -201,40 +201,28 @@ text-timestamp alignment），但 numpy processor 独立计算 `video_grid_thw`�
 
 ### 配置（已在 vlm_analyzer.py 中实现）
 
-- `MODEL_ID`：`mlx-community/Qwen3-VL-2B-Instruct-4bit`（Fast Path）
-- `DEEP_MODEL_ID`：`mlx-community/GLM-4.1V-9B-Thinking-4bit`（Deep Path，懒加载）
-- Cascade Router：`should_escalate()` 检测 2B 输出低信心 → GLM 重跑（详见 ADR-0009）
-- 图片预处理：`MAX_IMAGE_LONG_EDGE = 1920`（>1920px 的图片 resize 到 1920px 长边；R4 测试用 1280px 进一步加速但 1920px 已足够防幻觉）
-- 视频分析：原生视频优先（`generate(video=, prompt=)`），帧提取 fallback（1 fps → 最多 8 帧 → 多图输入）
+- `MODEL_ID`：`~/models/Qwen3-VL-30B-A3B-Instruct-4bit`（17GB，MoE 30B/3B active）
+- 图片预处理：`MAX_IMAGE_LONG_EDGE = 1920`（>1920px 的图片 resize 到 1920px 长边）
+- 视频分析（全片）：原生视频路径 `generate(video=, prompt=)`（processor 智能采样，比帧提取快 3.4x）
+- 视频分析（窗口）：帧提取 fallback（`start_ms`/`end_ms` 指定时，原生视频无法选时间范围）
+- mlx-vlm ≥0.7.2（PR #2299 修复 MoE 视频像素路由 + PR #2191 修复 Metal GPU 超时 + PR #2016 修复资源泄漏）
 
 ## 7. Pipeline 集成状态
 
 ### 已完成
 
-- [x] `vlm_analyzer.py` MODEL_ID → `Qwen3-VL-2B-Instruct-4bit`（Fast Path）
-- [x] `vlm_analyzer.py` DEEP_MODEL_ID → `GLM-4.1V-9B-Thinking-4bit`（Deep Path，懒加载）
-- [x] Cascade Router 实现：`should_escalate()` + `check_ram_available()` + `get_deep_model()`（commit `bde12fe`）
-- [x] 删除 `FALLBACK_MODEL_ID`（4B-8bit 无质量优势，R7 确认）
+- [x] `vlm_analyzer.py` MODEL_ID → `Qwen3-VL-30B-A3B-Instruct-4bit`（单模型，替代 2B+GLM cascade）
+- [x] 删除 Cascade Router：`should_escalate()` + `check_ram_available()` + `get_deep_model()` + `deep_analyze()` + `DEEP_MODEL_ID`
+- [x] 删除 `escalated` 字段（Python + asset-sourcer.mjs + 测试）
+- [x] 视频路径改为原生视频（无 window 时 `generate(video=)`，有 window 时帧提取）
+- [x] mlx-vlm 升级 0.5.0 → 0.7.2（PR #2299 修复 MoE 视频像素路由）
 - [x] 图片预处理 `resize_image_if_needed()` — 自动 resize >1920px 图片
-- [x] 视频分析恢复原生视频优先路径（mlx-vlm 0.6.16 numpy processor 已修复 bug）+ 帧提取 fallback
-- [x] 文件头注释更新（说明 bug 根因 + workaround 策略）
+- [x] Relevance 准确性测试（17对 × 3模型）：30B 100% 解析率 / 0% FPR / 88% Gate
 
 ### 待办
 
-- [x] Integration smoke test：用真实复杂图片跑 `vlm_analyzer.py`，验证 `escalated: True` + GLM 输出质量 — **2026-08-30 完成**：`unitree-building.jpg` 触发 `escalated: true`，GLM 正确识别 "Unitree" / "峰达创意园"，无幻觉。证据见 Issue #113 closing comment
-- [ ] 确认 1920px vs 1280px 阈值在 pipeline 中的表现（当前用 1920px，R4 测试用 1280px 更快）
-- [x] 公平 A/B 升级评估完成（2026-08-26，R5）— 见下方 §9 R5 A/B 评估结果
-
-## 8. 待办
-
-- [x] 4B-8bit 和 8B-4bit 下载完成后补充测试 (R3 已完成)
-- [x] 升级 mlx-vlm 到 0.6.16，原生视频路径验证成功（numpy processor 绕过 transformers bug）
-- [x] R4 预处理多场景测试（2B-4bit vs 4B-8bit，4 个 resize 阈值）
-- [x] Deep research：Qwen3-VL video bug 跨平台调查（确认误报根因是 API 调用方式错误，mlx-vlm 0.6.16 numpy processor 可用）
-- [x] 替代模型评估（确认无更好选项，保持 Qwen3-VL + 原生视频 + 帧提取 fallback）
-- [x] 实现 2B-4bit + 预处理 + 原生视频 + 帧提取 fallback 在 vlm_analyzer.py 中
 - [ ] 端到端 pipeline 测试
-- [x] 新建 GitHub issue 跟踪图片预处理 (#113)
+- [ ] 删除旧模型（需确认）：Qwen3-VL-2B-4bit（1.8GB）+ GLM-4.1V-9B-4bit（6.6GB）
 
 ## 9. R5 A/B 公平评估：Qwen3-VL-2B-4bit (mlx-vlm) vs Qwen3.5:4b (Ollama)
 
@@ -655,3 +643,198 @@ GLM-4.1V-9B 在 **中文品牌识别** 上明显优于 Qwen3.5-4B-MLX（识别�
 `mlx-community/InternVL3_5-1B-4bit` 曾下载（1.0GB）测试，加载失败层层排查：1 `model_type: internvl` 在任何 mlx-vlm（0.7.0rc0 与最新 main）的 models/ 与 speculative.drafters/ 都不存在；2 改标 `internvl_chat` 后 vision `internvl_vision` 不被支持（实现只认 siglip_vision_model / intern_vit_6b）；3 再改标 `intern_vit_6b` 后报「1153 个 checkpoint 参数与模型结构不匹配」。**根因：该转换是 mlx-vlm 0.3.3 时代产物，权重用 W4A16 分组量化（biases/scales 键），与后续文本塔加载实现错位**；社区 main 已合并 InternVL3 架构（issue #511 → PR #540）但未覆盖该量化格式，配置层无法修复。
 
 **处置（2026-09-12 用户拍板）**：本地模型与相关代码已删除；本段保留状态标注，若未来 mlx-vlm 适配 InternVL3.5（重转换或旧格式兼容）再重新下载测试。同档位其余候选（Ovis2 / Jina-VLM）无 MLX 转换；SmolVLM2 中文弱无测试价值。**结论维持：1-4B 快速档没有比已测模型更快更好的可测新模型，R9 裁决（cascade 维持）即终态。**
+## 13. R10 Qwen3-VL-30B-A3B-Instruct-4bit MoE 实测
+
+> **测试日期**：2026-09-21
+> **环境**：MacBook Pro M2 Pro 32GB, mlx-vlm (`~/.video-tts-env` Python 3.12)
+> **方法**：2 张项目素材图片（pexels-alibaba-01/02.jpg），resize 到 512×512（Metal GPU 大图 crash workaround），相同 prompt，temperature=0.0, max_tokens=1000, HF_HUB_OFFLINE=1
+> **模型**：
+> - 基线：`mlx-community/Qwen3-VL-2B-Instruct-4bit`（现有 cascade Fast Path）
+> - 候选：`mlx-community/Qwen3-VL-30B-A3B-Instruct-4bit`（MoE 30B/3B 激活，从 modelscope.cn 下载到 `~/models/Qwen3-VL-30B-A3B-Instruct-4bit/`，17GB）
+> **数据文件**：`/tmp/vlm_benchmark_results.json`
+> **脚本**：`/tmp/vlm_benchmark.py`
+
+### 性能对比
+
+| 维度         | Qwen3-VL-2B-4bit (基线) | Qwen3-VL-30B-A3B-4bit (候选) | 倍率     |
+| ------------ | ----------------------- | ---------------------------- | -------- |
+| 加载时间     | **2.0s**                | 9.9s                         | 5.0x 慢  |
+| 图1 推理     | 11.7s                   | 24.2s                        | 2.1x 慢  |
+| 图2 推理     | **1.4s**                | 4.1s                         | 3.0x 慢  |
+| 图1 输出长度 | 4592 chars              | 1201 chars                   | —        |
+| 图2 输出长度 | 777 chars               | 825 chars                    | —        |
+| 磁盘         | **1.8GB**               | 17GB                         | 9.4x 大  |
+
+> **注**：峰值内存 psutil RSS 不可靠（30B 显示 0.3GB，实际 17GB 在 Metal GPU unified memory 中，RSS 不含 GPU 分配）。两个模型均未 OOM，32GB 充裕。
+
+### 质量对比
+
+| 维度              | Qwen3-VL-2B-4bit                                       | Qwen3-VL-30B-A3B-4bit                                              |
+| ----------------- | ------------------------------------------------------ | ------------------------------------------------------------------ |
+| 图1 输出结构      | ❌ **严重退化**："The bus is in the foreground..." 重复 5+ 次 | ✅ 结构化：`**Analysis for 9:16 Vertical Video:**` + Key Subjects + Fit |
+| 图2 输出结构      | ✅ 合理描述                                            | ✅ 结构化：`**What's happening:**` + `**Key subjects:**` + `**Fit:**` |
+| 信息密度          | 图1 大量冗余（4592 chars 中大部分循环）                | 图1 精炼（1201 chars 全有效信息）                                  |
+| 中文识别          | ✅ "阿里中心"                                           | ✅ "阿里中心"                                                       |
+| Fit 判定          | 未明确给出                                             | ✅ 明确建议 cover                                                   |
+
+### 关键发现
+
+1. **2B 在 512×512 下出现重复退化**：图1 输出 "The bus is in the foreground, and the stop is in the background." 循环 5+ 次，4592 chars 中大部分是重复垃圾。此前 R4 在 1280px 下未出现此问题——**512×512 resize 过于激进，可能是退化的诱因**
+2. **30B 对低分辨率更鲁棒**：同样 512×512 条件下，30B 输出结构化、无重复、信息密度高
+3. **30B 慢 2-3x**：MoE 3B 激活理论上应接近 2B，但实际慢 2-3x（内存带宽瓶颈：30B 权重 17GB vs 2B 1.8GB）
+4. **30B 输出更结构化**：自动生成 Markdown 标题 + 列表 + Fit 建议，直接可用作 scene data
+
+### 限制与 caveat
+
+- **resize 512×512 对 2B 不公平**：R4 已确认 1280px 下 2B 无退化。本次 512×512 是 Metal GPU crash workaround，非生产配置。生产用 1280px/1920px 时 2B 退化可能不出现
+- **仅 2 张图片**：样本量小，不足以做统计显著性判断
+- **未测视频**：30B MoE 的视频能力未评估
+- **下载来源**：huggingface.co 被 Clash TUN 阻断，改从 modelscope.cn 下载（4 分片 17GB，与 HF 版 13 分片不同但内容等价）
+
+### 结论
+
+| 维度       | 2B-4bit (1280px 生产) | 30B-A3B-4bit (512px 测试) | 判定         |
+| ---------- | --------------------- | ------------------------- | ------------ |
+| 质量       | 1280px 下可靠（R4）   | 512px 下更鲁棒            | **30B 胜**   |
+| 速度       | **3-5s/图**           | 4-24s/图                  | 2B 胜        |
+| 磁盘       | **1.8GB**             | 17GB                      | 2B 胜        |
+| 鲁棒性     | 512px 退化            | 512px 稳定                | **30B 胜**   |
+
+**建议**：30B 质量和鲁棒性显著更好，但速度慢 2-3x 且占 17GB。可选策略：
+
+1. **替换 Fast Path**：30B 替换 2B——质量更好但 pipeline 变慢（20 assets × 24s = 8min vs 1.5min）
+2. **替换 Deep Path**：30B 替换 GLM-4.1V-9B 作为 cascade deep path——30B 24s vs GLM 28.5s，速度相当但 30B 是 VLM 原生（GLM 是 thinking 模型）
+3. **保持现状**：2B Fast + GLM Deep——最轻量，1280px 下 2B 已足够
+
+**待决策**：需用户确认质量 vs 速度/磁盘的优先级。
+### R10b 重测：1280px resize + 6 张图片（2026-09-21）
+
+> 512px 对 2B 不公平（R4 已确认 1280px 下 2B 无退化），用生产配置 1280px + 6 张多样化图片重测。
+> **脚本**：`/tmp/vlm_benchmark_r10.py` | **数据**：`/tmp/vlm_benchmark_r10_results.json`
+
+#### 性能对比
+
+| 图片                     | 2B-4bit  | 30B-A3B-4bit | 倍率      |
+| ------------------------ | -------- | ------------ | --------- |
+| pexels-alibaba-01.jpg    | 12.5s    | 13.7s        | 1.1x      |
+| pexels-alibaba-02.jpg    | 12.9s    | **9.6s**     | **0.7x**  |
+| pexels-chart-01.jpg      | 12.2s    | **8.9s**     | **0.7x**  |
+| pexels-code-02.jpg       | **4.4s** | 10.4s        | 2.4x      |
+| pexels-dc-server.jpg     | **3.9s** | 7.7s         | 2.0x      |
+| unsplash-nvidia-01.jpg   | **4.4s** | 10.8s        | 2.4x      |
+| **平均**                 | **8.4s** | **10.2s**    | **1.2x**  |
+| 加载时间                 | **2.0s** | 8.5s         | 4.3x      |
+
+#### 质量对比
+
+| 图片                   | 2B 输出长度 | 30B 输出长度 | 2B 退化 | 30B 结构化 |
+| ---------------------- | ----------- | ------------ | ------- | ---------- |
+| pexels-alibaba-01.jpg  | 4345 chars  | 757 chars    | ❌ 无   | ✅         |
+| pexels-alibaba-02.jpg  | 4989 chars  | 840 chars    | ❌ 无   | ✅         |
+| pexels-chart-01.jpg    | 4818 chars  | 857 chars    | ❌ 无   | ✅         |
+| pexels-code-02.jpg     | 975 chars   | 1098 chars   | ❌ 无   | ✅         |
+| pexels-dc-server.jpg   | 886 chars   | 649 chars    | ❌ 无   | ✅         |
+| unsplash-nvidia-01.jpg | 1025 chars  | 1075 chars   | ❌ 无   | ✅         |
+
+#### 关键发现（1280px 重测）
+
+1. **30B 平均仅慢 1.2x**：8.4s vs 10.2s——远小于 512px 测试的 2-3x。MoE 3B 激活在 1280px 下效率接近 2B
+2. **30B 在复杂图片上反而更快**：alibaba-02（0.7x）和 chart-01（0.7x）上 30B 比 2B 快 30%——因为 2B 在复杂图片上输出冗长（4989/4818 chars），生成更多 token 花更多时间；30B 输出精炼（840/857 chars）
+3. **2B 在 1280px 下无退化**：确认 R4 结论，512px 退化是 resize 过激导致，非模型本身问题
+4. **30B 输出一致结构化**：所有 6 张图片均生成结构化 Markdown（`**What's happening:**` + key subjects + fit），2B 在复杂图片上冗长但无重复
+5. **2B 简单图片更快**：code/server/nvidia 上 2B 快 2-2.4x（输出短，token 少）
+
+#### 修正结论
+
+| 维度       | 2B-4bit (1280px)    | 30B-A3B-4bit (1280px) | 判定       |
+| ---------- | ------------------- | --------------------- | ---------- |
+| 速度       | **8.4s avg**        | 10.2s avg             | 2B 略胜    |
+| 复杂图片   | 12.5s avg           | **10.7s avg**         | **30B 胜** |
+| 简单图片   | **4.2s avg**        | 9.6s avg              | 2B 胜      |
+| 输出质量   | 冗长但无退化        | **精炼 + 结构化**     | **30B 胜** |
+| 磁盘       | **1.8GB**           | 17GB                  | 2B 胜      |
+| 加载       | **2.0s**            | 8.5s                  | 2B 胜      |
+
+**修正建议**：1280px 下 30B 平均仅慢 1.2x，复杂图片上反而更快。17GB 磁盘是主要代价。可选策略：
+
+1. **替换 Fast Path**：30B 替换 2B——平均 10.2s/图（20 assets = 3.4min），质量更好，复杂图片更快
+2. **替换 Deep Path**：30B 替换 GLM-4.1V-9B——30B 10.2s vs GLM 28.5s，**快 2.8x** 且 30B 是原生 VLM
+3. **保持现状**：2B Fast + GLM Deep——最轻量，1280px 下 2B 已足够
+
+> **R10b 新洞察**：30B 替换 GLM-4.1V-9B 作为 Deep Path 比替换 2B 更有吸引力——30B 比 GLM 快 2.8x（10.2s vs 28.5s），且 30B 是原生 VLM（支持视频），GLM 是 thinking 模型（输出冗长 thinking chain）。
+### R10c 视频测试：帧提取 → 多图输入（2026-09-21）
+
+> 与 `vlm_analyzer.py` 生产方式一致：ffmpeg 提取帧（fps=1, max_frames=8）→ 多图输入。
+> **脚本**：`/tmp/vlm_video_benchmark.py` | **数据**：`/tmp/vlm_video_benchmark_results.json`
+
+#### 性能对比
+
+| 视频                       | 帧数 | 2B-4bit  | 30B-A3B-4bit | 倍率     |
+| -------------------------- | ---- | -------- | ------------ | -------- |
+| pexels-video-alibaba-01.mp4 | 4    | 39.2s    | 179.5s       | **4.6x** |
+| scene-1-seed1024.mp4       | 5    | 8.9s     | 26.8s        | **3.0x** |
+| **平均**                   |      | **24.1s**| **103.2s**   | **4.3x** |
+
+#### 质量对比
+
+| 维度       | 2B-4bit                           | 30B-A3B-4bit                              |
+| ---------- | --------------------------------- | ----------------------------------------- |
+| 内容识别   | ✅ "inflatable character" + "gaming scene" | ✅ 同样正确识别                           |
+| 输出结构   | 直接描述                          | `### **Video Analysis**` 结构化           |
+| 输出长度   | 2369-4874 chars                   | 3378-3956 chars                           |
+| 分析深度   | 描述性                            | 更详细（"low-angle p..." 等构图分析）     |
+
+#### 关键发现
+
+1. **30B 视频慢 3-4.6x**：多帧输入时 30B 的 vision tower 计算量远大于 2B。MoE 3B 激活只加速 language model，vision encoder 是 dense 的
+2. **30B 视频质量更好**：结构化输出 + 构图分析，但 179.5s/视频在 pipeline 中不可接受
+3. **两个模型都正确识别视频内容**：帧提取方式可靠
+
+### R10 最终结论
+
+| 场景         | 2B-4bit  | 30B-A3B-4bit | 判定       |
+| ------------ | -------- | ------------ | ---------- |
+| 图片（简单） | **4.2s** | 9.6s         | 2B 胜 2.3x |
+| 图片（复杂） | 12.5s    | **10.7s**    | 30B 胜 0.9x|
+| 图片（平均） | **8.4s** | 10.2s        | 2B 胜 1.2x |
+| 视频         | **24.1s**| 103.2s       | 2B 胜 4.3x |
+| 磁盘         | **1.8GB**| 17GB         | 2B 胜 9.4x |
+| 输出质量     | 可靠     | **更结构化** | 30B 胜     |
+
+**最终建议**：
+
+1. **❌ 30B 替换 2B Fast Path**：视频慢 4.3x（24s → 103s），pipeline 不可接受
+2. **⚠️ 30B 替换 GLM Deep Path**：图片快 2.8x（10.2s vs 28.5s），但视频 103s 可能比 GLM 更慢（GLM 视频未测）。Deep Path 主要处理 2B 低信心的图片，不处理视频，所以视频慢不是阻碍——**有条件推荐**
+3. **✅ 保持现状**：2B Fast + GLM Deep——最轻量（8.4GB），图片和视频都快，1280px 下 2B 质量已足够
+
+> **R10 终态**：30B 在图片质量上更好但视频显著更慢。最有吸引力的方案是 30B 替换 GLM 作为 Deep Path（仅处理图片，不处理视频），但 17GB 磁盘代价 vs GLM 6.6GB 需权衡。**待用户决策。**
+---
+
+## §14 R10f：原生视频路径测试（2026-09-23）
+
+> 测试 `generate(video=)` 原生视频输入 vs 帧提取。三模型 × 2 视频。
+> 修复了两个 mlx 0.32.2 兼容性 bug：
+> - `qwen3_vl/vision.py:396`：`mx.repeat(seq_len, grid_thw[i, 0])` → `int(grid_thw[i, 0])`
+> - `kernels.py:543`：`grid=(mx.prod(...), 1, 1)` → `grid=(int(mx.prod(...)), 1, 1)`
+
+### 结果
+
+| 模型 | 视频 | 原生耗时 | 帧提取耗时 | 原生输出 | 可用？ |
+|------|------|---------|-----------|---------|--------|
+| 2B | pexels-alibaba | 39.2s | 25.1s | 退化（"1"重复1004字符） | ❌ |
+| 2B | scene-1-seed1024 | **4.6s** | 14.3s | 正确（257字符） | ✅ 快3x |
+| GLM-9B | pexels-alibaba | 11.6s | 138.4s | 幻觉（"person in lab coat"） | ❌ |
+| GLM-9B | scene-1-seed1024 | 9.2s | 54.5s | 幻觉（同上，两视频输出相同） | ❌ |
+| 30B | pexels-alibaba | 6.8s | 211.6s | 报错（broadcast shape不匹配） | ❌ |
+| 30B | scene-1-seed1024 | 6.6s | 11.1s | 回显prompt example（159字符） | ❌ |
+
+### 结论
+
+**mlx-vlm 0.5.0 原生视频路径三模型都不可靠**：
+
+- **2B**：部分视频退化（"1" 重复），部分正常但快 3x——不稳定
+- **GLM-9B**：完全不接收视频像素，两个不同视频给出相同幻觉输出（"person in lab coat"）——已知 bug
+- **30B-A3B**：一个报错（`broadcast_shapes (3,1,2048) vs (3,1,8164)`），一个回显 prompt example——未正确处理视频
+
+**帧提取是唯一可靠路径**，验证了 `vlm_analyzer.py` 使用帧提取的设计正确性。
+如果未来 mlx-vlm 修复原生视频支持，30B 原生视频 6.6s vs 帧提取 11.1s 的速度优势值得重新评估。
