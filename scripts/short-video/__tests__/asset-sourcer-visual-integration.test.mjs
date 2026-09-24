@@ -346,6 +346,8 @@ describe("assignAssetsToScenes — contentKind + video fit guard", () => {
         type: "image",
         score: 90,
         source: "pexels",
+        claimSceneId: 1,
+        relevanceScore: 90,
         focusAnalysis: {
           status: "ok",
           errorCode: null,
@@ -386,6 +388,8 @@ describe("assignAssetsToScenes — contentKind + video fit guard", () => {
         score: 85,
         source: "pexels",
         fit: "cover",
+        claimSceneId: 1,
+        relevanceScore: 90,
       },
     ];
 
@@ -401,6 +405,8 @@ describe("assignAssetsToScenes — contentKind + video fit guard", () => {
         score: 85,
         source: "pexels",
         fit: "cover",
+        claimSceneId: 1,
+        relevanceScore: 90,
       },
     ];
 
@@ -416,6 +422,8 @@ describe("assignAssetsToScenes — contentKind + video fit guard", () => {
         score: 85,
         source: "pexels",
         fit: "contain",
+        claimSceneId: 1,
+        relevanceScore: 90,
       },
     ];
 
@@ -430,6 +438,8 @@ describe("assignAssetsToScenes — contentKind + video fit guard", () => {
         type: "image",
         score: 90,
         source: "pexels",
+        claimSceneId: 1,
+        relevanceScore: 90,
       },
     ];
 
@@ -476,6 +486,8 @@ describe("Ticket 01 — Path isolation (relative path preservation)", () => {
         type: "image",
         score: 85,
         source: "pexels",
+        claimSceneId: 1,
+        relevanceScore: 90,
       },
     ];
 
@@ -491,8 +503,22 @@ describe("Ticket 01 — Path isolation (relative path preservation)", () => {
       { id: 2, visualType: "narrative", voiceover: "b" },
     ];
     const assets = [
-      { path: "assets/img1.jpg", type: "image", score: 90, source: "pexels" },
-      { path: "assets/img2.jpg", type: "image", score: 80, source: "unsplash" },
+      {
+        path: "assets/img1.jpg",
+        type: "image",
+        score: 90,
+        source: "pexels",
+        claimSceneId: 1,
+        relevanceScore: 90,
+      },
+      {
+        path: "assets/img2.jpg",
+        type: "image",
+        score: 80,
+        source: "unsplash",
+        claimSceneId: 2,
+        relevanceScore: 90,
+      },
     ];
 
     const patches = assignAssetsToScenes(assets, scenes);
@@ -883,6 +909,8 @@ describe("assignAssetsToScenes — cropFocus in patch output", () => {
         source: "pexels",
         fit: "cover",
         cropFocus: { x: 0.3, y: 0.5 },
+        claimSceneId: 1,
+        relevanceScore: 90,
       },
     ];
 
@@ -898,6 +926,8 @@ describe("assignAssetsToScenes — cropFocus in patch output", () => {
         score: 90,
         source: "pexels",
         fit: "cover",
+        claimSceneId: 1,
+        relevanceScore: 90,
       },
     ];
 

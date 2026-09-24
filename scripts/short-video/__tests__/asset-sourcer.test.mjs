@@ -1557,6 +1557,15 @@ describe("assignAssetsToScenes", () => {
     title: `Asset ${path}`,
   });
 
+  // Claim-bound asset — the only assignable shape since #297 retired the
+  // un-gated fallback (relevanceScore 90 clears the default threshold 60).
+  const claimed = (path, type, score, sceneId, over = {}) => ({
+    ...makeAsset(path, type, score),
+    claimSceneId: sceneId,
+    relevanceScore: 90,
+    ...over,
+  });
+
   // #9: 0 assets, 3 available scenes → empty patch array
   it("returns empty array when no assets are provided", () => {
     const scenes = [
@@ -1568,15 +1577,16 @@ describe("assignAssetsToScenes", () => {
     expect(result).toEqual([]);
   });
 
-  // #10: 5 assets, 2 available scenes → top-2 assigned, 3 unassigned
+  // #10: 5 assets, 2 available scenes → top-2 assigned, 3 unassigned.
+  // Claim-bound shape: a3/a4/a5 bind to scenes already taken by a1/a2.
   it("assigns top-scoring assets to available scenes, marks rest as unassigned", () => {
     const scenes = [makeScene(2, "narrative"), makeScene(4, "info-card")];
     const assets = [
-      makeAsset("a1.mp4", "video", 90),
-      makeAsset("a2.mp4", "video", 85),
-      makeAsset("a3.mp4", "video", 80),
-      makeAsset("a4.mp4", "video", 75),
-      makeAsset("a5.mp4", "video", 70),
+      claimed("a1.mp4", "video", 90, 2),
+      claimed("a2.mp4", "video", 85, 4),
+      claimed("a3.mp4", "video", 80, 2),
+      claimed("a4.mp4", "video", 75, 4),
+      claimed("a5.mp4", "video", 70, 2),
     ];
     const result = assignAssetsToScenes(assets, scenes);
     expect(result).toHaveLength(5);
@@ -1595,37 +1605,40 @@ describe("assignAssetsToScenes", () => {
   // #11: Image asset → media.volume omitted in patch
   it("omits volume field for image assets", () => {
     const scenes = [makeScene(4, "info-card")];
-    const assets = [makeAsset("building.jpg", "image", 80)];
+    const assets = [claimed("building.jpg", "image", 80, 4)];
     const result = assignAssetsToScenes(assets, scenes);
     expect(result).toHaveLength(1);
     expect(result[0].status).toBe("assigned");
     expect(result[0].media.volume).toBeUndefined();
   });
 
-  // #12: Scene already has media → skipped
+  // #12: Scene already has media → its claim binding is unavailable; the
+  // next claim-bound asset takes the free scene.
   it("skips scenes that already have media assigned", () => {
     const scenes = [makeScene(2, "narrative", true), makeScene(4, "info-card")];
-    const assets = [makeAsset("a1.mp4", "video", 90)];
+    const assets = [claimed("a1.mp4", "video", 90, 2), claimed("a2.mp4", "video", 85, 4)];
     const result = assignAssetsToScenes(assets, scenes);
+    const occupied = result.find((r) => r.path === "a1.mp4");
+    expect(occupied.status).toBe("unassigned");
+    expect(occupied.reason).toMatch(/unavailable/i);
     const assigned = result.filter((r) => r.status === "assigned");
     expect(assigned).toHaveLength(1);
-    expect(assigned[0].sceneId).toBe(4); // scene 2 skipped, asset goes to scene 4
+    expect(assigned[0].sceneId).toBe(4); // scene 2 skipped, asset lands on scene 4
   });
 
-  // #13: hook is no longer in NO_MEDIA_TYPES — it can receive media
+  // #13: hook is no longer in NO_MEDIA_TYPES — it can receive media; cta never does.
   it("skips scenes with visualType in NO_MEDIA_TYPES (cta, data, stat-reveal)", () => {
     const scenes = [makeScene(1, "cta"), makeScene(2, "narrative")];
-    const assets = [makeAsset("a1.mp4", "video", 90)];
+    const assets = [claimed("a1.mp4", "video", 90, 1)];
     const result = assignAssetsToScenes(assets, scenes);
-    const assigned = result.filter((r) => r.status === "assigned");
-    expect(assigned).toHaveLength(1);
-    expect(assigned[0].sceneId).toBe(2); // scene 1 (cta) skipped
+    expect(result[0].status).toBe("unassigned");
+    expect(result[0].reason).toMatch(/unavailable/i); // scene 1 (cta) is a no-media type
   });
 
   // #14: Two assets with same path → first assigned, second skipped
   it("deduplicates assets by path — first wins, second marked unassigned", () => {
     const scenes = [makeScene(2, "narrative")];
-    const assets = [makeAsset("same.mp4", "video", 90), makeAsset("same.mp4", "video", 80)];
+    const assets = [claimed("same.mp4", "video", 90, 2), claimed("same.mp4", "video", 80, 2)];
     const result = assignAssetsToScenes(assets, scenes);
     expect(result).toHaveLength(2);
     const assigned = result.filter((r) => r.status === "assigned");
@@ -1647,7 +1660,7 @@ describe("assignAssetsToScenes", () => {
   // #16: Volume per visualType
   it("recommends volume 0.10 for narrative+video", () => {
     const scenes = [makeScene(2, "narrative")];
-    const assets = [makeAsset("demo.mp4", "video", 90)];
+    const assets = [claimed("demo.mp4", "video", 90, 2)];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
     expect(assigned.media.volume).toBe(0.1);
@@ -1655,7 +1668,7 @@ describe("assignAssetsToScenes", () => {
 
   it("recommends volume 0.04 for quote+video", () => {
     const scenes = [makeScene(3, "quote")];
-    const assets = [makeAsset("clip.mp4", "video", 85)];
+    const assets = [claimed("clip.mp4", "video", 85, 3)];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
     expect(assigned.media.volume).toBe(0.04);
@@ -1663,7 +1676,7 @@ describe("assignAssetsToScenes", () => {
 
   it("recommends volume 0.08 for info-card+video (default)", () => {
     const scenes = [makeScene(4, "info-card")];
-    const assets = [makeAsset("info.mp4", "video", 80)];
+    const assets = [claimed("info.mp4", "video", 80, 4)];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
     expect(assigned.media.volume).toBe(0.08);
@@ -1671,7 +1684,7 @@ describe("assignAssetsToScenes", () => {
 
   it("sets correct animation for narrative+video (zoom)", () => {
     const scenes = [makeScene(2, "narrative")];
-    const assets = [makeAsset("demo.mp4", "video", 90)];
+    const assets = [claimed("demo.mp4", "video", 90, 2)];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
     expect(assigned.media.animation).toBe("zoom");
@@ -1679,18 +1692,18 @@ describe("assignAssetsToScenes", () => {
 
   it("sets correct animation for info-card+image (ken-burns)", () => {
     const scenes = [makeScene(4, "info-card")];
-    const assets = [makeAsset("building.jpg", "image", 80)];
+    const assets = [claimed("building.jpg", "image", 80, 4)];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
     expect(assigned.media.animation).toBe("ken-burns");
   });
 
   // ── Hook media auto-assignment (spec-hook-media-support.md D4) ──
+  // Hook gates (score>=60 + fit=cover) apply through the claim path.
 
   it("assigns to hook scene when score>=60 and fit=cover", () => {
     const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
-    const assets = [makeAsset("a1.jpg", "image", 90)];
-    assets[0].fit = "cover";
+    const assets = [claimed("a1.jpg", "image", 90, 1, { fit: "cover" })];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.filter((r) => r.status === "assigned");
     expect(assigned).toHaveLength(1);
@@ -1699,38 +1712,32 @@ describe("assignAssetsToScenes", () => {
 
   it("does NOT assign to hook when score < 60", () => {
     const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
-    const assets = [makeAsset("a1.jpg", "image", 50)];
-    assets[0].fit = "cover";
+    const assets = [claimed("a1.jpg", "image", 50, 1, { fit: "cover" })];
     const result = assignAssetsToScenes(assets, scenes);
-    const assigned = result.filter((r) => r.status === "assigned");
-    expect(assigned).toHaveLength(1);
-    expect(assigned[0].sceneId).toBe(2); // hook rejected, goes to narrative
+    expect(result[0].status).toBe("unassigned");
+    expect(result[0].reason).toMatch(/hook gates/i); // claim-bound: no spill to narrative
   });
 
-  it("does NOT assign to hook when fit=contain (leaves for narrative)", () => {
+  it("does NOT assign to hook when fit=contain", () => {
     const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
-    const assets = [makeAsset("a1.jpg", "image", 90)];
-    assets[0].fit = "contain";
+    const assets = [claimed("a1.jpg", "image", 90, 1, { fit: "contain" })];
     const result = assignAssetsToScenes(assets, scenes);
-    const assigned = result.filter((r) => r.status === "assigned");
-    expect(assigned).toHaveLength(1);
-    expect(assigned[0].sceneId).toBe(2); // hook rejected (contain), goes to narrative
+    expect(result[0].status).toBe("unassigned");
+    expect(result[0].reason).toMatch(/hook gates/i); // claim-bound: no spill to narrative
   });
 
   it("does NOT assign to hook when aiFit is missing", () => {
     const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
-    const assets = [makeAsset("a1.jpg", "image", 90)];
-    // no aiFit set
+    const assets = [claimed("a1.jpg", "image", 90, 1)];
+    // no fit set
     const result = assignAssetsToScenes(assets, scenes);
-    const assigned = result.filter((r) => r.status === "assigned");
-    expect(assigned).toHaveLength(1);
-    expect(assigned[0].sceneId).toBe(2); // hook rejected (no fit), goes to narrative
+    expect(result[0].status).toBe("unassigned");
+    expect(result[0].reason).toMatch(/hook gates/i); // claim-bound: no spill to narrative
   });
 
   it("hook assignment uses ken-burns animation and overlay 0.5", () => {
     const scenes = [makeScene(1, "hook")];
-    const assets = [makeAsset("a1.jpg", "image", 90)];
-    assets[0].fit = "cover";
+    const assets = [claimed("a1.jpg", "image", 90, 1, { fit: "cover" })];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
     expect(assigned.media.animation).toBe("ken-burns");
@@ -1740,7 +1747,7 @@ describe("assignAssetsToScenes", () => {
 
   it("sets correct animation for narrative+image (ken-burns)", () => {
     const scenes = [makeScene(2, "narrative")];
-    const assets = [makeAsset("building.jpg", "image", 80)];
+    const assets = [claimed("building.jpg", "image", 80, 2)];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
     expect(assigned.media.animation).toBe("ken-burns");
@@ -1931,7 +1938,16 @@ describe("End-to-end: assignAssetsToScenes → validatePatchEntry (Review P0-1)"
   it("relative-path asset → assignAssetsToScenes → validatePatchEntry: valid", () => {
     const contentDir = "/fake/content/unitree";
     const scenes = [{ id: 1, visualType: "narrative" }];
-    const assets = [{ type: "image", path: "assets/img.jpg", score: 80, source: "pexels" }];
+    const assets = [
+      {
+        type: "image",
+        path: "assets/img.jpg",
+        score: 80,
+        source: "pexels",
+        claimSceneId: 1,
+        relevanceScore: 90,
+      },
+    ];
     const patches = assignAssetsToScenes(assets, scenes);
     expect(patches).toHaveLength(1);
     expect(patches[0].status).toBe("assigned");

@@ -738,6 +738,13 @@ export const RELEVANCE_SOURCE = {
 };
 
 /**
+ * Default VLM relevance threshold for gated assignment (#297). main() reads
+ * --relevance-threshold over this; omitting opts.relevanceThreshold falls
+ * back to it so the un-gated legacy mode cannot resurface.
+ */
+export const DEFAULT_RELEVANCE_THRESHOLD = 60;
+
+/**
  * Build the flat relevance field group carried by assigned patch entries.
  * Keeps the four fields (relevanceScore / relevanceSource / relevanceReason /
  * reused) as a single construction site instead of hand-written primitives.
@@ -786,8 +793,7 @@ function isRejectedFor(asset, scene) {
  * Assets that can't be assigned (no available scene, no path, duplicate path)
  * are included in the result with status: "unassigned".
  *
- * Gated mode (opt-in via opts.relevanceThreshold) adds the relevance pipeline
- * from spec #130:
+ * Relevance-gated assignment (spec #130 D6/D7 + #297) — the only mode:
  *   - claim binding: assets with `claimSceneId` only enter their bound scene
  *     and must carry a VLM `relevanceScore` >= threshold (missing → fail-closed)
  *   - #297 fail-closed: assets without a claim binding are never assigned —
@@ -802,7 +808,7 @@ function isRejectedFor(asset, scene) {
  * @param {Array} assets - Downloaded assets (each must have score, type, path)
  * @param {Array} scenes - Scene data array
  * @param {Object} [opts] - Gated-mode options
- * @param {number} [opts.relevanceThreshold] - Enable gating when numeric (default 60 at call sites)
+ * @param {number} [opts.relevanceThreshold] - Relevance threshold (default DEFAULT_RELEVANCE_THRESHOLD = 60)
  * @param {{hashes: Set<string>, urls: Set<string>}} [opts.usedIndex] - Used-asset index (buildUsedAssetIndex)
  * @param {number} [opts.reusedCap=0.4] - Max reused share of accepted assets
  * @returns {Array<{ sceneId?: number, sceneName?: string, visualType?: string,
@@ -814,8 +820,10 @@ function isRejectedFor(asset, scene) {
 export function assignAssetsToScenes(assets, scenes, opts = {}) {
   if (!assets || assets.length === 0) return [];
 
-  const gated = typeof opts.relevanceThreshold === "number";
-  const threshold = opts.relevanceThreshold;
+  const threshold =
+    typeof opts.relevanceThreshold === "number"
+      ? opts.relevanceThreshold
+      : DEFAULT_RELEVANCE_THRESHOLD;
   const reusedCap = typeof opts.reusedCap === "number" ? opts.reusedCap : 0.4;
 
   // Sort assets by score descending (greedy: highest score gets first pick)
@@ -859,240 +867,102 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
 
     // Skip duplicate paths (first occurrence already assigned)
     if (assignedPaths.has(asset.path)) {
-      result.push(unassignedEntry(asset, gated ? "duplicate asset path" : undefined));
+      result.push(unassignedEntry(asset, "duplicate asset path"));
       continue;
     }
 
     const isVideo = asset.type === "video";
-    let assigned = false;
-    const reused = gated ? detectReused(asset) : false;
+    const reused = detectReused(asset);
 
-    if (gated) {
-      // Online reused cap — reject before scene search so a rejected reused
-      // asset never consumes a scene slot.
-      if (reused && (acceptedReused + 1) / (acceptedTotal + 1) > reusedCap) {
-        result.push(
-          unassignedEntry(
-            asset,
-            `cross-content reuse cap exceeded (${Math.round(reusedCap * 100)}%)`,
-          ),
-        );
-        continue;
-      }
-
-      // ── Claim binding: per-scene sourced assets never spill to other scenes ──
-      if (asset.claimSceneId != null) {
-        const target = scenes.find((s) => s.id === asset.claimSceneId);
-        let reason = null;
-        if (!target) {
-          reason = `claim scene ${asset.claimSceneId} not found`;
-        } else if (asset.relevanceScore == null) {
-          reason = "VLM relevance missing — fail-closed (宁缺毋滥)";
-        } else if (asset.relevanceScore < threshold) {
-          reason = `VLM relevance ${asset.relevanceScore} below threshold ${threshold}`;
-        } else if (isRejectedFor(asset, target)) {
-          reason = `scene ${target.id} mediaReject rejected this asset`;
-        } else if (
-          assignedSceneIds.has(target.id) ||
-          target.media ||
-          NO_MEDIA_TYPES.has(target.visualType)
-        ) {
-          reason = `claim scene ${target.id} unavailable (occupied/manual media/no-media type)`;
-        } else if (
-          target.visualType === "hook" &&
-          ((asset.score || 0) < HOOK_MIN_SCORE || asset.fit !== HOOK_REQUIRED_FIT)
-        ) {
-          reason = "hook gates not met (score>=60 + fit=cover)";
-        }
-
-        if (reason) {
-          result.push(unassignedEntry(asset, reason));
-          continue;
-        }
-
-        const vt = target.visualType;
-        const media = {
-          type: asset.type,
-          path: asset.path,
-          source: asset.source || asset.from || undefined,
-          animation: vt === "hook" ? "ken-burns" : isVideo ? "zoom" : "ken-burns",
-          overlay: vt === "hook" ? 0.5 : vt === "quote" ? 0.8 : vt === "info-card" ? 0.75 : 0.7,
-        };
-        if (vt === "hook") media.fit = "cover";
-        else if (asset.fit && !isVideo) media.fit = asset.fit;
-        if (asset.cropFocus) media.cropFocus = asset.cropFocus;
-        if (isVideo && VOLUME_RECOMMENDATIONS[vt]) media.volume = VOLUME_RECOMMENDATIONS[vt].video;
-
-        result.push({
-          sceneId: target.id,
-          sceneName: target.name,
-          visualType: vt,
-          media,
-          analysis: asset.focusAnalysis ? { focusAnalysis: asset.focusAnalysis } : undefined,
-          assetScore: asset.score || 0,
-          source: asset.source || asset.from || "unknown",
-          attribution: asset.attribution || null,
-          status: "assigned",
-          ...makeRelevance({
-            score: asset.relevanceScore,
-            source: RELEVANCE_SOURCE.VLM,
-            reason: asset.relevanceReason,
-            reused,
-          }),
-        });
-        assignedSceneIds.add(target.id);
-        assignedPaths.add(asset.path);
-        acceptedTotal++;
-        if (reused) acceptedReused++;
-        continue;
-      }
-
-      // ── #297 fail-closed: no claim binding → no VLM relevance ──
-      // Contract + incident rationale live in the JSDoc above; the slot is
-      // left empty for mediaStrategy "asset-then-broll" to fill downstream.
+    // Online reused cap — reject before scene search so a rejected reused
+    // asset never consumes a scene slot.
+    if (reused && (acceptedReused + 1) / (acceptedTotal + 1) > reusedCap) {
       result.push(
         unassignedEntry(
           asset,
-          "no claim binding — no VLM relevance available, fail-closed (宁缺毋滥)",
+          `cross-content reuse cap exceeded (${Math.round(reusedCap * 100)}%)`,
         ),
       );
       continue;
     }
 
-    // Pass 1: hook scenes (require score>=60 and aiFit="cover")
-    for (const scene of scenes) {
-      if (assignedSceneIds.has(scene.id)) continue;
-      if (scene.visualType !== "hook") continue;
-      if (scene.media) continue;
-      if (isRejectedFor(asset, scene)) continue; // #192
+    // ── Claim binding: per-scene sourced assets never spill to other scenes ──
+    if (asset.claimSceneId != null) {
+      const target = scenes.find((s) => s.id === asset.claimSceneId);
+      let reason = null;
+      if (!target) {
+        reason = `claim scene ${asset.claimSceneId} not found`;
+      } else if (asset.relevanceScore == null) {
+        reason = "VLM relevance missing — fail-closed (宁缺毋滥)";
+      } else if (asset.relevanceScore < threshold) {
+        reason = `VLM relevance ${asset.relevanceScore} below threshold ${threshold}`;
+      } else if (isRejectedFor(asset, target)) {
+        reason = `scene ${target.id} mediaReject rejected this asset`;
+      } else if (
+        assignedSceneIds.has(target.id) ||
+        target.media ||
+        NO_MEDIA_TYPES.has(target.visualType)
+      ) {
+        reason = `claim scene ${target.id} unavailable (occupied/manual media/no-media type)`;
+      } else if (
+        target.visualType === "hook" &&
+        ((asset.score || 0) < HOOK_MIN_SCORE || asset.fit !== HOOK_REQUIRED_FIT)
+      ) {
+        reason = "hook gates not met (score>=60 + fit=cover)";
+      }
 
-      // Hook gate: score >= 60 AND fit === "cover"
-      if ((asset.score || 0) < HOOK_MIN_SCORE) continue;
-      if (asset.fit !== HOOK_REQUIRED_FIT) continue;
+      if (reason) {
+        result.push(unassignedEntry(asset, reason));
+        continue;
+      }
 
+      const vt = target.visualType;
       const media = {
         type: asset.type,
         path: asset.path,
         source: asset.source || asset.from || undefined,
-        animation: "ken-burns",
-        overlay: 0.5,
-        fit: "cover",
+        animation: vt === "hook" ? "ken-burns" : isVideo ? "zoom" : "ken-burns",
+        overlay: vt === "hook" ? 0.5 : vt === "quote" ? 0.8 : vt === "info-card" ? 0.75 : 0.7,
       };
-      if (asset.fit && !isVideo) media.fit = asset.fit;
-      if (isVideo && VOLUME_RECOMMENDATIONS["narrative"]) {
-        media.volume = VOLUME_RECOMMENDATIONS["narrative"].video;
-      }
+      if (vt === "hook") media.fit = "cover";
+      else if (asset.fit && !isVideo) media.fit = asset.fit;
+      if (asset.cropFocus) media.cropFocus = asset.cropFocus;
+      if (isVideo && VOLUME_RECOMMENDATIONS[vt]) media.volume = VOLUME_RECOMMENDATIONS[vt].video;
 
-      const entry = {
-        sceneId: scene.id,
-        sceneName: scene.name,
-        visualType: "hook",
+      result.push({
+        sceneId: target.id,
+        sceneName: target.name,
+        visualType: vt,
         media,
         analysis: asset.focusAnalysis ? { focusAnalysis: asset.focusAnalysis } : undefined,
         assetScore: asset.score || 0,
         source: asset.source || asset.from || "unknown",
         attribution: asset.attribution || null,
         status: "assigned",
-      };
-      result.push(entry);
-
-      assignedSceneIds.add(scene.id);
+        ...makeRelevance({
+          score: asset.relevanceScore,
+          source: RELEVANCE_SOURCE.VLM,
+          reason: asset.relevanceReason,
+          reused,
+        }),
+      });
+      assignedSceneIds.add(target.id);
       assignedPaths.add(asset.path);
       acceptedTotal++;
       if (reused) acceptedReused++;
-      assigned = true;
-      break;
-    }
-    if (assigned) continue;
-
-    // Pass 2: all other eligible scenes (narrative, info-card, quote, etc.)
-    for (const scene of scenes) {
-      if (assignedSceneIds.has(scene.id)) continue;
-      if (NO_MEDIA_TYPES.has(scene.visualType)) continue;
-      if (scene.visualType === "hook") continue; // already handled in pass 1
-      if (scene.media) continue;
-      if (isRejectedFor(asset, scene)) continue; // #192
-
-      // Assign this asset to this scene
-      const vt = scene.visualType;
-
-      // Determine animation
-      let animation;
-      if (vt === "narrative") {
-        animation = isVideo ? "zoom" : "ken-burns";
-      } else if (vt === "info-card") {
-        animation = asset.type === "image" ? "ken-burns" : "fade";
-      } else if (vt === "quote") {
-        animation = "fade";
-      } else {
-        animation = "fade";
-      }
-
-      // Determine overlay
-      let overlay;
-      if (vt === "quote") {
-        overlay = 0.8;
-      } else if (vt === "info-card") {
-        overlay = 0.75;
-      } else {
-        overlay = 0.7;
-      }
-
-      // Determine volume (only for video)
-      const volRec = VOLUME_RECOMMENDATIONS[vt];
-      const volume = isVideo && volRec ? volRec.video : undefined;
-
-      // Build media object
-      const media = {
-        type: asset.type,
-        path: asset.path,
-        source: asset.source || asset.from || undefined,
-        animation,
-        overlay,
-      };
-      // Include VLM-analyzed fit when available (spec §4.8)
-      // Video assets skip fit — video fit is a P4+ concern (temporal windows)
-      if (asset.fit && asset.type !== "video") {
-        media.fit = asset.fit;
-      }
-      // Include crop focus from crop decision (spec: Crop Decision Contract)
-      if (asset.cropFocus) {
-        media.cropFocus = asset.cropFocus;
-      }
-      if (volume !== undefined) {
-        media.volume = volume;
-      }
-
-      // Build analysis field for human review (spec §4.7)
-      const analysis = {};
-      if (asset.focusAnalysis) {
-        analysis.focusAnalysis = asset.focusAnalysis;
-      }
-
-      const entry = {
-        sceneId: scene.id,
-        sceneName: scene.name,
-        visualType: vt,
-        media,
-        analysis: Object.keys(analysis).length > 0 ? analysis : undefined,
-        assetScore: asset.score || 0,
-        source: asset.source || asset.from || "unknown",
-        attribution: asset.attribution || null,
-        status: "assigned",
-      };
-      result.push(entry);
-
-      assignedSceneIds.add(scene.id);
-      assignedPaths.add(asset.path);
-      acceptedTotal++;
-      if (reused) acceptedReused++;
-      assigned = true;
-      break;
+      continue;
     }
 
-    if (!assigned) {
-      result.push(unassignedEntry(asset));
-    }
+    // ── #297 fail-closed: no claim binding → no VLM relevance ──
+    // Contract + incident rationale live in the JSDoc above; the slot is
+    // left empty for mediaStrategy "asset-then-broll" to fill downstream.
+    result.push(
+      unassignedEntry(
+        asset,
+        "no claim binding — no VLM relevance available, fail-closed (宁缺毋滥)",
+      ),
+    );
+    continue;
   }
 
   return result;
@@ -2461,7 +2331,9 @@ export async function main(args = process.argv.slice(2)) {
   const contentSlug = getArg("content");
   const keywordsArg = getArg("keywords");
   const maxPerSource = parseInt(getArg("max-per-source") || "3", 10);
-  const relevanceThreshold = parseFloat(getArg("relevance-threshold") || "60");
+  const relevanceThreshold = parseFloat(
+    getArg("relevance-threshold") || String(DEFAULT_RELEVANCE_THRESHOLD),
+  );
 
   if (!contentSlug) {
     console.error(

@@ -49,18 +49,6 @@ const img = (over = {}) => ({
 
 const THRESHOLD = { relevanceThreshold: 60 };
 
-// ── Legacy behavior (no opts) ──
-
-describe("assignAssetsToScenes — legacy mode (no opts)", () => {
-  it("assigns without any relevance gate, binding, or cap", () => {
-    const assets = [img({ description: "an alipay qr code", subjects: [] })];
-    const result = assignAssetsToScenes(assets, scenes);
-    expect(result).toHaveLength(1);
-    expect(result[0].status).toBe("assigned");
-    expect(result[0].sceneId).toBe(1); // score>=60 + fit=cover → hook takes it first
-  });
-});
-
 // ── Relevance gate ──
 
 describe("assignAssetsToScenes — relevance gate", () => {
@@ -144,14 +132,6 @@ describe("assignAssetsToScenes — relevance gate", () => {
     const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
     expect(result[0].status).toBe("unassigned");
     expect(result[0].reason).toMatch(/unavailable/i);
-  });
-
-  it("legacy mode still skips NO_MEDIA_TYPES scenes (unbound fallback pool)", () => {
-    const assets = [img({ description: "some office photo", subjects: [] })];
-    const result = assignAssetsToScenes(assets, scenes); // no opts → legacy
-    const ids = result.filter((r) => r.status === "assigned").map((r) => r.sceneId);
-    expect(ids).not.toContain(4);
-    expect(ids).not.toContain(5);
   });
 
   it("stacks the relevance gate on top of the hook gates (score + fit=cover)", () => {
@@ -337,16 +317,6 @@ describe("assignAssetsToScenes — mediaReject (#192)", () => {
     const result = assignAssetsToScenes(assets, [scenes[0], rejecting], THRESHOLD);
     const onScene2 = result.find((r) => r.status === "assigned" && r.sceneId === 2);
     expect(onScene2).toBeUndefined();
-  });
-
-  it("a rejected-for-scene-A asset can still be assigned to scene B (legacy mode)", () => {
-    const assets = [
-      img({ path: "assets/rejected.jpg", description: "stock office", subjects: [] }),
-    ];
-    const rejecting = { ...scenes[1], mediaReject: { rejected: ["assets/rejected.jpg"] } };
-    const result = assignAssetsToScenes(assets, [scenes[0], rejecting]); // no opts → legacy
-    // Scene 1 (hook, score 80 fit cover) is eligible and has no reject flag
-    expect(result.find((r) => r.status === "assigned" && r.sceneId === 1)).toBeTruthy();
   });
 
   it("claim-bound asset rejected by its target scene → unassigned with a reject reason", () => {
