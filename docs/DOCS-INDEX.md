@@ -126,7 +126,7 @@ Numbered sequence. Current: 0001–0019 (0006 moved to archive).
 
 | Document           | Purpose                                                                |
 | ------------------ | ---------------------------------------------------------------------- |
-| `issue-roadmap.md` | Open GitHub Issues 依赖关系 + 执行顺序 + 状态追踪 — 每次 triage 后更新 |
+| `issue-roadmap.md` | Open GitHub Issues 的 Wave/Tier 放置与依赖索引（短行式，不缓存状态——状态以 `gh issue list` 为准）；交付叙事权威源是 issue 评论。每次 triage 后更新；历史叙事在 `archive/roadmap-tables-archive-2026-09-24.md` |
 
 ### `handoffs/` — Session handoffs
 
