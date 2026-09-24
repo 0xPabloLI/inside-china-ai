@@ -27,7 +27,7 @@ type Admin = Awaited<typeof import("@/integrations/supabase/client.server")>["su
 class PausedError extends Error {}
 
 /** Normalise a question so trivially different phrasings group together. */
-export function questionKey(q: string): string {
+function questionKey(q: string): string {
   return q
     .toLowerCase()
     .normalize("NFKC")
@@ -37,7 +37,7 @@ export function questionKey(q: string): string {
 }
 
 /** Reject questions that are too short/long or look like they contain personal data or spam. */
-export function isPublishableQuestion(q: string): boolean {
+function isPublishableQuestion(q: string): boolean {
   if (q.length < 12 || q.length > 200) return false;
   if (/[\w.+-]+@[\w-]+\.[\w.]+/.test(q)) return false; // email
   if (/https?:\/\/|www\./i.test(q)) return false; // links
@@ -46,7 +46,7 @@ export function isPublishableQuestion(q: string): boolean {
   return true;
 }
 
-export function answerSlug(question: string, existing: Set<string>): string {
+function answerSlug(question: string, existing: Set<string>): string {
   let base = slugify(question).replace(/^-|-$/g, "").slice(0, 70);
   if (base.length < 6) base = `question-${Math.abs(hash(question)).toString(36)}`;
   let slug = base;
@@ -61,7 +61,7 @@ function hash(s: string) {
   return h;
 }
 
-export function defaultSeo(question: string, answer: string) {
+function defaultSeo(question: string, answer: string) {
   const q = question.replace(/[?？]*$/, "");
   const title = q.length > 58 ? `${q.slice(0, 55).trimEnd()}…?` : `${q}?`;
   const plain = answer.replace(/\[\d+\]/g, "").replace(/\s+/g, " ").trim();
