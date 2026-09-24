@@ -2143,18 +2143,20 @@ export const LAST30DAYS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP only. Search page DOM scraping. No public API.",
+      notes:
+        "Demoted to Google site: layer 2026-09-24 (#269 Round I): digg.com/search now 302s to /tech dropping the query param (search removed, loaded:true no chrome-error) — site search unusable. Techmeme-pattern fallback: h3 extraction + digg.com domain filter on Google SERP, qdr:y. No public API.",
     },
     useCleanTitle: false,
-    url: (keyword) => `https://digg.com/search?q=${encodeURIComponent(keyword)}`,
+    url: (keyword) =>
+      `https://www.google.com/search?q=${encodeURIComponent("site:digg.com " + keyword)}&tbs=qdr:y&num=20&hl=en`,
     articleScript: `
       var results = [];
-      document.querySelectorAll('article, .story-item, [class*="story"]').forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var title = el.querySelector('h2, h3, .title');
-        if (link && title) {
-          results.push({ title: title.textContent.trim(), url: link.href });
-        }
+      document.querySelectorAll('h3').forEach(function(h3) {
+        var a = h3.closest('a') || (h3.parentElement && h3.parentElement.querySelector('a'));
+        if (!a || !a.href || a.href.indexOf('digg.com') === -1) return;
+        var title = h3.textContent.trim();
+        if (!title) return;
+        results.push({ title: title, url: a.href });
       });
       return results.slice(0, 20);
     `,
