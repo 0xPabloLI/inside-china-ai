@@ -48,17 +48,27 @@ function harness(depsOverrides = {}, sourceOverrides = {}) {
     collectMcp: async () => [],
     searchPoolFn: async () => ({ attempts: [], articles: [] }),
     isPoolEligibleFn: () => false,
+    // #269 added the CDP pre-flight probe (probeFn defaults to a real fetch)
+    // after this harness was written — sources that register a url() would
+    // leak the probe to the real network (fake domains through the proxy:
+    // seconds-long hangs, flaky vs the 5s test timeout). Stub fail-open, and
+    // keep it OUT of the recorded `calls` sequence: the chain-order assertions
+    // below characterize the SIX collection layers, not the probe side-channel.
+    probeFn: async (searchUrl) => ({ searchUrl, finalUrl: null, httpStatus: null }),
     ...depsOverrides,
   };
   const deps = Object.fromEntries(
-    Object.entries(merged).map(([k, v]) => [
-      k,
-      (...args) => {
-        calls.push({ fn: k, args });
-        return v(...args);
-      },
-    ]),
+    Object.entries(merged)
+      .filter(([k]) => k !== "probeFn")
+      .map(([k, v]) => [
+        k,
+        (...args) => {
+          calls.push({ fn: k, args });
+          return v(...args);
+        },
+      ]),
   );
+  deps.probeFn = merged.probeFn;
   const promise = collectFromSource(baseSource(sourceOverrides), "kw", (e) => events.push(e), deps);
   return { promise, events, calls };
 }

@@ -71,6 +71,10 @@ describe("buildCV3CudaManifest — batch manifest shape", () => {
 
 describe("engine generate — one kernel push for the whole manifest (#241)", () => {
   it("pushes exactly ONE kernel whose manifest embeds all scenes, then polls and downloads once", async () => {
+    // Hermetic factory: the availability probe goes through the injected exec
+    // seam now, but username still reads ~/.kaggle/kaggle.json — pin it so the
+    // test never depends on the local Kaggle config.
+    process.env.COSYVOICE3_KAGGLE_USER = "test-kaggle-user";
     const outDir = join(tmpdir(), `tts-kaggle-batch-${process.pid}-${Date.now()}`);
     mkdirSync(outDir, { recursive: true });
     const { commands, exec } = makeBatchExecMock(SCENES);

@@ -105,6 +105,11 @@ describe("collectFromSource layer trajectory (stubbed layers)", () => {
       collectMcp: async () => [],
       searchPoolFn: async () => ({ attempts: [], articles: [] }),
       isPoolEligibleFn: () => false,
+      // #269 added the CDP pre-flight probe (probeFn defaults to a real fetch
+      // of the source's search URL) AFTER these stubs were written — cdp is
+      // module-default true, so the real probe would hit the fake URL and hang
+      // ~5s per test. Stub it fail-open (httpStatus null → judge keeps alive).
+      probeFn: async (searchUrl) => ({ searchUrl, finalUrl: null, httpStatus: null }),
       ...overrides,
     };
   }

@@ -216,7 +216,12 @@ describe("yt-dlp wiring", () => {
     const out = searchYtdlp("DeepSeek", "bilibili");
     expect(out).toHaveLength(1);
     expect(out[0].url).toBe("https://www.bilibili.com/video/BV1E7wtzaEdq");
-    const cmd = execSyncMock.mock.calls[0][0];
+    // #324 proxy hand-off probes the macOS system proxy (scutil) before the
+    // yt-dlp call on darwin, and the probe result is module-cached — so the
+    // yt-dlp command is NOT reliably calls[0]. Locate it by its argv instead.
+    const cmd = execSyncMock.mock.calls
+      .map((c) => String(c[0]))
+      .find((s) => s.startsWith("yt-dlp "));
     expect(cmd).toContain("--user-agent");
     expect(cmd).toContain("Mozilla/5.0");
     const stateText = existsSync(process.env.YTDLP_412_STATE_PATH)

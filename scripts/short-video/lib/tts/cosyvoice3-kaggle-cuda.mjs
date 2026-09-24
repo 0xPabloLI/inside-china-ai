@@ -238,13 +238,18 @@ export function resolveKernelSlug({ envSlug, contentId } = {}) {
  * Check if Kaggle CLI is available and configured.
  * @returns {Promise<boolean>}
  */
-async function isAvailable() {
+async function isAvailable(deps = {}) {
   if (!existsSync(KAGGLE_KERNEL_TEMPLATE)) return false;
   if (!existsSync(CV3_REF_AUDIO)) return false;
   const username = getKaggleUsername();
   if (!username) return false;
   try {
-    await execAsync("kaggle --version 2>/dev/null");
+    // Availability probe honours the injected exec seam like the rest of the
+    // engine — the module contract is "batch contract testable without
+    // touching real Kaggle", and a real `kaggle --version` can take ~9s of
+    // wall-clock on shimmed Python installs (deterministic test timeout).
+    const probe = deps.exec ?? ((cmd) => execAsync(cmd));
+    await probe("kaggle --version 2>/dev/null");
     return true;
   } catch {
     return false;
@@ -437,7 +442,7 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
  * @returns {Promise<TTSEngine|null>} null if not available.
  */
 export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
-  if (!(await isAvailable())) return null;
+  if (!(await isAvailable(deps))) return null;
 
   const username = getKaggleUsername();
   const runCmd = deps.exec ?? ((cmd) => execAsync(cmd));
