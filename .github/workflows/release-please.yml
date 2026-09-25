@@ -3,6 +3,9 @@ name: Release Please
 on:
   push:
     branches: [main]
+  # 手动触发口：验证「token 生效后 release PR 的 CI 会自动跑」时用它，
+  # 不必为了触发本 workflow 往 main 推一个空提交。
+  workflow_dispatch:
 
 permissions:
   contents: write
