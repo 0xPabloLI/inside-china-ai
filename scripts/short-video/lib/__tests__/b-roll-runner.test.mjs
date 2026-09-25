@@ -1,9 +1,23 @@
-import { describe, test, expect, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { describe, test, expect, beforeAll, afterAll, vi } from "vitest";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { resolveDependencies, buildPythonArgs, runGeneration } from "../b-roll/runner.mjs";
+
+// The taehv decoder probe reads ~/.cache/fastvideo/taehv — machine state.
+// Pin homedir to a throwaway dir so both probe branches are testable on any
+// machine (tmpdir/mkdtemp stay real via importOriginal).
+const { fakeHome } = await vi.hoisted(async () => {
+  const { mkdtempSync: mkd } = await import("node:fs");
+  const { tmpdir: td } = await import("node:os");
+  const { join: j } = await import("node:path");
+  return { fakeHome: mkd(j(td(), "broll-home-")) };
+});
+vi.mock("node:os", async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, homedir: () => fakeHome };
+});
 
 describe("resolveDependencies (scenario #11)", () => {
   let dir;
@@ -14,6 +28,7 @@ describe("resolveDependencies (scenario #11)", () => {
 
   afterAll(() => {
     rmSync(dir, { recursive: true, force: true });
+    rmSync(fakeHome, { recursive: true, force: true });
   });
 
   test("missing repo -> ok:false with the offending path in the message", () => {
@@ -127,6 +142,31 @@ describe("resolveDependencies (scenario #11)", () => {
     expect(res.ok).toBe(true);
     expect(res.modelRoot).toBe(modelRoot);
     expect(res.mlxCheckpoint).toBeNull();
+  });
+
+  test("#298 missing taehv decoder is a WARNING, not a hard failure", () => {
+    // fakeHome has no ~/.cache/fastvideo — preflight must stay
+    // machine-independent (the loader self-fetches when the network allows).
+    const repo = join(dir, "repo8");
+    writeFileSync(repo, "");
+    const python = join(dir, "python8");
+    writeFileSync(python, "#!/bin/sh\n");
+    const res = resolveDependencies({ FASTVIDEO_REPO: repo, FASTVIDEO_PYTHON: python });
+    expect(res.ok).toBe(true); // default tier is 5B, decoder uncached here
+    expect(res.warnings.some((w) => w.includes("taehv"))).toBe(true);
+  });
+
+  test("#298 cached taehv decoder -> no warning", () => {
+    const repo = join(dir, "repo9");
+    writeFileSync(repo, "");
+    const python = join(dir, "python9");
+    writeFileSync(python, "#!/bin/sh\n");
+    const cache = join(fakeHome, ".cache", "fastvideo", "taehv");
+    mkdirSync(cache, { recursive: true });
+    writeFileSync(join(cache, "taew2_2.pth"), "");
+    const res = resolveDependencies({ FASTVIDEO_REPO: repo, FASTVIDEO_PYTHON: python });
+    expect(res.ok).toBe(true);
+    expect(res.warnings.some((w) => w.includes("taehv"))).toBe(false);
   });
 });
 
@@ -410,6 +450,12 @@ describe("runGeneration (scenario #23 + fault tolerance)", () => {
       console.log('[batch][results] ' + JSON.stringify({ ok: ["model-args"], failed: [] }));
       `,
     );
+    // Pinned snapshot that really ships encoder weights (the guard only
+    // promotes BROLL_MODEL_ROOT to --text-encoder-root when the snapshot
+    // has weight shards — a weights-less 5B snapshot must be skipped).
+    const modelRoot = join(dir, "FastMetal-1.3B-QAD");
+    mkdirSync(join(modelRoot, "text_encoder"), { recursive: true });
+    writeFileSync(join(modelRoot, "text_encoder", "model.safetensors"), "");
     const lines = [];
     await runGeneration({
       python: process.execPath,
@@ -417,13 +463,50 @@ describe("runGeneration (scenario #23 + fault tolerance)", () => {
       repo: dir,
       workDir: dir,
       jobs: [{ label: "model-args", prompt: "p", output_path: out, seed: 1 }],
-      modelRoot: "/models/FastMetal-1.3B-QAD",
+      modelRoot,
       mlxCheckpoint: "/models/FastMetal-1.3B-QAD",
       onProgress: (line) => lines.push(line),
     });
     const argv = lines.find((l) => l.startsWith("[batch] argv=")) ?? "";
-    expect(argv).toContain("--model-root /models/FastMetal-1.3B-QAD");
+    // #298 default tier (5B): the pinned snapshot with encoder weights
+    // becomes the text-encoder root; the DiT checkpoint passes as
+    // --mlx-checkpoint. The 5B driver has no --model-root flag.
+    expect(argv).toContain(`--text-encoder-root ${modelRoot}`);
     expect(argv).toContain("--mlx-checkpoint /models/FastMetal-1.3B-QAD");
+    expect(argv).not.toContain("--model-root");
+  });
+
+  test("#159 weights-less pinned snapshot (5B cache shape) -> no --text-encoder-root", async () => {
+    const out = join(dir, "model-args-noenc.mp4");
+    const stub = writeStub(
+      "stub-model-args-noenc.mjs",
+      `
+      import { writeFileSync } from "node:fs";
+      console.log("[batch] argv=" + process.argv.slice(2).join(" "));
+      writeFileSync(${JSON.stringify(out)}, "fake");
+      console.log('[batch][results] ' + JSON.stringify({ ok: ["model-args-noenc"], failed: [] }));
+      `,
+    );
+    // Our real FastMetal-5B-QAD cache: text_encoder/ exists but holds
+    // config only (weights deliberately skipped at download time).
+    const modelRoot = join(dir, "FastMetal-5B-QAD-noenc");
+    mkdirSync(join(modelRoot, "text_encoder"), { recursive: true });
+    writeFileSync(join(modelRoot, "text_encoder", "config.json"), "{}");
+    const lines = [];
+    await runGeneration({
+      python: process.execPath,
+      scriptPath: stub,
+      repo: dir,
+      workDir: dir,
+      jobs: [{ label: "model-args-noenc", prompt: "p", output_path: out, seed: 1 }],
+      modelRoot,
+      onProgress: (line) => lines.push(line),
+    });
+    const argv = lines.find((l) => l.startsWith("[batch] argv=")) ?? "";
+    // The guard must NOT hand the driver a weights-less encoder root — the
+    // driver falls back to its own 1.3B-encoder resolution instead.
+    expect(argv).not.toContain("--text-encoder-root");
+    expect(argv).not.toContain("--model-root");
   });
 
   test("#159 unpinned models -> no model flags in the python argv", async () => {

@@ -45,7 +45,27 @@ from PIL import Image, ImageOps
 
 # ─── Constants ───
 
-MODEL_ID = str(os.path.expanduser("~/models/Qwen3-VL-30B-A3B-Instruct-4bit"))
+# Model id single source of truth (#351): vlm-model.json is read by BOTH this
+# process and the Node side (visual-analyzer.mjs getVlmModelId), so the cache
+# key's model material can never name a model different from the one that
+# actually runs inference. Change the model only in that file.
+_VLM_MODEL_CONFIG = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "vlm-model.json"
+)
+try:
+    with open(_VLM_MODEL_CONFIG, "r", encoding="utf-8") as _f:
+        _MODEL_ID = json.load(_f).get("modelId")
+except (OSError, ValueError) as _err:  # json.JSONDecodeError subclasses ValueError
+    raise RuntimeError(
+        f"Cannot read the VLM model id from {_VLM_MODEL_CONFIG} "
+        f"(single source of truth, shared with visual-analyzer.mjs): {_err}"
+    ) from _err
+if not isinstance(_MODEL_ID, str) or not _MODEL_ID.strip():
+    raise RuntimeError(
+        "vlm-model.json must declare a non-empty string 'modelId' "
+        "(single source of truth, shared with visual-analyzer.mjs)"
+    )
+MODEL_ID = os.path.expanduser(_MODEL_ID.strip())
 FFMPEG_PATH = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
 IDLE_TIMEOUT_SECONDS = 300  # 5 minutes
 VIDEO_FPS = 1.0

@@ -58,6 +58,7 @@
 - PR title/body 使用 English。
 - Testing section 只列已验证且勾选完成的项目，否则不写。
 - PR push/open 后不 amend 或 rebase，后续使用新 commit。
+- **合并门禁：PR 存在未 resolve 的 review thread（bot 与人一视同仁）时不合并**——逐条真实修复或回应、thread resolve 后方可 merge；用户明确豁免除外。
 - 不为清线程做 cosmetic fix；真实修复，否则留给 maintainer 决定。
 
 ## 8. Session Boundary

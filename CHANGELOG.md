@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.1.0...tanstack_start_ts-v1.2.0) (2026-09-25)
+
+
+### Features
+
+* **#298:** FastMetal-5B-QAD B-roll T2V 评测——5B 全门通过胜出 + 评测框架落地 ([77ccc8a](https://github.com/0xPabloLI/inside-china-ai/commit/77ccc8a3d8a1ec682e3896504f5ec85073c95f5c))
+* **#298:** 生产端口——5B 批量驱动 + runner tier 体系，B-roll 默认模型切换 FastMetal-5B ([d9b3fc4](https://github.com/0xPabloLI/inside-china-ai/commit/d9b3fc457ec772e60b5bd8116eee76229ee738ef))
+
+
+### Bug Fixes
+
+* **#298:** PR 评审线程修复——真实 P2 bug ×4 + eval 脚本去硬编码 + 元数据对齐 ([0ac2cdd](https://github.com/0xPabloLI/inside-china-ai/commit/0ac2cdd5c7c9284631f91ae4ee553dc5a2676570))
+* **#298:** taehv 解码器探针降级为警告——CI/新机无缓存不再误判依赖缺失 ([d953a6d](https://github.com/0xPabloLI/inside-china-ai/commit/d953a6d79a83b96e12b159aeb2975c79705cc4ac))
+* **#298:** 评审修复——编码器根守卫 + probe 用已解析 tier + 文档对齐 ([dabf5b3](https://github.com/0xPabloLI/inside-china-ai/commit/dabf5b3cf95c9bb8bf93cdcebc6512fc72565422))
+* **vlm:** single source of truth for the VLM model id — vlm-model.json ([#351](https://github.com/0xPabloLI/inside-china-ai/issues/351)) ([b05c01f](https://github.com/0xPabloLI/inside-china-ai/commit/b05c01fe31b35efcac846700adae386eeedbe8e4))
+* **vlm:** 补 getVlmModelId 真实调用测试——修复 CI 覆盖率棘轮（functions 72.46% &lt; 72.5%） ([5b342a1](https://github.com/0xPabloLI/inside-china-ai/commit/5b342a152a9417a559bd3e7acd2f8f5607dd1bd7))
+
 ## [1.1.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.0.0...tanstack_start_ts-v1.1.0) (2026-09-25)
 
 

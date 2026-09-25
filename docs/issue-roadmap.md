@@ -7,13 +7,13 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-09-24（**Round L**：素材策略统一化提案 v3 评审定稿（`docs/research/media-strategy-unification-proposal-2026-09.md`）——通用兜底链 + 认领供给泛化，对齐 #301 票评 2026-09-14 媒体优先级链在案裁决；开组票 **#354**（认领供给泛化，吸收 #295）/**#355**（统一素材兜底链，承接 #301 链裁决）/ **#356**（无主供给退役）/ **#357**（视频默认 zoom 退场快修）；#295/#301 挂注记。用户裁决链：采购视频优先，生成形态由预算决定，字段降级为覆盖）。
+> **Last inventory**: 2026-09-25（**Round M**：全模态选型 handoff 定稿（`docs/research/handoff-omni-vlm-20260925.md`）——方案 C（MiniCPM-o 4.5 + emotion2vec+ 轻量插件）定为主干；备选改良为「Qwen3-VL-30B MoE + 方案F 轻量音频模块 SenseVoice+e2v」（用户裁决：备选引擎须与主引擎能力对齐，切换不降级）；方案 E/E'（MiniCPM-o 当 ASR 工具人的双大模型冗余）否决。#351（vlm 缓存 key 模型解耦）分流入 **W3C** 并已实施（branch `session/20260925-vlm-cache-key-351-7a7ab6`，`vlm-model.json` 单一真值源）；#360（长视频分段分析 + 跨 Scene 连续播放）分流入 **W3C**。方案 C 主票待开（tracker 写入待用户授权）。
 >
-> Round K（#297 交付 + E2）一句话档案：fail-closed 单模式落地闭票（`a4ce959`+E2 `1b68276`），legacy 删除，moonshot 回归锁定，smoke PASS。
+> Round L（素材策略统一化提案 v3）一句话档案：组票 #354/#355/#356/#357 落位，#295/#301 挂注记；用户裁决链：采购视频优先，生成形态由预算决定，字段降级为覆盖。
 >
-> **frontier**：Tier 1 可立即开工 **#298**（P1）；#300/#302 并行调研（W3A）；#357（P2 bug 快赢，W3B）可穿插；#326/#346/#347 等 `needs-triage` 先分流再开工。
+> **frontier**：Tier 1 可立即开工 **#298**（P1）；#300/#302 并行调研（W3A）；**W3C VLM 认知底座组串行链：#351（已实施待 review）→ 方案 C 主票 → #360 → #294**；#357（P2 bug 快赢，W3B）可穿插；#326/#346/#347 等 `needs-triage` 先分流再开工。
 >
-> 近轮一句话档案：**Round J**（#333 收口 / #269 母票闭票 / 结构精简）；**Round I + 续波**（源健康收口：polymarket 修复 / duckduckgo RETIRED / digg 降级 site: / xhs 登录修复 / SearXNG 复活）；**Round F**（URL 对齐审计 `registryPatches: 0`）；**#335 已撤销**（四轴定案：抽取层最权威）。全文见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
+> 近轮一句话档案：**Round K**（#297 交付 + E2：fail-closed 单模式落地闭票，legacy 删除，smoke PASS）；**Round J**（#333 收口 / #269 母票闭票 / 结构精简）；**Round I + 续波**（源健康收口：polymarket 修复 / duckduckgo RETIRED / digg 降级 site: / xhs 登录修复 / SearXNG 复活）；**Round F**（URL 对齐审计 `registryPatches: 0`）；**#335 已撤销**（四轴定案：抽取层最权威）。全文见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
 
 ---
 
@@ -63,7 +63,7 @@
 | **W2B** | 搜源架构重审与修复闭环 | `lib/search-sources.mjs` `lib/source-*.mjs` `skills/web-access/` `.github/workflows/` | #326 #346 #347（先分流）｜#231｜D：#286 #322｜#348 待分流 | #292/#309/#269 及全部卫星已闭；registry / heal 判据改动见冲突矩阵 |
 | **W3A** | 视觉与竞品深度调研（调研先行） | `docs/research/` `lib/b-roll/` | #291（🎯map）#298（🎯）#300 #302 #304 | 🟢 全部只读调研可并行；**先于任何视觉代码改动** |
 | **W3B** | 媒体底座与素材体系 | `asset-sourcer.mjs` `knowledge/media-catalog.json` | #310（🎯）#293 #314 #354 #355 #356 #357｜D：#288 #301 | #310 吸收 #288/#301；#297 fail-closed 已闭票；#355 承接 #301 链裁决；#354 吸收 #295 |
-| **W3C** | 画面适配与智能写稿 | `scene-data.mjs` `lib/visual-analyzer.mjs` | #289 #299 #294 #253 #244 #256 #263（多为 HITL）｜D：#295 | 依赖 W3A 选型（#298）与 W3B 素材流；#295 并入 #354 |
+| **W3C** | 画面适配与智能写稿 | `scene-data.mjs` `lib/visual-analyzer.mjs` `vlm_analyzer.py` | #351 #360 #289 #299 #294 #253 #244 #256 #263（多为 HITL）｜D：#295 | 依赖 W3A 选型（#298）与 W3B 素材流；#295 并入 #354；VLM 认知底座组串行：#351 → 方案 C → #360 → #294 |
 | **W4A** | 平台架构调研与中文首包 | 视频号后台 `docs/research/` `content/` | #296（🎯map）#268 #216（HITL）｜D：#210 | 真机实测先行 |
 | **W4B** | 发布包适配与自动发布 | `lib/platforms/` | D：#217 #218 #220 #223 #206 #208 #222 | 🔴 硬前置：等 #216 实测数据 + 用户立项授权 |
 
@@ -106,10 +106,11 @@
   - **Wave 3A（【深度调研先行，基准确立】）**：
     - **#300**：CDP 抓取头部竞品解构音视频分镜与节奏基准，产出分析报告；
     - **#302**：深度学习吸收外部开源项目（MoneyPrinterTurbo 等）在分镜和调度上的成熟经验；
-    - 🎯 **#298**：本地 MLX → 免费云端（AtomGit/Kaggle）→ 付费云端（Modal L4）模型画质横评（吸收 **#290** 文字测试集）；
+    - 🎯 **#298**：本地 MLX → 免费云端（AtomGit/Kaggle）→ 付费云端（Modal L4）模型画质横评（吸收 **#290** 文字测试集）；**本地档已完成（2026-09-25）**：FastMetal-5B-QAD 评测胜出（claim gate 85.0 vs 1.3B 83.75，四维画质 76/80 vs 73/80，M2 Pro 峰值 11.42 GiB）+ 生产端口落地（`mlx_wan22_batch.py` + runner tier 体系，BROLL_MODEL 切换）——云端档仅在 5B 实产不达预期时再启动；
     - 🎯 **#291**：汇总调研成果，确立 S3 视觉重做 Wayfinder Map。
   - **Wave 3B（媒体底座与素材兜底）**：🎯 **#310**（素材库体系统一——统一素材库 + 文字描述索引 + **收获率搜索 log（第一交付物，可先行）** + 素材关键词体系；**吸收 #288 + #301**）+ ✅ **#297**（素材匹配 Fail-closed 留空绝不硬塞无关图，已闭票 `a4ce959`，E2 `1b68276` 删 legacy 模式）+ **#293**（Stage 0 素材预获取与缺口回流）+ **#354**（认领供给泛化——voiceover 派生 assetNeed+searchHints，字段降级为覆盖；吸收 #295）+ **#355**（统一素材兜底链——通用递降链替代五值 mediaStrategy，承接 #301 票评 2026-09-14 媒体优先级链，生成形态预算选择 + 每内容生成上限护栏）+ **#356**（无主供给退役/认领化——兜底池死供给清理，依赖 #354）+ **#357**（视频默认 zoom 退场快修——双重运动/入场裁切/cropFocus 失配，bug）。
   - **Wave 3C（画面适配与智能生成）**：**#289**（专属 aiVideo.prompt 适配层）+ **#299**（Hook 前 3 秒专属视觉）+ **#294**（VLM borderline 二度校验）+ ⏩ **#295**（写稿 scene-data 概念泛化，已并入 #354 待覆盖关闭）+ **#253**（行业坐标系与版式库）+ **#244**/**#256**/**#263**（策略与创意 HITL）。
+  - **Wave 3C（VLM 认知底座组，2026-09-25 新增）**：**#351**（vlm 缓存 key 模型解耦——`vlm-model.json` 单一真值源，方案 C 换模型前必须先落地，已实施待 review）→ **方案 C 主票**（MiniCPM-o 4.5 + e2v 全模态引擎，裁决与防线见 `docs/research/handoff-omni-vlm-20260925.md`）→ **#360**（长视频分段分析 + 跨 Scene 连续播放）→ **#294**（borderline 二度校验，复用方案 C 音视频对齐）。
 
 ---
 
@@ -159,6 +160,8 @@
 | #354 | 认领供给泛化（voiceover 派生 assetNeed+searchHints） | P3·W3B | 吸收 #295 |
 | #355 | 统一素材兜底链（通用递降链替代五值策略） | P3·W3B | 承接 #301 票评 2026-09-14 链裁决 |
 | #357 | 视频默认 zoom 退场快修（双重运动+入场裁切） | P3·W3B | bug |
+| #351 | vlm 缓存 key 与实际产出模型脱钩（stale cache） | P3·W3C | bug；方案 C 换模型前先行票，已实施待 review |
+| #360 | 长视频预处理：VLM 分段分析 + 跨 Scene 连续播放 | P3·W3C | 依赖 #351；方案 C 主票待开 |
 | #253 | 行业知识层 Ontology + hook 版式库 | P3·W3C | HITL |
 | #244 | Hook scene emotion 不足 | P3·W3C | HITL |
 | #256 | 数字人决策权变更 + 白/黑名单重审 | P3·W3C | HITL |
@@ -219,7 +222,6 @@
 | #329 | yt-dlp 代理 hand-off 残余覆盖（#324 后续） | bug |
 | #334 | VLM Prompt 优化（Fit/claim/Reason） | 无标签 |
 | #339 | SEO monitor failing（structured data / robots.txt） | bug, seo-monitor |
-| #351 | vlm 缓存 key 与实际产出模型脱钩（stale cache） | bug；PR #350 droid P2 已核实 |
 | #352 | transformers 5.x 升级链评估（解除 3 条 High 告警） | enhancement；告警已 dismiss tolerable_risk |
 
 ---
@@ -234,7 +236,8 @@
 | `lib/source-registry.mjs`<br>`lib/search-sources.mjs` | #314 | 🔴 核心搜源调度。#285 的探针不变量在 `lib/source-health.mjs` seam（`isProbeAuthoritative` 等）；registry 改动与判据改动同批，勿并行开 session |
 | `lib/source-url-heal.mjs`<br>`source-url-sweep.mjs`<br>`source-url-discover.mjs` | —（#269 家族已闭） | 🟡 判据改动必须加在 `isFailureVerdict()` / `needsCdpSecondOpinion()` seam 上，不在调用点各写一份；sweep/discover 是只读消费者，可与 registry 并行；产物落 gitignored `output/` |
 | `lib/video-downloaders.mjs` | #314 | 🟡 下载适配器层；douyin/xhs 适配器改动在此排队 |
-| `asset-sourcer.mjs` | #294 #299 #354 #355 #356 #357（D：#301） | 🟡 素材匹配评分流水线，串行；#297 fail-closed 已闭票（E2 `1b68276` 单模式化）；新组票全部落此文件，严禁并行（#357 联动 `MediaBackground.tsx`） |
+| `asset-sourcer.mjs` | #294 #299 #351 #354 #355 #356 #357（D：#301） | 🟡 素材匹配评分流水线，串行；#297 fail-closed 已闭票（E2 `1b68276` 单模式化）；新组票全部落此文件，严禁并行（#357 联动 `MediaBackground.tsx`） |
+| `lib/visual-analyzer.mjs`<br>`vlm_analyzer.py`<br>`vlm-model.json` | #351 #360 | 🟡 VLM 子进程 IPC / 模型真值源 seam（#351 定案：换模型只改 `vlm-model.json`，双端共享）；方案 C 引擎接入与 #360 的分析层改动在此串行 |
 | `knowledge/media-catalog.json`<br>`asset-gaps.json` | #310 #293 #294 #299 | 🟡 #310 为 W3B Dominant；收获率 log 与其余低耦合可先行 |
 | `lib/b-roll/` | #298 #289 #304 #355 | 🟡 #298 定选型 → #289 定 prompt 模板；#355 的生成预算/工作单改动落 `b-roll-orchestrator.mjs`，与选型串行；#304 只读调研可并行 |
 | `lib/source-health.mjs`<br>`lib/search-pool.mjs` | D：#286 #322 | 🟡 统一信号事实源；改动遵循 fail-open |

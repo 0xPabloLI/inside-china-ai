@@ -1,0 +1,26 @@
+name: Release PR auto-merge
+
+# release-please PRs (github-actions[bot], "chore(main): release …") merge
+# automatically once branch protection requirements are satisfied — the bot
+# never enables auto-merge itself. Repo setting allow_auto_merge must stay on
+# (Settings → General → Pull Requests → Enable auto-merge).
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: >-
+      github.actor == 'github-actions[bot]' &&
+      startsWith(github.event.pull_request.title, 'chore(main): release')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enable auto-merge (merges when required checks pass)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge --auto --merge "${{ github.event.pull_request.html_url }}"
