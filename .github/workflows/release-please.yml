@@ -10,6 +10,9 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # 给末尾 "Un-park the checks..." 那一步用：它需要调
+  # POST /actions/runs/{id}/approve（= UI 的 "Approve and run"）。
+  actions: write
 
 jobs:
   release-please:
@@ -23,14 +26,79 @@ jobs:
           # 会被 GitHub 以 `action_required` 静默 hold 住（防递归），于是规则集
           # （"main: CI checks required"，见 /rulesets）要求的两个 context
           # `Lint, typecheck, test` / `Semgrep SAST` 永远不上报 ——
-          # release PR 会恒为 mergeStateStatus=BLOCKED，只能靠 owner bypass 强合。
+          # release PR 会恒为 mergeStateStatus=BLOCKED。
           # 实测记录：2026-09-25，PR #359 上 CI / Droid Auto Review / Droid Tag
           # 三个 run 全部 concl=action_required、actor=github-actions[bot]。
           #
           # 生效条件：仓库 secret 里配 RELEASE_PLEASE_TOKEN ——
           # fine-grained PAT，仅本仓库，权限 contents:write + pull-requests:write。
-          # 未配时回退 github.token，行为与旧版完全一致（PR 照常创建，只是 PR 上 CI 不跑）。
+          # 配了就根治：PR 由非 bot 身份创建，检查根本不会被 hold。
+          # 未配时回退 github.token —— 这条回退路径现在同样能用，因为下一步会把
+          # 被 hold 的检查就地批准掉。所以这个 secret 已从「必需」降为
+          # 「可选的优化」（省掉每次批准，但不再是阻塞项）。
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
           # Single-package repo: one release type anchored at root.
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      - name: Un-park the checks GitHub holds on the release PR
+        # 把挂在 release PR 上的 `action_required` 检查就地批准掉 —— 等价于 UI 的
+        # "Approve and run"，且不需要任何 PAT。
+        #
+        # 为什么这里能做到：被 hold 的是「bot PR 触发的 pull_request run」，而这个
+        # workflow 自己是 push 触发的、不会被 hold，所以它有能力去解。
+        #
+        # 三个前提都是实测过的（2026-09-25 端到端探针，探针自建的 bot PR #362）：
+        #   ① bot PR 上的 run 确实停在 action_required；
+        #   ② GITHUB_TOKEN（配合 actions:write）调 approve 返回 ok；
+        #   ③ 批准后 run 真的启动 —— run_attempt 变 2、CI 进入 in_progress，
+        #      没有被「GITHUB_TOKEN 触发的事件不建 run」的规则吞掉。
+        # 反向对照：对不在待批状态的 run 调 approve 返回 403
+        # "This workflow run is not waiting for approval" —— 那是**状态**问题，
+        # 不是权限问题，别误读成 token 权限不够。
+        #
+        # 为什么不另开一个 schedule workflow：这里零常驻成本，且 PR 一出现就解，
+        # 不必让 release PR 白等一个 cron 周期（也省掉私有仓的 Actions 分钟数）。
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # release PR 的 run 在 PR 创建后几秒才注册，所以轮询等。找不到 open 的
+          # release PR 就直接结束 —— 本次 push 没产生新版本，是常态。
+          for attempt in $(seq 1 12); do
+            sha=$(gh api "repos/$REPO/pulls?state=open&per_page=100" \
+              --jq '[.[] | select(.head.ref | startswith("release-please--"))][0].head.sha // empty')
+            if [ -z "$sha" ]; then
+              echo "no open release-please PR — nothing to un-park"
+              exit 0
+            fi
+
+            # 只认「当前 head sha 上」的 run：release PR 被更新后，旧 sha 上的残留
+            # run 不该被批准（那会白跑一个已作废的 sha）。
+            held=$(gh api "repos/$REPO/actions/runs?status=action_required&per_page=100" \
+              --jq ".workflow_runs[] | select(.head_sha == \"$sha\") | \"\(.id)\t\(.name)\"")
+
+            if [ -n "$held" ]; then
+              failed=0
+              while IFS=$'\t' read -r id name; do
+                [ -n "$id" ] || continue
+                if gh api -X POST "repos/$REPO/actions/runs/$id/approve" >/dev/null; then
+                  echo "un-parked: $name ($id)"
+                else
+                  echo "::error::could not un-park $name ($id)"
+                  failed=1
+                fi
+              done <<<"$held"
+              [ "$failed" = "0" ] || exit 1
+              exit 0
+            fi
+
+            echo "no held runs on $sha yet (attempt $attempt)"
+            sleep 10
+          done
+
+          # 没等到 = 没有需要解的东西（检查已正常上报，或 GitHub 改了行为）。
+          # 留痕但不算失败，避免给发版流程制造无关的红。
+          echo "::warning::no held runs appeared within the wait window"
