@@ -30,7 +30,7 @@ describe("vlm-model single source of truth (#351)", () => {
     // hardcoded ~/models path.
     const pySrc = readFileSync(join(LIB_DIR, "vlm_analyzer.py"), "utf-8");
     expect(pySrc).toContain("vlm-model.json");
-    expect(pySrc).not.toMatch(/MODEL_ID\s*=\s*str\(os\.path\.expanduser\("~~/);
+    expect(pySrc).not.toMatch(/MODEL_ID\s*=\s*str\(os\.path\.expanduser\(/);
 
     // The JSON is the only declaration, and both readers agree on it.
     const declared = JSON.parse(

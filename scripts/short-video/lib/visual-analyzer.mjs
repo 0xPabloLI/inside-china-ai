@@ -428,7 +428,8 @@ export function getVlmConcurrency() {
  * The VLM model id declared by the single source of truth (vlm-model.json,
  * #351). Used as cache-key material by wrappers around analyzeAssetSemantics
  * (#198) — it can never drift from the model vlm_analyzer.py actually loads,
- * because both sides read the same file.
+ * because both sides read the same file. A function (not a re-exported const)
+ * so test doubles can stub it.
  */
 export function getVlmModelId() {
   return VLM_MODEL_ID;
