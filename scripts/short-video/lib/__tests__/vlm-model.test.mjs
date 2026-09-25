@@ -4,10 +4,17 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 import VLM_MODEL_ID from "../vlm-model.mjs";
+import { getVlmModelId } from "../visual-analyzer.mjs";
 
 const LIB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 describe("vlm-model single source of truth (#351)", () => {
+  it("getVlmModelId() mirrors the declared id (real module, not a mock)", () => {
+    // Both consumer tests mock visual-analyzer.mjs wholesale, so this is the
+    // only place the real export gets called — it must return the shared id.
+    expect(getVlmModelId()).toBe(VLM_MODEL_ID);
+  });
+
   it("exports a non-empty string model id", () => {
     expect(typeof VLM_MODEL_ID).toBe("string");
     expect(VLM_MODEL_ID.trim().length).toBeGreaterThan(0);
