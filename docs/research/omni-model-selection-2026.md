@@ -387,4 +387,121 @@ MiniCPM-o 4.5 是**真正的全模态模型**，在 M2 Pro 32GB 上可以：
 - Step-Audio-2-mini（阶跃星辰 8B）未深入查 MLX 版和 benchmark
 - 4bit 量化在短视频分析场景的精度损失已实测，与 Qwen3-VL 对比质量相当
 - 情感分析粒度有限（7 类），如需更精细分类可补充 emotion2vec+（9 类）
-- **下一步**：修改 `vlm_analyzer.py` 采纳 MiniCPM-o 4.5 为生产模型
+
+## 12. 小型原生视频 VLM 模型（2026-09-25 补充）
+
+§8 对比的 Qwen3-VL-30B-A3B（17GB）体积大、速度慢。调研发现 mlx_vlm 支持多个更小的原生视频模型：
+
+### 12.1 可用模型
+
+| 模型 | 参数量 | MLX 4bit | 原生视频 | 音频 | mlx_vlm 架构 | 备注 |
+|------|--------|---------|---------|------|-------------|------|
+| **Qwen3-VL-8B** | 8B | **5.38GB** | ✅ M-RoPE + Conv3d | ❌ | `qwen3_vl` | 同架构，小 3.2x |
+| Qwen3-VL-4B | 4B | 2.90GB | ✅ M-RoPE + Conv3d | ❌ | `qwen3_vl` | 同架构，小 5.9x |
+| **Qwen2.5-VL-7B** | 7B | **5.27GB** | ✅ M-RoPE + Conv3d | ❌ | `qwen2_5_vl` | 上一代，小 3.2x |
+| Qwen2.5-VL-3B | 3B | 2.88GB | ✅ M-RoPE + Conv3d | ❌ | `qwen2_5_vl` | 上一代，小 5.9x |
+
+- 均有 `mlx-community` 4bit 版，ModelScope 有镜像
+- 均使用 Conv3d（temporal_patch_size）+ M-RoPE（time/height/width 三维位置编码），是真正的原生视频
+- 均为纯 VLM（无音频），需配合 MiniCPM-o 或 Whisper 做音频
+
+### 12.2 不可用的模型
+
+| 模型 | 原因 |
+|------|------|
+| Qwen2.5-Omni-3B/7B | 有第三方 MLX 4bit 权重，但 mlx_vlm 无 `qwen2_5_omni` 架构，无法加载 |
+| InternVL3-8B | mlx_vlm 中无 video_processor，仅图像；缺 4bit 版（最接近 3bit=3.69GB） |
+| VideoLLaMA3-7B | 无任何 MLX 版本，mlx_vlm 无此架构 |
+
+### 12.3 mlx_vlm 支持原生视频的完整架构列表（13 个）
+
+`qwen2_vl`, `qwen2_5_vl`, `qwen3_vl`, `qwen3_omni_moe`, `minicpmv4_6`, `llava_onevision`, `gemma4`, `gemma4_unified`, `glm4v`, `glm4v_moe`, `nemotron_h_nano_omni`, `ernie4_5_moe_vl`, `mage_vl`
+
+## 13. 组合方案 E'（改进版）
+
+用户提议方案 E（MiniCPM-o + e2v + Qwen3-VL MoE），但 30B 太大。用小型原生视频模型替代：
+
+### 13.1 方案 E'（推荐变体）
+
+| 组件 | 模型 | 用途 | 内存 |
+|------|------|------|------|
+| 视频 | **Qwen3-VL-8B** | 原生 TMRoPE 视频分析 | 5.38GB |
+| 音频 ASR + 基础情感 | MiniCPM-o 4.5 | ASR + 7 类情感 | 7.3GB |
+| 精细情感 | emotion2vec+ | 9 类情感 | ~1GB |
+| **总计** | | | **~13.7GB** |
+
+- 32GB 机器余量 ~18GB，充裕
+- 用户偏好"组合更小里面最大参数量的"→ 选 Qwen3-VL-8B（5.38GB）而非 4B（2.9GB）
+
+### 13.2 五个方案总览（更新）
+
+| | 方案 A | 方案 B | 方案 C | 方案 D | 方案 E | **方案 E'** |
+|---|---|---|---|---|---|---|
+| 视频 | MiniCPM-o 帧采样 | Qwen3-VL-30B 原生 | MiniCPM-o 帧采样 | Qwen3-Omni-30B 原生 | Qwen3-VL-30B 原生 | **Qwen3-VL-8B 原生** |
+| 音频 | ✅ 内置 | ✅ Whisper | ✅ 内置 | ✅ 内置 | ✅ MiniCPM-o | ✅ MiniCPM-o |
+| 情感 | 7 类 | 9 类 e2v | 9 类 e2v | 内置 | 9 类 e2v | 9 类 e2v |
+| 内存 | 7.3GB | ~20GB | 7.6GB | ~22GB | ~25GB | **~13.7GB** |
+| 速度 | 6.73s | ~36s | ~7s | ? | ~43s | **~15s(估)** |
+| 稳定性 | 100% | 100% | 100% | ? | 100% | 100% |
+| 复杂度 | 1 模型 | 4 模型 | 2 模型 | 1 模型 | 3 模型 | 3 模型 |
+| 原生视频 | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ |
+
+## 14. 长视频切分预处理
+
+### 14.1 生产代码现状
+
+`vlm_analyzer.py:421` 的 `extract_frames` 用 `ffmpeg -t 8` 截断，`MAX_VIDEO_SECONDS=8`。30s 视频只分析前 8s，后面全丢。
+
+### 14.2 切分策略选项
+
+1. **均匀切分**：N 个 8s 片段分别分析后合并结果——覆盖全视频，但 N 倍耗时
+2. **首尾采样**：前 8s（hook）+ 后 8s（CTA），省时间，覆盖关键节点
+3. **提高帧密度**：不切分，调大 `MAX_VIDEO_SECONDS` + `fps=2` + `max_frames=32`——单次分析覆盖更长，但帧间隔变大
+
+### 14.3 建议按素材来源区分
+
+- 5-10s 短视频素材 → 不需要，8s 够覆盖
+- 30s+ 新闻片段/采访 → **需要切分**，否则丢失后半段
+- 抓取的社交媒体视频 → 通常 15-60s，**建议切分**
+
+## 15. Scene 长度限制与视频截取问题
+
+### 15.1 Scene 时长决定机制
+
+Scene 时长由 TTS 旁白时长驱动（`timeline.mjs:51`）：
+
+```
+scene 时长 = ceil((旁白时长 + 0.5s buffer) × 30) / 30 秒
+```
+
+不是固定值，也不是用户指定。Schema 中无显式时长字段（`types.ts` 的 `MediaField`/`AvatarField` 均不含 duration）。
+
+### 15.2 视频素材 > Scene 时长：隐式截取
+
+Remotion `<Sequence durationInFrames={sceneFrames}>` 到边界即停止，无显式裁剪逻辑。**一个 30s 优质素材在 8s scene 中只显示前 8s。**
+
+### 15.3 视频素材 < Scene 时长：loop 或冻结
+
+- 背景视频（`MediaBackground.tsx:220`）：`loop` 循环播放
+- Avatar 视频（`AvatarCard.tsx:90`）：冻结末帧，不 loop（避免"闭嘴后还动嘴"）
+
+### 15.4 跨 scene 使用同一视频
+
+支持，但只是多个 scene 的 `media.path` 指向同一文件，渲染层面各 scene 独立截取。**无法让一个视频跨 scene 连续播放。**
+
+### 15.5 用户提出的问题
+
+> 如果一个视频很适配跨 scene，它也会被截取。这不太合理。
+
+确认：**确实会被截取**。当前架构下无法让一个长视频跨多个 scene 连续播放。可能的改进方向：
+
+1. **Remotion 层**：用单个 `<Video>` 跨多个 `<Sequence>`，通过 `trimBefore` 控制各 scene 的起始偏移
+2. **Scene-data 层**：增加 `videoStartOffset`/`videoEndOffset` 字段，让同一视频在不同 scene 播放不同片段
+3. **分析层**：VLM 分析时对长视频做切分，生成每个片段的语义标签，分配到对应 scene
+
+## 16. 下一步
+
+- **待用户决策**：方案 A / C / D / E' 中选哪个
+- 如果选方案 E'：下载 Qwen3-VL-8B（5.38GB）实测速度和质量
+- 如果选方案 A：修改 `vlm_analyzer.py` 采纳 MiniCPM-o 4.5
+- 长视频切分和跨 scene 视频播放是独立的架构问题，需另开 issue 讨论
