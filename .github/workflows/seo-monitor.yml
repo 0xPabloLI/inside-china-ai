@@ -25,7 +25,14 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
-      - run: npm ci --ignore-scripts
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+        # Not `npm ci`: this repo's lock is out of sync with package.json (#347),
+        # and npm's strict ci sync check hard-fails on @emnapi/* optional peers
+        # even after a fresh lockfile re-resolution (upstream npm/cli bug).
+        # ci.yml switched to `npm install` for the same reason; this workflow
+        # missed it, so every scheduled run since 2026-09-24 died at install
+        # with EUSAGE (#339).
       - name: Run SEO gate (offline + live)
         shell: bash
         run: |
