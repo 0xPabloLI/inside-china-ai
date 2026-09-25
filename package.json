@@ -32,7 +32,8 @@
     "test": "vitest run",
     "test:offline": "CDP_BASE_URL=http://localhost:9 vitest run",
     "cdp:ensure": "node scripts/short-video/cdp-ensure.mjs",
-    "cdp:wx-login": "node scripts/short-video/cdp-wx-login.mjs"
+    "cdp:wx-login": "node scripts/short-video/cdp-wx-login.mjs",
+    "env:sync-tunnel": "bash scripts/sync-colima-tunnel.sh"
   },
   "dependencies": {
     "@cf-wasm/resvg": "^0.4.0",

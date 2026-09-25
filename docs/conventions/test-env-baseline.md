@@ -103,7 +103,9 @@ done
 
 **隧道现状（2026-09-25 10:20 定位到真根因）**：VM 内 `7891` 在 LISTEN、`-x http://127.0.0.1:7891` = `204`，但 **`/tmp/colima-proxy-tunnel.pid` 里的进程早已不存在** —— 端口被**上一次 ssh 留下的 orphan 转发**占着（原进程已退出，转发挂在 lima control master 上继续活着）。
 后果链条：LaunchAgent 每 60s 判「pid 死了 ⇒ 重启」→ 新 ssh 对已被占用的 `7891` 做 `-R` → 静默失败（脚本没开 `ExitOnForwardFailure`）→ 日志只剩 `Connection refused` 噪声，而隧道时好时坏。**「隧道在通」与「守护进程还管得住它」是两件事**：只看 `kill -0 $(cat pidfile)` 会把 orphan 误判成「需要重启」。
-修法：脚本改为「先探 `7891` 是否真能出网 ⇒ 能用就静默接管、不能用才重启」，并加 `-o ExitOnForwardFailure=yes`；`~/bin/colima-proxy-tunnel.sh` 从**副本**改为**软链**指向 `scripts/` 那份，消灭双份漂移。
+修法：脚本改为「先探 `7891` 是否真能出网 ⇒ 能用就静默接管、不能用才重启」，并加 `-o ExitOnForwardFailure=yes`；`start` 还会先判「VM 已能直连（TUN）⇒ 什么都不做」，重试链条由此归零。
+
+**⚠️ `~/bin` 那份必须是实体文件，不能是软链（2026-09-25 实测）**：LaunchAgent 由 launchd 派生，**没有 `~/Documents` 的 macOS 隐私（TCC）授权** —— 软链指向仓库后每轮都报 `/bin/bash: /Users/pabloli/bin/colima-proxy-tunnel.sh: Operation not permitted`（launchd 读不到 `~/Documents` 里的真身）。所以结构保持「可执行件在 `~/bin`、真值源在仓库」，同步用 `npm run env:sync-tunnel`（该脚本是唯一写入者；改完 `scripts/colima-proxy-tunnel.sh` 就跑一次）。
 
 ### .nvmrc（#231，2026-09-12 新增）
 

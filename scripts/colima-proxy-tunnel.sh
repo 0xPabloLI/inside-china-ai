@@ -20,8 +20,10 @@
 #   ./colima-proxy-tunnel.sh start|stop|status|restart
 #
 # Auto-start: LaunchAgent com.inside-china-ai.colima-proxy-tunnel (every 60s).
-# Its ProgramArguments point at ~/bin/colima-proxy-tunnel.sh, which is a
-# SYMLINK to this file — keep it that way, a second copy drifts.
+# It runs ~/bin/colima-proxy-tunnel.sh — a COPY of this file, because launchd
+# has no macOS privacy (TCC) grant for ~/Documents and a symlink pointing back
+# here fails with "Operation not permitted" on every cycle. Re-sync with:
+#   npm run env:sync-tunnel
 #
 # Contract: exit 0 = "nothing to do / healthy" (a legitimately absent tunnel is
 # not an error); exit 1 = "needs a human".
