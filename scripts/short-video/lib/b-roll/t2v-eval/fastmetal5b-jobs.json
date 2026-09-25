@@ -1,0 +1,41 @@
+{
+  "comment": "Issue #298 lean eval matrix: FastMetal-5B-QAD vs Wan1.3B baseline. Scenes reuse the real ant-lingbot-world-13b prompts and baseline seeds (b-roll-report.json) for like-for-like comparison. One seed per scene family chosen in issue triage: concrete+people (2), tech concept (4), data graphics (8), product shot (9).",
+  "baseline": {
+    "report": "scripts/short-video/output/ant-lingbot-world-13b/b-roll-report.json",
+    "clips": "scripts/short-video/content/ant-lingbot-world-13b/assets/b-roll",
+    "model": "FastMetal-1.3B-QAD (Wan2.1-T2V-1.3B MLX int8)",
+    "resolution": "480x832 81f @16fps (5.06s)"
+  },
+  "candidate": {
+    "model": "FastMetal-5B-QAD (Wan2.2-TI2V-5B MLX)",
+    "resolution": "704x1280 121f @24fps (5.04s)",
+    "decode_backend": "taehv",
+    "entrypoint": "examples/inference/basic/mlx_wan22_generate.py"
+  },
+  "jobs": [
+    {
+      "label": "scene-2-conference-stage",
+      "sceneId": "2",
+      "seed": 1124,
+      "prompt": "SUBJECT: large conference stage at IFA Berlin, executive presenting, screen showing AI world demo. VISUAL METAPHOR: industry validation moment. BRAND: dark cyber briefing. REFERENCE: tech keynote B-roll. CAMERA: wide stage shot. MOTION: slow zoom to screen. LIGHTING: stage spotlights, dark audience. NEGATIVE: no text overlay, no faces close-up, no hands, no watermark"
+    },
+    {
+      "label": "scene-4-datacenter-racks",
+      "sceneId": "4",
+      "seed": 1324,
+      "prompt": "SUBJECT: dense server racks in a data center, GPU lights blinking, heavy compute infrastructure. VISUAL METAPHOR: deployment barrier, infrastructure cost. BRAND: dark cyber briefing, red accent. REFERENCE: data center B-roll. CAMERA: slow dolly through racks. MOTION: blinking lights, airflow. LIGHTING: dark, LED glow. NEGATIVE: no text, no people, no watermark"
+    },
+    {
+      "label": "scene-8-milestone-timeline",
+      "sceneId": "8",
+      "seed": 1724,
+      "prompt": "SUBJECT: timeline of three milestone markers advancing, each smaller and more accessible than the last. VISUAL METAPHOR: progressive democratization. BRAND: dark cyber briefing, amber accent. REFERENCE: timeline explainer B-roll. CAMERA: slow rightward pan. MOTION: markers lighting up sequentially. LIGHTING: dark, amber markers. NEGATIVE: no text, no faces, no hands, no watermark"
+    },
+    {
+      "label": "scene-9-gpu-card",
+      "sceneId": "9",
+      "seed": 1824,
+      "prompt": "SUBJECT: single consumer GPU card on a desk, screen showing real-time world generation running locally. VISUAL METAPHOR: democratized world model. BRAND: dark cyber briefing, amber accent. REFERENCE: desktop PC B-roll. CAMERA: slow push-in to screen. MOTION: world generating on screen. LIGHTING: dark room, screen glow. NEGATIVE: no text, no faces, no branding, no hands, no watermark"
+    }
+  ]
+}

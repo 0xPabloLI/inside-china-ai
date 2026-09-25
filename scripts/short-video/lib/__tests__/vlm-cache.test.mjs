@@ -67,6 +67,20 @@ describe("vlm-cache (#189)", () => {
     expect(byClaim).not.toBe(base);
   });
 
+  it("#351 minimal repro: same asset, two model ids -> distinct keys, no cross-hit", async () => {
+    const keyM1 = await computeCacheKey({ filePath: imgA, model: "model-one" });
+    const keyM2 = await computeCacheKey({ filePath: imgA, model: "model-two" });
+    expect(keyM1).not.toBe(keyM2);
+
+    // Results produced under model-one never serve a model-two lookup.
+    writeCachedResult(dir, keyM1, {
+      data: { description: "from model-one", subjects: [] },
+      meta: { model: "model-one" },
+    });
+    expect(getCachedResult(dir, keyM1)?.data.description).toBe("from model-one");
+    expect(getCachedResult(dir, keyM2)).toBeNull();
+  });
+
   it("roundtrips value through cache", async () => {
     const key = await computeCacheKey({ filePath: imgA, model: "m1" });
     const value = { description: "cached desc", subjects: ["x"], escalated: false };

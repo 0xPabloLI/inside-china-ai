@@ -3,6 +3,8 @@
 
 Controlled via env:
   FAKE_ASR_LOG          append START/END/CRASH lines to this file
+  FAKE_ASR_ENV_LOG      write the worker's own HF_HUB_OFFLINE as observed at
+                        startup (the gateway sets it at spawn time)
   FAKE_ASR_DELAY_MS     per-request delay in ms (default 50)
   FAKE_ASR_SEGMENTS     JSON array of [{startMs, endMs, text}] to return
   FAKE_ASR_ERROR        if set, respond with this error string
@@ -16,6 +18,7 @@ import time
 from os.path import exists
 
 LOG = os.environ.get("FAKE_ASR_LOG", "")
+ENV_LOG = os.environ.get("FAKE_ASR_ENV_LOG", "")
 DELAY_MS = int(os.environ.get("FAKE_ASR_DELAY_MS", "50"))
 SLOW_FIRST = os.environ.get("FAKE_ASR_SLOW_FIRST", "") == "1"
 # Cross-process "slow only once" marker: the first worker process (slow
@@ -25,6 +28,12 @@ HANDLED = 0
 SEGMENTS = json.loads(os.environ.get("FAKE_ASR_SEGMENTS", "[]"))
 ERROR = os.environ.get("FAKE_ASR_ERROR", "")
 NO_REQUEST_ID = os.environ.get("FAKE_ASR_NO_REQUEST_ID", "") == "1"
+
+# Evidence for the offline-by-default contract: the gateway's spawn env is
+# only observable from inside the child, and the fake worker is the child.
+if ENV_LOG:
+    with open(ENV_LOG, "w") as f:
+        f.write("HF_HUB_OFFLINE=%s\n" % os.environ.get("HF_HUB_OFFLINE", "<unset>"))
 
 
 def log(line):

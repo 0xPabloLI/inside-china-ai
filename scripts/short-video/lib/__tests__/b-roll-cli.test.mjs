@@ -147,8 +147,8 @@ describe("runBrollCli", () => {
         log: c.log,
       });
       const text = c.lines.join("\n");
-      // 2 scenes x 2 candidates x 240s = 960s = 16min
-      expect(text).toMatch(/960|16/);
+      // 2 scenes x 2 candidates x 600s (fastmetal-5b default, #298) = 2400s = 40min
+      expect(text).toMatch(/2400|40min/);
     } finally {
       rmSync(dirs.root, { recursive: true, force: true });
     }
