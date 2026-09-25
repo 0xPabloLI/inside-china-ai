@@ -13,12 +13,14 @@ name: TEMP probe approve permission
 #
 # Delete this file once the answer is recorded.
 
+# Triggered by push, not workflow_dispatch: GitHub only accepts a
+# workflow_dispatch for a workflow that already exists on the DEFAULT branch,
+# and this throwaway file is not going there. A push event is dispatched from
+# the pushed branch itself, so the file works from an unmerged branch.
 on:
-  workflow_dispatch:
-    inputs:
-      run_id:
-        description: "Run id in this repo to probe against (must be an existing run)"
-        required: true
+  push:
+    branches:
+      - session/20260925-release-pr-approve-b261bb
 
 permissions:
   actions: write
@@ -31,7 +33,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          RUN_ID: ${{ inputs.run_id }}
+          RUN_ID: "36086600515"
         run: |
           set -uo pipefail
           echo "== token identity =="
