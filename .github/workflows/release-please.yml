@@ -11,7 +11,8 @@ permissions:
   contents: write
   pull-requests: write
   # 给末尾 "Un-park the checks..." 那一步用：它需要调
-  # POST /actions/runs/{id}/approve（= UI 的 "Approve and run"）。
+  # POST /actions/runs/{id}/approve（= UI 的 "Approve and run"）和
+  # DELETE /actions/runs/{id}（清掉注定无用的挂起运行）。
   actions: write
 
 jobs:
@@ -42,13 +43,13 @@ jobs:
           manifest-file: .release-please-manifest.json
 
       - name: Un-park the checks GitHub holds on the release PR
-        # 把挂在 release PR 上的 `action_required` 检查就地批准掉 —— 等价于 UI 的
-        # "Approve and run"，且不需要任何 PAT。
+        # 把挂在 release PR 上的 `action_required` 运行**分类**处置：只解必需的那些，
+        # 其余清掉 —— 等价于 UI 的 "Approve and run" + "Delete run"，不需要任何 PAT。
         #
         # 为什么这里能做到：被 hold 的是「bot PR 触发的 pull_request run」，而这个
         # workflow 自己是 push 触发的、不会被 hold，所以它有能力去解。
         #
-        # 三个前提都是实测过的（2026-09-25 端到端探针，探针自建的 bot PR #362）：
+        # 三条前提都是实测的（2026-09-25 端到端探针，探针自建的 bot PR #362）：
         #   ① bot PR 上的 run 确实停在 action_required；
         #   ② GITHUB_TOKEN（配合 actions:write）调 approve 返回 ok；
         #   ③ 批准后 run 真的启动 —— run_attempt 变 2、CI 进入 in_progress，
@@ -56,6 +57,19 @@ jobs:
         # 反向对照：对不在待批状态的 run 调 approve 返回 403
         # "This workflow run is not waiting for approval" —— 那是**状态**问题，
         # 不是权限问题，别误读成 token 权限不够。
+        #
+        # ⚠️ **为什么不能「全部批准」**（本步后来改的就是这一点）：批准一个带 bot 守卫的
+        # action 不会变成 skipped，而是**假红**。实测 `Droid Auto Review` 在 bot PR 上
+        # （run 36088263884，attempt=2）：
+        #   Prepare step failed with error: Workflow initiated by non-human actor:
+        #   github-actions (type: Bot). Add bot to allowed_bots list or use '*' ...
+        # 14s 内 exit 1 ⇒ PR 上凭空多一个 ✗。而 release PR 创建的那一瞬间，
+        # `Droid Auto Review` / `Droid Tag` 恰好都钉在**当前 head** 上，所以「全部批准」
+        # 会给每个新 release PR 都挂上一个假红 —— 比不做还糟。
+        #
+        # 另一类遗留：release-please 每次更新 PR 都会换 head sha，而只有当前 head 上的
+        # 必需检查值得批准 ⇒ 旧 sha 上没被批的 held run 会永远留着显示 "Action required"
+        # （它没有超时机制，合并 PR 也不会取消它）。所以旧 sha 的一律删。
         #
         # 为什么不另开一个 schedule workflow：这里零常驻成本，且 PR 一出现就解，
         # 不必让 release PR 白等一个 cron 周期（也省掉私有仓的 Actions 分钟数）。
@@ -65,37 +79,87 @@ jobs:
         run: |
           set -euo pipefail
 
+          # 在 **release PR** 上「注定无用」的 workflow（按 .path 匹配）：held run 直接删。
+          # 判据不是「看着像噪音」，而是「在这个场景下必然无效」：
+          #   droid-review.yml：带 allowed_bots 守卫，bot 建的 PR 被自身拒绝（见上，必然假红）。
+          #   droid.yml：只有 job 的 if 命中 `@droid` 才真跑。bot PR 上它只可能由 `opened`
+          #              触发（`edited` 等类型对 GITHUB_TOKEN 建的 PR 根本不建 run），而
+          #              release PR 的正文来自 release-please 模板，不会含 `@droid`
+          #              ⇒ 必然 skipped。
+          # 判断口径变了（新增同类 workflow）时，往这里加一行即可。别用「白名单」反过来写：
+          # 那会让**将来新增的必需检查**静默不上报 ⇒ PR 恒 BLOCKED，比多一个假红更难发现。
+          NOOP_ON_BOT_PR=(
+            ".github/workflows/droid-review.yml"
+            ".github/workflows/droid.yml"
+          )
+
+          prev_sha=""
+          empty_seen=0
+
           # release PR 的 run 在 PR 创建后几秒才注册，所以轮询等。找不到 open 的
-          # release PR 就直接结束 —— 本次 push 没产生新版本，是常态。
+          # release PR 就直接结束 —— 本次 push 没产生新版本，是常态（一次 API 调用）。
           for attempt in $(seq 1 12); do
-            sha=$(gh api "repos/$REPO/pulls?state=open&per_page=100" \
-              --jq '[.[] | select(.head.ref | startswith("release-please--"))][0].head.sha // empty')
-            if [ -z "$sha" ]; then
+            pr=$(gh api "repos/$REPO/pulls?state=open&per_page=100" \
+              --jq '[.[] | select(.head.ref | startswith("release-please--"))][0]
+                    | select(. != null) | "\(.head.ref)\t\(.head.sha)"')
+            if [ -z "$pr" ]; then
               echo "no open release-please PR — nothing to un-park"
               exit 0
             fi
+            ref=${pr%%$'\t'*}
+            sha=${pr##*$'\t'}
 
-            # 只认「当前 head sha 上」的 run：release PR 被更新后，旧 sha 上的残留
-            # run 不该被批准（那会白跑一个已作废的 sha）。
+            # 按 head 分支取，而不是按单个 sha 取：这样旧 sha 上的遗留也进得来，能被清掉。
             held=$(gh api "repos/$REPO/actions/runs?status=action_required&per_page=100" \
-              --jq ".workflow_runs[] | select(.head_sha == \"$sha\") | \"\(.id)\t\(.name)\"")
+              --jq ".workflow_runs[]
+                    | select(.head_branch == \"$ref\" and .event == \"pull_request\")
+                    | \"\(.id)\t\(.path)\t\(.name)\t\(.head_sha)\"")
 
             if [ -n "$held" ]; then
               failed=0
-              while IFS=$'\t' read -r id name; do
+              while IFS=$'\t' read -r id path name head; do
                 [ -n "$id" ] || continue
-                if gh api -X POST "repos/$REPO/actions/runs/$id/approve" >/dev/null; then
-                  echo "un-parked: $name ($id)"
+
+                why=""
+                for w in "${NOOP_ON_BOT_PR[@]}"; do
+                  if [ "$path" = "$w" ]; then why="no-op on bot PR"; fi
+                done
+                if [ -z "$why" ] && [ "$head" != "$sha" ]; then why="superseded sha"; fi
+
+                if [ -n "$why" ]; then
+                  if gh api -X DELETE "repos/$REPO/actions/runs/$id" >/dev/null; then
+                    echo "dropped: $name ($id) [${head:0:8}] — $why"
+                  else
+                    echo "::error::could not drop $name ($id) — $why"
+                    failed=1
+                  fi
                 else
-                  echo "::error::could not un-park $name ($id)"
-                  failed=1
+                  if gh api -X POST "repos/$REPO/actions/runs/$id/approve" >/dev/null; then
+                    echo "un-parked: $name ($id) [${head:0:8}] — can satisfy a required check"
+                  else
+                    echo "::error::could not un-park $name ($id)"
+                    failed=1
+                  fi
                 fi
               done <<<"$held"
               [ "$failed" = "0" ] || exit 1
               exit 0
             fi
 
-            echo "no held runs on $sha yet (attempt $attempt)"
+            # 同一个 head 连着三轮都没出现 held run ⇒ 不会有东西再出现了（run 在 PR 创建后
+            # 几秒内就注册完），不必把 12 轮等满 —— 否则 release PR 长期开着时，每次 push
+            # 到 main 都会白烧两分钟并留一条 warning。
+            if [ "$sha" != "$prev_sha" ]; then
+              prev_sha="$sha"
+              empty_seen=0
+            fi
+            empty_seen=$((empty_seen + 1))
+            if [ "$empty_seen" -ge 3 ]; then
+              echo "no held runs on $ref ($sha) — nothing to un-park"
+              exit 0
+            fi
+
+            echo "no held runs on $ref yet (attempt $attempt)"
             sleep 10
           done
 
