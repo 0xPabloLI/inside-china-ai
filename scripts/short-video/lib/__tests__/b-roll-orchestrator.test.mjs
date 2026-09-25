@@ -296,7 +296,7 @@ describe("runBrollStage", () => {
     expect(media).toMatchObject({
       type: "video",
       path: "assets/b-roll/scene-6-seed1024.mp4",
-      source: "AI-generated (FastVideo FastMetal-1.3B-QAD)",
+      source: "AI-generated (FastVideo FastMetal-5B-QAD)",
       animation: "fade",
       overlay: 0.7,
       volume: 0,
@@ -584,7 +584,7 @@ describe("runBrollStage", () => {
     expect(scenes[0].media.backdrop).toEqual({
       type: "video",
       path: "assets/b-roll/scene-8-seed7777.mp4",
-      source: "AI-generated (FastVideo FastMetal-1.3B-QAD)",
+      source: "AI-generated (FastVideo FastMetal-5B-QAD)",
       animation: "fade",
       volume: 0,
       upscale: false,

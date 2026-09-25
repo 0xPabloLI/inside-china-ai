@@ -422,8 +422,12 @@ describe("runGeneration (scenario #23 + fault tolerance)", () => {
       onProgress: (line) => lines.push(line),
     });
     const argv = lines.find((l) => l.startsWith("[batch] argv=")) ?? "";
-    expect(argv).toContain("--model-root /models/FastMetal-1.3B-QAD");
+    // #298 default tier (5B): the pinned 1.3B snapshot becomes the text
+    // encoder root; the DiT checkpoint passes as --mlx-checkpoint. The 5B
+    // driver has no --model-root flag.
+    expect(argv).toContain("--text-encoder-root /models/FastMetal-1.3B-QAD");
     expect(argv).toContain("--mlx-checkpoint /models/FastMetal-1.3B-QAD");
+    expect(argv).not.toContain("--model-root");
   });
 
   test("#159 unpinned models -> no model flags in the python argv", async () => {

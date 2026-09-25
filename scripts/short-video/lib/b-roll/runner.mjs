@@ -1,8 +1,9 @@
 /**
- * FastVideo (Wan 1.3B, MLX) generation runner for the B-roll stage.
+ * FastVideo (MLX) generation runner for the B-roll stage.
  *
  * Responsibilities: dependency probing (repo + python), jobs-file writing,
- * spawning lib/b-roll/mlx_wan_batch.py, and translating its result protocol
+ * spawning the tier's batch driver (mlx_wan22_batch.py for the 5B default,
+ * mlx_wan_batch.py for the legacy 1.3B), and translating the result protocol
  * into structured per-job outcomes. Never throws for expected failure modes —
  * callers get { ok: false, fatal } and decide how to degrade.
  */
@@ -23,8 +24,66 @@ export const JOBS_FILENAME = "b-roll-jobs.json";
 // human progress.
 const RESULTS_PREFIX = "[batch][results]";
 export const RESULT_PREFIX = `${RESULTS_PREFIX} `;
-// Spike-measured wall time per clip on M3 Max (int8/taehv, 832x480x81f).
+
+// Text-encoder token limit — the batch script truncates silently at this
+// length. prompt-injection.mjs derives its generation-side budget from it.
+export const MAX_SEQUENCE_LENGTH = 512;
+
+/**
+ * Model tiers (#298). `fastmetal-5b` (Wan2.2 TI2V 5B) is the pipeline default
+ * after the #298 eval (claim gate 85.0 vs 83.75, quality 76/80 vs 73/80,
+ * native 720p); `fastmetal-1.3b` stays selectable as the legacy escape hatch.
+ * `winnerSource` labels the report's generated-media provenance.
+ */
+export const DEFAULT_MODEL_TIER = "fastmetal-5b";
+export const MODEL_TIERS = {
+  "fastmetal-5b": {
+    script: join(BROLL_DIR, "mlx_wan22_batch.py"),
+    height: 1280,
+    width: 704,
+    numFrames: 121,
+    fps: 24,
+    flowShift: 5.0,
+    mlxQuantization: null, // FastMetal-5B-QAD ships pre-quantized
+    maxSequenceLength: null, // the 5B driver pins 512 internally
+    // M2 Pro measured: 459-595s/clip + model load + decode margin.
+    estSecondsPerClip: 600,
+    winnerSource: "AI-generated (FastVideo FastMetal-5B-QAD)",
+    // The taehv decoder weights live outside the HF cache and are fetched
+    // from raw.githubusercontent.com at runtime — not covered by
+    // HF_HUB_OFFLINE, so the offline contract needs them prefetched.
+    taehvDecoder: "taew2_2.pth",
+  },
+  "fastmetal-1.3b": {
+    script: DEFAULT_SCRIPT,
+    height: 832,
+    width: 480,
+    numFrames: 81,
+    fps: 16,
+    flowShift: 8.0,
+    mlxQuantization: "int8",
+    maxSequenceLength: MAX_SEQUENCE_LENGTH,
+    // Spike-measured wall time per clip on M3 Max (int8/taehv, 832x480x81f).
+    estSecondsPerClip: 240,
+    winnerSource: "AI-generated (FastVideo FastMetal-1.3B-QAD)",
+    taehvDecoder: "taew2_1.pth",
+  },
+};
+
+export function resolveModelTier(env = process.env) {
+  const requested = env.BROLL_MODEL || DEFAULT_MODEL_TIER;
+  return MODEL_TIERS[requested] ? requested : DEFAULT_MODEL_TIER;
+}
+
+/**
+ * Per-tier clip time estimate for the CLI's total-time printout. Legacy
+ * constant kept for callers that predate tiers (#298: 5B measures ~600s/clip
+ * on M2 Pro vs 240s for the 1.3B).
+ */
 export const EST_SECONDS_PER_CLIP = 240;
+export function estSecondsPerClip(tier = DEFAULT_MODEL_TIER) {
+  return (MODEL_TIERS[tier] ?? MODEL_TIERS[DEFAULT_MODEL_TIER]).estSecondsPerClip;
+}
 // 6 clips x ~4-5min + model load + decode margin.
 const DEFAULT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 // Markers of a packed MLX DiT directory. Mirrors
@@ -43,10 +102,13 @@ function isPackedMlxCheckpoint(dir) {
  * FASTVIDEO_PYTHON (an explicit python override is honored strictly — no
  * fallback probing when it is set), BROLL_MODEL_ROOT, BROLL_MLX_CHECKPOINT
  * (the last two pin the weights instead of re-resolving the HF cache every
- * batch). Without an override, probes <repo>/.venv/bin/python3 then
+ * batch), and BROLL_MODEL (tier: "fastmetal-5b" default | "fastmetal-1.3b").
+ * Without an override, probes <repo>/.venv/bin/python3 then
  * ~/.video-tts-env/bin/python3.
- * Returns { ok, repo, python, modelRoot, mlxCheckpoint, missing[], message };
- * modelRoot/mlxCheckpoint are null when unpinned.
+ * Returns { ok, tier, repo, python, modelRoot, mlxCheckpoint, missing[], message };
+ * modelRoot/mlxCheckpoint are null when unpinned. For the 5B tier the taehv
+ * decoder weights (taew2_2.pth, runtime-fetched outside the HF cache) must be
+ * prefetched or the offline batch fails deep inside the python run.
  */
 export function resolveDependencies(env = process.env) {
   const repo = env.FASTVIDEO_REPO || DEFAULT_REPO;
@@ -56,6 +118,7 @@ export function resolveDependencies(env = process.env) {
       DEFAULT_PYTHON);
   const modelRoot = env.BROLL_MODEL_ROOT || null;
   const mlxCheckpoint = env.BROLL_MLX_CHECKPOINT || null;
+  const tier = resolveModelTier(env);
   const missing = [];
   const parts = [];
   if (!existsSync(repo)) {
@@ -77,6 +140,18 @@ export function resolveDependencies(env = process.env) {
         `(expected ${MLX_DIT_MANIFEST} and ${MLX_DIT_WEIGHTS})`,
     );
   }
+  // 5B-only probe (the 1.3B path predates the offline contract and is left
+  // untouched): the taehv decoder lives outside the HF cache.
+  if (env.BROLL_MODEL !== "fastmetal-1.3b") {
+    const decoder = join(homedir(), ".cache", "fastvideo", "taehv", MODEL_TIERS[tier].taehvDecoder);
+    if (!existsSync(decoder)) {
+      missing.push("taehvDecoder");
+      parts.push(
+        `taehv decoder weights not found at ${decoder} ` +
+          "(the 5B batch runs with HF_HUB_OFFLINE=1; prefetch per the #298 eval report)",
+      );
+    }
+  }
   if (missing.length > 0) {
     const hints = [];
     if (missing.includes("repo") || missing.includes("python")) {
@@ -89,8 +164,12 @@ export function resolveDependencies(env = process.env) {
         "fix or unset BROLL_MODEL_ROOT / BROLL_MLX_CHECKPOINT to fall back to the HF cache",
       );
     }
+    if (missing.includes("taehvDecoder")) {
+      hints.push("prefetch the taehv decoder weights (see lib/b-roll/t2v-eval / #298)");
+    }
     return {
       ok: false,
+      tier,
       repo,
       python,
       modelRoot,
@@ -99,17 +178,15 @@ export function resolveDependencies(env = process.env) {
       message: `${parts.join("; ")}. ${hints.join("; ")}; skipping B-roll generation.`,
     };
   }
-  return { ok: true, repo, python, modelRoot, mlxCheckpoint, missing, message: null };
+  return { ok: true, tier, repo, python, modelRoot, mlxCheckpoint, missing, message: null };
 }
 
 /**
  * Tier A (M3 Max safe) defaults: portrait 480x832, 81 frames, int8, taehv,
- * DMD 3-step schedule.
+ * DMD 3-step schedule. Null-valued mlxQuantization/maxSequenceLength omit
+ * the flag entirely (the 5B driver ships pre-quantized and pins 512
+ * internally); flowShift is only passed when provided.
  */
-// Text-encoder token limit — the batch script truncates silently at this
-// length. prompt-injection.mjs derives its generation-side budget from it.
-export const MAX_SEQUENCE_LENGTH = 512;
-
 export function buildPythonArgs(opts) {
   const {
     repo,
@@ -122,6 +199,8 @@ export function buildPythonArgs(opts) {
     decodeBackend = "taehv",
     dmdDenoisingSteps = "1000,757,522",
     maxSequenceLength = MAX_SEQUENCE_LENGTH,
+    flowShift = null,
+    textEncoderRoot = null,
     modelRoot = null,
     mlxCheckpoint = null,
   } = opts;
@@ -130,6 +209,8 @@ export function buildPythonArgs(opts) {
   const modelArgs = [
     ...(modelRoot ? ["--model-root", modelRoot] : []),
     ...(mlxCheckpoint ? ["--mlx-checkpoint", mlxCheckpoint] : []),
+    ...(textEncoderRoot ? ["--text-encoder-root", textEncoderRoot] : []),
+    ...(flowShift !== null ? ["--flow-shift", String(flowShift)] : []),
   ];
   return [
     "--repo",
@@ -145,14 +226,16 @@ export function buildPythonArgs(opts) {
     String(numFrames),
     "--fps",
     String(fps),
-    "--mlx-quantization",
-    mlxQuantization,
+    ...(mlxQuantization !== null
+      ? ["--mlx-quantization", mlxQuantization]
+      : []),
     "--decode-backend",
     decodeBackend,
     "--dmd-denoising-steps",
     dmdDenoisingSteps,
-    "--max-sequence-length",
-    String(maxSequenceLength),
+    ...(maxSequenceLength !== null
+      ? ["--max-sequence-length", String(maxSequenceLength)]
+      : []),
   ];
 }
 
@@ -170,7 +253,9 @@ function parseResultsLine(stdout) {
 
 /**
  * Run one generation batch. `python` and `scriptPath` are injectable so tests
- * can substitute a stub that speaks the result protocol.
+ * can substitute a stub that speaks the result protocol. Tier defaults
+ * (geometry, script, flow-shift, quantization) come from MODEL_TIERS via
+ * opts.tier / BROLL_MODEL; explicit opts override the tier.
  *
  * @returns {Promise<{ok: boolean, fatal: string|null,
  *   results: Array<{label: string, ok: boolean, file: string, error: string|null}>}>}
@@ -178,26 +263,45 @@ function parseResultsLine(stdout) {
 export function runGeneration(opts) {
   const {
     python,
-    scriptPath = DEFAULT_SCRIPT,
+    scriptPath = null,
     repo,
     jobs,
     workDir,
-    height,
-    width,
+    height = null,
+    width = null,
+    numFrames = null,
+    fps = null,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     onProgress = null,
     env = process.env,
     modelRoot = null,
     mlxCheckpoint = null,
+    textEncoderRoot = null,
+    tier = resolveModelTier(env),
   } = opts;
+  const t = MODEL_TIERS[tier] ?? MODEL_TIERS[DEFAULT_MODEL_TIER];
 
   mkdirSync(workDir, { recursive: true });
   const jobsFile = join(workDir, JOBS_FILENAME);
   writeFileSync(jobsFile, `${JSON.stringify(jobs, null, 2)}\n`, "utf8");
 
   const args = [
-    scriptPath,
-    ...buildPythonArgs({ repo, jobsFile, height, width, modelRoot, mlxCheckpoint }),
+    scriptPath ?? t.script,
+    ...buildPythonArgs({
+      repo,
+      jobsFile,
+      height: height ?? t.height,
+      width: width ?? t.width,
+      numFrames: numFrames ?? t.numFrames,
+      fps: fps ?? t.fps,
+      mlxQuantization: t.mlxQuantization,
+      maxSequenceLength: t.maxSequenceLength,
+      flowShift: t.flowShift,
+      // 5B only: the 1.3B driver has no --text-encoder-root flag.
+      textEncoderRoot: tier === "fastmetal-5b" ? (textEncoderRoot ?? modelRoot) : null,
+      modelRoot: tier === "fastmetal-5b" ? null : modelRoot, // the 5B driver has no --model-root
+      mlxCheckpoint,
+    }),
   ];
 
   return new Promise((resolve) => {

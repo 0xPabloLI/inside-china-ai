@@ -14,7 +14,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { runBrollStage, scenesRequiringGeneration } from "./lib/b-roll/orchestrator.mjs";
-import { EST_SECONDS_PER_CLIP } from "./lib/b-roll/runner.mjs";
+import { estSecondsPerClip, resolveModelTier, MODEL_TIERS } from "./lib/b-roll/runner.mjs";
 import { EST_SECONDS_PER_IMAGE } from "./lib/b-roll/t2i-runner.mjs";
 import { isImageStrategy } from "./lib/scene-rules.mjs";
 
@@ -114,14 +114,17 @@ export async function runBrollCli({
     return { exitCode: 0 };
   }
 
-  // #155: image candidates cost ~30s each, video clips ~240s — estimate per kind.
+  // #155: image candidates cost ~30s each, video clips per-model-tier (#298:
+  // 5B ~600s, 1.3B ~240s) — estimate per kind.
   const imageScenes = neededScenes.filter((s) => isImageStrategy(s.mediaStrategy)).length;
   const videoScenes = needed - imageScenes;
+  const tier = resolveModelTier(process.env);
+  const perClipEstimate = estSecondsPerClip(tier);
   const estSeconds =
-    imageScenes * 2 * EST_SECONDS_PER_IMAGE + videoScenes * 2 * EST_SECONDS_PER_CLIP;
+    imageScenes * 2 * EST_SECONDS_PER_IMAGE + videoScenes * 2 * perClipEstimate;
   log(
     `🎞  B-roll: ${needed} scene(s) x 2 candidates = ${formatDuration(estSeconds)} ` +
-      `(~${EST_SECONDS_PER_IMAGE}s/image, ~${EST_SECONDS_PER_CLIP}s/clip; cache hits reduce this)`,
+      `(~${EST_SECONDS_PER_IMAGE}s/image, ~${perClipEstimate}s/clip on ${tier}; cache hits reduce this)`,
   );
 
   const result = await runStage({
