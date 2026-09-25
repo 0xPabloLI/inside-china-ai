@@ -1,0 +1,68 @@
+name: TEMP probe delete-held-run
+
+on:
+  push:
+    branches: [session/20260925-release-pr-held-run-triage-b1db50]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SRC: ${{ github.ref_name }}
+        run: |
+          set -uo pipefail
+          BR="probe/held-runs-${{ github.run_id }}"
+
+          echo "== 1) 自建一个 bot PR（作者应为 github-actions[bot]）=="
+          base_sha=$(gh api "repos/$REPO/git/ref/heads/$SRC" --jq .object.sha)
+          gh api -X POST "repos/$REPO/git/refs" -f ref="refs/heads/$BR" -f sha="$base_sha" >/dev/null
+          pr=$(gh api -X POST "repos/$REPO/pulls" \
+            -f title="TEMP probe: held runs" -f head="$BR" -f base=main \
+            -f body="temporary probe, self-closing" --jq .number)
+          echo "probe PR: #$pr   branch: $BR"
+          gh api "repos/$REPO/pulls/$pr" --jq '"pr author: " + .user.login + "  (bot? " + (.user.type) + ")"'
+
+          echo "== 2) 等 run 注册（bot PR 上应全部停在 action_required）=="
+          held=""
+          for i in $(seq 1 20); do
+            held=$(gh api "repos/$REPO/actions/runs?status=action_required&per_page=100" \
+              --jq ".workflow_runs[] | select(.head_branch == \"$BR\" and .event == \"pull_request\") | \"\(.id)\t\(.path)\t\(.name)\t\(.head_sha)\"")
+            if [ -n "$held" ]; then break; fi
+            sleep 6
+          done
+          printf '%s\n' "$held"
+          n=$(printf '%s\n' "$held" | grep -c . || true)
+          echo "held 数量: $n"
+
+          echo "== 3) 用与生产 step 相同的命令形态 DELETE，看权限够不够 =="
+          while IFS=$'\t' read -r id path name head; do
+            [ -n "$id" ] || continue
+            if out=$(gh api -X DELETE "repos/$REPO/actions/runs/$id" 2>&1); then
+              echo "DELETE ok: $name ($id) [$path]"
+            else
+              echo "DELETE FAILED: $name ($id) -> $out"
+            fi
+          done <<<"$held"
+
+          echo "== 4) 复查：该分支上还剩几个 held run（期望 0）=="
+          gh api "repos/$REPO/actions/runs?status=action_required&per_page=100" \
+            --jq "[.workflow_runs[] | select(.head_branch == \"$BR\")] | length"
+
+          echo "== 4b) 取一个刚删的 id 直接查（期望 404）=="
+          first_id=$(printf '%s\n' "$held" | head -1 | cut -f1)
+          if [ -n "$first_id" ]; then
+            gh api "repos/$REPO/actions/runs/$first_id" --jq .id 2>&1 | head -1
+          fi
+
+          echo "== 5) 清理 =="
+          gh api -X PATCH "repos/$REPO/pulls/$pr" -f state=closed >/dev/null && echo "PR closed"
+          gh api -X DELETE "repos/$REPO/git/refs/heads/$BR" >/dev/null && echo "branch deleted"
