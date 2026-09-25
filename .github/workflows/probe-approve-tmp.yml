@@ -1,0 +1,47 @@
+name: TEMP probe approve permission
+
+# Throwaway probe. Answers one question with evidence instead of a guess:
+# can the default `GITHUB_TOKEN` (with `actions: write`) call
+# `POST /actions/runs/{id}/approve` — i.e. can a workflow un-hold the checks
+# that GitHub holds on a bot-authored PR?
+#
+# It probes against a run that is already `completed`, so the API is expected
+# to reject on *state*. The shape of that rejection is what we read:
+#   - "not awaiting approval" / 409  -> token authenticated, permission OK
+#   - 403 "Resource not accessible"  -> permission is the blocker
+# A nonexistent id is probed as a baseline for the 404 shape.
+#
+# Delete this file once the answer is recorded.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run id in this repo to probe against (must be an existing run)"
+        required: true
+
+permissions:
+  actions: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          set -uo pipefail
+          echo "== token identity =="
+          gh api "repos/$REPO" --jq '{name:.full_name, default_permissions: .permissions}' || true
+          echo
+          echo "== A) existing run: expect a STATE error, not a PERMISSION error =="
+          gh api --include -X POST "repos/$REPO/actions/runs/$RUN_ID/approve" 2>&1 | sed -n '1,12p' || true
+          echo
+          echo "== B) nonexistent run: baseline for the 404 shape =="
+          gh api --include -X POST "repos/$REPO/actions/runs/999999999999/approve" 2>&1 | sed -n '1,12p' || true
+          echo
+          echo "== C) the probed run =="
+          gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '{name,head_branch,status,conclusion}' || true
