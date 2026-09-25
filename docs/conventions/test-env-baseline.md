@@ -28,7 +28,49 @@
 ### git push 前置扫描（osv-scanner）
 
 - pre-push 跑 `npm run scan:deps`（osv-scanner 查 api.osv.dev）。本机直连 osv.dev 会 i/o timeout，扫描异常退出使 pre-push **fail-closed** 报 "known vulnerabilities"（实际 0 findings）。2026-09-12。
-- 处理：代理前缀 `HTTPS_PROXY=http://127.0.0.1:7897 git push ...`；或单独 `HTTPS_PROXY=... npm run scan:deps` 确认 "No issues found" 后再推。不要 `--no-verify` 绕过（会同时跳过 gitleaks）。
+- 处理：代理前缀 `HTTPS_PROXY=http://127.0.0.1:<当前活着的端口> git push ...`；或单独 `HTTPS_PROXY=... npm run scan:deps` 确认 "No issues found" 后再推。不要 `--no-verify` 绕过（会同时跳过 gitleaks）。
+- ⚠️ 端口**不要照抄**：本机有两个代理客户端、端口不同，写死那一个会在切客户端当天变成死端口。先按下方「宿主代理端口」实测再填。
+
+### 宿主代理端口（Clash Verge / FlClash 双客户端）
+
+本机同时装了 Clash Verge Rev 与 FlClash，混合端口不同，**两个都可能处于运行状态**（进程在 ≠ 代理可用）。
+
+| 角色 | 端口 | 配置位置 |
+| --- | --- | --- |
+| Clash Verge Rev `mixed-port` | `7897` | `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/{config,verge}.yaml`；另有 socks `7898` / http `7899` / redir `7895` / controller `127.0.0.1:9097` |
+| FlClash `mixed-port` | `7890` | `~/Library/Application Support/com.follow.clash/config.yaml`（`port`/`socks-port`/`redir-port` 均为 0，`external-controller` 为空） |
+| colima 隧道 | VM `127.0.0.1:7891` → 宿主 `<PROXY_PORT>` | `scripts/colima-proxy-tunnel.sh`；`PROXY_PORT` 由 `scutil --proxy` 自动探测（系统代理关闭时探测失败 ⇒ 隧道起不来） |
+
+**先实测哪个端口今天活着**，再决定往哪儿指（10 秒）：
+
+```bash
+for p in 7890 7897; do
+  printf "%s => %s\n" "$p" "$(curl -s -o /dev/null -w '%{http_code}' \
+    -x http://127.0.0.1:$p --max-time 8 https://www.google.com/generate_204)"
+done
+# 204 = 该端口真在代理；000 = 死端口（Direct 模式 / 无可用节点 / 未监听）
+```
+
+⚠️ **测法本身的坑**：`--noproxy '*'` 会**覆盖** `-x`，两者同上时三条路径全退化成直连，结果是假的“都一样”。测本地代理端口时不要带 `--noproxy`。
+
+**2026-09-25 实测快照**（每次切客户端后重测，别当长期结论）：
+
+| 路径 | google/generate_204 | youtube | 判读 |
+| --- | --- | --- | --- |
+| FlClash `7890` | `204` | `200` | ✅ 唯一可用出口 |
+| Clash Verge `7897` | `000` | `000` | ❌ 端口在监听但不代理（`verge.yaml`：`enable_tun_mode: false`、`enable_system_proxy: false`，运行配置 `mode: direct`）⇒ 等价直连 |
+| 不给代理（默认） | `000` | `000` | ❌ **TUN 未接管**：无 `0/1`、`128.0/1` 路由，默认路由仍是 `en0`（`tun.enable: true` 只写在 FlClash 配置里，实际未装上） |
+
+**端口被写死在哪 —— 改一个要同时改，否则只有一半通**：
+
+| 位置 | 2026-09-25 现状 |
+| --- | --- |
+| 仓库 `.git/config` 的 `http.proxy` / `https.proxy` | `http://127.0.0.1:7897`（= 当天死端口 ⇒ git 实际直连：github 能通、`api.osv.dev` 超时致 pre-push fail-closed） |
+| `~/searxng/settings.yml` 的 `outgoing.proxies` | `http://192.168.5.2:7890`（VM 网关→宿主；当日与 FlClash 一致） |
+
+**历史坑（勿丢）**：FlClash `7890` 曾对**带 auth header 的 POST** 断连，colab CLI 因此必须切到 Clash Verge `7897`（`docs/archive/handoffs/handoff-infinitetalk-kaggle-colab.md`）。所以「哪个端口才对」不是固定的，取决于**当前客户端 + 协议**——按上表实测，别照抄历史结论。
+
+**根治方向**：把客户端的 TUN 真正开起来（全流量透明代理），上面这些写死端口就都不需要维护了。当前 FlClash 配置写了 `tun.enable: true` 但未生效，需在客户端 UI 里确认 TUN 处于开启且已装上路由。
 
 ### .nvmrc（#231，2026-09-12 新增）
 

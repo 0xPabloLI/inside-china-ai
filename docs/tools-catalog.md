@@ -156,7 +156,8 @@
 - **搜索位置**：fast-first——SearXNG ~2s 返回聚合结果；其后仍是 Brave/Tavily/Jina pool（#65）与 CDP 精度兜底
 - **运维要点（2026-09-05 / 2026-09-24 两轮实测）**：
   - `settings.yml` 必须含 `search.formats: [html, json]`，否则 JSON API 返回 403
-  - SearXNG 的 httpx 客户端**不读** `HTTP_PROXY` 环境变量，代理必须写进 `settings.yml` 的 `outgoing.proxies`，且**必须走 VM 网关地址** `http://192.168.5.2:7890`（colima VM 到宿主的路径；端口跟随宿主 Clash 当前端口，变化后改 settings.yml + `docker restart searxng`）
+  - SearXNG 的 httpx 客户端**不读** `HTTP_PROXY` 环境变量，代理必须写进 `settings.yml` 的 `outgoing.proxies`，且**必须走 VM 网关地址** `http://192.168.5.2:<宿主代理端口>`（colima VM 到宿主的路径；端口跟随宿主当前生效的客户端，变化后改 settings.yml + `docker restart searxng`）
+  - 宿主有两个代理客户端（FlClash / Clash Verge）且端口不同 ⇒ 填哪个端口**先实测**，别照抄本行数字：真值表与实测命令在 `docs/conventions/test-env-baseline.md`「宿主代理端口」
   - **症状→根因速查**：`unresponsive_engines` 全 HTTP connection error = 容器无出口，按序排查：容器内 DNS 是否被污染（`nslookup duckduckgo.com` 返回错误 IP）→ VM 网关代理可达性（容器内 `wget http://192.168.5.2:7890`）→ 宿主代理端口是否变更；colima VM 状态 `error` 起不来 → `brew upgrade colima && colima start`
   - 出口 IP 被反爬时单引擎照挂（DDG 引擎同出口也 CAPTCHA）——多引擎聚合冗余兜底，属预期非故障
   - **禁用引擎台账（2026-09-24 快照，可重审）**：聚合墙钟时间 = 参与引擎数 × 各自超时等待，188 个参与引擎里
