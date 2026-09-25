@@ -29,6 +29,7 @@ async function loadModule(env) {
     "ASR_RESPONSE_TIMEOUT_MS",
     "ASR_MODEL",
     "FAKE_ASR_LOG",
+    "FAKE_ASR_ENV_LOG",
     "FAKE_ASR_DELAY_MS",
     "FAKE_ASR_SEGMENTS",
     "FAKE_ASR_ERROR",
@@ -104,6 +105,53 @@ describe("asr-analyzer resident worker IPC (#98)", () => {
     expect(r.ok).toBe(false);
     expect(r.errorCode).toBe("model_load_failed");
     expect(r.segments).toEqual([]);
+  });
+
+  // The worker's spawn env is only observable from inside the child. The fake
+  // worker dumps its own HF_HUB_OFFLINE (see the fixture's FAKE_ASR_ENV_LOG)
+  // so the default and the opt-out are asserted where they actually apply.
+  it("worker runs HF-offline by default so a warm cache needs no version check", async () => {
+    const envLog = join(workDir, "worker-env.txt");
+    const prev = process.env.HF_HUB_OFFLINE;
+    delete process.env.HF_HUB_OFFLINE;
+    try {
+      m = await loadModule({
+        ASR_ANALYZER_PYTHON_BIN: PYTHON,
+        ASR_RESPONSE_TIMEOUT_MS: "10000",
+        FAKE_ASR_ENV_LOG: envLog,
+        FAKE_ASR_SEGMENTS: JSON.stringify([{ startMs: 0, endMs: 500, text: "离线" }]),
+      });
+      const r = await m.transcribeAudioWindow(mediaPath, {
+        deps: { extractAudio: stubExtract() },
+      });
+      expect(r.ok).toBe(true);
+      expect(readFileSync(envLog, "utf-8").trim()).toBe("HF_HUB_OFFLINE=1");
+    } finally {
+      if (prev === undefined) delete process.env.HF_HUB_OFFLINE;
+      else process.env.HF_HUB_OFFLINE = prev;
+    }
+  });
+
+  it("explicit HF_HUB_OFFLINE=0 from the parent is honored (opt-out)", async () => {
+    const envLog = join(workDir, "worker-env-online.txt");
+    const prev = process.env.HF_HUB_OFFLINE;
+    process.env.HF_HUB_OFFLINE = "0";
+    try {
+      m = await loadModule({
+        ASR_ANALYZER_PYTHON_BIN: PYTHON,
+        ASR_RESPONSE_TIMEOUT_MS: "10000",
+        FAKE_ASR_ENV_LOG: envLog,
+        FAKE_ASR_SEGMENTS: JSON.stringify([{ startMs: 0, endMs: 500, text: "在线" }]),
+      });
+      const r = await m.transcribeAudioWindow(mediaPath, {
+        deps: { extractAudio: stubExtract() },
+      });
+      expect(r.ok).toBe(true);
+      expect(readFileSync(envLog, "utf-8").trim()).toBe("HF_HUB_OFFLINE=0");
+    } finally {
+      if (prev === undefined) delete process.env.HF_HUB_OFFLINE;
+      else process.env.HF_HUB_OFFLINE = prev;
+    }
   });
 
   it("timeout kills the worker and a late response never pollutes the next request", async () => {
