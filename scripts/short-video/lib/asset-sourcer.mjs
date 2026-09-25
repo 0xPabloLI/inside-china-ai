@@ -1083,14 +1083,14 @@ async function mapWithConcurrency(items, limit, fn) {
 }
 
 export async function analyzeAssets(assets, opts = {}) {
-  const { analyzeAssetSemantics, detectFocus, closeFocusDetector, DEFAULT_VLM_MODEL_ID } =
+  const { analyzeAssetSemantics, detectFocus, closeFocusDetector, getVlmModelId } =
     await import("./visual-analyzer.mjs");
   const { probeMedia } = await import("./media-probe.mjs");
 
   if (!assets || assets.length === 0) return [];
 
   const outputDir = opts.outputDir || null;
-  const modelId = opts.model || DEFAULT_VLM_MODEL_ID;
+  const modelId = opts.model || getVlmModelId();
   const contentDir = opts.contentDir || null;
   const contentSlug = opts.contentSlug || null;
   // Claims map: sceneId -> { voiceover, assetNeed } — claim-bound assets are
