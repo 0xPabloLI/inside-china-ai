@@ -450,7 +450,7 @@ MiniCPM-o 4.5 是**真正的全模态模型**，在 M2 Pro 32GB 上可以：
 
 ### 14.1 生产代码现状
 
-`vlm_analyzer.py:421` 的 `extract_frames` 用 `ffmpeg -t 8` 截断，`MAX_VIDEO_SECONDS=8`。30s 视频只分析前 8s，后面全丢。
+`vlm_analyzer.py:441` 的 `extract_frames` 用 `ffmpeg -t 8` 截断，`MAX_VIDEO_SECONDS=8`。30s 视频只分析前 8s，后面全丢。
 
 ### 14.2 切分策略选项
 
