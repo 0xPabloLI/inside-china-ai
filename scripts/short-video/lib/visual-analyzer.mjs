@@ -32,6 +32,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { randomUUID } from "crypto";
+import VLM_MODEL_ID from "./vlm-model.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -424,10 +425,14 @@ export function getVlmConcurrency() {
 }
 
 /**
- * The VLM model id used when callers don't override it. Exported as cache-key
- * material for wrappers around analyzeAssetSemantics (#198).
+ * The VLM model id declared by the single source of truth (vlm-model.json,
+ * #351). Used as cache-key material by wrappers around analyzeAssetSemantics
+ * (#198) — it can never drift from the model vlm_analyzer.py actually loads,
+ * because both sides read the same file.
  */
-export const DEFAULT_VLM_MODEL_ID = "mlx-community/Qwen3-VL-8B-Instruct-8bit";
+export function getVlmModelId() {
+  return VLM_MODEL_ID;
+}
 
 /**
  * Analyze an asset (image or video) using the VLM in a single call.
