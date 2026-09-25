@@ -62,10 +62,15 @@ jobs:
             // over 2 days without anyone being able to triage it.
             let detail = fails;
             if (!detail) {
-              const src = install.trim() ? install : gate;
-              const where = install.trim()
-                ? 'the install step, not in the SEO checks'
-                : (gate.trim() ? 'the SEO gate (it produced no ✗ line)' : 'an earlier step (no log captured)');
+              // /tmp/seo.log exists iff the gate step ran, so a non-empty gate
+              // log must win over the install log for both `where` and `src`:
+              // install.log is written whenever the install step RUNS (even on
+              // success), so preferring it first misattributed a gate-side
+              // crash to the install step (droid review P1 on this PR).
+              const src = gate.trim() ? gate : install;
+              const where = gate.trim()
+                ? 'the SEO gate (it produced no ✗ line)'
+                : (install.trim() ? 'the install step, not in the SEO checks' : 'an earlier step (no log captured)');
               detail = `no "✗" line was produced — the failure is in ${where}.`;
               if (src.trim()) detail += `\n\nLast ${tail(src).split('\n').length} lines of the captured log:\n\n${tail(src)}`;
             }
