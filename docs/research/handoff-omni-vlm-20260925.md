@@ -27,7 +27,7 @@
 | **方案 C** | **MiniCPM-o 4.5 + emotion2vec+ (轻量插件)** | **~7.6GB** | **~7.2s** | **首选定案** | 全模态单主干（负责视觉+ASR+基础情感+音视频对齐）+ 300MB 专用模型补齐 9 类细粒度情绪。兼具单模型轻量优势与细粒度分析能力。 |
 | **方案 A** | MiniCPM-o 4.5 单模型 | ~7.3GB | ~6.7s | **极简基准** | 方案 C 的轻量化常态模式。当无需 9 类情绪时，直接独立运行。 |
 | **备选 1 (MoE + 现有 ASR + e2v)** | Qwen3-VL-30B-A3B + **现有 WhisperX large-v3**（`asr-analyzer.mjs` #98 常驻 worker，字幕链在用，ADR-0020）+ e2v（用户裁决 2026-09-25） | ~20GB 峰值（17GB MoE + WhisperX ~3GB + e2v ~0.3GB） | ~32s（WhisperX 句级 <数秒） | **改良兜底（首选备选）** | 把方案 F 思路的音频模块挂到现有 30B MoE 上：备选引擎与主引擎能力对齐（视觉+ASR+情绪），故障切换不降级；**ASR 复用管线现成的 WhisperX，不引入 SenseVoice**（避免第三套 ASR）；同时修正了方案 E「7.3GB 全模态模型当 ASR 工具人」的冗余。~20GB 可行但比方案 C 紧张。 |
-| **备选 2 (方案 F 轻量版)** | Qwen3-VL-8B + 现有 WhisperX + e2v | ~8.7GB | ~15s | **轻量模块化** | 同一模块化思路的轻量变体：需原生时序（Conv3d+M-RoPE）但不想承受 30B 内存/耗时时使用。 |
+| **备选 2 (方案 F 轻量版)** | Qwen3-VL-8B + 现有 WhisperX + e2v | ~8.7GB | ~15s | **纸面备选（Dormant，模型未下载）** | 仅当方案 C 与备选 1 都不成立时才下载评估（5.38GB 随时可下）。MoE 的 A3B 设计每 token 只激活 3B 参数，decode 吞吐与 8B dense 相近；8B 的优势只在内存（5.4GB vs 17GB）与 prefill 带宽，端到端未必更快。 |
 | **方案 E'** | Qwen3-VL-8B + MiniCPM-o + e2v | ~13.7GB | ~15s | **坚决否决** | 架构畸变：让 7.3GB 全模态大模型仅充当 ASR 工具人，存在双 8B 基座大模型严重冗余。 |
 | **方案 E** | Qwen3-VL-30B + MiniCPM-o + e2v | ~25GB+ | ~43s | **坚决废弃** | 内存超载（25GB+），在 32GB Mac 上随时面临 Metal OOM 崩溃。 |
 | **方案 B / D** | 方案 B (4模型强拼) / 方案 D (30B Omni 21.8GB) | 20-22GB+ | 慢/极不稳定 | **废弃** | 资源与工程维护成本过高。 |
@@ -132,8 +132,9 @@ flowchart TD
 3. ✅ 确立长视频切分与 Remotion 跨 Scene 连续播放的设计联动（对齐 #360）
 4. ✅ 梳理 #351 缓存 Key 风险与降级备选矩阵（现有 MoE + 方案 F）
 
-### 下一步行动 (Action Items)
-1. **更新 Roadmap**：在 `docs/issue-roadmap.md` 中将 #351、方案 C 落地任务、#360 正式注册入 W3C 波次
-2. **实施 Step 1（解耦 Key）**：解决 #351，确保 Node 与 Python 侧模型 ID 单一权威源
-3. **实施 Step 2（方案 C 落地）**：在 `vlm_analyzer.py` 中接入 MiniCPM-o 4.5（配置冷启动 Warmup 与 e2v 插件接口），保留 Qwen3-VL 备选开关
-4. **实施 Step 3（#360 联动）**：落地 SceneData `clipStartMs` 与 Remotion `<Video>` 续播逻辑
+### 下一步行动 (Action Items) — 状态截至 2026-09-25
+
+1. ✅ **Roadmap Round M**：#351/#360/#361 已注册入 W3C 波次（串行链 #351 → #361 → #360 → #294）
+2. ✅ **Step 1（#351 缓存 Key 解耦）**：已完成——`vlm-model.json` 单一真值源，分支 `session/20260925-vlm-cache-key-351-7a7ab6` 待 PR 合入
+3. ▶ **Step 2（方案 C 落地）**：GitHub Issue **#361**——MiniCPM-o 4.5 接入 + e2v 插件 + warmup + `--engine` 双引擎开关；emotion2vec+ 已下载并冒烟（shock→fearful 偏斜发现见票评）；**时间线同步设计在 #361 展开实施**（句级毫秒时间码来自现有 WhisperX #98，e2v 为 utterance 级无时间戳，按句窗对齐）
+4. ▶ **Step 3（#360 联动）**：Issue #360，依赖 #361 落地
