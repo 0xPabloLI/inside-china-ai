@@ -36,14 +36,12 @@ jobs:
           RUN_ID: "36086600515"
         run: |
           set -uo pipefail
-          echo "== token identity =="
-          gh api "repos/$REPO" --jq '{name:.full_name, default_permissions: .permissions}' || true
+          echo "== A) approve an existing COMPLETED run (want a STATE message, not a PERMISSION one) =="
+          gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/approve" 2>&1 | tail -3 || true
           echo
-          echo "== A) existing run: expect a STATE error, not a PERMISSION error =="
-          gh api --include -X POST "repos/$REPO/actions/runs/$RUN_ID/approve" 2>&1 | sed -n '1,12p' || true
+          echo "== B) approve a nonexistent run (404 baseline) =="
+          gh api -X POST "repos/$REPO/actions/runs/999999999999/approve" 2>&1 | tail -3 || true
           echo
-          echo "== B) nonexistent run: baseline for the 404 shape =="
-          gh api --include -X POST "repos/$REPO/actions/runs/999999999999/approve" 2>&1 | sed -n '1,12p' || true
-          echo
-          echo "== C) the probed run =="
-          gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '{name,head_branch,status,conclusion}' || true
+          echo "== C) runs currently held (action_required) in this repo =="
+          gh api "repos/$REPO/actions/runs?status=action_required&per_page=20" \
+            --jq '.workflow_runs[] | "\(.id)\t\(.name)\t\(.head_branch)\t\(.head_sha[0:8])"' || true
