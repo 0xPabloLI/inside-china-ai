@@ -26,7 +26,10 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Install dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+        # `shell: bash` brings pipefail; without it the `tee` below would mask a
+        # failing `npm install` behind tee's exit status 0.
+        shell: bash
+        run: npm install --ignore-scripts --no-audit --no-fund 2>&1 | tee /tmp/install.log
         # Not `npm ci`: this repo's lock is out of sync with package.json (#347),
         # and npm's strict ci sync check hard-fails on @emnapi/* optional peers
         # even after a fresh lockfile re-resolution (upstream npm/cli bug).
@@ -44,10 +47,33 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const log = fs.existsSync('/tmp/seo.log') ? fs.readFileSync('/tmp/seo.log','utf8') : '';
-            const fails = log.split('\n').filter(l => l.includes('✗')).join('\n') || '(see run logs)';
+            const read = p => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '');
+            const tail = (s, n = 25) => (s.trim() ? s.trim().split('\n').slice(-n).join('\n') : '');
+
+            const gate = read('/tmp/seo.log');
+            const install = read('/tmp/install.log');
+
+            // Primary signal: the gate's own ✗ lines.
+            const fails = gate.split('\n').filter(l => l.includes('✗')).join('\n');
+
+            // Fallback: if the failure happens *before* the gate (install, checkout,
+            // setup-node) then /tmp/seo.log was never written. Reporting a bare
+            // "(see run logs)" there is how #339 collected 4 unactionable comments
+            // over 2 days without anyone being able to triage it.
+            let detail = fails;
+            if (!detail) {
+              const src = install.trim() ? install : gate;
+              const where = install.trim()
+                ? 'the install step, not in the SEO checks'
+                : (gate.trim() ? 'the SEO gate (it produced no ✗ line)' : 'an earlier step (no log captured)');
+              detail = `no "✗" line was produced — the failure is in ${where}.`;
+              if (src.trim()) detail += `\n\nLast ${tail(src).split('\n').length} lines of the captured log:\n\n${tail(src)}`;
+            }
+            // A captured log may itself contain fences; keep the outer block intact.
+            detail = detail.replace(/```/g, '~~~');
+
             const run = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-            const body = `SEO monitor failed on chinaai.news.\n\n\`\`\`\n${fails}\n\`\`\`\n\n[Run logs](${run})`;
+            const body = `SEO monitor failed on chinaai.news.\n\n\`\`\`\n${detail}\n\`\`\`\n\n[Run logs](${run})`;
             const { data: open } = await github.rest.issues.listForRepo({ owner: context.repo.owner, repo: context.repo.repo, state: 'open', labels: 'seo-monitor' });
             if (open.length) {
               await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: open[0].number, body });
