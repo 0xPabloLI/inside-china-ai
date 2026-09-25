@@ -14,6 +14,20 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
+          # 用非 bot 身份开 release PR。
+          #
+          # 为什么：用默认的 github.token 建出来的 PR，其触发的 pull_request run
+          # 会被 GitHub 以 `action_required` 静默 hold 住（防递归），于是规则集
+          # （"main: CI checks required"，见 /rulesets）要求的两个 context
+          # `Lint, typecheck, test` / `Semgrep SAST` 永远不上报 ——
+          # release PR 会恒为 mergeStateStatus=BLOCKED，只能靠 owner bypass 强合。
+          # 实测记录：2026-09-25，PR #359 上 CI / Droid Auto Review / Droid Tag
+          # 三个 run 全部 concl=action_required、actor=github-actions[bot]。
+          #
+          # 生效条件：仓库 secret 里配 RELEASE_PLEASE_TOKEN ——
+          # fine-grained PAT，仅本仓库，权限 contents:write + pull-requests:write。
+          # 未配时回退 github.token，行为与旧版完全一致（PR 照常创建，只是 PR 上 CI 不跑）。
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
           # Single-package repo: one release type anchored at root.
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
