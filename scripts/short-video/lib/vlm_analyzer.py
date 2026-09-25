@@ -947,6 +947,32 @@ def handle_analyze_audio(model, processor, path, engine=VLM_ENGINE_MINICPM):
 
 # ─── Main loop ───
 
+def _warmup(model, processor, engine):
+    """Run a dummy 1x1 image inference to trigger MLX kernel compilation.
+
+    The first real inference after model load pays ~34s of MLX compile
+    overhead. By running a trivial warmup here, that cost is absorbed at
+    startup (before the first IPC request), so the first request latency
+    is predictable and the idle timeout doesn't fire during compilation.
+    """
+    import tempfile
+
+    # Create a 1x1 white pixel JPEG
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+        warmup_path = f.name
+    try:
+        img = Image.new("RGB", (1, 1), (255, 255, 255))
+        img.save(warmup_path, "JPEG")
+        generate_response(
+            model, processor, engine=engine,
+            image_paths=[warmup_path],
+            prompt_text="Describe this image in one word.",
+            max_tokens=5,
+        )
+    finally:
+        os.unlink(warmup_path)
+
+
 def main():
     """Main IPC loop: read line-delimited JSON from stdin, write responses to stdout."""
 
@@ -980,6 +1006,17 @@ def main():
         sys.stdout.write(json.dumps(degraded) + "\n")
         sys.stdout.flush()
         sys.exit(1)
+
+    # Warmup: run a dummy 1x1 image inference to eliminate cold-start jitter
+    # (first real inference pays ~34s MLX compile overhead; warmup moves that
+    # cost to model-load time so the first request latency is predictable).
+    try:
+        _warmup(model, processor, engine)
+        sys.stderr.write("[vlm_analyzer] Warmup complete.\n")
+        sys.stderr.flush()
+    except Exception as e:
+        sys.stderr.write(f"[vlm_analyzer] Warmup failed (non-fatal): {e}\n")
+        sys.stderr.flush()
 
     # Start idle timer
     idle_timer = IdleTimer(IDLE_TIMEOUT_SECONDS)
