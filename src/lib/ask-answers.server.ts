@@ -309,15 +309,26 @@ export async function runAskAnswersJob(opts: { resume?: boolean } = {}) {
     if (e instanceof PausedError) paused = `AI credits or policy blocked: ${e.message}`;
     else error = e instanceof Error ? e.message : String(e);
   } finally {
+    let gsc: unknown = null;
+    if (stats.created > 0) {
+      try {
+        const { submitSitemapsToGsc } = await import("./gsc-sitemap.server");
+        gsc = await submitSitemapsToGsc();
+      } catch (e) {
+        gsc = { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+      console.log("[ask-answers] sitemap submission:", JSON.stringify(gsc));
+    }
     await admin
       .from("ask_job_state")
       .update({
         locked_until: null,
         paused_reason: paused,
         last_run_at: new Date().toISOString(),
-        last_result: { ...stats, paused, error },
+        last_result: JSON.parse(JSON.stringify({ ...stats, paused, error, gsc })),
       })
       .eq("name", JOB);
+    Object.assign(stats, { gsc });
   }
   return { ok: !paused && !error, ...stats, paused, error };
 }
