@@ -1,22 +1,26 @@
-name: TEMP probe approve permission
+name: TEMP probe end-to-end
 
-# Throwaway probe. Answers one question with evidence instead of a guess:
-# can the default `GITHUB_TOKEN` (with `actions: write`) call
-# `POST /actions/runs/{id}/approve` — i.e. can a workflow un-hold the checks
-# that GitHub holds on a bot-authored PR?
+# Throwaway end-to-end probe. Answer with evidence, then delete the file.
 #
-# It probes against a run that is already `completed`, so the API is expected
-# to reject on *state*. The shape of that rejection is what we read:
-#   - "not awaiting approval" / 409  -> token authenticated, permission OK
-#   - 403 "Resource not accessible"  -> permission is the blocker
-# A nonexistent id is probed as a baseline for the 404 shape.
+# Questions it settles in one run:
+#   Q1 do the checks on a GITHUB_TOKEN-authored PR really park at
+#      `action_required` (= the state that makes a release PR permanently
+#      BLOCKED)?
+#   Q2 can GITHUB_TOKEN approve them (permission — already suggested by the
+#      403 "not waiting for approval" message, but not yet proven on a run
+#      that IS waiting)?
+#   Q3 after approval, does the run actually START, or is it suppressed
+#      because GITHUB_TOKEN triggered it? (This is the one that decides
+#      whether an in-workflow self-approve is a real fix or a no-op.)
 #
-# Delete this file once the answer is recorded.
+# It builds its own bot-authored PR on a branch named after the release-please
+# pattern, watches for the held runs, approves them, prints the resulting
+# states, then closes the PR and deletes the branch. Cleanup is idempotent:
+# the branch name is fixed, so re-runs force-push over the same branch.
+#
+# Triggered by push because workflow_dispatch is only accepted for a workflow
+# that already exists on the default branch. Not pushing this to main.
 
-# Triggered by push, not workflow_dispatch: GitHub only accepts a
-# workflow_dispatch for a workflow that already exists on the DEFAULT branch,
-# and this throwaway file is not going there. A push event is dispatched from
-# the pushed branch itself, so the file works from an unmerged branch.
 on:
   push:
     branches:
@@ -24,24 +28,82 @@ on:
 
 permissions:
   actions: write
+  contents: write
+  pull-requests: write
 
 jobs:
-  probe:
+  e2e:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe
+      - name: Bot PR -> held run -> approve -> started?
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          RUN_ID: "36086600515"
+          RUN: ${{ github.run_id }}
         run: |
           set -uo pipefail
-          echo "== A) approve an existing COMPLETED run (want a STATE message, not a PERMISSION one) =="
-          gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/approve" 2>&1 | tail -3 || true
-          echo
-          echo "== B) approve a nonexistent run (404 baseline) =="
-          gh api -X POST "repos/$REPO/actions/runs/999999999999/approve" 2>&1 | tail -3 || true
-          echo
-          echo "== C) runs currently held (action_required) in this repo =="
-          gh api "repos/$REPO/actions/runs?status=action_required&per_page=20" \
-            --jq '.workflow_runs[] | "\(.id)\t\(.name)\t\(.head_branch)\t\(.head_sha[0:8])"' || true
+          BR="release-please--branches--main--components--probe"
+          PR=""
+          cleanup() {
+            echo "--- cleanup ---"
+            if [ -n "$PR" ]; then gh pr close "$PR" --delete-branch 2>&1 | tail -2; fi
+            git -C repo push origin --delete "$BR" 2>&1 | tail -1 || true
+          }
+          trap cleanup EXIT
+
+          git config --global user.email "actions@users.noreply.github.com"
+          git config --global user.name "probe"
+
+          echo "== clone main =="
+          git clone --depth 1 "https://x-access-token:$GH_TOKEN@github.com/$REPO.git" repo
+          cd repo
+          git checkout -q -b "$BR"
+          date -u > "probe-$RUN.txt"
+          git add "probe-$RUN.txt"
+          git commit -q -m "chore: throwaway probe $RUN"
+          echo "== push probe branch =="
+          git push -q -f origin "$BR" && echo "pushed $BR"
+
+          echo "== Q1: open the bot PR =="
+          PR=$(gh api -X POST "repos/$REPO/pulls" \
+            -f title="chore: throwaway probe $RUN" \
+            -f head="$BR" -f base="main" \
+            -f body="Automated probe of the held-run mechanism. Safe to ignore; closes itself." \
+            --jq .number)
+          echo "opened PR #$PR"
+          SHA=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)
+          echo "head sha $SHA"
+
+          echo "== Q1: waiting for checks to park at action_required =="
+          found=""
+          for i in $(seq 1 18); do
+            found=$(gh api "repos/$REPO/actions/runs?status=action_required&per_page=100" \
+              --jq ".workflow_runs[] | select(.head_sha==\"$SHA\") | \"\(.id)\t\(.name)\"")
+            if [ -n "$found" ]; then
+              echo "held after ${i} probe(s):"
+              printf '%s\n' "$found"
+              break
+            fi
+            sleep 10
+          done
+
+          if [ -z "$found" ]; then
+            echo "::error::Q1 FAILED - no run parked at action_required; premise of the whole fix is wrong"
+            exit 1
+          fi
+
+          echo "== Q2: approve them with GITHUB_TOKEN =="
+          while IFS=$'\t' read -r id name; do
+            [ -n "$id" ] || continue
+            printf 'approve %s (%s): ' "$name" "$id"
+            gh api -X POST "repos/$REPO/actions/runs/$id/approve" --jq '"ok"' 2>&1 | tail -1
+          done <<<"$found"
+
+          echo "== Q3: do they actually start? (sampled for ~60s) =="
+          for i in $(seq 1 6); do
+            sleep 10
+            echo "-- t+$((i * 10))s --"
+            gh api "repos/$REPO/actions/runs?per_page=100" \
+              --jq ".workflow_runs[] | select(.head_sha==\"$SHA\") | \"  \(.name)\t\(.status)\t\(.conclusion // \"-\")\tattempt=\(.run_attempt)\""
+          done
+          echo "== done =="
