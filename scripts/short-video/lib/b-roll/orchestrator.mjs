@@ -18,7 +18,7 @@ import {
   shouldRefuse,
 } from "./report.mjs";
 import { buildClaim, scoreCandidates, pickWinner, GATE_THRESHOLD } from "./gate.mjs";
-import { resolveDependencies, runGeneration } from "./runner.mjs";
+import { resolveDependencies, runGeneration, resolveModelTier, MODEL_TIERS } from "./runner.mjs";
 import {
   resolveImageDependencies,
   runImageGeneration,
@@ -133,11 +133,13 @@ function migrateLegacyEntry(entry, rawPrompt, generationPrompt) {
  *   the scene already had media (winner becomes media.backdrop), or null
  *   when a backdrop already exists (idempotent — never overwritten).
  */
-function assignWinner(scene, winnerFile, isImage = false) {
+function assignWinner(scene, winnerFile, isImage = false, videoSource = "AI-generated (FastVideo FastMetal-5B-QAD)") {
   // #155: image winners land with type "image" and no volume (a still has
   // nothing to attenuate). Like the video clips, the output is a generated
-  // file that must never reach Real-ESRGAN: 832×1216 clears the short-side
-  // < 720 heuristic anyway, but an env-overridden smaller size would trip it.
+  // file that must never reach Real-ESRGAN: 480×832 (1.3B) and 704×1280 (5B,
+  // short side 704) both trip the "short side < 720" heuristic in
+  // upscale.mjs, and render-remotion.mjs would rerun per-frame Real-ESRGAN
+  // on them.
   const generated = isImage
     ? {
         type: "image",
@@ -149,11 +151,9 @@ function assignWinner(scene, winnerFile, isImage = false) {
     : {
         type: "video",
         path: `assets/b-roll/${winnerFile}`,
-        source: "AI-generated (FastVideo FastMetal-1.3B-QAD)",
+        source: videoSource,
         animation: "fade",
         volume: 0,
-        // 480×832 trips the "short side < 720" heuristic in upscale.mjs, and
-        // render-remotion.mjs would rerun per-frame Real-ESRGAN on it.
         upscale: false,
       };
   // #156: a scene that already has media takes the winner as a BACKDROP
@@ -213,6 +213,9 @@ export async function runBrollStage(opts) {
   const filterIds = sceneFilter
     ? new Set(Array.isArray(sceneFilter) ? sceneFilter : [sceneFilter])
     : null;
+  // Report provenance follows the tier (#298): the winner source label must
+  // match the model that actually ran.
+  const videoSource = MODEL_TIERS[resolveModelTier(env)]?.winnerSource ?? null;
 
   const reportFile = reportPath(outputDir);
   const report = readReport(reportFile) ?? emptyReport(contentSlug, threshold);
@@ -250,7 +253,11 @@ export async function runBrollStage(opts) {
         winnerFile ? fileExists(join(contentDir, "assets", "b-roll", winnerFile)) : false,
       );
       if (decision.reuse) {
-        assignWinner(scene, winnerFile, isImage);
+        // Provenance follows the tier that actually generated the clip, not
+        // the current env: a 1.3B-era winner reused under the 5B default must
+        // keep its original label. Legacy entries without a stored source
+        // fall back to the current tier's label (pre-#298 behavior).
+        assignWinner(scene, winnerFile, isImage, entry.winner?.source ?? videoSource);
         counts.cached += 1;
         continue;
       }
@@ -437,7 +444,7 @@ export async function runBrollStage(opts) {
         ...failedCandidates,
       ];
 
-      const landedOn = winner ? assignWinner(scene, basename(winner.file), isImage) : null;
+      const landedOn = winner ? assignWinner(scene, basename(winner.file), isImage, videoSource) : null;
       report.scenes[sceneId] = {
         strategy: scene.mediaStrategy,
         promptHash: promptHash(generationPrompt),
@@ -448,7 +455,9 @@ export async function runBrollStage(opts) {
         generationPrompt,
         voiceover: scene.voiceover ?? "",
         candidates,
-        winner: winner ? { seed: winner.seed, file: basename(winner.file) } : null,
+        // Persist the winner's provenance so cache reuse under a different
+        // tier can re-label the scene accurately (see the reuse path above).
+        winner: winner ? { seed: winner.seed, file: basename(winner.file), source: videoSource } : null,
         // null (idempotent re-run over an existing backdrop) preserves the
         // previous report's landing record.
         landedOn: landedOn ?? prevEntry?.landedOn ?? null,
