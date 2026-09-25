@@ -2,11 +2,14 @@
  * Visual Analyzer — VLM-powered asset understanding + OpenCV focus detection.
  *
  * Wraps two independent Python subprocesses:
- *   1. vlm_analyzer.py  — mlx-vlm Qwen3-VL-2B-Instruct-4bit (analyzeAssetSemantics)
+ *   1. vlm_analyzer.py  — mlx-vlm MiniCPM-o 4.5 (default) or Qwen3-VL-30B-A3B
+ *      (analyzeAssetSemantics / analyzeAssetAudio) — engine declared by
+ *      vlm-model.json (#361)
  *   2. focus_detector.py — OpenCV Haar Cascade + Saliency (detectFocus)
  *
  * API:
  *   analyzeAssetSemantics(assetPath) -> Promise<AssetSemantics>
+ *   analyzeAssetAudio(assetPath)     -> Promise<AudioAnalysis>  (#361, minicpm only)
  *   detectFocus(assetPath)          -> Promise<FocusResult>
  *   closeFocusDetector()            -> Promise<void>
  *   closeVisualAnalyzer()           -> Promise<void>  (closes both)
@@ -43,7 +46,7 @@ const PYTHON_SCRIPT = process.env.VLM_ANALYZER_SCRIPT || join(__dirname, "vlm_an
 const FOCUS_SCRIPT = join(__dirname, "focus_detector.py");
 const HOME = process.env.HOME || "/Users/pabloli";
 const PYTHON_BIN =
-  process.env.VLM_ANALYZER_PYTHON_BIN || join(HOME, ".video-tts-env", "bin", "python3");
+  process.env.VLM_ANALYZER_PYTHON_BIN || join(HOME, ".venvs", "mlx-vlm", "bin", "python");
 
 const RESPONSE_TIMEOUT_MS = Number(process.env.VLM_RESPONSE_TIMEOUT_MS) || 180_000; // 180s per VLM asset (video analysis can take 100s+)
 const FOCUS_RESPONSE_TIMEOUT_MS = 10_000; // 10s per focus detection (target <1s)
@@ -64,6 +67,27 @@ const DEGRADED_RESULT = Object.freeze({
   relevance: null,
   relevanceReason: null,
 });
+
+/**
+ * Schema-complete degraded result for audio analysis failures (#361).
+ * Mirrors _degraded_audio_result in vlm_analyzer.py so the IPC shape stays
+ * symmetric across the boundary.
+ */
+const DEGRADED_AUDIO_RESULT = Object.freeze({
+  transcription: null,
+  language: null,
+  emotion: null,
+  tone: null,
+  speakingStyle: null,
+});
+
+/**
+ * Pick the degraded result shape matching the request action (#361).
+ * Audio requests get the audio schema; everything else gets the visual schema.
+ */
+function degradedForAction(action) {
+  return action === "analyze_audio" ? { ...DEGRADED_AUDIO_RESULT } : { ...DEGRADED_RESULT };
+}
 
 // ─── Module state ───
 
@@ -227,7 +251,7 @@ function handleResponse(line, worker, workerGen) {
       if (entry.workerGeneration === workerGen) {
         clearTimeout(entry.timer);
         worker.pending.delete(fifoId);
-        entry.resolve({ ...DEGRADED_RESULT });
+        entry.resolve(degradedForAction(entry.action));
         dispatchQueue();
       }
     }
@@ -274,7 +298,7 @@ function handleResponse(line, worker, workerGen) {
 
   if (response.error) {
     console.warn(`AI analysis error: ${response.error}`);
-    const degraded = { ...DEGRADED_RESULT };
+    const degraded = degradedForAction(entry.action);
     if (entry.window) {
       degraded.window = entry.window;
       degraded.sourceMode = "degraded";
@@ -297,12 +321,12 @@ function handleResponse(line, worker, workerGen) {
  * Settle all pending VLM requests from a specific worker generation.
  * Each pending Promise resolves with the given degraded result.
  */
-function settlePendingVlm(worker, workerGen, degradedResult) {
+function settlePendingVlm(worker, workerGen) {
   for (const [id, entry] of worker.pending) {
     if (entry.workerGeneration === workerGen) {
       clearTimeout(entry.timer);
       worker.pending.delete(id);
-      const degraded = { ...degradedResult };
+      const degraded = degradedForAction(entry.action);
       if (entry.window) {
         degraded.window = entry.window;
         degraded.sourceMode = "degraded";
@@ -331,7 +355,7 @@ function resetVlmWorker(worker) {
   // will be discarded by handleResponse (generation mismatch)
   worker.generation++;
   // Settle all pending from the old generation with degraded result
-  settlePendingVlm(worker, oldGen, { ...DEGRADED_RESULT });
+  settlePendingVlm(worker, oldGen);
 }
 
 /**
@@ -361,7 +385,7 @@ function dispatchQueue() {
     if (!anyUsable) {
       while (requestQueue.length > 0) {
         const req = requestQueue.shift();
-        req.resolve({ ...DEGRADED_RESULT });
+        req.resolve(degradedForAction(req.action));
       }
     }
   }
@@ -386,7 +410,7 @@ function sendRequest(worker, request) {
   try {
     worker.proc.stdin.write(jsonStr + "\n");
   } catch (_err) {
-    request.resolve({ ...DEGRADED_RESULT });
+    request.resolve(degradedForAction(request.action));
     dispatchQueue();
     return;
   }
@@ -395,7 +419,7 @@ function sendRequest(worker, request) {
   const timer = setTimeout(() => {
     if (worker.pending.has(requestId)) {
       worker.pending.delete(requestId);
-      request.resolve({ ...DEGRADED_RESULT });
+      request.resolve(degradedForAction(request.action));
       // Kill the worker and increment generation to isolate late responses
       resetVlmWorker(worker);
       dispatchQueue();
@@ -492,6 +516,37 @@ export function analyzeAssetSemantics(assetPath, opts) {
 }
 
 /**
+ * Analyze an audio asset using the VLM's audio tower (#361).
+ *
+ * Sends an `analyze_audio` action to the Python subprocess. Only the minicpm
+ * engine (MiniCPM-o 4.5) carries an audio tower; on any other engine the
+ * Python side degrades with an explicit error. Returns a structured object:
+ * - transcription (string | null)
+ * - language (string | null)
+ * - emotion (string | null)
+ * - tone (string | null)
+ * - speakingStyle (string | null)
+ *
+ * On any failure (VLM unavailable, parse error, timeout, non-audio engine),
+ * resolves with a degraded result where all fields are null.
+ *
+ * @param {string} assetPath - Absolute path to the audio file.
+ * @returns {Promise<{transcription: string|null, language: string|null,
+ *   emotion: string|null, tone: string|null, speakingStyle: string|null}>}
+ */
+export function analyzeAssetAudio(assetPath) {
+  return new Promise((resolve, reject) => {
+    requestQueue.push({
+      resolve,
+      reject,
+      action: "analyze_audio",
+      path: assetPath,
+    });
+    dispatchQueue();
+  });
+}
+
+/**
  * Close all analyzer subprocesses in the pool (#189).
  * Sends an exit command to each, then kills them.
  * Also closes the focus detector subprocess if running.
@@ -531,7 +586,7 @@ export function closeVisualAnalyzer() {
           // R1 fix: settle all pending VLM requests per worker
           for (const [id, entry] of worker.pending) {
             clearTimeout(entry.timer);
-            entry.resolve({ ...DEGRADED_RESULT });
+            entry.resolve(degradedForAction(entry.action));
           }
           worker.pending.clear();
         }

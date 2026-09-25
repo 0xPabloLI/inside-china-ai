@@ -68,7 +68,7 @@
 ## Local Models (M2 Pro 32GB)
 
 - **VLM wrapper**: `scripts/short-video/lib/qwen38_vlm_wrapper.py` — 统一封装 Qwen3.8-27B MLX + Ollama 双后端，自动切后端（video→MLX, tools→Ollama），图片自动 resize ≤512px，长视频自动分段（>8s 切分后合并）。用法：`from qwen38_vlm_wrapper import ask; ask("描述", video="path.mp4")`
-- **VLM venv**: `~/.venvs/mlx-vlm/` (Python 3.12, mlx-vlm 0.7.0rc0, mlx 0.32.2)
+- **VLM venv**: `~/.venvs/mlx-vlm/` (Python 3.12, mlx-vlm 0.7.2, mlx 0.32.2) — vlm_analyzer.py 默认引擎 MiniCPM-o 4.5 (#361)；focus_detector.py 同 venv（cv2/PIL/numpy 齐备）
 - **T2V — FastVideo (Wan1.3B)**: `scripts/short-video/lib/b-roll/mlx_wan_batch.py` — 480×832 竖屏 81f，MLX int8 量化，用于 B-roll 生成
 
 
