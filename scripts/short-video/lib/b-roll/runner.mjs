@@ -8,7 +8,7 @@
  * callers get { ok: false, fatal } and decide how to degrade.
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -53,6 +53,11 @@ export const MODEL_TIERS = {
     // from raw.githubusercontent.com at runtime — not covered by
     // HF_HUB_OFFLINE, so the offline contract needs them prefetched.
     taehvDecoder: "taew2_2.pth",
+    // The 5B driver has no --model-root flag; the pinned model root instead
+    // doubles as the UMT5 text-encoder root WHEN it actually ships encoder
+    // weights (our 5B snapshot ships text_encoder/ config only — see
+    // #298 eval report). Guarded by hasTextEncoderWeights().
+    usesModelRoot: false,
   },
   "fastmetal-1.3b": {
     script: DEFAULT_SCRIPT,
@@ -67,6 +72,7 @@ export const MODEL_TIERS = {
     estSecondsPerClip: 240,
     winnerSource: "AI-generated (FastVideo FastMetal-1.3B-QAD)",
     taehvDecoder: "taew2_1.pth",
+    usesModelRoot: true,
   },
 };
 
@@ -76,11 +82,9 @@ export function resolveModelTier(env = process.env) {
 }
 
 /**
- * Per-tier clip time estimate for the CLI's total-time printout. Legacy
- * constant kept for callers that predate tiers (#298: 5B measures ~600s/clip
- * on M2 Pro vs 240s for the 1.3B).
+ * Per-tier clip time estimate for the CLI's total-time printout (#298: 5B
+ * measures ~600s/clip on M2 Pro vs 240s for the 1.3B).
  */
-export const EST_SECONDS_PER_CLIP = 240;
 export function estSecondsPerClip(tier = DEFAULT_MODEL_TIER) {
   return (MODEL_TIERS[tier] ?? MODEL_TIERS[DEFAULT_MODEL_TIER]).estSecondsPerClip;
 }
@@ -95,6 +99,22 @@ const MLX_DIT_WEIGHTS = "mlx_dit.safetensors";
 
 function isPackedMlxCheckpoint(dir) {
   return existsSync(join(dir, MLX_DIT_MANIFEST)) && existsSync(join(dir, MLX_DIT_WEIGHTS));
+}
+
+/**
+ * True when dir/text_encoder/ actually holds weight shards (not just config).
+ * Our FastMetal-5B-QAD cache ships the encoder directory with config only —
+ * the 11.4GB of UMT5 shards were deliberately skipped (#298 eval report).
+ */
+function hasTextEncoderWeights(dir) {
+  if (!dir) return false;
+  const encoderDir = join(dir, "text_encoder");
+  if (!existsSync(encoderDir)) return false;
+  try {
+    return readdirSync(encoderDir).some((f) => f.endsWith(".safetensors"));
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -141,8 +161,9 @@ export function resolveDependencies(env = process.env) {
     );
   }
   // 5B-only probe (the 1.3B path predates the offline contract and is left
-  // untouched): the taehv decoder lives outside the HF cache.
-  if (env.BROLL_MODEL !== "fastmetal-1.3b") {
+  // untouched): the taehv decoder lives outside the HF cache. Uses the
+  // RESOLVED tier — an invalid BROLL_MODEL value must not silently skip it.
+  if (tier === DEFAULT_MODEL_TIER) {
     const decoder = join(homedir(), ".cache", "fastvideo", "taehv", MODEL_TIERS[tier].taehvDecoder);
     if (!existsSync(decoder)) {
       missing.push("taehvDecoder");
@@ -285,6 +306,14 @@ export function runGeneration(opts) {
   const jobsFile = join(workDir, JOBS_FILENAME);
   writeFileSync(jobsFile, `${JSON.stringify(jobs, null, 2)}\n`, "utf8");
 
+  // 5B: the pinned model root doubles as the UMT5 encoder root ONLY when it
+  // actually ships encoder weights. A user pinning BROLL_MODEL_ROOT at the
+  // 5B snapshot (config-only text_encoder/ in our cache) must fall back to
+  // the driver's own 1.3B-encoder resolution, not crash offline.
+  const encoderRoot =
+    textEncoderRoot ??
+    (t.usesModelRoot ? null : hasTextEncoderWeights(modelRoot) ? modelRoot : null);
+
   const args = [
     scriptPath ?? t.script,
     ...buildPythonArgs({
@@ -298,8 +327,8 @@ export function runGeneration(opts) {
       maxSequenceLength: t.maxSequenceLength,
       flowShift: t.flowShift,
       // 5B only: the 1.3B driver has no --text-encoder-root flag.
-      textEncoderRoot: tier === "fastmetal-5b" ? (textEncoderRoot ?? modelRoot) : null,
-      modelRoot: tier === "fastmetal-5b" ? null : modelRoot, // the 5B driver has no --model-root
+      textEncoderRoot: t.usesModelRoot ? null : encoderRoot,
+      modelRoot: t.usesModelRoot ? modelRoot : null, // the 5B driver has no --model-root
       mlxCheckpoint,
     }),
   ];

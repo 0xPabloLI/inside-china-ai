@@ -254,6 +254,9 @@ def main() -> None:
                 dmd_denoising_steps=steps,
                 flow_shift=args.flow_shift,
                 warp_denoising_step=not args.no_warp,
+                # renoise seed: the entrypoint's --renoise-seed default (0).
+                # Job reproducibility comes from `seed` via the initial noise;
+                # the renoise stream is fixed per run like a single-shot run.
                 seed=0,
             )
             denoise_time = time.perf_counter() - td

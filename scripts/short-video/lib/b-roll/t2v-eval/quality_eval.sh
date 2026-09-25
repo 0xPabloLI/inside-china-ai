@@ -11,6 +11,8 @@
 # Qwen3.8-27B model no longer exists on disk.
 #
 # Usage: bash quality_eval.sh
+# NOTE: $clip/$QUESTION interpolate unquoted into python -c (fragile) — the
+# fixed label set below is trusted input; add no untrusted paths/quotes.
 set -uo pipefail
 
 OUT=/Users/pabloli/Documents/code/inside-china-ai/scripts/short-video/output/t2v-eval-fastmetal5b-20260925

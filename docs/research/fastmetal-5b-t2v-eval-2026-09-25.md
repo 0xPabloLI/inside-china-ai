@@ -64,12 +64,13 @@ hf-mirror.com 当日多次不可用（308 后无数据），Clash 代理对 `us.
 
 ## 替换路径（生产端口，本 issue 后续提交）
 
-现有产出：`run_fastmetal5b.py`（评测驱动）、`fastmetal5b-jobs.json`（任务定义）、`score_eval.mjs`（claim gate 对评）、`quality_eval.sh`（四维画质矩阵）。生产化改造（独立提交）：
+现有产出：`lib/b-roll/t2v-eval/`（run_fastmetal5b.py 评测驱动、fastmetal5b-jobs.json 任务定义、score_eval.mjs claim 对评、quality_eval.sh 四维画质矩阵）。生产化改造（已随评测落地）：
 
-1. `lib/b-roll/mlx_wan22_batch.py`：5B 批量驱动（对齐 `mlx_wan_batch.py` 的 `[batch][results]` 契约；5B 无官方批量入口，需移植循环 + 内存 choreography：编码→DiT→去噪→卸载→解码）。
-2. `runner.mjs`：模型档位选择（`BROLL_MODEL` 环境变量或 scene 数据驱动），5B 路径的 `--height 1280 --width 704 --num-frames 121 --fps 24` 竖屏默认。
-3. `orchestrator.mjs`：winner 标签去掉硬编码模型串；`EST_SECONDS_PER_CLIP` 按档位区分（240s → 5B 约 600s）。
-4. 回归：单 scene 生产链路冒烟。
+1. ✅ `lib/b-roll/mlx_wan22_batch.py`：5B 批量驱动（`[batch][results]` 契约；#240 单次 UMT5 预热、全 job 先去噪后统一解码、逐 clip metrics.json 与单发入口同形）。**生产冒烟已跑**：单 job 离线真跑通过（缓存命中 0.04s 编码 / 去噪 645.8s / 峰值 13.56 GiB / 解码 26.5s / 契约行正确）。
+2. ✅ `runner.mjs`：`MODEL_TIERS` 档位体系（`BROLL_MODEL` 切换，默认 `fastmetal-5b`，`fastmetal-1.3b` 退路）+ 5B 离线探针（taehv 解码器预取检查）+ 编码器根守卫（`BROLL_MODEL_ROOT` 钉到 5B 快照时自动回落 1.3B 编码器）。scene 数据驱动档位暂不做（环境变量已覆盖当前需求，留待实际出现按场景混用需求时再加）。
+3. ✅ `orchestrator.mjs`：winner source 标签随 tier；`upscale: false` 维持（5B 短边 704 仍 < 720 阈值）。
+4. ✅ `generate-broll.mjs`：时长估算按档位（5B ~600s/clip）。
+5. 14B 候选明确豁免（issue 阶梯第一档的收尾）：无任何 32GB 机实证、官方目标 36GB+、M4 Max 上即 602s/条（M2 Pro 估 25-30 分钟）——按既定计划仅作 5B 不达预期时的有界试验，本次不启动；云端档（Kaggle/Modal）同理仅在 5B 实产不达预期时解锁。
 
 ## 来源
 

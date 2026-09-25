@@ -37,7 +37,7 @@ FastMetal-14B-QAD 官方峰值 21.68 GiB（480p）：32GB 机可用约 24-26 GiB
 ### 评测矩阵设计要点（精简版，用户已裁决）
 
 - **对齐维度**：复用既有 `b-roll-report.json` 的真实 prompt + seed（如 `ant-lingbot-world-13b` scene-2/3/4/5），覆盖 triage 要求的三场景族（科技概念背景 / 人物访谈剪影 / 文字数据展示）。
-- **5B 一律 704×1280×81f**（原生甜点；121f 是默认但 81f 可跑且与 1.3B 成片时长可比）。1.3B 基线用既有样片，不重跑。
+- **5B 原生 704×1280，帧数按发布配置 121f@24fps**（5.04s，与 1.3B 成片时长对齐——执行口径见评测报告；81f 亦为合法配置但非本次评测所用，官方基准表为 81f 是因为其对比在同一时长约束下做）。1.3B 基线用既有样片，不重跑。
 - **评分**：`lib/b-roll/gate.mjs` 纯函数（`scoreCandidates`/`pickWinner`）+ `lib/visual-analyzer.mjs`（Qwen3-VL-8B）同一评分器打两侧；维度对齐 T2I 横评模板（prompt adherence / visual quality / B-roll suitability / defects）。PSNR 对比器（`mlx_wan_video_quality.py`）仅当需要同分辨率逐像素时作补充，跨分辨率下无意义。
 - **过程记录**：每条记录 prompt encode / denoise / decode 耗时与峰值内存（`mx.reset_peak_memory` 口径），换算 RTF。
 
