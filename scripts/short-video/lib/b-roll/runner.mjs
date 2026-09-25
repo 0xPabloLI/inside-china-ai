@@ -125,10 +125,12 @@ function hasTextEncoderWeights(dir) {
  * batch), and BROLL_MODEL (tier: "fastmetal-5b" default | "fastmetal-1.3b").
  * Without an override, probes <repo>/.venv/bin/python3 then
  * ~/.video-tts-env/bin/python3.
- * Returns { ok, tier, repo, python, modelRoot, mlxCheckpoint, missing[], message };
+ * Returns { ok, tier, repo, python, modelRoot, mlxCheckpoint, missing[], warnings[], message };
  * modelRoot/mlxCheckpoint are null when unpinned. For the 5B tier the taehv
- * decoder weights (taew2_2.pth, runtime-fetched outside the HF cache) must be
- * prefetched or the offline batch fails deep inside the python run.
+ * decoder weights (taew2_2.pth, runtime-fetched outside the HF cache) are
+ * probed as a WARNING, not a hard failure: the loader can self-fetch when the
+ * network allows, and preflighting must not depend on one machine's cache
+ * (CI has no ~/.cache/fastvideo). Missing repo/python/weights still fail.
  */
 export function resolveDependencies(env = process.env) {
   const repo = env.FASTVIDEO_REPO || DEFAULT_REPO;
@@ -140,6 +142,7 @@ export function resolveDependencies(env = process.env) {
   const mlxCheckpoint = env.BROLL_MLX_CHECKPOINT || null;
   const tier = resolveModelTier(env);
   const missing = [];
+  const warnings = [];
   const parts = [];
   if (!existsSync(repo)) {
     missing.push("repo");
@@ -163,13 +166,14 @@ export function resolveDependencies(env = process.env) {
   // 5B-only probe (the 1.3B path predates the offline contract and is left
   // untouched): the taehv decoder lives outside the HF cache. Uses the
   // RESOLVED tier — an invalid BROLL_MODEL value must not silently skip it.
+  // WARNING only: the loader self-fetches when the network allows, and CI /
+  // fresh machines legitimately lack the cache.
   if (tier === DEFAULT_MODEL_TIER) {
     const decoder = join(homedir(), ".cache", "fastvideo", "taehv", MODEL_TIERS[tier].taehvDecoder);
     if (!existsSync(decoder)) {
-      missing.push("taehvDecoder");
-      parts.push(
-        `taehv decoder weights not found at ${decoder} ` +
-          "(the 5B batch runs with HF_HUB_OFFLINE=1; prefetch per the #298 eval report)",
+      warnings.push(
+        `taehv decoder weights not found at ${decoder} — ` +
+          "prefetch per the #298 eval report, or the first 5B batch will stall on the raw.githubusercontent fetch",
       );
     }
   }
@@ -185,9 +189,6 @@ export function resolveDependencies(env = process.env) {
         "fix or unset BROLL_MODEL_ROOT / BROLL_MLX_CHECKPOINT to fall back to the HF cache",
       );
     }
-    if (missing.includes("taehvDecoder")) {
-      hints.push("prefetch the taehv decoder weights (see lib/b-roll/t2v-eval / #298)");
-    }
     return {
       ok: false,
       tier,
@@ -196,10 +197,11 @@ export function resolveDependencies(env = process.env) {
       modelRoot,
       mlxCheckpoint,
       missing,
+      warnings,
       message: `${parts.join("; ")}. ${hints.join("; ")}; skipping B-roll generation.`,
     };
   }
-  return { ok: true, tier, repo, python, modelRoot, mlxCheckpoint, missing, message: null };
+  return { ok: true, tier, repo, python, modelRoot, mlxCheckpoint, missing, warnings, message: null };
 }
 
 /**

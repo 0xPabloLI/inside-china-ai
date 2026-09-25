@@ -1,9 +1,23 @@
-import { describe, test, expect, beforeAll, afterAll } from "vitest";
+import { describe, test, expect, beforeAll, afterAll, vi } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { resolveDependencies, buildPythonArgs, runGeneration } from "../b-roll/runner.mjs";
+
+// The taehv decoder probe reads ~/.cache/fastvideo/taehv — machine state.
+// Pin homedir to a throwaway dir so both probe branches are testable on any
+// machine (tmpdir/mkdtemp stay real via importOriginal).
+const { fakeHome } = await vi.hoisted(async () => {
+  const { mkdtempSync: mkd } = await import("node:fs");
+  const { tmpdir: td } = await import("node:os");
+  const { join: j } = await import("node:path");
+  return { fakeHome: mkd(j(td(), "broll-home-")) };
+});
+vi.mock("node:os", async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, homedir: () => fakeHome };
+});
 
 describe("resolveDependencies (scenario #11)", () => {
   let dir;
@@ -14,6 +28,7 @@ describe("resolveDependencies (scenario #11)", () => {
 
   afterAll(() => {
     rmSync(dir, { recursive: true, force: true });
+    rmSync(fakeHome, { recursive: true, force: true });
   });
 
   test("missing repo -> ok:false with the offending path in the message", () => {
@@ -127,6 +142,31 @@ describe("resolveDependencies (scenario #11)", () => {
     expect(res.ok).toBe(true);
     expect(res.modelRoot).toBe(modelRoot);
     expect(res.mlxCheckpoint).toBeNull();
+  });
+
+  test("#298 missing taehv decoder is a WARNING, not a hard failure", () => {
+    // fakeHome has no ~/.cache/fastvideo — preflight must stay
+    // machine-independent (the loader self-fetches when the network allows).
+    const repo = join(dir, "repo8");
+    writeFileSync(repo, "");
+    const python = join(dir, "python8");
+    writeFileSync(python, "#!/bin/sh\n");
+    const res = resolveDependencies({ FASTVIDEO_REPO: repo, FASTVIDEO_PYTHON: python });
+    expect(res.ok).toBe(true); // default tier is 5B, decoder uncached here
+    expect(res.warnings.some((w) => w.includes("taehv"))).toBe(true);
+  });
+
+  test("#298 cached taehv decoder -> no warning", () => {
+    const repo = join(dir, "repo9");
+    writeFileSync(repo, "");
+    const python = join(dir, "python9");
+    writeFileSync(python, "#!/bin/sh\n");
+    const cache = join(fakeHome, ".cache", "fastvideo", "taehv");
+    mkdirSync(cache, { recursive: true });
+    writeFileSync(join(cache, "taew2_2.pth"), "");
+    const res = resolveDependencies({ FASTVIDEO_REPO: repo, FASTVIDEO_PYTHON: python });
+    expect(res.ok).toBe(true);
+    expect(res.warnings.some((w) => w.includes("taehv"))).toBe(false);
   });
 });
 
