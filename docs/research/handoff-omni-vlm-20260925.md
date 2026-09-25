@@ -78,10 +78,11 @@ flowchart TD
     当相邻 Scene 认领同一个长视频时，自动派生 `clipStartMs = 上一 Scene 的 clipEndMs`，实现镜头在视觉上的连续推移与运镜。
 
 ### 3. VLM 缓存 Key 模型解耦联动（解 #351 Bug）
-- **问题**：`vlm_analyzer.py` 内部 `MODEL_ID` 与 Node 侧 `visual-analyzer.mjs:430` 的 `DEFAULT_VLM_MODEL_ID` 存在双重硬编码，切换模型后旧缓存会被误命中。
-- **落地改造**：
-  - 由 `vlm_analyzer.py` 启动或握手时，向 stdout 回传真实的 `modelId`（如 `mlx-community/MiniCPM-o-4_5-4bit`），Node 侧动态读取作为缓存 key 的权威输入；
-  - 彻底杜绝换模型后的 stale cross-model cache hits。
+- **问题**：`vlm_analyzer.py` 内部 `MODEL_ID` 与 Node 侧 `visual-analyzer.mjs` 曾有的 `DEFAULT_VLM_MODEL_ID` 常量存在双重硬编码，切换模型后旧缓存会被误命中。
+- **落地改造（#351 定案，见 `docs/issue-roadmap.md` 冲突矩阵）**：
+  - 新增 `scripts/short-video/lib/vlm-model.json` 作为模型 ID **唯一权威源**：Node 侧经 `vlm-model.mjs` 读取（import 时校验、fail-fast），Python 侧 `vlm_analyzer.py` 读同一 JSON（文件缺失或 `modelId` 为空即抛 `RuntimeError`），双端不再各自硬编码；
+  - 换模型只改 `vlm-model.json` 一处，杜绝 stale cross-model cache hits；
+  - 早期 stdout 握手设想（由 `vlm_analyzer.py` 启动/握手时向 stdout 回传 `modelId`）**已废弃**：进程间通道需解析非结构化输出且耦合启动顺序，共享 JSON 更简单可靠。
 
 ---
 
