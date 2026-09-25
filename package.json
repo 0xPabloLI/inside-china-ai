@@ -136,6 +136,9 @@
       "limit": "420 KB"
     }
   ],
+  "overrides": {
+    "esbuild": "^0.28.1"
+  },
   "pnpm": {
     "overrides": {
       "entities": "4.5.0"
