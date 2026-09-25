@@ -65,12 +65,39 @@ done
 
 | 位置 | 2026-09-25 现状 |
 | --- | --- |
-| 仓库 `.git/config` 的 `http.proxy` / `https.proxy` | `http://127.0.0.1:7897`（= 当天死端口 ⇒ git 实际直连：github 能通、`api.osv.dev` 超时致 pre-push fail-closed） |
+| 仓库 `.git/config` 的 `http.proxy` / `https.proxy` | 原为 `7897`（死）；**2026-09-25 09:50 已改为 `http://127.0.0.1:7890`**，改后 `git fetch` 立即恢复 |
 | `~/searxng/settings.yml` 的 `outgoing.proxies` | `http://192.168.5.2:7890`（VM 网关→宿主；当日与 FlClash 一致） |
+| colima VM 内的 `http_proxy` 等 4 个环境变量 | `http://192.168.5.2:7890`（VM 启动时注入的项目，`colima.yaml` 的 `env` 为空 ⇒ 来自别处）|
+
+⚠️ **纠正（2026-09-25 09:50 实测）**：本表原写「git 实际直连：github 能通」——**是错的**。当天 `github.com` 直连 = `000`（被墙），只有 `api.github.com` 直连 = `200`。所以 `.git/config` 指着死端口时 git **不是直连、而是全挂**。判据要用 `github.com` 本体，别拿 `api.github.com` 代替（它不走墙）。
+
+⚠️ **VM 内「直连能用」是假象**：在 colima VM 里 `curl https://www.google.com/generate_204` 返回 `204`，但那是走了 VM 里注入的 `http_proxy=http://192.168.5.2:7890`。清掉 env 后（`env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY curl ...`）同样是 `000`。**VM 与宿主一样，出网必须走代理。**
 
 **历史坑（勿丢）**：FlClash `7890` 曾对**带 auth header 的 POST** 断连，colab CLI 因此必须切到 Clash Verge `7897`（`docs/archive/handoffs/handoff-infinitetalk-kaggle-colab.md`）。所以「哪个端口才对」不是固定的，取决于**当前客户端 + 协议**——按上表实测，别照抄历史结论。
 
-**根治方向**：把客户端的 TUN 真正开起来（全流量透明代理），上面这些写死端口就都不需要维护了。当前 FlClash 配置写了 `tun.enable: true` 但未生效，需在客户端 UI 里确认 TUN 处于开启且已装上路由。
+**根治方向 —— 两条路，别混着走**：
+
+前提：**同一时间只跑一个客户端**。Clash Verge 与 FlClash 同时运行是端口漂移的源头。
+
+| 方案 | 代价 | 谁受益 | 仍需同步端口的地方 |
+| --- | --- | --- | --- |
+| **客户端「系统代理」打开**（推荐起步） | 一次点击、可逆、不动内核 | 浏览器（Chrome **动态跟随**，无需重启）、`scutil --proxy` 有值 ⇒ 隧道脚本能自动探测 | git、SearXNG（**都不读** macOS 系统代理）|
+| 客户端 TUN 真正打开 | 需客户端 helper；**两客户端同时开会抢路由**，必须先退出另一个 | 所有进程透明代理（含 CLI/git），可**删掉** `.git/config` 的代理 | VM 侧仍要隧道（宿主 TUN **不覆盖** colima VM 的 NAT 流量）|
+
+- **跟随系统代理同步 git（切客户端后跑这一行）**：
+
+  ```bash
+  P=$(scutil --proxy | awk '/HTTPPort/{print $3}')
+  [ -n "$P" ] && git config --local http.proxy "http://127.0.0.1:$P" \
+               && git config --local https.proxy "http://127.0.0.1:$P" && echo "git → $P"
+  ```
+
+  系统代理关着时 `$P` 为空：改走 TUN 就该 `git config --unset http.proxy`（TUN 覆盖后不需要它）。**别让两个都不成立**——那时 git 对着一个死端口。
+- **让 SearXNG 不再随端口漂**：隧道脚本已由 `scutil --proxy` 自动探测宿主端口，把 `~/searxng/settings.yml` 的 `outgoing.proxies` 从 `192.168.5.2:7890` 改为 VM 内稳定的 `http://127.0.0.1:7891`（隧道口）即可，之后切客户端无需再动 SearXNG。
+
+**colima 与代理的关系（别把它当"本地所以直连"）**：colima 是跑在本机的 Linux VM（lima + Apple Virtualization.Framework），Docker/SearXNG 在 VM 内。VM 有自己的网络命名空间，**VM 的 `127.0.0.1` ≠ macOS 的 `127.0.0.1`**；代理客户端只监听宿主 `127.0.0.1`、且 `allow-lan: false`，VM 直连不到。VM 出网两条路：① 宿主网关 `192.168.5.2:<宿主端口>`；② SSH 反向隧道 `VM 127.0.0.1:7891 → 宿主 <端口>`（`scripts/colima-proxy-tunnel.sh`）。
+
+**隧道现状（2026-09-25）**：VM 内 `-x http://127.0.0.1:7891` = `204`（活的）。但 LaunchAgent 跑的 `~/bin/colima-proxy-tunnel.sh` 是**另一份副本**（与 `scripts/` 下内容不同），它每 60s 重试时持续报 `ssh: connect to host 127.0.0.1 port <N>: Connection refused`——`colima ssh-config` 拿到的端口已失效；真正活着的是早先那次 ssh（复用 lima control master）。**后果：LaunchAgent 目前失去自愈能力，现有隧道一断就没人能重建。**
 
 ### .nvmrc（#231，2026-09-12 新增）
 
