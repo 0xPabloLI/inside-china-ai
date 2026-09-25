@@ -10,9 +10,11 @@
  * API:
  *   analyzeAssetSemantics(assetPath) -> Promise<AssetSemantics>
  *   analyzeAssetAudio(assetPath)     -> Promise<AudioAnalysis>  (#361, minicpm only)
+ *   analyzeAssetEmotion(assetPath)   -> Promise<Emotion9Class>  (#361, emotion2vec+)
+ *   fuseAudioEmotion(primary, aux)   -> {primary, auxiliary, agreement}  (#361)
  *   detectFocus(assetPath)          -> Promise<FocusResult>
  *   closeFocusDetector()            -> Promise<void>
- *   closeVisualAnalyzer()           -> Promise<void>  (closes both)
+ *   closeVisualAnalyzer()           -> Promise<void>  (closes all)
  *
  * Lifecycle:
  *   - Each subprocess spawns on first call, reuses for subsequent calls.
@@ -44,12 +46,15 @@ const __dirname = dirname(__filename);
 
 const PYTHON_SCRIPT = process.env.VLM_ANALYZER_SCRIPT || join(__dirname, "vlm_analyzer.py");
 const FOCUS_SCRIPT = join(__dirname, "focus_detector.py");
+const E2V_SCRIPT = join(__dirname, "emotion2vec_plugin.py");
 const HOME = process.env.HOME || "/Users/pabloli";
 const PYTHON_BIN =
   process.env.VLM_ANALYZER_PYTHON_BIN || join(HOME, ".venvs", "mlx-vlm", "bin", "python");
+const E2V_PYTHON_BIN = process.env.E2V_PYTHON_BIN || join(HOME, ".video-tts-env", "bin", "python3");
 
 const RESPONSE_TIMEOUT_MS = Number(process.env.VLM_RESPONSE_TIMEOUT_MS) || 180_000; // 180s per VLM asset (video analysis can take 100s+)
 const FOCUS_RESPONSE_TIMEOUT_MS = 10_000; // 10s per focus detection (target <1s)
+const E2V_RESPONSE_TIMEOUT_MS = Number(process.env.E2V_RESPONSE_TIMEOUT_MS) || 60_000; // 60s per e2v utterance (CPU ~17s, headroom for load)
 
 // ─── Degraded result ───
 
@@ -555,8 +560,8 @@ export function analyzeAssetAudio(assetPath) {
  */
 export function closeVisualAnalyzer() {
   return new Promise((resolve) => {
-    // Close focus detector first (lightweight, fast to exit)
-    closeFocusDetector().then(() => {
+    // Close focus detector and e2v first (lightweight, fast to exit)
+    Promise.all([closeFocusDetector(), closeE2V()]).then(() => {
       const liveWorkers = vlmWorkers.filter(
         (w) => w.proc && !w.proc.killed && w.proc.exitCode === null,
       );
@@ -898,6 +903,278 @@ export function closeFocusDetector() {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ─── Emotion2vec+ Subsystem (9-class emotion recognition) ────
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * emotion2vec+ subprocess (#361). Runs in ~/.video-tts-env (funasr 1.4.14),
+ * separate from the VLM pool (which runs in ~/.venvs/mlx-vlm). Provides
+ * 9-class utterance-level emotion recognition as the auxiliary signal for
+ * audio emotion fusion.
+ *
+ * Known bias: shock → fearful (documented in #361 票评 2026-09-25).
+ * Callers consuming the `auxiliary` field should treat "恐惧/fearful" with
+ * caution when the audio context suggests surprise/shock.
+ */
+
+const DEGRADED_E2V_RESULT = Object.freeze({
+  labels: [],
+  scores: [],
+  topLabel: null,
+  topScore: null,
+});
+
+/** @type {import('child_process').ChildProcess | null} */
+let e2vProc = null;
+let e2vAvailable = null;
+let e2vGeneration = 0;
+/** @type {Map<string, {resolve: Function, timer: ReturnType<typeof setTimeout>, workerGeneration: number}>} */
+const e2vPending = new Map();
+
+function spawnE2V() {
+  if (!existsSync(E2V_PYTHON_BIN)) {
+    console.warn(`emotion2vec not available: Python not found at ${E2V_PYTHON_BIN}`);
+    e2vAvailable = false;
+    return null;
+  }
+  if (!existsSync(E2V_SCRIPT)) {
+    console.warn(`emotion2vec not available: Script not found at ${E2V_SCRIPT}`);
+    e2vAvailable = false;
+    return null;
+  }
+
+  e2vGeneration++;
+  const myGen = e2vGeneration;
+
+  const proc = spawn(E2V_PYTHON_BIN, [E2V_SCRIPT], {
+    stdio: ["pipe", "pipe", "pipe"],
+    env: { ...process.env },
+  });
+
+  let stdoutBuffer = "";
+  proc.stdout.on("data", (chunk) => {
+    stdoutBuffer += chunk.toString();
+    const lines = stdoutBuffer.split("\n");
+    stdoutBuffer = lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      handleE2VResponse(line, myGen);
+    }
+  });
+
+  let stderrBuffer = "";
+  proc.stderr.on("data", (chunk) => {
+    stderrBuffer += chunk.toString();
+    const lines = stderrBuffer.split("\n");
+    stderrBuffer = lines.pop();
+    for (const line of lines) {
+      if (line.trim()) {
+        console.debug(`[emotion2vec:py] ${line}`);
+      }
+    }
+  });
+
+  proc.on("exit", () => {
+    if (e2vProc === proc) {
+      e2vProc = null;
+      e2vAvailable = null;
+    }
+    settlePendingE2V(myGen);
+  });
+
+  proc.on("error", (err) => {
+    console.warn(`emotion2vec not available: ${err.message}`);
+    if (e2vProc === proc) {
+      e2vProc = null;
+      e2vAvailable = false;
+    }
+    settlePendingE2V(myGen);
+  });
+
+  e2vProc = proc;
+  e2vAvailable = null;
+  return proc;
+}
+
+function ensureE2VProcess() {
+  if (e2vProc && !e2vProc.killed && e2vProc.exitCode === null) return true;
+  if (e2vAvailable === false) return false;
+  return spawnE2V() !== null;
+}
+
+function handleE2VResponse(line, workerGen) {
+  let response;
+  try {
+    response = JSON.parse(line);
+  } catch {
+    return;
+  }
+
+  const id = response.requestId;
+  if (!id || !e2vPending.has(id)) return;
+
+  const entry = e2vPending.get(id);
+  if (entry.workerGeneration !== workerGen) return;
+
+  clearTimeout(entry.timer);
+  e2vPending.delete(id);
+  e2vAvailable = true;
+
+  if (response.error) {
+    console.warn(`emotion2vec error: ${response.error}`);
+    entry.resolve({ ...DEGRADED_E2V_RESULT });
+  } else {
+    const { error: _error, requestId: _rid, ...result } = response;
+    entry.resolve(result);
+  }
+}
+
+function settlePendingE2V(workerGen) {
+  for (const [id, entry] of e2vPending) {
+    if (entry.workerGeneration === workerGen) {
+      clearTimeout(entry.timer);
+      e2vPending.delete(id);
+      entry.resolve({ ...DEGRADED_E2V_RESULT });
+    }
+  }
+}
+
+function settleAllPendingE2V() {
+  for (const [id, entry] of e2vPending) {
+    clearTimeout(entry.timer);
+    e2vPending.delete(id);
+    entry.resolve({ ...DEGRADED_E2V_RESULT });
+  }
+}
+
+/**
+ * Analyze audio emotion using emotion2vec+ (9-class, utterance-level).
+ *
+ * Returns { labels, scores, topLabel, topScore } on success, or a degraded
+ * result (all null/empty) on any failure. NEVER rejects.
+ *
+ * @param {string} assetPath - Absolute path to the audio file.
+ * @returns {Promise<{labels: string[], scores: number[], topLabel: string|null, topScore: number|null}>}
+ */
+export function analyzeAssetEmotion(assetPath) {
+  return new Promise((resolve) => {
+    if (!ensureE2VProcess()) {
+      resolve({ ...DEGRADED_E2V_RESULT });
+      return;
+    }
+
+    const requestId = randomUUID();
+    const myGen = e2vGeneration;
+
+    const timer = setTimeout(() => {
+      if (e2vPending.has(requestId)) {
+        e2vPending.delete(requestId);
+        resolve({ ...DEGRADED_E2V_RESULT });
+        if (e2vProc && !e2vProc.killed) {
+          try {
+            e2vProc.kill("SIGTERM");
+          } catch (_e) {
+            // ignore
+          }
+        }
+        e2vProc = null;
+        e2vGeneration++;
+        settlePendingE2V(myGen);
+      }
+    }, E2V_RESPONSE_TIMEOUT_MS);
+
+    e2vPending.set(requestId, { resolve, timer, workerGeneration: myGen });
+
+    const jsonStr = JSON.stringify({ requestId, action: "analyze_emotion", path: assetPath });
+
+    try {
+      e2vProc.stdin.write(jsonStr + "\n");
+    } catch (_err) {
+      if (e2vPending.has(requestId)) {
+        clearTimeout(timer);
+        e2vPending.delete(requestId);
+        resolve({ ...DEGRADED_E2V_RESULT });
+      }
+    }
+  });
+}
+
+/**
+ * Fuse MiniCPM-o coarse emotion (primary) with emotion2vec+ fine-grained
+ * emotion (auxiliary) into a three-field result (#361).
+ *
+ * The fusion does NOT merge into a single label — both signals are preserved
+ * so downstream consumers can apply their own conflict resolution.
+ *
+ * Agreement heuristic:
+ * - "agree" — the e2v top label's English part matches the primary emotion
+ * - "disagree" — they point to different emotions
+ * - "unknown" — either signal is missing/degraded
+ *
+ * Known bias: e2v tends to classify shock as 恐惧/fearful (#361 票评).
+ * This is not corrected here — the raw signals are passed through and the
+ * bias is documented for downstream consumers.
+ *
+ * @param {string|null} primary - MiniCPM-o emotion (free-form text, e.g. "neutral")
+ * @param {{topLabel: string|null, topScore: number|null}} auxiliary - e2v result
+ * @returns {{primary: string|null, auxiliary: {label: string|null, score: number|null}, agreement: "agree"|"disagree"|"unknown"}}
+ */
+export function fuseAudioEmotion(primary, auxiliary) {
+  const auxLabel = auxiliary?.topLabel ?? null;
+  const auxScore = auxiliary?.topScore ?? null;
+
+  if (!primary || !auxLabel) {
+    return {
+      primary: primary ?? null,
+      auxiliary: { label: auxLabel, score: auxScore },
+      agreement: "unknown",
+    };
+  }
+
+  // Extract English part from e2v label (e.g. "中立/neutral" → "neutral")
+  const auxEnglish = auxLabel.includes("/") ? auxLabel.split("/").pop() : auxLabel;
+
+  // Case-insensitive keyword match: primary emotion contains the e2v English label
+  const primaryLower = primary.toLowerCase();
+  const auxLower = auxEnglish.toLowerCase();
+  const agreement =
+    primaryLower.includes(auxLower) || auxLower.includes(primaryLower) ? "agree" : "disagree";
+
+  return {
+    primary,
+    auxiliary: { label: auxLabel, score: auxScore },
+    agreement,
+  };
+}
+
+function closeE2V() {
+  return new Promise((resolve) => {
+    settleAllPendingE2V();
+    if (!e2vProc) {
+      resolve();
+      return;
+    }
+    try {
+      e2vProc.stdin.write(JSON.stringify({ action: "exit" }) + "\n");
+    } catch (_e) {
+      // ignore
+    }
+    setTimeout(() => {
+      if (e2vProc && !e2vProc.killed) {
+        try {
+          e2vProc.kill("SIGTERM");
+        } catch (_e) {
+          // ignore
+        }
+      }
+      e2vProc = null;
+      e2vAvailable = null;
+      resolve();
+    }, 100);
+  });
+}
+
 // ─── Cleanup on process exit ───
 // Guard against duplicate listener registration: vitest may import this module
 // multiple times across test files, each adding a new 'exit' listener and
@@ -920,6 +1197,13 @@ if (!process[_exitHandlerRegistered]) {
     if (focusProc && !focusProc.killed) {
       try {
         focusProc.kill("SIGTERM");
+      } catch (_e) {
+        // ignore
+      }
+    }
+    if (e2vProc && !e2vProc.killed) {
+      try {
+        e2vProc.kill("SIGTERM");
       } catch (_e) {
         // ignore
       }
