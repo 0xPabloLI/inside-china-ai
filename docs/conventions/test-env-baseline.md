@@ -57,21 +57,25 @@ done
 
 | 路径 | google/generate_204 | youtube | 判读 |
 | --- | --- | --- | --- |
-| FlClash `7890` | `204` | `200` | ✅ 唯一可用出口 |
+| FlClash `7890` | `204` | `200` | ✅ 可用（TUN 打开后它不再是唯一出口） |
 | Clash Verge `7897` | `000` | `000` | ❌ 端口在监听但不代理（`verge.yaml`：`enable_tun_mode: false`、`enable_system_proxy: false`，运行配置 `mode: direct`）⇒ 等价直连 |
-| 不给代理（默认） | `000` | `000` | ❌ **TUN 未接管**：无 `0/1`、`128.0/1` 路由，默认路由仍是 `en0`（`tun.enable: true` 只写在 FlClash 配置里，实际未装上） |
+| **不给代理（默认）** | `204` | `200` | ✅ **TUN 已接管**（2026-09-25 10:10 起）：`1` `2/7` `4/6` `8/5` `16/4` `32/3` `64/2` `128.0/1` 八条半路由全部指向 `utun7`（网关 `198.18.0.1`） |
 
 **端口被写死在哪 —— 改一个要同时改，否则只有一半通**：
 
 | 位置 | 2026-09-25 现状 |
 | --- | --- |
-| 仓库 `.git/config` 的 `http.proxy` / `https.proxy` | 原为 `7897`（死）；**2026-09-25 09:50 已改为 `http://127.0.0.1:7890`**，改后 `git fetch` 立即恢复 |
+| 仓库 `.git/config` 的 `http.proxy` / `https.proxy` | `7897`（死）→ 09:50 改 `7890` → **10:12 `git config --local --unset`**。TUN 覆盖后这里**应当为空**：留着就是留一个迟早会死的端口 |
 | `~/searxng/settings.yml` 的 `outgoing.proxies` | `http://192.168.5.2:7890`（VM 网关→宿主；当日与 FlClash 一致） |
 | colima VM 内的 `http_proxy` 等 4 个环境变量 | `http://192.168.5.2:7890`（VM 启动时注入的项目，`colima.yaml` 的 `env` 为空 ⇒ 来自别处）|
 
 ⚠️ **纠正（2026-09-25 09:50 实测）**：本表原写「git 实际直连：github 能通」——**是错的**。当天 `github.com` 直连 = `000`（被墙），只有 `api.github.com` 直连 = `200`。所以 `.git/config` 指着死端口时 git **不是直连、而是全挂**。判据要用 `github.com` 本体，别拿 `api.github.com` 代替（它不走墙）。
 
-⚠️ **VM 内「直连能用」是假象**：在 colima VM 里 `curl https://www.google.com/generate_204` 返回 `204`，但那是走了 VM 里注入的 `http_proxy=http://192.168.5.2:7890`。清掉 env 后（`env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY curl ...`）同样是 `000`。**VM 与宿主一样，出网必须走代理。**
+⚠️ **量 VM 出网必须先清 env**：VM 里注入了 `http_proxy=http://192.168.5.2:7890`，不清 env 时看到 `204` **什么都证明不了**。清法：`env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY curl ...`。
+
+- TUN **关**时清完 env = `000`；TUN **开**时清完 env = `204`。
+- **纠错（2026-09-25 10:18）**：本条原写「VM 内直连能用是假象、VM 出网必须走代理」——**后半句在 TUN 打开后不成立**。当天实测清完 env 后 VM 直连 `google` = `204`、`github` = `200`，且 VM 把 `google.com` 解析成 **`198.18.0.4`**（宿主 TUN 的 fake-IP 段；VM `resolv.conf` 仍指向宿主 `192.168.5.1`）⇒ **宿主 TUN 覆盖了 colima VM 的 NAT 流量**。
+- **判据要用 fake-IP，不能只看状态码**：`204` 无法区分「TUN 接管」与「注入的代理生效」，`198.18.x.x` 才能。
 
 **历史坑（勿丢）**：FlClash `7890` 曾对**带 auth header 的 POST** 断连，colab CLI 因此必须切到 Clash Verge `7897`（`docs/archive/handoffs/handoff-infinitetalk-kaggle-colab.md`）。所以「哪个端口才对」不是固定的，取决于**当前客户端 + 协议**——按上表实测，别照抄历史结论。
 
@@ -82,7 +86,7 @@ done
 | 方案 | 代价 | 谁受益 | 仍需同步端口的地方 |
 | --- | --- | --- | --- |
 | **客户端「系统代理」打开**（推荐起步） | 一次点击、可逆、不动内核 | 浏览器（Chrome **动态跟随**，无需重启）、`scutil --proxy` 有值 ⇒ 隧道脚本能自动探测 | git、SearXNG（**都不读** macOS 系统代理）|
-| 客户端 TUN 真正打开 | 需客户端 helper；**两客户端同时开会抢路由**，必须先退出另一个 | 所有进程透明代理（含 CLI/git），可**删掉** `.git/config` 的代理 | VM 侧仍要隧道（宿主 TUN **不覆盖** colima VM 的 NAT 流量）|
+| 客户端 TUN 真正打开（**2026-09-25 起采用**） | 需客户端 helper；**两客户端同时开会抢路由**，必须先退出另一个 | 所有进程透明代理（CLI / git / Chrome **以及 colima VM**）；`.git/config` 与 SearXNG 里的宿主端口写死**都可以去掉** | 仅剩「TUN 被关掉之后」这一种情形，那时才需要隧道或网关 |
 
 - **跟随系统代理同步 git（切客户端后跑这一行）**：
 
@@ -93,11 +97,13 @@ done
   ```
 
   系统代理关着时 `$P` 为空：改走 TUN 就该 `git config --unset http.proxy`（TUN 覆盖后不需要它）。**别让两个都不成立**——那时 git 对着一个死端口。
-- **让 SearXNG 不再随端口漂**：隧道脚本已由 `scutil --proxy` 自动探测宿主端口，把 `~/searxng/settings.yml` 的 `outgoing.proxies` 从 `192.168.5.2:7890` 改为 VM 内稳定的 `http://127.0.0.1:7891`（隧道口）即可，之后切客户端无需再动 SearXNG。
+- ~~**让 SearXNG 不再随端口漂**：把 `outgoing.proxies` 改为隧道口 `127.0.0.1:7891`~~ —— **已被 TUN 取代（2026-09-25 10:20）**：TUN 开着时 VM 直连即可，`outgoing.proxies` 不再是必需项。只有回到「TUN 关着」的时段才需要隧道或网关方案。
 
-**colima 与代理的关系（别把它当"本地所以直连"）**：colima 是跑在本机的 Linux VM（lima + Apple Virtualization.Framework），Docker/SearXNG 在 VM 内。VM 有自己的网络命名空间，**VM 的 `127.0.0.1` ≠ macOS 的 `127.0.0.1`**；代理客户端只监听宿主 `127.0.0.1`、且 `allow-lan: false`，VM 直连不到。VM 出网两条路：① 宿主网关 `192.168.5.2:<宿主端口>`；② SSH 反向隧道 `VM 127.0.0.1:7891 → 宿主 <端口>`（`scripts/colima-proxy-tunnel.sh`）。
+**colima 与代理的关系（别把它当"本地所以直连"）**：colima 是跑在本机的 Linux VM（lima + Apple Virtualization.Framework），Docker/SearXNG 在 VM 内。VM 有自己的网络命名空间，**VM 的 `127.0.0.1` ≠ macOS 的 `127.0.0.1`**；代理客户端只监听宿主 `127.0.0.1`、且 `allow-lan: false`，VM 直连不到。VM 出网三条路：① 宿主网关 `192.168.5.2:<宿主端口>`；② SSH 反向隧道 `VM 127.0.0.1:7891 → 宿主 <端口>`（`scripts/colima-proxy-tunnel.sh`）；③ **宿主 TUN 开着时的透明代理 —— 实测覆盖 VM**（判据见上「量 VM 出网」节的 fake-IP）。①②只在③不成立时才有意义。
 
-**隧道现状（2026-09-25）**：VM 内 `-x http://127.0.0.1:7891` = `204`（活的）。但 LaunchAgent 跑的 `~/bin/colima-proxy-tunnel.sh` 是**另一份副本**（与 `scripts/` 下内容不同），它每 60s 重试时持续报 `ssh: connect to host 127.0.0.1 port <N>: Connection refused`——`colima ssh-config` 拿到的端口已失效；真正活着的是早先那次 ssh（复用 lima control master）。**后果：LaunchAgent 目前失去自愈能力，现有隧道一断就没人能重建。**
+**隧道现状（2026-09-25 10:20 定位到真根因）**：VM 内 `7891` 在 LISTEN、`-x http://127.0.0.1:7891` = `204`，但 **`/tmp/colima-proxy-tunnel.pid` 里的进程早已不存在** —— 端口被**上一次 ssh 留下的 orphan 转发**占着（原进程已退出，转发挂在 lima control master 上继续活着）。
+后果链条：LaunchAgent 每 60s 判「pid 死了 ⇒ 重启」→ 新 ssh 对已被占用的 `7891` 做 `-R` → 静默失败（脚本没开 `ExitOnForwardFailure`）→ 日志只剩 `Connection refused` 噪声，而隧道时好时坏。**「隧道在通」与「守护进程还管得住它」是两件事**：只看 `kill -0 $(cat pidfile)` 会把 orphan 误判成「需要重启」。
+修法：脚本改为「先探 `7891` 是否真能出网 ⇒ 能用就静默接管、不能用才重启」，并加 `-o ExitOnForwardFailure=yes`；`~/bin/colima-proxy-tunnel.sh` 从**副本**改为**软链**指向 `scripts/` 那份，消灭双份漂移。
 
 ### .nvmrc（#231，2026-09-12 新增）
 

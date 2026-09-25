@@ -9,7 +9,9 @@
 #   1. generates a Session-Id  <yyyymmdd>-<task>-<6hex>  (collision-checked
 #      against the registry as a whole token)
 #   2. ensures hooks are installed (runs install-git-hooks.sh if hooksPath unset)
-#   3. creates a dedicated worktree on branch session/<id>
+#   3. creates a dedicated worktree on branch session/<id>, BASED ON
+#      origin/main (fetched first; SESSION_BASE / SESSION_NO_FETCH override) —
+#      NOT on local HEAD, which is routinely behind
 #      (default path: <repo>-wt/<id> NEXT TO the repo, sibling of the checkout)
 #   4. writes the per-worktree state file
 #      $(git -C <wt> rev-parse --absolute-git-dir)/session-pilot/current-session
@@ -66,7 +68,34 @@ if [ "$cmd" = "start" ]; then
     wtpath="$(dirname "$ROOT")/$(basename "$ROOT")-wt/$id"
   fi
   mkdir -p "$(dirname "$wtpath")"
-  git worktree add -b "session/$id" "$wtpath" >/dev/null
+
+  # --- 3a. base ref -----------------------------------------------------------
+  # A session must start from the newest INTEGRATED state, not from whatever the
+  # main checkout happens to sit on. Local `main` is routinely behind
+  # origin/main (other sessions push from their own worktrees), and a bare
+  # `git worktree add` silently hands out that stale tree — you only notice when
+  # your first commit conflicts, or when a file "doesn't exist" that was
+  # actually deleted upstream.
+  #
+  # SESSION_BASE overrides the ref; SESSION_NO_FETCH=1 skips the fetch (a fetch
+  # failure is non-fatal anyway — offline just means origin/main is a moment old).
+  if [ -n "${SESSION_BASE:-}" ]; then
+    base="$SESSION_BASE"
+  else
+    if [ -z "${SESSION_NO_FETCH:-}" ]; then
+      GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=15 \
+        git fetch --quiet origin main 2>/dev/null || true
+    fi
+    if git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null; then
+      base="origin/main"
+    else
+      base="HEAD"
+    fi
+  fi
+  base_sha=$(git rev-parse "$base^{commit}")
+
+  # --- 3b. worktree -----------------------------------------------------------
+  git worktree add -b "session/$id" "$wtpath" "$base_sha" >/dev/null
 
   # A RELATIVE core.hooksPath resolves inside each worktree, where .githooks
   # does not exist — hooks would silently never run there (measured: no
@@ -90,7 +119,7 @@ if [ "$cmd" = "start" ]; then
 
 - **tool**: session-launcher (npm run session:start)
 - **Session-Id**: \`$id\`
-- **baseline**: $(git rev-parse HEAD)
+- **baseline**: $base_sha ($base)
 - **任务**: $task
 - **commit_sha_list**: (live)
 - **compact**: 未发生
@@ -100,6 +129,11 @@ EOF
   echo ""
   echo "✅ session started"
   echo "   id:        $id"
+  echo "   base:      $base_sha ($base)"
+  if [ "$base" != "HEAD" ] && git rev-parse --verify --quiet refs/heads/main >/dev/null \
+     && [ "$(git rev-parse main)" != "$base_sha" ]; then
+    echo "   note:      local main is at $(git rev-parse --short main) — worktree based on $base instead, not on local main"
+  fi
   echo "   worktree:  $wtpath  (branch session/$id)"
   echo "   next:      cd $wtpath && work as usual"
   echo "   commits:   git commit -m ... — the trailer is filled automatically"
