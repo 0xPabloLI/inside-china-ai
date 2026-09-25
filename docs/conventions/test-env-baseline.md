@@ -19,6 +19,7 @@
 - `renderer-guard`（仅 `main.mjs refuses --playwright` 一条）— main.mjs 的 renderer guard 在 Step 0.2 CDP gate 之后（main.mjs:154 vs main.mjs:108），Chrome 调试连接断开时 preflight 先退出（proxy `/targets` 随 Chrome 连接失败而 500），测试到不了 guard。Chrome 健康时全绿；这不是 guard 顺序回归，是入口测试对 live CDP 的环境耦合。2026-09-15（#308 session 实证：Chrome wsPath 缓存过期断连期间隔离重跑仍挂）。
 - `verify-lfs-pointer` — 间歇性 env flake。
 - `test-f5-duration` — Python 子进程测试，worktree 中 5s 超时；环境类，与被验证的 diff 无关。2026-09-05。
+- `asr-analyzer-ipc`（仅 "timeout kills the worker and a late response never pollutes the next request" 一条）— `ASR_RESPONSE_TIMEOUT_MS=300` 预算内要完成第二个 worker 的冷启动 + 响应，负载敏感：CI 全量并行下失败（#370，run 36138179996）、隔离重跑绿、本地同内容 3/3 绿。2026-09-25。
 - 依赖缺失本地工具的 suite 会以 stderr 噪音失败：`mlx_vlm`（VLM）、`whisper-cli`（ASR）、wav2vec2 模型缺失。
 
 ### Node 版本漂移
