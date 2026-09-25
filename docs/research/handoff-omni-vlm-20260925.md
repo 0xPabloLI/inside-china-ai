@@ -2,7 +2,7 @@
 
 ## Goal
 
-在 Apple M2 Pro 32GB 上部署全模态短视频分析引擎（视觉理解 + 语音情感 + ASR + 音视频对齐），服务于 China AI News 生产流水线（`vlm_analyzer.py`、`asset-sourcer.mjs` 及 Remotion 渲染）。完成方案评审，确立以**方案 C（MiniCPM-o 4.5 + emotion2vec+ 轻量插件）**为主干、**MoE + 方案F 轻量音频模块（改良兜底）与 8B 轻量模块化（备选 2）**为备选的落地架构，并与 **#360（长视频切分与跨 Scene 连续播放）** 和 **#351（VLM 缓存 Key 模型脱钩）** 形成整体工程联动。
+在 Apple M2 Pro 32GB 上部署全模态短视频分析引擎（视觉理解 + 语音情感 + ASR + 音视频对齐），服务于 China AI News 生产流水线（`vlm_analyzer.py`、`asset-sourcer.mjs` 及 Remotion 渲染）。完成方案评审，确立以**方案 C（MiniCPM-o 4.5 + emotion2vec+ 轻量插件）**为主干、**MoE + 现有 WhisperX + e2v（改良兜底，不引入 SenseVoice）与 8B 轻量模块化（备选 2）**为备选的落地架构，并与 **#360（长视频切分与跨 Scene 连续播放）** 和 **#351（VLM 缓存 Key 模型脱钩）** 形成整体工程联动。
 
 ## Instructions & Working Rules
 
@@ -26,8 +26,8 @@
 |:---|:---|:---|:---|:---|:---|
 | **方案 C** | **MiniCPM-o 4.5 + emotion2vec+ (轻量插件)** | **~7.6GB** | **~7.2s** | **首选定案** | 全模态单主干（负责视觉+ASR+基础情感+音视频对齐）+ 300MB 专用模型补齐 9 类细粒度情绪。兼具单模型轻量优势与细粒度分析能力。 |
 | **方案 A** | MiniCPM-o 4.5 单模型 | ~7.3GB | ~6.7s | **极简基准** | 方案 C 的轻量化常态模式。当无需 9 类情绪时，直接独立运行。 |
-| **备选 1 (MoE + F 模块)** | Qwen3-VL-30B-A3B + SenseVoice-Small + e2v（用户裁决 2026-09-25） | ~17.6GB | ~32s（音频插件 <1s） | **改良兜底（首选备选）** | 把方案 F 的轻量音频模块（合计 ~0.5GB）挂到现有 30B MoE 上：备选引擎与主引擎能力对齐（视觉+ASR+情绪），故障切换不降级；同时修正了方案 E「7.3GB 全模态模型当 ASR 工具人」的冗余。~17.6GB 在 32GB 机器余量 ~14GB，可接受。 |
-| **备选 2 (方案 F 轻量版)** | Qwen3-VL-8B + SenseVoice / Whisper-turbo + e2v | ~7.5GB | ~15s | **轻量模块化** | 同一模块化思路的轻量变体：需原生时序（Conv3d+M-RoPE）但不想承受 30B 内存/耗时时使用。 |
+| **备选 1 (MoE + 现有 ASR + e2v)** | Qwen3-VL-30B-A3B + **现有 WhisperX large-v3**（`asr-analyzer.mjs` #98 常驻 worker，字幕链在用，ADR-0020）+ e2v（用户裁决 2026-09-25） | ~20GB 峰值（17GB MoE + WhisperX ~3GB + e2v ~0.3GB） | ~32s（WhisperX 句级 <数秒） | **改良兜底（首选备选）** | 把方案 F 思路的音频模块挂到现有 30B MoE 上：备选引擎与主引擎能力对齐（视觉+ASR+情绪），故障切换不降级；**ASR 复用管线现成的 WhisperX，不引入 SenseVoice**（避免第三套 ASR）；同时修正了方案 E「7.3GB 全模态模型当 ASR 工具人」的冗余。~20GB 可行但比方案 C 紧张。 |
+| **备选 2 (方案 F 轻量版)** | Qwen3-VL-8B + 现有 WhisperX + e2v | ~8.7GB | ~15s | **轻量模块化** | 同一模块化思路的轻量变体：需原生时序（Conv3d+M-RoPE）但不想承受 30B 内存/耗时时使用。 |
 | **方案 E'** | Qwen3-VL-8B + MiniCPM-o + e2v | ~13.7GB | ~15s | **坚决否决** | 架构畸变：让 7.3GB 全模态大模型仅充当 ASR 工具人，存在双 8B 基座大模型严重冗余。 |
 | **方案 E** | Qwen3-VL-30B + MiniCPM-o + e2v | ~25GB+ | ~43s | **坚决废弃** | 内存超载（25GB+），在 32GB Mac 上随时面临 Metal OOM 崩溃。 |
 | **方案 B / D** | 方案 B (4模型强拼) / 方案 D (30B Omni 21.8GB) | 20-22GB+ | 慢/极不稳定 | **废弃** | 资源与工程维护成本过高。 |
