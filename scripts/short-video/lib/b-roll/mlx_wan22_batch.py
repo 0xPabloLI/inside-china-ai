@@ -74,7 +74,8 @@ def parse_args() -> argparse.Namespace:
                     help="cpu (entrypoint default, safest) or mps")
     ap.add_argument("--metrics-dir", type=Path, default=None,
                     help="Write per-job metrics JSON here (default: next to each clip)")
-    ap.add_argument("--prompt-cache", action="store_true", default=True)
+    # Prompt caching is unconditional (#240 warm-up + per-prompt cache); the
+    # 1.3B driver's --prompt-cache flag was a no-op here and is not offered.
     return ap.parse_args()
 
 
@@ -90,6 +91,7 @@ def main() -> None:
 
     try:
         from examples.inference.basic.mlx_wan_prompt_to_video import (  # type: ignore
+            _torch_dtype,
             encode_prompt,
             make_rotary_embeddings,
             resolve_model_root,
@@ -155,11 +157,14 @@ def main() -> None:
         def _open_encoder():
             # fp16 on the encoder matches the single-shot entrypoint's encode
             # call (dtype_arg="fp16") — warm embeds must be bit-comparable to
-            # what a single-shot run would produce.
+            # what a single-shot run would produce. _torch_dtype converts the
+            # string to a real torch dtype: from_pretrained(torch_dtype=…)
+            # rejects raw strings, and preencode_prompts would swallow the
+            # exception and silently skip the whole warm-up.
             return _Umt5PromptEncoder(
                 text_encoder_root,
                 args.text_encoder_device,
-                "fp16",
+                _torch_dtype("fp16"),
                 512,
             )
 
@@ -284,7 +289,9 @@ def main() -> None:
             metrics = decode_latents_to_video(
                 latents_np, out, fps=args.fps,
                 backend=args.decode_backend,
-                vae_dir=args.mlx_checkpoint / "vae" if args.decode_backend == "wan-vae" else None,
+                # resolved checkpoint (pinned or auto-resolved), not the raw
+                # CLI arg — unpinned runs would otherwise None / "vae" here.
+                vae_dir=mlx_checkpoint / "vae" if args.decode_backend == "wan-vae" else None,
                 z_dim=in_ch,
             )
             decode_time = time.perf_counter() - tdec

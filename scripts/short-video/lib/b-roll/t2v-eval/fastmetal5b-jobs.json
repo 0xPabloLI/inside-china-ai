@@ -2,7 +2,7 @@
   "comment": "Issue #298 lean eval matrix: FastMetal-5B-QAD vs Wan1.3B baseline. Scenes reuse the real ant-lingbot-world-13b prompts and baseline seeds (b-roll-report.json) for like-for-like comparison. One seed per scene family chosen in issue triage: concrete+people (2), tech concept (4), data graphics (8), product shot (9).",
   "baseline": {
     "report": "scripts/short-video/output/ant-lingbot-world-13b/b-roll-report.json",
-    "clips": "scripts/short-video/output/ant-lingbot-world-13b/assets/b-roll",
+    "clips": "scripts/short-video/content/ant-lingbot-world-13b/assets/b-roll",
     "model": "FastMetal-1.3B-QAD (Wan2.1-T2V-1.3B MLX int8)",
     "resolution": "480x832 81f @16fps (5.06s)"
   },

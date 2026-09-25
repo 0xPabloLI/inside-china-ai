@@ -26,7 +26,14 @@ import time
 from pathlib import Path
 
 EVAL_DIR = Path(__file__).resolve().parent
-MAIN_REPO = Path("/Users/pabloli/Documents/code/inside-china-ai")
+# Repo root from the script's own location: t2v-eval → b-roll → lib →
+# short-video → scripts → repo root. FastVideo weights/venv and eval outputs
+# live in the MAIN checkout (shared-media convention, same resolution as
+# score_eval.mjs) — a worktree run canonicalizes to its sibling main repo.
+REPO_ROOT = Path(__file__).resolve().parents[5]
+MAIN_REPO = REPO_ROOT
+if "inside-china-ai-wt/" in str(REPO_ROOT):
+    MAIN_REPO = REPO_ROOT.parents[1] / "inside-china-ai"
 FASTVIDEO_REPO = MAIN_REPO / "scripts/short-video/experiments/fastvideo-spike/repo"
 ENTRYPOINT = FASTVIDEO_REPO / "examples/inference/basic/mlx_wan22_generate.py"
 OUT_DIR = MAIN_REPO / f"scripts/short-video/output/t2v-eval-fastmetal5b-20260925"

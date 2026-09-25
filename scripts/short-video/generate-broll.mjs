@@ -14,7 +14,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { runBrollStage, scenesRequiringGeneration } from "./lib/b-roll/orchestrator.mjs";
-import { estSecondsPerClip, resolveModelTier, MODEL_TIERS } from "./lib/b-roll/runner.mjs";
+import { estSecondsPerClip, resolveModelTier } from "./lib/b-roll/runner.mjs";
 import { EST_SECONDS_PER_IMAGE } from "./lib/b-roll/t2i-runner.mjs";
 import { isImageStrategy } from "./lib/scene-rules.mjs";
 

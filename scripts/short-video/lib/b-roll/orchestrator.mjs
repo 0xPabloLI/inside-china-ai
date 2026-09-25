@@ -253,7 +253,11 @@ export async function runBrollStage(opts) {
         winnerFile ? fileExists(join(contentDir, "assets", "b-roll", winnerFile)) : false,
       );
       if (decision.reuse) {
-        assignWinner(scene, winnerFile, isImage, videoSource);
+        // Provenance follows the tier that actually generated the clip, not
+        // the current env: a 1.3B-era winner reused under the 5B default must
+        // keep its original label. Legacy entries without a stored source
+        // fall back to the current tier's label (pre-#298 behavior).
+        assignWinner(scene, winnerFile, isImage, entry.winner?.source ?? videoSource);
         counts.cached += 1;
         continue;
       }
@@ -451,7 +455,9 @@ export async function runBrollStage(opts) {
         generationPrompt,
         voiceover: scene.voiceover ?? "",
         candidates,
-        winner: winner ? { seed: winner.seed, file: basename(winner.file) } : null,
+        // Persist the winner's provenance so cache reuse under a different
+        // tier can re-label the scene accurately (see the reuse path above).
+        winner: winner ? { seed: winner.seed, file: basename(winner.file), source: videoSource } : null,
         // null (idempotent re-run over an existing backdrop) preserves the
         // previous report's landing record.
         landedOn: landedOn ?? prevEntry?.landedOn ?? null,

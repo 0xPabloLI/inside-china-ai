@@ -15,8 +15,14 @@
 # fixed label set below is trusted input; add no untrusted paths/quotes.
 set -uo pipefail
 
-OUT=/Users/pabloli/Documents/code/inside-china-ai/scripts/short-video/output/t2v-eval-fastmetal5b-20260925
-LIB=/Users/pabloli/Documents/code/inside-china-ai/scripts/short-video/lib
+# Roots derive from the script's own location (any checkout/worktree runs);
+# clips live in the MAIN checkout's output dir — the shared-media convention
+# score_eval.mjs follows. Override with BROLL_EVAL_OUT for other clip sets.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LIB="$(cd "$SCRIPT_DIR/../.." && pwd)" # scripts/short-video/lib
+ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+case "$ROOT" in *inside-china-ai-wt/*) ROOT="$(cd "$ROOT/../.." && pwd)/inside-china-ai" ;; esac
+OUT="${BROLL_EVAL_OUT:-$ROOT/scripts/short-video/output/t2v-eval-fastmetal5b-20260925}"
 PY=~/.video-tts-env/bin/python
 
 declare -a CLIPS=(

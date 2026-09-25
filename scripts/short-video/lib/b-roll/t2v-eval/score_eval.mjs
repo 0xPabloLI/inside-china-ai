@@ -9,7 +9,7 @@
  *
  * Inputs:
  *   - Scene Data: content/ant-lingbot-world-13b/scene-data.mjs (claims)
- *   - Baseline clips: output/ant-lingbot-world-13b/assets/b-roll (winner files)
+ *   - Baseline clips: content/ant-lingbot-world-13b/assets/b-roll (winner files)
  *   - 5B clips: output/t2v-eval-fastmetal5b-20260925 (driver output)
  *
  * Output: output/t2v-eval-fastmetal5b-20260925/eval-scores.json
@@ -22,7 +22,8 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, "../../../..");
+// t2v-eval → b-roll → lib → short-video → scripts → repo root: five levels.
+const repoRoot = resolve(here, "../../../../..");
 // Generated clips live in the main checkout's gitignored output dir (same
 // convention as run_fastmetal5b.py), not the session worktree.
 const runningInWorktree = /inside-china-ai-wt\//.test(repoRoot);
@@ -100,7 +101,9 @@ try {
         reason: s.reason,
       })),
     });
-    console.log(`[score] scene ${sceneIdx}:`,
+    // Literal format string: a dynamic first arg would let a "%" in the
+    // joined scores forge the log line (semgrep unsafe-formatstring).
+    console.log("[score] scene %s: %s", sceneIdx,
       scored.map((s) => `${s.variant}=${s.relevance ?? "null"}`).join(" "));
   }
 } finally {
