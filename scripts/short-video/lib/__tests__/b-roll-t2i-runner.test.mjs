@@ -271,4 +271,56 @@ describe("runImageGeneration (#155, same protocol as the video runner)", () => {
     expect(lines).toContain("loading Boogu Turbo (4-bit) ...");
     expect(lines).toContain("saved");
   });
+
+  test("child runs HF-offline by default so a warm cache needs no version check", async () => {
+    const out = join(dir, "offline.png");
+    const stub = writeStub(
+      "stub-hfoffline.mjs",
+      `
+      import { writeFileSync } from "node:fs";
+      console.log("[image] HF_HUB_OFFLINE=" + (process.env.HF_HUB_OFFLINE ?? "unset"));
+      const i = process.argv.indexOf("--output");
+      writeFileSync(process.argv[i + 1], "fake");
+      `,
+    );
+    const prev = process.env.HF_HUB_OFFLINE;
+    delete process.env.HF_HUB_OFFLINE;
+    const lines = [];
+    try {
+      await runImageGeneration({
+        bin: process.execPath,
+        scriptPath: stub,
+        workDir: dir,
+        jobs: [{ label: "offline.png", prompt: "p", output_path: out, seed: 1 }],
+        onProgress: (line) => lines.push(line),
+      });
+    } finally {
+      if (prev === undefined) delete process.env.HF_HUB_OFFLINE;
+      else process.env.HF_HUB_OFFLINE = prev;
+    }
+    expect(lines).toContain("[image] HF_HUB_OFFLINE=1");
+  });
+
+  test("explicit HF_HUB_OFFLINE=0 from the parent is honored (opt-out)", async () => {
+    const out = join(dir, "online.png");
+    const stub = writeStub(
+      "stub-hfonline.mjs",
+      `
+      import { writeFileSync } from "node:fs";
+      console.log("[image] HF_HUB_OFFLINE=" + (process.env.HF_HUB_OFFLINE ?? "unset"));
+      const i = process.argv.indexOf("--output");
+      writeFileSync(process.argv[i + 1], "fake");
+      `,
+    );
+    const lines = [];
+    await runImageGeneration({
+      bin: process.execPath,
+      scriptPath: stub,
+      workDir: dir,
+      jobs: [{ label: "online.png", prompt: "p", output_path: out, seed: 1 }],
+      onProgress: (line) => lines.push(line),
+      env: { HF_HUB_OFFLINE: "0" },
+    });
+    expect(lines).toContain("[image] HF_HUB_OFFLINE=0");
+  });
 });

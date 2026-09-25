@@ -483,14 +483,16 @@ describe("runBrollStage", () => {
     expect(result.depsError).toMatch(/repo not found/);
   });
 
-  test("#159 pinned model paths resolved by deps reach the runner", async () => {
+  test("#159 pinned model paths reach the runner; an explicit env opt-out survives", async () => {
     const dirs = stageDirs();
     const calls = [];
     const scenes = [scene({ id: "6", mediaStrategy: "b-roll" })];
     await runBrollStage(
       baseOpts(dirs, {
         scenes,
-        env: { HF_HUB_OFFLINE: "1" },
+        // Non-default on purpose — the default lives in the runner, so a "1"
+        // here would only echo this test's own input back.
+        env: { HF_HUB_OFFLINE: "0" },
         resolveDeps: () => ({
           ok: true,
           repo: "/repo",
@@ -509,7 +511,7 @@ describe("runBrollStage", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].modelRoot).toBe("/models/root");
     expect(calls[0].mlxCheckpoint).toBe("/models/ckpt");
-    expect(calls[0].env).toEqual({ HF_HUB_OFFLINE: "1" });
+    expect(calls[0].env).toEqual({ HF_HUB_OFFLINE: "0" });
   });
 
   test("#159 unpinned models -> runner receives nulls (HF-cache default)", async () => {
