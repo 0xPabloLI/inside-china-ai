@@ -187,7 +187,7 @@
 | #322 | needsAuth 源零结果差异化计数语义 | P2 | |
 | #228 | 管线提速二期（batch/daemon/并行） | P1 | |
 | #21 | 多模态 RAG（图像/视频检索） | P3 | |
-| #157 | B-roll 高质量模型横评 | P3 | |
+| #157 | B-roll 高质量模型横评 | P3 | 收窄保留：FastMetal 同族已由 #298 交付选型；余非 FastMetal 候选（Wan2.2 TPP / LTX-Video 2.x / Helios）待准入 gate 后再评 |
 | #158 | B-roll ComfyUI / MCP 迭代式后端 | P3 | |
 | #224 | 数字人半身像支持 | P3 | |
 | #230 | 字幕短 cue 两行版式合并 | P3 | |
