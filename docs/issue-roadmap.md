@@ -7,12 +7,10 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-09-26（**Round O**：#319 Tier 1 安全攻坚收口 —— session `20260926-319-ocr-security-a688be`，PR #380 已合并（`008bb2ff`）：
-> 4 项 High/Critical 中 **1 修 3 证伪** —— compile-series.mjs FFmpeg 命令注入修复（execSync 字符串插值 → spawnSync argv 数组，修复前真实注入复现作 R3 基线）；digital-human `--portrait`（操作员 CLI 无信任边界）、auth-middleware `getClaims`（supabase-js 2.110.8 真实公开 API，且文件为自动生成）、keyword-tracking `id: true`（boolean 单行表惯用法）三项证据证伪；其余 Medium/Low 留票按模块批次治理（票保持 open，移入 Tier 2）；
-> **用户常设授权（2026-09-26）**：agent 自主 merge 自己开的 PR——CI 全绿且无未 resolve review thread 即直接合并，仅实质问题才向用户确认（已固化至 `docs/agents/git-workflow.md` §7）；
-> **frontier**：W3C **#361** 方案 C 认知底座开发就绪（worktree `session/20260925-361-omni-vlm-5c0413` 在途）；Tier 1 余 **#291**（wayfinder:map HITL）与 **#216**（HITL）；#357（P2 bug 快赢）与 #346/#358 可随时穿插。
+> **Last inventory**: 2026-09-26（**Round P**：#361 PR #378 落地收口 —— review-fix `57910585`（3 条 droid-review findings：P1 minicpm 原生视频透传必炸死路删除、P2 `<|SOA>` 控制符正则修复、P2 三函数 `engine=` 默认值回归 `DEFAULT_ENGINE` 单一真值源；附 fs mock 多引擎 schema 修复 CI 契约断裂）+ coverage 棘轮补测 `26171a20`（e2v 子进程生命周期 20 例 + vlm-model fail-fast 8 例，70.59→71.33 lines 全越线），spec/质量两段审查通过后按常设授权合并 `021d7c43`；真实模型冒烟通过；
+> **frontier**：W3C 串行链进入 **#360**（长视频分段分析 + 跨 Scene 连续播放——VLM 分层路线已清晰，跨 Scene 播放语义有一个待裁决设计点）；Tier 1 余 **#291**（wayfinder:map HITL）与 **#216**（HITL）；#357/#346/#358 快赢可穿插。
 >
-> 近轮一句话档案：**Round N**（全量 62 票 open issues 分流清零、`needs-triage` 归零；W3C 认知底座组 #361→#360→#334 串行确立；W1C/W2B 分流归位）；**Round M**（全模态选型 handoff 定稿方案 C 主干，#351 解耦交付，#360 分流）；**Round L**（素材策略统一化组票 #354/#355/#356/#357 落位）；**Round K**（#297 交付 fail-closed 单模式落地闭票，legacy 删除）；**Round J**（#333 收口 / #269 母票闭票 / 结构精简）。全文见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
+> 近轮一句话档案：**Round O**（#319 Tier 1 安全攻坚收口：4 项 High/Critical 1 修 3 证伪 PR #380 合并；自主合并常设授权固化 git-workflow §7）；**Round N**（全量 62 票 open issues 分流清零、`needs-triage` 归零；W3C 认知底座组 #361→#360→#334 串行确立；W1C/W2B 分流归位）；**Round M**（全模态选型 handoff 定稿方案 C 主干，#351 解耦交付，#360 分流）；**Round L**（素材策略统一化组票 #354/#355/#356/#357 落位）；**Round K**（#297 交付 fail-closed 单模式落地闭票，legacy 删除）；**Round J**（#333 收口 / #269 母票闭票 / 结构精简）。全文见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
 
 ---
 
@@ -113,7 +111,7 @@
     - 🎯 **#291**：汇总调研成果，确立 S3 视觉重做 Wayfinder Map。
   - **Wave 3B（媒体底座与素材兜底）**：🎯 **#310**（素材库体系统一——统一素材库 + 文字描述索引 + **收获率搜索 log（第一交付物，可先行）** + 素材关键词体系；**吸收 #288 + #301**）+ ✅ **#297**（素材匹配 Fail-closed 留空绝不硬塞无关图，已闭票 `a4ce959`，E2 `1b68276` 删 legacy 模式）+ ✅ **#375**（B-roll spawn env 默认值断言覆盖，已闭票）+ **#293**（Stage 0 素材预获取与缺口回流）+ **#354**（认领供给泛化——voiceover 派生 assetNeed+searchHints，字段降级为覆盖；吸收 #295）+ **#355**（统一素材兜底链——通用递降链替代五值 mediaStrategy，承接 #301 票评 2026-09-14 媒体优先级链，生成形态预算选择 + 每内容生成上限护栏）+ **#356**（无主供给退役/认领化——兜底池死供给清理，依赖 #354）+ **#357**（视频默认 zoom 退场快修——双重运动/入场裁切/cropFocus 失配，bug）。
   - **Wave 3C（画面适配与智能生成）**：**#289**（专属 aiVideo.prompt 适配层）+ **#299**（Hook 前 3 秒专属视觉）+ **#294**（VLM borderline 二度校验）+ ⏩ **#295**（写稿 scene-data 概念泛化，已并入 #354 待覆盖关闭）+ **#253**（行业坐标系与版式库）+ **#244**/**#256**/**#263**（策略与创意 HITL）。
-  - **Wave 3C（VLM 认知底座组，2026-09-25 新增）**：✅ **#351**（vlm 缓存 key 模型解耦——`vlm-model.json` 单一真值源，已闭票交付）→ 🎯 **#361**（方案 C 全模态引擎接入——MiniCPM-o 4.5 + emotion2vec+ 轻量插件，裁决与防线见 `docs/research/handoff-omni-vlm-20260925.md`）→ **#360**（长视频分段分析 + 跨 Scene 连续播放）→ **#334**（VLM Prompt 优化与 token 预算削减）→ **#294**（borderline 二度校验，复用方案 C 音视频对齐）。
+  - **Wave 3C（VLM 认知底座组，2026-09-25 新增）**：✅ **#351**（vlm 缓存 key 模型解耦——`vlm-model.json` 单一真值源，已闭票交付）→ ✅ **#361**（方案 C 全模态引擎接入——MiniCPM-o 4.5 + emotion2vec+ 轻量插件，PR #378 已合并 `021d7c43`，裁决与防线见 `docs/research/handoff-omni-vlm-20260925.md`）→ **#360**（长视频分段分析 + 跨 Scene 连续播放）→ **#334**（VLM Prompt 优化与 token 预算削减）→ **#294**（borderline 二度校验，复用方案 C 音视频对齐）。
 
 ---
 
