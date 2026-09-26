@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.3.0...tanstack_start_ts-v1.4.0) (2026-09-26)
+
+
+### Features
+
+* **#360:** long-video preprocessing — VLM tiered segmentation + videoStartOffsetMs schema/render ([a41dfcb](https://github.com/0xPabloLI/inside-china-ai/commit/a41dfcb9c969ed762c050bca03f47b493fb50506))
+* **#360:** ticket-1 — VLM 时长分级分段分析 + durationMs 落盘 + 缓存 key 纳入窗口参数 ([1126956](https://github.com/0xPabloLI/inside-china-ai/commit/1126956b02b12ee38aa733a0317ea0c57cc59173))
+* **#360:** ticket-2 — MediaField.videoStartOffsetMs 双写 schema + 渲染起播 offset + patch 校验 ([ef17f46](https://github.com/0xPabloLI/inside-china-ai/commit/ef17f462c1fd5315b42fb60f58b2d98e9fb1223a))
+
+
+### Bug Fixes
+
+* **#360:** review-media-patch formatPatchEntry emits videoStartOffsetMs — third formatter mirror (droid-review P3) ([d6d897e](https://github.com/0xPabloLI/inside-china-ai/commit/d6d897e874fda03938f48f21f6795848be43f9a8))
+
 ## [1.3.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.2.2...tanstack_start_ts-v1.3.0) (2026-09-26)
 
 
