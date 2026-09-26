@@ -52,6 +52,7 @@ Status: active（2026-09-26） · Parent issue: #360 · Planning scale: S2 · Ri
 | S7  | `videoStartOffsetMs: 5000` | `<Video>` 从源 5s 起播（still/composition 证据） |
 | S8  | 偏移超出源时长 | 不炸渲染：graceful 降级（渲染侧无源时长，越界属作者责任；实测 still 正常出图）——实施修正，原「clamp + warn」不可行 |
 | S9  | patch 携带合法/非法 offset | 合法放行；负数/非 int 拒绝 |
+| S9a | 非 video 媒体携带 offset | offset 仅 video 类型有效；image 等非 video 携带 offset 由两道校验（`lib/media-bg.mjs` / `apply-media-patch.mjs`）硬错误拒绝 |
 
 ## Out of Scope
 

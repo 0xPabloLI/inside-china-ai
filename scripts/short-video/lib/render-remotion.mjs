@@ -92,6 +92,20 @@ export function stageAvatarVideos({ scenes, durations = [], contentDir = "", pub
 }
 
 /**
+ * #360 S8: the render side has no source-duration knowledge, so an
+ * out-of-range videoStartOffsetMs cannot be verified here — it degrades
+ * to black frames at render time. Surface one warning and let the author
+ * decide (no block, no clamp).
+ */
+export function warnOffsetUnverifiable(scene) {
+  if (scene.media?.videoStartOffsetMs > 0) {
+    console.warn(
+      `  ⚠️  Scene ${scene.id}: videoStartOffsetMs ${scene.media.videoStartOffsetMs}ms — render side has no source duration; an offset beyond the source length renders black frames (S8, author responsibility).`,
+    );
+  }
+}
+
+/**
  * Render a video using Remotion.
  *
  * @param {object} options
@@ -150,6 +164,7 @@ export function renderRemotion({
   // Deep clone scenes to avoid mutating the original objects
   const sanitizedScenes = scenes.map((s) => ({ ...s }));
   for (const scene of sanitizedScenes) {
+    warnOffsetUnverifiable(scene);
     if (scene.media && scene.media.path) {
       const mediaSrc = join(contentDir || ".", scene.media.path);
       if (existsSync(mediaSrc)) {

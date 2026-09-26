@@ -529,4 +529,24 @@ describe("validatePatchEntry — videoStartOffsetMs (#360 S9)", () => {
     expect(r.valid).toBe(false);
     expect(r.errors.some((e) => e.includes("videoStartOffsetMs"))).toBe(true);
   });
+  it("VC-23: rejects videoStartOffsetMs on image media (hard error, video-only)", () => {
+    const r = validatePatchEntry(
+      entry({ type: "image", path: "assets/clip.jpg", videoStartOffsetMs: 5000 }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("only video media supports videoStartOffsetMs"))).toBe(
+      true,
+    );
+  });
+  it("VC-24: accepts videoStartOffsetMs on video media without error", () => {
+    const r = validatePatchEntry(
+      entry({ type: "video", path: "assets/clip.mp4", videoStartOffsetMs: 5000 }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(true);
+    expect(r.errors).toHaveLength(0);
+  });
 });

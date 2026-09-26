@@ -113,7 +113,11 @@ export function validatePatchEntry(entry, scenes, contentDir) {
   // non-integer, non-number.
   if (entry.media.videoStartOffsetMs !== undefined) {
     const offset = entry.media.videoStartOffsetMs;
-    if (typeof offset !== "number" || !Number.isInteger(offset) || offset < 0) {
+    if (entry.media.type !== "video") {
+      errors.push(
+        `Invalid videoStartOffsetMs on ${entry.media.type} media: only video media supports videoStartOffsetMs.`,
+      );
+    } else if (typeof offset !== "number" || !Number.isInteger(offset) || offset < 0) {
       errors.push(
         `Invalid videoStartOffsetMs: ${JSON.stringify(offset)}. Must be an integer ≥ 0 (milliseconds).`,
       );
