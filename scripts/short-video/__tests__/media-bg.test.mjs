@@ -508,6 +508,24 @@ describe("validateMedia — videoStartOffsetMs (#360 S9)", () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes("videoStartOffsetMs"))).toBe(true);
   });
+  it("rejects videoStartOffsetMs on image media (hard error, video-only)", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", videoStartOffsetMs: 5000 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some((e) => e.includes("only video media supports videoStartOffsetMs")),
+    ).toBe(true);
+  });
+  it("accepts videoStartOffsetMs on video media without error", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", videoStartOffsetMs: 5000 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
 });
 
 // ─── VALID_FITS and VALID_FOCUSES constants ───

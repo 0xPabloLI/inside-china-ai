@@ -388,6 +388,38 @@ describe("process exit cleanup — e2v worker", () => {
   });
 });
 
+describe("closeVisualAnalyzer — e2v graceful shutdown (#361 leftover coverage)", () => {
+  it("sends the exit action, SIGTERM-fallbacks, and resets state so the next call re-spawns", async () => {
+    // 1) Spawn the e2v proc (real timers for the dispatch wait, like the suites above)
+    const promise = visualAnalyzer.analyzeAssetEmotion("/abs/audio.wav");
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+    emitE2VResponse(mockProc, { ...DEGRADED_E2V });
+    await promise;
+
+    // 2) closeVisualAnalyzer → closeE2V: stdin exit write is synchronous,
+    //    the 100ms SIGTERM fallback timer is advanced with fake timers.
+    vi.useFakeTimers();
+    const closePromise = visualAnalyzer.closeVisualAnalyzer();
+    vi.advanceTimersByTime(100);
+    await closePromise;
+    vi.useRealTimers();
+
+    // 3) stdin received {"action":"exit"} and the fallback killed the proc
+    const writes = mockProc.stdin.write.mock.calls.map((c) => c[0].toString().trim());
+    const exitWrite = writes.map((w) => JSON.parse(w)).find((r) => r.action === "exit");
+    expect(exitWrite).toEqual({ action: "exit" });
+    expect(mockProc.kill).toHaveBeenCalledWith("SIGTERM");
+
+    // 4) module state reset: a subsequent emotion call re-spawns a fresh proc
+    mockSpawn.mockClear();
+    const p2 = visualAnalyzer.analyzeAssetEmotion("/abs/audio.wav");
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+    emitE2VResponse(mockProc, { ...DEGRADED_E2V });
+    await p2;
+  }, 10000);
+});
+
 describe("fuseAudioEmotion", () => {
   it("returns unknown when primary is missing", () => {
     const r = visualAnalyzer.fuseAudioEmotion(null, { topLabel: "中立/neutral", topScore: 0.5 });

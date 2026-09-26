@@ -372,7 +372,11 @@ export function validateMedia(media, contentDir) {
   // a deliberate authoring decision, silently mis-starting playback is worse
   // than failing the preflight.
   if (media.videoStartOffsetMs !== undefined) {
-    if (
+    if (media.type !== "video") {
+      errors.push(
+        `Invalid videoStartOffsetMs on ${media.type} media: only video media supports videoStartOffsetMs.`,
+      );
+    } else if (
       typeof media.videoStartOffsetMs !== "number" ||
       !Number.isInteger(media.videoStartOffsetMs) ||
       media.videoStartOffsetMs < 0
