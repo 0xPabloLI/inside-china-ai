@@ -10,12 +10,16 @@
  *
  * Output:
  *   scripts/short-video/output/compilation.mp4 (default)
+ *
+ * Security (#319): every subprocess runs via spawnSync with an argv array —
+ * file paths are single literal arguments and are never interpreted by a
+ * shell, so metacharacters in filenames are data, not commands.
  */
 
-import { existsSync, statSync } from "fs";
+import { copyFileSync, existsSync, statSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -44,58 +48,50 @@ const XFADE_DURATION = 1; // seconds
 // ─── Pure functions (exported for testing) ───
 
 /**
- * Build a simple concat demuxer command (no transitions).
+ * Quote one path as an entry of an ffmpeg concat demuxer list file.
+ * Embedded single quotes are closed-escaped (`'` → `'\''`) so the path stays
+ * a single literal file directive.
  */
-export function buildConcatCommand(files, outputPath) {
-  const listFile = "/tmp/ffmpeg-concat-list.txt";
-  const entries = files.map((f) => `file '${resolve(f)}'`).join("\n");
-  return `echo '${entries}' > ${listFile} && ffmpeg -y -f concat -safe 0 -i ${listFile} -c copy ${outputPath}`;
+export function concatListEntry(videoPath) {
+  const escaped = resolve(videoPath).replace(/'/g, "'\\''");
+  return `file '${escaped}'`;
 }
 
 /**
- * Build an xfade + acrossfade FFmpeg command for multiple files.
+ * Build the concat demuxer plan: the list-file content plus the ffmpeg argv.
+ * The caller writes `listContent` to `listFile` before running `args`.
+ */
+export function buildConcatArgs(files, outputPath) {
+  const listFile = "/tmp/ffmpeg-concat-list.txt";
+  const listContent = files.map(concatListEntry).join("\n");
+  return {
+    listFile,
+    listContent,
+    args: ["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", outputPath],
+  };
+}
+
+/**
+ * Build an xfade + acrossfade FFmpeg argv for multiple files.
  *
  * @param {Array<{path: string, duration: number}>} files - video files with durations
  * @param {string} outputPath - output file path
  * @param {number} xfadeDuration - transition duration in seconds
- * @returns {string} FFmpeg command string
+ * @returns {string[]} FFmpeg argv (run via spawnSync, no shell)
  */
-export function buildXfadeCommand(files, outputPath, xfadeDuration) {
-  if (files.length === 0) return "";
+export function buildXfadeArgs(files, outputPath, xfadeDuration) {
+  if (files.length === 0) return [];
   if (files.length === 1) {
-    return `ffmpeg -y -i ${files[0].path} -c copy ${outputPath}`;
+    return ["-y", "-i", files[0].path, "-c", "copy", outputPath];
   }
 
-  // Build input args
-  const inputs = files.map((f) => `-i ${f.path}`).join(" ");
-
-  // Build filter graph
-  let filter = "";
-  let prevVideoLabel = "[0:v]";
-  let prevAudioLabel = "[0:a]";
-  let cumulativeOffset = 0;
-
-  for (let i = 1; i < files.length; i++) {
-    const offset = Math.round(cumulativeOffset + files[i - 1].duration - xfadeDuration);
-    cumulativeOffset += files[i - 1].duration - xfadeDuration;
-
-    const vOut = i < files.length - 1 ? `[v${i}]` : "[vout]";
-    const aOut = i < files.length - 1 ? `[a${i}]` : "[aout]";
-
-    filter += `[${i - 1 === 0 ? "0" : i - 1}:v][${i}:v]xfade=transition=fade:duration=${xfadeDuration}:offset=${offset}${vOut};`;
-    filter += `[${i - 1 === 0 ? "0" : i - 1}:a][${i}:a]acrossfade=d=${xfadeDuration}${aOut};`;
-
-    prevVideoLabel = vOut;
-    prevAudioLabel = aOut;
-  }
-
-  // Fix filter chain: need proper labeling
+  // Build filter graph: pairwise xfade/acrossfade with cumulative offsets.
   // For 2 files: [0:v][1:v]xfade=...[vout];[0:a][1:a]acrossfade=...[aout]
   // For 3 files: [0:v][1:v]xfade=...[v1];[v1][2:v]xfade=...[vout];...
-  filter = "";
+  let filter = "";
   let vLabel = "0:v";
   let aLabel = "0:a";
-  cumulativeOffset = 0;
+  let cumulativeOffset = 0;
 
   for (let i = 1; i < files.length; i++) {
     cumulativeOffset += files[i - 1].duration - xfadeDuration;
@@ -114,22 +110,42 @@ export function buildXfadeCommand(files, outputPath, xfadeDuration) {
   // Remove trailing semicolon
   filter = filter.replace(/;$/, "");
 
-  return `ffmpeg -y ${inputs} -filter_complex "${filter}" -map "[vout]" -map "[aout]" -c:v libx264 -c:a aac ${outputPath}`;
+  return [
+    "-y",
+    ...files.flatMap((f) => ["-i", f.path]),
+    "-filter_complex",
+    filter,
+    "-map",
+    "[vout]",
+    "-map",
+    "[aout]",
+    "-c:v",
+    "libx264",
+    "-c:a",
+    "aac",
+    outputPath,
+  ];
 }
 
 /**
  * Get video duration in seconds using ffprobe.
  */
 function getVideoDuration(videoPath) {
-  try {
-    const output = execSync(
-      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`,
-      { encoding: "utf8" },
-    );
-    return parseFloat(output.trim());
-  } catch {
-    return 0;
-  }
+  const result = spawnSync(
+    "ffprobe",
+    [
+      "-v",
+      "error",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      videoPath,
+    ],
+    { encoding: "utf8" },
+  );
+  if (result.error || result.status !== 0) return 0;
+  return parseFloat(result.stdout.trim());
 }
 
 // ─── Main ───
@@ -157,7 +173,7 @@ async function main() {
   // Single file: just copy
   if (videos.length === 1) {
     console.log("\n📋 Single file — copying without re-encoding...");
-    execSync(`cp "${videos[0]}" "${outputPath}"`);
+    copyFileSync(videos[0], outputPath);
     const size = statSync(outputPath).size;
     console.log(`✅ Done: ${outputPath} (${(size / 1024 / 1024).toFixed(1)}MB)`);
     return;
@@ -173,11 +189,16 @@ async function main() {
 
   // Build and run xfade command
   console.log("\n🔧 Building FFmpeg xfade command...");
-  const cmd = buildXfadeCommand(filesWithDuration, outputPath, XFADE_DURATION);
-  console.log(`  Command: ${cmd.substring(0, 120)}...`);
+  const ffmpegArgs = buildXfadeArgs(filesWithDuration, outputPath, XFADE_DURATION);
+  console.log(`  Command: ffmpeg ${ffmpegArgs.join(" ").substring(0, 120)}...`);
 
   try {
-    execSync(cmd, { stdio: "pipe" });
+    const result = spawnSync("ffmpeg", ffmpegArgs, { stdio: "pipe", encoding: "utf8" });
+    if (result.error || result.status !== 0) {
+      const reason =
+        result.stderr?.trim() || result.error?.message || `ffmpeg exited ${result.status}`;
+      throw new Error(reason);
+    }
     const size = statSync(outputPath).size;
     const totalDuration = filesWithDuration.reduce((s, f) => s + f.duration, 0);
     const compilationDuration = totalDuration - (filesWithDuration.length - 1) * XFADE_DURATION;
