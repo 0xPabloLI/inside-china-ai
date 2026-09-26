@@ -444,3 +444,67 @@ describe("applyAssignedMedia (#192)", () => {
     expect(r.exhausted).toEqual([5]);
   });
 });
+
+// ─── #360 videoStartOffsetMs — validatePatchEntry (S9) ───
+
+describe("validatePatchEntry — videoStartOffsetMs (#360 S9)", () => {
+  let validatePatchEntry;
+  beforeAll(async () => {
+    // Root apply-media-patch.mjs (the CLI applier), not the lib/ formatter.
+    const mod = await import("../apply-media-patch.mjs");
+    validatePatchEntry = mod.validatePatchEntry;
+  });
+
+  const SCENES = [{ id: 1, visualType: "narrative" }];
+  const entry = (media) => ({ sceneId: 1, status: "assigned", media });
+
+  it("accepts a patch with a valid integer offset ≥ 0", () => {
+    const r = validatePatchEntry(
+      entry({ type: "video", path: "assets/clip.mp4", videoStartOffsetMs: 5000 }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(true);
+    expect(r.errors).toHaveLength(0);
+  });
+
+  it("accepts a patch without the offset field (absent = 0)", () => {
+    const r = validatePatchEntry(
+      entry({ type: "video", path: "assets/clip.mp4" }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(true);
+    expect(r.errors).toHaveLength(0);
+  });
+
+  it("rejects a negative offset", () => {
+    const r = validatePatchEntry(
+      entry({ type: "video", path: "assets/clip.mp4", videoStartOffsetMs: -1 }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("videoStartOffsetMs"))).toBe(true);
+  });
+
+  it("rejects a non-integer offset", () => {
+    const r = validatePatchEntry(
+      entry({ type: "video", path: "assets/clip.mp4", videoStartOffsetMs: 2.5 }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("videoStartOffsetMs"))).toBe(true);
+  });
+
+  it("rejects a non-number offset", () => {
+    const r = validatePatchEntry(
+      entry({ type: "video", path: "assets/clip.mp4", videoStartOffsetMs: "5000" }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("videoStartOffsetMs"))).toBe(true);
+  });
+});

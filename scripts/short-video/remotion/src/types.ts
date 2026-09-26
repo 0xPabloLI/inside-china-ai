@@ -31,6 +31,8 @@ export interface MediaField {
   volume?: number; // 0-1, default 0.08 (≈ -22dB). Video only; images have no audio.
   /** Opt out of render-remotion.mjs's sub-720p Real-ESRGAN safety net. Set by the B-roll stage — Tier A clips are 480×832 by design. Default (unset/true) = auto-upscale. */
   upscale?: boolean;
+  /** #360: start offset into the source video, ms (int ≥ 0, absent = 0). Consumed by MediaBackground to begin playback at the offset. Not produced by the pipeline (manual scene-data / patch only). */
+  videoStartOffsetMs?: number;
   /** VLM content classification (P3). Used by recommendScene for scene-type matching. */
   contentKind?:
     "product_demo" | "talking_head" | "landscape" | "chart" | "text_screenshot" | "other" | string;

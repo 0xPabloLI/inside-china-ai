@@ -367,6 +367,22 @@ export function validateMedia(media, contentDir) {
     warnings.push(`Unknown focus value: "${media.focus}". Will use "center" instead.`);
   }
 
+  // #360 videoStartOffsetMs — start offset into the source video (int ms ≥ 0,
+  // absent = 0). Invalid values are hard errors (not warnings): the offset is
+  // a deliberate authoring decision, silently mis-starting playback is worse
+  // than failing the preflight.
+  if (media.videoStartOffsetMs !== undefined) {
+    if (
+      typeof media.videoStartOffsetMs !== "number" ||
+      !Number.isInteger(media.videoStartOffsetMs) ||
+      media.videoStartOffsetMs < 0
+    ) {
+      errors.push(
+        `Invalid videoStartOffsetMs: ${JSON.stringify(media.videoStartOffsetMs)}. Must be an integer ≥ 0 (milliseconds).`,
+      );
+    }
+  }
+
   // cropFocus validation (normalized [0,1] focus point)
   if (media.cropFocus !== undefined && media.cropFocus !== null) {
     if (typeof media.cropFocus !== "object" || media.cropFocus === null) {

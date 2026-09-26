@@ -144,6 +144,8 @@ export function formatPatchEntry(entry) {
   if (media.overlay !== undefined) lines.push(`    overlay: ${media.overlay},`);
   if (media.fit) lines.push(`    fit: "${media.fit}",`);
   if (media.volume !== undefined) lines.push(`    volume: ${media.volume},`);
+  if (media.videoStartOffsetMs !== undefined)
+    lines.push(`    videoStartOffsetMs: ${media.videoStartOffsetMs},`);
   // Note: focus is NOT included in new output (deprecated, spec §4.8)
   lines.push(`  },`);
 

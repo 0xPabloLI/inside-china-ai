@@ -108,6 +108,18 @@ export function validatePatchEntry(entry, scenes, contentDir) {
     }
   }
 
+  // #360 videoStartOffsetMs — optional start offset into the source video.
+  // Valid: integer ms ≥ 0 (absent = start at 0). Rejected: negative,
+  // non-integer, non-number.
+  if (entry.media.videoStartOffsetMs !== undefined) {
+    const offset = entry.media.videoStartOffsetMs;
+    if (typeof offset !== "number" || !Number.isInteger(offset) || offset < 0) {
+      errors.push(
+        `Invalid videoStartOffsetMs: ${JSON.stringify(offset)}. Must be an integer ≥ 0 (milliseconds).`,
+      );
+    }
+  }
+
   if (errors.length > 0) {
     return { valid: false, errors };
   }
@@ -140,6 +152,8 @@ function formatMediaBlock(media, indent = "    ") {
   if (media.overlay !== undefined) lines.push(`  overlay: ${media.overlay},`);
   if (media.volume !== undefined) lines.push(`  volume: ${media.volume},`);
   if (media.fit) lines.push(`  fit: "${media.fit}",`);
+  if (media.videoStartOffsetMs !== undefined)
+    lines.push(`  videoStartOffsetMs: ${media.videoStartOffsetMs},`);
   if (media.cropFocus) {
     // Validate cropFocus numeric bounds
     if (typeof media.cropFocus.x !== "number" || typeof media.cropFocus.y !== "number") {

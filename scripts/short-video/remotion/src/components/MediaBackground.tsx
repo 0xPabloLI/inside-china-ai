@@ -21,7 +21,14 @@
  *   - ken-burns + video → auto-degrade to fade
  *   - File not found → render nothing (pre-validated by render-remotion.mjs)
  */
-import { AbsoluteFill, useCurrentFrame, staticFile, CanvasImage, Img } from "remotion";
+import {
+  AbsoluteFill,
+  useCurrentFrame,
+  staticFile,
+  CanvasImage,
+  Img,
+  useVideoConfig,
+} from "remotion";
 import type { EffectsProp } from "remotion";
 import { Video } from "@remotion/media";
 import { interpolate, secToFrames, clamp, easeOut, easeOutExpo } from "./shared";
@@ -51,8 +58,26 @@ const FOCUS_MAP: Record<string, string> = {
   bottom: "center bottom",
 };
 
+/**
+ * #360 videoStartOffsetMs (ms ≥ 0, absent = 0) → @remotion/media Video
+ * `trimBefore` in FRAMES (the installed 4.0.517 getTimeInSeconds divides
+ * trimBefore by fps). Absent/0 → undefined: the <Video> element receives
+ * exactly the pre-#360 prop set (no regression).
+ */
+const offsetMsToTrimBefore = (offsetMs: number | undefined, fps: number) =>
+  offsetMs ? Math.round((offsetMs / 1000) * fps) : undefined;
+
 export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  // #360: playback starts at the offset into the SOURCE video. Out-of-range
+  // offsets (≥ source duration) are the author's responsibility —
+  // MediaBackground has no duration knowledge; the render degrades
+  // gracefully (no crash, verified by still evidence). Loop semantics:
+  // trimBefore + loop wraps the trimmed segment — playback repeats from
+  // the offset to the source end, never showing pre-offset frames.
+  const trimBefore = offsetMsToTrimBefore(media.videoStartOffsetMs, fps);
 
   // Determine preset (ken-burns + video → degrade to fade)
   let preset = media.animation ?? "fade";
@@ -217,7 +242,14 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
         // Background video is a texture, not a clip to be watched once: a
         // source shorter than the scene must keep moving (matches the `loop`
         // in lib/media-bg.mjs mediaLayer (the retired HTML renderer).
-        <Video src={src} style={mediaStyle} volume={videoVolume} effects={effects} loop />
+        <Video
+          src={src}
+          style={mediaStyle}
+          volume={videoVolume}
+          effects={effects}
+          trimBefore={trimBefore}
+          loop
+        />
       )}
       <div
         style={{
