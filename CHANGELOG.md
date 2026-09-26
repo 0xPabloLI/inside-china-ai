@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.2.0...tanstack_start_ts-v1.2.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **ci:** notify 兜底判别器改为 gate 日志优先（droid review P1） ([ccb7c12](https://github.com/0xPabloLI/inside-china-ai/commit/ccb7c12163293f1af12601c2ad1b06aaf306b77d)), closes [#339](https://github.com/0xPabloLI/inside-china-ai/issues/339)
+* **ci:** seo-monitor 失败时评论不再失明（指出失败步骤 + 带出日志尾部） ([04b1d44](https://github.com/0xPabloLI/inside-china-ai/commit/04b1d4463d1726529a7e07bb800db28e3e184d9d))
+
 ## [1.2.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.1.0...tanstack_start_ts-v1.2.0) (2026-09-25)
 
 

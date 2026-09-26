@@ -29,12 +29,14 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
-        # npm ci is unusable here: @tailwindcss/oxide-wasm32-wasi declares
-        # @emnapi/* as bundled optional peers and npm's strict ci sync check
-        # hard-fails on them even after a fresh lockfile re-resolution
-        # (upstream npm/cli bug). npm install reconciles the tree the same way
-        # every contributor's `npm install` does.
+        run: npm ci --no-audit --no-fund
+        # Switched back to npm ci alongside the 2026-09-25 lockfile re-sync
+        # (the commits above). The old comment claimed npm ci hard-fails on
+        # @emnapi/* "even after a fresh lockfile re-resolution" — disproven
+        # locally (npm 10.9.7 / node 22.22.2, #347) and on this runner
+        # (macos-latest / node 22, run 36147033582: added 730 packages in
+        # 12s). npm ci keeps the strict sync check, so future lockfile drift
+        # fails fast here instead of being silently reconciled.
 
       - name: Lint (changed files only)
         env:
