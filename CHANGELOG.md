@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.2.1...tanstack_start_ts-v1.2.2) (2026-09-26)
+
+
+### Bug Fixes
+
+* **video:** compile-series argv execution removes shell path injection ([#319](https://github.com/0xPabloLI/inside-china-ai/issues/319)) ([5be83ad](https://github.com/0xPabloLI/inside-china-ai/commit/5be83ad938c58a44113f2b9f034236989fc4ac90))
+* **video:** compile-series 改 argv 数组执行，消除 shell 路径注入（[#319](https://github.com/0xPabloLI/inside-china-ai/issues/319) OCR High） ([008bb2f](https://github.com/0xPabloLI/inside-china-ai/commit/008bb2ff727463c66f39742c988e0ed175a8e3fe))
+
 ## [1.2.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.2.0...tanstack_start_ts-v1.2.1) (2026-09-26)
 
 
