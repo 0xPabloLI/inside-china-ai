@@ -65,7 +65,9 @@ vi.mock("fs", () => ({
   existsSync: vi.fn(() => true),
   // vlm-model.mjs (single source of truth, #351) reads vlm-model.json at
   // import time — serve a canned id under the mocked fs.
-  readFileSync: vi.fn(() => '{"modelId": "mock-model-id"}'),
+  readFileSync: vi.fn(
+    () => '{"engine": "minicpm", "engines": {"minicpm": {"modelId": "mock-model-id"}}}',
+  ),
 }));
 
 // Import AFTER mocks are set up — use dynamic import in each test to

@@ -199,8 +199,10 @@ VALID_FITS = {"cover", "contain"}
 
 # MiniCPM-o emits duplex control tokens around audio output (observed:
 # "<|SOA>" prefix, "<|tts_eos|>" suffix). They are transport markers, not
-# content — strip them before the Markdown parser sees the text.
-_CONTROL_TOKEN_RE = re.compile(r"<\|[^|>]{1,40}\|>")
+# content — strip them before the Markdown parser sees the text. The closing
+# ">" is optional: MiniCPM-o emits "<|SOA>" bare but "<|tts_eos|>" with the
+# full "<|...|>" shape.
+_CONTROL_TOKEN_RE = re.compile(r"<\|(?:SOA|tts_eos)\|?>")
 
 
 def strip_control_tokens(text):
@@ -465,7 +467,7 @@ def _extract_response_text(response):
     return str(response)
 
 
-def generate_response(model, processor, engine=VLM_ENGINE_QWEN,
+def generate_response(model, processor, engine=DEFAULT_ENGINE,
                       image_paths=None, prompt_text=None,
                       video_path=None, audio_path=None, max_tokens=1000):
     """Generate a text response for image(s), frames, native video or audio.
@@ -743,20 +745,18 @@ def _unlink_quiet(path):
 def _extract_minicpm_frames(processor, video_path, fps=2.0, max_frames=16):
     """Sample frames for the minicpm engine (no native video support).
 
-    Returns a list of frames, or None when the processor handles native video
-    (caller then passes video_path through). Frames come from mlx_vlm's
-    resolve_video_inputs, the same path the MiniCPM-o benchmark used.
+    minicpm always goes through frame extraction — there is no native-video
+    pass-through. Frames come from mlx_vlm's resolve_video_inputs, the same
+    path the MiniCPM-o benchmark used.
     """
-    from mlx_vlm.generate.video import processor_handles_video, resolve_video_inputs
+    from mlx_vlm.generate.video import resolve_video_inputs
 
-    if processor_handles_video(processor):
-        return None
     resolution = resolve_video_inputs(processor, [video_path], fps=fps, max_frames=max_frames)
     return resolution.images
 
 
 def run_vlm_inference(model, processor, path, is_video, prompt_text,
-                      engine=VLM_ENGINE_QWEN, start_ms=None, end_ms=None,
+                      engine=DEFAULT_ENGINE, start_ms=None, end_ms=None,
                       sample_fps=VIDEO_FPS, crop_focus=None):
     """Run one VLM generation pass over `path` with media-type preprocessing.
 
@@ -793,11 +793,6 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
                 _cleanup_frames(frames)
         if engine == VLM_ENGINE_MINICPM:
             frames = _extract_minicpm_frames(processor, path)
-            if frames is None:  # processor handles native video after all
-                return generate_response(
-                    model, processor, engine=engine, video_path=path,
-                    prompt_text=prompt_text,
-                )
             return generate_response(
                 model, processor, engine=engine, image_paths=frames,
                 prompt_text=prompt_text,
@@ -847,7 +842,7 @@ def run_audio_inference(model, processor, path, engine=VLM_ENGINE_MINICPM,
 
 # ─── Request handler ───
 
-def handle_analyze_semantics(model, processor, path, engine=VLM_ENGINE_QWEN,
+def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
                              window=None, claim=None, crop_focus=None):
     """Handle an analyze_semantics request.
 
