@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.2.2...tanstack_start_ts-v1.3.0) (2026-09-26)
+
+
+### Features
+
+* **#361:** 全模态 VLM 引擎接入（MiniCPM-o 4.5 + emotion2vec+） ([021d7c4](https://github.com/0xPabloLI/inside-china-ai/commit/021d7c43bcf0e4243b7d36810c45632ea655d02e))
+
+
+### Bug Fixes
+
+* **#361:** resolve review findings — minicpm frame pass-through, &lt;|SOA&gt; regex, engine default from vlm-model.json ([5791058](https://github.com/0xPabloLI/inside-china-ai/commit/57910585b5536146aff44d3149775eb75aef0614))
+
 ## [1.2.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.2.1...tanstack_start_ts-v1.2.2) (2026-09-26)
 
 
