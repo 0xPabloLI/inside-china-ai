@@ -1053,3 +1053,76 @@ describe("analyzeAssetSemantics — window parameter (T5)", () => {
     expect(result.sourceMode).toBe("frames");
   });
 });
+
+// ─── #391: frame-selection params (frameStrategy / maxFrames / sampleFps) ───
+describe("analyzeAssetSemantics — frame_strategy params (#391)", () => {
+  // Shared responder: completes a queued analyze_semantics request.
+  function respondOk(proc) {
+    const writtenData = proc.stdin.write.mock.calls.at(-1)?.[0]?.toString();
+    const request = JSON.parse(writtenData.trim());
+    proc.emitStdout(
+      JSON.stringify({
+        description: "Frames analyzed.",
+        subjects: ["robot"],
+        contentKind: "talking_head",
+        fit: null,
+        criticalEdgeText: null,
+        reason: null,
+        sourceMode: "frames",
+        error: null,
+        requestId: request.requestId,
+      }) + "\n",
+    );
+  }
+
+  it("passes frameStrategy/maxFrames/sampleFps through to the IPC payload", async () => {
+    const opts = { frameStrategy: "scene", maxFrames: 32, sampleFps: 1.0 };
+    const promise = visualAnalyzer.analyzeAssetSemantics("/abs/clip.mp4", opts);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
+    const request = JSON.parse(writtenData.trim());
+    expect(request.frameStrategy).toBe("scene");
+    expect(request.maxFrames).toBe(32);
+    expect(request.sampleFps).toBe(1.0);
+
+    respondOk(mockProc);
+    await promise;
+  });
+
+  it("omits frame-selection params when opts omitted (backward compat)", async () => {
+    const promise = visualAnalyzer.analyzeAssetSemantics("/abs/clip.mp4");
+    await new Promise((r) => setTimeout(r, 10));
+
+    const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
+    const request = JSON.parse(writtenData.trim());
+    expect(request.frameStrategy).toBeUndefined();
+    expect(request.maxFrames).toBeUndefined();
+    expect(request.sampleFps).toBeUndefined();
+
+    respondOk(mockProc);
+    await promise;
+  });
+
+  it("forwards scene strategy alongside a multi-window plan", async () => {
+    const opts = {
+      frameStrategy: "scene",
+      maxFrames: 16,
+      windows: [
+        { startMs: 0, endMs: 15000, sampleFps: 1.0 },
+        { startMs: 15000, endMs: 30000, sampleFps: 1.0 },
+      ],
+    };
+    const promise = visualAnalyzer.analyzeAssetSemantics("/abs/clip.mp4", opts);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const writtenData = mockProc.stdin.write.mock.calls[0][0].toString();
+    const request = JSON.parse(writtenData.trim());
+    expect(request.frameStrategy).toBe("scene");
+    expect(request.maxFrames).toBe(16);
+    expect(request.windows).toHaveLength(2);
+
+    respondOk(mockProc);
+    await promise;
+  });
+});

@@ -45,6 +45,7 @@ import time
 import subprocess
 import tempfile
 import glob
+import io
 from PIL import Image, ImageOps
 
 # ─── Constants ───
@@ -113,6 +114,27 @@ IDLE_TIMEOUT_SECONDS = 300  # 5 minutes
 VIDEO_FPS = 1.0
 MAX_VIDEO_SECONDS = 8  # cap analysis at 8s of video
 MAX_IMAGE_LONG_EDGE = 1920  # resize images with longer edge > this to prevent hallucinations
+
+# ─── Frame-selection strategy (#391) ───
+# uniform (default): mlx_vlm resolve_video_inputs even sampling — byte-for-byte
+# the current behavior when combined with the defaults max_frames=16 /
+# sample_fps=2.0. scene: ffmpeg scene-detect select filter (#391 D1).
+FRAME_STRATEGY_UNIFORM = "uniform"
+FRAME_STRATEGY_SCENE = "scene"
+VALID_FRAME_STRATEGIES = (FRAME_STRATEGY_UNIFORM, FRAME_STRATEGY_SCENE)
+DEFAULT_MAX_FRAMES = 16
+DEFAULT_UNIFORM_FPS = 2.0  # uniform-strategy decode fps (sample_fps request param)
+SCENE_DETECT_THRESHOLD = "0.08"
+# Scene-select filter (research recipe, docs/research/keyframe-extraction-research.md):
+# scene cuts above 0.08, always the first frame of the clip/window, plus a
+# mod(t,8) fallback so static stretches still contribute coverage. With -ss
+# before -i ffmpeg resets timestamps, so `t` (and therefore mod(t,8)) is
+# relative to the window start (#391 D3).
+SCENE_SELECT_FILTER = (
+    "select='gt(scene," + SCENE_DETECT_THRESHOLD + ")+eq(n,0)+not(mod(t,8))',"
+    "scale=480:480:force_original_aspect_ratio=decrease"
+)
+JPEG_SOI = b"\xff\xd8\xff"  # start-of-image marker (+ first byte of next marker)
 
 
 SEMANTICS_PROMPT_IMAGE = """Analyze this image for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
@@ -742,41 +764,204 @@ def _unlink_quiet(path):
         pass
 
 
-def _extract_minicpm_frames(processor, video_path, fps=2.0, max_frames=16):
+def validate_frame_params(frame_strategy=None, max_frames=None, sample_fps=None):
+    """Validate request-level frame-selection params (#391 D2, S5).
+
+    Pure function. None means "not supplied" → defaults, which reproduce the
+    current behavior byte-for-byte (S1): uniform / 16 frames / 2.0 fps.
+
+    Raises RuntimeError on invalid values — fail-fast, same style as
+    resolve_engine (a bad param must never silently degrade to defaults).
+    """
+    strategy = FRAME_STRATEGY_UNIFORM if frame_strategy is None else frame_strategy
+    if not isinstance(strategy, str) or strategy not in VALID_FRAME_STRATEGIES:
+        raise RuntimeError(
+            f"Invalid frame_strategy {frame_strategy!r} "
+            f"(valid: {', '.join(VALID_FRAME_STRATEGIES)})"
+        )
+    mf = DEFAULT_MAX_FRAMES if max_frames is None else max_frames
+    if isinstance(mf, bool) or not isinstance(mf, int) or mf < 1:
+        raise RuntimeError(
+            f"Invalid max_frames {max_frames!r} (must be a positive integer)"
+        )
+    sf = DEFAULT_UNIFORM_FPS if sample_fps is None else sample_fps
+    if isinstance(sf, bool) or not isinstance(sf, (int, float)) or sf <= 0:
+        raise RuntimeError(
+            f"Invalid sample_fps {sample_fps!r} (must be a positive number)"
+        )
+    return {"strategy": strategy, "max_frames": mf, "sample_fps": float(sf)}
+
+
+def _decode_mjpeg_stream(data):
+    """Decode a raw mjpeg byte stream into a list of PIL RGB Images.
+
+    One image per JPEG SOI (start-of-image) marker; the entropy-coded scan
+    data between frames cannot contain the 3-byte SOI sequence (byte stuffing
+    forces 0xFF00 in scan data), so marker splitting is safe. Undecodable
+    chunks are skipped rather than failing the whole stream.
+    """
+    frames = []
+    if not data:
+        return frames
+    positions = []
+    idx = data.find(JPEG_SOI)
+    while idx != -1:
+        positions.append(idx)
+        idx = data.find(JPEG_SOI, idx + 2)
+    for i, start in enumerate(positions):
+        end = positions[i + 1] if i + 1 < len(positions) else len(data)
+        try:
+            with Image.open(io.BytesIO(data[start:end])) as img:
+                frames.append(img.convert("RGB"))
+        except Exception as e:
+            sys.stderr.write(f"[vlm_analyzer] mjpeg frame decode failed: {e}\n")
+            sys.stderr.flush()
+    return frames
+
+
+def _extract_scene_frames(video_path, max_frames=DEFAULT_MAX_FRAMES,
+                          start_ms=None, end_ms=None):
+    """Scene-detect frame extraction via ffmpeg select filter (#391 D1/D3).
+
+    Runs ffmpeg as a subprocess (image2pipe mjpeg → decoded to PIL Images in
+    memory — no temp files). When start_ms/end_ms are given, -ss (before -i,
+    fast seek) + -t slice the window first; ffmpeg resets timestamps on -ss,
+    so the mod(t,8) fallback inside the select filter is relative to the
+    window start (D3). Without a window the whole file is processed.
+
+    The frame cap is enforced by ffmpeg via -frames:v (no post-trim needed).
+
+    Returns (frames, meta) where meta carries extraction wall-time and params
+    for the bench (#391 D4). Raises RuntimeError on ffmpeg absence/failure —
+    fail-fast, never a silent fallback to uniform sampling.
+    """
+    t0 = time.perf_counter()
+    cmd = [FFMPEG_PATH, "-nostdin"]
+    if start_ms is not None:
+        cmd.extend(["-ss", str(start_ms / 1000.0)])
+    cmd.extend(["-i", video_path])
+    if start_ms is not None and end_ms is not None:
+        cmd.extend(["-t", str((end_ms - start_ms) / 1000.0)])
+    cmd.extend([
+        "-vf", SCENE_SELECT_FILTER,
+        "-frames:v", str(max_frames),
+        "-fps_mode", "vfr",
+        "-f", "image2pipe",
+        "-vcodec", "mjpeg",
+        "pipe:1",
+    ])
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=120)
+    except FileNotFoundError as e:
+        raise RuntimeError(
+            f"ffmpeg not found at {FFMPEG_PATH} — scene frame_strategy "
+            f"requires ffmpeg: {e}"
+        ) from e
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError("ffmpeg scene frame extraction timed out") from e
+    if proc.returncode != 0:
+        stderr_tail = proc.stderr[-500:].decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"ffmpeg scene frame extraction failed (rc={proc.returncode}): "
+            f"{stderr_tail}"
+        )
+    frames = _decode_mjpeg_stream(proc.stdout)
+    meta = {
+        "strategy": FRAME_STRATEGY_SCENE,
+        "extractionMs": round((time.perf_counter() - t0) * 1000, 1),
+        "frameCount": len(frames),
+        "windowStartMs": start_ms,
+        "windowEndMs": end_ms,
+    }
+    return frames, meta
+
+
+def _extract_minicpm_frames(processor, video_path, fps=2.0, max_frames=16,
+                            frame_strategy=FRAME_STRATEGY_UNIFORM,
+                            start_ms=None, end_ms=None):
     """Sample frames for the minicpm engine (no native video support).
 
     minicpm always goes through frame extraction — there is no native-video
-    pass-through. Frames come from mlx_vlm's resolve_video_inputs, the same
-    path the MiniCPM-o benchmark used.
+    pass-through.
+
+    frame_strategy="uniform" (default): mlx_vlm's resolve_video_inputs, the
+    same path the MiniCPM-o benchmark used — byte-for-byte the current
+    behavior at the defaults (S1).
+    frame_strategy="scene": ffmpeg scene-detect extraction (#391 D1); `fps`
+    is not applicable there (vfr output).
+
+    Returns (images, meta) — meta carries extraction wall-time for the bench
+    (#391 D4). Raises RuntimeError for scene failures (fail-fast).
     """
+    if frame_strategy == FRAME_STRATEGY_SCENE:
+        return _extract_scene_frames(
+            video_path, max_frames=max_frames, start_ms=start_ms, end_ms=end_ms,
+        )
+    t0 = time.perf_counter()
     from mlx_vlm.generate.video import resolve_video_inputs
 
     resolution = resolve_video_inputs(processor, [video_path], fps=fps, max_frames=max_frames)
-    return resolution.images
+    meta = {
+        "strategy": FRAME_STRATEGY_UNIFORM,
+        "extractionMs": round((time.perf_counter() - t0) * 1000, 1),
+        "frameCount": len(resolution.images),
+        "windowStartMs": start_ms,
+        "windowEndMs": end_ms,
+    }
+    return resolution.images, meta
 
 
 def run_vlm_inference(model, processor, path, is_video, prompt_text,
                       engine=DEFAULT_ENGINE, start_ms=None, end_ms=None,
-                      sample_fps=VIDEO_FPS, crop_focus=None):
+                      sample_fps=VIDEO_FPS, crop_focus=None,
+                      frame_strategy=FRAME_STRATEGY_UNIFORM,
+                      max_frames=DEFAULT_MAX_FRAMES,
+                      uniform_fps=DEFAULT_UNIFORM_FPS):
     """Run one VLM generation pass over `path` with media-type preprocessing.
 
     Video: engine-dependent input —
       - qwen3-vl-moe: native video via generate(video=).
-      - minicpm: mlx_vlm frame sampling (resolve_video_inputs) since it has no
-        native video support.
-    A time window (start_ms/end_ms) always falls back to ffmpeg frame
-    extraction on both engines (neither can seek natively).
+      - minicpm: frame sampling since it has no native video support —
+        frame_strategy="uniform" (default) uses mlx_vlm resolve_video_inputs
+        at uniform_fps/max_frames (defaults 2.0/16 = current behavior, S1);
+        frame_strategy="scene" uses ffmpeg scene-detect extraction (#391 D1).
+    A time window (start_ms/end_ms) always falls back to frame extraction on
+    both engines (neither can seek natively): uniform keeps the fps=-based
+    extract_frames path; scene + minicpm runs the scene-detect select filter
+    per window with -ss/-t slicing (#391 D3).
 
     Image: simulate the 9:16 cover crop (anchored on crop_focus when supplied,
     e.g. a saliency centroid or a prior cropFocus — #198) → resize if above
     MAX_IMAGE_LONG_EDGE → generate → unlink both temp files.
 
+    frame_strategy/max_frames/uniform_fps are ignored on the qwen engine.
+
     Returns the raw markdown string; raises on failure (caller decides
     fallback behavior).
     """
     if is_video:
+        if engine == VLM_ENGINE_QWEN and frame_strategy == FRAME_STRATEGY_SCENE:
+            # scene is minicpm-only: qwen runs native video (no window) or
+            # uniform fps extraction (windowed) — never a silent no-op.
+            sys.stderr.write(
+                "[vlm_analyzer] frame_strategy='scene' is not supported on "
+                f"the {VLM_ENGINE_QWEN} engine — falling back to uniform\n"
+            )
+            sys.stderr.flush()
         if start_ms is not None or end_ms is not None:
             # Windowed analysis — frame extraction (no engine can seek natively)
+            if engine == VLM_ENGINE_MINICPM and frame_strategy == FRAME_STRATEGY_SCENE:
+                # Scene frames are in-memory PIL images — nothing to clean up.
+                frames, _meta = _extract_scene_frames(
+                    path, max_frames=max_frames,
+                    start_ms=start_ms, end_ms=end_ms,
+                )
+                if not frames:
+                    raise RuntimeError("Scene frame extraction returned no frames")
+                return generate_response(
+                    model, processor, engine=engine, image_paths=frames,
+                    prompt_text=prompt_text,
+                )
             frames = extract_frames(
                 path, fps=sample_fps,
                 max_seconds=MAX_VIDEO_SECONDS,
@@ -792,7 +977,10 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
             finally:
                 _cleanup_frames(frames)
         if engine == VLM_ENGINE_MINICPM:
-            frames = _extract_minicpm_frames(processor, path)
+            frames, _meta = _extract_minicpm_frames(
+                processor, path, fps=uniform_fps, max_frames=max_frames,
+                frame_strategy=frame_strategy,
+            )
             return generate_response(
                 model, processor, engine=engine, image_paths=frames,
                 prompt_text=prompt_text,
@@ -963,7 +1151,8 @@ def merge_window_results(parsed_results, windows, plan=None):
 
 def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
                              window=None, windows=None, claim=None,
-                             crop_focus=None):
+                             crop_focus=None, frame_strategy=None,
+                             max_frames=None, sample_fps=None):
     """Handle an analyze_semantics request.
 
     Dispatches to image or video prompt based on file extension.
@@ -986,10 +1175,21 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
     simulation anchors on it so the VLM judges the framing the viewer will
     actually see (#198).
 
+    Frame-selection params (#391): frame_strategy ("uniform" | "scene"),
+    max_frames (cap, default 16) and sample_fps (uniform decode fps, default
+    2.0, uniform-strategy only). None = not supplied → defaults reproduce the
+    current behavior byte-for-byte (S1). Invalid values fail fast with an
+    error response (S5) — no silent fallback to defaults.
+
     Returns (result_dict, error) tuple.
     """
     if not os.path.exists(path):
         return {}, f"File not found: {path}"
+
+    try:
+        frame_params = validate_frame_params(frame_strategy, max_frames, sample_fps)
+    except RuntimeError as e:
+        return {}, str(e)
 
     ext = os.path.splitext(path)[1].lower()
     is_video = ext in (".mp4", ".mov", ".avi", ".mkv")
@@ -1021,6 +1221,8 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
                     start_ms=win["startMs"], end_ms=win["endMs"],
                     sample_fps=win.get("sampleFps", VIDEO_FPS),
                     crop_focus=crop_focus,
+                    frame_strategy=frame_params["strategy"],
+                    max_frames=frame_params["max_frames"],
                 )
                 parsed_results.append(parse_markdown_to_dict(raw))
                 successful_windows.append(win)
@@ -1054,6 +1256,9 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
             model, processor, path, is_video, prompt_text,
             engine=engine, start_ms=start_ms, end_ms=end_ms,
             sample_fps=sample_fps, crop_focus=crop_focus,
+            frame_strategy=frame_params["strategy"],
+            max_frames=frame_params["max_frames"],
+            uniform_fps=frame_params["sample_fps"],
         )
     except Exception as e:
         return {}, f"VLM generation failed: {e}"
@@ -1138,7 +1343,32 @@ def main():
         "--engine", default=None, choices=VALID_ENGINES,
         help=f"VLM engine to load (default: vlm-model.json 'engine' = {DEFAULT_ENGINE})",
     )
+    # Frame-selection flags (#391): request-level params override these.
+    # argparse fail-fasts on bad values (unknown choice / non-int / non-float).
+    parser.add_argument(
+        "--frame-strategy", default=None, choices=VALID_FRAME_STRATEGIES,
+        help=f"Frame-selection strategy (default: {FRAME_STRATEGY_UNIFORM})",
+    )
+    parser.add_argument(
+        "--max-frames", default=None, type=int,
+        help=f"Frame cap (default: {DEFAULT_MAX_FRAMES})",
+    )
+    parser.add_argument(
+        "--sample-fps", default=None, type=float,
+        help=f"Uniform-strategy decode fps (default: {DEFAULT_UNIFORM_FPS})",
+    )
     args = parser.parse_args()
+
+    # Startup fail-fast for CLI-supplied frame params (S5) — same style as
+    # resolve_engine: a bad value never reaches the request loop.
+    try:
+        cli_frame_params = validate_frame_params(
+            args.frame_strategy, args.max_frames, args.sample_fps,
+        )
+    except RuntimeError as e:
+        sys.stderr.write(f"[vlm_analyzer] {e}\n")
+        sys.stderr.flush()
+        sys.exit(2)
 
     engine, model_id = resolve_engine(_VLM_CONFIG, args.engine)
 
@@ -1202,10 +1432,21 @@ def main():
                 windows = request.get("windows")
                 claim = request.get("claim")
                 crop_focus = _parse_crop_focus(request.get("cropFocus"))
+                # Frame-selection params (#391): request value wins over the
+                # CLI default; absent on both → current behavior (S1).
+                frame_strategy = request.get(
+                    "frameStrategy", cli_frame_params["strategy"])
+                max_frames = request.get(
+                    "maxFrames", cli_frame_params["max_frames"])
+                sample_fps = request.get(
+                    "sampleFps", cli_frame_params["sample_fps"])
                 result, err = handle_analyze_semantics(
                     model, processor, path, engine=engine,
                     window=window, windows=windows, claim=claim,
                     crop_focus=crop_focus,
+                    frame_strategy=frame_strategy,
+                    max_frames=max_frames,
+                    sample_fps=sample_fps,
                 )
                 if err:
                     response = _degraded_result(err)
