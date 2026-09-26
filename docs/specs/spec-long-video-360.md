@@ -22,7 +22,7 @@ Status: active（2026-09-26） · Parent issue: #360 · Planning scale: S2 · Ri
 2. **分段复用 #361 window 机制**：`>30s` 资产拆成 N 个 ≤8s 等长窗口（非零 `startMs`——该能力已全链就位但生产从未使用），逐窗分析后 Python 侧合并为单一八字段 Markdown；`8-30s` 单窗 `{0, dur}` + 降 fps。窗口/分段参数进缓存 key 材料（`vlm-cache.mjs`）——不同覆盖范围的分析是不同结果，防 stale 命中（#351 教训：key 必须命名真实跑过的东西）。
 3. **probe 失败 fail-open 到现状**：`probeMedia` 为 null 或 duration 缺失 → 回退现状单 pass 8s 行为（与 graceful-degradation 模式一致），不阻断。
 4. **offset 字段命名**：`videoStartOffsetMs`（int，毫秒，≥0，可选，缺省=0）——与 window 字段 `startMs/endMs` 单位一致；只加 start 一个字段（end 由 scene 时长隐含；endOffset 等跨 Scene 绑定时随 #354/#355 需求再加）。与 issue 正文设想的 `videoStartOffset/videoEndOffset` 双字段不同，理由如上。
-5. **渲染语义**：`MediaBackground.tsx` 按所装 Remotion 版本的对应 prop（`trimBefore`/`startFrom`，实施时核对）从偏移起播；偏移超出源时长时 clamp 到合法范围 + `console.warn`（渲染不得因单 scene 参数炸整条视频，降级方向与该组件既有模式一致）。
+5. **渲染语义（实施修正 2026-09-26）**：`MediaBackground.tsx` 用 `@remotion/media` 4.0.517 的 `<Video trimBefore={...}>`（**帧单位**，非秒——`ms→frames` 转换 helper，已从安装包源码核实）从偏移起播；`loop` 与 `trimBefore` 组合 = 循环「offset→源末尾」段，偏移前画面不会再出现（源码级证明：`calculateMediaDuration` 减去 `trimBefore` 后取模）。越界偏移：渲染侧**无源时长可知**（schema 不穿 duration），无法数值 clamp——实测 still 正常出图不炸渲染，定为 graceful 降级、作者责任；渲染管线层（`render-remotion.mjs` 持有 ffprobe）可后续补越界告警。
 6. **校验**：`apply-media-patch.mjs` 与 `.mjs` 镜像 `lib/media-bg.mjs` 的校验放行/类型检查（非负 int、可选）；TS 侧 `types.ts` 同步。双写规则照 `types.ts:18-20` 注释执行。
 7. **e2v 不在本票范围**：`analyzeAssetEmotion`/`fuseAudioEmotion` 未接入 scene-asset 管线（仅测试引用），本票不接线。
 8. **assignment 层不动**：去重、`reusedCap`、patch 生成逻辑维持现状；`videoStartOffsetMs` 在自动化产物中缺省。
@@ -50,7 +50,7 @@ Status: active（2026-09-26） · Parent issue: #360 · Planning scale: S2 · Ri
 | S5  | 缓存 key | 同资产不同窗口参数 → 不同 key，无 stale 命中 |
 | S6  | `MediaField` 无 `videoStartOffsetMs` | 渲染与现状逐帧一致（无回归） |
 | S7  | `videoStartOffsetMs: 5000` | `<Video>` 从源 5s 起播（still/composition 证据） |
-| S8  | 偏移超出源时长 | clamp + warn，不炸渲染 |
+| S8  | 偏移超出源时长 | 不炸渲染：graceful 降级（渲染侧无源时长，越界属作者责任；实测 still 正常出图）——实施修正，原「clamp + warn」不可行 |
 | S9  | patch 携带合法/非法 offset | 合法放行；负数/非 int 拒绝 |
 
 ## Out of Scope

@@ -84,6 +84,7 @@ function stableStringify(value) {
  *
  * @param {{filePath: string, model: string, pipelineVersion?: string,
  *          window?: {startMs: number, endMs: number, sampleFps: number},
+ *          windows?: {startMs: number, endMs: number, sampleFps: number}[],
  *          claim?: {voiceover: string, assetNeed: string},
  *          cropFocus?: {x: number, y: number} | null}} req
  * @returns {Promise<string>} 64-char hex sha256
@@ -96,6 +97,9 @@ export async function computeCacheKey(req) {
   h.update(String(req.model || "") + "\n");
   h.update(fileFingerprint(req.filePath) + "\n");
   h.update(stableStringify({ window: req.window || null, claim: req.claim || null }));
+  // #360: multi-window plan changes temporal coverage — a different plan is a
+  // different analysis (S5: no stale hits across window-plan changes).
+  h.update(stableStringify({ windows: req.windows ?? null }));
   // Crop hint changes the pixels the VLM sees — it is key material (#198).
   h.update(stableStringify({ cropFocus: req.cropFocus ?? null }));
   return h.digest("hex");
@@ -178,13 +182,14 @@ export function wrapAnalyzerWithCache(analyzeFn, { cacheDir, model, disabled = f
     // startMs/endMs/sampleFps — normalize so every spelling lands in the key.
     const window =
       opts?.window ??
-      (opts?.startMs != null || opts?.endMs != null
+      (opts?.startMs != null || opts?.endMs != null || opts?.sampleFps != null
         ? { startMs: opts.startMs, endMs: opts.endMs, sampleFps: opts.sampleFps }
         : undefined);
     const key = await computeCacheKey({
       filePath,
       model,
       window,
+      windows: opts?.windows,
       claim: opts?.claim,
       cropFocus: opts?.cropFocus ?? null,
     });

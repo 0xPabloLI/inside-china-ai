@@ -455,6 +455,61 @@ describe("validateMedia — focus field", () => {
   });
 });
 
+// ─── #360 videoStartOffsetMs (S9) ───
+
+describe("validateMedia — videoStartOffsetMs (#360 S9)", () => {
+  it("accepts absent offset (default 0)", () => {
+    const result = validateMedia({ type: "video", path: "assets/demo.mp4" }, CONTENT_DIR);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("accepts a valid integer offset ≥ 0", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", videoStartOffsetMs: 5000 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("accepts offset 0 (explicit)", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", videoStartOffsetMs: 0 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("rejects a negative offset (hard error)", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", videoStartOffsetMs: -100 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("videoStartOffsetMs"))).toBe(true);
+  });
+
+  it("rejects a non-integer offset", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", videoStartOffsetMs: 1500.5 },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("videoStartOffsetMs"))).toBe(true);
+  });
+
+  it("rejects a non-number offset", () => {
+    const result = validateMedia(
+      { type: "video", path: "assets/demo.mp4", videoStartOffsetMs: "5000" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("videoStartOffsetMs"))).toBe(true);
+  });
+});
+
 // ─── VALID_FITS and VALID_FOCUSES constants ───
 
 describe("VALID_FITS constant", () => {

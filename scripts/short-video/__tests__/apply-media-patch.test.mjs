@@ -220,6 +220,28 @@ describe("formatPatchEntry — output boundary", () => {
     expect(result).not.toContain("cropFocus");
   });
 
+  // VC-21: videoStartOffsetMs serialization in formatPatchEntry (third formatter
+  // mirror — manual patch round-trip must not silently drop the offset, #360)
+  it("VC-21: includes videoStartOffsetMs in media output when present", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "video", path: "test.mp4", fit: "cover", videoStartOffsetMs: 5000 },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    expect(result).toContain("videoStartOffsetMs: 5000,");
+  });
+
+  it("VC-22: does NOT include videoStartOffsetMs line when absent", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "image", path: "test.jpg", fit: "cover" },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    expect(result).not.toContain("videoStartOffsetMs");
+  });
+
   // VC-17: crop decision in review summary
   it("VC-17: displays crop decision in semantics summary", () => {
     const entry = {
@@ -442,5 +464,69 @@ describe("applyAssignedMedia (#192)", () => {
     ];
     const r = applyAssignedMedia(scenes, [], dir);
     expect(r.exhausted).toEqual([5]);
+  });
+});
+
+// ─── #360 videoStartOffsetMs — validatePatchEntry (S9) ───
+
+describe("validatePatchEntry — videoStartOffsetMs (#360 S9)", () => {
+  let validatePatchEntry;
+  beforeAll(async () => {
+    // Root apply-media-patch.mjs (the CLI applier), not the lib/ formatter.
+    const mod = await import("../apply-media-patch.mjs");
+    validatePatchEntry = mod.validatePatchEntry;
+  });
+
+  const SCENES = [{ id: 1, visualType: "narrative" }];
+  const entry = (media) => ({ sceneId: 1, status: "assigned", media });
+
+  it("accepts a patch with a valid integer offset ≥ 0", () => {
+    const r = validatePatchEntry(
+      entry({ type: "video", path: "assets/clip.mp4", videoStartOffsetMs: 5000 }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(true);
+    expect(r.errors).toHaveLength(0);
+  });
+
+  it("accepts a patch without the offset field (absent = 0)", () => {
+    const r = validatePatchEntry(
+      entry({ type: "video", path: "assets/clip.mp4" }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(true);
+    expect(r.errors).toHaveLength(0);
+  });
+
+  it("rejects a negative offset", () => {
+    const r = validatePatchEntry(
+      entry({ type: "video", path: "assets/clip.mp4", videoStartOffsetMs: -1 }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("videoStartOffsetMs"))).toBe(true);
+  });
+
+  it("rejects a non-integer offset", () => {
+    const r = validatePatchEntry(
+      entry({ type: "video", path: "assets/clip.mp4", videoStartOffsetMs: 2.5 }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("videoStartOffsetMs"))).toBe(true);
+  });
+
+  it("rejects a non-number offset", () => {
+    const r = validatePatchEntry(
+      entry({ type: "video", path: "assets/clip.mp4", videoStartOffsetMs: "5000" }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("videoStartOffsetMs"))).toBe(true);
   });
 });

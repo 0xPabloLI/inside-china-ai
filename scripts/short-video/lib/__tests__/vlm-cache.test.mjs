@@ -67,6 +67,23 @@ describe("vlm-cache (#189)", () => {
     expect(byClaim).not.toBe(base);
   });
 
+  // #360 S5: same asset, a different multi-window plan = different temporal
+  // coverage = a different analysis → distinct key, no stale hits.
+  it("#360 S5: same asset, different window plans -> distinct keys", async () => {
+    const base = await computeCacheKey({ filePath: imgA, model: "m1" });
+    const planA = [{ startMs: 0, endMs: 14000, sampleFps: 0.5 }];
+    const planB = [
+      { startMs: 0, endMs: 13334, sampleFps: 0.6 },
+      { startMs: 13334, endMs: 40000, sampleFps: 0.6 },
+    ];
+    const kA = await computeCacheKey({ filePath: imgA, model: "m1", windows: planA });
+    const kB = await computeCacheKey({ filePath: imgA, model: "m1", windows: planB });
+    const kA2 = await computeCacheKey({ filePath: imgA, model: "m1", windows: planA });
+    expect(kA).not.toBe(base);
+    expect(kB).not.toBe(kA);
+    expect(kA2).toBe(kA); // same plan → stable key
+  });
+
   it("#351 minimal repro: same asset, two model ids -> distinct keys, no cross-hit", async () => {
     const keyM1 = await computeCacheKey({ filePath: imgA, model: "model-one" });
     const keyM2 = await computeCacheKey({ filePath: imgA, model: "model-two" });

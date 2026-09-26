@@ -951,7 +951,8 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
   });
 
   it("passes computed window to analyzeAssetSemantics for video assets (Scenario #1)", async () => {
-    // probeMedia returns 10s duration
+    // probeMedia returns 10s duration → #360 8-30s tier: single full-coverage
+    // window at reduced fps (S2)
     mockProbeMedia.mockReturnValue({
       durationMs: 10000,
       fps: 30,
@@ -967,11 +968,11 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
 
     await analyzeAssets(assets);
 
-    // Window = { 0, min(10000, 8000), 1.0 }
+    // Window = { 0, dur, 0.5 } — full coverage (S2)
     expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/clip1.mp4", {
       startMs: 0,
-      endMs: 8000,
-      sampleFps: 1.0,
+      endMs: 10000,
+      sampleFps: 0.5,
     });
   });
 
@@ -1008,7 +1009,7 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
     expect(callArgs[1]).toBeUndefined();
   });
 
-  it("caps window at 8s for long videos", async () => {
+  it("segments >30s videos into equal non-zero-start windows (S3)", async () => {
     mockProbeMedia.mockReturnValue({
       durationMs: 60000,
       fps: 30,
@@ -1024,10 +1025,15 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
 
     await analyzeAssets(assets);
 
+    // 60s → segments = min(ceil(60000/8000)=8, 3) = 3 equal windows of 20s,
+    // fps = min(1, 8 frames / 20s) = 0.4 (per-call frame cap, call-count
+    // budget — see Phase 2.5 comment)
     expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/long.mp4", {
-      startMs: 0,
-      endMs: 8000,
-      sampleFps: 1.0,
+      windows: [
+        { startMs: 0, endMs: 20000, sampleFps: 0.4 },
+        { startMs: 20000, endMs: 40000, sampleFps: 0.4 },
+        { startMs: 40000, endMs: 60000, sampleFps: 0.4 },
+      ],
     });
   });
 
@@ -1075,8 +1081,9 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
 
     await analyzeAssets(assets);
 
-    // Asset should have window and sourceMode stored
-    expect(assets[0].window).toEqual({ startMs: 0, endMs: 8000, sampleFps: 1.0 });
+    // Asset should have window, durationMs and sourceMode stored
+    expect(assets[0].window).toEqual({ startMs: 0, endMs: 10000, sampleFps: 0.5 });
+    expect(assets[0].durationMs).toBe(10000);
     expect(assets[0].sourceMode).toBe("frames");
   });
 
@@ -1108,14 +1115,126 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
     expect(fs.existsSync(artifactPath)).toBe(true);
     const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
 
-    // The video asset should have window and sourceMode in the artifact
+    // The video asset should have window, durationMs and sourceMode in the artifact
     const videoAsset = artifact.assets[0];
-    expect(videoAsset.window).toEqual({ startMs: 0, endMs: 8000, sampleFps: 1.0 });
+    expect(videoAsset.window).toEqual({ startMs: 0, endMs: 10000, sampleFps: 0.5 });
+    expect(videoAsset.durationMs).toBe(10000);
     expect(videoAsset.sourceMode).toBe("frames");
 
     // Cleanup
     fs.unlinkSync(artifactPath);
     fs.rmdirSync(`${tmpDir}/test`);
     fs.rmdirSync(tmpDir);
+  });
+
+  // ─── #360 ticket-1: duration-tier window planning (S1/S2/S3/S4/S8) ───
+
+  it("S1: ≤8s asset keeps the byte-identical single window", async () => {
+    mockProbeMedia.mockReturnValue({
+      durationMs: 8000,
+      fps: 30,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 0,
+    });
+
+    const assets = [{ path: "/abs/short8.mp4", type: "video", searchKeyword: "test" }];
+    await analyzeAssets(assets);
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/short8.mp4", {
+      startMs: 0,
+      endMs: 8000,
+      sampleFps: 1.0,
+    });
+    expect(assets[0].windows).toBeUndefined();
+  });
+
+  it("S2: 8-30s asset gets a single full-coverage window at reduced fps", async () => {
+    mockProbeMedia.mockReturnValue({
+      durationMs: 15000,
+      fps: 30,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 0,
+    });
+
+    const assets = [{ path: "/abs/mid15.mp4", type: "video", searchKeyword: "test" }];
+    await analyzeAssets(assets);
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/mid15.mp4", {
+      startMs: 0,
+      endMs: 15000,
+      sampleFps: 0.5,
+    });
+    expect(assets[0].windows).toBeUndefined();
+  });
+
+  it("S3: >30s asset gets N non-zero-start windows; plan persists to artifact", async () => {
+    mockProbeMedia.mockReturnValue({
+      durationMs: 40000,
+      fps: 30,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 0,
+    });
+
+    // Merged multi-window semantics (what the Python merge returns)
+    mockAnalyzeAssetSemantics.mockResolvedValue({
+      ...FULL_SEMANTICS,
+      description:
+        "[Segment 1/3 — 0.0s-13.3s]\nFirst part.\n\n[Segment 3/3 — 26.7s-40.0s]\nLast part.",
+      subjects: ["robot", "chart"],
+      contentKind: "talking_head",
+      sourceMode: "frames",
+    });
+
+    const tmpDir = `/tmp/test-360-s3-${Date.now()}`;
+    const assets = [{ path: "/abs/long40.mp4", type: "video", searchKeyword: "test" }];
+    await analyzeAssets(assets, { outputDir: tmpDir, contentSlug: "test" });
+
+    // 40s → segments = min(ceil(40000/8000)=5, 3) = 3; segmentMs = ceil(40000/3) = 13334;
+    // fps = min(1, 8/13.334) = 0.6
+    const expectedWindows = [
+      { startMs: 0, endMs: 13334, sampleFps: 0.6 },
+      { startMs: 13334, endMs: 26668, sampleFps: 0.6 },
+      { startMs: 26668, endMs: 40000, sampleFps: 0.6 },
+    ];
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/long40.mp4", {
+      windows: expectedWindows,
+    });
+    // Non-zero startMs present (S3)
+    expect(assets[0].windows.slice(1).every((w) => w.startMs > 0)).toBe(true);
+
+    const fs = await import("fs");
+    const artifact = JSON.parse(fs.readFileSync(`${tmpDir}/test/asset-analysis.json`, "utf8"));
+    expect(artifact.assets[0].windows).toEqual(expectedWindows);
+    expect(artifact.assets[0].durationMs).toBe(40000);
+
+    fs.rmSync(`${tmpDir}/test`, { recursive: true, force: true });
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("S4: missing durationMs falls back to the default 8s single window", async () => {
+    // Probe succeeds but duration is missing/zero — fail-open, no throw
+    mockProbeMedia.mockReturnValue({
+      fps: 30,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 0,
+    });
+
+    const assets = [{ path: "/abs/nodur.mp4", type: "video", searchKeyword: "test" }];
+    await analyzeAssets(assets);
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/nodur.mp4", {
+      startMs: 0,
+      endMs: 8000,
+      sampleFps: 1.0,
+    });
+    expect(assets[0].durationMs).toBeUndefined();
   });
 });
