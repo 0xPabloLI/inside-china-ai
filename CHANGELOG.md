@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.4.0...tanstack_start_ts-v1.4.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **#360:** leftover minors — offset video-only hard error, S8 render warning, closeE2V coverage ([95cd977](https://github.com/0xPabloLI/inside-china-ai/commit/95cd9776b498da1903216fed1814956e84716bd8))
+* **#360:** leftover minors — offset video-only hard error, S8 render warning, closeE2V coverage ([cb4ca23](https://github.com/0xPabloLI/inside-china-ai/commit/cb4ca232f7db762a59a956d8bf20b662f8b57cd5))
+
 ## [1.4.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.3.0...tanstack_start_ts-v1.4.0) (2026-09-26)
 
 
