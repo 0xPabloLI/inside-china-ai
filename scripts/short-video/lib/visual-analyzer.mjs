@@ -308,6 +308,10 @@ function handleResponse(line, worker, workerGen) {
       degraded.window = entry.window;
       degraded.sourceMode = "degraded";
     }
+    if (entry.windows) {
+      degraded.windows = entry.windows;
+      degraded.sourceMode = "degraded";
+    }
     entry.resolve(degraded);
   } else {
     // Remove error field (null) and resolve with the rest
@@ -315,6 +319,10 @@ function handleResponse(line, worker, workerGen) {
     // Attach window metadata from the request when present
     if (entry.window) {
       result.window = entry.window;
+    }
+    // #360: multi-window plan echo (segmented analysis)
+    if (entry.windows) {
+      result.windows = entry.windows;
     }
     entry.resolve(result);
   }
@@ -334,6 +342,10 @@ function settlePendingVlm(worker, workerGen) {
       const degraded = degradedForAction(entry.action);
       if (entry.window) {
         degraded.window = entry.window;
+        degraded.sourceMode = "degraded";
+      }
+      if (entry.windows) {
+        degraded.windows = entry.windows;
         degraded.sourceMode = "degraded";
       }
       entry.resolve(degraded);
@@ -408,6 +420,8 @@ function sendRequest(worker, request) {
     action: request.action,
     path: request.path,
     ...(request.window ? { window: request.window } : {}),
+    // #360: multi-window plan (segmented analysis) — Python loops + merges
+    ...(request.windows ? { windows: request.windows } : {}),
     ...(request.claim ? { claim: request.claim } : {}),
     ...(request.cropFocus ? { cropFocus: request.cropFocus } : {}),
   });
@@ -437,6 +451,7 @@ function sendRequest(worker, request) {
     action: request.action,
     path: request.path,
     window: request.window,
+    windows: request.windows,
     timer,
     workerGeneration: myGen,
   });
@@ -476,6 +491,9 @@ export function getVlmModelId() {
  * - criticalEdgeText (string | null) — images only
  * - reason (string | null) — images only
  * - window ({ startMs, endMs, sampleFps } | undefined) — videos only, when opts provided
+ * - windows ({ startMs, endMs, sampleFps }[] | undefined) — videos only,
+ *   #360 segmented analysis: Python analyzes each window and merges into a
+ *   single 8-field-compatible result
  * - sourceMode ("frames" | "degraded" | undefined) — videos only; analysis
  *   always runs on ffmpeg-extracted frames
  * - relevance (int 0-100 | null) / relevanceReason — claim mode only
@@ -484,20 +502,27 @@ export function getVlmModelId() {
  * a degraded result where all fields are empty/null.
  *
  * @param {string} assetPath - Absolute path to the image/video file.
- * @param {{startMs?: number, endMs?: number, sampleFps?: number, claim?: {voiceover: string, assetNeed: string}, cropFocus?: {x: number, y: number}}} [opts] - Optional time window (video only), scene claim (relevance judging), and crop hint (images only)
+ * @param {{startMs?: number, endMs?: number, sampleFps?: number, windows?: {startMs: number, endMs: number, sampleFps: number}[], claim?: {voiceover: string, assetNeed: string}, cropFocus?: {x: number, y: number}}} [opts] - Optional time window or multi-window plan (video only), scene claim (relevance judging), and crop hint (images only)
  * @returns {Promise<{description: string, subjects: string[], contentKind: string|null,
  *   fit: string|null, criticalEdgeText: string|null, reason: string|null,
  *   window?: {startMs: number, endMs: number, sampleFps: number},
+ *   windows?: {startMs: number, endMs: number, sampleFps: number}[],
  *   sourceMode?: string}>}
  */
 export function analyzeAssetSemantics(assetPath, opts) {
-  const window = opts
-    ? {
-        startMs: opts.startMs,
-        endMs: opts.endMs,
-        sampleFps: opts.sampleFps,
-      }
-    : undefined;
+  // Single flattened window — only sent when the caller actually passes a
+  // time range (partial opts like {startMs} alone still count).
+  const window =
+    opts && (opts.startMs != null || opts.endMs != null || opts.sampleFps != null)
+      ? {
+          startMs: opts.startMs,
+          endMs: opts.endMs,
+          sampleFps: opts.sampleFps,
+        }
+      : undefined;
+  // #360: multi-window plan (segmented analysis) — Python loops per window
+  // and merges; single-window tiers keep the flattened `window` above.
+  const windows = opts?.windows || undefined;
   // Scene claim ({voiceover, assetNeed}) — routes through to the Python
   // prompt builder; absent claim keeps the legacy prompt untouched.
   const claim = opts?.claim || undefined;
@@ -513,6 +538,7 @@ export function analyzeAssetSemantics(assetPath, opts) {
       action: "analyze_semantics",
       path: assetPath,
       window,
+      windows,
       claim,
       cropFocus,
     });

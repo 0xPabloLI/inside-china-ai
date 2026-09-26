@@ -840,10 +840,130 @@ def run_audio_inference(model, processor, path, engine=VLM_ENGINE_MINICPM,
 
 
 
+# ─── Multi-window segmentation (#360 ticket-1) ───
+
+def normalize_windows(windows):
+    """Validate a request's `windows` list into [{startMs, endMs, sampleFps}].
+
+    Pure function. Entries that are not dicts with numeric startMs/endMs are
+    dropped; sampleFps defaults to VIDEO_FPS. Returns None when nothing valid
+    remains (including a None/empty input) so callers fall back to the
+    single-window path.
+    """
+    if not isinstance(windows, list):
+        return None
+    normalized = []
+    for win in windows:
+        if not isinstance(win, dict):
+            continue
+        start_ms, end_ms = win.get("startMs"), win.get("endMs")
+        if not isinstance(start_ms, (int, float)) or not isinstance(end_ms, (int, float)):
+            continue
+        if isinstance(start_ms, bool) or isinstance(end_ms, bool):
+            continue
+        sample_fps = win.get("sampleFps", VIDEO_FPS)
+        if not isinstance(sample_fps, (int, float)) or isinstance(sample_fps, bool):
+            sample_fps = VIDEO_FPS
+        normalized.append({"startMs": start_ms, "endMs": end_ms, "sampleFps": sample_fps})
+    return normalized or None
+
+
+def _format_window_label(index, count, window):
+    """Human-readable segment marker, e.g. "[Segment 2/3 — 13.4s-20.0s]"."""
+    start_s = window["startMs"] / 1000.0
+    end_s = window["endMs"] / 1000.0
+    return f"[Segment {index}/{count} — {start_s:.1f}s-{end_s:.1f}s]"
+
+
+def merge_window_results(parsed_results, windows, plan=None):
+    """Merge per-window parsed semantics dicts into ONE 8-field-compatible dict.
+
+    Pure function; merge rules (documented per #360 ticket-1):
+    - description: per-window descriptions joined in window order, each
+      prefixed with a "[Segment i/N — start-end]" marker so downstream
+      consumers can see temporal provenance. Empty descriptions are skipped.
+    - subjects: union in first-seen order.
+    - contentKind: majority vote among non-null values; tie → first seen.
+    - fit / criticalEdgeText / reason / relevance / relevanceReason: first
+      non-null value in window order (per-window judgments; videos leave
+      fit/criticalEdgeText null anyway).
+    - Unknown extra keys: first non-null value wins.
+
+    Args:
+        parsed_results: per-window parsed semantics dicts (successful windows
+            only), paired 1:1 with ``windows``.
+        windows: the successful windows actually merged, paired 1:1 with
+            ``parsed_results``. Each provides the time range for its label.
+        plan: the full window plan (all windows, including failed ones). When
+            provided, the ``[Segment i/N]`` denominator ``N = len(plan)`` and
+            each segment's index ``i`` is its 1-based position in the full
+            plan, so a 3-window plan with 2 successes still labels surviving
+            windows as ``i/3`` with their original time ranges (e.g. window 2
+            of 3 → ``[Segment 3/3 — 20.0s-30.0s]``). When ``None``, both fall
+            back to ``windows`` (backward-compatible with all-succeed callers).
+
+    The output MUST stay parseable/consumable by the same downstream
+    contract as a single-window parse_markdown_to_dict result (#361
+    Decision 8).
+    """
+    merged = {
+        "description": "",
+        "subjects": [],
+        "contentKind": None,
+        "fit": None,
+        "criticalEdgeText": None,
+        "reason": None,
+        "relevance": None,
+        "relevanceReason": None,
+    }
+
+    # When a plan is given, the denominator reflects the FULL plan size and
+    # each successful window keeps its original 1-based index — so a failed
+    # window never shifts later labels.  Without a plan, fall back to the
+    # sequential position over the successful windows.
+    count = len(plan) if plan is not None else len(windows)
+    if plan is not None:
+        plan_index = {(w["startMs"], w["endMs"]): idx + 1
+                      for idx, w in enumerate(plan)}
+    description_parts = []
+    subject_order = []
+    kind_votes = {}
+    for i, (parsed, window) in enumerate(zip(parsed_results, windows)):
+        seg_idx = (plan_index.get((window["startMs"], window["endMs"]), i + 1)
+                   if plan is not None else i + 1)
+        desc = (parsed.get("description") or "").strip()
+        if desc:
+            description_parts.append(f"{_format_window_label(seg_idx, count, window)}\n{desc}")
+        for subject in parsed.get("subjects") or []:
+            if subject and subject not in subject_order:
+                subject_order.append(subject)
+        kind = parsed.get("contentKind")
+        if kind:
+            kind_votes[kind] = kind_votes.get(kind, 0) + 1
+        for field in ("fit", "criticalEdgeText", "reason", "relevance",
+                      "relevanceReason"):
+            if merged[field] is None and parsed.get(field) is not None:
+                merged[field] = parsed[field]
+        # Unknown extra sections (parse_markdown_to_dict keeps them): first
+        # non-null wins.
+        for key, value in parsed.items():
+            if key not in merged and value is not None:
+                merged[key] = value
+
+    merged["description"] = "\n\n".join(description_parts)
+    merged["subjects"] = subject_order
+    if kind_votes:
+        merged["contentKind"] = max(
+            kind_votes, key=lambda k: (kind_votes[k], -list(kind_votes).index(k))
+        )
+    return merged
+
+
 # ─── Request handler ───
 
 def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
-                             window=None, claim=None, crop_focus=None):
+                             window=None, windows=None, claim=None,
+                             crop_focus=None):
     """Handle an analyze_semantics request.
 
     Dispatches to image or video prompt based on file extension.
@@ -851,6 +971,13 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
 
     When window is provided (dict with startMs/endMs/sampleFps), uses it for
     frame extraction to ensure the analyzed temporal range matches.
+
+    When windows is provided (list of such dicts, #360 ticket-1), the video is
+    analyzed once per window and the per-window results are merged into a
+    single 8-field-compatible result (see merge_window_results for the merge
+    rules). Per-window failures fail open: as long as one window succeeds the
+    asset is analyzed; only when every window fails is an error returned.
+    Windows are ignored for images (no time axis).
 
     When claim ({voiceover, assetNeed}) is provided, the prompt gains a
     scene-claim block and the output gains Relevance/Relevance Reason.
@@ -877,6 +1004,39 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
         start_ms = None
         end_ms = None
         sample_fps = VIDEO_FPS
+
+    # Multi-window segmented analysis (#360 ticket-1): one pass per window,
+    # merged into a single 8-field-compatible result. Images have no time
+    # axis — a windows list is ignored there.
+    window_list = normalize_windows(windows) if is_video else None
+    if window_list:
+        parsed_results = []
+        successful_windows = []
+        errors = []
+        for win in window_list:
+            try:
+                raw = run_vlm_inference(
+                    model, processor, path, is_video, prompt_text,
+                    engine=engine,
+                    start_ms=win["startMs"], end_ms=win["endMs"],
+                    sample_fps=win.get("sampleFps", VIDEO_FPS),
+                    crop_focus=crop_focus,
+                )
+                parsed_results.append(parse_markdown_to_dict(raw))
+                successful_windows.append(win)
+            except Exception as e:
+                # Per-window fail-open: a broken segment narrows coverage but
+                # never fails the asset while any window succeeds.
+                errors.append(f"[{win['startMs']}-{win['endMs']}ms] {e}")
+        if not parsed_results:
+            return {}, "VLM generation failed: " + "; ".join(errors)
+        # Pass the full plan so segment labels keep their original index and
+        # the denominator reflects the full plan size, not just the survivors.
+        result = merge_window_results(parsed_results, successful_windows,
+                                      plan=window_list)
+        if is_video:
+            result["sourceMode"] = "frames"
+        return result, None
 
     try:
         if is_video:
@@ -1039,11 +1199,13 @@ def main():
             elif action == "analyze_semantics":
                 path = request.get("path", "")
                 window = request.get("window")
+                windows = request.get("windows")
                 claim = request.get("claim")
                 crop_focus = _parse_crop_focus(request.get("cropFocus"))
                 result, err = handle_analyze_semantics(
                     model, processor, path, engine=engine,
-                    window=window, claim=claim, crop_focus=crop_focus,
+                    window=window, windows=windows, claim=claim,
+                    crop_focus=crop_focus,
                 )
                 if err:
                     response = _degraded_result(err)

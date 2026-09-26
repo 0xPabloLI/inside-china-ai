@@ -1170,11 +1170,27 @@ export async function analyzeAssets(assets, opts = {}) {
     }
   }
 
-  // ── Phase 2.5: Probe video assets + compute time windows (T6) ──
-  // For video assets only: call probeMedia to get duration, then compute
-  // a time window for VLM analysis. Images are skipped (no window needed).
+  // ── Phase 2.5: Probe video assets + compute time windows (T6, #360 tiers) ──
+  // For video assets only: call probeMedia to get duration, then compute the
+  // analysis coverage by duration tier (#360 ticket-1):
+  //   ≤8s   → single window {0, dur} at 1 fps — byte-identical to the old T6
+  //           behavior (S1: no behavior change);
+  //   8-30s → single window {0, dur} at 0.5 fps — full coverage; per the
+  //           #361 bench ~15 frames/call ≈ 1× the old single-pass cost;
+  //   >30s  → segmented: min(ceil(dur/8s), MAX_SEGMENTS) equal windows with
+  //           non-zero startMs (S3), per-window fps scaled to keep ≤8 frames
+  //           per VLM call. MAX_SEGMENTS caps CALLS, not frames — the #361
+  //           bench shows per-call overhead (~8-10s) dominates inference, so
+  //           call count is the wall-time budget knob (≤3× single pass,
+  //           spec Implementation Decision 1).
+  // probeMedia failure / missing duration → default 8s single window (S4
+  // fail-open, unchanged behavior, no throw).
   const DEFAULT_WINDOW_END_MS = 8000; // matches MAX_VIDEO_SECONDS in vlm_analyzer.py
   const DEFAULT_SAMPLE_FPS = 1.0;
+  const LONG_TIER_MAX_MS = 30000;
+  const REDUCED_SAMPLE_FPS = 0.5;
+  const MAX_SEGMENTS = 3;
+  const MAX_FRAMES_PER_SEGMENT = 8;
 
   for (const asset of analyzableAssets) {
     if (asset.type !== "video") continue;
@@ -1183,11 +1199,31 @@ export async function analyzeAssets(assets, opts = {}) {
       contentDir && !isAbsolute(asset.path) ? join(contentDir, asset.path) : asset.path;
 
     const probe = probeMedia(absPath);
+    const durationMs = probe?.durationMs;
 
-    if (probe) {
-      // Compute window: { 0, min(duration, 8000), 1.0 }
-      const endMs = Math.min(probe.durationMs, DEFAULT_WINDOW_END_MS);
-      asset.window = { startMs: 0, endMs, sampleFps: DEFAULT_SAMPLE_FPS };
+    if (durationMs > 0) {
+      // #360: persist the probed duration (previously computed then discarded)
+      asset.durationMs = durationMs;
+      if (durationMs <= DEFAULT_WINDOW_END_MS) {
+        // S1: single window { 0, dur, 1.0 } — identical to the old T6 shape
+        asset.window = { startMs: 0, endMs: durationMs, sampleFps: DEFAULT_SAMPLE_FPS };
+      } else if (durationMs <= LONG_TIER_MAX_MS) {
+        // S2: full-coverage single window at reduced fps
+        asset.window = { startMs: 0, endMs: durationMs, sampleFps: REDUCED_SAMPLE_FPS };
+      } else {
+        // S3: N equal non-zero-start windows, per-call frame cap via fps
+        const segments = Math.min(Math.ceil(durationMs / DEFAULT_WINDOW_END_MS), MAX_SEGMENTS);
+        const segmentMs = Math.ceil(durationMs / segments);
+        const sampleFps =
+          Math.round(
+            Math.min(DEFAULT_SAMPLE_FPS, MAX_FRAMES_PER_SEGMENT / (segmentMs / 1000)) * 100,
+          ) / 100;
+        asset.windows = Array.from({ length: segments }, (_, i) => ({
+          startMs: i * segmentMs,
+          endMs: Math.min((i + 1) * segmentMs, durationMs),
+          sampleFps,
+        }));
+      }
     } else {
       // probeMedia failed — use default window, sourceMode will be "degraded"
       asset.window = { startMs: 0, endMs: DEFAULT_WINDOW_END_MS, sampleFps: DEFAULT_SAMPLE_FPS };
@@ -1219,21 +1255,31 @@ export async function analyzeAssets(assets, opts = {}) {
     // actually see instead of a center crop the crop decision may override.
     const { saliencyCropHint } = await import("./crop-decision.mjs");
     const cropHint = asset.cropFocus ?? saliencyCropHint(asset.focusAnalysis);
-    const analyzeOpts = asset.window
+    // #360: segmented assets (>30s tier) carry a multi-window plan instead of
+    // a single window — the Python side loops + merges.
+    const analyzeOpts = asset.windows
       ? {
-          ...asset.window,
+          windows: asset.windows,
           ...(claimInfo ? { claim: claimInfo } : {}),
           ...(cropHint ? { cropFocus: cropHint } : {}),
         }
-      : claimInfo || cropHint
+      : asset.window
         ? {
+            ...asset.window,
             ...(claimInfo ? { claim: claimInfo } : {}),
             ...(cropHint ? { cropFocus: cropHint } : {}),
           }
-        : undefined;
+        : claimInfo || cropHint
+          ? {
+              ...(claimInfo ? { claim: claimInfo } : {}),
+              ...(cropHint ? { cropFocus: cropHint } : {}),
+            }
+          : undefined;
 
     // Cache lookup (#189): key = promptVersion + model + file fingerprint + window/claim.
     // Key is computed once and reused for the write below (avoids hashing twice).
+    // #360: the multi-window plan is key material too (S5 — a different plan
+    // is a different temporal coverage, never a stale hit).
     let semantics = null;
     let cacheHit = false;
     let cacheKey = null;
@@ -1243,6 +1289,7 @@ export async function analyzeAssets(assets, opts = {}) {
           filePath: absPath,
           model: modelId,
           window: asset.window,
+          windows: asset.windows,
           claim: claimInfo,
           cropFocus: cropHint ?? null,
         });
@@ -1313,9 +1360,12 @@ export async function analyzeAssets(assets, opts = {}) {
     // by assignAssetsToScenes + makeRelevance. Mapping stays here on purpose.
     asset.relevanceScore = semantics.relevance ?? null;
     asset.relevanceReason = semantics.relevanceReason ?? null;
-    // Store window and sourceMode for video assets (T6)
+    // Store window and sourceMode for video assets (T6; #360 adds windows)
     if (semantics.window) {
       asset.window = semantics.window;
+    }
+    if (semantics.windows) {
+      asset.windows = semantics.windows;
     }
     if (semantics.sourceMode) {
       asset.sourceMode = semantics.sourceMode;
@@ -1402,7 +1452,9 @@ export async function analyzeAssets(assets, opts = {}) {
           focusAnalysis: a.focusAnalysis || null,
           cropDecision: a.cropDecision || null,
           cropFocus: a.cropFocus || null,
+          durationMs: a.durationMs ?? null, // #360: probed duration persisted
           window: a.window || null,
+          windows: a.windows || null, // #360: multi-window plan (segmented)
           sourceMode: a.sourceMode || null,
         })),
     };
