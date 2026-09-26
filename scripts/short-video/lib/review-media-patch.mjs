@@ -237,6 +237,8 @@ export function formatPatchEntry(entry, analysisMap) {
     lines.push(`    cropFocus: { x: ${media.cropFocus.x}, y: ${media.cropFocus.y} },`);
   }
   if (media.volume !== undefined) lines.push(`    volume: ${media.volume},`);
+  if (media.videoStartOffsetMs !== undefined)
+    lines.push(`    videoStartOffsetMs: ${media.videoStartOffsetMs},`);
   // Note: focus is NOT included in new output (deprecated, spec §4.8)
   lines.push(`  },`);
 

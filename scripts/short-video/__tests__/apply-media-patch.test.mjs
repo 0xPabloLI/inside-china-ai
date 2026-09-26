@@ -220,6 +220,28 @@ describe("formatPatchEntry — output boundary", () => {
     expect(result).not.toContain("cropFocus");
   });
 
+  // VC-21: videoStartOffsetMs serialization in formatPatchEntry (third formatter
+  // mirror — manual patch round-trip must not silently drop the offset, #360)
+  it("VC-21: includes videoStartOffsetMs in media output when present", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "video", path: "test.mp4", fit: "cover", videoStartOffsetMs: 5000 },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    expect(result).toContain("videoStartOffsetMs: 5000,");
+  });
+
+  it("VC-22: does NOT include videoStartOffsetMs line when absent", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "image", path: "test.jpg", fit: "cover" },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    expect(result).not.toContain("videoStartOffsetMs");
+  });
+
   // VC-17: crop decision in review summary
   it("VC-17: displays crop decision in semantics summary", () => {
     const entry = {
