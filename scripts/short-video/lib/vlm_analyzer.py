@@ -2,12 +2,14 @@
 """
 AI Analyzer — Python subprocess for VLM-powered asset understanding.
 
-Loads Qwen3-VL-30B-A3B-Instruct-4bit via mlx-vlm, listens on stdin
-for line-delimited JSON requests, writes JSON responses to stdout.
+Loads the engine declared by vlm-model.json (default MiniCPM-o 4.5; fallback
+Qwen3-VL-30B-A3B via --engine) through mlx-vlm, listens on stdin for
+line-delimited JSON requests, writes JSON responses to stdout.
 
 Actions:
   - analyze_semantics: {"action": "analyze_semantics", "path": "/abs/path/to/file"}
-  - exit:               {"action": "exit"}
+  - analyze_audio:     {"action": "analyze_audio", "path": "/abs/path/to/audio.wav"}
+  - exit:              {"action": "exit"}
 
 Response format (one line):
   {"description": "...", "subjects": ["..."], "contentKind": "...",
@@ -28,10 +30,12 @@ Image preprocessing: images with longest edge > MAX_IMAGE_LONG_EDGE are
 resized to prevent high-resolution hallucinations (probabilistic bug in
 Qwen3-VL at resolutions > ~2000px).
 
-Runs in ~/.video-tts-env Python venv (shared with F5-TTS and whisperx).
+Runs in the VLM venv ~/.venvs/mlx-vlm (mlx-vlm 0.7.2 — required for the
+minicpm engine; the qwen3-vl-moe fallback also runs there).
 ffmpeg path: /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
 """
 
+import argparse
 import sys
 import json
 import os
@@ -45,27 +49,65 @@ from PIL import Image, ImageOps
 
 # ─── Constants ───
 
-# Model id single source of truth (#351): vlm-model.json is read by BOTH this
-# process and the Node side (visual-analyzer.mjs getVlmModelId), so the cache
-# key's model material can never name a model different from the one that
-# actually runs inference. Change the model only in that file.
+# Engine + model id single source of truth (#351, #361): vlm-model.json is
+# read by BOTH this process and the Node side (visual-analyzer.mjs
+# getVlmModelId), so the cache key's model material can never name a
+# model/engine different from the one that actually runs inference. The file
+# declares a default engine plus one modelId per engine; --engine overrides
+# the default for this process. Change engines only in that file.
+VLM_ENGINE_MINICPM = "minicpm"  # MiniCPM-o 4.5: vision + ASR + audio emotion
+VLM_ENGINE_QWEN = "qwen3-vl-moe"  # Qwen3-VL-30B-A3B: vision only (fallback)
+VALID_ENGINES = (VLM_ENGINE_MINICPM, VLM_ENGINE_QWEN)
+
 _VLM_MODEL_CONFIG = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "vlm-model.json"
 )
-try:
-    with open(_VLM_MODEL_CONFIG, "r", encoding="utf-8") as _f:
-        _MODEL_ID = json.load(_f).get("modelId")
-except (OSError, ValueError) as _err:  # json.JSONDecodeError subclasses ValueError
-    raise RuntimeError(
-        f"Cannot read the VLM model id from {_VLM_MODEL_CONFIG} "
-        f"(single source of truth, shared with visual-analyzer.mjs): {_err}"
-    ) from _err
-if not isinstance(_MODEL_ID, str) or not _MODEL_ID.strip():
-    raise RuntimeError(
-        "vlm-model.json must declare a non-empty string 'modelId' "
-        "(single source of truth, shared with visual-analyzer.mjs)"
-    )
-MODEL_ID = os.path.expanduser(_MODEL_ID.strip())
+
+
+def _read_vlm_config(path):
+    """Read the shared engine/model config, fail-fast on any malformation."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError) as err:  # JSONDecodeError subclasses ValueError
+        raise RuntimeError(
+            f"Cannot read the VLM config from {path} "
+            f"(single source of truth, shared with visual-analyzer.mjs): {err}"
+        ) from err
+
+
+def resolve_engine(config, requested_engine=None):
+    """Resolve (engine, model_id) for the requested engine.
+
+    requested_engine=None → the config's default engine. An unknown engine or
+    a missing/empty modelId raises RuntimeError — fail-fast, never a silent
+    fallback to another engine (a wrong-engine run would poison the cache key
+    and silently degrade quality).
+    """
+    engine = (requested_engine or config.get("engine") or "").strip()
+    engines = config.get("engines")
+    if not engine:
+        raise RuntimeError(
+            'vlm-model.json must declare a non-empty string "engine" '
+            "(single source of truth, shared with visual-analyzer.mjs)"
+        )
+    if not isinstance(engines, dict) or engine not in engines:
+        raise RuntimeError(
+            f'vlm-model.json has no engine "{engine}" under "engines" '
+            f"(available: {sorted(engines) if isinstance(engines, dict) else []})"
+        )
+    model_id = (engines.get(engine) or {}).get("modelId")
+    if not isinstance(model_id, str) or not model_id.strip():
+        raise RuntimeError(
+            f'vlm-model.json engines["{engine}"] must declare a non-empty '
+            'string "modelId" (single source of truth, shared with '
+            "visual-analyzer.mjs)"
+        )
+    return engine, os.path.expanduser(model_id.strip())
+
+
+_VLM_CONFIG = _read_vlm_config(_VLM_MODEL_CONFIG)
+DEFAULT_ENGINE, MODEL_ID = resolve_engine(_VLM_CONFIG)
 FFMPEG_PATH = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
 IDLE_TIMEOUT_SECONDS = 300  # 5 minutes
 VIDEO_FPS = 1.0
@@ -135,7 +177,40 @@ robot, factory, mobility
 talking_head
 """
 
+SEMANTICS_PROMPT_AUDIO = """Analyze this audio for use in a short video production pipeline. Provide your analysis as Markdown with the following sections:
+
+## Transcription
+Transcribe the speech in this audio. If the audio is not speech, describe what you hear.
+
+## Language
+The language spoken (e.g., "Chinese", "English", "mixed").
+
+## Emotion
+The primary emotion conveyed: happy, sad, angry, surprised, fearful, disgusted, neutral, excited, calm
+
+## Tone
+Describe the tone of voice in 1-2 sentences.
+
+## Speaking Style
+The speaking style: hook, narrative, cta, conversational, formal, casual
+"""
+
 VALID_FITS = {"cover", "contain"}
+
+# MiniCPM-o emits duplex control tokens around audio output (observed:
+# "<|SOA>" prefix, "<|tts_eos|>" suffix). They are transport markers, not
+# content — strip them before the Markdown parser sees the text. The closing
+# ">" is optional: MiniCPM-o emits "<|SOA>" bare but "<|tts_eos|>" with the
+# full "<|...|>" shape.
+_CONTROL_TOKEN_RE = re.compile(r"<\|(?:SOA|tts_eos)\|?>")
+
+
+def strip_control_tokens(text):
+    """Remove MiniCPM-o duplex control tokens (e.g. <|SOA>, <|tts_eos|>)."""
+    if not text:
+        return text
+    return _CONTROL_TOKEN_RE.sub("", text).strip()
+
 
 def build_semantics_prompt(is_video=False, claim=None):
     """Build the semantics prompt, optionally with a scene-claim relevance block.
@@ -383,35 +458,73 @@ def load_model(model_id):
     return model, processor
 
 
-def generate_response(model, processor, image_paths=None, prompt_text=None,
-                      video_path=None):
-    """Generate a text response from image(s) or native video.
+def _extract_response_text(response):
+    """Pull the text out of an mlx_vlm generate() return value."""
+    if hasattr(response, "text"):
+        return response.text
+    if isinstance(response, dict):
+        return response.get("text", str(response))
+    return str(response)
 
-    Uses mlx_vlm.generate with the specified prompt at temperature 0.0.
-    The prompt is formatted via processor.apply_chat_template so that the
-    correct image/video token placeholders are inserted into input_ids.
+
+def generate_response(model, processor, engine=DEFAULT_ENGINE,
+                      image_paths=None, prompt_text=None,
+                      video_path=None, audio_path=None, max_tokens=1000):
+    """Generate a text response for image(s), frames, native video or audio.
+
+    Engine dispatch (the two engines take different prompt/input APIs):
+      - qwen3-vl-moe: HF-style `processor.apply_chat_template(messages)` and
+        native video input via `generate(video=)`.
+      - minicpm: `mlx_vlm.prompt_utils.apply_chat_template(processor,
+        model.config, prompt)` with `image=` / `audio=`. No native video —
+        video callers pass ffmpeg-extracted frames as `image_paths`.
 
     Args:
-        prompt_text: The prompt to use (SEMANTICS_PROMPT_IMAGE or
-                      SEMANTICS_PROMPT_VIDEO).
-        video_path: If provided, use native video input via generate(video=).
+        prompt_text: SEMANTICS_PROMPT_IMAGE / SEMANTICS_PROMPT_VIDEO /
+                      SEMANTICS_PROMPT_AUDIO.
+        video_path: native-video path (qwen engine only).
+        audio_path: audio path (minicpm engine only).
     """
     from mlx_vlm import generate
 
     effective_prompt = prompt_text if prompt_text is not None else SEMANTICS_PROMPT_IMAGE
 
+    if engine == VLM_ENGINE_MINICPM:
+        from mlx_vlm.prompt_utils import apply_chat_template as mlx_apply_chat_template
+
+        kwargs = {}
+        if audio_path is not None:
+            prompt = mlx_apply_chat_template(
+                processor, model.config, effective_prompt,
+                add_generation_prompt=True, num_audios=1,
+            )
+            kwargs["audio"] = [audio_path]
+        else:
+            if video_path is not None:
+                raise ValueError(
+                    "minicpm engine has no native video support — pass extracted "
+                    "frames as image_paths"
+                )
+            if image_paths is None:
+                raise ValueError("image_paths, video_path or audio_path is required")
+            if isinstance(image_paths, str):
+                image_paths = [image_paths]
+            prompt = mlx_apply_chat_template(
+                processor, model.config, effective_prompt,
+                add_generation_prompt=True, num_images=len(image_paths),
+            )
+            kwargs["image"] = image_paths
+
+        response = generate(
+            model, processor, prompt=prompt, temperature=0.0,
+            max_tokens=max_tokens, verbose=False, **kwargs,
+        )
+        return strip_control_tokens(_extract_response_text(response))
+
+    # qwen3-vl-moe — HF-style chat template + native video
     content = []
     if video_path is not None:
         content.append({"type": "video", "video": video_path})
-        content.append({"type": "text", "text": effective_prompt})
-        messages = [{"role": "user", "content": content}]
-        prompt = processor.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        response = generate(
-            model, processor, prompt=prompt, video=video_path,
-            temperature=0.0, max_tokens=1000, verbose=False,
-        )
     else:
         if image_paths is None:
             raise ValueError("image_paths or video_path is required")
@@ -419,21 +532,23 @@ def generate_response(model, processor, image_paths=None, prompt_text=None,
             image_paths = [image_paths]
         for img_path in image_paths:
             content.append({"type": "image", "image": img_path})
-        content.append({"type": "text", "text": effective_prompt})
-        messages = [{"role": "user", "content": content}]
-        prompt = processor.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+    content.append({"type": "text", "text": effective_prompt})
+    messages = [{"role": "user", "content": content}]
+    prompt = processor.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+
+    if video_path is not None:
+        response = generate(
+            model, processor, prompt=prompt, video=video_path,
+            temperature=0.0, max_tokens=max_tokens, verbose=False,
         )
+    else:
         response = generate(
             model, processor, prompt=prompt, image=image_paths,
-            temperature=0.0, max_tokens=1000, verbose=False,
+            temperature=0.0, max_tokens=max_tokens, verbose=False,
         )
-
-    if hasattr(response, "text"):
-        return response.text
-    elif isinstance(response, dict):
-        return response.get("text", str(response))
-    return str(response)
+    return _extract_response_text(response)
 
 
 # ─── Video fallback: ffmpeg frame extraction ───
@@ -627,14 +742,31 @@ def _unlink_quiet(path):
         pass
 
 
+def _extract_minicpm_frames(processor, video_path, fps=2.0, max_frames=16):
+    """Sample frames for the minicpm engine (no native video support).
+
+    minicpm always goes through frame extraction — there is no native-video
+    pass-through. Frames come from mlx_vlm's resolve_video_inputs, the same
+    path the MiniCPM-o benchmark used.
+    """
+    from mlx_vlm.generate.video import resolve_video_inputs
+
+    resolution = resolve_video_inputs(processor, [video_path], fps=fps, max_frames=max_frames)
+    return resolution.images
+
+
 def run_vlm_inference(model, processor, path, is_video, prompt_text,
-                      start_ms=None, end_ms=None, sample_fps=VIDEO_FPS,
-                      crop_focus=None):
+                      engine=DEFAULT_ENGINE, start_ms=None, end_ms=None,
+                      sample_fps=VIDEO_FPS, crop_focus=None):
     """Run one VLM generation pass over `path` with media-type preprocessing.
 
-    Video: native video input via generate(video=). When a time window
-    (start_ms/end_ms) is provided, fall back to ffmpeg frame extraction
-    (native video can't select a time range).
+    Video: engine-dependent input —
+      - qwen3-vl-moe: native video via generate(video=).
+      - minicpm: mlx_vlm frame sampling (resolve_video_inputs) since it has no
+        native video support.
+    A time window (start_ms/end_ms) always falls back to ffmpeg frame
+    extraction on both engines (neither can seek natively).
+
     Image: simulate the 9:16 cover crop (anchored on crop_focus when supplied,
     e.g. a saliency centroid or a prior cropFocus — #198) → resize if above
     MAX_IMAGE_LONG_EDGE → generate → unlink both temp files.
@@ -644,8 +776,7 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
     """
     if is_video:
         if start_ms is not None or end_ms is not None:
-            # Windowed analysis — frame extraction (native video can't
-            # select a time range)
+            # Windowed analysis — frame extraction (no engine can seek natively)
             frames = extract_frames(
                 path, fps=sample_fps,
                 max_seconds=MAX_VIDEO_SECONDS,
@@ -655,14 +786,20 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
                 raise RuntimeError("Frame extraction failed")
             try:
                 return generate_response(
-                    model, processor, image_paths=frames,
+                    model, processor, engine=engine, image_paths=frames,
                     prompt_text=prompt_text,
                 )
             finally:
                 _cleanup_frames(frames)
-        # Full video — native video path
+        if engine == VLM_ENGINE_MINICPM:
+            frames = _extract_minicpm_frames(processor, path)
+            return generate_response(
+                model, processor, engine=engine, image_paths=frames,
+                prompt_text=prompt_text,
+            )
+        # qwen3-vl-moe — native video path
         return generate_response(
-            model, processor, video_path=path,
+            model, processor, engine=engine, video_path=path,
             prompt_text=prompt_text,
         )
 
@@ -675,7 +812,7 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
         actual_path, temp_path = resize_image_if_needed(crop_path)
         try:
             return generate_response(
-                model, processor, image_paths=actual_path,
+                model, processor, engine=engine, image_paths=actual_path,
                 prompt_text=prompt_text,
             )
         finally:
@@ -684,11 +821,29 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
         _unlink_quiet(crop_cleanup)
 
 
+def run_audio_inference(model, processor, path, engine=VLM_ENGINE_MINICPM,
+                        prompt_text=None):
+    """Run one audio pass (ASR + emotion + tone + style).
+
+    Audio is only available on the minicpm engine — qwen3-vl-moe has no audio
+    tower, so it raises (caller degrades; never silently returns empty).
+    """
+    if engine != VLM_ENGINE_MINICPM:
+        raise ValueError(
+            f"engine '{engine}' has no audio support (audio requires '{VLM_ENGINE_MINICPM}')"
+        )
+    return generate_response(
+        model, processor, engine=engine, audio_path=path,
+        prompt_text=prompt_text if prompt_text is not None else SEMANTICS_PROMPT_AUDIO,
+        max_tokens=1000,
+    )
+
+
 
 # ─── Request handler ───
 
-def handle_analyze_semantics(model, processor, path, window=None, claim=None,
-                             crop_focus=None):
+def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
+                             window=None, claim=None, crop_focus=None):
     """Handle an analyze_semantics request.
 
     Dispatches to image or video prompt based on file extension.
@@ -737,8 +892,8 @@ def handle_analyze_semantics(model, processor, path, window=None, claim=None,
 
         raw = run_vlm_inference(
             model, processor, path, is_video, prompt_text,
-            start_ms=start_ms, end_ms=end_ms, sample_fps=sample_fps,
-            crop_focus=crop_focus,
+            engine=engine, start_ms=start_ms, end_ms=end_ms,
+            sample_fps=sample_fps, crop_focus=crop_focus,
         )
     except Exception as e:
         return {}, f"VLM generation failed: {e}"
@@ -750,32 +905,113 @@ def handle_analyze_semantics(model, processor, path, window=None, claim=None,
     if is_video and source_mode:
         result["sourceMode"] = source_mode
 
+    return result, None
 
+
+# Audio output sections → response field names. parse_markdown_to_dict keeps
+# unknown sections as snake_case keys; map them to the camelCase contract the
+# Node side consumes.
+_AUDIO_FIELD_MAP = {
+    "transcription": "transcription",
+    "language": "language",
+    "emotion": "emotion",
+    "tone": "tone",
+    "speaking_style": "speakingStyle",
+}
+
+
+def handle_analyze_audio(model, processor, path, engine=VLM_ENGINE_MINICPM):
+    """Handle an analyze_audio request (ASR + emotion + tone + speaking style).
+
+    Only the minicpm engine carries an audio tower; a request on any other
+    engine degrades with an explicit error (never an empty success). Returns
+    (result_dict, error).
+    """
+    if not os.path.exists(path):
+        return {}, f"File not found: {path}"
+
+    try:
+        raw = run_audio_inference(model, processor, path, engine=engine)
+    except Exception as e:
+        return {}, f"Audio analysis failed: {e}"
+
+    parsed = parse_markdown_to_dict(raw)
+    result = {field: parsed.get(key) for key, field in _AUDIO_FIELD_MAP.items()}
     return result, None
 
 
 # ─── Main loop ───
 
+def _warmup(model, processor, engine):
+    """Run a dummy 1x1 image inference to trigger MLX kernel compilation.
+
+    The first real inference after model load pays ~34s of MLX compile
+    overhead. By running a trivial warmup here, that cost is absorbed at
+    startup (before the first IPC request), so the first request latency
+    is predictable and the idle timeout doesn't fire during compilation.
+    """
+    import tempfile
+
+    # Create a 1x1 white pixel JPEG
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+        warmup_path = f.name
+    try:
+        img = Image.new("RGB", (1, 1), (255, 255, 255))
+        img.save(warmup_path, "JPEG")
+        generate_response(
+            model, processor, engine=engine,
+            image_paths=[warmup_path],
+            prompt_text="Describe this image in one word.",
+            max_tokens=5,
+        )
+    finally:
+        os.unlink(warmup_path)
+
+
 def main():
     """Main IPC loop: read line-delimited JSON from stdin, write responses to stdout."""
 
+    parser = argparse.ArgumentParser(
+        description="VLM analyzer subprocess (line-delimited JSON over stdin/stdout)"
+    )
+    parser.add_argument(
+        "--engine", default=None, choices=VALID_ENGINES,
+        help=f"VLM engine to load (default: vlm-model.json 'engine' = {DEFAULT_ENGINE})",
+    )
+    args = parser.parse_args()
+
+    engine, model_id = resolve_engine(_VLM_CONFIG, args.engine)
+
     # Load model
-    sys.stderr.write(f"[vlm_analyzer] Loading model: {MODEL_ID}\n")
+    sys.stderr.write(f"[vlm_analyzer] Engine={engine} loading model: {model_id}\n")
     sys.stderr.flush()
 
     try:
-        model, processor = load_model(MODEL_ID)
+        model, processor = load_model(model_id)
         sys.stderr.write("[vlm_analyzer] Model loaded successfully.\n")
         sys.stderr.flush()
     except Exception as e:
         # No fallback — fail fast so the caller (visual-analyzer.mjs)
         # can handle the error and return a degraded result.
-        sys.stderr.write(f"[vlm_analyzer] Failed to load {MODEL_ID}: {e}\n")
+        sys.stderr.write(
+            f"[vlm_analyzer] Failed to load {model_id} (engine={engine}): {e}\n"
+        )
         sys.stderr.flush()
         degraded = _degraded_result(f"Model load failed: {e}")
         sys.stdout.write(json.dumps(degraded) + "\n")
         sys.stdout.flush()
         sys.exit(1)
+
+    # Warmup: run a dummy 1x1 image inference to eliminate cold-start jitter
+    # (first real inference pays ~34s MLX compile overhead; warmup moves that
+    # cost to model-load time so the first request latency is predictable).
+    try:
+        _warmup(model, processor, engine)
+        sys.stderr.write("[vlm_analyzer] Warmup complete.\n")
+        sys.stderr.flush()
+    except Exception as e:
+        sys.stderr.write(f"[vlm_analyzer] Warmup failed (non-fatal): {e}\n")
+        sys.stderr.flush()
 
     # Start idle timer
     idle_timer = IdleTimer(IDLE_TIMEOUT_SECONDS)
@@ -805,9 +1041,22 @@ def main():
                 window = request.get("window")
                 claim = request.get("claim")
                 crop_focus = _parse_crop_focus(request.get("cropFocus"))
-                result, err = handle_analyze_semantics(model, processor, path, window=window, claim=claim, crop_focus=crop_focus)
+                result, err = handle_analyze_semantics(
+                    model, processor, path, engine=engine,
+                    window=window, claim=claim, crop_focus=crop_focus,
+                )
                 if err:
                     response = _degraded_result(err)
+                else:
+                    response = {**result, "error": None}
+
+            elif action == "analyze_audio":
+                path = request.get("path", "")
+                result, err = handle_analyze_audio(
+                    model, processor, path, engine=engine,
+                )
+                if err:
+                    response = _degraded_audio_result(err)
                 else:
                     response = {**result, "error": None}
 
@@ -842,6 +1091,18 @@ def _degraded_result(error):
         "reason": None,
         "relevance": None,
         "relevanceReason": None,
+        "error": error,
+    }
+
+
+def _degraded_audio_result(error):
+    """Degraded shape for analyze_audio (mirrors handle_analyze_audio keys)."""
+    return {
+        "transcription": None,
+        "language": None,
+        "emotion": None,
+        "tone": None,
+        "speakingStyle": None,
         "error": error,
     }
 

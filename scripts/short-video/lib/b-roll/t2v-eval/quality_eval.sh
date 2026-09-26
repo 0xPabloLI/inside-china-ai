@@ -6,8 +6,8 @@
 # One subprocess PER CLIP: mlx_vlm's native-video path returns a stale cached
 # analysis for every video after the first inside one process (found during
 # this eval, see eval report §Bugs). Fresh process per call sidesteps it.
-# Uses vlm_analyzer's model loading (Qwen3-VL-30B-A3B-4bit, the current
-# production judge) rather than qwen38_vlm_wrapper, whose configured
+# Uses vlm_analyzer's model loading (the vlm-model.json default engine,
+# dispatched explicitly via va.DEFAULT_ENGINE) rather than qwen38_vlm_wrapper, whose configured
 # Qwen3.8-27B model no longer exists on disk.
 #
 # Usage: bash quality_eval.sh
@@ -57,7 +57,7 @@ model, processor = va.load_model(va.MODEL_ID)
 frames = va.extract_frames('$clip', fps=2.0, max_seconds=8)
 assert frames, 'frame extraction failed'
 try:
-    raw = va.generate_response(model, processor, image_paths=frames, prompt_text='''$QUESTION''')
+    raw = va.generate_response(model, processor, engine=va.DEFAULT_ENGINE, image_paths=frames, prompt_text='''$QUESTION''')
 finally:
     va._cleanup_frames(frames)
 print(raw)

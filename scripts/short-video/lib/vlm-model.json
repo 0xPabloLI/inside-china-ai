@@ -1,3 +1,11 @@
 {
-  "modelId": "~/models/Qwen3-VL-30B-A3B-Instruct-4bit"
+  "engine": "minicpm",
+  "engines": {
+    "minicpm": {
+      "modelId": "~/models/MiniCPM-o-4_5-4bit"
+    },
+    "qwen3-vl-moe": {
+      "modelId": "~/models/Qwen3-VL-30B-A3B-Instruct-4bit"
+    }
+  }
 }
