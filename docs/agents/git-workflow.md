@@ -59,6 +59,7 @@
 - Testing section 只列已验证且勾选完成的项目，否则不写。
 - PR push/open 后不 amend 或 rebase，后续使用新 commit。
 - **合并门禁：PR 存在未 resolve 的 review thread（bot 与人一视同仁）时不合并**——逐条真实修复或回应、thread resolve 后方可 merge；用户明确豁免除外。
+- **自主合并常设授权（用户裁决，2026-09-26）**：agent 对自己开出的 PR，在 CI 全绿、无未 resolve review thread、改动未超出已授权 ticket 范围时**直接 merge，不逐次请示**；仅当 review thread 指出实质问题、CI 失败、或改动越出 ticket 授权范围时停下向用户确认。
 - 不为清线程做 cosmetic fix；真实修复，否则留给 maintainer 决定。
 
 ## 8. Session Boundary

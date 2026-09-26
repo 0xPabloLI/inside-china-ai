@@ -7,13 +7,12 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-09-25（**Round M**：全模态选型 handoff 定稿（`docs/research/handoff-omni-vlm-20260925.md`）——方案 C（MiniCPM-o 4.5 + emotion2vec+ 轻量插件）定为主干；备选改良为「Qwen3-VL-30B MoE + 方案F 轻量音频模块 SenseVoice+e2v」（用户裁决：备选引擎须与主引擎能力对齐，切换不降级）；方案 E/E'（MiniCPM-o 当 ASR 工具人的双大模型冗余）否决。#351（vlm 缓存 key 模型解耦）分流入 **W3C** 并已实施（branch `session/20260925-vlm-cache-key-351-7a7ab6`，`vlm-model.json` 单一真值源）；#360（长视频分段分析 + 跨 Scene 连续播放）分流入 **W3C**。方案 C 主票待开（tracker 写入待用户授权）。
+> **Last inventory**: 2026-09-26（**Round O**：#319 Tier 1 安全攻坚收口 —— session `20260926-319-ocr-security-a688be`，PR #380 已合并（`008bb2ff`）：
+> 4 项 High/Critical 中 **1 修 3 证伪** —— compile-series.mjs FFmpeg 命令注入修复（execSync 字符串插值 → spawnSync argv 数组，修复前真实注入复现作 R3 基线）；digital-human `--portrait`（操作员 CLI 无信任边界）、auth-middleware `getClaims`（supabase-js 2.110.8 真实公开 API，且文件为自动生成）、keyword-tracking `id: true`（boolean 单行表惯用法）三项证据证伪；其余 Medium/Low 留票按模块批次治理（票保持 open，移入 Tier 2）；
+> **用户常设授权（2026-09-26）**：agent 自主 merge 自己开的 PR——CI 全绿且无未 resolve review thread 即直接合并，仅实质问题才向用户确认（已固化至 `docs/agents/git-workflow.md` §7）；
+> **frontier**：W3C **#361** 方案 C 认知底座开发就绪（worktree `session/20260925-361-omni-vlm-5c0413` 在途）；Tier 1 余 **#291**（wayfinder:map HITL）与 **#216**（HITL）；#357（P2 bug 快赢）与 #346/#358 可随时穿插。
 >
-> Round L（素材策略统一化提案 v3）一句话档案：组票 #354/#355/#356/#357 落位，#295/#301 挂注记；用户裁决链：采购视频优先，生成形态由预算决定，字段降级为覆盖。
->
-> **frontier**：Tier 1 可立即开工 **#298**（P1）；#300/#302 并行调研（W3A）；**W3C VLM 认知底座组串行链：#351（已实施待 review）→ 方案 C 主票 → #360 → #294**；#357（P2 bug 快赢，W3B）可穿插；#326/#346/#347 等 `needs-triage` 先分流再开工。
->
-> 近轮一句话档案：**Round K**（#297 交付 + E2：fail-closed 单模式落地闭票，legacy 删除，smoke PASS）；**Round J**（#333 收口 / #269 母票闭票 / 结构精简）；**Round I + 续波**（源健康收口：polymarket 修复 / duckduckgo RETIRED / digg 降级 site: / xhs 登录修复 / SearXNG 复活）；**Round F**（URL 对齐审计 `registryPatches: 0`）；**#335 已撤销**（四轴定案：抽取层最权威）。全文见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
+> 近轮一句话档案：**Round N**（全量 62 票 open issues 分流清零、`needs-triage` 归零；W3C 认知底座组 #361→#360→#334 串行确立；W1C/W2B 分流归位）；**Round M**（全模态选型 handoff 定稿方案 C 主干，#351 解耦交付，#360 分流）；**Round L**（素材策略统一化组票 #354/#355/#356/#357 落位）；**Round K**（#297 交付 fail-closed 单模式落地闭票，legacy 删除）；**Round J**（#333 收口 / #269 母票闭票 / 结构精简）。全文见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
 
 ---
 
@@ -23,9 +22,9 @@
 
 | Phase                                                | Dominant Issue (🎯 主导票)                                                                                                                                                                                                               | Satellite Issues (挂靠卫星票)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 架构定位与统领关系                                                                                                                                                                                                       |
 | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Phase 1: 管线可靠性与安全闭环**                    | ✅ **#271** TTS Quality Gate 语义分流与出片阻断 (P1, 已闭票)<br>✅ **#272** Avatar 唇同步时长一致性 Gate (P1, 已闭票)<br>✅ **#270** TTS instruct 标准机制级化 (P2, 已闭票)                                                              | → **#279** (语速整体上探与耦合, P2)<br>→ **#278** (Hook 文案句式规范, P2)<br>→ **#273** (并行经验与 CDP 并发锁, P2)<br>→ **#274** (Z-Image-Turbo 许可排查, P3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | #271 + #272 + #270 均已交付（Fail-closed 语义分流 + avatar 片段时长一致性 + instruct 单一来源三层门控）；#270 改动前实测 9/9 visualType instruct 跨引擎发散、5/9 无 instruct，现由 `lib/tts/instruct.mjs` 单一来源收口。 |
-| **Phase 2: 检索体系与运行环境固化**                  | ✅ **#292** search-sources 体系性重审与通用/专用分流 (P1, 已闭票——grilling 裁决收口)<br>✅ **#287** 管线入口统一加载 .env.local (P1, 已闭票)<br>✅ **#309** 62 源用途定链审计 (P1, 已闭票——两条契约定链执行全部交付 `bc34f67`+`d0f2ea0`) | ✅ **#307** (Bigsong 直连 + Grok promptTemplate, P2, 已闭票)<br>✅ **#306** (brief-builder 测试日期衰减, P2 bug, 已闭票)<br>✅ **#311** (claim 脚本 @me assign 静默失败, P2 bug, 已闭票)<br>→ **#312** (coverr 下载链失效, P2 bug)<br>→ **#313** (youtube bot-check 验证 Chrome cookie, P2 bug)<br>→ **#315** (交付记录门禁软提醒闭环与复检机制, P2)<br>→ **#305** (pool 静默零结果 A/B, P2——并入统一 source-health)<br>→ **#275** (全链路不自载缺陷, 由 #287 闭环)<br>→ **#285** (needsAuth 403 探针放宽, P2)<br>→ **#284** (Route C 循环引用消除, P2)<br>→ **#276** (web-deep-research 路由接入, P2)<br>→ **#286** (trend 模式相关性护栏, P2——裁决并入 #309 新闻参数)<br>→ **#281** (Search Pool 引擎可用性复测, P2)<br>✅ **#269** (死源自动修复 Phase 2, P2——已闭票 2026-09-24，交付审计见票评)<br>→ **#231** (环境固化真机验收, P3) | #292 主导搜索链路宏观分流架构（已闭票，grilling 七项裁决落 #309/#307/#269/#310）；#287 主导环境变量单一入口加载契约，闭环 #275。                                                                                         |
-| **Phase 3: 视觉设计系统与媒体素材重构**              | 🎯 **#291** 短视频模板视觉设计体系重做 (P1, `wayfinder:map`)<br>🎯 **#310** 素材库体系——统一素材库 + 文字描述索引 + 收获率 log (P2, 吸收 **#288**/**#301**)<br>🎯 **#298** B-roll T2V 模型画质评测升级 (P1)                              | → **#300** (外部赛道爆款解构基准, P2)<br>→ **#302** (外部开源 Repo 逐个深度追踪, P2)<br>→ **#301** (实拍库存视频优先策略改造, P2——并入 **#310**/**#355**)<br>→ **#314** (douyin/xhs 视频素材源 + CDP 新闻源视频能力重构, P2)<br>→ **#299** (Hook 前 3 秒专属视觉策略, P2)<br>→ **#289** (Scene->Prompt->Video 适配层, P2)<br>→ **#293** (Stage 0 素材预获取与缺口回流, P2)<br>✅ **#297** (素材匹配 Fail-closed 留空, P1, 已闭票)<br>→ **#354** (认领供给泛化——voiceover 派生 assetNeed+searchHints, P2——吸收 **#295**)<br>→ **#355** (统一素材兜底链——通用递降链替代五值策略, P2——承接 **#301** 链裁决)<br>→ **#356** (无主供给退役/认领化, P3——依赖 #354)<br>→ **#357** (视频默认 zoom 退场快修, P2 bug)<br>→ **#294** (VLM borderline 二度校验, P2)<br>→ **#295** (写稿 scene-data 概念泛化, P2——并入 **#354**)<br>→ **#253** (行业坐标系+hook 版式, P2)<br>→ **#304** (T2I 工具横评, P3)                                                                                                                                                                                                                                       | #291 为视觉重做总指挥与 S3 Map，以 #300 竞品解构与 #302 开源调研为输入；#310 主导素材库体系与检索索引（吸收 #288/#301 供给）；#298 主导生成画质横评与跃迁（吸收关闭 #290）；#297 守住不塞无关图底线；#354 负责认领供给泛化（消除无主死角，吸收 #295）；#355 确立通用素材兜底链（承接 #301 链裁决）。 |
+| **Phase 1: 管线可靠性与安全闭环**                    | ✅ **#271** TTS Quality Gate 语义分流与出片阻断 (P1, 已闭票)<br>✅ **#272** Avatar 唇同步时长一致性 Gate (P1, 已闭票)<br>✅ **#270** TTS instruct 标准机制级化 (P2, 已闭票)                                                              | → **#319** (OCR 审查安全攻坚, P1——Tier 1 收口 2026-09-26，余 Medium/Low 批次)<br>→ **#279** (语速整体上探与耦合, P2)<br>→ **#278** (Hook 文案句式规范, P2)<br>→ **#325** (lib unused exports 清理 + knip ignore 移除, P3)<br>→ **#327** (统一本地模型存放至 ~/models/, P3)<br>→ **#273** (并行经验与 CDP 并发锁, P2)<br>→ **#274** (Z-Image-Turbo 许可排查, P3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | #271 + #272 + #270 均已交付（Fail-closed 语义分流 + avatar 片段时长一致性 + instruct 单一来源三层门控）；新增 W1C 工程卫生与安全加固，#319 主导核心安全漏洞修复。 |
+| **Phase 2: 检索体系与运行环境固化**                  | ✅ **#292** search-sources 体系性重审与通用/专用分流 (P1, 已闭票——grilling 裁决收口)<br>✅ **#287** 管线入口统一加载 .env.local (P1, 已闭票)<br>✅ **#309** 62 源用途定链审计 (P1, 已闭票——两条契约定链执行全部交付 `bc34f67`+`d0f2ea0`) | ✅ **#307** (Bigsong 直连 + Grok promptTemplate, P2, 已闭票)<br>✅ **#306** (brief-builder 测试日期衰减, P2 bug, 已闭票)<br>✅ **#311** (claim 脚本 @me assign 静默失败, P2 bug, 已闭票)<br>→ **#344** (SearXNG 覆盖面审计收敛, P2)<br>→ **#346** (detectAntiBot 抢跑时序修复, P2 bug)<br>→ **#347** (package-lock 同步, P2 bug——PR #371)<br>→ **#353** (selector-health 运行时告警与去重开票, P2)<br>→ **#358** (reddit 403 判据修复 + SearXNG 候选, P2 bug)<br>→ **#328** (yt-dlp cookie 提取短超时与免 cookie 兜底, P2 bug)<br>→ **#329** (ffmpeg 代理契约断言, P2 bug)<br>→ **#320** (自建 wechat→RSS 实例, P2 [HITL])<br>→ **#312** (coverr 下载链失效, P2 bug)<br>→ **#313** (youtube bot-check 验证 Chrome cookie, P2 bug)<br>→ **#315** (交付记录门禁软提醒闭环与复检机制, P2)<br>→ **#305** (pool 静默零结果 A/B, P2——并入统一 source-health)<br>→ **#275** (全链路不自载缺陷, 由 #287 闭环)<br>→ **#285** (needsAuth 403 探针放宽, P2)<br>→ **#284** (Route C 循环引用消除, P2)<br>→ **#276** (web-deep-research 路由接入, P2)<br>→ **#286** (trend 模式相关性护栏, P2——裁决并入 #309 新闻参数)<br>→ **#281** (Search Pool 引擎可用性复测, P2)<br>✅ **#269** (死源自动修复 Phase 2, P2——已闭票 2026-09-24，交付审计见票评)<br>→ **#231** (环境固化真机验收, P3)<br>→ **#318** (SearXNG 引擎数据, P3 挂起归入 #344)<br>→ **#352** (transformers 5.x 评估, P3 挂起)<br>→ **#326** (本地 ML 栈升级, P3 挂起)<br>→ **#348** (colima 替代品调研, P3 挂起) | #292 主导搜索链路宏观分流架构（已闭票，grilling 七项裁决落 #309/#307/#269/#310）；#287 主导环境变量单一入口加载契约，闭环 #275；#344 主导 SearXNG 精简审计收敛。 |
+| **Phase 3: 视觉设计系统与媒体素材重构**              | 🎯 **#291** 短视频模板视觉设计体系重做 (P1, `wayfinder:map`)<br>🎯 **#310** 素材库体系——统一素材库 + 文字描述索引 + 收获率 log (P2, 吸收 **#288**/**#301**)<br>🎯 **#298** B-roll T2V 模型画质评测升级 (P1)<br>🎯 **#361** 采纳方案 C 全模态引擎——MiniCPM-o 4.5 + e2v (P2) | → **#360** (长视频预处理：VLM 分段分析 + 跨 Scene 连续播放, P2)<br>→ **#334** (VLM Prompt 优化：Fit/claim 冗余/Reason, P2)<br>✅ **#351** (vlm 缓存 key 解耦, P2 bug, 已闭票)<br>✅ **#375** (B-roll spawn env 默认值断言覆盖, P2 bug, 已闭票)<br>→ **#300** (外部赛道爆款解构基准, P2)<br>→ **#302** (外部开源 Repo 逐个深度追踪, P2)<br>→ **#301** (实拍库存视频优先策略改造, P2——并入 **#310**/**#355**)<br>→ **#314** (douyin/xhs 视频素材源 + CDP 新闻源视频能力重构, P2)<br>→ **#299** (Hook 前 3 秒专属视觉策略, P2)<br>→ **#289** (Scene->Prompt->Video 适配层, P2)<br>→ **#293** (Stage 0 素材预获取与缺口回流, P2)<br>✅ **#297** (素材匹配 Fail-closed 留空, P1, 已闭票)<br>→ **#354** (认领供给泛化——voiceover 派生 assetNeed+searchHints, P2——吸收 **#295**)<br>→ **#355** (统一素材兜底链——通用递降链替代五值策略, P2——承接 **#301** 链裁决)<br>→ **#356** (无主供给退役/认领化, P3——依赖 #354)<br>→ **#357** (视频默认 zoom 退场快修, P2 bug)<br>→ **#294** (VLM borderline 二度校验, P2)<br>→ **#295** (写稿 scene-data 概念泛化, P2——并入 **#354**)<br>→ **#253** (行业坐标系+hook 版式, P2)<br>→ **#304** (T2I 工具横评, P3)                                                                                                                                                                                                                                       | #291 为视觉重做总指挥与 S3 Map，以 #300 竞品解构与 #302 开源调研为输入；#310 主导素材库体系与检索索引（吸收 #288/#301 供给）；#298 主导生成画质横评与跃迁；#361 主导 VLM 认知底座方案 C 落地（统领 #360/#334）；#354 负责认领供给泛化（消除无主死角，吸收 #295）；#355 确立通用素材兜底链（承接 #301 链裁决）。 |
 | **Phase 4: 多平台发布通道与中文内容生态 (最终阶段)** | 🎯 **#296** 中文多平台发布架构 (P2, `wayfinder:map`)<br>🎯 **#268** 中文内容轨首包产出 (P2)                                                                                                                                              | → **#216** (视频号人工扫码 5 项实测, P2)<br>→ **#217** (管线适配视频号发布包, P2)<br>→ **#218** (视频号 CDP 自动化发布, P2)<br>→ **#220** (抖音发布通道落地, P2)<br>→ **#223** (小红书图文频道立项, P2)<br>→ **#206** (Auto-Redbook 试点, P3)<br>→ **#208** (降级图文帖路径, P3)<br>→ **#210** (TikTok 官方 API 发布, P3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | #296 为全渠道发布总图与 S3 Map，主导自研 vs Relay 架构决策；#268 产出合规中文样片物料，作为 #216 扫码实测的必要物料。                                                                                                    |
 
 ---
@@ -46,6 +45,8 @@
 | **#295** (写稿 scene-data 概念泛化)         | **#354** (认领供给泛化)                      | ⏩ **并入**：2026-09-24 提案裁决——searchHints 映射机制倒置为 voiceover 派生的默认环节（triage 方案 1 原样继承）。待 #354 交付后覆盖关闭。 |
 | **#280** (search-sources 不自载 .env.local) | **#275**                                     | ✅ **CLOSED (Duplicate)**                                                                                                          |
 | **#282** (search-pool skill 跨 repo 同步)   | —                                            | ✅ **CLOSED (Superseded)**：已由前序 commit 同步闭环。                                                                             |
+| **#318** (SearXNG 全量引擎启用)             | **#344** (SearXNG 覆盖面审计收敛)            | ⏩ **并入/挂起**：作为 #344 精简审计的引擎支持矩阵输入数据，不单独推进实施。                                                        |
+| **#326** (本地 ML 栈安全升级)               | **#352** (transformers 5.x 升级链)           | ⏩ **协同挂起**：本地不可达 CVE 已 dismiss，待上游（whisperx、huggingface_hub <1.0）解除版本约束后联动评估。                        |
 
 ---
 
@@ -59,11 +60,12 @@
 | --- | --- | --- | --- | --- |
 | **W1A** | 管线可靠性安全门控 | `lib/tts/quality-gate.mjs` `main.mjs` | — | ✅ 完成（#271/#272 闭票） |
 | **W1B** | 参数标准化与听感 | `lib/tts/` `docs/content-pipeline.md` | #279 #278（HITL）｜D：#228 | #270 已交付（instruct 单一来源） |
+| **W1C** | 工程卫生与核心安全加固 | `src/` `scripts/` `models/` | #319（🎯P1）#325 #327 | 🟢 独立代码清理与安全修复，可与业务线并行 |
 | **W2A** | 搜源可用性摸底与环境底座 | `skills/search-pool/` `main.mjs` `lib/load-env.mjs` | — | ✅ 完成（#287/#281 闭票），解锁 W2B |
-| **W2B** | 搜源架构重审与修复闭环 | `lib/search-sources.mjs` `lib/source-*.mjs` `skills/web-access/` `.github/workflows/` | #326 #346 #347（先分流）｜#231｜D：#286 #322｜#348 待分流 | #292/#309/#269 及全部卫星已闭；registry / heal 判据改动见冲突矩阵 |
+| **W2B** | 搜源架构重审与修复闭环 | `lib/search-sources.mjs` `lib/source-*.mjs` `skills/web-access/` `.github/workflows/` | #344 #346 #347 #353 #358 #320（HITL）#328 #329｜#231｜D：#286 #318 #322 #326 #348 #352 | #292/#309/#269 及全部卫星已闭；#344 为收敛主导，#318 挂起；#347 挂接 PR #371；#326/#352 挂起跟踪上游 |
 | **W3A** | 视觉与竞品深度调研（调研先行） | `docs/research/` `lib/b-roll/` | #291（🎯map）#298（🎯）#300 #302 #304 | 🟢 全部只读调研可并行；**先于任何视觉代码改动** |
-| **W3B** | 媒体底座与素材体系 | `asset-sourcer.mjs` `knowledge/media-catalog.json` | #310（🎯）#293 #314 #354 #355 #356 #357｜D：#288 #301 | #310 吸收 #288/#301；#297 fail-closed 已闭票；#355 承接 #301 链裁决；#354 吸收 #295 |
-| **W3C** | 画面适配与智能写稿 | `scene-data.mjs` `lib/visual-analyzer.mjs` `vlm_analyzer.py` | #351 #360 #289 #299 #294 #253 #244 #256 #263（多为 HITL）｜D：#295 | 依赖 W3A 选型（#298）与 W3B 素材流；#295 并入 #354；VLM 认知底座组串行：#351 → 方案 C → #360 → #294 |
+| **W3B** | 媒体底座与素材体系 | `asset-sourcer.mjs` `knowledge/media-catalog.json` | #310（🎯）#293 #314 #354 #355 #356 #357｜D：#288 #301 | #310 吸收 #288/#301；#297 fail-closed 已闭票；#355 承接 #301 链裁决；#354 吸收 #295；#375 env 覆盖已闭票 |
+| **W3C** | 画面适配与智能写稿 | `scene-data.mjs` `lib/visual-analyzer.mjs` `vlm_analyzer.py` | #361（🎯方案C）#360 #334 #289 #299 #294 #253 #244 #256 #263（多为 HITL）｜D：#295 | 依赖 W3A 选型（#298）与 W3B 素材流；#295 并入 #354；#351 已交付闭票；VLM 认知底座串行：#361 → #360 → #294，#334 伴随测试集回归 |
 | **W4A** | 平台架构调研与中文首包 | 视频号后台 `docs/research/` `content/` | #296（🎯map）#268 #216（HITL）｜D：#210 | 真机实测先行 |
 | **W4B** | 发布包适配与自动发布 | `lib/platforms/` | D：#217 #218 #220 #223 #206 #208 #222 | 🔴 硬前置：等 #216 实测数据 + 用户立项授权 |
 
@@ -87,6 +89,7 @@
 - **划分波次**：
   - **Wave 1A（即时门控，✅ 本波次完成）**：✅ **#271**（TTS Quality Gate 语义分流与 fail-closed 阻断）+ ✅ **#272**（Avatar 视频有效时长 ≥ TTS 时长强校验 Gate）——出片双重保险到位，下一波次为 Wave 1B。
   - **Wave 1B（标准化与语速规范，✅ Dominant 已交付）**：✅ **#270**（TTS instruct 单一来源 `lib/tts/instruct.mjs` + manifest 抛错 / preflight 覆盖检查 / gate 签名告警三层门控，实测基线 9/9 发散已收口）+ **#279**（语速整体微调 + narrative 耦合，下一 frontier，`ready-for-human`）+ **#278**（Hook 文案具象化对比规范，`ready-for-human`）+ **#273**（CDP 并发锁与经验沉淀）+ ✅ **#274**（Z-Image-Turbo 许可核查，已交付：裁定误标、维持现状）。
+  - **Wave 1C（工程卫生与核心安全加固）**：🎯 **#319**（Tier 1 攻坚已收口 2026-09-26：compile-series.mjs 命令注入修复 PR #380；auth-middleware getClaims / keyword-tracking id:true / digital-human --portrait traversal 三项证据证伪；余 Medium/Low 留票批次治理）+ **#325**（lib unused exports 清理 + 移除 knip ignore）+ **#327**（统一本地模型存放至 ~/models/cosyvoice3-mlx）。
 
 ---
 
@@ -95,7 +98,7 @@
 - **阶段目标**：理顺检索降级链，消除环境变量自载缺陷与 Agent 路由循环引用，固化跨平台运行环境。
 - **划分波次**：
   - **Wave 2A（【调研先行】探针摸底与环境底座，✅ 本波次完成）**：✅ **#281**（Search Pool 引擎可用性复测：Serper 可用并修复 `parseArticles` 映射 bug、Brave TUN 故障未复现，绕行方法留档）+ ✅ **#287**（管线入口顶层统一加载 `.env.local`，彻底闭环 **#275**，已闭票）。
-  - **Wave 2B（搜源分流架构与去环落地）**：✅ **#292**（专用源直连平台 MCP vs 通用源 L3 Pool 分流总图，吸收 **#283**，已闭票——grilling 七项裁决收口，执行移交 #309/#307/#269/#310）+ **#309**（62 源用途定链审计，✅ `bc34f67` + `d0f2ea0` 交付，已闭票）+ **#307**（Bigsong 直连 + Grok promptTemplate，✅ commit `2f97be9` 交付，已闭票）+ **#306**（brief-builder 测试日期衰减基线修复，✅ commit `f7e2731` 交付）+ **#305**（pool 静默零结果 A/B 告警与 streak，C 项 CI 自动开票待授权）+ ✅ **#285**（needsAuth 403 探针放宽，`47fbeaf` / `c957bdc` 交付，已闭票 2026-09-20）+ ✅ **#313**（youtube bot-check Chrome cookie 通道，`9760bda` 交付，已闭票 2026-09-20）+ ✅ **#284**（Route C 循环引用消除，`4c8e92c` + `0340949` 交付 2026-09-20，已推 main `3cdbec9..b13120d`）+ ✅ **#276**（web-deep-research 接入 Search Pool，stale premise 收口闭票 2026-09-21——方案被 #307 用户签字推翻）+ ✅ **#324**（ffmpeg 下载段系统代理 hand-off，`a94f1f3` + `a996821` + `3321cb2` + `4a318a2` 交付 2026-09-21，已推 main `6050db5..4a318a2`）+ **#286**（trend 模式相关性护栏）+ **#269**（死源自动修复 Phase 2）+ **#231**（Kaggle wheels 挂载真机终验）。
+  - **Wave 2B（搜源分流架构与去环落地）**：✅ **#292**（专用源直连平台 MCP vs 通用源 L3 Pool 分流总图，吸收 **#283**，已闭票——grilling 七项裁决收口，执行移交 #309/#307/#269/#310）+ **#309**（62 源用途定链审计，✅ `bc34f67` + `d0f2ea0` 交付，已闭票）+ **#307**（Bigsong 直连 + Grok promptTemplate，✅ commit `2f97be9` 交付，已闭票）+ **#306**（brief-builder 测试日期衰减基线修复，✅ commit `f7e2731` 交付）+ **#305**（pool 静默零结果 A/B 告警与 streak，C 项 CI 自动开票待授权）+ ✅ **#285**（needsAuth 403 探针放宽，`47fbeaf` / `c957bdc` 交付，已闭票 2026-09-20）+ ✅ **#313**（youtube bot-check Chrome cookie 通道，`9760bda` 交付，已闭票 2026-09-20）+ ✅ **#284**（Route C 循环引用消除，`4c8e92c` + `0340949` 交付 2026-09-20，已推 main `3cdbec9..b13120d`）+ ✅ **#276**（web-deep-research 接入 Search Pool，stale premise 收口闭票 2026-09-21——方案被 #307 用户签字推翻）+ ✅ **#324**（ffmpeg 下载段系统代理 hand-off，`a94f1f3` + `a996821` + `3321cb2` + `4a318a2` 交付 2026-09-21，已推 main `6050db5..4a318a2`）+ **#344**（SearXNG 覆盖面审计与精简收敛）+ **#346**（detectAntiBot 抢跑时序调整为 loginCheck 先行）+ **#347**（package-lock.json 脱同步，挂接 PR #371）+ **#353**（selector-health 即时告警与去重自动开票）+ **#358**（reddit 403 判据修复与 SearXNG 候选）+ **#328**（yt-dlp cookie 提取 15s 短超时与免 cookie 兜底）+ **#329**（ffmpeg 代理契约断言）+ **#320**（自建 wechat→RSS 实例，`ready-for-human`）+ **#286**（trend 模式相关性护栏）+ **#269**（死源自动修复 Phase 2）+ **#231**（Kaggle wheels 挂载真机终验）+ ⏩ **#318**（挂起作为参考数据）+ ⏩ **#326** / **#352**（挂起追踪上游）+ ⏩ **#348**（colima 替代挂起）。
 
 ---
 
@@ -108,9 +111,9 @@
     - **#302**：深度学习吸收外部开源项目（MoneyPrinterTurbo 等）在分镜和调度上的成熟经验；
     - 🎯 **#298**：本地 MLX → 免费云端（AtomGit/Kaggle）→ 付费云端（Modal L4）模型画质横评（吸收 **#290** 文字测试集）；**本地档已完成（2026-09-25）**：FastMetal-5B-QAD 评测胜出（claim gate 85.0 vs 1.3B 83.75，四维画质 76/80 vs 73/80，M2 Pro 峰值 11.42 GiB）+ 生产端口落地（`mlx_wan22_batch.py` + runner tier 体系，BROLL_MODEL 切换）——云端档仅在 5B 实产不达预期时再启动；
     - 🎯 **#291**：汇总调研成果，确立 S3 视觉重做 Wayfinder Map。
-  - **Wave 3B（媒体底座与素材兜底）**：🎯 **#310**（素材库体系统一——统一素材库 + 文字描述索引 + **收获率搜索 log（第一交付物，可先行）** + 素材关键词体系；**吸收 #288 + #301**）+ ✅ **#297**（素材匹配 Fail-closed 留空绝不硬塞无关图，已闭票 `a4ce959`，E2 `1b68276` 删 legacy 模式）+ **#293**（Stage 0 素材预获取与缺口回流）+ **#354**（认领供给泛化——voiceover 派生 assetNeed+searchHints，字段降级为覆盖；吸收 #295）+ **#355**（统一素材兜底链——通用递降链替代五值 mediaStrategy，承接 #301 票评 2026-09-14 媒体优先级链，生成形态预算选择 + 每内容生成上限护栏）+ **#356**（无主供给退役/认领化——兜底池死供给清理，依赖 #354）+ **#357**（视频默认 zoom 退场快修——双重运动/入场裁切/cropFocus 失配，bug）。
+  - **Wave 3B（媒体底座与素材兜底）**：🎯 **#310**（素材库体系统一——统一素材库 + 文字描述索引 + **收获率搜索 log（第一交付物，可先行）** + 素材关键词体系；**吸收 #288 + #301**）+ ✅ **#297**（素材匹配 Fail-closed 留空绝不硬塞无关图，已闭票 `a4ce959`，E2 `1b68276` 删 legacy 模式）+ ✅ **#375**（B-roll spawn env 默认值断言覆盖，已闭票）+ **#293**（Stage 0 素材预获取与缺口回流）+ **#354**（认领供给泛化——voiceover 派生 assetNeed+searchHints，字段降级为覆盖；吸收 #295）+ **#355**（统一素材兜底链——通用递降链替代五值 mediaStrategy，承接 #301 票评 2026-09-14 媒体优先级链，生成形态预算选择 + 每内容生成上限护栏）+ **#356**（无主供给退役/认领化——兜底池死供给清理，依赖 #354）+ **#357**（视频默认 zoom 退场快修——双重运动/入场裁切/cropFocus 失配，bug）。
   - **Wave 3C（画面适配与智能生成）**：**#289**（专属 aiVideo.prompt 适配层）+ **#299**（Hook 前 3 秒专属视觉）+ **#294**（VLM borderline 二度校验）+ ⏩ **#295**（写稿 scene-data 概念泛化，已并入 #354 待覆盖关闭）+ **#253**（行业坐标系与版式库）+ **#244**/**#256**/**#263**（策略与创意 HITL）。
-  - **Wave 3C（VLM 认知底座组，2026-09-25 新增）**：**#351**（vlm 缓存 key 模型解耦——`vlm-model.json` 单一真值源，方案 C 换模型前必须先落地，已实施待 review）→ **方案 C 主票**（MiniCPM-o 4.5 + e2v 全模态引擎，裁决与防线见 `docs/research/handoff-omni-vlm-20260925.md`）→ **#360**（长视频分段分析 + 跨 Scene 连续播放）→ **#294**（borderline 二度校验，复用方案 C 音视频对齐）。
+  - **Wave 3C（VLM 认知底座组，2026-09-25 新增）**：✅ **#351**（vlm 缓存 key 模型解耦——`vlm-model.json` 单一真值源，已闭票交付）→ 🎯 **#361**（方案 C 全模态引擎接入——MiniCPM-o 4.5 + emotion2vec+ 轻量插件，裁决与防线见 `docs/research/handoff-omni-vlm-20260925.md`）→ **#360**（长视频分段分析 + 跨 Scene 连续播放）→ **#334**（VLM Prompt 优化与 token 预算削减）→ **#294**（borderline 二度校验，复用方案 C 音视频对齐）。
 
 ---
 
@@ -146,29 +149,37 @@
 | --- | --- | --- | --- |
 | #279 | 语速整体上探 + narrative 速度耦合 | P1·W1B | HITL |
 | #278 | Hook 文案句式规范（#244 后续） | P1·W1B | HITL |
-| #326 | 本地 ML 栈安全升级（torch/transformers） | P2·W2B | security；需先分流 |
-| #346 | detectAntiBot 抢跑假 anti_bot 判决 | P2·W2B | bug |
-| #347 | package-lock.json 与 package.json 脱同步 | P2·W2B | bug |
+| #319 | OCR 审查 Medium/Low 批次治理 | P1·W1C | security；Tier 1 已收口 2026-09-26（1 修 3 证伪，PR #380），余 15+ Medium/Low 留票批次 |
+| #325 | lib unused exports 清理 + 移除 knip ignore | P1·W1C | enhancement；scripts/short-video/lib/** 范围收割 |
+| #327 | 统一本地模型存放位置（~/.cosyvoice3-mlx-model → ~/models/） | P1·W1C | enhancement；平滑迁移 fallback |
+| #344 | SearXNG 覆盖面审计（registry ↔ SearXNG 对照精简收敛） | P2·W2B | 🎯 Dominant；收敛审计，吸收 #318 引擎数据 |
+| #346 | detectAntiBot 抢跑假 anti_bot 判决 | P2·W2B | bug；时序调整为 loginCheck 先行 |
+| #347 | package-lock.json 与 package.json 脱同步 | P2·W2B | bug；挂接 PR #371 |
+| #353 | selector-health 运行时告警与去重自动开票 | P2·W2B | enhancement；运行态即时告警 + 去重开票 |
+| #358 | reddit_search 403 判据修复 + SearXNG 路由候选 | P2·W2B | bug；authRequired:false 误判修正 |
+| #328 | yt-dlp chrome cookie node-spawn 挂起 | P2·W2B | bug；15s 短超时 + 免 cookie 兜底重试 |
+| #329 | yt-dlp 代理 hand-off 残余覆盖（#324 后续） | P2·W2B | bug；ffmpeg env 契约断言 + SOCKS-only 声明 |
+| #320 | 自建 wechat→RSS 实例（动察Beating 登记） | P2·W2B | proposal；HITL 环境搭建与扫码登录 |
 | #300 | 头部竞品短视频分镜解构基准 | P3·W3A | feeding #291 |
 | #302 | 外部开源 Repo 深度学习吸收追踪 | P3·W3A | documentation |
 | #310 | 素材库体系（统一素材库+索引+收获率 log） | P3·W3B | 🎯 Dominant；吸收 #288/#301 |
 | #293 | Stage 0 素材预获取 + 缺口回流 | P3·W3B | |
 | #314 | douyin/xhs 视频素材源（发现入口 + 白名单） | P3·W3B | 2026-09-19 裁决：CDP 新闻源摘除 videos 声明 |
+| #354 | 认领供给泛化（voiceover 派生 assetNeed+searchHints） | P3·W3B | 吸收 #295 |
+| #355 | 统一素材兜底链（通用递降链替代五值策略） | P3·W3B | 承接 #301 票评 2026-09-14 链裁决 |
+| #357 | 视频默认 zoom 退场快修（双重运动+入场裁切） | P2·W3B | bug；tracker 权威标签 P2，快赢可穿插 |
+| #361 | 采纳方案 C 全模态引擎（MiniCPM-o 4.5 + e2v 接入 vlm_analyzer） | P3·W3C | 🎯 Dominant；统领认知底座 |
+| #360 | 长视频预处理：VLM 分段分析 + 跨 Scene 连续播放 | P3·W3C | 依赖 #361；分段分析 + Remotion offset |
+| #334 | VLM Prompt 优化（Fit/claim 冗余 token 预算削减/Reason） | P3·W3C | enhancement；Prompt 精简与测试集回归 |
 | #289 | Scene 数据与生成画面适配 | P3·W3C | |
 | #299 | Hook 前 3 秒专属视觉策略 | P3·W3C | HITL |
 | #294 | VLM asset relevance 复杂系统设计 | P3·W3C | |
-| #354 | 认领供给泛化（voiceover 派生 assetNeed+searchHints） | P3·W3B | 吸收 #295 |
-| #355 | 统一素材兜底链（通用递降链替代五值策略） | P3·W3B | 承接 #301 票评 2026-09-14 链裁决 |
-| #357 | 视频默认 zoom 退场快修（双重运动+入场裁切） | P3·W3B | bug |
-| #351 | vlm 缓存 key 与实际产出模型脱钩（stale cache） | P3·W3C | bug；方案 C 换模型前先行票，已实施待 review |
-| #360 | 长视频预处理：VLM 分段分析 + 跨 Scene 连续播放 | P3·W3C | 依赖 #351；方案 C 主票待开 |
 | #253 | 行业知识层 Ontology + hook 版式库 | P3·W3C | HITL |
 | #244 | Hook scene emotion 不足 | P3·W3C | HITL |
 | #256 | 数字人决策权变更 + 白/黑名单重审 | P3·W3C | HITL |
 | #263 | TikTok 成片时长目标重审 | P3·W3C | HITL |
 | #296 | 中文多平台发布架构（AiToEarn 调研） | P4·W4A | 🎯 wayfinder:map |
 | #268 | 中文内容轨首包产出 | P4·W4A | #216 前置物料 |
-| #328 | yt-dlp chrome cookie node-spawn 挂起 | 待分流 | bug |
 
 ### Tier 3 — 低重要性 / 工具链与合规排查
 
@@ -177,14 +188,17 @@
 | #231 | TTS/渲染环境固化（Kaggle Dataset + torch 锁版） | P2·W2B | |
 | #304 | T2I 生成工具横评（mflux 协议适配度） | P3·W3A | 只读调研 |
 | #356 | 无主供给退役/认领化（兜底池死供给） | P3·W3B | 依赖 #354 |
-| #348 | colima 替代品调研（OrbStack 等） | 待分流 | |
 
 ### Dormant — 触发条件未满足（暂缓占用排期）
 
 | # | 标题 | Phase | 备注 |
 | --- | --- | --- | --- |
 | #286 | trend 模式关键词相关性护栏盲区 | P2 | 并入 #309 已交付，待覆盖关闭 |
+| #318 | SearXNG 全量引擎启用 + 逐引擎 fallback | P2 | 作为参考数据归入 #344 精简审计，不单独实施 |
 | #322 | needsAuth 源零结果差异化计数语义 | P2 | |
+| #326 | 本地 ML 栈安全升级 | P2 | CVE 本地不可达已 dismiss，随 #352 挂起跟踪上游 |
+| #348 | colima 替代品调研（OrbStack 等） | P2 | 替代收益微弱，挂起 |
+| #352 | transformers 5.x 升级链评估 | P2 | CVE 本地不可达已 dismiss，挂起跟踪上游 whisperx/hub 约束 |
 | #228 | 管线提速二期（batch/daemon/并行） | P1 | |
 | #21 | 多模态 RAG（图像/视频检索） | P3 | |
 | #157 | B-roll 高质量模型横评 | P3 | 收窄保留：FastMetal 同族已由 #298 交付选型；余非 FastMetal 候选（Wan2.2 TPP / LTX-Video 2.x / Helios）待准入 gate 后再评 |
@@ -210,19 +224,7 @@
 
 按 [`triage-labels.md`](agents/triage-labels.md) 定 Phase / Wave / Tier / P 标签后移入 Tier 表并摘 `needs-triage`。历史分流台账（含全部已闭票行）→ [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md)。
 
-| # | 标题 | 备注 |
-| --- | --- | --- |
-| #344 | SearXNG 覆盖面审计（registry ↔ SearXNG 引擎对照） | 与 #318 同域，建议合并分流 |
-| #318 | SearXNG 全量引擎启用 + 逐引擎 fallback | 同上 |
-| #319 | OCR 代码审查 4 high + 15 medium/low | security |
-| #320 | 自建 wechat→RSS 实例（动察Beating 登记） | proposal |
-| #325 | lib unused exports 清理 + 移除 knip ignore | scope 已刷新（2026-09-24 票评） |
-| #326 | 本地 ML 栈安全升级 | security；AC 含 venv 重建 + 三真实 smoke |
-| #327 | 统一本地模型存放位置 | 无标签 |
-| #329 | yt-dlp 代理 hand-off 残余覆盖（#324 后续） | bug |
-| #334 | VLM Prompt 优化（Fit/claim/Reason） | 无标签 |
-| #339 | SEO monitor failing（structured data / robots.txt） | bug, seo-monitor |
-| #352 | transformers 5.x 升级链评估（解除 3 条 High 告警） | enhancement；告警已 dismiss tolerable_risk |
+> **当前队列清空**（2026-09-25 Round N 全量清零）：全仓 62 张 open issues 全部分流归位，`needs-triage` 为 0。新 issue 进入后追加在此待分流。
 
 ---
 
@@ -233,14 +235,15 @@
 | 文件 / 模块 | open 票 | 风险与串行规则 |
 | --- | --- | --- |
 | `scripts/short-video/main.mjs` | #293（D：#228） | 🔴 管线生命周期入口，与 Stage 0 改动严格串行 |
-| `lib/source-registry.mjs`<br>`lib/search-sources.mjs` | #314 | 🔴 核心搜源调度。#285 的探针不变量在 `lib/source-health.mjs` seam（`isProbeAuthoritative` 等）；registry 改动与判据改动同批，勿并行开 session |
-| `lib/source-url-heal.mjs`<br>`source-url-sweep.mjs`<br>`source-url-discover.mjs` | —（#269 家族已闭） | 🟡 判据改动必须加在 `isFailureVerdict()` / `needsCdpSecondOpinion()` seam 上，不在调用点各写一份；sweep/discover 是只读消费者，可与 registry 并行；产物落 gitignored `output/` |
-| `lib/video-downloaders.mjs` | #314 | 🟡 下载适配器层；douyin/xhs 适配器改动在此排队 |
-| `asset-sourcer.mjs` | #294 #299 #351 #354 #355 #356 #357（D：#301） | 🟡 素材匹配评分流水线，串行；#297 fail-closed 已闭票（E2 `1b68276` 单模式化）；新组票全部落此文件，严禁并行（#357 联动 `MediaBackground.tsx`） |
-| `lib/visual-analyzer.mjs`<br>`vlm_analyzer.py`<br>`vlm-model.json` | #351 #360 | 🟡 VLM 子进程 IPC / 模型真值源 seam（#351 定案：换模型只改 `vlm-model.json`，双端共享）；方案 C 引擎接入与 #360 的分析层改动在此串行 |
+| `lib/source-registry.mjs`<br>`lib/search-sources.mjs` | #314 #344 #358 | 🔴 核心搜源调度。#344 精简审计、#358 路由增补与 #314 媒体能力重构在此交汇，勿并行开 session；改动保持与 `lib/source-health.mjs` seam 契约一致 |
+| `lib/source-url-heal.mjs`<br>`source-url-sweep.mjs`<br>`source-url-discover.mjs` | #358 | 🟡 判据改动加在 `isFailureVerdict()` / `needsCdpSecondOpinion()` seam 上（#358 reddit 403 判据修复）；sweep/discover 是只读消费者，可与 registry 并行；产物落 gitignored `output/` |
+| `lib/source-health.mjs`<br>`lib/search-pool.mjs` | #346 #353（D：#286 #322） | 🟡 统一信号事实源；#346（时序倒置调整）与 #353（运行态告警与去重自动开票）改动在此落实，保持 fail-open 原则 |
+| `lib/video-downloaders.mjs` | #314 #328 #329 | 🟡 下载适配器层；#328（cookie 提取短超时）与 #329（ffmpeg env 契约断言）及 douyin/xhs 适配器改动在此排队 |
+| `asset-sourcer.mjs` | #294 #299 #354 #355 #356 #357（D：#301） | 🟡 素材匹配评分流水线，串行；#297 fail-closed 已闭票；新组票全部落此文件，严禁并行（#357 联动 `MediaBackground.tsx`） |
+| `lib/visual-analyzer.mjs`<br>`vlm_analyzer.py`<br>`vlm-model.json` | #361 #360 #334 | 🟡 VLM 认知底座与模型真值源 seam（#351 已闭票落地 `vlm-model.json` 单一来源）；方案 C 引擎接入（#361）→ 分段播放（#360）→ Prompt 优化（#334）在此串行 |
 | `knowledge/media-catalog.json`<br>`asset-gaps.json` | #310 #293 #294 #299 | 🟡 #310 为 W3B Dominant；收获率 log 与其余低耦合可先行 |
 | `lib/b-roll/` | #298 #289 #304 #355 | 🟡 #298 定选型 → #289 定 prompt 模板；#355 的生成预算/工作单改动落 `b-roll-orchestrator.mjs`，与选型串行；#304 只读调研可并行 |
-| `lib/source-health.mjs`<br>`lib/search-pool.mjs` | D：#286 #322 | 🟡 统一信号事实源；改动遵循 fail-open |
+| `src/` / `scripts/` 安全核心模块 | #319 | 🔴 compile-series.mjs / digital-human.mjs / auth-middleware.ts / keyword-tracking 安全修复，独立加固 |
 | `lib/tts/` | D：#228 | 🟡 instruct 文案改动只动 `lib/tts/instruct.mjs` 单一来源 |
 
 ---
