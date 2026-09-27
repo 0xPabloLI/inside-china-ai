@@ -1,0 +1,3 @@
+[submodule "skills/shared"]
+	path = skills/shared
+	url = https://github.com/0xPabloLI/shared-skills.git

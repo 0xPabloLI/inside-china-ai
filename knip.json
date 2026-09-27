@@ -25,7 +25,6 @@
     "mcp-scanner",
     "osv-scanner",
     "kaggle",
-    "sqlite3",
     "rg",
     "ffmpeg",
     "ffprobe",
@@ -49,14 +48,12 @@
         "scripts/short-video/lib/tiktok-csi.mjs",
         "scripts/short-video/__tests__/*.mjs",
         "scripts/short-video/evergreen-templates/*.mjs",
-        "scripts/short-video/content/**/*.mjs",
-        "skills/web-access/scripts/*.mjs"
+        "scripts/short-video/content/**/*.mjs"
       ],
       "project": [
         "src/**/*.{ts,tsx}",
         "src/**/*.css",
-        "scripts/**/*.{ts,tsx,mjs}",
-        "skills/**/*.{ts,tsx,mjs}"
+        "scripts/**/*.{ts,tsx,mjs}"
       ]
     },
     "scripts/short-video/remotion": {

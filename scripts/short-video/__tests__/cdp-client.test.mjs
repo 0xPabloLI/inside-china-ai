@@ -3,13 +3,20 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // vi.hoisted runs before vi.mock hoisting, so variables are available in mock factories
-const { mockSpawn, mockHomedir, mockExistsSync, mockOpenSync, mockCloseSync } = vi.hoisted(() => ({
-  mockSpawn: vi.fn(),
-  mockHomedir: vi.fn(() => "/fake/home"),
-  mockExistsSync: vi.fn(() => false),
-  mockOpenSync: vi.fn(() => 999),
-  mockCloseSync: vi.fn(),
-}));
+const { mockSpawn, mockHomedir, mockExistsSync, mockOpenSync, mockCloseSync, mockLstatSync } =
+  vi.hoisted(() => ({
+    mockSpawn: vi.fn(),
+    mockHomedir: vi.fn(() => "/fake/home"),
+    mockExistsSync: vi.fn(() => false),
+    mockOpenSync: vi.fn(() => 999),
+    mockCloseSync: vi.fn(),
+    // Default: path does not exist at all (lstat throws) — not a dangling symlink.
+    mockLstatSync: vi.fn(() => {
+      const e = new Error("ENOENT: no such file or directory, lstat");
+      e.code = "ENOENT";
+      throw e;
+    }),
+  }));
 
 vi.mock("node:child_process", () => ({
   spawn: (...args) => mockSpawn(...args),
@@ -25,6 +32,7 @@ vi.mock("node:fs", () => ({
   existsSync: mockExistsSync,
   openSync: mockOpenSync,
   closeSync: mockCloseSync,
+  lstatSync: mockLstatSync,
 }));
 
 import {
@@ -359,6 +367,48 @@ describe("findCdpProxyScript", () => {
 
     const result = findCdpProxyScript();
     expect(result).toBe(expectedPath);
+  });
+
+  it("S3c: dangling repo-local symlink (uninitialized submodule) → null + loud error, never the stale global fallback", () => {
+    // skills → submodule (2026-09-27): skills/web-access is a symlink into the
+    // skills/shared submodule. Without `git submodule update --init` (fresh
+    // clone, CI) it dangles. Falling through to the global ~/.agents copy would
+    // silently launch a stale proxy — the 2026-09-23 divergence failure mode.
+    const repoLink = join(
+      dirname(fileURLToPath(import.meta.url)),
+      "..",
+      "..",
+      "..",
+      "skills",
+      "web-access",
+      "scripts",
+      "cdp-proxy.mjs",
+    );
+    const globalPath = join(
+      "/fake/home",
+      ".agents",
+      "skills",
+      "web-access",
+      "scripts",
+      "cdp-proxy.mjs",
+    );
+    mockHomedir.mockReturnValue("/fake/home");
+    mockLstatSync.mockImplementation((p) => {
+      if (p === repoLink) return { isSymbolicLink: () => true };
+      const e = new Error("ENOENT");
+      e.code = "ENOENT";
+      throw e;
+    });
+    // The global copy exists — the guard must still refuse it.
+    mockExistsSync.mockImplementation((p) => p === globalPath);
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = findCdpProxyScript();
+
+    expect(result).toBeNull();
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining("dangling symlink"),
+    );
   });
 
   it("prefers the repo-local copy when both exist (2026-09-23 divergence fix)", () => {
