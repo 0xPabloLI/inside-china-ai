@@ -87,6 +87,7 @@ everything:
 - **Multiple angles**: Each research angle's queries are independent —
   dispatch as parallel sub-agents, each loading web-access independently
   (shared Chrome, different targetIds, no race condition)
+- **落盘**（防 abort 丢数据）：主 Agent 分治前建工作目录 `/tmp/research/<topic-slug>/<angle-slug>/`；子 Agent 每抓取一个来源追加写 `sources.jsonl`（每行 `{url,title,content,tier,fetchedAt}`），正常完成时写 `summary.json`；主 Agent 在所有子 Agent 返回后（含 abort）扫这些目录从文件读回。completion criterion：`sources.jsonl` 存在且非空。
 - **Multiple URLs**: When you have 3+ URLs to fetch, batch them in one
   tool block rather than serializing
 - **Search + fetch**: Once search returns URLs, start fetching the top
@@ -180,6 +181,8 @@ for specific gaps only — don't restart).
 or moved to Open Questions.
 
 ## Phase 8 — PACKAGE
+
+**兜底收尾**：所有子 Agent 返回后（含 abort），执行 web-access SKILL.md 并行分治段的「主 Agent 兜底收尾」——扫 `/targets` 关闭非基线调研 tab。
 
 Final output structure:
 
