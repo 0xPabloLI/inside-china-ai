@@ -263,9 +263,64 @@ def pass_c():
     return rows
 
 
+# ─── Pass D: KFS-Bench factors (WACV 2026, NEC) ──────────────────────────────
+
+def pass_d(config_slugs=None):
+    """KFS-Bench-style factors for every strategy, including `tiered` (whose
+    selections are read back from exp_tiered.json). See bench_common for the
+    documented adaptation of Precision -> informativeShare in our query-free
+    setting."""
+    from PIL import Image
+
+    tiered_sel = {}
+    et_path = os.path.join(bc.RESULTS, "exp_tiered.json")
+    if os.path.exists(et_path):
+        with open(et_path, encoding="utf-8") as f:
+            for r in json.load(f):
+                if r.get("strategy") == "tiered" and r.get("ts"):
+                    tiered_sel[r["asset"]] = r["ts"]
+
+    rows = []
+    for asset_slug in bc.ASSETS:
+        video = bc.ASSETS[asset_slug]
+        if not os.path.exists(video):
+            continue
+        duration = bc.asset_duration(video)
+        intervals = bc.gt_scene_intervals(asset_slug, duration)
+        if intervals is None:
+            print(f"[D] {asset_slug}: no GT scenes (no annotated transitions) — skipped")
+            continue
+        variants = [("tiered", tiered_sel.get(asset_slug))]
+        for cfg in (config_slugs or ["uniform_16fps2", "scene_008_cap16",
+                                     "iframe_even16"]):
+            ts, _art = bc.resolved_timestamps(asset_slug, cfg)
+            variants.append((cfg, sorted(ts)))
+        for name, ts in variants:
+            if not ts:
+                continue
+            hashes = []
+            for t in ts:
+                cell = bc.grab_frame(video, t, size_w=160)
+                if cell is not None:
+                    hashes.append(bc.phash64(Image.open(cell)))
+                    os.unlink(cell)
+            f = bc.kfs_factors(ts, intervals, hashes)
+            rows.append({
+                "asset": asset_slug, "strategy": name, "frames": len(ts),
+                "gtKind": bc.GT_SHOTS.get(asset_slug, {}).get("kind"),
+                "gtScenes": intervals, **f,
+            })
+            print(f"[D] {asset_slug[:24]:24s} {name:16s} n={len(ts):2d} "
+                  f"cov={f['coverage']} bal={f['balance']} "
+                  f"info={f['informativeShare']} "
+                  f"({f['scenesCovered']}/{f['scenesTotal']}) "
+                  f"perScene={f['framesPerScene']}")
+    return rows
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--pass", dest="which", choices=["a", "b", "c", "all"],
+    ap.add_argument("--pass", dest="which", choices=["a", "b", "c", "d", "all"],
                     default="all")
     ap.add_argument("--asset", action="append", default=None)
     ap.add_argument("--config", action="append", default=None)
@@ -284,6 +339,8 @@ def main():
         out["faceGroundTruth"] = face_gt
     if args.which in ("c", "all"):
         out["layer2Fields"] = pass_c()
+    if args.which in ("d", "all"):
+        out["kfsBench"] = pass_d(args.config)
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False)

@@ -50,6 +50,7 @@ DEDUPE_WIN = 2.0              # cuts: merge near-dups only within this window
 LOCAL_MIN_GAP = 1.5           # locals: minimum temporal separation (seconds)
 PHASH_TOL = 4                 # Hamming distance for "near-identical" (cuts)
 FLOOR, BUDGET = 8.0, 16
+TAIL_MIN_GAP = 3.0            # anchor a frame near the end if the tail is longer
 
 
 def decode_frames(video, step=0.5):
@@ -94,14 +95,15 @@ def tiered_timestamps(video, budget=BUDGET, floor=FLOOR):
     cuts = sorted({round(t, 2)
                    for t in bc.derive_scene_timestamps(video, "0.08", None)})
     locals_ = block_diff(decode_frames(video))
-    flood = len(locals_) > 2 * budget
+    # Flood guard: "few cuts yet constant change" = single-shot dynamic content
+    # (talking head, where the 4 cuts are only the mod(t,8) fallbacks so the
+    # sampled set collapses onto near-duplicates). Discriminated by the
+    # locals:cuts RATIO, not by an absolute locals count — an absolute
+    # threshold also fired on multi-shot B-roll (unitree 58 locals / 16 cuts,
+    # ABCx2 59 / 11), wrongly wiping their informative locals (2026-09-28,
+    # caught by the KFS-Bench coverage factor).
+    flood = len(locals_) > 10 * max(1, len(cuts))
     if flood:
-        # Motion-dominant content (e.g. talking head): L2 fires on nearly
-        # every sample, so "settled local change" carries no selective power
-        # — degrade gracefully to cuts + coverage fills, which is what such
-        # content actually needs (few representative frames, not 16 near-
-        # duplicates). 2026-09-27: TH was the one asset where tiered lost to
-        # scene purely on redundancy (nearDup 108 vs 6).
         locals_ = []
     cut_set = set(cuts)
     local_ratio = {t: r for t, r in locals_}
@@ -136,6 +138,10 @@ def tiered_timestamps(video, budget=BUDGET, floor=FLOOR):
             kept.append(t)
 
     # L4 coverage floor: mid-point fills of blind spots > floor (bounded).
+    # Plus a TAIL anchor: symmetric to the scene filter's eq(n,0) first-frame
+    # anchor, because an 8s floor lets a short final scene slip through
+    # (ui-demo's last 4s = fully-typed final state had zero frames; flagged by
+    # the KFS-Bench coverage factor, 2026-09-28).
     fills = []
     while len(fills) < budget:
         sel = sorted(kept + fills)
@@ -144,6 +150,10 @@ def tiered_timestamps(video, budget=BUDGET, floor=FLOOR):
         if g <= floor:
             break
         fills.append(round(mid, 2))
+    if not flood and kept and duration - max(kept + fills) > TAIL_MIN_GAP:
+        tail = round(max(max(kept + fills) + 1.0, duration - 0.5), 2)
+        if all(abs(tail - t) > 0.2 for t in kept + fills):
+            fills.append(tail)
 
     # L5 budget cap — explicit priority tuples (no dict-override hazard).
     def prio(t):

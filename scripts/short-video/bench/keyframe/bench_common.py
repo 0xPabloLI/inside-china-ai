@@ -217,6 +217,84 @@ def max_temporal_gap(selected, duration):
     return max(b - a for a, b in zip(bounds, bounds[1:]))
 
 
+# ─── KFS-Bench factors (WACV 2026, NEC) ──────────────────────────────────────
+# KFS-Bench evaluates frame sampling DIRECTLY (multi-scene GT) instead of only
+# via QA accuracy, on three factors: Precision / Coverage / Balance. Their
+# definitions assume query-relevant scenes amid irrelevant background; our
+# setting has NO query and treats every shot as relevant, so:
+#   - Coverage maps 1:1 (fraction of GT scenes with >=1 selected frame).
+#   - Balance maps 1:1 (evenness of frames across COVERED scenes; computed
+#     conditional on coverage so the two factors stay separable).
+#   - Precision is trivially 1.0 here (every frame lies in some scene), so we
+#     report the query-free analogue instead: `informativeShare` = fraction of
+#     selected frames that are NOT near-duplicates of another selected frame
+#     (i.e. no budget wasted re-picking the same content).
+# Adaptation is documented rather than silently claimed as KFS-Bench parity.
+
+def gt_scene_intervals(asset_slug, duration):
+    """GT scenes = intervals between annotated transition times (partition of
+    the timeline). Returns None when the asset has no GT transitions."""
+    gt = GT_SHOTS.get(asset_slug, {})
+    times = sorted(gt.get("times", []))
+    if not times:
+        return None
+    bounds = [0.0] + [t for t in times if 0 < t < duration] + [duration]
+    return [(a, b) for a, b in zip(bounds, bounds[1:]) if b - a > 1e-6]
+
+
+def kfs_factors(selected, intervals, hashes=None, boundary_tol=0.3):
+    """KFS-Bench-style factors. intervals: GT scenes from gt_scene_intervals.
+
+    `boundary_tol` widens each scene by ±tol when testing membership, because
+    our GT boundaries are point annotations with ±0.1–0.25s precision: a frame
+    placed 0.01s before an annotated cut sits inside the *previous* scene under
+    strict counting yet visually represents the scene after the cut (observed
+    on unitree 17.24 vs boundary 17.25). Documented rather than hidden — pass
+    0.0 for strict interval membership.
+
+    Returns dict with coverage, balance, informativeShare, counts. `hashes`
+    (64-bit pHash ints, one per selected frame) drives informativeShare; pass
+    None to leave it out."""
+    if intervals is None or not selected:
+        return {"coverage": None, "balance": None, "informativeShare": None,
+                "scenesTotal": 0 if intervals is None else len(intervals),
+                "scenesCovered": 0, "framesPerScene": []}
+
+    counts = [sum(1 for t in selected if lo - boundary_tol <= t < hi + boundary_tol)
+              for lo, hi in intervals]
+    covered = [c for c in counts if c > 0]
+    coverage = len(covered) / len(counts) if counts else None
+
+    # Balance over COVERED scenes only (conditional), normalized entropy:
+    # 1.0 = every covered scene got the same number of frames.
+    balance = None
+    if len(covered) >= 2:
+        total = sum(covered)
+        ps = [c / total for c in covered]
+        import math as _math
+        ent = -sum(p * _math.log(p) for p in ps if p > 0)
+        balance = round(ent / _math.log(len(covered)), 4)
+    elif len(covered) == 1:
+        balance = 1.0
+
+    informative = None
+    if hashes and len(hashes) >= 2:
+        near_dup = 0
+        for i, a in enumerate(hashes):
+            if any(hamming(a, b) <= 4 for j, b in enumerate(hashes) if j != i):
+                near_dup += 1
+        informative = round(1 - near_dup / len(hashes), 4)
+
+    return {
+        "coverage": None if coverage is None else round(coverage, 4),
+        "balance": balance,
+        "informativeShare": informative,
+        "scenesTotal": len(intervals),
+        "scenesCovered": len(covered),
+        "framesPerScene": counts,
+    }
+
+
 def _dct2(a):
     """Orthonormal DCT-II along both axes, pure numpy (no scipy)."""
     import numpy as np
