@@ -48,6 +48,10 @@
 | public-apis/public-apis                      | API 资源索引              | ✅              | 📖 参考              | 📖 查免费 API                                                  |
 | AutoVio                                      | 视频管线（参考）          | ✅ 自托管       | ❌ 不采用（NC 许可） | ⭐ 分镜 prompt 结构参考                                        |
 | VoiceStudio                                  | 音频/TTS 聚合器（参考）   | ✅ 自托管       | 📖 参考（不采用）    | ⭐ GUI 试听底层引擎情感效果                                    |
+| awesome-claude-video-skills (索引)            | 视频 Skill 储备           | ✅              | 📖 参考              | 180 repo 索引，A/B/C 类见专节                                  |
+| zenstory-ai/video-recap-skills                | 视频→中文解说 recap        | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ 管线同构对标                                          |
+| sharon-laicc/viral-video-decomposer           | 爆款拉片/竞品基准          | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ → #300                                                |
+| remotion-dev/skills                           | Remotion 官方 skill        | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ 已用 Remotion                                          |
 
 ---
 
@@ -694,6 +698,130 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **安全审计**：未审计（不安装本体；方法论移植）
 - **调查日期**：2026-09-06
 - **状态**：✅ 已采用（英文侧 #205 落地为四件套文风档案；中文频道立项时全量方法论备用）
+
+---
+
+## 视频 Skill 储备（awesome-claude-video-skills）
+
+> 来源：`https://github.com/zhuyansen/awesome-claude-video-skills`（24★，2026-09-27 更新）· 在线筛选页 https://agentskillshub.top/best/claude-video-skills/ （每 8h 刷新）· 180 个 repo / 10 分类 / 178 SAFE / 2 CAUTION
+> **收录说明**：这批 skill 多为 Claude Code/Codex 的 `SKILL.md` 格式，本项目 agent（CodeArts）不直接执行 SKILL.md，但可参考其 prompt/流程/Remotion 模板/分镜结构。真正能直接复用的是 Remotion 组件/模板类。具体 repo 安装前仍须走「评估流程」。
+> **调查日期**：2026-09-28
+
+### A 类：高相关 — 直接对口（10 个）
+
+#### zenstory-ai/video-recap-skills — 视频→中文解说 recap ⭐⭐⭐
+
+- **仓库**：`https://github.com/zenstory-ai/video-recap-skills`（536★，SAFE）
+- **做什么**：视频→中文解说 recap 全流程：场景检测 + ASR + VLM + 脚本 + TTS + ffmpeg 组装
+- **为什么有用**：与本项目短视频管线几乎同构（VLM 分析 + 脚本 + TTS + ffmpeg），是直接对标项目，可参考架构与复用组件
+- **对应 issue**：#294（VLM 相关性）、#300（竞品基准）
+
+#### iart-ai/tiktok-video-skills — TikTok/Reels/Shorts 专用 ⭐⭐⭐
+
+- **仓库**：`https://github.com/iart-ai/tiktok-video-skills`（11★，SAFE）
+- **做什么**：短竖屏视频 skill，engineer Reels/TikToks/YouTube Shorts that survive the swipe
+- **为什么有用**：平台直接对口（本项目默认 TikTok）
+
+#### erduo1998-cell/erduo-broll-loop-engineering — SRT 驱动 B-roll ⭐⭐⭐
+
+- **仓库**：`https://github.com/erduo1998-cell/erduo-broll-loop-engineering`（203★，SAFE）
+- **做什么**：SRT 驱动双后端 B-roll，自动路由 HyperFrames/Remotion，集成 152 张 Shotcraft 镜头卡
+- **为什么有用**：B-roll 生成 + 镜头卡 → 对应 #290（T2V 选型）、#295（assetNeed 通用化）
+
+#### Vincentwei1021/video-talkcraft — voiceover-driven explainer ⭐⭐⭐
+
+- **仓库**：`https://github.com/Vincentwei1021/video-talkcraft`（1.2k★，SAFE）
+- **做什么**：口播讲解视频，逐词 voiceover sync + 109 motion presets
+- **为什么有用**：口播 + 逐词字幕是本项目核心，motion presets 可直接移植到 Remotion
+
+#### sharon-laicc/viral-video-decomposer — 爆款拆解/拉片 ⭐⭐⭐
+
+- **仓库**：`https://github.com/sharon-laicc/viral-video-decomposer`（5★，SAFE）
+- **做什么**：拆解爆款短视频→镜头级拉片 + 爆款机制 + AI 生产蓝图 + 视频 brief
+- **为什么有用**：**直接对应 #300 竞品基准**，拉片→生产蓝图流程可复用
+
+#### remotion-dev/skills — Remotion 官方 Agent Skills ⭐⭐⭐
+
+- **仓库**：`https://github.com/remotion-dev/skills`（4.7k★，SAFE）
+- **做什么**：Remotion 官方 Agent Skills
+- **为什么有用**：本项目已用 Remotion，官方 skill 必收
+
+#### runesleo/claude-video-kit — 9:16 explainer 管线 ⭐⭐⭐
+
+- **仓库**：`https://github.com/runesleo/claude-video-kit`（120★，SAFE）
+- **做什么**：brief/script → review receipt → narrated 9:16 explainer，Remotion
+- **为什么有用**：9:16 竖屏讲解，与本项目竖屏新闻讲解直接对口
+
+#### iart-ai/motion-skills — 50 个 motion/视频 skill ⭐⭐⭐
+
+- **仓库**：`https://github.com/iart-ai/motion-skills`（516★，SAFE）
+- **做什么**：50 个 skill：kinetic typography / data-viz / explainers / TikTok/Reels
+- **为什么有用**：覆盖面广，kinetic typography（字幕动效）与 data-viz（新闻数据）都对口
+
+#### coding-ax/docvideoer — 文档→中文旁白讲解视频 ⭐⭐⭐
+
+- **仓库**：`https://github.com/coding-ax/docvideoer`（5★，SAFE）
+- **做什么**：文档 URL/网页/Markdown/粘贴文本 → 带中文旁白的 Remotion 讲解视频（正文提取+分镜+免费 TTS+渲染）
+- **为什么有用**：中文新闻讲解，正文提取→分镜→TTS→Remotion 流程与本项目同构
+
+#### znyupup/knowledge-explainer-skill — markdown→讲解动画 ⭐⭐
+
+- **仓库**：`https://github.com/znyupup/knowledge-explainer-skill`（45★，SAFE）
+- **做什么**：markdown 文稿→讲解动画视频，Remotion + AI Agent
+- **为什么有用**：文稿→视频流程参考
+
+### B 类：中高相关 — 短视频/口播/剪辑/拉片（精选 6 个）
+
+#### hassancs91/claude-faceless-shorts-creator — faceless Shorts ⭐⭐
+
+- **仓库**：`https://github.com/hassancs91/claude-faceless-shorts-creator`（268★，SAFE）
+- **做什么**：faceless YouTube-Shorts 工厂，纯 TSX Remotion visuals + ElevenLabs 逐词字幕
+- **为什么有用**：纯 TSX Remotion + 逐词字幕方案可参考
+
+#### AgriciDaniel/claude-shorts — longform→shortform ⭐⭐
+
+- **仓库**：`https://github.com/AgriciDaniel/claude-shorts`（217★，SAFE）
+- **做什么**：长视频→短视频，Remotion 动画字幕 + AI 段落评分 + cursor tracking
+- **为什么有用**：段落评分（选高光片段）可借鉴
+
+#### Yuuhann1999/codex-storyboard — 分镜工作台 ⭐⭐
+
+- **仓库**：`https://github.com/Yuuhann1999/codex-storyboard`（344★，SAFE）
+- **做什么**：本地多项目分镜工作台，图片/视频生成任务，HyperFrames + Remotion 自动回填
+- **为什么有用**：分镜管理 + 自动回填流程
+
+#### wocha-xiaoli/video-shot-analysis-feishu — 视频拉片 ⭐⭐
+
+- **仓库**：`https://github.com/wocha-xiaoli/video-shot-analysis-feishu`（36★，SAFE）
+- **做什么**：视频拉片→飞书 Base：抽帧 + 逐镜头分析 + 倒推分镜 + 生成提示词
+- **为什么有用**：拉片流程 → #300 竞品基准辅助
+
+#### jincheng2026/jc-remotion-skills — 口播成片工作流 ⭐⭐
+
+- **仓库**：`https://github.com/jincheng2026/jc-remotion-skills`（14★，SAFE）
+- **做什么**：口播视频成片：粗剪+SRT 进，带 MG 包装、音效、母带出
+- **为什么有用**：口播成片流程与本项目口播段对口
+
+#### erduo1998-cell/video-script-builder — 中文逐字稿→分镜 ⭐⭐
+
+- **仓库**：`https://github.com/erduo1998-cell/video-script-builder`（9★，SAFE）
+- **做什么**：中文视频逐字稿→可执行 HyperFrames 分镜规格
+- **为什么有用**：逐字稿→分镜转换，中文场景
+
+### C 类：中相关 — 参考（8 个，简表）
+
+| Repo | ★ | 参考价值 |
+| --- | --- | --- |
+| `pyang5166/gbro-collage-broll` | 1.3k | B-roll 生成，三闸门审批流程可借鉴 |
+| `iart-ai/data-animation-skills` | 6 | CSV→动态图表，每帧数字准确 → 新闻数据可视化 |
+| `Liamrjohnston/remotion-motion-graphics-skill` | 72 | Remotion motion graphics 组件 |
+| `jhartquist/claude-remotion-kickstart` | 120 | Claude Code+Remotion 脚手架 |
+| `vibe-motion/remotion-starter` | 7 | Remotion 工作台脚手架（中文，三层架构+hooks） |
+| `eternityspring/reelbench-skills` | 843 | AI 视频学习与工具 skill |
+| `calesthio/OpenMontage` | 61.5k | 全貌参考（12 流水线/100+工具/700+ skill） |
+| `heygen-com/hyperframes` | 53.5k | HTML→视频框架（另一条路线，参考不切换） |
+
+> **未收录（D 类，约 90 个）**：产品宣传/数字人/音乐/手绘动画/Vox 纸拼贴 — 场景或风格不符，完整列表见 awesome 仓库。
 
 ---
 
