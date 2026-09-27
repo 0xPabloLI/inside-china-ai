@@ -107,7 +107,7 @@ Qwen-Image-2512 的 HF Space demo 用 dashscope `qwen-plus` LLM 做 prompt 改�
 | 架构图 | 4/4/3 | **5/5/5** | 3031s | 98s |
 | 数据流 | 2/2/1 | **5/5/5** | 1292s | 97s |
 
-- **Peak MLX memory**：Qwen-2512 27.07GB（`--low-ram --vae-tiling`），Boogu ~36GB。
+- **Peak MLX memory**：Qwen-2512 27.07GB（`--low-ram --vae-tiling`）；Boogu 峰值未单独测量（上表 36GB 为磁盘缓存，非峰值内存）。
 - **速度**：Boogu 快 ~16 倍（平均 105s vs 1749s/张）。
 - **Qwen-2512 问题**：柱状图只有 2 根柱子（非 3 根递减），玻璃质感非发光；架构图风格化过度（像魔法阵不像架构图）；数据流严重偏离 prompt，模糊低质，疑似生成失败。
 - **结论**：**B-roll 场景下 Boogu Turbo 保持冠军，Qwen-Image-2512 不推荐替换。** Qwen-2512 可能更适合写实/人物场景（其官方定位），但 B-roll 抽象数据可视化场景不是其强项。

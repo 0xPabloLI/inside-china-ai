@@ -496,9 +496,38 @@ export function findCdpProxyScript() {
   ];
 
   for (const candidate of candidates) {
+    // Skills → submodule (2026-09-27): the repo-local skills/web-access path is
+    // now a symlink into the skills/shared submodule. On a checkout without the
+    // submodule initialized (fresh clone, CI), the symlink dangles. Falling
+    // through to the global ~/.agents copy would silently launch a STALE proxy —
+    // the exact 2026-09-23 divergence failure the repo-local preference exists
+    // to prevent. Fail loud instead of guessing.
+    if (isDanglingSymlink(candidate)) {
+      console.error(
+        `  ✗ cdp-proxy candidate is a dangling symlink: ${candidate}`,
+      );
+      console.error("     The skills/shared submodule is probably not initialized.");
+      console.error("     Fix: git submodule update --init skills/shared");
+      console.error("     Refusing the stale global-skill fallback (2026-09-23 divergence guard).");
+      return null;
+    }
     if (nodeFs.existsSync(candidate)) return candidate;
   }
   return null;
+}
+
+/**
+ * True when `path` is a symlink whose target no longer resolves. A plain
+ * miss (nothing there at all) is NOT a dangling symlink — that is the
+ * legitimate "checkout without the skill directory" case handled by the
+ * global fallback below.
+ */
+function isDanglingSymlink(path) {
+  try {
+    return nodeFs.lstatSync(path).isSymbolicLink() && !nodeFs.existsSync(path);
+  } catch {
+    return false;
+  }
 }
 
 /**
