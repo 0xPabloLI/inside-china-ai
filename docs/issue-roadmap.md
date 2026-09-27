@@ -7,8 +7,8 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-09-27（**Round S**：#391 裁决顺序改判——**判据研究先行**（判据定义→方案对照→bench 实证→裁决建议；「轻模型抓不到关键帧」以可测覆盖率判据回答），contact-sheet 审计与 wayfinder 正式地图后置到设计定稿后（票链或随设计调整）；handoff 在主库 `.scratch/keyframe-bench/HANDOFF.md`（拆帧讨论稿 + 票地图 + §〇 下一步计划，内容为权威）；主 checkout 积压同步 PR #399（用户 skills→submodule 重构入库 + knip/lock 修复 + cdp 悬空符号链接守卫）；
-> **frontier**：W3C 串行链进入 **#391**（判据研究先行：判据定义 → 方案对照 → 实证 → 裁决建议；contact-sheet/wayfinder 后置）；随后 **#334**（VLM Prompt 优化）；#360 的跨 Scene 绑定职责并入 **#355** assignment 重构；Tier 1 余 **#291**（wayfinder:map HITL，#397 布局节点归其地图）与 **#216**（HITL）；#357/#346/#358 快赢可穿插。
+> **Last inventory**: 2026-09-27（**Round S**：#391 裁决深化——**判据研究先行与观测基建前置**（双层量化判据：几何硬指标 + 下游字段一致性；抽帧层解耦 query 保障离线缓存与低延迟；contact-sheet 升级为 Phase 0 观测工具先行；选帧纳管 #397 人脸/焦点防遮挡约束；Bench 扩充 Talking Head / 录屏素材与阈值扫参）；仅 wayfinder 正式拓扑地图后置；handoff 在主库 `.scratch/keyframe-bench/HANDOFF.md`（内容权威）；主 checkout 积压同步 PR #399（用户 skills→submodule 重构入库 + knip/lock 修复 + cdp 悬空符号链接守卫）；
+> **frontier**：W3C 串行链进入 **#391**（判据研究与观测基建：双层判据 + contact-sheet 观测先行 + #397 焦点约束；仅 wayfinder 后置）；随后 **#334**（VLM Prompt 优化与 query 相关性）；#360 的跨 Scene 绑定职责并入 **#355** assignment 重构；Tier 1 余 **#291**（wayfinder:map HITL，#397 布局节点归其地图）与 **#216**（HITL）；#357/#346/#358 快赢可穿插。
 >
 > 近轮一句话档案：**Round R**（#360 收尾 minors 清账 PR #388 + #391 拆帧实验基建落地 PR #392/#395（frame_strategy 可切换 + bench 18/18 + YuNet 旁路评估）+ #397 补立 block #396 + #396 解耦单开）；**Round Q**（#360 长视频预处理 A+ 分期交付：分级分段分析 + offset schema/渲染/校验，真实冒烟 2.34×，质量审查 C1 修复，S8 语义修正回流 spec）；**Round P**（#361 PR #378 落地收口：3 findings 修复 + coverage 棘轮补测，按常设授权合并）；**Round O**（#319 Tier 1 安全攻坚收口：4 项 High/Critical 1 修 3 证伪 PR #380 合并；自主合并常设授权固化 git-workflow §7）；**Round N**（全量 62 票 open issues 分流清零、`needs-triage` 归零；W3C 认知底座组 #361→#360→#334 串行确立；W1C/W2B 分流归位）；**Round M**（全模态选型 handoff 定稿方案 C 主干，#351 解耦交付，#360 分流）；**Round L**（素材策略统一化组票 #354/#355/#356/#357 落位）；**Round K**（#297 交付 fail-closed 单模式落地闭票，legacy 删除）；**Round J**（#333 收口 / #269 母票闭票 / 结构精简）。全文见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
 
@@ -63,7 +63,7 @@
 | **W2B** | 搜源架构重审与修复闭环 | `lib/search-sources.mjs` `lib/source-*.mjs` `skills/web-access/` `.github/workflows/` | #344 #346 #347 #353 #358 #320（HITL）#328 #329｜#231｜D：#286 #318 #322 #326 #348 #352 | #292/#309/#269 及全部卫星已闭；#344 为收敛主导，#318 挂起；#347 挂接 PR #371；#326/#352 挂起跟踪上游 |
 | **W3A** | 视觉与竞品深度调研（调研先行） | `docs/research/` `lib/b-roll/` | #291（🎯map）#298（🎯）#300 #302 #304 | 🟢 全部只读调研可并行；**先于任何视觉代码改动** |
 | **W3B** | 媒体底座与素材体系 | `asset-sourcer.mjs` `knowledge/media-catalog.json` | #310（🎯）#293 #314 #354 #355 #356 #357｜D：#288 #301 | #310 吸收 #288/#301；#297 fail-closed 已闭票；#355 承接 #301 链裁决；#354 吸收 #295；#375 env 覆盖已闭票 |
-| **W3C** | 画面适配与智能写稿 | `scene-data.mjs` `lib/visual-analyzer.mjs` `vlm_analyzer.py` | #391（🎯判据研究）#334 #397 #396 #289 #299 #294 #253 #244 #256 #263（多为 HITL）｜D：#295 | 依赖 W3A 选型（#298）与 W3B 素材流；#295 并入 #354；#351/#361/#360 已闭票；#391 为 W3C frontier（判据研究先行），#334 随后，#397 布局缺口归 #291 地图，#294 复用方案 C 音视频对齐 |
+| **W3C** | 画面适配与智能写稿 | `scene-data.mjs` `lib/visual-analyzer.mjs` `vlm_analyzer.py` | #391（🎯判据研究）#334 #397 #396 #289 #299 #294 #253 #244 #256 #263（多为 HITL）｜D：#295 | 依赖 W3A 选型（#298）与 W3B 素材流；#295 并入 #354；#351/#361/#360 已闭票；#391 为 W3C frontier（双层判据 + contact-sheet 观测先行 + #397 焦点约束），#334 随后，#397 布局缺口归 #291 地图，#294 复用方案 C 音视频对齐 |
 | **W4A** | 平台架构调研与中文首包 | 视频号后台 `docs/research/` `content/` | #296（🎯map）#268 #216（HITL）｜D：#210 | 真机实测先行 |
 | **W4B** | 发布包适配与自动发布 | `lib/platforms/` | D：#217 #218 #220 #223 #206 #208 #222 | 🔴 硬前置：等 #216 实测数据 + 用户立项授权 |
 
@@ -168,7 +168,7 @@
 | #357 | 视频默认 zoom 退场快修（双重运动+入场裁切） | P2·W3B | bug；tracker 权威标签 P2，快赢可穿插 |
 | #361 | 采纳方案 C 全模态引擎（MiniCPM-o 4.5 + e2v 接入 vlm_analyzer） | P3·W3C | 🎯 Dominant；统领认知底座 |
 | #334 | VLM Prompt 优化（Fit/claim 冗余 token 预算削减/Reason） | P3·W3C | enhancement；Prompt 精简与测试集回归 |
-| #391 | 拆帧策略裁决（uniform/scene 可切换 + bench 矩阵已出） | P2·W3C | 🎯 frontier；判据研究先行（判据定义→方案对照→实证→裁决建议），contact-sheet 审计与 wayfinder 后置到设计定稿后；handoff 在主库 `.scratch/keyframe-bench/HANDOFF.md` |
+| #391 | 拆帧策略裁决（uniform/scene 可切换 + bench 矩阵已出） | P2·W3C | 🎯 frontier；判据研究与观测基建（双层几何/生产字段判据 + contact-sheet 观测先行 + 纳管 #397 人脸/焦点防遮挡约束；解耦 query；仅 wayfinder 后置）；handoff 在主库 `.scratch/keyframe-bench/HANDOFF.md` |
 | #397 | Phase 2 焦点产出消费方（布局解析缺口——focusAnalysis/protectedRegions 今日无自动读者） | P2·W3C | block #396；布局节点归 #291 wayfinder 地图 |
 | #396 | focus 内核切换 Haar→YuNet 候选（评估通过：人脸一致/少误报/3.7×） | P3·W3C | dormant——被 #397 block；产出有消费方后才有价值 |
 | #289 | Scene 数据与生成画面适配 | P3·W3C | |
