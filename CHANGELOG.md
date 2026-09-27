@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.4.1...tanstack_start_ts-v1.5.0) (2026-09-27)
+
+
+### Features
+
+* **#391:** frame_strategy uniform/scene switch + bench matrix + YuNet side-by-side eval ([0b756ca](https://github.com/0xPabloLI/inside-china-ai/commit/0b756caef8656f61c56daf343c9c36ce9eceb8c0))
+* **#391:** VLM keyframe selection experiment — frame_strategy uniform/scene + bench matrix + YuNet eval ([75541f1](https://github.com/0xPabloLI/inside-china-ai/commit/75541f1e4f867756ced4b3faec0484e64f858b3d))
+
+
+### Bug Fixes
+
+* **#391:** yunet_compare probe_duration error containment — skip bad asset, don't abort the loop (droid-review P2) ([85a3e5f](https://github.com/0xPabloLI/inside-china-ai/commit/85a3e5fdef5e59d8cd24250c96c6f7a42dd33e0b))
+
 ## [1.4.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.4.0...tanstack_start_ts-v1.4.1) (2026-09-26)
 
 
