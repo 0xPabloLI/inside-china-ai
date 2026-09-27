@@ -168,6 +168,9 @@
 | #357 | 视频默认 zoom 退场快修（双重运动+入场裁切） | P2·W3B | bug；tracker 权威标签 P2，快赢可穿插 |
 | #361 | 采纳方案 C 全模态引擎（MiniCPM-o 4.5 + e2v 接入 vlm_analyzer） | P3·W3C | 🎯 Dominant；统领认知底座 |
 | #334 | VLM Prompt 优化（Fit/claim 冗余 token 预算削减/Reason） | P3·W3C | enhancement；Prompt 精简与测试集回归 |
+| #391 | 拆帧策略裁决（uniform/scene 可切换 + bench 矩阵已出） | P2·W3C | 🎯 frontier；contact-sheet 审计 → 用户裁决 → 默认切换；handoff 在 worktree `.scratch/keyframe-bench/HANDOFF.md` |
+| #397 | Phase 2 焦点产出消费方（布局解析缺口——focusAnalysis/protectedRegions 今日无自动读者） | P2·W3C | block #396；布局节点归 #291 wayfinder 地图 |
+| #396 | focus 内核切换 Haar→YuNet 候选（评估通过：人脸一致/少误报/3.7×） | P3·W3C | dormant——被 #397 block；产出有消费方后才有价值 |
 | #289 | Scene 数据与生成画面适配 | P3·W3C | |
 | #299 | Hook 前 3 秒专属视觉策略 | P3·W3C | HITL |
 | #294 | VLM asset relevance 复杂系统设计 | P3·W3C | |
