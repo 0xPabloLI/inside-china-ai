@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.5.0...tanstack_start_ts-v1.5.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* **#399:** 处理 droid-review 5 条（P1 cdp 悬空符号链接守卫 + P2/P3 文档与登记对齐） ([5f3e2d4](https://github.com/0xPabloLI/inside-china-ai/commit/5f3e2d4fbc2a08c4cb74a495f3fef68f27c49747))
+* **lock:** 恢复 CI 已验证锁基线，仅摘除根 ws 声明（保留传递条目） ([535d713](https://github.com/0xPabloLI/inside-china-ai/commit/535d713e461fe89ca60782bbedd01837171060f5))
+
 ## [1.5.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.4.1...tanstack_start_ts-v1.5.0) (2026-09-27)
 
 
