@@ -47,6 +47,11 @@ ASSETS = [
     ("content_ABCx2_30s", os.path.join(WORKTREE_361, ".scratch/len-compare/content_ABCx2_30s.mp4")),
     ("unitree-superman-demo-30s",
      os.path.join(WT_ROOT, "scripts/short-video/content/unitree/assets/unitree-superman-demo.mp4")),
+    # Talking-head clips (n5/n8/n10 = 灯管/数字空间/talking head per #361 handoff)
+    # — face-bearing material so the Haar vs YuNet comparison has signal.
+    ("n5", os.path.join(WORKTREE_361, ".scratch/len-compare/n5.mp4")),
+    ("n8", os.path.join(WORKTREE_361, ".scratch/len-compare/n8.mp4")),
+    ("n10", os.path.join(WORKTREE_361, ".scratch/len-compare/n10.mp4")),
 ]
 
 SCENE_SELECT_FILTER = (
