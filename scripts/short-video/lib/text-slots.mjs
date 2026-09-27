@@ -162,6 +162,10 @@ export const MEASURED_MAX_WIDTH = {
   "narrative.media-bottom-bar.action": 724,
   "narrative.media-bottom-bar.result": 724,
   "narrative.media-bottom-bar.source": 724,
+  "narrative.media-bottom-bar.context": 724,
+  // badge chip sits in the top band container (same as stacked-cards.badge /
+  // media-overlay.badge), so it gets the full 820 band width.
+  "narrative.media-bottom-bar.badge": 820,
   "narrative.media-overlay.badge": 820,
   // stacked-cards: card fields sit inside padded+bordered cards inside the
   // 820 band (measured 752); source renders OUTSIDE the cards, so it gets
