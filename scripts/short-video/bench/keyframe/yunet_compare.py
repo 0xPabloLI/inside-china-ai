@@ -60,12 +60,25 @@ UNIFORM_FRAMES_PER_ASSET = 3
 
 
 def probe_duration(video_path):
-    out = subprocess.run(
-        [FFPROBE, "-v", "error",
-         "-show_entries", "format=duration", "-of", "csv=p=0", video_path],
-        capture_output=True, text=True,
-    )
-    return float(out.stdout.strip())
+    """Duration in seconds, or None when the container can't be probed.
+
+    Mirrors run_bench.py's per-asset error containment: a single bad asset
+    must skip itself, not abort the remaining assets' comparison.
+    """
+    try:
+        out = subprocess.run(
+            [FFPROBE, "-v", "error",
+             "-show_entries", "format=duration", "-of", "csv=p=0", video_path],
+            capture_output=True, text=True,
+        )
+        if out.returncode != 0 or not out.stdout.strip():
+            raise ValueError(f"ffprobe rc={out.returncode}, empty duration")
+        return float(out.stdout.strip())
+    except (ValueError, OSError, subprocess.SubprocessError) as exc:
+        sys.stderr.write(
+            f"[yunet_compare] ⚠️ probe failed for {video_path}: {exc} — skipping asset\n"
+        )
+        return None
 
 
 def extract_sample_frames(video_path):
@@ -76,6 +89,8 @@ def extract_sample_frames(video_path):
     """
     tmpdir = tempfile.mkdtemp(prefix="yunet_frames_")
     duration = probe_duration(video_path)
+    if duration is None:
+        return []
     frames = []
 
     # Scene-detected frames (same recipe as the #391 scene strategy)
