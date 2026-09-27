@@ -424,6 +424,11 @@ function sendRequest(worker, request) {
     ...(request.windows ? { windows: request.windows } : {}),
     ...(request.claim ? { claim: request.claim } : {}),
     ...(request.cropFocus ? { cropFocus: request.cropFocus } : {}),
+    // #391: frame-selection params — pass-through only; absent = current
+    // behavior (uniform / 16 frames / 2.0 fps on the Python side)
+    ...(request.frameStrategy ? { frameStrategy: request.frameStrategy } : {}),
+    ...(request.maxFrames != null ? { maxFrames: request.maxFrames } : {}),
+    ...(request.sampleFps != null ? { sampleFps: request.sampleFps } : {}),
   });
 
   try {
@@ -502,7 +507,7 @@ export function getVlmModelId() {
  * a degraded result where all fields are empty/null.
  *
  * @param {string} assetPath - Absolute path to the image/video file.
- * @param {{startMs?: number, endMs?: number, sampleFps?: number, windows?: {startMs: number, endMs: number, sampleFps: number}[], claim?: {voiceover: string, assetNeed: string}, cropFocus?: {x: number, y: number}}} [opts] - Optional time window or multi-window plan (video only), scene claim (relevance judging), and crop hint (images only)
+ * @param {{startMs?: number, endMs?: number, sampleFps?: number, windows?: {startMs: number, endMs: number, sampleFps: number}[], claim?: {voiceover: string, assetNeed: string}, cropFocus?: {x: number, y: number}, frameStrategy?: "uniform"|"scene", maxFrames?: number}} [opts] - Optional time window or multi-window plan (video only), scene claim (relevance judging), crop hint (images only), and frame-selection params (#391, pass-through; absent = current behavior)
  * @returns {Promise<{description: string, subjects: string[], contentKind: string|null,
  *   fit: string|null, criticalEdgeText: string|null, reason: string|null,
  *   window?: {startMs: number, endMs: number, sampleFps: number},
@@ -530,6 +535,15 @@ export function analyzeAssetSemantics(assetPath, opts) {
   // simulation so the VLM judges the framing the viewer will actually see.
   // Absent hint keeps the historical center crop.
   const cropFocus = opts?.cropFocus || undefined;
+  // Frame-selection params (#391) — pass-through only, absent = current
+  // behavior. frameStrategy: "uniform" (default) | "scene"; maxFrames: frame
+  // cap (default 16); sampleFps: uniform decode fps (default 2.0).
+  // NOTE: a flattened window also consumes opts.sampleFps (per-window decode
+  // rate); top-level sampleFps matters for full-video uniform sampling —
+  // Python ignores it on the windowed path.
+  const frameStrategy = opts?.frameStrategy || undefined;
+  const maxFrames = opts?.maxFrames ?? undefined;
+  const sampleFps = opts?.sampleFps ?? undefined;
 
   return new Promise((resolve, reject) => {
     requestQueue.push({
@@ -541,6 +555,9 @@ export function analyzeAssetSemantics(assetPath, opts) {
       windows,
       claim,
       cropFocus,
+      frameStrategy,
+      maxFrames,
+      sampleFps,
     });
     dispatchQueue();
   });
