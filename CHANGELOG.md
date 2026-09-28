@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.6.0...tanstack_start_ts-v1.6.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **docs,content:** [#410](https://github.com/0xPabloLI/inside-china-ai/issues/410) review 四条：尾换行 / skill 名 / SHA 引用 / Boogu 峰值口径 ([2d33cdc](https://github.com/0xPabloLI/inside-china-ai/commit/2d33cdc0adc71e5d7bf0c99d39c59cb7f1826989))
+
 ## [1.6.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.5.1...tanstack_start_ts-v1.6.0) (2026-09-28)
 
 
