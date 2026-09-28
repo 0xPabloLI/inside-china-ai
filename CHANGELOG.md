@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.6.1...tanstack_start_ts-v1.7.0) (2026-09-28)
+
+
+### Features
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) tiered v5 盲区修复 + TAKSF/LVNet-TSC 入表 + 预算扫描 + KFS-Bench 接入 ([efd6324](https://github.com/0xPabloLI/inside-china-ai/commit/efd63243a48beb20c130ebfd38485546e27b1b67))
+
+
+### Bug Fixes
+
+* **bench:** [#412](https://github.com/0xPabloLI/inside-china-ai/issues/412) review 两条 P3 —— eval.py 失败不再被记成成功、LVNet/KFFocus 显式守预算 ([8405c7d](https://github.com/0xPabloLI/inside-china-ai/commit/8405c7d3b120d9ca8b7419cb964ea965173979db))
+
 ## [1.6.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.6.0...tanstack_start_ts-v1.6.1) (2026-09-28)
 
 
