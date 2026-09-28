@@ -253,7 +253,11 @@ def m_kffocus(video, slug=None):
             continue
         n = int(g // step)
         out += [round(a + g * (j + 1) / (n + 1), 2) for j in range(n)]
-    return sorted(set(t for t in out if 0 <= t <= duration))
+    # I-frames plus gap fills can exceed the budget on a long clip; honour the
+    # method contract explicitly (behaviour-identical: score() subsamples with
+    # the same helper).
+    return sorted(mb.subsample(sorted(set(t for t in out if 0 <= t <= duration)),
+                               budget))
 
 
 def _decode_rgb224(video, step):
@@ -445,7 +449,12 @@ def m_lvnet_tsc(video, slug=None, budget=BUDGET, tau=18, psi=5, divlam=12):
         loop += 1
     if not keep:
         keep = list(range(n))
-    return sorted(ts[i] for i in sorted(set(keep)))
+    # The paper's sampler emits one set per cluster group (τ-capped each), so the
+    # union can exceed a budget-K contract; take the harness budget by even
+    # spread. Same helper score() applies, so this is explicit rather than
+    # implicit (PR #412 review).
+    picked = mb.subsample(sorted(ts[i] for i in sorted(set(keep))), budget)
+    return sorted(picked)
 
 
 METHODS = [

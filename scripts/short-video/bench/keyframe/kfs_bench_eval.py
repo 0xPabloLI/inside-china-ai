@@ -101,9 +101,15 @@ def main():
                             "--result_file", res_path],
                            capture_output=True, text=True)
         print(f"\n== {name} (K={K}, {len(rows)} pairs) ==", flush=True)
-        print(p.stdout.strip() or p.stderr.strip(), flush=True)
-        out[name] = {"rows": len(rows), "report": p.stdout.strip(),
-                     "result_file": res_path}
+        if p.returncode != 0:
+            print(f"  eval.py FAILED rc={p.returncode}\n{p.stderr.strip()[:400]}",
+                  flush=True)
+            out[name] = {"rows": len(rows), "returncode": p.returncode,
+                         "error": p.stderr.strip()[:500], "result_file": res_path}
+            continue
+        print(p.stdout.strip(), flush=True)
+        out[name] = {"rows": len(rows), "returncode": 0,
+                     "report": p.stdout.strip(), "result_file": res_path}
     with open(os.path.join(RESULTS, f"kfs_summary_k{K}.json"), "w",
               encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False)
