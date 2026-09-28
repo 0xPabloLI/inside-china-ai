@@ -139,7 +139,7 @@ Qwen-Image-2512 的 HF Space demo 用 dashscope `qwen-plus` LLM 做 prompt 改�
 |------|-----------|----------|---------------|
 | 总分 | 25/45 | 42/45 | **45/45** |
 | 平均耗时 | 1749s | 856s | **105s** |
-| Peak MLX | 27.07GB | 15.50GB | ~36GB |
+| Peak MLX | 27.07GB | 15.50GB | 36GB（磁盘缓存，非峰值；峰值未测） |
 | 许可 | Apache 2.0 ✅ | qwen-research ❌ | Apache 2.0 ✅ |
 | 步数 | 20 | 40 | 4 |
 

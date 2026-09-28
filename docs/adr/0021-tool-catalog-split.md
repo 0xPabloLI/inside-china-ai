@@ -21,7 +21,7 @@
 The general layer grows with every tool discovery (the 2026-09-28 video
 skill reserve alone added 128 lines). Keeping it in the business repo is
 sprawl, and every project re-derives the same catalogue instead of sharing
-one source of truth — the failure mode writing-for-agens calls duplication.
+one source of truth — the failure mode writing-for-agents calls duplication.
 
 All user code lives under `~/Documents/code/` as sibling project repos
 (aave-*, inside-china-ai, chubbyskills, agent-harness, …). A tool catalogue
@@ -53,7 +53,8 @@ that is itself a code project belongs there, not in a hidden home directory.
 6. **Remote.** `tool-catalog` is a private GitHub repo for multi-machine
    sync; the local checkout at `~/Documents/code/tool-catalog/` is the
    working copy.
-7. **Video skill commit `5d83f574`** (2026-09-28) is the relocate source.
+7. **Video skill commit `3eb0b8e5`** (2026-09-28; landed SHA of the local
+   `5d83f574` this ADR was drafted against) is the relocate source.
    Its content (the video skill reserve section) moves to
    `candidates.md`; the commit stays in history as the first-record
    action, and a follow-up relocate commit in the split PR removes it from
