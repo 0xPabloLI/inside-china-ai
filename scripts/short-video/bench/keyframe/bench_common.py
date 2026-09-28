@@ -511,14 +511,16 @@ GT_SHOTS = {
     #   3/3 机制：8.76, 12.44, 17.25, 27.96
     #   2/3 机制：14.0(scene+iframe)、23.4(scene+luminance)、25.6(scene+iframe)
     # 26.4 = 甩镜事件（镜头内快速横摇，非切）不入 times；10.7/0.3 = 运动误报。
-    # 视觉裁决权仍移交用户（HITL）复核 contact-sheets/_probe_*.jpg。
+    # 2026-09-28 终裁（用户授权代理裁决）：采纳机械共识为最终 GT——多信号
+    # 冻结规则 ±0.15s 优于已受损的单通道视觉裁决。视觉复核仍可随时通过
+    # contact-sheets/_probe_*.jpg 进行（reopen 不影响 bench 可复现性）。
     "unitree-superman-demo-30s": {"kind": "shot",
                                   "times": [8.76, 12.44, 14.0, 17.25, 23.4,
                                             25.6, 27.96],
                                   "provenance": "mechanical 3-mechanism consensus "
-                                                "(frozen rule ≥2 mech ±0.15s; "
-                                                "visual channel voided; pending "
-                                                "user HITL)"},
+                                                "(frozen rule ≥2 mech ±0.15s); "
+                                                "FINAL 2026-09-28 user-delegated "
+                                                "adjudication"},
     "talkinghead-n10x6-30s": {"kind": "shot", "times": [],
                               "provenance": "single visual content (loop seams not shots)"},
     "ui-demo-screencast-30s": {"kind": "change_event",
