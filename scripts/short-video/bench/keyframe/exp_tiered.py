@@ -51,6 +51,8 @@ LOCAL_MIN_GAP = 1.5           # locals: minimum temporal separation (seconds)
 PHASH_TOL = 4                 # Hamming distance for "near-identical" (cuts)
 FLOOR, BUDGET = 8.0, 16
 TAIL_MIN_GAP = 3.0            # anchor a frame near the end if the tail is longer
+DENSITY_MIN_GAP = 0.5         # L6 stop: no point denser than this (frames are
+                              # ~1s apart in the VLM feed already)
 
 
 def decode_frames(video, step=0.5):
@@ -90,11 +92,15 @@ def block_diff(frames):
     return kept
 
 
-def tiered_timestamps(video, budget=BUDGET, floor=FLOOR, extra_cuts=None):
+def tiered_timestamps(video, budget=BUDGET, floor=FLOOR, extra_cuts=None,
+                      densify=False):
     """extra_cuts: second-signal cut times (e.g. HashDetector). They get
     priority tier 0.5 — below production scene cuts (0) but above fills (1) —
     so unconfirmed cuts never crowd out coverage anchors (2026-09-28: raw
-    union let HashDetector motion FPs cost unitree its tail coverage)."""
+    union let HashDetector motion FPs cost unitree its tail coverage).
+
+    densify (v3): spend whatever budget the cap left unused on flat stretches
+    (L6 below). Opt-in because the v2 artifacts on disk are the v2 shape."""
     duration = bc.asset_duration(video)
     scene_cuts = sorted({round(t, 2)
                          for t in bc.derive_scene_timestamps(video, "0.08", None)})
@@ -174,7 +180,27 @@ def tiered_timestamps(video, budget=BUDGET, floor=FLOOR, extra_cuts=None):
         return (2, -local_ratio.get(t, 0.0))
 
     sel = sorted(sorted(kept + fills, key=prio)[:budget])
-    return sel, {"cuts": cuts, "locals": [t for t, _ in locals_], "fills": fills}
+
+    # L6 flat-segment density floor (v3): the cap above only ever DROPS
+    # candidates, so a single-shot clip ends under budget (talking head: 4
+    # mod(t,8) cuts, flood guard wipes locals → 4 frames where uniform spends
+    # 16 — the QA-axis deficit of 2026-09-28). Spend whatever budget is left on
+    # the widest remaining blind spots by bisecting them, which is exactly the
+    # stretches where no other layer fired. Never evicts, so the cut anchors and
+    # recall hold by construction; what it can cost is informativeShare.
+    dens = []
+    if densify:
+        while len(sel) + len(dens) < budget:
+            bounds = [0.0] + sorted(sel + dens) + [duration]
+            g, mid = max((b - a, (a + b) / 2)
+                         for a, b in zip(bounds, bounds[1:]))
+            if g < DENSITY_MIN_GAP:
+                break
+            dens.append(round(mid, 2))
+        sel = sorted(sel + dens)
+
+    return sel, {"cuts": cuts, "locals": [t for t, _ in locals_],
+                 "fills": fills, "dens": dens}
 
 
 def face_intervals_for(video):
