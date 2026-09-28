@@ -12,6 +12,8 @@ Env knobs (one VLM pass costs minutes per video, so arms are runnable
 separately and merged into one artifact rather than recomputed):
   VM_METHODS    comma-separated subset of the arms to run (default all)
   VM_MAX_VIDEOS cap on videos (default 24)
+  VM_SUBSET     subset csv name under videomme/ (default bench_subset.csv;
+                the ~100-video expansion points at bench_subset_100.csv)
   VM_OUT        output filename under results/ (default exp_videomme_qa.json)
 
 Rows of a method that is (re)run replace that method's earlier rows; rows of
@@ -41,12 +43,13 @@ import exp_siglip as es  # noqa: E402
 import exp_tiered as et  # noqa: E402
 
 BUDGET = 16
-ALL_METHODS = ["uniform_16", "tiered", "tiered_v3", "maxinfo_siglip"]
+ALL_METHODS = ["uniform_16", "tiered", "tiered_v3", "slice", "maxinfo_siglip"]
 METHODS = [m.strip() for m in
            os.environ.get("VM_METHODS", ",".join(ALL_METHODS)).split(",")
            if m.strip()]
 MAX_VIDEOS = int(os.environ.get("VM_MAX_VIDEOS", "24"))
 OUT_NAME = os.environ.get("VM_OUT", "exp_videomme_qa.json")
+SUBSET_NAME = os.environ.get("VM_SUBSET", "bench_subset.csv")
 
 
 def uniform_sel(duration, budget=BUDGET):
@@ -95,6 +98,9 @@ def select(name, video, duration):
         return et.tiered_timestamps(video)[0]
     if name == "tiered_v3":
         return et.tiered_timestamps(video, densify=True)[0]
+    if name == "slice":
+        import methods_bench3 as mb3
+        return mb3.m_slice(video)
     if name == "maxinfo_siglip":
         return es.maxinfo_timestamps(video, BUDGET)
     raise ValueError(name)
@@ -106,7 +112,7 @@ def main():
     import vlm_analyzer as vlm
 
     df = pq.read_table(os.path.join(VM, "test.parquet")).to_pandas()
-    subset = pd.read_csv(os.path.join(VM, "bench_subset.csv"))
+    subset = pd.read_csv(os.path.join(VM, SUBSET_NAME))
     videos = sorted(set(subset["videoID"]) & set(df["videoID"]))[:MAX_VIDEOS]
     qa = df[df["videoID"].isin(videos)]
     print(f"{len(videos)} videos, {len(qa)} QA pairs in scope", flush=True)
