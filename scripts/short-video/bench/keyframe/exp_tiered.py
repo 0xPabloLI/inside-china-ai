@@ -53,6 +53,8 @@ FLOOR, BUDGET = 8.0, 16
 TAIL_MIN_GAP = 3.0            # anchor a frame near the end if the tail is longer
 DENSITY_MIN_GAP = 0.5         # L6 stop: no point denser than this (frames are
                               # ~1s apart in the VLM feed already)
+SPREAD_MIN_GAP = 0.5          # v4: pairs closer than this get a pHash dup check
+CUT_SIBLING_WIN = 1.0         # v5: a cut this close to another is expendable
 
 
 def decode_frames(video, step=0.5):
@@ -93,14 +95,22 @@ def block_diff(frames):
 
 
 def tiered_timestamps(video, budget=BUDGET, floor=FLOOR, extra_cuts=None,
-                      densify=False):
+                      densify=False, spread_guard=False, enforce_floor=False):
     """extra_cuts: second-signal cut times (e.g. HashDetector). They get
     priority tier 0.5 — below production scene cuts (0) but above fills (1) —
     so unconfirmed cuts never crowd out coverage anchors (2026-09-28: raw
     union let HashDetector motion FPs cost unitree its tail coverage).
 
     densify (v3): spend whatever budget the cap left unused on flat stretches
-    (L6 below). Opt-in because the v2 artifacts on disk are the v2 shape."""
+    (L6 below). Opt-in because the v2 artifacts on disk are the v2 shape.
+
+    spread_guard (v4): on real 1-3 min clips the selected set clusters — e.g.
+    18.8/18.9/19.1 and 41.1/41.3/41.5/41.6 in one Video-MME video — which is
+    frame budget spent on the same content. When two selected frames fall
+    within SPREAD_MIN_GAP of each other, the lower-priority one is dropped
+    ONLY if pHash confirms it is a near-duplicate; a genuine fast cut survives.
+    Combined with densify it is a swap (budget moves to the widest blind spot)
+    rather than a loss."""
     duration = bc.asset_duration(video)
     scene_cuts = sorted({round(t, 2)
                          for t in bc.derive_scene_timestamps(video, "0.08", None)})
@@ -181,6 +191,79 @@ def tiered_timestamps(video, budget=BUDGET, floor=FLOOR, extra_cuts=None,
 
     sel = sorted(sorted(kept + fills, key=prio)[:budget])
 
+    # L7 floor repair (v5) — the L4 floor above is computed BEFORE the cap, so
+    # the cap could (and on real 1-2 min clips did) hand all 16 slots to cut
+    # signals and leave a 31.6s blind spot (1tidNDIpKSY: 52 scene cuts, mostly
+    # motion false positives, priority 0 beats every fill/local). The floor is
+    # only real if it holds on the FINAL set: swap the least valuable frame for
+    # a midpoint of the widest gap until either the floor holds or no victim is
+    # left. Victims, in order: locals (no cut anchor), then cuts that have a
+    # sibling within CUT_SIBLING_WIN (a cut cluster still keeps one anchor).
+    repaired = []
+    if enforce_floor:
+        # Bounded: an unbounded swap loop can oscillate (evicting a frame that
+        # covered another blind spot re-opens that gap, and the midpoint just
+        # inserted then becomes the next victim) — measured as a spin at 100%
+        # CPU on a 60s clip. At most `budget` swaps, then accept the result.
+        swaps = 0
+        while swaps < budget:
+            bounds = [0.0] + sorted(sel) + [duration]
+            g, mid = max((b - a, (a + b) / 2)
+                         for a, b in zip(bounds, bounds[1:]))
+            if g <= floor:
+                break
+            victim = None
+            for t in sorted(sel, key=prio, reverse=True):
+                if t in scene_cuts or t in extra_set:
+                    if any(abs(t - u) <= CUT_SIBLING_WIN for u in sel if u != t):
+                        victim = t
+                        break
+                elif t not in fills:
+                    victim = t
+                    break
+            if victim is None:
+                break
+            # The inserted midpoint is a coverage fill, not a local: tagging it
+            # as such keeps the NEXT round from evicting what this round just
+            # repaired (that mistake made the loop churn: 16 swaps, no progress).
+            new_t = round(mid, 2)
+            fills.append(new_t)
+            sel = sorted([t for t in sel if t != victim] + [new_t])
+            repaired.append((victim, new_t))
+            swaps += 1
+
+    # Stacked-cluster guard (v4) — see the spread_guard docstring note. pHash is
+    # only consulted for a pair that is already within SPREAD_MIN_GAP, so a
+    # normal selection pays nothing.
+    dropped_near = []
+    if spread_guard and len(sel) > 1:
+        _hcache = {}
+
+        def _hash(t):
+            if t not in _hcache:
+                _hcache[t] = phash_at(t)
+            return _hcache[t]
+
+        keep = []
+        for t in sorted(sel, key=prio):
+            close = [u for u in keep if abs(u - t) < SPREAD_MIN_GAP]
+            if not close:
+                keep.append(t)
+                continue
+            h = _hash(t)
+            dup = False
+            if h is not None:
+                for u in close:
+                    hu = _hash(u)
+                    if hu is not None and bc.hamming(h, hu) <= PHASH_TOL:
+                        dup = True
+                        break
+            if dup:
+                dropped_near.append(t)
+            else:
+                keep.append(t)
+        sel = sorted(keep)
+
     # L6 flat-segment density floor (v3): the cap above only ever DROPS
     # candidates, so a single-shot clip ends under budget (talking head: 4
     # mod(t,8) cuts, flood guard wipes locals → 4 frames where uniform spends
@@ -200,7 +283,8 @@ def tiered_timestamps(video, budget=BUDGET, floor=FLOOR, extra_cuts=None,
         sel = sorted(sel + dens)
 
     return sel, {"cuts": cuts, "locals": [t for t, _ in locals_],
-                 "fills": fills, "dens": dens}
+                 "fills": fills, "dens": dens, "droppedNear": dropped_near,
+                 "repaired": repaired}
 
 
 def face_intervals_for(video):
