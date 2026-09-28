@@ -25,6 +25,7 @@ Run: ~/.venvs/mlx-vlm/bin/python scripts/short-video/bench/keyframe/exp_videomme
 
 import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -70,6 +71,23 @@ def grab(video, ts, out_dir, prefix):
     return paths
 
 
+def parse_lenient(raw):
+    """Original scorer: first A-D character anywhere. Kept because the
+    uniform/tiered numbers already on disk used it — changing only the scorer
+    would make the new arms incomparable with them."""
+    m = re.search(r"[ABCD]", raw.strip().upper())
+    return m.group(0) if m else "?"
+
+
+def parse_strict(raw):
+    """PR #407 P1 alternative: the letter has to be the answer, not a letter
+    inside prose ('D'ON'T, 'B'ASED, 'A'NSWER all match lenient). Both are
+    recorded per row so the disagreement rate is measured, not argued."""
+    s = raw.strip().upper()
+    m = re.match(r"^\s*\[?([ABCD])\]?[\s.:!]*$", s)
+    return m.group(1) if m else "?"
+
+
 def select(name, video, duration):
     if name == "uniform_16":
         return uniform_sel(duration)
@@ -85,7 +103,6 @@ def select(name, video, duration):
 def main():
     import pandas as pd
     import pyarrow.parquet as pq
-    import re
     import vlm_analyzer as vlm
 
     df = pq.read_table(os.path.join(VM, "test.parquet")).to_pandas()
@@ -114,8 +131,18 @@ def main():
         print(f"warmup failed: {e}", flush=True)
 
     def dump():
+        scored = [r for r in details if "pred_strict" in r]
+        diff = [r for r in scored if r["pred_strict"] != r["pred"]]
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump({"arms_run": METHODS, "arms_in_file": sorted(results),
+                       "parser_check": {
+                           "rows_with_raw": len(scored),
+                           "strict_ne_lenient": len(diff),
+                           "strict_correct": sum(
+                               1 for r in scored
+                               if r["pred_strict"] == r["answer"]),
+                           "lenient_correct_on_diff_rows": sum(
+                               1 for r in diff if r["correct"])},
                        "summary": results, "details": details},
                       f, indent=2, ensure_ascii=False)
 
@@ -150,16 +177,16 @@ def main():
                     raw = vlm.generate_response(
                         model, processor, engine=vlm.DEFAULT_ENGINE,
                         image_paths=frames, prompt_text=prompt, max_tokens=8)
-                    match = re.search(r"[ABCD]", raw.strip().upper())
-                    pred = match.group(0) if match else "?"
+                    pred = parse_lenient(raw)
                 except Exception as e:
-                    pred = f"ERR:{str(e)[:40]}"
+                    pred, raw = f"ERR:{str(e)[:40]}", ""
                 correct = pred == q["answer"]
                 results[m]["total"] += 1
                 results[m]["correct"] += int(correct)
                 details.append({"videoID": vid, "question_id": q["question_id"],
                                 "method": m, "pred": pred, "answer": q["answer"],
-                                "correct": correct})
+                                "correct": correct, "raw": raw[:80],
+                                "pred_strict": parse_strict(raw)})
         acc = {m: (f"{results[m]['correct']}/{results[m]['total']}"
                    if results[m]["total"] else "-") for m in METHODS}
         print(f"[{vi+1}/{len(videos)}] {vid}: {acc}", flush=True)

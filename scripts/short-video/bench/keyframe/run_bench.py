@@ -184,7 +184,7 @@ def run_fit_pass(model, processor, frames):
                 finally:
                     vlm._unlink_quiet(temp2)
             finally:
-                vlm._unlink_quiet(crop_cleanup)
+                vlm._unlink_quiet(cleanup)
         except Exception as e:
             fields.append({"error": str(e)[:200]})
         finally:

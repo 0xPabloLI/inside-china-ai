@@ -50,7 +50,6 @@ CODE_LINES = [
     ("    queryKey: ['sources', page],", YELLOW),
     ("    queryFn: () => fetchSources(page),", GREEN),
     ("  });", FG),
-    ("}", BLUE),
 ]
 LINE_APPEAR_TIMES = [2.0, 6.0, 10.0, 14.0, 18.0, 22.0, 26.0]  # GT events
 
@@ -95,8 +94,11 @@ def render_frame(t):
         d.text((x0 + 40, y0 + k * lh), f"{k + 1}", fill=DIM)
         if text:
             d.text((x0 + 90, y0 + k * lh), text, fill=color)
-    # blinking cursor (2 Hz) on the next line
-    if int(t * 2) % 2 == 0 and visible < len(CODE_LINES):
+    # blinking cursor (2 Hz) on the line after the last visible one. It never
+    # stops: 7 GT change events fill 7 lines, and the shipped fixture was built
+    # while an unreachable 8th entry kept this branch always-true (PR #407 P3 —
+    # generator self-consistency must not move the pixels under the matrix).
+    if int(t * 2) % 2 == 0:
         cy = y0 + visible * lh
         d.rectangle([x0 + 90, cy + 2, x0 + 96, cy + 24], fill=CURSOR)
     return np.asarray(img)

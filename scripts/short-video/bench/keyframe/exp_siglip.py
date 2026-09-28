@@ -107,10 +107,7 @@ def main():
     print("SigLIP loaded", flush=True)
     embed = embed_images
 
-    def ktv_real(video):
-        frames = decode_rgb(video)
-        vecs = embed([f for _, f in frames])
-        ts = [t for t, _ in frames]
+    def ktv_real(ts, vecs):
         n, k = len(ts), min(BUDGET, len(ts))
         rng = np.random.RandomState(42)
         centers = [vecs[rng.randint(n)]]
@@ -145,7 +142,7 @@ def main():
         print(f"\n===== {slug} ({duration:.2f}s, {len(frames)} emb frames) =====",
               flush=True)
         for name, ts in [("maxinfo_siglip", maxinfo_pick(cand_ts, vecs)),
-                         ("ktv_siglip", ktv_real(video))]:
+                         ("ktv_siglip", ktv_real(cand_ts, vecs))]:
             r = mb.score(video, slug, name, ts, duration, intervals)
             rows.append(r)
             print(f"{name:16s} n={r['frames']:2d} recall={r['recall']} "

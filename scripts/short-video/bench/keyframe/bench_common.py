@@ -148,10 +148,13 @@ def count_frames_at_fps(video_path, fps):
          "-an", "-sn", "-dn", "-f", "null", "-"],
         capture_output=True, timeout=300,
     )
-    m = re.search(r"frame=\s*(\d+)", proc.stderr.decode("utf-8", "replace"))
+    m = re.findall(r"frame=\s*(\d+)", proc.stderr.decode("utf-8", "replace"))
     if not m:
         raise RuntimeError(f"cannot count fps={fps} frames for {video_path}")
-    return int(m.group(1))
+    # ffmpeg without -nostats also prints INTERMEDIATE progress lines; the
+    # total is the last one (measured: all 5 bench assets emit exactly one, so
+    # no artifact on disk was computed from a partial count).
+    return int(m[-1])
 
 
 def true_uniform_timestamps(video_path, fps, cap):
@@ -409,8 +412,7 @@ def consensus_candidates(asset_slug, tol=0.15):
     mech = {}
     mech["scene"] = sorted({t for th in ("0.04", "0.08", "0.12")
                             for t in derive_scene_timestamps(video, th, None)})
-    mech["iframe"] = derive_iframe_timestamps(video, None, "even") \
-        if False else _showinfo_timestamps(video, IFRAME_FILTER, None)
+    mech["iframe"] = _showinfo_timestamps(video, IFRAME_FILTER, None)
     lum, _series = luminance_boundary_signal(video)
     mech["luminance"] = [c["t"] for c in lum]
 
