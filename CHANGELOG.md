@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.6.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.5.1...tanstack_start_ts-v1.6.0) (2026-09-28)
+
+
+### Features
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) tiered v3 平坦段密度保底（L6）+ batch3 测试台 ([958a5a6](https://github.com/0xPabloLI/inside-china-ai/commit/958a5a6b40c5366b9e99805a3b370ce440e00cd2))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) unitree GT 终裁采纳三机制共识（用户授权代理裁决） ([6af4138](https://github.com/0xPabloLI/inside-china-ai/commit/6af4138165569f54b36e186699044bf0e3d01b50))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 全方法统一测试台（批次一 CPU-only 十法横评） ([28cb428](https://github.com/0xPabloLI/inside-china-ai/commit/28cb42834fd21863827b97fd1c0f53a07d297078))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 判据研究与 tiered 选帧器实证（bench-only） ([d0120cb](https://github.com/0xPabloLI/inside-china-ai/commit/d0120cb98dfce3304cd4e530a97d39399c560c78))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 四方法入 harness（SLICE/InfoShot/K-frames/KFFocus）+ slice 进 QA 臂 ([7f7037f](https://github.com/0xPabloLI/inside-china-ai/commit/7f7037fe97f5b8180579621254ccc9e18a8d9ccc))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 并入 KFS-Bench 三因子判据 + 修 tiered 两处缺陷 ([f4c197f](https://github.com/0xPabloLI/inside-china-ai/commit/f4c197fa220d093dcf331d1762d48db8fca02388))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 批次二 embedding 选择器 + tiered 第二切点信号 ([519545f](https://github.com/0xPabloLI/inside-china-ai/commit/519545fbc47136770c0fba0371b8784f5c1fdbde))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 真 SigLIP embedding 复测 + Video-MME QA 评测管线 ([2ef4017](https://github.com/0xPabloLI/inside-china-ai/commit/2ef40172a0a2bd9140f57c2db8a37a1e8e612aec))
+
+
+### Bug Fixes
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) SigLIP 臂走 PIL processor，坐实 tvF 根因非环境玄学 ([2ba5017](https://github.com/0xPabloLI/inside-china-ai/commit/2ba5017fef76d6aa921d4b4d5e81e3a6c4e96447))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 逐条修 PR [#407](https://github.com/0xPabloLI/inside-china-ai/issues/407) bot review 的 6 条 thread（每条都先证伪/证实再改） ([e164cd4](https://github.com/0xPabloLI/inside-china-ai/commit/e164cd4b61c5bc7238d2d76a100ae96329a99fd9))
+
 ## [1.5.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.5.0...tanstack_start_ts-v1.5.1) (2026-09-27)
 
 
