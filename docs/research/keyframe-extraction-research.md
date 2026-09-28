@@ -195,3 +195,34 @@ ui-demo 合成的第 6 秒事件原为空字符串行——**构造上不可见*
 13. Video-MME 官方站与 leaderboard — https://video-mme.github.io/home_page.html — Tier 1
 14. lmms-eval（统一评测 harness）— https://www.lmms-lab.com/posts/lmms_eval/ — Tier 1
 15. MaxInfo（MiniCPM-V 4.5 实测 +3.44%）— https://arxiv.org/html/2502.03183 — Tier 1
+
+## 15. 全方法总对决（2026-09-28，session `20260927-kf-criteria-5de54e`）
+
+13 方法 × 7 素材几何口径 + Video-MME short 24 视频 QA 口径，BUDGET=16 对齐。
+数据源：`.scratch/keyframe-bench/results/{methods_bench,methods_bench2,exp_siglip,exp_videomme_qa}.json`（KFS-Bench 三因子口径已并入 criteria_eval Pass D）。
+
+### 15.1 转场召回（4 类素材均值）
+
+| 方法 | 均值 | 最强项 | 结构性盲区 |
+|---|---|---|---|
+| tiered（PySceneDetect 基座+护栏） | **0.964** | 四类素材全及格 | unitree 0.857（第二信号可补） |
+| uniform（社区默认） | 0.814 | QA 精度冠军 66.7% | 多镜头漏切 0.4、口播冗余 76 |
+| sd_hash / sd_histogram | 0.750 | unitree 唯一满分 1.0 | 无兜底盲区 30s、录屏 0 帧 |
+| scene | 0.714 | 多镜头 1.0 省帧 | 录屏 0/7 |
+| maxinfo/ktv（真 SigLIP） | 0.67-0.70 | info 高 | 多样性≠切点覆盖、口播洪水 dup 72 |
+| sd_content/adaptive | 0.679 | 硬切准 | 录屏/口播全 0 帧（相邻帧范式失效） |
+| sd_threshold | 0.036 | — | 淡入淡出专用，用途不符 |
+
+### 15.2 关键结论
+
+1. **没有单项冠军**：QA 冠军 uniform、召回冠军 tiered、unitree 冠军 sd_hash/histogram、零冗余 iframe/sd 全家。
+2. **唯一全科及格 = tiered**（recall 0.964 + 盲区 ≤8s + 冗余 6 + QA 噪声区间内）。其成分：切点信号层全部来自社区（PySceneDetect），自研仅为组合护栏（兜底锚点/去重/洪水降级/分层优先级）——与「社区优先、solid 基座上增量」方向一致。
+3. **QA 口径（Video-MME short，n=69）**：uniform 66.7% vs tiered 59.4%，差异 7.3pp < 统计噪声 ±8pp——不下结论；方向符合「QA 检索型任务 uniform 是强基线」。
+4. **裁决**：uniform 保留 QA 检索默认位；tiered 定位为可选策略（几何覆盖需求用 tiered，QA 检索需求用 uniform），不切默认。
+5. TMRoPE 近似（NumPro/ViKey 帧号烧录）机制验证通过：数字可穿 3D-Resampler 被读出（ui-demo 输出 "approximately 30 seconds"），零延迟代价；价值兑现需 prompt 侧明确要求（归 #334）。
+6. 真SigLIP embedding 复测排除「代理特征太弱」伪象：多样性最大化与切点覆盖目标函数错位是结构性的。
+7. 基础设施发现：本地无批量限流下载能力 → #405；MiniCPM 官方帧域（≤128s@1fps）远大于现生产 3窗×8帧上限 → 分窗重设计待 ticket。
+
+### 15.3 待办（fresh session）
+
+maxinfo_siglip QA 补跑（tvF 环境层 bug）；可选扩样本 ~100 视频求显著；push + PR；#405 实现；分窗重设计 ticket。
