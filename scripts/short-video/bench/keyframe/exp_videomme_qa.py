@@ -43,7 +43,8 @@ import exp_siglip as es  # noqa: E402
 import exp_tiered as et  # noqa: E402
 
 BUDGET = 16
-ALL_METHODS = ["uniform_16", "tiered", "tiered_v3", "slice", "maxinfo_siglip"]
+ALL_METHODS = ["uniform_16", "tiered", "tiered_v3", "tiered_v5", "slice",
+               "maxinfo_siglip"]
 METHODS = [m.strip() for m in
            os.environ.get("VM_METHODS", ",".join(ALL_METHODS)).split(",")
            if m.strip()]
@@ -98,6 +99,9 @@ def select(name, video, duration):
         return et.tiered_timestamps(video)[0]
     if name == "tiered_v3":
         return et.tiered_timestamps(video, densify=True)[0]
+    if name == "tiered_v5":
+        return et.tiered_timestamps(video, densify=True,
+                                    enforce_floor=True)[0]
     if name == "slice":
         import methods_bench3 as mb3
         return mb3.m_slice(video)
