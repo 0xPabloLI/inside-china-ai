@@ -273,7 +273,7 @@
 ## §7 证据边界（写清楚了才好复核）
 
 - `[R]` 项（读过一手文件）：`iart-ai/tiktok-video-skills`、`erduo-broll-loop-engineering`、`video-recap-skills`、`claude-faceless-shorts-creator`、`video-talkcraft`、`claude-shorts`（scoring-rubric 全文）、`runesleo/claude-video-kit`（pre-render-review 全文）、`naive-video-skill`、`codex-storyboard`、`qisi-video-remix`、`ops120/video-recap-skills-plus`、`znyupup/knowledge-explainer-skill`、`zhuyansen/awesome-claude-video-skills` 全文；R1–R8 各仓核心文件（SKILL.md / DESIGN / rubric / 价格表 / 契约）——明细见各轮报告。
-- `[M]` 项：Tier A/B 中所有星数/许可/push 时间为今日 API 实测；`license.spdx_id` 为 `-` 的表示 GitHub 未识别（如 `remotion-dev/skills`），这类必须回看仓库内 LICENSE 文件，才能支撑落地结论。R4/R6 中标「仓库含 LICENSE 文件，SPDX 未核」的（gbro / VOX-COLLAGE / vox-director / cut-video / claude-shorts），实施前同样先核 SPDX。
+- `[M]` 项：Tier A/B 中所有星数/许可/push 时间为今日 API 实测；`license.spdx_id` 为 `-` 的表示 GitHub 未识别（如 `remotion-dev/skills`），这类必须回看仓库内 LICENSE 文件，才能支撑落地结论。R4/R6 曾标「SPDX 未核」的 5 仓（gbro / VOX-COLLAGE / vox-director / cut-video / claude-shorts）已于 2026-09-28 直读 LICENSE 文件**全部确认 MIT**，尾巴关闭。
 - **R4–R8 的新更正**：① `gbro-collage-broll` 的「无需 image model」为 README 宣传口径，SKILL.md 实文推翻（付费 Gemini 视频模型 + Codex image_gen 依赖）；② `FireRed-OpenStoryline` 清单链接 404，现址 `FireRedTeam/`（3,448★）；③ `chengfeng-videocut-skills` 为 MCP 插件形态，与 agent-tool agnostic 冲突，已结案跳过。
 - 未验证：作者 X 长文里的主观评价；列表自己的「安全评级」（那是 Agent Skills Hub 对 README 的评级，不是我们自己的投入产出审计，与我们采用的判定口径无关）。
 
@@ -519,7 +519,7 @@
 
 ### R4 无素材计划 B（2026-09-28 完成）
 
-#### R4.1 A6 `pyang5166/gbro-collage-broll`（1.3k★，许可证：仓库含 LICENSE 文件，SPDX 未核）
+#### R4.1 A6 `pyang5166/gbro-collage-broll`（1.3k★，MIT——LICENSE 文件实读确认，2026-09-28）
 
 **它是什么**：把一句约 5 秒口播压成一个视觉隐喻，做成 editorial 半调纸拼贴 B-roll 组装动画。
 
@@ -533,11 +533,11 @@
 
 **应用代价**：执行链路不可用（付费 API + Codex 绑定 + GEMINI_API_KEY）；模板与协议零成本。
 
-#### R4.2 A7 `MegaTroll222/VOX-COLLAGE-BROLL`（许可证：仓库含 LICENSE 文件，SPDX 未核）
+#### R4.2 A7 `MegaTroll222/VOX-COLLAGE-BROLL`（MIT——LICENSE 文件实读确认，2026-09-28）
 
 与 R4.1 **同工艺同模型**：半调纸拼贴 + 锁定 `gemini-omni-flash`，走 MaxFusion MCP（付费）；同样三闸门（隐喻→静帧→组装动画）。增量信息只有一条：它把「本地文件处理」（抽帧、QA、混音）与「沙箱 agent 降级模式」（纯 prompt 色匹配、跳过逐帧自检）分开写清了——沙箱环境的能力边界声明做法可借鉴。**结论：与 R4.1 二选一读，本文以 R4.1 为准，此仓不再单独跟进。**
 
-#### R4.3 B7 `Alisa0808/vox-director`（47 文件，许可证：仓库含 LICENSE 文件，SPDX 未核）
+#### R4.3 B7 `Alisa0808/vox-director`（47 文件，MIT——LICENSE 文件实读确认，2026-09-28）
 
 **它是什么**：一句话主题 → 完整 Vox 纸片拼贴讲解/广告视频，全程 Atlas Cloud API（付费）+ 本地 ffmpeg。
 
@@ -583,7 +583,7 @@
 
 ### R6 成片选段与剪辑工程（2026-09-28 完成）
 
-#### R6.1 A9 `AgriciDaniel/claude-shorts`（217★，许可证：仓库含 LICENSE 文件）
+#### R6.1 A9 `AgriciDaniel/claude-shorts`（217★，MIT——LICENSE 文件实读确认，2026-09-28）
 
 **它是什么**：长视频 → 短视频选段生产器，Remotion 渲染，带完整评分体系。
 
@@ -606,7 +606,7 @@
 - **Token/成本事实诚实记录**：计量字段无可靠事实时全部写 `unknown`，不估算；脚本不读宿主私人路径、不把绝对 production path 写入公开记录。与我们 alignment 层的「精度诚实声明」（R1.1）同一族纪律。
 - 增量重渲（改一镜只重渲受影响镜头）的缓存语义本轮未在 DESIGN 中定位到具体章节，标 `[R]`（部分）——**执行阶段若决定做增量渲染，再回头精读**，不在研究阶段深挖。
 
-#### R6.3 B10 `louisedesadeleer/cut-video`（4 文件小仓，许可证：仓库含 LICENSE 文件）
+#### R6.3 B10 `louisedesadeleer/cut-video`（4 文件小仓，MIT——LICENSE 文件实读确认，2026-09-28）
 
 **它是什么**： aggressively 收紧长录音（去静音/填充词/口误/重复，保留笑声），MFA 词边界驱动剪辑。
 
