@@ -45,3 +45,319 @@
 10. https://arxiv.org/html/2510.27280v1 — Focus keyframe selection, 2025-10 — Tier 1（预印）
 11. 本地冒烟：content_ABCx2_30s.mp4 0.36s/11 帧（本 session 实测） — Tier 1（实验）
 12. `.scratch/len-compare/HANDOFF.md`（361 worktree）— 前序基准与配方引入处 — Tier 1（内部）
+
+## 13. 双层判据研究与实证（2026-09-27，session `20260927-kf-criteria-5de54e`）
+
+### 13.1 判据定义（handoff §〇 裁决落地）
+
+- **层一·几何硬指标**（零模型成本，可入 CI）：Shot Recall ±0.5s / Max Temporal Gap ≤8s / pHash 冗余（near-dup 对 ≤4）。
+- **层二·下游字段一致性**：Subjects Jaccard vs uniform 基线、ContentKind 一致率、逐帧 Fit 分布（生产 image 路径 9:16 crop 模拟）；**#397 焦点约束 = 人脸存在区间代表帧命中率**（focus_detector 生产模块原样调用）。
+
+### 13.2 GT 方法论（本 session 的事故与教训）
+
+- 合成素材用**构造数学 GT**（content_ABC_av 唯一切点 5.06；ABCx2 五切点 5.06/10.13/15.19/20.25/25.31；ui-demo 七变化事件 2/6/…/26）——机械通道，权威。
+- unitree（真实素材）视觉标注 v1/v2 两版均在探针复核中被推翻，且本 session 图像读取通道 6 次返回异常（错配图像/注入文本/错配代码正文）→ **GT 降级为三机制机械共识**（ffmpeg scene 滤镜 ∩ I-frame pts ∩ 灰度帧差信号，任二独立机制 ±0.15s）：[8.76, 12.44, 14.0, 17.25, 23.4, 25.6, 27.96]，provenance 显式标注「视觉通道作废、待用户 HITL 终裁」。
+- 教训：**GT 标注必须有 HITL 终裁**；视觉通道异常时降级为机械共识并显式标注 provenance，不得冒充视觉真值。
+
+### 13.3 关键实证（6 配置 × 5 素材，criteria_matrix.json）
+
+| 素材 | uniform | scene(3 阈值) | iframe | 关键失效 |
+|---|---|---|---|---|
+| ABCx2_30s（5 切点） | recall 0.4 | 1.0 | 1.0 | uniform 预算摊薄漏 3/5 转场 |
+| unitree（共识 GT） | **0.778** | 0.444–0.556 | 0.556 | 「scene 全面占优」叙事被推翻 |
+| talkinghead | gap 2.0s | gap 8.0s（踩线） | **gap 15.6s** | iframe GOP 盲区击穿 8s 底线 |
+| ui-demo（7 事件） | recall 1.0 | **0.0** | 0.143 | scene mod(t,8) 相位与事件完全错开 |
+
+- 失效模式④实锤：固定背景局部演示 scene 全漏；兜底网格相位对齐风险（4 帧全部落在事件之间）。
+- **#397 判据价值实证**：ABCx2 第二人脸段 [26, 30.25] 在 scene/iframe 下零覆盖，而 Max Gap 仅 5.0s「合规」——gap 判据对此盲，人脸区间命中率判据捕获。
+
+### 13.4 层二字段一致性
+
+- ContentKind：全策略全素材一致（稳）。Subjects Jaccard：scene/iframe 在 ABCx2 塌缩至 0.167（只见第一 loop 语义）。Fit：UI 素材 contain 主导（边缘文本保全正确）、talkinghead 全 cover。
+- iframe_even 在 unitree 上与 uniform 同为 3/9——零解码对照并非免费午餐。
+
+### 13.5 裁决建议（待用户裁决，默认策略本票内不切）
+
+1. **单一策略无法同时满足四类素材**：scene 在 UI 录屏 0/7 是硬伤，uniform 在多镜头漏 60%，iframe 有 GOP 盲区。
+2. 候选方向：scene 为主 + `mod(t,8)` 兜底保留 + **兜底相位随机化**（避开与事件周期对齐）+ I-frame 作零成本预筛对照；UI 录屏类素材考虑 uniform 兜底或提高兜底密度。
+3. 层二判据（Fit/Subjects 一致性 + #397 人脸命中率）建议纳入选帧策略验收门槛。
+4. unitree GT 待用户视觉终裁（探针带在 `.scratch/keyframe-bench/contact-sheets/_probe_*.jpg`）后重算 recall。
+
+### 13.6 证据链
+
+- 判据计算器：`scripts/short-video/bench/keyframe/criteria_eval.py`（Pass A 几何 / B 焦点 / C 字段）
+- 观测工具：`contact_sheet.py`（策略拼图 + GT 标注密集网格 + 0.1s 探针带）
+- 素材构建：`make_assets.py`（talkinghead 循环 + PIL 合成 UI 录屏）
+- bench 扩展：`run_bench.py`（5 档信号矩阵 + frame 落盘 + fit-pass + 断点续跑）
+- 全部落盘：`.scratch/keyframe-bench/`（results 45 JSON + contact-sheets 33 张）
+
+## 14. 关键帧方法全景深研（2026-09-27 web deep research，session `20260927-kf-criteria-5de54e`）
+
+### 14.1 方法对比表（按信号档位）
+
+| 方法 | 原理 | 成本 | 已知失效 | 新闻素材适配 |
+|---|---|---|---|---|
+| uniform 均匀 | 等时间距采样 | 零 | 多镜头漏切（实测 3/5 漏） | 录屏/图表类最优（实测 7/7） |
+| scene 固定阈值 | 相邻帧 HSV/SAD diff > T | 零解码 | 渐变溶镜、局部小变动（录屏 0/7）、兜底相位对齐 | 硬切 B-roll 准 |
+| scene 自适应阈值 | 滚动平均替代固定 T（PySceneDetect AdaptiveDetector） | 两遍计算 | 需调 window/threshold | 抗运镜误报，直接对症「固定阈值失效」[1] |
+| HashDetector | 感知哈希帧间距离 | 极低 | 灰度化丢色彩变化 | 廉价第二信号 [1] |
+| 分块 diff + 变化比例 | 与「最后保留帧」比较（非相邻帧）+ changedRatio 阈值 + 全程校准 + 运动区 mask | 低 | 重动画内容 | **录屏/图表专项解法**（video-slide-extractor 已产品化）[2] |
+| shot 边界 + 段内代表帧 | 先切 shot 再每段选帧 | 中 | 单帧不足代表段 | InfoShot 双帧法：每 shot 选「典型帧+独特帧」[3] |
+| embedding 聚类 | 帧特征聚类取代表（KTV question-agnostic） | 中（需推理） | 小目标/文字不敏感 | 解耦 query 裁决的学术支持 [4] |
+| 信息密度划分 | 按 Semantic Energy Mass 划分而非均匀时间（SLICE，parameter-free σ=ln N） | 中 | 依赖特征质量 | 帧集中到复杂事件段 [5] |
+| M-LLM 打分 | VLM 对候选帧打分 | 高（秒级） | 本地算力不可行（已排除） | FrameOracle 需训练，AC |
+| 压缩原理 | 借编码器冗余分析选帧（KFFocus） | 中 | — | iframe 思路的学术化 [6] |
+
+### 14.2 时序近似（最接近 TMRoPE 的可行路径）——**此前标「未验证」现在有论文证据**
+
+- **NumPro**（arXiv 2411.10332）：每帧叠加帧号数字，VLM 靠内建 OCR「读」时间线做 temporal grounding，training-free 零额外成本 [7]
+- **ViKey**（CVPR 2026, arXiv 2603.23186）：序号视觉提示 + 关键词-帧映射，20% 帧数逼近密集帧性能；并论证稀疏采样下位置编码退化正是时序感知差根因 [8]
+- **TimeLens**（CVPR 2026）：交错**文本**时间编码全面优于视觉叠加与位置编码方案 [9]
+- 含义：给选中帧叠帧号/时间戳（或文本交错）是低风险高性价比的时序近似，可直接在 #334 prompt 侧实验。
+
+### 14.3 官方采样路线的战略发现（改变预算讨论前提）
+
+- MiniCPM-V 4.6 官方：`max_num_frames=128`，短视频 **1FPS 逐秒**，长视频自动转均匀采样 [10]
+- MiniCPM-V 4.5：`MAX_NUM_FRAMES=180` + `MAX_NUM_PACKING=3`，3D-Resampler 将 6 帧并 64 token（96×压缩，10FPS）[11]
+- **官方答案是「多喂帧 + resampler 压 token 成本」，不做智能选帧**。我们当前 mlx-vlm 16帧@2fps 远低于官方 128-180 帧建议。帧数上升只增加解码+SigLIP 前向时间（线性），LLM token 数不变——「1fps 全覆盖 uniform」在官方架构下可能就是正解，智能选帧仅在帧预算真受限（解码/编码时间）时有价值。**需实测帧数-延迟曲线定夺。**
+
+### 14.4 对本管线的适配建议（新闻素材）
+
+1. 帧预算优先上探到官方建议域（64+），先实测 uniform@1fps 的延迟-质量曲线，再谈智能选帧
+2. scene 保留但修两点：AdaptiveDetector 式滚动阈值 + 兜底相位随机化；录屏/图表类叠加分块 diff 信号
+3. 时序近似走 #334：优先文本交错时间戳（TimeLens 证据），次选帧号叠加（NumPro）
+4. iframe 退役为对照信号
+
+### Sources
+
+1. PySceneDetect Detectors 官方文档 — https://www.scenedetect.com/docs/latest/api/detectors.html — Tier 1
+2. video-slide-extractor（分块 diff + 校准 + mask）— https://www.npmjs.com/package/video-slide-extractor — Tier 1
+3. InfoShot: Shot-Aware Frame Sampling — https://arxiv.org/html/2603.17374v1 — Tier 1
+4. KTV: Keyframes and Key Tokens Selection — https://arxiv.org/html/2602.03615v1 — Tier 1
+5. SLICE: Information Density Partitioning — IEEE Access 10.1109/ACCESS.2026.3680314 — Tier 1
+6. KFFocus — https://arxiv.org/html/2508.08989 — Tier 1
+7. NumPro: Number it — https://arxiv.org/pdf/2411.10332v1.pdf — Tier 1
+8. ViKey — https://arxiv.org/html/2603.23186v1 — Tier 1
+9. TimeLens — https://papernotes.org/CVPR2026/multimodal_vlm/timelens_rethinking_video_temporal_grounding_with_multimodal_llms/ — Tier 3（解读，原文 CVPR 2026）
+10. MiniCPM-V-4.6 模型卡 — https://modelscope.cn/models/OpenBMB/MiniCPM-V-4.6 — Tier 1
+11. MiniCPM-V-4.5 模型卡 — https://ai.atomgit.com/OpenBMB/MiniCPM-V-4_5 — Tier 1
+
+## 15. tiered 选帧器实证与选帧 benchmark 版图（2026-09-28，同 session）
+
+### 15.1 tiered 选帧器（bench-only，`scripts/short-video/bench/keyframe/exp_tiered.py`）
+
+三阶段 + 两道护栏（对齐社区已验证形态，非自创五层）：
+
+| 层 | 机制 | 实证依据 |
+|---|---|---|
+| L1 硬切锚点 | ffmpeg scene 0.08（含 8s 兜底 pts） | 多镜头素材召回骨架 |
+| L2 出现且停住 | 块级：≥3% 像素强变（>40 灰阶）vs **最后保留帧**，且对**下一帧**稳定 | ui-demo GT **7/7**（@320×180 / 20×12 网格 / >40 / >0.03） |
+| L3 去重 | cuts 用 pHash（仅 ±2s 窗口内合并）；locals 用**强度排序 + 1.5s 最小间隔** | pHash 不能区分「微小但有意义」与微动噪声（曾吃掉 ui-demo 14.0/26） |
+| L4 覆盖兜底 | 盲区 >8s 取**中点**补帧 | 中点天然避开周期事件相位 |
+| L5 预算封顶 | 显式优先级元组 cuts > fills > locals | 字典推导式会静默降级同时命中两层的 cut |
+| 护栏·洪水降级 | L2 触发数 > 2×预算 → 判定该内容信号无选择性，退化为 cuts+兜底 | talking head 曾 16 帧全近重复（nearDup 108 → 6） |
+
+### 15.2 修复前后对照（5 素材 × 三层判据）
+
+| 素材 | 指标 | tiered（修后） | uniform | scene |
+|---|---|---|---|---|
+| ABC_av | recall / 帧数 / nearDup | 1.0 / 5 / 0 | 1.0 / 16 / 7 | 1.0 / 4 / 1 |
+| ABCx2 | recall / gap / nearDup | **1.0 (5/5)** / 5.06s / 3 | 0.4 / 2.0s / 10 | 1.0 / 5.06s / 8 |
+| unitree | recall / nearDup | 0.857 / 1 | 0.857 / 4 | 0.857 / 1 |
+| talkinghead | 帧数 / nearDup / gap | **4 / 6 / 8.0s** | 16 / 76 / 2.0s | 4 / 6 / 8.0s |
+| ui-demo | recall / 帧数 / nearDup | **1.0 (7/7)** / 11 / 6 | 1.0 / 16 / 21 | **0.0** / 4 / 0 |
+
+修复链路：ui-demo 0/7→7/7；ABCx2 recall 0.4→1.0、gap 11.4→5.06s；talkinghead nearDup 108→6。已知让步：ABCx2 第二人脸段 faceHit 0.5（uniform 1.0，代价是 10 对冗余）。
+
+### 15.3 夹具 bug（重要教训）
+
+ui-demo 合成的第 6 秒事件原为空字符串行——**构造上不可见**，导致「7 事件 GT」天然不可能全中，并造成「隔一个命中」的假规律。已修为可见内容。**合成夹具必须验证每个标注事件真的可见**（对应 AGENTS.md「非空产出」证据卫生）。
+
+### 15.4 选帧 benchmark 版图（回答「谁最好 / 能否不本地测」）
+
+| Benchmark | 性质 | 关键事实 |
+|---|---|---|
+| **KFS-Bench**（WACV 2026, NEC）[12] | **首个选帧专项 benchmark**，多场景 GT 标注 | 直接评测选帧质量而非仅 QA 精度；三大质量因子 **Precision / Coverage / Balance**——与本项目「recall / max-gap / 冗余」判据同构 |
+| Video-MME [13] | 模型能力榜（900 视频 / 254h / 2700 QA），含 short<2min / medium / long 分段与 **Frames 列** | 公开 leaderboard 可看「同模型不同帧数」的边际收益 |
+| LongVideoBench / MLVU / EgoSchema / MVBench / TemporalBench | 长视频 QA 常用集 | 选帧方法的通用评测场 |
+| lmms-eval [14] | **统一评测 harness**（100+ 任务、30+ 模型、响应缓存） | 免自建评测管线；但不含选帧专项指标 |
+| SumMe / TVSum50 | 视频摘要 F1 / fidelity / CR | 摘要范式，与 QA 范式不同 |
+
+**三条关键结论**：
+
+1. **不能靠读论文排名判断谁最好**。KFS-Bench 明确指出：既有 benchmark 缺关键帧标注，只能**间接**通过 QA 精度评估选帧，而「QA 最高分不等于选帧最优」——MLLM 的幻觉与错误给采样效果引入了随机性 [12]。各论文又各自用不同 backbone/帧预算/超参，跨论文数字不可比。
+2. **但也不必一切从零本地测**。三层可复用：① KFS-Bench 的质量因子定义（Precision/Coverage/Balance）可直接采用，省去判据发明成本；② lmms-eval 提供现成 harness 与公开基线；③ 具体到 MiniCPM-V，MaxInfo 论文已在 MiniCPM-V 4.5 上实测 +3.44%（LongVideoBench）[15]，可作为直接对照数。
+3. **本项目域与 benchmark 域存在系统性错位**：这些 benchmark 的收益主要来自**长视频稀疏采样**（分钟到小时）；本项目素材为 30s 级（Video-MME 的 short<2min 段），而该段位下 uniform 已接近饱和（本 session 实测：uniform 在 ui-demo 7/7、ABCx2 仅漏多镜头切点）。→ **本地五素材矩阵评测不可省**，但应把 KFS-Bench 因子作为对外可比口径。
+
+### Sources（续）
+
+12. KFS-Bench: Comprehensive Evaluation of Key Frame Sampling in Long Video Understanding（WACV 2026, NEC）— https://www.openaccess.thecvf.com/content/WACV2026/papers/Li_KFS-Bench_Comprehensive_Evaluation_of_Key_Frame_Sampling_in_Long_Video_WACV_2026_paper.pdf — Tier 1
+13. Video-MME 官方站与 leaderboard — https://video-mme.github.io/home_page.html — Tier 1
+14. lmms-eval（统一评测 harness）— https://www.lmms-lab.com/posts/lmms_eval/ — Tier 1
+15. MaxInfo（MiniCPM-V 4.5 实测 +3.44%）— https://arxiv.org/html/2502.03183 — Tier 1
+
+## 15. 全方法总对决（2026-09-28，session `20260927-kf-criteria-5de54e`）
+
+13 方法 × 7 素材几何口径 + Video-MME short 24 视频 QA 口径，BUDGET=16 对齐。
+数据源：`.scratch/keyframe-bench/results/{methods_bench,methods_bench2,exp_siglip,exp_videomme_qa}.json`（KFS-Bench 三因子口径已并入 criteria_eval Pass D）。
+
+### 15.1 转场召回（4 类素材均值）
+
+| 方法 | 均值 | 最强项 | 结构性盲区 |
+|---|---|---|---|
+| tiered（PySceneDetect 基座+护栏） | **0.964** | 四类素材全及格 | unitree 0.857（第二信号可补） |
+| uniform（社区默认） | 0.814 | QA 精度冠军 66.7% | 多镜头漏切 0.4、口播冗余 76 |
+| sd_hash / sd_histogram | 0.750 | unitree 唯一满分 1.0 | 无兜底盲区 30s、录屏 0 帧 |
+| scene | 0.714 | 多镜头 1.0 省帧 | 录屏 0/7 |
+| maxinfo/ktv（真 SigLIP） | 0.67-0.70 | info 高 | 多样性≠切点覆盖、口播洪水 dup 72 |
+| sd_content/adaptive | 0.679 | 硬切准 | 录屏/口播全 0 帧（相邻帧范式失效） |
+| sd_threshold | 0.036 | — | 淡入淡出专用，用途不符 |
+
+### 15.2 关键结论
+
+1. **没有单项冠军**：QA 冠军 uniform、召回冠军 tiered、unitree 冠军 sd_hash/histogram、零冗余 iframe/sd 全家。
+2. **唯一全科及格 = tiered**（recall 0.964 + 盲区 ≤8s + 冗余 6 + QA 噪声区间内）。其成分：切点信号层全部来自社区（PySceneDetect），自研仅为组合护栏（兜底锚点/去重/洪水降级/分层优先级）——与「社区优先、solid 基座上增量」方向一致。
+3. **QA 口径（Video-MME short，n=69）**：uniform 66.7% vs tiered 59.4%，差异 7.3pp < 统计噪声 ±8pp——不下结论；方向符合「QA 检索型任务 uniform 是强基线」。
+4. **裁决**：uniform 保留 QA 检索默认位；tiered 定位为可选策略（几何覆盖需求用 tiered，QA 检索需求用 uniform），不切默认。
+5. TMRoPE 近似（NumPro/ViKey 帧号烧录）机制验证通过：数字可穿 3D-Resampler 被读出（ui-demo 输出 "approximately 30 seconds"），零延迟代价；价值兑现需 prompt 侧明确要求（归 #334）。
+6. 真SigLIP embedding 复测排除「代理特征太弱」伪象：多样性最大化与切点覆盖目标函数错位是结构性的。
+7. 基础设施发现：本地无批量限流下载能力 → #405；MiniCPM 官方帧域（≤128s@1fps）远大于现生产 3窗×8帧上限 → 分窗重设计待 ticket。
+
+### 15.3 待办（fresh session）
+
+maxinfo_siglip QA 补跑（tvF 环境层 bug）；可选扩样本 ~100 视频求显著；push + PR；#405 实现；分窗重设计 ticket。
+
+## 16. Session 3：tvF 根因更正、tiered v3 证伪、四方法入 harness（2026-09-28，session `20260928-keyframe-bench-1d663d`，PR #407）
+
+数据源：`.scratch/keyframe-bench/results/{methods_bench3,exp_videomme_qa}.json`。
+注：本文现有两个 `## 15`（145 行「tiered 选帧器实证」、199 行「全方法总对决」），
+引用「§15」时以「全方法总对决」为准；未重编号是因为已发布的 issue 评论与
+HANDOFF 都按 §15 指向后者，重编号会让那些指针落空。
+
+### 16.1 上一 session 的「日志通道不可信」是误判，tvF 有真实根因
+
+- `tvF` 在磁盘上真实存在：`transformers/image_processing_backends.py:133`
+  `image = tvF.pil_to_tensor(image)`，而 `tvF` 只在 `is_torchvision_available()`
+  为真时绑定；`~/.venvs/mlx-vlm`（transformers 5.16.1）**没装 torchvision**。
+  transformers 5 把 `SiglipImageProcessor` 硬接到 `TorchvisionBackend`，于是
+  只有走 SigLIP 的臂炸，uniform/tiered 两臂根本不碰 transformers——「日志不可信」
+  的观感来自这种选择性失败。`~/.video-tts-env`（4.57.6 + torchvision 0.24）里
+  同一份代码是通的，这也解释了 exp_siglip 几何口径为何一直正常。
+- 「`grab_frame` 进程内外行为矛盾」另有解释且可核：`exp_videomme_qa.py` 的
+  `os.makedirs` 是 12:45 新加的，vm_qa4/5 三臂全报 `Errno 2 .../frames/*_00.jpg`，
+  加上该行后 vm_qa6 起两臂正常。
+- 陈旧字节码假说已排除：5 个 `.pyc` 头部记录的源 mtime+size 与 `.py` 逐条相符，
+  `.pyc` 内 `tvF` 计数为 0。
+- 修复不动生产 venv（不装包，避免重演 opencv 遮蔽事故）：加载器收敛到
+  `exp_siglip.load_siglip/embed_images/maxinfo_pick`，两处版本差异就地归一化
+  （PIL 后端优先；transformers 5 的 `get_image_features` 返回
+  `BaseModelOutputWithPooling`，取 `pooler_output`）。
+
+### 16.2 QA 口径四臂终值（Video-MME short 23 视频 × 3 题 = 每臂 69 题）
+
+| 臂 | 正确 | 精度 | 几何口径 recall 均值 |
+|---|---|---|---|
+| maxinfo_siglip | 47/69 | 68.1% | 0.700 |
+| uniform_16 | 46/69 | 66.7% | 0.814 |
+| tiered（v2） | 41/69 | 59.4% | 0.964 |
+| tiered_v3 | 39/69 | 56.5% | 0.964 |
+
+逐题 McNemar 精确检验（69 题）：uniform vs tiered 不匹配对 10+5，p=0.302；
+uniform vs tiered_v3 10+3，p=0.092；uniform vs maxinfo 2+3，p=1.000；
+tiered vs maxinfo 4+10，p=0.180。唯一 p<0.05 的是 tiered_v3 vs maxinfo
+（2+10，p=0.039），6 组两两比较的 Bonferroni 阈 0.0083 之下不成立。
+**n=69 时 QA 口径分辨不出任何一对方法**（±8pp 噪声），这既是补跑 maxinfo 的
+结论，也是必须扩样的理由。零 `ERR`/零 `?`，A/B/C/D 预测分布 64/89/60/63。
+
+### 16.3 平坦段密度保底（tiered v3）：假设证伪
+
+- 动机（上 session 记录）：v2 在口播素材只花 4/16 帧预算 → 猜 QA 落后来自「帧不够」。
+- L6 只在 L5 封顶后花剩余预算、不驱逐任何锚点，所以几何口径按构造不变：
+  recall 逐时间戳与 v2 一致（均值 0.964，unitree 0.857 仍是唯一漏点），
+  最差盲区 8.00→6.16s，帧数 16/16；代价全落在冗余（dup 均值 5.8→22.4 对；
+  ui-demo infoShare 0.417→0.188；talkinghead dup 6→72）。
+- QA 口径：39/69 = 56.5%，比 v2 还少 2 题；v2 vs v3 只有 2 个不匹配对（p=0.5）。
+  量过之后才知道为什么：**23 个 Video-MME 视频里 tiered v2 未满 16 帧的只有 2 个**
+  （`6Z_XNM_iT4g`、`uF3zNOthLAg`，各 8/16），其余 21 个 v3 与 v2 选中集合完全相同
+  （`v23_diff.log`）。也就是说这一轮几乎没有给「密度保底」出题的机会。
+- 结论要分成两句：① 假设（QA 落后于帧数）**在 Video-MME 语料上不可检验**，因为
+  该语料的 1-3 分钟素材本来就让切点+局部变化层把预算花满；② 短/平坦素材上
+  帧数少是事实（口播 4/16、10s 素材 5/16），所以 v3 的真实定位是**短平坦素材的
+  兜底**（盲区 8.00→6.16s 换 dup 5.8→22.4 对），不是 QA 修复。
+- QA 差距的可检验假设换成「帧放在哪」：tiered 在真实素材上把多帧挤在 0.2-0.3s 内
+  （如 18.8/18.9/19.1、41.1/41.3/41.5/41.6），而 uniform 铺开。→ tiered v4 =
+  对整个选中集合加最小时间间距（spread guard），密度点只做兜底。
+- v3 不进默认位：它买到的只有盲区，付出的是冗余，QA 未见收益。
+
+### 16.4 四方法入 harness：先读原文，偏离写进 docstring
+
+| 方法 | recall 均值(4 素材) | 最差盲区 | 冗余对均值 | 帧数 |
+|---|---|---|---|---|
+| slice | **0.964** | **4.00s** | 17.2 | 10-16 |
+| tiered / tiered_v3 | 0.964 | 8.00 / 6.16s | 5.8 / 22.4 | 4-16 / 16 |
+| uniform_16fps2 | 0.814 | 2.00s | 23.6 | 16 |
+| kffocus | 0.650 | 2.98s | 26.4 | 16 |
+| kframes（去 query 退化形） | 0.322 | 2.76s | 23.0 | 16 |
+| infoshot | 0.243 | 25.80s | 15.8 | 10-12 |
+
+- **SLICE**（IEEE Access 2026，全文 CC-BY 可读，无官方实现）：第 3-8 步照抄
+  （σ=ln(N) 高斯平滑 → rectify → `p=S′+μ` 能量地板 → 逆 CDF 分 K 块 → 块内取
+  **未平滑**原始分的 argmax）。第 2 步是 BLIP ITM 对 query 的相关性打分，与
+  #391「抽帧层完全解耦 query」裁决冲突，替换为逐帧新颖度 `1−cos(emb_t,emb_{t−1})`
+  ——所以被测的是它的**分配器**。结果：分配器本身就做到 tiered 的召回、且盲区
+  更好（4.00s vs 8.00s）、冗余低于 tiered_v3。这是「社区基座优先」方向本轮最强
+  的一条证据，已加入 QA 臂（`slice`）待扩样裁决。
+- **InfoShot**（arXiv 2603.17374）：作者 repo（mengyu02/InfoShot）只有 60 字节
+  README、无代码无许可证，公式全部取自正文（B_t 平衡划分、M=⌊K/2⌋、
+  typical λ=0.7 / unique α=0.5、邻域 k=1）。偏离两处并写明：论文 10fps ResNet-50
+  特征，我们用 5fps 灰度嵌入（1fps 下 30s 只有 30 候选，放不下 8 个镜头）；
+  窗口 k 按段长缩放。0.243 与 §15 的 maxinfo_proxy 教训同型——**弱特征是结果
+  的可能成因，故 0.243 只当下界**，要用它必须真特征复测。
+- **K-frames**（arXiv 2510.13891）：核心是训练出来的 query 条件化分配（PeakClips
+  = 直方图差切点 + Gemini 字幕 + LLM 相关性 → Qwen2.5-VL actor，SFT+GRPO）。
+  去掉优先级层后 w≡1、`k_j∝ℓ_j`、段内等距，即论文自述的退化形态；实测 0.322
+  显著低于同预算均匀网格 0.707，原因是「段内取中点」系统性避开切点。
+  → 判**不适配本 harness**，移入「勿重复尝试」清单（附本次实测依据）。
+- **KFFocus**（arXiv 2508.08989）：帧层 = 编码 I 帧 + 每个间隙插
+  `⌊T_k/(δT)⌋` 张等距补偿帧（δ=5%），零模型成本；我们额外补首尾间隙（论文只列
+  相邻 I 帧，会让首个 I 帧之前的整段无帧）。其另一半 CLIP top-α token 压缩
+  （d1=2/d2=4）是 token 预算不是选帧，不入本 harness。实测与 iframe 家族一致：
+  盲区极好（2.98s）、切点召回差（0.650）。
+
+### 16.5 PR #407 bot review 六条 thread 的核实结论（判据与工件层）
+
+1. `run_bench` fit pass `crop_cleanup` NameError — **为真**：25 个 run_bench 工件
+   每帧多一条 error dict（生产字段一致性层的 Fit 分布被 50% 错误行稀释）。
+   无已汇报数字消费它（`criteria_matrix.json` 无 layer2 段）→ 层二证据需重跑。
+2. QA 答案解析 `re.search([ABCD])` — **为真**：实测 "The answer is C."→A、
+   "I don't know"→D。已双写 `pred`/`pred_strict` + 存 `raw` + `parser_check` 汇总；
+   但 23 视频这一轮的 raw 未落盘，**无法回溯重算**，扩样时全臂按两口径重算。
+3. `count_frames_at_fps` 取首个 `frame=` 进度行 — **真隐患、零既成损害**：实测
+   5 素材各只输出 1 行（20/61/60/60/60），磁盘上的 uniform 时间戳未被截断；
+   分钟级 1fps 会中招 → 扩样前已修。
+4. consensus 里 `derive_iframe_timestamps(...) if False else ...` — 死分支删除
+   （其备选本身 `cap=None` 时 TypeError，正是它不该留的理由）。
+5. `exp_siglip` main 重复解码/重复 embedding — 对旧代码成立；现每素材一次
+   `decode_rgb` + 一次 forward。
+6. `make_assets` 第 8 行 CODE_LINES 永不出现 — 缺陷为真，修法以「不动像素」为约束
+   （GT 与全部 ui-demo 数字建立在已出货夹具上）：删死行 + 把常亮光标写成显式行为，
+   重生成后解码 rgb24 流 md5 与出货素材相同（`0466a1b…`，1990656000 字节）。
+
+### 16.6 下一步
+
+1. 100 视频扩样：4 臂（uniform_16 / tiered / slice / maxinfo_siglip）写入
+   `exp_videomme_qa_100.json`，69→300 题把噪声从 ±8pp 压到约 ±5pp；tiered_v3
+   已证伪故不进扩样。
+2. tiered v4 spread guard（16.3 留下的唯一可检验假设）。
+3. KFS-Bench 直接判据轨道（自带多场景 GT，视频源 LongVideoBench，复用 #405 下载器）。
+4. fit pass 重跑补层二证据（16.5-1）；分窗重设计 ticket；#405 通用串行下载器
+   （本轮 bench 侧临时物 = `download_videomme.sh`）。
+
+### Sources（再续）
+
+16. SLICE: An Efficient and Tuning-Free Keyframe Sampling Framework for Long-Form Video Understanding — IEEE Access 14:51576-51588 (2026) — https://doi.org/10.1109/ACCESS.2026.3680314 — Tier 1（全文读）
+17. Shot-Aware Frame Sampling for Video Understanding (InfoShot) — https://arxiv.org/abs/2603.17374 — Tier 1
+18. K-frames: Scene-Driven Any-k Keyframe Selection for Long Video Understanding — https://arxiv.org/abs/2510.13891 — Tier 1
+19. KFFocus: Highlighting Keyframes for Enhanced Video Understanding — https://arxiv.org/abs/2508.08989 — Tier 1
+20. mengyu02/InfoShot（作者仓库，仅 README、无代码无许可证）— Tier 3（负面证据）
+
