@@ -224,7 +224,11 @@
 
 按 [`triage-labels.md`](agents/triage-labels.md) 定 Phase / Wave / Tier / P 标签后移入 Tier 表并摘 `needs-triage`。历史分流台账（含全部已闭票行）→ [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md)。
 
-> **当前队列清空**（2026-09-25 Round N 全量清零）：全仓 62 张 open issues 全部分流归位，`needs-triage` 为 0。新 issue 进入后追加在此待分流。
+> **Round N（2026-09-25）全量清零后的新增**：全仓 62 张 open 曾全部分流归位、`needs-triage` 归 0；此后新增待分流按下表追加一行，分流归位后移入 Tier 表并删本行。
+
+| # | 标题 | 已带标签 | 待分流内容 |
+| --- | --- | --- | --- |
+| #406 | OCR pre-push 审查从未生效（hook 落在被 `core.hooksPath` 屏蔽的 `.git/hooks/`） | `enhancement` / `needs-triage` / **P3**（用户 2026-09-28 指示：优先级最低） | Phase·Wave·Tier 未定。票面两件事待裁：① OCR 进入工作流的形态（push 门禁 / Agent 主动步骤 / 保持手动）；② 「hook 是否真被执行」要不要做成代码门禁。候选归属组：Phase 1 W1C 工程卫生（与 #319/#325/#327 同组），仅提示不作分类。证据实测冻结于 2026-09-28，pickup 前先复核。 |
 
 ---
 

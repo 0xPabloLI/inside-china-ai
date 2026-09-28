@@ -83,9 +83,9 @@ Z-Image Turbo (5.5GB) + FLUX.2-klein-4B (20GB) + ERNIE (31GB) + FLUX.2-klein-9B 
 
 ### MLX 4bit 可行性
 
-- mflux 0.19.1 已装，`mflux-generate-qwen` 命令可用，支持 `--low-ram` + `--vae-tiling`（降内存）+ `--quantize {3,5,4,6,8}` + 内置 LoRA 风格（couple/font/home/identity/illustration/portrait/ppt/sandstorm/sparklers/storyboard）。
-- **Qwen-Image-2512-4bit**：mflux 直接支持（model card 给出 `mflux-generate-qwen` 命令），25.9GB 在 M2 Pro 32GB 上用 `--low-ram --vae-tiling` 应该能跑；若 OOM 可降 3bit（22GB）。
-- **Qwen-Image-2.1-MLX-4bit**：10.5GB 无压力，但 model card 无 mflux 标签，需试跑确认 `mflux-generate-qwen` 是否兼容。
+- mflux 0.20.0 已装（从 0.19.1 升级），`mflux-generate-qwen`（2512）和 `mflux-generate-qwen-2.1`（2.1）命令均可用，支持 `--low-ram` + `--vae-tiling`（降内存）+ `--quantize {3,5,4,6,8}` + 内置 LoRA 风格。
+- **Qwen-Image-2512-4bit**：mflux 直接支持（`mflux-generate-qwen` 命令），25.9GB 在 M2 Pro 32GB 上用 `--low-ram --vae-tiling` 可跑，Peak MLX 27.07GB。
+- **Qwen-Image-2.1**：mflux 0.20.0 原生支持（`mflux-generate-qwen-2.1` 命令）。需 bf16 原版（~33GB on disk），用 `-q 4` 运行时量化 transformer+VAE（text encoder 保持 bf16 不量化，因 "Quantization causes significant semantic degradation"）。Peak MLX 15.50GB，M2 Pro 32GB 轻松。注意：mlx-community 的 4bit 版本（U32 量化格式）mflux 不兼容，必须用 bf16 原版。
 
 ### 2512 Space 的 prompt 改写
 
@@ -112,17 +112,39 @@ Qwen-Image-2512 的 HF Space demo 用 dashscope `qwen-plus` LLM 做 prompt 改�
 - **Qwen-2512 问题**：柱状图只有 2 根柱子（非 3 根递减），玻璃质感非发光；架构图风格化过度（像魔法阵不像架构图）；数据流严重偏离 prompt，模糊低质，疑似生成失败。
 - **结论**：**B-roll 场景下 Boogu Turbo 保持冠军，Qwen-Image-2512 不推荐替换。** Qwen-2512 可能更适合写实/人物场景（其官方定位），但 B-roll 抽象数据可视化场景不是其强项。
 
-#### Qwen-Image-2.1-MLX-4bit
+#### Qwen-Image-2.1（mflux 0.20.0 + bf16 原版 -q 4）
 
-- **mflux 不兼容**：2.1 用 diffusers 格式（`processor/` 目录 + `model_index.json` + `scheduler/`），2512 用 mflux 格式（`tokenizer/` 目录）。`mflux-generate-qwen` 找不到 tokenizer，报 `FileNotFoundError`。
-- 要在本地跑 2.1 需用 diffusers + MPS（非 MLX），写 Python 脚本调 `QwenImage21Pipeline`。但 2.1 是非商业许可，仅作质量参考，不值得额外投入。
-- **结论**：跳过 2.1 本地补测。
+- **mflux 0.20.0 原生支持**：CLI 命令 `mflux-generate-qwen-2.1`，Python API `from mflux.models.qwen21.variants.txt2img.qwen_image_21 import QwenImage21`。
+- **之前 "mflux 不兼容 2.1" 的结论是错的**——根因是 mflux 0.19.1 太旧（无 qwen21 模块），0.20.0 已加入 `models/qwen21/`。
+- **mlx-community 4bit 版本不兼容**：权重是 MLX 量化格式（U32 + scales + biases），mflux 期望 bf16 原版然后运行时量化。必须下载 bf16 原版 `Qwen/Qwen-Image-2.1`（~33GB）。
+- **下载**：从 ModelScope（国内 ~5-10MB/s）aria2 多线程下载 bf16 原版到 `/tmp/t2i-models/qwen-2.1-bf16/`，约 50 分钟。
+- **运行参数**：`mflux-generate-qwen-2.1 --model /tmp/t2i-models/qwen-2.1-bf16 -q 4 --low-ram --vae-tiling --steps 40`（40 步 guidance-free 是官方推荐默认）。
+- **Peak MLX 15.50GB**（text encoder bf16 ~17.5GB 逻辑上不量化，但 --low-ram 分段加载实际 peak 15.5GB），M2 Pro 32GB 轻松。
+
+| Prompt | Qwen-2.1（遵循度/视觉/B-roll） | 2.1 耗时 | Peak MLX |
+|--------|------|------|------|
+| 柱状图 | 5/5/4 | 845s | 15.44GB |
+| 架构图 | 5/4/5 | 866s | 15.50GB |
+| 数据流 | 4/4/5 | 858s | 15.50GB |
+
+- **Qwen-2.1 优势**：比 2512 质量好很多（总分 42/45 vs 25/45），Peak MLX 更低（15.5GB vs 27GB），支持 image editing / multi-reference editing / RGBA。
+- **Qwen-2.1 劣势**：40 步 ~856s 比 Boogu 慢 8 倍，且非商业许可（需申请 model-business@notice.qwencloud.com）。
+- **结论**：质量亚军，B-roll 场景仍不如 Boogu（42 vs 45，且慢 8 倍 + 非商业）。
 
 ### 补测最终结论
 
 **Boogu Turbo 保持 B-roll T2I 冠军。** Qwen-Image 系列不推荐替换：
-- Qwen-Image-2512：B-roll 抽象数据可视化场景质量全面不如 Boogu（3/3/3 vs 5/5/5），速度慢 16 倍。可能更适合写实/人物场景（其官方定位），但非本项目用途。
-- Qwen-Image-2.1：mflux 不兼容，非商业许可，跳过。
+
+| 维度 | Qwen-2512 | Qwen-2.1 | Boogu（冠军） |
+|------|-----------|----------|---------------|
+| 总分 | 25/45 | 42/45 | **45/45** |
+| 平均耗时 | 1749s | 856s | **105s** |
+| Peak MLX | 27.07GB | 15.50GB | 36GB（磁盘缓存，非峰值；峰值未测） |
+| 许可 | Apache 2.0 ✅ | qwen-research ❌ | Apache 2.0 ✅ |
+| 步数 | 20 | 40 | 4 |
+
+- **Qwen-Image-2512**：B-roll 抽象数据可视化场景质量全面不如 Boogu（25 vs 45），速度慢 16 倍。可能更适合写实/人物场景（其官方定位），但非本项目用途。
+- **Qwen-Image-2.1**：质量亚军（42/45），比 2512 好很多，Peak MLX 最低（15.5GB），支持 image editing。但比 Boogu 慢 8 倍，且非商业许可需申请。**如果未来需要 image editing / multi-reference editing 功能，2.1 是唯一选项**（Boogu 不支持 editing）。
 - 原选型决策（Boogu Turbo）不变。
 
 ### web-deep-research 流程优化建议

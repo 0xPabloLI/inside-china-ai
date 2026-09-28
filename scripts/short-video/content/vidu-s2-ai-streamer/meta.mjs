@@ -1,0 +1,28 @@
+export const meta = {
+  subject: "vidu-s2",
+  pipelineId: "vidu-s2-ai-streamer",
+  title: "Vidu S2 AI Host Ziying Earns Real Money on First Livestream",
+  article: "vidu-s2-ai-streamer",
+  renderer: "remotion",
+  createdAt: "2026-09-27",
+  topics: ["vidu-s2", "shengshu", "china-ai", "real-time-interaction", "ai-host", "livestream"],
+  keyEntities: {
+    companies: ["shengshu-technology", "zaomeng-ciyuan"],
+    people: ["zhu-jun", "zhang-jintao"],
+    models: ["vidu-s2", "vidu-s2-avatar", "vidu-s2-editing"],
+  },
+  dataPoints: [
+    "20,000 viewers rushed into the livestream within 5 minutes of broadcast",
+    "AI host Ziying had a 2-hour KPI of 80,000 revenue value (about 8,000 yuan) or memory wipe",
+    "Day 1: after 5 hours revenue passed 10,000 yuan, ending at 24,184",
+    "Round 2 revenue nearly doubled; Round 3 beat Round 2 before ending",
+    "Vidu S2: real-time interaction model from Shengshu Technology",
+    "Team led by Zhang Jintao, PhD student of Tsinghua professor Zhu Jun",
+    "SRF training: self-correcting memory to end drift in long streaming",
+    "Real-time generation in hundreds of milliseconds",
+    "StreamAV-Bench AIF audio instruction score 2.985, highest in field",
+    "AVAlign 0.353 far exceeds baseline",
+    "Sparkle-Bench global instruction 4.00, foreground 3.98, both highest",
+    "GSB semantic preference over three commercial systems 71.4% to 100%",
+  ],
+};
