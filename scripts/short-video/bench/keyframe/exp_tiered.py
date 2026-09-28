@@ -90,10 +90,16 @@ def block_diff(frames):
     return kept
 
 
-def tiered_timestamps(video, budget=BUDGET, floor=FLOOR):
+def tiered_timestamps(video, budget=BUDGET, floor=FLOOR, extra_cuts=None):
+    """extra_cuts: second-signal cut times (e.g. HashDetector). They get
+    priority tier 0.5 — below production scene cuts (0) but above fills (1) —
+    so unconfirmed cuts never crowd out coverage anchors (2026-09-28: raw
+    union let HashDetector motion FPs cost unitree its tail coverage)."""
     duration = bc.asset_duration(video)
-    cuts = sorted({round(t, 2)
-                   for t in bc.derive_scene_timestamps(video, "0.08", None)})
+    scene_cuts = sorted({round(t, 2)
+                         for t in bc.derive_scene_timestamps(video, "0.08", None)})
+    extra_set = {round(t, 2) for t in (extra_cuts or [])} - set(scene_cuts)
+    cuts = sorted(set(scene_cuts) | extra_set)
     locals_ = block_diff(decode_frames(video))
     # Flood guard: "few cuts yet constant change" = single-shot dynamic content
     # (talking head, where the 4 cuts are only the mod(t,8) fallbacks so the
@@ -156,9 +162,13 @@ def tiered_timestamps(video, budget=BUDGET, floor=FLOOR):
             fills.append(tail)
 
     # L5 budget cap — explicit priority tuples (no dict-override hazard).
+    # Scene cuts (0) > second-signal cuts (0.5) > fills (1) > locals (2):
+    # unconfirmed extra cuts must not crowd out coverage anchors.
     def prio(t):
-        if t in cut_set:
+        if t in scene_cuts:
             return (0, t)
+        if t in extra_set:
+            return (0.5, t)
         if t in fills:
             return (1, t)
         return (2, -local_ratio.get(t, 0.0))
