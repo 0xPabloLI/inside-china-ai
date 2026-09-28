@@ -73,7 +73,7 @@
 
 | # | 仓库 | ★ | 许可证 | 最后 push | 对着哪个缺口 | 我要研究的具体问题 |
 | --- | --- | --- | --- | --- | --- | --- |
-| A1 | [`Vincentwei1021/video-shotcraft`](https://github.com/Vincentwei1021/video-shotcraft) `[M]` | 9,691 | Apache-2.0 | 2026-09-27 | ① | 152 张镜头配方卡 + 209 动效预览能否整理成我们的 `mediaStrategy` → 模板候选（**Apache-2.0 可商用**，同一作者的 `video-talkcraft` 是非商用，别搞混） |
+| A1 | [`Vincentwei1021/video-shotcraft`](https://github.com/Vincentwei1021/video-shotcraft) `[M]` | 9,691 | Apache-2.0 | 2026-09-27 | ① | 157 张镜头配方卡（SKILL.md 自称口径，见 R2.1）+ 209 动效预览能否整理成我们的 `mediaStrategy` → 模板候选（**Apache-2.0 可商用**，同一作者的 `video-talkcraft` 是非商用，别搞混） |
 | A2 | [`iart-ai/motion-skills`](https://github.com/iart-ai/motion-skills) `[M]` | 516 | MIT | 2026-09-23 | ①③ | **索引仓**（本体 9 文件；53 skill 实体在 16 个分仓，R2.2 更正）；分仓按需读：`motion-design-skills`（9，含 shot-composition/beat-sync）、`kinetic-typography-skills`、`explainer-video-skills` |
 | A3 | [`iart-ai/tiktok-video-skills`](https://github.com/iart-ai/tiktok-video-skills) `[R]` | 11 | MIT | 2026-06-22 | ③ | 它把 hook → retention → loop 写成机械语法（pattern interrupt、safe-area、per-word pop）——**正好是我们 MRL-2 W7/W8 想要机械化的东西**；缺点是停更 3 个月 |
 | A4 | [`iart-ai/data-animation-skills`](https://github.com/iart-ai/data-animation-skills) `[M]` | 6 | MIT | 2026-06-22 | ① | CSV → 「每帧数字都准确」的动画图表；我们文章的 Widget `dataPoints` 进视频一直靠静态图，这是现成对照物 |
@@ -104,7 +104,7 @@
 | [`wocha-xiaoli/video-shot-analysis-feishu`](https://github.com/wocha-xiaoli/video-shot-analysis-feishu) `[D]` · 36 · MIT · 2026-04-25 | 逐镜头抽帧分析 → 倒推分镜；与我们 `keyframe-extraction-research` 议题直接相邻 |
 | [`louisedesadeleer/cut-video`](https://github.com/louisedesadeleer/cut-video) `[M]` · 101 · MIT · 2026-07-09 | Long recordings 去静音/语气词（保留笑声与喜剧停顿）；我们目前只有 ffmpeg `silenceremove` 静态阈值，只有当要比静态阈值更「听得懂」时才需要它 |
 
-### Tier C —— 整类跳过（156 个），理由打包
+### Tier C —— 整类跳过（155 个），理由打包
 
 | 类别 | 数量 | 跳过/降档理由 |
 | --- | --- | --- |
@@ -114,7 +114,7 @@
 | 📱 Shorts & social | 19 | 主要是 faceless YouTube Shorts 工厂，能力面被我们自己覆盖；只抽了 B1 + A2/A3 的语法即可 |
 | 📖 Stories & animation | 13 | AI 短剧 / 手绘日记 / 古诗词国风，叙事形态与新闻无关；个别技法（蜡笔/手绘）与 `brand-system` 的视觉符号体系不符 |
 | 🎞 Motion graphics | 11 | 已抽 Lottie（B6）、纸拼贴 B-roll（A6/A7）；剩余是地域/社交 GIF 与 logo 动画包，我们的品牌一致性约束反而排斥这些模板 |
-| 🧑‍💼 Avatars | 4 | 全数进 Tier A，**但同时要给 §4 R7 的答案**——它们全是 HeyGen 付费路线，救不了本地 xfuser |
+| 🧑‍💼 Avatars | 4 | 3 个进 Tier A（A11/A12/A13）+ 1 个降档 Tier B（`FireRed-OpenStoryline`，重模型路线不同向）；收进的 3 个**同时要给 §4 R7 的答案**——全是 HeyGen/付费路线，救不了本地 xfuser |
 | 📝 Scripts & learning | 9 | 抽了 B8/B9 两个拉片模板；其余是「起号方法论」与 YouTube growth 套件，与本项目业务无关 |
 | 🎵 Music videos | 2 | 无业务相关性（我们的 BGM 是 CC-BY 池 + TikTok trending sound 二选一） |
 | 🧱 Frameworks | 29 | 抽出 hyperframes（A10）、remotion-dev/skills（A14）、OpenMontage（B5）；余下的 Hermes/HyperFrames 启动脚手架多数是同一模式的重述 |
