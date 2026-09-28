@@ -40,6 +40,7 @@ VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
 sys.path.insert(0, HERE)
 sys.path.insert(0, LIB)
 import bench_common as bc  # noqa: E402
+import methods_bench as mb  # noqa: E402
 import exp_tiered as et  # noqa: E402
 import methods_bench3 as mb3  # noqa: E402
 
@@ -58,6 +59,24 @@ def select(video, duration, name, k):
                                     enforce_floor=True)[0]
     if name == "slice":
         return mb3.m_slice(video, budget=k)
+    # The rest of the reconciliation matrix, so the "did we miss a required
+    # scene" column is filled for every method we have (not just four).
+    if name == "taksf":
+        return mb3.m_taksf(video, budget=k)
+    if name == "lvnet_tsc":
+        return mb3.m_lvnet_tsc(video, budget=k)
+    if name == "kffocus":
+        return mb3.m_kffocus(video, budget=k)
+    if name == "kframes":
+        return mb3.m_kframes(video)
+    if name == "infoshot":
+        return mb3.m_infoshot(video)
+    if name == "blockslide":
+        return mb.m_blockslide(video)
+    if name == "sd_content":
+        return mb.m_sd_content(video)
+    if name == "sd_hash":
+        return mb.m_sd_hash(video)
     raise ValueError(name)
 
 
@@ -78,7 +97,9 @@ def main():
     for r in pairs:
         vid = q2v.get(r["id"])
         if vid and vid in have:
-            by_video.setdefault(vid, []).append(r["id"])
+            ids = by_video.setdefault(vid, [])
+            if r["id"] not in ids:
+                ids.append(r["id"])
     print(f"K={K} | covered pairs={sum(len(v) for v in by_video.values())} "
           f"over {len(by_video)} downloaded videos", flush=True)
 

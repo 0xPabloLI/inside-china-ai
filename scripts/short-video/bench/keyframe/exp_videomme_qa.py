@@ -51,6 +51,8 @@ METHODS = [m.strip() for m in
 MAX_VIDEOS = int(os.environ.get("VM_MAX_VIDEOS", "24"))
 OUT_NAME = os.environ.get("VM_OUT", "exp_videomme_qa.json")
 SUBSET_NAME = os.environ.get("VM_SUBSET", "bench_subset.csv")
+AUDIO = os.environ.get("VM_AUDIO") == "1"   # feed the clip's audio to MiniCPM-o too
+AUDIO_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "audio")
 
 
 def uniform_sel(duration, budget=BUDGET):
@@ -93,6 +95,8 @@ def parse_strict(raw):
 
 
 def select(name, video, duration):
+    if name.endswith("_audio"):
+        name = name[: -len("_audio")]
     if name == "uniform_16":
         return uniform_sel(duration)
     if name == "tiered":
@@ -110,6 +114,19 @@ def select(name, video, duration):
     raise ValueError(name)
 
 
+def ensure_audio(video, vid):
+    """16 kHz mono wav for the omni engine (ffmpeg), cached per video."""
+    os.makedirs(AUDIO_DIR, exist_ok=True)
+    out = os.path.join(AUDIO_DIR, f"{vid}.wav")
+    if os.path.exists(out):
+        return out
+    import subprocess
+    r = subprocess.run([bc.FFMPEG, "-nostdin", "-y", "-i", video, "-vn",
+                        "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", out],
+                       capture_output=True)
+    return out if r.returncode == 0 and os.path.getsize(out) > 1000 else None
+
+
 def main():
     import pandas as pd
     import pyarrow.parquet as pq
@@ -119,6 +136,9 @@ def main():
     subset = pd.read_csv(os.path.join(VM, SUBSET_NAME))
     videos = sorted(set(subset["videoID"]) & set(df["videoID"]))[:MAX_VIDEOS]
     qa = df[df["videoID"].isin(videos)]
+    if AUDIO:
+        global METHODS
+        METHODS = [m + "_audio" for m in METHODS]
     print(f"{len(videos)} videos, {len(qa)} QA pairs in scope", flush=True)
     print(f"arms: {METHODS}", flush=True)
 
@@ -162,6 +182,7 @@ def main():
             print(f"SKIP (no video): {vid}", flush=True)
             continue
         duration = bc.asset_duration(video)
+        audio_path = ensure_audio(video, vid) if AUDIO else None
         sub = qa[qa["videoID"] == vid]
         selections = {}
         for m in METHODS:
@@ -186,7 +207,8 @@ def main():
                 try:
                     raw = vlm.generate_response(
                         model, processor, engine=vlm.DEFAULT_ENGINE,
-                        image_paths=frames, prompt_text=prompt, max_tokens=8)
+                        image_paths=frames, prompt_text=prompt, max_tokens=8,
+                        **({"audio_path": audio_path} if audio_path else {}))
                     pred = parse_lenient(raw)
                 except Exception as e:
                     pred, raw = f"ERR:{str(e)[:40]}", ""
