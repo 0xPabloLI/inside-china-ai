@@ -40,36 +40,72 @@ def decode_rgb(video, step=STEP):
     return [(round(i * step, 3), f) for i, f in enumerate(frames)]
 
 
-def main():
-    os.environ.setdefault("HF_HUB_OFFLINE", "1")
-    from transformers import SiglipModel
-    from transformers.models.siglip.image_processing_siglip import SiglipImageProcessor
+_SIGLIP = None
+
+
+def load_siglip():
+    """SigLIP-base encoder + a torchvision-free image processor, cached.
+
+    transformers 5 rewired SiglipImageProcessor onto TorchvisionBackend, and
+    the mlx-vlm venv has no torchvision (NameError: tvF) — take the explicit
+    PIL backend where it exists, else the 4.x SiglipImageProcessor, which is
+    already PIL-based.
+    """
+    global _SIGLIP
+    if _SIGLIP is None:
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        from transformers import SiglipModel
+        try:
+            from transformers.models.siglip.image_processing_pil_siglip \
+                import SiglipImageProcessorPil as Proc
+        except ModuleNotFoundError:
+            from transformers.models.siglip.image_processing_siglip \
+                import SiglipImageProcessor as Proc
+        _SIGLIP = (SiglipModel.from_pretrained(SIGLIP_DIR).eval(),
+                   Proc.from_pretrained(SIGLIP_DIR))
+    return _SIGLIP
+
+
+def embed_images(pil_images):
+    """[(L2-normalized embedding, row per input image)]."""
     import torch
+    model, processor = load_siglip()
+    inputs = processor(images=list(pil_images), return_tensors="pt")
+    with torch.no_grad():
+        feats = model.get_image_features(**inputs)
+    if not torch.is_tensor(feats):   # transformers 5: BaseModelOutputWithPooling
+        feats = feats["pooler_output"]
+    v = feats.float().numpy()
+    return v / (np.linalg.norm(v, axis=1, keepdims=True) + 1e-9)
 
-    model = SiglipModel.from_pretrained(SIGLIP_DIR)
-    processor = SiglipImageProcessor.from_pretrained(SIGLIP_DIR)
-    model.eval()
+
+def maxinfo_pick(ts, vecs, budget=BUDGET):
+    """Farthest-point greedy over embeddings: seed the first frame, then take
+    the frame most different from the selected set until the budget is full."""
+    if not len(ts):
+        return []
+    sel, min_d = [0], np.linalg.norm(vecs - vecs[0], axis=1)
+    while len(sel) < min(budget, len(ts)):
+        i = int(np.argmax(min_d))
+        if min_d[i] <= 0:
+            break
+        sel.append(i)
+        min_d = np.minimum(min_d, np.linalg.norm(vecs - vecs[i], axis=1))
+    return sorted(ts[i] for i in set(sel))
+
+
+def maxinfo_timestamps(video, budget=BUDGET):
+    frames = decode_rgb(video)
+    if not frames:
+        return []
+    return maxinfo_pick([t for t, _ in frames],
+                        embed_images([f for _, f in frames]), budget)
+
+
+def main():
+    load_siglip()
     print("SigLIP loaded", flush=True)
-
-    def embed(pil_images):
-        inputs = processor(images=pil_images, return_tensors="pt")
-        with torch.no_grad():
-            feats = model.get_image_features(**inputs)
-        v = feats.numpy()
-        return v / (np.linalg.norm(v, axis=1, keepdims=True) + 1e-9)
-
-    def maxinfo_real(video):
-        frames = decode_rgb(video)
-        vecs = embed([f for _, f in frames])
-        ts = [t for t, _ in frames]
-        sel, min_d = [0], np.linalg.norm(vecs - vecs[0], axis=1)
-        while len(sel) < min(BUDGET, len(ts)):
-            i = int(np.argmax(min_d))
-            if min_d[i] <= 0:
-                break
-            sel.append(i)
-            min_d = np.minimum(min_d, np.linalg.norm(vecs - vecs[i], axis=1))
-        return sorted(ts[i] for i in set(sel))
+    embed = embed_images
 
     def ktv_real(video):
         frames = decode_rgb(video)
@@ -105,10 +141,10 @@ def main():
         intervals = bc.gt_scene_intervals(slug, duration)
         frames = decode_rgb(video)
         vecs = embed([f for _, f in frames])
-        ts_all = [t for t, _ in frames]
+        cand_ts = [t for t, _ in frames]
         print(f"\n===== {slug} ({duration:.2f}s, {len(frames)} emb frames) =====",
               flush=True)
-        for name, ts in [("maxinfo_siglip", maxinfo_real(video)),
+        for name, ts in [("maxinfo_siglip", maxinfo_pick(cand_ts, vecs)),
                          ("ktv_siglip", ktv_real(video))]:
             r = mb.score(video, slug, name, ts, duration, intervals)
             rows.append(r)

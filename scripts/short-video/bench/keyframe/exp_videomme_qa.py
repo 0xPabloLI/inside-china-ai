@@ -2,14 +2,22 @@
 """#391 Exp 5 — Video-MME short-subset QA eval for frame-selection methods
 (bench-only, NOT production code).
 
-Protocol: for each of ~24 downloaded short videos (3 QA pairs each), run the
-selection methods (uniform_16 / tiered / maxinfo_siglip), feed each method's
-selected frames + the question + 4 options to MiniCPM-o in image mode, parse
-the answer letter, and score accuracy per method. This is the INDIRECT
-(KFS-Bench-criticized) evaluation — recorded as such; the direct geometric
-metrics live in criteria_matrix / exp_tiered.
+Protocol: for each downloaded video (3 QA pairs each), run the selection
+methods, feed each method's selected frames + the question + 4 options to
+MiniCPM-o in image mode, parse the answer letter, and score accuracy per
+method. This is the INDIRECT (KFS-Bench-criticized) evaluation — recorded as
+such; the direct geometric metrics live in criteria_matrix / exp_tiered.
 
-Prereq: videos downloaded under .scratch/keyframe-bench/videomme/videos/,
+Env knobs (one VLM pass costs minutes per video, so arms are runnable
+separately and merged into one artifact rather than recomputed):
+  VM_METHODS    comma-separated subset of the arms to run (default all)
+  VM_MAX_VIDEOS cap on videos (default 24)
+  VM_OUT        output filename under results/ (default exp_videomme_qa.json)
+
+Rows of a method that is (re)run replace that method's earlier rows; rows of
+methods that are not run are carried over as they were.
+
+Prereq: videos under .scratch/keyframe-bench/videomme/videos/,
 SigLIP model under .scratch/keyframe-bench/models/siglip/.
 
 Run: ~/.venvs/mlx-vlm/bin/python scripts/short-video/bench/keyframe/exp_videomme_qa.py
@@ -19,56 +27,31 @@ import json
 import os
 import sys
 
-import numpy as np
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 WT_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
 LIB = os.path.join(WT_ROOT, "scripts", "short-video", "lib")
 RESULTS = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "results")
 VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
-SIGLIP_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "models", "siglip")
 
 sys.path.insert(0, HERE)
 sys.path.insert(0, LIB)
 import bench_common as bc  # noqa: E402
+import exp_siglip as es  # noqa: E402
 import exp_tiered as et  # noqa: E402
 
 BUDGET = 16
+ALL_METHODS = ["uniform_16", "tiered", "tiered_v3", "maxinfo_siglip"]
+METHODS = [m.strip() for m in
+           os.environ.get("VM_METHODS", ",".join(ALL_METHODS)).split(",")
+           if m.strip()]
 MAX_VIDEOS = int(os.environ.get("VM_MAX_VIDEOS", "24"))
+OUT_NAME = os.environ.get("VM_OUT", "exp_videomme_qa.json")
 
 
 def uniform_sel(duration, budget=BUDGET):
     n = max(int(duration * 1.0), 2)
     idx = [round(i * (n - 1) / (budget - 1)) for i in range(budget)]
     return sorted({round(min(i / 1.0, duration - 0.05), 2) for i in idx})
-
-
-def maxinfo_siglip_sel(video, budget=BUDGET):
-    from exp_siglip import decode_rgb
-    from transformers import SiglipModel
-    from transformers.models.siglip.image_processing_siglip import SiglipImageProcessor
-    import torch
-    model = SiglipModel.from_pretrained(SIGLIP_DIR)
-    processor = SiglipImageProcessor.from_pretrained(SIGLIP_DIR)
-    model.eval()
-    frames = decode_rgb(video)
-    if not frames:
-        return []
-    inputs = processor(images=[f for _, f in frames], return_tensors="pt")
-    import torch as _t
-    with _t.no_grad():
-        feats = model.get_image_features(**inputs)
-    vecs = feats.numpy()
-    vecs = vecs / (np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-9)
-    ts = [t for t, _ in frames]
-    sel, min_d = [0], np.linalg.norm(vecs - vecs[0], axis=1)
-    while len(sel) < min(budget, len(ts)):
-        i = int(np.argmax(min_d))
-        if min_d[i] <= 0:
-            break
-        sel.append(i)
-        min_d = np.minimum(min_d, np.linalg.norm(vecs - vecs[i], axis=1))
-    return sorted(ts[i] for i in set(sel))
 
 
 def grab(video, ts, out_dir, prefix):
@@ -87,19 +70,42 @@ def grab(video, ts, out_dir, prefix):
     return paths
 
 
+def select(name, video, duration):
+    if name == "uniform_16":
+        return uniform_sel(duration)
+    if name == "tiered":
+        return et.tiered_timestamps(video)[0]
+    if name == "tiered_v3":
+        return et.tiered_timestamps(video, densify=True)[0]
+    if name == "maxinfo_siglip":
+        return es.maxinfo_timestamps(video, BUDGET)
+    raise ValueError(name)
+
+
 def main():
+    import pandas as pd
     import pyarrow.parquet as pq
-    import vlm_analyzer as vlm
     import re
+    import vlm_analyzer as vlm
 
     df = pq.read_table(os.path.join(VM, "test.parquet")).to_pandas()
-    subset = pd_read_csv = None
-    import pandas as pd
     subset = pd.read_csv(os.path.join(VM, "bench_subset.csv"))
-    vids = set(subset["videoID"])
-    qa = df[df["videoID"].isin(vids)]
-    videos = sorted(set(qa["videoID"]))[:MAX_VIDEOS]
+    videos = sorted(set(subset["videoID"]) & set(df["videoID"]))[:MAX_VIDEOS]
+    qa = df[df["videoID"].isin(videos)]
     print(f"{len(videos)} videos, {len(qa)} QA pairs in scope", flush=True)
+    print(f"arms: {METHODS}", flush=True)
+
+    out_path = os.path.join(RESULTS, OUT_NAME)
+    prev = {}
+    if os.path.exists(out_path):
+        with open(out_path, encoding="utf-8") as f:
+            prev = json.load(f)
+    details = [r for r in prev.get("details", []) if r["method"] not in METHODS]
+    results = {m: {"correct": 0, "total": 0} for m in METHODS}
+    for r in details:
+        agg = results.setdefault(r["method"], {"correct": 0, "total": 0})
+        agg["total"] += 1
+        agg["correct"] += int(r["correct"])
 
     model, processor = vlm.load_model(vlm.MODEL_ID)
     try:
@@ -107,19 +113,11 @@ def main():
     except Exception as e:
         print(f"warmup failed: {e}", flush=True)
 
-    def select(name, video, duration):
-        if name == "uniform_16":
-            return uniform_sel(duration)
-        if name == "tiered":
-            return et.tiered_timestamps(video)[0]
-        if name == "maxinfo_siglip":
-            return maxinfo_siglip_sel(video)
-        raise ValueError(name)
-
-    METHODS = ["uniform_16", "tiered", "maxinfo_siglip"]
-    out_path = os.path.join(RESULTS, "exp_videomme_qa.json")
-    results = {m: {"correct": 0, "total": 0} for m in METHODS}
-    details = []
+    def dump():
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump({"arms_run": METHODS, "arms_in_file": sorted(results),
+                       "summary": results, "details": details},
+                      f, indent=2, ensure_ascii=False)
 
     for vi, vid in enumerate(videos):
         video = os.path.join(VM, "videos", f"{vid}.mp4")
@@ -133,9 +131,10 @@ def main():
             try:
                 ts = select(m, video, duration)
                 selections[m] = grab(video, ts, os.path.join(VM, "frames"),
-                                     f"{vid[:8]}_{m[:4]}")
+                                     f"{vid[:8]}_{m}")
             except Exception as e:
-                print(f"{vid} {m} selection FAILED: {e}", flush=True)
+                print(f"{vid} {m} selection FAILED: {type(e).__name__}: {e}",
+                      flush=True)
                 selections[m] = []
         for _, q in sub.iterrows():
             opts = list(q["options"]) if isinstance(q["options"], list) else \
@@ -164,12 +163,10 @@ def main():
         acc = {m: (f"{results[m]['correct']}/{results[m]['total']}"
                    if results[m]["total"] else "-") for m in METHODS}
         print(f"[{vi+1}/{len(videos)}] {vid}: {acc}", flush=True)
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump({"summary": results, "details": details}, f, indent=2,
-                      ensure_ascii=False)
+        dump()
 
     print("\n=== FINAL ===", flush=True)
-    for m in METHODS:
+    for m in sorted(results):
         t = results[m]["total"]
         c = results[m]["correct"]
         print(f"{m:16s} {c}/{t} = {c / t * 100:.1f}%" if t else f"{m:16s} n/a",
