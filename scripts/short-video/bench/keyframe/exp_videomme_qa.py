@@ -132,20 +132,40 @@ def load_transcript(vid):
 _PRECOMP_CACHE = {}
 
 
+def _cap(ts, budget=BUDGET):
+    """Subsample an over-budget list to <=budget keeping first/last — the same
+    formula methods_bench.subsample uses for the geometric bench. Needed for
+    the precomputed arms: raw detector output is uncapped (sd_content reaches
+    57 frames on one video), and without this the QA arm would buy extra
+    frames that every other arm is denied."""
+    ts = sorted(float(t) for t in ts)
+    if len(ts) <= budget:
+        return ts
+    idxs = sorted({round(i * (len(ts) - 1) / (budget - 1))
+                   for i in range(budget)})
+    return [ts[i] for i in idxs]
+
+
 def _precomputed(name, vid):
     if not PRECOMPUTED or not vid:
         return None
     if not _PRECOMP_CACHE:
         _PRECOMP_CACHE.update(json.load(open(os.path.join(WT_ROOT, PRECOMPUTED),
                                              encoding="utf-8")))
-    return _PRECOMP_CACHE.get(vid, {}).get(name)
+    ts = _PRECOMP_CACHE.get(vid, {}).get(name)
+    return None if ts is None else _cap(ts)
 
 
 def select(name, video, duration, vid=None):
-    if name.endswith("_audio"):
-        name = name[: -len("_audio")]
-    if name.endswith("_asr"):
-        name = name[: -len("_asr")]
+    # Loading-layer suffixes must be stripped before dispatch. Order matters
+    # only for readability: "_asr_ts" does not end with "_asr", but listing
+    # the modes explicitly documents the four VM_ASR_MODE values. (Missing
+    # "_asr_ts/_asr_full/_asr_after" here is what silently zeroed the three
+    # feeding-mode arms on 2026-09-29.)
+    for suf in ("_audio", "_asr_ts", "_asr_full", "_asr_after", "_asr"):
+        if name.endswith(suf):
+            name = name[: -len(suf)]
+            break
     pre = _precomputed(name, vid)
     if pre is not None:
         return pre
@@ -167,6 +187,16 @@ def select(name, video, duration, vid=None):
                 "kffocus": mb3.m_kffocus}[name](video)
     if name == "maxinfo_siglip":
         return es.maxinfo_timestamps(video, BUDGET)
+    if name == "blockslide":
+        import methods_bench as mb
+        return _cap(mb.m_blockslide(video))
+    if name == "kframes":
+        import methods_bench3 as mb3
+        return _cap(mb3.m_kframes(video))
+    if name == "scene_008_cap16":
+        return _cap(bc.derive_scene_timestamps(video, "0.08", BUDGET))
+    if name == "iframe_even16":
+        return _cap(bc.derive_iframe_timestamps(video, BUDGET, "even"))
     raise ValueError(name)
 
 
@@ -217,6 +247,7 @@ def main():
         vlm._warmup(model, processor, vlm.DEFAULT_ENGINE)
     except Exception as e:
         print(f"warmup failed: {e}", flush=True)
+    sel_errors = {m: 0 for m in METHODS}
 
     def dump():
         scored = [r for r in details if "pred_strict" in r]
@@ -252,6 +283,7 @@ def main():
                 print(f"{vid} {m} selection FAILED: {type(e).__name__}: {e}",
                       flush=True)
                 selections[m] = []
+                sel_errors[m] += 1
         for _, q in sub.iterrows():
             opts = list(q["options"]) if isinstance(q["options"], list) else \
                 [o.strip() for o in str(q["options"]).split("|")]
@@ -295,6 +327,17 @@ def main():
         print(f"{m:16s} {c}/{t} = {c / t * 100:.1f}%" if t else f"{m:16s} n/a",
               flush=True)
     print(f"DONE → {out_path}", flush=True)
+    broken = [m for m in METHODS if results[m]["total"] == 0]
+    if broken:
+        # On 2026-09-29 three feeding-mode arms and two method arms ran for an
+        # hour with every video failing at select() and still exited rc=0 —
+        # the chains read rc, so a zero-row arm must be a non-zero exit.
+        # sel_errors distinguishes "select() raised for every video" (dispatch
+        # bug) from "no frames were grabbed" (bad timestamps).
+        print(f"!! ARM(S) WITH ZERO ROWS: {broken} — "
+              f"selection errors: { {m: sel_errors[m] for m in broken} } "
+              f"of {len(videos)} videos", flush=True)
+        sys.exit(2)
 
 
 if __name__ == "__main__":
