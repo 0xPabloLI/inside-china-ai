@@ -100,26 +100,30 @@ def main():
         ev_text = anno[vid]["sentences"][ei]
         lo, hi = (float(x) for x in anno[vid]["timestamps"][ei])
         video = os.path.join(ANETC, "videos", f"{stem_of[vid]}.mp4")
-        dur = bc.asset_duration(video)
-        hi = min(hi, dur)
+        frames = []
         try:
-            ts = in_window_ts(video, lo, hi)
-            frames = []
-            for t in ts:
+            # 时长探测放进 try：单个坏文件只记一条失败行，不整批崩
+            hi = min(hi, bc.asset_duration(video))
+            for t in in_window_ts(video, lo, hi):
                 cell = bc.grab_frame(video, t, size_w=448)
                 if cell:
-                    p = f"/tmp/cap_{vid}_{ei}_{len(frames)}.jpg"
-                    Image.open(cell).save(p, quality=88)
-                    os.unlink(cell)
-                    frames.append(p)
+                    try:
+                        p = f"/tmp/cap_{vid}_{ei}_{len(frames)}.jpg"
+                        Image.open(cell).save(p, quality=88)
+                        frames.append(p)
+                    finally:
+                        os.unlink(cell)
             pred = vlm.generate_response(
                 model, processor, engine=vlm.DEFAULT_ENGINE,
                 image_paths=frames, prompt_text=PROMPT, max_tokens=120).strip()
-            for p in frames:
-                os.unlink(p)
         except Exception as e:
             pred = ""
             print(f"  {vid}#{ei} FAILED {type(e).__name__}: {str(e)[:80]}", flush=True)
+        finally:
+            # 清理必须在 finally：VLM 调用抛错时（except 预期的那条路径）
+            # 已落盘的帧不清理会一路积在 /tmp
+            for p in frames:
+                os.unlink(p)
         rows.append({"videoID": vid, "eventIdx": ei, "start": lo, "end": hi,
                      "ref": ev_text.strip(), "pred": pred})
         if (k + 1) % 20 == 0:
