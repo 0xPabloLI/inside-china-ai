@@ -82,6 +82,17 @@ def select(video, duration, name, k):
         return mb.m_sd_content(video)
     if name == "sd_hash":
         return mb.m_sd_hash(video)
+    if name == "sd_adaptive":
+        return mb.m_sd_adaptive(video)
+    if name == "sd_histogram":
+        return mb.m_sd_histogram(video)
+    if name == "sd_threshold":
+        return mb.m_sd_threshold(video)
+    if name == "iframe_even16":
+        return bc.resolved_timestamps("unitree-superman-demo-30s", "iframe_even16")[0] \
+            if False else bc.derive_iframe_timestamps(video, k, "even")
+    if name == "scene_008_cap16":
+        return bc.derive_scene_timestamps(video, "0.08", k)
     raise ValueError(name)
 
 
