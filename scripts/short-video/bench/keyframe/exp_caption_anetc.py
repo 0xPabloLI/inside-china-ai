@@ -46,8 +46,11 @@ def main():
     import vlm_analyzer as vlm
     from PIL import Image
     anno = json.load(open(os.path.join(ANETC, "val_1.json"), encoding="utf-8"))
-    vids = sorted(f[:-4] for f in os.listdir(os.path.join(ANETC, "videos"))
-                  if f.endswith(".mp4"))[:LIMIT]
+    # yt-dlp 落的文件名是纯 YouTube ID，而标注的 key 带 "v_" 前缀
+    stems = sorted(f[:-4] for f in os.listdir(os.path.join(ANETC, "videos"))
+                   if f.endswith(".mp4"))
+    pairs_ = [(s if s in anno else "v_" + s, s) for s in stems]   # (标注 key, 文件 stem)
+    pairs_ = [(k, s) for k, s in pairs_ if k in anno][:LIMIT]
     done = {}
     if os.path.exists(OUT):
         for r in json.load(open(OUT, encoding="utf-8")):
@@ -58,16 +61,19 @@ def main():
     except Exception as e:
         print(f"warmup: {e}", flush=True)
     rows = list(done.values())
-    todo = [(v, i) for v in vids
-            for i in range(len(anno[v]["sentences"])) if (v, i) not in done]
-    print(f"{len(vids)} videos | {len(todo)} events to caption "
+    stem_of = dict(pairs_)
+    todo = [(k, i) for k, _s in pairs_
+            for i in range(len(anno[k]["sentences"])) if (k, i) not in done]
+    print(f"{len(pairs_)} videos | {len(todo)} events to caption "
           f"({len(done)} cached)", flush=True)
     t0 = time.time()
     for k, (vid, ei) in enumerate(todo):
-        ev = anno[vid]["sentences"][ei]
-        video = os.path.join(ANETC, "videos", f"{vid}.mp4")
+        # 官方 schema：sentences 是字符串列表，timestamps 是并行的 [start, end] 列表
+        ev_text = anno[vid]["sentences"][ei]
+        lo, hi = (float(x) for x in anno[vid]["timestamps"][ei])
+        video = os.path.join(ANETC, "videos", f"{stem_of[vid]}.mp4")
         dur = bc.asset_duration(video)
-        lo, hi = float(ev["start"]), min(float(ev["end"]), dur)
+        hi = min(hi, dur)
         try:
             ts, _ = et.tiered_timestamps(video, budget=BUDGET, densify=True,
                                          enforce_floor=True,
@@ -90,7 +96,7 @@ def main():
             pred = ""
             print(f"  {vid}#{ei} FAILED {type(e).__name__}: {str(e)[:80]}", flush=True)
         rows.append({"videoID": vid, "eventIdx": ei, "start": lo, "end": hi,
-                     "ref": ev["text"].strip(), "pred": pred})
+                     "ref": ev_text.strip(), "pred": pred})
         if (k + 1) % 20 == 0:
             json.dump(rows, open(OUT, "w", encoding="utf-8"),
                       ensure_ascii=False, indent=1)
