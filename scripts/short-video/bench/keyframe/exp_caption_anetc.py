@@ -12,6 +12,9 @@ CIDEr（主）/ METEOR / BLEU-4（同一套 pycocoevalcap）。
     这是有发表批评的已知特性）。
   - ⚠️ 因此 prompt 用英文、并要求一句话——生成语言与参考语言不一致会得零分。
   - oracle proposal（用 GT 的事件区间）——这是该基准的标准设定。
+  - 帧选择在**事件窗口内**做：窗口裁剪后跑 tiered，再平移回原片时间轴。
+    （2026-09-29 前是整片选帧再过滤，8 帧预算实际只落到 2.3 帧/事件——协议偏差，
+    旧产物 caption_anetc.json 保留为诊断证据，CAP_OUT 指向新产物。）
 
 生成这段跑在 mlx-vlm 环境（要模型）；评分由 score_captions.py 在 caption-metrics
 环境里用 pycocoevalcap 算，两个环境互不污染。
@@ -21,6 +24,7 @@ Run: ~/.venvs/mlx-vlm/bin/python scripts/short-video/bench/keyframe/exp_caption_
 
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -37,9 +41,33 @@ import exp_tiered as et  # noqa: E402
 
 LIMIT = int(os.environ.get("CAP_VIDEOS", "110"))
 BUDGET = int(os.environ.get("CAP_FRAMES", "8"))     # events average ~36 s
-OUT = os.path.join(RESULTS, "caption_anetc.json")
+OUT = os.path.join(RESULTS, os.environ.get("CAP_OUT", "caption_anetc.json"))
 PROMPT = ("Describe, in one detailed English sentence, what happens in this "
           "video segment. Mention the people, the main action and the setting.")
+
+
+def in_window_ts(video, lo, hi, budget=BUDGET):
+    """事件窗口内的帧选择：把窗口裁成临时片段跑 tiered，时间戳平移回原片。
+
+    2026-09-29 前的写法是在整片上选 budget 帧再过滤到窗口，8 帧预算实际平均只
+    落到 2.3 帧（median 1，15% 的事件窗一帧不剩）。裁剪用「-ss 前置 + 重编码」
+    保证精确 seek（已用 pHash 逐帧验证与整片取帧 hamming=0）。"""
+    clip = f"/tmp/capclip_{os.path.basename(video)[:-4]}_{int(lo * 100)}_{int(hi * 100)}.mp4"
+    subprocess.run([bc.FFMPEG, "-nostdin", "-y", "-ss", f"{lo:.3f}", "-i", video,
+                    "-t", f"{max(hi - lo, 0.05):.3f}",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                    "-an", clip], capture_output=True)
+    try:
+        if not (os.path.exists(clip) and os.path.getsize(clip) > 2000):
+            return [round((lo + hi) / 2, 2)]
+        ts, _ = et.tiered_timestamps(clip, budget=budget, densify=True,
+                                     enforce_floor=True,
+                                     floor=max(2.0, (hi - lo) / budget))
+        out = sorted({round(min(lo + t, hi), 2) for t in ts})[:budget]
+        return out or [round((lo + hi) / 2, 2)]
+    finally:
+        if os.path.exists(clip):
+            os.unlink(clip)
 
 
 def main():
@@ -75,10 +103,7 @@ def main():
         dur = bc.asset_duration(video)
         hi = min(hi, dur)
         try:
-            ts, _ = et.tiered_timestamps(video, budget=BUDGET, densify=True,
-                                         enforce_floor=True,
-                                         floor=max(2.0, (hi - lo) / BUDGET))
-            ts = [t for t in ts if lo <= t <= hi][:BUDGET] or [round((lo + hi) / 2, 2)]
+            ts = in_window_ts(video, lo, hi)
             frames = []
             for t in ts:
                 cell = bc.grab_frame(video, t, size_w=448)
