@@ -57,6 +57,8 @@ ASR_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "asr")
 ASR_TEXT = os.environ.get("VM_ASR") == "1"   # inject the ASR transcript into the prompt
 ASR_MAX_CHARS = 2000
 PRECOMPUTED = os.environ.get("VM_PRECOMPUTED")   # JSON: {videoID: {method: [ts,...]}}
+OMNI_UNITS = os.environ.get("VM_OMNI_UNITS") == "1"   # 官方规格：帧+逐段音频交织
+ASR_MODE = os.environ.get("VM_ASR_MODE", "block")     # block(默认) | ts | full | after
 
 
 def uniform_sel(duration, budget=BUDGET):
@@ -96,6 +98,23 @@ def parse_strict(raw):
     s = raw.strip().upper()
     m = re.match(r"^\s*\[?([ABCD])\]?[\s.:!]*$", s)
     return m.group(1) if m else "?"
+
+
+def transcript_text(vid, mode):
+    """四种喂法对照：block=整块截断（默认，既有结果的口径）/ ts=逐段带时间戳 /
+    full=不截断 / after=放在题目之后（由调用方处理位置）。"""
+    p = os.path.join(ASR_DIR, f"{vid}.json")
+    if not os.path.exists(p):
+        return ""
+    try:
+        d = json.load(open(p, encoding="utf-8"))
+    except Exception:
+        return ""
+    if mode == "ts":
+        return "\n".join(f"[{int(s['start']//60):02d}:{s['start']%60:04.1f}] {s['text']}"
+                         for s in d.get("segments", [])[:80])
+    t = d.get("text", "")
+    return t if mode == "full" else t[:ASR_MAX_CHARS]
 
 
 def load_transcript(vid):
@@ -175,7 +194,8 @@ def main():
     qa = df[df["videoID"].isin(videos)]
     if AUDIO or ASR_TEXT:
         global METHODS
-        suffix = "_audio" if AUDIO else "_asr"
+        suffix = ("_audio" if AUDIO else
+                  ("_asr" if ASR_MODE == "block" else f"_asr_{ASR_MODE}"))
         METHODS = [m + suffix for m in METHODS]
     print(f"{len(videos)} videos, {len(qa)} QA pairs in scope", flush=True)
     print(f"arms: {METHODS}", flush=True)
@@ -235,12 +255,15 @@ def main():
         for _, q in sub.iterrows():
             opts = list(q["options"]) if isinstance(q["options"], list) else \
                 [o.strip() for o in str(q["options"]).split("|")]
-            transcript = load_transcript(vid) if ASR_TEXT else ""
-            prompt = ((f"视频的语音转写（可能不完整、可能有错）：\n{transcript}\n\n"
-                       if transcript else "")
-                      + f"{q['question']}\nOptions:\n"
+            transcript = (transcript_text(vid, ASR_MODE) if ASR_TEXT else "")
+            head = (f"视频的语音转写（可能不完整、可能有错）：\n{transcript}\n\n"
+                    if transcript and ASR_MODE != "after" else "")
+            tail = (f"\n\n视频的语音转写（可能不完整）：\n{transcript}"
+                    if transcript and ASR_MODE == "after" else "")
+            prompt = (head + f"{q['question']}\nOptions:\n"
                       + "\n".join(f"{'ABCD'[i]}. {o}" for i, o in enumerate(opts))
-                      + "\n\nAnswer with the option letter only (A, B, C, or D).")
+                      + "\n\nAnswer with the option letter only (A, B, C, or D)."
+                      + tail)
             for m in METHODS:
                 frames = selections.get(m) or []
                 if not frames:
