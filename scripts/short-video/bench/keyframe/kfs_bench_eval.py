@@ -59,6 +59,11 @@ def select(video, duration, name, k):
                                     enforce_floor=True)[0]
     if name == "slice":
         return mb3.m_slice(video, budget=k)
+    if name in ("maxinfo_siglip", "ktv_siglip"):
+        import exp_siglip as es
+        if name == "maxinfo_siglip":
+            return es.maxinfo_timestamps(video, k)
+        return []  # ktv needs its own pass; see exp_siglip.main
     # The rest of the reconciliation matrix, so the "did we miss a required
     # scene" column is filled for every method we have (not just four).
     if name == "taksf":

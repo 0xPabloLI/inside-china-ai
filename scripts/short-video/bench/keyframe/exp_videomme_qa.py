@@ -53,6 +53,10 @@ OUT_NAME = os.environ.get("VM_OUT", "exp_videomme_qa.json")
 SUBSET_NAME = os.environ.get("VM_SUBSET", "bench_subset.csv")
 AUDIO = os.environ.get("VM_AUDIO") == "1"   # feed the clip's audio to MiniCPM-o too
 AUDIO_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "audio")
+ASR_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "asr")
+ASR_TEXT = os.environ.get("VM_ASR") == "1"   # inject the ASR transcript into the prompt
+ASR_MAX_CHARS = 2000
+PRECOMPUTED = os.environ.get("VM_PRECOMPUTED")   # JSON: {videoID: {method: [ts,...]}}
 
 
 def uniform_sel(duration, budget=BUDGET):
@@ -94,9 +98,38 @@ def parse_strict(raw):
     return m.group(1) if m else "?"
 
 
-def select(name, video, duration):
+def load_transcript(vid):
+    """ASR transcript for the prompt (video is always given; empty if missing)."""
+    p = os.path.join(ASR_DIR, f"{vid}.json")
+    if not os.path.exists(p):
+        return ""
+    try:
+        t = json.load(open(p, encoding="utf-8")).get("text", "")
+    except Exception:
+        return ""
+    return t[:ASR_MAX_CHARS]
+
+
+_PRECOMP_CACHE = {}
+
+
+def _precomputed(name, vid):
+    if not PRECOMPUTED or not vid:
+        return None
+    if not _PRECOMP_CACHE:
+        _PRECOMP_CACHE.update(json.load(open(os.path.join(WT_ROOT, PRECOMPUTED),
+                                             encoding="utf-8")))
+    return _PRECOMP_CACHE.get(vid, {}).get(name)
+
+
+def select(name, video, duration, vid=None):
     if name.endswith("_audio"):
         name = name[: -len("_audio")]
+    if name.endswith("_asr"):
+        name = name[: -len("_asr")]
+    pre = _precomputed(name, vid)
+    if pre is not None:
+        return pre
     if name == "uniform_16":
         return uniform_sel(duration)
     if name == "tiered":
@@ -109,6 +142,10 @@ def select(name, video, duration):
     if name == "slice":
         import methods_bench3 as mb3
         return mb3.m_slice(video)
+    if name in ("infoshot", "lvnet_tsc", "kffocus"):
+        import methods_bench3 as mb3
+        return {"infoshot": mb3.m_infoshot, "lvnet_tsc": mb3.m_lvnet_tsc,
+                "kffocus": mb3.m_kffocus}[name](video)
     if name == "maxinfo_siglip":
         return es.maxinfo_timestamps(video, BUDGET)
     raise ValueError(name)
@@ -136,9 +173,10 @@ def main():
     subset = pd.read_csv(os.path.join(VM, SUBSET_NAME))
     videos = sorted(set(subset["videoID"]) & set(df["videoID"]))[:MAX_VIDEOS]
     qa = df[df["videoID"].isin(videos)]
-    if AUDIO:
+    if AUDIO or ASR_TEXT:
         global METHODS
-        METHODS = [m + "_audio" for m in METHODS]
+        suffix = "_audio" if AUDIO else "_asr"
+        METHODS = [m + suffix for m in METHODS]
     print(f"{len(videos)} videos, {len(qa)} QA pairs in scope", flush=True)
     print(f"arms: {METHODS}", flush=True)
 
@@ -187,7 +225,7 @@ def main():
         selections = {}
         for m in METHODS:
             try:
-                ts = select(m, video, duration)
+                ts = select(m, video, duration, vid)
                 selections[m] = grab(video, ts, os.path.join(VM, "frames"),
                                      f"{vid[:8]}_{m}")
             except Exception as e:
@@ -197,7 +235,10 @@ def main():
         for _, q in sub.iterrows():
             opts = list(q["options"]) if isinstance(q["options"], list) else \
                 [o.strip() for o in str(q["options"]).split("|")]
-            prompt = (f"{q['question']}\nOptions:\n"
+            transcript = load_transcript(vid) if ASR_TEXT else ""
+            prompt = ((f"视频的语音转写（可能不完整、可能有错）：\n{transcript}\n\n"
+                       if transcript else "")
+                      + f"{q['question']}\nOptions:\n"
                       + "\n".join(f"{'ABCD'[i]}. {o}" for i, o in enumerate(opts))
                       + "\n\nAnswer with the option letter only (A, B, C, or D).")
             for m in METHODS:

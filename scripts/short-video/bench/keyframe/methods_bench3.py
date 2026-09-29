@@ -229,7 +229,7 @@ def m_kframes(video, slug=None):
     return sorted(picks)
 
 
-def m_kffocus(video, slug=None):
+def m_kffocus(video, slug=None, budget=BUDGET):
     """KFFocus (arXiv 2508.08989) frame layer: coded I-frames plus ⌊T_k/(δT)⌋
     evenly spaced compensation frames inside every gap (δ=5% of the duration),
     with the head and tail gaps counted too — the paper lists only adjacent
