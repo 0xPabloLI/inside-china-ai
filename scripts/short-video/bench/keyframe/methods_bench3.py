@@ -135,7 +135,7 @@ def m_slice(video, slug=None, budget=BUDGET):
     return sorted(ts[i] for i in set(picks))
 
 
-def m_infoshot(video, slug=None):
+def m_infoshot(video, slug=None, budget=BUDGET):
     """InfoShot (arXiv 2603.17374) — balanced-split shot segmentation, then a
     typical + a unique frame per shot.
 
@@ -157,7 +157,7 @@ def m_infoshot(video, slug=None):
     if n <= 2:
         return sorted(ts)
     a = vecs @ vecs.T                  # embeddings are L2-normalized → cosine
-    m = max(1, min(BUDGET // 2, n // 4))
+    m = max(1, min(budget // 2, n // 4))
     segs = [(0, n)]
     while len(segs) < m:
         best = None
@@ -201,7 +201,7 @@ def m_infoshot(video, slug=None):
     return sorted(ts[i] for i in sorted(set(picks)))
 
 
-def m_kframes(video, slug=None):
+def m_kframes(video, slug=None, budget=BUDGET):
     """K-frames (arXiv 2510.13891) Appendix D.2 allocator, query-free by
     deletion: the P1/P2 clip priorities come from Gemini captions plus LLM
     relevance scoring, so w≡1 and k_j ∝ ℓ_j with equal spacing inside each clip.
@@ -218,7 +218,7 @@ def m_kframes(video, slug=None):
     if not segs:
         return [0.0]
     lens = np.array([y - x for x, y in segs])
-    k = min(BUDGET, len(lens) * BUDGET)
+    k = min(budget, len(lens) * budget)
     raw = lens / lens.sum() * k
     alloc = np.floor(raw).astype(int)
     for i in np.argsort(-(raw - alloc))[:k - alloc.sum()]:  # largest remainder
