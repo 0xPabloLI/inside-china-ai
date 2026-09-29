@@ -60,6 +60,10 @@ ASR_MAX_CHARS = 2000
 PRECOMPUTED = os.environ.get("VM_PRECOMPUTED")   # JSON: {videoID: {method: [ts,...]}}
 OMNI_UNITS = os.environ.get("VM_OMNI_UNITS") == "1"   # 官方规格：帧+逐段音频交织
 ASR_MODE = os.environ.get("VM_ASR_MODE", "block")     # block(默认) | ts | full | after
+if AUDIO and ASR_TEXT:
+    # The row suffix can only label one feeding mode, but the prompt would
+    # carry both — rows would merge into the results under the wrong name.
+    raise SystemExit("VM_AUDIO=1 and VM_ASR=1 are mutually exclusive arms")
 
 
 def uniform_sel(duration, budget=BUDGET):
@@ -116,18 +120,6 @@ def transcript_text(vid, mode):
                          for s in d.get("segments", [])[:80])
     t = d.get("text", "")
     return t if mode == "full" else t[:ASR_MAX_CHARS]
-
-
-def load_transcript(vid):
-    """ASR transcript for the prompt (video is always given; empty if missing)."""
-    p = os.path.join(ASR_DIR, f"{vid}.json")
-    if not os.path.exists(p):
-        return ""
-    try:
-        t = json.load(open(p, encoding="utf-8")).get("text", "")
-    except Exception:
-        return ""
-    return t[:ASR_MAX_CHARS]
 
 
 _PRECOMP_CACHE = {}
@@ -205,13 +197,18 @@ def ensure_audio(video, vid):
     """16 kHz mono wav for the omni engine (ffmpeg), cached per video."""
     os.makedirs(AUDIO_DIR, exist_ok=True)
     out = os.path.join(AUDIO_DIR, f"{vid}.wav")
-    if os.path.exists(out):
+    if os.path.exists(out) and os.path.getsize(out) > 1000:
         return out
     import subprocess
     r = subprocess.run([bc.FFMPEG, "-nostdin", "-y", "-i", video, "-vn",
                         "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", out],
                        capture_output=True)
-    return out if r.returncode == 0 and os.path.getsize(out) > 1000 else None
+    ok = r.returncode == 0 and os.path.exists(out) and os.path.getsize(out) > 1000
+    if not ok and os.path.exists(out):
+        # A partial wav left by a failed conversion must be deleted, or later
+        # runs' exists() short-circuit serves it as cache forever.
+        os.unlink(out)
+    return out if ok else None
 
 
 def main():
