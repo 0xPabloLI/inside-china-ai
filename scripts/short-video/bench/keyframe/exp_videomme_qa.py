@@ -53,7 +53,8 @@ OUT_NAME = os.environ.get("VM_OUT", "exp_videomme_qa.json")
 SUBSET_NAME = os.environ.get("VM_SUBSET", "bench_subset.csv")
 AUDIO = os.environ.get("VM_AUDIO") == "1"   # feed the clip's audio to MiniCPM-o too
 AUDIO_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "audio")
-ASR_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "asr")
+ASR_DIR = os.path.join(WT_ROOT, os.environ.get(
+    "VM_ASR_DIR", ".scratch/keyframe-bench/asr"))   # ctx-off 复跑切 asr_ctxoff
 ASR_TEXT = os.environ.get("VM_ASR") == "1"   # inject the ASR transcript into the prompt
 ASR_MAX_CHARS = 2000
 PRECOMPUTED = os.environ.get("VM_PRECOMPUTED")   # JSON: {videoID: {method: [ts,...]}}
