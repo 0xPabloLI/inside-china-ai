@@ -19,6 +19,7 @@ Run: ~/.venvs/mlx-vlm/bin/python scripts/short-video/bench/keyframe/exp_omni_uni
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -30,6 +31,7 @@ VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
 MAX_NUM_FRAMES = int(os.getenv("MAX_NUM_FRAMES", "64"))
 sys.path.insert(0, HERE)
 sys.path.insert(0, LIB)
+import bench_common as bc  # noqa: E402
 PROMPT = ("Describe in one detailed English sentence what happens in this "
           "video: the people, the main action and the setting.")
 
@@ -46,9 +48,14 @@ def omni_units(video, frames_dir):
     import librosa
     import numpy as np
     from PIL import Image
-    dur = _probe_dur(video)
+    dur = bc.asset_duration(video)
     long_video = dur > MAX_NUM_FRAMES
     fps_to_extract = 10 if long_video else 1
+    # The frames dir is persistent across runs; ffmpeg -y overwrites from
+    # frame_000001 but leaves higher-numbered frames of an earlier run (e.g.
+    # different fps / longer file), which sorted(listdir) would then mix into
+    # the selection and shift every timestamp. Wipe before extracting.
+    shutil.rmtree(frames_dir, ignore_errors=True)
     os.makedirs(frames_dir, exist_ok=True)
     subprocess.run(["ffmpeg", "-y", "-i", video, "-vf", f"fps={fps_to_extract}",
                     os.path.join(frames_dir, "frame_%06d.jpg")],
@@ -80,14 +87,6 @@ def omni_units(video, frames_dir):
             seg = np.concatenate([seg, np.zeros(1600 - len(seg), seg.dtype)])
         segs.append(seg)
     return frames, segs, ts, dur
-
-
-def _probe_dur(video):
-    out = subprocess.run(
-        ["/opt/homebrew/opt/ffmpeg-full/bin/ffprobe", "-v", "error",
-         "-show_entries", "format=duration", "-of", "csv=p=0", video],
-        capture_output=True, text=True)
-    return float(out.stdout.strip())
 
 
 def main():

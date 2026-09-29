@@ -23,7 +23,6 @@ VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
 
 sys.path.insert(0, HERE)
 sys.path.insert(0, LIB)
-import bench_common as bc  # noqa: E402
 import exp_omni_units as ou  # noqa: E402
 import vlm_analyzer as vlm  # noqa: E402
 
