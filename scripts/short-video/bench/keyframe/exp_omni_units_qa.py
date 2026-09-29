@@ -57,9 +57,22 @@ def main():
         video = os.path.join(VM, "videos", f"{vid}.mp4")
         if not os.path.exists(video):
             continue
-        fdir = f"/tmp/ou_{vid}"
-        frames, segs, ts, dur = ou.omni_units(video, fdir)
-        paths = [os.path.join(fdir, f) for f in sorted(os.listdir(fdir))][:len(frames)]
+        # 优先用「官方代码」产出的单元（precompute_official_units.py，独立 venv）；
+        # 缺失时回落到按官方规格复现的 loader（exp_omni_units.py）。
+        off = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "official_units", vid)
+        if os.path.exists(os.path.join(off, "manifest.json")):
+            man = json.load(open(os.path.join(off, "manifest.json")))
+            paths = [os.path.join(off, f"frame_{i:03d}.jpg")
+                     for i in range(man["frames"])]
+            import numpy as _np
+            segs = [_np.load(os.path.join(off, f"audio_{i:03d}.npy"))
+                    for i in range(man["audios"])]
+            source = "official"
+        else:
+            fdir = f"/tmp/ou_{vid}"
+            frames, segs, ts, dur = ou.omni_units(video, fdir)
+            paths = [os.path.join(fdir, f) for f in sorted(os.listdir(fdir))][:len(frames)]
+            source = "reimpl"
         for _, q in qa[qa["videoID"] == vid].iterrows():
             opts = list(q["options"]) if isinstance(q["options"], list) else \
                 [o.strip() for o in str(q["options"]).split("|")]
@@ -87,7 +100,7 @@ def main():
                             "raw": out[:80]})
         a = results["tiered_v5_units"]
         print(f"[{vi+1}/{len(videos)}] {vid}: {a['correct']}/{a['total']} "
-              f"({time.time()-t0:.0f}s/次)", flush=True)
+              f"[{source}] ({time.time()-t0:.0f}s/次)", flush=True)
         json.dump({"arms_run": ["tiered_v5_units"], "summary": results,
                    "details": details}, open(OUT, "w", encoding="utf-8"),
                   ensure_ascii=False, indent=1)
