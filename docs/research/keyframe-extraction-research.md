@@ -368,7 +368,7 @@ tiered vs maxinfo 4+10，p=0.180。唯一 p<0.05 的是 tiered_v3 vs maxinfo
 ### 17.1 三条纠错（都改变已引用过的数字）
 
 1. **QA 轴统一分母**：旧 harness 在"选帧为空"时跳过该视频的题，于是每臂只统计自己碰巧有输出的子集。**sd_threshold 有 56/92 个视频零帧**，先前口径报 45.4%（108 题子集），统一分母真值 **17.8%**（49/276）；其余 sd_* 差 1-2pp。现在零帧也出行（`pred=NOFRAMES`、`correct=false`、不调模型），FINAL 打出每臂无输出题数，整臂全空 → rc=2。
-2. **KFS 的 K 预算**：`kframes`/`infoshot` 在方法内部硬编码 16 帧、`blockslide`/`sd_*` 完全不截断，却都打在 `k64` 标签下。**kframes UKSS 0.4301 → 0.5211**（跳到第 6 名，与 lvnet/maxinfo 同档），blockslide 0.5433 → 0.5416（多数素材原始输出本就 <64）。另：`kfs_summary_k64.json` 曾被部分重跑逐臂覆写（一度只剩 1 条），现为合并式写入。⚠️ KFS 的 per-video 协议偏差（官方预期 per-question）仍成立，见 §Session3 追加四 §三。
+2. **KFS 的 K 预算**：`kframes`/`infoshot` 在方法内部硬编码 16 帧、`blockslide`/`sd_*` 完全不截断，却都打在 `k64` 标签下。**kframes UKSS 0.4301 → 0.5211**（跳到第 6 名，与 lvnet/maxinfo 同档），blockslide 0.5433 → 0.5416（多数素材原始输出本就 <64）。另：`kfs_summary_k64.json` 曾被部分重跑逐臂覆写（一度只剩 1 条），现为合并式写入。⚠️ KFS 的 per-video 协议偏差（官方 GT 是 per-question 的"答题必需场景"，我们按 #391 的 query 解耦裁决做 per-video 一份选择复用到该视频全部题）仍成立：方法之间可比，与作者参考（0.5644）的比较只能当指示，**不得当作 KFS-Bench 官方成绩对外引用**。完整论证见 `scripts/short-video/bench/keyframe/kfs_bench_eval.py` 的 module docstring（该口径的唯一真值处）。
 3. **描述基准窗内选帧**：旧实现整片选 8 帧再过滤到事件窗，实测**平均只落 2.3 帧/事件**（median 1、15% 空窗）。改为窗口裁剪后窗内选帧（pHash 验证 seek 精确），平均 **7.8 帧、零空窗**。旧产物保留作诊断。
 
 ### 17.2 选帧轴终值（Video-MME 92 视频 / 276 题，16 帧预算，纯视觉）
@@ -377,7 +377,7 @@ kframes 72.5 ｜ maxinfo_siglip 71.7 ｜ lvnet_tsc 70.7 ｜ uniform_16 70.7 ｜ 
 
 两条读法约束（比数字更重要）：
 
-- **QA 单轴不能用来选方法**。`kframes` 是去掉 query 后的退化形（按场景长度比例分配帧数 ≈ 长度加权 uniform），几何口径一直弱（§15 表 0.322）、KFS 也只在中游，却在 QA 轴排第一；`uniform` 也稳居前三。这正是 KFS-Bench 论文"QA 最高分不等于选帧最优"的本地复现——**QA 轴的有效用途是测装载层，不是排选帧**。
+- **QA 单轴不能用来选方法**。`kframes` 是去掉 query 后的退化形（按场景长度比例分配帧数 ≈ 长度加权 uniform），几何口径一直弱（§16.4 表：0.322）、KFS 也只在中游，却在 QA 轴排第一；`uniform` 也稳居前三。这正是 KFS-Bench 论文"QA 最高分不等于选帧最优"的本地复现——**QA 轴的有效用途是测装载层，不是排选帧**。
 - **tiered v3 的假设在此规模再次证伪**：densify 不加 floor = 60.5%，与 v1 的 61.2% 在噪声内；v5 的全部增益来自 floor 修复（67.0%，v5 vs v1 逐题 McNemar 显著）。与 §16.3 的 23 视频结论同向。
 
 ### 17.3 装载层轴（固定选帧，只改音频/文本喂法）
@@ -410,7 +410,12 @@ CIDEr 必须分开报：预测 mean 41.9 词 vs 人工参考 13.8 词（总长�
 
 ### 17.6 下一步
 
-1. **#414 分窗重设计**（16→32 帧）：§15 的预算扫描显示 32 帧是拐点；几何侧可离线验。
+1. **#414 分窗重设计**（16→32 帧）：依据是预算扫描产物
+   `.scratch/keyframe-bench/results/exp_budget_scan.json`（4 素材均值：uniform 0.685→**1.000**、
+   slice / tiered / tiered_v4 均 0.964→**1.000** @32，**64 帧无额外收益**；而选帧耗时/帧几乎不随
+   预算变化（uniform ~0.47s、tiered ~5.0s），代价体现在冗余——near-duplicate 对 16→32 帧从
+   2.2→4.0（tiered）与 5.8→26.7（slice），所以成本在喂模型的 token 而非选帧本身）。
+   几何侧可离线验，不占 VLM。
 2. **#417 装载层接口**：按 §17.3 结论——帧 + 音轨 + 带时间戳转写，不做波形直喂；与 #414 耦合（装载层是分窗的输入侧）。
 3. **描述轴若要对外可比**：补"限 ≤20 词"对照组 + no-pend 双报（§17.4）。
 4. **用户已批准未实现**：ASR 锚点选帧、运动矢量信号（`ffmpeg -flags2 +export_mvs`）。
