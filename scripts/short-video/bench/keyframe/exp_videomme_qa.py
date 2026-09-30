@@ -246,6 +246,7 @@ def main():
     except Exception as e:
         print(f"warmup failed: {e}", flush=True)
     sel_errors = {m: 0 for m in METHODS}
+    no_frames = {m: 0 for m in METHODS}
 
     def dump():
         scored = [r for r in details if "pred_strict" in r]
@@ -297,6 +298,19 @@ def main():
             for m in METHODS:
                 frames = selections.get(m) or []
                 if not frames:
+                    # A selector that returns nothing is a RESULT, not a skipped
+                    # question: the model cannot answer, so the row counts against
+                    # it. Dropping these rows instead (what earlier runs did) lets
+                    # an arm score only the videos where it happens to fire —
+                    # sd_threshold read 45.4% on 36/92 videos this way, when the
+                    # honest number on the full set is 17.8%.
+                    results[m]["total"] += 1
+                    details.append({"videoID": vid, "question_id": q["question_id"],
+                                    "method": m, "pred": "NOFRAMES",
+                                    "answer": q["answer"], "correct": False,
+                                    "raw": "", "pred_strict": "?",
+                                    "no_frames": True})
+                    no_frames[m] += 1
                     continue
                 try:
                     raw = vlm.generate_response(
@@ -322,8 +336,10 @@ def main():
     for m in sorted(results):
         t = results[m]["total"]
         c = results[m]["correct"]
-        print(f"{m:16s} {c}/{t} = {c / t * 100:.1f}%" if t else f"{m:16s} n/a",
-              flush=True)
+        nf = no_frames[m]
+        note = f"  (无输出题 {nf})" if nf else ""
+        print(f"{m:16s} {c}/{t} = {c / t * 100:.1f}%" if t else f"{m:16s} n/a", note,
+              sep="", flush=True)
     print(f"DONE → {out_path}", flush=True)
     broken = [m for m in METHODS if results[m]["total"] == 0]
     if broken:
@@ -335,6 +351,11 @@ def main():
         print(f"!! ARM(S) WITH ZERO ROWS: {broken} — "
               f"selection errors: { {m: sel_errors[m] for m in broken} } "
               f"of {len(videos)} videos", flush=True)
+        sys.exit(2)
+    dead = [m for m in METHODS if no_frames[m] == results[m]["total"]]
+    if dead:
+        print(f"!! ARM(S) WITH NO FRAMES ON ANY VIDEO: {dead} — the score is "
+              f"0 by construction, check the selection source", flush=True)
         sys.exit(2)
 
 
