@@ -16,6 +16,9 @@ CIDEr（主）/ METEOR / BLEU-4（同一套 pycocoevalcap）。
     （2026-09-29 前是整片选帧再过滤，8 帧预算实际只落到 2.3 帧/事件——协议偏差，
     旧产物 caption_anetc.json 保留为诊断证据，CAP_OUT 指向新产物。）
 
+对照组（用户 2026-09-30 批准）：CAP_MAX_WORDS>0 时 prompt 要求 ≤N 词输出，
+用于拿「可与社区数字横比」的标准 CIDEr；主口径（不限长）不变。
+
 生成这段跑在 mlx-vlm 环境（要模型）；评分由 score_captions.py 在 caption-metrics
 环境里用 pycocoevalcap 算，两个环境互不污染。
 
@@ -42,8 +45,15 @@ import exp_tiered as et  # noqa: E402
 LIMIT = int(os.environ.get("CAP_VIDEOS", "110"))
 BUDGET = int(os.environ.get("CAP_FRAMES", "8"))     # events average ~36 s
 OUT = os.path.join(RESULTS, os.environ.get("CAP_OUT", "caption_anetc.json"))
+# 「限 ≤N 词」对照组（用户 2026-09-30 批准）：CAP_MAX_WORDS>0 时输出受长度约束，
+# 使标准 CIDEr(σ=6) 可与社区数字横比；主口径（不限长）不受影响。
+MAX_WORDS = int(os.environ.get("CAP_MAX_WORDS", "0"))
 PROMPT = ("Describe, in one detailed English sentence, what happens in this "
           "video segment. Mention the people, the main action and the setting.")
+if MAX_WORDS > 0:
+    PROMPT = (f"Describe, in one English sentence of at most {MAX_WORDS} words, "
+              "what happens in this video segment. Mention the people, the main "
+              "action and the setting.")
 
 
 def in_window_ts(video, lo, hi, budget=BUDGET):
@@ -125,7 +135,7 @@ def main():
             for p in frames:
                 os.unlink(p)
         rows.append({"videoID": vid, "eventIdx": ei, "start": lo, "end": hi,
-                     "ref": ev_text.strip(), "pred": pred})
+                     "ref": ev_text.strip(), "pred": pred, "max_words": MAX_WORDS})
         if (k + 1) % 20 == 0:
             json.dump(rows, open(OUT, "w", encoding="utf-8"),
                       ensure_ascii=False, indent=1)
