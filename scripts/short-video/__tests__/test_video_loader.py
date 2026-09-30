@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 from video_loader import (  # noqa: E402
     LOADER_VERSION,
+    _mmss,
     frames_with_text,
     load_video,
     process_qwen_mm_info,
@@ -257,6 +258,16 @@ def test_adapter_text_interleaved_modes(av_video, tmp_path):
     visual = _loaded(av_video, tmp_path, [0.0, 1.0], want_audio=False)
     assert to_text_interleaved(visual) == ""
     assert to_text_interleaved(visual, mode="ts") == ""
+
+
+def test_timestamp_carry_rounds_before_splitting_minutes():
+    # 59.96 rounds to 60.0 — the carry has to reach the minutes field, or the
+    # label reads "00:60.0" (frame times are rounded to milliseconds, so such
+    # values occur in real grids).
+    assert _mmss(59.96) == "01:00.0"
+    assert _mmss(59.94) == "00:59.9"
+    assert _mmss(0.0) == "00:00.0"
+    assert _mmss(3599.96) == "60:00.0"
 
 
 def test_adapter_frames_with_text_follows_grid(av_video, tmp_path):

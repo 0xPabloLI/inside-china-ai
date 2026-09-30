@@ -37,7 +37,12 @@ import { createEdgeTTSEngine } from "./edge-tts.mjs";
 import { createSayEngine } from "./say.mjs";
 import { runForcedAlignment, getAtempo } from "./post-process.mjs";
 import { planTtsScenes, writeSceneMeta, computeSceneKey, resolveSceneInstruct } from "./cache.mjs";
-import { FAILURE_CLASS, partitionGateFailures, infraBlockError } from "./failure-class.mjs";
+import {
+  FAILURE_CLASS,
+  partitionGateFailures,
+  infraBlockError,
+  markFailClosed,
+} from "./failure-class.mjs";
 import { MAX_TTS_SPEED, resolveSceneSpeed } from "./pacing.mjs";
 
 /**
@@ -135,18 +140,6 @@ function replaceResult(results, res) {
   const idx = results.findIndex((g) => g.sceneId === res.sceneId);
   if (idx >= 0) results[idx] = res;
   else results.push(res);
-}
-
-/**
- * Tag an error as fail-closed (#271). Errors carrying this marker are rethrown
- * by the gate catch below regardless of strict mode — the non-strict
- * "warn and continue" path is reserved for failures that are not proven
- * unshippable. `TTS_SKIP_QUALITY_GATE=1` stays the explicit escape hatch.
- */
-function markFailClosed(err, code) {
-  err.code = code;
-  err.failClosed = true;
-  return err;
 }
 
 /**

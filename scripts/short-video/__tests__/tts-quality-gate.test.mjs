@@ -212,14 +212,18 @@ describe("TTS Quality Gate - Audio & ASR Evaluation", () => {
 
     const scenes = [{ id: 1, voiceover: "The model ID says expires on September tenth." }];
 
-    // First attempt: missing "tenth", second attempt: full sentence
+    // First attempt: missing "tenth", every later attempt: full sentence.
+    // `mockResolvedValue` (not `...Once`) for the tail matters: the healing
+    // flow runs the gate three times (initial, retry, final) and an exhausted
+    // mock answers "ASR unavailable" — which is now fail-closed and would stop
+    // the run for a reason the test never intended to exercise.
     const mockTranscriber = vi
       .fn()
       .mockResolvedValueOnce({
         ok: true,
         segments: [{ text: "The model ID says expires on September." }],
       })
-      .mockResolvedValueOnce({
+      .mockResolvedValue({
         ok: true,
         segments: [{ text: "The model ID says expires on September tenth." }],
       });

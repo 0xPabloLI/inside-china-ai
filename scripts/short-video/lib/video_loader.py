@@ -453,7 +453,10 @@ def load_video(video_path, request):
 # shape and `to_minicpm_units` stays for the engine-contract route.
 
 def _mmss(t):
-    return f"{int(t // 60):02d}:{t % 60:04.1f}"
+    # Round the total first: rounding after the `% 60` split turns 59.96 into
+    # "00:60.0" (the carry never reaches the minutes field).
+    total = round(t, 1)
+    return f"{int(total // 60):02d}:{total % 60:04.1f}"
 
 
 def to_text_interleaved(load_result, mode="block", max_chars=2000, max_cells=80):

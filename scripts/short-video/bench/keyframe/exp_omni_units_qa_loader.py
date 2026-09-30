@@ -178,7 +178,8 @@ def main():
             prev = json.load(fh)
     else:
         prev = {}
-    done = {(r["videoID"], r["arm"]) for r in prev.get("details", [])}
+    done = {(r["videoID"], r["arm"]) for r in prev.get("details", [])
+            if not str(r.get("pred", "")).startswith("ERR:")}
     details = list(prev.get("details", []))
     loader_meta = dict(prev.get("loader_meta", {}))
     validations = dict(prev.get("official_cross_check", {}))
@@ -193,15 +194,26 @@ def main():
           f"| loader cache={CACHE}", flush=True)
 
     def dump():
+        # An ERR row is a harness/transient failure (mlx OOM, processor glitch),
+        # not an answer: counting it as "wrong" would bias the paired counts the
+        # research doc quotes, and leaving it in `done` would pin it forever.
+        # Keep the newest row per (video, arm) and drop ERR rows a later retry
+        # replaced; ERR rows that persist stay in the file as an audit trail.
+        ok_pairs = {(r["videoID"], r["arm"]) for r in details
+                    if not str(r.get("pred", "")).startswith("ERR:")}
+        kept = [r for r in details
+                if not (str(r.get("pred", "")).startswith("ERR:")
+                        and (r["videoID"], r["arm"]) in ok_pairs)]
+        scored = [r for r in kept if not str(r.get("pred", "")).startswith("ERR:")]
         summary = {}
-        for r in details:
+        for r in scored:
             agg = summary.setdefault(r["arm"], {"correct": 0, "total": 0})
             agg["total"] += 1
             agg["correct"] += int(r["correct"])
         paired = {}
         if {"vision", "units"} <= set(summary):
             by = {}
-            for r in details:
+            for r in scored:
                 by.setdefault((r["videoID"], r["question_id"]), {})[r["arm"]] = r
             b = c = n = 0
             for arms in by.values():
@@ -213,10 +225,13 @@ def main():
                 c += int(v and not u)
             paired = {"pairs": n, "units_only": b, "vision_only": c,
                       "mcnemar_exact_p": round(mcnemar_exact(b, c), 4)}
+        errors = [{"videoID": r["videoID"], "arm": r["arm"], "pred": r["pred"]}
+                  for r in kept if str(r.get("pred", "")).startswith("ERR:")]
         with open(OUT, "w", encoding="utf-8") as fh:
             json.dump({"arms_run": ARMS, "videos": len(videos), "summary": summary,
-                       "paired": paired, "official_cross_check": validations,
-                       "loader_meta": loader_meta, "details": details},
+                       "paired": paired, "errors": errors,
+                       "official_cross_check": validations,
+                       "loader_meta": loader_meta, "details": kept},
                       fh, ensure_ascii=False, indent=1)
 
     for vi, vid in enumerate(videos):

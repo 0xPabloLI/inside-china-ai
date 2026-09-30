@@ -54,8 +54,29 @@ export function partitionGateFailures(evaluations) {
 }
 
 /**
+ * Tag an error as fail-closed (#271). The gate catch in `registry.mjs` rethrows
+ * marked errors regardless of strict mode — the non-strict "warn and continue"
+ * path is reserved for failures that are not proven unshippable.
+ * `TTS_SKIP_QUALITY_GATE=1` stays the explicit escape hatch.
+ *
+ * Lives here with the error builders so a new block error cannot be defined
+ * without its marker: #415 ① shipped `infraBlockError` unmarked, and the
+ * non-strict path quietly turned "the ASR leg never ran" into "render anyway".
+ *
+ * @param {Error} err
+ * @param {string} code
+ * @returns {Error}
+ */
+export function markFailClosed(err, code) {
+  err.code = code;
+  err.failClosed = true;
+  return err;
+}
+
+/**
  * Fatal error for a run the gate could not verify (#415 ①). Not retryable: a
  * reroll regenerates audio the same blind verifier still cannot check.
+ * Fail-closed by construction — the caller cannot forget the marker.
  *
  * @param {Array<{sceneId: number, issues?: string[]}>} infraFailed
  * @returns {Error}
@@ -64,9 +85,12 @@ export function infraBlockError(infraFailed) {
   const scenes = (infraFailed ?? [])
     .map((f) => `Scene ${f.sceneId} (${(f.issues || []).join(", ")})`)
     .join("; ");
-  return new Error(
-    `TTS Quality Gate could not verify the take(s): ${scenes}. ` +
-      `The ASR leg (whisper.cpp + ggml model) is unavailable, so the word-level checks never ran. ` +
-      `Fix the ASR infrastructure, or set TTS_QUALITY_ALLOW_NO_ASR=1 to render unverified.`,
+  return markFailClosed(
+    new Error(
+      `TTS Quality Gate could not verify the take(s): ${scenes}. ` +
+        `The ASR leg (whisper.cpp + ggml model) is unavailable, so the word-level checks never ran. ` +
+        `Fix the ASR infrastructure, or set TTS_QUALITY_ALLOW_NO_ASR=1 to render unverified.`,
+    ),
+    "TTS_INFRA_BLOCK",
   );
 }
