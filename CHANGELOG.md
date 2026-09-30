@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.9.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.8.0...tanstack_start_ts-v1.9.0) (2026-09-30)
+
+
+### Features
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 描述评分按用户裁决改口径（主报 METEOR/ROUGE-L + no-pend CIDEr） ([85acf5d](https://github.com/0xPabloLI/inside-china-ai/commit/85acf5d4cbcf9bbaf15ebc295464eb0d12f8da37))
+
+
+### Bug Fixes
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) QA unified denominator, caption metrics, research §17 ([4fdbef6](https://github.com/0xPabloLI/inside-china-ai/commit/4fdbef604d850e7dc696ad567e15e16c7b90ad82))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 空选帧必须记分母（统一 276 题，不静默跳题） ([a72cf8b](https://github.com/0xPabloLI/inside-china-ai/commit/a72cf8bd87ea6f34228c9d7abaa3d72a36613e8b))
+* **bench:** [#432](https://github.com/0xPabloLI/inside-china-ai/issues/432) review — select() 抛错与合法空选帧分开记账；无输出行不进 parser_check ([40f2e59](https://github.com/0xPabloLI/inside-china-ai/commit/40f2e59788a6d302720d5a35bc0f48380143c254))
+
 ## [1.8.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.7.0...tanstack_start_ts-v1.8.0) (2026-09-30)
 
 
