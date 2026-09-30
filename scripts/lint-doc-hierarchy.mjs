@@ -249,11 +249,31 @@ export function refKey(filename, ref) {
   return `${filename}|${ref}`;
 }
 
-export function checkReferenceResolution(files, trackedFiles, symlinks = [], baseline = new Set()) {
+export function checkReferenceResolution(
+  files,
+  trackedFiles,
+  symlinks = [],
+  baseline = new Set(),
+  unmaterialized = [],
+) {
   const tracked = new Set(trackedFiles);
   // A committed symlink exists in every fresh clone, so a path written through
   // it is a real pointer even though git lists only the link's own target.
   const links = symlinks.filter((l) => l && l.from && l.to);
+  // Paths that land inside a declared-but-uninitialized submodule cannot be
+  // judged either way: calling them unresolved would report the repo as broken
+  // when only this checkout is incomplete.
+  const landsInMissing = (ref) => {
+    const readings = [ref];
+    for (const l of links) {
+      const prefix = `${l.from}/`;
+      if (ref.startsWith(prefix)) readings.push(l.to + "/" + ref.slice(prefix.length));
+    }
+    return readings
+      .map((c) => unmaterialized.find((d) => c === d || c.startsWith(`${d}/`)))
+      .find(Boolean);
+  };
+  const unjudged = new Map();
   const vendoredSkills = new Set(
     [...tracked]
       .filter((p) => p.startsWith(SKILL_NAMESPACE) && p.includes("/"))
@@ -308,6 +328,11 @@ export function checkReferenceResolution(files, trackedFiles, symlinks = [], bas
       if (ref.startsWith(SKILL_NAMESPACE) && !vendoredSkills.has(ref.split("/")[1])) continue;
       if (GENERATED_ARTIFACT_FILES.has(ref)) continue;
       if (GENERATED_ARTIFACT_PREFIXES.some((p) => ref.startsWith(p))) continue;
+      const missingDir = landsInMissing(ref);
+      if (missingDir) {
+        unjudged.set(missingDir, (unjudged.get(missingDir) || 0) + 1);
+        continue;
+      }
       const level = EVIDENCE_REFERRER_PREFIXES.some((p) => filename.startsWith(p))
         ? "WARN"
         : "FAIL";
@@ -321,6 +346,14 @@ export function checkReferenceResolution(files, trackedFiles, symlinks = [], bas
         message: `${filename}:${line} — unresolved reference \`${ref}\` (not tracked by git; repoint it if it moved, cite the full URL if it belongs to another project)`,
       });
     }
+  }
+  for (const [dir, count] of unjudged) {
+    findings.push({
+      level: "WARN",
+      ruleId: "doc-ref-unjudged",
+      file: dir,
+      message: `${count} 条指向 \`${dir}/\` 的引用无法判定——该 submodule 在本 checkout 未初始化（\`git submodule update --init ${dir}\`）。既不算通过也不算失败。`,
+    });
   }
   return { findings };
 }
@@ -474,7 +507,22 @@ function collectReferenceScan() {
     if (content.length > 600000) continue;
     files.push({ filename, content });
   }
-  return { files, tracked, symlinks };
+  // A declared submodule contributes no tracked paths until it is checked out,
+  // so `--recurse-submodules` alone cannot tell "the file is gone" from "this
+  // clone was never completed".
+  const unmaterialized = readSubmodulePaths().filter(
+    (p) => !tracked.some((t) => t.startsWith(`${p}/`)),
+  );
+  return { files, tracked, symlinks, unmaterialized };
+}
+
+function readSubmodulePaths() {
+  try {
+    const text = readFileSync(join(PROJECT_ROOT, ".gitmodules"), "utf8");
+    return [...text.matchAll(/^\s*path\s*=\s*(\S+)\s*$/gm)].map((m) => m[1]);
+  } catch {
+    return [];
+  }
 }
 
 // --- Git diff helpers ---
@@ -569,6 +617,7 @@ export function main() {
     refScan.tracked,
     refScan.symlinks,
     baseline,
+    refScan.unmaterialized,
   ).findings;
 
   if (process.argv.includes("--bless")) {

@@ -22,6 +22,12 @@ jobs:
       VITEST_CI_SKIP_ENV_BOUND: "1"
     steps:
       - uses: actions/checkout@v7
+        # skills/shared is a submodule: without this the directory is empty in
+        # CI, so `lint:docs` cannot resolve paths written through the skills/*
+        # symlinks, and vitest's `skills/**/*.test.mjs` include matches nothing —
+        # the skill layer's tests silently never run.
+        with:
+          submodules: recursive
 
       - uses: actions/setup-node@v7
         with:

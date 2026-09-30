@@ -766,6 +766,37 @@ describe("checkReferenceResolution", () => {
     expect(live.level).toBe("FAIL");
     expect(live.known).toBe(false);
   });
+
+  it("未初始化的 submodule 里的路径判不了就明说，不谎报成断链", () => {
+    const files = [
+      { filename: "AGENTS.md", content: "代理在 `skills/web-access/scripts/cdp-proxy.mjs`。" },
+      {
+        filename: "docs/run.md",
+        content: "站点经验见 `skills/web-access/references/site-patterns/tiktok.com.md`。",
+      },
+    ];
+    const symlinks = [{ from: "skills/web-access", to: "skills/shared/web-access" }];
+    // symlink 自身也在跟踪集里——CI 里 vendoredSkills 正因如此认得 web-access，
+    // 引用才会一路判到 FAIL；少了这行会在命名空间那关被放行，测不到东西
+    const tracked = [...TRACKED, "skills/web-access"];
+    const { findings } = checkReferenceResolution(files, tracked, symlinks, new Set(), [
+      "skills/shared",
+    ]);
+    expect(failsOf(findings)).toHaveLength(0);
+    const unjudged = findings.filter((f) => f.ruleId === "doc-ref-unjudged");
+    // 同一个缺失模块只出一条，附上计数与补齐命令
+    expect(unjudged).toHaveLength(1);
+    expect(unjudged[0].level).toBe("WARN");
+    expect(unjudged[0].message).toContain("2 条");
+    expect(unjudged[0].message).toContain("git submodule update --init skills/shared");
+    // 反面对照：模块已就位时同样的引用必须重新可判（不能再被这条吞掉）
+    const initialized = [...tracked, "skills/shared/web-access/scripts/cdp-proxy.mjs"];
+    const second = checkReferenceResolution(files, initialized, symlinks, new Set(), []);
+    expect(second.findings.filter((f) => f.ruleId === "doc-ref-unjudged")).toHaveLength(0);
+    // cdp-proxy.mjs 已解析，tiktok.com.md 仍缺 —— 照旧判死，不留灰色地带
+    expect(failsOf(second.findings).map((f) => f.file)).toEqual(["docs/run.md"]);
+    expect(second.findings.filter((f) => f.file === "docs/run.md")).toHaveLength(1);
+  });
 });
 
 describe("证据层引用基线", () => {
