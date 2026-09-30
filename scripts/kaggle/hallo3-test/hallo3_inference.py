@@ -419,7 +419,7 @@ def main():
         f.write(first_line + "\n")
     print(f"  smoke input: {first_line[:80]}...")
 
-    # 推理命令 (信源: scripts/inference_long_batch.sh)
+    # 推理命令 (信源: Hallo3/scripts/inference_long_batch.sh)
     cmd = (
         f"cd {HALLO3_DIR} && "
         f"WORLD_SIZE=1 RANK=0 LOCAL_RANK=0 LOCAL_WORLD_SIZE=1 "

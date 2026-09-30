@@ -1,11 +1,18 @@
 #!/usr/bin/env node
 /**
- * Research Evidence Pipeline — CLI Orchestrator (Stage 0.5 Seam)
+ * Research Evidence Pipeline — CLI Orchestrator (manual, non-blocking)
+ *
+ * The evidence module is retained but not wired into the content pipeline
+ * (issue #61): claim-level evidence normally comes from the MRL-1 B4/B6 inline
+ * annotations in the article itself, so this audit is an opt-in manual run.
+ * See `docs/content-pipeline.md` → 「Evidence 模块」.
  *
  * Orchestrates the research evidence pipeline stages:
  * 1. Read discovery.json (from search-sources scoped output)
  * 2. Build research-brief.json (via brief-builder)
- * 3. Read/accept evidence-pack.json (from web-deep-research)
+ * 3. Read evidence-pack.json — nothing produces it automatically, so a run
+ *    pauses here until a pack is authored by hand against the contract in
+ *    `lib/research/schemas.mjs`
  * 4. Read/accept article-claim-map.json
  * 5. Run MRL-1 claim-evidence audit
  * 6. Report pass/fail
@@ -16,7 +23,7 @@
  * If --audit-only is passed, skips brief building and goes straight to audit
  * (assumes evidence-pack.json and article-claim-map.json already exist).
  *
- * See: docs/specs/spec-research-evidence-pipeline.md
+ * See: docs/archive/specs/spec-research-evidence-pipeline.md
  */
 
 import { readFileSync } from "fs";

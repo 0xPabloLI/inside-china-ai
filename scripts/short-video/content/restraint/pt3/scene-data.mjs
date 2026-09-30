@@ -4,7 +4,7 @@
  * Focus: AGI technical path, team stability as core interest
  * Target: TikTok 60-70s (~165 words max at 2.5 wps)
  *
- * Migrated from the legacy root file scripts/short-video/scene-data-pt3.mjs
+ * Migrated from the legacy root-level scene-data-pt3.mjs
  * (2026-08-08). Data fixes applied to satisfy current preflight rules
  * (lib/scene-rules.mjs / MRL-2):
  *   - em/en-dashes removed from voiceover (scenes 2, 7)

@@ -15,7 +15,7 @@
  * - All fact claims have verified evidence mappings
  * - Analysis-type claims don't require external evidence
  *
- * See: docs/specs/spec-research-evidence-pipeline.md (Design Decision #7)
+ * See: docs/archive/specs/spec-research-evidence-pipeline.md (Design Decision #7)
  */
 
 // ─── Helpers ───

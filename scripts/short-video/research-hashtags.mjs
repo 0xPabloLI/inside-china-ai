@@ -17,7 +17,7 @@
  *
  * NOT used in per-video pipeline. See:
  *   - docs/analytics-workflow.md → Hashtag 库维护 → Step 2
- *   - docs/handoffs/handoff-hashtag-pipeline-gaps.md → 缺口 B
+ *   - docs/archive/handoff-hashtag-pipeline-gaps.md → 缺口 B
  */
 
 import { writeFileSync, mkdirSync, existsSync } from "fs";

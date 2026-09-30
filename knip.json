@@ -29,7 +29,8 @@
     "ffmpeg",
     "ffprobe",
     "say",
-    "nslookup"
+    "nslookup",
+    "colima"
   ],
   "workspaces": {
     ".": {

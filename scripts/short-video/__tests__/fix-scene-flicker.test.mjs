@@ -5,7 +5,7 @@
  * video volume independence, and overlay behavior after the fix.
  *
  * Scenarios S1–S9 map to the spec's Behavioral Scenarios matrix.
- * See: docs/spec-fix-scene-flicker.md
+ * See: docs/archive/spec-fix-scene-flicker.md
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";

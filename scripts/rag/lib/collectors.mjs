@@ -4,7 +4,7 @@
  * Extracted from index.mjs to enable independent unit testing
  * without Ollama or Supabase.
  *
- * Spec: docs/spec-rag-research-collection.md
+ * Spec: docs/archive/spec-rag-research-collection.md
  */
 
 import { readFileSync, existsSync, readdirSync } from "fs";

@@ -221,7 +221,7 @@ GET http://localhost:8888/search?q=DeepSeek+China+AI&format=json&categories=gene
 #### 现状
 
 - API Key 已在 `.env.local` 的 `BRAVE_SEARCH_API_KEY` 中配置（2026-08-20 测试通过）
-- 来源：`docs/handoffs/handoff-search-api-pool.md` [Tier 1]
+- 来源：`docs/archive/handoffs/handoff-search-api-pool.md` [Tier 1]
 - 免费层：原为 2,000 次/月（2023-2025），2026-02 改为 $5 月度额度（≈1,000 次查询）[Tier 2]
 - 50 req/s 付费容量
 

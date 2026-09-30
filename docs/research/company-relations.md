@@ -1,6 +1,6 @@
 # 中国 AI 公司关系图谱（#248，2026-09-12）
 
-> **机器可读 SSOT**：`scripts/short-video/lib/company-relations.json`（68 实体）。管线消费经 `lib/company-relations.mjs`：`resolveEntityHashtag` / `howToPresent` / `buildEntityHashtagMap`（caption-utils）/ `buildEntityColorAliases`（prompt-injection）。本文件是人读视图与裁决依据，不重复存数据。
+> **机器可读 SSOT**：`scripts/short-video/lib/data/company-relations.json`（68 实体）。管线消费经 `lib/company-relations.mjs`：`resolveEntityHashtag` / `howToPresent` / `buildEntityHashtagMap`（caption-utils）/ `buildEntityColorAliases`（prompt-injection）。本文件是人读视图与裁决依据，不重复存数据。
 
 ## 数据来源
 

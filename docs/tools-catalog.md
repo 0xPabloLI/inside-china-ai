@@ -157,25 +157,28 @@
 - **状态**：✅ 已部署并接入管线（#92，2026-09-05）
 - **部署**：colima 里 `searxng/searxng:latest` 容器，宿主端口 `8888`；配置固化在宿主 `~/searxng/settings.yml`（挂载进容器——Watchtower 每 24h 自动更新镜像**不丢配置**）；JSON API 已启用
 - **管线接入**：`source-registry.mjs` 的 `searxng_search` 源（GENERAL_SEARCH_SOURCES）——apiSearch 直连 JSON API（collectFromSource Layer 0），CDP HTML 结果页兜底；rate-limiter 对 `localhost` 零延迟、无小时上限（自托管前端不设限）
-- **搜索位置**：fast-first——SearXNG ~2s 返回聚合结果；其后仍是 Brave/Tavily/Jina pool（#65）与 CDP 精度兜底
-- **运维要点（2026-09-05 / 2026-09-24 两轮实测）**：
+- **搜索位置**：零额度优先（非低延迟——聚合查询实测 15–20s，见下方「慢是常态」）；其后仍是 Brave/Tavily/Jina pool（#65）与 CDP 精度兜底
+- **运维要点（2026-09-05 / 09-24 / 09-30 三轮实测）**：
   - `settings.yml` 必须含 `search.formats: [html, json]`，否则 JSON API 返回 403
-  - SearXNG 的 httpx 客户端**不读** `HTTP_PROXY` 环境变量，代理必须写进 `settings.yml` 的 `outgoing.proxies`，且**必须走 VM 网关地址** `http://192.168.5.2:<宿主代理端口>`（colima VM 到宿主的路径；端口跟随宿主当前生效的客户端，变化后改 settings.yml + `docker restart searxng`）
+  - SearXNG 的 httpx 客户端**不读** `HTTP_PROXY` 环境变量，代理必须写进 `settings.yml` 的 `outgoing.proxies`，且**必须走 VM 网关地址** `http://192.168.5.2:<宿主代理端口>`（colima VM 到宿主的路径；端口跟随宿主当前生效的客户端，变化后改 settings.yml + `colima ssh -- sudo docker restart searxng`）
+  - **网关地址别照 `colima list` 的 ADDRESS 猜**：那列是 VM 自己的地址（实测 `192.168.64.2`），VM 看宿主的网关是 dockerd 启动参数里的 `--host-gateway-ip`（实测 `192.168.5.2`）。两者不同网段属正常，不是配置过期。取真值：`colima ssh -- sudo ps aux | grep host-gateway-ip`
+  - **宿主 docker CLI 在这台机器上不可用**（连不上 `~/.colima/default/docker.sock`，而 VM 内 dockerd 正常）⇒ 本文件所有 `docker <cmd>` 一律写成 `colima ssh -- sudo docker <cmd>`
   - 宿主有两个代理客户端（FlClash / Clash Verge）且端口不同 ⇒ 填哪个端口**先实测**，别照抄本行数字：真值表与实测命令在 `docs/conventions/test-env-baseline.md`「宿主代理端口」
-  - **症状→根因速查**：`unresponsive_engines` 全 HTTP connection error = 容器无出口，按序排查：容器内 DNS 是否被污染（`nslookup duckduckgo.com` 返回错误 IP）→ VM 网关代理可达性（容器内 `wget http://192.168.5.2:7890`）→ 宿主代理端口是否变更；colima VM 状态 `error` 起不来 → `brew upgrade colima && colima start`
+  - **症状→根因速查**：`unresponsive_engines` 全 HTTP connection error = 容器无出口，按序排查：容器内 DNS 是否被污染（`nslookup duckduckgo.com` 返回错误 IP）→ VM 网关代理可达性 → 宿主代理端口是否变更；colima VM 状态 `error` 起不来 → `brew upgrade colima && colima start`
+  - **探代理只用 `generate_204`，别用 `wget`**：`wget http://192.168.5.2:7890` 打的是 `GET /`，代理工作正常也不响应这个请求，于是永远挂着——2026-09-30 就是这条把一台健康实例误判成「容器无出口」。正确探针：`colima ssh -- sudo curl -s -m 8 -o /dev/null -w "%{http_code}\n" -x http://192.168.5.2:7890 https://www.google.com/generate_204`（204 = 通）
   - 出口 IP 被反爬时单引擎照挂（DDG 引擎同出口也 CAPTCHA）——多引擎聚合冗余兜底，属预期非故障
-  - **禁用引擎台账（2026-09-24 快照，可重审）**：聚合墙钟时间 = 参与引擎数 × 各自超时等待，188 个参与引擎里
-    21 个长期不响应，把每次查询拖到 10-20s。已在 `~/searxng/settings.yml` 对这 21 个置 `disabled: true`
-    （备份：`~/searxng/settings.yml.bak-20260924-2015`）：
-    `baidu, duckduckgo, duckduckgo web, fastbot, fireball, gabanza, gmx, google, openlibrary, privacywall, qwant, resulthunter, searchmysite, seznam, sogou, tagesschau, tusksearch, vuhuv, wikidata, wolframalpha, yep`
-    这份名单是**一次 `unresponsive_engines` 测量的快照，不是永久判死**。复核一条命令：
-    `curl -s 'http://127.0.0.1:8888/search?q=<kw>&format=json' | python3 -c "import json,sys; print(json.load(sys.stdin)['unresponsive_engines'])"`；
-    对**已不在**该列表里的条目，改回 `disabled: false` 或整段删除后用 `docker restart searxng` 生效。一次别恢复超过
-    5 个——墙钟时间按恢复个数线性回涨。
+  - **引擎台账 = `scripts/searxng/settings.template.yml`（入库，188 条全量启停即代码）**：实际状态用 `node scripts/searxng/config.mjs --check` 读，本文件不抄数字。换机器或丢盘后 `SEARXNG_PROXY_ENDPOINT=<网关:端口> node scripts/searxng/config.mjs --apply` 重建（`--apply` 自带备份并重启容器）；`server.secret_key` 与代理端点是设备值，刻意不入库，apply 时注入，缺值时脚本拒绝执行而不是猜。**要改启停就改模板再 `--apply`**——直接编辑 `~/searxng/settings.yml` 会立刻被 `--check` 判为漂移。逐引擎的判死/保留理由见下。
+    - **本轮恢复且实测有效**：`google`（3 次查询 90–100% 对题、0.4–1s）、`gmx`、`resulthunter`、`tusksearch`、`openlibrary`、`tagesschau`。注意 resulthunter/tusksearch 返回的 URL 与 google 高度重合，是镜像索引，买的是量不是独立性。
+    - **本轮新判死**：`sogou`（`unexpected crash` + 0 秒返回 = 解析层坏，不是限流；曾出数并带回 `mp.weixin.qq.com`，值得后续单独诊断）、`wiby`（对题率 0%）、`encyclosearch`（21%，handwiki 条目）、`ayo`/`wikimini`/`crowdview`（三次查询全 0；crowdview 上一次聚合还贡献 40 条 ⇒ 闪断）。
+    - **保留但按形态用**：`bing` 英文对题 80%、中文查询 0 条（同查询三次取样 2/10/0 条不稳定）⇒ 中文选题别指望它。`wikidata` 换对题（"Alan Turing"）仍 0 条 = 真坏，非领域受限。
+  - **逐引擎复测的方法（取代旧的「一次别恢复超过 5 个」）**：把待测引擎**临时全开**，再按 `engines=<name>` 单引擎查询逐个判——单引擎请求实测 0.2–4s，不受聚合的线性墙钟约束，一轮重启测完 21 个。旧约束只在「改完直接跑聚合」时成立。聚合级复核：`curl -s 'http://127.0.0.1:8888/search?q=<kw>&format=json' | python3 -c "import json,sys; print(json.load(sys.stdin)['unresponsive_engines'])"`；单引擎级：同上再加 `&engines=<name>`。复测得到的启停结论写进 `scripts/searxng/settings.template.yml` 后 `--apply` 生效（模板才是真相，不要手改 live 文件）。
+  - **两个判死陷阱**：① **领域受限引擎别用通用查询判死**——`openlibrary`/`tagesschau` 只在书籍/德语对题查询下出数，通用查询下必然 0 条。② **探针会自染封禁**——几十次逐引擎查询能把 `google`/`quark` 打进 `Suspended: CAPTCHA`，并让随后的聚合查询把该引擎列进 `unresponsive`（即污染你要测的那个东西）。判死前先冷卻 15–20 分钟复测；本轮 `google` 就是这样翻案的。
   - **慢是常态不是故障（2026-09-24 根因）**：本实例每次查询都要 10-20s（多引擎串行 + 每引擎最长等
     `outgoing.request_timeout`，已从 `10.0` 压到 `4.0`）。调用侧 15s 的默认 fetch 超时会把一次正常的慢撑到最后
     掐断，读成 `network-error`。逃生口是 registry 的 `api.timeoutMs`（默认仍是 15000，**只有 opt-in 的源**拉长；
     `collectFromApi` 与体检 `checkApiSource` 两条 fetch seam 同读这一个字段）——`searxng_search` 设为 `30000`。
+    2026-09-30 两次复现同一误读：6s 手工探针把「HTTP 200 + 379 条」的健康实例读成「整个是死的」；人工调试的 `-m` 至少给 45s。
+    另注：关掉低质引擎**不会**把延迟拉下来（14.8s → 17.7s 同一量级），墙钟由当时最慢的参与引擎决定，不是引擎数。
 - **何时用**：管线自动使用（trend/research 的 general 源之一）；人工调试用 `curl 'http://localhost:8888/search?q=<kw>&format=json'`
 
 ### pdf-parse (npm)
@@ -574,8 +577,8 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/Thysrael/Horizon`（9,260 stars，2026-09-06 当天仍有 push，活跃未归档，Python）
 - **做什么**：RSS/HN/Reddit/Telegram/X/GitHub/OpenBB → 抓取 → 去重 → AI 打分过滤 → 背景补充 → 中英双语 Markdown 日报，分发到 Pages/邮件/webhook/MCP
 - **对本项目有用的机制**（调研深挖结论，源码级）：
-  - **双层去重**：URL 归一化 key（`src/scrapers` 上层 orchestrator）+ LLM"同事件判定"prompt（`src/ai/prompting/deduplication.py`，规则：同一现实事件才算重复，"发布"vs"越狱"算不同，不确定时保留，fail-open）——可直接移植到 search-sources.mjs → Agent 交叉比对环节
-  - **profile 阈值打分**：每条 0-10 分，rubric 见 `docs/scoring.md`（9-10 范式级/7-8 重要/5-6 增量/0-2 噪音），阈值按 profile 配置——可替代我们"Agent 当场目测"的筛选
+  - **双层去重**：URL 归一化 key（`src/scrapers` 上层 orchestrator）+ LLM"同事件判定"prompt（源码 https://github.com/Thysrael/Horizon/blob/main/src/ai/prompting/deduplication.py ，规则：同一现实事件才算重复，"发布"vs"越狱"算不同，不确定时保留，fail-open）——可直接移植到 search-sources.mjs → Agent 交叉比对环节
+  - **profile 阈值打分**：每条 0-10 分，rubric 见 https://github.com/Thysrael/Horizon/blob/main/docs/scoring.md （9-10 范式级/7-8 重要/5-6 增量/0-2 噪音），阈值按 profile 配置——可替代我们"Agent 当场目测"的筛选
   - **Reddit 三级 fallback**：old.reddit HTML → JSON listing（Chrome UA）→ RSS，`RedditBlockedError` 专门处理
   - **Telegram 公开频道抓取**：`t.me/s/` web 预览页解析，免 token——潜在免费新增源（AI 新闻 Telegram 频道多）
   - X 抓取双模：Apify actor（$49/月起）或 Playwright + 多账号 cookie 轮询（风控风险）

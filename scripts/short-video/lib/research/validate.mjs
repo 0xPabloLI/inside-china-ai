@@ -4,7 +4,7 @@
  * Pure functions that validate parsed JSON objects against schema definitions.
  * Each validator returns { valid: boolean, errors: string[] }.
  *
- * See: docs/specs/spec-research-evidence-pipeline.md
+ * See: docs/archive/specs/spec-research-evidence-pipeline.md
  */
 
 import {

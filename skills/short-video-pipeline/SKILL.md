@@ -48,7 +48,7 @@ Scene N+1:  CTA       — brand close, 3-5s
 - Each scene: 1-2 sentences of voiceover (drives TTS duration)
 - Total target: 60-70s for TikTok (default). YouTube Shorts can extend to 180s if user requests.
 - Use `brand-system` scene templates and color semantics
-- File: `scripts/short-video/scene-data.mjs`
+- File: `scripts/short-video/content/<slug>/scene-data.mjs`
 
 #### Best Practices Checklist (follow when writing scene-data)
 
@@ -252,7 +252,7 @@ After all automated checks pass, the agent generates a complete publishing packa
 - **Hashtag set**: 3-5 mixed reach (broad + niche + video-specific)
 - **Primary goal tag**: which hook pattern was used (P1a/P1b/P2a/P3a/P5a/P6a etc.) + goal (completion/saves/comments/shares)
 
-**User executes in TikTok App** (cannot be automated without API — see `docs/video-automation-roadmap.md` ISSUE-01):
+**User executes in TikTok App** (cannot be automated without API — see `docs/archive/video-automation-roadmap.md` ISSUE-01):
 
 ```
 📋 Publishing Package for [Video Title]
@@ -281,21 +281,21 @@ After all automated checks pass, the agent generates a complete publishing packa
 
 ## Dimension Coverage Matrix
 
-This pipeline covers all dimensions that community TikTok skills cover, adapted for a news channel. Full reference: `docs/tiktok-best-practices.md` and `docs/refs/tiktok-skills/`.
+This pipeline covers all dimensions that community TikTok skills cover, adapted for a news channel. Full reference: `docs/tiktok/tiktok-best-practices.md` and `docs/refs/tiktok-skills/`.
 
-| Dimension                | Community Skill                            | How This Pipeline Covers It                                     | Where                            |
-| ------------------------ | ------------------------------------------ | --------------------------------------------------------------- | -------------------------------- |
-| **Hook Scripting**       | tt-hook-scripter (10 formulas + goal tags) | Step 2: Hook Pattern Selection (P1-P6 scaffolds) + Hook Anatomy | This SKILL.md                    |
-| **De-AI / Humanizing**   | tt-humanizer (3-tier scrub)                | Step 2: De-AI Voice Rules + verify-video.mjs blockers           | This SKILL.md + verify-video.mjs |
-| **Caption & Hashtags**   | tt-caption-writer                          | Step 7: Manual Publishing Checklist                             | This SKILL.md                    |
-| **Content Planning**     | tt-content-planner (pillar mix)            | News Content Calendar (below)                                   | This SKILL.md                    |
-| **Trend Mapping**        | tt-trend-mapper (trending sound fit-check) | News Trend Discovery (below)                                    | This SKILL.md                    |
-| **Content Repurposing**  | tt-repurposer (article to script)          | Article-to-Video Workflow (below)                               | This SKILL.md                    |
-| **Profile Optimization** | tt-profile-optimizer                       | Brand Profile Setup (below)                                     | This SKILL.md                    |
-| **Audience Insights**    | tt-audience-insights (Apify)               | Competitive Intelligence (below)                                | This SKILL.md                    |
-| **Algorithm Heuristics** | references/algorithm-heuristics.md         | Signal weights + pre-publish checklist                          | `docs/tiktok-best-practices.md`  |
-| **Voice Rules**          | references/voice-rules.md                  | De-AI Voice Rules + vocabulary blacklist                        | This SKILL.md + verify-video.mjs |
-| **Audit Checklist**      | references/audit-checklist.md              | verify-video.mjs blockers + warnings                            | verify-video.mjs                 |
+| Dimension                | Community Skill                            | How This Pipeline Covers It                                     | Where                                  |
+| ------------------------ | ------------------------------------------ | --------------------------------------------------------------- | -------------------------------------- |
+| **Hook Scripting**       | tt-hook-scripter (10 formulas + goal tags) | Step 2: Hook Pattern Selection (P1-P6 scaffolds) + Hook Anatomy | This SKILL.md                          |
+| **De-AI / Humanizing**   | tt-humanizer (3-tier scrub)                | Step 2: De-AI Voice Rules + verify-video.mjs blockers           | This SKILL.md + verify-video.mjs       |
+| **Caption & Hashtags**   | tt-caption-writer                          | Step 7: Manual Publishing Checklist                             | This SKILL.md                          |
+| **Content Planning**     | tt-content-planner (pillar mix)            | News Content Calendar (below)                                   | This SKILL.md                          |
+| **Trend Mapping**        | tt-trend-mapper (trending sound fit-check) | News Trend Discovery (below)                                    | This SKILL.md                          |
+| **Content Repurposing**  | tt-repurposer (article to script)          | Article-to-Video Workflow (below)                               | This SKILL.md                          |
+| **Profile Optimization** | tt-profile-optimizer                       | Brand Profile Setup (below)                                     | This SKILL.md                          |
+| **Audience Insights**    | tt-audience-insights (Apify)               | Competitive Intelligence (below)                                | This SKILL.md                          |
+| **Algorithm Heuristics** | references/algorithm-heuristics.md         | Signal weights + pre-publish checklist                          | `docs/tiktok/tiktok-best-practices.md` |
+| **Voice Rules**          | references/voice-rules.md                  | De-AI Voice Rules + vocabulary blacklist                        | This SKILL.md + verify-video.mjs       |
+| **Audit Checklist**      | references/audit-checklist.md              | verify-video.mjs blockers + warnings                            | verify-video.mjs                       |
 
 ### Article-to-Video Workflow (adapted from tt-repurposer)
 
