@@ -18,12 +18,35 @@ Design:
     splits and snap to the nearest hard cut within +/-tol (tol = min(SNAP_SEC,
     10% of D/n)) when the adoption keeps both neighbouring windows
     >= MIN_WIN_SEC and <= the span cap. No valid candidate -> equal split.
-  - Budgets: b_i = clamp(round(budget_max x n x w_i / D), floor_i, budget_max)
+  - Budgets: b_i = clamp(round(budget_max x n x w_i / D), floor_i, cap_i)
     with floor_i = max(MIN_BUDGET, min(budget_max, ceil(w_i / gap_floor) + 1)):
     equal windows get exactly budget_max ("每窗预算 32 帧"), uneven windows
     scale with length, and a short window never falls to zero ("单窗下限").
     The +1 is what makes w_i / (b_i - 1) <= gap_floor hold when the floor
     (not the proportional term) is the binding constraint.
+  - Duration-aware cap (2026-09-30 user decision, "加时长感知上限"): feeding
+    budget_max frames into a short window spaces them by seconds/(b-1), so a
+    10 s asset got 32 frames at 0.32 s cadence — the near-duplicate pairs the
+    #414 acceptance flagged (mean dup rate 0.083 vs uniform_32's 0.077 over
+    the 15 single-window assets; the whole +0.006 gap sits in the <62 s
+    assets). cap_i = max(floor_i, floor(w_i / min_spacing) + 1) keeps the
+    in-window spacing >= min_spacing, and max(floor_i, ...) keeps the 8 s
+    blind-spot floor winning whenever the two conflict (a slightly denser
+    grid is always cheaper than a blind spot).
+    min_spacing = 1.0 s is picked from `exp_windows_cap.json` (the sweep over
+    {1.0, 1.5, 2.0, 3.0} s on the same 16 assets):
+      spacing   meanFrames  meanRecall  meanDupRate  vs uniform_32
+      pre-cap        31.9       1.000        0.0833         +0.0060
+      1.0 s          30.3       1.000        0.0786         +0.0013
+      1.5 s          27.2       0.793        0.0803         +0.0030
+      2.0 s          24.5       0.457        0.0687         -0.0086
+    Recall is measured on the GT assets with a 0.5 s tolerance, so any
+    spacing much above the 1 s official sampling cadence starts missing cut
+    boundaries: 1.0 s buys the redundancy trim for free, and 2.0 s (the first
+    guess) costs half the recall. The cap only binds below
+    (budget_max - 1) x min_spacing = 31 s, i.e. exactly the assets that were
+    over-sampled.
+    Pass min_spacing=None for the pre-cap design (the bench's A/B control).
 
 plan_windows_legacy mirrors asset-sourcer.mjs Phase 2.5 (#360) the way the
 numbers reach the frame grids (ms-ceiling segmentation, 2dp fps rounding,
@@ -42,6 +65,7 @@ SNAP_SEC = 15.0
 SNAP_FRAC = 0.10
 MIN_WIN_SEC = 30.0
 MIN_BUDGET = 4
+MIN_SPACING = 1.0
 
 
 def _js_round(x):
@@ -117,13 +141,18 @@ def _snap_boundaries(targets, cuts, tol, min_win_sec, win_span_max, duration):
 
 
 def _window_budgets(windows, budget_max, gap_floor, duration,
-                    min_budget=MIN_BUDGET):
-    """Proportional in-window budgets with a length-derived floor and the
-    per-window cap. Equal windows -> exactly budget_max each.
+                    min_budget=MIN_BUDGET, min_spacing=None):
+    """Proportional in-window budgets with a length-derived floor and cap.
+    Equal windows -> exactly budget_max each.
 
     floor_i = ceil(len / gap_floor) + 1: with an even grid of b points over
     len seconds the spacing is len / (b - 1), so b = ceil(len/gap) alone
     leaves len/(b-1) > gap whenever len is not an exact multiple.
+
+    cap_i = floor(len / min_spacing) + 1 (when min_spacing is set): b points
+    space by len/(b-1), so the cap is exactly the budget whose grid still
+    keeps spacing >= min_spacing. It never goes below floor_i — the 8 s
+    blind-spot floor outranks the redundancy trim.
     """
     n = len(windows)
     total = budget_max * n
@@ -132,14 +161,19 @@ def _window_budgets(windows, budget_max, gap_floor, duration,
         length = w["end"] - w["start"]
         floor_i = max(min_budget,
                       min(budget_max, math.ceil(length / gap_floor - 1e-9) + 1))
+        cap_i = budget_max
+        if min_spacing:
+            cap_i = max(floor_i, min(budget_max,
+                                     math.floor(length / min_spacing + 1e-9) + 1))
         b = _js_round(total * length / duration)
-        out.append(int(max(floor_i, min(budget_max, b))))
+        out.append(int(max(floor_i, min(cap_i, b))))
     return out
 
 
 def plan_windows(duration, cuts, budget_max=BUDGET_MAX, gap_floor=GAP_FLOOR,
                  snap_sec=SNAP_SEC, snap_frac=SNAP_FRAC,
-                 min_win_sec=MIN_WIN_SEC, min_budget=MIN_BUDGET):
+                 min_win_sec=MIN_WIN_SEC, min_budget=MIN_BUDGET,
+                 min_spacing=MIN_SPACING):
     """Cut-aligned window plan: [{start, end, budget}], contiguous, covering
     [0, duration]. See module docstring for the rules."""
     if duration <= 0:
@@ -156,7 +190,7 @@ def plan_windows(duration, cuts, budget_max=BUDGET_MAX, gap_floor=GAP_FLOOR,
                for a, b in zip(edges, edges[1:])]
     budgets = _window_budgets(windows, budget_max=budget_max,
                               gap_floor=gap_floor, duration=duration,
-                              min_budget=min_budget)
+                              min_budget=min_budget, min_spacing=min_spacing)
     return [{"start": w["start"], "end": w["end"], "budget": b}
             for w, b in zip(windows, budgets)]
 
