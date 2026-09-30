@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.9.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.9.0...tanstack_start_ts-v1.9.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **deepseek-harness-desktop:** 订正 metadata.articleUrl 为真实域名 chinaai.news ([ca00f11](https://github.com/0xPabloLI/inside-china-ai/commit/ca00f1112de355f914c4b60466b11b0d366284df))
+* **domain:** 清除误写的 chinaainews.com，全站引用统一为 chinaai.news ([48092cd](https://github.com/0xPabloLI/inside-china-ai/commit/48092cddb510ff688483091c0c652fff032138f5))
+
 ## [1.9.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.8.0...tanstack_start_ts-v1.9.0) (2026-09-30)
 
 
