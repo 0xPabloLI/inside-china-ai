@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.10.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.9.1...tanstack_start_ts-v1.10.0) (2026-09-30)
+
+
+### Features
+
+* **loader:** [#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) ticket-2c 装载层运行手册 + 官方单元 QA 臂 ([9bbf6e8](https://github.com/0xPabloLI/inside-china-ai/commit/9bbf6e874aec225fd5265f9e9cfcbf51e174fcb0))
+* **short-video:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414)/[#415](https://github.com/0xPabloLI/inside-china-ai/issues/415)/[#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) keyframe windows, quality gates, unified video loader ([8a2bc2f](https://github.com/0xPabloLI/inside-china-ai/commit/8a2bc2f0bbcb5c467e95f890ca3baed92a13e855))
+* **short-video:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414)/[#415](https://github.com/0xPabloLI/inside-china-ai/issues/415)/[#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) keyframe windows, quality gates, unified video loader ([#436](https://github.com/0xPabloLI/inside-china-ai/issues/436)) ([8a2bc2f](https://github.com/0xPabloLI/inside-china-ai/commit/8a2bc2f0bbcb5c467e95f890ca3baed92a13e855))
+
+
+### Bug Fixes
+
+* **short-video:** [#415](https://github.com/0xPabloLI/inside-china-ai/issues/415) review 两条：空转写必须走 INFRA + CPS 不计换行 ([88e3cc6](https://github.com/0xPabloLI/inside-china-ai/commit/88e3cc68ffc952cf58ea3a4fb940d3185351eb7f))
+* **short-video:** [#415](https://github.com/0xPabloLI/inside-china-ai/issues/415) 响度回读去掉 spawnSync 的 bin 形参（Semgrep 新告警） ([e1bf196](https://github.com/0xPabloLI/inside-china-ai/commit/e1bf1968a154d5dced99ce15663f7f7ab2300538))
+* **short-video:** [#415](https://github.com/0xPabloLI/inside-china-ai/issues/415)/[#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) review 三条：INFRA 未标 fail-closed、bench 续跑偏置、时间戳进位 ([f1d3e2a](https://github.com/0xPabloLI/inside-china-ai/commit/f1d3e2a8b6bd154a4b2f6281b6eeb38cdf003045))
+
 ## [1.9.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.9.0...tanstack_start_ts-v1.9.1) (2026-09-30)
 
 
