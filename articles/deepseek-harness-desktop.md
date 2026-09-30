@@ -17,7 +17,7 @@ The number that matters for anyone following DeepSeek as a company: this is an A
 
 The desktop build was already circulating before DeepSeek said anything about it.
 
-On September 24, signed installers appeared on DeepSeek's own download host with no announcement. 36Kr installed one and reported the client's built-in updater reporting version `V0.1.7-rc.2` ([36Kr, Sept 24, 2026](https://m.36kr.com/p/3998199345500040)). Sina Finance noted the same day that neither the official site nor the GitHub release page had listed a desktop download yet, and that no Linux build existed ([Sina Finance, Sept 25, 2026](https://finance.sina.com.cn/roll/2026-09-25/doc-iniszfef4555139.shtml)). iFeng covered it as a preview that had "leaked" ([iFeng, Sept 25, 2026](https://tech.ifeng.com/c/8whhG6Qax9g)).
+On September 24, signed installers appeared on DeepSeek's own download host with no announcement. 36Kr installed one and reported the client's built-in updater reporting version `V0.1.7-rc.2` ([36Kr, Sept 24, 2026](https://m.36kr.com/p/3998199345500040)). Sina Finance reported the next day that neither the official site nor the GitHub release page had listed a desktop download yet, and that no Linux build existed ([Sina Finance, Sept 25, 2026](https://finance.sina.com.cn/roll/2026-09-25/doc-iniszfef4555139.shtml)). iFeng covered it as a preview that had "leaked" ([iFeng, Sept 25, 2026](https://tech.ifeng.com/c/8whhG6Qax9g)).
 
 The repository tells the same story in commit order. [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness/releases) published `dsh-v0.1.7-rc.1` on September 23 and `dsh-v0.1.7-rc.2` on September 24, then `dsh-v0.2.0-rc.1` on September 28 and `dsh-v0.2.0-rc.2` on September 29 at 09:42 UTC, about two hours before the announcement post. The rc.2 notes make the desktop position explicit: the release bundles the `dsh` command into the macOS and Windows desktop apps so users can manage plugins "without requiring a separate Node or pnpm installation", and it fixes code-signing permissions for the bundled Node runtime on Intel Mac builds ([GitHub release `dsh-v0.2.0-rc.2`, Sept 29, 2026](https://github.com/deepseek-ai/deepseek-harness/releases)).
 
@@ -36,7 +36,7 @@ The screenshots in the announcement show the manager populated with eight offici
 
 File handling got the most attention in the release notes. Generated files and each round of code changes appear inside the conversation, previewable in a sidebar, openable in a local app for further editing, and iterable by simply asking for another pass in the same thread.
 
-Datawhale, which ran the desktop build for a day, filed the update under three headings: onboarding, workflow, and plugins ([Datawhale, Sept 29, 2026](https://mp.weixin.qq.com/s/t876nZ5JrxGKnWtOq8bV1A?scene=1)).
+Datawhale, which installed the release build and received the trial credit, filed the update under three headings: onboarding, workflow, and plugins ([Datawhale, Sept 29, 2026](https://mp.weixin.qq.com/s/t876nZ5JrxGKnWtOq8bV1A?scene=1)).
 
 ## Everything is a plugin, and most users already took that seriously
 
