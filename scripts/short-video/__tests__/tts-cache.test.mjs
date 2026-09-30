@@ -460,8 +460,13 @@ describe("planTtsScenes with mp3 engines (edge-tts / say)", () => {
     };
     const scenes = [{ id: 1, voiceover: "第一句" }];
     const { generateTTSWithEngine } = await import("../lib/tts/registry.mjs");
-    await generateTTSWithEngine(scenes, dir, engine, { runAlignment: false });
-    const second = await generateTTSWithEngine(scenes, dir, engine, { runAlignment: false });
+    // skipQualityGate: this test only checks cache reuse across runs, and the
+    // engine writes placeholder mp3 bytes no verifier could transcribe. The
+    // gate would report "ASR unavailable" — now fail-closed per #415 ① — so
+    // opt out explicitly instead of depending on the old warn-and-continue.
+    const opts = { runAlignment: false, skipQualityGate: true };
+    await generateTTSWithEngine(scenes, dir, engine, opts);
+    const second = await generateTTSWithEngine(scenes, dir, engine, opts);
     expect(engine.calls).toBe(1);
     expect(second[0].audioPath).toBe(join(dir, "scene-1.mp3"));
   });
