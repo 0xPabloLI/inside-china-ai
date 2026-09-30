@@ -2,7 +2,7 @@
  * Tests for the shared download-phase helpers extracted from main():
  *   shouldSkipByPreFilter / shouldSkipByDedup / downloadAndRecord
  *
- * Spec: docs/specs/spec-asset-sourcer-techdebt-cleanup.md (Ticket 1)
+ * Spec: docs/archive/spec-asset-sourcer-techdebt-cleanup.md (Ticket 1)
  * These helpers unify the duplicated per-phase download loop structure.
  * Behavior must be line-for-line equivalent to the original hand-written
  * branches (scenario matrix rows 1-10).

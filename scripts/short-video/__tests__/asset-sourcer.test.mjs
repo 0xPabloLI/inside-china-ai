@@ -2310,7 +2310,7 @@ describe("T3 — CDP type handling", () => {
 });
 
 // ─── URL dedup helpers (cross-phase Single Visit Extraction) ───
-// Spec: docs/spec-tier3-parallel-and-url-dedup.md
+// Spec: docs/archive/spec-tier3-parallel-and-url-dedup.md
 // Scenario matrix rows #1, #2, #4, #5, #9
 
 describe("shouldSkipUrl", () => {

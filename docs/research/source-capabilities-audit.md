@@ -2,7 +2,7 @@
 
 > 审计日期：2026-09-06（第十八 session）。审计对象：`scripts/short-video/lib/source-registry.mjs`（64 源）+ 消费方 `scripts/short-video/search-sources.mjs`、`lib/asset-sourcer.mjs`、`lib/progressive-search.mjs`。结论供 #75（capabilities.videos 补录 + 下载器集成）做基线。
 >
-> 前身：`docs/reviews/source-registry-capability-audit-2026-08-19.md`（#77 首轮审计，59 源、#67 schema 落地前时代）。该轮的 P0（xhs/douyin/weibo_hot ytdlp 误标）与 P1（google_news/bing_news 图片混入文本候选）已在此后修复；本轮为 schema 落地 + #92/#65 增源后的全面复核，覆盖面取代旧报告。
+> 前身：`docs/archive/reviews/source-registry-capability-audit-2026-08-19.md`（#77 首轮审计，59 源、#67 schema 落地前时代）。该轮的 P0（xhs/douyin/weibo_hot ytdlp 误标）与 P1（google_news/bing_news 图片混入文本候选）已在此后修复；本轮为 schema 落地 + #92/#65 增源后的全面复核，覆盖面取代旧报告。
 
 ## 0. 总体结论
 

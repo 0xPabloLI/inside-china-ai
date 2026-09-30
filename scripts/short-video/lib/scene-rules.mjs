@@ -1570,7 +1570,7 @@ export function checkInstructCoverage(scenes, opts = {}) {
           category: "TTS",
           check: `Scene ${scene.id} instruct override meets the 4D standard`,
           detail: `hand-written instruct fails: ${report.hardIssues.map((i) => i.code).join(", ")}`,
-          fix: `Delete scene ${scene.id}'s instruct override and rely on its style, or fix it to match lib/tts/instruct.mjs (#270; docs/tts-indian-accent-handoff.md).`,
+          fix: `Delete scene ${scene.id}'s instruct override and rely on its style, or fix it to match lib/tts/instruct.mjs (#270).`,
         });
       }
     }

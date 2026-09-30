@@ -12,7 +12,7 @@
  *
  * Does NOT make fact judgments, write content, or access the network.
  *
- * See: docs/specs/spec-research-evidence-pipeline.md
+ * See: docs/archive/specs/spec-research-evidence-pipeline.md
  */
 
 import { BRIEF_SCHEMA_VERSION } from "./schemas.mjs";

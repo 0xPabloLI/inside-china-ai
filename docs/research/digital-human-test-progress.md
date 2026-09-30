@@ -734,7 +734,7 @@
   - **隐藏交互**: `offload_model` 默认 True 会覆盖 `num_persistent_param_in_dit` 的效果，必须显式 `--offload_model False`
   - **Modal 总花费**: ~$26（L4 调试 + 3 次 A100 运行）
 - **模型总大小**：~42GB（基座 15.5GB + FP8 DiT 19.5GB + T5 FP8 6.7GB + wav2vec2 0.35GB）
-- **handoff 文档**: `docs/handoffs/handoff-infinitetalk-modal-2026-08-28.md`（含完整恢复指南）
+- **handoff 文档**: `docs/archive/handoffs/handoff-infinitetalk-modal-2026-08-28.md`（含完整恢复指南）
 - **下一步**（按优先级）：
   1. **方案 A**: Kaggle T4/P100 + 官方推荐 40 步（免费，已有 v10.11 成功先例，预估 ~7h）
   2. **方案 B**: FusionX LoRA 8 步 + Modal A100（预估 ~$1.68，⚠️ CC BY-NC-SA 许可证，仅限质量验证）

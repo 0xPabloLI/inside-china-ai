@@ -32,7 +32,7 @@
  *    the #271 reroll budget on a take whose *instruct* is the problem and then
  *    misname the family in the hard-block message.
  *
- * ## The standard (#234, `docs/tts-indian-accent-handoff.md`)
+ * ## The standard (#234, `docs/archive/handoffs/tts-indian-accent-handoff.md`)
  *
  * Every entry keeps the system prefix and gives POSITIVE accent guidance —
  * negative prompting ("avoid Indian accent") is documented to backfire (latent
@@ -292,7 +292,7 @@ export function normalizeExplicitInstruct(text, { format = INSTRUCT_FORMAT.PYTOR
         `Hand-written instruct text must not reach a TTS manifest — declare the style in ` +
         `scripts/short-video/lib/tts/instruct.mjs (INSTRUCT_STANDARD) instead, or fix the ` +
         `override. Details: ${report.hardIssues.map((i) => `${i.code} (${i.detail})`).join("; ")}. ` +
-        `See docs/tts-indian-accent-handoff.md.`,
+        `See #234 for the decision trail.`,
     );
   }
   return applyInstructFormat(text, format);

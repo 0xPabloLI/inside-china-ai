@@ -1,8 +1,8 @@
 /**
- * Test fixture for the standard hook opening card (docs/specs/spec-hook-opening-card.md).
+ * Test fixture for the standard hook opening card (docs/archive/spec-hook-opening-card.md).
  * Two hookScene variants (claim-led + number-led) plus a standard CTA close.
  *
- * Used by scripts/short-video/verify-scene-dom.mjs to prove the shared
+ * Proves the shared
  * template geometry: every element lands inside SAFE_ZONES (content band
  * y 220–1150, x 60–880) without any hand-written offsets. Scenes delegate to the shared
  * templates in lib/scene-templates.mjs (hookScene / ctaScene).

@@ -9,7 +9,7 @@ import {
 } from "../lib/safe-zones.mjs";
 
 /**
- * Region-separation invariants (spec: docs/specs/spec-video-layout-safe-zones.md, D1).
+ * Region-separation invariants (spec: docs/archive/spec-video-layout-safe-zones.md, D1).
  *
  * Recalibrated against a real FYP playback screenshot (see spec "Screenshot
  * Calibration"), scaled ×1.875 from a 576-wide capture to 1080×1920:

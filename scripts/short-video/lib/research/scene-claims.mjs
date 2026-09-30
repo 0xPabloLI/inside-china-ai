@@ -11,7 +11,7 @@
  * - When present, claimIds must be non-empty strings
  * - No scene is required to have claimIds (hook, CTA, transition are exempt)
  *
- * See: docs/specs/spec-research-evidence-pipeline.md (Design Decision #8)
+ * See: docs/archive/specs/spec-research-evidence-pipeline.md (Design Decision #8)
  */
 
 /**

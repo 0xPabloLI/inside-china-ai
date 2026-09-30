@@ -16,7 +16,7 @@
  * - Default: dry-run/mock mode; remote requests require explicit opt-in
  *
  * Reference: docs/refs/tiktok-skills/lib/apify_client.py (Python original)
- * Review: docs/reviews/handoff-hashtag-pipeline-gaps-review-2026-08-26.md
+ * Review: docs/archive/reviews/handoff-hashtag-pipeline-gaps-review-2026-08-26.md
  */
 
 import { readFileSync, existsSync } from "fs";
