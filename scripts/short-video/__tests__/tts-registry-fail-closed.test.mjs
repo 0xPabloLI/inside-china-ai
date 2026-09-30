@@ -36,6 +36,7 @@ vi.mock("../lib/tts/cache.mjs", () => ({
 
 import { generateTTSWithEngine } from "../lib/tts/registry.mjs";
 import { runTtsQualityGate } from "../lib/tts/quality-gate.mjs";
+import { FAILURE_CLASS, infraBlockError } from "../lib/tts/failure-class.mjs";
 
 const SCENES = [
   { id: 1, voiceover: "First scene text." },
@@ -163,5 +164,52 @@ describe("missing-audio fail-closed guard (#241)", () => {
       }),
     ).rejects.toThrow(/Kaggle kernel timed out/);
     expect(engine.generate).toHaveBeenCalledTimes(1); // no retry on hard engine error
+  });
+});
+
+describe("infra fail-closed guard (#415 review)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.TTS_STRICT_QUALITY_GATE;
+    delete process.env.TTS_SKIP_QUALITY_GATE;
+  });
+  afterEach(() => {
+    delete process.env.TTS_STRICT_QUALITY_GATE;
+    delete process.env.TTS_SKIP_QUALITY_GATE;
+  });
+
+  function stubGateReportsInfra() {
+    runTtsQualityGate.mockImplementation(async (_scenes, results) => ({
+      passed: false,
+      failedCount: results.length,
+      evaluations: results.map((r) => ({
+        sceneId: r.sceneId,
+        passed: false,
+        failureClass: FAILURE_CLASS.INFRA,
+        issues: ["ASR unavailable (asr_unavailable): back-transcription could not run"],
+      })),
+    }));
+  }
+
+  it("an unverifiable run stops the pipeline in NON-strict mode too", async () => {
+    const engine = fakeEngine();
+    engine.generate.mockImplementation(async (scenes) =>
+      scenes.map((s) => ({ sceneId: s.id, audioPath: `/tmp/scene-${s.id}.wav`, duration: 3.0 })),
+    );
+    stubGateReportsInfra();
+
+    await expect(
+      generateTTSWithEngine(SCENES, "/tmp/unused", engine, {
+        useCache: false,
+        runAlignment: false,
+        maxRetries: 1,
+      }),
+    ).rejects.toThrow(/could not verify.*ASR leg/s);
+  });
+
+  it("infraBlockError carries the fail-closed marker by construction", () => {
+    const err = infraBlockError([{ sceneId: 3, issues: ["ASR unavailable"] }]);
+    expect(err.failClosed).toBe(true);
+    expect(err.code).toBe("TTS_INFRA_BLOCK");
   });
 });

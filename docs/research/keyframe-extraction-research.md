@@ -361,3 +361,173 @@ tiered vs maxinfo 4+10，p=0.180。唯一 p<0.05 的是 tiered_v3 vs maxinfo
 19. KFFocus: Highlighting Keyframes for Enhanced Video Understanding — https://arxiv.org/abs/2508.08989 — Tier 1
 20. mengyu02/InfoShot（作者仓库，仅 README、无代码无许可证）— Tier 3（负面证据）
 
+## 17. Session 4：统一分母与三条纠错（2026-09-30，session `20260928-keyframe-bench-1d663d`，PR #419 已合并）
+
+本轮把三条判据轴跑成同一口径（选帧轴 22 法 × 几何 / KFS / QA / 描述四口径），并因此发现三处**静默口径错**。全部数字来自 `.scratch/keyframe-bench/results/*.json`，每条都能复算。
+
+### 17.1 三条纠错（都改变已引用过的数字）
+
+1. **QA 轴统一分母**：旧 harness 在"选帧为空"时跳过该视频的题，于是每臂只统计自己碰巧有输出的子集。**sd_threshold 有 56/92 个视频零帧**，先前口径报 45.4%（108 题子集），统一分母真值 **17.8%**（49/276）；其余 sd_* 差 1-2pp。现在零帧也出行（`pred=NOFRAMES`、`correct=false`、不调模型），FINAL 打出每臂无输出题数，整臂全空 → rc=2。
+2. **KFS 的 K 预算**：`kframes`/`infoshot` 在方法内部硬编码 16 帧、`blockslide`/`sd_*` 完全不截断，却都打在 `k64` 标签下。**kframes UKSS 0.4301 → 0.5211**（跳到第 6 名，与 lvnet/maxinfo 同档），blockslide 0.5433 → 0.5416（多数素材原始输出本就 <64）。另：`kfs_summary_k64.json` 曾被部分重跑逐臂覆写（一度只剩 1 条），现为合并式写入。⚠️ KFS 的 per-video 协议偏差（官方 GT 是 per-question 的"答题必需场景"，我们按 #391 的 query 解耦裁决做 per-video 一份选择复用到该视频全部题）仍成立：方法之间可比，与作者参考（0.5644）的比较只能当指示，**不得当作 KFS-Bench 官方成绩对外引用**。完整论证见 `scripts/short-video/bench/keyframe/kfs_bench_eval.py` 的 module docstring（该口径的唯一真值处）。
+3. **描述基准窗内选帧**：旧实现整片选 8 帧再过滤到事件窗，实测**平均只落 2.3 帧/事件**（median 1、15% 空窗）。改为窗口裁剪后窗内选帧（pHash 验证 seek 精确），平均 **7.8 帧、零空窗**。旧产物保留作诊断。
+
+### 17.2 选帧轴终值（Video-MME 92 视频 / 276 题，16 帧预算，纯视觉）
+
+kframes 72.5 ｜ maxinfo_siglip 71.7 ｜ lvnet_tsc 70.7 ｜ uniform_16 70.7 ｜ slice 69.6 ｜ blockslide 69.2 ｜ kffocus 68.1 ｜ iframe_even16 67.8 ｜ **tiered_v5 67.0** ｜ taksf 64.5 ｜ sd_adaptive 61.6 ｜ sd_histogram 61.6 ｜ sd_hash 61.2 ｜ tiered(v1/v2) 61.2 ｜ **tiered_v3 60.5** ｜ sd_content 60.5 ｜ infoshot 57.6 ｜ scene_008_cap16 57.2 ｜ sd_threshold 17.8。
+
+两条读法约束（比数字更重要）：
+
+- **QA 单轴不能用来选方法**。`kframes` 是去掉 query 后的退化形（按场景长度比例分配帧数 ≈ 长度加权 uniform），几何口径一直弱（§16.4 表：0.322）、KFS 也只在中游，却在 QA 轴排第一；`uniform` 也稳居前三。这正是 KFS-Bench 论文"QA 最高分不等于选帧最优"的本地复现——**QA 轴的有效用途是测装载层，不是排选帧**。
+- **tiered v3 的假设在此规模再次证伪**：densify 不加 floor = 60.5%，与 v1 的 61.2% 在噪声内；v5 的全部增益来自 floor 修复（67.0%，v5 vs v1 逐题 McNemar 显著）。与 §16.3 的 23 视频结论同向。
+
+### 17.3 装载层轴（固定选帧，只改音频/文本喂法）
+
+| 喂法 | 结果 | 判定 |
+|---|---|---|
+| 原声直喂（帧 + 整段波形） | 67.0% → 50.0%（−17pp，p=2.5e-06） | **有害**，无报错、分布正常，是内容层面被音频通道带偏 |
+| ASR 转写文本进 prompt（slice，ctx-off 转写） | 69.6% → 73.2%（+3.6pp） | 单臂 McNemar **p=0.087 不显著**；显著性来自四方法合并检验（p=3.9e-05）。引用必须带这句 |
+| 转写呈现格式（block / 带时间戳 / 不截断 / 放题后） | 73.2 / 73.2 / 73.2 / 71.4% | 测不出差别：ts 与 full 近乎逐题同分（ctx-off 后 92 份转写只有 2 份超 2000 字，截断与时间戳几乎不改变输入）；after 低 1.8pp 但 p=0.40 |
+| 官方 omni 单元装载（1 帧 + 该帧到下一帧的音频段，逐对交织） | 25/33 vs 同视频纯视觉 26/33 | **无增益**（11 视频 / 33 题同题对照），故不扩样；单次生成 ~76s，比纯视觉慢 5-10 倍 |
+
+**官方单元经生产 loader 复跑（#417 验收 2，2026-09-30，`exp_omni_units_qa_loader.py`）**：
+两臂共用**同一批 loader 帧**（官方抽帧规则：≤64s @1fps、>64s 10fps 后 linspace 采样 64），
+只差音频单元进不进上下文——配对 33 题：
+
+| 臂 | 结果 | 配对 |
+|---|---|---|
+| vision（只喂帧） | 31/33 = 93.9% | units_only=0，vision_only=2 |
+| units（loader → `to_minicpm_units`） | 29/33 = 87.9% | McNemar p=0.50 |
+
+即：**「音频不伤视觉」在这套 QA 协议上复现不了**——不是显著变差（2 题差异，p=0.50），
+但也**一题都没赢**。与上一行（官方包预计算产物的 25/33 vs 26/33）同向。装载本身是准的：
+对 12 份官方产物逐帧交叉校验，753 帧中 724 帧像素一致（MAD≤10），音频段长逐段 |Δ|≤0.026s。
+结论不变——音频的价值在**转写文本**这条通道，单元装载留作引擎契约（#417 已实现并有适配器）。
+
+音频通道的价值判定：MiniCPM-o 在 QA 轴上听得见内容却会被带偏（冒烟里它能答出"男子介绍 Jennifer Hudson 演唱"这类纯画面推不出的题），但**要把这份信息稳定用起来，目前唯一有效的形态是文本**。#417 装载层的接口设计据此定：帧 + 音轨 + 带时间戳转写，音频不做波形直喂。
+### 17.4 描述质量轴（用户真实目标：把内容描述清楚）
+
+ActivityNet Captions val_1，oracle 事件区间，per-event 一句英文描述，462 事件，评分用 pycocoevalcap 标准实现。**主报 METEOR 0.1214 ｜ ROUGE-L 0.1221**（用户 2026-09-30 裁决口径）。
+
+CIDEr 必须分开报：预测 mean 41.9 词 vs 人工参考 13.8 词（总长比 3.04×），标准 σ=6 高斯长度惩罚把分数压到**无惩罚值的 4.4%**——CIDEr(σ=6) 0.0095 ｜ CIDEr(no-pend) 0.2162。即：这条指标在本数据上的读数由"话长"主导，不是由"没描述清楚"主导。裁决取舍：**不为对齐参考长度压缩生成**（目标是信息量，不是参考的简略风格），代价是此 CIDEr 不可与他人论文横比；若要可比，需另跑一版"限 ≤20 词"对照组。
+
+**对照组已做（2026-09-30，`CAP_MAX_WORDS=20`，同 462 事件同 prompt）**：产物 `results/caption_anetc_v2_short.json` + `caption_metrics_caption_anetc_v2_short.json`，配对 bootstrap 见 `caption_bootstrap.json`（重采样事件、两臂同索引集，B=400）。
+
+| 指标 | 无限制（41.9 词） | 限 ≤20 词（17.7 词） | Δ | 95% CI | p |
+|---|---|---|---|---|---|
+| CIDEr(σ=6 脚注) | 0.0095 | **0.1456** | +0.1361 | [+0.1137, +0.1529] | <0.001 |
+| CIDEr(no-pend) | 0.2162 | **0.2543** | +0.0382 | [+0.0134, +0.0633] | <0.001 |
+| BLEU-4 | 0.0067 | 0.0117 | +0.0050 | [+0.0012, +0.0086] | 0.015 |
+| METEOR（主报） | **0.1214** | 0.1120 | −0.0094 | [−0.0143, −0.0053] | <0.001 |
+| ROUGE-L（主报） | 0.1221 | **0.1487** | +0.0266 | [+0.0190, +0.0337] | <0.001 |
+
+读法：长度口径一压到参考量级（1.28× vs 3.04×），CIDEr(σ=6) 从 0.0095 跳到 0.1456（15×），
+**这才进入可与论文横比的范围**；no-pend 与 ROUGE-L 也升（+18% / +22%），说明被砍掉的词不是
+内容重叠——长输出没有换来更高的 n-gram 命中。唯一下降的是 METEOR −0.0094（−7.7%，显著）：
+METEOR 含召回项，长输出天然占便宜，属指标构造，不是信息损失。
+
+因此**用户裁决不变**（生产仍不压缩生成）：本管线要的是描述信息量，而对照组证明的是
+「CIDEr 不可横比是长度口径问题，不是描述质量问题」。若某次对外汇报需要可比数字，
+按 `CAP_MAX_WORDS=20` 跑同一链即可复现上表。
+
+### 17.5 ASR 运行时（#418 的速度维度）
+
+空机、ctx-off、4 视频（音频均值 78s）实测：**MLX turbo 30.5× 实时**（3s）＞ whisper.cpp turbo 17.0×（5s）＞ MLX large-v3 7.9×（10s）。配合 §Session3 的等价性结论（两边默认都掺重复幻觉，调用必须关跨段上下文：MLX `condition_on_previous_text=False` / whisper.cpp `--max-context 0`），生产侧 ASR 调用的档位与开关都已定。
+
+### Sources（三续）
+
+21. CIDEr: Consensus-based Image Description Evaluation — Vedantam, Zitnick & Parikh, CVPR 2015 — https://arxiv.org/abs/1411.5726 — Tier 1（σ=6 高斯长度惩罚的定义来源；本文 §17.4 的实测即针对该项）
+22. ActivityNet: A Large-Scale Dataset for Video Context Understanding / Dense Video Captioning with Human-Uniformed Temporal Annotations — Yu et al. CVPR 2017；Zhou et al. ICCV 2017 — Tier 1（视频-密集描述基准与 per-event 评测协议的出处）
+23. METEOR: An Automatic Metric for MT Evaluation with Improved Correlation with Human Judgments — Banerjee & Lavie, ACL Workshop 2005 — Tier 1（主报指标；对词序与长度较不敏感）
+24. pycocoevalcap（实现真值）：本机 `~/.venvs/caption-metrics/lib/python3.14/site-packages/pycocoevalcap/cider/cider_scorer.py:158` 即 `val[n] *= np.e**(-(delta**2)/(2*sigma**2))`；§17.4 的 no-pend 值 = 同一实现把 σ 置为 1e9（惩罚项 → 1）重算，非另写指标。
+
+### 17.6 下一步
+
+1. **#414 分窗重设计**（16→32 帧；已做，见 §18）：依据是预算扫描产物
+   `.scratch/keyframe-bench/results/exp_budget_scan.json`（4 素材均值：uniform 0.685→**1.000**、
+   slice / tiered / tiered_v4 均 0.964→**1.000** @32，**64 帧无额外收益**；而选帧耗时/帧几乎不随
+   预算变化（uniform ~0.47s、tiered ~5.0s），代价体现在冗余——near-duplicate 对 16→32 帧从
+   2.2→4.0（tiered）与 5.8→26.7（slice），所以成本在喂模型的 token 而非选帧本身）。
+   几何侧可离线验，不占 VLM。
+2. **#417 装载层接口**：按 §17.3 结论——帧 + 音轨 + 带时间戳转写，不做波形直喂；与 #414 耦合（装载层是分窗的输入侧）。
+3. **描述轴若要对外可比**：已做（§17.4 对照组表 + `caption_bootstrap.json`）；生产仍不压缩生成。
+4. **用户已批准未实现**：ASR 锚点选帧、运动矢量信号（`ffmpeg -flags2 +export_mvs`）。
+5. 生产默认策略仍未切（票边界，等用户裁决）；#415 三项代码修复属其它 session。
+
+
+## 18. Session 4 续：分窗重设计横评（#414，2026-09-30，session `20260928-keyframe-bench-1d663d`）
+
+#414 提案：窗长按硬切点边界划、每窗预算 32 帧（预算扫描的召回拐点）、任一窗内盲区 ≤8s 兜底。产物 `results/exp_windows.json`（16 素材 × 4 变体，纯几何）与 `results/exp_windows_e2e.json`（真模型延迟/token，§18.3）。
+
+### 18.1 几何横评（`exp_windows.json`）
+
+素材 = 4 个自建 + 1 个 302s 拼接长片 + 11 个 Video-MME 片段（几何口径无 GT，召回记 None）。变体：`legacy24`（生产 #360 口径镜像）、`cutwin32_unif`（提案计划 + 窗内均匀网格，**无**时长上限，即上限的 A/B 对照）、`cutwin32_cap`（同计划 + 时长感知每窗上限，§18.1.1）、`cutwin32_v5`（提案计划 + tiered v5 选帧）、`uniform32`（1fps 解码均匀子采到 32 帧，即预算扫描的 uniform 臂）。
+
+| 变体 | 帧数均值 | GT 召回（5 素材均值） | 最大盲区（16 素材） | 近重复率均值（16） | 近重复率均值（15 单窗） |
+|---|---|---|---|---|---|
+| legacy24（现状） | 22.2 | 0.599 | 12.50s | 0.0704 | 0.0687 |
+| cutwin32_unif | 33.9 | 0.837 | 4.88s | 0.0848 | 0.0833 |
+| **cutwin32_cap** | **32.3** | **0.837** | **4.88s** | **0.0804** | **0.0786** |
+| cutwin32_v5 | 33.8 | 0.925 | 13.81s | 0.0868 | 0.0830 |
+| uniform32 | 30.1 | 0.820 | 10.00s | 0.0783 | 0.0773 |
+
+**验收 1（recall 不降）✅**：5 个有 GT 素材逐一不降——content_ABC_av 0.00→1.00、content_ABCx2_30s 1.00→1.00、unitree 0.86→1.00、ui-demo 1.00→1.00、302s 长片 0.14→0.19；加上限后逐素材召回**完全不变**（上限只削冗余不削覆盖）。
+
+**验收 1（盲区 ≤8s）✅（仅 `cutwin32_unif` / `cutwin32_cap` 组合）**：全 16 素材最大盲区 4.88s（302s 长片两窗 151.25s × 32 点均布）。现状破线：302s 长片 12.50s；`uniform32` 10.00s；`cutwin32_v5` 13.81s（302s）与 10.21s（videomme 6NVr0cNiHPM 单窗 32 帧仍出等距缝）。v5 破线的原因：tiered 的 8s floor 只在窗内选帧生效，不覆盖窗缝与覆盖边界（首帧到 0、末帧到时长）——「计划 + 均匀喂」是按构造保线的唯一组合，与票边界（选帧策略不在本票）一致。上限实现里 `cap_i = max(floor_i, …)` 让 8s 盲区下限**永远优先**于冗余裁剪。
+
+**验收 1（冗余不高于 uniform_32）✅（加上限后成立，用户 2026-09-30 裁决「加时长感知上限」）**：逐资产近重复率（pHash 汉明 ≤4 对数 / 总对数）——15 个单窗素材均值：无上限 0.0833 vs uniform_32 0.0773（+0.0060，票内一度判 ⚠️）；**加上限后 0.0786（+0.0013）**。差距原本全部来自短素材的帧数差：10s 素材现状只喂 5 帧（0.5fps 档）、`uniform32` 只喂 10 帧（1fps 解码上限），提案按每窗预算喂满 32 帧（0.32s 一帧）。上限把它压到 11 帧（1.0s 一帧），与官方 1fps 采样密度同档。详见 §18.1.1。
+
+### 18.1.1 时长感知每窗上限（`exp_windows_cap.json`）
+
+规则：`cap_i = max(floor_i, floor(w_i / min_spacing) + 1)`，`floor_i` 仍是 8s 盲区下限
+（`ceil(w_i/8)+1`）——两者冲突时下限赢（稍密的网格永远比盲区便宜）。取 `min_spacing = 1.0s`
+的依据是同一批 16 素材的 spacing 扫参（`results/exp_windows_cap.json`，5 档 × 全素材几何 +
+11 个受影响素材的逐档 pHash）：
+
+| min_spacing | 帧数均值（15 单窗） | GT 召回均值 | 最大盲区 | 近重复率均值（15 单窗） | vs uniform_32 |
+|---|---|---|---|---|---|
+| 无上限（pre-cap） | 31.9 | 1.000 | 4.21s | 0.0833 | +0.0060 |
+| **1.0s（采用）** | **30.3** | **1.000** | **4.21s** | **0.0786** | **+0.0013** |
+| 1.5s | 27.2 | 0.793 | 4.21s | 0.0803 | +0.0030 |
+| 2.0s（首猜） | 24.5 | 0.457 | 4.21s | 0.0687 | −0.0086 |
+| 3.0s | 20.3 | 0.193 | 4.21s | 0.0643 | −0.0130 |
+
+结论：**1.0s 是「白拿」的点**——召回与盲区一分不动，冗余回到与 uniform_32 基本持平；再往上就是拿
+召回换冗余（2.0s 直接把召回砍半，因为 GT 判据的容差只有 0.5s，网格一旦明显疏于官方 1fps 密度
+就开始漏切点）。上限只在 `w_i < (budget_max−1)×min_spacing = 31s` 时生效，即恰好是被过采样的那些
+素材（10s 素材 32→11 帧；30s 素材 32→31 帧；≥31s 一律不变）。`test_window_plan.py` 把
+`MIN_SPACING == 1.0`、上限公式、下限优先与「任何计划都不破 8s」都钉住了；要放松上限必须重跑本扫参。
+
+### 18.2 生产变更点与 S1 断言（验收 3）
+
+落地清单（本票不改生产默认，以下为落地 PR 的变更点）：
+
+1. **`scripts/short-video/lib/asset-sourcer.mjs` Phase 2.5（`:1180-1230`）**：`DEFAULT_WINDOW_END_MS=8000`（`:1188`）/ `LONG_TIER_MAX_MS=30000`（`:1190`）/ `REDUCED_SAMPLE_FPS=0.5`（`:1191`）/ `MAX_SEGMENTS=3`（`:1192`）/ `MAX_FRAMES_PER_SEGMENT=8`（`:1193`）四档逻辑 → window plan（`n=ceil(D/248)`、边界吸附 ±min(15s, 10%·D/n)、每窗预算 `clamp(比例项, ceil(L/8)+1, min(32, floor(L/1.0)+1))`（§18.1.1 的时长上限）、单窗下限 `ceil(L/8)+1`）。窗口对象形状不变 `{startMs, endMs, sampleFps}`，`sampleFps = budget / 窗长`（≤8s 素材 1.0 → 4.0；10s 素材 1.1 而非 3.2）。
+2. **`scripts/short-video/lib/vlm_analyzer.py`**：`DEFAULT_MAX_FRAMES=16`（`:125`）抬到 32，否则每窗预算被调用侧 cap 截断；`MAX_VIDEO_SECONDS=8`（`:115`）语义不变（单窗直喂档上限）；`normalize_windows`（`:1033`）字段契约不动。
+3. **缓存**：`vlm-cache.mjs`（`:86-102`）已把 `window`/`windows` 纳入 key → 计划一变 key 必变，无 stale 命中，无需手工 bump `VLM_CACHE_PIPELINE_VERSION`。
+4. **S1 等价性断言（`asset-sourcer-visual-integration.test.mjs`）**：S1（`:1132`「byte-identical single window」）的**结构**等价可保——`plan_windows` 在 D≤248s 时 n=1，单窗覆盖 `[0, dur]`、不产生 `windows` 数组；**payload 必然变**（sampleFps 1.0→4.0），断言改成「单窗 + 全跨度 + `sampleFps=budget/时长`」。同文件 S2（`:1153` 8-30s 单窗降 fps）、S3（`:1174` >30s 多窗）、S4（`:1220` 缺 durationMs 回退）与 `:1120` 的 10s 素材 `sampleFps:0.5` 断言都按新计划重推。新增断言：每窗 `L/(b-1) ≤ 8`、窗序列连续且覆盖 `[0, dur]`、计划变则缓存 key 变（S5）。
+5. **默认不切**：`FRAME_STRATEGY` 与选帧策略（uniform/tiered/slice 谁做默认）属 #391 的另一项裁决；本票只交「分窗 + 预算」提案与数据。
+
+### 18.3 E2E 延迟与 token 成本（验收 2）
+
+产物 `results/exp_windows_e2e.json`（3 素材 × 3 臂，真 minicpm 调用：`temperature 0`、
+`max_tokens 1000`、生产 `SEMANTICS_PROMPT_VIDEO`；空机单次测量，首帧数形态含 Metal
+kernel 编译，不是重复基准）。
+
+| 素材 | 时长 | 臂 | 调用数 | 帧数 | 墙钟 | prompt tok | gen tok |
+|---|---|---|---|---|---|---|---|
+| unitree 30s | 30.2s | legacy | 3 | 24 | 22.3s | 1974 | 184 |
+| | | cut32_u | **1** | 31 | 21.2s | 2176 | 54 |
+| | | cut32_v5 | **1** | 32 | 22.0s | 2242 | 53 |
+| videomme -ApL8d6tX5U | 93.2s | legacy | 3 | 27 | 24.1s | 2172 | 178 |
+| | | cut32_u | **1** | 31 | 22.5s | 2176 | 87 |
+| | | cut32_v5 | **1** | 32 | 22.7s | 2242 | 76 |
+| videomme -O6mJ0VBTc4 | 73.5s | legacy | 3 | 27 | 23.0s | 2172 | 154 |
+| | | cut32_u | **1** | 31 | 21.0s | 2176 | 50 |
+| | | cut32_v5 | **1** | 32 | 22.3s | 2242 | 58 |
+
+**结论**：调用数 3 → 1（长素材现状按 `LONG_TIER_MAX_MS` 切 3 段，提案计划在 ≤248s 内只出 1 窗）；
+墙钟 −5%~−9%（22.3→21.2s / 24.1→22.5s / 23.0→21.0s）——32 帧一次 prefill 与 3×8 帧三次相当，
+省下的是每次调用的固定开销；**生成 token 降到 1/2~1/3**（184→54、178→87、154→50），因为一次
+出完整描述，替代了「3 段各自描述 + 下游合并」。prompt token 基本持平（+0.2%~+3.2%）。
+即：验收 2 的成本维度不是「更贵」，而是少 2 次调用、少一半以上输出 token、且下游不再需要
+跨窗合并。

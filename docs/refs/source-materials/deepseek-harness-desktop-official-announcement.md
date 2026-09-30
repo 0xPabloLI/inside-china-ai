@@ -4,7 +4,7 @@
 - **Author / account**: DeepSeek Harness 团队（微信公众号「DeepSeek Harness」，官方账号）
 - **Published**: 2026-09-29 20:04 (Asia/Shanghai)
 - **Retrieved**: 2026-09-29 via CDP (web-access), Stage 0 of the content pipeline for `deepseek-harness-desktop`
-- **Role**: SECONDARY (hands-on report, the material the user supplied)
+- **Role**: PRIMARY (official announcement by the vendor)
 
 ---
 

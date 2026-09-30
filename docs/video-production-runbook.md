@@ -291,6 +291,40 @@ ffmpeg -y -i input.m4a -ar 24000 -ac 1 -c:a pcm_s16le \
 
 **Subtitle alignment**: Uses `text-align.py` (wav2vec2 forced alignment) — NOT Whisper recognition. We already know the text (from scene-data.mjs), so we align known text to known audio directly. Output: `output/{pipelineId}/audio/subtitle-timing.json`.
 
+### ASR 调用规范（模型档位 / 跨段上下文 / 幻觉护栏）
+
+适用范围：`video-understand.mjs`（视频理解转写）与 `tts/quality-gate.mjs`（回读质检）——
+两者都走 whisper.cpp，模型 `~/.cache/whisper/ggml-large-v3-turbo.bin`（ADR-0020 的
+max-effort 下限）。**字幕对齐不走 ASR**（见上一段的 wav2vec2 强制对齐），不受本节影响。
+模型文件缺失时该链路会静默降级成 warning（历史事故，见 #415）——开工前确认文件存在。
+
+**① 档位（2026-09-29 实测，4 段真实素材）**
+
+| 档位 | 相对速度 | 音乐/歌唱段表现 |
+|---|---|---|
+| `large-v3-turbo`（当前默认） | 快约 2× | **易陷入重复幻觉**（同一句实测连吐 8 次） |
+| `large-v3`（完整） | 慢约 2× | 保守：同一段只输出 4 个词（主动放弃） |
+
+**② 必须关闭跨段上下文**
+
+Whisper 是自回归解码，默认把「已生成的文本」作为解码条件（whisper.cpp 的
+`--max-context`、MLX 的 `condition_on_previous_text`）。好处是术语拼写前后一致；
+代价是**错一次会被回喂并自我强化成循环**。实测（同音频同模型）关闭后重复次数
+从 17/18 降到 1/4：
+
+```bash
+whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo.bin -f audio.wav -l en \
+  --max-context 0 -oj -of out
+```
+
+**③ 什么时候才开上下文**：纯语音、无音乐/掌声、长录音且需术语一致的场合（讲座、
+访谈），并接受偶发重复风险。**含音乐/音效的短视频素材 → 关闭。**
+
+**④ 已知幻觉形态（质检排查用）**：音乐或静音段的重复循环；结尾吐出
+"Thank you."/"请订阅" 之类（静音段幻觉）；turbo 档更明显。若回读质检出现
+「相似度异常高但词数暴增」，先算重复 n-gram 再怀疑文本本身。
+
+
 ## VLM Asset Analysis
 
 The pipeline uses two independent Python subprocesses managed by `visual-analyzer.mjs`:
@@ -305,6 +339,44 @@ Graceful degradation: if Python or model unavailable, returns empty strings. Pip
 Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
 
 > Decisions: ADR-0009 (VLM), ADR-0015 (Focus detection). Alternatives survey: `docs/research/asset-focus-detection-alternatives.md`
+
+### 统一视频装载层（#417）
+
+`lib/video_loader.py` 是帧/音轨/转写唯一的解码入口：三份产物共享同一时间轴
+（帧时刻 ⊂ 音频段边界 ⊆ 转写段边界），模型格式由适配器决定。
+
+```python
+from video_loader import load_video, to_text_interleaved, to_minicpm_units
+
+r = load_video("/abs/clip.mp4", {
+    "frame_times": [0.0, 1.0, 2.0],   # 绝对秒；来自 window plan / 选帧层（装载层不选帧）
+    "want_audio": True,               # 16k 单声道 wav 段 = 帧时刻链 [t_i, t_{i+1})
+    "asr": {"engine": "mlx", "model": "whisper-large-v3-mlx",
+            "condition_on_previous_text": False},
+    "asr_runner": engine,             # 注入 seam：返回 {language, text, segments}
+    "cache_dir": "output/<slug>/.vlm-cache",
+})
+to_text_interleaved(r)                # prompt 用的转写文本（缺失时 ""）
+to_minicpm_units(r)                   # 官方「1 帧 + 1 段音频」单元，≤64 帧
+```
+
+- **音频只有两种出口**：wav 段（单元适配器）与转写文本（prompt）。**不做波形直喂**——
+  #391 实测纯视觉 67.0% → 原声直喂 50.0%（−17pp，p=2.5e-06）；转写文本 73.2%
+  （单臂 p=0.087、四方法合并 p=3.9e-05）。单元路线实测无增益且慢 5-10×，保留作引擎契约。
+- **转写一律 ctx-off**（见上一节 ②）：MLX `condition_on_previous_text=False`、
+  whisper.cpp `--max-context 0`。
+- **引擎缺失或抛错不炸装载**：`transcript.status ∈ {unavailable, no_audio,
+  not_requested}` + 原因；放行与否由调用方门禁决定（INFRA 语义，与
+  `tts/quality-gate.mjs` 一致）。
+- **缓存 key** = sha256(loader 版本, 视频内容 hash, 帧时刻集合, want_audio, audio_sr,
+  ASR 规格) → `{cache_dir}/{key}/{manifest.json, frames/, audio/, transcript.json}`；
+  帧集合或 ASR 开关一变 key 必变，同 key 重跑不重解码。
+- **生产抽帧已走装载层**：`vlm_analyzer.extract_frames` 把 `-vf fps=` 网格交给
+  loader，算术网格走单次 `fps=` 解码快路径（30s 素材三种窗口形态实测 JPEG
+  SHA-256 逐帧等同旧命令）。末点 `t == duration` 取片尾最后一帧；越界时刻按
+  ffprobe 时长夹取。
+
+单测：`scripts/short-video/__tests__/test_video_loader.py`（S1/S4/S5/S6/S7 + 适配器）。
 
 ## B-roll Generation (FastVideo MLX)
 

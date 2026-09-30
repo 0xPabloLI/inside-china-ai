@@ -1,5 +1,91 @@
 # Changelog
 
+## [1.11.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.10.0...tanstack_start_ts-v1.11.0) (2026-09-30)
+
+
+### Features
+
+* **bench:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414) duration-aware per-window budget cap (min_spacing 1.0s) + Round T bookkeeping ([63b1607](https://github.com/0xPabloLI/inside-china-ai/commit/63b16076ddcb82f5080246bc9d8765b7d636a753))
+* **bench:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414) duration-aware per-window budget cap (min_spacing 1.0s) + Round T bookkeeping ([#439](https://github.com/0xPabloLI/inside-china-ai/issues/439)) ([63b1607](https://github.com/0xPabloLI/inside-china-ai/commit/63b16076ddcb82f5080246bc9d8765b7d636a753))
+* **bench:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414) 时长感知每窗上限定档 1.0s（扫参：召回不变、冗余回到 uniform_32 水平） ([b93ab7c](https://github.com/0xPabloLI/inside-china-ai/commit/b93ab7c5090c806f56af1927106db4ee335bacba))
+
+## [1.10.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.9.1...tanstack_start_ts-v1.10.0) (2026-09-30)
+
+
+### Features
+
+* **loader:** [#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) ticket-2c 装载层运行手册 + 官方单元 QA 臂 ([9bbf6e8](https://github.com/0xPabloLI/inside-china-ai/commit/9bbf6e874aec225fd5265f9e9cfcbf51e174fcb0))
+* **short-video:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414)/[#415](https://github.com/0xPabloLI/inside-china-ai/issues/415)/[#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) keyframe windows, quality gates, unified video loader ([8a2bc2f](https://github.com/0xPabloLI/inside-china-ai/commit/8a2bc2f0bbcb5c467e95f890ca3baed92a13e855))
+* **short-video:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414)/[#415](https://github.com/0xPabloLI/inside-china-ai/issues/415)/[#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) keyframe windows, quality gates, unified video loader ([#436](https://github.com/0xPabloLI/inside-china-ai/issues/436)) ([8a2bc2f](https://github.com/0xPabloLI/inside-china-ai/commit/8a2bc2f0bbcb5c467e95f890ca3baed92a13e855))
+
+
+### Bug Fixes
+
+* **short-video:** [#415](https://github.com/0xPabloLI/inside-china-ai/issues/415) review 两条：空转写必须走 INFRA + CPS 不计换行 ([88e3cc6](https://github.com/0xPabloLI/inside-china-ai/commit/88e3cc68ffc952cf58ea3a4fb940d3185351eb7f))
+* **short-video:** [#415](https://github.com/0xPabloLI/inside-china-ai/issues/415) 响度回读去掉 spawnSync 的 bin 形参（Semgrep 新告警） ([e1bf196](https://github.com/0xPabloLI/inside-china-ai/commit/e1bf1968a154d5dced99ce15663f7f7ab2300538))
+* **short-video:** [#415](https://github.com/0xPabloLI/inside-china-ai/issues/415)/[#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) review 三条：INFRA 未标 fail-closed、bench 续跑偏置、时间戳进位 ([f1d3e2a](https://github.com/0xPabloLI/inside-china-ai/commit/f1d3e2a8b6bd154a4b2f6281b6eeb38cdf003045))
+
+## [1.9.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.9.0...tanstack_start_ts-v1.9.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **deepseek-harness-desktop:** 订正 metadata.articleUrl 为真实域名 chinaai.news ([ca00f11](https://github.com/0xPabloLI/inside-china-ai/commit/ca00f1112de355f914c4b60466b11b0d366284df))
+* **domain:** 清除误写的 chinaainews.com，全站引用统一为 chinaai.news ([48092cd](https://github.com/0xPabloLI/inside-china-ai/commit/48092cddb510ff688483091c0c652fff032138f5))
+
+## [1.9.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.8.0...tanstack_start_ts-v1.9.0) (2026-09-30)
+
+
+### Features
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 描述评分按用户裁决改口径（主报 METEOR/ROUGE-L + no-pend CIDEr） ([85acf5d](https://github.com/0xPabloLI/inside-china-ai/commit/85acf5d4cbcf9bbaf15ebc295464eb0d12f8da37))
+
+
+### Bug Fixes
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) QA unified denominator, caption metrics, research §17 ([4fdbef6](https://github.com/0xPabloLI/inside-china-ai/commit/4fdbef604d850e7dc696ad567e15e16c7b90ad82))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 空选帧必须记分母（统一 276 题，不静默跳题） ([a72cf8b](https://github.com/0xPabloLI/inside-china-ai/commit/a72cf8bd87ea6f34228c9d7abaa3d72a36613e8b))
+* **bench:** [#432](https://github.com/0xPabloLI/inside-china-ai/issues/432) review — select() 抛错与合法空选帧分开记账；无输出行不进 parser_check ([40f2e59](https://github.com/0xPabloLI/inside-china-ai/commit/40f2e59788a6d302720d5a35bc0f48380143c254))
+
+## [1.8.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.7.0...tanstack_start_ts-v1.8.0) (2026-09-30)
+
+
+### Features
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) B'' —— 按 MiniCPM-o 官方 omni 规格装载（帧+音频段交织） ([480b47d](https://github.com/0xPabloLI/inside-china-ai/commit/480b47d10a958ea8904adca835b3f3c3743a2fca))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) KFS 适配器全方法 + 题对去重；QA 管线加音频臂（VM_AUDIO=1） ([685e597](https://github.com/0xPabloLI/inside-china-ai/commit/685e597514284639f4c7263b1ef6a1214febe99b))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) QA 臂加 tiered_v5 —— 几何口径已证明它修的是真缺陷 ([1b6bdb8](https://github.com/0xPabloLI/inside-china-ai/commit/1b6bdb86eae3f34a9a99b5dc64c094f2f970b0e2))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) QA 臂转写目录可切（VM_ASR_DIR，为 ctx-off 复跑准备） ([5780337](https://github.com/0xPabloLI/inside-china-ai/commit/578033713ed1d65f9bc0309f3ccec53be1beb043))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 官方单元格式的 QA 臂 + 转写文本四种喂法对照 ([7e1fb94](https://github.com/0xPabloLI/inside-china-ai/commit/7e1fb9477ed9535bf764d5a4bcbfed4ccff632c3))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 官方单元臂改用**官方代码**产出的输入（user 质疑成立） ([8dc2b2f](https://github.com/0xPabloLI/inside-china-ai/commit/8dc2b2fe509ecc46f11111765c7dd0851c90e6b4))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 按「能测尽测」补齐所有方法的口径覆盖 ([5d7674a](https://github.com/0xPabloLI/inside-china-ai/commit/5d7674a7d667b56181ff91b3ee33b31771451e08))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 描述质量评测链（ActivityNet Captions per-event + pycocoevalcap） ([2034f86](https://github.com/0xPabloLI/inside-china-ai/commit/2034f8638a71a3a2df1549a974a954ea0ac17acd))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 转写脚本入 git（ctx-off 默认、可续跑、输出目录可切） ([1af482a](https://github.com/0xPabloLI/inside-china-ai/commit/1af482acc72fb547d63b481501dc70d62e97d391))
+
+
+### Bug Fixes
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) QA 臂四处静默失败（后缀剥离/方法缺失/超预算/零行 rc=0） ([42cccb6](https://github.com/0xPabloLI/inside-china-ai/commit/42cccb62d9dcd5e44fbfd896c84ccd46bd7ec02b))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 修我的两处 bug（kffocus 缺 budget 形参、第三方臂的环境依赖）+ 预计算选帧模式 ([28cb45d](https://github.com/0xPabloLI/inside-china-ai/commit/28cb45d496adc2f0c5167a18b67f1244ec3e03c9))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 描述基准改为事件窗内选帧（修 cap 协议偏差） ([a85959b](https://github.com/0xPabloLI/inside-china-ai/commit/a85959b26edbb6e220f8d4adc0adb2b35f1aaba2))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 描述生成脚本三处 bug（启动即崩，修完才跑起来） ([235d85d](https://github.com/0xPabloLI/inside-china-ai/commit/235d85db426a8673c18906dae97d236f6c0f3548))
+* **bench:** [#419](https://github.com/0xPabloLI/inside-china-ai/issues/419) review — KFS 适配器四条（K 预算 / 零帧臂 / 死表达式 / 汇总合并） ([126b7c9](https://github.com/0xPabloLI/inside-china-ai/commit/126b7c9ad91de92686670e768fa3f93adf3f5dc1))
+* **bench:** [#419](https://github.com/0xPabloLI/inside-china-ai/issues/419) review — omni 单元脚本三条（陈旧帧 / ffprobe 重复 / 死导入） ([901f542](https://github.com/0xPabloLI/inside-china-ai/commit/901f542dd9c6454ad713ce4234e58c4fae265352))
+* **bench:** [#419](https://github.com/0xPabloLI/inside-china-ai/issues/419) review — QA 臂三条（音频缓存投毒 / 双喂法误标 / 死代码） ([91957b0](https://github.com/0xPabloLI/inside-china-ai/commit/91957b003f3c3ea315ddf52182ff8e146d9156b1))
+* **bench:** [#419](https://github.com/0xPabloLI/inside-china-ai/issues/419) review — 描述脚本两条（临时帧 finally 清理 / 时长探测入 try） ([eb213bf](https://github.com/0xPabloLI/inside-china-ai/commit/eb213bfe47d47896616ef942e9569f73088331cf))
+
+## [1.7.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.6.1...tanstack_start_ts-v1.7.0) (2026-09-28)
+
+
+### Features
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) tiered v5 盲区修复 + TAKSF/LVNet-TSC 入表 + 预算扫描 + KFS-Bench 接入 ([efd6324](https://github.com/0xPabloLI/inside-china-ai/commit/efd63243a48beb20c130ebfd38485546e27b1b67))
+
+
+### Bug Fixes
+
+* **bench:** [#412](https://github.com/0xPabloLI/inside-china-ai/issues/412) review 两条 P3 —— eval.py 失败不再被记成成功、LVNet/KFFocus 显式守预算 ([8405c7d](https://github.com/0xPabloLI/inside-china-ai/commit/8405c7d3b120d9ca8b7419cb964ea965173979db))
+
 ## [1.6.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.6.0...tanstack_start_ts-v1.6.1) (2026-09-28)
 
 

@@ -37,7 +37,12 @@ import { createEdgeTTSEngine } from "./edge-tts.mjs";
 import { createSayEngine } from "./say.mjs";
 import { runForcedAlignment, getAtempo } from "./post-process.mjs";
 import { planTtsScenes, writeSceneMeta, computeSceneKey, resolveSceneInstruct } from "./cache.mjs";
-import { FAILURE_CLASS } from "./failure-class.mjs";
+import {
+  FAILURE_CLASS,
+  partitionGateFailures,
+  infraBlockError,
+  markFailClosed,
+} from "./failure-class.mjs";
 import { MAX_TTS_SPEED, resolveSceneSpeed } from "./pacing.mjs";
 
 /**
@@ -135,18 +140,6 @@ function replaceResult(results, res) {
   const idx = results.findIndex((g) => g.sceneId === res.sceneId);
   if (idx >= 0) results[idx] = res;
   else results.push(res);
-}
-
-/**
- * Tag an error as fail-closed (#271). Errors carrying this marker are rethrown
- * by the gate catch below regardless of strict mode — the non-strict
- * "warn and continue" path is reserved for failures that are not proven
- * unshippable. `TTS_SKIP_QUALITY_GATE=1` stays the explicit escape hatch.
- */
-function markFailClosed(err, code) {
-  err.code = code;
-  err.failClosed = true;
-  return err;
 }
 
 /**
@@ -286,7 +279,12 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       // regenerates the same text at the same speed, so it cannot lift WPM — it
       // only burns remote GPU time. Those takes belong to the compensation loop
       // below.
-      const isRetryable = (e) => !e.passed && e.failureClass !== FAILURE_CLASS.PACING;
+      // #415 ①: infra failures are non-retryable for the same reason — the
+      // verifier itself is down, so a reroll cannot change the verdict.
+      const isRetryable = (e) =>
+        !e.passed &&
+        e.failureClass !== FAILURE_CLASS.PACING &&
+        e.failureClass !== FAILURE_CLASS.INFRA;
       while (!gateReport.passed && attempt <= maxRetries) {
         const failedSceneIds = new Set(
           gateReport.evaluations.filter(isRetryable).map((e) => e.sceneId),
@@ -325,9 +323,19 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       }
 
       if (!gateReport.passed) {
-        const failed = gateReport.evaluations.filter((e) => !e.passed);
-        const acousticFailed = failed.filter((e) => e.failureClass === FAILURE_CLASS.ACOUSTIC);
-        const pacingFailed = failed.filter((e) => e.failureClass === FAILURE_CLASS.PACING);
+        const {
+          failed,
+          infra: infraFailed,
+          acoustic: acousticFailed,
+          pacing: pacingFailed,
+        } = partitionGateFailures(gateReport.evaluations);
+
+        // #415 ①: an unverifiable run stops here. The gate never checked the
+        // words, so no take-level repair can make it green — and the reroll
+        // budget above is already skipped for this family.
+        if (infraFailed.length > 0) {
+          throw infraBlockError(infraFailed);
+        }
 
         // #271: acoustic failures get the reroll budget above; once it is spent
         // there is no take worth shipping, so this blocks in BOTH strict and
