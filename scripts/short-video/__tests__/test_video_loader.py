@@ -23,7 +23,15 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
-from video_loader import LOADER_VERSION, load_video  # noqa: E402
+from video_loader import (  # noqa: E402
+    LOADER_VERSION,
+    frames_with_text,
+    load_video,
+    process_qwen_mm_info,
+    to_minicpm_units,
+    to_qwen_omni,
+    to_text_interleaved,
+)
 
 FFMPEG = os.environ.get("VIDEO_LOADER_FFMPEG",
                         "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg")
@@ -221,3 +229,83 @@ def test_s7_asr_failure_is_reported_not_raised(av_video, tmp_path):
     assert res["transcript"]["segments"] == []
     assert len(res["frames"]) == 2
     assert len(res["audio_track"]["segments"]) == 2
+
+
+# ─── ticket-2: model adapters (no model calls) ───
+
+def _loaded(av_video, tmp_path, times, **extra):
+    req = {"frame_times": times, "want_audio": True, "cache_dir": str(tmp_path)}
+    req.update(extra)
+    return load_video(av_video, req)
+
+
+def test_adapter_text_interleaved_modes(av_video, tmp_path):
+    long_text = " ".join(["word"] * 600)          # 2999 chars > max_chars
+    res = _loaded(av_video, tmp_path, [0.0, 1.0, 2.0], asr=ASR_SPEC,
+                  asr_runner=fake_asr(
+                      [{"start": 0.0, "end": 1.0, "text": long_text},
+                       {"start": 1.0, "end": 2.0, "text": "tail"},
+                       {"start": 2.0, "end": 4.0, "text": "end"}]))
+    block = to_text_interleaved(res)
+    assert len(block) == 2000 and block == res["transcript"]["text"][:2000]
+    assert to_text_interleaved(res, mode="full") == res["transcript"]["text"]
+    ts = to_text_interleaved(res, mode="ts")
+    assert ts.splitlines()[0].startswith("[00:00.0] word")
+    assert ts.splitlines()[-1] == "[00:02.0] end"
+    assert len(ts.splitlines()) == 3
+    # missing transcript renders empty (caller keeps its own gate)
+    visual = _loaded(av_video, tmp_path, [0.0, 1.0], want_audio=False)
+    assert to_text_interleaved(visual) == ""
+    assert to_text_interleaved(visual, mode="ts") == ""
+
+
+def test_adapter_frames_with_text_follows_grid(av_video, tmp_path):
+    res = _loaded(av_video, tmp_path, [0.0, 1.0, 2.0], asr=ASR_SPEC,
+                  asr_runner=fake_asr(
+                      [{"start": 0.0, "end": 1.2, "text": "alpha"},
+                       {"start": 1.2, "end": 4.0, "text": "beta"}]))
+    paired = frames_with_text(res)
+    assert [p["t"] for p in paired] == [0.0, 1.0, 2.0]
+    assert [p["text"] for p in paired] == ["alpha", "", "beta"]
+    assert all(p["path"].endswith(".jpg") for p in paired)
+
+
+def test_adapter_minicpm_units_pairs_frames_and_audio(av_video, tmp_path):
+    import numpy as np
+    res = _loaded(av_video, tmp_path, [0.0, 1.0, 2.0])
+    units = to_minicpm_units(res)
+    assert units["num_images"] == units["num_audios"] == 3
+    assert units["sample_rate"] == 16000
+    assert units["images"] == [f["path"] for f in res["frames"]]
+    assert [len(a) for a in units["audios"]] == [16000, 16000, 32000]
+    assert all(a.dtype == np.float32 for a in units["audios"])
+    assert all(np.abs(a).max() > 0.01 for a in units["audios"])   # real 440 Hz tone
+    assert units["unit_spans"][0] == {"start": 0.0, "end": 1.0}
+    assert units["unit_spans"][-1]["end"] == res["duration_s"]
+
+
+def test_adapter_minicpm_units_trailing_frame_padded(av_video, tmp_path):
+    res = _loaded(av_video, tmp_path, [0.0, 1.0, 2.0, 3.0, 4.0])
+    segs = res["audio_track"]["segments"]
+    assert len(segs) == 4                      # [4.0, 4.0) has no audio
+    units = to_minicpm_units(res)
+    assert units["num_images"] == units["num_audios"] == 5
+    assert len(units["audios"][-1]) == 1600    # official pad floor
+    assert not units["audios"][-1].any()
+    with pytest.raises(ValueError):
+        to_minicpm_units(res, max_units=4)
+    visual = _loaded(av_video, tmp_path, [0.0, 1.0], want_audio=False)
+    with pytest.raises(ValueError):
+        to_minicpm_units(visual)
+
+
+def test_adapter_qwen_omni_payload_and_missing_package(av_video, tmp_path):
+    res = _loaded(av_video, tmp_path, [0.0], want_audio=False)
+    conversations = to_qwen_omni(res, "describe the video")
+    content = conversations[0]["content"]
+    assert conversations[0]["role"] == "user"
+    assert content[0] == {"type": "video", "video": av_video,
+                          "use_audio_in_video": True}
+    assert content[1] == {"type": "text", "text": "describe the video"}
+    with pytest.raises(RuntimeError, match="qwen-omni-utils"):
+        process_qwen_mm_info(conversations)

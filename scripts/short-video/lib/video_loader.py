@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""#417 ticket-1 — unified video loader: one decode, one timeline.
+"""#417 — unified video loader: one decode, one timeline.
+
+ticket-1: decode + timeline contract + cache (S1/S4/S5/S6/S7).
+ticket-2: model adapters `to_text_interleaved` / `to_minicpm_units` /
+`to_qwen_omni` + production wiring (S2/S3).
 
 Contract (spec `docs/specs/spec-video-loader-417.md`):
 
@@ -34,6 +38,7 @@ Statuses: transcript.status ∈ {ok, not_requested, no_audio, unavailable};
 a missing/failing ASR engine is reported, never raised (S6/S7 — same infra
 semantics as #415 ①).
 """
+import glob
 import hashlib
 import json
 import os
@@ -128,13 +133,38 @@ def _cache_key(video_sha256, frame_times, want_audio, audio_sr, asr_spec):
 
 # ─── decode ─────────────────────────────────────────────────────────────────
 
-def _extract_frame(video_path, t, out_path, ffmpeg):
+def _decode_ok(path):
+    return os.path.exists(path) and os.path.getsize(path) > 0
+
+
+def _extract_frame(video_path, t, out_path, ffmpeg, duration_s=None):
+    """One full-resolution frame at t.
+
+    A grid endpoint at exactly `duration_s` has no frame at or after it —
+    `-ss <duration>` fails with "received no packets". The natural frame there
+    is the video's last frame, so the final stretch is decoded and its last
+    frame kept (the recorded timestamp stays the requested t: the plan's grid
+    is what the timeline contract asserts, not the decoder's rounding).
+    """
     proc = subprocess.run(
         [ffmpeg, "-nostdin", "-y", "-ss", f"{t:.3f}", "-i", str(video_path),
          "-frames:v", "1", "-q:v", "2", str(out_path)],
         capture_output=True, timeout=120)
-    if proc.returncode != 0 or not os.path.exists(out_path) \
-            or os.path.getsize(out_path) == 0:
+    if not _decode_ok(out_path) and duration_s is not None \
+            and t >= duration_s - 1e-6:
+        tail_dir = tempfile.mkdtemp(prefix="video_loader_tail_")
+        try:
+            pattern = os.path.join(tail_dir, "f_%03d.jpg")
+            subprocess.run(
+                [ffmpeg, "-nostdin", "-y", "-sseof", "-0.5", "-i", str(video_path),
+                 "-frames:v", "8", "-q:v", "2", pattern],
+                capture_output=True, timeout=120)
+            tail = sorted(glob.glob(os.path.join(tail_dir, "f_*.jpg")))
+            if tail:
+                shutil.copyfile(tail[-1], out_path)
+        finally:
+            shutil.rmtree(tail_dir, ignore_errors=True)
+    if not _decode_ok(out_path):
         raise RuntimeError(
             f"frame extraction failed at t={t}: "
             f"{proc.stderr.decode('utf-8', 'replace')[-200:]}")
@@ -160,7 +190,8 @@ def _materialize(video_path, frame_times, duration_s, want_audio, has_audio,
     os.makedirs(frames_dir, exist_ok=True)
     for i, t in enumerate(frame_times):
         rel = f"frames/frame_{i:03d}.jpg"
-        _extract_frame(video_path, t, os.path.join(cache_dir, rel), ffmpeg)
+        _extract_frame(video_path, t, os.path.join(cache_dir, rel), ffmpeg,
+                       duration_s=duration_s)
         frames.append({"t": t, "file": rel})
 
     audio_segments = []
@@ -261,7 +292,8 @@ def _assemble(cache_dir, man):
         ([audio_segments[-1]["end"]] if audio_segments else [])
     transcript_bounds = [s["start"] for s in transcript["segments"]] + \
         ([transcript["segments"][-1]["end"]] if transcript["segments"] else [])
-    return {"duration_s": man["duration_s"],
+    return {"video": man["video"],
+            "duration_s": man["duration_s"],
             "frames": frames,
             "audio_track": {"sr": man["audio_sr"], "segments": audio_segments},
             "transcript": transcript,
@@ -348,3 +380,140 @@ def load_video(video_path, request):
     result["cache"] = {"key": key, "dir": cache_dir, "hit": hit,
                        "manifest": _manifest_path(cache_dir)}
     return result
+
+
+# ─── model adapters (ticket-2) ──────────────────────────────────────────────
+#
+# The loader produces aligned artifacts; these three adapters turn them into
+# the input shape a target model wants. Measured context (research §17.3):
+# raw-waveform feeding is harmful (-17pp), the transcript as text is the only
+# audio form that helped, and the official unit packing showed no gain at
+# 5-10x the generation time — so `to_text_interleaved` is the production-facing
+# shape and `to_minicpm_units` stays for the engine-contract route.
+
+def _mmss(t):
+    return f"{int(t // 60):02d}:{t % 60:04.1f}"
+
+
+def to_text_interleaved(load_result, mode="block", max_chars=2000, max_cells=80):
+    """Transcript → prompt text.
+
+    `block` (default) is the §17.3 winning shape: the whole transcript,
+    truncated at max_chars. `full` is untruncated. `ts` renders the loader
+    grid as "[MM:SS.s] text" lines (one per non-empty cell, first max_cells).
+    A missing transcript (status != ok) renders as "" — the caller keeps its
+    own gate (S7 semantics).
+    """
+    transcript = load_result.get("transcript") or {}
+    if transcript.get("status") != "ok":
+        return ""
+    if mode == "full":
+        return transcript.get("text", "")
+    if mode == "ts":
+        lines = []
+        for cell in transcript.get("segments", []):
+            text = (cell.get("text") or "").strip()
+            if text:
+                lines.append(f"[{_mmss(cell['start'])}] {text}")
+            if len(lines) >= max_cells:
+                break
+        return "\n".join(lines)
+    return transcript.get("text", "")[:max_chars]
+
+
+def frames_with_text(load_result):
+    """[{t, path, text}] — frame i paired with the transcript cell covering
+    [t_i, t_{i+1}) (the loader grid uses the same indexing). A trailing frame
+    at duration_s has no audio after it, so its text is ""."""
+    cells = (load_result.get("transcript") or {}).get("segments") or []
+    out = []
+    for i, frame in enumerate(load_result.get("frames") or []):
+        out.append({"t": frame["t"], "path": frame["path"],
+                    "text": cells[i]["text"] if i < len(cells) else ""})
+    return out
+
+
+def _read_wav_mono(path):
+    """16k mono pcm_s16le wav → float32 in [-1, 1] (stdlib `wave`, no new deps)."""
+    import wave
+
+    import numpy as np
+    with wave.open(str(path), "rb") as fh:
+        if fh.getnchannels() != 1 or fh.getsampwidth() != 2:
+            raise ValueError(f"unsupported wav layout: {path}")
+        data = np.frombuffer(fh.readframes(fh.getnframes()), dtype="<i2")
+    return data.astype(np.float32) / 32768.0
+
+
+def to_minicpm_units(load_result, max_units=64, min_samples=1600):
+    """Official MiniCPM-o unit packing: unit i = (frame i, audio segment i),
+    interleaved frame[0], audio[0], frame[1], audio[1], … (spec §17.3 note:
+    no measured gain over pure vision; kept for the engine contract).
+
+    Requires a 1:1 frame↔segment chain: `want_audio=True` at load time and a
+    source with audio. A trailing frame at `duration_s` has no audio after it;
+    the official spec pads such a segment to `min_samples` zeros, mirrored
+    here (last segment only, exactly like the reference implementation).
+    More than `max_units` frames raises — the loader never drops frames
+    silently, callers subsample the plan instead.
+    """
+    import numpy as np
+    frames = list(load_result.get("frames") or [])
+    segments = list((load_result.get("audio_track") or {}).get("segments") or [])
+    if not frames:
+        raise ValueError("no frames to pack")
+    if len(frames) > max_units:
+        raise ValueError(
+            f"{len(frames)} frames > max_units={max_units} — subsample the plan")
+    if not segments:
+        raise ValueError("unit packing needs audio segments "
+                         "(want_audio=True and a source with audio)")
+    if len(segments) not in (len(frames), len(frames) - 1):
+        raise ValueError(f"frame/segment chain mismatch: {len(frames)} frames, "
+                         f"{len(segments)} segments")
+    audios = [_read_wav_mono(s["path"]) for s in segments]
+    if len(audios) < len(frames):
+        audios.append(np.zeros(min_samples, dtype=np.float32))
+    if len(audios[-1]) < min_samples:
+        audios[-1] = np.concatenate(
+            [audios[-1], np.zeros(min_samples - len(audios[-1]), dtype=np.float32)])
+    duration_s = load_result.get("duration_s")
+    return {"images": [f["path"] for f in frames],
+            "audios": audios,
+            "num_images": len(frames),
+            "num_audios": len(audios),
+            "sample_rate": int((load_result.get("audio_track") or {}).get("sr")
+                               or DEFAULT_SR),
+            "unit_spans": [
+                {"start": f["t"],
+                 "end": frames[i + 1]["t"] if i + 1 < len(frames) else duration_s}
+                for i, f in enumerate(frames)]}
+
+
+def to_qwen_omni(load_result, prompt, use_audio_in_video=True):
+    """`qwen-omni-utils` conversations payload for
+    `process_mm_info(conversations, use_audio_in_video=True)`.
+
+    Route note (spec §8): the video goes in whole — Qwen-Omni runs its own
+    2 fps decode plus TMRoPE alignment, so the loader's frame times are NOT
+    honored here. This adapter exists to make that explicit and to carry the
+    payload shape; the package stays out of the repo environments.
+    """
+    video = load_result.get("video")
+    if not video:
+        raise ValueError("load_result has no video path")
+    return [{"role": "user", "content": [
+        {"type": "video", "video": video,
+         "use_audio_in_video": bool(use_audio_in_video)},
+        {"type": "text", "text": prompt}]}]
+
+
+def process_qwen_mm_info(conversations, use_audio_in_video=True):
+    """Lazy bridge to qwen-omni-utils; a clear error when it is absent."""
+    try:
+        from qwen_omni_utils import process_mm_info
+    except ImportError as exc:
+        raise RuntimeError(
+            "qwen-omni-utils is not installed (spec §8 keeps it out of the "
+            "repo environments; use an isolated venv for this route)") from exc
+    return process_mm_info(conversations, use_audio_in_video=use_audio_in_video)
