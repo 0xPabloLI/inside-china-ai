@@ -60,15 +60,14 @@ describe("parseLoudnormJson", () => {
 describe("measureLoudness", () => {
   it("runs a read-only loudnorm analysis and returns the parsed measurement", () => {
     const calls = [];
-    const exec = (bin, args) => {
-      calls.push({ bin, args });
+    const exec = (args) => {
+      calls.push({ args });
       return { stdout: "", stderr: LOUDNORM_JSON };
     };
     const r = measureLoudness("/tmp/final.mp4", { exec });
     expect(r.ok).toBe(true);
     expect(r.lufs).toBeCloseTo(-14.32, 2);
     const argv = calls[0].args.join(" ");
-    expect(calls[0].bin).toBe("ffmpeg");
     expect(argv).toContain("loudnorm=print_format=json");
     expect(argv).toContain("-f null");
     // Read-only: must not name an output media file or a video encoder.

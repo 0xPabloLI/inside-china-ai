@@ -63,9 +63,18 @@ export function parseLoudnormJson(text) {
   };
 }
 
-/** Default runner: capture stdout+stderr without letting a failure throw. */
-function runCaptured(bin, args) {
-  return spawnSync(bin, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+/** Binary for measurement-only ffmpeg calls (PATH-resolved, not ffmpeg-full). */
+const FFMPEG = "ffmpeg";
+
+/**
+ * Default runner: capture stdout+stderr without letting a failure throw.
+ *
+ * The binary is module state rather than a parameter: every call site passed
+ * the same literal, and a `spawnSync(parameter)` shape trips Semgrep's
+ * child_process command-injection rule for no real reachability gain.
+ */
+function runCaptured(args) {
+  return spawnSync(FFMPEG, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 }
 
 /**
@@ -75,7 +84,7 @@ function runCaptured(bin, args) {
  * measurement path is testable without ffmpeg.
  *
  * @param {string} videoPath
- * @param {{exec?: (bin: string, args: string[]) => {stdout?: string, stderr?: string}}} [options]
+ * @param {{exec?: (args: string[]) => {stdout?: string, stderr?: string}}} [options]
  * @returns {{ok: boolean, lufs: number|null, truePeakDb: number|null, lra: number|null, error?: string}}
  */
 export function measureLoudness(videoPath, options = {}) {
@@ -92,7 +101,7 @@ export function measureLoudness(videoPath, options = {}) {
     "-",
   ];
   try {
-    const out = run("ffmpeg", args) ?? {};
+    const out = run(args) ?? {};
     const measurement = parseLoudnormJson(`${out.stdout ?? ""}\n${out.stderr ?? ""}`);
     if (!measurement) {
       return {
