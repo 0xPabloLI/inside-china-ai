@@ -29,10 +29,9 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const TEMPLATE_PATH = join(__dirname, "settings.template.yml");
-export const LIVE_PATH =
-  process.env.SEARXNG_SETTINGS || join(process.env.HOME, "searxng", "settings.yml");
-export const SECRET_RE = /^(\s*)secret_key:\s*"([^"]*)"\s*$/m;
-export const PROXY_RE = /^(\s*-\s*)http:\/\/\$\{SEARXNG_PROXY_ENDPOINT\}\s*$/m;
+const LIVE_PATH = process.env.SEARXNG_SETTINGS || join(process.env.HOME, "searxng", "settings.yml");
+const SECRET_RE = /^(\s*)secret_key:\s*"([^"]*)"\s*$/m;
+const PROXY_RE = /^(\s*-\s*)http:\/\/\$\{SEARXNG_PROXY_ENDPOINT\}\s*$/m;
 const ENABLE_STATE = /^  - name: "(.+)"\n    disabled: (true|false)/gm;
 
 /** Parse the explicit per-engine enable list out of a settings document. */
