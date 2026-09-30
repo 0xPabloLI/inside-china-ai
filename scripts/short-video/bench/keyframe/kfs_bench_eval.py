@@ -40,6 +40,7 @@ VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
 sys.path.insert(0, HERE)
 sys.path.insert(0, LIB)
 import bench_common as bc  # noqa: E402
+import methods_bench as mb  # noqa: E402
 import exp_tiered as et  # noqa: E402
 import methods_bench3 as mb3  # noqa: E402
 
@@ -58,6 +59,44 @@ def select(video, duration, name, k):
                                     enforce_floor=True)[0]
     if name == "slice":
         return mb3.m_slice(video, budget=k)
+    if name in ("maxinfo_siglip", "ktv_siglip"):
+        import exp_siglip as es
+        if name == "maxinfo_siglip":
+            return es.maxinfo_timestamps(video, k)
+        # KTV needs its own selection pass (exp_siglip.main); returning [] here
+        # used to emit zero-frame rows that got scored as a measured strategy.
+        raise ValueError("ktv_siglip: no selection pass wired for this arm")
+    # The rest of the reconciliation matrix, so the "did we miss a required
+    # scene" column is filled for every method we have (not just four).
+    if name == "taksf":
+        return mb3.m_taksf(video, budget=k)
+    if name == "lvnet_tsc":
+        return mb3.m_lvnet_tsc(video, budget=k)
+    if name == "kffocus":
+        return mb3.m_kffocus(video, budget=k)
+    if name == "kframes":
+        return mb3.m_kframes(video, budget=k)
+    if name == "infoshot":
+        return mb3.m_infoshot(video, budget=k)
+    # The detector arms emit raw, uncapped output; cap with the harness' own
+    # subsample formula so they honor K like every other arm (uncapped output
+    # under a k{K}-labelled file would silently mix frame counts across arms).
+    if name == "blockslide":
+        return mb.subsample(mb.m_blockslide(video), k)
+    if name == "sd_content":
+        return mb.subsample(mb.m_sd_content(video), k)
+    if name == "sd_hash":
+        return mb.subsample(mb.m_sd_hash(video), k)
+    if name == "sd_adaptive":
+        return mb.subsample(mb.m_sd_adaptive(video), k)
+    if name == "sd_histogram":
+        return mb.subsample(mb.m_sd_histogram(video), k)
+    if name == "sd_threshold":
+        return mb.subsample(mb.m_sd_threshold(video), k)
+    if name == "iframe_even16":
+        return bc.derive_iframe_timestamps(video, k, "even")
+    if name == "scene_008_cap16":
+        return bc.derive_scene_timestamps(video, "0.08", k)
     raise ValueError(name)
 
 
@@ -78,7 +117,9 @@ def main():
     for r in pairs:
         vid = q2v.get(r["id"])
         if vid and vid in have:
-            by_video.setdefault(vid, []).append(r["id"])
+            ids = by_video.setdefault(vid, [])
+            if r["id"] not in ids:
+                ids.append(r["id"])
     print(f"K={K} | covered pairs={sum(len(v) for v in by_video.values())} "
           f"over {len(by_video)} downloaded videos", flush=True)
 
@@ -110,8 +151,15 @@ def main():
         print(p.stdout.strip(), flush=True)
         out[name] = {"rows": len(rows), "returncode": 0,
                      "report": p.stdout.strip(), "result_file": res_path}
-    with open(os.path.join(RESULTS, f"kfs_summary_k{K}.json"), "w",
-              encoding="utf-8") as f:
+    sum_path = os.path.join(RESULTS, f"kfs_summary_k{K}.json")
+    # A partial re-run (KFS_STRATEGIES subset) must not clobber the other
+    # arms' entries — merge into the existing summary instead of overwriting.
+    if os.path.exists(sum_path):
+        with open(sum_path, encoding="utf-8") as f:
+            merged = json.load(f)
+        merged.update(out)
+        out = merged
+    with open(sum_path, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False)
     print(f"\nDONE → {os.path.join(RESULTS, f'kfs_summary_k{K}.json')}")
 
