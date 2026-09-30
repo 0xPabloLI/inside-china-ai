@@ -316,7 +316,7 @@ describe("buildManualPublishGuide", () => {
       ...baseParams,
       articleSlug: "kimi-k3-sandbox",
     });
-    expect(guide).toContain("chinaainews.com/posts/kimi-k3-sandbox");
+    expect(guide).toContain("chinaai.news/posts/kimi-k3-sandbox");
   });
 
   it("derives slug from exampleEntity when articleSlug not provided", () => {
@@ -324,7 +324,7 @@ describe("buildManualPublishGuide", () => {
       ...baseParams,
       exampleEntity: "DeepSeek",
     });
-    expect(guide).toContain("chinaainews.com/posts/DeepSeek-news");
+    expect(guide).toContain("chinaai.news/posts/DeepSeek-news");
   });
 
   it("includes API auto-publish disabled warning", () => {
