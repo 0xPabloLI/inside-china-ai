@@ -1,7 +1,7 @@
 /**
  * Tests for TTS Quality Gate & Self-Healing Loop (#225, #230).
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import {
   cleanText,
   tokenize,
@@ -17,6 +17,8 @@ import {
   INSTRUCT_WARNING_PREFIX,
   MIN_ACCEPTABLE_WPM,
   FAILURE_CLASS,
+  partitionGateFailures,
+  infraBlockError,
 } from "../lib/tts/quality-gate.mjs";
 import { WPM_COMPENSATE_BELOW, MAX_TTS_SPEED } from "../lib/tts/pacing.mjs";
 import { INSTRUCT_FORMAT, buildInstruct, createInstructResolver } from "../lib/tts/instruct.mjs";
@@ -409,7 +411,7 @@ describe("#271 gate floor vs compensation trigger", () => {
   });
 
   it("pins the failure-family strings the registry routes on", () => {
-    expect(FAILURE_CLASS).toEqual({ PACING: "pacing", ACOUSTIC: "acoustic" });
+    expect(FAILURE_CLASS).toEqual({ PACING: "pacing", ACOUSTIC: "acoustic", INFRA: "infra" });
   });
 });
 
@@ -487,5 +489,97 @@ describe("#270 instruct signature re-validation at the gate", () => {
     ).toEqual([]);
 
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// ─── #415 ①: the ASR leg must not be a silent no-op ───
+// Before this, `transcribeVideo` returning null (missing ggml model / binary)
+// only pushed a warning and the take PASSED — the WER-style checks never ran.
+// An unverifiable take is now an infra failure: fatal, non-retryable (a reroll
+// cannot fix a missing model) and clearly distinguishable from a bad take.
+describe("#415 ① ASR infrastructure failures", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tts-asr-infra-"));
+  const audio = join(dir, "scene-1.wav");
+  // Written per test (and the dir removed only after the block runs): a
+  // describe-body rmSync would delete the audio at collection time.
+  beforeEach(() => writeFileSync(audio, "RIFFdummydata"));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  const scene = {
+    id: 7,
+    voiceover: "A clean sentence about robots.",
+    ttsText: "A clean sentence about robots.",
+  };
+  const unavailable = () =>
+    vi.fn().mockResolvedValue({ ok: false, segments: [], errorCode: "asr_unavailable" });
+
+  it("fails the gate with the infra class when ASR cannot run", async () => {
+    const res = await evaluateSceneTts(scene, audio, 2.2, { transcriber: unavailable() });
+    expect(res.passed).toBe(false);
+    expect(res.failureClass).toBe(FAILURE_CLASS.INFRA);
+    expect(res.asrVerified).toBe(false);
+    expect(res.issues.join(" ")).toMatch(/ASR unavailable/);
+  });
+
+  it("treats a thrown transcriber error as infra as well", async () => {
+    const transcriber = vi.fn().mockRejectedValue(new Error("whisper-cli exploded"));
+    const res = await evaluateSceneTts(scene, audio, 2.2, { transcriber });
+    expect(res.passed).toBe(false);
+    expect(res.failureClass).toBe(FAILURE_CLASS.INFRA);
+    expect(res.issues.join(" ")).toMatch(/ASR unavailable/);
+  });
+
+  it("allowAsrUnavailable downgrades to a warning and records asrVerified:false", async () => {
+    const res = await evaluateSceneTts(scene, audio, 2.2, {
+      transcriber: unavailable(),
+      allowAsrUnavailable: true,
+    });
+    expect(res.passed).toBe(true);
+    expect(res.asrVerified).toBe(false);
+    expect(res.warnings.join(" ")).toMatch(/ASR unavailable/);
+  });
+
+  it("marks asrVerified true when the ASR leg actually ran", async () => {
+    const transcriber = vi.fn().mockResolvedValue({
+      ok: true,
+      segments: [{ text: "A clean sentence about robots." }],
+    });
+    const res = await evaluateSceneTts(scene, audio, 2.2, { transcriber });
+    expect(res.passed).toBe(true);
+    expect(res.asrVerified).toBe(true);
+  });
+
+  it("classifies ASR-only issue lists as infra, mixed lists stay acoustic", () => {
+    expect(
+      classifyFailure(["ASR unavailable (asr_unavailable): back-transcription could not run"]),
+    ).toBe(FAILURE_CLASS.INFRA);
+    expect(
+      classifyFailure([
+        "ASR unavailable (asr_unavailable): back-transcription could not run",
+        "Pacing too slow: 100 WPM (minimum acceptable: 115 WPM)",
+      ]),
+    ).toBe(FAILURE_CLASS.ACOUSTIC);
+  });
+
+  it("partitions gate failures into the three families", () => {
+    const evals = [
+      { sceneId: 1, passed: true },
+      { sceneId: 2, passed: false, failureClass: FAILURE_CLASS.INFRA },
+      { sceneId: 3, passed: false, failureClass: FAILURE_CLASS.ACOUSTIC },
+      { sceneId: 4, passed: false, failureClass: FAILURE_CLASS.PACING },
+      { sceneId: 5, passed: false },
+    ];
+    const p = partitionGateFailures(evals);
+    expect(p.infra.map((e) => e.sceneId)).toEqual([2]);
+    expect(p.acoustic.map((e) => e.sceneId)).toEqual([3]);
+    expect(p.pacing.map((e) => e.sceneId)).toEqual([4]);
+    expect(p.unclassified.map((e) => e.sceneId)).toEqual([5]);
+  });
+
+  it("infraBlockError names the scenes and the way out", () => {
+    const err = infraBlockError([{ sceneId: 2, issues: ["ASR unavailable (asr_unavailable)"] }]);
+    expect(err.message).toMatch(/Scene 2/);
+    expect(err.message).toMatch(/ASR/);
+    expect(err.message).toMatch(/TTS_QUALITY_ALLOW_NO_ASR=1/);
   });
 });

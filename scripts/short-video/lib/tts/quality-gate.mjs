@@ -34,23 +34,34 @@ export { FAILURE_CLASS };
 /** Issue texts that belong to the pacing family — this module owns them. */
 const PACING_ISSUE_PATTERN = /^Pacing\b/i;
 
+/** Issue texts that mean "the gate could not verify this take" (#415 ①). */
+const INFRA_ISSUE_PATTERN = /^ASR unavailable\b/i;
+
 /**
- * Classify a gate FAILURE from its issue list (#271): which family's repair the
- * pipeline should target.
+ * Classify a gate FAILURE from its issue list (#271, #415 ①): which family's
+ * repair the pipeline should target.
  *
- * Mixed lists resolve to `acoustic`: a take whose words cannot be trusted is
- * not speed-fixable, so the conservative family wins.
+ * Precedence: a list made only of infrastructure issues means verification
+ * never ran, so no take-level repair applies. Any other mix resolves to
+ * `acoustic`: a take whose words cannot be trusted is not speed-fixable, so
+ * the conservative family wins.
  *
  * @param {string[]} [issues]
- * @returns {"pacing"|"acoustic"|null} null when there is no issue at all
+ * @returns {"pacing"|"acoustic"|"infra"|null} null when there is no issue at all
  */
 export function classifyFailure(issues) {
   const list = (issues || []).filter((i) => typeof i === "string" && i.trim() !== "");
   if (list.length === 0) return null;
+  if (list.every((i) => INFRA_ISSUE_PATTERN.test(i.trim()))) return FAILURE_CLASS.INFRA;
   return list.every((i) => PACING_ISSUE_PATTERN.test(i.trim()))
     ? FAILURE_CLASS.PACING
     : FAILURE_CLASS.ACOUSTIC;
 }
+
+// #415 ①: the routing helpers live in the leaf module (failure-class.mjs) so
+// the registry can import them without loading this module's ASR stack.
+// Re-exported here because this module owns the failure semantics.
+export { partitionGateFailures, infraBlockError } from "./failure-class.mjs";
 
 /**
  * Standardize text for phonetic & token comparison:
@@ -389,6 +400,10 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     minSimilarity = MIN_TEXT_SIMILARITY,
     strict = false,
     instructForScene = null,
+    // #415 ①: ASR is the only verifier of the WORDS. When it cannot run the
+    // take is unverified — fail loudly by default, or opt into the legacy
+    // render-unverified behavior explicitly.
+    allowAsrUnavailable = process.env.TTS_QUALITY_ALLOW_NO_ASR === "1",
   } = options;
 
   // 1. Verify audio file exists and has non-zero size
@@ -431,6 +446,7 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
   // 3. ASR Back-Transcription
   let asrText = "";
   let asrOk = false;
+  let asrFailure = null;
   try {
     const asrRes = await transcriber(audioPath, { languageHint: "en" });
     if (asrRes && asrRes.ok && Array.isArray(asrRes.segments)) {
@@ -440,10 +456,22 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
         .trim();
       asrOk = true;
     } else {
-      warnings.push("ASR back-transcription unavailable or returned degraded result");
+      asrFailure = `ASR unavailable (${asrRes?.errorCode ?? "no_segments"}): back-transcription could not run`;
     }
   } catch (err) {
-    warnings.push(`ASR back-transcription error: ${err.message}`);
+    asrFailure = `ASR unavailable (asr_error): ${err.message}`;
+  }
+
+  if (asrFailure) {
+    // #415 ①: without ASR the gate cannot run a single word-level check, so a
+    // green verdict would mean "never verified", not "verified clean". That is
+    // an infrastructure failure (non-retryable), not a take defect — unless the
+    // caller explicitly opted into rendering unverified.
+    if (allowAsrUnavailable) {
+      warnings.push(`${asrFailure} — verification skipped (allowAsrUnavailable)`);
+    } else {
+      issues.push(asrFailure);
+    }
   }
 
   if (asrOk && asrText) {
@@ -493,23 +521,26 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
       wpm,
       similarity,
       asrText,
+      asrVerified: true,
       expectedText: expectedSpokenText,
       issues,
       warnings,
       // #271: the registry routes on this — pacing → compensation loop,
-      // acoustic → reroll then fail-closed.
+      // acoustic → reroll then fail-closed, infra → stop (#415 ①).
       failureClass: classifyFailure(issues),
       action: issues.length === 0 ? "pass" : "retry",
     };
   }
 
-  // If ASR is not available, rely on WPM and duration sanity
+  // ASR produced no usable text (unavailable, degraded, or empty): the pacing
+  // sanity checks above still run, but nothing verified the words.
   return {
     sceneId: scene.id,
     passed: issues.length === 0,
     wpm,
     similarity: null,
     asrText: null,
+    asrVerified: false,
     expectedText: expectedSpokenText,
     issues,
     warnings,

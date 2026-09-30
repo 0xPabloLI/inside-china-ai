@@ -43,6 +43,27 @@ const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 const YTDLP = "/opt/homebrew/bin/yt-dlp";
 const CDP_BASE = "http://localhost:3456";
 
+/**
+ * Whether the whisper.cpp ASR leg can run at all (#415 ①).
+ *
+ * Callers that treat a transcript as verification (the TTS quality gate) must
+ * distinguish "ASR is not installed" from "this take is bad" — a missing model
+ * used to degrade into a warning and a silent pass.
+ *
+ * @returns {{ok: boolean, cli: string, cliFound: boolean, model: string, modelFound: boolean}}
+ */
+export function asrAvailability() {
+  const cliFound = existsSync(WHISPER_CLI);
+  const modelFound = existsSync(WHISPER_MODEL);
+  return {
+    ok: cliFound && modelFound,
+    cli: WHISPER_CLI,
+    cliFound,
+    model: WHISPER_MODEL,
+    modelFound,
+  };
+}
+
 // ─── URL Parsing & Platform Detection ───
 
 /**
@@ -396,7 +417,10 @@ export async function transcribeVideo(videoPath, options = {}) {
 
   // Step 2: Run whisper-cli ASR
   try {
-    const whisperCmd = `"${WHISPER_CLI}" -m "${WHISPER_MODEL}" -f "${audioPath}" -t 8 -fa -oj -of "${whisperPrefix}"`;
+    // -mc 0 (#418): disable the cross-segment text context. With it on, both
+    // whisper.cpp and MLX Whisper fall into repetition hallucination on long
+    // audio (equivalence run: repeats 17→1 / 18→4 after switching it off).
+    const whisperCmd = `"${WHISPER_CLI}" -m "${WHISPER_MODEL}" -f "${audioPath}" -t 8 -fa -mc 0 -oj -of "${whisperPrefix}"`;
     await execAsync(whisperCmd);
   } catch (err) {
     console.warn(`  [video-understand] ASR failed: ${err.message}`);

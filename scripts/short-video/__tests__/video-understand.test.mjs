@@ -55,6 +55,7 @@ import {
   downloadVideo,
   transcribeVideo,
   understandVideo,
+  asrAvailability,
 } from "../lib/video-understand.mjs";
 
 // ═══════════════════════════════════════════════════════════════
@@ -361,6 +362,33 @@ describe("transcribeVideo", () => {
     expect(result).not.toBeNull();
     expect(result.segments).toEqual([]);
     expect(result.fullText).toBe("");
+  });
+
+  // #418 equivalence run: with the cross-segment text context on, both
+  // whisper.cpp and MLX hallucinate repetition on long audio (repeats 17→1 /
+  // 18→4 once disabled). The production call must keep it off.
+  it("disables the cross-segment text context on the whisper-cli call (-mc 0)", async () => {
+    mockReadFileSync.mockReturnValue(JSON.stringify({ transcription: [] }));
+    mockExecAsync.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await transcribeVideo("/tmp/test.mp4");
+
+    const whisperCmd = mockExecAsync.mock.calls[1][0];
+    expect(whisperCmd).toContain("whisper-cli");
+    expect(whisperCmd).toContain("-mc 0");
+  });
+
+  // #415 ①: the TTS gate must be able to tell "ASR is not installed" from
+  // "this take is bad".
+  it("reports ASR availability from the binary and the model", () => {
+    mockExistsSync.mockReturnValue(true);
+    expect(asrAvailability().ok).toBe(true);
+
+    mockExistsSync.mockReturnValue(false);
+    const missing = asrAvailability();
+    expect(missing.ok).toBe(false);
+    expect(missing.cliFound).toBe(false);
+    expect(missing.modelFound).toBe(false);
   });
 });
 
