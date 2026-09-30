@@ -140,6 +140,22 @@ def derive_iframe_timestamps(video_path, cap, mode):
     return sorted({all_pts[i] for i in idxs})
 
 
+def official_uniform_sample(seq, n):
+    """`minicpmo.utils.uniform_sample` — `np.linspace(0, len-1, n, dtype=int)`.
+
+    Measured against the official package output (2026-09-30, -ApL8d6tX5U):
+    the linspace form reproduces official frames at MAD ≈ 0.5 (JPEG noise),
+    while the `int(i * len / n)` form used in early #391 scripts drifts up to
+    ~0.4 s per frame in the long-video path (idx 261 vs 265 at i=18), which
+    shifts every audio segment after it.
+    """
+    import numpy as np
+    if len(seq) <= n:
+        return list(seq)
+    idxs = np.linspace(0, len(seq) - 1, n, dtype=int)
+    return [seq[i] for i in idxs]
+
+
 def count_frames_at_fps(video_path, fps):
     """Exact decoded-frame count for `ffmpeg -vf fps=fps` (the same filter
     mlx_vlm's load_video applies before subsample_evenly)."""

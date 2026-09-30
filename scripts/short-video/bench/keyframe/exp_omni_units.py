@@ -37,10 +37,10 @@ PROMPT = ("Describe in one detailed English sentence what happens in this "
 
 
 def uniform_sample(seq, n):
-    if len(seq) <= n:
-        return list(seq)
-    step = len(seq) / n
-    return [seq[min(int(i * step), len(seq) - 1)] for i in range(n)]
+    # 官方 `minicpmo.utils.uniform_sample`：np.linspace(0, len-1, n, dtype=int)。
+    # 早期这里用的是 `int(i * len / n)`，长视频路径下逐帧漂移（实测 i=18 取到
+    # idx 261 而官方是 265，约 0.4s），且会把之后每段音频都切错位置。
+    return bc.official_uniform_sample(seq, n)
 
 
 def omni_units(video, frames_dir):
