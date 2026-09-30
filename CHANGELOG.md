@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.11.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.10.0...tanstack_start_ts-v1.11.0) (2026-09-30)
+
+
+### Features
+
+* **bench:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414) duration-aware per-window budget cap (min_spacing 1.0s) + Round T bookkeeping ([63b1607](https://github.com/0xPabloLI/inside-china-ai/commit/63b16076ddcb82f5080246bc9d8765b7d636a753))
+* **bench:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414) duration-aware per-window budget cap (min_spacing 1.0s) + Round T bookkeeping ([#439](https://github.com/0xPabloLI/inside-china-ai/issues/439)) ([63b1607](https://github.com/0xPabloLI/inside-china-ai/commit/63b16076ddcb82f5080246bc9d8765b7d636a753))
+* **bench:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414) 时长感知每窗上限定档 1.0s（扫参：召回不变、冗余回到 uniform_32 水平） ([b93ab7c](https://github.com/0xPabloLI/inside-china-ai/commit/b93ab7c5090c806f56af1927106db4ee335bacba))
+
 ## [1.10.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.9.1...tanstack_start_ts-v1.10.0) (2026-09-30)
 
 
