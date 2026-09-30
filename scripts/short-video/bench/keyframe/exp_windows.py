@@ -3,7 +3,9 @@
 
 Variants per asset (no VLM, geometry only):
   legacy24       plan_windows_legacy + per-window fps grids (today's feed)
-  cutwin32_unif  plan_windows(32) + even in-window grids
+  cutwin32_unif  plan_windows(32, min_spacing=None) + even in-window grids
+  cutwin32_cap   plan_windows(32) + even grids — the duration-aware per-window
+                 cap (min_spacing, default 2.0 s; WIN_CAP_SPACING overrides)
   cutwin32_v5    plan_windows(32) + tiered_v5 per window (densify + floor
                  guard at 8 s) — the coverage-floor variant
   uniform32      global uniform 32 (true_uniform_timestamps @1fps cap 32) —
@@ -44,8 +46,9 @@ LOOP_S = 30.25
 LOOPS = 10
 LOOP_INNER_CUTS = [5.06, 10.13, 15.19, 20.25, 25.31]
 VM_SAMPLE = int(os.environ.get("WIN_VM_SAMPLE", "10"))
+CAP_SPACING = float(os.environ.get("WIN_CAP_SPACING", str(wp.MIN_SPACING)))
 
-VARIANTS = ["legacy24", "cutwin32_unif", "cutwin32_v5", "uniform32"]
+VARIANTS = ["legacy24", "cutwin32_unif", "cutwin32_cap", "cutwin32_v5", "uniform32"]
 
 
 def build_long_asset():
@@ -144,13 +147,23 @@ def variant_timestamps(video, duration, cuts, variant):
         plan = wp.plan_windows_legacy(duration)
         return wp.legacy_frame_timestamps(plan), plan
     if variant == "cutwin32_unif":
-        plan = wp.plan_windows(duration, cuts)
+        plan = wp.plan_windows(duration, cuts, min_spacing=None)
+        ts = []
+        for w in plan:
+            ts.extend(wp.even_grid_timestamps(w["start"], w["end"], w["budget"]))
+        return sorted({round(t, 3) for t in ts if 0 <= t <= duration}), plan
+    if variant == "cutwin32_cap":
+        plan = wp.plan_windows(duration, cuts, min_spacing=CAP_SPACING)
         ts = []
         for w in plan:
             ts.extend(wp.even_grid_timestamps(w["start"], w["end"], w["budget"]))
         return sorted({round(t, 3) for t in ts if 0 <= t <= duration}), plan
     if variant == "cutwin32_v5":
-        plan = wp.plan_windows(duration, cuts)
+        # Pre-cap plan on purpose: unif-vs-v5 then isolates the FEED (tiered
+        # selection) and unif-vs-cap isolates the PLAN (duration cap). Feeding
+        # v5 the capped plan is a separate question (tiered densify already
+        # owns the in-window spacing).
+        plan = wp.plan_windows(duration, cuts, min_spacing=None)
         return select_v5(video, plan), plan
     if variant == "uniform32":
         return bc.true_uniform_timestamps(video, 1.0, 32), []

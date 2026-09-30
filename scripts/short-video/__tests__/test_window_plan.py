@@ -16,11 +16,14 @@ Run: ~/.venvs/mlx-vlm/bin/python -m pytest \
 import os
 import sys
 
+import math
+
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bench", "keyframe"))
 
 from window_plan import (  # noqa: E402
+    MIN_SPACING,
     _snap_boundaries,
     _window_budgets,
     even_grid_timestamps,
@@ -82,10 +85,19 @@ class TestLegacyPlan:
 # ─── plan_windows (the #414 proposal) ───
 
 class TestPlanWindows:
-    def test_short_clip_single_window_full_budget(self):
-        for d in (10.0, 30.25, 120.0, 248.0):
+    def test_short_clip_budget_is_capped_by_spacing(self):
+        # Duration-aware cap (user decision 2026-09-30): b = floor(len/1s)+1
+        # keeps the in-window cadence at or below the official 1 fps sampling
+        # density instead of feeding 32 frames into 10 s (0.32 s apart,
+        # near-duplicates). 1.0 s is the sweep's recall-preserving point.
+        for d, expected in ((10.0, 11), (30.25, 31), (31.0, 32), (120.0, 32),
+                            (248.0, 32)):
             plan = plan_windows(d, cuts=[])
-            assert plan == [{"start": 0.0, "end": d, "budget": 32}], d
+            assert plan == [{"start": 0.0, "end": d, "budget": expected}], d
+
+    def test_cap_can_be_disabled_for_the_ab_control(self):
+        plan = plan_windows(10.0, cuts=[], min_spacing=None)
+        assert plan == [{"start": 0.0, "end": 10.0, "budget": 32}]
 
     def test_span_cap_is_budget_minus_one_times_floor(self):
         # 248 = 31 x 8 is the longest single window whose 32-point even grid
@@ -180,6 +192,58 @@ class TestWindowBudgets:
         # 10s window: proportional rounds to 0.3 → floored at
         # max(4, ceil(10/8)+1 = 3) = 4 (min_budget binds)
         assert b[0] == 4 and b[1] == 32
+
+
+class TestDurationSpacingCap:
+    def _windows(self, *spans):
+        out, t = [], 0.0
+        for s in spans:
+            out.append({"start": t, "end": t + s})
+            t += s
+        return out
+
+    def test_cap_is_the_budget_whose_grid_keeps_the_spacing(self):
+        assert MIN_SPACING == 1.0            # the measured recall-safe default
+        w = self._windows(30.0)
+        # floor(30/1)+1 = 31 → spacing 30/30 = 1.0 exactly
+        assert _window_budgets(w, budget_max=32, gap_floor=8.0, duration=30.0,
+                               min_spacing=MIN_SPACING) == [31]
+
+    def test_two_second_spacing_would_cost_half_the_recall(self):
+        # exp_windows_cap.json: meanRecall 1.000 (1.0 s) vs 0.457 (2.0 s) on
+        # the GT assets — the cap must not be loosened without re-running it.
+        w = self._windows(30.0)
+        assert _window_budgets(w, budget_max=32, gap_floor=8.0, duration=30.0,
+                               min_spacing=2.0) == [16]
+
+    def test_long_window_is_untouched(self):
+        # 31 s is the break-even (budget_max-1) x min_spacing; at/above it the
+        # proportional term is already the binding one.
+        for span in (31.0, 62.0, 120.0, 248.0):
+            w = self._windows(span)
+            assert _window_budgets(w, budget_max=32, gap_floor=8.0,
+                                   duration=span, min_spacing=MIN_SPACING) == [32], span
+
+    def test_gap_floor_wins_over_the_cap_on_tiny_windows(self):
+        # 1 s window: spacing cap says 1 frame, the 8 s floor says 2 → floor wins
+        # (a denser grid is cheaper than a blind spot).
+        w = self._windows(1.0, 999.0)
+        b = _window_budgets(w, budget_max=32, gap_floor=8.0, duration=1000.0,
+                            min_spacing=2.0)
+        assert b[0] == max(4, math.ceil(1.0 / 8.0) + 1)
+
+    def test_none_restores_the_uncapped_budgets(self):
+        w = self._windows(10.0)
+        assert _window_budgets(w, budget_max=32, gap_floor=8.0, duration=10.0,
+                               min_spacing=None) == [32]
+
+    def test_cap_never_breaks_the_gap_floor_on_any_plan(self):
+        for d, cuts in ((10.0, []), (30.25, []), (30.9, []), (31.1, []),
+                        (250.0, []), (302.5, [146.31]), (1000.0, [])):
+            for w in plan_windows(d, cuts=cuts):
+                ts = even_grid_timestamps(w["start"], w["end"], w["budget"])
+                assert (w["end"] - w["start"]) / (w["budget"] - 1) <= 8.0 + 1e-9
+                assert len(ts) == w["budget"]
 
 
 # ─── even grid (uniform in-window feed) ───
