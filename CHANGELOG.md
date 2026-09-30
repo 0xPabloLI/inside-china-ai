@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.11.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.0...tanstack_start_ts-v1.11.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **ci:** checkout 递归初始化 submodule，并让引用门禁不再谎报 ([b119951](https://github.com/0xPabloLI/inside-china-ai/commit/b11995146bb456ee40c15938dce6737421f64687))
+* **lint:** 清掉 knip 打到的两处——多余 export 与未登记的 colima ([e44e456](https://github.com/0xPabloLI/inside-china-ai/commit/e44e456dea7ce6ee1da96c457ccfdbe271eabf58))
+
+
+### Reverts
+
+* **ci:** 撤回 submodules 初始化——私有子模块拿不到凭据就不能开 ([2e6532b](https://github.com/0xPabloLI/inside-china-ai/commit/2e6532b474e452d01a412ae70e4d19f7d3bc46ef))
+
 ## [1.11.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.10.0...tanstack_start_ts-v1.11.0) (2026-09-30)
 
 
