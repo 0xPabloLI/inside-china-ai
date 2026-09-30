@@ -1,0 +1,391 @@
+use_default_settings: true
+
+server:
+  secret_key: "${SEARXNG_SECRET_KEY}"
+  image_proxy: true
+search:
+  formats:
+    - html
+    - json
+outgoing:
+  request_timeout: 4.0
+  proxies:
+    all://:
+      - http://${SEARXNG_PROXY_ENDPOINT}
+engines:
+  - name: "1337x"
+    disabled: false
+  - name: "1x"
+    disabled: false
+  - name: "360search"
+    disabled: false
+  - name: "360search videos"
+    disabled: false
+  - name: "500px"
+    disabled: false
+  - name: "9gag"
+    disabled: false
+  - name: "abcnyheter"
+    disabled: false
+  - name: "acfun"
+    disabled: false
+  - name: "adobe stock"
+    disabled: false
+  - name: "adobe stock audio"
+    disabled: false
+  - name: "adobe stock video"
+    disabled: false
+  - name: "alpine linux packages"
+    disabled: false
+  - name: "anaconda"
+    disabled: false
+  - name: "annas archive"
+    disabled: false
+  - name: "ansa"
+    disabled: false
+  - name: "apk mirror"
+    disabled: false
+  - name: "apple app store"
+    disabled: false
+  - name: "apple maps"
+    disabled: false
+  - name: "artstation"
+    disabled: false
+  - name: "ayo"
+    disabled: true
+  - name: "baidu"
+    disabled: true
+  - name: "baidu images"
+    disabled: false
+  - name: "baidu kaifa"
+    disabled: false
+  - name: "bilibili"
+    disabled: false
+  - name: "bing"
+    disabled: false
+  - name: "bitbucket"
+    disabled: false
+  - name: "bitchute"
+    disabled: false
+  - name: "boardreader"
+    disabled: false
+  - name: "bpb"
+    disabled: false
+  - name: "btdigg"
+    disabled: false
+  - name: "cachy os packages"
+    disabled: false
+  - name: "caddy.community"
+    disabled: false
+  - name: "codeberg"
+    disabled: false
+  - name: "crates.io"
+    disabled: false
+  - name: "crossref"
+    disabled: false
+  - name: "crowdview"
+    disabled: true
+  - name: "ddg definitions"
+    disabled: false
+  - name: "deezer"
+    disabled: false
+  - name: "destatis"
+    disabled: false
+  - name: "discuss.python"
+    disabled: false
+  - name: "duckduckgo weather"
+    disabled: false
+  - name: "duckduckgo web"
+    disabled: true
+  - name: "duden"
+    disabled: false
+  - name: "emojipedia"
+    disabled: false
+  - name: "encyclosearch"
+    disabled: true
+  - name: "erowid"
+    disabled: false
+  - name: "fastbot"
+    disabled: true
+  - name: "fdroid"
+    disabled: false
+  - name: "findfiles"
+    disabled: false
+  - name: "findfiles images"
+    disabled: false
+  - name: "findfiles music"
+    disabled: false
+  - name: "findfiles videos"
+    disabled: false
+  - name: "findthatmeme"
+    disabled: false
+  - name: "fireball"
+    disabled: true
+  - name: "fireball news"
+    disabled: false
+  - name: "fireball videos"
+    disabled: false
+  - name: "flaticon"
+    disabled: false
+  - name: "free software directory"
+    disabled: false
+  - name: "frinkiac"
+    disabled: false
+  - name: "fynd"
+    disabled: false
+  - name: "fyyd"
+    disabled: false
+  - name: "gabanza"
+    disabled: true
+  - name: "geizhals"
+    disabled: false
+  - name: "giphy"
+    disabled: false
+  - name: "gitea.com"
+    disabled: false
+  - name: "gitlab"
+    disabled: false
+  - name: "gmx"
+    disabled: false
+  - name: "goodreads"
+    disabled: false
+  - name: "google"
+    disabled: false
+  - name: "google images"
+    disabled: false
+  - name: "google play apps"
+    disabled: false
+  - name: "google play movies"
+    disabled: false
+  - name: "habrahabr"
+    disabled: false
+  - name: "hackernews"
+    disabled: false
+  - name: "hex"
+    disabled: false
+  - name: "huggingface"
+    disabled: false
+  - name: "huggingface datasets"
+    disabled: false
+  - name: "huggingface spaces"
+    disabled: false
+  - name: "il post"
+    disabled: false
+  - name: "imdb"
+    disabled: false
+  - name: "imgur"
+    disabled: false
+  - name: "ina"
+    disabled: false
+  - name: "ipernity"
+    disabled: false
+  - name: "iqiyi"
+    disabled: false
+  - name: "jisho"
+    disabled: false
+  - name: "lib.rs"
+    disabled: false
+  - name: "library genesis"
+    disabled: false
+  - name: "library of congress"
+    disabled: false
+  - name: "lobste.rs"
+    disabled: false
+  - name: "magnific"
+    disabled: false
+  - name: "material icons"
+    disabled: false
+  - name: "media.ccc.de"
+    disabled: false
+  - name: "mediathekviewweb"
+    disabled: false
+  - name: "metacpan"
+    disabled: false
+  - name: "microsoft learn"
+    disabled: false
+  - name: "minecraft wiki"
+    disabled: false
+  - name: "mojeek"
+    disabled: false
+  - name: "mojeek images"
+    disabled: false
+  - name: "mojeek news"
+    disabled: false
+  - name: "moviepilot"
+    disabled: false
+  - name: "mozhi"
+    disabled: false
+  - name: "mwmbl"
+    disabled: false
+  - name: "national vulnerability database"
+    disabled: false
+  - name: "naver"
+    disabled: false
+  - name: "naver images"
+    disabled: false
+  - name: "naver news"
+    disabled: false
+  - name: "naver videos"
+    disabled: false
+  - name: "niconico"
+    disabled: false
+  - name: "nixos wiki"
+    disabled: false
+  - name: "npm"
+    disabled: false
+  - name: "nyaa"
+    disabled: false
+  - name: "odysee"
+    disabled: false
+  - name: "ollama"
+    disabled: false
+  - name: "openalex"
+    disabled: false
+  - name: "openlibrary"
+    disabled: false
+  - name: "openmeteo"
+    disabled: false
+  - name: "openrepos"
+    disabled: false
+  - name: "packagist"
+    disabled: false
+  - name: "peertube"
+    disabled: false
+  - name: "pi-hole.community"
+    disabled: false
+  - name: "picjumbo"
+    disabled: false
+  - name: "pixabay images"
+    disabled: false
+  - name: "pixabay videos"
+    disabled: false
+  - name: "pkg.go.dev"
+    disabled: false
+  - name: "podchaser"
+    disabled: false
+  - name: "privacywall"
+    disabled: true
+  - name: "privacywall images"
+    disabled: false
+  - name: "privacywall videos"
+    disabled: false
+  - name: "pub.dev"
+    disabled: false
+  - name: "public domain image archive"
+    disabled: false
+  - name: "quark"
+    disabled: false
+  - name: "quark images"
+    disabled: false
+  - name: "qwant"
+    disabled: true
+  - name: "qwant images"
+    disabled: false
+  - name: "qwant news"
+    disabled: false
+  - name: "qwant videos"
+    disabled: false
+  - name: "reloado"
+    disabled: false
+  - name: "resulthunter"
+    disabled: false
+  - name: "resulthunter images"
+    disabled: false
+  - name: "rottentomatoes"
+    disabled: false
+  - name: "rubygems"
+    disabled: false
+  - name: "rumble"
+    disabled: false
+  - name: "searchch"
+    disabled: false
+  - name: "searchmysite"
+    disabled: true
+  - name: "selfhst icons"
+    disabled: false
+  - name: "senscritique"
+    disabled: false
+  - name: "seznam"
+    disabled: true
+  - name: "shopify stock"
+    disabled: false
+  - name: "sogou"
+    disabled: true
+  - name: "sogou images"
+    disabled: false
+  - name: "sogou videos"
+    disabled: false
+  - name: "sogou wechat"
+    disabled: false
+  - name: "sourcehut"
+    disabled: false
+  - name: "steam"
+    disabled: false
+  - name: "stocksnap"
+    disabled: false
+  - name: "tagesschau"
+    disabled: false
+  - name: "tineye"
+    disabled: false
+  - name: "tmdb"
+    disabled: false
+  - name: "tokyotoshokan"
+    disabled: false
+  - name: "tusksearch"
+    disabled: false
+  - name: "tusksearch images"
+    disabled: false
+  - name: "tusksearch news"
+    disabled: false
+  - name: "tusksearch videos"
+    disabled: false
+  - name: "uxwing"
+    disabled: false
+  - name: "voidlinux"
+    disabled: false
+  - name: "vuhuv"
+    disabled: true
+  - name: "vuhuv images"
+    disabled: false
+  - name: "vuhuv videos"
+    disabled: false
+  - name: "wiby"
+    disabled: true
+  - name: "wikibooks"
+    disabled: false
+  - name: "wikimini"
+    disabled: true
+  - name: "wikiquote"
+    disabled: false
+  - name: "wikisource"
+    disabled: false
+  - name: "wikispecies"
+    disabled: false
+  - name: "wikiversity"
+    disabled: false
+  - name: "wikivoyage"
+    disabled: false
+  - name: "wolframalpha"
+    disabled: true
+  - name: "woxikon.de synonyme"
+    disabled: false
+  - name: "yacy"
+    disabled: false
+  - name: "yacy images"
+    disabled: false
+  - name: "yahoo"
+    disabled: false
+  - name: "yandex"
+    disabled: false
+  - name: "yandex images"
+    disabled: false
+  - name: "yandex music"
+    disabled: false
+  - name: "yep"
+    disabled: true
+  - name: "zapmeta"
+    disabled: false
+  - name: "duckduckgo"
+    disabled: true
+  - name: "wikidata"
+    disabled: true
