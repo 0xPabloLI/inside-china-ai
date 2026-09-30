@@ -1,17 +1,18 @@
 /**
  * Documentation Hierarchy Lint
  *
- * Checks four rules:
+ * Checks five rules:
  * 1. DOCS-INDEX consistency — every docs/*.md and docs/research/*.md is listed in DOCS-INDEX.md
  * 2. L1 Design Decisions — L1 docs with L2 references must have ## Design Decisions heading
  * 3. L2 command-line heuristic — L2 docs with ≥5 command-line patterns get WARN
  * 4. Structural pointer or normative rule changes remind the author to load writing-for-agents
+ * 5. Reference resolution — repo paths named by live docs and code must be tracked by git
  *
  * Exit codes: 0 = PASS/WARN, 1 = FAIL
  */
 
-import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { dirname, join, basename } from "node:path";
+import { readdirSync, readFileSync, existsSync, readlinkSync } from "node:fs";
+import { dirname, join, basename, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 
@@ -134,6 +135,153 @@ export function checkL2CommandLines(files) {
   return { findings };
 }
 
+/**
+ * Check 5: reference resolution.
+ *
+ * A pointer to a file that does not exist is a dead end for whichever agent
+ * follows it, and relocating a doc silently strands every doc and code comment
+ * naming its old path. Only prose is read — markdown bodies and code comment
+ * lines. The truth set is `git ls-files`, never the local
+ * filesystem: a gitignored or machine-only path must not read as PASS here and
+ * FAIL in CI.
+ *
+ * Four exemptions, each a property of the text rather than of one machine:
+ * - historical referrers (archive, applied migrations) record the path as of
+ *   writing, so rewriting them falsifies the record;
+ * - `remotion/…` is this repo's shorthand for the Remotion subproject;
+ * - a `skills/<name>/` whose name is not vendored here names a skill installed
+ *   in the agent's own directory, which no repo checkout can contain;
+ * - generated artifacts (run output, per-content research dirs) exist only
+ *   after a run, so tracking can never hold them.
+ *
+ * Bare paths naming another project's files stay in scope: an agent cannot tell
+ * them from a repo path, so such a citation has to carry its URL.
+ */
+const REF_ROOTS = "(?:docs|scripts|src|skills|supabase|agent|remotion|\\.github)";
+const REF_EXT = "(?:md|mjs|cjs|ts|tsx|json|py|sh|yml|yaml|sql|css|html)";
+// The leading boundary rejects word characters, `/` and `.` so a `sub-skills/…`
+// or `.cursor/skills/…` tail, an `…/remotion/…` tail inside a longer path, and a
+// `site.com/docs/…` fragment inside a URL never read as repo pointers.
+const PATH_REF_RE = new RegExp(
+  `(?<![\\w./-])${REF_ROOTS}/[A-Za-z0-9._/-]+\\.${REF_EXT}(?![\\w-])`,
+  "g",
+);
+// Vendored third-party skill docs under `agent/` are deliberately out of scope:
+// their internal examples are not this repo's pointer graph.
+const REF_SCAN_TARGETS = ["docs", "scripts", "src", "skills", "supabase", ".github", "AGENTS.md", "CONTEXT.md", "DESIGN.md", "README.md"];
+const REF_SCAN_EXT = /\.(?:md|mjs|cjs|ts|tsx|json|py|sh|yml|yaml|sql|css|html)$/;
+// Comment-line shapes: `//`, `/*`, ` * ` (block continuation), `#`, `--`.
+// Trailing end-of-line comments after code are out of scope in this version —
+// they are rare in prose-citation positions and detecting them reliably needs
+// a parser, not a pattern.
+const CODE_PROSE_LINE = /^\s*(?:\/\/|\*|\/\*|#|--)/;
+// The linter's own fixtures name paths that deliberately do not exist.
+const REF_SCAN_SELF = "scripts/__tests__/lint-doc-hierarchy.test.mjs";
+const REF_ALIASES = [{ from: "remotion/", to: "scripts/short-video/remotion/" }];
+const SKILL_NAMESPACE = "skills/";
+// Run output, per-content research dirs, and build artifacts exist only after a
+// run, so the tracked set can never hold them.
+const GENERATED_ARTIFACT_PREFIXES = [
+  "scripts/short-video/output/",
+  "scripts/short-video/content/",
+  "scripts/cloud-gpu/output/",
+];
+// Historical referrers record the path as of writing — an archive ticket and an
+// applied migration are both immutable records, so repointing them would
+// falsify what they witnessed rather than fix a pointer.
+const HISTORICAL_REFERRER_PREFIXES = ["docs/archive/", "supabase/migrations/"];
+// A script's own default output, written beside it and never committed.
+const GENERATED_ARTIFACT_FILES = new Set([
+  "src/routeTree.gen.ts",
+  "src/routeTree.gen.tsx",
+  "scripts/short-video/scene-data-compilation.mjs",
+]);
+// Two tiers by who consumes the referrer: an agent that follows a pointer in
+// AGENTS.md, a runbook, a skill or code expects the target to exist, so those
+// fail the build. Evidence layers (research, reviews, proposals, handoffs,
+// vendored refs) quote paths as findings or intentions — including other
+// projects' files — so they warn without blocking.
+const EVIDENCE_REFERRER_PREFIXES = [
+  "docs/research/",
+  "docs/reviews/",
+  "docs/proposals/",
+  "docs/handoffs/",
+  "docs/refs/",
+];
+
+export function checkReferenceResolution(files, trackedFiles, symlinks = []) {
+  const tracked = new Set(trackedFiles);
+  // A committed symlink exists in every fresh clone, so a path written through
+  // it is a real pointer even though git lists only the link's own target.
+  const links = symlinks.filter((l) => l && l.from && l.to);
+  const vendoredSkills = new Set(
+    [...tracked]
+      .filter((p) => p.startsWith(SKILL_NAMESPACE) && p.includes("/"))
+      .map((p) => p.split("/")[1])
+      .filter(Boolean),
+  );
+
+  const resolves = (ref, referrer) => {
+    if (tracked.has(ref)) return true;
+    // Paths inside a subproject are commonly written relative to that package
+    // (a `src/…` entry in a subproject's own manifest), so the referrer's own
+    // directory is a second legitimate reading.
+    const rel = posix.normalize(posix.join(posix.dirname(referrer), ref));
+    if (rel !== ref && tracked.has(rel)) return true;
+    const alias = REF_ALIASES.find((a) => ref.startsWith(a.from));
+    if (alias && tracked.has(alias.to + ref.slice(alias.from.length))) return true;
+    return links.some((l) => {
+      const prefix = `${l.from}/`;
+      return ref.startsWith(prefix) && tracked.has(l.to + "/" + ref.slice(prefix.length));
+    });
+  };
+
+  const findings = [];
+  for (const { filename, content } of files) {
+    if (HISTORICAL_REFERRER_PREFIXES.some((p) => filename.startsWith(p))) continue;
+
+    // Markdown is prose throughout; in code, only comment lines are prose. A
+    // path inside a string literal is a program input with its own working
+    // directory (a Remotion entry point, a CLI argument), and rewriting one as
+    // a "broken pointer" breaks the pipeline rather than the doc.
+    const proseOnly = !filename.endsWith(".md");
+    const firstLine = new Map();
+    const lines = content.split("\n");
+    let inFence = false;
+    for (let i = 0; i < lines.length; i++) {
+      // A fenced command example holds invocation syntax, not pointers — the
+      // same reasoning that keeps string literals out of scope.
+      if (/^\s*(?:```|~~~)/.test(lines[i])) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence) continue;
+      if (proseOnly && !CODE_PROSE_LINE.test(lines[i])) continue;
+      for (const ref of lines[i].match(PATH_REF_RE) || []) {
+        if (firstLine.has(ref)) continue;
+        firstLine.set(ref, i + 1);
+      }
+    }
+
+    for (const [ref, line] of firstLine) {
+      if (resolves(ref, filename)) continue;
+      if (ref.startsWith(SKILL_NAMESPACE) && !vendoredSkills.has(ref.split("/")[1])) continue;
+      if (GENERATED_ARTIFACT_FILES.has(ref)) continue;
+      if (GENERATED_ARTIFACT_PREFIXES.some((p) => ref.startsWith(p))) continue;
+      const level = EVIDENCE_REFERRER_PREFIXES.some((p) => filename.startsWith(p))
+        ? "WARN"
+        : "FAIL";
+      findings.push({
+        level,
+        ruleId: "doc-ref-unresolved",
+        file: filename,
+        message: `${filename}:${line} — unresolved reference \`${ref}\` (not tracked by git; repoint it if it moved, cite the full URL if it belongs to another project)`,
+      });
+    }
+  }
+  return { findings };
+}
+
 function gateFinding(filename, message) {
   return {
     level: "WARN",
@@ -225,6 +373,63 @@ function readMdFiles(dir) {
     }));
 }
 
+/**
+ * Gather reference-scan inputs from git: the tracked set is the existence
+ * truth, and the scoped listing is what gets scanned. Submodule contents are
+ * listed explicitly — the parent repo records `skills/shared` as a gitlink, so
+ * a plain `git ls-files` hides files AGENTS.md legitimately points at.
+ * @returns {{files: Array<{filename: string, content: string}>, tracked: string[]}}
+ */
+function collectReferenceScan() {
+  const git = (args) => {
+    try {
+      return execSync(`git ls-files -z ${args}`, {
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+      })
+        .split("\0")
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+
+  const tracked = git("--recurse-submodules");
+  const scoped = git(`--recurse-submodules ${REF_SCAN_TARGETS.map((t) => `"${t}"`).join(" ")}`);
+
+  // Mode 120000 = committed symlink. Resolve it the way a checkout would, so a
+  // path written through the link is judged on the target it really reaches.
+  const symlinks = [];
+  for (const entry of git(`-s --recurse-submodules ${REF_SCAN_TARGETS.map((t) => `"${t}"`).join(" ")}`)) {
+    const [meta, path] = entry.split("\t");
+    if (!path || !meta.startsWith("120000 ")) continue;
+    let target;
+    try {
+      target = readlinkSync(path);
+    } catch {
+      continue;
+    }
+    if (!target) continue;
+    const to = target.startsWith("/") ? target.slice(1) : posix.normalize(join(dirname(path), target));
+    symlinks.push({ from: path, to });
+  }
+
+  const files = [];
+  for (const filename of scoped) {
+    if (filename === REF_SCAN_SELF) continue;
+    if (!REF_SCAN_EXT.test(filename)) continue;
+    let content;
+    try {
+      content = readFileSync(filename, "utf8");
+    } catch {
+      continue;
+    }
+    if (content.length > 600000) continue;
+    files.push({ filename, content });
+  }
+  return { files, tracked, symlinks };
+}
+
 // --- Git diff helpers ---
 
 /**
@@ -310,8 +515,17 @@ export function main() {
   const l1Findings = checkL1DesignDecisions(l1Files).findings;
   const l2Findings = checkL2CommandLines(l2Files).findings;
   const gateFindings = checkWritingForAgentsGate(getStagedDiffs()).findings;
+  const refScan = collectReferenceScan();
+  const refFindings = checkReferenceResolution(refScan.files, refScan.tracked, refScan.symlinks)
+    .findings;
 
-  const allFindings = [...indexFindings, ...l1Findings, ...l2Findings, ...gateFindings];
+  const allFindings = [
+    ...indexFindings,
+    ...l1Findings,
+    ...l2Findings,
+    ...gateFindings,
+    ...refFindings,
+  ];
 
   // Print findings
   for (const f of allFindings) {

@@ -3,6 +3,7 @@ import {
   checkDocsIndexConsistency,
   checkL1DesignDecisions,
   checkL2CommandLines,
+  checkReferenceResolution,
   checkWritingForAgentsGate,
   parseDiffLines,
 } from "../lint-doc-hierarchy.mjs";
@@ -561,5 +562,189 @@ describe("checkWritingForAgentsGate", () => {
   it("PASS: empty staged diffs", () => {
     const { findings } = checkWritingForAgentsGate([]);
     expect(findings).toHaveLength(0);
+  });
+});
+
+describe("checkReferenceResolution", () => {
+  const TRACKED = [
+    "docs/video-production-runbook.md",
+    "scripts/short-video/main.mjs",
+    "scripts/short-video/remotion/src/scenes/HookScene.tsx",
+    "skills/brand-system/SKILL.md",
+    "CONTEXT.md",
+  ];
+
+  it("PASS: a path relative to its own subproject resolves against the referrer directory", () => {
+    const files = [
+      {
+        filename: "scripts/short-video/remotion/package.json",
+        content: '{\n  "source": "src/Root.tsx"\n}',
+      },
+    ];
+    const tracked = [...TRACKED, "scripts/short-video/remotion/src/Root.tsx"];
+    expect(checkReferenceResolution(files, tracked).findings).toHaveLength(0);
+  });
+
+  it("PASS: a committed symlink resolves paths written through it", () => {
+    const files = [
+      {
+        filename: "AGENTS.md",
+        content: "Restart the proxy at `skills/web-access/scripts/cdp-proxy.mjs`.",
+      },
+    ];
+    const tracked = [...TRACKED, "skills/shared/web-access/scripts/cdp-proxy.mjs"];
+    const symlinks = [{ from: "skills/web-access", to: "skills/shared/web-access" }];
+    expect(checkReferenceResolution(files, tracked, symlinks).findings).toHaveLength(0);
+  });
+
+  it("PASS: paths inside a fenced command example are invocation syntax, not pointers", () => {
+    const files = [
+      {
+        filename: "skills/open-code-review/SKILL.md",
+        content: "```bash\nocr delegate rule src/foo.ts src/bar.ts\n```\n\nSee `docs/gone.md`.\n",
+      },
+    ];
+    const { findings } = checkReferenceResolution(files, TRACKED);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain("docs/gone.md");
+  });
+
+  it("PASS: string literals in code are program inputs, not pointers", () => {
+    const files = [
+      {
+        filename: "scripts/short-video/__tests__/avatar-card-render.test.mjs",
+        content: ' * comment here\nconst ENTRY = "src/avatar-card-fixture.tsx";\n',
+      },
+    ];
+    expect(checkReferenceResolution(files, TRACKED).findings).toHaveLength(0);
+  });
+
+  it("FAIL: a comment inside code is still a pointer an agent follows", () => {
+    const files = [
+      {
+        filename: "scripts/short-video/main.mjs",
+        content: ' * Spec: docs/gone-spec.md\nconst entry = "src/real.ts";\n',
+      },
+    ];
+    const { findings } = checkReferenceResolution(files, TRACKED);
+    expect(failsOf(findings)).toHaveLength(1);
+    expect(findings[0].message).toContain("scripts/short-video/main.mjs:1");
+  });
+
+  it("WARN: evidence-layer docs break the same pointer without blocking", () => {
+    const files = [
+      {
+        filename: "docs/research/some-study.md",
+        content: "Upstream rubric at `docs/scoring.md`.",
+      },
+    ];
+    const { findings } = checkReferenceResolution(files, TRACKED);
+    expect(failsOf(findings)).toHaveLength(0);
+    expect(warnsOf(findings)).toHaveLength(1);
+    expect(findings[0].ruleId).toBe("doc-ref-unresolved");
+  });
+
+  it("PASS: build output is not expected in the tracked set", () => {
+    const files = [
+      {
+        filename: "CONTEXT.md",
+        content: "Router types land in `src/routeTree.gen.ts` at build time.",
+      },
+    ];
+    expect(checkReferenceResolution(files, TRACKED).findings).toHaveLength(0);
+  });
+
+  it("FAIL: live doc points at an untracked path", () => {
+    const files = [
+      {
+        filename: "CONTEXT.md",
+        content: "See `docs/spec-vertical-cropping.md` for the policy.",
+      },
+    ];
+    const { findings } = checkReferenceResolution(files, TRACKED);
+    const fails = failsOf(findings);
+    expect(fails).toHaveLength(1);
+    expect(fails[0].ruleId).toBe("doc-ref-unresolved");
+    expect(fails[0].message).toContain("docs/spec-vertical-cropping.md");
+    expect(fails[0].file).toBe("CONTEXT.md");
+  });
+
+  it("PASS: reference resolves to a tracked file", () => {
+    const files = [
+      {
+        filename: "CONTEXT.md",
+        content: "See `docs/video-production-runbook.md` for the runbook.",
+      },
+    ];
+    expect(checkReferenceResolution(files, TRACKED).findings).toHaveLength(0);
+  });
+
+  it("PASS: remotion/ shorthand resolves through the alias root", () => {
+    const files = [
+      {
+        filename: "CONTEXT.md",
+        content: "Hook skeleton lives in `remotion/src/scenes/HookScene.tsx`.",
+      },
+    ];
+    expect(checkReferenceResolution(files, TRACKED).findings).toHaveLength(0);
+  });
+
+  it("PASS: mid-word matches are not repo paths", () => {
+    const files = [
+      {
+        filename: "CONTEXT.md",
+        content:
+          "audit mode see `sub-skills/post-audit.md`; lock in `.cursor/skills/skills-lock.json`; full path `scripts/short-video/remotion/src/scenes/HookScene.tsx` stays one match",
+      },
+    ];
+    expect(checkReferenceResolution(files, TRACKED).findings).toHaveLength(0);
+  });
+
+  it("PASS: URL fragments are not treated as local paths", () => {
+    const files = [
+      {
+        filename: "CONTEXT.md",
+        content: "Detector list: https://www.scenedetect.com/docs/latest/api/detectors.html",
+      },
+    ];
+    expect(checkReferenceResolution(files, TRACKED).findings).toHaveLength(0);
+  });
+
+  it("PASS: archive referrers are exempt — archived text records the path of its day", () => {
+    const files = [
+      {
+        filename: "docs/archive/tickets-old.md",
+        content: "Spec at `docs/specs/spec-long-gone.md`.",
+      },
+    ];
+    expect(checkReferenceResolution(files, TRACKED).findings).toHaveLength(0);
+  });
+
+  it("PASS: skill names not vendored in this repo are machine-level installs", () => {
+    const files = [
+      { filename: "CONTEXT.md", content: "Rules come from `skills/ponytail/SKILL.md`." },
+    ];
+    expect(checkReferenceResolution(files, TRACKED).findings).toHaveLength(0);
+  });
+
+  it("FAIL: a known repo skill directory still guards its own file names", () => {
+    const files = [
+      { filename: "CONTEXT.md", content: "See `skills/brand-system/MISSING.md`." },
+    ];
+    const { findings } = checkReferenceResolution(files, TRACKED);
+    expect(failsOf(findings)).toHaveLength(1);
+  });
+
+  it("report: one finding per broken ref, carrying the line number", () => {
+    const files = [
+      {
+        filename: "CONTEXT.md",
+        content: "line one `docs/gone-a.md`\nline two filler\nline three `docs/gone-b.md`\n",
+      },
+    ];
+    const { findings } = checkReferenceResolution(files, TRACKED);
+    expect(failsOf(findings)).toHaveLength(2);
+    expect(findings[0].message).toContain(":1");
+    expect(findings[1].message).toContain(":3");
   });
 });
