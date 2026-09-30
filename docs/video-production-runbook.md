@@ -291,6 +291,40 @@ ffmpeg -y -i input.m4a -ar 24000 -ac 1 -c:a pcm_s16le \
 
 **Subtitle alignment**: Uses `text-align.py` (wav2vec2 forced alignment) — NOT Whisper recognition. We already know the text (from scene-data.mjs), so we align known text to known audio directly. Output: `output/{pipelineId}/audio/subtitle-timing.json`.
 
+### ASR 调用规范（模型档位 / 跨段上下文 / 幻觉护栏）
+
+适用范围：`video-understand.mjs`（视频理解转写）与 `tts/quality-gate.mjs`（回读质检）——
+两者都走 whisper.cpp，模型 `~/.cache/whisper/ggml-large-v3-turbo.bin`（ADR-0020 的
+max-effort 下限）。**字幕对齐不走 ASR**（见上一段的 wav2vec2 强制对齐），不受本节影响。
+模型文件缺失时该链路会静默降级成 warning（历史事故，见 #415）——开工前确认文件存在。
+
+**① 档位（2026-09-29 实测，4 段真实素材）**
+
+| 档位 | 相对速度 | 音乐/歌唱段表现 |
+|---|---|---|
+| `large-v3-turbo`（当前默认） | 快约 2× | **易陷入重复幻觉**（同一句实测连吐 8 次） |
+| `large-v3`（完整） | 慢约 2× | 保守：同一段只输出 4 个词（主动放弃） |
+
+**② 必须关闭跨段上下文**
+
+Whisper 是自回归解码，默认把「已生成的文本」作为解码条件（whisper.cpp 的
+`--max-context`、MLX 的 `condition_on_previous_text`）。好处是术语拼写前后一致；
+代价是**错一次会被回喂并自我强化成循环**。实测（同音频同模型）关闭后重复次数
+从 17/18 降到 1/4：
+
+```bash
+whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo.bin -f audio.wav -l en \
+  --max-context 0 -oj -of out
+```
+
+**③ 什么时候才开上下文**：纯语音、无音乐/掌声、长录音且需术语一致的场合（讲座、
+访谈），并接受偶发重复风险。**含音乐/音效的短视频素材 → 关闭。**
+
+**④ 已知幻觉形态（质检排查用）**：音乐或静音段的重复循环；结尾吐出
+"Thank you."/"请订阅" 之类（静音段幻觉）；turbo 档更明显。若回读质检出现
+「相似度异常高但词数暴增」，先算重复 n-gram 再怀疑文本本身。
+
+
 ## VLM Asset Analysis
 
 The pipeline uses two independent Python subprocesses managed by `visual-analyzer.mjs`:

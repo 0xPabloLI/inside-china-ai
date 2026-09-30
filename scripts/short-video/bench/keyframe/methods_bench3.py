@@ -35,6 +35,7 @@ Run: ~/.video-tts-env/bin/python scripts/short-video/bench/keyframe/methods_benc
 import json
 import math
 import os
+import subprocess
 import sys
 
 import numpy as np
@@ -100,7 +101,7 @@ def _pair_sum(a, idx):
     return float((sub.sum() - np.trace(sub)) / 2.0)
 
 
-def m_slice(video, slug=None):
+def m_slice(video, slug=None, budget=BUDGET):
     """SLICE (IEEE Access 2026) steps 3-8 verbatim; step 2 substituted.
 
     The paper's raw score S_t is a BLIP ITM relevance against the question, and
@@ -126,7 +127,7 @@ def m_slice(video, slug=None):
     rect = np.maximum(sm, 0.0)
     p = rect + rect.sum() / n          # p_robust = rectified + energy floor μ
     cdf = np.cumsum(p)
-    k = min(BUDGET, n)
+    k = min(budget, n)
     inner = [int(np.searchsorted(cdf, (j / k) * cdf[-1])) for j in range(1, k)]
     edges = [0] + [c for c in inner if 0 < c < n] + [n]
     picks = [int(i + np.argmax(s[i:j])) for i, j in zip(edges, edges[1:])
@@ -134,7 +135,7 @@ def m_slice(video, slug=None):
     return sorted(ts[i] for i in set(picks))
 
 
-def m_infoshot(video, slug=None):
+def m_infoshot(video, slug=None, budget=BUDGET):
     """InfoShot (arXiv 2603.17374) — balanced-split shot segmentation, then a
     typical + a unique frame per shot.
 
@@ -156,7 +157,7 @@ def m_infoshot(video, slug=None):
     if n <= 2:
         return sorted(ts)
     a = vecs @ vecs.T                  # embeddings are L2-normalized → cosine
-    m = max(1, min(BUDGET // 2, n // 4))
+    m = max(1, min(budget // 2, n // 4))
     segs = [(0, n)]
     while len(segs) < m:
         best = None
@@ -200,7 +201,7 @@ def m_infoshot(video, slug=None):
     return sorted(ts[i] for i in sorted(set(picks)))
 
 
-def m_kframes(video, slug=None):
+def m_kframes(video, slug=None, budget=BUDGET):
     """K-frames (arXiv 2510.13891) Appendix D.2 allocator, query-free by
     deletion: the P1/P2 clip priorities come from Gemini captions plus LLM
     relevance scoring, so w≡1 and k_j ∝ ℓ_j with equal spacing inside each clip.
@@ -217,7 +218,7 @@ def m_kframes(video, slug=None):
     if not segs:
         return [0.0]
     lens = np.array([y - x for x, y in segs])
-    k = min(BUDGET, len(lens) * BUDGET)
+    k = min(budget, len(lens) * budget)
     raw = lens / lens.sum() * k
     alloc = np.floor(raw).astype(int)
     for i in np.argsort(-(raw - alloc))[:k - alloc.sum()]:  # largest remainder
@@ -228,7 +229,7 @@ def m_kframes(video, slug=None):
     return sorted(picks)
 
 
-def m_kffocus(video, slug=None):
+def m_kffocus(video, slug=None, budget=BUDGET):
     """KFFocus (arXiv 2508.08989) frame layer: coded I-frames plus ⌊T_k/(δT)⌋
     evenly spaced compensation frames inside every gap (δ=5% of the duration),
     with the head and tail gaps counted too — the paper lists only adjacent
@@ -252,7 +253,208 @@ def m_kffocus(video, slug=None):
             continue
         n = int(g // step)
         out += [round(a + g * (j + 1) / (n + 1), 2) for j in range(n)]
-    return sorted(set(t for t in out if 0 <= t <= duration))
+    # I-frames plus gap fills can exceed the budget on a long clip; honour the
+    # method contract explicitly (behaviour-identical: score() subsamples with
+    # the same helper).
+    return sorted(mb.subsample(sorted(set(t for t in out if 0 <= t <= duration)),
+                               budget))
+
+
+def _decode_rgb224(video, step):
+    """RGB 224x224 candidate stream + its luma, [(t, rgb, gray)]."""
+    proc = subprocess.run(
+        [bc.FFMPEG, "-nostdin", "-i", str(video),
+         "-vf", f"fps={1 / step},scale=224:224", "-an", "-sn", "-dn",
+         "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"],
+        capture_output=True, timeout=300)
+    buf = np.frombuffer(proc.stdout, dtype=np.uint8)
+    n = len(buf) // (224 * 224 * 3)
+    rgb = buf[:n * 224 * 224 * 3].reshape(n, 224, 224, 3)
+    gray = (rgb[..., 0] * 0.299 + rgb[..., 1] * 0.587
+            + rgb[..., 2] * 0.114).astype(np.uint8)
+    return [(round(i * step, 3), rgb[i], gray[i]) for i in range(n)]
+
+
+_MODELS = {}
+
+
+def _resnet(name, pooled):
+    """torchvision ResNet with ImageNet weights from the local cache (both
+    files were fetched once into ~/.cache/torch/hub/checkpoints; ResNet-18's
+    has the exact torchvision key set, verified 0 missing / 0 unexpected).
+    pooled=False also strips avgpool → (N, C, 7, 7) maps for LVNet's TSC."""
+    import torch
+    import torchvision
+    key = (name, pooled)
+    if key not in _MODELS:
+        w = {"resnet18": torchvision.models.ResNet18_Weights.IMAGENET1K_V1,
+             "resnet50": torchvision.models.ResNet50_Weights.IMAGENET1K_V2}[name]
+        m = getattr(torchvision.models, name)(weights=w)
+        m.fc = torch.nn.Identity()
+        if not pooled:
+            m.avgpool = torch.nn.Identity()
+        m.eval()
+        _MODELS[key] = m
+    return _MODELS[key]
+
+
+def _resnet_forward(model, rgb_frames):
+    import torch
+    x = torch.from_numpy(np.stack(rgb_frames)).float().permute(0, 3, 1, 2) / 255.0
+    x = (x - torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)) \
+        / torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+    with torch.no_grad():
+        return model(x).numpy()
+
+
+def _norm01(v):
+    lo, hi = float(np.min(v)), float(np.max(v))
+    return (v - lo) / (hi - lo + 1e-9)
+
+
+def _sigmoid(x):
+    return 1.0 / (1.0 + np.exp(-x))
+
+
+_TAKSF_STEP = 0.2      # 5fps candidate stream, see m_taksf
+_LVNET_STEP = 1.0
+
+
+def m_taksf(video, slug=None, budget=BUDGET):
+    """TAKSF — Task-Driven Dual-Path Keyframe Selection, IEEE Access
+    14:83838-83851 (2026), DOI 10.1109/ACCESS.2026.3698553. No official code.
+
+    Steps 1-7 implemented as published: grayscale motion
+    D_i = ||f_i - f_{i-1}||_2 with the adaptive gate T = μ(D) + α·σ(D), α=1.0;
+    S_vis = sigmoid(D̂_i + φ̂(f_i)) (φ = saliency, both min-maxed first);
+    ResNet-50 2048-d features; k-means with C = max(min(⌈N/θ⌉, C_max), 1),
+    θ=10, C_max=15; S_sem = sigmoid(cos(F_i, own centre) + 0.5·Ent(F_i));
+    variance-weighted fusion λ_f = Var(D)/(Var(D)+Var(S_sem)); top-K.
+
+    Three documented deviations:
+    - Step 8 (TSM query alignment, Cosine(F_i, E_q)) is DROPPED: it is the only
+      query-dependent step and #391 keeps questions out of extraction. The paper
+      attributes its largest ablation gain to TSM, so this is a partial method.
+    - K₁ / K₂ are never given values in the paper and Eq 8 is per-frame, so no
+      pre-filter is applied; K = min(budget, max(1, round(0.10·N))) — the middle
+      of the paper's 5-15% band, sized so that the 5fps stream lands near a
+      16-frame budget (the paper's own N is 900-1800 frames).
+    - Saliency via cv2.saliency (spectral residual): OpenCV ships no Itti-Koch
+      implementation, and the paper's φ enters as a pooled scalar either way.
+    """
+    step = _TAKSF_STEP
+    frames = _decode_rgb224(video, step)
+    n = len(frames)
+    if n == 0:
+        return []
+    ts = [t for t, _, _ in frames]
+    grays = [g for _, _, g in frames]
+    if n == 1:
+        return [ts[0]]
+    d = np.array([float(np.linalg.norm(grays[i].astype(np.float32)
+                                       - grays[i - 1].astype(np.float32)))
+                  for i in range(1, n)])
+    d = np.concatenate([[0.0], d])
+    gate = float(d.mean() + 1.0 * d.std())
+    import cv2
+    sal = cv2.saliency.StaticSaliencySpectralResidual_create()
+    phi = []
+    for g in grays:
+        ok, smap = sal.computeSaliency(g)
+        phi.append(float(smap.mean()) if ok else 0.0)
+    phi = np.array(phi)
+    def entropy(g):
+        h = np.bincount(g.ravel(), minlength=256).astype(float)
+        p = h / max(1.0, h.sum())
+        p = p[p > 0]
+        return float(-(p * np.log2(p)).sum())
+    s_vis = _sigmoid(_norm01(d) + _norm01(phi))
+    valid = d >= gate
+    if not valid.any():
+        valid = np.ones(n, dtype=bool)
+    idx = np.where(valid)[0]
+    feats = _resnet_forward(_resnet("resnet50", pooled=True),
+                            [f[1] for f in frames])
+    fn = feats / (np.linalg.norm(feats, axis=1, keepdims=True) + 1e-9)
+    c = int(max(1, min(int(np.ceil(len(idx) / 10.0)), 15)))
+    sub = fn[idx]
+    rng = np.random.RandomState(42)
+    centers = [sub[rng.randint(len(idx))]]
+    for _ in range(c - 1):
+        d2 = np.min([np.sum((sub - cc) ** 2, axis=1) for cc in centers], axis=0)
+        centers.append(sub[int(np.argmax(d2))])
+    centers = np.stack(centers)
+    for _ in range(20):
+        assign = np.argmin(np.stack([np.sum((sub - cc) ** 2, axis=1)
+                                     for cc in centers]), axis=0)
+        for j in range(c):
+            if np.any(assign == j):
+                centers[j] = sub[assign == j].mean(axis=0)
+    ent = np.array([entropy(grays[i]) for i in idx])
+    sim = np.array([float(np.dot(fn[i], centers[assign[k]]))
+                    for k, i in enumerate(idx)])
+    s_sem = _sigmoid(sim + 0.5 * _norm01(ent))
+    var_d, var_s = float(d.var()), float(s_sem.var())
+    lam = var_d / (var_d + var_s + 1e-9)
+    score = np.full(n, -1e9)
+    score[idx] = lam * s_vis[idx] + (1 - lam) * s_sem
+    k = int(min(budget, max(1, round(0.10 * n))))
+    top = np.argsort(-score)[:k]
+    return sorted(float(ts[i]) for i in top)
+
+
+def m_lvnet_tsc(video, slug=None, budget=BUDGET, tau=18, psi=5, divlam=12):
+    """LVNet stage 1 only (TSC — temporal scene clustering), from
+    Park et al., EACL 2026 (arXiv 2406.09396), code github.com/jongwoopark7978/
+    LVNet. Algorithm taken from the authors' temporalSceneClustering.py, which
+    is authoritative where the paper's Algorithm 1 differs (the threshold is
+    `μ − σ·e^(1−i/λ)`, exponent evaluated per loop index; the paper's version
+    prints a sum that the code does not compute).
+
+    Only TSC fits this harness: stage 2 (CKD) needs question-derived keywords
+    and stage 3 (FKD) calls GPT-4o, so both are excluded by #391's
+    query-free/zero-cost rules. This is therefore the paper's stage-1 ablation
+    (EgoSchema 62.6 → 64.5 in their Table 1), NOT the HKS pipeline (→ 68.2).
+
+    Deviations: candidate stream is 1fps (the paper samples 900-1800 frames),
+    and `random.sample(τ)` is replaced by the first τ so the run is
+    deterministic. Distance is the code's mean element-wise |Δ| over the
+    512x7x7 map, not a matrix norm.
+    """
+    frames = _decode_rgb224(video, _LVNET_STEP)
+    n = len(frames)
+    if n == 0:
+        return []
+    ts = [t for t, _, _ in frames]
+    if n <= psi:
+        return sorted(ts)
+    maps = _resnet_forward(_resnet("resnet18", pooled=False),
+                           [f[1] for f in frames])
+    flat = maps.reshape(n, -1)
+    keep = []
+    idx_list = list(range(n))
+    loop = 0
+    while len(idx_list) > psi:
+        pivot = idx_list.pop(0)
+        rest = np.array(idx_list)
+        dist = np.abs(flat[rest] - flat[pivot]).mean(axis=1)
+        p = np.exp(dist - dist.max())
+        p = p / p.sum()
+        mu, sd = float(p.mean()), float(p.std())
+        thr = mu - sd * np.exp(1.0 - loop / divlam)
+        popped = [int(i) for i, pi in zip(rest, p) if pi < thr]
+        group = [pivot] + popped
+        idx_list = [i for i in idx_list if i not in set(popped)]
+        keep.extend(sorted(group)[:tau])
+        loop += 1
+    if not keep:
+        keep = list(range(n))
+    # The paper's sampler emits one set per cluster group (τ-capped each), so the
+    # union can exceed a budget-K contract; take the harness budget by even
+    # spread. Same helper score() applies, so this is explicit rather than
+    # implicit (PR #412 review).
+    picked = mb.subsample(sorted(ts[i] for i in sorted(set(keep))), budget)
+    return sorted(picked)
 
 
 METHODS = [
@@ -260,10 +462,14 @@ METHODS = [
     ("tiered_v2_hash", mb2.m_tiered_v2),
     ("tiered_v3", m_tiered_v3),
     ("tiered_v3_hash", m_tiered_v3_hash),
+    ("tiered_v4", lambda v, s: et.tiered_timestamps(v, densify=True,
+                                                    spread_guard=True)[0]),
     ("slice", m_slice),
     ("infoshot", m_infoshot),
     ("kframes", m_kframes),
     ("kffocus", m_kffocus),
+    ("taksf", m_taksf),
+    ("lvnet_tsc", m_lvnet_tsc),
     ("uniform_16fps1_grid", lambda v, s: [
         round(i * (bc.asset_duration(v) - 0.05) / (BUDGET - 1), 2)
         for i in range(BUDGET)]),

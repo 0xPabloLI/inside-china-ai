@@ -43,13 +43,27 @@ import exp_siglip as es  # noqa: E402
 import exp_tiered as et  # noqa: E402
 
 BUDGET = 16
-ALL_METHODS = ["uniform_16", "tiered", "tiered_v3", "slice", "maxinfo_siglip"]
+ALL_METHODS = ["uniform_16", "tiered", "tiered_v3", "tiered_v5", "slice",
+               "maxinfo_siglip"]
 METHODS = [m.strip() for m in
            os.environ.get("VM_METHODS", ",".join(ALL_METHODS)).split(",")
            if m.strip()]
 MAX_VIDEOS = int(os.environ.get("VM_MAX_VIDEOS", "24"))
 OUT_NAME = os.environ.get("VM_OUT", "exp_videomme_qa.json")
 SUBSET_NAME = os.environ.get("VM_SUBSET", "bench_subset.csv")
+AUDIO = os.environ.get("VM_AUDIO") == "1"   # feed the clip's audio to MiniCPM-o too
+AUDIO_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "audio")
+ASR_DIR = os.path.join(WT_ROOT, os.environ.get(
+    "VM_ASR_DIR", ".scratch/keyframe-bench/asr"))   # ctx-off 复跑切 asr_ctxoff
+ASR_TEXT = os.environ.get("VM_ASR") == "1"   # inject the ASR transcript into the prompt
+ASR_MAX_CHARS = 2000
+PRECOMPUTED = os.environ.get("VM_PRECOMPUTED")   # JSON: {videoID: {method: [ts,...]}}
+OMNI_UNITS = os.environ.get("VM_OMNI_UNITS") == "1"   # 官方规格：帧+逐段音频交织
+ASR_MODE = os.environ.get("VM_ASR_MODE", "block")     # block(默认) | ts | full | after
+if AUDIO and ASR_TEXT:
+    # The row suffix can only label one feeding mode, but the prompt would
+    # carry both — rows would merge into the results under the wrong name.
+    raise SystemExit("VM_AUDIO=1 and VM_ASR=1 are mutually exclusive arms")
 
 
 def uniform_sel(duration, budget=BUDGET):
@@ -91,19 +105,110 @@ def parse_strict(raw):
     return m.group(1) if m else "?"
 
 
-def select(name, video, duration):
+def transcript_text(vid, mode):
+    """四种喂法对照：block=整块截断（默认，既有结果的口径）/ ts=逐段带时间戳 /
+    full=不截断 / after=放在题目之后（由调用方处理位置）。"""
+    p = os.path.join(ASR_DIR, f"{vid}.json")
+    if not os.path.exists(p):
+        return ""
+    try:
+        d = json.load(open(p, encoding="utf-8"))
+    except Exception:
+        return ""
+    if mode == "ts":
+        return "\n".join(f"[{int(s['start']//60):02d}:{s['start']%60:04.1f}] {s['text']}"
+                         for s in d.get("segments", [])[:80])
+    t = d.get("text", "")
+    return t if mode == "full" else t[:ASR_MAX_CHARS]
+
+
+_PRECOMP_CACHE = {}
+
+
+def _cap(ts, budget=BUDGET):
+    """Subsample an over-budget list to <=budget keeping first/last — the same
+    formula methods_bench.subsample uses for the geometric bench. Needed for
+    the precomputed arms: raw detector output is uncapped (sd_content reaches
+    57 frames on one video), and without this the QA arm would buy extra
+    frames that every other arm is denied."""
+    ts = sorted(float(t) for t in ts)
+    if len(ts) <= budget:
+        return ts
+    idxs = sorted({round(i * (len(ts) - 1) / (budget - 1))
+                   for i in range(budget)})
+    return [ts[i] for i in idxs]
+
+
+def _precomputed(name, vid):
+    if not PRECOMPUTED or not vid:
+        return None
+    if not _PRECOMP_CACHE:
+        _PRECOMP_CACHE.update(json.load(open(os.path.join(WT_ROOT, PRECOMPUTED),
+                                             encoding="utf-8")))
+    ts = _PRECOMP_CACHE.get(vid, {}).get(name)
+    return None if ts is None else _cap(ts)
+
+
+def select(name, video, duration, vid=None):
+    # Loading-layer suffixes must be stripped before dispatch. Order matters
+    # only for readability: "_asr_ts" does not end with "_asr", but listing
+    # the modes explicitly documents the four VM_ASR_MODE values. (Missing
+    # "_asr_ts/_asr_full/_asr_after" here is what silently zeroed the three
+    # feeding-mode arms on 2026-09-29.)
+    for suf in ("_audio", "_asr_ts", "_asr_full", "_asr_after", "_asr"):
+        if name.endswith(suf):
+            name = name[: -len(suf)]
+            break
+    pre = _precomputed(name, vid)
+    if pre is not None:
+        return pre
     if name == "uniform_16":
         return uniform_sel(duration)
     if name == "tiered":
         return et.tiered_timestamps(video)[0]
     if name == "tiered_v3":
         return et.tiered_timestamps(video, densify=True)[0]
+    if name == "tiered_v5":
+        return et.tiered_timestamps(video, densify=True,
+                                    enforce_floor=True)[0]
     if name == "slice":
         import methods_bench3 as mb3
         return mb3.m_slice(video)
+    if name in ("infoshot", "lvnet_tsc", "kffocus"):
+        import methods_bench3 as mb3
+        return {"infoshot": mb3.m_infoshot, "lvnet_tsc": mb3.m_lvnet_tsc,
+                "kffocus": mb3.m_kffocus}[name](video)
     if name == "maxinfo_siglip":
         return es.maxinfo_timestamps(video, BUDGET)
+    if name == "blockslide":
+        import methods_bench as mb
+        return _cap(mb.m_blockslide(video))
+    if name == "kframes":
+        import methods_bench3 as mb3
+        return _cap(mb3.m_kframes(video))
+    if name == "scene_008_cap16":
+        return _cap(bc.derive_scene_timestamps(video, "0.08", BUDGET))
+    if name == "iframe_even16":
+        return _cap(bc.derive_iframe_timestamps(video, BUDGET, "even"))
     raise ValueError(name)
+
+
+def ensure_audio(video, vid):
+    """16 kHz mono wav for the omni engine (ffmpeg), cached per video."""
+    os.makedirs(AUDIO_DIR, exist_ok=True)
+    out = os.path.join(AUDIO_DIR, f"{vid}.wav")
+    if os.path.exists(out) and os.path.getsize(out) > 1000:
+        return out
+    import subprocess
+    r = subprocess.run([bc.FFMPEG, "-nostdin", "-y", "-i", video, "-vn",
+                        "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", out],
+                       capture_output=True)
+    ok = r.returncode == 0 and os.path.exists(out) and os.path.getsize(out) > 1000
+    if not ok and os.path.exists(out):
+        # A partial wav left by a failed conversion must be deleted, or later
+        # runs' exists() short-circuit serves it as cache forever.
+        os.unlink(out)
+    return out if ok else None
 
 
 def main():
@@ -115,6 +220,11 @@ def main():
     subset = pd.read_csv(os.path.join(VM, SUBSET_NAME))
     videos = sorted(set(subset["videoID"]) & set(df["videoID"]))[:MAX_VIDEOS]
     qa = df[df["videoID"].isin(videos)]
+    if AUDIO or ASR_TEXT:
+        global METHODS
+        suffix = ("_audio" if AUDIO else
+                  ("_asr" if ASR_MODE == "block" else f"_asr_{ASR_MODE}"))
+        METHODS = [m + suffix for m in METHODS]
     print(f"{len(videos)} videos, {len(qa)} QA pairs in scope", flush=True)
     print(f"arms: {METHODS}", flush=True)
 
@@ -135,9 +245,18 @@ def main():
         vlm._warmup(model, processor, vlm.DEFAULT_ENGINE)
     except Exception as e:
         print(f"warmup failed: {e}", flush=True)
+    sel_errors = {m: 0 for m in METHODS}
+    no_frames = {m: 0 for m in METHODS}
+    sel_noout = {m: 0 for m in METHODS}
+    raised = set()          # (method, videoID) whose select() raised
 
     def dump():
-        scored = [r for r in details if "pred_strict" in r]
+        # Rows without model output (no_frames / sel_error) must not enter the
+        # scorer-agreement block: they would inflate rows_with_raw and count as
+        # strict!=lenient on every one of them, turning parser_check into a
+        # measure of how often the selector returned nothing.
+        scored = [r for r in details if "pred_strict" in r
+                  and not r.get("no_frames") and not r.get("sel_error")]
         diff = [r for r in scored if r["pred_strict"] != r["pred"]]
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump({"arms_run": METHODS, "arms_in_file": sorted(results),
@@ -158,31 +277,60 @@ def main():
             print(f"SKIP (no video): {vid}", flush=True)
             continue
         duration = bc.asset_duration(video)
+        audio_path = ensure_audio(video, vid) if AUDIO else None
         sub = qa[qa["videoID"] == vid]
         selections = {}
+        raised_here = set()
         for m in METHODS:
             try:
-                ts = select(m, video, duration)
+                ts = select(m, video, duration, vid)
                 selections[m] = grab(video, ts, os.path.join(VM, "frames"),
                                      f"{vid[:8]}_{m}")
             except Exception as e:
                 print(f"{vid} {m} selection FAILED: {type(e).__name__}: {e}",
                       flush=True)
                 selections[m] = []
+                sel_errors[m] += 1
+                raised_here.add(m)
         for _, q in sub.iterrows():
             opts = list(q["options"]) if isinstance(q["options"], list) else \
                 [o.strip() for o in str(q["options"]).split("|")]
-            prompt = (f"{q['question']}\nOptions:\n"
+            transcript = (transcript_text(vid, ASR_MODE) if ASR_TEXT else "")
+            head = (f"视频的语音转写（可能不完整、可能有错）：\n{transcript}\n\n"
+                    if transcript and ASR_MODE != "after" else "")
+            tail = (f"\n\n视频的语音转写（可能不完整）：\n{transcript}"
+                    if transcript and ASR_MODE == "after" else "")
+            prompt = (head + f"{q['question']}\nOptions:\n"
                       + "\n".join(f"{'ABCD'[i]}. {o}" for i, o in enumerate(opts))
-                      + "\n\nAnswer with the option letter only (A, B, C, or D).")
+                      + "\n\nAnswer with the option letter only (A, B, C, or D)."
+                      + tail)
             for m in METHODS:
                 frames = selections.get(m) or []
                 if not frames:
+                    # A selector that returns nothing is a RESULT, not a skipped
+                    # question: the model cannot answer, so the row counts against
+                    # it. Dropping these rows instead (what earlier runs did) lets
+                    # an arm score only the videos where it happens to fire —
+                    # sd_threshold read 45.4% on 36/92 videos this way, when the
+                    # honest number on the full set is 17.8%.
+                    # The CAUSE still has to stay separable: select() raising is a
+                    # harness bug, selecting nothing is a method property, and
+                    # conflating them hides a dispatch crash inside a plausible 0%.
+                    bug = m in raised_here
+                    results[m]["total"] += 1
+                    details.append({"videoID": vid, "question_id": q["question_id"],
+                                    "method": m,
+                                    "pred": "SELERR" if bug else "NOFRAMES",
+                                    "answer": q["answer"], "correct": False,
+                                    "raw": "", "pred_strict": "?",
+                                    "sel_error": bug, "no_frames": not bug})
+                    (sel_noout if bug else no_frames)[m] += 1
                     continue
                 try:
                     raw = vlm.generate_response(
                         model, processor, engine=vlm.DEFAULT_ENGINE,
-                        image_paths=frames, prompt_text=prompt, max_tokens=8)
+                        image_paths=frames, prompt_text=prompt, max_tokens=8,
+                        **({"audio_path": audio_path} if audio_path else {}))
                     pred = parse_lenient(raw)
                 except Exception as e:
                     pred, raw = f"ERR:{str(e)[:40]}", ""
@@ -202,9 +350,37 @@ def main():
     for m in sorted(results):
         t = results[m]["total"]
         c = results[m]["correct"]
-        print(f"{m:16s} {c}/{t} = {c / t * 100:.1f}%" if t else f"{m:16s} n/a",
-              flush=True)
+        note = ""
+        if no_frames[m] or sel_noout[m]:
+            note = (f"  (无输出 {no_frames[m]} 题 / "
+                    f"select()抛错 {sel_noout[m]} 题，视频级异常 {sel_errors[m]} 个)")
+        print((f"{m:16s} {c}/{t} = {c / t * 100:.1f}%" if t else f"{m:16s} n/a")
+              + note, flush=True)
     print(f"DONE → {out_path}", flush=True)
+    broken = [m for m in METHODS if results[m]["total"] == 0]
+    if broken:
+        # On 2026-09-29 three feeding-mode arms and two method arms ran for an
+        # hour with every video failing at select() and still exited rc=0 —
+        # the chains read rc, so a zero-row arm must be a non-zero exit.
+        print(f"!! ARM(S) WITH ZERO ROWS: {broken} — "
+              f"selection errors on { {m: sel_errors[m] for m in broken} } "
+              f"of {len(videos)} videos", flush=True)
+        sys.exit(2)
+    bugged = {m: sel_noout[m] for m in METHODS if sel_noout[m]}
+    if bugged:
+        # select() raising is never a method property, so it must not be
+        # book-kept as "answered with no frames" and counted as a plain 0.
+        print(f"!! ARM(S) WITH select() EXCEPTIONS (rows counted wrong, "
+              f"cause = harness/dispatch/env, not the method): {bugged} — "
+              f"video-level errors: { {m: sel_errors[m] for m in bugged} }",
+              flush=True)
+        sys.exit(2)
+    dead = [m for m in METHODS if results[m]["total"] and no_frames[m] == results[m]["total"]]
+    if dead:
+        print(f"!! ARM(S) WHOSE SELECTOR RETURNED NO FRAMES ON EVERY VIDEO: {dead} — "
+              f"legitimately 0, but check the selection source before citing it",
+              flush=True)
+        sys.exit(2)
 
 
 if __name__ == "__main__":
