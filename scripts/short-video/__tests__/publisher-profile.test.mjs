@@ -55,7 +55,7 @@ CAPTION_TEXT
   [ ] 9. Publish
   [ ] 10. First hour: Reply to EVERY comment (engagement signal)
   [ ] 11. Pin a comment with article link (when domain is live):
-         https://chinaainews.com/posts/demo-slug
+         https://chinaai.news/posts/demo-slug
 
 ⏰  Best posting time: 2-4 PM or 10 PM-12 AM (off-peak hours)
     Off-peak = less competition = algorithm more likely to test your video.
@@ -100,7 +100,7 @@ CAPTION_TEXT
       caption: "C",
       hasAIVoice: true,
     });
-    expect(guide).toContain("https://chinaainews.com/posts/company-news");
+    expect(guide).toContain("https://chinaai.news/posts/company-news");
   });
 });
 

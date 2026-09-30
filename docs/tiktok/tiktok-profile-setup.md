@@ -11,7 +11,7 @@
 | **名称（可搜索）** | `China AI News`                                                            | 编辑资料 → 名称     | 30 字符内。**名称字段被 TikTok 搜索索引**，@用户名大部分不被索引               |
 | **用户名**         | `@chinaainews`                                                             | 编辑资料 → 用户名   | 短、可说、无乱数字。如果被占用，试 `@china_ai_news` 或 `@chinaainews_official` |
 | **Bio（80 字符）** | `China AI news, data, and analysis. Follow for what Western media misses.` | 编辑资料 → 简介     | 80 字符硬限制。回答"关注了能看到什么"                                          |
-| **链接**           | 官网 URL（chinaainews.com）                                                | 编辑资料 → 网站     | **需 1000 粉以上解锁**。1k 以下见下方变通方案                                  |
+| **链接**           | 官网 URL（chinaai.news）                                                | 编辑资料 → 网站     | **需 1000 粉以上解锁**。1k 以下见下方变通方案                                  |
 | **定位语**         | "We cover what Western media misses about China AI"                        | 内部参考，不显示    | 所有内容（bio/置顶/视频）服务这句话                                            |
 
 ## Bio 设计逻辑

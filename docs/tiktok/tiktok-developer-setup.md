@@ -85,10 +85,10 @@
 
 1. 添加 **Content Posting API** product
 2. 添加 `video.upload` + `video.publish` scopes
-3. 改 Website URL → `https://chinaainews.com`
+3. 改 Website URL → `https://chinaai.news`
 4. 改 Description → China AI news publisher
-5. 改 Terms/Privacy URL → chinaainews.com/terms 和 /privacy
-6. 录 demo 视频（展示 chinaainews.com 上的 TikTok OAuth + 上传流程）
+5. 改 Terms/Privacy URL → chinaai.news/terms 和 /privacy
+6. 录 demo 视频（展示 chinaai.news 上的 TikTok OAuth + 上传流程）
 7. 提交审核（1-2 周）
 
 ### 或者：新建一个 App
@@ -99,7 +99,7 @@
 2. 填 App name: `China AI News Publisher`
 3. 只选 Content Posting API（不选 Login Kit / Share Kit / Webhooks）
 4. 只选 `video.upload` + `video.publish` + `user.info.basic` scopes
-5. Website URL: `https://chinaainews.com`
+5. Website URL: `https://chinaai.news`
 6. 录 demo 视频过审
 
 ### 第三方 vs 自己 App 的区别

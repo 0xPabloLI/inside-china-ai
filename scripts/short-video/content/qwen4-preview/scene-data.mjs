@@ -249,6 +249,6 @@ export const scenes = [
 export const metadata = {
   commentHook:
     "Would you run a 6B-active model in production, or wait for the full Qwen4 family? What's your take on the preview-first strategy?",
-  articleUrl: "https://chinaainews.com/posts/qwen4-preview",
+  articleUrl: "https://chinaai.news/posts/qwen4-preview",
   trendingChecked: true,
 };

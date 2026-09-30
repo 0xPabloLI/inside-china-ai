@@ -425,10 +425,10 @@ describe("S7: Pinned Comment (AITL-driven)", () => {
   it("includes article URL when provided", () => {
     const meta = {
       commentHook: "Will ByteDance win the enterprise AI race?",
-      articleUrl: "https://chinaainews.com/posts/doubao-work",
+      articleUrl: "https://chinaai.news/posts/doubao-work",
     };
     const result = derivePinnedComment(mockScenes, meta);
-    expect(result).toContain("https://chinaainews.com/posts/doubao-work");
+    expect(result).toContain("https://chinaai.news/posts/doubao-work");
     expect(result).toContain("Will ByteDance win");
   });
 
