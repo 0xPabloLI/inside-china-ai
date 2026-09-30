@@ -7,11 +7,12 @@
  * 3. L2 command-line heuristic — L2 docs with ≥5 command-line patterns get WARN
  * 4. Structural pointer or normative rule changes remind the author to load writing-for-agents
  * 5. Reference resolution — repo paths named by live docs and code must be tracked by git
+ *    (evidence-tier residue is baselined in scripts/doc-ref-baseline.txt; only growth is printed)
  *
  * Exit codes: 0 = PASS/WARN, 1 = FAIL
  */
 
-import { readdirSync, readFileSync, existsSync, readlinkSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync, readlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, basename, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
@@ -168,7 +169,18 @@ const PATH_REF_RE = new RegExp(
 );
 // Vendored third-party skill docs under `agent/` are deliberately out of scope:
 // their internal examples are not this repo's pointer graph.
-const REF_SCAN_TARGETS = ["docs", "scripts", "src", "skills", "supabase", ".github", "AGENTS.md", "CONTEXT.md", "DESIGN.md", "README.md"];
+const REF_SCAN_TARGETS = [
+  "docs",
+  "scripts",
+  "src",
+  "skills",
+  "supabase",
+  ".github",
+  "AGENTS.md",
+  "CONTEXT.md",
+  "DESIGN.md",
+  "README.md",
+];
 const REF_SCAN_EXT = /\.(?:md|mjs|cjs|ts|tsx|json|py|sh|yml|yaml|sql|css|html)$/;
 // Comment-line shapes: `//`, `/*`, ` * ` (block continuation), `#`, `--`.
 // Trailing end-of-line comments after code are out of scope in this version —
@@ -208,8 +220,36 @@ const EVIDENCE_REFERRER_PREFIXES = [
   "docs/handoffs/",
   "docs/refs/",
 ];
+// The evidence tier is permanently non-empty by design (a research doc that cites
+// another project's file is *correct*, not stale), so an uncounted "WARN (39)"
+// would train everyone to skim it. `scripts/doc-ref-baseline.txt` freezes the
+// accepted set: known pairs print quietly, anything new prints with a NEW marker
+// so growth is the signal. Refresh deliberately with `--bless` after reviewing.
+const REF_BASELINE_PATH = join(PROJECT_ROOT, "scripts", "doc-ref-baseline.txt");
 
-export function checkReferenceResolution(files, trackedFiles, symlinks = []) {
+/** `referrer|target`, one per line; `#` introduces a comment. Absent = nothing known. */
+export function parseRefBaseline(text) {
+  return new Set(
+    text
+      .split("\n")
+      .map((l) => l.split("#")[0].trim())
+      .filter((l) => l.includes("|")),
+  );
+}
+
+export function loadRefBaseline(path = REF_BASELINE_PATH) {
+  try {
+    return parseRefBaseline(readFileSync(path, "utf8"));
+  } catch {
+    return new Set();
+  }
+}
+
+export function refKey(filename, ref) {
+  return `${filename}|${ref}`;
+}
+
+export function checkReferenceResolution(files, trackedFiles, symlinks = [], baseline = new Set()) {
   const tracked = new Set(trackedFiles);
   // A committed symlink exists in every fresh clone, so a path written through
   // it is a real pointer even though git lists only the link's own target.
@@ -271,10 +311,13 @@ export function checkReferenceResolution(files, trackedFiles, symlinks = []) {
       const level = EVIDENCE_REFERRER_PREFIXES.some((p) => filename.startsWith(p))
         ? "WARN"
         : "FAIL";
+      const key = refKey(filename, ref);
       findings.push({
         level,
         ruleId: "doc-ref-unresolved",
         file: filename,
+        key,
+        known: baseline.has(key),
         message: `${filename}:${line} — unresolved reference \`${ref}\` (not tracked by git; repoint it if it moved, cite the full URL if it belongs to another project)`,
       });
     }
@@ -400,7 +443,9 @@ function collectReferenceScan() {
   // Mode 120000 = committed symlink. Resolve it the way a checkout would, so a
   // path written through the link is judged on the target it really reaches.
   const symlinks = [];
-  for (const entry of git(`-s --recurse-submodules ${REF_SCAN_TARGETS.map((t) => `"${t}"`).join(" ")}`)) {
+  for (const entry of git(
+    `-s --recurse-submodules ${REF_SCAN_TARGETS.map((t) => `"${t}"`).join(" ")}`,
+  )) {
     const [meta, path] = entry.split("\t");
     if (!path || !meta.startsWith("120000 ")) continue;
     let target;
@@ -410,7 +455,9 @@ function collectReferenceScan() {
       continue;
     }
     if (!target) continue;
-    const to = target.startsWith("/") ? target.slice(1) : posix.normalize(join(dirname(path), target));
+    const to = target.startsWith("/")
+      ? target.slice(1)
+      : posix.normalize(join(dirname(path), target));
     symlinks.push({ from: path, to });
   }
 
@@ -503,6 +550,7 @@ export function getStagedDiffs() {
 // --- Main ---
 
 export function main() {
+  const baseline = loadRefBaseline();
   const indexContent = existsSync(INDEX_PATH) ? readFileSync(INDEX_PATH, "utf-8") : "";
 
   // Gather L1 files (docs/*.md root only) and L2 files (docs/research/*.md)
@@ -516,8 +564,34 @@ export function main() {
   const l2Findings = checkL2CommandLines(l2Files).findings;
   const gateFindings = checkWritingForAgentsGate(getStagedDiffs()).findings;
   const refScan = collectReferenceScan();
-  const refFindings = checkReferenceResolution(refScan.files, refScan.tracked, refScan.symlinks)
-    .findings;
+  const refFindings = checkReferenceResolution(
+    refScan.files,
+    refScan.tracked,
+    refScan.symlinks,
+    baseline,
+  ).findings;
+
+  if (process.argv.includes("--bless")) {
+    // Only the evidence tier may be blessed — a FAIL is a pointer an agent will
+    // actually follow, and baselining one would silence the gate where it matters.
+    const keys = refFindings
+      .filter((f) => f.level === "WARN")
+      .map((f) => f.key)
+      .sort();
+    const header =
+      "# 证据层「引用了 git 未跟踪路径」的已知清单（lint-doc-hierarchy 规则 5）。\n" +
+      "# 一行一条 `引用方|被引方`；# 之后为注释。这些不是待修项，而是复核后接受的事实：\n" +
+      "# 研究/评审/提案文档常引用别的项目的文件，或被删掉的实验脚本 —— 改它们会伪造记录。\n" +
+      "# 门禁只关心清单会不会变长：新增条目在输出里标 NEW，并附处置动作。\n" +
+      "#   node scripts/lint-doc-hierarchy.mjs --bless\n" +
+      "# 复指好一条就删掉它的行（重生会把已修好的条目一起清掉，属期望行为）；\n" +
+      "# 但重生前 `git diff` 一眼，确认没顺手删掉别人正留着的那条。\n";
+    writeFileSync(REF_BASELINE_PATH, header + keys.join("\n") + "\n", "utf8");
+    process.stderr.write(
+      `[doc-hierarchy] baseline written: ${keys.length} 条 → ${basename(REF_BASELINE_PATH)}\n`,
+    );
+    process.exit(0);
+  }
 
   const allFindings = [
     ...indexFindings,
@@ -528,14 +602,21 @@ export function main() {
   ];
 
   // Print findings
+  const knownRef = refFindings.filter((f) => f.level === "WARN" && f.known).length;
   for (const f of allFindings) {
     const level = f.level === "FAIL" ? "FAIL" : "WARN";
-    process.stderr.write(`${level} ${f.ruleId}: ${f.message}\n`);
+    // Known evidence-tier residue is folded into the summary count; anything new
+    // gets a line and a NEW marker, because "the set grew" is the only thing a
+    // reader needs to see.
+    if (f.ruleId === "doc-ref-unresolved" && f.known) continue;
+    const marker = f.ruleId === "doc-ref-unresolved" && f.level === "WARN" ? "NEW " : "";
+    process.stderr.write(`${level} ${marker}${f.ruleId}: ${f.message}\n`);
   }
 
   // Summary
   const fails = allFindings.filter((f) => f.level === "FAIL");
   const warns = allFindings.filter((f) => f.level === "WARN");
+  const newRefs = warns.filter((f) => f.ruleId === "doc-ref-unresolved" && !f.known).length;
 
   if (allFindings.length === 0) {
     process.stderr.write("[doc-hierarchy] PASS\n");
@@ -545,6 +626,18 @@ export function main() {
     process.stderr.write("\n");
   } else {
     process.stderr.write(`[doc-hierarchy] WARN (${warns.length})\n`);
+  }
+  if (knownRef + newRefs > 0) {
+    process.stderr.write(
+      `[doc-hierarchy] 引用解析：基线已知 ${knownRef} 条（证据层常态，未逐条打印）· 新增 ${newRefs} 条\n`,
+    );
+    if (newRefs > 0) {
+      // The bar's own output is where the recovery action belongs — an agent
+      // hitting it has the gate loaded, not necessarily the doc.
+      process.stderr.write(
+        "[doc-hierarchy] 逐条判定：真断链就复指；确属他项目的文件或已删实验脚本，复核后 `node scripts/lint-doc-hierarchy.mjs --bless`（先 `git diff` 这次重生没抹掉别人删的行）。\n",
+      );
+    }
   }
 
   // Exit code: 1 if any FAIL, 0 otherwise

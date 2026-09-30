@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   checkDocsIndexConsistency,
   checkL1DesignDecisions,
@@ -6,6 +9,8 @@ import {
   checkReferenceResolution,
   checkWritingForAgentsGate,
   parseDiffLines,
+  parseRefBaseline,
+  loadRefBaseline,
 } from "../lint-doc-hierarchy.mjs";
 
 const warnsOf = (findings) => findings.filter((f) => f.level === "WARN");
@@ -728,9 +733,7 @@ describe("checkReferenceResolution", () => {
   });
 
   it("FAIL: a known repo skill directory still guards its own file names", () => {
-    const files = [
-      { filename: "CONTEXT.md", content: "See `skills/brand-system/MISSING.md`." },
-    ];
+    const files = [{ filename: "CONTEXT.md", content: "See `skills/brand-system/MISSING.md`." }];
     const { findings } = checkReferenceResolution(files, TRACKED);
     expect(failsOf(findings)).toHaveLength(1);
   });
@@ -746,5 +749,45 @@ describe("checkReferenceResolution", () => {
     expect(failsOf(findings)).toHaveLength(2);
     expect(findings[0].message).toContain(":1");
     expect(findings[1].message).toContain(":3");
+  });
+
+  it("基线只折叠证据层，FAIL 永远标不到 known", () => {
+    const files = [
+      { filename: "docs/research/x.md", content: "见 `docs/gone-a.md`。" },
+      { filename: "CONTEXT.md", content: "见 `docs/gone-a.md`。" },
+    ];
+    const baseline = new Set(["docs/research/x.md|docs/gone-a.md"]);
+    const { findings } = checkReferenceResolution(files, TRACKED, [], baseline);
+    const evidence = findings.find((f) => f.file === "docs/research/x.md");
+    const live = findings.find((f) => f.file === "CONTEXT.md");
+    expect(evidence.level).toBe("WARN");
+    expect(evidence.known).toBe(true);
+    // 同一条 ref 出现在 live 层时不能被证据层的基线一起消音
+    expect(live.level).toBe("FAIL");
+    expect(live.known).toBe(false);
+  });
+});
+
+describe("证据层引用基线", () => {
+  it("解析时取 # 之前的 key，容忍空白与空行", () => {
+    expect([...parseRefBaseline("# c\n a|b \n\n  c|d  # 说明\n")].sort()).toEqual(["a|b", "c|d"]);
+  });
+
+  it("基线文件不存在 = 什么都不已知，而不是抛错", () => {
+    expect(loadRefBaseline("/definitely/not/here.txt").size).toBe(0);
+  });
+
+  it("仓内基线每一行都必须属于证据层——bless 掉一条 FAIL 等于把门禁改哑", () => {
+    const evidence = [
+      "docs/research/",
+      "docs/reviews/",
+      "docs/proposals/",
+      "docs/handoffs/",
+      "docs/refs/",
+    ];
+    const path = join(dirname(fileURLToPath(import.meta.url)), "..", "doc-ref-baseline.txt");
+    const keys = [...parseRefBaseline(readFileSync(path, "utf8"))];
+    expect(keys.length).toBeGreaterThan(0);
+    expect(keys.filter((k) => !evidence.some((p) => k.startsWith(p)))).toEqual([]);
   });
 });
