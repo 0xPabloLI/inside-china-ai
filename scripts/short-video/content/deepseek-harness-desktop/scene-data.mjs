@@ -276,7 +276,7 @@ Which China AI lab ships software like this next? Tell me in the comments.
 Full article in the pinned comment.`,
   commentHook:
     "DeepSeek is now shipping desktop software, not just models. Would you use a Chinese coding agent as your daily driver, or keep it to the API? What's your call?",
-  articleUrl: "https://chinaainews.com/posts/deepseek-harness-desktop",
+  articleUrl: "https://chinaai.news/posts/deepseek-harness-desktop",
   trendingChecked: true,
   trendingHashtags: [],
 };
