@@ -462,6 +462,15 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     asrFailure = `ASR unavailable (asr_error): ${err.message}`;
   }
 
+  if (!asrFailure && asrOk && !asrText) {
+    // `ok: true` with no usable text is the "ran but transcribed nothing" case
+    // (whisper exits 0 on an empty/unparsable JSON, so parseWhisperOutput hands
+    // back an empty segment list). Treating it as a clean pass would ship a
+    // take that was never word-checked — the exact green-but-unverified hole
+    // this leg exists to close, so it takes the same INFRA route.
+    asrFailure = "ASR unavailable (empty_transcript): back-transcription returned no segments";
+  }
+
   if (asrFailure) {
     // #415 ①: without ASR the gate cannot run a single word-level check, so a
     // green verdict would mean "never verified", not "verified clean". That is

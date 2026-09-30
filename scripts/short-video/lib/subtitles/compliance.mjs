@@ -58,7 +58,10 @@ export function visibleText(text) {
 export function cueMetrics(cue) {
   const text = visibleText(cue?.text ?? "");
   const lines = text.split("\n");
-  const chars = [...text].length;
+  // Line breaks are not displayed characters: counting the "\n" that `\N`
+  // became would over-count every multi-line cue by one per break and can
+  // falsely flag a borderline cue as over the CPS limit.
+  const chars = [...text.replace(/\n/g, "")].length;
   const duration = Math.max(0, (cue?.end ?? 0) - (cue?.start ?? 0));
   return {
     chars,

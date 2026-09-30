@@ -63,6 +63,16 @@ describe("cueMetrics", () => {
     expect(m.cpl).toBe("this line is longer".length);
   });
 
+  it("excludes the line break from the CPS character count", () => {
+    // Netflix / Subtitle-Edit count displayed characters only: a two-line cue
+    // must not be charged one extra character for the break itself.
+    const twoLines = cueMetrics({ start: 0, end: 1, text: "abcd\\Nefgh" });
+    const oneLine = cueMetrics({ start: 0, end: 1, text: "abcdefgh" });
+    expect(twoLines.lines).toBe(2);
+    expect(twoLines.chars).toBe(8);
+    expect(twoLines.cps).toBe(oneLine.cps);
+  });
+
   it("measures karaoke cues by their visible words", () => {
     const cue = {
       start: 0,

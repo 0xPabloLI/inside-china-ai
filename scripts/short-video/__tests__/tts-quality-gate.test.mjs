@@ -549,6 +549,36 @@ describe("#415 ① ASR infrastructure failures", () => {
     expect(res.asrVerified).toBe(true);
   });
 
+  it("fails closed when ASR returns ok with no usable text", async () => {
+    // whisper exits 0 on empty/unparsable JSON, so the adapter reports
+    // {ok:true, segments:[]} — a pass here would ship a take that no
+    // word-level check ever saw.
+    const empty = vi.fn().mockResolvedValue({ ok: true, segments: [], errorCode: null });
+    const res = await evaluateSceneTts(scene, audio, 2.2, { transcriber: empty });
+    expect(res.passed).toBe(false);
+    expect(res.failureClass).toBe(FAILURE_CLASS.INFRA);
+    expect(res.asrVerified).toBe(false);
+    expect(res.issues.join(" ")).toMatch(/empty_transcript/);
+  });
+
+  it("treats whitespace-only ASR segments as empty too", async () => {
+    const blank = vi.fn().mockResolvedValue({ ok: true, segments: [{ text: "   " }] });
+    const res = await evaluateSceneTts(scene, audio, 2.2, { transcriber: blank });
+    expect(res.passed).toBe(false);
+    expect(res.failureClass).toBe(FAILURE_CLASS.INFRA);
+  });
+
+  it("allowAsrUnavailable downgrades an empty transcript to a warning", async () => {
+    const empty = vi.fn().mockResolvedValue({ ok: true, segments: [] });
+    const res = await evaluateSceneTts(scene, audio, 2.2, {
+      transcriber: empty,
+      allowAsrUnavailable: true,
+    });
+    expect(res.passed).toBe(true);
+    expect(res.asrVerified).toBe(false);
+    expect(res.warnings.join(" ")).toMatch(/empty_transcript/);
+  });
+
   it("classifies ASR-only issue lists as infra, mixed lists stay acoustic", () => {
     expect(
       classifyFailure(["ASR unavailable (asr_unavailable): back-transcription could not run"]),
