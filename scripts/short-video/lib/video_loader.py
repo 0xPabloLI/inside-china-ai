@@ -185,14 +185,19 @@ def _extract_audio_segment(video_path, start, end, out_path, sr, ffmpeg):
 
 def _materialize(video_path, frame_times, duration_s, want_audio, has_audio,
                  sr, cache_dir, ffmpeg):
-    frames = []
     frames_dir = os.path.join(cache_dir, "frames")
     os.makedirs(frames_dir, exist_ok=True)
-    for i, t in enumerate(frame_times):
-        rel = f"frames/frame_{i:03d}.jpg"
-        _extract_frame(video_path, t, os.path.join(cache_dir, rel), ffmpeg,
-                       duration_s=duration_s)
-        frames.append({"t": t, "file": rel})
+    batch = _try_batch_grid(video_path, frame_times, frames_dir, ffmpeg)
+    frames = []
+    if batch is not None:
+        frames = [{"t": t, "file": f"frames/{os.path.basename(p)}"}
+                  for t, p in zip(frame_times, batch)]
+    else:
+        for i, t in enumerate(frame_times):
+            rel = f"frames/frame_{i:03d}.jpg"
+            _extract_frame(video_path, t, os.path.join(cache_dir, rel), ffmpeg,
+                           duration_s=duration_s)
+            frames.append({"t": t, "file": rel})
 
     audio_segments = []
     if want_audio and has_audio:
@@ -208,6 +213,39 @@ def _materialize(video_path, frame_times, duration_s, want_audio, has_audio,
             audio_segments.append({"start": round(a, 3), "end": round(b, 3),
                                    "file": rel})
     return frames, audio_segments
+
+
+def _try_batch_grid(video_path, frame_times, out_dir, ffmpeg):
+    """One decode for an arithmetic-progression grid: the exact `-vf fps=` call
+    the windowed production path always made (S1 equivalence), instead of one
+    seek per timestamp. Returns the frame paths in request order, or None when
+    the emitted count differs from the request (caller falls back; the partial
+    batch is removed so no stale frames can leak into the result)."""
+    if len(frame_times) < 2:
+        return None
+    step = round(frame_times[1] - frame_times[0], 6)
+    if step <= 0:
+        return None
+    for i, t in enumerate(frame_times):
+        if abs(t - (frame_times[0] + i * step)) > 1e-3:
+            return None
+    span = round(frame_times[-1] - frame_times[0] + step, 6)
+    fps = 1.0 / step
+    pattern = os.path.join(out_dir, "batch_%03d.jpg")
+    subprocess.run(
+        [ffmpeg, "-nostdin", "-y", "-ss", f"{frame_times[0]:.3f}",
+         "-i", str(video_path), "-t", f"{span:.3f}",
+         "-vf", f"fps={fps:.10g}", "-q:v", "2", pattern],
+        capture_output=True, timeout=600)
+    got = sorted(glob.glob(os.path.join(out_dir, "batch_*.jpg")))
+    if len(got) != len(frame_times):
+        for path in got:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+        return None
+    return got
 
 
 # ─── transcript ─────────────────────────────────────────────────────────────
@@ -280,6 +318,27 @@ def _read_manifest(cache_dir, key):
     return man
 
 
+def _timeline(frame_times, audio_segments, transcript):
+    audio_bounds = [s["start"] for s in audio_segments] + \
+        ([audio_segments[-1]["end"]] if audio_segments else [])
+    transcript_bounds = [s["start"] for s in transcript["segments"]] + \
+        ([transcript["segments"][-1]["end"]] if transcript["segments"] else [])
+    return {"frame_times": list(frame_times),
+            "audio_bounds": audio_bounds,
+            "transcript_bounds": transcript_bounds}
+
+
+def _result(video_path, duration_s, audio_sr, frames, audio_segments,
+            transcript, frame_times):
+    """Result in the public shape; `frames`/`audio_segments` are absolute."""
+    return {"video": video_path,
+            "duration_s": duration_s,
+            "frames": frames,
+            "audio_track": {"sr": audio_sr, "segments": audio_segments},
+            "transcript": transcript,
+            "timeline": _timeline(frame_times, audio_segments, transcript)}
+
+
 def _assemble(cache_dir, man):
     frames = [{"t": f["t"], "path": os.path.join(cache_dir, f["file"])}
               for f in man["frames"]]
@@ -288,18 +347,8 @@ def _assemble(cache_dir, man):
                       for s in man["audio_segments"]]
     with open(os.path.join(cache_dir, man["transcript_file"]), encoding="utf-8") as fh:
         transcript = json.load(fh)
-    audio_bounds = [s["start"] for s in audio_segments] + \
-        ([audio_segments[-1]["end"]] if audio_segments else [])
-    transcript_bounds = [s["start"] for s in transcript["segments"]] + \
-        ([transcript["segments"][-1]["end"]] if transcript["segments"] else [])
-    return {"video": man["video"],
-            "duration_s": man["duration_s"],
-            "frames": frames,
-            "audio_track": {"sr": man["audio_sr"], "segments": audio_segments},
-            "transcript": transcript,
-            "timeline": {"frame_times": list(man["frame_times"]),
-                         "audio_bounds": audio_bounds,
-                         "transcript_bounds": transcript_bounds}}
+    return _result(man["video"], man["duration_s"], man["audio_sr"], frames,
+                   audio_segments, transcript, man["frame_times"])
 
 
 # ─── entry point ────────────────────────────────────────────────────────────
@@ -370,12 +419,24 @@ def load_video(video_path, request):
             "files": [f["file"] for f in frames]
             + [s["file"] for s in audio_segments],
         }
-        with open(os.path.join(cache_dir, "transcript.json"), "w",
-                  encoding="utf-8") as fh:
-            json.dump(transcript, fh, ensure_ascii=False, indent=1)
-        with open(_manifest_path(cache_dir), "w", encoding="utf-8") as fh:
-            json.dump(man, fh, ensure_ascii=False, indent=1)
-        result = _assemble(cache_dir, man)
+        result = _result(
+            video_path, duration_s, audio_sr,
+            [{"t": f["t"], "path": os.path.join(cache_dir, f["file"])}
+             for f in frames],
+            [{"start": s["start"], "end": s["end"],
+              "path": os.path.join(cache_dir, s["file"])}
+             for s in audio_segments],
+            transcript, frame_times)
+        if key:
+            # Cache artifacts only when there is a cache key — a no-cache load
+            # (temporary decode for the production window path) must leave
+            # nothing but the artifacts the caller consumes, so its temp dir
+            # can be removed wholesale.
+            with open(os.path.join(cache_dir, "transcript.json"), "w",
+                      encoding="utf-8") as fh:
+                json.dump(transcript, fh, ensure_ascii=False, indent=1)
+            with open(_manifest_path(cache_dir), "w", encoding="utf-8") as fh:
+                json.dump(man, fh, ensure_ascii=False, indent=1)
 
     result["cache"] = {"key": key, "dir": cache_dir, "hit": hit,
                        "manifest": _manifest_path(cache_dir)}

@@ -40,6 +40,7 @@ import sys
 import json
 import os
 import re
+import math
 import threading
 import time
 import subprocess
@@ -584,65 +585,58 @@ def extract_frames(video_path, fps=1.0, max_seconds=MAX_VIDEO_SECONDS,
 
     When start_ms/end_ms are provided, uses ffmpeg -ss/-t for windowed extraction.
     Otherwise, extracts from the start up to max_seconds.
+
+    Since #417 the decode goes through `video_loader.load_video` (one decode
+    path for frames/audio/transcript instead of per-call ffmpeg): the requested
+    timestamps are exactly the `-vf fps=<fps>` grid this function used to hand
+    to ffmpeg — n = ceil(span x fps) frames at `start + k/fps` — and the
+    loader's arithmetic-grid fast path issues that same single `fps=` call, so
+    S1 keeps the identical frame set with one decode. The grid is clamped to
+    the probed duration (ffmpeg stops at EOF; the loader validates strictly).
     """
-    tmpdir = tempfile.mkdtemp(prefix="vlm_analyzer_frames_")
-    output_pattern = os.path.join(tmpdir, "frame_%04d.jpg")
-    glob_pattern = os.path.join(tmpdir, "frame_*.jpg")
+    from video_loader import load_video, probe_media
 
-    cmd = [
-        FFMPEG_PATH,
-        "-y",
-    ]
-
-    # Windowed extraction: -ss before -i for fast seek
-    if start_ms is not None:
-        cmd.extend(["-ss", str(start_ms / 1000.0)])
-
-    cmd.extend(["-i", video_path])
-
-    # Duration limit
-    if end_ms is not None and start_ms is not None:
-        duration_s = (end_ms - start_ms) / 1000.0
-        cmd.extend(["-t", str(duration_s)])
+    start_s = 0.0 if start_ms is None else start_ms / 1000.0
+    if start_ms is not None and end_ms is not None:
+        span = max(0.0, end_ms / 1000.0 - start_s)
     else:
-        cmd.extend(["-t", str(max_seconds)])
-
-    cmd.extend([
-        "-vf", f"fps={fps}",
-        "-q:v", "2",
-        output_pattern,
-    ])
-
+        span = float(max_seconds)
     try:
-        subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=30,
-            check=True,
-        )
+        media = probe_media(video_path)
     except Exception as e:
         sys.stderr.write(f"[vlm_analyzer] ffmpeg frame extraction failed: {e}\n")
         sys.stderr.flush()
         return []
-
-    frames = sorted(glob.glob(glob_pattern))
-    return frames
+    span = min(span, max(0.0, media["duration_s"] - start_s))
+    n = max(1, math.ceil(span * fps - 1e-9))
+    times = [round(start_s + k / fps, 3) for k in range(n)]
+    try:
+        result = load_video(video_path, {"frame_times": times, "want_audio": False})
+    except Exception as e:
+        sys.stderr.write(f"[vlm_analyzer] ffmpeg frame extraction failed: {e}\n")
+        sys.stderr.flush()
+        return []
+    return [f["path"] for f in result["frames"]]
 
 
 def _cleanup_frames(frame_paths):
     """Remove temporary frame files and their directory."""
     if not frame_paths:
         return
-    tmpdir = os.path.dirname(frame_paths[0])
     for f in frame_paths:
         try:
             os.unlink(f)
         except OSError:
             pass
-    try:
-        os.rmdir(tmpdir)
-    except OSError:
-        pass
+    # Frames sit either directly in the temp dir (legacy layout) or under
+    # <tmp>/frames/ (video_loader layout) — remove up to two empty levels.
+    for directory in {os.path.dirname(os.path.abspath(f)) for f in frame_paths}:
+        for _ in range(2):
+            try:
+                os.rmdir(directory)
+            except OSError:
+                break
+            directory = os.path.dirname(directory)
 
 
 # ─── Image preprocessing ───

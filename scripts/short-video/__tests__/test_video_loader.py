@@ -309,3 +309,67 @@ def test_adapter_qwen_omni_payload_and_missing_package(av_video, tmp_path):
     assert content[1] == {"type": "text", "text": "describe the video"}
     with pytest.raises(RuntimeError, match="qwen-omni-utils"):
         process_qwen_mm_info(conversations)
+
+
+# ─── ticket-2b: batch grid fast path + production wiring ───
+
+def _count_ffmpeg_calls(monkeypatch):
+    import video_loader
+    calls = []
+    real_run = subprocess.run
+
+    def counting(cmd, **kwargs):
+        if isinstance(cmd, (list, tuple)) and cmd and "ffmpeg" in str(cmd[0]):
+            calls.append(list(cmd))
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(video_loader.subprocess, "run", counting)
+    return calls
+
+
+def test_grid_materialization_is_one_decode(av_video, tmp_path, monkeypatch):
+    calls = _count_ffmpeg_calls(monkeypatch)
+    res = load_video(av_video, {"frame_times": [0.0, 1.0, 2.0, 3.0],
+                                "want_audio": False, "cache_dir": str(tmp_path)})
+    assert [f["t"] for f in res["frames"]] == [0.0, 1.0, 2.0, 3.0]
+    assert len(calls) == 1
+    assert calls[0][calls[0].index("-vf") + 1] == "fps=1"
+    assert float(calls[0][calls[0].index("-t") + 1]) == 4.0
+
+
+def test_non_grid_times_fall_back_to_seeks(av_video, tmp_path, monkeypatch):
+    calls = _count_ffmpeg_calls(monkeypatch)
+    res = load_video(av_video, {"frame_times": [0.0, 0.5, 2.0],
+                                "want_audio": False, "cache_dir": str(tmp_path)})
+    assert [f["t"] for f in res["frames"]] == [0.0, 0.5, 2.0]
+    assert len(calls) == 3
+    assert all("-frames:v" in c for c in calls)
+
+
+def test_no_cache_dir_writes_no_cache_artifacts(av_video):
+    res = load_video(av_video, {"frame_times": [0.0, 1.0], "want_audio": False})
+    assert sorted(os.listdir(res["cache"]["dir"])) == ["frames"]
+    assert res["transcript"]["status"] == "not_requested"
+
+
+def test_extract_frames_s1_grid_and_cleanup(av_video):
+    from vlm_analyzer import _cleanup_frames, extract_frames
+
+    # production windowed grid: ceil(span x fps) frames at start + k/fps
+    frames = extract_frames(av_video, fps=1.0, start_ms=0, end_ms=4000)
+    assert len(frames) == 4
+    assert all(os.path.getsize(f) > 500 for f in frames)
+    root = os.path.dirname(os.path.dirname(os.path.abspath(frames[0])))
+    _cleanup_frames(frames)
+    assert not os.path.exists(root)
+
+    frames = extract_frames(av_video, fps=2.0, start_ms=1000, end_ms=3000)
+    assert len(frames) == 4
+    _cleanup_frames(frames)
+
+    # a grid reaching past the probed duration clamps instead of failing
+    frames = extract_frames(av_video, fps=1.0, start_ms=0, end_ms=60000)
+    assert len(frames) == 4
+    _cleanup_frames(frames)
+
+    assert extract_frames("/nonexistent.mp4") == []
