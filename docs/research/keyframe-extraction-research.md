@@ -361,3 +361,63 @@ tiered vs maxinfo 4+10，p=0.180。唯一 p<0.05 的是 tiered_v3 vs maxinfo
 19. KFFocus: Highlighting Keyframes for Enhanced Video Understanding — https://arxiv.org/abs/2508.08989 — Tier 1
 20. mengyu02/InfoShot（作者仓库，仅 README、无代码无许可证）— Tier 3（负面证据）
 
+## 17. Session 4：统一分母与三条纠错（2026-09-30，session `20260928-keyframe-bench-1d663d`，PR #419 已合并）
+
+本轮把三条判据轴跑成同一口径（选帧轴 22 法 × 几何 / KFS / QA / 描述四口径），并因此发现三处**静默口径错**。全部数字来自 `.scratch/keyframe-bench/results/*.json`，每条都能复算。
+
+### 17.1 三条纠错（都改变已引用过的数字）
+
+1. **QA 轴统一分母**：旧 harness 在"选帧为空"时跳过该视频的题，于是每臂只统计自己碰巧有输出的子集。**sd_threshold 有 56/92 个视频零帧**，先前口径报 45.4%（108 题子集），统一分母真值 **17.8%**（49/276）；其余 sd_* 差 1-2pp。现在零帧也出行（`pred=NOFRAMES`、`correct=false`、不调模型），FINAL 打出每臂无输出题数，整臂全空 → rc=2。
+2. **KFS 的 K 预算**：`kframes`/`infoshot` 在方法内部硬编码 16 帧、`blockslide`/`sd_*` 完全不截断，却都打在 `k64` 标签下。**kframes UKSS 0.4301 → 0.5211**（跳到第 6 名，与 lvnet/maxinfo 同档），blockslide 0.5433 → 0.5416（多数素材原始输出本就 <64）。另：`kfs_summary_k64.json` 曾被部分重跑逐臂覆写（一度只剩 1 条），现为合并式写入。⚠️ KFS 的 per-video 协议偏差（官方 GT 是 per-question 的"答题必需场景"，我们按 #391 的 query 解耦裁决做 per-video 一份选择复用到该视频全部题）仍成立：方法之间可比，与作者参考（0.5644）的比较只能当指示，**不得当作 KFS-Bench 官方成绩对外引用**。完整论证见 `scripts/short-video/bench/keyframe/kfs_bench_eval.py` 的 module docstring（该口径的唯一真值处）。
+3. **描述基准窗内选帧**：旧实现整片选 8 帧再过滤到事件窗，实测**平均只落 2.3 帧/事件**（median 1、15% 空窗）。改为窗口裁剪后窗内选帧（pHash 验证 seek 精确），平均 **7.8 帧、零空窗**。旧产物保留作诊断。
+
+### 17.2 选帧轴终值（Video-MME 92 视频 / 276 题，16 帧预算，纯视觉）
+
+kframes 72.5 ｜ maxinfo_siglip 71.7 ｜ lvnet_tsc 70.7 ｜ uniform_16 70.7 ｜ slice 69.6 ｜ blockslide 69.2 ｜ kffocus 68.1 ｜ iframe_even16 67.8 ｜ **tiered_v5 67.0** ｜ taksf 64.5 ｜ sd_adaptive 61.6 ｜ sd_histogram 61.6 ｜ sd_hash 61.2 ｜ tiered(v1/v2) 61.2 ｜ **tiered_v3 60.5** ｜ sd_content 60.5 ｜ infoshot 57.6 ｜ scene_008_cap16 57.2 ｜ sd_threshold 17.8。
+
+两条读法约束（比数字更重要）：
+
+- **QA 单轴不能用来选方法**。`kframes` 是去掉 query 后的退化形（按场景长度比例分配帧数 ≈ 长度加权 uniform），几何口径一直弱（§16.4 表：0.322）、KFS 也只在中游，却在 QA 轴排第一；`uniform` 也稳居前三。这正是 KFS-Bench 论文"QA 最高分不等于选帧最优"的本地复现——**QA 轴的有效用途是测装载层，不是排选帧**。
+- **tiered v3 的假设在此规模再次证伪**：densify 不加 floor = 60.5%，与 v1 的 61.2% 在噪声内；v5 的全部增益来自 floor 修复（67.0%，v5 vs v1 逐题 McNemar 显著）。与 §16.3 的 23 视频结论同向。
+
+### 17.3 装载层轴（固定选帧，只改音频/文本喂法）
+
+| 喂法 | 结果 | 判定 |
+|---|---|---|
+| 原声直喂（帧 + 整段波形） | 67.0% → 50.0%（−17pp，p=2.5e-06） | **有害**，无报错、分布正常，是内容层面被音频通道带偏 |
+| ASR 转写文本进 prompt（slice，ctx-off 转写） | 69.6% → 73.2%（+3.6pp） | 单臂 McNemar **p=0.087 不显著**；显著性来自四方法合并检验（p=3.9e-05）。引用必须带这句 |
+| 转写呈现格式（block / 带时间戳 / 不截断 / 放题后） | 73.2 / 73.2 / 73.2 / 71.4% | 测不出差别：ts 与 full 近乎逐题同分（ctx-off 后 92 份转写只有 2 份超 2000 字，截断与时间戳几乎不改变输入）；after 低 1.8pp 但 p=0.40 |
+| 官方 omni 单元装载（1 帧 + 该帧到下一帧的音频段，逐对交织） | 25/33 vs 同视频纯视觉 26/33 | **无增益**（11 视频 / 33 题同题对照），故不扩样；单次生成 ~76s，比纯视觉慢 5-10 倍 |
+
+音频通道的价值判定：MiniCPM-o 在 QA 轴上听得见内容却会被带偏（冒烟里它能答出"男子介绍 Jennifer Hudson 演唱"这类纯画面推不出的题），但**要把这份信息稳定用起来，目前唯一有效的形态是文本**。#417 装载层的接口设计据此定：帧 + 音轨 + 带时间戳转写，音频不做波形直喂。
+
+### 17.4 描述质量轴（用户真实目标：把内容描述清楚）
+
+ActivityNet Captions val_1，oracle 事件区间，per-event 一句英文描述，462 事件，评分用 pycocoevalcap 标准实现。**主报 METEOR 0.1214 ｜ ROUGE-L 0.1221**（用户 2026-09-30 裁决口径）。
+
+CIDEr 必须分开报：预测 mean 41.9 词 vs 人工参考 13.8 词（总长比 3.04×），标准 σ=6 高斯长度惩罚把分数压到**无惩罚值的 4.4%**——CIDEr(σ=6) 0.0095 ｜ CIDEr(no-pend) 0.2162。即：这条指标在本数据上的读数由"话长"主导，不是由"没描述清楚"主导。裁决取舍：**不为对齐参考长度压缩生成**（目标是信息量，不是参考的简略风格），代价是此 CIDEr 不可与他人论文横比；若要可比，需另跑一版"限 ≤20 词"对照组（未做，约 3h 机器时间）。
+
+### 17.5 ASR 运行时（#418 的速度维度）
+
+空机、ctx-off、4 视频（音频均值 78s）实测：**MLX turbo 30.5× 实时**（3s）＞ whisper.cpp turbo 17.0×（5s）＞ MLX large-v3 7.9×（10s）。配合 §Session3 的等价性结论（两边默认都掺重复幻觉，调用必须关跨段上下文：MLX `condition_on_previous_text=False` / whisper.cpp `--max-context 0`），生产侧 ASR 调用的档位与开关都已定。
+
+### Sources（三续）
+
+21. CIDEr: Consensus-based Image Description Evaluation — Vedantam, Zitnick & Parikh, CVPR 2015 — https://arxiv.org/abs/1411.5726 — Tier 1（σ=6 高斯长度惩罚的定义来源；本文 §17.4 的实测即针对该项）
+22. ActivityNet: A Large-Scale Dataset for Video Context Understanding / Dense Video Captioning with Human-Uniformed Temporal Annotations — Yu et al. CVPR 2017；Zhou et al. ICCV 2017 — Tier 1（视频-密集描述基准与 per-event 评测协议的出处）
+23. METEOR: An Automatic Metric for MT Evaluation with Improved Correlation with Human Judgments — Banerjee & Lavie, ACL Workshop 2005 — Tier 1（主报指标；对词序与长度较不敏感）
+24. pycocoevalcap（实现真值）：本机 `~/.venvs/caption-metrics/lib/python3.14/site-packages/pycocoevalcap/cider/cider_scorer.py:158` 即 `val[n] *= np.e**(-(delta**2)/(2*sigma**2))`；§17.4 的 no-pend 值 = 同一实现把 σ 置为 1e9（惩罚项 → 1）重算，非另写指标。
+
+### 17.6 下一步
+
+1. **#414 分窗重设计**（16→32 帧）：依据是预算扫描产物
+   `.scratch/keyframe-bench/results/exp_budget_scan.json`（4 素材均值：uniform 0.685→**1.000**、
+   slice / tiered / tiered_v4 均 0.964→**1.000** @32，**64 帧无额外收益**；而选帧耗时/帧几乎不随
+   预算变化（uniform ~0.47s、tiered ~5.0s），代价体现在冗余——near-duplicate 对 16→32 帧从
+   2.2→4.0（tiered）与 5.8→26.7（slice），所以成本在喂模型的 token 而非选帧本身）。
+   几何侧可离线验，不占 VLM。
+2. **#417 装载层接口**：按 §17.3 结论——帧 + 音轨 + 带时间戳转写，不做波形直喂；与 #414 耦合（装载层是分窗的输入侧）。
+3. **描述轴若要对外可比**：补"限 ≤20 词"对照组 + no-pend 双报（§17.4）。
+4. **用户已批准未实现**：ASR 锚点选帧、运动矢量信号（`ffmpeg -flags2 +export_mvs`）。
+5. 生产默认策略仍未切（票边界，等用户裁决）；#415 三项代码修复属其它 session。
+

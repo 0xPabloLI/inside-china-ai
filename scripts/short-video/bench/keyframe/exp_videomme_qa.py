@@ -246,9 +246,17 @@ def main():
     except Exception as e:
         print(f"warmup failed: {e}", flush=True)
     sel_errors = {m: 0 for m in METHODS}
+    no_frames = {m: 0 for m in METHODS}
+    sel_noout = {m: 0 for m in METHODS}
+    raised = set()          # (method, videoID) whose select() raised
 
     def dump():
-        scored = [r for r in details if "pred_strict" in r]
+        # Rows without model output (no_frames / sel_error) must not enter the
+        # scorer-agreement block: they would inflate rows_with_raw and count as
+        # strict!=lenient on every one of them, turning parser_check into a
+        # measure of how often the selector returned nothing.
+        scored = [r for r in details if "pred_strict" in r
+                  and not r.get("no_frames") and not r.get("sel_error")]
         diff = [r for r in scored if r["pred_strict"] != r["pred"]]
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump({"arms_run": METHODS, "arms_in_file": sorted(results),
@@ -272,6 +280,7 @@ def main():
         audio_path = ensure_audio(video, vid) if AUDIO else None
         sub = qa[qa["videoID"] == vid]
         selections = {}
+        raised_here = set()
         for m in METHODS:
             try:
                 ts = select(m, video, duration, vid)
@@ -282,6 +291,7 @@ def main():
                       flush=True)
                 selections[m] = []
                 sel_errors[m] += 1
+                raised_here.add(m)
         for _, q in sub.iterrows():
             opts = list(q["options"]) if isinstance(q["options"], list) else \
                 [o.strip() for o in str(q["options"]).split("|")]
@@ -297,6 +307,24 @@ def main():
             for m in METHODS:
                 frames = selections.get(m) or []
                 if not frames:
+                    # A selector that returns nothing is a RESULT, not a skipped
+                    # question: the model cannot answer, so the row counts against
+                    # it. Dropping these rows instead (what earlier runs did) lets
+                    # an arm score only the videos where it happens to fire —
+                    # sd_threshold read 45.4% on 36/92 videos this way, when the
+                    # honest number on the full set is 17.8%.
+                    # The CAUSE still has to stay separable: select() raising is a
+                    # harness bug, selecting nothing is a method property, and
+                    # conflating them hides a dispatch crash inside a plausible 0%.
+                    bug = m in raised_here
+                    results[m]["total"] += 1
+                    details.append({"videoID": vid, "question_id": q["question_id"],
+                                    "method": m,
+                                    "pred": "SELERR" if bug else "NOFRAMES",
+                                    "answer": q["answer"], "correct": False,
+                                    "raw": "", "pred_strict": "?",
+                                    "sel_error": bug, "no_frames": not bug})
+                    (sel_noout if bug else no_frames)[m] += 1
                     continue
                 try:
                     raw = vlm.generate_response(
@@ -322,19 +350,36 @@ def main():
     for m in sorted(results):
         t = results[m]["total"]
         c = results[m]["correct"]
-        print(f"{m:16s} {c}/{t} = {c / t * 100:.1f}%" if t else f"{m:16s} n/a",
-              flush=True)
+        note = ""
+        if no_frames[m] or sel_noout[m]:
+            note = (f"  (无输出 {no_frames[m]} 题 / "
+                    f"select()抛错 {sel_noout[m]} 题，视频级异常 {sel_errors[m]} 个)")
+        print((f"{m:16s} {c}/{t} = {c / t * 100:.1f}%" if t else f"{m:16s} n/a")
+              + note, flush=True)
     print(f"DONE → {out_path}", flush=True)
     broken = [m for m in METHODS if results[m]["total"] == 0]
     if broken:
         # On 2026-09-29 three feeding-mode arms and two method arms ran for an
         # hour with every video failing at select() and still exited rc=0 —
         # the chains read rc, so a zero-row arm must be a non-zero exit.
-        # sel_errors distinguishes "select() raised for every video" (dispatch
-        # bug) from "no frames were grabbed" (bad timestamps).
         print(f"!! ARM(S) WITH ZERO ROWS: {broken} — "
-              f"selection errors: { {m: sel_errors[m] for m in broken} } "
+              f"selection errors on { {m: sel_errors[m] for m in broken} } "
               f"of {len(videos)} videos", flush=True)
+        sys.exit(2)
+    bugged = {m: sel_noout[m] for m in METHODS if sel_noout[m]}
+    if bugged:
+        # select() raising is never a method property, so it must not be
+        # book-kept as "answered with no frames" and counted as a plain 0.
+        print(f"!! ARM(S) WITH select() EXCEPTIONS (rows counted wrong, "
+              f"cause = harness/dispatch/env, not the method): {bugged} — "
+              f"video-level errors: { {m: sel_errors[m] for m in bugged} }",
+              flush=True)
+        sys.exit(2)
+    dead = [m for m in METHODS if results[m]["total"] and no_frames[m] == results[m]["total"]]
+    if dead:
+        print(f"!! ARM(S) WHOSE SELECTOR RETURNED NO FRAMES ON EVERY VIDEO: {dead} — "
+              f"legitimately 0, but check the selection source before citing it",
+              flush=True)
         sys.exit(2)
 
 
