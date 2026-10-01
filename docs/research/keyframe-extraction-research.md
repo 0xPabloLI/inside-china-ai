@@ -719,10 +719,32 @@ v5 在第 0 窗抽出 **33 帧（预算 32）**，末帧落在 137.44s，到窗�
 
 - **接口**：`load_video(video_path, request)`，调用方必须传 `frame_times`（绝对秒列表）。
   **loader 不做任何选帧决策**——选哪些时刻是上游（分窗计划 / 选帧算法）的输入。
-- **实现**：纯 ffmpeg/ffprobe 子进程，无第三方解码库。抽帧 = 按时刻 `-ss` 精确 seek 解码单帧
-  JPEG（等差时刻表走单次 `-vf fps=` 整片快路径）；音频 = 按相邻帧时刻切段转 16kHz mono wav；
-  ASR 转写是注入接口。全程带版本化磁盘缓存。
 - **契约**：帧时刻 ⊂ 音频段边界 ⊆ 转写段边界，全管线一条时间轴。
+
+代码级细节（评审时逐条可查源码）：
+
+- **抽帧两条路径**。时刻表为等差数列（生产常态）→ 整片单次解码
+  `ffmpeg -ss <首帧> -i 视频 -t <跨度> -vf fps=1/<步长> -q:v 2`，产出帧数必须精确等于
+  请求数，否则整批删除回退逐帧路径（防帧错位）；任意时刻表 → 逐时刻精确 seek
+  `ffmpeg -ss <t> -i 视频 -frames:v 1 -q:v 2`。`-q:v 2` = JPEG 质量第 2 档（0–31）。
+  **loader 不缩放**，出原分辨率 JPEG；≤512px 缩放发生在下游 VLM 封装层。
+  t 恰为视频末尾时 `-ss` 拿不到包，回退 `-sseof -0.5` 取最后一帧。
+- **音频切段**：相邻帧时刻之间切一段，1 帧对 1 段：
+  `ffmpeg -ss <t_i> -i 视频 -t <t_{i+1}-t_i> -vn -ac 1 -ar 16000 -c:a pcm_s16le`，
+  即单声道 16kHz 16-bit PCM WAV，最后一段到视频末尾。
+- **喂模型三适配器**：`to_text_interleaved`（生产用：帧 JPEG 路径 + 转写文本进 prompt，
+  block 模式截 2000 字；即 C2 验证的形态）/ `to_minicpm_units`（官方引擎契约路线：单元 i =
+  帧 i + 音频段 i 波形交错，实测零增益）/ `to_qwen_omni`（整片原样传、模型自解码，
+  loader 时刻表**不生效**，不进生产）。
+- **转写引擎不在 loader 里**：loader 只留注入口 `asr_runner`。生产引擎 =
+  **WhisperX（faster-whisper 后端），模型 large-v3，CPU**（`asr_worker.py`；模型档位为
+  ADR-0020 全仓默认，CI 门禁禁降档）。loader 把引擎分段按**中点**归入时间格
+  `[t_i, t_{i+1})`——不切词、不复制、不丢；引擎缺失/抛错 → `status="unavailable"` + 原因，
+  绝不静默当静音。
+- **缓存**：key = sha256(视频字节) + frame_times + 音频开关 + 采样率 + ASR 参数 +
+  loader 版本；manifest 列出的文件缺一个即 miss。
+- **旋转 metadata**：无专门处理，靠 ffmpeg 默认 autorotate（按容器 display matrix 转正），
+  未传 `-noautorotate`，代码中无旋转分支。
 
 **「官方装载」**= 官方包 `minicpmo.utils.get_video_frame_audio_segments`（venv
 `~/.venvs/omni-official`，minicpmo 0.1.2）。它是**解码器不是选择器**：整片 `fps=1`（≤64s）
