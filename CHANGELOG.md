@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.1...tanstack_start_ts-v1.11.2) (2026-10-01)
+
+
+### Bug Fixes
+
+* **bench:** PR [#443](https://github.com/0xPabloLI/inside-china-ai/issues/443) review — relevance parse sentinel, per-question resume keys, degraded-pair exclusion ([316e41b](https://github.com/0xPabloLI/inside-china-ai/commit/316e41b3c2cfa1949304384883899f605a549204))
+
 ## [1.11.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.0...tanstack_start_ts-v1.11.1) (2026-09-30)
 
 
