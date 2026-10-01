@@ -153,7 +153,12 @@ def main():
             prev = json.load(fh)
     else:
         prev = {}
-    done = {(r["videoID"], r["arm"]) for r in prev.get("details", [])
+    # Resume key must be per-(video, question, arm): keying on (video, arm)
+    # alone treats all questions of a pair as one unit, so an interrupted run
+    # that answered half of a pair's questions would skip the rest forever and
+    # silently shrink that arm's denominators (droid-review, PR #443).
+    done = {(r["videoID"], r["question_id"], r["arm"])
+            for r in prev.get("details", [])
             if not str(r.get("pred", "")).startswith("ERR:")}
     details = list(prev.get("details", []))
     meta = dict(prev.get("meta", {}))
@@ -242,7 +247,7 @@ def main():
         for _, q in sub.iterrows():
             prompt = prompt_for(q)
             for arm in ARMS:
-                if (vid, arm) in done:
+                if (vid, q["question_id"], arm) in done:
                     continue
                 frames, audio = feeds[arm]
                 t0 = time.time()

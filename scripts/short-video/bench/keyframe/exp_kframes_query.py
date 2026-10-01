@@ -62,9 +62,9 @@ BUDGET = int(os.environ.get("KFQ_BUDGET", "16"))
 # decoded 0.08 scene cuts are cut-rate (subtitle and narration hard cuts fire on
 # every line change: -qTAeVGl_e8 = 91 cuts over 83 s, 82 of them sub-second), and
 # a sub-second segment has nothing to caption, so P1'/P2 would be scored on
-# text-free fragments. Segments shorter than this are merged into the FOLLOWING
-# one — the paper's own granularity is coarser than a hard cut. Documented
-# because it is a deliberate deviation from the `m_kframes` bench arm.
+# text-free fragments. Segments shorter than this are merged into the
+# PRECEDING one — the paper's own granularity is coarser than a hard cut.
+# Documented because it is a deliberate deviation from the `m_kframes` bench arm.
 MIN_SEG = float(os.environ.get("KFQ_MIN_SEG", "2.0"))
 OUT = os.path.join(RESULTS, os.environ.get(
     "KFQ_OUT", "exp_kframes_query.json"))
@@ -92,12 +92,14 @@ def segments(video, duration):
             if 0 < t < duration]
     edges = [0.0] + cuts + [duration]
     raw = [(x, y) for x, y in zip(edges, edges[1:]) if y - x > 1e-6]
-    # Merge sub-MIN_SEG segments into the following one (see MIN_SEG above).
+    # Merge sub-MIN_SEG segments into the PRECEDING one (see MIN_SEG above);
+    # the final short segment has no successor, so it folds into the last one
+    # either way. (droid-review PR #443: the comment used to claim forward
+    # merging while the code merged backwards — the code is what produced the
+    # artifacts, so the comment moves, not the behaviour.)
     merged = []
     for x, y in raw:
-        if merged and (y - x) < MIN_SEG and merged[-1][1] - merged[-1][0] < MIN_SEG:
-            merged[-1] = (merged[-1][0], y)
-        elif merged and (y - x) < MIN_SEG:
+        if merged and (y - x) < MIN_SEG:
             merged[-1] = (merged[-1][0], y)
         else:
             merged.append((x, y))
@@ -163,8 +165,14 @@ def grab(video, ts, slug):
 
 
 def letter(out):
+    # "?" on no-match, never a plausible constant: a garbled relevance output
+    # must route into the _relevance_error path (RELEVANCE_WEIGHT has no "?"
+    # key -> KeyError -> res[i]=None), and a garbled QA pred must stay visible
+    # as an incorrect row, matching exp_videomme_qa.parse_lenient. Returning
+    # "C" here would fabricate a 25%-correct score and, worse, get cached as a
+    # real relevance weight (droid-review, PR #443).
     m = re.search(r"[ABCD]", out.strip().upper())
-    return m.group(0) if m else "C"
+    return m.group(0) if m else "?"
 
 
 def kq_mcnemar(b, c):
@@ -205,8 +213,7 @@ def main():
     qa = df[df["videoID"].isin(videos)]
 
     if os.path.exists(OUT):
-        prev = json.load(open(OUT, encoding="utf-8")) if False else \
-            json.load(open(OUT, encoding="utf-8"))
+        prev = json.load(open(OUT, encoding="utf-8"))
     else:
         prev = {}
     rows = prev.get("rows", [])
@@ -220,8 +227,17 @@ def main():
 
     def dump():
         agg = {}
+        # Degenerate pairs (relevance unscorable on >=1 segment) must not reach
+        # summary or the paired test: their query arm used the 1.0 fallback, so
+        # quoting them would put a by-construction tie into the artifact. Rows
+        # stay on disk with relevanceDegraded=true for inspection.
+        deg = {(r["videoID"], str(r["question_id"])) for r in rows
+               if r.get("relevanceDegraded")}
+        n_deg = len(deg)
         for r in rows:
             if str(r.get("pred", "")).startswith("ERR:"):
+                continue
+            if (r["videoID"], str(r["question_id"])) in deg:
                 continue
             a = agg.setdefault(r["arm"], {"correct": 0, "total": 0})
             a["total"] += 1
@@ -234,6 +250,8 @@ def main():
         for r in rows:
             if str(r.get("pred", "")).startswith("ERR:"):
                 continue
+            if (r["videoID"], str(r["question_id"])) in deg:
+                continue
             by_q.setdefault((r["videoID"], r["question_id"]),
                             {})[r["arm"]] = bool(r["correct"])
         x = sum(1 for v in by_q.values()
@@ -241,6 +259,7 @@ def main():
         y = sum(1 for v in by_q.values()
                 if len(v) == 2 and v["kframes_queryfree"] and not v["kframes_query"])
         paired = {"pairs": sum(1 for v in by_q.values() if len(v) == 2),
+                  "degradedPairsExcluded": n_deg,
                   "query_only": x, "queryfree_only": y,
                   "mcnemar_exact_p": round(kq_mcnemar(x, y), 4)}
         json.dump({"arms": list(ARMS), "budget": BUDGET, "videos": len(videos),
@@ -252,7 +271,12 @@ def main():
         video = os.path.join(VM, "videos", f"{vid}.mp4")
         duration = bc.asset_duration(video)
         segs = segments(video, duration)
-        if vid in meta and meta[vid].get("segments") == len(segs):
+        # Reuse cached captions only when the segment SIGNATURE matches (count
+        # AND bounds): a count-only check maps old cached captions/relevance
+        # onto shifted boundaries whenever KFQ_MIN_SEG or scene detection moves
+        # an edge while leaving the count unchanged (droid-review, PR #443).
+        seg_sig = json.dumps([[round(x, 2), round(y, 2)] for x, y in segs])
+        if vid in meta and meta[vid].get("segSig") == seg_sig:
             caps = meta[vid]["captions"]
         else:
             caps = []
@@ -269,6 +293,7 @@ def main():
                     caps.append(f"ERR:{type(e).__name__}: {str(e)[:60]}")
             meta[vid] = {"durationS": round(duration, 2),
                          "segments": len(segs),
+                         "segSig": seg_sig,
                          "segBounds": [[round(x, 2), round(y, 2)]
                                        for x, y in segs],
                          "captions": caps}
@@ -285,8 +310,12 @@ def main():
             if rel is None:
                 res = {}
                 for i, cap in enumerate(caps):
-                    key = (vid, q["question_id"], i)
-                    cache = meta.get("_relevance", {}).get("/".join(map(str, key)))
+                    # Cache key carries the segment bounds: an index-only key
+                    # maps cached scores for OLD segments onto NEW segments
+                    # after any boundary shift (droid-review, PR #443).
+                    rkey = "/".join((vid, str(q["question_id"]), str(i),
+                                     f"{segs[i][0]:.2f}-{segs[i][1]:.2f}"))
+                    cache = meta.get("_relevance", {}).get(rkey)
                     if cache is not None:
                         res[i] = RELEVANCE_WEIGHT[cache]
                         continue
@@ -300,13 +329,11 @@ def main():
                         # Never fall back to a plausible-looking constant: that
                         # is how a scoring outage hides inside a query arm that
                         # then ties by construction. Record it, then keep going.
-                        meta.setdefault("_relevance_error", {})[
-                            "/".join((vid, str(q["question_id"]), str(i)))] = \
+                        meta.setdefault("_relevance_error", {})[rkey] = \
                             f"{type(e).__name__}: {str(e)[:80]}"
                         res[i] = None
                     else:
-                        meta.setdefault("_relevance", {})[
-                            "/".join((vid, str(q["question_id"]), str(i)))] = \
+                        meta.setdefault("_relevance", {})[rkey] = \
                             [k for k, v in RELEVANCE_WEIGHT.items()
                              if v == res[i]][0]
                 rel = [res.get(i) for i in range(len(segs))]
@@ -314,11 +341,21 @@ def main():
                     print(f"!! {vid} {q['question_id']}: relevance unscorable "
                           f"for {sum(1 for r in rel if r is None)} segments -- "
                           f"this pair's query arm degenerates to query-free, "
-                          f"do NOT quote it", flush=True)
-                rel = [r if r is not None else 1.0 for r in rel]
-                meta[vid]["relevance"][str(q["question_id"])] = rel
+                          f"pair excluded from summary/paired", flush=True)
+                    # Store under a separate key so a resumed run RE-SCORES
+                    # this pair instead of inheriting the 1.0-filled vector
+                    # (and its silenced warning) forever.
+                    meta[vid].setdefault("relevance_degraded", {})[
+                        str(q["question_id"])] = rel
+                else:
+                    meta[vid]["relevance"][str(q["question_id"])] = rel
             lens = [y - x for x, y in segs]
-            for arm, w in (("kframes_query", rel),
+            # A degraded relevance vector still drives generation (1.0 = the
+            # query-free weight, so the rows exist and resume cleanly) but the
+            # pair is flagged and dump() excludes it from summary/paired.
+            rel_alloc = [r if r is not None else 1.0 for r in rel]
+            degraded_pair = any(r is None for r in rel)
+            for arm, w in (("kframes_query", rel_alloc),
                            ("kframes_queryfree", [1.0] * len(segs))):
                 if any(r["videoID"] == vid and r["question_id"] ==
                        q["question_id"] and r["arm"] == arm and
@@ -330,6 +367,7 @@ def main():
                 row = {"videoID": vid, "question_id": q["question_id"],
                        "arm": arm, "frames": len(frames), "allocation":
                        allocate(lens, w, BUDGET),
+                       "relevanceDegraded": degraded_pair,
                        "answer": q["answer"]}
                 try:
                     raw = generate(model, processor,
