@@ -200,6 +200,19 @@ def main():
                        "meta": meta, "details": kept},
                       fh, ensure_ascii=False, indent=1)
 
+    import mlx.core as mx
+
+    def _free_metal():
+        # 64-image prompts + per-question templates fragment the Metal
+        # allocator; the finale survived 828 inferences without this, but the
+        # feed run hit kIOGPUCommandBufferCallbackErrorOutOfMemory at video 5
+        # (a C++ terminate, uncatchable from Python). Freeing the cache per
+        # question keeps peak pressure near the smoke test's.
+        try:
+            mx.metal.clear_cache()
+        except Exception:
+            pass
+
     for vi, vid in enumerate(videos):
         video = os.path.join(VM, "videos", f"{vid}.mp4")
         duration = bc.asset_duration(video)
@@ -256,6 +269,7 @@ def main():
                                 "arm": arm, "pred": pred, "answer": q["answer"],
                                 "correct": pred == q["answer"], "raw": out[:80]})
                 dump()
+                _free_metal()
                 print(f"[{vi+1}/{len(videos)}] {vid} {q['question_id']} "
                       f"{arm}: {pred} (want {q['answer']}, "
                       f"{time.time()-t0:.0f}s)", flush=True)
