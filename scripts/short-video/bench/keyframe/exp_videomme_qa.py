@@ -65,6 +65,7 @@ PRECOMPUTED = os.environ.get("VM_PRECOMPUTED")   # JSON: {videoID: {method: [ts,
 OMNI_UNITS = os.environ.get("VM_OMNI_UNITS") == "1"   # 官方规格：帧+逐段音频交织
 ASR_MODE = os.environ.get("VM_ASR_MODE", "block")     # block(默认) | ts | full | after
 VM_ENGINE = os.environ.get("VM_ENGINE", "").strip()   # 引擎覆盖（如 qwen3-vl-moe）
+NATIVE_VIDEO = os.environ.get("VM_NATIVE_VIDEO") == "1"   # 原生视频输入（qwen 引擎），跳过选帧
 if AUDIO and ASR_TEXT:
     # The row suffix can only label one feeding mode, but the prompt would
     # carry both — rows would merge into the results under the wrong name.
@@ -291,19 +292,20 @@ def main():
         duration = bc.asset_duration(video)
         audio_path = ensure_audio(video, vid) if AUDIO else None
         sub = qa[qa["videoID"] == vid]
-        selections = {}
+        selections = {} if NATIVE_VIDEO else {}
         raised_here = set()
-        for m in METHODS:
-            try:
-                ts = select(m, video, duration, vid)
-                selections[m] = grab(video, ts, os.path.join(VM, "frames"),
-                                     f"{vid[:8]}_{m}")
-            except Exception as e:
-                print(f"{vid} {m} selection FAILED: {type(e).__name__}: {e}",
-                      flush=True)
-                selections[m] = []
-                sel_errors[m] += 1
-                raised_here.add(m)
+        if not NATIVE_VIDEO:
+            for m in METHODS:
+                try:
+                    ts = select(m, video, duration, vid)
+                    selections[m] = grab(video, ts, os.path.join(VM, "frames"),
+                                         f"{vid[:8]}_{m}")
+                except Exception as e:
+                    print(f"{vid} {m} selection FAILED: {type(e).__name__}: {e}",
+                          flush=True)
+                    selections[m] = []
+                    sel_errors[m] += 1
+                    raised_here.add(m)
         for _, q in sub.iterrows():
             opts = list(q["options"]) if isinstance(q["options"], list) else \
                 [o.strip() for o in str(q["options"]).split("|")]
@@ -318,7 +320,7 @@ def main():
                       + tail)
             for m in METHODS:
                 frames = selections.get(m) or []
-                if not frames:
+                if not frames and not NATIVE_VIDEO:
                     # A selector that returns nothing is a RESULT, not a skipped
                     # question: the model cannot answer, so the row counts against
                     # it. Dropping these rows instead (what earlier runs did) lets
@@ -340,10 +342,15 @@ def main():
                     continue
                 try:
                     t0 = time.time()
-                    raw = vlm.generate_response(
-                        model, processor, engine=vlm.DEFAULT_ENGINE,
-                        image_paths=frames, prompt_text=prompt, max_tokens=8,
-                        **({"audio_path": audio_path} if audio_path else {}))
+                    if NATIVE_VIDEO:
+                        raw = vlm.generate_response(
+                            model, processor, engine=vlm.DEFAULT_ENGINE,
+                            video_path=video, prompt_text=prompt, max_tokens=8)
+                    else:
+                        raw = vlm.generate_response(
+                            model, processor, engine=vlm.DEFAULT_ENGINE,
+                            image_paths=frames, prompt_text=prompt, max_tokens=8,
+                            **({"audio_path": audio_path} if audio_path else {}))
                     secs = round(time.time() - t0, 1)
                     pred = parse_lenient(raw)
                 except Exception as e:
