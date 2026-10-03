@@ -97,6 +97,26 @@ def select(video, duration, name, k):
         return bc.derive_iframe_timestamps(video, k, "even")
     if name == "scene_008_cap16":
         return bc.derive_scene_timestamps(video, "0.08", k)
+    if name in ("cutwin32_unif", "cutwin32_cap"):
+        # The #414 proposal on the KFS ruler. Frame count is NOT K-matched:
+        # the plan emits ~32 frames per window (n = ceil(D/248)), so videos
+        # longer than one window exceed K — read these rows as the plan's
+        # natural output with the mean frame count disclosed next to them,
+        # not as K-matched arms.
+        import subprocess as sp
+        import window_plan as wp
+        from exp_windows import pure_scene_cuts
+        dur = float(sp.run(
+            [bc.FFPROBE, "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", video], capture_output=True, text=True
+        ).stdout.strip())
+        cuts = pure_scene_cuts(video)
+        plan = wp.plan_windows(dur, cuts, min_spacing=(wp.MIN_SPACING
+                                if name == "cutwin32_cap" else None))
+        ts = []
+        for w in plan:
+            ts.extend(wp.even_grid_timestamps(w["start"], w["end"], w["budget"]))
+        return ts
     raise ValueError(name)
 
 
