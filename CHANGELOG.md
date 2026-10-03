@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.2...tanstack_start_ts-v1.11.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* **deps:** update minor and patch updates ([#449](https://github.com/0xPabloLI/inside-china-ai/issues/449)) ([3ad4bda](https://github.com/0xPabloLI/inside-china-ai/commit/3ad4bda5a09ef4ba6ff34d063a9ce6108953cf1d))
+
 ## [1.11.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.1...tanstack_start_ts-v1.11.2) (2026-10-01)
 
 
