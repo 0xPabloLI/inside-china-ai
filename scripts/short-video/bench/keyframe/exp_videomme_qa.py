@@ -42,7 +42,10 @@ import bench_common as bc  # noqa: E402
 import exp_siglip as es  # noqa: E402
 import exp_tiered as et  # noqa: E402
 
-BUDGET = 16
+BUDGET = int(os.environ.get("VM_BUDGET", "16"))  # 24 = legacy24 arm as-is
+# (the production shape carries up to 24 frames; the default 16 keeps every
+# historical arm comparable — _cap uses this to trim precomputed lists, so a
+# legacy24 run without the override would silently lose 8 frames)
 ALL_METHODS = ["uniform_16", "tiered", "tiered_v3", "tiered_v5", "slice",
                "maxinfo_siglip"]
 METHODS = [m.strip() for m in
