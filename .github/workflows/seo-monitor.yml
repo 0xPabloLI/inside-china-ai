@@ -43,7 +43,7 @@ jobs:
           node scripts/seo/validate-jsonld.mjs --online 2>&1 | tee /tmp/seo.log
       - name: Notify on failure
         if: failure()
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
