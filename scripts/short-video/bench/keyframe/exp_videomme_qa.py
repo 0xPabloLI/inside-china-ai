@@ -29,6 +29,7 @@ import json
 import os
 import re
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WT_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
@@ -63,6 +64,7 @@ ASR_MAX_CHARS = 2000
 PRECOMPUTED = os.environ.get("VM_PRECOMPUTED")   # JSON: {videoID: {method: [ts,...]}}
 OMNI_UNITS = os.environ.get("VM_OMNI_UNITS") == "1"   # 官方规格：帧+逐段音频交织
 ASR_MODE = os.environ.get("VM_ASR_MODE", "block")     # block(默认) | ts | full | after
+VM_ENGINE = os.environ.get("VM_ENGINE", "").strip()   # 引擎覆盖（如 qwen3-vl-moe）
 if AUDIO and ASR_TEXT:
     # The row suffix can only label one feeding mode, but the prompt would
     # carry both — rows would merge into the results under the wrong name.
@@ -219,6 +221,13 @@ def main():
     import pyarrow.parquet as pq
     import vlm_analyzer as vlm
 
+    if VM_ENGINE:
+        # 换引擎做跨模型对比（vlm-model.json 里须有该引擎条目）。
+        vlm.DEFAULT_ENGINE, vlm.MODEL_ID = vlm.resolve_engine(
+            vlm._VLM_CONFIG, requested_engine=VM_ENGINE)
+        print(f"engine override: {vlm.DEFAULT_ENGINE} ({vlm.MODEL_ID})",
+              flush=True)
+
     df = pq.read_table(os.path.join(VM, "test.parquet")).to_pandas()
     subset = pd.read_csv(os.path.join(VM, SUBSET_NAME))
     videos = sorted(set(subset["videoID"]) & set(df["videoID"]))[:MAX_VIDEOS]
@@ -330,20 +339,29 @@ def main():
                     (sel_noout if bug else no_frames)[m] += 1
                     continue
                 try:
+                    t0 = time.time()
                     raw = vlm.generate_response(
                         model, processor, engine=vlm.DEFAULT_ENGINE,
                         image_paths=frames, prompt_text=prompt, max_tokens=8,
                         **({"audio_path": audio_path} if audio_path else {}))
+                    secs = round(time.time() - t0, 1)
                     pred = parse_lenient(raw)
                 except Exception as e:
                     pred, raw = f"ERR:{str(e)[:40]}", ""
+                    secs = None
                 correct = pred == q["answer"]
                 results[m]["total"] += 1
                 results[m]["correct"] += int(correct)
                 details.append({"videoID": vid, "question_id": q["question_id"],
                                 "method": m, "pred": pred, "answer": q["answer"],
                                 "correct": correct, "raw": raw[:80],
+                                "secs": secs,
                                 "pred_strict": parse_strict(raw)})
+        try:
+            import mlx.core as mx
+            mx.metal.clear_cache()   # 防跨视频碎片累积（feed 跑 OOM 的教训）
+        except Exception:
+            pass
         acc = {m: (f"{results[m]['correct']}/{results[m]['total']}"
                    if results[m]["total"] else "-") for m in METHODS}
         print(f"[{vi+1}/{len(videos)}] {vid}: {acc}", flush=True)

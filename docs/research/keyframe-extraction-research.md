@@ -1244,3 +1244,20 @@ N∈{96,128,160} 单次推理，每档新进程（OOM 在 C++ 层不可捕获，
 （LongVideoBench 64 帧、Video-MME ~1fps），不规定最大间距；我们的 8s 地板来自
 tiered v5 的生产启发式（L7 守卫），非外部规范。§20.9 的「帧数 = ceil(D/目标盲区)」
 把盲区变成显式参数，由预算曲线标定其性价比。
+
+**社区/架构口径（2026-10-03 查证）**：官方 transformers 用法（MiniCPM-V 4.6 起文档化）
+`max_num_frames` **默认 128**，视频场景 `max_slice_nums` 推荐 1；vLLM-omni 对聊天视频
+同样按 128 帧封顶。本地 MiniCPM-o 4.5 4-bit 配置：`max_position_embeddings=40960`、
+`slice_config.max_slice_nums=1` → **每帧固定 1 个 448×448 切块（≈96 token）**，
+context 理论容量 ≈ 400 帧；实际上限由内存/延迟决定（压测爬坡实测中）。
+
+**C9 机理的修正（重要）**：`max_slice_nums=1` 意味着**模型入口把每帧缩到 448 处理**——
+「我方原分辨率 vs 官方原生分辨率」的差异在模型侧被抹平。C9 的 5.4pp 更可能来自
+**JPEG q88 有损压缩 + decord 索引取样落点偏差**（vs PNG 无损 + 精确 seek），而非
+分辨率本身。§20.10 分带表的「底盘混合」担忧随之减轻：新旧底盘的模型输入规格相同
+（1 切块 @448），底盘差主要剩压缩伪影与取样精度。
+
+**排队的新臂（接力链：预算曲线 → 压测 → 两臂）**：uniform_96（MiniCPM，纯视觉，
+续预算曲线）+ **Qwen3-VL-30B-A3B**（`VM_ENGINE` 旋钮，uniform_64 + 转写整块，
+与 loader_block 同内容跨模型对比：效果 + 逐题耗时，Qwen 4-bit 本地已就绪，
+MoE 128 选 8 专家、context 256k、仅视觉）。
