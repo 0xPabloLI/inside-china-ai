@@ -1248,8 +1248,12 @@ tiered v5 的生产启发式（L7 守卫），非外部规范。§20.9 的「帧
 **社区/架构口径（2026-10-03 查证）**：官方 transformers 用法（MiniCPM-V 4.6 起文档化）
 `max_num_frames` **默认 128**，视频场景 `max_slice_nums` 推荐 1；vLLM-omni 对聊天视频
 同样按 128 帧封顶。本地 MiniCPM-o 4.5 4-bit 配置：`max_position_embeddings=40960`、
-`slice_config.max_slice_nums=1` → **每帧固定 1 个 448×448 切块（≈96 token）**，
-context 理论容量 ≈ 400 帧；实际上限由内存/延迟决定（压测爬坡实测中）。
+`slice_config.max_slice_nums=1` → **每帧按「面积预算 ≈448²、保比例」bicubic 缩放
+（14px 网格取整，如 640×360 → 598×336），重采样 ≈96 token**（源码
+`_find_best_resize`：不是拉成方形；「切分成多块」路径仅静态大图 max_slice_nums>1
+时启用，视频帧一律缩放）→ context 理论容量 ≈ 400 帧；实际上限由内存/延迟决定
+（压测爬坡实测中）。预先缩小帧不省模型算力（token 数不变），只省亚毫秒级 JPEG
+编码；且会锁死未来多块路径——不采纳。
 
 **C9 机理的修正（重要，含两处自我纠错）**：`max_slice_nums=1` 意味着**模型入口把每帧
 缩到 448 处理**——「分辨率」轴在模型侧被抹平；实测两边帧同为 640×360（源分辨率），
