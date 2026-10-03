@@ -1271,3 +1271,9 @@ context 理论容量 ≈ 400 帧；实际上限由内存/延迟决定（压测�
 续预算曲线）+ **Qwen3-VL-30B-A3B**（`VM_ENGINE` 旋钮，uniform_64 + 转写整块，
 与 loader_block 同内容跨模型对比：效果 + 逐题耗时，Qwen 4-bit 本地已就绪，
 MoE 128 选 8 专家、context 256k、仅视觉）。
+
+**长视频档补测（用户 2026-10-03 批准）**：Video-MME `medium` 档（4–15 分钟）
+前 30 个视频（90 题）→ `bench_subset_medium.csv`，串行下载（GAP=6，可续传）；
+预算三点 `uniform_16/64/96` 纯视觉（`bench_subset_medium.csv` 子集，
+`exp_videomme_qa_medium_budget.json`）——专测「帧预算斜率在长内容上是否变陡」，
+即 16 帧在 4–15 分钟上会不会像 60–100s 段那样被 64 帧拉开（排队于全链之后）。
