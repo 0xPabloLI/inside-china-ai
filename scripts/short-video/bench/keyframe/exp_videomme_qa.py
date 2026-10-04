@@ -379,13 +379,17 @@ def main():
         t = results[m]["total"]
         c = results[m]["correct"]
         note = ""
-        if no_frames[m] or sel_noout[m]:
-            note = (f"  (无输出 {no_frames[m]} 题 / "
-                    f"select()抛错 {sel_noout[m]} 题，视频级异常 {sel_errors[m]} 个)")
+        # results keys can include methods from earlier runs of the same file
+        # (resume-merge keeps their rows); no_frames/sel_* only track THIS
+        # run's METHODS, so look them up defensively (2026-10-04 KeyError).
+        if no_frames.get(m) or sel_noout.get(m):
+            note = (f"  (无输出 {no_frames.get(m, 0)} 题 / "
+                    f"select()抛错 {sel_noout.get(m, 0)} 题，"
+                    f"视频级异常 {sel_errors.get(m, 0)} 个)")
         print((f"{m:16s} {c}/{t} = {c / t * 100:.1f}%" if t else f"{m:16s} n/a")
               + note, flush=True)
     print(f"DONE → {out_path}", flush=True)
-    broken = [m for m in METHODS if results[m]["total"] == 0]
+    broken = [m for m in METHODS if results.get(m, {}).get("total", 0) == 0]
     if broken:
         # On 2026-09-29 three feeding-mode arms and two method arms ran for an
         # hour with every video failing at select() and still exited rc=0 —
@@ -403,7 +407,9 @@ def main():
               f"video-level errors: { {m: sel_errors[m] for m in bugged} }",
               flush=True)
         sys.exit(2)
-    dead = [m for m in METHODS if results[m]["total"] and no_frames[m] == results[m]["total"]]
+    dead = [m for m in METHODS
+            if results.get(m, {}).get("total", 0)
+            and no_frames.get(m, 0) == results[m]["total"]]
     if dead:
         print(f"!! ARM(S) WHOSE SELECTOR RETURNED NO FRAMES ON EVERY VIDEO: {dead} — "
               f"legitimately 0, but check the selection source before citing it",

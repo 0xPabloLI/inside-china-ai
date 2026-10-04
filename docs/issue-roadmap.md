@@ -7,7 +7,8 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-09-30（**Round T**：#414/#415/#417 三票交付闭票——PR #436 合并（merge `8a2bc2f0`，15 commits）+ 后续 PR #439：#414 分窗重设计横评与时长感知每窗上限（扫参定 1.0s，召回不变、冗余回到 uniform_32 水平）、#415 生产质检三修（ASR 腿 fail-closed / 字幕 CPS-CPL 门 / 响度回读）、#417 统一视频装载层（生产抽帧经 loader，S1 逐字节等价；官方单元 QA 臂**无增益**的负结果如实入档）；描述轴 ≤20 词对照组 + 配对 bootstrap 落库；官方 `uniform_sample` 公式纠错（`linspace`）影响所有长视频路径。交付记录见三票闭票评论；
+> **Last inventory**: 2026-10-04（**Round U**：#391 研究冲刺三轴收官——①装载轴喂法五臂（276 题全题配对）：**转写文本 > 纯视觉 ≈ 官方波形单元**，loader_block 83.0 显著胜官方全链 76.4（p=0.0009 过 Bonferroni）；②短档预算曲线拐点 **32 帧**（96 帧追加 p=0.45 不显著；96 帧纯视觉 < 64 帧+转写——模态增益 > 帧数增益；压测 160 帧无内存墙）；③跨模型三路线 276 题打平：MiniCPM-o 8B+我方喂养 83.0（33.9s、5GB）= Qwen3-VL-30B 原生视频 83.0（55.6s、17GB）= Qwen+我方外部抽帧喂养 81.5（p≥0.50）——**MiniCPM 成本 1/3 同分**；Qwen-Omni 纯音频 33.3%≈乱猜（音频独立解题≈零，转写是唯一有效音频形态的跨家族复验）。medium 档曲线与模态消融矩阵在跑。细节：`docs/research/keyframe-extraction-research.md` §20.8–§20.10、主库 `.scratch/keyframe-bench/HANDOFF.md` Session 6–8 节；**PR #445 开着待联评**；
+> **Round T（2026-09-30）**：#414/#415/#417 三票交付闭票——PR #436 合并（merge `8a2bc2f0`，15 commits）+ 后续 PR #439：#414 分窗重设计横评与时长感知每窗上限（扫参定 1.0s，召回不变、冗余回到 uniform_32 水平）、#415 生产质检三修（ASR 腿 fail-closed / 字幕 CPS-CPL 门 / 响度回读）、#417 统一视频装载层（生产抽帧经 loader，S1 逐字节等价；官方单元 QA 臂**无增益**的负结果如实入档）；描述轴 ≤20 词对照组 + 配对 bootstrap 落库；官方 `uniform_sample` 公式纠错（`linspace`）影响所有长视频路径。交付记录见三票闭票评论；
 > **frontier**：W3C 串行链仍在 **#391**（选帧策略裁决 + #397 焦点约束；装载层轴已判「音频价值在转写文本通道」，官方单元装载不作默认）；随后 **#334**；Tier 1 余 **#291**（wayfinder:map HITL）与 **#216**（HITL）；#357/#346/#358 快赢可穿插。**待用户裁决**：#414 生产落地（`asset-sourcer.mjs` 四档 → window plan + `DEFAULT_MAX_FRAMES` 16→32 + S1-S5 断言，变更点已在研究文档 §18.2 列全）。
 >
 > 近轮一句话档案：**Round S**（#391 裁决深化——判据研究先行与观测基建前置）；**Round R**（#360 收尾 minors 清账 PR #388 + #391 拆帧实验基建落地 PR #392/#395 + #397 补立 block #396）；**Round Q**（#360 长视频预处理 A+ 分期交付，真实冒烟 2.34×，质量审查 C1 修复，S8 语义修正回流 spec）；**Round P**（#361 PR #378 落地收口：3 findings 修复 + coverage 棘轮补测，按常设授权合并）；**Round O**（#319 Tier 1 安全攻坚收口：4 项 High/Critical 1 修 3 证伪 PR #380 合并；自主合并常设授权固化 git-workflow §7）；**Round N**（全量 62 票 open issues 分流清零、`needs-triage` 归零；W3C 认知底座组 #361→#360→#334 串行确立；W1C/W2B 分流归位）；**Round M**（全模态选型 handoff 定稿方案 C 主干，#351 解耦交付，#360 分流）；**Round L**（素材策略统一化组票 #354/#355/#356/#357 落位）；**Round K**（#297 交付 fail-closed 单模式落地闭票，legacy 删除）；**Round J**（#333 收口 / #269 母票闭票 / 结构精简）。全文见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
@@ -168,7 +169,7 @@
 | #357 | 视频默认 zoom 退场快修（双重运动+入场裁切） | P2·W3B | bug；tracker 权威标签 P2，快赢可穿插 |
 | #361 | 采纳方案 C 全模态引擎（MiniCPM-o 4.5 + e2v 接入 vlm_analyzer） | P3·W3C | 🎯 Dominant；统领认知底座 |
 | #334 | VLM Prompt 优化（Fit/claim 冗余 token 预算削减/Reason） | P3·W3C | enhancement；Prompt 精简与测试集回归 |
-| #391 | 拆帧策略裁决（uniform/scene 可切换 + bench 矩阵已出） | P2·W3C | 🎯 frontier；判据研究与观测基建（双层几何/生产字段判据 + contact-sheet 观测先行 + 纳管 #397 人脸/焦点防遮挡约束；解耦 query；仅 wayfinder 后置）；handoff 在主库 `.scratch/keyframe-bench/HANDOFF.md` |
+| #391 | 拆帧策略裁决（uniform/scene 可切换 + bench 矩阵已出） | P2·W3C | 🎯 frontier；判据研究与观测基建（双层几何/生产字段判据 + contact-sheet 观测先行 + 纳管 #397 人脸/焦点防遮挡约束；解耦 query；仅 wayfinder 后置）；handoff 在主库 `.scratch/keyframe-bench/HANDOFF.md`；Round U 后装载/预算/跨模型三轴数据齐（研究文档 §20.8–§20.10），medium 拐点落地即可终裁 |
 | #397 | Phase 2 焦点产出消费方（布局解析缺口——focusAnalysis/protectedRegions 今日无自动读者） | P2·W3C | block #396；布局节点归 #291 wayfinder 地图 |
 | #396 | focus 内核切换 Haar→YuNet 候选（评估通过：人脸一致/少误报/3.7×） | P3·W3C | dormant——被 #397 block；产出有消费方后才有价值 |
 | #289 | Scene 数据与生成画面适配 | P3·W3C | |
