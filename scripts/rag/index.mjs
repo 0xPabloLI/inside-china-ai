@@ -27,7 +27,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import { join, dirname, basename, relative, sep } from "path";
 import { fileURLToPath } from "url";
 import matter from "gray-matter";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 
 import { chunkMarkdown, chunkSceneData, chunkCatalog } from "./lib/chunker.mjs";
 import { normalizeMetadata } from "./lib/normalizer.mjs";
