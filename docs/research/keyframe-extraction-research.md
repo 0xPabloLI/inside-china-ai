@@ -1475,6 +1475,22 @@ Qwen 的多块高分辨率底盘拉开差距，与短档打平形成对照。med
   累积）。帧预算斜率待 u16 重跑（u16 臂作废事故见 medium 块）。
   ⑤ text-only 臂首跑 27s 即崩（`import vlm_analyzer` 缺 lib 路径）——补
   `sys.path`（与主 harness 同款）后重排。
+  ⑥ **成本口径更正（联评必读）**：「MiniCPM 快 64%」只对 Qwen **原生路线**成立
+  （55.6s/题 = 内部 2fps 自采 ≈160+ 帧 + M-RoPE prefill）。**同等 64 帧外喂预算
+  下 Qwen 反而更快**：medium 26.8s vs MiniCPM 36.2s；短档 25.9s vs 33.9s——
+  多块高分辨率的 prefill 在 MLX 上并不慢。MiniCPM 的真实优势只剩**显存**
+  （5GB vs 17GB）与部署体积（8B vs 30B 下载面），不在推理延迟。Q22 表的
+  延迟列按此口径读（该行对比的是 Qwen 原生操作点）。
+  ⑦ **「Qwen 没有 u64」之问（用户，2026-10-05）**：medium Qwen 臂**不是**原生
+  视频输入——它走 `VM_PRECOMPUTED` 时刻表（我方 loader 的 64 帧）+ Qwen 引擎，
+  VM_NATIVE_VIDEO 未开；「u64」是我们外部抽的 64 帧，两引擎吃同一批帧，公平。
+  Qwen 的**原生**路线只在短档跑过（2fps、max_frames=768，~81s 视频自采
+  ≈160 帧——是 MiniCPM 64 帧的 2.5 倍仍打平，这本身说明它多花帧没买到分）。
+  medium 档「对称化」的两个新臂已排：MiniCPM u128（补斜率：medium 上 64→96
+  还在涨，128 是否继续涨）+ Qwen u64+转写重跑（转写录好后补生产形状对照）。
+  MiniCPM 物理上追不了 Qwen 原生的帧数（resampler 96 token/帧，context 40960
+  ≈400 帧上限；Qwen 原生 768 帧在 medium 10 分钟片上 prefill 也要数百秒，
+  两家的原生操作点在中长内容都不可行，外喂均匀帧才是现实操作点）。
 
 **C9 现状（截至 2026-10-04）**：结论**维持成立**——同刻表同分辨率同帧数下，
 官方像素路径比我方 loader 低 5.4pp（p=0.0007）；落点漂移已实测排除（223/224
