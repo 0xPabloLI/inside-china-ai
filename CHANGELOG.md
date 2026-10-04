@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.11.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.3...tanstack_start_ts-v1.11.4) (2026-10-04)
+
+
+### Bug Fixes
+
+* **lint:** writing-for-agents 门禁收敛触发面并整批压成一条 WARN ([5a1c485](https://github.com/0xPabloLI/inside-china-ai/commit/5a1c485abe6e9e22ef1284f0d510152c8a932ab4))
+* **rag,lint:** reindex import + gate noise; add Pixelle-Video survey ([a04cd29](https://github.com/0xPabloLI/inside-china-ai/commit/a04cd29e3bcf1f9646662c08ed77baa723d6a81b))
+* **rag:** js-yaml v5 无 default export，reindex 一直在模块加载期就崩 ([d905cf8](https://github.com/0xPabloLI/inside-china-ai/commit/d905cf87dae8fb75e147989665e97b4dfa0a98af))
+
 ## [1.11.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.2...tanstack_start_ts-v1.11.3) (2026-10-03)
 
 
