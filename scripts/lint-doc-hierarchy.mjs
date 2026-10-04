@@ -371,8 +371,14 @@ function changeVerb(line) {
   return line.type === "add" ? "added" : "deleted";
 }
 
-function classifyGateChange(content) {
-  if (GATE_HEADING_PATTERN.test(content)) return "heading";
+/**
+ * Classify one changed line. `isL2` marks an evidence doc (docs/research/**):
+ * a heading there is prose structure, not an authoring decision the skill could
+ * change, so it is not a trigger — pointer and normative changes still are.
+ */
+function classifyGateChange(content, isL2 = false) {
+  const isHeading = GATE_HEADING_PATTERN.test(content);
+  if (isHeading && !isL2) return "heading";
   if (GATE_POINTER_PATTERNS.some((p) => p.test(content))) return "pointer line";
   if (NORMATIVE_QUALIFIER_PATTERN.test(content)) return "normative rule line";
   return null;
@@ -388,8 +394,8 @@ function classifyGateChange(content) {
  * @returns {{findings: Array<{level: string, ruleId: string, file: string, message: string}>}}
  */
 export function checkWritingForAgentsGate(stagedDiffs) {
-  const findings = [];
   const agentsMd = "AGENTS.md";
+  const hits = [];
 
   for (const { filename, diffLines } of stagedDiffs) {
     // Archived docs are moved verbatim (rename/archive), so their headings and
@@ -412,29 +418,38 @@ export function checkWritingForAgentsGate(stagedDiffs) {
       changes.some((l) => l.type === "add" && LAST_INVENTORY_LINE_PATTERN.test(l.content));
 
     if (isAgentsMd) {
-      findings.push(
-        gateFinding(
-          filename,
-          `${filename} modified — confirm: did you load writing-for-agents skill before making these changes? (${AGENT_DOC_POINTER_CHAIN})`,
-        ),
-      );
+      hits.push({ filename, kind: "AGENTS.md modified", sample: null });
       continue;
     }
 
+    const isL2 = filename.startsWith("docs/research/");
+
     for (const line of changes) {
       if (isLastInventoryRotation && LAST_INVENTORY_LINE_PATTERN.test(line.content)) continue;
-      const kind = classifyGateChange(line.content);
+      const kind = classifyGateChange(line.content, isL2);
       if (!kind) continue;
-      findings.push(
-        gateFinding(
-          filename,
-          `${filename} has ${kind} ${changeVerb(line)}: "${line.content.trim()}" — confirm: did you load writing-for-agents skill? (${AGENT_DOC_POINTER_CHAIN})`,
-        ),
-      );
+      hits.push({ filename, kind: `${kind} ${changeVerb(line)}`, sample: line.content.trim() });
       break;
     }
   }
-  return { findings };
+
+  if (hits.length === 0) return { findings: [] };
+
+  // One finding per commit, not per file: this prompt re-injects the pointer
+  // chain at the moment of the edit, and per-file copies only inflate the WARN
+  // count that carries the signal worth reading (doc-ref-unresolved growth).
+  const listing = hits
+    .map((h) => (h.sample ? `${h.filename}（${h.kind}: "${h.sample}"）` : `${h.filename}（${h.kind}）`))
+    .join("、");
+
+  return {
+    findings: [
+      gateFinding(
+        hits[0].filename,
+        `本批 ${hits.length} 处 agent 文档结构变更 — ${listing} — confirm: did you load writing-for-agents skill? (${AGENT_DOC_POINTER_CHAIN})`,
+      ),
+    ],
+  };
 }
 
 // --- File system helpers ---

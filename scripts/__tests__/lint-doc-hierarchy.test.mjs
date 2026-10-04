@@ -278,6 +278,56 @@ describe("checkWritingForAgentsGate", () => {
     expect(warns[0].ruleId).toBe("writing-for-agents-gate");
   });
 
+  it("PASS: L2 research doc gains a section heading — prose structure, not an authoring decision", () => {
+    // A research report is organized by headings by definition; the skill's
+    // guidance does not hinge on whether `## 实跑验证` may be added. Firing here
+    // was pure WARN inflation that buried the signals worth reading.
+    const stagedDiffs = [
+      {
+        filename: "docs/research/pixelle-video-research-2026-10-01.md",
+        diffLines: [
+          { type: "add", content: "## 实跑验证（2026-10-02 追加）" },
+          { type: "add", content: "### 三个部署坑的记录" },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(findings).toHaveLength(0);
+  });
+
+  it("WARN: L2 research doc with a heading plus a local pointer still fires, on the pointer", () => {
+    const stagedDiffs = [
+      {
+        filename: "docs/research/some-doc.md",
+        diffLines: [
+          { type: "add", content: "## New Section" },
+          { type: "add", content: "依据见 `docs/content-pipeline.md`。" },
+        ],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain("pointer line");
+    expect(findings[0].message).not.toContain("heading added");
+  });
+
+  it("WARN: structural changes across several docs collapse into one finding", () => {
+    const stagedDiffs = [
+      {
+        filename: "docs/content-pipeline.md",
+        diffLines: [{ type: "add", content: "## New Stage" }],
+      },
+      {
+        filename: "docs/agents/issue-tracker.md",
+        diffLines: [{ type: "add", content: "- New rule → docs/agents/x.md" }],
+      },
+    ];
+    const { findings } = checkWritingForAgentsGate(stagedDiffs);
+    expect(warnsOf(findings)).toHaveLength(1);
+    expect(findings[0].message).toContain("docs/content-pipeline.md");
+    expect(findings[0].message).toContain("docs/agents/issue-tracker.md");
+  });
+
   it("PASS: only typo fix (no structural patterns)", () => {
     const stagedDiffs = [
       {
