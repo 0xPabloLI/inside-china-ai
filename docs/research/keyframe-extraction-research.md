@@ -1356,6 +1356,33 @@ true, mrope_section: [24,20,20]}` = **M-RoPE（多模态 RoPE）交错变体**�
   HF 官方 transformers 逻辑的 MLX 移植，负责「原始输入 → 张量」的翻译，忠实
   复刻官方行为，不是我们的策略。我们的策略层是 `vlm-model.json`（引擎选择）+
   基准脚本（喂什么、怎么评）；库管「怎么喂得对」，我们管「喂什么」。
+- **Q22：MiniCPM 路线的 trade-off（vs Qwen 原生视频路线）**：
+  | | MiniCPM 路线（外抽帧+重采样+TDM） | Qwen 路线（原生视频+M-RoPE） |
+  |---|---|---|
+  | token 效率 | 极高（96/帧，context 可控） | 重（每帧数百 token，prefill 慢） |
+  | 延迟/显存 | **33.9s、5GB** | 55.6s、17GB |
+  | 时间对齐 | 帧 1D 顺序（无显式时间坐标） | M-RoPE 三维坐标（帧级） |
+  | 视觉细节 | 448 单块上限（小字弱） | 多块高分辨率（细节强） |
+  | 实时流式 | TDM 全双工（主打） | 无（离线为主） |
+  | 采样控制 | 外部全权（时刻级） | 参数级（fps/max_frames，无时刻级） |
+  | 失败面 | 外部抽帧质量依赖（C9 的 5.4pp 即此接口的代价与机会） | 库内解码黑盒 |
+  实测净结果：QA 精度打平（83.0 vs 83.0），MiniCPM 成本 1/3。
+- **Q23：TDM 与 M-RoPE 的时间对齐对比**：M-RoPE 是**推理内坐标系**——每个
+  token 携带（时间t, 高y, 宽x）三段 RoPE 位置，attention 层面直接感知「这是第
+  几秒的画面」，离线、帧粒度。TDM 是**流式调度协议**——视频/音频/文本三路流
+  按小周期时间片轮转串行化进 LLM，对齐靠「同一时间片 = 同一时刻」，面向实时
+  全双工（1Hz 决策），token 本身没有时间坐标。我们的离线 QA 两者都用不上：
+  帧的 1D 顺序即时间（文本时间戳注入无增益是旁证）。
+- **Q24：MiniCPM「不支持原生视频」的说法要修正**——**官方 PyTorch 路线支持**
+  （`get_video_frame_audio_segments` 内部自己解码采样视频文件）；不支持的是
+  **mlx-vlm 移植**（minicpm 引擎无 video processor 路径，`generate_response`
+  对 video_path 直接 raise）。Omni 的定义关于**模态覆盖**（听/看/说），不关于
+  推理库的接口形态——MiniCPM-o 是真 Omni，我们在 MLX 上把它当多模态用。
+  「Qwen-Omni 值不值得用」的裁决臂：第一版听波形（audio-only，C2/C3 跨家族
+  复验）已排队；看+听交织版（`use_audio_in_video`，走 generate/dispatch 的
+  video 通路）待第一版落地后验证成熟度再加。medium 臂键名坑重蹈一次
+  （uniform_64/96 vs uniform64/96，84 行有效、56 行空跑报废）——已修正重排
+  （fixer→omni→medium-redo 串行，全部盯 PID 退出，无 pgrep）。
 
 **C9 现状（截至 2026-10-04）**：结论**维持成立**——同刻表同分辨率同帧数下，
 官方像素路径比我方 loader 低 5.4pp（p=0.0007）；落点漂移已实测排除（223/224
