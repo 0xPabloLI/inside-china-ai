@@ -27,6 +27,11 @@ docs/research/fastmetal-5b-t2v-upgrade-research-2026-09-25.md|docs/getting_start
 docs/research/fastmetal-5b-t2v-upgrade-research-2026-09-25.md|docs/inference/support_matrix.md
 docs/research/golden-asset-evaluation.md|scripts/short-video/assets/golden/golden-expectations.json
 docs/research/golden-asset-evaluation.md|scripts/short-video/lib/golden-eval.mjs
+docs/research/pixelle-video-research-2026-10-01.md|docs/zh/development/architecture.md
+docs/research/pixelle-video-research-2026-10-01.md|docs/zh/faq.md
+docs/research/pixelle-video-research-2026-10-01.md|docs/zh/gallery/index.md
+docs/research/pixelle-video-research-2026-10-01.md|docs/zh/getting-started/installation.md
+docs/research/pixelle-video-research-2026-10-01.md|docs/zh/index.md
 docs/research/selfmedia-skills-survey-2026-09.md|docs/scoring.md
 docs/research/selfmedia-skills-survey-2026-09.md|scripts/publish_xhs.py
 docs/research/selfmedia-skills-survey-2026-09.md|scripts/render_xhs.py
