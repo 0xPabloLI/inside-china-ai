@@ -1356,34 +1356,6 @@ true, mrope_section: [24,20,20]}` = **M-RoPE（多模态 RoPE）交错变体**�
   HF 官方 transformers 逻辑的 MLX 移植，负责「原始输入 → 张量」的翻译，忠实
   复刻官方行为，不是我们的策略。我们的策略层是 `vlm-model.json`（引擎选择）+
   基准脚本（喂什么、怎么评）；库管「怎么喂得对」，我们管「喂什么」。
-- **Q25：MLX 版 MiniCPM 到底有没有原生视频？深查结果（2026-10-04）**：
-  **分模型而异**——同库中 `minicpmv4_6`（1.3B 新模型）**有**完整
-  `MiniCPMVVideoProcessor`（模型目录可带 `video_preprocessor_config.json`
-  前置配置）；`minicpmo`（我们的 8B）**没有**（目录只有
-  `preprocessor_config.json`，音频塔/TTS 齐备、视频处理器缺失）——是**移植
-  覆盖面问题**，不是模型设计拒绝视频。4.6 处理器的原理：接受外部解码好的
-  帧序列 → `_select_frames` 用 **np.linspace 均匀采样**到 `max_num_frames`
-  → 逐帧走图像管线（必要时拼网格图）——**采样哲学与 Qwen 同宗
-  （均匀 + 上限），差别在谁负责解码（4.6：调用方解码；Qwen：库内解码）与
-  位置编码（1D 顺序 vs M-RoPE 时间坐标）**。我们的 8B 若要原生视频 = 给
-  mlx-vlm 补 minicpmo 的 video processor（工程项，且 C9 已证外部抽帧质量
-  更高，补的动力不足）。
-- **Q27：产品线厘清——「最新 MiniCPM」与「最新 Omni」是两条线**：V 线最新 =
-  **MiniCPM-V 4.6**（1.3B：SigLIP2 + Qwen3.5-0.8B，**看视频但不听**——架构无
-  音频塔，mlx-vlm 端口纯视觉，视频处理器只吃图像帧、音轨根本没有入口）；
-  O 线最新 = **MiniCPM-o 4.5**（9B：+ Whisper-medium 音频塔 + CosyVoice2 语音，
-  看听说全有但 mlx 端口缺视频处理器）。两条线互补地各自缺一半：**4.6 有视频
-  没音频，o 4.5 有音频没（MLX）视频处理器**；「同时原生视频+音频」在 MLX 上
-  目前只有 Qwen-Omni 一家。另： mlx-vlm 的 `select()` 在查表前会剥 `_asr*`
-  装载后缀（代码注释即此坑的纪念碑），时间表键用裸方法名即可。
-- **Q26：为什么专门跑「听波形」臂？** 因为它是 **C2/C3 跨家族复验的最小
-  对照**：Qwen3-Omni（听波形）与 Qwen3-VL（读转写文本）**同一 30B-A3B
-  骨干**，唯一差异 = 音频形态（波形过音频塔 vs 文本过分词器）。MiniCPM 家族
-  上转写极显著胜出（83.0 vs 76.4，p=0.0009）——若 Qwen 家族复现，C2 升格为
-  跨模型规律；若波形追平/反超，则 C2 是模型特定（音频塔质量因家族而异），
-  Qwen-Omni 路线才有价值。这正是用户「Qwen Omni vs Qwen3-VL+ASR」之问的
-  直接实验。看+听交织（`use_audio_in_video`）为第二版（走 generate/dispatch
-  video 通路），待第一版验证成熟度。
 - **Q22：MiniCPM 路线的 trade-off（vs Qwen 原生视频路线）**：
   | | MiniCPM 路线（外抽帧+重采样+TDM） | Qwen 路线（原生视频+M-RoPE） |
   |---|---|---|
@@ -1411,6 +1383,50 @@ true, mrope_section: [24,20,20]}` = **M-RoPE（多模态 RoPE）交错变体**�
   video 通路）待第一版落地后验证成熟度再加。medium 臂键名坑重蹈一次
   （uniform_64/96 vs uniform64/96，84 行有效、56 行空跑报废）——已修正重排
   （fixer→omni→medium-redo 串行，全部盯 PID 退出，无 pgrep）。
+- **Q25：MLX 版 MiniCPM 到底有没有原生视频？深查结果（2026-10-04）**：
+  **分模型而异**——同库中 `minicpmv4_6`（1.3B 新模型）**有**完整
+  `MiniCPMVVideoProcessor`（模型目录可带 `video_preprocessor_config.json`
+  前置配置）；`minicpmo`（我们的 8B）**没有**（目录只有
+  `preprocessor_config.json`，音频塔/TTS 齐备、视频处理器缺失）——是**移植
+  覆盖面问题**，不是模型设计拒绝视频。4.6 处理器的原理：接受外部解码好的
+  帧序列 → `_select_frames` 用 **np.linspace 均匀采样**到 `max_num_frames`
+  → 逐帧走图像管线（必要时拼网格图）——**采样哲学与 Qwen 同宗
+  （均匀 + 上限），差别在谁负责解码（4.6：调用方解码；Qwen：库内解码）与
+  位置编码（1D 顺序 vs M-RoPE 时间坐标）**。我们的 8B 若要原生视频 = 给
+  mlx-vlm 补 minicpmo 的 video processor（工程项，且 C9 已证外部抽帧质量
+  更高，补的动力不足）。
+- **Q26：为什么专门跑「听波形」臂？** 因为它是 **C2/C3 跨家族复验的最小
+  对照**：Qwen3-Omni（听波形）与 Qwen3-VL（读转写文本）**同一 30B-A3B
+  骨干**，唯一差异 = 音频形态（波形过音频塔 vs 文本过分词器）。MiniCPM 家族
+  上转写极显著胜出（83.0 vs 76.4，p=0.0009）——若 Qwen 家族复现，C2 升格为
+  跨模型规律；若波形追平/反超，则 C2 是模型特定（音频塔质量因家族而异），
+  Qwen-Omni 路线才有价值。这正是用户「Qwen Omni vs Qwen3-VL+ASR」之问的
+  直接实验。看+听交织（`use_audio_in_video`）为第二版（走 generate/dispatch
+  video 通路），待第一版验证成熟度。
+- **Q27：产品线厘清——「最新 MiniCPM」与「最新 Omni」是两条线**：V 线最新 =
+  **MiniCPM-V 4.6**（1.3B：SigLIP2 + Qwen3.5-0.8B，**看视频但不听**——架构无
+  音频塔，mlx-vlm 端口纯视觉，视频处理器只吃图像帧、音轨根本没有入口）；
+  O 线最新 = **MiniCPM-o 4.5**（9B：+ Whisper-medium 音频塔 + CosyVoice2 语音，
+  看听说全有但 mlx 端口缺视频处理器）。两条线互补地各自缺一半：**4.6 有视频
+  没音频，o 4.5 有音频没（MLX）视频处理器**；「同时原生视频+音频」在 MLX 上
+  目前只有 Qwen-Omni 一家。另： mlx-vlm 的 `select()` 在查表前会剥 `_asr*`
+  装载后缀（代码注释即此坑的纪念碑），时间表键用裸方法名即可。
+- **Q28：多模态「合成理解」的机制（VL 与 Omni 同理）**：没有「各自理解再合并」
+  的融合模块——**所有模态先变成同一个 token 流**：帧 → 视觉塔 → （resampler/
+  patch-merge）→ 视觉 token 占位插入；音频 → 音频塔 → 音频 token 占位插入；
+  转写/问题 → 普通文本 token。「合成」发生在 LLM 的**全注意力**里（每个 token
+  都能 attend 所有模态的 token），对齐能力来自训练。差异只在「占位的顺序与
+  位置坐标」：Qwen 原生视频 = 帧组 + 音频条按时间交错 + M-RoPE 坐标；
+  MiniCPM 官方 = （帧 i + 音频段 i）逐对交织 + 1D 顺序；我们的臂 = 帧流 +
+  转写文本块（块前置）。
+- **Q29：模态消融矩阵（用户「有些样本单模态就够」之问，2026-10-04 补格）**：
+  已有格 = 仅视觉（loader_vision 79.0）/ 视觉+转写（loader_block 83.0，
+  p=0.043）——转写净增 +4.0pp 是**混合题集**上的平均。新排队三格：
+  **仅文本**（`exp_text_only.py`：转写进 prompt、零帧零音频——「只听就够」
+  的题有多少）+ **Qwen 原生纯视觉**（native_pure，无转写——对照 native_asr
+  83.0%，量化转写在 Qwen 侧的净贡献）+ **medium 档 Qwen 帧臂**（uniform_64
+  +转写，28 个 10–17 分钟视频——长内容跨模型对比 + medium 转写增益）。
+  四格齐后逐题归属：图像独解 / 文本独解 / 双模态互证 / 双缺。
 
 **C9 现状（截至 2026-10-04）**：结论**维持成立**——同刻表同分辨率同帧数下，
 官方像素路径比我方 loader 低 5.4pp（p=0.0007）；落点漂移已实测排除（223/224
