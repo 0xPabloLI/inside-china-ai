@@ -1356,6 +1356,26 @@ true, mrope_section: [24,20,20]}` = **M-RoPE（多模态 RoPE）交错变体**�
   HF 官方 transformers 逻辑的 MLX 移植，负责「原始输入 → 张量」的翻译，忠实
   复刻官方行为，不是我们的策略。我们的策略层是 `vlm-model.json`（引擎选择）+
   基准脚本（喂什么、怎么评）；库管「怎么喂得对」，我们管「喂什么」。
+- **Q25：MLX 版 MiniCPM 到底有没有原生视频？深查结果（2026-10-04）**：
+  **分模型而异**——同库中 `minicpmv4_6`（1.3B 新模型）**有**完整
+  `MiniCPMVVideoProcessor`（模型目录可带 `video_preprocessor_config.json`
+  前置配置）；`minicpmo`（我们的 8B）**没有**（目录只有
+  `preprocessor_config.json`，音频塔/TTS 齐备、视频处理器缺失）——是**移植
+  覆盖面问题**，不是模型设计拒绝视频。4.6 处理器的原理：接受外部解码好的
+  帧序列 → `_select_frames` 用 **np.linspace 均匀采样**到 `max_num_frames`
+  → 逐帧走图像管线（必要时拼网格图）——**采样哲学与 Qwen 同宗
+  （均匀 + 上限），差别在谁负责解码（4.6：调用方解码；Qwen：库内解码）与
+  位置编码（1D 顺序 vs M-RoPE 时间坐标）**。我们的 8B 若要原生视频 = 给
+  mlx-vlm 补 minicpmo 的 video processor（工程项，且 C9 已证外部抽帧质量
+  更高，补的动力不足）。
+- **Q26：为什么专门跑「听波形」臂？** 因为它是 **C2/C3 跨家族复验的最小
+  对照**：Qwen3-Omni（听波形）与 Qwen3-VL（读转写文本）**同一 30B-A3B
+  骨干**，唯一差异 = 音频形态（波形过音频塔 vs 文本过分词器）。MiniCPM 家族
+  上转写极显著胜出（83.0 vs 76.4，p=0.0009）——若 Qwen 家族复现，C2 升格为
+  跨模型规律；若波形追平/反超，则 C2 是模型特定（音频塔质量因家族而异），
+  Qwen-Omni 路线才有价值。这正是用户「Qwen Omni vs Qwen3-VL+ASR」之问的
+  直接实验。看+听交织（`use_audio_in_video`）为第二版（走 generate/dispatch
+  video 通路），待第一版验证成熟度。
 - **Q22：MiniCPM 路线的 trade-off（vs Qwen 原生视频路线）**：
   | | MiniCPM 路线（外抽帧+重采样+TDM） | Qwen 路线（原生视频+M-RoPE） |
   |---|---|---|
