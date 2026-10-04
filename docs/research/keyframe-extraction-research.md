@@ -1310,6 +1310,20 @@ true, mrope_section: [24,20,20]}` = **M-RoPE（多模态 RoPE）交错变体**�
 预算三点 `uniform_16/64/96` 纯视觉（`bench_subset_medium.csv` 子集，
 `exp_videomme_qa_medium_budget.json`）——专测「帧预算斜率在长内容上是否变陡」，
 即 16 帧在 4–15 分钟上会不会像 60–100s 段那样被 64 帧拉开（排队于全链之后）。
+**medium 首轮结果（2026-10-05 晨，28 视频 / 84 题全题）+ 一臂作废**：
+uniform_64 = **54.8%**（46/84）、uniform_96 = **63.1%**（53/84，逐题配对 1/8，
+p=0.0455 显著）；**uniform_16 臂无效**——时间表文件缺 `uniform_16` 键，harness
+静默 fallback 让它吃了 uniform_96 的输入（84 题 raw 逐字节全同、secs 不同才是
+重跑痕迹），已修复两处：①`_precomputed` 缺键改 raise（fail-fast，不许 fallback）；
+②时间表补齐 uniform_16（`true_uniform_timestamps` 1fps 网格，重生成可复现），
+u16 重跑排队中。**在 u16 缺席下 medium 曲线不可下「平坦」结论**：64→96 仍在涨
+（非平坦、且非单调——64 反而低于 96，提示 84 题噪声不小）。medium Qwen 臂
+（uniform_64，**原标注 asr 有误**：medium 转写当时不存在，prompt 头为空，实为
+纯视觉）= **70.2%**（59/84）——**medium 档跨模型（纯视觉口径）：Qwen 30B 显著
+胜 MiniCPM 8B**（vs u64 17/4，p=0.0088；vs u96 14/8，p=0.29）——长内容上
+Qwen 的多块高分辨率底盘拉开差距，与短档打平形成对照。medium 转写补录
+（asr_ctxoff，#418 口径）与 MiniCPM medium u64+转写臂排队中——补齐
+「转写在长内容上的增益」与生产形状的 medium 跨模型对照。
 
 **Qwen Omni 深查结果（用户质疑「居然没有 MLX 版」，2026-10-04）——质疑成立**：
 `mlx-community/Qwen3-Omni-30B-A3B-Instruct-4bit` 存在（2025-12-24 上架，另有
@@ -1428,7 +1442,10 @@ true, mrope_section: [24,20,20]}` = **M-RoPE（多模态 RoPE）交错变体**�
   已有格 = 仅视觉（loader_vision 79.0）/ 视觉+转写（loader_block 83.0，
   p=0.043）——转写净增 +4.0pp 是**混合题集**上的平均。**纯音频格已落地（Qwen 侧
   Qwen-Omni 听波形 = 33.3%，见 Q30——音频独立解题能力≈零，用户「单模态就够」
-  的疑虑在音频侧不成立）**；仍排队两格：
+  的疑虑在音频侧不成立）**；**Qwen 纯视觉格已落地**：native_pure 79.3%（219/276）
+  vs native_asr 83.0%——Qwen 侧转写增益 +3.7pp 方向正、不显著（9/19，p=0.089），
+  与 MiniCPM 侧 +4.0pp（p=0.043）同向——转写在两个家族都有正贡献，幅度都在
+  +3.7~4pp 一带。仍排队一格：
   **仅文本**（`exp_text_only.py`：转写进 prompt、零帧零音频——「只听就够」
   的题有多少）+ **Qwen 原生纯视觉**（native_pure，无转写——对照 native_asr
   83.0%，量化转写在 Qwen 侧的净贡献）+ **medium 档 Qwen 帧臂**（uniform_64
@@ -1452,6 +1469,12 @@ true, mrope_section: [24,20,20]}` = **M-RoPE（多模态 RoPE）交错变体**�
   ③ **harness 修复**：FINAL 汇总遍历 results 键时对 no_frames/sel_* 改用 `.get()`
   ——同文件跨次运行的幽灵键（昨晚 underscore 失误臂残留的 276 行 SELERR）曾使
   qwen-frames 臂在 FINAL 后 KeyError 崩溃；真实数据无损，产物已清除幽灵行。
+  ④ **medium 档（28 视频 / 84 题，纯视觉口径，2026-10-05 晨）**：Qwen u64 **70.2%**
+  显著胜 MiniCPM u64 54.8%（17/4，p=0.0088）、vs u96 63.1% 不显著——**短档打平、
+  长档 Qwen 胜**：多块高分辨率底盘在长内容上开始值钱（小字/UI/远景细节随片长
+  累积）。帧预算斜率待 u16 重跑（u16 臂作废事故见 medium 块）。
+  ⑤ text-only 臂首跑 27s 即崩（`import vlm_analyzer` 缺 lib 路径）——补
+  `sys.path`（与主 harness 同款）后重排。
 
 **C9 现状（截至 2026-10-04）**：结论**维持成立**——同刻表同分辨率同帧数下，
 官方像素路径比我方 loader 低 5.4pp（p=0.0007）；落点漂移已实测排除（223/224

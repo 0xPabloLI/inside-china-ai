@@ -152,6 +152,12 @@ def _precomputed(name, vid):
         _PRECOMP_CACHE.update(json.load(open(os.path.join(WT_ROOT, PRECOMPUTED),
                                              encoding="utf-8")))
     ts = _PRECOMP_CACHE.get(vid, {}).get(name)
+    if ts is None and PRECOMPUTED:
+        # 2026-10-05 事故教训：medium 档 uniform_16 键缺失时静默 fallback 拿了
+        # 别的方法的时刻表（84 题答案与 uniform_96 逐字节全同，臂报废）。
+        # 提供了 PRECOMPUTED 就不许 fallback——缺键是配置错误，必须响亮失败。
+        raise KeyError(f"precomputed timetable miss: video {vid} has no "
+                       f"timestamps for method '{name}' ({PRECOMPUTED})")
     return None if ts is None else _cap(ts)
 
 

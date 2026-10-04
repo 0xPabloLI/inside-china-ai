@@ -24,6 +24,8 @@ RESULTS = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "results")
 VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
 ASR_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "asr")
 sys.path.insert(0, HERE)
+# vlm_analyzer 在 scripts/short-video/lib（2026-10-05 补：缺这行曾 ModuleNotFoundError）
+sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..", "lib")))
 
 OUT_NAME = os.environ.get("VM_OUT", "exp_videomme_qa_text_only.json")
 MAX_VIDEOS = int(os.environ.get("VM_MAX_VIDEOS", "100"))
