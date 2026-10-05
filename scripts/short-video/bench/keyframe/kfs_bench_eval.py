@@ -45,11 +45,22 @@ import exp_tiered as et  # noqa: E402
 import methods_bench3 as mb3  # noqa: E402
 
 K = int(os.environ.get("KFS_K", "64"))
+KFS_SUBSET = os.environ.get("KFS_SUBSET", "")   # 只跑该子集（如 bench_subset_medium.csv）
+KFS_TAG = os.environ.get("KFS_TAG", "")         # 输出名前缀，防覆盖既有 short 档产物
 STRATEGIES = [s.strip() for s in os.environ.get(
     "KFS_STRATEGIES", "uniform,tiered,tiered_v5,slice").split(",") if s.strip()]
+KFS_TS_JSON = os.environ.get("KFS_TS_JSON", "")  # 复用预计算选帧表（相对 WT 根）
+_TS = {}
+if KFS_TS_JSON:
+    with open(os.path.join(WT_ROOT, KFS_TS_JSON), encoding="utf-8") as f:
+        _TS = json.load(f)
 
 
 def select(video, duration, name, k):
+    if _TS:
+        ts = _TS.get(os.path.basename(video)[:-4], {}).get(name)
+        if ts:
+            return ts
     if name == "uniform":
         return bc.true_uniform_timestamps(video, 1.0, k)
     if name == "tiered":
@@ -140,6 +151,10 @@ def main():
             ids = by_video.setdefault(vid, [])
             if r["id"] not in ids:
                 ids.append(r["id"])
+    if KFS_SUBSET:
+        with open(os.path.join(VM, KFS_SUBSET), newline="") as f:
+            keep = {r["videoID"] for r in csv.DictReader(f)}
+        by_video = {v: ids for v, ids in by_video.items() if v in keep}
     print(f"K={K} | covered pairs={sum(len(v) for v in by_video.values())} "
           f"over {len(by_video)} downloaded videos", flush=True)
 
@@ -155,7 +170,7 @@ def main():
                 rows.append({"id": qid, "frame_timestamps": [round(t, 2) for t in ts]})
             if (i + 1) % 10 == 0:
                 print(f"  {name}: {i + 1}/{len(by_video)} videos", flush=True)
-        res_path = os.path.join(RESULTS, f"kfs_vidmme_{name}_k{K}.json")
+        res_path = os.path.join(RESULTS, f"kfs_{KFS_TAG}vidmme_{name}_k{K}.json")
         with open(res_path, "w", encoding="utf-8") as f:
             json.dump(rows, f)
         p = subprocess.run([sys.executable, eval_py, "--anno_file", anno_path,
@@ -171,7 +186,7 @@ def main():
         print(p.stdout.strip(), flush=True)
         out[name] = {"rows": len(rows), "returncode": 0,
                      "report": p.stdout.strip(), "result_file": res_path}
-    sum_path = os.path.join(RESULTS, f"kfs_summary_k{K}.json")
+    sum_path = os.path.join(RESULTS, f"kfs_{KFS_TAG}summary_k{K}.json")
     # A partial re-run (KFS_STRATEGIES subset) must not clobber the other
     # arms' entries — merge into the existing summary instead of overwriting.
     if os.path.exists(sum_path):

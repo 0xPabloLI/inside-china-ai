@@ -1516,13 +1516,13 @@ Qwen 的多块高分辨率底盘拉开差距，与短档打平形成对照。med
   | Qwen3-VL 原生视频+转写 | ✅ **83.0%**（55.6s/题） | 🕐 已排队（链 3，估 ~6h：2fps→768 帧上限，prefill 数百秒/题） |
   | Qwen3-VL 原生纯视觉 | ✅ **79.3%** | — |
   | Qwen3-Omni 纯音频（无视频） | ✅ **33.3%** | — |
-  | Qwen3-Omni 看听交织（真原生 Omni） | ❌ 未测 → 🕐 已排队（链 3 末） | — |
+  | Qwen3-Omni 看听交织（真原生 Omni） | 🕐 通路已修复（v3，见文末），selmed 链末排队中 | 同左（链末） |
   | MiniCPM 官方波形单元 | ✅ 76.4% | — |
   | MiniCPM 原生视频（MLX） | ❌ 永不可测——mlx-vlm 移植缺 video processor（官方 PyTorch 有，Q25） | 同左 |
-  Omni 交织臂走新脚本 `exp_qwen_omni_video.py`（`generate(video=, audio=,
-  use_audio_in_video=True)`，kwargs 直达处理器；零转写注入——它自己看自己听；
-  首题响亮失败防模板坑）。链 3 = Qwen native medium → Omni 交织（PID 81301，
-  接链 2 之后，总计约 10h）。
+  Omni 交织臂走新脚本 `exp_qwen_omni_video.py`（v3 通路：直调处理器拿
+  use_audio_in_video 交错展开的 token 序列 + input_ids 旁路喂 generate；零转写
+  注入——它自己看自己听；首题响亮失败防模板坑；三段修复史见文末）。selmed 链
+  尾部排队（`OMNI_FIX_OK` 旗标门控）：短档 276q → medium 84q。
   **分母对账（2026-10-05）**：`bench_subset_100.csv` 名义 100 视频，其中 8 个
   （0IdYJGBmguM 等 8 个 short 视频）**从未下载到盘**——所有需要视频文件的臂
   实际分母 = **盘上 92 视频 / 276 题**（盘上短档 92 + medium 28 = 120 个视频
@@ -1572,3 +1572,41 @@ PRECOMPUTED 文件键名 `uniform96`/`uniform64`（无下划线）不一致，se
 302s→38 帧 @8s；1046s→128 帧 @8.2s）。「官方 1fps 到 128」在短档被实测否决
 （1fps = 120 帧 >> 拐点 32，多花 ~3 倍延迟买不到显著增益）；medium 档若拐点
 上移则回改。
+
+- **Q32：medium 档「选帧方法」横评（用户 2026-10-05 直觉的 direct 检验；设计 +
+  预注册）**：短档 16 帧预算上非均匀选帧与均匀无显著差异（kframes 72.5 vs
+  uniform 70.7 = 噪声；query 恢复不改答案），且**横评从未在 medium 上做过**——
+  用户直觉「长内容单帧代表更长时段、选哪帧更讲究」是对该空白的直接质疑。
+  设计：medium 28 视频 / 84 题，**K=64 与 uniform_64（54.8%）同预算配对**；三臂
+  = slice（2D 感知切分）/ maxinfo_siglip（SigLIP 帧间信息增益贪心）/ kframes
+  （Qwen 系关键帧）。选帧先经 `make_selection_ts.py` 预计算成时刻表（1fps 解码 +
+  SigLIP 嵌入一次性摊销，逐视频落盘可断点续传），QA 臂只读表推理；缺键
+  fail-fast（u16 事故防线）。**预注册判据**：每臂 vs uniform_64 逐题配对
+  McNemar（n=84），α=0.05；三臂齐测故并列给出 Bonferroni 校正阈值 0.0167 作
+  严格口径；报告 pp 差 + discordant 对数。**成本披露**：预计算 28 视频 ≈35 分钟
+  （maxinfo_siglip 25-46s/视频为重头，slice 4-10s，kframes 2-8s）；3 个 QA 臂
+  ≈2.5h（MiniCPM ~35s/题 × 84 × 3）；全部本地 MLX，零云端费用。**读法**：三臂
+  全部落噪声内 →「选帧无关」从 16 帧短档正式外推到 medium-64，选帧轴关闭并
+  写入 PR #445 联评；任一臂显著为正 → 选帧升级为正式杠杆，改写 §20 推荐。
+
+- **Q33：KFS-Bench medium 复用（用户：KFS 不是独立项目，轨道可以再投入）**：
+  KFS-Bench 提供官方 **query 条件场景 GT**（`vidmme_anno.csv`），medium 子集
+  覆盖 **16/28 在盘视频**（question_id 经 q2v 映射）；短档已全量跑过 20 策略
+  （k64 uniform UKSS 0.5537 榜首）。medium 轴取 9 个代表策略（uniform / slice /
+  maxinfo_siglip / kframes / blockslide / scene_008_cap16 / cutwin32_cap /
+  cutwin32_unif / tiered_v5），其中 **slice / maxinfo_siglip / kframes 直接复用
+  Q32 的预计算时刻表**（`KFS_TS_JSON` 旋钮）——与 QA 臂同一选帧实例、零重复
+  计算，其余 6 个为 CPU 场景检测。成本 ≈1h CPU + 0 GPU。**读法**：query-free
+  选择对 query 条件 GT 的打分是下界口径；关注短/medium 两档排名的稳定性，与
+  QA 臂结论是否互证（两个正交标尺同向 → 结论可直接进联评）。
+
+**Omni 交织臂通路修复（2026-10-05 深夜，v1→v3 三段式）**：v1 `act()` 模板不含
+视频占位符（`tokens 0 vs features 5580`）；v2 改 HF messages 模板修好视频占位符，
+但 **mlx-vlm `process_inputs` 只按签名白名单转发 kwargs**，而补丁版处理器签名为
+`(text, images, videos, audio, **kwargs)` → `use_audio_in_video` 被静默丢弃 →
+音频占位符 0、模型侧 `audio_features` 无处散播（`800768 vs 0` 广播崩溃）；**v3**
+直调处理器拿交错展开的 token 序列，再用 input_ids 旁路把张量喂给 `generate`
+——冒烟通过（30s 视频 audio_pad=390，首题 1/1）。副产物：`AutoProcessor.
+from_pretrained` 裸调会因缺 torchvision 失败（Qwen2VLVideoProcessor 回退路径），
+必须让 mlx-vlm 模型模块先 import 安装处理器补丁——这就是 `mlx_vlm.load()` 的
+隐藏顺序。

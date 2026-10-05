@@ -169,7 +169,7 @@
 | #357 | 视频默认 zoom 退场快修（双重运动+入场裁切） | P2·W3B | bug；tracker 权威标签 P2，快赢可穿插 |
 | #361 | 采纳方案 C 全模态引擎（MiniCPM-o 4.5 + e2v 接入 vlm_analyzer） | P3·W3C | 🎯 Dominant；统领认知底座 |
 | #334 | VLM Prompt 优化（Fit/claim 冗余 token 预算削减/Reason） | P3·W3C | enhancement；Prompt 精简与测试集回归 |
-| #391 | 拆帧策略裁决（uniform/scene 可切换 + bench 矩阵已出） | P2·W3C | 🎯 frontier；判据研究与观测基建（双层几何/生产字段判据 + contact-sheet 观测先行 + 纳管 #397 人脸/焦点防遮挡约束；解耦 query；仅 wayfinder 后置）；handoff 在主库 `.scratch/keyframe-bench/HANDOFF.md`；Round U 后装载/预算/跨模型三轴数据齐（研究文档 §20.8–§20.10），medium 拐点落地即可终裁 |
+| #391 | 拆帧策略裁决（uniform/scene 可切换 + bench 矩阵已出） | P2·W3C | 🎯 frontier；判据研究与观测基建（双层几何/生产字段判据 + contact-sheet 观测先行 + 纳管 #397 人脸/焦点防遮挡约束；解耦 query；仅 wayfinder 后置）；handoff 在主库 `.scratch/keyframe-bench/HANDOFF.md`；Round U 后装载/预算/跨模型三轴数据齐（研究文档 §20.8–§20.10），medium 拐点落地即可终裁；2026-10-05 深夜 selmed 链（后台跑）：medium 选帧横评三臂（slice/maxinfo_siglip/kframes@K64，预注册配对 McNemar vs uniform_64 54.8%）+ KFS medium 9 策略复用（16/28 视频有官方场景 GT，直接复用选帧时刻表零重复计算）+ Omni 看听交织 v3 通路修复（冒烟过，链尾排队），结果并入 §20.10 待联评 |
 | #397 | Phase 2 焦点产出消费方（布局解析缺口——focusAnalysis/protectedRegions 今日无自动读者） | P2·W3C | block #396；布局节点归 #291 wayfinder 地图 |
 | #396 | focus 内核切换 Haar→YuNet 候选（评估通过：人脸一致/少误报/3.7×） | P3·W3C | dormant——被 #397 block；产出有消费方后才有价值 |
 | #289 | Scene 数据与生成画面适配 | P3·W3C | |
