@@ -1,50 +1,32 @@
-# Deep Research: VLM 长视频关键帧选帧（TMRoPE walk around）与 focus_detector 升级评估
+# 关键帧选帧研究（#391 评审主文档）
 
-> 2026-09-27 · Session `20260926-360-long-video-ce7702` · 触发：用户要求 web deep research 验证 HANDOFF §二.5/§三.5（mlx_vlm #294 ffmpeg scene detection 选帧）的时效性与可靠性，连带评估 `focus_detector.py` 是否需要优化。
+> 2026-10-05 整理：顶部为「一页纸当前结论」（评审只需读本节 + §20）；2026-09-27 的
+> deep research 原件移至文末附录（多项判断已被 §13–§20 实测更新）。
+> Session `20260928-keyframe-bench-1d663d` · PR #445 · handoff：主库 `.scratch/keyframe-bench/HANDOFF.md`
 
-## Executive Summary
+## 一页纸：当前结论（截至 2026-10-05）
 
-对 MiniCPM-o 4.5（mlx_vlm 0.7.2，本机 M2 Pro）长视频语义分析中的帧采样问题做了三线验证：一手 issue 考古、官方文档/论文、本机源码与真素材冒烟。结论一：**mlx_vlm Issue #294 的 ffmpeg scene detection 配方不是"社区验证的方案"**——它是提问者 tmoroney 自己的既有做法（2025-04-11 发布，2025-04-23 后无活动，closed 无人采纳），maintainer 只回了模型推荐，配方没有任何对比基准。HANDOFF 中"社区验证有效"应降级为"社区分享、无数据"。结论二：但**轻量信号选帧的方向本身是对的**——CVPR 2025 起的学术工作（AKS 等）一致把 naive uniform sampling 当作要打败的基线，且都强调 temporal coverage；对本项目"无 query 的素材语义描述"场景，场景切换信号 + 时间覆盖兜底是性价比最高的一档，神经选帧（AKS/M-LLM 选帧）属于过度设计。结论三：**本地实测配方可行**——30s 真素材 0.36s 选出 11 帧（6 次场景切换 + 首帧 + 每 8s 兜底，行为与设计吻合），零新依赖。结论四：`focus_detector.py` 的 Haar Cascade（2001 年 Viola-Jones 系）有零依赖升级路径——OpenCV 官方实证 YuNet（FaceDetectorYN）全面优于 Cascade，本机 `~/.video-tts-env` cv2 4.14.0 已内置，仅需下载 opencv_zoo 的 YuNet onnx 模型（~345KB，MIT，repo 活跃）。另注意：`~/.venvs/mlx-vlm` 的 cv2 已是 5.0.0 且 **saliency 模块消失**——focus_detector.py 必须钉在 video-tts-env。
+**基准**：Video-MME short 92 视频 / 276 题（名义 100，8 个缺盘视频，口径见 §20.11）
++ medium 28 视频 / 84 题（4–17 分钟）。全部结论为逐题配对（McNemar exact）。
 
-## Key Findings
+| 轴 | 结论 | 关键数字 |
+|---|---|---|
+| 选帧方法（短档 16 帧） | **均匀 + 时长比例预算**；非均匀方法全部落噪声内 | uniform 70.7 vs kframes 72.5（NS）；三把尺详见 §20.6 |
+| 帧预算（短档） | **拐点 32 帧**，之后全平 | 16→32 +5.4pp（p=0.0081）；64 +1.4pp、96 +1.1pp（均 NS） |
+| 帧预算（medium） | **拐点 96 帧** | 16≈64 平（53.6/54.8）；96 63.1%（vs 64 p=0.0455）；128 66.7%（vs 96 NS） |
+| 生产帧数规则（候选） | `帧数 = min(max(ceil(D/8), 32), 128)` | §20.9/§20.10；medium 的 1/8s 比例落在拐点区 |
+| 装载层（音频怎么进） | **转写文本 > 纯视觉 ≈ 波形单元**；转写是唯一有效音频形态（跨家族复验） | loader_block 83.0 vs official_units 76.4（p=0.0009）；Omni 纯音频 33.3%≈乱猜 |
+| 提取方式（C9） | 我方 loader 显著优于官方整文件路径；漂移已排除，机理剩 q88/解码器两嫌疑 | 79.0 vs 73.6（p=0.0007）；q88 定案臂可选未排（§20.10） |
+| 跨模型（短档 276 题） | **三路线打平** | MiniCPM+我方喂养 83.0 = Qwen 原生 83.0 = Qwen 外抽帧 81.5（p≥0.5）；同帧预算下 Qwen 更快（§20.11） |
+| 跨模型（medium 84 题） | **长档 Qwen ≥ MiniCPM（7–15pp）**；Qwen 原生 ≈ Qwen 外抽帧 | MiniCPM u64 54.8 vs Qwen u64 纯视觉 70.2（p=0.0088）；Qwen 原生+转写 71.4% |
+| 模态消融 | 转写独解 51.4%（半数量题）；「双模态 vs 仅文本」极显著 | 视觉独解 79.0；双模态 83.0（95/8 分歧，p<1e-5） |
+| 选帧方法（medium） | **测试中**（用户直觉的 direct 检验：长内容选帧是否更讲究） | 三臂 slice / maxinfo_siglip / kframes @K64 vs uniform_64，预注册见 Q32 |
+| KFS 官方场景 GT | medium 轴排队中；短档 k64 uniform UKSS 0.5537 榜首 | 见 Q33 与 §15A.4 |
 
-1. **#294 考古（用户问题："294 是多久以前的 issue 了？"）**：Blaizzy/mlx-vlm#294，2025-04-11 创建，2025-04-23 最后评论，closed，4 条评论。[Tier 1：GitHub API 原文] 内容是 tmoroney 征询 <1B 视频 captioning 模型推荐，ffmpeg 关键帧提取只出现在他自己的代码里（`select='gt(scene,0.08)+eq(n,0)+not(mod(t,8))'`，cap 6 帧）；Blaizzy 的回复全是模型推荐（Qwen2.5-VL 3B / InternVL3 1B&2B / NanoLlava / 4bit vs 8bit），**未对选帧配方表态，也未采纳任何选帧 PR**。配方自带 max_frames=6 是为 2B 模型省算力，不适用我们的 8B 场景。**"社区验证有效"不成立，最多算"社区分享"。**
+**待裁决（2026-10-05）**：PR #445 联评；生产落地（§18.2 清单，建议等 medium 选帧结果一起做）；
+8 缺盘视频补下载；q88 保真臂；Omni 纯视频诊断臂。
 
-2. **但"均匀采样是下界"有学术共识**：AKS（CVPR 2025, arXiv:2502.21271）明确以 uniform sampling 为基线做 query 相关性 + temporal coverage 的 split-and-judge 选帧；M-LLM Based Video Frame Selection（CVPR 2025, arXiv:2502.19680）与 From Frames to Clips（arXiv:2510.02262, 2025-10）、Focus（arXiv:2510.27280, 2025-10）同路线。共同点：(a) uniform 采样对静态/低密度视频浪费帧预算；(b) **temporal coverage 必须显式保证**（这正是 scene-detection 配方里 `not(mod(t,8))` 兜底帧的作用）；(c) query-aware 神经选帧收益最大但需要额外打分模型——我们的素材描述场景无 query，收益打折。**结论：轻量信号选帧 + 覆盖兜底是本用例的正确档位；AKS 类方法记为远期候选。**
 
-3. **帧率/帧数配置（用户问题："考虑下 2fps 1fps 的配置"）**：MiniCPM-V 4.5 官方文档（OpenBMB，Tier 1）给出 3D-Resampler：6 帧 448×448 联合压缩成 64 token（96× 压缩），**LLM 侧 token 成本不随帧数线性涨**，官方主打 high-FPS（up to 10FPS）视频理解；官方视频 demo 传统配置 `MAX_NUM_FRAMES=64`（≈1fps）。视觉 encoder 成本仍随帧数线性（SigLip2 每帧一次）。本机 mlx_vlm 0.7.2 源码（video.py:68-103）：`subsample_evenly` + 默认 `max_frames=16`（≈2fps@8s 窗口），比官方保守 4×。**实验矩阵应含 策略∈{uniform, scene-detect} × cap∈{16,32} × fps∈{1,2} 的组合，实测质量/时延曲线后决策。**
-
-4. **配方本地实证（proposal-review 双源之本地侧）**：content_ABCx2_30s.mp4（HANDOFF 真素材）上 `select='gt(scene,0.08)+eq(n,0)+not(mod(t,8))'` + 480p 下采样，**0.36s wall-clock 选出 11 帧**（约 6 切换 + 1 首帧 + 4 兜底，与素材结构吻合），176KB mjpeg。ffmpeg 为管线既有依赖，`select` V->V 滤镜存在。零新 pip 依赖，CPU 完成。
-
-5. **focus_detector.py 优化评估（用户要求"连带看下"）**：现状 = Haar Cascade `haarcascade_frontalface_default.xml`（focus_detector.py:115-116，Viola-Jones 系，2001）+ Static Saliency Spectral Residual。OpenCV 官方博客（opencv.org, 2022-11, Tier 1）实证 **YuNet（FaceDetectorYN）在准确率/鲁棒性上全面优于 Cascade Classifier**（侧脸、小脸、光照）。本机事实：`~/.video-tts-env` cv2 4.14.0 **已内置 FaceDetectorYN**（零 pip 新依赖），模型文件来自 opencv/opencv_zoo（MIT，活跃：pushed 2026-05-28），face_detection_yunet onnx 约 345KB 一次性下载；`saliency` 模块同 venv 可用。**升级路径低风险**：YuNet 输出带置信度与 5 点 landmark，可平滑替换 Haar 调用点。**风险**：`~/.venvs/mlx-vlm` 的 cv2 已升 5.0.0 且 **saliency 模块缺失**——focus_detector.py 必须钉在 `~/.video-tts-env`（现状即如此，AGENTS.md 注记需更新防误配）。
-
-## Contrarian Views & Risks
-
-- **scene threshold 0.08 未必跨内容鲁棒**：talking head（渐变光照/微动作）可能整段低于阈值只剩兜底帧；高速运动素材可能帧数打满 cap。0.08 是 tmoroney 为其素材调的值，无公开敏感度分析——实验须覆盖 talking head / 高密度两类素材各至少一个。
-- **MiniCPM-o 无时序训练**：换关键帧喂入不会让它"理解"时序（HANDOFF §二.5 结论仍有效），选帧只是提升"每帧信息密度"。时序理解仍靠 #360 分窗 + 未来 Qwen3-VL 路线，不要在选帧上过度投资。
-- **给帧配时间戳文本标记是否有效未验证**（MiniCPM-o 没学过时间戳 token）——列为 open question，实验不做此项。
-- YuNet onnx 是新引入的模型文件（~345KB）：走 model-sources 准入（license MIT / opencv_zoo 活跃 / 原始仓库即官方），入库 `scripts/short-video/models/` 或跟随 content 目录需再定。
-
-## Open Questions
-
-1. scene_threshold 对本项目素材分布（新闻播报 / 实拍 / 屏幕录制）的最优值——实验产出敏感度数据后再定，不预设 0.08。
-2. cap=32 时 vision encoder 时延增幅是否被 LLM 侧 3D-Resampler 抵消（官方称 token 不涨）——实验测端到端时延曲线。
-3. focus_detector.py 的 saliency 输出是否值得同时升级（SSR → 深度显著性）——当前文本保护区用途下 SSR 够用，暂不动。
-
-## Sources
-
-1. https://github.com/Blaizzy/mlx-vlm/issues/294 — 原文与评论，配方出处与未采纳证据 — Tier 1
-2. 本机 `~/.venvs/mlx-vlm/.../mlx_vlm/generate/video.py:68-103` — subsample_evenly / max_frames=16 默认 — Tier 1（代码源）
-3. 本机 `~/.video-tts-env` cv2 4.14.0（FaceDetectorYN/saliency 可用）与 `~/.venvs/mlx-vlm` cv2 5.0.0（saliency 缺失） — Tier 1（代码源）
-4. https://opencv.org/blog/opencv-face-detection-cascade-classifier-vs-yunet/ — OpenCV 官方对比博客 — Tier 1
-5. https://github.com/opencv/opencv_zoo — YuNet 模型来源，活跃维护 — Tier 1
-6. https://github.com/OpenBMB/MiniCPM-V/blob/main/docs/minicpm_v4dot5_en.md — 3D-Resampler / high-FPS 官方文档 — Tier 1
-7. https://arxiv.org/abs/2502.21271 — AKS, CVPR 2025 — Tier 1（同行评审）
-8. https://arxiv.org/abs/2502.19680 — M-LLM Based Video Frame Selection, CVPR 2025 — Tier 1（同行评审）
-9. https://arxiv.org/html/2510.02262v1 — From Frames to Clips, 2025-10 — Tier 1（预印）
-10. https://arxiv.org/html/2510.27280v1 — Focus keyframe selection, 2025-10 — Tier 1（预印）
-11. 本地冒烟：content_ABCx2_30s.mp4 0.36s/11 帧（本 session 实测） — Tier 1（实验）
-12. `.scratch/len-compare/HANDOFF.md`（361 worktree）— 前序基准与配方引入处 — Tier 1（内部）
 
 ## 13. 双层判据研究与实证（2026-09-27，session `20260927-kf-criteria-5de54e`）
 
@@ -142,9 +124,9 @@
 10. MiniCPM-V-4.6 模型卡 — https://modelscope.cn/models/OpenBMB/MiniCPM-V-4.6 — Tier 1
 11. MiniCPM-V-4.5 模型卡 — https://ai.atomgit.com/OpenBMB/MiniCPM-V-4_5 — Tier 1
 
-## 15. tiered 选帧器实证与选帧 benchmark 版图（2026-09-28，同 session）
+## 15A. tiered 选帧器实证与选帧 benchmark 版图（2026-09-28，同 session；原与 §15 重号，改 15A 以区分，子节 15A.1–15A.4）
 
-### 15.1 tiered 选帧器（bench-only，`scripts/short-video/bench/keyframe/exp_tiered.py`）
+### 15A.1 tiered 选帧器（bench-only，`scripts/short-video/bench/keyframe/exp_tiered.py`）
 
 三阶段 + 两道护栏（对齐社区已验证形态，非自创五层）：
 
@@ -157,7 +139,7 @@
 | L5 预算封顶 | 显式优先级元组 cuts > fills > locals | 字典推导式会静默降级同时命中两层的 cut |
 | 护栏·洪水降级 | L2 触发数 > 2×预算 → 判定该内容信号无选择性，退化为 cuts+兜底 | talking head 曾 16 帧全近重复（nearDup 108 → 6） |
 
-### 15.2 修复前后对照（5 素材 × 三层判据）
+### 15A.2 修复前后对照（5 素材 × 三层判据）
 
 | 素材 | 指标 | tiered（修后） | uniform | scene |
 |---|---|---|---|---|
@@ -169,11 +151,11 @@
 
 修复链路：ui-demo 0/7→7/7；ABCx2 recall 0.4→1.0、gap 11.4→5.06s；talkinghead nearDup 108→6。已知让步：ABCx2 第二人脸段 faceHit 0.5（uniform 1.0，代价是 10 对冗余）。
 
-### 15.3 夹具 bug（重要教训）
+### 15A.3 夹具 bug（重要教训）
 
 ui-demo 合成的第 6 秒事件原为空字符串行——**构造上不可见**，导致「7 事件 GT」天然不可能全中，并造成「隔一个命中」的假规律。已修为可见内容。**合成夹具必须验证每个标注事件真的可见**（对应 AGENTS.md「非空产出」证据卫生）。
 
-### 15.4 选帧 benchmark 版图（回答「谁最好 / 能否不本地测」）
+### 15A.4 选帧 benchmark 版图（回答「谁最好 / 能否不本地测」）
 
 | Benchmark | 性质 | 关键事实 |
 |---|---|---|
@@ -230,9 +212,7 @@ maxinfo_siglip QA 补跑（tvF 环境层 bug）；可选扩样本 ~100 视频求
 ## 16. Session 3：tvF 根因更正、tiered v3 证伪、四方法入 harness（2026-09-28，session `20260928-keyframe-bench-1d663d`，PR #407）
 
 数据源：`.scratch/keyframe-bench/results/{methods_bench3,exp_videomme_qa}.json`。
-注：本文现有两个 `## 15`（145 行「tiered 选帧器实证」、199 行「全方法总对决」），
-引用「§15」时以「全方法总对决」为准；未重编号是因为已发布的 issue 评论与
-HANDOFF 都按 §15 指向后者，重编号会让那些指针落空。
+注：原有两个 `## 15` 重号已于 2026-10-05 修复——「tiered 选帧器实证」改为 §15A（子节 15A.1–15A.4，文内指针已同步）；「§15」的指代不变（仍指「全方法总对决」），已发布的 issue/HANDOFF 指针不受影响。
 
 ### 16.1 上一 session 的「日志通道不可信」是误判，tvF 有真实根因
 
@@ -1024,7 +1004,7 @@ WhisperX 输出本身就是带时间戳的分段转写。loader 按**段中点**
 上过 **19 个方法**；几何轴 = 16 素材（4 自建 + 302s 拼接长片 + 11 Video-MME 片段），
 召回按 5 个有 GT 素材均值、盲区/重复率按 16 素材（§18.1/§18.1.1），只上过 **5 个分窗
 变体**（+ tiered 系与 kframes 的单项几何分，§16）。两轴不是同一批方法——几何是决赛圈
-筛选，不是全方法普查。KFS-Bench 轴数字见 §15.4 版图。
+筛选，不是全方法普查。KFS-Bench 轴数字见 §15A.4 版图。
 
 **表一｜QA 轴（276 题，降序，数字原样引自 §17.2）**
 
@@ -1238,7 +1218,7 @@ loader_interleaved **34.5s**（+1.8%，可忽略）——时间戳富集不省�
 
 **内存上限压测（排队，预算曲线后自动爬坡）**：`exp_stress_frames.py` 对最长视频
 N∈{96,128,160} 单次推理，每档新进程（OOM 在 C++ 层不可捕获，失败即停），
-记录墙钟 + Metal 峰值内存。64 帧已知可行（每题清缓存后零 OOM）。
+记录墙钟 + Metal 峰值内存。64 帧已知可行（每题清缓存后零 OOM）。**结果（2026-10-04）**：96 帧 55.2s/8.96GB；128 帧 74.5s/9.95GB；160 帧 93.8s/10.71GB（均正确描述）——**无内存墙**（峰值 ~11GB），瓶颈是延迟（~0.65s/帧线性）。
 
 **盲区有无业界规范**：没有固定阈值标准。文献惯例是「uniform 采样 + 固定 K」
 （LongVideoBench 64 帧、Video-MME ~1fps），不规定最大间距；我们的 8s 地板来自
@@ -1378,6 +1358,8 @@ Qwen 的多块高分辨率底盘拉开差距，与短档打平形成对照。med
 （转写路线把 4 倍参数差抹平了）。
 
 **三个架构问答（联评用）**：
+### 20.11 联评答疑与进展汇编（Q19–Q33，持续追加）
+
 - **Q19：MiniCPM 为何不吸收 M-RoPE？** 三重原因：① 视觉 token 经 resampler
   重采样（96/帧），patch 级 2D 结构已被压缩掉，M-RoPE 的多维坐标没有自然挂点；
   ② 换位置编码 = 重训对齐，成本极高；③ MiniCPM-o 对时间对齐走了**另一条
@@ -1439,8 +1421,7 @@ Qwen 的多块高分辨率底盘拉开差距，与短档打平形成对照。med
   上转写极显著胜出（83.0 vs 76.4，p=0.0009）——若 Qwen 家族复现，C2 升格为
   跨模型规律；若波形追平/反超，则 C2 是模型特定（音频塔质量因家族而异），
   Qwen-Omni 路线才有价值。这正是用户「Qwen Omni vs Qwen3-VL+ASR」之问的
-  直接实验。看+听交织（`use_audio_in_video`）为第二版（走 generate/dispatch
-  video 通路），待第一版验证成熟度。
+  直接实验。看+听交织（`use_audio_in_video`）为第二版（走 generate/dispatch video 通路）；2026-10-05 v3 通路已修通并在 selmed 链排队跑（见 §20.11 文末）。
 - **Q27：产品线厘清——「最新 MiniCPM」与「最新 Omni」是两条线**：V 线最新 =
   **MiniCPM-V 4.6**（1.3B：SigLIP2 + Qwen3.5-0.8B，**看视频但不听**——架构无
   音频塔，mlx-vlm 端口纯视觉，视频处理器只吃图像帧、音轨根本没有入口）；
@@ -1464,12 +1445,7 @@ Qwen 的多块高分辨率底盘拉开差距，与短档打平形成对照。med
   的疑虑在音频侧不成立）**；**Qwen 纯视觉格已落地**：native_pure 79.3%（219/276）
   vs native_asr 83.0%——Qwen 侧转写增益 +3.7pp 方向正、不显著（9/19，p=0.089），
   与 MiniCPM 侧 +4.0pp（p=0.043）同向——转写在两个家族都有正贡献，幅度都在
-  +3.7~4pp 一带。仍排队一格：
-  **仅文本**（`exp_text_only.py`：转写进 prompt、零帧零音频——「只听就够」
-  的题有多少）+ **Qwen 原生纯视觉**（native_pure，无转写——对照 native_asr
-  83.0%，量化转写在 Qwen 侧的净贡献）+ **medium 档 Qwen 帧臂**（uniform_64
-  +转写，28 个 10–17 分钟视频——长内容跨模型对比 + medium 转写增益）。
-  四格齐后逐题归属：图像独解 / 文本独解 / 双模态互证 / 双缺。
+  +3.7~4pp 一带。矩阵已落格（2026-10-05 更新）：**仅文本**（`exp_text_only.py`）**51.4%（142/276 同题口径）**——约一半题可仅凭转写解出（「单模态就够」在文本侧成立）；**Qwen 原生纯视觉** 79.3%（对照 native_asr 83.0 量化净贡献，见 §20.11）；**medium 档 Qwen 帧臂与转写臂**均已落（§20.10/§20.11）。逐题归属（图像独解 / 文本独解 / 双模态互证 / 双缺）待汇总。
 - **Q30：跨模型装载终表（2026-10-04 晚，全部 276 题逐题配对）**：
 | 路线 | 正确率 | 成本 | 配对 |
 |---|---|---|---|
@@ -1513,7 +1489,7 @@ Qwen 的多块高分辨率底盘拉开差距，与短档打平形成对照。med
 - **Q31：「原生视频输入」测过哪里？（用户 2026-10-05 之问的对账）**：
   | 原生形态 | 短档 276q | medium 84q |
   |---|---|---|
-  | Qwen3-VL 原生视频+转写 | ✅ **83.0%**（55.6s/题） | 🕐 已排队（链 3，估 ~6h：2fps→768 帧上限，prefill 数百秒/题） |
+  | Qwen3-VL 原生视频+转写 | ✅ **83.0%**（55.6s/题） | ✅ **71.4%**（60/84，87s/题，2026-10-05） |
   | Qwen3-VL 原生纯视觉 | ✅ **79.3%** | — |
   | Qwen3-Omni 纯音频（无视频） | ✅ **33.3%** | — |
   | Qwen3-Omni 看听交织（真原生 Omni） | 🕐 通路已修复（v3，见文末），selmed 链末排队中 | 同左（链末） |
@@ -1531,40 +1507,7 @@ Qwen 的多块高分辨率底盘拉开差距，与短档打平形成对照。med
   = 51.4%，142/276）**；150/300 是含 24 题超集的口径。8 个缺盘视频要不要
   补下载待定（补了会破坏与存量 276 题体的直接可比性，除非全臂重跑）。
 
-**C9 现状（截至 2026-10-04）**：结论**维持成立**——同刻表同分辨率同帧数下，
-官方像素路径比我方 loader 低 5.4pp（p=0.0007）；落点漂移已实测排除（223/224
-哈希匹配，含 VFR），分辨率轴被 `max_slice_nums=1` 抹平；机理收窄至两个存活
-嫌疑（官方 PIL q88+4:2:0 JPEG 保真度 vs 我方 ffmpeg q:v 2 近无损；解码器色彩
-管线 decord vs swscale）。定案可选臂（我方帧重存 q88 重跑 QA）未排。
-工程含义不变：q:v 2 与 q88 成本相同，近无损免费，我方 loader 保持现状，
-官方代码无需修改（选帧策略采纳官方均匀路线）。
 
-**压测爬坡结果（2026-10-04，最长基准视频 130.6s，单次推理，每档独立进程）**：
-
-| 帧数 | 墙钟 | Metal 峰值内存 | 答案质量 |
-|---|---|---|---|
-| 96 | 55.2s | 8.96 GB | 正确描述 |
-| 128 | 74.5s | 9.95 GB | 正确描述 |
-| 160 | 93.8s | 10.71 GB | 正确描述 |
-
-**32GB 统一内存上无内存墙**：160 帧峰值仅 ~11GB（模型 ~5.7GB 常驻 + 视觉 token
-线性增长）。**瓶颈是延迟（~0.65s/帧线性），不是内存**——context 40960/96 token ≈
-400 帧理论容量在内存上也基本可达（外推 ~20GB+）。压测脚本
-`exp_stress_frames.py`（N 从 argv 传入；每档新进程防 C++ 层 OOM 不可捕获）。
-
-**主链剩余顺序（2026-10-04 凌晨起，`exp_master.log` 打点）**：uniform_96（短档）
-→ Qwen 30B 帧臂（64 帧均匀 + 转写）→ **Qwen 30B 原生视频臂**（`VM_NATIVE_VIDEO`
-旋钮：`generate_response(video_path=...)`，处理器内部自采样 + 转写整块）
-→ medium 档预算三点（16/64/96，28/30 视频到盘，中位 593s / 最大 1046s）。
-
-**一夜战报（2026-10-04 早上）**：压测 96/128/160 全过（见上表）；medium 28 视频
-到盘；**Qwen 原生视频臂成功运行中**——早期 18 题 17 对（94.4%）、**58.5s/题**
-（原生视频 prefill 竟比 64 图臂预期还快些）、零 ERR。**两个臂空跑报废（我的命名
-失误，无 GPU 浪费）**：`VM_METHODS=uniform_96`/`uniform_64`（下划线名）与
-PRECOMPUTED 文件键名 `uniform96`/`uniform64`（无下划线）不一致，select() 找不到
-时刻表即抛错，fail-fast 退出（rc=2 设计生效）——已用正确键名重排到主链之后
-（等待方式改为盯主链 PID 退出，绕开 pgrep 自匹配陷阱：三个包装进程的命令行都
-含真实脚本路径文本，互相当成"在跑的实验"卡死过一晚上的空转）。
 
 **帧数规则的综合裁决（待 medium 曲线补全）**：QA 拐点 32（短档实测）+
 盲区承诺下限 1/8s + 官方封顶 128 → 统一规则候选
@@ -1610,3 +1553,55 @@ PRECOMPUTED 文件键名 `uniform96`/`uniform64`（无下划线）不一致，se
 from_pretrained` 裸调会因缺 torchvision 失败（Qwen2VLVideoProcessor 回退路径），
 必须让 mlx-vlm 模型模块先 import 安装处理器补丁——这就是 `mlx_vlm.load()` 的
 隐藏顺序。
+
+---
+
+## 附录 · 2026-09-27 原始 deep research 原件（历史起点；判断以一页纸与 §20 为准）
+
+## Deep Research: VLM 长视频关键帧选帧（TMRoPE walk around）与 focus_detector 升级评估
+
+> 2026-09-27 · Session `20260926-360-long-video-ce7702` · 触发：用户要求 web deep research 验证 HANDOFF §二.5/§三.5（mlx_vlm #294 ffmpeg scene detection 选帧）的时效性与可靠性，连带评估 `focus_detector.py` 是否需要优化。
+
+### Executive Summary
+
+对 MiniCPM-o 4.5（mlx_vlm 0.7.2，本机 M2 Pro）长视频语义分析中的帧采样问题做了三线验证：一手 issue 考古、官方文档/论文、本机源码与真素材冒烟。结论一：**mlx_vlm Issue #294 的 ffmpeg scene detection 配方不是"社区验证的方案"**——它是提问者 tmoroney 自己的既有做法（2025-04-11 发布，2025-04-23 后无活动，closed 无人采纳），maintainer 只回了模型推荐，配方没有任何对比基准。HANDOFF 中"社区验证有效"应降级为"社区分享、无数据"。结论二：但**轻量信号选帧的方向本身是对的**——CVPR 2025 起的学术工作（AKS 等）一致把 naive uniform sampling 当作要打败的基线，且都强调 temporal coverage；对本项目"无 query 的素材语义描述"场景，场景切换信号 + 时间覆盖兜底是性价比最高的一档，神经选帧（AKS/M-LLM 选帧）属于过度设计。结论三：**本地实测配方可行**——30s 真素材 0.36s 选出 11 帧（6 次场景切换 + 首帧 + 每 8s 兜底，行为与设计吻合），零新依赖。结论四：`focus_detector.py` 的 Haar Cascade（2001 年 Viola-Jones 系）有零依赖升级路径——OpenCV 官方实证 YuNet（FaceDetectorYN）全面优于 Cascade，本机 `~/.video-tts-env` cv2 4.14.0 已内置，仅需下载 opencv_zoo 的 YuNet onnx 模型（~345KB，MIT，repo 活跃）。另注意：`~/.venvs/mlx-vlm` 的 cv2 已是 5.0.0 且 **saliency 模块消失**——focus_detector.py 必须钉在 video-tts-env。
+
+### Key Findings
+
+1. **#294 考古（用户问题："294 是多久以前的 issue 了？"）**：Blaizzy/mlx-vlm#294，2025-04-11 创建，2025-04-23 最后评论，closed，4 条评论。[Tier 1：GitHub API 原文] 内容是 tmoroney 征询 <1B 视频 captioning 模型推荐，ffmpeg 关键帧提取只出现在他自己的代码里（`select='gt(scene,0.08)+eq(n,0)+not(mod(t,8))'`，cap 6 帧）；Blaizzy 的回复全是模型推荐（Qwen2.5-VL 3B / InternVL3 1B&2B / NanoLlava / 4bit vs 8bit），**未对选帧配方表态，也未采纳任何选帧 PR**。配方自带 max_frames=6 是为 2B 模型省算力，不适用我们的 8B 场景。**"社区验证有效"不成立，最多算"社区分享"。**
+
+2. **但"均匀采样是下界"有学术共识**：AKS（CVPR 2025, arXiv:2502.21271）明确以 uniform sampling 为基线做 query 相关性 + temporal coverage 的 split-and-judge 选帧；M-LLM Based Video Frame Selection（CVPR 2025, arXiv:2502.19680）与 From Frames to Clips（arXiv:2510.02262, 2025-10）、Focus（arXiv:2510.27280, 2025-10）同路线。共同点：(a) uniform 采样对静态/低密度视频浪费帧预算；(b) **temporal coverage 必须显式保证**（这正是 scene-detection 配方里 `not(mod(t,8))` 兜底帧的作用）；(c) query-aware 神经选帧收益最大但需要额外打分模型——我们的素材描述场景无 query，收益打折。**结论：轻量信号选帧 + 覆盖兜底是本用例的正确档位；AKS 类方法记为远期候选。**
+
+3. **帧率/帧数配置（用户问题："考虑下 2fps 1fps 的配置"）**：MiniCPM-V 4.5 官方文档（OpenBMB，Tier 1）给出 3D-Resampler：6 帧 448×448 联合压缩成 64 token（96× 压缩），**LLM 侧 token 成本不随帧数线性涨**，官方主打 high-FPS（up to 10FPS）视频理解；官方视频 demo 传统配置 `MAX_NUM_FRAMES=64`（≈1fps）。视觉 encoder 成本仍随帧数线性（SigLip2 每帧一次）。本机 mlx_vlm 0.7.2 源码（video.py:68-103）：`subsample_evenly` + 默认 `max_frames=16`（≈2fps@8s 窗口），比官方保守 4×。**实验矩阵应含 策略∈{uniform, scene-detect} × cap∈{16,32} × fps∈{1,2} 的组合，实测质量/时延曲线后决策。**
+
+4. **配方本地实证（proposal-review 双源之本地侧）**：content_ABCx2_30s.mp4（HANDOFF 真素材）上 `select='gt(scene,0.08)+eq(n,0)+not(mod(t,8))'` + 480p 下采样，**0.36s wall-clock 选出 11 帧**（约 6 切换 + 1 首帧 + 4 兜底，与素材结构吻合），176KB mjpeg。ffmpeg 为管线既有依赖，`select` V->V 滤镜存在。零新 pip 依赖，CPU 完成。
+
+5. **focus_detector.py 优化评估（用户要求"连带看下"）**：现状 = Haar Cascade `haarcascade_frontalface_default.xml`（focus_detector.py:115-116，Viola-Jones 系，2001）+ Static Saliency Spectral Residual。OpenCV 官方博客（opencv.org, 2022-11, Tier 1）实证 **YuNet（FaceDetectorYN）在准确率/鲁棒性上全面优于 Cascade Classifier**（侧脸、小脸、光照）。本机事实：`~/.video-tts-env` cv2 4.14.0 **已内置 FaceDetectorYN**（零 pip 新依赖），模型文件来自 opencv/opencv_zoo（MIT，活跃：pushed 2026-05-28），face_detection_yunet onnx 约 345KB 一次性下载；`saliency` 模块同 venv 可用。**升级路径低风险**：YuNet 输出带置信度与 5 点 landmark，可平滑替换 Haar 调用点。**风险**：`~/.venvs/mlx-vlm` 的 cv2 已升 5.0.0 且 **saliency 模块缺失**——focus_detector.py 必须钉在 `~/.video-tts-env`（现状即如此，AGENTS.md 注记需更新防误配）。
+
+### Contrarian Views & Risks
+
+- **scene threshold 0.08 未必跨内容鲁棒**：talking head（渐变光照/微动作）可能整段低于阈值只剩兜底帧；高速运动素材可能帧数打满 cap。0.08 是 tmoroney 为其素材调的值，无公开敏感度分析——实验须覆盖 talking head / 高密度两类素材各至少一个。
+- **MiniCPM-o 无时序训练**：换关键帧喂入不会让它"理解"时序（HANDOFF §二.5 结论仍有效），选帧只是提升"每帧信息密度"。时序理解仍靠 #360 分窗 + 未来 Qwen3-VL 路线，不要在选帧上过度投资。
+- **给帧配时间戳文本标记是否有效未验证**（MiniCPM-o 没学过时间戳 token）——列为 open question，实验不做此项。
+- YuNet onnx 是新引入的模型文件（~345KB）：走 model-sources 准入（license MIT / opencv_zoo 活跃 / 原始仓库即官方），入库 `scripts/short-video/models/` 或跟随 content 目录需再定。
+
+### Open Questions
+
+1. scene_threshold 对本项目素材分布（新闻播报 / 实拍 / 屏幕录制）的最优值——实验产出敏感度数据后再定，不预设 0.08。
+2. cap=32 时 vision encoder 时延增幅是否被 LLM 侧 3D-Resampler 抵消（官方称 token 不涨）——实验测端到端时延曲线。
+3. focus_detector.py 的 saliency 输出是否值得同时升级（SSR → 深度显著性）——当前文本保护区用途下 SSR 够用，暂不动。
+
+### Sources
+
+1. https://github.com/Blaizzy/mlx-vlm/issues/294 — 原文与评论，配方出处与未采纳证据 — Tier 1
+2. 本机 `~/.venvs/mlx-vlm/.../mlx_vlm/generate/video.py:68-103` — subsample_evenly / max_frames=16 默认 — Tier 1（代码源）
+3. 本机 `~/.video-tts-env` cv2 4.14.0（FaceDetectorYN/saliency 可用）与 `~/.venvs/mlx-vlm` cv2 5.0.0（saliency 缺失） — Tier 1（代码源）
+4. https://opencv.org/blog/opencv-face-detection-cascade-classifier-vs-yunet/ — OpenCV 官方对比博客 — Tier 1
+5. https://github.com/opencv/opencv_zoo — YuNet 模型来源，活跃维护 — Tier 1
+6. https://github.com/OpenBMB/MiniCPM-V/blob/main/docs/minicpm_v4dot5_en.md — 3D-Resampler / high-FPS 官方文档 — Tier 1
+7. https://arxiv.org/abs/2502.21271 — AKS, CVPR 2025 — Tier 1（同行评审）
+8. https://arxiv.org/abs/2502.19680 — M-LLM Based Video Frame Selection, CVPR 2025 — Tier 1（同行评审）
+9. https://arxiv.org/html/2510.02262v1 — From Frames to Clips, 2025-10 — Tier 1（预印）
+10. https://arxiv.org/html/2510.27280v1 — Focus keyframe selection, 2025-10 — Tier 1（预印）
+11. 本地冒烟：content_ABCx2_30s.mp4 0.36s/11 帧（本 session 实测） — Tier 1（实验）
+12. `.scratch/len-compare/HANDOFF.md`（361 worktree）— 前序基准与配方引入处 — Tier 1（内部）
