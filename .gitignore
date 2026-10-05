@@ -105,8 +105,7 @@ skills/web-access/config.env
 # Kaggle/Colab kernel metadata (per-environment)
 kernel-metadata.json
 
-# Remotion lockfile (generated, not manually maintained)
-scripts/short-video/remotion/package-lock.json
+# Remotion test props (generated per-run)
 scripts/short-video/remotion/test-props.json
 
 # Large source videos (not pipeline content, too large for LFS)
