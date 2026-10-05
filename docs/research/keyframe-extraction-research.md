@@ -1494,6 +1494,19 @@ Qwen 的多块高分辨率底盘拉开差距，与短档打平形成对照。med
   MiniCPM 物理上追不了 Qwen 原生的帧数（resampler 96 token/帧，context 40960
   ≈400 帧上限；Qwen 原生 768 帧在 medium 10 分钟片上 prefill 也要数百秒，
   两家的原生操作点在中长内容都不可行，外喂均匀帧才是现实操作点）。
+- **Q31：「原生视频输入」测过哪里？（用户 2026-10-05 之问的对账）**：
+  | 原生形态 | 短档 276q | medium 84q |
+  |---|---|---|
+  | Qwen3-VL 原生视频+转写 | ✅ **83.0%**（55.6s/题） | 🕐 已排队（链 3，估 ~6h：2fps→768 帧上限，prefill 数百秒/题） |
+  | Qwen3-VL 原生纯视觉 | ✅ **79.3%** | — |
+  | Qwen3-Omni 纯音频（无视频） | ✅ **33.3%** | — |
+  | Qwen3-Omni 看听交织（真原生 Omni） | ❌ 未测 → 🕐 已排队（链 3 末） | — |
+  | MiniCPM 官方波形单元 | ✅ 76.4% | — |
+  | MiniCPM 原生视频（MLX） | ❌ 永不可测——mlx-vlm 移植缺 video processor（官方 PyTorch 有，Q25） | 同左 |
+  Omni 交织臂走新脚本 `exp_qwen_omni_video.py`（`generate(video=, audio=,
+  use_audio_in_video=True)`，kwargs 直达处理器；零转写注入——它自己看自己听；
+  首题响亮失败防模板坑）。链 3 = Qwen native medium → Omni 交织（PID 81301，
+  接链 2 之后，总计约 10h）。
 
 **C9 现状（截至 2026-10-04）**：结论**维持成立**——同刻表同分辨率同帧数下，
 官方像素路径比我方 loader 低 5.4pp（p=0.0007）；落点漂移已实测排除（223/224
