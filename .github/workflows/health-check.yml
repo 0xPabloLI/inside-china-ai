@@ -45,7 +45,7 @@ jobs:
 
       - name: Open failure issue
         if: failure() && steps.url.outputs.skip == 'false'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const title = `Health check failed for ${process.env.PROD_URL} (${new Date().toISOString()})`;

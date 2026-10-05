@@ -68,7 +68,7 @@ jobs:
       github.event.comment.user.type != 'Bot'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             // ⚠️ 回读当前 state —— 事件 payload 里的 issue.state 是「评论创建那一刻」的快照。
@@ -101,7 +101,7 @@ jobs:
     if: github.event_name == 'issues' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             const issue = context.payload.issue;
@@ -179,7 +179,7 @@ jobs:
     if: github.event_name == 'issue_comment' && github.event.action == 'created'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             const comment = context.payload.comment;
@@ -236,7 +236,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.delivery_recheck)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             const LEDGER = 'delivery-record-missing';
@@ -351,7 +351,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.sweep_delivery
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             // 与 strip-closed-labels 同一套 apply 门控：默认 dry-run 只打印清单
@@ -432,7 +432,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.sweep_closed)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             // deny-list —— 与 docs/agents/issue-tracker.md「闭票只留 category」同源，
@@ -529,7 +529,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             // 两种用法，由 backfill 开关区分：
@@ -606,7 +606,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.triage_stale)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           script: |
             // 幂等 marker：已提醒过的票跳过，绝不复读刷屏。
