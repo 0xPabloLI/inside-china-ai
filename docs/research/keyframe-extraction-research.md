@@ -1587,6 +1587,30 @@ from_pretrained` 裸调会因缺 torchvision 失败（Qwen2VLVideoProcessor 回�
   性价比点是 Qwen 64帧+ASR（69.0%、33.8s）。Omni 在 medium 质量掉队（60.7）成因未
   拆（其内部抽帧策略 vs 交织本身），纯视频诊断臂可选。
 
+- **Q35：原生通路采样解剖 + Omni 交织臂 fps 元数据错配（用户 2026-10-06 之问）**：
+  ① **基线 u64 是我方自定义**：uniform_64 = 1fps 解码 → 均匀子采 64 帧（我方脚本口径），
+  MiniCPM-o 4.5 引擎 + 我方 QA harness——不是任何模型的官方推荐，只是预算曲线上的一个点
+  （medium u16 53.6 → u64 54.8 → u96 63.1 → u128 66.7）。
+  ② **原生帧数限制（实测）**：Qwen3-VL 与 Qwen3-Omni 处理器均声明 `fps=2.0, min_frames=4,
+  max_frames=768`（mlx-vlm 默认 + 模型 processor 配置；Omni 官方 `video_processor.fps=None`，
+  约定由调用方传实际采样率）。实测：93s 视频 → **186 帧**；1046s 视频 → **768 帧封顶**
+  （有效 0.73fps、帧距 1.36s）。「原生输入」≠无限帧，是 2fps × 768 帧双重上限。
+  ③ **原生慢的归因**：不是 ASR 慢——native_pure 54.2s vs native_asr 56.5s（中位，ASR
+  仅 ≈+2s）；慢在原生通路本身（186-768 帧 vision token 的 prefill/内存：17GB vs MiniCPM
+  5GB）。我方 u64 臂 27.7s 是「小预算」的另一端。
+  ④ **Omni v3 旁路 fps 元数据错配（新发现，待修）**：mlx-vlm 官方 `process_inputs` 把真实
+  采样率 `fps=metadata.sampled_fps` 转发给处理器（`utils.py:2513`），Qwen3-VL 原生臂时间轴
+  自洽；我方 v3 为修 `use_audio_in_video` 直调处理器时**未传 fps** → 处理器缺省 1.0 →
+  `video_second_per_grid=2.0s`，而帧实际 2fps（短档时间轴 2× 拉伸）/封顶后 0.73fps
+  （≈1.37× 压缩）。**影响：Omni 两档成绩可能被时间轴错配低估**——修复（传
+  `fps=meta.sampled_fps`）后需重跑再裁决；这也是「Omni medium 为何 60.7 vs Qwen3-VL
+  71.4」的 harness 侧解释候选（另一候选是音频交错挤压 vision token，需纯视频臂拆分）。
+  ⑤ **ASR 增益 vs context**：数据方向与「context 越大 ASR 越弱」相反——短档 Qwen
+  pure→+ASR +3.7pp（p=0.087）、medium MiniCPM u64→u64+ASR **+7.1pp**（p=0.109）；转写是
+  短文本（占 context 比例小），未见稀释；「帧数暴涨后 ASR 边际变小」未专测（可选实验）。
+  ⑥ **未测过的组合**：Omni 纯视频（无音频）、Omni+我方 ASR 文本——均未跑。
+  ⑦ **medium 检验力**：n=84 只能分辨 ≥10-14pp（Q34）；定案 8pp 需 ~160 题。
+
 ---
 
 ## 附录 · 2026-09-27 原始 deep research 原件（历史起点；判断以一页纸与 §20 为准）
