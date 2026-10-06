@@ -1,0 +1,9 @@
+# osv-scanner 依赖门禁配置（.githooks/pre-push 的 #197 安全门禁自动加载本文件）。
+# 规则：新增豁免必须写明「为什么不可达/为何接受」与复核日期。
+[[IgnoredVulns]]
+id = "GHSA-hp3w-g68c-fv3c"
+# sprintf-js ReDoS（gray-matter → argparse@1.0.10 → sprintf-js ~1.0.2）。
+# 上游自 1.0.3 起未发布修复版本（OSV 标注 NO-FIX）；该链路仅用于内容
+# front-matter 解析（构建期、自有 markdown 输入，格式串非攻击者可控），
+# 不构成可达攻击面。复核：gray-matter/argparse 升级或上游出补丁后移除。
+ignoreUntil = 2027-01-01
