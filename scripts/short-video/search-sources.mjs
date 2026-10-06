@@ -74,7 +74,7 @@ import {
   filterRecentTrackedArticles,
   dedupByUrl,
 } from "./lib/trends-utils.mjs";
-import { ALL_SOURCES, DEFAULT_KEYWORDS } from "./lib/source-registry.mjs";
+import { ALL_SOURCES, DEFAULT_KEYWORDS, resolveLoginGate } from "./lib/source-registry.mjs";
 import {
   updateSourceHealth,
   deriveZeroResultSources,
@@ -147,7 +147,7 @@ import {
   extractWithRetry,
   rateLimitBackoffDelayMs,
   detectAntiBot,
-  checkLogin,
+  runPageGates,
   ensureCdpProxy,
   CDP_BASE,
   ScriptError,
@@ -341,31 +341,32 @@ async function collectFromCdp(source, keyword) {
     console.warn(`  ⚠️  Page did not finish loading, attempting extraction anyway...`);
   }
 
-  // #89 P2: generic anti-bot / CAPTCHA detection for every CDP page — fail
-  // the CDP layer here rather than extracting garbage from an interstitial.
-  const antiBotHit = await detectAntiBot(tabId);
-  if (antiBotHit) {
+  // #346: the source's own login gate runs BEFORE the generic anti-bot
+  // vocabulary — a logged-out page's login panel carries anti-bot words
+  // (xhs's 「获取验证码」 matches 「验证码」), so the old anti-bot-first order
+  // failed this layer as a site challenge while the real instruction was
+  // "log in again". #89 P2's interstitial check is unchanged, it just runs
+  // after the login gate; the shared sequence lives in cdp-client.runPageGates.
+  const gate = await runPageGates({ tabId, ...resolveLoginGate(source) });
+  if (gate?.gate === "login") {
+    // The registry's login vocabulary is closed at need_login / captcha. Any
+    // other non-ok answer from a needsAuth source's own gate is still a
+    // login-class failure — a session a human can restore — not a challenge.
+    const status = gate.status === "captcha" ? "captcha" : "need_login";
+    if (status === "captcha") {
+      console.warn(`  ⚠️  ${source.label} 触发验证码，请在 Chrome 中手动通过验证码后重试`);
+    } else {
+      console.warn(`  ⚠️  ${source.label} requires login — CDP failed`);
+    }
+    await cdpCloseTab(tabId);
+    return { articles: [], status };
+  }
+  if (gate?.gate === "anti_bot") {
     console.warn(
-      `  ⚠️  ${source.label} anti-bot interstitial detected ("${antiBotHit}") — CDP layer fails, fallback chain takes over`,
+      `  ⚠️  ${source.label} anti-bot interstitial detected ("${gate.status}") — CDP layer fails, fallback chain takes over`,
     );
     await cdpCloseTab(tabId);
     return { articles: [], status: "anti_bot" };
-  }
-
-  // Check login if needed
-  const needsAuth = cap?.needsAuth ?? source.needsAuth;
-  const loginCheckScript = cap?.loginCheckScript ?? source.loginCheckScript;
-  if (needsAuth && loginCheckScript) {
-    const status = await checkLogin(tabId, loginCheckScript);
-    if (status === "need_login") {
-      console.warn(`  ⚠️  ${source.label} requires login — CDP failed`);
-      await cdpCloseTab(tabId);
-      return { articles: [], status: "need_login" };
-    } else if (status === "captcha") {
-      console.warn(`  ⚠️  ${source.label} 触发验证码，请在 Chrome 中手动通过验证码后重试`);
-      await cdpCloseTab(tabId);
-      return { articles: [], status: "captcha" };
-    }
   }
 
   // Extract articles — #89 P1: up to 3 escalating-backoff retries in

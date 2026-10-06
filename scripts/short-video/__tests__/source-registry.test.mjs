@@ -15,10 +15,12 @@ import {
   SOURCE_ATTRIBUTIONS,
   AUTOGEN_EXCLUDED_SOURCES,
   resolveApiHeaders,
+  resolveLoginGate,
   missingApiKey,
   keyReadiness,
 } from "../lib/source-registry.mjs";
 import { isPoolEligible } from "../lib/search-pool.mjs";
+import { checkLogin } from "../lib/cdp-client.mjs";
 
 // ─── Source structure validation ───
 
@@ -1881,5 +1883,131 @@ describe("keyReadiness", () => {
     for (const e of r.entries) expect(e.env).toMatch(/^[A-Z_0-9]+$/);
     expect(r.entries.map((e) => e.source)).toContain("gnews");
     expect(r.entries.map((e) => e.source)).toContain("currents");
+  });
+});
+
+/**
+ * #346（2026-10-07）：`loginCheckScript` 的契约是**返回**状态，不是**求值**状态。
+ *
+ * checkLogin 把脚本包进 `(async function(){ ... })()` 并读那个调用的返回值，所以
+ * 只在末行写一个状态三元表达式（没有 `return`）的脚本会得到 undefined，再被
+ * `|| "ok"` 兜成 ok —— 登录门**从不触发**。实测（2026-10-07，真实 Chrome + 真实
+ * checkLogin）：xhs 旧脚本在「登录后查看搜索结果 / 获取验证码」页面上返回 "ok"，
+ * 而同一页 detectAntiBot 返回「验证码」⇒ 登录态过期被报成 `anti_bot:验证码`
+ * （#269 Round I 的假判决；反爬词表与登录面板文案的碰撞在 cdp-backoff.test.mjs
+ * 里另有断言）。
+ *
+ * 下面把契约钉死：每个会被 runPageGates 咨询的脚本（needsAuth 且有脚本）都必须在
+ * checkLogin 的调用形态下产出闭合词表里的状态。断言走**真 checkLogin**（只把
+ * cdpEval 换成在沙箱里跑这段脚本的 seam），所以它守的是生产那层包装，而不是测试
+ * 自己抄的一份。求值形态的脚本在这里变红。
+ */
+describe("#346 loginCheckScript 必须返回状态（checkLogin 契约）", () => {
+  /**
+   * 真 checkLogin + 沙箱 eval：把页面脚本跑在一个给了假 document/window 的函数里。
+   * evalFn 收到的是 checkLogin 自己包好的 `(async function(){…})()`，所以包装形态
+   * 由生产代码决定。
+   */
+  async function runGate(
+    script,
+    { body = "", href = "https://example.com/", videoLinks = 0 } = {},
+  ) {
+    const fakeDocument = {
+      body: body === null ? null : { innerText: body },
+      querySelector: () => null,
+      querySelectorAll: () => Array.from({ length: videoLinks }, () => ({})),
+    };
+    const evalFn = async (_tabId, wrapped) => ({
+      result: {
+        value: await new Function("document", "window", `return ${wrapped}`)(fakeDocument, {
+          location: { href },
+        }),
+      },
+    });
+    return checkLogin("tab-1", script, { evalFn });
+  }
+
+  const consulted = ALL_SOURCES.filter((s) => {
+    const gate = resolveLoginGate(s);
+    return gate.needsAuth && gate.loginCheckScript;
+  });
+  const gateOf = (s) => resolveLoginGate(s).loginCheckScript;
+
+  /**
+   * 每个被咨询源的登出 / 登录态夹具。契约断言必须落在非 `ok` 的期望值上：
+   * 无 `return` 的脚本经 checkLogin 会得到 "ok"，而 "ok" 本身在闭词表内——只断言
+   * 「返回值属于闭词表」对死门形态毫无判别力（第二轮评审抓到）。这里对每个源都要求
+   * 登出 ⇒ `need_login`、登录 ⇒ `ok`，于是任何一处 `return` 被删掉、或任何一处判定式
+   * 误伤登录态页面，套件立刻变红。
+   */
+  const GATE_FIXTURES = {
+    xhs: {
+      loggedOut: { body: "登录后查看搜索结果\n获取验证码" },
+      loggedIn: { body: "推荐 关注 AI 相关笔记 100 条" },
+    },
+    douyin: {
+      loggedOut: { body: "登录账号", videoLinks: 0 },
+      loggedIn: { body: "登录账号", videoLinks: 20 },
+    },
+    tiktok_creator: {
+      loggedOut: { body: "" },
+      loggedIn: { body: "灵感 趋势 视频 ".repeat(20) },
+    },
+    weibo_search: {
+      loggedOut: { body: "Sina Visitor System 扫描二维码登录" },
+      loggedIn: { body: "实时热搜 AI 大模型 相关微博 ".repeat(20) },
+    },
+    x_search: {
+      loggedOut: { href: "https://x.com/i/flow/login" },
+      loggedIn: { href: "https://x.com/search?q=AI", body: "AI 相关推文 ".repeat(60) },
+    },
+  };
+
+  it("每个被咨询的登录门：登出夹具 ⇒ need_login（删掉 return 就变红）", async () => {
+    expect(consulted.length).toBeGreaterThan(0);
+    for (const source of consulted) {
+      const fixture = GATE_FIXTURES[source.name]?.loggedOut;
+      expect(fixture, `${source.name} 缺登出夹具`).toBeDefined();
+      const status = await runGate(gateOf(source), fixture);
+      expect(status, `${source.name} 在登出夹具下的判决`).toBe("need_login");
+    }
+  });
+
+  it("每个被咨询的登录门：登录态夹具 ⇒ ok（判定式不误伤正常页面）", async () => {
+    for (const source of consulted) {
+      const fixture = GATE_FIXTURES[source.name]?.loggedIn;
+      expect(fixture, `${source.name} 缺登录态夹具`).toBeDefined();
+      const status = await runGate(gateOf(source), fixture);
+      expect(status, `${source.name} 在登录态夹具下的判决`).toBe("ok");
+    }
+  });
+
+  it("旧形态（末行只求值、没有 return）在 checkLogin 下静默成 ok —— 这正是它骗过判决的方式", async () => {
+    const legacy = `
+      var body = document.body ? document.body.innerText : '';
+      body.includes('请先登录') ? 'need_login' : 'ok'
+    `;
+    // 同一登出夹具：旧形态报 ok（门永不触发），修好后的 xhs 脚本报 need_login。
+    expect(await runGate(legacy, GATE_FIXTURES.xhs.loggedOut)).toBe("ok");
+    const xhsGate = gateOf(ALL_SOURCES.find((s) => s.name === "xhs"));
+    expect(await runGate(xhsGate, GATE_FIXTURES.xhs.loggedOut)).toBe("need_login");
+  });
+
+  it("xhs：已记录的面板文案 ⇒ need_login；正常结果页 ⇒ ok", async () => {
+    const xhs = ALL_SOURCES.find((s) => s.name === "xhs");
+    expect(await runGate(gateOf(xhs), { body: "登录后查看搜索结果\n获取验证码" })).toBe(
+      "need_login",
+    );
+    expect(await runGate(gateOf(xhs), { body: "推荐 关注 AI 相关笔记 100 条" })).toBe("ok");
+  });
+
+  it("douyin：没有结果链接 + 页面在喊登录 ⇒ need_login；登录态（有结果链接）⇒ ok", async () => {
+    const douyin = ALL_SOURCES.find((s) => s.name === "douyin");
+    // 「导航里有登录文案」是登录态页面的常态 —— 所以门必须同时要求「结果链接为 0」。
+    expect(await runGate(gateOf(douyin), { body: "登录账号 登录后查看", videoLinks: 0 })).toBe(
+      "need_login",
+    );
+    expect(await runGate(gateOf(douyin), { body: "登录账号", videoLinks: 20 })).toBe("ok");
+    expect(await runGate(gateOf(douyin), { body: "AI 视频 20 条", videoLinks: 0 })).toBe("ok");
   });
 });
