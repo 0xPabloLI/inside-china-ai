@@ -120,7 +120,7 @@
     "nitro": "3.0.260603-beta",
     "prettier": "3.9.9",
     "size-limit": "^14.0.0",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.0",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.16",
     "vitest": "^5.0.0"
