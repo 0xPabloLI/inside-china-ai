@@ -17,7 +17,7 @@
 | 生产帧数规则（候选） | `帧数 = min(max(ceil(D/8), 32), 128)` | §20.9/§20.10；medium 的 1/8s 比例落在拐点区 |
 | 装载层（音频怎么进） | **转写文本 > 纯视觉 ≈ 波形单元**；转写是唯一有效音频形态（跨家族复验） | loader_block 83.0 vs official_units 76.4（p=0.0009）；Omni 纯音频 33.3%≈乱猜 |
 | 提取方式（C9） | 我方 loader 显著优于官方整文件路径；漂移已排除，机理剩 q88/解码器两嫌疑 | 79.0 vs 73.6（p=0.0007）；q88 定案臂可选未排（§20.10） |
-| 跨模型（短档 276 题） | **四路线打平（新增 Omni 交织）** | MiniCPM 83.0 = Qwen 原生 83.0 = Qwen 外抽帧 81.5 = **Omni 看听交织 80.8**（223/276，p≥0.4）；Omni 23.4s/题最快，MiniCPM 33.9s、Qwen 原生 55.6s（§20.11） |
+| 跨模型（短档 276 题） | **四路线打平（新增 Omni 交织）** | MiniCPM 83.0 = Qwen 原生 83.0 = Qwen 外抽帧 81.5 = **Omni 看听交织 80.8**（223/276，p≥0.4）；Omni 23.4s/题最快（中位 21.9s），我方 loader 33.9s、Qwen 原生 55.6s（§20.11 Q34） |
 | 跨模型（medium 84 题） | **长档 Qwen ≥ 其余**；Omni 交织 ≈ MiniCPM 档 | Qwen 原生+转写 71.4 > Qwen 纯视觉 70.2 / 外抽帧+转写 69.0 > MiniCPM u96 63.1 > Omni 交织 60.7 ≈ MiniCPM u64+转写 61.9（vs Qwen 原生 p=0.064 趋势） |
 | 模态消融 | 转写独解 51.4%（半数量题）；「双模态 vs 仅文本」极显著 | 视觉独解 79.0；双模态 83.0（95/8 分歧，p<1e-5） |
 | 选帧方法（medium） | **全部落噪声内——选帧方法不是长内容的杠杆**（用户直觉未获支持） | slice 53.6 / maxinfo_siglip 58.3 / kframes 60.7 vs uniform_64 54.8（n=84 配对 p=1.0/0.55/0.23，Bonferroni 0.0167 无过；见 Q32） |
@@ -1555,6 +1555,37 @@ Qwen 的多块高分辨率底盘拉开差距，与短档打平形成对照。med
 from_pretrained` 裸调会因缺 torchvision 失败（Qwen2VLVideoProcessor 回退路径），
 必须让 mlx-vlm 模型模块先 import 安装处理器补丁——这就是 `mlx_vlm.load()` 的
 隐藏顺序。
+
+- **Q34：跨模型综合裁决：样本量、多样性与速度体检（用户 2026-10-06 之问）**：Q30 数字
+  补齐 Wilson 95% CI + 配对检验力（MDE），并给两档速度与题目构成——回答「差距是否
+  可信、样本够不够、多样性够不够」。
+
+  **短档 276 题（92 视频）**：loader_block **83.0%** CI[78.1,86.9]（229/276）·
+  Qwen 原生+ASR **83.0%** CI[78.1,86.9] · Qwen 64帧+ASR 81.5% · Omni 交织 80.8%。
+  配对：loader vs 原生 **+16/−16，p=1.000**（严格平手）；vs Omni +25/−19 p=0.451；
+  Omni vs 原生 +16/−22 p=0.418。**四路并列判决在 276 题上可分辨 ≥4-6pp 的差距——
+  站得住。**（floor：text_only 51.4%；Qwen 原生纯视觉 79.3%。）
+
+  **medium 84 题（28 视频）**：Qwen 原生+ASR **71.4%** CI[61.0,80.0] >
+  Qwen 64帧+ASR 69.0% > MiniCPM u128 66.7% > u96 63.1% ≈ u64+ASR 61.9% ≈
+  Omni 交织 60.7%（基线 u64 54.8%）。配对全在灰区：原生 vs u64+ASR +13/−5 p=0.096、
+  vs Omni +14/−5 p=0.064、**同帧 64+ASR 换模型（Qwen vs MiniCPM）+9/−3 p=0.146**。
+  **84 题在典型不一致数（18-23）下只能分辨 ≥10-14pp**——7-9pp 差距是「证据指向、
+  未定案」；定案 8pp 需 ~160 题（≈54 视频×3），5pp 需 ~400 题。
+
+  **多样性体检**：短档 92 视频 = Film&TV 17 / Artistic 17 / Knowledge 16 / Sports 16 /
+  Life 16 / Multilingual 10，12 种 task_type 全覆盖；medium 28 视频偏 Life Record（9）、
+  Multilingual 仅 1，task_type 长尾薄（Spatial Reasoning 1 / Temporal Perception 1），
+  KFS 官方 GT 覆盖 16/28——medium 结论按「方向可信、定案需扩样」读。
+
+  **速度（每题端到端，M2 Pro MLX；中位/均值）**：短档 Omni **21.9/23.4s** 最快 <
+  Qwen 64帧+ASR 27.7/25.9s < loader_block 33.9s（均值，逐题计时）< MiniCPM u96
+  44.3/42.2s < Qwen 原生 56.5/55.6s。medium：Omni **24.0/33.0s** < Qwen 64帧+ASR
+  33.8s < MiniCPM u64+ASR 41.3s < u96 53.3s < u128 72.1s < Qwen 原生 85.2s。
+  **读法**：Omni 交织两档都最快（原生通路省掉我方抽帧/拼图预处理）且短档质量并列
+  ——速度×质量甜点；Qwen 原生反而最慢（原生 video token 化在 MLX 上偏重）；medium
+  性价比点是 Qwen 64帧+ASR（69.0%、33.8s）。Omni 在 medium 质量掉队（60.7）成因未
+  拆（其内部抽帧策略 vs 交织本身），纯视频诊断臂可选。
 
 ---
 
