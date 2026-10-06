@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.5...tanstack_start_ts-v1.11.6) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** update dependency [@lovable](https://github.com/lovable).dev/email-js to v0.3.1 ([#487](https://github.com/0xPabloLI/inside-china-ai/issues/487)) ([d2a8474](https://github.com/0xPabloLI/inside-china-ai/commit/d2a8474f6a9545964e379487d8c7e6e8eb4e059d))
+
 ## [1.11.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.4...tanstack_start_ts-v1.11.5) (2026-10-06)
 
 
