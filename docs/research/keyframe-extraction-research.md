@@ -23,7 +23,7 @@
 | 选帧方法（medium） | **全部落噪声内——选帧方法不是长内容的杠杆**（用户直觉未获支持） | slice 53.6 / maxinfo_siglip 58.3 / kframes 60.7 vs uniform_64 54.8（n=84 配对 p=1.0/0.55/0.23，Bonferroni 0.0167 无过；见 Q32） |
 | KFS 官方场景 GT | **两档 uniform 均居榜首梯队**；medium 上「挑帧型」方法漏场景显著更多 | short UKSS uniform 0.5537 / slice 0.5529；medium SHR uniform 0.9603 第一，maxinfo/kframes/tiered_v5/scene_008 跌至 0.80/0.84/0.73/0.43（见 Q33/§15A.4） |
 
-**待裁决（2026-10-06）**：PR #445 联评（本轮结果已全部落档）；生产落地（§18.2 清单——medium 选帧已判「无差异」，分窗+预算可直接实施）；8 缺盘视频补下载；q88 保真臂；Omni 纯视频诊断臂（因交织臂 80.8 的结果，价值上升，建议补 ~2h）。
+**待裁决（2026-10-06）**：PR #445 联评（本轮结果已全部落档）；生产落地（§18.2 清单——medium 选帧已判「无差异」，分窗+预算可直接实施）；q88 保真臂（可选）。**执行中**：medium 扩样（下载 25/28，链 2 排队）+ 诊断链（Q36：fps 修复对照 / pure / asr 拆分——medium 修复版已出「同分」结论）。
 
 
 
@@ -1610,6 +1610,22 @@ from_pretrained` 裸调会因缺 torchvision 失败（Qwen2VLVideoProcessor 回�
   短文本（占 context 比例小），未见稀释；「帧数暴涨后 ASR 边际变小」未专测（可选实验）。
   ⑥ **未测过的组合**：Omni 纯视频（无音频）、Omni+我方 ASR 文本——均未跑。
   ⑦ **medium 检验力**：n=84 只能分辨 ≥10-14pp（Q34）；定案 8pp 需 ~160 题。
+
+- **Q36：Q35 裁决执行——fps 修复对照 + pure/asr 拆分（进行中，2026-10-06 晚）**：
+  ① **Omni fps 修复版 medium 已收官**：51/84 = 60.7%，与修复前**完全同分**；逐题
+  84 题中 78 题预测不变、6 题翻转净 0（多对 1 / 多错 1）。**读法：fps 元数据错配
+  不是 Omni medium 弱势的成因**——修复没换来分数，「Omni 被低估」假设排除；剩余
+  候选指向音频交织挤压 vision token（待 D 臂 omni pure 对照）与模型自身。
+  ② **成本方向**：medium 修复版中位 52.1s/题（vs 修复前 24.0s；该臂与 28 视频下载
+  并发，含负载干扰）；短档 B 臂中期 21.7→29.3s（+35%）——fps 修复令单题更贵
+  （`video_second_per_grid` 2.0s→1.0s，改变 2s 块内视/音 token 排布）。质量不变、
+  成本上升：修复按「元数据保真」保留，但不再作为分数问题的候选解释。
+  ③ **B 臂（短档修复版）进行中**：同题 70/90 vs 旧 73/90（-3，33/100 视频处，早期）。
+  ④ **medium 扩样**：下载 25/28 成功；3 个失败（1sTNqJVrqx8 / 6DAFkaGUiT4 /
+  I5cFBi02O34）；扩样子集盘上 53/56 视频（≈159 题）。链 2 由 waiter 自动接续：
+  ASR 续跑 → 时刻表（64/96/128）→ native_asr_ext / u64_asr_ext / u96_ext / omni_ext。
+  ⑤ **待跑队列（链 1 剩余）**：C Qwen3-VL medium pure / D omni pure medium /
+  E omni asr medium / F pure short / G asr short。结果落定后并入本区、更新一页纸。
 
 ---
 
