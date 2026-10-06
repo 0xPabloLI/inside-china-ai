@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.11.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.4...tanstack_start_ts-v1.11.5) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** update dependency [@lovable](https://github.com/lovable).dev/mcp-js to v3 ([7ee76c3](https://github.com/0xPabloLI/inside-china-ai/commit/7ee76c3bf764245b21f716bab5b3239f646caf56))
+* **deps:** update dependency [@lovable](https://github.com/lovable).dev/mcp-js to v3 ([1472d59](https://github.com/0xPabloLI/inside-china-ai/commit/1472d59916231a257f1e810f3688c3ff1afe5b39))
+* **deps:** update dependency lucide-react to v1 ([f74cfea](https://github.com/0xPabloLI/inside-china-ai/commit/f74cfea3e28cdeb4a9ac220db3117a71c385655a))
+* **deps:** update dependency lucide-react to v1 ([b2971d2](https://github.com/0xPabloLI/inside-china-ai/commit/b2971d2732a02891626c4a81692aaf4de35bb996))
+* **lint:** keep react-hooks v7 compiler rules at warn + resync bun.lock ([7676784](https://github.com/0xPabloLI/inside-china-ai/commit/767678488b4138296fa764adfc1fc33ab0f3c384))
+
 ## [1.11.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.3...tanstack_start_ts-v1.11.4) (2026-10-04)
 
 
