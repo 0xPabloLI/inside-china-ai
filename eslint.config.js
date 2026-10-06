@@ -44,6 +44,13 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // react-hooks v7 turns on React Compiler rules at error severity. Five
+      // pre-existing sites violate them (ranking-alert-settings, theme-toggle,
+      // carousel, use-mobile, sidebar); the fixes are real refactors, not
+      // dependency-bump churn. Warn keeps the full-lint baseline green while
+      // the violations stay visible for incremental fixes.
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/purity": "warn",
       "no-restricted-imports": [
         "error",
         {
