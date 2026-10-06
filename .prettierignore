@@ -4,7 +4,6 @@ dist
 .vinxi
 pnpm-lock.yaml
 package-lock.json
-bun.lock
 routeTree.gen.ts
 
 # Markdown content with .mjs extension — prettier JS parser cannot handle (#177)
