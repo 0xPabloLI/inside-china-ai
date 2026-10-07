@@ -16,6 +16,7 @@ import {
   matchAntiBotIndicators,
   detectAntiBot,
   parseAntiBotSample,
+  runPageGates,
   ScriptError,
 } from "../lib/cdp-client.mjs";
 
@@ -234,5 +235,132 @@ describe("detectAntiBot (#89 P2)", () => {
     // Malformed JSON falls back to treating the raw value as text.
     expect(parseAntiBotSample("{not json")).toEqual({ text: "{not json", captchaVisible: false });
     expect(parseAntiBotSample(42)).toEqual({ text: "", captchaVisible: false });
+  });
+});
+
+/**
+ * #346（2026-10-07）：登录门必须跑在反爬词表之前。
+ *
+ * 假判决形态（#269 Round I xhs 实测）：未登录的搜索页是「登录后查看搜索结果」
+ * 面板，面板里「获取验证码」按钮的文案命中反爬词表（验证码）——旧顺序
+ * detectAntiBot 先行，于是「该引导登录」被报成「站点弹验证码」，把修复路径
+ * 引向风控手册而不是提示人工登录。
+ *
+ * 修法：这条顺序收进共享 seam（runPageGates），两个调用点（selector-health
+ * checkSource / search-sources collectFromCdp）都只能从这里走——旧代码是两份
+ * 各自手写的顺序，这正是它能漂移的原因。反爬检查没有被删掉：登录门未命中
+ * （登录态正常，或源没有登录门）时它照跑，真插页仍然被捕获。
+ */
+describe("runPageGates — 登录门先于反爬判定的共享顺序 (#346)", () => {
+  /** 记录调用参数与顺序的测试替身。 */
+  function recorder(result) {
+    const calls = [];
+    return {
+      calls,
+      fn: async (...args) => {
+        calls.push(...args);
+        return result;
+      },
+    };
+  }
+
+  it("needsAuth 源未登录：登录门命中即返回登录类判决，反爬检查根本不该跑", async () => {
+    const antiBot = recorder("验证码");
+    const gate = await runPageGates({
+      tabId: "t1",
+      needsAuth: true,
+      loginCheckScript: "return 'ok'",
+      deps: { loginFn: async () => "need_login", antiBotFn: antiBot.fn },
+    });
+    expect(gate).toEqual({ gate: "login", status: "need_login" });
+    // 核心回归锚：旧顺序下这里先命中「验证码」，源被错判成 anti_bot。
+    expect(antiBot.calls).toEqual([]);
+  });
+
+  it("登录态正常 + 真插页：反爬仍被捕获，且登录门先被问过（顺序锚）", async () => {
+    const order = [];
+    const gate = await runPageGates({
+      tabId: "t1",
+      needsAuth: true,
+      loginCheckScript: "return 'ok'",
+      deps: {
+        loginFn: async () => {
+          order.push("login");
+          return "ok";
+        },
+        antiBotFn: async () => {
+          order.push("antiBot");
+          return "captcha";
+        },
+      },
+    });
+    expect(gate).toEqual({ gate: "anti_bot", status: "captcha" });
+    expect(order).toEqual(["login", "antiBot"]);
+  });
+
+  it("登录脚本自己报 captcha（脚本级验证码）时也走登录门，优先于反爬词表", async () => {
+    const antiBot = recorder("验证码");
+    const gate = await runPageGates({
+      tabId: "t1",
+      needsAuth: true,
+      loginCheckScript: "return 'ok'",
+      deps: { loginFn: async () => "captcha", antiBotFn: antiBot.fn },
+    });
+    expect(gate).toEqual({ gate: "login", status: "captcha" });
+    expect(antiBot.calls).toEqual([]);
+  });
+
+  it("needsAuth 但没有 loginCheckScript：没有登录门可等，反爬照常（fail-open）", async () => {
+    const antiBot = recorder("验证码");
+    const login = recorder("need_login");
+    const gate = await runPageGates({
+      tabId: "t1",
+      needsAuth: true,
+      loginCheckScript: null,
+      deps: { loginFn: login.fn, antiBotFn: antiBot.fn },
+    });
+    expect(gate).toEqual({ gate: "anti_bot", status: "验证码" });
+    expect(login.calls).toEqual([]);
+  });
+
+  it("非 needsAuth 源即使注册了 loginCheckScript 也不跑登录门（sogou 形态）", async () => {
+    const login = recorder("captcha");
+    const antiBot = recorder(null);
+    const gate = await runPageGates({
+      tabId: "t1",
+      needsAuth: false,
+      loginCheckScript: "return 'ok'",
+      deps: { loginFn: login.fn, antiBotFn: antiBot.fn },
+    });
+    expect(gate).toBeNull();
+    expect(login.calls).toEqual([]);
+    expect(antiBot.calls).toEqual(["t1"]);
+  });
+
+  it("干净页面（登录 ok、无插页）⇒ null，两个门都问过且顺序不变", async () => {
+    const order = [];
+    const gate = await runPageGates({
+      tabId: "t1",
+      needsAuth: true,
+      loginCheckScript: "return 'ok'",
+      deps: {
+        loginFn: async () => {
+          order.push("login");
+          return "ok";
+        },
+        antiBotFn: async () => {
+          order.push("antiBot");
+          return null;
+        },
+      },
+    });
+    expect(gate).toBeNull();
+    expect(order).toEqual(["login", "antiBot"]);
+  });
+
+  it("实测样本：xhs 登录面板文案本身就命中反爬词表（这就是顺序必须固定的原因）", () => {
+    // 2026-10-07 实测：真实页面脚本在「登录后查看搜索结果 / 获取验证码」页面上
+    // 取出的样本，经 matchAntiBotIndicators 命中「验证码」。
+    expect(matchAntiBotIndicators("登录后查看搜索结果\n获取验证码")).toBe("验证码");
   });
 });

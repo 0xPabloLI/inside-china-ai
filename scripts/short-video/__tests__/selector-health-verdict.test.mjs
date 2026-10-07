@@ -99,6 +99,13 @@ describe("failureClass — 只有关于源的失败才算失败", () => {
     expect(failureClass({ ok: false, reason: "login-wall" })).toBe("probe");
   });
 
+  it("#346 登录门自报的 captcha ⇒ probe（人工过验证即可，不是源侧缺陷）", () => {
+    // 登录门（loginCheckScript）返回 'captcha' 时 selector-health 原样透传成 reason；
+    // 若归成 source，退出码会因「读者在 registry 里修不了的事」变红，违反
+    // docs/selector-auto-healing.md「只有 source 才让退出码非零」。
+    expect(failureClass({ ok: false, reason: "captcha" })).toBe("probe");
+  });
+
   it("probe-not-authoritative ⇒ probe", () => {
     expect(failureClass({ ok: false, reason: "probe-not-authoritative" })).toBe("probe");
   });
