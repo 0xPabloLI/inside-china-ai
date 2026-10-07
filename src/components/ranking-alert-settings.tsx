@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -18,38 +18,27 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /** Admin controls for when ranking alerts fire and who receives them. */
-export function RankingAlertSettings() {
-  const queryClient = useQueryClient();
-  const load = useServerFn(getAlertConfig);
-  const saveSettings = useServerFn(updateAlertSettings);
-  const addRecipient = useServerFn(addAlertRecipient);
-  const removeRecipient = useServerFn(deleteAlertRecipient);
-  const sendTest = useServerFn(sendTestAlertNotification);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["ranking-alert-config"],
-    queryFn: () => load(),
-  });
+type PreviewRow = { id: number; keyword: string; from: string; to: string };
 
-  const [threshold, setThreshold] = useState("3");
-  const [lostRanking, setLostRanking] = useState(true);
-  const [email, setEmail] = useState("");
+type EvaluatedRow = {
+  row: PreviewRow;
+  from: number | null;
+  to: number | null;
+  valid: boolean;
+  wouldAlert: boolean;
+  alertType: "drop" | "lost" | null;
+  reason: string;
+};
 
-  type PreviewRow = { id: number; keyword: string; from: string; to: string };
-  const [rows, setRows] = useState<PreviewRow[]>([
-    { id: 1, keyword: "china ai news", from: "8", to: "14" },
-    { id: 2, keyword: "chinese ai models", from: "22", to: "" },
-  ]);
-  const nextId = () => Math.max(0, ...rows.map((r) => r.id)) + 1;
-  const updateRow = (id: number, patch: Partial<PreviewRow>) =>
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-
-  // Preview uses the values currently in the form, saved or not.
+// Pure preview evaluation — extracted from the component to keep its
+// cyclomatic complexity under the repo ceiling (the nested alert-reason
+// ternaries are the bulk of the branching).
+function evaluateRows(rows: PreviewRow[], threshold: string, lostRanking: boolean): EvaluatedRow[] {
   const parsedThreshold = Number(threshold);
   const previewThreshold =
     Number.isInteger(parsedThreshold) && parsedThreshold >= 1 ? parsedThreshold : null;
-
-  const evaluated = rows.map((row) => {
+  return rows.map((row) => {
     const from = row.from.trim() === "" ? null : Number(row.from);
     const to = row.to.trim() === "" ? null : Number(row.to);
     const valid =
@@ -71,16 +60,35 @@ export function RankingAlertSettings() {
           : `Fell from #${from} to #${to} (−${to! - from!}), at or past the ${previewThreshold}-position threshold`;
     return { row, from, to, valid, wouldAlert, alertType, reason };
   });
-  const firing = evaluated.filter((e) => e.wouldAlert);
-  const dropCount = firing.filter((e) => e.alertType === "drop").length;
-  const lostCount = firing.filter((e) => e.alertType === "lost").length;
+}
 
-  // Query data arrives after mount, so sync the form once it lands.
-  useEffect(() => {
-    if (!data) return;
-    setThreshold(String(data.dropThreshold));
-    setLostRanking(data.alertOnLostRanking);
-  }, [data]);
+export function RankingAlertSettings() {
+  const queryClient = useQueryClient();
+  const load = useServerFn(getAlertConfig);
+  const saveSettings = useServerFn(updateAlertSettings);
+  const addRecipient = useServerFn(addAlertRecipient);
+  const removeRecipient = useServerFn(deleteAlertRecipient);
+  const sendTest = useServerFn(sendTestAlertNotification);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["ranking-alert-config"],
+    queryFn: () => load(),
+  });
+
+  // Draft overlay: null means "follow the server values". The form shows the
+  // server config until the user edits, and re-follows it after a successful
+  // save — so a background refetch never wipes in-progress edits.
+  const [thresholdDraft, setThresholdDraft] = useState<string | null>(null);
+  const [lostRankingDraft, setLostRankingDraft] = useState<boolean | null>(null);
+  const [email, setEmail] = useState("");
+
+  const [rows, setRows] = useState<PreviewRow[]>([
+    { id: 1, keyword: "china ai news", from: "8", to: "14" },
+    { id: 2, keyword: "chinese ai models", from: "22", to: "" },
+  ]);
+  const nextId = () => Math.max(0, ...rows.map((r) => r.id)) + 1;
+  const updateRow = (id: number, patch: Partial<PreviewRow>) =>
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["ranking-alert-config"] });
@@ -93,6 +101,9 @@ export function RankingAlertSettings() {
         data: { dropThreshold: Number(threshold), alertOnLostRanking: lostRanking },
       }),
     onSuccess: () => {
+      // Drop the drafts so the form re-follows the freshly saved server values.
+      setThresholdDraft(null);
+      setLostRankingDraft(null);
       toast.success("Alert thresholds saved.");
       invalidate();
     },
@@ -136,6 +147,22 @@ export function RankingAlertSettings() {
       toast.error(err instanceof Error ? err.message : "Could not send the test email"),
   });
 
+  // Below the last hook. On query error the page keeps showing the skeleton
+  // instead of a default-valued form — the old defaults ("3" / alerts-on)
+  // could silently overwrite the server config if saved while data is absent.
+  if (isLoading || !data) {
+    return <Skeleton className="mt-6 h-24 w-full" />;
+  }
+
+  const threshold = thresholdDraft ?? String(data.dropThreshold);
+  const lostRanking = lostRankingDraft ?? data.alertOnLostRanking;
+
+  // Preview uses the values currently in the form, saved or not.
+  const evaluated = evaluateRows(rows, threshold, lostRanking);
+  const firing = evaluated.filter((e) => e.wouldAlert);
+  const dropCount = firing.filter((e) => e.alertType === "drop").length;
+  const lostCount = firing.filter((e) => e.alertType === "lost").length;
+
   return (
     <section className="mt-10 rounded-lg border border-border/60 p-6">
       <h2 className="font-serif text-xl">Alert settings</h2>
@@ -143,276 +170,267 @@ export function RankingAlertSettings() {
         Applies to the banner above, the daily automatic check, and the emails it sends.
       </p>
 
-      {isLoading ? (
-        <Skeleton className="mt-6 h-24 w-full" />
-      ) : (
-        <>
-          <form
-            className="mt-6 grid gap-5 sm:grid-cols-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const value = Number(threshold);
-              if (!Number.isInteger(value) || value < 1 || value > 50) {
-                toast.error("Threshold must be a whole number between 1 and 50.");
-                return;
-              }
-              settingsMutation.mutate();
-            }}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="drop-threshold">Alert when a keyword falls by</Label>
-              <div className="flex items-center gap-2">
+      <form
+        className="mt-6 grid gap-5 sm:grid-cols-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const value = Number(threshold);
+          if (!Number.isInteger(value) || value < 1 || value > 50) {
+            toast.error("Threshold must be a whole number between 1 and 50.");
+            return;
+          }
+          settingsMutation.mutate();
+        }}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="drop-threshold">Alert when a keyword falls by</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="drop-threshold"
+              type="number"
+              min={1}
+              max={50}
+              value={threshold}
+              onChange={(e) => setThresholdDraft(e.target.value)}
+              className="w-24"
+            />
+            <span className="text-sm text-muted-foreground">positions or more</span>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="lost-ranking">Leaving the top 100</Label>
+          <div className="flex items-center gap-3">
+            <Switch
+              id="lost-ranking"
+              checked={lostRanking}
+              onCheckedChange={(v) => setLostRankingDraft(v)}
+            />
+            <span className="text-sm text-muted-foreground">
+              {lostRanking ? "Raises an alert" : "Ignored"}
+            </span>
+          </div>
+        </div>
+
+        <div className="sm:col-span-2">
+          <Button type="submit" variant="secondary" disabled={settingsMutation.isPending}>
+            {settingsMutation.isPending ? "Saving…" : "Save thresholds"}
+          </Button>
+        </div>
+      </form>
+
+      <div className="mt-8 border-t border-border/60 pt-6">
+        <h3 className="text-sm font-medium">Email recipients</h3>
+        {data && data.recipients.length === 0 ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            No custom list yet — alerts go to every admin
+            {data.fallbackRecipients.length > 0 ? ` (${data.fallbackRecipients.join(", ")})` : ""}.
+          </p>
+        ) : null}
+
+        <ul className="mt-4 space-y-2">
+          {(data?.recipients ?? []).map((r) => (
+            <li
+              key={r.id}
+              className="flex items-center justify-between gap-3 rounded-md border border-border/60 px-3 py-2 text-sm"
+            >
+              <span className="flex items-center gap-2">
+                <Mail className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                {r.email}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Remove ${r.email}`}
+                onClick={() => removeMutation.mutate(r.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+
+        <form
+          className="mt-4 flex flex-col gap-2 sm:flex-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const value = email.trim();
+            if (!value) return;
+            addMutation.mutate(value);
+          }}
+        >
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="alerts@example.com"
+            aria-label="Recipient email"
+            className="sm:max-w-sm"
+          />
+          <Button type="submit" variant="secondary" disabled={addMutation.isPending}>
+            Add recipient
+          </Button>
+        </form>
+      </div>
+
+      <div className="mt-8 border-t border-border/60 pt-6">
+        <h3 className="text-sm font-medium">Preview a notification</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Simulate several keywords at once to see which ones the settings above would alert on.
+          Leave “new position” empty to simulate leaving the top 100.
+        </p>
+
+        <ul className="mt-4 space-y-3">
+          {evaluated.map(({ row, valid, wouldAlert }) => (
+            <li key={row.id} className="flex flex-wrap items-end gap-3">
+              <div className="space-y-2">
+                <Label htmlFor={`preview-kw-${row.id}`}>Keyword</Label>
                 <Input
-                  id="drop-threshold"
+                  id={`preview-kw-${row.id}`}
+                  value={row.keyword}
+                  onChange={(e) => updateRow(row.id, { keyword: e.target.value })}
+                  placeholder="example keyword"
+                  className="w-56"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`preview-from-${row.id}`}>Previous position</Label>
+                <Input
+                  id={`preview-from-${row.id}`}
                   type="number"
                   min={1}
-                  max={50}
-                  value={threshold}
-                  onChange={(e) => setThreshold(e.target.value)}
+                  value={row.from}
+                  onChange={(e) => updateRow(row.id, { from: e.target.value })}
                   className="w-24"
                 />
-                <span className="text-sm text-muted-foreground">positions or more</span>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="lost-ranking">Leaving the top 100</Label>
-              <div className="flex items-center gap-3">
-                <Switch id="lost-ranking" checked={lostRanking} onCheckedChange={setLostRanking} />
-                <span className="text-sm text-muted-foreground">
-                  {lostRanking ? "Raises an alert" : "Ignored"}
-                </span>
+              <div className="space-y-2">
+                <Label htmlFor={`preview-to-${row.id}`}>New position</Label>
+                <Input
+                  id={`preview-to-${row.id}`}
+                  type="number"
+                  min={1}
+                  value={row.to}
+                  onChange={(e) => updateRow(row.id, { to: e.target.value })}
+                  placeholder="none"
+                  className="w-24"
+                />
               </div>
-            </div>
-
-            <div className="sm:col-span-2">
-              <Button type="submit" variant="secondary" disabled={settingsMutation.isPending}>
-                {settingsMutation.isPending ? "Saving…" : "Save thresholds"}
-              </Button>
-            </div>
-          </form>
-
-          <div className="mt-8 border-t border-border/60 pt-6">
-            <h3 className="text-sm font-medium">Email recipients</h3>
-            {data && data.recipients.length === 0 ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                No custom list yet — alerts go to every admin
-                {data.fallbackRecipients.length > 0
-                  ? ` (${data.fallbackRecipients.join(", ")})`
-                  : ""}
-                .
-              </p>
-            ) : null}
-
-            <ul className="mt-4 space-y-2">
-              {(data?.recipients ?? []).map((r) => (
-                <li
-                  key={r.id}
-                  className="flex items-center justify-between gap-3 rounded-md border border-border/60 px-3 py-2 text-sm"
-                >
-                  <span className="flex items-center gap-2">
-                    <Mail className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-                    {r.email}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Remove ${r.email}`}
-                    onClick={() => removeMutation.mutate(r.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-
-            <form
-              className="mt-4 flex flex-col gap-2 sm:flex-row"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const value = email.trim();
-                if (!value) return;
-                addMutation.mutate(value);
-              }}
-            >
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="alerts@example.com"
-                aria-label="Recipient email"
-                className="sm:max-w-sm"
-              />
-              <Button type="submit" variant="secondary" disabled={addMutation.isPending}>
-                Add recipient
-              </Button>
-            </form>
-          </div>
-
-          <div className="mt-8 border-t border-border/60 pt-6">
-            <h3 className="text-sm font-medium">Preview a notification</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Simulate several keywords at once to see which ones the settings above would alert on.
-              Leave “new position” empty to simulate leaving the top 100.
-            </p>
-
-            <ul className="mt-4 space-y-3">
-              {evaluated.map(({ row, valid, wouldAlert }) => (
-                <li key={row.id} className="flex flex-wrap items-end gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor={`preview-kw-${row.id}`}>Keyword</Label>
-                    <Input
-                      id={`preview-kw-${row.id}`}
-                      value={row.keyword}
-                      onChange={(e) => updateRow(row.id, { keyword: e.target.value })}
-                      placeholder="example keyword"
-                      className="w-56"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`preview-from-${row.id}`}>Previous position</Label>
-                    <Input
-                      id={`preview-from-${row.id}`}
-                      type="number"
-                      min={1}
-                      value={row.from}
-                      onChange={(e) => updateRow(row.id, { from: e.target.value })}
-                      className="w-24"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`preview-to-${row.id}`}>New position</Label>
-                    <Input
-                      id={`preview-to-${row.id}`}
-                      type="number"
-                      min={1}
-                      value={row.to}
-                      onChange={(e) => updateRow(row.id, { to: e.target.value })}
-                      placeholder="none"
-                      className="w-24"
-                    />
-                  </div>
-                  <span className="pb-2 text-xs text-muted-foreground">
-                    {!valid ? "Needs a position" : wouldAlert ? "Would alert" : "No alert"}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Remove simulated keyword ${row.keyword || row.id}`}
-                    disabled={rows.length === 1}
-                    onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-
-            <Button
-              type="button"
-              variant="secondary"
-              className="mt-3"
-              onClick={() =>
-                setRows((prev) => [...prev, { id: nextId(), keyword: "", from: "", to: "" }])
-              }
-            >
-              <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-              Add keyword
-            </Button>
-
-            <div
-              aria-live="polite"
-              className="mt-4 rounded-md border border-border/60 px-3 py-3 text-sm"
-            >
-              {firing.length === 0 ? (
-                <span className="flex items-start gap-2">
-                  <BellOff className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  <span>
-                    <strong>No alert would fire.</strong>{" "}
-                    {evaluated.some((e) => e.valid)
-                      ? "None of the simulated changes reach the current settings."
-                      : "Enter a whole previous position (1 or more) to preview."}
-                  </span>
-                </span>
-              ) : (
-                <div className="flex items-start gap-2">
-                  <BellRing className="mt-0.5 h-4 w-4 text-destructive" aria-hidden="true" />
-                  <div className="w-full">
-                    <strong>
-                      {firing.length} alert{firing.length === 1 ? "" : "s"} would fire
-                    </strong>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {dropCount > 0
-                        ? `${dropCount} position-drop${dropCount === 1 ? "" : "s"}`
-                        : ""}
-                      {dropCount > 0 && lostCount > 0 ? " · " : ""}
-                      {lostCount > 0
-                        ? `${lostCount} lost-ranking${lostCount === 1 ? "" : "s"}`
-                        : ""}
-                    </p>
-                    <ul className="mt-2 space-y-2">
-                      {firing.map(({ row, from, to, alertType, reason }) => (
-                        <li
-                          key={row.id}
-                          className="rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-xs"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-medium">
-                              {row.keyword.trim() || "example keyword"}
-                            </span>
-                            <span
-                              className={
-                                alertType === "lost"
-                                  ? "rounded bg-destructive/15 px-1.5 py-0.5 text-destructive"
-                                  : "rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-600 dark:text-amber-400"
-                              }
-                            >
-                              {alertType === "lost" ? "Lost ranking" : "Position drop"}
-                            </span>
-                          </div>
-                          <dl className="mt-1.5 grid grid-cols-[max-content_1fr] gap-x-2 gap-y-0.5 text-muted-foreground">
-                            <dt>Previous</dt>
-                            <dd>#{from}</dd>
-                            <dt>New</dt>
-                            <dd>{to === null ? "Out of top 100" : `#${to}`}</dd>
-                            <dt>Reason</dt>
-                            <dd className="text-foreground/80">{reason}</dd>
-                          </dl>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Input
-                type="email"
-                value={testEmail}
-                onChange={(e) => setTestEmail(e.target.value)}
-                placeholder="Send to (defaults to your account email)"
-                aria-label="Test notification recipient"
-                className="sm:max-w-sm"
-              />
+              <span className="pb-2 text-xs text-muted-foreground">
+                {!valid ? "Needs a position" : wouldAlert ? "Would alert" : "No alert"}
+              </span>
               <Button
-                type="button"
-                onClick={() => testMutation.mutate()}
-                disabled={firing.length === 0 || testMutation.isPending}
+                variant="ghost"
+                size="icon"
+                aria-label={`Remove simulated keyword ${row.keyword || row.id}`}
+                disabled={rows.length === 1}
+                onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
               >
-                <Send className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                {testMutation.isPending ? "Sending…" : "Send test notification"}
+                <Trash2 className="h-4 w-4" />
               </Button>
-            </div>
+            </li>
+          ))}
+        </ul>
 
-            <p className="mt-2 text-xs text-muted-foreground">
-              The preview itself sends nothing and reflects the unsaved values above. “Send test
-              notification” emails the real alert template with the{" "}
-              {firing.length === 1 ? "1 simulated alert" : `${firing.length} simulated alerts`}{" "}
-              listed above — only to an existing recipient or admin address.
-            </p>
-          </div>
-        </>
-      )}
+        <Button
+          type="button"
+          variant="secondary"
+          className="mt-3"
+          onClick={() =>
+            setRows((prev) => [...prev, { id: nextId(), keyword: "", from: "", to: "" }])
+          }
+        >
+          <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+          Add keyword
+        </Button>
+
+        <div
+          aria-live="polite"
+          className="mt-4 rounded-md border border-border/60 px-3 py-3 text-sm"
+        >
+          {firing.length === 0 ? (
+            <span className="flex items-start gap-2">
+              <BellOff className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <span>
+                <strong>No alert would fire.</strong>{" "}
+                {evaluated.some((e) => e.valid)
+                  ? "None of the simulated changes reach the current settings."
+                  : "Enter a whole previous position (1 or more) to preview."}
+              </span>
+            </span>
+          ) : (
+            <div className="flex items-start gap-2">
+              <BellRing className="mt-0.5 h-4 w-4 text-destructive" aria-hidden="true" />
+              <div className="w-full">
+                <strong>
+                  {firing.length} alert{firing.length === 1 ? "" : "s"} would fire
+                </strong>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {dropCount > 0 ? `${dropCount} position-drop${dropCount === 1 ? "" : "s"}` : ""}
+                  {dropCount > 0 && lostCount > 0 ? " · " : ""}
+                  {lostCount > 0 ? `${lostCount} lost-ranking${lostCount === 1 ? "" : "s"}` : ""}
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {firing.map(({ row, from, to, alertType, reason }) => (
+                    <li
+                      key={row.id}
+                      className="rounded-md border border-border/40 bg-muted/30 px-3 py-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">
+                          {row.keyword.trim() || "example keyword"}
+                        </span>
+                        <span
+                          className={
+                            alertType === "lost"
+                              ? "rounded bg-destructive/15 px-1.5 py-0.5 text-destructive"
+                              : "rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-600 dark:text-amber-400"
+                          }
+                        >
+                          {alertType === "lost" ? "Lost ranking" : "Position drop"}
+                        </span>
+                      </div>
+                      <dl className="mt-1.5 grid grid-cols-[max-content_1fr] gap-x-2 gap-y-0.5 text-muted-foreground">
+                        <dt>Previous</dt>
+                        <dd>#{from}</dd>
+                        <dt>New</dt>
+                        <dd>{to === null ? "Out of top 100" : `#${to}`}</dd>
+                        <dt>Reason</dt>
+                        <dd className="text-foreground/80">{reason}</dd>
+                      </dl>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Input
+            type="email"
+            value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            placeholder="Send to (defaults to your account email)"
+            aria-label="Test notification recipient"
+            className="sm:max-w-sm"
+          />
+          <Button
+            type="button"
+            onClick={() => testMutation.mutate()}
+            disabled={firing.length === 0 || testMutation.isPending}
+          >
+            <Send className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {testMutation.isPending ? "Sending…" : "Send test notification"}
+          </Button>
+        </div>
+
+        <p className="mt-2 text-xs text-muted-foreground">
+          The preview itself sends nothing and reflects the unsaved values above. “Send test
+          notification” emails the real alert template with the{" "}
+          {firing.length === 1 ? "1 simulated alert" : `${firing.length} simulated alerts`} listed
+          above — only to an existing recipient or admin address.
+        </p>
+      </div>
     </section>
   );
 }

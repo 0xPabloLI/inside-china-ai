@@ -636,12 +636,14 @@ const SidebarMenuSkeleton = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
     showIcon?: boolean;
+    index?: number;
   }
->(({ className, showIcon = false, ...props }, ref) => {
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`;
-  }, []);
+>(({ className, showIcon = false, index = 0, ...props }, ref) => {
+  // Deterministic varied width, cycling 50–90% by item index. Math.random()
+  // during render is impure (react-hooks/purity) and unstable across
+  // re-renders/SSR; a fixed sequence keeps skeletons visually varied and
+  // hydration-safe.
+  const width = `${50 + ((index * 13) % 41)}%`;
 
   return (
     <div

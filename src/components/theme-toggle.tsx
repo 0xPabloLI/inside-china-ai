@@ -1,14 +1,39 @@
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Theme = "light" | "dark";
 
-function getInitialTheme(): Theme {
-  if (typeof window === "undefined") return "light";
+const THEME_QUERY = "(prefers-color-scheme: dark)";
+
+function getSnapshot(): Theme {
   const stored = localStorage.getItem("theme");
   if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return window.matchMedia(THEME_QUERY).matches ? "dark" : "light";
+}
+
+function getServerSnapshot(): Theme {
+  return "light";
+}
+
+const listeners = new Set<() => void>();
+
+function emitChange() {
+  listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  // Follow system preference and cross-tab writes; local toggles notify via
+  // emitChange() after persisting.
+  const mql = window.matchMedia(THEME_QUERY);
+  mql.addEventListener("change", listener);
+  window.addEventListener("storage", listener);
+  return () => {
+    listeners.delete(listener);
+    mql.removeEventListener("change", listener);
+    window.removeEventListener("storage", listener);
+  };
 }
 
 function applyTheme(theme: Theme) {
@@ -26,32 +51,24 @@ function applyTheme(theme: Theme) {
  * Persists choice in localStorage. Falls back to system preference
  * (prefers-color-scheme) on first visit. Applies `.dark` class on
  * <html> element, which Tailwind's dark variant targets.
+ *
+ * Theme lives in an external store (localStorage + prefers-color-scheme), so
+ * it is read via useSyncExternalStore: pure snapshot during render, no
+ * setState-in-effect, and hydration-safe without a mounted flag — React
+ * renders the server snapshot first, then re-renders with the client value.
  */
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("light");
-  const [mounted, setMounted] = useState(false);
+  const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
+  // DOM side effect only — keeps <html> in sync with the resolved theme.
   useEffect(() => {
-    const initial = getInitialTheme();
-    setTheme(initial);
-    applyTheme(initial);
-    setMounted(true);
-  }, []);
+    applyTheme(theme);
+  }, [theme]);
 
   function toggle() {
     const next: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    applyTheme(next);
     localStorage.setItem("theme", next);
-  }
-
-  // Prevent hydration mismatch — render placeholder until mounted
-  if (!mounted) {
-    return (
-      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Toggle theme">
-        <Sun className="h-4 w-4" />
-      </Button>
-    );
+    emitChange();
   }
 
   return (
