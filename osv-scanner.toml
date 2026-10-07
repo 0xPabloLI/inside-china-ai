@@ -7,3 +7,15 @@ id = "GHSA-hp3w-g68c-fv3c"
 # front-matter 解析（构建期、自有 markdown 输入，格式串非攻击者可控），
 # 不构成可达攻击面。复核：gray-matter/argparse 升级或上游出补丁后移除。
 ignoreUntil = 2027-01-01
+
+[[IgnoredVulns]]
+id = "GHSA-6qxp-vccf-f47h"
+# @modelcontextprotocol/sdk 1.28.0 OAuth client 凭据泄漏（CVE-2026-104850，
+# 攻击场景：恶意 MCP server 诱导 SDK 客户端把 OAuth 凭据发给错误的授权服务器）。
+# 可达性论证：本仓库是 MCP **server 作者**（defineTool/defineMcp/
+# createTanStackMcpHandler，src/lib/mcp/**），@lovable.dev/mcp-js 的 dist 只
+# import SDK 的 server/zod-compat.js 与 server/zod-json-schema-compat.js 两个
+# server 模块；漏洞模块 client/auth.js 无任何引用路径。且 1.28.0 由
+# @lovable.dev/mcp-js 精确钉死（连其最新 3.0.5 仍钉 1.28.0），修复版 1.31.0
+# 需等上游放宽/升级，override 会对抗 vendor 钉版。复核：上游升级后移除。
+ignoreUntil = 2027-01-01
