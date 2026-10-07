@@ -1,0 +1,18 @@
+# Documented vulnerability risk acceptances for `npm run scan:deps`
+# (osv-scanner auto-loads this file from the repo root).
+#
+# Rules for this file:
+# - Every entry needs a written rationale AND a revisit condition.
+# - "No fixed release exists" or "fix is vendor-pinned" are the only valid
+#   reasons to be here. If a fix becomes reachable, delete the entry and let
+#   the scan go red until the dependency lands.
+
+[[IgnoredVulns]]
+id = "GHSA-hp3w-g68c-fv3c"
+reason = "sprintf-js <=1.1.3 (DoS via unbounded precision specifiers): no fixed release exists — the package last published in 2023 and 1.1.3 is still affected. Only reachable via gray-matter -> js-yaml@3 -> argparse, which our build scripts (scripts/rag, scripts/article) use to parse repo-authored markdown; format strings are not attacker-controlled. Revisit if upstream patches or gray-matter migrates to js-yaml@4."
+ignore = true
+
+[[IgnoredVulns]]
+id = "GHSA-6qxp-vccf-f47h"
+reason = "@modelcontextprotocol/sdk 1.28.0 (OAuth client may send credentials to an attacker-chosen authorization server; fixed in 1.31.0): the sdk is hard-pinned at exactly 1.28.0 by @lovable.dev/mcp-js (3.0.5, latest as of 2026-10-07, still pins 1.28.0), so no fix is reachable through normal dependency updates. This repo runs no remote OAuth-protected MCP servers, so the vulnerable client flow is not exercised. MUST be deleted once @lovable.dev/mcp-js ships sdk >= 1.31.0 — Renovate will open that PR automatically."
+ignore = true
