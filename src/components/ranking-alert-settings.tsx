@@ -16,51 +16,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { evaluateRows, type PreviewRow } from "@/lib/ranking-alert-preview";
 
 /** Admin controls for when ranking alerts fire and who receives them. */
-
-type PreviewRow = { id: number; keyword: string; from: string; to: string };
-
-type EvaluatedRow = {
-  row: PreviewRow;
-  from: number | null;
-  to: number | null;
-  valid: boolean;
-  wouldAlert: boolean;
-  alertType: "drop" | "lost" | null;
-  reason: string;
-};
-
-// Pure preview evaluation — extracted from the component to keep its
-// cyclomatic complexity under the repo ceiling (the nested alert-reason
-// ternaries are the bulk of the branching).
-function evaluateRows(rows: PreviewRow[], threshold: string, lostRanking: boolean): EvaluatedRow[] {
-  const parsedThreshold = Number(threshold);
-  const previewThreshold =
-    Number.isInteger(parsedThreshold) && parsedThreshold >= 1 ? parsedThreshold : null;
-  return rows.map((row) => {
-    const from = row.from.trim() === "" ? null : Number(row.from);
-    const to = row.to.trim() === "" ? null : Number(row.to);
-    const valid =
-      previewThreshold !== null &&
-      from !== null &&
-      Number.isInteger(from) &&
-      from >= 1 &&
-      (to === null || (Number.isInteger(to) && to >= 1));
-    const wouldAlert = valid ? isDrop(to, from, previewThreshold!, lostRanking) : false;
-    const alertType: "drop" | "lost" | null = !wouldAlert ? null : to === null ? "lost" : "drop";
-    const reason = !valid
-      ? "Incomplete input"
-      : !wouldAlert
-        ? to === null
-          ? "Left top 100 but lost-ranking alerts are off"
-          : `Moved ${to! - from! >= 0 ? "↓" : "↑"}${Math.abs(to! - from!)} — below the ${previewThreshold}-position threshold`
-        : to === null
-          ? `Left the top 100 (was #${from})`
-          : `Fell from #${from} to #${to} (−${to! - from!}), at or past the ${previewThreshold}-position threshold`;
-    return { row, from, to, valid, wouldAlert, alertType, reason };
-  });
-}
 
 export function RankingAlertSettings() {
   const queryClient = useQueryClient();
@@ -158,7 +116,7 @@ export function RankingAlertSettings() {
   const lostRanking = lostRankingDraft ?? data.alertOnLostRanking;
 
   // Preview uses the values currently in the form, saved or not.
-  const evaluated = evaluateRows(rows, threshold, lostRanking);
+  const evaluated = evaluateRows(rows, threshold, lostRanking, isDrop);
   const firing = evaluated.filter((e) => e.wouldAlert);
   const dropCount = firing.filter((e) => e.alertType === "drop").length;
   const lostCount = firing.filter((e) => e.alertType === "lost").length;
