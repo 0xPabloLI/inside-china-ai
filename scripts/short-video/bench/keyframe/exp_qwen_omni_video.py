@@ -46,6 +46,11 @@ MAX_VIDEOS = int(os.environ.get("VM_MAX_VIDEOS", "100"))
 SUBSET_NAME = os.environ.get("VM_SUBSET", "bench_subset_100.csv")
 MAX_Q = int(os.environ.get("OMNI_MAX_Q", "0"))   # >0 = 冒烟测试：只跑前 N 题
 MODE = os.environ.get("OMNI_MODE", "interleave").strip()  # interleave|pure|asr
+# 像素预算覆盖（Q38④）：Omni 仓库自带 max_pixels=12,845,056，VL 是 25,165,824。
+# 该值是**全视频总量**（qwen3_vl/processing_qwen3_vl._smart_resize_video：
+# `t_bar*h_bar*w_bar > max_pixels` ⇒ 每帧像素 ≈ 预算/帧数），调它 = 调每帧清晰度。
+# 0 = 用仓库原值。用途：分离「压缩率」与「训练差异」（Q37 的悬置问题）。
+MAX_PIXELS = int(os.environ.get("OMNI_MAX_PIXELS", "0"))
 ASR_MAX_CHARS = 2000
 ASR_DIR = os.path.join(WT_ROOT, os.environ.get(
     "OMNI_ASR_DIR",
@@ -91,6 +96,23 @@ def main():
 
     model, processor = load(MODEL_ID)
     print(f"mode={MODE} subset={SUBSET_NAME} asr_dir={ASR_DIR}", flush=True)
+    if MAX_PIXELS:
+        # 两个子处理器都要改：视频走 video_processor，单图走 image_processor；
+        # 只改一个会让同一次调用里的两条路径用不同预算。
+        touched = []
+        for owner in (processor, getattr(processor, "video_processor", None),
+                      getattr(processor, "image_processor", None)):
+            if owner is None or not hasattr(owner, "max_pixels"):
+                continue
+            before = getattr(owner, "max_pixels")
+            if before == MAX_PIXELS:
+                continue
+            setattr(owner, "max_pixels", MAX_PIXELS)
+            touched.append(f"{type(owner).__name__}:{before}->{MAX_PIXELS}")
+        print(f"[max_pixels] {'; '.join(touched) or 'already set'}", flush=True)
+        if not touched:
+            raise SystemExit("OMNI_MAX_PIXELS 设了但没有任何处理器被改——"
+                             "预算会静默用回原值，实验报废")
 
     first = not details   # 首题失败 = 环境问题，响亮退出而非静默 0 分
     stop = False
