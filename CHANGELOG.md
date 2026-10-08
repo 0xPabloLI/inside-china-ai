@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.11.7](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.6...tanstack_start_ts-v1.11.7) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** update minor and patch updates to v4.0.530 ([#490](https://github.com/0xPabloLI/inside-china-ai/issues/490)) ([5f3724b](https://github.com/0xPabloLI/inside-china-ai/commit/5f3724b42ac6665ea72bbfd1dcce63b517f9bc02))
+
+## [1.11.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.5...tanstack_start_ts-v1.11.6) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** update dependency [@lovable](https://github.com/lovable).dev/email-js to v0.3.1 ([#487](https://github.com/0xPabloLI/inside-china-ai/issues/487)) ([d2a8474](https://github.com/0xPabloLI/inside-china-ai/commit/d2a8474f6a9545964e379487d8c7e6e8eb4e059d))
+
+## [1.11.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.4...tanstack_start_ts-v1.11.5) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** update dependency [@lovable](https://github.com/lovable).dev/mcp-js to v3 ([7ee76c3](https://github.com/0xPabloLI/inside-china-ai/commit/7ee76c3bf764245b21f716bab5b3239f646caf56))
+* **deps:** update dependency [@lovable](https://github.com/lovable).dev/mcp-js to v3 ([1472d59](https://github.com/0xPabloLI/inside-china-ai/commit/1472d59916231a257f1e810f3688c3ff1afe5b39))
+* **deps:** update dependency lucide-react to v1 ([f74cfea](https://github.com/0xPabloLI/inside-china-ai/commit/f74cfea3e28cdeb4a9ac220db3117a71c385655a))
+* **deps:** update dependency lucide-react to v1 ([b2971d2](https://github.com/0xPabloLI/inside-china-ai/commit/b2971d2732a02891626c4a81692aaf4de35bb996))
+* **lint:** keep react-hooks v7 compiler rules at warn + resync bun.lock ([7676784](https://github.com/0xPabloLI/inside-china-ai/commit/767678488b4138296fa764adfc1fc33ab0f3c384))
+
+## [1.11.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.3...tanstack_start_ts-v1.11.4) (2026-10-04)
+
+
+### Bug Fixes
+
+* **lint:** writing-for-agents 门禁收敛触发面并整批压成一条 WARN ([5a1c485](https://github.com/0xPabloLI/inside-china-ai/commit/5a1c485abe6e9e22ef1284f0d510152c8a932ab4))
+* **rag,lint:** reindex import + gate noise; add Pixelle-Video survey ([a04cd29](https://github.com/0xPabloLI/inside-china-ai/commit/a04cd29e3bcf1f9646662c08ed77baa723d6a81b))
+* **rag:** js-yaml v5 无 default export，reindex 一直在模块加载期就崩 ([d905cf8](https://github.com/0xPabloLI/inside-china-ai/commit/d905cf87dae8fb75e147989665e97b4dfa0a98af))
+
 ## [1.11.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.2...tanstack_start_ts-v1.11.3) (2026-10-03)
 
 

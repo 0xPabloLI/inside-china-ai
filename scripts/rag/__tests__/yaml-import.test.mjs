@@ -1,17 +1,28 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const SCRIPTS_DIR = fileURLToPath(new URL("../", import.meta.url));
-// Vendored third-party trees are not ours to lint.
-const SKIP_DIRS = new Set(["node_modules", "experiments", "__tests__", "fixtures"]);
+// From scripts/rag/__tests__/ up two levels = scripts/, so the scan really
+// covers every script rather than just scripts/rag/**.
+const SCRIPTS_DIR = fileURLToPath(new URL("../../", import.meta.url));
+// Vendored third-party trees and generated output are not ours to lint.
+const SKIP_DIRS = new Set(["node_modules", "experiments", "__tests__", "fixtures", "output"]);
 
 function listMjs(dir, acc = []) {
   for (const entry of readdirSync(dir)) {
     if (SKIP_DIRS.has(entry)) continue;
     const full = join(dir, entry);
-    if (statSync(full).isDirectory()) listMjs(full, acc);
+    // lstat, not stat: scripts/short-video/output/** holds dangling symlinks,
+    // which make statSync throw ENOENT mid-walk.
+    let st;
+    try {
+      st = lstatSync(full);
+    } catch {
+      continue;
+    }
+    if (st.isSymbolicLink()) continue;
+    if (st.isDirectory()) listMjs(full, acc);
     else if (full.endsWith(".mjs")) acc.push(full);
   }
   return acc;

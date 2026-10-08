@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: "24"
       # 报告是只读的；写路径（开票/评论）由 --update-issues 门控，只在 CI 开。
       # 本地跑 `node scripts/short-video/pool-canary.mjs` 永不写票。
       - name: Run pool canary

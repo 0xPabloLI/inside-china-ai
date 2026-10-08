@@ -37,6 +37,7 @@ import {
   ALL_SOURCES,
   missingApiKey,
   resolveApiHeaders,
+  resolveLoginGate,
   keyReadiness,
 } from "./lib/source-registry.mjs";
 import {
@@ -54,6 +55,7 @@ import {
   waitForPageLoad,
   extractWithRetry,
   detectAntiBot,
+  runPageGates,
   ensureCdpProxy,
 } from "./lib/cdp-client.mjs";
 
@@ -209,11 +211,16 @@ export function apiFailureVerdict({ status, body = "", cap = {} } = {}) {
  *   "source" — the verdict is about the source: `zero_results` (selector rot),
  *              `http-dead`, `network-error` (the host answered nothing but was
  *              reachable) — this is what the repair runbook is for.
- *   "probe"  — the verdict is about the probe: `anti_bot:*` and `need_login`
- *              depend on the browser session, and `login-wall` /
+ *   "probe"  — the verdict is about the probe: `anti_bot:*`, `captcha` and
+ *              `need_login` depend on the browser session, and `login-wall` /
  *              `probe-not-authoritative` / `probe-no-egress` are the shared
  *              vocabulary's "the answer is about the probe" class. Quarantine,
  *              do not repair.
+ *
+ * `captcha` here is the *login gate's* answer ("触发验证码，请在 Chrome 中手动通过
+ * 验证码后重试" — search-sources' message), i.e. a session a person can pass, not
+ * a source defect: without it the runbook's rule 「只有 source 才让退出码非零」
+ * would go red for something the reader cannot fix in the registry.
  *
  * @param {{ ok: boolean, reason?: string|null }} result
  * @returns {"none"|"source"|"probe"}
@@ -221,7 +228,9 @@ export function apiFailureVerdict({ status, body = "", cap = {} } = {}) {
 export function failureClass(result) {
   if (result.ok) return "none";
   const reason = String(result.reason ?? "");
-  if (reason.startsWith("anti_bot") || reason === "need_login") return "probe";
+  if (reason.startsWith("anti_bot") || reason === "need_login" || reason === "captcha") {
+    return "probe";
+  }
   return isFailureVerdict(reason) ? "source" : "probe";
 }
 
@@ -362,30 +371,19 @@ async function checkSource(source, keywords) {
       }
     }
     const loaded = await waitForPageLoad(tabId);
-    const antiBot = await detectAntiBot(tabId);
-    if (antiBot) {
+    // #346: login gate before the anti-bot vocabulary — a logged-out login
+    // panel's own copy (「获取验证码」) matches the anti-bot words, so the old
+    // anti-bot-first order reported session expiry as `anti_bot:验证码`. The
+    // shared sequence (runPageGates) is the one collectFromCdp uses too.
+    const gate = await runPageGates({ tabId, ...resolveLoginGate(source) });
+    if (gate) {
       return {
         source: source.name,
         ok: false,
         count: 0,
-        reason: `anti_bot:${antiBot}`,
+        reason: gate.gate === "login" ? gate.status : `anti_bot:${gate.status}`,
         durationMs: Date.now() - started,
       };
-    }
-    const needsAuth = cap?.needsAuth ?? source.needsAuth;
-    const loginCheckScript = cap?.loginCheckScript ?? source.loginCheckScript;
-    if (needsAuth && loginCheckScript) {
-      const { checkLogin } = await import("./lib/cdp-client.mjs");
-      const status = await checkLogin(tabId, loginCheckScript);
-      if (status !== "ok") {
-        return {
-          source: source.name,
-          ok: false,
-          count: 0,
-          reason: status,
-          durationMs: Date.now() - started,
-        };
-      }
     }
     // #269 (2026-09-23): single-shot extraction raced SPA hydration and
     // reported a healthy source as `zero_results` — measured on zhihu, the
@@ -592,8 +590,9 @@ async function main() {
     // production-usable (ok: true, via: "site-fallback") instead of reading
     // as dead — jiqizhixin 2026-09-24: primary 0 for weeks while its site:
     // layer extracted 10. Only "source" verdicts take over; probe-class
-    // failures (probe-not-authoritative / probe-no-egress / anti_bot) mean
-    // "we cannot measure" and must not be flipped by the fallback layer.
+    // failures (probe-not-authoritative / probe-no-egress / anti_bot / the
+    // login gate's own need_login and captcha) mean "we cannot measure" and
+    // must not be flipped by the fallback layer.
     if (
       !fallbackMode &&
       failureClass(result) === "source" &&
