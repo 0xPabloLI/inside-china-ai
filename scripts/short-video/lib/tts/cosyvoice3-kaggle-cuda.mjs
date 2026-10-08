@@ -29,21 +29,11 @@
 
 import { exec } from "child_process";
 import { createHash, randomUUID } from "crypto";
-import {
-  closeSync,
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  readSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { basename, join, dirname, relative } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
+import { assertRiffWaveHeader } from "../audio/wav.mjs";
 import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-process.mjs";
 import { resolveSceneSpeed } from "./pacing.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
@@ -334,13 +324,14 @@ export function verifyKaggleRunSummary(summary, { requestId, scenes }) {
   return summary;
 }
 
-/** RIFF header (44 bytes) is the smallest possible complete wav. */
-const WAV_HEADER_BYTES = 44;
-
 /**
  * A downloaded kernel wav is only promotable when it is a complete RIFF/WAVE
  * file (#420): network hiccups are known to yield 0-byte or truncated Kaggle
- * downloads, and a truncated take must not enter the approved audio path.
+ * downloads (#394 class), and a partial take must not enter the approved audio
+ * path. Beyond the magic header, every declared chunk must fit inside the
+ * downloaded bytes and a `data` chunk must be present — a 500-byte file whose
+ * RIFF header still declares the full take is exactly the partial download
+ * this gate exists to reject.
  *
  * @param {string} filePath - staged file under the per-call download dir
  * @param {number} sceneId - for the error message
@@ -354,24 +345,34 @@ export function assertCompleteKernelWav(filePath, sceneId) {
         "refusing to promote an incomplete kernel output",
     );
   }
-  const size = statSync(filePath).size;
-  if (size < WAV_HEADER_BYTES) {
+  const buf = readFileSync(filePath);
+  try {
+    assertRiffWaveHeader(buf, basename(filePath));
+  } catch (e) {
     throw new Error(
-      `Kaggle output file for scene ${sceneId} is incomplete (${size} bytes) — ` +
-        "refusing to promote a truncated download",
+      `Kaggle output file for scene ${sceneId} is incomplete or invalid (${e.message}) — ` +
+        "refusing to promote invalid audio",
     );
   }
-  const header = Buffer.alloc(12);
-  const fd = openSync(filePath, "r");
-  try {
-    readSync(fd, header, 0, 12, 0);
-  } finally {
-    closeSync(fd);
+  let offset = 12;
+  let hasData = false;
+  while (offset + 8 <= buf.length) {
+    const id = buf.toString("ascii", offset, offset + 4);
+    const size = buf.readUInt32LE(offset + 4);
+    if (offset + 8 + size > buf.length) {
+      throw new Error(
+        `Kaggle output file for scene ${sceneId} is truncated (chunk "${id}" declares ` +
+          `${size} bytes beyond the ${buf.length}-byte download) — refusing to promote ` +
+          "a partial download",
+      );
+    }
+    if (id === "data") hasData = true;
+    offset += 8 + size + (size % 2); // chunks are padded to even sizes
   }
-  if (header.toString("ascii", 0, 4) !== "RIFF" || header.toString("ascii", 8, 12) !== "WAVE") {
+  if (!hasData) {
     throw new Error(
-      `Kaggle output file for scene ${sceneId} is not a RIFF/WAVE file — ` +
-        "refusing to promote invalid audio",
+      `Kaggle output file for scene ${sceneId} has no data chunk — ` +
+        "refusing to promote incomplete audio",
     );
   }
   return filePath;
@@ -671,11 +672,14 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // ── Download output into per-call staging (#420) ──
       // The download target MUST be unique per call: `kaggle kernels output`
       // skips files when a more recent local copy exists ("Skipping, found more
-      // recently modified local copy"), which on a persistent directory handed
-      // the pipeline the PREVIOUS run's audio while reporting success. The
-      // legacy `.kaggle-kernel/kaggle-output` dir is deliberately not reused,
-      // overwritten or cleaned as routine self-heal — acceptance is proven by
-      // the identity checks below, not by directory cleanliness.
+      // recently modified local copy"), and the skip is NOT an error — the CLI
+      // decides it in kaggle_api_extended.py (should_download → False when the
+      // local size/date look current) and the command still exits 0. On a
+      // persistent directory that handed the pipeline the PREVIOUS run's audio
+      // while reporting success. The legacy `.kaggle-kernel/kaggle-output` dir
+      // is deliberately not reused, overwritten or cleaned as routine
+      // self-heal — acceptance is proven by the identity checks below, not by
+      // directory cleanliness.
       const downloadDir = join(tempDir, "downloads", requestId);
       mkdirSync(downloadDir, { recursive: true });
       console.log("  📥 Downloading Kaggle kernel output...");

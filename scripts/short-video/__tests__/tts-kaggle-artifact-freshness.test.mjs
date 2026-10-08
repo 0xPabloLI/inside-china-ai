@@ -24,6 +24,7 @@
  * calls and no GPU.
  */
 import { afterEach, describe, expect, it } from "vitest";
+import { execFileSync } from "child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -33,29 +34,9 @@ import {
   createCosyVoice3KaggleCudaEngine,
   verifyKaggleRunSummary,
 } from "../lib/tts/cosyvoice3-kaggle-cuda.mjs";
+import { truncatedWavBytes, wavBytes } from "./fixtures/wav-fixture.mjs";
 
 // ── helpers ────────────────────────────────────────────────────────────────
-
-/** Minimal valid RIFF/WAVE file whose data chunk carries `marker`. */
-function wavBytes(marker) {
-  const data = Buffer.from(marker, "utf8");
-  const buf = Buffer.alloc(44 + data.length);
-  buf.write("RIFF", 0, "ascii");
-  buf.writeUInt32LE(36 + data.length, 4);
-  buf.write("WAVE", 8, "ascii");
-  buf.write("fmt ", 12, "ascii");
-  buf.writeUInt32LE(16, 16);
-  buf.writeUInt16LE(1, 20); // PCM
-  buf.writeUInt16LE(1, 22); // mono
-  buf.writeUInt32LE(24000, 24);
-  buf.writeUInt32LE(24000 * 2, 28);
-  buf.writeUInt16LE(2, 32);
-  buf.writeUInt16LE(16, 34);
-  buf.write("data", 36, "ascii");
-  buf.writeUInt32LE(data.length, 40);
-  data.copy(buf, 44);
-  return buf;
-}
 
 const SCENES = [
   { id: 1, voiceover: "Hook line about a world model.", visualType: "hook" },
@@ -116,6 +97,13 @@ function makeKaggleCliMock({ sceneResults, forceSummaryRequestId } = {}) {
           }
           if (shaped.emptyFile) {
             files.set(m.output, Buffer.alloc(0));
+          } else if (shaped.truncated) {
+            // The partial-download shape (#394 class): the header declares the
+            // full take, only `keptBytes` actually arrived.
+            files.set(
+              m.output,
+              truncatedWavBytes(shaped.truncated.declaredBytes, shaped.truncated.keptBytes),
+            );
           } else {
             files.set(m.output, wavBytes(`${marker}-scene-${m.sceneId}`));
           }
@@ -253,6 +241,19 @@ describe("#420 — foreign or stale summaries fail closed", () => {
     expect(existsSync(join(outDir, "scene-3.wav"))).toBe(false);
   });
 
+  it("leaves already-approved audio untouched when the summary is foreign (same-slug interference)", async () => {
+    const outDir = makeOutDir("existing-audio-foreign");
+    const approvedBytes = wavBytes("APPROVED-PREVIOUS-TAKE");
+    writeFileSync(join(outDir, "scene-1.wav"), approvedBytes);
+    const mock = makeKaggleCliMock({ forceSummaryRequestId: "some-other-runs-kernel-build" });
+    const engine = await makeEngine(mock);
+
+    await expect(engine.generate(SCENES, outDir)).rejects.toThrow(/requestId|belong|stale/i);
+    // The existing approved take is byte-identical — no partial overwrite.
+    expect(readFileSync(join(outDir, "scene-1.wav")).equals(approvedBytes)).toBe(true);
+    expect(existsSync(join(outDir, "scene-2.wav"))).toBe(false);
+  });
+
   it("keeps the shared legacy kaggle-output dir untouched and still promotes correct bytes", async () => {
     const outDir = makeOutDir("legacy-untouched");
     const mock = makeKaggleCliMock();
@@ -337,6 +338,26 @@ describe("#420 — incomplete artifacts fail closed before promotion", () => {
 
     await expect(engine.generate(SCENES, outDir)).rejects.toThrow(/missing|cover|incomplete/i);
     expect(existsSync(join(outDir, "scene-1.wav"))).toBe(false);
+  });
+
+  it("rejects a truncated download (header declares more audio than arrived)", async () => {
+    const outDir = makeOutDir("truncated-file");
+    const mock = makeKaggleCliMock({
+      sceneResults: (m) =>
+        m.sceneId === 3 ? { truncated: { declaredBytes: 240000, keptBytes: 456 } } : {},
+    });
+    const postProcessCalls = [];
+    const engine = await makeEngine(mock, {
+      postProcess: async (p) => {
+        postProcessCalls.push(p);
+        return 3.0;
+      },
+    });
+
+    await expect(engine.generate(SCENES, outDir)).rejects.toThrow(/truncated|partial/i);
+    expect(postProcessCalls).toHaveLength(0);
+    expect(existsSync(join(outDir, "scene-1.wav"))).toBe(false);
+    expect(existsSync(join(outDir, "scene-3.wav"))).toBe(false);
   });
 
   it("propagates a non-zero download exit as a failed run (no partial promotion)", async () => {
@@ -510,5 +531,45 @@ describe("#420 — assertCompleteKernelWav", () => {
     const junkPath = join(dir, "scene-4.wav");
     writeFileSync(junkPath, Buffer.alloc(200, 0x41));
     expect(() => assertCompleteKernelWav(junkPath, 4)).toThrow(/RIFF\/WAVE/);
+
+    // Partial download: header declares a full take, only 456 bytes arrived.
+    const truncatedPath = join(dir, "scene-5.wav");
+    writeFileSync(truncatedPath, truncatedWavBytes(240000, 456));
+    expect(() => assertCompleteKernelWav(truncatedPath, 5)).toThrow(/truncated|partial/);
+
+    // Header-only file with no data chunk at all.
+    const noDataPath = join(dir, "scene-6.wav");
+    const noData = wavBytes("x");
+    noData.write("junk", 36, "ascii"); // rename the data chunk id
+    writeFileSync(noDataPath, noData);
+    expect(() => assertCompleteKernelWav(noDataPath, 6)).toThrow(/no data chunk/);
   });
+});
+
+describe("#420 — generated kernel script stays valid Python (cross-process contract)", () => {
+  const hasPython3 = (() => {
+    try {
+      execFileSync("python3", ["--version"], { stdio: "pipe" });
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  it.skipIf(!hasPython3)(
+    "the substituted kernel script (manifest + request id) compiles with py_compile",
+    async () => {
+      const outDir = makeOutDir("py-compile");
+      const mock = makeKaggleCliMock();
+      const engine = await makeEngine(mock);
+      await engine.generate(SCENES, outDir);
+
+      const scriptPath = join(outDir, ".kaggle-kernel", "cosyvoice3_cuda_kernel.py");
+      const script = readFileSync(scriptPath, "utf8");
+      // No unsubstituted placeholders may survive into the pushed script.
+      expect(script).not.toContain("__MANIFEST_JSON__");
+      expect(script).not.toContain("__REQUEST_ID__");
+      execFileSync("python3", ["-m", "py_compile", scriptPath], { stdio: "pipe" });
+    },
+  );
 });

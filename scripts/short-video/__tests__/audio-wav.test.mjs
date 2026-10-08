@@ -2,7 +2,30 @@ import { describe, it, expect } from "vitest";
 import { writeFileSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { buildWavBuffer, writeWavPcm, readWavPcm } from "../lib/audio/wav.mjs";
+import {
+  assertRiffWaveHeader,
+  buildWavBuffer,
+  writeWavPcm,
+  readWavPcm,
+} from "../lib/audio/wav.mjs";
+
+describe("assertRiffWaveHeader (#420 shared invariant)", () => {
+  it("accepts a well-formed wav buffer", () => {
+    expect(() =>
+      assertRiffWaveHeader(buildWavBuffer(new Float32Array([0]), 8000), "t.wav"),
+    ).not.toThrow();
+  });
+
+  it("rejects short, non-RIFF and non-WAVE buffers with the label in the message", () => {
+    expect(() => assertRiffWaveHeader(Buffer.alloc(10), "short.wav")).toThrow(/short\.wav/);
+    expect(() => assertRiffWaveHeader(Buffer.alloc(64, 0x41), "junk.wav")).toThrow(
+      /Not a RIFF\/WAVE file: junk\.wav/,
+    );
+    const riffOnly = Buffer.alloc(64);
+    riffOnly.write("RIFF", 0, "ascii");
+    expect(() => assertRiffWaveHeader(riffOnly, "riff-only.wav")).toThrow(/riff-only\.wav/);
+  });
+});
 
 describe("buildWavBuffer", () => {
   it("emits a RIFF header for mono s16 PCM at the requested rate", () => {

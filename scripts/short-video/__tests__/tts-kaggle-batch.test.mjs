@@ -21,21 +21,13 @@ import {
   createCosyVoice3KaggleCudaEngine,
   pollKernelStatus,
 } from "../lib/tts/cosyvoice3-kaggle-cuda.mjs";
+import { wavBytes } from "./fixtures/wav-fixture.mjs";
 
 const SCENES = [
   { id: 1, voiceover: "Hook line about a world model.", visualType: "hook" },
   { id: 2, voiceover: "Narrative body with 14 billion parameters.", visualType: "narrative" },
   { id: 3, voiceover: "It hit 720p at 60 frames per second.", visualType: "data" },
 ];
-
-/** Minimal RIFF/WAVE payload so the adapter's completeness check (#420) passes. */
-function makeMockWav() {
-  const buf = Buffer.alloc(100);
-  buf.write("RIFF", 0, "ascii");
-  buf.writeUInt32LE(92, 4);
-  buf.write("WAVE", 8, "ascii");
-  return buf;
-}
 
 /** Mock exec: records every command; answers `kaggle kernels output` with a
  *  fake summary.json + wav files so the download/post-process path completes.
@@ -65,7 +57,7 @@ function makeBatchExecMock(scenes) {
           }),
         );
         for (const s of scenes) {
-          writeFileSync(join(dir, "output", `scene-${s.id}.wav`), makeMockWav());
+          writeFileSync(join(dir, "output", `scene-${s.id}.wav`), wavBytes(`scene-${s.id}`));
         }
       }
       return { stdout: "" };

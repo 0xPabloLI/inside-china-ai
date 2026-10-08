@@ -13,6 +13,25 @@ import { readFileSync, writeFileSync } from "fs";
 const HEADER_SIZE = 44;
 
 /**
+ * Assert the RIFF/WAVE magic and the 44-byte minimum at the head of a buffer.
+ * Single source for the container invariant shared by this module's reader and
+ * the Kaggle artifact gate (#420).
+ *
+ * @param {Buffer} buf
+ * @param {string} label - path or filename for the error message
+ * @throws {Error} when the buffer is too short or not RIFF/WAVE
+ */
+export function assertRiffWaveHeader(buf, label) {
+  if (
+    buf.length < HEADER_SIZE ||
+    buf.toString("ascii", 0, 4) !== "RIFF" ||
+    buf.toString("ascii", 8, 12) !== "WAVE"
+  ) {
+    throw new Error(`Not a RIFF/WAVE file: ${label}`);
+  }
+}
+
+/**
  * Serialise samples as a mono 16-bit PCM WAV buffer.
  *
  * @param {Float32Array|Array<number>} samples - values in [-1, 1]
@@ -64,14 +83,7 @@ export function writeWavPcm(path, samples, sampleRate) {
  */
 export function readWavPcm(path) {
   const buf = readFileSync(path);
-
-  if (
-    buf.length < HEADER_SIZE ||
-    buf.toString("ascii", 0, 4) !== "RIFF" ||
-    buf.toString("ascii", 8, 12) !== "WAVE"
-  ) {
-    throw new Error(`Not a RIFF/WAVE file: ${path}`);
-  }
+  assertRiffWaveHeader(buf, path);
 
   let fmt = null;
   let data = null;
