@@ -8,7 +8,7 @@
 
 **基准**：Video-MME short 92 视频 / 276 题（名义 100，8 个缺盘视频，口径见 §20.11）
 + medium 原档 28 视频 / 84 题、**扩样 53 视频 / 159 题**（2026-10-07，4–17 分钟）。全部结论为逐题配对（McNemar exact）。
-**原生通路采样上限**：Qwen 系（VL/Omni）经 mlx-vlm 默认 2fps×768 帧封顶，阈值 384s——medium **66% 视频触顶**（有效 0.73–1.99fps），短档全部未触顶（Q35）。两模型**视觉 token 预算不同**（VL≈25.2M 像素/视频 vs Omni≈12.8M）：同帧数下 Omni 视觉 token 为 VL 的 1/2–1/3，是其「快但长视频弱」的机制（Q37）。官方侧同向：Qwen3-Omni 报告自陈长视频为短板（位置外推 + 上下文长度两条约束），官方 Video-MME Omni-30B 70.5 亦低于上代 Qwen2.5-VL-72B 73.3；Qwen3-VL 则为长视频专门升级（256K 上下文 / 2048 帧 / Interleaved-MRoPE / 显式时间戳）。
+**原生通路采样上限**：Qwen 系（VL/Omni）经 mlx-vlm 默认 2fps×768 帧封顶，阈值 384s——medium **66% 视频触顶**（有效 0.73–1.99fps），短档全部未触顶（Q35）。该 768 来自 **mlx-community 转换包 + mlx-vlm 库默认**，官方 Qwen 配置不声明帧数上限，也与机器显存无关（Q38③）。两模型**视觉 token 预算不同**（VL≈25.2M 像素/视频 vs Omni≈12.8M）：同帧数下 Omni 视觉 token 为 VL 的 1/2–1/3，是其「快但长视频弱」的机制（Q37）。**官方承认该预算保守**：Qwen3.8-27B 卡建议把 `longest_edge` 提到 469,762,048（≈224k token，为默认的 18.7×）（Q38④）。官方侧同向：Qwen3-Omni 报告自陈长视频为短板（位置外推 + 上下文长度两条约束），官方 Video-MME Omni-30B 70.5 亦低于上代 Qwen2.5-VL-72B 73.3；Qwen3-VL 则为长视频专门升级（256K 上下文 / 2048 帧 / Interleaved-MRoPE / 显式时间戳）。
 
 | 轴 | 结论 | 关键数字 |
 |---|---|---|
@@ -1703,6 +1703,86 @@ from_pretrained` 裸调会因缺 torchvision 失败（Qwen2VLVideoProcessor 回�
   不是偶然的默认参数差异，而是两代设计目标的投影**：VL 为长视频/长上下文优化，Omni 为实时
   多模态交互（低首包延迟、MoE 高并发、压缩优先）优化。边界：官方数字与本地不同 harness
   （帧率/帧数/分辨率不同），只作方向性佐证，不可直接比数。
+
+- **Q38：loader vs uniform 的技术差 / token 预算的算法 / 上限归属 / 时间编码 / 换模型决策
+  （用户 2026-10-08 追问）**：
+
+  **① `loader_*` 与 `uniform_K` 是四个维度同时不同，不是一件事。**
+  - *采样网格*：`uniform_K` = 1fps 解码网格上 `idx=round(i·(N−1)/(K−1))`，取整数秒
+    （`bench_common.true_uniform_timestamps`，落盘于 `medium_budget_ts.json` 等）；
+    `loader_*` = 官方 MiniCPM 规则（≤64s 每帧 1fps；>64s 整片 10fps 解码后
+    `official_uniform_sample` 取 64，时间戳精确到 0.1s）。
+  - *解码方式*：`uniform_K` = `bc.grab_frame` 逐时刻 accurate seek（`-ss t -i`，
+    `scale=448:-2`，q:v 3）；`loader_*` = `lib/video_loader.load_video`（网格是等差数列时
+    一次性 `-vf fps=` 批解码 `_try_batch_grid`，否则逐点 seek，**全分辨率** q:v 2）。
+  - *分辨率*：448px 宽 vs 原分辨率——**这是 C9 效应的直接嫌疑**。
+  - *上下文装配*：`loader_block` 额外前置整块转写（2000 字）；`uniform_K` 纯视觉
+    （`_asr` 变体才加转写）。
+  已跑过的受控比较只有 **C9**（同网格、只换提取器）：`loader_vision` 79.0 vs
+  `official_vision` 73.6（p=0.0007，+5.4pp）。`loader_vision`(79.0) vs `uniform_64`(77.5)
+  **没有做过配对检验**，两者网格与分辨率同时不同，属混杂比较，不单独解读。
+
+  **② token 数字的来源与算法**：`token_budget_diag.py`（2026-10-08 新写，**此前无任何统计**）。
+  只载处理器不载权重：各处理器用 `resolve_video_sampling` 解析自己的采样 → `load_video`
+  解码同一 mp4 → 直接调 `processor(text=[...], videos=[arr], fps=meta.sampled_fps)` →
+  读 `input_ids.shape[-1]` 与 `video_grid_thw`，token 数 = `prod(t,h,w)/merge_size²`。
+  n=2 视频（93s / 1046s），单次运行。数字是处理器输出的精确计数（确定性），但"全视频成立"
+  靠的是机制（预算是全片总量），不是样本量。像素↔token 换算比 = **2048 px/token**
+  （25,165,824 px ↔ 12,288 token 实测吻合）。
+
+  **③ 上限归属：768 不是我们的配置，也不看设备。** 优先级是
+  调用方 > 处理器 > 库默认（`mlx_vlm.utils.resolve_video_sampling`）：
+  - 官方 `Qwen/Qwen3-VL-30B-A3B-Instruct` 的 `video_preprocessor_config.json` **只有
+    `size.longest_edge`**，没有 fps/max_frames；
+  - `fps=2 / min_frames=4 / max_frames=768` 出现在 **mlx-community 转换包**的
+    `video_preprocessor_config.json`（我们用的 `~/models/Qwen3-VL-30B-A3B-Instruct-4bit`
+    即 mlx-community 转换）；
+  - mlx-vlm 库默认 `DEFAULT_VIDEO_SAMPLING = fps 2.0 / min_frames 4 / max_frames 768 /
+    frame_factor 2`（`utils.py:2029`），两者数值恰好一致；
+  - 官方 `Qwen/Qwen3-Omni-30B-A3B-Instruct` 仓库**根本没有 video_preprocessor_config.json**，
+    `preprocessor_config.json` 里也没有 max_frames；Omni 的 768 同样来自 mlx-community
+    的 `processor_config.json`。
+  **结论：768 是 MLX 侧（转换包 + 库默认）的约定，与机器显存无关；官方 Qwen 配置不声明帧数上限。**
+
+  **④ 像素预算：官方明说"保守"，且给了推荐值。** Qwen3.8-27B 模型卡 Best Practices 第 4 条
+  原文：released `video_preprocessor_config.json` 的 `size` 是 conservatively configured，
+  建议把 `longest_edge` 提到 **469,762,048**（≈224k video tokens）以支持小时级视频的高帧率
+  采样。换算：默认 25,165,824 px ÷ 2048 = **12,288 token**；推荐值 ÷ 2048 ≈ **229k token**
+  （官方称 224k）——**默认比推荐低 18.7×**。Omni 的 `max_pixels`=12,845,056 px
+  （官方 `Qwen/Qwen3-Omni-30B-A3B-Instruct/preprocessor_config.json` 原值）≈ **6,272 token 上限**。
+  实测 93s 用满（5,580/6,272），1046s 被每帧下限卡在 3,840。
+  → 「调大 max_pixels 有没有用」在 VL/3.8 系有官方背书；**但 Omni 的预算是它自己训练时的
+  设定，调大属分布外推理**，可能更好也可能更差，须实测。
+
+  **⑤ 显式时间戳 vs 绝对时间位置（两条技术路线）**：
+  - *绝对时间位置*（Qwen2.5-VL 的 T-RoPE / Qwen3-Omni 的 TM-RoPE）：把 RoPE 角度维度切成
+    t/h/w 三组，t 维 position id 直接编码绝对时间（Omni：每 80ms 一个 temporal ID）。
+    后果（Qwen3-VL 报告原文）：长视频里 temporal id **极大且稀疏**，位置外推能力受限；
+    训练必须覆盖大量 fps 采样才能学会读这些 id，数据构造成本高。Omni 报告自陈的两条限制
+    （positional extrapolation + context length）正对应此路线。
+  - *显式时间戳 token*（Qwen3-VL / Qwen3.8）：每个视频时间块前缀一个格式化字符串
+    （如 `<3.0 seconds>`），作为**普通文本 token** 进序列。位置 id 不再随时长爆炸，时间像
+    文字一样被读取推理，训练不需穷举 fps；代价是**多一点上下文长度**（报告原文
+    "incurs a modest increase in context length"）。
+
+  **⑥ 换模型决策：现有开放权重里没有更新的 Omni；真正的"新模型"候选是同代 VL 系。**
+  时间线（HF 仓库 createdAt / arXiv）：Qwen3-Omni-30B-A3B **2025-09-20**（arXiv 2509.17765）
+  → Qwen3-VL-30B-A3B **2025-11-26**（arXiv 2511.21631，比 Omni 晚约 2 个月）→ MiniCPM-o 4.5
+  **2026-04-29**（arXiv 2604.27393，三者中最新）。更新的 Omni **均无开放权重**：
+  Qwen3.5-Omni-Plus 托管于 DashScope；Qwen3.8-Omni-Flash（arXiv 2609.25611，2026-09-18）
+  为 API-only。Qwen 名下开放权重的 Omni 最新仍是 2025-09 那个（HF `author=Qwen&search=Omni`
+  只有 Qwen2.5-Omni-* 与 Qwen3-Omni-30B-A3B-*）。
+  可测的"新模型"实为两条 VL 系后裔，均 Apache 2.0、原生视频、同 `longest_edge` 默认、
+  mlx-vlm 已支持（`qwen3_5_moe` / `qwen3_5`）且有 MLX 4bit 转换：
+  | 候选 | 发布 | 结构 | 相对本机速度 | 视频 benchmark |
+  |---|---|---|---|---|
+  | Qwen3.6-35B-A3B | 2026-04-15 | MoE 35B-A3B（3B 激活） | **同档**（与现 30B-A3B 同激活量） | 模型卡无 |
+  | Qwen3.8-27B | 2026-08-14 | dense 27B（27B 激活） | 约慢 9×（激活参数比） | 模型卡无 |
+  **建议顺序**：先做 2h 的 Omni `max_pixels` 实验（纯配置改动，分离「压缩率 vs 训练差异」，
+  无论结论都把 Q37 钉死）；再用 20 视频 / 60 题的**子集探针**试 Qwen3.6-35B-A3B
+  （同速度档、可顺带验证官方 `longest_edge` 推荐值是否真的有效）；Qwen3.8-27B 因 dense
+  27B 的激活量先做速度冒烟再决定。**不建议**追 Qwen3.8-Omni-Flash——API-only，与
+  「本地优先」硬件路由冲突。
 
 ---
 
