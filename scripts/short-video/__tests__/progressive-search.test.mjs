@@ -31,7 +31,13 @@ import {
   normalizeCdpVideoCandidates,
 } from "../lib/progressive-search.mjs";
 import { ALL_SOURCES } from "../lib/source-registry.mjs";
-import { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad, ScriptError } from "../lib/cdp-client.mjs";
+import {
+  cdpNewTab,
+  cdpCloseTab,
+  extractFromTab,
+  waitForPageLoad,
+  ScriptError,
+} from "../lib/cdp-client.mjs";
 
 vi.mock("../lib/cdp-client.mjs", () => ({
   CDP_BASE: "http://localhost:3456",

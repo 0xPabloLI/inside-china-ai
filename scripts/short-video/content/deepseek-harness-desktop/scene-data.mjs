@@ -214,8 +214,7 @@ export const scenes = [
     layout: "hero-center",
     mediaStrategy: "asset",
     media: null,
-    voiceover:
-      "Six yuan of free credit. DeepSeek says that is about 120 million input tokens.",
+    voiceover: "Six yuan of free credit. DeepSeek says that is about 120 million input tokens.",
     texts: {
       bigNumber: "120M",
       label: "CACHED INPUT TOKENS",
@@ -251,7 +250,8 @@ export const scenes = [
     retentionMechanism: "loop-closure",
     layout: "hero-center",
     mediaStrategy: "asset",
-    voiceover: "DeepSeek leaked it, then launched it five days later. Follow for more China AI news.",
+    voiceover:
+      "DeepSeek leaked it, then launched it five days later. Follow for more China AI news.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

@@ -29,8 +29,7 @@ const execFileAsync = promisify(execFile);
 
 export const AUTOMATION_PROFILE_BASENAME = "chrome-tiktok-profile";
 export const AUTOMATION_CDP_PORT = 9229;
-export const CHROME_APP =
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+export const CHROME_APP = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 /**
  * 期望的自动化 profile 目录。可用 `CDP_AUTOMATION_PROFILE` 覆盖（绝对路径）。
@@ -152,11 +151,7 @@ export function judgeChromeProfile({
  * @param {string} [opts.home]
  * @returns {string} 可直接执行的 shell 命令
  */
-export function launchCommand({
-  profileDir,
-  port = AUTOMATION_CDP_PORT,
-  home = homedir(),
-} = {}) {
+export function launchCommand({ profileDir, port = AUTOMATION_CDP_PORT, home = homedir() } = {}) {
   const dir = profileDir || join(home, AUTOMATION_PROFILE_BASENAME);
   return (
     `open -na "Google Chrome" --args --user-data-dir="${dir}" ` +
@@ -173,10 +168,7 @@ export function launchCommand({
  * @param {object} [opts.env]
  * @returns {Promise<{listening: boolean, pid: number|null, userDataDir: string|null, argv: string|null}>}
  */
-export async function inspectChromeOnPort({
-  port = AUTOMATION_CDP_PORT,
-  env = process.env,
-} = {}) {
+export async function inspectChromeOnPort({ port = AUTOMATION_CDP_PORT, env = process.env } = {}) {
   if (process.platform !== "darwin") {
     return { listening: false, pid: null, userDataDir: null, argv: null };
   }
@@ -295,12 +287,7 @@ export async function ensureAutomationProfile({
  * @returns {string}
  */
 export function formatVerdict(verdict) {
-  const icon =
-    verdict.status === "ok"
-      ? "✅"
-      : verdict.status === "wrong-profile"
-        ? "⛔"
-        : "⚠️";
+  const icon = verdict.status === "ok" ? "✅" : verdict.status === "wrong-profile" ? "⛔" : "⚠️";
   const lines = [`${icon} ${verdict.message}`];
   if (verdict.fixCommand) lines.push(`   → ${verdict.fixCommand}`);
   return lines.join("\n");

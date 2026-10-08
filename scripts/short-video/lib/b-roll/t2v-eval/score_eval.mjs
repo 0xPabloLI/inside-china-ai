@@ -52,7 +52,9 @@ const { scenes } = await import(
 );
 
 const args = process.argv.slice(2);
-const scenesArg = args.includes("--scenes") ? args[args.indexOf("--scenes") + 1].split(",").map(Number) : null;
+const scenesArg = args.includes("--scenes")
+  ? args[args.indexOf("--scenes") + 1].split(",").map(Number)
+  : null;
 
 const rows = [];
 try {
@@ -103,8 +105,11 @@ try {
     });
     // Literal format string: a dynamic first arg would let a "%" in the
     // joined scores forge the log line (semgrep unsafe-formatstring).
-    console.log("[score] scene %s: %s", sceneIdx,
-      scored.map((s) => `${s.variant}=${s.relevance ?? "null"}`).join(" "));
+    console.log(
+      "[score] scene %s: %s",
+      sceneIdx,
+      scored.map((s) => `${s.variant}=${s.relevance ?? "null"}`).join(" "),
+    );
   }
 } finally {
   await closeVisualAnalyzer();

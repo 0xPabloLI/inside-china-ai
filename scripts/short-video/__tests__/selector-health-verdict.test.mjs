@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 
-import { verdictReason, apiFailureVerdict, failureClass, applyFallbackTakeover } from "../selector-health.mjs";
+import {
+  verdictReason,
+  apiFailureVerdict,
+  failureClass,
+  applyFallbackTakeover,
+} from "../selector-health.mjs";
 
 /**
  * #269 (2026-09-23): 两个「时序竞态 ⇒ 假判决」的回归锚点。

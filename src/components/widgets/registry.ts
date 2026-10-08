@@ -117,7 +117,6 @@ export function getWidgetNames(): string[] {
   return Object.keys(WIDGETS);
 }
 
-
 /** Check if a widget name is registered. */
 export function isRegisteredWidget(name: string): boolean {
   return name in WIDGETS;

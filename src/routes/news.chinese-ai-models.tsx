@@ -6,12 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
 import { AskChinaAi } from "@/components/ask-china-ai";
 import { topicForPost } from "@/lib/news-topics";
-import {
-  breadcrumbListJsonLd,
-  faqPageJsonLd,
-  graph,
-  type JsonLdNode,
-} from "@/lib/structured-data";
+import { breadcrumbListJsonLd, faqPageJsonLd, graph, type JsonLdNode } from "@/lib/structured-data";
 
 const postsQuery = queryOptions({
   queryKey: ["published-posts"],

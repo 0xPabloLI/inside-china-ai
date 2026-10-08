@@ -554,9 +554,7 @@ export function findCdpProxyScript() {
     // the exact 2026-09-23 divergence failure the repo-local preference exists
     // to prevent. Fail loud instead of guessing.
     if (isDanglingSymlink(candidate)) {
-      console.error(
-        `  ✗ cdp-proxy candidate is a dangling symlink: ${candidate}`,
-      );
+      console.error(`  ✗ cdp-proxy candidate is a dangling symlink: ${candidate}`);
       console.error("     The skills/shared submodule is probably not initialized.");
       console.error("     Fix: git submodule update --init skills/shared");
       console.error("     Refusing the stale global-skill fallback (2026-09-23 divergence guard).");

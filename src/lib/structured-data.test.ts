@@ -51,9 +51,7 @@ describe("og:image templates", () => {
     const first = articleOgImageUrl("first-story", "2026-09-14T00:00:00.000Z");
     const second = articleOgImageUrl("second-story", "2026-09-14T00:00:00.000Z");
     expect(first).not.toBe(second);
-    expect(first).toMatch(
-      /^https:\/\/chinaai\.news\/api\/public\/og\/posts\/first-story\.png\?v=/,
-    );
+    expect(first).toMatch(/^https:\/\/chinaai\.news\/api\/public\/og\/posts\/first-story\.png\?v=/);
   });
 
   it("emits complete social image metadata", () => {
@@ -83,8 +81,7 @@ describe("og:image templates", () => {
     }) as { "@graph": Array<Record<string, unknown>> };
     const article = doc["@graph"].find((node) => node["@type"] === "Article");
     const breadcrumbs = doc["@graph"].find((node) => node["@type"] === "BreadcrumbList") as
-      | { itemListElement?: unknown[] }
-      | undefined;
+      { itemListElement?: unknown[] } | undefined;
     expect(article?.image).toEqual([image]);
     expect(article?.datePublished).toBe("2026-09-14T00:00:00.000Z");
     expect(article?.dateModified).toBe("2026-09-14T01:00:00.000Z");
