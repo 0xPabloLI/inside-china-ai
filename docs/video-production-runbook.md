@@ -276,6 +276,7 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 - **一次 push 生成全部 scene**：`cosyvoice3-kaggle-cuda` 的 `generate()` 把所有待生成 scene 组装进一个 manifest，单次 `kaggle kernels push` 携带（kernel 启动 + 依赖安装 + 模型加载 ~5min 是主导成本，纯推理 10 scene 仅 ~64s）。cache 命中的 scene 不进 manifest（#198）。
 - **自愈重试粒度**：Quality Gate 只挂个别 scene 时，registry 重试只把失败 scene 的单条 manifest 再 push 一次，不重刷整包。**pacing 类失败不占用重抽预算**（#271）：同文本、同速度重抽抬不动实测 WPM，只烧远程 GPU，它们直接进补差环。
 - **缺音频 fail-closed**：scene 在生成 + 自愈重试后仍无音频（kernel 段失败/超时跳过）→ 管线报错中止，绝不静默缺段渲染。显式接受缺段需 `TTS_ALLOW_PARTIAL_TTS=1`。有音频但 Gate 不过则按 **#271 语义分流**：pacing 类先补差、补差仍不合格 → `TTS_PACING_FLOOR_BLOCK`；acoustic 类 → `TTS_ACOUSTIC_HARD_BLOCK`。两类硬阻断都不受 strict/non-strict 影响，唯一能绕过它们的开关是 `TTS_SKIP_QUALITY_GATE=1`；分流机制见 `docs/content-pipeline.md` → Gate 失败语义分流（阈值与 1.2× 上限见同节 #252 段）。
+- **下载产物身份与新鲜度（#420）**：每次 `generate()` 下载到本次调用独立的 staging（`output/{id}/audio/.kaggle-kernel/downloads/<requestId>/`）并带 `--force`，随后核对 kernel summary 回显的 requestId、scene 覆盖与 wav 完整性（RIFF/WAVE）才晋级到 `audio/`；不匹配即 fail-closed，既有音频不被改动。旧共享目录 `.kaggle-kernel/kaggle-output` 不再被读取，也不再需要「跑前手动 `rm -rf` 该目录」的恢复操作。
 - **本地初版快速验证（可选工作流）**：粗排字幕/节奏时可用 `TTS_ENGINE=cosyvoice3-mlx` 本地秒级出全片音频（RTF 0.64x，emotion 略降）做初版检查；最终成片仍用默认 Kaggle CUDA 保证 emotion 质量（ADR-0019）。
 
 ### Reference Audio Format (M4A → WAV)

@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { dirname, join } from "path";
 import {
   buildCV3CudaManifest,
   createCosyVoice3KaggleCudaEngine,
@@ -28,8 +28,19 @@ const SCENES = [
   { id: 3, voiceover: "It hit 720p at 60 frames per second.", visualType: "data" },
 ];
 
+/** Minimal RIFF/WAVE payload so the adapter's completeness check (#420) passes. */
+function makeMockWav() {
+  const buf = Buffer.alloc(100);
+  buf.write("RIFF", 0, "ascii");
+  buf.writeUInt32LE(92, 4);
+  buf.write("WAVE", 8, "ascii");
+  return buf;
+}
+
 /** Mock exec: records every command; answers `kaggle kernels output` with a
- *  fake summary.json + wav files so the download/post-process path completes. */
+ *  fake summary.json + wav files so the download/post-process path completes.
+ *  The summary carries the requestId embedded in the pushed kernel script
+ *  (#420) — the adapter rejects summaries that do not echo this call's id. */
 function makeBatchExecMock(scenes) {
   const commands = [];
   return {
@@ -38,10 +49,14 @@ function makeBatchExecMock(scenes) {
       commands.push(cmd);
       if (cmd.includes("kaggle kernels output")) {
         const dir = cmd.match(/-p "([^"]+)"/)[1];
+        const kernelDir = dirname(dirname(dir)); // <tempDir>/downloads/<requestId>
+        const script = readFileSync(join(kernelDir, "cosyvoice3_cuda_kernel.py"), "utf-8");
+        const requestId = script.match(/REQUEST_ID = r'''(.*?)'''/s)[1];
         mkdirSync(join(dir, "output"), { recursive: true });
         writeFileSync(
           join(dir, "output", "summary.json"),
           JSON.stringify({
+            requestId,
             segments: scenes.map((s) => ({
               sceneId: s.id,
               output: `scene-${s.id}.wav`,
@@ -50,7 +65,7 @@ function makeBatchExecMock(scenes) {
           }),
         );
         for (const s of scenes) {
-          writeFileSync(join(dir, "output", `scene-${s.id}.wav`), "RIFFmockwav");
+          writeFileSync(join(dir, "output", `scene-${s.id}.wav`), makeMockWav());
         }
       }
       return { stdout: "" };

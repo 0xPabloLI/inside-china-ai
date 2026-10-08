@@ -4,6 +4,7 @@ CosyVoice3 CUDA Kaggle kernel template.
 
 Placeholders (replaced by JS adapter before push):
   __MANIFEST_JSON__  — JSON array of {sceneId, text, instruct_text?, output}
+  __REQUEST_ID__     — per-run identity echoed into summary.json (#420)
 
 Ref audio is loaded from Kaggle dataset: xPabloLI/tts-ref-audio
 
@@ -20,6 +21,7 @@ log("=== Kaggle CosyVoice3 CUDA Batch TTS ===")
 log(f"Python: {sys.version.split()[0]}")
 
 MANIFEST_JSON = r'''__MANIFEST_JSON__'''
+REQUEST_ID = r'''__REQUEST_ID__'''
 
 try:
     import torch
@@ -233,7 +235,7 @@ if not ref_path or not os.path.exists(ref_path):
 log(f"Ref audio: {os.path.getsize(ref_path)} bytes at {ref_path}")
 
 manifest = json.loads(MANIFEST_JSON)
-log(f"Manifest: {len(manifest)} segments")
+log(f"Manifest: {len(manifest)} segments (requestId={REQUEST_ID})")
 
 INFERENCE_CODE = r'''
 import sys, os, time, json, traceback
@@ -262,7 +264,9 @@ if not ref_path or not os.path.exists(ref_path):
 out_dir = "/kaggle/working/output"
 os.makedirs(out_dir, exist_ok=True)
 
-manifest = json.load(open("/tmp/manifest.json"))
+payload = json.load(open("/tmp/manifest.json"))
+manifest = payload["scenes"]
+request_id = payload["requestId"]
 print(f"torch: {torch.__version__}, CUDA: {torch.cuda.is_available()}", flush=True)
 if torch.cuda.is_available():
     print(f"GPU: {torch.cuda.get_device_name(0)}", flush=True)
@@ -272,7 +276,7 @@ t0 = time.time()
 cosyvoice = AutoModel(model_dir=model_dir)
 print(f"Loaded in {time.time()-t0:.1f}s, sr={cosyvoice.sample_rate}", flush=True)
 
-summary = {"engine": "CosyVoice3-Kaggle-CUDA", "segments": []}
+summary = {"engine": "CosyVoice3-Kaggle-CUDA", "requestId": request_id, "segments": []}
 for i, t in enumerate(manifest):
     print(f"\n[{i+1}/{len(manifest)}] scene-{t['sceneId']}", flush=True)
     try:
@@ -310,7 +314,7 @@ n_ok = len([s for s in summary['segments'] if 'error' not in s])
 print(f"\n=== Done! {n_ok}/{len(manifest)} ===", flush=True)
 '''
 
-json.dump(manifest, open("/tmp/manifest.json", "w"), ensure_ascii=False)
+json.dump({"requestId": REQUEST_ID, "scenes": manifest}, open("/tmp/manifest.json", "w"), ensure_ascii=False)
 with open("/tmp/run_inference.py", "w") as f:
     f.write(INFERENCE_CODE)
 
