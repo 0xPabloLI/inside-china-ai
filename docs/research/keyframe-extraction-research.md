@@ -8,7 +8,7 @@
 
 **基准**：Video-MME short 92 视频 / 276 题（名义 100，8 个缺盘视频，口径见 §20.11）
 + medium 原档 28 视频 / 84 题、**扩样 53 视频 / 159 题**（2026-10-07，4–17 分钟）。全部结论为逐题配对（McNemar exact）。
-**原生通路采样上限**：Qwen 系（VL/Omni）经 mlx-vlm 默认 2fps×768 帧封顶，阈值 384s——medium **66% 视频触顶**（有效 0.73–1.99fps），短档全部未触顶（Q35）。两模型**视觉 token 预算不同**（VL≈25.2M 像素/视频 vs Omni≈12.8M）：同帧数下 Omni 视觉 token 为 VL 的 1/2–1/3，是其「快但长视频弱」的机制（Q37）。
+**原生通路采样上限**：Qwen 系（VL/Omni）经 mlx-vlm 默认 2fps×768 帧封顶，阈值 384s——medium **66% 视频触顶**（有效 0.73–1.99fps），短档全部未触顶（Q35）。两模型**视觉 token 预算不同**（VL≈25.2M 像素/视频 vs Omni≈12.8M）：同帧数下 Omni 视觉 token 为 VL 的 1/2–1/3，是其「快但长视频弱」的机制（Q37）。官方侧同向：Qwen3-Omni 报告自陈长视频为短板（位置外推 + 上下文长度两条约束），官方 Video-MME Omni-30B 70.5 亦低于上代 Qwen2.5-VL-72B 73.3；Qwen3-VL 则为长视频专门升级（256K 上下文 / 2048 帧 / Interleaved-MRoPE / 显式时间戳）。
 
 | 轴 | 结论 | 关键数字 |
 |---|---|---|
@@ -1689,6 +1689,20 @@ from_pretrained` 裸调会因缺 torchvision 失败（Qwen2VLVideoProcessor 回�
 
   **④ 上限一致性**：帧数上限一致（两处理器实测均 2fps×768 封顶、同帧数解码），差异在
   **像素预算**（12.8M vs 25.2M）——即「同帧数、不同清晰度」。
+
+  **⑤ 官方基准佐证（外部锚点）**：Qwen3-Omni 技术报告（arXiv:2509.17765）**自陈长视频是短板**——
+  「A limitation of the current model is its suboptimal performance on long video benchmarks.
+  This deficiency stems from two architectural constraints: a limited capacity for positional
+  extrapolation and a restricted context length.」官方 Video-MME w/o sub：Qwen3-Omni-30B-A3B
+  Instruct **70.5** / Omni-Flash 71.4 / Gemini-2.0-Flash 72.4 / **Qwen2.5-VL-72B 73.3**——
+  Omni 在官方自己的表里就输给上一代 VL 大模型；Omni-Thinking 更低（69.7）。对照 Qwen3-VL
+  报告（arXiv:2511.21631）：VideoMME 评测配置 2fps、**2048 帧/视频上限**、≤640 token/帧，
+  原生 256K 上下文，且三项架构升级直指长视频（Interleaved-MRoPE 均衡频谱、显式时间戳 token
+  取代 T-RoPE 绝对时间位置 ID、S3 阶段 262,144 序列超长上下文适配）——而 Omni 用的 TM-RoPE
+  正是把绝对时间绑到位置 ID 的路线。**故本地测到的「同帧数、Omni 视觉 token 仅 VL 的 1/2–1/3」
+  不是偶然的默认参数差异，而是两代设计目标的投影**：VL 为长视频/长上下文优化，Omni 为实时
+  多模态交互（低首包延迟、MoE 高并发、压缩优先）优化。边界：官方数字与本地不同 harness
+  （帧率/帧数/分辨率不同），只作方向性佐证，不可直接比数。
 
 ---
 
