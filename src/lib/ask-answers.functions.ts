@@ -8,7 +8,9 @@ export const getAskAnswer = createServerFn({ method: "GET" })
     const sb = createPublicClient();
     const { data: row } = await sb
       .from("ask_answers")
-      .select("slug, question, answer, seo_title, seo_description, source_slugs, answered_at, created_at")
+      .select(
+        "slug, question, answer, seo_title, seo_description, source_slugs, answered_at, created_at",
+      )
       .eq("slug", data.slug)
       .eq("status", "published")
       .maybeSingle();

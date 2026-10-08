@@ -108,17 +108,27 @@ function AnswerPage() {
     <div className="min-h-screen">
       <SiteHeader />
       <main className="mx-auto max-w-3xl px-6 pt-12 pb-24">
-        <nav aria-label="Breadcrumb" className="text-xs uppercase tracking-wider text-muted-foreground">
-          <Link to="/" className="hover:text-foreground">Home</Link>
+        <nav
+          aria-label="Breadcrumb"
+          className="text-xs uppercase tracking-wider text-muted-foreground"
+        >
+          <Link to="/" className="hover:text-foreground">
+            Home
+          </Link>
           <span aria-hidden="true"> / </span>
-          <Link to="/ask" className="hover:text-foreground">Chinese AI Q&amp;A</Link>
+          <Link to="/ask" className="hover:text-foreground">
+            Chinese AI Q&amp;A
+          </Link>
         </nav>
 
         <article>
           <header className="mt-4 border-b border-border/60 pb-6">
-            <h1 className="font-serif text-3xl leading-tight tracking-tight sm:text-4xl">{a.question}</h1>
+            <h1 className="font-serif text-3xl leading-tight tracking-tight sm:text-4xl">
+              {a.question}
+            </h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              Answered from China AI News reporting · updated <time dateTime={a.answered_at}>{updated}</time>
+              Answered from China AI News reporting · updated{" "}
+              <time dateTime={a.answered_at}>{updated}</time>
             </p>
           </header>
 
@@ -130,7 +140,11 @@ function AnswerPage() {
               <ol className="mt-3 list-decimal space-y-2 pl-5">
                 {a.sources.map((s) => (
                   <li key={s.slug}>
-                    <Link to="/posts/$slug" params={{ slug: s.slug }} className="underline underline-offset-4">
+                    <Link
+                      to="/posts/$slug"
+                      params={{ slug: s.slug }}
+                      className="underline underline-offset-4"
+                    >
                       {s.title}
                     </Link>
                   </li>

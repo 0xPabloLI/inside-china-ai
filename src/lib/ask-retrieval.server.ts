@@ -20,12 +20,87 @@ export interface RetrievedSource {
 }
 
 const STOPWORDS = new Set([
-  "the","a","an","and","or","but","if","then","than","that","this","these","those","of","in","on",
-  "at","to","for","with","without","from","by","as","is","are","was","were","be","been","being",
-  "do","does","did","doing","have","has","had","it","its","about","into","over","under","how","what",
-  "which","who","whom","when","where","why","can","could","should","would","will","shall","may",
-  "might","i","you","he","she","we","they","me","my","your","their","there","here","not","no","yes",
-  "vs","versus","best","most","new","latest",
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "but",
+  "if",
+  "then",
+  "than",
+  "that",
+  "this",
+  "these",
+  "those",
+  "of",
+  "in",
+  "on",
+  "at",
+  "to",
+  "for",
+  "with",
+  "without",
+  "from",
+  "by",
+  "as",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "do",
+  "does",
+  "did",
+  "doing",
+  "have",
+  "has",
+  "had",
+  "it",
+  "its",
+  "about",
+  "into",
+  "over",
+  "under",
+  "how",
+  "what",
+  "which",
+  "who",
+  "whom",
+  "when",
+  "where",
+  "why",
+  "can",
+  "could",
+  "should",
+  "would",
+  "will",
+  "shall",
+  "may",
+  "might",
+  "i",
+  "you",
+  "he",
+  "she",
+  "we",
+  "they",
+  "me",
+  "my",
+  "your",
+  "their",
+  "there",
+  "here",
+  "not",
+  "no",
+  "yes",
+  "vs",
+  "versus",
+  "best",
+  "most",
+  "new",
+  "latest",
 ]);
 
 const MAX_PASSAGE_CHARS = 1600;
@@ -36,7 +111,7 @@ function extractTerms(question: string): string[] {
   const lower = question.toLowerCase();
   const terms = new Set<string>();
 
-  for (const word of lower.match(/[a-z0-9][a-z0-9+.\-]*/g) ?? []) {
+  for (const word of lower.match(/[a-z0-9][a-z0-9+.-]*/g) ?? []) {
     const clean = word.replace(/[.\-+]+$/, "");
     if (clean.length >= 2 && !STOPWORDS.has(clean)) terms.add(clean);
   }
@@ -81,7 +156,9 @@ function bestPassage(content: string, terms: string[]): string {
   }
 
   const slice = text.slice(bestStart, bestStart + PASSAGE_WINDOW);
-  return (bestStart > 0 ? "… " : "") + slice + (bestStart + PASSAGE_WINDOW < text.length ? " …" : "");
+  return (
+    (bestStart > 0 ? "… " : "") + slice + (bestStart + PASSAGE_WINDOW < text.length ? " …" : "")
+  );
 }
 
 /**

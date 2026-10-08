@@ -120,8 +120,7 @@ export async function runBrollCli({
   const videoScenes = needed - imageScenes;
   const tier = resolveModelTier(process.env);
   const perClipEstimate = estSecondsPerClip(tier);
-  const estSeconds =
-    imageScenes * 2 * EST_SECONDS_PER_IMAGE + videoScenes * 2 * perClipEstimate;
+  const estSeconds = imageScenes * 2 * EST_SECONDS_PER_IMAGE + videoScenes * 2 * perClipEstimate;
   log(
     `🎞  B-roll: ${needed} scene(s) x 2 candidates = ${formatDuration(estSeconds)} ` +
       `(~${EST_SECONDS_PER_IMAGE}s/image, ~${perClipEstimate}s/clip on ${tier}; cache hits reduce this)`,

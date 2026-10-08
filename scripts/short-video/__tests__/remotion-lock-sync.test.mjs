@@ -27,7 +27,10 @@ describe("remotion renderer package lockfile", () => {
     const drifted = Object.entries(declared)
       .filter(([, spec]) => EXACT_PIN.test(spec))
       .filter(([name, spec]) => lock.packages?.[`node_modules/${name}`]?.version !== spec)
-      .map(([name, spec]) => `${name}: package.json ${spec} vs lock ${lock.packages?.[`node_modules/${name}`]?.version ?? "(missing)"}`);
+      .map(
+        ([name, spec]) =>
+          `${name}: package.json ${spec} vs lock ${lock.packages?.[`node_modules/${name}`]?.version ?? "(missing)"}`,
+      );
 
     expect(drifted).toEqual([]);
   });

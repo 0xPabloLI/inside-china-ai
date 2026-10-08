@@ -34,7 +34,9 @@ describe("parseUserDataDir", () => {
   });
 
   it("没有该 flag 时返回 null（用户日常 Chrome 的情况）", () => {
-    expect(parseUserDataDir("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")).toBeNull();
+    expect(
+      parseUserDataDir("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+    ).toBeNull();
   });
 
   it("非字符串输入返回 null", () => {
@@ -49,9 +51,9 @@ describe("automationProfileDir / automationPort", () => {
   });
 
   it("CDP_AUTOMATION_PROFILE 可覆盖", () => {
-    expect(
-      automationProfileDir({ CDP_AUTOMATION_PROFILE: "/tmp/other-profile" }, HOME),
-    ).toBe("/tmp/other-profile");
+    expect(automationProfileDir({ CDP_AUTOMATION_PROFILE: "/tmp/other-profile" }, HOME)).toBe(
+      "/tmp/other-profile",
+    );
   });
 
   it("默认端口 9229，env 可覆盖", () => {
@@ -64,18 +66,33 @@ describe("judgeChromeProfile", () => {
   const expected = `${HOME}/chrome-tiktok-profile`;
 
   it("ok：端口上正是自动化 profile", () => {
-    const v = judgeChromeProfile({ userDataDir: expected, listening: true, expectedDir: expected, home: HOME });
+    const v = judgeChromeProfile({
+      userDataDir: expected,
+      listening: true,
+      expectedDir: expected,
+      home: HOME,
+    });
     expect(v.status).toBe("ok");
     expect(v.fixCommand).toBeNull();
   });
 
   it("ok：尾斜杠差异不影响判定", () => {
-    const v = judgeChromeProfile({ userDataDir: `${expected}/`, listening: true, expectedDir: expected, home: HOME });
+    const v = judgeChromeProfile({
+      userDataDir: `${expected}/`,
+      listening: true,
+      expectedDir: expected,
+      home: HOME,
+    });
     expect(v.status).toBe("ok");
   });
 
   it("no-chrome：端口没监听 → 给启动命令", () => {
-    const v = judgeChromeProfile({ userDataDir: null, listening: false, expectedDir: expected, home: HOME });
+    const v = judgeChromeProfile({
+      userDataDir: null,
+      listening: false,
+      expectedDir: expected,
+      home: HOME,
+    });
     expect(v.status).toBe("no-chrome");
     expect(v.fixCommand).toContain(expected);
   });
@@ -92,7 +109,12 @@ describe("judgeChromeProfile", () => {
   });
 
   it("unknown-profile：有 Chrome 但没带 --user-data-dir", () => {
-    const v = judgeChromeProfile({ userDataDir: null, listening: true, expectedDir: expected, home: HOME });
+    const v = judgeChromeProfile({
+      userDataDir: null,
+      listening: true,
+      expectedDir: expected,
+      home: HOME,
+    });
     expect(v.status).toBe("unknown-profile");
     expect(v.actualDir).toBeNull();
   });
@@ -100,7 +122,11 @@ describe("judgeChromeProfile", () => {
 
 describe("launchCommand（唯一权威副本）", () => {
   it("包含 profile 目录与端口", () => {
-    const cmd = launchCommand({ profileDir: `${HOME}/chrome-tiktok-profile`, port: 9229, home: HOME });
+    const cmd = launchCommand({
+      profileDir: `${HOME}/chrome-tiktok-profile`,
+      port: 9229,
+      home: HOME,
+    });
     expect(cmd).toContain('--user-data-dir="/Users/someone/chrome-tiktok-profile"');
     expect(cmd).toContain("--remote-debugging-port=9229");
     expect(cmd).toContain("--no-first-run");
@@ -135,7 +161,9 @@ describe("LOGIN_SOURCES 判据（用真实抓取样本）", () => {
   });
 
   it("douyin：仍显示「登录账号」→ 未登录", () => {
-    expect(LOGIN_SOURCES.douyin.loggedIn({ text: "综合 | AI搜索 | 登录账号 | 人工智能" })).toBe(false);
+    expect(LOGIN_SOURCES.douyin.loggedIn({ text: "综合 | AI搜索 | 登录账号 | 人工智能" })).toBe(
+      false,
+    );
   });
 
   it("每个源都有登录页 / 验证 URL / 判据三件套", () => {

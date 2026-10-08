@@ -439,7 +439,9 @@ export function checkWritingForAgentsGate(stagedDiffs) {
   // chain at the moment of the edit, and per-file copies only inflate the WARN
   // count that carries the signal worth reading (doc-ref-unresolved growth).
   const listing = hits
-    .map((h) => (h.sample ? `${h.filename}（${h.kind}: "${h.sample}"）` : `${h.filename}（${h.kind}）`))
+    .map((h) =>
+      h.sample ? `${h.filename}（${h.kind}: "${h.sample}"）` : `${h.filename}（${h.kind}）`,
+    )
     .join("、");
 
   return {

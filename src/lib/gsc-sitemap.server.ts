@@ -54,5 +54,9 @@ export async function submitSitemapsToGsc() {
       warnings: status?.warnings,
     });
   }
-  return { ok: results.length === SITEMAPS.length && results.every((r) => r.ok), siteUrl: site.siteUrl, results };
+  return {
+    ok: results.length === SITEMAPS.length && results.every((r) => r.ok),
+    siteUrl: site.siteUrl,
+    results,
+  };
 }

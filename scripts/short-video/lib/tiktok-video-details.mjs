@@ -311,7 +311,12 @@ export async function fetchVideoDetails(opts = {}) {
       const { videoId, title } = videoList[i];
       if (i > 0) await sleepFn(pacingDelayMs(rand));
 
-      const text = await fetchDetailText(tabId, videoId, { renderWaitMs, evalFn, sleepFn, navigateFn });
+      const text = await fetchDetailText(tabId, videoId, {
+        renderWaitMs,
+        evalFn,
+        sleepFn,
+        navigateFn,
+      });
       if (!text) {
         failed.push({ videoId, title, reason: "eval failed" });
         continue;

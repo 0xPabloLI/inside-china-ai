@@ -64,7 +64,10 @@ function hash(s: string) {
 function defaultSeo(question: string, answer: string) {
   const q = question.replace(/[?？]*$/, "");
   const title = q.length > 58 ? `${q.slice(0, 55).trimEnd()}…?` : `${q}?`;
-  const plain = answer.replace(/\[\d+\]/g, "").replace(/\s+/g, " ").trim();
+  const plain = answer
+    .replace(/\[\d+\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
   const description = plain.length > 155 ? `${plain.slice(0, 152).trimEnd()}…` : plain;
   return { title, description };
 }
@@ -119,7 +122,9 @@ async function promote(admin: Admin, stats: Record<string, number>) {
   const candidates = [...groups.entries()]
     .filter(
       ([key, g]) =>
-        !existingKeys.has(key) && g.visitors.size >= MIN_VISITORS && isPublishableQuestion(g.question),
+        !existingKeys.has(key) &&
+        g.visitors.size >= MIN_VISITORS &&
+        isPublishableQuestion(g.question),
     )
     .sort((a, b) => b[1].visitors.size - a[1].visitors.size)
     .slice(0, MAX_NEW);
@@ -155,7 +160,9 @@ async function refresh(admin: Admin, stats: Record<string, number>) {
     (m, p) => Math.max(m, new Date(p.published_at ?? p.updated_at ?? 0).getTime()),
     0,
   );
-  const updatedBySlug = new Map((posts ?? []).map((p) => [p.slug, new Date(p.updated_at).getTime()]));
+  const updatedBySlug = new Map(
+    (posts ?? []).map((p) => [p.slug, new Date(p.updated_at).getTime()]),
+  );
 
   const stale = (answers ?? [])
     .filter((a) => {
@@ -175,13 +182,20 @@ async function refresh(admin: Admin, stats: Record<string, number>) {
     }
     await admin
       .from("ask_answers")
-      .update({ answer: result.answer, source_slugs: result.sourceSlugs, answered_at: now, updated_at: now })
+      .update({
+        answer: result.answer,
+        source_slugs: result.sourceSlugs,
+        answered_at: now,
+        updated_at: now,
+      })
       .eq("id", a.id);
     stats.refreshed++;
   }
 }
 
-async function fetchGscPages(): Promise<Map<string, { impressions: number; ctr: number; queries: string[] }>> {
+async function fetchGscPages(): Promise<
+  Map<string, { impressions: number; ctr: number; queries: string[] }>
+> {
   const out = new Map<string, { impressions: number; ctr: number; queries: string[] }>();
   const lovableKey = process.env["LOVABLE_API_KEY"];
   const gscKey = process.env["GOOGLE_SEARCH_CONSOLE_API_KEY"];
@@ -225,7 +239,11 @@ async function fetchGscPages(): Promise<Map<string, { impressions: number; ctr: 
     agg.set(page, a);
   }
   for (const [page, a] of agg)
-    out.set(page, { impressions: a.impressions, ctr: a.clicks / Math.max(a.impressions, 1), queries: a.queries });
+    out.set(page, {
+      impressions: a.impressions,
+      ctr: a.clicks / Math.max(a.impressions, 1),
+      queries: a.queries,
+    });
   return out;
 }
 
@@ -245,7 +263,9 @@ async function rewriteSeo(question: string, answer: string, queries: string[]) {
   });
   if (res.status === 402 || res.status === 403) throw new PausedError(`Gateway ${res.status}`);
   if (!res.ok) return null;
-  const body = (await res.json()) as { output?: { type: string; content?: { type: string; text?: string }[] }[] };
+  const body = (await res.json()) as {
+    output?: { type: string; content?: { type: string; text?: string }[] }[];
+  };
   const text = body.output
     ?.flatMap((o) => o.content ?? [])
     .find((c) => c.type === "output_text")?.text;
@@ -273,7 +293,9 @@ async function tuneSeo(admin: Admin, stats: Record<string, number>) {
     .map((a) => ({ a, g: pages.get(`${SITE}/ask/${a.slug}`) }))
     .filter(
       ({ a, g }) =>
-        g && g.impressions >= 50 && g.ctr < 0.02 &&
+        g &&
+        g.impressions >= 50 &&
+        g.ctr < 0.02 &&
         (!a.seo_rewritten_at || new Date(a.seo_rewritten_at).getTime() < cutoff),
     )
     .slice(0, MAX_SEO);
@@ -282,7 +304,11 @@ async function tuneSeo(admin: Admin, stats: Record<string, number>) {
     if (!seo) continue;
     await admin
       .from("ask_answers")
-      .update({ seo_title: seo.title, seo_description: seo.description, seo_rewritten_at: new Date().toISOString() })
+      .update({
+        seo_title: seo.title,
+        seo_description: seo.description,
+        seo_rewritten_at: new Date().toISOString(),
+      })
       .eq("id", a.id);
     stats.seoRewritten++;
   }

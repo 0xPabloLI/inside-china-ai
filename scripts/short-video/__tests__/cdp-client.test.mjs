@@ -437,9 +437,7 @@ describe("findCdpProxyScript", () => {
     const result = findCdpProxyScript();
 
     expect(result).toBeNull();
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining("dangling symlink"),
-    );
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("dangling symlink"));
   });
 
   it("prefers the repo-local copy when both exist (2026-09-23 divergence fix)", () => {

@@ -133,7 +133,12 @@ function migrateLegacyEntry(entry, rawPrompt, generationPrompt) {
  *   the scene already had media (winner becomes media.backdrop), or null
  *   when a backdrop already exists (idempotent — never overwritten).
  */
-function assignWinner(scene, winnerFile, isImage = false, videoSource = "AI-generated (FastVideo FastMetal-5B-QAD)") {
+function assignWinner(
+  scene,
+  winnerFile,
+  isImage = false,
+  videoSource = "AI-generated (FastVideo FastMetal-5B-QAD)",
+) {
   // #155: image winners land with type "image" and no volume (a still has
   // nothing to attenuate). Like the video clips, the output is a generated
   // file that must never reach Real-ESRGAN: 480×832 (1.3B) and 704×1280 (5B,
@@ -444,7 +449,9 @@ export async function runBrollStage(opts) {
         ...failedCandidates,
       ];
 
-      const landedOn = winner ? assignWinner(scene, basename(winner.file), isImage, videoSource) : null;
+      const landedOn = winner
+        ? assignWinner(scene, basename(winner.file), isImage, videoSource)
+        : null;
       report.scenes[sceneId] = {
         strategy: scene.mediaStrategy,
         promptHash: promptHash(generationPrompt),
@@ -457,7 +464,9 @@ export async function runBrollStage(opts) {
         candidates,
         // Persist the winner's provenance so cache reuse under a different
         // tier can re-label the scene accurately (see the reuse path above).
-        winner: winner ? { seed: winner.seed, file: basename(winner.file), source: videoSource } : null,
+        winner: winner
+          ? { seed: winner.seed, file: basename(winner.file), source: videoSource }
+          : null,
         // null (idempotent re-run over an existing backdrop) preserves the
         // previous report's landing record.
         landedOn: landedOn ?? prevEntry?.landedOn ?? null,

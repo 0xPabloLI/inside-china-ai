@@ -35,7 +35,6 @@ export const Route = createFileRoute("/news-sitemap.xml")({
             .order("published_at", { ascending: false })
             .limit(50);
 
-
           for (const post of data ?? []) {
             if (!post.published_at) continue;
             urls.push(

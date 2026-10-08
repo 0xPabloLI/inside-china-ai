@@ -76,7 +76,6 @@ export function HeaderNav({ pathname, isAdmin, onArticlesClick }: HeaderNavProps
         </Link>
       </SheetClose>
 
-
       {isAdmin ? (
         <SheetClose asChild>
           <Link to="/admin" className={staticLinkClass(pathname.startsWith("/admin"))}>
