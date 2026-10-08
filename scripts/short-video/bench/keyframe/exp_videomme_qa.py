@@ -66,6 +66,13 @@ OMNI_UNITS = os.environ.get("VM_OMNI_UNITS") == "1"   # 官方规格：帧+逐�
 ASR_MODE = os.environ.get("VM_ASR_MODE", "block")     # block(默认) | ts | full | after
 VM_ENGINE = os.environ.get("VM_ENGINE", "").strip()   # 引擎覆盖（如 qwen3-vl-moe）
 NATIVE_VIDEO = os.environ.get("VM_NATIVE_VIDEO") == "1"   # 原生视频输入（qwen 引擎），跳过选帧
+# 视觉像素预算覆盖。默认 0 = 用模型自带值；给值则把 Qwen3-VL/Omni 的 max_pixels
+# 改到这个数，用于 2×2 因子对照（同一模型在两个预算下、两个模型在同一预算下）。
+VM_MAX_PIXELS = int(os.environ.get("VM_MAX_PIXELS", "0"))
+# 生成长度。8 是 QA 臂的最小值（只输出一个选项字母）；Thinking 臂必须放大，
+# 否则推理链没走完就被截断，分数反映的是截断而不是能力。
+MAX_TOKENS = int(os.environ.get("VM_MAX_TOKENS", "8"))
+THINK_STRIP = os.environ.get("VM_THINK_STRIP") == "1"   # 打分前剥掉  thinking 块
 if AUDIO and ASR_TEXT:
     # The row suffix can only label one feeding mode, but the prompt would
     # carry both — rows would merge into the results under the wrong name.
@@ -109,6 +116,48 @@ def parse_strict(raw):
     s = raw.strip().upper()
     m = re.match(r"^\s*\[?([ABCD])\]?[\s.:!]*$", s)
     return m.group(1) if m else "?"
+
+
+def strip_thinking(raw):
+    """Drop the reasoning block so the scorer sees only the answer.
+
+    A Thinking model emits its chain-of-thought before answering, and
+    ``parse_lenient`` scans for the first A-D character anywhere — which would
+    happily match a letter inside the reasoning. Cut at the LAST closing tag so
+    a model that re-enters reasoning after answering still scores on its final
+    answer. No closing tag means no reasoning block, so the text passes through
+    untouched (Instruct arms are unaffected by this path)."""
+    s = raw
+    for close in ("</think" + ">", "</thinking>", "<|/think|>"):
+        i = s.rfind(close)
+        if i != -1:
+            return s[i + len(close):]
+    return s
+
+
+# A capital A-D that is not glued to other letters: 'C' in "The answer is C"
+# matches, the 'a' inside "answer" does not.
+_THINK_LETTER = re.compile(r"(?<![A-Za-z])([ABCD])(?![A-Za-z])")
+
+
+def parse_thinking(raw):
+    """Scorer for reasoning arms; returns (letter, tier).
+
+    The lenient scorer is unusable here: it takes the first A-D character
+    anywhere, and the word "answer" contains an "A", so "The answer is C"
+    scored as "A". Historical arms keep lenient — their numbers are already on
+    disk and the scorer must not move under them — while reasoning arms are new
+    and get the parser that actually reads the answer. The tier is recorded so
+    a run that leans on the loose path is visible rather than silent.
+    """
+    s = strip_thinking(raw)
+    strict = parse_strict(s)
+    if strict != "?":
+        return strict, "strict"
+    m = _THINK_LETTER.search(s)
+    if m:
+        return m.group(1), "loose"
+    return "?", "none"
 
 
 def transcript_text(vid, mode):
@@ -260,6 +309,22 @@ def main():
         agg["correct"] += int(r["correct"])
 
     model, processor = vlm.load_model(vlm.MODEL_ID)
+    if VM_MAX_PIXELS:
+        # 同一调用里视频走 video_processor、图片走 image_processor，只改一个会让
+        # 两条路径用不同预算；一个都改不动就响亮退出，不静默用回模型自带值。
+        changed = []
+        for name in ("processor", "video_processor", "image_processor"):
+            obj = processor if name == "processor" else getattr(processor, name, None)
+            if obj is None or not hasattr(obj, "max_pixels"):
+                continue
+            before = obj.max_pixels
+            obj.max_pixels = VM_MAX_PIXELS
+            changed.append(f"{name}:{before}->{obj.max_pixels}")
+        if not changed:
+            raise SystemExit(
+                f"VM_MAX_PIXELS={VM_MAX_PIXELS} 但没有任何 processor 暴露 "
+                "max_pixels；拒绝静默按默认预算跑")
+        print(f"[max_pixels] {'; '.join(changed)}", flush=True)
     try:
         vlm._warmup(model, processor, vlm.DEFAULT_ENGINE)
     except Exception as e:
@@ -351,25 +416,37 @@ def main():
                     if NATIVE_VIDEO:
                         raw = vlm.generate_response(
                             model, processor, engine=vlm.DEFAULT_ENGINE,
-                            video_path=video, prompt_text=prompt, max_tokens=8)
+                            video_path=video, prompt_text=prompt,
+                            max_tokens=MAX_TOKENS)
                     else:
                         raw = vlm.generate_response(
                             model, processor, engine=vlm.DEFAULT_ENGINE,
-                            image_paths=frames, prompt_text=prompt, max_tokens=8,
+                            image_paths=frames, prompt_text=prompt,
+                            max_tokens=MAX_TOKENS,
                             **({"audio_path": audio_path} if audio_path else {}))
                     secs = round(time.time() - t0, 1)
-                    pred = parse_lenient(raw)
+                    if THINK_STRIP:
+                        pred, pred_tier = parse_thinking(raw)
+                        scored_text = strip_thinking(raw)
+                    else:
+                        pred, pred_tier, scored_text = parse_lenient(raw), "", raw
                 except Exception as e:
-                    pred, raw = f"ERR:{str(e)[:40]}", ""
-                    secs = None
+                    pred, raw, scored_text = f"ERR:{str(e)[:40]}", "", ""
+                    pred_tier, secs = "", None
                 correct = pred == q["answer"]
                 results[m]["total"] += 1
                 results[m]["correct"] += int(correct)
-                details.append({"videoID": vid, "question_id": q["question_id"],
-                                "method": m, "pred": pred, "answer": q["answer"],
-                                "correct": correct, "raw": raw[:80],
-                                "secs": secs,
-                                "pred_strict": parse_strict(raw)})
+                row = {"videoID": vid, "question_id": q["question_id"],
+                       "method": m, "pred": pred, "answer": q["answer"],
+                       "correct": correct, "raw": raw[:80], "raw_len": len(raw),
+                       "secs": secs,
+                       "pred_strict": parse_strict(scored_text)}
+                if THINK_STRIP:
+                    # raw[:80] is the head of the reasoning chain, so without the
+                    # tail that was actually scored the parse is unauditable.
+                    row["scored"] = scored_text[:80]
+                    row["pred_tier"] = pred_tier
+                details.append(row)
         try:
             import mlx.core as mx
             mx.metal.clear_cache()   # 防跨视频碎片累积（feed 跑 OOM 的教训）
