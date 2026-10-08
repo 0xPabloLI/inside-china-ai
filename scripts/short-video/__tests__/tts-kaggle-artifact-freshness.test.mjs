@@ -542,7 +542,14 @@ describe("#420 — assertCompleteKernelWav", () => {
     const noData = wavBytes("x");
     noData.write("junk", 36, "ascii"); // rename the data chunk id
     writeFileSync(noDataPath, noData);
-    expect(() => assertCompleteKernelWav(noDataPath, 6)).toThrow(/no data chunk/);
+    expect(() => assertCompleteKernelWav(noDataPath, 6)).toThrow(/no non-empty data chunk/);
+
+    // A declared-but-empty data chunk is a silent take, not a promotable one.
+    const zeroDataPath = join(dir, "scene-7.wav");
+    const zeroData = wavBytes("x");
+    zeroData.writeUInt32LE(0, 40);
+    writeFileSync(zeroDataPath, zeroData);
+    expect(() => assertCompleteKernelWav(zeroDataPath, 7)).toThrow(/no non-empty data chunk/);
   });
 });
 

@@ -76,6 +76,30 @@ export function writeWavPcm(path, samples, sampleRate) {
 }
 
 /**
+ * Walk RIFF chunks starting at offset 12, calling `visit(id, size, offset)`
+ * for every chunk whose header AND payload fit inside `buf`. Single source for
+ * the chunk walk shared by this module's reader and the Kaggle artifact gate
+ * (#420).
+ *
+ * @param {Buffer} buf
+ * @param {(id: string, size: number, offset: number) => void} visit
+ * @returns {{id: string, size: number, offset: number}|null} the first chunk
+ *   whose declared payload overruns `buf` (truncated file), or null when the
+ *   walk completed
+ */
+export function walkRiffChunks(buf, visit) {
+  let offset = 12;
+  while (offset + 8 <= buf.length) {
+    const id = buf.toString("ascii", offset, offset + 4);
+    const size = buf.readUInt32LE(offset + 4);
+    if (offset + 8 + size > buf.length) return { id, size, offset };
+    visit(id, size, offset);
+    offset += 8 + size + (size % 2); // chunks are padded to even sizes
+  }
+  return null;
+}
+
+/**
  * Read a mono 16-bit PCM WAV file.
  *
  * @param {string} path
@@ -87,14 +111,10 @@ export function readWavPcm(path) {
 
   let fmt = null;
   let data = null;
-  let offset = 12;
-  while (offset + 8 <= buf.length) {
-    const id = buf.toString("ascii", offset, offset + 4);
-    const size = buf.readUInt32LE(offset + 4);
+  walkRiffChunks(buf, (id, size, offset) => {
     if (id === "fmt ") fmt = { offset: offset + 8, size };
     else if (id === "data") data = { offset: offset + 8, size };
-    offset += 8 + size + (size % 2); // chunks are padded to even sizes
-  }
+  });
 
   if (!fmt || !data) {
     throw new Error(`WAV is missing fmt/data chunks: ${path}`);

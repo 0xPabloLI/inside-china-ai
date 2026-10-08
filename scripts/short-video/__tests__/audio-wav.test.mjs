@@ -5,9 +5,29 @@ import { join } from "path";
 import {
   assertRiffWaveHeader,
   buildWavBuffer,
+  walkRiffChunks,
   writeWavPcm,
   readWavPcm,
 } from "../lib/audio/wav.mjs";
+
+describe("walkRiffChunks (#420 shared chunk walk)", () => {
+  it("visits every well-formed chunk and returns null", () => {
+    const buf = buildWavBuffer(new Float32Array([0, 0.5]), 8000);
+    const seen = [];
+    expect(walkRiffChunks(buf, (id, size) => seen.push([id, size]))).toBeNull();
+    expect(seen).toEqual([
+      ["fmt ", 16],
+      ["data", 4],
+    ]);
+  });
+
+  it("returns the overrunning chunk when the payload is truncated", () => {
+    const full = buildWavBuffer(new Float32Array([0, 0.5, -0.5]), 8000);
+    const truncated = full.subarray(0, full.length - 3);
+    const overrun = walkRiffChunks(truncated, () => {});
+    expect(overrun).toMatchObject({ id: "data", size: 6 });
+  });
+});
 
 describe("assertRiffWaveHeader (#420 shared invariant)", () => {
   it("accepts a well-formed wav buffer", () => {
