@@ -1856,9 +1856,12 @@ from_pretrained` 裸调会因缺 torchvision 失败（Qwen2VLVideoProcessor 回�
   *臂 2（回答 Q37 悬置问题）*：Omni `max_pixels` = VL 水平，medium 28v/84q。
   读法：bump 后 ≈ Qwen VL 71.1 → Omni 弱在压缩；仍 ≈ 61.6 → 弱在训练。
 
-  *规模修正*：short 档现为 **100 视频 / 300 题**（此前「92/276」是 8 个视频缺盘时的口径，
-  已补下载）。已核验 276 为 300 的真子集（`missing_from_new=0`），配对分析取交集即可，
-  另多出 24 题。
+  *规模口径*：`bench_subset_100.csv` 名义上有 **100 个视频 ID / 300 题**，但其中
+  8 个视频文件**仍不在盘上**（`0IdYJGBmguM` `44ivpEIcBhE` `54YD3Gv-3MI`
+  `5_fXicEnKKk` `6EIrArTyLVU` `8e05W-wi38g` `913JhnW28U4` `HwnB8aCn8yE`），
+  故实际跑 **92 视频 / 276 题**——与历史各臂口径**完全一致**，配对无需取交集。
+  （2026-10-08 我先按「8 个视频已补下载」记成 100/300，是错的：那次核验只比对了
+  parquet 里的题目集合，没有检查视频文件是否存在。已更正。）
 
 ---
 
