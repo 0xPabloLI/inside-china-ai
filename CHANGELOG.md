@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.11.8](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.7...tanstack_start_ts-v1.11.8) (2026-10-08)
+
+
+### Bug Fixes
+
+* **deps:** restore emnapi optional entries pruned from the lockfile ([dce274f](https://github.com/0xPabloLI/inside-china-ai/commit/dce274fc70bd939bc5cfb8d9ed8d4d0269744121))
+* **deps:** update minor and patch updates ([#505](https://github.com/0xPabloLI/inside-china-ai/issues/505)) ([d7c8601](https://github.com/0xPabloLI/inside-china-ai/commit/d7c8601b54cdc283eeaa8e7a28e77ec06e5be7dc))
+* **deps:** update minor and patch updates to v4.0.532 ([#507](https://github.com/0xPabloLI/inside-china-ai/issues/507)) ([865875f](https://github.com/0xPabloLI/inside-china-ai/commit/865875f685d0172c548e836b46024d639c2ec4e5))
+* **sources:** run the login gate before the anti-bot vocabulary ([#346](https://github.com/0xPabloLI/inside-china-ai/issues/346)) ([5cbc327](https://github.com/0xPabloLI/inside-china-ai/commit/5cbc327f177c0e1e5ebf10ab6adedc6ba4501271))
+* **sources:** run the login gate before the anti-bot vocabulary ([#346](https://github.com/0xPabloLI/inside-china-ai/issues/346)) ([939d53a](https://github.com/0xPabloLI/inside-china-ai/commit/939d53aa0e8047848cfde2379b217cdbc0154dcc))
+* **ui:** resolve the five react-hooks v7 compiler violations for real ([14cb997](https://github.com/0xPabloLI/inside-china-ai/commit/14cb9976d67409949d3a79bad251adecd8c2fdf4))
+* **ui:** resolve the five react-hooks v7 compiler violations for real ([e6c15d4](https://github.com/0xPabloLI/inside-china-ai/commit/e6c15d4016659bdd739ecfc9de6154ffd4b6173f))
+
 ## [1.11.7](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.6...tanstack_start_ts-v1.11.7) (2026-10-06)
 
 
