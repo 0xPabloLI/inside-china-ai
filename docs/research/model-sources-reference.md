@@ -110,6 +110,44 @@ https://modelscope.cn/api/v1/models?PageSize=20&PageNumber=1&Query={关键词}
 
 > **注**：ModelScope API 需登录 token，搜索结果可能因账户权限不同。最后验证：2026-08-09。
 
+#### 1.3.1 下载路由：mlx-community 模型走 ModelScope 比走 HF 代理快一个量级（2026-10-08 实测）
+
+**触发场景**：本机要拉 `mlx-community/*` 权重时，先试 ModelScope 镜像，不要默认走 HF 代理。
+
+**实测数据**（拉 `mlx-community/Qwen3-VL-30B-A3B-Thinking-4bit`，18.27 GB）：
+
+| 路由 | 速度 | 18 GB 预计 |
+|---|---|---|
+| HF 直连 | **不通**（15s 超时，http 000） | — |
+| HF 经系统代理 `127.0.0.1:7890` | **283 KB/s** | ~15 h |
+| ModelScope 直连单流 | **2.89 MB/s** | ~1.8 h |
+| ModelScope + aria2c（4 文件并发 ×8 连接） | **~6.7 MB/s** | ~45 min |
+
+**关键事实**：代理本身有 ~283 KB/s 的带宽上限——用 Cloudflare 测速端点经同一代理验证过，不是 HF 侧限速。所以「HF 慢」在本机是代理问题，换路由比调参有用。
+
+**`mlx-community` 在 ModelScope 有镜像**，路径与 HF 同名：
+`https://modelscope.cn/models/{org}/{name}`。查询文件清单用
+`https://modelscope.cn/api/v1/models/{org}/{name}/repo/files?Revision=master&Recursive=true`
+（**无需 token**，与 §1.3 正文那条需要 token 的搜索 API 不同）。
+
+**aria2c 用法**（多连接，实测比单流快 ~2.3×）：
+
+```bash
+# 输入文件每行一个 URL，紧跟一行缩进的 dir=
+# ⚠️ dir= 是**目录**不是文件路径：写成 dir=目标文件全路径会把每个文件
+#    放进同名子目录（.../chat_template.jinja/chat_template.jinja）。
+#    所有文件同目录时，只写目录名、让 aria2c 用 URL basename 即可。
+aria2c -i urls.txt -d /target/parent -x 8 -s 8 -k 8M -c \
+       --file-allocation=none --console-log-level=warn --summary-interval=30
+```
+
+**校验坑**：aria2c 会让 `st_size` 提前显示为目标大小（稀疏预分配），`ls -la`
+看着「已下满」其实没有。**用 `du -sh` 看真实块数**，或按
+`st_blocks * 512` 与 `st_size` 比对判断是否下完。
+
+**另注**：HF 的 Xet 传输后端不遵守 `HTTPS_PROXY` 环境变量（表现为进程活着但字节数
+不动）。要经代理拉 HF，需 `HF_HUB_DISABLE_XET=1` 回落到经典 HTTP 路径。
+
 ### 1.4 Gitee（中国版 GitHub）
 
 中国开发者经常在这里发布项目，特别是中文数字人项目。
