@@ -298,7 +298,7 @@ ffmpeg -y -i input.m4a -ar 24000 -ac 1 -c:a pcm_s16le \
 
 **Subtitle alignment**: Uses `text-align.py` (wav2vec2 forced alignment) — NOT Whisper recognition. We already know the text (from scene-data.mjs), so we align known text to known audio directly. Output: `output/{pipelineId}/audio/subtitle-timing.json`.
 
-### ASR 调用规范（模型档位 / 跨段上下文 / 幻觉护栏）
+### ASR 调用规范（运行时裁决 / 模型档位 / 跨段上下文 / 幻觉护栏 / 计时与内存）
 
 适用范围：`video-understand.mjs`（视频理解转写）与 `tts/quality-gate.mjs`（回读质检）——
 两者都走 whisper.cpp，模型 `~/.cache/whisper/ggml-large-v3-turbo.bin`（ADR-0020 的
@@ -335,34 +335,68 @@ whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo.bin -f audio.wav -l en \
 「相似度异常高但词数暴增」，先算重复 n-gram 再怀疑文本本身。
 
 **⑤ 运行时裁决（2026-10-09, #418）**：**生产转写唯一运行时 = whisper.cpp**（本节调用口径，
-ADR-0020 §2 首选）；MLX 只存在于 bench 实验轴（`bench/keyframe/asr_batch.py`），**不接生产**
+ADR-0020 §2 首选）；MLX 只存在于 bench 实验轴（`bench/keyframe/`：`asr_batch.py` 批量转写、
+`asr_timing_matrix.py` 计时/内存四格、`asr_equivalence.py` 词级差异率），**不接生产**
 （登记于 `docs/research/model-sources-reference.md` §ASR 速查）。三条历史路径的处置：
 
 | 路径 | 处置 |
 |---|---|
 | whisper.cpp（`video-understand.mjs` → 质检回读 + `understandVideo`） | 生产唯一转写运行时；Step 0.3 自检门禁（见 Pipeline Execution） |
-| WhisperX/faster-whisper（`asr-analyzer.mjs` 窗口化网关，#98 契约） | **无生产消费者**，保持 dormant；损坏的模型缓存已删（2026-10-09 用户批准），缺失现在报 `model_load_failed`，不再是 `Invalid string length`。接消费者时先裁决「修/重下模型」还是「改走 whisper.cpp」 |
+| WhisperX/faster-whisper（`asr-analyzer.mjs` 窗口化网关，#98 契约） | **无生产转写消费者**：`main.mjs` 只 import `closeAsrAnalyzer` 做收尾，`transcribeAudioWindow` 无测试外调用者 —— 故保持 dormant。损坏的模型缓存已删（2026-10-09 用户批准）；缺失现在报 `model_load_failed`，不再是 `Invalid string length`（实测：`HF_HUB_OFFLINE=1 ~/.video-tts-env/bin/python3 scripts/short-video/lib/asr_worker.py` 对缺失 snapshot 返回 `model_load_failed: Cannot find an appropriate cached snapshot folder ...`）。接消费者时先裁决「修/重下模型」还是「改走 whisper.cpp」 |
 | wav2vec2（`text-align.py`） | 强制对齐，不是 ASR——不动 |
 
-**⑥ 计时与内存四格（2026-10-09 空机实测）**：4 视频（音频均值 78s）、ctx-off、每格 2 次；
-原始数据 `.scratch/keyframe-bench/asr_timing_matrix.json`（含机器负载快照与 `metal_used`）。
+**⑥ 计时与内存四格（2026-10-09 空机实测）**：4 视频（音频均值 78s）、ctx-off、每格 2 次。
+原始数据 `.scratch/keyframe-bench/asr_timing_matrix.json`——**下表每个数字都是该文件
+`summary.cells` 里的键**（口径定义在同档 `summary.definitions`，逐次记录在 `results`），
+机器负载快照与 `metal_evidence` 一并留存。同配置的前一次 run
+（`asr_timing_matrix.run1-1940.json`）与下表各格相差 ≤6%，内存与 Metal 峰值逐格相同。
 
-| 引擎/档位 | 每次调用（新进程，含加载） | 常驻调用（warm） | 峰值内存 |
-|---|---|---|---|
-| whisper.cpp `turbo`（生产默认） | **4.92s**（中位 4.21、最快 3.70） | 不适用（每次新进程） | RSS **1.95GB** |
-| whisper.cpp `large-v3` | 13.43s（中位 8.97、最快 6.34；音乐段 29.4s） | 不适用 | RSS **4.10GB** |
-| MLX `turbo` | 5.88s（含解释器；剔除首跑 ≈4.4） | **2.95s** | Metal 峰值 2.53GB（RSS 1.81GB） |
-| MLX `large-v3` | 8.73s | **6.33s** | Metal 峰值 4.00GB（RSS 3.58GB） |
+| 引擎/档位 | 新进程墙钟（均值 / 最快） | 进程内首次（含加载） | 常驻（warm） | 峰值内存 |
+|---|---|---|---|---|
+| whisper.cpp `turbo`（生产默认） | **5.13s** / 3.60s | 不适用（每次新进程） | 不适用 | RSS **1.95GB** |
+| whisper.cpp `large-v3` | 13.19s / 6.18s（音乐段单次 28.6s） | 不适用 | 不适用 | RSS **4.11GB** |
+| MLX `turbo` | 8.33s / 6.70s（含解释器启动） | 3.27s | **2.87s** | RSS 1.82GB · Metal 峰值 2.52GB |
+| MLX `large-v3` | 14.68s / 9.58s（含解释器启动） | 7.09s | **6.11s** | RSS 3.59GB · Metal 峰值 3.99GB |
 
-读法：**MLX 的优势只在「模型常驻」**——每次新进程时 turbo 档 5.88s 反而慢于 cpp 4.92s；
-换常驻要新增 NDJSON worker + venv 依赖，省下的是每 scene 秒级（TTS 主导墙钟），故**不切换**。
-内存两边同量级（≈2GB turbo / ≈3.6-4.1GB large-v3；口径不同：cpp 为进程 RSS 含 mmap 权重，
-MLX 为 Metal 峰值）。同模型不同运行时的输出**不可混用**（chars 对照：`-qTAeVGl_e8` cpp 326
-vs MLX 411）。
+**读法（三列口径不同，不可混着比）**：
+- 生产今天的形态 = **新进程墙钟**：MLX turbo 8.33s vs cpp turbo 5.13s，**MLX 更慢**——差的是
+  Python 解释器启动；模型加载两边都要付（MLX 进程内首次 3.27s 已含加载）。
+- MLX 的 **常驻 2.87s** 才是它的优势，兑现条件是常驻（新增 NDJSON worker + venv 依赖），
+  每次省约 2.3s，而 TTS 才是墙钟主导 → 收益不抵新增的运行时复杂度，**故不切换**。
+- 内存同量级：turbo ≈2GB、large-v3 ≈3.6-4.1GB。口径不同：cpp 是进程 RSS（含 mmap 权重），
+  MLX 是 `mx.metal.get_peak_memory()` 的 Metal 峰值。
+- 内存读数用**运行期轮询子进程 RSS**（`ps -o rss=` @0.15s）：`/usr/bin/time -l` 对同一份 MLX
+  运行给出过 351MB vs 1707MB 的矛盾读数，已弃用。轮询分辨率 0.15s，短任务峰值可能低估，
+  但四格同口径、横向可比。
 
 **⑦ backend 事实（纠正）**：生产命令**不带 `--no-gpu`** → whisper.cpp 默认走 Metal
-（`-t 8` 只控制 CPU 线程数，不等于禁用 GPU）；矩阵 8/8 次 `metal_used=true`。
-「cpp 走 CPU 不抢 GPU」的说法不成立——两个运行时都占 GPU，差别只在 cpp 的占用随进程结束。
+（`-t 8` 只控制 CPU 线程数，不等于禁用 GPU）。矩阵里 cpp **16/16 次**调用都打出
+`ggml_metal_device_init`（`metal_used` 由 stderr 取证，不是推断），MLX 侧 **8/8** 由子进程
+回报 `Device(gpu, 0)`。「cpp 走 CPU 不抢 GPU」的说法不成立——两个运行时都占 GPU，差别只在
+cpp 的占用随进程结束。
+
+**⑧ 等价性：同模型 ≠ 同输出（2026-10-09 复测，ctx-off 生产口径）**。此前那份等价性数字
+（2026-09-29，sim 0.55-0.76）是**默认上下文**下测的，量的是重复幻觉而不是运行时差异；
+2026-10-09 的结论是「ctx-off 必要但不充分」，所以按生产口径重测：两边都关跨段上下文、
+同一批音频、同权重（turbo）。原始数据 `.scratch/keyframe-bench/asr_equiv_ctxoff.json`
+（含两侧全文，可人工复核差异是同义改写还是漏内容）：
+
+| 素材 | 词序列相似度 | 词级差异率 | 每百词改动 | 最大重复 n-gram（cpp / MLX） |
+|---|---|---|---|---|
+| `-O6mJ0VBTc4`（英语讲述） | 1.0000 | **0%** | 0.0 | 2 / 2 |
+| `-ApL8d6tX5U` | 0.9121 | **8.8%** | 13.7 | 2 / 2 |
+| `026dzf-vc5g` | 0.8372 | **16.3%** | 22.2 | 9 / 7 |
+| `-qTAeVGl_e8`（音乐/歌唱） | 0.4741 | **52.6%** | 76.7 | 4 / 6 |
+| **均值** | 0.8059 | **19.4%** | — | — |
+
+结论三条：
+1. **同模型不同运行时不是逐词等价的**：纯语音段可以完全一致（0%），音乐段差到 52.6%，
+   均值 19.4%。**两侧输出不可混用**（换运行时 = 换转写结果，质检基线随之漂移）。
+2. **ctx-off 压住了大循环但没压干净**：最大重复 n-gram 仍有 9 次（cpp，`026dzf-vc5g`）——
+   与 2026-10-09 评论一致；差异集中在**循环触发点不同**的段落，这也解释了音乐段为何差最大。
+   解码层参数在两个后端都不存在，护栏只能放在解码之后（后端无关的重复护栏见 #418 评论）。
+3. 因此「换运行时」不能用「同模型、输出一样」来论证；本票的裁决（生产保持 whisper.cpp）
+   建立在**计时/内存 + 不可混用**两条证据上，而不是建立在等价性上。
 
 
 ## VLM Asset Analysis
