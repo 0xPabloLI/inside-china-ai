@@ -751,7 +751,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/Vincentwei1021/video-shotcraft`（9.7k★，Apache-2.0——仅代码；`assets/audio/ATTRIBUTION.md` 说明音频资产另带署名要求，最后 push 2026-09-27）
 - **是什么**：自包含的 Remotion 制作能力库（985 文件）：镜头配方卡 + 已验收宣传片模板（Ink Press）+ 可复用组件 + 按语义分类的音频资产 + 六阶段工作流。每张卡 = 一段可跑的 Remotion `.tsx` demo + 线上动态样片画廊
 - **内容结构**（GitHub 文件树实测）：
-  - **镜头卡 10 类词表**：demo `.tsx` 共 218 个（SKILL.md 自称 157 张卡，差异 = 多 demo 对一卡），分 10 类：`ui-entrance 35 / typography 32 / transition 30 / effects 29 / rhythm 20 / interaction 19 / data 18 / camera 17 / opening 10 / outro 8` —— 这 10 个类名本身是一份现成的视觉语法分类学
+  - **镜头卡 10 类词表**：demo `.tsx` 共 218 个（SKILL.md 自称 157 张卡，差异 = 多 demo 对一卡，映射未逐张核对，见 R2.1），分 10 类：`ui-entrance 35 / typography 32 / transition 30 / effects 29 / rhythm 20 / interaction 19 / data 18 / camera 17 / opening 10 / outro 8` —— 这 10 个类名本身是一份现成的视觉语法分类学
   - **组件库** `assets/lib/`：`Caption / ClipCard / DigitRoll / FlashCut / FlatPanel / PageCam / VerticalTicker` + motion/shake/camera/rand helpers
   - **音频资产**：bgm 5 首 + sfx 按 camera/counter/crowd/data/… 语义目录组织，带 ATTRIBUTION
   - **三种创作模式**（SKILL.md）：模板替换 / 自由创作 / 共同创作——第三种定义了逐确认节点（产品简报→视觉方向→镜头映射→分镜→放行制作），是一份设计好的 HITL 交互范式
