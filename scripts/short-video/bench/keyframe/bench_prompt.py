@@ -140,3 +140,45 @@ def parse_thinking(raw):
     if m:
         return m.group(1), "loose"
     return "?", "none"
+
+
+def asr_coverage(asr_dir, videos, mode="block", max_chars=DEFAULT_MAX_CHARS):
+    """返回 (有转写的视频, 覆盖率)。**转写臂开跑前的必查项。**
+
+    `transcript_text` 对缺失文件静默返回空串 —— 这是它的正确行为（多数调用点
+    只想知道「有没有文本」），但它把两种完全不同的情况变成了同一个观测量：
+    「这个视频话少」和「转写目录跑错了」。结果文件里两者长得一模一样。
+
+    2026-10-09 实测的两次代价：
+      · `exp_q39_arm3.sh` 漏设 `VM_ASR_DIR` → 回落到短档 `asr/`（medium 覆盖
+        0/56）⇒ base 2×2 表的 VL@Omni 格转写为空，整表作废（Q41⑨）
+      · `exp_text_only.py` 写死 ctx-on `asr/`，短档 8/100 视频无转写 ⇒ 24 题
+        静默退化为「只看题目」（33.3% vs 有转写的 51.4%），把该臂的模态消融
+        污染成混合口径（Q41⑪）
+    """
+    have = [v for v in videos if transcript_text(asr_dir, v, mode, max_chars)]
+    return have, len(have) / max(1, len(videos))
+
+
+def check_asr_coverage(asr_dir, videos, subset_name, label="VM_ASR_DIR",
+                       wt_root=None, mode="block",
+                       max_chars=DEFAULT_MAX_CHARS):
+    """覆盖率门禁：低于 `VM_ASR_MIN_COVERAGE`（默认 50%）直接退出。
+
+    低覆盖 = 跑错目录，不是数据稀疏 —— 故这是环境错误，不是统计警告。
+    确认要带空转写跑（例如有意做「无转写」对照），显式设
+    `VM_ASR_ALLOW_LOW_COVERAGE=1`，让这次降级在命令行里留痕。
+    """
+    have, cov = asr_coverage(asr_dir, videos, mode, max_chars)
+    where = os.path.relpath(asr_dir, wt_root) if wt_root else asr_dir
+    print(f"[asr] dir={where} coverage={len(have)}/{len(videos)} ({cov:.1%})",
+          flush=True)
+    floor = float(os.environ.get("VM_ASR_MIN_COVERAGE", "0.5"))
+    if cov < floor and os.environ.get("VM_ASR_ALLOW_LOW_COVERAGE") != "1":
+        miss = [v for v in videos if v not in set(have)][:5]
+        raise SystemExit(
+            f"转写覆盖 {cov:.1%} < VM_ASR_MIN_COVERAGE={floor:.0%}："
+            f"{label}={asr_dir} 对本子集（{subset_name}）基本没有转写。\n"
+            f"缺失样例：{miss}\n"
+            "这多半是跑错目录（短档 asr/ 对 medium 覆盖 0%）。"
+            "确认要带空转写跑，就显式设 VM_ASR_ALLOW_LOW_COVERAGE=1。")

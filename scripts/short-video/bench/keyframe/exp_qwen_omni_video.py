@@ -67,20 +67,13 @@ def transcript_text(vid):
 
 
 def check_asr_coverage(videos):
-    """asr 模式的覆盖率门禁。与 VL 臂同款逻辑（见 exp_videomme_qa.py 的注释）：
+    """asr 模式的覆盖率门禁（实现已收敛到 bench_prompt，三处臂共用同一份）。
+
     本脚本原本会 `SKIP (no transcript)` 跳过缺转写的视频，结果是一个「安静地
-    变小」的分母 —— 与 VL 臂静默用空转写同属「跑错目录无信号」。"""
-    have = [v for v in videos if transcript_text(v)]
-    cov = len(have) / max(1, len(videos))
-    print(f"[asr] dir={os.path.relpath(ASR_DIR, WT_ROOT)} coverage="
-          f"{len(have)}/{len(videos)} ({cov:.1%})", flush=True)
-    floor = float(os.environ.get("VM_ASR_MIN_COVERAGE", "0.5"))
-    if cov < floor and os.environ.get("VM_ASR_ALLOW_LOW_COVERAGE") != "1":
-        raise SystemExit(
-            f"asr 模式转写覆盖 {cov:.1%} < VM_ASR_MIN_COVERAGE={floor:.0%}："
-            f"OMNI_ASR_DIR={ASR_DIR} 对本子集（{SUBSET_NAME}）基本没有转写。\n"
-            "这多半是跑错目录（短档 asr/ 对 medium 覆盖 0%）。"
-            "确认要跑，就显式设 VM_ASR_ALLOW_LOW_COVERAGE=1。")
+    变小」的分母 —— 与 VL 臂静默用空转写同属「跑错目录无信号」。
+    """
+    bq.check_asr_coverage(ASR_DIR, videos, SUBSET_NAME, label="OMNI_ASR_DIR",
+                          wt_root=WT_ROOT)
 
 
 # 打分器与 VL 臂同款，否则「同题不同分」可能只是解析器不同。

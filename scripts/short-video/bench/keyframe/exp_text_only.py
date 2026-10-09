@@ -27,6 +27,7 @@ VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
 ASR_DIR = os.path.join(WT_ROOT, os.environ.get(
     "VM_ASR_DIR", ".scratch/keyframe-bench/asr_ctxoff"))
 sys.path.insert(0, HERE)
+import bench_prompt as bq  # noqa: E402
 # vlm_analyzer 在 scripts/short-video/lib（2026-10-05 补：缺这行曾 ModuleNotFoundError）
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..", "lib")))
 
@@ -52,6 +53,17 @@ def parse_letter(out):
     return m.group(0) if m else "?"
 
 
+def check_asr_coverage(videos):
+    """转写覆盖率门禁 —— 本臂比别的臂更离不开它。
+
+    本臂**唯一**的模态输入就是转写（零帧零音频）。缺转写时 head 为空串，
+    这一臂就静默变成「只看题目」的第四种东西，而它的用途正是给模态消融矩阵
+    补「仅文本」格。实测：短档 8/100 视频无转写（写死 ctx-on `asr/` 时期），
+    那 24 题得 33.3%，而有转写的 276 题得 51.4% —— 报告值 50.0% 是两种口径
+    的混合。差异只 +1.4pp，结论不翻，但「仅文本」这个名字当时是假的。
+    """
+    bq.check_asr_coverage(ASR_DIR, videos, SUBSET_NAME, wt_root=WT_ROOT)
+
 def main():
     import pandas as pd
     import pyarrow.parquet as pq
@@ -60,6 +72,7 @@ def main():
     df = pq.read_table(os.path.join(VM, "test.parquet")).to_pandas()
     subset = pd.read_csv(os.path.join(VM, SUBSET_NAME))
     videos = sorted(set(subset["videoID"]) & set(df["videoID"]))[:MAX_VIDEOS]
+    check_asr_coverage(videos)
     qa = df[df["videoID"].isin(videos)]
 
     out_path = os.path.join(RESULTS, OUT_NAME)
