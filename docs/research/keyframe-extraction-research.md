@@ -571,7 +571,32 @@ METEOR 含召回项，长输出天然占便宜，属指标构造，不是信息�
 
 ### 18.2 生产变更点与 S1 断言（验收 3）
 
+> **✅ 已落地（2026-10-09，`session/20261009-414-prod-window-plan-5a0bf1`）**：
+> `asset-sourcer.mjs` Phase 2.5 的四档逻辑已换成 `buildWindowPlan()`，与
+> `bench/keyframe/window_plan.py::plan_windows` **逐值对齐**（跨 17 个时长对比
+> 逐字节一致）。真实数据冒烟（25 个素材，生产 `probeMedia` 实测时长）：
+> **破 8s 盲区线 旧 12/25 → 新 0/25**，最差盲区 7.88s；30.2s 素材
+> 3 窗 24 帧 → **1 窗 31 帧**（调用数同时下降）；帧数 575 → 1457（补回旧方案
+> 饿死的覆盖）。
+>
+> **第 2 条（`DEFAULT_MAX_FRAMES` 16→32）未采纳，理由不成立**：窗口路径走
+> `extract_frames(fps=sample_fps, …)`，**只读 `sample_fps`、从不读 `max_frames`**
+> （`vlm_analyzer.py:961`）；`max_frames` 只作用于非窗口的
+> `_extract_minicpm_frames` 与 scene 路径。⇒ 预算不会被调用侧 cap 截断，
+> 抬它只会改动另一条路径。预算精确性由 `sampleFps` 单独保证
+> （`n = ceil(span × fps)` 恰好等于 `b_i`；刻意不做 2dp 取整——取整会让
+> 249s 的窗吐 33 帧）。
+>
+> 第 3 条（缓存）与第 4 条（S1 结构等价）按原判断成立：`n=1` 时仍发
+> `window`（单数）、不产生 `windows` 数组。
+
 落地清单（本票不改生产默认，以下为落地 PR 的变更点）：
+
+> ⚠️ **以下清单是落地前的状态描述**，其中引用的常量与行号**已被上面的落地改动取代**
+> （`LONG_TIER_MAX_MS` / `REDUCED_SAMPLE_FPS` / `MAX_SEGMENTS` /
+> `MAX_FRAMES_PER_SEGMENT` 已删除，Phase 2.5 现在从 `buildWindowPlan()` 起）。
+> 保留它是为了记录「为什么这样改」；要核对当前实现请读 `asset-sourcer.mjs`
+> 的 `buildWindowPlan()` 与 §18.1.1 的上限公式，不要按下面的行号去 grep。
 
 1. **`scripts/short-video/lib/asset-sourcer.mjs` Phase 2.5（`:1180-1230`）**：`DEFAULT_WINDOW_END_MS=8000`（`:1188`）/ `LONG_TIER_MAX_MS=30000`（`:1190`）/ `REDUCED_SAMPLE_FPS=0.5`（`:1191`）/ `MAX_SEGMENTS=3`（`:1192`）/ `MAX_FRAMES_PER_SEGMENT=8`（`:1193`）四档逻辑 → window plan（`n=ceil(D/248)`、边界吸附 ±min(15s, 10%·D/n)、每窗预算 `clamp(比例项, ceil(L/8)+1, min(32, floor(L/1.0)+1))`（§18.1.1 的时长上限）、单窗下限 `ceil(L/8)+1`）。窗口对象形状不变 `{startMs, endMs, sampleFps}`，`sampleFps = budget / 窗长`（≤8s 素材 1.0 → 4.0；10s 素材 1.1 而非 3.2）。
 2. **`scripts/short-video/lib/vlm_analyzer.py`**：`DEFAULT_MAX_FRAMES=16`（`:125`）抬到 32，否则每窗预算被调用侧 cap 截断；`MAX_VIDEO_SECONDS=8`（`:115`）语义不变（单窗直喂档上限）；`normalize_windows`（`:1033`）字段契约不动。

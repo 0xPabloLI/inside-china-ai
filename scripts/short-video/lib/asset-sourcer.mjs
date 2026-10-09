@@ -1082,6 +1082,49 @@ async function mapWithConcurrency(items, limit, fn) {
   return results;
 }
 
+/**
+ * #414 window plan — pure. Mirrors `bench/keyframe/window_plan.py::plan_windows`
+ * with `cuts = []` (production has no cut detector, so boundary snapping
+ * degenerates to the equal split).
+ *
+ * Returns [{ window: {startMs, endMs, sampleFps} }] in plan order, contiguous
+ * and covering [0, durationMs]. The caller emits `window` (singular) when the
+ * plan is a single entry, `windows` otherwise.
+ *
+ * Invariants (pinned by tests):
+ *   - L_i / (b_i − 1) ≤ gapFloor for every window (the ≤8 s blind-spot line);
+ *   - ceil(L_i × sampleFps) === b_i (extract_frames emits exactly the budget);
+ *   - Σ budgets never truncates coverage: the plan spans [0, dur] with no gap.
+ *
+ * @param {number} durationMs - probed duration, > 0
+ * @param {{budgetMax:number, gapFloor:number, minSpacing:number, minBudget:number, spanMaxMs:number}} cfg
+ */
+export function buildWindowPlan(durationMs, cfg) {
+  const { budgetMax, gapFloor, minSpacing, minBudget, spanMaxMs } = cfg;
+  if (!(durationMs > 0)) return [];
+  // Math.round semantics for positive values (half away from zero), matching
+  // the Python mirror's _js_round.
+  const jsRound = (x) => Math.floor(x + 0.5);
+  const n = Math.max(1, Math.ceil(durationMs / spanMaxMs - 1e-9));
+  // Equal-split edges in ms; pin the ends so the plan covers [0, dur] exactly.
+  const edgeMs = Array.from({ length: n + 1 }, (_, i) => Math.round((durationMs * i) / n));
+  edgeMs[0] = 0;
+  edgeMs[n] = durationMs;
+  return Array.from({ length: n }, (_, i) => {
+    const startMs = edgeMs[i];
+    const endMs = edgeMs[i + 1];
+    const lengthS = (endMs - startMs) / 1000;
+    const floorB = Math.max(
+      minBudget,
+      Math.min(budgetMax, Math.ceil(lengthS / gapFloor - 1e-9) + 1),
+    );
+    const capB = Math.max(floorB, Math.min(budgetMax, Math.floor(lengthS / minSpacing + 1e-9) + 1));
+    const proportional = jsRound((budgetMax * n * lengthS) / (durationMs / 1000));
+    const budget = Math.max(floorB, Math.min(capB, proportional));
+    return { budget, window: { startMs, endMs, sampleFps: budget / lengthS } };
+  });
+}
+
 export async function analyzeAssets(assets, opts = {}) {
   const { analyzeAssetSemantics, detectFocus, closeFocusDetector, getVlmModelId } =
     await import("./visual-analyzer.mjs");
@@ -1170,27 +1213,44 @@ export async function analyzeAssets(assets, opts = {}) {
     }
   }
 
-  // ── Phase 2.5: Probe video assets + compute time windows (T6, #360 tiers) ──
-  // For video assets only: call probeMedia to get duration, then compute the
-  // analysis coverage by duration tier (#360 ticket-1):
-  //   ≤8s   → single window {0, dur} at 1 fps — byte-identical to the old T6
-  //           behavior (S1: no behavior change);
-  //   8-30s → single window {0, dur} at 0.5 fps — full coverage; per the
-  //           #361 bench ~15 frames/call ≈ 1× the old single-pass cost;
-  //   >30s  → segmented: min(ceil(dur/8s), MAX_SEGMENTS) equal windows with
-  //           non-zero startMs (S3), per-window fps scaled to keep ≤8 frames
-  //           per VLM call. MAX_SEGMENTS caps CALLS, not frames — the #361
-  //           bench shows per-call overhead (~8-10s) dominates inference, so
-  //           call count is the wall-time budget knob (≤3× single pass,
-  //           spec Implementation Decision 1).
+  // ── Phase 2.5: Probe video assets + compute time windows (#414 window plan) ──
+  // For video assets only: call probeMedia to get duration, then build the
+  // #414 window plan (mirrors bench/keyframe/window_plan.py::plan_windows,
+  // the #391 recall-knee design that replaced the #360 duration tiers).
+  //
+  // Window count: n = ceil(D / 248) — a single VLM call can hold the 8 s
+  // blind-spot floor only while its window is ≤ (BUDGET_MAX − 1) × GAP_FLOOR
+  // = 31 × 8 s; the even in-window grid spaces points by L/(b−1), so the span
+  // cap must subtract the closing endpoint. Internal boundaries are equal
+  // splits: production has no cut detector, so the bench's cut-snapping
+  // degenerates to the equal split (the #414 geometry acceptance holds for the
+  // equal-split + budget combination either way).
+  //
+  // Per-window budget: b_i = clamp(round(BUDGET_MAX × n × L_i / D), floor_i, cap_i)
+  //   floor_i = max(MIN_BUDGET, min(BUDGET_MAX, ceil(L_i / GAP_FLOOR) + 1))
+  //     — the +1 is what makes L/(b−1) ≤ GAP_FLOOR hold when the floor binds;
+  //   cap_i   = max(floor_i, min(BUDGET_MAX, floor(L_i / MIN_SPACING) + 1))
+  //     — duration-aware cap (#18.1.1): keeps in-window cadence ≥ 1.0 s so a
+  //       short asset is not over-sampled into near-duplicate frames; the 8 s
+  //       floor wins whenever the two conflict (a denser grid beats a blind
+  //       spot). MIN_SPACING = 1.0 s is the sweep's "free" point: recall and
+  //       blind spot unchanged, redundancy back to uniform_32's level.
+  //
+  // The budget is realised as sampleFps = b_i / L_i, so the window object
+  // shape stays {startMs, endMs, sampleFps} and extract_frames emits exactly
+  // b_i frames (n = ceil(span × fps)).
+  //
+  // ≤248 s → n = 1: emits `window` (singular), not `windows` — structure
+  // preserved from the #360 single-window shape (S1).
   // probeMedia failure / missing duration → default 8s single window (S4
   // fail-open, unchanged behavior, no throw).
   const DEFAULT_WINDOW_END_MS = 8000; // matches MAX_VIDEO_SECONDS in vlm_analyzer.py
   const DEFAULT_SAMPLE_FPS = 1.0;
-  const LONG_TIER_MAX_MS = 30000;
-  const REDUCED_SAMPLE_FPS = 0.5;
-  const MAX_SEGMENTS = 3;
-  const MAX_FRAMES_PER_SEGMENT = 8;
+  const BUDGET_MAX = 32; // per-window frame budget (#391 recall knee)
+  const GAP_FLOOR = 8; // max blind spot inside a window, seconds
+  const MIN_SPACING = 1.0; // duration-aware cap: min in-window cadence, seconds
+  const MIN_BUDGET = 4;
+  const WINDOW_SPAN_MAX_MS = (BUDGET_MAX - 1) * GAP_FLOOR * 1000; // 248 s
 
   for (const asset of analyzableAssets) {
     if (asset.type !== "video") continue;
@@ -1204,25 +1264,18 @@ export async function analyzeAssets(assets, opts = {}) {
     if (durationMs > 0) {
       // #360: persist the probed duration (previously computed then discarded)
       asset.durationMs = durationMs;
-      if (durationMs <= DEFAULT_WINDOW_END_MS) {
-        // S1: single window { 0, dur, 1.0 } — identical to the old T6 shape
-        asset.window = { startMs: 0, endMs: durationMs, sampleFps: DEFAULT_SAMPLE_FPS };
-      } else if (durationMs <= LONG_TIER_MAX_MS) {
-        // S2: full-coverage single window at reduced fps
-        asset.window = { startMs: 0, endMs: durationMs, sampleFps: REDUCED_SAMPLE_FPS };
+      const plan = buildWindowPlan(durationMs, {
+        budgetMax: BUDGET_MAX,
+        gapFloor: GAP_FLOOR,
+        minSpacing: MIN_SPACING,
+        minBudget: MIN_BUDGET,
+        spanMaxMs: WINDOW_SPAN_MAX_MS,
+      });
+      if (plan.length === 1) {
+        // n = 1 — single window covering [0, dur], same shape as before
+        asset.window = plan[0].window;
       } else {
-        // S3: N equal non-zero-start windows, per-call frame cap via fps
-        const segments = Math.min(Math.ceil(durationMs / DEFAULT_WINDOW_END_MS), MAX_SEGMENTS);
-        const segmentMs = Math.ceil(durationMs / segments);
-        const sampleFps =
-          Math.round(
-            Math.min(DEFAULT_SAMPLE_FPS, MAX_FRAMES_PER_SEGMENT / (segmentMs / 1000)) * 100,
-          ) / 100;
-        asset.windows = Array.from({ length: segments }, (_, i) => ({
-          startMs: i * segmentMs,
-          endMs: Math.min((i + 1) * segmentMs, durationMs),
-          sampleFps,
-        }));
+        asset.windows = plan.map((w) => w.window);
       }
     } else {
       // probeMedia failed — use default window, sourceMode will be "degraded"

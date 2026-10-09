@@ -951,8 +951,8 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
   });
 
   it("passes computed window to analyzeAssetSemantics for video assets (Scenario #1)", async () => {
-    // probeMedia returns 10s duration → #360 8-30s tier: single full-coverage
-    // window at reduced fps (S2)
+    // probeMedia returns 10s duration → #414 single window with the
+    // duration-aware budget (11 frames at 1.0s spacing, not the pre-cap 32)
     mockProbeMedia.mockReturnValue({
       durationMs: 10000,
       fps: 30,
@@ -968,11 +968,11 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
 
     await analyzeAssets(assets);
 
-    // Window = { 0, dur, 0.5 } — full coverage (S2)
+    // Window = { 0, dur, budget/length } = { 0, 10000, 11/10 }
     expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/clip1.mp4", {
       startMs: 0,
       endMs: 10000,
-      sampleFps: 0.5,
+      sampleFps: 1.1,
     });
   });
 
@@ -1009,9 +1009,9 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
     expect(callArgs[1]).toBeUndefined();
   });
 
-  it("segments >30s videos into equal non-zero-start windows (S3)", async () => {
+  it("splits only above the 248s span cap into equal non-zero-start windows", async () => {
     mockProbeMedia.mockReturnValue({
-      durationMs: 60000,
+      durationMs: 249000,
       fps: 30,
       hasAudio: true,
       width: 1920,
@@ -1025,16 +1025,43 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
 
     await analyzeAssets(assets);
 
-    // 60s → segments = min(ceil(60000/8000)=8, 3) = 3 equal windows of 20s,
-    // fps = min(1, 8 frames / 20s) = 0.4 (per-call frame cap, call-count
-    // budget — see Phase 2.5 comment)
-    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/long.mp4", {
-      windows: [
-        { startMs: 0, endMs: 20000, sampleFps: 0.4 },
-        { startMs: 20000, endMs: 40000, sampleFps: 0.4 },
-        { startMs: 40000, endMs: 60000, sampleFps: 0.4 },
-      ],
+    // 249s → n = ceil(249/248) = 2 equal windows of 124.5s, each at the full
+    // 32-frame budget (budget/length = 32/124.5 fps). A 60s asset would stay a
+    // SINGLE window now — the old >30s tier is gone.
+    const opts = mockAnalyzeAssetSemantics.mock.calls[0][1];
+    expect(opts.windows.map((w) => [w.startMs, w.endMs])).toEqual([
+      [0, 124500],
+      [124500, 249000],
+    ]);
+    for (const w of opts.windows) expect(w.sampleFps).toBeCloseTo(32 / 124.5, 12);
+    // Non-zero startMs present on every window after the first
+    expect(opts.windows.slice(1).every((w) => w.startMs > 0)).toBe(true);
+  });
+
+  it("keeps a 60s asset a single window — the ≤248s span cap is the only splitter", async () => {
+    mockProbeMedia.mockReturnValue({
+      durationMs: 60000,
+      fps: 30,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 0,
     });
+
+    const assets = [
+      { path: "/abs/mid60.mp4", type: "video", title: "test demo", searchKeyword: "test" },
+    ];
+
+    await analyzeAssets(assets);
+
+    // 60s: n = 1 → `window` (singular), no `windows` array; 32-frame budget
+    // at 0.5333 fps. The #360 tiers would have emitted 3 windows of 20s.
+    const opts = mockAnalyzeAssetSemantics.mock.calls[0][1];
+    expect(opts.windows).toBeUndefined();
+    expect(opts.startMs).toBe(0);
+    expect(opts.endMs).toBe(60000);
+    expect(opts.sampleFps).toBeCloseTo(32 / 60, 12);
+    expect(assets[0].windows).toBeUndefined();
   });
 
   it("uses full duration for very short videos (Scenario #5)", async () => {
@@ -1053,10 +1080,12 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
 
     await analyzeAssets(assets);
 
+    // 0.5s is below the 4-frame minimum budget: b = MIN_BUDGET = 4, so
+    // sampleFps = 4 / 0.5 = 8.0 (the floor term wins over the proportional one)
     expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/short.mp4", {
       startMs: 0,
       endMs: 500,
-      sampleFps: 1.0,
+      sampleFps: 8,
     });
   });
 
@@ -1082,7 +1111,7 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
     await analyzeAssets(assets);
 
     // Asset should have window, durationMs and sourceMode stored
-    expect(assets[0].window).toEqual({ startMs: 0, endMs: 10000, sampleFps: 0.5 });
+    expect(assets[0].window).toEqual({ startMs: 0, endMs: 10000, sampleFps: 1.1 });
     expect(assets[0].durationMs).toBe(10000);
     expect(assets[0].sourceMode).toBe("frames");
   });
@@ -1117,7 +1146,7 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
 
     // The video asset should have window, durationMs and sourceMode in the artifact
     const videoAsset = artifact.assets[0];
-    expect(videoAsset.window).toEqual({ startMs: 0, endMs: 10000, sampleFps: 0.5 });
+    expect(videoAsset.window).toEqual({ startMs: 0, endMs: 10000, sampleFps: 1.1 });
     expect(videoAsset.durationMs).toBe(10000);
     expect(videoAsset.sourceMode).toBe("frames");
 
@@ -1127,9 +1156,9 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
     fs.rmdirSync(tmpDir);
   });
 
-  // ─── #360 ticket-1: duration-tier window planning (S1/S2/S3/S4/S8) ───
+  // ─── #414 window plan (replaces the #360 duration tiers) ───
 
-  it("S1: ≤8s asset keeps the byte-identical single window", async () => {
+  it("S1: ≤248s asset gets one window covering [0, dur]; no windows array", async () => {
     mockProbeMedia.mockReturnValue({
       durationMs: 8000,
       fps: 30,
@@ -1142,17 +1171,20 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
     const assets = [{ path: "/abs/short8.mp4", type: "video", searchKeyword: "test" }];
     await analyzeAssets(assets);
 
+    // Structure preserved from #360 S1 (single `window`, no `windows`), but the
+    // payload now carries the duration-aware budget: 8s → 9 frames at 1.0s
+    // spacing, so sampleFps = 9/8, not the old flat 1.0.
     expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/short8.mp4", {
       startMs: 0,
       endMs: 8000,
-      sampleFps: 1.0,
+      sampleFps: 1.125,
     });
     expect(assets[0].windows).toBeUndefined();
   });
 
-  it("S2: 8-30s asset gets a single full-coverage window at reduced fps", async () => {
+  it("S2: 10s asset is capped to 1.0s spacing — 11 frames, not the 32 budget", async () => {
     mockProbeMedia.mockReturnValue({
-      durationMs: 15000,
+      durationMs: 10000,
       fps: 30,
       hasAudio: true,
       width: 1920,
@@ -1160,20 +1192,22 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
       rotation: 0,
     });
 
-    const assets = [{ path: "/abs/mid15.mp4", type: "video", searchKeyword: "test" }];
+    const assets = [{ path: "/abs/mid10.mp4", type: "video", searchKeyword: "test" }];
     await analyzeAssets(assets);
 
-    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/mid15.mp4", {
-      startMs: 0,
-      endMs: 15000,
-      sampleFps: 0.5,
-    });
+    // The duration-aware cap (min_spacing = 1.0s) binds: floor(10/1.0)+1 = 11.
+    // Without it this asset would be over-sampled to 32 frames at 0.32s cadence
+    // — the near-duplicate pairs #414's acceptance flagged.
+    const opts = mockAnalyzeAssetSemantics.mock.calls[0][1];
+    expect(opts.startMs).toBe(0);
+    expect(opts.endMs).toBe(10000);
+    expect(opts.sampleFps).toBeCloseTo(11 / 10, 12);
     expect(assets[0].windows).toBeUndefined();
   });
 
-  it("S3: >30s asset gets N non-zero-start windows; plan persists to artifact", async () => {
+  it("S3: >248s asset gets N non-zero-start windows; plan persists to artifact", async () => {
     mockProbeMedia.mockReturnValue({
-      durationMs: 40000,
+      durationMs: 500000,
       fps: 30,
       hasAudio: true,
       width: 1920,
@@ -1185,36 +1219,73 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
     mockAnalyzeAssetSemantics.mockResolvedValue({
       ...FULL_SEMANTICS,
       description:
-        "[Segment 1/3 — 0.0s-13.3s]\nFirst part.\n\n[Segment 3/3 — 26.7s-40.0s]\nLast part.",
+        "[Segment 1/3 — 0.0s-166.7s]\nFirst part.\n\n[Segment 3/3 — 333.3s-500.0s]\nLast part.",
       subjects: ["robot", "chart"],
       contentKind: "talking_head",
       sourceMode: "frames",
     });
 
-    const tmpDir = `/tmp/test-360-s3-${Date.now()}`;
-    const assets = [{ path: "/abs/long40.mp4", type: "video", searchKeyword: "test" }];
+    const tmpDir = `/tmp/test-414-s3-${Date.now()}`;
+    const assets = [{ path: "/abs/long500.mp4", type: "video", searchKeyword: "test" }];
     await analyzeAssets(assets, { outputDir: tmpDir, contentSlug: "test" });
 
-    // 40s → segments = min(ceil(40000/8000)=5, 3) = 3; segmentMs = ceil(40000/3) = 13334;
-    // fps = min(1, 8/13.334) = 0.6
-    const expectedWindows = [
-      { startMs: 0, endMs: 13334, sampleFps: 0.6 },
-      { startMs: 13334, endMs: 26668, sampleFps: 0.6 },
-      { startMs: 26668, endMs: 40000, sampleFps: 0.6 },
-    ];
-    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/long40.mp4", {
-      windows: expectedWindows,
-    });
+    // 500s → n = ceil(500/248) = 3 equal windows, each at the full 32-frame
+    // budget. Edges are pinned so the plan covers [0, 500] exactly.
+    const opts = mockAnalyzeAssetSemantics.mock.calls[0][1];
+    expect(opts.windows.map((w) => [w.startMs, w.endMs])).toEqual([
+      [0, 166667],
+      [166667, 333333],
+      [333333, 500000],
+    ]);
     // Non-zero startMs present (S3)
     expect(assets[0].windows.slice(1).every((w) => w.startMs > 0)).toBe(true);
 
     const fs = await import("fs");
     const artifact = JSON.parse(fs.readFileSync(`${tmpDir}/test/asset-analysis.json`, "utf8"));
-    expect(artifact.assets[0].windows).toEqual(expectedWindows);
-    expect(artifact.assets[0].durationMs).toBe(40000);
+    expect(artifact.assets[0].windows.map((w) => [w.startMs, w.endMs])).toEqual([
+      [0, 166667],
+      [166667, 333333],
+      [333333, 500000],
+    ]);
+    expect(artifact.assets[0].durationMs).toBe(500000);
 
     fs.rmSync(`${tmpDir}/test`, { recursive: true, force: true });
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("S5: every planned window holds the 8s blind-spot line and its exact budget", async () => {
+    // The two invariants the #414 acceptance rests on, checked across a sweep
+    // of durations that covers each branch (min-budget floor, duration-aware
+    // cap, span cap) rather than a single fixture.
+    const { buildWindowPlan } = await import("../lib/asset-sourcer.mjs");
+    const cfg = {
+      budgetMax: 32,
+      gapFloor: 8,
+      minSpacing: 1.0,
+      minBudget: 4,
+      spanMaxMs: 248000,
+    };
+    for (const durationMs of [
+      500, 8000, 10000, 15000, 40000, 60000, 248000, 249000, 500000, 1046000,
+    ]) {
+      const plan = buildWindowPlan(durationMs, cfg);
+      expect(plan.length).toBeGreaterThan(0);
+      // Contiguous and exactly covering [0, dur]
+      expect(plan[0].window.startMs).toBe(0);
+      expect(plan[plan.length - 1].window.endMs).toBe(durationMs);
+      for (let i = 1; i < plan.length; i++) {
+        expect(plan[i].window.startMs).toBe(plan[i - 1].window.endMs);
+      }
+      for (const { budget, window } of plan) {
+        const lengthS = (window.endMs - window.startMs) / 1000;
+        // The ≤8s blind-spot line: an even grid of b points spaces by L/(b−1)
+        expect(lengthS / (budget - 1)).toBeLessThanOrEqual(8 + 1e-9);
+        expect(budget).toBeLessThanOrEqual(32);
+        expect(budget).toBeGreaterThanOrEqual(4);
+        // extract_frames emits exactly the budget from this sampleFps
+        expect(Math.max(1, Math.ceil(lengthS * window.sampleFps - 1e-9))).toBe(budget);
+      }
+    }
   });
 
   it("S4: missing durationMs falls back to the default 8s single window", async () => {
