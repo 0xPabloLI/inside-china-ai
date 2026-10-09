@@ -66,12 +66,12 @@ def _wheelhouse_problems(mount, expected, python=None, platform_tag=None):
     here, before the first pip install, so that change fails loudly in seconds
     instead of silently installing a different environment.
 
-    Names, not hashes: `torch-2.6.0+cu124-…` is served back as
+    Names plus sizes, not hashes: `torch-2.6.0+cu124-…` is served back as
     `torch-2.6.0cu124-…` (Kaggle strips the local-version separator when it
-    stores a dataset), so both sides are put into built form first. Hashing
-    would also catch a same-name rebuild, at the cost of reading all 3.7GB on
-    every run — a rebuild that keeps 114 identical names is not the drift
-    this guards against.
+    stores a dataset), so both sides are put into built form first. Sizes ride
+    along because the common rebuild keeps every filename identical while the
+    bytes change — a name-only comparison waves that through. Hashing would
+    catch the rest, at the cost of reading all 3.7GB on every run.
     """
     problems = []
     want_py = expected.get("python")
@@ -94,14 +94,31 @@ def _wheelhouse_problems(mount, expected, python=None, platform_tag=None):
     def built_form(name):
         return re.sub(r"(\d)cu(\d+)-", r"\1+cu\2-", name)
 
-    have = {built_form(n) for n in os.listdir(mount) if n.endswith(".whl")}
-    want = set(expected.get("wheels") or [])
-    for name in sorted(want - have)[:5]:
+    # name → size, in built form, so the mount can be compared against the
+    # record without caring which spelling Kaggle stored.
+    mounted = {
+        built_form(n): os.path.getsize(os.path.join(mount, n))
+        for n in os.listdir(mount)
+        if n.endswith(".whl")
+    }
+    want = expected.get("wheels") or {}
+    # Scan everything, cap only the reporting: slicing the scan itself hides
+    # any difference that sorts past the cap, so one rebuilt wheel late in the
+    # alphabet would pass unnoticed (found by the size test on 2026-10-09).
+    missing = sorted(set(want) - set(mounted))
+    extra = sorted(set(mounted) - set(want))
+    resized = sorted(n for n in set(want) & set(mounted) if mounted[n] != want[n])
+    for name in missing[:5]:
         problems.append(f"missing from the mount: {name}")
-    for name in sorted(have - want)[:5]:
+    for name in extra[:5]:
         problems.append(f"not in the frozen set: {name}")
-    if len(want - have) > 5 or len(have - want) > 5:
-        problems.append(f"…and more (mount {len(have)} wheels, frozen set {len(want)})")
+    for name in resized[:5]:
+        problems.append(
+            f"different bytes on the mount: {name} is {mounted[name]} bytes, "
+            f"the frozen set records {want[name]}"
+        )
+    if len(missing) + len(extra) + len(resized) > 5:
+        problems.append(f"…and more (mount {len(mounted)} wheels, frozen set {len(want)})")
     return problems
 # --- END wheelhouse verification ---
 

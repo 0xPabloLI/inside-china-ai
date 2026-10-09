@@ -252,25 +252,35 @@ def built_form(name):
     return re.sub(r"(\d)cu(\d+)-", r"\1+cu\2-", name)
 
 
-have = {built_form(os.path.basename(p)) for p in glob.glob(os.path.join(out, "*.whl"))}
-want = set(expected.get("wheels") or [])
+# name → size, in built form. Sizes are recorded alongside the names because
+# the common rebuild keeps every filename identical while the bytes change,
+# and the kernel's check would otherwise wave that through.
+have = {
+    built_form(os.path.basename(p)): os.path.getsize(p)
+    for p in glob.glob(os.path.join(out, "*.whl"))
+}
+want = expected.get("wheels") or {}
 if not want:
     sys.exit("FAIL: the committed manifest lists no wheels — refusing to compare against nothing")
 
-added, removed = sorted(have - want), sorted(want - have)
-if added or removed:
+added = sorted(set(have) - set(want))
+removed = sorted(set(want) - set(have))
+resized = sorted(n for n in set(have) & set(want) if have[n] != want[n])
+if added or removed or resized:
     print(f"    built {len(have)} wheels; the committed manifest lists {len(want)}")
     for name in removed:
         print(f"    NO LONGER BUILT: {name}")
     for name in added:
         print(f"    NEW: {name}")
+    for name in resized:
+        print(f"    DIFFERENT BYTES: {name} is {have[name]} bytes, the manifest records {want[name]}")
     print()
     print("    Nothing was published: a wheelhouse git does not describe is a")
     print("    dependency change no reviewer saw (#521). To accept this set, put")
     print("    the JSON below in scripts/short-video/kaggle/wheelhouse-manifest.json")
     print("    and run this build again.")
     print()
-    print(json.dumps({**expected, "wheels": sorted(have)}, indent=2, ensure_ascii=False))
+    print(json.dumps({**expected, "wheels": have}, indent=2, ensure_ascii=False))
     sys.exit("FAIL: the built set does not match the committed manifest")
 
 # Self-describing dataset: whoever opens its page sees what interpreter the
@@ -279,7 +289,7 @@ if added or removed:
 # shows torch-2.6.0cu124-… where this says torch-2.6.0+cu124-….
 doc = {
     **expected,
-    "wheels": sorted(have),
+    "wheels": have,
     "note": (
         "Written by build-wheels-dataset.sh. Kaggle strips the local-version '+' when "
         "it stores a dataset, so torch-2.6.0+cu124-…whl is served back as "

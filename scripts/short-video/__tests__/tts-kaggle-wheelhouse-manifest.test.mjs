@@ -16,7 +16,15 @@
  */
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "child_process";
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  truncateSync,
+  writeFileSync,
+} from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -44,6 +52,18 @@ function verificationSource() {
 }
 
 /**
+ * Write a file of exactly `size` bytes without allocating them.
+ *
+ * The check compares sizes, and the real torch wheel is 768MB — materializing
+ * that per case would make this suite unusable. A sparse file reports the size
+ * the check reads and costs nothing on disk.
+ */
+function writeSizedFile(path, size) {
+  writeFileSync(path, "");
+  truncateSync(path, size);
+}
+
+/**
  * Execute the kernel's check against a synthetic mount.
  *
  * `actual` defaults to the interpreter and platform the frozen set was built
@@ -52,12 +72,17 @@ function verificationSource() {
  * make every case below report an interpreter mismatch and the real
  * assertions would never be reached.
  *
+ * Files named in `mountSizes` get that size; anything else gets a size no
+ * manifest entry claims, which is what an unexpected file looks like. Pass
+ * `mountSizes` explicitly when the mount and the manifest must disagree.
+ *
  * @param {string[]} mountNames - filenames served by the mount (Kaggle's form)
  * @param {object} expected - the manifest the kernel was pushed with
  * @param {{python?: string, platform?: string}} [actual] - what this image is
+ * @param {Record<string, number>} [mountSizes] - sizes the mount serves
  * @returns {{ok: boolean, output: string}}
  */
-function runCheck(mountNames, expected, actual = {}) {
+function runCheck(mountNames, expected, actual = {}, mountSizes = expected.wheels ?? {}) {
   const dir = mkdtempSync(join(tmpdir(), "wheelhouse-mount-"));
   const manifestPath = join(dir, "expected.json");
   const mountPath = join(dir, "mount");
@@ -66,7 +91,12 @@ function runCheck(mountNames, expected, actual = {}) {
   try {
     writeFileSync(manifestPath, JSON.stringify(expected));
     execFileSync("mkdir", ["-p", mountPath]);
-    for (const name of mountNames) writeFileSync(join(mountPath, name), "not a real wheel");
+    for (const name of mountNames) {
+      // Sizes may be keyed by either spelling — the mount serves
+      // `torch-2.6.0cu124-…` while the manifest records `torch-2.6.0+cu124-…`.
+      const built = name.replace(/(\d)cu(\d+)-/, "$1+cu$2-");
+      writeSizedFile(join(mountPath, name), mountSizes[name] ?? mountSizes[built] ?? 15);
+    }
 
     const driver = [
       "import json, os, platform, re, sys",
@@ -102,7 +132,9 @@ function asServed(name) {
   return name.replace(/(\d)\+cu(\d+)-/, "$1cu$2-");
 }
 
-const FROZEN = MANIFEST.wheels;
+/** The frozen set: names in built form, each mapped to the size git records. */
+const FROZEN = Object.keys(MANIFEST.wheels).sort();
+const FROZEN_SIZES = MANIFEST.wheels;
 
 describe("the frozen manifest itself (#521)", () => {
   it("parses, is non-empty, and names the interpreter it was built for", () => {
@@ -112,6 +144,13 @@ describe("the frozen manifest itself (#521)", () => {
     expect(MANIFEST.python).toMatch(/^\d+\.\d+$/);
     expect(MANIFEST.platform).toBe("linux_x86_64");
     expect(MANIFEST.dataset).toBe("xpabloli/cosyvoice3-wheels");
+  });
+
+  it("records a positive size for every wheel", () => {
+    // A zero would make the size comparison pass for any empty file.
+    const bogus = FROZEN.filter((w) => !Number.isInteger(FROZEN_SIZES[w]) || FROZEN_SIZES[w] <= 0);
+    expect(bogus).toEqual([]);
+    expect(Object.values(FROZEN_SIZES).reduce((a, b) => a + b, 0)).toBeGreaterThan(1e9);
   });
 
   it("carries the torch trio at the versions the kernel pins", () => {
@@ -140,12 +179,28 @@ describe("the kernel rejects a mount that is not the frozen set (#521)", () => {
     expect(runCheck(served, MANIFEST).ok).toBe(true);
   });
 
+  it("rejects the same filename carrying different bytes", () => {
+    // The common rebuild keeps all 114 names and changes what is inside them —
+    // a rebuild against a slightly different index, or a re-upload of a set
+    // built from another pin. A name-only comparison waves it through.
+    //
+    // The mount serves the true sizes; the manifest claims one byte more for
+    // the victim, which is all a rebuilt wheel has to differ by to be a
+    // different artifact.
+    const victim = FROZEN.find((w) => w.startsWith("torch-"));
+    const servedSizes = Object.fromEntries(FROZEN.map((w) => [asServed(w), FROZEN_SIZES[w]]));
+    const claimed = {
+      ...MANIFEST,
+      wheels: { ...FROZEN_SIZES, [victim]: FROZEN_SIZES[victim] + 1 },
+    };
+    const { ok, output } = runCheck(FROZEN.map(asServed), claimed, {}, servedSizes);
+    expect(ok).toBe(false);
+    expect(output).toContain(`different bytes on the mount: ${victim}`);
+  });
+
   it("rejects a missing wheel and names it", () => {
     const drop = FROZEN.find((w) => w.startsWith("torch-"));
-    const { ok, output } = runCheck(
-      FROZEN.filter((w) => w !== drop).map(asServed),
-      MANIFEST,
-    );
+    const { ok, output } = runCheck(FROZEN.filter((w) => w !== drop).map(asServed), MANIFEST);
     expect(ok).toBe(false);
     expect(output).toContain(`missing from the mount: ${drop}`);
   });
@@ -293,9 +348,12 @@ describe("the expected set is injected from git, not hand-copied (#521)", () => 
  * standing between a rebuilt wheelhouse and a dataset that no longer matches
  * the record in git.
  *
+ * Files the manifest names get the size it records, so a matching case really
+ * matches; anything else gets a size no entry claims.
+ *
  * @param {string[]} wheelNames - what the build produced
  * @param {object} manifest - the committed manifest
- * @param {{omitManifest?: boolean}} [opts]
+ * @param {{omitManifest?: boolean, sizes?: Record<string, number>}} [opts]
  * @returns {{ok: boolean, output: string, written: object|null}}
  */
 function runManifestCheck(wheelNames, manifest, opts = {}) {
@@ -305,8 +363,9 @@ function runManifestCheck(wheelNames, manifest, opts = {}) {
   expect(block, "the build script must check its output against the manifest").not.toBe("");
   const py = block.split("<<'PYEOF'\n")[1].split("PYEOF", 1)[0];
   const dir = mkdtempSync(join(tmpdir(), "wheelhouse-"));
+  const sizes = opts.sizes ?? manifest.wheels ?? {};
   try {
-    for (const name of wheelNames) writeFileSync(join(dir, name), "not a real wheel");
+    for (const name of wheelNames) writeSizedFile(join(dir, name), sizes[name] ?? 15);
     const manifestPath = join(dir, "wheelhouse-manifest.json");
     if (!opts.omitManifest) writeFileSync(manifestPath, JSON.stringify(manifest));
     const written = join(dir, "manifest.json");
@@ -332,8 +391,20 @@ describe("the build refuses to publish a set git does not describe (#521)", () =
     expect(ok).toBe(true);
     // The dataset stays self-describing: a human opening its page sees what
     // interpreter the wheels are for without reading the build script.
-    expect(written.wheels).toEqual([...FROZEN].sort());
+    expect(written.wheels).toEqual(FROZEN_SIZES);
     expect(written.python).toBe(MANIFEST.python);
+  });
+
+  it("refuses to publish when the bytes changed under the same name", () => {
+    // The rebuild that keeps every filename and changes the contents is the
+    // one a name-only gate cannot see, and it is the common case: same pins,
+    // rebuilt from a different index.
+    const victim = FROZEN.find((w) => w.startsWith("torch-"));
+    const { ok, output } = runManifestCheck(FROZEN, MANIFEST, {
+      sizes: { ...FROZEN_SIZES, [victim]: FROZEN_SIZES[victim] + 1 },
+    });
+    expect(ok).toBe(false);
+    expect(output).toContain(`DIFFERENT BYTES: ${victim}`);
   });
 
   it("rejects a rebuilt set and prints the manifest to commit", () => {
@@ -370,7 +441,7 @@ describe("the build refuses to publish a set git does not describe (#521)", () =
     // to be in the same form the kernel's manifest uses, or the next run
     // reports every `+` wheel as drift.
     const { written } = runManifestCheck(FROZEN, MANIFEST);
-    expect(written.wheels.filter((w) => w.includes("+cu124-"))).toHaveLength(3);
+    expect(Object.keys(written.wheels).filter((w) => w.includes("+cu124-"))).toHaveLength(3);
   });
 });
 
@@ -393,7 +464,14 @@ function runCallSite(mountNames, expected) {
   const expectedPath = join(dir, "expected.json");
   try {
     execFileSync("mkdir", ["-p", mountPath]);
-    for (const name of mountNames) writeFileSync(join(mountPath, name), "not a real wheel");
+    const sizes = expected.wheels ?? {};
+    for (const name of mountNames) {
+      // Real sizes: the call site compares them, so a 15-byte stub would make
+      // the "accepts a good mount" case fail for the wrong reason. The lookup
+      // accepts either spelling, as the mount serves `…0cu124-…`.
+      const built = name.replace(/(\d)cu(\d+)-/, "$1+cu$2-");
+      writeSizedFile(join(mountPath, name), sizes[name] ?? sizes[built] ?? 15);
+    }
     writeFileSync(expectedPath, JSON.stringify(expected));
 
     const after = KERNEL_SRC.slice(KERNEL_SRC.indexOf(END) + END.length);
@@ -444,11 +522,15 @@ const HOST = (() => {
 const PUSH_HELPER = join(KAGGLE_DIR, "push-build-kernel.sh");
 
 /**
- * Run the delivery script with `kaggle` stubbed out, and return the folder it
- * would have pushed.
+ * Run the delivery script with `kaggle` stubbed out.
+ *
+ * The stub copies the folder it was pointed at, so the test can assert on what
+ * would have been uploaded. The carrier and its metadata are read back here
+ * and the whole temp tree is removed in `finally` — returning the folder path
+ * instead would leak one directory per case.
  *
  * @param {{withManifest?: boolean}} [opts]
- * @returns {{ok: boolean, output: string, pushed: string|null}}
+ * @returns {{ok: boolean, output: string, carrier: string|null, metadata: object|null}}
  */
 function runPushHelper(opts = {}) {
   const dir = mkdtempSync(join(tmpdir(), "push-helper-"));
@@ -458,9 +540,15 @@ function runPushHelper(opts = {}) {
   try {
     execFileSync("mkdir", ["-p", home, bin]);
     copyFileSync(PUSH_HELPER, join(home, "push-build-kernel.sh"));
-    copyFileSync(join(KAGGLE_DIR, "build-wheels-dataset.sh"), join(home, "build-wheels-dataset.sh"));
+    copyFileSync(
+      join(KAGGLE_DIR, "build-wheels-dataset.sh"),
+      join(home, "build-wheels-dataset.sh"),
+    );
     if (opts.withManifest !== false) {
-      copyFileSync(join(KAGGLE_DIR, "wheelhouse-manifest.json"), join(home, "wheelhouse-manifest.json"));
+      copyFileSync(
+        join(KAGGLE_DIR, "wheelhouse-manifest.json"),
+        join(home, "wheelhouse-manifest.json"),
+      );
     }
     const stub = join(bin, "kaggle");
     writeFileSync(
@@ -475,17 +563,30 @@ function runPushHelper(opts = {}) {
       ].join("\n"),
       { mode: 0o755 },
     );
+    let output;
     try {
-      const output = execFileSync("bash", [join(home, "push-build-kernel.sh")], {
+      output = execFileSync("bash", [join(home, "push-build-kernel.sh")], {
         encoding: "utf-8",
         env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, CAPTURE_DIR: capture },
       });
-      return { ok: true, output, pushed: capture };
     } catch (e) {
-      return { ok: false, output: `${e.stdout || ""}${e.stderr || ""}`, pushed: null };
+      return {
+        ok: false,
+        output: `${e.stdout || ""}${e.stderr || ""}`,
+        carrier: null,
+        metadata: null,
+      };
     }
+    const carrierPath = join(capture, "build.py");
+    const metadataPath = join(capture, "kernel-metadata.json");
+    return {
+      ok: true,
+      output,
+      carrier: existsSync(carrierPath) ? readFileSync(carrierPath, "utf-8") : null,
+      metadata: existsSync(metadataPath) ? JSON.parse(readFileSync(metadataPath, "utf-8")) : null,
+    };
   } finally {
-    // The captured folder is read by the caller; only the temp scaffolding goes.
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -493,10 +594,9 @@ describe("the build delivery is reproducible from the repo (#521)", () => {
   it("embeds the repo's script and manifest byte-for-byte", () => {
     // Before this, the wrapper existed only as a base64 blob in an issue
     // comment: nobody could tell which revision a run had actually built.
-    const { ok, output, pushed } = runPushHelper();
+    const { ok, output, carrier } = runPushHelper();
     expect(ok, output).toBe(true);
-    expect(pushed).toBeTruthy();
-    const carrier = readFileSync(join(pushed, "build.py"), "utf-8");
+    expect(carrier).toBeTruthy();
     const embedded = [...carrier.matchAll(/"(\/kaggle\/working\/[^"]+)": "([A-Za-z0-9+/=]+)"/g)];
     expect(embedded).toHaveLength(2);
 
@@ -510,8 +610,8 @@ describe("the build delivery is reproducible from the repo (#521)", () => {
   });
 
   it("pushes under the kernel id the TTS metadata names", () => {
-    const { pushed } = runPushHelper();
-    const metadata = JSON.parse(readFileSync(join(pushed, "kernel-metadata.json"), "utf-8"));
+    const { metadata } = runPushHelper();
+    expect(metadata).toBeTruthy();
     expect(metadata.id).toBe("xPabloLI/231-build-wheels-dataset");
     expect(metadata.kernel_type).toBe("script");
     // No GPU: this only downloads and compiles, and a GPU session would spend
