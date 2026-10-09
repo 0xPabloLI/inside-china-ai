@@ -164,10 +164,29 @@ for line in meta.splitlines():
     if "platform_system" in spec and "Linux" in spec:
         linux_deps.append(spec.split(";")[0].strip())
 
-missing = [d for d in linux_deps if not present(re.split(r"[<>=!~]", d)[0], wheels)]
+
+def requirement_name(spec):
+    """The package name at the start of a requirement spec.
+
+    setuptools writes bracketed versions into METADATA — `nvidia-cudnn-cu12
+    (==9.1.0.70)` — while PyPI's JSON reports `nvidia-cudnn-cu12==9.1.0.70`.
+    Splitting on the version operator alone leaves a trailing " (" on the first
+    form, which matches no file: every Linux dep then reads as missing even
+    though the wheelhouse is complete (2026-10-09, cost one full build).
+    """
+    m = re.match(r"([A-Za-z0-9][A-Za-z0-9._-]*)", spec)
+    if not m:
+        sys.exit(f"FAIL: cannot parse a requirement name from {spec!r}")
+    return m.group(1)
+
+
+missing = [d for d in linux_deps if not present(requirement_name(d), wheels)]
 print(f"    torch {torch_whl}: {len(linux_deps)} Linux-marker deps, {len(missing)} missing")
 for d in missing:
     print(f"    MISSING: {d}")
+    for w in sorted(wheels):
+        if requirement_name(d).lower().replace("_", "-") in w.lower().replace("_", "-"):
+            print(f"        but this file looks related: {w}")
 if missing:
     sys.exit("FAIL: wheelhouse is incomplete — do not push")
 

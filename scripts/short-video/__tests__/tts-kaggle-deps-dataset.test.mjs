@@ -91,6 +91,17 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
     }
   });
 
+  it("the completeness check parses setuptools' bracketed requirements", () => {
+    // setuptools writes `Requires-Dist: nvidia-cudnn-cu12 (==9.1.0.70)` into
+    // wheel METADATA while PyPI's JSON reports the unbracketed form. Splitting
+    // on the version operator alone leaves a trailing " (" on the bracketed
+    // form, which matches no filename — the 2026-10-09 build reported all 14
+    // Linux deps missing with the complete wheelhouse sitting right there.
+    const check = BUILD_SRC.slice(BUILD_SRC.indexOf("verifying completeness"));
+    expect(check).toContain("requirement_name");
+    expect(check).not.toContain('re.split(r"[<>=!~]", d)[0]');
+  });
+
   it("the completeness check covers the sdist-only packages by name", () => {
     // wget ships as a .zip and nothing else, so counting *.tar.gz would pass
     // on the wrong set while still missing a package the kernel installs.
