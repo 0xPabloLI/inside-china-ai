@@ -73,6 +73,11 @@ VM_MAX_PIXELS = int(os.environ.get("VM_MAX_PIXELS", "0"))
 # 否则推理链没走完就被截断，分数反映的是截断而不是能力。
 MAX_TOKENS = int(os.environ.get("VM_MAX_TOKENS", "8"))
 THINK_STRIP = os.environ.get("VM_THINK_STRIP") == "1"   # 打分前剥掉  thinking 块
+# 只跑指定的 (videoID, question_id) 子集。给的是 JSON：要么 [[vid, qid], ...]，
+# 要么 {"vid": ["qid", ...]}。用途：把「换模型/换模式能否修回已答错的题」这类问题
+# 从全量重跑压到只跑错题（本次 276→47 题，5.3h→0.9h）。
+# 只筛题不筛视频：视频仍按原顺序遍历，空题集的视频会被自然跳过。
+ONLY_QUESTIONS = os.environ.get("VM_ONLY_QUESTIONS")
 if AUDIO and ASR_TEXT:
     # The row suffix can only label one feeding mode, but the prompt would
     # carry both — rows would merge into the results under the wrong name.
@@ -288,6 +293,23 @@ def main():
     subset = pd.read_csv(os.path.join(VM, SUBSET_NAME))
     videos = sorted(set(subset["videoID"]) & set(df["videoID"]))[:MAX_VIDEOS]
     qa = df[df["videoID"].isin(videos)]
+    if ONLY_QUESTIONS:
+        with open(ONLY_QUESTIONS, encoding="utf-8") as f:
+            spec = json.load(f)
+        if isinstance(spec, dict):
+            wanted = {(v, str(q)) for v, qs in spec.items() for q in qs}
+        else:
+            wanted = {(v, str(q)) for v, q in spec}
+        before = len(qa)
+        qa = qa[[(v, str(q)) in wanted
+                 for v, q in zip(qa["videoID"], qa["question_id"])]]
+        # 空集必须报错退出：否则会「成功地」写出一个 0 题的结果文件，
+        # 后续分析只会看到一个安静的 0/0。
+        if qa.empty:
+            raise SystemExit(f"VM_ONLY_QUESTIONS 过滤后为空：{ONLY_QUESTIONS} "
+                             f"（原 {before} 题，键形如 videoID+question_id）")
+        print(f"[only-questions] {before} -> {len(qa)} 题（{ONLY_QUESTIONS}）",
+              flush=True)
     if AUDIO or ASR_TEXT:
         global METHODS
         suffix = ("_audio" if AUDIO else

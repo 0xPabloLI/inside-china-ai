@@ -52,7 +52,8 @@ WT_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
 LIB = os.path.join(WT_ROOT, "scripts", "short-video", "lib")
 RESULTS = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "results")
 VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
-ASR_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "asr")
+ASR_DIR = os.path.join(WT_ROOT, os.environ.get(
+    "LFQ_ASR_DIR", ".scratch/keyframe-bench/asr"))
 CACHE = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "loader_cache")
 
 sys.path.insert(0, HERE)
@@ -67,7 +68,14 @@ OUT = os.path.join(RESULTS, os.environ.get(
 ARMS = [s.strip() for s in os.environ.get(
     "LFQ_ARMS", "loader_block,loader_interleaved").split(",") if s.strip()]
 ASR_MAX_CHARS = 2000
-ASR_SPEC = {"source": "asr-ctxoff-precomputed"}  # part of the loader cache key
+# 缓存键里的转写来源标签。**必须由 ASR_DIR 推导，不能写死**：
+# 它进了 loader 的缓存键，而缓存里存的是转写原文——标签一旦与实际目录不符，
+# 改了 ASR_DIR 之后缓存键不变 → 直接命中旧缓存 → 静默继续用旧转写，
+# 而且 loader 的「缺文件就大声跳过」守卫不会触发（缓存先命中）。
+# 2026-10-09 发现的历史不符：本文件曾写死 "asr-ctxoff-precomputed"，
+# 而 ASR_DIR 指向 ctx-on 的 asr/；92 条缓存条目全部带着 ctxoff 标签，
+# 其中 86 条经逐条文本比对确认实际是 ctx-on 内容。
+ASR_SPEC = {"source": f"precomputed:{os.path.basename(ASR_DIR)}"}
 
 
 def official_frame_times(video, duration):
@@ -92,9 +100,16 @@ def official_frame_times(video, duration):
 
 
 def precomputed_asr_runner(video_path, spec):
-    """Injected asr_runner: returns the stored ctx-off engine output so
+    """Injected asr_runner: returns the stored engine output from ASR_DIR so
     WhisperX never runs. Raises on a missing file — the caller skips the
-    video loudly instead of silently degrading the arms to vision-only."""
+    video loudly instead of silently degrading the arms to vision-only.
+
+    ASR_DIR defaults to the ctx-on `asr/` directory; the arms reported so far
+    (loader_block 83.0% / loader_interleaved 80.8%, Q41①) were produced on it.
+    Set LFQ_ASR_DIR=.scratch/keyframe-bench/asr_ctxoff for the repetition-fixed
+    decode — that changes ASR_SPEC and therefore the cache key, so it will
+    re-extract rather than silently reuse the ctx-on cache.
+    """
     vid = os.path.splitext(os.path.basename(video_path))[0]
     with open(os.path.join(ASR_DIR, f"{vid}.json"), encoding="utf-8") as fh:
         return json.load(fh)
