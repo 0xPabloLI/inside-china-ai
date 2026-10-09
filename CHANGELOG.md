@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.13.0...tanstack_start_ts-v1.14.0) (2026-10-09)
+
+
+### Features
+
+* **short-video:** wire the ASR repetition guard into both transcript exits ([#418](https://github.com/0xPabloLI/inside-china-ai/issues/418)) ([#536](https://github.com/0xPabloLI/inside-china-ai/issues/536)) ([1810f2a](https://github.com/0xPabloLI/inside-china-ai/commit/1810f2a20624917d76f33ffa662550d9facdc07d))
+
 ## [1.13.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.12.0...tanstack_start_ts-v1.13.0) (2026-10-09)
 
 
