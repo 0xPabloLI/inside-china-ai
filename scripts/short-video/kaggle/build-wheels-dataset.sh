@@ -9,7 +9,15 @@
 #      dataset_sources — the kernel then installs offline via
 #      `pip --no-index --find-links` (cosyvoice3_cuda_kernel.py #231 block)
 #
-# Requires: kaggle CLI authenticated; ~6GB disk; a modern pip (--platform).
+# Run it ON Kaggle, not on the laptop: `kaggle kernels push` a script kernel
+# that base64-embeds this file and calls it (kernel slug
+# xPabloLI/231-build-wheels-dataset). Three reasons, all learned the hard way
+# on 2026-10-09: Kaggle's own network pulls the 3.7GB set at 70-180MB/s where a
+# home link manages ~0.7MB/s; group 5 compiles pyworld, and building it on the
+# same image the TTS kernel uses keeps the ABI identical; and the CLI inside a
+# kernel is authenticated, so the push step needs no local credentials.
+#
+# Requires: kaggle CLI authenticated; ~8GB free disk; a modern pip (--platform).
 #
 # Target platform is resolved explicitly for Kaggle's runtime (linux x86_64 /
 # CPython 3.13), so this runs from macOS/arm64 too. Two traps that make a
