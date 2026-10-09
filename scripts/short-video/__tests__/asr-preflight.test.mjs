@@ -76,6 +76,12 @@ describe("ensureAsrOrExit (#418 Step 0.3 hard gate)", () => {
     expect(errText()).toContain("TTS_QUALITY_ALLOW_NO_ASR=1");
   });
 
+  it("names the expected model file and its directory in the fix hint", () => {
+    ensureAsrOrExit({ availability: avail({ ok: false, modelFound: false }), exit: exitSpy });
+    expect(errText()).toContain("ggml-large-v3-turbo.bin");
+    expect(errText()).toContain("/Users/x/.cache/whisper");
+  });
+
   it("downgrades to a warning under TTS_QUALITY_ALLOW_NO_ASR=1", () => {
     process.env.TTS_QUALITY_ALLOW_NO_ASR = "1";
     const r = ensureAsrOrExit({

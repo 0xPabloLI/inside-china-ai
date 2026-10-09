@@ -68,9 +68,9 @@ export function ensureAsrOrExit({
   console.error(
     "   The TTS quality gate word-verifies every take with whisper.cpp ASR; without it the gate fails closed (#415 ①) — after the TTS spend. Failing at pipeline start instead.",
   );
-  console.error(
-    "   Fix: brew install whisper.cpp, then place ggml-large-v3-turbo.bin in ~/.cache/whisper/",
-  );
+  const modelFile = availability.model.split("/").pop();
+  const modelDir = availability.model.slice(0, -(modelFile.length + 1));
+  console.error(`   Fix: brew install whisper.cpp, then place ${modelFile} in ${modelDir}`);
   console.error("   Explicit opt-out (render unverified): TTS_QUALITY_ALLOW_NO_ASR=1");
   exit(1);
   return { ok: false, exited: true };

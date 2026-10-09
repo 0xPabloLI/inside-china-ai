@@ -57,6 +57,7 @@ import {
   understandVideo,
   asrAvailability,
 } from "../lib/video-understand.mjs";
+import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "../lib/asr-defaults.mjs";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── detectPlatform ───────────────────────────────────────────
@@ -389,6 +390,14 @@ describe("transcribeVideo", () => {
     expect(missing.ok).toBe(false);
     expect(missing.cliFound).toBe(false);
     expect(missing.modelFound).toBe(false);
+  });
+
+  // #418: ADR-0020 §3's single source of truth was nominal — the constant had
+  // no consumers and this path was hardcoded, so a default change would have
+  // silently kept loading the old model. Pin the wiring.
+  it("resolves the model path from the ADR-0020 default constant", () => {
+    expect(asrAvailability().model).toContain(DEFAULT_WHISPER_CPP_MODEL_NAME);
+    expect(asrAvailability().model).toMatch(/ggml-[\w.-]+\.bin$/);
   });
 });
 

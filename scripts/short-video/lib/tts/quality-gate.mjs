@@ -15,6 +15,7 @@ import { existsSync, statSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { transcribeVideo } from "../video-understand.mjs";
+import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "../asr-defaults.mjs";
 import { FAILURE_CLASS } from "./failure-class.mjs";
 import { validateInstructSignature } from "./instruct.mjs";
 
@@ -326,7 +327,7 @@ async function transcribeViaWhisperCpp(audioPath, { languageHint } = {}) {
       })),
       language: languageHint ?? null,
       errorCode: null,
-      meta: { backend: "whisper.cpp", model: "large-v3-turbo", degraded: false },
+      meta: { backend: "whisper.cpp", model: DEFAULT_WHISPER_CPP_MODEL_NAME, degraded: false },
     };
   } catch (err) {
     return {
