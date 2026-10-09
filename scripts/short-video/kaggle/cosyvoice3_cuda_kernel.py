@@ -57,9 +57,11 @@ def _restore_local_versions(src):
     sees `2.6.0cu124` — not a PEP 440 version — and drops the file entirely
     ("Could not find a version that satisfies the requirement torch==2.6.0
     (from versions: none)"). Symlinks, not copies: the mount is read-only and
-    the wheelhouse is ~3.7GB.
+    the wheelhouse is ~3.7GB. Staged under /tmp, not /kaggle/working — the
+    latter is this kernel's output directory, and a symlink farm into a 3.7GB
+    mount has no business being captured as the run's artifact.
     """
-    staging = "/kaggle/working/wheelhouse"
+    staging = "/tmp/wheelhouse"
     os.makedirs(staging, exist_ok=True)
     renamed = []
     for name in os.listdir(src):
@@ -103,7 +105,7 @@ def _pip_install(args, online_extra=None):
 if _WHEELS_DIR:
     log(f"wheels dataset mount found: {_WHEELS_MOUNT} — offline install mode")
 else:
-    log("no cosyvoice3-wheels mount — online install (build the wheels dataset to skip ~10min)")
+    log("no cosyvoice3-wheels mount — online install (build the wheels dataset to freeze the deps)")
 
 try:
     _pip_install(["setuptools<81", "wheel", "Cython"])

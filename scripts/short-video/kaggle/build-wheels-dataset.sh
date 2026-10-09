@@ -20,8 +20,8 @@
 # Requires: kaggle CLI authenticated; ~8GB free disk; a modern pip (--platform).
 #
 # Target platform is resolved explicitly for Kaggle's runtime (linux x86_64 /
-# CPython 3.13), so this runs from macOS/arm64 too. Two traps that make a
-# naive cross-platform resolve silently incomplete, both handled below:
+# CPython 3.13) so groups 1-4 resolve correctly from any host. Two traps that
+# make a naive cross-platform resolve silently incomplete, both handled below:
 #   * pip does NOT expand manylinux_2_17 into the legacy alias manylinux2014
 #     (the nvidia-* wheels are only tagged manylinux2014), so both spellings
 #     must be listed;
@@ -30,20 +30,19 @@
 #     dropped on a macOS host, so they are downloaded explicitly in group 3
 #     and asserted present at the end.
 #
-# The four sdist-only packages — pyworld (Linux), wget, antlr4-python3-runtime
-# and openai-whisper, none of which publish a Linux wheel — are built into
-# wheels by group 5. Shipping them as sdists does not work: Kaggle unpacks
-# archives inside a dataset, so a mounted sdist arrives as a
-# `<name>-<ver>/<name>-<ver>/` directory that `--find-links` cannot see. Every
-# other pin must resolve to a wheel: --only-binary=:all: makes a missing wheel
-# fail here, at build time, instead of mid-run on Kaggle.
-#
-# This is designed to run ON Kaggle (see the #231 build kernel), which also
-# makes group 5's built wheels ABI-identical to what the TTS kernel gets.
+# Group 5 has no such luxury — it compiles — so it refuses to run off-Linux.
 set -euo pipefail
 
 OUT_DIR="${1:-/tmp/cosyvoice3-wheels}"
 PY="${PYTHON:-python3}"
+
+# A rerun must not inherit the previous attempt's wheels: the completeness
+# check below is presence-only, so a stale wheel from a half-finished build
+# would satisfy it and get published as if it were part of this set.
+if [ -n "$(ls -A "$OUT_DIR" 2>/dev/null)" ]; then
+  echo "==> clearing $OUT_DIR from a previous build"
+  rm -rf "${OUT_DIR:?}"/*
+fi
 
 TARGET=(
   --platform manylinux_2_28_x86_64
@@ -113,12 +112,19 @@ echo "    dep is antlr4, which comes as an sdist in group 5)"
 echo "    $(wheels_so_far) wheels so far"
 
 echo "==> group 5/5: sdist-only packages, built into wheels here"
-# Not shipped as sdists: Kaggle unpacks archives inside a dataset, so a mounted
-# sdist arrives as a `<name>-<ver>/<name>-<ver>/` directory and
-# `pip --no-index --find-links` cannot see it. Building them into wheels on
-# this kernel keeps the mounted set wheel-only, and because this kernel runs
-# the same image as the TTS kernel the resulting ABI matches. pyworld compiles
-# from source, so this group is the slow one.
+# Built rather than shipped as sdists: Kaggle unpacks archives inside a
+# dataset, so a mounted sdist arrives as a `<name>-<ver>/<name>-<ver>/`
+# directory that `--find-links` cannot see.
+#
+# This group must run on the consuming platform. Unlike groups 1-4 it carries
+# no --platform flags — `pip wheel` compiles for the host — so on macOS it
+# would emit arm64 wheels that the completeness check happily accepts (it
+# matches names and versions, not platform tags) and that fail on Kaggle.
+if [ "$(uname -s)" != "Linux" ]; then
+  echo "FAIL: group 5 compiles for the host; run this script on the Kaggle image"
+  echo "      (see the header: push it as a script kernel instead)"
+  exit 1
+fi
 "$PY" -m pip wheel -q --no-deps -w "$OUT_DIR" \
   pyworld==0.3.4 wget==3.2 antlr4-python3-runtime==4.9.3 openai-whisper \
   --index-url https://pypi.org/simple
@@ -133,9 +139,25 @@ wheels = {os.path.basename(p) for p in glob.glob(os.path.join(out, "*.whl"))}
 size = sum(os.path.getsize(os.path.join(out, w)) for w in wheels)
 print(f"    wheelhouse: {len(wheels)} wheels, {size / 1e9:.1f}GB")
 
-def present(name, pool):
+def present(name, version, pool):
+    """Is a wheel for exactly `name==version` in the wheelhouse?
+
+    The version is checked, not just the name: a stale or wrong-version wheel
+    satisfies a name-only prefix match and would sail through this gate, then
+    fail the kernel's exact-pin install minutes into a Kaggle run. `version`
+    is None for the deliberately unpinned packages, which match by name.
+    """
     n = re.sub(r"[-_.]+", "-", name).lower()
-    return any(re.sub(r"[-_.]+", "-", w).lower().startswith(n + "-") for w in pool)
+    for w in pool:
+        stem = re.sub(r"[-_.]+", "-", w).lower()
+        if not stem.startswith(n + "-"):
+            continue
+        if version is None:
+            return True
+        rest = re.sub(r"[-_]+", ".", stem[len(n) + 1:])
+        if rest.startswith(re.sub(r"[-_]+", ".", version).lower()):
+            return True
+    return False
 
 torch_whl = next((w for w in wheels if w.startswith("torch-")), None)
 if not torch_whl:
@@ -153,37 +175,39 @@ for line in meta.splitlines():
         linux_deps.append(spec.split(";")[0].strip())
 
 
-def requirement_name(spec):
-    """The package name at the start of a requirement spec.
+def parse_requirement(spec):
+    """`(name, version)` from a requirement spec, version None when unpinned.
 
     setuptools writes bracketed versions into METADATA — `nvidia-cudnn-cu12
     (==9.1.0.70)` — while PyPI's JSON reports `nvidia-cudnn-cu12==9.1.0.70`.
     Splitting on the version operator alone leaves a trailing " (" on the first
     form, which matches no file: every Linux dep then reads as missing even
     though the wheelhouse is complete (2026-10-09, cost one full build).
+    A bare name is valid too — openai-whisper is deliberately unpinned.
     """
-    m = re.match(r"([A-Za-z0-9][A-Za-z0-9._-]*)", spec)
+    m = re.match(r"([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\(\s*)?(?:==\s*([0-9][^\s,)]*))?", spec)
     if not m:
-        sys.exit(f"FAIL: cannot parse a requirement name from {spec!r}")
-    return m.group(1)
+        sys.exit(f"FAIL: cannot parse a requirement from {spec!r}")
+    return m.group(1), m.group(2)
 
 
-missing = [d for d in linux_deps if not present(requirement_name(d), wheels)]
+missing = [d for d in linux_deps if not present(*parse_requirement(d), wheels)]
 print(f"    torch {torch_whl}: {len(linux_deps)} Linux-marker deps, {len(missing)} missing")
 for d in missing:
+    name, _ = parse_requirement(d)
     print(f"    MISSING: {d}")
     for w in sorted(wheels):
-        if requirement_name(d).lower().replace("_", "-") in w.lower().replace("_", "-"):
+        if name.lower().replace("_", "-") in w.lower().replace("_", "-"):
             print(f"        but this file looks related: {w}")
 if missing:
     sys.exit("FAIL: wheelhouse is incomplete — do not push")
 
 # The kernel installs these with --no-index too, and none of them publish a
-# Linux wheel, so each is built here (group 5). Checked by name rather than by
-# counting: one of them (wget) ships as a .zip, and a count would pass on the
-# wrong set while still missing the one the kernel needs.
-SDIST_ONLY = ["pyworld", "wget", "antlr4-python3-runtime", "openai-whisper"]
-absent = [p for p in SDIST_ONLY if not present(p, wheels)]
+# Linux wheel, so each is built here (group 5). Checked by name and version
+# rather than by counting: one of them (wget) ships as a .zip, and a count
+# would pass on the wrong set while still missing the one the kernel needs.
+SDIST_ONLY = ["pyworld==0.3.4", "wget==3.2", "antlr4-python3-runtime==4.9.3", "openai-whisper"]
+absent = [p for p in SDIST_ONLY if not present(*parse_requirement(p), wheels)]
 for p in absent:
     print(f"    MISSING: {p} (built wheel expected)")
 if absent:
@@ -202,9 +226,12 @@ cat > "$OUT_DIR/dataset-metadata.json" <<JSON
 }
 JSON
 
-# The CLI exits 0 even when the API rejects the request — the 2026-10-09 probe
+# The CLI exits 0 even when the API rejects the request — a 2026-10-09 probe
 # got "Dataset creation error: The requested title … is already in use by a
-# notebook" with rc=0 — so the output has to be checked, not the exit code.
+# notebook" with rc=0, and cloud-gpu-options.md records the same for "Please
+# upload at least one file". So the check is a positive signal: something must
+# say the push succeeded. A denylist of error words misses the failures nobody
+# thought to name.
 # Re-running after a first publish means `version` instead of `create`.
 echo "==> pushing dataset (kaggle CLI)"
 PUSH_OUT=$(kaggle datasets create -p "$OUT_DIR" --dir-mode zip 2>&1) || true
@@ -213,10 +240,17 @@ if printf '%s' "$PUSH_OUT" | grep -qi "already.*exists\|already in use"; then
   PUSH_OUT=$(kaggle datasets version -p "$OUT_DIR" --dir-mode zip -m "wheels rebuild $(date -u +%Y-%m-%dT%H:%MZ)" 2>&1) || true
 fi
 printf '%s\n' "$PUSH_OUT"
+if ! printf '%s' "$PUSH_OUT" | grep -qi "successfully\|upload successful\|starting upload\|dataset version"; then
+  echo "FAIL: the dataset push printed no success signal (the CLI exits 0 even when it fails)"
+  exit 1
+fi
 if printf '%s' "$PUSH_OUT" | grep -qi "error\|failed\|exceed"; then
-  echo "FAIL: dataset push reported an error (the CLI still exits 0 here)"
+  echo "FAIL: the dataset push reported an error"
   exit 1
 fi
 
-echo "✅ Done. Now attach xpabloli/cosyvoice3-wheels to cosyvoice3-cuda-batch's dataset_sources."
-echo "   Verify on the next real TTS run: kernel log must show 'wheels dataset mount found' and no PyPI traffic."
+echo "✅ Done. xpabloli/cosyvoice3-wheels is attached to the TTS kernel's dataset_sources."
+echo "   A TTS run's kernel log shows it taking effect:"
+echo "     restored local versions in 3 filenames: ['torch-2.6.0+cu124-...']"
+echo "     wheels dataset mount found: /kaggle/input/cosyvoice3-wheels — offline install mode"
+echo "   Verified 2026-10-09: 633s online → 512s offline for a 2-scene batch, no PyPI traffic."

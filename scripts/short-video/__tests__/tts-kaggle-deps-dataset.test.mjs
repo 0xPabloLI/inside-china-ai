@@ -14,6 +14,9 @@
  * Kaggle run (mid-install, minutes in), so it is asserted here instead.
  */
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, writeFileSync, rmSync } from "fs";
+import { execFileSync } from "child_process";
+import { tmpdir } from "os";
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -56,6 +59,90 @@ function assertPinsParse(src, label) {
   return parsed;
 }
 
+/** The packages PyPI ships without a usable Linux wheel (#231). */
+const SDIST_ONLY_PKGS = ["pyworld", "wget", "antlr4-python3-runtime", "openai-whisper"];
+
+/** The build script's group n section, comments stripped. */
+function buildGroup(n) {
+  const src = stripComments(BUILD_SRC);
+  const from = src.indexOf(`group ${n}/5`);
+  const to = n === 5 ? src.indexOf("verifying completeness") : src.indexOf(`group ${n + 1}/5`);
+  expect(from, `group ${n}/5 must exist`).toBeGreaterThan(-1);
+  expect(to, `the end of group ${n}/5 must be findable`).toBeGreaterThan(from);
+  return src.slice(from, to);
+}
+
+/**
+ * Run the build script's completeness check against a synthetic wheelhouse.
+ *
+ * The check is a Python heredoc inside the shell script, so this extracts it
+ * and executes it for real rather than grepping for call sites — a grep cannot
+ * tell a working matcher from a broken one, which is exactly how the
+ * setuptools-bracket bug and the name-only match both survived review.
+ *
+ * @param {string[]} wheelNames - filenames to place in the fake wheelhouse
+ * @returns {{ok: boolean, output: string}}
+ */
+function runCompletenessCheck(wheelNames) {
+  const check = BUILD_SRC.slice(BUILD_SRC.indexOf("verifying completeness"));
+  const py = check.split("<<'PYEOF'\n")[1].split("PYEOF", 1)[0];
+  const dir = mkdtempSync(join(tmpdir(), "wheelhouse-"));
+  try {
+    for (const name of wheelNames) {
+      if (name.startsWith("torch-")) {
+        // The check reads the real METADATA, so the torch wheel has to be one.
+        writeFileSync(join(dir, name), TORCH_WHEEL_BYTES);
+      } else {
+        writeFileSync(join(dir, name), "not a real wheel");
+      }
+    }
+    try {
+      const output = execFileSync("python3", ["-c", py, dir], { encoding: "utf-8" });
+      return { ok: true, output };
+    } catch (e) {
+      return { ok: false, output: `${e.stdout || ""}${e.stderr || ""}` };
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** A minimal zip holding the METADATA the check parses. */
+function makeTorchWheel() {
+  const meta =
+    "Metadata-Version: 2.1\nName: torch\nVersion: 2.6.0+cu124\n" +
+    'Requires-Dist: nvidia-cuda-runtime-cu12 (==12.4.127) ; platform_system == "Linux"\n' +
+    'Requires-Dist: triton (==3.2.0) ; platform_system == "Linux"\n' +
+    'Requires-Dist: filelock ; platform_system == "Darwin"\n';
+  const dir = mkdtempSync(join(tmpdir(), "torch-wheel-"));
+  const path = join(dir, "torch-2.6.0+cu124-cp313-cp313-linux_x86_64.whl");
+  try {
+    execFileSync("python3", [
+      "-c",
+      "import sys,zipfile;z=zipfile.ZipFile(sys.argv[1],'w');" +
+        "z.writestr('torch-2.6.0+cu124.dist-info/METADATA',sys.argv[2]);z.close()",
+      path,
+      meta,
+    ]);
+    return readFileSync(path);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const TORCH_WHEEL_BYTES = makeTorchWheel();
+
+/** A complete wheelhouse for the synthetic METADATA above. */
+const COMPLETE_WHEELS = [
+  "torch-2.6.0+cu124-cp313-cp313-linux_x86_64.whl",
+  "nvidia_cuda_runtime_cu12-12.4.127-py3-none-manylinux2014_x86_64.whl",
+  "triton-3.2.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+  "pyworld-0.3.4-cp313-cp313-linux_x86_64.whl",
+  "wget-3.2-py3-none-any.whl",
+  "antlr4_python3_runtime-4.9.3-py3-none-any.whl",
+  "openai_whisper-20250625-py3-none-any.whl",
+];
+
 describe("kernel pins are covered by the wheelhouse (#231)", () => {
   it("every pinned dependency the kernel installs is fetched by the build script", () => {
     const kernelPins = assertPinsParse(KERNEL_SRC, "the kernel");
@@ -79,18 +166,35 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
     // arrives as a `<name>-<ver>/<name>-<ver>/` directory that
     // `pip --no-index --find-links` cannot see. Building them into wheels in
     // group 5 keeps the mounted set wheel-only.
-    const sdistGroup = BUILD_SRC.slice(
-      BUILD_SRC.indexOf("group 5/5"),
-      BUILD_SRC.indexOf("verifying completeness"),
-    );
-    expect(sdistGroup).toContain("pip wheel");
-    for (const pkg of ["pyworld==", "wget==", "antlr4-python3-runtime==", "openai-whisper"]) {
-      expect(sdistGroup).toContain(pkg);
+    const group5 = buildGroup(5);
+    expect(group5).toContain("pip wheel");
+    for (const pkg of SDIST_ONLY_PKGS) {
+      expect(group5).toContain(pkg);
     }
-    const wheelGroups = BUILD_SRC.slice(BUILD_SRC.indexOf("group 1/5"), BUILD_SRC.indexOf("group 5/5"));
-    for (const pkg of ["pyworld", "wget", "antlr4-python3-runtime", "openai-whisper"]) {
+    // …and nowhere else: a name drifting back into a `pip download
+    // --only-binary` group reintroduces the failure it was moved out of.
+    const wheelGroups = [1, 2, 3, 4].map(buildGroup).join("\n");
+    for (const pkg of SDIST_ONLY_PKGS) {
       expect(wheelGroups).not.toContain(pkg);
     }
+  });
+
+  it("group 5 refuses to run off Linux, where it would build host wheels", () => {
+    // Unlike groups 1-4, group 5 carries no --platform flags: `pip wheel`
+    // compiles for the host. On macOS it would emit arm64 wheels that the
+    // completeness check accepts (it matches names and versions, not platform
+    // tags) and that then fail on Kaggle.
+    const group5 = buildGroup(5);
+    expect(group5).toContain('uname -s');
+    expect(group5).toContain("!= \"Linux\"");
+  });
+
+  it("a rerun clears the output directory before downloading", () => {
+    // The completeness check is presence-only, so a wheel left by a failed
+    // earlier build would satisfy it and be published as part of this set.
+    const head = stripComments(BUILD_SRC).slice(0, BUILD_SRC.indexOf("group 1/5"));
+    expect(head).toContain("rm -rf");
+    expect(head.indexOf("rm -rf")).toBeLessThan(stripComments(BUILD_SRC).indexOf("group 1/5"));
   });
 
   it("the completeness check parses setuptools' bracketed requirements", () => {
@@ -100,8 +204,57 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
     // form, which matches no filename — the 2026-10-09 build reported all 14
     // Linux deps missing with the complete wheelhouse sitting right there.
     const check = BUILD_SRC.slice(BUILD_SRC.indexOf("verifying completeness"));
-    expect(check).toContain("requirement_name");
+    expect(check).toContain("parse_requirement");
     expect(check).not.toContain('re.split(r"[<>=!~]", d)[0]');
+  });
+
+  it("the completeness check accepts a complete wheelhouse", () => {
+    const { ok, output } = runCompletenessCheck(COMPLETE_WHEELS);
+    expect(output).toContain("0 missing");
+    expect(output).toContain("OK:");
+    expect(ok).toBe(true);
+  });
+
+  it("the completeness check rejects a missing Linux-marker dep", () => {
+    const without = COMPLETE_WHEELS.filter((w) => !w.startsWith("triton-"));
+    const { ok, output } = runCompletenessCheck(without);
+    expect(ok).toBe(false);
+    expect(output).toContain("MISSING: triton (==3.2.0)");
+    expect(output).toContain("wheelhouse is incomplete");
+  });
+
+  it("the completeness check rejects a wrong version of the right package", () => {
+    // A name-only match accepts this and publishes a wheelhouse that fails the
+    // kernel's exact-pin install minutes into a Kaggle run.
+    const swapped = [
+      ...COMPLETE_WHEELS.filter((w) => !w.startsWith("nvidia_cuda_runtime")),
+      "nvidia_cuda_runtime_cu12-12.1.105-py3-none-manylinux2014_x86_64.whl",
+    ];
+    const { ok, output } = runCompletenessCheck(swapped);
+    expect(ok).toBe(false);
+    expect(output).toContain("MISSING: nvidia-cuda-runtime-cu12 (==12.4.127)");
+    // The near-miss is named, so the operator does not have to hunt for it.
+    expect(output).toContain("nvidia_cuda_runtime_cu12-12.1.105");
+  });
+
+  it("the completeness check rejects a missing built-from-sdist wheel", () => {
+    const without = COMPLETE_WHEELS.filter((w) => !w.startsWith("pyworld-"));
+    const { ok, output } = runCompletenessCheck(without);
+    expect(ok).toBe(false);
+    expect(output).toContain("MISSING: pyworld==0.3.4");
+  });
+
+  it("the completeness check ignores non-Linux markers", () => {
+    // The synthetic METADATA carries a Darwin-only dep; requiring it on a
+    // Linux wheelhouse would make every build fail.
+    const { output } = runCompletenessCheck(COMPLETE_WHEELS);
+    expect(output).toContain("2 Linux-marker deps");
+  });
+
+  it("the completeness check fails loudly when there is no torch wheel", () => {
+    const { ok, output } = runCompletenessCheck(COMPLETE_WHEELS.filter((w) => !w.startsWith("torch-")));
+    expect(ok).toBe(false);
+    expect(output).toContain("no torch wheel");
   });
 
   it("the completeness check covers the sdist-only packages by name", () => {
@@ -109,9 +262,21 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
     // on the wrong set while still missing a package the kernel installs.
     const check = BUILD_SRC.slice(BUILD_SRC.indexOf("verifying completeness"));
     expect(check).toContain("SDIST_ONLY");
-    for (const pkg of ["pyworld", "wget", "antlr4-python3-runtime", "openai-whisper"]) {
+    for (const pkg of SDIST_ONLY_PKGS) {
       expect(check).toContain(pkg);
     }
+  });
+
+  it("the push step needs a positive success signal, not just a quiet CLI", () => {
+    // `kaggle datasets create` exits 0 when the API rejects the request: a
+    // probe got "Dataset creation error: The requested title … is already in
+    // use by a notebook" with rc=0, and cloud-gpu-options.md records "Please
+    // upload at least one file" behaving the same way. A denylist of error
+    // words misses the failures nobody named.
+    const push = BUILD_SRC.slice(BUILD_SRC.indexOf("pushing dataset"));
+    expect(push).toContain("grep -qi");
+    expect(push).toContain("successfully");
+    expect(push.indexOf("successfully")).toBeLessThan(push.indexOf("exit 1"));
   });
 
   it("torch trio pins are identical in both files", () => {
