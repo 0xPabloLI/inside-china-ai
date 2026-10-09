@@ -738,9 +738,10 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 ## 视频 Skill 储备（awesome-claude-video-skills）
 
-> 来源：`https://github.com/zhuyansen/awesome-claude-video-skills`（24★，2026-09-27 更新）· 在线筛选页 https://agentskillshub.top/best/claude-video-skills/ （每 8h 刷新）· 180 个 repo / 10 分类 / 178 SAFE / 2 CAUTION
-> **收录说明**：这批 skill 多为 Claude Code/Codex 的 `SKILL.md` 格式，本项目 agent（CodeArts）不直接执行 SKILL.md，但可参考其 prompt/流程/Remotion 模板/分镜结构。真正能直接复用的是 Remotion 组件/模板类。具体 repo 安装前仍须走「评估流程」。
-> **调查日期**：2026-09-28
+> 来源：`https://github.com/zhuyansen/awesome-claude-video-skills`（2026-09-27 开源）· 在线筛选页 https://agentskillshub.top/best/claude-video-skills/ （每 8h 刷新）· 180 个 repo / 10 分类 / 178 SAFE / 2 CAUTION
+> **收录说明**：这批 skill 多为 Claude Code/Codex 的 `SKILL.md` 格式，本项目 agent 不直接执行 SKILL.md，但可参考其 prompt/流程/Remotion 模板/分镜结构。真正能直接复用的是 Remotion 组件/模板类。具体 repo 安装前仍须走「评估流程」。
+> ⚠️ **SAFE ≠ 许可证**：SAFE 是榜单对 README 的安全评级，不含许可证与付费 API 依赖维度——下文 ⚠️ 标注均来自一手实测。
+> **调查日期**：2026-09-28（初筛）· **2026-10-09 回灌** R1–R8 五问研究实测更正：逐仓许可证/付费依赖/结构勘误见 `docs/research/agent-video-skills-180-screening-2026-09.md`（§8 各轮报告，证据强度 [R] 级）
 
 ### A 类：高相关 — 直接对口（10 个）
 
@@ -763,11 +764,12 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **做什么**：SRT 驱动双后端 B-roll，自动路由 HyperFrames/Remotion，集成 152 张 Shotcraft 镜头卡
 - **为什么有用**：B-roll 生成 + 镜头卡 → 对应 #290（T2V 选型）、#295（assetNeed 通用化）
 
-#### Vincentwei1021/video-talkcraft — voiceover-driven explainer ⭐⭐⭐
+#### Vincentwei1021/video-talkcraft — voiceover-driven explainer ⭐⭐（仅读思路）
 
 - **仓库**：`https://github.com/Vincentwei1021/video-talkcraft`（1.2k★，SAFE）
 - **做什么**：口播讲解视频，逐词 voiceover sync + 109 motion presets
 - **为什么有用**：口播 + 逐词字幕是本项目核心，motion presets 可直接移植到 Remotion
+- ⚠️ **许可证 = PolyForm 非商用（一手实测）**：代码不可复制进本仓，只读它的 motion preset 设计思路。同作者的 `video-shotcraft` 是 Apache-2.0，别搞混
 
 #### sharon-laicc/viral-video-decomposer — 爆款拆解/拉片 ⭐⭐⭐
 
@@ -785,13 +787,14 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 - **仓库**：`https://github.com/runesleo/claude-video-kit`（120★，SAFE）
 - **做什么**：brief/script → review receipt → narrated 9:16 explainer，Remotion
-- **为什么有用**：9:16 竖屏讲解，与本项目竖屏新闻讲解直接对口
+- **为什么有用**：9:16 竖屏讲解，与本项目竖屏新闻讲解直接对口；**全表唯一把「渲染前人工门禁」做成机器可校验凭证的**（receipt 绑定 script.json 内容哈希，fix/block/缺失/过期一律拒绝渲染）。对我们最有价值的落点是**发布入口凭证化**（HITL receipt）而非渲染 gate——见研究文档 §8 R5
 
-#### iart-ai/motion-skills — 50 个 motion/视频 skill ⭐⭐⭐
+#### iart-ai/motion-skills — motion/视频 skill 索引仓 ⭐⭐⭐
 
 - **仓库**：`https://github.com/iart-ai/motion-skills`（516★，SAFE）
-- **做什么**：50 个 skill：kinetic typography / data-viz / explainers / TikTok/Reels
-- **为什么有用**：覆盖面广，kinetic typography（字幕动效）与 data-viz（新闻数据）都对口
+- **做什么**：**索引仓，本体仅 9 个文件**；约 53 个 skill 实体在 16 个独立分仓（`iart-ai/motion-design-skills` / `kinetic-typography-skills` / `explainer-video-skills` 等），kinetic typography / data-viz / explainers / TikTok/Reels
+- **为什么有用**：分仓按需读。实测分仓质量高于社区平均（如 motion-design 的 12 栏网格带具体数字、9:16 用 RESTACK 不裁切、每拍只允许一个镜头运动）
+- ⚠️ **装这个 repo 本体会扑空**——按分仓名单独装
 
 #### coding-ax/docvideoer — 文档→中文旁白讲解视频 ⭐⭐⭐
 
@@ -811,13 +814,14 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 - **仓库**：`https://github.com/hassancs91/claude-faceless-shorts-creator`（268★，SAFE）
 - **做什么**：faceless YouTube-Shorts 工厂，纯 TSX Remotion visuals + ElevenLabs 逐词字幕
-- **为什么有用**：纯 TSX Remotion + 逐词字幕方案可参考
+- **为什么有用**：纯 TSX Remotion + 逐词字幕方案可参考；beats contract + SFX cue sheet 随片存档的复现范式值得学
+- ⚠️ **两条付费硬绑定**（实测）：Generative 产线绑 fal + ElevenLabs 双付费 API，本仓不走；**许可证 SPDX 元数据为空**，任何动作前先读仓库 LICENSE 文件
 
 #### AgriciDaniel/claude-shorts — longform→shortform ⭐⭐
 
 - **仓库**：`https://github.com/AgriciDaniel/claude-shorts`（217★，SAFE）
 - **做什么**：长视频→短视频，Remotion 动画字幕 + AI 段落评分 + cursor tracking
-- **为什么有用**：段落评分（选高光片段）可借鉴
+- **为什么有用**：**5 维选段 rubric（hook .30 / coherence .25 / emotion .20 / value .15 / payoff .10，分值锚定枚举 + red flags）**可直接套我们的 forced alignment 数据做已成片选段
 
 #### Yuuhann1999/codex-storyboard — 分镜工作台 ⭐⭐
 
@@ -847,7 +851,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 | Repo | ★ | 参考价值 |
 | --- | --- | --- |
-| `pyang5166/gbro-collage-broll` | 1.3k | B-roll 生成，三闸门审批流程可借鉴 |
+| `pyang5166/gbro-collage-broll` | 1.3k | B-roll 生成，三闸门审批流程 + 隐喻命题模板可借鉴；⚠️ 实测绑付费 Gemini API（默认 `gemini-omni-flash-preview` 按量计费）+ Gate 2 依赖 Codex 内置 image_gen——**「无需 image model」说法不成立**，路线改走本地静帧 + Remotion 组装（研究文档 §8 R4.4） |
 | `iart-ai/data-animation-skills` | 6 | CSV→动态图表，每帧数字准确 → 新闻数据可视化 |
 | `Liamrjohnston/remotion-motion-graphics-skill` | 72 | Remotion motion graphics 组件 |
 | `jhartquist/claude-remotion-kickstart` | 120 | Claude Code+Remotion 脚手架 |
