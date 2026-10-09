@@ -37,8 +37,6 @@
 
 **进行中（2026-10-09 09:05 启动）**：medium 2×2 补跑到 n=159（`exp_q41_ext_chain.sh`，两臂串行 ≈5.7h）。扩样 159 题是原档 84 题的父集，且原档与扩样在交集 84 题上**逐题预测 0 差异**（两模型各自验证），故补齐后是有效父集扩展。分析脚本已就绪：`python3 scripts/short-video/bench/keyframe/analyze_2x2.py ext`。
 
-
-
 ## 13. 双层判据研究与实证（2026-09-27，session `20260927-kf-criteria-5de54e`）
 
 ### 13.1 判据定义（handoff §〇 裁决落地）
