@@ -46,7 +46,8 @@
 | pbakaus/impeccable (24 commands)             | 视觉设计                  | ✅              | ✅ 已集成            | ⭐⭐⭐ 视觉打磨                                                |
 | leonxlnx/taste-skill (design-taste-frontend) | 设计推理                  | ✅              | 📋 备选(安全✅)      | ⭐ 设计决策                                                    |
 | public-apis/public-apis                      | API 资源索引              | ✅              | 📖 参考              | 📖 查免费 API                                                  |
-| AutoVio                                      | 视频管线（参考）          | ✅ 自托管       | ❌ 不采用（NC 许可） | ⭐ 分镜 prompt 结构参考                                        |
+| AutoVio                                      | 自动视频生成              | ✅ 自托管       | ❌ 不采用（NC 许可） | ⭐ 分镜 prompt 结构参考                                        |
+| Pixelle-Video                                | 自动视频生成              | 最低档 ✅ 0 元  | 📖 只读（停更）      | ⭐⭐ 同类竞品：接口形态与版式清单可学，代码不引入              |
 | VoiceStudio                                  | 音频/TTS 聚合器（参考）   | ✅ 自托管       | 📖 参考（不采用）    | ⭐ GUI 试听底层引擎情感效果                                    |
 | awesome-claude-video-skills (索引)            | 视频 Skill 储备           | ✅              | 📖 参考              | 180 repo 索引，A/B/C 类见专节                                  |
 | zenstory-ai/video-recap-skills                | 视频→中文解说 recap        | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ 管线同构对标                                          |
@@ -704,6 +705,37 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 ---
 
+## 自动视频生成（Auto Video Generation）
+
+> **本类目判据**：端到端"一句话/一篇文章 → 一条成片"的**引擎级**项目（自带文案、素材、配音、合成四段）。与下一节「视频 Skill 储备」的区别：那边是 agent 用的 `SKILL.md` 配方与组件片段，这边是可独立运行的成片系统——**竞品/形态对照**，不是依赖。
+> **共同结论**：本类目目前**没有任何一个值得引入代码**。判据是三条硬事实——① 成片形态（多数是"素材 + 文字卡片 + 硬切"，动画层缺失）；② 后端绑定（招牌能力绑付费云或 NVIDIA）；③ 维护与许可（停更节奏 / NC 条款 / 云服务商条款禁商用）。
+
+### Pixelle-Video — AI 全自动短视频引擎（只读参考，不采用）
+
+- **分类**：自动视频生成（端到端成片引擎）
+- **仓库**：`https://github.com/ATH-MaaS/Pixelle-Video`（阿里 ATH-MaaS，原 org 名 `AIDC-AI`；28.6k★ / 4.2k fork，2025-11-07 建仓）
+- **许可**：✅ Apache-2.0（可商用）。⚠️ **但能力边界绑在第三方云上**：其主推后端 RunningHub 的《付费服务协议》第 二.2.2 条限定「只能出于个人、非商业目的使用服务」——对本项目（对外发布内容）是**条款级阻断**，不是价格问题
+- **做什么**：话题 → LLM 写旁白（默认 5 分镜）→ 按模板类型决定是否出 AI 图/短片 → TTS 配音（音频时长即分镜时长）→ `templates/**/*.html` 经 **Playwright 截屏出帧** → `ffmpeg` 拼接。素材后端三选一：本地 ComfyUI / RunningHub 云 / 直连 DashScope·OpenAI·火山 ARK·可灵
+- **成片形态（实测，非观感）**：同分镜内相邻帧平均像素差 0.000–0.008，仅分镜切换点跳到 2.0–3.1 → **卡片硬切**。三条代码判据：静图用 `loop=1` 循环成段（无运镜滤镜）、文字层是一张透明 PNG 叠在短片上（背景会动字不动）、`concat` 无 `xfade` 且 fade 只作用 BGM
+- **为什么对本项目有用**：唯一"同输入同产出"的公开同类，价值全在接口形态——5 条可学习项（模板声明素材依赖 / 原子 REST 端点 / run 级隔离 + manifest / `template_params` 受控定制 / 带语义步骤名的进度事件）已逐条对账并落成 #462 #463 与 #355 #291 #228 #310 票评
+- **用法**：**不安装**。只读源码用 `gh api` 或 clone 到仓库外目录（`/private/tmp`）。若要真跑：Python ≥3.11 + `uv` + `ffmpeg` + **`playwright install chromium`（其文档未列此步，缺失会在出帧阶段才炸）**；最低成本档 0 元可跑通（本地 Ollama + edge-tts + `static_*` 模板，2026-10-02 实测 41 秒出 27 秒成片）
+- **何时用**：讨论"管线该长成什么接口形状"、需要竞品形态对照、或要一份现成竖屏版式清单（25 个 `1080x1920` 模板，Apache-2.0 可改写）时
+- **何时不用**：任何生产路径。停更项目 + 招牌功能绑付费云 + 零测试零 CI + 文件服务路径校验为词法级（点段序列可绕，未修）
+- **维护状态**：⚠️ main 最后提交 2026-06-14；官方 release 停在 v0.1.15（2026-01-27）；文档站部署停在 2026-01-08；issue open 146 / closed 41（关闭率 22%）；无 SECURITY.md，安全修复 PR 无人合并
+- **安全审计**：未审计（不安装、不进管线）。已知缺陷见上，若未来参考其 API 形态，路径校验必须 `resolve()` 后再比对，不能用 `startswith`
+- **调查日期**：2026-10-01（实跑验证 2026-10-02）· 详见 `docs/research/pixelle-video-research-2026-10-01.md`
+- **状态**：📖 只读参考（Tier B），不引入代码
+
+### 同类目其他条目（正文各自留原位，此处只做索引）
+
+| 对象 | 判据落点 | 正文位置 |
+| --- | --- | --- |
+| AutoVio | ❌ 不采用（PolyForm Noncommercial + 维护停滞 + 生成式虚构与事实性冲突） | 本文件「待评估 / 可选工具 → AutoVio」 |
+| MoneyPrinterTurbo | 库存视频优先路线的**已吸收结论**（搜索方向/分辨率匹配、同源去重、sequential 选段） | `docs/research/repo-survey-tracking.md` §A |
+| 本项目自己的管线 | 对照基准：Remotion 逐帧动画 + 三字段文本契约 + forced alignment 字幕 + claim/MRL/verify 门 | `docs/content-pipeline.md`、`docs/video-production-runbook.md` |
+
+---
+
 ## 视频 Skill 储备（awesome-claude-video-skills）
 
 > 来源：`https://github.com/zhuyansen/awesome-claude-video-skills`（24★，2026-09-27 更新）· 在线筛选页 https://agentskillshub.top/best/claude-video-skills/ （每 8h 刷新）· 180 个 repo / 10 分类 / 178 SAFE / 2 CAUTION
@@ -1006,6 +1038,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 找特定功能的 skill             → VoltAgent/awesome-agent-skills 目录
 找免费 API（任意领域）          → public-apis/public-apis README 按分类查
 分镜/场景-内容匹配 prompt 参考  → AutoVio `prompts/scenario.ts`（仅参考，不安装）
+自动成片引擎形态/接口对照        → Pixelle-Video（只读；同类目索引见「自动视频生成」节）
 ```
 
 ---
