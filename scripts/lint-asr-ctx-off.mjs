@@ -28,7 +28,12 @@ const CTX_OFF = [
   /condition_on_previous_text\s*=\s*False/,
   /--max-context\s+0/,
   /max_context\s*=\s*0/,
-  /(?:^|\s)-mc\s+0(?:\s|$)/, // whisper-cli short form
+  // whisper-cli short form. The trailing guard rejects a different value
+  // (`-mc 0.5`, `-mc 01`) without demanding whitespace: the command is built
+  // as a template literal, so the flag can end at an interpolation boundary
+  // (`-mc 0${languageArg}`) — requiring `\s|$` there flagged a correct call
+  // and turned the guard into noise (#534).
+  /(?:^|\s)-mc\s+0(?![.\d])/,
 ];
 // A transcription call. `align(` is whisperx forced alignment (no ctx switch).
 const CALL = /\.transcribe\s*\(/;

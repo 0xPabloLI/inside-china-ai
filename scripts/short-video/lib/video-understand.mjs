@@ -440,7 +440,9 @@ async function downloadTikTokVideo(fullUrl, itemId, output) {
  * Transcribe a video file using ffmpeg + whisper-cli.
  *
  * @param {string} videoPath - Path to the video file
- * @param {{outputDir?: string}} [options]
+ * @param {{outputDir?: string, language?: string}} [options] `language` is passed
+ *   to whisper-cli as `-l`; omit it to inherit whisper-cli's own default (`en`),
+ *   or pass `"auto"` to let the model detect. See the `-l` note in the body.
  * @returns {Promise<{segments: Array, fullText: string, guard: object} | null>}
  *   Transcript or null on failure. `guard` records whether the repetition
  *   guard collapsed a decode loop (see lib/asr-repetition-guard.mjs).
@@ -488,7 +490,13 @@ export async function transcribeVideo(videoPath, options = {}) {
     // -mc 0 (#418): disable the cross-segment text context. With it on, both
     // whisper.cpp and MLX Whisper fall into repetition hallucination on long
     // audio (equivalence run: repeats 17→1 / 18→4 after switching it off).
-    const whisperCmd = `"${WHISPER_CLI}" -m "${WHISPER_MODEL}" -f "${audioPath}" -t 8 -fa -mc 0 -oj -of "${whisperPrefix}"`;
+    // -l: whisper-cli's own default is `en`, not auto-detect (help reads
+    // `-l LANG [en]` and its stderr prints `lang = en`). Forcing `en` on Chinese
+    // audio still comes back in Chinese but mangles proper nouns — the same zh
+    // clip gave "DeepSeq" under `lang = en` vs "DeepSeek" under `lang = auto`.
+    // Only callers that know the language should pin it.
+    const languageArg = options.language ? ` -l "${options.language}"` : "";
+    const whisperCmd = `"${WHISPER_CLI}" -m "${WHISPER_MODEL}" -f "${audioPath}" -t 8 -fa -mc 0${languageArg} -oj -of "${whisperPrefix}"`;
     await execAsync(whisperCmd);
   } catch (err) {
     console.warn(`  [video-understand] ASR failed: ${err.message}`);
@@ -577,6 +585,9 @@ export async function understandVideo(url, options = {}) {
     try {
       result.transcript = await transcribeVideo(videoPath, {
         outputDir: opts.outputDir,
+        // Source videos (TikTok/YouTube/Bilibili) are not necessarily English;
+        // "auto" keeps whisper-cli's `en` default from mangling other languages.
+        language: "auto",
       });
       if (result.transcript === null) {
         result.status = "degraded";
