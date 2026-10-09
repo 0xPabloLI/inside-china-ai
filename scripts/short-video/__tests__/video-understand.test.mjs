@@ -389,6 +389,30 @@ describe("transcribeVideo", () => {
     expect(whisperCmd).toContain("-mc 0");
   });
 
+  // whisper-cli's own default is `en`, NOT auto-detect (`-l LANG [en]`; its
+  // stderr prints `lang = en`). Forcing `en` on Chinese audio still returns
+  // Chinese, but degrades proper nouns — the same zh clip gave "DeepSeq" under
+  // `lang = en` vs "DeepSeek" under `lang = auto`. So a caller that knows the
+  // language must be able to pin it, and a caller that doesn't must not have
+  // one silently invented for it.
+  it("passes -l through when the caller pins a language", async () => {
+    mockReadFileSync.mockReturnValue(JSON.stringify({ transcription: [] }));
+    mockExecAsync.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await transcribeVideo("/tmp/test.mp4", { language: "zh" });
+
+    expect(mockExecAsync.mock.calls[1][0]).toContain('-l "zh"');
+  });
+
+  it("omits -l when the caller does not pin a language", async () => {
+    mockReadFileSync.mockReturnValue(JSON.stringify({ transcription: [] }));
+    mockExecAsync.mockResolvedValue({ stdout: "", stderr: "" });
+
+    await transcribeVideo("/tmp/test.mp4");
+
+    expect(mockExecAsync.mock.calls[1][0]).not.toMatch(/\s-l\s/);
+  });
+
   // #415 ①: the TTS gate must be able to tell "ASR is not installed" from
   // "this take is bad".
   it("reports ASR availability from the binary and the model", () => {

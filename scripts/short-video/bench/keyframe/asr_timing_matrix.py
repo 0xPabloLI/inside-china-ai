@@ -206,9 +206,22 @@ def summarize(results):
     cold = 该格全部逐次墙钟的均值；cpp 每次都是新进程，MLX 的 `wall_s` 含
     解释器启动，故另给 `mlx_run1_s_mean`（进程内首次调用，含模型加载）作
     冷启动口径。warm 只对 MLX 有意义（同进程第二次调用，模型驻留）。
+
+    **`single_call_s_*`（生产形态）**：一次转写、冷进程。cpp 的每次 `wall_s`
+    本来就是一次转写；MLX 的 `wall_s` 覆盖了同一进程里的 run1+run2 **两次**
+    转写，所以 `single_call_s = wall_s - run2_s`（= 解释器启动 + run1）。此前
+    文档直接拿 MLX 的 `wall_s` 和 cpp 的 `wall_s` 比，是两种口径混用，已修。
+    中位数比均值稳（每格首条含一次性 Metal 冷编译，会拉高均值）。
     """
     def mean(xs):
         return round(sum(xs) / len(xs), 2) if xs else None
+
+    def median(xs):
+        xs = sorted(xs)
+        if not xs:
+            return None
+        n = len(xs)
+        return round(xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2, 2)
 
     cells = {}
     for engine in ("whisper.cpp", "mlx"):
@@ -218,10 +231,34 @@ def summarize(results):
                 continue
             rss = [r["max_rss_mb"] for r in rs if r["max_rss_mb"]]
             mlx = [r["mlx"] for r in rs if r.get("mlx")]
+
+            def single_call(r):
+                """生产形态：一次转写、冷进程。
+
+                cpp 的 wall_s 本来就是一次转写；MLX 的 wall_s 覆盖同一进程里的
+                run1+run2 两次，故减去 run2。**失败的 MLX 运行没有 payload**，
+                它的 wall_s 是「启动 + 两次尝试」而不是任何一次转写的测量——
+                这种记录必须排除，不能回退成另一种口径（此前正是这样静默混入）。
+                """
+                if r.get("mlx"):
+                    return r["wall_s"] - r["mlx"]["run2_s"]
+                return r["wall_s"] if r["engine"] == "whisper.cpp" else None
+
+            singles = [s for s in (single_call(r) for r in rs) if s is not None]
+            failed = len(rs) - len(singles)
             cells[f"{engine}/{model}"] = {
                 "n": len(rs),
                 "cold_wall_s_mean": mean([r["wall_s"] for r in rs]),
                 "cold_wall_s_min": min(r["wall_s"] for r in rs),
+                "single_call_n": len(singles),
+                "single_call_failed_excluded": failed,
+                "single_call_s_mean": mean(singles),
+                "single_call_s_median": median(singles),
+                "single_call_s_min": min(singles) if singles else None,
+                "cpp_compute_s_mean": (mean([(r["cli_timings"].get("total_ms", 0)
+                                              - r["cli_timings"].get("load_ms", 0)) / 1000
+                                             for r in rs if r.get("cli_timings")])
+                                       if engine == "whisper.cpp" else None),
                 "peak_rss_mb": max(rss) if rss else None,
                 "metal_measured": sum(1 for r in rs if r["metal_used"]),
                 "metal_evidence": sorted({r.get("metal_evidence") for r in rs if r.get("metal_evidence")}),
@@ -229,6 +266,9 @@ def summarize(results):
                 **({
                     "mlx_run1_s_mean": mean([x["run1_s"] for x in mlx]),
                     "mlx_run2_s_mean": mean([x["run2_s"] for x in mlx]),
+                    "mlx_startup_s_median": median([r["wall_s"] - x["run1_s"] - x["run2_s"]
+                                                    for r in rs if r.get("mlx")
+                                                    for x in [r["mlx"]]]),
                     "mlx_run1_peak_mb_mean": mean([x["run1_peak_mb"] for x in mlx]),
                     "mlx_run2_peak_mb_mean": mean([x["run2_peak_mb"] for x in mlx]),
                     "mlx_run2_peak_mb_max": max(x["run2_peak_mb"] for x in mlx),
@@ -238,6 +278,28 @@ def summarize(results):
         "definitions": {
             "cold_wall_s_mean": "mean of per-run process wall time (includes interpreter "
                                 "start for MLX, model load for both)",
+            "single_call_s_mean": "PRODUCTION SHAPE: one transcription in a cold process. "
+                                  "cpp: wall_s as-is. mlx: wall_s - run2_s (= interpreter "
+                                  "start + run1), because the MLX process ran run1+run2 "
+                                  "(two transcriptions) inside one wall_s",
+            "single_call_s_median": "median of the same per-run values (more robust than "
+                                    "mean: each cell's first run pays a one-off Metal "
+                                    "shader compile)",
+            "single_call_s_min": "fastest single-call value in the cell",
+            "single_call_n": "runs contributing to single_call_s_* (must equal n unless a "
+                             "run failed)",
+            "single_call_failed_excluded": "runs dropped from single_call_s_* because the "
+                                           "child produced no payload — a failed MLX run's "
+                                           "wall_s is 'start + two attempted "
+                                           "transcriptions', not a single-call measurement, "
+                                           "so it is excluded rather than silently counted "
+                                           "under a different basis",
+            "cpp_compute_s_mean": "cpp only: mean of (cli_timings.total_ms - load_ms) = the "
+                                  "inference part alone, excluding model load and process "
+                                  "start. This is the like-for-like partner of MLX's warm "
+                                  "run2 (both are 'model resident, no process overhead')",
+            "mlx_startup_s_median": "median of wall_s - run1_s - run2_s = Python start + "
+                                    "imports + exit (measured, not assumed)",
             "mlx_run1_s_mean": "in-process first transcribe, includes model load",
             "mlx_run2_s_mean": "in-process second transcribe, model resident (warm)",
             "peak_rss_mb": "max over runs of polled child-process RSS peak (ps @0.15s)",

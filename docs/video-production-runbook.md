@@ -351,18 +351,28 @@ ADR-0020 §2 首选）；MLX 只存在于 bench 实验轴（`bench/keyframe/`：
 机器负载快照与 `metal_evidence` 一并留存。同配置的前一次 run
 （`asr_timing_matrix.run1-1940.json`）与下表各格相差 ≤6%，内存与 Metal 峰值逐格相同。
 
-| 引擎/档位 | 新进程墙钟（均值 / 最快） | 进程内首次（含加载） | 常驻（warm） | 峰值内存 |
+| 引擎/档位 | 单次转写·冷进程（中位 / 最快） | 进程内首次（含加载） | 常驻（warm） | 峰值内存 |
 |---|---|---|---|---|
-| whisper.cpp `turbo`（生产默认） | **5.13s** / 3.60s | 不适用（每次新进程） | 不适用 | RSS **1.95GB** |
-| whisper.cpp `large-v3` | 13.19s / 6.18s（音乐段单次 28.6s） | 不适用 | 不适用 | RSS **4.11GB** |
-| MLX `turbo` | 8.33s / 6.70s（含解释器启动） | 3.27s | **2.87s** | RSS 1.82GB · Metal 峰值 2.52GB |
-| MLX `large-v3` | 14.68s / 9.58s（含解释器启动） | 7.09s | **6.11s** | RSS 3.59GB · Metal 峰值 3.99GB |
+| whisper.cpp `turbo`（生产默认） | **4.30s** / 3.60s | 不适用（每次新进程） | 不适用 | RSS **1.95GB** |
+| whisper.cpp `large-v3` | 8.95s / 6.18s（音乐段单次 28.6s） | 不适用 | 不适用 | RSS **4.11GB** |
+| MLX `turbo` | 4.69s / 4.16s | 3.27s | **2.87s** | RSS 1.82GB · Metal 峰值 2.52GB |
+| MLX `large-v3` | 8.80s / 5.90s | 7.09s | **6.11s** | RSS 3.59GB · Metal 峰值 3.99GB |
 
 **读法（三列口径不同，不可混着比）**：
-- 生产今天的形态 = **新进程墙钟**：MLX turbo 8.33s vs cpp turbo 5.13s，**MLX 更慢**——差的是
-  Python 解释器启动；模型加载两边都要付（MLX 进程内首次 3.27s 已含加载）。
-- MLX 的 **常驻 2.87s** 才是它的优势，兑现条件是常驻（新增 NDJSON worker + venv 依赖），
-  每次省约 2.3s，而 TTS 才是墙钟主导 → 收益不抵新增的运行时复杂度，**故不切换**。
+- **`single_call_s_*` 才是生产形态**：一次转写、冷进程。cpp 的每次 `wall_s` 本来就是一次；
+  MLX 的 `wall_s` 覆盖同一进程里的 run1+run2 **两次**转写，所以单次值 = `wall_s - run2_s`
+  （= 解释器启动 + run1）。**本表此前把 MLX 的两次墙钟和 cpp 的单次墙钟并列**（写 8.33s），
+  得出「MLX 慢 62%」——那是口径混用；修正后是**持平**：turbo 4.30s vs 4.69s（cpp 快 9%），
+  large-v3 8.95s vs 8.80s（持平）。前一 run（`single_call_s_median` 4.21 / 4.57 / 8.97 / 8.98）
+  独立复现同一结论。用中位而非均值：每格首条含一次性 Metal 冷编译（MLX 首条启动实测 6.89s，
+  其余 1.36-1.82s）。
+- MLX 的固定开销是**实测**的：`mlx_startup_s_median` = `wall_s - run1_s - run2_s`，
+  turbo 1.52s / large-v3 1.48s。它在 78s 音频上不足以拉开差距，但**音频越长占比越小**，
+  所以「MLX 每次新进程一定更慢」这个说法不成立——长音频对照见 ⑨。
+- MLX 的 **常驻 2.87s** 相对 cpp 的单次计算量（`cpp_compute_s_mean` = 4.22s，即
+  `cli_timings.total_ms - load_ms`，与 MLX 的 warm 同为「模型驻留、无进程开销」口径）
+  有约 1.47× 优势，兑现条件是常驻（新增 NDJSON worker + venv 依赖），而 TTS 才是墙钟主导
+  → 收益不抵新增的运行时复杂度，**故不切换**。
 - 内存同量级：turbo ≈2GB、large-v3 ≈3.6-4.1GB。口径不同：cpp 是进程 RSS（含 mmap 权重），
   MLX 是 `mx.metal.get_peak_memory()` 的 Metal 峰值。
 - 内存读数用**运行期轮询子进程 RSS**（`ps -o rss=` @0.15s）：`/usr/bin/time -l` 对同一份 MLX
@@ -398,6 +408,104 @@ cpp 的占用随进程结束。
 3. 因此「换运行时」不能用「同模型、输出一样」来论证；本票的裁决（生产保持 whisper.cpp）
    建立在**计时/内存 + 不可混用**两条证据上，而不是建立在等价性上。
 
+**⑨ 与外部 benchmark 的对照：本机结论不普适（2026-10-09 追加）**。网上主流结论与我们的
+四格相反——[Bill Mill](https://notes.billmill.org/dev_blog/2026/01/updated_my_mlx_whisper_vs._whisper.cpp_benchmark.html)
+（M1 Ultra，同 turbo 权重，hyperfine 10 次）测出 **mlx-whisper 快 2.03×**；`anvanvan/mac-whisper-speedtest`
+（M4 24GB）mlx 1.02s vs cpp 1.23s；而 whisper.cpp #1598（M1）反过来是 **cpp+CoreML 快于 MLX**。
+我们的机器是 **M2 Pro / 12 核 CPU / 19 核 GPU / 32GB**。为此补测了更长的音频（原始数据
+`.scratch/keyframe-bench/long_audio_373s.json`、`long_audio_174min.json`、`crossover_592_876.json`、
+`decoder_interleaved.json`）：
+
+| 音频长度 | whisper.cpp | mlx-whisper | 谁快 |
+|---|---|---|---|
+| 64–93s（四格，空机，每格 8 次） | 4.30s（中位） | 4.69s（中位） | cpp 1.09×（两轮独立复现） |
+| 373s（6.2 分钟） | 14.3 / 14.4s | 13.8 / 19.1s | **无可靠差异**（同一配置两轮抖动 38%） |
+| 592s | 41.4 / 44.9s | 39.7 / 36.3s | MLX 略快，噪声内 |
+| 876s | 31.9 / 34.1s | 53.1 / 60.6s | **cpp 1.6–1.9×** |
+| 1046s（17.4 分钟） | 57.1s | ~43.6s（单次口径） | MLX 1.31×（仅 1 轮） |
+
+**只有第一行可信**（空机、每格 8 次、两轮独立复现）；下面四行是同一台机器上、
+分辨率不足的测量，**不作为结论**。876s 与 1046s 两行方向相反（前者 cpp 快 1.6–1.9×，
+后者 MLX 快 1.31×）就是噪声的直接证据——差异来自 cpp 解码耗时的方差，不是运行时优劣。
+原因如实记录：
+1. **测量期间机器不空**（并行 session 的 Playwright，load 5.1→9.4；四格那轮是 2.9→3.3）。
+   同一配置两次跑出 49.7s 与 80.6s（差 62%），单次值已被噪声淹没。
+2. **cpp 的解码耗时本身高方差**：同一段 10–15 分钟音频，`batchd` 在 7.5s–43.6s 之间跳
+   （取决于温度回退/循环触发），这会同时污染「谁快」和交叉点位置。
+
+可以确定的只有两条：**外部那个 2× 优势在本机复现不出来**（最好的情况也只是 MLX 略快，
+且被噪声覆盖），以及**差异的方向与 GPU 宽度一致**——M1 Ultra 的 GPU 核数是我们（19）的
+2.5–3.4 倍、带宽 4 倍，MLX 对 GPU 宽度更敏感。已排除两个更省事的解释：**不是 `-fa`**
+（核对他用的 revision `679bdb53`，`flash_attn` 默认值同样是 `true`），**也不是版本代差**。
+顺带证伪一个候选优化：关掉 beam search（`-bs 1 -bo 1`）交错实测只有 **1.08×**（噪声内），
+词级差异 0.8%——**不采用**。
+
+**对裁决的影响**：不变（生产仍是 whisper.cpp），但**理由要换**——不是「MLX 慢 62%」（那是
+⑥ 已修的口径混用），而是「生产长度上持平 + cpp 无 Python/venv 依赖 + 门禁已按它建成」。
+
+**长音频重测条件（2026-10-10 裁决）**：本表的结论只在生产长度（64–93s）成立，而上面暴露的
+三个测量陷阱必须由协议防住。**触发条件**（不触发就不测）：出现真实的长音频批处理负载——
+平均音频 >10 分钟，或 ASR 总时长与 TTS/渲染同量级（今天 ASR ≈5s/视频、TTS 主导 → 未触发）。
+触发后按以下协议，每条对应本轮一次真实踩坑：
+
+| 协议要求 | 防的是 |
+|---|---|
+| 空机守卫：记录 `load_avg`，>4 中止改期 | 本轮 5.1→9.4 的污染（同配置跑出 49.7s vs 80.6s） |
+| **每进程只做一次转写**，两侧口径逐字节对齐 | ⑥ 的 8.33s 错误：MLX 的两次转写被拿去和 cpp 单次并列 |
+| cpp / mlx 交错执行 | 热漂移与负载漂移 |
+| 每侧 ≥5 次，报**中位数 + IQR**，不用均值 | 每格首条含一次性 Metal 冷编译（6.89s vs 其余 1.36–1.82s） |
+| 同时记录 cpp 的 `batchd` | 同段音频 7.1–43.6s 的摆动；落在摆动内的「胜利」不是胜利 |
+| 两个长度（~5 分钟 / ~15 分钟） | 交叉点与长度相关，单点不能外推 |
+| **决策规则：两侧 IQR 不重叠才算差异**；重叠即维持现状并记录 | 给「持平」一个明确结论，而不是靠 1.31× 这种单轮数字 |
+
+**范围提醒**：真触发时要比的是**部署 vs 部署**——cpp 一次性进程 vs `whisper-server`（brew 已装）
+vs MLX 常驻 worker，而不是 ⑥ 的进程 vs 进程。那是一个新实验，不是本节的重复。
+
+**⑩ CoreML / ANE encoder 的收益上限（2026-10-09 实测占比）**：CoreML 与 ANEForge 都**只加速
+encoder**，所以先量 encoder 占多少。whisper-cli 自报计时（turbo、ctx-off）：
+
+| 音频 | encode 占比 | 解码侧（batchd+sample）占比 | 理论上限（encoder 归零） |
+|---|---|---|---|
+| 78s（四格均值，n=8） | **43%**（2.05 / 4.75s） | 未记录（该轮只抓了 encode/decode） | 1.75× |
+| 373s | **56%**（7.95 / 14.2s） | — | 2.3× |
+| 1046s | **37%**（21.3 / 57.4s） | 58% | 1.6× |
+
+占比算法：`cli_timings.encode_ms ÷ cli_timings.total_ms`（whisper-cli 自报，逐次记录在产物
+`results[].cli_timings`；78s 行取四格那轮 8 次的均值，373s/1046s 行见
+`long_audio_373s.json` / `long_audio_174min.json`）。
+
+结论：**收益有天花板，而且上游数据不支持「CoreML 比我们现在的 Metal encoder 更快」**——
+1. encoder 占 37–56%，所以任何「只加速 encoder」的方案上限就是 1.6–2.3×；
+2. 上游唯一一组 CoreML / Metal 同机 per-call 对比（[ANEForge PR #3905](https://github.com/ggml-org/whisper.cpp/pull/3905)，
+   M5 Pro，fp16）里 **CoreML 反而比 Metal 慢约 2×**（medium 236ms vs 120ms，tiny 11.2ms vs 7.3ms）。
+   README 那句「more than x3 faster」的基准是 **CPU-only，不是 Metal**——本机 `-ng` 实测
+   CPU-only 慢到跑不完（1046s 音频 550s 被中止，Metal 同一段 57s），所以那个倍数不能外推；
+3. 真正比 Metal 快的是 **ANEForge**，但 per-call 也只有 1.0–1.3×（tiny 1.3×、small 1.0×、
+   medium 1.0×），折算到总时长约 **1.0–1.1×**，且要走 Apple 私有 API（上游自述 research path）。
+
+代价（无论走哪条路）：`WHISPER_COREML=1` 是**编译期**开关（brew 无此选项，本机 `otool -L`
+确认当前 `whisper-cli` 不含 CoreML 框架）、需为每个模型生成 `.mlmodelc`、且本机**没有
+Xcode.app**（`xcrun coremlc` 不存在）。**故不引入**：ASR 不是墙钟瓶颈（TTS 才是），每视频
+ASR 只有约 5s。若将来 ASR 成为瓶颈，先测 `-bs 1`（本机实测仅 1.08×，已证伪）与 ANEForge，
+再考虑 CoreML。护栏与重测条件见 `docs/research/keyframe-extraction-research.md` §17.5。
+
+**⑪ 语言默认值不是 auto-detect（2026-10-09 实测，纠正此前说法）**：whisper-cli 的
+`-l LANG` 默认是 **`en`**（help 写 `-l LANG [en]`，stderr 实测打 `lang = en`）——
+**不传 `-l` 就是强制英文，不是自动检测**。此前把 `transcribeVideo` 描述成「靠自动检测」是错的。
+实测后果：中文音频**仍然返回中文**（多语模型不会翻成英文），但**专有名词退化**——同一段中文
+素材（`_mlx-vs-kaggle-ab/mlx-narrative-calm-zh_000.wav`），`lang = en` 出 `DeepSeq`，
+`lang = auto` 出 `DeepSeek`（自动检测 p = 0.998）。修复按调用方语义分开，**唯一的生产调用者
+行为不变**：
+
+| 调用方 | 语言口径 | 说明 |
+|---|---|---|
+| TTS 质检回读（`quality-gate.mjs`） | `-l en` | 英文配音本来就该用 en；原先靠「默认恰好是 en」，现在显式钉住（`languageHint` 此前只是被塞进 `meta`、从未生效） |
+| `understandVideo`（任意来源视频） | `-l auto` | TikTok/YouTube/Bilibili 不保证英文；该路径目前 dormant（无生产调用者），接消费者时即正确 |
+| `transcribeVideo` 其他调用 | 不传 → 继承 `en` | 新增 `options.language`，不传则与修复前逐字节同命令 |
+
+验证：`video-understand.test.mjs` 新增 2 条（变异检查确认有判别力：注入变异体后新测试失败，
+还原后逐字节一致）；真实中文素材冒烟（同一 wav 两种口径的文本对照，见上）；
+short-video 全量 **3952 passed**（191 文件，无回归）。
 
 ## VLM Asset Analysis
 

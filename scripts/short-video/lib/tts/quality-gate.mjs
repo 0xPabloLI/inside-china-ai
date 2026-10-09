@@ -309,7 +309,12 @@ export function detectPhoneticConfusion(expected, asr) {
 async function transcribeViaWhisperCpp(audioPath, { languageHint } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "qg-asr-"));
   try {
-    const result = await transcribeVideo(audioPath, { outputDir: dir });
+    // whisper-cli defaults to `en`; pin the gate's hint so it is load-bearing
+    // instead of decorative (it used to be dropped and only echoed into `meta`).
+    const result = await transcribeVideo(audioPath, {
+      outputDir: dir,
+      language: languageHint ?? "en",
+    });
     if (!result) {
       return {
         ok: false,
