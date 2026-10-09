@@ -41,11 +41,7 @@ const HOME = process.env.HOME || "/Users/pabloli";
 const WHISPER_CLI = "/opt/homebrew/bin/whisper-cli";
 // Model name from the ADR-0020 single source — the constant existed but had no
 // consumers, so this path was the de-facto (drift-prone) default instead.
-const WHISPER_MODEL = join(
-  HOME,
-  ".cache/whisper",
-  `ggml-${DEFAULT_WHISPER_CPP_MODEL_NAME}.bin`,
-);
+const WHISPER_MODEL = join(HOME, ".cache/whisper", `ggml-${DEFAULT_WHISPER_CPP_MODEL_NAME}.bin`);
 const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 const YTDLP = "/opt/homebrew/bin/yt-dlp";
 const CDP_BASE = "http://localhost:3456";

@@ -25,9 +25,7 @@ import { asrAvailability } from "./video-understand.mjs";
  * @returns {boolean}
  */
 export function asrOptOut() {
-  return (
-    process.env.TTS_QUALITY_ALLOW_NO_ASR === "1" || process.env.TTS_SKIP_QUALITY_GATE === "1"
-  );
+  return process.env.TTS_QUALITY_ALLOW_NO_ASR === "1" || process.env.TTS_SKIP_QUALITY_GATE === "1";
 }
 
 /**
