@@ -16,8 +16,10 @@
 # Usage:
 #   scripts/short-video/kaggle/push-build-kernel.sh [--no-run]
 #
-# --no-run saves a version without executing it (a cheap way to check that the
-# metadata Kaggle stores is what this script sent).
+# Extra arguments are forwarded to `kaggle kernels push`, so `--no-run` saves a
+# version without executing it ("The version is created but no cell runs" —
+# kaggle-api docs/kernels.md). That is the cheap way to inspect what metadata
+# Kaggle stored, without spending a CPU session.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
