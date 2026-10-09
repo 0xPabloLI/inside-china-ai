@@ -5,15 +5,20 @@
 MLX 侧曾与 VLM 并行（抢 GPU），whisper.cpp 侧未记录 backend 与内存。本脚本
 一次跑齐四格，并记录可复核的配置与资源口径：
 
-- 每个测量都是**独立子进程**，用 `/usr/bin/time -l` 取 `maximum resident set size`
-  （两引擎同一口径；mmap 的模型页与 Metal 缓冲在触达后计入 RSS）。
+- 每个测量都是**独立子进程**，峰值内存取**运行期轮询子进程 RSS**（`ps -o rss=`
+  @0.15s）。曾用 `/usr/bin/time -l` 的 `maximum resident set size`，但同一份 MLX
+  运行两次给出 351MB vs 1707MB 的矛盾读数，故弃用（见 `ps_rss_kb`）。轮询分辨率
+  0.15s，短任务的瞬时峰值可能被低估——四格同口径，横向可比。
 - **cold/warm 拆开**：whisper.cpp 每次调用都是新进程（cold 是它的常态）；
   MLX 同一进程连跑两次，run1 = cold（含模型加载），run2 = warm（模型驻留）。
-  MLX 侧另记 `mx.metal.get_peak_memory()`（模型加载后重置 → run2 为纯转写峰值）。
+  MLX 侧另记 `mx.metal.get_peak_memory()`（每次转写前重置）。
 - **ctx-off 口径**（#418 生产口径）：cpp `-mc 0`，MLX
   `condition_on_previous_text=False`。
-- **backend 证据**：抓取 stderr 里的 `ggml_metal` / `BLAS` 初始化行，记录
-  `metal_used`，不再用「`-t 8` 所以不抢 GPU」这种未验证推断。
+- **backend 证据**：cpp 抓 stderr 里的 `ggml_metal` 初始化行；MLX 由子进程回报
+  `mx.metal.is_available()` 与 `mx.default_device()`。两者都是实测值，
+  不用「`-t 8` 所以不抢 GPU」这种未验证推断。
+- **`summary` 块**：脚本自己把逐次记录聚合成文档引用的数字（定义写在
+  `summary.definitions` 里），避免「文档里的数在原始数据里找不到」。
 
 素材：`.scratch/keyframe-bench/audio/<vid>.wav`（16k mono，与等价性/计时前序同批）。
 输出：`.scratch/keyframe-bench/asr_timing_matrix.json` + 同名 .log。
@@ -105,6 +110,8 @@ print("@@RESULT@@" + json.dumps({
     "run2_s": round(second, 2), "run2_peak_mb": round(second_peak, 1),
     "run1_chars": len((r.get("text") or "").strip()),
     "run2_chars": len((r2.get("text") or "").strip()),
+    "metal_available": bool(mx.metal.is_available()),
+    "default_device": str(mx.default_device()),
 }))
 """
 
@@ -142,7 +149,8 @@ def run_cpp(model: str, wav: str, out_prefix: str):
            "-t", "8", "-fa", "-mc", "0", "-oj", "-of", out_prefix]
     rc, _out, err, wall, rss_mb = run_measured(cmd)
     # backend 证据：whisper.cpp 打印 "load_backend: loaded ... BLAS/Metal" 初始化行
-    metal = bool(re.search(r"ggml_metal", err))
+    metal_evidence = re.search(r"ggml_metal[^\n]*", err)
+    metal = bool(metal_evidence)
     text = ""
     jf = out_prefix + ".json"
     if os.path.exists(jf):
@@ -154,6 +162,7 @@ def run_cpp(model: str, wav: str, out_prefix: str):
         "wall_s": wall,
         "max_rss_mb": rss_mb,
         "metal_used": metal,
+        "metal_evidence": metal_evidence.group(0)[:120] if metal_evidence else None,
         "chars": len(text),
         "cli_timings": parse_whisper_timings(err),
     }
@@ -167,11 +176,14 @@ def run_mlx(model: str, wav: str):
     for line in out.splitlines():
         if line.startswith("@@RESULT@@"):
             payload = json.loads(line[len("@@RESULT@@"):])
+    # backend 证据来自 MLX 子进程自报（此前这里硬编码 True，是推断不是实测）
+    metal = bool(payload and payload.get("metal_available"))
     return {
         "rc": rc,
         "wall_s": wall,
         "max_rss_mb": rss_mb,
-        "metal_used": True,  # MLX 即 Metal
+        "metal_used": metal,
+        "metal_evidence": payload.get("default_device") if payload else None,
         "chars": payload.get("run2_chars") if payload else None,
         "mlx": payload,
         "stderr_tail": err[-400:] if rc else "",
@@ -186,6 +198,55 @@ def machine_state():
         capture_output=True, text=True).stdout.strip()
     return {"load_avg": [round(x, 2) for x in load],
             "competing_bench_jobs": bool(others)}
+
+
+def summarize(results):
+    """把逐次记录聚合成文档会引用的数字（定义随数据一起落盘）。
+
+    cold = 该格全部逐次墙钟的均值；cpp 每次都是新进程，MLX 的 `wall_s` 含
+    解释器启动，故另给 `mlx_run1_s_mean`（进程内首次调用，含模型加载）作
+    冷启动口径。warm 只对 MLX 有意义（同进程第二次调用，模型驻留）。
+    """
+    def mean(xs):
+        return round(sum(xs) / len(xs), 2) if xs else None
+
+    cells = {}
+    for engine in ("whisper.cpp", "mlx"):
+        for model in ("turbo", "large-v3"):
+            rs = [r for r in results if r["engine"] == engine and r["model"] == model]
+            if not rs:
+                continue
+            rss = [r["max_rss_mb"] for r in rs if r["max_rss_mb"]]
+            mlx = [r["mlx"] for r in rs if r.get("mlx")]
+            cells[f"{engine}/{model}"] = {
+                "n": len(rs),
+                "cold_wall_s_mean": mean([r["wall_s"] for r in rs]),
+                "cold_wall_s_min": min(r["wall_s"] for r in rs),
+                "peak_rss_mb": max(rss) if rss else None,
+                "metal_measured": sum(1 for r in rs if r["metal_used"]),
+                "metal_evidence": sorted({r.get("metal_evidence") for r in rs if r.get("metal_evidence")}),
+                "chars": sorted({r["chars"] for r in rs if r["chars"]}),
+                **({
+                    "mlx_run1_s_mean": mean([x["run1_s"] for x in mlx]),
+                    "mlx_run2_s_mean": mean([x["run2_s"] for x in mlx]),
+                    "mlx_run1_peak_mb_mean": mean([x["run1_peak_mb"] for x in mlx]),
+                    "mlx_run2_peak_mb_mean": mean([x["run2_peak_mb"] for x in mlx]),
+                    "mlx_run2_peak_mb_max": max(x["run2_peak_mb"] for x in mlx),
+                } if mlx else {}),
+            }
+    return {
+        "definitions": {
+            "cold_wall_s_mean": "mean of per-run process wall time (includes interpreter "
+                                "start for MLX, model load for both)",
+            "mlx_run1_s_mean": "in-process first transcribe, includes model load",
+            "mlx_run2_s_mean": "in-process second transcribe, model resident (warm)",
+            "peak_rss_mb": "max over runs of polled child-process RSS peak (ps @0.15s)",
+            "mlx_*_peak_mb*": "mx.metal.get_peak_memory(), reset before each transcribe",
+            "metal_measured": "runs whose Metal use was observed (cpp: ggml_metal stderr "
+                              "line; mlx: mx.metal.is_available() reported by the child)",
+        },
+        "cells": cells,
+    }
 
 
 def main():
@@ -241,12 +302,15 @@ def main():
                     capture_output=True, text=True).stdout.strip(),
                 "mlx_python": MLX_PYTHON,
                 "mlx_repos": MLX_REPOS,
-                "memory": "max RSS via /usr/bin/time -l (child process); "
-                          "mlx peak via mx.metal.get_peak_memory",
+                "memory": "peak child RSS via ps -o rss= polling @0.15s (macOS "
+                          "/usr/bin/time -l gave contradictory readings for identical "
+                          "MLX runs: 351MB vs 1707MB, so it was discarded); mlx peak "
+                          "via mx.metal.get_peak_memory() reset per run",
                 "runs_per_cell": RUNS,
                 "machine_at_start": start_state,
                 "machine_at_end": machine_state(),
             },
+            "summary": summarize(results),
             "results": results,
         }, fh, ensure_ascii=False, indent=1)
     print(f"\nDONE in {time.time() - t_start:.0f}s → {OUT_JSON}", flush=True)
