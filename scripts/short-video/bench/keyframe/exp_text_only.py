@@ -22,7 +22,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 WT_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
 RESULTS = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "results")
 VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
-ASR_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "asr")
+# 转写目录。默认 ctx-off（生产口径，#418）。此前写死 ctx-on 的 asr/，
+# 是 Q41⑤ 那类「默认值静默偏离生产口径」的一处（2026-10-09 归正）。
+ASR_DIR = os.path.join(WT_ROOT, os.environ.get(
+    "VM_ASR_DIR", ".scratch/keyframe-bench/asr_ctxoff"))
 sys.path.insert(0, HERE)
 # vlm_analyzer 在 scripts/short-video/lib（2026-10-05 补：缺这行曾 ModuleNotFoundError）
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..", "lib")))

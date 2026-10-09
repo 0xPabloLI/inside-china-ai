@@ -57,8 +57,12 @@ OUT_NAME = os.environ.get("VM_OUT", "exp_videomme_qa.json")
 SUBSET_NAME = os.environ.get("VM_SUBSET", "bench_subset.csv")
 AUDIO = os.environ.get("VM_AUDIO") == "1"   # feed the clip's audio to MiniCPM-o too
 AUDIO_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "audio")
+# 转写目录。默认 ctx-off —— 与生产口径一致（#418 / video-production-runbook
+# 「转写一律 ctx-off」）。2026-10-09 之前默认是 ctx-on 的 asr/，导致短档全部
+# 转写臂静默用了带重复幻觉的转写（Q41⑤）：92 个同名文件里 88 个内容不同。
+# ctx-on 的 asr/ 仅作历史对照，要用必须显式 VM_ASR_DIR=.scratch/keyframe-bench/asr。
 ASR_DIR = os.path.join(WT_ROOT, os.environ.get(
-    "VM_ASR_DIR", ".scratch/keyframe-bench/asr"))   # ctx-off 复跑切 asr_ctxoff
+    "VM_ASR_DIR", ".scratch/keyframe-bench/asr_ctxoff"))
 ASR_TEXT = os.environ.get("VM_ASR") == "1"   # inject the ASR transcript into the prompt
 ASR_MAX_CHARS = 2000
 PRECOMPUTED = os.environ.get("VM_PRECOMPUTED")   # JSON: {videoID: {method: [ts,...]}}
@@ -366,6 +370,16 @@ def main():
         diff = [r for r in scored if r["pred_strict"] != r["pred"]]
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump({"arms_run": METHODS, "arms_in_file": sorted(results),
+                       # 转写出处必须落进结果文件：此前只记 arm 名，而 arm 名不含
+                       # 转写目录 ⇒ 事后无法判断某条结果用的是 ctx-on 还是 ctx-off。
+                       # Q41⑤ 的整场混乱（哪些结论基于脏转写）正是这个字段缺失导致的。
+                       "asr_provenance": (
+                           {"dir": os.path.relpath(ASR_DIR, WT_ROOT),
+                            "mode": ASR_MODE,
+                            "max_chars": ASR_MAX_CHARS}
+                           if ASR_TEXT else {"dir": None, "mode": None,
+                                             "max_chars": None,
+                                             "note": "arm has no transcript"}),
                        "parser_check": {
                            "rows_with_raw": len(scored),
                            "strict_ne_lenient": len(diff),

@@ -52,11 +52,12 @@ MODE = os.environ.get("OMNI_MODE", "interleave").strip()  # interleave|pure|asr
 # 0 = 用仓库原值。用途：分离「压缩率」与「训练差异」（Q37 的悬置问题）。
 MAX_PIXELS = int(os.environ.get("OMNI_MAX_PIXELS", "0"))
 ASR_MAX_CHARS = 2000
+# 转写目录。默认 ctx-off（生产口径，#418）。此前按「subset 名里有没有 medium」
+# 猜目录（medium→ctxoff，短档→ctx-on），是个脆弱启发式：换个 subset 文件名就会
+# 静默换转写（2026-10-09 归正，Q41⑤）。要复现历史 ctx-on 结果必须显式传
+# OMNI_ASR_DIR=.scratch/keyframe-bench/asr。
 ASR_DIR = os.path.join(WT_ROOT, os.environ.get(
-    "OMNI_ASR_DIR",
-    ".scratch/keyframe-bench/asr_ctxoff"
-    if "medium" in os.environ.get("VM_SUBSET", "")
-    else ".scratch/keyframe-bench/asr"))
+    "OMNI_ASR_DIR", ".scratch/keyframe-bench/asr_ctxoff"))
 
 
 def transcript_text(vid):

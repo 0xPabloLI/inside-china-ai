@@ -52,8 +52,12 @@ WT_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
 LIB = os.path.join(WT_ROOT, "scripts", "short-video", "lib")
 RESULTS = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "results")
 VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
+# 转写目录。默认 ctx-off，与生产口径一致（#418）。此前默认 ctx-on 的 asr/，
+# 而缓存键标签又写死 ctxoff —— 内容与标签不符（Q41⑤：92 条中 86 条证伪）。
+# 现在标签由本目录名推导，默认值也归到 ctx-off；要复现历史 ctx-on 结果必须显式
+# 传 LFQ_ASR_DIR=.scratch/keyframe-bench/asr。
 ASR_DIR = os.path.join(WT_ROOT, os.environ.get(
-    "LFQ_ASR_DIR", ".scratch/keyframe-bench/asr"))
+    "LFQ_ASR_DIR", ".scratch/keyframe-bench/asr_ctxoff"))
 CACHE = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "loader_cache")
 
 sys.path.insert(0, HERE)
