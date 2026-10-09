@@ -1,7 +1,23 @@
 # 本地在用模型保护清单
 
 > **不可删除**。清理本地模型前必须核对此清单。
-> 最后更新：2026-09-25（Round M：30B 转正为现役生产引擎；新增 FastMetal-5B / MiniCPM-o / emotion2vec+ 登记；确认 GLM-4.1V-9B 与 Qwen3-VL-2B 已不在缓存）
+> 最后更新：2026-10-09（Whisper 四模型盘点；Systran/faster-whisper-large-v3 **已删**，见下）
+
+## Whisper 家族盘点（2026-10-09）
+
+ASR 一共四个模型，**各有用途，无冗余**。此前的 `Systran/faster-whisper-large-v3`
+已删除（损坏且无调用方，详见 `keyframe-extraction-research.md` Q41 系列）。
+
+| 模型 | 引擎 | 用途 | 大小 | 删除后果 |
+|------|------|------|------|----------|
+| `ggml-large-v3-turbo.bin` | whisper.cpp | **生产**：`video-understand.mjs` 转写 + `tts/quality-gate.mjs` 回读质检（ADR-0020） | 1.5GB | 生产 ASR 断 |
+| `ggml-large-v3.bin` | whisper.cpp | #418 计时矩阵的 cpp large-v3 格（**该格尚未跑**，模型已就位） | 2.9GB | #418 缺口补不上，需重下 |
+| `mlx-community/whisper-large-v3-mlx` | MLX | bench 转写（`asr_batch.py`）+ #418 的 MLX large-v3 计时格 | 2.9GB | bench 转写与 #418 断 |
+| `mlx-community/whisper-large-v3-turbo` | MLX | #418 的 MLX turbo 计时格 | 1.5GB | #418 断 |
+
+> 后三个是 **#418 未完成部分的输入**，不是可清理的旧物。#418 剩余验收明写
+> 「同批音频 × {turbo, large-v3} × {whisper.cpp, MLX}」——四格中已有三格
+> （cpp turbo / MLX turbo / MLX large-v3），缺的正是 cpp large-v3。
 
 ## HuggingFace 缓存（~/.cache/huggingface/hub/）
 
@@ -10,8 +26,8 @@
 | Boogu/Boogu-Image-0.1-Turbo | T2I 文生图（Boogu/mflux） | 36GB | T2I 管线断 |
 | FastVideo/FastMetal-1.3B-QAD | T2V B-roll 生成（现役 Wan1.3B 档，`b-roll/mlx_wan_batch.py`） | 12GB | B-roll 管线断 |
 | FastVideo/FastMetal-5B-QAD | T2V B-roll 生成 5B 档（#298 画质升级候选） | 12GB | 5B 评测链断（用户确认在用，2026-09-25） |
-| Systran/faster-whisper-large-v3 | ASR 转写（`asr-analyzer.mjs` / WhisperX，ADR-0020） | 2.9GB | ASR 断 |
-| facebook/wav2vec2-large-960h-lv60-self | 字幕强制对齐 | 1.2GB | 字幕对齐断 |
+| ~~Systran/faster-whisper-large-v3~~ | ~~ASR 转写（`asr-analyzer.mjs` / WhisperX）~~ | ~~2.9GB~~ | **2026-10-09 已删**：`model.bin` 中段损坏（sha256 `f686498e…` ≠ HF `69f74147…`，大小却相同、文件头有效），且 `asr-analyzer.mjs` 的 `transcribeAudioWindow` 从无调用方。留着的风险是「头完好、只有中段坏」会给出 `Invalid string length` 这类难诊断的报错——删掉后缺失会变成清晰的「模型不存在」 |
+| facebook/wav2vec2-large-960h-lv60-self | 字幕强制对齐（`text-align.py`，**非 ASR**：对齐已知文本，不做识别） | 1.2GB | 字幕对齐断 |
 | lucasnewman/f5-tts-mlx | TTS 语音合成 | 1.3GB | TTS 断 |
 | mlx-community/S3TokenizerV3 | tokenizer | 923MB | tokenizer 断 |
 | mlx-community/MiniCPM-o-4_5-4bit | **空壳（仅 4KB refs 骨架，无权重）**——2026-09-24 HF 首次下载残留，真身在 `~/models/` | 4KB | 无影响（清理候选，待确认后删） |

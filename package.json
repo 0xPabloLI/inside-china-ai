@@ -16,6 +16,7 @@
     "lint:docs": "node scripts/lint-doc-hierarchy.mjs",
     "lint:todos": "node scripts/lint-todos.mjs",
     "lint:asr": "node scripts/lint-asr-model-defaults.mjs",
+    "lint:asr-ctx": "node scripts/lint-asr-ctx-off.mjs",
     "lint:duplicates": "jscpd src scripts skills --silent",
     "docs:api": "node scripts/generate-api-docs.mjs",
     "check:dead": "knip",

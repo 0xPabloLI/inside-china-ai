@@ -29,6 +29,7 @@ import json
 import os
 import re
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WT_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
@@ -39,10 +40,15 @@ VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
 sys.path.insert(0, HERE)
 sys.path.insert(0, LIB)
 import bench_common as bc  # noqa: E402
+import bench_prompt as bq  # noqa: E402
+import bench_provenance as bp  # noqa: E402
 import exp_siglip as es  # noqa: E402
 import exp_tiered as et  # noqa: E402
 
-BUDGET = 16
+BUDGET = int(os.environ.get("VM_BUDGET", "16"))  # 24 = legacy24 arm as-is
+# (the production shape carries up to 24 frames; the default 16 keeps every
+# historical arm comparable — _cap uses this to trim precomputed lists, so a
+# legacy24 run without the override would silently lose 8 frames)
 ALL_METHODS = ["uniform_16", "tiered", "tiered_v3", "tiered_v5", "slice",
                "maxinfo_siglip"]
 METHODS = [m.strip() for m in
@@ -53,13 +59,31 @@ OUT_NAME = os.environ.get("VM_OUT", "exp_videomme_qa.json")
 SUBSET_NAME = os.environ.get("VM_SUBSET", "bench_subset.csv")
 AUDIO = os.environ.get("VM_AUDIO") == "1"   # feed the clip's audio to MiniCPM-o too
 AUDIO_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "audio")
+# 转写目录。默认 ctx-off —— 与生产口径一致（#418 / video-production-runbook
+# 「转写一律 ctx-off」）。2026-10-09 之前默认是 ctx-on 的 asr/，导致短档全部
+# 转写臂静默用了带重复幻觉的转写（Q41⑤）：92 个同名文件里 88 个内容不同。
+# ctx-on 的 asr/ 仅作历史对照，要用必须显式 VM_ASR_DIR=.scratch/keyframe-bench/asr。
 ASR_DIR = os.path.join(WT_ROOT, os.environ.get(
-    "VM_ASR_DIR", ".scratch/keyframe-bench/asr"))   # ctx-off 复跑切 asr_ctxoff
+    "VM_ASR_DIR", ".scratch/keyframe-bench/asr_ctxoff"))
 ASR_TEXT = os.environ.get("VM_ASR") == "1"   # inject the ASR transcript into the prompt
 ASR_MAX_CHARS = 2000
 PRECOMPUTED = os.environ.get("VM_PRECOMPUTED")   # JSON: {videoID: {method: [ts,...]}}
 OMNI_UNITS = os.environ.get("VM_OMNI_UNITS") == "1"   # 官方规格：帧+逐段音频交织
 ASR_MODE = os.environ.get("VM_ASR_MODE", "block")     # block(默认) | ts | full | after
+VM_ENGINE = os.environ.get("VM_ENGINE", "").strip()   # 引擎覆盖（如 qwen3-vl-moe）
+NATIVE_VIDEO = os.environ.get("VM_NATIVE_VIDEO") == "1"   # 原生视频输入（qwen 引擎），跳过选帧
+# 视觉像素预算覆盖。默认 0 = 用模型自带值；给值则把 Qwen3-VL/Omni 的 max_pixels
+# 改到这个数，用于 2×2 因子对照（同一模型在两个预算下、两个模型在同一预算下）。
+VM_MAX_PIXELS = int(os.environ.get("VM_MAX_PIXELS", "0"))
+# 生成长度。8 是 QA 臂的最小值（只输出一个选项字母）；Thinking 臂必须放大，
+# 否则推理链没走完就被截断，分数反映的是截断而不是能力。
+MAX_TOKENS = int(os.environ.get("VM_MAX_TOKENS", "8"))
+THINK_STRIP = os.environ.get("VM_THINK_STRIP") == "1"   # 打分前剥掉  thinking 块
+# 只跑指定的 (videoID, question_id) 子集。给的是 JSON：要么 [[vid, qid], ...]，
+# 要么 {"vid": ["qid", ...]}。用途：把「换模型/换模式能否修回已答错的题」这类问题
+# 从全量重跑压到只跑错题（本次 276→47 题，5.3h→0.9h）。
+# 只筛题不筛视频：视频仍按原顺序遍历，空题集的视频会被自然跳过。
+ONLY_QUESTIONS = os.environ.get("VM_ONLY_QUESTIONS")
 if AUDIO and ASR_TEXT:
     # The row suffix can only label one feeding mode, but the prompt would
     # carry both — rows would merge into the results under the wrong name.
@@ -88,38 +112,26 @@ def grab(video, ts, out_dir, prefix):
     return paths
 
 
-def parse_lenient(raw):
-    """Original scorer: first A-D character anywhere. Kept because the
-    uniform/tiered numbers already on disk used it — changing only the scorer
-    would make the new arms incomparable with them."""
-    m = re.search(r"[ABCD]", raw.strip().upper())
-    return m.group(0) if m else "?"
-
-
-def parse_strict(raw):
-    """PR #407 P1 alternative: the letter has to be the answer, not a letter
-    inside prose ('D'ON'T, 'B'ASED, 'A'NSWER all match lenient). Both are
-    recorded per row so the disagreement rate is measured, not argued."""
-    s = raw.strip().upper()
-    m = re.match(r"^\s*\[?([ABCD])\]?[\s.:!]*$", s)
-    return m.group(1) if m else "?"
+# ── 打分器 / 转写读取：逻辑已收敛到 bench_prompt（单一事实来源）─────────────
+# 这里保留同名薄壳只为不改调用点。改行为请改 bench_prompt.py —— 那边同时服务
+# Omni 臂，两边必须同款，否则「同题不同分」可能只是解析器或 prompt 不同。
+# 2026-10-09 合并前已逐例核验：两脚本的原实现与共享模块输出完全一致。
+parse_lenient = bq.parse_lenient
+parse_strict = bq.parse_strict
+strip_thinking = bq.strip_thinking
+parse_thinking = bq.parse_thinking
 
 
 def transcript_text(vid, mode):
     """四种喂法对照：block=整块截断（默认，既有结果的口径）/ ts=逐段带时间戳 /
     full=不截断 / after=放在题目之后（由调用方处理位置）。"""
-    p = os.path.join(ASR_DIR, f"{vid}.json")
-    if not os.path.exists(p):
-        return ""
-    try:
-        d = json.load(open(p, encoding="utf-8"))
-    except Exception:
-        return ""
-    if mode == "ts":
-        return "\n".join(f"[{int(s['start']//60):02d}:{s['start']%60:04.1f}] {s['text']}"
-                         for s in d.get("segments", [])[:80])
-    t = d.get("text", "")
-    return t if mode == "full" else t[:ASR_MAX_CHARS]
+    return bq.transcript_text(ASR_DIR, vid, mode, ASR_MAX_CHARS)
+
+
+def check_asr_coverage(videos):
+    """转写覆盖率门禁（实现已收敛到 bench_prompt，三处臂共用同一份）。"""
+    bq.check_asr_coverage(ASR_DIR, videos, SUBSET_NAME, wt_root=WT_ROOT,
+                          mode=ASR_MODE, max_chars=ASR_MAX_CHARS)
 
 
 _PRECOMP_CACHE = {}
@@ -146,6 +158,12 @@ def _precomputed(name, vid):
         _PRECOMP_CACHE.update(json.load(open(os.path.join(WT_ROOT, PRECOMPUTED),
                                              encoding="utf-8")))
     ts = _PRECOMP_CACHE.get(vid, {}).get(name)
+    if ts is None and PRECOMPUTED:
+        # 2026-10-05 事故教训：medium 档 uniform_16 键缺失时静默 fallback 拿了
+        # 别的方法的时刻表（84 题答案与 uniform_96 逐字节全同，臂报废）。
+        # 提供了 PRECOMPUTED 就不许 fallback——缺键是配置错误，必须响亮失败。
+        raise KeyError(f"precomputed timetable miss: video {vid} has no "
+                       f"timestamps for method '{name}' ({PRECOMPUTED})")
     return None if ts is None else _cap(ts)
 
 
@@ -216,10 +234,36 @@ def main():
     import pyarrow.parquet as pq
     import vlm_analyzer as vlm
 
+    if VM_ENGINE:
+        # 换引擎做跨模型对比（vlm-model.json 里须有该引擎条目）。
+        vlm.DEFAULT_ENGINE, vlm.MODEL_ID = vlm.resolve_engine(
+            vlm._VLM_CONFIG, requested_engine=VM_ENGINE)
+        print(f"engine override: {vlm.DEFAULT_ENGINE} ({vlm.MODEL_ID})",
+              flush=True)
+
     df = pq.read_table(os.path.join(VM, "test.parquet")).to_pandas()
     subset = pd.read_csv(os.path.join(VM, SUBSET_NAME))
     videos = sorted(set(subset["videoID"]) & set(df["videoID"]))[:MAX_VIDEOS]
+    if ASR_TEXT:
+        check_asr_coverage(videos)
     qa = df[df["videoID"].isin(videos)]
+    if ONLY_QUESTIONS:
+        with open(ONLY_QUESTIONS, encoding="utf-8") as f:
+            spec = json.load(f)
+        if isinstance(spec, dict):
+            wanted = {(v, str(q)) for v, qs in spec.items() for q in qs}
+        else:
+            wanted = {(v, str(q)) for v, q in spec}
+        before = len(qa)
+        qa = qa[[(v, str(q)) in wanted
+                 for v, q in zip(qa["videoID"], qa["question_id"])]]
+        # 空集必须报错退出：否则会「成功地」写出一个 0 题的结果文件，
+        # 后续分析只会看到一个安静的 0/0。
+        if qa.empty:
+            raise SystemExit(f"VM_ONLY_QUESTIONS 过滤后为空：{ONLY_QUESTIONS} "
+                             f"（原 {before} 题，键形如 videoID+question_id）")
+        print(f"[only-questions] {before} -> {len(qa)} 题（{ONLY_QUESTIONS}）",
+              flush=True)
     if AUDIO or ASR_TEXT:
         global METHODS
         suffix = ("_audio" if AUDIO else
@@ -241,6 +285,22 @@ def main():
         agg["correct"] += int(r["correct"])
 
     model, processor = vlm.load_model(vlm.MODEL_ID)
+    if VM_MAX_PIXELS:
+        # 同一调用里视频走 video_processor、图片走 image_processor，只改一个会让
+        # 两条路径用不同预算；一个都改不动就响亮退出，不静默用回模型自带值。
+        changed = []
+        for name in ("processor", "video_processor", "image_processor"):
+            obj = processor if name == "processor" else getattr(processor, name, None)
+            if obj is None or not hasattr(obj, "max_pixels"):
+                continue
+            before = obj.max_pixels
+            obj.max_pixels = VM_MAX_PIXELS
+            changed.append(f"{name}:{before}->{obj.max_pixels}")
+        if not changed:
+            raise SystemExit(
+                f"VM_MAX_PIXELS={VM_MAX_PIXELS} 但没有任何 processor 暴露 "
+                "max_pixels；拒绝静默按默认预算跑")
+        print(f"[max_pixels] {'; '.join(changed)}", flush=True)
     try:
         vlm._warmup(model, processor, vlm.DEFAULT_ENGINE)
     except Exception as e:
@@ -260,6 +320,30 @@ def main():
         diff = [r for r in scored if r["pred_strict"] != r["pred"]]
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump({"arms_run": METHODS, "arms_in_file": sorted(results),
+                       # 转写出处必须落进结果文件：此前只记 arm 名，而 arm 名不含
+                       # 转写目录 ⇒ 事后无法判断某条结果用的是 ctx-on 还是 ctx-off。
+                       # Q41⑤ 的整场混乱（哪些结论基于脏转写）正是这个字段缺失导致的。
+                       "asr_provenance": (
+                           {"dir": os.path.relpath(ASR_DIR, WT_ROOT),
+                            "mode": ASR_MODE,
+                            "max_chars": ASR_MAX_CHARS}
+                           if ASR_TEXT else {"dir": None, "mode": None,
+                                             "max_chars": None,
+                                             "note": "arm has no transcript"}),
+                       # 输入侧事实（2026-10-09 补）：此前 27 个结果文件没有一个
+                       # 记录帧数/像素预算，导致「Omni 又快又准度低」无法事后归因
+                       # ——重跑探针才发现两模型自带 max_pixels 相差 1.96×。
+                       "provenance": bp.collect(
+                           processor, WT_ROOT,
+                           model=vlm.MODEL_ID,
+                           native_video=NATIVE_VIDEO,
+                           asr_dir=ASR_DIR if ASR_TEXT else None,
+                           asr_mode=ASR_MODE if ASR_TEXT else None,
+                           max_tokens=MAX_TOKENS,
+                           temperature=0.0,
+                           extra={"max_pixels_override": VM_MAX_PIXELS or None,
+                                  "engine": vlm.DEFAULT_ENGINE,
+                                  "frames_fed": bp.frame_stats(details)}),
                        "parser_check": {
                            "rows_with_raw": len(scored),
                            "strict_ne_lenient": len(diff),
@@ -279,34 +363,30 @@ def main():
         duration = bc.asset_duration(video)
         audio_path = ensure_audio(video, vid) if AUDIO else None
         sub = qa[qa["videoID"] == vid]
-        selections = {}
+        selections = {} if NATIVE_VIDEO else {}
         raised_here = set()
-        for m in METHODS:
-            try:
-                ts = select(m, video, duration, vid)
-                selections[m] = grab(video, ts, os.path.join(VM, "frames"),
-                                     f"{vid[:8]}_{m}")
-            except Exception as e:
-                print(f"{vid} {m} selection FAILED: {type(e).__name__}: {e}",
-                      flush=True)
-                selections[m] = []
-                sel_errors[m] += 1
-                raised_here.add(m)
+        if not NATIVE_VIDEO:
+            for m in METHODS:
+                try:
+                    ts = select(m, video, duration, vid)
+                    selections[m] = grab(video, ts, os.path.join(VM, "frames"),
+                                         f"{vid[:8]}_{m}")
+                except Exception as e:
+                    print(f"{vid} {m} selection FAILED: {type(e).__name__}: {e}",
+                          flush=True)
+                    selections[m] = []
+                    sel_errors[m] += 1
+                    raised_here.add(m)
         for _, q in sub.iterrows():
             opts = list(q["options"]) if isinstance(q["options"], list) else \
                 [o.strip() for o in str(q["options"]).split("|")]
             transcript = (transcript_text(vid, ASR_MODE) if ASR_TEXT else "")
-            head = (f"视频的语音转写（可能不完整、可能有错）：\n{transcript}\n\n"
-                    if transcript and ASR_MODE != "after" else "")
-            tail = (f"\n\n视频的语音转写（可能不完整）：\n{transcript}"
-                    if transcript and ASR_MODE == "after" else "")
-            prompt = (head + f"{q['question']}\nOptions:\n"
-                      + "\n".join(f"{'ABCD'[i]}. {o}" for i, o in enumerate(opts))
-                      + "\n\nAnswer with the option letter only (A, B, C, or D)."
-                      + tail)
+            # prompt 拼装走共享模块 —— 它与 Omni 臂用同一份代码。
+            # 此前两个脚本各写一份，当时逐字节相同但**没有任何机制保证以后也相同**。
+            prompt = bq.build_prompt(q["question"], opts, transcript, ASR_MODE)
             for m in METHODS:
                 frames = selections.get(m) or []
-                if not frames:
+                if not frames and not NATIVE_VIDEO:
                     # A selector that returns nothing is a RESULT, not a skipped
                     # question: the model cannot answer, so the row counts against
                     # it. Dropping these rows instead (what earlier runs did) lets
@@ -327,20 +407,50 @@ def main():
                     (sel_noout if bug else no_frames)[m] += 1
                     continue
                 try:
-                    raw = vlm.generate_response(
-                        model, processor, engine=vlm.DEFAULT_ENGINE,
-                        image_paths=frames, prompt_text=prompt, max_tokens=8,
-                        **({"audio_path": audio_path} if audio_path else {}))
-                    pred = parse_lenient(raw)
+                    t0 = time.time()
+                    if NATIVE_VIDEO:
+                        raw = vlm.generate_response(
+                            model, processor, engine=vlm.DEFAULT_ENGINE,
+                            video_path=video, prompt_text=prompt,
+                            max_tokens=MAX_TOKENS)
+                    else:
+                        raw = vlm.generate_response(
+                            model, processor, engine=vlm.DEFAULT_ENGINE,
+                            image_paths=frames, prompt_text=prompt,
+                            max_tokens=MAX_TOKENS,
+                            **({"audio_path": audio_path} if audio_path else {}))
+                    secs = round(time.time() - t0, 1)
+                    if THINK_STRIP:
+                        pred, pred_tier = parse_thinking(raw)
+                        scored_text = strip_thinking(raw)
+                    else:
+                        pred, pred_tier, scored_text = parse_lenient(raw), "", raw
                 except Exception as e:
-                    pred, raw = f"ERR:{str(e)[:40]}", ""
+                    pred, raw, scored_text = f"ERR:{str(e)[:40]}", "", ""
+                    pred_tier, secs = "", None
                 correct = pred == q["answer"]
                 results[m]["total"] += 1
                 results[m]["correct"] += int(correct)
-                details.append({"videoID": vid, "question_id": q["question_id"],
-                                "method": m, "pred": pred, "answer": q["answer"],
-                                "correct": correct, "raw": raw[:80],
-                                "pred_strict": parse_strict(raw)})
+                row = {"videoID": vid, "question_id": q["question_id"],
+                       "method": m, "pred": pred, "answer": q["answer"],
+                       "correct": correct, "raw": raw[:80], "raw_len": len(raw),
+                       "secs": secs,
+                       # 实际喂进去的帧数（抽帧臂）。原生视频臂由处理器自己采样，
+                       # 这里记 None —— 与「记了但是 0」区分开，后者是采集 bug。
+                       # 汇总见 provenance.frames_fed。
+                       "n_frames": len(frames) if frames else None,
+                       "pred_strict": parse_strict(scored_text)}
+                if THINK_STRIP:
+                    # raw[:80] is the head of the reasoning chain, so without the
+                    # tail that was actually scored the parse is unauditable.
+                    row["scored"] = scored_text[:80]
+                    row["pred_tier"] = pred_tier
+                details.append(row)
+        try:
+            import mlx.core as mx
+            mx.metal.clear_cache()   # 防跨视频碎片累积（feed 跑 OOM 的教训）
+        except Exception:
+            pass
         acc = {m: (f"{results[m]['correct']}/{results[m]['total']}"
                    if results[m]["total"] else "-") for m in METHODS}
         print(f"[{vi+1}/{len(videos)}] {vid}: {acc}", flush=True)
@@ -351,13 +461,17 @@ def main():
         t = results[m]["total"]
         c = results[m]["correct"]
         note = ""
-        if no_frames[m] or sel_noout[m]:
-            note = (f"  (无输出 {no_frames[m]} 题 / "
-                    f"select()抛错 {sel_noout[m]} 题，视频级异常 {sel_errors[m]} 个)")
+        # results keys can include methods from earlier runs of the same file
+        # (resume-merge keeps their rows); no_frames/sel_* only track THIS
+        # run's METHODS, so look them up defensively (2026-10-04 KeyError).
+        if no_frames.get(m) or sel_noout.get(m):
+            note = (f"  (无输出 {no_frames.get(m, 0)} 题 / "
+                    f"select()抛错 {sel_noout.get(m, 0)} 题，"
+                    f"视频级异常 {sel_errors.get(m, 0)} 个)")
         print((f"{m:16s} {c}/{t} = {c / t * 100:.1f}%" if t else f"{m:16s} n/a")
               + note, flush=True)
     print(f"DONE → {out_path}", flush=True)
-    broken = [m for m in METHODS if results[m]["total"] == 0]
+    broken = [m for m in METHODS if results.get(m, {}).get("total", 0) == 0]
     if broken:
         # On 2026-09-29 three feeding-mode arms and two method arms ran for an
         # hour with every video failing at select() and still exited rc=0 —
@@ -375,7 +489,9 @@ def main():
               f"video-level errors: { {m: sel_errors[m] for m in bugged} }",
               flush=True)
         sys.exit(2)
-    dead = [m for m in METHODS if results[m]["total"] and no_frames[m] == results[m]["total"]]
+    dead = [m for m in METHODS
+            if results.get(m, {}).get("total", 0)
+            and no_frames.get(m, 0) == results[m]["total"]]
     if dead:
         print(f"!! ARM(S) WHOSE SELECTOR RETURNED NO FRAMES ON EVERY VIDEO: {dead} — "
               f"legitimately 0, but check the selection source before citing it",
