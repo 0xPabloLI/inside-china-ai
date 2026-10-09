@@ -335,15 +335,19 @@ Step 8: 本地源码验证（当调研涉及「某库是否有 bug / 某功能�
 
 ### ASR 速查
 
-| 工具         | 许可证     | 加速           | 推荐模型       | 总分    | 状态                   |
-| ------------ | ---------- | -------------- | -------------- | ------- | ---------------------- |
-| whisper.cpp  | MIT        | Metal + CoreML | large-v3-turbo | **4.7** | ⭐ 首选                |
-| mlx-whisper  | MIT        | MLX            | large-v3       | **4.6** | ⭐ 备选                |
-| Parakeet MLX | Apache-2.0 | MLX            | 0.6B           | **4.0** | ⚠️ 英文为主            |
-| whisperx     | BSD-4      | CPU            | base           | **2.7** | ⚠️ 仅 alignment        |
-| Canary-Qwen  | CC-BY-NC   | ❌ CUDA        | —              | —       | ⚠️ NC + 无加速，未评分 |
+| 工具         | 许可证     | 加速                           | 推荐模型       | 总分    | 状态                   |
+| ------------ | ---------- | ------------------------------ | -------------- | ------- | ---------------------- |
+| whisper.cpp  | MIT        | Metal（本机 brew 构建**不含** CoreML） | large-v3-turbo | **4.7** | ⭐ 首选                |
+| mlx-whisper  | MIT        | MLX                            | large-v3       | **4.6** | ⭐ 备选                |
+| Parakeet MLX | Apache-2.0 | MLX                            | 0.6B           | **4.0** | ⚠️ 英文为主            |
+| whisperx     | BSD-4      | CPU                            | base           | **2.7** | ⚠️ 仅 alignment        |
+| Canary-Qwen  | CC-BY-NC   | ❌ CUDA                        | —              | —       | ⚠️ NC + 无加速，未评分 |
 
 > 评分明细：whisper.cpp 加速5/许可5/精度4/社区5；mlx-whisper 5/5/5/3；Parakeet 5/5/3/3；whisperx 1/3/3/4。Canary-Qwen 两个门槛均未通过（NC + CUDA only），未进入评分。
+>
+> **两处待裁决（2026-10-09 复核，未擅自改分）**：① **精度维度对 ASR 不构成运行时差异**——whisper.cpp 与 mlx-whisper 加载**同一份权重**，两者「精度 4 vs 5」没有实测依据（仓库内无任何 ground truth/WER 测量；本机只量过速度、内存与**同权重下的输出差异**），按现表把 mlx-whisper 记 5 分是把模型族质量记到了运行时上；② whisper.cpp 的**加速 5 分与本表自己的量规不符**——量规写「5 分 = MLX 原生、3 分 = Metal / CoreML」，而它是 Metal（CoreML 需另编译，见 runbook ⑩）。两处都改动会**翻转本表排序**（mlx-whisper 反而高于 whisper.cpp），与「生产口径 = whisper.cpp」的引用冲突，故留给用户裁决，不自行重算。
+>
+> **加速口径补充**：`whisper-cli` 的 brew 构建**未启用 CoreML**（`otool -L` 无 CoreML 框架；`WHISPER_COREML=1` 是编译期开关，brew formula 无此选项）。上游 CoreML 只加速 **encoder**，本机实测 encoder 占总时长 37-56%（turbo）；但同机 per-call 对比里 CoreML 比 Metal **慢约 2×**（ANEForge PR #3905，M5 Pro），故当前不引入（理由与重测条件见 `../video-production-runbook.md` ⑩）。
 
 > **生产口径（2026-10-09, #418 裁决）**：转写唯一运行时 = whisper.cpp（本表首选）。mlx-whisper 仅存在于 bench 实验轴（`bench/keyframe/`：`asr_batch.py`、`asr_timing_matrix.py`、`asr_equivalence.py`），**不接生产**；两者同模型同音频的输出并非逐词等价（即使都关掉跨段上下文，词级差异率仍有 0-52.6%，见 runbook ⑧），四格计时/内存、词级差异率与 Step 0.3 缺失自检见 `docs/video-production-runbook.md` §ASR 调用规范。
 

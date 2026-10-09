@@ -434,14 +434,20 @@ METEOR 含召回项，长输出天然占便宜，属指标构造，不是信息�
 
 2026-10-09 空机四格复测（4 视频、音频均值 78s、ctx-off、每格 2 次；数据 `.scratch/keyframe-bench/asr_timing_matrix.json`，与 `asr_timing_fair.json` 的 3 格互为对照；同配置前一次 run 各格相差 ≤6%，内存与 Metal 峰值逐格相同）：
 
-| 引擎/档位 | 新进程墙钟（均值/最快） | 进程内首次（含加载） | 常驻（warm） | 峰值内存 |
+| 引擎/档位 | 单次转写·冷进程（中位/最快） | 进程内首次（含加载） | 常驻（warm） | 峰值内存 |
 |---|---|---|---|---|
-| whisper.cpp turbo | 5.13s / 3.60s | — | — | RSS 1.95GB |
-| whisper.cpp large-v3 | 13.19s / 6.18s | — | — | RSS 4.11GB |
-| MLX turbo | 8.33s / 6.70s（含解释器） | 3.27s | **2.87s** | RSS 1.82GB · Metal 峰值 2.52GB |
-| MLX large-v3 | 14.68s / 9.58s（含解释器） | 7.09s | **6.11s** | RSS 3.59GB · Metal 峰值 3.99GB |
+| whisper.cpp turbo | **4.30s** / 3.60s | — | — | RSS 1.95GB |
+| whisper.cpp large-v3 | 8.95s / 6.18s | — | — | RSS 4.11GB |
+| MLX turbo | 4.69s / 4.16s | 3.27s | **2.87s** | RSS 1.82GB · Metal 峰值 2.52GB |
+| MLX large-v3 | 8.80s / 5.90s | 7.09s | **6.11s** | RSS 3.59GB · Metal 峰值 3.99GB |
 
-**MLX 只在模型常驻时有速度优势**（2.87s vs cpp 5.13s/次）；按生产今天的「每次新进程」形态，MLX 反而更慢（8.33s，差在解释器启动）。兑现常驻要新增 worker + venv 依赖，故生产保持 whisper.cpp（ADR-0020），MLX 留在 bench 实验轴。
+**口径修正（2026-10-09 复核）**：本表原先给 MLX 写「新进程墙钟 8.33s」，那是**同一进程内跑了两次转写**的墙钟（run1+run2），与 cpp 的单次墙钟并列比较，得出「MLX 慢 62%」。按生产形态（一次转写、冷进程）重算后是**持平**：turbo 4.30s vs 4.69s（cpp 快 9%），large-v3 8.95s vs 8.80s。harness 已新增 `single_call_s_median` / `single_call_s_min` / `mlx_startup_s_median` 三个键承载该口径，前一次 run 独立复现（4.21 / 4.57 / 8.97 / 8.98）。
+
+**MLX 只在模型常驻时有确定优势**（2.87s vs cpp 单次计算量 4.22s，约 1.47×）；兑现常驻要新增 worker + venv 依赖，而 TTS 才是墙钟主导，故生产保持 whisper.cpp（ADR-0020），MLX 留在 bench 实验轴。**但「每次新进程 MLX 一定更慢」不成立**——它的固定开销实测只有 1.52s（turbo，`mlx_startup_s_median`）/ 1.48s（large-v3），在 78s 音频上不足以拉开差距。
+
+**外部 benchmark 与长音频对照（2026-10-09 追加）**：网上主流结论与我们相反（Bill Mill 在 M1 Ultra 上测得 mlx-whisper 快 2.03×），本机（M2 Pro / 19 核 GPU）复现不出来；补测长音频后**只有 64-93s 那一行是结果**，更长的音频被并行负载与 cpp 解码方差污染（876s 与 1046s 两行方向相反）。差异方向与 GPU 宽度一致，已排除 `-fa`（他用的 revision 同样默认开启）与版本代差。完整表格、噪声披露与证伪记录见 `../video-production-runbook.md` ⑨。
+
+**CoreML / ANE encoder 的收益上限**：两者都只加速 encoder，实测占总时长 37-56%；但上游唯一一组同机对比显示 CoreML 比 Metal **慢约 2×**（README 的「>3×」基准是 CPU-only，本机 CPU-only 慢到跑不完，不能外推），ANEForge 也只快 1.0-1.3×，且本机无 Xcode.app（`xcrun coremlc` 缺失）。**当前不引入**——完整占比表、上游数据与代价清单见 `../video-production-runbook.md` ⑩。
 
 **等价性（本次补齐，ctx-off 生产口径）**：此前的 sim 0.55-0.76 是**默认上下文**下的数，量的是重复幻觉；两边都关跨段上下文后（`.scratch/keyframe-bench/asr_equiv_ctxoff.json`，4 素材、同权重 turbo），词级差异率 **0%–52.6%（均值 19.4%）**——纯语音段 0%、音乐段 52.6%。**同模型 ≠ 同输出，两侧转写不可混用**；且 ctx-off 压住了大循环但没压干净（最大重复 n-gram 仍到 9），差异集中在循环触发点不同的段落。运行口径、内存口径、backend 事实（cpp 默认走 Metal）、完整表见 `../video-production-runbook.md` §ASR 调用规范 ⑤-⑧。
 
