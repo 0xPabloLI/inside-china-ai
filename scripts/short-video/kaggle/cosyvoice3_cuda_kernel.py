@@ -10,7 +10,7 @@ Ref audio is loaded from Kaggle dataset: xPabloLI/tts-ref-audio
 
 Output: /kaggle/working/output/<scene-N>.wav + summary.json
 """
-import subprocess, sys, os, time, json, traceback, base64
+import subprocess, sys, os, time, json, traceback, base64, re
 
 _logfile = open("/kaggle/working/log.txt", "w")
 def log(msg):
@@ -45,40 +45,96 @@ _WHEELS_DIRS = [
 if not _WHEELS_DIRS:
     import glob as _wheels_glob
     _WHEELS_DIRS = _wheels_glob.glob("/kaggle/input/**/cosyvoice3-wheels", recursive=True)
-_WHEELS_DIR = _WHEELS_DIRS[0] if _WHEELS_DIRS else None
+_WHEELS_MOUNT = _WHEELS_DIRS[0] if _WHEELS_DIRS else None
+
+
+def _restore_local_versions(src):
+    """Symlink the wheelhouse into a writable dir, putting `+` back.
+
+    Kaggle strips the local-version separator when it stores a dataset:
+    `torch-2.6.0+cu124-cp313-cp313-linux_x86_64.whl` is served back as
+    `torch-2.6.0cu124-...`. pip reads the version out of the filename, so it
+    sees `2.6.0cu124` — not a PEP 440 version — and drops the file entirely
+    ("Could not find a version that satisfies the requirement torch==2.6.0
+    (from versions: none)"). Symlinks, not copies: the mount is read-only and
+    the wheelhouse is ~3.7GB. Staged under /tmp, not /kaggle/working — the
+    latter is this kernel's output directory, and a symlink farm into a 3.7GB
+    mount has no business being captured as the run's artifact.
+    """
+    staging = "/tmp/wheelhouse"
+    os.makedirs(staging, exist_ok=True)
+    renamed = []
+    for name in os.listdir(src):
+        # Only the `2.6.0cu124` shape: a plain `cu12` in a package name (e.g.
+        # nvidia_cuda_runtime_cu12-12.4.127) must not be touched.
+        fixed = re.sub(r"(\d)cu(\d+)-", r"\1+cu\2-", name)
+        dst = os.path.join(staging, fixed)
+        if not os.path.exists(dst):
+            os.symlink(os.path.join(src, name), dst)
+        if fixed != name:
+            renamed.append(fixed)
+    if renamed:
+        log(f"restored local versions in {len(renamed)} filenames: {sorted(renamed)[:4]}")
+    return staging
+
+
+if _WHEELS_MOUNT:
+    _WHEELS_DIR = _restore_local_versions(_WHEELS_MOUNT)
+else:
+    _WHEELS_DIR = None
 
 
 def _pip_install(args, online_extra=None):
-    """pip install via the frozen wheels mount when present, else online."""
+    """pip install via the frozen wheels mount when present, else online.
+
+    The mount holds wheels only — build-wheels-dataset.sh also compiles the
+    sdist-only packages (pyworld, wget, antlr4-python3-runtime, openai-whisper)
+    into wheels first, because Kaggle unpacks archives inside a dataset and a
+    mounted sdist would arrive as a directory that --find-links cannot see.
+    """
     if _WHEELS_DIR:
-        cmd = [sys.executable, "-m", "pip", "install", "-q", "--no-index", "--find-links", _WHEELS_DIR] + list(args)
+        cmd = [
+            sys.executable, "-m", "pip", "install", "-q",
+            "--no-index", "--find-links", _WHEELS_DIR,
+        ] + list(args)
     else:
         cmd = [sys.executable, "-m", "pip", "install", "-q"] + list(online_extra or []) + list(args)
     subprocess.run(cmd, check=True)
 
 
 if _WHEELS_DIR:
-    log(f"wheels dataset mount found: {_WHEELS_DIR} — offline install mode")
+    log(f"wheels dataset mount found: {_WHEELS_MOUNT} — offline install mode")
 else:
-    log("no cosyvoice3-wheels mount — online install (build the wheels dataset to skip ~10min)")
+    log("no cosyvoice3-wheels mount — online install (build the wheels dataset to freeze the deps)")
 
 try:
     _pip_install(["setuptools<81", "wheel", "Cython"])
+    # #231 (2026-10-09): the Kaggle image moved to Python 3.13, where the old
+    # torch==2.4.0/cu121 pin has no wheel at all (0 cp313 files on PyPI, none on
+    # the cu121 index for the trio) and the install died before inference.
+    # 2.6.0+cu124 is the lowest coherent cp313 set (torchaudio/torchvision only
+    # exist for cp313 at 2.6.0/0.21.0) and stays on the CUDA 12.x ABI the image
+    # ships.
     _pip_install(
-        ["torch==2.4.0", "torchaudio==2.4.0", "torchvision==0.19.0"],
-        online_extra=["--index-url", "https://download.pytorch.org/whl/cu121"],
+        ["torch==2.6.0", "torchaudio==2.6.0", "torchvision==0.21.0"],
+        online_extra=["--index-url", "https://download.pytorch.org/whl/cu124"],
     )
-    log("torch 2.4.0+cu121 installed")
+    log("torch 2.6.0+cu124 installed")
     _pip_install(
         [
             "conformer==0.3.2", "hydra-core==1.3.2", "HyperPyYAML==1.2.3",
             "inflect==7.3.1", "librosa==0.10.2", "modelscope==1.20.0", "omegaconf==2.3.0",
-            "onnx==1.16.0", "pyworld==0.3.4", "soundfile==0.12.1",
+            "onnx==1.18.0", "soundfile==0.12.1",
             "wetext==0.0.4", "gdown==5.1.0", "wget==3.2",
             "transformers==4.51.3", "lightning==2.2.4", "x-transformers==2.11.24",
         ]
     )
     log("Core deps OK")
+    # pyworld has no Linux wheel on PyPI; the released cosyvoice3.yaml imports
+    # cosyvoice.dataset.processor through !name:, so it must be present. The
+    # wheelhouse carries a wheel built on this same image (#231).
+    _pip_install(["pyworld==0.3.4"])
+    log("pyworld OK")
 except Exception as e:
     log(f"ERROR deps: {e}"); traceback.print_exc(); sys.exit(1)
 
