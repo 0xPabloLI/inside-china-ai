@@ -231,15 +231,30 @@ def summarize(results):
                 continue
             rss = [r["max_rss_mb"] for r in rs if r["max_rss_mb"]]
             mlx = [r["mlx"] for r in rs if r.get("mlx")]
-            single = [(r["wall_s"] - r["mlx"]["run2_s"]) if r.get("mlx") else r["wall_s"]
-                      for r in rs]
+
+            def single_call(r):
+                """生产形态：一次转写、冷进程。
+
+                cpp 的 wall_s 本来就是一次转写；MLX 的 wall_s 覆盖同一进程里的
+                run1+run2 两次，故减去 run2。**失败的 MLX 运行没有 payload**，
+                它的 wall_s 是「启动 + 两次尝试」而不是任何一次转写的测量——
+                这种记录必须排除，不能回退成另一种口径（此前正是这样静默混入）。
+                """
+                if r.get("mlx"):
+                    return r["wall_s"] - r["mlx"]["run2_s"]
+                return r["wall_s"] if r["engine"] == "whisper.cpp" else None
+
+            singles = [s for s in (single_call(r) for r in rs) if s is not None]
+            failed = len(rs) - len(singles)
             cells[f"{engine}/{model}"] = {
                 "n": len(rs),
                 "cold_wall_s_mean": mean([r["wall_s"] for r in rs]),
                 "cold_wall_s_min": min(r["wall_s"] for r in rs),
-                "single_call_s_mean": mean(single),
-                "single_call_s_median": median(single),
-                "single_call_s_min": min(single),
+                "single_call_n": len(singles),
+                "single_call_failed_excluded": failed,
+                "single_call_s_mean": mean(singles),
+                "single_call_s_median": median(singles),
+                "single_call_s_min": min(singles) if singles else None,
                 "cpp_compute_s_mean": (mean([(r["cli_timings"].get("total_ms", 0)
                                               - r["cli_timings"].get("load_ms", 0)) / 1000
                                              for r in rs if r.get("cli_timings")])
@@ -271,6 +286,14 @@ def summarize(results):
                                     "mean: each cell's first run pays a one-off Metal "
                                     "shader compile)",
             "single_call_s_min": "fastest single-call value in the cell",
+            "single_call_n": "runs contributing to single_call_s_* (must equal n unless a "
+                             "run failed)",
+            "single_call_failed_excluded": "runs dropped from single_call_s_* because the "
+                                           "child produced no payload — a failed MLX run's "
+                                           "wall_s is 'start + two attempted "
+                                           "transcriptions', not a single-call measurement, "
+                                           "so it is excluded rather than silently counted "
+                                           "under a different basis",
             "cpp_compute_s_mean": "cpp only: mean of (cli_timings.total_ms - load_ms) = the "
                                   "inference part alone, excluding model load and process "
                                   "start. This is the like-for-like partner of MLX's warm "

@@ -368,7 +368,7 @@ ADR-0020 §2 首选）；MLX 只存在于 bench 实验轴（`bench/keyframe/`：
   其余 1.36-1.82s）。
 - MLX 的固定开销是**实测**的：`mlx_startup_s_median` = `wall_s - run1_s - run2_s`，
   turbo 1.52s / large-v3 1.48s。它在 78s 音频上不足以拉开差距，但**音频越长占比越小**，
-  所以「MLX 每次新进程一定更慢」这个说法不成立——见 §ASR 运行时横向对照。
+  所以「MLX 每次新进程一定更慢」这个说法不成立——长音频对照见 ⑨。
 - MLX 的 **常驻 2.87s** 相对 cpp 的单次计算量（`cpp_compute_s_mean` = 4.22s，即
   `cli_timings.total_ms - load_ms`，与 MLX 的 warm 同为「模型驻留、无进程开销」口径）
   有约 1.47× 优势，兑现条件是常驻（新增 NDJSON worker + venv 依赖），而 TTS 才是墙钟主导
