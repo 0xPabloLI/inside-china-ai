@@ -70,6 +70,35 @@
 7. **对齐 `grab()` 与 loader 的输入分辨率后重跑对照臂**（Q41⑥），坐实「分辨率无关」。
 8. **窗口臂**（生产实际形状）——**从未测过**，是当前最大的外部效度缺口（§Q41⑳）。
 9. **`191e4ba4`（重复护栏）合入 main**：`#418` 已把它列为闭环互补件（§Q41㉒）。
+10. **⚠️ PR #445 已 CONFLICTING，需先解冲突**（§Q41㉔）——这是本 session
+    全部 83 个 commit 的落地面，也是护栏合入的前置条件。
+
+**㉔ 落地状态：PR #445 冲突（2026-10-09 21:00 核）**
+
+| 项 | 值 |
+|---|---|
+| PR | **#445**（OPEN，非 draft，2026-10-01 开） |
+| 规模 | 25 文件，+4706 / −176 |
+| mergeable | **CONFLICTING**（`mergeStateStatus: DIRTY`） |
+| 分支位置 | **落后 main 189 commit**，领先 83 commit；merge-base `316e41b3`（10-01） |
+
+**冲突面 6 个文件**（双方自 merge-base 起都改过）：
+
+| 文件 | 冲突性质 |
+|---|---|
+| `docs/research/keyframe-extraction-research.md` | **实质冲突** —— 见下 |
+| `docs/research/model-sources-reference.md` | #418 改动 vs 本 session 改动 |
+| `docs/issue-roadmap.md` | #418 闭票盘点 vs 本 session 记录 |
+| `package.json` / `package-lock.json` / `osv-scanner.toml` | 机械冲突 |
+
+**关键**：`#418` 的 session **改了本 session 一直在写的同一个文档**
+（`1c5bcee1`、`6b4299cf` 两个 commit，落 §17.5 等价性与指针纠偏），
+而本 session 在同一文件追加了 §Q41 系列 —— 所以这不是机械冲突，
+**两侧都在同一文件加了内容**，解冲突时要保证双方内容都不丢。
+
+**为什么值得优先处理**：护栏 `asr_repetition_guard.py` 只在分支上；
+#418 的解码后循环问题（ctx-off 后最大重复 n-gram 仍到 9）**正等着它**。
+PR 拖得越久，189 这个落后数只会变大。
 
 **进行中**：无。所有已启动的链均已跑完（`exp_q41_ext_chain.sh` 16:48、
 `exp_probe_chain.sh` 17:40、`exp_thinking_wrong.sh` 19:26）。
@@ -2714,11 +2743,14 @@ b=5/c=5 ⇒ 零代价提速 1.73×」。该结论**两侧都取自污染格**，
    #418 结论②：「ctx-off 必要但不充分 —— 两边都关跨段上下文后仍会循环
    （最大重复 n-gram 到 9）。解码层参数在两个后端都不存在，护栏只能放在解码之后
    —— 后端无关的重复护栏已由另一 session 在 `191e4ba4` 交付，**尚未合并**」。
-   ⇒ 本 session 分支上的 `asr_repetition_guard.py` 需要合入 main 才算闭环。
+   **已核实**：`origin/main` 上无 `asr_repetition_guard.py`，而 #418 自己的
+   `asr-preflight.mjs` / `asr_timing_matrix.py` / `asr_equivalence.py`
+   **都在 main 上** ⇒ 是单侧缺口，护栏是唯一未落地件（解冲突路径见 §Q41㉔）。
 3. **A1 转写接线的阻塞已解除**：ASR 路径问题（§Q41⑳ #6 的「依赖 #418」）
    已有定论（whisper.cpp + 新 `asr-preflight.mjs` Step 0.3 硬门禁）。
    另注：#418 的 backend 事实纠正 —— whisper.cpp **默认走 Metal**（不带
    `--no-gpu`），「cpp 走 CPU 不抢 GPU」不成立。
+
 
 **㉓ 「窗口公式只有 MiniCPM 才有」是误解**
 
