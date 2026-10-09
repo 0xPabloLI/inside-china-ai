@@ -376,11 +376,16 @@ export function assertCompleteKernelWav(filePath, sceneId) {
 
 /**
  * Check if Kaggle CLI is available and configured.
+ *
+ * `deps.refAudioPath` overrides the repo voice sample so the engine's
+ * availability gate is testable on a pristine CI checkout (voice-samples/ is
+ * gitignored) — the smoke contract is the same either way.
+ *
  * @returns {Promise<boolean>}
  */
 async function isAvailable(deps = {}) {
   if (!existsSync(KAGGLE_KERNEL_TEMPLATE)) return false;
-  if (!existsSync(CV3_REF_AUDIO)) return false;
+  if (!existsSync(deps.refAudioPath ?? CV3_REF_AUDIO)) return false;
   const username = getKaggleUsername();
   if (!username) return false;
   try {

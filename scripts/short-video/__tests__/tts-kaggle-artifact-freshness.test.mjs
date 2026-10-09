@@ -149,10 +149,15 @@ afterEach(() => {
 
 async function makeEngine(mock, { postProcess } = {}) {
   process.env.COSYVOICE3_KAGGLE_USER = "test-kaggle-user";
+  // voice-samples/ is gitignored and absent on CI — the availability gate gets
+  // an injected stand-in so this suite stays hermetic (see isAvailable()).
+  const refAudioPath = join(makeOutDir("ref-audio"), "voice-sample-24k.wav");
+  writeFileSync(refAudioPath, wavBytes("ref"));
   return createCosyVoice3KaggleCudaEngine({
     exec: mock.exec,
     poll: async () => ({ queuedMs: 0, runningMs: 0 }),
     postProcess: postProcess ?? (async () => 3.0),
+    refAudioPath,
   });
 }
 
@@ -372,10 +377,13 @@ describe("#420 — incomplete artifacts fail closed before promotion", () => {
       return mock.exec(cmd);
     };
     process.env.COSYVOICE3_KAGGLE_USER = "test-kaggle-user";
+    const refAudioPath = join(makeOutDir("ref-audio-exit"), "voice-sample-24k.wav");
+    writeFileSync(refAudioPath, wavBytes("ref"));
     const engine = await createCosyVoice3KaggleCudaEngine({
       exec: failingExec,
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
       postProcess: async () => 3.0,
+      refAudioPath,
     });
 
     await expect(engine.generate(SCENES, outDir)).rejects.toThrow(/Failed to download/i);
