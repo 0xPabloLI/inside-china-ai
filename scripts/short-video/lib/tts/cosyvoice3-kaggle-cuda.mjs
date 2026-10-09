@@ -42,6 +42,12 @@ const execAsync = promisify(exec);
 
 // ── Config ──
 const KAGGLE_KERNEL_TEMPLATE = join(ROOT_DIR, "kaggle", "cosyvoice3_cuda_kernel.py");
+// The frozen wheelhouse this repo expects to be mounted (#521). Kaggle cannot
+// pin a dataset version (`dataset_sources` drops the version segment at push
+// time and mounts the latest), so the kernel is handed the committed set and
+// compares it to the mount before installing. Read at push time, not baked
+// into the template, so the kernel can never carry a hand-copied copy.
+const KAGGLE_WHEELHOUSE_MANIFEST = join(ROOT_DIR, "kaggle", "wheelhouse-manifest.json");
 // 30min RUNNING budget (#241: the 20min default tripped on slow torch/model
 // downloads even though pure inference is ~64s for a 10-scene batch; #250
 // keeps queue wait in a separate budget).
@@ -632,7 +638,15 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
 
       const kernelScript = template
         .replaceAll("__MANIFEST_JSON__", manifestJson)
-        .replaceAll("__REQUEST_ID__", requestId);
+        .replaceAll("__REQUEST_ID__", requestId)
+        // #521: the expected wheelhouse, so the kernel can refuse a mount that
+        // is not what this repo froze. Injected even when the run resolves to
+        // the online path — the placeholder has to be gone either way, and the
+        // check is what turns a silent dependency swap into a loud failure.
+        .replaceAll(
+          "__EXPECTED_WHEELHOUSE__",
+          readFileSync(KAGGLE_WHEELHOUSE_MANIFEST, "utf-8").trim(),
+        );
 
       const tempDir = join(outputDir, ".kaggle-kernel");
       mkdirSync(tempDir, { recursive: true });
