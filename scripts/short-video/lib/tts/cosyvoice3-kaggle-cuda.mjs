@@ -649,7 +649,15 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
             is_private: true,
             enable_gpu: true,
             enable_internet: true,
-            dataset_sources: ["xPabloLI/tts-ref-audio", "xPabloLI/cosyvoice3-model"],
+            // cosyvoice3-wheels (#231): the frozen dependency wheelhouse. The
+            // kernel installs from it with --no-index when mounted, so the
+            // ~10min online resolve/build stops happening every run and the
+            // dependency set cannot drift under us.
+            dataset_sources: [
+              "xPabloLI/tts-ref-audio",
+              "xPabloLI/cosyvoice3-model",
+              "xPabloLI/cosyvoice3-wheels",
+            ],
             competition_sources: [],
             kernel_sources: [],
           },

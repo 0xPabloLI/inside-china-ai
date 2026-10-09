@@ -49,9 +49,18 @@ _WHEELS_DIR = _WHEELS_DIRS[0] if _WHEELS_DIRS else None
 
 
 def _pip_install(args, online_extra=None):
-    """pip install via the frozen wheels mount when present, else online."""
+    """pip install via the frozen wheels mount when present, else online.
+
+    The mount is a wheelhouse plus the handful of sdist-only packages
+    (pyworld, wget, antlr4-python3-runtime — none of them ship a Linux wheel),
+    so offline mode installs with --no-build-isolation: their build deps
+    (setuptools/wheel/Cython/numpy) come from the earlier calls.
+    """
     if _WHEELS_DIR:
-        cmd = [sys.executable, "-m", "pip", "install", "-q", "--no-index", "--find-links", _WHEELS_DIR] + list(args)
+        cmd = [
+            sys.executable, "-m", "pip", "install", "-q",
+            "--no-index", "--find-links", _WHEELS_DIR, "--no-build-isolation",
+        ] + list(args)
     else:
         cmd = [sys.executable, "-m", "pip", "install", "-q"] + list(online_extra or []) + list(args)
     subprocess.run(cmd, check=True)
@@ -64,21 +73,32 @@ else:
 
 try:
     _pip_install(["setuptools<81", "wheel", "Cython"])
+    # #231 (2026-10-09): the Kaggle image moved to Python 3.13, where the old
+    # torch==2.4.0/cu121 pin has no wheel at all (0 cp313 files on PyPI, none on
+    # the cu121 index for the trio) and the install died before inference.
+    # 2.6.0+cu124 is the lowest coherent cp313 set (torchaudio/torchvision only
+    # exist for cp313 at 2.6.0/0.21.0) and stays on the CUDA 12.x ABI the image
+    # ships.
     _pip_install(
-        ["torch==2.4.0", "torchaudio==2.4.0", "torchvision==0.19.0"],
-        online_extra=["--index-url", "https://download.pytorch.org/whl/cu121"],
+        ["torch==2.6.0", "torchaudio==2.6.0", "torchvision==0.21.0"],
+        online_extra=["--index-url", "https://download.pytorch.org/whl/cu124"],
     )
-    log("torch 2.4.0+cu121 installed")
+    log("torch 2.6.0+cu124 installed")
     _pip_install(
         [
             "conformer==0.3.2", "hydra-core==1.3.2", "HyperPyYAML==1.2.3",
             "inflect==7.3.1", "librosa==0.10.2", "modelscope==1.20.0", "omegaconf==2.3.0",
-            "onnx==1.16.0", "pyworld==0.3.4", "soundfile==0.12.1",
+            "onnx==1.18.0", "soundfile==0.12.1",
             "wetext==0.0.4", "gdown==5.1.0", "wget==3.2",
             "transformers==4.51.3", "lightning==2.2.4", "x-transformers==2.11.24",
         ]
     )
     log("Core deps OK")
+    # pyworld is sdist-only on Linux (it was built from source on 3.11 too) and
+    # the released cosyvoice3.yaml imports cosyvoice.dataset.processor through
+    # !name:, so it must be present. Build it once Cython+numpy exist.
+    _pip_install(["pyworld==0.3.4"])
+    log("pyworld OK")
 except Exception as e:
     log(f"ERROR deps: {e}"); traceback.print_exc(); sys.exit(1)
 
