@@ -2,7 +2,50 @@ import { describe, it, expect } from "vitest";
 import { writeFileSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { buildWavBuffer, writeWavPcm, readWavPcm } from "../lib/audio/wav.mjs";
+import {
+  assertRiffWaveHeader,
+  buildWavBuffer,
+  walkRiffChunks,
+  writeWavPcm,
+  readWavPcm,
+} from "../lib/audio/wav.mjs";
+
+describe("walkRiffChunks (#420 shared chunk walk)", () => {
+  it("visits every well-formed chunk and returns null", () => {
+    const buf = buildWavBuffer(new Float32Array([0, 0.5]), 8000);
+    const seen = [];
+    expect(walkRiffChunks(buf, (id, size) => seen.push([id, size]))).toBeNull();
+    expect(seen).toEqual([
+      ["fmt ", 16],
+      ["data", 4],
+    ]);
+  });
+
+  it("returns the overrunning chunk when the payload is truncated", () => {
+    const full = buildWavBuffer(new Float32Array([0, 0.5, -0.5]), 8000);
+    const truncated = full.subarray(0, full.length - 3);
+    const overrun = walkRiffChunks(truncated, () => {});
+    expect(overrun).toMatchObject({ id: "data", size: 6 });
+  });
+});
+
+describe("assertRiffWaveHeader (#420 shared invariant)", () => {
+  it("accepts a well-formed wav buffer", () => {
+    expect(() =>
+      assertRiffWaveHeader(buildWavBuffer(new Float32Array([0]), 8000), "t.wav"),
+    ).not.toThrow();
+  });
+
+  it("rejects short, non-RIFF and non-WAVE buffers with the label in the message", () => {
+    expect(() => assertRiffWaveHeader(Buffer.alloc(10), "short.wav")).toThrow(/short\.wav/);
+    expect(() => assertRiffWaveHeader(Buffer.alloc(64, 0x41), "junk.wav")).toThrow(
+      /Not a RIFF\/WAVE file: junk\.wav/,
+    );
+    const riffOnly = Buffer.alloc(64);
+    riffOnly.write("RIFF", 0, "ascii");
+    expect(() => assertRiffWaveHeader(riffOnly, "riff-only.wav")).toThrow(/riff-only\.wav/);
+  });
+});
 
 describe("buildWavBuffer", () => {
   it("emits a RIFF header for mono s16 PCM at the requested rate", () => {

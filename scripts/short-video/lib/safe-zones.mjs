@@ -13,7 +13,7 @@
  *  - TikTok native auto-captions measured ~60px em (≈3.1% of frame height),
  *    centered at ~62-70% of frame height
  *
- * Region separation (spec: docs/specs/spec-video-layout-safe-zones.md):
+ * Region separation (spec: docs/archive/spec-video-layout-safe-zones.md):
  * the canvas is split into NON-OVERLAPPING bands — content must never enter
  * the burned-subtitle lane, and nothing may enter the TikTok UI zones:
  *

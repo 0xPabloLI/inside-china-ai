@@ -273,7 +273,7 @@ export const scenes = [
 export const metadata = {
   commentHook:
     "Can Huawei actually deliver 160,000 Ascend 950DT chips on time, or does the HBM bottleneck sink this? What's your call?",
-  articleUrl: "https://chinaainews.com/posts/deepseek-huawei-cluster",
+  articleUrl: "https://chinaai.news/posts/deepseek-huawei-cluster",
   trendingChecked: true,
   trendingHashtags: [],
 };

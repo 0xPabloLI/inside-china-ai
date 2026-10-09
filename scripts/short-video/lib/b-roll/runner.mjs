@@ -201,7 +201,17 @@ export function resolveDependencies(env = process.env) {
       message: `${parts.join("; ")}. ${hints.join("; ")}; skipping B-roll generation.`,
     };
   }
-  return { ok: true, tier, repo, python, modelRoot, mlxCheckpoint, missing, warnings, message: null };
+  return {
+    ok: true,
+    tier,
+    repo,
+    python,
+    modelRoot,
+    mlxCheckpoint,
+    missing,
+    warnings,
+    message: null,
+  };
 }
 
 /**
@@ -249,16 +259,12 @@ export function buildPythonArgs(opts) {
     String(numFrames),
     "--fps",
     String(fps),
-    ...(mlxQuantization !== null
-      ? ["--mlx-quantization", mlxQuantization]
-      : []),
+    ...(mlxQuantization !== null ? ["--mlx-quantization", mlxQuantization] : []),
     "--decode-backend",
     decodeBackend,
     "--dmd-denoising-steps",
     dmdDenoisingSteps,
-    ...(maxSequenceLength !== null
-      ? ["--max-sequence-length", String(maxSequenceLength)]
-      : []),
+    ...(maxSequenceLength !== null ? ["--max-sequence-length", String(maxSequenceLength)] : []),
   ];
 }
 

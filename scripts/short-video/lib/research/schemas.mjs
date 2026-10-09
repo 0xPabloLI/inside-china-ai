@@ -5,7 +5,7 @@
  * All schemas are plain objects describing field types and required flags.
  * Used by validate.mjs to validate parsed JSON inputs.
  *
- * See: docs/specs/spec-research-evidence-pipeline.md
+ * See: docs/archive/specs/spec-research-evidence-pipeline.md
  * See: docs/content-pipeline.md (Stage 0.5)
  */
 

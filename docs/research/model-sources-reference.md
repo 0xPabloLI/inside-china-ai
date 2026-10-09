@@ -398,6 +398,8 @@ Step 8: 本地源码验证（当调研涉及「某库是否有 bug / 某功能�
 
 > 评分明细：whisper.cpp 加速5/许可5/精度4/社区5；mlx-whisper 5/5/5/3；Parakeet 5/5/3/3；whisperx 1/3/3/4。Canary-Qwen 两个门槛均未通过（NC + CUDA only），未进入评分。
 
+> **生产口径（2026-10-09, #418 裁决）**：转写唯一运行时 = whisper.cpp（本表首选）。mlx-whisper 仅存在于 bench 实验轴（`bench/keyframe/`：`asr_batch.py`、`asr_timing_matrix.py`、`asr_equivalence.py`），**不接生产**；两者同模型同音频的输出并非逐词等价（即使都关掉跨段上下文，词级差异率仍有 0-52.6%，见 runbook ⑧），四格计时/内存、词级差异率与 Step 0.3 缺失自检见 `docs/video-production-runbook.md` §ASR 调用规范。
+
 ### 许可证核查案例：Z-Image-Turbo 量化版误标 tongyi-qianwen-license（2026-09-14，#274）
 
 > **触发条件**：使用或引入阿里系模型的第三方量化版时，先按本案例核查许可继承链，不要直接采信量化仓库的 license 标签。

@@ -22,7 +22,14 @@
  *       notes: "human-readable description of collection method" }
  * - url(keyword): function to build search URL (keyword ignored if supportsKeyword=false)
  * - articleScript: CDP eval script to extract articles from DOM
- * - loginCheckScript: CDP eval script to check if login is needed (optional)
+ * - loginCheckScript: CDP eval script to check if login is needed (optional).
+ *     Contract (#346): it MUST `return` one of "ok" / "need_login" / "captcha".
+ *     checkLogin evaluates it as `(async function(){ ... })()` and reads the
+ *     call's return value, so a script that only *evaluates* a status
+ *     expression yields undefined → read as "ok" → the gate never fires.
+ *     Measured 2026-10-07: xhs/douyin/tiktok_creator/x_search all had that
+ *     shape, which is half of the #346 false verdict (the other half was the
+ *     order — the gate now runs before the anti-bot vocabulary).
  * - useCleanTitle: whether to run cleanTitle on extracted titles
  * - apiSearch: API direct-connect config (optional, Issue #34)
  *     { url(keyword), parser(responseText), authRequired, headers, paidApi }
@@ -89,6 +96,24 @@ export function resolveApiHeaders(api = {}) {
 export function missingApiKey(cap = {}) {
   if (!cap.requiresApiKey || !cap.apiKeyEnv) return null;
   return process.env[cap.apiKeyEnv] ? null : cap.apiKeyEnv;
+}
+
+/**
+ * #346: the login gate a source declares — `capabilities.articles` wins over the
+ * top-level fallback (#199 rule). One resolver so the two page-gate call sites
+ * (selector-health.checkSource, search-sources.collectFromCdp) and their tests
+ * cannot drift apart, exactly like isProbeAuthoritative() exists for the probe
+ * gate (source-health.mjs carries the same lesson for its own axis).
+ *
+ * @param {object} [source]
+ * @returns {{needsAuth: boolean, loginCheckScript: string|null}}
+ */
+export function resolveLoginGate(source) {
+  const cap = source?.capabilities?.articles ?? {};
+  return {
+    needsAuth: cap.needsAuth ?? source?.needsAuth ?? false,
+    loginCheckScript: cap.loginCheckScript ?? source?.loginCheckScript ?? null,
+  };
 }
 
 // ─── Google site: fallback shared pieces (#88 autogen + #309 explicit promotion) ───
@@ -630,8 +655,12 @@ export const SELF_MEDIA_SOURCES = [
     url: (keyword) =>
       `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`,
     loginCheckScript: `
+      // #346: 未登录时页面是「登录后查看搜索结果」面板（面板里有「获取验证码」
+      // 按钮——它的文案同时命中 anti-bot 词表的「验证码」，所以这个门必须先于
+      // runPageGates 里的反爬检查认出面板；真因是登录态过期，不是站点挑战）。
+      // return 是必需的：checkLogin 读的是这个函数的返回值（见文件头契约）。
       var body = document.body ? document.body.innerText : '';
-      (body.includes('请先登录') || body.includes('扫码登录')) ? 'need_login' : 'ok'
+      return (body.includes('请先登录') || body.includes('扫码登录') || body.includes('登录后查看')) ? 'need_login' : 'ok'
     `,
     articleScript: `
       var items = document.querySelectorAll('section.note-item, .note-item, .search-result-item');
@@ -902,10 +931,11 @@ export const SELF_MEDIA_SOURCES = [
 
     // 旧的 `[class*="login"]` + 正文含「登录」在登录态下会假阳（导航里有登录相关
     // 文案），改为「没有结果链接 **且** 页面在喊登录」才算未登录。
+    // #346: return 之前缺失 → 这个门从未生效（checkLogin 的契约见文件头）。
     loginCheckScript: `
       var body = document.body ? document.body.innerText : '';
       var videos = document.querySelectorAll('a[href*="/video/"]').length;
-      (videos === 0 && /登录账号|登录后查看|请先登录/.test(body)) ? 'need_login' : 'ok'
+      return (videos === 0 && /登录账号|登录后查看|请先登录/.test(body)) ? 'need_login' : 'ok'
     `,
     articleScript: `
       var results = [];
@@ -1006,7 +1036,7 @@ export const SELF_MEDIA_SOURCES = [
     url: () => "https://www.tiktok.com/creator-center",
     loginCheckScript: `
       var body = document.body ? document.body.innerText : '';
-      (!body || body.length < 100) ? 'need_login' : 'ok'
+      return (!body || body.length < 100) ? 'need_login' : 'ok'
     `,
     articleScript: `
       // TikTok Creator Center Inspiration section
@@ -1098,7 +1128,7 @@ export const SELF_MEDIA_SOURCES = [
     loginCheckScript: `
       var body = document.body ? document.body.innerText : '';
       var url = window.location.href;
-      (url.includes('/login') || url.includes('/i/flow/login') ||
+      return (url.includes('/login') || url.includes('/i/flow/login') ||
        (body.includes('Sign in') && body.length < 500)) ? 'need_login' : 'ok'
     `,
     articleScript: `

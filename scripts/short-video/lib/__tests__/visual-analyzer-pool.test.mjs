@@ -106,13 +106,11 @@ describe("visual-analyzer worker pool (#189)", () => {
     });
     globalThis.__vlmModule = m;
 
-    const t0 = Date.now();
     await Promise.all([
       m.analyzeAssetSemantics("/a/one.png"),
       m.analyzeAssetSemantics("/a/two.png"),
       m.analyzeAssetSemantics("/a/three.png"),
     ]);
-    const total = Date.now() - t0;
 
     const events = parseLog(logPath);
     const starts = events.filter((e) => e.kind === "START");
@@ -123,9 +121,15 @@ describe("visual-analyzer worker pool (#189)", () => {
       .map((e) => e.ts)
       .sort((a, b) => a - b)
       .slice(0, 2);
-    const thirdStart = starts.map((e) => e.ts).sort((a, b) => a - b)[2];
+    const sortedStarts = starts.map((e) => e.ts).sort((a, b) => a - b);
+    const thirdStart = sortedStarts[2];
+    // At most 2 in flight: the 3rd START waits for an earlier END.
     expect(thirdStart).toBeGreaterThanOrEqual(firstTwoEnds[0]);
-    expect(total).toBeLessThan(1100);
+    // At least 2 genuinely in flight: the 2nd START precedes the 1st END.
+    // This replaces an absolute wall-clock bound (total < 1100ms), which
+    // flaked on loaded CI runners — 1131/1295/1464ms observed on 2026-10-06
+    // with identical content green locally and on PR CI.
+    expect(sortedStarts[1]).toBeLessThan(firstTwoEnds[0]);
   }, 20000);
 
   it("routes responses correctly under random delays (no mismatch)", async () => {

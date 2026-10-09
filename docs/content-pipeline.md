@@ -32,7 +32,7 @@
 >
 > **证据分组（issue #97）**：research 模式将 articles-capable 源分为三组——`direct-evidence`（关键词 capable 源，提供可搜索的 claim 证据）、`tracked-feed-context`（12 个 Wechat2RSS 固定公开 Feed，每 run 拉取一次作为 14 天窗口内的背景 context）、`environmental-signal`（homepage-only 源，登记为低优先级背景不拉取）。`discovery.json` 的 `evidenceGroups` 列出三组源名，每条 `sources[]` item 带 `sourceRole` 与真实 `collectionMethod`；`buildBrief` 将 `tracked-feed-context` 排除出 `candidateSources`，避免背景 context 污染 claim 直接证据排序。详见 `docs/archive/spec-wechat2rss-source-tracking.md`。
 >
-> 详细 spec 见 `docs/specs/spec-research-evidence-pipeline.md`。
+> 详细 spec 见 `docs/archive/specs/spec-research-evidence-pipeline.md`。
 
 ### Stage 0 核实规范：权威报告与一手信源（#266）
 

@@ -338,6 +338,37 @@ describe("checkLogin", () => {
     expect(call[1].body).toContain("(async function(){");
     expect(call[1].body).toContain("})()");
   });
+
+  it("#346: evalFn seam runs the script and reads its return value", async () => {
+    // The seam is what lets the registry contract test call the REAL checkLogin
+    // against a sandboxed page script instead of re-implementing the wrapper.
+    const seen = [];
+    const status = await checkLogin(
+      "tab_123",
+      "var body='hi'; return body === 'hi' ? 'need_login' : 'ok'",
+      {
+        evalFn: async (tabId, wrapped) => {
+          seen.push({ tabId, wrapped });
+          return { result: { value: "need_login" } };
+        },
+      },
+    );
+    expect(status).toBe("need_login");
+    expect(seen[0].tabId).toBe("tab_123");
+    expect(seen[0].wrapped).toContain("(async function(){");
+  });
+
+  it("#346: an expression-statement script yields 'ok' — the dead-gate shape", async () => {
+    // Regression anchor for the half of #346 that was not about ordering: the
+    // four registry gates only *evaluated* a status expression, so the IIFE
+    // returned undefined and the `|| "ok"` fallback silenced the gate.
+    const status = await checkLogin("tab_123", "var body='请先登录'; body ? 'need_login' : 'ok'", {
+      evalFn: async (_tabId, wrapped) => ({
+        result: { value: await new Function(`return ${wrapped}`)() },
+      }),
+    });
+    expect(status).toBe("ok");
+  });
 });
 
 // ─── findCdpProxyScript ───
@@ -406,9 +437,7 @@ describe("findCdpProxyScript", () => {
     const result = findCdpProxyScript();
 
     expect(result).toBeNull();
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining("dangling symlink"),
-    );
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("dangling symlink"));
   });
 
   it("prefers the repo-local copy when both exist (2026-09-23 divergence fix)", () => {

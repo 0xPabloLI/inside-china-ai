@@ -127,11 +127,7 @@ export function AskChinaAi({ autoFocus = false }: { autoFocus?: boolean } = {}) 
             {question.length}/{MAX_CHARS} · Enter to send
           </span>
           <Button type="submit" size="sm" disabled={loading || question.trim().length < 8}>
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             {loading ? "Reading articles…" : "Ask"}
           </Button>
         </div>
@@ -163,9 +159,7 @@ export function AskChinaAi({ autoFocus = false }: { autoFocus?: boolean } = {}) 
       ) : null}
 
       {loading && !answer ? (
-        <p className="mt-6 animate-pulse text-sm text-muted-foreground">
-          Searching the archive…
-        </p>
+        <p className="mt-6 animate-pulse text-sm text-muted-foreground">Searching the archive…</p>
       ) : null}
 
       {answer ? (

@@ -1,0 +1,50 @@
+# 证据层「引用了 git 未跟踪路径」的已知清单（lint-doc-hierarchy 规则 5）。
+# 一行一条 `引用方|被引方`；# 之后为注释。这些不是待修项，而是复核后接受的事实：
+# 研究/评审/提案文档常引用别的项目的文件，或被删掉的实验脚本 —— 改它们会伪造记录。
+# 门禁只关心清单会不会变长：新增条目在输出里标 NEW，并附处置动作。
+#   node scripts/lint-doc-hierarchy.mjs --bless
+# 复指好一条就删掉它的行（重生会把已修好的条目一起清掉，属期望行为）；
+# 但重生前 `git diff` 一眼，确认没顺手删掉别人正留着的那条。
+docs/proposals/proposal-video-pipeline-improvements-from-lov-media-creator.md|scripts/short-video/__tests__/verify-retry.test.mjs
+docs/proposals/proposal-video-pipeline-improvements-from-lov-media-creator.md|scripts/short-video/pipeline-profile.json
+docs/refs/tiktok-skills/AGENTS.md|scripts/sync_codex_marketplace.py
+docs/refs/tiktok-skills/CLAUDE.md|scripts/sync_codex_marketplace.py
+docs/research/agent-video-skills-180-screening-2026-09.md|docs/2026-06-22-storyboard-mvp-design.md
+docs/research/agent-video-skills-180-screening-2026-09.md|docs/V1.0.0-DESIGN.md
+docs/research/agent-video-skills-180-screening-2026-09.md|docs/pre-render-review.md
+docs/research/agent-video-skills-180-screening-2026-09.md|scripts/video-explainer.mjs
+docs/research/digital-human-npu910b-adaptation-research.md|scripts/video_sr.py
+docs/research/digital-human-solutions-m2-pro.md|scripts/inference.py
+docs/research/digital-human-test-progress.md|docs/handoffs/cloud-gpu-kaggle-setup.md
+docs/research/digital-human-test-progress.md|scripts/kaggle/echomimicv3-test/echomimicv3_inference.py
+docs/research/digital-human-test-progress.md|scripts/kaggle/leaptalk-test/leaptalk_inference.py
+docs/research/digital-human-test-progress.md|scripts/run_inference.py
+docs/research/digital-human-test-progress.md|scripts/short-video/experiments/modal-echomimicv3-nf4.py
+docs/research/digital-human-test-progress.md|scripts/short-video/experiments/modal-hallo3.py
+docs/research/digital-human-test-progress.md|scripts/short-video/experiments/modal-longcat-avatar.py
+docs/research/echomimicv3-optimization-options.md|scripts/short-video/experiments/modal-echomimicv3-nf4.py
+docs/research/fastmetal-5b-t2v-upgrade-research-2026-09-25.md|docs/getting_started/installation/mps.md
+docs/research/fastmetal-5b-t2v-upgrade-research-2026-09-25.md|docs/inference/support_matrix.md
+docs/research/golden-asset-evaluation.md|scripts/short-video/assets/golden/golden-expectations.json
+docs/research/golden-asset-evaluation.md|scripts/short-video/lib/golden-eval.mjs
+docs/research/pixelle-video-research-2026-10-01.md|docs/zh/development/architecture.md
+docs/research/pixelle-video-research-2026-10-01.md|docs/zh/faq.md
+docs/research/pixelle-video-research-2026-10-01.md|docs/zh/gallery/index.md
+docs/research/pixelle-video-research-2026-10-01.md|docs/zh/getting-started/installation.md
+docs/research/pixelle-video-research-2026-10-01.md|docs/zh/index.md
+docs/research/selfmedia-skills-survey-2026-09.md|docs/scoring.md
+docs/research/selfmedia-skills-survey-2026-09.md|scripts/publish_xhs.py
+docs/research/selfmedia-skills-survey-2026-09.md|scripts/render_xhs.py
+docs/research/selfmedia-skills-survey-2026-09.md|src/ai/prompting/deduplication.py
+docs/research/vlm-model-selection-benchmark.md|scripts/short-video/experiments/glm-ab-eval-results.json
+docs/research/vlm-model-selection-benchmark.md|scripts/short-video/experiments/vlm-ab-eval-results.json
+docs/research/vlm-model-selection-benchmark.md|scripts/short-video/experiments/vlm-ab-eval.py
+docs/research/vlm-model-selection-benchmark.md|scripts/short-video/experiments/vlm-benchmark-r5.py
+docs/research/vlm-model-selection-benchmark.md|scripts/short-video/experiments/vlm-benchmark-results.json
+docs/research/vlm-model-selection-benchmark.md|scripts/short-video/experiments/vlm-head-to-head-analysis.py
+docs/research/vlm-model-selection-benchmark.md|scripts/short-video/experiments/vlm-judge-results.md
+docs/research/vlm-model-selection-benchmark.md|scripts/short-video/experiments/vlm-new-candidates-benchmark.json
+docs/research/vlm-model-selection-benchmark.md|scripts/short-video/experiments/vlm-qwen35-mlx-eval-results.json
+docs/research/vlm-model-selection-benchmark.md|scripts/short-video/experiments/vlm-qwen35-mlx-eval.py
+docs/reviews/dead-code-audit-2026-09-20.md|scripts/short-video/.tmp-dump-cookies.mjs
+docs/reviews/ponytail-adoption-review-brief-2026-09-04.md|docs/agent-portability.md

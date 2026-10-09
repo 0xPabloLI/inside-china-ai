@@ -46,7 +46,8 @@
 | pbakaus/impeccable (24 commands)             | 视觉设计                  | ✅              | ✅ 已集成            | ⭐⭐⭐ 视觉打磨                                                |
 | leonxlnx/taste-skill (design-taste-frontend) | 设计推理                  | ✅              | 📋 备选(安全✅)      | ⭐ 设计决策                                                    |
 | public-apis/public-apis                      | API 资源索引              | ✅              | 📖 参考              | 📖 查免费 API                                                  |
-| AutoVio                                      | 视频管线（参考）          | ✅ 自托管       | ❌ 不采用（NC 许可） | ⭐ 分镜 prompt 结构参考                                        |
+| AutoVio                                      | 自动视频生成              | ✅ 自托管       | ❌ 不采用（NC 许可） | ⭐ 分镜 prompt 结构参考                                        |
+| Pixelle-Video                                | 自动视频生成              | 最低档 ✅ 0 元  | 📖 只读（停更）      | ⭐⭐ 同类竞品：接口形态与版式清单可学，代码不引入              |
 | VoiceStudio                                  | 音频/TTS 聚合器（参考）   | ✅ 自托管       | 📖 参考（不采用）    | ⭐ GUI 试听底层引擎情感效果                                    |
 | awesome-claude-video-skills (索引)            | 视频 Skill 储备           | ✅              | 📖 参考              | 180 repo 索引，A/B/C 类见专节                                  |
 | zenstory-ai/video-recap-skills                | 视频→中文解说 recap        | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ 管线同构对标                                          |
@@ -157,25 +158,28 @@
 - **状态**：✅ 已部署并接入管线（#92，2026-09-05）
 - **部署**：colima 里 `searxng/searxng:latest` 容器，宿主端口 `8888`；配置固化在宿主 `~/searxng/settings.yml`（挂载进容器——Watchtower 每 24h 自动更新镜像**不丢配置**）；JSON API 已启用
 - **管线接入**：`source-registry.mjs` 的 `searxng_search` 源（GENERAL_SEARCH_SOURCES）——apiSearch 直连 JSON API（collectFromSource Layer 0），CDP HTML 结果页兜底；rate-limiter 对 `localhost` 零延迟、无小时上限（自托管前端不设限）
-- **搜索位置**：fast-first——SearXNG ~2s 返回聚合结果；其后仍是 Brave/Tavily/Jina pool（#65）与 CDP 精度兜底
-- **运维要点（2026-09-05 / 2026-09-24 两轮实测）**：
+- **搜索位置**：零额度优先（非低延迟——聚合查询实测 15–20s，见下方「慢是常态」）；其后仍是 Brave/Tavily/Jina pool（#65）与 CDP 精度兜底
+- **运维要点（2026-09-05 / 09-24 / 09-30 三轮实测）**：
   - `settings.yml` 必须含 `search.formats: [html, json]`，否则 JSON API 返回 403
-  - SearXNG 的 httpx 客户端**不读** `HTTP_PROXY` 环境变量，代理必须写进 `settings.yml` 的 `outgoing.proxies`，且**必须走 VM 网关地址** `http://192.168.5.2:<宿主代理端口>`（colima VM 到宿主的路径；端口跟随宿主当前生效的客户端，变化后改 settings.yml + `docker restart searxng`）
+  - SearXNG 的 httpx 客户端**不读** `HTTP_PROXY` 环境变量，代理必须写进 `settings.yml` 的 `outgoing.proxies`，且**必须走 VM 网关地址** `http://192.168.5.2:<宿主代理端口>`（colima VM 到宿主的路径；端口跟随宿主当前生效的客户端，变化后改 settings.yml + `colima ssh -- sudo docker restart searxng`）
+  - **网关地址别照 `colima list` 的 ADDRESS 猜**：那列是 VM 自己的地址（实测 `192.168.64.2`），VM 看宿主的网关是 dockerd 启动参数里的 `--host-gateway-ip`（实测 `192.168.5.2`）。两者不同网段属正常，不是配置过期。取真值：`colima ssh -- sudo ps aux | grep host-gateway-ip`
+  - **宿主 docker CLI 在这台机器上不可用**（连不上 `~/.colima/default/docker.sock`，而 VM 内 dockerd 正常）⇒ 本文件所有 `docker <cmd>` 一律写成 `colima ssh -- sudo docker <cmd>`
   - 宿主有两个代理客户端（FlClash / Clash Verge）且端口不同 ⇒ 填哪个端口**先实测**，别照抄本行数字：真值表与实测命令在 `docs/conventions/test-env-baseline.md`「宿主代理端口」
-  - **症状→根因速查**：`unresponsive_engines` 全 HTTP connection error = 容器无出口，按序排查：容器内 DNS 是否被污染（`nslookup duckduckgo.com` 返回错误 IP）→ VM 网关代理可达性（容器内 `wget http://192.168.5.2:7890`）→ 宿主代理端口是否变更；colima VM 状态 `error` 起不来 → `brew upgrade colima && colima start`
+  - **症状→根因速查**：`unresponsive_engines` 全 HTTP connection error = 容器无出口，按序排查：容器内 DNS 是否被污染（`nslookup duckduckgo.com` 返回错误 IP）→ VM 网关代理可达性 → 宿主代理端口是否变更；colima VM 状态 `error` 起不来 → `brew upgrade colima && colima start`
+  - **探代理只用 `generate_204`，别用 `wget`**：`wget http://192.168.5.2:7890` 打的是 `GET /`，代理工作正常也不响应这个请求，于是永远挂着——2026-09-30 就是这条把一台健康实例误判成「容器无出口」。正确探针：`colima ssh -- sudo curl -s -m 8 -o /dev/null -w "%{http_code}\n" -x http://192.168.5.2:7890 https://www.google.com/generate_204`（204 = 通）
   - 出口 IP 被反爬时单引擎照挂（DDG 引擎同出口也 CAPTCHA）——多引擎聚合冗余兜底，属预期非故障
-  - **禁用引擎台账（2026-09-24 快照，可重审）**：聚合墙钟时间 = 参与引擎数 × 各自超时等待，188 个参与引擎里
-    21 个长期不响应，把每次查询拖到 10-20s。已在 `~/searxng/settings.yml` 对这 21 个置 `disabled: true`
-    （备份：`~/searxng/settings.yml.bak-20260924-2015`）：
-    `baidu, duckduckgo, duckduckgo web, fastbot, fireball, gabanza, gmx, google, openlibrary, privacywall, qwant, resulthunter, searchmysite, seznam, sogou, tagesschau, tusksearch, vuhuv, wikidata, wolframalpha, yep`
-    这份名单是**一次 `unresponsive_engines` 测量的快照，不是永久判死**。复核一条命令：
-    `curl -s 'http://127.0.0.1:8888/search?q=<kw>&format=json' | python3 -c "import json,sys; print(json.load(sys.stdin)['unresponsive_engines'])"`；
-    对**已不在**该列表里的条目，改回 `disabled: false` 或整段删除后用 `docker restart searxng` 生效。一次别恢复超过
-    5 个——墙钟时间按恢复个数线性回涨。
+  - **引擎台账 = `scripts/searxng/settings.template.yml`（入库，188 条全量启停即代码）**：实际状态用 `node scripts/searxng/config.mjs --check` 读，本文件不抄数字。换机器或丢盘后 `SEARXNG_PROXY_ENDPOINT=<网关:端口> node scripts/searxng/config.mjs --apply` 重建（`--apply` 自带备份并重启容器）；`server.secret_key` 与代理端点是设备值，刻意不入库，apply 时注入，缺值时脚本拒绝执行而不是猜。**要改启停就改模板再 `--apply`**——直接编辑 `~/searxng/settings.yml` 会立刻被 `--check` 判为漂移。逐引擎的判死/保留理由见下。
+    - **本轮恢复且实测有效**：`google`（3 次查询 90–100% 对题、0.4–1s）、`gmx`、`resulthunter`、`tusksearch`、`openlibrary`、`tagesschau`。注意 resulthunter/tusksearch 返回的 URL 与 google 高度重合，是镜像索引，买的是量不是独立性。
+    - **本轮新判死**：`sogou`（`unexpected crash` + 0 秒返回 = 解析层坏，不是限流；曾出数并带回 `mp.weixin.qq.com`，值得后续单独诊断）、`wiby`（对题率 0%）、`encyclosearch`（21%，handwiki 条目）、`ayo`/`wikimini`/`crowdview`（三次查询全 0；crowdview 上一次聚合还贡献 40 条 ⇒ 闪断）。
+    - **保留但按形态用**：`bing` 英文对题 80%、中文查询 0 条（同查询三次取样 2/10/0 条不稳定）⇒ 中文选题别指望它。`wikidata` 换对题（"Alan Turing"）仍 0 条 = 真坏，非领域受限。
+  - **逐引擎复测的方法（取代旧的「一次别恢复超过 5 个」）**：把待测引擎**临时全开**，再按 `engines=<name>` 单引擎查询逐个判——单引擎请求实测 0.2–4s，不受聚合的线性墙钟约束，一轮重启测完 21 个。旧约束只在「改完直接跑聚合」时成立。聚合级复核：`curl -s 'http://127.0.0.1:8888/search?q=<kw>&format=json' | python3 -c "import json,sys; print(json.load(sys.stdin)['unresponsive_engines'])"`；单引擎级：同上再加 `&engines=<name>`。复测得到的启停结论写进 `scripts/searxng/settings.template.yml` 后 `--apply` 生效（模板才是真相，不要手改 live 文件）。
+  - **两个判死陷阱**：① **领域受限引擎别用通用查询判死**——`openlibrary`/`tagesschau` 只在书籍/德语对题查询下出数，通用查询下必然 0 条。② **探针会自染封禁**——几十次逐引擎查询能把 `google`/`quark` 打进 `Suspended: CAPTCHA`，并让随后的聚合查询把该引擎列进 `unresponsive`（即污染你要测的那个东西）。判死前先冷卻 15–20 分钟复测；本轮 `google` 就是这样翻案的。
   - **慢是常态不是故障（2026-09-24 根因）**：本实例每次查询都要 10-20s（多引擎串行 + 每引擎最长等
     `outgoing.request_timeout`，已从 `10.0` 压到 `4.0`）。调用侧 15s 的默认 fetch 超时会把一次正常的慢撑到最后
     掐断，读成 `network-error`。逃生口是 registry 的 `api.timeoutMs`（默认仍是 15000，**只有 opt-in 的源**拉长；
     `collectFromApi` 与体检 `checkApiSource` 两条 fetch seam 同读这一个字段）——`searxng_search` 设为 `30000`。
+    2026-09-30 两次复现同一误读：6s 手工探针把「HTTP 200 + 379 条」的健康实例读成「整个是死的」；人工调试的 `-m` 至少给 45s。
+    另注：关掉低质引擎**不会**把延迟拉下来（14.8s → 17.7s 同一量级），墙钟由当时最慢的参与引擎决定，不是引擎数。
 - **何时用**：管线自动使用（trend/research 的 general 源之一）；人工调试用 `curl 'http://localhost:8888/search?q=<kw>&format=json'`
 
 ### pdf-parse (npm)
@@ -574,8 +578,8 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/Thysrael/Horizon`（9,260 stars，2026-09-06 当天仍有 push，活跃未归档，Python）
 - **做什么**：RSS/HN/Reddit/Telegram/X/GitHub/OpenBB → 抓取 → 去重 → AI 打分过滤 → 背景补充 → 中英双语 Markdown 日报，分发到 Pages/邮件/webhook/MCP
 - **对本项目有用的机制**（调研深挖结论，源码级）：
-  - **双层去重**：URL 归一化 key（`src/scrapers` 上层 orchestrator）+ LLM"同事件判定"prompt（`src/ai/prompting/deduplication.py`，规则：同一现实事件才算重复，"发布"vs"越狱"算不同，不确定时保留，fail-open）——可直接移植到 search-sources.mjs → Agent 交叉比对环节
-  - **profile 阈值打分**：每条 0-10 分，rubric 见 `docs/scoring.md`（9-10 范式级/7-8 重要/5-6 增量/0-2 噪音），阈值按 profile 配置——可替代我们"Agent 当场目测"的筛选
+  - **双层去重**：URL 归一化 key（`src/scrapers` 上层 orchestrator）+ LLM"同事件判定"prompt（源码 https://github.com/Thysrael/Horizon/blob/main/src/ai/prompting/deduplication.py ，规则：同一现实事件才算重复，"发布"vs"越狱"算不同，不确定时保留，fail-open）——可直接移植到 search-sources.mjs → Agent 交叉比对环节
+  - **profile 阈值打分**：每条 0-10 分，rubric 见 https://github.com/Thysrael/Horizon/blob/main/docs/scoring.md （9-10 范式级/7-8 重要/5-6 增量/0-2 噪音），阈值按 profile 配置——可替代我们"Agent 当场目测"的筛选
   - **Reddit 三级 fallback**：old.reddit HTML → JSON listing（Chrome UA）→ RSS，`RedditBlockedError` 专门处理
   - **Telegram 公开频道抓取**：`t.me/s/` web 预览页解析，免 token——潜在免费新增源（AI 新闻 Telegram 频道多）
   - X 抓取双模：Apify actor（$49/月起）或 Playwright + 多账号 cookie 轮询（风控风险）
@@ -701,11 +705,43 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 ---
 
+## 自动视频生成（Auto Video Generation）
+
+> **本类目判据**：端到端"一句话/一篇文章 → 一条成片"的**引擎级**项目（自带文案、素材、配音、合成四段）。与下一节「视频 Skill 储备」的区别：那边是 agent 用的 `SKILL.md` 配方与组件片段，这边是可独立运行的成片系统——**竞品/形态对照**，不是依赖。
+> **共同结论**：本类目目前**没有任何一个值得引入代码**。判据是三条硬事实——① 成片形态（多数是"素材 + 文字卡片 + 硬切"，动画层缺失）；② 后端绑定（招牌能力绑付费云或 NVIDIA）；③ 维护与许可（停更节奏 / NC 条款 / 云服务商条款禁商用）。
+
+### Pixelle-Video — AI 全自动短视频引擎（只读参考，不采用）
+
+- **分类**：自动视频生成（端到端成片引擎）
+- **仓库**：`https://github.com/ATH-MaaS/Pixelle-Video`（阿里 ATH-MaaS，原 org 名 `AIDC-AI`；28.6k★ / 4.2k fork，2025-11-07 建仓）
+- **许可**：✅ Apache-2.0（可商用）。⚠️ **但能力边界绑在第三方云上**：其主推后端 RunningHub 的《付费服务协议》第 二.2.2 条限定「只能出于个人、非商业目的使用服务」——对本项目（对外发布内容）是**条款级阻断**，不是价格问题
+- **做什么**：话题 → LLM 写旁白（默认 5 分镜）→ 按模板类型决定是否出 AI 图/短片 → TTS 配音（音频时长即分镜时长）→ `templates/**/*.html` 经 **Playwright 截屏出帧** → `ffmpeg` 拼接。素材后端三选一：本地 ComfyUI / RunningHub 云 / 直连 DashScope·OpenAI·火山 ARK·可灵
+- **成片形态（实测，非观感）**：同分镜内相邻帧平均像素差 0.000–0.008，仅分镜切换点跳到 2.0–3.1 → **卡片硬切**。三条代码判据：静图用 `loop=1` 循环成段（无运镜滤镜）、文字层是一张透明 PNG 叠在短片上（背景会动字不动）、`concat` 无 `xfade` 且 fade 只作用 BGM
+- **为什么对本项目有用**：唯一"同输入同产出"的公开同类，价值全在接口形态——5 条可学习项（模板声明素材依赖 / 原子 REST 端点 / run 级隔离 + manifest / `template_params` 受控定制 / 带语义步骤名的进度事件）已逐条对账并落成 #462 #463 与 #355 #291 #228 #310 票评
+- **用法**：**不安装**。只读源码用 `gh api` 或 clone 到仓库外目录（`/private/tmp`）。若要真跑：Python ≥3.11 + `uv` + `ffmpeg` + **`playwright install chromium`（其文档未列此步，缺失会在出帧阶段才炸）**；最低成本档 0 元可跑通（本地 Ollama + edge-tts + `static_*` 模板，2026-10-02 实测 41 秒出 27 秒成片）
+- **何时用**：讨论"管线该长成什么接口形状"、需要竞品形态对照、或要一份现成竖屏版式清单（25 个 `1080x1920` 模板，Apache-2.0 可改写）时
+- **何时不用**：任何生产路径。停更项目 + 招牌功能绑付费云 + 零测试零 CI + 文件服务路径校验为词法级（点段序列可绕，未修）
+- **维护状态**：⚠️ main 最后提交 2026-06-14；官方 release 停在 v0.1.15（2026-01-27）；文档站部署停在 2026-01-08；issue open 146 / closed 41（关闭率 22%）；无 SECURITY.md，安全修复 PR 无人合并
+- **安全审计**：未审计（不安装、不进管线）。已知缺陷见上，若未来参考其 API 形态，路径校验必须 `resolve()` 后再比对，不能用 `startswith`
+- **调查日期**：2026-10-01（实跑验证 2026-10-02）· 详见 `docs/research/pixelle-video-research-2026-10-01.md`
+- **状态**：📖 只读参考（Tier B），不引入代码
+
+### 同类目其他条目（正文各自留原位，此处只做索引）
+
+| 对象 | 判据落点 | 正文位置 |
+| --- | --- | --- |
+| AutoVio | ❌ 不采用（PolyForm Noncommercial + 维护停滞 + 生成式虚构与事实性冲突） | 本文件「待评估 / 可选工具 → AutoVio」 |
+| MoneyPrinterTurbo | 库存视频优先路线的**已吸收结论**（搜索方向/分辨率匹配、同源去重、sequential 选段） | `docs/research/repo-survey-tracking.md` §A |
+| 本项目自己的管线 | 对照基准：Remotion 逐帧动画 + 三字段文本契约 + forced alignment 字幕 + claim/MRL/verify 门 | `docs/content-pipeline.md`、`docs/video-production-runbook.md` |
+
+---
+
 ## 视频 Skill 储备（awesome-claude-video-skills）
 
-> 来源：`https://github.com/zhuyansen/awesome-claude-video-skills`（24★，2026-09-27 更新）· 在线筛选页 https://agentskillshub.top/best/claude-video-skills/ （每 8h 刷新）· 180 个 repo / 10 分类 / 178 SAFE / 2 CAUTION
-> **收录说明**：这批 skill 多为 Claude Code/Codex 的 `SKILL.md` 格式，本项目 agent（CodeArts）不直接执行 SKILL.md，但可参考其 prompt/流程/Remotion 模板/分镜结构。真正能直接复用的是 Remotion 组件/模板类。具体 repo 安装前仍须走「评估流程」。
-> **调查日期**：2026-09-28
+> 来源：`https://github.com/zhuyansen/awesome-claude-video-skills`（2026-09-27 开源）· 在线筛选页 https://agentskillshub.top/best/claude-video-skills/ （每 8h 刷新）· 180 个 repo / 10 分类 / 178 SAFE / 2 CAUTION
+> **收录说明**：这批 skill 多为 Claude Code/Codex 的 `SKILL.md` 格式，本项目 agent 不直接执行 SKILL.md，但可参考其 prompt/流程/Remotion 模板/分镜结构。真正能直接复用的是 Remotion 组件/模板类。具体 repo 安装前仍须走「评估流程」。
+> ⚠️ **SAFE ≠ 许可证**：SAFE 是榜单对 README 的安全评级，不含许可证与付费 API 依赖维度——下文 ⚠️ 标注均来自一手实测。
+> **调查日期**：2026-09-28（初筛）· **2026-10-09 回灌** R1–R8 五问研究实测更正：逐仓许可证/付费依赖/结构勘误见 `docs/research/agent-video-skills-180-screening-2026-09.md`（§8 各轮报告，证据强度 [R] 级）
 
 ### A 类：高相关 — 直接对口（10 个）
 
@@ -728,11 +764,12 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **做什么**：SRT 驱动双后端 B-roll，自动路由 HyperFrames/Remotion，集成 152 张 Shotcraft 镜头卡
 - **为什么有用**：B-roll 生成 + 镜头卡 → 对应 #290（T2V 选型）、#295（assetNeed 通用化）
 
-#### Vincentwei1021/video-talkcraft — voiceover-driven explainer ⭐⭐⭐
+#### Vincentwei1021/video-talkcraft — voiceover-driven explainer ⭐⭐（仅读思路）
 
 - **仓库**：`https://github.com/Vincentwei1021/video-talkcraft`（1.2k★，SAFE）
 - **做什么**：口播讲解视频，逐词 voiceover sync + 109 motion presets
 - **为什么有用**：口播 + 逐词字幕是本项目核心，motion presets 可直接移植到 Remotion
+- ⚠️ **许可证 = PolyForm 非商用（一手实测）**：代码不可复制进本仓，只读它的 motion preset 设计思路。同作者的 `video-shotcraft` 是 Apache-2.0，别搞混
 
 #### sharon-laicc/viral-video-decomposer — 爆款拆解/拉片 ⭐⭐⭐
 
@@ -750,13 +787,14 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 - **仓库**：`https://github.com/runesleo/claude-video-kit`（120★，SAFE）
 - **做什么**：brief/script → review receipt → narrated 9:16 explainer，Remotion
-- **为什么有用**：9:16 竖屏讲解，与本项目竖屏新闻讲解直接对口
+- **为什么有用**：9:16 竖屏讲解，与本项目竖屏新闻讲解直接对口；**全表唯一把「渲染前人工门禁」做成机器可校验凭证的**（receipt 绑定 script.json 内容哈希，fix/block/缺失/过期一律拒绝渲染）。对我们最有价值的落点是**发布入口凭证化**（HITL receipt）而非渲染 gate——见研究文档 §8 R5
 
-#### iart-ai/motion-skills — 50 个 motion/视频 skill ⭐⭐⭐
+#### iart-ai/motion-skills — motion/视频 skill 索引仓 ⭐⭐⭐
 
 - **仓库**：`https://github.com/iart-ai/motion-skills`（516★，SAFE）
-- **做什么**：50 个 skill：kinetic typography / data-viz / explainers / TikTok/Reels
-- **为什么有用**：覆盖面广，kinetic typography（字幕动效）与 data-viz（新闻数据）都对口
+- **做什么**：**索引仓，本体仅 9 个文件**；约 53 个 skill 实体在 16 个独立分仓（`iart-ai/motion-design-skills` / `kinetic-typography-skills` / `explainer-video-skills` 等），kinetic typography / data-viz / explainers / TikTok/Reels
+- **为什么有用**：分仓按需读。实测分仓质量高于社区平均（如 motion-design 的 12 栏网格带具体数字、9:16 用 RESTACK 不裁切、每拍只允许一个镜头运动）
+- ⚠️ **装这个 repo 本体会扑空**——按分仓名单独装
 
 #### coding-ax/docvideoer — 文档→中文旁白讲解视频 ⭐⭐⭐
 
@@ -776,13 +814,14 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 - **仓库**：`https://github.com/hassancs91/claude-faceless-shorts-creator`（268★，SAFE）
 - **做什么**：faceless YouTube-Shorts 工厂，纯 TSX Remotion visuals + ElevenLabs 逐词字幕
-- **为什么有用**：纯 TSX Remotion + 逐词字幕方案可参考
+- **为什么有用**：纯 TSX Remotion + 逐词字幕方案可参考；beats contract + SFX cue sheet 随片存档的复现范式值得学
+- ⚠️ **两条付费硬绑定**（实测）：Generative 产线绑 fal + ElevenLabs 双付费 API，本仓不走；**许可证 SPDX 元数据为空**，任何动作前先读仓库 LICENSE 文件
 
 #### AgriciDaniel/claude-shorts — longform→shortform ⭐⭐
 
 - **仓库**：`https://github.com/AgriciDaniel/claude-shorts`（217★，SAFE）
 - **做什么**：长视频→短视频，Remotion 动画字幕 + AI 段落评分 + cursor tracking
-- **为什么有用**：段落评分（选高光片段）可借鉴
+- **为什么有用**：**5 维选段 rubric（hook .30 / coherence .25 / emotion .20 / value .15 / payoff .10，分值锚定枚举 + red flags）**可直接套我们的 forced alignment 数据做已成片选段
 
 #### Yuuhann1999/codex-storyboard — 分镜工作台 ⭐⭐
 
@@ -812,7 +851,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 | Repo | ★ | 参考价值 |
 | --- | --- | --- |
-| `pyang5166/gbro-collage-broll` | 1.3k | B-roll 生成，三闸门审批流程可借鉴 |
+| `pyang5166/gbro-collage-broll` | 1.3k | B-roll 生成，三闸门审批流程 + 隐喻命题模板可借鉴；⚠️ 实测绑付费 Gemini API（默认 `gemini-omni-flash-preview` 按量计费）+ Gate 2 依赖 Codex 内置 image_gen——**「无需 image model」说法不成立**，路线改走本地静帧 + Remotion 组装（研究文档 §8 R4.4） |
 | `iart-ai/data-animation-skills` | 6 | CSV→动态图表，每帧数字准确 → 新闻数据可视化 |
 | `Liamrjohnston/remotion-motion-graphics-skill` | 72 | Remotion motion graphics 组件 |
 | `jhartquist/claude-remotion-kickstart` | 120 | Claude Code+Remotion 脚手架 |
@@ -1003,6 +1042,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 找特定功能的 skill             → VoltAgent/awesome-agent-skills 目录
 找免费 API（任意领域）          → public-apis/public-apis README 按分类查
 分镜/场景-内容匹配 prompt 参考  → AutoVio `prompts/scenario.ts`（仅参考，不安装）
+自动成片引擎形态/接口对照        → Pixelle-Video（只读；同类目索引见「自动视频生成」节）
 ```
 
 ---

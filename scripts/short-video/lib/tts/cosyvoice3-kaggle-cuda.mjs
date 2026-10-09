@@ -7,10 +7,12 @@
  *
  * Workflow:
  *   1. Build manifest from scenes (text + instruct_text with <|endofprompt|>)
- *   2. Embed manifest into Kaggle kernel script
+ *   2. Embed manifest + per-call request id into the Kaggle kernel script
  *   3. Push kernel via `kaggle kernels push` (ref audio from Kaggle dataset)
  *   4. Poll `kaggle kernels status` until complete
- *   5. Download output via `kaggle kernels output`
+ *   5. Download output into a per-call staging dir, verify the kernel summary
+ *      echoes this call's request id and that every requested scene is complete
+ *      (#420), then promote into the audio dir
  *   6. Post-process (resample 44.1kHz) and return results
  *
  * Setup overhead: ~5 min (pip install + clone + model download) per run.
@@ -26,10 +28,12 @@
  */
 
 import { exec } from "child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { createHash, randomUUID } from "crypto";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { basename, join, dirname, relative } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
+import { assertRiffWaveHeader, walkRiffChunks } from "../audio/wav.mjs";
 import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-process.mjs";
 import { resolveSceneSpeed } from "./pacing.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
@@ -38,6 +42,12 @@ const execAsync = promisify(exec);
 
 // ── Config ──
 const KAGGLE_KERNEL_TEMPLATE = join(ROOT_DIR, "kaggle", "cosyvoice3_cuda_kernel.py");
+// The frozen wheelhouse this repo expects to be mounted (#521). Kaggle cannot
+// pin a dataset version (`dataset_sources` drops the version segment at push
+// time and mounts the latest), so the kernel is handed the committed set and
+// compares it to the mount before installing. Read at push time, not baked
+// into the template, so the kernel can never carry a hand-copied copy.
+const KAGGLE_WHEELHOUSE_MANIFEST = join(ROOT_DIR, "kaggle", "wheelhouse-manifest.json");
 // 30min RUNNING budget (#241: the 20min default tripped on slow torch/model
 // downloads even though pure inference is ~64s for a 10-scene batch; #250
 // keeps queue wait in a separate budget).
@@ -235,12 +245,153 @@ export function resolveKernelSlug({ envSlug, contentId } = {}) {
 }
 
 /**
+ * Per-call run identity for the Kaggle artifact seam (#420).
+ *
+ * Binds the manifest digest (what the kernel was asked to synthesize) to a
+ * unique nonce. The kernel echoes this string into summary.json, so only
+ * artifacts produced by the kernel build that received THIS call's manifest can
+ * be accepted — a previous run's summary is rejected even when the manifest is
+ * byte-identical (single-scene reroll with the same text).
+ *
+ * @param {string} manifestJson - exact JSON embedded into the pushed kernel
+ * @param {object} [deps] - injectable seams for tests
+ * @param {() => string} [deps.uuid]
+ * @returns {string} request id ("<manifest-digest>-<uuid>")
+ */
+export function buildRunRequestId(manifestJson, deps = {}) {
+  const uuid = deps.uuid ?? randomUUID();
+  const digest = createHash("sha256").update(manifestJson).digest("hex").slice(0, 16);
+  return `${digest}-${uuid}`;
+}
+
+/**
+ * Verify that a kernel summary belongs to THIS run and covers exactly the
+ * requested scenes (#420). Pure — file integrity is checked separately, before
+ * anything is promoted into the audio directory.
+ *
+ * @param {object} summary - parsed summary.json from the kernel output
+ * @param {object} expected
+ * @param {string} expected.requestId - identity embedded in the pushed script
+ * @param {Array<{id: number}>} expected.scenes - scenes this run requested
+ * @throws {Error} when the summary is stale, foreign or incomplete
+ */
+export function verifyKaggleRunSummary(summary, { requestId, scenes }) {
+  if (!summary || typeof summary !== "object") {
+    throw new Error("Kaggle summary is not an object — refusing to promote unverifiable artifacts");
+  }
+  if (summary.requestId !== requestId) {
+    throw new Error(
+      `Kaggle summary does not belong to this run (expected requestId "${requestId}", ` +
+        `got ${summary.requestId ? `"${summary.requestId}"` : "none"}) — refusing to promote ` +
+        "stale or foreign artifacts.",
+    );
+  }
+  if (!Array.isArray(summary.segments)) {
+    throw new Error(
+      "Kaggle summary has no segments array — refusing to promote unverifiable artifacts",
+    );
+  }
+  const expectedOutputs = new Map(scenes.map((s) => [String(s.id), `scene-${s.id}.wav`]));
+  const seen = new Set();
+  for (const segment of summary.segments) {
+    const key = String(segment?.sceneId);
+    if (!expectedOutputs.has(key)) {
+      throw new Error(
+        `Kaggle summary contains scene ${segment?.sceneId} which was not requested — ` +
+          "the summary does not belong to this run's manifest",
+      );
+    }
+    if (seen.has(key)) {
+      throw new Error(
+        `Kaggle summary lists scene ${segment.sceneId} twice — refusing ambiguous output`,
+      );
+    }
+    seen.add(key);
+    if (segment.error) {
+      if (typeof segment.error !== "string") {
+        throw new Error(`Kaggle summary scene ${segment.sceneId} carries a non-string error`);
+      }
+      continue;
+    }
+    if (segment.output !== expectedOutputs.get(key)) {
+      throw new Error(
+        `Kaggle summary scene ${segment.sceneId} names output "${segment.output}" ` +
+          `(expected "${expectedOutputs.get(key)}")`,
+      );
+    }
+  }
+  const missing = [...expectedOutputs.keys()].filter((key) => !seen.has(key));
+  if (missing.length > 0) {
+    throw new Error(
+      `Kaggle summary is missing requested scenes: ${missing.join(", ")} — ` +
+        "refusing to promote an incomplete kernel output",
+    );
+  }
+  return summary;
+}
+
+/**
+ * A downloaded kernel wav is only promotable when it is a complete RIFF/WAVE
+ * file (#420): network hiccups are known to yield 0-byte or truncated Kaggle
+ * downloads (#394 class), and a partial take must not enter the approved audio
+ * path. Beyond the magic header, every declared chunk must fit inside the
+ * downloaded bytes and a non-empty `data` chunk must be present — a 500-byte
+ * file whose RIFF header still declares the full take is exactly the partial
+ * download this gate exists to reject.
+ *
+ * @param {string} filePath - staged file under the per-call download dir
+ * @param {number} sceneId - for the error message
+ * @returns {string} filePath when complete
+ * @throws {Error} when the file is missing, truncated or not a wav
+ */
+export function assertCompleteKernelWav(filePath, sceneId) {
+  if (!existsSync(filePath)) {
+    throw new Error(
+      `Kaggle output file for scene ${sceneId} is missing (${basename(filePath)}) — ` +
+        "refusing to promote an incomplete kernel output",
+    );
+  }
+  const buf = readFileSync(filePath);
+  try {
+    assertRiffWaveHeader(buf, basename(filePath));
+  } catch (e) {
+    throw new Error(
+      `Kaggle output file for scene ${sceneId} is incomplete or invalid (${e.message}) — ` +
+        "refusing to promote invalid audio",
+    );
+  }
+  let hasData = false;
+  const overrun = walkRiffChunks(buf, (id, size) => {
+    if (id === "data" && size > 0) hasData = true;
+  });
+  if (overrun) {
+    throw new Error(
+      `Kaggle output file for scene ${sceneId} is truncated (chunk "${overrun.id}" declares ` +
+        `${overrun.size} bytes beyond the ${buf.length}-byte download) — refusing to promote ` +
+        "a partial download",
+    );
+  }
+  if (!hasData) {
+    throw new Error(
+      `Kaggle output file for scene ${sceneId} has no non-empty data chunk — ` +
+        "refusing to promote incomplete audio",
+    );
+  }
+  return filePath;
+}
+
+/**
  * Check if Kaggle CLI is available and configured.
+ *
+ * `deps.refAudioPath` overrides the repo voice sample so the engine's
+ * availability gate is testable on a pristine CI checkout (voice-samples/ is
+ * gitignored) — the smoke contract is the same either way.
+ *
  * @returns {Promise<boolean>}
  */
 async function isAvailable(deps = {}) {
   if (!existsSync(KAGGLE_KERNEL_TEMPLATE)) return false;
-  if (!existsSync(CV3_REF_AUDIO)) return false;
+  if (!existsSync(deps.refAudioPath ?? CV3_REF_AUDIO)) return false;
   const username = getKaggleUsername();
   if (!username) return false;
   try {
@@ -481,8 +632,21 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // ── Prepare Kaggle kernel ──
       const template = readFileSync(KAGGLE_KERNEL_TEMPLATE, "utf-8");
       const manifestJson = JSON.stringify(manifest);
+      // Per-call identity (#420): the kernel echoes it into summary.json and
+      // the download below is only accepted when that echo matches.
+      const requestId = buildRunRequestId(manifestJson);
 
-      const kernelScript = template.replaceAll("__MANIFEST_JSON__", manifestJson);
+      const kernelScript = template
+        .replaceAll("__MANIFEST_JSON__", manifestJson)
+        .replaceAll("__REQUEST_ID__", requestId)
+        // #521: the expected wheelhouse, so the kernel can refuse a mount that
+        // is not what this repo froze. Injected even when the run resolves to
+        // the online path — the placeholder has to be gone either way, and the
+        // check is what turns a silent dependency swap into a loud failure.
+        .replaceAll(
+          "__EXPECTED_WHEELHOUSE__",
+          readFileSync(KAGGLE_WHEELHOUSE_MANIFEST, "utf-8").trim(),
+        );
 
       const tempDir = join(outputDir, ".kaggle-kernel");
       mkdirSync(tempDir, { recursive: true });
@@ -499,7 +663,17 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
             is_private: true,
             enable_gpu: true,
             enable_internet: true,
-            dataset_sources: ["xPabloLI/tts-ref-audio", "xPabloLI/cosyvoice3-model"],
+            // cosyvoice3-wheels (#231): the frozen dependency wheelhouse. The
+            // kernel installs from it with --no-index when mounted, so the
+            // dependency set cannot drift under us and the install stops
+            // hitting PyPI. Measured saving on the 2026-10-09 py3.13 image:
+            // 633s online → 512s offline for a 2-scene batch (the install is
+            // ~2min; the rest is clone + model load + inference).
+            dataset_sources: [
+              "xPabloLI/tts-ref-audio",
+              "xPabloLI/cosyvoice3-model",
+              "xPabloLI/cosyvoice3-wheels",
+            ],
             competition_sources: [],
             kernel_sources: [],
           },
@@ -520,27 +694,49 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // poll-status.json: QUEUED/RUNNING phase + metering for background runs (#250)
       await poll(kernelId, { statusFile: join(tempDir, "poll-status.json") });
 
-      // ── Download output ──
-      const kaggleOutputDir = join(tempDir, "kaggle-output");
-      mkdirSync(kaggleOutputDir, { recursive: true });
+      // ── Download output into per-call staging (#420) ──
+      // The download target MUST be unique per call: `kaggle kernels output`
+      // skips files when a more recent local copy exists. That skip is not an
+      // error — in the installed CLI (2.2.4) kernels_output gates the fetch on
+      // `download_needed()` (kaggle/api/kaggle_api_extended.py:8232, gated at
+      // :6715), which returns False when the local size/date look current; the
+      // command then still exits 0, so the pipeline reads the old file while
+      // the download "succeeded". The legacy `.kaggle-kernel/kaggle-output`
+      // dir is deliberately not reused, overwritten or cleaned as routine
+      // self-heal — acceptance is proven by the identity checks below, not by
+      // directory cleanliness.
+      const downloadDir = join(tempDir, "downloads", requestId);
+      mkdirSync(downloadDir, { recursive: true });
       console.log("  📥 Downloading Kaggle kernel output...");
       try {
-        await runCmd(`kaggle kernels output ${kernelId} -p "${kaggleOutputDir}" 2>&1`);
+        await runCmd(`kaggle kernels output ${kernelId} -p "${downloadDir}" --force 2>&1`);
       } catch (e) {
         throw new Error(`Failed to download Kaggle output: ${e.message}`);
       }
 
-      // ── Read summary ──
-      const summaryPath = join(kaggleOutputDir, "output", "summary.json");
+      // ── Verify run identity, coverage and per-scene file integrity ──
+      // Every check runs BEFORE any file reaches the audio directory: a stale,
+      // foreign or partial download must never mix into the approved takes.
+      const summaryPath = join(downloadDir, "output", "summary.json");
       if (!existsSync(summaryPath)) {
         throw new Error("Kaggle kernel did not produce summary.json");
       }
-      const summary = JSON.parse(readFileSync(summaryPath, "utf-8"));
+      let summary;
+      try {
+        summary = JSON.parse(readFileSync(summaryPath, "utf-8"));
+      } catch (e) {
+        throw new Error(`Kaggle summary.json is not valid JSON: ${e.message}`);
+      }
+      verifyKaggleRunSummary(summary, { requestId, scenes });
       const failed = summary.segments.filter((s) => s.error);
       if (failed.length > 0) {
         console.error(
           `  ⚠️ ${failed.length} segments failed: ${failed.map((f) => `scene-${f.sceneId}`).join(", ")}`,
         );
+      }
+      const promotable = summary.segments.filter((s) => !s.error);
+      for (const s of promotable) {
+        assertCompleteKernelWav(join(downloadDir, "output", s.output), s.sceneId);
       }
 
       // ── Post-process ──
@@ -548,15 +744,9 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       process.env.TTS_DENOISE = "0";
 
       const finalResults = [];
-      for (const s of summary.segments) {
-        if (s.error) continue;
-        const srcPath = join(kaggleOutputDir, "output", s.output);
-        if (!existsSync(srcPath)) {
-          console.error(`  Scene ${s.sceneId}: output file missing (${s.output})`);
-          continue;
-        }
+      for (const s of promotable) {
+        const srcPath = join(downloadDir, "output", s.output);
         const destPath = join(outputDir, s.output);
-        const { copyFileSync } = await import("fs");
         copyFileSync(srcPath, destPath);
 
         // Rubberband prosody OFF by default: the user-approved P100 samples
@@ -580,6 +770,16 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
 
       if (finalResults.length === 0) {
         throw new Error("No successful TTS results from Kaggle kernel");
+      }
+
+      // Staging is per-call scratch: drop it after successful promotion so
+      // downloads/ does not grow without bound (failures keep it as evidence).
+      // Cleanup can never affect correctness — acceptance depends on the
+      // requestId bound into summary.json, not on directory state.
+      try {
+        rmSync(downloadDir, { recursive: true, force: true });
+      } catch {
+        // fail-open: leftover staging is harmless
       }
 
       return finalResults;

@@ -1,0 +1,3 @@
+# Prettier repo-wide autofix 2026-10-08
+# Mechanical eslint --fix reformatting; see PR body. Ignore in git blame:
+cd9669e3

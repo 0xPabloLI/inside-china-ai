@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 
-import { verdictReason, apiFailureVerdict, failureClass, applyFallbackTakeover } from "../selector-health.mjs";
+import {
+  verdictReason,
+  apiFailureVerdict,
+  failureClass,
+  applyFallbackTakeover,
+} from "../selector-health.mjs";
 
 /**
  * #269 (2026-09-23): 两个「时序竞态 ⇒ 假判决」的回归锚点。
@@ -97,6 +102,13 @@ describe("failureClass — 只有关于源的失败才算失败", () => {
   it("need_login / login-wall ⇒ probe（答案取决于会话，不取决于源）", () => {
     expect(failureClass({ ok: false, reason: "need_login" })).toBe("probe");
     expect(failureClass({ ok: false, reason: "login-wall" })).toBe("probe");
+  });
+
+  it("#346 登录门自报的 captcha ⇒ probe（人工过验证即可，不是源侧缺陷）", () => {
+    // 登录门（loginCheckScript）返回 'captcha' 时 selector-health 原样透传成 reason；
+    // 若归成 source，退出码会因「读者在 registry 里修不了的事」变红，违反
+    // docs/selector-auto-healing.md「只有 source 才让退出码非零」。
+    expect(failureClass({ ok: false, reason: "captcha" })).toBe("probe");
   });
 
   it("probe-not-authoritative ⇒ probe", () => {

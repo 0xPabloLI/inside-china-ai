@@ -32,6 +32,46 @@ export const FAILURE_CLASS = Object.freeze({
 });
 
 /**
+ * The two environment escape hatches for an ASR-less run (#418).
+ *
+ * Named here because three modules judge on them — the gate
+ * (`quality-gate.mjs`), the registry (`registry.mjs`) and the pipeline-start
+ * preflight (`../asr-preflight.mjs`). The preflight exists to mirror the gate
+ * one step earlier, so the two must agree on the spelling AND on the `"1"`
+ * convention: if this drifted, the preflight would hard-exit a run the gate
+ * would have accepted.
+ */
+export const ASR_ALLOW_NO_VERIFY_ENV = "TTS_QUALITY_ALLOW_NO_ASR";
+export const SKIP_QUALITY_GATE_ENV = "TTS_SKIP_QUALITY_GATE";
+
+/**
+ * Canonical fix hint for the unverifiable-take failure (#415 ①). Shared so the
+ * gate's block error and the pipeline-start preflight cannot drift apart.
+ */
+export const ASR_FIX_HINT = `Fix the ASR infrastructure, or set ${ASR_ALLOW_NO_VERIFY_ENV}=1 to render unverified.`;
+
+/**
+ * Explicit opt-out: render even though the take cannot be verified.
+ *
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {boolean}
+ */
+export function asrOptOutEnabled(env = process.env) {
+  return env[ASR_ALLOW_NO_VERIFY_ENV] === "1" || env[SKIP_QUALITY_GATE_ENV] === "1";
+}
+
+/**
+ * Explicit opt-out: skip the quality gate entirely (no gate → nothing to
+ * verify with ASR).
+ *
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {boolean}
+ */
+export function qualityGateSkipped(env = process.env) {
+  return env[SKIP_QUALITY_GATE_ENV] === "1";
+}
+
+/**
  * Split gate evaluations into the families the registry routes on (#415 ①).
  *
  * Lives here (not in quality-gate.mjs) so the registry can import it
@@ -89,7 +129,7 @@ export function infraBlockError(infraFailed) {
     new Error(
       `TTS Quality Gate could not verify the take(s): ${scenes}. ` +
         `The ASR leg (whisper.cpp + ggml model) is unavailable, so the word-level checks never ran. ` +
-        `Fix the ASR infrastructure, or set TTS_QUALITY_ALLOW_NO_ASR=1 to render unverified.`,
+        ASR_FIX_HINT,
     ),
     "TTS_INFRA_BLOCK",
   );

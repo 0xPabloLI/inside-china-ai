@@ -84,6 +84,7 @@ node scripts/short-video/source-url-discover.mjs --only <源名> --keyword-zh �
 - 只改 `articleScript` / `loginCheckScript` / `imageScript` 的选择器；不改 url、不改 fallback 链、不改 anti-bot 阈值。
 - needsAuth 源（xhs、douyin）若失败原因是 `need_login`，那是登录态过期——提示用户人工登录，不是选择器问题，**不要**改脚本。
 - `anti_bot` 失败不修选择器——那是风控，归 #140 P1/P2 机制处理。
+- **门序不在调用点改**：登录门与反爬判定的次序只能走 `runPageGates()`（`lib/cdp-client.mjs`）。在 `selector-health` 或 `search-sources` 里各自重排一次，正是 #346 假判决的成因（见 §第九个假判决）。
 - 一轮只修实测坏掉的源；"顺手优化"健康源的选择器是被禁止的（每个 healthy 源都是活体证据，别动它）。
 
 ## Design Decisions
@@ -490,7 +491,7 @@ https://www.douyin.com/jingxuan/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD
 - `resolveApiHeaders(api)`（`lib/source-registry.mjs`）：对象或 getter/函数两种形态都收，请求时解析。注册表里 `tiktok_creator` / `github_search` 的 headers 改成 **getter**，所以调用点（`search-sources`、两个探针）一行都不用改，而 key 一定在请求时读取。
 - `missingApiKey(capabilities.articles)`：读 #67 已定的凭据权威（`requiresApiKey` + `apiKeyEnv`，后者来自 `API_KEY_ENV_MAP`），**只对声明必需的 key 生效**。
 - `checkApiSource()`：缺 key **在发请求之前**就判 `probe-not-authoritative`；其余 4xx 交给轴 1 同款 `classifyProbe` —— 401/403/405/429/503 是「关于探针的回答」，404/410 才是「关于端点的回答」。
-- `failureClass(result)` 三分类：`none` / `source`（真失败，进修复手册）/ `probe`（`anti_bot:*`、`need_login`、`login-wall`、`probe-not-authoritative`——隔离，不进台账）。**只有 `source` 才让退出码非零**，避免「缺 key」或「没登录」把健康检查染红。
+- `failureClass(result)` 三分类：`none` / `source`（真失败，进修复手册）/ `probe`（`anti_bot:*`、`need_login`、`captcha`（登录门自报的「请手动过验证」）、`login-wall`、`probe-not-authoritative`——隔离，不进台账）。**只有 `source` 才让退出码非零**，避免「缺 key」「没登录」或「人工过验证」把健康检查染红。
 
 实测（`checkApiSource` 直调，绕开 CDP；keyword = artificial intelligence）：
 
@@ -526,6 +527,26 @@ https://www.douyin.com/jingxuan/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD
 
 polymarket 定界时在落地页抽到「9 个 h3 全是 UI chrome、0 个 event 链接」，判成改版无解——**抽样早于 SPA 渲染完成**。等足 9s 实测：56 条 `/event/` 覆盖锚、标题在 `aria-label`。定界纪律：**SPA 页面必须双时刻抽样**（首探 + 至少 8s 后复探）再下「无内容」结论；覆盖锚（`absolute inset-0` 空锚）的标题常在 `aria-label`/子节点而非 textContent。同日 digg_search 走同型坑的另一半：`/search?q=` 302 到 `/tech` 分类页、**查询参数被丢弃**——落地页有内容但与关键词无关，relevance 过滤后 0。二者外表都是「有页面没结果」，区别在落地后 `q` 是否存活：存活 → 修 articleScript（polymarket 路径）；被丢弃 → 搜索移除，标记放弃或降级兜底。**digg 已落地降级**：主层换 Google `site:digg.com`（qdr:y）+ h3 + digg.com 域过滤（techmeme 模式），`selector-health` 10 条过 relevance guard——不再浪费主层 36s 重试。
 
+### 第九个假判决：登录面板文案命中反爬词表（2026-10-07，xhs，#346）
+
+xhs 未登录时判成 `anti_bot:验证码`，指令是「那是风控，不修」；真实原因是**登录态过期**（登录后同 URL 20/18 条 healthy）。这条假判决背后是**两层独立缺陷，只修一层都不生效**：
+
+| 层 | 缺陷 | 实测证据（2026-10-07，真实 Chrome 9229 + 生产函数） |
+| --- | --- | --- |
+| 顺序 | `detectAntiBot` 抢在 `loginCheck` 之前 —— 登录面板里「获取验证码」按钮的文案就命中反爬词表的「验证码」，于是「该引导登录」被报成「站点弹验证码」 | 同一面板页：`detectAntiBot` → `验证码`；旧顺序组合 → `{antiBot:"验证码", login:"need_login"}` |
+| 契约 | `loginCheckScript` 末端只写**求值式**三元表达式、没有 `return`；而 `checkLogin` 读的是 `(async function(){…})()` 的**返回值** → `undefined` → 被 `|| "ok"` 兜成 ok ⇒ **登录门从未触发**。xhs / douyin / tiktok_creator / x_search 四个脚本都是这个形态 | `cdpEval` 原始返回 `{"result":{"type":"undefined"}}`，`checkLogin()` 返回 `"ok"`；补 `return` 后同页面返回 `"need_login"` |
+
+修法：
+
+1. **顺序收进共享 seam** `runPageGates()`（`lib/cdp-client.mjs`）：needsAuth 且有 `loginCheckScript` 的源先跑登录门，命中（非 `ok`）即返回 `{gate:"login", status}`；未命中才问反爬。两个调用点（`selector-health checkSource`、`search-sources collectFromCdp`）都只能从这一个 seam 走——旧代码是两份各写一遍的顺序，这正是它能漂移的原因（同一个假判决在每个探针层各犯一次，见上文 §第三轴 的教训）。
+2. **补 `return`** 到四个被咨询的登录门脚本（xhs / douyin / tiktok_creator / x_search）；xhs 的判定式同时把面板文案「登录后查看」纳入（原判定式只认 `请先登录` / `扫码登录`，认不认得出该面板原本也无从检验——门是死的）。契约写进 `lib/source-registry.mjs` 文件头，并由 `source-registry.test.mjs` 的契约单测守着（每个被咨询的脚本都必须在真 `checkLogin` 下产出 `ok`/`need_login`/`captcha`）。
+3. **反爬检查一次也没删**、词表也没收窄：登录门先行已把「面板文案」整类挡在词表之外，收窄词表反而会在真 captcha 上冒漏报（#346 验收标准第 2 条）。登录门与反爬同时成立时按**登录类**报——登录态可人工恢复，风控不能（#346 triage 裁决）。
+4. **登录门自报 `captcha` 归 probe 类**（`failureClass`）：那是「请在 Chrome 里手动过验证」的人工可见位，不是能在 registry 里修的源侧缺陷，否则会让退出码按 runbook 明令禁止的方式变红。
+
+端到端证据：合成面板页上走生产路径 `collectFromSource → collectFromCdp`，新门 → `reason: need_login`，旧门（其余不变）→ `reason: anti_bot`；真实 `selector-health --only xhs` → **18 条 healthy**（登录态下门不误报，无回归）；`--only douyin` 主层仍 `zero_results`（活门在当前页面不触发，行为与修复前一致）。
+
+留给下一轮的边界：登录门只在 `needsAuth && loginCheckScript` 时被咨询。`sogou_weixin` / `zhihu` 声明 `needsAuth: false` 却带着同形态（缺 `return`）的脚本 —— 它们**今天不被咨询**，修不修都不改变行为，属另一件事（zhihu 的 `needsAuth: false` 本身就与 runbook 的「知乎需登录」结论不一致）。
+
 ### 二轮台账（2026-09-22，55 源清扫 + 10 源 CDP 复核）
 
 清扫产物 `output/source-url-sweep-2026-09-22.json`；CDP 复核产物 `output/source-url-discover-batch1.json` / `batch2.json`。
@@ -551,7 +572,7 @@ polymarket 定界时在落地页抽到「9 个 h3 全是 UI chrome、0 个 event
 | 2026-09-23         | guancha                                                          | 轴 2 误读：snapshot 的 `blockHint` 扫**整页 `innerText`**，正则里的 `安全验证` 命中了页面自身的文本 → `probe-not-authoritative` → 「真封锁、别碰」                                                      | 新增 seam `resolveHealth({verdict, extracted})`：**抽取 > 0 时轴 3 赢**，并显式标 `extracts-despite-verdict` 而不是静默压平；候选 `usable` 判据同步收紧为「抽取 > 0」                                              | 同页 extract **230**，`resolvesTo` 由 `blocked-in-browser-too` 改为 `extracts-despite-verdict`             |
 | 2026-09-23         | 36kr                                                             | **200 状态码的 JS 挑战页**（火山引擎「正在进行安全检测」）：词表只在 4xx 分支生效，200 + 挑战正文抽 0 条被读成 `url-alive-but-extraction-empty`（送错手册）。形态**间歇**出现                           | `blockHint` 词表补 `安全检测` / `Verifying you are human` / `Checking your browser`；词表残缺由上一行的抽取优先兜底                                                                                                | 挑战形态抽 0（现标为 blocked）/ 正常形态同 URL 抽 **97**，`healthy-in-browser`                             |
 | 2026-09-23         | tiktok_creator、polymarket_search、digg_search、2×Google `site:` | 轴 1/3 的 `network-error` 被当失败判决：实为**探针没有到该主机的路由**（`api.scrapecreators.com` `ECONNRESET`；同出口连 `google.com` 都不通，`gh` 正常）                                                | 新增 `probe-no-egress`：连接级失败后用同探针请求裸 `<origin>/` 作控制组，也失败即改判且**不进死源台账**；轴 1（sweep）与轴 3（api）都接                                                                            | `selector-health --only tiktok_creator` 由 ❌ `network-error` 改 ⚠️ `probe-no-egress`，退出码由 1 归 0     |
-| 2026-09-23         | techcrunch / guancha / douyin / thepaper / xhs                   | `detectAntiBot` 把「页面里有 captcha 容器」编码成 `" captcha-dom"` 字面串 → 被 `includes("captcha")` 命中 → **前置**检查在抽取前就判 `anti_bot`（生产里是整层 CDP 失败交回退链）                        | 页面脚本改结构化 `{text, captchaVisible}`；容器须可见（≥100×40）且仅在「抽取为空」时才算（`allowDomHint` opt-in）；`429` 改词边界                                                                                  | techcrunch **68** / guancha **240** / douyin **20** / thepaper 25；xhs 仍真封锁（`anti_bot:验证码`）       |
+| 2026-09-23         | techcrunch / guancha / douyin / thepaper / xhs                   | `detectAntiBot` 把「页面里有 captcha 容器」编码成 `" captcha-dom"` 字面串 → 被 `includes("captcha")` 命中 → **前置**检查在抽取前就判 `anti_bot`（生产里是整层 CDP 失败交回退链）                        | 页面脚本改结构化 `{text, captchaVisible}`；容器须可见（≥100×40）且仅在「抽取为空」时才算（`allowDomHint` opt-in）；`429` 改词边界                                                                                  | techcrunch **68** / guancha **240** / douyin **20** / thepaper 25；xhs 当时读作 `anti_bot:验证码`——**该行已于 2026-10-07 更正（#346）：不是封锁，是登录门从未触发（登录门先行的顺序 + 缺 `return` 两层缺陷），修后真实 xhs 18 条 healthy；见 §第九个假判决** |
 | 2026-09-23         | thepaper                                                         | 查询参数是 `id=` **不是** `keyword=`：`?keyword=` 是 200 +「找到约0个结果」的假页（旧探针因此只到 `alive-zero-results`）；结果链接是 `/newsDetail_forward_<id>`，容器类名是 CSP hash（`.first__TIDm_`） | url 改 `?id={kw}`；articleScript 改为按 URL 形态取锚点 + 非空标题守卫 + 就近取图                                                                                                                                   | `selector-health --only thepaper` **25 条绿**                                                              |
 | 2026-09-23         | douyin                                                           | 配置 URL 少了 `?type=video`：综合 tab 的结果卡是纯 div + 背景图（卡内 `<a href>` = 0/20），旧 articleScript 恒抽 0 条                                                                                   | url 加 `?type=video`；articleScript 改为只按语义锚点 `a[href*="/video/"]` 取，标题按「锚内最长单个文本块」过滤掉时长/播放量/作者/日期的脏拼接；`loginCheckScript` 改为「无结果链接 **且** 页面在喊登录」才算未登录 | 三个候选 URL 对照（综合 0 / `?type=video` 20 / 搜索框落点 0）+ `selector-health --only douyin` **20 条绿** |
 | 2026-09-22         | xinhua                                                           | `www.news.cn/search/news.htm?keyword=` 404；`search?q=` 是错误模板页；JSON 端点 `so.news.cn/getNews` 被 WAF 拦（Node 403 / 浏览器 200）                                                                 | url 换真实页面路由 `so.news.cn/#search/0/{kw}/1/`，articleScript 收到 `.items a[href*="news.cn/20"]`（含重命名兜底）                                                                                               | 双关键词证伪（量子计算/人工智能 标题随词变化）+ `selector-health --only xinhua` 绿 / 6 条                  |

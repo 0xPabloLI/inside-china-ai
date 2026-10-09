@@ -1,6 +1,6 @@
 # Trends 选题去重与评分（Horizon 机制移植）
 
-> 来源：Thysrael/Horizon（MIT）的两个纯提示词机制，2026-09-06 由 #203 移植。不安装 Horizon 本体、不引入定时任务；只在 Agent 交叉比对选题时手动执行。原文参考：`src/ai/prompting/deduplication.py`、`docs/scoring.md`。
+> 来源：Thysrael/Horizon（MIT）的两个纯提示词机制，2026-09-06 由 #203 移植。不安装 Horizon 本体、不引入定时任务；只在 Agent 交叉比对选题时手动执行。原文参考：去重 prompt 源码 https://github.com/Thysrael/Horizon/blob/main/src/ai/prompting/deduplication.py 、打分 rubric https://github.com/Thysrael/Horizon/blob/main/docs/scoring.md 。
 
 选题交叉比对（`search-sources.mjs` → trending-topics.json + last30days → Agent）的固定三步：**去重 → 打分 → 按阈值过滤**。产物（选中的 topic 记录）必须为每条留痕：去重组归属 + 分数 + 一句理由。
 

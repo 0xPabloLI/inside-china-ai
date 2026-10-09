@@ -65,7 +65,7 @@ When the user sees a finished video and says something like "audit this content"
 ## Relevant files
 
 - `docs/research/pipeline-simplification-discussion.md` — Full discussion context
-- `docs/archive/spec-research-evidence-pipeline.md` — Original spec (has the evidence schemas)
+- `docs/archive/specs/spec-research-evidence-pipeline.md` — Original spec (has the evidence schemas)
 - `scripts/short-video/lib/research/` — All evidence modules
 - `scripts/short-video/__tests__/research/` — All tests (143 passing)
 - `scripts/short-video/research-pipeline.mjs` — CLI orchestrator with `--audit-only`

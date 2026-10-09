@@ -9,7 +9,7 @@
  *
  * research-manifest.json stays at the research root and tracks all runs.
  *
- * See: docs/specs/spec-research-evidence-pipeline.md
+ * See: docs/archive/specs/spec-research-evidence-pipeline.md
  */
 
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from "fs";

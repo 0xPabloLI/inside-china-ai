@@ -133,8 +133,7 @@ const flag = (name, fallback = null) => {
   }
   return fallback;
 };
-const positional = () =>
-  args.find((a, i) => !a.startsWith("--") && !consumed.has(i));
+const positional = () => args.find((a, i) => !a.startsWith("--") && !consumed.has(i));
 const numFlag = (name, fallback) => {
   const v = flag(name);
   const n = Number.parseInt(String(v ?? ""), 10);
@@ -153,13 +152,14 @@ if (sourceKey && !source) {
 const keep = args.includes("--keep") || !!source; // 扫码场景默认保留
 const doClick = args.includes("--click") || !!source;
 const reuse = args.includes("--reuse");
-const clickText =
-  flag("click-text") || (source ? source.clickText : "微信登录|wechat|weixin|微信");
+const clickText = flag("click-text") || (source ? source.clickText : "微信登录|wechat|weixin|微信");
 const waitMin = numFlag("wait-login", 0);
 
 const url = source ? source.loginUrl : positional();
 if (!url) {
-  console.error("usage: cdp-wx-login.mjs --source <key> | <url> [--click] [--keep] [--reuse] [--wait-login <min>]");
+  console.error(
+    "usage: cdp-wx-login.mjs --source <key> | <url> [--click] [--keep] [--reuse] [--wait-login <min>]",
+  );
   process.exit(2);
 }
 
@@ -199,7 +199,19 @@ await new Promise((r) => setTimeout(r, 3000));
 const snap = unwrap(await cdpEval(tabId, DISCOVER));
 if (snap.__err) console.log("!! eval err:", snap.__err);
 console.log("=== SNAPSHOT ===");
-console.log(JSON.stringify({ url: snap.url, title: snap.title, text: snap.text, wxCount: snap.wxCount, wx: (snap.wx || []).slice(0, 6) }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      url: snap.url,
+      title: snap.title,
+      text: snap.text,
+      wxCount: snap.wxCount,
+      wx: (snap.wx || []).slice(0, 6),
+    },
+    null,
+    2,
+  ),
+);
 
 if (doClick) {
   const r = unwrap(await cdpEval(tabId, clickScript(clickText)));
@@ -208,7 +220,19 @@ if (doClick) {
   await new Promise((x) => setTimeout(x, 3500));
   const after = unwrap(await cdpEval(tabId, DISCOVER));
   console.log("=== AFTER CLICK ===");
-  console.log(JSON.stringify({ url: after.url, title: after.title, text: after.text, wxCount: after.wxCount, imgs: (after.imgs || []).slice(0, 6) }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        url: after.url,
+        title: after.title,
+        text: after.text,
+        wxCount: after.wxCount,
+        imgs: (after.imgs || []).slice(0, 6),
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 // ---- 轮询等待登录生效（新开后台标签验证，不碰扫码标签）----
@@ -224,10 +248,16 @@ if (waitMin > 0 && source) {
     const st = unwrap(await cdpEval(probe, DISCOVER));
     await cdpCloseTab(probe);
     ok = source.loggedIn({ url: st.url, text: st.text });
-    console.log(`  [${new Date().toLocaleTimeString()}] ${ok ? "✅ 已登录" : "…尚未登录"} (len=${(st.text || "").length})`);
+    console.log(
+      `  [${new Date().toLocaleTimeString()}] ${ok ? "✅ 已登录" : "…尚未登录"} (len=${(st.text || "").length})`,
+    );
     if (ok) break;
   }
-  console.log(ok ? `\n✅ ${source.name} 登录已生效，登录态落在自动化 profile 里（后续无需再扫）` : `\n⚠️ ${waitMin} 分钟内未检测到登录生效`);
+  console.log(
+    ok
+      ? `\n✅ ${source.name} 登录已生效，登录态落在自动化 profile 里（后续无需再扫）`
+      : `\n⚠️ ${waitMin} 分钟内未检测到登录生效`,
+  );
   process.exit(ok ? 0 : 1);
 }
 

@@ -520,7 +520,7 @@ if (!preMode) {
     `After publishing:\n` +
       `  1. Write a comment with the full article URL (when domain is live)\n` +
       `  2. Long-press the comment → "Pin comment"\n` +
-      `  Example: "Full article: https://chinaainews.com/posts/${(rawCompany || "company").replace(/_/g, "-")}-news"\n` +
+      `  Example: "Full article: https://chinaai.news/posts/${(rawCompany || "company").replace(/_/g, "-")}-news"\n` +
       `  Why: drives traffic to website + increases engagement.`,
   );
   manual(

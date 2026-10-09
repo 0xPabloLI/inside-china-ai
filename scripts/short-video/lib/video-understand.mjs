@@ -24,10 +24,20 @@
  */
 
 import { exec } from "child_process";
-import { existsSync, writeFileSync, mkdirSync, readFileSync } from "fs";
+import {
+  existsSync,
+  writeFileSync,
+  mkdirSync,
+  readFileSync,
+  openSync,
+  readSync,
+  fstatSync,
+  closeSync,
+} from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
+import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "./asr-defaults.mjs";
 
 const execAsync = promisify(exec);
 
@@ -38,7 +48,9 @@ const __dirname = dirname(__filename);
 
 const HOME = process.env.HOME || "/Users/pabloli";
 const WHISPER_CLI = "/opt/homebrew/bin/whisper-cli";
-const WHISPER_MODEL = join(HOME, ".cache/whisper/ggml-large-v3-turbo.bin");
+// Model name from the ADR-0020 single source — the constant existed but had no
+// consumers, so this path was the de-facto (drift-prone) default instead.
+const WHISPER_MODEL = join(HOME, ".cache/whisper", `ggml-${DEFAULT_WHISPER_CPP_MODEL_NAME}.bin`);
 const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 const YTDLP = "/opt/homebrew/bin/yt-dlp";
 const CDP_BASE = "http://localhost:3456";
@@ -50,18 +62,63 @@ const CDP_BASE = "http://localhost:3456";
  * distinguish "ASR is not installed" from "this take is bad" — a missing model
  * used to degrade into a warning and a silent pass.
  *
- * @returns {{ok: boolean, cli: string, cliFound: boolean, model: string, modelFound: boolean}}
+ * Existence alone is not enough (#418): a truncated download or a zero-byte
+ * file passes `existsSync` and then fails deep inside the transcriber — the
+ * same failure class as the corrupted faster-whisper cache. So the model must
+ * also look like a ggml file: the `ggml` magic plus a plausible size.
+ *
+ * @returns {{ok: boolean, cli: string, cliFound: boolean, model: string,
+ *            modelFound: boolean, modelUsable: boolean, modelIssue: string|null}}
  */
 export function asrAvailability() {
   const cliFound = existsSync(WHISPER_CLI);
   const modelFound = existsSync(WHISPER_MODEL);
+  const modelIssue = modelFound ? ggmlModelIssue(WHISPER_MODEL) : "missing";
+  const modelUsable = modelFound && !modelIssue;
   return {
-    ok: cliFound && modelFound,
+    ok: cliFound && modelUsable,
     cli: WHISPER_CLI,
     cliFound,
     model: WHISPER_MODEL,
     modelFound,
+    modelUsable,
+    modelIssue,
   };
+}
+
+/** ggml stores the magic as little-endian bytes: "lmgg" on disk = 0x67676d6c. */
+const GGML_MAGIC = Buffer.from([0x6c, 0x6d, 0x67, 0x67]);
+// The smallest ggml whisper model (tiny) is ~75MB; anything under this is a
+// broken download, not a model.
+const GGML_MIN_BYTES = 50 * 1024 * 1024;
+
+/**
+ * Inspect the first bytes and the size of a ggml model file.
+ *
+ * @param {string} modelPath
+ * @returns {string|null} `null` when usable, else a short reason
+ */
+function ggmlModelIssue(modelPath) {
+  let fd;
+  try {
+    fd = openSync(modelPath, "r");
+    const { size } = fstatSync(fd);
+    if (size < GGML_MIN_BYTES) return `truncated (${size} bytes)`;
+    const head = Buffer.alloc(GGML_MAGIC.length);
+    readSync(fd, head, 0, GGML_MAGIC.length, 0);
+    if (!head.equals(GGML_MAGIC)) return "not a ggml file (bad magic)";
+    return null;
+  } catch (err) {
+    return `unreadable (${err.code || err.message})`;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {
+        /* the fd is already unusable — nothing to release */
+      }
+    }
+  }
 }
 
 // ─── URL Parsing & Platform Detection ───
@@ -412,6 +469,14 @@ export async function transcribeVideo(videoPath, options = {}) {
 
   if (!existsSync(WHISPER_MODEL)) {
     console.warn(`  [video-understand] Whisper model not found at ${WHISPER_MODEL}`);
+    return null;
+  }
+
+  // Same degradation contract, better diagnosis: a truncated or non-ggml file
+  // used to reach whisper-cli and come back as an opaque load error (#418).
+  const modelIssue = ggmlModelIssue(WHISPER_MODEL);
+  if (modelIssue) {
+    console.warn(`  [video-understand] Whisper model unusable at ${WHISPER_MODEL} (${modelIssue})`);
     return null;
   }
 

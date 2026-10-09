@@ -232,7 +232,7 @@ export const tiktokProfile = {
       {
         id: "pin-comment",
         label: "Pin a comment with article link (when domain is live):",
-        detail: ["https://chinaainews.com/posts/{slug}"],
+        detail: ["https://chinaai.news/posts/{slug}"],
       },
     ],
   },

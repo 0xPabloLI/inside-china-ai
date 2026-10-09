@@ -46,7 +46,10 @@ function writeEnvFile(dir, content) {
 
 describe("loadEnv", () => {
   it("loads KEY=VALUE pairs from the given file into process.env", () => {
-    const envPath = writeEnvFile(mkdtempSync(join(tmpdir(), "load-env-")), 'PROBE_KEY="from_file"\n');
+    const envPath = writeEnvFile(
+      mkdtempSync(join(tmpdir(), "load-env-")),
+      'PROBE_KEY="from_file"\n',
+    );
     const { stdout } = runNodeEsm(probeKeysAfterLoad(JSON.stringify(envPath)));
     expect(JSON.parse(stdout)).toEqual({ PROBE_KEY: "from_file" });
   });
@@ -121,7 +124,9 @@ describe("library boundary (#275 invariant)", () => {
     // search-pool-server.mjs lives in lib/ but is itself a process entry —
     // its loadEnv() call sits inside main(), so a bare import must not
     // touch process.env (review finding on the #287 boundary test gap).
-    const SERVER_LIB_PATH = fileURLToPath(new URL("../lib/search-pool-server.mjs", import.meta.url));
+    const SERVER_LIB_PATH = fileURLToPath(
+      new URL("../lib/search-pool-server.mjs", import.meta.url),
+    );
     const { stdout } = runNodeEsm(probeLibraryImportKeys(SERVER_LIB_PATH));
     expectPoolKeysUnset(stdout);
   });

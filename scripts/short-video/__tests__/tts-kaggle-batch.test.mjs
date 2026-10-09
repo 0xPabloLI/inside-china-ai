@@ -15,12 +15,13 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { dirname, join } from "path";
 import {
   buildCV3CudaManifest,
   createCosyVoice3KaggleCudaEngine,
   pollKernelStatus,
 } from "../lib/tts/cosyvoice3-kaggle-cuda.mjs";
+import { wavBytes } from "./fixtures/wav-fixture.mjs";
 
 const SCENES = [
   { id: 1, voiceover: "Hook line about a world model.", visualType: "hook" },
@@ -29,7 +30,9 @@ const SCENES = [
 ];
 
 /** Mock exec: records every command; answers `kaggle kernels output` with a
- *  fake summary.json + wav files so the download/post-process path completes. */
+ *  fake summary.json + wav files so the download/post-process path completes.
+ *  The summary carries the requestId embedded in the pushed kernel script
+ *  (#420) — the adapter rejects summaries that do not echo this call's id. */
 function makeBatchExecMock(scenes) {
   const commands = [];
   return {
@@ -38,10 +41,14 @@ function makeBatchExecMock(scenes) {
       commands.push(cmd);
       if (cmd.includes("kaggle kernels output")) {
         const dir = cmd.match(/-p "([^"]+)"/)[1];
+        const kernelDir = dirname(dirname(dir)); // <tempDir>/downloads/<requestId>
+        const script = readFileSync(join(kernelDir, "cosyvoice3_cuda_kernel.py"), "utf-8");
+        const requestId = script.match(/REQUEST_ID = r'''(.*?)'''/s)[1];
         mkdirSync(join(dir, "output"), { recursive: true });
         writeFileSync(
           join(dir, "output", "summary.json"),
           JSON.stringify({
+            requestId,
             segments: scenes.map((s) => ({
               sceneId: s.id,
               output: `scene-${s.id}.wav`,
@@ -50,7 +57,7 @@ function makeBatchExecMock(scenes) {
           }),
         );
         for (const s of scenes) {
-          writeFileSync(join(dir, "output", `scene-${s.id}.wav`), "RIFFmockwav");
+          writeFileSync(join(dir, "output", `scene-${s.id}.wav`), wavBytes(`scene-${s.id}`));
         }
       }
       return { stdout: "" };

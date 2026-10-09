@@ -133,7 +133,6 @@ function AskPage() {
           </section>
         )}
 
-
         <section className="mt-16 border-t border-border/60 pt-8">
           <h2 className="font-serif text-xl">Questions about this Q&amp;A</h2>
           <dl className="mt-4 space-y-6">

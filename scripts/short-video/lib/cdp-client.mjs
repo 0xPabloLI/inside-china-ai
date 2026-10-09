@@ -446,17 +446,68 @@ export async function extractFromTab(tabId, script) {
  *
  * @param {string} tabId - Tab ID
  * @param {string|null} loginCheckScript - JS expression that returns a status string
+ * @param {object} [opts]
+ * @param {(tabId: string, script: string) => Promise<object>} [opts.evalFn] - eval seam (tests)
  * @returns {Promise<string>} "ok", "need_login", "captcha", or "ok" on error
  */
-export async function checkLogin(tabId, loginCheckScript) {
+export async function checkLogin(tabId, loginCheckScript, opts = {}) {
   if (!loginCheckScript) return "ok";
+  const evalFn = opts.evalFn ?? cdpEval;
   try {
     const wrappedScript = `(async function(){${loginCheckScript}})()`;
-    const resp = await cdpEval(tabId, wrappedScript);
+    const resp = await evalFn(tabId, wrappedScript);
     return resp?.result?.value || resp?.value || "ok";
   } catch {
     return "ok";
   }
+}
+
+/**
+ * #346: the page-level pre-flight gates, in the one correct order.
+ *
+ * Both call sites used to run detectAntiBot FIRST, and a login panel's own copy
+ * defeated it: xhs's logged-out search page shows 「登录后查看搜索结果」 with a
+ * 「获取验证码」 button, the button text matched the anti-bot vocabulary
+ * (「验证码」), and the source was reported as `anti_bot:验证码` — "the site is
+ * challenging us" instead of "this profile's session expired". The wrong label
+ * sends the reader down the wrong repair path (anti_bot → leave the source
+ * alone; login → prompt a human to log in), and this was measured in #269
+ * Round I.
+ *
+ * So for a needsAuth source with a loginCheckScript the login gate runs FIRST,
+ * and a hit (any status other than "ok") wins: a session can be restored by a
+ * person, a captcha challenge cannot be repaired in the registry. Anti-bot
+ * detection still runs for every source the login gate does not block — a real
+ * interstitial on an authenticated page is still caught (the accepted
+ * false-negative guard: the reorder removes no detection, it only changes which
+ * answer is reported when a login gate and an anti-bot match coexist).
+ *
+ * One shared sequence instead of two hand-written copies: the old duplication
+ * is exactly how the order drifted apart from its own docstrings.
+ *
+ * Fail-open: checkLogin answers "ok" when the script itself errors, and
+ * detectAntiBot answers null — a broken probe must not block scraping.
+ *
+ * @param {object} args
+ * @param {string} args.tabId - CDP tab ID (page already loaded)
+ * @param {boolean} [args.needsAuth] - registry needsAuth (cap wins upstream)
+ * @param {string|null} [args.loginCheckScript] - registry login probe script
+ * @param {object} [args.deps] - probe seams (tests)
+ * @param {(tabId: string, script: string) => Promise<string>} [args.deps.loginFn]
+ * @param {(tabId: string) => Promise<string|null>} [args.deps.antiBotFn]
+ * @returns {Promise<{gate: "login"|"anti_bot", status: string}|null>} the
+ *   winning gate and its raw status/indicator, or null when the page is clean
+ */
+export async function runPageGates({ tabId, needsAuth, loginCheckScript, deps = {} } = {}) {
+  const loginFn = deps.loginFn ?? checkLogin;
+  const antiBotFn = deps.antiBotFn ?? detectAntiBot;
+  if (needsAuth && loginCheckScript) {
+    const status = await loginFn(tabId, loginCheckScript);
+    if (status !== "ok") return { gate: "login", status };
+  }
+  const antiBot = await antiBotFn(tabId);
+  if (antiBot) return { gate: "anti_bot", status: antiBot };
+  return null;
 }
 
 // ─── CDP Proxy auto-start (#116) ───
@@ -503,9 +554,7 @@ export function findCdpProxyScript() {
     // the exact 2026-09-23 divergence failure the repo-local preference exists
     // to prevent. Fail loud instead of guessing.
     if (isDanglingSymlink(candidate)) {
-      console.error(
-        `  ✗ cdp-proxy candidate is a dangling symlink: ${candidate}`,
-      );
+      console.error(`  ✗ cdp-proxy candidate is a dangling symlink: ${candidate}`);
       console.error("     The skills/shared submodule is probably not initialized.");
       console.error("     Fix: git submodule update --init skills/shared");
       console.error("     Refusing the stale global-skill fallback (2026-09-23 divergence guard).");

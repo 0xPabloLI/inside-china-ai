@@ -1,5 +1,177 @@
 # Changelog
 
+## [1.12.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.11...tanstack_start_ts-v1.12.0) (2026-10-09)
+
+
+### Features
+
+* **asr:** [#418](https://github.com/0xPabloLI/inside-china-ai/issues/418) Step 0.3 ASR 自检门禁——模型缺失在 TTS 花费前硬失败 ([9840f07](https://github.com/0xPabloLI/inside-china-ai/commit/9840f0750d97aad56e789603d9da014a6873a7df))
+* **bench:** [#418](https://github.com/0xPabloLI/inside-china-ai/issues/418) ASR 运行时计时矩阵——四格 {turbo,large-v3}×{cpp,MLX} + 峰值内存 ([6472e25](https://github.com/0xPabloLI/inside-china-ai/commit/6472e2589dbe1ddb2cc9c23e434ecf11c8d48a93))
+
+
+### Bug Fixes
+
+* **asr:** [#418](https://github.com/0xPabloLI/inside-china-ai/issues/418) ADR-0020 单一真值源落到实处——cpp 模型路径/元数据改由常量派生 ([16f86fa](https://github.com/0xPabloLI/inside-china-ai/commit/16f86fa37e4a4a5e73dde3937b545c1589a0a996))
+* **asr:** [#418](https://github.com/0xPabloLI/inside-china-ai/issues/418) 复核修复——opt-out 单一真值源 + 模型完整性自检 ([299d21f](https://github.com/0xPabloLI/inside-china-ai/commit/299d21f92b93cd4fc2945755c342432a2a50e552))
+* **bench:** [#418](https://github.com/0xPabloLI/inside-china-ai/issues/418) 计时矩阵口径自述属实 + summary 聚合 + Metal 实测；补等价性 harness ([67a8906](https://github.com/0xPabloLI/inside-china-ai/commit/67a890653a1e8cc3ea77964523742f6a3ad7794c))
+
+## [1.11.11](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.10...tanstack_start_ts-v1.11.11) (2026-10-09)
+
+
+### Bug Fixes
+
+* **kaggle:** bind the wheelhouse dataset to the record in git ([#521](https://github.com/0xPabloLI/inside-china-ai/issues/521)) ([7f2fc75](https://github.com/0xPabloLI/inside-china-ai/commit/7f2fc75c6a0693fcfe0a595b5cc48f009892ee4a))
+* **kaggle:** bind the wheelhouse dataset to the record in git ([#521](https://github.com/0xPabloLI/inside-china-ai/issues/521)) ([f12014a](https://github.com/0xPabloLI/inside-china-ai/commit/f12014a627a38e649d2b7c6638a3d3783e46926c))
+* **kaggle:** compare wheel sizes, not just names, and cap only the report ([#521](https://github.com/0xPabloLI/inside-china-ai/issues/521)) ([0bcc261](https://github.com/0xPabloLI/inside-china-ai/commit/0bcc2613c794105eea741bc8656f7348dc71fdfa))
+* **kaggle:** correct the --no-run claim, keep the manifest JSON key-sorted ([#521](https://github.com/0xPabloLI/inside-china-ai/issues/521)) ([94ed633](https://github.com/0xPabloLI/inside-china-ai/commit/94ed6332f77b203b859e1da7e985e35808056a0f))
+* **kaggle:** pin the CLI the build carrier installs ([#521](https://github.com/0xPabloLI/inside-china-ai/issues/521)) ([353ada5](https://github.com/0xPabloLI/inside-china-ai/commit/353ada5f96ff58d06c40e9fac366a779271222d1))
+
+## [1.11.10](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.9...tanstack_start_ts-v1.11.10) (2026-10-09)
+
+
+### Bug Fixes
+
+* **kaggle:** build the sdist-only deps into wheels for the offline mount ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([9ab6a41](https://github.com/0xPabloLI/inside-china-ai/commit/9ab6a413a21996dee1cc5c884869301f552b137a))
+* **kaggle:** download openai-whisper as an sdist in the wheelhouse ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([68830c9](https://github.com/0xPabloLI/inside-china-ai/commit/68830c9601483124e4eea31efa1d80493b9decce))
+* **kaggle:** fail the wheelhouse build closed, and stop it building host wheels ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([b8c7916](https://github.com/0xPabloLI/inside-china-ai/commit/b8c79164b8a7a168d055e6ef1ed96d8985760e77))
+* **kaggle:** fetch the sdist-only deps by URL and stop trusting the CLI's exit code ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([ce2a647](https://github.com/0xPabloLI/inside-china-ai/commit/ce2a64766418b8b78231b5283cdcbf817dcd502a))
+* **kaggle:** key the push check on the CLI's terminal lines ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([2801c5c](https://github.com/0xPabloLI/inside-china-ai/commit/2801c5c99d09f2489ab37e90cf4df380e02bb8a0))
+* **kaggle:** parse setuptools' bracketed requirements in the completeness check ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([f7f350b](https://github.com/0xPabloLI/inside-china-ai/commit/f7f350baea1a2174c0e43e382a37f10db8605406))
+* **kaggle:** re-pin the TTS kernel for the Python 3.13 image ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([b5c9eeb](https://github.com/0xPabloLI/inside-china-ai/commit/b5c9eebecbe46b02f358312ea047f9474a9b9286))
+* **kaggle:** re-pin the TTS kernel for the Python 3.13 image + offline wheels dataset ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([5defafe](https://github.com/0xPabloLI/inside-china-ai/commit/5defafe0d1a2ea5b1dcf78e2ef99036c713d90c9))
+* **kaggle:** read the push log from a file, not a pipe ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([250fcfa](https://github.com/0xPabloLI/inside-china-ai/commit/250fcfa8a5bae3fd8e4951eeea1205c362200306))
+* **kaggle:** restore the `+` Kaggle strips from wheel filenames on mount ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([375d016](https://github.com/0xPabloLI/inside-china-ai/commit/375d016b38a1d5b94040cbe78b614de0f7f3d839))
+
+## [1.11.9](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.8...tanstack_start_ts-v1.11.9) (2026-10-09)
+
+
+### Bug Fixes
+
+* **tts:** bind Kaggle downloads to the requesting run ([#420](https://github.com/0xPabloLI/inside-china-ai/issues/420)) ([ffb5943](https://github.com/0xPabloLI/inside-china-ai/commit/ffb5943d688cff796fb87fe01171f69c700d93da))
+* **tts:** bind Kaggle downloads to the requesting run ([#420](https://github.com/0xPabloLI/inside-china-ai/issues/420)) ([0a0b211](https://github.com/0xPabloLI/inside-china-ai/commit/0a0b21196554d2060b911a1f1e05a54615d83587))
+* **tts:** close the review findings on the Kaggle artifact gate ([#420](https://github.com/0xPabloLI/inside-china-ai/issues/420)) ([78bb33a](https://github.com/0xPabloLI/inside-china-ai/commit/78bb33a19481bb1b30e953ae8b0c1ec2e7be67d9))
+
+## [1.11.8](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.7...tanstack_start_ts-v1.11.8) (2026-10-08)
+
+
+### Bug Fixes
+
+* **deps:** restore emnapi optional entries pruned from the lockfile ([dce274f](https://github.com/0xPabloLI/inside-china-ai/commit/dce274fc70bd939bc5cfb8d9ed8d4d0269744121))
+* **deps:** update minor and patch updates ([#505](https://github.com/0xPabloLI/inside-china-ai/issues/505)) ([d7c8601](https://github.com/0xPabloLI/inside-china-ai/commit/d7c8601b54cdc283eeaa8e7a28e77ec06e5be7dc))
+* **deps:** update minor and patch updates to v4.0.532 ([#507](https://github.com/0xPabloLI/inside-china-ai/issues/507)) ([865875f](https://github.com/0xPabloLI/inside-china-ai/commit/865875f685d0172c548e836b46024d639c2ec4e5))
+* **sources:** run the login gate before the anti-bot vocabulary ([#346](https://github.com/0xPabloLI/inside-china-ai/issues/346)) ([5cbc327](https://github.com/0xPabloLI/inside-china-ai/commit/5cbc327f177c0e1e5ebf10ab6adedc6ba4501271))
+* **sources:** run the login gate before the anti-bot vocabulary ([#346](https://github.com/0xPabloLI/inside-china-ai/issues/346)) ([939d53a](https://github.com/0xPabloLI/inside-china-ai/commit/939d53aa0e8047848cfde2379b217cdbc0154dcc))
+* **ui:** resolve the five react-hooks v7 compiler violations for real ([14cb997](https://github.com/0xPabloLI/inside-china-ai/commit/14cb9976d67409949d3a79bad251adecd8c2fdf4))
+* **ui:** resolve the five react-hooks v7 compiler violations for real ([e6c15d4](https://github.com/0xPabloLI/inside-china-ai/commit/e6c15d4016659bdd739ecfc9de6154ffd4b6173f))
+
+## [1.11.7](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.6...tanstack_start_ts-v1.11.7) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** update minor and patch updates to v4.0.530 ([#490](https://github.com/0xPabloLI/inside-china-ai/issues/490)) ([5f3724b](https://github.com/0xPabloLI/inside-china-ai/commit/5f3724b42ac6665ea72bbfd1dcce63b517f9bc02))
+
+## [1.11.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.5...tanstack_start_ts-v1.11.6) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** update dependency [@lovable](https://github.com/lovable).dev/email-js to v0.3.1 ([#487](https://github.com/0xPabloLI/inside-china-ai/issues/487)) ([d2a8474](https://github.com/0xPabloLI/inside-china-ai/commit/d2a8474f6a9545964e379487d8c7e6e8eb4e059d))
+
+## [1.11.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.4...tanstack_start_ts-v1.11.5) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** update dependency [@lovable](https://github.com/lovable).dev/mcp-js to v3 ([7ee76c3](https://github.com/0xPabloLI/inside-china-ai/commit/7ee76c3bf764245b21f716bab5b3239f646caf56))
+* **deps:** update dependency [@lovable](https://github.com/lovable).dev/mcp-js to v3 ([1472d59](https://github.com/0xPabloLI/inside-china-ai/commit/1472d59916231a257f1e810f3688c3ff1afe5b39))
+* **deps:** update dependency lucide-react to v1 ([f74cfea](https://github.com/0xPabloLI/inside-china-ai/commit/f74cfea3e28cdeb4a9ac220db3117a71c385655a))
+* **deps:** update dependency lucide-react to v1 ([b2971d2](https://github.com/0xPabloLI/inside-china-ai/commit/b2971d2732a02891626c4a81692aaf4de35bb996))
+* **lint:** keep react-hooks v7 compiler rules at warn + resync bun.lock ([7676784](https://github.com/0xPabloLI/inside-china-ai/commit/767678488b4138296fa764adfc1fc33ab0f3c384))
+
+## [1.11.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.3...tanstack_start_ts-v1.11.4) (2026-10-04)
+
+
+### Bug Fixes
+
+* **lint:** writing-for-agents 门禁收敛触发面并整批压成一条 WARN ([5a1c485](https://github.com/0xPabloLI/inside-china-ai/commit/5a1c485abe6e9e22ef1284f0d510152c8a932ab4))
+* **rag,lint:** reindex import + gate noise; add Pixelle-Video survey ([a04cd29](https://github.com/0xPabloLI/inside-china-ai/commit/a04cd29e3bcf1f9646662c08ed77baa723d6a81b))
+* **rag:** js-yaml v5 无 default export，reindex 一直在模块加载期就崩 ([d905cf8](https://github.com/0xPabloLI/inside-china-ai/commit/d905cf87dae8fb75e147989665e97b4dfa0a98af))
+
+## [1.11.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.2...tanstack_start_ts-v1.11.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* **deps:** update minor and patch updates ([#449](https://github.com/0xPabloLI/inside-china-ai/issues/449)) ([3ad4bda](https://github.com/0xPabloLI/inside-china-ai/commit/3ad4bda5a09ef4ba6ff34d063a9ce6108953cf1d))
+
+## [1.11.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.1...tanstack_start_ts-v1.11.2) (2026-10-01)
+
+
+### Bug Fixes
+
+* **bench:** PR [#443](https://github.com/0xPabloLI/inside-china-ai/issues/443) review — relevance parse sentinel, per-question resume keys, degraded-pair exclusion ([316e41b](https://github.com/0xPabloLI/inside-china-ai/commit/316e41b3c2cfa1949304384883899f605a549204))
+
+## [1.11.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.0...tanstack_start_ts-v1.11.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **ci:** checkout 递归初始化 submodule，并让引用门禁不再谎报 ([b119951](https://github.com/0xPabloLI/inside-china-ai/commit/b11995146bb456ee40c15938dce6737421f64687))
+* **lint:** 清掉 knip 打到的两处——多余 export 与未登记的 colima ([e44e456](https://github.com/0xPabloLI/inside-china-ai/commit/e44e456dea7ce6ee1da96c457ccfdbe271eabf58))
+
+
+### Reverts
+
+* **ci:** 撤回 submodules 初始化——私有子模块拿不到凭据就不能开 ([2e6532b](https://github.com/0xPabloLI/inside-china-ai/commit/2e6532b474e452d01a412ae70e4d19f7d3bc46ef))
+
+## [1.11.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.10.0...tanstack_start_ts-v1.11.0) (2026-09-30)
+
+
+### Features
+
+* **bench:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414) duration-aware per-window budget cap (min_spacing 1.0s) + Round T bookkeeping ([63b1607](https://github.com/0xPabloLI/inside-china-ai/commit/63b16076ddcb82f5080246bc9d8765b7d636a753))
+* **bench:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414) duration-aware per-window budget cap (min_spacing 1.0s) + Round T bookkeeping ([#439](https://github.com/0xPabloLI/inside-china-ai/issues/439)) ([63b1607](https://github.com/0xPabloLI/inside-china-ai/commit/63b16076ddcb82f5080246bc9d8765b7d636a753))
+* **bench:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414) 时长感知每窗上限定档 1.0s（扫参：召回不变、冗余回到 uniform_32 水平） ([b93ab7c](https://github.com/0xPabloLI/inside-china-ai/commit/b93ab7c5090c806f56af1927106db4ee335bacba))
+
+## [1.10.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.9.1...tanstack_start_ts-v1.10.0) (2026-09-30)
+
+
+### Features
+
+* **loader:** [#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) ticket-2c 装载层运行手册 + 官方单元 QA 臂 ([9bbf6e8](https://github.com/0xPabloLI/inside-china-ai/commit/9bbf6e874aec225fd5265f9e9cfcbf51e174fcb0))
+* **short-video:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414)/[#415](https://github.com/0xPabloLI/inside-china-ai/issues/415)/[#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) keyframe windows, quality gates, unified video loader ([8a2bc2f](https://github.com/0xPabloLI/inside-china-ai/commit/8a2bc2f0bbcb5c467e95f890ca3baed92a13e855))
+* **short-video:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414)/[#415](https://github.com/0xPabloLI/inside-china-ai/issues/415)/[#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) keyframe windows, quality gates, unified video loader ([#436](https://github.com/0xPabloLI/inside-china-ai/issues/436)) ([8a2bc2f](https://github.com/0xPabloLI/inside-china-ai/commit/8a2bc2f0bbcb5c467e95f890ca3baed92a13e855))
+
+
+### Bug Fixes
+
+* **short-video:** [#415](https://github.com/0xPabloLI/inside-china-ai/issues/415) review 两条：空转写必须走 INFRA + CPS 不计换行 ([88e3cc6](https://github.com/0xPabloLI/inside-china-ai/commit/88e3cc68ffc952cf58ea3a4fb940d3185351eb7f))
+* **short-video:** [#415](https://github.com/0xPabloLI/inside-china-ai/issues/415) 响度回读去掉 spawnSync 的 bin 形参（Semgrep 新告警） ([e1bf196](https://github.com/0xPabloLI/inside-china-ai/commit/e1bf1968a154d5dced99ce15663f7f7ab2300538))
+* **short-video:** [#415](https://github.com/0xPabloLI/inside-china-ai/issues/415)/[#417](https://github.com/0xPabloLI/inside-china-ai/issues/417) review 三条：INFRA 未标 fail-closed、bench 续跑偏置、时间戳进位 ([f1d3e2a](https://github.com/0xPabloLI/inside-china-ai/commit/f1d3e2a8b6bd154a4b2f6281b6eeb38cdf003045))
+
+## [1.9.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.9.0...tanstack_start_ts-v1.9.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **deepseek-harness-desktop:** 订正 metadata.articleUrl 为真实域名 chinaai.news ([ca00f11](https://github.com/0xPabloLI/inside-china-ai/commit/ca00f1112de355f914c4b60466b11b0d366284df))
+* **domain:** 清除误写的 chinaainews.com，全站引用统一为 chinaai.news ([48092cd](https://github.com/0xPabloLI/inside-china-ai/commit/48092cddb510ff688483091c0c652fff032138f5))
+
+## [1.9.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.8.0...tanstack_start_ts-v1.9.0) (2026-09-30)
+
+
+### Features
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 描述评分按用户裁决改口径（主报 METEOR/ROUGE-L + no-pend CIDEr） ([85acf5d](https://github.com/0xPabloLI/inside-china-ai/commit/85acf5d4cbcf9bbaf15ebc295464eb0d12f8da37))
+
+
+### Bug Fixes
+
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) QA unified denominator, caption metrics, research §17 ([4fdbef6](https://github.com/0xPabloLI/inside-china-ai/commit/4fdbef604d850e7dc696ad567e15e16c7b90ad82))
+* **bench:** [#391](https://github.com/0xPabloLI/inside-china-ai/issues/391) 空选帧必须记分母（统一 276 题，不静默跳题） ([a72cf8b](https://github.com/0xPabloLI/inside-china-ai/commit/a72cf8bd87ea6f34228c9d7abaa3d72a36613e8b))
+* **bench:** [#432](https://github.com/0xPabloLI/inside-china-ai/issues/432) review — select() 抛错与合法空选帧分开记账；无输出行不进 parser_check ([40f2e59](https://github.com/0xPabloLI/inside-china-ai/commit/40f2e59788a6d302720d5a35bc0f48380143c254))
+
 ## [1.8.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.7.0...tanstack_start_ts-v1.8.0) (2026-09-30)
 
 

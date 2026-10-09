@@ -4,12 +4,15 @@ CosyVoice3 CUDA Kaggle kernel template.
 
 Placeholders (replaced by JS adapter before push):
   __MANIFEST_JSON__  — JSON array of {sceneId, text, instruct_text?, output}
+  __REQUEST_ID__     — per-run identity echoed into summary.json (#420)
+  __EXPECTED_WHEELHOUSE__ — kaggle/wheelhouse-manifest.json, checked against
+                        the mount before installing anything (#521)
 
 Ref audio is loaded from Kaggle dataset: xPabloLI/tts-ref-audio
 
 Output: /kaggle/working/output/<scene-N>.wav + summary.json
 """
-import subprocess, sys, os, time, json, traceback, base64
+import subprocess, sys, os, time, json, traceback, base64, re, platform
 
 _logfile = open("/kaggle/working/log.txt", "w")
 def log(msg):
@@ -20,6 +23,8 @@ log("=== Kaggle CosyVoice3 CUDA Batch TTS ===")
 log(f"Python: {sys.version.split()[0]}")
 
 MANIFEST_JSON = r'''__MANIFEST_JSON__'''
+REQUEST_ID = r'''__REQUEST_ID__'''
+EXPECTED_WHEELHOUSE = json.loads(r'''__EXPECTED_WHEELHOUSE__''')
 
 try:
     import torch
@@ -43,40 +48,183 @@ _WHEELS_DIRS = [
 if not _WHEELS_DIRS:
     import glob as _wheels_glob
     _WHEELS_DIRS = _wheels_glob.glob("/kaggle/input/**/cosyvoice3-wheels", recursive=True)
-_WHEELS_DIR = _WHEELS_DIRS[0] if _WHEELS_DIRS else None
+_WHEELS_MOUNT = _WHEELS_DIRS[0] if _WHEELS_DIRS else None
+
+
+# --- BEGIN wheelhouse verification ---
+# Extracted and executed for real by
+# scripts/short-video/__tests__/tts-kaggle-wheelhouse-manifest.test.mjs.
+def _wheelhouse_problems(mount, expected, python=None, platform_tag=None):
+    """Reasons the mounted wheelhouse is not the set this repo froze (#521).
+
+    `dataset_sources` cannot pin a version: the CLI accepts `owner/slug/3` but
+    Kaggle stores it back as `owner/slug` and mounts the LATEST version —
+    probed 2026-10-09 with a two-version dataset, where a kernel asking for
+    `/1` mounted version 2's content. A re-upload therefore changes what every
+    run installs with nothing in git recording it. The expected set is
+    injected from kaggle/wheelhouse-manifest.json at push time and compared
+    here, before the first pip install, so that change fails loudly in seconds
+    instead of silently installing a different environment.
+
+    Names plus sizes, not hashes: `torch-2.6.0+cu124-…` is served back as
+    `torch-2.6.0cu124-…` (Kaggle strips the local-version separator when it
+    stores a dataset), so both sides are put into built form first. Sizes ride
+    along because the common rebuild keeps every filename identical while the
+    bytes change — a name-only comparison waves that through. Hashing would
+    catch the rest, at the cost of reading all 3.7GB on every run.
+    """
+    problems = []
+    want_py = expected.get("python")
+    if want_py:
+        actual_py = python or f"{sys.version_info.major}.{sys.version_info.minor}"
+        if actual_py != want_py:
+            problems.append(
+                f"this image runs Python {actual_py}, but the frozen wheelhouse was built "
+                f"for {want_py} (cp{want_py.replace('.', '')}) — none of its wheels install here"
+            )
+    want_platform = expected.get("platform")
+    if want_platform:
+        actual_platform = platform_tag or f"{sys.platform}_{platform.machine()}"
+        if actual_platform != want_platform:
+            problems.append(
+                f"this image is {actual_platform}, but the frozen wheelhouse was built "
+                f"for {want_platform}"
+            )
+
+    def built_form(name):
+        return re.sub(r"(\d)cu(\d+)-", r"\1+cu\2-", name)
+
+    # name → size, in built form, so the mount can be compared against the
+    # record without caring which spelling Kaggle stored.
+    mounted = {
+        built_form(n): os.path.getsize(os.path.join(mount, n))
+        for n in os.listdir(mount)
+        if n.endswith(".whl")
+    }
+    want = expected.get("wheels") or {}
+    # Scan everything, cap only the reporting: slicing the scan itself hides
+    # any difference that sorts past the cap, so one rebuilt wheel late in the
+    # alphabet would pass unnoticed (found by the size test on 2026-10-09).
+    missing = sorted(set(want) - set(mounted))
+    extra = sorted(set(mounted) - set(want))
+    resized = sorted(n for n in set(want) & set(mounted) if mounted[n] != want[n])
+    for name in missing[:5]:
+        problems.append(f"missing from the mount: {name}")
+    for name in extra[:5]:
+        problems.append(f"not in the frozen set: {name}")
+    for name in resized[:5]:
+        problems.append(
+            f"different bytes on the mount: {name} is {mounted[name]} bytes, "
+            f"the frozen set records {want[name]}"
+        )
+    if len(missing) + len(extra) + len(resized) > 5:
+        problems.append(f"…and more (mount {len(mounted)} wheels, frozen set {len(want)})")
+    return problems
+# --- END wheelhouse verification ---
+
+
+if _WHEELS_MOUNT:
+    _wheelhouse_issues = _wheelhouse_problems(_WHEELS_MOUNT, EXPECTED_WHEELHOUSE)
+    if _wheelhouse_issues:
+        log("FAIL: the mounted wheelhouse is not the set this repo froze (#521):")
+        for _issue in _wheelhouse_issues:
+            log(f"  {_issue}")
+        log("  Kaggle mounts a dataset at its LATEST version — the version segment of")
+        log("  dataset_sources is dropped at push time — so a re-upload changes what")
+        log("  every run installs, with nothing in git recording it.")
+        log("  Rebuild and re-record: scripts/short-video/kaggle/build-wheels-dataset.sh")
+        log("  prints the new set to paste into kaggle/wheelhouse-manifest.json.")
+        sys.exit(1)
+    log(f"wheelhouse matches the frozen set ({len(EXPECTED_WHEELHOUSE.get('wheels') or {})} wheels)")
+
+
+def _restore_local_versions(src):
+    """Symlink the wheelhouse into a writable dir, putting `+` back.
+
+    Kaggle strips the local-version separator when it stores a dataset:
+    `torch-2.6.0+cu124-cp313-cp313-linux_x86_64.whl` is served back as
+    `torch-2.6.0cu124-...`. pip reads the version out of the filename, so it
+    sees `2.6.0cu124` — not a PEP 440 version — and drops the file entirely
+    ("Could not find a version that satisfies the requirement torch==2.6.0
+    (from versions: none)"). Symlinks, not copies: the mount is read-only and
+    the wheelhouse is ~3.7GB. Staged under /tmp, not /kaggle/working — the
+    latter is this kernel's output directory, and a symlink farm into a 3.7GB
+    mount has no business being captured as the run's artifact.
+    """
+    staging = "/tmp/wheelhouse"
+    os.makedirs(staging, exist_ok=True)
+    renamed = []
+    for name in os.listdir(src):
+        # Only the `2.6.0cu124` shape: a plain `cu12` in a package name (e.g.
+        # nvidia_cuda_runtime_cu12-12.4.127) must not be touched.
+        fixed = re.sub(r"(\d)cu(\d+)-", r"\1+cu\2-", name)
+        dst = os.path.join(staging, fixed)
+        if not os.path.exists(dst):
+            os.symlink(os.path.join(src, name), dst)
+        if fixed != name:
+            renamed.append(fixed)
+    if renamed:
+        log(f"restored local versions in {len(renamed)} filenames: {sorted(renamed)[:4]}")
+    return staging
+
+
+if _WHEELS_MOUNT:
+    _WHEELS_DIR = _restore_local_versions(_WHEELS_MOUNT)
+else:
+    _WHEELS_DIR = None
 
 
 def _pip_install(args, online_extra=None):
-    """pip install via the frozen wheels mount when present, else online."""
+    """pip install via the frozen wheels mount when present, else online.
+
+    The mount holds wheels only — build-wheels-dataset.sh also compiles the
+    sdist-only packages (pyworld, wget, antlr4-python3-runtime, openai-whisper)
+    into wheels first, because Kaggle unpacks archives inside a dataset and a
+    mounted sdist would arrive as a directory that --find-links cannot see.
+    """
     if _WHEELS_DIR:
-        cmd = [sys.executable, "-m", "pip", "install", "-q", "--no-index", "--find-links", _WHEELS_DIR] + list(args)
+        cmd = [
+            sys.executable, "-m", "pip", "install", "-q",
+            "--no-index", "--find-links", _WHEELS_DIR,
+        ] + list(args)
     else:
         cmd = [sys.executable, "-m", "pip", "install", "-q"] + list(online_extra or []) + list(args)
     subprocess.run(cmd, check=True)
 
 
 if _WHEELS_DIR:
-    log(f"wheels dataset mount found: {_WHEELS_DIR} — offline install mode")
+    log(f"wheels dataset mount found: {_WHEELS_MOUNT} — offline install mode")
 else:
-    log("no cosyvoice3-wheels mount — online install (build the wheels dataset to skip ~10min)")
+    log("no cosyvoice3-wheels mount — online install (build the wheels dataset to freeze the deps)")
 
 try:
     _pip_install(["setuptools<81", "wheel", "Cython"])
+    # #231 (2026-10-09): the Kaggle image moved to Python 3.13, where the old
+    # torch==2.4.0/cu121 pin has no wheel at all (0 cp313 files on PyPI, none on
+    # the cu121 index for the trio) and the install died before inference.
+    # 2.6.0+cu124 is the lowest coherent cp313 set (torchaudio/torchvision only
+    # exist for cp313 at 2.6.0/0.21.0) and stays on the CUDA 12.x ABI the image
+    # ships.
     _pip_install(
-        ["torch==2.4.0", "torchaudio==2.4.0", "torchvision==0.19.0"],
-        online_extra=["--index-url", "https://download.pytorch.org/whl/cu121"],
+        ["torch==2.6.0", "torchaudio==2.6.0", "torchvision==0.21.0"],
+        online_extra=["--index-url", "https://download.pytorch.org/whl/cu124"],
     )
-    log("torch 2.4.0+cu121 installed")
+    log("torch 2.6.0+cu124 installed")
     _pip_install(
         [
             "conformer==0.3.2", "hydra-core==1.3.2", "HyperPyYAML==1.2.3",
             "inflect==7.3.1", "librosa==0.10.2", "modelscope==1.20.0", "omegaconf==2.3.0",
-            "onnx==1.16.0", "pyworld==0.3.4", "soundfile==0.12.1",
+            "onnx==1.18.0", "soundfile==0.12.1",
             "wetext==0.0.4", "gdown==5.1.0", "wget==3.2",
             "transformers==4.51.3", "lightning==2.2.4", "x-transformers==2.11.24",
         ]
     )
     log("Core deps OK")
+    # pyworld has no Linux wheel on PyPI; the released cosyvoice3.yaml imports
+    # cosyvoice.dataset.processor through !name:, so it must be present. The
+    # wheelhouse carries a wheel built on this same image (#231).
+    _pip_install(["pyworld==0.3.4"])
+    log("pyworld OK")
 except Exception as e:
     log(f"ERROR deps: {e}"); traceback.print_exc(); sys.exit(1)
 
@@ -233,7 +381,7 @@ if not ref_path or not os.path.exists(ref_path):
 log(f"Ref audio: {os.path.getsize(ref_path)} bytes at {ref_path}")
 
 manifest = json.loads(MANIFEST_JSON)
-log(f"Manifest: {len(manifest)} segments")
+log(f"Manifest: {len(manifest)} segments (requestId={REQUEST_ID})")
 
 INFERENCE_CODE = r'''
 import sys, os, time, json, traceback
@@ -262,7 +410,9 @@ if not ref_path or not os.path.exists(ref_path):
 out_dir = "/kaggle/working/output"
 os.makedirs(out_dir, exist_ok=True)
 
-manifest = json.load(open("/tmp/manifest.json"))
+payload = json.load(open("/tmp/manifest.json"))
+manifest = payload["scenes"]
+request_id = payload["requestId"]
 print(f"torch: {torch.__version__}, CUDA: {torch.cuda.is_available()}", flush=True)
 if torch.cuda.is_available():
     print(f"GPU: {torch.cuda.get_device_name(0)}", flush=True)
@@ -272,7 +422,7 @@ t0 = time.time()
 cosyvoice = AutoModel(model_dir=model_dir)
 print(f"Loaded in {time.time()-t0:.1f}s, sr={cosyvoice.sample_rate}", flush=True)
 
-summary = {"engine": "CosyVoice3-Kaggle-CUDA", "segments": []}
+summary = {"engine": "CosyVoice3-Kaggle-CUDA", "requestId": request_id, "segments": []}
 for i, t in enumerate(manifest):
     print(f"\n[{i+1}/{len(manifest)}] scene-{t['sceneId']}", flush=True)
     try:
@@ -310,7 +460,7 @@ n_ok = len([s for s in summary['segments'] if 'error' not in s])
 print(f"\n=== Done! {n_ok}/{len(manifest)} ===", flush=True)
 '''
 
-json.dump(manifest, open("/tmp/manifest.json", "w"), ensure_ascii=False)
+json.dump({"requestId": REQUEST_ID, "scenes": manifest}, open("/tmp/manifest.json", "w"), ensure_ascii=False)
 with open("/tmp/run_inference.py", "w") as f:
     f.write(INFERENCE_CODE)
 

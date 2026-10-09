@@ -85,7 +85,11 @@ function ReaderQuestions({ slug }: { slug: string }) {
       <ul className="space-y-2">
         {data.map((a) => (
           <li key={a.slug}>
-            <Link to="/ask/$slug" params={{ slug: a.slug }} className="underline underline-offset-4">
+            <Link
+              to="/ask/$slug"
+              params={{ slug: a.slug }}
+              className="underline underline-offset-4"
+            >
               {a.question}
             </Link>
           </li>
@@ -140,7 +144,6 @@ function newsKeywords(title: string): string {
   return [...BASE_KEYWORDS, ...matched].slice(0, 10).join(", ");
 }
 
-
 export const Route = createFileRoute("/posts/$slug")({
   loader: async ({ context, params }) => {
     const [post] = await Promise.all([
@@ -179,7 +182,6 @@ export const Route = createFileRoute("/posts/$slug")({
         { name: "twitter:description", content: description },
         ...ogImageMeta(image, imageAlt),
       ],
-
 
       links: [{ rel: "canonical", href: url }],
       scripts: [

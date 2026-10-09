@@ -37,7 +37,10 @@ describe("fuseAudioEmotion (#361)", () => {
   });
 
   it("preserves both signals without merging into one label", () => {
-    const result = fuseAudioEmotion("calm and neutral", { topLabel: "中立/neutral", topScore: 0.7 });
+    const result = fuseAudioEmotion("calm and neutral", {
+      topLabel: "中立/neutral",
+      topScore: 0.7,
+    });
     expect(result.primary).toBe("calm and neutral");
     expect(result.auxiliary.label).toBe("中立/neutral");
     expect(result.auxiliary.score).toBe(0.7);
