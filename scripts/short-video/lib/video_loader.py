@@ -48,7 +48,12 @@ import tempfile
 from bisect import bisect_right
 from datetime import datetime, timezone
 
-LOADER_VERSION = 1
+from asr_repetition_guard import collapse_repetition, inspect_transcript
+
+# v2: the transcript leaving `_attribute_transcript` now passes the repetition
+# guard (#418 complementary piece). The cache key must name the real artifact,
+# so transcripts cached by v1 (possibly loop-contaminated) must not be reused.
+LOADER_VERSION = 2
 DEFAULT_SR = 16000
 HOMEBREW_FFMPEG = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
 HOMEBREW_FFPROBE = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"
@@ -258,12 +263,36 @@ def _transcript_grid(audio_segments):
 def _attribute_transcript(asr, audio_segments, status, unavailable):
     """Transcript on the audio grid. Only status == "ok" carries segments —
     a missing engine (unavailable) or a silent source (no_audio) is an empty
-    transcript plus a reason, so no consumer can mistake it for silence."""
+    transcript plus a reason, so no consumer can mistake it for silence.
+
+    The repetition guard runs here, at the seam where the engine's text leaves
+    the loader: `-mc 0` / `condition_on_previous_text=False` lowers decode loops
+    but does not remove them (#418), and no backend parameter closes the gap.
+    Both views are collapsed — each raw segment (within-segment loop) and the
+    joined text (loop spanning small MLX-style segments) — and `repetition_guard`
+    records whether it fired, so downstream artifacts carry the provenance.
+    """
     if status != "ok":
         return {"language": None, "text": "", "segments": [], "raw_segments": [],
-                "status": status, "unavailable": unavailable}
+                "status": status, "unavailable": unavailable,
+                "repetition_guard": None}
+    raw = []
+    collapsed = 0
+    for seg in list((asr or {}).get("segments") or []):
+        text = str(seg.get("text", "")).strip()
+        guarded = collapse_repetition(text)
+        if guarded != text:
+            collapsed += 1
+        raw.append({**seg, "text": guarded})
+    joined = (asr or {}).get("text", "")
+    guarded_text = collapse_repetition(joined)
+    stats = inspect_transcript(joined)
+    guard = {"contaminated": stats["contaminated"],
+             "changed": bool(collapsed) or guarded_text != joined,
+             "worst_run": stats["worst_run"],
+             "collapsed_segments": collapsed}
+
     grid = [{"start": a, "end": b, "text": ""} for a, b in _transcript_grid(audio_segments)]
-    raw = list((asr or {}).get("segments") or [])
     if grid and raw:
         starts = [cell["start"] for cell in grid]
         for seg in raw:
@@ -275,11 +304,12 @@ def _attribute_transcript(asr, audio_segments, status, unavailable):
             if text:
                 grid[idx]["text"] = (grid[idx]["text"] + " " + text).strip()
     return {"language": (asr or {}).get("language"),
-            "text": (asr or {}).get("text", ""),
+            "text": guarded_text,
             "segments": grid,
             "raw_segments": raw,
             "status": status,
-            "unavailable": unavailable}
+            "unavailable": unavailable,
+            "repetition_guard": guard}
 
 
 def _run_asr(runner, video_path, spec):

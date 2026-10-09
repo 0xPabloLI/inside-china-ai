@@ -10,7 +10,7 @@
  *   parseVideoMeta(url, plat)   → { platform, videoId, author, title }
  *   parseWhisperOutput(json)    → { segments, fullText }
  *   downloadVideo(url, opts)    → { videoPath, platform, videoId, author }
- *   transcribeVideo(path, opts) → { segments, fullText } | null
+ *   transcribeVideo(path, opts) → { segments, fullText, guard } | null
  *   understandVideo(url, opts)  → { url, platform, author, title, duration,
  *                                    transcript, visualAnalysis, summary, status }
  *
@@ -38,6 +38,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "./asr-defaults.mjs";
+import { guardTranscript } from "./asr-repetition-guard.mjs";
 
 const execAsync = promisify(exec);
 
@@ -442,7 +443,9 @@ async function downloadTikTokVideo(fullUrl, itemId, output) {
  * @param {{outputDir?: string, language?: string}} [options] `language` is passed
  *   to whisper-cli as `-l`; omit it to inherit whisper-cli's own default (`en`),
  *   or pass `"auto"` to let the model detect. See the `-l` note in the body.
- * @returns {Promise<{segments: Array, fullText: string} | null>} Transcript or null on failure
+ * @returns {Promise<{segments: Array, fullText: string, guard: object} | null>}
+ *   Transcript or null on failure. `guard` records whether the repetition
+ *   guard collapsed a decode loop (see lib/asr-repetition-guard.mjs).
  */
 export async function transcribeVideo(videoPath, options = {}) {
   if (!existsSync(videoPath)) {
@@ -508,7 +511,21 @@ export async function transcribeVideo(videoPath, options = {}) {
   }
 
   const jsonStr = readFileSync(whisperJsonPath, "utf8");
-  return parseWhisperOutput(jsonStr);
+  // Step 4: repetition guard. `-mc 0` lowers the hallucination rate but does
+  // not remove it — the production whisper.cpp path was measured looping for
+  // minutes on low-SNR/music spans (see lib/asr-repetition-guard.mjs). Decode
+  // parameters cannot close this on either backend, so the transcript is
+  // collapsed before it leaves the ASR seam; `guard` records whether it fired
+  // so downstream artifacts carry the provenance.
+  const parsed = parseWhisperOutput(jsonStr);
+  const { segments, fullText, guard } = guardTranscript(parsed.segments, parsed.fullText);
+  if (guard.changed) {
+    console.warn(
+      `  [video-understand] Repetition guard collapsed ASR loop(s) ` +
+        `(worst run ${guard.worstRun}, ${guard.collapsedSegments} segment(s))`,
+    );
+  }
+  return { segments, fullText, guard };
 }
 
 // ─── Full Pipeline ───

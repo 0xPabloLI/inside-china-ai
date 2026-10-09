@@ -389,6 +389,62 @@ describe("transcribeVideo", () => {
     expect(whisperCmd).toContain("-mc 0");
   });
 
+  // `-mc 0` lowers the loop rate but does not remove it — the guard is the
+  // second line of defence (#418 complementary piece).
+  it("collapses a decode loop and reports the guard provenance", async () => {
+    const whisperJson = JSON.stringify({
+      transcription: [
+        {
+          offsets: { from: 0, to: 2000 },
+          text: " Good.",
+        },
+        {
+          offsets: { from: 2000, to: 6000 },
+          text: " " + Array(30).fill("Kampung").join(" "),
+        },
+      ],
+    });
+    mockExecAsync
+      .mockResolvedValueOnce({ stdout: "", stderr: "" }) // ffmpeg
+      .mockResolvedValueOnce({ stdout: "", stderr: "" }); // whisper
+    mockReadFileSync.mockReturnValue(whisperJson);
+
+    const result = await transcribeVideo("/tmp/test.mp4");
+
+    expect(result.guard.contaminated).toBe(true);
+    expect(result.guard.changed).toBe(true);
+    expect(result.guard.collapsedSegments).toBe(1);
+    expect(result.segments[1].text).toContain("重复×");
+    expect(result.segments[0].text).toBe("Good."); // untouched segment
+    expect(result.fullText).toContain("重复×");
+  });
+
+  it("reports a clean guard for a transcript without loops", async () => {
+    const whisperJson = JSON.stringify({
+      transcription: [
+        { offsets: { from: 0, to: 2000 }, text: " Hello world from the studio" },
+        { offsets: { from: 2000, to: 4000 }, text: " Second line here today" },
+      ],
+    });
+    mockExecAsync
+      .mockResolvedValueOnce({ stdout: "", stderr: "" })
+      .mockResolvedValueOnce({ stdout: "", stderr: "" });
+    mockReadFileSync.mockReturnValue(whisperJson);
+
+    const result = await transcribeVideo("/tmp/test.mp4");
+
+    expect(result.guard).toEqual({
+      contaminated: false,
+      changed: false,
+      worstRun: 1,
+      collapsedSegments: 0,
+    });
+    expect(result.segments.map((s) => s.text)).toEqual([
+      "Hello world from the studio",
+      "Second line here today",
+    ]);
+  });
+
   // whisper-cli's own default is `en`, NOT auto-detect (`-l LANG [en]`; its
   // stderr prints `lang = en`). Forcing `en` on Chinese audio still returns
   // Chinese, but degrades proper nouns — the same zh clip gave "DeepSeq" under

@@ -23,6 +23,18 @@ whisper.cpp 也没有等价的惩罚项，只有 `-mc/-et/-nth/-sns` 这些间�
     from asr_repetition_guard import inspect_transcript, collapse_repetition
     stats = inspect_transcript(text)      # 检测，不改内容
     clean = collapse_repetition(text)     # 收敛循环，保留首次出现
+
+实测覆盖边界（2026-10-10，147 份真实转写：145 份 MLX ctx-off 语料 + 2 份
+whisper.cpp 生产输出）——**不要把它当成比这更强的保证**：
+  1. 收敛只对单 token 循环生效：10/147 被改写（Kampung ×26、go ×56、norge ×71…）。
+  2. 多词短语循环（周期 ≥ 2）**判得出但收不了**：whisper.cpp 生产口径的 FEMA
+     循环（"Thank you." / "For more information, visit www.fema.org" 重复数分钟）
+     落在这类 —— contaminated=True 而文本不变。
+  3. worst_run 只统计**出现次数最多的那个** n-gram 的连续次数；另一个 n-gram 的
+     长连续段看不见（7E6i3E-fsj4 的 "Hard." ×20 因此漏判，同文件
+     "Stay in the corner." ×23 是更频繁的分散重复）。
+JS 侧等价实现见 lib/asr-repetition-guard.mjs（跨语言向量对照见
+scripts/short-video/__tests__/asr-repetition-guard.test.mjs）。
 """
 
 from collections import Counter

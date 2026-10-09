@@ -334,6 +334,24 @@ whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo.bin -f audio.wav -l en \
 "Thank you."/"请订阅" 之类（静音段幻觉）；turbo 档更明显。若回读质检出现
 「相似度异常高但词数暴增」，先算重复 n-gram 再怀疑文本本身。
 
+**④b 重复护栏（2026-10-10 接线）**：ctx-off 只降低概率，所以**两个转写出口都过护栏**
+——`lib/asr-repetition-guard.mjs`（JS，whisper.cpp 出口：`transcribeVideo` 的返回值多一个
+`guard` 字段）与 `lib/asr_repetition_guard.py`（Python，装载层出口：
+`transcript.repetition_guard`）。护栏改写过文本时，出口会打 warning / 在结果里留痕，
+事后能分辨哪份转写被动过。
+
+护栏刻意保守（宁可漏报也不误伤真实口语），**实测边界不要当成更强的保证**
+（147 份真实转写：145 份 MLX ctx-off 语料 + 2 份 whisper.cpp 生产输出）：
+
+| 形态 | 行为 |
+|---|---|
+| 单 token 循环（Kampung ×26、go ×56、norge ×71） | **收敛**，10/147 份被改写 |
+| 多词短语循环（whisper.cpp 生产实测的 FEMA 循环：488s 内 17 段只有 4 种文本） | **判得出、收不了**：`contaminated=true` 而文本不变 |
+| 非最高频 n-gram 的长连续段（`7E6i3E-fsj4` 的 "Hard." ×20） | 漏判：`worst_run` 只统计最高频 n-gram |
+
+三条边界都用测试钉在 `scripts/short-video/__tests__/asr-repetition-guard.test.mjs`
+（含 Python ↔ JS 跨语言向量对照，防止两个实现漂移）。
+
 **⑤ 运行时裁决（2026-10-09, #418）**：**生产转写唯一运行时 = whisper.cpp**（本节调用口径，
 ADR-0020 §2 首选）；MLX 只存在于 bench 实验轴（`bench/keyframe/`：`asr_batch.py` 批量转写、
 `asr_timing_matrix.py` 计时/内存四格、`asr_equivalence.py` 词级差异率），**不接生产**
@@ -547,6 +565,9 @@ to_minicpm_units(r)                   # 官方「1 帧 + 1 段音频」单元，
   （单臂 p=0.087、四方法合并 p=3.9e-05）。单元路线实测无增益且慢 5-10×，保留作引擎契约。
 - **转写一律 ctx-off**（见上一节 ②）：MLX `condition_on_previous_text=False`、
   whisper.cpp `--max-context 0`。
+- **转写出装载层前过重复护栏**：`transcript.repetition_guard` 记录是否被判污染/
+  是否被改写（段级与整篇分别收敛，见上一节 ④b 的实测边界）；loader 版本因此
+  升到 2，v1 缓存（可能带循环）不复用。
 - **引擎缺失或抛错不炸装载**：`transcript.status ∈ {unavailable, no_audio,
   not_requested}` + 原因；放行与否由调用方门禁决定（INFRA 语义，与
   `tts/quality-gate.mjs` 一致）。
