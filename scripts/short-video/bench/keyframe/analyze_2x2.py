@@ -18,24 +18,41 @@
 判据：Bonferroni α=0.05/4=0.0125（四个对比）。交互用逐题 DiD 的 bootstrap CI——
 逐题 DiD 取值在 {-2..2}，均值即 DiD，配对且不假设分布。
 
-Run: cd WT && python3 scripts/short-video/bench/keyframe/analyze_2x2.py
+Run: cd WT && python3 scripts/short-video/bench/keyframe/analyze_2x2.py [base|ext]
+
+`base` = medium 原档 28v/84q；`ext` = 扩样 53v/159q（**包含** base 的视频）。
+ext 表功效近一倍——base 上四个对比无一过 Bonferroni、DiD 的 CI 跨 0，故 ext 是
+判定用的那张表；base 保留作分层一致性检查（若两张表方向不一致，说明是子集效应）。
 """
 import json
 import math
 import os
 import random
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WT_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
 RESULTS = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "results")
 
 # (行, 列) -> (文件名, method 过滤 | None)。method=None = 单臂文件，无 method 字段。
-CELLS = {
-    ("VL", "VL"): ("exp_videomme_qa_medium_qwen_native_asr.json", "native_asr_asr"),
-    ("VL", "OMNI"): ("exp_videomme_qa_medium_qwen_native_asr_omnibudget.json",
-                     "native_asr_asr"),
-    ("OMNI", "OMNI"): ("exp_videomme_qa_qwen_omni_video_medium_fpsfix.json", None),
-    ("OMNI", "VL"): ("exp_videomme_qa_qwen_omni_video_medium_maxpix.json", None),
+TABLES = {
+    "base": {
+        ("VL", "VL"): ("exp_videomme_qa_medium_qwen_native_asr.json", "native_asr_asr"),
+        ("VL", "OMNI"): ("exp_videomme_qa_medium_qwen_native_asr_omnibudget.json",
+                         "native_asr_asr"),
+        ("OMNI", "OMNI"): ("exp_videomme_qa_qwen_omni_video_medium_fpsfix.json", None),
+        ("OMNI", "VL"): ("exp_videomme_qa_qwen_omni_video_medium_maxpix.json", None),
+    },
+    "ext": {
+        ("VL", "VL"): ("exp_videomme_qa_medium_ext_qwen_native_asr.json",
+                       "native_asr_asr"),
+        ("VL", "OMNI"): ("exp_videomme_qa_medium_ext_qwen_native_asr_omnibudget.json",
+                         "native_asr_asr"),
+        ("OMNI", "OMNI"): ("exp_videomme_qa_qwen_omni_video_medium_ext_fpsfix.json",
+                           None),
+        ("OMNI", "VL"): ("exp_videomme_qa_qwen_omni_video_medium_ext_maxpix.json",
+                         None),
+    },
 }
 
 # 四个对比：(标签, A 格, B 格)；Δ = A − B
@@ -95,14 +112,18 @@ def boot_ci(vals, iters=10000, seed=20261008):
 
 
 def main():
+    table = sys.argv[1] if len(sys.argv) > 1 else "base"
+    if table not in TABLES:
+        raise SystemExit(f"unknown table {table!r}; expected one of {sorted(TABLES)}")
     cells, missing = {}, []
-    for key, (fname, method) in CELLS.items():
+    for key, (fname, method) in TABLES[table].items():
         got = load_cell(fname, method)
         if got is None:
             missing.append((key, fname))
         else:
             cells[key] = got
 
+    print(f"=== 表：{table} ===")
     if missing:
         print("=== 缺格子（还没跑完）===")
         for key, fname in missing:
