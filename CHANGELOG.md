@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.12.0...tanstack_start_ts-v1.13.0) (2026-10-09)
+
+
+### Features
+
+* **short-video:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414) replace the [#360](https://github.com/0xPabloLI/inside-china-ai/issues/360) duration tiers with the window plan ([a4d6613](https://github.com/0xPabloLI/inside-china-ai/commit/a4d66130e5658e474050f7d1827c8a6a9a23fe08))
+* **short-video:** [#414](https://github.com/0xPabloLI/inside-china-ai/issues/414) replace the [#360](https://github.com/0xPabloLI/inside-china-ai/issues/360) duration tiers with the window plan ([56d870c](https://github.com/0xPabloLI/inside-china-ai/commit/56d870c24e3974250b3c637afc3bc5be9791dfd4))
+
 ## [1.12.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.11...tanstack_start_ts-v1.12.0) (2026-10-09)
 
 
