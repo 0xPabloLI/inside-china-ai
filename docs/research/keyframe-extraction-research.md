@@ -31,6 +31,8 @@
 | **像素预算 2×2（Q41②，n=159 定案）** | **两个模型都吃预算、幅度相近；VL 在两种预算下都领先 ~4-5pp（不显著）** | ext 表（n=159，**有效表**）：VL 71.1→66.7（Δ=+4.4pp p=0.143）；Omni 66.7→61.6（Δ=+5.0pp p=0.152）；DiD −0.6pp CI[−8.8,+7.5]；四对比无一过 Bonferroni(0.0125)。**base 表（n=84）的「VL 预算效应 Δ=0.0pp」是污染产物，已作废**（见 §Q41 补⑨） |
 | **VL/Omni 输入结构差（Q41⑦，6 视频探针）** | **预算拉平后视觉 token 逐位相等；差异只剩 VL 的纯时间戳文本（越长占比越大）** | 帧数 6/6 相同；`max_pixels` 对齐后视觉 token 双向逐位相同。prompt token 分解：Omni 文本恒 58；VL 额外 **8.85–9.87 token/时间块**，占视觉 token **13.4%（78 块）→ 65.8%（384 块）**。属能力差异（VL 文本读时间 vs Omni M-RoPE 位置编码），两侧皆官方口径，**不对齐** |
 | **「仅文本」消融臂口径（Q41⑪）** | **报告值 50.0% 混了两种口径；仅覆盖子集是 51.4%** | `exp_text_only.py` 写死 ctx-on `asr/`，短档 **8/100 视频无转写** ⇒ 24 题静默退化成「只看题目」（33.3%），报告里仍叫「仅文本」。差 +1.4pp，**结论不翻**，但引用该臂的「转写贡献」类结论应改用 51.4% |
+| **预算默认值溯源（Q41⑬）** | **25.1M（VL）/ 12.8M（Omni）都是官方值，转档未改；且是整段预算不是每帧预算** | 与 HF 官方仓逐字节一致。VL 的真实预算在 `video_preprocessor_config.json` 的 `size.longest_edge`（`max_pixels` 字段为 `null`），由 mlx-vlm 映射；`video_processing_qwen3_vl.py:55` 明写 per-frame = `min(..., longest_edge / num_frames)` ⇒ **只缩空间、不减帧数**。图像路径另有 16M |
+| **VL 的时间轴机制（Q41⑭）** | **VL 放弃 TMRoPE，改 Interleaved-MRoPE + 文本时间戳；Omni 保留秒缩放** | 官方 README：「Text–Timestamp Alignment: **Moves beyond T-RoPE**」。源码：VL 的 t 轴是 `arange(llm_grid_t)` 纯序号、已移除 `second_per_grid_ts`；Omni 是 `arange(grid_t) * second_per_grid * position_id_per_seconds`。⇒ 解释了 §Q41⑦ 的文本时间戳开销，**两者不可对齐** |
 | **Thinking 模式（Q41④）** | **机制可用，效果与 Instruct 无异，延迟 1.40×** | 6/6 解析全 `strict`、推理链 201–1232 tok 未触顶、中位 69.0s vs Instruct 49.2s；**同 6 题 5/6 对且逐题预测完全相同（含同一道错题）** |
 | **转写口径（Q41⑤）** | **短档用的是带重复幻觉的 ctx-on 转写；「转写贡献 ~3pp」是下界** | 两目录 92 个同名文件中 88 个不同（ctx-on 重复循环，最长重复 27→1）；短档全臂 = ctx-on，medium 全臂 = ctx-off ⇒ 跨档位不可直接比转写。**loader 裁决不受影响（两侧同一份转写）**；loader 缓存键曾把 ctx-on 内容标成 ctxoff（92 条中 86 条证伪），已改为由目录推导标签 |
 
@@ -2368,6 +2370,78 @@ ext n=159 上 VL 降预算的代价是 −4.4pp（p=0.143，不显著），
 | 纯文本臂 × short + `asr_ctxoff`（89.0%） | 放行 |
 | 逃生开关 × medium + `asr/` | 放行到下一步 |
 
+**⑬ 预算默认值溯源：25.1M / 12.8M 都是官方值，转档未改**
+
+拉官方仓逐字节核对（2026-10-09）：
+
+| 模型 | 文件 | 字段 | 值 | 与本地 |
+|---|---|---|---|---|
+| `Qwen/Qwen3-VL-30B-A3B-Instruct` | `video_preprocessor_config.json` | `size.longest_edge` | **25165824** | **逐字节一致** |
+| `Qwen/Qwen3-Omni-30B-A3B-Instruct` | `preprocessor_config.json` | `max_pixels` | **12845056** | **逐字节一致** |
+
+三点口径澄清（此前文档只说「自带声明」，未说清是哪一层）：
+
+1. **VL 的预算不在 `max_pixels` 字段里。** VL 的 `preprocessor_config.json` 该字段是
+   `null`；真实预算是 `video_preprocessor_config.json` 的 `size.longest_edge`。
+   是 mlx-vlm 的加载器把它映射过去（`mlx_vlm/models/qwen3_vl/processing_qwen3_vl.py:646`
+   `if size.get("longest_edge") is not None: out["max_pixels"] = size["longest_edge"]`），
+   探针里打印的「自带声明 max_pixels」就是这么来的。
+2. **它是整段预算，不是每帧预算。** `transformers/models/qwen3_vl/video_processing_qwen3_vl.py:55`
+   明写 per-frame pixels 被限制为 `min(max_video_tokens * factor**2, size["longest_edge"] / num_frames)`
+   —— 只缩空间，**不减帧数**。这解释了探针里「帧数 6/6 相同、视觉 token 差 2.13×」。
+3. **同一模型内图像路径是另一个值。** VL 的 `preprocessor_config.json`
+   `size.longest_edge = 16777216`（16M）⇒ 探针打印的
+   `{'video_processor': 25165824, 'image_processor': 16777216}` 即此。
+   故「VL 预算」在说视频时必须指明是 25.1M 那个。
+
+**⑭ VL 不用 TMRoPE：改用 Interleaved-MRoPE + 文本时间戳（源码直证）**
+
+官方 README「Model Architecture Updates」第 3 条明写：
+
+> **Text–Timestamp Alignment:** Moves beyond T-RoPE to precise, timestamp-grounded
+> event localization for stronger video temporal modeling.
+
+三处源码互证：
+
+| 证据 | 内容 |
+|---|---|
+| `transformers/models/qwen3_vl/modeling_qwen3_vl.py:1483` | 注释 `# Overwritten -- Qwen3VL use timestamps and remove second_per_grid_ts` |
+| `mlx_vlm/models/qwen3_vl/language.py`（t 轴索引） | `t_index = mx.arange(llm_grid_t)` —— **纯序号，无秒缩放** |
+| `transformers/models/qwen3_omni_moe/modeling_qwen3_omni_moe.py:376,393` | `arange(grid_t) * second_per_grid * position_id_per_seconds` —— **保留秒缩放** |
+
+即两侧的时间轴机制**根本不同**，不是同一算法的两种配置：
+
+| | 位置编码 | 时间信息来源 | 秒参数 |
+|---|---|---|---|
+| Qwen3-VL | Interleaved-MRoPE（`mrope_interleaved=true`，`mrope_section=[24,20,20]`） | **文本** `<N.N seconds>` | 已移除 `second_per_grid_ts` |
+| Qwen3-Omni | 同款 M-RoPE 结构 | **位置编码** | `position_id_per_seconds=13`、`seconds_per_chunk=2` |
+
+⇒ 这是 §Q41⑦「VL 每时间块多 8.85–9.87 token 纯时间戳文本」的**源码级解释**：
+VL 必须把时间写进文本，因为它没有秒缩放的 t 轴；Omni 不需要写，因为它的 t 轴带秒。
+**两者不可对齐，且不应为对齐而改一侧处理器。**
+
+**⑮ 有效对比清单（2026-10-09 收盘）**
+
+**有效**（口径已核，未被已知混杂污染）：
+
+| 对比 | 结果 | 显著性 |
+|---|---|---|
+| 短档：纯视觉 → +转写（VL 原生视频） | 79.3% → 83.0%（+3.6pp） | p=0.087（单臂不显著） |
+| 短档：u64 抽帧 → 原生视频（都带转写） | 81.5% → 83.0%（+1.4pp） | p=0.503 |
+| 短档：Omni 纯视觉 → +转写文本 | 78.9% → 81.9%（+3.0pp） | p=0.134 |
+| 短档：VL 原生+转写 vs Omni+转写（跨模型） | 83.7% vs 81.9%（−1.9pp） | p=0.442 |
+| 短档：波形直喂 vs 纯视觉（C1） | 79.3% → 33.3%（**−46.0pp**） | **p<1e-4** |
+| 中档 ext 2×2（n=159，全程 `asr_ctxoff`） | 见 §Q41⑨ | 四对比均不显著 |
+| 探针三档输入结构（6 视频） | 见 §Q41⑦⑬⑭ | 确定性观测 |
+
+**作废 / 降级**：
+
+| 项 | 状态 |
+|---|---|
+| base 2×2 表（n=84）VL@Omni 格 | **污染格**（转写为空）⇒ 该格的「VL 预算效应 Δ=0.0pp」作废 |
+| base 2×2 表其余三格 | 与 ext 逐题一致（0/84 差异），数字有效但已被 n=159 取代 |
+| 「仅文本」臂报告值 50.0% | 口径混杂；**有效值 51.4%**（仅覆盖子集） |
+| 短档「转写贡献 ~3pp」 | 建立在 ctx-on 脏转写上 ⇒ 是**下界** |
 
 ---
 
