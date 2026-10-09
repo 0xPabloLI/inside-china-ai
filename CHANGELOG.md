@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.11.11](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.10...tanstack_start_ts-v1.11.11) (2026-10-09)
+
+
+### Bug Fixes
+
+* **kaggle:** bind the wheelhouse dataset to the record in git ([#521](https://github.com/0xPabloLI/inside-china-ai/issues/521)) ([7f2fc75](https://github.com/0xPabloLI/inside-china-ai/commit/7f2fc75c6a0693fcfe0a595b5cc48f009892ee4a))
+* **kaggle:** bind the wheelhouse dataset to the record in git ([#521](https://github.com/0xPabloLI/inside-china-ai/issues/521)) ([f12014a](https://github.com/0xPabloLI/inside-china-ai/commit/f12014a627a38e649d2b7c6638a3d3783e46926c))
+* **kaggle:** compare wheel sizes, not just names, and cap only the report ([#521](https://github.com/0xPabloLI/inside-china-ai/issues/521)) ([0bcc261](https://github.com/0xPabloLI/inside-china-ai/commit/0bcc2613c794105eea741bc8656f7348dc71fdfa))
+* **kaggle:** correct the --no-run claim, keep the manifest JSON key-sorted ([#521](https://github.com/0xPabloLI/inside-china-ai/issues/521)) ([94ed633](https://github.com/0xPabloLI/inside-china-ai/commit/94ed6332f77b203b859e1da7e985e35808056a0f))
+* **kaggle:** pin the CLI the build carrier installs ([#521](https://github.com/0xPabloLI/inside-china-ai/issues/521)) ([353ada5](https://github.com/0xPabloLI/inside-china-ai/commit/353ada5f96ff58d06c40e9fac366a779271222d1))
+
 ## [1.11.10](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.9...tanstack_start_ts-v1.11.10) (2026-10-09)
 
 
