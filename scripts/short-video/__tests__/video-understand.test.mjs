@@ -21,6 +21,9 @@ let mockExistsSync = vi.fn(() => true);
 let mockWriteFileSync = vi.fn();
 let mockMkdirSync = vi.fn();
 let mockReadFileSync = vi.fn(() => "{}");
+// #418: the model is sanity-checked beyond existence (ggml magic + size).
+let mockModelSize = 2 * 1024 ** 3;
+let mockModelMagic = Buffer.from([0x6c, 0x6d, 0x67, 0x67]);
 
 vi.mock("child_process", () => ({
   exec: (...args) => {
@@ -45,6 +48,13 @@ vi.mock("fs", () => ({
   writeFileSync: (...args) => mockWriteFileSync(...args),
   mkdirSync: (...args) => mockMkdirSync(...args),
   readFileSync: (...args) => mockReadFileSync(...args),
+  openSync: () => 7,
+  closeSync: () => {},
+  fstatSync: () => ({ size: mockModelSize }),
+  readSync: (fd, buf) => {
+    mockModelMagic.copy(buf, 0);
+    return buf.length;
+  },
 }));
 
 // Import after mocks
@@ -57,6 +67,7 @@ import {
   understandVideo,
   asrAvailability,
 } from "../lib/video-understand.mjs";
+import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "../lib/asr-defaults.mjs";
 
 // ═══════════════════════════════════════════════════════════════
 // ─── detectPlatform ───────────────────────────────────────────
@@ -389,6 +400,50 @@ describe("transcribeVideo", () => {
     expect(missing.ok).toBe(false);
     expect(missing.cliFound).toBe(false);
     expect(missing.modelFound).toBe(false);
+  });
+
+  // #418: ADR-0020 §3's single source of truth was nominal — the constant had
+  // no consumers and this path was hardcoded, so a default change would have
+  // silently kept loading the old model. Pin the wiring.
+  it("resolves the model path from the ADR-0020 default constant", () => {
+    expect(asrAvailability().model).toContain(DEFAULT_WHISPER_CPP_MODEL_NAME);
+    expect(asrAvailability().model).toMatch(/ggml-[\w.-]+\.bin$/);
+  });
+
+  // #418: `existsSync` alone accepts a truncated download or a zero-byte file,
+  // which then fails deep inside the transcriber — the same failure class as
+  // the corrupted faster-whisper cache. The gate must call that "unusable".
+  it("rejects a truncated model file", () => {
+    mockExistsSync.mockReturnValue(true);
+    mockModelSize = 1024;
+    try {
+      const a = asrAvailability();
+      expect(a.modelFound).toBe(true);
+      expect(a.modelUsable).toBe(false);
+      expect(a.ok).toBe(false);
+      expect(a.modelIssue).toMatch(/truncated/);
+    } finally {
+      mockModelSize = 2 * 1024 ** 3;
+    }
+  });
+
+  it("rejects a model file whose magic is not ggml", () => {
+    mockExistsSync.mockReturnValue(true);
+    mockModelMagic = Buffer.from("PK\x03\x04", "latin1"); // a zip, not a model
+    try {
+      const a = asrAvailability();
+      expect(a.modelUsable).toBe(false);
+      expect(a.modelIssue).toMatch(/magic/);
+    } finally {
+      mockModelMagic = Buffer.from([0x6c, 0x6d, 0x67, 0x67]);
+    }
+  });
+
+  it("reports the model as missing rather than unreadable when absent", () => {
+    mockExistsSync.mockReturnValue(false);
+    const a = asrAvailability();
+    expect(a.modelIssue).toBe("missing");
+    expect(a.modelUsable).toBe(false);
   });
 });
 

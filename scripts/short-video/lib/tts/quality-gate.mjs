@@ -15,7 +15,8 @@ import { existsSync, statSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { transcribeVideo } from "../video-understand.mjs";
-import { FAILURE_CLASS } from "./failure-class.mjs";
+import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "../asr-defaults.mjs";
+import { FAILURE_CLASS, asrOptOutEnabled } from "./failure-class.mjs";
 import { validateInstructSignature } from "./instruct.mjs";
 
 // Pacing boundaries for vertical short videos (English)
@@ -326,7 +327,7 @@ async function transcribeViaWhisperCpp(audioPath, { languageHint } = {}) {
       })),
       language: languageHint ?? null,
       errorCode: null,
-      meta: { backend: "whisper.cpp", model: "large-v3-turbo", degraded: false },
+      meta: { backend: "whisper.cpp", model: DEFAULT_WHISPER_CPP_MODEL_NAME, degraded: false },
     };
   } catch (err) {
     return {
@@ -402,8 +403,10 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     instructForScene = null,
     // #415 ①: ASR is the only verifier of the WORDS. When it cannot run the
     // take is unverified — fail loudly by default, or opt into the legacy
-    // render-unverified behavior explicitly.
-    allowAsrUnavailable = process.env.TTS_QUALITY_ALLOW_NO_ASR === "1",
+    // render-unverified behavior explicitly. The env spelling lives in
+    // failure-class.mjs because the pipeline-start preflight mirrors this gate
+    // and the two must agree (#418).
+    allowAsrUnavailable = asrOptOutEnabled(),
   } = options;
 
   // 1. Verify audio file exists and has non-zero size

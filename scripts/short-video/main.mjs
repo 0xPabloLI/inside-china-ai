@@ -129,6 +129,18 @@ async function main() {
   }
   prof.end("step-0.2-cdp-gate");
 
+  // ── Step 0.3: ASR preflight (hard gate — fail before the TTS spend) ──
+  // The quality gate word-verifies every take with whisper.cpp ASR and fails
+  // closed as INFRA when the model is missing (#415 ①) — but only AFTER the
+  // remote-GPU TTS batch. Checking at pipeline start turns "burned a batch,
+  // then INFRA" into "refused to start, with the fix hint" (#418).
+  prof.mark("step-0.3-asr-gate");
+  {
+    const { ensureAsrOrExit } = await import("./lib/asr-preflight.mjs");
+    ensureAsrOrExit();
+  }
+  prof.end("step-0.3-asr-gate");
+
   // ── Step 0.5: Currency normalization (RMB → USD dual-annotation) ──
   // Auto-inserts $X (¥Y) format before TTS runs, enforcing the currency
   // rule by code. Non-blocking: if it fails, scenes pass through unchanged.

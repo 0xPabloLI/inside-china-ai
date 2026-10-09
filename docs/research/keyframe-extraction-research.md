@@ -430,9 +430,20 @@ METEOR 含召回项，长输出天然占便宜，属指标构造，不是信息�
 「CIDEr 不可横比是长度口径问题，不是描述质量问题」。若某次对外汇报需要可比数字，
 按 `CAP_MAX_WORDS=20` 跑同一链即可复现上表。
 
-### 17.5 ASR 运行时（#418 的速度维度）
+### 17.5 ASR 运行时（#418 的速度与等价性维度）
 
-空机、ctx-off、4 视频（音频均值 78s）实测：**MLX turbo 30.5× 实时**（3s）＞ whisper.cpp turbo 17.0×（5s）＞ MLX large-v3 7.9×（10s）。配合 §Session3 的等价性结论（两边默认都掺重复幻觉，调用必须关跨段上下文：MLX `condition_on_previous_text=False` / whisper.cpp `--max-context 0`），生产侧 ASR 调用的档位与开关都已定。
+2026-10-09 空机四格复测（4 视频、音频均值 78s、ctx-off、每格 2 次；数据 `.scratch/keyframe-bench/asr_timing_matrix.json`，与 `asr_timing_fair.json` 的 3 格互为对照；同配置前一次 run 各格相差 ≤6%，内存与 Metal 峰值逐格相同）：
+
+| 引擎/档位 | 新进程墙钟（均值/最快） | 进程内首次（含加载） | 常驻（warm） | 峰值内存 |
+|---|---|---|---|---|
+| whisper.cpp turbo | 5.13s / 3.60s | — | — | RSS 1.95GB |
+| whisper.cpp large-v3 | 13.19s / 6.18s | — | — | RSS 4.11GB |
+| MLX turbo | 8.33s / 6.70s（含解释器） | 3.27s | **2.87s** | RSS 1.82GB · Metal 峰值 2.52GB |
+| MLX large-v3 | 14.68s / 9.58s（含解释器） | 7.09s | **6.11s** | RSS 3.59GB · Metal 峰值 3.99GB |
+
+**MLX 只在模型常驻时有速度优势**（2.87s vs cpp 5.13s/次）；按生产今天的「每次新进程」形态，MLX 反而更慢（8.33s，差在解释器启动）。兑现常驻要新增 worker + venv 依赖，故生产保持 whisper.cpp（ADR-0020），MLX 留在 bench 实验轴。
+
+**等价性（本次补齐，ctx-off 生产口径）**：此前的 sim 0.55-0.76 是**默认上下文**下的数，量的是重复幻觉；两边都关跨段上下文后（`.scratch/keyframe-bench/asr_equiv_ctxoff.json`，4 素材、同权重 turbo），词级差异率 **0%–52.6%（均值 19.4%）**——纯语音段 0%、音乐段 52.6%。**同模型 ≠ 同输出，两侧转写不可混用**；且 ctx-off 压住了大循环但没压干净（最大重复 n-gram 仍到 9），差异集中在循环触发点不同的段落。运行口径、内存口径、backend 事实（cpp 默认走 Metal）、完整表见 `../video-production-runbook.md` §ASR 调用规范 ⑤-⑧。
 
 ### Sources（三续）
 
