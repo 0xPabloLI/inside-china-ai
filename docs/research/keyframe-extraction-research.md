@@ -432,7 +432,16 @@ METEOR 含召回项，长输出天然占便宜，属指标构造，不是信息�
 
 ### 17.5 ASR 运行时（#418 的速度维度）
 
-空机、ctx-off、4 视频（音频均值 78s）实测：**MLX turbo 30.5× 实时**（3s）＞ whisper.cpp turbo 17.0×（5s）＞ MLX large-v3 7.9×（10s）。配合 §Session3 的等价性结论（两边默认都掺重复幻觉，调用必须关跨段上下文：MLX `condition_on_previous_text=False` / whisper.cpp `--max-context 0`），生产侧 ASR 调用的档位与开关都已定。
+2026-10-09 空机四格复测（4 视频、音频均值 78s、ctx-off、每格 2 次；数据 `.scratch/keyframe-bench/asr_timing_matrix.json`，与 `asr_timing_fair.json` 的 3 格互为对照）：
+
+| 引擎/档位 | 每次调用（新进程，含加载） | 常驻（warm） | 峰值内存 |
+|---|---|---|---|
+| whisper.cpp turbo | 4.92s | — | RSS 1.95GB |
+| whisper.cpp large-v3 | 13.43s | — | RSS 4.10GB |
+| MLX turbo | 5.88s | **2.95s** | Metal 峰值 2.53GB |
+| MLX large-v3 | 8.73s | **6.33s** | Metal 峰值 4.00GB |
+
+**MLX 只在模型常驻时有速度优势**（turbo 2.95s vs cpp 4.92s/次）；每次新进程时 turbo 档反而更慢，内存两边同量级——故生产保持 whisper.cpp（ADR-0020），MLX 留在 bench 实验轴。等价性与「必须关跨段上下文」的结论不变（§Session3：两边默认都掺重复幻觉；MLX `condition_on_previous_text=False` / whisper.cpp `--max-context 0`）。运行口径、内存口径、backend 事实（cpp 默认走 Metal）见 `../video-production-runbook.md` §ASR 调用规范 ⑤-⑦。
 
 ### Sources（三续）
 

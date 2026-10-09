@@ -89,6 +89,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 ## Pipeline Execution (#225)
 
 - **Step 0.2 CDP hard gate**（2026-09-09）: `main.mjs` 的第一步是 `lib/cdp-preflight.mjs` 的 `ensureCdpOrExit()`——探测 `localhost:3456/targets`；不通则自动拉起 `skills/web-access/scripts/cdp-proxy.mjs`（detached，日志 `output/cdp-proxy.log`）并轮询 ≤12s；仍不通 `process.exit(1)`。**禁止降级**：CDP 不可用时产出无背景媒体的视频（2026-09-08/09 事故），宁可早失败。代理通但 Chrome 调试端口（9222）不可达时给出用户操作指引——Agent 永远不代替用户重启 Chrome（AGENTS.md 守卫）。
+- **Step 0.3 ASR hard gate**（2026-10-09, #418）: CDP 门禁之后立即跑 `lib/asr-preflight.mjs` 的 `ensureAsrOrExit()`——whisper.cpp cli 或 ggml 模型缺失即 `process.exit(1)`，打印缺失路径与修复指引。此前缺模型的唯一信号是 `transcribeVideo` 的 warn + null，而质检门禁的 ASR 腿按 INFRA 关闭（#415 ①）发生在远程 GPU TTS 批次**之后**——本门禁把同一判决移到烧钱之前。两个显式 opt-out 降级为 warning 并打印原因：`TTS_QUALITY_ALLOW_NO_ASR=1`（渲染未校验）、`TTS_SKIP_QUALITY_GATE=1`（整门禁关闭）。
 - **并行轨**：`main.mjs` 媒体轨（Step 1.5 sourcing → 1.5c media-patch → 1.5b upscale → 1.5d B-roll，`lib/media-track.mjs`）与语音轨（Step 1 TTS）`Promise.all` 并行，join 后过 1.6 media gate 再进字幕/渲染/verify。数据依赖：媒体轨只写 scene 媒体字段、TTS 只读 scene 文本——无共享可变状态。失败语义不变：媒体轨每阶段 warn 不阻塞；TTS 失败仍中止管线。
 - **步骤耗时 profile**：每次 run 结束（含失败路径）自动写 `output/<pipelineId>/profile-<version>.json`（另有稳定名 `last-profile.json`），并在末尾打印按耗时排序的 summary；失败时未结束 step 记 `unfinished: true`。管线提速决策以 profile 证据为准。
 - **TTS 缓存**（#198）：scene 音频按 `(engine, engine.info, text)` 键跨 run 复用，forced alignment 按 `(text + 音频字节)` 签名复用（ttsText 变化会触发重对齐）；`TTS_NO_CACHE=1` 强制冷跑（重生成全部音频）。
@@ -146,6 +147,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 | 9   | sourcing 被杀后搜索缓存全丢（"0 entries loaded"）           | `lib/asset-sourcer.mjs` 5 处搜索后立即 `saveSearchResultsCache()` 增量落盘                                                                                      |
 | 10  | Kaggle kernel 每次全量下载模型（10+ min）                   | kernel metadata `dataset_sources` 含 `xPabloLI/cosyvoice3-model`；kernel 先查 `/kaggle/input/cosyvoice3-model/cosyvoice3.yaml` 再 symlink，HF 下载仅作 fallback |
 | 11  | CDP 中途才检查/静默降级                                     | Step 0.2 CDP hard gate（上文节）；asset-sourcer CDP 不可用即 `process.exit(1)`                                                                                  |
+| 11b | ASR 模型缺失要烧完 TTS 批次才发现（warn + null 不算门禁）   | Step 0.3 ASR hard gate（上文节，`lib/asr-preflight.mjs`）；质检 ASR 腿 INFRA fail-closed（#415 ①）                                                              |
 | 12  | CosyVoice3-Kaggle 偶发印度口音/音素拖长/WPM骤降             | Kaggle 环境固化（`onnxruntime-gpu==1.20.0` + commit `074ca6d`）+ 四维 Prompt 规范（Persona+美音+情绪+节奏）+ TTS Quality Gate 自愈（#234）                      |
 | 13  | TTS Quality Gate 版本号/小数 Token 错配导致相似度假阳性扣分 | `quality-gate.mjs` 实现 `buildExpandedAsrTokenSet` 及 `point` 音素桥接映射，实现 100% 语义匹配 (#234)                                                           |
 | 14  | MRL-3 帧审计 final frame 提取越界误报 FAIL                  | `verify-remotion-frames.mjs` ffprobe 实测帧数 clamp lastFrame（scheduleTotalFrames 按预算算，TTS 音频短于预算时渲染帧数更少；4d6ebd4）                          |
@@ -301,7 +303,10 @@ ffmpeg -y -i input.m4a -ar 24000 -ac 1 -c:a pcm_s16le \
 适用范围：`video-understand.mjs`（视频理解转写）与 `tts/quality-gate.mjs`（回读质检）——
 两者都走 whisper.cpp，模型 `~/.cache/whisper/ggml-large-v3-turbo.bin`（ADR-0020 的
 max-effort 下限）。**字幕对齐不走 ASR**（见上一段的 wav2vec2 强制对齐），不受本节影响。
-模型文件缺失时该链路会静默降级成 warning（历史事故，见 #415）——开工前确认文件存在。
+模型缺失的处置（2026-10-09 起，不再是「静默降级」）：管线入口有 Step 0.3 硬门禁
+（见 Pipeline Execution），质检门禁的 ASR 腿按 INFRA fail-closed（#415 ①）；
+`transcribeVideo` 自身保留 null + warning 的降级契约，供独立工具 `understandVideo`
+的调用方自行判死。
 
 **① 档位（2026-09-29 实测，4 段真实素材）**
 
@@ -328,6 +333,36 @@ whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo.bin -f audio.wav -l en \
 **④ 已知幻觉形态（质检排查用）**：音乐或静音段的重复循环；结尾吐出
 "Thank you."/"请订阅" 之类（静音段幻觉）；turbo 档更明显。若回读质检出现
 「相似度异常高但词数暴增」，先算重复 n-gram 再怀疑文本本身。
+
+**⑤ 运行时裁决（2026-10-09, #418）**：**生产转写唯一运行时 = whisper.cpp**（本节调用口径，
+ADR-0020 §2 首选）；MLX 只存在于 bench 实验轴（`bench/keyframe/asr_batch.py`），**不接生产**
+（登记于 `docs/research/model-sources-reference.md` §ASR 速查）。三条历史路径的处置：
+
+| 路径 | 处置 |
+|---|---|
+| whisper.cpp（`video-understand.mjs` → 质检回读 + `understandVideo`） | 生产唯一转写运行时；Step 0.3 自检门禁（见 Pipeline Execution） |
+| WhisperX/faster-whisper（`asr-analyzer.mjs` 窗口化网关，#98 契约） | **无生产消费者**，保持 dormant；损坏的模型缓存已删（2026-10-09 用户批准），缺失现在报 `model_load_failed`，不再是 `Invalid string length`。接消费者时先裁决「修/重下模型」还是「改走 whisper.cpp」 |
+| wav2vec2（`text-align.py`） | 强制对齐，不是 ASR——不动 |
+
+**⑥ 计时与内存四格（2026-10-09 空机实测）**：4 视频（音频均值 78s）、ctx-off、每格 2 次；
+原始数据 `.scratch/keyframe-bench/asr_timing_matrix.json`（含机器负载快照与 `metal_used`）。
+
+| 引擎/档位 | 每次调用（新进程，含加载） | 常驻调用（warm） | 峰值内存 |
+|---|---|---|---|
+| whisper.cpp `turbo`（生产默认） | **4.92s**（中位 4.21、最快 3.70） | 不适用（每次新进程） | RSS **1.95GB** |
+| whisper.cpp `large-v3` | 13.43s（中位 8.97、最快 6.34；音乐段 29.4s） | 不适用 | RSS **4.10GB** |
+| MLX `turbo` | 5.88s（含解释器；剔除首跑 ≈4.4） | **2.95s** | Metal 峰值 2.53GB（RSS 1.81GB） |
+| MLX `large-v3` | 8.73s | **6.33s** | Metal 峰值 4.00GB（RSS 3.58GB） |
+
+读法：**MLX 的优势只在「模型常驻」**——每次新进程时 turbo 档 5.88s 反而慢于 cpp 4.92s；
+换常驻要新增 NDJSON worker + venv 依赖，省下的是每 scene 秒级（TTS 主导墙钟），故**不切换**。
+内存两边同量级（≈2GB turbo / ≈3.6-4.1GB large-v3；口径不同：cpp 为进程 RSS 含 mmap 权重，
+MLX 为 Metal 峰值）。同模型不同运行时的输出**不可混用**（chars 对照：`-qTAeVGl_e8` cpp 326
+vs MLX 411）。
+
+**⑦ backend 事实（纠正）**：生产命令**不带 `--no-gpu`** → whisper.cpp 默认走 Metal
+（`-t 8` 只控制 CPU 线程数，不等于禁用 GPU）；矩阵 8/8 次 `metal_used=true`。
+「cpp 走 CPU 不抢 GPU」的说法不成立——两个运行时都占 GPU，差别只在 cpp 的占用随进程结束。
 
 
 ## VLM Asset Analysis
