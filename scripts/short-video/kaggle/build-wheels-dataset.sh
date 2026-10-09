@@ -232,22 +232,31 @@ JSON
 # upload at least one file". So the check is a positive signal: something must
 # say the push succeeded. A denylist of error words misses the failures nobody
 # thought to name.
+#
+# Matched against a file, never a pipe: `printf … | grep -q` under
+# `set -o pipefail` reports failure even on a match, because grep exits at the
+# first hit and printf dies of SIGPIPE (141). That turned a successful 114-file
+# upload into "no success signal" on the 2026-10-09 v6 run.
+#
 # Re-running after a first publish means `version` instead of `create`.
 echo "==> pushing dataset (kaggle CLI)"
-PUSH_OUT=$(kaggle datasets create -p "$OUT_DIR" --dir-mode zip 2>&1) || true
-if printf '%s' "$PUSH_OUT" | grep -qi "already.*exists\|already in use"; then
+PUSH_LOG="$OUT_DIR/push.log"
+kaggle datasets create -p "$OUT_DIR" --dir-mode zip >"$PUSH_LOG" 2>&1 || true
+if grep -qi "already.*exists\|already in use" "$PUSH_LOG"; then
   echo "    dataset exists — publishing a new version"
-  PUSH_OUT=$(kaggle datasets version -p "$OUT_DIR" --dir-mode zip -m "wheels rebuild $(date -u +%Y-%m-%dT%H:%MZ)" 2>&1) || true
+  kaggle datasets version -p "$OUT_DIR" --dir-mode zip \
+    -m "wheels rebuild $(date -u +%Y-%m-%dT%H:%MZ)" >"$PUSH_LOG" 2>&1 || true
 fi
-printf '%s\n' "$PUSH_OUT"
-if ! printf '%s' "$PUSH_OUT" | grep -qi "successfully\|upload successful\|starting upload\|dataset version"; then
+cat "$PUSH_LOG"
+if ! grep -qi "successfully\|upload successful\|starting upload\|dataset version" "$PUSH_LOG"; then
   echo "FAIL: the dataset push printed no success signal (the CLI exits 0 even when it fails)"
   exit 1
 fi
-if printf '%s' "$PUSH_OUT" | grep -qi "error\|failed\|exceed"; then
+if grep -qi "error\|failed\|exceed" "$PUSH_LOG"; then
   echo "FAIL: the dataset push reported an error"
   exit 1
 fi
+rm -f "$PUSH_LOG"
 
 echo "✅ Done. xpabloli/cosyvoice3-wheels is attached to the TTS kernel's dataset_sources."
 echo "   A TTS run's kernel log shows it taking effect:"

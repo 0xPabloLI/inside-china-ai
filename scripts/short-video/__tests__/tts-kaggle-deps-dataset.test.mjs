@@ -274,9 +274,19 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
     // upload at least one file" behaving the same way. A denylist of error
     // words misses the failures nobody named.
     const push = BUILD_SRC.slice(BUILD_SRC.indexOf("pushing dataset"));
-    expect(push).toContain("grep -qi");
     expect(push).toContain("successfully");
     expect(push.indexOf("successfully")).toBeLessThan(push.indexOf("exit 1"));
+  });
+
+  it("the push check reads a file, not a pipe", () => {
+    // `printf … | grep -q` under `set -o pipefail` reports failure even on a
+    // match: grep exits at the first hit, printf dies of SIGPIPE (141), and
+    // pipefail takes the non-zero. The v6 run turned a successful 114-file
+    // upload into "no success signal" exactly this way.
+    const push = BUILD_SRC.slice(BUILD_SRC.indexOf("pushing dataset"));
+    expect(push).toContain('PUSH_LOG="$OUT_DIR/push.log"');
+    expect(push).not.toMatch(/\|\s*grep -q/);
+    expect(push).toContain('grep -qi "successfully');
   });
 
   it("torch trio pins are identical in both files", () => {
