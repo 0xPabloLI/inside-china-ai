@@ -71,23 +71,34 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
     }
   });
 
-  it("the sdist-only packages are downloaded as sdists, not as wheels", () => {
+  it("the sdist-only packages are fetched outside the wheel-only groups", () => {
     // The 2026-10-09 Kaggle build died at `pip download --only-binary=:all:
     // openai-whisper` ("from versions: none"): whisper publishes no wheel at
-    // all, and pyworld's only wheels are Windows. A wheel download for any of
-    // these fails the whole build, so keep them in the sdist group.
+    // all, and pyworld's only wheels are Windows. Group 5 fetches them by URL
+    // instead, so a name drifting back into a wheel group reintroduces the
+    // failure — and `pip download --no-binary` is avoided there too, because
+    // building pyworld's metadata stalled the same run for tens of minutes.
     const sdistGroup = BUILD_SRC.slice(
       BUILD_SRC.indexOf("group 5/5"),
       BUILD_SRC.indexOf("verifying completeness"),
     );
-    expect(sdistGroup).toContain("--no-binary=:all:");
     for (const pkg of ["pyworld==", "wget==", "antlr4-python3-runtime==", "openai-whisper"]) {
       expect(sdistGroup).toContain(pkg);
     }
-    // …and nowhere else: a duplicate download in a wheel group reintroduces the
-    // --only-binary failure it was moved out of.
     const wheelGroups = BUILD_SRC.slice(BUILD_SRC.indexOf("group 1/5"), BUILD_SRC.indexOf("group 5/5"));
-    expect(wheelGroups).not.toContain("openai-whisper");
+    for (const pkg of ["pyworld", "wget", "antlr4-python3-runtime", "openai-whisper"]) {
+      expect(wheelGroups).not.toContain(pkg);
+    }
+  });
+
+  it("the completeness check covers the sdist-only packages by name", () => {
+    // wget ships as a .zip and nothing else, so counting *.tar.gz would pass
+    // on the wrong set while still missing a package the kernel installs.
+    const check = BUILD_SRC.slice(BUILD_SRC.indexOf("verifying completeness"));
+    expect(check).toContain("SDIST_ONLY");
+    for (const pkg of ["pyworld", "wget", "antlr4-python3-runtime", "openai-whisper"]) {
+      expect(check).toContain(pkg);
+    }
   });
 
   it("torch trio pins are identical in both files", () => {

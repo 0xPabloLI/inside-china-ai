@@ -63,10 +63,15 @@ TORCH_LINUX_DEPS=(
 
 mkdir -p "$OUT_DIR"
 
+# Each group reports its file count: the download is minutes long and silent
+# with -q, so without this a slow group is indistinguishable from a hang.
+wheels_so_far() { find "$OUT_DIR" -maxdepth 1 -name '*.whl' | wc -l | tr -d ' '; }
+
 echo "==> group 1/5: build tooling (PyPI)"
 "$PY" -m pip download -q -d "$OUT_DIR" "${TARGET[@]}" \
   "setuptools<81" wheel Cython \
   --index-url https://pypi.org/simple
+echo "    $(wheels_so_far) wheels so far"
 
 echo "==> group 2/5: torch trio + core deps (pypi primary, pytorch cu124 for the trio)"
 "$PY" -m pip download -q -d "$OUT_DIR" "${TARGET[@]}" \
@@ -79,22 +84,51 @@ echo "==> group 2/5: torch trio + core deps (pypi primary, pytorch cu124 for the
   onnxruntime-gpu==1.20.0 tiktoken numba \
   --index-url https://pypi.org/simple \
   --extra-index-url https://download.pytorch.org/whl/cu124
+echo "    $(wheels_so_far) wheels so far"
 
 echo "==> group 3/5: torch's Linux-only deps (marker-guarded, see header)"
 "$PY" -m pip download -q -d "$OUT_DIR" "${TARGET[@]}" \
   "${TORCH_LINUX_DEPS[@]}" \
   --index-url https://pypi.org/simple
+echo "    $(wheels_so_far) wheels so far"
 
 echo "==> group 4/5: hydra/omegaconf wheels (--no-deps: their only unwheelable"
 echo "    dep is antlr4, which comes as an sdist in group 5)"
 "$PY" -m pip download -q -d "$OUT_DIR" "${TARGET[@]}" --no-deps \
   omegaconf==2.3.0 hydra-core==1.3.2 \
   --index-url https://pypi.org/simple
+echo "    $(wheels_so_far) wheels so far"
 
-echo "==> group 5/5: sdist-only packages (built by the kernel with --no-build-isolation)"
-"$PY" -m pip download -q -d "$OUT_DIR" --no-deps --no-binary=:all: \
-  pyworld==0.3.4 wget==3.2 antlr4-python3-runtime==4.9.3 openai-whisper \
-  --index-url https://pypi.org/simple
+echo "==> group 5/5: sdist-only packages (fetched by URL, see below)"
+# Fetched by URL rather than `pip download --no-binary=:all:`: pip builds each
+# sdist's metadata through its PEP 517 backend, and that build is slow enough
+# that the 2026-10-09 run sat in this group for tens of minutes with no output.
+# The kernel still builds them from source; only the fetch is direct.
+"$PY" - "$OUT_DIR" <<'PYEOF'
+import json, os, sys, urllib.request
+
+out = sys.argv[1]
+# Same `name==version` spelling as the kernel's pins so the contract test can
+# read this list; a bare name means "whatever is current", matching the kernel.
+SDIST_ONLY = [
+    "pyworld==0.3.4",
+    "wget==3.2",
+    "antlr4-python3-runtime==4.9.3",
+    "openai-whisper",
+]
+for spec in SDIST_ONLY:
+    name, _, pinned = spec.partition("==")
+    with urllib.request.urlopen(f"https://pypi.org/pypi/{name}/json") as r:
+        data = json.load(r)
+    version = pinned or data["info"]["version"]
+    files = [f for f in data["releases"][version] if f["packagetype"] == "sdist"]
+    if len(files) != 1:
+        sys.exit(f"FAIL: expected exactly 1 sdist for {name}=={version}, found {len(files)}")
+    f = files[0]
+    dest = os.path.join(out, f["filename"])
+    urllib.request.urlretrieve(f["url"], dest)
+    print(f"    {f['filename']} ({os.path.getsize(dest) / 1e6:.1f}MB)")
+PYEOF
 
 echo "==> verifying completeness against torch's own metadata"
 "$PY" - "$OUT_DIR" <<'PYEOF'
@@ -102,13 +136,18 @@ import glob, os, re, sys, zipfile
 
 out = sys.argv[1]
 wheels = {os.path.basename(p) for p in glob.glob(os.path.join(out, "*.whl"))}
-sdists = {os.path.basename(p) for p in glob.glob(os.path.join(out, "*.tar.gz"))}
+# Not just *.tar.gz: wget==3.2 is published as a .zip and nothing else.
+sdists = {
+    os.path.basename(p)
+    for p in glob.glob(os.path.join(out, "*"))
+    if not p.endswith((".whl", ".json"))
+}
 size = sum(os.path.getsize(os.path.join(out, f)) for f in wheels | sdists)
 print(f"    wheelhouse: {len(wheels)} wheels + {len(sdists)} sdists, {size / 1e9:.1f}GB")
 
-def present(name):
+def present(name, pool):
     n = re.sub(r"[-_.]+", "-", name).lower()
-    return any(re.sub(r"[-_.]+", "-", w).lower().startswith(n + "-") for w in wheels)
+    return any(re.sub(r"[-_.]+", "-", w).lower().startswith(n + "-") for w in pool)
 
 torch_whl = next((w for w in wheels if w.startswith("torch-")), None)
 if not torch_whl:
@@ -125,15 +164,24 @@ for line in meta.splitlines():
     if "platform_system" in spec and "Linux" in spec:
         linux_deps.append(spec.split(";")[0].strip())
 
-missing = [d for d in linux_deps if not present(re.split(r"[<>=!~]", d)[0])]
+missing = [d for d in linux_deps if not present(re.split(r"[<>=!~]", d)[0], wheels)]
 print(f"    torch {torch_whl}: {len(linux_deps)} Linux-marker deps, {len(missing)} missing")
 for d in missing:
     print(f"    MISSING: {d}")
 if missing:
     sys.exit("FAIL: wheelhouse is incomplete — do not push")
-if len(sdists) != 4:
-    sys.exit(f"FAIL: expected exactly 4 sdists (pyworld/wget/antlr4/openai-whisper), found {len(sdists)}: {sorted(sdists)}")
-print("    OK: every Linux-marker dep present, 4 sdists as expected")
+
+# The kernel installs these with --no-index too, and none of them publish a
+# Linux wheel, so each must be present as an sdist. Checked by name rather than
+# by counting: one of them (wget) ships as a .zip, and a count would pass on the
+# wrong set while still missing the one the kernel needs.
+SDIST_ONLY = ["pyworld", "wget", "antlr4-python3-runtime", "openai-whisper"]
+absent = [p for p in SDIST_ONLY if not present(p, sdists)]
+for p in absent:
+    print(f"    MISSING sdist: {p}")
+if absent:
+    sys.exit("FAIL: wheelhouse is incomplete — do not push")
+print(f"    OK: every Linux-marker dep + all {len(SDIST_ONLY)} sdist-only packages present")
 PYEOF
 
 # Metadata is written only after the check passes, so a failed build never
@@ -147,8 +195,21 @@ cat > "$OUT_DIR/dataset-metadata.json" <<JSON
 }
 JSON
 
+# The CLI exits 0 even when the API rejects the request — the 2026-10-09 probe
+# got "Dataset creation error: The requested title … is already in use by a
+# notebook" with rc=0 — so the output has to be checked, not the exit code.
+# Re-running after a first publish means `version` instead of `create`.
 echo "==> pushing dataset (kaggle CLI)"
-kaggle datasets create -p "$OUT_DIR" --dir-mode zip
+PUSH_OUT=$(kaggle datasets create -p "$OUT_DIR" --dir-mode zip 2>&1) || true
+if printf '%s' "$PUSH_OUT" | grep -qi "already.*exists\|already in use"; then
+  echo "    dataset exists — publishing a new version"
+  PUSH_OUT=$(kaggle datasets version -p "$OUT_DIR" --dir-mode zip -m "wheels rebuild $(date -u +%Y-%m-%dT%H:%MZ)" 2>&1) || true
+fi
+printf '%s\n' "$PUSH_OUT"
+if printf '%s' "$PUSH_OUT" | grep -qi "error\|failed\|exceed"; then
+  echo "FAIL: dataset push reported an error (the CLI still exits 0 here)"
+  exit 1
+fi
 
 echo "✅ Done. Now attach xpabloli/cosyvoice3-wheels to cosyvoice3-cuda-batch's dataset_sources."
 echo "   Verify on the next real TTS run: kernel log must show 'wheels dataset mount found' and no PyPI traffic."

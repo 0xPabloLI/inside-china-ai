@@ -110,4 +110,4 @@ done
 
 ### .nvmrc（#231，2026-09-12 新增）
 
-- 仓库根 `.nvmrc` = 22（Remotion 渲染需 arm64 Node ≥22，x64 缺 @rspack 绑定）；上条「Node 版本漂移」的 `无 .nvmrc` 表述已过时。
+- 仓库根 `.nvmrc` = 24（Remotion 渲染需 arm64 Node ≥22，x64 缺 @rspack 绑定；renovate 后续抬到 24，下限仍是 22）；上条「Node 版本漂移」的 `无 .nvmrc` 表述已过时。
