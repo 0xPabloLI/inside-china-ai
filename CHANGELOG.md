@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.12.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.11...tanstack_start_ts-v1.12.0) (2026-10-09)
+
+
+### Features
+
+* **asr:** [#418](https://github.com/0xPabloLI/inside-china-ai/issues/418) Step 0.3 ASR 自检门禁——模型缺失在 TTS 花费前硬失败 ([9840f07](https://github.com/0xPabloLI/inside-china-ai/commit/9840f0750d97aad56e789603d9da014a6873a7df))
+* **bench:** [#418](https://github.com/0xPabloLI/inside-china-ai/issues/418) ASR 运行时计时矩阵——四格 {turbo,large-v3}×{cpp,MLX} + 峰值内存 ([6472e25](https://github.com/0xPabloLI/inside-china-ai/commit/6472e2589dbe1ddb2cc9c23e434ecf11c8d48a93))
+
+
+### Bug Fixes
+
+* **asr:** [#418](https://github.com/0xPabloLI/inside-china-ai/issues/418) ADR-0020 单一真值源落到实处——cpp 模型路径/元数据改由常量派生 ([16f86fa](https://github.com/0xPabloLI/inside-china-ai/commit/16f86fa37e4a4a5e73dde3937b545c1589a0a996))
+* **asr:** [#418](https://github.com/0xPabloLI/inside-china-ai/issues/418) 复核修复——opt-out 单一真值源 + 模型完整性自检 ([299d21f](https://github.com/0xPabloLI/inside-china-ai/commit/299d21f92b93cd4fc2945755c342432a2a50e552))
+* **bench:** [#418](https://github.com/0xPabloLI/inside-china-ai/issues/418) 计时矩阵口径自述属实 + summary 聚合 + Metal 实测；补等价性 harness ([67a8906](https://github.com/0xPabloLI/inside-china-ai/commit/67a890653a1e8cc3ea77964523742f6a3ad7794c))
+
 ## [1.11.11](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.10...tanstack_start_ts-v1.11.11) (2026-10-09)
 
 
