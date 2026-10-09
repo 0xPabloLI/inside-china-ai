@@ -111,14 +111,21 @@ Streamlit Web UI（8501，只有 Home/History 两页，数字人与动作迁移�
 ### 值得学的五点，以及每点和在飞票的关系
 
 1. **让模板声明素材依赖，而不是让调度猜。** 它的 `static_/image_/video_` 前缀就是模板对"我要不要 AI 素材"的契约，pipeline 据此整段跳过生成（`standard.py:161`）。我们的 `visualType` + `mediaStrategy` 是两套词表且靠推断（提案 F4/F7 已记录：缺省 `"asset"` 会静默复用他场景媒体）。注意方向差异：#355/#354 在做的是「把声明从场景上摘掉、变默认链」，而这一层的价值是「**把声明挪到模板上**」——两者不冲突，是同一件事的两个位置。
+
+   **这个前缀由谁决定（2026-10-09 补查）**：是人，而且 UI 把"类型"做成第一层选择——`web/components/style_config.py:382-386` 只列前缀合规的模板，按 `get_templates_grouped_by_size_and_type` 以「尺寸 × 类型」分组呈现，`:356` 还给了类型→默认版式的映射；**LLM 全程不参与选模板**（代码里没有任何相关路径）。也就是说"要不要 AI 素材"这个决定在交互层被显式化了，而不是藏在参数里。
+
+   **但它是软约束，代价已实测到**：`config/schema.py:117` 的 `default_template` 兜底值是 `1080x1920/default.html`，而**该文件在仓库里不存在**（正对照：同目录的 `static_default.html`、`image_default.html` 都在）；`config/manager.py:57` 的 `_validate_template` 捕获 `FileNotFoundError` 后**只 warn**，且 warn 文案写的"再兜底"目标仍是那个不存在的文件；`pipelines/custom.py:511/522` 的 SDK 示例引用的 `simple.html`、`default.html` 也都不存在。后果：只要 `config.yaml` 缺 `template.default_template`（`config.example.yaml:91` 本身是对的），就会一路走到渲染期才失败。→ **我们若采纳"模板声明素材依赖"，必须同时配一条校验**（存在性 + 前缀合规），否则声明会静默失效。
+
 2. **原子能力 REST 化。** `/frame/render`、`/tts/synthesize`、`/content/image-prompt` 均可单点调用，重做一帧不必重跑全片。我们 `main.mjs` 是整条跑，#421（全量缓存命中跳过 forced alignment 静默产出无字幕视频）、#423（失败路径不落缓存 meta 致已付费 GPU 产物作废）这类票的病根之一正是"没有可独立重跑的局部入口"；#228 的「Remotion 增量渲染」覆盖渲染侧，接口侧仍空。
 3. **run 级隔离目录 + 自描述 manifest。** 每次生成一个时间戳 task 目录，`metadata.json` 存本次参数、`storyboard.json` 存分镜，History 页可回看对比。我们 `output/{slug}/` 与 `pipeline-status.json` 是**单文件覆盖式**——本次调研就实际撞上「新跑一条会覆盖在飞的 deepseek-harness-desktop 状态」，这是真缺口且无在案票。
-4. **`template_params` 受控定制。** 不改代码即可换 accent_color 等样式参数。我们改风格要动 `remotion/src/` 组件，属 #291「模板视觉系统重做」的同一域。
+4. **模板自描述：参数 DSL + 可枚举接口。** 模板是纯 HTML，用 `{{param:type=default}}` 声明自己的插槽与可调参数，支持 `text/number/color/bool` 四种类型（解析 `frame_html.py:180`），例如 `{{accent_color:color=#ff0000}}`；不改代码即可换配色/字号。更关键的是 `GET /frame/template/params`（`api/routers/frame.py:87`）会把任一模板的参数清单**枚举出来**——调用方不必读 HTML 就知道这个版式能改什么。这是"模板即接口"，我认为比 `template_params` 本身更值得学：我们目前选版式要么读 `remotion/src/` 组件、要么靠 agent 记忆，没有任何"版式自报能力"的清单可查。属 #291「模板视觉系统重做」的同一域。
 5. **进度事件带语义步骤名 + 可注入 callback**（`generating_narrations` / `processing_frame` / `concatenating`），观测性优于我们的 console 输出。
 
 需要一并记下的反面：那 41 秒的代价是**没有任何事实与质量门**——它全自主产出的旁白里，「这其实和人的记忆有关，我们记住的东西越多，越容易把不同的事情混在一起记错」是模型编造的类比，无来源。我们不该羡慕速度本身，只该羡慕接口形态。
 
 **落地动作（2026-10-02，用户批准）**：第 3 点新开 **#462**（状态与产物单文件覆盖式）；第 1 点作为票评补进 **#355** 的 D3 视野；第 4 点（含 25 个竖屏版式清单与"动画层是分水岭"的反面判据）补进 **#291**；第 2、5 点（入口粒度与步骤名）补进 **#228**；第 1 点的延伸——版面与素材形态不联动（`NarrativeScene.tsx:52` 只读 `scene.layout`、组件内无视频/静图分支）——新开 **#463**。五点均未在本轮动代码。
+
+**2026-10-09 补查**：追"前缀由谁决定"时挖出第 1、4 点的两条关键细节并已并入上文——① 前缀由**人**在 UI 决定（`style_config.py:382-386` 只列合规前缀、按「尺寸 × 类型」分组），LLM 不参与选模板；② 该软约束**确实会静默失效**（`schema.py:117` 兜底指向仓库中不存在的 `1080x1920/default.html`，`manager.py:57` 只 warn，SDK 示例引用的 `simple.html`/`default.html` 同样不存在）。据此新开 **#519**（版式自描述清单 + 必须配校验），与 #463 / #355 / #291 的边界写在票面。Tool Catalog 侧不再重复：按 DOCS-INDEX 的 L1/L2 边界，这些属研究依据，留在本文。
 
 ## Contrarian Views & Risks
 
@@ -206,3 +213,11 @@ Streamlit Web UI（8501，只有 Home/History 两页，数字人与动作迁移�
 53. https://github.com/comfyanonymous/ComfyUI （README 经 `gh api` 直读：支持 `NVIDIA, AMD, Intel, Apple Silicon, Ascend`；全文无 MLX；4GB VRAM + 8GB RAM 权重流送宣称；pushed 2026-10-02）— Tier 1（用于判定"MPS 可行 / 无 MLX 后端 / 上游本身仍高频活跃"）
 54. 本仓 `.env.local` 键名清单（只列名不取值）：有 `GEMINI_API_KEY` / `GROQ_API_KEY` / `HF_TOKEN`，无 `DASHSCOPE` / `ARK` / `KLING` / `OPENAI` — 判定「按设计跑一条」在本机不可行的依据 — Tier 1（内部）
 55. 本仓 `docs/research/media-strategy-unification-proposal-2026-09.md` F4/F7/D1b/D2/D3、`docs/issue-roadmap.md` Wave 3B、开放票 #291 / #228 / #354 / #355 / #421 / #423 — 五条可学习项与在飞工作的对账依据 — Tier 1（内部）
+
+### 模板设计补查（2026-10-09）
+
+56. `pixelle_video/utils/template_util.py:389-426` `get_template_type` — 前缀三分支 + 不合规名 warn 后**默认 image** — Tier 1
+57. `web/components/style_config.py:302,326,356,382-386,527-530` + `web/components/output_preview.py:85-86` — UI 按「尺寸 × 类型」分组、只列前缀合规模板、static 有专门提示文案；全仓无 LLM 选模板路径 — Tier 1
+58. `pixelle_video/config/schema.py:115-119`（`default_template` 兜底值 `1080x1920/default.html`）、`pixelle_video/config/manager.py:53,57-69`（校验仅 warn，且兜底文案指向同一不存在文件）、`pixelle_video/pipelines/custom.py:175-177,511,522`（同一兜底 + SDK 示例引用 `simple.html`/`default.html`）+ 对 `templates/1080x1920/` 的存在性实测（`default.html`、`simple.html` 均不存在；`static_default.html`、`image_default.html` 存在，作正对照）— Tier 1 + 自有实验
+59. `pixelle_video/services/frame_html.py:180-184,275-287,455-462` — `{{param:type=default}}` DSL 解析、四类参数、`file://` 载入 + `omit_background=True` 截透明 PNG — Tier 1
+60. `api/routers/frame.py:87-112` — `GET /frame/template/params` 枚举模板自定义参数（"模板即接口"）— Tier 1
