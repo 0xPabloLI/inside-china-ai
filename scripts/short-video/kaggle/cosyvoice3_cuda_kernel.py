@@ -5,12 +5,14 @@ CosyVoice3 CUDA Kaggle kernel template.
 Placeholders (replaced by JS adapter before push):
   __MANIFEST_JSON__  — JSON array of {sceneId, text, instruct_text?, output}
   __REQUEST_ID__     — per-run identity echoed into summary.json (#420)
+  __EXPECTED_WHEELHOUSE__ — kaggle/wheelhouse-manifest.json, checked against
+                        the mount before installing anything (#521)
 
 Ref audio is loaded from Kaggle dataset: xPabloLI/tts-ref-audio
 
 Output: /kaggle/working/output/<scene-N>.wav + summary.json
 """
-import subprocess, sys, os, time, json, traceback, base64, re
+import subprocess, sys, os, time, json, traceback, base64, re, platform
 
 _logfile = open("/kaggle/working/log.txt", "w")
 def log(msg):
@@ -22,6 +24,7 @@ log(f"Python: {sys.version.split()[0]}")
 
 MANIFEST_JSON = r'''__MANIFEST_JSON__'''
 REQUEST_ID = r'''__REQUEST_ID__'''
+EXPECTED_WHEELHOUSE = json.loads(r'''__EXPECTED_WHEELHOUSE__''')
 
 try:
     import torch
@@ -46,6 +49,76 @@ if not _WHEELS_DIRS:
     import glob as _wheels_glob
     _WHEELS_DIRS = _wheels_glob.glob("/kaggle/input/**/cosyvoice3-wheels", recursive=True)
 _WHEELS_MOUNT = _WHEELS_DIRS[0] if _WHEELS_DIRS else None
+
+
+# --- BEGIN wheelhouse verification ---
+# Extracted and executed for real by
+# scripts/short-video/__tests__/tts-kaggle-wheelhouse-manifest.test.mjs.
+def _wheelhouse_problems(mount, expected, python=None, platform_tag=None):
+    """Reasons the mounted wheelhouse is not the set this repo froze (#521).
+
+    `dataset_sources` cannot pin a version: the CLI accepts `owner/slug/3` but
+    Kaggle stores it back as `owner/slug` and mounts the LATEST version —
+    probed 2026-10-09 with a two-version dataset, where a kernel asking for
+    `/1` mounted version 2's content. A re-upload therefore changes what every
+    run installs with nothing in git recording it. The expected set is
+    injected from kaggle/wheelhouse-manifest.json at push time and compared
+    here, before the first pip install, so that change fails loudly in seconds
+    instead of silently installing a different environment.
+
+    Names, not hashes: `torch-2.6.0+cu124-…` is served back as
+    `torch-2.6.0cu124-…` (Kaggle strips the local-version separator when it
+    stores a dataset), so both sides are put into built form first. Hashing
+    would also catch a same-name rebuild, at the cost of reading all 3.7GB on
+    every run — a rebuild that keeps 114 identical names is not the drift
+    this guards against.
+    """
+    problems = []
+    want_py = expected.get("python")
+    if want_py:
+        actual_py = python or f"{sys.version_info.major}.{sys.version_info.minor}"
+        if actual_py != want_py:
+            problems.append(
+                f"this image runs Python {actual_py}, but the frozen wheelhouse was built "
+                f"for {want_py} (cp{want_py.replace('.', '')}) — none of its wheels install here"
+            )
+    want_platform = expected.get("platform")
+    if want_platform:
+        actual_platform = platform_tag or f"{sys.platform}_{platform.machine()}"
+        if actual_platform != want_platform:
+            problems.append(
+                f"this image is {actual_platform}, but the frozen wheelhouse was built "
+                f"for {want_platform}"
+            )
+
+    def built_form(name):
+        return re.sub(r"(\d)cu(\d+)-", r"\1+cu\2-", name)
+
+    have = {built_form(n) for n in os.listdir(mount) if n.endswith(".whl")}
+    want = set(expected.get("wheels") or [])
+    for name in sorted(want - have)[:5]:
+        problems.append(f"missing from the mount: {name}")
+    for name in sorted(have - want)[:5]:
+        problems.append(f"not in the frozen set: {name}")
+    if len(want - have) > 5 or len(have - want) > 5:
+        problems.append(f"…and more (mount {len(have)} wheels, frozen set {len(want)})")
+    return problems
+# --- END wheelhouse verification ---
+
+
+if _WHEELS_MOUNT:
+    _wheelhouse_issues = _wheelhouse_problems(_WHEELS_MOUNT, EXPECTED_WHEELHOUSE)
+    if _wheelhouse_issues:
+        log("FAIL: the mounted wheelhouse is not the set this repo froze (#521):")
+        for _issue in _wheelhouse_issues:
+            log(f"  {_issue}")
+        log("  Kaggle mounts a dataset at its LATEST version — the version segment of")
+        log("  dataset_sources is dropped at push time — so a re-upload changes what")
+        log("  every run installs, with nothing in git recording it.")
+        log("  Rebuild and re-record: scripts/short-video/kaggle/build-wheels-dataset.sh")
+        log("  prints the new set to paste into kaggle/wheelhouse-manifest.json.")
+        sys.exit(1)
+    log(f"wheelhouse matches the frozen set ({len(EXPECTED_WHEELHOUSE.get('wheels') or [])} wheels)")
 
 
 def _restore_local_versions(src):

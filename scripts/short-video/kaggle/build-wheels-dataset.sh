@@ -4,20 +4,29 @@
 #
 # One-time (and after any deliberate dep bump) operation:
 #   1. download the exact wheels the kernel's online path would resolve
-#   2. push them as the xpabloli/cosyvoice3-wheels dataset
-#   3. attach `xpabloli/cosyvoice3-wheels` in the kernel metadata's
+#   2. check the set against kaggle/wheelhouse-manifest.json and refuse to
+#      publish a set that file does not describe (#521)
+#   3. push them as the xpabloli/cosyvoice3-wheels dataset
+#   4. attach `xpabloli/cosyvoice3-wheels` in the kernel metadata's
 #      dataset_sources — the kernel then installs offline via
 #      `pip --no-index --find-links` (cosyvoice3_cuda_kernel.py #231 block)
 #
-# Run it ON Kaggle, not on the laptop: `kaggle kernels push` a script kernel
-# that base64-embeds this file and calls it (kernel slug
-# xPabloLI/231-build-wheels-dataset). Three reasons, all learned the hard way
-# on 2026-10-09: Kaggle's own network pulls the 3.7GB set at 70-180MB/s where a
-# home link manages ~0.7MB/s; group 5 compiles pyworld, and building it on the
-# same image the TTS kernel uses keeps the ABI identical; and the CLI inside a
-# kernel is authenticated, so the push step needs no local credentials.
+# Accepting a rebuilt set is a two-step: the failure below prints the JSON to
+# paste into kaggle/wheelhouse-manifest.json, and the build is re-run to
+# publish. Kaggle cannot pin a dataset version, so that file is the only
+# record of what the dataset holds.
 #
-# Requires: kaggle CLI authenticated; ~8GB free disk; a modern pip (--platform).
+# Run it ON Kaggle, not on the laptop — scripts/short-video/kaggle/push-build-kernel.sh
+# does the delivery (it embeds this file plus the manifest into the script
+# kernel xPabloLI/231-build-wheels-dataset and pushes it). Three reasons, all
+# learned the hard way on 2026-10-09: Kaggle's own network pulls the 3.7GB set
+# at 70-180MB/s where a home link manages ~0.7MB/s; group 5 compiles pyworld,
+# and building it on the same image the TTS kernel uses keeps the ABI
+# identical; and the CLI inside a kernel is authenticated, so the push step
+# needs no local credentials.
+#
+# Requires: kaggle CLI authenticated; ~8GB free disk; a modern pip (--platform);
+# wheelhouse-manifest.json next to this file (WHEELHOUSE_MANIFEST overrides).
 #
 # Target platform is resolved explicitly for Kaggle's runtime (linux x86_64 /
 # CPython 3.13) so groups 1-4 resolve correctly from any host. Two traps that
@@ -213,6 +222,73 @@ for p in absent:
 if absent:
     sys.exit("FAIL: wheelhouse is incomplete — do not push")
 print(f"    OK: every Linux-marker dep + all {len(SDIST_ONLY)} built-from-sdist packages present")
+PYEOF
+
+# Kaggle cannot pin a dataset version: the CLI accepts `owner/slug/3` but the
+# server stores it back as `owner/slug` and mounts the latest, so a re-upload
+# silently changes what every TTS run installs (#521, probed 2026-10-09 — a
+# kernel asking for `/1` mounted version 2's content). The defence is a record
+# git keeps: the published set must equal kaggle/wheelhouse-manifest.json, and
+# the kernel checks the mount against that same file before it installs
+# anything. This side of the lock is what stops an unrecorded set from ever
+# being published.
+echo "==> verifying the set against the committed manifest"
+"$PY" - "$OUT_DIR" "${WHEELHOUSE_MANIFEST:-$(dirname "$0")/wheelhouse-manifest.json}" <<'PYEOF'
+import glob, json, os, re, sys
+
+out, expected_path = sys.argv[1], sys.argv[2]
+if not os.path.exists(expected_path):
+    sys.exit(
+        f"FAIL: no committed manifest at {expected_path} — the wheelhouse cannot be\n"
+        "      published without the record git keeps of it (#521). Push it with\n"
+        "      scripts/short-video/kaggle/push-build-kernel.sh, which embeds both files."
+    )
+with open(expected_path) as f:
+    expected = json.load(f)
+
+
+def built_form(name):
+    """Undo Kaggle's local-version stripping — see the kernel's copy of this."""
+    return re.sub(r"(\d)cu(\d+)-", r"\1+cu\2-", name)
+
+
+have = {built_form(os.path.basename(p)) for p in glob.glob(os.path.join(out, "*.whl"))}
+want = set(expected.get("wheels") or [])
+if not want:
+    sys.exit("FAIL: the committed manifest lists no wheels — refusing to compare against nothing")
+
+added, removed = sorted(have - want), sorted(want - have)
+if added or removed:
+    print(f"    built {len(have)} wheels; the committed manifest lists {len(want)}")
+    for name in removed:
+        print(f"    NO LONGER BUILT: {name}")
+    for name in added:
+        print(f"    NEW: {name}")
+    print()
+    print("    Nothing was published: a wheelhouse git does not describe is a")
+    print("    dependency change no reviewer saw (#521). To accept this set, put")
+    print("    the JSON below in scripts/short-video/kaggle/wheelhouse-manifest.json")
+    print("    and run this build again.")
+    print()
+    print(json.dumps({**expected, "wheels": sorted(have)}, indent=2, ensure_ascii=False))
+    sys.exit("FAIL: the built set does not match the committed manifest")
+
+# Self-describing dataset: whoever opens its page sees what interpreter the
+# wheels are for without reading the build script. Names are in built form —
+# Kaggle strips the local-version `+` when it stores the file, so the listing
+# shows torch-2.6.0cu124-… where this says torch-2.6.0+cu124-….
+doc = {
+    **expected,
+    "wheels": sorted(have),
+    "note": (
+        "Written by build-wheels-dataset.sh. Kaggle strips the local-version '+' when "
+        "it stores a dataset, so torch-2.6.0+cu124-…whl is served back as "
+        "torch-2.6.0cu124-…whl. The kernel compares the mount against this set."
+    ),
+}
+with open(os.path.join(out, "manifest.json"), "w") as f:
+    json.dump(doc, f, indent=2, ensure_ascii=False)
+print(f"    built set matches the committed manifest ({len(have)} wheels)")
 PYEOF
 
 # Metadata is written only after the check passes, so a failed build never
