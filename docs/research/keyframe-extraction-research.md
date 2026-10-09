@@ -592,6 +592,12 @@ METEOR 含召回项，长输出天然占便宜，属指标构造，不是信息�
 
 落地清单（本票不改生产默认，以下为落地 PR 的变更点）：
 
+> ⚠️ **以下清单是落地前的状态描述**，其中引用的常量与行号**已被上面的落地改动取代**
+> （`LONG_TIER_MAX_MS` / `REDUCED_SAMPLE_FPS` / `MAX_SEGMENTS` /
+> `MAX_FRAMES_PER_SEGMENT` 已删除，Phase 2.5 现在从 `buildWindowPlan()` 起）。
+> 保留它是为了记录「为什么这样改」；要核对当前实现请读 `asset-sourcer.mjs`
+> 的 `buildWindowPlan()` 与 §18.1.1 的上限公式，不要按下面的行号去 grep。
+
 1. **`scripts/short-video/lib/asset-sourcer.mjs` Phase 2.5（`:1180-1230`）**：`DEFAULT_WINDOW_END_MS=8000`（`:1188`）/ `LONG_TIER_MAX_MS=30000`（`:1190`）/ `REDUCED_SAMPLE_FPS=0.5`（`:1191`）/ `MAX_SEGMENTS=3`（`:1192`）/ `MAX_FRAMES_PER_SEGMENT=8`（`:1193`）四档逻辑 → window plan（`n=ceil(D/248)`、边界吸附 ±min(15s, 10%·D/n)、每窗预算 `clamp(比例项, ceil(L/8)+1, min(32, floor(L/1.0)+1))`（§18.1.1 的时长上限）、单窗下限 `ceil(L/8)+1`）。窗口对象形状不变 `{startMs, endMs, sampleFps}`，`sampleFps = budget / 窗长`（≤8s 素材 1.0 → 4.0；10s 素材 1.1 而非 3.2）。
 2. **`scripts/short-video/lib/vlm_analyzer.py`**：`DEFAULT_MAX_FRAMES=16`（`:125`）抬到 32，否则每窗预算被调用侧 cap 截断；`MAX_VIDEO_SECONDS=8`（`:115`）语义不变（单窗直喂档上限）；`normalize_windows`（`:1033`）字段契约不动。
 3. **缓存**：`vlm-cache.mjs`（`:86-102`）已把 `window`/`windows` 纳入 key → 计划一变 key 必变，无 stale 命中，无需手工 bump `VLM_CACHE_PIPELINE_VERSION`。
