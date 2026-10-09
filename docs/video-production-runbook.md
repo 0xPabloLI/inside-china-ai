@@ -472,6 +472,24 @@ Xcode.app**（`xcrun coremlc` 不存在）。**故不引入**：ASR 不是墙钟
 ASR 只有约 5s。若将来 ASR 成为瓶颈，先测 `-bs 1`（本机实测仅 1.08×，已证伪）与 ANEForge，
 再考虑 CoreML。护栏与重测条件见 `docs/research/keyframe-extraction-research.md` §17.5。
 
+**⑪ 语言默认值不是 auto-detect（2026-10-09 实测，纠正此前说法）**：whisper-cli 的
+`-l LANG` 默认是 **`en`**（help 写 `-l LANG [en]`，stderr 实测打 `lang = en`）——
+**不传 `-l` 就是强制英文，不是自动检测**。此前把 `transcribeVideo` 描述成「靠自动检测」是错的。
+实测后果：中文音频**仍然返回中文**（多语模型不会翻成英文），但**专有名词退化**——同一段中文
+素材（`_mlx-vs-kaggle-ab/mlx-narrative-calm-zh_000.wav`），`lang = en` 出 `DeepSeq`，
+`lang = auto` 出 `DeepSeek`（自动检测 p = 0.998）。修复按调用方语义分开，**唯一的生产调用者
+行为不变**：
+
+| 调用方 | 语言口径 | 说明 |
+|---|---|---|
+| TTS 质检回读（`quality-gate.mjs`） | `-l en` | 英文配音本来就该用 en；原先靠「默认恰好是 en」，现在显式钉住（`languageHint` 此前只是被塞进 `meta`、从未生效） |
+| `understandVideo`（任意来源视频） | `-l auto` | TikTok/YouTube/Bilibili 不保证英文；该路径目前 dormant（无生产调用者），接消费者时即正确 |
+| `transcribeVideo` 其他调用 | 不传 → 继承 `en` | 新增 `options.language`，不传则与修复前逐字节同命令 |
+
+验证：`video-understand.test.mjs` 新增 2 条（变异检查确认有判别力：注入变异体后新测试失败，
+还原后逐字节一致）；真实中文素材冒烟（同一 wav 两种口径的文本对照，见上）；
+short-video 全量 **3952 passed**（191 文件，无回归）。
+
 ## VLM Asset Analysis
 
 The pipeline uses two independent Python subprocesses managed by `visual-analyzer.mjs`:
