@@ -7,10 +7,10 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-10-08（**Round W**：#502 收口闭票——pre-push osv 门禁经 #498 `osv-scanner.toml` 豁免机制恢复放行（同日 push 实测无需 `--no-verify`）；cloud-gpu-options.md 历史泄露的 Modal token（public 自 `c2b909d` 2026-08-19）经取证确认真实+用户当日轮换并删除旧 token 收口，git 历史清洗刻意拒绝（Lovable 禁 force-push 且 GitHub 缓存使清洗不可靠，轮换使泄露拷贝失效））；2026-10-07（**Round V**：#346 交付闭票——真机取证发现两层根因：detectAntiBot 抢跑 + 四个 loginCheckScript 缺 `return` 死门（票面只写了前者）；修复 `runPageGates` 共享 seam 登录门先行 + 补 return + `resolveLoginGate` 收敛，commit `939d53aa`，契约测试具判别力（变异检查验证），affected 406/406、全量 4307 passed 与基线同批；runbook 补「第九个假判决」整节）；2026-10-04（**Round U**：REST 全量复核90张open业务/管理issue，排除PR；#451 Dependency Dashboard不排业务期，余89张均有Tier或Inbox行。补齐原21张漏排票与复查期间新增#466–#469，共25张评审评论/标签；正文不改、不实施产品代码、不新增依赖边。#298/#361已闭，移除open排位；#434仓库代码已交付，仅留远端人工核查。待补证据/范围/政策的票仍受tracker状态门控，不把“已排位”当“可AFK”；逐票依据见本轮评审评论。）；2026-09-30（**Round T**：#414/#415/#417 三票交付闭票——PR #436 合并（merge `8a2bc2f0`，15 commits）+ 后续 PR #439：#414 分窗重设计横评与时长感知每窗上限（扫参定 1.0s，召回不变、冗余回到 uniform_32 水平）、#415 生产质检三修（ASR 腿 fail-closed / 字幕 CPS-CPL 门 / 响度回读）、#417 统一视频装载层（生产抽帧经 loader，S1 逐字节等价；官方单元 QA 臂**无增益**的负结果如实入档）；描述轴 ≤20 词对照组 + 配对 bootstrap 落库；官方 `uniform_sample` 公式纠错（`linspace`）影响所有长视频路径。交付记录见三票闭票评论；
-> **frontier**：W1A续补优先 **#420 → #423**（产物新鲜度→approved缓存，软顺序）与 **#421**（缓存命中仍须字幕对齐），共用TTS seam串行；**#422**先复现真实logo row几何。W2B **#424**修crash优先于W1C **#447**正确性gate，两票同一owner或串行；W1D **#426**可独立推进。W3C原主链 **#391 → #334** 保留，#418评估与#463布局决策不作为整链硬阻塞；#425/#357/#358快赢可穿插。**待人工裁决**：#429最终链接失败政策、#430 Widget门禁、#431跨轨回检边界、#463素材布局、#466跨仓CI访问、#469站点经验治理；#291/#216既有HITL与#414生产落地裁决仍保留（变更点及S1-S5见[`keyframe-extraction-research.md` §18.2](research/keyframe-extraction-research.md)）。开工前重新读取评论、状态、assignee与依赖API。
+> **Last inventory**: 2026-10-09（**Round X**：#420 交付闭票——Kaggle 产物身份/新鲜度：per-call staging + `--force`、requestId（manifest sha256+uuid）注入 kernel 并回写 summary、晋级前核对身份/场次/RIFF 完整性，失败 fail-closed 且既有音频逐字节不变；真 CLI 2.2.4 取证复现「跳过下载仍 exit 0」，19 条 Semgrep thread 逐条回应后合并 PR #513；全链路 smoke 被环境回归阻塞（镜像 py3.13 下 `torch==2.4.0` 在 cu121 源不可用、wheels 数据集未建），归 #231）；2026-10-08（**Round W**：#502 收口闭票——pre-push osv 门禁经 #498 `osv-scanner.toml` 豁免机制恢复放行（同日 push 实测无需 `--no-verify`）；cloud-gpu-options.md 历史泄露的 Modal token（public 自 `c2b909d` 2026-08-19）经取证确认真实+用户当日轮换并删除旧 token 收口，git 历史清洗刻意拒绝（Lovable 禁 force-push 且 GitHub 缓存使清洗不可靠，轮换使泄露拷贝失效））；2026-10-07（**Round V**：#346 交付闭票——真机取证发现两层根因：detectAntiBot 抢跑 + 四个 loginCheckScript 缺 `return` 死门（票面只写了前者）；修复 `runPageGates` 共享 seam 登录门先行 + 补 return + `resolveLoginGate` 收敛，commit `939d53aa`，契约测试具判别力（变异检查验证），affected 406/406、全量 4307 passed 与基线同批；runbook 补「第九个假判决」整节）；2026-10-04（**Round U**：REST 全量复核90张open业务/管理issue，排除PR；#451 Dependency Dashboard不排业务期，余89张均有Tier或Inbox行。补齐原21张漏排票与复查期间新增#466–#469，共25张评审评论/标签；正文不改、不实施产品代码、不新增依赖边。#298/#361已闭，移除open排位；#434仓库代码已交付，仅留远端人工核查。待补证据/范围/政策的票仍受tracker状态门控，不把“已排位”当“可AFK”；逐票依据见本轮评审评论。）；2026-09-30（**Round T**：#414/#415/#417 三票交付闭票——PR #436 合并（merge `8a2bc2f0`，15 commits）+ 后续 PR #439：#414 分窗重设计横评与时长感知每窗上限（扫参定 1.0s，召回不变、冗余回到 uniform_32 水平）、#415 生产质检三修（ASR 腿 fail-closed / 字幕 CPS-CPL 门 / 响度回读）、#417 统一视频装载层（生产抽帧经 loader，S1 逐字节等价；官方单元 QA 臂**无增益**的负结果如实入档）；描述轴 ≤20 词对照组 + 配对 bootstrap 落库；官方 `uniform_sample` 公式纠错（`linspace`）影响所有长视频路径。交付记录见三票闭票评论；
+> **frontier**：W1A续补 **#423**（候选与approved缓存分离，接续#420已交付的新鲜度门）与 **#421**（缓存命中仍须字幕对齐），共用TTS seam串行；**#422**先复现真实logo row几何。⚠️ 真实Kaggle TTS跑当前被环境回归阻塞（镜像py3.13下`torch==2.4.0`在cu121源不可用、wheels数据集未建），真机复核前先落 **#231**。W2B **#424**修crash优先于W1C **#447**正确性gate，两票同一owner或串行；W1D **#426**可独立推进。W3C原主链 **#391 → #334** 保留，#418评估与#463布局决策不作为整链硬阻塞；#425/#357/#358快赢可穿插。**待人工裁决**：#429最终链接失败政策、#430 Widget门禁、#431跨轨回检边界、#463素材布局、#466跨仓CI访问、#469站点经验治理；#291/#216既有HITL与#414生产落地裁决仍保留（变更点及S1-S5见[`keyframe-extraction-research.md` §18.2](research/keyframe-extraction-research.md)）。开工前重新读取评论、状态、assignee与依赖API。
 >
-> 近轮一句话档案：**Round W**（#502 收口——pre-push osv 门禁经 #498 豁免机制恢复放行（实测 push 无需 --no-verify），cloud-gpu-options.md 历史 Modal token 泄露（public 2026-08-19 起）经用户轮换+旧 token 删除收口，历史清洗刻意拒绝）；**Round V**（#346 交付闭票——两层根因 + runPageGates seam 登录门先行，PR #501）；**Round U**（REST 全量复核 90 张 open 票、25 张评审评论/标签补齐，#466–#469 新增入排）；**Round T**（#414/#415/#417交付闭票，PR #436/#439；装载层官方单元QA无增益、音频价值在转写文本通道，详情见三票评论）；**Round S**（#391 裁决深化——判据研究先行与观测基建前置）；**Round R**（#360 收尾 minors 清账 PR #388 + #391 拆帧实验基建落地 PR #392/#395 + #397 补立 block #396）；**Round Q**（#360 长视频预处理 A+ 分期交付，真实冒烟 2.34×，质量审查 C1 修复，S8 语义修正回流 spec）；**Round P**（#361 PR #378 落地收口：3 findings 修复 + coverage 棘轮补测，按常设授权合并）；**Round O**（#319 Tier 1 安全攻坚收口：4 项 High/Critical 1 修 3 证伪 PR #380 合并；自主合并常设授权固化 git-workflow §7）；**Round N**（全量 62 票 open issues 分流清零、`needs-triage` 归零；W3C 认知底座组 #361→#360→#334 串行确立；W1C/W2B 分流归位）；**Round M**（全模态选型 handoff 定稿方案 C 主干，#351 解耦交付，#360 分流）；**Round L**（素材策略统一化组票 #354/#355/#356/#357 落位）；**Round K**（#297 交付 fail-closed 单模式落地闭票，legacy 删除）；**Round J**（#333 收口 / #269 母票闭票 / 结构精简）。全文见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
+> 近轮一句话档案：**Round X**（#420 交付闭票——Kaggle 下载身份/新鲜度门：per-call staging + requestId 回写 summary + 晋级前身份/完整性校验，真 CLI 复现「跳过仍 exit 0」，PR #513；真实 TTS 冒烟被 py3.13/torch 环境回归阻塞，归 #231）；**Round W**（#502 收口——pre-push osv 门禁经 #498 豁免机制恢复放行（实测 push 无需 --no-verify），cloud-gpu-options.md 历史 Modal token 泄露（public 2026-08-19 起）经用户轮换+旧 token 删除收口，历史清洗刻意拒绝）；**Round V**（#346 交付闭票——两层根因 + runPageGates seam 登录门先行，PR #501）；**Round U**（REST 全量复核 90 张 open 票、25 张评审评论/标签补齐，#466–#469 新增入排）；**Round T**（#414/#415/#417交付闭票，PR #436/#439；装载层官方单元QA无增益、音频价值在转写文本通道，详情见三票评论）；**Round S**（#391 裁决深化——判据研究先行与观测基建前置）；**Round R**（#360 收尾 minors 清账 PR #388 + #391 拆帧实验基建落地 PR #392/#395 + #397 补立 block #396）；**Round Q**（#360 长视频预处理 A+ 分期交付，真实冒烟 2.34×，质量审查 C1 修复，S8 语义修正回流 spec）；**Round P**（#361 PR #378 落地收口：3 findings 修复 + coverage 棘轮补测，按常设授权合并）；**Round O**（#319 Tier 1 安全攻坚收口：4 项 High/Critical 1 修 3 证伪 PR #380 合并；自主合并常设授权固化 git-workflow §7）；**Round N**（全量 62 票 open issues 分流清零、`needs-triage` 归零；W3C 认知底座组 #361→#360→#334 串行确立；W1C/W2B 分流归位）；**Round M**（全模态选型 handoff 定稿方案 C 主干，#351 解耦交付，#360 分流）；**Round L**（素材策略统一化组票 #354/#355/#356/#357 落位）；**Round K**（#297 交付 fail-closed 单模式落地闭票，legacy 删除）；**Round J**（#333 收口 / #269 母票闭票 / 结构精简）。全文见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
 
 ---
 
@@ -56,7 +56,7 @@
 
 | Wave | 主题 | 涉及目录 | open 票 | 并行 / 依赖 |
 | --- | --- | --- | --- | --- |
-| **W1A** | 既有门控与产物可靠性续补 | `lib/tts/` `main.mjs` `render-only.mjs` `HookScene.tsx` | #420 #421 #422 #423 #394 | #271/#272已交付；新缺口重启本波次。#420→#423软顺序，#421共用TTS seam串行；#394先收窄范围 |
+| **W1A** | 既有门控与产物可靠性续补 | `lib/tts/` `main.mjs` `render-only.mjs` `HookScene.tsx` | #421 #422 #423 #394 | #271/#272已交付；#420 已交付闭票（2026-10-09，产物身份/新鲜度）；#423 接续其软顺序，#421共用TTS seam串行；#394先收窄范围 |
 | **W1B** | 参数标准化与听感 | `lib/tts/` `docs/content-pipeline.md` | #279 #278（HITL）｜D：#228 | #270 已交付（instruct 单一来源） |
 | **W1C** | 工程卫生、安全与状态治理 | `src/` `scripts/` `docs/` `eslint.config.js` `.github/workflows/` | #319（🎯P1）#325 #327 #404 #447 #462 #466 | #447全量正确性gate先协调#424；#404迁移与#462身份契约待收口，#466跨仓访问HITL；具体并行看冲突矩阵 |
 | **W1D** | 内容包一致性与发布契约 | `scripts/article/` `lib/platforms/` `docs/content-pipeline.md` `src/components/widgets/` | #426 #429 #430 #431 #434 | #426幂等恢复可独立；保留#95双轨，#429/#430/#431先裁决；#434只余远端人工核查 |
@@ -86,7 +86,7 @@
 
 - **阶段目标**：杜绝坏 take 静默出片，解决 TTS 与 Avatar 唇同步时长一致性，消除参数隐患，建立坚不可摧的生产安全底线。
 - **划分波次**：
-  - **Wave 1A（既有门控续补）**：✅ #271/#272原交付保留；新增 **#420**（Kaggle产物身份/新鲜度）→ **#423**（候选与approved缓存分离，软顺序），与 **#421**（全命中仍完成字幕对齐）共用TTS seam串行；**#422**修既有logo row几何，先真渲染复现；**#394**收窄环境/preflight范围，下载/SVE/模板项与已有票去重。
+  - **Wave 1A（既有门控续补）**：✅ #271/#272原交付保留；✅ **#420**（Kaggle产物身份/新鲜度）已交付闭票（2026-10-09，PR #513：per-call staging + requestId 回写 summary + 晋级前身份/完整性门）→ **#423**（候选与approved缓存分离，软顺序），与 **#421**（全命中仍完成字幕对齐）共用TTS seam串行；**#422**修既有logo row几何，先真渲染复现；**#394**收窄环境/preflight范围，下载/SVE/模板项与已有票去重。⚠️ 真实 Kaggle TTS 跑当前被环境回归阻塞（镜像 py3.13 下 `torch==2.4.0` 在 cu121 源不可用、wheels 数据集未建），真机复核前先落 **#231**。
   - **Wave 1B（标准化与语速规范，✅ Dominant 已交付）**：✅ **#270**（TTS instruct 单一来源 `lib/tts/instruct.mjs` + manifest 抛错 / preflight 覆盖检查 / gate 签名告警三层门控，实测基线 9/9 发散已收口）+ **#279**（语速整体微调 + narrative 耦合，下一 frontier，`ready-for-human`）+ **#278**（Hook 文案具象化对比规范，`ready-for-human`）+ **#273**（CDP 并发锁与经验沉淀）+ ✅ **#274**（Z-Image-Turbo 许可核查，已交付：裁定误标、维持现状）。
   - **Wave 1C（工程卫生、安全与状态治理）**：#319余Medium/Low批次、#325导出清理、#327模型目录保留；新增 **#447**（六条正确性规则与全量correctness-only gate，先协调#424）、**#404**（已批准catalog拆分，补bootstrap/缺失处理）、**#462**（run身份与中间产物/审核绑定，不默认清理）、**#466**（私有技能CI覆盖，访问方式HITL；计时基线可独立）。
   - **Wave 1D（内容包一致性与发布契约）**：**#426**按slug幂等重试/确认写入；**#429**公开后最终实际出链readiness、失败政策HITL；**#430**Widget适用性/复用/无可用项门禁HITL；**#431**保持#95并行双轨，补事实汇合与修改后版本回检；**#434**仓库代码已交付，仅剩账号资料/历史评论人工核查。本波次不等W4中文渠道。
@@ -143,7 +143,6 @@
 
 | # | 标题 | Phase·Wave | 备注 |
 | --- | --- | --- | --- |
-| #420 | Kaggle下载产物身份与新鲜度 | P1·W1A | per-call staging + run/manifest核对；先于#423，软顺序 |
 | #421 | TTS全命中仍完成字幕对齐 | P1·W1A | 公共completion seam；main/render-only缺有效timing须停 |
 | #422 | Hook logo row可用宽度与真实几何 | P1·W1A | 820本身合法；先建真实render失败基线，保留Safe Zones |
 | #423 | TTS逐场候选/approved缓存 | P1·W1A | 音频digest + 最终验收后原子晋级；不简单前移meta |
@@ -157,7 +156,7 @@
 
 | # | 标题 | Phase·Wave | 备注 |
 | --- | --- | --- | --- |
-| #394 | 环境/preflight范围收窄 | P1·W1A | 下载归#420、SVE归#293、模板扩展协调#291/#463；先收口范围 |
+| #394 | 环境/preflight范围收窄 | P1·W1A | 下载项随#420交付（2026-10-09）、SVE归#293、模板扩展协调#291/#463；先收口范围 |
 | #279 | 语速整体上探 + narrative 速度耦合 | P1·W1B | HITL |
 | #278 | Hook 文案句式规范（#244 后续） | P1·W1B | HITL |
 | #319 | OCR 审查 Medium/Low 批次治理 | P1·W1C | security；Tier 1 已收口 2026-09-26（1 修 3 证伪，PR #380），余 15+ Medium/Low 留票批次 |
@@ -276,7 +275,7 @@
 | `knowledge/media-catalog.json`<br>`asset-gaps.json` | #310 #293 #294 #299 | 🟡 #310 为 W3B Dominant；收获率 log 与其余低耦合可先行 |
 | `lib/b-roll/` | #289 #304 #355 | 🟡 #298已交付选型作为输入；#289定prompt，#355生成预算落orchestrator，与后端改动串行；#304只读调研可并行 |
 | `src/` / `scripts/` 安全核心模块 | #319 | 🔴 compile-series.mjs / digital-human.mjs / auth-middleware.ts / keyword-tracking 安全修复，独立加固 |
-| `lib/tts/registry.mjs` `cache.mjs`<br>`cosyvoice3-kaggle-cuda.mjs` `post-process.mjs`<br>`quality-gate.mjs` `kaggle/cosyvoice3_cuda_kernel.py` | #394 #420 #421 #423 #462 #418 #279（D：#228） | 🔴 #420新鲜度→#423approved信任边界，#421公共completion/对齐与缓存变更串行；#418 ASR与#279 pacing仍保留硬阻断。instruct文案只动单一来源 |
+| `lib/tts/registry.mjs` `cache.mjs`<br>`cosyvoice3-kaggle-cuda.mjs` `post-process.mjs`<br>`quality-gate.mjs` `kaggle/cosyvoice3_cuda_kernel.py` | #394 #421 #423 #462 #418 #279（D：#228） | 🔴 #420 已交付闭票（2026-10-09，下载身份/新鲜度门落在 `cosyvoice3-kaggle-cuda.mjs` + kernel 模板）；#423 approved信任边界接续，#421公共completion/对齐与缓存变更串行；#418 ASR与#279 pacing仍保留硬阻断。instruct文案只动单一来源 |
 | `remotion/src/scenes/HookScene.tsx`<br>`NarrativeScene.tsx` `ShortVideo.tsx`<br>`lib/text-slots.mjs` `lib/scene-rules.mjs` `lib/text-geometry.mjs` | #291 #422 #463 #397 #355 #357 | 🔴 layout/字段/预算/preflight/render契约串行；#422只修既有几何，重设计回#291；#397负责保护区消费，#396检测内核不是布局实施 |
 | `scripts/article/lib/publish-utils.mjs`<br>`scripts/article/publish-article.mjs` | #426 | 🟡 按slug GET→POST/PATCH幂等确认；不盲重放POST，不泄露cause/请求内容 |
 | `lib/caption-utils.mjs` `lib/publish-utils.mjs`<br>`lib/platforms/generate-publish-package.mjs` `publish-tiktok.mjs` | #429 #462（D：#217 #218 #220 #223） | 🔴 最终实际出链、公开后readiness、run绑定/receipt串行；#434只剩远端核查，不再改模板域名 |
