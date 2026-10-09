@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.11.10](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.9...tanstack_start_ts-v1.11.10) (2026-10-09)
+
+
+### Bug Fixes
+
+* **kaggle:** build the sdist-only deps into wheels for the offline mount ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([9ab6a41](https://github.com/0xPabloLI/inside-china-ai/commit/9ab6a413a21996dee1cc5c884869301f552b137a))
+* **kaggle:** download openai-whisper as an sdist in the wheelhouse ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([68830c9](https://github.com/0xPabloLI/inside-china-ai/commit/68830c9601483124e4eea31efa1d80493b9decce))
+* **kaggle:** fail the wheelhouse build closed, and stop it building host wheels ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([b8c7916](https://github.com/0xPabloLI/inside-china-ai/commit/b8c79164b8a7a168d055e6ef1ed96d8985760e77))
+* **kaggle:** fetch the sdist-only deps by URL and stop trusting the CLI's exit code ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([ce2a647](https://github.com/0xPabloLI/inside-china-ai/commit/ce2a64766418b8b78231b5283cdcbf817dcd502a))
+* **kaggle:** key the push check on the CLI's terminal lines ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([2801c5c](https://github.com/0xPabloLI/inside-china-ai/commit/2801c5c99d09f2489ab37e90cf4df380e02bb8a0))
+* **kaggle:** parse setuptools' bracketed requirements in the completeness check ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([f7f350b](https://github.com/0xPabloLI/inside-china-ai/commit/f7f350baea1a2174c0e43e382a37f10db8605406))
+* **kaggle:** re-pin the TTS kernel for the Python 3.13 image ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([b5c9eeb](https://github.com/0xPabloLI/inside-china-ai/commit/b5c9eebecbe46b02f358312ea047f9474a9b9286))
+* **kaggle:** re-pin the TTS kernel for the Python 3.13 image + offline wheels dataset ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([5defafe](https://github.com/0xPabloLI/inside-china-ai/commit/5defafe0d1a2ea5b1dcf78e2ef99036c713d90c9))
+* **kaggle:** read the push log from a file, not a pipe ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([250fcfa](https://github.com/0xPabloLI/inside-china-ai/commit/250fcfa8a5bae3fd8e4951eeea1205c362200306))
+* **kaggle:** restore the `+` Kaggle strips from wheel filenames on mount ([#231](https://github.com/0xPabloLI/inside-china-ai/issues/231)) ([375d016](https://github.com/0xPabloLI/inside-china-ai/commit/375d016b38a1d5b94040cbe78b614de0f7f3d839))
+
 ## [1.11.9](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.8...tanstack_start_ts-v1.11.9) (2026-10-09)
 
 
