@@ -636,6 +636,17 @@ describe("the build delivery is reproducible from the repo (#521)", () => {
     expect(metadata.enable_gpu).toBe(false);
   });
 
+  it("pins the CLI the carrier installs, since that process holds credentials", () => {
+    // The kernel env carries KAGGLE_API_V1_TOKEN, so the CLI this installs runs
+    // authenticated. An unpinned upgrade would let PyPI decide what code holds
+    // those credentials on every rebuild.
+    const { carrier } = runPushHelper();
+    const install = carrier.match(/pip", "install"[^\n]*/);
+    expect(install).toBeTruthy();
+    expect(install[0]).toContain("kaggle==");
+    expect(install[0]).not.toMatch(/"kaggle"\]/);
+  });
+
   it("refuses to deliver without the committed manifest", () => {
     // The manifest is what makes the build refuse a set git does not describe;
     // shipping a carrier without it would publish an unrecorded wheelhouse.

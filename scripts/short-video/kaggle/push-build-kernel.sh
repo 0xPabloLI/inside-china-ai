@@ -63,7 +63,16 @@ below and stay the single source.
 """
 import base64, os, subprocess, sys
 
-subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--upgrade", "kaggle"], check=True)
+# Pinned, not `--upgrade kaggle`: this process holds the session's push
+# credentials (KAGGLE_API_V1_TOKEN is in the kernel env), so whatever resolves
+# here runs authenticated. The image ships 2.0.2 at /usr/local/bin/kaggle, and
+# 2.2.4 is the version this repo's own tooling uses — measured in this image on
+# 2026-10-09: the pin installs clean, keeps that path, and `datasets version`
+# supports the --dir-mode the build script passes.
+subprocess.run(
+    [sys.executable, "-m", "pip", "install", "-q", "--upgrade", "kaggle==2.2.4"],
+    check=True,
+)
 
 FILES = {
     "/kaggle/working/build-wheels-dataset.sh": "@@SCRIPT@@",
