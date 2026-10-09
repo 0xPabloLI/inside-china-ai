@@ -71,17 +71,19 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
     }
   });
 
-  it("the sdist-only packages are fetched outside the wheel-only groups", () => {
-    // The 2026-10-09 Kaggle build died at `pip download --only-binary=:all:
-    // openai-whisper` ("from versions: none"): whisper publishes no wheel at
-    // all, and pyworld's only wheels are Windows. Group 5 fetches them by URL
-    // instead, so a name drifting back into a wheel group reintroduces the
-    // failure — and `pip download --no-binary` is avoided there too, because
-    // building pyworld's metadata stalled the same run for tens of minutes.
+  it("the sdist-only packages are built into wheels, not shipped as sdists", () => {
+    // Two failures shaped this. `pip download --only-binary=:all:
+    // openai-whisper` finds nothing (whisper publishes no wheel; pyworld's are
+    // Windows-only), and shipping the sdists does not survive the round trip
+    // either: Kaggle unpacks archives inside a dataset, so a mounted sdist
+    // arrives as a `<name>-<ver>/<name>-<ver>/` directory that
+    // `pip --no-index --find-links` cannot see. Building them into wheels in
+    // group 5 keeps the mounted set wheel-only.
     const sdistGroup = BUILD_SRC.slice(
       BUILD_SRC.indexOf("group 5/5"),
       BUILD_SRC.indexOf("verifying completeness"),
     );
+    expect(sdistGroup).toContain("pip wheel");
     for (const pkg of ["pyworld==", "wget==", "antlr4-python3-runtime==", "openai-whisper"]) {
       expect(sdistGroup).toContain(pkg);
     }
@@ -148,7 +150,7 @@ describe("py3.13 regression guards (#231)", () => {
 });
 
 describe("offline install path (#231)", () => {
-  it("offline installs use --no-build-isolation (4 deps are sdist-only)", () => {
+  it("the offline branch resolves only from the mount", () => {
     const branchAt = KERNEL_SRC.indexOf("if _WHEELS_DIR:");
     const elseAt = KERNEL_SRC.indexOf("else:", branchAt);
     // A missing `else:` would make indexOf return -1 and the slice below
@@ -157,10 +159,19 @@ describe("offline install path (#231)", () => {
     expect(elseAt).toBeGreaterThan(branchAt);
     const offlineBranch = KERNEL_SRC.slice(branchAt, elseAt);
     expect(offlineBranch).toContain("--no-index");
-    expect(offlineBranch).toContain("--no-build-isolation");
+    expect(offlineBranch).toContain("--find-links");
+    // No network index on the offline path: a stray --index-url or
+    // --extra-index-url would reintroduce the PyPI traffic the dataset exists
+    // to avoid, and would do it silently.
+    expect(offlineBranch).not.toContain("--index-url");
+    expect(offlineBranch).not.toContain("--extra-index-url");
   });
 
-  it("pyworld is installed after the core deps that provide Cython+numpy", () => {
+  it("pyworld is installed after the core deps", () => {
+    // No longer a build-order requirement (the wheelhouse carries a built
+    // wheel), but the order is kept so a missing wheel fails late, next to the
+    // other optional-but-required deps, instead of in the middle of the core
+    // install.
     const pyworldAt = KERNEL_SRC.indexOf('_pip_install(["pyworld==');
     const coreAt = KERNEL_SRC.indexOf('"conformer==0.3.2"');
     expect(pyworldAt).toBeGreaterThan(-1);

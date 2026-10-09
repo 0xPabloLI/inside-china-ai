@@ -51,15 +51,15 @@ _WHEELS_DIR = _WHEELS_DIRS[0] if _WHEELS_DIRS else None
 def _pip_install(args, online_extra=None):
     """pip install via the frozen wheels mount when present, else online.
 
-    The mount is a wheelhouse plus the handful of sdist-only packages
-    (pyworld, wget, antlr4-python3-runtime — none of them ship a Linux wheel),
-    so offline mode installs with --no-build-isolation: their build deps
-    (setuptools/wheel/Cython/numpy) come from the earlier calls.
+    The mount holds wheels only — build-wheels-dataset.sh also compiles the
+    sdist-only packages (pyworld, wget, antlr4-python3-runtime, openai-whisper)
+    into wheels first, because Kaggle unpacks archives inside a dataset and a
+    mounted sdist would arrive as a directory that --find-links cannot see.
     """
     if _WHEELS_DIR:
         cmd = [
             sys.executable, "-m", "pip", "install", "-q",
-            "--no-index", "--find-links", _WHEELS_DIR, "--no-build-isolation",
+            "--no-index", "--find-links", _WHEELS_DIR,
         ] + list(args)
     else:
         cmd = [sys.executable, "-m", "pip", "install", "-q"] + list(online_extra or []) + list(args)
@@ -94,9 +94,9 @@ try:
         ]
     )
     log("Core deps OK")
-    # pyworld is sdist-only on Linux (it was built from source on 3.11 too) and
-    # the released cosyvoice3.yaml imports cosyvoice.dataset.processor through
-    # !name:, so it must be present. Build it once Cython+numpy exist.
+    # pyworld has no Linux wheel on PyPI; the released cosyvoice3.yaml imports
+    # cosyvoice.dataset.processor through !name:, so it must be present. The
+    # wheelhouse carries a wheel built on this same image (#231).
     _pip_install(["pyworld==0.3.4"])
     log("pyworld OK")
 except Exception as e:
