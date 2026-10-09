@@ -167,6 +167,20 @@ describe("offline install path (#231)", () => {
     expect(offlineBranch).not.toContain("--extra-index-url");
   });
 
+  it("the offline branch restores the local-version separator Kaggle strips", () => {
+    // Kaggle serves a stored dataset back with `+` removed from wheel
+    // filenames: `torch-2.6.0+cu124-...whl` arrives as `torch-2.6.0cu124-...`.
+    // pip reads the version from the filename, sees `2.6.0cu124`, which is not
+    // PEP 440, and drops the file — the first mounted run failed with
+    // "Could not find a version that satisfies the requirement torch==2.6.0
+    // (from versions: none)" while the mount itself was fine.
+    expect(KERNEL_SRC).toContain("_restore_local_versions");
+    expect(KERNEL_SRC).toContain("_WHEELS_DIR = _restore_local_versions(_WHEELS_MOUNT)");
+    // The rewrite must be narrow: `nvidia_cuda_runtime_cu12-12.4.127` contains
+    // "cu12" and must survive untouched.
+    expect(KERNEL_SRC).toContain('re.sub(r"(\\d)cu(\\d+)-"');
+  });
+
   it("pyworld is installed after the core deps", () => {
     // No longer a build-order requirement (the wheelhouse carries a built
     // wheel), but the order is kept so a missing wheel fails late, next to the

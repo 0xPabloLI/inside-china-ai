@@ -10,7 +10,7 @@ Ref audio is loaded from Kaggle dataset: xPabloLI/tts-ref-audio
 
 Output: /kaggle/working/output/<scene-N>.wav + summary.json
 """
-import subprocess, sys, os, time, json, traceback, base64
+import subprocess, sys, os, time, json, traceback, base64, re
 
 _logfile = open("/kaggle/working/log.txt", "w")
 def log(msg):
@@ -45,7 +45,41 @@ _WHEELS_DIRS = [
 if not _WHEELS_DIRS:
     import glob as _wheels_glob
     _WHEELS_DIRS = _wheels_glob.glob("/kaggle/input/**/cosyvoice3-wheels", recursive=True)
-_WHEELS_DIR = _WHEELS_DIRS[0] if _WHEELS_DIRS else None
+_WHEELS_MOUNT = _WHEELS_DIRS[0] if _WHEELS_DIRS else None
+
+
+def _restore_local_versions(src):
+    """Symlink the wheelhouse into a writable dir, putting `+` back.
+
+    Kaggle strips the local-version separator when it stores a dataset:
+    `torch-2.6.0+cu124-cp313-cp313-linux_x86_64.whl` is served back as
+    `torch-2.6.0cu124-...`. pip reads the version out of the filename, so it
+    sees `2.6.0cu124` — not a PEP 440 version — and drops the file entirely
+    ("Could not find a version that satisfies the requirement torch==2.6.0
+    (from versions: none)"). Symlinks, not copies: the mount is read-only and
+    the wheelhouse is ~3.7GB.
+    """
+    staging = "/kaggle/working/wheelhouse"
+    os.makedirs(staging, exist_ok=True)
+    renamed = []
+    for name in os.listdir(src):
+        # Only the `2.6.0cu124` shape: a plain `cu12` in a package name (e.g.
+        # nvidia_cuda_runtime_cu12-12.4.127) must not be touched.
+        fixed = re.sub(r"(\d)cu(\d+)-", r"\1+cu\2-", name)
+        dst = os.path.join(staging, fixed)
+        if not os.path.exists(dst):
+            os.symlink(os.path.join(src, name), dst)
+        if fixed != name:
+            renamed.append(fixed)
+    if renamed:
+        log(f"restored local versions in {len(renamed)} filenames: {sorted(renamed)[:4]}")
+    return staging
+
+
+if _WHEELS_MOUNT:
+    _WHEELS_DIR = _restore_local_versions(_WHEELS_MOUNT)
+else:
+    _WHEELS_DIR = None
 
 
 def _pip_install(args, online_extra=None):
@@ -67,7 +101,7 @@ def _pip_install(args, online_extra=None):
 
 
 if _WHEELS_DIR:
-    log(f"wheels dataset mount found: {_WHEELS_DIR} — offline install mode")
+    log(f"wheels dataset mount found: {_WHEELS_MOUNT} — offline install mode")
 else:
     log("no cosyvoice3-wheels mount — online install (build the wheels dataset to skip ~10min)")
 
