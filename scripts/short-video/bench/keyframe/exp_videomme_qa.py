@@ -128,6 +128,30 @@ def transcript_text(vid, mode):
     return bq.transcript_text(ASR_DIR, vid, mode, ASR_MAX_CHARS)
 
 
+def check_asr_coverage(videos):
+    """转写臂必须核对覆盖率，低于阈值直接退出。
+
+    Q41⑨ 的整场污染（base 表 VL@Omni 格转写为空、与 ext 格 11/84 题不一致）
+    根因是脚本漏设 VM_ASR_DIR，回落到一个对本子集覆盖 0% 的目录。
+    `bq.transcript_text` 对缺失文件**静默返回空串**，于是「空转写」和
+    「这个视频本来就没多少话」在结果里长得一模一样 —— 没有信号。
+    故此处把覆盖率变成显式门禁：低覆盖 = 跑错目录，不是数据稀疏。
+    """
+    have = [v for v in videos if transcript_text(v, "block")]
+    cov = len(have) / max(1, len(videos))
+    print(f"[asr] dir={os.path.relpath(ASR_DIR, WT_ROOT)} mode={ASR_MODE} "
+          f"coverage={len(have)}/{len(videos)} ({cov:.1%})", flush=True)
+    floor = float(os.environ.get("VM_ASR_MIN_COVERAGE", "0.5"))
+    if cov < floor and os.environ.get("VM_ASR_ALLOW_LOW_COVERAGE") != "1":
+        miss = [v for v in videos if v not in set(have)][:5]
+        raise SystemExit(
+            f"转写覆盖 {cov:.1%} < VM_ASR_MIN_COVERAGE={floor:.0%}："
+            f"VM_ASR_DIR={ASR_DIR} 对本子集（{SUBSET_NAME}）基本没有转写。\n"
+            f"缺失样例：{miss}\n"
+            "这多半是跑错目录（短档 asr/ 对 medium 覆盖 0%）。"
+            "确认要带空转写跑，就显式设 VM_ASR_ALLOW_LOW_COVERAGE=1。")
+
+
 _PRECOMP_CACHE = {}
 
 
@@ -238,6 +262,8 @@ def main():
     df = pq.read_table(os.path.join(VM, "test.parquet")).to_pandas()
     subset = pd.read_csv(os.path.join(VM, SUBSET_NAME))
     videos = sorted(set(subset["videoID"]) & set(df["videoID"]))[:MAX_VIDEOS]
+    if ASR_TEXT:
+        check_asr_coverage(videos)
     qa = df[df["videoID"].isin(videos)]
     if ONLY_QUESTIONS:
         with open(ONLY_QUESTIONS, encoding="utf-8") as f:
