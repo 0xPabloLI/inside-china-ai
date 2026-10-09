@@ -17,6 +17,10 @@ MiniCPM-o 无时序编码（TMRoPE 不可移植，HANDOFF §二.5），当前 `_
 - **D3 每窗生效**：与 #360 分窗共存——scene 策略在每个窗口的 [startMs,endMs] 段内独立执行（-ss/-t 切段后跑 select），fallback `mod(t,8)` 以窗口起点对齐。
 - **D4 实验矩阵**（bench 脚本，不入生产路径）：素材 = HANDOFF `.scratch/len-compare/` 的 content_ABC_av.mp4（15s+音频）、content_ABCx2_30s.mp4（30s），外加 1 个真实 >20s 素材（output/ 下有则用，无则注明）；配置 = uniform(16@2, 现状基线) / uniform(32@2) / uniform(32@1) / uniform(64@1) / scene(cap16) / scene(cap32)；输出完整原始材料：逐帧时间戳列表、最终 prompt、模型输出全文、端到端时延、帧提取耗时。**导出原始输出由用户亲自判断**（361 遗留偏好 §六.4）。
 - **D5 focus_detector YuNet 旁路评估**：不动生产代码；下载 opencv_zoo face_detection_yunet onnx（MIT，~345KB）至 scratch，对 bench 素材抽帧做 Haar vs YuNet 并排检测（检出数/置信度/耗时），产出对比数据供升级决策。
+- **D6 臂间控制变量纪律**（2026-10-09 用户裁决「以后都这么执行」）：**跨臂对比前，所有控制变量必须显式声明并落进结果文件**。起因是 2026-10-09 一天内连查出三处「事后才发现」的混杂——两个模型的 `max_pixels` 相差 1.96×（视觉 token 数差 2 倍）、`grab()` 臂与 loader 臂输入分辨率不同、prompt 文本在两脚本里各写一份。三处的共同点是**分数照常产出、混杂无任何信号**，只能靠人回头挖。落地三条：
+  1. **共享 prompt**：`bench_prompt.py` 是 prompt 文本、转写读取、答案解析的**单一事实来源**，各臂 import 它，不得各自拼装。口径变更需 +1 `PROMPT_VERSION`。
+  2. **溯源必落盘**：`bench_provenance.py` 采集的输入侧事实（模型、帧数、像素预算、采样决议、转写来源、解码参数、prompt 版本）写进结果文件；**读不到记 `None` 并说明，不省略键**——缺键与值为空在事后是两种不同的信息。
+  3. **新增臂前先报控制变量表**：哪些变量被对齐、哪些是本次唯一变量、哪些**无法**对齐（如 VL 的时间戳标记 vs Omni 的位置编码）。无法对齐的必须写进结论，不能默认它不存在。
 
 ## 4. 场景
 

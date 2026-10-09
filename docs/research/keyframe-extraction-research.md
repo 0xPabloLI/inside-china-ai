@@ -2205,6 +2205,59 @@ medium 原档 84 题 ⊂ 扩样 159 题。greedy 解码下，若两次配置一�
 *待办（未做）*：把 `grab()` 的 `size_w` 与 loader 对齐（或反之），重跑一条对照臂坐实
 「分辨率无关」。当前只有 16 个视频 / 48 题的证据，且都来自 ≤64s 短视频。
 
+**⑦ 控制变量纪律已成文（2026-10-09 用户裁决「以后都这么执行」）**
+
+同一天又查出第三处同类混杂：**prompt 文本在两个脚本里各写了一份**
+（`exp_videomme_qa.py` / `exp_qwen_omni_video.py`）。两份当时**逐字节相同**
+（已核：带转写 1540 字符、纯视觉 316 字符，逐题 × 逐模式 2400/2400 一致），
+故已有结果不受影响 —— 但「当时相同」不是保障，改一边忘一边不会有任何信号。
+
+三处混杂（`max_pixels` 1.96×、`grab()` 分辨率、prompt 双份）的共同点是
+**分数照常产出、混杂无信号**。落地纪律见 **spec D6**（`spec-keyframe-selection-391.md`）：
+共享 prompt 模块 + 溯源必落盘 + 新增臂前先报控制变量表。
+
+已交付：`bench_prompt.py`（prompt/转写/打分器单一事实来源，`PROMPT_VERSION`）、
+`bench_provenance.py`（输入侧事实落盘，含 `prompt_version`）、
+`probe_vl_omni_inputs.py`（VL/Omni 输入探针，`--match-budget` 拉平预算）。
+
+**探针实测（2026-10-09，2 视频冒烟）**：
+
+| 维度 | VL | Omni | 判定 |
+|---|---|---|---|
+| 帧数 | 648 / 768 | 648 / 768 | **完全相同**（采样默认一致：fps=2.0, min 4, max 768） |
+| 视觉 token | 41472 / 43008 | 19440 / 23040 | **差 2.13×**，根因是自带 `max_pixels` 差 1.96× |
+| 拉平预算后 | 19440 / 23040 | 19440 / 23040 | **逐位相等** ⇒ 预算维可对齐 |
+| prompt 字符串 | 256 字符 | 256 字符 | **逐字节相同** |
+| 视频占位展开 | 324 段 × 15 占位，每段前缀 `<N.N seconds>` | 单段 4860 占位，无文本时间戳 | **机制不同，不可对齐** |
+
+时间戳差异是两侧各自的官方口径（`processing_qwen3_vl.py:75` 注释明写「不加标记模型会把
+运动看成静帧拼贴」；Omni 走位置编码 `seconds_per_chunk`/`position_id_per_seconds`），
+**不是 harness bug**，也不应为了对齐而改一侧处理器。
+
+⇒ **重要推论**：默认设置下的「VL 比 Omni 准」被分辨率预算混杂 —— VL 用自己的 25.1M、
+Omni 用 12.8M，不是同条件。**该混杂其实已由 2×2 因子表覆盖**（见下方），
+「Omni 弱在压缩率」的方向成立但 n=84 撑不住；n=159 补跑正在收尾。
+
+**⑧ 已有同预算对照盘点（2026-10-09 核）**
+
+「是否已测过同一 max_pixels」——**已测，且是 2×2 因子表的设计核心**：
+
+| 文件 | 模型 | 预算 | 模式 |
+|---|---|---|---|
+| `exp_videomme_qa_medium_qwen_native_asr.json` | VL | 自有 25.1M | native+转写 |
+| `exp_videomme_qa_medium_qwen_native_asr_omnibudget.json` | VL | **Omni 12.8M** | native+转写 |
+| `exp_videomme_qa_qwen_omni_video_medium_fpsfix.json` | Omni | 自有 12.8M | interleave |
+| `exp_videomme_qa_qwen_omni_video_medium_maxpix.json` | Omni | **VL 25.1M** | interleave |
+
+`analyze_2x2.py` 的 base 表结论（n=84 配对）：VL 预算效应 **Δ=0.0pp p=1.0**（对预算不敏感）；
+Omni 预算效应 **Δ=+7.1pp p=0.146**（提到 VL 预算就变好）；模型差距从 10.7pp 缩到 3.6pp；
+交互 DiD −7.1pp CI[−16.7,+2.4] 跨 0 ⇒ **四对比无一过 Bonferroni(0.0125)**，
+方向支持「Omni 弱在压缩率而非训练」，但功效不足。**n=159 补跑正在收尾**（`exp_q41_ext_chain.sh`）。
+
+**注**：行内两格已对齐预算，但**行间（VL vs Omni）在默认设置下仍不同预算** ——
+故「VL 比 Omni 准 7.1pp」这个说法要读成「VL 在自有预算下比 Omni 在自有预算下准」。
+同预算的模型对比是 `VL@VL vs Omni@VL`（+3.6pp）与 `VL@Omni vs Omni@Omni`（+10.7pp）。
+
 ---
 
 ## 附录 · 2026-09-27 原始 deep research 原件（历史起点；判断以一页纸与 §20 为准）

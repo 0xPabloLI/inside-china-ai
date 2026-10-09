@@ -30,6 +30,15 @@ def _rel(path, root):
         return str(path)
 
 
+def _prompt_version():
+    """读共享 prompt 模块的版本号；模块不可用时记 None 而非崩。"""
+    try:
+        import bench_prompt
+        return getattr(bench_prompt, "PROMPT_VERSION", None)
+    except Exception as e:
+        return f"unavailable: {type(e).__name__}"
+
+
 def processor_budgets(processor):
     """读出各处理器上的 max_pixels —— 分辨率预算的直接读数。
 
@@ -92,6 +101,9 @@ def collect(processor, root, *, model=None, native_video=None,
     prov = {
         "model": model,
         "native_video": native_video,
+        # prompt 口径版本：prompt 或打分器一变就 +1。没有它，事后看到两个臂
+        # 分数不同时无法排除「口径不同」这个解释。
+        "prompt_version": _prompt_version(),
         "max_pixels": processor_budgets(processor) if processor else None,
         "video_sampling": video_sampling(processor) if processor else None,
         "asr": ({"dir": _rel(asr_dir, root), "mode": asr_mode}

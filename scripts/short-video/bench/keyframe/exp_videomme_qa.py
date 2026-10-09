@@ -40,6 +40,7 @@ VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
 sys.path.insert(0, HERE)
 sys.path.insert(0, LIB)
 import bench_common as bc  # noqa: E402
+import bench_prompt as bq  # noqa: E402
 import bench_provenance as bp  # noqa: E402
 import exp_siglip as es  # noqa: E402
 import exp_tiered as et  # noqa: E402
@@ -111,80 +112,20 @@ def grab(video, ts, out_dir, prefix):
     return paths
 
 
-def parse_lenient(raw):
-    """Original scorer: first A-D character anywhere. Kept because the
-    uniform/tiered numbers already on disk used it — changing only the scorer
-    would make the new arms incomparable with them."""
-    m = re.search(r"[ABCD]", raw.strip().upper())
-    return m.group(0) if m else "?"
-
-
-def parse_strict(raw):
-    """PR #407 P1 alternative: the letter has to be the answer, not a letter
-    inside prose ('D'ON'T, 'B'ASED, 'A'NSWER all match lenient). Both are
-    recorded per row so the disagreement rate is measured, not argued."""
-    s = raw.strip().upper()
-    m = re.match(r"^\s*\[?([ABCD])\]?[\s.:!]*$", s)
-    return m.group(1) if m else "?"
-
-
-def strip_thinking(raw):
-    """Drop the reasoning block so the scorer sees only the answer.
-
-    A Thinking model emits its chain-of-thought before answering, and
-    ``parse_lenient`` scans for the first A-D character anywhere — which would
-    happily match a letter inside the reasoning. Cut at the LAST closing tag so
-    a model that re-enters reasoning after answering still scores on its final
-    answer. No closing tag means no reasoning block, so the text passes through
-    untouched (Instruct arms are unaffected by this path)."""
-    s = raw
-    for close in ("</think" + ">", "</thinking>", "<|/think|>"):
-        i = s.rfind(close)
-        if i != -1:
-            return s[i + len(close):]
-    return s
-
-
-# A capital A-D that is not glued to other letters: 'C' in "The answer is C"
-# matches, the 'a' inside "answer" does not.
-_THINK_LETTER = re.compile(r"(?<![A-Za-z])([ABCD])(?![A-Za-z])")
-
-
-def parse_thinking(raw):
-    """Scorer for reasoning arms; returns (letter, tier).
-
-    The lenient scorer is unusable here: it takes the first A-D character
-    anywhere, and the word "answer" contains an "A", so "The answer is C"
-    scored as "A". Historical arms keep lenient — their numbers are already on
-    disk and the scorer must not move under them — while reasoning arms are new
-    and get the parser that actually reads the answer. The tier is recorded so
-    a run that leans on the loose path is visible rather than silent.
-    """
-    s = strip_thinking(raw)
-    strict = parse_strict(s)
-    if strict != "?":
-        return strict, "strict"
-    m = _THINK_LETTER.search(s)
-    if m:
-        return m.group(1), "loose"
-    return "?", "none"
+# ── 打分器 / 转写读取：逻辑已收敛到 bench_prompt（单一事实来源）─────────────
+# 这里保留同名薄壳只为不改调用点。改行为请改 bench_prompt.py —— 那边同时服务
+# Omni 臂，两边必须同款，否则「同题不同分」可能只是解析器或 prompt 不同。
+# 2026-10-09 合并前已逐例核验：两脚本的原实现与共享模块输出完全一致。
+parse_lenient = bq.parse_lenient
+parse_strict = bq.parse_strict
+strip_thinking = bq.strip_thinking
+parse_thinking = bq.parse_thinking
 
 
 def transcript_text(vid, mode):
     """四种喂法对照：block=整块截断（默认，既有结果的口径）/ ts=逐段带时间戳 /
     full=不截断 / after=放在题目之后（由调用方处理位置）。"""
-    p = os.path.join(ASR_DIR, f"{vid}.json")
-    if not os.path.exists(p):
-        return ""
-    try:
-        d = json.load(open(p, encoding="utf-8"))
-    except Exception:
-        return ""
-    if mode == "ts":
-        return "\n".join(f"[{int(s['start']//60):02d}:{s['start']%60:04.1f}] {s['text']}"
-                         for s in d.get("segments", [])[:80])
-    t = d.get("text", "")
-    return t if mode == "full" else t[:ASR_MAX_CHARS]
+    return bq.transcript_text(ASR_DIR, vid, mode, ASR_MAX_CHARS)
 
 
 _PRECOMP_CACHE = {}
@@ -432,14 +373,9 @@ def main():
             opts = list(q["options"]) if isinstance(q["options"], list) else \
                 [o.strip() for o in str(q["options"]).split("|")]
             transcript = (transcript_text(vid, ASR_MODE) if ASR_TEXT else "")
-            head = (f"视频的语音转写（可能不完整、可能有错）：\n{transcript}\n\n"
-                    if transcript and ASR_MODE != "after" else "")
-            tail = (f"\n\n视频的语音转写（可能不完整）：\n{transcript}"
-                    if transcript and ASR_MODE == "after" else "")
-            prompt = (head + f"{q['question']}\nOptions:\n"
-                      + "\n".join(f"{'ABCD'[i]}. {o}" for i, o in enumerate(opts))
-                      + "\n\nAnswer with the option letter only (A, B, C, or D)."
-                      + tail)
+            # prompt 拼装走共享模块 —— 它与 Omni 臂用同一份代码。
+            # 此前两个脚本各写一份，当时逐字节相同但**没有任何机制保证以后也相同**。
+            prompt = bq.build_prompt(q["question"], opts, transcript, ASR_MODE)
             for m in METHODS:
                 frames = selections.get(m) or []
                 if not frames and not NATIVE_VIDEO:

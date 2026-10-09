@@ -26,7 +26,6 @@ Run: ~/.venvs/mlx-vlm/bin/python scripts/short-video/bench/keyframe/exp_qwen_omn
 
 import json
 import os
-import re
 import sys
 import time
 import traceback
@@ -37,6 +36,7 @@ RESULTS = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "results")
 VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
 AUDIO_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "audio")
 sys.path.insert(0, HERE)
+import bench_prompt as bq  # noqa: E402
 import bench_provenance as bp  # noqa: E402
 
 MODEL_ID = os.environ.get("OMNI_MODEL",
@@ -62,20 +62,12 @@ ASR_DIR = os.path.join(WT_ROOT, os.environ.get(
 
 
 def transcript_text(vid):
-    """与 exp_videomme_qa.py 的 block 口径一致（ctx-off 转写，截断 2000 字符）。"""
-    p = os.path.join(ASR_DIR, f"{vid}.json")
-    if not os.path.exists(p):
-        return ""
-    try:
-        d = json.load(open(p, encoding="utf-8"))
-    except Exception:
-        return ""
-    return str(d.get("text", ""))[:ASR_MAX_CHARS]
+    """与 VL 臂同款（ctx-off 转写，截断 2000 字符）——走共享模块。"""
+    return bq.transcript_text(ASR_DIR, vid, "block", ASR_MAX_CHARS)
 
 
-def parse_letter(out):
-    m = re.search(r"[ABCD]", str(out).strip().upper())
-    return m.group(0) if m else "?"
+# 打分器与 VL 臂同款，否则「同题不同分」可能只是解析器不同。
+parse_letter = bq.parse_lenient
 
 
 def main():
@@ -146,12 +138,10 @@ def main():
                 continue
             opts = list(q["options"]) if isinstance(q["options"], list) else \
                 [o.strip() for o in str(q["options"]).split("|")]
-            prompt = (f"{q['question']}\nOptions:\n"
-                      + "\n".join(f"{'ABCD'[i]}. {o}" for i, o in enumerate(opts))
-                      + "\n\nAnswer with the option letter only (A, B, C, or D).")
-            if MODE == "asr":
-                prompt = (f"视频的语音转写（可能不完整、可能有错）：\n"
-                          f"{cache['tr']}\n\n" + prompt)
+            # prompt 拼装走共享模块 —— 与 VL 臂用同一份代码（mode: asr→block）
+            prompt = bq.build_prompt(
+                q["question"], opts,
+                cache["tr"] if MODE == "asr" else "", "block")
             try:
                 t0 = time.time()
                 # v3 通路：mlx-vlm 的 process_inputs 只按签名转发 kwargs，而补丁版
