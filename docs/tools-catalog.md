@@ -742,8 +742,21 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 > **收录说明**：这批 skill 多为 Claude Code/Codex 的 `SKILL.md` 格式，本项目 agent 不直接执行 SKILL.md，但可参考其 prompt/流程/Remotion 模板/分镜结构。真正能直接复用的是 Remotion 组件/模板类。具体 repo 安装前仍须走「评估流程」。
 > ⚠️ **SAFE ≠ 许可证**：SAFE 是榜单对 README 的安全评级，不含许可证与付费 API 依赖维度——下文 ⚠️ 标注均来自一手实测。
 > **调查日期**：2026-09-28（初筛）· **2026-10-09 回灌** R1–R8 五问研究实测更正：逐仓许可证/付费依赖/结构勘误见 `docs/research/agent-video-skills-180-screening-2026-09.md`（§8 各轮报告，证据强度 [R] 级）
+> **收录口径**：条目按「通用 video generation 工具价值」收录（project-agnostic）——描述工具本身是什么/有什么/许可/体量代价；既有条目中的产线环节映射仅为历史注记。
 
-### A 类：高相关 — 直接对口（10 个）
+### A 类：高相关 — 直接对口（11 个）
+
+#### Vincentwei1021/video-shotcraft — Remotion 镜头配方卡库 ⭐⭐⭐
+
+- **仓库**：`https://github.com/Vincentwei1021/video-shotcraft`（9.7k★，Apache-2.0——仅代码；`assets/audio/ATTRIBUTION.md` 说明音频资产另带署名要求，最后 push 2026-09-27）
+- **是什么**：自包含的 Remotion 制作能力库（985 文件）：镜头配方卡 + 已验收宣传片模板（Ink Press）+ 可复用组件 + 按语义分类的音频资产 + 六阶段工作流。每张卡 = 一段可跑的 Remotion `.tsx` demo + 线上动态样片画廊
+- **内容结构**（GitHub 文件树实测）：
+  - **镜头卡 10 类词表**：demo `.tsx` 共 218 个（SKILL.md 自称 157 张卡，差异 = 多 demo 对一卡），分 10 类：`ui-entrance 35 / typography 32 / transition 30 / effects 29 / rhythm 20 / interaction 19 / data 18 / camera 17 / opening 10 / outro 8` —— 这 10 个类名本身是一份现成的视觉语法分类学
+  - **组件库** `assets/lib/`：`Caption / ClipCard / DigitRoll / FlashCut / FlatPanel / PageCam / VerticalTicker` + motion/shake/camera/rand helpers
+  - **音频资产**：bgm 5 首 + sfx 按 camera/counter/crowd/data/… 语义目录组织，带 ATTRIBUTION
+  - **三种创作模式**（SKILL.md）：模板替换 / 自由创作 / 共同创作——第三种定义了逐确认节点（产品简报→视觉方向→镜头映射→分镜→放行制作），是一份设计好的 HITL 交互范式
+- **采用代价**：Apache-2.0 只覆盖代码，任何复用音频前须逐文件核 ATTRIBUTION；985 文件大库，不建议整仓安装，按卡/按组件取用
+- **详见**：研究文档 §8 R2.1
 
 #### zenstory-ai/video-recap-skills — 视频→中文解说 recap ⭐⭐⭐
 
