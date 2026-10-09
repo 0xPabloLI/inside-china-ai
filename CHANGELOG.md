@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.11.9](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.8...tanstack_start_ts-v1.11.9) (2026-10-09)
+
+
+### Bug Fixes
+
+* **tts:** bind Kaggle downloads to the requesting run ([#420](https://github.com/0xPabloLI/inside-china-ai/issues/420)) ([ffb5943](https://github.com/0xPabloLI/inside-china-ai/commit/ffb5943d688cff796fb87fe01171f69c700d93da))
+* **tts:** bind Kaggle downloads to the requesting run ([#420](https://github.com/0xPabloLI/inside-china-ai/issues/420)) ([0a0b211](https://github.com/0xPabloLI/inside-china-ai/commit/0a0b21196554d2060b911a1f1e05a54615d83587))
+* **tts:** close the review findings on the Kaggle artifact gate ([#420](https://github.com/0xPabloLI/inside-china-ai/issues/420)) ([78bb33a](https://github.com/0xPabloLI/inside-china-ai/commit/78bb33a19481bb1b30e953ae8b0c1ec2e7be67d9))
+
 ## [1.11.8](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.11.7...tanstack_start_ts-v1.11.8) (2026-10-08)
 
 
