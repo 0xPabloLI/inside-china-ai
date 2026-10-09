@@ -177,12 +177,11 @@ node scripts/short-video/main.mjs --content series/pt4 &
 > `scripts/short-video/kaggle/build-wheels-dataset.sh` and attach
 > `xpabloli/cosyvoice3-wheels` in the kernel metadata — the kernel then
 > installs via `pip --no-index --find-links` and skips the ~10min online
-> install + drift risk (no mount → online path unchanged). The kernel pins
-> track the image's interpreter: Kaggle moved to **Python 3.13** (2026-10), so
-> the torch trio is pinned to the lowest coherent cp313 set (2.6.0 / cu124,
-> index `download.pytorch.org/whl/cu124`). A pin with no cp313 wheel kills the
-> run during the dependency install, before any inference — that is what
-> `torch==2.4.0` + cu121 did.
+> install + drift risk (no mount → online path unchanged). The pins in that
+> kernel track the image's interpreter — Kaggle moved to Python 3.13
+> (2026-10), and a pin with no cp313 wheel kills the run during the
+> dependency install, before any inference. The kernel file is the single
+> source for which versions those are and why.
 
 > **Max Effort Rule** (2026-08-14): All local TTS models MUST run at max effort by default.
 > If the machine cannot handle max effort (MPS OOM, excessive RTF),

@@ -40,13 +40,28 @@ function pins(src) {
   );
 }
 
+/** `pkg` → `version`, lowercased, for one source file. */
+function pinIndex(src) {
+  return new Map(pins(src).map((p) => [p.name.toLowerCase(), p.version]));
+}
+
+/**
+ * The pins must actually parse, or every assertion below is vacuously true.
+ * The regex is intentionally loose (quoted Python, bare sh), so a change in
+ * quoting style would otherwise turn these tests green while checking nothing.
+ */
+function assertPinsParse(src, label) {
+  const parsed = pins(src);
+  if (parsed.length === 0) throw new Error(`no pins parsed from ${label} — the regex is stale`);
+  return parsed;
+}
+
 describe("kernel pins are covered by the wheelhouse (#231)", () => {
   it("every pinned dependency the kernel installs is fetched by the build script", () => {
-    const scriptPins = new Map(pins(BUILD_SRC).map((p) => [p.name.toLowerCase(), p.version]));
-    const missing = pins(KERNEL_SRC).filter((p) => {
-      const version = scriptPins.get(p.name.toLowerCase());
-      return version === undefined || version !== p.version;
-    });
+    const kernelPins = assertPinsParse(KERNEL_SRC, "the kernel");
+    assertPinsParse(BUILD_SRC, "the build script");
+    const scriptPins = pinIndex(BUILD_SRC);
+    const missing = kernelPins.filter((p) => scriptPins.get(p.name.toLowerCase()) !== p.version);
     expect(missing.map((p) => `${p.name}==${p.version}`)).toEqual([]);
   });
 
@@ -56,8 +71,27 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
     }
   });
 
+  it("the sdist-only packages are downloaded as sdists, not as wheels", () => {
+    // The 2026-10-09 Kaggle build died at `pip download --only-binary=:all:
+    // openai-whisper` ("from versions: none"): whisper publishes no wheel at
+    // all, and pyworld's only wheels are Windows. A wheel download for any of
+    // these fails the whole build, so keep them in the sdist group.
+    const sdistGroup = BUILD_SRC.slice(
+      BUILD_SRC.indexOf("group 5/5"),
+      BUILD_SRC.indexOf("verifying completeness"),
+    );
+    expect(sdistGroup).toContain("--no-binary=:all:");
+    for (const pkg of ["pyworld==", "wget==", "antlr4-python3-runtime==", "openai-whisper"]) {
+      expect(sdistGroup).toContain(pkg);
+    }
+    // …and nowhere else: a duplicate download in a wheel group reintroduces the
+    // --only-binary failure it was moved out of.
+    const wheelGroups = BUILD_SRC.slice(BUILD_SRC.indexOf("group 1/5"), BUILD_SRC.indexOf("group 5/5"));
+    expect(wheelGroups).not.toContain("openai-whisper");
+  });
+
   it("torch trio pins are identical in both files", () => {
-    const scriptPins = new Map(pins(BUILD_SRC).map((p) => [p.name.toLowerCase(), p.version]));
+    const scriptPins = pinIndex(BUILD_SRC);
     for (const name of ["torch", "torchaudio", "torchvision"]) {
       const inKernel = pins(KERNEL_SRC).find((p) => p.name === name);
       expect(inKernel, `${name} must be pinned in the kernel`).toBeTruthy();
@@ -92,11 +126,14 @@ describe("py3.13 regression guards (#231)", () => {
 });
 
 describe("offline install path (#231)", () => {
-  it("offline installs use --no-build-isolation (3 deps are sdist-only)", () => {
-    const offlineBranch = KERNEL_SRC.slice(
-      KERNEL_SRC.indexOf("if _WHEELS_DIR:"),
-      KERNEL_SRC.indexOf("else:", KERNEL_SRC.indexOf("if _WHEELS_DIR:")),
-    );
+  it("offline installs use --no-build-isolation (4 deps are sdist-only)", () => {
+    const branchAt = KERNEL_SRC.indexOf("if _WHEELS_DIR:");
+    const elseAt = KERNEL_SRC.indexOf("else:", branchAt);
+    // A missing `else:` would make indexOf return -1 and the slice below
+    // silently cover the whole file — assert the branch really exists.
+    expect(branchAt).toBeGreaterThan(-1);
+    expect(elseAt).toBeGreaterThan(branchAt);
+    const offlineBranch = KERNEL_SRC.slice(branchAt, elseAt);
     expect(offlineBranch).toContain("--no-index");
     expect(offlineBranch).toContain("--no-build-isolation");
   });
@@ -112,6 +149,12 @@ describe("offline install path (#231)", () => {
   it("the build script asserts the wheelhouse is complete before pushing", () => {
     expect(BUILD_SRC).toContain("Linux-marker deps");
     expect(BUILD_SRC).toContain("wheelhouse is incomplete");
+    // Ordering is the point: a completeness check after the push protects
+    // nothing (the dataset is already public by then).
+    const assertAt = BUILD_SRC.indexOf("wheelhouse is incomplete");
+    const pushAt = BUILD_SRC.indexOf("kaggle datasets create");
+    expect(pushAt).toBeGreaterThan(-1);
+    expect(assertAt).toBeLessThan(pushAt);
   });
 
   it("the adapter attaches the wheelhouse dataset so the mount exists at run time", () => {

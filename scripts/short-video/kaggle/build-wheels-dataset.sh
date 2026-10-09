@@ -22,11 +22,11 @@
 #     dropped on a macOS host, so they are downloaded explicitly in group 3
 #     and asserted present at the end.
 #
-# The three sdist-only packages (pyworld, wget, antlr4-python3-runtime — none
-# of them publish a Linux wheel) are downloaded as sdists; the kernel builds
-# them with --no-build-isolation. Everything else must resolve to a wheel:
-# --only-binary=:all: makes a missing wheel fail here, at build time, instead
-# of mid-run on Kaggle.
+# The four sdist-only packages — pyworld (Linux), wget, antlr4-python3-runtime
+# and openai-whisper, none of which publish a Linux wheel — are downloaded as
+# sdists; the kernel builds them with --no-build-isolation. Everything else
+# must resolve to a wheel: --only-binary=:all: makes a missing wheel fail here,
+# at build time, instead of mid-run on Kaggle.
 set -euo pipefail
 
 OUT_DIR="${1:-/tmp/cosyvoice3-wheels}"
@@ -85,30 +85,16 @@ echo "==> group 3/5: torch's Linux-only deps (marker-guarded, see header)"
   "${TORCH_LINUX_DEPS[@]}" \
   --index-url https://pypi.org/simple
 
-echo "==> group 4/5: hydra/omegaconf/whisper wheels (--no-deps: their only"
-echo "    unwheelable dep is antlr4, which comes as an sdist in group 5)"
+echo "==> group 4/5: hydra/omegaconf wheels (--no-deps: their only unwheelable"
+echo "    dep is antlr4, which comes as an sdist in group 5)"
 "$PY" -m pip download -q -d "$OUT_DIR" "${TARGET[@]}" --no-deps \
-  omegaconf==2.3.0 hydra-core==1.3.2 openai-whisper \
+  omegaconf==2.3.0 hydra-core==1.3.2 \
   --index-url https://pypi.org/simple
 
 echo "==> group 5/5: sdist-only packages (built by the kernel with --no-build-isolation)"
 "$PY" -m pip download -q -d "$OUT_DIR" --no-deps --no-binary=:all: \
-  pyworld==0.3.4 wget==3.2 antlr4-python3-runtime==4.9.3 \
+  pyworld==0.3.4 wget==3.2 antlr4-python3-runtime==4.9.3 openai-whisper \
   --index-url https://pypi.org/simple
-
-echo "==> writing dataset metadata"
-cat > "$OUT_DIR/dataset-metadata.json" <<JSON
-{
-  "title": "cosyvoice3-wheels",
-  "id": "xpabloli/cosyvoice3-wheels",
-  "licenses": [{ "name": "other" }]
-}
-JSON
-
-WHEELS=$(find "$OUT_DIR" -maxdepth 1 -name '*.whl' | wc -l | tr -d ' ')
-SDISTS=$(find "$OUT_DIR" -maxdepth 1 -name '*.tar.gz' | wc -l | tr -d ' ')
-SIZE=$(du -sh "$OUT_DIR" | cut -f1)
-echo "==> wheelhouse: $WHEELS wheels + $SDISTS sdists, $SIZE"
 
 echo "==> verifying completeness against torch's own metadata"
 "$PY" - "$OUT_DIR" <<'PYEOF'
@@ -117,6 +103,8 @@ import glob, os, re, sys, zipfile
 out = sys.argv[1]
 wheels = {os.path.basename(p) for p in glob.glob(os.path.join(out, "*.whl"))}
 sdists = {os.path.basename(p) for p in glob.glob(os.path.join(out, "*.tar.gz"))}
+size = sum(os.path.getsize(os.path.join(out, f)) for f in wheels | sdists)
+print(f"    wheelhouse: {len(wheels)} wheels + {len(sdists)} sdists, {size / 1e9:.1f}GB")
 
 def present(name):
     n = re.sub(r"[-_.]+", "-", name).lower()
@@ -143,10 +131,21 @@ for d in missing:
     print(f"    MISSING: {d}")
 if missing:
     sys.exit("FAIL: wheelhouse is incomplete — do not push")
-if len(sdists) != 3:
-    sys.exit(f"FAIL: expected exactly 3 sdists (pyworld/wget/antlr4), found {len(sdists)}: {sorted(sdists)}")
-print("    OK: every Linux-marker dep present, 3 sdists as expected")
+if len(sdists) != 4:
+    sys.exit(f"FAIL: expected exactly 4 sdists (pyworld/wget/antlr4/openai-whisper), found {len(sdists)}: {sorted(sdists)}")
+print("    OK: every Linux-marker dep present, 4 sdists as expected")
 PYEOF
+
+# Metadata is written only after the check passes, so a failed build never
+# leaves a pushable dataset directory behind.
+echo "==> writing dataset metadata"
+cat > "$OUT_DIR/dataset-metadata.json" <<JSON
+{
+  "title": "cosyvoice3-wheels",
+  "id": "xpabloli/cosyvoice3-wheels",
+  "licenses": [{ "name": "other" }]
+}
+JSON
 
 echo "==> pushing dataset (kaggle CLI)"
 kaggle datasets create -p "$OUT_DIR" --dir-mode zip
