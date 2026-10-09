@@ -259,6 +259,11 @@ have = {
     built_form(os.path.basename(p)): os.path.getsize(p)
     for p in glob.glob(os.path.join(out, "*.whl"))
 }
+# The single place ordering is decided. `glob` returns directory order, not
+# sorted order, and this dict is both printed for a developer to paste into the
+# manifest and shipped inside the dataset — an unsorted paste would reshuffle
+# all 114 lines against the committed file.
+have = {name: have[name] for name in sorted(have)}
 want = expected.get("wheels") or {}
 if not want:
     sys.exit("FAIL: the committed manifest lists no wheels — refusing to compare against nothing")

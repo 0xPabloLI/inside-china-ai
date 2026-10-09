@@ -135,7 +135,7 @@ if _WHEELS_MOUNT:
         log("  Rebuild and re-record: scripts/short-video/kaggle/build-wheels-dataset.sh")
         log("  prints the new set to paste into kaggle/wheelhouse-manifest.json.")
         sys.exit(1)
-    log(f"wheelhouse matches the frozen set ({len(EXPECTED_WHEELHOUSE.get('wheels') or [])} wheels)")
+    log(f"wheelhouse matches the frozen set ({len(EXPECTED_WHEELHOUSE.get('wheels') or {})} wheels)")
 
 
 def _restore_local_versions(src):

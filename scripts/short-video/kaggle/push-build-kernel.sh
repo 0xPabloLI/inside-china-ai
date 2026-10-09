@@ -14,12 +14,13 @@
 # embedded manifest is what makes the build refuse a set git does not describe.
 #
 # Usage:
-#   scripts/short-video/kaggle/push-build-kernel.sh [--no-run]
+#   scripts/short-video/kaggle/push-build-kernel.sh [-t SECONDS] [--accelerator NONE]
 #
-# Extra arguments are forwarded to `kaggle kernels push`, so `--no-run` saves a
-# version without executing it ("The version is created but no cell runs" —
-# kaggle-api docs/kernels.md). That is the cheap way to inspect what metadata
-# Kaggle stored, without spending a CPU session.
+# Extra arguments are forwarded to `kaggle kernels push`. As of kaggle-cli 2.2.4
+# that command accepts only `-p/--path`, `-t/--timeout` and `--accelerator`
+# (`kaggle kernels push --help`); argparse rejects anything else, so there is no
+# dry-run flag to save a version without running it. An earlier revision of this
+# comment claimed `--no-run` did that — it does not exist.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

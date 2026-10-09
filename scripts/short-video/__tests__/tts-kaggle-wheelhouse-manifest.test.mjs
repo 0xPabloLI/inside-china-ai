@@ -393,6 +393,9 @@ describe("the build refuses to publish a set git does not describe (#521)", () =
     // interpreter the wheels are for without reading the build script.
     expect(written.wheels).toEqual(FROZEN_SIZES);
     expect(written.python).toBe(MANIFEST.python);
+    // Same order as the committed manifest, so the dataset's copy and git's
+    // copy diff cleanly against each other.
+    expect(Object.keys(written.wheels)).toEqual(Object.keys(written.wheels).sort());
   });
 
   it("refuses to publish when the bytes changed under the same name", () => {
@@ -421,6 +424,20 @@ describe("the build refuses to publish a set git does not describe (#521)", () =
     // Paste-ready, so accepting a rebuild is one copy and one re-run.
     expect(output).toContain('"torch-2.7.0+cu124-cp313-cp313-linux_x86_64.whl"');
     expect(output).toContain("does not match the committed manifest");
+  });
+
+  it("prints the manifest in key order, so pasting it keeps the diff readable", () => {
+    // The manifest is committed alphabetically; a paste in directory order
+    // would reshuffle 114 lines on every accepted rebuild. The wheels are
+    // created in reverse order so the directory order is wrong on any
+    // filesystem — the check's own sort is what has to fix it.
+    const bumped = [...FROZEN, "zzz-late-1.0-cp313-cp313-linux_x86_64.whl"];
+    const { ok, output } = runManifestCheck([...bumped].reverse(), MANIFEST);
+    expect(ok).toBe(false);
+    // stdout carries the JSON, then stderr carries the FAIL line.
+    const printed = JSON.parse(output.slice(output.indexOf("{")).split("\nFAIL:")[0].trimEnd());
+    expect(Object.keys(printed.wheels)).toEqual(Object.keys(printed.wheels).sort());
+    expect(Object.keys(printed.wheels).at(-1)).toBe("zzz-late-1.0-cp313-cp313-linux_x86_64.whl");
   });
 
   it("refuses to publish when no committed manifest is present", () => {
