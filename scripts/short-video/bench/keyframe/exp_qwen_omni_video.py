@@ -37,6 +37,7 @@ RESULTS = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "results")
 VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
 AUDIO_DIR = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "audio")
 sys.path.insert(0, HERE)
+import bench_provenance as bp  # noqa: E402
 
 MODEL_ID = os.environ.get("OMNI_MODEL",
                           "mlx-community/Qwen3-Omni-30B-A3B-Instruct-4bit")
@@ -116,6 +117,14 @@ def main():
                              "预算会静默用回原值，实验报废")
 
     first = not details   # 首题失败 = 环境问题，响亮退出而非静默 0 分
+    # 溯源块只采集一次（处理器状态在跑之前就定了，逐视频重算是浪费）
+    prov = bp.collect(processor, WT_ROOT, model=MODEL_ID, native_video=True,
+                      asr_dir=ASR_DIR if MODE == "asr" else None,
+                      asr_mode=MODE if MODE == "asr" else None,
+                      max_tokens=8, temperature=0.0,
+                      extra={"mode": MODE,
+                             "max_pixels_override": MAX_PIXELS or None,
+                             "subset": SUBSET_NAME})
     stop = False
     n_new = 0
     for vid in videos:
@@ -209,12 +218,20 @@ def main():
             correct += int(ok)
             details.append({"videoID": vid, "question_id": q["question_id"],
                             "pred": pred, "answer": q["answer"],
-                            "correct": ok, "secs": secs, "raw": text[:80]})
+                            "correct": ok, "secs": secs, "raw": text[:80],
+                            # 原生视频输入由处理器自己采样，脚本侧拿不到逐视频帧数；
+                            # 记 None 而不是省略键 —— 汇总见 provenance.frames_fed。
+                            "n_frames": None})
             n_new += 1
             if MAX_Q and n_new >= MAX_Q:
                 stop = True
                 break
         json.dump({"model": MODEL_ID, "mode": MODE, "details": details,
+                   # 输入侧事实（2026-10-09 补）：此前没有记录帧数/像素预算，
+                   # 导致「Omni 又快又准度低」无法事后归因 —— 重跑探针才发现
+                   # 两模型自带 max_pixels 相差 1.96×（VL 25,165,824 /
+                   # Omni 12,845,056），视觉 token 数因此差 2 倍。
+                   "provenance": prov,
                    "summary": {"correct": correct, "total": len(details)}},
                   open(out_path, "w", encoding="utf-8"), indent=2,
                   ensure_ascii=False)

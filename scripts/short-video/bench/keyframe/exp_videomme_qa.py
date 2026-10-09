@@ -40,6 +40,7 @@ VM = os.path.join(WT_ROOT, ".scratch", "keyframe-bench", "videomme")
 sys.path.insert(0, HERE)
 sys.path.insert(0, LIB)
 import bench_common as bc  # noqa: E402
+import bench_provenance as bp  # noqa: E402
 import exp_siglip as es  # noqa: E402
 import exp_tiered as et  # noqa: E402
 
@@ -380,6 +381,20 @@ def main():
                            if ASR_TEXT else {"dir": None, "mode": None,
                                              "max_chars": None,
                                              "note": "arm has no transcript"}),
+                       # 输入侧事实（2026-10-09 补）：此前 27 个结果文件没有一个
+                       # 记录帧数/像素预算，导致「Omni 又快又准度低」无法事后归因
+                       # ——重跑探针才发现两模型自带 max_pixels 相差 1.96×。
+                       "provenance": bp.collect(
+                           processor, WT_ROOT,
+                           model=vlm.MODEL_ID,
+                           native_video=NATIVE_VIDEO,
+                           asr_dir=ASR_DIR if ASR_TEXT else None,
+                           asr_mode=ASR_MODE if ASR_TEXT else None,
+                           max_tokens=MAX_TOKENS,
+                           temperature=0.0,
+                           extra={"max_pixels_override": VM_MAX_PIXELS or None,
+                                  "engine": vlm.DEFAULT_ENGINE,
+                                  "frames_fed": bp.frame_stats(details)}),
                        "parser_check": {
                            "rows_with_raw": len(scored),
                            "strict_ne_lenient": len(diff),
@@ -476,6 +491,10 @@ def main():
                        "method": m, "pred": pred, "answer": q["answer"],
                        "correct": correct, "raw": raw[:80], "raw_len": len(raw),
                        "secs": secs,
+                       # 实际喂进去的帧数（抽帧臂）。原生视频臂由处理器自己采样，
+                       # 这里记 None —— 与「记了但是 0」区分开，后者是采集 bug。
+                       # 汇总见 provenance.frames_fed。
+                       "n_frames": len(frames) if frames else None,
                        "pred_strict": parse_strict(scored_text)}
                 if THINK_STRIP:
                     # raw[:80] is the head of the reasoning chain, so without the
