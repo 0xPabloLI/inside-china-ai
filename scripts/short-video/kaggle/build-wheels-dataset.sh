@@ -229,16 +229,25 @@ JSON
 # The CLI exits 0 even when the API rejects the request — a 2026-10-09 probe
 # got "Dataset creation error: The requested title … is already in use by a
 # notebook" with rc=0, and cloud-gpu-options.md records the same for "Please
-# upload at least one file". So the check is a positive signal: something must
-# say the push succeeded. A denylist of error words misses the failures nobody
-# thought to name.
+# upload at least one file". So the check reads the CLI's own terminal lines,
+# which `kaggle_api_extended.py` prints exactly once per outcome:
+#
+#   create  ok      "Your public|private Dataset is being created. …"   (5665-5667)
+#   create  fail    "Dataset creation error: …"                          (5669)
+#   version ok      "Dataset version is being created. …"                (5406)
+#   version fail    "Dataset version creation error: …"                  (5397-5400)
+#
+# Per-file lines are not signals: "Upload successful: <file>" (8601) prints
+# after each of the 114 uploads, so a run that fails on file 100 still shows
+# it. The check used to accept those and would have passed a truncated push.
 #
 # Matched against a file, never a pipe: `printf … | grep -q` under
 # `set -o pipefail` reports failure even on a match, because grep exits at the
 # first hit and printf dies of SIGPIPE (141). That turned a successful 114-file
 # upload into "no success signal" on the 2026-10-09 v6 run.
 #
-# Re-running after a first publish means `version` instead of `create`.
+# Re-running after a first publish means `version` instead of `create`; the
+# create path rejects a taken title with "already in use by a dataset" (5594).
 echo "==> pushing dataset (kaggle CLI)"
 PUSH_LOG="$OUT_DIR/push.log"
 kaggle datasets create -p "$OUT_DIR" --dir-mode zip >"$PUSH_LOG" 2>&1 || true
@@ -248,12 +257,12 @@ if grep -qi "already.*exists\|already in use" "$PUSH_LOG"; then
     -m "wheels rebuild $(date -u +%Y-%m-%dT%H:%MZ)" >"$PUSH_LOG" 2>&1 || true
 fi
 cat "$PUSH_LOG"
-if ! grep -qi "successfully\|upload successful\|starting upload\|dataset version" "$PUSH_LOG"; then
-  echo "FAIL: the dataset push printed no success signal (the CLI exits 0 even when it fails)"
+if grep -qi "creation error" "$PUSH_LOG"; then
+  echo "FAIL: the dataset push was rejected"
   exit 1
 fi
-if grep -qi "error\|failed\|exceed" "$PUSH_LOG"; then
-  echo "FAIL: the dataset push reported an error"
+if ! grep -qiE "dataset( version)? is being created" "$PUSH_LOG"; then
+  echo "FAIL: the push never reported a created dataset (the CLI exits 0 even when it fails)"
   exit 1
 fi
 rm -f "$PUSH_LOG"

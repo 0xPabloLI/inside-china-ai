@@ -267,15 +267,23 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
     }
   });
 
-  it("the push step needs a positive success signal, not just a quiet CLI", () => {
+  it("the push check reads the CLI's terminal lines, not per-file progress", () => {
     // `kaggle datasets create` exits 0 when the API rejects the request: a
     // probe got "Dataset creation error: The requested title … is already in
     // use by a notebook" with rc=0, and cloud-gpu-options.md records "Please
-    // upload at least one file" behaving the same way. A denylist of error
-    // words misses the failures nobody named.
+    // upload at least one file" behaving the same way. So the check keys on the
+    // CLI's own terminal lines — "…Dataset is being created" on success,
+    // "…creation error" on rejection (kaggle_api_extended.py 5397-5400,
+    // 5406, 5665-5669).
+    //
+    // Per-file lines must NOT count: "Upload successful: <file>" prints after
+    // each of the 114 uploads, so a run that dies on file 100 still shows it,
+    // and an allowlist containing it passes a truncated push.
     const push = BUILD_SRC.slice(BUILD_SRC.indexOf("pushing dataset"));
-    expect(push).toContain("successfully");
-    expect(push.indexOf("successfully")).toBeLessThan(push.indexOf("exit 1"));
+    expect(push).toContain('grep -qi "creation error"');
+    expect(push).toMatch(/grep -qiE "dataset\( version\)\? is being created"/);
+    expect(push).not.toContain("upload successful");
+    expect(push).not.toContain("starting upload");
   });
 
   it("the push check reads a file, not a pipe", () => {
@@ -286,7 +294,7 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
     const push = BUILD_SRC.slice(BUILD_SRC.indexOf("pushing dataset"));
     expect(push).toContain('PUSH_LOG="$OUT_DIR/push.log"');
     expect(push).not.toMatch(/\|\s*grep -q/);
-    expect(push).toContain('grep -qi "successfully');
+    expect(push).toMatch(/grep -qiE "[^"]+" "\$PUSH_LOG"/);
   });
 
   it("torch trio pins are identical in both files", () => {
