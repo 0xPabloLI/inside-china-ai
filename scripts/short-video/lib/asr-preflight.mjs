@@ -12,21 +12,21 @@
  * fix hint. The gate's explicit opt-outs are the gate's own escape hatches —
  * `TTS_QUALITY_ALLOW_NO_ASR=1` (render unverified) or
  * `TTS_SKIP_QUALITY_GATE=1` (no gate at all); both keep the pipeline running
- * with a warning, never silently.
+ * with a warning, never silently. The env spelling and the fix hint come from
+ * `tts/failure-class.mjs`, so this gate cannot drift away from the gate it
+ * mirrors.
+ *
+ * "Installed" means the model file also passes the ggml sanity check
+ * (`asrAvailability`), not just `existsSync`: a truncated download is the same
+ * failure class as a missing one, and it used to surface as an opaque
+ * transcriber error after the spend.
  *
  * @module asr-preflight
  */
 
+import { dirname, basename } from "path";
 import { asrAvailability } from "./video-understand.mjs";
-
-/**
- * Explicit opt-outs that make ASR unnecessary for this run.
- *
- * @returns {boolean}
- */
-export function asrOptOut() {
-  return process.env.TTS_QUALITY_ALLOW_NO_ASR === "1" || process.env.TTS_SKIP_QUALITY_GATE === "1";
-}
+import { ASR_FIX_HINT, asrOptOutEnabled } from "./tts/failure-class.mjs";
 
 /**
  * Ensure whisper.cpp ASR is installed, or terminate the pipeline.
@@ -41,7 +41,7 @@ export function asrOptOut() {
 export function ensureAsrOrExit({
   availability = asrAvailability(),
   exit = process.exit,
-  optOut = asrOptOut(),
+  optOut = asrOptOutEnabled(),
 } = {}) {
   if (availability.ok) {
     console.log(`✅ Step 0.3: ASR available (whisper.cpp + ${availability.model})`);
@@ -50,7 +50,9 @@ export function ensureAsrOrExit({
 
   const missing = [
     !availability.cliFound ? `cli ${availability.cli}` : null,
-    !availability.modelFound ? `model ${availability.model}` : null,
+    !availability.modelUsable
+      ? `model ${availability.model} (${availability.modelIssue || (availability.modelFound ? "unusable" : "missing")})`
+      : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -66,10 +68,10 @@ export function ensureAsrOrExit({
   console.error(
     "   The TTS quality gate word-verifies every take with whisper.cpp ASR; without it the gate fails closed (#415 ①) — after the TTS spend. Failing at pipeline start instead.",
   );
-  const modelFile = availability.model.split("/").pop();
-  const modelDir = availability.model.slice(0, -(modelFile.length + 1));
-  console.error(`   Fix: brew install whisper.cpp, then place ${modelFile} in ${modelDir}`);
-  console.error("   Explicit opt-out (render unverified): TTS_QUALITY_ALLOW_NO_ASR=1");
+  console.error(
+    `   Fix: brew install whisper.cpp, then place ${basename(availability.model)} in ${dirname(availability.model)}`,
+  );
+  console.error(`   ${ASR_FIX_HINT}`);
   exit(1);
   return { ok: false, exited: true };
 }

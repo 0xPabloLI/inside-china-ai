@@ -18,12 +18,17 @@ import { ensureAsrOrExit } from "../lib/asr-preflight.mjs";
 const MODEL = "/Users/x/.cache/whisper/ggml-large-v3-turbo.bin";
 const CLI = "/opt/homebrew/bin/whisper-cli";
 
-const avail = (over = {}) => ({
+// `modelUsable`/`modelIssue` are derived in asrAvailability (usable iff the
+// file exists AND passes the ggml check), so derive them here too: an
+// incoherent fixture would test a state the real gate can never produce.
+const avail = ({ modelFound = true, ...over } = {}) => ({
   ok: true,
   cli: CLI,
   cliFound: true,
   model: MODEL,
-  modelFound: true,
+  modelFound,
+  modelUsable: modelFound,
+  modelIssue: modelFound ? null : "missing",
   ...over,
 });
 
@@ -108,6 +113,34 @@ describe("ensureAsrOrExit (#418 Step 0.3 hard gate)", () => {
     process.env.TTS_QUALITY_ALLOW_NO_ASR = "0";
     ensureAsrOrExit({ availability: avail({ ok: false, modelFound: false }), exit: exitSpy });
     expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  // A truncated file passes existsSync, so the gate must judge on usability
+  // (#418) and say WHY — the operator cannot tell "download again" from
+  // "install whisper.cpp" otherwise.
+  it("exits 1 and names the reason when the model file is corrupt", () => {
+    ensureAsrOrExit({
+      availability: avail({
+        ok: false,
+        modelUsable: false,
+        modelIssue: "truncated (1024 bytes)",
+      }),
+      exit: exitSpy,
+    });
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(errText()).toContain("truncated (1024 bytes)");
+    expect(errText()).toContain(MODEL);
+  });
+
+  // The gate mirrors the quality gate's judgement, so the opt-out spelling and
+  // the fix hint must come from that shared module — not be re-typed here.
+  // (A silent drift would hard-exit runs the gate would have accepted.)
+  it("takes the opt-out names and the fix hint from failure-class.mjs", () => {
+    const src = readFileSync(new URL("../lib/asr-preflight.mjs", import.meta.url), "utf8");
+    expect(src).toContain('from "./tts/failure-class.mjs"');
+    expect(src).not.toMatch(/TTS_QUALITY_ALLOW_NO_ASR\s*===/);
+    expect(src).not.toMatch(/TTS_SKIP_QUALITY_GATE\s*===/);
+    expect(src).toContain("ASR_FIX_HINT");
   });
 
   // The gate only matters if the pipeline actually calls it — pin the wiring

@@ -42,6 +42,7 @@ import {
   partitionGateFailures,
   infraBlockError,
   markFailClosed,
+  qualityGateSkipped,
 } from "./failure-class.mjs";
 import { MAX_TTS_SPEED, resolveSceneSpeed } from "./pacing.mjs";
 
@@ -264,8 +265,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   const isFakeEngine =
     (engine.name && engine.name.toLowerCase().includes("fake")) ||
     (engine.info && engine.info.toLowerCase().includes("fake"));
-  const skipQualityGate =
-    options.skipQualityGate ?? (isFakeEngine || process.env.TTS_SKIP_QUALITY_GATE === "1");
+  const skipQualityGate = options.skipQualityGate ?? (isFakeEngine || qualityGateSkipped());
 
   if (!skipQualityGate && toGenerate.length > 0) {
     try {
