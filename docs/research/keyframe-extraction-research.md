@@ -69,11 +69,14 @@
    不影响 loader 裁决）。
 7. **对齐 `grab()` 与 loader 的输入分辨率后重跑对照臂**（Q41⑥），坐实「分辨率无关」。
 8. **窗口臂**（生产实际形状）——**从未测过**，是当前最大的外部效度缺口（§Q41⑳）。
-9. **`191e4ba4`（重复护栏）合入 main**：`#418` 已把它列为闭环互补件（§Q41㉒）。
-10. **⚠️ PR #445 已 CONFLICTING，需先解冲突**（§Q41㉔）——这是本 session
-    全部 83 个 commit 的落地面，也是护栏合入的前置条件。
+9. ~~**`191e4ba4`（重复护栏）合入 main**~~：已合入（`19bfc960`）并接到两个转写出口
+   （2026-10-10，§Q41㉒ 结论 2）。
+10. ~~**⚠️ PR #445 已 CONFLICTING，需先解冲突**~~：已解冲突并合入（`19bfc960`，2026-10-09 22:51）。
 
 **㉔ 落地状态：PR #445 冲突（2026-10-09 21:00 核）**
+
+> **已过时（2026-10-09 22:51 起）**：PR #445 已解冲突并合入 main（`19bfc960`），
+> 护栏随之下线；本节保留为当时的快照。当前状态见 §Q41㉒ 结论 2 与结论 9/10。
 
 | 项 | 值 |
 |---|---|
@@ -2794,13 +2797,19 @@ b=5/c=5 ⇒ 零代价提速 1.73×」。该结论**两侧都取自污染格**，
    （`asr_timing_matrix.json`）：cpp/turbo 5.13s、**cpp/large-v3 13.19s**、
    MLX/turbo 8.33s、MLX/large-v3 14.68s（cold wall 均值，各 n=8，ctx-off）。
    ⇒ 计时缺口已补，§Q41⑳ 的 #5 项划掉。
-2. **我的重复护栏 `191e4ba4` 是该票的互补件，但它标注「尚未合并」。**
+2. **我的重复护栏 `191e4ba4` 是该票的互补件，已合入并接线（2026-10-10）。**
    #418 结论②：「ctx-off 必要但不充分 —— 两边都关跨段上下文后仍会循环
    （最大重复 n-gram 到 9）。解码层参数在两个后端都不存在，护栏只能放在解码之后
-   —— 后端无关的重复护栏已由另一 session 在 `191e4ba4` 交付，**尚未合并**」。
-   **已核实**：`origin/main` 上无 `asr_repetition_guard.py`，而 #418 自己的
-   `asr-preflight.mjs` / `asr_timing_matrix.py` / `asr_equivalence.py`
-   **都在 main 上** ⇒ 是单侧缺口，护栏是唯一未落地件（解冲突路径见 §Q41㉔）。
+   —— 后端无关的重复护栏已由另一 session 在 `191e4ba4` 交付」。
+   **接线状态**：护栏先随 PR #445 合入 main（`19bfc960`），随后接到两个转写出口
+   —— whisper.cpp 出口（`lib/asr-repetition-guard.mjs`，`transcribeVideo` 返回值带
+   `guard` 字段）与装载层出口（`lib/asr_repetition_guard.py`，
+   `transcript.repetition_guard`；loader 版本升到 2 使 v1 缓存失效）。
+   **接线时实测的边界（147 份真实转写）**：单 token 循环收敛 10/147；多词短语
+   循环判得出收不了 —— 生产 whisper.cpp 在 `0ag_Qi5OEd0` 上吐出的 FEMA 循环
+   （488s / 17 段 / 仅 4 种文本）`contaminated=true` 而文本不变；`worst_run` 只统计
+   最高频 n-gram，`7E6i3E-fsj4` 的 "Hard." ×20 因此漏判。三条边界用测试钉住
+   （`__tests__/asr-repetition-guard.test.mjs`，含 Python ↔ JS 向量对照）。
 3. **A1 转写接线的阻塞已解除**：ASR 路径问题（§Q41⑳ #6 的「依赖 #418」）
    已有定论（whisper.cpp + 新 `asr-preflight.mjs` Step 0.3 硬门禁）。
    另注：#418 的 backend 事实纠正 —— whisper.cpp **默认走 Metal**（不带

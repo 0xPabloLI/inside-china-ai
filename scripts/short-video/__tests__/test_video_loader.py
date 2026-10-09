@@ -241,7 +241,10 @@ def _loaded(av_video, tmp_path, times, **extra):
 
 
 def test_adapter_text_interleaved_modes(av_video, tmp_path):
-    long_text = " ".join(["word"] * 600)          # 2999 chars > max_chars
+    # Distinct tokens on purpose: 600×"word" is a single-token loop, which the
+    # repetition guard collapses before the adapter ever sees it (see
+    # test_guard_* below). This case is about truncation, not the guard.
+    long_text = " ".join(f"w{i}" for i in range(600))   # 2888 chars > max_chars
     res = _loaded(av_video, tmp_path, [0.0, 1.0, 2.0], asr=ASR_SPEC,
                   asr_runner=fake_asr(
                       [{"start": 0.0, "end": 1.0, "text": long_text},
@@ -251,7 +254,7 @@ def test_adapter_text_interleaved_modes(av_video, tmp_path):
     assert len(block) == 2000 and block == res["transcript"]["text"][:2000]
     assert to_text_interleaved(res, mode="full") == res["transcript"]["text"]
     ts = to_text_interleaved(res, mode="ts")
-    assert ts.splitlines()[0].startswith("[00:00.0] word")
+    assert ts.splitlines()[0].startswith("[00:00.0] w0")
     assert ts.splitlines()[-1] == "[00:02.0] end"
     assert len(ts.splitlines()) == 3
     # missing transcript renders empty (caller keeps its own gate)
@@ -384,3 +387,80 @@ def test_extract_frames_s1_grid_and_cleanup(av_video):
     _cleanup_frames(frames)
 
     assert extract_frames("/nonexistent.mp4") == []
+
+
+# ─── repetition guard at the transcript seam ───
+
+def test_guard_collapses_within_segment_loop(av_video, tmp_path):
+    """段内单 token 循环（whisper.cpp 30s 段的形状）被收敛，网格与全文都干净。"""
+    loop = "Kampung " * 26
+    res = _loaded(av_video, tmp_path, [0.0, 1.0, 2.0], asr=ASR_SPEC,
+                  asr_runner=fake_asr(
+                      [{"start": 0.0, "end": 1.0, "text": "hello"},
+                       {"start": 1.0, "end": 2.0, "text": loop.strip()},
+                       {"start": 2.0, "end": 4.0, "text": "bye"}]))
+    tr = res["transcript"]
+    assert tr["repetition_guard"]["contaminated"] is True
+    assert tr["repetition_guard"]["changed"] is True
+    assert tr["repetition_guard"]["collapsed_segments"] == 1
+    assert "重复×" in tr["raw_segments"][1]["text"]
+    assert "重复×" in tr["segments"][1]["text"]
+    assert "重复×" in tr["text"]
+    # untouched segments keep their exact text
+    assert tr["raw_segments"][0]["text"] == "hello"
+    assert tr["segments"][2]["text"] == "bye"
+
+
+def test_guard_leaves_clean_transcript_untouched(av_video, tmp_path):
+    """正常转写逐字节不动（保守方向：宁可漏报也不误伤）。"""
+    segments = [{"start": 0.0, "end": 1.0, "text": "alpha beta gamma"},
+                {"start": 1.0, "end": 2.0, "text": "delta epsilon zeta"},
+                {"start": 2.0, "end": 4.0, "text": "eta theta iota"}]
+    res = _loaded(av_video, tmp_path, [0.0, 1.0, 2.0], asr=ASR_SPEC,
+                  asr_runner=fake_asr(segments))
+    tr = res["transcript"]
+    assert tr["repetition_guard"] == {"contaminated": False, "changed": False,
+                                      "worst_run": 1, "collapsed_segments": 0}
+    assert [s["text"] for s in tr["raw_segments"]] == \
+        [s["text"] for s in segments]
+    assert tr["text"] == "alpha beta gamma delta epsilon zeta eta theta iota"
+
+
+def test_guard_collapses_loop_spanning_segments(av_video, tmp_path):
+    """跨段循环（MLX 小段切分的形状）：整篇收敛，段级保持原样。
+
+    实测 0ag_Qi5OEd0 的 "Kampung" ×26 分散在 26 段里，逐段都判不出来 ——
+    只有整篇视图能看见。每段 7 个词（段内 worst_run=5，判不污染）× 4 段
+    = 整篇 28 个连续同 token（worst_run=26，污染）。这个不对称是已记录的
+    边界：段感知的收敛需要新判据（连续同文本段 + 时长证据），有误伤风险。
+    """
+    segments = [{"start": float(i), "end": float(i + 1),
+                 "text": " ".join(["Kampung"] * 7)} for i in range(4)]
+    res = _loaded(av_video, tmp_path, [0.0, 1.0, 2.0, 3.0], asr=ASR_SPEC,
+                  asr_runner=fake_asr(segments))
+    tr = res["transcript"]
+    assert tr["repetition_guard"]["contaminated"] is True
+    assert tr["repetition_guard"]["changed"] is True
+    # 段级不动（每段单独看都不构成循环）；整篇被收敛
+    assert tr["repetition_guard"]["collapsed_segments"] == 0
+    assert all("重复×" not in s["text"] for s in tr["raw_segments"])
+    assert "重复×" in tr["text"]
+    assert len(tr["text"]) < len(" ".join(["Kampung"] * 28))
+
+
+def test_guard_records_skip_for_wordless_script(av_video, tmp_path):
+    """CJK 无词边界：判定不适用，如实标注 skipped，不误伤。"""
+    res = _loaded(av_video, tmp_path, [0.0, 1.0], asr=ASR_SPEC,
+                  asr_runner=fake_asr(
+                      [{"start": 0.0, "end": 1.0, "text": "大家好" * 40},
+                       {"start": 1.0, "end": 4.0, "text": "再见"}]))
+    tr = res["transcript"]
+    assert tr["repetition_guard"]["contaminated"] is False
+    assert tr["repetition_guard"]["changed"] is False
+    assert tr["text"] == "大家好" * 40 + " 再见"
+
+
+def test_guard_absent_for_non_ok_transcript(av_video, tmp_path):
+    """无音轨 / 引擎缺失时不产生护栏记录（没有文本可判）。"""
+    visual = _loaded(av_video, tmp_path, [0.0, 1.0], want_audio=False)
+    assert visual["transcript"]["repetition_guard"] is None
