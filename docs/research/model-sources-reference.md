@@ -145,6 +145,22 @@ aria2c -i urls.txt -d /target/parent -x 8 -s 8 -k 8M -c \
 看着「已下满」其实没有。**用 `du -sh` 看真实块数**，或按
 `st_blocks * 512` 与 `st_size` 比对判断是否下完。
 
+**摊平嵌套目录**（踩了 `dir=` 之后的补救）：`mv "$inner" "$ROOT/$name"` 的目标正是
+外层目录自身，mv 会把文件「移进」它自己所在的目录，报 `are identical` 且
+**一个文件都没救回来**——看起来像 mv 失败，其实是路径写错。正确做法是先把内层
+文件重命名到唯一临时名（同文件系统内 `os.replace` 是原子的），再 `rmdir` 空壳，
+最后改成正式名；`rmdir` 失败要回滚，别把文件留在临时名上。
+参考实现：`scripts/short-video/bench/keyframe/` 同级会话的 `.scratch/keyframe-bench/flatten_ms.py`。
+
+**镜像索引可能与分片不匹配**：`Qwen3-VL-30B-A3B-Thinking-4bit` 的
+`model.safetensors.index.json` 声明 **13 个分片 / 62.1GB**（那是 bf16 的体积），
+而仓库实际只有 **4 个分片 / 18.25GB**——HF 与 ModelScope 都是这个状态，是上游
+仓库缺陷不是镜像问题。mlx-vlm 对此是安全的：它按索引找分片时用
+`if (model_path / shard).exists()` 过滤，一个都不存在就回落到 `glob("*.safetensors")`；
+`declared_keys` 只用于「丢弃权重缺失的模块」，而缺失模块在 `declared_keys` 里时
+会被保留（err-safe 方向）。**判断下载是否完整不要信索引，要拿分片 sha256 与
+仓库公布的 LFS 哈希比对**（本次四个分片逐一比对通过）。
+
 **另注**：HF 的 Xet 传输后端不遵守 `HTTPS_PROXY` 环境变量（表现为进程活着但字节数
 不动）。要经代理拉 HF，需 `HF_HUB_DISABLE_XET=1` 回落到经典 HTTP 路径。
 
