@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.14.0...tanstack_start_ts-v1.15.0) (2026-10-10)
+
+
+### Features
+
+* **short-video:** Qwen native video path + A1 transcript ([#542](https://github.com/0xPabloLI/inside-china-ai/issues/542)), and a period-aware ASR repetition guard ([#418](https://github.com/0xPabloLI/inside-china-ai/issues/418)) ([#543](https://github.com/0xPabloLI/inside-china-ai/issues/543)) ([7597492](https://github.com/0xPabloLI/inside-china-ai/commit/75974927bdc8e2900b7804e223898d6a9cfeb562))
+
 ## [1.14.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.13.0...tanstack_start_ts-v1.14.0) (2026-10-09)
 
 
