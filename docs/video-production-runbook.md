@@ -597,6 +597,11 @@ asset-sourcer Phase 3a
   钉住（Python 侧常量 == `bench_prompt.ASR_HEAD` / `DEFAULT_MAX_CHARS`）。
 - **探测到无音轨就跳过**：`probeMedia.hasAudio === false` 的资产不转写（stock b-roll
   本来就没话）；`hasAudio` 未知时仍然尝试，失败即回落纯视觉。
+- **进 prompt 的是护栏收敛后的文本**：`transcribeVideo` 的出口已经过重复护栏
+  （见 §ASR ④b），所以循环段被替换成「首次出现 + `[重复×N已收敛]` 标记」，标记本身
+  也会进 prompt。这是**刻意保留**的差异（bench 的对照臂喂的是未收敛文本）：污染转写
+  的唯一去处是下游，把 14 次重复原样喂给模型既虚增 prompt 又误导；标记让模型知道
+  这里发生过收敛。标记的去留（剥离 vs 保留）属于 #540「下游处置」一轴的待判项。
 - **产物留痕**：`asset.transcriptChars`（Python 回传的**实际进 prompt** 字符数，
   null = 本次分析没有转写）、`asset.transcriptGuard`（护栏报告）；两者都进
   `asset-analysis.json`。缺转写是**事实**，不是要靠推断的缺口。
