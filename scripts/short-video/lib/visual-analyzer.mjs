@@ -19,7 +19,9 @@
  * Lifecycle:
  *   - Each subprocess spawns on first call, reuses for subsequent calls.
  *   - If process exits (crash/idle timeout), respawns on next call.
- *   - VLM runs as a pool of VLM_CONCURRENCY (default 2) subprocesses (#189);
+ *   - VLM runs as a pool of VLM_CONCURRENCY subprocesses (#189; the default is
+ *     the configured engine's declared `concurrency` — 1 for the default
+ *     qwen3-vl-moe — not a module constant);
  *     requests are dispatched from a shared queue to idle workers, one
  *     in-flight request per worker.
  *   - Focus requests use requestId-based pending Map (concurrent-safe).

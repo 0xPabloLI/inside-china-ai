@@ -77,10 +77,11 @@ let visualAnalyzer;
 
 beforeEach(async () => {
   vi.resetModules();
-  // #189: the module now runs a worker pool (default VLM_CONCURRENCY=2).
-  // This file pins the pool to 1 so legacy single-worker semantics
-  // (serial queuing, one stdin write at a time) stay exercised here; pool
-  // behavior has dedicated coverage in visual-analyzer-pool.test.mjs.
+  // #189: the module runs a worker pool whose default is the configured
+  // engine's declared `concurrency`. This file pins the pool to 1 so legacy
+  // single-worker semantics (serial queuing, one stdin write at a time) stay
+  // exercised here; pool behavior has dedicated coverage in
+  // visual-analyzer-pool.test.mjs.
   process.env.VLM_CONCURRENCY = "1";
   // Re-setup mocks after resetModules
   mockSpawn = vi.fn();
