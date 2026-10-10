@@ -100,7 +100,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@eslint/js": "^9.32.0",
+    "@eslint/js": "^10.0.0",
     "@lovable.dev/vite-tanstack-config": "2.25.1",
     "@playwright/test": "^1.62.0",
     "@size-limit/file": "^14.0.0",
@@ -109,7 +109,7 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/coverage-v8": "^5.0.0",
-    "eslint": "^9.32.0",
+    "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",
     "eslint-plugin-react-hooks": "^7.0.0",
