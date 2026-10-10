@@ -84,11 +84,39 @@ describe("vlm-cache (#189)", () => {
     expect(kA2).toBe(kA); // same plan → stable key
   });
 
+  // #542 L3 (A1): the transcript is prompt content, so it is key material —
+  // the same asset with a different transcript is a different analysis.
+  it("#542: transcript is key material (no stale hits across transcripts)", async () => {
+    const base = await computeCacheKey({ filePath: imgA, model: "m1" });
+    const withA = await computeCacheKey({
+      filePath: imgA,
+      model: "m1",
+      transcript: "今天聊通义千问。",
+    });
+    const withB = await computeCacheKey({
+      filePath: imgA,
+      model: "m1",
+      transcript: "今天聊文心一言。",
+    });
+    const withA2 = await computeCacheKey({
+      filePath: imgA,
+      model: "m1",
+      transcript: "今天聊通义千问。",
+    });
+    const empty = await computeCacheKey({ filePath: imgA, model: "m1", transcript: "" });
+    const nulled = await computeCacheKey({ filePath: imgA, model: "m1", transcript: null });
+
+    expect(withA).not.toBe(base);
+    expect(withB).not.toBe(withA);
+    expect(withA2).toBe(withA); // same transcript → stable key
+    expect(empty).toBe(base); // no transcript === absent transcript
+    expect(nulled).toBe(base);
+  });
+
   it("#351 minimal repro: same asset, two model ids -> distinct keys, no cross-hit", async () => {
     const keyM1 = await computeCacheKey({ filePath: imgA, model: "model-one" });
     const keyM2 = await computeCacheKey({ filePath: imgA, model: "model-two" });
     expect(keyM1).not.toBe(keyM2);
-
     // Results produced under model-one never serve a model-two lookup.
     writeCachedResult(dir, keyM1, {
       data: { description: "from model-one", subjects: [] },
