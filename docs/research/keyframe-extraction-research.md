@@ -2816,6 +2816,13 @@ b=5/c=5 ⇒ 零代价提速 1.73×」。该结论**两侧都取自污染格**，
    （488s / 17 段 / 仅 4 种文本）`contaminated=true` 而文本不变；`worst_run` 只统计
    最高频 n-gram，`7E6i3E-fsj4` 的 "Hard." ×20 因此漏判。三条边界用测试钉住
    （`__tests__/asr-repetition-guard.test.mjs`，含 Python ↔ JS 向量对照）。
+   **同日规则扩展（2026-10-10，本 session）**：上表两条缺口已补 —— 收敛改为
+   周期感知（单元 ≤16 词、重复 ≥6 次、跨度 ≥18 词，保留首次出现 + 标记），
+   `worst_run` 改取所有 n-gram 的最大连续次数。148 份真实转写（145 MLX ctx-off
+   + 3 whisper.cpp）复核：改写 17/148（旧判据 10/148），逐份人工核过全是解码
+   循环；真内容 "Goal!" ×10 / "Bang," ×14 / "Thank you." ×8 因跨度 <18 词保留
+   未动；FEMA 交错循环仍只判不改（VAD 领域）。JS ↔ Python 逐字段零分歧。
+   loader 版本随之升到 3（v2 缓存里可能留着短语循环）。
 3. **A1 转写接线的阻塞已解除**：ASR 路径问题（§Q41⑳ #6 的「依赖 #418」）
    已有定论（whisper.cpp + 新 `asr-preflight.mjs` Step 0.3 硬门禁）。
    另注：#418 的 backend 事实纠正 —— whisper.cpp **默认走 Metal**（不带

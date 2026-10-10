@@ -53,7 +53,10 @@ from asr_repetition_guard import collapse_repetition, inspect_transcript
 # v2: the transcript leaving `_attribute_transcript` now passes the repetition
 # guard (#418 complementary piece). The cache key must name the real artifact,
 # so transcripts cached by v1 (possibly loop-contaminated) must not be reused.
-LOADER_VERSION = 2
+# v3: the guard's rule became period-aware (phrase loops collapse, not only
+# single-token ones) — v2 transcripts may still carry phrase loops, so they
+# must not be reused either.
+LOADER_VERSION = 3
 DEFAULT_SR = 16000
 HOMEBREW_FFMPEG = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
 HOMEBREW_FFPROBE = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe"

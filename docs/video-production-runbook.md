@@ -340,17 +340,24 @@ whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo.bin -f audio.wav -l en \
 `transcript.repetition_guard`）。护栏改写过文本时，出口会打 warning / 在结果里留痕，
 事后能分辨哪份转写被动过。
 
+**判据（2026-10-10 扩展）**：周期感知的连续循环 —— 单元长度 ≤16 词、连续重复
+≥6 次、跨度 ≥18 词即收敛（保留首次出现 + `[重复×N已收敛]` 标记）；`worst_run`
+取**所有** n-gram 的最大连续次数，不再是最高频那一个。
+
 护栏刻意保守（宁可漏报也不误伤真实口语），**实测边界不要当成更强的保证**
-（147 份真实转写：145 份 MLX ctx-off 语料 + 2 份 whisper.cpp 生产输出）：
+（148 份真实转写：145 份 MLX ctx-off 语料 + 3 份 whisper.cpp 生产输出）：
 
 | 形态 | 行为 |
 |---|---|
-| 单 token 循环（Kampung ×26、go ×56、norge ×71） | **收敛**，10/147 份被改写 |
-| 多词短语循环（whisper.cpp 生产实测的 FEMA 循环：488s 内 17 段只有 4 种文本） | **判得出、收不了**：`contaminated=true` 而文本不变 |
-| 非最高频 n-gram 的长连续段（`7E6i3E-fsj4` 的 "Hard." ×20） | 漏判：`worst_run` 只统计最高频 n-gram |
+| 单 token 循环（Kampung ×26、go ×56、norge ×71、Wow. ×29） | **收敛** |
+| 多词短语循环（"I'm not sure if I can do this." ×14、"Stay in the corner." ×23、德语 "Es war ein sehr schwieriger Tag für die Flieger." ×8、whisper.cpp 冒烟的 "One is red," ×7） | **收敛**；扩展后 17/148 份被改写（旧判据 10/148，全是单 token） |
+| 跨度 <18 词的连续重复（真内容 "Goal!" ×10、"Bang," ×14；"Thank you." ×8） | **不动**（即使 `contaminated=true`）——保守不对称 |
+| 交错多短语循环（whisper.cpp 生产实测的 FEMA 循环：488s 内 17 段只有 4 种文本） | **判得出、收不了**：`contaminated=true` 而文本不变；根因是低信噪/音乐段（VAD 领域） |
 
-三条边界都用测试钉在 `scripts/short-video/__tests__/asr-repetition-guard.test.mjs`
-（含 Python ↔ JS 跨语言向量对照，防止两个实现漂移）。
+四条边界都用测试钉在 `scripts/short-video/__tests__/asr-repetition-guard.test.mjs`
+（含 Python ↔ JS 跨语言向量对照，防止两个实现漂移）。扩展后的规则在 148 份
+真实转写上做过逐份人工复核：17 份改动全部是解码循环（多段同文本 / 单段内
+同短语连排），零误伤。
 
 **⑤ 运行时裁决（2026-10-09, #418）**：**生产转写唯一运行时 = whisper.cpp**（本节调用口径，
 ADR-0020 §2 首选）；MLX 只存在于 bench 实验轴（`bench/keyframe/`：`asr_batch.py` 批量转写、
@@ -567,7 +574,7 @@ to_minicpm_units(r)                   # 官方「1 帧 + 1 段音频」单元，
   whisper.cpp `--max-context 0`。
 - **转写出装载层前过重复护栏**：`transcript.repetition_guard` 记录是否被判污染/
   是否被改写（段级与整篇分别收敛，见上一节 ④b 的实测边界）；loader 版本因此
-  升到 2，v1 缓存（可能带循环）不复用。
+  升到 3（v1 无护栏、v2 只收单 token 循环，两者的缓存都不复用）。
 - **引擎缺失或抛错不炸装载**：`transcript.status ∈ {unavailable, no_audio,
   not_requested}` + 原因；放行与否由调用方门禁决定（INFRA 语义，与
   `tts/quality-gate.mjs` 一致）。
