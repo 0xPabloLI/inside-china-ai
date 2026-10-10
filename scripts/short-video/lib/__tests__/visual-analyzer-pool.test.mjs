@@ -235,6 +235,25 @@ describe("visual-analyzer worker pool (#189)", () => {
     expect(total).toBeGreaterThanOrEqual(550);
   }, 20000);
 
+  // #542: with no env override the pool size comes from the engine
+  // declaration (vlm-model.json), not a hardcoded 2 — two 17GB Qwen instances
+  // OOM the Metal device and silently degrade every analysis.
+  it("defaults the pool size to the engine's declared concurrency", async () => {
+    const cfg = JSON.parse(
+      readFileSync(join(import.meta.dirname, "..", "vlm-model.json"), "utf-8"),
+    );
+    const m = await loadModule({
+      VLM_ANALYZER_PYTHON_BIN: PYTHON,
+      VLM_RESPONSE_TIMEOUT_MS: "10000",
+      FAKE_VLM_LOG: logPath,
+      FAKE_VLM_DELAY_MS: "50",
+    });
+    globalThis.__vlmModule = m;
+
+    expect(m.getVlmConcurrency()).toBe(cfg.engines[cfg.engine].concurrency);
+    expect(m.getVlmConcurrency()).toBe(1);
+  }, 20000);
+
   it("closeVisualAnalyzer closes all workers and is idempotent", async () => {
     const m = await loadModule({
       VLM_ANALYZER_PYTHON_BIN: PYTHON,

@@ -18,6 +18,9 @@ vi.mock("../visual-analyzer.mjs", () => ({
   closeVisualAnalyzer: vi.fn(),
   getVlmConcurrency: vi.fn(() => 2),
   getVlmModelId: () => "test-model",
+  // #542 L2: image-only suite — the capability only gates the video window
+  // plan, but asset-sourcer reads it unconditionally.
+  getVlmVideoInput: () => "native",
 }));
 
 import { analyzeAssets } from "../asset-sourcer.mjs";

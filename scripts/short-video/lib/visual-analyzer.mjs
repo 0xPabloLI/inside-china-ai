@@ -19,7 +19,9 @@
  * Lifecycle:
  *   - Each subprocess spawns on first call, reuses for subsequent calls.
  *   - If process exits (crash/idle timeout), respawns on next call.
- *   - VLM runs as a pool of VLM_CONCURRENCY (default 2) subprocesses (#189);
+ *   - VLM runs as a pool of VLM_CONCURRENCY subprocesses (#189; the default is
+ *     the configured engine's declared `concurrency` — 1 for the default
+ *     qwen3-vl-moe — not a module constant);
  *     requests are dispatched from a shared queue to idle workers, one
  *     in-flight request per worker.
  *   - Focus requests use requestId-based pending Map (concurrent-safe).
@@ -37,7 +39,10 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { randomUUID } from "crypto";
-import VLM_MODEL_ID from "./vlm-model.mjs";
+import VLM_MODEL_ID, {
+  VLM_VIDEO_INPUT,
+  VLM_CONCURRENCY as VLM_CONCURRENCY_DECLARED,
+} from "./vlm-model.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -100,8 +105,17 @@ function degradedForAction(action) {
  * Pool size (#189): number of concurrent VLM subprocesses. Each worker
  * handles one request at a time — the legacy Python main loop stays
  * unchanged (one in-flight request per process, FIFO fallback safe).
+ *
+ * Default comes from the engine declaration (#542): how many instances of
+ * this engine fit in memory. `VLM_CONCURRENCY` overrides it for experiments —
+ * raising it above the declared value is how the GPU gets OOM-killed (two
+ * 17GB Qwen instances on a 32GB machine: the second warmup dies and both
+ * analyses degrade silently).
  */
-const VLM_CONCURRENCY = Math.max(1, Number(process.env.VLM_CONCURRENCY) || 2);
+const VLM_CONCURRENCY = Math.max(
+  1,
+  Number(process.env.VLM_CONCURRENCY) || VLM_CONCURRENCY_DECLARED,
+);
 
 /**
  * A VLM worker owns one Python subprocess, its own pending map and
@@ -424,6 +438,9 @@ function sendRequest(worker, request) {
     ...(request.windows ? { windows: request.windows } : {}),
     ...(request.claim ? { claim: request.claim } : {}),
     ...(request.cropFocus ? { cropFocus: request.cropFocus } : {}),
+    // A1 (#542 L3): the ASR transcript, injected into the prompt before the
+    // task by the Python side. Absent = no transcript block (current behavior).
+    ...(request.transcript ? { transcript: request.transcript } : {}),
     // #391: frame-selection params — pass-through only; absent = current
     // behavior (uniform / 16 frames / 2.0 fps on the Python side)
     ...(request.frameStrategy ? { frameStrategy: request.frameStrategy } : {}),
@@ -485,6 +502,16 @@ export function getVlmModelId() {
 }
 
 /**
+ * Video-input capability of the configured engine (#542 L1): "native" (the
+ * engine consumes the video file) or "frames" (callers extract stills). A
+ * function (not a re-exported const) so test doubles can stub it, same as
+ * getVlmModelId.
+ */
+export function getVlmVideoInput() {
+  return VLM_VIDEO_INPUT;
+}
+
+/**
  * Analyze an asset (image or video) using the VLM in a single call.
  *
  * Sends an `analyze_semantics` action to the Python subprocess. The VLM
@@ -499,20 +526,23 @@ export function getVlmModelId() {
  * - windows ({ startMs, endMs, sampleFps }[] | undefined) — videos only,
  *   #360 segmented analysis: Python analyzes each window and merges into a
  *   single 8-field-compatible result
- * - sourceMode ("frames" | "degraded" | undefined) — videos only; analysis
- *   always runs on ffmpeg-extracted frames
+ * - sourceMode ("native" | "frames" | "degraded" | undefined) — videos only;
+ *   "native" = the engine consumed the video file itself, "frames" = ffmpeg
+ *   stills (a windowed request or a frames-mode engine)
+ * - transcriptChars (int | undefined) — videos only; the chars of the A1
+ *   transcript (#542) that actually reached the prompt
  * - relevance (int 0-100 | null) / relevanceReason — claim mode only
  *
  * On any failure (VLM unavailable, parse error, timeout), resolves with
  * a degraded result where all fields are empty/null.
  *
  * @param {string} assetPath - Absolute path to the image/video file.
- * @param {{startMs?: number, endMs?: number, sampleFps?: number, windows?: {startMs: number, endMs: number, sampleFps: number}[], claim?: {voiceover: string, assetNeed: string}, cropFocus?: {x: number, y: number}, frameStrategy?: "uniform"|"scene", maxFrames?: number}} [opts] - Optional time window or multi-window plan (video only), scene claim (relevance judging), crop hint (images only), and frame-selection params (#391, pass-through; absent = current behavior)
+ * @param {{startMs?: number, endMs?: number, sampleFps?: number, windows?: {startMs: number, endMs: number, sampleFps: number}[], claim?: {voiceover: string, assetNeed: string}, cropFocus?: {x: number, y: number}, transcript?: string, frameStrategy?: "uniform"|"scene", maxFrames?: number}} [opts] - Optional time window or multi-window plan (video only), scene claim (relevance judging), crop hint (images only), ASR transcript (#542, video only), and frame-selection params (#391, pass-through; absent = current behavior)
  * @returns {Promise<{description: string, subjects: string[], contentKind: string|null,
  *   fit: string|null, criticalEdgeText: string|null, reason: string|null,
  *   window?: {startMs: number, endMs: number, sampleFps: number},
  *   windows?: {startMs: number, endMs: number, sampleFps: number}[],
- *   sourceMode?: string}>}
+ *   sourceMode?: string, transcriptChars?: number}>}
  */
 export function analyzeAssetSemantics(assetPath, opts) {
   // Single flattened window — only sent when the caller actually passes a
@@ -535,6 +565,10 @@ export function analyzeAssetSemantics(assetPath, opts) {
   // simulation so the VLM judges the framing the viewer will actually see.
   // Absent hint keeps the historical center crop.
   const cropFocus = opts?.cropFocus || undefined;
+  // A1 transcript (#542 L3): the ASR text for a video asset, injected into the
+  // prompt ahead of the task. Blank/absent → omitted (no empty block).
+  const transcript =
+    typeof opts?.transcript === "string" && opts.transcript.trim() ? opts.transcript : undefined;
   // Frame-selection params (#391) — pass-through only, absent = current
   // behavior. frameStrategy: "uniform" (default) | "scene"; maxFrames: frame
   // cap (default 16); sampleFps: uniform decode fps (default 2.0).
@@ -555,6 +589,7 @@ export function analyzeAssetSemantics(assetPath, opts) {
       windows,
       claim,
       cropFocus,
+      transcript,
       frameStrategy,
       maxFrames,
       sampleFps,
