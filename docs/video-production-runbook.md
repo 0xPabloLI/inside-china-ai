@@ -648,27 +648,14 @@ to_minicpm_units(r)                   # 官方「1 帧 + 1 段音频」单元，
 
 单测：`scripts/short-video/__tests__/test_video_loader.py`（S1/S4/S5/S6/S7 + 适配器）。
 
-#### 装载层的生产归宿（#542 L4，2026-10-10 审计）
+#### 装载层的生产归宿（#542 L4）
 
 引擎切到 `native` 之后，**装载层在生产上零调用者**：唯一的生产调用链是
 `vlm_analyzer.extract_frames`（窗口/抽帧路径）→ `load_video`，而该路径只在
 `frames` 引擎或带窗请求时走到；转写由 JS 侧 `transcribeVideo`（whisper.cpp）负责，
-不经装载层。审计逐项核过的「无生产调用者」事实（用户 2026-10-10 裁决：全部保留，
-只记录事实，不做删除）：
-
-| API / 能力 | 生产调用者 | bench / 测试 |
-|---|---|---|
-| `load_video` | `extract_frames`（仅 `frames` 引擎或带窗请求） | `test_video_loader.py` |
-| `load_video` 的 `cache_dir` / manifest 缓存 | **无**（生产调用只传 `frame_times` + `want_audio: False`） | 测试 |
-| `load_video` 的 `asr` / `asr_runner` 转写通道 | **无**（转写走 JS `transcribeVideo`） | 测试 |
-| `to_text_interleaved` | **无** | 测试 |
-| `frames_with_text` | **无** | `exp_loader_feed_qa.py` |
-| `to_minicpm_units` | **无**（单元路线实测无增益且慢 5-10×） | `exp_omni_units_qa_official.py` / `exp_omni_units_qa_loader.py` |
-| `to_qwen_omni` / `process_qwen_mm_info` | **无**（Omni 交织贡献≈0） | 测试 |
-
-保留的理由：`frames` 引擎（`--engine minicpm`）仍是可选的回退路径，装载层是它的
-解码入口；四组适配器是「引擎契约」的实测证据，删掉后重测要重写。**下次动它之前先
-确认 `--engine minicpm` 已无人使用**——那时整块可以一次性退役。
+不经装载层。装载层保留为 `frames` 引擎（`--engine minicpm`）的契约路径，不删；
+逐 API 的生产调用者审计与保留理由见
+[`keyframe-extraction-research.md` §Q41㉕](research/keyframe-extraction-research.md)。
 
 ## B-roll Generation (FastVideo MLX)
 
