@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.15.2...tanstack_start_ts-v1.15.3) (2026-10-11)
+
+
+### Bug Fixes
+
+* **short-video:** align on full TTS cache hits and fail closed at the subtitle render boundary ([#421](https://github.com/0xPabloLI/inside-china-ai/issues/421)) ([#561](https://github.com/0xPabloLI/inside-china-ai/issues/561)) ([ab3a699](https://github.com/0xPabloLI/inside-china-ai/commit/ab3a699e25858be38e15df361f8ac7d59fcb04ab))
+
 ## [1.15.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.15.1...tanstack_start_ts-v1.15.2) (2026-10-11)
 
 
