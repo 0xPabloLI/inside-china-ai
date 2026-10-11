@@ -37,6 +37,11 @@
  *                      drawn box vs host box under the unified settled-assert
  *                      measurement, per edge (basis for the per-type
  *                      overdraw tolerance)
+ *   hook-reveal-geometry-probe  #576: the claim-led reveal's Range rect vs the
+ *                      box its line-height lays out, per edge — the geometry
+ *                      Fit decides on, at the preferred 80px (shipped 1.1:
+ *                      zero poke; pre-fix 1.05: 2px per edge → fit-bottom)
+ *                      and at the 56px contract floor
  *
  * Spec: docs/archive/spec-text-overflow-hardening.md § T4 Implementation Refinement,
  * decisions 18, 36; § T5 Implementation Refinement, decisions 44, 49;
@@ -62,7 +67,7 @@ import {
   officialSeedSize,
 } from "../../lib/official-fit-kernel.mjs";
 import { fitCandidates } from "../../lib/text-slots.mjs";
-import { inkOverhangsOfRun } from "../../lib/text-geometry.mjs";
+import { EPS, inkOverhangsOfRun } from "../../lib/text-geometry.mjs";
 
 const SLOT_ID = "narrative.media-overlay.result";
 const SCENE_ID = "fixture";
@@ -81,10 +86,24 @@ const INK_SIZE = 140;
 const COPY_WRAP =
   "THE WHOLE POINT OF THE ANNOUNCEMENT IS THAT CAPACITY GROWS WHILE COMPUTE STAYS FLAT";
 
+/** #576: revealText's contract floor (`SLOT_FIELDS.revealText.minSize`). */
+const REVEAL_FLOOR_SIZE = 56;
+/** #576: revealText's measured content box (`MEASURED_MAX_WIDTH`). */
+const REVEAL_FLOOR_WIDTH = 820;
+/** #576: a reveal that stays on ONE line at the floor — the shape the
+ * pre-fix ladder bottomed out on (its Range rect measured 62px). */
+const REVEAL_FLOOR_COPY = "4-HOUR LEAKED MEETING";
+
 /** A promise that never settles — simulates fonts that never become ready. */
 const NEVER_READY = new Promise<never>(() => {});
 
-type FixtureProps = { scenario?: string; probe?: ProbeSpec };
+type FixtureProps = {
+  scenario?: string;
+  probe?: ProbeSpec;
+  revealLineHeight?: number;
+  revealFontSize?: number;
+  revealCopy?: string;
+};
 
 /**
  * T12 probe scenario spec. The probe renders `text` inside a `boxWidth`-wide
@@ -113,26 +132,44 @@ const nextFrame = (): Promise<void> =>
  * the same Range technique the gate uses (textExtentLocal), minus the
  * annotation handling a bare probe does not need.
  */
-function probeTextWidth(box: HTMLElement): number {
+function probeTextExtent(box: HTMLElement): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
   const range = document.createRange();
   const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
   let minX = Infinity;
+  let minY = Infinity;
   let maxX = -Infinity;
+  let maxY = -Infinity;
   let node: Node | null = walker.nextNode();
   while (node) {
     if ((node.textContent ?? "").trim().length > 0) {
       range.selectNodeContents(node);
       for (const r of Array.from(range.getClientRects())) {
         minX = Math.min(minX, r.left);
+        minY = Math.min(minY, r.top);
         maxX = Math.max(maxX, r.right);
+        maxY = Math.max(maxY, r.bottom);
       }
     }
     node = walker.nextNode();
   }
-  if (!Number.isFinite(minX)) return 0;
+  if (!Number.isFinite(minX)) return { x: 0, y: 0, width: 0, height: 0 };
   const boxRect = box.getBoundingClientRect();
   const scale = box.offsetWidth > 0 ? boxRect.width / box.offsetWidth : 1;
-  return (maxX - minX) / scale;
+  return {
+    x: (minX - boxRect.left) / scale,
+    y: (minY - boxRect.top) / scale,
+    width: (maxX - minX) / scale,
+    height: (maxY - minY) / scale,
+  };
+}
+
+function probeTextWidth(box: HTMLElement): number {
+  return probeTextExtent(box).width;
 }
 
 /**
@@ -267,6 +304,100 @@ const OfficialSeedProbe: React.FC<{ spec: ProbeSpec }> = ({ spec }) => {
   );
 };
 
+/**
+ * #576 reveal geometry probe: the geometry Fit decides on, measured OUTSIDE the gate so
+ * the numbers survive even where the verdict is a FAIL (the gate's own payload
+ * carries only width/height). The decisive quantity is PER EDGE: the Range
+ * extent (the font's natural line box, ~1.107em, whole-pixel snapped) against
+ * the box the element's own line-height lays out (lineHeight em). Any edge
+ * whose poke exceeds EPS fails boxWithin.
+ *
+ * Measured on the shipped shape (fontWeight 900, 2px tracking, 820px box):
+ *
+ *   copy                     size  lineHeight  box   extent      poke  fits
+ *   4-HOUR LEAKED MEETING      80        1.1    176   176 @ y 0     0  yes
+ *   4-HOUR LEAKED MEETING      80       1.05    168   172 @ y −2   ±2  no
+ *   ZERO KPIS                  80        1.1     88    88 @ y 0     0  yes
+ *   ZERO KPIS                  80       1.05     84    88 @ y −2   ±2  no
+ *   ZERO KPIS                  56        1.1     62    62 @ y −1   +1  no
+ *
+ * So the fix clears BOTH scene shapes at the preferred 80px — the only size
+ * the gate ever compares against, since `contentLocal` is captured once at
+ * mount (the gate's initial font size = preferredSize). The pre-fix 1.05
+ * failed at every candidate size by 2px per edge, which is why the ladder
+ * bottomed out at the floor. The 56px row is the floor boundary itself: the
+ * pipeline never measures there (a wrapping reveal only shrinks for WIDTH, and
+ * the box it is compared against stays the preferred-size one), but it is
+ * recorded so nobody claims the floor is clean — the engine snaps the rect a
+ * whole pixel above the line box whenever the natural box is taller, and EPS
+ * (0.5px, locked by unit test) cannot absorb that.
+ */
+const HookRevealGeometryProbe: React.FC<{ lineHeight: number; copy: string; fontSize: number }> = ({
+  lineHeight,
+  copy,
+  fontSize,
+}) => {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    delayRender("hook reveal geometry probe");
+
+    void (async () => {
+      const box = boxRef.current;
+      if (!box) {
+        cancelRender(new Error('[HookRevealGeometryProbe] {"error":"refs-not-mounted"}'));
+        return;
+      }
+      await document.fonts.ready;
+      await nextFrame();
+
+      const extent = probeTextExtent(box);
+      const ink = collectInkOverhangs(box);
+      const inflated = {
+        x: extent.x - ink.left,
+        y: extent.y - ink.top,
+        width: extent.width + ink.left + ink.right,
+        height: extent.height + ink.top + ink.bottom,
+      };
+      // Box-local origin, exactly like the gate's contentLocal.
+      const boxBox = { x: 0, y: 0, width: box.offsetWidth, height: box.offsetHeight };
+      const poke = {
+        left: boxBox.x - inflated.x,
+        top: boxBox.y - inflated.y,
+        right: inflated.x + inflated.width - (boxBox.x + boxBox.width),
+        bottom: inflated.y + inflated.height - (boxBox.y + boxBox.height),
+      };
+      cancelRender(
+        new Error(
+          `[HookRevealGeometryProbe] ${JSON.stringify({
+            copy,
+            fontSize,
+            lineHeight,
+            box: boxBox,
+            extent,
+            ink,
+            inflated,
+            poke,
+            eps: EPS,
+            fits: Object.values(poke).every((p) => p <= EPS),
+          })}`,
+        ),
+      );
+    })();
+  }, [lineHeight, copy, fontSize]);
+
+  return (
+    <Stage>
+      <div ref={boxRef} style={{ width: REVEAL_FLOOR_WIDTH }}>
+        {hookRevealNode(fontSize, copy, lineHeight)}
+      </div>
+    </Stage>
+  );
+};
+
 function textNode(fontSize: number, copy: string, italic = false): React.ReactNode {
   return (
     <div
@@ -277,6 +408,32 @@ function textNode(fontSize: number, copy: string, italic = false): React.ReactNo
         fontFamily: BRAND_FONT_STACK,
         whiteSpace: "pre",
         color: "#fff",
+      }}
+    >
+      {copy}
+    </div>
+  );
+}
+
+/**
+ * The claim-led reveal element as HookScene renders it (#576): weight 900,
+ * 2px tracking, centred, and a line-height the caller picks (the shipped 1.1
+ * vs the pre-fix 1.05). HookScene's `marginTop: SPACING.xl` is deliberately
+ * absent — the margin collapses out of the gate box, so the measured geometry
+ * is the text alone (the pre-fix baseline's reported gate box was exactly
+ * 2 × 1.05 × 80, no margin in it).
+ */
+function hookRevealNode(fontSize: number, copy: string, lineHeight: number): React.ReactNode {
+  return (
+    <div
+      style={{
+        fontSize,
+        fontWeight: 900,
+        fontFamily: BRAND_FONT_STACK,
+        color: "#4d8bff",
+        letterSpacing: "2px",
+        lineHeight,
+        textAlign: "center",
       }}
     >
       {copy}
@@ -309,7 +466,13 @@ const Stage: React.FC<{
   </div>
 );
 
-const FixtureScene: React.FC<FixtureProps> = ({ scenario = "pass", probe }) => {
+const FixtureScene: React.FC<FixtureProps> = ({
+  scenario = "pass",
+  probe,
+  revealLineHeight,
+  revealFontSize,
+  revealCopy,
+}) => {
   const frame = useCurrentFrame();
 
   if (scenario === "annotation-overhang") {
@@ -465,6 +628,16 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "pass", probe }) => {
             minSize: 40,
           }
         }
+      />
+    );
+  }
+
+  if (scenario === "hook-reveal-geometry-probe") {
+    return (
+      <HookRevealGeometryProbe
+        lineHeight={revealLineHeight ?? 1.1}
+        fontSize={revealFontSize ?? REVEAL_FLOOR_SIZE}
+        copy={revealCopy ?? REVEAL_FLOOR_COPY}
       />
     );
   }

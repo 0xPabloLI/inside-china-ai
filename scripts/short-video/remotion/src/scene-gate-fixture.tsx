@@ -221,9 +221,10 @@ const BASELINE_SCENES: Record<string, SceneData> = {
       source: "LIANG WENFENG INVESTOR MEETING",
     },
   },
-  // #422: claim-led focal with the logo row. (No revealText: `revealText`'s
-  // lineHeight 1.05 sits below the font's natural ~1.1em and fails Fit on its
-  // own — reproduced on unmodified HEAD, so it is out of this ticket's scope.)
+  // #422: claim-led focal with the logo row. (No revealText here: at the
+  // time, `revealText`'s lineHeight 1.05 sat below the font's natural leading
+  // and failed Fit on its own — that defect was fixed in #576, whose
+  // claim-reveal shapes below cover the combination.)
   "baseline-hook-logo-claim": {
     id: 22,
     visualType: "hook",
@@ -250,6 +251,83 @@ const BASELINE_SCENES: Record<string, SceneData> = {
       bigNumber: "51B",
       numberLabel: "EMBEDDINGS IN RAM",
       source: "HF MODEL CARD",
+    },
+  },
+  // #576: claim-led focal WITH `revealText`. revealText shipped at lineHeight
+  // 1.05 — below the font's natural ~1.1em leading — so at EVERY candidate
+  // size the inline rect is taller than the gate's 1.05em content box and Fit
+  // bottoms out at the 56px floor: claim-led hooks with a reveal line could
+  // not render at all (reproduced on unmodified HEAD, frame 45). Three shapes
+  // cover the ticket's edges: short reveal (fits at preferred), long
+  // wrapping claim + long reveal (walks the floors), and the #573 logo-row
+  // combination (the reveal must respect the 700px subject budget too).
+  "baseline-hook-claim-reveal": {
+    id: 24,
+    visualType: "hook",
+    voiceover: "hook",
+    texts: {
+      badge: "EXCLUSIVE",
+      subject: "DEEPSEEK",
+      color: "blue",
+      hookText: "0 KPIs. 0 ORG CHARTS.",
+      revealText: "4-HOUR LEAKED MEETING",
+      stats: [{ num: "4", unit: "HR", label: "LEAKED MEETING" }],
+      source: "LIANG WENFENG INVESTOR MEETING",
+    },
+  },
+  // #576: long claim (wraps to two lines, walks its ladder to 70px) + long
+  // reveal (two lines at the preferred 80px) — both render while the hero
+  // band's 550px stack budget still holds (copy that wraps to three lines in
+  // either slot is genuinely over the band and is fail-closed by the
+  // subject's container assert — not a legal fixture).
+  "baseline-hook-claim-reveal-long": {
+    id: 25,
+    visualType: "hook",
+    voiceover: "hook",
+    texts: {
+      badge: "EXCLUSIVE",
+      subject: "DEEPSEEK",
+      color: "blue",
+      hookText: "NO KPIS. NO ORG CHART. 4 HOURS.",
+      revealText: "THE DIVISION RAN WITH ZERO KPIS",
+      stats: [{ num: "4", unit: "HR", label: "LEAKED MEETING" }],
+      source: "LIANG WENFENG INVESTOR MEETING",
+    },
+  },
+  // #576: claim-led + the #422/#573 logo row with a reveal line — the subject
+  // budget is 700px here, and the reveal must still render.
+  "baseline-hook-logo-claim-reveal": {
+    id: 26,
+    visualType: "hook",
+    voiceover: "hook",
+    texts: {
+      badge: "EXCLUSIVE",
+      subject: "DEEPSEEK",
+      subjectLogo: "deepseek-icon",
+      color: "blue",
+      hookText: "0 KPIs. 0 ORG CHARTS.",
+      revealText: "4-HOUR LEAKED MEETING",
+      stats: [{ num: "4", unit: "HR", label: "LEAKED MEETING" }],
+      source: "LIANG WENFENG INVESTOR MEETING",
+    },
+  },
+  // #576: the SHORT reveal — one line at the preferred 80px. The ticket's
+  // "claim-led with short claim" edge, and the shape whose Range rect sits
+  // flush inside its own box at the shipped line-height (measured 0px poke;
+  // the pre-fix 1.05 poked 2px past each edge here). The wrapped reveals above
+  // cover the multi-line case.
+  "baseline-hook-claim-reveal-short": {
+    id: 27,
+    visualType: "hook",
+    voiceover: "hook",
+    texts: {
+      badge: "EXCLUSIVE",
+      subject: "DEEPSEEK",
+      color: "blue",
+      hookText: "0 KPIs. 0 ORG CHARTS.",
+      revealText: "ZERO KPIS",
+      stats: [{ num: "4", unit: "HR", label: "LEAKED MEETING" }],
+      source: "LIANG WENFENG INVESTOR MEETING",
     },
   },
   "baseline-stat-reveal": {

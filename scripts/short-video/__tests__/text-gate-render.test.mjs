@@ -12,7 +12,8 @@
  * Scenario forms (spec refinement decision 36): pass baseline, fixed-size
  * overflow (F1 shape), Fit shrink (F2 shape), minSize floor (F3 shape),
  * annotation drawn-bound overflow (F4 shape), ink-only overflow (F9 runtime
- * shape), font-load timeout (#24/#27).
+ * shape), font-load timeout (#24/#27), #576 reveal line-box geometry
+ * (hook-reveal-geometry-probe).
  */
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "child_process";
@@ -284,6 +285,64 @@ describe(
     it("T5: same copy inside a generous container still PASSes", () => {
       const { ok, raw } = renderFixture({ scenario: "container-pass" });
       expect(ok, raw).toBe(true);
+    });
+
+    it("#576: the claim reveal's Range rect sits inside its line box at the shipped line-height", () => {
+      // The ticket's defect was per-EDGE geometry: the Range rect (the font's
+      // natural line box, ~1.107em) against the box the element's own
+      // line-height lays out. Fit rejects a candidate when ANY edge pokes past
+      // that box by more than EPS (0.5px), so both line-heights are pinned at
+      // the preferred 80px — the only size the gate ever compares against,
+      // since its content box is captured once at mount (the initial font size
+      // is preferredSize, never a shrunk candidate).
+      const at = (lineHeight, copy, fontSize = 80) => {
+        const { payload, raw } = renderProbe(
+          {
+            scenario: "hook-reveal-geometry-probe",
+            revealLineHeight: lineHeight,
+            revealFontSize: fontSize,
+            revealCopy: copy,
+          },
+          "HookRevealGeometryProbe",
+        );
+        expect(payload, raw).toBeTruthy();
+        return payload;
+      };
+
+      // Shipped 1.1: zero poke on every edge, for the one-line and the wrapped
+      // shape alike — the geometry behind the scene baselines' green renders,
+      // and the constant this ticket changed (box = lines × 1.1 × 80px).
+      for (const [copy, lines] of [
+        ["ZERO KPIS", 1],
+        ["4-HOUR LEAKED MEETING", 2],
+      ]) {
+        const probe = at(1.1, copy);
+        expect(probe.lineHeight, copy).toBe(1.1);
+        expect(probe.box.height, copy).toBe(88 * lines);
+        for (const edge of ["left", "right", "top", "bottom"]) {
+          expect(probe.poke[edge], `${copy}.${edge}`).toBeLessThanOrEqual(0);
+        }
+        expect(probe.fits, copy).toBe(true);
+      }
+
+      // Pre-fix 1.05 at the same size: 2px of poke per vertical edge — above
+      // EPS, so boxWithin rejected every candidate size and Fit bottomed out
+      // at the 56px floor with the ticket's `fit-bottom` payload.
+      const tight = at(1.05, "ZERO KPIS");
+      expect(tight.fits).toBe(false);
+      expect(tight.poke.top).toBeGreaterThan(tight.eps);
+      expect(tight.poke.bottom).toBeGreaterThan(tight.eps);
+
+      // Boundary record: the 56px floor itself. The pipeline never measures
+      // there (a wrapping reveal only ever shrinks for WIDTH, and the box it
+      // is compared against stays the preferred-size one), but the engine
+      // snaps the rect a whole pixel above a line box shorter than the
+      // natural box — which EPS cannot absorb. Recorded so the floor is never
+      // claimed clean, and so a future change to EPS or the line-height shows
+      // up here as a number, not a surprise.
+      const floor = at(1.1, "ZERO KPIS", 56);
+      expect(floor.fits).toBe(false);
+      expect(floor.poke.top).toBe(1);
     });
   },
 );
