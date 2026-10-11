@@ -16,6 +16,9 @@ import {
   fitCandidates,
   assertKnownTextFields,
   slotCharBudget,
+  hookSubjectTextWidth,
+  HOOK_SUBJECT_ROW,
+  MEASURED_MAX_WIDTH,
   SLOT_FIELDS,
   REMOTION_SLOT_MAP,
 } from "../lib/text-slots.mjs";
@@ -488,5 +491,37 @@ describe("slotCharBudget (#153 review: contract-derived budget single source)", 
     expect(
       slotCharBudget({ visualType: "narrative", layout: "media-split", field: "result" }),
     ).toBe(Math.floor(slot.maxWidth / (SLOT_FIELDS.result.preferredSize * 0.55)));
+  });
+});
+
+describe("hookSubjectTextWidth (#422: the logo shares the subject row)", () => {
+  it("gives the text the whole band when there is no logo", () => {
+    expect(hookSubjectTextWidth({ hasLogo: false })).toBe(
+      MEASURED_MAX_WIDTH["hook.hero-center.subject"],
+    );
+  });
+
+  it("reserves the logo box AND the row gap when the logo is present", () => {
+    // Before #422 the gate kept the band's full 820 while the row also carried
+    // a 96px logo + 24px gap: the row measured 940 against an 820 band and the
+    // safe-zone / container assert cancelled every render.
+    expect(hookSubjectTextWidth({ hasLogo: true })).toBe(
+      MEASURED_MAX_WIDTH["hook.hero-center.subject"] -
+        HOOK_SUBJECT_ROW.logoSize -
+        HOOK_SUBJECT_ROW.gap,
+    );
+    expect(hookSubjectTextWidth({ hasLogo: true })).toBe(700);
+  });
+
+  it("never returns more than the band, with or without a logo", () => {
+    const band = MEASURED_MAX_WIDTH["hook.hero-center.subject"];
+    expect(hookSubjectTextWidth({ hasLogo: true })).toBeLessThan(band);
+    expect(hookSubjectTextWidth()).toBe(band);
+  });
+
+  it("pins the row geometry the component renders (no silent resize)", () => {
+    // The component imports these numbers; a redesign (#291's logo ≥120px) has
+    // to change them HERE, where the contract test can see the consequence.
+    expect(HOOK_SUBJECT_ROW).toEqual({ logoSize: 96, gap: 24 });
   });
 });

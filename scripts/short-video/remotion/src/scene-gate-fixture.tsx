@@ -178,6 +178,80 @@ const BASELINE_SCENES: Record<string, SceneData> = {
   // qwen4 s9's real shape since the T7 relayout: same texts, stacked-cards.
   // Exercises the badge slot end to end (decision 65).
   "baseline-narrative-stacked": { ...S9_SCENE, layout: "stacked-cards" },
+  // #422: the logo row — `texts.subjectLogo` puts a 96px logo in the SAME flex
+  // row as the subject gate. Before the fix the gate kept the band's full
+  // 820px contract width, so the row measured 96+24+820 = 940 > the 820 band
+  // and the safe-zone assert cancelled the render (which is why no published
+  // package ever rendered its logo from `texts`). Number-led focal.
+  "baseline-hook-logo-row": {
+    id: 20,
+    visualType: "hook",
+    voiceover: "hook",
+    texts: {
+      badge: "BREAKING ANALYSIS",
+      subject: "DEEPSEEK",
+      subjectLogo: "deepseek-icon",
+      color: "amber",
+      bigNumber: "V4.1",
+      numberLabel: "FLASH SHIPPED",
+      numberHighlight: "FLASH",
+      stats: [
+        { num: "685B", unit: "TOTAL", label: "PARAMS" },
+        { num: "37B", unit: "ACTIVE", label: "PER TOKEN" },
+      ],
+      source: "CHINA AI NEWS",
+    },
+  },
+  // #422: same row with a subject long enough to WRAP — the gate must fit the
+  // logo-reserved width (700), not the whole band, so the row never grows past
+  // it. Number-led focal.
+  "baseline-hook-logo-long": {
+    id: 21,
+    visualType: "hook",
+    voiceover: "hook",
+    texts: {
+      badge: "EXCLUSIVE",
+      subject: "DEEPSEEK QUANT DIVISION",
+      subjectLogo: "deepseek-icon",
+      color: "blue",
+      bigNumber: "685B",
+      numberLabel: "TOTAL PARAMS",
+      numberHighlight: "PARAMS",
+      stats: [{ num: "37B", unit: "ACTIVE", label: "PER TOKEN" }],
+      source: "LIANG WENFENG INVESTOR MEETING",
+    },
+  },
+  // #422: claim-led focal with the logo row. (No revealText: `revealText`'s
+  // lineHeight 1.05 sits below the font's natural ~1.1em and fails Fit on its
+  // own — reproduced on unmodified HEAD, so it is out of this ticket's scope.)
+  "baseline-hook-logo-claim": {
+    id: 23,
+    visualType: "hook",
+    voiceover: "hook",
+    texts: {
+      badge: "EXCLUSIVE",
+      subject: "DEEPSEEK",
+      subjectLogo: "deepseek-icon",
+      color: "blue",
+      hookText: "0 KPIs. 0 ORG CHARTS.",
+      stats: [{ num: "4", unit: "HR", label: "LEAKED MEETING" }],
+      source: "LIANG WENFENG INVESTOR MEETING",
+    },
+  },
+  // #422: logo with no subject text — the row is the logo alone and must stay
+  // centred in the band (no gate, no width to reserve).
+  "baseline-hook-logo-only": {
+    id: 22,
+    visualType: "hook",
+    voiceover: "hook",
+    texts: {
+      subjectLogo: "deepseek-icon",
+      color: "amber",
+      bigNumber: "51B",
+      numberLabel: "EMBEDDINGS IN RAM",
+      source: "HF MODEL CARD",
+    },
+  },
   "baseline-stat-reveal": {
     id: 3,
     visualType: "stat-reveal",
@@ -389,6 +463,27 @@ const MEASURE_SCENES: Record<string, SceneData> = {
  * minus the decorations. Content-box semantics match the gate's container
  * assert (clientWidth minus padding).
  */
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+/**
+ * Union of a gate's text run rects — the ink extent the gate's Fit walks
+ * against, as the browser actually laid it out (#422 probe: the subject
+ * row's real ink vs its container).
+ */
+function inkBoxOf(gate: HTMLElement): Record<string, number> | null {
+  const range = document.createRange();
+  range.selectNodeContents(gate);
+  const rects = Array.from(range.getClientRects());
+  if (rects.length === 0) return null;
+  let left = Infinity;
+  let right = -Infinity;
+  for (const r of rects) {
+    left = Math.min(left, r.left);
+    right = Math.max(right, r.right);
+  }
+  return { left: round2(left), right: round2(right), width: round2(right - left) };
+}
+
 function availableWidthFor(gate: HTMLElement): number {
   const fallback = CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right;
   const gateWidth = gate.offsetWidth;
@@ -497,6 +592,42 @@ const MeasureProbe: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         measuredCollisionRatios[source] = JSON.parse(el.dataset.annotationCollision);
       }
     }
+    // #422: layout boxes of the non-gate participants of a row (the hook
+    // subject row and its logo). The row is not a gate, so `measuredWidths`
+    // cannot see it — this is the channel that proves the ROW (not just the
+    // gate) stays inside the band.
+    const measuredBoxes: Record<string, Record<string, number>> = {};
+    const measureBoxEls = Array.from(
+      document.querySelectorAll("[data-measure-box]"),
+    ) as HTMLElement[];
+    for (const el of measureBoxEls) {
+      const name = el.dataset.measureBox;
+      if (!name) continue;
+      const r = el.getBoundingClientRect();
+      measuredBoxes[name] = {
+        left: round2(r.left),
+        right: round2(r.right),
+        top: round2(r.top),
+        bottom: round2(r.bottom),
+        width: round2(r.width),
+      };
+    }
+    const measuredInk: Record<string, Record<string, number>> = {};
+    const measuredGates: Record<string, Record<string, number>> = {};
+    for (const gate of gates) {
+      const slot = gate.dataset.textSlot;
+      if (!slot) continue;
+      const ink = inkBoxOf(gate);
+      if (ink) measuredInk[slot] = ink;
+      const r = gate.getBoundingClientRect();
+      measuredGates[slot] = {
+        left: round2(r.left),
+        right: round2(r.right),
+        top: round2(r.top),
+        bottom: round2(r.bottom),
+        width: round2(r.width),
+      };
+    }
     // Same first-line JSON shape as TextFitError (cancelRender only surfaces
     // the message's first line); `measuredWidths` is the measurement channel.
     throw cancelRender(
@@ -506,6 +637,9 @@ const MeasureProbe: React.FC<{ children: React.ReactNode }> = ({ children }) => 
           measuredWidths,
           measuredGroupFits,
           measuredCollisionRatios,
+          measuredBoxes,
+          measuredInk,
+          measuredGates,
         })}`,
       ),
     );

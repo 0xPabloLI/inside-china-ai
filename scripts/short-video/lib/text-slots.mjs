@@ -232,6 +232,39 @@ export const MEASURED_MAX_HEIGHT = {
 };
 
 /**
+ * Hook subject row geometry (#422).
+ *
+ * `texts.subjectLogo` renders a logo in the SAME flex row as the subject gate,
+ * so the row's budget is shared: the logo's box and the row gap are already
+ * spent before the text starts. The slot contract measures the BAND (820); the
+ * text may only use what is left.
+ *
+ * Sizes are the row's current design (brand-system.md's logo ≥120px target is
+ * a #291 redesign question, not this fix's scope).
+ */
+export const HOOK_SUBJECT_ROW = { logoSize: 96, gap: 24 };
+
+/**
+ * Content-box width the hook subject text actually has to render into.
+ *
+ * Single source for the scene component and the contract test — the component
+ * must not re-derive the subtraction, or the two drift and the row overflows
+ * the band again (which is exactly what cancelled the render in #422).
+ *
+ * @param {{hasLogo?: boolean}} [opts]
+ * @returns {number}
+ */
+export function hookSubjectTextWidth({ hasLogo = false } = {}) {
+  const band = MEASURED_MAX_WIDTH["hook.hero-center.subject"];
+  if (!band) {
+    throw new Error(
+      "hook.hero-center.subject has no measured width — measure the band before deriving the logo row",
+    );
+  }
+  return hasLogo ? band - HOOK_SUBJECT_ROW.logoSize - HOOK_SUBJECT_ROW.gap : band;
+}
+
+/**
  * Resolve a band's group contract. Throws rather than guessing, exactly like
  * `getSlot` does for unmeasured widths.
  *
