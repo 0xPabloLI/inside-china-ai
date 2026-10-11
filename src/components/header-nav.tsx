@@ -35,7 +35,11 @@ export function HeaderNav({ pathname, isAdmin, onArticlesClick }: HeaderNavProps
       <Link to="/" className={articleLinkClass(pathname)} onClick={onArticlesClick}>
         Articles
       </Link>
-      <Link to="/news" className={staticLinkClass(pathname.startsWith("/news"))}>
+      <Link
+        to="/news"
+        search={{ topic: "all" }}
+        className={staticLinkClass(pathname.startsWith("/news"))}
+      >
         News
       </Link>
       <Link to="/companies" className={staticLinkClass(pathname.startsWith("/companies"))}>
@@ -61,7 +65,11 @@ export function HeaderNav({ pathname, isAdmin, onArticlesClick }: HeaderNavProps
         </Link>
       </SheetClose>
       <SheetClose asChild>
-        <Link to="/news" className={staticLinkClass(pathname.startsWith("/news"))}>
+        <Link
+          to="/news"
+          search={{ topic: "all" }}
+          className={staticLinkClass(pathname.startsWith("/news"))}
+        >
           News
         </Link>
       </SheetClose>

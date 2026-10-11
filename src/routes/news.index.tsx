@@ -128,6 +128,7 @@ function NewsHub() {
         {/* Featured topic page */}
         <Link
           to="/news/chinese-ai-models"
+          search={{ topic: "models" }}
           className="group mt-6 flex flex-col justify-between gap-2 rounded-lg border border-border/60 p-5 transition-colors hover:bg-accent/50 sm:flex-row sm:items-center"
         >
           <div>
@@ -235,6 +236,7 @@ function NewsHub() {
                   <li>
                     <Link
                       to="/news/chinese-ai-models"
+                      search={{ topic: "models" }}
                       className="text-muted-foreground hover:text-foreground hover:underline"
                     >
                       Chinese AI models →

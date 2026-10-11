@@ -148,7 +148,7 @@ function ChineseAiModels() {
             Home
           </Link>
           <span aria-hidden="true"> / </span>
-          <Link to="/news" className="hover:text-foreground">
+          <Link to="/news" search={{ topic: "all" }} className="hover:text-foreground">
             News
           </Link>
           <span aria-hidden="true"> / </span>
