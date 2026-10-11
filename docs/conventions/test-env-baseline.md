@@ -21,6 +21,7 @@
 - `test-f5-duration` — Python 子进程测试，worktree 中 5s 超时；环境类，与被验证的 diff 无关。2026-09-05。
 - `asr-analyzer-ipc`（仅 "timeout kills the worker and a late response never pollutes the next request" 一条）— `ASR_RESPONSE_TIMEOUT_MS=300` 预算内要完成第二个 worker 的冷启动 + 响应，负载敏感：CI 全量并行下失败（#370，run 36138179996）、隔离重跑绿、本地同内容 3/3 绿。2026-09-25。
 - 依赖缺失本地工具的 suite 会以 stderr 噪音失败：`mlx_vlm`（VLM）、`whisper-cli`（ASR）、wav2vec2 模型缺失。
+- Worktree 缺 gitignored 媒体（新条目，2026-10-11 #548 session 实证）：未同步 `scripts/short-video/assets`、`voice-samples/` 时，`infra-paths`（voice-samples 存在性断言）与 `tts-kaggle-batch`（引擎工厂读 voice-samples，缺失返回 null）必失败；同步后隔离重跑 9/9 绿。CI 侧由 `VITEST_CI_SKIP_ENV_BOUND` 环境门跳过，不出现。
 
 ### Node 版本漂移
 
