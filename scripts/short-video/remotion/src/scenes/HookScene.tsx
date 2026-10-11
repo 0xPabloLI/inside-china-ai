@@ -318,7 +318,15 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                         fontWeight: 900,
                         color,
                         letterSpacing: "2px",
-                        lineHeight: 1.05,
+                        // ≥ the font's natural line box (~1.107em): at 1.05
+                        // the Range rect poked 2px past BOTH edges of the
+                        // element's own box at every candidate size, so Fit
+                        // exhausted its ladder at the 56px floor and cancelled
+                        // the render — claim-led hooks with a reveal could not
+                        // render at all (#576; same trap as the bigNumber /
+                        // source line-heights noted below). At 1.1 the rect sits
+                        // flush inside the box (measured 0px poke at 80px).
+                        lineHeight: 1.1,
                         marginTop: SPACING.xl,
                         textAlign: "center",
                       }}

@@ -63,6 +63,17 @@ function renderScenario(scenario, frame = 45) {
 // One bundle + browser startup per still adds up; keep the file patient.
 const GATE_TIMEOUT = 300_000;
 
+// #576: the claim-led focal shapes the reveal line-height fix must keep green.
+// Short (one line at the preferred 80px), long (wrapping claim + wrapping
+// reveal) and the #573 logo-row combination, plus the entrance-window sweep
+// below. All of them cancelled the render before the fix.
+const CLAIM_REVEAL_SCENARIOS = [
+  "baseline-hook-claim-reveal",
+  "baseline-hook-claim-reveal-long",
+  "baseline-hook-claim-reveal-short",
+  "baseline-hook-logo-claim-reveal",
+];
+
 const BASELINES = [
   "baseline-hook",
   "hook-source-descender",
@@ -76,6 +87,14 @@ const BASELINES = [
   "baseline-hook-logo-long",
   "baseline-hook-logo-claim",
   "baseline-hook-logo-only",
+  // #576: claim-led focal WITH `revealText`. Before the fix, revealText's
+  // lineHeight 1.05 sat below the font's natural ~1.107em leading, so EVERY
+  // candidate size failed Fit (the inline rect pokes above the gate box) —
+  // the ladder bottomed out at the 56px floor and cancelled the render. All
+  // four shapes failed before the fix, all pass after. Number-led hooks are
+  // untouched by construction: the reveal only renders in the claim branch,
+  // and scene-rules rejects a scene that sets both focals.
+  ...CLAIM_REVEAL_SCENARIOS,
   "baseline-narrative",
   "baseline-narrative-stacked",
   "baseline-stat-reveal",
@@ -264,6 +283,44 @@ describe(
         const { ok, payload, raw } = renderScenario("baseline-hook-logo-row", frame);
         expect(ok, raw).toBe(true);
         expect(payload).toBeNull();
+      }
+    });
+
+    it("#576: the claim reveal renders at the preferred size — gate box pinned", () => {
+      // The fix raises revealText's lineHeight to 1.1, the font's natural
+      // leading (measured ~1.107em: at the 56px floor the inline rect was
+      // 62px against a 1.05em box). The probe reads the settled geometry:
+      // two lines at the preferred 80px × 1.1 = 176px, inside the safe band,
+      // ink within the gate. A re-tightened line-height fails Fit before the
+      // probe can run; any change to the constant moves this box and must
+      // update this pin.
+      const { ok, payload, raw } = renderScenario("measure:hook-claim-reveal");
+      expect(ok, raw).toBe(false);
+      expect(payload, raw).toBeTruthy();
+      expect(payload.reason).toBe("measurement");
+      const gate = payload.measuredGates?.["hook.hero-center.revealText"];
+      const ink = payload.measuredInk?.["hook.hero-center.revealText"];
+      expect(gate, raw).toBeTruthy();
+      expect(gate.bottom - gate.top).toBe(176); // 2 lines × 1.1 × 80
+      expect(gate.left).toBeGreaterThanOrEqual(SAFE_ZONES.left);
+      expect(gate.right).toBeLessThanOrEqual(CANVAS.width - SAFE_ZONES.right);
+      expect(ink, raw).toBeTruthy();
+      expect(ink.width).toBeLessThanOrEqual(gate.width);
+    });
+
+    it("#576 entrance window: claim-led reveal never false-positives mid-entrance", () => {
+      // revealText stamps in at delay 0.8s (frames 24-39); the ticket's
+      // acceptance covers entrance AND settled frames. The entrance assert
+      // polices transform-free layout boxes, so the StampIn shrink must not
+      // trip it — while the resting defect (an inline rect taller than the
+      // gate box at every size) would have failed every one of these frames
+      // before the fix.
+      for (const scenario of CLAIM_REVEAL_SCENARIOS) {
+        for (const frame of [13, 20, 30]) {
+          const { ok, payload, raw } = renderScenario(scenario, frame);
+          expect(ok, `${scenario} @ frame ${frame}: ${raw}`).toBe(true);
+          expect(payload).toBeNull();
+        }
       }
     });
 
