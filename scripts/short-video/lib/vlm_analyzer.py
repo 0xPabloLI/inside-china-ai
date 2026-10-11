@@ -2,8 +2,8 @@
 """
 AI Analyzer — Python subprocess for VLM-powered asset understanding.
 
-Loads the engine declared by vlm-model.json (default MiniCPM-o 4.5; fallback
-Qwen3-VL-30B-A3B via --engine) through mlx-vlm, listens on stdin for
+Loads the engine declared by vlm-model.json (default Qwen3-VL-30B-A3B;
+MiniCPM-o 4.5 via --engine) through mlx-vlm, listens on stdin for
 line-delimited JSON requests, writes JSON responses to stdout.
 
 Actions:
@@ -21,10 +21,11 @@ Response format (one line):
 VLM outputs Markdown with ## Section headers. Python parses it via
 parse_markdown_to_dict() — pure string manipulation, no LLM needed.
 
-Video analysis uses native video input via mlx_vlm.generate(video=) for
-full-video analysis. When a time window (startMs/endMs) is provided,
-ffmpeg frame extraction is used instead (native video can't select a
-time range).
+Video analysis follows the engine's declared videoInput capability (#542 L1):
+a native-video engine gets the file itself via mlx_vlm.generate(video=); a
+frames engine gets ffmpeg-extracted stills. When a time window
+(startMs/endMs) is provided, ffmpeg frame extraction is used instead
+(native video can't select a time range).
 
 Image preprocessing: images with longest edge > MAX_IMAGE_LONG_EDGE are
 resized to prevent high-resolution hallucinations (probabilistic bug in
@@ -61,6 +62,16 @@ VLM_ENGINE_MINICPM = "minicpm"  # MiniCPM-o 4.5: vision + ASR + audio emotion
 VLM_ENGINE_QWEN = "qwen3-vl-moe"  # Qwen3-VL-30B-A3B: vision only (fallback)
 VALID_ENGINES = (VLM_ENGINE_MINICPM, VLM_ENGINE_QWEN)
 
+# Video-input capability (#542 L1): how an engine consumes a video asset.
+# "native" = the engine gets the video file itself (mlx_vlm samples it at the
+# processor's declared fps/max_frames); "frames" = the caller extracts frames
+# (ffmpeg) and the engine sees stills. Declared per engine in vlm-model.json
+# so this module and the Node side (asset-sourcer Phase 2.5 window plan) read
+# the same capability instead of inferring it from the engine name.
+VIDEO_INPUT_NATIVE = "native"
+VIDEO_INPUT_FRAMES = "frames"
+VALID_VIDEO_INPUTS = (VIDEO_INPUT_NATIVE, VIDEO_INPUT_FRAMES)
+
 _VLM_MODEL_CONFIG = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "vlm-model.json"
 )
@@ -76,6 +87,56 @@ def _read_vlm_config(path):
             f"Cannot read the VLM config from {path} "
             f"(single source of truth, shared with visual-analyzer.mjs): {err}"
         ) from err
+
+
+def validate_video_inputs(config):
+    """Fail fast unless every engine declares a valid videoInput (#542 L1).
+
+    Runs at import time: a config with a missing or unknown capability is a
+    broken contract for BOTH sides (the Node window-plan gate reads the same
+    field), and a silent default here would re-create the drift the field
+    exists to remove.
+    """
+    engines = config.get("engines")
+    if not isinstance(engines, dict):
+        raise RuntimeError(
+            'vlm-model.json must declare an "engines" object keyed by engine name'
+        )
+    for name, entry in engines.items():
+        mode = entry.get("videoInput") if isinstance(entry, dict) else None
+        if mode not in VALID_VIDEO_INPUTS:
+            raise RuntimeError(
+                f'vlm-model.json engines["{name}"] must declare a "videoInput" '
+                f"of {VALID_VIDEO_INPUTS} (got {mode!r}) — it is the single "
+                "source of truth for native-vs-frames video handling (#542)"
+            )
+
+
+def video_input_for(engine, config=None):
+    """The configured video-input capability for `engine` (#542 L1)."""
+    engines = (config or _VLM_CONFIG).get("engines") or {}
+    entry = engines.get(engine)
+    mode = entry.get("videoInput") if isinstance(entry, dict) else None
+    if mode not in VALID_VIDEO_INPUTS:
+        raise RuntimeError(
+            f'no valid "videoInput" for engine "{engine}" in vlm-model.json '
+            f"(got {mode!r}; available: {sorted(engines)})"
+        )
+    return mode
+
+
+def resolve_source_mode(is_video, engine, windowed):
+    """Provenance for a successful analysis: how the model saw the video.
+
+    "native" = the video file went in as-is (engine's own sampling);
+    "frames" = ffmpeg-extracted stills (windowed request, or a frames-mode
+    engine); None for images (no time axis).
+    """
+    if not is_video:
+        return None
+    if windowed or video_input_for(engine) == VIDEO_INPUT_FRAMES:
+        return "frames"
+    return VIDEO_INPUT_NATIVE
 
 
 def resolve_engine(config, requested_engine=None):
@@ -109,6 +170,7 @@ def resolve_engine(config, requested_engine=None):
 
 
 _VLM_CONFIG = _read_vlm_config(_VLM_MODEL_CONFIG)
+validate_video_inputs(_VLM_CONFIG)
 DEFAULT_ENGINE, MODEL_ID = resolve_engine(_VLM_CONFIG)
 FFMPEG_PATH = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"
 IDLE_TIMEOUT_SECONDS = 300  # 5 minutes
@@ -136,6 +198,18 @@ SCENE_SELECT_FILTER = (
     "scale=480:480:force_original_aspect_ratio=decrease"
 )
 JPEG_SOI = b"\xff\xd8\xff"  # start-of-image marker (+ first byte of next marker)
+
+
+# ─── Transcript block (A1 / #542 L3) ───
+# Bench parity is the point: the QA arms that measured the transcript's value
+# injected it with this exact header, this cap and this position (before the
+# task). The wording deliberately keeps "可能不完整、可能有错" — it is the honest
+# premise that lets the model fall back to vision instead of hard-coding a
+# garbled name. Mirrored from bench/keyframe/bench_prompt.py (ASR_HEAD /
+# DEFAULT_MAX_CHARS); the cross-file equality is asserted by
+# __tests__/test_transcript_prompt.py so the two can't drift apart silently.
+TRANSCRIPT_HEAD = "视频的语音转写（可能不完整、可能有错）："
+TRANSCRIPT_MAX_CHARS = 2000
 
 
 SEMANTICS_PROMPT_IMAGE = """Analyze this image for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
@@ -235,8 +309,15 @@ def strip_control_tokens(text):
     return _CONTROL_TOKEN_RE.sub("", text).strip()
 
 
-def build_semantics_prompt(is_video=False, claim=None):
-    """Build the semantics prompt, optionally with a scene-claim relevance block.
+def build_semantics_prompt(is_video=False, claim=None, transcript=None):
+    """Build the semantics prompt, optionally with a transcript / claim block.
+
+    transcript (videos only): the ASR text is injected BEFORE the task prompt
+    with the same header wording and 2000-char cap as the bench's `block`
+    mode (bench/keyframe/bench_prompt.py) — that arm is what measured the
+    transcript's value (+3.6pp native, p=0.087 on the 276-question set), so
+    production reproduces its shape instead of inventing a new one. Images
+    have no audio channel: a transcript passed for one is ignored.
 
     claim=None → exactly the base prompt (backward compatible with all
     existing callers). When a claim ({voiceover, assetNeed}) is provided,
@@ -244,6 +325,12 @@ def build_semantics_prompt(is_video=False, claim=None):
     asked for `## Relevance` (bare 0-100 integer) + `## Relevance Reason`.
     """
     base = SEMANTICS_PROMPT_VIDEO if is_video else SEMANTICS_PROMPT_IMAGE
+
+    if is_video and isinstance(transcript, str):
+        text = transcript.strip()
+        if text:
+            base = f"{TRANSCRIPT_HEAD}\n{text[:TRANSCRIPT_MAX_CHARS]}\n\n{base}"
+
     if not claim:
         return base
 
@@ -913,38 +1000,44 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
                       uniform_fps=DEFAULT_UNIFORM_FPS):
     """Run one VLM generation pass over `path` with media-type preprocessing.
 
-    Video: engine-dependent input —
-      - qwen3-vl-moe: native video via generate(video=).
-      - minicpm: frame sampling since it has no native video support —
+    Video: engine-dependent input (vlm-model.json videoInput capability, #542 L1) —
+      - native: the video file itself via generate(video=) — mlx_vlm samples
+        it at the processor's declared fps/max_frames (Qwen3-VL: 2 fps, cap
+        768 frames), so cost scales with duration and the library's own cap
+        is the only bound.
+      - frames: frame sampling since the engine has no native video support —
         frame_strategy="uniform" (default) uses mlx_vlm resolve_video_inputs
         at uniform_fps/max_frames (defaults 2.0/16 = current behavior, S1);
         frame_strategy="scene" uses ffmpeg scene-detect extraction (#391 D1).
     A time window (start_ms/end_ms) always falls back to frame extraction on
     both engines (neither can seek natively): uniform keeps the fps=-based
-    extract_frames path; scene + minicpm runs the scene-detect select filter
-    per window with -ss/-t slicing (#391 D3).
+    extract_frames path; scene + a frames engine runs the scene-detect select
+    filter per window with -ss/-t slicing (#391 D3).
 
     Image: simulate the 9:16 cover crop (anchored on crop_focus when supplied,
     e.g. a saliency centroid or a prior cropFocus — #198) → resize if above
     MAX_IMAGE_LONG_EDGE → generate → unlink both temp files.
 
-    frame_strategy/max_frames/uniform_fps are ignored on the qwen engine.
+    frame_strategy/max_frames/uniform_fps are ignored on native-video engines.
 
     Returns the raw markdown string; raises on failure (caller decides
     fallback behavior).
     """
     if is_video:
-        if engine == VLM_ENGINE_QWEN and frame_strategy == FRAME_STRATEGY_SCENE:
-            # scene is minicpm-only: qwen runs native video (no window) or
-            # uniform fps extraction (windowed) — never a silent no-op.
+        video_input = video_input_for(engine)
+        if video_input == VIDEO_INPUT_NATIVE and frame_strategy == FRAME_STRATEGY_SCENE:
+            # scene is a frames-mode feature: a native engine runs native video
+            # (no window) or uniform fps extraction (windowed) — never a silent
+            # no-op.
             sys.stderr.write(
                 "[vlm_analyzer] frame_strategy='scene' is not supported on "
-                f"the {VLM_ENGINE_QWEN} engine — falling back to uniform\n"
+                f"the {engine} engine (videoInput={VIDEO_INPUT_NATIVE}) — "
+                "falling back to uniform\n"
             )
             sys.stderr.flush()
         if start_ms is not None or end_ms is not None:
             # Windowed analysis — frame extraction (no engine can seek natively)
-            if engine == VLM_ENGINE_MINICPM and frame_strategy == FRAME_STRATEGY_SCENE:
+            if video_input == VIDEO_INPUT_FRAMES and frame_strategy == FRAME_STRATEGY_SCENE:
                 # Scene frames are in-memory PIL images — nothing to clean up.
                 frames, _meta = _extract_scene_frames(
                     path, max_frames=max_frames,
@@ -970,7 +1063,7 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
                 )
             finally:
                 _cleanup_frames(frames)
-        if engine == VLM_ENGINE_MINICPM:
+        if video_input == VIDEO_INPUT_FRAMES:
             frames, _meta = _extract_minicpm_frames(
                 processor, path, fps=uniform_fps, max_frames=max_frames,
                 frame_strategy=frame_strategy,
@@ -979,7 +1072,7 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
                 model, processor, engine=engine, image_paths=frames,
                 prompt_text=prompt_text,
             )
-        # qwen3-vl-moe — native video path
+        # native video input — the engine samples the file itself
         return generate_response(
             model, processor, engine=engine, video_path=path,
             prompt_text=prompt_text,
@@ -1146,7 +1239,8 @@ def merge_window_results(parsed_results, windows, plan=None):
 def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
                              window=None, windows=None, claim=None,
                              crop_focus=None, frame_strategy=None,
-                             max_frames=None, sample_fps=None):
+                             max_frames=None, sample_fps=None,
+                             transcript=None):
     """Handle an analyze_semantics request.
 
     Dispatches to image or video prompt based on file extension.
@@ -1164,6 +1258,10 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
 
     When claim ({voiceover, assetNeed}) is provided, the prompt gains a
     scene-claim block and the output gains Relevance/Relevance Reason.
+
+    When transcript (string, videos only) is provided, the ASR text is
+    injected before the task prompt (A1 / #542 L3) and the result carries
+    `transcriptChars` — the provenance that the transcript reached the prompt.
 
     When crop_focus ((x, y) in normalized [0, 1]) is provided, the image crop
     simulation anchors on it so the VLM judges the framing the viewer will
@@ -1187,7 +1285,12 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
 
     ext = os.path.splitext(path)[1].lower()
     is_video = ext in (".mp4", ".mov", ".avi", ".mkv")
-    prompt_text = build_semantics_prompt(is_video, claim)
+    prompt_text = build_semantics_prompt(is_video, claim, transcript)
+    # Provenance for the artifact: the chars actually fed to the prompt
+    # (capped), not the raw transcript length. Absent/ignored → not set.
+    transcript_chars = len(transcript.strip()[:TRANSCRIPT_MAX_CHARS]) if (
+        is_video and isinstance(transcript, str) and transcript.strip()
+    ) else None
 
     # Parse window parameters
     if window:
@@ -1230,13 +1333,19 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
         # the denominator reflects the full plan size, not just the survivors.
         result = merge_window_results(parsed_results, successful_windows,
                                       plan=window_list)
+        # A windowed request always extracts frames, whatever the engine's
+        # native capability is (no engine can seek a time range natively).
         if is_video:
             result["sourceMode"] = "frames"
+        if transcript_chars is not None:
+            result["transcriptChars"] = transcript_chars
         return result, None
 
     try:
         if is_video:
-            source_mode = "frames"
+            # Capability-driven (#542 L1): a native engine receives the whole
+            # file; a frames engine gets ffmpeg-extracted stills.
+            source_mode = resolve_source_mode(is_video, engine, windowed=False)
         else:
             # Image — verify first
             try:
@@ -1263,6 +1372,8 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
     # Add sourceMode for video assets
     if is_video and source_mode:
         result["sourceMode"] = source_mode
+    if transcript_chars is not None:
+        result["transcriptChars"] = transcript_chars
 
     return result, None
 
@@ -1426,6 +1537,8 @@ def main():
                 windows = request.get("windows")
                 claim = request.get("claim")
                 crop_focus = _parse_crop_focus(request.get("cropFocus"))
+                # A1 transcript (#542 L3) — absent = no transcript block.
+                transcript = request.get("transcript")
                 # Frame-selection params (#391): request value wins over the
                 # CLI default; absent on both → current behavior (S1).
                 frame_strategy = request.get(
@@ -1441,6 +1554,7 @@ def main():
                     frame_strategy=frame_strategy,
                     max_frames=max_frames,
                     sample_fps=sample_fps,
+                    transcript=transcript,
                 )
                 if err:
                     response = _degraded_result(err)

@@ -6,9 +6,11 @@
  * transcript producer. Two implementations only stay honest if they agree, so
  * the last block runs both over shared vectors and compares.
  *
- * Boundary notes are the point of several cases: the guard is deliberately
- * conservative (miss rather than delete real speech), and the corpus-measured
- * gaps are pinned here so a future change is a conscious one.
+ * 2026-10-10 rule extension (measured over 148 real transcripts: 145 MLX
+ * ctx-off + 3 whisper.cpp): collapse is now period-aware — any loop unit of
+ * p ≤ 16 words repeating ≥ 6 times over ≥ 18 words — and worstRun measures
+ * every n-gram, not just the most frequent one. Both boundaries are pinned by
+ * cases below; widening either is a conscious change.
  */
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "child_process";
@@ -46,11 +48,34 @@ describe("inspectTranscript", () => {
     expect(inspectTranscript("hello world").skipped).toBe("too-short");
   });
 
-  it("records the multi-token phrase loop as a known gap", () => {
-    // "Thank you." ×8 is the MLX long-audio failure shape (1pHkv4KUiFY).
-    // worst_run only counts stride-1 n-gram repeats, so a phrase loop stays
-    // invisible unless coverage clears the 40-word floor at >0.50. Pinned so
-    // widening the rule has to be deliberate.
+  it("measures worstRun over all n-grams, not just the most frequent", () => {
+    // 7E6i3E-fsj4: "Hard." ×20 is a real consecutive loop, while the most
+    // frequent 3-gram is "stay in the" ×23 (scattered). The old rule measured
+    // the top gram only, so the run was invisible (worstRun=1); the extended
+    // rule reports the run itself.
+    const scattered = " stay in the corner".repeat(23);
+    const text = `Ball can't go. ${Array(20).fill("Hard.").join(" ")}${scattered}`;
+    const stats = inspectTranscript(text);
+    expect(stats.topNgram).toEqual(["stay", "in", "the"]);
+    expect(stats.worstRun).toBe(18); // 20 words → 18 consecutive 3-grams
+    expect(stats.contaminated).toBe(true);
+  });
+
+  it("flags a contiguous phrase loop whose unit is longer than the n-gram", () => {
+    // -XpJeDGh8No (real MLX output): "I'm not sure if I can do this." ×14 —
+    // stride-1 3-grams never repeat, so the old rule missed it entirely
+    // (contaminated=false). The period-aware run scan sees the p=8 loop.
+    const text = "I'm not sure if I can do this. ".repeat(14) + "tail";
+    const stats = inspectTranscript(text);
+    expect(stats.contaminated).toBe(true);
+    expect(stats.worstRun).toBe(1); // still no stride-1 n-gram run
+  });
+
+  it("spares a short phrase loop below the 18-word run floor", () => {
+    // 1pHkv4KUiFY: "Thank you." ×8 (16 words, p=2) — a real MLX long-audio
+    // failure, but below the run floor; spared because the same shape occurs
+    // in real speech (CwzjlmBLfrQ: a presenter thanking 6× in a 92-word
+    // transcript). Pinned so lowering the floor is deliberate.
     const stats = inspectTranscript(Array(8).fill("Thank you.").join(" "));
     expect(stats.contaminated).toBe(false);
     expect(stats.worstRun).toBe(1);
@@ -58,9 +83,11 @@ describe("inspectTranscript", () => {
 
   it("records the production FEMA loop as detected-but-not-collapsed", () => {
     // Real whisper.cpp output (live smoke 2026-10-10, `-mc 0`, video
-    // 0ag_Qi5OEd0): 17 segments over 488s, only 4 distinct texts. The loop
-    // unit is a multi-word phrase, so the guard flags it but never rewrites —
-    // a detector here, not a fixer.
+    // 0ag_Qi5OEd0, re-captured raw: 17 segments over 488s, 4 distinct texts).
+    // The loop is *interleaved* (fema / thank-you alternating, irregular run
+    // lengths) — no single ≥18-word periodic run exists, so the guard still
+    // flags it (coverage) without rewriting. A detector here, not a fixer;
+    // the root cause is low-SNR/music audio (VAD territory).
     const segments = [
       "The End",
       "For more information, visit www.fema.org",
@@ -72,19 +99,7 @@ describe("inspectTranscript", () => {
     ];
     const stats = inspectTranscript(segments.join(" "));
     expect(stats.contaminated).toBe(true);
-    expect(stats.worstRun).toBe(1);
     expect(collapseRepetition(segments.join(" "))).toBe(segments.join(" "));
-  });
-
-  it("records the top-n-gram blind spot for consecutive runs", () => {
-    // 7E6i3E-fsj4: "Hard." ×20 is a real consecutive loop, but worst_run is
-    // measured on the most frequent n-gram only — "stay in the" ×23 (scattered)
-    // wins, so the run is invisible.
-    const scattered = " stay in the corner".repeat(23);
-    const text = `Ball can't go. ${Array(20).fill("Hard.").join(" ")}${scattered}`;
-    const stats = inspectTranscript(text);
-    expect(stats.topNgram).toEqual(["stay", "in", "the"]);
-    expect(stats.worstRun).toBe(1); // the 18-token "Hard." run is not measured
   });
 });
 
@@ -93,15 +108,31 @@ describe("collapseRepetition", () => {
     const text = "intro " + Array(26).fill("Kampung").join(" ") + " outro";
     const out = collapseRepetition(text);
     expect(out).not.toBe(text);
-    // First 3-gram block kept, marker inserted, the 2 trailing words before
-    // "outro" no longer form a full loop block — 5 tokens survive in total.
-    expect(out).toBe("intro Kampung Kampung Kampung [重复×8已收敛] Kampung Kampung outro");
+    expect(out).toBe("intro Kampung [重复×26已收敛] outro");
     expect(out.startsWith("intro ")).toBe(true);
     expect(out.endsWith(" outro")).toBe(true);
   });
 
+  it("collapses a contiguous phrase loop to one unit plus a marker", () => {
+    const unit = "I'm not sure if I can do this.";
+    const text = `${unit} `.repeat(14) + "tail";
+    const out = collapseRepetition(text);
+    expect(out).toBe(`${unit} [重复×14已收敛] tail`);
+  });
+
+  it("collapses a run whose period does not align with the n-gram", () => {
+    // "Stay in the corner." ×23 (p=4, 92 words) — 7E6i3E-fsj4. The old rule
+    // collapsed only stride-3-aligned blocks and missed it.
+    const text = "Ball can't go. " + Array(23).fill("Stay in the corner.").join(" ") + " Watch out.";
+    const out = collapseRepetition(text);
+    expect(out).toContain("Stay in the corner. [重复×23已收敛]");
+    expect(out.startsWith("Ball can't go. Stay in the corner. [")).toBe(true);
+    expect(out.endsWith(" Watch out.")).toBe(true);
+  });
+
   it("leaves genuine repeated shouting alone", () => {
-    // 2Gg4OQo7-zA: real football commentary, "Goal!" ×10 over 11.6s.
+    // 2Gg4OQo7-zA: real football commentary, "Goal!" ×10 over 11.6s (10 words
+    // < the 18-word floor) — and "Bang," ×14 in real song lyrics.
     const text =
       "It's for Iniesta. " +
       Array(10).fill("Goal!").join(" ") +
@@ -111,9 +142,13 @@ describe("collapseRepetition", () => {
   });
 
   it("is idempotent", () => {
-    const text = "intro " + Array(26).fill("Kampung").join(" ") + " outro";
-    const once = collapseRepetition(text);
-    expect(collapseRepetition(once)).toBe(once);
+    for (const text of [
+      "intro " + Array(26).fill("Kampung").join(" ") + " outro",
+      "I'm not sure if I can do this. ".repeat(14) + "tail",
+    ]) {
+      const once = collapseRepetition(text);
+      expect(collapseRepetition(once)).toBe(once);
+    }
   });
 
   it("never rewrites input that inspect did not flag", () => {
@@ -122,6 +157,7 @@ describe("collapseRepetition", () => {
       "hello world",
       "大家好".repeat(50),
       Array(8).fill("Thank you.").join(" "),
+      Array(10).fill("Goal!").join(" "),
     ]) {
       expect(collapseRepetition(text)).toBe(text);
     }
@@ -135,6 +171,9 @@ describe("Python ↔ JS equivalence", () => {
     "intro " + Array(26).fill("Kampung").join(" ") + " outro",
     "It's for Iniesta. " + Array(10).fill("Goal!").join(" ") + " tail",
     Array(8).fill("Thank you.").join(" "),
+    "I'm not sure if I can do this. ".repeat(14) + "tail",
+    "Ball can't go. " + Array(23).fill("Stay in the corner.").join(" ") + " Watch out.",
+    `Ball can't go. ${Array(20).fill("Hard.").join(" ")}${" stay in the corner".repeat(23)}`,
     "we ship it fast. the team is here. we ship it fast. done.",
     "大家好".repeat(50),
     "",
@@ -142,6 +181,8 @@ describe("Python ↔ JS equivalence", () => {
     "a b c d e f g h i j k l m n o p q r s t u v w x y z",
     "One is red, " + Array(9).fill("one is red").join(", ") + ".",
     Array(12).fill("아").join(" ") + " 끝",
+    "The End For more information, visit www.fema.org " +
+      Array(8).fill("Thank you.").join(" ") + " tail",
   ];
 
   it("matches the Python reference on every vector", () => {

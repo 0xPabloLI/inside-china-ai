@@ -340,17 +340,24 @@ whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo.bin -f audio.wav -l en \
 `transcript.repetition_guard`）。护栏改写过文本时，出口会打 warning / 在结果里留痕，
 事后能分辨哪份转写被动过。
 
+**判据（2026-10-10 扩展）**：周期感知的连续循环 —— 单元长度 ≤16 词、连续重复
+≥6 次、跨度 ≥18 词即收敛（保留首次出现 + `[重复×N已收敛]` 标记）；`worst_run`
+取**所有** n-gram 的最大连续次数，不再是最高频那一个。
+
 护栏刻意保守（宁可漏报也不误伤真实口语），**实测边界不要当成更强的保证**
-（147 份真实转写：145 份 MLX ctx-off 语料 + 2 份 whisper.cpp 生产输出）：
+（148 份真实转写：145 份 MLX ctx-off 语料 + 3 份 whisper.cpp 生产输出）：
 
 | 形态 | 行为 |
 |---|---|
-| 单 token 循环（Kampung ×26、go ×56、norge ×71） | **收敛**，10/147 份被改写 |
-| 多词短语循环（whisper.cpp 生产实测的 FEMA 循环：488s 内 17 段只有 4 种文本） | **判得出、收不了**：`contaminated=true` 而文本不变 |
-| 非最高频 n-gram 的长连续段（`7E6i3E-fsj4` 的 "Hard." ×20） | 漏判：`worst_run` 只统计最高频 n-gram |
+| 单 token 循环（Kampung ×26、go ×56、norge ×71、Wow. ×29） | **收敛** |
+| 多词短语循环（"I'm not sure if I can do this." ×14、"Stay in the corner." ×23、德语 "Es war ein sehr schwieriger Tag für die Flieger." ×8、whisper.cpp 冒烟的 "One is red," ×7） | **收敛**；扩展后 17/148 份被改写（旧判据 10/148，全是单 token） |
+| 跨度 <18 词的连续重复（真内容 "Goal!" ×10、"Bang," ×14；"Thank you." ×8） | **不动**（即使 `contaminated=true`）——保守不对称 |
+| 交错多短语循环（whisper.cpp 生产实测的 FEMA 循环：488s 内 17 段只有 4 种文本） | **判得出、收不了**：`contaminated=true` 而文本不变；根因是低信噪/音乐段（VAD 领域） |
 
-三条边界都用测试钉在 `scripts/short-video/__tests__/asr-repetition-guard.test.mjs`
-（含 Python ↔ JS 跨语言向量对照，防止两个实现漂移）。
+四条边界都用测试钉在 `scripts/short-video/__tests__/asr-repetition-guard.test.mjs`
+（含 Python ↔ JS 跨语言向量对照，防止两个实现漂移）。扩展后的规则在 148 份
+真实转写上做过逐份人工复核：17 份改动全部是解码循环（多段同文本 / 单段内
+同短语连排），零误伤。
 
 **⑤ 运行时裁决（2026-10-09, #418）**：**生产转写唯一运行时 = whisper.cpp**（本节调用口径，
 ADR-0020 §2 首选）；MLX 只存在于 bench 实验轴（`bench/keyframe/`：`asr_batch.py` 批量转写、
@@ -530,7 +537,7 @@ short-video 全量 **3952 passed**（191 文件，无回归）。
 The pipeline uses two independent Python subprocesses managed by `visual-analyzer.mjs`:
 
 1. **Focus detector** (`focus_detector.py`, OpenCV) — fast spatial analysis (~180ms/image, <1s startup, ~200MB peak)
-2. **VLM** (`vlm_analyzer.py`, Qwen3-VL-8B-8bit via mlx-vlm) — semantic analysis (~20-30s/image, ~100-120s/video, 12-17s model load)
+2. **VLM** (`vlm_analyzer.py`, engine declared in `lib/vlm-model.json`) — semantic analysis (~20-30s/image, ~100-120s/video, 12-17s model load)
 
 Two-phase execution: Phase 1 `detectFocus()` batch → `closeFocusDetector()` (releases ~200MB) → Phase 2 `describeImage/Video()` + `analyzeFit()` → `closeVisualAnalyzer()` (releases ~11GB).
 
@@ -539,6 +546,66 @@ Graceful degradation: if Python or model unavailable, returns empty strings. Pip
 Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
 
 > Decisions: ADR-0009 (VLM), ADR-0015 (Focus detection). Alternatives survey: `docs/research/asset-focus-detection-alternatives.md`
+
+### 引擎与视频输入（#542 L1/L2，2026-10-10）
+
+`lib/vlm-model.json` 是引擎的单一真值源，两个进程同读（`vlm_analyzer.py` 加载权重、
+`vlm-model.mjs` 出缓存键材料），改引擎只改这一个文件：
+
+| 引擎 | `videoInput` | `concurrency` | 说明 |
+|---|---|---|---|
+| **`qwen3-vl-moe`（默认）** | `native` | 1 | Qwen3-VL-30B-A3B-Instruct-4bit（17GB）。**视频文件直接进模型**，由 mlx-vlm 按处理器的 `fps=2.0 / max_frames=768` 自采样（阈值 384s）。 |
+| `qwen3-vl-thinking` | `native` | 1 | 同上，推理链版；已裁决不用（短档回退率未知）。 |
+| `minicpm` | `frames` | 2 | MiniCPM-o 4.5 4bit（5GB）。无原生视频支持，调用方抽帧（`extract_frames`）。 |
+
+`concurrency` = **这台机器能同时装几个该引擎的实例**，即 VLM 进程池大小
+（`VLM_CONCURRENCY` 环境变量仍可覆盖，用于实验）。它必须跟着引擎走：
+2026-10-10 实测两个 Qwen 实例（34GB）在 32GB 机器上触发 Metal
+`kIOGPUCommandBufferCallbackErrorOutOfMemory`，**第二个 worker 的 warmup 死掉、
+两个分析一起静默降级成空描述**——默认值 2 是给 5GB 引擎定的，换引擎必须同时换它。
+
+`videoInput` 是能力声明，不是引擎名推断：**Node 侧按它决定要不要建分窗计划**
+（`asset-sourcer.mjs` Phase 2.5 只在 `frames` 时构建），**Python 侧按它决定分派**
+（原生视频 vs 抽帧）。两侧都在加载时 fail-fast，缺值或非法值直接报错——静默默认会
+重建这个字段要消灭的漂移。
+
+**分窗计划（#414/#531）对 `native` 引擎不参与**：`window`/`windows` 是给抽帧引擎
+限定每次调用看多少视频的设备；原生引擎自己采样，生产路径上不再有窗。分窗代码保留
+（`frames` 引擎 + bench 契约），不是死代码。
+
+`sourceMode` 记录模型实际看到了什么：`native`（视频文件直进）/ `frames`（ffmpeg 抽帧，
+窗口请求或 `frames` 引擎）/ `degraded`（分析失败）。
+
+### A1 转写接线（#542 L3，2026-10-10）
+
+**视频资产的 ASR 转写随 prompt 一起进语义分析**——这是 Q&A bench 里唯一活下来的
+质量杠杆（原生臂 +3.6pp，p=0.087，n=276）。链路：
+
+```
+asset-sourcer Phase 3a
+  → transcribeVideo(absPath)          whisper.cpp（-mc 0 ctx-off + 重复护栏），
+                                      每个资产一个 mkdtemp 目录，跑完即删
+  → opts.transcript                   空串/失败 → 不带（fail-open）
+  → visual-analyzer.mjs               request.transcript 直传
+  → vlm_analyzer.build_semantics_prompt(is_video, claim, transcript)
+  → vlm-cache.computeCacheKey         转写 sha256 进键 + PROMPT_VERSION bump
+```
+
+- **口径与 bench 逐字一致**：转写头 `视频的语音转写（可能不完整、可能有错）：`、
+  截断 2000 字符、位置在任务描述**之前**（bench `block` 模式）。测量臂用的就是这个
+  形状，生产复刻它而不是另发明一个。跨文件等式由 `__tests__/test_transcript_prompt.py`
+  钉住（Python 侧常量 == `bench_prompt.ASR_HEAD` / `DEFAULT_MAX_CHARS`）。
+- **探测到无音轨就跳过**：`probeMedia.hasAudio === false` 的资产不转写（stock b-roll
+  本来就没话）；`hasAudio` 未知时仍然尝试，失败即回落纯视觉。
+- **进 prompt 的是护栏收敛后的文本**：`transcribeVideo` 的出口已经过重复护栏
+  （见 §ASR ④b），所以循环段被替换成「首次出现 + `[重复×N已收敛]` 标记」，标记本身
+  也会进 prompt。这是**刻意保留**的差异（bench 的对照臂喂的是未收敛文本）：污染转写
+  的唯一去处是下游，把 14 次重复原样喂给模型既虚增 prompt 又误导；标记让模型知道
+  这里发生过收敛。标记的去留（剥离 vs 保留）属于 #540「下游处置」一轴的待判项。
+- **产物留痕**：`asset.transcriptChars`（Python 回传的**实际进 prompt** 字符数，
+  null = 本次分析没有转写）、`asset.transcriptGuard`（护栏报告）；两者都进
+  `asset-analysis.json`。缺转写是**事实**，不是要靠推断的缺口。
+- **图像不受影响**：无音频通道，传了也忽略。
 
 ### 统一视频装载层（#417）
 
@@ -567,7 +634,7 @@ to_minicpm_units(r)                   # 官方「1 帧 + 1 段音频」单元，
   whisper.cpp `--max-context 0`。
 - **转写出装载层前过重复护栏**：`transcript.repetition_guard` 记录是否被判污染/
   是否被改写（段级与整篇分别收敛，见上一节 ④b 的实测边界）；loader 版本因此
-  升到 2，v1 缓存（可能带循环）不复用。
+  升到 3（v1 无护栏、v2 只收单 token 循环，两者的缓存都不复用）。
 - **引擎缺失或抛错不炸装载**：`transcript.status ∈ {unavailable, no_audio,
   not_requested}` + 原因；放行与否由调用方门禁决定（INFRA 语义，与
   `tts/quality-gate.mjs` 一致）。
@@ -580,6 +647,28 @@ to_minicpm_units(r)                   # 官方「1 帧 + 1 段音频」单元，
   ffprobe 时长夹取。
 
 单测：`scripts/short-video/__tests__/test_video_loader.py`（S1/S4/S5/S6/S7 + 适配器）。
+
+#### 装载层的生产归宿（#542 L4，2026-10-10 审计）
+
+引擎切到 `native` 之后，**装载层在生产上零调用者**：唯一的生产调用链是
+`vlm_analyzer.extract_frames`（窗口/抽帧路径）→ `load_video`，而该路径只在
+`frames` 引擎或带窗请求时走到；转写由 JS 侧 `transcribeVideo`（whisper.cpp）负责，
+不经装载层。审计逐项核过的「无生产调用者」事实（用户 2026-10-10 裁决：全部保留，
+只记录事实，不做删除）：
+
+| API / 能力 | 生产调用者 | bench / 测试 |
+|---|---|---|
+| `load_video` | `extract_frames`（仅 `frames` 引擎或带窗请求） | `test_video_loader.py` |
+| `load_video` 的 `cache_dir` / manifest 缓存 | **无**（生产调用只传 `frame_times` + `want_audio: False`） | 测试 |
+| `load_video` 的 `asr` / `asr_runner` 转写通道 | **无**（转写走 JS `transcribeVideo`） | 测试 |
+| `to_text_interleaved` | **无** | 测试 |
+| `frames_with_text` | **无** | `exp_loader_feed_qa.py` |
+| `to_minicpm_units` | **无**（单元路线实测无增益且慢 5-10×） | `exp_omni_units_qa_official.py` / `exp_omni_units_qa_loader.py` |
+| `to_qwen_omni` / `process_qwen_mm_info` | **无**（Omni 交织贡献≈0） | 测试 |
+
+保留的理由：`frames` 引擎（`--engine minicpm`）仍是可选的回退路径，装载层是它的
+解码入口；四组适配器是「引擎契约」的实测证据，删掉后重测要重写。**下次动它之前先
+确认 `--engine minicpm` 已无人使用**——那时整块可以一次性退役。
 
 ## B-roll Generation (FastVideo MLX)
 

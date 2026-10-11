@@ -29,6 +29,10 @@ vi.mock("../lib/visual-analyzer.mjs", () => ({
   closeFocusDetector: (...args) => mockCloseFocusDetector(...args),
   getVlmConcurrency: () => 2,
   getVlmModelId: () => "test-model",
+  // #542 L2: these tests pin the FRAMES engine (minicpm) so the #414 window
+  // plan stays under test. The native-engine path (no plan, no window) has its
+  // own suite: asset-sourcer-native-engine.test.mjs.
+  getVlmVideoInput: () => "frames",
 }));
 
 vi.mock("../lib/media-probe.mjs", () => ({

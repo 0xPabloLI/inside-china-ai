@@ -1,14 +1,20 @@
 {
-  "engine": "minicpm",
+  "engine": "qwen3-vl-moe",
   "engines": {
     "minicpm": {
-      "modelId": "~/models/MiniCPM-o-4_5-4bit"
+      "modelId": "~/models/MiniCPM-o-4_5-4bit",
+      "videoInput": "frames",
+      "concurrency": 2
     },
     "qwen3-vl-moe": {
-      "modelId": "~/models/Qwen3-VL-30B-A3B-Instruct-4bit"
+      "modelId": "~/models/Qwen3-VL-30B-A3B-Instruct-4bit",
+      "videoInput": "native",
+      "concurrency": 1
     },
     "qwen3-vl-thinking": {
-      "modelId": "~/models/Qwen3-VL-30B-A3B-Thinking-4bit"
+      "modelId": "~/models/Qwen3-VL-30B-A3B-Thinking-4bit",
+      "videoInput": "native",
+      "concurrency": 1
     }
   }
 }

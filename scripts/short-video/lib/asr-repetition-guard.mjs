@@ -4,26 +4,35 @@
  * 为什么需要它：ctx-off（`condition_on_previous_text=False` / `--max-context 0`）
  * 只是**降低**幻觉概率，不是消除。whisper.cpp 生产口径实测仍有循环（`-mc 0`
  * 下 8 分钟 "Thank you." / "visit www.fema.org" 循环）；MLX 侧 145 份 ctx-off
- * 转写里 10 份被本护栏判定需要收敛（Kampung ×26、go ×56、norge ×71 …）。
+ * 转写里 17 份被本护栏判定需要收敛。
  * 解码层参数在两个后端都不存在等价的惩罚项，所以后处理是唯一能同时覆盖
  * 两个后端的位置。
  *
- * 判据：**n-gram 循环**，不是词级连续重复。细节与阈值理由见 Python 参考实现
- * （它带着全部实测证据注释）。本文件是等价移植，`asr-repetition-guard.test.mjs`
- * 用共享向量逐字段对照两个实现，防止漂移。
+ * 判据（2026-10-10 扩展后）：**周期感知的连续循环**。
+ *   1. 收敛：任意单元长度 p ≤ PERIOD_MAX（16）、连续重复 ≥ MIN_REPEATS（6）次、
+ *      跨度 ≥ MIN_RUN_WORDS（18）词 —— 按周期保留首次出现 + 标记。
+ *      旧实现只认 stride-3 对齐的 n-gram 块，短语循环（p=4、p=8、p=9…）
+ *      整个漏掉；本轮起按单元周期收敛。
+ *   2. `worstRun` = **所有** n-gram 的最大连续次数（旧口径只看最高频那个，
+ *      "Hard." ×20 因此漏判）。
+ *   3. coverage 仍是辅判据（≥40 词且最高频 n-gram 覆盖 > 0.50）。
+ * 细节与阈值理由见 Python 参考实现（它带着全部实测证据注释）。本文件是等价
+ * 移植，`asr-repetition-guard.test.mjs` 用共享向量逐字段对照两个实现。
  *
- * 保守方向：宁可漏报也不误伤正常口语（"Goal! Goal! Goal!" 是真实解说）。
+ * 保守方向：宁可漏报也不误伤正常口语（"Goal! Goal! Goal!" 是真实解说，
+ * "Bang, bang, bang" 是真实歌词 —— 都短于 18 词下限，不动）。
  *
- * 实测覆盖边界（2026-10-10，147 份真实转写：145 份 MLX ctx-off 语料 +
- * 2 份 whisper.cpp 生产输出）——**不要把它当成比这更强的保证**：
- *   1. 收敛（collapse）只对单 token 循环生效：10/147 被改写（Kampung ×26、
- *      go ×56、norge ×71 …）。
- *   2. 多词短语循环（周期 ≥ 2）**判得出但收不了**：whisper.cpp 生产口径的
- *      FEMA 循环（"Thank you." / "For more information, visit www.fema.org"
- *      重复数分钟）落在这类 —— `contaminated=true` 而 `changed=false`。
- *   3. `worstRun` 只统计**出现次数最多的那个** n-gram 的连续次数；另一个
- *      n-gram 的长连续段看不见（`7E6i3E-fsj4` 的 "Hard." ×20 因此漏判，
- *      同文件 "Stay in the corner." ×23 是更频繁的分散重复）。
+ * 实测覆盖边界（2026-10-10，148 份真实转写：145 份 MLX ctx-off 语料 +
+ * 3 份 whisper.cpp 生产输出）——**不要把它当成比这更强的保证**：
+ *   1. 收敛条件：p ≤ 16、重复 ≥ 6 次、跨度 ≥ 18 词。17/148 被改写（旧判据
+ *      10/148）：单 token 循环（Kampung ×26、go ×56、norge ×71）与短语循环
+ *      （"I'm not sure if I can do this." ×14、"Stay in the corner." ×23、
+ *      "The pot is being sold for only 6,000 won." ×8）都收得掉。
+ *   2. 跨度 < 18 词的连续重复**不动**，即使 inspect 判污染：实测真内容
+ *      "Goal!" ×10、"Bang," ×14 在此列；"Thank you." ×8（16 词）也留在未收敛侧。
+ *   3. 交错多短语循环仍**判得出、收不了**：生产 whisper.cpp 的 FEMA 循环
+ *      （17 段 / 488s / 4 种文本，段长不等）没有单段 ≥18 词的周期运行；
+ *      根因是低信噪/音乐段（VAD 领域）。
  * 三条都用测试钉住，改动其中任何一条都要有意识的评审。
  */
 
@@ -32,6 +41,8 @@ export const NGRAM = 3;
 export const MIN_REPEATS = 6;
 export const MAX_COVERAGE = 0.5;
 export const MIN_WORDS_FOR_COVERAGE = 40;
+export const PERIOD_MAX = 16;
+export const MIN_RUN_WORDS = 18;
 
 // 无词边界语言（CJK 汉字/假名）：按空格切词会把整段中文变成一个「词」，
 // n-gram 逻辑失效。注意韩语有空格，不属此类。
@@ -45,6 +56,8 @@ const NO_SPACE_SCRIPTS = [
 const CJK_RATIO = 0.3;
 
 const STRIP_CHARS = ".,!?;:\"'()[]\u2014\u2013-";
+// 标点-only token 的归一化占位（保留位置，不算内容词）。
+const PLACEHOLDER = "\u0000";
 
 function words(text) {
   return String(text ?? "")
@@ -60,6 +73,13 @@ function norm(word) {
   return word.slice(start, end).toLowerCase();
 }
 
+/** 归一化词表，与原文 token 一一对应；标点-only token 记为占位符。
+ *  收敛与周期扫描都用这份列表 —— 两边必须用同一份，否则会出现
+ *  「inspect 判出运行、collapse 找不到」的不一致。 */
+function normList(text) {
+  return words(text).map((w) => norm(w) || PLACEHOLDER);
+}
+
 function isWordlessScript(text) {
   const letters = [...String(text ?? "")].filter((c) => /\p{L}/u.test(c));
   if (letters.length === 0) return false;
@@ -68,6 +88,43 @@ function isWordlessScript(text) {
     return NO_SPACE_SCRIPTS.some(([lo, hi]) => cp >= lo && cp <= hi);
   }).length;
   return cjk / letters.length > CJK_RATIO;
+}
+
+/**
+ * 扫描周期连续段，返回 [[start, period, runWords], …]（贪心、左到右）。
+ *
+ * 对每个起点 i、每个周期 p：把 E 从 p 起尽可能延伸，保持
+ * norm[i+E] === norm[i+E-p]（即 [i, i+E) 以 p 为周期）。满足
+ * E >= minWords、floor(E/p) >= minRepeats、且单元里至少有一个真词
+ * （纯标点段不算内容循环）时算候选；同一 i 取 E 最大者，平手取小 p。
+ * 收敛后跳到 i+E 继续，避免重叠计数。
+ */
+function periodicRuns(norm, pMax = PERIOD_MAX, minRepeats = MIN_REPEATS, minWords = MIN_RUN_WORDS) {
+  const runs = [];
+  let i = 0;
+  const length = norm.length;
+  while (i < length) {
+    let best = null;
+    for (let p = 1; p <= pMax && i + 2 * p <= length; p += 1) {
+      let e = p;
+      while (i + e < length && norm[i + e] === norm[i + e - p]) e += 1;
+      if (
+        e >= 2 * p &&
+        e >= minWords &&
+        Math.floor(e / p) >= minRepeats &&
+        norm.slice(i, i + p).some((t) => t !== PLACEHOLDER)
+      ) {
+        if (best === null || e > best[1] || (e === best[1] && p < best[0])) best = [p, e];
+      }
+    }
+    if (best === null) {
+      i += 1;
+    } else {
+      runs.push([i, best[0], best[1]]);
+      i += best[1];
+    }
+  }
+  return runs;
 }
 
 /** Python `round(x, 3)` 语义：对**二进制真值**做十进制四舍六入，平手取偶
@@ -93,11 +150,16 @@ function roundHalfEven(value, digits) {
 }
 
 /**
- * 统计转写里的 n-gram 循环程度。不修改文本。
+ * 统计转写里的循环程度。不修改文本。
  *
  * @returns {{words:number, topNgram:string[]|null, topCount:number,
  *            coverage:number, worstRun:number, contaminated:boolean,
  *            skipped:string|null}}
+ *   coverage = topCount × n / words（最高频 n-gram 覆盖的正文比例）
+ *   worstRun = 所有 n-gram 里最大的**连续**重复次数（不再只看最高频那个）
+ *   contaminated = worstRun >= minRepeats
+ *                  或（≥40 词且 coverage > MAX_COVERAGE）
+ *                  或存在合格周期运行（见 periodicRuns）
  */
 export function inspectTranscript(text, n = NGRAM, minRepeats = MIN_REPEATS) {
   let w = words(text).map(norm).filter(Boolean);
@@ -136,11 +198,15 @@ export function inspectTranscript(text, n = NGRAM, minRepeats = MIN_REPEATS) {
     }
   }
 
+  // 所有 n-gram 的最大**连续**次数（同一个 n-gram 一次接一次，中间不隔别的）。
+  // 2026-10-10 前只统计 top 那一个 —— 7E6i3E-fsj4 的 "Hard." ×20 因此漏判。
   let worst = 0;
-  let cur = 0;
+  let prev = null;
+  let run = 0;
   for (const g of grams) {
-    cur = g === top ? cur + 1 : 0;
-    if (cur > worst) worst = cur;
+    run = g === prev ? run + 1 : 1;
+    prev = g;
+    if (run > worst) worst = run;
   }
 
   // 判据用未取整的 coverage（Python 侧同样只在**报告**时取整），
@@ -151,13 +217,22 @@ export function inspectTranscript(text, n = NGRAM, minRepeats = MIN_REPEATS) {
   out.coverage = roundHalfEven(coverage, 3);
   out.worstRun = worst;
   out.contaminated =
-    worst >= minRepeats || (w.length >= MIN_WORDS_FOR_COVERAGE && coverage > MAX_COVERAGE);
+    worst >= minRepeats ||
+    (w.length >= MIN_WORDS_FOR_COVERAGE && coverage > MAX_COVERAGE) ||
+    periodicRuns(normList(text)).length > 0;
   return out;
 }
 
 /**
- * 把连续重复的 n-gram 循环收敛成一次出现，其余内容原样保留。
- * 只处理**连续**循环（A A A A → A）；分散重复不动（可能是真实内容）。
+ * 把连续循环收敛成一次出现，其余内容原样保留。
+ *
+ * 周期感知：循环单元可以是 1..PERIOD_MAX 个词（"Kampung" ×26 → 一个
+ * "Kampung"；"I'm not sure if I can do this." ×14 → 该句一次），保留首次
+ * 出现并插入 `[重复×N已收敛]`。**分散**出现的重复（正常口语里同一短语在
+ * 片中多次出现）不动 —— 那可能是真实内容，删掉就是篡改转写。
+ *
+ * 只在 inspect 判污染时改写；跨度 < MIN_RUN_WORDS 的连续重复即使被判污染
+ * 也不动（保守不对称：宁可漏收敛也不删真实内容，见模块 docstring）。
  */
 export function collapseRepetition(text, n = NGRAM, minRepeats = MIN_REPEATS) {
   const w = words(text);
@@ -166,31 +241,18 @@ export function collapseRepetition(text, n = NGRAM, minRepeats = MIN_REPEATS) {
   const stats = inspectTranscript(text, n, minRepeats);
   if (!stats.contaminated) return text;
 
-  const normalized = w.map((x) => norm(x) || "\u0000");
+  const runs = periodicRuns(normList(text));
+  if (runs.length === 0) return text;
+
   const out = [];
-  let i = 0;
-  while (i < w.length) {
-    const gram = normalized.slice(i, i + n);
-    if (gram.length === n) {
-      let reps = 1;
-      let j = i + n;
-      while (
-        j + n <= w.length &&
-        normalized.slice(j, j + n).join("\u0000") === gram.join("\u0000")
-      ) {
-        reps += 1;
-        j += n;
-      }
-      if (reps >= minRepeats) {
-        out.push(...w.slice(i, i + n));
-        out.push(`[重复×${reps}已收敛]`);
-        i = j;
-        continue;
-      }
-    }
-    out.push(w[i]);
-    i += 1;
+  let cursor = 0;
+  for (const [start, period, span] of runs) {
+    out.push(...w.slice(cursor, start));
+    out.push(...w.slice(start, start + period)); // 保留第一次出现
+    out.push(`[重复×${Math.floor(span / period)}已收敛]`);
+    cursor = start + span;
   }
+  out.push(...w.slice(cursor));
   return out.join(" ");
 }
 

@@ -60,7 +60,8 @@ vi.mock("fs", () => ({
   existsSync: vi.fn(() => true),
   // vlm-model.mjs reads vlm-model.json at import time under the mocked fs.
   readFileSync: vi.fn(
-    () => '{"engine": "minicpm", "engines": {"minicpm": {"modelId": "mock-model-id"}}}',
+    () =>
+      '{"engine": "minicpm", "engines": {"minicpm": {"modelId": "mock-model-id", "videoInput": "frames", "concurrency": 1}}}',
   ),
 }));
 

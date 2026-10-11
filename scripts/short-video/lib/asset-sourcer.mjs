@@ -49,8 +49,17 @@
  * @property {string} [id] - platform video id (yt-dlp results)
  */
 
-import { existsSync, writeFileSync, mkdirSync, statSync, readFileSync } from "fs";
+import {
+  existsSync,
+  writeFileSync,
+  mkdirSync,
+  statSync,
+  readFileSync,
+  mkdtempSync,
+  rmSync,
+} from "fs";
 import { join, dirname, basename, extname, relative, isAbsolute } from "path";
+import { tmpdir } from "os";
 import { fileURLToPath, pathToFileURL } from "url";
 import { execSync } from "child_process";
 import { ALL_SOURCES, SOURCE_ATTRIBUTIONS } from "./source-registry.mjs";
@@ -1126,8 +1135,13 @@ export function buildWindowPlan(durationMs, cfg) {
 }
 
 export async function analyzeAssets(assets, opts = {}) {
-  const { analyzeAssetSemantics, detectFocus, closeFocusDetector, getVlmModelId } =
-    await import("./visual-analyzer.mjs");
+  const {
+    analyzeAssetSemantics,
+    detectFocus,
+    closeFocusDetector,
+    getVlmModelId,
+    getVlmVideoInput,
+  } = await import("./visual-analyzer.mjs");
   const { probeMedia } = await import("./media-probe.mjs");
 
   if (!assets || assets.length === 0) return [];
@@ -1218,6 +1232,16 @@ export async function analyzeAssets(assets, opts = {}) {
   // #414 window plan (mirrors bench/keyframe/window_plan.py::plan_windows,
   // the #391 recall-knee design that replaced the #360 duration tiers).
   //
+  // The plan is a FRAMES-mode device (#542 L2): it exists to bound how much
+  // video a frame-extracting engine sees per call. A native-video engine
+  // (videoInput="native", the configured default) consumes the file itself —
+  // mlx_vlm samples it at the processor's declared fps/frame cap — so the
+  // plan is not built and no window/windows reach the analyzer. The Q&A bench
+  // measured that switch on the full 276-question set: native+transcript
+  // 83.0% vs the loader grid's 83.0% (McNemar p=1.000) and +6.9pp over the
+  // production-shaped MiniCPM arm (p=0.0094). The code below is kept for
+  // frames-mode engines (--engine minicpm).
+  //
   // Window count: n = ceil(D / 248) — a single VLM call can hold the 8 s
   // blind-spot floor only while its window is ≤ (BUDGET_MAX − 1) × GAP_FLOOR
   // = 31 × 8 s; the even in-window grid spaces points by L/(b−1), so the span
@@ -1252,6 +1276,8 @@ export async function analyzeAssets(assets, opts = {}) {
   const MIN_BUDGET = 4;
   const WINDOW_SPAN_MAX_MS = (BUDGET_MAX - 1) * GAP_FLOOR * 1000; // 248 s
 
+  const framesMode = getVlmVideoInput() === "frames";
+
   for (const asset of analyzableAssets) {
     if (asset.type !== "video") continue;
 
@@ -1264,6 +1290,13 @@ export async function analyzeAssets(assets, opts = {}) {
     if (durationMs > 0) {
       // #360: persist the probed duration (previously computed then discarded)
       asset.durationMs = durationMs;
+      // #542 L3: the probe's audio fact gates transcription (a silent asset
+      // has nothing to decode). Only persisted when the probe actually said
+      // something — undefined keeps the fail-open "try anyway" path.
+      if (typeof probe?.hasAudio === "boolean") {
+        asset.hasAudio = probe.hasAudio;
+      }
+      if (!framesMode) continue; // native engine — no window plan (#542 L2)
       const plan = buildWindowPlan(durationMs, {
         budgetMax: BUDGET_MAX,
         gapFloor: GAP_FLOOR,
@@ -1277,7 +1310,7 @@ export async function analyzeAssets(assets, opts = {}) {
       } else {
         asset.windows = plan.map((w) => w.window);
       }
-    } else {
+    } else if (framesMode) {
       // probeMedia failed — use default window, sourceMode will be "degraded"
       asset.window = { startMs: 0, endMs: DEFAULT_WINDOW_END_MS, sampleFps: DEFAULT_SAMPLE_FPS };
     }
@@ -1308,26 +1341,46 @@ export async function analyzeAssets(assets, opts = {}) {
     // actually see instead of a center crop the crop decision may override.
     const { saliencyCropHint } = await import("./crop-decision.mjs");
     const cropHint = asset.cropFocus ?? saliencyCropHint(asset.focusAnalysis);
-    // #360: segmented assets (>30s tier) carry a multi-window plan instead of
-    // a single window — the Python side loops + merges.
-    const analyzeOpts = asset.windows
-      ? {
-          windows: asset.windows,
-          ...(claimInfo ? { claim: claimInfo } : {}),
-          ...(cropHint ? { cropFocus: cropHint } : {}),
+
+    // A1 transcript (#542 L3): ASR text is prompt content for video assets.
+    // It is the one lever that survived every Q&A-bench ablation (+3.6pp on
+    // the native arm, p=0.087 over the 276-question set), so the semantics
+    // call carries it. Fail-open: a missing whisper-cli/model or a failed
+    // decode leaves it null and the analysis runs on vision alone — a
+    // transcript is an upgrade, never a gate. Silent assets are skipped from
+    // the probe's own `hasAudio` (stock b-roll has no speech to decode).
+    let transcript = null;
+    let transcriptGuard = null;
+    if (asset.type === "video" && asset.hasAudio !== false) {
+      const { transcribeVideo } = await import("./video-understand.mjs");
+      // Per-asset temp dir: concurrent analyzeOne calls must not clobber each
+      // other's audio.wav/transcript.json (ADR-0020 pattern, same as the TTS
+      // quality gate). Nothing here is needed after the prompt is built.
+      const asrDir = mkdtempSync(join(tmpdir(), "asset-sourcer-asr-"));
+      try {
+        const asr = await transcribeVideo(absPath, { outputDir: asrDir });
+        if (asr?.fullText) {
+          transcript = asr.fullText;
+          transcriptGuard = asr.guard ?? null;
         }
-      : asset.window
-        ? {
-            ...asset.window,
-            ...(claimInfo ? { claim: claimInfo } : {}),
-            ...(cropHint ? { cropFocus: cropHint } : {}),
-          }
-        : claimInfo || cropHint
-          ? {
-              ...(claimInfo ? { claim: claimInfo } : {}),
-              ...(cropHint ? { cropFocus: cropHint } : {}),
-            }
-          : undefined;
+      } catch (err) {
+        console.warn(`  ⚠️  Transcription failed for ${absPath}: ${err.message}`);
+      } finally {
+        rmSync(asrDir, { recursive: true, force: true });
+      }
+    }
+
+    // #360: segmented assets (>30s tier) carry a multi-window plan instead of
+    // a single window — the Python side loops + merges. #542 L2: a
+    // native-video engine gets no window/windows at all (Phase 2.5 skips the
+    // plan for it), so this collapses to claim/crop/transcript.
+    const analyzeOpts = {
+      ...(asset.windows ? { windows: asset.windows } : asset.window ? { ...asset.window } : {}),
+      ...(claimInfo ? { claim: claimInfo } : {}),
+      ...(cropHint ? { cropFocus: cropHint } : {}),
+      ...(transcript ? { transcript } : {}),
+    };
+    const hasAnalyzeOpts = Object.keys(analyzeOpts).length > 0;
 
     // Cache lookup (#189): key = promptVersion + model + file fingerprint + window/claim.
     // Key is computed once and reused for the write below (avoids hashing twice).
@@ -1345,6 +1398,7 @@ export async function analyzeAssets(assets, opts = {}) {
           windows: asset.windows,
           claim: claimInfo,
           cropFocus: cropHint ?? null,
+          transcript,
         });
         const cached = getCachedResult(cacheDir, cacheKey);
         if (cached) {
@@ -1363,7 +1417,7 @@ export async function analyzeAssets(assets, opts = {}) {
       let success = false;
       try {
         // Pass window opts for video assets; omit for images (backward compat)
-        semantics = analyzeOpts
+        semantics = hasAnalyzeOpts
           ? await analyzeAssetSemantics(absPath, analyzeOpts)
           : await analyzeAssetSemantics(absPath);
         success = !!(semantics.description && semantics.description.length > 0);
@@ -1422,6 +1476,15 @@ export async function analyzeAssets(assets, opts = {}) {
     }
     if (semantics.sourceMode) {
       asset.sourceMode = semantics.sourceMode;
+    }
+    // A1 provenance (#542 L3): transcriptChars comes back from the Python side
+    // (proof the transcript reached the prompt, not just the request) and the
+    // guard report records whether the ASR repetition guard fired. Recorded on
+    // every video asset — null means "no transcript in this analysis", which
+    // is a fact a reviewer needs, not a gap to infer.
+    if (asset.type === "video") {
+      asset.transcriptChars = semantics.transcriptChars ?? null;
+      asset.transcriptGuard = transcriptGuard;
     }
 
     const analysisTimeMs = Date.now() - startTime;
@@ -1509,6 +1572,9 @@ export async function analyzeAssets(assets, opts = {}) {
           window: a.window || null,
           windows: a.windows || null, // #360: multi-window plan (segmented)
           sourceMode: a.sourceMode || null,
+          // #542 L3: A1 transcript provenance (null = analysis ran without one)
+          transcriptChars: a.transcriptChars ?? null,
+          transcriptGuard: a.transcriptGuard ?? null,
         })),
     };
 

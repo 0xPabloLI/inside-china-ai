@@ -66,7 +66,8 @@ vi.mock("fs", () => ({
   // vlm-model.mjs (single source of truth, #351) reads vlm-model.json at
   // import time — serve a canned id under the mocked fs.
   readFileSync: vi.fn(
-    () => '{"engine": "minicpm", "engines": {"minicpm": {"modelId": "mock-model-id"}}}',
+    () =>
+      '{"engine": "minicpm", "engines": {"minicpm": {"modelId": "mock-model-id", "videoInput": "frames", "concurrency": 1}}}',
   ),
 }));
 
@@ -76,10 +77,11 @@ let visualAnalyzer;
 
 beforeEach(async () => {
   vi.resetModules();
-  // #189: the module now runs a worker pool (default VLM_CONCURRENCY=2).
-  // This file pins the pool to 1 so legacy single-worker semantics
-  // (serial queuing, one stdin write at a time) stay exercised here; pool
-  // behavior has dedicated coverage in visual-analyzer-pool.test.mjs.
+  // #189: the module runs a worker pool whose default is the configured
+  // engine's declared `concurrency`. This file pins the pool to 1 so legacy
+  // single-worker semantics (serial queuing, one stdin write at a time) stay
+  // exercised here; pool behavior has dedicated coverage in
+  // visual-analyzer-pool.test.mjs.
   process.env.VLM_CONCURRENCY = "1";
   // Re-setup mocks after resetModules
   mockSpawn = vi.fn();
@@ -256,6 +258,39 @@ describe("visual-analyzer module", () => {
       mockProc.emitStdout(JSON.stringify({ ...DEGRADED, description: "test", error: null }) + "\n");
 
       await promise;
+    });
+
+    // #542 L3 (A1): the transcript is request payload for the Python prompt
+    // builder — omitted when absent/blank so no empty block is ever injected.
+    it("passes the A1 transcript through to the Python request", async () => {
+      const promise = visualAnalyzer.analyzeAssetSemantics("/abs/clip.mp4", {
+        transcript: "今天聊一下通义千问。",
+      });
+      await new Promise((r) => setTimeout(r, 10));
+
+      const request = JSON.parse(mockProc.stdin.write.mock.calls[0][0].toString().trim());
+      expect(request.transcript).toBe("今天聊一下通义千问。");
+
+      mockProc.emitStdout(JSON.stringify({ ...DEGRADED, description: "test", error: null }) + "\n");
+      await promise;
+    });
+
+    it("omits the transcript key when absent or blank", async () => {
+      const promise1 = visualAnalyzer.analyzeAssetSemantics("/abs/clip1.mp4");
+      await new Promise((r) => setTimeout(r, 10));
+      const req1 = JSON.parse(mockProc.stdin.write.mock.calls[0][0].toString().trim());
+      expect("transcript" in req1).toBe(false);
+      mockProc.emitStdout(JSON.stringify({ ...DEGRADED, description: "one", error: null }) + "\n");
+      await promise1;
+
+      const promise2 = visualAnalyzer.analyzeAssetSemantics("/abs/clip2.mp4", {
+        transcript: "   \n ",
+      });
+      await new Promise((r) => setTimeout(r, 10));
+      const req2 = JSON.parse(mockProc.stdin.write.mock.calls[1][0].toString().trim());
+      expect("transcript" in req2).toBe(false);
+      mockProc.emitStdout(JSON.stringify({ ...DEGRADED, description: "two", error: null }) + "\n");
+      await promise2;
     });
 
     it("reuses running process for subsequent calls (no re-spawn)", async () => {

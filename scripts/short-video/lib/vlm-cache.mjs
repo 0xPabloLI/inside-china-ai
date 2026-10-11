@@ -30,8 +30,12 @@ import { join } from "path";
 /**
  * Bump when vlm_analyzer.py prompts/parse semantics change so cached
  * results are no longer reproducible.
+ *
+ * v2-2026-10-10 (#542 L3): the semantics prompt gained the A1 transcript
+ * block for video assets — the same file + window now produces a different
+ * prompt when a transcript is supplied, so pre-A1 entries must not serve.
  */
-export const VLM_CACHE_PROMPT_VERSION = "v1-2026-09-04";
+export const VLM_CACHE_PROMPT_VERSION = "v2-2026-10-10";
 
 /**
  * Bump when the pipeline-side analysis semantics change (envelope format,
@@ -86,7 +90,8 @@ function stableStringify(value) {
  *          window?: {startMs: number, endMs: number, sampleFps: number},
  *          windows?: {startMs: number, endMs: number, sampleFps: number}[],
  *          claim?: {voiceover: string, assetNeed: string},
- *          cropFocus?: {x: number, y: number} | null}} req
+ *          cropFocus?: {x: number, y: number} | null,
+ *          transcript?: string | null}} req
  * @returns {Promise<string>} 64-char hex sha256
  */
 export async function computeCacheKey(req) {
@@ -102,6 +107,14 @@ export async function computeCacheKey(req) {
   h.update(stableStringify({ windows: req.windows ?? null }));
   // Crop hint changes the pixels the VLM sees — it is key material (#198).
   h.update(stableStringify({ cropFocus: req.cropFocus ?? null }));
+  // The A1 transcript is prompt content (#542 L3) — a different transcript is
+  // a different analysis, and an absent one must not collide with a present
+  // one. Hashed (not inlined) so the key stays fixed-width.
+  h.update(
+    stableStringify({
+      transcript: req.transcript ? createHash("sha256").update(req.transcript).digest("hex") : null,
+    }),
+  );
   return h.digest("hex");
 }
 
@@ -192,6 +205,7 @@ export function wrapAnalyzerWithCache(analyzeFn, { cacheDir, model, disabled = f
       windows: opts?.windows,
       claim: opts?.claim,
       cropFocus: opts?.cropFocus ?? null,
+      transcript: opts?.transcript ?? null,
     });
     const cached = getCachedResult(cacheDir, key);
     if (cached) return cached.data;
