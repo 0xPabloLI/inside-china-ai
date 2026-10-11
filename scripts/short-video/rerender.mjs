@@ -3,9 +3,26 @@ import { resolve as pathResolve, join } from "path";
 import { renderRemotion } from "./lib/render-remotion.mjs";
 import { normalizeMediaPatch, applyAssignedMedia } from "./lib/apply-media-patch.mjs";
 import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
+import { resolveContentDir } from "./lib/cli-content.mjs";
 
-const CONTENT_DIR = "deepseek-v41-flash";
 const baseDir = pathResolve(import.meta.dirname);
+
+// Target video: --content <dir> (like main.mjs); bare runs keep the historical
+// deepseek-v41-flash default.
+const resolvedContent = resolveContentDir({
+  argv: process.argv.slice(2),
+  baseDir,
+  defaultContent: "deepseek-v41-flash",
+});
+if (!resolvedContent.ok) {
+  console.error(`❌ ${resolvedContent.message}`);
+  if (resolvedContent.available.length > 0) {
+    console.error("   Available content:");
+    for (const name of resolvedContent.available) console.error(`   - ${name}`);
+  }
+  process.exit(1);
+}
+const CONTENT_DIR = resolvedContent.contentDir;
 const contentDirAbs = join(baseDir, "content", CONTENT_DIR);
 const outputDir = join(baseDir, "output", CONTENT_DIR);
 const audioDir = join(outputDir, "audio");
