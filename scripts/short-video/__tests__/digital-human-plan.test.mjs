@@ -35,6 +35,7 @@ import {
   planDigitalHumanPackage,
   executePlan,
   planPathFor,
+  readSceneAudioInfo,
 } from "../lib/digital-human.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -639,5 +640,41 @@ describe("digital-human.mjs CLI (plan)", () => {
     const res = spawnSync(process.execPath, [CLI, "run"], { encoding: "utf8" });
     expect(res.status).toBe(1);
     expect(res.stderr).toContain("--plan");
+  });
+});
+
+describe("readSceneAudioInfo (#423 candidate sidecars)", () => {
+  it("reads a candidate sidecar when only that record exists (skip-gate / aborted run)", () => {
+    const dir = tmpDir("dh-audio-info-");
+    writeFileSync(join(dir, "scene-1.wav"), "RIFF....");
+    writeFileSync(
+      join(dir, "scene-1.tts-candidate.json"),
+      JSON.stringify({ duration: 6.5, status: "candidate", reason: "gate-skipped" }),
+    );
+    const info = readSceneAudioInfo(dir, { id: 1 });
+    expect(info.duration).toBe(6.5);
+    expect(info.durationSource).toBe("tts-candidate");
+    expect(info.audioPath).toBe(join(dir, "scene-1.wav"));
+  });
+
+  it("prefers an approved tts-meta over a candidate sidecar for the same scene", () => {
+    const dir = tmpDir("dh-audio-info-");
+    writeFileSync(join(dir, "scene-1.wav"), "RIFF....");
+    writeFileSync(
+      join(dir, "scene-1.tts-meta.json"),
+      JSON.stringify({ duration: 4.0, audioPath: "scene-1.wav" }),
+    );
+    writeFileSync(
+      join(dir, "scene-1.tts-candidate.json"),
+      JSON.stringify({ duration: 9.9, status: "candidate" }),
+    );
+    const info = readSceneAudioInfo(dir, { id: 1 });
+    expect(info.duration).toBe(4.0);
+    expect(info.durationSource).toBe("tts-meta");
+  });
+
+  it("still fails closed when neither sidecar nor scene-durations.json has the scene", () => {
+    const dir = tmpDir("dh-audio-info-");
+    expect(() => readSceneAudioInfo(dir, { id: 7 })).toThrow(/no TTS audio metadata/);
   });
 });

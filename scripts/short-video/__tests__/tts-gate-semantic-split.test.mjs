@@ -35,9 +35,12 @@ vi.mock("../lib/tts/post-process.mjs", () => ({
 }));
 
 vi.mock("../lib/tts/cache.mjs", () => ({
-  planTtsScenes: vi.fn((_dir, scenes) => ({ cached: [], pending: [...scenes] })),
+  planTtsScenes: vi.fn((_dir, scenes) => ({ approved: [], candidates: [], pending: [...scenes] })),
   writeSceneMeta: vi.fn(),
-  computeSceneKey: vi.fn(() => "test-key"),
+  writeCandidateSceneMeta: vi.fn(),
+  refreshApprovedSceneMeta: vi.fn(() => false),
+  refreshCandidateSceneMeta: vi.fn(() => false),
+  sceneCacheKey: vi.fn(() => "test-key"),
   resolveSceneInstruct: vi.fn(() => ""),
 }));
 

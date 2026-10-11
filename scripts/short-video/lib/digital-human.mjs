@@ -46,7 +46,7 @@
  *     scenes: [{
  *       sceneId, status: "needs-generation" | "already-generated",
  *       audioPath, durationSeconds, durationSource:
- *         "tts-meta" | "scene-durations",
+ *         "tts-meta" | "tts-candidate" | "scene-durations",
  *       boundarySource: "word-alignment" | "text-punctuation-estimate",
  *       presentIntervals: [{from,to}] | null,
  *       segments: [{ index, from, to, duration, hardCut }],
@@ -385,7 +385,7 @@ function round1(n) {
  * @param {object} p
  * @param {object} p.scene - scene with an avatar declaration
  * @param {number} p.audioDuration - exact duration of the final TTS audio
- * @param {"tts-meta"|"scene-durations"} p.durationSource
+ * @param {"tts-meta"|"tts-candidate"|"scene-durations"} p.durationSource
  * @param {Array<{text: string, start: number, end: number}>|null} p.words
  *        - flattened word timings for this scene from subtitle-timing.json
  *          (null when alignment is missing/stale → punctuation fallback)
@@ -459,16 +459,23 @@ export function computeScenePlan({
 /**
  * Resolve a scene's TTS audio duration + file. Priority: #198 cache meta
  * (scene-{id}.tts-meta.json — exact ffprobe duration + engine-written audio
- * path) → legacy scene-durations.json. Throws fail-closed when neither has
- * the scene: planning without the TTS artifacts is meaningless.
+ * path) → #423 candidate sidecar (scene-{id}.tts-candidate.json — same
+ * duration for a take that is on disk but not yet finally verified; a
+ * skip-gate or aborted run leaves only this record) → legacy
+ * scene-durations.json. Throws fail-closed when none has the scene: planning
+ * without the TTS artifacts is meaningless.
  *
  * @param {string} audioDir - output/{pipelineId}/audio
  * @param {{id: number}} scene
- * @returns {{audioPath: string, duration: number, durationSource: "tts-meta"|"scene-durations"}}
+ * @returns {{audioPath: string, duration: number, durationSource: "tts-meta"|"tts-candidate"|"scene-durations"}}
  */
 export function readSceneAudioInfo(audioDir, scene) {
-  const metaPath = join(audioDir, `scene-${scene.id}.tts-meta.json`);
-  if (existsSync(metaPath)) {
+  for (const [fileName, durationSource] of [
+    [`scene-${scene.id}.tts-meta.json`, "tts-meta"],
+    [`scene-${scene.id}.tts-candidate.json`, "tts-candidate"],
+  ]) {
+    const metaPath = join(audioDir, fileName);
+    if (!existsSync(metaPath)) continue;
     let fromMeta = null;
     try {
       const meta = JSON.parse(readFileSync(metaPath, "utf8"));
@@ -478,11 +485,11 @@ export function readSceneAudioInfo(audioDir, scene) {
             ? resolve(audioDir, meta.audioPath)
             : join(audioDir, `scene-${scene.id}.wav`),
           duration: meta.duration,
-          durationSource: "tts-meta",
+          durationSource,
         };
       }
     } catch {
-      // corrupt meta → fall through to scene-durations.json
+      // corrupt meta → try the next source
     }
     if (fromMeta) {
       assertAudioFileExists(scene.id, fromMeta.audioPath);
@@ -517,8 +524,8 @@ export function readSceneAudioInfo(audioDir, scene) {
 
   throw new Error(
     `Scene ${scene.id}: no TTS audio metadata in ${audioDir} ` +
-      `(expected scene-${scene.id}.tts-meta.json or scene-durations.json) — ` +
-      `run the TTS pipeline (main.mjs --content <dir>) before planning`,
+      `(expected scene-${scene.id}.tts-meta.json, scene-${scene.id}.tts-candidate.json ` +
+      `or scene-durations.json) — run the TTS pipeline (main.mjs --content <dir>) before planning`,
   );
 }
 

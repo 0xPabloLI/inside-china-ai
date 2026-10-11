@@ -27,6 +27,9 @@
  * Unified venv: ~/.video-tts-env (Python 3.12) — CosyVoice3 + F5 + whisperx all in one.
  */
 
+import { existsSync } from "fs";
+import { join } from "path";
+import { createRegenStaging, acceptRegenTake, cleanupRegenStaging } from "./staging.mjs";
 import { createCosyVoice3KaggleCudaEngine } from "./cosyvoice3-kaggle-cuda.mjs";
 import { createCosyVoice3ModalCudaEngine } from "./cosyvoice3-modal-cuda.mjs";
 import { createCosyVoice3NPUEngine } from "./cosyvoice3-npu.mjs";
@@ -36,7 +39,14 @@ import { createF5MLXEngine } from "./f5-mlx.mjs";
 import { createEdgeTTSEngine } from "./edge-tts.mjs";
 import { createSayEngine } from "./say.mjs";
 import { runForcedAlignment, getAtempo } from "./post-process.mjs";
-import { planTtsScenes, writeSceneMeta, computeSceneKey, resolveSceneInstruct } from "./cache.mjs";
+import {
+  planTtsScenes,
+  writeSceneMeta,
+  writeCandidateSceneMeta,
+  refreshApprovedSceneMeta,
+  refreshCandidateSceneMeta,
+  sceneCacheKey,
+} from "./cache.mjs";
 import {
   FAILURE_CLASS,
   partitionGateFailures,
@@ -117,8 +127,9 @@ export async function selectEngine() {
  *
  * Delegates to the selected engine, then runs subtitle alignment.
  * Scene audio is cached across runs (see ./cache.mjs): scenes whose
- * (engine, engine config, text) key already has cached audio skip GPU
- * generation entirely. Set TTS_NO_CACHE=1 (or pass useCache:false) to
+ * (engine, engine config, text) key already has APPROVED audio skip GPU
+ * generation entirely; takes that exist but are not finally verified are
+ * re-verified locally (#423). Set TTS_NO_CACHE=1 (or pass useCache:false) to
  * regenerate everything.
  *
  * @param {Array} scenes - Scene objects with {id, voiceover}
@@ -235,42 +246,150 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   steps.push("loudnorm (at assembly)");
   console.log(`  Post-process: ${steps.join(" + ")}`);
 
-  // Split into cache hits and pending scenes (#198 Item 2). Results must be
-  // reassembled in scene order — callers index-align ttsResults to scenes.
+  // Split into approved hits, candidates and pending scenes (#198 Item 2,
+  // #423). Results must be reassembled in scene order — callers index-align
+  // ttsResults to scenes.
   let toGenerate = scenes;
   let cachedResults = [];
+  let candidateResults = [];
+  let candidateSpeedById = new Map();
   if (useCache) {
     const plan = planTtsScenes(outputDir, scenes, engine);
-    if (plan.cached.length > 0) {
+    if (plan.approved.length > 0) {
       console.log(
-        `  💾 TTS cache: ${plan.cached.length}/${scenes.length} scenes reused (TTS_NO_CACHE=1 to force)`,
+        `  💾 TTS cache: ${plan.approved.length}/${scenes.length} scenes reused (TTS_NO_CACHE=1 to force)`,
       );
     }
-    cachedResults = plan.cached.map(({ sceneId, audioPath, duration }) => ({
+    if (plan.candidates.length > 0) {
+      console.log(
+        `  ♻️ TTS candidates: ${plan.candidates.length}/${scenes.length} take(s) await local ` +
+          `re-verification (no GPU): ${plan.candidates.map((c) => `scene ${c.sceneId} (${c.reason})`).join("; ")}`,
+      );
+    }
+    cachedResults = plan.approved.map(({ sceneId, audioPath, duration }) => ({
       sceneId,
       audioPath,
       duration,
       cached: true,
     }));
+    candidateSpeedById = new Map(plan.candidates.map((c) => [c.sceneId, c.ttsSpeed]));
+    candidateResults = plan.candidates.map(({ sceneId, audioPath, duration }) => ({
+      sceneId,
+      audioPath,
+      duration,
+    }));
     toGenerate = plan.pending;
   }
-  if (toGenerate.length === 0) {
+
+  // Everything this run must (re-)verify: fresh generations plus candidates
+  // whose audio already exists on disk (#423).
+  const verifyScenes = [
+    ...toGenerate,
+    ...candidateResults.map((r) => scenes.find((s) => s.id === r.sceneId)).filter(Boolean),
+  ];
+  if (verifyScenes.length === 0) {
     return cachedResults;
   }
 
-  const generatedResults = await engine.generate(toGenerate, outputDir);
+  // The primary round writes DIRECTLY into the audio dir, unlike the regen
+  // rounds below (#423): `toGenerate` holds only scenes with no reusable take
+  // on disk (approved scenes are never regenerated), so there is nothing to
+  // protect; engines derive per-pipeline identity from this path (Kaggle slug,
+  // #267) and keep per-call bookkeeping under it (`.kaggle-kernel`, #420).
+  const generatedResults =
+    toGenerate.length > 0 ? await engine.generate(toGenerate, outputDir) : [];
 
   // ── Step: TTS Quality Gate & Self-Healing Loop (#225, #230) ──
-  let validatedResults = generatedResults;
+  // Candidates join the same verification path as fresh takes: their audio
+  // exists, so the gate + pacing ladder re-check them locally (no GPU).
+  let validatedResults = [...generatedResults, ...candidateResults];
+
+  // Native speed that produced each take on disk, keyed by the RESULT object.
+  // Settling must key the cache on the take that EXISTS — keying by scene id
+  // would let a compensation override (applied after the original take was
+  // generated) label the original take with a key it can never hit (#423).
+  const speedByResult = new Map();
+  for (const res of validatedResults) {
+    const scene = scenes.find((s) => s.id === res.sceneId);
+    if (!scene) continue;
+    // A candidate carries the speed that produced the take on disk (#252) —
+    // re-promotion must keep it, or a compensated take gets relabelled 1.0x.
+    const fromPlan = candidateSpeedById.get(res.sceneId);
+    speedByResult.set(res, Number.isFinite(fromPlan) ? fromPlan : resolveSceneSpeed(scene));
+  }
   const isFakeEngine =
     (engine.name && engine.name.toLowerCase().includes("fake")) ||
     (engine.info && engine.info.toLowerCase().includes("fake"));
   const skipQualityGate = options.skipQualityGate ?? (isFakeEngine || qualityGateSkipped());
 
-  if (!skipQualityGate && toGenerate.length > 0) {
+  // #423: sceneId → {result, evaluation} for the take currently on disk. Every
+  // gate run refreshes it; an ACCEPTED reroll/compensation take replaces its
+  // entry (a failed replacement never does — the original take's verdict
+  // stands). Settling reads this map: passed → approved, else candidate.
+  const verdictByScene = new Map();
+  const recordVerdicts = (results, evaluations) => {
+    for (const ev of evaluations ?? []) {
+      const result = results.find((r) => r.sceneId === ev.sceneId);
+      if (result) verdictByScene.set(ev.sceneId, { result, evaluation: ev });
+    }
+  };
+
+  /** Write one take's trust state: approved when verified, else candidate. */
+  const settleTake = (result, evaluation, fallbackReason) => {
+    const scene = scenes.find((s) => s.id === result.sceneId);
+    if (!scene) return;
+    const speed = speedByResult.get(result) ?? resolveSceneSpeed(scene);
+    const meta = {
+      key: sceneCacheKey(engine, scene, speed),
+      duration: result.duration,
+      engine: engine.name,
+      audioPath: result.audioPath,
+      ttsSpeed: speed,
+    };
+    if (evaluation?.passed) {
+      if (!writeSceneMeta(outputDir, result.sceneId, meta)) {
+        // Only reachable when the audio file is gone — the gate flags that as
+        // a missing-audio failure, so surface the mismatch instead of letting
+        // a "passed" take disappear from the cache silently.
+        console.warn(
+          `  ⚠️ Scene ${result.sceneId}: approved take has no audio at ${result.audioPath} — ` +
+            `cache entry not written`,
+        );
+      }
+    } else {
+      writeCandidateSceneMeta(outputDir, result.sceneId, {
+        ...meta,
+        reason: evaluation ? `gate-failed:${evaluation.failureClass || "unknown"}` : fallbackReason,
+      });
+    }
+  };
+
+  /**
+   * Settle every take the run holds (idempotent; last verdict wins). A take
+   * with no verdict at all — the gate itself errored before evaluating it —
+   * is recorded as an unverified candidate, not left meta-less: the bytes are
+   * on disk, so the next run must re-verify them locally instead of paying
+   * for them again.
+   */
+  const settleTakes = () => {
+    if (!useCache) return;
+    for (const res of validatedResults) {
+      const verdict = verdictByScene.get(res.sceneId);
+      settleTake(res, verdict?.evaluation ?? null, "gate-error");
+    }
+  };
+
+  /** Settle takes the gate never evaluated (skipped / fake engine). */
+  const settleTakesAsCandidates = (reason) => {
+    if (!useCache) return;
+    for (const res of validatedResults) settleTake(res, null, reason);
+  };
+
+  if (!skipQualityGate) {
     try {
       const { runTtsQualityGate } = await import("./quality-gate.mjs");
-      let gateReport = await runTtsQualityGate(toGenerate, validatedResults, qualityGateOptions);
+      let gateReport = await runTtsQualityGate(verifyScenes, validatedResults, qualityGateOptions);
+      recordVerdicts(validatedResults, gateReport.evaluations);
 
       // If any scene failed Quality Gate and retry is enabled
       const maxRetries = options.maxRetries ?? parseInt(process.env.TTS_RETRY_COUNT || "2", 10);
@@ -293,28 +412,46 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         console.warn(
           `\n  🔄 [TTS Self-Healing Loop] Attempt ${attempt}/${maxRetries}: Regenerating ${failedSceneIds.size} failed scene(s)...`,
         );
-        const retryScenes = toGenerate.filter((s) => failedSceneIds.has(s.id));
+        const retryScenes = verifyScenes.filter((s) => failedSceneIds.has(s.id));
 
         let retryResults = [];
+        // #423: rerolls regenerate into staging — a take that fails the gate
+        // must not overwrite the audio already on disk. The cleanup is in a
+        // `finally`: a gate crash must not leave paid bytes in a staging dir
+        // inside the audio output.
+        const retryStaging = createRegenStaging(outputDir);
         try {
-          retryResults = await engine.generate(retryScenes, outputDir);
-        } catch (err) {
-          console.warn(`  ⚠️ Retry generation error: ${err.message}`);
-        }
+          try {
+            retryResults = await engine.generate(retryScenes, retryStaging);
+          } catch (err) {
+            console.warn(`  ⚠️ Retry generation error: ${err.message}`);
+          }
 
-        if (retryResults.length > 0) {
-          const retryGate = await runTtsQualityGate(retryScenes, retryResults, qualityGateOptions);
-          for (const res of retryResults) {
-            const evalRes = retryGate.evaluations.find((e) => e.sceneId === res.sceneId);
-            if (evalRes && evalRes.passed) {
-              const idx = validatedResults.findIndex((g) => g.sceneId === res.sceneId);
-              if (idx >= 0) validatedResults[idx] = res;
-              else validatedResults.push(res);
+          if (retryResults.length > 0) {
+            const retryGate = await runTtsQualityGate(
+              retryScenes,
+              retryResults,
+              qualityGateOptions,
+            );
+            for (const res of retryResults) {
+              const evalRes = retryGate.evaluations.find((e) => e.sceneId === res.sceneId);
+              if (evalRes && evalRes.passed) {
+                acceptRegenTake(outputDir, res);
+                const idx = validatedResults.findIndex((g) => g.sceneId === res.sceneId);
+                if (idx >= 0) validatedResults[idx] = res;
+                else validatedResults.push(res);
+                verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
+                const scene = scenes.find((s) => s.id === res.sceneId);
+                if (scene) speedByResult.set(res, resolveSceneSpeed(scene));
+              }
             }
           }
+        } finally {
+          cleanupRegenStaging(retryStaging);
         }
 
-        gateReport = await runTtsQualityGate(toGenerate, validatedResults, qualityGateOptions);
+        gateReport = await runTtsQualityGate(verifyScenes, validatedResults, qualityGateOptions);
+        recordVerdicts(validatedResults, gateReport.evaluations);
         if (gateReport.passed) {
           console.log(`  🎉 [TTS Self-Healing Loop] All scenes healed and passed Quality Gate!`);
           break;
@@ -376,7 +513,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       // pacing-class takes that the loop used to skip outright — that gap is
       // how a slow take shipped with no compensation at all.
       const { planPacingResponses, WPM_HARD_CEILING } = await import("./pacing.mjs");
-      const pacing = planPacingResponses(toGenerate, gateReport.evaluations);
+      const pacing = planPacingResponses(verifyScenes, gateReport.evaluations);
       for (const note of pacing.advisory) {
         console.warn(`  💬 [Pacing] ${note}`);
       }
@@ -399,8 +536,28 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         );
       }
 
+      // #423: a PASSING take is shippable by definition, so the loop never
+      // regenerates it at a speed it already meets (or below). This is the
+      // candidate path: its bytes were generated at a recorded speed (e.g. a
+      // 1.2x hook) and the ladder's floor must not "compensate" it down to a
+      // slower take at GPU cost. A gate-REJECTED take is excluded — it has to
+      // be repaired or fail closed, never kept.
+      const takeSpeedById = new Map(validatedResults.map((r) => [r.sceneId, speedByResult.get(r)]));
+      const compensationsToRun = [];
+      for (const c of pacing.compensations) {
+        const current = takeSpeedById.get(c.scene.id);
+        if (c.originalPassed !== false && Number.isFinite(current) && c.speed <= current + 1e-9) {
+          console.log(
+            `  ⏭️ [Pacing Loop] Scene ${c.scene.id} take already at ${current.toFixed(2)}x ` +
+              `(planned ${c.speed.toFixed(2)}x) — keeping the verified take`,
+          );
+          continue;
+        }
+        compensationsToRun.push(c);
+      }
+
       const regenScenes = [
-        ...pacing.compensations.map((c) => {
+        ...compensationsToRun.map((c) => {
           c.scene.ttsSpeed = c.speed; // consumed by resolveSceneSpeed → engine manifest + cache key
           return c.scene;
         }),
@@ -408,7 +565,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       ];
       if (regenScenes.length > 0) {
         const summary = [
-          ...pacing.compensations.map(
+          ...compensationsToRun.map(
             (c) =>
               `scene ${c.scene.id} ${c.measuredWpm}→${Math.round(c.measuredWpm * c.speed)} WPM @ ${c.speed.toFixed(2)}x`,
           ),
@@ -421,95 +578,114 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         );
 
         let regenResults = [];
+        // #423: compensation/reroll takes regenerate into staging; only an
+        // accepted take is promoted into the audio directory.
+        const pacingStaging = createRegenStaging(outputDir);
         try {
-          regenResults = await engine.generate(regenScenes, outputDir);
-        } catch (err) {
-          console.warn(`  ⚠️ [Pacing Loop] Regeneration error: ${err.message}`);
-        }
+          try {
+            regenResults = await engine.generate(regenScenes, pacingStaging);
+          } catch (err) {
+            console.warn(`  ⚠️ [Pacing Loop] Regeneration error: ${err.message}`);
+          }
 
-        if (regenResults.length === 0) {
-          // No new takes: compensation overrides are meaningless without new
-          // audio — drop them; rerolled scenes keep their >225 audio, which
-          // is exactly what #252 forbids shipping.
-          for (const c of pacing.compensations) delete c.scene.ttsSpeed;
-          if (pacing.rerolls.length > 0) {
-            throw pacingHardBlockError(
-              pacing.rerolls
-                .map((r) => `scene ${r.scene.id} (${r.measuredWpm} WPM, reroll produced no audio)`)
-                .join("; "),
-            );
-          }
-          // #271: a compensation whose SOURCE take had failed the gate has no
-          // shippable fallback — the only audio left IS the take the gate
-          // rejected. Block instead of quietly shipping it.
-          const unfixable = pacing.compensations.filter((c) => c.originalPassed === false);
-          if (unfixable.length > 0) {
-            throw pacingFloorBlockError(
-              unfixable
-                .map(
-                  (c) =>
-                    `scene ${c.scene.id} (${c.measuredWpm} WPM, compensation produced no audio)`,
-                )
-                .join("; "),
-            );
-          }
-        } else {
-          const regenGate = await runTtsQualityGate(regenScenes, regenResults, qualityGateOptions);
-          for (const res of regenResults) {
-            const evalRes = regenGate.evaluations.find((e) => e.sceneId === res.sceneId);
-            const scene = regenScenes.find((s) => s.id === res.sceneId);
-            const rerolled = pacing.rerolls.find((r) => r.scene.id === res.sceneId);
-            const compensation = pacing.compensations.find((c) => c.scene.id === res.sceneId);
-            if (rerolled) {
-              const measured = evalRes?.wpm ?? rerolled.measuredWpm;
-              if (evalRes?.passed && measured <= WPM_HARD_CEILING) {
-                replaceResult(validatedResults, res);
-                console.log(
-                  `  ✅ [Pacing Loop] Scene ${res.sceneId} reroll healed: ${measured} WPM ≤ ${WPM_HARD_CEILING}`,
-                );
-              } else {
-                throw pacingHardBlockError(
-                  `scene ${res.sceneId} still measures ${measured} WPM after a reroll ` +
-                    `(first take ${rerolled.measuredWpm} WPM)`,
-                );
-              }
-            } else if (evalRes?.passed) {
-              replaceResult(validatedResults, res);
-              console.log(`  ✅ [Pacing Loop] Scene ${res.sceneId} compensated take accepted`);
-            } else if (compensation && compensation.originalPassed === false) {
-              // #271: the compensated take still fails AND the take it would
-              // replace had already been rejected by the gate — nothing
-              // shippable is left, so fail closed rather than fall back. Report
-              // the family the COMPENSATED take actually failed in: a 1.2x take
-              // can come back truncated, and "trim the script" is the wrong
-              // remedy for that.
-              if (evalRes?.failureClass === FAILURE_CLASS.ACOUSTIC) {
-                throw acousticBlockError(
-                  [
-                    {
-                      sceneId: res.sceneId,
-                      issues: evalRes.issues?.length ? evalRes.issues : ["acoustic failure"],
-                    },
-                  ],
-                  attempt + 1,
-                );
-              }
-              throw pacingFloorBlockError(
-                `scene ${res.sceneId} measured ${compensation.measuredWpm} WPM, compensated at ` +
-                  `${compensation.speed.toFixed(2)}x → still failing ` +
-                  `(${evalRes?.issues?.join(", ") || "gate fail"})`,
-              );
-            } else {
-              // #252: a compensation of a gate-PASSED take may fall back to it —
-              // that take is shippable by definition. Drop the override so the
-              // cache meta stays consistent with the audio actually shipped.
-              delete scene.ttsSpeed;
-              console.warn(
-                `  ⚠️ [Pacing Loop] Scene ${res.sceneId} compensation take failed the gate ` +
-                  `(${evalRes?.issues?.join(", ") || "unknown"}) — keeping the original take`,
+          if (regenResults.length === 0) {
+            // No new takes: compensation overrides are meaningless without new
+            // audio — drop them; rerolled scenes keep their >225 audio, which
+            // is exactly what #252 forbids shipping.
+            for (const c of compensationsToRun) delete c.scene.ttsSpeed;
+            if (pacing.rerolls.length > 0) {
+              throw pacingHardBlockError(
+                pacing.rerolls
+                  .map(
+                    (r) => `scene ${r.scene.id} (${r.measuredWpm} WPM, reroll produced no audio)`,
+                  )
+                  .join("; "),
               );
             }
+            // #271: a compensation whose SOURCE take had failed the gate has no
+            // shippable fallback — the only audio left IS the take the gate
+            // rejected. Block instead of quietly shipping it.
+            const unfixable = compensationsToRun.filter((c) => c.originalPassed === false);
+            if (unfixable.length > 0) {
+              throw pacingFloorBlockError(
+                unfixable
+                  .map(
+                    (c) =>
+                      `scene ${c.scene.id} (${c.measuredWpm} WPM, compensation produced no audio)`,
+                  )
+                  .join("; "),
+              );
+            }
+          } else {
+            const regenGate = await runTtsQualityGate(
+              regenScenes,
+              regenResults,
+              qualityGateOptions,
+            );
+            for (const res of regenResults) {
+              const evalRes = regenGate.evaluations.find((e) => e.sceneId === res.sceneId);
+              const scene = regenScenes.find((s) => s.id === res.sceneId);
+              const rerolled = pacing.rerolls.find((r) => r.scene.id === res.sceneId);
+              const compensation = compensationsToRun.find((c) => c.scene.id === res.sceneId);
+              if (rerolled) {
+                const measured = evalRes?.wpm ?? rerolled.measuredWpm;
+                if (evalRes?.passed && measured <= WPM_HARD_CEILING) {
+                  acceptRegenTake(outputDir, res);
+                  replaceResult(validatedResults, res);
+                  verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
+                  speedByResult.set(res, resolveSceneSpeed(scene));
+                  console.log(
+                    `  ✅ [Pacing Loop] Scene ${res.sceneId} reroll healed: ${measured} WPM ≤ ${WPM_HARD_CEILING}`,
+                  );
+                } else {
+                  throw pacingHardBlockError(
+                    `scene ${res.sceneId} still measures ${measured} WPM after a reroll ` +
+                      `(first take ${rerolled.measuredWpm} WPM)`,
+                  );
+                }
+              } else if (evalRes?.passed) {
+                acceptRegenTake(outputDir, res);
+                replaceResult(validatedResults, res);
+                verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
+                speedByResult.set(res, resolveSceneSpeed(scene));
+                console.log(`  ✅ [Pacing Loop] Scene ${res.sceneId} compensated take accepted`);
+              } else if (compensation && compensation.originalPassed === false) {
+                // #271: the compensated take still fails AND the take it would
+                // replace had already been rejected by the gate — nothing
+                // shippable is left, so fail closed rather than fall back. Report
+                // the family the COMPENSATED take actually failed in: a 1.2x take
+                // can come back truncated, and "trim the script" is the wrong
+                // remedy for that.
+                if (evalRes?.failureClass === FAILURE_CLASS.ACOUSTIC) {
+                  throw acousticBlockError(
+                    [
+                      {
+                        sceneId: res.sceneId,
+                        issues: evalRes.issues?.length ? evalRes.issues : ["acoustic failure"],
+                      },
+                    ],
+                    attempt + 1,
+                  );
+                }
+                throw pacingFloorBlockError(
+                  `scene ${res.sceneId} measured ${compensation.measuredWpm} WPM, compensated at ` +
+                    `${compensation.speed.toFixed(2)}x → still failing ` +
+                    `(${evalRes?.issues?.join(", ") || "gate fail"})`,
+                );
+              } else {
+                // #252: a compensation of a gate-PASSED take may fall back to it —
+                // that take is shippable by definition. Drop the override so the
+                // cache meta stays consistent with the audio actually shipped.
+                delete scene.ttsSpeed;
+                console.warn(
+                  `  ⚠️ [Pacing Loop] Scene ${res.sceneId} compensation take failed the gate ` +
+                    `(${evalRes?.issues?.join(", ") || "unknown"}) — keeping the original take`,
+                );
+              }
+            }
           }
+        } finally {
+          cleanupRegenStaging(pacingStaging);
         }
       }
     } catch (gateErr) {
@@ -526,6 +702,33 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         throw gateErr;
       }
       console.warn(`  ⚠️ TTS Quality Gate encountered error: ${gateErr.message}`);
+    } finally {
+      // #423: settle the trust state of every take the run evaluated — on the
+      // success path and on every abort path (hard block, unexpected error).
+      // A run that dies after paying for GPU takes must leave them
+      // re-verifiable, never invisible.
+      try {
+        settleTakes();
+      } catch (err) {
+        console.warn(`  ⚠️ TTS cache settle failed: ${err.message}`);
+      }
+    }
+  }
+
+  // Cache trust settling (#423) lives with the verification block above:
+  //   - `settleTakes()` runs in the block's finally and writes the
+  //     approved/candidate state of every evaluated take on every exit path;
+  //   - a run whose gate was skipped (fake engine / TTS_SKIP_QUALITY_GATE=1)
+  //     never evaluated anything, so its takes are recorded as candidates —
+  //     usable, explicitly unverified, re-checked by the next run.
+  // Settling happens BEFORE the missing-audio guard below: that guard throws
+  // on an incomplete run, and a skip-gate run that aborts there must still
+  // leave the takes it paid for re-verifiable, not meta-less.
+  if (skipQualityGate) {
+    try {
+      settleTakesAsCandidates("gate-skipped");
+    } catch (err) {
+      console.warn(`  ⚠️ TTS cache settle failed: ${err.message}`);
     }
   }
 
@@ -538,7 +741,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   // operator explicitly opts out with TTS_ALLOW_PARTIAL_TTS=1.
   if (process.env.TTS_ALLOW_PARTIAL_TTS !== "1") {
     const generatedIds = new Set(validatedResults.map((r) => r.sceneId));
-    const missing = toGenerate.filter((s) => !generatedIds.has(s.id));
+    const missing = verifyScenes.filter((s) => !generatedIds.has(s.id));
     if (missing.length > 0) {
       throw new Error(
         `TTS produced no audio for scene(s) ${missing.map((s) => s.id).join(", ")} ` +
@@ -546,34 +749,6 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           `would silently drop voiceover. Fix the failing scene(s) (retry, shorten the ` +
           `text, or set TTS_ENGINE) or set TTS_ALLOW_PARTIAL_TTS=1 to accept a partial run.`,
       );
-    }
-  }
-
-  // Persist cache meta for freshly generated scenes.
-  if (useCache) {
-    for (const r of validatedResults) {
-      const scene = scenes.find((s) => s.id === r.sceneId);
-      if (scene) {
-        const resolvedSpeed = resolveSceneSpeed(scene);
-        writeSceneMeta(outputDir, r.sceneId, {
-          // #244: resolveSceneInstruct is the single source shared with
-          // planTtsScenes' cache-hit check in cache.mjs — a mismatch would
-          // make a freshly generated take miss its own cache entry.
-          key: computeSceneKey(
-            engine,
-            scene.ttsText || scene.voiceover,
-            resolvedSpeed,
-            resolveSceneInstruct(engine, scene),
-          ),
-          duration: r.duration,
-          engine: engine.name,
-          audioPath: r.audioPath,
-          // #252: records the compensation speed so planTtsScenes keeps a
-          // compensated take cache-stable on re-runs (baseline scenes store
-          // 1.0, matching the legacy key shape).
-          ttsSpeed: resolvedSpeed,
-        });
-      }
     }
   }
 
@@ -589,6 +764,21 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   // Run subtitle alignment for accurate timing
   if (runAlignment) {
     const alignment = await runForcedAlignment(scenes, merged, outputDir);
+    // #423: the tail-cut guard trims approved audio in place — re-bind those
+    // entries to the bytes actually on disk, or every later run would demote
+    // the scene to a candidate over the pipeline's own cut. Unverified takes
+    // (skip-gate runs) get the same treatment on their sidecar so the next
+    // run measures WPM against the bytes it will re-verify.
+    const cuts = alignment?.guards?.cuts ?? [];
+    if (useCache && cuts.length > 0) {
+      const cutIds = new Set(cuts.map((c) => c.sceneId));
+      for (const r of merged) {
+        if (!cutIds.has(r.sceneId)) continue;
+        if (!refreshApprovedSceneMeta(outputDir, r.sceneId, { duration: r.duration })) {
+          refreshCandidateSceneMeta(outputDir, r.sceneId, { duration: r.duration });
+        }
+      }
+    }
     // #232: guards log per-scene detail during alignment; aggregate one line
     // at generation end so the HITL listening pass knows which scenes to
     // spot-check (crushed words) and that tail cuts were applied.

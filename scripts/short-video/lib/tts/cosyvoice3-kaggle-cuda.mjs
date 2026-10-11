@@ -33,6 +33,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSyn
 import { basename, join, dirname, relative } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
+import { REGEN_STAGING_PREFIX } from "./staging.mjs";
 import { assertRiffWaveHeader, walkRiffChunks } from "../audio/wav.mjs";
 import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-process.mjs";
 import { resolveSceneSpeed } from "./pacing.mjs";
@@ -184,10 +185,15 @@ export function deriveContentIdFromOutputDir(outputDir) {
   if (!outputDir) return null;
   const rel = relative(join(ROOT_DIR, "output"), outputDir);
   if (rel && !rel.startsWith("..")) {
-    const stripped = rel
-      .replace(/(^|[\\/])audio([\\/])?$/, "")
-      .replace(/[\\/]+$/, "")
-      .trim();
+    const segments = rel.split(/[\\/]+/).filter(Boolean);
+    // #423: regeneration rounds hand the engine a per-run staging dir nested
+    // under the pipeline's audio dir. The slug must still derive from the
+    // PIPELINE — the staging name embeds pid+timestamp, so treating it as part
+    // of the id would push a new kernel on every reroll (overwrite-vs-queue
+    // aside, each push is a fresh kernel and the slug cap would truncate it
+    // into a hash of the timestamp).
+    if (segments.at(-1)?.startsWith(REGEN_STAGING_PREFIX)) segments.pop();
+    const stripped = segments.join("/").replace(/(^|\/)audio$/, "");
     if (stripped)
       return stripped
         .split(/[\\/]+/)

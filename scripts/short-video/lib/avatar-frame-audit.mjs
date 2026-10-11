@@ -1125,8 +1125,10 @@ export async function auditScene({
 /**
  * Read every scene's duration for timeline offsets: audio/scene-durations.json
  * first (written by the TTS chain for ALL scenes), falling back to per-scene
- * scene-*.tts-meta.json. Fail-closed: a scene without any duration record
- * makes every later offset wrong.
+ * sidecars — scene-*.tts-meta.json (approved) and, for takes that are on disk
+ * but not finally verified (#423: skip-gate or aborted runs leave only this
+ * record), scene-*.tts-candidate.json. Fail-closed: a scene without any
+ * duration record makes every later offset wrong.
  *
  * @param {string} audioDir - output/{pipelineId}/audio
  * @param {number} expectedSceneCount - scene count in the composed video
@@ -1148,21 +1150,24 @@ export function readSceneDurationsForTimeline(audioDir, expectedSceneCount) {
         }
       }
     } catch {
-      // corrupt file → fall through to tts-meta scan
+      // corrupt file → fall through to the sidecar scan
     }
   }
   if (byId.size < expectedSceneCount && existsSync(audioDir)) {
-    for (const f of readdirSync(audioDir)) {
-      const m = f.match(/^scene-(\d+)\.tts-meta\.json$/);
-      if (!m) continue;
-      const sceneId = parseInt(m[1], 10);
-      if (byId.has(sceneId)) continue;
-      try {
-        const meta = JSON.parse(readFileSync(join(audioDir, f), "utf8"));
-        if (typeof meta.duration === "number" && meta.duration > 0)
-          byId.set(sceneId, meta.duration);
-      } catch {
-        // unreadable meta → the completeness check below reports it
+    // Approved metas win over candidate sidecars when both exist for a scene.
+    for (const pattern of [/^scene-(\d+)\.tts-meta\.json$/, /^scene-(\d+)\.tts-candidate\.json$/]) {
+      for (const f of readdirSync(audioDir)) {
+        const m = f.match(pattern);
+        if (!m) continue;
+        const sceneId = parseInt(m[1], 10);
+        if (byId.has(sceneId)) continue;
+        try {
+          const meta = JSON.parse(readFileSync(join(audioDir, f), "utf8"));
+          if (typeof meta.duration === "number" && meta.duration > 0)
+            byId.set(sceneId, meta.duration);
+        } catch {
+          // unreadable meta → the completeness check below reports it
+        }
       }
     }
   }
@@ -1172,8 +1177,8 @@ export function readSceneDurationsForTimeline(audioDir, expectedSceneCount) {
   if (scenes.length < expectedSceneCount) {
     throw new Error(
       `only ${scenes.length} of ${expectedSceneCount} scene durations found in ${audioDir} ` +
-        `(scene-durations.json / scene-*.tts-meta.json) — scene timeline offsets cannot be trusted; ` +
-        `run the TTS pipeline first`,
+        `(scene-durations.json / scene-*.tts-meta.json / scene-*.tts-candidate.json) — ` +
+        `scene timeline offsets cannot be trusted; run the TTS pipeline first`,
     );
   }
   return scenes;

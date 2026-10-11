@@ -736,4 +736,25 @@ describe("readSceneDurationsForTimeline", () => {
     writeFileSync(join(dir, "unrelated.json"), JSON.stringify({ duration: 99 }));
     expect(readSceneDurationsForTimeline(dir, 1)).toEqual([{ sceneId: 1, duration: 5.5 }]);
   });
+
+  it("accepts a candidate sidecar as a duration source (#423) and prefers an approved meta", () => {
+    const dir = join(rootDir, `candidate-fallback-${Math.random().toString(36).slice(2)}`);
+    const { mkdirSync } = require("fs");
+    mkdirSync(dir, { recursive: true });
+    // Scene 1: skip-gate take → candidate sidecar only.
+    writeFileSync(
+      join(dir, "scene-1.tts-candidate.json"),
+      JSON.stringify({ duration: 6.25, status: "candidate" }),
+    );
+    // Scene 2: both exist — the approved meta wins.
+    writeFileSync(join(dir, "scene-2.tts-meta.json"), JSON.stringify({ duration: 4.0 }));
+    writeFileSync(
+      join(dir, "scene-2.tts-candidate.json"),
+      JSON.stringify({ duration: 9.0, status: "candidate" }),
+    );
+    expect(readSceneDurationsForTimeline(dir, 2)).toEqual([
+      { sceneId: 1, duration: 6.25 },
+      { sceneId: 2, duration: 4.0 },
+    ]);
+  });
 });
