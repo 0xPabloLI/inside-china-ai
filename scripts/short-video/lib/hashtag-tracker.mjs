@@ -248,7 +248,6 @@ export function upsertRecords(existing, observations) {
     }
 
     const incomingNewer = stamp(observation) > stamp(current);
-    const sameStamp = stamp(observation) === stamp(current);
     const before = JSON.stringify(current);
 
     if (incomingNewer) {
@@ -292,6 +291,36 @@ export function upsertRecords(existing, observations) {
   );
 
   return { records, added, updated, unchanged, legacy };
+}
+
+// ─── Reporting ───
+
+/**
+ * Per-tag totals over the keyed records, for the attribution report.
+ *
+ * Only records that actually carry a numeric `views` count toward the average:
+ * `views` is nullable by contract (the upsert never wipes a value, but a first
+ * observation may legitimately not know it yet), so counting a null as 0 would
+ * drag every tag's average down. `viewed` is the denominator; it can be 0.
+ *
+ * @param {Array<object>} records tracker records
+ * @returns {Map<string, {n: number, viewed: number, views: number}>} keyed by tag
+ */
+export function summarizeTagStats(records) {
+  const stats = new Map();
+  for (const r of records) {
+    if (typeof r.videoId !== "string" || !r.videoId) continue; // legacy rows have no key
+    for (const tag of r.hashtags || []) {
+      const s = stats.get(tag) || { n: 0, viewed: 0, views: 0 };
+      s.n++;
+      if (typeof r.views === "number" && Number.isFinite(r.views)) {
+        s.viewed++;
+        s.views += r.views;
+      }
+      stats.set(tag, s);
+    }
+  }
+  return stats;
 }
 
 // ─── Adapters ───

@@ -1,10 +1,16 @@
 import { describe, it, expect } from "vitest";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   parseJsonl,
   serializeJsonl,
   normalizeObservation,
   upsertRecords,
   mapDetailsToObservations,
+  summarizeTagStats,
 } from "../lib/hashtag-tracker.mjs";
 
 // ─── parseJsonl / serializeJsonl ───
@@ -335,5 +341,168 @@ describe("mapDetailsToObservations", () => {
 
   it("returns [] for a details file with no videos", () => {
     expect(mapDetailsToObservations({ fetchedAt: "x", videos: [] })).toEqual([]);
+  });
+});
+
+// ─── summarizeTagStats ───
+
+describe("summarizeTagStats", () => {
+  const rec = (videoId, views, hashtags) => ({ videoId, views, hashtags });
+
+  it("averages only over records whose views are known", () => {
+    // 100 and 300 are known; the null row must not count as 0, or the
+    // average would read 133 instead of 200.
+    const stats = summarizeTagStats([
+      rec("1", 100, ["#ai"]),
+      rec("2", null, ["#ai"]),
+      rec("3", 300, ["#ai"]),
+    ]);
+    expect(stats.get("#ai")).toEqual({ n: 3, viewed: 2, views: 400 });
+  });
+
+  it("reports zero viewed when no record for a tag has views", () => {
+    const stats = summarizeTagStats([rec("1", null, ["#ai"]), rec("2", null, ["#ai"])]);
+    expect(stats.get("#ai")).toEqual({ n: 2, viewed: 0, views: 0 });
+  });
+
+  it("ignores legacy records without a videoId", () => {
+    const stats = summarizeTagStats([
+      { videoId: "", views: 9999, hashtags: ["#ai"] },
+      { views: 9999, hashtags: ["#ai"] },
+      rec("1", 100, ["#ai"]),
+    ]);
+    expect(stats.get("#ai")).toEqual({ n: 1, viewed: 1, views: 100 });
+  });
+
+  it("counts a video once per tag and handles a missing hashtags field", () => {
+    const stats = summarizeTagStats([
+      rec("1", 10, ["#ai", "#deepseek"]),
+      { videoId: "2", views: 20 },
+    ]);
+    expect(stats.get("#ai")).toEqual({ n: 1, viewed: 1, views: 10 });
+    expect(stats.get("#deepseek")).toEqual({ n: 1, viewed: 1, views: 10 });
+    expect(stats.size).toBe(2);
+  });
+});
+
+// ─── CLI ───
+
+const CLI = fileURLToPath(new URL("../hashtag-effect-tracker.mjs", import.meta.url));
+
+function runCli(args) {
+  return execFileSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
+}
+
+function detailsFixture(dir) {
+  const path = join(dir, "tiktok-video-details-2026-10-11.json");
+  writeFileSync(
+    path,
+    JSON.stringify({
+      fetchedAt: "2026-10-11T09:22:25.374Z",
+      videos: [
+        {
+          videoId: "7691045312206474517",
+          title: "DeepSeek's desktop app",
+          postedOn: "2026/9/30",
+          videoViews: 651,
+          avgWatchTimeSec: 10.72,
+          watchedFullVideoPct: 4.1,
+          trafficSource: { forYouPct: 86.1, searchPct: 13.2 },
+        },
+      ],
+    }),
+    "utf8",
+  );
+  return path;
+}
+
+describe("hashtag-effect-tracker CLI", () => {
+  it("creates the tracker's parent directory on a first write", () => {
+    // `scripts/short-video/output/` is gitignored, so a fresh clone has no
+    // directory there; the first documented upsert must not die on ENOENT.
+    const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
+    const tracker = join(dir, "output", "hashtag-effect-tracker.jsonl");
+    const details = detailsFixture(dir);
+
+    const out = runCli([
+      "upsert",
+      "--from-details",
+      details,
+      "--tags",
+      "#ai,#deepseek",
+      "--tracker",
+      tracker,
+    ]);
+
+    expect(out).toContain("added 1");
+    expect(existsSync(tracker)).toBe(true);
+    const [rec] = parseJsonl(readFileSync(tracker, "utf8"));
+    expect(rec.videoId).toBe("7691045312206474517");
+    expect(rec.hashtags).toEqual(["#ai", "#deepseek"]);
+    expect(rec.views).toBe(651);
+  });
+
+  it("re-running the same details file leaves the tracker byte-identical", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
+    const tracker = join(dir, "output", "hashtag-effect-tracker.jsonl");
+    const details = detailsFixture(dir);
+    const args = ["upsert", "--from-details", details, "--tags", "#ai", "--tracker", tracker];
+
+    runCli(args);
+    const first = readFileSync(tracker, "utf8");
+    const second = runCli(args);
+    expect(second).toContain("unchanged 1");
+    expect(readFileSync(tracker, "utf8")).toBe(first);
+  });
+
+  it("--dry-run merges but writes nothing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
+    const tracker = join(dir, "output", "hashtag-effect-tracker.jsonl");
+    const details = detailsFixture(dir);
+
+    const out = runCli([
+      "upsert",
+      "--from-details",
+      details,
+      "--tags",
+      "#ai",
+      "--dry-run",
+      "--tracker",
+      tracker,
+    ]);
+
+    expect(out).toContain("dry-run");
+    expect(existsSync(tracker)).toBe(false);
+  });
+
+  it("report says views n/a instead of averaging nulls as zero", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
+    const tracker = join(dir, "tracker.jsonl");
+    writeFileSync(
+      tracker,
+      serializeJsonl([
+        { videoId: "1", views: null, hashtags: ["#ai"], recordedAt: "2026-10-11T00:00:00.000Z" },
+        { videoId: "2", views: 300, hashtags: ["#ai"], recordedAt: "2026-10-11T00:00:00.000Z" },
+      ]),
+      "utf8",
+    );
+
+    const out = runCli(["report", "--tracker", tracker]);
+    expect(out).toContain("avg 300 views (1 of 2 with views)");
+
+    writeFileSync(
+      tracker,
+      serializeJsonl([{ videoId: "1", views: null, hashtags: ["#ai"] }]),
+      "utf8",
+    );
+    expect(runCli(["report", "--tracker", tracker])).toContain("avg views n/a");
+  });
+
+  it("reports the default tracker path when the file does not exist yet", () => {
+    // A fresh clone has no tracker at all; report is a read, so it must
+    // degrade to an empty table rather than throw.
+    const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
+    const out = runCli(["report", "--tracker", join(dir, "missing.jsonl")]);
+    expect(out).toContain("0 records");
   });
 });

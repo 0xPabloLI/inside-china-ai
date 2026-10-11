@@ -26,7 +26,7 @@
  * @module hashtag-effect-tracker-cli
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -35,6 +35,7 @@ import {
   normalizeObservation,
   upsertRecords,
   mapDetailsToObservations,
+  summarizeTagStats,
 } from "./lib/hashtag-tracker.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -115,8 +116,9 @@ function cmdUpsert(args) {
   console.log(`added ${added} · updated ${updated} · unchanged ${unchanged}`);
   for (const o of observations) {
     const rec = records.find((r) => r.videoId === o.videoId);
+    const n = (v) => (v === null || v === undefined ? "n/a" : v);
     console.log(
-      `  • ${o.videoId} — ${rec.views} views, avg ${rec.avgWatchTimeSec}s, full ${rec.watchedFullVideoPct}%, FYP ${rec.fypPercent}%` +
+      `  • ${o.videoId} — ${n(rec.views)} views, avg ${n(rec.avgWatchTimeSec)}s, full ${n(rec.watchedFullVideoPct)}%, FYP ${n(rec.fypPercent)}%` +
         (rec.hashtags?.length ? ` [${rec.hashtags.join(" ")}]` : " [no tags]"),
     );
   }
@@ -125,6 +127,8 @@ function cmdUpsert(args) {
     console.log("\n(dry-run: file not written)");
     return;
   }
+  // `output/` is gitignored, so a fresh clone has no directory to write into.
+  mkdirSync(dirname(trackerPath), { recursive: true });
   writeFileSync(trackerPath, serializeJsonl(records), "utf8");
   console.log(`\n📁 wrote ${records.length} records`);
 }
@@ -136,20 +140,12 @@ function cmdReport(args) {
   console.log(
     `\n📊 Hashtag tracker — ${records.length} records (${withId.length} keyed, ${records.length - withId.length} legacy)\n`,
   );
-  const tagStats = new Map();
-  for (const r of withId) {
-    for (const tag of r.hashtags || []) {
-      const s = tagStats.get(tag) || { n: 0, views: 0 };
-      s.n++;
-      s.views += r.views ?? 0;
-      tagStats.set(tag, s);
-    }
-  }
+  const tagStats = summarizeTagStats(withId);
   const rows = [...tagStats.entries()].sort((a, b) => b[1].n - a[1].n);
   for (const [tag, s] of rows) {
-    console.log(
-      `  ${tag.padEnd(28)} ${String(s.n).padStart(2)} videos   avg ${Math.round(s.views / s.n)} views`,
-    );
+    const avg = s.viewed ? `${Math.round(s.views / s.viewed)} views` : "views n/a";
+    const counted = s.viewed === s.n ? "" : ` (${s.viewed} of ${s.n} with views)`;
+    console.log(`  ${tag.padEnd(28)} ${String(s.n).padStart(2)} videos   avg ${avg}${counted}`);
   }
   console.log("\n(avg = correlation, not causation: tags correlate with topic and publish order.)");
 }
