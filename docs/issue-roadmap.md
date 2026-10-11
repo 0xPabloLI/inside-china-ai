@@ -56,14 +56,14 @@
 
 | Wave | 主题 | 涉及目录 | open 票 | 并行 / 依赖 |
 | --- | --- | --- | --- | --- |
-| **W1A** | 既有门控与产物可靠性续补 | `lib/tts/` `main.mjs` `render-only.mjs` `HookScene.tsx` | #421 #422 #423 #394 | #271/#272已交付；#420 已交付闭票（2026-10-09，产物身份/新鲜度）；#423 接续其软顺序，#421共用TTS seam串行；#394先收窄范围 |
+| **W1A** | 既有门控与产物可靠性续补 | `lib/tts/` `main.mjs` `render-only.mjs` `HookScene.tsx` | #421 #422 #423 #394 #548 | #271/#272已交付；#420 已交付闭票（2026-10-09，产物身份/新鲜度）；#423 接续其软顺序，#421共用TTS seam串行；#394先收窄范围；#548 门禁误报与 #421/#423 同 seam |
 | **W1B** | 参数标准化与听感 | `lib/tts/` `docs/content-pipeline.md` | #279 #278（HITL）｜D：#228 | #270 已交付（instruct 单一来源） |
 | **W1C** | 工程卫生、安全与状态治理 | `src/` `scripts/` `docs/` `eslint.config.js` `.github/workflows/` | #319（🎯P1）#325 #327 #404 #447 #462 #466 | #447全量正确性gate先协调#424；#404迁移与#462身份契约待收口，#466跨仓访问HITL；具体并行看冲突矩阵 |
 | **W1D** | 内容包一致性与发布契约 | `scripts/article/` `lib/platforms/` `docs/content-pipeline.md` `src/components/widgets/` | #426 #429 #430 #431 #434 | #426幂等恢复可独立；保留#95双轨，#429/#430/#431先裁决；#434只余远端人工核查 |
 | **W2A** | 搜源可用性摸底与环境底座 | `skills/search-pool/` `main.mjs` `lib/load-env.mjs` | — | ✅ 完成（#287/#281 闭票），解锁 W2B |
 | **W2B** | 搜源架构重审与修复闭环 | `search-sources.mjs` `lib/source-*.mjs` `lib/search-pool.mjs` `skills/shared/` | #424（P1）#344 #347 #353 #358 #390 #405 #416 #457 #467 #468 #469 #320（HITL）#328 #329｜D：#286 #318 #322 #326 #348 #352 | #424先修crash、#447防回归；#416先分辨上游缺日期；#457先定指标/预算后试点，#467不等族表重测；#390/#405/#468需范围/契约收口，#469治理HITL；#344仍为收敛主导；#346 已交付闭票（2026-10-07）；#231 已交付闭票（2026-10-09，TTS 环境固化） |
 | **W3A** | 视觉与竞品深度调研（调研先行） | `docs/research/` `lib/b-roll/` | #291（🎯map）#300 #302 #304 | #298画质选型已交付闭票；🟢 只读调研可并行，视觉重设计先收口#291 |
-| **W3B** | 媒体底座与素材体系 | `asset-sourcer.mjs` `lib/media-track.mjs` `knowledge/media-catalog.json` | #310（🎯）#293 #314 #354 #355 #356 #357 #425｜D：#288 #301 | #310 吸收 #288/#301；#297 fail-closed 已闭票；#355 承接 #301 链裁决；#354 吸收 #295；#425尊重既有upscale:false契约 |
+| **W3B** | 媒体底座与素材体系 | `asset-sourcer.mjs` `lib/media-track.mjs` `knowledge/media-catalog.json` | #310（🎯）#293 #314 #354 #355 #356 #357 #425 #547｜D：#288 #301 | #310 吸收 #288/#301；#297 fail-closed 已闭票；#355 承接 #301 链裁决；#354 吸收 #295；#425尊重既有upscale:false契约；#547 pre-filter 误杀 Pexels 视频候选 |
 | **W3C** | 画面适配与智能写稿 | `scene-data.mjs` `lib/visual-analyzer.mjs` `vlm_analyzer.py` `NarrativeScene.tsx` | #391（🎯判据研究）#334 #397 #396 #463 #289 #299 #294 #253 #244 #256 #263（多为 HITL）｜D：#295 | #351/#361/#360及#415/#417已交付；#391→#334主链保留；#463布局/字段/预算契约输入#291，与#397保护区消费协调；#396仍被#397 block |
 | **W4A** | 平台架构调研与中文首包 | 视频号后台 `docs/research/` `content/` | #296（🎯map）#268 #216（HITL）｜D：#210 | 真机实测先行 |
 | **W4B** | 发布包适配与自动发布 | `lib/platforms/` | D：#217 #218 #220 #223 #206 #208 #222 | 🔴 硬前置：等 #216 实测数据 + 用户立项授权 |
@@ -157,6 +157,7 @@
 | # | 标题 | Phase·Wave | 备注 |
 | --- | --- | --- | --- |
 | #394 | 环境/preflight范围收窄 | P1·W1A | 下载项随#420交付（2026-10-09）、SVE归#293、模板扩展协调#291/#463；先收口范围 |
+| #548 | TTS Quality Gate「720 P」critical token 匹配缺口误报 | P2·W1A | bug；音频正确（ASR 听到 720p）仍硬阻断，重试不可修；修 `buildExpandedAsrTokenSet` 展开 digit+letter + 补测 |
 | #279 | 语速整体上探 + narrative 速度耦合 | P1·W1B | HITL |
 | #278 | Hook 文案句式规范（#244 后续） | P1·W1B | HITL |
 | #319 | OCR 审查 Medium/Low 批次治理 | P1·W1C | security；Tier 1 已收口 2026-09-26（1 修 3 证伪，PR #380），余 15+ Medium/Low 留票批次 |
@@ -187,6 +188,7 @@
 | #355 | 统一素材兜底链（通用递降链替代五值策略） | P3·W3B | 承接 #301 票评 2026-09-14 链裁决；#360 跨 Scene 绑定归此（offset 字段已就位） |
 | #357 | 视频默认 zoom 退场快修（双重运动+入场裁切） | P2·W3B | bug；tracker 权威标签 P2，快赢可穿插 |
 | #425 | media-track尊重upscale:false | P3·W3B | 既有明确opt-out；与main/媒体赋值改动串行 |
+| #547 | asset-sourcer pre-filter 结构性跳过全部 Pexels 视频候选 | P2·W3B | bug；技术分上限 28 < 门槛 30（title=作者名、无 fileSize 双零分）；「无内容信号 title 视为无 title」候选修法 |
 | #334 | VLM Prompt 优化（Fit/claim 冗余 token 预算削减/Reason） | P3·W3C | enhancement；Prompt 精简与测试集回归 |
 | #540 | whisper 重复循环的业界处置（VAD 门控/解码参数/检测判据/下游处置） | P3·W3C | research（web-deep-research）；护栏现状「判得出、收不了」——A1 转写已进生产 prompt，下游处置含收敛标记 `[重复×N已收敛]` 的去留 |
 | #391 | 拆帧策略裁决（uniform/scene 可切换 + bench 矩阵已出） | P2·W3C | 🎯 frontier；判据研究与观测基建（双层几何/生产字段判据 + contact-sheet 观测先行 + 纳管 #397 人脸/焦点防遮挡约束；解耦 query；仅 wayfinder 后置）；handoff 在主库 `.scratch/keyframe-bench/HANDOFF.md` |

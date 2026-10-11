@@ -56,7 +56,7 @@ Issue: #298（Tier 1 / P1 / Dominant）。完成标准：评测报告 + 可生�
 
 ### Bug：mlx_vlm 原生视频输入的陈旧结果串扰
 
-同一进程内对第二支视频调用 `mlx_vlm.generate(video=...)` 会返回**与上一支逐字节相同**的分析（复现两次：正序/反序均复现；温度 0）；在新进程首调用也可能输出与视频无关的模板化幻觉（"人物行走"）。**抽帧路径（`extract_frames` → image 输入）完全正常**。生产管线的视频评分全部带 scene window（走抽帧路径）故未受影响；但任何不带 window 的多视频评分会拿到脏结果。建议：`vlm_analyzer.py` 的原生视频路径应默认改抽帧，或上游升级 mlx_vlm 后回归验证。本评测的两套评分均强制抽帧路径。
+同一进程内对第二支视频调用 `mlx_vlm.generate(video=...)` 会返回**与上一支逐字节相同**的分析（复现两次：正序/反序均复现；温度 0）；在新进程首调用也可能输出与视频无关的模板化幻觉（"人物行走"）。**抽帧路径（`extract_frames` → image 输入）完全正常**。~~生产管线的视频评分全部带 scene window（走抽帧路径）故未受影响~~ ——**2026-10-11 更正：此句不成立**。b-roll 评分门的 orchestrator 从未传 window（当时与现在都是，见 `lib/b-roll/orchestrator.mjs` 的 `scoreCandidates` 调用）；当时生产未受影响的真实原因是**引擎**——生产引擎还是 minicpm（frames 抽帧路径，从不调用 native 视频输入），不是路径豁免。**2026-10-11 复测（Qwen3-VL-30B-A3B / mlx-vlm 0.7.2）**：引擎统一到 native 后（#542），gate 的多片段无窗评分正是该 bug 的形状，两个真机探针（同进程 4 支不同片段逐支分析；b-roll gate 形状 1 claim × 4 片段过 `scoreCandidates`）均 **ALL PASS——串扰未复现**（描述各异且与内容匹配、fail-closed 正常）。原建议「原生视频路径应默认改抽帧」已被 #542 的引擎统一决定取代（原生路径成为默认）；探针 + 真机验收即该 bug 的回归防线（探针存于 `.scratch/smoke/native-crosstalk-probe.mjs` 与 `native-gate-crosstalk-probe.mjs`）。本评测的两套评分均强制抽帧路径。
 
 ### 运维：FastMetal-5B-QAD 权重获取路线
 

@@ -651,8 +651,9 @@ to_minicpm_units(r)                   # 官方「1 帧 + 1 段音频」单元，
 #### 装载层的生产归宿（#542 L4）
 
 引擎切到 `native` 之后，**装载层在生产上零调用者**：唯一的生产调用链是
-`vlm_analyzer.extract_frames`（窗口/抽帧路径）→ `load_video`，而该路径只在
-`frames` 引擎或带窗请求时走到；转写由 JS 侧 `transcribeVideo`（whisper.cpp）负责，
+`vlm_analyzer.extract_frames`（窗口/抽帧路径）→ `load_video`，而该路径只在带窗请求
+时走到（任何引擎，uniform 策略；`frames` 引擎的无窗请求走 mlx_vlm 或 ffmpeg
+scene-detect，均不经装载层）；转写由 JS 侧 `transcribeVideo`（whisper.cpp）负责，
 不经装载层。装载层保留为 `frames` 引擎（`--engine minicpm`）的契约路径，不删；
 逐 API 的生产调用者审计与保留理由见
 [`keyframe-extraction-research.md` §Q41㉕](research/keyframe-extraction-research.md)。

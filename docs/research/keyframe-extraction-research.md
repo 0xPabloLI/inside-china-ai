@@ -2898,12 +2898,13 @@ prodwin vs Qwen native：**Δ=+12.1pp，McNemar p=0.0215**，4.0× 慢。全 276
 只在 `frames` 时建窗；**A1 转写接线**（`transcribeVideo` → `opts.transcript` →
 `build_semantics_prompt`，口径与 bench `block` 模式逐字一致，转写进缓存键）；
 `sourceMode` 新增 `native`；`transcriptChars`/`transcriptGuard` 进产物。装载层生产
-调用者归零（`extract_frames` 仅 `frames` 引擎可达），保留为回退 + 引擎契约。逐项
-审计（用户 2026-10-10 裁决：全部保留、只记事实）：
+调用者归零（`extract_frames` 仅带窗请求可达，任何引擎；`frames` 引擎的无窗请求走
+mlx_vlm `resolve_video_inputs` 或 ffmpeg scene-detect，均不经装载层），保留为回退 +
+引擎契约。逐项审计（用户 2026-10-10 裁决：全部保留、只记事实）：
 
 | API / 能力 | 生产调用者 | bench / 测试 |
 |---|---|---|
-| `load_video` | `extract_frames`（仅 `frames` 引擎或带窗请求） | `test_video_loader.py` |
+| `load_video` | `extract_frames`（仅带窗请求 + uniform 策略；frames 引擎无窗路径不经 loader） | `test_video_loader.py` |
 | `load_video` 的 `cache_dir` / manifest 缓存 | **无**（生产调用只传 `frame_times` + `want_audio: False`） | 测试 |
 | `load_video` 的 `asr` / `asr_runner` 转写通道 | **无**（转写走 JS `transcribeVideo`） | 测试 |
 | `to_text_interleaved` | **无** | 测试 |
