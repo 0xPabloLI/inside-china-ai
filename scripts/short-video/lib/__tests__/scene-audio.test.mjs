@@ -66,6 +66,24 @@ describe("resolveSceneAudioPath (#421)", () => {
     expect(resolveSceneAudioPath(audioDir, 1)).toBe(wav);
   });
 
+  it("refuses a sidecar path outside the audio dir and falls back to probing", () => {
+    const wav = writeTake("scene-1.wav");
+    const outside = join(dir, "evil.wav");
+    writeFileSync(outside, "bytes:evil");
+    writeFileSync(join(audioDir, "scene-1.tts-meta.json"), JSON.stringify({ audioPath: outside }));
+    expect(resolveSceneAudioPath(audioDir, 1)).toBe(wav);
+  });
+
+  it("refuses a sidecar path climbing out of the audio dir via ..", () => {
+    const wav = writeTake("scene-1.wav");
+    writeFileSync(join(dir, "evil.wav"), "bytes:evil");
+    writeFileSync(
+      join(audioDir, "scene-1.tts-meta.json"),
+      JSON.stringify({ audioPath: "../evil.wav" }),
+    );
+    expect(resolveSceneAudioPath(audioDir, 1)).toBe(wav);
+  });
+
   it("returns null when no take exists at all", () => {
     expect(resolveSceneAudioPath(audioDir, 7)).toBeNull();
   });

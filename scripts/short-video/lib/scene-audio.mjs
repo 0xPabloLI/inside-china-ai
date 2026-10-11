@@ -13,7 +13,7 @@
  * pre-sidecar content dirs.
  */
 import { existsSync, readFileSync } from "fs";
-import { isAbsolute, join } from "path";
+import { isAbsolute, join, resolve, sep } from "path";
 
 /** Extension order for the fallback probe — the historical default first. */
 const FALLBACK_EXTS = [".mp3", ".wav"];
@@ -31,7 +31,11 @@ export function resolveSceneAudioPath(audioDir, sceneId) {
       const recorded = meta?.audioPath;
       if (recorded) {
         const path = isAbsolute(recorded) ? recorded : join(audioDir, recorded);
-        if (existsSync(path)) return path;
+        // The take must live inside the audio dir: a tampered or hand-edited
+        // sidecar must not redirect the read elsewhere on disk.
+        if (existsSync(path) && resolve(path).startsWith(resolve(audioDir) + sep)) {
+          return path;
+        }
       }
     } catch {
       // corrupt sidecar — fall through to extension probing
