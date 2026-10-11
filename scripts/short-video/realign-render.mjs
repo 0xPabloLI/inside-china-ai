@@ -1,12 +1,25 @@
 /**
  * Re-align + re-render only (skips TTS). Use after manually editing audio files.
+ *
+ * Usage: node scripts/short-video/realign-render.mjs [--content <dir>]
+ * (default deepseek-v41-flash)
  */
 import { readFileSync, existsSync } from "fs";
 import { resolve as pathResolve, join } from "path";
 import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
+import { resolveContentDir, formatContentError } from "./lib/cli-content.mjs";
 
-const CONTENT_DIR = "deepseek-v41-flash";
 const baseDir = pathResolve(import.meta.dirname);
+const resolvedContent = resolveContentDir({
+  argv: process.argv.slice(2),
+  baseDir,
+  defaultContent: "deepseek-v41-flash",
+});
+if (!resolvedContent.ok) {
+  console.error(formatContentError(resolvedContent));
+  process.exit(1);
+}
+const CONTENT_DIR = resolvedContent.contentDir;
 const contentDirAbs = join(baseDir, "content", CONTENT_DIR);
 const outputDir = join(baseDir, "output", CONTENT_DIR);
 const audioDir = join(outputDir, "audio");
