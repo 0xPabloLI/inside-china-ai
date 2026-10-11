@@ -55,6 +55,15 @@ export function resolveContentDir({ argv, baseDir, defaultContent }) {
     };
   }
   const contentDir = parsed.kind === "value" ? parsed.value : defaultContent;
+  // The flag names a directory under content/ (nested ids like restraint/pt1
+  // are legal) — refuse ".." segments so the value cannot escape that root.
+  if (contentDir.split("/").includes("..")) {
+    return {
+      ok: false,
+      message: `--content cannot contain ".." path segments (got: ${contentDir})`,
+      available: listContentDirs(baseDir),
+    };
+  }
   if (!existsSync(join(baseDir, "content", contentDir))) {
     return {
       ok: false,

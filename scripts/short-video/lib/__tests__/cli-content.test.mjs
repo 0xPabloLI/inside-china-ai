@@ -75,6 +75,23 @@ describe("resolveContentDir", () => {
     expect(result.message).toMatch(/requires a directory name/);
   });
 
+  it("rejects .. path segments (the flag must stay inside content/)", () => {
+    const result = resolveContentDir({
+      argv: ["--content", "../../etc"],
+      baseDir,
+      defaultContent: "alpha",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/\.\./);
+  });
+
+  it("still accepts nested content ids like restraint/pt1", () => {
+    mkdirSync(join(baseDir, "content", "restraint", "pt1"), { recursive: true });
+    expect(
+      resolveContentDir({ argv: ["--content", "restraint/pt1"], baseDir, defaultContent: "alpha" }),
+    ).toEqual({ ok: true, contentDir: "restraint/pt1" });
+  });
+
   it("listContentDirs returns sorted dir names only", () => {
     expect(listContentDirs(baseDir)).toEqual(["alpha", "beta"]);
   });
