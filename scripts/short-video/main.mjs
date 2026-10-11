@@ -23,7 +23,7 @@ import { generateTTS } from "./lib/generate-tts.mjs";
 import { renderRemotion, rawOutputPathFor } from "./lib/render-remotion.mjs";
 import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
 import { checkFinalMedia, formatFinalMediaFailures } from "./lib/final-media-gate.mjs";
-import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
+import { assertSubtitleTiming, regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { runCanonicalTextGateWithRepair } from "./lib/verify-canonical-text.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 import { verifyWithRetry, applyDriftCorrection } from "./lib/verify-retry.mjs";
@@ -411,6 +411,22 @@ async function main() {
     console.log();
   }
   prof.end("step-4-subtitles");
+
+  // ── Step 4.5: Subtitle render boundary (#421) ──
+  // Step 4 above can legitimately end with `subtitles === null` when TTS was
+  // a full cache hit and timing never existed; Gate 1 above already spent its
+  // one repair attempt. From here on, a voiced run without valid timing/cues
+  // must stop instead of rendering a video with no burned-in subtitles.
+  try {
+    assertSubtitleTiming({ scenes, ttsResults, outputDir });
+    console.log("✅ Step 4.5: Subtitle timing ready (timing + cues present and fresh)\n");
+  } catch (err) {
+    console.error(`❌ Step 4.5: ${err.message}`);
+    console.error(
+      "   Fail-closed: a voiced video without burned-in subtitles is not shippable (#421).",
+    );
+    process.exit(1);
+  }
 
   // ── Step 5: Render final video ──
   console.log("🔧 Step 5: Rendering final video with Remotion...\n");

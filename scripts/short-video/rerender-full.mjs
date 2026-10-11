@@ -56,7 +56,12 @@ const { writeFileSync: wfs } = await import("fs");
 wfs(durationsPath, JSON.stringify(durationsRaw, null, 2));
 
 const durations = durationsRaw.map((d) => d.duration);
-const audioPaths = scenes.map((_, i) => join(audioDir, `scene-${i + 1}.wav`));
+// #421 review: render the takes this run just produced (scene order), not a
+// re-probed path that could resolve to a stale legacy file.
+const audioPaths = scenes.map(
+  (s) =>
+    ttsResults.find((r) => r.sceneId === s.id)?.audioPath ?? join(audioDir, `scene-${s.id}.wav`),
+);
 
 // Step 4: subtitles
 const timingPath = join(audioDir, "subtitle-timing.json");
@@ -68,6 +73,21 @@ if (existsSync(timingPath)) {
   const result = generateSubtitles(timingData, durationsRaw, subtitlesPath);
   console.log(`📝 Subtitles: ${result.cues.length} cues → ${subtitlesPath}`);
   subtitlesArg = subtitlesPath;
+}
+
+// Step 4.5: subtitle render boundary (#421) — never render a voiced video
+// without valid, fresh subtitles.
+{
+  const { assertSubtitleTiming } = await import("./lib/subtitles/generate.mjs");
+  try {
+    assertSubtitleTiming({ scenes, ttsResults, outputDir });
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    console.error(
+      "   Fail-closed: a voiced video without burned-in subtitles is not shippable (#421).",
+    );
+    process.exit(1);
+  }
 }
 
 // Step 5: render

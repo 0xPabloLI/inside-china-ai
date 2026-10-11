@@ -3,6 +3,7 @@
  */
 import { readFileSync, existsSync } from "fs";
 import { resolve as pathResolve, join } from "path";
+import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
 
 const CONTENT_DIR = "deepseek-v41-flash";
 const baseDir = pathResolve(import.meta.dirname);
@@ -35,13 +36,15 @@ const durationsRaw = JSON.parse(readFileSync(join(audioDir, "scene-durations.jso
   (a, b) => a.sceneId - b.sceneId,
 );
 const durations = durationsRaw.map((d) => d.duration);
-const audioPaths = scenes.map((_, i) => join(audioDir, `scene-${i + 1}.wav`));
+const audioPaths = scenes.map(
+  (s) => resolveSceneAudioPath(audioDir, s.id) ?? join(audioDir, `scene-${s.id}.wav`),
+);
 
 console.log(`\n🎯 Running forced alignment...`);
 const { generateTTS } = await import("./lib/generate-tts.mjs");
-const ttsResults = audioPaths.map((p, i) => ({
-  sceneId: i + 1,
-  audioPath: p,
+const ttsResults = scenes.map((s, i) => ({
+  sceneId: s.id,
+  audioPath: audioPaths[i],
   duration: durations[i],
 }));
 const { runForcedAlignment } = await import("./lib/tts/post-process.mjs");
@@ -56,6 +59,21 @@ if (existsSync(timingPath)) {
   const result = generateSubtitles(timingData, durationsRaw, subtitlesPath);
   console.log(`📝 Subtitles: ${result.cues.length} cues`);
   subtitlesArg = subtitlesPath;
+}
+
+// Subtitle render boundary (#421): the forced alignment above may have failed
+// (missing text-align.py / python env / crash) — no render without timing.
+{
+  const { assertSubtitleTiming } = await import("./lib/subtitles/generate.mjs");
+  try {
+    assertSubtitleTiming({ scenes, ttsResults, outputDir });
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    console.error(
+      "   Fail-closed: a voiced video without burned-in subtitles is not shippable (#421).",
+    );
+    process.exit(1);
+  }
 }
 
 console.log("\n🎬 Rendering...");
