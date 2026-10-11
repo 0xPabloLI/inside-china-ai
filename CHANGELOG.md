@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.17.2...tanstack_start_ts-v1.17.3) (2026-10-11)
+
+
+### Bug Fixes
+
+* **short-video:** raise the claim reveal line-height so claim-led hooks render ([#576](https://github.com/0xPabloLI/inside-china-ai/issues/576)) ([#578](https://github.com/0xPabloLI/inside-china-ai/issues/578)) ([c215905](https://github.com/0xPabloLI/inside-china-ai/commit/c2159052f6bb4b863df9cffa14b018edf1dadba9))
+
 ## [1.17.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.17.1...tanstack_start_ts-v1.17.2) (2026-10-11)
 
 
