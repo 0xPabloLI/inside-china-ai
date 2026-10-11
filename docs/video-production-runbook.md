@@ -298,7 +298,7 @@ ffmpeg -y -i input.m4a -ar 24000 -ac 1 -c:a pcm_s16le \
 
 **Subtitle alignment**: Uses `text-align.py` (wav2vec2 forced alignment) — NOT Whisper recognition. We already know the text (from scene-data.mjs), so we align known text to known audio directly. Output: `output/{pipelineId}/audio/subtitle-timing.json`.
 
-**Subtitle render boundary (#421)**: every render entry point (`main.mjs` Step 4.5, `render-only.mjs` Step 3.5, `rerender-full.mjs`, `realign-render.mjs`) re-checks the timing immediately before rendering and **fails closed** (exit 1, no render) when `subtitle-timing.json` is missing, unreadable, stale against the current scene text + audio bytes (#198 signature), or yields zero cues. A full TTS cache hit still runs the alignment tail, so the second run of an unchanged pipeline reuses valid timing instead of skipping alignment. `render-only.mjs` cannot realign — when it refuses, re-run `main.mjs --content <id>` to regenerate timing, then re-render.
+**Subtitle render boundary (#421)**: every render entry point (`main.mjs` Step 4.5, `render-only.mjs` Step 3.5, `rerender.mjs`, `rerender-full.mjs`, `realign-render.mjs`) re-checks the timing immediately before rendering and **fails closed** (exit 1, no render) when `subtitle-timing.json` is missing, unreadable, stale against the current scene text + audio bytes (#198 signature), or yields zero cues. A full TTS cache hit still runs the alignment tail, so the second run of an unchanged pipeline reuses valid timing instead of skipping alignment. `render-only.mjs` cannot realign — when it refuses, re-run `main.mjs --content <id>` to regenerate timing, then re-render.
 
 ### ASR 调用规范（运行时裁决 / 模型档位 / 跨段上下文 / 幻觉护栏 / 计时与内存）
 

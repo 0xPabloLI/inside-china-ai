@@ -56,7 +56,12 @@ const { writeFileSync: wfs } = await import("fs");
 wfs(durationsPath, JSON.stringify(durationsRaw, null, 2));
 
 const durations = durationsRaw.map((d) => d.duration);
-const audioPaths = scenes.map((_, i) => join(audioDir, `scene-${i + 1}.wav`));
+// #421 review: render the takes this run just produced (scene order), not a
+// re-probed path that could resolve to a stale legacy file.
+const audioPaths = scenes.map(
+  (s) =>
+    ttsResults.find((r) => r.sceneId === s.id)?.audioPath ?? join(audioDir, `scene-${s.id}.wav`),
+);
 
 // Step 4: subtitles
 const timingPath = join(audioDir, "subtitle-timing.json");

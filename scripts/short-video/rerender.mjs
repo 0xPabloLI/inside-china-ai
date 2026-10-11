@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from "fs";
 import { resolve as pathResolve, join } from "path";
 import { renderRemotion } from "./lib/render-remotion.mjs";
 import { normalizeMediaPatch, applyAssignedMedia } from "./lib/apply-media-patch.mjs";
+import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
 
 const CONTENT_DIR = "deepseek-v41-flash";
 const baseDir = pathResolve(import.meta.dirname);
@@ -38,7 +39,11 @@ const durations = JSON.parse(readFileSync(join(audioDir, "scene-durations.json")
   .sort((a, b) => a.sceneId - b.sceneId)
   .map((d) => d.duration);
 
-const audioPaths = scenes.map((_, i) => join(audioDir, `scene-${i + 1}.wav`));
+// #421 review: resolve through the tts-meta sidecar so the render and the
+// render-boundary signature hash the same take the timing was aligned to.
+const audioPaths = scenes.map(
+  (s) => resolveSceneAudioPath(audioDir, s.id) ?? join(audioDir, `scene-${s.id}.wav`),
+);
 
 const subtitlesPath = join(outputDir, "subtitles.ass");
 

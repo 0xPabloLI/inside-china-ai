@@ -86,8 +86,10 @@ async function main() {
   for (const scene of scenes) {
     const audioPath = resolveSceneAudioPath(audioDir, scene.id);
     if (!audioPath) {
-      const expected = join(audioDir, "scene-" + scene.id + ".mp3");
-      console.error("❌ Missing audio: " + expected + " (or .wav)");
+      console.error(
+        `❌ Missing audio for scene ${scene.id} — no take found ` +
+          `(checked its tts-meta sidecar, then scene-${scene.id}.mp3/.wav)`,
+      );
       console.error("   Run main.mjs --content " + contentDir + " first.");
       process.exit(1);
     }
