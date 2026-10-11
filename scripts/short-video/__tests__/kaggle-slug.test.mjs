@@ -40,6 +40,26 @@ describe("deriveContentIdFromOutputDir", () => {
   it("falls back to the dir basename when it is not under the output root", () => {
     expect(deriveContentIdFromOutputDir("/tmp/some-output-dir")).toBe("some-output-dir");
   });
+
+  it("strips a regeneration staging dir (#423) — a reroll must reuse the pipeline's slug, not push a new kernel", () => {
+    expect(
+      deriveContentIdFromOutputDir(
+        join(ROOT_DIR, "output", "deepseek", "audio", ".regen-staging-1234-1700000000000"),
+      ),
+    ).toBe("deepseek");
+    expect(
+      deriveContentIdFromOutputDir(
+        join(
+          ROOT_DIR,
+          "output",
+          "anthropic-distillation-7labs",
+          "pt1",
+          "audio",
+          ".regen-staging-1234-1700000000000",
+        ),
+      ),
+    ).toBe("anthropic-distillation-7labs/pt1");
+  });
 });
 
 describe("resolveKernelSlug", () => {

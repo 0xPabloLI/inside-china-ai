@@ -6,20 +6,45 @@
  * wav2vec2 aligner over every scene even when the inputs were byte-identical.
  * The cache keys:
  *   - scene audio by sha1(engine name + engine config string + scene text
- *     [+ per-scene speed / emotion instruct when present]),
- *     stored as a sidecar `scene-{id}.tts-meta.json` next to the audio file;
+ *     [+ per-scene speed / emotion instruct when present]);
  *   - alignment by a signature over (scene text, scene audio bytes), stored
  *     as `subtitle-timing.meta.json` next to subtitle-timing.json.
  *
+ * #423 candidate/approved trust boundary — three planning states per scene:
+ *
+ *   - **approved** (`scene-{id}.tts-meta.json`): a take that passed the full
+ *     verification chain (Quality Gate → acoustic/infra → pacing) under the
+ *     CURRENT `SCENE_META_VERSION`, with a sha256 digest over the exact audio
+ *     bytes it blessed. Only this state satisfies a cache hit — regeneration
+ *     (GPU) is skipped. Any change to the key (text/speed/instruct), the
+ *     bytes, or the verification version demotes the entry.
+ *   - **candidate** (`scene-{id}.tts-candidate.json`): audio already on disk
+ *     whose inputs still match but which is not finally verified — a failed
+ *     take that may still be repairable (pacing compensation), an unverified
+ *     take (gate skipped / ASR down), or an aborted run's survivor. The next
+ *     run re-verifies candidates through the normal gate + pacing ladder
+ *     (local ASR, no GPU) instead of paying for a fresh generation.
+ *   - **pending**: no usable take — regenerate.
+ *
  * Fail-open: unreadable meta, missing audio or key mismatch all plan the
- * scene for regeneration. Repair paths pass force:true / useCache:false so
- * a retry genuinely recomputes instead of replaying the bad artifact.
+ * scene for regeneration (never a hit). Repair paths pass force:true /
+ * useCache:false so a retry genuinely recomputes instead of replaying the
+ * bad artifact.
  */
 
 import { createHash } from "crypto";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { resolveSceneSpeed } from "./pacing.mjs";
+
+/**
+ * Verification version of the approved trust contract (#423). Bump when the
+ * Quality Gate / pacing semantics change in a way that makes previously
+ * approved takes unverified under the new rules: every approved meta carrying
+ * an older version demotes to a candidate and is re-verified (locally, no
+ * GPU) before it can be reused as approved again.
+ */
+export const SCENE_META_VERSION = 1;
 
 /**
  * Stable cache key for one scene's TTS audio.
@@ -52,20 +77,220 @@ export function computeSceneKey(engine, text, speed = 1.0, instruct = "") {
   return hash.digest("hex");
 }
 
-/** Sidecar meta path for a scene's TTS result. */
+/**
+ * Cache key for one scene at a given speed (#423). Single source for the
+ * text/instruct resolution shared by the cache-hit check here and the meta
+ * writer in registry.mjs — composing the key in two places that drift apart
+ * would make a freshly written take miss its own entry on the next run.
+ *
+ * @param {{name: string, info: string}} engine
+ * @param {{voiceover?: string, ttsText?: string}} scene
+ * @param {number} [speed] - native speed that produced / will produce the take
+ * @returns {string} sha1 hex
+ */
+export function sceneCacheKey(engine, scene, speed = resolveSceneSpeed(scene)) {
+  return computeSceneKey(
+    engine,
+    scene.ttsText || scene.voiceover,
+    speed,
+    resolveSceneInstruct(engine, scene),
+  );
+}
+
+/** Sidecar meta path for a scene's APPROVED TTS result. */
 function sceneMetaPath(outputDir, sceneId) {
   return join(outputDir, `scene-${sceneId}.tts-meta.json`);
 }
 
+/** Sidecar path for a scene's not-yet-approved (candidate) take. */
+function sceneCandidatePath(outputDir, sceneId) {
+  return join(outputDir, `scene-${sceneId}.tts-candidate.json`);
+}
+
+/** Read a JSON sidecar; any parse/IO failure yields null (fail-open). */
+function readJsonSafe(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Persist a scene's TTS cache meta next to its audio file.
+ * Atomic JSON write: temp file + rename, so a crash mid-write cannot leave a
+ * half-written sidecar for the next run to parse.
+ */
+function writeJsonAtomic(path, data) {
+  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    writeFileSync(tmp, JSON.stringify(data));
+    renameSync(tmp, path);
+  } catch (err) {
+    rmSync(tmp, { force: true });
+    throw err;
+  }
+}
+
+/**
+ * sha256 over the exact audio bytes — the binding that makes an approval
+ * invalid the moment the file is replaced by anything else.
+ *
+ * @param {string} audioPath
+ * @returns {string|null} hex digest, or null when the file is missing/unreadable
+ */
+export function computeAudioDigest(audioPath) {
+  try {
+    return createHash("sha256").update(readFileSync(audioPath)).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether an on-disk approved meta still vouches for the current bytes.
+ *
+ * @param {object} meta
+ * @param {string} audioPath
+ * @returns {boolean}
+ */
+function isApprovedAndTrusted(meta, audioPath) {
+  return (
+    meta.status === "approved" &&
+    meta.metaVersion === SCENE_META_VERSION &&
+    typeof meta.audioDigest === "string" &&
+    meta.audioDigest === computeAudioDigest(audioPath)
+  );
+}
+
+/**
+ * Why an existing entry lost its approved status (surfaced on the candidate).
+ */
+function untrustedReason(meta, candidateMeta, currentKey) {
+  // A candidate sidecar written after the meta lost trust describes the
+  // newest take state — prefer its reason when it is for the same inputs.
+  if (
+    candidateMeta &&
+    typeof candidateMeta.reason === "string" &&
+    candidateMeta.reason &&
+    candidateMeta.key === currentKey
+  ) {
+    return candidateMeta.reason;
+  }
+  if (meta.status !== "approved") return "unapproved-meta";
+  if (meta.metaVersion !== SCENE_META_VERSION) return "verification-version-changed";
+  return "audio-bytes-changed";
+}
+
+/**
+ * Persist a scene's APPROVED cache meta next to its audio file (#423).
+ *
+ * The meta binds the current `SCENE_META_VERSION` and a sha256 over the exact
+ * bytes: promotion is refused (returns false) when the audio file is missing,
+ * because an approval without bytes would be a lie the next run cannot check.
+ * Writing also clears the candidate sidecar the entry supersedes.
  *
  * @param {string} outputDir
  * @param {number} sceneId
- * @param {{key: string, duration: number, engine: string}} meta
+ * @param {{key: string, duration: number, engine: string, audioPath?: string, ttsSpeed?: number}} meta
+ * @returns {boolean} true when the approved entry was written
  */
 export function writeSceneMeta(outputDir, sceneId, meta) {
-  writeFileSync(sceneMetaPath(outputDir, sceneId), JSON.stringify(meta));
+  const audioPath = meta.audioPath ?? join(outputDir, `scene-${sceneId}.wav`);
+  const audioDigest = computeAudioDigest(audioPath);
+  if (!audioDigest) return false;
+  writeJsonAtomic(sceneMetaPath(outputDir, sceneId), {
+    ...meta,
+    audioPath,
+    status: "approved",
+    metaVersion: SCENE_META_VERSION,
+    audioDigest,
+    verifiedAt: new Date().toISOString(),
+  });
+  rmSync(sceneCandidatePath(outputDir, sceneId), { force: true });
+  return true;
+}
+
+/**
+ * Record a scene take that exists on disk but is NOT approved (#423):
+ * unverified (gate skipped / ASR down), gate-failed, pacing-repair-pending or
+ * an aborted run's survivor. The next run re-verifies it instead of
+ * regenerating; it can never satisfy a cache hit by itself.
+ *
+ * Refuses (returns false) when the audio file is missing — there is nothing
+ * to re-verify.
+ *
+ * @param {string} outputDir
+ * @param {number} sceneId
+ * @param {{key: string, duration: number, engine: string, reason?: string, audioPath?: string, ttsSpeed?: number}} meta
+ * @returns {boolean} true when the candidate sidecar was written
+ */
+export function writeCandidateSceneMeta(outputDir, sceneId, meta) {
+  const audioPath = meta.audioPath ?? join(outputDir, `scene-${sceneId}.wav`);
+  if (!existsSync(audioPath)) return false;
+  writeJsonAtomic(sceneCandidatePath(outputDir, sceneId), {
+    ...meta,
+    audioPath,
+    status: "candidate",
+  });
+  return true;
+}
+
+/**
+ * Re-bind a trusted approved entry to its current bytes (#423, alignment
+ * tail-cut). `runAlignmentGuards` trims trailing silence in place AFTER a take
+ * was approved; without the refresh the digest would mismatch and every later
+ * run would demote the scene to a candidate even though the bytes are the
+ * pipeline's own cut of an approved take.
+ *
+ * Only ever refreshes an entry that is approved under the CURRENT version —
+ * it never invents trust for an unverified take.
+ *
+ * @param {string} outputDir
+ * @param {number} sceneId
+ * @param {{duration?: number}} [patch] - e.g. the post-cut duration
+ * @returns {boolean} true when the entry was refreshed
+ */
+export function refreshApprovedSceneMeta(outputDir, sceneId, patch = {}) {
+  const meta = readJsonSafe(sceneMetaPath(outputDir, sceneId));
+  if (!meta || meta.status !== "approved" || meta.metaVersion !== SCENE_META_VERSION) return false;
+  const audioPath = meta.audioPath ?? join(outputDir, `scene-${sceneId}.wav`);
+  const audioDigest = computeAudioDigest(audioPath);
+  if (!audioDigest) return false;
+  writeJsonAtomic(sceneMetaPath(outputDir, sceneId), {
+    ...meta,
+    ...patch,
+    audioPath,
+    status: "approved",
+    metaVersion: SCENE_META_VERSION,
+    audioDigest,
+  });
+  return true;
+}
+
+/**
+ * Re-bind a candidate sidecar to its current state (#423, alignment tail-cut).
+ * The cut changes the duration the next run's gate measures WPM against; the
+ * bytes themselves stay unverified, so only the recorded fields are refreshed.
+ * Never touches an approved entry (that path goes through
+ * `refreshApprovedSceneMeta`, which also re-binds the digest).
+ *
+ * @param {string} outputDir
+ * @param {number} sceneId
+ * @param {{duration?: number}} [patch]
+ * @returns {boolean} true when the sidecar was refreshed
+ */
+export function refreshCandidateSceneMeta(outputDir, sceneId, patch = {}) {
+  const meta = readJsonSafe(sceneCandidatePath(outputDir, sceneId));
+  if (!meta || meta.status !== "candidate") return false;
+  const audioPath = meta.audioPath ?? join(outputDir, `scene-${sceneId}.wav`);
+  if (!existsSync(audioPath)) return false;
+  writeJsonAtomic(sceneCandidatePath(outputDir, sceneId), {
+    ...meta,
+    ...patch,
+    audioPath,
+    status: "candidate",
+  });
+  return true;
 }
 
 /**
@@ -81,48 +306,100 @@ export function resolveSceneInstruct(engine, scene) {
 }
 
 /**
- * Split scenes into cache hits (reuse existing audio) and pending (must be
- * generated). A hit requires a readable meta whose key matches AND whose
- * audio file still exists — anything else falls back to regeneration. The
- * audio filename comes from the meta (engines differ: F5/Qwen write .wav,
- * edge-tts/say write .mp3), so every engine's output can be cached.
+ * Split scenes into approved hits, candidates and pending (#423).
+ *
+ * - A hit requires a readable meta whose key matches (under the same
+ *   speed-resolution fallback as the writer), the audio file to still exist,
+ *   AND the current verification version + matching byte digest. `cached: true`
+ *   results skip generation entirely.
+ * - A candidate requires a matching key and an existing audio file; the result
+ *   is surfaced for re-verification (never a hit). Its `reason` records why it
+ *   is not approved.
+ * - Everything else (missing/corrupt meta, key mismatch, missing audio) is
+ *   pending — fail-open to regeneration.
  *
  * @param {string} outputDir
  * @param {Array<{id: number, voiceover: string}>} scenes
  * @param {{name: string, info: string}} engine
- * @returns {{cached: Array<{sceneId: number, audioPath: string, duration: number, cached: true}>, pending: Array}}
+ * @returns {{
+ *   approved: Array<{sceneId: number, audioPath: string, duration: number, cached: true, ttsSpeed: number}>,
+ *   candidates: Array<{sceneId: number, audioPath: string, duration: number, reason: string, candidate: true, ttsSpeed: number}>,
+ *   pending: Array,
+ * }}
  */
 export function planTtsScenes(outputDir, scenes, engine) {
-  const cached = [];
+  const approved = [];
+  const candidates = [];
   const pending = [];
+
   for (const scene of scenes) {
-    const spokenText = scene.ttsText || scene.voiceover;
-    let hit = null;
-    try {
-      const meta = JSON.parse(readFileSync(sceneMetaPath(outputDir, scene.id), "utf8"));
-      // #252: meta.ttsSpeed records a pacing-loop compensation. A fresh scene
-      // object resolves to the 1.0 baseline, so without this fallback every
-      // re-run would regenerate and re-compensate the same scene. An explicit
-      // override (scene.ttsSpeed / TTS_SPEED env → resolved ≠ 1.0) beats the
-      // stored value; legacy meta without the field behaves exactly as before.
-      const storedSpeed = Number.isFinite(meta.ttsSpeed) ? meta.ttsSpeed : null;
-      const resolved = resolveSceneSpeed(scene);
-      const speed = resolved !== 1.0 || storedSpeed === null ? resolved : storedSpeed;
-      // #244: engines that resolve a per-scene emotion instruct fold it into
-      // the key so a map edit invalidates the affected scenes only.
-      const instruct = resolveSceneInstruct(engine, scene);
-      const key = computeSceneKey(engine, spokenText, speed, instruct);
-      const audioPath = meta.audioPath ?? join(outputDir, `scene-${scene.id}.wav`);
-      if (meta.key === key && typeof meta.duration === "number" && existsSync(audioPath)) {
-        hit = { sceneId: scene.id, audioPath, duration: meta.duration, cached: true };
+    const resolvedSpeed = resolveSceneSpeed(scene);
+
+    // #252: meta.ttsSpeed records a pacing-loop compensation. A fresh scene
+    // object resolves to the 1.0 baseline, so without this fallback every
+    // re-run would regenerate and re-compensate the same scene. An explicit
+    // override (scene.ttsSpeed / TTS_SPEED env → resolved ≠ 1.0) beats the
+    // stored value; legacy meta without the field behaves exactly as before.
+    const speedForMeta = (meta) => {
+      const storedSpeed = Number.isFinite(meta?.ttsSpeed) ? meta.ttsSpeed : null;
+      return resolvedSpeed !== 1.0 || storedSpeed === null ? resolvedSpeed : storedSpeed;
+    };
+    const keyForMeta = (meta) => sceneCacheKey(engine, scene, speedForMeta(meta));
+
+    const approvedMeta = readJsonSafe(sceneMetaPath(outputDir, scene.id));
+    const candidateMeta = readJsonSafe(sceneCandidatePath(outputDir, scene.id));
+
+    // 1. Approved hit — the only path that skips re-verification.
+    if (approvedMeta && typeof approvedMeta.duration === "number") {
+      const audioPath = approvedMeta.audioPath ?? join(outputDir, `scene-${scene.id}.wav`);
+      const key = keyForMeta(approvedMeta);
+      if (approvedMeta.key === key && existsSync(audioPath)) {
+        if (isApprovedAndTrusted(approvedMeta, audioPath)) {
+          approved.push({
+            sceneId: scene.id,
+            audioPath,
+            duration: approvedMeta.duration,
+            cached: true,
+            ttsSpeed: speedForMeta(approvedMeta),
+          });
+        } else {
+          candidates.push({
+            sceneId: scene.id,
+            audioPath,
+            duration: approvedMeta.duration,
+            reason: untrustedReason(approvedMeta, candidateMeta, key),
+            candidate: true,
+            ttsSpeed: speedForMeta(approvedMeta),
+          });
+        }
+        continue;
       }
-    } catch {
-      // missing or corrupt meta → regenerate
     }
-    if (hit) cached.push(hit);
-    else pending.push(scene);
+
+    // 2. Candidate sidecar — audio on disk, inputs match, awaiting (re-)verification.
+    if (candidateMeta && typeof candidateMeta.duration === "number") {
+      const audioPath = candidateMeta.audioPath ?? join(outputDir, `scene-${scene.id}.wav`);
+      if (candidateMeta.key === keyForMeta(candidateMeta) && existsSync(audioPath)) {
+        candidates.push({
+          sceneId: scene.id,
+          audioPath,
+          duration: candidateMeta.duration,
+          reason:
+            typeof candidateMeta.reason === "string" && candidateMeta.reason
+              ? candidateMeta.reason
+              : "unverified",
+          candidate: true,
+          // The speed that produced the take on disk — re-promotion must
+          // record it, or a compensated take would be relabelled 1.0x (#252).
+          ttsSpeed: speedForMeta(candidateMeta),
+        });
+        continue;
+      }
+    }
+
+    pending.push(scene);
   }
-  return { cached, pending };
+  return { approved, candidates, pending };
 }
 
 /**

@@ -78,15 +78,16 @@ describe("planTtsScenes / writeSceneMeta", () => {
       visualType: "narrative",
       voiceover: "Alibaba revealed the weights for free.",
     };
+    // Audio first: promotion (#423) refuses to bless a missing file.
+    writeFileSync(join(dir, "scene-1.wav"), "fake audio");
     writeSceneMeta(dir, 1, {
       key: computeSceneKey(engine, scene.voiceover, resolveSceneSpeed(scene)),
       duration: 1.5,
       engine: engine.name,
       audioPath: join(dir, "scene-1.wav"),
     });
-    writeFileSync(join(dir, "scene-1.wav"), "fake audio");
     const plan = planTtsScenes(dir, [scene], engine);
-    expect(plan.cached).toHaveLength(1);
+    expect(plan.approved).toHaveLength(1);
     expect(plan.pending).toHaveLength(0);
   });
 
@@ -100,7 +101,7 @@ describe("planTtsScenes / writeSceneMeta", () => {
 
     const plan = planTtsScenes(dir, scenes, engine);
     expect(plan.pending).toHaveLength(2);
-    expect(plan.cached).toHaveLength(0);
+    expect(plan.approved).toHaveLength(0);
     cleanup();
   });
 
@@ -114,8 +115,14 @@ describe("planTtsScenes / writeSceneMeta", () => {
 
     const plan = planTtsScenes(dir, scenes, engine);
     expect(plan.pending).toHaveLength(0);
-    expect(plan.cached).toEqual([
-      { sceneId: 1, audioPath: join(dir, "scene-1.wav"), duration: 3.21, cached: true },
+    expect(plan.approved).toEqual([
+      {
+        sceneId: 1,
+        audioPath: join(dir, "scene-1.wav"),
+        duration: 3.21,
+        cached: true,
+        ttsSpeed: 1,
+      },
     ]);
     cleanup();
   });
@@ -133,7 +140,7 @@ describe("planTtsScenes / writeSceneMeta", () => {
 
     const plan = planTtsScenes(dir, scenes, engine);
     expect(plan.pending).toHaveLength(1);
-    expect(plan.cached).toHaveLength(0);
+    expect(plan.approved).toHaveLength(0);
     cleanup();
   });
 
@@ -149,7 +156,7 @@ describe("planTtsScenes / writeSceneMeta", () => {
 
     const plan = planTtsScenes(dir, scenes, engine);
     expect(plan.pending).toHaveLength(1);
-    expect(plan.cached).toHaveLength(0);
+    expect(plan.approved).toHaveLength(0);
     cleanup();
   });
 
@@ -185,7 +192,7 @@ describe("planTtsScenes / writeSceneMeta", () => {
     });
 
     const plan = planTtsScenes(dir, [scene], engine);
-    expect(plan.cached).toHaveLength(1);
+    expect(plan.approved).toHaveLength(1);
     expect(plan.pending).toHaveLength(0);
   });
 
@@ -211,7 +218,7 @@ describe("planTtsScenes / writeSceneMeta", () => {
     try {
       const plan = planTtsScenes(dir, [scene], engine);
       expect(plan.pending).toHaveLength(1);
-      expect(plan.cached).toHaveLength(0);
+      expect(plan.approved).toHaveLength(0);
     } finally {
       delete process.env.TTS_SPEED;
     }
@@ -239,7 +246,7 @@ describe("planTtsScenes / writeSceneMeta", () => {
     });
 
     const plan = planTtsScenes(dir, [scene], engine);
-    expect(plan.cached).toHaveLength(1);
+    expect(plan.approved).toHaveLength(1);
   });
 });
 
@@ -284,11 +291,13 @@ describe("generateTTSWithEngine caching (fake engine, no GPU)", () => {
 
     const second = await generateTTSWithEngine(scenes, dir, engine, { runAlignment: false });
     expect(engine.generatedSceneIds).toEqual([1, 2, 3]); // no new generation
-    // Same payloads, and the second run is fully served from cache while the
-    // first is freshly generated (registry passes `cached: true` through).
+    // The fake engine's name makes the Quality Gate a no-op, so its takes are
+    // recorded as candidates (#423), never approved. The second run still
+    // reuses the audio without touching the engine — via candidate
+    // re-verification, not via an approved cache hit.
     const stripCached = (rs) => rs.map(({ cached, ...rest }) => rest);
     expect(stripCached(second)).toEqual(stripCached(first));
-    expect(second.every((r) => r.cached === true)).toBe(true);
+    expect(second.some((r) => r.cached === true)).toBe(false);
     expect(first.some((r) => "cached" in r)).toBe(false);
     cleanup();
   });
@@ -324,13 +333,18 @@ describe("generateTTSWithEngine caching (fake engine, no GPU)", () => {
     cleanup();
   });
 
-  it("writes sidecar meta next to the generated audio", async () => {
+  it("writes a candidate sidecar next to the generated audio (skip-gate take)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "tts-cache-meta-"));
     dirs.push(dir);
     const engine = makeEngine();
     const scenes = [{ id: 4, voiceover: "第一句" }];
     await generateTTSWithEngine(scenes, dir, engine, { runAlignment: false });
-    const meta = JSON.parse(readFileSync(join(dir, "scene-4.tts-meta.json"), "utf8"));
+    // The fake engine's name skips the gate, so the take cannot be approved
+    // (#423) — it is recorded as a candidate for local re-verification.
+    expect(existsSync(join(dir, "scene-4.tts-meta.json"))).toBe(false);
+    const meta = JSON.parse(readFileSync(join(dir, "scene-4.tts-candidate.json"), "utf8"));
+    expect(meta.status).toBe("candidate");
+    expect(meta.reason).toBe("gate-skipped");
     expect(meta.engine).toBe("fake");
     expect(meta.duration).toBeCloseTo(5.5, 5);
     expect(meta.key).toBe(computeSceneKey(engine, "第一句"));
@@ -439,7 +453,7 @@ describe("planTtsScenes with mp3 engines (edge-tts / say)", () => {
 
     const plan = planTtsScenes(dir, scenes, engine);
     expect(plan.pending).toHaveLength(0);
-    expect(plan.cached[0].audioPath).toBe(join(dir, "scene-1.mp3"));
+    expect(plan.approved[0].audioPath).toBe(join(dir, "scene-1.mp3"));
   });
 
   it("caches across runs when a fake engine writes mp3 output", async () => {
@@ -507,29 +521,29 @@ describe("per-scene instruct in the cache key (#244, 2026-09-13)", () => {
       const scene = { id: 1, visualType: "hook", voiceover: "DeepSeek just dropped a bombshell!" };
       const speed = resolveSceneSpeed(scene);
       const instruct = cv3.instructForScene(scene) ?? "";
+      writeFileSync(join(dir, "scene-1.wav"), "fake audio");
       writeSceneMeta(dir, 1, {
         key: computeSceneKey(cv3, scene.voiceover, speed, instruct),
         duration: 1.5,
         engine: cv3.name,
         audioPath: join(dir, "scene-1.wav"),
       });
-      writeFileSync(join(dir, "scene-1.wav"), "fake audio");
       // Same instruct → hit.
-      expect(planTtsScenes(dir, [scene], cv3).cached).toHaveLength(1);
+      expect(planTtsScenes(dir, [scene], cv3).approved).toHaveLength(1);
       // Instruct change → miss (regenerate, never replay the stale emotion).
       const changed = { ...cv3, instructForScene: () => "anchor instruct v2" };
       expect(planTtsScenes(dir, [scene], changed).pending).toHaveLength(1);
       // Engines without instructForScene (f5/edge/say) keep the legacy shape.
       const legacy = { name: engine.name, info: engine.info };
       const legacyScene = { id: 1, voiceover: "plain text" };
+      writeFileSync(join(dir, "scene-1.wav"), "fake audio");
       writeSceneMeta(dir, 1, {
         key: computeSceneKey(legacy, legacyScene.voiceover),
         duration: 1.5,
         engine: legacy.name,
         audioPath: join(dir, "scene-1.wav"),
       });
-      writeFileSync(join(dir, "scene-1.wav"), "fake audio");
-      expect(planTtsScenes(dir, [legacyScene], legacy).cached).toHaveLength(1);
+      expect(planTtsScenes(dir, [legacyScene], legacy).approved).toHaveLength(1);
     } finally {
       for (const d of dirs) rmSync(d, { recursive: true, force: true });
     }
