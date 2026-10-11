@@ -203,8 +203,18 @@ const UNIT_SPOKEN = {
   m: "M",
 };
 
-/** Longest-first alternation so "16GB" matches "gb", not "g". */
-const DIGIT_UNIT_RE = /\b(\d+)(fps|hz|nm|bit|kb|mb|gb|tb|km|kg|p|k|g|t|m)\b/gi;
+/**
+ * Longest-first alternation DERIVED from UNIT_SPOKEN so the whitelist has a
+ * single source of truth: splitDigitUnits (#239, spoken side) and
+ * splitDigitUnitToken (#548, ASR-alias side) can never drift apart, and a new
+ * unit only ever gets added to UNIT_SPOKEN.
+ */
+const DIGIT_UNIT_ALTERNATION = Object.keys(UNIT_SPOKEN)
+  .sort((a, b) => b.length - a.length)
+  .join("|");
+const DIGIT_UNIT_RE = new RegExp(`\\b(\\d+)(${DIGIT_UNIT_ALTERNATION})\\b`, "gi");
+/** Anchored to a single token — no /g, so .exec carries no lastIndex state. */
+const DIGIT_UNIT_TOKEN_RE = new RegExp(`^(\\d+)(${DIGIT_UNIT_ALTERNATION})$`, "i");
 
 /**
  * Split compact digit+unit tokens into spoken-safe form: "720p" → "720 P".
@@ -219,6 +229,23 @@ export function splitDigitUnits(str) {
   return str.replace(DIGIT_UNIT_RE, (match, digits, unit) => {
     return `${digits} ${UNIT_SPOKEN[unit.toLowerCase()]}`;
   });
+}
+
+/**
+ * Token-level projection of the same whitelist (#548): split ONE compact
+ * token, e.g. "720p" → { digits: "720", unit: "P" }, or return null when the
+ * token is outside the whitelist ("0x12a", "10x", "H100", "$1.4B" → "4b").
+ * The TTS Quality Gate uses this to mirror #239 on the heard side: whisper
+ * re-merges "720 P" into "720p", so the critical token "720" needs aliases.
+ *
+ * @param {string} token
+ * @returns {{digits: string, unit: string}|null}
+ */
+export function splitDigitUnitToken(token) {
+  if (typeof token !== "string") return null;
+  const m = DIGIT_UNIT_TOKEN_RE.exec(token);
+  if (!m) return null;
+  return { digits: m[1], unit: UNIT_SPOKEN[m[2].toLowerCase()] };
 }
 
 /**
