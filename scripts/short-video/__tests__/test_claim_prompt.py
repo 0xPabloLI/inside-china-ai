@@ -109,11 +109,19 @@ check("missing Relevance Reason → None", missing.get("relevanceReason") is Non
 for name, raw in [
     ("non-integer", "## Relevance\nmost relevant\n"),
     ("out of range", "## Relevance\n999\n"),
-    ("annotated value", "## Relevance\n85/100\n"),
     ("empty", "## Relevance\n\n"),
+    # "N out of 100" is prose, not the enumerated score format — fail closed
+    # rather than guess (test_parse_markdown.py test_relevance_out_of_100_prose).
+    ("out of 100 prose", "## Relevance\n85 out of 100 for matching the claim\n"),
 ]:
     result = parse_markdown_to_dict(raw + "\n## Description\nd\n")
     check(f"{name} → None", result.get("relevance") is None, f"got {result.get('relevance')!r}")
+
+# A "/100"-suffixed integer IS the enumerated score format the prompt asks for
+# (see _parse_relevance_value docstring), so it is trusted — not a fabrication.
+# The earlier "annotated value → None" assertion predated that contract.
+annotated = parse_markdown_to_dict("## Relevance\n85/100\n## Description\nd\n")
+check("annotated /100 parsed as int", annotated.get("relevance") == 85, f"got {annotated.get('relevance')!r}")
 
 boundary = parse_markdown_to_dict("## Relevance\n0\n## Description\nd\n")
 check("0 is valid", boundary.get("relevance") == 0)
