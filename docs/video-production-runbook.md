@@ -907,6 +907,12 @@ node scripts/short-video/verify-subtitles.mjs <video.mp4> <subtitles.ass> <subti
 
 # Re-render without re-running TTS (visual or subtitle changes only)
 node scripts/short-video/render-only.mjs --content restraint/pt1
+
+# Debug re-render tools — accept --content like main.mjs (bare runs default to
+# deepseek-v41-flash; an unknown dir fails fast with the available list)
+node scripts/short-video/rerender.mjs [--content <dir>]        # media-patch + render (no TTS)
+node scripts/short-video/rerender-full.mjs [--content <dir>]   # normalize → TTS → align → render
+node scripts/short-video/realign-render.mjs [--content <dir>]  # forced realign + render (no TTS)
 ```
 
 ### Pipeline Steps

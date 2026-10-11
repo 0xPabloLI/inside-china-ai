@@ -100,16 +100,16 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.32.0",
+    "@eslint/js": "^10.0.0",
     "@lovable.dev/vite-tanstack-config": "2.25.1",
     "@playwright/test": "^1.62.0",
     "@size-limit/file": "^14.0.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@vitejs/plugin-react": "^5.2.0",
+    "@vitejs/plugin-react": "^6.0.0",
     "@vitest/coverage-v8": "^5.0.0",
-    "eslint": "^9.32.0",
+    "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",
     "eslint-plugin-react-hooks": "^7.0.0",
@@ -117,7 +117,7 @@
     "globals": "^17.0.0",
     "js-yaml": "^5.4.2",
     "jscpd": "^5.2.0",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.0",
     "knip": "^6.35.1",
     "nitro": "3.0.260603-beta",
     "prettier": "3.9.9",
@@ -140,5 +140,5 @@
   "overrides": {
     "esbuild": "^0.28.1"
   },
-  "version": "1.15.3"
+  "version": "1.16.0"
 }
