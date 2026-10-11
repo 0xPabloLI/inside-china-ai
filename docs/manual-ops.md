@@ -92,7 +92,7 @@ node scripts/short-video/trending-sounds.mjs --content <dir>
    │
 ② CDP 抓取（默认路径，无需手动 CSV）
    │  TikTok Studio Analytics + CSI 直接抓取
-   │  → hashtag-effect-tracker.jsonl + analytics-conclusions.md
+   │  → hashtag-effect-tracker.jsonl（用 hashtag-effect-tracker.mjs upsert 落库）+ analytics-conclusions.md
    │  （手动导 CSV 为 fallback：登录 analytics.tiktok.com → Content → Export）
    │
 ③ 运行分析脚本

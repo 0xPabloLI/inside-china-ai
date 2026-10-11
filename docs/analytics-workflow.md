@@ -41,7 +41,10 @@ analytics"，但实际上 analytics 需要等数据沉淀。
 ④b Hashtag 效果追踪（CDP 抓取方式）
    │  Agent 通过 web-access CDP 抓取 TikTok Studio Analytics 页面
    │  → 提取每条视频的 hashtags + 播放 + 搜索词 + 流量来源
-   │  → 追加到 output/hashtag-effect-tracker.jsonl
+   │  → 用 CLI 落库（按 videoId upsert，不是追加）：
+   │     node scripts/short-video/hashtag-effect-tracker.mjs upsert \
+   │       --from-details output/tiktok-video-details-<date>.json \
+   │       --tags "#a,#b,#c"          # 线上 caption 实际标签
    │  → 数据见 docs/research/tiktok-competitor-intelligence.md §3
    │
 ④c CSI Content Gap 对比（CDP 抓取方式）
@@ -160,10 +163,11 @@ Agent 输出类似这样的分析报告：
 
 ### 追踪文件
 
-`output/hashtag-effect-tracker.jsonl` — 每行一条 JSON 记录，格式：
+`output/hashtag-effect-tracker.jsonl` — **一条视频一行**，按 `videoId` upsert。记录形如：
 
 ```json
 {
+  "videoId": "7691045312206474517",
   "videoTitle": "",
   "publishedAt": "",
   "hashtags": [],
@@ -173,16 +177,40 @@ Agent 输出类似这样的分析报告：
   "searchQueries": [],
   "fypPercent": 0,
   "searchPercent": 0,
-  "recordedAt": ""
+  "avgWatchTimeSec": 0,
+  "watchedFullVideoPct": 0,
+  "recordedAt": "",
+  "source": "studio-analytics-detail",
+  "sources": ["<recordedAt> <source>", "…"]
 }
+```
+
+**写入契约（由 CLI 强制，2026-10-11 起）**：
+
+- **不要手工追加行**。`upsert` 按 `videoId` 合并：同一视频再次上报只更新那一条，不会产生第二行。
+- **指标是时间序列**：新快照覆盖旧值；**null 永不擦除已知值**（详情页没有的字段不会把已有数据清空）。
+- **标签集跟随最新**：变更前的旧集合进 `hashtagHistory` 留档；不带标签的上报（如 per-video 详情文件）不会清空已知标签集。
+- **`sources` 记来源快照**，重跑幂等（同一份详情重复 upsert 字节不变）。
+- **无 `videoId` 的历史行原样保留**、永不合并（旧记录没有可靠键，且 content 列表只保留最近 8 条，删掉就再也抓不回来）。
+
+```bash
+# 上报（详情文件已含播放/平均观看/完播/流量拆分；标签来自线上 caption）
+node scripts/short-video/hashtag-effect-tracker.mjs upsert \
+  --from-details output/tiktok-video-details-<date>.json \
+  --tags "#deepseek,#chinaai,#aiagents"      # 或 --from-caption <发布包目录>
+node scripts/short-video/hashtag-effect-tracker.mjs upsert --from-details <f> --dry-run
+# 查看各标签的关联视频数/平均播放
+node scripts/short-video/hashtag-effect-tracker.mjs report
 ```
 
 ### Agent 操作步骤
 
 1. 通过 CDP 抓取 TikTok Studio Analytics 数据（见上方 CDP 抓取方式）
-2. 对每条视频，从 `tiktok-metadata.json` 或 scene-data 的 `metadata.hashtags` 读取该视频使用的 hashtags
-3. 组装记录追加到 `hashtag-effect-tracker.jsonl`
+2. 对每条视频，从**线上 caption** 读取该视频实际使用的 hashtags（metadata 会与线上漂移，见下）
+3. 用 `hashtag-effect-tracker.mjs upsert` 落库（见上「写入契约」）
 4. 更新 `docs/research/tiktok-competitor-intelligence.md` §3 的视频列表
+
+> **标签以线上为准**：2026-10-11 抽查四条视频，发布包 `tiktok-metadata.json` 的标签与线上 caption 系统性不一致（手工发布环节会换标签）。归因只能认线上实际标签。
 
 ### 已知结论（2026-08-25，4 条视频）
 
@@ -387,7 +415,7 @@ Analytics 复盘
 | `output/pending-analysis.json`        | 待分析视频记录（publish-tiktok.mjs 发布步骤运行时写入；manual-guide 档在指南生成时写，`postGroupId` 为 null） |
 | `output/analytics-export.json`        | 标准化分析数据（fetch-tiktok-analytics.mjs 输出）                                                             |
 | `output/ab-test-results.json`         | A/B 测试追踪（ab-test-tracker.mjs）                                                                           |
-| `output/hashtag-effect-tracker.jsonl` | Hashtag 效果追踪记录（Agent CDP 抓取后追加）                                                                  |
+| `output/hashtag-effect-tracker.jsonl` | Hashtag 效果追踪记录（`hashtag-effect-tracker.mjs upsert` 按 videoId 落库）                                 |
 | `output/analytics-conclusions.md`     | Analytics 结论摘要（Agent 生成，下一轮 Pipeline 读取）                                                        |
 | `output/reference-videos/`            | 用户手动下载的竞品参考视频（按需）                                                                            |
 

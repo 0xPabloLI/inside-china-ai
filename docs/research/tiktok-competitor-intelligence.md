@@ -169,25 +169,11 @@
 
 **落实到 `docs/analytics-workflow.md`**，作为 Analytics 定期复盘的标准步骤：
 
-1. 每次 CDP 抓取 Analytics 数据后，将 hashtag → 播放量/搜索词记录追加到 `output/hashtag-effect-tracker.jsonl`
-2. 积累 >10 条视频后，Agent 做 hashtag 效果统计报告
+1. 每次 CDP 抓取 Analytics 数据后，用 `node scripts/short-video/hashtag-effect-tracker.mjs upsert --from-details <详情文件> --tags "<线上标签>"` 落库——按 `videoId` 合并，**不要手工追加行**（2026-10-11 前的手工追加快照产生了重复行，污染按 tag 归因）
+2. 积累 >10 条视频后，Agent 做 hashtag 效果统计报告（`hashtag-effect-tracker.mjs report`）
 3. 低效 tag（关联视频平均播放低于全局均值）建议替换
 
-`hashtag-effect-tracker.jsonl` 格式：
-
-```json
-{
-  "videoId": "",
-  "publishedAt": "",
-  "hashtags": [],
-  "views": 0,
-  "likes": 0,
-  "comments": 0,
-  "searchQueries": [],
-  "fypPercent": 0,
-  "recordedAt": ""
-}
-```
+记录的权威格式与写入契约见 `docs/analytics-workflow.md` → Hashtag 效果追踪；字段含 `videoId`（合并键）、`sources`（来源快照）与 `hashtagHistory`（标签集变更留档）。
 
 ---
 
