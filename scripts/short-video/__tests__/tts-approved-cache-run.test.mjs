@@ -17,7 +17,7 @@
  *  - the alignment tail-cut re-binds an approved entry to the cut bytes.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
@@ -403,5 +403,68 @@ describe("approved cache survives aborted runs (#423)", () => {
     // there (#420). The compensation round stages instead.
     expect(calls[0]).toBe(dir);
     expect(calls[1]).toContain(".regen-staging-");
+  });
+
+  it("cleans the reroll staging dir when the retry gate itself throws (no paid bytes left behind)", async () => {
+    const engine = makeEngine();
+    const scenes = [{ id: 3, voiceover: "A take that will fail acoustically." }];
+    let call = 0;
+    runTtsQualityGate.mockImplementation(async (_scenes, results) => {
+      const c = call++;
+      if (c === 1) throw new Error("verifier crashed mid-gate");
+      return {
+        passed: false,
+        failedCount: results.length,
+        evaluations: results.map((r) => ({
+          sceneId: r.sceneId,
+          passed: false,
+          wpm: 150,
+          issues: ["Truncation detected: missing tail word(s) [fail]"],
+          failureClass: "acoustic",
+        })),
+      };
+    });
+
+    // A gate crash mid-retry keeps the pre-existing non-strict semantics
+    // (warn-and-continue); what must hold is that the reroll take generated
+    // into staging does not leak into the audio output.
+    await generateTTSWithEngine(scenes, dir, engine, {
+      useCache: true,
+      runAlignment: false,
+      maxRetries: 1,
+    });
+
+    const leftovers = readdirSync(dir).filter((f) => f.includes(".regen-staging-"));
+    expect(leftovers).toEqual([]);
+    // The take on disk is the FIRST take; the crashed reroll never landed.
+    expect(readFileSync(join(dir, "scene-3.wav"), "utf8")).toBe("take-3-1");
+    expect(readJson(join(dir, "scene-3.tts-candidate.json")).reason).toBe("gate-failed:acoustic");
+  });
+  it("records skip-gate takes as candidates even when the run aborts on missing audio (#241 guard)", async () => {
+    process.env.TTS_SKIP_QUALITY_GATE = "1";
+    delete process.env.TTS_ALLOW_PARTIAL_TTS;
+    const engine = makeEngine();
+    // Simulates a kernel that produced only scene 1 (scene 2 timed out).
+    engine.generate = async (scenes, outputDir) =>
+      scenes
+        .filter((s) => s.id === 1)
+        .map((s) => {
+          const audioPath = join(outputDir, `scene-${s.id}.wav`);
+          writeFileSync(audioPath, "partial-take");
+          return { sceneId: s.id, audioPath, duration: 4.0 };
+        });
+    const scenes = [
+      { id: 1, voiceover: "Scene one landed." },
+      { id: 2, voiceover: "Scene two timed out." },
+    ];
+
+    await expect(
+      generateTTSWithEngine(scenes, dir, engine, { useCache: true, runAlignment: false }),
+    ).rejects.toThrow(/produced no audio for scene\(s\) 2/);
+
+    // The take that WAS paid for must be re-verifiable next run, not lost.
+    expect(readJson(join(dir, "scene-1.tts-candidate.json")).reason).toBe("gate-skipped");
+    expect(existsSync(join(dir, "scene-1.tts-meta.json"))).toBe(false);
+    delete process.env.TTS_SKIP_QUALITY_GATE;
   });
 });

@@ -416,30 +416,39 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
 
         let retryResults = [];
         // #423: rerolls regenerate into staging — a take that fails the gate
-        // must not overwrite the audio already on disk.
+        // must not overwrite the audio already on disk. The cleanup is in a
+        // `finally`: a gate crash must not leave paid bytes in a staging dir
+        // inside the audio output.
         const retryStaging = createRegenStaging(outputDir);
         try {
-          retryResults = await engine.generate(retryScenes, retryStaging);
-        } catch (err) {
-          console.warn(`  ⚠️ Retry generation error: ${err.message}`);
-        }
+          try {
+            retryResults = await engine.generate(retryScenes, retryStaging);
+          } catch (err) {
+            console.warn(`  ⚠️ Retry generation error: ${err.message}`);
+          }
 
-        if (retryResults.length > 0) {
-          const retryGate = await runTtsQualityGate(retryScenes, retryResults, qualityGateOptions);
-          for (const res of retryResults) {
-            const evalRes = retryGate.evaluations.find((e) => e.sceneId === res.sceneId);
-            if (evalRes && evalRes.passed) {
-              acceptRegenTake(outputDir, res);
-              const idx = validatedResults.findIndex((g) => g.sceneId === res.sceneId);
-              if (idx >= 0) validatedResults[idx] = res;
-              else validatedResults.push(res);
-              verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
-              const scene = scenes.find((s) => s.id === res.sceneId);
-              if (scene) speedByResult.set(res, resolveSceneSpeed(scene));
+          if (retryResults.length > 0) {
+            const retryGate = await runTtsQualityGate(
+              retryScenes,
+              retryResults,
+              qualityGateOptions,
+            );
+            for (const res of retryResults) {
+              const evalRes = retryGate.evaluations.find((e) => e.sceneId === res.sceneId);
+              if (evalRes && evalRes.passed) {
+                acceptRegenTake(outputDir, res);
+                const idx = validatedResults.findIndex((g) => g.sceneId === res.sceneId);
+                if (idx >= 0) validatedResults[idx] = res;
+                else validatedResults.push(res);
+                verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
+                const scene = scenes.find((s) => s.id === res.sceneId);
+                if (scene) speedByResult.set(res, resolveSceneSpeed(scene));
+              }
             }
           }
+        } finally {
+          cleanupRegenStaging(retryStaging);
         }
-        cleanupRegenStaging(retryStaging);
 
         gateReport = await runTtsQualityGate(verifyScenes, validatedResults, qualityGateOptions);
         recordVerdicts(validatedResults, gateReport.evaluations);
@@ -706,6 +715,23 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     }
   }
 
+  // Cache trust settling (#423) lives with the verification block above:
+  //   - `settleTakes()` runs in the block's finally and writes the
+  //     approved/candidate state of every evaluated take on every exit path;
+  //   - a run whose gate was skipped (fake engine / TTS_SKIP_QUALITY_GATE=1)
+  //     never evaluated anything, so its takes are recorded as candidates —
+  //     usable, explicitly unverified, re-checked by the next run.
+  // Settling happens BEFORE the missing-audio guard below: that guard throws
+  // on an incomplete run, and a skip-gate run that aborts there must still
+  // leave the takes it paid for re-verifiable, not meta-less.
+  if (skipQualityGate) {
+    try {
+      settleTakesAsCandidates("gate-skipped");
+    } catch (err) {
+      console.warn(`  ⚠️ TTS cache settle failed: ${err.message}`);
+    }
+  }
+
   // ── Missing-audio fail-closed guard (#241) ──
   // A scene that ends up with NO audio after generation + self-heal retries
   // must not be silently dropped: the video would render with a missing
@@ -723,20 +749,6 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           `would silently drop voiceover. Fix the failing scene(s) (retry, shorten the ` +
           `text, or set TTS_ENGINE) or set TTS_ALLOW_PARTIAL_TTS=1 to accept a partial run.`,
       );
-    }
-  }
-
-  // Cache trust settling (#423) lives with the verification block above:
-  //   - `settleTakes()` runs in the block's finally and writes the
-  //     approved/candidate state of every evaluated take on every exit path;
-  //   - a run whose gate was skipped (fake engine / TTS_SKIP_QUALITY_GATE=1)
-  //     never evaluated anything, so its takes are recorded as candidates —
-  //     usable, explicitly unverified, re-checked by the next run.
-  if (skipQualityGate) {
-    try {
-      settleTakesAsCandidates("gate-skipped");
-    } catch (err) {
-      console.warn(`  ⚠️ TTS cache settle failed: ${err.message}`);
     }
   }
 
