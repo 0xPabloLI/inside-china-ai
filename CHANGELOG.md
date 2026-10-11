@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.15.0...tanstack_start_ts-v1.15.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **tts:** candidate/approved cache trust boundary so paid takes survive aborted runs ([#423](https://github.com/0xPabloLI/inside-china-ai/issues/423)) ([#551](https://github.com/0xPabloLI/inside-china-ai/issues/551)) ([5473f14](https://github.com/0xPabloLI/inside-china-ai/commit/5473f14923b1afe2d76a02c13805b23df92ce520))
+
 ## [1.15.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.14.0...tanstack_start_ts-v1.15.0) (2026-10-10)
 
 
