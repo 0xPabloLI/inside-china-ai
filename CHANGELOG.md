@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.16.0...tanstack_start_ts-v1.17.0) (2026-10-11)
+
+
+### Features
+
+* **short-video:** parametrize the debug re-render tools with --content ([#567](https://github.com/0xPabloLI/inside-china-ai/issues/567)) ([b11f237](https://github.com/0xPabloLI/inside-china-ai/commit/b11f237674ef6a968b9956e197d7355f385bbb75))
+
 ## [1.16.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.15.3...tanstack_start_ts-v1.16.0) (2026-10-11)
 
 
