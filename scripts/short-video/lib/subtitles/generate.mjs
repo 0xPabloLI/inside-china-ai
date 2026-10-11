@@ -11,6 +11,7 @@ import { join } from "path";
 import { buildCues } from "./cues.mjs";
 import { renderAss } from "./ass.mjs";
 import { checkCueCompliance, formatComplianceReport } from "./compliance.mjs";
+import { alignmentCacheState, computeAlignmentSignature } from "../tts/cache.mjs";
 
 /** Reading-speed limit for the gate; override with SUBTITLE_MAX_CPS (17 = children). */
 export function subtitleMaxCps(env = process.env) {
@@ -87,4 +88,83 @@ export function regenerateSubtitles({ outputDir, sceneDurations }) {
   const assPath = join(outputDir, "subtitles.ass");
   const { cues } = generateSubtitles(timingData, sceneDurations, assPath);
   return { assPath, timingData, cues };
+}
+
+/**
+ * Render-boundary guard (#421): a voiced run must not render without valid
+ * subtitle timing.
+ *
+ * Every entry point calls this after its repair window (Gate 1 / realign) and
+ * immediately before renderRemotion(). It fails closed when:
+ *
+ *  - the run has voiceover but `subtitle-timing.json` is missing (forced
+ *    alignment never ran or produced nothing);
+ *  - the timing file is unreadable/corrupt;
+ *  - the alignment signature (scene text + audio bytes, #198) does not match
+ *    the stored meta — stale timing, e.g. audio replaced without realigning;
+ *  - the timing yields zero cues (nothing to burn in).
+ *
+ * Visual-only runs (no voiceover) are not applicable and return null.
+ *
+ * @param {object} options
+ * @param {Array<{id: number, voiceover?: string, ttsText?: string}>} options.scenes
+ * @param {Array<{sceneId: number, audioPath: string, duration: number}>} options.ttsResults
+ * @param {string} options.outputDir - pipeline output dir (timing lives in <outputDir>/audio)
+ * @returns {{timingData: (Array|object), cues: Array}|null} null when the run has no voiceover
+ * @throws {Error} when the render boundary cannot be satisfied
+ */
+export function assertSubtitleTiming({ scenes, ttsResults, outputDir }) {
+  const voiced = (scenes ?? []).filter((s) => String(s?.voiceover ?? "").trim() !== "");
+  if (voiced.length === 0) return null;
+
+  const audioDir = join(outputDir, "audio");
+  const timingPath = join(audioDir, "subtitle-timing.json");
+  if (!existsSync(timingPath)) {
+    throw new Error(
+      `subtitle-timing.json is missing under ${audioDir} but the run has voiceover — ` +
+        `forced alignment never produced timing. Re-run the pipeline alignment step ` +
+        `(main.mjs aligns after TTS; render-only cannot realign) before rendering (#421).`,
+    );
+  }
+
+  let timingData;
+  try {
+    timingData = JSON.parse(readFileSync(timingPath, "utf8"));
+  } catch (err) {
+    throw new Error(
+      `subtitle-timing.json is unreadable/corrupt (${err.message}) — ` +
+        `re-run forced alignment before rendering (#421).`,
+    );
+  }
+
+  const signature = computeAlignmentSignature(scenes, ttsResults);
+  const state = alignmentCacheState(audioDir, signature);
+  if (state !== "valid") {
+    throw new Error(
+      `subtitle-timing.json is stale (${state}) — it does not match the current scene text ` +
+        `and audio bytes. Re-run forced alignment before rendering (#421).`,
+    );
+  }
+
+  const sceneDurations = (ttsResults ?? []).map((r) => ({
+    sceneId: r.sceneId,
+    duration: r.duration,
+  }));
+  let cues;
+  try {
+    cues = buildCues(timingData, sceneDurations);
+  } catch (err) {
+    throw new Error(
+      `subtitle-timing.json failed to build cues (${err.message}) — ` +
+        `re-run forced alignment before rendering (#421).`,
+    );
+  }
+  if (cues.length === 0) {
+    throw new Error(
+      `subtitle-timing.json produced zero cues — nothing can be burned in. ` +
+        `Re-run forced alignment before rendering (#421).`,
+    );
+  }
+
+  return { timingData, cues };
 }

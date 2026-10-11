@@ -58,6 +58,21 @@ if (existsSync(timingPath)) {
   subtitlesArg = subtitlesPath;
 }
 
+// Subtitle render boundary (#421): the forced alignment above may have failed
+// (missing text-align.py / python env / crash) — no render without timing.
+{
+  const { assertSubtitleTiming } = await import("./lib/subtitles/generate.mjs");
+  try {
+    assertSubtitleTiming({ scenes, ttsResults, outputDir });
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    console.error(
+      "   Fail-closed: a voiced video without burned-in subtitles is not shippable (#421).",
+    );
+    process.exit(1);
+  }
+}
+
 console.log("\n🎬 Rendering...");
 const { renderRemotion } = await import("./lib/render-remotion.mjs");
 const result = renderRemotion({

@@ -70,6 +70,21 @@ if (existsSync(timingPath)) {
   subtitlesArg = subtitlesPath;
 }
 
+// Step 4.5: subtitle render boundary (#421) — never render a voiced video
+// without valid, fresh subtitles.
+{
+  const { assertSubtitleTiming } = await import("./lib/subtitles/generate.mjs");
+  try {
+    assertSubtitleTiming({ scenes, ttsResults, outputDir });
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    console.error(
+      "   Fail-closed: a voiced video without burned-in subtitles is not shippable (#421).",
+    );
+    process.exit(1);
+  }
+}
+
 // Step 5: render
 console.log("\n🎬 Rendering...");
 const { renderRemotion } = await import("./lib/render-remotion.mjs");

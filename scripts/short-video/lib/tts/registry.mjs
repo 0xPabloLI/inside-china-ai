@@ -216,6 +216,76 @@ function acousticBlockError(failed, attempts) {
 }
 
 /**
+ * Merge cache hits and freshly verified takes into SCENE ORDER and run the
+ * alignment tail — the single exit path of generateTTSWithEngine (#421).
+ *
+ * Full cache hits take this path too: subtitle-timing.json is a required
+ * artifact of a voiced run, and skipping it here is exactly how a second full
+ * run (10/10 hits) shipped a video with no burned-in subtitles. The aligner's
+ * own signature cache (scene text + audio bytes, #198) makes a matching reuse
+ * free, so running the tail unconditionally costs nothing when timing is
+ * already valid. The explicit low-level `runAlignment: false` escape hatch is
+ * preserved.
+ *
+ * @param {Array} scenes - Scene objects with {id, voiceover}
+ * @param {Array} cachedResults - approved hits from planTtsScenes
+ * @param {Array} verifiedResults - fresh/candidate takes this run verified
+ * @param {string} outputDir - Audio output directory
+ * @param {{runAlignment: boolean, useCache: boolean}} options
+ * @returns {Promise<TTSResult[]>} results in scene order
+ */
+async function finalizeTtsResults(
+  scenes,
+  cachedResults,
+  verifiedResults,
+  outputDir,
+  { runAlignment, useCache },
+) {
+  // Reassemble in scene order; drop scenes the engine skipped.
+  const byId = new Map(verifiedResults.map((r) => [r.sceneId, r]));
+  const merged = [];
+  for (const scene of scenes) {
+    const hit = cachedResults.find((r) => r.sceneId === scene.id);
+    if (hit) merged.push(hit);
+    else if (byId.has(scene.id)) merged.push(byId.get(scene.id));
+  }
+
+  // Run subtitle alignment for accurate timing
+  if (runAlignment) {
+    const alignment = await runForcedAlignment(scenes, merged, outputDir);
+    // #423: the tail-cut guard trims approved audio in place — re-bind those
+    // entries to the bytes actually on disk, or every later run would demote
+    // the scene to a candidate over the pipeline's own cut. Unverified takes
+    // (skip-gate runs) get the same treatment on their sidecar so the next
+    // run measures WPM against the bytes it will re-verify.
+    const cuts = alignment?.guards?.cuts ?? [];
+    if (useCache && cuts.length > 0) {
+      const cutIds = new Set(cuts.map((c) => c.sceneId));
+      for (const r of merged) {
+        if (!cutIds.has(r.sceneId)) continue;
+        if (!refreshApprovedSceneMeta(outputDir, r.sceneId, { duration: r.duration })) {
+          refreshCandidateSceneMeta(outputDir, r.sceneId, { duration: r.duration });
+        }
+      }
+    }
+    // #232: guards log per-scene detail during alignment; aggregate one line
+    // at generation end so the HITL listening pass knows which scenes to
+    // spot-check (crushed words) and that tail cuts were applied.
+    const guards = alignment?.guards;
+    if (guards && (guards.cuts.length > 0 || guards.crushedWords.length > 0)) {
+      const crushedScenes = [...new Set(guards.crushedWords.map((w) => w.sceneId))];
+      console.log(
+        `  🛡️ Alignment guards (#232): ${guards.cuts.length} tail cut(s), ` +
+          `${guards.crushedWords.length} crushed word(s)` +
+          (crushedScenes.length ? ` — spot-check scene(s) ${crushedScenes.join(", ")}` : ""),
+      );
+    }
+  }
+
+  return merged;
+}
+
+/**
  * generateTTS with an injected engine — the testable seam.
  *
  * @param {Array} scenes - Scene objects with {id, voiceover}
@@ -288,7 +358,11 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     ...candidateResults.map((r) => scenes.find((s) => s.id === r.sceneId)).filter(Boolean),
   ];
   if (verifyScenes.length === 0) {
-    return cachedResults;
+    // #421: full cache hit — skip generation AND re-verification, but route
+    // through the shared finalize so the alignment tail still runs. Returning
+    // `cachedResults` here is how the second run of a pipeline silently lost
+    // its subtitles.
+    return finalizeTtsResults(scenes, cachedResults, [], outputDir, { runAlignment, useCache });
   }
 
   // The primary round writes DIRECTLY into the audio dir, unlike the regen
@@ -752,46 +826,10 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     }
   }
 
-  // Reassemble in scene order; drop scenes the engine skipped.
-  const byId = new Map(validatedResults.map((r) => [r.sceneId, r]));
-  const merged = [];
-  for (const scene of scenes) {
-    const hit = cachedResults.find((r) => r.sceneId === scene.id);
-    if (hit) merged.push(hit);
-    else if (byId.has(scene.id)) merged.push(byId.get(scene.id));
-  }
-
-  // Run subtitle alignment for accurate timing
-  if (runAlignment) {
-    const alignment = await runForcedAlignment(scenes, merged, outputDir);
-    // #423: the tail-cut guard trims approved audio in place — re-bind those
-    // entries to the bytes actually on disk, or every later run would demote
-    // the scene to a candidate over the pipeline's own cut. Unverified takes
-    // (skip-gate runs) get the same treatment on their sidecar so the next
-    // run measures WPM against the bytes it will re-verify.
-    const cuts = alignment?.guards?.cuts ?? [];
-    if (useCache && cuts.length > 0) {
-      const cutIds = new Set(cuts.map((c) => c.sceneId));
-      for (const r of merged) {
-        if (!cutIds.has(r.sceneId)) continue;
-        if (!refreshApprovedSceneMeta(outputDir, r.sceneId, { duration: r.duration })) {
-          refreshCandidateSceneMeta(outputDir, r.sceneId, { duration: r.duration });
-        }
-      }
-    }
-    // #232: guards log per-scene detail during alignment; aggregate one line
-    // at generation end so the HITL listening pass knows which scenes to
-    // spot-check (crushed words) and that tail cuts were applied.
-    const guards = alignment?.guards;
-    if (guards && (guards.cuts.length > 0 || guards.crushedWords.length > 0)) {
-      const crushedScenes = [...new Set(guards.crushedWords.map((w) => w.sceneId))];
-      console.log(
-        `  🛡️ Alignment guards (#232): ${guards.cuts.length} tail cut(s), ` +
-          `${guards.crushedWords.length} crushed word(s)` +
-          (crushedScenes.length ? ` — spot-check scene(s) ${crushedScenes.join(", ")}` : ""),
-      );
-    }
-  }
-
-  return merged;
+  // Scene-order merge + alignment tail — shared with the full-cache-hit path
+  // above so both exits of this function can never drift apart again (#421).
+  return finalizeTtsResults(scenes, cachedResults, validatedResults, outputDir, {
+    runAlignment,
+    useCache,
+  });
 }

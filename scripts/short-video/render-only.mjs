@@ -19,7 +19,7 @@ import { renderRemotion } from "./lib/render-remotion.mjs";
 import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
 import { checkFinalMedia, formatFinalMediaFailures } from "./lib/final-media-gate.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
-import { regenerateSubtitles } from "./lib/subtitles/generate.mjs";
+import { assertSubtitleTiming, regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { runCanonicalTextGate } from "./lib/verify-canonical-text.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 
@@ -44,6 +44,17 @@ async function main() {
     console.error(`   ${e.message}`);
     process.exit(1);
   }
+
+  // #421: reproduce main.mjs's normalization chain (Step 0.5 currency +
+  // Step 0.6 TTS dual-track) before anything reads the scene text. The
+  // subtitle render boundary below recomputes the alignment signature from
+  // this text, and it must match what main.mjs aligned against — without
+  // this, unnormalized scenes would look "stale" while actually being the
+  // same content.
+  const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
+  normalizeSceneData(scenes, meta);
+  const { normalizeTtsText } = await import("./lib/normalize-tts-text.mjs");
+  normalizeTtsText(scenes, meta);
 
   // The HTML/Playwright path was retired (decision 59): Remotion is the only
   // renderer. Fail fast before any real work on attempts to opt back in.
@@ -145,6 +156,21 @@ async function main() {
     console.log();
   } else {
     console.log("📝 Step 3: Subtitles skipped (no subtitle-timing.json)\n");
+  }
+
+  // ── Step 3.5: Subtitle render boundary (#421) ──
+  // render-only cannot realign — a missing/corrupt/stale timing must stop the
+  // re-render instead of shipping a video with no burned-in subtitles.
+  try {
+    assertSubtitleTiming({ scenes, ttsResults: sceneData, outputDir });
+    console.log("✅ Step 3.5: Subtitle timing ready (timing + cues present and fresh)\n");
+  } catch (err) {
+    console.error(`❌ Step 3.5: ${err.message}`);
+    console.error(
+      `   Fail-closed: re-run the full pipeline (node main.mjs --content ${contentDir}) ` +
+        `to realign (#421).`,
+    );
+    process.exit(1);
   }
 
   // ── Step 4: Render ──
