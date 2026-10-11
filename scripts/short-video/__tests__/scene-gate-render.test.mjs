@@ -254,6 +254,19 @@ describe(
       expect(ink.width).toBeLessThanOrEqual(gate.width);
     });
 
+    it("#422 entrance window: the logo row never false-positives mid-SlideUp", () => {
+      // The ticket's acceptance covers entrance AND settled frames. The row
+      // slides in from y+30 between frames 12 and 24; the entrance assert
+      // polices transform-free layout boxes, so a resting overflow — which is
+      // exactly what the bug was — must still fail here, while the translate
+      // itself must not.
+      for (const frame of [13, 20, 30]) {
+        const { ok, payload, raw } = renderScenario("baseline-hook-logo-row", frame);
+        expect(ok, raw).toBe(true);
+        expect(payload).toBeNull();
+      }
+    });
+
     it("#37: an unknown visualType throws at dispatch (no silent narrative fallback)", () => {
       const { ok, raw } = renderScenario("unknown-visualtype");
       expect(ok).toBe(false);

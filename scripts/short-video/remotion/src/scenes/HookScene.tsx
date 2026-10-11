@@ -125,6 +125,12 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
             style={{
               display: "flex",
               alignItems: "center",
+              // Only bites when the row is narrower than the band — i.e. the
+              // logo-only shape, where it keeps the mark centred as before.
+              // With a subject the gate's width is fixed at the reserved
+              // budget, so the lockup fills the row and reads left-anchored
+              // (exactly as the no-logo shape always did); optically centring
+              // a short name is a #291 design question, not this fix's.
               justifyContent: "center",
               gap: HOOK_SUBJECT_ROW.gap,
               width: "100%",

@@ -225,7 +225,7 @@ const BASELINE_SCENES: Record<string, SceneData> = {
   // lineHeight 1.05 sits below the font's natural ~1.1em and fails Fit on its
   // own — reproduced on unmodified HEAD, so it is out of this ticket's scope.)
   "baseline-hook-logo-claim": {
-    id: 23,
+    id: 22,
     visualType: "hook",
     voiceover: "hook",
     texts: {
@@ -241,7 +241,7 @@ const BASELINE_SCENES: Record<string, SceneData> = {
   // #422: logo with no subject text — the row is the logo alone and must stay
   // centred in the band (no gate, no width to reserve).
   "baseline-hook-logo-only": {
-    id: 22,
+    id: 23,
     visualType: "hook",
     voiceover: "hook",
     texts: {
@@ -442,27 +442,6 @@ const MEASURE_LAYOUT_SCENES: Record<string, SceneData> = {
   },
 };
 
-/** measure:<key> → the scene whose slots it measures. */
-const MEASURE_SCENES: Record<string, SceneData> = {
-  ...Object.fromEntries(
-    Object.entries(BASELINE_SCENES).map(([key, scene]) => [key.replace(/^baseline-/, ""), scene]),
-  ),
-  ...MEASURE_LAYOUT_SCENES,
-};
-
-/**
- * Width a slot's surroundings actually grant it. Walks from the gate up
- * through the ancestors, accumulating every layer's horizontal decoration
- * (padding + border + margin — even non-container layers like cards and
- * entrance wrappers take width away from the gate). A [data-text-container]
- * whose content box fits the gate PLUS what the crossed layers consume is an
- * independent constraint (available = its content width minus that). The
- * comparison must be ≥, not >: a gate whose contract width exactly equals
- * its band's content box (the media-overlay bottom band) IS constrained by
- * it. No constraining container → the SAFE-band width (1080 − 60 − 200)
- * minus the decorations. Content-box semantics match the gate's container
- * assert (clientWidth minus padding).
- */
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
@@ -484,6 +463,27 @@ function inkBoxOf(gate: HTMLElement): Record<string, number> | null {
   return { left: round2(left), right: round2(right), width: round2(right - left) };
 }
 
+/** measure:<key> → the scene whose slots it measures. */
+const MEASURE_SCENES: Record<string, SceneData> = {
+  ...Object.fromEntries(
+    Object.entries(BASELINE_SCENES).map(([key, scene]) => [key.replace(/^baseline-/, ""), scene]),
+  ),
+  ...MEASURE_LAYOUT_SCENES,
+};
+
+/**
+ * Width a slot's surroundings actually grant it. Walks from the gate up
+ * through the ancestors, accumulating every layer's horizontal decoration
+ * (padding + border + margin — even non-container layers like cards and
+ * entrance wrappers take width away from the gate). A [data-text-container]
+ * whose content box fits the gate PLUS what the crossed layers consume is an
+ * independent constraint (available = its content width minus that). The
+ * comparison must be ≥, not >: a gate whose contract width exactly equals
+ * its band's content box (the media-overlay bottom band) IS constrained by
+ * it. No constraining container → the SAFE-band width (1080 − 60 − 200)
+ * minus the decorations. Content-box semantics match the gate's container
+ * assert (clientWidth minus padding).
+ */
 function availableWidthFor(gate: HTMLElement): number {
   const fallback = CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right;
   const gateWidth = gate.offsetWidth;
@@ -567,6 +567,12 @@ const MeasureProbe: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   if (collecting) {
     const gates = Array.from(document.querySelectorAll("[data-text-slot]")) as HTMLElement[];
+    // What the gate's SURROUNDINGS grant it (a container's content box minus
+    // the crossed layers' decoration). It does NOT account for a sibling that
+    // already spent part of that box — in the hook logo row the container still
+    // grants 820 while the gate renders 700 because the logo took 120. Row
+    // geometry is `measuredBoxes`; gate+ink reality is `measuredGates` /
+    // `measuredInk`.
     const measuredWidths: Record<string, number> = {};
     for (const gate of gates) {
       measuredWidths[gate.dataset.textSlot ?? "unknown"] = availableWidthFor(gate);
