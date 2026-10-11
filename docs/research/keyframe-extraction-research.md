@@ -2898,8 +2898,22 @@ prodwin vs Qwen native：**Δ=+12.1pp，McNemar p=0.0215**，4.0× 慢。全 276
 只在 `frames` 时建窗；**A1 转写接线**（`transcribeVideo` → `opts.transcript` →
 `build_semantics_prompt`，口径与 bench `block` 模式逐字一致，转写进缓存键）；
 `sourceMode` 新增 `native`；`transcriptChars`/`transcriptGuard` 进产物。装载层生产
-调用者归零（`extract_frames` 仅 `frames` 引擎可达），保留为回退 + 引擎契约，
-「无调用者」逐项记在 runbook。
+调用者归零（`extract_frames` 仅 `frames` 引擎可达），保留为回退 + 引擎契约。逐项
+审计（用户 2026-10-10 裁决：全部保留、只记事实）：
+
+| API / 能力 | 生产调用者 | bench / 测试 |
+|---|---|---|
+| `load_video` | `extract_frames`（仅 `frames` 引擎或带窗请求） | `test_video_loader.py` |
+| `load_video` 的 `cache_dir` / manifest 缓存 | **无**（生产调用只传 `frame_times` + `want_audio: False`） | 测试 |
+| `load_video` 的 `asr` / `asr_runner` 转写通道 | **无**（转写走 JS `transcribeVideo`） | 测试 |
+| `to_text_interleaved` | **无** | 测试 |
+| `frames_with_text` | **无** | `exp_loader_feed_qa.py` |
+| `to_minicpm_units` | **无**（单元路线实测无增益且慢 5-10×） | `exp_omni_units_qa_official.py` / `exp_omni_units_qa_loader.py` |
+| `to_qwen_omni` / `process_qwen_mm_info` | **无**（Omni 交织贡献≈0） | 测试 |
+
+保留的理由：`frames` 引擎（`--engine minicpm`）仍是可选的回退路径，装载层是它的
+解码入口；四组适配器是「引擎契约」的实测证据，删掉后重测要重写。**下次动它之前先
+确认 `--engine minicpm` 已无人使用**——那时整块可以一次性退役。
 
 **③b 真实数据冒烟抓到的一个生产阻断（同票修掉）**：进程池默认
 `VLM_CONCURRENCY=2` 是给 5GB 的 MiniCPM 定的；换成 17GB 的 Qwen3-VL 后
