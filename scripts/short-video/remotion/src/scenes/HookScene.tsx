@@ -26,6 +26,7 @@ import { SPACING, ANNOTATION } from "../components/shared";
 import { NumberPulse, ScanSweep } from "../components/animations/loops";
 import { MediaBackground } from "../components/MediaBackground";
 import { TextGate } from "../components/text-gate";
+import { HOOK_SUBJECT_ROW, hookSubjectTextWidth } from "../../../lib/text-slots.mjs";
 import { AnnotationCollisionAssert } from "../components/annotation-collision-gate";
 import { SplitHighlight } from "../components/substring-highlight";
 
@@ -64,6 +65,14 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
   // one predicate gates the box="inside" Circle, the gate's annotation
   // expectation, and the F7 collision assert so the three can never drift.
   const circleAroundNumber = !!txt.bigNumber && (txt.bigNumber as string).length <= 5;
+
+  // #422: the logo shares the subject row, so it spends its own box and the
+  // row gap before the text starts. The slot contract measures the whole band
+  // (820); the subject gate may only render into what is left, or the row
+  // grows past the band and the safe-zone / container assert cancels the
+  // render (the bug that kept `texts.subjectLogo` unrenderable).
+  const hasSubjectLogo = !!txt.subjectLogo;
+  const subjectWidth = hookSubjectTextWidth({ hasLogo: hasSubjectLogo });
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
@@ -106,40 +115,80 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
           <SlideUp
             delay={0.2}
             duration={0.4}
+            dataMeasureBox="subject-row"
+            // #422: the row is a flex item of a centre-aligned column band, so
+            // its cross size is fit-content — with the logo it measured
+            // 96+24+820 = 940, 120px wider than the band, and the centred row
+            // pushed the logo (and the gate) past the safe zone on BOTH sides.
+            // Capping it at the band's content box makes the overflow
+            // impossible regardless of what the row's children claim.
             style={{
               display: "flex",
               alignItems: "center",
+              // Only bites when the row is narrower than the band — i.e. the
+              // logo-only shape, where it keeps the mark centred as before.
+              // With a subject the gate's width is fixed at the reserved
+              // budget, so the lockup fills the row and reads left-anchored
+              // (exactly as the no-logo shape always did); optically centring
+              // a short name is a #291 design question, not this fix's.
               justifyContent: "center",
-              gap: 24,
+              gap: HOOK_SUBJECT_ROW.gap,
+              width: "100%",
               marginBottom: 32,
             }}
           >
             {txt.subjectLogo && (
-              <CanvasImage
-                src={staticFile(`assets/logos/${txt.subjectLogo}.svg`)}
+              // Fixed-size brand mark: the wrapper owns the box so the logo
+              // can never be squeezed by the text's flex claim, and so the
+              // #422 probe can read its real geometry (`measure:hook-logo-row`).
+              <div
+                data-measure-box="subject-logo"
                 style={{
-                  width: 96,
-                  height: 96,
-                  filter: "drop-shadow(0 0 25px rgba(77,139,255,0.3))",
+                  flexShrink: 0,
+                  width: HOOK_SUBJECT_ROW.logoSize,
+                  height: HOOK_SUBJECT_ROW.logoSize,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
-              />
+              >
+                <CanvasImage
+                  src={staticFile(`assets/logos/${txt.subjectLogo}.svg`)}
+                  style={{
+                    width: HOOK_SUBJECT_ROW.logoSize,
+                    height: HOOK_SUBJECT_ROW.logoSize,
+                    filter: "drop-shadow(0 0 25px rgba(77,139,255,0.3))",
+                  }}
+                />
+              </div>
             )}
             {txt.subject && (
-              <TextGate sceneId={sceneId} slotId="hook.hero-center.subject">
-                {(fontSize) => (
-                  <span
-                    style={{
-                      fontSize,
-                      fontWeight: 900,
-                      color: "#f5f5f5",
-                      letterSpacing: "4px",
-                      textShadow: `0 0 30px ${color}66`,
-                    }}
-                  >
-                    {txt.subject as string}
-                  </span>
-                )}
-              </TextGate>
+              // minWidth:0 lets the row shrink this wrapper to the reserved
+              // width instead of the gate's min-content — without it a long
+              // unbreakable word silently re-widens the row back out of the
+              // band. Inside a plain block the gate's `width` is exact, so
+              // Fit still measures the reserved width, not a flex artefact.
+              <div style={{ minWidth: 0, maxWidth: subjectWidth, flexShrink: 1 }}>
+                <TextGate
+                  sceneId={sceneId}
+                  slotId="hook.hero-center.subject"
+                  slotWidth={subjectWidth}
+                >
+                  {(fontSize) => (
+                    <span
+                      style={{
+                        fontSize,
+                        fontWeight: 900,
+                        color: "#f5f5f5",
+                        letterSpacing: "4px",
+                        textShadow: `0 0 30px ${color}66`,
+                      }}
+                    >
+                      {txt.subject as string}
+                    </span>
+                  )}
+                </TextGate>
+              </div>
             )}
           </SlideUp>
         )}

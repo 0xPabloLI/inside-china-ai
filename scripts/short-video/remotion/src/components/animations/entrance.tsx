@@ -14,6 +14,13 @@ interface AnimProps {
   duration?: number;
   children: ReactNode;
   style?: React.CSSProperties;
+  /**
+   * Opt-in measurement hook: names this wrapper for the render probes
+   * (`measure:*` scenarios read every `[data-measure-box]` element). #422
+   * needs the hook subject ROW's real box, and the row is an entrance
+   * wrapper — the only element that can carry it.
+   */
+  dataMeasureBox?: string;
 }
 
 /** fadeIn — opacity 0→1, 0.4s, ease-out */
@@ -34,12 +41,19 @@ export const FadeIn: React.FC<AnimProps> = ({ delay = 0, duration = 0.4, childre
 };
 
 /** slideUp — opacity 0→1, translateY 30→0, 0.4s, ease-out */
-export const SlideUp: React.FC<AnimProps> = ({ delay = 0, duration = 0.4, children, style }) => {
+export const SlideUp: React.FC<AnimProps> = ({
+  delay = 0,
+  duration = 0.4,
+  children,
+  style,
+  dataMeasureBox,
+}) => {
   const frame = useCurrentFrame();
   const start = secToFrames(delay);
   const end = start + secToFrames(duration);
   return (
     <div
+      data-measure-box={dataMeasureBox}
       style={{
         opacity: interpolate(frame, [start, end], [0, 1], clamp),
         translate: `0 ${interpolate(frame, [start, end], [30, 0], clamp)}px`,

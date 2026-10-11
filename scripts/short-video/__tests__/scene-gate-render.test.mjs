@@ -20,6 +20,8 @@ import { mkdtempSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
+import { CANVAS, SAFE_ZONES } from "../lib/safe-zones.mjs";
+import { HOOK_SUBJECT_ROW, hookSubjectTextWidth } from "../lib/text-slots.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -64,6 +66,16 @@ const GATE_TIMEOUT = 300_000;
 const BASELINES = [
   "baseline-hook",
   "hook-source-descender",
+  // #422: the logo row. `texts.subjectLogo` puts a 96px logo in the SAME flex
+  // row as the subject gate; before the fix the row measured 96+24+820 = 940
+  // against the 820 band, so the gate was pushed out of the safe zone and the
+  // render was cancelled (entrance frame: safe-zone-breach; settled frame:
+  // container-overflow). Claim-led, number-led, wrapped long name and
+  // logo-only are all covered — every one of them failed before.
+  "baseline-hook-logo-row",
+  "baseline-hook-logo-long",
+  "baseline-hook-logo-claim",
+  "baseline-hook-logo-only",
   "baseline-narrative",
   "baseline-narrative-stacked",
   "baseline-stat-reveal",
@@ -208,6 +220,50 @@ describe(
       ]);
       for (const ratio of Object.values(collision.ratios)) {
         expect(ratio).toBeLessThanOrEqual(0.02);
+      }
+    });
+
+    it("#422: the hook logo row measures inside the band — row, logo, gate and ink", () => {
+      // The failure the ticket reported was the ROW, not the gate: logo(96) +
+      // gap(24) + a gate still claiming the full band(820) = 940, centred in
+      // an 820 band, so the logo and the gate hung 60px past each edge. The
+      // probe reads all four boxes on a real settled render — proving the
+      // logo, the text and the row itself never reach the TikTok rail.
+      const { ok, payload, raw } = renderScenario("measure:hook-logo-row");
+      // The measurement harness rides out on a cancelRender payload.
+      expect(ok, raw).toBe(false);
+      expect(payload, raw).toBeTruthy();
+      expect(payload.reason).toBe("measurement");
+      const bandLeft = SAFE_ZONES.left;
+      const bandRight = CANVAS.width - SAFE_ZONES.right;
+      const row = payload.measuredBoxes?.["subject-row"];
+      const logo = payload.measuredBoxes?.["subject-logo"];
+      const gate = payload.measuredGates?.["hook.hero-center.subject"];
+      const ink = payload.measuredInk?.["hook.hero-center.subject"];
+      for (const [name, box] of Object.entries({ row, logo, gate, ink })) {
+        expect(box, `${name} missing from the probe payload: ${raw}`).toBeTruthy();
+        expect(box.left, `${name} left`).toBeGreaterThanOrEqual(bandLeft);
+        expect(box.right, `${name} right`).toBeLessThanOrEqual(bandRight);
+      }
+      expect(row.width).toBe(bandRight - bandLeft);
+      expect(logo.width).toBe(HOOK_SUBJECT_ROW.logoSize);
+      // The gate renders the RESERVED width, not the band — that subtraction
+      // is the whole fix.
+      expect(gate.width).toBe(hookSubjectTextWidth({ hasLogo: true }));
+      // Ink fits the gate: the name has room and is not clipped.
+      expect(ink.width).toBeLessThanOrEqual(gate.width);
+    });
+
+    it("#422 entrance window: the logo row never false-positives mid-SlideUp", () => {
+      // The ticket's acceptance covers entrance AND settled frames. The row
+      // slides in from y+30 between frames 12 and 24; the entrance assert
+      // polices transform-free layout boxes, so a resting overflow — which is
+      // exactly what the bug was — must still fail here, while the translate
+      // itself must not.
+      for (const frame of [13, 20, 30]) {
+        const { ok, payload, raw } = renderScenario("baseline-hook-logo-row", frame);
+        expect(ok, raw).toBe(true);
+        expect(payload).toBeNull();
       }
     });
 
