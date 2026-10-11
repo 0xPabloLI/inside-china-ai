@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.15.1...tanstack_start_ts-v1.15.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* **tts:** digit+unit merge aliases so heard "720p" satisfies expected "720 P" ([#548](https://github.com/0xPabloLI/inside-china-ai/issues/548)) ([#554](https://github.com/0xPabloLI/inside-china-ai/issues/554)) ([c019626](https://github.com/0xPabloLI/inside-china-ai/commit/c019626b8db638b271050825ae2d019b2f1ee136))
+
 ## [1.15.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.15.0...tanstack_start_ts-v1.15.1) (2026-10-11)
 
 
