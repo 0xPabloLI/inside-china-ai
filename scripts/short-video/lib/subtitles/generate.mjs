@@ -114,7 +114,12 @@ export function regenerateSubtitles({ outputDir, sceneDurations }) {
  * @throws {Error} when the render boundary cannot be satisfied
  */
 export function assertSubtitleTiming({ scenes, ttsResults, outputDir }) {
-  const voiced = (scenes ?? []).filter((s) => String(s?.voiceover ?? "").trim() !== "");
+  // Same text source as computeAlignmentSignature below: a scene carrying
+  // only the spoken form (ttsText) still needs burned-in subtitles, so it
+  // must not be classified as visual-only (#421 review).
+  const voiced = (scenes ?? []).filter(
+    (s) => String(s?.ttsText ?? s?.voiceover ?? "").trim() !== "",
+  );
   if (voiced.length === 0) return null;
 
   const audioDir = join(outputDir, "audio");

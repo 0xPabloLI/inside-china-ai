@@ -20,6 +20,7 @@ import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
 import { checkFinalMedia, formatFinalMediaFailures } from "./lib/final-media-gate.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { assertSubtitleTiming, regenerateSubtitles } from "./lib/subtitles/generate.mjs";
+import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
 import { runCanonicalTextGate } from "./lib/verify-canonical-text.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 
@@ -76,13 +77,14 @@ async function main() {
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
   // ── Step 1: Read durations from the existing voiceover ──
-  // TTS engines differ in output format: edge-tts writes .mp3, F5-TTS-MLX
-  // writes .wav. Accept either, preferring whichever file exists.
+  // TTS engines differ in output format: edge-tts wrote .mp3, the current
+  // F5/MLX/Kaggle engines write .wav. resolveSceneAudioPath reads the
+  // scene's tts-meta sidecar first — legacy dirs hold a stale .mp3 beside
+  // the current .wav, and the render boundary hashes this resolved path
+  // (#421 review) — then falls back to probing either extension.
   const sceneData = [];
   for (const scene of scenes) {
-    const audioPath = [".mp3", ".wav"]
-      .map((ext) => join(audioDir, `scene-${scene.id}${ext}`))
-      .find((p) => existsSync(p));
+    const audioPath = resolveSceneAudioPath(audioDir, scene.id);
     if (!audioPath) {
       const expected = join(audioDir, "scene-" + scene.id + ".mp3");
       console.error("❌ Missing audio: " + expected + " (or .wav)");

@@ -12,6 +12,14 @@ const audioDir = join(outputDir, "audio");
 const { meta } = await import(`./content/${CONTENT_DIR}/meta.mjs`);
 const { scenes } = await import(`./content/${CONTENT_DIR}/scene-data.mjs`);
 
+// #421 review: same normalization chain as main.mjs (Step 0.5 currency +
+// Step 0.6 TTS dual-track) — the subtitle render boundary below recomputes
+// the alignment signature and must see the text the pipeline aligned against.
+const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
+normalizeSceneData(scenes, meta);
+const { normalizeTtsText } = await import("./lib/normalize-tts-text.mjs");
+normalizeTtsText(scenes, meta);
+
 const patchPath = join(outputDir, "media-patch.json");
 if (existsSync(patchPath)) {
   const patch = JSON.parse(readFileSync(patchPath, "utf-8"));
@@ -44,6 +52,26 @@ console.log(
     .map((s) => s.id)
     .join(", ")}`,
 );
+
+// Subtitle render boundary (#421): a voiced render must carry valid, fresh
+// subtitle timing — refuse instead of silently dropping the burn-in.
+{
+  const { assertSubtitleTiming } = await import("./lib/subtitles/generate.mjs");
+  const ttsResults = scenes.map((scene, i) => ({
+    sceneId: scene.id,
+    audioPath: audioPaths[i],
+    duration: durations[i],
+  }));
+  try {
+    assertSubtitleTiming({ scenes, ttsResults, outputDir });
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    console.error(
+      "   Fail-closed: a voiced video without burned-in subtitles is not shippable (#421).",
+    );
+    process.exit(1);
+  }
+}
 
 const result = renderRemotion({
   scenes,

@@ -122,4 +122,11 @@ describe("assertSubtitleTiming (#421)", () => {
     setup({ timing: null, scenesOverride: [{ id: 1, voiceover: "" }] });
     expect(assertSubtitleTiming({ scenes, ttsResults, outputDir: dir })).toBeNull();
   });
+
+  it("still guards a scene that carries only the spoken form (ttsText)", () => {
+    setup({ timing: null, scenesOverride: [{ id: 1, ttsText: "Hello world" }] });
+    expect(() => assertSubtitleTiming({ scenes, ttsResults, outputDir: dir })).toThrow(
+      /subtitle-timing\.json is missing/i,
+    );
+  });
 });

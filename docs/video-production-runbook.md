@@ -298,6 +298,8 @@ ffmpeg -y -i input.m4a -ar 24000 -ac 1 -c:a pcm_s16le \
 
 **Subtitle alignment**: Uses `text-align.py` (wav2vec2 forced alignment) — NOT Whisper recognition. We already know the text (from scene-data.mjs), so we align known text to known audio directly. Output: `output/{pipelineId}/audio/subtitle-timing.json`.
 
+**Subtitle render boundary (#421)**: every render entry point (`main.mjs` Step 4.5, `render-only.mjs` Step 3.5, `rerender-full.mjs`, `realign-render.mjs`) re-checks the timing immediately before rendering and **fails closed** (exit 1, no render) when `subtitle-timing.json` is missing, unreadable, stale against the current scene text + audio bytes (#198 signature), or yields zero cues. A full TTS cache hit still runs the alignment tail, so the second run of an unchanged pipeline reuses valid timing instead of skipping alignment. `render-only.mjs` cannot realign — when it refuses, re-run `main.mjs --content <id>` to regenerate timing, then re-render.
+
 ### ASR 调用规范（运行时裁决 / 模型档位 / 跨段上下文 / 幻觉护栏 / 计时与内存）
 
 适用范围：`video-understand.mjs`（视频理解转写）与 `tts/quality-gate.mjs`（回读质检）——
@@ -916,6 +918,7 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 | 2    | Validate every scene received a TTS result                                                                                                                                                                                                                                   | fail-fast on missing voiceover                           |
 | 3    | Generate BGM (optional, `--bgm`)                                                                                                                                                                                                                                             | `output/{id}/bgm.mp3`                                    |
 | 4    | Generate ASS subtitles                                                                                                                                                                                                                                                       | `output/{id}/subtitles.ass`                              |
+| 4.5  | **Subtitle render boundary — hard FAIL (#421)**: immediately before render, a voiced run must have a fresh `subtitle-timing.json` (signature over scene text + audio bytes) yielding ≥1 cue; missing/corrupt/stale → exit 1, no render                                       | `lib/subtitles/generate.mjs` failure message             |
 | 5    | Render the final video with Remotion (React → frame-by-frame, 1080×1920): TextGate geometry gate (safe zones / container overflow / glyph ink / annotation bounds, `cancelRender` with `[TextFitError]`) runs during this render, then ASS burn-in / BGM mix / loudness norm | `output/{id}/{id}-v{version}-short.mp4`                  |
 | 6    | Verify subtitles with auto-retry (auto, `--skip-verify` to skip, `--max-retries N` default 2)                                                                                                                                                                                | `output/{id}/verification-report.json`                   |
 
