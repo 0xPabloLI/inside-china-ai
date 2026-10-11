@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.17.1...tanstack_start_ts-v1.17.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* **short-video:** reserve the logo row width so a hook can render its subjectLogo ([#422](https://github.com/0xPabloLI/inside-china-ai/issues/422)) ([edb04f3](https://github.com/0xPabloLI/inside-china-ai/commit/edb04f35e3d86ac24d034e984e33b0b981a1131d))
+
 ## [1.17.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.17.0...tanstack_start_ts-v1.17.1) (2026-10-11)
 
 
