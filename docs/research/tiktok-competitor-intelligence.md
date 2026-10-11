@@ -128,7 +128,8 @@
 
 ### 3.2 Tag → 效果关联分析
 
-**数据现状**：4 条视频，数据粒度有限但已可做初步推断。
+**数据现状**：4 条视频（2026-08-25 快照），数据粒度有限但已可做初步推断。
+> **2026-10-11 复测**：样本已增至 11 条去重视频。下表保留 08-25 快照的计数口径（/4），但 `#creatorsearchinsights` 行的结论已按新样本更正——当前口径与数据见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略。
 
 | Hashtag                 | 使用次数 | 关联视频平均播放 | 关联搜索词                            | 初步结论                                                                                                                                                            |
 | ----------------------- | -------- | ---------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -137,13 +138,13 @@
 | #ainews                 | 1/4      | 98               | —                                     | 仅 Unitree 视频使用，搜索词变为 "robot seeks china"（非 #ainews 相关）                                                                                              |
 | #technews               | 1/4      | 247              | —                                     | 仅 DeepSeek v1 使用，该视频播放最高但无法单独归因 tag                                                                                                               |
 | #artificialintelligence | 1/4      | 247              | —                                     | 同上                                                                                                                                                                |
-| #creatorsearchinsights  | 2/4      | 112              | "creator insights part 3 4 5"         | **待重新验证的历史信号**——2 条视频样本不足以单标签归因。搜索词表明该标签可能误导受众，但 Buffer 和 TikTok 官方均推荐使用。2026-08-26 从 `BLACKLISTED_HASHTAGS` 移除 |
+| #creatorsearchinsights  | 2/4      | 112              | "creator insights part 3 4 5"         | ~~待重新验证的历史信号~~ **已作废（2026-10-11 复测）**：本行 2/4→112 是 2 vs 3 样本的产物。11 条去重样本的当前口径见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略。2026-08-26 从 `BLACKLISTED_HASHTAGS` 移除 |
 | #tencent                | 1/4      | 98               | "tencent salary increase impact" 7.7% | 可能有效——搜索词匹配                                                                                                                                                |
 | #unitree                | 1/4      | 98               | "unitree aktie" 7.7%                  | 可能有效——德语搜索词表明触达了非英语受众                                                                                                                            |
 
 **关键发现**：
 
-1. **#creatorsearchinsights 待重新验证**：使用它的两条视频（#2 和 #3）平均播放 112，搜索词 "creator insights part 3 4 5" 表明标签可能误导受众。但仅 2 条样本不足以单独归因 hashtag 效果。2026-08-26 决策：从 `BLACKLISTED_HASHTAGS` 移除，不再自动禁用。Agent 在使用 Creator Search Insights 发现内容 gap 时可手动通过 `metadata.hashtags` 加入。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略。
+1. **#creatorsearchinsights 无实测影响（2026-10-11 复测）**：11 条去重视频上带与不带该 tag 的播放差异落在噪声内——**08-27 记的「-48%」是 2 vs 3 样本的产物，已作废**。唯一已知副作用是搜索词漂移（`creator insights part 3 4 5`，即吸引 CSI 工具教程受众而非新闻受众）。当前口径与数据见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略；2026-08-26 决策维持：从 `BLACKLISTED_HASHTAGS` 移除，不自动加入。
 2. **#deepseek + #technews + #artificialintelligence 组合效果最好**：视频 #1 播放 247（最高），但无法确定是 tag 还是标题/描述内容驱动的。
 3. **搜索词已变化**：7 天快照中搜索词从 "deepseek" 相关变为 "unitree/robot/china stock" 相关——说明搜索流量跟着最新视频走，而不是累积。
 4. **FYP 流量从 5.7%（8月8日）升到 86%（8月25日）**——但总播放量仍很低（98），说明 FYP 推荐了但完播率低导致没继续放大。
