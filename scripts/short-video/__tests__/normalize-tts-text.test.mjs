@@ -5,7 +5,7 @@
  * DISPLAY track (voiceover → subtitles) must keep the original tokens.
  */
 import { describe, it, expect } from "vitest";
-import { normalizeTtsText } from "../lib/normalize-tts-text.mjs";
+import { normalizeTtsText, splitDigitUnitToken } from "../lib/normalize-tts-text.mjs";
 
 describe("normalizeTtsText dual-track", () => {
   it("keeps voiceover untouched and writes ttsText + replacements", () => {
@@ -107,5 +107,24 @@ describe("normalizeTtsText digit+unit splitting (#239)", () => {
     normalizeTtsText(scenes);
     expect(scenes[0].ttsText).toBeUndefined();
     expect(scenes[0].ttsReplacements).toBeUndefined();
+  });
+});
+
+// ─── #548: token-level projection of the same whitelist (ASR alias seam) ───
+// quality-gate.mjs uses this to mirror the #239 split on the HEARD side
+// ("720p" → "720" + "P"), so the alias can never drift from the spoken-split
+// side: both regexes are built from one shared alternation.
+describe("splitDigitUnitToken (#548)", () => {
+  it("splits whitelisted tokens with the same rules as splitDigitUnits", () => {
+    expect(splitDigitUnitToken("720p")).toEqual({ digits: "720", unit: "P" });
+    expect(splitDigitUnitToken("16GB")).toEqual({ digits: "16", unit: "GB" });
+    expect(splitDigitUnitToken("144Hz")).toEqual({ digits: "144", unit: "Hz" });
+    expect(splitDigitUnitToken("32bit")).toEqual({ digits: "32", unit: "bit" });
+  });
+
+  it("returns null outside the curated whitelist", () => {
+    for (const token of ["0x12a", "10x", "H100", "A100", "B200", "4b", "720p1", "x4k"]) {
+      expect(splitDigitUnitToken(token)).toBeNull();
+    }
   });
 });

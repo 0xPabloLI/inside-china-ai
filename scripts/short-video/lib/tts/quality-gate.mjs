@@ -16,6 +16,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { transcribeVideo } from "../video-understand.mjs";
 import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "../asr-defaults.mjs";
+import { splitDigitUnitToken } from "../normalize-tts-text.mjs";
 import { FAILURE_CLASS, asrOptOutEnabled } from "./failure-class.mjs";
 import { validateInstructSignature } from "./instruct.mjs";
 
@@ -151,7 +152,8 @@ export function extractGuardedTokens(text) {
  */
 /**
  * Build an expanded ASR token set that automatically unpacks composite tokens,
- * version prefixes (e.g. "v4" -> "v", "4", "four"), and decimals (#234).
+ * version prefixes (e.g. "v4" -> "v", "4", "four"), decimals (#234), and
+ * merged digit+unit tokens (#548: "720p" -> "720", "p").
  *
  * @param {string[]} asrTokens
  * @returns {Set<string>}
@@ -172,6 +174,19 @@ export function buildExpandedAsrTokenSet(asrTokens) {
     // excluded by the strict roman alphabet + length cap.
     if (/^v[ivx]{1,3}$/i.test(t)) {
       expanded.add("v");
+    }
+    // #548: mirror of #239 on the heard side. The expected text is normalized
+    // to "720 P" (digit + unit split), while whisper.cpp commonly re-merges
+    // the heard form to "720p" — without this alias the critical "720" has no
+    // evidence and a CORRECT take hard-blocks as acoustic (#271). The alias
+    // comes from the SAME curated whitelist as normalize-tts-text, so hex,
+    // multiplier and codename tokens (0x12a, 10x, H100, B200, "$1.4B" → 4b)
+    // never expand, and a merged token only ever yields its OWN digit+unit
+    // pair ("7200p" is not evidence for "720"; "720k" cannot yield "p").
+    const unitSplit = splitDigitUnitToken(t);
+    if (unitSplit) {
+      expanded.add(unitSplit.digits);
+      expanded.add(unitSplit.unit.toLowerCase());
     }
   }
   return expanded;

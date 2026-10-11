@@ -403,6 +403,140 @@ describe("#251 roman-numeral version equivalence", () => {
   });
 });
 
+// ─── #548: digit+unit merge mirror (expected "720 P" vs heard "720p") ───
+// Real repro (ant-lingbot-world-13b scene 3, 2026-10-11; saved in
+// qwen-native-acceptance-lingbot-20261011.log): #239 normalizes the expected
+// side to "720 P", whisper.cpp re-merges the heard form to "720p", so the
+// critical token "720" had no evidence and a CORRECT take hard-blocked with
+// TTS_ACOUSTIC_HARD_BLOCK (4 takes, self-heal cannot fix a matching rule).
+// Aliases must come from the SAME curated unit whitelist as
+// normalize-tts-text (#239) — never a generic (\d+)([a-z]+) rule.
+describe("#548 digit+unit merge aliases", () => {
+  // Verbatim saved evidence from the failed real run (log lines 421-423).
+  const EXPECTED =
+    "QbitAI reported that Lingbo open-sourced LingBot-World two point zero in July at 14 billion parameters. It hit 720 P at 60 frames per second.";
+  const HEARD =
+    "QubitEye reported that Lingbo open-sourced Lingbot World 2.0 in July, at 14 billion parameters. It hit 720p at 60 frames per second.";
+  // The saved run measured 142 WPM for the 26-word scene → 10.99s.
+  const SAVED_DURATION = 10.99;
+
+  const dir = mkdtempSync(join(tmpdir(), "tts-548-"));
+  const audio = join(dir, "scene-3.wav");
+  beforeEach(() => writeFileSync(audio, "RIFFdummydata"));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  /** Gate the saved scene 3 against one ASR transcript. */
+  const gateSavedScene = (heardText) => {
+    const scene = { id: 3, voiceover: EXPECTED, ttsText: EXPECTED };
+    const transcriber = vi.fn().mockResolvedValue({ ok: true, segments: [{ text: heardText }] });
+    return evaluateSceneTts(scene, audio, SAVED_DURATION, { transcriber });
+  };
+
+  it("expands a whitelisted merged token into digit + unit evidence, keeping the raw token", () => {
+    const set = buildExpandedAsrTokenSet(tokenize("It hit 720p at 60 frames per second"));
+    expect(set.has("720p")).toBe(true); // raw token kept
+    expect(set.has("720")).toBe(true);
+    expect(set.has("p")).toBe(true);
+    expect(isWordInAsr("720", set)).toBe(true);
+    expect(isWordInAsr("p", set)).toBe(true);
+  });
+
+  it("mirrors every whitelisted unit class", () => {
+    // All 15 UNIT_SPOKEN classes, one token each.
+    const set = buildExpandedAsrTokenSet(
+      tokenize("720p 4k 120fps 5nm 512kb 8mb 16gb 2tb 5km 2kg 144hz 32bit 9g 3t 12m"),
+    );
+    const pairs = [
+      ["720", "p"],
+      ["4", "k"],
+      ["120", "fps"],
+      ["5", "nm"],
+      ["512", "kb"],
+      ["8", "mb"],
+      ["16", "gb"],
+      ["2", "tb"],
+      ["5", "km"],
+      ["2", "kg"],
+      ["144", "hz"],
+      ["32", "bit"],
+      ["9", "g"],
+      ["3", "t"],
+      ["12", "m"],
+    ];
+    for (const [digits, unit] of pairs) {
+      expect(set.has(digits)).toBe(true);
+      expect(set.has(unit)).toBe(true);
+    }
+  });
+
+  it("adds no evidence outside the whitelist (hex, multiplier, codenames, B suffix)", () => {
+    const tokens = tokenize(
+      "H100 and B200 run 0x12a hex kernels; the API costs $1.4B and usage grew 10x",
+    );
+    const set = buildExpandedAsrTokenSet(tokens);
+    // Anchored whole-token match from the curated alternation: letter-prefixed
+    // codenames, hex ("0x12a"), multipliers ("10x") and the B-suffix ("$1.4B"
+    // → "4b") must pass through without generating any new evidence.
+    expect([...set].sort()).toEqual([...new Set(tokens)].sort());
+  });
+
+  it("cannot cross-supply evidence: 7200p is not 720, 720k cannot yield p", () => {
+    const over = buildExpandedAsrTokenSet(tokenize("it hit 7200p on the chip"));
+    expect(isWordInAsr("720", over)).toBe(false);
+    expect(over.has("p")).toBe(true); // its own unit still mirrors
+
+    const kilo = buildExpandedAsrTokenSet(tokenize("priced at 720k units"));
+    expect(kilo.has("720")).toBe(true);
+    expect(kilo.has("k")).toBe(true);
+    expect(kilo.has("p")).toBe(false);
+  });
+
+  it("alias matches cannot push similarity above 1 or below the pass floor", () => {
+    expect(computeTokenSimilarity(["720", "p"], tokenize("720p"))).toBe(1);
+    const full = computeTokenSimilarity(tokenize(EXPECTED), tokenize(HEARD));
+    expect(full).toBeLessThanOrEqual(1);
+    expect(full).toBeGreaterThan(0.75);
+  });
+
+  it("keeps the unsplit-expected boundary unchanged (production expected is always split)", () => {
+    // Both sides merged → direct match, as before.
+    expect(isWordInAsr("720p", buildExpandedAsrTokenSet(tokenize("It hit 720p at 60 fps")))).toBe(
+      true,
+    );
+    // An expected merged token has no alias path to a split heard form — the
+    // pre-#548 boundary, deliberate and unchanged. Production never relies on
+    // it: normalizeTtsText (#239) splits every whitelisted unit on the
+    // expected side, so only the heard side can arrive merged.
+    expect(isWordInAsr("720p", buildExpandedAsrTokenSet(tokenize("It hit 720 p at 60 fps")))).toBe(
+      false,
+    );
+  });
+
+  it("end-to-end: the saved scene 3 take (expected '720 P' vs heard '720p') now passes", async () => {
+    const res = await gateSavedScene(HEARD);
+    expect(res.passed).toBe(true);
+    expect(res.issues).toEqual([]);
+    expect(res.wpm).toBe(142);
+  });
+
+  it("end-to-end negative: the same scene missing 720 still acoustic-blocks", async () => {
+    const res = await gateSavedScene(HEARD.replace("It hit 720p at", "It hit at"));
+    expect(res.passed).toBe(false);
+    expect(res.issues.some((i) => i.includes("missing key token(s) [720]"))).toBe(true);
+    expect(res.failureClass).toBe("acoustic");
+  });
+
+  it("end-to-end negative: a truncated tail still acoustic-blocks", async () => {
+    // Drop both tail words. ("second" alone is masked by the pre-existing
+    // "second" → "2" equivalence via "World 2.0" — out of scope here — so
+    // "per" is what carries the truncation guard.)
+    const res = await gateSavedScene(HEARD.replace("frames per second.", "frames"));
+    expect(res.passed).toBe(false);
+    expect(res.issues.some((i) => i.includes("missing tail word(s) [per]"))).toBe(true);
+    expect(res.failureClass).toBe("acoustic");
+  });
+});
+
 // ─── #271: cross-module threshold coupling ───
 // The registry fail-closes a gate-failed pacing take it cannot plan, so the
 // compensation trigger (pacing.mjs) is a hard lower bound for the gate floor:
