@@ -659,7 +659,7 @@ to_minicpm_units(r)                   # 官方「1 帧 + 1 段音频」单元，
 
 ## B-roll Generation (FastVideo MLX)
 
-Scene-matched generated video backgrounds, on-device (FastVideo `FastMetal-1.3B-QAD` on MLX — see Checkpoint below). Opt-in per scene; a scene-data file using none of these fields behaves exactly as before.
+Scene-matched generated video backgrounds, on-device. Default tier `fastmetal-5b` — FastVideo `FastMetal-5B-QAD` (Wan2.2 TI2V 5B, #298); the legacy `fastmetal-1.3b` (`FastMetal-1.3B-QAD`) stays selectable via `BROLL_MODEL` as the escape hatch. Per-tier drivers, parameters, and time estimates are declared in `lib/b-roll/runner.mjs` `MODEL_TIERS` — the code is the source of truth. Opt-in per scene; a scene-data file using none of these fields behaves exactly as before.
 
 | Field            | Value                   | Effect                                                                                |
 | ---------------- | ----------------------- | ------------------------------------------------------------------------------------- |
@@ -679,19 +679,19 @@ Scene-matched generated video backgrounds, on-device (FastVideo `FastMetal-1.3B-
 
 **Report**: `output/<contentDir>/b-roll-report.json` — per scene the strategy, `promptHash`, `round`, status, every candidate with its score and the VLM's reason, and the winner. It is the agent's iteration input. `verify-video.mjs` renders it as the `B-roll Checks` block, which is the only B-roll surface HITL sees; anything short of `won` warns there and never blocks publishing.
 
-### Tier A parameters
+### Tier parameters
 
-Defaults live in `lib/b-roll/runner.mjs`; what the code cannot say is why each one is fixed:
+`MODEL_TIERS` in `lib/b-roll/runner.mjs` declares each tier's driver, resolution, frames, decoder, and time estimate — the code is the source of truth. What it cannot say is why the legacy 1.3B parameters are fixed:
 
-| Parameter                 | Reason                                                                         |
-| ------------------------- | ------------------------------------------------------------------------------ |
-| 480×832, 81 frames, 16fps | portrait native — the spike's landscape clips lost both edges to the 9:16 crop |
-| int8                      | baked into the checkpoint; there is no runtime quantization flag to set        |
-| `taehv` decode            | the decoder that fits this footprint                                           |
-| 3-step DMD `1000,757,522` | the distilled schedule; the full one blows the time budget                     |
-| `maxSequenceLength 512`   | the prompt's token budget — a longer prompt truncates silently                 |
+| Parameter (fastmetal-1.3b) | Reason                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------ |
+| 480×832, 81 frames, 16fps  | portrait native — the spike's landscape clips lost both edges to the 9:16 crop |
+| int8                       | baked into the checkpoint; there is no runtime quantization flag to set        |
+| `taehv` decode             | the decoder that fits this footprint                                           |
+| 3-step DMD `1000,757,522`  | the distilled schedule; the full one blows the time budget                     |
+| `maxSequenceLength 512`    | the prompt's token budget — a longer prompt truncates silently                 |
 
-Measured ≈235 s per clip on M3 Max (encode 28.6 + denoise 183.7 + decode 22.3); `EST_SECONDS_PER_CLIP = 240` is what the CLI estimate prints from.
+Timing: `fastmetal-5b` measured 459–595 s per clip on M2 Pro (the CLI estimate prints 600); the legacy `fastmetal-1.3b` measured ≈235 s per clip on M3 Max (estimate 240).
 
 **Tier B** — refine pass, `wan-vae`, full-precision DiT — OOMs on M3 Max. Quality gains come from the prompt, not from these knobs.
 
@@ -703,12 +703,14 @@ In `mlx_wan_batch.py` every job denoises before anything decodes: `taehv` calls 
 | ---------------------- | ---------------------------------------------------------------------------- |
 | `FASTVIDEO_REPO`       | `scripts/short-video/experiments/fastvideo-spike/repo` (gitignored checkout) |
 | `FASTVIDEO_PYTHON`     | probes `repo/.venv/bin/python3`, then `~/.video-tts-env/bin/python3`         |
-| `BROLL_MODEL_ROOT`     | unset → HF cache snapshot of `FastMetal-1.3B-QAD`                            |
+| `BROLL_MODEL_ROOT`     | unset → HF cache snapshot of `FastMetal-1.3B-QAD` (1.3B driver only — the 5B driver has no `--model-root`) |
 | `BROLL_MLX_CHECKPOINT` | unset → discovered under `BROLL_MODEL_ROOT`                                  |
 
 The repo-local venv is the working interpreter — `~/.video-tts-env` lacks `cloudpickle`. A `FASTVIDEO_PYTHON` you set yourself is honored as given, with no fallback. When a dependency is missing the stage prints `⚠️ B-roll skipped: …` and the pipeline continues without generated media.
 
-**Checkpoint** — `FastVideo/FastMetal-1.3B-QAD`: DMD2-distilled 1.3B Wan 2.1 with an INT8 quantization-aware-trained DiT, **Apache-2.0**, so generated clips need no license review before publishing. The `FastWan2.1-T2V-1.3B-Diffusers` named as its base is **lineage only** — the full-precision weights it was distilled from; this pipeline loads the MLX-packed DiT, never those. The weights live in neither the repo checkout nor the venv: the batch script resolves them from the Hugging Face cache through the repo's **current `main` revision**. Opted-in network means an upstream push silently turns a warm cache into a fresh 1.5 GB download in the middle of a run — pipeline runs are offline by default (`HF_HUB_OFFLINE=1`, see TTS section) and fail fast on a missing weight instead; opting out restores the online check, which is also how a deliberate model upgrade fetches the new revision. Two things that cost a session to learn:
+**Checkpoint (5B, default)** — `FastVideo/FastMetal-5B-QAD`, ships pre-quantized (no runtime quantization flag). Its HF-cache snapshot carries `text_encoder/` config only, and the `taew2_2` decoder weights come from raw.githubusercontent.com at runtime — outside `HF_HUB_OFFLINE`'s reach, so prefetch them once for offline runs (see the #298 eval report).
+
+**Checkpoint (1.3B)** — `FastVideo/FastMetal-1.3B-QAD`: DMD2-distilled 1.3B Wan 2.1 with an INT8 quantization-aware-trained DiT, **Apache-2.0**, so generated clips need no license review before publishing. The `FastWan2.1-T2V-1.3B-Diffusers` named as its base is **lineage only** — the full-precision weights it was distilled from; this pipeline loads the MLX-packed DiT, never those. The weights live in neither the repo checkout nor the venv: the batch script resolves them from the Hugging Face cache through the repo's **current `main` revision**. Opted-in network means an upstream push silently turns a warm cache into a fresh 1.5 GB download in the middle of a run — pipeline runs are offline by default (`HF_HUB_OFFLINE=1`, see TTS section) and fail fast on a missing weight instead; opting out restores the online check, which is also how a deliberate model upgrade fetches the new revision. Two things that cost a session to learn:
 
 - Keep the cache where it is (`~/.cache/huggingface/hub`). The spike's `--model-root /tmp/fastmetal_model` is gone the next boot — and the run does not say so, it just starts fetching.
 - If that fetch hangs, it is the `xet` transport, not the network (observed: frozen at 142 KB for 14 minutes while plain HTTP pulled 3 MB/s). Re-fetch over HTTP, then rerun: `HF_HUB_DISABLE_XET=1 python -c "from huggingface_hub import snapshot_download; snapshot_download('FastVideo/FastMetal-1.3B-QAD')"`.
