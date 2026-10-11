@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.17.0...tanstack_start_ts-v1.17.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **deps:** migrate recharts 3, react-day-picker 10 and zod 4 ([#570](https://github.com/0xPabloLI/inside-china-ai/issues/570)) ([ff0b818](https://github.com/0xPabloLI/inside-china-ai/commit/ff0b818a9ae587e496c07cb30f3ed6e239b091ed))
+
 ## [1.17.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.16.0...tanstack_start_ts-v1.17.0) (2026-10-11)
 
 
