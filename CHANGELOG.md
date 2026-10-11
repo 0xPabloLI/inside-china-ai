@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.15.3...tanstack_start_ts-v1.16.0) (2026-10-11)
+
+
+### Features
+
+* **short-video:** keyed upsert for the hashtag tracker so cycles stop stacking snapshots ([#565](https://github.com/0xPabloLI/inside-china-ai/issues/565)) ([f4070d8](https://github.com/0xPabloLI/inside-china-ai/commit/f4070d8d57e356e81b225ded10c7556014839963))
+
 ## [1.15.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.15.2...tanstack_start_ts-v1.15.3) (2026-10-11)
 
 
