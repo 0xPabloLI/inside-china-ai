@@ -64,3 +64,20 @@ export function resolveContentDir({ argv, baseDir, defaultContent }) {
   }
   return { ok: true, contentDir };
 }
+
+/**
+ * Full stderr text for a failed resolution, including the available-content
+ * hint — one formatter so the three scripts keep the same exit ritual.
+ *
+ * @param {ReturnType<typeof resolveContentDir>} result
+ * @returns {string} empty when the resolution succeeded
+ */
+export function formatContentError(result) {
+  if (result.ok) return "";
+  const lines = [`❌ ${result.message}`];
+  if (result.available.length > 0) {
+    lines.push("   Available content:");
+    for (const name of result.available) lines.push(`   - ${name}`);
+  }
+  return lines.join("\n");
+}

@@ -7,7 +7,12 @@ import { mkdirSync, mkdtempSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
-import { parseContentArg, listContentDirs, resolveContentDir } from "../cli-content.mjs";
+import {
+  parseContentArg,
+  listContentDirs,
+  resolveContentDir,
+  formatContentError,
+} from "../cli-content.mjs";
 
 describe("parseContentArg", () => {
   it("returns absent when the flag is not present", () => {
@@ -72,5 +77,34 @@ describe("resolveContentDir", () => {
 
   it("listContentDirs returns sorted dir names only", () => {
     expect(listContentDirs(baseDir)).toEqual(["alpha", "beta"]);
+  });
+});
+
+describe("formatContentError", () => {
+  let baseDir;
+
+  beforeEach(() => {
+    baseDir = mkdtempSync(join(tmpdir(), "cli-content-"));
+    mkdirSync(join(baseDir, "content", "alpha"), { recursive: true });
+  });
+  afterEach(() => {
+    rmSync(baseDir, { recursive: true, force: true });
+  });
+
+  it("includes the message and the available-content hint", () => {
+    const result = resolveContentDir({
+      argv: ["--content", "nope"],
+      baseDir,
+      defaultContent: "alpha",
+    });
+    const text = formatContentError(result);
+    expect(text).toMatch(/content\/nope/);
+    expect(text).toMatch(/Available content:/);
+    expect(text).toMatch(/- alpha/);
+  });
+
+  it("returns an empty string for a successful resolution", () => {
+    const result = resolveContentDir({ argv: [], baseDir, defaultContent: "alpha" });
+    expect(formatContentError(result)).toBe("");
   });
 });

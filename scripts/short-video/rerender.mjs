@@ -3,7 +3,7 @@ import { resolve as pathResolve, join } from "path";
 import { renderRemotion } from "./lib/render-remotion.mjs";
 import { normalizeMediaPatch, applyAssignedMedia } from "./lib/apply-media-patch.mjs";
 import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
-import { resolveContentDir } from "./lib/cli-content.mjs";
+import { resolveContentDir, formatContentError } from "./lib/cli-content.mjs";
 
 const baseDir = pathResolve(import.meta.dirname);
 
@@ -15,11 +15,7 @@ const resolvedContent = resolveContentDir({
   defaultContent: "deepseek-v41-flash",
 });
 if (!resolvedContent.ok) {
-  console.error(`❌ ${resolvedContent.message}`);
-  if (resolvedContent.available.length > 0) {
-    console.error("   Available content:");
-    for (const name of resolvedContent.available) console.error(`   - ${name}`);
-  }
+  console.error(formatContentError(resolvedContent));
   process.exit(1);
 }
 const CONTENT_DIR = resolvedContent.contentDir;
