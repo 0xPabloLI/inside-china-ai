@@ -294,6 +294,9 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(branchExists("session/20260101-openpr-abc777")).toBe(false); // local still cleaned
     expect(remoteBranchExists("session/20260101-openpr-abc777")).toBe(true);
     expect(out).toContain("kept remote origin/session/20260101-openpr-abc777 (open PR");
+    // The local loop already settled this remote; the orphan sweep must not
+    // re-examine it in the same run (one gh query, one line).
+    expect(out.split("kept remote origin/session/20260101-openpr-abc777").length - 1).toBe(1);
 
     // The local branch is now gone, so the remote is re-examined as an orphan
     // on the next run — and the open PR still blocks it.
@@ -349,6 +352,28 @@ describe("session-launcher gc: post-delivery closeout", () => {
     const { out } = gc("--dry-run");
     expect(remoteBranchExists("session/20260101-dryremote-abc666")).toBe(true);
     expect(out).toContain("would delete remote origin/session/20260101-dryremote-abc666");
+  });
+
+  // The orphan sweep has its own dry gate; without this the sweep could delete
+  // a live remote branch during --dry-run and every other test would still pass.
+  it("--dry-run previews an orphaned remote twin without deleting it", () => {
+    squashMergedBranch("session/20260101-dryorphan-abc999", "dryorphan\n");
+    git(repo, "push", "-q", "origin", "session/20260101-dryorphan-abc999");
+    git(repo, "branch", "-D", "session/20260101-dryorphan-abc999");
+
+    const { out } = gc("--dry-run");
+    expect(remoteBranchExists("session/20260101-dryorphan-abc999")).toBe(true);
+    expect(out).toContain("would delete remote origin/session/20260101-dryorphan-abc999");
+  });
+
+  it("reports an unreachable origin instead of silently skipping remote checks", () => {
+    squashMergedBranch("session/20260101-offline-abc000", "offline\n");
+    git(repo, "push", "-q", "origin", "session/20260101-offline-abc000");
+    git(repo, "remote", "set-url", "origin", join(tmpdir(), "launcher-gc-missing-origin"));
+
+    const { status, out } = gc();
+    expect(status).toBe(0);
+    expect(out).toContain("kept remote origin/session/20260101-offline-abc000 (origin unreachable");
   });
 
   it("deletes a branch whose change is a deletion that also landed on main", () => {

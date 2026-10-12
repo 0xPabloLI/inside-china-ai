@@ -340,36 +340,68 @@ if [ "$cmd" = "gc" ]; then
   would_delete=0
   remote_would=0
   kept=0
+  remote_kept=0
+  handled=""
+
+  # in_gc_namespace <branch> — the branch families gc owns. Bot and
+  # integration branches (renovate/*, release-please--*, lovable-sync, …)
+  # stay outside on purpose: their tools manage their lifecycle.
+  in_gc_namespace() {
+    local name="$1" g
+    for g in $globs; do
+      case "$name" in $g) return 0 ;; esac
+    done
+    return 1
+  }
 
   # remote_twin_closeout <branch> <dry> — deletes origin/<branch> only when it
   # still exists, its own content independently verifies as merged, gh can
   # check for open PRs, and none is open. dry=1 previews without writing any
-  # ref: verification then rides on the current tracking ref (a stale one is
-  # reported, never fetched). Every unknown keeps it (fail-closed).
+  # ref: a fetch is never performed, so a tracking ref that still matches the
+  # remote tip is verified in place, and a stale one is reported as pending
+  # fetch+verify. Every unknown keeps it (fail-closed).
   remote_twin_closeout() {
-    local b="$1" dry="$2" open_prs tip tracked
-    git ls-remote --exit-code --heads origin "refs/heads/$b" >/dev/null 2>&1 || return 0
+    local b="$1" dry="$2" open_prs tip tracked rc
+    rc=0
+    git ls-remote --exit-code --heads origin "refs/heads/$b" >/dev/null 2>&1 || rc=$?
+    case "$rc" in
+      0) ;;
+      2) return 0 ;; # no such remote branch
+      *)
+        echo "[gc] kept remote origin/$b (origin unreachable — cannot verify)"
+        remote_kept=$((remote_kept + 1))
+        return 0
+        ;;
+    esac
     if ! command -v "$GH" >/dev/null 2>&1; then
       echo "[gc] kept remote origin/$b (gh unavailable — cannot check open PRs)"
+      remote_kept=$((remote_kept + 1))
       return 0
     fi
     open_prs=$("$GH" pr list --head "$b" --state open --json number --jq 'length' </dev/null 2>/dev/null) || open_prs=""
     if [ -z "$open_prs" ]; then
       echo "[gc] kept remote origin/$b (open-PR check failed — fail-closed)"
+      remote_kept=$((remote_kept + 1))
       return 0
     fi
     if [ "$open_prs" != "0" ]; then
       echo "[gc] kept remote origin/$b (open PR — deleting would close it)"
+      remote_kept=$((remote_kept + 1))
       return 0
     fi
     if [ "$dry" = "1" ]; then
       tip=$(git ls-remote --heads origin "refs/heads/$b" 2>/dev/null | awk 'NR==1{print $1}' || true)
       tracked=$(git rev-parse --verify --quiet "refs/remotes/origin/$b" || true)
-      if [ -n "$tip" ] && [ "$tip" = "$tracked" ] \
-        && ! ref_content_merged "refs/remotes/origin/$b" refs/remotes/origin/main; then
-        echo "[gc] kept remote origin/$b (content not verified merged)"
+      if [ -n "$tip" ] && [ "$tip" = "$tracked" ]; then
+        if ref_content_merged "refs/remotes/origin/$b" refs/remotes/origin/main; then
+          echo "[gc] would delete remote origin/$b (content merged)"
+          remote_would=$((remote_would + 1))
+        else
+          echo "[gc] kept remote origin/$b (content not verified merged)"
+          remote_kept=$((remote_kept + 1))
+        fi
       else
-        echo "[gc] would delete remote origin/$b (content re-verified at delete time)"
+        echo "[gc] would fetch and verify remote origin/$b before deleting (dry-run does not fetch)"
         remote_would=$((remote_would + 1))
       fi
       return 0
@@ -384,17 +416,14 @@ if [ "$cmd" = "gc" ]; then
       fi
     else
       echo "[gc] kept remote origin/$b (content not verified merged)"
+      remote_kept=$((remote_kept + 1))
     fi
   }
 
   while IFS=$'\t' read -r b wtpath; do
     [ -n "$b" ] || continue
     [ "$b" = "main" ] && continue
-    matched=0
-    for g in $globs; do
-      case "$b" in $g) matched=1 ;; esac
-    done
-    [ "$matched" = 1 ] || continue
+    in_gc_namespace "$b" || continue
     if [ -n "$wtpath" ]; then
       echo "[gc] kept $b (checked out in $wtpath)"
       kept=$((kept + 1))
@@ -432,26 +461,25 @@ if [ "$cmd" = "gc" ]; then
         ;;
     esac
     remote_twin_closeout "$b" 0
+    handled="$handled $b"
   done < <(git for-each-ref --format='%(refname:short)%09%(worktreepath)' refs/heads)
 
   # Orphaned remote twins: the loop above walks local branches, so a merged
   # branch whose local copy is already gone (stop ran first, or an earlier gc
-  # deleted it) would keep its origin branch forever. A local branch always
-  # wins here: whatever the loop decided for it already settled its remote.
+  # deleted it) would keep its origin branch forever. Branches the loop just
+  # settled are skipped, and a surviving local branch always wins: whatever
+  # the loop decided for it already settled its remote.
   while IFS= read -r rb; do
     b=${rb#refs/remotes/origin/}
     [ "$b" = "HEAD" ] && continue
     [ "$b" = "main" ] && continue
-    matched=0
-    for g in $globs; do
-      case "$b" in $g) matched=1 ;; esac
-    done
-    [ "$matched" = 1 ] || continue
+    case " $handled " in *" $b "*) continue ;; esac
+    in_gc_namespace "$b" || continue
     if git show-ref --verify --quiet "refs/heads/$b"; then
       continue
     fi
     remote_twin_closeout "$b" "${dry_run:-0}"
   done < <(git for-each-ref --format='%(refname)' refs/remotes/origin)
 
-  echo "[gc] done — deleted $deleted (remote $remote_deleted), would delete $would_delete (remote $remote_would), kept $kept"
+  echo "[gc] done — deleted $deleted (remote $remote_deleted), would delete $would_delete (remote $remote_would), kept $kept (remote $remote_kept)"
 fi
