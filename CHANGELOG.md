@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.19.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.18.3...tanstack_start_ts-v1.19.0) (2026-10-12)
+
+
+### Features
+
+* **session:** gc subcommand — post-delivery sync + content-verified branch cleanup ([#591](https://github.com/0xPabloLI/inside-china-ai/issues/591)) ([aa0bcb4](https://github.com/0xPabloLI/inside-china-ai/commit/aa0bcb4a5fa791631d818461e9bbdfbbea8a3a61))
+
+
+### Bug Fixes
+
+* **article:** converge update outcome in the 2xx-no-representation branch ([#426](https://github.com/0xPabloLI/inside-china-ai/issues/426) follow-up) ([#593](https://github.com/0xPabloLI/inside-china-ai/issues/593)) ([28c6d68](https://github.com/0xPabloLI/inside-china-ai/commit/28c6d6881b5822c4e89d4dbb88e9c59e6badae48))
+* **supabase:** harvest Lovable's preview-auth set reconciliation from lovable-sync ([e99e263](https://github.com/0xPabloLI/inside-china-ai/commit/e99e263f9ae73b68e67bb36949758f2780b52dce))
+
 ## [1.18.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.18.2...tanstack_start_ts-v1.18.3) (2026-10-12)
 
 
