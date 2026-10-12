@@ -847,6 +847,53 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(r.stdout).toContain("session branch kept (not delivered");
   });
 
+  // The routine sequence is merge → stop with no intervening fetch. The
+  // origin/main tracking ref then lags the remote, and the PR criterion needs
+  // the merge commit to be reachable from the judged ref — so stop must
+  // refresh origin/main before judging (non-fatal: offline stays fail-closed).
+  it("stop refreshes origin/main before judging (merge → stop with no fetch)", () => {
+    const id = "20260101-stale-main-abc658";
+    const branch = `session/${id}`;
+    const wtPath = join(repo, "wt-stalemain");
+    git(repo, "worktree", "add", "-b", branch, wtPath);
+    const wtGitDir = git(wtPath, "rev-parse", "--absolute-git-dir").trim();
+    mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true });
+    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), id + "\n");
+    writeFileSync(join(wtPath, "feature.txt"), "stale main\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "work");
+    const tip = git(wtPath, "rev-parse", "HEAD").trim();
+    git(wtPath, "push", "-q", "-u", "origin", branch);
+    // The squash and a following drift commit land on origin/main from a
+    // second clone, so the fixture's own origin/main tracking ref stays behind
+    // and byte identity can no longer verify the branch.
+    const other = mkdtempSync(join(tmpdir(), "launcher-stop-other-"));
+    git(repo, "clone", "-q", origin, other);
+    git(other, "config", "user.email", "test@example.com");
+    git(other, "config", "user.name", "test");
+    writeFileSync(join(other, "feature.txt"), "stale main\n");
+    git(other, "add", ".");
+    git(other, "commit", "-q", "-m", "squash merge");
+    const mergeCommit = git(other, "rev-parse", "HEAD").trim();
+    writeFileSync(join(other, "feature.txt"), "drifted\n");
+    git(other, "add", ".");
+    git(other, "commit", "-q", "-m", "release bump");
+    git(other, "push", "-q", "origin", "main");
+    rmSync(other, { recursive: true, force: true });
+    writeFakeGh(0, { branch, mergeCommit, headRefOid: tip });
+
+    const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
+    expect(r.status).toBe(0);
+    expect(branchExists(branch)).toBe(false);
+    expect(r.stdout).toContain("PR-merged session branch deleted");
+    expect(r.stdout).toContain("[session] post-delivery closeout:");
+    expect(remoteBranchExists(branch)).toBe(false);
+  });
+
   // stop may be invoked through the worktree's OWN launcher copy, from inside
   // that worktree: the script's path then dies with the worktree, and the
   // post-delivery closeout must fall back to the main checkout's copy instead

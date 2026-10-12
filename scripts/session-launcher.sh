@@ -294,6 +294,14 @@ if [ "$cmd" = "stop" ]; then
     # work runs from the main worktree so a dangling cwd can never be read as
     # an empty answer.
     if [ -n "$MAIN_WT" ]; then cd "$MAIN_WT" 2>/dev/null || true; fi
+    # The delivery criteria judge against origin/main, and the routine
+    # sequence is merge → stop with no intervening fetch: refresh it first
+    # (non-fatal — offline just leaves the ref stale, and every criterion
+    # stays fail-closed). gc fetches again for the closeout; this one is what
+    # lets the tip-bound PR criterion see a merge that happened after the
+    # last fetch.
+    GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=15 \
+      git fetch --quiet origin main 2>/dev/null || true
     # #195: a removed worktree means the session ended — delete the session
     # branch when its work is fully on origin/main. Ancestry to main is the
     # first criterion; the delivery criteria extend the same intent to squash
