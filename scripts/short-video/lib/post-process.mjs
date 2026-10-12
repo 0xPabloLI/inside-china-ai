@@ -12,8 +12,14 @@ import { execSync, execFileSync, spawnSync } from "child_process";
 import { existsSync, renameSync, unlinkSync } from "fs";
 import { measureAudioDrift } from "./audio/sync.mjs";
 
-/** Path to ffmpeg-full (has libass support for ASS subtitle burn-in). */
-const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
+/**
+ * Path to ffmpeg-full (has libass support for ASS subtitle burn-in).
+ *
+ * Exported for the Step 0.4 burn preflight (#394): this is the pipeline's
+ * canonical "ass-capable ffmpeg", so the capability check and the actual
+ * burn cannot drift apart.
+ */
+export const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 
 /** Allowed |measured − target| integrated loudness drift, in LU. */
 export const LOUDNESS_LU_TOLERANCE = 0.8;

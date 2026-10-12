@@ -91,6 +91,21 @@ export function regenerateSubtitles({ outputDir, sceneDurations }) {
 }
 
 /**
+ * Does this run need burned-in subtitles?
+ *
+ * Same text source as `computeAlignmentSignature`: a scene carrying only the
+ * spoken form (ttsText) still needs subtitles, so it must not be classified
+ * as visual-only (#421 review). Shared by the render-boundary guard (#421)
+ * and the Step 0.4 ASS burn preflight (#394) — one predicate, two consumers.
+ *
+ * @param {Array<{voiceover?: string, ttsText?: string}>} [scenes]
+ * @returns {boolean}
+ */
+export function hasVoicedScenes(scenes) {
+  return (scenes ?? []).some((s) => String(s?.ttsText ?? s?.voiceover ?? "").trim() !== "");
+}
+
+/**
  * Render-boundary guard (#421): a voiced run must not render without valid
  * subtitle timing.
  *
@@ -114,13 +129,7 @@ export function regenerateSubtitles({ outputDir, sceneDurations }) {
  * @throws {Error} when the render boundary cannot be satisfied
  */
 export function assertSubtitleTiming({ scenes, ttsResults, outputDir }) {
-  // Same text source as computeAlignmentSignature below: a scene carrying
-  // only the spoken form (ttsText) still needs burned-in subtitles, so it
-  // must not be classified as visual-only (#421 review).
-  const voiced = (scenes ?? []).filter(
-    (s) => String(s?.ttsText ?? s?.voiceover ?? "").trim() !== "",
-  );
-  if (voiced.length === 0) return null;
+  if (!hasVoicedScenes(scenes)) return null;
 
   const audioDir = join(outputDir, "audio");
   const timingPath = join(audioDir, "subtitle-timing.json");
