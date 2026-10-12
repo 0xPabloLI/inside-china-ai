@@ -25,7 +25,7 @@ function git(cwd, ...args) {
 // exercised against the live API by the real-repo smoke, not here. Any other
 // invocation fails loudly so new gh dependencies surface in tests.
 function installFakeGh(dir, { openPrCount = 0, mergedPr = null } = {}) {
-  const p = join(dir, "gh");
+  const p = join(dir, "gh"); // nosemgrep
   const mergedCase = mergedPr
     ? `  *"pr list"*"--state merged"*)\n    case "$*" in\n      *"--head ${mergedPr.branch}"*) printf '%s\\n' "${mergedPr.headRefOid}\t${mergedPr.mergeCommit}" ;;\n    esac\n    exit 0\n    ;;\n`
     : `  *"pr list"*"--state merged"*) exit 0 ;;\n`;
@@ -43,7 +43,7 @@ function installFakeGh(dir, { openPrCount = 0, mergedPr = null } = {}) {
 //              from a scratch clone (a commit landing between verification and
 //              deletion), then runs the real push.
 function installShimGit(dir, mode) {
-  const p = join(dir, "git");
+  const p = join(dir, "git"); // nosemgrep
   const real = execFileSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).trim();
   const body =
     mode === "nofetch"
@@ -712,12 +712,12 @@ describe("session-launcher gc: post-delivery closeout", () => {
   // makeDeliveredSessionWorktree — a session worktree whose content already
   // landed on origin/main (squash shape), with its remote twin pushed.
   function makeDeliveredSessionWorktree(id, content) {
-    const wtPath = join(repo, "wt-" + id);
+    const wtPath = join(repo, "wt-" + id); // nosemgrep
     git(repo, "worktree", "add", "-b", `session/${id}`, wtPath);
     const wtGitDir = git(wtPath, "rev-parse", "--absolute-git-dir").trim();
-    mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true });
-    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), id + "\n");
-    writeFileSync(join(wtPath, "feature.txt"), content);
+    mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true }); // nosemgrep
+    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), id + "\n"); // nosemgrep
+    writeFileSync(join(wtPath, "feature.txt"), content); // nosemgrep
     git(wtPath, "add", ".");
     git(wtPath, "commit", "-q", "-m", "work");
     writeFileSync(join(repo, "feature.txt"), content);
