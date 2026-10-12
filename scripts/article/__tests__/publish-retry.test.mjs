@@ -561,4 +561,38 @@ describe("upsertPost — review hardening (#426)", () => {
     expect(patchUrls[0]).toContain("id=eq.row-x");
     expect(committed.author_id).toBe("someone-else"); // author identity preserved
   });
+
+  it("converges through the update path when a 2xx write returns no representation and the row differs", async () => {
+    const foreign = {
+      id: "row-7",
+      slug: "retry-me",
+      title: "Theirs",
+      excerpt: null,
+      content: "Their body",
+      published: true,
+      published_at: "2026-04-04T00:00:00Z",
+      author_id: "u1",
+    };
+    const clock = makeClock();
+    let committed = null;
+    const patchUrls = [];
+    const fetchFn = vi.fn(async (url, init) => {
+      const method = methodOf(init);
+      if (method === "GET") return okResponse(committed ? [committed] : []);
+      if (method === "POST") {
+        committed = foreign;
+        return okResponse([]); // 2xx but no representation
+      }
+      patchUrls.push(url);
+      committed = { ...committed, ...JSON.parse(init.body) };
+      return okResponse([committed]);
+    });
+
+    const result = await upsertPost(parsed, AUTH, URL_BASE, KEY, { fetchFn, ...clock });
+
+    expect(result.mode).toBe("update"); // converged, not a misleading "no row" failure
+    expect(patchUrls[0]).toContain("id=eq.row-7");
+    expect(committed.title).toBe(parsed.title);
+    expect(committed.published_at).toBe("2026-04-04T00:00:00Z"); // preserved
+  });
 });
