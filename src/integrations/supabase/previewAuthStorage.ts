@@ -96,7 +96,15 @@ export function brokeredPreviewStorage() {
     },
     setItem: (key: string, value: string) => {
       localStorage.setItem(key, value);
-      return request("lovable-preview-auth:set", key, value).then(() => undefined);
+      // Mirror the broker's canonical value back, so a later silent broker can't
+      // resurrect a stale local copy. '' is the logout tombstone (see getItem);
+      // the equality guard keeps a concurrent local write from being clobbered.
+      return request("lovable-preview-auth:set", key, value).then((res) => {
+        if (res && res.ok && typeof res.value === "string" && localStorage.getItem(key) === value) {
+          if (res.value === "") localStorage.removeItem(key);
+          else localStorage.setItem(key, res.value);
+        }
+      });
     },
     removeItem: (key: string) => {
       localStorage.removeItem(key);
