@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.3...tanstack_start_ts-v1.20.4) (2026-10-12)
+
+
+### Bug Fixes
+
+* **session:** close the gc residuals — TOCTOU, local-main-only, semgrep noise ([#610](https://github.com/0xPabloLI/inside-china-ai/issues/610)) ([5eed182](https://github.com/0xPabloLI/inside-china-ai/commit/5eed18204516c6beeeea9a131092f69cbdfc6278))
+
 ## [1.20.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.2...tanstack_start_ts-v1.20.3) (2026-10-12)
 
 
