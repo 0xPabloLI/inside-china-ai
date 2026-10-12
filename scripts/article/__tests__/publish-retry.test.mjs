@@ -5,6 +5,9 @@
  * retry }). Global fetch is guarded so a missing seam fails the test instead
  * of reaching the network. Real-socket variants (actual TCP resets) live in
  * publish-article-cli.test.mjs.
+ *
+ * Scenario numbers (18–29) map to the Behavioral Scenarios matrix recorded in
+ * #426's delivery record (closing issue comment).
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { upsertPost, formatPublishError, PublishError } from "../lib/publish-utils.mjs";
@@ -455,5 +458,107 @@ describe("formatPublishError — sanitized diagnostics (#426)", () => {
     expect(formatPublishError(direct)).not.toContain("sb_secret_XYZ");
     expect(formatPublishError(direct)).toContain("[REDACTED]");
     expect(formatPublishError(new Error("plain boom"))).toBe("plain boom");
+  });
+});
+
+// ─── review hardening (2026-10-12) ───
+
+describe("upsertPost — review hardening (#426)", () => {
+  it("re-targets a row replaced mid-write and replays against the fresh identity", async () => {
+    const original = {
+      id: "post-1",
+      slug: "retry-me",
+      title: "Old",
+      excerpt: null,
+      content: "Old body",
+      published: false,
+      published_at: null,
+      author_id: "u1",
+    };
+    const replacement = {
+      id: "post-2",
+      slug: "retry-me",
+      title: "Replaced",
+      excerpt: null,
+      content: "Replaced body",
+      published: true,
+      published_at: "2026-05-05T00:00:00Z",
+      author_id: "u1",
+    };
+    const clock = makeClock();
+    let queryCalls = 0;
+    const patchUrls = [];
+    const fetchFn = vi.fn(async (url, init) => {
+      const method = methodOf(init);
+      if (method === "GET") {
+        queryCalls += 1;
+        return okResponse(queryCalls === 1 ? [original] : [replacement]);
+      }
+      patchUrls.push(url);
+      if (patchUrls.length === 1) throw networkError("ECONNRESET"); // did not land
+      return okResponse([{ ...replacement, ...JSON.parse(init.body) }]);
+    });
+
+    const result = await upsertPost(parsed, AUTH, URL_BASE, KEY, { fetchFn, ...clock });
+
+    expect(result.id).toBe("post-2"); // re-targeted, not the stale post-1
+    expect(result.mode).toBe("update");
+    expect(patchUrls[0]).toContain("id=eq.post-1");
+    expect(patchUrls[1]).toContain("id=eq.post-2");
+    expect(clock.delays).toEqual([1000]);
+  });
+
+  it("does not retry a refused connection — ECONNREFUSED is not a reset/timeout", async () => {
+    const clock = makeClock();
+    const fetchFn = vi.fn(async () => {
+      throw networkError("ECONNREFUSED");
+    });
+
+    const err = await upsertPost(parsed, AUTH, URL_BASE, KEY, { fetchFn, ...clock }).catch(
+      (e) => e,
+    );
+
+    expect(err).toBeInstanceOf(PublishError);
+    expect(err.context).toMatchObject({
+      stage: "query",
+      category: "network",
+      code: "ECONNREFUSED",
+      attempts: 1,
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(clock.delays).toEqual([]);
+  });
+
+  it("does not claim a foreign-author row as our own insert", async () => {
+    const foreign = {
+      id: "row-x",
+      slug: "retry-me",
+      title: parsed.title,
+      excerpt: parsed.excerpt,
+      content: parsed.content,
+      published: false,
+      published_at: null,
+      author_id: "someone-else",
+    };
+    const clock = makeClock();
+    let committed = null;
+    const patchUrls = [];
+    const fetchFn = vi.fn(async (url, init) => {
+      const method = methodOf(init);
+      if (method === "GET") return okResponse(committed ? [committed] : []);
+      if (method === "POST") {
+        committed = foreign;
+        throw networkError("ECONNRESET");
+      }
+      patchUrls.push(url);
+      committed = { ...committed, ...JSON.parse(init.body) };
+      return okResponse([committed]);
+    });
+
+    const result = await upsertPost(parsed, AUTH, URL_BASE, KEY, { fetchFn, ...clock });
+
+    expect(result.mode).toBe("update"); // never claimed as "insert reconciled"
+    expect(patchUrls[0]).toContain("id=eq.row-x");
+    expect(committed.author_id).toBe("someone-else"); // author identity preserved
   });
 });

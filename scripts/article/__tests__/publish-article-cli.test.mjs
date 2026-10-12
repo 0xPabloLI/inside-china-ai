@@ -7,6 +7,9 @@
  * end-to-end and pins that the RAG reindex runs exactly once, only after the
  * final confirmed success (a PATH shim turns the RAG entry point into a
  * no-op so the test never touches Ollama or any real service).
+ *
+ * Scenario numbers (19–21, 29) map to the Behavioral Scenarios matrix
+ * recorded in #426's delivery record (closing issue comment).
  */
 import { describe, it, expect } from "vitest";
 import { createServer } from "node:http";

@@ -168,9 +168,7 @@ const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 const RETRYABLE_NETWORK_CODES = new Set([
   "ECONNRESET",
   "ETIMEDOUT",
-  "ECONNREFUSED",
   "EPIPE",
-  "EAI_AGAIN",
   "UND_ERR_SOCKET",
   "UND_ERR_CONNECT_TIMEOUT",
   "UND_ERR_HEADERS_TIMEOUT",
@@ -285,7 +283,7 @@ export function formatPublishError(err) {
 /**
  * Compare an intended write payload against a re-queried row. published_at is
  * compared by null-ness only (timestamp formatting is not stable across
- * reads); updates additionally verify the row identity.
+ * reads); inserts verify the author, updates verify the row identity.
  */
 function rowMatchesPayload(slug, payload, row) {
   const intended = payload.data;
@@ -294,6 +292,7 @@ function rowMatchesPayload(slug, payload, row) {
   if ((row.excerpt ?? null) !== (intended.excerpt ?? null)) return false;
   if (row.content !== intended.content) return false;
   if (Boolean(row.published) !== Boolean(intended.published)) return false;
+  if (payload.mode === "insert" && row.author_id !== intended.author_id) return false;
   if (payload.mode === "update" && row.id !== payload.existingId) return false;
   return (row.published_at != null) === (intended.published_at != null);
 }
@@ -328,7 +327,7 @@ export async function upsertPost(parsed, auth, supabaseUrl, supabaseKey, opts = 
   const deadline = now() + policy.totalBudgetMs;
   const headers = buildHeaders(auth.access_token, supabaseKey);
 
-  const select = "id,slug,title,excerpt,content,published,published_at";
+  const select = "id,slug,title,excerpt,content,published,published_at,author_id";
   const queryUrl = `${supabaseUrl}/rest/v1/posts?slug=eq.${encodeURIComponent(parsed.slug)}&select=${select}`;
 
   let totalAttempts = 0;
@@ -371,6 +370,25 @@ export async function upsertPost(parsed, auth, supabaseUrl, supabaseKey, opts = 
     await sleep(ms);
   }
 
+  /** Back off before the next attempt; non-retryable or exhausted failures throw. */
+  async function backoffOrThrow(stage, err, attempt) {
+    if (!isRetryableNetworkError(err)) {
+      throw networkFailure(stage, err, { attempts: attempt });
+    }
+    if (attempt >= policy.maxAttempts) {
+      throw networkFailure(stage, err, { attempts: attempt, exhausted: "attempts" });
+    }
+    await sleepWithinBudget(backoffDelay(attempt), stage, attempt);
+  }
+
+  /** Same contract for retryable HTTP statuses (408/429/5xx). */
+  async function backoffOrThrowStatus(stage, status, data, attempt) {
+    if (attempt >= policy.maxAttempts) {
+      throw httpFailure(stage, status, data, { attempts: attempt, exhausted: "attempts" });
+    }
+    await sleepWithinBudget(backoffDelay(attempt), stage, attempt);
+  }
+
   /** GET the post by slug, retrying classified transient failures. */
   async function queryBySlug(stage) {
     for (let attempt = 1; ; attempt += 1) {
@@ -380,13 +398,7 @@ export async function upsertPost(parsed, auth, supabaseUrl, supabaseKey, opts = 
       try {
         resp = await fetchFn(queryUrl, { headers });
       } catch (err) {
-        if (!isRetryableNetworkError(err)) {
-          throw networkFailure(stage, err, { attempts: attempt });
-        }
-        if (attempt >= policy.maxAttempts) {
-          throw networkFailure(stage, err, { attempts: attempt, exhausted: "attempts" });
-        }
-        await sleepWithinBudget(backoffDelay(attempt), stage, attempt);
+        await backoffOrThrow(stage, err, attempt);
         continue;
       }
 
@@ -410,10 +422,7 @@ export async function upsertPost(parsed, auth, supabaseUrl, supabaseKey, opts = 
       }
 
       if (isRetryableStatus(resp.status)) {
-        if (attempt >= policy.maxAttempts) {
-          throw httpFailure(stage, resp.status, data, { attempts: attempt, exhausted: "attempts" });
-        }
-        await sleepWithinBudget(backoffDelay(attempt), stage, attempt);
+        await backoffOrThrowStatus(stage, resp.status, data, attempt);
         continue;
       }
 
@@ -502,20 +511,9 @@ export async function upsertPost(parsed, auth, supabaseUrl, supabaseKey, opts = 
       // The write may or may not have committed — reconcile before anything else.
       const outcome = await reconcile(payload);
       if (outcome.kind === "done") return outcome.result;
-      if (outcome.kind === "update") {
-        payload = outcome.payload;
-        continue;
-      }
-      if (!isRetryableNetworkError(failure)) {
-        throw networkFailure(payload.mode, failure, { attempts: writeAttempts });
-      }
-      if (writeAttempts >= policy.maxAttempts) {
-        throw networkFailure(payload.mode, failure, {
-          attempts: writeAttempts,
-          exhausted: "attempts",
-        });
-      }
-      await sleepWithinBudget(backoffDelay(writeAttempts), payload.mode, writeAttempts);
+      payload = outcome.payload; // replay/update may carry a re-targeted payload
+      if (outcome.kind === "update") continue;
+      await backoffOrThrow(payload.mode, failure, writeAttempts);
       continue;
     }
 
@@ -557,17 +555,9 @@ export async function upsertPost(parsed, auth, supabaseUrl, supabaseKey, opts = 
     if (isRetryableStatus(resp.status)) {
       const outcome = await reconcile(payload);
       if (outcome.kind === "done") return outcome.result;
-      if (outcome.kind === "update") {
-        payload = outcome.payload;
-        continue;
-      }
-      if (writeAttempts >= policy.maxAttempts) {
-        throw httpFailure(payload.mode, resp.status, data, {
-          attempts: writeAttempts,
-          exhausted: "attempts",
-        });
-      }
-      await sleepWithinBudget(backoffDelay(writeAttempts), payload.mode, writeAttempts);
+      payload = outcome.payload; // replay/update may carry a re-targeted payload
+      if (outcome.kind === "update") continue;
+      await backoffOrThrowStatus(payload.mode, resp.status, data, writeAttempts);
       continue;
     }
 
