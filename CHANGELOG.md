@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.18.0...tanstack_start_ts-v1.18.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **short-video:** paid-API filter crash — value-returning seam, mode matrix, offline CLI smoke ([#424](https://github.com/0xPabloLI/inside-china-ai/issues/424)) ([#586](https://github.com/0xPabloLI/inside-china-ai/issues/586)) ([fe69019](https://github.com/0xPabloLI/inside-china-ai/commit/fe690190f8bed96e86207a9a8675bacc89710546))
+
 ## [1.18.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.17.3...tanstack_start_ts-v1.18.0) (2026-10-12)
 
 
