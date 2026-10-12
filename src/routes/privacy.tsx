@@ -1,6 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/site-header";
 
+/**
+ * Last substantive revision of this policy. Static on purpose (#319 OCR
+ * medium): a render-time `new Date()` claimed a fresh update every day and
+ * could disagree between SSR and hydration. Bump this when the text changes.
+ */
+const LAST_UPDATED = "August 4, 2026";
+
 export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
@@ -28,14 +35,7 @@ function PrivacyPage() {
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-6 pt-16 pb-24">
         <h1 className="font-serif text-4xl mb-8">Privacy Policy</h1>
-        <p className="text-sm text-muted-foreground mb-8">
-          Last updated:{" "}
-          {new Date().toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
-        </p>
+        <p className="text-sm text-muted-foreground mb-8">Last updated: {LAST_UPDATED}</p>
 
         <div className="prose prose-sm dark:prose-invert max-w-none space-y-6">
           <section>

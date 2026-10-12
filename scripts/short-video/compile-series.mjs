@@ -59,10 +59,15 @@ export function concatListEntry(videoPath) {
 
 /**
  * Build the concat demuxer plan: the list-file content plus the ffmpeg argv.
- * The caller writes `listContent` to `listFile` before running `args`.
+ * The plan is data only: a caller writes `listContent` to `listFile` before
+ * running `args` (no production caller today — `main()` uses buildXfadeArgs).
  */
 export function buildConcatArgs(files, outputPath) {
-  const listFile = "/tmp/ffmpeg-concat-list.txt";
+  // Derive the list file from the output path instead of a fixed /tmp name:
+  // a shared path would let one plan's write land between another plan's
+  // write and its `-i` read, so the second run reads the wrong list
+  // (#319 OCR medium, Round O leftover).
+  const listFile = `${outputPath}.concat-list.txt`;
   const listContent = files.map(concatListEntry).join("\n");
   return {
     listFile,
