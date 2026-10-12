@@ -119,4 +119,50 @@ describe("TTS Subtitle Alignment — runWhisperAlignment()", () => {
 
     logSpy.mockRestore();
   });
+
+  // #394: the offline flags default to 1 but must honor an explicit parent
+  // override so a deliberate model fetch/upgrade can opt out.
+  it("honors HF_HUB_OFFLINE=0 from the parent env (#394)", async () => {
+    fsMock.existsSync.mockReturnValue(true);
+    const prev = process.env.HF_HUB_OFFLINE;
+    process.env.HF_HUB_OFFLINE = "0";
+    try {
+      await runWhisperAlignment(mockScenes, mockTTSResults, "/output/audio");
+    } finally {
+      if (prev === undefined) delete process.env.HF_HUB_OFFLINE;
+      else process.env.HF_HUB_OFFLINE = prev;
+    }
+
+    const cmd = execMock.mock.calls[0][0];
+    expect(cmd).toContain("HF_HUB_OFFLINE=0");
+    expect(cmd).not.toContain("HF_HUB_OFFLINE=1");
+    expect(cmd).toContain("TRANSFORMERS_OFFLINE=0");
+  });
+
+  // #394: the incident's opaque failure. whisperx swallows the real cause
+  // ("could not be found in huggingface or torchaudio"), so the run must name
+  // the missing cache and the one-time fetch command.
+  it("prints the offline cache-miss fetch hint when the cache is incomplete (#394)", async () => {
+    fsMock.existsSync.mockReturnValue(true);
+    const miss = new Error(
+      'ValueError: The chosen align_model "facebook/wav2vec2-large-960h-lv60-self" could not be found in huggingface (https://huggingface.co/models) or torchaudio (https://pytorch.org/audio/stable/pipelines.html#id14)',
+    );
+    execMock.mockImplementation((cmd, callback) => {
+      callback(miss);
+    });
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await runWhisperAlignment(mockScenes, mockTTSResults, "/output/audio");
+
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Force-align failed"));
+    const text = errSpy.mock.calls.flat().join("\n");
+    expect(text).toContain("Offline HF cache miss");
+    expect(text).toContain("facebook/wav2vec2-large-960h-lv60-self");
+    expect(text).toContain("snapshot_download('facebook/wav2vec2-large-960h-lv60-self')");
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
 });

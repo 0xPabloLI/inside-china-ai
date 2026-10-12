@@ -19,6 +19,8 @@ import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch } from "./post-process.mjs";
+import { offlineEnvPrefix } from "./offline-env.mjs";
+import { F5_OFFLINE_MODELS, reportOfflineCacheMiss } from "./offline-model-hints.mjs";
 
 const execAsync = promisify(exec);
 
@@ -130,6 +132,54 @@ export function buildF5Manifest(
 }
 
 /**
+ * Build the F5 batch shell command.
+ *
+ * Offline by default; an explicit `HF_HUB_OFFLINE` from the parent wins
+ * (#394) so a deliberate model fetch or upgrade is not silently blocked.
+ * `HF_HUB_DISABLE_XET=1` stays unconditional — it is the xet-transport
+ * workaround (runbook), not an offline policy.
+ *
+ * @param {object} options
+ * @param {string} options.manifestPath
+ * @param {string} options.outputDir
+ * @param {string} options.refText - default reference transcription
+ * @param {number} [options.speed=F5_MLX_SPEED]
+ * @param {NodeJS.ProcessEnv} [options.env=process.env]
+ * @returns {string}
+ */
+export function buildF5BatchCommand({
+  manifestPath,
+  outputDir,
+  refText,
+  speed = F5_MLX_SPEED,
+  env = process.env,
+}) {
+  return (
+    `source ${F5_MLX_VENV}/bin/activate && ${offlineEnvPrefix({ env })} HF_HUB_DISABLE_XET=1 PYTHONUNBUFFERED=1 F5_REF_AUDIO="${F5_REF_AUDIO}" F5_REF_TEXT="${refText.replace(/"/g, '\\"')}" python3 "${F5_MLX_BATCH_SCRIPT}" ` +
+    `--manifest "${manifestPath}" --output-dir "${outputDir}" --speed ${speed} 2>&1`
+  );
+}
+
+/**
+ * Run the F5 batch command, annotating an offline cache miss with the
+ * fetch hint (#394) before the error propagates. Failure semantics are
+ * unchanged: the error is rethrown untouched.
+ *
+ * @param {string} command
+ * @param {object} [options]
+ * @param {Function} [options.exec=execAsync] - test seam
+ * @returns {Promise<{stdout: string, stderr: string}>}
+ */
+export async function runF5Batch(command, { exec: run = execAsync } = {}) {
+  try {
+    return await run(command);
+  } catch (err) {
+    reportOfflineCacheMiss(err, F5_OFFLINE_MODELS);
+    throw err;
+  }
+}
+
+/**
  * Check if F5-TTS-MLX is available.
  * @returns {Promise<boolean>}
  */
@@ -177,9 +227,8 @@ export async function createF5MLXEngine() {
       const refText = readFileSync(F5_REF_TEXT_FILE, "utf-8").trim();
 
       console.log("  Loading F5-TTS-MLX model (once for all scenes)...");
-      const { stdout } = await execAsync(
-        `source ${F5_MLX_VENV}/bin/activate && HF_HUB_OFFLINE=1 HF_HUB_DISABLE_XET=1 PYTHONUNBUFFERED=1 F5_REF_AUDIO="${F5_REF_AUDIO}" F5_REF_TEXT="${refText.replace(/"/g, '\\"')}" python3 "${F5_MLX_BATCH_SCRIPT}" ` +
-          `--manifest "${manifestPath}" --output-dir "${outputDir}" --speed ${F5_MLX_SPEED} 2>&1`,
+      const { stdout } = await runF5Batch(
+        buildF5BatchCommand({ manifestPath, outputDir, refText }),
       );
 
       // Parse results from stdout

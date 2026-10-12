@@ -21,6 +21,7 @@ import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch, engineTtsText } from "./post-process.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
+import { offlineEnvPrefix } from "./offline-env.mjs";
 
 const execAsync = promisify(exec);
 
@@ -90,6 +91,39 @@ export function buildCV3Manifest(scenes) {
 }
 
 /**
+ * Build the CosyVoice3-MLX batch shell command.
+ *
+ * Offline by default; an explicit `HF_HUB_OFFLINE` from the parent wins
+ * (#394), matching the F5 and alignment spawns. `HF_HUB_DISABLE_XET=1` stays
+ * unconditional (xet-transport workaround, not an offline policy).
+ *
+ * @param {object} options
+ * @param {string} options.manifestPath
+ * @param {string} options.outputDir
+ * @param {string} options.refText - default reference transcription
+ * @param {number} [options.speed=CV3_MLX_SPEED]
+ * @param {string} [options.modelDir=CV3_MLX_MODEL_DIR]
+ * @param {NodeJS.ProcessEnv} [options.env=process.env]
+ * @returns {string}
+ */
+export function buildCV3BatchCommand({
+  manifestPath,
+  outputDir,
+  refText,
+  speed = CV3_MLX_SPEED,
+  modelDir = CV3_MLX_MODEL_DIR,
+  env = process.env,
+}) {
+  return (
+    `source ${CV3_MLX_VENV}/bin/activate && ${offlineEnvPrefix({ env })} HF_HUB_DISABLE_XET=1 PYTHONUNBUFFERED=1 ` +
+    `python3 "${CV3_MLX_BATCH_SCRIPT}" ` +
+    `--manifest "${manifestPath}" --output-dir "${outputDir}" ` +
+    `--ref-audio "${CV3_REF_AUDIO}" --ref-text "${refText.replace(/"/g, '\\"')}" ` +
+    `--speed ${speed} --model-dir "${modelDir}" 2>&1`
+  );
+}
+
+/**
  * Check if CosyVoice3-MLX is available.
  * @returns {Promise<boolean>}
  */
@@ -142,11 +176,7 @@ export async function createCosyVoice3MLXEngine() {
 
       console.log("  Loading CosyVoice3-MLX model (once for all scenes)...");
       const { stdout } = await execAsync(
-        `source ${CV3_MLX_VENV}/bin/activate && HF_HUB_OFFLINE=1 HF_HUB_DISABLE_XET=1 PYTHONUNBUFFERED=1 ` +
-          `python3 "${CV3_MLX_BATCH_SCRIPT}" ` +
-          `--manifest "${manifestPath}" --output-dir "${outputDir}" ` +
-          `--ref-audio "${CV3_REF_AUDIO}" --ref-text "${refText.replace(/"/g, '\\"')}" ` +
-          `--speed ${CV3_MLX_SPEED} --model-dir "${CV3_MLX_MODEL_DIR}" 2>&1`,
+        buildCV3BatchCommand({ manifestPath, outputDir, refText }),
       );
 
       const lines = stdout.trim().split("\n");
