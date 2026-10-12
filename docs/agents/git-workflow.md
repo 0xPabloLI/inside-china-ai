@@ -100,7 +100,7 @@
 
 ## 10. 交付后收尾（session:gc）
 
-**常设授权**（用户裁决，2026-10-12：交付后主动同步主 checkout 并清理多余分支，不必逐次确认）：PR 合并后不再逐次询问——主动执行 `npm run session:gc` 完成主 checkout 同步与分支清理。该命令是收尾的唯一入口（不手工 `git branch -D`、不手工切 checkout），因为它把纪律编码成 fail-closed 门禁。触发点有两处：agent 交付流程的收尾步骤（`implementation-workflow.md` §9 步骤 6，其后只剩 tracker 更新与汇报），以及 `session:stop`——当 stop 判定该 session 分支**已交付**并删除它时，会自动接着跑一次 gc（扫远端孪生 + 同步主 checkout），因此「合并 → stop」序列不需要第二条命令；未交付（保留分支）时不自动跑。远端合并没有本地事件源，故不设守护进程或轮询。
+**常设授权**（用户裁决，2026-10-12：交付后主动同步主 checkout 并清理多余分支，不必逐次确认）：PR 合并后不再逐次询问——主动执行 `npm run session:gc` 完成主 checkout 同步与分支清理。该命令是收尾的唯一入口（不手工 `git branch -D`、不手工切 checkout），因为它把纪律编码成 fail-closed 门禁。触发点有两处：agent 交付流程的收尾步骤（`implementation-workflow.md` §9 步骤 6，其后只剩 tracker 更新与汇报），以及 `session:stop`——当 stop 判定该 session 分支**已交付**并删除它时，会自动接着跑一次 gc（扫远端孪生 + 同步主 checkout），因此「合并 → stop」序列不需要第二条命令；未交付（保留分支）时不自动跑。stop 在删除 worktree 后先切到主 worktree 再执行后续 git 操作，因此**从被移除的 worktree 内调用也成立**（cwd 失效不会被误读成「查无 merged PR」）。远端合并没有本地事件源，故不设守护进程或轮询。
 
 1. **fetch --prune**：刷新 origin 的整个远端跟踪命名空间（不只 main——已删除远端分支的陈旧 tracking ref 否则会一直滞留）；离线时按现有 ref 继续并明示（非致命）。另清理手工删目录留下的失效 worktree 记录（`worktree prune`），否则其分支会永远显示「已被检出」。
 2. **同步主 checkout**：仅当它是**主 worktree（以 git-common-dir 身份判定，不靠列表顺序）、在 main 上、无 tracked 改动、且严格落后**时做 `merge --ff-only`。永不 rebase、永不 switch、永不触碰 dirty checkout；分叉（本地有未推送提交）一律报告后放过。
@@ -113,6 +113,6 @@
 
 **仓库设置**（2026-10-12 用户授权启用）：`delete_branch_on_merge: true`——GitHub 在 PR 合并时立即删除其 head 分支，把「PR 已合并」这一判据的窗口压到最短（其余分支交给上面的 gc）。该设置只影响「合并动作由 GitHub 执行」的删除；`gc` 的两条判据与之互补（设置删除 GitHub 眼中的 head 分支，gc 覆盖本地分支、孤儿远端、以及设置启用前遗留的分支）。若需回滚：`gh api -X PATCH repos/0xPabloLI/inside-china-ai -f delete_branch_on_merge=false`。
 
-`session:stop` 已并入同一判据：先 `git branch -d`（ancestry 合并），拒绝后再过 `ref_delivered` 才 `-D`（内容一致 → `squash-merged` 消息；PR 已合并 → `PR-merged` 消息）；两者都不通过则保留并说明（检查不可用与检查通过但无匹配分别报告，不把「查不到」写成「没有」）。被保留（未交付）的分支是**待办信号**，不是垃圾：要么交付（新 PR），要么由用户显式裁决丢弃——不允许静默 `-D`。典型保留场景：分支内容从未进入 main 且无 merged PR。
+`session:stop` 已并入同一判据：先 `git branch -d`（ancestry 合并），拒绝后再过 `ref_delivered` 才 `-D`（内容一致 → `squash-merged` 消息；PR 已合并 → `PR-merged` 消息）；两者都不通过则保留并说明（「查不到」与「查不了」分别报告，不把后者写成前者）。被保留（未交付）的分支是**待办信号**，不是垃圾：要么交付（新 PR），要么由用户显式裁决丢弃——不允许静默 `-D`。典型保留场景：分支内容从未进入 main 且无 merged PR。
 
 纪律边界（不得越过）：跨会话的 dirty worktree、未验证的 `-D`、在主 checkout 执行 `pull --rebase`/提交 `push`/`switch` 仍是禁止项；`gc` 的自动化只覆盖「已交付（内容一致，或 tip 绑定的 merged PR）」这一集合（其 `push --delete` 只删已合并 ref、不发布任何提交，是 `push` 禁令的例外，须与开放 PR 检查同时满足；**残余风险**：开放 PR 检查与删除之间存在 TOCTOU 窗口，新开 PR 会被该删除关闭——fail-closed 检查只把窗口压到最小，不能消除；远端 tip 的竞态则由 `--force-with-lease` 原子封死）。`gc` 不探测进行中的并发操作（reflog 推进、rebase 目录）：并行 session 正在写 ref 时不得运行（§9.1）。

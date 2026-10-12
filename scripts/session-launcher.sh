@@ -55,6 +55,17 @@ REGISTRY="$REGISTRY_DIR/pilot-log.md"
 # gh binary used by the delivery criteria and the open-PR guard; GH_CMD
 # overrides it (tests, or a gh installed under a different name).
 GH="${GH_CMD:-gh}"
+# Absolute script path, resolved while the cwd is still valid: stop re-enters
+# the launcher for the post-delivery gc even after it removed a worktree the
+# cwd may have pointed into.
+SELF="$0"
+case "$SELF" in /*) ;; *) SELF="$(pwd)/$SELF" ;; esac
+# Main worktree root, derived from the common git dir. stop cd's here before
+# the post-removal git work: when it is invoked from inside the worktree it
+# removes, the cwd is gone afterwards and every git call would fail — which
+# must not be mistaken for "no merged PR".
+MAIN_WT=$(dirname "$COMMON")
+[ -d "$MAIN_WT" ] || MAIN_WT=""
 
 rand_hex() { openssl rand -hex 3 2>/dev/null || od -An -N3 -tx1 /dev/urandom | tr -d ' \n'; }
 
@@ -278,6 +289,10 @@ if [ "$cmd" = "stop" ]; then
   fi
   if git worktree remove "$wtpath" >/dev/null 2>&1; then
     echo "[session] worktree removed: $wtpath"
+    # The cwd may have been inside the removed worktree; from here on the git
+    # work runs from the main worktree so a dangling cwd can never be read as
+    # an empty answer.
+    if [ -n "$MAIN_WT" ]; then cd "$MAIN_WT" 2>/dev/null || true; fi
     # #195: a removed worktree means the session ended — delete the session
     # branch when its work is fully on origin/main. `git branch -d` covers
     # ancestry merges; the delivery criteria extend the same intent to squash
@@ -317,9 +332,9 @@ if [ "$cmd" = "stop" ]; then
       # closeout now (sweep the remote twin, sync the main checkout), so the
       # merge → stop sequence needs no second command. Non-fatal: stop never
       # fails hard.
-      if [ -n "$delivered" ] && [ -r "$0" ]; then
+      if [ -n "$delivered" ] && [ -r "$SELF" ]; then
         echo "[session] post-delivery closeout:"
-        bash "$0" gc || true
+        bash "$SELF" gc || true
       fi
     fi
   else
@@ -445,10 +460,13 @@ if [ "$cmd" = "gc" ]; then
   }
 
   # verdict_kept_reason <verdict> — the keep reason for the non-delivered
-  # verdict codes (1 = checked, nothing matched; 4 = check unavailable).
+  # verdict codes (1 = checked, nothing matched; 4 = check unavailable;
+  # 5 = fetch failed, so content is unverifiable and the PR check found
+  # nothing for this tip).
   verdict_kept_reason() {
     case "$1" in
       4) printf '%s' "not verified: content differs from origin/main and the merged-PR check is unavailable" ;;
+      5) printf '%s' "not verified: fetch failed (content unverifiable) and no merged PR for this tip" ;;
       *) printf '%s' "not delivered: content differs from origin/main, no merged PR for this tip" ;;
     esac
   }
@@ -519,7 +537,11 @@ if [ "$cmd" = "gc" ]; then
     else
       rc=0
       pr_delivered "$b" "$tip" || rc=$?
-      if [ "$rc" = 0 ]; then d=3; else d=4; fi
+      case "$rc" in
+        0) d=3 ;;
+        1) d=5 ;; # PR check ran and found no match; content stays unverifiable
+        *) d=4 ;;
+      esac
     fi
     case "$d" in
       0 | 3)

@@ -583,7 +583,10 @@ describe("session-launcher gc: post-delivery closeout", () => {
     installShimGit(ghDir, "nofetch");
     const { out } = gcWith({ PATH: `${ghDir}:${process.env.PATH}` });
     expect(remoteBranchExists("session/20260101-staleref-abc201")).toBe(true);
-    expect(out).toContain("kept remote origin/session/20260101-staleref-abc201 (not verified");
+    // The PR check ran and found nothing — distinct from "could not check".
+    expect(out).toContain(
+      "kept remote origin/session/20260101-staleref-abc201 (not verified: fetch failed (content unverifiable) and no merged PR for this tip)",
+    );
   });
 
   it("deletes a PR-delivered remote twin even when the fetch fails", () => {
@@ -704,6 +707,58 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(r.status).toBe(0);
     expect(branchExists(`session/${id}`)).toBe(false);
     expect(r.stdout).toContain("squash-merged session branch deleted");
+  });
+
+  // makeDeliveredSessionWorktree — a session worktree whose content already
+  // landed on origin/main (squash shape), with its remote twin pushed.
+  function makeDeliveredSessionWorktree(id, content) {
+    const wtPath = join(repo, "wt-" + id);
+    git(repo, "worktree", "add", "-b", `session/${id}`, wtPath);
+    const wtGitDir = git(wtPath, "rev-parse", "--absolute-git-dir").trim();
+    mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true });
+    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), id + "\n");
+    writeFileSync(join(wtPath, "feature.txt"), content);
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "work");
+    writeFileSync(join(repo, "feature.txt"), content);
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "squash merge");
+    git(repo, "push", "-q", "origin", "main");
+    git(repo, "push", "-q", "origin", `session/${id}`);
+    return wtPath;
+  }
+
+  // A delivered branch means the work landed: stop must not stop at deleting
+  // the local branch — the remote twin and the main-checkout sync are the
+  // closeout, and the merge → stop sequence should need no second command.
+  it("stop runs the post-delivery closeout after deleting a delivered branch", () => {
+    const id = "20260101-stopgc-abc401";
+    const wtPath = makeDeliveredSessionWorktree(id, "stopgc\n");
+
+    const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
+    expect(r.status).toBe(0);
+    expect(branchExists(`session/${id}`)).toBe(false);
+    expect(r.stdout).toContain("[session] post-delivery closeout:");
+    expect(remoteBranchExists(`session/${id}`)).toBe(false); // gc swept the twin
+  });
+
+  it("stop from inside the worktree still cleans up and closes out", () => {
+    const id = "20260101-stopcwd-abc402";
+    const wtPath = makeDeliveredSessionWorktree(id, "stopcwd\n");
+
+    const r = spawnSync("bash", [LAUNCHER, "stop", "."], {
+      encoding: "utf8",
+      cwd: wtPath,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
+    expect(r.status).toBe(0);
+    expect(branchExists(`session/${id}`)).toBe(false);
+    expect(r.stdout).toContain("[session] post-delivery closeout:");
+    expect(remoteBranchExists(`session/${id}`)).toBe(false);
   });
 
   it("stop deletes a PR-delivered session branch after main moved on", () => {
