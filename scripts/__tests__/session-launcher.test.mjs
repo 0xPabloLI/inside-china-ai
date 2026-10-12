@@ -17,17 +17,39 @@ function git(cwd, ...args) {
 
 // installFakeGh <dir> — writes a fake `gh` answering the two queries the
 // launcher makes: the open-PR count for a head branch, and the merged-PR list.
-// mergedPr is emitted as the already-jq-processed TSV the launcher parses
-// (`headRefOid\tmergeCommit`); the real `--jq` filter is exercised against the
-// live API by the real-repo smoke, not here. Any other invocation fails loudly
-// so new gh dependencies surface in tests.
+// The merged record is emitted ONLY when the query's `--head` value matches
+// mergedPr.branch, so a wrong branch argument (e.g. a ref path instead of a
+// branch name) silently loses the record and fails the test instead of
+// passing unnoticed. The record itself is the already-jq-processed TSV the
+// launcher parses (`headRefOid\tmergeCommit`); the real `--jq` filter is
+// exercised against the live API by the real-repo smoke, not here. Any other
+// invocation fails loudly so new gh dependencies surface in tests.
 function installFakeGh(dir, { openPrCount = 0, mergedPr = null } = {}) {
   const p = join(dir, "gh");
-  const mergedLine = mergedPr ? `${mergedPr.headRefOid}\t${mergedPr.mergeCommit}` : "";
+  const mergedCase = mergedPr
+    ? `  *"pr list"*"--state merged"*)\n    case "$*" in\n      *"--head ${mergedPr.branch}"*) printf '%s\\n' "${mergedPr.headRefOid}\t${mergedPr.mergeCommit}" ;;\n    esac\n    exit 0\n    ;;\n`
+    : `  *"pr list"*"--state merged"*) exit 0 ;;\n`;
   writeFileSync(
     p,
-    `#!/bin/bash\ncase "$*" in\n  *"pr list"*"--state merged"*) printf '%s\\n' "${mergedLine}"; exit 0 ;;\n  *"pr list"*) echo "${openPrCount}"; exit 0 ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
+    `#!/bin/bash\ncase "$*" in\n${mergedCase}  *"pr list"*) echo "${openPrCount}"; exit 0 ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
   );
+  execFileSync("chmod", ["+x", p]);
+}
+
+// installShimGit <dir> <mode> — a PATH-first `git` wrapper.
+//   "nofetch": every `git fetch` fails (pack transfer unreachable) while
+//              ls-remote still works.
+//   "race":    the first `push --delete` first advances that branch on origin
+//              from a scratch clone (a commit landing between verification and
+//              deletion), then runs the real push.
+function installShimGit(dir, mode) {
+  const p = join(dir, "git");
+  const real = execFileSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+  const body =
+    mode === "nofetch"
+      ? `for a in "$@"; do [ "$a" = fetch ] && exit 1; done\nexec "${real}" "$@"\n`
+      : `del=""; prev=""\nfor a in "$@"; do\n  [ "$prev" = "--delete" ] && del="$a"\n  prev="$a"\ndone\nif [ -n "$del" ] && [ -n "\${GC_SHIM_RACE:-}" ] && [ ! -f "\${GC_SHIM_RACE}.once" ]; then\n  : > "\${GC_SHIM_RACE}.once"\n  url=$("${real}" config --get remote.origin.url)\n  tmp=$(mktemp -d)\n  "${real}" clone -q "$url" "$tmp" 2>/dev/null\n  "${real}" -C "$tmp" config user.email t@e.c\n  "${real}" -C "$tmp" config user.name t\n  "${real}" -C "$tmp" checkout -q "$del" 2>/dev/null\n  "${real}" -C "$tmp" commit -q --allow-empty -m "race commit"\n  "${real}" -C "$tmp" push -q origin "$del" 2>/dev/null\n  rm -rf "$tmp"\nfi\nexec "${real}" "$@"\n`;
+  writeFileSync(p, `#!/bin/bash\n${body}`);
   execFileSync("chmod", ["+x", p]);
 }
 
@@ -35,7 +57,6 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
   let repo;
   let wt;
   let ghDir;
-  let extraOrigin;
 
   beforeEach(() => {
     repo = mkdtempSync(join(tmpdir(), "launcher-test-repo-"));
@@ -53,7 +74,6 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
   afterEach(() => {
     rmSync(repo, { recursive: true, force: true });
     rmSync(ghDir, { recursive: true, force: true });
-    if (extraOrigin) rmSync(extraOrigin, { recursive: true, force: true });
   });
 
   function stop(wtpath) {
@@ -158,20 +178,24 @@ describe("session-launcher gc: post-delivery closeout", () => {
     installFakeGh(ghDir, { openPrCount, mergedPr });
   }
 
-  // writeFailingGh — the open-PR probe itself errors (no auth / offline).
+  // writeFailingGh — every gh invocation errors (no auth / offline).
   function writeFailingGh() {
     const p = join(ghDir, "gh");
     writeFileSync(p, `#!/bin/bash\necho "gh: auth error" >&2\nexit 1\n`);
     execFileSync("chmod", ["+x", p]);
   }
 
-  function gc(...args) {
+  function gcWith(extraEnv, ...args) {
     const r = spawnSync("bash", [LAUNCHER, "gc", ...args], {
       encoding: "utf8",
       cwd: repo,
-      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+      env: { ...process.env, GH_CMD: join(ghDir, "gh"), ...extraEnv },
     });
     return { status: r.status, out: (r.stdout || "") + (r.stderr || "") };
+  }
+
+  function gc(...args) {
+    return gcWith({}, ...args);
   }
 
   function branchExists(name) {
@@ -222,7 +246,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
   // prMergedBranch — the shape byte identity can never re-verify: the branch
   // tip was merged into main (headRefOid / mergeCommit below), then main moved
   // on (a release bump), so the branch's content no longer matches. Only the
-  // PR criterion can prove delivery here. Returns the SHAs a fake gh reports.
+  // PR criterion can prove delivery here. Returns what a fake gh reports.
   function prMergedBranch(name, content, evolvedContent) {
     const wtPath = join(repo, "wt-" + name.replace(/[^a-z0-9]+/gi, "-"));
     git(repo, "worktree", "add", "-b", name, wtPath);
@@ -241,7 +265,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
     git(repo, "add", ".");
     git(repo, "commit", "-q", "-m", "release bump after the merge");
     git(repo, "push", "-q", "origin", "main");
-    return { tip, mergeCommit };
+    return { branch: name, tip, mergeCommit };
   }
 
   it("deletes a squash-merged branch locally and on the remote", () => {
@@ -386,7 +410,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
     const { out } = gc();
     expect(remoteBranchExists("session/20260101-orphanun-abc555")).toBe(true);
     expect(out).toContain(
-      "kept remote origin/session/20260101-orphanun-abc555 (not delivered: content differs and no merged PR for this tip)",
+      "kept remote origin/session/20260101-orphanun-abc555 (not delivered: content differs from origin/main, no merged PR for this tip)",
     );
   });
 
@@ -428,7 +452,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
 
     const { out } = gc();
     expect(remoteBranchExists("session/20260101-rmfail-abc111")).toBe(true);
-    expect(out).toContain("remote origin/session/20260101-rmfail-abc111 delete failed — skipped");
+    expect(out).toContain("remote origin/session/20260101-rmfail-abc111 delete failed or refused");
     // The remote half of the summary must agree with the per-branch line.
     expect(out).toContain("kept 0 (remote 1)");
   });
@@ -437,8 +461,12 @@ describe("session-launcher gc: post-delivery closeout", () => {
   // once main moves on after the merge (release bumps do this every cycle), so
   // a merged PR whose head is exactly the branch tip is delivery evidence too.
   it("deletes a PR-delivered branch whose content drifted after the merge", () => {
-    const { tip, mergeCommit } = prMergedBranch("session/20260101-drift-abc101", "v1\n", "v2\n");
-    writeFakeGh(0, { mergeCommit, headRefOid: tip });
+    const { branch, tip, mergeCommit } = prMergedBranch(
+      "session/20260101-drift-abc101",
+      "v1\n",
+      "v2\n",
+    );
+    writeFakeGh(0, { branch, mergeCommit, headRefOid: tip });
 
     const { out } = gc();
     expect(branchExists("session/20260101-drift-abc101")).toBe(false);
@@ -447,7 +475,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
   });
 
   it("keeps a branch with commits pushed after the merge", () => {
-    const { tip, mergeCommit } = prMergedBranch(
+    const { branch, tip, mergeCommit } = prMergedBranch(
       "session/20260101-postmerge-abc102",
       "v1\n",
       "v2\n",
@@ -458,7 +486,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
     git(wtPath, "add", ".");
     git(wtPath, "commit", "-q", "-m", "post-merge work");
     git(repo, "worktree", "remove", wtPath);
-    writeFakeGh(0, { mergeCommit, headRefOid: tip });
+    writeFakeGh(0, { branch, mergeCommit, headRefOid: tip });
 
     const { out } = gc();
     expect(branchExists("session/20260101-postmerge-abc102")).toBe(true);
@@ -467,8 +495,8 @@ describe("session-launcher gc: post-delivery closeout", () => {
   });
 
   it("keeps a branch whose reported merge commit is not on origin/main", () => {
-    const { tip } = prMergedBranch("session/20260101-badmc-abc103", "v1\n", "v2\n");
-    writeFakeGh(0, { mergeCommit: tip, headRefOid: tip });
+    const { branch, tip } = prMergedBranch("session/20260101-badmc-abc103", "v1\n", "v2\n");
+    writeFakeGh(0, { branch, mergeCommit: tip, headRefOid: tip });
 
     const { out } = gc();
     expect(branchExists("session/20260101-badmc-abc103")).toBe(true);
@@ -481,7 +509,10 @@ describe("session-launcher gc: post-delivery closeout", () => {
 
     const { out } = gc();
     expect(branchExists("session/20260101-prfail-abc104")).toBe(true);
-    expect(out).toContain("kept session/20260101-prfail-abc104 (not delivered");
+    // The check being unavailable is reported as such — not as a proven
+    // absence of a merged PR.
+    expect(out).toContain("kept session/20260101-prfail-abc104 (not verified");
+    expect(out).not.toContain("kept session/20260101-prfail-abc104 (not delivered");
   });
 
   it("keeps a PR-delivered candidate when gh is unavailable", () => {
@@ -496,8 +527,12 @@ describe("session-launcher gc: post-delivery closeout", () => {
   });
 
   it("--dry-run previews a PR-delivered deletion without deleting", () => {
-    const { tip, mergeCommit } = prMergedBranch("session/20260101-drypr-abc106", "v1\n", "v2\n");
-    writeFakeGh(0, { mergeCommit, headRefOid: tip });
+    const { branch, tip, mergeCommit } = prMergedBranch(
+      "session/20260101-drypr-abc106",
+      "v1\n",
+      "v2\n",
+    );
+    writeFakeGh(0, { branch, mergeCommit, headRefOid: tip });
 
     const { out } = gc("--dry-run");
     expect(branchExists("session/20260101-drypr-abc106")).toBe(true);
@@ -509,14 +544,80 @@ describe("session-launcher gc: post-delivery closeout", () => {
   });
 
   it("sweeps an orphaned remote twin that a merged PR covers", () => {
-    const { tip, mergeCommit } = prMergedBranch("session/20260101-orphanpr-abc107", "v1\n", "v2\n");
+    const { branch, tip, mergeCommit } = prMergedBranch(
+      "session/20260101-orphanpr-abc107",
+      "v1\n",
+      "v2\n",
+    );
     git(repo, "branch", "-D", "session/20260101-orphanpr-abc107");
-    writeFakeGh(0, { mergeCommit, headRefOid: tip });
+    writeFakeGh(0, { branch, mergeCommit, headRefOid: tip });
 
     const { out } = gc();
     expect(remoteBranchExists("session/20260101-orphanpr-abc107")).toBe(false);
     expect(out).toContain(
       "deleted remote origin/session/20260101-orphanpr-abc107 (PR merged into main)",
+    );
+  });
+
+  // A failed fetch must not let the content criterion run against a stale
+  // tracking ref: the stale ref can look byte-identical while the real remote
+  // tip carries unmerged commits. Only the tip-bound PR criterion may
+  // authorise a delete when the fetch failed.
+  it("keeps the remote twin when the fetch fails (content unverifiable)", () => {
+    squashMergedBranch("session/20260101-staleref-abc201", "v1\n");
+    git(repo, "push", "-q", "origin", "session/20260101-staleref-abc201");
+    git(repo, "fetch", "-q", "origin", "session/20260101-staleref-abc201");
+    // Advance the remote branch from a scratch clone; the fixture's tracking
+    // ref stays on the merged tip.
+    const other = mkdtempSync(join(tmpdir(), "launcher-gc-stale-"));
+    git(repo, "clone", "-q", origin, other);
+    git(other, "config", "user.email", "test@example.com");
+    git(other, "config", "user.name", "test");
+    git(other, "checkout", "-q", "session/20260101-staleref-abc201");
+    writeFileSync(join(other, "newer.txt"), "newer\n");
+    git(other, "add", ".");
+    git(other, "commit", "-q", "-m", "unmerged follow-up");
+    git(other, "push", "-q", "origin", "session/20260101-staleref-abc201");
+    rmSync(other, { recursive: true, force: true });
+
+    installShimGit(ghDir, "nofetch");
+    const { out } = gcWith({ PATH: `${ghDir}:${process.env.PATH}` });
+    expect(remoteBranchExists("session/20260101-staleref-abc201")).toBe(true);
+    expect(out).toContain("kept remote origin/session/20260101-staleref-abc201 (not verified");
+  });
+
+  it("deletes a PR-delivered remote twin even when the fetch fails", () => {
+    const { branch, tip, mergeCommit } = prMergedBranch(
+      "session/20260101-prnofetch-abc202",
+      "v1\n",
+      "v2\n",
+    );
+    writeFakeGh(0, { branch, mergeCommit, headRefOid: tip });
+
+    installShimGit(ghDir, "nofetch");
+    const { out } = gcWith({ PATH: `${ghDir}:${process.env.PATH}` });
+    // PR evidence needs no local objects, so the tip-bound criterion still
+    // authorises the delete.
+    expect(remoteBranchExists("session/20260101-prnofetch-abc202")).toBe(false);
+    expect(out).toContain("deleted remote origin/session/20260101-prnofetch-abc202 (PR merged");
+  });
+
+  // The verification/deletion race: a commit lands on the remote branch after
+  // verification but before the delete. --force-with-lease makes the delete
+  // conditional on the verified tip, so the push is refused and the branch
+  // (with its new commit) survives.
+  it("keeps the remote twin when a commit lands between verification and delete", () => {
+    squashMergedBranch("session/20260101-lease-abc203", "v1\n");
+    git(repo, "push", "-q", "origin", "session/20260101-lease-abc203");
+
+    installShimGit(ghDir, "race");
+    const { out } = gcWith({
+      PATH: `${ghDir}:${process.env.PATH}`,
+      GC_SHIM_RACE: join(ghDir, "race-marker"),
+    });
+    expect(remoteBranchExists("session/20260101-lease-abc203")).toBe(true);
+    expect(out).toContain(
+      "remote origin/session/20260101-lease-abc203 delete failed or refused (remote moved after verification?)",
     );
   });
 
@@ -626,7 +727,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
     git(repo, "add", ".");
     git(repo, "commit", "-q", "-m", "release bump");
     git(repo, "push", "-q", "origin", "main");
-    writeFakeGh(0, { mergeCommit, headRefOid: tip });
+    writeFakeGh(0, { branch: `session/${id}`, mergeCommit, headRefOid: tip });
 
     const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], {
       encoding: "utf8",

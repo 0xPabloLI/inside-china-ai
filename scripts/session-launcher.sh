@@ -102,33 +102,63 @@ ref_content_merged() {
 # on origin/main all return 1. The tip binding is what makes criterion 3 safe:
 # a PR whose head SHA equals this exact tip proves this tip was pushed and
 # merged; commits added afterwards move the tip and keep the branch.
-ref_delivered() {
-  local ref="$1" tip="$2" b rows head_sha mc
-  ref_content_merged "$ref" refs/remotes/origin/main && return 0
-  command -v "$GH" >/dev/null 2>&1 || return 1
+# pr_delivered <branch> <tip> — did a merged PR carry exactly this tip into
+# origin/main? 0 = yes; 1 = no merged PR matches this tip; 4 = cannot tell
+# (gh missing, or the query failed). The tip binding is what makes this safe:
+# a PR whose head SHA equals this exact tip proves this tip was pushed and
+# merged; commits added afterwards move the tip and the branch is kept.
+pr_delivered() {
+  local b="$1" tip="$2" rows head_sha mc
+  command -v "$GH" >/dev/null 2>&1 || return 4
   [ -n "$tip" ] || return 1
-  b="${ref#refs/heads/}"
-  b="${b#refs/remotes/origin/}"
   rows=$("$GH" pr list --head "$b" --state merged --limit 20 \
     --json mergeCommit,headRefOid \
-    --jq '.[] | [.headRefOid // "", .mergeCommit.oid // ""] | @tsv' </dev/null 2>/dev/null) || return 1
+    --jq '.[] | [.headRefOid // "", .mergeCommit.oid // ""] | @tsv' </dev/null 2>/dev/null) || return 4
   while IFS=$'\t' read -r head_sha mc; do
     [ "$head_sha" = "$tip" ] || continue
     [ -n "$mc" ] || continue
-    git merge-base --is-ancestor "$mc" refs/remotes/origin/main 2>/dev/null && return 3
+    git merge-base --is-ancestor "$mc" refs/remotes/origin/main 2>/dev/null && return 0
   done <<< "$rows"
   return 1
 }
 
+# ref_delivered <ref> <tip> — delivery verdict for one branch, most direct
+# criterion first:
+#   0 = every file <ref> changed is byte-identical on origin/main
+#       (ref_content_merged: the branch's own content landed, squash or not);
+#   3 = a merged PR carried exactly <tip> into origin/main (the criterion that
+#       survives main moving on after the merge — release bumps rewrite the
+#       files the branch touched, so byte identity can never re-verify those);
+#   1 = neither → keep;
+#   4 = content differs and the merged-PR check could not run → keep.
+# Callers beware: verdict 0 is only trustworthy on a freshly fetched ref.
+ref_delivered() {
+  local ref="$1" tip="$2" b rc
+  ref_content_merged "$ref" refs/remotes/origin/main && return 0
+  b="${ref#refs/heads/}"
+  b="${b#refs/remotes/origin/}"
+  rc=0
+  pr_delivered "$b" "$tip" || rc=$?
+  if [ "$rc" = 0 ]; then
+    return 3
+  fi
+  return "$rc"
+}
+
 # delete_if_delivered <branch> — the only `-D` in this script, gated on
 # ref_delivered. 0 = deleted (content merged); 1 = kept (not delivered);
-# 2 = kept (delete failed); 3 = deleted (PR merged into main).
+# 2 = kept (delete failed); 3 = deleted (PR merged into main); 4 = kept
+# (content differs and the merged-PR check is unavailable).
 delete_if_delivered() {
   local b="$1" tip rc
   tip=$(git rev-parse --verify --quiet "refs/heads/$b" 2>/dev/null) || return 1
   rc=0
   ref_delivered "refs/heads/$b" "$tip" || rc=$?
-  [ "$rc" = 0 ] || [ "$rc" = 3 ] || return 1
+  case "$rc" in
+    0 | 3) ;;
+    4) return 4 ;;
+    *) return 1 ;;
+  esac
   git branch -D "$b" >/dev/null 2>&1 || return 2
   return "$rc"
 }
@@ -256,25 +286,40 @@ if [ "$cmd" = "stop" ]; then
     # Work that never landed is auto-exempted and kept. Deletion failure never
     # blocks the stop flow.
     if [ -n "$session_id" ]; then
+      delivered=""
       if git branch -d "session/$session_id" >/dev/null 2>&1; then
         echo "[session] merged session branch deleted: session/$session_id"
+        delivered=1
       else
         rc=0
         delete_if_delivered "session/$session_id" || rc=$?
         case "$rc" in
           0)
             echo "[session] squash-merged session branch deleted (content verified on origin/main): session/$session_id"
+            delivered=1
             ;;
           3)
             echo "[session] PR-merged session branch deleted (merged PR head verified on origin/main): session/$session_id"
+            delivered=1
             ;;
           2)
             echo "[session] session branch kept (delete failed): session/$session_id"
+            ;;
+          4)
+            echo "[session] session branch kept (not verified: content differs from origin/main and the merged-PR check is unavailable): session/$session_id"
             ;;
           *)
             echo "[session] session branch kept (not delivered: content differs from origin/main, no merged PR for this tip): session/$session_id"
             ;;
         esac
+      fi
+      # A deleted session branch means the work landed: run the post-delivery
+      # closeout now (sweep the remote twin, sync the main checkout), so the
+      # merge → stop sequence needs no second command. Non-fatal: stop never
+      # fails hard.
+      if [ -n "$delivered" ] && [ -r "$0" ]; then
+        echo "[session] post-delivery closeout:"
+        bash "$0" gc || true
       fi
     fi
   else
@@ -399,13 +444,22 @@ if [ "$cmd" = "gc" ]; then
     return 1
   }
 
+  # verdict_kept_reason <verdict> — the keep reason for the non-delivered
+  # verdict codes (1 = checked, nothing matched; 4 = check unavailable).
+  verdict_kept_reason() {
+    case "$1" in
+      4) printf '%s' "not verified: content differs from origin/main and the merged-PR check is unavailable" ;;
+      *) printf '%s' "not delivered: content differs from origin/main, no merged PR for this tip" ;;
+    esac
+  }
+
   # remote_twin_closeout <branch> <dry> — deletes origin/<branch> only when it
   # still exists, its own delivery verifies (content on origin/main, or a
   # tip-bound merged PR), gh can check for open PRs, and none is open. dry=1
   # previews without writing any ref (no fetch, no delete). Every unknown keeps
   # it (fail-closed).
   remote_twin_closeout() {
-    local b="$1" dry="$2" open_prs tip tracked rc d
+    local b="$1" dry="$2" open_prs tip tracked rc d tip_used
     rc=0
     tip=$(git ls-remote --exit-code --heads origin "refs/heads/$b" 2>/dev/null | awk 'NR==1{print $1}') || rc=$?
     case "$rc" in
@@ -445,7 +499,7 @@ if [ "$cmd" = "gc" ]; then
         echo "[gc] would delete remote origin/$b (content merged)"
         remote_would=$((remote_would + 1))
       elif [ "$tip" = "$tracked" ]; then
-        echo "[gc] kept remote origin/$b (not delivered: content differs and no merged PR for this tip)"
+        echo "[gc] kept remote origin/$b ($(verdict_kept_reason "$d"))"
         remote_kept=$((remote_kept + 1))
       else
         echo "[gc] would fetch and verify remote origin/$b before deleting (dry-run does not fetch)"
@@ -453,25 +507,43 @@ if [ "$cmd" = "gc" ]; then
       fi
       return 0
     fi
-    git fetch --quiet --force origin "refs/heads/$b:refs/remotes/origin/$b" </dev/null 2>/dev/null || true
+    # Content is only trustworthy on a freshly fetched ref: when the fetch
+    # fails, the content criterion is skipped entirely and only the tip-bound
+    # PR criterion may authorise the delete (its evidence does not depend on
+    # local objects). Anything else is unknown and keeps the branch.
     d=0
-    ref_delivered "refs/remotes/origin/$b" "$tip" || d=$?
-    if [ "$d" != 0 ] && [ "$d" != 3 ]; then
-      echo "[gc] kept remote origin/$b (not delivered: content differs and no merged PR for this tip)"
-      remote_kept=$((remote_kept + 1))
-      return 0
-    fi
-    if git push --quiet origin --delete "$b" </dev/null >/dev/null 2>&1; then
-      if [ "$d" = 3 ]; then
-        echo "[gc] deleted remote origin/$b (PR merged into main)"
-      else
-        echo "[gc] deleted remote origin/$b (content merged)"
-      fi
-      remote_deleted=$((remote_deleted + 1))
+    tip_used="$tip"
+    if git fetch --quiet --force origin "refs/heads/$b:refs/remotes/origin/$b" </dev/null 2>/dev/null; then
+      tip_used=$(git rev-parse "refs/remotes/origin/$b")
+      ref_delivered "refs/remotes/origin/$b" "$tip_used" || d=$?
     else
-      echo "[gc] remote origin/$b delete failed — skipped"
-      remote_kept=$((remote_kept + 1))
+      rc=0
+      pr_delivered "$b" "$tip" || rc=$?
+      if [ "$rc" = 0 ]; then d=3; else d=4; fi
     fi
+    case "$d" in
+      0 | 3)
+        # --force-with-lease makes the delete conditional on the remote still
+        # being at the tip just verified: a commit landing between
+        # verification and deletion rejects the push (stale info) and keeps
+        # the branch, closing that race atomically.
+        if git push --quiet --force-with-lease="refs/heads/$b:$tip_used" origin --delete "$b" </dev/null >/dev/null 2>&1; then
+          if [ "$d" = 3 ]; then
+            echo "[gc] deleted remote origin/$b (PR merged into main)"
+          else
+            echo "[gc] deleted remote origin/$b (content merged)"
+          fi
+          remote_deleted=$((remote_deleted + 1))
+        else
+          echo "[gc] remote origin/$b delete failed or refused (remote moved after verification?) — skipped"
+          remote_kept=$((remote_kept + 1))
+        fi
+        ;;
+      *)
+        echo "[gc] kept remote origin/$b ($(verdict_kept_reason "$d"))"
+        remote_kept=$((remote_kept + 1))
+        ;;
+    esac
   }
 
   while IFS=$'\t' read -r b wtpath; do
@@ -498,33 +570,33 @@ if [ "$cmd" = "gc" ]; then
           remote_twin_closeout "$b" 1
           ;;
         *)
-          echo "[gc] kept $b (not delivered: content differs from origin/main, no merged PR for this tip)"
+          echo "[gc] kept $b ($(verdict_kept_reason "$d"))"
           kept=$((kept + 1))
           ;;
       esac
       continue
     fi
-    # One delivery verdict per branch; delete_if_delivered returns which
-    # criterion matched (0 content merged, 3 merged PR, 1 not delivered,
-    # 2 delete failed).
+    # One delivery verdict per branch, taken inside delete_if_delivered so the
+    # `-D` is always gated on the check that authorises it (0 content merged,
+    # 3 merged PR, 1 not delivered, 4 check unavailable, 2 delete failed).
     rc=0
     delete_if_delivered "$b" || rc=$?
     case "$rc" in
-      0)
-        echo "[gc] deleted $b (content merged)"
+      0 | 3)
+        if [ "$rc" = 3 ]; then
+          echo "[gc] deleted $b (PR merged into main)"
+        else
+          echo "[gc] deleted $b (content merged)"
+        fi
         deleted=$((deleted + 1))
         ;;
-      3)
-        echo "[gc] deleted $b (PR merged into main)"
-        deleted=$((deleted + 1))
-        ;;
-      1)
-        echo "[gc] kept $b (not delivered: content differs from origin/main, no merged PR for this tip)"
+      2)
+        echo "[gc] kept $b (delete failed)"
         kept=$((kept + 1))
         continue
         ;;
       *)
-        echo "[gc] kept $b (delete failed)"
+        echo "[gc] kept $b ($(verdict_kept_reason "$rc"))"
         kept=$((kept + 1))
         continue
         ;;
