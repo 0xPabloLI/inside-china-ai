@@ -97,6 +97,23 @@ GRANT ALL ON public.<table> TO service_role;
 - 修改 Secret 后必须重新发布，生产环境才能读到新值。
 - 发布前执行本文 §13 的检查清单；关键页面还必须在本地 dev server 通过浏览器验证。
 
+### Lovable → main 的改动回流（`lovable-sync` 收割）
+
+main 由 `main-merge-gate` ruleset 保护（必须走 PR + `Lint, typecheck, test` + `Semgrep SAST`，无 bypass actor）——这是刻意保留的合并门禁。Lovable 只能直接 push，被拒时会把改动推到回退分支 **`lovable-sync`**，并在编辑器提示 "Merge that branch into `<your branch>` to apply them"（Lovable 文档 GitHub 集成 §Troubleshooting）。所以 Lovable 侧的编辑要按下面流程收割回 main（ruleset 2026-09-25 20:31 生效；Lovable 最后一次直推成功是同日 20:21，之后每次编辑都会再落 `lovable-sync`）。
+
+触发：编辑器出现落 `lovable-sync` 的提示；或 `git log --oneline origin/main..origin/lovable-sync` 非空。
+
+1. 从最新 `origin/main` 开 session worktree（不在主 checkout 切分支）。
+2. `git merge --no-commit --no-ff origin/lovable-sync`，冲突定则：
+   - `bun.lock` / `bunfig.toml`：保持 main 的删除（`5ef45f3a` 刻意移除 bun 锁文件；留下分支版本会复活 Renovate 漂移）；
+   - 其余文件：把 Lovable 的改动套到 main 当前文本上，过 prettier/eslint。
+3. 用 **merge commit（非 squash）** 提交，保留 bot 提交的 SHA 与归属；补测试与验证后走 PR，CI 与 review 线程清干净再合（常设自主合并授权见 `docs/agents/git-workflow.md` §7）。
+4. 合并即完成回流：main 前进会触发 Lovable 拉取。编辑器状态卡若停在 "GitHub is N commits ahead"，**Re-check 只比对不拉取**——往 main 推一笔新提交即可触发拉取（Lovable 文档口径）；显示 diverged 时下一次同步会用 GitHub 版覆盖编辑器版，Lovable 会先存备份。
+
+边界：`lovable-sync` 是 Lovable 连接历史，不 force-push、不 amend/rebase/squash 已推送的提交（AGENTS.md 顶部规则）。若分支上出现了你自己的提交，Lovable 下次会改用 `lovable-sync-<timestamp>`，按同样流程收割最新的那个。
+
+完成判据：`origin/main..origin/lovable-sync` 无未收割提交，且编辑器同步卡回到同步状态。
+
 ## 12. Stack 约束
 
 - TypeScript 使用 functional React components/hooks；2-space indentation；组件和类型使用 `PascalCase`，变量和函数使用 `camelCase`。
