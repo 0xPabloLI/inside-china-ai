@@ -1,0 +1,29 @@
+{
+  "threshold": 60,
+  "results": [
+    {
+      "sceneId": 1,
+      "sceneName": "hook",
+      "asset": "assets/wx06-official-download-page.png",
+      "relevance": null,
+      "reason": "The image directly shows the DeepSeek Harness download page, which is central to the claim about the app being leaked before its official release.",
+      "passed": false
+    },
+    {
+      "sceneId": 2,
+      "sceneName": "open-loop",
+      "asset": "assets/wx00-official-site.png",
+      "relevance": 85,
+      "reason": "The image directly showcases the DeepSeek Harness, aligning with the scene claim about the Chinese AI lab shipping consumer software, and highlights its availability on macOS.",
+      "passed": true
+    },
+    {
+      "sceneId": 6,
+      "sceneName": "creator-demo",
+      "asset": "assets/feat-trace.jpg",
+      "relevance": 50,
+      "reason": "The image shows a technical environment and code navigation, which is related to building or demonstrating a plugin, but does not directly show a timer plugin or the specific steps mentioned in the scene claim.",
+      "passed": false
+    }
+  ]
+}
