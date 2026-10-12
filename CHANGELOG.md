@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.4...tanstack_start_ts-v1.20.5) (2026-10-12)
+
+
+### Bug Fixes
+
+* **lint:** give .mjs real correctness rules and stop CI's incremental gate scanning nothing ([#447](https://github.com/0xPabloLI/inside-china-ai/issues/447)) ([#614](https://github.com/0xPabloLI/inside-china-ai/issues/614)) ([440d374](https://github.com/0xPabloLI/inside-china-ai/commit/440d3746d0ead7634e5432e97e8e11dfef54f879))
+
 ## [1.20.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.3...tanstack_start_ts-v1.20.4) (2026-10-12)
 
 
