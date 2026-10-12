@@ -1,7 +1,7 @@
 # Test Environment Baseline (Flaky Profile)
 
 > 已知因**环境**而非代码差异失败的测试。解释测试失败前先对照本清单；命中则隔离重跑，再决定是否进入根因搜索。
-> 维护规则：发现新的 env-flake 或既有条目失效时更新本表，附日期与证据；本表只收"重跑/环境可解释"的失败，代码缺陷走正常诊断流程。
+> 维护规则：发现新的 env-flake 或既有条目失效时更新本表，附日期与证据；本表只收「重跑/环境可解释」的失败，代码缺陷走正常诊断流程。末尾另收**CI 扫描器已知误报类**（工具侧噪声，非测试失败，同样要求日期与证据）。
 
 ## 使用规则
 
@@ -114,3 +114,14 @@ done
 ### .nvmrc（#231，2026-09-12 新增）
 
 - 仓库根 `.nvmrc` = 24（Remotion 渲染需 arm64 Node ≥22，x64 缺 @rspack 绑定；renovate 后续抬到 24，下限仍是 22）；上条「Node 版本漂移」的 `无 .nvmrc` 表述已过时。
+
+---
+
+## CI 扫描器已知误报类
+
+### Semgrep `path-join-resolve-traversal` × 测试 fixture（2026-10-12）
+
+- **类**：`javascript.lang.security.audit.path-traversal.path-join-resolve-traversal` 是 **taint 模式**规则（源=函数参数，汇=`path.join`/`resolve`）。测试 fixture 的路径来自 `mkdtempSync` 临时目录，于是每个 fixture join 都被上报。全量实测（`semgrep 1.179.0`，`--config p/default`，`src/ scripts/`）：**115 条落在测试路径、266 条落在生产路径**——误报只在测试侧。
+- **注解无效（别重试）**：`// nosemgrep` 对 taint 规则不生效——注释在汇行、源行、带显式 rule id 三种写法均仍上报（本地 1.179.0/1.180.0 复现；仓库里 widget 测试的同款注释对应的告警至今为 open，即历史证据）。`paths.exclude` 覆盖同 id 规则也不可行：同 id 两条规则并存，结果**翻倍**（19 → 27 实测）。
+- **处置**：CI 在扫描与上传之间跑 `.github/scripts/filter-semgrep-fps.py`（`.github/workflows/ci.yml` 的 `Drop documented test-fixture false positives` 步骤），只丢「该规则 id **且** 测试路径」的命中——测试文件对其余规则照常扫描，生产路径的同规则命中照常上传。过滤器由 `scripts/__tests__/semgrep-fp-filter.test.mjs` 钉住（含「报告损坏即失败」与「其余规则保留」两条边界）。安全页上该类的存量告警按 **`used in tests`** dismiss（2026-10-12 处理）。
+- **维护**：若要连生产路径的该规则命中一起排除，那是策略变更——必须改过滤器并在此登记；过滤器按「规则 id + 路径」双条件匹配，不会顺手放过生产命中。
