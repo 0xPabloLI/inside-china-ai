@@ -60,7 +60,9 @@ export function concatListEntry(videoPath) {
 /**
  * Build the concat demuxer plan: the list-file content plus the ffmpeg argv.
  * The plan is data only: a caller writes `listContent` to `listFile` before
- * running `args` (no production caller today — `main()` uses buildXfadeArgs).
+ * running `args`, then deletes `listFile` — cleanup is the caller's job and
+ * nothing here touches disk (no production caller today — `main()` uses
+ * buildXfadeArgs).
  */
 export function buildConcatArgs(files, outputPath) {
   // Derive the list file from the output path instead of a fixed /tmp name:

@@ -4,6 +4,11 @@ import { createFileRoute } from "@tanstack/react-router";
  * Cron endpoint: refreshes keyword snapshots once a day and emails admins on
  * ranking drops. Called by pg_cron with the project's publishable key in the
  * `apikey` header.
+ *
+ * Auth (#319 R2): accepts the publishable key under either name —
+ * `SUPABASE_PUBLISHABLE_KEY` or its legacy alias `SUPABASE_ANON_KEY` (same
+ * project key, not a weaker credential). The alias is kept deliberately until
+ * pg_cron's configured key name is verified (dashboard-side, not in this repo).
  */
 export const Route = createFileRoute("/api/public/hooks/refresh-keyword-snapshots")({
   server: {
