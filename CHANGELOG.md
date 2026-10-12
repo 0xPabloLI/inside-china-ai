@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.17.3...tanstack_start_ts-v1.18.0) (2026-10-12)
+
+
+### Features
+
+* **short-video:** offline env override, cache-miss diagnosis and the Step 0.4 ASS gate ([#394](https://github.com/0xPabloLI/inside-china-ai/issues/394)) ([#582](https://github.com/0xPabloLI/inside-china-ai/issues/582)) ([66a119d](https://github.com/0xPabloLI/inside-china-ai/commit/66a119d89f32dec3e4934bc5ec89939d440f3bb7))
+
 ## [1.17.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.17.2...tanstack_start_ts-v1.17.3) (2026-10-11)
 
 
