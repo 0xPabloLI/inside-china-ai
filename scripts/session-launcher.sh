@@ -413,6 +413,7 @@ if [ "$cmd" = "gc" ]; then
         remote_deleted=$((remote_deleted + 1))
       else
         echo "[gc] remote origin/$b delete failed — skipped"
+        remote_kept=$((remote_kept + 1))
       fi
     else
       echo "[gc] kept remote origin/$b (content not verified merged)"

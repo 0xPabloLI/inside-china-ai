@@ -376,6 +376,18 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(out).toContain("kept remote origin/session/20260101-offline-abc000 (origin unreachable");
   });
 
+  it("counts a failed remote delete as kept and says so", () => {
+    squashMergedBranch("session/20260101-rmfail-abc111", "rmfail\n");
+    git(repo, "push", "-q", "origin", "session/20260101-rmfail-abc111");
+    git(origin, "config", "receive.denyDeletes", "true");
+
+    const { out } = gc();
+    expect(remoteBranchExists("session/20260101-rmfail-abc111")).toBe(true);
+    expect(out).toContain("remote origin/session/20260101-rmfail-abc111 delete failed — skipped");
+    // The remote half of the summary must agree with the per-branch line.
+    expect(out).toContain("kept 0 (remote 1)");
+  });
+
   it("deletes a branch whose change is a deletion that also landed on main", () => {
     const wtPath = join(repo, "wt-del");
     git(repo, "worktree", "add", "-b", "session/20260101-del-abc654", wtPath);
