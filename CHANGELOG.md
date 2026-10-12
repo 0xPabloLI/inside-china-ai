@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.2...tanstack_start_ts-v1.20.3) (2026-10-12)
+
+
+### Bug Fixes
+
+* govern [#319](https://github.com/0xPabloLI/inside-china-ai/issues/319) OCR medium/low batch — static legal dates + derived concat list path ([#608](https://github.com/0xPabloLI/inside-china-ai/issues/608)) ([0e54168](https://github.com/0xPabloLI/inside-china-ai/commit/0e54168fe872a702aff182865efc224e7cd21e1a))
+
 ## [1.20.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.1...tanstack_start_ts-v1.20.2) (2026-10-12)
 
 
