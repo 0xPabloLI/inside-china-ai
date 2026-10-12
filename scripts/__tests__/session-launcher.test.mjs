@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { execFileSync, spawnSync } from "child_process";
-import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync } from "fs";
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, copyFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
@@ -744,6 +744,9 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(branchExists(`session/${id}`)).toBe(false);
     expect(r.stdout).toContain("[session] post-delivery closeout:");
     expect(remoteBranchExists(`session/${id}`)).toBe(false); // gc swept the twin
+    // The closeout ran, so the "run it yourself after merging" hint must not
+    // contradict what just happened.
+    expect(r.stdout).not.toContain("closeout after the PR merges");
   });
 
   it("stop from inside the worktree still cleans up and closes out", () => {
@@ -759,6 +762,99 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(branchExists(`session/${id}`)).toBe(false);
     expect(r.stdout).toContain("[session] post-delivery closeout:");
     expect(remoteBranchExists(`session/${id}`)).toBe(false);
+  });
+
+  // A remote twin is not a delivery proof: `git branch -d` also accepts a
+  // branch "merged" to its own remote-tracking ref, so an unmerged PR's live
+  // twin — or a stale twin whose remote head was deleted — would authorize
+  // deleting work that never reached main.
+  it("stop keeps a pushed but unmerged branch (a live twin is not delivery proof)", () => {
+    const id = "20260101-pushed-unmerged-abc654";
+    const wtPath = join(repo, "wt-pushed");
+    git(repo, "worktree", "add", "-b", `session/${id}`, wtPath);
+    const wtGitDir = git(wtPath, "rev-parse", "--absolute-git-dir").trim();
+    mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true });
+    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), id + "\n");
+    writeFileSync(join(wtPath, "wip.txt"), "never merged\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "wip");
+    git(wtPath, "push", "-q", "-u", "origin", `session/${id}`);
+
+    const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
+    expect(r.status).toBe(0);
+    expect(branchExists(`session/${id}`)).toBe(true);
+    expect(r.stdout).toContain("session branch kept (not delivered");
+  });
+
+  it("stop keeps a branch whose remote twin was deleted without a merge (stale ref)", () => {
+    const id = "20260101-stale-twin-abc655";
+    const wtPath = join(repo, "wt-staletwin");
+    git(repo, "worktree", "add", "-b", `session/${id}`, wtPath);
+    const wtGitDir = git(wtPath, "rev-parse", "--absolute-git-dir").trim();
+    mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true });
+    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), id + "\n");
+    writeFileSync(join(wtPath, "wip.txt"), "never merged\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "wip");
+    git(wtPath, "push", "-q", "-u", "origin", `session/${id}`);
+    // The remote head disappears (e.g. a closed PR had it deleted); the local
+    // tracking ref survives until a prune, and `git branch -d` reads it as
+    // "merged to upstream".
+    git(origin, "branch", "-D", `session/${id}`);
+
+    const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
+    expect(r.status).toBe(0);
+    expect(branchExists(`session/${id}`)).toBe(true);
+    expect(r.stdout).toContain("session branch kept (not delivered");
+  });
+
+  // stop may be invoked through the worktree's OWN launcher copy, from inside
+  // that worktree: the script's path then dies with the worktree, and the
+  // post-delivery closeout must fall back to the main checkout's copy instead
+  // of silently skipping (and then printing the manual-closeout hint).
+  it("stop through the worktree's own launcher copy still closes out", () => {
+    const id = "20260101-selfcopy-abc656";
+    const branch = `session/${id}`;
+    const wtPath = join(repo, "wt-selfcopy");
+    git(repo, "worktree", "add", "-b", branch, wtPath);
+    const wtGitDir = git(wtPath, "rev-parse", "--absolute-git-dir").trim();
+    mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true });
+    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), id + "\n");
+    // The session branch carries the launcher, as any session that touches it
+    // does; the worktree's own copy is what stop is invoked through.
+    mkdirSync(join(wtPath, "scripts"), { recursive: true });
+    copyFileSync(LAUNCHER, join(wtPath, "scripts", "session-launcher.sh"));
+    writeFileSync(join(wtPath, "feature.txt"), "selfcopy\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "work");
+    git(wtPath, "push", "-q", "-u", "origin", branch);
+    // Squash-merge the same content (launcher included) onto main.
+    mkdirSync(join(repo, "scripts"), { recursive: true });
+    copyFileSync(LAUNCHER, join(repo, "scripts", "session-launcher.sh"));
+    writeFileSync(join(repo, "feature.txt"), "selfcopy\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "squash merge");
+    git(repo, "push", "-q", "origin", "main");
+
+    const r = spawnSync("bash", [join(wtPath, "scripts", "session-launcher.sh"), "stop", wtPath], {
+      encoding: "utf8",
+      cwd: wtPath,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
+    expect(r.status).toBe(0);
+    expect(branchExists(branch)).toBe(false);
+    expect(r.stdout).toContain("squash-merged session branch deleted");
+    expect(r.stdout).toContain("[session] post-delivery closeout:");
+    expect(remoteBranchExists(branch)).toBe(false); // twin swept in the same stop
+    expect(r.stdout).not.toContain("closeout after the PR merges");
   });
 
   it("stop deletes a PR-delivered session branch after main moved on", () => {
