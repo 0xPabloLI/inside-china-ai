@@ -282,6 +282,7 @@ if [ "$cmd" = "stop" ]; then
   [ -n "$wtpath" ] || { echo "usage: session-launcher.sh stop <worktree-path>" >&2; exit 1; }
   WT_GITDIR=$(git -C "$wtpath" rev-parse --absolute-git-dir 2>/dev/null || true)
   session_id=""
+  closeout_done=""
   if [ -n "$WT_GITDIR" ] && [ -f "$WT_GITDIR/session-pilot/current-session" ]; then
     session_id=$(head -n 1 "$WT_GITDIR/session-pilot/current-session" | tr -d '[:space:]')
     rm -f "$WT_GITDIR/session-pilot/current-session"
@@ -294,15 +295,24 @@ if [ "$cmd" = "stop" ]; then
     # an empty answer.
     if [ -n "$MAIN_WT" ]; then cd "$MAIN_WT" 2>/dev/null || true; fi
     # #195: a removed worktree means the session ended — delete the session
-    # branch when its work is fully on origin/main. `git branch -d` covers
-    # ancestry merges; the delivery criteria extend the same intent to squash
+    # branch when its work is fully on origin/main. Ancestry to main is the
+    # first criterion; the delivery criteria extend the same intent to squash
     # merges (byte identity) and to branches whose PR merged before main moved
     # on (tip-bound merged PR). `-D` is only reached behind ref_delivered.
     # Work that never landed is auto-exempted and kept. Deletion failure never
     # blocks the stop flow.
+    #
+    # `git branch -d` alone is NOT a delivery proof: besides ancestry it also
+    # accepts a branch "merged" to its own remote-tracking ref, so an unmerged
+    # PR's live twin — or a stale twin whose remote head was deleted — would
+    # authorize deleting work that never reached main. Gate it on ancestry to
+    # `refs/heads/main` — not to whatever branch the main checkout sits on: a
+    # side branch containing the commits is not a delivery to main — and let
+    # everything else go through ref_delivered (fail-closed).
     if [ -n "$session_id" ]; then
       delivered=""
-      if git branch -d "session/$session_id" >/dev/null 2>&1; then
+      if git merge-base --is-ancestor "refs/heads/session/$session_id" refs/heads/main 2>/dev/null \
+         && git branch -d "session/$session_id" >/dev/null 2>&1; then
         echo "[session] merged session branch deleted: session/$session_id"
         delivered=1
       else
@@ -330,11 +340,22 @@ if [ "$cmd" = "stop" ]; then
       fi
       # A deleted session branch means the work landed: run the post-delivery
       # closeout now (sweep the remote twin, sync the main checkout), so the
-      # merge → stop sequence needs no second command. Non-fatal: stop never
-      # fails hard.
-      if [ -n "$delivered" ] && [ -r "$SELF" ]; then
-        echo "[session] post-delivery closeout:"
-        bash "$SELF" gc || true
+      # merge → stop sequence needs no second command. stop may have been
+      # invoked through the worktree's OWN launcher copy — that path died with
+      # the worktree — so fall back to the main checkout's copy. Non-fatal:
+      # stop never fails hard.
+      if [ -n "$delivered" ]; then
+        closeout=""
+        if [ -r "$SELF" ]; then
+          closeout="$SELF"
+        elif [ -n "$MAIN_WT" ] && [ -r "$MAIN_WT/scripts/session-launcher.sh" ]; then
+          closeout="$MAIN_WT/scripts/session-launcher.sh"
+        fi
+        if [ -n "$closeout" ]; then
+          echo "[session] post-delivery closeout:"
+          bash "$closeout" gc || true
+          closeout_done=1
+        fi
       fi
     fi
   else
@@ -346,7 +367,11 @@ if [ "$cmd" = "stop" ]; then
     fi
   fi
 
-  echo "[session] closeout after the PR merges: npm run session:gc (sync main + clean merged branches)"
+  # The closeout just ran when it could; only otherwise point at the manual
+  # command, so the output never contradicts what stop already did.
+  if [ -z "$closeout_done" ]; then
+    echo "[session] closeout after the PR merges: npm run session:gc (sync main + clean merged branches)"
+  fi
 fi
 
 # --- gc -----------------------------------------------------------------------
