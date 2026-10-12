@@ -529,6 +529,12 @@ export async function upsertPost(parsed, auth, supabaseUrl, supabaseKey, opts = 
         payload = outcome.payload;
         continue;
       }
+      if (payload.mode === "update" && outcome.payload.existingId !== payload.existingId) {
+        // The row was replaced mid-write (reconcile re-targeted it): replay
+        // against the fresh identity instead of failing on the stale one.
+        payload = outcome.payload;
+        continue;
+      }
       throw new PublishError(
         `Supabase ${payload.mode} failed: no row returned for slug "${parsed.slug}"`,
         {

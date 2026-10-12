@@ -595,4 +595,47 @@ describe("upsertPost — review hardening (#426)", () => {
     expect(committed.title).toBe(parsed.title);
     expect(committed.published_at).toBe("2026-04-04T00:00:00Z"); // preserved
   });
+
+  it("re-targets a replaced row when a 2xx PATCH returns no representation", async () => {
+    const original = {
+      id: "post-1",
+      slug: "retry-me",
+      title: "Old",
+      excerpt: null,
+      content: "Old body",
+      published: false,
+      published_at: null,
+      author_id: "u1",
+    };
+    const replacement = {
+      id: "post-2",
+      slug: "retry-me",
+      title: "Replaced",
+      excerpt: null,
+      content: "Replaced body",
+      published: true,
+      published_at: "2026-05-05T00:00:00Z",
+      author_id: "u1",
+    };
+    const clock = makeClock();
+    let queryCalls = 0;
+    const patchUrls = [];
+    const fetchFn = vi.fn(async (url, init) => {
+      const method = methodOf(init);
+      if (method === "GET") {
+        queryCalls += 1;
+        return okResponse(queryCalls === 1 ? [original] : [replacement]);
+      }
+      patchUrls.push(url);
+      if (patchUrls.length === 1) return okResponse([]); // matched 0 rows: the row was replaced
+      return okResponse([{ ...replacement, ...JSON.parse(init.body) }]);
+    });
+
+    const result = await upsertPost(parsed, AUTH, URL_BASE, KEY, { fetchFn, ...clock });
+
+    expect(result.id).toBe("post-2"); // re-targeted, not a misleading "no row" failure
+    expect(result.mode).toBe("update");
+    expect(patchUrls[0]).toContain("id=eq.post-1");
+    expect(patchUrls[1]).toContain("id=eq.post-2");
+  });
 });
