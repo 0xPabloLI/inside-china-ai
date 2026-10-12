@@ -996,6 +996,45 @@ export function selectSourcesForRun(isResearchMode, articlesCapableSources) {
 }
 
 /**
+ * #67: true when collecting this source consumes a limited paid quota
+ * (e.g. ScrapeCreators) — read from capabilities.articles with the top-level
+ * apiSearch fallback so both registry shapes are honoured.
+ *
+ * @param {Object} source
+ * @returns {boolean}
+ */
+function isPaidApiSource(source) {
+  return !!(source?.capabilities?.articles?.paidApi ?? source?.apiSearch?.paidApi);
+}
+
+/**
+ * Paid-API sources are opt-in via --include-paid: dropped from the selection
+ * by default so a normal run never spends the quota.
+ *
+ * #424: value-returning seam. main() used to reassign the const produced by
+ * selectSourcesForRun() here, which crashed every run that had a paid source
+ * and no --include-paid ("Assignment to constant variable", research and
+ * trend alike). Returning the filtered list instead of mutating a binding
+ * lets tests drive the same implementation the CLI runs.
+ *
+ * @param {Array<Object>} sources — selection from selectSourcesForRun()
+ * @param {boolean} includePaid — true keeps paid sources in the run
+ * @returns {{ sources: Array<Object>, skipped: Array<Object> }} skipped is
+ *   empty when nothing was filtered (includePaid on, or no paid source)
+ */
+export function filterPaidSources(sources, includePaid = false) {
+  const list = sources || [];
+  const kept = [];
+  const skipped = [];
+  for (const source of list) {
+    if (!includePaid && isPaidApiSource(source)) skipped.push(source);
+    else kept.push(source);
+  }
+  if (skipped.length === 0) return { sources: list, skipped: [] };
+  return { sources: kept, skipped };
+}
+
+/**
  * Derives the collection method recorded per discovery item (issue #97).
  * Tracked public feeds report their tracking.access ("public-rss") instead of
  * the previously hardcoded "cdp" fallback.
@@ -1111,18 +1150,17 @@ async function main() {
   // are now collected too — once per run, same cadence as the tracked feeds —
   // while keeping their background role (never direct evidence) in the artifact.
   const articlesCapableSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
-  const sources = selectSourcesForRun(isResearchMode, articlesCapableSources);
+  const selectedSources = selectSourcesForRun(isResearchMode, articlesCapableSources);
 
   // Filter out paid-API sources unless --include-paid is passed
   // #67: Read paidApi from capabilities.articles with top-level fallback
-  const paidSources = sources.filter(
-    (s) => s.capabilities?.articles?.paidApi ?? s.apiSearch?.paidApi,
-  );
-  if (paidSources.length > 0 && !includePaid) {
-    const names = paidSources.map((s) => s.name).join(", ");
-    console.log(`  💰 Skipping ${paidSources.length} paid-API source(s): ${names}`);
+  // #424: filterPaidSources returns the list — the old code reassigned the
+  // const above and crashed every run with a paid source and no --include-paid.
+  const { sources, skipped: skippedPaidSources } = filterPaidSources(selectedSources, includePaid);
+  if (skippedPaidSources.length > 0) {
+    const names = skippedPaidSources.map((s) => s.name).join(", ");
+    console.log(`  💰 Skipping ${skippedPaidSources.length} paid-API source(s): ${names}`);
     console.log(`     Use --include-paid to enable them.`);
-    sources = sources.filter((s) => !(s.capabilities?.articles?.paidApi ?? s.apiSearch?.paidApi));
   }
 
   const sourceBreakdown = {
