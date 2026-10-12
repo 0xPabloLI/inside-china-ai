@@ -29,14 +29,22 @@
 #      behind — ff-only, never rebases, never switches, never touches a dirty
 #      checkout
 #   3. deletes branches in the session namespace whose work already landed on
-#      origin/main — per-file byte identity (so squash merges qualify even
+#      origin/main — ancestry on origin/main (the commits themselves landed;
+#      the exact proof), per-file byte identity (so squash merges qualify even
 #      though `git branch -d` refuses them), or a merged PR whose head was
 #      exactly the branch tip with its merge commit on origin/main (delivery
 #      after main moved on, which byte identity can never re-verify);
-#      branches checked out in any worktree are never touched
+#      branches checked out in any worktree are never touched, and a branch
+#      contained in the local main only (never pushed) is kept with that
+#      reason
 #   4. sweeps remote twins, including orphans whose local branch is already
 #      gone (stop deletes the local one first); every remote deletion is gated
-#      on its own delivery verification and a fail-closed open-PR check
+#      on its own delivery verification, a fail-closed open-PR check, and a
+#      closed-unmerged PR snapshot taken before it (deleting a head branch
+#      closes its PRs, so the post-delete open count alone proves nothing) —
+#      a newly closed PR, a newly open one, or an unreadable re-check gets the
+#      ref pushed back exactly as verified, or a loud warning when someone
+#      re-created the ref in the meantime (never clobbered)
 # =============================================================================
 set -euo pipefail
 
@@ -100,19 +108,6 @@ ref_content_merged() {
   return 0
 }
 
-# ref_delivered <ref> <tip> — did this branch's work land on origin/main?
-# Two criteria, most direct first:
-#   0 = every file <ref> changed (vs the merge base) is byte-identical on
-#       origin/main — the branch's own content landed, squash merge or not;
-#   3 = a merged PR's head was exactly <tip> and its merge commit is an
-#       ancestor of origin/main. This is the criterion that survives main
-#       moving on after the merge (release bumps rewrite touched files, so
-#       byte identity can never re-verify those branches).
-#   1 = neither → keep.
-# Fail-closed: gh missing, the PR query failing, or a merge commit that is not
-# on origin/main all return 1. The tip binding is what makes criterion 3 safe:
-# a PR whose head SHA equals this exact tip proves this tip was pushed and
-# merged; commits added afterwards move the tip and keep the branch.
 # pr_delivered <branch> <tip> — did a merged PR carry exactly this tip into
 # origin/main? 0 = yes; 1 = no merged PR matches this tip; 4 = cannot tell
 # (gh missing, or the query failed). The tip binding is what makes this safe:
@@ -133,18 +128,41 @@ pr_delivered() {
   return 1
 }
 
+# closed_unmerged_prs <branch> — one "<number><TAB><closedAt>" line per PR that
+# was closed without being merged and whose head is <branch>; empty when there
+# are none. rc 4 = the query could not run. Deleting a head branch closes its
+# PRs, so the post-delete open count reads 0 whether or not a PR was just
+# closed: this snapshot is taken before the delete and compared after it, and
+# only a new entry tells the two apart.
+closed_unmerged_prs() {
+  local b="$1"
+  command -v "$GH" >/dev/null 2>&1 || return 4
+  "$GH" pr list --head "$b" --state closed --limit 50 \
+    --json number,closedAt,mergedAt \
+    --jq '.[] | select(.mergedAt == null) | [.number, .closedAt] | @tsv' \
+    </dev/null 2>/dev/null || return 4
+}
+
 # ref_delivered <ref> <tip> — delivery verdict for one branch, most direct
 # criterion first:
+#   6 = <ref> is an ancestor of origin/main — the commits themselves landed
+#       (exact proof; the files may have drifted since, so byte identity alone
+#       cannot re-verify this shape);
 #   0 = every file <ref> changed is byte-identical on origin/main
 #       (ref_content_merged: the branch's own content landed, squash or not);
 #   3 = a merged PR carried exactly <tip> into origin/main (the criterion that
 #       survives main moving on after the merge — release bumps rewrite the
 #       files the branch touched, so byte identity can never re-verify those);
-#   1 = neither → keep;
+#   1 = none of them → keep;
 #   4 = content differs and the merged-PR check could not run → keep.
-# Callers beware: verdict 0 is only trustworthy on a freshly fetched ref.
+# Callers beware: verdicts 0 and 6 are only trustworthy on a freshly fetched
+# ref. A tracking ref behind live origin/main can only under-report them, and
+# both callers fetch first; a tracking ref *ahead* of it (remote main rewritten
+# after the last fetch) would over-report, so a delete is never judged on a ref
+# that was not just fetched.
 ref_delivered() {
   local ref="$1" tip="$2" b rc
+  git merge-base --is-ancestor "$ref" refs/remotes/origin/main 2>/dev/null && return 6
   ref_content_merged "$ref" refs/remotes/origin/main && return 0
   b="${ref#refs/heads/}"
   b="${b#refs/remotes/origin/}"
@@ -156,22 +174,61 @@ ref_delivered() {
   return "$rc"
 }
 
+# local_main_only <branch> — the branch is contained in the local main
+# checkout's main but NOT on origin/main. The work is safe locally, but a
+# local merge is not a delivery: the branch is kept and the reason says so.
+local_main_only() {
+  local b="$1"
+  git merge-base --is-ancestor "refs/heads/$b" refs/heads/main 2>/dev/null || return 1
+  git merge-base --is-ancestor "refs/heads/$b" refs/remotes/origin/main 2>/dev/null && return 1
+  return 0
+}
+
 # delete_if_delivered <branch> — the only `-D` in this script, gated on
 # ref_delivered. 0 = deleted (content merged); 1 = kept (not delivered);
 # 2 = kept (delete failed); 3 = deleted (PR merged into main); 4 = kept
-# (content differs and the merged-PR check is unavailable).
+# (content differs and the merged-PR check is unavailable); 6 = deleted
+# (ancestry on origin/main).
 delete_if_delivered() {
   local b="$1" tip rc
   tip=$(git rev-parse --verify --quiet "refs/heads/$b" 2>/dev/null) || return 1
   rc=0
   ref_delivered "refs/heads/$b" "$tip" || rc=$?
   case "$rc" in
-    0 | 3) ;;
+    0 | 3 | 6) ;;
     4) return 4 ;;
     *) return 1 ;;
   esac
   git branch -D "$b" >/dev/null 2>&1 || return 2
   return "$rc"
+}
+
+# deleted_reason <verdict> — why a delete was authorised, for the log line.
+deleted_reason() {
+  case "$1" in
+    6) printf '%s' "ancestry on origin/main" ;;
+    3) printf '%s' "PR merged into main" ;;
+    *) printf '%s' "content merged" ;;
+  esac
+}
+
+# verdict_kept_reason <verdict> [branch] — the keep reason for the
+# non-delivered verdict codes (1 = checked, nothing matched; 4 = check
+# unavailable; 5 = fetch failed, so content is unverifiable and the PR check
+# found nothing for this tip). Verdict 1 on a branch contained in the local
+# main checkout says so instead of the generic wording.
+verdict_kept_reason() {
+  case "$1" in
+    4) printf '%s' "not verified: content differs from origin/main and the merged-PR check is unavailable" ;;
+    5) printf '%s' "not verified: fetch failed (content unverifiable) and no merged PR for this tip" ;;
+    *)
+      if [ -n "${2:-}" ] && local_main_only "$2"; then
+        printf '%s' "merged into local main only — not on origin/main (push main or open a PR)"
+      else
+        printf '%s' "not delivered: content differs from origin/main, no merged PR for this tip"
+      fi
+      ;;
+  esac
 }
 
 if [ "$cmd" = "start" ]; then
@@ -303,25 +360,24 @@ if [ "$cmd" = "stop" ]; then
     GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=15 \
       git fetch --quiet origin main 2>/dev/null || true
     # #195: a removed worktree means the session ended — delete the session
-    # branch when its work is fully on origin/main. Ancestry to main is the
-    # first criterion; the delivery criteria extend the same intent to squash
-    # merges (byte identity) and to branches whose PR merged before main moved
-    # on (tip-bound merged PR). `-D` is only reached behind ref_delivered.
-    # Work that never landed is auto-exempted and kept. Deletion failure never
-    # blocks the stop flow.
+    # branch when its work is fully on origin/main. ref_delivered carries the
+    # criteria (ancestry, then byte identity, then tip-bound merged PR); `-D`
+    # is only reached behind it. Work that never landed is auto-exempted and
+    # kept. Deletion failure never blocks the stop flow.
     #
     # `git branch -d` alone is NOT a delivery proof: besides ancestry it also
     # accepts a branch "merged" to its own remote-tracking ref, so an unmerged
     # PR's live twin — or a stale twin whose remote head was deleted — would
-    # authorize deleting work that never reached main. Gate it on ancestry to
-    # `refs/heads/main` — not to whatever branch the main checkout sits on: a
-    # side branch containing the commits is not a delivery to main — and let
-    # everything else go through ref_delivered (fail-closed).
+    # authorize deleting work that never reached main. The gate is ancestry to
+    # `refs/remotes/origin/main` — the pushed main, not the local one and not
+    # whatever branch the main checkout sits on: a local-only merge, or a side
+    # branch holding the commits, is not a delivery. Everything else goes
+    # through ref_delivered (fail-closed).
     if [ -n "$session_id" ]; then
       delivered=""
-      if git merge-base --is-ancestor "refs/heads/session/$session_id" refs/heads/main 2>/dev/null \
+      if git merge-base --is-ancestor "refs/heads/session/$session_id" refs/remotes/origin/main 2>/dev/null \
          && git branch -d "session/$session_id" >/dev/null 2>&1; then
-        echo "[session] merged session branch deleted: session/$session_id"
+        echo "[session] merged session branch deleted (ancestry on origin/main): session/$session_id"
         delivered=1
       else
         rc=0
@@ -335,14 +391,15 @@ if [ "$cmd" = "stop" ]; then
             echo "[session] PR-merged session branch deleted (merged PR head verified on origin/main): session/$session_id"
             delivered=1
             ;;
+          6)
+            echo "[session] merged session branch deleted (ancestry on origin/main): session/$session_id"
+            delivered=1
+            ;;
           2)
             echo "[session] session branch kept (delete failed): session/$session_id"
             ;;
-          4)
-            echo "[session] session branch kept (not verified: content differs from origin/main and the merged-PR check is unavailable): session/$session_id"
-            ;;
           *)
-            echo "[session] session branch kept (not delivered: content differs from origin/main, no merged PR for this tip): session/$session_id"
+            echo "[session] session branch kept ($(verdict_kept_reason "$rc" "session/$session_id")): session/$session_id"
             ;;
         esac
       fi
@@ -492,25 +549,24 @@ if [ "$cmd" = "gc" ]; then
     return 1
   }
 
-  # verdict_kept_reason <verdict> — the keep reason for the non-delivered
-  # verdict codes (1 = checked, nothing matched; 4 = check unavailable;
-  # 5 = fetch failed, so content is unverifiable and the PR check found
-  # nothing for this tip).
-  verdict_kept_reason() {
-    case "$1" in
-      4) printf '%s' "not verified: content differs from origin/main and the merged-PR check is unavailable" ;;
-      5) printf '%s' "not verified: fetch failed (content unverifiable) and no merged PR for this tip" ;;
-      *) printf '%s' "not delivered: content differs from origin/main, no merged PR for this tip" ;;
-    esac
-  }
-
   # remote_twin_closeout <branch> <dry> — deletes origin/<branch> only when it
-  # still exists, its own delivery verifies (content on origin/main, or a
-  # tip-bound merged PR), gh can check for open PRs, and none is open. dry=1
-  # previews without writing any ref (no fetch, no delete). Every unknown keeps
-  # it (fail-closed).
+  # still exists, its own delivery verifies (ancestry on origin/main, content
+  # on origin/main, or a tip-bound merged PR), gh can check for open PRs, and
+  # none is open. dry=1 previews without writing any ref (no fetch, no delete).
+  # Every unknown keeps it (fail-closed).
+  #
+  # The open-PR check and the delete are two steps, so a PR opened between them
+  # would be closed by the delete — and deleting a head branch closes its PRs,
+  # so the post-delete open-PR count reads 0 either way and proves nothing by
+  # itself. The snapshot of closed-unmerged PRs taken before the delete is the
+  # evidence: an entry that was not there before, an open PR that appeared, or
+  # a re-check that could not run all push the ref back exactly as verified
+  # (the branch is the only reference to that work, and this delete is the one
+  # action in gc that can lose it). The restore push is not forced: a ref that
+  # someone re-created in the window wins, with a loud warning instead.
   remote_twin_closeout() {
-    local b="$1" dry="$2" open_prs tip tracked rc d tip_used
+    local b="$1" dry="$2" open_prs tip tracked rc d tip_used post
+    local closed_before closed_after appeared entry cause
     rc=0
     tip=$(git ls-remote --exit-code --heads origin "refs/heads/$b" 2>/dev/null | awk 'NR==1{print $1}') || rc=$?
     case "$rc" in
@@ -546,8 +602,10 @@ if [ "$cmd" = "gc" ]; then
         # The PR verdict does not depend on the tracking ref being fresh.
         echo "[gc] would delete remote origin/$b (PR merged into main)"
         remote_would=$((remote_would + 1))
-      elif [ "$d" = 0 ] && [ "$tip" = "$tracked" ]; then
-        echo "[gc] would delete remote origin/$b (content merged)"
+      elif { [ "$d" = 0 ] || [ "$d" = 6 ]; } && [ "$tip" = "$tracked" ]; then
+        # Ancestry and byte identity are judged on the tracking ref, so they
+        # only count when it matches the live remote tip.
+        echo "[gc] would delete remote origin/$b ($(deleted_reason "$d"))"
         remote_would=$((remote_would + 1))
       elif [ "$tip" = "$tracked" ]; then
         echo "[gc] kept remote origin/$b ($(verdict_kept_reason "$d"))"
@@ -577,18 +635,54 @@ if [ "$cmd" = "gc" ]; then
       esac
     fi
     case "$d" in
-      0 | 3)
+      0 | 3 | 6)
+        # Deleting a head branch closes its PRs, so the closed-unmerged
+        # snapshot is taken first: an entry that was not there before is the
+        # only evidence that this delete closed a PR. No snapshot, no delete.
+        rc=0
+        closed_before=$(closed_unmerged_prs "$b") || rc=$?
+        if [ "$rc" != 0 ]; then
+          echo "[gc] kept remote origin/$b (closed-PR history unavailable — fail-closed)"
+          remote_kept=$((remote_kept + 1))
+          return 0
+        fi
         # --force-with-lease makes the delete conditional on the remote still
         # being at the tip just verified: a commit landing between
         # verification and deletion rejects the push (stale info) and keeps
         # the branch, closing that race atomically.
         if git push --quiet --force-with-lease="refs/heads/$b:$tip_used" origin --delete "$b" </dev/null >/dev/null 2>&1; then
-          if [ "$d" = 3 ]; then
-            echo "[gc] deleted remote origin/$b (PR merged into main)"
-          else
-            echo "[gc] deleted remote origin/$b (content merged)"
+          post=$("$GH" pr list --head "$b" --state open --json number --jq 'length' </dev/null 2>/dev/null) || post=""
+          rc=0
+          closed_after=$(closed_unmerged_prs "$b") || rc=$?
+          appeared=""
+          if [ "$rc" = 0 ]; then
+            while IFS= read -r entry; do
+              [ -n "$entry" ] || continue
+              printf '%s\n' "$closed_before" | grep -Fxq "$entry" || { appeared="$entry"; break; }
+            done <<< "$closed_after"
           fi
-          remote_deleted=$((remote_deleted + 1))
+          if [ "$post" = "0" ] && [ "$rc" = 0 ] && [ -z "$appeared" ]; then
+            echo "[gc] deleted remote origin/$b ($(deleted_reason "$d"))"
+            remote_deleted=$((remote_deleted + 1))
+          else
+            if [ -n "$appeared" ]; then
+              cause="a PR was closed by this delete"
+            elif [ "$post" = "0" ]; then
+              cause="the re-check could not run"
+            else
+              cause="an open PR appeared in the delete window"
+            fi
+            # Put the ref back exactly as verified; restoring the head branch
+            # also reopens the PR GitHub closed with it. The push is
+            # deliberately not forced — if someone re-created the ref in the
+            # window, their tip wins and the recovery stays manual.
+            if git push --quiet origin "$tip_used:refs/heads/$b" </dev/null >/dev/null 2>&1; then
+              echo "[gc] restored remote origin/$b after the delete — $cause (fail-closed)"
+            else
+              echo "[gc] WARNING: deleted remote origin/$b while $cause; the remote moved on and was left untouched (never clobbered) — restore with: git push origin $tip_used:refs/heads/$b"
+            fi
+            remote_kept=$((remote_kept + 1))
+          fi
         else
           echo "[gc] remote origin/$b delete failed or refused (remote moved after verification?) — skipped"
           remote_kept=$((remote_kept + 1))
@@ -614,18 +708,13 @@ if [ "$cmd" = "gc" ]; then
       d=0
       ref_delivered "refs/heads/$b" "$(git rev-parse "refs/heads/$b")" || d=$?
       case "$d" in
-        0)
-          echo "[gc] would delete $b (content merged)"
-          would_delete=$((would_delete + 1))
-          remote_twin_closeout "$b" 1
-          ;;
-        3)
-          echo "[gc] would delete $b (PR merged into main)"
+        0 | 3 | 6)
+          echo "[gc] would delete $b ($(deleted_reason "$d"))"
           would_delete=$((would_delete + 1))
           remote_twin_closeout "$b" 1
           ;;
         *)
-          echo "[gc] kept $b ($(verdict_kept_reason "$d"))"
+          echo "[gc] kept $b ($(verdict_kept_reason "$d" "$b"))"
           kept=$((kept + 1))
           ;;
       esac
@@ -633,16 +722,13 @@ if [ "$cmd" = "gc" ]; then
     fi
     # One delivery verdict per branch, taken inside delete_if_delivered so the
     # `-D` is always gated on the check that authorises it (0 content merged,
-    # 3 merged PR, 1 not delivered, 4 check unavailable, 2 delete failed).
+    # 3 merged PR, 6 ancestry, 1 not delivered, 4 check unavailable, 2 delete
+    # failed).
     rc=0
     delete_if_delivered "$b" || rc=$?
     case "$rc" in
-      0 | 3)
-        if [ "$rc" = 3 ]; then
-          echo "[gc] deleted $b (PR merged into main)"
-        else
-          echo "[gc] deleted $b (content merged)"
-        fi
+      0 | 3 | 6)
+        echo "[gc] deleted $b ($(deleted_reason "$rc"))"
         deleted=$((deleted + 1))
         ;;
       2)
@@ -651,7 +737,7 @@ if [ "$cmd" = "gc" ]; then
         continue
         ;;
       *)
-        echo "[gc] kept $b ($(verdict_kept_reason "$rc"))"
+        echo "[gc] kept $b ($(verdict_kept_reason "$rc" "$b"))"
         kept=$((kept + 1))
         continue
         ;;

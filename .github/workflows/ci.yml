@@ -146,6 +146,18 @@ jobs:
       - name: Semgrep scan (SARIF)
         run: semgrep scan --config p/default --metrics=off --sarif --output semgrep.sarif src/ scripts/
 
+      # `path-join-resolve-traversal` is a taint-mode rule (sources: function
+      # parameters, sinks: path.join/resolve). Test fixtures build paths from
+      # mkdtempSync directories, so every fixture join is reported, and the
+      # rule's `// nosemgrep` suppression does not apply in taint mode
+      # (verified with 1.179.0 and 1.180.0). The filter drops that rule in test
+      # paths only — test files keep being scanned for every other rule, and a
+      # production-code finding of the same rule is still uploaded. The class
+      # is documented in docs/conventions/test-env-baseline.md; the filter
+      # itself is covered by scripts/__tests__/semgrep-fp-filter.test.mjs.
+      - name: Drop documented test-fixture false positives
+        run: python3 .github/scripts/filter-semgrep-fps.py semgrep.sarif
+
       - name: Upload SARIF to GitHub code scanning
         uses: github/codeql-action/upload-sarif@v4
         with:

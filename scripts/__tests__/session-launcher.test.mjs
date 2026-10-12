@@ -24,14 +24,35 @@ function git(cwd, ...args) {
 // launcher parses (`headRefOid\tmergeCommit`); the real `--jq` filter is
 // exercised against the live API by the real-repo smoke, not here. Any other
 // invocation fails loudly so new gh dependencies surface in tests.
-function installFakeGh(dir, { openPrCount = 0, mergedPr = null } = {}) {
+function installFakeGh(
+  dir,
+  { openPrCount = 0, mergedPr = null, openPrSequence = null, closedPrSequence = null } = {},
+) {
   const p = join(dir, "gh"); // nosemgrep
   const mergedCase = mergedPr
     ? `  *"pr list"*"--state merged"*)\n    case "$*" in\n      *"--head ${mergedPr.branch}"*) printf '%s\\n' "${mergedPr.headRefOid}\t${mergedPr.mergeCommit}" ;;\n    esac\n    exit 0\n    ;;\n`
     : `  *"pr list"*"--state merged"*) exit 0 ;;\n`;
+  // The open-PR count is read once per remote closeout and once again after
+  // the delete. openPrSequence models a PR appearing in that window (or the
+  // API failing mid-flight): successive calls return successive values, the
+  // last one sticking. "err" makes that call fail.
+  //
+  // Deleting a head branch closes its PRs, so the post-delete open count is 0
+  // whether or not a PR was closed. closedPrSequence models the
+  // closed-unmerged snapshot the launcher compares instead: "none" prints
+  // nothing (no such PR), a tab-separated "<number>\t<closedAt>" prints one,
+  // "err" fails the query.
+  //
+  // Sequences live in newline-separated files rather than in the script text:
+  // an entry holds a tab, and word splitting on `set --` would tear it apart.
+  writeFileSync(
+    join(dir, ".openpr-seq"),
+    (openPrSequence ?? [String(openPrCount)]).join("\n") + "\n",
+  );
+  writeFileSync(join(dir, ".closedpr-seq"), (closedPrSequence ?? ["none"]).join("\n") + "\n");
   writeFileSync(
     p,
-    `#!/bin/bash\ncase "$*" in\n${mergedCase}  *"pr list"*) echo "${openPrCount}"; exit 0 ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
+    `#!/bin/bash\ncase "$*" in\n${mergedCase}  *"pr list"*"--state closed"*)\n    d="$(dirname "$0")/.closedpr-seq"; f="$(dirname "$0")/.closedpr-calls"\n    n=0; [ -f "$f" ] && n=$(cat "$f")\n    n=$((n + 1)); printf '%s' "$n" > "$f"\n    v=$(sed -n "\${n}p" "$d"); [ -n "$v" ] || v=$(tail -n 1 "$d")\n    if [ "$v" = "err" ]; then echo "gh: api error" >&2; exit 1; fi\n    [ "$v" = "none" ] || printf '%s\\n' "$v"\n    exit 0\n    ;;\n  *"pr list"*)\n    d="$(dirname "$0")/.openpr-seq"; f="$(dirname "$0")/.openpr-calls"\n    n=0; [ -f "$f" ] && n=$(cat "$f")\n    n=$((n + 1)); printf '%s' "$n" > "$f"\n    v=$(sed -n "\${n}p" "$d"); [ -n "$v" ] || v=$(tail -n 1 "$d")\n    if [ "$v" = "err" ]; then echo "gh: api error" >&2; exit 1; fi\n    echo "$v"; exit 0\n    ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
   );
   execFileSync("chmod", ["+x", p]);
 }
@@ -100,14 +121,23 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
     return wtGitDir;
   }
 
-  it("merged branch is deleted after stop (worktree removed, branch fully merged)", () => {
-    const wtGitDir = makeWorktree("session/20260101-merged-abc123");
+  // Delivery means origin/main, not merely the local main checkout: a branch
+  // merged only locally keeps its ref (fail-closed) and says why, so work is
+  // never dropped on the strength of an unpushed merge.
+  it("keeps a branch merged into local main only, and says why", () => {
+    const branch = "session/20260101-merged-abc123";
+    const wtGitDir = makeWorktree(branch);
+    writeFileSync(join(wt, "local.txt"), "merged locally only\n");
+    git(wt, "add", ".");
+    git(wt, "commit", "-q", "-m", "work");
+    git(repo, "merge", "--no-ff", "-q", "-m", "merge " + branch, branch);
+
     const out = stop(wt);
     expect(existsSync(wt)).toBe(false);
     expect(
       existsSync(join(repo, ".git", "refs", "heads", "session", "20260101-merged-abc123")),
-    ).toBe(false);
-    expect(out).toContain("merged session branch deleted: session/20260101-merged-abc123");
+    ).toBe(true);
+    expect(out).toContain("session branch kept (merged into local main only — not on origin/main");
   });
 
   it("unmerged branch is kept with a reason (git branch -d safely refuses)", () => {
@@ -175,9 +205,15 @@ describe("session-launcher gc: post-delivery closeout", () => {
     rmSync(ghDir, { recursive: true, force: true });
   });
 
-  // writeFakeGh <openPrCount> [mergedPr] — see installFakeGh.
-  function writeFakeGh(openPrCount, mergedPr = null) {
-    installFakeGh(ghDir, { openPrCount, mergedPr });
+  // writeFakeGh <openPrCount> [mergedPr] [openPrSequence] [closedPrSequence]
+  // — see installFakeGh.
+  function writeFakeGh(
+    openPrCount,
+    mergedPr = null,
+    openPrSequence = null,
+    closedPrSequence = null,
+  ) {
+    installFakeGh(ghDir, { openPrCount, mergedPr, openPrSequence, closedPrSequence });
   }
 
   // writeFailingGh — every gh invocation errors (no auth / offline).
@@ -626,6 +662,155 @@ describe("session-launcher gc: post-delivery closeout", () => {
     );
   });
 
+  // The open-PR check and the delete are two steps, so a PR opened between
+  // them would be closed by the delete. gc re-checks after deleting and puts
+  // the ref back exactly as verified when one appears — the branch is the only
+  // reference to that work, and the delete is the one action that can lose it.
+  it("restores a remote twin when an open PR appears during the delete window", () => {
+    squashMergedBranch("session/20260101-racepr-abc204", "race\n");
+    git(repo, "push", "-q", "origin", "session/20260101-racepr-abc204");
+    const tip = git(repo, "rev-parse", "session/20260101-racepr-abc204").trim();
+    writeFakeGh(0, null, ["0", "1"]); // pre-check 0, post-delete check 1
+
+    const { out } = gc();
+    expect(out).toContain("restored remote origin/session/20260101-racepr-abc204");
+    expect(out).not.toContain("deleted remote origin/session/20260101-racepr-abc204");
+    expect(remoteBranchExists("session/20260101-racepr-abc204")).toBe(true);
+    expect(
+      git(repo, "ls-remote", "origin", "refs/heads/session/20260101-racepr-abc204").trim(),
+    ).toBe(`${tip}\trefs/heads/session/20260101-racepr-abc204`);
+    expect(out).toContain("kept 0 (remote 1)");
+  });
+
+  it("restores a remote twin when the post-delete check cannot run (fail-closed)", () => {
+    squashMergedBranch("session/20260101-raceerr-abc205", "race\n");
+    git(repo, "push", "-q", "origin", "session/20260101-raceerr-abc205");
+    writeFakeGh(0, null, ["0", "err"]); // the re-check fails after the delete
+
+    const { out } = gc();
+    expect(out).toContain("restored remote origin/session/20260101-raceerr-abc205");
+    expect(remoteBranchExists("session/20260101-raceerr-abc205")).toBe(true);
+  });
+
+  // The restore push is deliberately not forced: when someone re-created the
+  // ref inside the window, their tip wins and the recovery stays manual.
+  // Clobbering a third party's commit would be the worse failure, so the
+  // delete standing is reported loudly instead of silently repaired.
+  it("never clobbers a ref re-created during the delete window (loud warning)", () => {
+    const branch = "session/20260101-raceclob-abc206";
+    squashMergedBranch(branch, "race\n");
+    git(repo, "push", "-q", "origin", branch);
+    const tip = git(repo, "rev-parse", branch).trim();
+
+    // A third party's commit on top of the branch tip: pushing the verified
+    // tip back would not be a fast-forward, so the restore must refuse.
+    git(repo, "checkout", "-q", "-b", "third-party", tip);
+    writeFileSync(join(repo, "third-party.txt"), "someone else\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "third-party work");
+    const thirdTip = git(repo, "rev-parse", "third-party").trim();
+    git(repo, "checkout", "-q", "main");
+    // The commit must exist on the remote for the hook below to point a ref
+    // at it (update-ref refuses unknown objects).
+    git(repo, "push", "-q", "origin", "third-party");
+
+    // Re-create the ref the moment the deletion lands, exactly as a
+    // concurrent actor would. post-receive fires after the delete transaction.
+    const hook = join(origin, "hooks", "post-receive");
+    writeFileSync(hook, `#!/bin/bash\ngit update-ref refs/heads/${branch} ${thirdTip}\n`);
+    execFileSync("chmod", ["+x", hook]);
+    writeFakeGh(0, null, ["0", "1"]); // pre-check 0, post-delete check 1
+
+    const { status, out } = gc();
+    expect(status).toBe(0);
+    expect(out).toContain(
+      `WARNING: deleted remote origin/${branch} while an open PR appeared in the delete window; the remote moved on and was left untouched (never clobbered)`,
+    );
+    expect(out).toContain(`restore with: git push origin ${tip}:refs/heads/${branch}`);
+    // The third party's tip is intact, and the outcome counts as kept.
+    expect(git(repo, "ls-remote", "origin", `refs/heads/${branch}`).trim()).toBe(
+      `${thirdTip}\trefs/heads/${branch}`,
+    );
+    expect(out).toContain("kept 0 (remote 1)");
+  });
+
+  // Deleting a head branch closes its PRs, so the post-delete open count reads
+  // 0 whether or not the delete just closed one. The closed-unmerged snapshot
+  // is the only evidence of a PR the delete itself closed.
+  it("restores a remote twin when the delete itself closed a PR", () => {
+    const branch = "session/20260101-raceclosed-abc207";
+    squashMergedBranch(branch, "race\n");
+    git(repo, "push", "-q", "origin", branch);
+    const tip = git(repo, "rev-parse", branch).trim();
+    // Both open checks read 0; only the closed snapshot gains an entry.
+    writeFakeGh(0, null, ["0", "0"], ["none", "77\t2026-10-12T13:00:00Z"]);
+
+    const { out } = gc();
+    expect(out).toContain(
+      `restored remote origin/${branch} after the delete — a PR was closed by this delete (fail-closed)`,
+    );
+    expect(remoteBranchExists(branch)).toBe(true);
+    expect(git(repo, "ls-remote", "origin", `refs/heads/${branch}`).trim()).toBe(
+      `${tip}\trefs/heads/${branch}`,
+    );
+    expect(out).toContain("kept 0 (remote 1)");
+  });
+
+  // A PR closed long before this delete is not evidence of a race: restoring
+  // it would keep the branch alive on every run.
+  it("deletes a remote twin whose only closed PR predates the delete", () => {
+    const branch = "session/20260101-staleclosed-abc208";
+    squashMergedBranch(branch, "race\n");
+    git(repo, "push", "-q", "origin", branch);
+    writeFakeGh(0, null, ["0", "0"], ["41\t2026-10-11T09:00:00Z", "41\t2026-10-11T09:00:00Z"]);
+
+    const { out } = gc();
+    expect(out).toContain(`deleted remote origin/${branch} (content merged)`);
+    expect(out).not.toContain("restored remote");
+    expect(remoteBranchExists(branch)).toBe(false);
+  });
+
+  // Without the snapshot a PR this delete closed cannot be told from a stale
+  // one, so the delete does not happen at all.
+  it("keeps a remote twin when the closed-PR history cannot be read", () => {
+    const branch = "session/20260101-noclosedhist-abc209";
+    squashMergedBranch(branch, "race\n");
+    git(repo, "push", "-q", "origin", branch);
+    writeFakeGh(0, null, ["0"], ["err"]);
+
+    const { out } = gc();
+    expect(out).toContain(
+      `kept remote origin/${branch} (closed-PR history unavailable — fail-closed)`,
+    );
+    expect(remoteBranchExists(branch)).toBe(true);
+  });
+
+  // Ancestry is the strongest delivery proof: the commits themselves are on
+  // origin/main. It also covers a branch whose files drifted after the merge
+  // with no merged PR to point at (a local merge that reached main).
+  it("deletes a branch merged into main by ancestry even after the files drifted", () => {
+    const branch = "session/20260101-ancestry-abc206";
+    const wtPath = join(repo, "wt-ancestry");
+    git(repo, "worktree", "add", "-b", branch, wtPath);
+    writeFileSync(join(wtPath, "feature.txt"), "ancestry\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "work");
+    git(repo, "worktree", "remove", wtPath);
+    git(repo, "merge", "--no-ff", "-q", "-m", "merge " + branch, branch);
+    git(repo, "push", "-q", "origin", "main");
+    git(repo, "push", "-q", "origin", branch);
+    writeFileSync(join(repo, "feature.txt"), "drifted after the merge\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "drift");
+    git(repo, "push", "-q", "origin", "main");
+
+    const { out } = gc();
+    expect(branchExists(branch)).toBe(false);
+    expect(out).toContain(`deleted ${branch} (ancestry on origin/main)`);
+    expect(remoteBranchExists(branch)).toBe(false);
+    expect(out).toContain(`deleted remote origin/${branch} (ancestry on origin/main)`);
+  });
+
   it("deletes a branch whose change is a deletion that also landed on main", () => {
     const wtPath = join(repo, "wt-del");
     git(repo, "worktree", "add", "-b", "session/20260101-del-abc654", wtPath);
@@ -683,6 +868,34 @@ describe("session-launcher gc: post-delivery closeout", () => {
     const { out } = gc();
     expect(branchExists("session/20260101-unicode-ok-abc333")).toBe(false);
     expect(out).toContain("deleted session/20260101-unicode-ok-abc333");
+  });
+
+  // The routine case: the branch was merged into main and main was pushed.
+  // Ancestry on origin/main is the strongest proof of delivery, and stop takes
+  // the plain `git branch -d` path for it.
+  it("stop deletes a branch merged into origin/main by ancestry", () => {
+    const id = "20260101-ancstop-abc207";
+    const branch = `session/${id}`;
+    const wtPath = join(repo, "wt-ancstop");
+    git(repo, "worktree", "add", "-b", branch, wtPath);
+    const wtGitDir = git(wtPath, "rev-parse", "--absolute-git-dir").trim();
+    mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true });
+    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), id + "\n");
+    writeFileSync(join(wtPath, "feature.txt"), "ancestry stop\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "work");
+    git(repo, "merge", "--no-ff", "-q", "-m", "merge " + branch, branch);
+    git(repo, "push", "-q", "origin", "main");
+
+    const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
+    expect(r.status).toBe(0);
+    expect(branchExists(branch)).toBe(false);
+    expect(r.stdout).toContain("merged session branch deleted (ancestry on origin/main)");
+    expect(r.stdout).toContain("[session] post-delivery closeout:");
   });
 
   it("stop deletes a squash-merged session branch (content-verified -D)", () => {
