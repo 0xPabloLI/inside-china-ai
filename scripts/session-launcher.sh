@@ -56,13 +56,18 @@ rand_hex() { openssl rand -hex 3 2>/dev/null || od -An -N3 -tx1 /dev/urandom | t
 # byte it produced. Used by `stop` and `gc`; any failed verification keeps
 # the branch, so this is the fail-closed gate for every `-D` in this script.
 ref_content_merged() {
-  local ref="$1" base="$2" mb list f
+  local ref="$1" base="$2" mb f
   git rev-parse --verify --quiet "$ref" >/dev/null 2>&1 || return 1
   git rev-parse --verify --quiet "$base" >/dev/null 2>&1 || return 1
   mb=$(git merge-base "$ref" "$base" 2>/dev/null) || return 1
-  list=$(git diff --name-only "$mb" "$ref" 2>/dev/null) || return 1
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
+  git diff --name-only -z "$mb" "$ref" >/dev/null 2>&1 || return 1
+  # -z keeps paths raw (NUL-delimited, never c-quoted). Plain --name-only
+  # c-quotes non-ASCII names under core.quotePath, and the quoted literal fed
+  # back as a pathspec matches nothing — a diff over an empty pathspec exits 0,
+  # so such files would pass unverified: a fail-open on this gate that deletes
+  # branches (and their remote twins). The loop's process substitution cannot
+  # surface git's exit status, hence the guard above.
+  while IFS= read -r -d '' f; do
     # Deleted by the branch: merged when the deletion landed on base too
     # (the path is absent there as well); still present on base means the
     # deletion never landed.
@@ -70,8 +75,8 @@ ref_content_merged() {
       git cat-file -e "$base:$f" 2>/dev/null && return 1
       continue
     fi
-    git diff --quiet "$ref" "$base" -- "$f" || return 1
-  done <<< "$list"
+    git diff --quiet "$ref" "$base" -- ":(literal)$f" || return 1
+  done < <(git diff --name-only -z "$mb" "$ref" 2>/dev/null)
   return 0
 }
 

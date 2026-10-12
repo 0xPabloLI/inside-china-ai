@@ -328,6 +328,39 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(branchExists("main")).toBe(true);
   });
 
+  // core.quotePath c-quotes non-ASCII paths in `git diff --name-only`; the
+  // quoted literal fed back as a pathspec matches nothing, and a diff over an
+  // empty pathspec exits 0 — a fail-open that would delete unmerged work.
+  it("keeps a branch with a non-ASCII filename whose content differs", () => {
+    const wtPath = join(repo, "wt-unicode");
+    git(repo, "worktree", "add", "-b", "session/20260101-unicode-abc222", wtPath);
+    writeFileSync(join(wtPath, "中文测试.txt"), "branch content\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "unicode file");
+    git(repo, "worktree", "remove", wtPath);
+
+    const { out } = gc();
+    expect(branchExists("session/20260101-unicode-abc222")).toBe(true);
+    expect(out).toContain("kept session/20260101-unicode-abc222 (content not byte-identical");
+  });
+
+  it("deletes a squash-merged branch whose file has a non-ASCII name", () => {
+    const wtPath = join(repo, "wt-unicode-merged");
+    git(repo, "worktree", "add", "-b", "session/20260101-unicode-ok-abc333", wtPath);
+    writeFileSync(join(wtPath, "中文测试.txt"), "same content\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "unicode file");
+    git(repo, "worktree", "remove", wtPath);
+    writeFileSync(join(repo, "中文测试.txt"), "same content\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "squash unicode");
+    git(repo, "push", "-q", "origin", "main");
+
+    const { out } = gc();
+    expect(branchExists("session/20260101-unicode-ok-abc333")).toBe(false);
+    expect(out).toContain("deleted session/20260101-unicode-ok-abc333");
+  });
+
   it("stop deletes a squash-merged session branch (content-verified -D)", () => {
     const id = "20260101-squash-stop-abc321";
     const wtPath = join(repo, "wt-stop");
