@@ -16,6 +16,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync, existsSync } from "fs";
+import { spawnSync } from "child_process";
 import { FFMPEG_FULL } from "../lib/post-process.mjs";
 import {
   checkAssBurnCapability,
@@ -141,6 +142,25 @@ describe("checkAssBurnCapability (#394)", () => {
     expect(cap.ok).toBe(true);
     expect(cap.binary).toBe(FFMPEG_FULL);
   });
+
+  // The trap this gate exists for, stated as a real measurement: on this
+  // machine PATH ffmpeg genuinely lacks libass (2026-10-12) while ffmpeg-full
+  // has it. Probing PATH would report "capable" and the burn would still fail.
+  // Skipped where PATH ffmpeg does have libass — then there is nothing to be
+  // negative about.
+  const PATH_FFMPEG = spawnSync("which", ["ffmpeg"], { encoding: "utf8" }).stdout?.trim();
+  const pathFilters = PATH_FFMPEG
+    ? (spawnSync(PATH_FFMPEG, ["-hide_banner", "-filters"], { encoding: "utf8" }).stdout ?? "")
+    : "";
+  it.skipIf(!existsSync(FFMPEG_FULL) || !PATH_FFMPEG || filtersIncludeAss(pathFilters))(
+    "real PATH ffmpeg without libass fails as 'filter' while the consumed binary passes",
+    () => {
+      const pathCap = checkAssBurnCapability({ binary: PATH_FFMPEG });
+      expect(pathCap.ok).toBe(false);
+      expect(pathCap.reason).toBe("filter");
+      expect(checkAssBurnCapability().ok).toBe(true);
+    },
+  );
 });
 
 describe("ensureAssBurnOrExit (#394 Step 0.4 hard gate)", () => {
@@ -188,16 +208,27 @@ describe("ensureAssBurnOrExit (#394 Step 0.4 hard gate)", () => {
     expect(errText()).toContain("brew install ffmpeg-full");
   });
 
+  // A visual-only run never burns subtitles, so it must not even spawn the
+  // probe. Passing a THUNK (not a pre-computed value) is what makes this
+  // observable — an eagerly evaluated default would spawn ffmpeg here.
   it("skips the probe entirely on a visual-only run (no voiceover → no ASS burn)", () => {
     const probe = vi.fn(() => ({ ok: false, reason: "binary", binary: FFMPEG_FULL }));
     const r = ensureAssBurnOrExit({
       scenes: [{ id: 1, texts: { headline: "visual only" } }],
-      capability: probe(),
+      capability: probe,
       exit: exitSpy,
     });
+    expect(probe).not.toHaveBeenCalled();
     expect(exitSpy).not.toHaveBeenCalled();
     expect(r.skipped).toBe(true);
     expect(logSpy.mock.calls.flat().join(" ")).toContain("N/A");
+  });
+
+  it("resolves the capability on a voiced run", () => {
+    const probe = vi.fn(() => okCap);
+    const r = ensureAssBurnOrExit({ scenes: voiced, capability: probe, exit: exitSpy });
+    expect(probe).toHaveBeenCalledTimes(1);
+    expect(r.ok).toBe(true);
   });
 
   // A gate that exists in lib/ but is never invoked is the #406 failure mode.

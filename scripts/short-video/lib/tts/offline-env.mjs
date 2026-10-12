@@ -22,18 +22,29 @@
  * and the assignment must hold even when the parent's variable was never
  * exported.
  *
+ * One resolved value, written to both names. huggingface_hub ORs the two
+ * (`HF_HUB_OFFLINE or TRANSFORMERS_OFFLINE`, huggingface_hub/constants.py:165)
+ * and transformers 4.57 reads HF_HUB_OFFLINE (transformers/utils/hub.py:81),
+ * so for the transformers consumer the pair is ONE decision, not two knobs.
+ * Writing a literal `HF_HUB_OFFLINE=1` beside an operator's
+ * `TRANSFORMERS_OFFLINE=0` would silently re-block the fetch they asked for —
+ * the same failure this seam exists to remove. When both are set, HF_HUB_OFFLINE
+ * wins: it is the knob the runbook documents, and the one transformers itself
+ * reads.
+ *
  * @param {object} [options]
  * @param {NodeJS.ProcessEnv} [options.env=process.env]
  * @param {boolean} [options.transformers=false] - also assign
- *   TRANSFORMERS_OFFLINE (the alignment spawn). transformers 4.57 reads
- *   HF_HUB_OFFLINE (transformers/utils/hub.py:81) and huggingface_hub ORs the
- *   two vars (huggingface_hub/constants.py:165), so mirroring the HF value
- *   keeps a single `HF_HUB_OFFLINE=0` opt-out working for both.
+ *   TRANSFORMERS_OFFLINE (the alignment spawn).
  * @returns {string} e.g. `"HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1"`
  */
 export function offlineEnvPrefix({ env = process.env, transformers = false } = {}) {
-  const hf = env.HF_HUB_OFFLINE || "1";
-  const parts = [`HF_HUB_OFFLINE=${hf}`];
-  if (transformers) parts.push(`TRANSFORMERS_OFFLINE=${env.TRANSFORMERS_OFFLINE || hf}`);
+  // HF_HUB_OFFLINE is the pipeline's knob and the name transformers reads
+  // itself; TRANSFORMERS_OFFLINE is only consulted for the transformers
+  // consumer, where huggingface_hub ORs it in anyway.
+  const explicit = env.HF_HUB_OFFLINE ?? (transformers ? env.TRANSFORMERS_OFFLINE : undefined);
+  const offline = explicit ?? "1";
+  const parts = [`HF_HUB_OFFLINE=${offline}`];
+  if (transformers) parts.push(`TRANSFORMERS_OFFLINE=${offline}`);
   return parts.join(" ");
 }

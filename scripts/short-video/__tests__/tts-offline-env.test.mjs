@@ -39,10 +39,41 @@ describe("offlineEnvPrefix (#394)", () => {
     );
   });
 
-  it("honors an explicit TRANSFORMERS_OFFLINE on its own", () => {
+  // huggingface_hub ORs the two vars, so a TRANSFORMERS_OFFLINE-only opt-out
+  // must reach HF_HUB_OFFLINE too: writing a literal `HF_HUB_OFFLINE=1` beside
+  // it would silently re-block the fetch the operator asked for — the exact
+  // bug class this seam removes (#394).
+  it("lets a TRANSFORMERS_OFFLINE-only opt-out reach HF_HUB_OFFLINE", () => {
     expect(offlineEnvPrefix({ env: { TRANSFORMERS_OFFLINE: "0" }, transformers: true })).toBe(
-      "HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=0",
+      "HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0",
     );
+  });
+
+  it("keeps offline when TRANSFORMERS_OFFLINE=1 is the only value set", () => {
+    expect(offlineEnvPrefix({ env: { TRANSFORMERS_OFFLINE: "1" }, transformers: true })).toBe(
+      "HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1",
+    );
+  });
+
+  // Contradictory values are one decision, resolved the same way every run:
+  // HF_HUB_OFFLINE is the documented knob and the one transformers reads.
+  it("resolves a contradiction in favor of HF_HUB_OFFLINE", () => {
+    expect(
+      offlineEnvPrefix({
+        env: { HF_HUB_OFFLINE: "0", TRANSFORMERS_OFFLINE: "1" },
+        transformers: true,
+      }),
+    ).toBe("HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0");
+    expect(
+      offlineEnvPrefix({
+        env: { HF_HUB_OFFLINE: "1", TRANSFORMERS_OFFLINE: "0" },
+        transformers: true,
+      }),
+    ).toBe("HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1");
+  });
+
+  it("ignores TRANSFORMERS_OFFLINE for a consumer that does not read it", () => {
+    expect(offlineEnvPrefix({ env: { TRANSFORMERS_OFFLINE: "0" } })).toBe("HF_HUB_OFFLINE=1");
   });
 
   it("reads process.env by default", () => {

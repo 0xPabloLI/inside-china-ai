@@ -93,15 +93,20 @@ export function checkAssBurnCapability({
  * Called from main.mjs right after the ASR gate — fail fast, before the
  * TTS/Remotion spend rather than at the final burn.
  *
+ * `capability` is resolved lazily and only for a voiced run, so a visual-only
+ * run pays no `spawnSync` for a burn it will never do.
+ *
  * @param {object} [options]
  * @param {Array<{voiceover?: string, ttsText?: string}>} [options.scenes]
- * @param {ReturnType<typeof checkAssBurnCapability>} [options.capability] - test seam
+ * @param {ReturnType<typeof checkAssBurnCapability>|Function} [options.capability]
+ *   the capability, or a function returning it (resolved only on a voiced run);
+ *   test seam
  * @param {Function} [options.exit=process.exit] - test seam
  * @returns {{ok: boolean, skipped?: boolean, exited?: boolean}}
  */
 export function ensureAssBurnOrExit({
   scenes,
-  capability = checkAssBurnCapability(),
+  capability = checkAssBurnCapability,
   exit = process.exit,
 } = {}) {
   if (!hasVoicedScenes(scenes)) {
@@ -109,16 +114,18 @@ export function ensureAssBurnOrExit({
     return { ok: true, skipped: true };
   }
 
-  if (capability.ok) {
-    console.log(`✅ Step 0.4: ASS burn available (${capability.binary})`);
+  const cap = typeof capability === "function" ? capability() : capability;
+
+  if (cap.ok) {
+    console.log(`✅ Step 0.4: ASS burn available (${cap.binary})`);
     return { ok: true };
   }
 
-  console.error(`❌ Step 0.4: ASS burn unavailable (${capability.reason}) — ${capability.detail}`);
+  console.error(`❌ Step 0.4: ASS burn unavailable (${cap.reason}) — ${cap.detail}`);
   console.error(
     "   The run has voiceover, so subtitles are burned with the ass filter after the Remotion render. Without it the pipeline dies at the last step, after the TTS and render spend.",
   );
-  console.error(`   Probed: ${capability.binary}`);
+  console.error(`   Probed: ${cap.binary}`);
   console.error(`   ${ASS_FIX_HINT}`);
   exit(1);
   return { ok: false, exited: true };

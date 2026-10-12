@@ -97,6 +97,14 @@ export function buildCV3Manifest(scenes) {
  * (#394), matching the F5 and alignment spawns. `HF_HUB_DISABLE_XET=1` stays
  * unconditional (xet-transport workaround, not an offline policy).
  *
+ * Unlike those two spawns, this one carries NO offline cache-miss hint, and
+ * that is deliberate: the weights load from the local `--model-dir`
+ * (`~/.cosyvoice3-mlx-model`), and the one HF-cached dependency
+ * (mlx-community/S3TokenizerV3) is checked before the spawn by
+ * `ensureS3Tokenizer()`, which already throws with the restore command. The
+ * offline flag here is defensive — do not "fix" the missing hint by adding a
+ * fetch command that the failure path can never reach.
+ *
  * @param {object} options
  * @param {string} options.manifestPath
  * @param {string} options.outputDir

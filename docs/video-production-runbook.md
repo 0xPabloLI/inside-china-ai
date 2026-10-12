@@ -150,7 +150,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 | 11  | CDP 中途才检查/静默降级                                     | Step 0.2 CDP hard gate（上文节）；asset-sourcer CDP 不可用即 `process.exit(1)`                                                                                  |
 | 11b | ASR 模型缺失要烧完 TTS 批次才发现（warn + null 不算门禁）   | Step 0.3 ASR hard gate（上文节，`lib/asr-preflight.mjs`）；质检 ASR 腿 INFRA fail-closed（#415 ①）                                                              |
 | 11c | 烧完 TTS + Remotion 才死在字幕烧录（ffmpeg 无 libass）      | Step 0.4 ASS hard gate（上文节，`lib/ffmpeg-preflight.mjs`）；探测 `post-process.mjs` 消费的 `FFMPEG_FULL` 的 `-filters`，有旁白即 fail-closed（#394）           |
-| 11d | `export HF_HUB_OFFLINE=0` 想拉权重却被硬编码 flag 静默覆盖  | 三处 TTS/对齐 spawn 统一走 `lib/tts/offline-env.mjs`：默认离线、显式 env 优先；缺缓存时打印缺失模型与一次性拉取命令（#394）                                     |
+| 11d | `export HF_HUB_OFFLINE=0` 想拉权重却被硬编码 flag 静默覆盖  | 三处 TTS/对齐 spawn（F5 / CosyVoice3-MLX / 对齐）统一走 `lib/tts/offline-env.mjs`：默认离线、显式 env 优先（`TRANSFORMERS_OFFLINE` 只对 transformers 消费者生效，两值冲突时 `HF_HUB_OFFLINE` 优先）。其中**真正从 HF 缓存取权重的两处**（F5 的 vocos、对齐的 wav2vec2）缺缓存时打印缺失模型与一次性拉取命令；CV3 的权重在本地 `--model-dir`，其唯一 HF 依赖（S3TokenizerV3）由 spawn 前的 `ensureS3Tokenizer()` 单独报错（#394） |
 | 12  | CosyVoice3-Kaggle 偶发印度口音/音素拖长/WPM骤降             | Kaggle 环境固化（`onnxruntime-gpu==1.20.0` + commit `074ca6d`）+ 四维 Prompt 规范（Persona+美音+情绪+节奏）+ TTS Quality Gate 自愈（#234）                      |
 | 13  | TTS Quality Gate 版本号/小数 Token 错配导致相似度假阳性扣分 | `quality-gate.mjs` 实现 `buildExpandedAsrTokenSet` 及 `point` 音素桥接映射，实现 100% 语义匹配 (#234)                                                           |
 | 14  | MRL-3 帧审计 final frame 提取越界误报 FAIL                  | `verify-remotion-frames.mjs` ffprobe 实测帧数 clamp lastFrame（scheduleTotalFrames 按预算算，TTS 音频短于预算时渲染帧数更少；4d6ebd4）                          |
@@ -222,7 +222,9 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
   （`lib/tts/f5-mlx.mjs`）、CosyVoice3-MLX 批次（`lib/tts/cosyvoice3-mlx.mjs`）、
   强制对齐（`lib/tts/post-process.mjs`）统一走 `lib/tts/offline-env.mjs` 的 `offlineEnvPrefix()`——
   **默认离线，显式 env 优先**：`export HF_HUB_OFFLINE=0` 即可让这条 spawn 联网
-  （故意拉取/升级权重时用），`HF_HUB_DISABLE_XET=1` 仍无条件注入（xet 传输绕过，与离线策略无关）。
+  （故意拉取/升级权重时用）。对齐 spawn 另写 `TRANSFORMERS_OFFLINE`，取值与
+  `HF_HUB_OFFLINE` 同一个（huggingface_hub 把两者取或，写死一个会静默压掉操作者的另一个）；
+  `HF_HUB_DISABLE_XET=1` 仍无条件注入（xet 传输绕过，与离线策略无关）。
   此前 flag 是硬编码进 shell 字符串的，操作者 `export HF_HUB_OFFLINE=0` 会被静默覆盖——
   2026-09-27 事故里缺失的 vocos 权重因此拿不回来，且失败信息不说这件事。
   症状识别：main.mjs 停在 "Loading F5-TTS-MLX model" 超过 3 分钟且 `nettop` 显示零流量。
