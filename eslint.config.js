@@ -4,6 +4,9 @@ import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
+// #447: the correctness rules for .mjs live in one place so the full-repo
+// gate (scripts/lint-mjs-correctness.mjs) and this config cannot drift apart.
+import { MJS_CORRECTNESS_RULES } from "./scripts/mjs-correctness-rules.mjs";
 
 export default tseslint.config(
   {
@@ -72,9 +75,17 @@ export default tseslint.config(
   {
     // Pipeline/skill scripts are plain ESM (.mjs) — the ts/tsx block above
     // doesn't match them, so the file-size ceiling needs its own block.
+    //
+    // It also carries the correctness rules (#447): before this, no
+    // correctness rule matched .mjs at all, so every tracked script was
+    // "lint-clean" by construction — which is how #424's `const` reassignment
+    // (a guaranteed crash on --research/--trend) reached main unnoticed.
+    // Only the syntax/semantics subset is enabled; `no-undef` /
+    // `no-unused-vars` stay off (see scripts/mjs-correctness-rules.mjs).
     files: ["**/*.mjs"],
     rules: {
       "max-lines": ["error", { max: 4000, skipBlankLines: true, skipComments: true }],
+      ...MJS_CORRECTNESS_RULES,
     },
   },
   {
