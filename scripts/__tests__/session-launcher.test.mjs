@@ -24,7 +24,10 @@ function git(cwd, ...args) {
 // launcher parses (`headRefOid\tmergeCommit`); the real `--jq` filter is
 // exercised against the live API by the real-repo smoke, not here. Any other
 // invocation fails loudly so new gh dependencies surface in tests.
-function installFakeGh(dir, { openPrCount = 0, mergedPr = null, openPrSequence = null } = {}) {
+function installFakeGh(
+  dir,
+  { openPrCount = 0, mergedPr = null, openPrSequence = null, closedPrSequence = null } = {},
+) {
   const p = join(dir, "gh"); // nosemgrep
   const mergedCase = mergedPr
     ? `  *"pr list"*"--state merged"*)\n    case "$*" in\n      *"--head ${mergedPr.branch}"*) printf '%s\\n' "${mergedPr.headRefOid}\t${mergedPr.mergeCommit}" ;;\n    esac\n    exit 0\n    ;;\n`
@@ -33,10 +36,23 @@ function installFakeGh(dir, { openPrCount = 0, mergedPr = null, openPrSequence =
   // the delete. openPrSequence models a PR appearing in that window (or the
   // API failing mid-flight): successive calls return successive values, the
   // last one sticking. "err" makes that call fail.
-  const openSeq = (openPrSequence ?? [String(openPrCount)]).join(" ");
+  //
+  // Deleting a head branch closes its PRs, so the post-delete open count is 0
+  // whether or not a PR was closed. closedPrSequence models the
+  // closed-unmerged snapshot the launcher compares instead: "none" prints
+  // nothing (no such PR), a tab-separated "<number>\t<closedAt>" prints one,
+  // "err" fails the query.
+  //
+  // Sequences live in newline-separated files rather than in the script text:
+  // an entry holds a tab, and word splitting on `set --` would tear it apart.
+  writeFileSync(
+    join(dir, ".openpr-seq"),
+    (openPrSequence ?? [String(openPrCount)]).join("\n") + "\n",
+  );
+  writeFileSync(join(dir, ".closedpr-seq"), (closedPrSequence ?? ["none"]).join("\n") + "\n");
   writeFileSync(
     p,
-    `#!/bin/bash\ncase "$*" in\n${mergedCase}  *"pr list"*)\n    f="$(dirname "$0")/.openpr-calls"\n    n=0; [ -f "$f" ] && n=$(cat "$f")\n    n=$((n + 1)); printf '%s' "$n" > "$f"\n    set -- ${openSeq}\n    i=$n; [ "$i" -gt $# ] && i=$#\n    v=\${!i}\n    if [ "$v" = "err" ]; then echo "gh: api error" >&2; exit 1; fi\n    echo "$v"; exit 0\n    ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
+    `#!/bin/bash\ncase "$*" in\n${mergedCase}  *"pr list"*"--state closed"*)\n    d="$(dirname "$0")/.closedpr-seq"; f="$(dirname "$0")/.closedpr-calls"\n    n=0; [ -f "$f" ] && n=$(cat "$f")\n    n=$((n + 1)); printf '%s' "$n" > "$f"\n    v=$(sed -n "\${n}p" "$d"); [ -n "$v" ] || v=$(tail -n 1 "$d")\n    if [ "$v" = "err" ]; then echo "gh: api error" >&2; exit 1; fi\n    [ "$v" = "none" ] || printf '%s\\n' "$v"\n    exit 0\n    ;;\n  *"pr list"*)\n    d="$(dirname "$0")/.openpr-seq"; f="$(dirname "$0")/.openpr-calls"\n    n=0; [ -f "$f" ] && n=$(cat "$f")\n    n=$((n + 1)); printf '%s' "$n" > "$f"\n    v=$(sed -n "\${n}p" "$d"); [ -n "$v" ] || v=$(tail -n 1 "$d")\n    if [ "$v" = "err" ]; then echo "gh: api error" >&2; exit 1; fi\n    echo "$v"; exit 0\n    ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
   );
   execFileSync("chmod", ["+x", p]);
 }
@@ -189,9 +205,15 @@ describe("session-launcher gc: post-delivery closeout", () => {
     rmSync(ghDir, { recursive: true, force: true });
   });
 
-  // writeFakeGh <openPrCount> [mergedPr] [openPrSequence] — see installFakeGh.
-  function writeFakeGh(openPrCount, mergedPr = null, openPrSequence = null) {
-    installFakeGh(ghDir, { openPrCount, mergedPr, openPrSequence });
+  // writeFakeGh <openPrCount> [mergedPr] [openPrSequence] [closedPrSequence]
+  // — see installFakeGh.
+  function writeFakeGh(
+    openPrCount,
+    mergedPr = null,
+    openPrSequence = null,
+    closedPrSequence = null,
+  ) {
+    installFakeGh(ghDir, { openPrCount, mergedPr, openPrSequence, closedPrSequence });
   }
 
   // writeFailingGh — every gh invocation errors (no auth / offline).
@@ -702,7 +724,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
     const { status, out } = gc();
     expect(status).toBe(0);
     expect(out).toContain(
-      `WARNING: deleted remote origin/${branch} while an open PR may exist; the ref was re-created in the window and left untouched (never clobbered)`,
+      `WARNING: deleted remote origin/${branch} while an open PR appeared in the delete window; the remote moved on and was left untouched (never clobbered)`,
     );
     expect(out).toContain(`restore with: git push origin ${tip}:refs/heads/${branch}`);
     // The third party's tip is intact, and the outcome counts as kept.
@@ -710,6 +732,57 @@ describe("session-launcher gc: post-delivery closeout", () => {
       `${thirdTip}\trefs/heads/${branch}`,
     );
     expect(out).toContain("kept 0 (remote 1)");
+  });
+
+  // Deleting a head branch closes its PRs, so the post-delete open count reads
+  // 0 whether or not the delete just closed one. The closed-unmerged snapshot
+  // is the only evidence of a PR the delete itself closed.
+  it("restores a remote twin when the delete itself closed a PR", () => {
+    const branch = "session/20260101-raceclosed-abc207";
+    squashMergedBranch(branch, "race\n");
+    git(repo, "push", "-q", "origin", branch);
+    const tip = git(repo, "rev-parse", branch).trim();
+    // Both open checks read 0; only the closed snapshot gains an entry.
+    writeFakeGh(0, null, ["0", "0"], ["none", "77\t2026-10-12T13:00:00Z"]);
+
+    const { out } = gc();
+    expect(out).toContain(
+      `restored remote origin/${branch} after the delete — a PR was closed by this delete (fail-closed)`,
+    );
+    expect(remoteBranchExists(branch)).toBe(true);
+    expect(git(repo, "ls-remote", "origin", `refs/heads/${branch}`).trim()).toBe(
+      `${tip}\trefs/heads/${branch}`,
+    );
+    expect(out).toContain("kept 0 (remote 1)");
+  });
+
+  // A PR closed long before this delete is not evidence of a race: restoring
+  // it would keep the branch alive on every run.
+  it("deletes a remote twin whose only closed PR predates the delete", () => {
+    const branch = "session/20260101-staleclosed-abc208";
+    squashMergedBranch(branch, "race\n");
+    git(repo, "push", "-q", "origin", branch);
+    writeFakeGh(0, null, ["0", "0"], ["41\t2026-10-11T09:00:00Z", "41\t2026-10-11T09:00:00Z"]);
+
+    const { out } = gc();
+    expect(out).toContain(`deleted remote origin/${branch} (content merged)`);
+    expect(out).not.toContain("restored remote");
+    expect(remoteBranchExists(branch)).toBe(false);
+  });
+
+  // Without the snapshot a PR this delete closed cannot be told from a stale
+  // one, so the delete does not happen at all.
+  it("keeps a remote twin when the closed-PR history cannot be read", () => {
+    const branch = "session/20260101-noclosedhist-abc209";
+    squashMergedBranch(branch, "race\n");
+    git(repo, "push", "-q", "origin", branch);
+    writeFakeGh(0, null, ["0"], ["err"]);
+
+    const { out } = gc();
+    expect(out).toContain(
+      `kept remote origin/${branch} (closed-PR history unavailable — fail-closed)`,
+    );
+    expect(remoteBranchExists(branch)).toBe(true);
   });
 
   // Ancestry is the strongest delivery proof: the commits themselves are on

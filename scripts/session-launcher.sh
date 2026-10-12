@@ -39,10 +39,12 @@
 #      reason
 #   4. sweeps remote twins, including orphans whose local branch is already
 #      gone (stop deletes the local one first); every remote deletion is gated
-#      on its own delivery verification and a fail-closed open-PR check, and
-#      re-checks the open-PR count after deleting — a PR that appeared in the
-#      window gets the ref pushed back exactly as verified, or a loud warning
-#      when someone re-created the ref in the meantime (never clobbered)
+#      on its own delivery verification, a fail-closed open-PR check, and a
+#      closed-unmerged PR snapshot taken before it (deleting a head branch
+#      closes its PRs, so the post-delete open count alone proves nothing) —
+#      a newly closed PR, a newly open one, or an unreadable re-check gets the
+#      ref pushed back exactly as verified, or a loud warning when someone
+#      re-created the ref in the meantime (never clobbered)
 # =============================================================================
 set -euo pipefail
 
@@ -124,6 +126,21 @@ pr_delivered() {
     git merge-base --is-ancestor "$mc" refs/remotes/origin/main 2>/dev/null && return 0
   done <<< "$rows"
   return 1
+}
+
+# closed_unmerged_prs <branch> — one "<number><TAB><closedAt>" line per PR that
+# was closed without being merged and whose head is <branch>; empty when there
+# are none. rc 4 = the query could not run. Deleting a head branch closes its
+# PRs, so the post-delete open count reads 0 whether or not a PR was just
+# closed: this snapshot is taken before the delete and compared after it, and
+# only a new entry tells the two apart.
+closed_unmerged_prs() {
+  local b="$1"
+  command -v "$GH" >/dev/null 2>&1 || return 4
+  "$GH" pr list --head "$b" --state closed --limit 50 \
+    --json number,closedAt,mergedAt \
+    --jq '.[] | select(.mergedAt == null) | [.number, .closedAt] | @tsv' \
+    </dev/null 2>/dev/null || return 4
 }
 
 # ref_delivered <ref> <tip> — delivery verdict for one branch, most direct
@@ -539,12 +556,17 @@ if [ "$cmd" = "gc" ]; then
   # Every unknown keeps it (fail-closed).
   #
   # The open-PR check and the delete are two steps, so a PR opened between them
-  # would be closed by the delete. After a successful delete the open-PR check
-  # runs again: if one appeared (or the re-check cannot run), the ref is pushed
-  # back exactly as verified — the branch is the only reference to that work,
-  # and this delete is the one action in gc that can lose it.
+  # would be closed by the delete — and deleting a head branch closes its PRs,
+  # so the post-delete open-PR count reads 0 either way and proves nothing by
+  # itself. The snapshot of closed-unmerged PRs taken before the delete is the
+  # evidence: an entry that was not there before, an open PR that appeared, or
+  # a re-check that could not run all push the ref back exactly as verified
+  # (the branch is the only reference to that work, and this delete is the one
+  # action in gc that can lose it). The restore push is not forced: a ref that
+  # someone re-created in the window wins, with a loud warning instead.
   remote_twin_closeout() {
     local b="$1" dry="$2" open_prs tip tracked rc d tip_used post
+    local closed_before closed_after appeared entry cause
     rc=0
     tip=$(git ls-remote --exit-code --heads origin "refs/heads/$b" 2>/dev/null | awk 'NR==1{print $1}') || rc=$?
     case "$rc" in
@@ -614,25 +636,50 @@ if [ "$cmd" = "gc" ]; then
     fi
     case "$d" in
       0 | 3 | 6)
+        # Deleting a head branch closes its PRs, so the closed-unmerged
+        # snapshot is taken first: an entry that was not there before is the
+        # only evidence that this delete closed a PR. No snapshot, no delete.
+        rc=0
+        closed_before=$(closed_unmerged_prs "$b") || rc=$?
+        if [ "$rc" != 0 ]; then
+          echo "[gc] kept remote origin/$b (closed-PR history unavailable — fail-closed)"
+          remote_kept=$((remote_kept + 1))
+          return 0
+        fi
         # --force-with-lease makes the delete conditional on the remote still
         # being at the tip just verified: a commit landing between
         # verification and deletion rejects the push (stale info) and keeps
         # the branch, closing that race atomically.
         if git push --quiet --force-with-lease="refs/heads/$b:$tip_used" origin --delete "$b" </dev/null >/dev/null 2>&1; then
           post=$("$GH" pr list --head "$b" --state open --json number --jq 'length' </dev/null 2>/dev/null) || post=""
-          if [ "$post" = "0" ]; then
+          rc=0
+          closed_after=$(closed_unmerged_prs "$b") || rc=$?
+          appeared=""
+          if [ "$rc" = 0 ]; then
+            while IFS= read -r entry; do
+              [ -n "$entry" ] || continue
+              printf '%s\n' "$closed_before" | grep -Fxq "$entry" || { appeared="$entry"; break; }
+            done <<< "$closed_after"
+          fi
+          if [ "$post" = "0" ] && [ "$rc" = 0 ] && [ -z "$appeared" ]; then
             echo "[gc] deleted remote origin/$b ($(deleted_reason "$d"))"
             remote_deleted=$((remote_deleted + 1))
           else
-            # A PR opened while we were deleting, or the re-check could not
-            # run: put the ref back exactly as verified. Restoring the head
-            # branch also reopens the PR GitHub closed with it. The push is
+            if [ -n "$appeared" ]; then
+              cause="a PR was closed by this delete"
+            elif [ "$post" = "0" ]; then
+              cause="the re-check could not run"
+            else
+              cause="an open PR appeared in the delete window"
+            fi
+            # Put the ref back exactly as verified; restoring the head branch
+            # also reopens the PR GitHub closed with it. The push is
             # deliberately not forced — if someone re-created the ref in the
             # window, their tip wins and the recovery stays manual.
             if git push --quiet origin "$tip_used:refs/heads/$b" </dev/null >/dev/null 2>&1; then
-              echo "[gc] restored remote origin/$b after the delete — an open PR appeared in the delete window (fail-closed)"
+              echo "[gc] restored remote origin/$b after the delete — $cause (fail-closed)"
             else
-              echo "[gc] WARNING: deleted remote origin/$b while an open PR may exist; the ref was re-created in the window and left untouched (never clobbered) — restore with: git push origin $tip_used:refs/heads/$b"
+              echo "[gc] WARNING: deleted remote origin/$b while $cause; the remote moved on and was left untouched (never clobbered) — restore with: git push origin $tip_used:refs/heads/$b"
             fi
             remote_kept=$((remote_kept + 1))
           fi
