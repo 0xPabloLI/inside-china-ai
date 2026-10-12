@@ -4,6 +4,11 @@ import { createFileRoute } from "@tanstack/react-router";
  * Daily cron: publish popular Ask China AI answers as pages, refresh stale
  * ones and tune search snippets. Called by pg_cron with the publishable key.
  * Body `{ "resume": true }` clears a credit/policy pause for one run.
+ *
+ * Auth (#319 R2): accepts the publishable key under either name —
+ * `SUPABASE_PUBLISHABLE_KEY` or its legacy alias `SUPABASE_ANON_KEY` (same
+ * project key, not a weaker credential). The alias is kept deliberately until
+ * pg_cron's configured key name is verified (dashboard-side, not in this repo).
  */
 export const Route = createFileRoute("/api/public/hooks/ask-answers")({
   server: {
