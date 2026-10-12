@@ -76,7 +76,7 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
       existsSync(join(repo, ".git", "refs", "heads", "session", "20260101-unmerged-def456")),
     ).toBe(true);
     expect(out).toContain(
-      "session branch kept (branch -d refused: unmerged or already merged elsewhere): session/20260101-unmerged-def456",
+      "session branch kept (unmerged and content differs from origin/main): session/20260101-unmerged-def456",
     );
   });
 
@@ -90,5 +90,180 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
     ).toBe(true);
     expect(out).toContain("worktree kept (dirty or locked)");
     expect(out).toContain("session branch kept (worktree dirty)");
+  });
+});
+
+// ─── gc: post-delivery closeout ─────────────────────────────────────────────
+//
+// `gc` is the merge-closeout step: refresh origin, fast-forward the main
+// checkout when it is clean, and delete local/remote branches whose content
+// already landed on origin/main. Squash merges never satisfy `git branch -d`
+// (no ancestry), so the deletion criterion is per-file byte identity against
+// origin/main — and every failed verification keeps the branch.
+
+describe("session-launcher gc: post-delivery closeout", () => {
+  let origin;
+  let repo;
+
+  beforeEach(() => {
+    origin = mkdtempSync(join(tmpdir(), "launcher-gc-origin-"));
+    git(origin, "init", "--bare", "-q", "--initial-branch=main");
+    repo = mkdtempSync(join(tmpdir(), "launcher-gc-repo-"));
+    git(repo, "clone", "-q", origin, ".");
+    git(repo, "config", "user.email", "test@example.com");
+    git(repo, "config", "user.name", "test");
+    writeFileSync(join(repo, "a.txt"), "a\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "init");
+    git(repo, "push", "-q", "-u", "origin", "main");
+  });
+
+  afterEach(() => {
+    rmSync(origin, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  function gc(...args) {
+    const r = spawnSync("bash", [LAUNCHER, "gc", ...args], { encoding: "utf8", cwd: repo });
+    return { status: r.status, out: (r.stdout || "") + (r.stderr || "") };
+  }
+
+  function branchExists(name) {
+    return (
+      spawnSync("git", ["rev-parse", "--verify", "--quiet", `refs/heads/${name}`], { cwd: repo })
+        .status === 0
+    );
+  }
+
+  function remoteBranchExists(name) {
+    return (
+      spawnSync("git", ["ls-remote", "--exit-code", "--heads", "origin", `refs/heads/${name}`], {
+        cwd: repo,
+      }).status === 0
+    );
+  }
+
+  // advanceOrigin pushes a new commit to origin/main from a second clone, so
+  // the fixture's main checkout is strictly behind.
+  function advanceOrigin() {
+    const other = mkdtempSync(join(tmpdir(), "launcher-gc-other-"));
+    git(repo, "clone", "-q", origin, other);
+    git(other, "config", "user.email", "test@example.com");
+    git(other, "config", "user.name", "test");
+    writeFileSync(join(other, "b.txt"), "b\n");
+    git(other, "add", ".");
+    git(other, "commit", "-q", "-m", "advance origin");
+    git(other, "push", "-q", "origin", "main");
+    rmSync(other, { recursive: true, force: true });
+  }
+
+  // squashMergedBranch creates `name` with one commit, then lands the same
+  // content on main as a separate commit and pushes — the exact shape a
+  // squash merge leaves behind (content on main, no ancestry relation).
+  function squashMergedBranch(name, content) {
+    const wtPath = join(repo, "wt-" + name.replace(/[^a-z0-9]+/gi, "-"));
+    git(repo, "worktree", "add", "-b", name, wtPath);
+    writeFileSync(join(wtPath, "feature.txt"), content);
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "feature work");
+    git(repo, "worktree", "remove", wtPath);
+    writeFileSync(join(repo, "feature.txt"), content);
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "squash merge of " + name);
+    git(repo, "push", "-q", "origin", "main");
+  }
+
+  it("deletes a squash-merged branch locally and on the remote", () => {
+    squashMergedBranch("session/20260101-merged-abc123", "merged\n");
+    git(repo, "push", "-q", "origin", "session/20260101-merged-abc123");
+
+    const { status, out } = gc();
+    expect(status).toBe(0);
+    expect(branchExists("session/20260101-merged-abc123")).toBe(false);
+    expect(remoteBranchExists("session/20260101-merged-abc123")).toBe(false);
+    expect(out).toContain("deleted session/20260101-merged-abc123");
+  });
+
+  it("keeps a branch whose content is not on origin/main", () => {
+    const wtPath = join(repo, "wt-unmerged");
+    git(repo, "worktree", "add", "-b", "session/20260101-unmerged-def456", wtPath);
+    writeFileSync(join(wtPath, "wip.txt"), "unmerged\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "wip");
+    git(repo, "worktree", "remove", wtPath);
+
+    const { status, out } = gc();
+    expect(status).toBe(0);
+    expect(branchExists("session/20260101-unmerged-def456")).toBe(true);
+    expect(out).toContain("kept session/20260101-unmerged-def456");
+  });
+
+  it("keeps a branch that is checked out in a worktree", () => {
+    const wtPath = join(repo, "wt-live");
+    git(repo, "worktree", "add", "-b", "session/20260101-live-aaa111", wtPath);
+
+    const { out } = gc();
+    expect(branchExists("session/20260101-live-aaa111")).toBe(true);
+    expect(out).toContain("kept session/20260101-live-aaa111 (checked out in");
+  });
+
+  it("leaves branches outside the session namespace untouched", () => {
+    git(repo, "branch", "personal-keep");
+
+    const { out } = gc();
+    expect(branchExists("personal-keep")).toBe(true);
+    expect(out).not.toContain("personal-keep");
+  });
+
+  it("fast-forwards a clean main checkout that is behind origin/main", () => {
+    advanceOrigin();
+    const { status, out } = gc();
+    expect(status).toBe(0);
+    expect(git(repo, "rev-parse", "main").trim()).toBe(
+      git(repo, "rev-parse", "refs/remotes/origin/main").trim(),
+    );
+    expect(out).toContain("main fast-forwarded");
+  });
+
+  it("skips the sync when the main checkout has tracked changes, and says so", () => {
+    advanceOrigin();
+    writeFileSync(join(repo, "a.txt"), "dirty\n");
+    const before = git(repo, "rev-parse", "main").trim();
+
+    const { out } = gc();
+    expect(git(repo, "rev-parse", "main").trim()).toBe(before);
+    expect(out).toContain("sync skipped");
+  });
+
+  it("--dry-run reports candidates without changing refs", () => {
+    squashMergedBranch("session/20260101-dry-abc999", "dry\n");
+    git(repo, "push", "-q", "origin", "session/20260101-dry-abc999");
+
+    const { out } = gc("--dry-run");
+    expect(branchExists("session/20260101-dry-abc999")).toBe(true);
+    expect(remoteBranchExists("session/20260101-dry-abc999")).toBe(true);
+    expect(out).toContain("would delete session/20260101-dry-abc999");
+  });
+
+  it("stop deletes a squash-merged session branch (content-verified -D)", () => {
+    const id = "20260101-squash-stop-abc321";
+    const wtPath = join(repo, "wt-stop");
+    git(repo, "worktree", "add", "-b", `session/${id}`, wtPath);
+    const wtGitDir = git(wtPath, "rev-parse", "--absolute-git-dir").trim();
+    mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true });
+    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), id + "\n");
+    writeFileSync(join(wtPath, "feature.txt"), "stop-merged\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "work");
+    // squash-merge the same content onto main and push
+    writeFileSync(join(repo, "feature.txt"), "stop-merged\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "squash");
+    git(repo, "push", "-q", "origin", "main");
+
+    const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], { encoding: "utf8", cwd: repo });
+    expect(r.status).toBe(0);
+    expect(branchExists(`session/${id}`)).toBe(false);
+    expect(r.stdout).toContain("squash-merged session branch deleted");
   });
 });

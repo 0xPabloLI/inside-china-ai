@@ -21,14 +21,24 @@
 #
 # stop clears the state file (ending auto-fill + block mode) and removes the
 # worktree when it is clean; a dirty worktree is reported, not destroyed.
+#
+# gc is the post-delivery closeout (run after a PR merges):
+#   1. refreshes origin/main (fetch --prune; offline is non-fatal)
+#   2. fast-forwards the main checkout when it is clean, on main, and strictly
+#      behind — ff-only, never rebases, never switches, never touches a dirty
+#      checkout
+#   3. deletes branches in the session namespace whose content already landed
+#      on origin/main (per-file byte identity, so squash merges qualify even
+#      though `git branch -d` refuses them); branches checked out in any
+#      worktree are never touched
 # =============================================================================
 set -euo pipefail
 
 cmd="${1:-}"
 [ -n "$cmd" ] && shift
 case "$cmd" in
-  start|stop) ;;
-  *) echo "usage: session-launcher.sh start <task-slug> [worktree-path] | stop <worktree-path>" >&2; exit 1 ;;
+  start|stop|gc) ;;
+  *) echo "usage: session-launcher.sh start <task-slug> [worktree-path] | stop <worktree-path> | gc [--dry-run]" >&2; exit 1 ;;
 esac
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "error: not inside a git repository" >&2; exit 1; }
@@ -38,6 +48,25 @@ REGISTRY_DIR="$COMMON/session-pilot"
 REGISTRY="$REGISTRY_DIR/pilot-log.md"
 
 rand_hex() { openssl rand -hex 3 2>/dev/null || od -An -N3 -tx1 /dev/urandom | tr -d ' \n'; }
+
+# ref_content_merged <ref> <base-ref> — true when every file <ref> changed
+# (vs their merge-base) is byte-identical on <base-ref>. Content, not
+# ancestry: `git branch -d` only recognises ancestry merges, so a squash-
+# merged branch would linger forever even though main already carries every
+# byte it produced. Used by `stop` and `gc`; any failed verification keeps
+# the branch, so this is the fail-closed gate for every `-D` in this script.
+ref_content_merged() {
+  local ref="$1" base="$2" mb list f
+  git rev-parse --verify --quiet "$ref" >/dev/null 2>&1 || return 1
+  git rev-parse --verify --quiet "$base" >/dev/null 2>&1 || return 1
+  mb=$(git merge-base "$ref" "$base" 2>/dev/null) || return 1
+  list=$(git diff --name-only "$mb" "$ref" 2>/dev/null) || return 1
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    git diff --quiet "$ref" "$base" -- "$f" || return 1
+  done <<< "$list"
+  return 0
+}
 
 if [ "$cmd" = "start" ]; then
   task="${1:-}"
@@ -142,33 +171,161 @@ EOF
 fi
 
 # --- stop ---------------------------------------------------------------------
-wtpath="${1:-}"
-[ -n "$wtpath" ] || { echo "usage: session-launcher.sh stop <worktree-path>" >&2; exit 1; }
-WT_GITDIR=$(git -C "$wtpath" rev-parse --absolute-git-dir 2>/dev/null || true)
-session_id=""
-if [ -n "$WT_GITDIR" ] && [ -f "$WT_GITDIR/session-pilot/current-session" ]; then
-  session_id=$(head -n 1 "$WT_GITDIR/session-pilot/current-session" | tr -d '[:space:]')
-  rm -f "$WT_GITDIR/session-pilot/current-session"
-  echo "[session] state cleared (auto-fill off; ref-gate block mode now keys on worktree count)"
-fi
-if git worktree remove "$wtpath" >/dev/null 2>&1; then
-  echo "[session] worktree removed: $wtpath"
-  # #195: a removed worktree means the session ended — delete the session
-  # branch when it is fully merged. `git branch -d` (never -D) safely refuses
-  # unmerged branches, which is the auto-exemption for work that never
-  # landed on main. Deletion failure never blocks the stop flow.
-  if [ -n "$session_id" ]; then
-    if git branch -d "session/$session_id" >/dev/null 2>&1; then
-      echo "[session] merged session branch deleted: session/$session_id"
-    else
-      echo "[session] session branch kept (branch -d refused: unmerged or already merged elsewhere): session/$session_id"
+if [ "$cmd" = "stop" ]; then
+  wtpath="${1:-}"
+  [ -n "$wtpath" ] || { echo "usage: session-launcher.sh stop <worktree-path>" >&2; exit 1; }
+  WT_GITDIR=$(git -C "$wtpath" rev-parse --absolute-git-dir 2>/dev/null || true)
+  session_id=""
+  if [ -n "$WT_GITDIR" ] && [ -f "$WT_GITDIR/session-pilot/current-session" ]; then
+    session_id=$(head -n 1 "$WT_GITDIR/session-pilot/current-session" | tr -d '[:space:]')
+    rm -f "$WT_GITDIR/session-pilot/current-session"
+    echo "[session] state cleared (auto-fill off; ref-gate block mode now keys on worktree count)"
+  fi
+  if git worktree remove "$wtpath" >/dev/null 2>&1; then
+    echo "[session] worktree removed: $wtpath"
+    # #195: a removed worktree means the session ended — delete the session
+    # branch when its work is fully on origin/main. `git branch -d` covers
+    # ancestry merges; the content check extends the same intent to squash
+    # merges, and `-D` is only reached behind ref_content_merged. Work that
+    # never landed is auto-exempted and kept. Deletion failure never blocks
+    # the stop flow.
+    if [ -n "$session_id" ]; then
+      if git branch -d "session/$session_id" >/dev/null 2>&1; then
+        echo "[session] merged session branch deleted: session/$session_id"
+      elif ref_content_merged "refs/heads/session/$session_id" refs/remotes/origin/main; then
+        if git branch -D "session/$session_id" >/dev/null 2>&1; then
+          echo "[session] squash-merged session branch deleted (content verified on origin/main): session/$session_id"
+        else
+          echo "[session] session branch kept (delete failed): session/$session_id"
+        fi
+      else
+        echo "[session] session branch kept (unmerged and content differs from origin/main): session/$session_id"
+      fi
+    fi
+  else
+    echo "[session] worktree kept (dirty or locked). When done cleaning up: git worktree remove --force \"$wtpath\" (destructive — check first)"
+    # Dirty means the work never landed — the branch is the only entry point
+    # to it, so it must survive (#195).
+    if [ -n "$session_id" ]; then
+      echo "[session] session branch kept (worktree dirty): session/$session_id"
     fi
   fi
-else
-  echo "[session] worktree kept (dirty or locked). When done cleaning up: git worktree remove --force \"$wtpath\" (destructive — check first)"
-  # Dirty means the work never landed — the branch is the only entry point
-  # to it, so it must survive (#195).
-  if [ -n "$session_id" ]; then
-    echo "[session] session branch kept (worktree dirty): session/$session_id"
+
+  echo "[session] closeout after the PR merges: npm run session:gc (sync main + clean merged branches)"
+fi
+
+# --- gc -----------------------------------------------------------------------
+# Post-delivery closeout — safe to run any time, from any worktree. Never
+# rebases, never switches branches, never touches a dirty checkout.
+if [ "$cmd" = "gc" ]; then
+  dry_run=""
+  if [ "${1:-}" = "--dry-run" ]; then
+    dry_run=1
+    shift
   fi
+
+  echo "🧹 session gc — post-delivery closeout"
+  [ -n "$dry_run" ] && echo "   dry-run: nothing will be changed"
+
+  # Stale worktree records (directory deleted by hand) would otherwise keep
+  # their branches looking "checked out" forever.
+  stale=$(git worktree prune --dry-run -v 2>&1 || true)
+  if [ -n "$stale" ]; then
+    git worktree prune
+    echo "[gc] pruned stale worktree record(s)"
+  fi
+
+  # 1. Refresh remote state. Offline is non-fatal: verification then runs
+  #    against the existing origin/main ref and says so.
+  if git fetch --prune --quiet origin main 2>/dev/null; then
+    echo "[gc] origin/main refreshed: $(git rev-parse --short refs/remotes/origin/main)"
+  elif git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null 2>&1; then
+    echo "[gc] fetch failed (offline?) — verifying against the existing origin/main ref"
+  else
+    echo "[gc] fetch failed and no origin/main ref — sync and verification disabled"
+  fi
+
+  # 2. Sync the main checkout — only when it is clean, on main, and strictly
+  #    behind. Divergent or dirty checkouts are reported, never moved.
+  main_wt=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+  if [ -z "$main_wt" ] || [ ! -d "$main_wt" ]; then
+    echo "[gc] main worktree not found — sync skipped"
+  else
+    main_branch=$(git -C "$main_wt" symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+    head_sha=$(git -C "$main_wt" rev-parse HEAD 2>/dev/null || true)
+    origin_sha=$(git rev-parse --verify --quiet refs/remotes/origin/main 2>/dev/null || true)
+    if [ "$main_branch" != "main" ]; then
+      echo "[gc] main checkout is on '${main_branch:-detached HEAD}' — sync skipped (never switch a checkout)"
+    elif [ -n "$(git -C "$main_wt" status --porcelain --untracked-files=no)" ]; then
+      echo "[gc] main checkout has tracked changes — sync skipped"
+    elif [ -z "$origin_sha" ]; then
+      echo "[gc] no origin/main ref — sync skipped"
+    elif [ "$head_sha" = "$origin_sha" ]; then
+      echo "[gc] main is up to date ($(git rev-parse --short "$head_sha"))"
+    elif git merge-base --is-ancestor "$head_sha" "$origin_sha"; then
+      if [ -n "$dry_run" ]; then
+        echo "[gc] would fast-forward main $(git rev-parse --short "$head_sha") → $(git rev-parse --short "$origin_sha")"
+      elif git -C "$main_wt" merge --ff-only --quiet refs/remotes/origin/main >/dev/null 2>&1; then
+        echo "[gc] main fast-forwarded to $(git -C "$main_wt" rev-parse --short HEAD)"
+      else
+        echo "[gc] main fast-forward refused (untracked collision?) — left untouched"
+      fi
+    else
+      echo "[gc] main has local commits not on origin/main — left untouched (resolve manually)"
+    fi
+  fi
+
+  # 3. Clean merged branches in the session namespace. The deletion criterion
+  #    is per-file byte identity against origin/main (ref_content_merged); any
+  #    failed verification keeps the branch. Checked-out branches are never
+  #    touched. SESSION_GC_BRANCH_GLOBS overrides the namespace globs.
+  globs="${SESSION_GC_BRANCH_GLOBS:-session/* docs/* fix/* feat/* chore/* test/* refactor/*}"
+  deleted=0
+  kept=0
+  while IFS=$'\t' read -r b wtpath; do
+    [ -n "$b" ] || continue
+    [ "$b" = "main" ] && continue
+    matched=0
+    for g in $globs; do
+      case "$b" in $g) matched=1 ;; esac
+    done
+    [ "$matched" = 1 ] || continue
+    if [ -n "$wtpath" ]; then
+      echo "[gc] kept $b (checked out in $wtpath)"
+      kept=$((kept + 1))
+      continue
+    fi
+    if ! ref_content_merged "refs/heads/$b" refs/remotes/origin/main; then
+      echo "[gc] kept $b (content not byte-identical on origin/main)"
+      kept=$((kept + 1))
+      continue
+    fi
+    if [ -n "$dry_run" ]; then
+      echo "[gc] would delete $b (content merged)"
+      continue
+    fi
+    if git branch -D "$b" >/dev/null 2>&1; then
+      echo "[gc] deleted $b (content merged)"
+      deleted=$((deleted + 1))
+    else
+      echo "[gc] kept $b (delete failed)"
+      kept=$((kept + 1))
+      continue
+    fi
+    # Remote twin: only when it still exists AND its own content verifies too.
+    if git ls-remote --exit-code --heads origin "refs/heads/$b" >/dev/null 2>&1; then
+      if git fetch --quiet --force origin "refs/heads/$b:refs/remotes/origin/$b" </dev/null 2>/dev/null \
+         && ref_content_merged "refs/remotes/origin/$b" refs/remotes/origin/main; then
+        if git push --quiet origin --delete "$b" </dev/null >/dev/null 2>&1; then
+          echo "[gc] deleted remote origin/$b"
+        else
+          echo "[gc] remote origin/$b delete failed — skipped"
+        fi
+      else
+        echo "[gc] kept remote origin/$b (content not verified merged)"
+      fi
+    fi
+  done < <(git for-each-ref --format='%(refname:short)%09%(worktreepath)' refs/heads)
+
+  echo "[gc] done — deleted $deleted, kept $kept"
 fi

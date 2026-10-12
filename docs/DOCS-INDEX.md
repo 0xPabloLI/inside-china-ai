@@ -104,7 +104,7 @@ Numbered sequence. Current: 0001–0019 (0006 moved to archive).
 | Document                     | Purpose                                                                                                                                                            |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `implementation-workflow.md` | Automatic risk × planning-scale implementation workflow and Matt skill adaptation                                                                                  |
-| `git-workflow.md`            | Git safety, worktrees, commit cadence, review baseline, push and PR rules + concurrent sessions and orphan-commit recovery + Session-Id provenance (hook-enforced) |
+| `git-workflow.md`            | Git safety, worktrees, commit cadence, review baseline, push and PR rules + concurrent sessions and orphan-commit recovery + Session-Id provenance (hook-enforced) + post-delivery closeout (§10 `npm run session:gc`) |
 | `git-concurrent-recovery.md` | 竞态应急配方（git-workflow §9 指向）：临时 index 隔离提交、孤儿提交找回、单文件恢复；含试点收尾复评触发条款                                                        |
 | `proposal-review.md`         | Evidence, impact, external-fact, tool-admission and model-parameter proposal checks                                                                                |
 | `issue-tracker.md`           | GitHub Issues operations and roadmap pointer                                                                                                                       |
