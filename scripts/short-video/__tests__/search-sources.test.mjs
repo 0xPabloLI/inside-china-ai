@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
+import { spawnSync } from "child_process";
+import { fileURLToPath } from "url";
 
 import {
   groupSourcesByEvidenceRole,
   selectSourcesForRun,
+  filterPaidSources,
   deriveCollectionMethod,
   buildDiscoveryOutput,
 } from "../search-sources.mjs";
@@ -225,5 +228,138 @@ describe("buildDiscoveryOutput", () => {
     expect(discovery.sourceCount).toBe(2);
     expect(discovery.runMetadata.keyword).toBe("DeepSeek");
     expect(discovery.runMetadata.mode).toBe("research");
+  });
+});
+
+// ─── #424: paid-API filter is a value-returning seam (no const reassignment) ───
+//
+// 修复前真实 CLI 基线（research 与 trend 走到同一条路径）：
+//   💰 Skipping 1 paid-API source(s): tiktok_creator
+//   ❌ Assignment to constant variable.  (exit 1)
+// 成因：main() 对 selectSourcesForRun() 产出的 const 重赋值——付费源存在且未传
+// --include-paid 时必然崩。过滤逻辑收进纯函数后，orchestration 与测试消费同一
+// 实现（不再各自持有一份「哪些源算 paid」的判断）。
+
+describe("filterPaidSources (#424)", () => {
+  const paidWithApiSearch = { name: "api_paid", apiSearch: { paidApi: true } };
+  const paidWithCapabilities = {
+    name: "cap_paid",
+    capabilities: { articles: { paidApi: true } },
+  };
+  const free = (name) => ({ name, apiSearch: {} });
+
+  it("drops paid sources by default and reports what it skipped", () => {
+    const sources = [free("a"), paidWithApiSearch, free("c")];
+    const { sources: kept, skipped } = filterPaidSources(sources, false);
+    expect(kept.map((s) => s.name)).toEqual(["a", "c"]);
+    expect(skipped.map((s) => s.name)).toEqual(["api_paid"]);
+  });
+
+  it("keeps paid sources under --include-paid and reports nothing skipped", () => {
+    const sources = [free("a"), paidWithCapabilities];
+    const { sources: kept, skipped } = filterPaidSources(sources, true);
+    expect(kept).toBe(sources);
+    expect(skipped).toEqual([]);
+  });
+
+  it("leaves the list untouched when no paid source exists", () => {
+    const sources = [free("a"), free("b")];
+    const { sources: kept, skipped } = filterPaidSources(sources, false);
+    expect(kept).toBe(sources);
+    expect(skipped).toEqual([]);
+  });
+
+  it("reads paidApi from capabilities.articles with the apiSearch fallback (#67)", () => {
+    const capOverridesApi = {
+      name: "cap_false",
+      capabilities: { articles: { paidApi: false } },
+      apiSearch: { paidApi: true },
+    };
+    const { sources: kept, skipped } = filterPaidSources(
+      [paidWithCapabilities, paidWithApiSearch, capOverridesApi],
+      false,
+    );
+    expect(kept.map((s) => s.name)).toEqual(["cap_false"]);
+    expect(skipped.map((s) => s.name)).toEqual(["cap_paid", "api_paid"]);
+  });
+});
+
+// ─── #424 matrix: research/trend × paid present/absent × include-paid on/off ───
+//
+// run() is the exact composition main() runs: selectSourcesForRun() output
+// feeds filterPaidSources(). Both modes share the same filter branch, so the
+// crash was mode-independent — the matrix pins the boundaries anyway: default
+// runs must never reach the paid source's quota; --include-paid may.
+
+describe("paid filter × mode matrix (#424)", () => {
+  const run = (isResearch, list, includePaid) =>
+    filterPaidSources(selectSourcesForRun(isResearch, list), includePaid);
+  const names = (list) => list.map((s) => s.name);
+
+  const withoutPaid = articlesCapableSources.filter((s) => s.name !== "tiktok_creator");
+
+  it("real registry carries exactly the paid source this matrix turns off", () => {
+    const { skipped } = run(true, articlesCapableSources, false);
+    expect(names(skipped)).toEqual(["tiktok_creator"]);
+  });
+
+  it("research + paid present: default excludes it, --include-paid keeps it", () => {
+    const selected = names(selectSourcesForRun(true, articlesCapableSources));
+    const { sources: defaultRun, skipped } = run(true, articlesCapableSources, false);
+    expect(names(defaultRun)).toEqual(selected.filter((n) => n !== "tiktok_creator"));
+    expect(names(defaultRun)).toHaveLength(selected.length - skipped.length);
+
+    const optedIn = run(true, articlesCapableSources, true);
+    expect(names(optedIn.sources)).toEqual(selected);
+    expect(optedIn.skipped).toEqual([]);
+  });
+
+  it("research + paid absent: selection and order unchanged", () => {
+    const expected = names(selectSourcesForRun(true, withoutPaid));
+    expect(names(run(true, withoutPaid, false).sources)).toEqual(expected);
+    expect(names(run(true, withoutPaid, true).sources)).toEqual(expected);
+  });
+
+  it("trend + paid present: default excludes it, --include-paid keeps it", () => {
+    const { sources: defaultRun, skipped } = run(false, articlesCapableSources, false);
+    expect(names(defaultRun)).not.toContain("tiktok_creator");
+    expect(names(defaultRun)).toHaveLength(articlesCapableSources.length - skipped.length);
+
+    const optedIn = run(false, articlesCapableSources, true);
+    expect(names(optedIn.sources)).toEqual(names(articlesCapableSources));
+    expect(optedIn.skipped).toEqual([]);
+  });
+
+  it("trend + paid absent: selection and order unchanged (both include-paid states)", () => {
+    const expected = names(withoutPaid);
+    expect(names(run(false, withoutPaid, false).sources)).toEqual(expected);
+    expect(names(run(false, withoutPaid, true).sources)).toEqual(expected);
+  });
+});
+
+// ─── #424 smoke: the real CLI reaches keyword validation instead of crashing ───
+//
+// `--research` without `--keyword` exits at the keyword check, which sits
+// directly AFTER the paid filter and BEFORE the CDP/network work — so this is
+// an offline run that still executes the real orchestration branch.
+
+describe("search-sources CLI paid filter smoke (#424)", () => {
+  const CLI = fileURLToPath(new URL("../search-sources.mjs", import.meta.url));
+
+  it("--research with a paid source present no longer dies with Assignment to constant variable", () => {
+    // timeout is a safety net: a regression that moves the exit past the
+    // keyword check would otherwise hang this synchronous spawn forever
+    // (vitest's testTimeout cannot preempt blocking code).
+    const res = spawnSync(process.execPath, [CLI, "--research"], {
+      encoding: "utf8",
+      timeout: 10_000,
+    });
+    const stdout = res.stdout || "";
+    const stderr = res.stderr || "";
+
+    expect(stderr).not.toMatch(/Assignment to constant variable/);
+    expect(stderr).toMatch(/--research mode requires --keyword/);
+    expect(stdout).toMatch(/Skipping 1 paid-API source\(s\): tiktok_creator/);
+    expect(res.status).toBe(1);
   });
 });
