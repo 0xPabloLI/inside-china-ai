@@ -26,7 +26,12 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 import { loginAdmin, getEnvVar, loadDotEnvFiles } from "./lib/supabase-auth.mjs";
-import { parseArticleFile, upsertPost, triggerRagReindex } from "./lib/publish-utils.mjs";
+import {
+  formatPublishError,
+  parseArticleFile,
+  upsertPost,
+  triggerRagReindex,
+} from "./lib/publish-utils.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, "..", "..");
@@ -106,6 +111,11 @@ async function main() {
   } else {
     console.log(`  Status:   Draft (not visible publicly)`);
   }
+  if (result.reconciled) {
+    console.log(
+      `  Note:     reconciled after a transient failure (the write had reached Supabase)`,
+    );
+  }
   console.log("=".repeat(50));
 
   // 5. Trigger RAG reindex (non-blocking)
@@ -113,6 +123,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error(`\n❌ ${e.message}`);
+  console.error(`\n❌ ${formatPublishError(e)}`);
   process.exit(1);
 });
