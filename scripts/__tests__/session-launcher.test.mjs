@@ -60,7 +60,7 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
 
   beforeEach(() => {
     repo = mkdtempSync(join(tmpdir(), "launcher-test-repo-"));
-    git(repo, "init", "-q");
+    git(repo, "init", "-q", "--initial-branch=main");
     git(repo, "config", "user.email", "test@example.com");
     git(repo, "config", "user.name", "test");
     mkdirSync(join(repo, "docs"), { recursive: true });
@@ -124,6 +124,8 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
     expect(out).toContain(
       "session branch kept (not delivered: content differs from origin/main, no merged PR for this tip): session/20260101-unmerged-def456",
     );
+    // The closeout did not run, so stop still points at the manual command.
+    expect(out).toContain("closeout after the PR merges");
   });
 
   it("dirty worktree: worktree kept, branch not touched", () => {
@@ -813,6 +815,35 @@ describe("session-launcher gc: post-delivery closeout", () => {
     });
     expect(r.status).toBe(0);
     expect(branchExists(`session/${id}`)).toBe(true);
+    expect(r.stdout).toContain("session branch kept (not delivered");
+  });
+
+  // Ancestry is checked against main, not against whatever branch the main
+  // checkout happens to sit on: a side branch containing the session commits
+  // (a local integration branch, say) is not a delivery to main.
+  it("stop keeps a branch merged only into a side branch", () => {
+    const id = "20260101-sidebranch-abc657";
+    const branch = `session/${id}`;
+    const wtPath = join(repo, "wt-sidebranch");
+    git(repo, "worktree", "add", "-b", branch, wtPath);
+    const wtGitDir = git(wtPath, "rev-parse", "--absolute-git-dir").trim();
+    mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true });
+    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), id + "\n");
+    writeFileSync(join(wtPath, "wip.txt"), "side branch only\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "wip");
+    git(wtPath, "push", "-q", "-u", "origin", branch);
+    // The main checkout is parked on a side branch that contains the session
+    // commits; main itself never saw them.
+    git(repo, "checkout", "-q", "-b", "integration", branch);
+
+    const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
+    expect(r.status).toBe(0);
+    expect(branchExists(branch)).toBe(true);
     expect(r.stdout).toContain("session branch kept (not delivered");
   });
 

@@ -295,21 +295,23 @@ if [ "$cmd" = "stop" ]; then
     # an empty answer.
     if [ -n "$MAIN_WT" ]; then cd "$MAIN_WT" 2>/dev/null || true; fi
     # #195: a removed worktree means the session ended — delete the session
-    # branch when its work is fully on origin/main. Ancestry to the main
-    # checkout's HEAD is the first criterion; the delivery criteria extend the
-    # same intent to squash merges (byte identity) and to branches whose PR
-    # merged before main moved on (tip-bound merged PR). `-D` is only reached
-    # behind ref_delivered. Work that never landed is auto-exempted and kept.
-    # Deletion failure never blocks the stop flow.
+    # branch when its work is fully on origin/main. Ancestry to main is the
+    # first criterion; the delivery criteria extend the same intent to squash
+    # merges (byte identity) and to branches whose PR merged before main moved
+    # on (tip-bound merged PR). `-D` is only reached behind ref_delivered.
+    # Work that never landed is auto-exempted and kept. Deletion failure never
+    # blocks the stop flow.
     #
     # `git branch -d` alone is NOT a delivery proof: besides ancestry it also
     # accepts a branch "merged" to its own remote-tracking ref, so an unmerged
     # PR's live twin — or a stale twin whose remote head was deleted — would
-    # authorize deleting work that never reached main. Gate it on ancestry
-    # first; anything else goes through ref_delivered (fail-closed).
+    # authorize deleting work that never reached main. Gate it on ancestry to
+    # `refs/heads/main` — not to whatever branch the main checkout sits on: a
+    # side branch containing the commits is not a delivery to main — and let
+    # everything else go through ref_delivered (fail-closed).
     if [ -n "$session_id" ]; then
       delivered=""
-      if git merge-base --is-ancestor "refs/heads/session/$session_id" HEAD 2>/dev/null \
+      if git merge-base --is-ancestor "refs/heads/session/$session_id" refs/heads/main 2>/dev/null \
          && git branch -d "session/$session_id" >/dev/null 2>&1; then
         echo "[session] merged session branch deleted: session/$session_id"
         delivered=1
