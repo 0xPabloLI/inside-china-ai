@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.0...tanstack_start_ts-v1.20.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **session:** stop delivery proof, closeout fallback, honest hint ([5ead6e0](https://github.com/0xPabloLI/inside-china-ai/commit/5ead6e095bcdedcf797fc25d1b4fa3ac4ed4f0c0))
+
 ## [1.20.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.19.0...tanstack_start_ts-v1.20.0) (2026-10-12)
 
 
