@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.18.1...tanstack_start_ts-v1.18.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* **article:** idempotent Supabase writes — bounded retry, slug reconciliation, sanitized errors ([#589](https://github.com/0xPabloLI/inside-china-ai/issues/589)) ([9677518](https://github.com/0xPabloLI/inside-china-ai/commit/96775184f1e5e4f166bd29064cb0509b3c64eb40))
+
 ## [1.18.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.18.0...tanstack_start_ts-v1.18.1) (2026-10-12)
 
 
