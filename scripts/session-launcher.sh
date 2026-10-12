@@ -63,8 +63,25 @@ ref_content_merged() {
   list=$(git diff --name-only "$mb" "$ref" 2>/dev/null) || return 1
   while IFS= read -r f; do
     [ -n "$f" ] || continue
+    # Deleted by the branch: merged when the deletion landed on base too
+    # (the path is absent there as well); still present on base means the
+    # deletion never landed.
+    if ! git cat-file -e "$ref:$f" 2>/dev/null; then
+      git cat-file -e "$base:$f" 2>/dev/null && return 1
+      continue
+    fi
     git diff --quiet "$ref" "$base" -- "$f" || return 1
   done <<< "$list"
+  return 0
+}
+
+# delete_if_content_merged <branch> — the only `-D` in this script, gated on
+# ref_content_merged. 0 = deleted; 1 = kept (content not verified on
+# origin/main); 2 = kept (delete failed).
+delete_if_content_merged() {
+  local b="$1"
+  ref_content_merged "refs/heads/$b" refs/remotes/origin/main || return 1
+  git branch -D "$b" >/dev/null 2>&1 || return 2
   return 0
 }
 
@@ -192,14 +209,16 @@ if [ "$cmd" = "stop" ]; then
     if [ -n "$session_id" ]; then
       if git branch -d "session/$session_id" >/dev/null 2>&1; then
         echo "[session] merged session branch deleted: session/$session_id"
-      elif ref_content_merged "refs/heads/session/$session_id" refs/remotes/origin/main; then
-        if git branch -D "session/$session_id" >/dev/null 2>&1; then
-          echo "[session] squash-merged session branch deleted (content verified on origin/main): session/$session_id"
-        else
-          echo "[session] session branch kept (delete failed): session/$session_id"
-        fi
       else
-        echo "[session] session branch kept (unmerged and content differs from origin/main): session/$session_id"
+        rc=0
+        delete_if_content_merged "session/$session_id" || rc=$?
+        if [ "$rc" = 0 ]; then
+          echo "[session] squash-merged session branch deleted (content verified on origin/main): session/$session_id"
+        elif [ "$rc" = 2 ]; then
+          echo "[session] session branch kept (delete failed): session/$session_id"
+        else
+          echo "[session] session branch kept (unmerged and content differs from origin/main): session/$session_id"
+        fi
       fi
     fi
   else
@@ -228,16 +247,24 @@ if [ "$cmd" = "gc" ]; then
   [ -n "$dry_run" ] && echo "   dry-run: nothing will be changed"
 
   # Stale worktree records (directory deleted by hand) would otherwise keep
-  # their branches looking "checked out" forever.
+  # their branches looking "checked out" forever. --dry-run only reports.
   stale=$(git worktree prune --dry-run -v 2>&1 || true)
   if [ -n "$stale" ]; then
-    git worktree prune
-    echo "[gc] pruned stale worktree record(s)"
+    if [ -n "$dry_run" ]; then
+      echo "[gc] would prune stale worktree record(s)"
+    else
+      git worktree prune
+      echo "[gc] pruned stale worktree record(s)"
+    fi
   fi
 
-  # 1. Refresh remote state. Offline is non-fatal: verification then runs
-  #    against the existing origin/main ref and says so.
-  if git fetch --prune --quiet origin main 2>/dev/null; then
+  # 1. Refresh remote state. --dry-run never writes refs: `fetch --dry-run`
+  #    is a network probe only, so verification runs against the current
+  #    origin/main ref and says so. Offline is likewise non-fatal.
+  if [ -n "$dry_run" ]; then
+    git fetch --prune --dry-run --quiet origin main >/dev/null 2>&1 || true
+    echo "[gc] dry-run: verifying against the current origin/main ref ($(git rev-parse --short refs/remotes/origin/main 2>/dev/null || echo none))"
+  elif git fetch --prune --quiet origin main 2>/dev/null; then
     echo "[gc] origin/main refreshed: $(git rev-parse --short refs/remotes/origin/main)"
   elif git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null 2>&1; then
     echo "[gc] fetch failed (offline?) — verifying against the existing origin/main ref"
@@ -246,8 +273,18 @@ if [ "$cmd" = "gc" ]; then
   fi
 
   # 2. Sync the main checkout — only when it is clean, on main, and strictly
-  #    behind. Divergent or dirty checkouts are reported, never moved.
-  main_wt=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+  #    behind. Divergent or dirty checkouts are reported, never moved. The
+  #    primary worktree is the one whose git dir IS the common dir (linked
+  #    worktrees live under its worktrees/ subtree) — identity, not ordering.
+  main_wt=""
+  while IFS= read -r wt; do
+    [ -n "$wt" ] || continue
+    gd=$(git -C "$wt" rev-parse --absolute-git-dir 2>/dev/null || true)
+    if [ "$gd" = "$COMMON" ]; then
+      main_wt="$wt"
+      break
+    fi
+  done < <(git worktree list --porcelain | sed -n 's/^worktree //p')
   if [ -z "$main_wt" ] || [ ! -d "$main_wt" ]; then
     echo "[gc] main worktree not found — sync skipped"
   else
@@ -261,7 +298,11 @@ if [ "$cmd" = "gc" ]; then
     elif [ -z "$origin_sha" ]; then
       echo "[gc] no origin/main ref — sync skipped"
     elif [ "$head_sha" = "$origin_sha" ]; then
-      echo "[gc] main is up to date ($(git rev-parse --short "$head_sha"))"
+      if [ -n "$dry_run" ]; then
+        echo "[gc] main matches the current origin/main ref ($(git rev-parse --short "$head_sha")); dry-run does not fetch — remote tip may be newer"
+      else
+        echo "[gc] main is up to date ($(git rev-parse --short "$head_sha"))"
+      fi
     elif git merge-base --is-ancestor "$head_sha" "$origin_sha"; then
       if [ -n "$dry_run" ]; then
         echo "[gc] would fast-forward main $(git rev-parse --short "$head_sha") → $(git rev-parse --short "$origin_sha")"
@@ -278,9 +319,12 @@ if [ "$cmd" = "gc" ]; then
   # 3. Clean merged branches in the session namespace. The deletion criterion
   #    is per-file byte identity against origin/main (ref_content_merged); any
   #    failed verification keeps the branch. Checked-out branches are never
-  #    touched. SESSION_GC_BRANCH_GLOBS overrides the namespace globs.
+  #    touched. SESSION_GC_BRANCH_GLOBS overrides the namespace globs;
+  #    GH_CMD overrides the gh binary (tests).
   globs="${SESSION_GC_BRANCH_GLOBS:-session/* docs/* fix/* feat/* chore/* test/* refactor/*}"
+  GH="${GH_CMD:-gh}"
   deleted=0
+  would_delete=0
   kept=0
   while IFS=$'\t' read -r b wtpath; do
     [ -n "$b" ] || continue
@@ -302,9 +346,10 @@ if [ "$cmd" = "gc" ]; then
     fi
     if [ -n "$dry_run" ]; then
       echo "[gc] would delete $b (content merged)"
+      would_delete=$((would_delete + 1))
       continue
     fi
-    if git branch -D "$b" >/dev/null 2>&1; then
+    if delete_if_content_merged "$b"; then
       echo "[gc] deleted $b (content merged)"
       deleted=$((deleted + 1))
     else
@@ -312,8 +357,23 @@ if [ "$cmd" = "gc" ]; then
       kept=$((kept + 1))
       continue
     fi
-    # Remote twin: only when it still exists AND its own content verifies too.
+    # Remote twin: delete only when it still exists, its own content
+    # independently verifies, gh can check for open PRs, and no open PR
+    # would be closed by the deletion. Every unknown keeps it (fail-closed).
     if git ls-remote --exit-code --heads origin "refs/heads/$b" >/dev/null 2>&1; then
+      if ! command -v "$GH" >/dev/null 2>&1; then
+        echo "[gc] kept remote origin/$b (gh unavailable — cannot check open PRs)"
+        continue
+      fi
+      open_prs=$("$GH" pr list --head "$b" --state open --json number --jq 'length' 2>/dev/null) || open_prs=""
+      if [ -z "$open_prs" ]; then
+        echo "[gc] kept remote origin/$b (open-PR check failed — fail-closed)"
+        continue
+      fi
+      if [ "$open_prs" != "0" ]; then
+        echo "[gc] kept remote origin/$b (open PR — deleting would close it)"
+        continue
+      fi
       if git fetch --quiet --force origin "refs/heads/$b:refs/remotes/origin/$b" </dev/null 2>/dev/null \
          && ref_content_merged "refs/remotes/origin/$b" refs/remotes/origin/main; then
         if git push --quiet origin --delete "$b" </dev/null >/dev/null 2>&1; then
@@ -327,5 +387,5 @@ if [ "$cmd" = "gc" ]; then
     fi
   done < <(git for-each-ref --format='%(refname:short)%09%(worktreepath)' refs/heads)
 
-  echo "[gc] done — deleted $deleted, kept $kept"
+  echo "[gc] done — deleted $deleted, would delete $would_delete, kept $kept"
 fi

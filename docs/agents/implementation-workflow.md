@@ -186,8 +186,9 @@ Review 报告不能只生成后忽略。
 3. 更新相关执行文档；S2/S3 完成后归档已结束工作的 spec、tickets 和 review，并更新 `docs/DOCS-INDEX.md` 与 `docs/archive/README.md`。
 4. 为归档和文档同步创建 final documentation commit。
 5. 只有用户已授权这次 push 时才 push。
-6. 只有存在对应 GitHub Issue 且用户已授权 tracker 写入时才更新或关闭 issue。
-7. 最终汇报 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。
+6. PR 合并后运行 `npm run session:gc` 收尾（同步主 checkout + 清理已交付分支；git-workflow §10 常设授权）。
+7. 只有存在对应 GitHub Issue 且用户已授权 tracker 写入时才更新或关闭 issue。
+8. 最终汇报 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。
 
 ## 10. Gate 语义
 

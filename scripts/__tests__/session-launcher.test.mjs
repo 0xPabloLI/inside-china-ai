@@ -104,6 +104,7 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
 describe("session-launcher gc: post-delivery closeout", () => {
   let origin;
   let repo;
+  let ghDir;
 
   beforeEach(() => {
     origin = mkdtempSync(join(tmpdir(), "launcher-gc-origin-"));
@@ -116,15 +117,40 @@ describe("session-launcher gc: post-delivery closeout", () => {
     git(repo, "add", ".");
     git(repo, "commit", "-q", "-m", "init");
     git(repo, "push", "-q", "-u", "origin", "main");
+    ghDir = mkdtempSync(join(tmpdir(), "launcher-gc-gh-"));
+    writeFakeGh(0);
   });
 
   afterEach(() => {
     rmSync(origin, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });
+    rmSync(ghDir, { recursive: true, force: true });
   });
 
+  // writeFakeGh <openPrCount> — fake `gh` answering the open-PR probe; any
+  // other invocation fails loudly so new gh dependencies surface in tests.
+  function writeFakeGh(openPrCount) {
+    const p = join(ghDir, "gh");
+    writeFileSync(
+      p,
+      `#!/bin/bash\ncase "$*" in\n  *"pr list"*) echo "${openPrCount}"; exit 0 ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
+    );
+    execFileSync("chmod", ["+x", p]);
+  }
+
+  // writeFailingGh — the open-PR probe itself errors (no auth / offline).
+  function writeFailingGh() {
+    const p = join(ghDir, "gh");
+    writeFileSync(p, `#!/bin/bash\necho "gh: auth error" >&2\nexit 1\n`);
+    execFileSync("chmod", ["+x", p]);
+  }
+
   function gc(...args) {
-    const r = spawnSync("bash", [LAUNCHER, "gc", ...args], { encoding: "utf8", cwd: repo });
+    const r = spawnSync("bash", [LAUNCHER, "gc", ...args], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
     return { status: r.status, out: (r.stdout || "") + (r.stderr || "") };
   }
 
@@ -243,6 +269,63 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(branchExists("session/20260101-dry-abc999")).toBe(true);
     expect(remoteBranchExists("session/20260101-dry-abc999")).toBe(true);
     expect(out).toContain("would delete session/20260101-dry-abc999");
+  });
+
+  it("--dry-run never advances the origin/main tracking ref", () => {
+    advanceOrigin();
+    const stale = git(repo, "rev-parse", "refs/remotes/origin/main").trim();
+
+    const { out } = gc("--dry-run");
+    expect(git(repo, "rev-parse", "refs/remotes/origin/main").trim()).toBe(stale);
+    // Zero writes means no fetch — the preview says so instead of pretending.
+    expect(out).toContain("dry-run does not fetch");
+  });
+
+  it("keeps the remote branch when an open PR would be closed by deletion", () => {
+    squashMergedBranch("session/20260101-openpr-abc777", "openpr\n");
+    git(repo, "push", "-q", "origin", "session/20260101-openpr-abc777");
+    writeFakeGh(1);
+
+    const { out } = gc();
+    expect(branchExists("session/20260101-openpr-abc777")).toBe(false); // local still cleaned
+    expect(remoteBranchExists("session/20260101-openpr-abc777")).toBe(true);
+    expect(out).toContain("kept remote origin/session/20260101-openpr-abc777 (open PR");
+  });
+
+  it("keeps the remote branch when the open-PR check fails (fail-closed)", () => {
+    squashMergedBranch("session/20260101-ghfail-abc888", "ghfail\n");
+    git(repo, "push", "-q", "origin", "session/20260101-ghfail-abc888");
+    writeFailingGh();
+
+    const { out } = gc();
+    expect(remoteBranchExists("session/20260101-ghfail-abc888")).toBe(true);
+    expect(out).toContain("open-PR check failed — fail-closed");
+  });
+
+  it("deletes a branch whose change is a deletion that also landed on main", () => {
+    const wtPath = join(repo, "wt-del");
+    git(repo, "worktree", "add", "-b", "session/20260101-del-abc654", wtPath);
+    git(wtPath, "rm", "a.txt");
+    git(wtPath, "commit", "-q", "-m", "remove a");
+    git(repo, "worktree", "remove", wtPath);
+    git(repo, "rm", "a.txt");
+    git(repo, "commit", "-q", "-m", "remove a on main");
+    git(repo, "push", "-q", "origin", "main");
+
+    const { out } = gc();
+    expect(branchExists("session/20260101-del-abc654")).toBe(false);
+    expect(out).toContain("deleted session/20260101-del-abc654");
+  });
+
+  it("leaves a divergent main checkout untouched", () => {
+    writeFileSync(join(repo, "local.txt"), "local\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "local commit not on origin");
+    advanceOrigin();
+
+    const { out } = gc();
+    expect(out).toContain("local commits not on origin/main");
+    expect(branchExists("main")).toBe(true);
   });
 
   it("stop deletes a squash-merged session branch (content-verified -D)", () => {

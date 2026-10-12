@@ -90,7 +90,7 @@
 
 1. 检测到对方操作进行中（reflog 持续推进、存在 rebase 目录）时等待其停滞，期间不写任何 ref。
 2. 竞态应急（你的提交被并行挤出、或必须在不动共享工作区与 index 的前提下提交）按 `docs/agents/git-concurrent-recovery.md` 的配方执行；该路径绕过 commit hooks 与 §4 校验，完成后须按配方对齐 index。可预判的并行任务直接按第 3 条用 worktree，不走应急路径。
-3. **写入者独占**是并行工作的默认规则：写入型并行 session 用 `npm run session:start <task>` 开工——一条命令建独立 worktree（含 worktree 专属的绝对 hooksPath，hooks 在其中正常生效）、生成并登记 Session-Id、写 per-session 状态文件。此后该 worktree 内 `git commit -m` 自动带 trailer（prepare-commit-msg 填写），ref-gate 对"丢弃外会话 commit"的非快进 ref 操作进入拦截模式——**拦截判据已扩到「存在第二个 worktree」**（并行写入者的证据，本 checkout 无需 state file；2026-09-14 事故的防线）。分支删除（`git branch -d/-D`）始终只警告；实测该操作只以 `aborted` 阶段到达 hook，故删除**不在门控覆盖内**，`-D` 未合并分支仍会静默毁掉工作。共享工作目录即共享 staging 区，是并行冲突的根因。把 `pull --rebase`、`push`、`switch` 留在你自己的 worktree 内——在共享目录执行它们会搬走他人未推送的提交，或把工作区切到他人分支（2026-09-14 事故）。launcher 不可用时退回手动 `git worktree add` + §8 手动 trailer；收尾 `npm run session:stop <worktree-path>`；PR 合并后再跑 `npm run session:gc` 同步主 checkout 并清理已交付分支（§10）。纯只读探索可共享目录；互不重叠文件的轻量任务（1–2 个文件）可留在主目录，仍走 §1 选择性 staging。
+3. **写入者独占**是并行工作的默认规则：写入型并行 session 用 `npm run session:start <task>` 开工——一条命令建独立 worktree（含 worktree 专属的绝对 hooksPath，hooks 在其中正常生效）、生成并登记 Session-Id、写 per-session 状态文件。此后该 worktree 内 `git commit -m` 自动带 trailer（prepare-commit-msg 填写），ref-gate 对"丢弃外会话 commit"的非快进 ref 操作进入拦截模式——**拦截判据已扩到「存在第二个 worktree」**（并行写入者的证据，本 checkout 无需 state file；2026-09-14 事故的防线）。分支删除（`git branch -d/-D`）始终只警告；实测该操作只以 `aborted` 阶段到达 hook，故删除**不在门控覆盖内**——手工 `-D` 未验证分支仍会静默毁掉工作；`session:stop`/`session:gc` 的 `-D` 只在 `ref_content_merged`（逐文件字节一致）通过后执行。共享工作目录即共享 staging 区，是并行冲突的根因。把 `pull --rebase`、`push`、`switch` 留在你自己的 worktree 内——在共享目录执行它们会搬走他人未推送的提交，或把工作区切到他人分支（2026-09-14 事故）。launcher 不可用时退回手动 `git worktree add` + §8 手动 trailer；收尾 `npm run session:stop <worktree-path>`；PR 合并后再跑 `npm run session:gc` 同步主 checkout 并清理已交付分支（§10）。纯只读探索可共享目录；互不重叠文件的轻量任务（1–2 个文件）可留在主目录，仍走 §1 选择性 staging。
 4. 目标文件已有非本 session 的未提交改动时，本 session 停止并报告，由用户决定落库顺序。应急配方的临时 index 只覆盖互不重叠的文件——同文件交叠时 `git add` 会把混合内容装进树。
 5. **写 ref 前紧邻复核身份**（2026-09-14 事故的直接防线）：
    - `commit` / `amend` / `reset` / `rebase` 前，在同一批命令里先取 `git rev-parse HEAD` 与 `git diff --cached --name-only`，与预期不符即停止并报告；`git rev-parse --abbrev-ref HEAD` 必须是你自己的 `session/<id>`。
@@ -103,10 +103,11 @@
 **常设授权**：PR 合并后不再逐次询问——主动执行 `npm run session:gc` 完成主 checkout 同步与分支清理。该命令是收尾的唯一入口（不手工 `git branch -D`、不手工切 checkout），因为它把纪律编码成 fail-closed 门禁：
 
 1. **fetch --prune**：刷新 `origin/main`；离线时按现有 ref 继续并明示（非致命）。
-2. **同步主 checkout**：仅当它是**主 worktree、在 main 上、无 tracked 改动、且严格落后**时做 `merge --ff-only`。永不 rebase、永不 switch、永不触碰 dirty checkout；分叉（本地有未推送提交）一律报告后放过。
-3. **清理已交付分支**：命名空间 `session/* docs/* fix/* feat/* chore/* test/* refactor/*`（`SESSION_GC_BRANCH_GLOBS` 可覆盖），逐分支执行**逐文件字节一致**判据（`ref_content_merged`）——这是 squash 合并后 `git branch -d` 永远拒绝（无 ancestry 关系）的解法；任何验证失败（含任一文件与 origin/main 不一致）即保留。任 worktree 检出的分支绝不触碰；远端同名分支须在本地验证通过、且其自身内容另行验证后，才 `push --delete`。`--dry-run` 只报告不改动。
-4. 成功标准：`gc` 输出每条分支的 deleted/kept 理由；`git branch -vv` 与 `git worktree list` 与之一致。
+2. **同步主 checkout**：仅当它是**主 worktree（以 git-common-dir 身份判定，不靠列表顺序）、在 main 上、无 tracked 改动、且严格落后**时做 `merge --ff-only`。永不 rebase、永不 switch、永不触碰 dirty checkout；分叉（本地有未推送提交）一律报告后放过。
+3. **清理已交付分支**：命名空间 `session/* docs/* fix/* feat/* chore/* test/* refactor/*`（`SESSION_GC_BRANCH_GLOBS` 可覆盖），逐分支执行**逐文件字节一致**判据（`ref_content_merged`）——这是 squash 合并后 `git branch -d` 永远拒绝（无 ancestry 关系）的解法；分支删除文件时，该文件在 base 上同样不存在才算删除已落地；任何验证失败即保留。任 worktree 检出的分支绝不触碰。远端同名分支须满足全部条件才 `push --delete`：本地删除已成功、其自身内容另行验证、`gh` 可用且 `pr list --head <branch> --state open` 明确返回 0 个开放 PR（防误关 PR）——任一未知（gh 缺失、查询失败）即保留（fail-closed）。
+4. `--dry-run` **零写入**：不 fetch（不更新任何 ref）、不 prune、不删分支；预览基于当前 ref 并在输出中明示远端 tip 可能更新。
+5. 成功标准：`gc` 输出每条分支的 deleted/kept 理由；`git branch -vv` 与 `git worktree list` 与之一致。
 
 `session:stop` 已并入同一判据：先 `git branch -d`（ancestry 合并），拒绝后再过 `ref_content_merged` 才 `-D`（squash 合并）；两者都不通过则保留并说明。
 
-纪律边界（不得越过）：跨会话的 dirty worktree、`-D` 未验证分支、在主 checkout 执行 `pull --rebase`/`push`/`switch` 仍是禁止项；`gc` 的自动化只覆盖「已交付且内容可验证」这一集合。
+纪律边界（不得越过）：跨会话的 dirty worktree、未验证的 `-D`、在主 checkout 执行 `pull --rebase`/提交 `push`/`switch` 仍是禁止项；`gc` 的自动化只覆盖「已交付且内容可验证」这一集合（其 `push --delete` 只删已合并 ref、不发布任何提交，是 `push` 禁令的例外，且须与开放 PR 检查同时满足）。
