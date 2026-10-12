@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.19.0...tanstack_start_ts-v1.20.0) (2026-10-12)
+
+
+### Features
+
+* **session:** gc PR-delivered criterion — close the post-merge drift gap ([67b34f9](https://github.com/0xPabloLI/inside-china-ai/commit/67b34f94f8135c4e15001a05b266998ddb513f45))
+
 ## [1.19.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.18.3...tanstack_start_ts-v1.19.0) (2026-10-12)
 
 
