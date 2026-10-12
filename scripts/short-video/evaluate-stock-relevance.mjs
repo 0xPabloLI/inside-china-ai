@@ -116,7 +116,10 @@ async function main() {
 
   const reportPath = join(contentDir, "stock-relevance-report.json");
   const { writeFileSync } = await import("node:fs");
-  writeFileSync(reportPath, JSON.stringify({ threshold: THRESHOLD, results }, null, 2));
+  // Trailing newline: the committed reports are prettier-checked data
+  // snapshots, so a regenerated file must not reintroduce a diff that
+  // `prettier --check` then flags (the zhipu report already ends in one).
+  writeFileSync(reportPath, `${JSON.stringify({ threshold: THRESHOLD, results }, null, 2)}\n`);
   console.log(`\nReport saved: ${reportPath}`);
 }
 
