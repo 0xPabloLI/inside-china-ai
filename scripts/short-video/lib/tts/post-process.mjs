@@ -25,6 +25,8 @@ import { ffmpegCmd, getDuration } from "./ffmpeg-cmd.mjs";
 import { runAlignmentGuards } from "./alignment-guards.mjs";
 import { splitDigitUnits } from "../normalize-tts-text.mjs";
 import { computeAlignmentSignature, alignmentCacheState, writeAlignmentMeta } from "./cache.mjs";
+import { offlineEnvPrefix } from "./offline-env.mjs";
+import { ALIGN_OFFLINE_MODELS, reportOfflineCacheMiss } from "./offline-model-hints.mjs";
 
 const execAsync = promisify(exec);
 
@@ -304,7 +306,7 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir, options 
 
   try {
     await execAsync(
-      `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 ~/.video-tts-env/bin/python3 "${alignScript}" ` +
+      `${offlineEnvPrefix({ transformers: true })} ~/.video-tts-env/bin/python3 "${alignScript}" ` +
         `--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
     );
     // Map spoken-form words back to display tokens (V four point one → V4.1)
@@ -325,6 +327,10 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir, options 
     return { skipped: false, guards };
   } catch (e) {
     console.log(`  ⚠️ Force-align failed: ${e.message.substring(0, 100)}`);
+    // #394: a missing/partial HF cache under offline mode is the incident's
+    // opaque failure — name the model and the one-time fetch command. The
+    // render boundary (#421) still fails closed if no valid timing exists.
+    reportOfflineCacheMiss(e, ALIGN_OFFLINE_MODELS);
     return { skipped: true, reason: `force-align failed: ${e.message.substring(0, 100)}` };
   }
 }

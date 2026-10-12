@@ -141,6 +141,18 @@ async function main() {
   }
   prof.end("step-0.3-asr-gate");
 
+  // ── Step 0.4: ASS burn preflight (hard gate — fail before the render spend) ──
+  // Voiced runs burn subtitles with the `ass` filter at the very end of the
+  // pipeline, using ffmpeg-full (PATH ffmpeg has no libass). On 2026-10-04 the
+  // run burned TTS + a full Remotion render before dying at that burn (#394).
+  // Visual-only runs have nothing to burn → N/A.
+  prof.mark("step-0.4-ass-gate");
+  {
+    const { ensureAssBurnOrExit } = await import("./lib/ffmpeg-preflight.mjs");
+    ensureAssBurnOrExit({ scenes });
+  }
+  prof.end("step-0.4-ass-gate");
+
   // ── Step 0.5: Currency normalization (RMB → USD dual-annotation) ──
   // Auto-inserts $X (¥Y) format before TTS runs, enforcing the currency
   // rule by code. Non-blocking: if it fails, scenes pass through unchanged.
