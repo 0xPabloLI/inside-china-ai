@@ -104,10 +104,15 @@
 
 1. **fetch --prune**：刷新 origin 的整个远端跟踪命名空间（不只 main——已删除远端分支的陈旧 tracking ref 否则会一直滞留）；离线时按现有 ref 继续并明示（非致命）。另清理手工删目录留下的失效 worktree 记录（`worktree prune`），否则其分支会永远显示「已被检出」。
 2. **同步主 checkout**：仅当它是**主 worktree（以 git-common-dir 身份判定，不靠列表顺序）、在 main 上、无 tracked 改动、且严格落后**时做 `merge --ff-only`。永不 rebase、永不 switch、永不触碰 dirty checkout；分叉（本地有未推送提交）一律报告后放过。
-3. **清理已交付分支**：命名空间 `session/* docs/* fix/* feat/* chore/* test/* refactor/*`（`SESSION_GC_BRANCH_GLOBS` 可覆盖），逐分支执行**逐文件字节一致**判据（`ref_content_merged`）——这是 squash 合并后 `git branch -d` 永远拒绝（无 ancestry 关系）的解法；分支删除文件时，该文件在 base 上同样不存在才算删除已落地；任何验证失败即保留。任 worktree 检出的分支绝不触碰。远端同名分支须满足全部条件才 `push --delete`：本地删除已成功、其自身内容另行验证、`gh` 可用且 `pr list --head <branch> --state open` 明确返回 0 个开放 PR（防误关 PR）——任一未知（gh 缺失、查询失败）即保留（fail-closed）。同一轮还会**清扫孤儿远端分支**（本地分支已被 `stop` 删除、或上一轮 gc 已删本地的那类），判据相同；本地分支仍在时一律以本地决策为准（保留的本地分支会钉住其远端）。命名空间刻意排除 bot/集成分支（`renovate/*`、`release-please--*`、`lovable-sync` 等），它们由各自工具管理。origin 不可达时远端部分逐条报告 `origin unreachable`，不静默跳过。
-4. `--dry-run` **零写入**：不 fetch（不更新任何 ref）、不 prune、不删分支；预览基于当前 ref 并在输出中明示远端 tip 可能更新。远端分支也进入预览：跟踪 ref 与远端 tip 一致时就地验证并给出 `would delete remote ...`；不一致时标注「将先 fetch 再验证」（dry-run 不 fetch，故不虚报已合并）。
+3. **清理已交付分支**：命名空间 `session/* docs/* fix/* feat/* chore/* test/* refactor/*`（`SESSION_GC_BRANCH_GLOBS` 可覆盖），逐分支执行两条**已交付**判据（`ref_delivered`，前者命中即止）：
+   - **内容一致**（`ref_content_merged`）：逐文件字节与 origin/main 相同——squash 合并后 `git branch -d` 永远拒绝（无 ancestry 关系）的解法；分支删除文件时，该文件在 base 上同样不存在才算删除已落地。
+   - **PR 已合并**（tip 绑定）：该分支名下有 merged PR，其 `headRefOid` **精确等于**分支 tip、且 `mergeCommit` 是 origin/main 的祖先。这是 main 在合并后继续前进（release bump 等改写同文件）时的唯一判据——字节一致永远无法再验证这类分支。tip 绑定是安全核心：只有 tip 本身被合并过才算，合并后再推的提交会移动 tip 并保留分支。
+   - 任一未知（gh 缺失、查询失败、`mergeCommit` 不在 main 上）即保留（fail-closed）。任 worktree 检出的分支绝不触碰。远端同名分支须满足全部条件才 `push --delete`：本地删除已成功、其自身交付另行验证、`gh` 可用且 `pr list --head <branch> --state open` 明确返回 0 个开放 PR（防误关 PR）。同一轮还会**清扫孤儿远端分支**（本地分支已被 `stop` 删除、或上一轮 gc 已删本地的那类），判据相同；本地分支仍在时一律以本地决策为准（保留的本地分支会钉住其远端）。命名空间刻意排除 bot/集成分支（`renovate/*`、`release-please--*`、`lovable-sync` 等），它们由各自工具管理。origin 不可达时远端部分逐条报告 `origin unreachable`，不静默跳过。
+4. `--dry-run` **零写入**：不 fetch（不更新任何 ref）、不 prune、不删分支；预览基于当前 ref 并在输出中明示远端 tip 可能更新。远端分支也进入预览：PR 判据不依赖跟踪 ref 新鲜度，可直接给出 `would delete remote ... (PR merged into main)`；内容判据在跟踪 ref 与远端 tip 一致时就地验证，不一致时标注「将先 fetch 再验证」（dry-run 不 fetch，故不虚报）。
 5. 成功标准：`gc` 输出每条分支的 deleted/kept 理由与汇总计数；`git branch -vv` 与 `git worktree list` 与之一致。
 
-`session:stop` 已并入同一判据：先 `git branch -d`（ancestry 合并），拒绝后再过 `ref_content_merged` 才 `-D`（squash 合并）；两者都不通过则保留并说明。被保留（内容未落地）的分支是**待办信号**，不是垃圾：要么交付（新 PR），要么由用户显式裁决丢弃——不允许静默 `-D`。典型保留场景：已 squash 合并、但 main 随后被 release-please 等演进到字节不再一致的分支——这是 fail-closed 判据的代价，按本段处理。
+**仓库设置**（2026-10-12 用户授权启用）：`delete_branch_on_merge: true`——GitHub 在 PR 合并时立即删除其 head 分支，把「PR 已合并」这一判据的窗口压到最短（其余分支交给上面的 gc）。该设置只影响「合并动作由 GitHub 执行」的删除；`gc` 的两条判据与之互补（设置删除 GitHub 眼中的 head 分支，gc 覆盖本地分支、孤儿远端、以及设置启用前遗留的分支）。若需回滚：`gh api -X PATCH repos/0xPabloLI/inside-china-ai -f delete_branch_on_merge=false`。
 
-纪律边界（不得越过）：跨会话的 dirty worktree、未验证的 `-D`、在主 checkout 执行 `pull --rebase`/提交 `push`/`switch` 仍是禁止项；`gc` 的自动化只覆盖「已交付且内容可验证」这一集合（其 `push --delete` 只删已合并 ref、不发布任何提交，是 `push` 禁令的例外，须与开放 PR 检查同时满足；**残余风险**：开放 PR 检查与删除之间存在 TOCTOU 窗口，新开 PR 会被该删除关闭——fail-closed 检查只把窗口压到最小，不能消除）。`gc` 不探测进行中的并发操作（reflog 推进、rebase 目录）：并行 session 正在写 ref 时不得运行（§9.1）。
+`session:stop` 已并入同一判据：先 `git branch -d`（ancestry 合并），拒绝后再过 `ref_delivered` 才 `-D`（内容一致 → `squash-merged` 消息；PR 已合并 → `PR-merged` 消息）；两者都不通过则保留并说明。被保留（未交付）的分支是**待办信号**，不是垃圾：要么交付（新 PR），要么由用户显式裁决丢弃——不允许静默 `-D`。典型保留场景：分支内容从未进入 main 且无 merged PR。
+
+纪律边界（不得越过）：跨会话的 dirty worktree、未验证的 `-D`、在主 checkout 执行 `pull --rebase`/提交 `push`/`switch` 仍是禁止项；`gc` 的自动化只覆盖「已交付（内容一致，或 tip 绑定的 merged PR）」这一集合（其 `push --delete` 只删已合并 ref、不发布任何提交，是 `push` 禁令的例外，须与开放 PR 检查同时满足；**残余风险**：开放 PR 检查与删除之间存在 TOCTOU 窗口，新开 PR 会被该删除关闭——fail-closed 检查只把窗口压到最小，不能消除）。`gc` 不探测进行中的并发操作（reflog 推进、rebase 目录）：并行 session 正在写 ref 时不得运行（§9.1）。

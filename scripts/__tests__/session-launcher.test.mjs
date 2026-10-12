@@ -15,9 +15,27 @@ function git(cwd, ...args) {
   return execFileSync("git", args, { cwd, stdio: ["pipe", "pipe", "pipe"] }).toString();
 }
 
+// installFakeGh <dir> — writes a fake `gh` answering the two queries the
+// launcher makes: the open-PR count for a head branch, and the merged-PR list.
+// mergedPr is emitted as the already-jq-processed TSV the launcher parses
+// (`headRefOid\tmergeCommit`); the real `--jq` filter is exercised against the
+// live API by the real-repo smoke, not here. Any other invocation fails loudly
+// so new gh dependencies surface in tests.
+function installFakeGh(dir, { openPrCount = 0, mergedPr = null } = {}) {
+  const p = join(dir, "gh");
+  const mergedLine = mergedPr ? `${mergedPr.headRefOid}\t${mergedPr.mergeCommit}` : "";
+  writeFileSync(
+    p,
+    `#!/bin/bash\ncase "$*" in\n  *"pr list"*"--state merged"*) printf '%s\\n' "${mergedLine}"; exit 0 ;;\n  *"pr list"*) echo "${openPrCount}"; exit 0 ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
+  );
+  execFileSync("chmod", ["+x", p]);
+}
+
 describe("session-launcher stop: session branch cleanup (#195)", () => {
   let repo;
   let wt;
+  let ghDir;
+  let extraOrigin;
 
   beforeEach(() => {
     repo = mkdtempSync(join(tmpdir(), "launcher-test-repo-"));
@@ -28,16 +46,24 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
     writeFileSync(join(repo, "docs", "a.md"), "a");
     git(repo, "add", ".");
     git(repo, "commit", "-q", "-m", "init");
+    ghDir = mkdtempSync(join(tmpdir(), "launcher-stop-gh-"));
+    installFakeGh(ghDir); // no merged PR unless a test installs one
   });
 
   afterEach(() => {
     rmSync(repo, { recursive: true, force: true });
+    rmSync(ghDir, { recursive: true, force: true });
+    if (extraOrigin) rmSync(extraOrigin, { recursive: true, force: true });
   });
 
   function stop(wtpath) {
     // Production usage runs session:stop from inside the repo — the
     // launcher's git commands resolve against its cwd.
-    const r = spawnSync("bash", [LAUNCHER, "stop", wtpath], { encoding: "utf-8", cwd: repo });
+    const r = spawnSync("bash", [LAUNCHER, "stop", wtpath], {
+      encoding: "utf-8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
     expect(r.status).toBe(0); // stop never fails hard (#195: deletion is best-effort)
     return r.stdout;
   }
@@ -76,7 +102,7 @@ describe("session-launcher stop: session branch cleanup (#195)", () => {
       existsSync(join(repo, ".git", "refs", "heads", "session", "20260101-unmerged-def456")),
     ).toBe(true);
     expect(out).toContain(
-      "session branch kept (unmerged and content differs from origin/main): session/20260101-unmerged-def456",
+      "session branch kept (not delivered: content differs from origin/main, no merged PR for this tip): session/20260101-unmerged-def456",
     );
   });
 
@@ -127,15 +153,9 @@ describe("session-launcher gc: post-delivery closeout", () => {
     rmSync(ghDir, { recursive: true, force: true });
   });
 
-  // writeFakeGh <openPrCount> — fake `gh` answering the open-PR probe; any
-  // other invocation fails loudly so new gh dependencies surface in tests.
-  function writeFakeGh(openPrCount) {
-    const p = join(ghDir, "gh");
-    writeFileSync(
-      p,
-      `#!/bin/bash\ncase "$*" in\n  *"pr list"*) echo "${openPrCount}"; exit 0 ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
-    );
-    execFileSync("chmod", ["+x", p]);
+  // writeFakeGh <openPrCount> [mergedPr] — see installFakeGh.
+  function writeFakeGh(openPrCount, mergedPr = null) {
+    installFakeGh(ghDir, { openPrCount, mergedPr });
   }
 
   // writeFailingGh — the open-PR probe itself errors (no auth / offline).
@@ -197,6 +217,31 @@ describe("session-launcher gc: post-delivery closeout", () => {
     git(repo, "add", ".");
     git(repo, "commit", "-q", "-m", "squash merge of " + name);
     git(repo, "push", "-q", "origin", "main");
+  }
+
+  // prMergedBranch — the shape byte identity can never re-verify: the branch
+  // tip was merged into main (headRefOid / mergeCommit below), then main moved
+  // on (a release bump), so the branch's content no longer matches. Only the
+  // PR criterion can prove delivery here. Returns the SHAs a fake gh reports.
+  function prMergedBranch(name, content, evolvedContent) {
+    const wtPath = join(repo, "wt-" + name.replace(/[^a-z0-9]+/gi, "-"));
+    git(repo, "worktree", "add", "-b", name, wtPath);
+    writeFileSync(join(wtPath, "feature.txt"), content);
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "feature work");
+    const tip = git(wtPath, "rev-parse", "HEAD").trim();
+    git(repo, "worktree", "remove", wtPath);
+    writeFileSync(join(repo, "feature.txt"), content);
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "squash merge of " + name);
+    const mergeCommit = git(repo, "rev-parse", "HEAD").trim();
+    git(repo, "push", "-q", "origin", "main");
+    git(repo, "push", "-q", "origin", name);
+    writeFileSync(join(repo, "feature.txt"), evolvedContent);
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "release bump after the merge");
+    git(repo, "push", "-q", "origin", "main");
+    return { tip, mergeCommit };
   }
 
   it("deletes a squash-merged branch locally and on the remote", () => {
@@ -341,7 +386,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
     const { out } = gc();
     expect(remoteBranchExists("session/20260101-orphanun-abc555")).toBe(true);
     expect(out).toContain(
-      "kept remote origin/session/20260101-orphanun-abc555 (content not verified merged)",
+      "kept remote origin/session/20260101-orphanun-abc555 (not delivered: content differs and no merged PR for this tip)",
     );
   });
 
@@ -388,6 +433,93 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(out).toContain("kept 0 (remote 1)");
   });
 
+  // The second deletion criterion: byte identity can never re-verify a branch
+  // once main moves on after the merge (release bumps do this every cycle), so
+  // a merged PR whose head is exactly the branch tip is delivery evidence too.
+  it("deletes a PR-delivered branch whose content drifted after the merge", () => {
+    const { tip, mergeCommit } = prMergedBranch("session/20260101-drift-abc101", "v1\n", "v2\n");
+    writeFakeGh(0, { mergeCommit, headRefOid: tip });
+
+    const { out } = gc();
+    expect(branchExists("session/20260101-drift-abc101")).toBe(false);
+    expect(remoteBranchExists("session/20260101-drift-abc101")).toBe(false);
+    expect(out).toContain("deleted session/20260101-drift-abc101 (PR merged into main)");
+  });
+
+  it("keeps a branch with commits pushed after the merge", () => {
+    const { tip, mergeCommit } = prMergedBranch(
+      "session/20260101-postmerge-abc102",
+      "v1\n",
+      "v2\n",
+    );
+    const wtPath = join(repo, "wt-postmerge");
+    git(repo, "worktree", "add", wtPath, "session/20260101-postmerge-abc102");
+    writeFileSync(join(wtPath, "later.txt"), "later\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "post-merge work");
+    git(repo, "worktree", "remove", wtPath);
+    writeFakeGh(0, { mergeCommit, headRefOid: tip });
+
+    const { out } = gc();
+    expect(branchExists("session/20260101-postmerge-abc102")).toBe(true);
+    expect(out).toContain("kept session/20260101-postmerge-abc102 (not delivered");
+    expect(remoteBranchExists("session/20260101-postmerge-abc102")).toBe(true);
+  });
+
+  it("keeps a branch whose reported merge commit is not on origin/main", () => {
+    const { tip } = prMergedBranch("session/20260101-badmc-abc103", "v1\n", "v2\n");
+    writeFakeGh(0, { mergeCommit: tip, headRefOid: tip });
+
+    const { out } = gc();
+    expect(branchExists("session/20260101-badmc-abc103")).toBe(true);
+    expect(out).toContain("kept session/20260101-badmc-abc103 (not delivered");
+  });
+
+  it("keeps a PR-delivered candidate when the merged-PR check fails (fail-closed)", () => {
+    prMergedBranch("session/20260101-prfail-abc104", "v1\n", "v2\n");
+    writeFailingGh();
+
+    const { out } = gc();
+    expect(branchExists("session/20260101-prfail-abc104")).toBe(true);
+    expect(out).toContain("kept session/20260101-prfail-abc104 (not delivered");
+  });
+
+  it("keeps a PR-delivered candidate when gh is unavailable", () => {
+    prMergedBranch("session/20260101-nogh-abc105", "v1\n", "v2\n");
+    const r = spawnSync("bash", [LAUNCHER, "gc"], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "definitely-missing") },
+    });
+    expect(r.status).toBe(0);
+    expect(branchExists("session/20260101-nogh-abc105")).toBe(true);
+  });
+
+  it("--dry-run previews a PR-delivered deletion without deleting", () => {
+    const { tip, mergeCommit } = prMergedBranch("session/20260101-drypr-abc106", "v1\n", "v2\n");
+    writeFakeGh(0, { mergeCommit, headRefOid: tip });
+
+    const { out } = gc("--dry-run");
+    expect(branchExists("session/20260101-drypr-abc106")).toBe(true);
+    expect(remoteBranchExists("session/20260101-drypr-abc106")).toBe(true);
+    expect(out).toContain("would delete session/20260101-drypr-abc106 (PR merged into main)");
+    expect(out).toContain(
+      "would delete remote origin/session/20260101-drypr-abc106 (PR merged into main)",
+    );
+  });
+
+  it("sweeps an orphaned remote twin that a merged PR covers", () => {
+    const { tip, mergeCommit } = prMergedBranch("session/20260101-orphanpr-abc107", "v1\n", "v2\n");
+    git(repo, "branch", "-D", "session/20260101-orphanpr-abc107");
+    writeFakeGh(0, { mergeCommit, headRefOid: tip });
+
+    const { out } = gc();
+    expect(remoteBranchExists("session/20260101-orphanpr-abc107")).toBe(false);
+    expect(out).toContain(
+      "deleted remote origin/session/20260101-orphanpr-abc107 (PR merged into main)",
+    );
+  });
+
   it("deletes a branch whose change is a deletion that also landed on main", () => {
     const wtPath = join(repo, "wt-del");
     git(repo, "worktree", "add", "-b", "session/20260101-del-abc654", wtPath);
@@ -427,7 +559,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
 
     const { out } = gc();
     expect(branchExists("session/20260101-unicode-abc222")).toBe(true);
-    expect(out).toContain("kept session/20260101-unicode-abc222 (content not verified");
+    expect(out).toContain("kept session/20260101-unicode-abc222 (not delivered");
   });
 
   it("deletes a squash-merged branch whose file has a non-ASCII name", () => {
@@ -463,9 +595,46 @@ describe("session-launcher gc: post-delivery closeout", () => {
     git(repo, "commit", "-q", "-m", "squash");
     git(repo, "push", "-q", "origin", "main");
 
-    const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], { encoding: "utf8", cwd: repo });
+    const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
     expect(r.status).toBe(0);
     expect(branchExists(`session/${id}`)).toBe(false);
     expect(r.stdout).toContain("squash-merged session branch deleted");
+  });
+
+  it("stop deletes a PR-delivered session branch after main moved on", () => {
+    const id = "20260101-prstop-abc322";
+    const wtPath = join(repo, "wt-prstop");
+    git(repo, "worktree", "add", "-b", `session/${id}`, wtPath);
+    const wtGitDir = git(wtPath, "rev-parse", "--absolute-git-dir").trim();
+    mkdirSync(join(wtGitDir, "session-pilot"), { recursive: true });
+    writeFileSync(join(wtGitDir, "session-pilot", "current-session"), id + "\n");
+    writeFileSync(join(wtPath, "feature.txt"), "v1\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "work");
+    const tip = git(wtPath, "rev-parse", "HEAD").trim();
+    // squash-merge the same content, then let main move on (a release bump)
+    writeFileSync(join(repo, "feature.txt"), "v1\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "squash");
+    const mergeCommit = git(repo, "rev-parse", "HEAD").trim();
+    git(repo, "push", "-q", "origin", "main");
+    writeFileSync(join(repo, "feature.txt"), "v2\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "release bump");
+    git(repo, "push", "-q", "origin", "main");
+    writeFakeGh(0, { mergeCommit, headRefOid: tip });
+
+    const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
+    expect(r.status).toBe(0);
+    expect(branchExists(`session/${id}`)).toBe(false);
+    expect(r.stdout).toContain("PR-merged session branch deleted");
   });
 });
