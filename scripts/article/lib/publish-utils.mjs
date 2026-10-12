@@ -525,6 +525,16 @@ export async function upsertPost(parsed, auth, supabaseUrl, supabaseKey, opts = 
       // 2xx without a representation — confirm by slug before claiming success.
       const outcome = await reconcile(payload);
       if (outcome.kind === "done") return outcome.result;
+      if (outcome.kind === "update") {
+        payload = outcome.payload;
+        continue;
+      }
+      if (payload.mode === "update" && outcome.payload.existingId !== payload.existingId) {
+        // The row was replaced mid-write (reconcile re-targeted it): replay
+        // against the fresh identity instead of failing on the stale one.
+        payload = outcome.payload;
+        continue;
+      }
       throw new PublishError(
         `Supabase ${payload.mode} failed: no row returned for slug "${parsed.slug}"`,
         {
