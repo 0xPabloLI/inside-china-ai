@@ -4,6 +4,7 @@
 #
 #   npm run session:start <task-slug> [worktree-path]
 #   npm run session:stop  <worktree-path>
+#   npm run session:gc    [--dry-run]
 #
 # start does what the docs asked for manually (git-workflow §9.3):
 #   1. generates a Session-Id  <yyyymmdd>-<task>-<6hex>  (collision-checked
@@ -31,6 +32,9 @@
 #      on origin/main (per-file byte identity, so squash merges qualify even
 #      though `git branch -d` refuses them); branches checked out in any
 #      worktree are never touched
+#   4. sweeps remote twins, including orphans whose local branch is already
+#      gone (stop deletes the local one first); every remote deletion is gated
+#      on its own content verification and a fail-closed open-PR check
 # =============================================================================
 set -euo pipefail
 
@@ -263,13 +267,16 @@ if [ "$cmd" = "gc" ]; then
     fi
   fi
 
-  # 1. Refresh remote state. --dry-run never writes refs: `fetch --dry-run`
-  #    is a network probe only, so verification runs against the current
-  #    origin/main ref and says so. Offline is likewise non-fatal.
+  # 1. Refresh remote state. The prune covers origin's whole namespace, not
+  #    just main: stale tracking refs of already-deleted remote branches would
+  #    otherwise linger and keep the remote-twin sweep re-examining them.
+  #    --dry-run never writes refs: `fetch --dry-run` is a network probe only,
+  #    so verification runs against the current refs and says so. Offline is
+  #    likewise non-fatal.
   if [ -n "$dry_run" ]; then
-    git fetch --prune --dry-run --quiet origin main >/dev/null 2>&1 || true
+    git fetch --prune --dry-run --quiet origin >/dev/null 2>&1 || true
     echo "[gc] dry-run: verifying against the current origin/main ref ($(git rev-parse --short refs/remotes/origin/main 2>/dev/null || echo none))"
-  elif git fetch --prune --quiet origin main 2>/dev/null; then
+  elif git fetch --prune --quiet origin 2>/dev/null; then
     echo "[gc] origin/main refreshed: $(git rev-parse --short refs/remotes/origin/main)"
   elif git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null 2>&1; then
     echo "[gc] fetch failed (offline?) — verifying against the existing origin/main ref"
@@ -329,8 +336,57 @@ if [ "$cmd" = "gc" ]; then
   globs="${SESSION_GC_BRANCH_GLOBS:-session/* docs/* fix/* feat/* chore/* test/* refactor/*}"
   GH="${GH_CMD:-gh}"
   deleted=0
+  remote_deleted=0
   would_delete=0
+  remote_would=0
   kept=0
+
+  # remote_twin_closeout <branch> <dry> — deletes origin/<branch> only when it
+  # still exists, its own content independently verifies as merged, gh can
+  # check for open PRs, and none is open. dry=1 previews without writing any
+  # ref: verification then rides on the current tracking ref (a stale one is
+  # reported, never fetched). Every unknown keeps it (fail-closed).
+  remote_twin_closeout() {
+    local b="$1" dry="$2" open_prs tip tracked
+    git ls-remote --exit-code --heads origin "refs/heads/$b" >/dev/null 2>&1 || return 0
+    if ! command -v "$GH" >/dev/null 2>&1; then
+      echo "[gc] kept remote origin/$b (gh unavailable — cannot check open PRs)"
+      return 0
+    fi
+    open_prs=$("$GH" pr list --head "$b" --state open --json number --jq 'length' </dev/null 2>/dev/null) || open_prs=""
+    if [ -z "$open_prs" ]; then
+      echo "[gc] kept remote origin/$b (open-PR check failed — fail-closed)"
+      return 0
+    fi
+    if [ "$open_prs" != "0" ]; then
+      echo "[gc] kept remote origin/$b (open PR — deleting would close it)"
+      return 0
+    fi
+    if [ "$dry" = "1" ]; then
+      tip=$(git ls-remote --heads origin "refs/heads/$b" 2>/dev/null | awk 'NR==1{print $1}' || true)
+      tracked=$(git rev-parse --verify --quiet "refs/remotes/origin/$b" || true)
+      if [ -n "$tip" ] && [ "$tip" = "$tracked" ] \
+        && ! ref_content_merged "refs/remotes/origin/$b" refs/remotes/origin/main; then
+        echo "[gc] kept remote origin/$b (content not verified merged)"
+      else
+        echo "[gc] would delete remote origin/$b (content re-verified at delete time)"
+        remote_would=$((remote_would + 1))
+      fi
+      return 0
+    fi
+    if git fetch --quiet --force origin "refs/heads/$b:refs/remotes/origin/$b" </dev/null 2>/dev/null \
+      && ref_content_merged "refs/remotes/origin/$b" refs/remotes/origin/main; then
+      if git push --quiet origin --delete "$b" </dev/null >/dev/null 2>&1; then
+        echo "[gc] deleted remote origin/$b"
+        remote_deleted=$((remote_deleted + 1))
+      else
+        echo "[gc] remote origin/$b delete failed — skipped"
+      fi
+    else
+      echo "[gc] kept remote origin/$b (content not verified merged)"
+    fi
+  }
+
   while IFS=$'\t' read -r b wtpath; do
     [ -n "$b" ] || continue
     [ "$b" = "main" ] && continue
@@ -344,53 +400,58 @@ if [ "$cmd" = "gc" ]; then
       kept=$((kept + 1))
       continue
     fi
-    if ! ref_content_merged "refs/heads/$b" refs/remotes/origin/main; then
-      echo "[gc] kept $b (content not byte-identical on origin/main)"
-      kept=$((kept + 1))
-      continue
-    fi
     if [ -n "$dry_run" ]; then
-      echo "[gc] would delete $b (content merged)"
-      would_delete=$((would_delete + 1))
-      continue
-    fi
-    if delete_if_content_merged "$b"; then
-      echo "[gc] deleted $b (content merged)"
-      deleted=$((deleted + 1))
-    else
-      echo "[gc] kept $b (delete failed)"
-      kept=$((kept + 1))
-      continue
-    fi
-    # Remote twin: delete only when it still exists, its own content
-    # independently verifies, gh can check for open PRs, and no open PR
-    # would be closed by the deletion. Every unknown keeps it (fail-closed).
-    if git ls-remote --exit-code --heads origin "refs/heads/$b" >/dev/null 2>&1; then
-      if ! command -v "$GH" >/dev/null 2>&1; then
-        echo "[gc] kept remote origin/$b (gh unavailable — cannot check open PRs)"
-        continue
-      fi
-      open_prs=$("$GH" pr list --head "$b" --state open --json number --jq 'length' 2>/dev/null) || open_prs=""
-      if [ -z "$open_prs" ]; then
-        echo "[gc] kept remote origin/$b (open-PR check failed — fail-closed)"
-        continue
-      fi
-      if [ "$open_prs" != "0" ]; then
-        echo "[gc] kept remote origin/$b (open PR — deleting would close it)"
-        continue
-      fi
-      if git fetch --quiet --force origin "refs/heads/$b:refs/remotes/origin/$b" </dev/null 2>/dev/null \
-         && ref_content_merged "refs/remotes/origin/$b" refs/remotes/origin/main; then
-        if git push --quiet origin --delete "$b" </dev/null >/dev/null 2>&1; then
-          echo "[gc] deleted remote origin/$b"
-        else
-          echo "[gc] remote origin/$b delete failed — skipped"
-        fi
+      if ref_content_merged "refs/heads/$b" refs/remotes/origin/main; then
+        echo "[gc] would delete $b (content merged)"
+        would_delete=$((would_delete + 1))
+        remote_twin_closeout "$b" 1
       else
-        echo "[gc] kept remote origin/$b (content not verified merged)"
+        echo "[gc] kept $b (content not verified on origin/main)"
+        kept=$((kept + 1))
       fi
+      continue
     fi
+    # One verification per branch: delete_if_content_merged re-checks the
+    # content itself (rc 1 = not verified, rc 2 = delete failed).
+    rc=0
+    delete_if_content_merged "$b" || rc=$?
+    case "$rc" in
+      0)
+        echo "[gc] deleted $b (content merged)"
+        deleted=$((deleted + 1))
+        ;;
+      1)
+        echo "[gc] kept $b (content not verified on origin/main)"
+        kept=$((kept + 1))
+        continue
+        ;;
+      *)
+        echo "[gc] kept $b (delete failed)"
+        kept=$((kept + 1))
+        continue
+        ;;
+    esac
+    remote_twin_closeout "$b" 0
   done < <(git for-each-ref --format='%(refname:short)%09%(worktreepath)' refs/heads)
 
-  echo "[gc] done — deleted $deleted, would delete $would_delete, kept $kept"
+  # Orphaned remote twins: the loop above walks local branches, so a merged
+  # branch whose local copy is already gone (stop ran first, or an earlier gc
+  # deleted it) would keep its origin branch forever. A local branch always
+  # wins here: whatever the loop decided for it already settled its remote.
+  while IFS= read -r rb; do
+    b=${rb#refs/remotes/origin/}
+    [ "$b" = "HEAD" ] && continue
+    [ "$b" = "main" ] && continue
+    matched=0
+    for g in $globs; do
+      case "$b" in $g) matched=1 ;; esac
+    done
+    [ "$matched" = 1 ] || continue
+    if git show-ref --verify --quiet "refs/heads/$b"; then
+      continue
+    fi
+    remote_twin_closeout "$b" "${dry_run:-0}"
+  done < <(git for-each-ref --format='%(refname)' refs/remotes/origin)
+
+  echo "[gc] done — deleted $deleted (remote $remote_deleted), would delete $would_delete (remote $remote_would), kept $kept"
 fi

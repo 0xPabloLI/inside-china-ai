@@ -100,14 +100,14 @@
 
 ## 10. 交付后收尾（session:gc）
 
-**常设授权**：PR 合并后不再逐次询问——主动执行 `npm run session:gc` 完成主 checkout 同步与分支清理。该命令是收尾的唯一入口（不手工 `git branch -D`、不手工切 checkout），因为它把纪律编码成 fail-closed 门禁：
+**常设授权**（用户裁决，2026-10-12：交付后主动同步主 checkout 并清理多余分支，不必逐次确认）：PR 合并后不再逐次询问——主动执行 `npm run session:gc` 完成主 checkout 同步与分支清理。该命令是收尾的唯一入口（不手工 `git branch -D`、不手工切 checkout），因为它把纪律编码成 fail-closed 门禁：
 
-1. **fetch --prune**：刷新 `origin/main`；离线时按现有 ref 继续并明示（非致命）。
+1. **fetch --prune**：刷新 origin 的整个远端跟踪命名空间（不只 main——已删除远端分支的陈旧 tracking ref 否则会一直滞留）；离线时按现有 ref 继续并明示（非致命）。另清理手工删目录留下的失效 worktree 记录（`worktree prune`），否则其分支会永远显示「已被检出」。
 2. **同步主 checkout**：仅当它是**主 worktree（以 git-common-dir 身份判定，不靠列表顺序）、在 main 上、无 tracked 改动、且严格落后**时做 `merge --ff-only`。永不 rebase、永不 switch、永不触碰 dirty checkout；分叉（本地有未推送提交）一律报告后放过。
-3. **清理已交付分支**：命名空间 `session/* docs/* fix/* feat/* chore/* test/* refactor/*`（`SESSION_GC_BRANCH_GLOBS` 可覆盖），逐分支执行**逐文件字节一致**判据（`ref_content_merged`）——这是 squash 合并后 `git branch -d` 永远拒绝（无 ancestry 关系）的解法；分支删除文件时，该文件在 base 上同样不存在才算删除已落地；任何验证失败即保留。任 worktree 检出的分支绝不触碰。远端同名分支须满足全部条件才 `push --delete`：本地删除已成功、其自身内容另行验证、`gh` 可用且 `pr list --head <branch> --state open` 明确返回 0 个开放 PR（防误关 PR）——任一未知（gh 缺失、查询失败）即保留（fail-closed）。
-4. `--dry-run` **零写入**：不 fetch（不更新任何 ref）、不 prune、不删分支；预览基于当前 ref 并在输出中明示远端 tip 可能更新。
+3. **清理已交付分支**：命名空间 `session/* docs/* fix/* feat/* chore/* test/* refactor/*`（`SESSION_GC_BRANCH_GLOBS` 可覆盖），逐分支执行**逐文件字节一致**判据（`ref_content_merged`）——这是 squash 合并后 `git branch -d` 永远拒绝（无 ancestry 关系）的解法；分支删除文件时，该文件在 base 上同样不存在才算删除已落地；任何验证失败即保留。任 worktree 检出的分支绝不触碰。远端同名分支须满足全部条件才 `push --delete`：本地删除已成功、其自身内容另行验证、`gh` 可用且 `pr list --head <branch> --state open` 明确返回 0 个开放 PR（防误关 PR）——任一未知（gh 缺失、查询失败）即保留（fail-closed）。同一轮还会**清扫孤儿远端分支**（本地分支已被 `stop` 删除、或上一轮 gc 已删本地的那类），判据相同；本地分支仍在时一律以本地决策为准（保留的本地分支会钉住其远端）。
+4. `--dry-run` **零写入**：不 fetch（不更新任何 ref）、不 prune、不删分支；预览基于当前 ref 并在输出中明示远端 tip 可能更新。远端孤儿也进入预览（`would delete remote ...`），其内容在真正删除时才重新 fetch 验证。
 5. 成功标准：`gc` 输出每条分支的 deleted/kept 理由；`git branch -vv` 与 `git worktree list` 与之一致。
 
-`session:stop` 已并入同一判据：先 `git branch -d`（ancestry 合并），拒绝后再过 `ref_content_merged` 才 `-D`（squash 合并）；两者都不通过则保留并说明。
+`session:stop` 已并入同一判据：先 `git branch -d`（ancestry 合并），拒绝后再过 `ref_content_merged` 才 `-D`（squash 合并）；两者都不通过则保留并说明。被保留（内容未落地）的分支是**待办信号**，不是垃圾：要么交付（新 PR），要么由用户显式裁决丢弃——不允许静默 `-D`。
 
-纪律边界（不得越过）：跨会话的 dirty worktree、未验证的 `-D`、在主 checkout 执行 `pull --rebase`/提交 `push`/`switch` 仍是禁止项；`gc` 的自动化只覆盖「已交付且内容可验证」这一集合（其 `push --delete` 只删已合并 ref、不发布任何提交，是 `push` 禁令的例外，且须与开放 PR 检查同时满足）。
+纪律边界（不得越过）：跨会话的 dirty worktree、未验证的 `-D`、在主 checkout 执行 `pull --rebase`/提交 `push`/`switch` 仍是禁止项；`gc` 的自动化只覆盖「已交付且内容可验证」这一集合（其 `push --delete` 只删已合并 ref、不发布任何提交，是 `push` 禁令的例外，须与开放 PR 检查同时满足；**残余风险**：开放 PR 检查与删除之间存在 TOCTOU 窗口，新开 PR 会被该删除关闭——fail-closed 检查只把窗口压到最小，不能消除）。`gc` 不探测进行中的并发操作（reflog 推进、rebase 目录）：并行 session 正在写 ref 时不得运行（§9.1）。

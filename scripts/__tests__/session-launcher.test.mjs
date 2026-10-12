@@ -217,10 +217,14 @@ describe("session-launcher gc: post-delivery closeout", () => {
     git(wtPath, "add", ".");
     git(wtPath, "commit", "-q", "-m", "wip");
     git(repo, "worktree", "remove", wtPath);
+    git(repo, "push", "-q", "origin", "session/20260101-unmerged-def456");
 
     const { status, out } = gc();
     expect(status).toBe(0);
     expect(branchExists("session/20260101-unmerged-def456")).toBe(true);
+    // A kept local branch pins its remote twin: the remote-only sweep must not
+    // touch a remote whose local counterpart still holds unmerged work.
+    expect(remoteBranchExists("session/20260101-unmerged-def456")).toBe(true);
     expect(out).toContain("kept session/20260101-unmerged-def456");
   });
 
@@ -290,6 +294,12 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(branchExists("session/20260101-openpr-abc777")).toBe(false); // local still cleaned
     expect(remoteBranchExists("session/20260101-openpr-abc777")).toBe(true);
     expect(out).toContain("kept remote origin/session/20260101-openpr-abc777 (open PR");
+
+    // The local branch is now gone, so the remote is re-examined as an orphan
+    // on the next run — and the open PR still blocks it.
+    const second = gc();
+    expect(remoteBranchExists("session/20260101-openpr-abc777")).toBe(true);
+    expect(second.out).toContain("kept remote origin/session/20260101-openpr-abc777 (open PR");
   });
 
   it("keeps the remote branch when the open-PR check fails (fail-closed)", () => {
@@ -300,6 +310,45 @@ describe("session-launcher gc: post-delivery closeout", () => {
     const { out } = gc();
     expect(remoteBranchExists("session/20260101-ghfail-abc888")).toBe(true);
     expect(out).toContain("open-PR check failed — fail-closed");
+  });
+
+  // session:stop deletes the local branch right after a merge, so by the time
+  // gc runs the remote twin often has no local counterpart at all. Without a
+  // remote-only sweep it would linger on origin forever.
+  it("sweeps a remote twin whose local branch is already gone", () => {
+    squashMergedBranch("session/20260101-orphan-abc444", "orphan\n");
+    git(repo, "push", "-q", "origin", "session/20260101-orphan-abc444");
+    git(repo, "branch", "-D", "session/20260101-orphan-abc444");
+
+    const { out } = gc();
+    expect(remoteBranchExists("session/20260101-orphan-abc444")).toBe(false);
+    expect(out).toContain("deleted remote origin/session/20260101-orphan-abc444");
+  });
+
+  it("keeps an orphaned remote twin whose content is not on origin/main", () => {
+    const wtPath = join(repo, "wt-orphan-unmerged");
+    git(repo, "worktree", "add", "-b", "session/20260101-orphanun-abc555", wtPath);
+    writeFileSync(join(wtPath, "wip.txt"), "unmerged\n");
+    git(wtPath, "add", ".");
+    git(wtPath, "commit", "-q", "-m", "wip");
+    git(repo, "worktree", "remove", wtPath);
+    git(repo, "push", "-q", "origin", "session/20260101-orphanun-abc555");
+    git(repo, "branch", "-D", "session/20260101-orphanun-abc555");
+
+    const { out } = gc();
+    expect(remoteBranchExists("session/20260101-orphanun-abc555")).toBe(true);
+    expect(out).toContain(
+      "kept remote origin/session/20260101-orphanun-abc555 (content not verified merged)",
+    );
+  });
+
+  it("--dry-run previews remote-twin deletions without touching them", () => {
+    squashMergedBranch("session/20260101-dryremote-abc666", "dryremote\n");
+    git(repo, "push", "-q", "origin", "session/20260101-dryremote-abc666");
+
+    const { out } = gc("--dry-run");
+    expect(remoteBranchExists("session/20260101-dryremote-abc666")).toBe(true);
+    expect(out).toContain("would delete remote origin/session/20260101-dryremote-abc666");
   });
 
   it("deletes a branch whose change is a deletion that also landed on main", () => {
@@ -341,7 +390,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
 
     const { out } = gc();
     expect(branchExists("session/20260101-unicode-abc222")).toBe(true);
-    expect(out).toContain("kept session/20260101-unicode-abc222 (content not byte-identical");
+    expect(out).toContain("kept session/20260101-unicode-abc222 (content not verified");
   });
 
   it("deletes a squash-merged branch whose file has a non-ASCII name", () => {
