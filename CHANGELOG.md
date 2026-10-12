@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.1...tanstack_start_ts-v1.20.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* **session:** refresh origin/main before the stop delivery verdict ([b5fa241](https://github.com/0xPabloLI/inside-china-ai/commit/b5fa2415e6e0d8512ea28e58b79ec40ae1dc3442))
+
 ## [1.20.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.0...tanstack_start_ts-v1.20.1) (2026-10-12)
 
 
