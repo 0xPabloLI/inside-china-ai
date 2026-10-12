@@ -118,6 +118,24 @@ describe("semgrep SARIF false-positive filter", () => {
     expect(brokenRun.stderr).toContain("broken.sarif");
   });
 
+  it.skipIf(!HAS_PYTHON)("fails loudly when the report holds no scan run", () => {
+    // Valid JSON, structurally empty: uploading nothing must not look like
+    // success just because the file parsed.
+    const path = writeReport([], { runs: 0 });
+
+    const r = runFilter(path);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("no scan run");
+  });
+
+  it.skipIf(!HAS_PYTHON)("treats a run with no findings as a clean scan, not an error", () => {
+    const path = writeReport([]);
+
+    const r = runFilter(path);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("dropped 0 known test-fixture false positive(s)");
+  });
+
   it.skipIf(!HAS_PYTHON)("requires a report path", () => {
     const r = runFilter();
     expect(r.status).toBe(2);

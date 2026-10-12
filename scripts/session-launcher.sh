@@ -29,14 +29,20 @@
 #      behind — ff-only, never rebases, never switches, never touches a dirty
 #      checkout
 #   3. deletes branches in the session namespace whose work already landed on
-#      origin/main — per-file byte identity (so squash merges qualify even
+#      origin/main — ancestry on origin/main (the commits themselves landed;
+#      the exact proof), per-file byte identity (so squash merges qualify even
 #      though `git branch -d` refuses them), or a merged PR whose head was
 #      exactly the branch tip with its merge commit on origin/main (delivery
 #      after main moved on, which byte identity can never re-verify);
-#      branches checked out in any worktree are never touched
+#      branches checked out in any worktree are never touched, and a branch
+#      contained in the local main only (never pushed) is kept with that
+#      reason
 #   4. sweeps remote twins, including orphans whose local branch is already
 #      gone (stop deletes the local one first); every remote deletion is gated
-#      on its own delivery verification and a fail-closed open-PR check
+#      on its own delivery verification and a fail-closed open-PR check, and
+#      re-checks the open-PR count after deleting — a PR that appeared in the
+#      window gets the ref pushed back exactly as verified, or a loud warning
+#      when someone re-created the ref in the meantime (never clobbered)
 # =============================================================================
 set -euo pipefail
 
@@ -100,19 +106,6 @@ ref_content_merged() {
   return 0
 }
 
-# ref_delivered <ref> <tip> — did this branch's work land on origin/main?
-# Two criteria, most direct first:
-#   0 = every file <ref> changed (vs the merge base) is byte-identical on
-#       origin/main — the branch's own content landed, squash merge or not;
-#   3 = a merged PR's head was exactly <tip> and its merge commit is an
-#       ancestor of origin/main. This is the criterion that survives main
-#       moving on after the merge (release bumps rewrite touched files, so
-#       byte identity can never re-verify those branches).
-#   1 = neither → keep.
-# Fail-closed: gh missing, the PR query failing, or a merge commit that is not
-# on origin/main all return 1. The tip binding is what makes criterion 3 safe:
-# a PR whose head SHA equals this exact tip proves this tip was pushed and
-# merged; commits added afterwards move the tip and keep the branch.
 # pr_delivered <branch> <tip> — did a merged PR carry exactly this tip into
 # origin/main? 0 = yes; 1 = no merged PR matches this tip; 4 = cannot tell
 # (gh missing, or the query failed). The tip binding is what makes this safe:
@@ -146,8 +139,10 @@ pr_delivered() {
 #   1 = none of them → keep;
 #   4 = content differs and the merged-PR check could not run → keep.
 # Callers beware: verdicts 0 and 6 are only trustworthy on a freshly fetched
-# ref. A stale ref can only under-report them (never over-report), so a stale
-# ref keeps a delivered branch, it never deletes an undelivered one.
+# ref. A tracking ref behind live origin/main can only under-report them, and
+# both callers fetch first; a tracking ref *ahead* of it (remote main rewritten
+# after the last fetch) would over-report, so a delete is never judged on a ref
+# that was not just fetched.
 ref_delivered() {
   local ref="$1" tip="$2" b rc
   git merge-base --is-ancestor "$ref" refs/remotes/origin/main 2>/dev/null && return 6
@@ -591,7 +586,7 @@ if [ "$cmd" = "gc" ]; then
         echo "[gc] would delete remote origin/$b ($(deleted_reason "$d"))"
         remote_would=$((remote_would + 1))
       elif [ "$tip" = "$tracked" ]; then
-        echo "[gc] kept remote origin/$b ($(verdict_kept_reason "$d" "$b"))"
+        echo "[gc] kept remote origin/$b ($(verdict_kept_reason "$d"))"
         remote_kept=$((remote_kept + 1))
       else
         echo "[gc] would fetch and verify remote origin/$b before deleting (dry-run does not fetch)"
@@ -631,11 +626,13 @@ if [ "$cmd" = "gc" ]; then
           else
             # A PR opened while we were deleting, or the re-check could not
             # run: put the ref back exactly as verified. Restoring the head
-            # branch also reopens the PR GitHub closed with it.
+            # branch also reopens the PR GitHub closed with it. The push is
+            # deliberately not forced — if someone re-created the ref in the
+            # window, their tip wins and the recovery stays manual.
             if git push --quiet origin "$tip_used:refs/heads/$b" </dev/null >/dev/null 2>&1; then
               echo "[gc] restored remote origin/$b after the delete — an open PR appeared in the delete window (fail-closed)"
             else
-              echo "[gc] WARNING: deleted remote origin/$b while an open PR may exist, and the restore push failed — restore with: git push origin $tip_used:refs/heads/$b"
+              echo "[gc] WARNING: deleted remote origin/$b while an open PR may exist; the ref was re-created in the window and left untouched (never clobbered) — restore with: git push origin $tip_used:refs/heads/$b"
             fi
             remote_kept=$((remote_kept + 1))
           fi
@@ -645,7 +642,7 @@ if [ "$cmd" = "gc" ]; then
         fi
         ;;
       *)
-        echo "[gc] kept remote origin/$b ($(verdict_kept_reason "$d" "$b"))"
+        echo "[gc] kept remote origin/$b ($(verdict_kept_reason "$d"))"
         remote_kept=$((remote_kept + 1))
         ;;
     esac

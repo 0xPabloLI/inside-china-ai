@@ -11,12 +11,14 @@ explicit rule id all still report).
 
 This filter removes exactly that class — the rule id AND a test path — so test
 files keep being scanned for every other rule, and a production-code finding
-of the same rule is still uploaded. Findings dropped here are recorded as
-alerts dismissed with reason "used in tests" in the security tab.
+of the same rule is still uploaded. Dropping a result from the report means the
+security tab never sees it, so the pre-filter backlog was dismissed as
+"used in tests" by hand (docs/conventions/test-env-baseline.md).
 
 Usage: filter-semgrep-fps.py <sarif> [<sarif>...]
-Exit: 0 when each file was filtered, 1 when one could not be read or parsed (a
-broken report must fail the job rather than upload nothing), 2 on bad usage.
+Exit: 0 when each file was filtered, 1 when one could not be read, parsed, or
+holds no scan run (a broken report must fail the job rather than upload
+nothing), 2 on bad usage.
 """
 
 from __future__ import annotations
@@ -36,10 +38,16 @@ TEST_PATH = re.compile(r"(^|/)__tests__/|(^|/)[^/]*\.(test|spec)\.[cm]?[jt]sx?$"
 def filter_file(path: str) -> int:
     with open(path, encoding="utf-8") as handle:
         report = json.load(handle)
+    runs = report.get("runs") if isinstance(report, dict) else None
+    if not isinstance(runs, list) or not runs:
+        raise ValueError("no scan run in the report")
     dropped = 0
-    for run in report.get("runs", []):
+    for run in runs:
+        results = run.get("results", [])
+        if not isinstance(results, list):
+            raise ValueError("malformed run: results is not a list")
         kept = []
-        for result in run.get("results", []):
+        for result in results:
             uri = ""
             locations = result.get("locations") or []
             if locations:
@@ -64,7 +72,12 @@ def main(argv: list[str]) -> int:
     for path in argv[1:]:
         try:
             dropped = filter_file(path)
-        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        except (
+            OSError,
+            ValueError,
+            json.JSONDecodeError,
+            UnicodeDecodeError,
+        ) as exc:
             print(f"filter-semgrep-fps: {path}: {exc}", file=sys.stderr)
             return 1
         print(

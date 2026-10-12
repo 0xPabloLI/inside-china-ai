@@ -670,6 +670,48 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(remoteBranchExists("session/20260101-raceerr-abc205")).toBe(true);
   });
 
+  // The restore push is deliberately not forced: when someone re-created the
+  // ref inside the window, their tip wins and the recovery stays manual.
+  // Clobbering a third party's commit would be the worse failure, so the
+  // delete standing is reported loudly instead of silently repaired.
+  it("never clobbers a ref re-created during the delete window (loud warning)", () => {
+    const branch = "session/20260101-raceclob-abc206";
+    squashMergedBranch(branch, "race\n");
+    git(repo, "push", "-q", "origin", branch);
+    const tip = git(repo, "rev-parse", branch).trim();
+
+    // A third party's commit on top of the branch tip: pushing the verified
+    // tip back would not be a fast-forward, so the restore must refuse.
+    git(repo, "checkout", "-q", "-b", "third-party", tip);
+    writeFileSync(join(repo, "third-party.txt"), "someone else\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "third-party work");
+    const thirdTip = git(repo, "rev-parse", "third-party").trim();
+    git(repo, "checkout", "-q", "main");
+    // The commit must exist on the remote for the hook below to point a ref
+    // at it (update-ref refuses unknown objects).
+    git(repo, "push", "-q", "origin", "third-party");
+
+    // Re-create the ref the moment the deletion lands, exactly as a
+    // concurrent actor would. post-receive fires after the delete transaction.
+    const hook = join(origin, "hooks", "post-receive");
+    writeFileSync(hook, `#!/bin/bash\ngit update-ref refs/heads/${branch} ${thirdTip}\n`);
+    execFileSync("chmod", ["+x", hook]);
+    writeFakeGh(0, null, ["0", "1"]); // pre-check 0, post-delete check 1
+
+    const { status, out } = gc();
+    expect(status).toBe(0);
+    expect(out).toContain(
+      `WARNING: deleted remote origin/${branch} while an open PR may exist; the ref was re-created in the window and left untouched (never clobbered)`,
+    );
+    expect(out).toContain(`restore with: git push origin ${tip}:refs/heads/${branch}`);
+    // The third party's tip is intact, and the outcome counts as kept.
+    expect(git(repo, "ls-remote", "origin", `refs/heads/${branch}`).trim()).toBe(
+      `${thirdTip}\trefs/heads/${branch}`,
+    );
+    expect(out).toContain("kept 0 (remote 1)");
+  });
+
   // Ancestry is the strongest delivery proof: the commits themselves are on
   // origin/main. It also covers a branch whose files drifted after the merge
   // with no merged PR to point at (a local merge that reached main).
