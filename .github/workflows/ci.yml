@@ -57,13 +57,44 @@ jobs:
           else
             BASE=$(git rev-parse HEAD^)
           fi
-          FILES=$(git diff --name-only --diff-filter=d "$BASE" HEAD \
-            -- '*.ts' '*.tsx' '*.mjs' '*.js' | grep -v '^src/routeTree.gen.ts$' || true)
+          # The checkout is shallow (fetch-depth defaults to 1), so BASE is
+          # normally absent from the object store — `git diff` then dies with
+          # "fatal: bad object <BASE>" and the `|| true` that used to sit on
+          # the diff line turned that failure into "no changed files": the
+          # gate reported green while scanning nothing, on every PR and every
+          # push (confirmed in runs 38261215620 / 38261502835, see #447).
+          # Fetch BASE explicitly, and fail loudly if it still won't resolve —
+          # a gate that scans nothing must never look green.
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            git fetch --depth=1 origin "$BASE" ||
+              git fetch --unshallow origin ||
+              echo "::warning::could not fetch BASE $BASE (tried shallow + unshallow)"
+          fi
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "::error::cannot resolve BASE $BASE — incremental lint would scan nothing"
+            exit 1
+          fi
+          # `|| true` is gone from the diff: a failed diff is a failed gate.
+          # The one below only absorbs grep's "no lines matched".
+          if ! FILES=$(git diff --name-only --diff-filter=d "$BASE" HEAD \
+            -- '*.ts' '*.tsx' '*.mjs' '*.js'); then
+            echo "::error::git diff against BASE=$BASE failed"
+            exit 1
+          fi
+          FILES=$(printf '%s\n' "$FILES" | grep -v '^src/routeTree.gen.ts$' || true)
           if [ -z "$FILES" ]; then
             echo "No changed JS/TS files to lint."
             exit 0
           fi
-          echo "$FILES" | xargs npx eslint
+          printf '%s\n' "$FILES" | xargs npx eslint
+
+      - name: MJS correctness gate (full scan)
+        # #447: the incremental ratchet above only sees changed files, so the
+        # ~527 first-party .mjs scripts were never checked for correctness
+        # bugs at all (that silence is how #424's `const` reassignment reached
+        # main). This scans all of them on every run — correctness rules only,
+        # formatting deliberately left to the ratchet.
+        run: npm run lint:mjs
 
       - name: Doc hierarchy lint
         run: npm run lint:docs
