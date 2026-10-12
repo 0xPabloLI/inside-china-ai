@@ -163,8 +163,7 @@ describe.skipIf(!hasFfmpegTools)("buildConcatArgs end-to-end (real ffmpeg)", () 
   it("each plan's ffmpeg run reads its own list, not a sibling's", () => {
     const dir = mkdtempSync(join(tmpdir(), "concat-e2e-"));
     try {
-      const makeClip = (name, seconds) => {
-        const path = join(dir, name);
+      const makeClip = (path, seconds) => {
         const r = spawnSync(
           "ffmpeg",
           [
@@ -186,8 +185,14 @@ describe.skipIf(!hasFfmpegTools)("buildConcatArgs end-to-end (real ffmpeg)", () 
       };
       const outA = join(dir, "out-a.mp4");
       const outB = join(dir, "out-b.mp4");
-      const planA = buildConcatArgs([makeClip("a1.mp4", 1), makeClip("a2.mp4", 1)], outA);
-      const planB = buildConcatArgs([makeClip("b1.mp4", 1), makeClip("b2.mp4", 2)], outB);
+      const planA = buildConcatArgs(
+        [makeClip(join(dir, "a1.mp4"), 1), makeClip(join(dir, "a2.mp4"), 1)],
+        outA,
+      );
+      const planB = buildConcatArgs(
+        [makeClip(join(dir, "b1.mp4"), 1), makeClip(join(dir, "b2.mp4"), 2)],
+        outB,
+      );
 
       writeFileSync(planA.listFile, planA.listContent);
       writeFileSync(planB.listFile, planB.listContent);
