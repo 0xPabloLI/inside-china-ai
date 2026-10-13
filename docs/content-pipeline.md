@@ -54,7 +54,7 @@ Stage 0 素材收集完成后、文章轨/视频轨分叉前，Agent 查 RAG 检
 curl -s --max-time 3 http://127.0.0.1:11434/api/version || { nohup ollama serve >> /tmp/ollama.log 2>&1 & }
 ```
 
-轮询同一 URL（≤15s）确认就绪后再查询。注意 `/api/version` 只证明守护进程在跑；`bge-m3` 是否已安装要到查询时（`/api/tags` 或 embed）才暴露。
+轮询同一 URL（≤15s）确认就绪后再查询。注意 `/api/version` 与 `isOllamaAvailable()` 用的 `/api/tags` 都只证明守护进程在跑，不校验 `bge-m3` 是否已安装；模型缺失或维度不符要到 embed 时才暴露。
 
 > **降级口径（单一来源，Stage 2d / Stage 3 Step 2 引用本条）**：先完成启动尝试；仍不可用（`ollama` 缺失 / 端口不可用）或查询失败（含 `bge-m3` 未安装 / 维度不符）时才跳过，输出 `⚠️ RAG query skipped: <reason>` 并继续管线。
 
@@ -229,7 +229,7 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path1.pdf> <p
 
 保存文章 draft 或公开文章后，都会触发 RAG 增量重建。`publish-article.mjs` 内置 `triggerRagReindex()` 调用，发布成功后自动触发。即使自动触发失败，也不阻塞管线。
 
-> **非阻塞**：reindex 失败不阻塞管线后续 stage。Ollama 先启动规则与降级口径见 Stage 0「Ollama 前置（先启动，再查询）」；跳过时输出警告并建议手动 `node scripts/rag/index.mjs`。
+> **非阻塞**：reindex 失败不阻塞管线后续 stage。Ollama 先启动规则见 Stage 0「Ollama 前置（先启动，再查询）」；跳过时输出警告并建议手动 `node scripts/rag/index.mjs`。
 
 ### 2e. RAG 工具参考（随时可用）
 
