@@ -9,23 +9,33 @@ const GATEWAY_URL = "https://connector-gateway.lovable.dev/semrush";
 
 type SemrushRow = Record<string, string>;
 
-function normalizeRows(payload: unknown): SemrushRow[] {
-  const data = (payload as { data?: { columnNames?: string[]; rows?: unknown[] } })?.data;
-  const columns = data?.columnNames ?? [];
-  const rows = data?.rows ?? [];
-  return rows.map((row) => {
-    if (Array.isArray(row)) {
+/**
+ * Normalize a gateway response body into `{ column: value }` rows.
+ *
+ * The gateway's shape is not guaranteed: `rows` may be missing or not an
+ * array, and individual rows may be null. Both previously threw (`rows.map`
+ * / `Object.entries`), turning a malformed response into a mid-request crash
+ * instead of an empty result (#319 OCR lib scan).
+ */
+export function normalizeRows(payload: unknown): SemrushRow[] {
+  const data = (payload as { data?: { columnNames?: unknown; rows?: unknown } })?.data;
+  const columns = Array.isArray(data?.columnNames) ? data.columnNames : [];
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  return rows
+    .filter((row) => row !== null && row !== undefined)
+    .map((row) => {
+      if (Array.isArray(row)) {
+        const out: SemrushRow = {};
+        columns.forEach((col, i) => {
+          out[String(col)] = String(row[i] ?? "");
+        });
+        return out;
+      }
+      if (typeof row !== "object") return {};
       const out: SemrushRow = {};
-      columns.forEach((col, i) => {
-        out[col] = String(row[i] ?? "");
-      });
+      for (const [k, v] of Object.entries(row)) out[k] = String(v ?? "");
       return out;
-    }
-    const obj = row as Record<string, unknown>;
-    const out: SemrushRow = {};
-    for (const [k, v] of Object.entries(obj)) out[k] = String(v ?? "");
-    return out;
-  });
+    });
 }
 
 /** Perform a GET against a Semrush resource through the gateway. */

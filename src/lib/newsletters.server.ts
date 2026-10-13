@@ -3,6 +3,28 @@ import { sendTemplateEmail } from "./email-templates/send-email";
 const SITE_NAME = "China AI News";
 const SITE_URL = "https://chinaai.news";
 
+/** Max ids per `.in()` filter — keeps the PostgREST URL well inside gateway limits. */
+const LAST_SENT_AT_BATCH_SIZE = 200;
+
+/**
+ * Stamp `last_sent_at` for every recipient in bounded batches.
+ *
+ * #319 OCR lib scan: this used to be one UPDATE per subscriber (an N+1 of
+ * round trips after the send loop). The `stamp` callback keeps the batch call
+ * testable while the semantics stay identical — same rows, same single
+ * timestamp, fewer requests.
+ */
+export async function stampLastSentAt(
+  recipientIds: string[],
+  stamp: (batch: string[]) => PromiseLike<unknown>,
+  batchSize: number = LAST_SENT_AT_BATCH_SIZE,
+): Promise<void> {
+  if (batchSize <= 0) throw new Error("batchSize must be positive");
+  for (let i = 0; i < recipientIds.length; i += batchSize) {
+    await stamp(recipientIds.slice(i, i + batchSize));
+  }
+}
+
 export type DispatchResult = {
   sent: number;
   suppressed: number;
@@ -120,9 +142,10 @@ export async function dispatchNewsletter(newsletterId: string): Promise<Dispatch
     .eq("id", newsletterId);
 
   const nowIso = new Date().toISOString();
-  for (const sub of subs ?? []) {
-    await supabaseAdmin.from("subscribers").update({ last_sent_at: nowIso }).eq("id", sub.id);
-  }
+  await stampLastSentAt(
+    (subs ?? []).map((sub) => sub.id),
+    (batch) => supabaseAdmin.from("subscribers").update({ last_sent_at: nowIso }).in("id", batch),
+  );
 
   return result;
 }
