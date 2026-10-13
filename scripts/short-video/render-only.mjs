@@ -11,7 +11,6 @@
  *   node scripts/short-video/render-only.mjs --content restraint/pt1
  *   node scripts/short-video/render-only.mjs --content deepseek --bgm
  */
-import { execSync } from "child_process";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
@@ -19,6 +18,7 @@ import { renderRemotion } from "./lib/render-remotion.mjs";
 import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
 import { checkFinalMedia, formatFinalMediaFailures } from "./lib/final-media-gate.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
+import { probeDurationSeconds } from "./lib/media-probe.mjs";
 import { assertSubtitleTiming, regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
 import { runCanonicalTextGate } from "./lib/verify-canonical-text.mjs";
@@ -94,11 +94,10 @@ async function main() {
       process.exit(1);
     }
 
-    const info = execSync(
-      `ffprobe -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-    ).toString();
-    const duration = parseFloat(info.trim());
-    if (Number.isNaN(duration)) {
+    // argv-safe probe (#319 OCR video batch scan): the audio path is data,
+    // never a shell string.
+    const duration = probeDurationSeconds(audioPath);
+    if (duration === null) {
       console.error(`❌ Could not read duration for scene ${scene.id}`);
       process.exit(1);
     }

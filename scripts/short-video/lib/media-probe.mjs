@@ -6,8 +6,9 @@
  * callers can gracefully fall back to default values.
  *
  * API:
- *   probeMedia(videoPath)       → Promise<ProbeResult | null>
- *   parseProbeOutput(rawOutput) → ProbeResult | null  (pure function)
+ *   probeMedia(videoPath)           → ProbeResult | null
+ *   probeDurationSeconds(mediaPath) → number | null   (audio or video)
+ *   parseProbeOutput(rawOutput)     → ProbeResult | null  (pure function)
  *
  * ffprobe path: /opt/homebrew/opt/ffmpeg-full/bin/ffprobe
  * (same as upscale.mjs and tts/post-process.mjs)
@@ -15,7 +16,7 @@
  * @module media-probe
  */
 
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { existsSync } from "fs";
 
 // ─── Constants ───
@@ -143,11 +144,45 @@ export function probeMedia(videoPath) {
   }
 
   try {
-    const raw = execSync(
-      `"${ffprobeCmd}" -v quiet -print_format json -show_format -show_streams "${videoPath}"`,
+    // argv form, never a shell string: a file name is data, and a path with
+    // shell metacharacters must not be executed (#319 OCR video batch scan —
+    // same class as #380's compile-series fix).
+    const raw = execFileSync(
+      ffprobeCmd,
+      ["-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", videoPath],
       { encoding: "utf8", timeout: 10000 },
     );
     return parseProbeOutput(raw);
+  } catch {
+    return null;
+  }
+}
+
+// ─── I/O function: run ffprobe for duration only ───
+
+/**
+ * Probe the duration of any media file (video *or* audio) in seconds.
+ *
+ * Unlike probeMedia this does not require a video stream, so callers that
+ * measure voiceover audio (render-only) can share the same argv-safe probe.
+ * Returns null on any failure — callers keep their own fallback semantics.
+ *
+ * @param {string} mediaPath - Absolute path to the media file
+ * @returns {number|null} duration in seconds, or null
+ */
+export function probeDurationSeconds(mediaPath) {
+  if (!mediaPath || !existsSync(mediaPath)) {
+    return null;
+  }
+
+  try {
+    const raw = execFileSync(
+      ffprobeCmd,
+      ["-i", mediaPath, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"],
+      { encoding: "utf8", timeout: 10000 },
+    );
+    const duration = parseFloat(raw.trim());
+    return Number.isNaN(duration) ? null : duration;
   } catch {
     return null;
   }

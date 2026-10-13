@@ -14,11 +14,12 @@
  * Mix settings: 0.1s fade-in (instant start), 12% volume, auto-loop, 3s fade-out.
  */
 
-import { execSync, execFileSync } from "child_process";
+import { execFileSync } from "child_process";
 import { existsSync, renameSync, unlinkSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { selectBGM } from "./lib/bgm.mjs";
+import { probeDurationSeconds } from "./lib/media-probe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -56,13 +57,9 @@ if (!bgmPath) {
 console.log(`  🎵 BGM: ${bgmPath.split("/").pop()}\n`);
 
 // ── Get video duration ──
-let videoDuration = 180;
-try {
-  const info = execSync(
-    `ffprobe -i "${absVideoPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-  ).toString();
-  videoDuration = parseFloat(info.trim());
-} catch {}
+// argv-safe probe (#319 OCR video batch scan): the path is data, not a shell
+// command. Failure falls back to the historical 180s default.
+const videoDuration = probeDurationSeconds(absVideoPath) ?? 180;
 
 console.log(`  📹 Video: ${videoDuration.toFixed(1)}s`);
 

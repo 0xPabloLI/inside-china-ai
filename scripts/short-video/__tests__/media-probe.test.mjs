@@ -16,7 +16,11 @@
  *   #17 extract_frames edge: startMs > endMs (handled by caller, not probeMedia)
  */
 import { describe, it, expect, vi } from "vitest";
-import { parseProbeOutput } from "../lib/media-probe.mjs";
+import { existsSync, mkdtempSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { spawnSync } from "child_process";
+import { parseProbeOutput, probeDurationSeconds, probeMedia } from "../lib/media-probe.mjs";
 
 // ─── parseProbeOutput: pure function tests ───
 
@@ -227,5 +231,62 @@ describe("parseProbeOutput", () => {
     expect(result).not.toBeNull();
     expect(result.width).toBe(0);
     expect(result.height).toBe(0);
+  });
+});
+
+// ─── I/O: ffprobe invocation ───
+
+describe("probe shell safety", () => {
+  // #319 OCR video batch scan: the probes used an execSync shell string, so a
+  // media path whose *name* contains a command substitution executed it.
+  // RED baseline on the old code: marker created=true.
+  it("never executes shell metacharacters embedded in the file name", () => {
+    const dir = mkdtempSync(join(tmpdir(), "media-probe-319-"));
+    const victim = join(dir, "evil$(touch MARKER).mp4");
+    writeFileSync(victim, "not-a-video");
+
+    const cwd = process.cwd();
+    // The substitution, if any shell sees it, lands in this directory.
+    process.chdir(dir);
+    try {
+      expect(probeMedia(victim)).toBeNull();
+      expect(probeDurationSeconds(victim)).toBeNull();
+      expect(existsSync(join(dir, "MARKER"))).toBe(false);
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+});
+
+describe("probeDurationSeconds", () => {
+  const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
+
+  it("returns null for a missing file", () => {
+    expect(probeDurationSeconds("/nonexistent/missing.wav")).toBeNull();
+  });
+
+  it("returns null for a non-media file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "media-probe-319-"));
+    const junk = join(dir, "notes.txt");
+    writeFileSync(junk, "not media");
+    expect(probeDurationSeconds(junk)).toBeNull();
+  });
+
+  it.skipIf(!hasFfmpeg)("reads the duration of a real audio file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "media-probe-319-"));
+    const wav = join(dir, "voiceover.wav");
+    const made = spawnSync("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440:duration=1.5",
+      wav,
+    ]);
+    expect(made.status).toBe(0);
+
+    const duration = probeDurationSeconds(wav);
+    expect(duration).toBeGreaterThan(1.4);
+    expect(duration).toBeLessThan(1.6);
   });
 });

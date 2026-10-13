@@ -252,9 +252,14 @@ export function renderRemotion({
 
   console.log(`  🎬 Rendering ${scenes.length} scenes via Remotion (${totalFrames} frames)...`);
 
-  // Use execSync with proper JSON escaping for --props
-  const propsJson = JSON.stringify(props).replace(/'/g, "'\\''");
-  const renderCmd = `npx remotion render src/Root.tsx ShortVideo '${rawPath}' --props='${propsJson}'`;
+  // Single-quote both the output path and the props JSON for the shell, and
+  // escape any embedded `'` in each value. render-only's --bgm-file /
+  // pipelineId findings (#319 OCR video batch scan) land here: these values
+  // reach a shell only through this command, so the quoting is what keeps
+  // them data instead of shell syntax.
+  const shellQuote = (value) => `'${String(value).replace(/'/g, "'\\''")}'`;
+  const propsJson = shellQuote(JSON.stringify(props));
+  const renderCmd = `npx remotion render src/Root.tsx ShortVideo ${shellQuote(rawPath)} --props=${propsJson}`;
 
   try {
     execSync(renderCmd, {
