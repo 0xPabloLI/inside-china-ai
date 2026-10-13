@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.9](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.8...tanstack_start_ts-v1.20.9) (2026-10-13)
+
+
+### Bug Fixes
+
+* **ocr:** [#319](https://github.com/0xPabloLI/inside-china-ai/issues/319) M/L batch — adjudicate 127 findings, fix 14 real ones ([#319](https://github.com/0xPabloLI/inside-china-ai/issues/319)) ([#630](https://github.com/0xPabloLI/inside-china-ai/issues/630)) ([359b718](https://github.com/0xPabloLI/inside-china-ai/commit/359b71850e6042c3f6b255610bddf9da153d57ae))
+
 ## [1.20.8](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.7...tanstack_start_ts-v1.20.8) (2026-10-13)
 
 
