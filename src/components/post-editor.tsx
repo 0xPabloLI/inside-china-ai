@@ -81,11 +81,14 @@ export function PostEditor({
             tiktokUrl: tiktokUrl.trim(),
           });
         } catch (error) {
-          // Error reporting belongs to the caller (admin.tsx toasts save
-          // failures); the editor owns the saving state, so a rejected save
-          // must still release the form instead of leaving it stuck on
-          // "Saving…" (#319 OCR: post-editor onSubmit lacked error handling).
+          // Two audiences for a rejected save. The toast is the user-facing
+          // half: admin.tsx reports its own failures, but any caller that lets
+          // the rejection through would otherwise fail silently. The console
+          // line is for diagnostics. Either way the editor owns the saving
+          // state, so `finally` releases the form instead of leaving it stuck
+          // on "Saving…" (#319 OCR: post-editor onSubmit lacked error handling).
           console.error("Failed to save post:", error);
+          toast.error("Save failed");
         } finally {
           setSaving(false);
         }
