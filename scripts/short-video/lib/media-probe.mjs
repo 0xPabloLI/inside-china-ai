@@ -10,7 +10,9 @@
  *   parseProbeOutput(rawOutput) → ProbeResult | null  (pure function)
  *
  * Duration-only probing (audio or video) reuses `getDurationSync` from
- * lib/tts/ffmpeg-cmd.mjs — one argv-safe ffprobe seam, not two.
+ * lib/tts/ffmpeg-cmd.mjs — the argv-safe ffprobe seam the render doors use.
+ * That file's async `getDuration` still shells out; it is untouched here
+ * because none of its callers take an external path.
  *
  * ffprobe path: /opt/homebrew/opt/ffmpeg-full/bin/ffprobe
  * (same as upscale.mjs and tts/post-process.mjs)

@@ -20,6 +20,12 @@ export const ffprobeCmd = existsSync(FFPROBE_FULL) ? FFPROBE_FULL : "ffprobe";
 
 /**
  * Get exact audio duration using ffprobe.
+ *
+ * Still a shell string — all five callers pass an internally-built path
+ * (output dir + scene id), so this is deferred with the rest of the class
+ * (#319 OCR video batch scan fixed the argv-safe `getDurationSync` seam the
+ * render doors use; converting this one drags five child_process mocks).
+ *
  * @param {string} audioPath
  * @returns {Promise<number>}
  */
