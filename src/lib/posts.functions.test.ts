@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { uploadAttachmentInput } from "./posts.functions";
+import { removeAttachmentObjects, uploadAttachmentInput } from "./posts.functions";
 
 describe("uploadAttachmentInput", () => {
   const validInput = {
@@ -85,5 +85,40 @@ describe("uploadAttachmentInput", () => {
 
   it("rejects negative fileSize", () => {
     expect(() => uploadAttachmentInput.parse({ ...validInput, fileSize: -1 })).toThrow();
+  });
+});
+
+describe("removeAttachmentObjects", () => {
+  // #319 OCR lib scan (M): deletePost ignored storage.remove()'s result, so a
+  // failed cleanup left objects behind with no trace.
+  it("removes every path in a single call", async () => {
+    const calls: string[][] = [];
+    await removeAttachmentObjects(
+      async (paths) => {
+        calls.push(paths);
+        return { error: null };
+      },
+      ["post/a.pdf", "post/b.pdf"],
+    );
+    expect(calls).toEqual([["post/a.pdf", "post/b.pdf"]]);
+  });
+
+  it("reports a failed removal instead of throwing", async () => {
+    const logged: string[] = [];
+    await removeAttachmentObjects(
+      async () => ({ error: { message: "network unreachable" } }),
+      ["post/a.pdf"],
+      (message) => logged.push(message),
+    );
+    expect(logged).toEqual(["Failed to remove 1 attachment object(s): network unreachable"]);
+  });
+
+  it("does nothing when the post has no attachments", async () => {
+    let called = false;
+    await removeAttachmentObjects(async () => {
+      called = true;
+      return { error: null };
+    }, []);
+    expect(called).toBe(false);
   });
 });
