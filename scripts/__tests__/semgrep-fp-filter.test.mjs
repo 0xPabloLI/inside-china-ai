@@ -43,14 +43,27 @@ describe("semgrep SARIF false-positive filter", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  function writeReport(results, { runs = 1 } = {}) {
+  // A real semgrep report declares its whole rule catalog in
+  // tool.driver.rules; the filter refuses to run when a listed rule is no
+  // longer in it (renamed or removed upstream).
+  const CATALOG = [
+    RULE,
+    OUTSIDE_A,
+    OUTSIDE_B,
+    "javascript.lang.security.detect-child-process.detect-child-process",
+    "javascript.lang.security.insecure-object-assign.insecure-object-assign",
+    "javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp",
+    "javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop",
+  ];
+
+  function writeReport(results, { runs = 1, catalog = CATALOG } = {}) {
     const path = join(dir, "semgrep.sarif");
     writeFileSync(
       path,
       JSON.stringify({
         version: "2.1.0",
         runs: Array.from({ length: runs }, () => ({
-          tool: { driver: { name: "semgrep" } },
+          tool: { driver: { name: "semgrep", rules: catalog.map((id) => ({ id })) } },
           results,
         })),
       }),
@@ -81,6 +94,9 @@ describe("semgrep SARIF false-positive filter", () => {
     const r = runFilter(path);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("dropped 2 known test-fixture false positive(s)");
+    // The per-rule breakdown is the CI-visible evidence that each class is
+    // still being covered.
+    expect(r.stdout).toContain("path-join-resolve-traversal 2");
     expect(uris(path)).toEqual([
       "path-join-resolve-traversal:scripts/short-video/lib/scene-audio.mjs",
       "unsafe-formatstring:scripts/__tests__/fixture.test.mjs",
@@ -88,13 +104,9 @@ describe("semgrep SARIF false-positive filter", () => {
     ]);
   });
 
-  // The other documented classes: test fixtures shell out to ffmpeg with
-  // mkdtemp paths and numeric arguments (detect-child-process), merge
-  // in-memory state with Object.assign (insecure-object-assign), build RegExp
-  // from constant lists or captured process output
-  // (detect-non-literal-regexp), and mutate fixture objects by fixed key
-  // constants (prototype-pollution-loop). Each is dropped in test paths only —
-  // production findings of the same rules still upload.
+  // The other documented classes (shapes in docs/conventions/test-env-
+  // baseline.md): each is dropped in test paths only — production findings of
+  // the same rules still upload.
   it.skipIf(!HAS_PYTHON)("drops the other fixture rules in test paths only", () => {
     const path = writeReport([
       result(
@@ -192,6 +204,43 @@ describe("semgrep SARIF false-positive filter", () => {
     const r = runFilter(path);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("dropped 0 known test-fixture false positive(s)");
+  });
+
+  // A renamed upstream rule must fail the job, not silently stop matching:
+  // the report declares its catalog, so the filter can tell.
+  it.skipIf(!HAS_PYTHON)("fails loudly when a listed rule left the scan catalog", () => {
+    const path = writeReport([], {
+      catalog: CATALOG.filter(
+        (id) => id !== "javascript.lang.security.detect-child-process.detect-child-process",
+      ),
+    });
+
+    const r = runFilter(path);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("scan catalog");
+    expect(r.stderr).toContain("detect-child-process");
+    expect(r.stderr).toContain("test-env-baseline.md");
+  });
+
+  it.skipIf(!HAS_PYTHON)("fails loudly when the report declares no rule catalog", () => {
+    const path = writeReport([], { catalog: [] });
+
+    const r = runFilter(path);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("no rule catalog");
+  });
+
+  // semgrep writes `results: []` for a clean scan, so a run without the key is
+  // a shape change, not a clean scan.
+  it.skipIf(!HAS_PYTHON)("fails loudly when a run carries no results key", () => {
+    const path = writeReport([]);
+    const report = JSON.parse(readFileSync(path, "utf8"));
+    delete report.runs[0].results;
+    writeFileSync(path, JSON.stringify(report));
+
+    const r = runFilter(path);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("no results key");
   });
 
   it.skipIf(!HAS_PYTHON)("requires a report path", () => {
