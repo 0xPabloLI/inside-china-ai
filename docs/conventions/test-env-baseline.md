@@ -120,9 +120,19 @@ done
 
 ## CI 扫描器已知误报类
 
-### Semgrep `path-join-resolve-traversal` × 测试 fixture（2026-10-12）
+### Semgrep × 测试 fixture（2026-10-12 起，2026-10-13 扩到五类）
 
-- **类**：`javascript.lang.security.audit.path-traversal.path-join-resolve-traversal` 是 **taint 模式**规则（源=函数参数，汇=`path.join`/`resolve`）。测试 fixture 的路径来自 `mkdtempSync` 临时目录，于是每个 fixture join 都被上报。全量实测（`semgrep 1.179.0`，`--config p/default`，`src/ scripts/`）：**115 条落在测试路径、266 条落在生产路径**——误报只在测试侧。
-- **注解无效（别重试）**：`// nosemgrep` 对 taint 规则不生效——注释在汇行、源行、带显式 rule id 三种写法均仍上报（本地 1.179.0/1.180.0 复现；仓库里 widget 测试的同款注释对应的告警至今为 open，即历史证据）。`paths.exclude` 覆盖同 id 规则也不可行：同 id 两条规则并存，结果**翻倍**（19 → 27 实测）。
-- **处置**：CI 在扫描与上传之间跑 `.github/scripts/filter-semgrep-fps.py`（`.github/workflows/ci.yml` 的 `Drop documented test-fixture false positives` 步骤），只丢「该规则 id **且** 测试路径」的命中——测试文件对其余规则照常扫描，生产路径的同规则命中照常上传。过滤器由 `scripts/__tests__/semgrep-fp-filter.test.mjs` 钉住（含「报告损坏即失败」与「其余规则保留」两条边界）。安全页上该类的存量告警按 **`used in tests`** dismiss（2026-10-12 处理）。
-- **维护**：若要连生产路径的该规则命中一起排除，那是策略变更——必须改过滤器并在此登记；过滤器按「规则 id + 路径」双条件匹配，不会顺手放过生产命中。
+测试 fixture 的构造方式（临时目录、真媒体文件、内存状态替身、常量表断言）会命中若干 Semgrep 规则，而这些形状在测试里是预期行为。**判据是「规则 id 且测试路径」双条件**：测试文件对其余规则照常扫描，生产路径的同规则命中照常上传。
+
+| 规则（完整 id，与过滤器 `RULE_IDS` 逐字一致）                                                                                     | 测试里的形状                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal`                             | fixture 路径来自 `mkdtempSync`，taint 源=函数参数、汇=`path.join`/`resolve`         |
+| `javascript.lang.security.detect-child-process.detect-child-process`                                                                | fixture 用 `execSync` 跑 ffmpeg 造真媒体文件，参数是临时目录路径与数字（时长/延迟） |
+| `javascript.lang.security.insecure-object-assign.insecure-object-assign`                                                            | 测试替身用 `Object.assign(mem, JSON.parse(JSON.stringify(s)))` 合并内存状态         |
+| `javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp`                                                | 用常量列表或捕获的进程输出构造 `RegExp` 来断言                                      |
+| `javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop`                              | 漂移模拟按固定字段常量表改写 fixture 对象                                           |
+
+- **证据（2026-10-12 首批）**：`path-join-resolve-traversal` 是 **taint 模式**规则，全量实测（`semgrep 1.179.0`，`--config p/default`，`src/ scripts/`）**115 条在测试路径、266 条在生产路径**——误报只在测试侧。**注解无效（别重试）**：`// nosemgrep` 对该 taint 规则不生效（注释在汇行、源行、带显式 rule id 三种写法均仍上报；1.179.0/1.180.0 复现）；`paths.exclude` 覆盖同 id 规则会让结果**翻倍**（19 → 27 实测）。
+- **证据（2026-10-13 第二批）**：安全页 27 条开放告警全在测试路径，分属上表后四类（`detect-child-process` 19、`insecure-object-assign` 4、`detect-non-literal-regexp` 3、`prototype-pollution-loop` 1）。全量实测（`semgrep 1.176.1`，同命令）489 条结果：过滤器丢弃 **145**（118 条 `path-join-resolve-traversal` + 上述 27 条），生产路径保留 `path-join-resolve-traversal` 265 条、`detect-child-process` 41 条、`detect-non-literal-regexp` 14 条；集合外规则的 24 条前后逐条一致。**计数随 semgrep/规则集版本漂移**（首批 115/266，第二批 118/265 即版本差），契约是「规则 id + 路径」，不是任何固定数字。
+- **处置**：CI 在扫描与上传之间跑 `.github/scripts/filter-semgrep-fps.py`（`.github/workflows/ci.yml` 的 `Drop documented test-fixture false positives` 步骤）。过滤器由 `scripts/__tests__/semgrep-fp-filter.test.mjs` 钉住：每类规则在测试路径被丢弃、在生产路径保留、集合外规则在测试路径保留；另有「报告损坏 / 无 scan run / 无 results 键 / 无规则目录即失败」边界。**规则目录守卫**：报告自带的 `tool.driver.rules` 必须仍含五类 id——上游改名或删除时 job 失败并列出要同步的三处，过滤器不会静默失效。安全页上的存量告警按 **`used in tests`** dismiss（2026-10-12 首批 114 条；2026-10-13 第二批 27 条）。
+- **维护**：新增一类误报必须**同时**改三处——过滤器 `RULE_IDS`、`scripts/__tests__/semgrep-fp-filter.test.mjs`、本表；三处的 id 必须逐字一致（表中列全 id 就是为了可对照）。若要把某规则**生产路径**的命中一起排除，那是策略变更，不属本机制。
