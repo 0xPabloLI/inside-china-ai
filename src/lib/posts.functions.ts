@@ -148,6 +148,26 @@ export const savePost = createServerFn({ method: "POST" })
     return row;
   });
 
+/**
+ * Remove attachment objects from storage, best effort.
+ *
+ * A storage hiccup must not block the row delete, but a silent failure leaves
+ * objects behind, so the error is reported with the batch size (#319 OCR lib
+ * scan). The `remove` callback keeps the batch call testable, same seam as
+ * `stampLastSentAt`.
+ */
+export async function removeAttachmentObjects(
+  remove: (paths: string[]) => PromiseLike<{ error: { message: string } | null }>,
+  paths: string[],
+  onError: (message: string) => void = (message) => console.error(message),
+): Promise<void> {
+  if (paths.length === 0) return;
+  const { error } = await remove(paths);
+  if (error) {
+    onError(`Failed to remove ${paths.length} attachment object(s): ${error.message}`);
+  }
+}
+
 export const deletePost = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
@@ -158,8 +178,11 @@ export const deletePost = createServerFn({ method: "POST" })
       .select("storage_path")
       .eq("post_id", data.id);
     if (atts && atts.length > 0) {
-      const paths = atts.map((a) => a.storage_path);
-      await context.supabase.storage.from(STORAGE_BUCKET).remove(paths);
+      await removeAttachmentObjects(
+        (paths) => context.supabase.storage.from(STORAGE_BUCKET).remove(paths),
+        atts.map((a) => a.storage_path),
+        (message) => console.error(`Post ${data.id}: ${message}`),
+      );
     }
 
     const { error } = await context.supabase.from("posts").delete().eq("id", data.id);

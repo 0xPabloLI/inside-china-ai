@@ -9,6 +9,8 @@ import {
   uploadAttachment,
 } from "@/lib/posts.functions";
 import { formatFileSize } from "@/lib/format";
+import { copyTextToClipboard } from "@/lib/clipboard";
+import { escapeMarkdownLinkText } from "@/lib/markdown-editing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -129,9 +131,10 @@ export function AttachmentUploader({
     }
   }
 
-  function copyUrl(url: string) {
-    navigator.clipboard.writeText(url);
-    toast.success("URL copied to clipboard");
+  async function copyUrl(url: string) {
+    const copied = await copyTextToClipboard(url);
+    if (copied) toast.success("URL copied to clipboard");
+    else toast.error("Copy failed — select the URL and copy manually");
   }
 
   function startRename(att: AttachmentItem) {
@@ -283,7 +286,9 @@ export function AttachmentUploader({
                       size="icon"
                       className="h-7 w-7"
                       title="Insert link into content"
-                      onClick={() => onInsertLink(`[${att.file_name}](${att.url})`)}
+                      onClick={() =>
+                        onInsertLink(`[${escapeMarkdownLinkText(att.file_name)}](${att.url})`)
+                      }
                     >
                       <LinkIcon className="h-3.5 w-3.5" />
                     </Button>

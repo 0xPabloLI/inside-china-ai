@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ExternalLink, Copy, RefreshCw, Image as ImageIcon } from "lucide-react";
 import { SITE_URL, ogImageForPath } from "@/lib/og";
+import { copyTextToClipboard } from "@/lib/clipboard";
 
 type Debugger = {
   name: string;
@@ -64,6 +65,15 @@ export function SocialPreviewRefresh({
   compact?: boolean;
 }) {
   const [raw, setRaw] = useState(path);
+  // The post editor passes a slug-derived path, so it changes while the panel
+  // is mounted. Adjusting state during render (React's documented pattern for a
+  // changed prop) keeps the field and every debugger link in sync — an effect
+  // here would cascade a second render (#319 OCR components scan).
+  const [syncedPath, setSyncedPath] = useState(path);
+  if (path !== syncedPath) {
+    setSyncedPath(path);
+    setRaw(path);
+  }
   const url = useMemo(() => normalize(raw), [raw]);
   const ogImage = useMemo(() => {
     try {
@@ -74,12 +84,9 @@ export function SocialPreviewRefresh({
   }, [url]);
 
   const copy = async (value: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success(`${label} copied`);
-    } catch {
-      toast.error("Copy failed — select the field and copy manually");
-    }
+    const copied = await copyTextToClipboard(value);
+    if (copied) toast.success(`${label} copied`);
+    else toast.error("Copy failed — select the field and copy manually");
   };
 
   const refreshAll = () => {

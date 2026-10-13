@@ -25,6 +25,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, "output");
 const OUTPUT_PATH = join(OUTPUT_DIR, "analytics-export.json");
 const PUB_BASE_URL = "https://api.publora.com/api/v1";
+/** Page size of the list_posts call — a full page means more posts may exist. */
+const POSTS_PAGE_LIMIT = 100;
 
 async function getApiKey() {
   if (process.env.PUBLORA_API_KEY) return process.env.PUBLORA_API_KEY;
@@ -50,13 +52,24 @@ async function main() {
   }
 
   // Fetch all published posts
-  const resp = await fetch(`${PUB_BASE_URL}/posts?status=published&limit=100`, {
+  const resp = await fetch(`${PUB_BASE_URL}/posts?status=published&limit=${POSTS_PAGE_LIMIT}`, {
     headers: { "x-publora-key": apiKey },
   });
   const data = await resp.json();
   const posts = data.posts || [];
 
   log.info("posts fetched", { count: posts.length });
+
+  // The Publora list endpoint's pagination contract is not documented here, so
+  // this export cannot page through it safely. A full page is therefore
+  // reported instead of silently exported as if it were the whole history
+  // (#319 OCR video-batch scan).
+  if (posts.length >= POSTS_PAGE_LIMIT) {
+    log.warn("published-post page is full — the export may be truncated", {
+      count: posts.length,
+      limit: POSTS_PAGE_LIMIT,
+    });
+  }
 
   const export_ = {
     exportedAt: new Date().toISOString(),
