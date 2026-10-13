@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.5...tanstack_start_ts-v1.20.6) (2026-10-13)
+
+
+### Bug Fixes
+
+* **security:** [#319](https://github.com/0xPabloLI/inside-china-ai/issues/319) OCR urgent batch — bound attachments, escape JSON-LD, argv-safe probes ([#618](https://github.com/0xPabloLI/inside-china-ai/issues/618)) ([9abbac1](https://github.com/0xPabloLI/inside-china-ai/commit/9abbac1082afbad3d6bf3ff12ffa89b8f068930c))
+
 ## [1.20.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.4...tanstack_start_ts-v1.20.5) (2026-10-12)
 
 
