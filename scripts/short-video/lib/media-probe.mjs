@@ -6,8 +6,13 @@
  * callers can gracefully fall back to default values.
  *
  * API:
- *   probeMedia(videoPath)       → Promise<ProbeResult | null>
+ *   probeMedia(videoPath)       → ProbeResult | null
  *   parseProbeOutput(rawOutput) → ProbeResult | null  (pure function)
+ *
+ * Duration-only probing (audio or video) reuses `getDurationSync` from
+ * lib/tts/ffmpeg-cmd.mjs — the argv-safe ffprobe seam the render doors use.
+ * That file's async `getDuration` still shells out; it is untouched here
+ * because none of its callers take an external path.
  *
  * ffprobe path: /opt/homebrew/opt/ffmpeg-full/bin/ffprobe
  * (same as upscale.mjs and tts/post-process.mjs)
@@ -15,7 +20,7 @@
  * @module media-probe
  */
 
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { existsSync } from "fs";
 
 // ─── Constants ───
@@ -143,8 +148,12 @@ export function probeMedia(videoPath) {
   }
 
   try {
-    const raw = execSync(
-      `"${ffprobeCmd}" -v quiet -print_format json -show_format -show_streams "${videoPath}"`,
+    // argv form, never a shell string: a file name is data, and a path with
+    // shell metacharacters must not be executed (#319 OCR video batch scan —
+    // same class as #380's compile-series fix).
+    const raw = execFileSync(
+      ffprobeCmd,
+      ["-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", videoPath],
       { encoding: "utf8", timeout: 10000 },
     );
     return parseProbeOutput(raw);

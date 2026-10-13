@@ -70,16 +70,28 @@ export function PostEditor({
       onSubmit={async (e) => {
         e.preventDefault();
         setSaving(true);
-        await onSave({
-          id: initial?.id,
-          title: title.trim(),
-          slug: effectiveSlug,
-          excerpt: excerpt.trim(),
-          content,
-          published,
-          tiktokUrl: tiktokUrl.trim(),
-        });
-        setSaving(false);
+        try {
+          await onSave({
+            id: initial?.id,
+            title: title.trim(),
+            slug: effectiveSlug,
+            excerpt: excerpt.trim(),
+            content,
+            published,
+            tiktokUrl: tiktokUrl.trim(),
+          });
+        } catch (error) {
+          // Two audiences for a rejected save. The toast is the user-facing
+          // half: admin.tsx reports its own failures, but any caller that lets
+          // the rejection through would otherwise fail silently. The console
+          // line is for diagnostics. Either way the editor owns the saving
+          // state, so `finally` releases the form instead of leaving it stuck
+          // on "Saving…" (#319 OCR: post-editor onSubmit lacked error handling).
+          console.error("Failed to save post:", error);
+          toast.error("Save failed");
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-5 rounded-lg border border-border/60 bg-card p-6"
     >
