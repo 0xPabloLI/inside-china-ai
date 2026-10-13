@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync } from "fs";
+import { join } from "path";
 import { validateJsonLdDoc } from "../../scripts/seo/jsonld-schema.mjs";
 import { JSONLD_REGISTRY, OG_EXPECTATIONS } from "@/lib/seo-jsonld-registry";
 import { OG_DEFAULT, articleOgImageUrl, ogImageForPath, ogImageMeta } from "@/lib/og";
@@ -26,6 +28,25 @@ describe("jsonLdScript", () => {
   it("is byte-identical to JSON.stringify for documents without `<`", () => {
     const doc = { "@context": "https://schema.org", name: "China AI News" };
     expect(jsonLdScript(doc).children).toBe(JSON.stringify(doc));
+  });
+});
+
+describe("route JSON-LD goes through the escaping seam", () => {
+  const ROUTES_DIR = new URL("../routes/", import.meta.url).pathname;
+
+  // The registry only guards the documents it lists; a route that hand-rolls
+  // `{ type: "application/ld+json", children: JSON.stringify(...) }` bypasses
+  // the `<` escaping entirely (#319 OCR lib scan, three such sites). This
+  // scans the route sources so a new one cannot slip back in.
+  it("every route that emits ld+json serializes through jsonLdScript", () => {
+    const offenders = readdirSync(ROUTES_DIR)
+      .filter((f) => f.endsWith(".tsx"))
+      .filter((f) => {
+        const src = readFileSync(join(ROUTES_DIR, f), "utf8");
+        return src.includes("application/ld+json") && !src.includes("jsonLdScript(");
+      });
+
+    expect(offenders, `${offenders.join(", ")} must use jsonLdScript()`).toEqual([]);
   });
 });
 
