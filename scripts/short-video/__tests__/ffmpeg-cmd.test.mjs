@@ -1,6 +1,9 @@
 /**
  * getDurationSync — the shared ffprobe duration seam used by mix-bgm,
  * render-only and render-remotion (#319 OCR video batch scan).
+ *
+ * The metachar case is the regression guard: the path must reach ffprobe as
+ * argv, never as shell syntax.
  */
 import { describe, it, expect } from "vitest";
 import { existsSync, mkdtempSync, writeFileSync } from "fs";
