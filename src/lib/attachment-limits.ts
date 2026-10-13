@@ -11,6 +11,9 @@
 /** Hard ceiling for a stored attachment, matching the input schema's error message. */
 export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 
+/** Human-readable form of the ceiling (derived, so schema messages cannot drift). */
+export const MAX_ATTACHMENT_LABEL = `${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB`;
+
 /**
  * Base64 length of a payload that decodes to at most `maxBytes` (4 chars per
  * 3 bytes, rounded up). Checking this before `Buffer.from` is what keeps an

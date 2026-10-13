@@ -2,7 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-admin";
 import { createPublicClient } from "@/integrations/supabase/public-client";
-import { MAX_ATTACHMENT_BYTES, decodeAttachmentPayload } from "./attachment-limits";
+import {
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENT_LABEL,
+  decodeAttachmentPayload,
+} from "./attachment-limits";
 
 const STORAGE_BUCKET = "post-attachments";
 
@@ -168,7 +172,11 @@ export const deletePost = createServerFn({ method: "POST" })
 export const uploadAttachmentInput = z.object({
   postId: z.string().uuid(),
   fileName: z.string().trim().min(1).max(255),
-  fileSize: z.number().int().positive().max(MAX_ATTACHMENT_BYTES, "File too large (max 50 MB)"),
+  fileSize: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_ATTACHMENT_BYTES, `File too large (max ${MAX_ATTACHMENT_LABEL})`),
   mimeType: z.string().nullable().optional(),
   fileBase64: z.string().min(1),
 });
