@@ -21,6 +21,8 @@ import { finalizeRenderedVideo } from "./post-process.mjs";
 import { sceneClipFrames } from "./timeline.mjs";
 import { autoUpscaleIfNeeded } from "./upscale.mjs";
 import { assertAvatarScene, isAvatarDeclared } from "./avatar-guard.mjs";
+import { getDurationSync } from "./tts/ffmpeg-cmd.mjs";
+import { shellQuote } from "./shell-quote.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -39,6 +41,21 @@ const REMOTION_DIR = join(__dirname, "..", "remotion");
  */
 export function rawOutputPathFor(finalPath) {
   return finalPath.replace("-short.mp4", "-raw.mp4");
+}
+
+/**
+ * Build the `npx remotion render` command line.
+ *
+ * Both the output path and the props JSON go through the shared shellQuote
+ * helper, so a subject/pipelineId carrying a quote, `$(...)` or a backtick
+ * stays data instead of shell syntax (#319 OCR video batch scan — the
+ * render-only contentDir/pipelineId findings land on this line).
+ *
+ * @param {{ rawPath: string, props: Record<string, unknown> }} input
+ * @returns {string} command line for execSync
+ */
+export function buildRemotionRenderCommand({ rawPath, props }) {
+  return `npx remotion render src/Root.tsx ShortVideo ${shellQuote(rawPath)} --props=${shellQuote(JSON.stringify(props))}`;
 }
 
 /**
@@ -252,14 +269,7 @@ export function renderRemotion({
 
   console.log(`  🎬 Rendering ${scenes.length} scenes via Remotion (${totalFrames} frames)...`);
 
-  // Single-quote both the output path and the props JSON for the shell, and
-  // escape any embedded `'` in each value. render-only's --bgm-file /
-  // pipelineId findings (#319 OCR video batch scan) land here: these values
-  // reach a shell only through this command, so the quoting is what keeps
-  // them data instead of shell syntax.
-  const shellQuote = (value) => `'${String(value).replace(/'/g, "'\\''")}'`;
-  const propsJson = shellQuote(JSON.stringify(props));
-  const renderCmd = `npx remotion render src/Root.tsx ShortVideo ${shellQuote(rawPath)} --props=${propsJson}`;
+  const renderCmd = buildRemotionRenderCommand({ rawPath, props });
 
   try {
     execSync(renderCmd, {
@@ -310,12 +320,12 @@ export function renderRemotion({
   } catch {}
 
   // ── 6. Get final duration ──
+  // argv-safe shared probe (#319 OCR video batch scan): finalPath carries
+  // subject/pipelineId, so it must never reach a shell string.
   let finalDuration = "unknown";
   try {
-    const info = execSync(
-      `ffprobe -i "${finalPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-    ).toString();
-    finalDuration = `${parseFloat(info.trim()).toFixed(1)}s`;
+    const probed = getDurationSync(finalPath);
+    if (Number.isFinite(probed)) finalDuration = `${probed.toFixed(1)}s`;
   } catch {}
 
   // ── 7. Clean up copied audio files ──

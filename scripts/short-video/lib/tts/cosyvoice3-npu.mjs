@@ -27,6 +27,7 @@ import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch, engineTtsText } from "./post-process.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
+import { shellQuote } from "../shell-quote.mjs";
 
 const execAsync = promisify(exec);
 
@@ -89,7 +90,7 @@ async function jupyterUpload(path, content, isBinary = false) {
   await execAsync(
     `curl -s -X PUT "${NPU_JUPYTER_URL}/api/contents/${path}" ` +
       `-H "Authorization: token ${NPU_JUPYTER_TOKEN}" ` +
-      `-H "Content-Type: application/json" -d '${body.replace(/'/g, "'\\''")}'`,
+      `-H "Content-Type: application/json" -d ${shellQuote(body)}`,
   );
 }
 
@@ -115,7 +116,7 @@ async function jupyterExecute(code) {
     const { stdout } = await execAsync(
       `curl -s -X POST "${NPU_JUPYTER_URL}/api/kernels/${kernelId}/execute ` +
         `-H "Authorization: token ${NPU_JUPYTER_TOKEN}" ` +
-        `-H "Content-Type: application/json" -d '${body.replace(/'/g, "'\\''")}'`,
+        `-H "Content-Type: application/json" -d ${shellQuote(body)}`,
       { timeout: NPU_TIMEOUT_MS },
     );
     return stdout;

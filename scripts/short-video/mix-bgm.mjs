@@ -19,7 +19,7 @@ import { existsSync, renameSync, unlinkSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { selectBGM } from "./lib/bgm.mjs";
-import { probeDurationSeconds } from "./lib/media-probe.mjs";
+import { getDurationSync } from "./lib/tts/ffmpeg-cmd.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -57,9 +57,13 @@ if (!bgmPath) {
 console.log(`  🎵 BGM: ${bgmPath.split("/").pop()}\n`);
 
 // ── Get video duration ──
-// argv-safe probe (#319 OCR video batch scan): the path is data, not a shell
-// command. Failure falls back to the historical 180s default.
-const videoDuration = probeDurationSeconds(absVideoPath) ?? 180;
+// argv-safe shared probe (#319 OCR video batch scan): the path is data, not a
+// shell command. Failure falls back to the historical 180s default.
+let videoDuration = 180;
+try {
+  const probed = getDurationSync(absVideoPath);
+  if (Number.isFinite(probed) && probed > 0) videoDuration = probed;
+} catch {}
 
 console.log(`  📹 Video: ${videoDuration.toFixed(1)}s`);
 
