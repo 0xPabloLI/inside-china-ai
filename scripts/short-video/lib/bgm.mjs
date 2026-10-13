@@ -17,7 +17,8 @@
 import { existsSync, readdirSync } from "fs";
 import { join, dirname, resolve, basename } from "path";
 import { fileURLToPath } from "url";
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
+import { getDurationSync } from "./tts/ffmpeg-cmd.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,32 +29,42 @@ const INSTANT_START_THRESHOLD_DB = -35; // mean volume in first 0.5s must exceed
 const ANALYSIS_WINDOW_SEC = 0.5; // check first 0.5s for instant start
 const NEWS_KEYWORDS = ["news", "breaking", "urgent"]; // filename must contain one of these
 
+/** Measurement-only ffmpeg (PATH-resolved, not ffmpeg-full) — same as post-process.mjs. */
+const FFMPEG = "ffmpeg";
+
 /**
  * Analyze a BGM file: duration + first-0.5s mean volume.
+ *
+ * Both probes take the file path as argv (#319 deferred class sweep): a BGM
+ * file name is data, and a name carrying shell metacharacters must not be
+ * executed. Duration reuses the shared argv-safe ffprobe seam.
+ *
  * @param {string} filePath - absolute path to .mp3
  * @returns {{ path: string, filename: string, duration: number, meanVolumeDb: number, instantStart: boolean, isNews: boolean }|null}
  */
-function analyzeBGM(filePath) {
+export function analyzeBGM(filePath) {
   const filename = basename(filePath);
 
   // Duration
   let duration = 0;
   try {
-    const out = execSync(
-      `ffprobe -i "${filePath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-    ).toString();
-    duration = parseFloat(out.trim());
+    duration = getDurationSync(filePath);
   } catch {
     return null;
   }
 
-  // First-0.5s mean volume (ffmpeg volumedetect filter)
+  // First-0.5s mean volume (ffmpeg volumedetect filter). volumedetect reports
+  // on stderr, so both captured streams are searched.
   let meanVolumeDb = -Infinity;
   try {
-    const out = execSync(
-      `ffmpeg -i "${filePath}" -t ${ANALYSIS_WINDOW_SEC} -af volumedetect -f null /dev/null 2>&1`,
-    ).toString();
-    const m = out.match(/mean_volume:\s*(-?[\d.]+)\s*dB/);
+    const probe = spawnSync(
+      FFMPEG,
+      ["-i", filePath, "-t", String(ANALYSIS_WINDOW_SEC), "-af", "volumedetect", "-f", "null", "-"],
+      { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+    );
+    const m = `${probe.stdout ?? ""}\n${probe.stderr ?? ""}`.match(
+      /mean_volume:\s*(-?[\d.]+)\s*dB/,
+    );
     if (m) meanVolumeDb = parseFloat(m[1]);
   } catch {
     // ffmpeg failed — treat as not instant-start

@@ -8,9 +8,10 @@
  * output file, and returns the output path. Callers manage temp file cleanup.
  */
 
-import { execSync, execFileSync, spawnSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { existsSync, renameSync, unlinkSync } from "fs";
 import { measureAudioDrift } from "./audio/sync.mjs";
+import { getDurationSync } from "./tts/ffmpeg-cmd.mjs";
 
 /**
  * Path to ffmpeg-full (has libass support for ASS subtitle burn-in).
@@ -323,13 +324,12 @@ export function burnSubtitles(videoPath, assPath, outputPath) {
  * @returns {string} Path to the output file
  */
 export function mixBgm(videoPath, bgmPath, outputPath, volume = 0.12) {
-  // Get video duration for BGM fade-out timing
+  // Get video duration for BGM fade-out timing — argv-safe shared probe
+  // (#319 deferred class sweep). A failed probe keeps the 180s default.
   let videoDuration = 180;
   try {
-    const info = execSync(
-      `ffprobe -i "${videoPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-    ).toString();
-    videoDuration = parseFloat(info.trim());
+    const probed = getDurationSync(videoPath);
+    if (Number.isFinite(probed) && probed > 0) videoDuration = probed;
   } catch {}
 
   const bgmFadeOutStart = Math.max(videoDuration - 3, 1).toFixed(2);
@@ -534,12 +534,12 @@ export function finalizeRenderedVideo({
 
   let bgmFadeOutStart;
   if (bgmPath) {
+    // argv-safe shared probe (#319 deferred class sweep); a failed probe keeps
+    // the 180s default instead of poisoning the fade-out with NaN.
     let videoDuration = 180;
     try {
-      const info = execSync(
-        `ffprobe -i "${videoPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-      ).toString();
-      videoDuration = parseFloat(info.trim());
+      const probed = getDurationSync(videoPath);
+      if (Number.isFinite(probed) && probed > 0) videoDuration = probed;
     } catch {}
     bgmFadeOutStart = Math.max(videoDuration - 3, 1);
   }

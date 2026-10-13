@@ -23,7 +23,7 @@
 import { readFileSync, existsSync, readdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { execSync } from "child_process";
+import { execSync, execFileSync } from "child_process";
 import { runAllSceneDataChecks } from "./lib/scene-rules.mjs";
 import { readReport, summarizeBrollReport } from "./lib/b-roll/report.mjs";
 import { validateMedia } from "./lib/media-bg.mjs";
@@ -213,8 +213,21 @@ if (!preMode) {
 
   let videoInfo;
   try {
-    const raw = execSync(
-      `ffprobe -i "${VIDEO_PATH}" -show_entries format=duration -show_entries stream=width,height,codec_name,r_frame_rate -v quiet -of json`,
+    // argv, never a shell string (#319 deferred class sweep).
+    const raw = execFileSync(
+      "ffprobe",
+      [
+        "-i",
+        VIDEO_PATH,
+        "-show_entries",
+        "format=duration",
+        "-show_entries",
+        "stream=width,height,codec_name,r_frame_rate",
+        "-v",
+        "quiet",
+        "-of",
+        "json",
+      ],
       { encoding: "utf8" },
     );
     videoInfo = JSON.parse(raw);

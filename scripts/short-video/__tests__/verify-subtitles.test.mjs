@@ -1,4 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { existsSync, mkdtempSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { spawnSync } from "child_process";
 import {
   SYNC_TOLERANCE,
   expectedWordTimes,
@@ -11,9 +15,13 @@ import {
   buildReport,
   parseSilenceOutput,
   parseDuration,
+  detectSilence,
+  getVideoDuration,
 } from "../lib/verify-subtitles.mjs";
 import { renderAss, parseAss } from "../lib/subtitles/ass.mjs";
 import { buildCues } from "../lib/subtitles/cues.mjs";
+
+const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
 
 // The verifier reads the artifact that will actually be burned in, and compares
 // it against the alignment data. It must never recompute the generator's layout
@@ -391,5 +399,40 @@ describe("ffmpeg output parsing", () => {
   it("parses an ffprobe duration", () => {
     expect(parseDuration("73.899675\n")).toBeCloseTo(73.899675, 6);
     expect(parseDuration("")).toBeNull();
+  });
+});
+
+// The two ffmpeg-backed helpers take the path as data (#319 deferred class
+// sweep): the metachar case must stay a literal file name, not shell syntax.
+describe("ffmpeg-backed helpers are argv-safe", () => {
+  const hasFfprobe = existsSync(FFPROBE_FULL) || spawnSync("ffprobe", ["-version"]).status === 0;
+  const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
+
+  it.skipIf(!hasFfmpeg)("detectSilence keeps shell metacharacters literal", () => {
+    const dir = mkdtempSync(join(tmpdir(), "silence-319-"));
+    const victim = join(dir, "evil$(touch MARKER).mp4");
+    const cwd = process.cwd();
+    process.chdir(dir);
+    try {
+      expect(detectSilence(victim)).toEqual([]);
+      expect(existsSync(join(dir, "MARKER"))).toBe(false);
+    } finally {
+      process.chdir(cwd);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(!hasFfprobe)("getVideoDuration keeps shell metacharacters literal", () => {
+    const dir = mkdtempSync(join(tmpdir(), "duration-319-"));
+    const victim = join(dir, "evil$(touch MARKER).mp4");
+    const cwd = process.cwd();
+    process.chdir(dir);
+    try {
+      expect(getVideoDuration(victim, 7)).toBe(7); // probe failed → caller's estimate
+      expect(existsSync(join(dir, "MARKER"))).toBe(false);
+    } finally {
+      process.chdir(cwd);
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

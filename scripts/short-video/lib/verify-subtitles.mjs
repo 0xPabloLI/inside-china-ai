@@ -16,7 +16,7 @@
  *                      scene audio is read from <output-dir>/audio)
  */
 
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { FPS, sceneTimeline, findScene } from "./timeline.mjs";
@@ -24,6 +24,7 @@ import { parseAss } from "./subtitles/ass.mjs";
 import { MAX_WORDS, MIN_DURATION, GAP_THRESHOLD, CHAIN_GAP_FRAMES } from "./subtitles/cues.mjs";
 import { verifyAudioSync, applyAudioSyncToSummary, AUDIO_SYNC_TOLERANCE } from "./audio/sync.mjs";
 import { writeDiagnosticsBundle } from "./audio/diagnostics.mjs";
+import { getDurationSync } from "./tts/ffmpeg-cmd.mjs";
 
 /**
  * Max acceptable distance between a word's highlight and its spoken onset.
@@ -313,13 +314,27 @@ export function parseDuration(output) {
 
 // ─── FFmpeg-backed helpers ───
 
+/** Measurement-only ffmpeg (PATH-resolved) — same choice as post-process.mjs. */
+const FFMPEG = "ffmpeg";
+
 export function detectSilence(videoPath) {
   try {
-    const output = execSync(
-      `ffmpeg -i "${videoPath}" -af silencedetect=noise=${SILENCE_THRESHOLD}dB:d=${SILENCE_MIN_DURATION} -f null - 2>&1`,
-      { stdio: ["pipe", "pipe", "pipe"] },
-    ).toString();
-    return parseSilenceOutput(output);
+    // argv, never a shell string (#319 deferred class sweep). silencedetect
+    // reports on stderr, so both captured streams are parsed.
+    const probe = spawnSync(
+      FFMPEG,
+      [
+        "-i",
+        videoPath,
+        "-af",
+        `silencedetect=noise=${SILENCE_THRESHOLD}dB:d=${SILENCE_MIN_DURATION}`,
+        "-f",
+        "null",
+        "-",
+      ],
+      { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+    );
+    return parseSilenceOutput(`${probe.stdout ?? ""}\n${probe.stderr ?? ""}`);
   } catch {
     return [];
   }
@@ -327,12 +342,10 @@ export function detectSilence(videoPath) {
 
 export function getVideoDuration(videoPath, fallbackDuration = 0) {
   try {
-    const output = execSync(
-      `ffprobe -i "${videoPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-      { stdio: ["pipe", "pipe", "pipe"] },
-    ).toString();
-    const duration = parseDuration(output);
-    if (duration !== null) return duration;
+    // argv-safe shared probe (#319 deferred class sweep); NaN or a probe
+    // failure falls through to the caller's estimate.
+    const probed = getDurationSync(videoPath);
+    if (Number.isFinite(probed)) return probed;
   } catch {
     // fall through to the caller's estimate
   }
