@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownContent } from "@/components/markdown-content";
 import { cn } from "@/lib/utils";
+import { insertBlockAt } from "@/lib/markdown-editing";
 import { getWidgetNames } from "@/components/widgets/registry";
 
 /* ------------------------------------------------------------------ */
@@ -73,29 +74,19 @@ function applyAction(ta: HTMLTextAreaElement, action: InsertAction, onChange: (v
   onChange(newText);
   requestAnimationFrame(() => {
     ta.focus();
-    if (selected) {
-      // Select the wrapped content
-      ta.selectionStart = start + before.length;
-      ta.selectionEnd = start + before.length + inner.length;
-    } else {
-      // Place cursor inside the placeholder
-      ta.selectionStart = start + before.length;
-      ta.selectionEnd = start + before.length + inner.length;
-    }
+    // Select the wrapped content, or the placeholder when nothing was selected.
+    ta.selectionStart = start + before.length;
+    ta.selectionEnd = start + before.length + inner.length;
   });
 }
 
 function insertBlock(ta: HTMLTextAreaElement, block: string, onChange: (v: string) => void) {
-  const { selectionStart: start, value } = ta;
-  const needsNewlineBefore = start > 0 && value[start - 1] !== "\n";
-  const prefix = needsNewlineBefore ? "\n\n" : "";
-  const newText = value.slice(0, start) + prefix + block + value.slice(start);
-  onChange(newText);
+  const insertion = insertBlockAt(ta.value, ta.selectionStart, block);
+  onChange(insertion.text);
   requestAnimationFrame(() => {
     ta.focus();
-    const pos = start + prefix.length + block.length;
-    ta.selectionStart = pos;
-    ta.selectionEnd = pos;
+    ta.selectionStart = insertion.cursor;
+    ta.selectionEnd = insertion.cursor;
   });
 }
 
