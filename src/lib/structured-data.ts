@@ -98,9 +98,10 @@ export function graph(...nodes: JsonLdNode[]): JsonLdNode {
  * `<` is escaped as `\u003c` — a valid JSON escape that parses back to `<` —
  * so a string containing `</script>` (e.g. an article headline) cannot
  * terminate the script element early and inject markup (#319 OCR lib scan:
- * bare `JSON.stringify` in a script tag).
+ * bare `JSON.stringify` in a script tag). Private: `jsonLdScript` is the
+ * public seam, so knip has nothing to flag.
  */
-export function serializeJsonLd(doc: JsonLdNode): string {
+function serializeJsonLd(doc: JsonLdNode): string {
   return JSON.stringify(doc).replace(/</g, "\\u003c");
 }
 
