@@ -24,13 +24,15 @@ import {
 
 // promisify(exec) resolves via node's custom promisify — the mock may receive
 // (cmd, cb) or (cmd, options, cb); derive the callback and command by shape.
-const { execMock } = vi.hoisted(() => ({
+// The duration probe goes through execFile since the #319 deferred class sweep.
+const { execMock, execFileMock } = vi.hoisted(() => ({
   execMock: vi.fn((...args) => {
     const cb = args.findLast((a) => typeof a === "function");
     cb(null, { stdout: "", stderr: "" });
   }),
+  execFileMock: vi.fn((cmd, args, cb) => cb(null, { stdout: "", stderr: "" })),
 }));
-vi.mock("child_process", () => ({ exec: execMock, execSync: vi.fn() }));
+vi.mock("child_process", () => ({ exec: execMock, execSync: vi.fn(), execFile: execFileMock }));
 
 describe("estimateSyllables", () => {
   it("counts vowel groups per word", () => {
@@ -108,14 +110,16 @@ describe("trimSceneTail", () => {
   // is treated by vitest as a teardown fn and invoked with no args.
   beforeEach(() => {
     execMock.mockClear();
+    execFileMock.mockClear();
+    // mockClear keeps implementations, so re-arm the probe default per test:
+    // ffprobe answers nothing → NaN duration → no mv.
+    execFileMock.mockImplementation((cmd, args, cb) => cb(null, { stdout: "", stderr: "" }));
   });
 
   it("moves the trimmed tmp over the original when the probe succeeds", async () => {
-    execMock.mockImplementation((...args) => {
-      const cb = args.findLast((a) => typeof a === "function");
-      const cmd = args.find((a) => typeof a === "string") ?? "";
-      cb(null, { stdout: cmd.includes("ffprobe") ? "1.350000\n" : "", stderr: "" });
-    });
+    execFileMock.mockImplementationOnce((cmd, args, cb) =>
+      cb(null, { stdout: "1.350000\n", stderr: "" }),
+    );
     const duration = await trimSceneTail("/out/scene-1.mp3", 1.35);
     expect(duration).toBe(1.35);
     const mvCalls = execMock.mock.calls.filter(([cmd]) => cmd.startsWith("mv "));
@@ -134,13 +138,8 @@ describe("trimSceneTail", () => {
     expect(execMock.mock.calls.filter(([cmd]) => cmd.startsWith("rm -f"))).toHaveLength(1);
   });
 
-  it("treats an exec rejection (broken ffprobe) the same as a NaN probe", async () => {
-    execMock.mockImplementation((...args) => {
-      const cb = args.findLast((a) => typeof a === "function");
-      const cmd = args.find((a) => typeof a === "string") ?? "";
-      if (cmd.includes("ffprobe")) cb(new Error("ffprobe missing"), null);
-      else cb(null, { stdout: "", stderr: "" });
-    });
+  it("treats a probe rejection (broken ffprobe) the same as a NaN probe", async () => {
+    execFileMock.mockImplementation((cmd, args, cb) => cb(new Error("ffprobe missing"), null));
     expect(Number.isNaN(await trimSceneTail("/out/scene-1.mp3", 1.35))).toBe(true);
     expect(execMock.mock.calls.filter(([cmd]) => cmd.startsWith("mv "))).toHaveLength(0);
   });

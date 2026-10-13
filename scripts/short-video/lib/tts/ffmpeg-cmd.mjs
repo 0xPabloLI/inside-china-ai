@@ -8,10 +8,11 @@
  */
 
 import { existsSync } from "fs";
-import { exec, execFileSync } from "child_process";
+import { exec, execFile, execFileSync } from "child_process";
 import { promisify } from "util";
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
@@ -21,18 +22,24 @@ export const ffprobeCmd = existsSync(FFPROBE_FULL) ? FFPROBE_FULL : "ffprobe";
 /**
  * Get exact audio duration using ffprobe.
  *
- * Still a shell string — all five callers pass an internally-built path
- * (output dir + scene id), so this is deferred with the rest of the class
- * (#319 OCR video batch scan fixed the argv-safe `getDurationSync` seam the
- * render doors use; converting this one drags five child_process mocks).
+ * argv, never a shell string (#319 deferred class sweep): the audio path is
+ * data, and a path carrying shell metacharacters must not be executed. Same
+ * probe arguments as the synchronous `getDurationSync` below.
  *
  * @param {string} audioPath
- * @returns {Promise<number>}
+ * @returns {Promise<number>} duration in seconds (NaN when ffprobe reports none)
  */
 export async function getDuration(audioPath) {
-  const { stdout } = await execAsync(
-    `"${ffprobeCmd}" -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-  );
+  const { stdout } = await execFileAsync(ffprobeCmd, [
+    "-i",
+    audioPath,
+    "-show_entries",
+    "format=duration",
+    "-v",
+    "quiet",
+    "-of",
+    "csv=p=0",
+  ]);
   return parseFloat(stdout.trim());
 }
 

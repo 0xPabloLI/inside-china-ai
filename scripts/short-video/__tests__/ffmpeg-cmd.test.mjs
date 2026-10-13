@@ -10,7 +10,7 @@ import { existsSync, mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { spawnSync } from "child_process";
-import { getDurationSync } from "../lib/tts/ffmpeg-cmd.mjs";
+import { getDuration, getDurationSync } from "../lib/tts/ffmpeg-cmd.mjs";
 
 const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
 const hasFfprobe = existsSync(FFPROBE_FULL) || spawnSync("ffprobe", ["-version"]).status === 0;
@@ -59,5 +59,41 @@ describe("getDurationSync", () => {
     } finally {
       process.chdir(cwd);
     }
+  });
+});
+
+// The async probe is the same seam, awaited (#319 deferred class sweep).
+describe("getDuration", () => {
+  it.skipIf(!hasFfprobe)("keeps shell metacharacters in the path literal", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ffmpeg-cmd-async-319-"));
+    const victim = join(dir, "evil$(touch MARKER).wav");
+    writeFileSync(victim, "not media");
+
+    const cwd = process.cwd();
+    process.chdir(dir);
+    try {
+      await expect(getDuration(victim)).rejects.toThrow();
+      expect(existsSync(join(dir, "MARKER"))).toBe(false);
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+
+  it.skipIf(!(hasFfprobe && hasFfmpeg))("reads a real wav duration", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ffmpeg-cmd-async-319-"));
+    const wav = join(dir, "voiceover.wav");
+    const made = spawnSync("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440:duration=1.25",
+      wav,
+    ]);
+    expect(made.status).toBe(0);
+
+    const duration = await getDuration(wav);
+    expect(duration).toBeGreaterThan(1.15);
+    expect(duration).toBeLessThan(1.35);
   });
 });
