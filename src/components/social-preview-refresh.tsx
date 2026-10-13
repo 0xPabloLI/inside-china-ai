@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,11 +66,14 @@ export function SocialPreviewRefresh({
 }) {
   const [raw, setRaw] = useState(path);
   // The post editor passes a slug-derived path, so it changes while the panel
-  // is mounted. Without this sync the field and every debugger link kept
-  // pointing at the previous slug (#319 OCR components scan).
-  useEffect(() => {
+  // is mounted. Adjusting state during render (React's documented pattern for a
+  // changed prop) keeps the field and every debugger link in sync — an effect
+  // here would cascade a second render (#319 OCR components scan).
+  const [syncedPath, setSyncedPath] = useState(path);
+  if (path !== syncedPath) {
+    setSyncedPath(path);
     setRaw(path);
-  }, [path]);
+  }
   const url = useMemo(() => normalize(raw), [raw]);
   const ogImage = useMemo(() => {
     try {
