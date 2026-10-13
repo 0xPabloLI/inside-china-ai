@@ -529,7 +529,15 @@ if [ "$cmd" = "gc" ]; then
   #    ref_delivered (byte identity, then tip-bound merged PR); any failed
   #    verification keeps the branch. Checked-out branches are never touched.
   #    SESSION_GC_BRANCH_GLOBS overrides the namespace globs.
-  globs="${SESSION_GC_BRANCH_GLOBS:-session/* docs/* fix/* feat/* chore/* test/* refactor/*}"
+  #
+  # The globs go into an array via `read -ra`: word-splitting `$globs` in a
+  # `for` loop ALSO pathname-expands it against the checkout, so a real
+  # `docs/` directory turned the `docs/*` pattern into that directory's file
+  # names and no `docs/…` branch ever matched — gc skipped it silently
+  # (2026-10-13: a delivered docs/ branch survived two gc runs; the test
+  # fixture had no docs/ directory, which is why nothing caught it).
+  # `read -ra` splits on IFS without globbing.
+  read -r -a gc_globs <<<"${SESSION_GC_BRANCH_GLOBS:-session/* docs/* fix/* feat/* chore/* test/* refactor/*}"
   deleted=0
   remote_deleted=0
   would_delete=0
@@ -543,7 +551,10 @@ if [ "$cmd" = "gc" ]; then
   # stay outside on purpose: their tools manage their lifecycle.
   in_gc_namespace() {
     local name="$1" g
-    for g in $globs; do
+    # ${gc_globs[@]+…} keeps an EMPTY override safe under `set -u`: bash 3.2
+    # (macOS /bin/bash, the shebang path) treats a bare "${arr[@]}" on an
+    # empty array as an unbound variable.
+    for g in ${gc_globs[@]+"${gc_globs[@]}"}; do
       case "$name" in $g) return 0 ;; esac
     done
     return 1
