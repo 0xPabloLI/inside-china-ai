@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.8](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.7...tanstack_start_ts-v1.20.8) (2026-10-13)
+
+
+### Bug Fixes
+
+* **ci:** filter the remaining documented test-fixture false positives ([#625](https://github.com/0xPabloLI/inside-china-ai/issues/625)) ([d438bdf](https://github.com/0xPabloLI/inside-china-ai/commit/d438bdfce0dec5741e182951669d646694850eae))
+
 ## [1.20.7](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.6...tanstack_start_ts-v1.20.7) (2026-10-13)
 
 
