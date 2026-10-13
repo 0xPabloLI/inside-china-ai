@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-admin";
 import { createPublicClient } from "@/integrations/supabase/public-client";
+import { MAX_ATTACHMENT_BYTES, decodeAttachmentPayload } from "./attachment-limits";
 
 const STORAGE_BUCKET = "post-attachments";
 
@@ -167,11 +168,7 @@ export const deletePost = createServerFn({ method: "POST" })
 export const uploadAttachmentInput = z.object({
   postId: z.string().uuid(),
   fileName: z.string().trim().min(1).max(255),
-  fileSize: z
-    .number()
-    .int()
-    .positive()
-    .max(50 * 1024 * 1024, "File too large (max 50 MB)"),
+  fileSize: z.number().int().positive().max(MAX_ATTACHMENT_BYTES, "File too large (max 50 MB)"),
   mimeType: z.string().nullable().optional(),
   fileBase64: z.string().min(1),
 });
@@ -184,7 +181,10 @@ export const uploadAttachment = createServerFn({ method: "POST" })
     const uuid = crypto.randomUUID();
     const storagePath = `${data.postId}/${uuid}${ext ? `.${ext}` : ""}`;
 
-    const fileBuffer = Buffer.from(data.fileBase64, "base64");
+    // Decode with the server-side byte ceiling: the client-reported fileSize
+    // above is a contract check only, never the authority on payload size
+    // (#319 OCR lib scan — DoS via an unbounded fileBase64 string).
+    const fileBuffer = decodeAttachmentPayload(data.fileBase64);
 
     const { error: uploadErr } = await context.supabase.storage
       .from(STORAGE_BUCKET)
@@ -200,7 +200,7 @@ export const uploadAttachment = createServerFn({ method: "POST" })
       post_id: data.postId,
       file_name: data.fileName,
       storage_path: storagePath,
-      file_size: data.fileSize,
+      file_size: fileBuffer.length,
       mime_type: data.mimeType ?? null,
     });
 

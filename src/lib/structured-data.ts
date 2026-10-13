@@ -92,7 +92,19 @@ export function graph(...nodes: JsonLdNode[]): JsonLdNode {
   return { "@context": "https://schema.org", "@graph": nodes };
 }
 
+/**
+ * Serialize a JSON-LD document for a `<script>` element.
+ *
+ * `<` is escaped as `\u003c` — a valid JSON escape that parses back to `<` —
+ * so a string containing `</script>` (e.g. an article headline) cannot
+ * terminate the script element early and inject markup (#319 OCR lib scan:
+ * bare `JSON.stringify` in a script tag).
+ */
+export function serializeJsonLd(doc: JsonLdNode): string {
+  return JSON.stringify(doc).replace(/</g, "\\u003c");
+}
+
 /** Serialize a graph for a route `head().scripts` entry. */
 export function jsonLdScript(doc: JsonLdNode) {
-  return { type: "application/ld+json", children: JSON.stringify(doc) };
+  return { type: "application/ld+json", children: serializeJsonLd(doc) };
 }

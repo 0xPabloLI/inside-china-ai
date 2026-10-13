@@ -3,6 +3,31 @@ import { validateJsonLdDoc } from "../../scripts/seo/jsonld-schema.mjs";
 import { JSONLD_REGISTRY, OG_EXPECTATIONS } from "@/lib/seo-jsonld-registry";
 import { OG_DEFAULT, articleOgImageUrl, ogImageForPath, ogImageMeta } from "@/lib/og";
 import { postJsonLd } from "@/lib/post-structured-data";
+import { jsonLdScript } from "@/lib/structured-data";
+
+describe("jsonLdScript", () => {
+  // #319 OCR lib scan: JSON.stringify alone let a "</script>" inside
+  // user-controlled content close the script element and start a new one.
+  it("escapes `<` so content cannot break out of the script element", () => {
+    const doc = {
+      "@context": "https://schema.org",
+      headline: "Acme</script><script>alert(1)</script>",
+    };
+    const script = jsonLdScript(doc);
+    expect(script.children).not.toContain("</script>");
+    expect(script.children).not.toContain("<script>");
+  });
+
+  it("round-trips through JSON.parse unchanged", () => {
+    const doc = { "@context": "https://schema.org", headline: "A <b>bold</b> claim" };
+    expect(JSON.parse(jsonLdScript(doc).children)).toEqual(doc);
+  });
+
+  it("is byte-identical to JSON.stringify for documents without `<`", () => {
+    const doc = { "@context": "https://schema.org", name: "China AI News" };
+    expect(jsonLdScript(doc).children).toBe(JSON.stringify(doc));
+  });
+});
 
 describe("structured data gate", () => {
   it.each(JSONLD_REGISTRY.map((e) => [e.label, e] as const))(
