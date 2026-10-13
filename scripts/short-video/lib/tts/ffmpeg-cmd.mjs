@@ -8,16 +8,25 @@
  */
 
 import { existsSync } from "fs";
-import { exec, execFile, execFileSync } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import { promisify } from "util";
 
-const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
 export const ffmpegCmd = existsSync(FFMPEG_FULL) ? FFMPEG_FULL : "ffmpeg";
 export const ffprobeCmd = existsSync(FFPROBE_FULL) ? FFPROBE_FULL : "ffprobe";
+
+/**
+ * Measurement-only ffmpeg: PATH-resolved, never ffmpeg-full.
+ *
+ * Analysis filters (volumedetect, silencedetect, the loudnorm read-back)
+ * behave identically on both builds, so the smaller PATH binary is the right
+ * dependency for a pass that writes no output file. One policy, one place —
+ * post-process.mjs, bgm.mjs and verify-subtitles.mjs all measure through this.
+ */
+export const ffmpegMeasureCmd = "ffmpeg";
 
 /**
  * Get exact audio duration using ffprobe.

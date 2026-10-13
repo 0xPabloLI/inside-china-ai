@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { execSync, spawnSync } from "child_process";
+import { execSync } from "child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -24,6 +24,7 @@ import {
 import { verifySubtitles } from "../lib/verify-subtitles.mjs";
 import { buildVoiceoverTrack } from "../lib/audio/track.mjs";
 import { writeWavPcm } from "../lib/audio/wav.mjs";
+import { hasFfprobe, markerCreated, withMetacharPath } from "./fixtures/metachar-path.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -462,37 +463,22 @@ describe("verifySubtitles FAIL trigger (integration, real ffmpeg)", () => {
 // sweep). These collectors never throw, so the metachar case shows up as a
 // probe error — and, on a shell string, as a MARKER file in the cwd.
 describe("ffprobe bridge is argv-safe", () => {
-  const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
-  const hasFfprobe = existsSync(FFPROBE_FULL) || spawnSync("ffprobe", ["-version"]).status === 0;
-
-  function withMetacharPath(run) {
-    const dir = freshDir("argv");
-    const victim = join(dir, "evil$(touch MARKER).mp4");
-    const cwd = process.cwd();
-    process.chdir(dir);
-    try {
-      return run(victim, dir);
-    } finally {
-      process.chdir(cwd);
-    }
-  }
-
-  it.skipIf(!hasFfprobe)("collectPacketGaps keeps shell metacharacters literal", () => {
-    withMetacharPath((victim, dir) => {
+  it.skipIf(!hasFfprobe)("collectPacketGaps keeps shell metacharacters literal", async () => {
+    await withMetacharPath("diag-gaps-319", "mp4", (victim, dir) => {
       const result = collectPacketGaps(victim);
       expect(result.packets).toBe(0);
       expect(result.error).toMatch(/ffprobe failed/);
-      expect(existsSync(join(dir, "MARKER"))).toBe(false);
+      expect(markerCreated(dir)).toBe(false);
     });
   });
 
-  it.skipIf(!hasFfprobe)("collectStreamDurations keeps shell metacharacters literal", () => {
-    withMetacharPath((victim, dir) => {
+  it.skipIf(!hasFfprobe)("collectStreamDurations keeps shell metacharacters literal", async () => {
+    await withMetacharPath("diag-streams-319", "mp4", (victim, dir) => {
       const result = collectStreamDurations(victim);
       expect(result.video).toBeNull();
       expect(result.audio).toBeNull();
       expect(result.error).toMatch(/ffprobe failed/);
-      expect(existsSync(join(dir, "MARKER"))).toBe(false);
+      expect(markerCreated(dir)).toBe(false);
     });
   });
 });

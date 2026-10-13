@@ -34,19 +34,27 @@ describe("jsonLdScript", () => {
 describe("route JSON-LD goes through the escaping seam", () => {
   const ROUTES_DIR = new URL("../routes/", import.meta.url).pathname;
 
-  // The registry only guards the documents it lists; a route that hand-rolls
-  // `{ type: "application/ld+json", children: JSON.stringify(...) }` bypasses
-  // the `<` escaping entirely (#319 OCR lib scan, three such sites). This
-  // scans the route sources so a new one cannot slip back in.
-  it("every route that emits ld+json serializes through jsonLdScript", () => {
-    const offenders = readdirSync(ROUTES_DIR)
-      .filter((f) => f.endsWith(".tsx"))
-      .filter((f) => {
-        const src = readFileSync(join(ROUTES_DIR, f), "utf8");
-        return src.includes("application/ld+json") && !src.includes("jsonLdScript(");
-      });
+  /** Every .ts/.tsx under src/routes, at any depth (api/, _authenticated/, …). */
+  function routeSources(dir = ROUTES_DIR): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) return routeSources(full);
+      return entry.isFile() && /\.tsx?$/.test(entry.name) ? [full] : [];
+    });
+  }
 
-    expect(offenders, `${offenders.join(", ")} must use jsonLdScript()`).toEqual([]);
+  // The registry only guards the documents it lists, and a route that
+  // hand-rolls `{ type: "application/ld+json", children: JSON.stringify(...) }`
+  // bypasses the `<` escaping entirely (#319 OCR lib scan: three such sites
+  // shipped that way). Naming the script type is the seam's job — `jsonLdScript`
+  // in src/lib/structured-data.ts — so any route source that still names it is
+  // emitting a document without the escaping.
+  it("no route hand-rolls an ld+json script tag", () => {
+    const offenders = routeSources()
+      .filter((file) => readFileSync(file, "utf8").includes("application/ld+json"))
+      .map((file) => file.slice(ROUTES_DIR.length));
+
+    expect(offenders, `${offenders.join(", ")} must serialize through jsonLdScript()`).toEqual([]);
   });
 });
 

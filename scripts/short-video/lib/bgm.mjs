@@ -18,7 +18,7 @@ import { existsSync, readdirSync } from "fs";
 import { join, dirname, resolve, basename } from "path";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
-import { getDurationSync } from "./tts/ffmpeg-cmd.mjs";
+import { ffmpegMeasureCmd, getDurationSync } from "./tts/ffmpeg-cmd.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,9 +28,6 @@ const BGM_DIR = join(__dirname, "..", "assets", "bgm");
 const INSTANT_START_THRESHOLD_DB = -35; // mean volume in first 0.5s must exceed this
 const ANALYSIS_WINDOW_SEC = 0.5; // check first 0.5s for instant start
 const NEWS_KEYWORDS = ["news", "breaking", "urgent"]; // filename must contain one of these
-
-/** Measurement-only ffmpeg (PATH-resolved, not ffmpeg-full) — same as post-process.mjs. */
-const FFMPEG = "ffmpeg";
 
 /**
  * Analyze a BGM file: duration + first-0.5s mean volume.
@@ -54,21 +51,18 @@ export function analyzeBGM(filePath) {
   }
 
   // First-0.5s mean volume (ffmpeg volumedetect filter). volumedetect reports
-  // on stderr, so both captured streams are searched.
+  // on stderr, so both captured streams are searched. spawnSync reports a
+  // missing or broken ffmpeg through `probe.error` rather than by throwing, so
+  // the fail-open path is "no reading" — the same outcome the previous shell
+  // version reached through its catch.
   let meanVolumeDb = -Infinity;
-  try {
-    const probe = spawnSync(
-      FFMPEG,
-      ["-i", filePath, "-t", String(ANALYSIS_WINDOW_SEC), "-af", "volumedetect", "-f", "null", "-"],
-      { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
-    );
-    const m = `${probe.stdout ?? ""}\n${probe.stderr ?? ""}`.match(
-      /mean_volume:\s*(-?[\d.]+)\s*dB/,
-    );
-    if (m) meanVolumeDb = parseFloat(m[1]);
-  } catch {
-    // ffmpeg failed — treat as not instant-start
-  }
+  const probe = spawnSync(
+    ffmpegMeasureCmd,
+    ["-i", filePath, "-t", String(ANALYSIS_WINDOW_SEC), "-af", "volumedetect", "-f", "null", "-"],
+    { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+  );
+  const m = `${probe.stdout ?? ""}\n${probe.stderr ?? ""}`.match(/mean_volume:\s*(-?[\d.]+)\s*dB/);
+  if (m) meanVolumeDb = parseFloat(m[1]);
 
   const instantStart = meanVolumeDb > INSTANT_START_THRESHOLD_DB;
   const lowerName = filename.toLowerCase();

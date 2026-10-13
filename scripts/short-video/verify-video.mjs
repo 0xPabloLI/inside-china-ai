@@ -23,7 +23,7 @@
 import { readFileSync, existsSync, readdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { execSync, execFileSync } from "child_process";
+import { execFileSync } from "child_process";
 import { runAllSceneDataChecks } from "./lib/scene-rules.mjs";
 import { readReport, summarizeBrollReport } from "./lib/b-roll/report.mjs";
 import { validateMedia } from "./lib/media-bg.mjs";
@@ -437,8 +437,17 @@ if (!preMode && results.fail.length === 0) {
     console.log("\n🖼️ Remotion Frame Analysis");
     console.log("─".repeat(50));
     try {
-      execSync(
-        `node "${join(__dirname, "verify-remotion-frames.mjs")}" --content "${contentDir}" --video "${VIDEO_PATH}"`,
+      // argv, never a shell string (#319 deferred class sweep): the content id
+      // and the resolved video path are data.
+      execFileSync(
+        process.execPath,
+        [
+          join(__dirname, "verify-remotion-frames.mjs"),
+          "--content",
+          contentDir,
+          "--video",
+          VIDEO_PATH,
+        ],
         { stdio: "inherit" },
       );
       pass("Frames", "Frame analysis passed", "");
@@ -614,10 +623,11 @@ printSummary();
 if (!preMode && results.fail.length === 0) {
   console.log("\n📝 Generating platform publish packages...");
   try {
-    const contentArg = contentDir ? ` --content "${contentDir}"` : "";
-    execSync(`node "${join(__dirname, "generate-caption.mjs")}"${contentArg}`, {
-      stdio: "inherit",
-    });
+    // argv, never a shell string (#319 deferred class sweep): the content id is
+    // data.
+    const captionArgs = [join(__dirname, "generate-caption.mjs")];
+    if (contentDir) captionArgs.push("--content", contentDir);
+    execFileSync(process.execPath, captionArgs, { stdio: "inherit" });
 
     // B6 per-platform (#219 T02): each platform's caption is checked against
     // ITS profile limit, at ITS publish/{platform}/ path.

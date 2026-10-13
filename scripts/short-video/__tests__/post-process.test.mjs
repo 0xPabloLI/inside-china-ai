@@ -6,13 +6,10 @@
  * Full integration is covered by verify-video.mjs on actual pipeline runs.
  */
 import { describe, it, expect } from "vitest";
-import { existsSync, mkdtempSync, rmSync } from "fs";
-import { tmpdir } from "os";
 import { join } from "path";
-import { spawnSync } from "child_process";
+import { hasFfprobe, markerCreated, withMetacharPath } from "./fixtures/metachar-path.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
-const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
 
 describe("post-process module", () => {
   it("should export burnSubtitles, mixBgm, normalizeLoudness", async () => {
@@ -50,34 +47,21 @@ describe("post-process module", () => {
 // (#319 deferred class sweep): a path with shell metacharacters must reach
 // ffprobe literally, never through a shell.
 describe("BGM fade-out duration probe is argv-safe", () => {
-  const hasFfprobe = existsSync(FFPROBE_FULL) || spawnSync("ffprobe", ["-version"]).status === 0;
-
   it.skipIf(!hasFfprobe)("mixBgm keeps shell metacharacters in the path literal", async () => {
     const { mixBgm } = await import(join(ROOT, "lib", "post-process.mjs"));
-    const dir = mkdtempSync(join(tmpdir(), "mixbgm-319-"));
-    const victim = join(dir, "evil$(touch MARKER).mp4");
-    const cwd = process.cwd();
-    process.chdir(dir);
-    try {
+    await withMetacharPath("mixbgm-319", "mp4", (victim, dir) => {
       // ffmpeg cannot read the junk input either way; what matters is that the
       // probe never handed the path to a shell.
       expect(() => mixBgm(victim, victim, join(dir, "out.mp4"))).toThrow();
-      expect(existsSync(join(dir, "MARKER"))).toBe(false);
-    } finally {
-      process.chdir(cwd);
-      rmSync(dir, { recursive: true, force: true });
-    }
+      expect(markerCreated(dir)).toBe(false);
+    });
   });
 
   it.skipIf(!hasFfprobe)(
     "finalizeRenderedVideo keeps shell metacharacters in the path literal",
     async () => {
       const { finalizeRenderedVideo } = await import(join(ROOT, "lib", "post-process.mjs"));
-      const dir = mkdtempSync(join(tmpdir(), "finalize-319-"));
-      const victim = join(dir, "evil$(touch MARKER).mp4");
-      const cwd = process.cwd();
-      process.chdir(dir);
-      try {
+      await withMetacharPath("finalize-319", "mp4", (victim, dir) => {
         expect(() =>
           finalizeRenderedVideo({
             videoPath: victim,
@@ -86,11 +70,8 @@ describe("BGM fade-out duration probe is argv-safe", () => {
             loudnessReadback: false,
           }),
         ).toThrow();
-        expect(existsSync(join(dir, "MARKER"))).toBe(false);
-      } finally {
-        process.chdir(cwd);
-        rmSync(dir, { recursive: true, force: true });
-      }
+        expect(markerCreated(dir)).toBe(false);
+      });
     },
   );
 });
