@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.7](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.6...tanstack_start_ts-v1.20.7) (2026-10-13)
+
+
+### Bug Fixes
+
+* **scripts:** stop gc's namespace globs from pathname-expanding ([#626](https://github.com/0xPabloLI/inside-china-ai/issues/626)) ([74f68b2](https://github.com/0xPabloLI/inside-china-ai/commit/74f68b2774213f78d89c81c121a8faa5af29e507))
+
 ## [1.20.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.5...tanstack_start_ts-v1.20.6) (2026-10-13)
 
 
