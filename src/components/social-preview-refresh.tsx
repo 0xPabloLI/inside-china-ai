@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ExternalLink, Copy, RefreshCw, Image as ImageIcon } from "lucide-react";
 import { SITE_URL, ogImageForPath } from "@/lib/og";
+import { copyTextToClipboard } from "@/lib/clipboard";
 
 type Debugger = {
   name: string;
@@ -64,6 +65,12 @@ export function SocialPreviewRefresh({
   compact?: boolean;
 }) {
   const [raw, setRaw] = useState(path);
+  // The post editor passes a slug-derived path, so it changes while the panel
+  // is mounted. Without this sync the field and every debugger link kept
+  // pointing at the previous slug (#319 OCR components scan).
+  useEffect(() => {
+    setRaw(path);
+  }, [path]);
   const url = useMemo(() => normalize(raw), [raw]);
   const ogImage = useMemo(() => {
     try {
@@ -74,12 +81,9 @@ export function SocialPreviewRefresh({
   }, [url]);
 
   const copy = async (value: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success(`${label} copied`);
-    } catch {
-      toast.error("Copy failed — select the field and copy manually");
-    }
+    const copied = await copyTextToClipboard(value);
+    if (copied) toast.success(`${label} copied`);
+    else toast.error("Copy failed — select the field and copy manually");
   };
 
   const refreshAll = () => {
