@@ -6,12 +6,28 @@ const emailSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
 });
 
+/**
+ * Is this insert failure just "this address is already subscribed"?
+ *
+ * The subscribe path is public and re-subscribing is routine, so the outcome
+ * must not depend on PostgREST's message wording. The unique-violation code
+ * (23505) is the authority; the message check stays as a fallback for
+ * responses that carry no code (#319 OCR lib scan).
+ */
+export function isDuplicateEmailError(
+  error: { code?: string | null; message?: string | null } | null | undefined,
+): boolean {
+  if (!error) return false;
+  if (error.code === "23505") return true;
+  return (error.message ?? "").toLowerCase().includes("duplicate");
+}
+
 export const subscribe = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => emailSchema.parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("subscribers").insert({ email: data.email });
-    if (error && !error.message.toLowerCase().includes("duplicate")) {
+    if (error && !isDuplicateEmailError(error)) {
       throw new Error(error.message);
     }
     return { ok: true };
