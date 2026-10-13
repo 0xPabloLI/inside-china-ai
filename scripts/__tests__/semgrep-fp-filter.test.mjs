@@ -6,14 +6,18 @@ import { tmpdir } from "os";
 
 // The CI filter that drops the documented test-fixture false positives from the
 // Semgrep SARIF (see .github/scripts/filter-semgrep-fps.py and the Semgrep job
-// in .github/workflows/ci.yml). It must drop exactly that class — same rule id
-// AND a test path — because a filter that silently widens would hide real
-// findings from the security tab, and a filter that fails open would let the
-// job pass with nothing uploaded.
+// in .github/workflows/ci.yml). It must drop exactly the documented classes —
+// same rule id AND a test path — because a filter that silently widens would
+// hide real findings from the security tab, and a filter that fails open would
+// let the job pass with nothing uploaded.
 
 const FILTER = join(import.meta.dirname, "..", "..", ".github", "scripts", "filter-semgrep-fps.py");
 const RULE =
   "javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal";
+// Rules outside the documented set: their test-path findings must survive, so
+// the suite pins that the filter matches by rule id as well as by path.
+const OUTSIDE_A = "javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring";
+const OUTSIDE_B = "javascript.browser.security.eval-detected.eval-detected";
 
 // The filter is a python script, and this suite shells out to it. CI installs
 // python3; a machine without it skips rather than fails.
@@ -70,16 +74,8 @@ describe("semgrep SARIF false-positive filter", () => {
       result(RULE, "scripts/__tests__/fixture.test.mjs", 10),
       result(RULE, "src/components/widgets/tokens-drift.test.ts", 29),
       result(RULE, "scripts/short-video/lib/scene-audio.mjs", 33),
-      result(
-        "javascript.lang.security.detect-child-process.detect-child-process",
-        "scripts/__tests__/fixture.test.mjs",
-        12,
-      ),
-      result(
-        "javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp",
-        "scripts/spec.spec.mjs",
-        4,
-      ),
+      result(OUTSIDE_A, "scripts/__tests__/fixture.test.mjs", 12),
+      result(OUTSIDE_B, "scripts/spec.spec.mjs", 4),
     ]);
 
     const r = runFilter(path);
@@ -87,8 +83,70 @@ describe("semgrep SARIF false-positive filter", () => {
     expect(r.stdout).toContain("dropped 2 known test-fixture false positive(s)");
     expect(uris(path)).toEqual([
       "path-join-resolve-traversal:scripts/short-video/lib/scene-audio.mjs",
-      "detect-child-process:scripts/__tests__/fixture.test.mjs",
-      "detect-non-literal-regexp:scripts/spec.spec.mjs",
+      "unsafe-formatstring:scripts/__tests__/fixture.test.mjs",
+      "eval-detected:scripts/spec.spec.mjs",
+    ]);
+  });
+
+  // The other documented classes: test fixtures shell out to ffmpeg with
+  // mkdtemp paths and numeric arguments (detect-child-process), merge
+  // in-memory state with Object.assign (insecure-object-assign), build RegExp
+  // from constant lists or captured process output
+  // (detect-non-literal-regexp), and mutate fixture objects by fixed key
+  // constants (prototype-pollution-loop). Each is dropped in test paths only —
+  // production findings of the same rules still upload.
+  it.skipIf(!HAS_PYTHON)("drops the other fixture rules in test paths only", () => {
+    const path = writeReport([
+      result(
+        "javascript.lang.security.detect-child-process.detect-child-process",
+        "scripts/short-video/__tests__/audio-sync.test.mjs",
+        573,
+      ),
+      result(
+        "javascript.lang.security.insecure-object-assign.insecure-object-assign",
+        "scripts/short-video/__tests__/ytdlp-guard.test.mjs",
+        104,
+      ),
+      result(
+        "javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp",
+        "scripts/spec.spec.mjs",
+        4,
+      ),
+      result(
+        "javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop",
+        "scripts/short-video/__tests__/pool-contract-fixtures.test.mjs",
+        127,
+      ),
+      result(
+        "javascript.lang.security.detect-child-process.detect-child-process",
+        "scripts/short-video/lib/render-only.mjs",
+        40,
+      ),
+      result(
+        "javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp",
+        "scripts/short-video/lib/cli-content.mjs",
+        12,
+      ),
+      result(
+        "javascript.lang.security.insecure-object-assign.insecure-object-assign",
+        "src/components/foo.tsx",
+        8,
+      ),
+      result(
+        "javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop",
+        "scripts/foo.mjs",
+        3,
+      ),
+    ]);
+
+    const r = runFilter(path);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("dropped 4 known test-fixture false positive(s)");
+    expect(uris(path)).toEqual([
+      "detect-child-process:scripts/short-video/lib/render-only.mjs",
+      "detect-non-literal-regexp:scripts/short-video/lib/cli-content.mjs",
+      "insecure-object-assign:src/components/foo.tsx",
+      "prototype-pollution-loop:scripts/foo.mjs",
     ]);
   });
 
