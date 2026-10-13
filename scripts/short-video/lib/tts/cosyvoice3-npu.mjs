@@ -17,19 +17,32 @@
  *   - Jupyter URL + token configured (COSYVOICE3_NPU_JUPYTER_URL/TOKEN)
  *   - torch_npu pre-installed in Notebook environment
  *
+ * Transport: every Jupyter call is `curl` with an argv (`execFile`), never a
+ * shell string — the kernel id and the output names come back from the remote
+ * `summary.json`, so they are data, not shell syntax (#319 OCR video-batch
+ * scan — same shell-string class as the media-probe fix).
+ *
  * License: Apache-2.0 (CosyVoice3) — commercial OK.
  */
 
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch, engineTtsText } from "./post-process.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
-import { shellQuote } from "../shell-quote.mjs";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+/**
+ * Run curl with argv — `-s` plus the caller's arguments.
+ * @param {string[]} args
+ * @param {{timeout?: number}} [options]
+ */
+function curl(args, options) {
+  return execFileAsync("curl", ["-s", ...args], options);
+}
 
 // ── Config ──
 const NPU_KERNEL_TEMPLATE = join(ROOT_DIR, "npu", "cosyvoice3_npu_kernel.py");
@@ -87,11 +100,17 @@ async function jupyterUpload(path, content, isBinary = false) {
     format: isBinary ? "base64" : "text",
     content,
   });
-  await execAsync(
-    `curl -s -X PUT "${NPU_JUPYTER_URL}/api/contents/${path}" ` +
-      `-H "Authorization: token ${NPU_JUPYTER_TOKEN}" ` +
-      `-H "Content-Type: application/json" -d ${shellQuote(body)}`,
-  );
+  await curl([
+    "-X",
+    "PUT",
+    `${NPU_JUPYTER_URL}/api/contents/${path}`,
+    "-H",
+    `Authorization: token ${NPU_JUPYTER_TOKEN}`,
+    "-H",
+    "Content-Type: application/json",
+    "-d",
+    body,
+  ]);
 }
 
 /**
@@ -101,31 +120,47 @@ async function jupyterUpload(path, content, isBinary = false) {
  */
 async function jupyterExecute(code) {
   // Create kernel
-  const { stdout: kernelResp } = await execAsync(
-    `curl -s -X POST "${NPU_JUPYTER_URL}/api/kernels" ` +
-      `-H "Authorization: token ${NPU_JUPYTER_TOKEN}" ` +
-      `-H "Content-Type: application/json" -d '{"name":"python3"}'`,
-  );
+  const { stdout: kernelResp } = await curl([
+    "-X",
+    "POST",
+    `${NPU_JUPYTER_URL}/api/kernels`,
+    "-H",
+    `Authorization: token ${NPU_JUPYTER_TOKEN}`,
+    "-H",
+    "Content-Type: application/json",
+    "-d",
+    JSON.stringify({ name: "python3" }),
+  ]);
   const kernel = JSON.parse(kernelResp);
   const kernelId = kernel.id;
 
   try {
     // Execute via websocket-like REST endpoint (Jupyter >7.0)
     // Fall back to creating a notebook and running it
-    const body = JSON.stringify({ code });
-    const { stdout } = await execAsync(
-      `curl -s -X POST "${NPU_JUPYTER_URL}/api/kernels/${kernelId}/execute ` +
-        `-H "Authorization: token ${NPU_JUPYTER_TOKEN}" ` +
-        `-H "Content-Type: application/json" -d ${shellQuote(body)}`,
+    const { stdout } = await curl(
+      [
+        "-X",
+        "POST",
+        `${NPU_JUPYTER_URL}/api/kernels/${kernelId}/execute`,
+        "-H",
+        `Authorization: token ${NPU_JUPYTER_TOKEN}`,
+        "-H",
+        "Content-Type: application/json",
+        "-d",
+        JSON.stringify({ code }),
+      ],
       { timeout: NPU_TIMEOUT_MS },
     );
     return stdout;
   } finally {
     // Delete kernel
-    await execAsync(
-      `curl -s -X DELETE "${NPU_JUPYTER_URL}/api/kernels/${kernelId}" ` +
-        `-H "Authorization: token ${NPU_JUPYTER_TOKEN}"`,
-    ).catch(() => {});
+    await curl([
+      "-X",
+      "DELETE",
+      `${NPU_JUPYTER_URL}/api/kernels/${kernelId}`,
+      "-H",
+      `Authorization: token ${NPU_JUPYTER_TOKEN}`,
+    ]).catch(() => {});
   }
 }
 
@@ -135,10 +170,11 @@ async function jupyterExecute(code) {
  * @returns {Promise<Buffer>}
  */
 async function jupyterDownload(path) {
-  const { stdout } = await execAsync(
-    `curl -s "${NPU_JUPYTER_URL}/api/contents/${path}" ` +
-      `-H "Authorization: token ${NPU_JUPYTER_TOKEN}"`,
-  );
+  const { stdout } = await curl([
+    `${NPU_JUPYTER_URL}/api/contents/${path}`,
+    "-H",
+    `Authorization: token ${NPU_JUPYTER_TOKEN}`,
+  ]);
   const resp = JSON.parse(stdout);
   return Buffer.from(resp.content, resp.format === "base64" ? "base64" : "utf-8");
 }
