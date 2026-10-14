@@ -304,6 +304,24 @@ The trigger looks like GPT-6. Astra scored 95% on a robot control task in Septem
   // caption must not drive traffic to chinaai.news until the site is ready for
   // it. Omitting the field makes derivePinnedComment emit the hook alone
   // (lib/caption-utils.mjs:125).
+  //
+  // Stock relevance waived on purpose (user decision 2026-10-14): step 8b's
+  // completion criterion is "all images relevance >= 60", and 5 of the 6 bound
+  // images scored below it (0/0/0/50/50 — see stock-relevance-report.json).
+  // The images ship anyway because the scoring prompt asks whether the image
+  // depicts the scene's *specific* claim (a named funding event, a named
+  // model), which no generic robot photograph can satisfy; every alternative
+  // in the pool scored equal or lower, so the criterion is unsatisfiable for
+  // this package rather than merely unmet. What the media layer is for —
+  // topically correct footage (Unitree hardware, robot arms, a robot lab) — is
+  // satisfied. The video is published and is not being re-rendered.
+  //
+  // The two sanctioned remediations were not used: no
+  // `search-replacement-images.mjs` replacement exists that scores higher, and
+  // `mediaStrategy: "b-roll"` would replace accurate footage of the actual
+  // subject with generated imagery. The deeper gap this exposes — step 8b
+  // states a completion criterion that no gate enforces, because
+  // evaluate-stock-relevance.mjs always exits 0 — is tracked in #294.
   trendingChecked: true,
   trendingHashtags: [],
 };
