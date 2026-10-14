@@ -24,14 +24,32 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 // Wiring mocks — both specifier spellings used across lib imports.
+//
+// Two call forms are in play and they need separate mocks:
+//   - `execSync(cmd)` — shell strings: asset-sourcer's download path, the
+//     video-downloaders adapter, and ytdlp-guard's own `scutil --proxy` probe.
+//   - `execFileSync(file, args)` — argv: asset-sourcer's search + download
+//     paths (#319's argv direction; `keyword`/`url` are externally-derived and
+//     must not reach a shell).
+// The `scutil` probe is execSync, so `execFileSyncMock` sees ONLY yt-dlp calls
+// from asset-sourcer and `calls[0]` is always the one under test.
 const execSyncMock = vi.fn();
+const execFileSyncMock = vi.fn();
 vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, execSync: (...args) => execSyncMock(...args) };
+  return {
+    ...actual,
+    execSync: (...args) => execSyncMock(...args),
+    execFileSync: (...args) => execFileSyncMock(...args),
+  };
 });
 vi.mock("child_process", async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, execSync: (...args) => execSyncMock(...args) };
+  return {
+    ...actual,
+    execSync: (...args) => execSyncMock(...args),
+    execFileSync: (...args) => execFileSyncMock(...args),
+  };
 });
 
 import {
@@ -50,6 +68,27 @@ import {
 } from "../lib/ytdlp-guard.mjs";
 import { searchYtdlp, downloadYtdlp } from "../lib/asset-sourcer.mjs";
 import { downloadYtdlpAdapter } from "../lib/video-downloaders.mjs";
+
+// ─── argv helpers for the execFileSync call sites ───
+
+/** Flatten an `execFileSync(file, args, opts)` mock call into its argv. */
+const fileArgv = (call) => [call[0], ...(call[1] ?? [])];
+
+/** The value following `flag` in an argv, or undefined when absent. */
+const flagValue = (argv, flag) => {
+  const i = argv.indexOf(flag);
+  return i === -1 ? undefined : argv[i + 1];
+};
+
+/**
+ * The binary appears exactly once, as argv[0]. A leftover "yt-dlp" element in
+ * the args array is invisible to a mocked child_process but makes the real
+ * spawn run `yt-dlp yt-dlp ...` — caught on the real host, not by the mock.
+ */
+const expectSingleBinary = (argv) => {
+  expect(argv[0]).toBe("yt-dlp");
+  expect(argv.filter((t) => t === "yt-dlp")).toHaveLength(1);
+};
 
 // ─── Pure guard tests (injected clock/state, instant) ───
 
@@ -327,6 +366,7 @@ describe("yt-dlp wiring", () => {
     tmp = mkdtempSync(join(tmpdir(), "ytdlp-guard-"));
     process.env.YTDLP_412_STATE_PATH = join(tmp, "state.json");
     execSyncMock.mockReset();
+    execFileSyncMock.mockReset();
   });
 
   afterEach(() => {
@@ -348,47 +388,52 @@ describe("yt-dlp wiring", () => {
     seedBlocked("bilibili.com");
     const out = searchYtdlp("DeepSeek", "bilibili");
     expect(out).toEqual([]);
-    expect(execSyncMock).not.toHaveBeenCalled();
+    expect(execFileSyncMock).not.toHaveBeenCalled();
   });
 
   it("searchYtdlp passes a browser user-agent and records success", () => {
-    execSyncMock.mockReturnValue("BV1E7wtzaEdq\t从 LLM 到 Agent Skill\t1951\n");
+    execFileSyncMock.mockReturnValue("BV1E7wtzaEdq\t从 LLM 到 Agent Skill\t1951\n");
     const out = searchYtdlp("DeepSeek", "bilibili");
     expect(out).toHaveLength(1);
     expect(out[0].url).toBe("https://www.bilibili.com/video/BV1E7wtzaEdq");
-    // #324 proxy hand-off probes the macOS system proxy (scutil) before the
-    // yt-dlp call on darwin, and the probe result is module-cached — so the
-    // yt-dlp command is NOT reliably calls[0]. Locate it by its argv instead.
-    const cmd = execSyncMock.mock.calls
-      .map((c) => String(c[0]))
-      .find((s) => s.startsWith("yt-dlp "));
-    expect(cmd).toContain("--user-agent");
-    expect(cmd).toContain("Mozilla/5.0");
+    // argv form: the `scutil` proxy probe is execSync, so this mock sees only
+    // yt-dlp calls and calls[0] is the one under test.
+    const argv = fileArgv(execFileSyncMock.mock.calls[0]);
+    expectSingleBinary(argv);
+    expect(flagValue(argv, "--user-agent")).toContain("Mozilla/5.0");
     const stateText = existsSync(process.env.YTDLP_412_STATE_PATH)
       ? readFileSync(process.env.YTDLP_412_STATE_PATH, "utf8")
       : "";
     expect(stateText).not.toContain("bilibili.com");
   });
 
+  it("searchYtdlp passes the keyword as a literal argv element, never a shell word", () => {
+    execFileSyncMock.mockReturnValue("");
+    const payload = 'x"; touch /tmp/should-not-exist; echo "';
+    searchYtdlp(payload, "youtube");
+    // The payload survives verbatim as one argument — no quoting, no split.
+    expect(fileArgv(execFileSyncMock.mock.calls[0])).toContain(`ytsearch10:${payload}`);
+  });
+
   it("searchYtdlp 412 failure records the block; next call short-circuits", () => {
     const err = new Error("failed");
     err.stderr = "ERROR: HTTP Error 412: Precondition Failed";
-    execSyncMock.mockImplementation(() => {
+    execFileSyncMock.mockImplementation(() => {
       throw err;
     });
     expect(searchYtdlp("DeepSeek", "bilibili")).toEqual([]);
     expect(readFileSync(process.env.YTDLP_412_STATE_PATH, "utf8")).toContain("bilibili.com");
 
-    execSyncMock.mockClear();
+    execFileSyncMock.mockClear();
     expect(searchYtdlp("DeepSeek", "bilibili")).toEqual([]);
-    expect(execSyncMock).not.toHaveBeenCalled();
+    expect(execFileSyncMock).not.toHaveBeenCalled();
   });
 
   it("downloadYtdlp 412 failure records the block and reports it", () => {
     const dest = join(tmp, "clip.mp4");
     const err = new Error("failed");
     err.stderr = "ERROR: HTTP Error 412: Precondition Failed";
-    execSyncMock.mockImplementation(() => {
+    execFileSyncMock.mockImplementation(() => {
       throw err;
     });
     const res = downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", dest);
@@ -398,21 +443,33 @@ describe("yt-dlp wiring", () => {
   });
 
   it("#328: downloadYtdlp routes youtube through firefox, never the chrome store", () => {
-    execSyncMock.mockImplementation(() => {
+    execFileSyncMock.mockImplementation(() => {
       throw new Error("failed");
     });
     downloadYtdlp("https://www.youtube.com/watch?v=abc", join(tmp, "yt.mp4"));
-    const cmd = execSyncMock.mock.calls[0][0];
-    expect(cmd).toContain('--cookies-from-browser "firefox');
-    expect(cmd).not.toContain("chrome");
+    const argv = fileArgv(execFileSyncMock.mock.calls[0]);
+    expectSingleBinary(argv);
+    expect(flagValue(argv, "--cookies-from-browser")).toMatch(/^firefox/);
+    expect(argv).not.toContain("chrome");
   });
 
   it("downloadYtdlp keeps firefox for bilibili downloads", () => {
-    execSyncMock.mockImplementation(() => {
+    execFileSyncMock.mockImplementation(() => {
       throw new Error("failed");
     });
     downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "bili.mp4"));
-    expect(execSyncMock.mock.calls[0][0]).toContain('--cookies-from-browser "firefox');
+    const argv = fileArgv(execFileSyncMock.mock.calls[0]);
+    expect(flagValue(argv, "--cookies-from-browser")).toMatch(/^firefox/);
+    expect(argv).not.toContain("chrome");
+  });
+
+  it("downloadYtdlp passes the url as a literal argv element, never a shell word", () => {
+    execFileSyncMock.mockImplementation(() => {
+      throw new Error("failed");
+    });
+    const payload = 'https://x/"; touch /tmp/should-not-exist; echo "';
+    downloadYtdlp(payload, join(tmp, "p.mp4"));
+    expect(fileArgv(execFileSyncMock.mock.calls[0])).toContain(payload);
   });
 
   it("downloadYtdlpAdapter (weibo route) also gates and records", () => {
@@ -429,7 +486,7 @@ describe("yt-dlp wiring", () => {
 
   it("#323: downloadYtdlp succeeds when yt-dlp falls back to a webm container", () => {
     const dest = join(tmp, "clip.mp4");
-    execSyncMock.mockImplementation(() => {
+    execFileSyncMock.mockImplementation(() => {
       // webm-only source: yt-dlp appends the real container extension to the
       // -o template (empirical #313 probe: `-o /tmp/x.mp4` → /tmp/x.mp4.webm).
       writeFileSync(`${dest}.webm`, Buffer.alloc(2048), "utf8");
@@ -441,7 +498,7 @@ describe("yt-dlp wiring", () => {
 
   it("#323: downloadYtdlp still reports failure when nothing landed on disk", () => {
     const dest = join(tmp, "clip.mp4");
-    execSyncMock.mockImplementation(() => {});
+    execFileSyncMock.mockImplementation(() => {});
     const res = downloadYtdlp("https://www.youtube.com/watch?v=abc", dest);
     expect(res.success).toBe(false);
     expect(res.error).toContain("file not found");
@@ -466,7 +523,7 @@ describe("yt-dlp wiring", () => {
     const dest = join(tmp, "clip.mp4");
     // pre-fix-era orphan: a failed run left <dest>.webm on disk
     writeFileSync(`${dest}.webm`, Buffer.alloc(2048), "utf8");
-    execSyncMock.mockImplementation(() => {}); // this run exits 0 producing nothing
+    execFileSyncMock.mockImplementation(() => {}); // this run exits 0 producing nothing
     const res = downloadYtdlp("https://www.youtube.com/watch?v=abc", dest);
     expect(res.success).toBe(false);
     expect(res.error).toContain("file not found");
@@ -729,9 +786,12 @@ describe("#324 yt-dlp proxy hand-off", () => {
     tmp = mkdtempSync(join(tmpdir(), "ytdlp-proxy-"));
     process.env.YTDLP_412_STATE_PATH = join(tmp, "state.json");
     execSyncMock.mockReset();
-    execSyncMock.mockImplementation(() => {
+    execFileSyncMock.mockReset();
+    const fail = () => {
       throw new Error("failed");
-    });
+    };
+    execSyncMock.mockImplementation(fail);
+    execFileSyncMock.mockImplementation(fail);
   });
 
   afterEach(() => {
@@ -754,7 +814,8 @@ describe("#324 yt-dlp proxy hand-off", () => {
   it("downloadYtdlp passes --proxy when only the uppercase env proxy is exported", () => {
     uppercaseOnly();
     downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "a.mp4"));
-    expect(execSyncMock.mock.calls[0][0]).toContain('--proxy "http://127.0.0.1:7897"');
+    const argv = fileArgv(execFileSyncMock.mock.calls[0]);
+    expect(flagValue(argv, "--proxy")).toBe("http://127.0.0.1:7897");
   });
 
   it("downloadYtdlp omits --proxy when the lowercase proxy is already exported", () => {
@@ -763,13 +824,14 @@ describe("#324 yt-dlp proxy hand-off", () => {
     process.env.http_proxy = "http://127.0.0.1:7897";
     process.env.https_proxy = "http://127.0.0.1:7897";
     downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "b.mp4"));
-    expect(execSyncMock.mock.calls[0][0]).not.toContain("--proxy ");
+    expect(fileArgv(execFileSyncMock.mock.calls[0])).not.toContain("--proxy");
   });
 
   it("searchYtdlp passes --proxy on the same terms", () => {
     uppercaseOnly();
-    execSyncMock.mockImplementation(() => "BV1E7wtzaEdq\ttitle\t120\n");
+    execFileSyncMock.mockImplementation(() => "BV1E7wtzaEdq\ttitle\t120\n");
     searchYtdlp("DeepSeek", "bilibili");
-    expect(execSyncMock.mock.calls[0][0]).toContain('--proxy "http://127.0.0.1:7897"');
+    const argv = fileArgv(execFileSyncMock.mock.calls[0]);
+    expect(flagValue(argv, "--proxy")).toBe("http://127.0.0.1:7897");
   });
 });

@@ -61,7 +61,7 @@ import {
 import { join, dirname, basename, extname, relative, isAbsolute } from "path";
 import { tmpdir } from "os";
 import { fileURLToPath, pathToFileURL } from "url";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { ALL_SOURCES, SOURCE_ATTRIBUTIONS } from "./source-registry.mjs";
 import {
   getCachedSearchResults,
@@ -89,7 +89,7 @@ import {
   matchYtdlp412,
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
-  ytdlpProxyArg,
+  resolveYtdlpProxy,
 } from "./ytdlp-guard.mjs";
 // Artifact schema versions (#199 2.5) — bump on breaking shape changes so
 // consumers can branch. asset-analysis.json carries its own `version: 1`.
@@ -1730,7 +1730,7 @@ export function searchYtdlp(keyword, platform) {
   // #180) — the relevance gate would reject every candidate on an empty title.
   // Non-flat search with an item cap returns real titles/durations at ~3s.
   const modeArgs =
-    platform === "bilibili" ? "--playlist-items 1-6 --no-warnings" : "--flat-playlist";
+    platform === "bilibili" ? ["--playlist-items", "1-6", "--no-warnings"] : ["--flat-playlist"];
 
   // Persistent 412 backoff (#ytdlp-guard): bilibili 412s are a rate-limit
   // penalty that outlives sessions — skip the call entirely while penalized.
@@ -1740,9 +1740,24 @@ export function searchYtdlp(keyword, platform) {
   }
 
   try {
-    const proxyArg = ytdlpProxyArg();
-    const output = execSync(
-      `yt-dlp --cookies-from-browser "${ytdlpCookieSource()}" --user-agent "${YTDLP_BROWSER_UA}" ${modeArgs}${proxyArg ? " " + proxyArg : ""} --print "%(id)s\t%(title)s\t%(duration)s" "${searchUrl}"`,
+    // argv, never a shell string: `keyword` is externally-derived text (it
+    // comes from scene-data claims, which are distilled from scraped news), so
+    // a headline carrying shell metacharacters must not reach a shell. Same
+    // treatment #319's sweep gave the other measurement paths.
+    const proxy = resolveYtdlpProxy();
+    const output = execFileSync(
+      "yt-dlp",
+      [
+        "--cookies-from-browser",
+        ytdlpCookieSource(),
+        "--user-agent",
+        YTDLP_BROWSER_UA,
+        ...modeArgs,
+        ...(proxy ? ["--proxy", proxy] : []),
+        "--print",
+        "%(id)s\t%(title)s\t%(duration)s",
+        searchUrl,
+      ],
       { encoding: "utf8", timeout: 120000 },
     );
 
@@ -1784,30 +1799,41 @@ export function downloadYtdlp(url, destPath) {
     mkdirSync(dir, { recursive: true });
   }
 
-  const cmd = [
-    "yt-dlp",
+  // argv, never a shell string: `url` is externally-derived (it comes out of
+  // search results parsed from yt-dlp's own output), so it must not reach a
+  // shell. Same treatment as searchYtdlp above (#319's argv direction).
+  const proxy = resolveYtdlpProxy();
+  const args = [
     // #328: every platform reads the firefox plaintext cookie store, so the
     // Keychain-backed chrome store (and its blocking prompt) is off the path.
-    `--cookies-from-browser "${ytdlpCookieSource()}"`,
-    `--user-agent "${YTDLP_BROWSER_UA}"`,
-    '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
-    "--max-filesize 20M",
-    '--download-sections "*0:00-0:08"',
+    "--cookies-from-browser",
+    ytdlpCookieSource(),
+    "--user-agent",
+    YTDLP_BROWSER_UA,
+    "-f",
+    "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best",
+    "--max-filesize",
+    "20M",
+    "--download-sections",
+    "*0:00-0:08",
     // #324: --download-sections delegates the fetch to ffmpeg, which only
     // reads a lowercase http_proxy — hand yt-dlp the proxy explicitly.
-    ytdlpProxyArg(),
-    `-o "${destPath}"`,
-    `"${url}"`,
-  ]
-    .filter(Boolean)
-    .join(" ");
+    ...(proxy ? ["--proxy", proxy] : []),
+    "-o",
+    destPath,
+    url,
+  ];
 
   // #323 review: clear stale suffixed siblings (orphaned `<dest>.mp4.webm`
   // from pre-fix failed runs) so the resolver only sees THIS run's output.
   removeYtdlpStaleOutput(destPath);
 
   try {
-    execSync(cmd, { encoding: "utf8", timeout: 120000, stdio: ["pipe", "pipe", "pipe"] });
+    execFileSync("yt-dlp", args, {
+      encoding: "utf8",
+      timeout: 120000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
 
     // #323: yt-dlp appends the real container extension when the -o template's
     // extension doesn't match the final format (webm-only source lands at
