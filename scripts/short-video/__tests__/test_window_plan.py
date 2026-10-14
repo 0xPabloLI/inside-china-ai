@@ -51,7 +51,7 @@ class TestLegacyPlan:
 
     def test_long_tier_three_equal_windows(self):
         plan = plan_windows_legacy(60.0)
-        assert len(plan) == 4
+        assert len(plan) == 3
         assert [round(w["fps"], 2) for w in plan] == [0.4, 0.4, 0.4]
         assert plan[0]["start"] == 0.0 and plan[0]["end"] == pytest.approx(20.0)
         assert plan[2]["end"] == pytest.approx(60.0)
