@@ -10,8 +10,8 @@ Covers:
 - the floor guarantee: every window's even grid spaces points <= gap_floor.
 - even_grid_timestamps: the uniform in-window grid of the 32-frame plan.
 
-Run: ~/.venvs/mlx-vlm/bin/python -m pytest \
-  scripts/short-video/__tests__/test_window_plan.py -v
+Run: npm run test:python (the suite runner), or
+     python3 scripts/short-video/__tests__/test_window_plan.py.
 """
 import os
 import sys
@@ -259,3 +259,10 @@ class TestEvenGrid:
         ts = even_grid_timestamps(0.0, 30.0, 32)
         assert len(ts) == 32
         assert ts[0] == 0.0 and ts[-1] == 30.0
+
+
+if __name__ == "__main__":
+    # Before #555 a bare `python3 <this file>` ran nothing and exited 0 — the
+    # file only defines tests. Direct runs now go through pytest instead of
+    # passing as a no-op.
+    raise SystemExit(pytest.main([__file__, "-q"]))

@@ -1,8 +1,11 @@
 """
 Tests for estimate_target_seconds and related helpers in f5_mlx_batch_tts.py.
 
-Run directly with: python3 test_f5_duration.py
-Or via vitest through test-f5-duration.test.mjs.
+Run via the suite runner: npm run test:python.
+Run directly with: python3 test_f5_duration.py (prints the same
+"Results: N passed, 0 failed" summary the vitest wrapper test-f5-duration.test.mjs
+parses). The checks also run at import time and record into RESULTS, so pytest
+replays them as one test per check instead of collecting 0 tests (#555).
 
 These tests do NOT require the F5 model or any large downloads.
 They only test the pure Python duration estimation logic.
@@ -10,6 +13,15 @@ They only test the pure Python duration estimation logic.
 import sys
 import os
 import json
+
+# pytest drives the suite (#555). The vitest wrapper
+# (test-f5-duration.test.mjs) instead spawns this file with the TTS venv's
+# python (~/.video-tts-env, Python 3.12, no pytest), so a direct run must stay
+# self-contained — hence the tolerant import.
+try:
+    import pytest
+except ImportError:  # pragma: no cover - exercised by the wrapper's venv
+    pytest = None
 
 # Add parent dir to path so we can import from f5_mlx_batch_tts
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -26,18 +38,11 @@ from f5_mlx_batch_tts import (
     MIN_TARGET_SECONDS,
 )
 
-PASS = 0
-FAIL = 0
+RESULTS = []
 
 
 def check(name, condition, detail=""):
-    global PASS, FAIL
-    if condition:
-        PASS += 1
-        print(f"  ✓ {name}")
-    else:
-        FAIL += 1
-        print(f"  ✗ {name} — {detail}")
+    RESULTS.append((name, bool(condition), detail))
 
 
 def run_tests():
@@ -137,12 +142,33 @@ def run_tests():
     new_dur = estimate_target_seconds(chinese_sentence)
     check("new formula is significantly longer for Chinese", new_dur > old_dur * 3, f"old={old_dur:.3f}s, new={new_dur:.3f}s")
 
+    return len(RESULTS)
+
+
+def _report():
+    """Direct-run summary — the "Results: N passed, 0 failed" shape the
+    vitest wrapper (test-f5-duration.test.mjs) greps for."""
+    failed = [(name, detail) for name, ok, detail in RESULTS if not ok]
+    for name, detail in failed:
+        print(f"  ✗ {name} — {detail}")
+    passed = len(RESULTS) - len(failed)
     print(f"\n{'='*40}")
-    print(f"Results: {PASS} passed, {FAIL} failed")
+    print(f"Results: {passed} passed, {len(failed)} failed")
     print(f"{'='*40}")
-    return FAIL == 0
+    return not failed
+
+
+# Populate RESULTS at import so pytest can parametrize over it (#555).
+run_tests()
+
+
+if pytest is not None:
+    @pytest.mark.parametrize(
+        ("name", "condition", "detail"), RESULTS, ids=[result[0] for result in RESULTS]
+    )
+    def test_recorded_checks(name, condition, detail):
+        assert condition, f"{name} {detail}"
 
 
 if __name__ == "__main__":
-    success = run_tests()
-    sys.exit(0 if success else 1)
+    raise SystemExit(0 if _report() else 1)

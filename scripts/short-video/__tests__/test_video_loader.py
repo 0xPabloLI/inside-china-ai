@@ -10,8 +10,8 @@ Scenarios (spec `docs/specs/spec-video-loader-417.md`):
 
 Fixtures are generated with ffmpeg (real media, no mocks).
 
-Run: ~/.venvs/mlx-vlm/bin/python -m pytest \
-  scripts/short-video/__tests__/test_video_loader.py -v
+Run: npm run test:python (the suite runner), or
+     python3 scripts/short-video/__tests__/test_video_loader.py.
 """
 import hashlib
 import json
@@ -464,3 +464,10 @@ def test_guard_absent_for_non_ok_transcript(av_video, tmp_path):
     """无音轨 / 引擎缺失时不产生护栏记录（没有文本可判）。"""
     visual = _loaded(av_video, tmp_path, [0.0, 1.0], want_audio=False)
     assert visual["transcript"]["repetition_guard"] is None
+
+
+if __name__ == "__main__":
+    # Before #555 a bare `python3 <this file>` ran nothing and exited 0 — the
+    # file only defines tests. Direct runs now go through pytest instead of
+    # passing as a no-op.
+    raise SystemExit(pytest.main([__file__, "-q"]))

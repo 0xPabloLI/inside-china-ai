@@ -15,8 +15,8 @@ Covers (spec scenarios):
 ffmpeg subprocess is mocked (subprocess.run monkeypatched) — no real ffmpeg,
 no model, no venv needed.
 
-Run: ~/.venvs/mlx-vlm/bin/python -m pytest \
-  scripts/short-video/__tests__/test_frame_strategy.py -v
+Run: npm run test:python (the suite runner), or
+     python3 scripts/short-video/__tests__/test_frame_strategy.py.
 """
 import io
 import os
@@ -195,11 +195,13 @@ class _FakeResolution:
 class TestExtractMinicpmFrames:
     def test_default_is_uniform_via_resolve_video_inputs(self, monkeypatch):
         """S1: default params take the resolve_video_inputs path — no ffmpeg."""
-        # mlx_vlm.generate is a function in mlx-vlm 0.7.2, so the submodule
-        # must be imported via importlib (same machinery vlm_analyzer uses).
-        import importlib
-
-        video_mod = importlib.import_module("mlx_vlm.generate.video")
+        # mlx_vlm.generate is a function in mlx-vlm 0.7.2, so the submodule is
+        # imported by name (same machinery vlm_analyzer uses). mlx_vlm exists
+        # only in the VLM venv (~/.venvs/mlx-vlm), so this test reports an
+        # explicit skip where it is absent instead of failing the suite (#555).
+        video_mod = pytest.importorskip(
+            "mlx_vlm.generate.video", reason="mlx-vlm venv only (~/.venvs/mlx-vlm)"
+        )
 
         received = {}
 
@@ -226,9 +228,9 @@ class TestExtractMinicpmFrames:
         assert run_calls == []
 
     def test_uniform_params_forwarded(self, monkeypatch):
-        import importlib
-
-        video_mod = importlib.import_module("mlx_vlm.generate.video")
+        video_mod = pytest.importorskip(
+            "mlx_vlm.generate.video", reason="mlx-vlm venv only (~/.venvs/mlx-vlm)"
+        )
 
         received = {}
 
@@ -433,3 +435,10 @@ class TestConstants:
         assert DEFAULT_UNIFORM_FPS == 2.0
         assert FRAME_STRATEGY_UNIFORM == "uniform"
         assert FRAME_STRATEGY_SCENE == "scene"
+
+
+if __name__ == "__main__":
+    # Before #555 a bare `python3 <this file>` ran nothing and exited 0 — the
+    # file only defines tests. Direct runs now go through pytest instead of
+    # passing as a no-op.
+    raise SystemExit(pytest.main([__file__, "-q"]))

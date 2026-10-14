@@ -9,12 +9,15 @@ Covers:
 - handle_analyze_semantics(windows=...): loop + merge wiring, with
   run_vlm_inference monkeypatched (no model / venv needed)
 
-Run: python3 -m pytest scripts/short-video/__tests__/test_vlm_segmentation.py -v
+Run: npm run test:python (the suite runner), or
+     python3 scripts/short-video/__tests__/test_vlm_segmentation.py.
 """
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
+
+import pytest  # noqa: E402
 
 from vlm_analyzer import (  # noqa: E402
     handle_analyze_semantics,
@@ -309,3 +312,10 @@ class TestHandleAnalyzeSemanticsWindows:
         assert len(calls) == 1
         assert calls[0][0] is False  # image path — no window kwargs
         assert result["description"] == "An image."
+
+
+if __name__ == "__main__":
+    # Before #555 a bare `python3 <this file>` ran nothing and exited 0 — the
+    # file only defines tests. Direct runs now go through pytest instead of
+    # passing as a no-op.
+    raise SystemExit(pytest.main([__file__, "-q"]))

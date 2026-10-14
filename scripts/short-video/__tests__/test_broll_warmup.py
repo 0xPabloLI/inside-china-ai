@@ -11,8 +11,8 @@ encodes all unique uncached prompts up front with a single encoder load,
 then frees the encoder before the DiT loads (lower peak memory than the old
 interleaved encode-while-DiT-resident flow).
 
-Run with: python3 -m pytest __tests__/test_broll_warmup.py -v
-Or:       python3 __tests__/test_broll_warmup.py
+Run: npm run test:python (the suite runner), or
+     python3 scripts/short-video/__tests__/test_broll_warmup.py.
 
 TDD: Tests written first (red), implementation second (green).
 """
@@ -21,6 +21,8 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib", "b-roll"))
+
+import pytest  # noqa: E402
 
 from mlx_wan_batch import plan_warmup, preencode_prompts, unique_prompts_in_order
 
@@ -201,6 +203,8 @@ class TestPreencodePrompts:
 
 
 if __name__ == "__main__":
-    import unittest
-
-    unittest.main(module="test_broll_warmup", verbosity=2)
+    # The previous tail called unittest.main(module="test_broll_warmup") — the
+    # Test* classes are plain classes, not unittest.TestCase, so it collected 0
+    # tests and exited 5 with "NO TESTS RAN" (#555). pytest collects all 13;
+    # direct runs delegate to it instead of printing a false green.
+    raise SystemExit(pytest.main([__file__, "-q"]))
