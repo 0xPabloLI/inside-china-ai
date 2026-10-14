@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.20.12](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.11...tanstack_start_ts-v1.20.12) (2026-10-14)
+
+
+### Bug Fixes
+
+* **deps:** update minor and patch updates to v4.0.534 ([#654](https://github.com/0xPabloLI/inside-china-ai/issues/654)) ([32acd86](https://github.com/0xPabloLI/inside-china-ai/commit/32acd86f46d90fb74686fa523a96aa24edc4e0d8))
+* **session:** stop 不再把已被并行 gc 扫掉的分支报成「保留（未交付）」([#651](https://github.com/0xPabloLI/inside-china-ai/issues/651)) ([5e4f51d](https://github.com/0xPabloLI/inside-china-ai/commit/5e4f51da49243da8008631e2d451a05a7ab5c962))
+
 ## [1.20.11](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.10...tanstack_start_ts-v1.20.11) (2026-10-14)
 
 
