@@ -14,7 +14,7 @@
  */
 
 import { execSync } from "child_process";
-import { existsSync, writeFileSync, unlinkSync, mkdirSync, copyFileSync, rmSync } from "fs";
+import { existsSync, writeFileSync, unlinkSync, mkdirSync, copyFileSync, statSync, rmSync } from "fs";
 import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 import { finalizeRenderedVideo } from "./post-process.mjs";
@@ -29,6 +29,41 @@ const __dirname = dirname(__filename);
 
 /** Path to the Remotion project root. */
 const REMOTION_DIR = join(__dirname, "..", "remotion");
+
+/**
+ * Whether a content asset must be copied into remotion/public/assets/.
+ *
+ * The staging sites used to be guarded by `if (!existsSync(dest))`, which
+ * assumed a content asset's filename is its identity. It is not: re-compositing
+ * or re-cropping a screenshot keeps the filename and changes the bytes, so the
+ * public copy stayed at the previous version and Remotion silently rendered the
+ * old picture. Nothing warned — the render succeeds, the frame is just wrong.
+ *
+ * The comparison is stat-based (size, then source-vs-destination mtime) rather
+ * than hash-based: staging runs on every render for every asset, and a hash of
+ * a 5MB PNG per scene costs more than it buys. Size catches every re-encode;
+ * mtime catches same-size rewrites.
+ *
+ * Fail-safe direction: anything unreadable means "copy". A redundant copy costs
+ * milliseconds; a missed one ships a stale frame.
+ *
+ * @param {string} srcPath - Source asset (content/{slug}/assets/...)
+ * @param {string} destPath - Staged copy (remotion/public/assets/...)
+ * @returns {boolean} true when the copy must run
+ */
+export function shouldRestageAsset(srcPath, destPath) {
+  let src;
+  let dest;
+  try {
+    src = statSync(srcPath);
+    dest = statSync(destPath);
+  } catch {
+    return true;
+  }
+  if (!src.isFile() || !dest.isFile()) return true;
+  if (src.size !== dest.size) return true;
+  return src.mtimeMs > dest.mtimeMs;
+}
 
 /**
  * Derive the raw (pre-finalize) render output path from a final video path.
@@ -97,7 +132,7 @@ export function stageAvatarVideos({ scenes, durations = [], contentDir = "", pub
     const avatarSrc = join(contentDir || ".", scene.avatar.videoPath);
     const filename = basename(avatarSrc);
     const avatarDest = join(publicAssetsDir, filename);
-    if (!existsSync(avatarDest)) {
+    if (shouldRestageAsset(avatarSrc, avatarDest)) {
       copyFileSync(avatarSrc, avatarDest);
       console.log(`  🧑‍💼 Copied avatar: ${filename}`);
     }
@@ -199,7 +234,7 @@ export function renderRemotion({
         }
         const filename = basename(srcPath);
         const mediaDest = join(publicAssetsDir, filename);
-        if (!existsSync(mediaDest)) {
+        if (shouldRestageAsset(srcPath, mediaDest)) {
           copyFileSync(srcPath, mediaDest);
           console.log(`  📸 Copied media: ${filename}`);
         }
@@ -219,7 +254,7 @@ export function renderRemotion({
       const bdSrc = join(contentDir || ".", scene.media.backdrop.path);
       if (existsSync(bdSrc)) {
         const bdDest = join(publicAssetsDir, basename(bdSrc));
-        if (!existsSync(bdDest)) {
+        if (shouldRestageAsset(bdSrc, bdDest)) {
           copyFileSync(bdSrc, bdDest);
           console.log(`  📸 Copied backdrop: ${basename(bdSrc)}`);
         }

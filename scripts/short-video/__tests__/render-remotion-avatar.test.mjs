@@ -7,7 +7,7 @@
 // Real files in a temp dir — no fs mocks; ffprobe is a hard pipeline dep.
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from "fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, statSync, utimesSync, copyFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { execFileSync } from "child_process";
@@ -71,14 +71,25 @@ describe("stageAvatarVideos — copy + relativize (mirrors media mechanism)", ()
     expect(scene.avatar.position).toBe("right-card");
   });
 
-  it("skips the copy when the destination already has the file (cache), still relativizes", () => {
+  it("skips the copy when the destination already has the current file (cache), still relativizes", () => {
     makeRealVideo(join(contentDir, "assets", "avatar", "cta.mp4"));
-    writeFileSync(join(publicAssetsDir, "cta.mp4"), "pre-existing-bytes");
+    // A real cache hit: the staged copy is byte-identical to the source, so
+    // staging must not spend the copy (and must not clobber it). A tiny
+    // placeholder file is NOT a cache hit any more — size/mtime mismatch means
+    // the asset was edited in place and the stale copy must be replaced.
+    const src = join(contentDir, "assets", "avatar", "cta.mp4");
+    const dest = join(publicAssetsDir, "cta.mp4");
+    copyFileSync(src, dest);
+    const { mtimeMs } = statSync(src);
+    utimesSync(dest, mtimeMs / 1000, mtimeMs / 1000);
+    const before = statSync(dest).mtimeMs;
+
     const scene = sceneWith({ videoPath: "assets/avatar/cta.mp4" });
     const staged = stageAvatarVideos({ scenes: [scene], contentDir, publicAssetsDir });
     expect(staged).toBe(1);
-    // cache untouched
-    expect(readFileSync(join(publicAssetsDir, "cta.mp4"), "utf8")).toBe("pre-existing-bytes");
+    // cache untouched — same bytes, and the file was not rewritten
+    expect(readFileSync(dest).length).toBe(readFileSync(src).length);
+    expect(statSync(dest).mtimeMs).toBe(before);
     expect(scene.avatar.videoPath).toBe("cta.mp4");
   });
 
