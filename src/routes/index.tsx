@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { ogImageMeta } from "@/lib/og";
+import { jsonLdScript } from "@/lib/structured-data";
 import { listPublishedPosts } from "@/lib/posts.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
@@ -38,33 +39,30 @@ export const Route = createFileRoute("/")({
 
     links: [{ rel: "canonical", href: "https://chinaai.news/" }],
     scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@graph": [
-            {
-              "@type": "WebSite",
-              "@id": "https://chinaai.news/#website",
-              name: "China AI News",
-              url: "https://chinaai.news/",
-              description:
-                "China AI news, weekly: Chinese AI model releases, the labs building them, and China's AI regulation.",
-              publisher: { "@id": "https://chinaai.news/#organization" },
+      jsonLdScript({
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://chinaai.news/#website",
+            name: "China AI News",
+            url: "https://chinaai.news/",
+            description:
+              "China AI news, weekly: Chinese AI model releases, the labs building them, and China's AI regulation.",
+            publisher: { "@id": "https://chinaai.news/#organization" },
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://chinaai.news/#organization",
+            name: "China AI News",
+            url: "https://chinaai.news/",
+            logo: {
+              "@type": "ImageObject",
+              url: "https://chinaai.news/china-ai-news-logo-gpt.png",
             },
-            {
-              "@type": "Organization",
-              "@id": "https://chinaai.news/#organization",
-              name: "China AI News",
-              url: "https://chinaai.news/",
-              logo: {
-                "@type": "ImageObject",
-                url: "https://chinaai.news/china-ai-news-logo-gpt.png",
-              },
-            },
-          ],
-        }),
-      },
+          },
+        ],
+      }),
     ],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(postsQuery),

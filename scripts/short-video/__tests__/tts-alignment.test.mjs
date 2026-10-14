@@ -18,6 +18,9 @@ const { execMock, fsMock } = vi.hoisted(() => {
 vi.mock("child_process", () => ({
   exec: execMock,
   execSync: vi.fn(),
+  // getDuration is the argv-safe ffprobe probe (#319 deferred class sweep);
+  // it resolves through execFile with an empty duration.
+  execFile: vi.fn((cmd, args, callback) => callback(null, { stdout: "", stderr: "" })),
 }));
 
 vi.mock("fs", () => ({

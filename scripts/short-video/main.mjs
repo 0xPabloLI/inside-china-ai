@@ -18,7 +18,7 @@
 import { writeFileSync, mkdirSync, readdirSync, existsSync, readFileSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
 import { renderRemotion, rawOutputPathFor } from "./lib/render-remotion.mjs";
 import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
@@ -56,7 +56,7 @@ function getArg(name) {
 
 function checkCommand(cmd) {
   try {
-    execSync(`which ${cmd}`, { stdio: "pipe" });
+    execFileSync("which", [cmd], { stdio: "pipe" });
     return true;
   } catch {
     return false;
@@ -222,9 +222,13 @@ async function main() {
     console.log("🔍 Step 0: Pre-Render Verification...\n");
     prof.mark("step-0-preflight");
     try {
-      execSync(`node "${join(__dirname, "verify-video.mjs")}" --pre --content "${contentDir}"`, {
-        stdio: "inherit",
-      });
+      // argv, never a shell string (#319 deferred class sweep): the content id
+      // is data.
+      execFileSync(
+        process.execPath,
+        [join(__dirname, "verify-video.mjs"), "--pre", "--content", contentDir],
+        { stdio: "inherit" },
+      );
     } catch {
       console.error(
         "\n❌ Pre-Render Verification FAILED — fix the issues above before running the pipeline.",
@@ -249,8 +253,11 @@ async function main() {
   const focusScript = join(__dirname, "lib", "focus_detector.py");
   if (existsSync(focusScript)) {
     try {
-      execSync(
-        `${join(process.env.HOME || "", ".video-tts-env/bin/python3")} -c "import cv2; assert hasattr(cv2, 'CascadeClassifier') and hasattr(cv2, 'saliency')"`,
+      // argv, never a shell string (#319 deferred class sweep): the venv path
+      // is data, and the probe script is one argument.
+      execFileSync(
+        join(process.env.HOME || "", ".video-tts-env/bin/python3"),
+        ["-c", "import cv2; assert hasattr(cv2, 'CascadeClassifier') and hasattr(cv2, 'saliency')"],
         { stdio: "pipe", timeout: 5000 },
       );
     } catch {

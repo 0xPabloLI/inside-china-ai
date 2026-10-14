@@ -2,18 +2,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Mock child_process ───
 // vi.mock is hoisted, so we use vi.hoisted() to make the mock available
-// inside the factory. exec is used via promisify(exec) in post-process.mjs.
+// inside the factory. exec is used via promisify(exec) in post-process.mjs;
+// execFile carries the argv-safe getDuration probe (#319 deferred class sweep).
 
-const { execMock } = vi.hoisted(() => {
+const { execMock, execFileMock } = vi.hoisted(() => {
   const execMock = vi.fn((cmd, callback) => {
     callback(null, { stdout: "", stderr: "" });
   });
-  return { execMock };
+  const execFileMock = vi.fn((cmd, args, callback) => {
+    callback(null, { stdout: "", stderr: "" });
+  });
+  return { execMock, execFileMock };
 });
 
 vi.mock("child_process", () => ({
   exec: execMock,
   execSync: vi.fn(),
+  execFile: execFileMock,
 }));
 
 import {
@@ -30,8 +35,12 @@ import {
 describe("TTS Post-Processing", () => {
   beforeEach(() => {
     execMock.mockClear();
+    execFileMock.mockClear();
     // Reset to default implementation (callback with empty stdout)
     execMock.mockImplementation((cmd, callback) => {
+      callback(null, { stdout: "", stderr: "" });
+    });
+    execFileMock.mockImplementation((cmd, args, callback) => {
       callback(null, { stdout: "", stderr: "" });
     });
     delete process.env.TTS_ATEMPO;
@@ -271,8 +280,10 @@ describe("TTS Post-Processing", () => {
     it("S17: handles .wav input (F5 new behavior) → .mp3 output", async () => {
       execMock
         .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // ffmpeg
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // mv
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "3.45\n", stderr: "" })); // ffprobe
+        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })); // mv
+      execFileMock.mockImplementationOnce((cmd, args, cb) =>
+        cb(null, { stdout: "3.45\n", stderr: "" }),
+      ); // ffprobe duration probe (argv form, #319 deferred class sweep)
 
       const duration = await postProcessBatch("scene-1.wav", { useSilenceFilter: false });
 
@@ -283,16 +294,19 @@ describe("TTS Post-Processing", () => {
       // Second call: mv -processed.wav back to original .wav
       expect(execMock.mock.calls[1][0]).toContain("mv");
       expect(execMock.mock.calls[1][0]).toContain("scene-1.wav");
-      // Third call: ffprobe
-      expect(execMock.mock.calls[2][0]).toContain("ffprobe");
+      // Third step: the duration probe, binary + argv
+      expect(execFileMock.mock.calls[0][0]).toContain("ffprobe");
+      expect(execFileMock.mock.calls[0][1]).toContain("scene-1.wav");
     });
 
     it("post-processes in-place and returns duration (F5 path, .mp3 input)", async () => {
-      // Mock: first exec call = ffmpeg, second = mv, third = ffprobe
+      // Mock: first exec call = ffmpeg, second = mv, then the execFile probe
       execMock
         .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // ffmpeg
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // mv
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "3.45\n", stderr: "" })); // ffprobe
+        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })); // mv
+      execFileMock.mockImplementationOnce((cmd, args, cb) =>
+        cb(null, { stdout: "3.45\n", stderr: "" }),
+      ); // ffprobe
 
       const duration = await postProcessBatch("scene-1.mp3", { useSilenceFilter: false });
 
@@ -302,15 +316,18 @@ describe("TTS Post-Processing", () => {
       expect(execMock.mock.calls[0][0]).toContain("scene-1-processed.mp3");
       // Second call: mv
       expect(execMock.mock.calls[1][0]).toContain("mv");
-      // Third call: ffprobe
-      expect(execMock.mock.calls[2][0]).toContain("ffprobe");
+      // Third step: the duration probe, binary + argv
+      expect(execFileMock.mock.calls[0][0]).toContain("ffprobe");
+      expect(execFileMock.mock.calls[0][1]).toContain("scene-1.mp3");
     });
 
     it("post-processes in-place with silenceremove (XTTS path)", async () => {
       execMock
         .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // ffmpeg
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // mv
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "5.20\n", stderr: "" })); // ffprobe
+        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })); // mv
+      execFileMock.mockImplementationOnce((cmd, args, cb) =>
+        cb(null, { stdout: "5.20\n", stderr: "" }),
+      ); // ffprobe
 
       const duration = await postProcessBatch("scene-2.mp3", { useSilenceFilter: true });
 

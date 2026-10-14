@@ -10,10 +10,17 @@ import {
   analyzeCoverage,
   buildReport,
   parseSilenceOutput,
-  parseDuration,
+  detectSilence,
+  getVideoDuration,
 } from "../lib/verify-subtitles.mjs";
 import { renderAss, parseAss } from "../lib/subtitles/ass.mjs";
 import { buildCues } from "../lib/subtitles/cues.mjs";
+import {
+  hasFfmpeg,
+  hasFfprobe,
+  markerCreated,
+  withMetacharPath,
+} from "./fixtures/metachar-path.mjs";
 
 // The verifier reads the artifact that will actually be burned in, and compares
 // it against the alignment data. It must never recompute the generator's layout
@@ -387,9 +394,22 @@ describe("ffmpeg output parsing", () => {
   it("ignores an unterminated silence marker", () => {
     expect(parseSilenceOutput("silence_start: 1.5")).toEqual([]);
   });
+});
 
-  it("parses an ffprobe duration", () => {
-    expect(parseDuration("73.899675\n")).toBeCloseTo(73.899675, 6);
-    expect(parseDuration("")).toBeNull();
+// The two ffmpeg-backed helpers take the path as data (#319 deferred class
+// sweep): the metachar case must stay a literal file name, not shell syntax.
+describe("ffmpeg-backed helpers are argv-safe", () => {
+  it.skipIf(!hasFfmpeg)("detectSilence keeps shell metacharacters literal", async () => {
+    await withMetacharPath("silence-319", "mp4", (victim, dir) => {
+      expect(detectSilence(victim)).toEqual([]);
+      expect(markerCreated(dir)).toBe(false);
+    });
+  });
+
+  it.skipIf(!hasFfprobe)("getVideoDuration keeps shell metacharacters literal", async () => {
+    await withMetacharPath("duration-319", "mp4", (victim, dir) => {
+      expect(getVideoDuration(victim, 7)).toBe(7); // probe failed → caller's estimate
+      expect(markerCreated(dir)).toBe(false);
+    });
   });
 });

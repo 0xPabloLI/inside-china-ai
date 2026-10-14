@@ -7,6 +7,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { join } from "path";
+import { hasFfprobe, markerCreated, withMetacharPath } from "./fixtures/metachar-path.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
@@ -40,4 +41,37 @@ describe("post-process module", () => {
     // Verify the function exists and can be called (default param tested via source)
     expect(typeof normalizeLoudness).toBe("function");
   });
+});
+
+// The BGM fade-out timing probes the video duration. That probe is argv-only
+// (#319 deferred class sweep): a path with shell metacharacters must reach
+// ffprobe literally, never through a shell.
+describe("BGM fade-out duration probe is argv-safe", () => {
+  it.skipIf(!hasFfprobe)("mixBgm keeps shell metacharacters in the path literal", async () => {
+    const { mixBgm } = await import(join(ROOT, "lib", "post-process.mjs"));
+    await withMetacharPath("mixbgm-319", "mp4", (victim, dir) => {
+      // ffmpeg cannot read the junk input either way; what matters is that the
+      // probe never handed the path to a shell.
+      expect(() => mixBgm(victim, victim, join(dir, "out.mp4"))).toThrow();
+      expect(markerCreated(dir)).toBe(false);
+    });
+  });
+
+  it.skipIf(!hasFfprobe)(
+    "finalizeRenderedVideo keeps shell metacharacters in the path literal",
+    async () => {
+      const { finalizeRenderedVideo } = await import(join(ROOT, "lib", "post-process.mjs"));
+      await withMetacharPath("finalize-319", "mp4", (victim, dir) => {
+        expect(() =>
+          finalizeRenderedVideo({
+            videoPath: victim,
+            bgmPath: victim,
+            outputPath: join(dir, "out.mp4"),
+            loudnessReadback: false,
+          }),
+        ).toThrow();
+        expect(markerCreated(dir)).toBe(false);
+      });
+    },
+  );
 });

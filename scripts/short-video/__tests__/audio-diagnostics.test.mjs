@@ -24,6 +24,7 @@ import {
 import { verifySubtitles } from "../lib/verify-subtitles.mjs";
 import { buildVoiceoverTrack } from "../lib/audio/track.mjs";
 import { writeWavPcm } from "../lib/audio/wav.mjs";
+import { hasFfprobe, markerCreated, withMetacharPath } from "./fixtures/metachar-path.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -455,5 +456,29 @@ describe("verifySubtitles FAIL trigger (integration, real ffmpeg)", () => {
     }
     expect(status).toBe(1);
     expect(existsSync(join(dir, "diagnostics"))).toBe(true);
+  });
+});
+
+// The ffprobe bridge hands the video path over as argv (#319 deferred class
+// sweep). These collectors never throw, so the metachar case shows up as a
+// probe error — and, on a shell string, as a MARKER file in the cwd.
+describe("ffprobe bridge is argv-safe", () => {
+  it.skipIf(!hasFfprobe)("collectPacketGaps keeps shell metacharacters literal", async () => {
+    await withMetacharPath("diag-gaps-319", "mp4", (victim, dir) => {
+      const result = collectPacketGaps(victim);
+      expect(result.packets).toBe(0);
+      expect(result.error).toMatch(/ffprobe failed/);
+      expect(markerCreated(dir)).toBe(false);
+    });
+  });
+
+  it.skipIf(!hasFfprobe)("collectStreamDurations keeps shell metacharacters literal", async () => {
+    await withMetacharPath("diag-streams-319", "mp4", (victim, dir) => {
+      const result = collectStreamDurations(victim);
+      expect(result.video).toBeNull();
+      expect(result.audio).toBeNull();
+      expect(result.error).toMatch(/ffprobe failed/);
+      expect(markerCreated(dir)).toBe(false);
+    });
   });
 });

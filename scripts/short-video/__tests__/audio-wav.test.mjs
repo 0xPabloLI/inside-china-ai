@@ -1,14 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { writeFileSync, mkdtempSync, rmSync } from "fs";
+import { existsSync, writeFileSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
   assertRiffWaveHeader,
   buildWavBuffer,
+  decodeToWavFile,
   walkRiffChunks,
   writeWavPcm,
   readWavPcm,
 } from "../lib/audio/wav.mjs";
+import { hasFfmpeg, markerCreated, withMetacharPath } from "./fixtures/metachar-path.mjs";
 
 describe("walkRiffChunks (#420 shared chunk walk)", () => {
   it("visits every well-formed chunk and returns null", () => {
@@ -113,5 +115,24 @@ describe("readWavPcm", () => {
     writeFileSync(path, buf);
     expect(() => readWavPcm(path)).toThrow(/mono/i);
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// decodeToWavFile is the subsystem's single ffmpeg bridge; its paths are
+// content data, so they must reach ffmpeg as argv (#319 deferred class sweep).
+describe("decodeToWavFile", () => {
+  it.skipIf(!hasFfmpeg)("keeps shell metacharacters in the path literal", async () => {
+    await withMetacharPath("wav-decode-319", "wav", (victim, dir) => {
+      // Hostile path on BOTH sides: under the old `ffmpeg -y -i "…"` string
+      // each `$(touch MARKER)` ran, in the input and in the output.
+      writeWavPcm(victim, new Float32Array([0, 0.5, -0.5]), 44100);
+      const out = join(dir, "out$(touch MARKER).wav");
+
+      decodeToWavFile(victim, out, 8000);
+
+      expect(existsSync(out)).toBe(true);
+      expect(readWavPcm(out).sampleRate).toBe(8000);
+      expect(markerCreated(dir)).toBe(false);
+    });
   });
 });
