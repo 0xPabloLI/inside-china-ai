@@ -7,7 +7,17 @@
 // Real files in a temp dir — no fs mocks; ffprobe is a hard pipeline dep.
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, statSync, utimesSync, copyFileSync, rmSync } from "fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  existsSync,
+  readFileSync,
+  statSync,
+  utimesSync,
+  copyFileSync,
+  rmSync,
+} from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { execFileSync } from "child_process";

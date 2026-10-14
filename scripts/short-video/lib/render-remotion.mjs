@@ -14,7 +14,15 @@
  */
 
 import { execSync } from "child_process";
-import { existsSync, writeFileSync, unlinkSync, mkdirSync, copyFileSync, statSync, rmSync } from "fs";
+import {
+  existsSync,
+  writeFileSync,
+  unlinkSync,
+  mkdirSync,
+  copyFileSync,
+  statSync,
+  rmSync,
+} from "fs";
 import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 import { finalizeRenderedVideo } from "./post-process.mjs";
