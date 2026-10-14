@@ -348,6 +348,29 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(out).toContain("kept 0 (remote 0)");
   });
 
+  // The dry-run preview walks the same loop, so it has the same window: a
+  // branch swept mid-preview must not be previewed as "kept" either.
+  it("gc --dry-run: a branch deleted mid-loop is reported gone, not kept", () => {
+    const aBranch = "session/20260101-race-dry-a-abc603";
+    const bBranch = "session/20260101-race-dry-b-abc604";
+    squashMergedBranch(aBranch, "dry-a\n", "dry-a.txt");
+    squashMergedBranch(bBranch, "dry-b\n", "dry-b.txt");
+    git(repo, "push", "-q", "origin", aBranch);
+    const p = join(ghDir, "gh");
+    writeFileSync(
+      p,
+      `#!/bin/bash\ncase "$*" in\n  *"pr list"*"--state merged"*) exit 0 ;;\n  *"pr list"*"--state closed"*) exit 0 ;;\n  *"pr list"*)\n    f="$(dirname "$0")/.race-fired"\n    if [ ! -f "$f" ]; then\n      printf x > "$f"\n      git -C ${JSON.stringify(repo)} branch -D ${bBranch} >/dev/null 2>&1 || true\n    fi\n    echo 0; exit 0 ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
+    );
+    execFileSync("chmod", ["+x", p]);
+
+    const { status, out } = gc("--dry-run");
+    expect(status).toBe(0);
+    expect(out).toContain(`${bBranch} already gone (deleted concurrently)`);
+    expect(out).not.toContain("not delivered");
+    expect(out).toContain(`would delete ${aBranch}`);
+    expect(out).toContain("kept 0 (remote 0)");
+  });
+
   // The namespace globs are word-split before `case` matches them, and word
   // splitting also ran pathname expansion: a checkout with a real `docs/`
   // directory expanded `docs/*` into that directory's file names, so the
@@ -1063,6 +1086,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(existsSync(wtPath)).toBe(false);
     expect(r.stdout).toContain("session branch already gone (swept by an earlier gc or deleted)");
     expect(r.stdout).not.toContain("not delivered");
+    expect(r.stdout).not.toContain("[session] session branch kept");
     expect(r.stdout).toContain("[session] post-delivery closeout:");
     expect(r.stdout).not.toContain("closeout after the PR merges");
     // The closeout's orphan pass sweeps the remote twin the parallel gc left.

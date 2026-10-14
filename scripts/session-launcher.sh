@@ -728,6 +728,12 @@ if [ "$cmd" = "gc" ]; then
       continue
     fi
     if [ -n "$dry_run" ]; then
+      # Same window as the real path below: the branch can be swept between
+      # the listing and this check. Nothing to preview — not kept, not deleted.
+      if ! git rev-parse --verify --quiet "refs/heads/$b" >/dev/null 2>&1; then
+        echo "[gc] $b already gone (deleted concurrently)"
+        continue
+      fi
       d=0
       ref_delivered "refs/heads/$b" "$(git rev-parse "refs/heads/$b")" || d=$?
       case "$d" in
