@@ -30,10 +30,11 @@ omit =
     scripts/short-video/lib/qwen38_vlm_wrapper.py
     # Manual probe scripts that happen to sit in lib/.
     scripts/short-video/lib/test_minicpm_*.py
-    # B-roll: test_broll_warmup.py asserts the warmup planner's behaviour
-    # (functional assertions on mlx_wan_batch's planning functions), while the
-    # generator body needs MLX int8 weights and mlx_wan22_batch.py has no
-    # assertions at all — measuring them would add a fixed tax on the total.
+    # B-roll generation: the generator bodies need MLX int8 weights and model
+    # downloads, so the only part CI can reach is the planning functions — and
+    # test_broll_warmup.py already asserts those directly (functional checks of
+    # its decisions, not line coverage). Measuring the tree would add a fixed,
+    # immovable block to the total.
     scripts/short-video/lib/b-roll/*
 
 [report]
