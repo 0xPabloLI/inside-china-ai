@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.11](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.10...tanstack_start_ts-v1.20.11) (2026-10-14)
+
+
+### Bug Fixes
+
+* **short-video:** yt-dlp 走 firefox 固定 profile + 尾裁切门禁 + asset-sourcer 消除命令注入 ([#640](https://github.com/0xPabloLI/inside-china-ai/issues/640)) ([0a45432](https://github.com/0xPabloLI/inside-china-ai/commit/0a45432ec12010f9935c9cee9d57b61ba95b5c9a))
+
 ## [1.20.10](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.9...tanstack_start_ts-v1.20.10) (2026-10-14)
 
 
