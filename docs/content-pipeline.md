@@ -376,6 +376,8 @@ node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 �
 
 > **BGM 不在 Stage 4 自动添加**。视频先以纯 VO 产出，BGM 在 Stage 5 HITL 确认后通过 `mix-bgm.mjs` 独立混入。
 
+> **每完成一次重渲就主动打开视频**（用户裁决，2026-10-14）：Stage 4/5 的迭代中，每次重渲成功后 Agent 必须 `open <新 mp4 路径>`，不必等 HITL。用户是画面的最终判据，让他在第一时间看到改了什么；只报路径等于让用户自己去 output 目录翻文件，违背这条裁决的本意。同一轮内多次重渲就多次打开（每次都指向最新版本）。
+
 视频制作的技术细节（TTS 引擎、渲染参数、文件位置）见 `docs/video-production-runbook.md`。
 
 > **Tier 3 图片搜索池（#112）**：asset-sourcer 在 Tier 1（stock API）+ Tier 2（CDP 新闻源）素材不足时，触发 Tier 3 开放搜索引擎图片搜索。引擎注册表在 `scripts/short-video/lib/progressive-search.mjs` → `IMAGE_SEARCH_ENGINES`，按序运行：Brave Image（`BRAVE_SEARCH_API_KEY`，无 key 跳过）→ SearXNG Image（localhost:8888，不可用跳过）→ Google Images（CDP `tbm=isch`）→ Bing Images（CDP，`a.iusc` murl 全分辨率）→ DuckDuckGo Images（纯 fetch，vqd token + `i.js` JSON，无 CDP）→ Tavily Images（`TAVILY_API_KEY`，`include_images` 兜底，末位）。引擎间 `Promise.allSettled` 并行、同引擎内关键词串行（防反爬；CDP 域名级限流由 `cdpNewTab` 的 rate-limiter 承担）。结果与 Brave/SearXNG 同管道：preFilter → 去重 → 下载 → 版权未验证标注。新增/调整引擎只改注册表，不动 asset-sourcer。
