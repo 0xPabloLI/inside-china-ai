@@ -16,7 +16,10 @@
  *   #17 extract_frames edge: startMs > endMs (handled by caller, not probeMedia)
  */
 import { describe, it, expect, vi } from "vitest";
-import { parseProbeOutput } from "../lib/media-probe.mjs";
+import { existsSync, mkdtempSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { parseProbeOutput, probeMedia } from "../lib/media-probe.mjs";
 
 // ─── parseProbeOutput: pure function tests ───
 
@@ -227,5 +230,30 @@ describe("parseProbeOutput", () => {
     expect(result).not.toBeNull();
     expect(result.width).toBe(0);
     expect(result.height).toBe(0);
+  });
+});
+
+// ─── I/O: ffprobe invocation ───
+
+describe("probe shell safety", () => {
+  // #319 OCR video batch scan: probeMedia used an execSync shell string, so a
+  // media path whose *name* contains a command substitution executed it.
+  // RED baseline on the old code: marker created=true.
+  // (The duration seam is getDurationSync — its own test file pins the same
+  // property.)
+  it("never executes shell metacharacters embedded in the file name", () => {
+    const dir = mkdtempSync(join(tmpdir(), "media-probe-319-"));
+    const victim = join(dir, "evil$(touch MARKER).mp4");
+    writeFileSync(victim, "not-a-video");
+
+    const cwd = process.cwd();
+    // The substitution, if any shell sees it, lands in this directory.
+    process.chdir(dir);
+    try {
+      expect(probeMedia(victim)).toBeNull();
+      expect(existsSync(join(dir, "MARKER"))).toBe(false);
+    } finally {
+      process.chdir(cwd);
+    }
   });
 });

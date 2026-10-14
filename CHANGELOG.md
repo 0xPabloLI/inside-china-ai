@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.20.10](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.9...tanstack_start_ts-v1.20.10) (2026-10-14)
+
+
+### Bug Fixes
+
+* **short-video,seo:** sweep the deferred shell-string + inline JSON-LD class ([#319](https://github.com/0xPabloLI/inside-china-ai/issues/319) tier 2) ([#638](https://github.com/0xPabloLI/inside-china-ai/issues/638)) ([68725ee](https://github.com/0xPabloLI/inside-china-ai/commit/68725ee5e7861a7ff68483a7a90c34d514a9884e))
+
+## [1.20.9](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.8...tanstack_start_ts-v1.20.9) (2026-10-13)
+
+
+### Bug Fixes
+
+* **ocr:** [#319](https://github.com/0xPabloLI/inside-china-ai/issues/319) M/L batch — adjudicate 127 findings, fix 14 real ones ([#319](https://github.com/0xPabloLI/inside-china-ai/issues/319)) ([#630](https://github.com/0xPabloLI/inside-china-ai/issues/630)) ([359b718](https://github.com/0xPabloLI/inside-china-ai/commit/359b71850e6042c3f6b255610bddf9da153d57ae))
+
+## [1.20.8](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.7...tanstack_start_ts-v1.20.8) (2026-10-13)
+
+
+### Bug Fixes
+
+* **ci:** filter the remaining documented test-fixture false positives ([#625](https://github.com/0xPabloLI/inside-china-ai/issues/625)) ([d438bdf](https://github.com/0xPabloLI/inside-china-ai/commit/d438bdfce0dec5741e182951669d646694850eae))
+
+## [1.20.7](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.6...tanstack_start_ts-v1.20.7) (2026-10-13)
+
+
+### Bug Fixes
+
+* **scripts:** stop gc's namespace globs from pathname-expanding ([#626](https://github.com/0xPabloLI/inside-china-ai/issues/626)) ([74f68b2](https://github.com/0xPabloLI/inside-china-ai/commit/74f68b2774213f78d89c81c121a8faa5af29e507))
+
+## [1.20.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.5...tanstack_start_ts-v1.20.6) (2026-10-13)
+
+
+### Bug Fixes
+
+* **security:** [#319](https://github.com/0xPabloLI/inside-china-ai/issues/319) OCR urgent batch — bound attachments, escape JSON-LD, argv-safe probes ([#618](https://github.com/0xPabloLI/inside-china-ai/issues/618)) ([9abbac1](https://github.com/0xPabloLI/inside-china-ai/commit/9abbac1082afbad3d6bf3ff12ffa89b8f068930c))
+
 ## [1.20.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.4...tanstack_start_ts-v1.20.5) (2026-10-12)
 
 

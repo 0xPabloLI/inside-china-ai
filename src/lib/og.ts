@@ -36,10 +36,21 @@ export function ogImageForPath(path: string, cover?: string | null): string {
   return OG_TEMPLATES.find((t) => t.match.test(path))?.image ?? OG_DEFAULT;
 }
 
+/** MIME type for an og:image URL — the branded fallbacks are JPEGs, the
+ * generated article cards are PNGs (#319 OCR lib scan: the meta used to claim
+ * image/png for every URL). */
+function ogImageType(url: string): string {
+  const path = url.split(/[?#]/)[0].toLowerCase();
+  if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
+  if (path.endsWith(".webp")) return "image/webp";
+  if (path.endsWith(".gif")) return "image/gif";
+  return "image/png";
+}
+
 /** og:image + twitter:image meta pair for a leaf route. */
 export const ogImageMeta = (url: string = OG_DEFAULT, alt?: string) => [
   { property: "og:image", content: url },
-  { property: "og:image:type", content: "image/png" },
+  { property: "og:image:type", content: ogImageType(url) },
   { property: "og:image:width", content: "1200" },
   { property: "og:image:height", content: "630" },
   ...(alt ? [{ property: "og:image:alt", content: alt }] : []),

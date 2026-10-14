@@ -8,9 +8,10 @@
  * output file, and returns the output path. Callers manage temp file cleanup.
  */
 
-import { execSync, execFileSync, spawnSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { existsSync, renameSync, unlinkSync } from "fs";
 import { measureAudioDrift } from "./audio/sync.mjs";
+import { ffmpegMeasureCmd, getDurationSync } from "./tts/ffmpeg-cmd.mjs";
 
 /**
  * Path to ffmpeg-full (has libass support for ASS subtitle burn-in).
@@ -69,9 +70,6 @@ export function parseLoudnormJson(text) {
   };
 }
 
-/** Binary for measurement-only ffmpeg calls (PATH-resolved, not ffmpeg-full). */
-const FFMPEG = "ffmpeg";
-
 /**
  * Default runner: capture stdout+stderr without letting a failure throw.
  *
@@ -80,7 +78,29 @@ const FFMPEG = "ffmpeg";
  * child_process command-injection rule for no real reachability gain.
  */
 function runCaptured(args) {
-  return spawnSync(FFMPEG, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  return spawnSync(ffmpegMeasureCmd, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+}
+
+/**
+ * BGM fade-out timing probe: the video's duration, or `fallback` when ffprobe
+ * cannot read one (missing file, junk container, broken ffprobe).
+ *
+ * argv-safe shared probe (#319 deferred class sweep). The finite guard is the
+ * one mix-bgm.mjs already applied: a NaN duration used to reach
+ * `Math.max(NaN - 3, 1)` and poison the fade-out filter with "NaN".
+ *
+ * @param {string} videoPath
+ * @param {number} [fallback=180]
+ * @returns {number} duration in seconds
+ */
+function probeVideoDuration(videoPath, fallback = 180) {
+  try {
+    const probed = getDurationSync(videoPath);
+    if (Number.isFinite(probed) && probed > 0) return probed;
+  } catch {
+    // fall through to the caller's default
+  }
+  return fallback;
 }
 
 /**
@@ -323,14 +343,8 @@ export function burnSubtitles(videoPath, assPath, outputPath) {
  * @returns {string} Path to the output file
  */
 export function mixBgm(videoPath, bgmPath, outputPath, volume = 0.12) {
-  // Get video duration for BGM fade-out timing
-  let videoDuration = 180;
-  try {
-    const info = execSync(
-      `ffprobe -i "${videoPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-    ).toString();
-    videoDuration = parseFloat(info.trim());
-  } catch {}
+  // BGM fade-out timing; a failed probe keeps the 180s default.
+  const videoDuration = probeVideoDuration(videoPath);
 
   const bgmFadeOutStart = Math.max(videoDuration - 3, 1).toFixed(2);
   const filterComplex =
@@ -534,14 +548,7 @@ export function finalizeRenderedVideo({
 
   let bgmFadeOutStart;
   if (bgmPath) {
-    let videoDuration = 180;
-    try {
-      const info = execSync(
-        `ffprobe -i "${videoPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-      ).toString();
-      videoDuration = parseFloat(info.trim());
-    } catch {}
-    bgmFadeOutStart = Math.max(videoDuration - 3, 1);
+    bgmFadeOutStart = Math.max(probeVideoDuration(videoPath) - 3, 1);
   }
 
   const args = buildFinalizeArgs({

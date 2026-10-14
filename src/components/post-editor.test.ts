@@ -27,9 +27,11 @@ describe("slugify", () => {
     expect(slugify("Hello--World")).toBe("hello-world");
   });
 
-  // Leading/trailing hyphens are NOT trimmed (existing behavior)
-  it("preserves leading and trailing hyphens", () => {
-    expect(slugify("-Hello World-")).toBe("-hello-world-");
+  // Leading/trailing hyphens are trimmed: the slug field's own pattern
+  // (`[a-z0-9]+(?:-[a-z0-9]+)*`) rejects them, so a title like "-Hello World-"
+  // produced a slug the editor refused to save (#319 OCR lib scan).
+  it("trims leading and trailing hyphens", () => {
+    expect(slugify("-Hello World-")).toBe("hello-world");
   });
 
   // Max length 80
@@ -39,9 +41,14 @@ describe("slugify", () => {
     expect(result.length).toBe(80);
   });
 
-  // Unicode characters stripped (leaves leading hyphen from space before remaining word)
+  // A cut landing on a hyphen must not leave it behind (#319 OCR lib scan).
+  it("does not end on a hyphen after truncation", () => {
+    expect(slugify(`${"a".repeat(79)}-${"b".repeat(10)}`)).toBe("a".repeat(79));
+  });
+
+  // Unicode characters stripped, including the hyphen the removed text left
   it("strips unicode characters", () => {
-    expect(slugify("你好 World")).toBe("-world");
+    expect(slugify("你好 World")).toBe("world");
   });
 
   // Numbers preserved

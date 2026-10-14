@@ -23,7 +23,7 @@
 - 依赖缺失本地工具的 suite 会以 stderr 噪音失败：`mlx_vlm`（VLM）、`whisper-cli`（ASR）、wav2vec2 模型缺失。
 - Worktree 缺 gitignored 媒体（新条目，2026-10-11 #548 session 实证）：未同步 `scripts/short-video/assets`、`voice-samples/` 时，`infra-paths`（voice-samples 存在性断言）与 `tts-kaggle-batch`（引擎工厂读 voice-samples，缺失返回 null）必失败；同步后隔离重跑 9/9 绿。CI 侧由 `VITEST_CI_SKIP_ENV_BOUND` 环境门跳过，不出现。**路径补记（2026-10-12 #424 session 实证）**：voice-samples 与 remotion 依赖都在 `scripts/short-video/` 下（`scripts/short-video/voice-samples`、`scripts/short-video/remotion/node_modules`），仓库根没有 `voice-samples/`、`remotion/` —— 按旧注记的根路径做 `ln`/`cp` 会失败。
 - **worktree 同步清单补全（新条目，2026-10-12 harvest session 实证）**：除上述两项，`scripts/short-video/node_modules` 与 `scripts/short-video/remotion/node_modules` 也要同步，否则 6 个 `npx remotion still` 类 suite 以 `npm error could not determine executable to run` 全挂（`text-gate-render` 19/19、`scene-gate-render` 37/37 等；补链后 80/81）。**符号链接的边界**：`node_modules` 用指向主 checkout 的符号链接即可；但 **dev server 提供的媒体资产必须复制实体文件**——`scene-gate-render` 经 `http://localhost:3000/public/assets/pexels-ai-chip.jpg` 加载 `scripts/short-video/assets/` 下被 gitignore 的 `pexels-*` 等（46 个），符号链接会让 Vite dev server 返回 404（`Could not load <CanvasImage>`），实体复制后 37/37 绿。全量终态：240 文件通过 / 4707 通过 / 7 skipped / 0 failed。
-- 本机 `jsdom` 缺失（新条目，2026-10-12 #424 session 实证）：`package.json` 声明了 devDependency `jsdom@^30`，但 main checkout 的 `node_modules` 未安装它 → 3 个 jsdom 环境文件（`src/components/theme-toggle.test.tsx`、`src/components/ui/carousel.test.tsx`、`src/hooks/use-mobile.test.tsx`）以 fork 启动失败计入 Unhandled Errors。全量跑表现：215 文件通过、4359 通过 / 1 skipped、errors=3、exit=1——同一命令在 main checkout 同基线；`npm install` / `npm ci` 补装 jsdom 后应消失（CI 安装完整依赖，不出现）。**补装命令（2026-10-12 harvest session 实证）**：`npm install --no-save --no-package-lock jsdom@^30.0.0`（按 lockfile 取 30.1.2，不改 `package.json`/`package-lock.json`；会顺带 reconcile 共享 `node_modules`），补装后 3 个 jsdom suite 8/8 绿。
+- 本机 `jsdom` 缺失（新条目，2026-10-12 #424 session 实证；**补装方式于 2026-10-13 #319 session 修正**）：`package.json` 声明了 devDependency `jsdom@^30`，但 main checkout 的 `node_modules` 未安装它 → 3 个 jsdom 环境文件（`src/components/theme-toggle.test.tsx`、`src/components/ui/carousel.test.tsx`、`src/hooks/use-mobile.test.tsx`）以 fork 启动失败计入 Unhandled Errors。全量跑表现：215 文件通过、4359 通过 / 1 skipped、errors=3、exit=1——同一命令在 main checkout 同基线。**修法：`npm ci`**（lockfile 里就有 `jsdom@30.1.2`，恢复即带上；2026-10-13 实测恢复后 227 文件 4496 通过 0 失败、3 条 fork 错误消失）。⚠️ **不要用 `npm install --no-save --no-package-lock <pkg>` 补包**：它会把整棵树重解析到各 range 的最新满足版本——实测把 `@tanstack/start-client-core` 1.170.34→**1.170.37**、`@tanstack/react-start` 1.168.60→**1.169.1** 甩到 lockfile 之外，而 1.170.37 把 `inputValidator` 改名为 `validator`，于是 `src/lib/posts.functions.test.ts` 报 `createServerFn(...).inputValidator is not a function` 的**假失败**（CI 用 `npm ci` 全绿）。判据：失败信息 + `node_modules/@tanstack/start-client-core` 的 mtime 落在安装时刻 + lockfile pin ≠ 实装版本。需要临时包时用独立 checkout，别动共享 `node_modules`。
 
 ### Node 版本漂移
 
@@ -39,11 +39,11 @@
 
 本机同时装了 Clash Verge Rev 与 FlClash，混合端口不同，**两个都可能处于运行状态**（进程在 ≠ 代理可用）。
 
-| 角色 | 端口 | 配置位置 |
-| --- | --- | --- |
-| Clash Verge Rev `mixed-port` | `7897` | `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/{config,verge}.yaml`；另有 socks `7898` / http `7899` / redir `7895` / controller `127.0.0.1:9097` |
-| FlClash `mixed-port` | `7890` | `~/Library/Application Support/com.follow.clash/config.yaml`（`port`/`socks-port`/`redir-port` 均为 0，`external-controller` 为空） |
-| colima 隧道 | VM `127.0.0.1:7891` → 宿主 `<PROXY_PORT>` | `scripts/colima-proxy-tunnel.sh`；`PROXY_PORT` 由 `scutil --proxy` 自动探测（系统代理关闭时探测失败 ⇒ 隧道起不来） |
+| 角色                         | 端口                                      | 配置位置                                                                                                                                                                    |
+| ---------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Clash Verge Rev `mixed-port` | `7897`                                    | `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/{config,verge}.yaml`；另有 socks `7898` / http `7899` / redir `7895` / controller `127.0.0.1:9097` |
+| FlClash `mixed-port`         | `7890`                                    | `~/Library/Application Support/com.follow.clash/config.yaml`（`port`/`socks-port`/`redir-port` 均为 0，`external-controller` 为空）                                         |
+| colima 隧道                  | VM `127.0.0.1:7891` → 宿主 `<PROXY_PORT>` | `scripts/colima-proxy-tunnel.sh`；`PROXY_PORT` 由 `scutil --proxy` 自动探测（系统代理关闭时探测失败 ⇒ 隧道起不来）                                                          |
 
 **先实测哪个端口今天活着**，再决定往哪儿指（10 秒）：
 
@@ -59,19 +59,19 @@ done
 
 **2026-09-25 实测快照**（每次切客户端后重测，别当长期结论）：
 
-| 路径 | google/generate_204 | youtube | 判读 |
-| --- | --- | --- | --- |
-| FlClash `7890` | `204` | `200` | ✅ 可用（TUN 打开后它不再是唯一出口） |
-| Clash Verge `7897` | `000` | `000` | ❌ 端口在监听但不代理（`verge.yaml`：`enable_tun_mode: false`、`enable_system_proxy: false`，运行配置 `mode: direct`）⇒ 等价直连 |
-| **不给代理（默认）** | `204` | `200` | ✅ **TUN 已接管**（2026-09-25 10:10 起）：`1` `2/7` `4/6` `8/5` `16/4` `32/3` `64/2` `128.0/1` 八条半路由全部指向 `utun7`（网关 `198.18.0.1`） |
+| 路径                 | google/generate_204 | youtube | 判读                                                                                                                                           |
+| -------------------- | ------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| FlClash `7890`       | `204`               | `200`   | ✅ 可用（TUN 打开后它不再是唯一出口）                                                                                                          |
+| Clash Verge `7897`   | `000`               | `000`   | ❌ 端口在监听但不代理（`verge.yaml`：`enable_tun_mode: false`、`enable_system_proxy: false`，运行配置 `mode: direct`）⇒ 等价直连               |
+| **不给代理（默认）** | `204`               | `200`   | ✅ **TUN 已接管**（2026-09-25 10:10 起）：`1` `2/7` `4/6` `8/5` `16/4` `32/3` `64/2` `128.0/1` 八条半路由全部指向 `utun7`（网关 `198.18.0.1`） |
 
 **端口被写死在哪 —— 改一个要同时改，否则只有一半通**：
 
-| 位置 | 2026-09-25 现状 |
-| --- | --- |
+| 位置                                               | 2026-09-25 现状                                                                                                                  |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | 仓库 `.git/config` 的 `http.proxy` / `https.proxy` | `7897`（死）→ 09:50 改 `7890` → **10:12 `git config --local --unset`**。TUN 覆盖后这里**应当为空**：留着就是留一个迟早会死的端口 |
-| `~/searxng/settings.yml` 的 `outgoing.proxies` | `http://192.168.5.2:7890`（VM 网关→宿主；当日与 FlClash 一致） |
-| colima VM 内的 `http_proxy` 等 4 个环境变量 | `http://192.168.5.2:7890`（VM 启动时注入的项目，`colima.yaml` 的 `env` 为空 ⇒ 来自别处）|
+| `~/searxng/settings.yml` 的 `outgoing.proxies`     | `http://192.168.5.2:7890`（VM 网关→宿主；当日与 FlClash 一致）                                                                   |
+| colima VM 内的 `http_proxy` 等 4 个环境变量        | `http://192.168.5.2:7890`（VM 启动时注入的项目，`colima.yaml` 的 `env` 为空 ⇒ 来自别处）                                         |
 
 ⚠️ **纠正（2026-09-25 09:50 实测）**：本表原写「git 实际直连：github 能通」——**是错的**。当天 `github.com` 直连 = `000`（被墙），只有 `api.github.com` 直连 = `200`。所以 `.git/config` 指着死端口时 git **不是直连、而是全挂**。判据要用 `github.com` 本体，别拿 `api.github.com` 代替（它不走墙）。
 
@@ -87,9 +87,9 @@ done
 
 前提：**同一时间只跑一个客户端**。Clash Verge 与 FlClash 同时运行是端口漂移的源头。
 
-| 方案 | 代价 | 谁受益 | 仍需同步端口的地方 |
-| --- | --- | --- | --- |
-| **客户端「系统代理」打开**（推荐起步） | 一次点击、可逆、不动内核 | 浏览器（Chrome **动态跟随**，无需重启）、`scutil --proxy` 有值 ⇒ 隧道脚本能自动探测 | git、SearXNG（**都不读** macOS 系统代理）|
+| 方案                                         | 代价                                                          | 谁受益                                                                                                             | 仍需同步端口的地方                                     |
+| -------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| **客户端「系统代理」打开**（推荐起步）       | 一次点击、可逆、不动内核                                      | 浏览器（Chrome **动态跟随**，无需重启）、`scutil --proxy` 有值 ⇒ 隧道脚本能自动探测                                | git、SearXNG（**都不读** macOS 系统代理）              |
 | 客户端 TUN 真正打开（**2026-09-25 起采用**） | 需客户端 helper；**两客户端同时开会抢路由**，必须先退出另一个 | 所有进程透明代理（CLI / git / Chrome **以及 colima VM**）；`.git/config` 与 SearXNG 里的宿主端口写死**都可以去掉** | 仅剩「TUN 被关掉之后」这一种情形，那时才需要隧道或网关 |
 
 - **跟随系统代理同步 git（切客户端后跑这一行）**：
@@ -101,6 +101,7 @@ done
   ```
 
   系统代理关着时 `$P` 为空：改走 TUN 就该 `git config --unset http.proxy`（TUN 覆盖后不需要它）。**别让两个都不成立**——那时 git 对着一个死端口。
+
 - ~~**让 SearXNG 不再随端口漂**：把 `outgoing.proxies` 改为隧道口 `127.0.0.1:7891`~~ —— **已被 TUN 取代（2026-09-25 10:20）**：TUN 开着时 VM 直连即可，`outgoing.proxies` 不再是必需项。只有回到「TUN 关着」的时段才需要隧道或网关方案。
 
 **colima 与代理的关系（别把它当"本地所以直连"）**：colima 是跑在本机的 Linux VM（lima + Apple Virtualization.Framework），Docker/SearXNG 在 VM 内。VM 有自己的网络命名空间，**VM 的 `127.0.0.1` ≠ macOS 的 `127.0.0.1`**；代理客户端只监听宿主 `127.0.0.1`、且 `allow-lan: false`，VM 直连不到。VM 出网三条路：① 宿主网关 `192.168.5.2:<宿主端口>`；② SSH 反向隧道 `VM 127.0.0.1:7891 → 宿主 <端口>`（`scripts/colima-proxy-tunnel.sh`）；③ **宿主 TUN 开着时的透明代理 —— 实测覆盖 VM**（判据见上「量 VM 出网」节的 fake-IP）。①②只在③不成立时才有意义。
@@ -119,9 +120,19 @@ done
 
 ## CI 扫描器已知误报类
 
-### Semgrep `path-join-resolve-traversal` × 测试 fixture（2026-10-12）
+### Semgrep × 测试 fixture（2026-10-12 起，2026-10-13 扩到五类）
 
-- **类**：`javascript.lang.security.audit.path-traversal.path-join-resolve-traversal` 是 **taint 模式**规则（源=函数参数，汇=`path.join`/`resolve`）。测试 fixture 的路径来自 `mkdtempSync` 临时目录，于是每个 fixture join 都被上报。全量实测（`semgrep 1.179.0`，`--config p/default`，`src/ scripts/`）：**115 条落在测试路径、266 条落在生产路径**——误报只在测试侧。
-- **注解无效（别重试）**：`// nosemgrep` 对 taint 规则不生效——注释在汇行、源行、带显式 rule id 三种写法均仍上报（本地 1.179.0/1.180.0 复现；仓库里 widget 测试的同款注释对应的告警至今为 open，即历史证据）。`paths.exclude` 覆盖同 id 规则也不可行：同 id 两条规则并存，结果**翻倍**（19 → 27 实测）。
-- **处置**：CI 在扫描与上传之间跑 `.github/scripts/filter-semgrep-fps.py`（`.github/workflows/ci.yml` 的 `Drop documented test-fixture false positives` 步骤），只丢「该规则 id **且** 测试路径」的命中——测试文件对其余规则照常扫描，生产路径的同规则命中照常上传。过滤器由 `scripts/__tests__/semgrep-fp-filter.test.mjs` 钉住（含「报告损坏即失败」与「其余规则保留」两条边界）。安全页上该类的存量告警按 **`used in tests`** dismiss（2026-10-12 处理）。
-- **维护**：若要连生产路径的该规则命中一起排除，那是策略变更——必须改过滤器并在此登记；过滤器按「规则 id + 路径」双条件匹配，不会顺手放过生产命中。
+测试 fixture 的构造方式（临时目录、真媒体文件、内存状态替身、常量表断言）会命中若干 Semgrep 规则，而这些形状在测试里是预期行为。**判据是「规则 id 且测试路径」双条件**：测试文件对其余规则照常扫描，生产路径的同规则命中照常上传。
+
+| 规则（完整 id，与过滤器 `RULE_IDS` 逐字一致）                                                                                     | 测试里的形状                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal`                             | fixture 路径来自 `mkdtempSync`，taint 源=函数参数、汇=`path.join`/`resolve`         |
+| `javascript.lang.security.detect-child-process.detect-child-process`                                                                | fixture 用 `execSync` 跑 ffmpeg 造真媒体文件，参数是临时目录路径与数字（时长/延迟） |
+| `javascript.lang.security.insecure-object-assign.insecure-object-assign`                                                            | 测试替身用 `Object.assign(mem, JSON.parse(JSON.stringify(s)))` 合并内存状态         |
+| `javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp`                                                | 用常量列表或捕获的进程输出构造 `RegExp` 来断言                                      |
+| `javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop`                              | 漂移模拟按固定字段常量表改写 fixture 对象                                           |
+
+- **证据（2026-10-12 首批）**：`path-join-resolve-traversal` 是 **taint 模式**规则，全量实测（`semgrep 1.179.0`，`--config p/default`，`src/ scripts/`）**115 条在测试路径、266 条在生产路径**——误报只在测试侧。**注解是否生效与版本相关（2026-10-14 订正）**：1.179.0/1.180.0 上 `// nosemgrep` 对该 taint 规则不生效（注释在汇行、源行、带显式 rule id 三种写法均仍上报）；但**本仓 pre-push 用的本地版本 1.176.1 上汇行注解生效**——同线 A/B（`const full = join(dir, entry.name);` 2 findings → 加 `// nosemgrep` 0 findings），`src/components/widgets/tokens-drift.test.ts:29` 同形亦被压制。故本地误报可先用汇行注解消掉；**CI 的过滤器仍是唯一版本无关的兜底**（CI 容器版本随镜像漂移，不能假设注解有效）。`paths.exclude` 覆盖同 id 规则会让结果**翻倍**（19 → 27 实测）。
+- **证据（2026-10-13 第二批）**：安全页 27 条开放告警全在测试路径，分属上表后四类（`detect-child-process` 19、`insecure-object-assign` 4、`detect-non-literal-regexp` 3、`prototype-pollution-loop` 1）。全量实测（`semgrep 1.176.1`，同命令）489 条结果：过滤器丢弃 **145**（118 条 `path-join-resolve-traversal` + 上述 27 条），生产路径保留 `path-join-resolve-traversal` 265 条、`detect-child-process` 41 条、`detect-non-literal-regexp` 14 条；集合外规则的 24 条前后逐条一致。**计数随 semgrep/规则集版本漂移**（首批 115/266，第二批 118/265 即版本差），契约是「规则 id + 路径」，不是任何固定数字。
+- **处置**：CI 在扫描与上传之间跑 `.github/scripts/filter-semgrep-fps.py`（`.github/workflows/ci.yml` 的 `Drop documented test-fixture false positives` 步骤）。过滤器由 `scripts/__tests__/semgrep-fp-filter.test.mjs` 钉住：每类规则在测试路径被丢弃、在生产路径保留、集合外规则在测试路径保留；另有「报告损坏 / 无 scan run / 无 results 键 / 无规则目录即失败」边界。**规则目录守卫**：报告自带的 `tool.driver.rules` 必须仍含五类 id——上游改名或删除时 job 失败并列出要同步的三处，过滤器不会静默失效。安全页上的存量告警按 **`used in tests`** dismiss（2026-10-12 首批 114 条；2026-10-13 第二批 27 条）。
+- **维护**：新增一类误报必须**同时**改三处——过滤器 `RULE_IDS`、`scripts/__tests__/semgrep-fp-filter.test.mjs`、本表；三处的 id 必须逐字一致（表中列全 id 就是为了可对照）。若要把某规则**生产路径**的命中一起排除，那是策略变更，不属本机制。

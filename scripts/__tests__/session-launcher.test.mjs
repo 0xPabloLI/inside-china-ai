@@ -268,14 +268,16 @@ describe("session-launcher gc: post-delivery closeout", () => {
   // squashMergedBranch creates `name` with one commit, then lands the same
   // content on main as a separate commit and pushes — the exact shape a
   // squash merge leaves behind (content on main, no ancestry relation).
-  function squashMergedBranch(name, content) {
+  // `file` lets several such branches coexist: byte identity is per-file, so
+  // two branches sharing one path would un-deliver the earlier one.
+  function squashMergedBranch(name, content, file = "feature.txt") {
     const wtPath = join(repo, "wt-" + name.replace(/[^a-z0-9]+/gi, "-"));
     git(repo, "worktree", "add", "-b", name, wtPath);
-    writeFileSync(join(wtPath, "feature.txt"), content);
+    writeFileSync(join(wtPath, file), content);
     git(wtPath, "add", ".");
     git(wtPath, "commit", "-q", "-m", "feature work");
     git(repo, "worktree", "remove", wtPath);
-    writeFileSync(join(repo, "feature.txt"), content);
+    writeFileSync(join(repo, file), content);
     git(repo, "add", ".");
     git(repo, "commit", "-q", "-m", "squash merge of " + name);
     git(repo, "push", "-q", "origin", "main");
@@ -315,6 +317,49 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(branchExists("session/20260101-merged-abc123")).toBe(false);
     expect(remoteBranchExists("session/20260101-merged-abc123")).toBe(false);
     expect(out).toContain("deleted session/20260101-merged-abc123");
+  });
+
+  // The namespace globs are word-split before `case` matches them, and word
+  // splitting also ran pathname expansion: a checkout with a real `docs/`
+  // directory expanded `docs/*` into that directory's file names, so the
+  // `docs/*` pattern never matched a `docs/…` branch and gc silently skipped
+  // it (2026-10-13: a delivered docs/ branch survived two gc runs and was
+  // only cleaned with an explicit SESSION_GC_BRANCH_GLOBS). The fixture had
+  // no docs/ directory, which is why nothing caught it.
+  it("deletes a delivered docs/* branch when the checkout has a docs/ directory", () => {
+    mkdirSync(join(repo, "docs"), { recursive: true });
+    writeFileSync(join(repo, "docs", "guide.md"), "guide\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "add docs directory");
+    git(repo, "push", "-q", "origin", "main");
+
+    squashMergedBranch("docs/roadmap-closeout", "closeout\n");
+
+    const { status, out } = gc();
+    expect(status).toBe(0);
+    expect(branchExists("docs/roadmap-closeout")).toBe(false);
+    expect(out).toContain("deleted docs/roadmap-closeout");
+  });
+
+  it("honours SESSION_GC_BRANCH_GLOBS as a replacement set, split safely", () => {
+    mkdirSync(join(repo, "docs"), { recursive: true });
+    writeFileSync(join(repo, "docs", "guide.md"), "guide\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "add docs directory");
+    git(repo, "push", "-q", "origin", "main");
+
+    squashMergedBranch("personal/keep", "kept\n", "personal-keep.txt");
+    squashMergedBranch("docs/keep", "docs kept\n", "docs-keep.txt");
+
+    // The override replaces the default families: both branches match one of
+    // its two patterns, and the second pattern is the one pathname expansion
+    // used to eat.
+    const { status, out } = gcWith({ SESSION_GC_BRANCH_GLOBS: "personal/* docs/*" });
+    expect(status).toBe(0);
+    expect(branchExists("personal/keep")).toBe(false);
+    expect(branchExists("docs/keep")).toBe(false);
+    expect(out).toContain("deleted personal/keep");
+    expect(out).toContain("deleted docs/keep");
   });
 
   it("keeps a branch whose content is not on origin/main", () => {

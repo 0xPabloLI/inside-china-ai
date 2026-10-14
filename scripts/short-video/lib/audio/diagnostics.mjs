@@ -15,17 +15,27 @@
  *   that `summary.passed` already decided.
  */
 
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 
 /** Packet gaps strictly larger than this (seconds) are reported. */
 export const PACKET_GAP_THRESHOLD = 0.1;
 
-/** Shared ffprobe csv bridge: `-v quiet <extra> -show_entries <entries> -of csv=p=0`. */
-function runFfprobeCsv(videoPath, showEntries, extraFlags = "") {
-  return execSync(
-    `ffprobe -v quiet ${extraFlags} -show_entries ${showEntries} -of csv=p=0 "${videoPath}"`,
+/**
+ * Shared ffprobe csv bridge: `-v quiet <extra> -show_entries <entries> -of csv=p=0`.
+ *
+ * argv, never a shell string (#319 deferred class sweep): the video path is
+ * data, and a path carrying shell metacharacters must not be executed.
+ *
+ * @param {string} videoPath
+ * @param {string} showEntries
+ * @param {string[]} [extraFlags] - ffprobe flags, one argv element each
+ */
+function runFfprobeCsv(videoPath, showEntries, extraFlags = []) {
+  return execFileSync(
+    "ffprobe",
+    ["-v", "quiet", ...extraFlags, "-show_entries", showEntries, "-of", "csv=p=0", videoPath],
     { stdio: ["pipe", "pipe", "pipe"] },
   ).toString();
 }
@@ -80,7 +90,7 @@ export function findGaps(pts, minGapSeconds = PACKET_GAP_THRESHOLD) {
  */
 export function collectPacketGaps(videoPath, minGapSeconds = PACKET_GAP_THRESHOLD) {
   try {
-    const raw = runFfprobeCsv(videoPath, "packet=pts_time", "-select_streams a");
+    const raw = runFfprobeCsv(videoPath, "packet=pts_time", ["-select_streams", "a"]);
     const pts = parsePacketPts(raw);
     if (pts.length === 0) {
       return {

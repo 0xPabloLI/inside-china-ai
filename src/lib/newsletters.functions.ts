@@ -25,32 +25,80 @@ export const listNewsletters = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
+export type NewsletterSaveInput = z.infer<typeof newsletterInput>;
+
+type NewsletterRowBase = {
+  subject: string;
+  title: string | null;
+  excerpt: string | null;
+  content: string;
+  post_url: string | null;
+  scheduled_at: string | null;
+  status: "scheduled" | "draft";
+};
+
+/**
+ * Row written by `saveNewsletter`.
+ *
+ * `created_by` is insert-only: carrying it on update overwrote the original
+ * author with whoever edited last (#319 OCR lib scan).
+ */
+export function buildNewsletterRow(
+  input: NewsletterSaveInput,
+  mode: "insert",
+  userId: string,
+): NewsletterRowBase & { created_by: string };
+export function buildNewsletterRow(input: NewsletterSaveInput, mode: "update"): NewsletterRowBase;
+export function buildNewsletterRow(
+  input: NewsletterSaveInput,
+  mode: "insert" | "update",
+  userId?: string,
+): NewsletterRowBase | (NewsletterRowBase & { created_by: string }) {
+  const row: NewsletterRowBase = {
+    subject: input.subject,
+    title: input.title || null,
+    excerpt: input.excerpt || null,
+    content: input.content || "",
+    post_url: input.postUrl ? input.postUrl : null,
+    scheduled_at: input.scheduledAt || null,
+    status: (input.scheduledAt ? "scheduled" : "draft") as "scheduled" | "draft",
+  };
+  if (mode === "update") return row;
+  if (!userId) throw new Error("buildNewsletterRow: userId is required for an insert");
+  return { ...row, created_by: userId };
+}
+
+/**
+ * The update is filtered to editable statuses, so a newsletter that is already
+ * sending/sent (or was deleted) matches no row. Reporting success then would
+ * silently discard the admin's edit (#319 OCR lib scan).
+ */
+export function assertNewsletterUpdated(rows: { id: string }[] | null): void {
+  if (!rows || rows.length === 0) {
+    throw new Error(
+      "This newsletter can no longer be edited — it has already been sent or was deleted.",
+    );
+  }
+}
+
 export const saveNewsletter = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((d: unknown) => newsletterInput.parse(d))
   .handler(async ({ data, context }) => {
-    const row = {
-      subject: data.subject,
-      title: data.title || null,
-      excerpt: data.excerpt || null,
-      content: data.content || "",
-      post_url: data.postUrl ? data.postUrl : null,
-      scheduled_at: data.scheduledAt || null,
-      status: (data.scheduledAt ? "scheduled" : "draft") as "scheduled" | "draft",
-      created_by: context.userId,
-    };
     if (data.id) {
-      const { error } = await context.supabase
+      const { data: updated, error } = await context.supabase
         .from("newsletters")
-        .update(row)
+        .update(buildNewsletterRow(data, "update"))
         .eq("id", data.id)
-        .in("status", ["draft", "scheduled", "failed"]);
+        .in("status", ["draft", "scheduled", "failed"])
+        .select("id");
       if (error) throw new Error(error.message);
+      assertNewsletterUpdated(updated);
       return { id: data.id };
     }
     const { data: inserted, error } = await context.supabase
       .from("newsletters")
-      .insert(row)
+      .insert(buildNewsletterRow(data, "insert", context.userId))
       .select("id")
       .single();
     if (error) throw new Error(error.message);

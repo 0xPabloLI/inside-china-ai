@@ -6,7 +6,13 @@ import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
 import { AskChinaAi } from "@/components/ask-china-ai";
 import { topicForPost } from "@/lib/news-topics";
-import { breadcrumbListJsonLd, faqPageJsonLd, graph, type JsonLdNode } from "@/lib/structured-data";
+import {
+  breadcrumbListJsonLd,
+  faqPageJsonLd,
+  graph,
+  jsonLdScript,
+  type JsonLdNode,
+} from "@/lib/structured-data";
 
 const postsQuery = queryOptions({
   queryKey: ["published-posts"],
@@ -111,12 +117,7 @@ export const Route = createFileRoute("/news/chinese-ai-models")({
       { name: "twitter:description", content: DESCRIPTION },
     ],
     links: [{ rel: "canonical", href: URL }],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify(chineseAiModelsJsonLd()),
-      },
-    ],
+    scripts: [jsonLdScript(chineseAiModelsJsonLd())],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(postsQuery),
   component: ChineseAiModels,

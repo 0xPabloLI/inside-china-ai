@@ -54,9 +54,9 @@ Stage 0 素材收集完成后、文章轨/视频轨分叉前，Agent 查 RAG 检
 curl -s --max-time 3 http://127.0.0.1:11434/api/version || { nohup ollama serve >> /tmp/ollama.log 2>&1 & }
 ```
 
-轮询同一 URL（≤15s）确认就绪后再查询。只有启动失败（`ollama` 缺失 / 端口不可用 / 模型未安装）才降级跳过，输出 `⚠️ RAG query skipped: <reason>`。
+轮询同一 URL（≤15s）确认就绪后再查询。注意 `/api/version` 与 `isOllamaAvailable()` 用的 `/api/tags` 都只证明守护进程在跑，不校验 `bge-m3` 是否已安装；模型缺失或维度不符要到 embed 时才暴露。
 
-> **降级口径（单一来源，Stage 2d / Stage 3 Step 2 引用本条）**：先完成启动尝试；仍不可用或查询失败时才跳过并继续管线。
+> **降级口径（单一来源，Stage 2d / Stage 3 Step 2 引用本条）**：先完成启动尝试；仍不可用（`ollama` 缺失 / 端口不可用）或查询失败（含 `bge-m3` 未安装 / 维度不符）时才跳过，输出 `⚠️ RAG query skipped: <reason>` 并继续管线。
 
 ```bash
 node scripts/rag/query.mjs "话题关键词 公司名" --type article --format json
@@ -229,7 +229,7 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path1.pdf> <p
 
 保存文章 draft 或公开文章后，都会触发 RAG 增量重建。`publish-article.mjs` 内置 `triggerRagReindex()` 调用，发布成功后自动触发。即使自动触发失败，也不阻塞管线。
 
-> **非阻塞**：reindex 失败不阻塞管线后续 stage。Ollama 先启动规则见 Stage 0「Ollama 前置（先启动，再查询）」；启动失败时输出警告并建议手动 `node scripts/rag/index.mjs`。
+> **非阻塞**：reindex 失败不阻塞管线后续 stage。Ollama 先启动规则见 Stage 0「Ollama 前置（先启动，再查询）」；跳过时输出警告并建议手动 `node scripts/rag/index.mjs`。
 
 ### 2e. RAG 工具参考（随时可用）
 
@@ -288,7 +288,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 ### 步骤
 
 1. **读 Stage 0 素材** — 从 Stage 0 输出的素材集合（用户素材 + 互联网全文）中提取核心信息。文章 draft 如已就绪可作为一致性参考，但视频不是文章翻译。
-2. **RAG 查询（已有 scene-data 检索）** — 用叙事角度 + 公司名查 RAG（命令同 Stage 0 末尾，`--type scene-data` 与 `--type article` 各一次），检索已有视频场景和文章背景。Agent 读取结果后：避免重复已有场景的叙事结构和角度；在公司名出现时融入已有背景信息到 voiceover 脚本中。**非阻塞**：Ollama 先启动规则见 Stage 0「Ollama 前置（先启动，再查询）」；启动失败才跳过 + 输出警告 + 继续。
+2. **RAG 查询（已有 scene-data 检索）** — 用叙事角度 + 公司名查 RAG（命令同 Stage 0 末尾，`--type scene-data` 与 `--type article` 各一次），检索已有视频场景和文章背景。Agent 读取结果后：避免重复已有场景的叙事结构和角度；在公司名出现时融入已有背景信息到 voiceover 脚本中。**非阻塞**：Ollama 先启动规则与降级口径见 Stage 0「Ollama 前置（先启动，再查询）」；跳过时输出警告 + 继续。
 3. **确定叙事类型** — 根据素材内容选择叙事结构（详见 `docs/video-script-writing-guide.md` → Step 2 叙事类型）
 4. **提炼核心叙事线** — 从素材中提取 3-5 个关键点，确定每个 scene 的素材需求（详见 `docs/video-script-writing-guide.md` → Scene 模板）
 5. **AI Outline 话题描述（opt-in 旁路，默认跳过）** — **默认整步跳过**（等价于旧的"用户跳过"降级分支）：不生成话题描述、不暂停、不询问。仅当用户显式点名启用时：Agent 基于核心叙事线生成一段含具体公司名+数字+事件的话题描述（≤30 词），输出到对话中，**Agent 暂停**等用户在 TikTok 移动端 CSI → AI Outline 中输入并抄回结果。

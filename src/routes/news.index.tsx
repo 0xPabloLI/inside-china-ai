@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { ogMetaForPath, SITE_URL } from "@/lib/og";
+import { jsonLdScript } from "@/lib/structured-data";
 import { listPublishedPosts } from "@/lib/posts.functions";
 import { SiteHeader } from "@/components/site-header";
 import { SubscribeForm } from "@/components/subscribe-form";
@@ -29,22 +30,19 @@ export const Route = createFileRoute("/news/")({
     ],
     links: [{ rel: "canonical", href: `${SITE_URL}/news` }],
     scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "CollectionPage",
-          "@id": `${SITE_URL}/news#collection`,
-          name: "China AI News Hub",
-          description: DESCRIPTION,
-          url: `${SITE_URL}/news`,
-          isPartOf: { "@id": `${SITE_URL}/#website` },
-          about: TOPICS.filter((t) => t.id !== "all").map((t) => ({
-            "@type": "Thing",
-            name: t.label,
-          })),
-        }),
-      },
+      jsonLdScript({
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "@id": `${SITE_URL}/news#collection`,
+        name: "China AI News Hub",
+        description: DESCRIPTION,
+        url: `${SITE_URL}/news`,
+        isPartOf: { "@id": `${SITE_URL}/#website` },
+        about: TOPICS.filter((t) => t.id !== "all").map((t) => ({
+          "@type": "Thing",
+          name: t.label,
+        })),
+      }),
     ],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(postsQuery),

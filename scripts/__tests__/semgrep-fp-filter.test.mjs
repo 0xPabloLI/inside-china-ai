@@ -6,14 +6,18 @@ import { tmpdir } from "os";
 
 // The CI filter that drops the documented test-fixture false positives from the
 // Semgrep SARIF (see .github/scripts/filter-semgrep-fps.py and the Semgrep job
-// in .github/workflows/ci.yml). It must drop exactly that class — same rule id
-// AND a test path — because a filter that silently widens would hide real
-// findings from the security tab, and a filter that fails open would let the
-// job pass with nothing uploaded.
+// in .github/workflows/ci.yml). It must drop exactly the documented classes —
+// same rule id AND a test path — because a filter that silently widens would
+// hide real findings from the security tab, and a filter that fails open would
+// let the job pass with nothing uploaded.
 
 const FILTER = join(import.meta.dirname, "..", "..", ".github", "scripts", "filter-semgrep-fps.py");
 const RULE =
   "javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal";
+// Rules outside the documented set: their test-path findings must survive, so
+// the suite pins that the filter matches by rule id as well as by path.
+const OUTSIDE_A = "javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring";
+const OUTSIDE_B = "javascript.browser.security.eval-detected.eval-detected";
 
 // The filter is a python script, and this suite shells out to it. CI installs
 // python3; a machine without it skips rather than fails.
@@ -39,14 +43,27 @@ describe("semgrep SARIF false-positive filter", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  function writeReport(results, { runs = 1 } = {}) {
+  // A real semgrep report declares its whole rule catalog in
+  // tool.driver.rules; the filter refuses to run when a listed rule is no
+  // longer in it (renamed or removed upstream).
+  const CATALOG = [
+    RULE,
+    OUTSIDE_A,
+    OUTSIDE_B,
+    "javascript.lang.security.detect-child-process.detect-child-process",
+    "javascript.lang.security.insecure-object-assign.insecure-object-assign",
+    "javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp",
+    "javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop",
+  ];
+
+  function writeReport(results, { runs = 1, catalog = CATALOG } = {}) {
     const path = join(dir, "semgrep.sarif");
     writeFileSync(
       path,
       JSON.stringify({
         version: "2.1.0",
         runs: Array.from({ length: runs }, () => ({
-          tool: { driver: { name: "semgrep" } },
+          tool: { driver: { name: "semgrep", rules: catalog.map((id) => ({ id })) } },
           results,
         })),
       }),
@@ -70,25 +87,78 @@ describe("semgrep SARIF false-positive filter", () => {
       result(RULE, "scripts/__tests__/fixture.test.mjs", 10),
       result(RULE, "src/components/widgets/tokens-drift.test.ts", 29),
       result(RULE, "scripts/short-video/lib/scene-audio.mjs", 33),
+      result(OUTSIDE_A, "scripts/__tests__/fixture.test.mjs", 12),
+      result(OUTSIDE_B, "scripts/spec.spec.mjs", 4),
+    ]);
+
+    const r = runFilter(path);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("dropped 2 known test-fixture false positive(s)");
+    // The per-rule breakdown is the CI-visible evidence that each class is
+    // still being covered.
+    expect(r.stdout).toContain("path-join-resolve-traversal 2");
+    expect(uris(path)).toEqual([
+      "path-join-resolve-traversal:scripts/short-video/lib/scene-audio.mjs",
+      "unsafe-formatstring:scripts/__tests__/fixture.test.mjs",
+      "eval-detected:scripts/spec.spec.mjs",
+    ]);
+  });
+
+  // The other documented classes (shapes in docs/conventions/test-env-
+  // baseline.md): each is dropped in test paths only — production findings of
+  // the same rules still upload.
+  it.skipIf(!HAS_PYTHON)("drops the other fixture rules in test paths only", () => {
+    const path = writeReport([
       result(
         "javascript.lang.security.detect-child-process.detect-child-process",
-        "scripts/__tests__/fixture.test.mjs",
-        12,
+        "scripts/short-video/__tests__/audio-sync.test.mjs",
+        573,
+      ),
+      result(
+        "javascript.lang.security.insecure-object-assign.insecure-object-assign",
+        "scripts/short-video/__tests__/ytdlp-guard.test.mjs",
+        104,
       ),
       result(
         "javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp",
         "scripts/spec.spec.mjs",
         4,
       ),
+      result(
+        "javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop",
+        "scripts/short-video/__tests__/pool-contract-fixtures.test.mjs",
+        127,
+      ),
+      result(
+        "javascript.lang.security.detect-child-process.detect-child-process",
+        "scripts/short-video/lib/render-only.mjs",
+        40,
+      ),
+      result(
+        "javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp",
+        "scripts/short-video/lib/cli-content.mjs",
+        12,
+      ),
+      result(
+        "javascript.lang.security.insecure-object-assign.insecure-object-assign",
+        "src/components/foo.tsx",
+        8,
+      ),
+      result(
+        "javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop",
+        "scripts/foo.mjs",
+        3,
+      ),
     ]);
 
     const r = runFilter(path);
     expect(r.status).toBe(0);
-    expect(r.stdout).toContain("dropped 2 known test-fixture false positive(s)");
+    expect(r.stdout).toContain("dropped 4 known test-fixture false positive(s)");
     expect(uris(path)).toEqual([
-      "path-join-resolve-traversal:scripts/short-video/lib/scene-audio.mjs",
-      "detect-child-process:scripts/__tests__/fixture.test.mjs",
-      "detect-non-literal-regexp:scripts/spec.spec.mjs",
+      "detect-child-process:scripts/short-video/lib/render-only.mjs",
+      "detect-non-literal-regexp:scripts/short-video/lib/cli-content.mjs",
+      "insecure-object-assign:src/components/foo.tsx",
+      "prototype-pollution-loop:scripts/foo.mjs",
     ]);
   });
 
@@ -134,6 +204,43 @@ describe("semgrep SARIF false-positive filter", () => {
     const r = runFilter(path);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("dropped 0 known test-fixture false positive(s)");
+  });
+
+  // A renamed upstream rule must fail the job, not silently stop matching:
+  // the report declares its catalog, so the filter can tell.
+  it.skipIf(!HAS_PYTHON)("fails loudly when a listed rule left the scan catalog", () => {
+    const path = writeReport([], {
+      catalog: CATALOG.filter(
+        (id) => id !== "javascript.lang.security.detect-child-process.detect-child-process",
+      ),
+    });
+
+    const r = runFilter(path);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("scan catalog");
+    expect(r.stderr).toContain("detect-child-process");
+    expect(r.stderr).toContain("test-env-baseline.md");
+  });
+
+  it.skipIf(!HAS_PYTHON)("fails loudly when the report declares no rule catalog", () => {
+    const path = writeReport([], { catalog: [] });
+
+    const r = runFilter(path);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("no rule catalog");
+  });
+
+  // semgrep writes `results: []` for a clean scan, so a run without the key is
+  // a shape change, not a clean scan.
+  it.skipIf(!HAS_PYTHON)("fails loudly when a run carries no results key", () => {
+    const path = writeReport([]);
+    const report = JSON.parse(readFileSync(path, "utf8"));
+    delete report.runs[0].results;
+    writeFileSync(path, JSON.stringify(report));
+
+    const r = runFilter(path);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("no results key");
   });
 
   it.skipIf(!HAS_PYTHON)("requires a report path", () => {

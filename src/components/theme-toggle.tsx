@@ -6,9 +6,23 @@ type Theme = "light" | "dark";
 
 const THEME_QUERY = "(prefers-color-scheme: dark)";
 
+/**
+ * Theme chosen while localStorage was unavailable (sandboxed iframe, blocked
+ * cookies). Without it the toggle would be a dead control in those contexts:
+ * the snapshot would keep re-deriving "system preference" (#319 OCR components
+ * scan).
+ */
+let memoryTheme: Theme | null = null;
+
 function getSnapshot(): Theme {
-  const stored = localStorage.getItem("theme");
-  if (stored === "light" || stored === "dark") return stored;
+  if (memoryTheme) return memoryTheme;
+  try {
+    const stored = localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") return stored;
+  } catch {
+    // Storage can be blocked and throws on access — fall through to the
+    // system preference instead of crashing the render.
+  }
   return window.matchMedia(THEME_QUERY).matches ? "dark" : "light";
 }
 
@@ -67,7 +81,12 @@ export function ThemeToggle() {
 
   function toggle() {
     const next: Theme = theme === "dark" ? "light" : "dark";
-    localStorage.setItem("theme", next);
+    try {
+      localStorage.setItem("theme", next);
+    } catch {
+      // Persisting failed: keep the choice in memory so the control still works.
+      memoryTheme = next;
+    }
     emitChange();
   }
 

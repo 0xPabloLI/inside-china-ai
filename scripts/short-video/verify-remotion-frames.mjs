@@ -20,7 +20,7 @@
  * Exit code: 0 if all checks pass, 1 if any fail.
  */
 
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { existsSync, readdirSync, mkdirSync, rmSync, createReadStream } from "fs";
 import { join, dirname } from "path";
 import { resolveSceneAudio } from "./lib/audio/sync.mjs";
@@ -31,6 +31,7 @@ import { FPS, sceneTimeline, scheduleTotalFrames, TRANSITION_FRAMES } from "./li
 import { resolveOutputVideo } from "./lib/assemble.mjs";
 import { runFrameAnalysis, checkFinalFrameHasContent } from "./lib/frame-analysis.mjs";
 import { extractFramesAtIndexes } from "./lib/frame-extract.mjs";
+import { getDurationSync } from "./lib/tts/ffmpeg-cmd.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -114,10 +115,8 @@ try {
   durations = scenes.map((scene) => {
     const audioPath = resolveSceneAudio(audioDir, scene.id);
     if (!audioPath) return 5; // fallback
-    const info = execSync(
-      `ffprobe -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-    ).toString();
-    return parseFloat(info.trim()) || 5;
+    // argv-safe shared probe (#319 deferred class sweep).
+    return getDurationSync(audioPath) || 5;
   });
 } catch {
   // Fallback: use uniform 5s durations
@@ -148,8 +147,22 @@ const totalFrames = scheduleTotalFrames(schedule);
 // schedule predicts — #MRL-3 final-frame false-fail).
 let actualFrames = totalFrames;
 try {
-  const probe = execSync(
-    `ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 "${videoPath}"`,
+  // argv, never a shell string (#319 deferred class sweep): the rendered
+  // video path is data.
+  const probe = execFileSync(
+    "ffprobe",
+    [
+      "-v",
+      "error",
+      "-count_frames",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=nb_read_frames",
+      "-of",
+      "csv=p=0",
+      videoPath,
+    ],
     { encoding: "utf8", timeout: 60_000 },
   ).trim();
   const n = parseInt(probe, 10);

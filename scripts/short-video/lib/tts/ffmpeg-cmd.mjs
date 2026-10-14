@@ -8,10 +8,10 @@
  */
 
 import { existsSync } from "fs";
-import { exec, execFileSync } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import { promisify } from "util";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
@@ -19,14 +19,36 @@ export const ffmpegCmd = existsSync(FFMPEG_FULL) ? FFMPEG_FULL : "ffmpeg";
 export const ffprobeCmd = existsSync(FFPROBE_FULL) ? FFPROBE_FULL : "ffprobe";
 
 /**
+ * Measurement-only ffmpeg: PATH-resolved, never ffmpeg-full.
+ *
+ * Analysis filters (volumedetect, silencedetect, the loudnorm read-back)
+ * behave identically on both builds, so the smaller PATH binary is the right
+ * dependency for a pass that writes no output file. One policy, one place —
+ * post-process.mjs, bgm.mjs and verify-subtitles.mjs all measure through this.
+ */
+export const ffmpegMeasureCmd = "ffmpeg";
+
+/**
  * Get exact audio duration using ffprobe.
+ *
+ * argv, never a shell string (#319 deferred class sweep): the audio path is
+ * data, and a path carrying shell metacharacters must not be executed. Same
+ * probe arguments as the synchronous `getDurationSync` below.
+ *
  * @param {string} audioPath
- * @returns {Promise<number>}
+ * @returns {Promise<number>} duration in seconds (NaN when ffprobe reports none)
  */
 export async function getDuration(audioPath) {
-  const { stdout } = await execAsync(
-    `"${ffprobeCmd}" -i "${audioPath}" -show_entries format=duration -v quiet -of csv="p=0"`,
-  );
+  const { stdout } = await execFileAsync(ffprobeCmd, [
+    "-i",
+    audioPath,
+    "-show_entries",
+    "format=duration",
+    "-v",
+    "quiet",
+    "-of",
+    "csv=p=0",
+  ]);
   return parseFloat(stdout.trim());
 }
 

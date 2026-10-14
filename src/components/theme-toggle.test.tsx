@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
@@ -82,5 +82,28 @@ describe("ThemeToggle", () => {
     clickToggle();
     expect(localStorage.getItem("theme")).toBe("light");
     expect(document.documentElement.classList.contains("dark")).toBe(false);
+  });
+
+  // #319 OCR components scan (L): reading or writing localStorage throws when
+  // storage is blocked (sandboxed iframe, blocked cookies), which crashed the
+  // render. The toggle now falls back to the system preference and keeps
+  // working for the session.
+  it("renders and toggles when localStorage is blocked", () => {
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    try {
+      renderToggle();
+      expect(container.querySelector('button[aria-label="Switch to dark mode"]')).not.toBeNull();
+      clickToggle();
+      expect(document.documentElement.classList.contains("dark")).toBe(true);
+      expect(container.querySelector('button[aria-label="Switch to light mode"]')).not.toBeNull();
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+    }
   });
 });
