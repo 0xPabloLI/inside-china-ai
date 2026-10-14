@@ -291,7 +291,18 @@ def test_adapter_minicpm_units_pairs_frames_and_audio(av_video, tmp_path):
     assert units["num_images"] == units["num_audios"] == 3
     assert units["sample_rate"] == 16000
     assert units["images"] == [f["path"] for f in res["frames"]]
-    assert [len(a) for a in units["audios"]] == [16000, 16000, 32000]
+    # Segment length is decoder-derived, not loader-derived: the extraction is
+    # a plain `-ss/-t` decode, and an mp4's AAC stream carries priming samples
+    # whose handling varies by ffmpeg build (CI's brew ffmpeg yields 15959
+    # samples for the first 1 s window where ffmpeg-full yields 16000). Pin the
+    # window shape — nominal length per span, within 50 ms — not the build.
+    nominal = [round((s["end"] - s["start"]) * units["sample_rate"])
+               for s in units["unit_spans"]]
+    assert nominal == [16000, 16000, 32000]
+    tolerance = int(0.05 * units["sample_rate"])
+    assert all(abs(len(seg) - want) <= tolerance
+               for seg, want in zip(units["audios"], nominal))
+    assert len(units["audios"]) == len(nominal)
     assert all(a.dtype == np.float32 for a in units["audios"])
     assert all(np.abs(a).max() > 0.01 for a in units["audios"])   # real 440 Hz tone
     assert units["unit_spans"][0] == {"start": 0.0, "end": 1.0}
