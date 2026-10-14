@@ -186,7 +186,7 @@ Review 报告不能只生成后忽略。
 3. 更新相关执行文档；S2/S3 完成后归档已结束工作的 spec、tickets 和 review，并更新 `docs/DOCS-INDEX.md` 与 `docs/archive/README.md`。
 4. 为归档和文档同步创建 final documentation commit。
 5. push 自己的 `session/<id>` 分支并开 PR——交付请求即授权该交付链（`git-workflow.md` §5）；交付链之外的 push 仍需明确授权。
-6. PR 合并后运行 `npm run session:stop <worktree-path>` 收尾：stop 判定该 session 分支已交付（判据见 `git-workflow.md` §10）时删除分支、移除 worktree，并自动接着跑一次 gc（同步主 checkout + 清扫已交付分支）——「合并 → stop」即完整收尾，不需要第二条命令；分支已被并行 gc 扫掉时报告 `already gone`，收尾照常。
+6. PR 合并后运行 `npm run session:stop <worktree-path>` 收尾——stop 判定该 session 分支已交付时，这就是完整收尾，不需要第二条命令（机制与判据见 `git-workflow.md` §10）。
 7. 存在对应 GitHub Issue 时更新或关闭它——交付请求即授权该票的收尾写入（交付记录评论、闭票、为范围外发现开跟进票，见 `issue-tracker.md`）；他人票的状态变更与 Wayfinder decision issue 仍需授权。
 8. 最终汇报先以**产品视角**讲清这个 issue/feature 原本要什么、用户现在看到什么，再列 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。
 
