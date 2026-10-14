@@ -123,7 +123,7 @@ function runRealesrgan(input, output, plan, format = "png") {
  * @param {object} [options] - See resolveUpscalePlan
  * @returns {{ success: boolean, path?: string, error?: string }}
  */
-export function upscaleDigitalHumanVideo(inputPath, outputPath, options = {}) {
+function upscaleDigitalHumanVideo(inputPath, outputPath, options = {}) {
   if (!existsSync(REALESRGAN_PATH)) {
     return { success: false, error: "Real-ESRGAN binary not found" };
   }
@@ -241,7 +241,7 @@ export function upscaleDigitalHumanVideo(inputPath, outputPath, options = {}) {
  * @param {object} [options] - See resolveUpscalePlan
  * @returns {{ success: boolean, path?: string, error?: string }}
  */
-export function upscaleDigitalHumanImage(inputPath, outputPath, options = {}) {
+function upscaleDigitalHumanImage(inputPath, outputPath, options = {}) {
   if (!existsSync(REALESRGAN_PATH)) {
     return { success: false, error: "Real-ESRGAN binary not found" };
   }

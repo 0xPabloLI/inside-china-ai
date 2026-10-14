@@ -20,9 +20,9 @@
 import { CANVAS, SUBTITLE_LANE } from "../safe-zones.mjs";
 
 /** Unspoken words (SecondaryColour) — near-white, legible on the dark stage. */
-export const COLOR_UNSPOKEN = "&H00F5F5F5";
+const COLOR_UNSPOKEN = "&H00F5F5F5";
 /** Spoken words (PrimaryColour) — Dispatch Blue #4d8bff, the DESIGN.md progress marker. */
-export const COLOR_SPOKEN = "&H00FF8B4D";
+const COLOR_SPOKEN = "&H00FF8B4D";
 
 // Position and size come from lib/safe-zones.mjs (single source of truth):
 // marginV 570 keeps the cue BOTTOM edge at y=1350 (~62-70% of frame height,
@@ -50,7 +50,7 @@ const DEFAULT_STYLE = {
  * @param {number} seconds
  * @returns {string}
  */
-export function formatAssTime(seconds) {
+function formatAssTime(seconds) {
   const totalCs = Math.max(0, Math.round(seconds * 100));
   const cs = totalCs % 100;
   const totalSeconds = (totalCs - cs) / 100;

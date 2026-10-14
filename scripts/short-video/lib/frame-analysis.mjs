@@ -43,7 +43,7 @@ export const SAMPLE_STEP = 8;
 export const BLACK_THRESHOLD = 5;
 
 /** Bright-pixel ratio below which the LAST frame counts as empty background. */
-export const FINAL_FRAME_BRIGHT_RATIO_FAIL = 0.01;
+const FINAL_FRAME_BRIGHT_RATIO_FAIL = 0.01;
 
 // ─── Types (JSDoc) ───
 

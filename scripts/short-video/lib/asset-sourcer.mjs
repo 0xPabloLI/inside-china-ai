@@ -62,7 +62,7 @@ import { join, dirname, basename, extname, relative, isAbsolute } from "path";
 import { tmpdir } from "os";
 import { fileURLToPath, pathToFileURL } from "url";
 import { execFileSync } from "child_process";
-import { ALL_SOURCES, SOURCE_ATTRIBUTIONS } from "./source-registry.mjs";
+import { ALL_SOURCES, SOURCE_ATTRIBUTIONS, SUPPORTED_YTDLP_PLATFORMS } from "./source-registry.mjs";
 import {
   getCachedSearchResults,
   getOrSearchResults,
@@ -1720,8 +1720,8 @@ export function searchYtdlp(keyword, platform) {
   // T2: Guard against unsupported platforms.
   // Previously, non-bilibili platforms silently fell through to YouTube search,
   // producing videos with wrong source attribution (e.g., YouTube videos labeled as xhs).
-  const SUPPORTED_PLATFORMS = new Set(["bilibili", "youtube"]);
-  if (!SUPPORTED_PLATFORMS.has(platform)) {
+  // The whitelist lives in the registry (#325 consolidated a private duplicate).
+  if (!SUPPORTED_YTDLP_PLATFORMS.has(platform)) {
     return [];
   }
 

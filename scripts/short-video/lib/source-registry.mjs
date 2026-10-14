@@ -146,7 +146,7 @@ export const SHARED_GOOGLE_SITE_SEARCH_SCRIPT = `
 // #309 素材契约裁决（归档 handoff §3）：site: 保真层默认窗 = 一年
 // （tbs=qdr:y）。news 角色的窗口可另配 qdr:w——当前六个推广源均以素材/
 // 研究契约为主，统一取默认窗。
-export const SITE_FALLBACK_WINDOW = "qdr:y";
+const SITE_FALLBACK_WINDOW = "qdr:y";
 
 /**
  * Factory for explicit #309 site: fallback configs (review 2026-09-19: one
@@ -159,7 +159,7 @@ export const SITE_FALLBACK_WINDOW = "qdr:y";
  *   NOT sogou.com (whose results are sogou's own search pages).
  * @returns {{ url: (keyword: string) => string, articleScript: string }}
  */
-export function makeGoogleSiteFallback(domain) {
+function makeGoogleSiteFallback(domain) {
   return {
     url: (keyword) =>
       `https://www.google.com/search?q=${encodeURIComponent("site:" + domain + " " + keyword)}&tbs=${SITE_FALLBACK_WINDOW}`,
@@ -2211,7 +2211,7 @@ export const LAST30DAYS_SOURCES = [
 // To add a new account, copy an entry and change name/label/account.
 // If you have mp.weixin.qq.com backend cookie+token, also see WECHAT_API_CONFIG below.
 
-export const WECHAT_ACCOUNT_SOURCES = [
+const WECHAT_ACCOUNT_SOURCES = [
   {
     name: "wechat_dongchabeating",
     label: "动察Beating（公众号）",
@@ -2260,7 +2260,7 @@ function getRssTag(item, tag) {
   return match ? decodeRssText(match[1]) : "";
 }
 
-export function parseWechatRss(text) {
+function parseWechatRss(text) {
   const results = [];
   const itemRegex = /<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi;
   let match;
@@ -3261,6 +3261,7 @@ const YTDLP_VIDEO_CAPABILITIES = {
 
 // T2: Set of platforms that searchYtdlp() actually supports.
 // Any platform not in this set returns [] immediately.
+// Consumed by asset-sourcer.searchYtdlp() — the single gate since #325.
 export const SUPPORTED_YTDLP_PLATFORMS = new Set(["bilibili", "youtube"]);
 
 // ─── SOURCE_ATTRIBUTIONS ───

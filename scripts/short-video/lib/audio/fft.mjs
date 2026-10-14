@@ -15,7 +15,7 @@
  * @param {Float64Array} re
  * @param {Float64Array} im
  */
-export function fft(re, im) {
+function fft(re, im) {
   const n = re.length;
   if (n === 0 || (n & (n - 1)) !== 0) {
     throw new Error(`FFT length must be a power of two, got ${n}`);

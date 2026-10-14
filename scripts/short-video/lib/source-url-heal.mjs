@@ -141,7 +141,7 @@ export function detectBlockPage({ status, html = "" } = {}) {
  * Exported so the CDP snapshot script can evaluate the *same* list in-page —
  * one definition, two consumers.
  */
-export const ZERO_RESULTS_PATTERNS = [
+const ZERO_RESULTS_PATTERNS = [
   "找到约\\s*0\\s*个结果",
   "找到\\s*0\\s*个结果",
   "约\\s*0\\s*个结果",
@@ -445,7 +445,7 @@ export function extractSearchLinks(html, baseUrl) {
 /** Known search-path templates. Deliberately small: a template guess is only
  * evidence when the probe comes back 200 *and* the keyword appears in the
  * body, so extra guesses cost one request each and nothing more. */
-export const KNOWN_SEARCH_TEMPLATES = [
+const KNOWN_SEARCH_TEMPLATES = [
   "/search?q={kw}",
   "/search?keyword={kw}",
   "/search?word={kw}",
@@ -522,32 +522,6 @@ export function deriveCandidates(html, baseUrl, keyword) {
 // is the site's own search UI: put the term in its box, submit, and read the
 // address bar. These builders return the CDP scripts that do that; they are
 // pure string builders so tests can lock the selector list.
-
-/** Knows-name list, kept exported so tests can lock it. Selection itself is
- * score-based (see `boxScoringPrelude`) because a pure first-match selector walk
- * is wrong on component-library SPAs. */
-export const SEARCH_BOX_SELECTORS = [
-  'input[type="search"]',
-  'form[role="search"] input',
-  'input[name="q"]',
-  'input[name="wd"]',
-  'input[name="word"]',
-  'input[name="kw"]',
-  'input[name="keyword"]',
-  'input[name="keywords"]',
-  'input[name="query"]',
-  'input[name="searchword"]',
-  'input[name="search_keyword"]',
-  'input[name="key"]',
-  'input[name="text"]',
-  'input[placeholder*="搜索"]',
-  'input[placeholder*="Search" i]',
-  'input[aria-label*="搜索"]',
-  'input[aria-label*="Search" i]',
-  '[class*="search"] input[type="text"]',
-  "#search input",
-  "#searchInput",
-];
 
 /**
  * Shared in-page scoring, injected into both scripts so the box that gets
@@ -814,7 +788,7 @@ export function templateFromLandedUrl(landedUrl, keyword, { dropVolatile = true 
  * verified by re-running the source's own `articleScript` before it is usable —
  * that check, not this heuristic, is what makes the repair safe.
  */
-export const VOLATILE_PARAM_NAMES = new Set([
+const VOLATILE_PARAM_NAMES = new Set([
   "aid",
   "sid",
   "sessionid",

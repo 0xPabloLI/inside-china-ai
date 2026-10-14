@@ -11,7 +11,6 @@
     "types"
   ],
   "ignore": [
-    "scripts/short-video/lib/**",
     "src/integrations/supabase/types.ts",
     "src/lib/email-templates/**"
   ],
@@ -30,7 +29,8 @@
     "ffprobe",
     "say",
     "nslookup",
-    "colima"
+    "colima",
+    "yt-dlp"
   ],
   "workspaces": {
     ".": {
@@ -47,6 +47,8 @@
         "scripts/seo/**/*.mjs",
         "scripts/short-video/*.mjs",
         "scripts/short-video/lib/tiktok-csi.mjs",
+        "scripts/short-video/lib/extract-media.mjs",
+        "scripts/short-video/lib/b-roll/t2v-eval/score_eval.mjs",
         "scripts/short-video/__tests__/*.mjs",
         "scripts/short-video/evergreen-templates/*.mjs",
         "scripts/short-video/content/**/*.mjs"
@@ -59,9 +61,7 @@
     },
     "scripts/short-video/remotion": {
       "entry": ["remotion.config.ts", "src/**/*.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}"],
-      "ignoreDependencies": ["react-dom"],
-      "ignoreBinaries": ["remotion"]
+      "project": ["src/**/*.{ts,tsx}"]
     }
   }
 }

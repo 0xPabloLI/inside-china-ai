@@ -14,7 +14,7 @@
  * the same scene-data ended up rendering at 64px on one path and 80px on the
  * other, and how a clipped "THAT'S THE WHOLE POIN" passed every check.
  */
-import { BRAND_FONT_STACK, CANVAS, SAFE_ZONES } from "./safe-zones.mjs";
+import { BRAND_FONT_STACK } from "./safe-zones.mjs";
 
 /**
  * Per-field typography defaults.
@@ -90,7 +90,7 @@ export const SLOT_FIELDS = {
 };
 
 /** Slot defaults applied to every field unless the field overrides them. */
-export const SLOT_DEFAULTS = {
+const SLOT_DEFAULTS = {
   fontFamily: BRAND_FONT_STACK,
   fontWeight: 700,
   letterSpacing: 0,
@@ -226,7 +226,7 @@ export const MEASURED_MAX_WIDTH = {
  *     highest possible top edge (1150 − 336 = 814), so the two overlay bands
  *     can never overlap.
  */
-export const MEASURED_MAX_HEIGHT = {
+const MEASURED_MAX_HEIGHT = {
   "narrative.media-overlay.top-band": 594,
   "narrative.media-overlay.bottom-band": 336,
 };
@@ -453,7 +453,7 @@ export const REMOTION_SLOT_MAP = {
  * DataScene's `statLabel` renders through the `label` slot (the large label
  * under a focus number), same typography family as stat-reveal's label.
  */
-export const FIELD_ALIASES = {
+const FIELD_ALIASES = {
   data: { statLabel: "label" },
 };
 
@@ -722,9 +722,3 @@ export function remotionSlotsFor(visualType, layout) {
   }
   return layouts;
 }
-
-/** Canvas and safe-zone frame the contract measures against. */
-export const SLOT_FRAME = {
-  canvas: CANVAS,
-  safeZones: SAFE_ZONES,
-};

@@ -262,7 +262,7 @@ export function writeBundleFiles(bundleDir, { report, videoPath }) {
 }
 
 /** `2026-08-07T08-30-00-123Z` — colon/dot-free so it is shell- and path-friendly. */
-export function defaultTimestamp() {
+function defaultTimestamp() {
   return new Date().toISOString().replace(/[:.]/g, "-");
 }
 

@@ -8,22 +8,22 @@
  * callers get { ok: false, fatal } and decide how to degrade.
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const BROLL_DIR = dirname(fileURLToPath(import.meta.url));
 const SHORT_VIDEO_DIR = join(BROLL_DIR, "..", "..");
-export const DEFAULT_REPO = join(SHORT_VIDEO_DIR, "experiments", "fastvideo-spike", "repo");
-export const DEFAULT_PYTHON = join(DEFAULT_REPO, ".venv", "bin", "python3");
+const DEFAULT_REPO = join(SHORT_VIDEO_DIR, "experiments", "fastvideo-spike", "repo");
+const DEFAULT_PYTHON = join(DEFAULT_REPO, ".venv", "bin", "python3");
 const FALLBACK_PYTHON = join(homedir(), ".video-tts-env", "bin", "python3");
-export const DEFAULT_SCRIPT = join(BROLL_DIR, "mlx_wan_batch.py");
-export const JOBS_FILENAME = "b-roll-jobs.json";
+const DEFAULT_SCRIPT = join(BROLL_DIR, "mlx_wan_batch.py");
+const JOBS_FILENAME = "b-roll-jobs.json";
 // The batch script's machine-readable summary line — never forwarded as
 // human progress.
 const RESULTS_PREFIX = "[batch][results]";
-export const RESULT_PREFIX = `${RESULTS_PREFIX} `;
+const RESULT_PREFIX = `${RESULTS_PREFIX} `;
 
 // Text-encoder token limit — the batch script truncates silently at this
 // length. prompt-injection.mjs derives its generation-side budget from it.
@@ -35,7 +35,7 @@ export const MAX_SEQUENCE_LENGTH = 512;
  * native 720p); `fastmetal-1.3b` stays selectable as the legacy escape hatch.
  * `winnerSource` labels the report's generated-media provenance.
  */
-export const DEFAULT_MODEL_TIER = "fastmetal-5b";
+const DEFAULT_MODEL_TIER = "fastmetal-5b";
 export const MODEL_TIERS = {
   "fastmetal-5b": {
     script: join(BROLL_DIR, "mlx_wan22_batch.py"),
@@ -449,13 +449,4 @@ export function runGeneration(opts) {
       resolve({ ok: true, fatal: null, results });
     });
   });
-}
-
-/** Read back a jobs file (used by report/debug tooling). */
-export function readJobsFile(path) {
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
 }

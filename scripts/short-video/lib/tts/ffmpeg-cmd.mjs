@@ -16,7 +16,7 @@ const execFileAsync = promisify(execFile);
 const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
 export const ffmpegCmd = existsSync(FFMPEG_FULL) ? FFMPEG_FULL : "ffmpeg";
-export const ffprobeCmd = existsSync(FFPROBE_FULL) ? FFPROBE_FULL : "ffprobe";
+const ffprobeCmd = existsSync(FFPROBE_FULL) ? FFPROBE_FULL : "ffprobe";
 
 /**
  * Measurement-only ffmpeg: PATH-resolved, never ffmpeg-full.

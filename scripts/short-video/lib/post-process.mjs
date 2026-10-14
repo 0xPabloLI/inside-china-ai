@@ -237,7 +237,7 @@ export function buildLoudnessRepairArgs({
  * @param {{target?: number, repair?: boolean, exec?: Function}} [options]
  * @returns {{ok: boolean, measurement: object, verification: object, repaired: boolean, repairAttempted?: boolean, before?: object}}
  */
-export function verifyFinalLoudness(videoPath, options = {}) {
+function verifyFinalLoudness(videoPath, options = {}) {
   const { target = -16, repair = true, exec } = options;
   const first = measureLoudness(videoPath, { exec });
   const verification = verifyLoudness(first, { target });
@@ -307,6 +307,8 @@ export function verifyFinalLoudness(videoPath, options = {}) {
  * @param {string|null} assPath - ASS subtitle file, or null to skip
  * @param {string} outputPath - Output MP4 (with subtitles burned in)
  * @returns {string} Path to the output file (outputPath if burned, videoPath if skipped)
+ * @public Kept as module API (asserted by post-process.test.mjs). The
+ *   production render path folds subs into finalizeRenderedVideo() (#198).
  */
 export function burnSubtitles(videoPath, assPath, outputPath) {
   if (!assPath || !existsSync(assPath)) {
@@ -341,6 +343,8 @@ export function burnSubtitles(videoPath, assPath, outputPath) {
  * @param {string} outputPath - Output MP4 (mixed audio)
  * @param {number} [volume=0.12] - BGM volume (0-1)
  * @returns {string} Path to the output file
+ * @public Kept as module API (asserted by post-process.test.mjs). The
+ *   production render path folds BGM into finalizeRenderedVideo() (#198).
  */
 export function mixBgm(videoPath, bgmPath, outputPath, volume = 0.12) {
   // BGM fade-out timing; a failed probe keeps the 180s default.
@@ -397,6 +401,8 @@ export function mixBgm(videoPath, bgmPath, outputPath, volume = 0.12) {
  * @param {string} outputPath - Output MP4 (normalized audio)
  * @param {number} [target=-16] - Target loudness in LUFS (EBU R128 broadcast standard)
  * @returns {string} Path to the output file
+ * @public Kept as module API (asserted by post-process.test.mjs). The
+ *   production render path folds loudnorm into finalizeRenderedVideo() (#198).
  */
 export function normalizeLoudness(videoPath, outputPath, target = -16) {
   execFileSync(

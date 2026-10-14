@@ -117,7 +117,7 @@ export function formatFocusSummary(focusAnalysis) {
  * @param {Object} semantics - VLM analysis fields from asset-analysis.json
  * @returns {string} Multi-line comment block
  */
-export function formatSemanticsSummary(semantics) {
+function formatSemanticsSummary(semantics) {
   if (!semantics || typeof semantics !== "object") {
     return "";
   }
@@ -162,7 +162,7 @@ export function formatSemanticsSummary(semantics) {
  * @param {string} analysisPath - Path to asset-analysis.json
  * @returns {Object|null} Map of path → semantics, or null if file not found
  */
-export function loadAssetAnalysis(analysisPath) {
+function loadAssetAnalysis(analysisPath) {
   if (!analysisPath || !existsSync(analysisPath)) {
     return null;
   }
@@ -308,7 +308,7 @@ export function formatMediaPatch(patches, analysisMap) {
  *
  * @param {string[]} args - CLI arguments
  */
-export function main(args = process.argv.slice(2)) {
+function main(args = process.argv.slice(2)) {
   const getArg = (name) => {
     const i = args.indexOf(`--${name}`);
     return i >= 0 && i + 1 < args.length ? args[i + 1] : null;

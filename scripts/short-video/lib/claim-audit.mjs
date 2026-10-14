@@ -9,7 +9,7 @@
  * produces warnings; nothing blocks publication.
  */
 
-export const ANNOTATION_STATUS = {
+const ANNOTATION_STATUS = {
   "✅": "verified",
   "⚠️": "partially-verified",
   "❌": "unverified",

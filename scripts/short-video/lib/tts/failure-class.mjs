@@ -41,8 +41,8 @@ export const FAILURE_CLASS = Object.freeze({
  * convention: if this drifted, the preflight would hard-exit a run the gate
  * would have accepted.
  */
-export const ASR_ALLOW_NO_VERIFY_ENV = "TTS_QUALITY_ALLOW_NO_ASR";
-export const SKIP_QUALITY_GATE_ENV = "TTS_SKIP_QUALITY_GATE";
+const ASR_ALLOW_NO_VERIFY_ENV = "TTS_QUALITY_ALLOW_NO_ASR";
+const SKIP_QUALITY_GATE_ENV = "TTS_SKIP_QUALITY_GATE";
 
 /**
  * Canonical fix hint for the unverifiable-take failure (#415 ①). Shared so the

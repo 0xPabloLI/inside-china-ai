@@ -37,7 +37,7 @@ const __dirname = dirname(__filename);
  * @param {Object} focusAnalysis - The focusAnalysis object from media-patch.json
  * @returns {string} Multi-line comment block (without /* wrappers, just // lines)
  */
-export function formatFocusSummary(focusAnalysis) {
+function formatFocusSummary(focusAnalysis) {
   if (!focusAnalysis || typeof focusAnalysis !== "object") {
     return "";
   }
@@ -122,7 +122,7 @@ export function formatFocusSummary(focusAnalysis) {
  * @param {Object} entry - A single entry from media-patch.json
  * @returns {string} Formatted block
  */
-export function formatPatchEntry(entry) {
+function formatPatchEntry(entry) {
   if (!entry || entry.status !== "assigned") {
     return "";
   }
@@ -158,7 +158,7 @@ export function formatPatchEntry(entry) {
  * @param {Array} patches - Array of patch entries from media-patch.json
  * @returns {string} Complete formatted output
  */
-export function formatMediaPatch(patches) {
+function formatMediaPatch(patches) {
   if (!Array.isArray(patches)) {
     return "No patches to display.\n";
   }
@@ -214,7 +214,7 @@ export function formatMediaPatch(patches) {
  *
  * @param {string[]} args - CLI arguments
  */
-export function main(args = process.argv.slice(2)) {
+function main(args = process.argv.slice(2)) {
   const getArg = (name) => {
     const i = args.indexOf(`--${name}`);
     return i >= 0 && i + 1 < args.length ? args[i + 1] : null;

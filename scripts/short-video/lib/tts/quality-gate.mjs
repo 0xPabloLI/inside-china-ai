@@ -22,8 +22,8 @@ import { validateInstructSignature } from "./instruct.mjs";
 
 // Pacing boundaries for vertical short videos (English)
 export const MIN_ACCEPTABLE_WPM = 115; // Below 115 WPM indicates dragging / unnatural pause / accent drift
-export const MAX_ACCEPTABLE_WPM = 225; // Above 225 WPM is too rushed for audience comprehension
-export const MIN_TEXT_SIMILARITY = 0.75; // Minimum normalized token similarity threshold
+const MAX_ACCEPTABLE_WPM = 225; // Above 225 WPM is too rushed for audience comprehension
+const MIN_TEXT_SIMILARITY = 0.75; // Minimum normalized token similarity threshold
 
 /**
  * #271 failure families (pacing vs acoustic) live in ./failure-class.mjs so the

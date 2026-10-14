@@ -33,7 +33,7 @@ import { getDurationSync, ffmpegMeasureCmd } from "./tts/ffmpeg-cmd.mjs";
  */
 export const SYNC_TOLERANCE = AUDIO_SYNC_TOLERANCE;
 /** Stretches of video longer than this with no subtitle are reported. */
-export const COVERAGE_GAP_THRESHOLD = 0.2;
+const COVERAGE_GAP_THRESHOLD = 0.2;
 /** ASS timestamps are centisecond-resolution; allow for rounding at both ends. */
 const ROUNDING_SLACK = 0.011;
 const CHAIN_GAP = CHAIN_GAP_FRAMES / FPS;
