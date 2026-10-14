@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.13](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.12...tanstack_start_ts-v1.20.13) (2026-10-14)
+
+
+### Bug Fixes
+
+* **hooks:** hook liveness becomes a gate; OCR becomes an agent step ([#406](https://github.com/0xPabloLI/inside-china-ai/issues/406)) ([#660](https://github.com/0xPabloLI/inside-china-ai/issues/660)) ([f63f825](https://github.com/0xPabloLI/inside-china-ai/commit/f63f825b06a70546f2e79446b9d66410162b4ca2))
+
 ## [1.20.12](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.11...tanstack_start_ts-v1.20.12) (2026-10-14)
 
 
