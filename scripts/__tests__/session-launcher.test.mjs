@@ -319,6 +319,58 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(out).toContain("deleted session/20260101-merged-abc123");
   });
 
+  // The same window exists inside gc's own loop: for-each-ref lists the
+  // branch, then a parallel session's stop/gc deletes it before the
+  // per-branch check runs. The first gh call of the loop (branch A's remote
+  // twin) is where the delete lands. The branch was never kept — report it as
+  // gone and count neither deleted nor kept; its remote twin, if any, is left
+  // to the orphan pass.
+  it("gc: a branch deleted mid-loop is reported gone, not kept", () => {
+    const aBranch = "session/20260101-race-a-abc601";
+    const bBranch = "session/20260101-race-b-abc602";
+    squashMergedBranch(aBranch, "race-a\n", "race-a.txt");
+    squashMergedBranch(bBranch, "race-b\n", "race-b.txt");
+    git(repo, "push", "-q", "origin", aBranch);
+    // gh deletes branch B on its first invocation (the open-PR check for A's
+    // remote twin), then answers the normal queries.
+    const p = join(ghDir, "gh");
+    writeFileSync(
+      p,
+      `#!/bin/bash\ncase "$*" in\n  *"pr list"*"--state merged"*) exit 0 ;;\n  *"pr list"*"--state closed"*) exit 0 ;;\n  *"pr list"*)\n    f="$(dirname "$0")/.race-fired"\n    if [ ! -f "$f" ]; then\n      printf x > "$f"\n      git -C ${JSON.stringify(repo)} branch -D ${bBranch} >/dev/null 2>&1 || true\n    fi\n    echo 0; exit 0 ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
+    );
+    execFileSync("chmod", ["+x", p]);
+
+    const { status, out } = gc();
+    expect(status).toBe(0);
+    expect(out).toContain(`${bBranch} already gone (deleted concurrently)`);
+    expect(out).not.toContain("not delivered");
+    expect(out).toContain(`deleted ${aBranch}`);
+    expect(out).toContain("kept 0 (remote 0)");
+  });
+
+  // The dry-run preview walks the same loop, so it has the same window: a
+  // branch swept mid-preview must not be previewed as "kept" either.
+  it("gc --dry-run: a branch deleted mid-loop is reported gone, not kept", () => {
+    const aBranch = "session/20260101-race-dry-a-abc603";
+    const bBranch = "session/20260101-race-dry-b-abc604";
+    squashMergedBranch(aBranch, "dry-a\n", "dry-a.txt");
+    squashMergedBranch(bBranch, "dry-b\n", "dry-b.txt");
+    git(repo, "push", "-q", "origin", aBranch);
+    const p = join(ghDir, "gh");
+    writeFileSync(
+      p,
+      `#!/bin/bash\ncase "$*" in\n  *"pr list"*"--state merged"*) exit 0 ;;\n  *"pr list"*"--state closed"*) exit 0 ;;\n  *"pr list"*)\n    f="$(dirname "$0")/.race-fired"\n    if [ ! -f "$f" ]; then\n      printf x > "$f"\n      git -C ${JSON.stringify(repo)} branch -D ${bBranch} >/dev/null 2>&1 || true\n    fi\n    echo 0; exit 0 ;;\nesac\necho "fake gh: unhandled: $*" >&2\nexit 1\n`,
+    );
+    execFileSync("chmod", ["+x", p]);
+
+    const { status, out } = gc("--dry-run");
+    expect(status).toBe(0);
+    expect(out).toContain(`${bBranch} already gone (deleted concurrently)`);
+    expect(out).not.toContain("not delivered");
+    expect(out).toContain(`would delete ${aBranch}`);
+    expect(out).toContain("kept 0 (remote 0)");
+  });
+
   // The namespace globs are word-split before `case` matches them, and word
   // splitting also ran pathname expansion: a checkout with a real `docs/`
   // directory expanded `docs/*` into that directory's file names, so the
@@ -1007,6 +1059,38 @@ describe("session-launcher gc: post-delivery closeout", () => {
     // The closeout ran, so the "run it yourself after merging" hint must not
     // contradict what just happened.
     expect(r.stdout).not.toContain("closeout after the PR merges");
+  });
+
+  // A parallel session's gc can sweep this session's branch while the worktree
+  // sits on another branch — gc never touches a branch checked out in a
+  // worktree, so checking out the closeout branch is what exposed it (#651,
+  // measured 2026-10-14). stop must not report "kept (not delivered)" for a
+  // branch that no longer exists — nothing was kept — and the closeout must
+  // still run: gc only ever deletes delivered branches (fail-closed), and
+  // merge → stop stays a single command.
+  it("stop: session branch already swept by a parallel gc says so and still closes out", () => {
+    const id = "20260101-swept-abc501";
+    const branch = `session/${id}`;
+    const wtPath = makeDeliveredSessionWorktree(id, "swept\n");
+    // The worktree moved off the session branch (as closeout work does), which
+    // is what let the parallel gc delete it; the remote twin survives.
+    git(wtPath, "checkout", "-q", "--detach");
+    git(repo, "branch", "-D", branch);
+
+    const r = spawnSync("bash", [LAUNCHER, "stop", wtPath], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, GH_CMD: join(ghDir, "gh") },
+    });
+    expect(r.status).toBe(0);
+    expect(existsSync(wtPath)).toBe(false);
+    expect(r.stdout).toContain("session branch already gone (swept by an earlier gc or deleted)");
+    expect(r.stdout).not.toContain("not delivered");
+    expect(r.stdout).not.toContain("[session] session branch kept");
+    expect(r.stdout).toContain("[session] post-delivery closeout:");
+    expect(r.stdout).not.toContain("closeout after the PR merges");
+    // The closeout's orphan pass sweeps the remote twin the parallel gc left.
+    expect(remoteBranchExists(branch)).toBe(false);
   });
 
   it("stop from inside the worktree still cleans up and closes out", () => {

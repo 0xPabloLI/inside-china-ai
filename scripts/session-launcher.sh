@@ -188,10 +188,11 @@ local_main_only() {
 # ref_delivered. 0 = deleted (content merged); 1 = kept (not delivered);
 # 2 = kept (delete failed); 3 = deleted (PR merged into main); 4 = kept
 # (content differs and the merged-PR check is unavailable); 6 = deleted
-# (ancestry on origin/main).
+# (ancestry on origin/main); 7 = already gone (no local branch to judge —
+# swept by a parallel gc or deleted by hand between listing and check).
 delete_if_delivered() {
   local b="$1" tip rc
-  tip=$(git rev-parse --verify --quiet "refs/heads/$b" 2>/dev/null) || return 1
+  tip=$(git rev-parse --verify --quiet "refs/heads/$b" 2>/dev/null) || return 7
   rc=0
   ref_delivered "refs/heads/$b" "$tip" || rc=$?
   case "$rc" in
@@ -398,12 +399,23 @@ if [ "$cmd" = "stop" ]; then
           2)
             echo "[session] session branch kept (delete failed): session/$session_id"
             ;;
+          7)
+            # The branch was swept before this check — a parallel session's
+            # stop/gc can do it any time this worktree sits on another branch
+            # (gc never touches a checked-out branch). Nothing is kept, so say
+            # that instead of claiming a keep; the closeout still runs, because
+            # gc only ever deletes delivered branches (fail-closed) and the
+            # merge → stop sequence stays a single command.
+            echo "[session] session branch already gone (swept by an earlier gc or deleted): session/$session_id"
+            delivered=1
+            ;;
           *)
             echo "[session] session branch kept ($(verdict_kept_reason "$rc" "session/$session_id")): session/$session_id"
             ;;
         esac
       fi
-      # A deleted session branch means the work landed: run the post-delivery
+      # A deleted session branch means the work landed — and a branch already
+      # swept (verdict 7) leaves nothing to keep either: run the post-delivery
       # closeout now (sweep the remote twin, sync the main checkout), so the
       # merge → stop sequence needs no second command. stop may have been
       # invoked through the worktree's OWN launcher copy — that path died with
@@ -716,6 +728,12 @@ if [ "$cmd" = "gc" ]; then
       continue
     fi
     if [ -n "$dry_run" ]; then
+      # Same window as the real path below: the branch can be swept between
+      # the listing and this check. Nothing to preview — not kept, not deleted.
+      if ! git rev-parse --verify --quiet "refs/heads/$b" >/dev/null 2>&1; then
+        echo "[gc] $b already gone (deleted concurrently)"
+        continue
+      fi
       d=0
       ref_delivered "refs/heads/$b" "$(git rev-parse "refs/heads/$b")" || d=$?
       case "$d" in
@@ -734,7 +752,7 @@ if [ "$cmd" = "gc" ]; then
     # One delivery verdict per branch, taken inside delete_if_delivered so the
     # `-D` is always gated on the check that authorises it (0 content merged,
     # 3 merged PR, 6 ancestry, 1 not delivered, 4 check unavailable, 2 delete
-    # failed).
+    # failed, 7 already gone).
     rc=0
     delete_if_delivered "$b" || rc=$?
     case "$rc" in
@@ -745,6 +763,14 @@ if [ "$cmd" = "gc" ]; then
       2)
         echo "[gc] kept $b (delete failed)"
         kept=$((kept + 1))
+        continue
+        ;;
+      7)
+        # The branch vanished between the listing and this check (a parallel
+        # session's stop/gc, or a manual delete): nothing was kept and nothing
+        # was deleted here, so count neither. Its remote twin, if any, is left
+        # to the orphan pass below, which re-verifies delivery on its own.
+        echo "[gc] $b already gone (deleted concurrently)"
         continue
         ;;
       *)
