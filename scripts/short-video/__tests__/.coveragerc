@@ -1,0 +1,44 @@
+# Python half of the repo coverage ratchet (#555 leftover).
+#
+# The JS half is vitest.config.ts. The metric differs — this side measures
+# statements/lines, that side lines/statements/functions/branches — so the two
+# floors stay separate numbers instead of one blend that means neither.
+#
+# Scope is "the modules this suite is responsible for". A module it does not
+# cover is listed below with a reason instead of quietly diluting the number,
+# and a new module in lib/ is measured by default (verified: an untested probe
+# file shows up at 0% and drags the total down), so adding one either grows the
+# tests or forces an explicit entry here. Caveat for future subdirectories:
+# coverage's source walk names modules by path, so a file inside a
+# non-identifier directory (the hyphen in b-roll/) is only reported once
+# something imports it — such directories belong in omit anyway.
+
+[run]
+source = scripts/short-video/lib
+# Keep the raw data file in the gitignored scratchpad (same territory as the
+# JS side's .scratch/coverage) instead of dropping a .coverage in the repo root.
+data_file = .scratch/coverage-python/.coverage
+omit =
+    # Resident ASR worker: NDJSON IPC driven by the node pipeline, needs the
+    # whisper backends.
+    scripts/short-video/lib/asr_worker.py
+    # Runs in ~/.video-tts-env (funasr 1.4.14 + emotion2vec_plus_large).
+    scripts/short-video/lib/emotion2vec_plugin.py
+    # Has its own vitest IPC suite (focus_detector.test.mjs); needs cv2/PIL.
+    scripts/short-video/lib/focus_detector.py
+    # MLX / Ollama backends.
+    scripts/short-video/lib/qwen38_vlm_wrapper.py
+    # Manual probe scripts that happen to sit in lib/.
+    scripts/short-video/lib/test_minicpm_*.py
+    # B-roll generation: the generator bodies need MLX int8 weights and model
+    # downloads, so the only part CI can reach is the planning functions — and
+    # test_broll_warmup.py already asserts those directly (functional checks of
+    # its decisions, not line coverage). Measuring the tree would add a fixed,
+    # immovable block to the total.
+    scripts/short-video/lib/b-roll/*
+
+[report]
+# Ratchet, re-based 2026-10-14 (#555 leftover): 77.39% measured over the scope
+# above — CI venv, 247 tests, asr_repetition_guard 90% / video_loader 93% /
+# vlm_analyzer 68%. Under a stable scope, raise — never lower.
+fail_under = 77
