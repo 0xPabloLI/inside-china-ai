@@ -76,6 +76,21 @@ describe("shouldRestageAsset — copy decision", () => {
     writeAt(dest(), "a", 1000);
     expect(shouldRestageAsset(join(dir, "absent.png"), dest())).toBe(true);
   });
+
+  it("treats sub-millisecond mtime drift as a cache hit, not an edit", () => {
+    // A timestamp round-trip through utimesSync (float seconds) lands a
+    // fraction of a millisecond below the source, which a bare `>` reads as
+    // "edited" and re-copies on every render. Real edits are seconds later.
+    writeAt(src(), "same", 2000);
+    writeAt(dest(), "same", 2000 - 0.4);
+    expect(shouldRestageAsset(src(), dest())).toBe(false);
+  });
+
+  it("still re-copies when the source is meaningfully newer", () => {
+    writeAt(src(), "same", 2000);
+    writeAt(dest(), "same", 1000);
+    expect(shouldRestageAsset(src(), dest())).toBe(true);
+  });
 });
 
 describe("shouldRestageAsset — wiring", () => {

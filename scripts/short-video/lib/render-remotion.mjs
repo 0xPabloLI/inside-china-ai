@@ -44,6 +44,13 @@ const REMOTION_DIR = join(__dirname, "..", "remotion");
  * a 5MB PNG per scene costs more than it buys. Size catches every re-encode;
  * mtime catches same-size rewrites.
  *
+ * The mtime arm carries a tolerance. A copy that preserves the timestamp (or a
+ * test that pins it with utimesSync) round-trips through a float-seconds API and
+ * can land a fraction of a millisecond off the source, so a bare `>` treats
+ * identical files as edited and re-copies on every render. The tolerance is far
+ * below the resolution of a real edit — an in-place re-composite lands seconds
+ * or minutes later — so it removes the noise without weakening the signal.
+ *
  * Fail-safe direction: anything unreadable means "copy". A redundant copy costs
  * milliseconds; a missed one ships a stale frame.
  *
@@ -62,8 +69,11 @@ export function shouldRestageAsset(srcPath, destPath) {
   }
   if (!src.isFile() || !dest.isFile()) return true;
   if (src.size !== dest.size) return true;
-  return src.mtimeMs > dest.mtimeMs;
+  return src.mtimeMs - dest.mtimeMs > MTIME_TOLERANCE_MS;
 }
+
+/** Ignore sub-millisecond mtime drift from timestamp round-trips (see above). */
+const MTIME_TOLERANCE_MS = 2;
 
 /**
  * Derive the raw (pre-finalize) render output path from a final video path.
