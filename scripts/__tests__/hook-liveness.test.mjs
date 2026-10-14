@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { execFileSync, spawnSync } from "child_process";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "fs";
+import { cpSync, mkdtempSync, rmSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
@@ -19,8 +19,8 @@ function git(cwd, ...args) {
   return execFileSync("git", args, { cwd, stdio: ["pipe", "pipe", "pipe"] }).toString();
 }
 
-function runGate(repo) {
-  const result = spawnSync(process.execPath, [GATE, "--repo", repo], { encoding: "utf8" });
+function runGate(repo, script = GATE) {
+  const result = spawnSync(process.execPath, [script, "--repo", repo], { encoding: "utf8" });
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }
 
@@ -147,5 +147,39 @@ describe("check-hook-liveness", () => {
     const { status, output } = runGate(repo);
     expect(status).toBe(1);
     expect(output).toMatch(/no hooks|vacuous/i);
+  });
+
+  it("runs when the script path needs URL encoding (a space in the path)", () => {
+    makeLiveRepo();
+    const dir = mkdtempSync(join(tmpdir(), "gate path "));
+    const script = join(dir, "check-hook-liveness.mjs");
+    cpSync(GATE, script);
+
+    const { status, output } = runGate(repo, script);
+    expect(output).toMatch(/1 hook/i);
+    expect(status).toBe(0);
+  });
+
+  it("ignores tracked non-hook files in the hooks dir (a README is not a hook)", () => {
+    makeLiveRepo();
+    writeFileSync(join(hooksDir, "README.md"), "hooks live here\n", { mode: 0o644 });
+    git(repo, "add", ".githooks/README.md");
+    git(repo, "commit", "-q", "-m", "add notes");
+
+    expect(runGate(repo).status).toBe(0);
+  });
+
+  it("ignores dotfiles in the hooks dir (the installer skips them too)", () => {
+    makeLiveRepo();
+    writeFileSync(join(hooksDir, ".DS_Store"), "");
+
+    expect(runGate(repo).status).toBe(0);
+  });
+
+  it("ignores a directory that merely shares a hook's name", () => {
+    makeLiveRepo();
+    mkdirSync(join(hooksDir, "post-checkout"));
+
+    expect(runGate(repo).status).toBe(0);
   });
 });

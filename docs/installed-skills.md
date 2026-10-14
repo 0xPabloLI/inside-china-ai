@@ -25,7 +25,7 @@ These live in `skills/` at the repo root. Symlinks in `.cursor/skills/` and
 | `brand-system`         | Brand consistency enforcement for generated visual content                                                | `short-video-pipeline` skill                                                                                           |
 | `short-video-pipeline` | Video production pipeline orchestration                                                                   | AGENTS.md "Content and Video"                                                                                          |
 | `search-pool`          | Search Pool CLI + curl SearXNG usage (#265); search ladder single-sourced in web-access tool table (#284) | Agent search tools; `docs/tools-catalog.md`                                                                            |
-| `open-code-review`     | OCR CLI 代码审查：B 模式（Delegation）日常 PR + A 模式（本地 Ollama）核心 PR                              | 代码审查请求；实施审查循环里改动落在安全边界（认证/RLS/发布路径/命令构造）时（#406：Agent 主动步骤，不在 push 路径上） |
+| `open-code-review`     | OCR CLI 代码审查：B 模式（Delegation）日常 PR + A 模式（本地 Ollama）核心 PR                              | 代码审查请求；实施审查循环里改动落在安全边界（认证 / 管理员 gating / RLS / 发布路径 / shell 或命令构造）时（#406：Agent 主动步骤，不在 push 路径上） |
 
 ## Matt Pocock Skills
 

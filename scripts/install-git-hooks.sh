@@ -43,7 +43,7 @@ git config core.hooksPath "$HOOKS_DIR"
 for hook in "$HOOKS_DIR"/*; do
   [ -f "$hook" ] || continue
   case "$(basename "$hook")" in
-    *.sample|*.md) continue ;;
+    .*|*.sample|*.md) continue ;;
   esac
   chmod +x "$hook"
 done

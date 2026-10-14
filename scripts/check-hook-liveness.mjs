@@ -33,8 +33,9 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { accessSync, constants, readdirSync, statSync } from "node:fs";
+import { accessSync, constants, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const HOOKS_DIR_NAME = ".githooks";
 
@@ -51,9 +52,15 @@ function gitOrEmpty(cwd, ...args) {
   }
 }
 
-/** Git ships these as templates; they are not hooks anyone installed. */
-function isHookFile(name) {
-  return !name.endsWith(".sample") && !name.startsWith(".") && !name.endsWith(".md");
+/**
+ * A name git would run as a hook, filtered the way `setup:hooks` filters when
+ * it chmods: a real file (symlinks followed), not a `.sample` template, not a
+ * dotfile, not notes. The two must agree, or the gate judges files the
+ * installer never touched.
+ */
+function isInstalledHook(dir, name) {
+  if (name.endsWith(".sample") || name.startsWith(".") || name.endsWith(".md")) return false;
+  return statSync(join(dir, name), { throwIfNoEntry: false })?.isFile() === true;
 }
 
 function isExecutable(path) {
@@ -67,20 +74,26 @@ function isExecutable(path) {
 
 /**
  * @param {string} repo - checkout to inspect
- * @returns {string[]} one message per failed check (empty means live)
+ * @returns {{ hooks: string[], findings: string[] }} the hooks found, and one
+ *   message per failed check (no findings means live)
  */
-export function findHookLivenessFindings(repo) {
+function findHookLivenessFindings(repo) {
   const findings = [];
   const hooksDir = join(repo, HOOKS_DIR_NAME);
 
   let present;
   try {
-    present = readdirSync(hooksDir).filter(isHookFile).sort();
+    present = readdirSync(hooksDir)
+      .filter((name) => isInstalledHook(hooksDir, name))
+      .sort();
   } catch {
-    return [`${HOOKS_DIR_NAME}/ is missing — no hook can be activated`];
+    return { hooks: [], findings: [`${HOOKS_DIR_NAME}/ is missing — no hook can be activated`] };
   }
   if (present.length === 0) {
-    return [`${HOOKS_DIR_NAME}/ holds no hooks — vacuous gate, refusing to report green`];
+    return {
+      hooks: [],
+      findings: [`${HOOKS_DIR_NAME}/ holds no hooks — vacuous gate, refusing to report green`],
+    };
   }
 
   // Distribution: a hook git does not track never reaches another clone.
@@ -103,6 +116,7 @@ export function findHookLivenessFindings(repo) {
   for (const line of git(repo, "ls-files", "-s", "--", `${HOOKS_DIR_NAME}/`).split("\n")) {
     if (!line) continue;
     const [mode, , , path] = line.split(/\s+/);
+    if (!isInstalledHook(hooksDir, basename(path))) continue;
     if (mode !== "100755") {
       findings.push(
         `${path} is mode ${mode} in the index — git only runs hooks with exec (100755)`,
@@ -116,7 +130,7 @@ export function findHookLivenessFindings(repo) {
     findings.push(
       "core.hooksPath is unset — git reads none of these hooks; run `npm run setup:hooks`",
     );
-    return findings;
+    return { hooks: present, findings };
   }
 
   const activeDir = resolve(repo, git(repo, "rev-parse", "--git-path", "hooks").trim());
@@ -136,7 +150,9 @@ export function findHookLivenessFindings(repo) {
   const commonDir = resolve(repo, git(repo, "rev-parse", "--git-common-dir").trim());
   const defaultDir = join(commonDir, "hooks");
   if (activeDir !== defaultDir && statSync(defaultDir, { throwIfNoEntry: false })?.isDirectory()) {
-    for (const name of readdirSync(defaultDir).filter(isHookFile).sort()) {
+    for (const name of readdirSync(defaultDir)
+      .filter((entry) => isInstalledHook(defaultDir, entry))
+      .sort()) {
       findings.push(
         `${defaultDir}/${name} is inert — git reads ${configured}, never the default hooks ` +
           "directory; the file never runs (delete it, or move it into the tracked hooks directory)",
@@ -144,16 +160,17 @@ export function findHookLivenessFindings(repo) {
     }
   }
 
-  return findings;
+  return { hooks: present, findings };
 }
 
 function main(argv) {
   const flag = argv.indexOf("--repo");
   const repo = resolve(flag >= 0 && argv[flag + 1] ? argv[flag + 1] : process.cwd());
 
+  let hooks;
   let findings;
   try {
-    findings = findHookLivenessFindings(repo);
+    ({ hooks, findings } = findHookLivenessFindings(repo));
   } catch (error) {
     console.error(`check-hook-liveness: ${repo}: ${error.message}`);
     return 1;
@@ -165,11 +182,14 @@ function main(argv) {
     return 1;
   }
 
-  const count = readdirSync(join(repo, HOOKS_DIR_NAME)).filter(isHookFile).length;
-  console.log(`[hook-liveness] clean — ${count} hook(s) tracked, activated and reachable`);
+  console.log(`[hook-liveness] clean — ${hooks.length} hook(s) tracked, activated and reachable`);
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run main() only on direct execution, not when imported. Comparing file
+// paths (not URL strings) keeps this true when the path needs URL encoding,
+// and realpathSync keeps it true through a symlink.
+const thisFile = fileURLToPath(import.meta.url);
+if (process.argv[1] && realpathSync(process.argv[1]) === thisFile) {
   process.exit(main(process.argv.slice(2)));
 }
