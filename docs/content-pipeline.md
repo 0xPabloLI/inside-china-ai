@@ -417,7 +417,7 @@ node scripts/short-video/verify-video.mjs --tiktok  # 全量合规检查 = MRL-3
 MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
 1. **输出 MRL-3 报告**（verify-video.mjs 合规报告 + 内容补充检查结果）
-2. **输出视频文件路径**
+2. **输出视频文件路径，并直接打开该文件**（`open <path>`）——用户不必自己去翻 output 目录
 3. **输出文章 draft 预览**（文章 markdown 全文）
 4. **输出场景概览表**
 5. **提示用户审阅要点**：实际观看视频检查整体观感、TTS 语音、字幕、视觉动画、Hook/CTA、有无渲染问题、文章内容准确性、脚本叙事合理性
@@ -432,6 +432,8 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    📌 Pinned Comment（发布后在评论区手动发这条，然后长按置顶）
    [读取 output/{pipelineId}/publish/tiktok/tiktok-pinned-comment.txt 内容，原样输出]
    ```
+
+   > **置顶评论只出 commentHook（用户决定 2026-10-13）**：`metadata.articleUrl` 留空，置顶评论与 Caption 因此不带链接。这是「网站就绪前先不引流」的落地方式。要恢复引流：在该内容的 scene-data 填回 `articleUrl`，重跑 `generate-caption.mjs`（`lib/caption-utils.mjs` → `derivePinnedComment`：无 url 时只返回 hook）。
 
 7. **BGM 选择与确认**（HITL 内）— Agent 自动执行：
    a. 从 BGM 池中按 pipelineId 确定性选择一个 CC-BY BGM（`lib/bgm.mjs` → `selectBGM`）

@@ -273,7 +273,7 @@ After all automated checks pass, the agent generates a complete publishing packa
   [ ] AIGC label: toggle ON (AI voice used)
   [ ] Trending audio: add from TikTok library at 5-10% volume
   [ ] Publish
-  [ ] Pinned comment: article URL (when domain is live)
+  [ ] Pinned comment: the comment hook alone, with `metadata.articleUrl` left unset (see `docs/content-pipeline.md` HITL step 6)
   [ ] Reply to comments (first hour after posting)
 ```
 
