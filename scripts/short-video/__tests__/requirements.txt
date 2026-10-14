@@ -9,8 +9,10 @@
 # pillow   — vlm_analyzer.py imports PIL at module level
 # numpy    — lib/b-roll/mlx_wan_batch.py imports numpy at module level
 #
-# Tests that need heavier stacks (mlx_vlm from ~/.venvs/mlx-vlm) skip
-# themselves with pytest.importorskip when the stack is absent.
+# Tests that would otherwise need heavier stacks do not skip: the mlx_vlm path
+# is reached through test_frame_strategy.py's `_video_module()`, which takes the
+# real package where the interpreter has it and registers a same-named stub
+# where it does not.
 pytest>=9,<10
 pillow>=11
 numpy>=2
