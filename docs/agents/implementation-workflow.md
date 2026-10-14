@@ -157,7 +157,7 @@ R3 实现前必须记录实际失败基线，例如失败的自动化测试、�
 
 | 改动                                 | 必需验证                                                                                                              |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| 仅 Agent 文档                        | `npm run lint:docs`、`git diff --check`                                                                               |
+| 仅 Agent 文档                        | `npm run lint:docs`、改动内 § 编号存在性核对、`git diff --check`                                                      |
 | `src/`、Supabase、应用配置           | affected tests、`npm test`、`npm run lint`、`npm run build`、`npx tsc --noEmit`                                       |
 | Python 代码或 Python/Node 跨进程边界 | affected Python tests（优先项目既有 `pytest`/runner）+ 对应 Node consumer tests；涉及真实模型、媒体或格式时再加 smoke |
 | UI 交互、布局或样式                  | 上述相关检查 + dev server 浏览器核心路径；对齐测量同时记录 `width`、`left`、`right`                                   |
