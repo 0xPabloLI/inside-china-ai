@@ -263,6 +263,51 @@ describe("upscaleImage", () => {
     const calledCmd = execSync.mock.calls[0]?.[0];
     expect(calledCmd).toContain("realesrgan-x4plus");
   });
+
+  // 2026-10-13 media-gate incident: Real-ESRGAN chooses the container from the
+  // input's channel count, so an RGBA source lands at "-tmp.jpg.png" and the
+  // requested "-tmp.jpg" never exists. The scale step must read what was written.
+  it("resolves the .png Real-ESRGAN writes when the source has an alpha channel", () => {
+    existsSync.mockImplementation((p) => !String(p).endsWith("-tmp.jpg"));
+    const result = upscaleImage("/fake/input.jpg", "/fake/output.jpg");
+    expect(result.success).toBe(true);
+    expect(result.path).toBe("/fake/output.jpg");
+    expect(execSync.mock.calls[1]?.[0]).toContain("/fake/output-tmp.jpg.png");
+  });
+
+  // No output from Real-ESRGAN → failure, not a success carrying a phantom path.
+  it("fails when Real-ESRGAN writes no output at all", () => {
+    existsSync.mockImplementation((p) => !String(p).includes("-tmp"));
+    const result = upscaleImage("/fake/input.jpg", "/fake/output.jpg");
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("no output");
+    expect(result.path).toBeUndefined();
+  });
+
+  // Degrade path: scale fails but the Real-ESRGAN file is really there.
+  it("degrades to the real Real-ESRGAN output when the ffmpeg scale fails", () => {
+    existsSync.mockImplementation((p) => !String(p).endsWith("-tmp.jpg"));
+    execSync.mockReturnValueOnce("").mockImplementationOnce(() => {
+      throw new Error("ffmpeg scale failed");
+    });
+    const result = upscaleImage("/fake/input.jpg", "/fake/output.jpg");
+    expect(result.success).toBe(true);
+    expect(result.path).toBe("/fake/output-tmp.jpg.png");
+  });
+
+  // The incident itself: never report success with a path that does not exist.
+  it("never returns success with a path that does not exist", () => {
+    existsSync
+      .mockReturnValueOnce(true) // Real-ESRGAN binary present
+      .mockReturnValueOnce(true) // tmpOutput present before scaling
+      .mockReturnValueOnce(false); // gone by the time the scale step failed
+    execSync.mockReturnValueOnce("").mockImplementationOnce(() => {
+      throw new Error("ffmpeg scale failed");
+    });
+    const result = upscaleImage("/fake/input.jpg", "/fake/output.jpg");
+    expect(result.success).toBe(false);
+    expect(result.path).toBeUndefined();
+  });
 });
 
 // ─── autoUpscaleIfNeeded ───

@@ -334,10 +334,23 @@ export function upscaleImage(inputPath, outputPath, targetShortSide = DEFAULT_TA
     return { success: false, error: e.message?.substring(0, 200) || "Real-ESRGAN failed" };
   }
 
+  // Real-ESRGAN picks the output container from the INPUT's channel count, not
+  // from the -o extension: an RGBA source is always written as PNG, so asking
+  // for "-tmp.jpg" actually yields "-tmp.jpg.png". Resolve the file that was
+  // really written instead of assuming the requested path exists — on
+  // 2026-10-13 the media gate failed on a phantom path produced exactly here.
+  const realTmpOutput = existsSync(tmpOutput) ? tmpOutput : `${tmpOutput}.png`;
+  if (!existsSync(realTmpOutput)) {
+    return {
+      success: false,
+      error: `Real-ESRGAN produced no output at ${basename(tmpOutput)} or ${basename(realTmpOutput)}`,
+    };
+  }
+
   // Step 2: ffmpeg scale to target resolution
   const ffScaleCmd = [
     `"${FFMPEG_PATH}"`,
-    `-i "${tmpOutput}"`,
+    `-i "${realTmpOutput}"`,
     `-vf "scale='if(gt(iw,ih),-1,${targetShortSide})':'if(gt(iw,ih),${targetShortSide},-1)'"`,
     `-y "${outputPath}"`,
   ].join(" ");
@@ -345,8 +358,24 @@ export function upscaleImage(inputPath, outputPath, targetShortSide = DEFAULT_TA
   try {
     execSync(ffScaleCmd, { encoding: "utf8", timeout: 60000, stdio: ["pipe", "pipe", "pipe"] });
   } catch (e) {
+    // Degrade to the Real-ESRGAN output, but only if it is really there: a
+    // success carrying a path that does not exist propagates straight into the
+    // media patch and fails the gate much later, far from the cause.
+    if (!existsSync(realTmpOutput)) {
+      return {
+        success: false,
+        error: `ffmpeg scale failed and ${basename(realTmpOutput)} is missing`,
+      };
+    }
     console.warn(`  ⚠️  ffmpeg scale failed, using Real-ESRGAN output directly`);
-    return { success: true, path: tmpOutput };
+    return { success: true, path: realTmpOutput };
+  }
+
+  if (!existsSync(outputPath)) {
+    return {
+      success: false,
+      error: `ffmpeg scale reported success but wrote no ${basename(outputPath)}`,
+    };
   }
 
   return { success: true, path: outputPath };
