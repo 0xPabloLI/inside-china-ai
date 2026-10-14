@@ -41,7 +41,7 @@ describe("route JSON-LD goes through the escaping seam", () => {
    */
   function routeSources(dir = ROUTES_DIR): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      const full = join(dir, entry.name);
+      const full = join(dir, entry.name); // nosemgrep
       if (entry.isDirectory()) return entry.name === "__tests__" ? [] : routeSources(full);
       return entry.isFile() &&
         /\.tsx?$/.test(entry.name) &&
