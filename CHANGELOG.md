@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.10](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.9...tanstack_start_ts-v1.20.10) (2026-10-14)
+
+
+### Bug Fixes
+
+* **short-video,seo:** sweep the deferred shell-string + inline JSON-LD class ([#319](https://github.com/0xPabloLI/inside-china-ai/issues/319) tier 2) ([#638](https://github.com/0xPabloLI/inside-china-ai/issues/638)) ([68725ee](https://github.com/0xPabloLI/inside-china-ai/commit/68725ee5e7861a7ff68483a7a90c34d514a9884e))
+
 ## [1.20.9](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.8...tanstack_start_ts-v1.20.9) (2026-10-13)
 
 
