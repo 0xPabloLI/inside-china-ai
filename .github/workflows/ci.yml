@@ -96,6 +96,15 @@ jobs:
         # formatting deliberately left to the ratchet.
         run: npm run lint:mjs
 
+      - name: Hook liveness gate
+        # #406: a hook that sits where git does not read it performs no check,
+        # silently. The gate needs the activation step to have run — a fresh
+        # clone has no core.hooksPath — so this also exercises the install path
+        # itself, which is the entry point the README tells humans to use.
+        run: |
+          npm run setup:hooks
+          npm run lint:hooks
+
       - name: Doc hierarchy lint
         run: npm run lint:docs
 

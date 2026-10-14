@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:docs": "node scripts/lint-doc-hierarchy.mjs",
+    "lint:hooks": "node scripts/check-hook-liveness.mjs",
     "lint:mjs": "node scripts/lint-mjs-correctness.mjs",
     "lint:todos": "node scripts/lint-todos.mjs",
     "lint:asr": "node scripts/lint-asr-model-defaults.mjs",

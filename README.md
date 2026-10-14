@@ -190,7 +190,7 @@ unchanged.
 git clone <this-repository-url>
 cd inside-china-ai
 npm install
-bash scripts/install-git-hooks.sh   # secret scan + Session-Id gate
+npm run setup:hooks              # secret scan + Session-Id gate; verify: npm run lint:hooks
 cp .env.example .env.local          # fill in keys (search pool keys are SECRET)
 npm run dev
 ```
