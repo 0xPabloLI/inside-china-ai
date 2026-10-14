@@ -2,16 +2,27 @@
 name: open-code-review
 description: |
   代码审查工具，通过 ocr CLI 调用 open-code-review（阿里开源）。
-  触发场景：用户要求代码审查、review PR、review commit、审查代码质量、找 bug。
+  触发场景：用户要求代码审查、review PR、review commit、审查代码质量、找 bug；
+  或实施流程的审查循环里改动落在安全边界（认证/RLS/发布路径/命令构造）时。
   两种模式：B（Delegation，日常小 PR，不调 LLM）和 A（本地 Ollama，核心/安全 PR）。
 metadata:
-  version: "1.12.6"
+  version: "1.13.0"
   source: https://github.com/alibaba/open-code-review
 ---
 
 # open-code-review Skill
 
-> OCR v1.12.6 已全局安装（npm i -g @alibaba-group/open-code-review），Ollama provider 已配。
+> OCR v1.13.0 已全局安装（npm i -g @alibaba-group/open-code-review），Ollama provider 已配。
+
+## 何时跑（Agent 主动步骤）
+
+OCR **不在 push 路径上**——#406 裁决不恢复 pre-push 门禁（push 路径上 18 分钟阻塞收益不明，且必然带静默跳过）。它是审查循环里 Agent 主动发起的一步，触发条件：
+
+- **A 模式**：改动落在安全边界——认证 / 管理员 gating / RLS / 发布路径 / shell 或命令构造——在 `code-review` 两轴审查之前跑一次。成本实测：典型 PR ~18 分钟（含模型加载），故不用于日常小改动。
+- **B 模式**：日常 PR 想补一层行级定位时用，不调 LLM，成本近乎为零。
+- **不跑**：纯文档、纯测试、依赖 bump。
+
+跑 A 模式前确认 Ollama 在跑（`ollama ps` 为空是正常的——模型按需加载，空闲 5 分钟自动卸载，常驻仅约 13MB）；跑完**不需要**特意停 Ollama，它是 VLM/tools 后端共用的服务。
 
 ## 模式选择
 
@@ -48,7 +59,7 @@ ocr review --format json --output result.json  # JSON 输出给我解析
 ```
 
 **耗时参考**（ornith:1.5-9b on M2 Pro）：10 行 3m55s（含模型加载），13.9K tokens。
-典型 PR（~300 行）≈ 18 分钟。用完关 Ollama：`pkill -f "ollama serve"`。
+典型 PR（~300 行）≈ 18 分钟。跑完不停 Ollama（见「何时跑」）。
 
 ## 配置（已完成）
 

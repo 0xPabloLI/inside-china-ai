@@ -179,6 +179,8 @@ R3 实现前必须记录实际失败基线，例如失败的自动化测试、�
 
 Review 报告不能只生成后忽略。
 
+**安全边界改动先过 OCR**：改动落在认证 / 管理员 gating / RLS / 发布路径 / shell 或命令构造时，在第 3 步之前按 `open-code-review` skill 跑一次 A 模式（本地 LLM，典型 PR ~18 分钟）。它的产出是候选，仍按本节的 code-review 口径裁决，不直接当结论。其余改动不跑——18 分钟的收益只在这类改动上成立。#406 裁决：OCR 是 Agent 主动步骤，不在 push 路径上。
+
 ## 9. 收尾顺序
 
 1. 所有 ticket acceptance criteria 与 checklist 和实际验证结果一致。
