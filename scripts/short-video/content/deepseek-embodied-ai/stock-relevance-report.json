@@ -1,0 +1,53 @@
+{
+  "threshold": 60,
+  "results": [
+    {
+      "sceneId": 2,
+      "sceneName": "open-loop",
+      "asset": "assets/baidu_search-robot-startup-office-humanoid-03.jpg",
+      "relevance": 0,
+      "reason": "The image shows robots in a lab setting but does not relate to Liang Wenfeng, iFeng reporting, or the specific narrative about meeting founders and two paths. It is completely unrelated to the scene claim.",
+      "passed": false
+    },
+    {
+      "sceneId": 3,
+      "sceneName": "unitree-stake",
+      "asset": "assets/baidu_search-宇树-03.jpg",
+      "relevance": 0,
+      "reason": "The image shows a robot demonstration at a trade show but does not contain any information about DeepSeek's investment, an IPO, a cooperation deal, or financial details, making it completely unrelated to the scene claim.",
+      "passed": false
+    },
+    {
+      "sceneId": 4,
+      "sceneName": "winverse",
+      "asset": "assets/baidu_search-robot-startup-office-humanoid-01.jpg",
+      "relevance": 0,
+      "reason": "The image features a robot at a visitor center, which is completely unrelated to the scene claim about Winverse AI, its founders, funding, or valuation.",
+      "passed": false
+    },
+    {
+      "sceneId": 6,
+      "sceneName": "gpt6-trigger",
+      "asset": "assets/baidu_search-robot-arm-picking-up-02.jpg",
+      "relevance": 50,
+      "reason": "The image shows a robotic arm, which is relevant to the topic of robot control tasks, but it does not provide any context about the specific AI models (GPT-6 Astra, Fable 5.1) or the performance comparison mentioned in the scene claim.",
+      "passed": false
+    },
+    {
+      "sceneId": 7,
+      "sceneName": "homebody-demo",
+      "asset": "assets/baidu_search-宇树-01.jpg",
+      "relevance": 80,
+      "reason": "The image directly shows a Unitree robot, which is central to the scene claim. While it doesn't show the robot in a kitchen or performing the specific actions mentioned, it visually confirms the key subject of the demo: the Unitree robot.",
+      "passed": true
+    },
+    {
+      "sceneId": 9,
+      "sceneName": "loop-closure",
+      "asset": "assets/baidu_search-深度求索-03.jpg",
+      "relevance": 50,
+      "reason": "The image features a logo that appears to be a stylized version of \"DeepSeek,\" which is relevant to the scene claim about DeepSeek's strategic decisions. However, it does not visually represent the concepts of hiring, funding, or strategic pivots mentioned in the narration, making it only loosely related.",
+      "passed": false
+    }
+  ]
+}
