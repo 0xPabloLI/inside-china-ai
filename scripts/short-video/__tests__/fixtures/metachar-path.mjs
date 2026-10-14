@@ -24,6 +24,17 @@ export const hasFfprobe =
 /** ffmpeg is present on PATH. */
 export const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
 
+// Evidence hygiene (docs/conventions/scenario-matrix.md §Evidence Hygiene): a
+// suite whose guards all skip is noise, not evidence. CI runs on macos-latest
+// and installs brew ffmpeg explicitly (.github/workflows/ci.yml), so a missing
+// binary there would mean every guard below greens without ever probing — fail
+// loudly instead. Locally, absence is tolerated and the guards skip.
+if (process.env.CI && !(hasFfprobe && hasFfmpeg)) {
+  throw new Error(
+    "CI must provide ffprobe and ffmpeg: without them every metachar guard skips and the argv conversion has no evidence",
+  );
+}
+
 /**
  * Run `body` with the process cwd inside a fresh temp dir and a metachar-laden
  * media path in scope, then restore the cwd and remove the dir.

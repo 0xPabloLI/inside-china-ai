@@ -7,7 +7,7 @@
  * quirks (the very class of bug this subsystem exists to eliminate).
  */
 
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { readFileSync, writeFileSync } from "fs";
 
 const HEADER_SIZE = 44;
@@ -156,8 +156,11 @@ export function readWavPcm(path) {
  * @param {number} sampleRate
  */
 export function decodeToWavFile(inputPath, outputPath, sampleRate) {
-  execSync(
-    `ffmpeg -y -i "${inputPath}" -ac 1 -ar ${sampleRate} -c:a pcm_s16le "${outputPath}" 2>/dev/null`,
+  // argv, never a shell string (#319 deferred class sweep): both paths are
+  // content data. stderr stays captured by execSync so a failure reports why.
+  execFileSync(
+    "ffmpeg",
+    ["-y", "-i", inputPath, "-ac", "1", "-ar", String(sampleRate), "-c:a", "pcm_s16le", outputPath],
     { stdio: ["pipe", "pipe", "pipe"] },
   );
 }

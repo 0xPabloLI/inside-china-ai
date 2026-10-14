@@ -624,9 +624,9 @@ if (!preMode && results.fail.length === 0) {
   console.log("\n📝 Generating platform publish packages...");
   try {
     // argv, never a shell string (#319 deferred class sweep): the content id is
-    // data.
-    const captionArgs = [join(__dirname, "generate-caption.mjs")];
-    if (contentDir) captionArgs.push("--content", contentDir);
+    // data. `contentDir` cannot be null here — the script exits above when
+    // --content is missing.
+    const captionArgs = [join(__dirname, "generate-caption.mjs"), "--content", contentDir];
     execFileSync(process.execPath, captionArgs, { stdio: "inherit" });
 
     // B6 per-platform (#219 T02): each platform's caption is checked against

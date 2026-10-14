@@ -34,12 +34,20 @@ describe("jsonLdScript", () => {
 describe("route JSON-LD goes through the escaping seam", () => {
   const ROUTES_DIR = new URL("../routes/", import.meta.url).pathname;
 
-  /** Every .ts/.tsx under src/routes, at any depth (api/, _authenticated/, …). */
+  /**
+   * Every non-test .ts/.tsx under src/routes, at any depth (api/, _authenticated/, …).
+   * Co-located route tests are exempt: they may legitimately assert on the
+   * emitted `application/ld+json` marker.
+   */
   function routeSources(dir = ROUTES_DIR): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
       const full = join(dir, entry.name);
-      if (entry.isDirectory()) return routeSources(full);
-      return entry.isFile() && /\.tsx?$/.test(entry.name) ? [full] : [];
+      if (entry.isDirectory()) return entry.name === "__tests__" ? [] : routeSources(full);
+      return entry.isFile() &&
+        /\.tsx?$/.test(entry.name) &&
+        !/\.(test|spec)\.tsx?$/.test(entry.name)
+        ? [full]
+        : [];
     });
   }
 
@@ -47,8 +55,13 @@ describe("route JSON-LD goes through the escaping seam", () => {
   // hand-rolls `{ type: "application/ld+json", children: JSON.stringify(...) }`
   // bypasses the `<` escaping entirely (#319 OCR lib scan: three such sites
   // shipped that way). Naming the script type is the seam's job — `jsonLdScript`
-  // in src/lib/structured-data.ts — so any route source that still names it is
+  // in src/lib/structured-data.ts — so any route module that still names it is
   // emitting a document without the escaping.
+  //
+  // This is a floor, not a proof: a route that pulled the type from a shared
+  // constant would slip past a literal scan. The defect it exists to catch is
+  // exactly the literal, and the scan is falsifiable — add the string to
+  // index.tsx and this fails.
   it("no route hand-rolls an ld+json script tag", () => {
     const offenders = routeSources()
       .filter((file) => readFileSync(file, "utf8").includes("application/ld+json"))

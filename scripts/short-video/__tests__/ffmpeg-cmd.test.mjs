@@ -49,8 +49,8 @@ describe("getDurationSync", () => {
     expect(duration).toBeLessThan(1.35);
   });
 
-  it.skipIf(!hasFfprobe)("keeps shell metacharacters in the path literal", () => {
-    withMetacharPath("ffmpeg-cmd-319", "wav", (victim, dir) => {
+  it.skipIf(!hasFfprobe)("keeps shell metacharacters in the path literal", async () => {
+    await withMetacharPath("ffmpeg-cmd-319", "wav", (victim, dir) => {
       writeFileSync(victim, "not media");
       expect(() => getDurationSync(victim)).toThrow();
       expect(markerCreated(dir)).toBe(false);
