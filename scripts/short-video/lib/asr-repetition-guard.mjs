@@ -37,12 +37,12 @@
  */
 
 /** 判定阈值（与 Python 侧同值）。 */
-export const NGRAM = 3;
-export const MIN_REPEATS = 6;
-export const MAX_COVERAGE = 0.5;
-export const MIN_WORDS_FOR_COVERAGE = 40;
-export const PERIOD_MAX = 16;
-export const MIN_RUN_WORDS = 18;
+const NGRAM = 3;
+const MIN_REPEATS = 6;
+const MAX_COVERAGE = 0.5;
+const MIN_WORDS_FOR_COVERAGE = 40;
+const PERIOD_MAX = 16;
+const MIN_RUN_WORDS = 18;
 
 // 无词边界语言（CJK 汉字/假名）：按空格切词会把整段中文变成一个「词」，
 // n-gram 逻辑失效。注意韩语有空格，不属此类。

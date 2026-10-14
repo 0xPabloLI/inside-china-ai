@@ -27,8 +27,6 @@ import {
 
 export { ARTIFACT_TYPES, PUBLISH_METHODS, IMPLEMENTED_ARTIFACT_TYPES, validateProfileShape };
 
-export { InvalidProfileError };
-
 // ─── Immutability ───
 
 /**

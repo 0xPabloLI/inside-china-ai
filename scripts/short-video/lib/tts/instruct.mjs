@@ -284,7 +284,7 @@ export function validateInstructSignature(text) {
  * @returns {string}
  * @throws {Error} when the override fails the standard
  */
-export function normalizeExplicitInstruct(text, { format = INSTRUCT_FORMAT.PYTORCH } = {}) {
+function normalizeExplicitInstruct(text, { format = INSTRUCT_FORMAT.PYTORCH } = {}) {
   const report = validateInstructSignature(text);
   if (!report.ok) {
     throw new Error(

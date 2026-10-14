@@ -1073,7 +1073,7 @@ export function checkHookMediaWarning(scenes) {
  *  where scene-data.mjs was created without media fields, ensuring the pipeline
  *  doesn't silently produce all-CSS videos with no background imagery.
  *  CTA / data / stat-reveal scenes are exempt (they don't use media). */
-export function checkNarrativeMediaWarning(scenes) {
+function checkNarrativeMediaWarning(scenes) {
   const missing = scenes.filter((s) => !NO_MEDIA_TYPES.has(s.visualType) && !s.media?.path);
   if (missing.length === 0) {
     return [
@@ -1104,7 +1104,7 @@ export function checkNarrativeMediaWarning(scenes) {
  * Detects ¥<number> or <number> (billion|million|thousand) yuan without
  * a $ within 30 chars before the match.
  */
-export function checkCurrencyDualAnnotation(scenes) {
+function checkCurrencyDualAnnotation(scenes) {
   const YEN_RE = /¥[\d,.]+/gi;
   const YUAN_RE = /\d[\d,.]*\s*(?:billion|million|thousand)\s*yuan/gi;
 
@@ -1148,7 +1148,7 @@ export function checkCurrencyDualAnnotation(scenes) {
  * title + titleHighlight produces two uppercase words joined without a space.
  * E.g. texts.title="STRATEGIC" + texts.titleHighlight="BACKERS" → "STRATEGICBACKERS"
  */
-export function checkTextConcatenation(scenes) {
+function checkTextConcatenation(scenes) {
   for (const scene of scenes) {
     const t = scene.texts;
     if (!t) continue;
@@ -1198,7 +1198,7 @@ const VALID_LAYOUTS = [
   "stacked-cards",
   "cta",
 ];
-export function checkLayoutField(scenes) {
+function checkLayoutField(scenes) {
   const results = [];
   for (const scene of scenes) {
     if (scene.visualType === "cta") continue; // CTA scenes don't need layout
@@ -1882,7 +1882,7 @@ export function checkBrollPromptDimensions(scenes) {
  *     present?: [{ from, to }]      — on-screen seconds; omitted = full scene
  *   }
  */
-export const AVATAR_POSITIONS = ["right-card"];
+const AVATAR_POSITIONS = ["right-card"];
 const AVATAR_KEYS = ["videoPath", "position", "scale", "present"];
 
 // Present-interval overflow can only be estimated here (scene-rules runs

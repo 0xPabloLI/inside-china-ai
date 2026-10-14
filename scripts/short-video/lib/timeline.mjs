@@ -37,7 +37,7 @@ const FRAME_EPSILON = 1e-6;
  * @param {number} [fps]
  * @returns {number}
  */
-export function frameCount(seconds, fps = FPS) {
+function frameCount(seconds, fps = FPS) {
   return Math.ceil(seconds * fps - FRAME_EPSILON);
 }
 

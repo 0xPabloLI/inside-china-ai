@@ -27,7 +27,7 @@ import { getDurationSync } from "./tts/ffmpeg-cmd.mjs";
  * that was generated for exactly this voiceover. It never admits a real
  * mismatch — the failure this guard exists for was 2.24s short.
  */
-export const AVATAR_DURATION_EPSILON_SEC = 0.05;
+const AVATAR_DURATION_EPSILON_SEC = 0.05;
 
 /**
  * Whether a Scene declares the avatar layer at all. Scenes with no declaration
@@ -55,7 +55,7 @@ export function isAvatarDeclared(scene) {
  * @param {string} declared - the declared videoPath (or a placeholder)
  * @returns {string}
  */
-export function avatarRemediation(scene, declared) {
+function avatarRemediation(scene, declared) {
   return (
     `\n   Remediation: regenerate it with the FORCE path — a plain run SKIPS scenes whose` +
     `\n   videoPath is already set (stale-plan protection), so a stale clip survives it:` +
@@ -74,7 +74,7 @@ export function avatarRemediation(scene, declared) {
  * @param {string} mediaPath
  * @returns {number} duration in seconds, or NaN when the file is unreadable
  */
-export function probeMediaDurationSeconds(mediaPath) {
+function probeMediaDurationSeconds(mediaPath) {
   try {
     const duration = getDurationSync(mediaPath);
     return Number.isFinite(duration) && duration > 0 ? duration : NaN;

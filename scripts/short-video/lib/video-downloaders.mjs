@@ -218,7 +218,7 @@ function isYoutubeUrl(canonicalUrl) {
  * @param {string} canonicalUrl
  * @returns {boolean}
  */
-export function isXhsUrl(canonicalUrl) {
+function isXhsUrl(canonicalUrl) {
   try {
     const host = new URL(canonicalUrl).hostname;
     return XHS_HOSTS.some((h) => host === h || host.endsWith("." + h));

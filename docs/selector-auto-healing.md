@@ -267,7 +267,7 @@ node scripts/short-video/source-url-discover.mjs --only xinhua,ithome --json
 
 **触发条件（2026-09-23 窄化）**：只在「**URL 模式已死 且 站内搜索框还在**」时降级到驱动搜索框，不是「每次搜索失败都试」。生产路径 `search-sources.mjs` 尚未接这一层（当前驱动函数只被诊断脚本 `source-url-discover.mjs` 调用）。
 
-**窄化的理由要修正一次**：不用「驱动搜索框依赖真实前端结构，站点改一次前端就废」当理由——那站不住。① 结构变了**是可观测的**：`source-url-discover.mjs` 本来就在真浏览器里跑，CDP 快照能告诉我们前端改成了什么样；② 驱动搜索框的选择器（`SEARCH_BOX_SELECTORS` / `buildFindSearchBoxScript()`）**也只是选择器**，和 `articleScript` 同处一个自愈循环——站点改版后由 `selector-health` 报空、走本文件的手册重新 derive 即可，这正是本文件存在的意义。
+**窄化的理由要修正一次**：不用「驱动搜索框依赖真实前端结构，站点改一次前端就废」当理由——那站不住。① 结构变了**是可观测的**：`source-url-discover.mjs` 本来就在真浏览器里跑，CDP 快照能告诉我们前端改成了什么样；② 驱动搜索框的选择器（`buildFindSearchBoxScript()` 与它的评分 prelude）**也只是选择器**，和 `articleScript` 同处一个自愈循环——站点改版后由 `selector-health` 报空、走本文件的手册重新 derive 即可，这正是本文件存在的意义。
 
 真正的理由是两个不同的东西：
 

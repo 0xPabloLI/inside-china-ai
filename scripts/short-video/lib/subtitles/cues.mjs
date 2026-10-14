@@ -22,22 +22,22 @@ import { measureWidth } from "./measure.mjs";
 /** Maximum words per cue — beyond this the karaoke sweep is too fast to track. */
 export const MAX_WORDS = 6;
 /** Hard pixel limit: a line never exceeds this (lanes stay single-line normal case). */
-export const HARD_PX = SUBTITLE_LANE.maxWidth;
+const HARD_PX = SUBTITLE_LANE.maxWidth;
 /**
  * Soft pixel limit: break here only if it doesn't orphan the last word.
  * Derived at 85% of the hard limit so it always sits below it — when maxWidth
  * shrank from 950 to 720 (60px font recalibration) a hardcoded soft limit
  * would have exceeded the hard limit and disabled early breaking.
  */
-export const SOFT_PX = Math.round(HARD_PX * 0.85);
+const SOFT_PX = Math.round(HARD_PX * 0.85);
 /** Minimum time a cue stays on screen, in seconds. */
 export const MIN_DURATION = 0.8;
 /** How long a cue lingers after its last word, when there is room. */
-export const HOLD_OUT = 0.5;
+const HOLD_OUT = 0.5;
 /** Gaps shorter than this are closed to exactly CHAIN_GAP. */
 export const GAP_THRESHOLD = 0.5;
 /** Cue appears this many frames before its first word. */
-export const LEAD_IN_FRAMES = 2;
+const LEAD_IN_FRAMES = 2;
 /** Mandatory separation between consecutive cues, in frames. */
 export const CHAIN_GAP_FRAMES = 2;
 
@@ -53,7 +53,7 @@ const SENTENCE_END = /[.!?:;]$/;
  * @param {Array<{text: string}>} words
  * @returns {string}
  */
-export function joinWords(words) {
+function joinWords(words) {
   return words
     .map((w) => w.text)
     .join(" ")

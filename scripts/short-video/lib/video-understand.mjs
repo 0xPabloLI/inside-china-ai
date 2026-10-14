@@ -308,6 +308,11 @@ export async function downloadVideo(url, options = {}) {
 /**
  * Build yt-dlp command string for YouTube/Bilibili.
  *
+ * Only `downloadVideo` below calls this, and no production path reaches that
+ * function today (#325). If it is ever wired into the ffmpeg-reuse path, the
+ * proxy fragment must come from `ytdlpProxyArg()` (ytdlp-guard.mjs), the way
+ * video-downloaders' builder does — so all three builders share one seam.
+ *
  * @param {string} url - Full URL
  * @param {string} output - Output file path
  * @param {string} platform - "youtube" or "bilibili"

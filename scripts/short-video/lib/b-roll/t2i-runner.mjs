@@ -39,16 +39,15 @@ export const MFLUX_BIN_CANDIDATES = [
   join(homedir(), ".video-t2i-env", "bin", "mflux-generate-boogu"),
   join(homedir(), ".video-tts-env", "bin", "mflux-generate-boogu"),
 ];
-export const DEFAULT_MFLUX_BIN = MFLUX_BIN_CANDIDATES[0];
 // Boogu-Image-0.1-Turbo: 10B params, Apache 2.0, CUHK + HKUST.
 // Requires 4-bit quantization to fit in 32GB unified memory.
-export const DEFAULT_IMAGE_MODEL = "Boogu/Boogu-Image-0.1-Turbo";
-export const DEFAULT_IMAGE_QUANTIZE = 4;
+const DEFAULT_IMAGE_MODEL = "Boogu/Boogu-Image-0.1-Turbo";
+const DEFAULT_IMAGE_QUANTIZE = 4;
 // Portrait native, matching the b-roll video's 9:16 frame.
 export const DEFAULT_IMAGE_WIDTH = 832;
 export const DEFAULT_IMAGE_HEIGHT = 1216;
 // Boogu Turbo is guidance-distilled; 4 steps per mflux default for Turbo variants.
-export const DEFAULT_IMAGE_STEPS = 4;
+const DEFAULT_IMAGE_STEPS = 4;
 // Measured ≈364s per 4-bit image on M2 Pro 32GB; the CLI estimate prints from this.
 export const EST_SECONDS_PER_IMAGE = 364;
 // One image is quick once weights are loaded, but a cold first run downloads
@@ -60,7 +59,7 @@ const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 // flag — mflux would print an "ignored option" warning on every job.
 const NEGATIVE_PROMPT_BACKENDS = new Set(["mflux-z-image", "sd3.5"]);
 
-export function supportsNegativePrompt(backend) {
+function supportsNegativePrompt(backend) {
   return NEGATIVE_PROMPT_BACKENDS.has(backend);
 }
 

@@ -11,7 +11,6 @@
     "types"
   ],
   "ignore": [
-    "scripts/short-video/lib/**",
     "src/integrations/supabase/types.ts",
     "src/lib/email-templates/**"
   ],
@@ -30,7 +29,8 @@
     "ffprobe",
     "say",
     "nslookup",
-    "colima"
+    "colima",
+    "yt-dlp"
   ],
   "workspaces": {
     ".": {
@@ -47,6 +47,8 @@
         "scripts/seo/**/*.mjs",
         "scripts/short-video/*.mjs",
         "scripts/short-video/lib/tiktok-csi.mjs",
+        "scripts/short-video/lib/extract-media.mjs",
+        "scripts/short-video/lib/b-roll/t2v-eval/score_eval.mjs",
         "scripts/short-video/__tests__/*.mjs",
         "scripts/short-video/evergreen-templates/*.mjs",
         "scripts/short-video/content/**/*.mjs"
@@ -60,6 +62,11 @@
     "scripts/short-video/remotion": {
       "entry": ["remotion.config.ts", "src/**/*.{ts,tsx}"],
       "project": ["src/**/*.{ts,tsx}"],
+      // CI runs `npm ci` at the root only; this package has its own lockfile, so
+      // its node_modules is absent there and knip cannot resolve `react-dom`
+      // (used by the Vite plugin graph, not by src) or the `remotion` binary's
+      // providing package. Locally the workspace's node_modules does exist, so
+      // both findings disappear — check edits here with it moved aside (#325).
       "ignoreDependencies": ["react-dom"],
       "ignoreBinaries": ["remotion"]
     }

@@ -14,7 +14,7 @@ import { checkCueCompliance, formatComplianceReport } from "./compliance.mjs";
 import { alignmentCacheState, computeAlignmentSignature } from "../tts/cache.mjs";
 
 /** Reading-speed limit for the gate; override with SUBTITLE_MAX_CPS (17 = children). */
-export function subtitleMaxCps(env = process.env) {
+function subtitleMaxCps(env = process.env) {
   const raw = Number(env.SUBTITLE_MAX_CPS);
   return Number.isFinite(raw) && raw > 0 ? raw : undefined;
 }

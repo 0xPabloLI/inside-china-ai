@@ -296,12 +296,12 @@ export function refreshCandidateSceneMeta(outputDir, sceneId, patch = {}) {
 /**
  * Resolve the per-scene emotion instruct for the cache key (#244).
  *
- * Single source of truth shared by the cache-hit path here and the meta-write
- * path in registry.mjs — computing the key in two places that drift apart
- * would make a freshly generated take miss its own cache entry on the next
- * run. Returns "" for engines without an instruct concept (legacy key shape).
+ * Key-side wrapper over the engine's own resolver: registry.mjs hands the same
+ * `engine.instructForScene` to the Quality Gate, so the key and the validated
+ * instruct cannot drift apart. Returns "" for engines without an instruct
+ * concept (legacy key shape).
  */
-export function resolveSceneInstruct(engine, scene) {
+function resolveSceneInstruct(engine, scene) {
   return engine?.instructForScene?.(scene) ?? "";
 }
 

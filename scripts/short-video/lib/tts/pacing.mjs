@@ -86,7 +86,7 @@ export const WPM_HARD_CEILING = 225;
  * @param {string} text
  * @returns {boolean}
  */
-export function isChineseText(text) {
+function isChineseText(text) {
   const cjk = (text.match(/[\u4e00-\u9fff]/g) || []).length;
   if (cjk === 0) return false;
   const letters = (text.match(/[A-Za-z\u4e00-\u9fff]/g) || []).length;

@@ -23,7 +23,7 @@ export const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
  * non-narrative visualTypes whose templates are text-only; narrative +
  * stacked-cards is designed to work without media (GridBg fallback).
  */
-export const CSS_ONLY_LAYOUTS = new Set(["hero-center", "stacked-cards"]);
+const CSS_ONLY_LAYOUTS = new Set(["hero-center", "stacked-cards"]);
 
 /**
  * Whether a scene is excluded from media sourcing (#191).
@@ -132,7 +132,7 @@ export function extractSceneClaims(scenes) {
  * @param {string} text
  * @returns {string[]}
  */
-export function tokenizeClaimWords(text) {
+function tokenizeClaimWords(text) {
   if (!text || typeof text !== "string") return [];
   return text
     .toLowerCase()
@@ -145,7 +145,7 @@ export function tokenizeClaimWords(text) {
  * Chinese stopword characters — grams containing any of these are dropped.
  * Single characters keep the filter cheap (no word segmentation needed).
  */
-export const ZH_STOPWORD_CHARS = new Set([
+const ZH_STOPWORD_CHARS = new Set([
   "的",
   "了",
   "在",

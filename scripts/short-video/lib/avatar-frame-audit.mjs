@@ -93,21 +93,21 @@ export const AUDIT_FRAME_WIDTH = 270;
 
 /** Frame sampling rate for the audit window. 10Hz > 2× the ~2.5-4Hz mouth
  *  rhythm; ±50ms sampling quantization feeds the sync tolerance budget. */
-export const AUDIT_SAMPLE_FPS = 10;
+const AUDIT_SAMPLE_FPS = 10;
 
 /** Hard cap on frames extracted per audit window (6s @10Hz) — bounds decode
  *  time and evidence dir size; windows longer than 6s get uniform subsamples. */
-export const MAX_AUDIT_FRAMES_PER_WINDOW = 60;
+const MAX_AUDIT_FRAMES_PER_WINDOW = 60;
 
 /** Below this many sampled frames the audit cannot verify anything (a 0.3s
  *  sliver) — fail-closed rather than passing on thin evidence. */
-export const MIN_AUDIT_FRAMES = 4;
+const MIN_AUDIT_FRAMES = 4;
 
 /** Luminance std (across the window's frames) above which a pixel counts as
  *  "dynamic". x264 CRF-28 static-content noise measures ≤3 std; any playing
  *  video content measures ≫20. 8 ≈ 2.7× the measured noise ceiling. Drives
  *  the card PRESENCE check. */
-export const VARIANCE_DYNAMIC_THRESHOLD = 8;
+const VARIANCE_DYNAMIC_THRESHOLD = 8;
 
 /** Luminance std above which a pixel counts as "card-grade motion" — the
  *  STRONG threshold driving zone-intrusion checks. Rationale (real E2E
@@ -117,33 +117,33 @@ export const VARIANCE_DYNAMIC_THRESHOLD = 8;
  *  right outside the compliant card holds ≤2 strong px. 25 therefore separates
  *  clipped card content (and anything CONNECTED to it) from animated
  *  backgrounds, which the weak threshold cannot do. */
-export const STRONG_MOTION_THRESHOLD = 25;
+const STRONG_MOTION_THRESHOLD = 25;
 
 /** Seeds for the card's strong-motion component are taken from the expected
  *  rect ERODED by this many canvas px, so encoder ringing at the card edge
  *  cannot seed a component that bridges into background motion. */
-export const SEED_EROSION_PX = 8;
+const SEED_EROSION_PX = 8;
 
 /** Edge tolerance (canvas px) excluded around the expected card rect when
  *  scanning zones: the card's 30px blurred shadow is STATIC (no variance) but
  *  encoder ringing at the card edge bleeds ~1-4px; 16px = 4 audit grid cells. */
-export const EDGE_TOLERANCE_PX = 16;
+const EDGE_TOLERANCE_PX = 16;
 
 /** Dynamic-pixel fraction of a protected zone (beyond the expected-rect band)
  *  that counts as card intrusion. A displaced 420×550 card covers ≥4% of the
  *  rail/lane/bottom zone it enters; compression noise stays ≪1%. */
-export const ZONE_INTRUSION_RATIO = 0.02;
+const ZONE_INTRUSION_RATIO = 0.02;
 
 /** Dynamic-pixel fraction INSIDE the expected rect that proves the card is
  *  rendered and playing. The lip fixture's mouth-only motion covers ~8% of
  *  the card; a missing/never-generated card yields ~0%. */
-export const CARD_PRESENCE_RATIO = 0.02;
+const CARD_PRESENCE_RATIO = 0.02;
 
 /** Bottom dead zone height (canvas px) — TikTok caption/username climbs to
  *  y≈1500 worst case and the bottom nav bar starts ≈1790 (safe-zones.mjs
  *  header, calibrated against a real FYP screenshot). Zone top = 1920−400 =
  *  1520. This is the platform caption + CTA area the ticket names. */
-export const BOTTOM_DEAD_ZONE_PX = 400;
+const BOTTOM_DEAD_ZONE_PX = 400;
 
 /**
  * Mouth region as a ratio of the card rect. A talking-head model frames the
@@ -151,7 +151,7 @@ export const BOTTOM_DEAD_ZONE_PX = 400;
  * [25%, 75%] (face width), y ∈ [60%, 90%] (below the nose, above the chin).
  * The fixture mouth patch (card-relative 30-70% × 65-85%) sits inside it.
  */
-export const MOUTH_REGION_RATIO = { x0: 0.25, x1: 0.75, y0: 0.6, y1: 0.9 };
+const MOUTH_REGION_RATIO = { x0: 0.25, x1: 0.75, y0: 0.6, y1: 0.9 };
 
 /**
  * Lip gate: mean TEMPORAL STD of luminance inside the mouth region must reach
@@ -168,7 +168,7 @@ export const LIP_MIN_TEMPORAL_STD = 5.0;
 
 /** Per-sample-interval energy above which the interval counts as "active"
  *  (metric only). Also the flatness floor for the sync gate's mouth series. */
-export const LIP_ACTIVE_DIFF = 4.0;
+const LIP_ACTIVE_DIFF = 4.0;
 
 /**
  * A/V sync tolerance (seconds). |measured offset| beyond this FAILS.
@@ -188,12 +188,12 @@ export const AV_SYNC_TOLERANCE_SECONDS = 0.15;
 
 /** Envelope sample rate for the sync check (Hz) = AUDIT_SAMPLE_FPS so the
  *  mouth series and the audio envelope share one time grid. */
-export const SYNC_ENVELOPE_FPS = AUDIT_SAMPLE_FPS;
+const SYNC_ENVELOPE_FPS = AUDIT_SAMPLE_FPS;
 
 /** Fraction of a series' max above which a sample counts as "on" for onset
  *  detection. 0.2 sits above encoder/envelope noise and below any real speech
  *  burst (real render: audio env max 0.29, noise ~0.01; mouth max 119, p90 2). */
-export const ONSET_RATIO = 0.2;
+const ONSET_RATIO = 0.2;
 
 /** Search expansion (canvas px) around the expected rect for the diagnostic
  *  detected-motion bounding box (metrics/evidence only, not gating). */
@@ -354,7 +354,7 @@ export function varianceGridOf(acc) {
 }
 
 /** Mean |diff| between two grids inside a rect (grid space). */
-export function meanAbsDiff(gridA, gridB, rect) {
+function meanAbsDiff(gridA, gridB, rect) {
   let sum = 0;
   let count = 0;
   for (let y = rect.y; y < rect.y + rect.height && y < gridA.height; y++) {
@@ -373,7 +373,7 @@ export function meanAbsDiff(gridA, gridB, rect) {
  * @param {{x:number,y:number,width:number,height:number}} rect - grid space
  * @param {number} threshold - std above which a pixel is dynamic
  */
-export function dynamicRatioInRect(varGrid, rect, threshold) {
+function dynamicRatioInRect(varGrid, rect, threshold) {
   let dyn = 0;
   let total = 0;
   const xEnd = Math.min(rect.x + rect.width, varGrid.width);
@@ -392,7 +392,7 @@ export function dynamicRatioInRect(varGrid, rect, threshold) {
  * the "actual rendered motion position" recorded in gate metrics/evidence.
  * Returns null when the region holds no dynamic pixels.
  */
-export function detectMotionBox(varGrid, region, threshold, lowPct = 0.02, highPct = 0.98) {
+function detectMotionBox(varGrid, region, threshold, lowPct = 0.02, highPct = 0.98) {
   const xs = [];
   const ys = [];
   const xEnd = Math.min(region.x + region.width, varGrid.width);
@@ -430,7 +430,7 @@ export function detectMotionBox(varGrid, region, threshold, lowPct = 0.02, highP
  * @param {number} erosionGrid - seed erosion, grid px (skips edge ringing)
  * @returns {{component: Uint8Array, size: number}} 1 = pixel in the card's component
  */
-export function strongCardComponent(varGrid, expectedGrid, erosionGrid = 1) {
+function strongCardComponent(varGrid, expectedGrid, erosionGrid = 1) {
   const { width, height, lum } = varGrid;
   const isStrong = (i) => lum[i] > STRONG_MOTION_THRESHOLD;
   const component = new Uint8Array(width * height);
@@ -656,7 +656,7 @@ export function evaluateSafeZoneGate({ varGrid, scale, expectedRect }) {
 }
 
 /** Mouth-region rect (canvas px) for a card rect. */
-export function mouthRectForCard(cardRect) {
+function mouthRectForCard(cardRect) {
   return {
     x: Math.round(cardRect.x + cardRect.width * MOUTH_REGION_RATIO.x0),
     y: Math.round(cardRect.y + cardRect.height * MOUTH_REGION_RATIO.y0),
@@ -858,7 +858,7 @@ export function evaluateSyncGate({
 // ─── I/O helpers (ffmpeg — one scaled pass per window) ───
 
 /** ffprobe the video's pixel dimensions (audit scale derives from width). */
-export function probeVideoSize(videoPath) {
+function probeVideoSize(videoPath) {
   const raw = execFileSync(
     FFPROBE_PATH,
     [
@@ -895,7 +895,7 @@ export function probeVideoSize(videoPath) {
  * @param {number} [p.width] - AUDIT_FRAME_WIDTH
  * @returns {string[]} absolute frame paths, time order
  */
-export function sampleWindowFrames({
+function sampleWindowFrames({
   videoPath,
   fromSeconds,
   durationSeconds,

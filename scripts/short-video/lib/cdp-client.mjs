@@ -268,7 +268,7 @@ export async function extractWithRetry(tabId, script, opts = {}) {
  * dance"), so it only matches explicit interstitial phrases — see
  * ROBOT_PHRASES in matchAntiBotIndicators.
  */
-export const GENERIC_ANTI_BOT_INDICATORS = [
+const GENERIC_ANTI_BOT_INDICATORS = [
   "unusual traffic",
   "captcha",
   "robot",

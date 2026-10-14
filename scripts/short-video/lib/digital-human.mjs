@@ -131,7 +131,7 @@ export const MODEL_TIERS = {
   },
 };
 
-export const PLAN_SCHEMA_VERSION = 1;
+const PLAN_SCHEMA_VERSION = 1;
 /** Plan file name inside output/{pipelineId}/ (beside b-roll-report.json etc.). */
 export const PLAN_FILE_NAME = "digital-human-plan.json";
 /**
@@ -140,7 +140,7 @@ export const PLAN_FILE_NAME = "digital-human-plan.json";
  * DIGITAL_HUMAN_QUALITY_AUTHORIZED=1.
  */
 export const QUALITY_TIER_AUTH_FILE = "avatar-quality.authorized";
-export const QUALITY_TIER_AUTH_ENV = "DIGITAL_HUMAN_QUALITY_AUTHORIZED";
+const QUALITY_TIER_AUTH_ENV = "DIGITAL_HUMAN_QUALITY_AUTHORIZED";
 
 /** Segmentation tunables. Back-off: how far before the cap the split may land. */
 const BACKOFF_SECONDS = 1.0;
@@ -157,12 +157,12 @@ const MIN_SEGMENT_SECONDS = 0.5;
  * @param {string} contentDir - absolute package dir
  * @returns {boolean}
  */
-export function isQualityTierAuthorized(contentDir) {
+function isQualityTierAuthorized(contentDir) {
   if (process.env[QUALITY_TIER_AUTH_ENV] === "1") return true;
   return existsSync(join(contentDir, QUALITY_TIER_AUTH_FILE));
 }
 
-export function qualityTierAuthorizationSwitch(contentDir) {
+function qualityTierAuthorizationSwitch(contentDir) {
   return (
     `create the per-package marker file content/<dir>/${QUALITY_TIER_AUTH_FILE} ` +
     `(empty file is fine), or set ${QUALITY_TIER_AUTH_ENV}=1 for this single run`
@@ -201,7 +201,7 @@ const CLAUSE_END = /[,，、:：]/;
  * @param {string} text
  * @returns {string[]}
  */
-export function estimateTextTokens(text) {
+function estimateTextTokens(text) {
   return (text ?? "").match(/[\u3400-\u4dbf\u4e00-\u9fff]|[^\s\u3400-\u4dbf\u4e00-\u9fff]+/g) ?? [];
 }
 
@@ -554,7 +554,7 @@ function assertAudioFileExists(sceneId, audioPath) {
  * @param {{id: number}} scene
  * @returns {Array<{text: string, start: number, end: number}>|null}
  */
-export function readSceneAlignmentWords(audioDir, scene) {
+function readSceneAlignmentWords(audioDir, scene) {
   const timingPath = join(audioDir, "subtitle-timing.json");
   if (!existsSync(timingPath)) return null;
   try {
@@ -807,11 +807,11 @@ export async function executePlan({
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /** Report file name inside output/{pipelineId}/ (beside the plan). */
-export const REPORT_FILE_NAME = "digital-human-report.json";
+const REPORT_FILE_NAME = "digital-human-report.json";
 /** remote-task `kind` marker for digital-human generation units. */
-export const UNIT_TASK_KIND = "digital-human-unit";
+const UNIT_TASK_KIND = "digital-human-unit";
 /** EchoMimicV3 model weights dataset attached to every unit kernel. */
-export const MODEL_DATASET_SOURCE = "xpabloli/echomimicv3-flash";
+const MODEL_DATASET_SOURCE = "xpabloli/echomimicv3-flash";
 /** States of a unit task that may still be recoverable (never re-bill them). */
 const RESUMABLE_STATES = new Set(["running", "timeout", "download-failed"]);
 /** Default per-unit harvest window: ~14min inference + env setup headroom. */
@@ -971,7 +971,7 @@ export function applyVideoPathToSceneData(text, sceneId, videoPath) {
  * in-process module may be stale after a writeback) carry a non-empty
  * videoPath? Same region scan as applyVideoPathToSceneData.
  */
-export function sceneHasVideoPath(text, sceneId) {
+function sceneHasVideoPath(text, sceneId) {
   const idRe = new RegExp(`(^|[^\\w])id:\\s*${sceneId}\\b`);
   const idMatch = text.match(idRe);
   if (!idMatch) return false;
@@ -1134,7 +1134,7 @@ function sleep(ms) {
  * (same CLI, same status semantics), extended with the per-run input
  * dataset (portrait + unit driver-audio slices) that unit kernels attach.
  */
-export function createKaggleTransport() {
+function createKaggleTransport() {
   const kaggle = (cmd, timeoutMs = 60000) =>
     execSync(cmd, { encoding: "utf8", timeout: timeoutMs, stdio: ["pipe", "pipe", "pipe"] });
 
@@ -1340,7 +1340,7 @@ export function buildUnitKernelScript({ audioFile, outputFile }) {
  * portrait + one wav per submitted unit + manifest.json. Layout only —
  * the actual `kaggle datasets create/version` happens via the transport.
  */
-export function stageUnitDataset({ stageDir, portraitPath, items, pipelineId }) {
+function stageUnitDataset({ stageDir, portraitPath, items, pipelineId }) {
   mkdirSync(stageDir, { recursive: true });
   const datasetSlug = `dh-${String(pipelineId)
     .toLowerCase()

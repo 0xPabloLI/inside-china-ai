@@ -234,7 +234,7 @@ let systemProxyCache;
  *
  * @returns {{httpProxy: string|null, httpsProxy: string|null}|null}
  */
-export function readMacSystemProxy() {
+function readMacSystemProxy() {
   if (process.platform !== "darwin") return null;
   if (systemProxyCache !== undefined) return systemProxyCache;
   try {
@@ -396,15 +396,15 @@ export function ytdlpContainerMime(ext) {
 }
 
 /** Default persistent state file (gitignored output dir — survives sessions). */
-export const YTDLP_412_STATE_PATH = join(STATE_DIR, "yt-dlp-412-state.json");
+const YTDLP_412_STATE_PATH = join(STATE_DIR, "yt-dlp-412-state.json");
 
-export function ytdlp412StatePath() {
+function ytdlp412StatePath() {
   return process.env.YTDLP_412_STATE_PATH || YTDLP_412_STATE_PATH;
 }
 
 /** First-penalty duration; doubles per consecutive 412, capped at 24h. */
-export const YTDLP_412_BASE_MS = 60 * 60 * 1000;
-export const YTDLP_412_MAX_MS = 24 * YTDLP_412_BASE_MS;
+const YTDLP_412_BASE_MS = 60 * 60 * 1000;
+const YTDLP_412_MAX_MS = 24 * YTDLP_412_BASE_MS;
 
 /**
  * Does this failure look like an upstream 412? Inspects execSync error

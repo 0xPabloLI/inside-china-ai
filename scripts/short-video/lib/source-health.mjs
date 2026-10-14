@@ -238,7 +238,7 @@ export async function planQuarantineRecheck({ source, searchUrl, probeFn } = {})
  * @param {string} keyword
  * @returns {string[]}
  */
-export function keywordTokens(keyword) {
+function keywordTokens(keyword) {
   const kw = (keyword ?? "").trim();
   if (!kw) return [];
   return kw
