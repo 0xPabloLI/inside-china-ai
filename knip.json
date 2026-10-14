@@ -61,7 +61,14 @@
     },
     "scripts/short-video/remotion": {
       "entry": ["remotion.config.ts", "src/**/*.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}"]
+      "project": ["src/**/*.{ts,tsx}"],
+      // CI runs `npm ci` at the root only; this package has its own lockfile, so
+      // its node_modules is absent there and knip cannot resolve `react-dom`
+      // (used by the Vite plugin graph, not by src) or the `remotion` binary's
+      // providing package. Locally the workspace's node_modules does exist, so
+      // both findings disappear — check edits here with it moved aside (#325).
+      "ignoreDependencies": ["react-dom"],
+      "ignoreBinaries": ["remotion"]
     }
   }
 }
