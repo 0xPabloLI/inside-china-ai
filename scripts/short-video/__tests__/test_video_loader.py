@@ -291,18 +291,28 @@ def test_adapter_minicpm_units_pairs_frames_and_audio(av_video, tmp_path):
     assert units["num_images"] == units["num_audios"] == 3
     assert units["sample_rate"] == 16000
     assert units["images"] == [f["path"] for f in res["frames"]]
-    # Segment length is decoder-derived, not loader-derived: the extraction is
-    # a plain `-ss/-t` decode, and an mp4's AAC stream carries priming samples
-    # whose handling varies by ffmpeg build (CI's brew ffmpeg yields 15959
-    # samples for the first 1 s window where ffmpeg-full yields 16000). Pin the
-    # window shape — nominal length per span, within 50 ms — not the build.
+    # The adapter's own promise, asserted exactly: each packed unit carries the
+    # decoded segment unchanged — no trimming, no padding. This is the assert
+    # that catches a real regression in the packing path.
+    import wave
+    decoded = []
+    for segment in res["audio_track"]["segments"]:
+        with wave.open(segment["path"]) as wav:
+            decoded.append(wav.getnframes())
+    assert [len(a) for a in units["audios"]] == decoded
+    # The length itself is decoder-derived, not adapter-derived: extraction is
+    # a plain `-ss/-t` decode, and how many samples an AAC stream yields at its
+    # head varies by ffmpeg build (CI's brew ffmpeg handed the first 1 s window
+    # 15959 samples; local ffmpeg 8.1.2 yields 16000 on both /opt/homebrew
+    # ffmpeg and ffmpeg-full). Pin the window shape — nominal length from the
+    # spans, within 50 ms — not the build.
     nominal = [round((s["end"] - s["start"]) * units["sample_rate"])
                for s in units["unit_spans"]]
     assert nominal == [16000, 16000, 32000]
     tolerance = int(0.05 * units["sample_rate"])
+    assert len(units["audios"]) == len(nominal)
     assert all(abs(len(seg) - want) <= tolerance
                for seg, want in zip(units["audios"], nominal))
-    assert len(units["audios"]) == len(nominal)
     assert all(a.dtype == np.float32 for a in units["audios"])
     assert all(np.abs(a).max() > 0.01 for a in units["audios"])   # real 440 Hz tone
     assert units["unit_spans"][0] == {"start": 0.0, "end": 1.0}

@@ -200,7 +200,11 @@ class TestExtractMinicpmFrames:
         # only in the VLM venv (~/.venvs/mlx-vlm), so this test reports an
         # explicit skip where it is absent instead of failing the suite (#555).
         video_mod = pytest.importorskip(
-            "mlx_vlm.generate.video", reason="mlx-vlm venv only (~/.venvs/mlx-vlm)"
+            "mlx_vlm.generate.video",
+            reason="mlx-vlm 0.7.2 lives only in the VLM venv "
+                   "(~/.venvs/mlx-vlm, Python 3.12); the CI venv installs "
+                   "pytest/Pillow/numpy only — see "
+                   "docs/conventions/test-env-baseline.md",
         )
 
         received = {}
@@ -229,7 +233,11 @@ class TestExtractMinicpmFrames:
 
     def test_uniform_params_forwarded(self, monkeypatch):
         video_mod = pytest.importorskip(
-            "mlx_vlm.generate.video", reason="mlx-vlm venv only (~/.venvs/mlx-vlm)"
+            "mlx_vlm.generate.video",
+            reason="mlx-vlm 0.7.2 lives only in the VLM venv "
+                   "(~/.venvs/mlx-vlm, Python 3.12); the CI venv installs "
+                   "pytest/Pillow/numpy only — see "
+                   "docs/conventions/test-env-baseline.md",
         )
 
         received = {}

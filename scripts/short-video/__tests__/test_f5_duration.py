@@ -142,8 +142,6 @@ def run_tests():
     new_dur = estimate_target_seconds(chinese_sentence)
     check("new formula is significantly longer for Chinese", new_dur > old_dur * 3, f"old={old_dur:.3f}s, new={new_dur:.3f}s")
 
-    return len(RESULTS)
-
 
 def _report():
     """Direct-run summary — the "Results: N passed, 0 failed" shape the
