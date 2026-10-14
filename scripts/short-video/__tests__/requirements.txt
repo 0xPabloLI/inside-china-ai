@@ -1,0 +1,16 @@
+# Third-party dependencies for the short-video Python suite (#555).
+#
+# CI installs these into a throwaway venv (.scratch/pytest-venv) before
+# `npm run test:python`; developers whose python3 lacks them can do the same:
+#
+#   python3 -m pip install -r scripts/short-video/__tests__/requirements.txt
+#
+# pytest   — the single runner for all 15 test_*.py files
+# pillow   — vlm_analyzer.py imports PIL at module level
+# numpy    — lib/b-roll/mlx_wan_batch.py imports numpy at module level
+#
+# Tests that need heavier stacks (mlx_vlm from ~/.venvs/mlx-vlm) skip
+# themselves with pytest.importorskip when the stack is absent.
+pytest>=9,<10
+pillow>=11
+numpy>=2

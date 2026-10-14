@@ -10,8 +10,8 @@ Scenarios (spec `docs/specs/spec-video-loader-417.md`):
 
 Fixtures are generated with ffmpeg (real media, no mocks).
 
-Run: ~/.venvs/mlx-vlm/bin/python -m pytest \
-  scripts/short-video/__tests__/test_video_loader.py -v
+Run: npm run test:python (the suite runner), or
+     python3 scripts/short-video/__tests__/test_video_loader.py.
 """
 import hashlib
 import json
@@ -291,7 +291,28 @@ def test_adapter_minicpm_units_pairs_frames_and_audio(av_video, tmp_path):
     assert units["num_images"] == units["num_audios"] == 3
     assert units["sample_rate"] == 16000
     assert units["images"] == [f["path"] for f in res["frames"]]
-    assert [len(a) for a in units["audios"]] == [16000, 16000, 32000]
+    # The adapter's own promise, asserted exactly: each packed unit carries the
+    # decoded segment unchanged — no trimming, no padding. This is the assert
+    # that catches a real regression in the packing path.
+    import wave
+    decoded = []
+    for segment in res["audio_track"]["segments"]:
+        with wave.open(segment["path"]) as wav:
+            decoded.append(wav.getnframes())
+    assert [len(a) for a in units["audios"]] == decoded
+    # The length itself is decoder-derived, not adapter-derived: extraction is
+    # a plain `-ss/-t` decode, and how many samples an AAC stream yields at its
+    # head varies by ffmpeg build (CI's brew ffmpeg handed the first 1 s window
+    # 15959 samples; local ffmpeg 8.1.2 yields 16000 on both /opt/homebrew
+    # ffmpeg and ffmpeg-full). Pin the window shape — nominal length from the
+    # spans, within 50 ms — not the build.
+    nominal = [round((s["end"] - s["start"]) * units["sample_rate"])
+               for s in units["unit_spans"]]
+    assert nominal == [16000, 16000, 32000]
+    tolerance = int(0.05 * units["sample_rate"])
+    assert len(units["audios"]) == len(nominal)
+    assert all(abs(len(seg) - want) <= tolerance
+               for seg, want in zip(units["audios"], nominal))
     assert all(a.dtype == np.float32 for a in units["audios"])
     assert all(np.abs(a).max() > 0.01 for a in units["audios"])   # real 440 Hz tone
     assert units["unit_spans"][0] == {"start": 0.0, "end": 1.0}
@@ -464,3 +485,10 @@ def test_guard_absent_for_non_ok_transcript(av_video, tmp_path):
     """无音轨 / 引擎缺失时不产生护栏记录（没有文本可判）。"""
     visual = _loaded(av_video, tmp_path, [0.0, 1.0], want_audio=False)
     assert visual["transcript"]["repetition_guard"] is None
+
+
+if __name__ == "__main__":
+    # Before #555 a bare `python3 <this file>` ran nothing and exited 0 — the
+    # file only defines tests. Direct runs now go through pytest instead of
+    # passing as a no-op.
+    raise SystemExit(pytest.main([__file__, "-q"]))

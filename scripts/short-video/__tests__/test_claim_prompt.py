@@ -7,12 +7,19 @@ Covers:
   - claim injection (voiceover + assetNeed + Relevance section present)
   - parse_markdown_to_dict relevance parsing (valid / missing / invalid / out-of-range)
 
-Run: python3 scripts/short-video/__tests__/test_claim_prompt.py
+Run: npm run test:python (the suite runner), or
+     python3 scripts/short-video/__tests__/test_claim_prompt.py for the report form.
+
+The checks below run at import time and record into RESULTS; pytest replays
+them as one test per check (#555), so the file contributes real tests instead
+of a bare "0 collected".
 """
 import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
+
+import pytest  # noqa: E402
 
 from vlm_analyzer import (
     SEMANTICS_PROMPT_IMAGE,
@@ -26,15 +33,11 @@ CLAIM = {
     "assetNeed": "benchmark chart comparison",
 }
 
-failures = []
+RESULTS = []
 
 
 def check(name, condition, detail=""):
-    if condition:
-        print(f"  ✅ {name}")
-    else:
-        failures.append(name)
-        print(f"  ❌ {name} {detail}")
+    RESULTS.append((name, bool(condition), detail))
 
 
 # ── build_semantics_prompt ──
@@ -158,7 +161,22 @@ check(
 
 # ── Report ──
 
-if failures:
-    print(f"\n❌ {len(failures)} failing: {failures}")
-    sys.exit(1)
-print("\n✅ All claim prompt tests passed")
+# One pytest test per recorded check: a failing check names itself instead of
+# sinking the whole file into a collection-time sys.exit (#555).
+@pytest.mark.parametrize(
+    ("name", "condition", "detail"), RESULTS, ids=[result[0] for result in RESULTS]
+)
+def test_recorded_checks(name, condition, detail):
+    assert condition, f"{name} {detail}"
+
+
+def _report():
+    failed = [(name, detail) for name, ok, detail in RESULTS if not ok]
+    for name, detail in failed:
+        print(f"  ❌ {name} {detail}")
+    print(f"Results: {len(RESULTS) - len(failed)} passed, {len(failed)} failed")
+    return not failed
+
+
+if __name__ == "__main__":
+    raise SystemExit(0 if _report() else 1)

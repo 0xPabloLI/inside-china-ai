@@ -9,13 +9,15 @@
   "Bang," ×14 是实测真内容；inspect 标记 ≠ collapse 改写）；
 - 已知边界（交错多短语循环如 FEMA、<18 词的短语循环）用测试记录，改动需有意识。
 
-Run: ~/.venvs/mlx-vlm/bin/python -m pytest \
-  scripts/short-video/__tests__/test_asr_repetition_guard.py -v
+Run: npm run test:python (the suite runner), or
+     python3 scripts/short-video/__tests__/test_asr_repetition_guard.py.
 """
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
+
+import pytest  # noqa: E402
 
 from asr_repetition_guard import (  # noqa: E402
     collapse_repetition,
@@ -146,3 +148,10 @@ def test_collapse_is_idempotent():
                  ("I'm not sure if I can do this. " * 14) + "tail"):
         once = collapse_repetition(text)
         assert collapse_repetition(once) == once
+
+
+if __name__ == "__main__":
+    # Before #555 a bare `python3 <this file>` ran nothing and exited 0 — the
+    # file only defines tests. Direct runs now go through pytest instead of
+    # passing as a no-op.
+    raise SystemExit(pytest.main([__file__, "-q"]))

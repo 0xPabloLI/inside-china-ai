@@ -11,7 +11,8 @@ Cleanup verification uses recorded os.unlink calls (monkeypatched) instead of
 real temp files — the contract under test is "unlink called once on the exact
 temp path returned by the preprocessor", not filesystem behavior.
 
-Run with: python3 -m pytest __tests__/test_cascade_inference.py -v
+Run: npm run test:python (the suite runner), or
+     python3 -m pytest __tests__/test_cascade_inference.py -v
 
 TDD: Tests written first (red), implementation second (green).
 """
@@ -66,8 +67,12 @@ def fake_extract_frames_empty(path, fps=1.0, max_seconds=8, start_ms=None, end_m
     return []
 
 
-def fake_generate(model, processor, image_paths=None, prompt_text=None,
+def fake_generate(model, processor, engine=None, image_paths=None, prompt_text=None,
                   video_path=None):
+    # engine= mirrors generate_response()'s keyword-only-in-practice contract
+    # (#542 L1 engine plumbing). Before #555 these five tests never ran, so the
+    # stale fake went unnoticed; accepting the kwarg is the whole fix — the
+    # assertions under test are preprocessing/cleanup, not engine dispatch.
     CALLS.generate.append(
         (model, tuple(image_paths) if isinstance(image_paths, list) else image_paths, video_path)
     )

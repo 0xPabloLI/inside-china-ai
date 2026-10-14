@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-Test suite for parse_markdown_to_dict() — 10 boundary cases.
+Test suite for parse_markdown_to_dict() — boundary cases.
 
 Covers scenarios from spec-vlm-semantic-merge.md Scenario Matrix rows 1-8.
-Run: python3 scripts/short-video/__tests__/test_parse_markdown.py
+Run: npm run test:python (the suite runner), or
+     python3 scripts/short-video/__tests__/test_parse_markdown.py.
+
+Each table entry is one pytest test (#555); before the suite had a runner the
+table only executed under a bare direct call and collected 0 tests under
+pytest.
 """
 import sys
 import os
@@ -11,12 +16,16 @@ import os
 # Add the lib directory to path so we can import vlm_analyzer
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
+import pytest  # noqa: E402
+
 from vlm_analyzer import parse_markdown_to_dict
 
+MANDATORY_KEYS = ["description", "subjects", "contentKind", "fit", "criticalEdgeText", "reason"]
 
-def run_tests():
-    """Run all 10 boundary cases and report results."""
-    tests = [
+
+def _cases():
+    """(name, input_text, expected_fields) triples — one pytest test each."""
+    return [
         # Test 1: Normal Markdown with all 6 sections (Scenario 1)
         ("test_normal_markdown", """
 ## Description
@@ -311,43 +320,22 @@ A demo.
          {"relevance": None}),
     ]
 
-    passed = 0
-    failed = 0
 
-    for name, input_text, expected in tests:
-        try:
-            result = parse_markdown_to_dict(input_text)
-            # Check each expected field
-            ok = True
-            for key, val in expected.items():
-                if key not in result:
-                    print(f"  ✗ {name}: missing key '{key}'")
-                    ok = False
-                    break
-                if result[key] != val:
-                    print(f"  ✗ {name}: key '{key}' expected={val!r}, got={result[key]!r}")
-                    ok = False
-                    break
-            # Check result has all 6 mandatory keys
-            for mandatory_key in ["description", "subjects", "contentKind", "fit", "criticalEdgeText", "reason"]:
-                if mandatory_key not in result:
-                    print(f"  ✗ {name}: missing mandatory key '{mandatory_key}'")
-                    ok = False
-                    break
-            if ok:
-                print(f"  ✓ {name}")
-                passed += 1
-            else:
-                failed += 1
-        except Exception as e:
-            print(f"  ✗ {name}: raised {type(e).__name__}: {e}")
-            failed += 1
+CASES = _cases()
 
-    print(f"\n{'='*40}")
-    print(f"Results: {passed}/{len(tests)} passed, {failed} failed")
-    return failed == 0
+
+@pytest.mark.parametrize(
+    ("name", "input_text", "expected"), CASES, ids=[case[0] for case in CASES]
+)
+def test_parse_markdown(name, input_text, expected):
+    """Expected fields must match and every mandatory key must be present."""
+    result = parse_markdown_to_dict(input_text)
+    for key, val in expected.items():
+        assert key in result, f"{name}: missing key '{key}'"
+        assert result[key] == val, f"{name}: key '{key}' expected={val!r}, got={result[key]!r}"
+    for mandatory_key in MANDATORY_KEYS:
+        assert mandatory_key in result, f"{name}: missing mandatory key '{mandatory_key}'"
 
 
 if __name__ == "__main__":
-    success = run_tests()
-    sys.exit(0 if success else 1)
+    raise SystemExit(pytest.main([__file__, "-q"]))

@@ -8,78 +8,54 @@ pair, so a legacy manifest (no ref fields) behaves exactly as before.
 ref_duration_seconds(): memoized ffprobe — per-item refs make repeated probes
 likely.
 
-Run: python3 scripts/short-video/__tests__/test_manifest_refs.py
+Run: npm run test:python (the suite runner), or
+     python3 scripts/short-video/__tests__/test_manifest_refs.py.
 """
 import os
 import sys
-import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+import pytest  # noqa: E402
 
 from f5_mlx_batch_tts import resolve_item_ref, ref_duration_seconds
 
 
-def run_tests():
-    results = []
+def test_entry_without_ref_fields_falls_back_to_default_pair():
+    audio, text = resolve_item_ref({"sceneId": 1, "text": "x"}, "/d/a.wav", "default text")
+    assert audio == "/d/a.wav" and text == "default text"
 
-    # Test 1: entry without ref fields → default pair
-    def test_defaults():
-        audio, text = resolve_item_ref({"sceneId": 1, "text": "x"}, "/d/a.wav", "default text")
-        assert audio == "/d/a.wav" and text == "default text"
-        return "PASS: entry without ref fields falls back to the default pair"
 
-    # Test 2: entry with both fields → override
-    def test_override():
-        item = {"sceneId": 2, "text": "x", "ref_audio": "/vs/hook.wav", "ref_text": "hook text"}
-        audio, text = resolve_item_ref(item, "/d/a.wav", "default text")
-        assert audio == "/vs/hook.wav" and text == "hook text"
-        return "PASS: entry with ref fields overrides the default pair"
+def test_entry_with_both_ref_fields_overrides_the_default_pair():
+    item = {"sceneId": 2, "text": "x", "ref_audio": "/vs/hook.wav", "ref_text": "hook text"}
+    audio, text = resolve_item_ref(item, "/d/a.wav", "default text")
+    assert audio == "/vs/hook.wav" and text == "hook text"
 
-    # Test 3: partial override — ref_audio only, ref_text falls back
-    def test_partial():
-        item = {"sceneId": 3, "text": "x", "ref_audio": "/vs/hook.wav"}
-        audio, text = resolve_item_ref(item, "/d/a.wav", "default text")
-        assert audio == "/vs/hook.wav" and text == "default text"
-        return "PASS: partial override fills the missing half from defaults"
 
-    # Test 4: empty-string ref fields fall back (falsy = absent)
-    def test_empty_string():
-        item = {"sceneId": 4, "text": "x", "ref_audio": "", "ref_text": ""}
-        audio, text = resolve_item_ref(item, "/d/a.wav", "default text")
-        assert audio == "/d/a.wav" and text == "default text"
-        return "PASS: empty-string ref fields fall back to defaults"
+def test_partial_override_fills_the_missing_half_from_defaults():
+    item = {"sceneId": 3, "text": "x", "ref_audio": "/vs/hook.wav"}
+    audio, text = resolve_item_ref(item, "/d/a.wav", "default text")
+    assert audio == "/vs/hook.wav" and text == "default text"
 
-    # Test 5: ref_duration_seconds memoizes per path
-    def test_duration_memo():
-        tmpdir = tempfile.mkdtemp()
-        wav = os.path.join(tmpdir, "ref.wav")
-        os.system(
-            f"ffmpeg -y -f lavfi -i sine=frequency=440:duration=1.5 -ar 24000 '{wav}' 2>/dev/null"
-        )
-        cache = {}
-        d1 = ref_duration_seconds(wav, cache)
-        d2 = ref_duration_seconds(wav, cache)
-        assert 1.0 < d1 < 2.0, f"unexpected duration {d1}"
-        assert d1 == d2
-        assert wav in cache
-        return "PASS: ref_duration_seconds probes once and memoizes"
 
-    for test in [
-        test_defaults,
-        test_override,
-        test_partial,
-        test_empty_string,
-        test_duration_memo,
-    ]:
-        try:
-            results.append(test())
-        except AssertionError as e:
-            print(f"FAIL: {e}", file=sys.stderr)
-            sys.exit(1)
+def test_empty_string_ref_fields_fall_back_to_defaults():
+    item = {"sceneId": 4, "text": "x", "ref_audio": "", "ref_text": ""}
+    audio, text = resolve_item_ref(item, "/d/a.wav", "default text")
+    assert audio == "/d/a.wav" and text == "default text"
 
-    for line in results:
-        print(line)
+
+def test_ref_duration_seconds_probes_once_and_memoizes(tmp_path):
+    wav = str(tmp_path / "ref.wav")
+    os.system(
+        f"ffmpeg -y -f lavfi -i sine=frequency=440:duration=1.5 -ar 24000 '{wav}' 2>/dev/null"
+    )
+    cache = {}
+    d1 = ref_duration_seconds(wav, cache)
+    d2 = ref_duration_seconds(wav, cache)
+    assert 1.0 < d1 < 2.0, f"unexpected duration {d1}"
+    assert d1 == d2
+    assert wav in cache
 
 
 if __name__ == "__main__":
-    run_tests()
+    raise SystemExit(pytest.main([__file__, "-q"]))

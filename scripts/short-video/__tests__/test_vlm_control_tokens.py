@@ -13,6 +13,8 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(__file__), "..", "lib")
 )
 
+import pytest  # noqa: E402
+
 from vlm_analyzer import strip_control_tokens  # noqa: E402
 
 
@@ -32,3 +34,10 @@ def test_plain_text_untouched():
 
 def test_strips_control_tokens_mid_text():
     assert strip_control_tokens("a<|SOA>b<|tts_eos|>c") == "abc"
+
+
+if __name__ == "__main__":
+    # Before #555 a bare `python3 <this file>` ran nothing and exited 0 — the
+    # file only defines tests. Direct runs now go through pytest instead of
+    # passing as a no-op.
+    raise SystemExit(pytest.main([__file__, "-q"]))

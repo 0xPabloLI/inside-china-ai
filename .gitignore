@@ -67,6 +67,7 @@ agent/
 .cursor/
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Local credential/token tooling — never commit
 scripts/decrypt-cursor-mcp.mjs

@@ -34,6 +34,7 @@
     "prebuild": "node scripts/seo/validate-jsonld.mjs",
     "test": "vitest run",
     "test:offline": "CDP_BASE_URL=http://localhost:9 vitest run",
+    "test:python": "${PYTHON:-python3} -m pytest scripts/short-video/__tests__ -v",
     "cdp:ensure": "node scripts/short-video/cdp-ensure.mjs",
     "cdp:wx-login": "node scripts/short-video/cdp-wx-login.mjs",
     "env:sync-tunnel": "bash scripts/sync-colima-tunnel.sh"
