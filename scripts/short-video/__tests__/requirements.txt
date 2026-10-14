@@ -8,6 +8,8 @@
 # pytest   — the single runner for all 15 test_*.py files
 # pillow   — vlm_analyzer.py imports PIL at module level
 # numpy    — lib/b-roll/mlx_wan_batch.py imports numpy at module level
+# pytest-cov — the Python half of the coverage ratchet (npm run
+#              test:python:coverage; floor and scope in .coveragerc)
 #
 # Tests that would otherwise need heavier stacks do not skip: the mlx_vlm path
 # is reached through test_frame_strategy.py's `_video_module()`, which takes the
@@ -16,3 +18,4 @@
 pytest>=9,<10
 pillow>=11
 numpy>=2
+pytest-cov>=7

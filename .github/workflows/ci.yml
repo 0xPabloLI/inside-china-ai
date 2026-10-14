@@ -142,10 +142,11 @@ jobs:
           .scratch/pytest-venv/bin/python -m pip install --quiet \
             -r scripts/short-video/__tests__/requirements.txt
 
-      # Single runner for the whole Python suite (npm run test:python). The
-      # conftest zero-test guard fails the step if any test_*.py collects no
-      # tests, and the log prints the per-file count table, so a green step
-      # cannot mean "nothing ran".
+      # Single runner for the whole Python suite, with the Python half of the
+      # coverage ratchet (npm run test:python:coverage). The conftest zero-test
+      # guard fails the step if any test_*.py collects no tests and the log
+      # prints the per-file count table, so a green step cannot mean "nothing
+      # ran"; .coveragerc's fail_under fails it when the measured modules drop.
       - name: Python tests (pytest)
         env:
           PYTHON: .scratch/pytest-venv/bin/python
@@ -158,7 +159,15 @@ jobs:
           # skipping its 22 fixtures.
           export VIDEO_LOADER_FFMPEG="$(command -v ffmpeg)"
           echo "python suite ffmpeg: $VIDEO_LOADER_FFMPEG"
-          npm run test:python
+          npm run test:python:coverage
+
+      - name: Upload Python coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report-python
+          path: .scratch/coverage-python
+          retention-days: 7
 
       - name: Type check
         run: npx tsc --noEmit

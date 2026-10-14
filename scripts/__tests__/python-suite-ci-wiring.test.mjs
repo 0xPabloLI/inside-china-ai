@@ -25,12 +25,24 @@ describe("python suite CI wiring (#555)", () => {
     expect(CI).toContain(`${SUITE}/requirements.txt`);
   });
 
-  it("the npm script targets the suite with an overridable interpreter", () => {
-    expect(PKG.scripts["test:python"]).toContain(SUITE);
-    expect(PKG.scripts["test:python"]).toMatch(/\$\{PYTHON:-python3\}/);
+  it("the npm scripts target the suite with an overridable interpreter", () => {
+    for (const name of ["test:python", "test:python:coverage"]) {
+      expect(PKG.scripts[name]).toContain(SUITE);
+      expect(PKG.scripts[name]).toMatch(/\$\{PYTHON:-python3\}/);
+    }
   });
 
   it("the zero-test guard ships with the suite", () => {
     expect(existsSync(join(ROOT, SUITE, "conftest.py"))).toBe(true);
+  });
+
+  // The coverage floor is the other half of "green means something ran": the
+  // suite could run in full while the modules it is responsible for silently
+  // lose coverage. Deleting the floor or the scope list would put that back.
+  it("the coverage gate keeps a floor and a scope", () => {
+    const rc = readFileSync(join(ROOT, SUITE, ".coveragerc"), "utf8");
+    expect(rc).toMatch(/^fail_under\s*=\s*(\d+)/m);
+    expect(rc).toContain("scripts/short-video/lib");
+    expect(CI).toContain("npm run test:python:coverage");
   });
 });
