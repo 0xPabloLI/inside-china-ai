@@ -221,3 +221,31 @@ DeepSeek又悄么声更新模型了！
 - 2026-10-14 10:12 CST：官方口径核实完成（V2/V4/V7 ✅）；社区交叉验证完成（V5 ✅，并发现 10-13 灰测「降智」的另一半故事）。
 - 2026-10-14 10:10 CST：X 一手证据核实完成（V6 ✅，§3.4）。**Stage 0 核实全部结束。**
 
+## 5. 视频证据截图（2026-10-14 补录）
+
+Stage 5 HITL 复审时用户指出视频缺视觉素材。按用户裁决（只用真实截图 + 明确风格化的示意图；只补关键证据场景），用 web-access CDP（自动化 profile `~/chrome-tiktok-profile`:9229）实拍以下页面，落盘 `scripts/short-video/content/deepseek-flash-silent-update/assets/`。
+
+**全部为真实页面截图，无任何伪造或重构的产品页面。** 每条断言都指向它实际依赖的那个页面。
+
+| 素材 | 对应场景 | 页面 | 抓取方式 |
+| --- | --- | --- | --- |
+| `changelog-hook.png` | S1 hook | https://api-docs.deepseek.com/updates | 两次滚动截图（y=0 / y=890）纵向拼接 → 按正文栏 1916px 宽裁出精确 9:16（1916×3406） |
+| `loktar-evidence.png` | S2 首发帖 | https://x.com/loktar00/status/2109652056063582631 | 隐藏 header/sidebar + 译文 UI 后截 article，裁 handle→正文；合成到 1080×814 暗底（避开品牌栏与字幕道） |
+| `quimedesu-evidence.png` | S3 对比视频 | https://x.com/quimedesu/status/2109718081681449325 | 取该帖视频封面原图（X CDN `amplify_video_thumb`，1200×900），裁掉底部黑边后合成暗底 |
+| `dummer-evidence.png` | S5 反证帖 | https://x.com/dummerspast39/status/2109681157742760299 | 同上（隐藏译文 UI，裁 handle→正文） |
+| `archive-log.png` | S6 指纹记录 | https://deepseek-monitor-archive.pages.dev/fingerprints/ | 深色模式，滚动到「监控记录」列表，裁左侧事件卡栏 |
+
+**素材构图约束（MRL-3 第一轮证据渲染失败后确定）**：`media-bottom-bar` 的媒体窗口是 y∈[0,814] 的 1080 宽画面，而 TikTok 右侧操作栏从 x=880 起（y∈[640,1775]），帧门禁（`verify-remotion-frames.mjs`）要求该区域亮像素 <5%。白色网页整幅都是亮像素（实测 S2 15.5% / S3 13.0% → FAIL），故三个 X 帖素材统一重构为 **880×814**：y<200 留暗带给品牌栏，正文卡按 0.815 缩放居中，y>700 为暗底，两侧由 `fit:"contain"` 的画布底衬补齐。**不采用「提高 overlay」方案**：白色页压到 α>0.72 方能过门禁，但页内正文对比度只剩约 2.3:1，证据就不可读了。
+
+**关键数字的页面口径（截图当日实读，与正文数字一致）**：
+
+| 数字 | 页面出处 |
+| --- | --- |
+| 44,577 views | @loktar00 帖 DOM `aria-label`：`64 回复、30 次转帖、709 喜欢、92 书签、44577 次观看` |
+| 115,692 / 121,079 views | @quimedesu 帖 DOM `aria-label`：`12 回复、21 次转帖、432 喜欢、54 书签、121079 次观看`（页面显示「12.1万」；§3.4 记录的 115,692 为 10-14 早间读数，浏览仍在增长，视频采用 115,692） |
+| 10 个指纹事件 / 最近 2026-09-19 12:45 | 归档首页统计「模型指纹 事件 10」+ 事件列表首条 |
+| `deepseek-flash` → `aeb56401ca74e127821c4f9126dcb669` | 归档「当前指纹」表：`deepseek-flash` 与 `deepseek-v4-flash` 都路由到同一指纹 |
+
+**未能取得的素材（已放弃，不影响成片）**：量子位文中 4 段对比 mp4 走 `mpvideo.qpic.cn` 且带 `auth_key`，外部请求一律 403（含 Referer/UA 伪装与页面内 fetch），浏览器内 blob 也无法导出。改用其中一段的官方封面帧（`quimedesu-evidence.png`），信息量等价且无版权模糊地带。
+
+

@@ -11,10 +11,29 @@
  * never states the API "got stronger" as fact, because it is unproven and the
  * fingerprint log shows no change.
  *
- * Visual strategy: this is an evidence story, so every scene is text-driven
- * (stacked-cards / hero-center templates with GridBg). `media: null` declares
- * "no media ever" so asset sourcing is skipped instead of binding a generic
- * stock photo that cannot depict an API fingerprint. Entity color: DeepSeek = blue.
+ * Visual strategy (revised 2026-10-14): this is an evidence story, so the five
+ * scenes that carry a specific claim show the actual artifact the claim rests
+ * on — a real screenshot of the cited X post, the official change log, or the
+ * third-party fingerprint archive. Screenshots are real captures of the live
+ * pages (see docs/refs/source-materials/deepseek-flash-silent-update-sources.md);
+ * nothing here is a mocked or reconstructed product page. The remaining scenes
+ * stay CSS-only (`media: null` = "no media ever", sourcing skipped) because
+ * they carry analysis rather than evidence.
+ *
+ * Rail constraint (found by MRL-3 on the first evidence render, 2026-10-14):
+ * `media-bottom-bar` renders its media window 1080×814 at y=0, but TikTok's
+ * action rail starts at x=880 and the frame gate fails any scene with >5% bright
+ * pixels in x>880, y 640-1775. A white page capture is ~100% bright, so every
+ * evidence asset is composed at 880×814: dark band y<200 for the brand bar, the
+ * page card scaled to 0.815, dark matte below y≈700, and `fit:"contain"` supplies
+ * the branded matte on both sides. Keeping the capture bright is the point; the
+ * alternative (raising `overlay` past ~0.72 to clear the gate) drops the page
+ * text to roughly 2.3:1 contrast and makes the evidence unreadable.
+ *
+ * Layout note: only `narrative` consumes scene.layout, and `hero-center` /
+ * `stacked-cards` are CSS-only (auto-skipped by the media filter), so any scene
+ * that carries a screenshot uses a media layout: media-bottom-bar, media-split
+ * or media-overlay. Entity color: DeepSeek = blue.
  */
 
 export const scenes = [
@@ -26,59 +45,78 @@ export const scenes = [
     narrativeRole: "S",
     retentionMechanism: null,
     mediaStrategy: "asset",
-    media: null,
+    media: {
+      type: "image",
+      path: "assets/changelog-hook.png",
+      source: "DeepSeek API Change Log",
+      animation: "fade",
+      // The screenshot carries its own baked scrim (a white docs page would
+      // otherwise blow out the white hook type); this overlay is the last step.
+      overlay: 0.55,
+      fit: "cover",
+    },
     voiceover: "Developers say DeepSeek's API got better. The fingerprint never changed.",
     texts: {
       badge: "OCTOBER 2026",
       subject: "DEEPSEEK",
       subjectLogo: "deepseek",
-      bigNumber: "0",
-      numberLabel: "FINGERPRINT EVENTS",
+      bigNumber: "200K",
+      numberLabel: "VIEWS ON THE CLIPS",
       stats: [
-        { num: "200K", unit: "", label: "VIEWS ON THE CLIPS" },
+        { num: "0", unit: "", label: "OFFICIAL CHANGES" },
         { num: "48", unit: "H", label: "OF ARGUMENT" },
       ],
-      source: "SOURCE: DEEPSEEK MONITOR ARCHIVE, OCT 13",
+      source: "SOURCE: X POSTS + DEEPSEEK CHANGE LOG, OCT 13",
     },
   },
   {
     id: 2,
     name: "first-post",
     visualType: "narrative",
-    layout: "stacked-cards",
+    layout: "media-bottom-bar",
     narrativeRole: "T",
     retentionMechanism: "open-loop",
     mediaStrategy: "asset",
-    media: null,
+    media: {
+      type: "image",
+      path: "assets/loktar-evidence.png",
+      source: "X: @loktar00",
+      animation: "fade",
+      overlay: 0,
+      fit: "contain",
+    },
     voiceover:
       "On October 12, a developer reported that one prompt gave different output. Was DeepSeek upgrading in secret?",
     texts: {
-      badge: "OCTOBER 12, 2026",
       company: "THE FIRST POST",
-      context: "@LOKTAR00 ON X, 705 LIKES",
       action: "ONE PROMPT, DIRECT API",
-      result: "44K VIEWS",
-      source: "SOURCE: X, OCT 12, 2026",
+      result: "44,577 VIEWS",
+      source: "SOURCE: @LOKTAR00 ON X, OCT 12, 2026",
     },
   },
   {
     id: 3,
     name: "comparison-clip",
     visualType: "narrative",
-    layout: "stacked-cards",
+    layout: "media-bottom-bar",
     narrativeRole: "A",
     retentionMechanism: "curiosity-gap",
     mediaStrategy: "asset",
-    media: null,
+    media: {
+      type: "image",
+      path: "assets/quimedesu-evidence.png",
+      source: "X: @quimedesu",
+      animation: "fade",
+      overlay: 0,
+      fit: "contain",
+    },
     voiceover:
       "A verified account reported the same prompt looking sharper on October 12. That clip reached 115,000 views.",
     texts: {
-      badge: "THE COMPARISON CLIP",
       company: "SEP 9TH VS OCT 12TH",
-      context: "@QUIMEDESU ON X, VERIFIED",
       action: "SAME PROMPT, TWO DATES",
       result: "115,692 VIEWS",
-      source: "SOURCE: X, OCT 12, 2026",
+      source: "SOURCE: @QUIMEDESU ON X, OCT 12, 2026",
     },
   },
   {
@@ -101,17 +139,25 @@ export const scenes = [
   {
     id: 5,
     name: "pattern-interrupt",
-    visualType: "quote",
-    layout: "hero-center",
+    visualType: "narrative",
+    layout: "media-bottom-bar",
     narrativeRole: "R",
     retentionMechanism: "pattern-interrupt",
     mediaStrategy: "asset",
-    media: null,
+    media: {
+      type: "image",
+      path: "assets/dummer-evidence.png",
+      source: "X: @dummerspast39",
+      animation: "fade",
+      overlay: 0,
+      fit: "contain",
+    },
     voiceover: "Not so fast. One developer tested it and found no new checkpoint.",
     texts: {
-      quote: "THE MODEL IS JUST RANDOM",
-      verified: "NO NEW CHECKPOINT FOUND",
-      source: "@DUMMERSPAST39 ON X, OCT 12, 2026",
+      company: "THE DISSENTING TEST",
+      action: "TESTED KNOWLEDGE, VISION, SVG",
+      result: "NO NEW CHECKPOINT",
+      source: "SOURCE: @DUMMERSPAST39 ON X, OCT 13, 2026",
     },
   },
   {
@@ -122,7 +168,14 @@ export const scenes = [
     narrativeRole: "R",
     retentionMechanism: "approaching-closure",
     mediaStrategy: "asset",
-    media: null,
+    media: {
+      type: "image",
+      path: "assets/archive-log.png",
+      source: "DeepSeek Monitor Archive",
+      animation: "fade",
+      overlay: 0.62,
+      fit: "cover",
+    },
     voiceover:
       "Every DeepSeek response carries a system fingerprint. It changes when the model behind it changes.",
     texts: {
@@ -167,8 +220,10 @@ export const scenes = [
       vs: "VS",
       left: ["API USERS: BETTER", "115K VIEWS ON CLIPS"],
       right: ["CHAT USERS: WORSE", "9K VIEWS ON ZHIHU"],
-      note: "NEITHER SIDE RAN A CONTROLLED TEST",
-      noteHighlight: "NEITHER",
+      // noteHighlight renders inline right after note (ContrastScene), so the
+      // separator has to live in the data — same convention as title/titleHighlight.
+      note: "NEITHER SIDE RAN A ",
+      noteHighlight: "CONTROLLED TEST",
     },
   },
   {
