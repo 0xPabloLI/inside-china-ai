@@ -25,6 +25,13 @@
 - **worktree 同步清单补全（新条目，2026-10-12 harvest session 实证）**：除上述两项，`scripts/short-video/node_modules` 与 `scripts/short-video/remotion/node_modules` 也要同步，否则 6 个 `npx remotion still` 类 suite 以 `npm error could not determine executable to run` 全挂（`text-gate-render` 19/19、`scene-gate-render` 37/37 等；补链后 80/81）。**符号链接的边界**：`node_modules` 用指向主 checkout 的符号链接即可；但 **dev server 提供的媒体资产必须复制实体文件**——`scene-gate-render` 经 `http://localhost:3000/public/assets/pexels-ai-chip.jpg` 加载 `scripts/short-video/assets/` 下被 gitignore 的 `pexels-*` 等（46 个），符号链接会让 Vite dev server 返回 404（`Could not load <CanvasImage>`），实体复制后 37/37 绿。全量终态：240 文件通过 / 4707 通过 / 7 skipped / 0 failed。
 - 本机 `jsdom` 缺失（新条目，2026-10-12 #424 session 实证；**补装方式于 2026-10-13 #319 session 修正**）：`package.json` 声明了 devDependency `jsdom@^30`，但 main checkout 的 `node_modules` 未安装它 → 3 个 jsdom 环境文件（`src/components/theme-toggle.test.tsx`、`src/components/ui/carousel.test.tsx`、`src/hooks/use-mobile.test.tsx`）以 fork 启动失败计入 Unhandled Errors。全量跑表现：215 文件通过、4359 通过 / 1 skipped、errors=3、exit=1——同一命令在 main checkout 同基线。**修法：`npm ci`**（lockfile 里就有 `jsdom@30.1.2`，恢复即带上；2026-10-13 实测恢复后 227 文件 4496 通过 0 失败、3 条 fork 错误消失）。⚠️ **不要用 `npm install --no-save --no-package-lock <pkg>` 补包**：它会把整棵树重解析到各 range 的最新满足版本——实测把 `@tanstack/start-client-core` 1.170.34→**1.170.37**、`@tanstack/react-start` 1.168.60→**1.169.1** 甩到 lockfile 之外，而 1.170.37 把 `inputValidator` 改名为 `validator`，于是 `src/lib/posts.functions.test.ts` 报 `createServerFn(...).inputValidator is not a function` 的**假失败**（CI 用 `npm ci` 全绿）。判据：失败信息 + `node_modules/@tanstack/start-client-core` 的 mtime 落在安装时刻 + lockfile pin ≠ 实装版本。需要临时包时用独立 checkout，别动共享 `node_modules`。
 
+### `scripts/short-video/__tests__` Python suite
+
+- **单一 runner（2026-10-14，#555）**：`npm run test:python`（`pytest scripts/short-video/__tests__ -v`）收集全部 15 个 `test_*.py`。改造前 7 个脚本式文件在 pytest 下收集 0 测试、7 个纯 `def test_*` 文件裸跑 `python3 <file>` 也 0 断言，两边都静默。CI 每次构建都跑这一步；依赖来自 `scripts/short-video/__tests__/requirements.txt`（pytest/pillow/numpy），装进一次性 venv `.scratch/pytest-venv`，不依赖 runner 预装包（本地缺依赖时用同一条 `pip install -r` 补）。
+- **零测试硬门禁**：`conftest.py` 要求本次调用请求的每个 `test_*.py` 至少收集 1 个测试，否则整轮 exit 1；同时打印逐文件计数表。新增一个跑 0 测试的文件会让 CI 变红，不静默通过。
+- **环境绑定 skip**：`test_frame_strategy.py` 有 2 条依赖 `mlx_vlm`（`~/.venvs/mlx-vlm`）的用例，缺栈时以 `pytest.importorskip` 显式 skip——CI 上表现为 245 passed / 2 skipped。
+- 旧 vitest wrapper `test-f5-duration.test.mjs` 仍绑 `~/.video-tts-env`（见上表），与 pytest 侧跑同一个 `test_f5_duration.py`；wrapper 只认 stdout 的 `Results: N passed, 0 failed` 形状，改该文件报告格式须同步改 wrapper。
+
 ### Node 版本漂移
 
 - node < 20.12 启动 vitest/vite 8 直接崩溃（`node:util does not provide an export named 'styleText'`，rolldown 要求 ≥20.12）。仓库无 `.nvmrc` / `engines` pin——用 nvm 的 node（≥24.12）跑。同一类漂移见 prettier 版本史（#177，已解决）。
