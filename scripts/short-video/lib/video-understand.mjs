@@ -39,6 +39,7 @@ import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "./asr-defaults.mjs";
 import { guardTranscript } from "./asr-repetition-guard.mjs";
+import { ytdlpCookieSource } from "./ytdlp-guard.mjs";
 
 const execAsync = promisify(exec);
 
@@ -316,7 +317,11 @@ function buildYtdlpCommand(url, output, platform) {
   const parts = [`"${YTDLP}"`];
 
   if (platform === "youtube") {
-    parts.push("--cookies-from-browser chrome");
+    // Cookie source is shared with the sourcer/downloader call sites
+    // (ytdlp-guard.mjs) so all three agree on one profile. It was hardcoded to
+    // `chrome` here (#313) — the Keychain-backed store that raises a blocking
+    // SecurityAgent prompt for this unsigned binary chain (#328).
+    parts.push(`--cookies-from-browser "${ytdlpCookieSource()}"`);
     parts.push("--remote-components ejs:github");
   }
 

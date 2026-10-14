@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync, utimesSync } from "node:fs";
+import {
+  mkdtempSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+  rmSync,
+  utimesSync,
+  mkdirSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "path";
+import { isAbsolute, join } from "path";
 
 // ─── yt-dlp 412 persistent backoff guard ───
 // Bilibili returns HTTP 412 both as a deterministic precondition (missing
@@ -16,29 +24,71 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 // Wiring mocks — both specifier spellings used across lib imports.
+//
+// Two call forms are in play and they need separate mocks:
+//   - `execSync(cmd)` — shell strings: asset-sourcer's download path, the
+//     video-downloaders adapter, and ytdlp-guard's own `scutil --proxy` probe.
+//   - `execFileSync(file, args)` — argv: asset-sourcer's search + download
+//     paths (#319's argv direction; `keyword`/`url` are externally-derived and
+//     must not reach a shell).
+// The `scutil` probe is execSync, so `execFileSyncMock` sees ONLY yt-dlp calls
+// from asset-sourcer and `calls[0]` is always the one under test.
 const execSyncMock = vi.fn();
+const execFileSyncMock = vi.fn();
 vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, execSync: (...args) => execSyncMock(...args) };
+  return {
+    ...actual,
+    execSync: (...args) => execSyncMock(...args),
+    execFileSync: (...args) => execFileSyncMock(...args),
+  };
 });
 vi.mock("child_process", async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, execSync: (...args) => execSyncMock(...args) };
+  return {
+    ...actual,
+    execSync: (...args) => execSyncMock(...args),
+    execFileSync: (...args) => execFileSyncMock(...args),
+  };
 });
 
 import {
   createYtdlp412Guard,
+  firefoxProfileCandidates,
   matchYtdlp412,
+  parseFirefoxProfilesIni,
   parseMacSystemProxy,
   removeYtdlpStaleOutput,
+  resolveFirefoxCookieSource,
   resolveYtdlpOutputPath,
   resolveYtdlpProxy,
   ytdlpContainerMime,
-  ytdlpCookieBrowser,
+  ytdlpCookieSource,
   ytdlpProxyArg,
 } from "../lib/ytdlp-guard.mjs";
 import { searchYtdlp, downloadYtdlp } from "../lib/asset-sourcer.mjs";
 import { downloadYtdlpAdapter } from "../lib/video-downloaders.mjs";
+
+// ─── argv helpers for the execFileSync call sites ───
+
+/** Flatten an `execFileSync(file, args, opts)` mock call into its argv. */
+const fileArgv = (call) => [call[0], ...(call[1] ?? [])];
+
+/** The value following `flag` in an argv, or undefined when absent. */
+const flagValue = (argv, flag) => {
+  const i = argv.indexOf(flag);
+  return i === -1 ? undefined : argv[i + 1];
+};
+
+/**
+ * The binary appears exactly once, as argv[0]. A leftover "yt-dlp" element in
+ * the args array is invisible to a mocked child_process but makes the real
+ * spawn run `yt-dlp yt-dlp ...` — caught on the real host, not by the mock.
+ */
+const expectSingleBinary = (argv) => {
+  expect(argv[0]).toBe("yt-dlp");
+  expect(argv.filter((t) => t === "yt-dlp")).toHaveLength(1);
+};
 
 // ─── Pure guard tests (injected clock/state, instant) ───
 
@@ -157,24 +207,153 @@ describe("matchYtdlp412", () => {
 // ─── #313: youtube cookie-source policy ───
 
 describe("ytdlpCookieBrowser", () => {
-  it("routes youtube video URLs to the chrome cookie store", () => {
-    expect(ytdlpCookieBrowser("https://www.youtube.com/watch?v=abc")).toBe("chrome");
-    expect(ytdlpCookieBrowser("https://youtu.be/abc")).toBe("chrome");
-    expect(ytdlpCookieBrowser("https://m.youtube.com/watch?v=abc")).toBe("chrome");
+  it("every target resolves to firefox — no target reads the Chrome Keychain store", () => {
+    // 2026-10-14: youtube moved off chrome. The Chrome Safe Storage ACL cannot
+    // be persisted for this unsigned/adhoc binary chain, so every chrome read
+    // raised a blocking SecurityAgent prompt that timed out at 120s when
+    // unattended (#328). Firefox cookies are plaintext SQLite — no Keychain.
+    expect(ytdlpCookieSource()).toMatch(/^firefox/);
+  });
+});
+
+// ─── #328: firefox profile resolution ───
+
+describe("parseFirefoxProfilesIni", () => {
+  it("parses sections, trims, and skips comments and blanks", () => {
+    const sections = parseFirefoxProfilesIni(
+      [
+        "; a comment",
+        "# another",
+        "",
+        "[Profile0]",
+        "Name=default-release",
+        "Path=Profiles/abc.default-release",
+        "",
+        "[Install2656FF1E876E9973]",
+        "Default=Profiles/abc.default-release",
+      ].join("\n"),
+    );
+    expect(sections).toHaveLength(2);
+    expect(sections[0]).toEqual({
+      name: "Profile0",
+      kv: { Name: "default-release", Path: "Profiles/abc.default-release" },
+    });
+    expect(sections[1].kv.Default).toBe("Profiles/abc.default-release");
   });
 
-  it("keeps firefox for every other platform (pipeline default untouched)", () => {
-    expect(ytdlpCookieBrowser("https://www.bilibili.com/video/BV1E7wtzaEdq")).toBe("firefox");
-    expect(ytdlpCookieBrowser("https://weibo.com/5468142257/Ri5ajjFK0")).toBe("firefox");
+  it("returns an empty list for empty input", () => {
+    expect(parseFirefoxProfilesIni("")).toEqual([]);
+  });
+});
+
+describe("firefoxProfileCandidates", () => {
+  // The real host layout that caused the bug: `Default=1` names an EMPTY
+  // profile whose cookies.sqlite has no moz_cookies table, while the
+  // install-level Default names the profile actually in use.
+  const REAL_HOST_INI = [
+    "[Profile1]",
+    "Name=default",
+    "Path=Profiles/7oxxo6jf.default",
+    "Default=1",
+    "",
+    "[Profile0]",
+    "Name=default-release",
+    "Path=Profiles/4m5wba40.default-release",
+    "",
+    "[General]",
+    "StartWithLastProfile=1",
+    "Version=2",
+    "",
+    "[Install2656FF1E876E9973]",
+    "Default=Profiles/4m5wba40.default-release",
+    "Locked=1",
+  ].join("\n");
+
+  it("prefers the install-level default over the empty Profile* Default=1", () => {
+    const candidates = firefoxProfileCandidates(parseFirefoxProfilesIni(REAL_HOST_INI));
+    expect(candidates[0]).toBe("Profiles/4m5wba40.default-release");
+    // the empty profile is still a candidate — just not the first one
+    expect(candidates).toContain("Profiles/7oxxo6jf.default");
   });
 
-  it("ytsearch pseudo-URLs stay firefox — the working search path gains no Keychain dependency", () => {
-    expect(ytdlpCookieBrowser("ytsearch10:deepseek")).toBe("firefox");
+  it("deduplicates a profile named by both sections", () => {
+    const candidates = firefoxProfileCandidates(
+      parseFirefoxProfilesIni(
+        [
+          "[Profile0]",
+          "Path=Profiles/same.default",
+          "Default=1",
+          "[InstallAAA]",
+          "Default=Profiles/same.default",
+        ].join("\n"),
+      ),
+    );
+    expect(candidates).toEqual(["Profiles/same.default"]);
+  });
+});
+
+describe("resolveFirefoxCookieSource", () => {
+  let root;
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "ff-root-"));
+    delete process.env.YTDLP_FIREFOX_PROFILE;
+  });
+  afterEach(() => {
+    delete process.env.YTDLP_FIREFOX_PROFILE;
+    rmSync(root, { recursive: true, force: true });
   });
 
-  it("falls back to firefox on non-URL input", () => {
-    expect(ytdlpCookieBrowser("")).toBe("firefox");
-    expect(ytdlpCookieBrowser(null)).toBe("firefox");
+  /** Materialize a profile dir; `size` 0 mimics the truncated/empty store. */
+  function makeProfile(dirName, size) {
+    mkdirSync(join(root, "Profiles", dirName), { recursive: true });
+    writeFileSync(join(root, "Profiles", dirName, "cookies.sqlite"), Buffer.alloc(size));
+  }
+
+  it("skips a zero-byte cookies.sqlite and picks the usable profile", () => {
+    writeFileSync(
+      join(root, "profiles.ini"),
+      [
+        "[Profile1]",
+        "Path=Profiles/empty.default",
+        "Default=1",
+        "[InstallAAA]",
+        "Default=Profiles/empty.default",
+        "[Profile0]",
+        "Path=Profiles/real.default-release",
+      ].join("\n"),
+    );
+    makeProfile("empty.default", 0);
+    makeProfile("real.default-release", 4096);
+
+    expect(resolveFirefoxCookieSource({ root })).toBe(
+      `firefox:${join(root, "Profiles", "real.default-release")}`,
+    );
+  });
+
+  it("falls back to bare firefox when no profile has a usable store", () => {
+    writeFileSync(join(root, "profiles.ini"), "[Profile0]\nPath=Profiles/empty.default\n");
+    makeProfile("empty.default", 0);
+    expect(resolveFirefoxCookieSource({ root })).toBe("firefox");
+  });
+
+  it("falls back to bare firefox when profiles.ini is missing", () => {
+    expect(resolveFirefoxCookieSource({ root })).toBe("firefox");
+  });
+
+  it("honours the YTDLP_FIREFOX_PROFILE escape hatch over discovery", () => {
+    process.env.YTDLP_FIREFOX_PROFILE = "my-pinned-profile";
+    expect(resolveFirefoxCookieSource({ root })).toBe("firefox:my-pinned-profile");
+  });
+
+  it("returns an absolute path so the shell-quoted argument survives the space in 'Application Support'", () => {
+    writeFileSync(
+      join(root, "profiles.ini"),
+      "[InstallAAA]\nDefault=Profiles/real.default-release\n",
+    );
+    makeProfile("real.default-release", 4096);
+    const resolved = resolveFirefoxCookieSource({ root });
+    const profilePath = resolved.slice("firefox:".length);
+    expect(isAbsolute(profilePath)).toBe(true);
   });
 });
 
@@ -187,6 +366,7 @@ describe("yt-dlp wiring", () => {
     tmp = mkdtempSync(join(tmpdir(), "ytdlp-guard-"));
     process.env.YTDLP_412_STATE_PATH = join(tmp, "state.json");
     execSyncMock.mockReset();
+    execFileSyncMock.mockReset();
   });
 
   afterEach(() => {
@@ -208,47 +388,52 @@ describe("yt-dlp wiring", () => {
     seedBlocked("bilibili.com");
     const out = searchYtdlp("DeepSeek", "bilibili");
     expect(out).toEqual([]);
-    expect(execSyncMock).not.toHaveBeenCalled();
+    expect(execFileSyncMock).not.toHaveBeenCalled();
   });
 
   it("searchYtdlp passes a browser user-agent and records success", () => {
-    execSyncMock.mockReturnValue("BV1E7wtzaEdq\t从 LLM 到 Agent Skill\t1951\n");
+    execFileSyncMock.mockReturnValue("BV1E7wtzaEdq\t从 LLM 到 Agent Skill\t1951\n");
     const out = searchYtdlp("DeepSeek", "bilibili");
     expect(out).toHaveLength(1);
     expect(out[0].url).toBe("https://www.bilibili.com/video/BV1E7wtzaEdq");
-    // #324 proxy hand-off probes the macOS system proxy (scutil) before the
-    // yt-dlp call on darwin, and the probe result is module-cached — so the
-    // yt-dlp command is NOT reliably calls[0]. Locate it by its argv instead.
-    const cmd = execSyncMock.mock.calls
-      .map((c) => String(c[0]))
-      .find((s) => s.startsWith("yt-dlp "));
-    expect(cmd).toContain("--user-agent");
-    expect(cmd).toContain("Mozilla/5.0");
+    // argv form: the `scutil` proxy probe is execSync, so this mock sees only
+    // yt-dlp calls and calls[0] is the one under test.
+    const argv = fileArgv(execFileSyncMock.mock.calls[0]);
+    expectSingleBinary(argv);
+    expect(flagValue(argv, "--user-agent")).toContain("Mozilla/5.0");
     const stateText = existsSync(process.env.YTDLP_412_STATE_PATH)
       ? readFileSync(process.env.YTDLP_412_STATE_PATH, "utf8")
       : "";
     expect(stateText).not.toContain("bilibili.com");
   });
 
+  it("searchYtdlp passes the keyword as a literal argv element, never a shell word", () => {
+    execFileSyncMock.mockReturnValue("");
+    const payload = 'x"; touch /tmp/should-not-exist; echo "';
+    searchYtdlp(payload, "youtube");
+    // The payload survives verbatim as one argument — no quoting, no split.
+    expect(fileArgv(execFileSyncMock.mock.calls[0])).toContain(`ytsearch10:${payload}`);
+  });
+
   it("searchYtdlp 412 failure records the block; next call short-circuits", () => {
     const err = new Error("failed");
     err.stderr = "ERROR: HTTP Error 412: Precondition Failed";
-    execSyncMock.mockImplementation(() => {
+    execFileSyncMock.mockImplementation(() => {
       throw err;
     });
     expect(searchYtdlp("DeepSeek", "bilibili")).toEqual([]);
     expect(readFileSync(process.env.YTDLP_412_STATE_PATH, "utf8")).toContain("bilibili.com");
 
-    execSyncMock.mockClear();
+    execFileSyncMock.mockClear();
     expect(searchYtdlp("DeepSeek", "bilibili")).toEqual([]);
-    expect(execSyncMock).not.toHaveBeenCalled();
+    expect(execFileSyncMock).not.toHaveBeenCalled();
   });
 
   it("downloadYtdlp 412 failure records the block and reports it", () => {
     const dest = join(tmp, "clip.mp4");
     const err = new Error("failed");
     err.stderr = "ERROR: HTTP Error 412: Precondition Failed";
-    execSyncMock.mockImplementation(() => {
+    execFileSyncMock.mockImplementation(() => {
       throw err;
     });
     const res = downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", dest);
@@ -257,20 +442,34 @@ describe("yt-dlp wiring", () => {
     expect(readFileSync(process.env.YTDLP_412_STATE_PATH, "utf8")).toContain("bilibili.com");
   });
 
-  it("#313: downloadYtdlp routes youtube downloads through the chrome cookie store", () => {
-    execSyncMock.mockImplementation(() => {
+  it("#328: downloadYtdlp routes youtube through firefox, never the chrome store", () => {
+    execFileSyncMock.mockImplementation(() => {
       throw new Error("failed");
     });
     downloadYtdlp("https://www.youtube.com/watch?v=abc", join(tmp, "yt.mp4"));
-    expect(execSyncMock.mock.calls[0][0]).toContain("--cookies-from-browser chrome");
+    const argv = fileArgv(execFileSyncMock.mock.calls[0]);
+    expectSingleBinary(argv);
+    expect(flagValue(argv, "--cookies-from-browser")).toMatch(/^firefox/);
+    expect(argv).not.toContain("chrome");
   });
 
-  it("#313: downloadYtdlp keeps firefox for bilibili downloads", () => {
-    execSyncMock.mockImplementation(() => {
+  it("downloadYtdlp keeps firefox for bilibili downloads", () => {
+    execFileSyncMock.mockImplementation(() => {
       throw new Error("failed");
     });
     downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "bili.mp4"));
-    expect(execSyncMock.mock.calls[0][0]).toContain("--cookies-from-browser firefox");
+    const argv = fileArgv(execFileSyncMock.mock.calls[0]);
+    expect(flagValue(argv, "--cookies-from-browser")).toMatch(/^firefox/);
+    expect(argv).not.toContain("chrome");
+  });
+
+  it("downloadYtdlp passes the url as a literal argv element, never a shell word", () => {
+    execFileSyncMock.mockImplementation(() => {
+      throw new Error("failed");
+    });
+    const payload = 'https://x/"; touch /tmp/should-not-exist; echo "';
+    downloadYtdlp(payload, join(tmp, "p.mp4"));
+    expect(fileArgv(execFileSyncMock.mock.calls[0])).toContain(payload);
   });
 
   it("downloadYtdlpAdapter (weibo route) also gates and records", () => {
@@ -287,7 +486,7 @@ describe("yt-dlp wiring", () => {
 
   it("#323: downloadYtdlp succeeds when yt-dlp falls back to a webm container", () => {
     const dest = join(tmp, "clip.mp4");
-    execSyncMock.mockImplementation(() => {
+    execFileSyncMock.mockImplementation(() => {
       // webm-only source: yt-dlp appends the real container extension to the
       // -o template (empirical #313 probe: `-o /tmp/x.mp4` → /tmp/x.mp4.webm).
       writeFileSync(`${dest}.webm`, Buffer.alloc(2048), "utf8");
@@ -299,7 +498,7 @@ describe("yt-dlp wiring", () => {
 
   it("#323: downloadYtdlp still reports failure when nothing landed on disk", () => {
     const dest = join(tmp, "clip.mp4");
-    execSyncMock.mockImplementation(() => {});
+    execFileSyncMock.mockImplementation(() => {});
     const res = downloadYtdlp("https://www.youtube.com/watch?v=abc", dest);
     expect(res.success).toBe(false);
     expect(res.error).toContain("file not found");
@@ -324,7 +523,7 @@ describe("yt-dlp wiring", () => {
     const dest = join(tmp, "clip.mp4");
     // pre-fix-era orphan: a failed run left <dest>.webm on disk
     writeFileSync(`${dest}.webm`, Buffer.alloc(2048), "utf8");
-    execSyncMock.mockImplementation(() => {}); // this run exits 0 producing nothing
+    execFileSyncMock.mockImplementation(() => {}); // this run exits 0 producing nothing
     const res = downloadYtdlp("https://www.youtube.com/watch?v=abc", dest);
     expect(res.success).toBe(false);
     expect(res.error).toContain("file not found");
@@ -587,9 +786,12 @@ describe("#324 yt-dlp proxy hand-off", () => {
     tmp = mkdtempSync(join(tmpdir(), "ytdlp-proxy-"));
     process.env.YTDLP_412_STATE_PATH = join(tmp, "state.json");
     execSyncMock.mockReset();
-    execSyncMock.mockImplementation(() => {
+    execFileSyncMock.mockReset();
+    const fail = () => {
       throw new Error("failed");
-    });
+    };
+    execSyncMock.mockImplementation(fail);
+    execFileSyncMock.mockImplementation(fail);
   });
 
   afterEach(() => {
@@ -612,7 +814,8 @@ describe("#324 yt-dlp proxy hand-off", () => {
   it("downloadYtdlp passes --proxy when only the uppercase env proxy is exported", () => {
     uppercaseOnly();
     downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "a.mp4"));
-    expect(execSyncMock.mock.calls[0][0]).toContain('--proxy "http://127.0.0.1:7897"');
+    const argv = fileArgv(execFileSyncMock.mock.calls[0]);
+    expect(flagValue(argv, "--proxy")).toBe("http://127.0.0.1:7897");
   });
 
   it("downloadYtdlp omits --proxy when the lowercase proxy is already exported", () => {
@@ -621,13 +824,14 @@ describe("#324 yt-dlp proxy hand-off", () => {
     process.env.http_proxy = "http://127.0.0.1:7897";
     process.env.https_proxy = "http://127.0.0.1:7897";
     downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "b.mp4"));
-    expect(execSyncMock.mock.calls[0][0]).not.toContain("--proxy ");
+    expect(fileArgv(execFileSyncMock.mock.calls[0])).not.toContain("--proxy");
   });
 
   it("searchYtdlp passes --proxy on the same terms", () => {
     uppercaseOnly();
-    execSyncMock.mockImplementation(() => "BV1E7wtzaEdq\ttitle\t120\n");
+    execFileSyncMock.mockImplementation(() => "BV1E7wtzaEdq\ttitle\t120\n");
     searchYtdlp("DeepSeek", "bilibili");
-    expect(execSyncMock.mock.calls[0][0]).toContain('--proxy "http://127.0.0.1:7897"');
+    const argv = fileArgv(execFileSyncMock.mock.calls[0]);
+    expect(flagValue(argv, "--proxy")).toBe("http://127.0.0.1:7897");
   });
 });

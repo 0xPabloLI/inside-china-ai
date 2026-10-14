@@ -32,7 +32,7 @@ import { dirname, extname, join } from "path";
 import { execSync } from "child_process";
 import {
   YTDLP_BROWSER_UA,
-  ytdlpCookieBrowser,
+  ytdlpCookieSource,
   ytdlpContainerMime,
   ytdlpDomain,
   ytdlpGate,
@@ -475,9 +475,9 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
   const isWeibo = isWeiboUrl(url);
   const parts = [
     "yt-dlp",
-    // #313: youtube reads the Chrome cookie store (the YouTube login state);
-    // every other platform keeps the firefox default.
-    `--cookies-from-browser ${ytdlpCookieBrowser(url)}`,
+    // #328: every platform reads the firefox plaintext cookie store, so the
+    // Keychain-backed chrome store (and its blocking prompt) is off the path.
+    `--cookies-from-browser "${ytdlpCookieSource()}"`,
     `--user-agent "${YTDLP_BROWSER_UA}"`,
     '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
     "--max-filesize 20M",
