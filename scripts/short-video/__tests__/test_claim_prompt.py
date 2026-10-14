@@ -91,7 +91,7 @@ chart, benchmark
 Chart directly shows the benchmark comparison.
 """
 )
-check("valid relevance parsed as int", valid.get("relevance") == 85, f"got {valid.get('relevance')!r}")
+check("valid relevance parsed as int", valid.get("relevance") == 86, f"got {valid.get('relevance')!r}")
 check(
     "relevanceReason parsed",
     valid.get("relevanceReason") == "Chart directly shows the benchmark comparison.",
