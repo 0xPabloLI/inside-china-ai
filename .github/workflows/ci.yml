@@ -149,7 +149,15 @@ jobs:
       - name: Python tests (pytest)
         env:
           PYTHON: .scratch/pytest-venv/bin/python
-        run: npm run test:python
+        run: |
+          # test_video_loader.py generates real media with the repo's
+          # documented ffmpeg (/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg), which
+          # this runner does not have. Point the suite's own override
+          # (VIDEO_LOADER_FFMPEG, video_loader._binary) at the brew binary the
+          # step above installed instead of skipping the 22 fixtures.
+          export VIDEO_LOADER_FFMPEG="$(command -v ffmpeg)"
+          echo "python suite ffmpeg: $VIDEO_LOADER_FFMPEG"
+          npm run test:python
 
       - name: Type check
         run: npx tsc --noEmit
