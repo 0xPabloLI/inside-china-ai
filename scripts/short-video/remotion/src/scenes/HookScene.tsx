@@ -158,6 +158,11 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                     width: HOOK_SUBJECT_ROW.logoSize,
                     height: HOOK_SUBJECT_ROW.logoSize,
                     filter: "drop-shadow(0 0 25px rgba(77,139,255,0.3))",
+                    // Brand marks are wide wordmarks (deepseek.svg is 195×41);
+                    // a canvas defaults to object-fit: fill, which stretched
+                    // this one to the square box. contain keeps the wordmark
+                    // at its own aspect, centred in the box.
+                    objectFit: "contain",
                   }}
                 />
               </div>
