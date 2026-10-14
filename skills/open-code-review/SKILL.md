@@ -61,6 +61,8 @@ ocr review --format json --output result.json  # JSON 输出给我解析
 **耗时参考**（ornith:1.5-9b on M2 Pro）：10 行 3m55s（含模型加载），13.9K tokens。
 典型 PR（~300 行）≈ 18 分钟。跑完不停 Ollama（见「何时跑」）。
 
+**本机负载敏感（2026-10-14 实测）**：默认 `--concurrency 8` 把 8 个请求排到同一个 Ollama 实例上，每个请求的 300s 预算耗在排队 → 逐条 `timeout`、整体报 `all N file review(s) failed`。多文件 PR 用 `--concurrency 1` 配 `OCR_LLM_TIMEOUT=600`；机器本身负载高（12 核 load ~14，另有他人在跑重活）时仍会超时，那时按「A 模式未完成」记档，不要当成审查通过。零 finding 的运行也可能报 `status: failed`——OCR 1.13.0 把「无发现」的 `code_comment {"comments":[]}` 判成工具错误；判读看 `coverage.completed` 与 `tool_calls.failure_details`，别只看 status。
+
 ## 配置（已完成）
 
 ```
