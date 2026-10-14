@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync, utimesSync } from "node:fs";
+import {
+  mkdtempSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+  rmSync,
+  utimesSync,
+  mkdirSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "path";
+import { isAbsolute, join } from "path";
 
 // ─── yt-dlp 412 persistent backoff guard ───
 // Bilibili returns HTTP 412 both as a deterministic precondition (missing
@@ -28,13 +36,16 @@ vi.mock("child_process", async (importOriginal) => {
 
 import {
   createYtdlp412Guard,
+  firefoxProfileCandidates,
   matchYtdlp412,
+  parseFirefoxProfilesIni,
   parseMacSystemProxy,
   removeYtdlpStaleOutput,
+  resolveFirefoxCookieSource,
   resolveYtdlpOutputPath,
   resolveYtdlpProxy,
   ytdlpContainerMime,
-  ytdlpCookieBrowser,
+  ytdlpCookieSource,
   ytdlpProxyArg,
 } from "../lib/ytdlp-guard.mjs";
 import { searchYtdlp, downloadYtdlp } from "../lib/asset-sourcer.mjs";
@@ -157,24 +168,153 @@ describe("matchYtdlp412", () => {
 // ─── #313: youtube cookie-source policy ───
 
 describe("ytdlpCookieBrowser", () => {
-  it("routes youtube video URLs to the chrome cookie store", () => {
-    expect(ytdlpCookieBrowser("https://www.youtube.com/watch?v=abc")).toBe("chrome");
-    expect(ytdlpCookieBrowser("https://youtu.be/abc")).toBe("chrome");
-    expect(ytdlpCookieBrowser("https://m.youtube.com/watch?v=abc")).toBe("chrome");
+  it("every target resolves to firefox — no target reads the Chrome Keychain store", () => {
+    // 2026-10-14: youtube moved off chrome. The Chrome Safe Storage ACL cannot
+    // be persisted for this unsigned/adhoc binary chain, so every chrome read
+    // raised a blocking SecurityAgent prompt that timed out at 120s when
+    // unattended (#328). Firefox cookies are plaintext SQLite — no Keychain.
+    expect(ytdlpCookieSource()).toMatch(/^firefox/);
+  });
+});
+
+// ─── #328: firefox profile resolution ───
+
+describe("parseFirefoxProfilesIni", () => {
+  it("parses sections, trims, and skips comments and blanks", () => {
+    const sections = parseFirefoxProfilesIni(
+      [
+        "; a comment",
+        "# another",
+        "",
+        "[Profile0]",
+        "Name=default-release",
+        "Path=Profiles/abc.default-release",
+        "",
+        "[Install2656FF1E876E9973]",
+        "Default=Profiles/abc.default-release",
+      ].join("\n"),
+    );
+    expect(sections).toHaveLength(2);
+    expect(sections[0]).toEqual({
+      name: "Profile0",
+      kv: { Name: "default-release", Path: "Profiles/abc.default-release" },
+    });
+    expect(sections[1].kv.Default).toBe("Profiles/abc.default-release");
   });
 
-  it("keeps firefox for every other platform (pipeline default untouched)", () => {
-    expect(ytdlpCookieBrowser("https://www.bilibili.com/video/BV1E7wtzaEdq")).toBe("firefox");
-    expect(ytdlpCookieBrowser("https://weibo.com/5468142257/Ri5ajjFK0")).toBe("firefox");
+  it("returns an empty list for empty input", () => {
+    expect(parseFirefoxProfilesIni("")).toEqual([]);
+  });
+});
+
+describe("firefoxProfileCandidates", () => {
+  // The real host layout that caused the bug: `Default=1` names an EMPTY
+  // profile whose cookies.sqlite has no moz_cookies table, while the
+  // install-level Default names the profile actually in use.
+  const REAL_HOST_INI = [
+    "[Profile1]",
+    "Name=default",
+    "Path=Profiles/7oxxo6jf.default",
+    "Default=1",
+    "",
+    "[Profile0]",
+    "Name=default-release",
+    "Path=Profiles/4m5wba40.default-release",
+    "",
+    "[General]",
+    "StartWithLastProfile=1",
+    "Version=2",
+    "",
+    "[Install2656FF1E876E9973]",
+    "Default=Profiles/4m5wba40.default-release",
+    "Locked=1",
+  ].join("\n");
+
+  it("prefers the install-level default over the empty Profile* Default=1", () => {
+    const candidates = firefoxProfileCandidates(parseFirefoxProfilesIni(REAL_HOST_INI));
+    expect(candidates[0]).toBe("Profiles/4m5wba40.default-release");
+    // the empty profile is still a candidate — just not the first one
+    expect(candidates).toContain("Profiles/7oxxo6jf.default");
   });
 
-  it("ytsearch pseudo-URLs stay firefox — the working search path gains no Keychain dependency", () => {
-    expect(ytdlpCookieBrowser("ytsearch10:deepseek")).toBe("firefox");
+  it("deduplicates a profile named by both sections", () => {
+    const candidates = firefoxProfileCandidates(
+      parseFirefoxProfilesIni(
+        [
+          "[Profile0]",
+          "Path=Profiles/same.default",
+          "Default=1",
+          "[InstallAAA]",
+          "Default=Profiles/same.default",
+        ].join("\n"),
+      ),
+    );
+    expect(candidates).toEqual(["Profiles/same.default"]);
+  });
+});
+
+describe("resolveFirefoxCookieSource", () => {
+  let root;
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "ff-root-"));
+    delete process.env.YTDLP_FIREFOX_PROFILE;
+  });
+  afterEach(() => {
+    delete process.env.YTDLP_FIREFOX_PROFILE;
+    rmSync(root, { recursive: true, force: true });
   });
 
-  it("falls back to firefox on non-URL input", () => {
-    expect(ytdlpCookieBrowser("")).toBe("firefox");
-    expect(ytdlpCookieBrowser(null)).toBe("firefox");
+  /** Materialize a profile dir; `size` 0 mimics the truncated/empty store. */
+  function makeProfile(dirName, size) {
+    mkdirSync(join(root, "Profiles", dirName), { recursive: true });
+    writeFileSync(join(root, "Profiles", dirName, "cookies.sqlite"), Buffer.alloc(size));
+  }
+
+  it("skips a zero-byte cookies.sqlite and picks the usable profile", () => {
+    writeFileSync(
+      join(root, "profiles.ini"),
+      [
+        "[Profile1]",
+        "Path=Profiles/empty.default",
+        "Default=1",
+        "[InstallAAA]",
+        "Default=Profiles/empty.default",
+        "[Profile0]",
+        "Path=Profiles/real.default-release",
+      ].join("\n"),
+    );
+    makeProfile("empty.default", 0);
+    makeProfile("real.default-release", 4096);
+
+    expect(resolveFirefoxCookieSource({ root })).toBe(
+      `firefox:${join(root, "Profiles", "real.default-release")}`,
+    );
+  });
+
+  it("falls back to bare firefox when no profile has a usable store", () => {
+    writeFileSync(join(root, "profiles.ini"), "[Profile0]\nPath=Profiles/empty.default\n");
+    makeProfile("empty.default", 0);
+    expect(resolveFirefoxCookieSource({ root })).toBe("firefox");
+  });
+
+  it("falls back to bare firefox when profiles.ini is missing", () => {
+    expect(resolveFirefoxCookieSource({ root })).toBe("firefox");
+  });
+
+  it("honours the YTDLP_FIREFOX_PROFILE escape hatch over discovery", () => {
+    process.env.YTDLP_FIREFOX_PROFILE = "my-pinned-profile";
+    expect(resolveFirefoxCookieSource({ root })).toBe("firefox:my-pinned-profile");
+  });
+
+  it("returns an absolute path so the shell-quoted argument survives the space in 'Application Support'", () => {
+    writeFileSync(
+      join(root, "profiles.ini"),
+      "[InstallAAA]\nDefault=Profiles/real.default-release\n",
+    );
+    makeProfile("real.default-release", 4096);
+    const resolved = resolveFirefoxCookieSource({ root });
+    const profilePath = resolved.slice("firefox:".length);
+    expect(isAbsolute(profilePath)).toBe(true);
   });
 });
 
@@ -257,20 +397,22 @@ describe("yt-dlp wiring", () => {
     expect(readFileSync(process.env.YTDLP_412_STATE_PATH, "utf8")).toContain("bilibili.com");
   });
 
-  it("#313: downloadYtdlp routes youtube downloads through the chrome cookie store", () => {
+  it("#328: downloadYtdlp routes youtube through firefox, never the chrome store", () => {
     execSyncMock.mockImplementation(() => {
       throw new Error("failed");
     });
     downloadYtdlp("https://www.youtube.com/watch?v=abc", join(tmp, "yt.mp4"));
-    expect(execSyncMock.mock.calls[0][0]).toContain("--cookies-from-browser chrome");
+    const cmd = execSyncMock.mock.calls[0][0];
+    expect(cmd).toContain('--cookies-from-browser "firefox');
+    expect(cmd).not.toContain("chrome");
   });
 
-  it("#313: downloadYtdlp keeps firefox for bilibili downloads", () => {
+  it("downloadYtdlp keeps firefox for bilibili downloads", () => {
     execSyncMock.mockImplementation(() => {
       throw new Error("failed");
     });
     downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "bili.mp4"));
-    expect(execSyncMock.mock.calls[0][0]).toContain("--cookies-from-browser firefox");
+    expect(execSyncMock.mock.calls[0][0]).toContain('--cookies-from-browser "firefox');
   });
 
   it("downloadYtdlpAdapter (weibo route) also gates and records", () => {

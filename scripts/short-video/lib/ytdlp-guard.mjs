@@ -33,8 +33,9 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { basename, join, dirname } from "path";
+import { basename, dirname, isAbsolute, join } from "path";
 import { fileURLToPath } from "url";
+import { homedir } from "node:os";
 import { execSync } from "node:child_process";
 import { matchDomain } from "./rate-limiter.mjs";
 
@@ -42,41 +43,124 @@ import { matchDomain } from "./rate-limiter.mjs";
 export const YTDLP_BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
-/** YouTube hosts for the cookie-source policy (#313) — keep in sync with
- * YOUTUBE_HOSTS in video-downloaders.mjs (importing it from there would
- * create a cycle: video-downloaders imports this module). */
-const YOUTUBE_COOKIE_HOSTS = ["youtube.com", "youtu.be", "m.youtube.com"];
+/** Firefox application root — profile discovery starts here. */
+const FIREFOX_ROOT = join(homedir(), "Library", "Application Support", "Firefox");
 
 /**
- * Per-platform cookie source for yt-dlp downloads (#313).
+ * Parse a Firefox `profiles.ini` into `[{name, kv}]` sections.
  *
- * youtube → "chrome": the machine's YouTube login state lives in Chrome's
- * cookie store (SID/SAPISID/HSID/SSID/APISID on .google.com plus
- * __Secure-3PSID on .youtube.com — read-only probe 2026-09-20); firefox has
- * none, and probe 4 (#309 §F.4) hit YouTube's "Sign in to confirm you're not
- * a bot" wall on every download. The chrome channel is proven on this host
- * (weibo retest 2026-09-17 with silent Keychain authorization; youtube live
- * download 2026-09-20 — no bot-check, valid mp4).
+ * `profiles.ini` is a plain INI file: `[Section]` headers followed by
+ * `Key=Value` lines. Blank lines and `;`/`#` comments are skipped.
  *
- * Everything else keeps "firefox": the pipeline default has no Keychain
- * dependency and minimal credential exposure (bilibili firefox is enough,
- * #309 §F.4; weibo routes its own cookie file via WEIBO_COOKIE). Search
- * pseudo-URLs (ytsearch10:…) also stay firefox — search metadata has not
- * been bot-checked (#309 probe 4) and the working path gains no Keychain
- * dependency.
- *
- * @param {string} url - download target URL (or search pseudo-URL)
- * @returns {"chrome"|"firefox"} browser whose cookie store yt-dlp reads
+ * @param {string} text - profiles.ini contents
+ * @returns {Array<{name: string, kv: Record<string, string>}>}
  */
-export function ytdlpCookieBrowser(url) {
+export function parseFirefoxProfilesIni(text) {
+  const sections = [];
+  let current = null;
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith(";") || line.startsWith("#")) continue;
+    const header = /^\[(.+)\]$/.exec(line);
+    if (header) {
+      current = { name: header[1].trim(), kv: {} };
+      sections.push(current);
+      continue;
+    }
+    const kv = /^([^=]+)=(.*)$/.exec(line);
+    if (kv && current) current.kv[kv[1].trim()] = kv[2].trim();
+  }
+  return sections;
+}
+
+/**
+ * Candidate profile paths from parsed profiles.ini, most-likely-first.
+ *
+ * Ordering matters because the two section families can disagree, and on this
+ * host they do: `[Install*] Default=` names the profile the installed Firefox
+ * actually runs, while `[Profile*] Default=1` points at an EMPTY profile whose
+ * `cookies.sqlite` has no `moz_cookies` table. Reading the empty one makes
+ * every firefox cookie extraction die with "no such table: moz_cookies"
+ * (2026-10-14), so the install-level default is consulted first.
+ *
+ * @param {Array<{name: string, kv: Record<string, string>}>} sections
+ * @returns {string[]} Paths as written in the ini (relative or absolute)
+ */
+export function firefoxProfileCandidates(sections) {
+  const out = [];
+  const push = (p) => {
+    if (p && !out.includes(p)) out.push(p);
+  };
+  for (const s of sections) if (/^Install/i.test(s.name)) push(s.kv.Default);
+  for (const s of sections) if (/^Profile/i.test(s.name) && s.kv.Default === "1") push(s.kv.Path);
+  for (const s of sections) if (/^Profile/i.test(s.name)) push(s.kv.Path);
+  return out;
+}
+
+/**
+ * Resolve the `--cookies-from-browser` argument for yt-dlp.
+ *
+ * Returns `firefox:<absolute profile path>` — the profile is pinned because
+ * yt-dlp's own default selection reads `profiles.ini`'s `Default=1` entry,
+ * which on this host is the empty profile (see firefoxProfileCandidates). A
+ * profile is only accepted when its `cookies.sqlite` exists and is non-empty;
+ * with no usable candidate the bare `"firefox"` is returned so yt-dlp still
+ * gets its own attempt instead of the pipeline hard-failing.
+ *
+ * Firefox cookies are plaintext SQLite, so this channel never touches the
+ * macOS Keychain — that is the whole point of routing YouTube here
+ * (2026-10-14 user decision: the Chrome Safe Storage ACL cannot be persisted
+ * for an unsigned/adhoc binary chain, so every chrome read raised a blocking
+ * SecurityAgent prompt that timed out at 120s unattended; #328).
+ *
+ * Env: `YTDLP_FIREFOX_PROFILE` — pin a profile explicitly (name or path),
+ * bypassing discovery. Use it when a machine keeps its YouTube login in a
+ * profile the ini does not name.
+ *
+ * @param {{root?: string}} [opts] `root` overrides the Firefox app root (tests)
+ * @returns {string} e.g. `firefox:/Users/me/Library/.../Profiles/abc.default-release`
+ */
+export function resolveFirefoxCookieSource({ root = FIREFOX_ROOT } = {}) {
+  const override = process.env.YTDLP_FIREFOX_PROFILE;
+  if (override) return `firefox:${override}`;
+
+  const iniPath = join(root, "profiles.ini");
+  if (!existsSync(iniPath)) return "firefox";
+
+  let sections;
   try {
-    const host = new URL(url).hostname.toLowerCase();
-    return YOUTUBE_COOKIE_HOSTS.some((h) => host === h || host.endsWith("." + h))
-      ? "chrome"
-      : "firefox";
+    sections = parseFirefoxProfilesIni(readFileSync(iniPath, "utf8"));
   } catch {
     return "firefox";
   }
+
+  for (const candidate of firefoxProfileCandidates(sections)) {
+    const dir = isAbsolute(candidate) ? candidate : join(root, candidate);
+    try {
+      const db = join(dir, "cookies.sqlite");
+      if (existsSync(db) && statSync(db).size > 0) return `firefox:${dir}`;
+    } catch {
+      // unreadable candidate → try the next one
+    }
+  }
+  return "firefox";
+}
+
+/** Memoized resolveFirefoxCookieSource — profile discovery is a per-process fact. */
+let cachedCookieSource;
+/**
+ * The `--cookies-from-browser` argument every yt-dlp call site should use.
+ *
+ * Always Firefox: it is the only channel that both holds the YouTube login
+ * (user logged in with a burner account, 2026-10-14) and avoids the Keychain.
+ * Callers interpolate this into a SHELL command, so it must be quoted — the
+ * path contains a space (`Application Support`).
+ *
+ * @returns {string} cookie source spec, e.g. `firefox:/Users/.../Profiles/x.y`
+ */
+export function ytdlpCookieSource() {
+  if (cachedCookieSource === undefined) cachedCookieSource = resolveFirefoxCookieSource();
+  return cachedCookieSource;
 }
 
 const STATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "output");

@@ -81,7 +81,7 @@ import { downloadCandidate } from "./download-candidate.mjs";
 import { RateLimitedSkipError } from "./cdp-client.mjs";
 import {
   YTDLP_BROWSER_UA,
-  ytdlpCookieBrowser,
+  ytdlpCookieSource,
   ytdlpDomain,
   ytdlpGate,
   ytdlpRecord412,
@@ -1742,7 +1742,7 @@ export function searchYtdlp(keyword, platform) {
   try {
     const proxyArg = ytdlpProxyArg();
     const output = execSync(
-      `yt-dlp --cookies-from-browser firefox --user-agent "${YTDLP_BROWSER_UA}" ${modeArgs}${proxyArg ? " " + proxyArg : ""} --print "%(id)s\t%(title)s\t%(duration)s" "${searchUrl}"`,
+      `yt-dlp --cookies-from-browser "${ytdlpCookieSource()}" --user-agent "${YTDLP_BROWSER_UA}" ${modeArgs}${proxyArg ? " " + proxyArg : ""} --print "%(id)s\t%(title)s\t%(duration)s" "${searchUrl}"`,
       { encoding: "utf8", timeout: 120000 },
     );
 
@@ -1788,7 +1788,7 @@ export function downloadYtdlp(url, destPath) {
     "yt-dlp",
     // #313: youtube reads the Chrome cookie store (the YouTube login state);
     // every other platform keeps the firefox default.
-    `--cookies-from-browser ${ytdlpCookieBrowser(url)}`,
+    `--cookies-from-browser "${ytdlpCookieSource()}"`,
     `--user-agent "${YTDLP_BROWSER_UA}"`,
     '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
     "--max-filesize 20M",

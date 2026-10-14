@@ -155,6 +155,8 @@ node scripts/short-video/main.mjs --content series/pt4 &
 | 13  | TTS Quality Gate 版本号/小数 Token 错配导致相似度假阳性扣分 | `quality-gate.mjs` 实现 `buildExpandedAsrTokenSet` 及 `point` 音素桥接映射，实现 100% 语义匹配 (#234)                                                           |
 | 14  | MRL-3 帧审计 final frame 提取越界误报 FAIL                  | `verify-remotion-frames.mjs` ffprobe 实测帧数 clamp lastFrame（scheduleTotalFrames 按预算算，TTS 音频短于预算时渲染帧数更少；4d6ebd4）                          |
 | 15  | Agent 嫌 f5-mlx 慢自行降级 edge-tts（声音机械）             | `lib/tts/registry.mjs` PRIORITY 截断至 f5-mlx + 注释：自动 fallback 到 f5 为止，qwen/edge/say 仅 TTS_ENGINE 人工指定（2a36a48）                                 |
+| 16  | yt-dlp 读 YouTube cookie 触发 Keychain 弹窗，无人值守时挂到 120s timeout | 全部调用点走 `lib/ytdlp-guard.mjs` 的 `ytdlpCookieSource()`：**firefox 明文 cookie 库，不经过 Keychain，无弹窗**。逃生舱 `YTDLP_FIREFOX_PROFILE`（#328）          |
+| 17  | yt-dlp 自选 firefox profile 选到空库 → search 静默 0 结果   | 同一 resolver **固定 profile 绝对路径**，按「Install 级 Default → Profile 级 Default → 其余」排序候选并跳过空 `cookies.sqlite`（#328）                          |
 
 ## Content Standards
 
