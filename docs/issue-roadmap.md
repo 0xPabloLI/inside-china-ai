@@ -58,7 +58,7 @@
 | --- | --- | --- | --- | --- |
 | **W1A** | 既有门控与产物可靠性续补 | `lib/tts/` `main.mjs` `render-only.mjs` `HookScene.tsx` | #581 | #271/#272已交付；✅ **#394** 已交付闭票（2026-10-12，PR #582：offline 显式覆盖 seam + 缺缓存诊断 + Step 0.4 ASS 门禁），**W1A 原列已清空，余 #581**（承接其移出的 Kaggle 下载兜底，P2，先与 #423 候选边界对齐）；✅ **#576** 已交付闭票（2026-10-12，PR #578：claim reveal `lineHeight` 1.05→1.1，逐边几何探针把 preferred 盒的 0px poke 与 floor 的 1px 吸附钉成数字，gate 未动）；✅ **#422** 已交付闭票（2026-10-12，PR #573：logo row 预留宽度，real render 四盒取证）；#420 已交付闭票（2026-10-09，产物身份/新鲜度）；#423 已交付闭票（2026-10-11，PR #551：候选/approved 信任边界）；#548 已交付闭票（2026-10-11，PR #554：digit+unit 合并形别名，TTS seam 解锁）；#421 已交付闭票（2026-10-11，PR #561：`finalizeTtsResults()` 全命中补齐对齐 + 五入口渲染边界 fail-closed + `scene-audio` sidecar 解析） |
 | **W1B** | 参数标准化与听感 | `lib/tts/` `docs/content-pipeline.md` | #279 #278（HITL）｜D：#228 | #270 已交付（instruct 单一来源） |
-| **W1C** | 工程卫生、安全与状态治理 | `src/` `scripts/` `docs/` `eslint.config.js` `.github/workflows/` | #327 #404 #462 #466 #566 | ✅ #319 已交付闭票（2026-10-13，PR #630：六份报告 M/L 批次 127 条裁决 14 修 1 部分 39 won't-fix 73 证伪；Tier 1 + 正文 + C/H 批次同票全清）；✅ #325 已交付闭票（2026-10-14，PR #645：lib 124 条 knip finding 全裁决，ignore 摘除；机制：knip hints 随 workspace node_modules 环境翻转）；✅ #447 已交付闭票（2026-10-12，PR #614：`.mjs` 六条正确性规则 + 全量 correctness-only gate + `ci.yml` 增量 lint 的 BASE 空转修复）；✅ #424 已交付闭票（2026-10-12，PR #586）；#404迁移与#462身份契约待收口，#466跨仓访问HITL；#566 原与 #319 同触 digital-human.mjs，现可独立领取；具体并行看冲突矩阵 |
+| **W1C** | 工程卫生、安全与状态治理 | `src/` `scripts/` `docs/` `eslint.config.js` `.github/workflows/` | #327 #404 #462 #466 #566 #649 | ✅ #319 已交付闭票（2026-10-13，PR #630：六份报告 M/L 批次 127 条裁决 14 修 1 部分 39 won't-fix 73 证伪；Tier 1 + 正文 + C/H 批次同票全清）；✅ #325 已交付闭票（2026-10-14，PR #645：lib 124 条 knip finding 全裁决，ignore 摘除；机制：knip hints 随 workspace node_modules 环境翻转）；✅ #447 已交付闭票（2026-10-12，PR #614：`.mjs` 六条正确性规则 + 全量 correctness-only gate + `ci.yml` 增量 lint 的 BASE 空转修复）；✅ #424 已交付闭票（2026-10-12，PR #586）；#404迁移与#462身份契约待收口，#466跨仓访问HITL；#566 原与 #319 同触 digital-human.mjs，现可独立领取；#649 媒体补丁格式化漂移（#325 遗留）待定契约后合并；具体并行看冲突矩阵 |
 | **W1D** | 内容包一致性与发布契约 | `scripts/article/` `lib/platforms/` `docs/content-pipeline.md` `src/components/widgets/` | #429 #430 #431 #434 | ✅ #426 已交付闭票（2026-10-12，PR #589：按 slug 幂等重试/确认写入）；保留#95双轨，#429/#430/#431先裁决；#434只余远端人工核查 |
 | **W2A** | 搜源可用性摸底与环境底座 | `skills/search-pool/` `main.mjs` `lib/load-env.mjs` | — | ✅ 完成（#287/#281 闭票），解锁 W2B |
 | **W2B** | 搜源架构重审与修复闭环 | `search-sources.mjs` `lib/source-*.mjs` `lib/search-pool.mjs` `skills/shared/` | #344 #347 #353 #358 #390 #405 #416 #457 #467 #468 #469 #320（HITL）#328 #329｜D：#286 #318 #322 #326 #348 #352 | ✅ #424 已交付闭票（2026-10-12，PR #586），✅ #447 已交付闭票（2026-10-12，PR #614：全量 `.mjs` 正确性 gate 已接管防回归，不再需要在 search-sources.mjs 落 lint fixture）；#416先分辨上游缺日期；#457先定指标/预算后试点，#467不等族表重测；#390/#405/#468需范围/契约收口，#469治理HITL；#344仍为收敛主导；#346 已交付闭票（2026-10-07）；#231 已交付闭票（2026-10-09，TTS 环境固化） |
@@ -212,6 +212,7 @@
 | #304 | T2I 生成工具横评（mflux 协议适配度） | P3·W3A | 只读调研 |
 | #356 | 无主供给退役/认领化（兜底池死供给） | P3·W3B | 依赖 #354 |
 | #566 | 统一场景音频解析：digital-human 与 scene-audio 双实现漂移 | P3·W1C | 双实现扩展名优先级相反 + sidecar 约束缺失；#319 已闭票（其批次未触 digital-human.mjs），本票现可独立领取 |
+| #649 | apply-media-patch ↔ review-media-patch 媒体补丁格式化双实现漂移统一 | P3·W1C | 双实现 `formatFocusSummary`/`formatPatchEntry`/`formatMediaPatch` 签名已漂移，合并前先定契约（#325 遗留） |
 
 ### Dormant — 触发条件未满足（暂缓占用排期）
 

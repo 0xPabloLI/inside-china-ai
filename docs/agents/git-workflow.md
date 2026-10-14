@@ -42,7 +42,7 @@
 - 禁止 `git push --force`。
 - 只有非 Lovable 连接分支且用户明确要求改写历史时，才考虑 `--force-with-lease`。
 - 顶部 Lovable 规则优先：已 push 到连接分支的 commit 不 amend、rebase、squash 或 force-push。
-- push 是外部动作，只有用户已授权当前 push 才执行。
+- **push 授权按交付链判定**（用户裁决，2026-10-14）：用户要求按本工作流交付（实现并交付一张票或一个任务）即授权交付链上的远端写入——推送自己的 `session/<id>` 分支、开 PR、按 §7 合并、按 §10 收尾，不逐次请示；交付链之外的 push（直接推 main、force-push、推送非本 session 分支）仍需针对该动作的明确授权。
 
 ## 6. Review-Compatible Baseline
 
@@ -90,7 +90,7 @@
 
 1. 检测到对方操作进行中（reflog 持续推进、存在 rebase 目录）时等待其停滞，期间不写任何 ref。
 2. 竞态应急（你的提交被并行挤出、或必须在不动共享工作区与 index 的前提下提交）按 `docs/agents/git-concurrent-recovery.md` 的配方执行；该路径绕过 commit hooks 与 §4 校验，完成后须按配方对齐 index。可预判的并行任务直接按第 3 条用 worktree，不走应急路径。
-3. **写入者独占**是并行工作的默认规则：写入型并行 session 用 `npm run session:start <task>` 开工——一条命令建独立 worktree（含 worktree 专属的绝对 hooksPath，hooks 在其中正常生效）、生成并登记 Session-Id、写 per-session 状态文件。此后该 worktree 内 `git commit -m` 自动带 trailer（prepare-commit-msg 填写），ref-gate 对"丢弃外会话 commit"的非快进 ref 操作进入拦截模式——**拦截判据已扩到「存在第二个 worktree」**（并行写入者的证据，本 checkout 无需 state file；2026-09-14 事故的防线）。分支删除（`git branch -d/-D`）始终只警告；实测该操作只以 `aborted` 阶段到达 hook，故删除**不在门控覆盖内**——手工 `-D` 未验证分支仍会静默毁掉工作；`session:stop`/`session:gc` 的 `-D` 只在 `ref_delivered`（ancestry 在 origin/main 上、逐文件字节一致，或 tip 绑定的 merged PR——见 §10）通过后执行。共享工作目录即共享 staging 区，是并行冲突的根因。把 `pull --rebase`、`push`、`switch` 留在你自己的 worktree 内——在共享目录执行它们会搬走他人未推送的提交，或把工作区切到他人分支（2026-09-14 事故）。launcher 不可用时退回手动 `git worktree add` + §8 手动 trailer；收尾 `npm run session:stop <worktree-path>`；PR 合并后再跑 `npm run session:gc` 同步主 checkout 并清理已交付分支（§10）。纯只读探索可共享目录；互不重叠文件的轻量任务（1–2 个文件）可留在主目录，仍走 §1 选择性 staging。
+3. **写入者独占**是并行工作的默认规则：写入型并行 session 用 `npm run session:start <task>` 开工——一条命令建独立 worktree（含 worktree 专属的绝对 hooksPath，hooks 在其中正常生效）、生成并登记 Session-Id、写 per-session 状态文件。此后该 worktree 内 `git commit -m` 自动带 trailer（prepare-commit-msg 填写），ref-gate 对"丢弃外会话 commit"的非快进 ref 操作进入拦截模式——**拦截判据已扩到「存在第二个 worktree」**（并行写入者的证据，本 checkout 无需 state file；2026-09-14 事故的防线）。分支删除（`git branch -d/-D`）始终只警告；实测该操作只以 `aborted` 阶段到达 hook，故删除**不在门控覆盖内**——手工 `-D` 未验证分支仍会静默毁掉工作；`session:stop`/`session:gc` 的 `-D` 只在 `ref_delivered`（ancestry 在 origin/main 上、逐文件字节一致，或 tip 绑定的 merged PR——见 §10）通过后执行。共享工作目录即共享 staging 区，是并行冲突的根因。把 `pull --rebase`、`push`、`switch` 留在你自己的 worktree 内——在共享目录执行它们会搬走他人未推送的提交，或把工作区切到他人分支（2026-09-14 事故）。launcher 不可用时退回手动 `git worktree add` + §8 手动 trailer；收尾 `npm run session:stop <worktree-path>`——判定已交付时删除 session 分支、移除 worktree 并自动跑 gc，不需要第二条命令（§10）。纯只读探索可共享目录；互不重叠文件的轻量任务（1–2 个文件）可留在主目录，仍走 §1 选择性 staging。
 4. 目标文件已有非本 session 的未提交改动时，本 session 停止并报告，由用户决定落库顺序。应急配方的临时 index 只覆盖互不重叠的文件——同文件交叠时 `git add` 会把混合内容装进树。
 5. **写 ref 前紧邻复核身份**（2026-09-14 事故的直接防线）：
    - `commit` / `amend` / `reset` / `rebase` 前，在同一批命令里先取 `git rev-parse HEAD` 与 `git diff --cached --name-only`，与预期不符即停止并报告；`git rev-parse --abbrev-ref HEAD` 必须是你自己的 `session/<id>`。
@@ -98,9 +98,9 @@
    - 共享目录被他人切走分支时，切回由该目录当前所有者执行；你在自己的 worktree 继续。
    - commit 后立即 `git show --stat HEAD`（§4.6）核对文件清单只含本任务文件。
 
-## 10. 交付后收尾（session:gc）
+## 10. 交付后收尾（session:stop → session:gc）
 
-**常设授权**（用户裁决，2026-10-12：交付后主动同步主 checkout 并清理多余分支，不必逐次确认）：PR 合并后不再逐次询问——主动执行 `npm run session:gc` 完成主 checkout 同步与分支清理。该命令是收尾的唯一入口（不手工 `git branch -D`、不手工切 checkout），因为它把纪律编码成 fail-closed 门禁。触发点有两处：agent 交付流程的收尾步骤（`implementation-workflow.md` §9 步骤 6，其后只剩 tracker 更新与汇报），以及 `session:stop`——当 stop 删除该 session 分支（判定已交付）、或发现该分支已被并行 gc 扫掉（无本地分支可保留）时，会自动接着跑一次 gc（扫远端孪生 + 同步主 checkout），因此「合并 → stop」序列不需要第二条命令；真·未交付（保留分支）时不自动跑。stop 在删除 worktree 后先切到主 worktree 再执行后续 git 操作，因此**从被移除的 worktree 内调用也成立**（cwd 失效不会被误读成「查无 merged PR」）；若 stop 是通过该 worktree **自带的 launcher 副本**调用的（脚本路径随 worktree 一起消失），收尾改用主 checkout 的副本执行——不静默跳过（该副本是主 checkout 当前工作树的代码，可能落后于 origin/main——它正是 gc 要同步的对象）。收尾真的跑过时，末尾的手工提示不再打印（输出不与已发生的事实矛盾）；未交付或无法执行时才提示 `npm run session:gc`。远端合并没有本地事件源，故不设守护进程或轮询。
+**常设授权**（用户裁决，2026-10-12：交付后主动同步主 checkout 并清理多余分支，不必逐次确认）：PR 合并后不再逐次询问——主动运行 `npm run session:stop <worktree-path>` 完成收尾（交付流程里的同一步是 `implementation-workflow.md` §9 步骤 6，其后只剩 tracker 更新与汇报）。stop 与 gc 是收尾的唯一入口（不手工 `git branch -D`、不手工切 checkout），因为它们把纪律编码成 fail-closed 门禁。stop 判定该 session 分支已交付（判据见下）时删除它、移除 worktree，并自动接着跑一次 gc（扫远端孪生 + 同步主 checkout），因此「合并 → stop」是完整收尾，不需要第二条命令；真·未交付（保留分支）时不自动跑。分支已被并行 gc 扫掉（无本地分支可保留）时报告 `already gone`，并同样自动跑 gc。stop 在删除 worktree 后先切到主 worktree 再执行后续 git 操作，因此**从被移除的 worktree 内调用也成立**（cwd 失效不会被误读成「查无 merged PR」）；若 stop 是通过该 worktree **自带的 launcher 副本**调用的（脚本路径随 worktree 一起消失），收尾改用主 checkout 的副本执行——不静默跳过（该副本是主 checkout 当前工作树的代码，可能落后于 origin/main——它正是 gc 要同步的对象）。收尾真的跑过时，末尾的手工提示不再打印（输出不与已发生的事实矛盾）；未交付或无法执行时才提示 `npm run session:gc`。远端合并没有本地事件源，故不设守护进程或轮询。
 
 1. **fetch --prune**：刷新 origin 的整个远端跟踪命名空间（不只 main——已删除远端分支的陈旧 tracking ref 否则会一直滞留）；离线时按现有 ref 继续并明示（非致命）。另清理手工删目录留下的失效 worktree 记录（`worktree prune`），否则其分支会永远显示「已被检出」。
 2. **同步主 checkout**：仅当它是**主 worktree（以 git-common-dir 身份判定，不靠列表顺序）、在 main 上、无 tracked 改动、且严格落后**时做 `merge --ff-only`。永不 rebase、永不 switch、永不触碰 dirty checkout；分叉（本地有未推送提交）一律报告后放过。

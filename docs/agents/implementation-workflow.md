@@ -157,7 +157,7 @@ R3 实现前必须记录实际失败基线，例如失败的自动化测试、�
 
 | 改动                                 | 必需验证                                                                                                              |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| 仅 Agent 文档                        | `npm run lint:docs`、指针检查、`git diff --check`                                                                     |
+| 仅 Agent 文档                        | `npm run lint:docs`、`git diff --check`                                                                               |
 | `src/`、Supabase、应用配置           | affected tests、`npm test`、`npm run lint`、`npm run build`、`npx tsc --noEmit`                                       |
 | Python 代码或 Python/Node 跨进程边界 | affected Python tests（优先项目既有 `pytest`/runner）+ 对应 Node consumer tests；涉及真实模型、媒体或格式时再加 smoke |
 | UI 交互、布局或样式                  | 上述相关检查 + dev server 浏览器核心路径；对齐测量同时记录 `width`、`left`、`right`                                   |
@@ -185,9 +185,9 @@ Review 报告不能只生成后忽略。
 2. 运行最终 Verification Gate。
 3. 更新相关执行文档；S2/S3 完成后归档已结束工作的 spec、tickets 和 review，并更新 `docs/DOCS-INDEX.md` 与 `docs/archive/README.md`。
 4. 为归档和文档同步创建 final documentation commit。
-5. 只有用户已授权这次 push 时才 push。
-6. PR 合并后运行 `npm run session:gc` 收尾（同步主 checkout + 清理已交付分支；git-workflow §10 常设授权）。
-7. 只有存在对应 GitHub Issue 且用户已授权 tracker 写入时才更新或关闭 issue。
+5. push 自己的 `session/<id>` 分支并开 PR——交付请求即授权该交付链（`git-workflow.md` §5）；交付链之外的 push 仍需明确授权。
+6. PR 合并后运行 `npm run session:stop <worktree-path>` 收尾：stop 判定该 session 分支已交付（判据见 `git-workflow.md` §10）时删除分支、移除 worktree，并自动接着跑一次 gc（同步主 checkout + 清扫已交付分支）——「合并 → stop」即完整收尾，不需要第二条命令；分支已被并行 gc 扫掉时报告 `already gone`，收尾照常。
+7. 存在对应 GitHub Issue 时更新或关闭它——交付请求即授权该票的收尾写入（交付记录评论、闭票、为范围外发现开跟进票，见 `issue-tracker.md`）；他人票的状态变更与 Wayfinder decision issue 仍需授权。
 8. 最终汇报先以**产品视角**讲清这个 issue/feature 原本要什么、用户现在看到什么，再列 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。
 
 ## 10. Gate 语义
