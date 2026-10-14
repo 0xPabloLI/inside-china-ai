@@ -18,14 +18,14 @@
 These live in `skills/` at the repo root. Symlinks in `.cursor/skills/` and
 `.agents/skills/` point back to the repo source.
 
-| Skill                  | Purpose                                                                                                   | Used by                                         |
-| ---------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `web-deep-research`    | 8-phase deep research pipeline + web-access fetching + code verification                                  | `docs/tools-catalog.md` research routing        |
-| `web-access`           | Chrome CDP proxy for web content retrieval (search, page loading, anti-bot)                               | web-deep-research Phase 3 dependency            |
-| `brand-system`         | Brand consistency enforcement for generated visual content                                                | `short-video-pipeline` skill                    |
-| `short-video-pipeline` | Video production pipeline orchestration                                                                   | AGENTS.md "Content and Video"                   |
-| `search-pool`          | Search Pool CLI + curl SearXNG usage (#265); search ladder single-sourced in web-access tool table (#284) | Agent search tools; `docs/tools-catalog.md`     |
-| `open-code-review`     | OCR CLI 代码审查：B 模式（Delegation）日常 PR + A 模式（本地 Ollama）核心 PR                              | 代码审查请求；补充 code-review skill 的行级定位 |
+| Skill                  | Purpose                                                                                                   | Used by                                                                                                                |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `web-deep-research`    | 8-phase deep research pipeline + web-access fetching + code verification                                  | `docs/tools-catalog.md` research routing                                                                               |
+| `web-access`           | Chrome CDP proxy for web content retrieval (search, page loading, anti-bot)                               | web-deep-research Phase 3 dependency                                                                                   |
+| `brand-system`         | Brand consistency enforcement for generated visual content                                                | `short-video-pipeline` skill                                                                                           |
+| `short-video-pipeline` | Video production pipeline orchestration                                                                   | AGENTS.md "Content and Video"                                                                                          |
+| `search-pool`          | Search Pool CLI + curl SearXNG usage (#265); search ladder single-sourced in web-access tool table (#284) | Agent search tools; `docs/tools-catalog.md`                                                                            |
+| `open-code-review`     | OCR CLI 代码审查：B 模式（Delegation）日常 PR + A 模式（本地 Ollama）核心 PR                              | 代码审查请求；实施审查循环里改动落在安全边界（认证 / 管理员 gating / RLS / 发布路径 / shell 或命令构造）时（#406：Agent 主动步骤，不在 push 路径上） |
 
 ## Matt Pocock Skills
 

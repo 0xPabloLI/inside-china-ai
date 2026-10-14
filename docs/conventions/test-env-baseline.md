@@ -27,6 +27,10 @@
 
 - `visual-analyzer-pool`（`scripts/short-video/lib/__tests__/visual-analyzer-pool.test.mjs`）— 池计时断言的墙钟上界在并行负载下 flake：2026-10-06 实测 1131/1295/1464/1134ms 四次超当时的 1100ms 上界（「caps in-flight at pool size」已按 `42b12c80` 改为事件顺序断言；「runs 2 requests concurrently」保留宽松的 `total < 2000ms` 上界）；2026-10-12（Round XXX）全量跑唯一失败即此项；2026-10-14（#555 session）并行负载下实测 8452ms 超 2000ms 上界，隔离重跑绿。隔离重跑绿 → 按环境失败记录；本条落档 #466 标题点名的「计时 flake 无基线登记」缺口，计时基线与修复仍归 #466。
 
+### `scripts/__tests__`（session 工具链）
+
+- `session-launcher` 的 gc 竞态用例（`gc: a branch deleted mid-loop is reported gone, not kept` 及其 `--dry-run` 变体、`keeps the remote twin when a commit lands between verification and delete`）在全量跑的负载下会撞 5s 默认 `testTimeout`——每条 gc 用例要 spawn 真 git/bash 约 2-3s，旁边还有 Chromium/ffmpeg 重负载。**判据**：失败报告指向 `it(` 行（如 `session-launcher.test.mjs:353:3`、`:747:3`）且是 `Error: Test timed out in 5000ms`；指向某条 `expect` 行并带 `AssertionError` 才是逻辑失败（`--testTimeout=1000` 可复现超时的报告形态）。隔离重跑 55/55 绿、与 Chromium 套件并发跑也绿、随后全量 260 文件 4925 通过 0 失败。2026-10-14（#406 session 实证）。
+
 ### `scripts/short-video/__tests__` Python suite
 
 - **mlx_vlm 路径的取模约定（2026-10-14，#555 leftover 收口）**：`test_frame_strategy.py` 有 2 条用例走 `mlx_vlm.generate.video` 的 `resolve_video_inputs`。真包只装在 `~/.venvs/mlx-vlm`（Python 3.12），CI 的一次性 venv 没有它——这两条经 `_video_module()` 取模块：真包在场用真包，缺包注册同名 stub，两边跑同一批断言。CI 侧因此从 `245 passed / 2 skipped` 变为 **247 passed（0 skip）**；改动后本机两种解释器各跑一遍验证。

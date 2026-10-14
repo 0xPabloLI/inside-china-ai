@@ -168,7 +168,9 @@ scripts/kaggle/echomimicv3-test/v*-output/
 # Kaggle dataset creation outputs (model cache, logs)
 scripts/kaggle/infinitetalk-dataset/output_*/
 
-.githooks/
+# `.githooks/` 刻意不忽略：hook 必须随仓库分发，此前整目录忽略把 8 个 hook 里的 3 个
+# （post-checkout/post-commit/post-merge）静默挡在所有 clone 之外（#406）。
+# 回归门禁：`npm run lint:hooks`。
 
 # Session-Id 软试点本地登记表（不提交，见 docs/research/commit-session-association-id-proposal.md §7.6）
 .session-pilot/
