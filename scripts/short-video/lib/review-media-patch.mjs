@@ -1,5 +1,5 @@
 /**
- * Apply Media Patch — formats media-patch.json for human review.
+ * Review Media Patch — formats media-patch.json for human review.
  *
  * Reads media-patch.json and outputs:
  *   1. Human-readable review summary (focus analysis + VLM semantics comments)

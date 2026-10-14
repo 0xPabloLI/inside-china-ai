@@ -138,8 +138,8 @@ export function detectBlockPage({ status, html = "" } = {}) {
  * (2026-09-22). The result count the page states about itself beats any
  * inference from the surrounding chrome.
  *
- * Exported so the CDP snapshot script can evaluate the *same* list in-page —
- * one definition, two consumers.
+ * `buildSnapshotScript` injects this list into the page as JSON, so the CDP
+ * verdict evaluates the *same* definition rather than a copy.
  */
 const ZERO_RESULTS_PATTERNS = [
   "找到约\\s*0\\s*个结果",
