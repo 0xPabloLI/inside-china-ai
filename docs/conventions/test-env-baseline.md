@@ -27,7 +27,7 @@
 
 ### `scripts/short-video/__tests__` Python suite
 
-- **环境绑定 skip（2026-10-14，#555 session 实证）**：`test_frame_strategy.py` 有 2 条用例依赖 `mlx_vlm`，而该栈只装在 `~/.venvs/mlx-vlm`（Python 3.12）；CI 的一次性 venv 只装 pytest/Pillow/numpy，故这两条以 `pytest.importorskip` 显式 skip（skip 理由自带出处），CI 表现为 **245 passed / 2 skipped**，本机 VLM venv 在场时 247 passed。
+- **mlx_vlm 路径的取模约定（2026-10-14，#555 leftover 收口）**：`test_frame_strategy.py` 有 2 条用例走 `mlx_vlm.generate.video` 的 `resolve_video_inputs`。真包只装在 `~/.venvs/mlx-vlm`（Python 3.12），CI 的一次性 venv 没有它——这两条经 `_video_module()` 取模块：真包在场用真包，缺包注册同名 stub，两边跑同一批断言。CI 侧因此从 `245 passed / 2 skipped` 变为 **247 passed（0 skip）**；改动后本机两种解释器各跑一遍验证。
 - **ffmpeg 二进制差异（同上实证）**：`test_video_loader.py` 的 fixture 生成默认用仓库文档化的 `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg`；CI 的 Homebrew runner 没有它，该步以 `VIDEO_LOADER_FFMPEG=$(command -v ffmpeg)` 指向 brew 的 ffmpeg，22 条 fixture 用例照跑（缺二进制时是 22 条 ERROR，不是 skip）。同文件里 `to_minicpm_units` 的段长在 CI 上是 15959 而本机是 16000：AAC 流头部样本数随 ffmpeg build 变，跨机比较这两个数时不要当回归。
 - **依赖来源**：套件依赖写在 `scripts/short-video/__tests__/requirements.txt`（pytest/Pillow/numpy），CI 装进一次性 venv `.scratch/pytest-venv`。运行入口与守卫的唯一出处是 `package.json` 的 `test:python` 与套件内 `conftest.py`（含逐文件计数表、零收集硬门禁），此处不复述命令行。
 - 旧 vitest wrapper `test-f5-duration.test.mjs` 仍绑 `~/.video-tts-env`（见上表），与 pytest 侧跑同一个 `test_f5_duration.py`；wrapper 只认 stdout 的 `Results: N passed, 0 failed` 形状，改该文件报告格式须同步改 wrapper。
