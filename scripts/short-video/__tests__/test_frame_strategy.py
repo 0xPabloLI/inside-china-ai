@@ -27,6 +27,15 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
+# Two tests below exercise the mlx_vlm video path. mlx_vlm exists only in the
+# VLM venv, so CI (pytest/Pillow/numpy) reports an explicit, self-explaining
+# skip instead of a failure — see docs/conventions/test-env-baseline.md.
+MLX_VLM_SKIP_REASON = (
+    "mlx-vlm 0.7.2 exists only in the VLM venv (~/.venvs/mlx-vlm, Python "
+    "3.12); this interpreter has no mlx_vlm — see "
+    "docs/conventions/test-env-baseline.md"
+)
+
 from vlm_analyzer import (  # noqa: E402
     DEFAULT_MAX_FRAMES,
     DEFAULT_UNIFORM_FPS,
@@ -200,11 +209,7 @@ class TestExtractMinicpmFrames:
         # only in the VLM venv (~/.venvs/mlx-vlm), so this test reports an
         # explicit skip where it is absent instead of failing the suite (#555).
         video_mod = pytest.importorskip(
-            "mlx_vlm.generate.video",
-            reason="mlx-vlm 0.7.2 lives only in the VLM venv "
-                   "(~/.venvs/mlx-vlm, Python 3.12); the CI venv installs "
-                   "pytest/Pillow/numpy only — see "
-                   "docs/conventions/test-env-baseline.md",
+            "mlx_vlm.generate.video", reason=MLX_VLM_SKIP_REASON
         )
 
         received = {}
@@ -233,11 +238,7 @@ class TestExtractMinicpmFrames:
 
     def test_uniform_params_forwarded(self, monkeypatch):
         video_mod = pytest.importorskip(
-            "mlx_vlm.generate.video",
-            reason="mlx-vlm 0.7.2 lives only in the VLM venv "
-                   "(~/.venvs/mlx-vlm, Python 3.12); the CI venv installs "
-                   "pytest/Pillow/numpy only — see "
-                   "docs/conventions/test-env-baseline.md",
+            "mlx_vlm.generate.video", reason=MLX_VLM_SKIP_REASON
         )
 
         received = {}
