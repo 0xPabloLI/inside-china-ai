@@ -129,6 +129,28 @@ jobs:
           rm -rf "$TMP"
           echo "mp3 encode OK"
 
+      # Python suite (#555): the 15 test_*.py files under
+      # scripts/short-video/__tests__ never ran anywhere in CI — test_claim_prompt.py
+      # sat red on main until someone noticed by hand. Dependencies come from
+      # the suite's requirements.txt into a throwaway venv rather than the
+      # runner's Python, so this gate does not depend on preinstalled packages
+      # (and stays PEP 668 safe).
+      - name: Python test environment (pytest + Pillow)
+        run: |
+          python3 -m venv .scratch/pytest-venv
+          .scratch/pytest-venv/bin/python -m pip install --quiet --upgrade pip
+          .scratch/pytest-venv/bin/python -m pip install --quiet \
+            -r scripts/short-video/__tests__/requirements.txt
+
+      # Single runner for the whole Python suite (npm run test:python). The
+      # conftest zero-test guard fails the step if any test_*.py collects no
+      # tests, and the log prints the per-file count table, so a green step
+      # cannot mean "nothing ran".
+      - name: Python tests (pytest)
+        env:
+          PYTHON: .scratch/pytest-venv/bin/python
+        run: npm run test:python
+
       - name: Type check
         run: npx tsc --noEmit
 
