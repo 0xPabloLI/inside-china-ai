@@ -33,9 +33,7 @@ describe("python suite CI wiring (#555)", () => {
   it("the coverage script extends the single runner instead of restating it", () => {
     // Anchored: a script that ran itself (or any other colon-suffixed name)
     // would pass an unanchored substring check.
-    expect(PKG.scripts["test:python:coverage"]).toMatch(
-      /^npm run test:python(?![\w:-])/,
-    );
+    expect(PKG.scripts["test:python:coverage"]).toMatch(/^npm run test:python(?![\w:-])/);
     expect(PKG.scripts["test:python:coverage"]).toContain(".coveragerc");
   });
 
@@ -51,8 +49,7 @@ describe("python suite CI wiring (#555)", () => {
   // "scripts/short-video/lib" path in the omit list is not a scope.
   describe("the coverage gate", () => {
     const rc = readFileSync(join(ROOT, SUITE, ".coveragerc"), "utf8");
-    const section = (name) =>
-      rc.split(/^\[/m).find((s) => s.startsWith(`${name}]`)) ?? "";
+    const section = (name) => rc.split(/^\[/m).find((s) => s.startsWith(`${name}]`)) ?? "";
 
     it("keeps a live floor in [report]", () => {
       const floor = section("report").match(/^\s*fail_under\s*=\s*(\d+)/m);
@@ -61,9 +58,7 @@ describe("python suite CI wiring (#555)", () => {
     });
 
     it("keeps the measured scope in [run]", () => {
-      expect(section("run")).toMatch(
-        /^\s*source\s*=\s*scripts\/short-video\/lib\s*$/m,
-      );
+      expect(section("run")).toMatch(/^\s*source\s*=\s*scripts\/short-video\/lib\s*$/m);
     });
 
     it("is the gate CI runs", () => {
