@@ -12,6 +12,11 @@
  *    lastWordEnd + TAIL_PAD_SEC that exceeds TAIL_MIN_EXCESS_SEC is cut
  *    (50ms fade-out avoids the click).
  *
+ *    The cut is gated on the alignment being trustworthy for that scene: a
+ *    scene with crushed words has an alignment already proven unreliable, so
+ *    its `lastWordEnd` is not trusted to bound live speech and the cut is
+ *    skipped (#629 — see tailCutDecision).
+ *
  * 2. **Crushed-word sanity** — an aligned word lasting less than its
  *    syllable budget (syllables × MIN_SEC_PER_SYLLABLE) was swallowed.
  *    Evidence: dh-pilot scene-7 aligned "53.4" at 0.13s — physically
@@ -94,6 +99,33 @@ export function computeTailCut(durationSec, lastWordEnd) {
 }
 
 /**
+ * Decide whether one scene's tail may be cut.
+ *
+ * The cut point is derived from the same alignment that produced the
+ * crushed-word warnings, so a scene with crushed words has an alignment
+ * already proven unreliable — and an unreliable `lastWordEnd` is precisely
+ * what cuts into live speech. #629: scene 8's "2027" shipped as "2000"
+ * because a 1.08s trim was computed from a `lastWordEnd` (3.83s) that
+ * under-reported where the speech actually ended; the same scene had already
+ * logged 4 crushed words before the cut.
+ *
+ * The costs are asymmetric. Skipping a cut leaves a phantom tail — the #232
+ * symptom, which is visible on playback and re-runnable. Cutting wrongly
+ * destroys speech in a take that the gate already approved, which is silent
+ * and reaches the audience before anyone notices. So a suspect alignment
+ * skips the cut.
+ *
+ * @param {{durationSec: number, lastWordEnd: number|null, crushedCount: number}} args
+ * @returns {{cut: false, reason: string}|{cut: true, cutPoint: number}}
+ */
+export function tailCutDecision({ durationSec, lastWordEnd, crushedCount }) {
+  if (crushedCount > 0) return { cut: false, reason: "alignment-suspect" };
+  const cutPoint = computeTailCut(durationSec, lastWordEnd);
+  if (cutPoint == null) return { cut: false, reason: "no-excess" };
+  return { cut: true, cutPoint };
+}
+
+/**
  * Hard-cut one audio file at cutSec (temp file + mv, same pattern as
  * postProcessBatch) with a short fade-out to avoid a click.
  *
@@ -142,6 +174,7 @@ export async function runAlignmentGuards(ttsResults, timingData) {
   const scenesTiming = Array.isArray(timingData) ? timingData : (timingData?.scenes ?? []);
   const cuts = [];
   const crushedWords = [];
+  const skippedCuts = [];
 
   for (const r of ttsResults ?? []) {
     const sceneTiming = scenesTiming.find((s) => s.sceneId === r.sceneId);
@@ -164,31 +197,45 @@ export async function runAlignmentGuards(ttsResults, timingData) {
     }
 
     const lastWordEnd = Math.max(...words.map((w) => w.end ?? 0));
-    const cutPoint = computeTailCut(r.duration, lastWordEnd);
-    if (cutPoint != null) {
-      let newDuration = NaN;
-      try {
-        newDuration = await trimSceneTail(r.audioPath, cutPoint);
-      } catch {
-        // exec-level failure (ffmpeg/ffprobe missing or broken) → same
-        // fail-open path as a NaN probe below
-      }
-      if (!Number.isFinite(newDuration)) {
-        // Fail-open: a broken ffmpeg/ffprobe must not poison the duration
-        // registry merges downstream — the untrimmed original is intact.
+    const decision = tailCutDecision({
+      durationSec: r.duration,
+      lastWordEnd,
+      crushedCount: crushedWords.filter((c) => c.sceneId === r.sceneId).length,
+    });
+
+    if (!decision.cut) {
+      if (decision.reason === "alignment-suspect") {
+        skippedCuts.push({ sceneId: r.sceneId, reason: decision.reason });
         console.warn(
-          `  ⚠️ Scene ${r.sceneId}: tail trim probe failed, keeping untrimmed audio (#232)`,
+          `  ⏸️ Scene ${r.sceneId}: tail cut skipped — this scene's alignment is suspect ` +
+            `(crushed words), so its lastWordEnd (${lastWordEnd.toFixed(2)}s) is not trusted (#629)`,
         );
-      } else {
-        cuts.push({ sceneId: r.sceneId, from: r.duration, to: newDuration });
-        console.log(
-          `  ✂️ Scene ${r.sceneId}: trimmed ${(r.duration - newDuration).toFixed(2)}s tail ` +
-            `after last word (${lastWordEnd.toFixed(2)}s + ${TAIL_PAD_SEC}s pad) (#232)`,
-        );
-        r.duration = newDuration;
       }
+      continue;
+    }
+
+    let newDuration = NaN;
+    try {
+      newDuration = await trimSceneTail(r.audioPath, decision.cutPoint);
+    } catch {
+      // exec-level failure (ffmpeg/ffprobe missing or broken) → same
+      // fail-open path as a NaN probe below
+    }
+    if (!Number.isFinite(newDuration)) {
+      // Fail-open: a broken ffmpeg/ffprobe must not poison the duration
+      // registry merges downstream — the untrimmed original is intact.
+      console.warn(
+        `  ⚠️ Scene ${r.sceneId}: tail trim probe failed, keeping untrimmed audio (#232)`,
+      );
+    } else {
+      cuts.push({ sceneId: r.sceneId, from: r.duration, to: newDuration });
+      console.log(
+        `  ✂️ Scene ${r.sceneId}: trimmed ${(r.duration - newDuration).toFixed(2)}s tail ` +
+          `after last word (${lastWordEnd.toFixed(2)}s + ${TAIL_PAD_SEC}s pad) (#232)`,
+      );
+      r.duration = newDuration;
     }
   }
 
-  return { cuts, crushedWords };
+  return { cuts, crushedWords, skippedCuts };
 }

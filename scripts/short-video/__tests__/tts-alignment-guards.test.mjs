@@ -16,6 +16,8 @@ import {
   computeTailCut,
   estimateSyllables,
   findCrushedWords,
+  runAlignmentGuards,
+  tailCutDecision,
   trimSceneTail,
   TAIL_PAD_SEC,
   TAIL_MIN_EXCESS_SEC,
@@ -25,14 +27,19 @@ import {
 // promisify(exec) resolves via node's custom promisify — the mock may receive
 // (cmd, cb) or (cmd, options, cb); derive the callback and command by shape.
 // The duration probe goes through execFile since the #319 deferred class sweep.
-const { execMock, execFileMock } = vi.hoisted(() => ({
+const { execMock, execFileMock, existsSyncMock } = vi.hoisted(() => ({
   execMock: vi.fn((...args) => {
     const cb = args.findLast((a) => typeof a === "function");
     cb(null, { stdout: "", stderr: "" });
   }),
   execFileMock: vi.fn((cmd, args, cb) => cb(null, { stdout: "", stderr: "" })),
+  existsSyncMock: vi.fn(() => true),
 }));
 vi.mock("child_process", () => ({ exec: execMock, execSync: vi.fn(), execFile: execFileMock }));
+vi.mock("fs", async (importOriginal) => ({
+  ...(await importOriginal()),
+  existsSync: existsSyncMock,
+}));
 
 describe("estimateSyllables", () => {
   it("counts vowel groups per word", () => {
@@ -102,6 +109,106 @@ describe("guard constants", () => {
     expect(TAIL_PAD_SEC).toBe(0.15);
     expect(TAIL_MIN_EXCESS_SEC).toBe(0.5);
     expect(MIN_SEC_PER_SYLLABLE).toBe(0.12);
+  });
+});
+
+describe("tailCutDecision (#629)", () => {
+  // #629: scene 8's alignment under-reported where the speech ended, and the
+  // trim derived from it cut "2027" down to "2000" in the published take.
+  // The scene had already logged 4 crushed words before the cut ran.
+  const scene8 = { durationSec: 5.06, lastWordEnd: 3.83 };
+
+  it("skips the cut when the alignment is suspect (crushed words)", () => {
+    expect(tailCutDecision({ ...scene8, crushedCount: 4 })).toEqual({
+      cut: false,
+      reason: "alignment-suspect",
+    });
+  });
+
+  it("cuts when the alignment is clean and a phantom tail exceeds the budget", () => {
+    expect(tailCutDecision({ ...scene8, crushedCount: 0 })).toEqual({
+      cut: true,
+      cutPoint: 3.83 + TAIL_PAD_SEC,
+    });
+  });
+
+  it("reports no-excess rather than alignment-suspect when nothing is wrong", () => {
+    expect(tailCutDecision({ durationSec: 4.0, lastWordEnd: 3.83, crushedCount: 0 })).toEqual({
+      cut: false,
+      reason: "no-excess",
+    });
+  });
+
+  it("treats a suspect alignment as decisive: it wins over a large phantom tail", () => {
+    // The whole point — a big excess is what tempts the cut, and it is also
+    // what the untrusted lastWordEnd would cut wrongly into.
+    const decision = tailCutDecision({ durationSec: 6.1, lastWordEnd: 3.29, crushedCount: 1 });
+    expect(decision.cut).toBe(false);
+    expect(decision.reason).toBe("alignment-suspect");
+  });
+});
+
+describe("runAlignmentGuards — the cut is gated on alignment trust (#629)", () => {
+  // Faithful to the shipped scene 8: two crushed words and a lastWordEnd that
+  // under-reported where the speech actually ended.
+  const suspectWords = [
+    { text: "is", start: 1.0, end: 1.1 }, // 0.10s < 0.12s floor → crushed
+    { text: "early", start: 3.61, end: 3.83 }, // 0.22s < 0.24s floor → crushed
+  ];
+  const cleanWords = [{ text: "hundred", start: 3.0, end: 3.29 }]; // 0.29s ≥ 0.24s
+
+  const scenes = (sceneId, words) => ({ scenes: [{ sceneId, segments: [{ words }] }] });
+
+  beforeEach(() => {
+    execMock.mockClear();
+    execFileMock.mockClear();
+    existsSyncMock.mockClear();
+    existsSyncMock.mockReturnValue(true);
+    // ffprobe answers with the cut point, so a trim reports a real duration.
+    execFileMock.mockImplementation((cmd, args, cb) =>
+      cb(null, { stdout: "3.440000\n", stderr: "" }),
+    );
+  });
+
+  it("skips the cut, leaves the audio alone, and reports why when alignment is suspect", async () => {
+    const ttsResults = [{ sceneId: 8, audioPath: "/out/scene-8.mp3", duration: 5.06 }];
+    const result = await runAlignmentGuards(ttsResults, scenes(8, suspectWords));
+
+    expect(result.cuts).toEqual([]);
+    expect(result.skippedCuts).toEqual([{ sceneId: 8, reason: "alignment-suspect" }]);
+    expect(result.crushedWords).toHaveLength(2);
+    // The audio is untouched and the duration downstream still sees is the
+    // gate-approved one — not a silently shortened take.
+    expect(execMock.mock.calls.filter(([cmd]) => String(cmd).startsWith("mv "))).toHaveLength(0);
+    expect(ttsResults[0].duration).toBe(5.06);
+  });
+
+  it("still cuts a clean-alignment phantom tail (#232 behaviour preserved)", async () => {
+    const ttsResults = [{ sceneId: 7, audioPath: "/out/scene-7.mp3", duration: 6.1 }];
+    const result = await runAlignmentGuards(ttsResults, scenes(7, cleanWords));
+
+    expect(result.skippedCuts).toEqual([]);
+    expect(result.cuts).toHaveLength(1);
+    expect(result.cuts[0]).toMatchObject({ sceneId: 7, from: 6.1, to: 3.44 });
+    expect(ttsResults[0].duration).toBe(3.44);
+    expect(execMock.mock.calls.filter(([cmd]) => String(cmd).startsWith("mv "))).toHaveLength(1);
+  });
+
+  it("gates per scene: a suspect scene does not block a clean scene's cut", async () => {
+    const ttsResults = [
+      { sceneId: 8, audioPath: "/out/scene-8.mp3", duration: 5.06 },
+      { sceneId: 7, audioPath: "/out/scene-7.mp3", duration: 6.1 },
+    ];
+    const timingData = {
+      scenes: [
+        { sceneId: 8, segments: [{ words: suspectWords }] },
+        { sceneId: 7, segments: [{ words: cleanWords }] },
+      ],
+    };
+    const result = await runAlignmentGuards(ttsResults, timingData);
+
+    expect(result.cuts.map((c) => c.sceneId)).toEqual([7]);
+    expect(result.skippedCuts).toEqual([{ sceneId: 8, reason: "alignment-suspect" }]);
   });
 });
 
