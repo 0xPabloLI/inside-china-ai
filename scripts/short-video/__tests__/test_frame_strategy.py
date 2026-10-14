@@ -27,14 +27,26 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
-# Two tests below exercise the mlx_vlm video path. mlx_vlm exists only in the
-# VLM venv, so CI (pytest/Pillow/numpy) reports an explicit, self-explaining
-# skip instead of a failure — see docs/conventions/test-env-baseline.md.
-MLX_VLM_SKIP_REASON = (
-    "mlx-vlm 0.7.2 exists only in the VLM venv (~/.venvs/mlx-vlm, Python "
-    "3.12); this interpreter has no mlx_vlm — see "
-    "docs/conventions/test-env-baseline.md"
-)
+# The two mlx_vlm-path tests below assert *this repo's* frame-strategy
+# behaviour — the uniform path's defaults (fps 2.0 / max_frames 16), parameter
+# forwarding, and that no ffmpeg subprocess runs — not mlx-vlm's own sampling.
+# `vlm_analyzer` imports `resolve_video_inputs` inside the call, so a stub
+# module registered under that name exercises the same code path; wherever the
+# real package exists (VLM venv, dev machines) the real module is used. CI runs
+# these instead of skipping them — see docs/conventions/test-env-baseline.md.
+def _video_module(monkeypatch):
+    import importlib
+    import types
+
+    try:
+        return importlib.import_module("mlx_vlm.generate.video")
+    except ModuleNotFoundError:
+        for name in ("mlx_vlm", "mlx_vlm.generate"):
+            monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
+        stub = types.ModuleType("mlx_vlm.generate.video")
+        stub.resolve_video_inputs = lambda *args, **kwargs: None
+        monkeypatch.setitem(sys.modules, "mlx_vlm.generate.video", stub)
+        return stub
 
 from vlm_analyzer import (  # noqa: E402
     DEFAULT_MAX_FRAMES,
@@ -205,12 +217,10 @@ class TestExtractMinicpmFrames:
     def test_default_is_uniform_via_resolve_video_inputs(self, monkeypatch):
         """S1: default params take the resolve_video_inputs path — no ffmpeg."""
         # mlx_vlm.generate is a function in mlx-vlm 0.7.2, so the submodule is
-        # imported by name (same machinery vlm_analyzer uses). mlx_vlm exists
-        # only in the VLM venv (~/.venvs/mlx-vlm), so this test reports an
-        # explicit skip where it is absent instead of failing the suite (#555).
-        video_mod = pytest.importorskip(
-            "mlx_vlm.generate.video", reason=MLX_VLM_SKIP_REASON
-        )
+        # imported by name (same machinery vlm_analyzer uses). The real module
+        # exists only in the VLM venv (~/.venvs/mlx-vlm); elsewhere a stub
+        # stands in, so this runs in CI rather than skipping.
+        video_mod = _video_module(monkeypatch)
 
         received = {}
 
@@ -237,9 +247,7 @@ class TestExtractMinicpmFrames:
         assert run_calls == []
 
     def test_uniform_params_forwarded(self, monkeypatch):
-        video_mod = pytest.importorskip(
-            "mlx_vlm.generate.video", reason=MLX_VLM_SKIP_REASON
-        )
+        video_mod = _video_module(monkeypatch)
 
         received = {}
 
