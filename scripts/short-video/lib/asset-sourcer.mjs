@@ -1786,8 +1786,8 @@ export function downloadYtdlp(url, destPath) {
 
   const cmd = [
     "yt-dlp",
-    // #313: youtube reads the Chrome cookie store (the YouTube login state);
-    // every other platform keeps the firefox default.
+    // #328: every platform reads the firefox plaintext cookie store, so the
+    // Keychain-backed chrome store (and its blocking prompt) is off the path.
     `--cookies-from-browser "${ytdlpCookieSource()}"`,
     `--user-agent "${YTDLP_BROWSER_UA}"`,
     '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',

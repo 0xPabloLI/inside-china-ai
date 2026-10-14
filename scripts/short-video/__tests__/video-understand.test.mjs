@@ -274,7 +274,10 @@ describe("downloadVideo", () => {
     expect(mockExecAsync).toHaveBeenCalled();
     const cmd = mockExecAsync.mock.calls[0][0];
     expect(cmd).toContain("yt-dlp");
-    expect(cmd).toContain("--cookies-from-browser chrome");
+    // #328: the firefox plaintext store, never chrome's Keychain-backed one.
+    // Prefix match — the resolver pins a profile path when it finds one.
+    expect(cmd).toContain('--cookies-from-browser "firefox');
+    expect(cmd).not.toContain("chrome");
   });
 
   it("downloads Bilibili video via yt-dlp (no cookies)", async () => {

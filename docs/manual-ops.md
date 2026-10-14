@@ -135,7 +135,9 @@ TikTok 视频无法通过 yt-dlp 下载（反爬拦截），也没有官方下�
 4. 告知 Agent，Agent 运行关键帧提取 + vision 分析，输出 media 策略报告
 
 > YouTube 视频可用 yt-dlp 自动下载，无需手动：
-> `yt-dlp --cookies-from-browser chrome -f "best[height<=720]" -o "output/reference-videos/%(id)s.mp4" "<url>"`
+> `yt-dlp --cookies-from-browser firefox -f "best[height<=720]" -o "output/reference-videos/%(id)s.mp4" "<url>"`
+>
+> 用 firefox 而不是 chrome：firefox 的 cookie 库是明文，chrome 的解密要过 Keychain，无人值守时会挂在授权窗口上（#328）。管线内一律走 `lib/ytdlp-guard.mjs` 的 `ytdlpCookieSource()`，它固定到实际在用的 profile。
 
 详见 `docs/research/reference-video-extraction.md`。
 

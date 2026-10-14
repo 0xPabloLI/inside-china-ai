@@ -976,19 +976,26 @@ describe("weibo routing (#75 Batch 2)", () => {
     }
   });
 
-  it("#313: youtube routes through the chrome cookie store; firefox elsewhere", () => {
+  it("#328: every platform reads the firefox cookie store; chrome is off the path", () => {
+    // The invariant is the browser, not the profile: `ytdlpCookieSource()`
+    // pins an absolute profile path when discovery finds one and degrades to
+    // bare `firefox` when it does not, so asserting the resolved path would
+    // make this test depend on the host's Firefox install.
     const yt = buildYtdlpCommand("https://www.youtube.com/watch?v=abc", {
       tmpPath: "/tmp/v.mp4",
     });
-    expect(yt).toContain("--cookies-from-browser chrome");
+    expect(yt).toContain('--cookies-from-browser "firefox');
+    expect(yt).not.toContain("chrome");
 
     const bili = buildYtdlpCommand("https://www.bilibili.com/video/BV1E7wtzaEdq", {
       tmpPath: "/tmp/v.mp4",
     });
-    expect(bili).toContain("--cookies-from-browser firefox");
+    expect(bili).toContain('--cookies-from-browser "firefox');
+    expect(bili).not.toContain("chrome");
 
     const weibo = buildYtdlpCommand("https://weibo.com/1/x", { tmpPath: "/tmp/v.mp4" });
-    expect(weibo).toContain("--cookies-from-browser firefox");
+    expect(weibo).toContain('--cookies-from-browser "firefox');
+    expect(weibo).not.toContain("chrome");
   });
 
   it("weiboCookieNetscape formats a raw cookie header for the weibo domains", () => {
