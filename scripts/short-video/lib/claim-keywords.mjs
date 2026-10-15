@@ -208,6 +208,7 @@ const STYLE_WORDS = new Set([
   "quality",
   "high",
   "end",
+  "contrast",
   "generated",
   "concept",
   "abstract",
@@ -296,7 +297,7 @@ const MAX_KEYWORDS = 3;
 const PRIMARY_PHRASE_WORDS = 4;
 
 /** Words per supplementary phrase window. */
-const SPARE_PHRASE_WORDS = 3;
+const PHRASE_WINDOW_WORDS = 3;
 
 /**
  * Extract per-scene asset claims from scene-data.
@@ -345,6 +346,27 @@ function tokenizeClaimWords(text) {
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .split(/\s+/)
     .filter((t) => t.length > 0 && !/^\d+$/u.test(t) && !NON_KEYWORD_WORDS.has(t));
+}
+
+/**
+ * Anchor words — the only tokens allowed to stand alone as a query: model and
+ * serial identifiers (H800, Qwen3, 3D) and brand-style tokens with an internal
+ * capital (DeepSeek, iPhone). Sentence-start capitalization is deliberately
+ * not a cue, so "Robot" or "Split" at the head of a claim cannot leak back in
+ * as a bare query; those brands are covered by the caller's fallback pool.
+ * Returns lowercase forms to match the token stream.
+ *
+ * @param {string} claim - Raw claim text (casing intact)
+ * @returns {Set<string>}
+ */
+function anchorWords(claim) {
+  const anchors = new Set();
+  for (const raw of claim.split(/\s+/)) {
+    const bare = raw.replace(/[^\p{L}\p{N}]/gu, "");
+    if (!bare || /^\d+$/u.test(bare)) continue; // bare numbers are quantifiers
+    if (/[0-9]/u.test(bare) || /[A-Z]/u.test(bare.slice(1))) anchors.add(bare.toLowerCase());
+  }
+  return anchors;
 }
 
 /**
@@ -469,12 +491,16 @@ export function extractZhKeywords(text, opts = {}) {
  * bag of tokens:
  * - prompt-craft vocabulary (framing, style, colors, "ai") and generic filler
  *   (quantifiers, sizes, placeholders such as "object") never enter the token
- *   stream;
+ *   stream. The color/lighting entries are a deliberate blunt trade: in this
+ *   pipeline's claims they are always grading ("dark blue tech aesthetic"),
+ *   and dropping them keeps style phrases like "blue night" from consuming a
+ *   query slot — a future subject that genuinely needs a color belongs in
+ *   these lists' curation, not in a special case;
  * - the primary phrase is the first N content words, with repeated words
  *   collapsed;
- * - remaining tokens are grouped into phrase windows, and a window shorter
- *   than two tokens is dropped — so a bare single word never becomes a query
- *   unless it is an alphanumeric anchor (H800, Qwen3, 3D);
+ * - remaining tokens are grouped into phrase windows. A window qualifies when
+ *   it has ≥2 words or is a single anchor word, so a bare generic word never
+ *   becomes a query;
  * - when the claim leaves no usable phrase (all filtered, or a single
  *   non-anchor word), the scene yields no claim keywords and the caller's
  *   pool takes over — fail-closed beats a noisy query.
@@ -491,18 +517,20 @@ export function claimToKeywords(claim) {
 
   const tokens = dedupeTokens(tokenizeClaimWords(claim));
   if (tokens.length === 0) return [];
+  const anchors = anchorWords(claim);
   if (tokens.length === 1) {
-    return /[0-9]/u.test(tokens[0]) ? [tokens[0]] : [];
+    return anchors.has(tokens[0]) ? [tokens[0]] : [];
   }
 
   const keywords = [tokens.slice(0, PRIMARY_PHRASE_WORDS).join(" ")];
   for (
     let i = PRIMARY_PHRASE_WORDS;
     i < tokens.length && keywords.length < MAX_KEYWORDS;
-    i += SPARE_PHRASE_WORDS
+    i += PHRASE_WINDOW_WORDS
   ) {
-    const window = tokens.slice(i, i + SPARE_PHRASE_WORDS);
-    if (window.length < 2) break;
+    const window = tokens.slice(i, i + PHRASE_WINDOW_WORDS);
+    const qualifies = window.length >= 2 || (window.length === 1 && anchors.has(window[0]));
+    if (!qualifies) break;
     keywords.push(window.join(" "));
   }
   return keywords;

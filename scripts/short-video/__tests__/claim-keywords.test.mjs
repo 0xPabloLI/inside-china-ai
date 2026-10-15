@@ -82,12 +82,19 @@ describe("claimToKeywords", () => {
     expect(claimToKeywords("benchmark chart")).toEqual(["benchmark chart"]);
   });
 
-  it("never emits a bare content word; only alphanumeric anchors stand alone", () => {
+  it("never emits a bare generic word; only anchor tokens stand alone", () => {
     expect(claimToKeywords("robot")).toEqual([]);
     expect(claimToKeywords("hand")).toEqual([]);
+    expect(claimToKeywords("Robot")).toEqual([]); // sentence-start casing is not an anchor cue
     expect(claimToKeywords("H800")).toEqual(["h800"]);
+    expect(claimToKeywords("DeepSeek")).toEqual(["deepseek"]); // internal capital = brand-style anchor
     expect(claimToKeywords("3D")).toEqual(["3d"]);
     expect(claimToKeywords("2024")).toEqual([]); // bare numbers are quantifiers, not anchors
+  });
+
+  it("treats colors and lighting as style, not subject matter (pinned trade)", () => {
+    expect(claimToKeywords("blue neon data center")).toEqual(["data center"]);
+    expect(claimToKeywords("dark high-contrast server room")).toEqual(["server room"]);
   });
 
   it("strips prompt-craft vocabulary from the phrase (#635)", () => {
@@ -182,22 +189,39 @@ describe("#635 — assetNeed keyword hygiene", () => {
   });
 
   it("pins the ticket's evidence claims to contextual phrases", () => {
+    // content/deepseek-embodied-ai — the run the ticket cites.
     expect(
       claimToKeywords("humanoid robot arm or robot hand close-up, dark high-contrast"),
     ).toEqual(["humanoid robot arm hand"]);
+    expect(claimToKeywords("humanoid robot prototype in a lab, engineers at work")).toEqual([
+      "humanoid robot prototype lab",
+    ]);
     expect(claimToKeywords("Unitree humanoid robot walking, full body")).toEqual([
       "unitree humanoid robot walking",
+    ]);
+    expect(claimToKeywords("robot startup office or humanoid robot head close-up")).toEqual([
+      "robot startup office humanoid",
     ]);
     expect(claimToKeywords("robot arm picking up a small block, benchmark demo")).toEqual([
       "robot arm picking block",
       "benchmark demo",
     ]);
+    expect(claimToKeywords("humanoid robot in a kitchen beside a robot arm")).toEqual([
+      "humanoid robot kitchen arm",
+    ]);
+    expect(claimToKeywords("robot hand reaching toward a glowing object, dark background")).toEqual(
+      ["robot hand reaching"],
+    );
     expect(
       claimToKeywords("autonomous vehicle interior cabin with touchscreen and passenger seats"),
     ).toEqual(["autonomous vehicle interior cabin", "touchscreen passenger seats"]);
   });
 
   it("holds for every real content package: no bare single-word query without a digit", async () => {
+    // Regression guard for the ticket's failure mode: the pre-fix
+    // implementation emitted 14 bare singles across these tracked content
+    // packages (this test is red on it). scene-data.mjs files are git-tracked,
+    // so CI sweeps the same corpus as a local checkout.
     const contentRoot = new URL("../content/", import.meta.url);
     let checked = 0;
     for (const dir of readdirSync(contentRoot)) {
