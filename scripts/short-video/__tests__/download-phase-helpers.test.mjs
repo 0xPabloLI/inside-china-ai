@@ -199,7 +199,7 @@ describe("downloadAndRecord", () => {
     logSpy.mockRestore();
   });
 
-  it("records a hard failure into failed with source + keyword + error", async () => {
+  it("records a hard failure into failed with source + keyword + url + error", async () => {
     mockDownloadCandidate.mockResolvedValue({
       success: false,
       skipped: false,
@@ -217,8 +217,15 @@ describe("downloadAndRecord", () => {
       ...ctx,
     });
 
+    // #636: the URL belongs in the report — without it a failure line cannot
+    // tell which candidate shape the download chain rejected.
     expect(ctx.failed).toEqual([
-      { source: "wikimedia", keyword: "Unitree", error: "Connection refused" },
+      {
+        source: "wikimedia",
+        keyword: "Unitree",
+        url: HIGH_SCORE_CANDIDATE.url,
+        error: "Connection refused",
+      },
     ]);
     expect(ctx.allAssets).toEqual([]);
     expect(ctx.skipped).toEqual([]);

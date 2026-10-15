@@ -2490,7 +2490,10 @@ export async function downloadAndRecord(candidate, opts) {
     opts.skipped.push({ source: sourceName, reason: dl.error });
     console.log(`    ⏭️  ${label}: ${dl.error}`);
   } else {
-    opts.failed.push({ source: sourceName, keyword, error: dl.error });
+    // #636: the failing URL belongs in the entry — without it a report line
+    // says "invalid-url" (or any other reason) but not which candidate shape
+    // the download chain rejected, which is what forced a re-probe.
+    opts.failed.push({ source: sourceName, keyword, url: candidate.url, error: dl.error });
     console.log(`    ❌ ${label}: ${dl.error}`);
   }
 }

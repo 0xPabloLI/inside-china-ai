@@ -173,6 +173,19 @@ for (let i = 0; i < 5 && !src.trim(); i++) {
 return [src];`;
 
 /**
+ * Read the hostname out of a URL string, or "" when there is none.
+ * @param {string} url
+ * @returns {string}
+ */
+function urlHost(url) {
+  try {
+    return new URL(url).hostname || "";
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Check if a canonical URL points to a direct media file.
  * @param {string} canonicalUrl
  * @returns {boolean}
@@ -296,6 +309,17 @@ export function selectStrategy(url, options = {}) {
 
   if (!canonical) {
     return { adapter: "none", canonicalUrl: "", status: "skipped", reason: "empty-url" };
+  }
+
+  // 0. Not an http(s) URL at all — a `data:`/`javascript:` placeholder or any
+  //    other scheme is fetchable by NO adapter. News pages lazy-load cards
+  //    this way (#636: Bing news `<img src>` is a base64 thumbnail until the
+  //    CDN URL resolves); handing it to Cobalt posted the whole base64 body as
+  //    a "url" and came back as a link error. Name the shape instead.
+  //    (canonicalizeUrl already upgraded http:// and protocol-relative //host
+  //    inputs, so this only rejects genuinely non-http(s) strings.)
+  if (!/^https?:\/\//i.test(canonical)) {
+    return { adapter: "none", canonicalUrl: canonical, status: "skipped", reason: "non-http-url" };
   }
 
   // 1. Direct media URL
@@ -714,10 +738,18 @@ class CobaltAdapter {
 
   /**
    * Classify Cobalt error code into retryable/non-retryable.
+   *
+   * `link` errors carry a URL-shaped cause, so the host is appended whenever
+   * it can be read. A bare `invalid-url` cannot tell "no handler for this
+   * site" (the measured class — Bing CDN thumbnails, #636) from "malformed
+   * URL", and the report reader had to re-probe to learn which one it was.
+   * The other families are code-only and keep their names.
+   *
    * @param {string} code
+   * @param {string} [sourceUrl] - the URL Cobalt was asked to process
    * @returns {{reason: string, retryable: boolean}}
    */
-  classifyError(code) {
+  classifyError(code, sourceUrl = "") {
     if (!code) return { reason: "unknown-error", retryable: false };
 
     if (code.includes("rate_exceeded")) {
@@ -730,7 +762,11 @@ class CobaltAdapter {
       return { reason: "fetch-error", retryable: false };
     }
     if (code.includes("link")) {
-      return { reason: "invalid-url", retryable: false };
+      const host = urlHost(sourceUrl);
+      return {
+        reason: host ? `unsupported-by-downloader:${host}` : "unsupported-by-downloader",
+        retryable: false,
+      };
     }
     if (code.includes("content")) {
       return { reason: "content-unavailable", retryable: false };
@@ -945,7 +981,7 @@ class CobaltAdapter {
 
       case "error": {
         const errorCode = postData?.error?.code || "";
-        const { reason, retryable } = this.classifyError(errorCode);
+        const { reason, retryable } = this.classifyError(errorCode, url);
         return makeResult({
           status: "failed",
           strategy: ADAPTER_IDS.COBALT,

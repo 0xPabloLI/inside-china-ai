@@ -1289,3 +1289,92 @@ describe("XHS-Downloader adapter (#75 Batch 5)", () => {
     expect(result.strategy).toBe("xhs-cdp");
   });
 });
+
+// ─── #636: URL shape vs downloader coverage ───
+
+describe("#636 — non-fetchable URL shapes never reach an adapter", () => {
+  it("selectStrategy skips a data: URI instead of routing it to cobalt", () => {
+    // Live evidence (2026-10-15): Bing news cards lazy-load to base64 `data:`
+    // placeholders, and each one was POSTed to Cobalt as a "url" (the
+    // canonical form keeps the whole base64 body). No adapter can fetch it.
+    const result = selectStrategy("data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ");
+    expect(result.adapter).toBe("none");
+    expect(result.status).toBe("skipped");
+    expect(result.reason).toBe("non-http-url");
+  });
+
+  it("downloadVideo short-circuits before any cobalt traffic", async () => {
+    const cobalt = new CobaltAdapter();
+    const downloadSpy = vi.spyOn(cobalt, "download");
+    const fetchFn = makeMockFetch({}); // any fetch call throws
+    const result = await downloadVideo("data:image/png;base64,iVBORw0KGgo=", {
+      fetchFn,
+      cobaltAdapter: cobalt,
+    });
+    expect(result.status).toBe("skipped");
+    expect(result.reason).toBe("non-http-url");
+    expect(downloadSpy).not.toHaveBeenCalled();
+    expect(fetchFn.calls).toEqual([]);
+  });
+
+  it("still routes protocol-relative URLs (canonicalized to https) to cobalt", () => {
+    const result = selectStrategy("//th.bing.com/th?id=OVFT");
+    expect(result.adapter).toBe(ADAPTER_IDS.COBALT);
+    expect(result.canonicalUrl).toBe("https://th.bing.com/th");
+  });
+});
+
+describe("#636 — cobalt link errors name the site", () => {
+  it("classifyError reports the host instead of a bare invalid-url", () => {
+    const cobalt = new CobaltAdapter();
+    const { reason, retryable } = cobalt.classifyError(
+      "error.api.link.invalid",
+      "https://th.bing.com/th",
+    );
+    expect(reason).toBe("unsupported-by-downloader:th.bing.com");
+    expect(retryable).toBe(false);
+  });
+
+  it("classifyError falls back to the bare reason when no host can be read", () => {
+    const cobalt = new CobaltAdapter();
+    expect(cobalt.classifyError("error.api.link.invalid", "not-a-url").reason).toBe(
+      "unsupported-by-downloader",
+    );
+    expect(cobalt.classifyError("error.api.link.invalid").reason).toBe("unsupported-by-downloader");
+  });
+
+  it("classifyError keeps the other code families unchanged", () => {
+    const cobalt = new CobaltAdapter();
+    expect(cobalt.classifyError("error.api.rate_exceeded").reason).toBe("rate-limited");
+    expect(cobalt.classifyError("error.api.auth.missing").reason).toBe("requires-auth");
+    expect(cobalt.classifyError("error.api.fetch.empty").reason).toBe("fetch-error");
+    expect(cobalt.classifyError("error.api.content.video.unavailable").reason).toBe(
+      "content-unavailable",
+    );
+  });
+
+  it("download() surfaces the host through the full adapter path", async () => {
+    const fetchFn = makeMockFetch({
+      "http://localhost:9000/": mockResponse({
+        contentType: "application/json",
+        body: Buffer.from(
+          JSON.stringify({
+            cobalt: { version: "10.0.0", services: ["youtube"] },
+            git: {},
+          }),
+        ),
+      }),
+      "http://localhost:9000": mockResponse({
+        contentType: "application/json",
+        body: Buffer.from(
+          JSON.stringify({ status: "error", error: { code: "error.api.link.invalid" } }),
+        ),
+      }),
+    });
+    const cobalt = new CobaltAdapter();
+    await cobalt.preflight(fetchFn);
+    const result = await cobalt.download("https://th.bing.com/th", { fetchFn });
+    expect(result.status).toBe("failed");
+    expect(result.reason).toBe("unsupported-by-downloader:th.bing.com");
+  });
+});
