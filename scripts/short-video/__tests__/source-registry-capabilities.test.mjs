@@ -692,4 +692,18 @@ describe("#636 — bing_news declares articles only", () => {
     // same-DOM images while the capability is gone — keep the claim honest.
     expect(bing.accessMethod.notes).not.toMatch(/images?\s+from\s+same\s+DOM/i);
   });
+
+  // Criterion 1 is about *not producing* thumbnail URLs, and the article
+  // script is a second producer: trends-utils caches its `imageUrl` as
+  // topics[].images[].url, which the asset sourcer's Phase 0 replays through
+  // loadCachedImages as `source: "cached"`.
+  it("articleScript emits no imageUrl", () => {
+    expect(bing.articleScript).not.toMatch(/imageUrl/);
+  });
+
+  it("opts out of the generic DOM image harvest", () => {
+    // The harvest (enrichWithMedia) fills imageUrl for any article whose
+    // nearby <img> is an http URL — on Bing that is the same CDN thumbnail.
+    expect(bing.harvestImages).toBe(false);
+  });
 });
