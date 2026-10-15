@@ -18,11 +18,7 @@
  * Rules:
  *   - All scenes can opt in to media via scene.media (hook, narrative, etc.)
  *   - CTA scene remains CSS-only (no media rendering)
- *   - ken-burns + video → auto-degrade to fade
- *   - zoom + video → auto-degrade to fade (#357): zoom is a container scale
- *     (1.3 → 1.0 → 1.15) layered on top of fit:cover, which stacks a second
- *     motion on the asset's own camera move, crops the frame a second time
- *     and drifts the crop window away from the VLM cropFocus
+ *   - ken-burns / zoom + video → auto-degrade to fade (see resolvePreset)
  *   - File not found → render nothing (pre-validated by render-remotion.mjs)
  */
 import {
@@ -74,14 +70,21 @@ const offsetMsToTrimBefore = (offsetMs: number | undefined, fps: number) =>
 /**
  * Which preset actually renders.
  *
- * Video assets never take a container scale. `ken-burns` (1.0→1.12 + pan) and
- * `zoom` (1.3→1.0→1.15, #357) both move the crop window across a picture that
- * already carries its own camera motion: the asset gets a second, artificial
- * movement, the frame is cropped twice on top of fit:cover, and the crop
- * window drifts away from the VLM cropFocus that was solved for a STATIC crop.
- * Both degrade to `fade` — a container scale is a still-asset effect.
+ * A container scale is a still-asset effect: it belongs on a picture that has
+ * no motion of its own. On video it stacks a second motion on the asset's
+ * camera move and crops the frame a second time on top of fit:cover, while
+ * drifting the crop window away from the VLM cropFocus that was solved for a
+ * STATIC crop — `zoom` by up to 30% (1.3 → 1.0 → 1.15, #357), `ken-burns` by
+ * 12% plus a pan. Both degrade to `fade`, whose own 1.05 push drifts 5% —
+ * reduced, not removed; `none` is the only motionless preset.
+ *
+ * Kept in step with `VIDEO_ANIMATION` in lib/asset-sourcer.mjs — the allocator
+ * must not hand out a preset this function is going to override.
  */
-const resolvePreset = (requested: string | undefined, type: string | undefined) => {
+const resolvePreset = (
+  requested: MediaField["animation"],
+  type: MediaField["type"],
+): NonNullable<MediaField["animation"]> => {
   const preset = requested ?? "fade";
   if (type === "video" && (preset === "ken-burns" || preset === "zoom")) return "fade";
   return TIMING[preset] ? preset : "fade";

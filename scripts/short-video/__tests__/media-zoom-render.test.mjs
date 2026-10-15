@@ -54,6 +54,8 @@ const EXIT_FRAME = 118;
 const ENTRANCE_FRAME = 9;
 /** Zoom exit scale at EXIT_FRAME: outStart=105, out=15 → 1 + 0.15 × 13/15. */
 const EXIT_SCALE = 1.13;
+/** Measured on this frame before #357 (zoom vs none) — the yardstick. */
+const ZOOM_VS_NONE_BEFORE = 414_816;
 
 let stillDir;
 let fixtureVideoPath;
@@ -208,5 +210,51 @@ describe("video + zoom degrades to fade", { timeout: 600_000 }, () => {
     const count = diffCount(zoomed, faded);
     console.log(`[evidence] video zoom-vs-fade f${ENTRANCE_FRAME}: ${count}px of ${TOTAL_PIXELS}`);
     expect(count, "video must not render the 1.3 entrance scale").toBeLessThan(2_000);
+  });
+});
+
+// ─── Why fade and not none (issue #357's open question) ───
+// `fade` still pushes 1.0 → 1.05 across the scene and drifts -30px on exit, so
+// it is not motionless — it cuts the crop-window drift from 30% to ~5%.
+// `none` IS motionless, and was rejected for a reason the stills cannot show:
+// MediaBackground holds `none` at a constant `baseVolume`, dropping the 4-stop
+// volume envelope, so every video's audio would hard-cut at scene boundaries.
+// These cases measure what the chosen default still costs and pin the numbers,
+// so a future change to the fade curve — or a switch to `none` once the audio
+// envelope is decoupled from the preset — shows up as a moved goalpost.
+
+describe("fade vs none — what the chosen default still costs", { timeout: 600_000 }, () => {
+  it("exit frame: fade disturbs the frame less than zoom did", () => {
+    const faded = still("fade", "video", EXIT_FRAME);
+    const plain = still("none", "video", EXIT_FRAME);
+    const fadeVsNone = diffCount(faded, plain);
+    // Measured on the same frame before #357: zoom-vs-none = 414,816px. Both
+    // presets sit at opacity 1 here, so the two numbers are comparable.
+    // The gap is only ~14%: on a textured real clip even fade's 1.05 push +
+    // 30px drift moves most pixels, which is exactly why the preset choice is
+    // argued on GEOMETRY (30% vs 5% crop-window drift) and on the audio
+    // envelope, not on pixel counts.
+    console.log(
+      `[evidence] exit f${EXIT_FRAME}: fade-vs-none=${fadeVsNone}px (zoom-vs-none before #357 = ${ZOOM_VS_NONE_BEFORE}px)`,
+    );
+    expect(fadeVsNone, "fade must not reintroduce zoom's crop loss").toBeLessThan(
+      ZOOM_VS_NONE_BEFORE,
+    );
+  });
+
+  it("entrance frame: fade-vs-none is LARGER than at the exit — it is the fade-in, not geometry", () => {
+    const entrance = diffCount(
+      still("fade", "video", ENTRANCE_FRAME),
+      still("none", "video", ENTRANCE_FRAME),
+    );
+    const exit = diffCount(still("fade", "video", EXIT_FRAME), still("none", "video", EXIT_FRAME));
+    console.log(
+      `[evidence] fade-vs-none: entrance f${ENTRANCE_FRAME}=${entrance}px, exit f${EXIT_FRAME}=${exit}px`,
+    );
+    // fade's opacity ramp is what separates it from `none` at frame 9 (it is
+    // still ~0.375 there), so the entrance gap is dominated by brightness —
+    // the opposite of zoom, whose entrance was the 1.3 crop. This pins the
+    // mechanism: a future change to the fade-in length moves this number.
+    expect(entrance).toBeGreaterThan(exit);
   });
 });

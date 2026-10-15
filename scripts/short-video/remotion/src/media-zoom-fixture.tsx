@@ -29,8 +29,8 @@ import { MediaBackground } from "./components/MediaBackground";
 import type { MediaField } from "./types";
 
 /** Fixture asset basenames, copied by the test driver into public/assets/. */
-export const MEDIA_ZOOM_FIXTURE_VIDEO = "media-zoom-fixture.mp4";
-export const MEDIA_ZOOM_FIXTURE_IMAGE = "media-zoom-fixture.png";
+const MEDIA_ZOOM_FIXTURE_VIDEO = "media-zoom-fixture.mp4";
+const MEDIA_ZOOM_FIXTURE_IMAGE = "media-zoom-fixture.png";
 
 type FixtureProps = {
   /** Animation preset under test. */
