@@ -653,3 +653,43 @@ describe("#249 — baidu_search media CDP capabilities", () => {
     expect(attr.text({})).toContain("baidu.com");
   });
 });
+
+// ─── #636: bing_news media channels disabled ───
+
+/**
+ * Evidence for the verdict (2026-10-15, live CDP probe of the real search page
+ * + the 2026-10-13 run artifact):
+ * - Every card <img> on the live page is either a base64 `data:` placeholder
+ *   or a Bing CDN thumbnail exposed via `data-src-hq`
+ *   (`//th.bing.com/th?id=…&w=234&h=132&dpr=2` → 468×264, under the 720p
+ *   floor); the card DOM holds no publisher original.
+ * - The run that filed #636 produced 400 such candidates, all rejected by the
+ *   download chain (56 `invalid-url` entries in `output/asset-report.json`).
+ * - The source's own `imageFallbackScript` already excluded `bing.com` — the
+ *   media channels were declared while their only output was unusable.
+ * Declaring them off is the fix; re-adding them without a real original-image
+ * path re-introduces the whole failure class.
+ */
+describe("#636 — bing_news declares articles only", () => {
+  const bing = ALL_SOURCES.find((s) => s.name === "bing_news");
+
+  it("keeps the articles capability (news discovery is unaffected)", () => {
+    expect(bing.capabilities.articles).toBeDefined();
+    expect(bing.capabilities.articles.url("DeepSeek")).toContain("bing.com/news");
+  });
+
+  it("declares no images capability", () => {
+    expect(bing.capabilities.images).toBeUndefined();
+  });
+
+  it("declares no videos capability", () => {
+    expect(bing.capabilities.videos).toBeUndefined();
+  });
+
+  it("keeps notes and attribution consistent with articles-only", () => {
+    expect(SOURCE_ATTRIBUTIONS.bing_news).toBeDefined();
+    // source-media-guards.test.mjs fails any source whose notes still claim
+    // same-DOM images while the capability is gone — keep the claim honest.
+    expect(bing.accessMethod.notes).not.toMatch(/images?\s+from\s+same\s+DOM/i);
+  });
+});
