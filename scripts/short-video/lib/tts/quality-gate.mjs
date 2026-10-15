@@ -16,14 +16,16 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { transcribeVideo } from "../video-understand.mjs";
 import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "../asr-defaults.mjs";
-import { splitDigitUnitToken } from "../normalize-tts-text.mjs";
+import { splitDigitUnitToken, cardinalSpokenWords } from "../normalize-tts-text.mjs";
 import { FAILURE_CLASS, asrOptOutEnabled } from "./failure-class.mjs";
 import { validateInstructSignature } from "./instruct.mjs";
 
 // Pacing boundaries for vertical short videos (English)
 export const MIN_ACCEPTABLE_WPM = 115; // Below 115 WPM indicates dragging / unnatural pause / accent drift
 const MAX_ACCEPTABLE_WPM = 225; // Above 225 WPM is too rushed for audience comprehension
-const MIN_TEXT_SIMILARITY = 0.75; // Minimum normalized token similarity threshold
+// Exported for the verified tail cut (#232): alignment-guards re-runs this
+// threshold against a trimmed take before committing the cut.
+export const MIN_TEXT_SIMILARITY = 0.75; // Minimum normalized token similarity threshold
 
 /**
  * #271 failure families (pacing vs acoustic) live in ./failure-class.mjs so the
@@ -156,9 +158,12 @@ export function extractGuardedTokens(text) {
  * merged digit+unit tokens (#548: "720p" -> "720", "p").
  *
  * @param {string[]} asrTokens
+ * @param {string|null} [rawText] - the untokenized transcript; lets comma-
+ *   grouped cardinals ("115,000" → "115" + "000") still supply their spoken
+ *   words to the comparison.
  * @returns {Set<string>}
  */
-export function buildExpandedAsrTokenSet(asrTokens) {
+export function buildExpandedAsrTokenSet(asrTokens, rawText = null) {
   const expanded = new Set(asrTokens);
   for (const t of asrTokens) {
     // Unpack "v4" / "v41" into "v" + digits
@@ -189,6 +194,22 @@ export function buildExpandedAsrTokenSet(asrTokens) {
       expanded.add(unitSplit.unit.toLowerCase());
     }
   }
+
+  // Cardinal integers: the spoken track carries words ("one hundred fifteen
+  // thousand") while whisper.cpp writes what it heard as digits ("115,000"),
+  // so a CORRECT take would look truncated ("missing tail word(s) [thousand]")
+  // and the self-heal loop regenerates forever. Observed 2026-10-14 on
+  // deepseek-flash-silent-update scene 3.
+  //
+  // Expansion runs on the RAW transcript, not the token stream: tokenize()
+  // splits on the comma ("115,000" → "115" + "000") and on decimals
+  // ("$1.4B" → "1" + "4b"), so a bare digit token cannot be told apart from a
+  // fragment of a larger number. cardinalSpokenWords applies the same
+  // CARDINAL_RE the spoken side uses, so both sides agree by construction.
+  if (rawText) {
+    for (const w of cardinalSpokenWords(rawText)) expanded.add(w);
+  }
+
   return expanded;
 }
 
@@ -269,13 +290,16 @@ export function isWordInAsr(expectedWord, asrTokenSet) {
  *
  * @param {string[]} expectedTokens
  * @param {string[]} asrTokens
+ * @param {string|null} [rawAsrText] - the untokenized transcript; lets comma-
+ *   grouped cardinals ("115,000" → "115" + "000") still supply their spoken
+ *   words to the comparison.
  * @returns {number} 0.0 - 1.0
  */
-export function computeTokenSimilarity(expectedTokens, asrTokens) {
+export function computeTokenSimilarity(expectedTokens, asrTokens, rawAsrText = null) {
   if (expectedTokens.length === 0 && asrTokens.length === 0) return 1.0;
   if (expectedTokens.length === 0 || asrTokens.length === 0) return 0.0;
 
-  const setB = buildExpandedAsrTokenSet(asrTokens);
+  const setB = buildExpandedAsrTokenSet(asrTokens, rawAsrText);
   let matches = 0;
   for (const token of expectedTokens) {
     if (isWordInAsr(token, setB)) matches++;
@@ -511,8 +535,10 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     // Expanded set (#251): version prefixes, decimals and roman-numeral
     // mishearings unpack BEFORE the critical/tail guards — the raw token set
     // would fail "v4" against an ASR "VI 4.1" and trip self-heal retries on
-    // pure recognition variance.
-    const asrTokenSet = buildExpandedAsrTokenSet(asrTokens);
+    // pure recognition variance. The raw transcript is passed alongside the
+    // tokens because tokenize() splits comma-grouped cardinals ("115,000" →
+    // "115" + "000") that the spoken track spells as words.
+    const asrTokenSet = buildExpandedAsrTokenSet(asrTokens, asrText);
 
     // 4. Critical Token & Tail Boundary Verification
     const { criticalWords, tailWords } = extractGuardedTokens(expectedSpokenText);
@@ -530,7 +556,7 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     }
 
     // 5. Similarity Score
-    const similarity = computeTokenSimilarity(expectedTokens, asrTokens);
+    const similarity = computeTokenSimilarity(expectedTokens, asrTokens, asrText);
     if (similarity < minSimilarity) {
       issues.push(
         `Low text similarity: ${(similarity * 100).toFixed(1)}% (threshold: ${minSimilarity * 100}%)`,

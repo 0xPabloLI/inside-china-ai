@@ -25,6 +25,20 @@
  *    pre-alignment, so a crushed read here surfaces to HITL instead of
  *    triggering a regenerate.
  *
+ * 3. **Verified tail cut** (2026-10-14) — the alignment is a *model output*
+ *    and can be wrong, so the cut it justifies is provisional until the
+ *    read-back gate confirms the trimmed take still says every word. The
+ *    #629 gate above is a cheap pre-filter (self-reported crushed words);
+ *    this one verifies the cut's *outcome* on every cut that proceeds.
+ *    Evidence: deepseek-flash-silent-update scene 3 aligned "115,000" +
+ *    "views" into 0.41s and ended at 5.93s of a 7.60s file; the cut then
+ *    removed 1.52s of real speech, and the rendered video said "That clip
+ *    reached 100". The crushed-word floor cannot catch this (a digit token
+ *    has no vowel group, so its floor is the 0.12s minimum). The cut now
+ *    runs on a temp file and is only committed when the trimmed audio still
+ *    passes the same similarity / truncation / key-token checks the TTS gate
+ *    applies.
+ *
  * Wiring: runForcedAlignment() calls runAlignmentGuards() on the RAW
  * (pre-restore) timing data — crushed-word detection needs the spoken-form
  * words, which restoreTimingTokens() replaces with display tokens — and
@@ -36,8 +50,9 @@
 
 import { exec } from "child_process";
 import { promisify } from "util";
-import { existsSync } from "fs";
+import { existsSync, renameSync, rmSync, copyFileSync } from "fs";
 import { ffmpegCmd, getDuration } from "./ffmpeg-cmd.mjs";
+import { evaluateSceneTts, MIN_TEXT_SIMILARITY } from "./quality-gate.mjs";
 
 const execAsync = promisify(exec);
 
@@ -162,19 +177,73 @@ export async function trimSceneTail(audioPath, cutSec) {
 }
 
 /**
+ * Read-back verification for a provisional tail cut.
+ *
+ * The cut exists to remove audio the alignment could not attribute to a word.
+ * When the alignment was wrong, that audio was real speech and the trimmed
+ * take is missing words — so re-run the read-back checks the TTS gate already
+ * applies and refuse the cut when the take no longer says everything.
+ *
+ * Fail-SAFE, not fail-open: if the verifier cannot run (ASR unavailable), the
+ * cut is refused and the untrimmed audio survives. A slightly long video beats
+ * a video that silently drops a word, and the untrimmed take already passed
+ * the gate once.
+ *
+ * @param {Object} scene - scene-data entry (the reference text lives here)
+ * @param {string} audioPath - the already-trimmed take
+ * @param {number} durationSec - its measured duration
+ * @param {{evaluateScene?: Function}} [options] - evaluateScene injectable for tests
+ * @returns {Promise<{ok: boolean, reason?: string}>}
+ */
+export async function verifyTrimmedTake(scene, audioPath, durationSec, options = {}) {
+  // No reference text to check against — nothing to verify, and the cut's
+  // original justification (alignment said the audio was excess) stands.
+  if (!scene) return { ok: true };
+
+  const evaluate = options.evaluateScene ?? evaluateSceneTts;
+  let report;
+  try {
+    report = await evaluate(scene, audioPath, durationSec);
+  } catch (e) {
+    return { ok: false, reason: `verification unavailable (${String(e?.message).slice(0, 60)})` };
+  }
+
+  if (report?.asrVerified === false) {
+    return { ok: false, reason: "ASR did not run, trimmed take is unverified" };
+  }
+  const issues = report?.issues ?? [];
+  const truncation = issues.find((i) => /truncation detected/i.test(i));
+  if (truncation) return { ok: false, reason: truncation };
+  const incomplete = issues.find((i) => /incomplete speech/i.test(i));
+  if (incomplete) return { ok: false, reason: incomplete };
+  if (typeof report?.similarity === "number" && report.similarity < MIN_TEXT_SIMILARITY) {
+    return { ok: false, reason: `similarity fell to ${(report.similarity * 100).toFixed(1)}%` };
+  }
+  return { ok: true };
+}
+
+/**
  * Run both guards over one alignment result batch.
  * Mutates ttsResults entries' duration in place for trimmed scenes (the same
  * objects registry.generateTTSWithEngine merges and returns downstream).
  *
+ * A cut that proceeds runs twice-gated: tailCutDecision() filters scenes whose
+ * alignment is self-reported as suspect (#629), and the trimmed take is then
+ * read back before the cut is committed (#232 verified-cut).
+ *
  * @param {Array<{sceneId: number, audioPath: string, duration: number}>} ttsResults
  * @param {Array|{scenes: Array}} timingData - RAW (pre-restore) alignment data
- * @returns {Promise<{cuts: Array<{sceneId: number, from: number, to: number}>, crushedWords: Array<{sceneId: number, word: string, duration: number, minDuration: number}>}>}
+ * @param {Array} [scenes] - scene-data entries; supplies the reference text the
+ *   trimmed take is read back against. Omit to skip cut verification.
+ * @param {{evaluateScene?: Function}} [options] - evaluateScene injectable for tests
+ * @returns {Promise<{cuts: Array<{sceneId: number, from: number, to: number}>, crushedWords: Array<{sceneId: number, word: string, duration: number, minDuration: number}>, skippedCuts: Array<{sceneId: number, reason: string}>, refusedCuts: Array<{sceneId: number, reason: string}>}>}
  */
-export async function runAlignmentGuards(ttsResults, timingData) {
+export async function runAlignmentGuards(ttsResults, timingData, scenes, options = {}) {
   const scenesTiming = Array.isArray(timingData) ? timingData : (timingData?.scenes ?? []);
   const cuts = [];
   const crushedWords = [];
   const skippedCuts = [];
+  const refusedCuts = [];
 
   for (const r of ttsResults ?? []) {
     const sceneTiming = scenesTiming.find((s) => s.sceneId === r.sceneId);
@@ -214,6 +283,20 @@ export async function runAlignmentGuards(ttsResults, timingData) {
       continue;
     }
 
+    const scene = scenes?.find((s) => s.id === r.sceneId);
+    // Keep the untrimmed take until the read-back confirms the cut did not
+    // remove a word — the alignment that justifies the cut is a model output
+    // and can be wrong (#232 verified-cut).
+    const backupPath = `${r.audioPath}.pre-tailcut`;
+    try {
+      copyFileSync(r.audioPath, backupPath);
+    } catch {
+      // No backup → no safe revert → skip the cut entirely rather than risk
+      // an unverifiable trim.
+      console.warn(`  ⚠️ Scene ${r.sceneId}: could not snapshot audio, skipping tail cut (#232)`);
+      continue;
+    }
+
     let newDuration = NaN;
     try {
       newDuration = await trimSceneTail(r.audioPath, decision.cutPoint);
@@ -224,18 +307,33 @@ export async function runAlignmentGuards(ttsResults, timingData) {
     if (!Number.isFinite(newDuration)) {
       // Fail-open: a broken ffmpeg/ffprobe must not poison the duration
       // registry merges downstream — the untrimmed original is intact.
+      rmSync(backupPath, { force: true });
       console.warn(
         `  ⚠️ Scene ${r.sceneId}: tail trim probe failed, keeping untrimmed audio (#232)`,
       );
-    } else {
-      cuts.push({ sceneId: r.sceneId, from: r.duration, to: newDuration });
-      console.log(
-        `  ✂️ Scene ${r.sceneId}: trimmed ${(r.duration - newDuration).toFixed(2)}s tail ` +
-          `after last word (${lastWordEnd.toFixed(2)}s + ${TAIL_PAD_SEC}s pad) (#232)`,
-      );
-      r.duration = newDuration;
+      continue;
     }
+
+    const verdict = await verifyTrimmedTake(scene, r.audioPath, newDuration, options);
+    if (!verdict.ok) {
+      // Fail-safe: the trimmed take no longer says everything, so the cut is
+      // refused and the pre-cut bytes come back.
+      renameSync(backupPath, r.audioPath);
+      refusedCuts.push({ sceneId: r.sceneId, reason: verdict.reason });
+      console.warn(
+        `  ↩️ Scene ${r.sceneId}: tail cut REFUSED — ${verdict.reason} (#232 verified-cut)`,
+      );
+      continue;
+    }
+
+    rmSync(backupPath, { force: true });
+    cuts.push({ sceneId: r.sceneId, from: r.duration, to: newDuration });
+    console.log(
+      `  ✂️ Scene ${r.sceneId}: trimmed ${(r.duration - newDuration).toFixed(2)}s tail ` +
+        `after last word (${lastWordEnd.toFixed(2)}s + ${TAIL_PAD_SEC}s pad) (#232)`,
+    );
+    r.duration = newDuration;
   }
 
-  return { cuts, crushedWords, skippedCuts };
+  return { cuts, crushedWords, skippedCuts, refusedCuts };
 }

@@ -272,11 +272,19 @@ async function finalizeTtsResults(
     // at generation end so the HITL listening pass knows which scenes to
     // spot-check (crushed words) and that tail cuts were applied.
     const guards = alignment?.guards;
-    if (guards && (guards.cuts.length > 0 || guards.crushedWords.length > 0)) {
+    if (
+      guards &&
+      (guards.cuts.length > 0 ||
+        guards.crushedWords.length > 0 ||
+        (guards.refusedCuts?.length ?? 0) > 0)
+    ) {
       const crushedScenes = [...new Set(guards.crushedWords.map((w) => w.sceneId))];
       console.log(
         `  🛡️ Alignment guards (#232): ${guards.cuts.length} tail cut(s), ` +
           `${guards.crushedWords.length} crushed word(s)` +
+          (guards.refusedCuts?.length
+            ? `, ${guards.refusedCuts.length} cut(s) refused by read-back`
+            : "") +
           (crushedScenes.length ? ` — spot-check scene(s) ${crushedScenes.join(", ")}` : ""),
       );
     }
