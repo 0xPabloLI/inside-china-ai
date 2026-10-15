@@ -45,7 +45,7 @@ export function skipsMediaSourcing(scene) {
   return false;
 }
 
-/** Small English stopword list for claim tokenization. */
+/** Small English stopword list for claim tokenization — function words only. */
 const STOPWORDS = new Set([
   "a",
   "an",
@@ -83,6 +83,210 @@ const STOPWORDS = new Set([
   "show",
   "some",
   "any",
+  // #635: prepositions/particles/auxiliaries the original list missed — they
+  // survived tokenization and padded phrases ("robot arm picking up").
+  "up",
+  "down",
+  "out",
+  "off",
+  "onto",
+  "upon",
+  "through",
+  "throughout",
+  "across",
+  "along",
+  "around",
+  "between",
+  "behind",
+  "beside",
+  "near",
+  "next",
+  "toward",
+  "towards",
+  "without",
+  "within",
+  "inside",
+  "outside",
+  "beyond",
+  "during",
+  "after",
+  "before",
+  "while",
+  "when",
+  "where",
+  "which",
+  "who",
+  "whom",
+  "whose",
+  "what",
+  "how",
+  "then",
+  "than",
+  "also",
+  "still",
+  "both",
+  "each",
+  "more",
+  "most",
+  "very",
+  "just",
+  "has",
+  "have",
+  "had",
+  "do",
+  "does",
+  "did",
+  "can",
+  "could",
+  "will",
+  "would",
+  "shall",
+  "should",
+  "may",
+  "might",
+  "must",
+  "vs",
+  "versus",
+  "per",
+  "via",
+  "including",
+  "etc",
+]);
+
+/**
+ * Shot framing / composition vocabulary (#635). These words describe *how* a
+ * shot is framed, never *what* it shows — a phrase cut from them ("close up
+ * advanced ai") retrieves nothing, and they only displace the content words
+ * that do. "center" is deliberately absent: it is half of "data center".
+ */
+const FRAMING_WORDS = new Set([
+  "close",
+  "closeup",
+  "closeups",
+  "split",
+  "splits",
+  "pane",
+  "panes",
+  "shot",
+  "shots",
+  "view",
+  "views",
+  "angle",
+  "angles",
+  "frame",
+  "frames",
+  "framing",
+  "background",
+  "backgrounds",
+  "foreground",
+  "overlay",
+  "side",
+  "sides",
+  "left",
+  "right",
+  "top",
+  "bottom",
+  "middle",
+  "wide",
+  "aerial",
+  "full",
+  "body",
+  "scene",
+  "scenes",
+  "layout",
+]);
+
+/**
+ * Rendering-style and meta vocabulary (#635): production craft ("cinematic",
+ * colors, lighting) and request language ("ai", "tech", "generated") that
+ * carry no retrievable subject. Kept out of the token stream so they can
+ * neither stand alone nor pad a phrase window.
+ */
+const STYLE_WORDS = new Set([
+  "cinematic",
+  "aesthetic",
+  "quality",
+  "high",
+  "end",
+  "generated",
+  "concept",
+  "abstract",
+  "theme",
+  "tech",
+  "glowing",
+  "ai",
+  "dates",
+  "date",
+  "black",
+  "white",
+  "red",
+  "green",
+  "blue",
+  "yellow",
+  "orange",
+  "amber",
+  "purple",
+  "pink",
+  "gold",
+  "silver",
+  "cyan",
+  "dark",
+  "light",
+  "bright",
+  "neon",
+]);
+
+/**
+ * Generic filler (#635): quantifiers and sizes, placeholder nouns and generic
+ * actions. A bare "small" or "object" query is noise in every stock library;
+ * as phrase padding these words only displace the subject.
+ */
+const GENERIC_WORDS = new Set([
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "small",
+  "large",
+  "big",
+  "tiny",
+  "huge",
+  "massive",
+  "giant",
+  "little",
+  "multiple",
+  "several",
+  "various",
+  "object",
+  "objects",
+  "thing",
+  "things",
+  "item",
+  "items",
+  "stuff",
+  "work",
+  "working",
+  "installed",
+  "connected",
+]);
+
+/**
+ * The single filter set for claim keyword tokens: function words, prompt
+ * craft, generic filler. Bare digits are dropped separately (quantifiers,
+ * not subject matter) — a token survives as an "anchor" only when digits ride
+ * with letters (H800, Qwen3, 3D).
+ */
+const NON_KEYWORD_WORDS = new Set([
+  ...STOPWORDS,
+  ...FRAMING_WORDS,
+  ...STYLE_WORDS,
+  ...GENERIC_WORDS,
 ]);
 
 /** Max keywords returned per claim. */
@@ -90,6 +294,9 @@ const MAX_KEYWORDS = 3;
 
 /** Words in the primary search phrase. */
 const PRIMARY_PHRASE_WORDS = 4;
+
+/** Words per supplementary phrase window. */
+const SPARE_PHRASE_WORDS = 3;
 
 /**
  * Extract per-scene asset claims from scene-data.
@@ -125,9 +332,8 @@ export function extractSceneClaims(scenes) {
 }
 
 /**
- * Tokenize text into content words (lowercase, punctuation stripped,
- * stopwords dropped). Shared by claim keyword generation and the
- * relevance-overlap scorer so both use the same normalization.
+ * Tokenize text into keyword content words (lowercase, punctuation stripped,
+ * function/prompt-craft/generic words dropped, bare digits dropped).
  *
  * @param {string} text
  * @returns {string[]}
@@ -138,7 +344,26 @@ function tokenizeClaimWords(text) {
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .split(/\s+/)
-    .filter((t) => t.length > 0 && !STOPWORDS.has(t));
+    .filter((t) => t.length > 0 && !/^\d+$/u.test(t) && !NON_KEYWORD_WORDS.has(t));
+}
+
+/**
+ * Keep the first occurrence of each token. A claim that names the same word
+ * twice ("humanoid robot arm or robot hand") must not echo it into the phrase
+ * ("humanoid robot arm robot").
+ *
+ * @param {string[]} tokens
+ * @returns {string[]}
+ */
+function dedupeTokens(tokens) {
+  const seen = new Set();
+  const out = [];
+  for (const token of tokens) {
+    if (seen.has(token)) continue;
+    seen.add(token);
+    out.push(token);
+  }
+  return out;
 }
 
 /**
@@ -240,28 +465,45 @@ export function extractZhKeywords(text, opts = {}) {
 /**
  * Convert an asset-claim description into deterministic search keywords.
  *
- * Pipeline: lowercase → strip punctuation → drop stopwords →
- * primary phrase (first 4 content words) + up to 2 single-word spares,
- * capped at MAX_KEYWORDS total.
+ * #635 policy — a keyword must be a retrievable image-search phrase, not a
+ * bag of tokens:
+ * - prompt-craft vocabulary (framing, style, colors, "ai") and generic filler
+ *   (quantifiers, sizes, placeholders such as "object") never enter the token
+ *   stream;
+ * - the primary phrase is the first N content words, with repeated words
+ *   collapsed;
+ * - remaining tokens are grouped into phrase windows, and a window shorter
+ *   than two tokens is dropped — so a bare single word never becomes a query
+ *   unless it is an alphanumeric anchor (H800, Qwen3, 3D);
+ * - when the claim leaves no usable phrase (all filtered, or a single
+ *   non-anchor word), the scene yields no claim keywords and the caller's
+ *   pool takes over — fail-closed beats a noisy query.
+ *
+ * Scope boundary: this function only decides *what to search with*. The VLM
+ * still scores candidates against the untouched assetNeed text (#294 owns
+ * relevance judgment; #354 owns handwritten searchHints overrides).
  *
  * @param {string} claim - Asset-need description
- * @returns {string[]} Keyword array (0..3 entries)
+ * @returns {string[]} Keyword array (0..3 entries; each is a ≥2-word phrase or an anchor)
  */
 export function claimToKeywords(claim) {
   if (!claim || typeof claim !== "string") return [];
 
-  const tokens = tokenizeClaimWords(claim);
+  const tokens = dedupeTokens(tokenizeClaimWords(claim));
   if (tokens.length === 0) return [];
-
-  const keywords = [];
   if (tokens.length === 1) {
-    keywords.push(tokens[0]);
-  } else {
-    keywords.push(tokens.slice(0, PRIMARY_PHRASE_WORDS).join(" "));
-    for (const token of tokens.slice(PRIMARY_PHRASE_WORDS)) {
-      if (keywords.length >= MAX_KEYWORDS) break;
-      keywords.push(token);
-    }
+    return /[0-9]/u.test(tokens[0]) ? [tokens[0]] : [];
+  }
+
+  const keywords = [tokens.slice(0, PRIMARY_PHRASE_WORDS).join(" ")];
+  for (
+    let i = PRIMARY_PHRASE_WORDS;
+    i < tokens.length && keywords.length < MAX_KEYWORDS;
+    i += SPARE_PHRASE_WORDS
+  ) {
+    const window = tokens.slice(i, i + SPARE_PHRASE_WORDS);
+    if (window.length < 2) break;
+    keywords.push(window.join(" "));
   }
   return keywords;
 }
