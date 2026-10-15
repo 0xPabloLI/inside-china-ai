@@ -119,15 +119,26 @@ function makeKaggleCliMock({ sceneResults, forceSummaryRequestId } = {}) {
       if (cmd.startsWith("kaggle kernels output")) {
         const dir = cmd.match(/-p "([^"]+)"/)[1];
         const kernelId = cmd.match(/kernels output (\S+)/)[1];
+        const forced = cmd.includes("--force");
+        const wantPattern = cmd.match(/--file-pattern "([^"]+)"/);
         downloads.push({ dir, kernelId, cmd });
-        // Real CLI semantics: a local copy blocks the download.
-        if (existsSync(join(dir, "output", "summary.json"))) {
+        // Real CLI semantics: `--force` bypasses the up-to-date check, and
+        // without it `download_needed()` skips a file whose local copy is the
+        // same size or larger with a newer mtime (kaggle_api_extended.py
+        // download_needed — the mechanism behind #420). `--file-pattern`
+        // filters with `compiled_pattern.search` against the artifact's
+        // relative path — "output/<name>".
+        if (!forced && existsSync(join(dir, "output", "summary.json"))) {
           return { stdout: "Skipping, found more recently modified local copy" };
         }
         const files = remote.get(kernelId);
         if (!files) throw new Error(`mock: no remote output registered for ${kernelId}`);
+        const pattern = wantPattern ? new RegExp(wantPattern[1]) : null;
         mkdirSync(join(dir, "output"), { recursive: true });
-        for (const [name, bytes] of files) writeFileSync(join(dir, "output", name), bytes);
+        for (const [name, bytes] of files) {
+          if (pattern && !pattern.test(`output/${name}`)) continue;
+          writeFileSync(join(dir, "output", name), bytes);
+        }
         return { stdout: "" };
       }
       return { stdout: "" };
@@ -158,6 +169,9 @@ async function makeEngine(mock, { postProcess } = {}) {
     poll: async () => ({ queuedMs: 0, runningMs: 0 }),
     postProcess: postProcess ?? (async () => 3.0),
     refAudioPath,
+    // #581: the per-file download recovery backs off for real (2s/4s/8s); the
+    // seam is injected so failure paths stay instant here.
+    sleep: async () => {},
   });
 }
 
@@ -384,8 +398,11 @@ describe("#420 — incomplete artifacts fail closed before promotion", () => {
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
       postProcess: async () => 3.0,
       refAudioPath,
+      sleep: async () => {}, // #581 recovery backoff, injected
     });
 
+    // The whole-batch call and the bounded per-file recovery both die on the
+    // same network error — the run fails closed, nothing is promoted (#581).
     await expect(engine.generate(SCENES, outDir)).rejects.toThrow(/Failed to download/i);
     expect(existsSync(join(outDir, "scene-1.wav"))).toBe(false);
   });

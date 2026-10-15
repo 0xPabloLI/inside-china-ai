@@ -10,7 +10,8 @@
  *   2. Embed manifest + per-call request id into the Kaggle kernel script
  *   3. Push kernel via `kaggle kernels push` (ref audio from Kaggle dataset)
  *   4. Poll `kaggle kernels status` until complete
- *   5. Download output into a per-call staging dir, verify the kernel summary
+ *   5. Download output into a per-call staging dir, recovering per file when
+ *      the whole-batch transfer is cut short (#581), verify the kernel summary
  *      echoes this call's request id and that every requested scene is complete
  *      (#420), then promote into the audio dir
  *   6. Post-process (resample 44.1kHz) and return results
@@ -63,6 +64,21 @@ const KAGGLE_QUEUE_TIMEOUT_MS = parseInt(
 ); // 40 min QUEUED/waiting budget
 const KAGGLE_POLL_INTERVAL_MS = 15000; // 15s
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
+
+// The kernel writes every artifact below `<working dir>/output`
+// (kaggle/cosyvoice3_cuda_kernel.py: `/kaggle/working/output/<scene-N>.wav` +
+// summary.json), and `kaggle kernels output` mirrors that relative layout.
+const KAGGLE_OUTPUT_SUBDIR = "output";
+const KAGGLE_SUMMARY_FILE = "summary.json";
+/** The summary's path relative to the staging dir (`output/summary.json`). */
+const KAGGLE_SUMMARY_REL = `${KAGGLE_OUTPUT_SUBDIR}/${KAGGLE_SUMMARY_FILE}`;
+// Per-file recovery budget when the whole-batch download aborts (#581). The
+// CLI's exit code is all-or-nothing: one SSL EOF while streaming the next
+// artifact exits non-zero and the run used to be discarded even though the
+// earlier takes had already landed (2026-09-27: 7 of 8 CosyVoice3 wavs on
+// disk). Retries are bounded and stay far below the ~10min a re-push costs.
+const KAGGLE_DOWNLOAD_RECOVERY_ATTEMPTS = 3;
+const KAGGLE_DOWNLOAD_RECOVERY_BACKOFF_MS = 2000; // 2s → 4s → 8s
 
 // ── Emotion instructions ──
 // #270: the instruct standard (Persona + Accent + Emotion + Pacing, #234) has
@@ -386,6 +402,281 @@ export function assertCompleteKernelWav(filePath, sceneId) {
   return filePath;
 }
 
+/** Escape a literal file name for embedding in `--file-pattern`. */
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Anchored `--file-pattern` regex for a set of kernel output file NAMES.
+ *
+ * The CLI filters with `compiled_pattern.search(item.file_name)`
+ * (kernels_output in kaggle_api_extended.py), where `file_name` is the
+ * artifact's relative path — `output/scene-1.wav` — so both ends must be
+ * anchored: a bare `scene-1.wav` would also select `scene-11.wav`, fetching a
+ * take the run never asked for under the requested scene's name.
+ *
+ * @param {string[]} fileNames - e.g. ["scene-1.wav", "summary.json"]
+ * @returns {string} regex accepted by `kaggle kernels output --file-pattern`
+ */
+export function buildKernelFilePattern(fileNames) {
+  return `(^|/)(?:${fileNames.map(escapeRegExp).join("|")})$`;
+}
+
+/** Last non-empty line of a CLI failure (the Python exception, not the traceback head). */
+function errorTail(text) {
+  const lines = String(text ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const tail = lines.at(-1) ?? "unknown error";
+  return tail.length > 240 ? `${tail.slice(0, 240)}…` : tail;
+}
+
+/** Path of the staged kernel summary inside the per-call staging dir. */
+function stagedSummaryPath(downloadDir) {
+  return join(downloadDir, KAGGLE_OUTPUT_SUBDIR, KAGGLE_SUMMARY_FILE);
+}
+
+/** Read the staged kernel summary, or null when absent/unreadable. */
+function readStagedSummary(downloadDir) {
+  const summaryPath = stagedSummaryPath(downloadDir);
+  if (!existsSync(summaryPath)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(summaryPath, "utf-8"));
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Files this run must end up with locally before the download seam returns.
+ *
+ * Until a usable summary is staged the kernel's coverage is unknown, so every
+ * requested take is required (optimistic — the fetch for a scene that turns out
+ * to have errored simply matches nothing). Once the summary is readable its
+ * per-scene verdicts decide: the kernel writes NO wav for a scene it errored
+ * (cosyvoice3_cuda_kernel.py appends `{sceneId, error}` without an output), and
+ * the registry's self-heal owns that scene — requiring its wav here would turn
+ * a legitimate partial batch into a download failure.
+ *
+ * @param {string} downloadDir - per-call staging dir
+ * @param {number[]} expectedScenes - scene ids this run requested
+ * @returns {string[]} paths relative to downloadDir
+ */
+function requiredArtifacts(downloadDir, expectedScenes) {
+  const takes = expectedScenes.map((id) => ({
+    id: String(id),
+    rel: `${KAGGLE_OUTPUT_SUBDIR}/scene-${id}.wav`,
+  }));
+  const summary = readStagedSummary(downloadDir);
+  if (!summary || !Array.isArray(summary.segments)) {
+    return [KAGGLE_SUMMARY_REL, ...takes.map((t) => t.rel)];
+  }
+  const produced = new Set(
+    summary.segments.filter((s) => !s?.error).map((s) => String(s?.sceneId)),
+  );
+  return [KAGGLE_SUMMARY_REL, ...takes.filter((t) => produced.has(t.id)).map((t) => t.rel)];
+}
+
+/** Scene id for the completeness gate's messages; the file name when unparsable. */
+function artifactSceneLabel(relPath) {
+  const name = basename(relPath);
+  const match = name.match(/^scene-(\d+)\.wav$/);
+  return match ? match[1] : name;
+}
+
+/**
+ * Intactness of one staged artifact. Wavs go through the same RIFF/chunk gate
+ * promotion uses (#420); the summary must be readable JSON. A half-written file
+ * (truncated RIFF, 0 bytes) counts as absent — the seam's postcondition is that
+ * the run's artifacts are present AND usable, not merely present.
+ */
+function isIntactArtifact(absPath, relPath) {
+  if (!existsSync(absPath)) return false;
+  if (relPath.endsWith(".wav")) {
+    try {
+      assertCompleteKernelWav(absPath, artifactSceneLabel(relPath));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  if (relPath.endsWith(".json")) {
+    try {
+      JSON.parse(readFileSync(absPath, "utf-8"));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Validate what the batch attempt left behind and remove unusable files.
+ *
+ * @returns {{intact: string[], removed: string[]}} relative paths
+ */
+function salvageStagedArtifacts(downloadDir, expectedRels) {
+  const intact = [];
+  const removed = [];
+  for (const rel of expectedRels) {
+    const abs = join(downloadDir, rel);
+    if (isIntactArtifact(abs, rel)) {
+      intact.push(rel);
+      continue;
+    }
+    if (existsSync(abs)) {
+      // Remove it so the next pass cannot mistake a half-written file for a
+      // usable one. Not because the CLI would trust it — `download_needed()`
+      // re-downloads whenever the local file is smaller than the remote — but
+      // because this seam's own bookkeeping (and its final report) must count
+      // the file as absent until intact bytes are actually staged.
+      rmSync(abs, { force: true });
+      removed.push(rel);
+    }
+  }
+  return { intact, removed };
+}
+
+/**
+ * Download a finished kernel's output into the per-call staging dir, recovering
+ * per file when the whole-batch transfer is cut short (#581).
+ *
+ * Postcondition: on resolve, the staging dir holds an INTACT copy of every
+ * artifact the run needs (see requiredArtifacts) — otherwise this throws with
+ * the missing files named. It deliberately does NOT verify run identity: the
+ * #420 gate still reads summary.json afterwards and rejects a stale, foreign or
+ * uncovered batch, so recovery can never promote a partial batch as complete.
+ *
+ * @param {object} opts
+ * @param {string} opts.kernelId - "<owner>/<slug>"
+ * @param {string} opts.downloadDir - per-call staging dir (downloads/<requestId>)
+ * @param {number[]} opts.expectedScenes - scene ids this run requested
+ * @param {(cmd: string) => Promise<{stdout: string}>} opts.runCmd - shell runner
+ * @param {(ms: number) => Promise<void>} [opts.sleep] - backoff seam
+ * @param {(msg: string) => void} [opts.log]
+ * @returns {Promise<{batchFailed: boolean, removed: string[], recovered: string[]}>}
+ * @throws {Error} when required artifacts are still missing after the budget
+ *   (KAGGLE_DOWNLOAD_RECOVERY_ATTEMPTS rounds at KAGGLE_DOWNLOAD_RECOVERY_BACKOFF_MS
+ *   base, doubling per round)
+ */
+export async function downloadKernelOutput({
+  kernelId,
+  downloadDir,
+  expectedScenes,
+  runCmd,
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+  log = (msg) => console.log(msg),
+}) {
+  mkdirSync(downloadDir, { recursive: true });
+  const removed = [];
+  const recovered = [];
+  // Files that were present but unusable at least once (half-written transfer):
+  // the final report must not read as if they never arrived upstream.
+  const unusable = new Set();
+
+  /** Recompute the required set, salvage it, and report what is still missing. */
+  const salvagePass = () => {
+    const required = requiredArtifacts(downloadDir, expectedScenes);
+    const pass = salvageStagedArtifacts(downloadDir, required);
+    // One entry per distinct file: a re-fetched copy that is truncated again is
+    // the same file being discarded twice, not two files. `unusable` already
+    // dedupes for the same reason.
+    for (const rel of pass.removed) {
+      if (!removed.includes(rel)) removed.push(rel);
+      unusable.add(rel);
+    }
+    const intactSet = new Set(pass.intact);
+    return { missing: required.filter((rel) => !intactSet.has(rel)), intactSet };
+  };
+
+  let batchError = null;
+  try {
+    await runCmd(`kaggle kernels output ${kernelId} -p "${downloadDir}" --force 2>&1`);
+  } catch (e) {
+    // A non-zero exit is a symptom, not a verdict: it cannot say whether the
+    // takes that already landed are usable. Fall through to the recovery path
+    // and let what is on disk decide.
+    batchError = e;
+  }
+  let missing = salvagePass().missing;
+
+  if (batchError) {
+    const tail = errorTail(batchError.message ?? batchError);
+    log(
+      missing.length === 0
+        ? `  ⚠️ Kaggle output download aborted (${tail}) but every required artifact is ` +
+            "already staged intact — continuing (#581)"
+        : `  ⚠️ Kaggle output download aborted (${tail}) — recovering ${missing.length} ` +
+            "missing file(s) per file (#581)",
+    );
+  }
+
+  let lastRecoveryError = null;
+
+  /** Fetch `rels` with one anchored `--file-pattern` call and re-salvage. */
+  const fetchAndSalvage = async (rels) => {
+    try {
+      const pattern = buildKernelFilePattern(rels.map((rel) => basename(rel)));
+      await runCmd(
+        `kaggle kernels output ${kernelId} -p "${downloadDir}" --file-pattern "${pattern}" --force 2>&1`,
+      );
+    } catch (e) {
+      lastRecoveryError = e;
+    }
+    const after = salvagePass();
+    // Only files that are now INTACT count as recovered: one that merely
+    // dropped out of the required set (the freshly fetched summary narrowed it
+    // to the scenes the kernel actually produced) was never fetched.
+    for (const rel of rels) {
+      if (after.intactSet.has(rel)) recovered.push(rel);
+    }
+    missing = after.missing;
+  };
+
+  for (
+    let attempt = 1;
+    missing.length > 0 && attempt <= KAGGLE_DOWNLOAD_RECOVERY_ATTEMPTS;
+    attempt++
+  ) {
+    const waitMs = KAGGLE_DOWNLOAD_RECOVERY_BACKOFF_MS * 2 ** (attempt - 1);
+    log(
+      `  ↻ Kaggle per-file recovery ${attempt}/${KAGGLE_DOWNLOAD_RECOVERY_ATTEMPTS}: ` +
+        `${missing.length} file(s) missing, retrying in ${waitMs}ms...`,
+    );
+    await sleep(waitMs);
+    // The kernel writes summary.json LAST (cosyvoice3_cuda_kernel.py: after
+    // every wav), so it is the most cut-prone artifact — and the file whose
+    // per-scene verdicts decide which takes are actually required. Fetch it on
+    // its own first: otherwise a cut would keep demanding the wav of a scene
+    // the kernel errored on, and the bounded budget would fail a legitimately
+    // partial batch.
+    if (missing.includes(KAGGLE_SUMMARY_REL)) {
+      await fetchAndSalvage([KAGGLE_SUMMARY_REL]);
+    }
+    if (missing.length > 0) {
+      await fetchAndSalvage([...missing]);
+    }
+  }
+
+  if (missing.length > 0) {
+    const cause = batchError ?? lastRecoveryError;
+    const described = missing.map((rel) =>
+      unusable.has(rel) ? `${rel} (incomplete/truncated)` : `${rel} (not present)`,
+    );
+    const details =
+      `per-file recovery left ${missing.length} file(s) missing after ` +
+      `${KAGGLE_DOWNLOAD_RECOVERY_ATTEMPTS} attempt(s): ${described.join(", ")}`;
+    throw new Error(
+      `Failed to download Kaggle output: ${cause ? `${cause.message ?? cause} — ` : ""}${details}`,
+    );
+  }
+  return { batchFailed: batchError !== null, removed, recovered };
+}
+
 /**
  * Check if Kaggle CLI is available and configured.
  *
@@ -596,6 +887,7 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
  * @param {(cmd: string) => Promise<{stdout: string}>} [deps.exec] - shell command runner
  * @param {typeof pollKernelStatus} [deps.poll] - kernel status poller
  * @param {typeof postProcessBatch} [deps.postProcess] - per-scene audio post-process
+ * @param {(ms: number) => Promise<void>} [deps.sleep] - download-recovery backoff (#581)
  * @returns {Promise<TTSEngine|null>} null if not available.
  */
 export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
@@ -714,16 +1006,23 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       const downloadDir = join(tempDir, "downloads", requestId);
       mkdirSync(downloadDir, { recursive: true });
       console.log("  📥 Downloading Kaggle kernel output...");
-      try {
-        await runCmd(`kaggle kernels output ${kernelId} -p "${downloadDir}" --force 2>&1`);
-      } catch (e) {
-        throw new Error(`Failed to download Kaggle output: ${e.message}`);
-      }
+      // #581: one transient error mid-transfer must not void a paid GPU run —
+      // the takes that already landed are recovered per file, bounded. This
+      // only guarantees the staged files are present and intact; identity,
+      // coverage and integrity are still judged by the gates below, so a
+      // partial recovery can never be promoted as a complete batch.
+      await downloadKernelOutput({
+        kernelId,
+        downloadDir,
+        expectedScenes: scenes.map((s) => s.id),
+        runCmd,
+        sleep: deps.sleep,
+      });
 
       // ── Verify run identity, coverage and per-scene file integrity ──
       // Every check runs BEFORE any file reaches the audio directory: a stale,
       // foreign or partial download must never mix into the approved takes.
-      const summaryPath = join(downloadDir, "output", "summary.json");
+      const summaryPath = stagedSummaryPath(downloadDir);
       if (!existsSync(summaryPath)) {
         throw new Error("Kaggle kernel did not produce summary.json");
       }
@@ -742,7 +1041,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       }
       const promotable = summary.segments.filter((s) => !s.error);
       for (const s of promotable) {
-        assertCompleteKernelWav(join(downloadDir, "output", s.output), s.sceneId);
+        assertCompleteKernelWav(join(downloadDir, KAGGLE_OUTPUT_SUBDIR, s.output), s.sceneId);
       }
 
       // ── Post-process ──
@@ -751,7 +1050,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
 
       const finalResults = [];
       for (const s of promotable) {
-        const srcPath = join(downloadDir, "output", s.output);
+        const srcPath = join(downloadDir, KAGGLE_OUTPUT_SUBDIR, s.output);
         const destPath = join(outputDir, s.output);
         copyFileSync(srcPath, destPath);
 
