@@ -293,7 +293,7 @@ CTA 公式：`[Action Verb] + [What They Get]`
 - **抓取**：走 `web-access` CDP（自动化 profile），读页面即可，公开内容不需要登录态；操作面压到最小。**先读站点经验**（`~/.agents/skills/web-access/references/site-patterns/<domain>.md`），没有就按通用模式操作并把验证过的事实写回去。
 - **隔离与裁切**：把目标卡片从页面里隔离出来（逐级隐藏兄弟节点），隐藏浏览者界面元素（导航、译文行、悬浮按钮），截图前回到页面顶部。**裁切点必须落在元素边界上**——正文底与媒体区之间的空白处；卡片高度差异很大，按固定高度裁切必然把配图或视频切一半。
 - **构图约束**：`media-bottom-bar` 的媒体窗口是 y∈[0,814] 的 1080 宽画面，而 TikTok 右侧操作栏从 x=880 起（y∈[640,1775]），帧门禁要求该区亮像素 <5%。白色网页整幅都是亮像素，故截图素材按 **880×814** 合成（上方留暗带给品牌栏、下方留暗底、两侧交给 `fit:"contain"` 的底衬），不要靠提高 overlay 过门禁——压到能过门禁时页内正文已不可读。
-- **落档**：截图写入 `content/<slug>/assets/`，在 `assets/catalog.yml` 补条目（source 写 URL + 抓取日期，license 写「editorial/evidence use」），并在 `docs/refs/source-materials/<slug>-sources.md` 记录抓取方式与每个数字的页面口径。
+- **落档**：截图写入 `content/<slug>/assets/`，在共享的 `scripts/short-video/assets/catalog.yml` 补条目（source 写 URL + 抓取日期，license 写「editorial/evidence use」；目录是 RAG 索引的输入，写错位置截图进不了语义检索），并在 `docs/refs/source-materials/<slug>-sources.md` 记录抓取方式与每个数字的页面口径。
 
 **asset-sourcer 当前限制（2026-09-03 实测）**：
 

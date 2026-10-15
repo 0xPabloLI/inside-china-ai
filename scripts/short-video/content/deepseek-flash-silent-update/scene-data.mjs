@@ -30,10 +30,13 @@
  * alternative (raising `overlay` past ~0.72 to clear the gate) drops the page
  * text to roughly 2.3:1 contrast and makes the evidence unreadable.
  *
- * Layout note: only `narrative` consumes scene.layout, and `hero-center` /
- * `stacked-cards` are CSS-only (auto-skipped by the media filter), so any scene
- * that carries a screenshot uses a media layout: media-bottom-bar, media-split
- * or media-overlay. Entity color: DeepSeek = blue.
+ * Layout note: only `narrative` consumes `scene.layout`. `hook` (scene 1) and
+ * `context` (scene 6) render `scene.media` through `MediaBackground` whatever
+ * the layout says, so they carry screenshots under `hero-center`; the narrative
+ * scenes use `media-bottom-bar`. The CSS-only skip in `lib/claim-keywords.mjs`
+ * only suppresses media *sourcing* for `hero-center` / `stacked-cards` when the
+ * scene has no `assetNeed` — explicitly declared media always renders.
+ * Entity color: DeepSeek = blue.
  */
 
 export const scenes = [
