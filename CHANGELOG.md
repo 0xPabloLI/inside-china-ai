@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.16](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.15...tanstack_start_ts-v1.20.16) (2026-10-15)
+
+
+### Bug Fixes
+
+* **short-video:** emit phrase queries instead of fragmented single words ([#635](https://github.com/0xPabloLI/inside-china-ai/issues/635)) ([#676](https://github.com/0xPabloLI/inside-china-ai/issues/676)) ([ead658e](https://github.com/0xPabloLI/inside-china-ai/commit/ead658ecaf2c0e485a7958ae7e7a72e1e99a0c47))
+
 ## [1.20.15](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.14...tanstack_start_ts-v1.20.15) (2026-10-15)
 
 
