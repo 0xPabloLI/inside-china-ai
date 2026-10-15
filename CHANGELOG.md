@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.20.15](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.14...tanstack_start_ts-v1.20.15) (2026-10-15)
+
+
+### Bug Fixes
+
+* **short-video:** spoken track 数字进对齐器 + 尾切回读验证（重放到 [#629](https://github.com/0xPabloLI/inside-china-ai/issues/629) 门禁之上） ([f750757](https://github.com/0xPabloLI/inside-china-ai/commit/f7507577ae74d659e5b5318f00f4b6ec5e4bd947))
+* **short-video:** spoken-track cardinals + verified tail cut (re-land b23d554a over the [#629](https://github.com/0xPabloLI/inside-china-ai/issues/629) gate) ([95a7f5c](https://github.com/0xPabloLI/inside-china-ai/commit/95a7f5caaf000cb13b3522ef8c498bb55ff683e7))
+* **short-video:** 超 trillion 量级的整数不再拼出丢量级的词（droid-review） ([5fef88c](https://github.com/0xPabloLI/inside-china-ai/commit/5fef88c56fef5694e31bc913e57d5c23af369678))
+
 ## [1.20.14](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.13...tanstack_start_ts-v1.20.14) (2026-10-15)
 
 
