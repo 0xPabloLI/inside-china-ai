@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.17](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.16...tanstack_start_ts-v1.20.17) (2026-10-15)
+
+
+### Bug Fixes
+
+* **short-video:** converge bing_news to articles-only and name download failures ([#636](https://github.com/0xPabloLI/inside-china-ai/issues/636)) ([960b6e9](https://github.com/0xPabloLI/inside-china-ai/commit/960b6e90faf9ac0e40a21c011c3d8616bdd12f88))
+
 ## [1.20.16](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.15...tanstack_start_ts-v1.20.16) (2026-10-15)
 
 
