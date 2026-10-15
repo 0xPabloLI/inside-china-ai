@@ -281,7 +281,7 @@ const GENERIC_WORDS = new Set([
  * The single filter set for claim keyword tokens: function words, prompt
  * craft, generic filler. Bare digits are dropped separately (quantifiers,
  * not subject matter) — a token survives as an "anchor" only when digits ride
- * with letters (H800, Qwen3, 3D).
+ * with letters (H800, Qwen3, 3D) or it carries an internal capital (DeepSeek).
  */
 const NON_KEYWORD_WORDS = new Set([
   ...STOPWORDS,
@@ -351,9 +351,12 @@ function tokenizeClaimWords(text) {
 /**
  * Anchor words — the only tokens allowed to stand alone as a query: model and
  * serial identifiers (H800, Qwen3, 3D) and brand-style tokens with an internal
- * capital (DeepSeek, iPhone). Sentence-start capitalization is deliberately
- * not a cue, so "Robot" or "Split" at the head of a claim cannot leak back in
- * as a bare query; those brands are covered by the caller's fallback pool.
+ * capital (DeepSeek, iPhone). Capitalization alone is never a cue: an
+ * all-caps token has no lowercase letter to distinguish a brand from shouted
+ * filler, so it is not an anchor — "ROBOT" / "HAND" cannot leak back in as
+ * bare queries, and acronyms such as "GPU" only survive inside a phrase.
+ * Sentence-start capitalization is ignored for the same reason ("Robot",
+ * "Split"); those brands are covered by the caller's fallback pool.
  * Returns lowercase forms to match the token stream.
  *
  * @param {string} claim - Raw claim text (casing intact)
@@ -364,7 +367,10 @@ function anchorWords(claim) {
   for (const raw of claim.split(/\s+/)) {
     const bare = raw.replace(/[^\p{L}\p{N}]/gu, "");
     if (!bare || /^\d+$/u.test(bare)) continue; // bare numbers are quantifiers
-    if (/[0-9]/u.test(bare) || /[A-Z]/u.test(bare.slice(1))) anchors.add(bare.toLowerCase());
+    const hasLowercase = /[a-z]/.test(bare);
+    if (/[0-9]/u.test(bare) || (hasLowercase && /[A-Z]/u.test(bare.slice(1)))) {
+      anchors.add(bare.toLowerCase());
+    }
   }
   return anchors;
 }

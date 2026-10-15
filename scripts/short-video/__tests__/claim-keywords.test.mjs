@@ -86,10 +86,23 @@ describe("claimToKeywords", () => {
     expect(claimToKeywords("robot")).toEqual([]);
     expect(claimToKeywords("hand")).toEqual([]);
     expect(claimToKeywords("Robot")).toEqual([]); // sentence-start casing is not an anchor cue
+    expect(claimToKeywords("ROBOT")).toEqual([]); // nor is shouting: no lowercase letter, no brand
+    expect(claimToKeywords("HAND")).toEqual([]);
+    expect(claimToKeywords("SMALL BLOCK")).toEqual([]); // all-caps filler stays filtered
     expect(claimToKeywords("H800")).toEqual(["h800"]);
     expect(claimToKeywords("DeepSeek")).toEqual(["deepseek"]); // internal capital = brand-style anchor
     expect(claimToKeywords("3D")).toEqual(["3d"]);
     expect(claimToKeywords("2024")).toEqual([]); // bare numbers are quantifiers, not anchors
+  });
+
+  it("keeps a trailing anchor token instead of dropping it with the tail", () => {
+    expect(claimToKeywords("robot arm camera sensor H800")).toEqual([
+      "robot arm camera sensor",
+      "h800",
+    ]);
+    expect(claimToKeywords("robot arm camera sensor dashboard")).toEqual([
+      "robot arm camera sensor",
+    ]);
   });
 
   it("treats colors and lighting as style, not subject matter (pinned trade)", () => {
@@ -215,6 +228,10 @@ describe("#635 — assetNeed keyword hygiene", () => {
     expect(
       claimToKeywords("autonomous vehicle interior cabin with touchscreen and passenger seats"),
     ).toEqual(["autonomous vehicle interior cabin", "touchscreen passenger seats"]);
+    // Color/lighting drops plus the trailing-window break, on a swept claim.
+    expect(
+      claimToKeywords("massive data center server racks glowing blue at night, wide aerial view"),
+    ).toEqual(["data center server racks"]);
   });
 
   it("holds for every real content package: no bare single-word query without a digit", async () => {
