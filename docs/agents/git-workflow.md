@@ -67,7 +67,7 @@
 - 只 commit 本 session 的改动。
 - 不顺手修复无关或非本 session 引入的问题。
 - 无法确认改动来源时停止，向用户报告。
-- session 结束时记录 commit hash、未 push 状态、验证证据和剩余 blocker。
+- session 结束时记录 commit hash、未 push 状态、验证证据、产品影响（`implementation-workflow.md` §9 步骤 8）和剩余 blocker。
 - **Issue 交付落档与读票**：per-issue 交付记录按 `docs/agents/issue-tracker.md` 的 Session cognitive offload 表执行——closing comment 落档，不改正文（body 编辑是整体替换，会覆盖其他 session 的内容）。读票同样按该文件的 read-before-claim 规则执行：正文不是票的完整状态，开工前必须读评论，判定方式与唯一读法见该文件。
 - **Session-Id 关联标识（安装了 hooks 的 checkout 强制，commit-msg hook 校验 trailer；strict 模式另校验登记）**：
   - 开工先确认已安装：`npm run lint:hooks`——它断言 `core.hooksPath` 已设、`.githooks/` 每个 hook 都被 git 跟踪且在 index 里带 `100755` 执行位、激活目录里可达可执行、`.git/hooks/` 无惰性影子文件（#406 的代码门禁，替代原先只读 `git config` 的自查：那只验配置对不对，验不出某份 hook 被写到了被该配置屏蔽的目录）。新 clone 跑 `npm run setup:hooks` 安装；它同时设置 strict 登记门控。未安装时本规则仍是约定，只是无 hook 兜底。
