@@ -290,7 +290,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 1. **读 Stage 0 素材** — 从 Stage 0 输出的素材集合（用户素材 + 互联网全文）中提取核心信息。文章 draft 如已就绪可作为一致性参考，但视频不是文章翻译。
 2. **RAG 查询（已有 scene-data 检索）** — 用叙事角度 + 公司名查 RAG（命令同 Stage 0 末尾，`--type scene-data` 与 `--type article` 各一次），检索已有视频场景和文章背景。Agent 读取结果后：避免重复已有场景的叙事结构和角度；在公司名出现时融入已有背景信息到 voiceover 脚本中。**非阻塞**：Ollama 先启动规则与降级口径见 Stage 0「Ollama 前置（先启动，再查询）」；跳过时输出警告 + 继续。
 3. **确定叙事类型** — 根据素材内容选择叙事结构（详见 `docs/video-script-writing-guide.md` → Step 2 叙事类型）
-4. **提炼核心叙事线** — 从素材中提取 3-5 个关键点，确定每个 scene 的素材需求（详见 `docs/video-script-writing-guide.md` → Scene 模板）
+4. **提炼核心叙事线** — 从素材中提取 3-5 个关键点，确定每个 scene 的素材需求（详见 `docs/video-script-writing-guide.md` → Scene 模板）。素材菜单里包含**真实截图**这一项：断言建立在具体公开页面上时，该 scene 用那个页面的实拍（约定与语言规范见同文档 → 截图证据约定）
 5. **AI Outline 话题描述（opt-in 旁路，默认跳过）** — **默认整步跳过**（等价于旧的"用户跳过"降级分支）：不生成话题描述、不暂停、不询问。仅当用户显式点名启用时：Agent 基于核心叙事线生成一段含具体公司名+数字+事件的话题描述（≤30 词），输出到对话中，**Agent 暂停**等用户在 TikTok 移动端 CSI → AI Outline 中输入并抄回结果。
 6. **按 S.T.A.R.T. 映射表设计 scene** — 逐 scene 按叙事角色设计。每个 scene 填写 `narrativeRole`（S.T.A.R.T. 角色）和 `retentionMechanism`（留存机制），以及 voiceover、素材需求。W7 检查 open loop (S2)、W8 检查 pattern interrupt (S5)、W9 检查 loop closure (S9)。详见 `docs/video-script-writing-guide.md` → Step 3。
 7. **设计 SEO 标题**（≤60 chars）——默认只用 Agent 自有生成的 title；仅当 opt-in 且已拿到 AI Outline 结果时才对比两者取更优者
@@ -376,6 +376,8 @@ node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 �
 
 > **BGM 不在 Stage 4 自动添加**。视频先以纯 VO 产出，BGM 在 Stage 5 HITL 确认后通过 `mix-bgm.mjs` 独立混入。
 
+> **每轮交付必开**（用户裁决，2026-10-14）：一轮修改做完、把新版本交回用户时 `open <新 mp4 路径>`，HITL 检查点同样如此。一轮里中间过程重渲几次不用打开，用户要的是「这一轮改完了，看这个」——交付时只给路径等于让用户自己去 output 目录翻版本。
+
 视频制作的技术细节（TTS 引擎、渲染参数、文件位置）见 `docs/video-production-runbook.md`。
 
 > **Tier 3 图片搜索池（#112）**：asset-sourcer 在 Tier 1（stock API）+ Tier 2（CDP 新闻源）素材不足时，触发 Tier 3 开放搜索引擎图片搜索。引擎注册表在 `scripts/short-video/lib/progressive-search.mjs` → `IMAGE_SEARCH_ENGINES`，按序运行：Brave Image（`BRAVE_SEARCH_API_KEY`，无 key 跳过）→ SearXNG Image（localhost:8888，不可用跳过）→ Google Images（CDP `tbm=isch`）→ Bing Images（CDP，`a.iusc` murl 全分辨率）→ DuckDuckGo Images（纯 fetch，vqd token + `i.js` JSON，无 CDP）→ Tavily Images（`TAVILY_API_KEY`，`include_images` 兜底，末位）。引擎间 `Promise.allSettled` 并行、同引擎内关键词串行（防反爬；CDP 域名级限流由 `cdpNewTab` 的 rate-limiter 承担）。结果与 Brave/SearXNG 同管道：preFilter → 去重 → 下载 → 版权未验证标注。新增/调整引擎只改注册表，不动 asset-sourcer。
@@ -417,7 +419,7 @@ node scripts/short-video/verify-video.mjs --tiktok  # 全量合规检查 = MRL-3
 MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
 1. **输出 MRL-3 报告**（verify-video.mjs 合规报告 + 内容补充检查结果）
-2. **输出视频文件路径，并直接打开该文件**（`open <path>`）——用户不必自己去翻 output 目录
+2. **输出视频文件路径，并打开该文件**（同 Stage 4「每轮交付必开」）——用户不必自己去翻 output 目录
 3. **输出文章 draft 预览**（文章 markdown 全文）
 4. **输出场景概览表**
 5. **提示用户审阅要点**：实际观看视频检查整体观感、TTS 语音、字幕、视觉动画、Hook/CTA、有无渲染问题、文章内容准确性、脚本叙事合理性

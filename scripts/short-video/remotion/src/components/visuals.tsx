@@ -102,7 +102,11 @@ export const BrandBar: React.FC = () => (
   >
     <CanvasImage
       src={staticFile("assets/china-ai-news-mark-video.svg")}
-      style={{ width: 48, height: 48 }}
+      // objectFit is load-bearing, not decoration: <CanvasImage> renders a
+      // <canvas> sized to the artwork's natural pixels, and a canvas defaults
+      // to object-fit: fill — so a square box squashes this 648×420 mark.
+      // See __tests__/canvas-image-fit-contract.test.mjs.
+      style={{ width: 48, height: 48, objectFit: "contain" }}
     />
     <span
       style={{
@@ -277,6 +281,7 @@ export const Watermark: React.FC = () => (
       height: 55,
       opacity: 0.35,
       zIndex: 100,
+      objectFit: "contain",
     }}
   />
 );

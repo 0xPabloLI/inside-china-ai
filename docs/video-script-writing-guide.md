@@ -287,6 +287,14 @@ CTA 公式：`[Action Verb] + [What They Get]`
 
 **mediaStrategy 约定（Stage 3 必填实践）**：每个 scene 必须显式设置 `mediaStrategy`，不要依赖缺省值。省略时 b-roll orchestrator 静默按 `"asset"` 处理——生成被完全跳过，sourced image 落空时该 scene 会复用其他 scene 的素材（didi-robotaxi-r2 scene 3 实证：内景 scene 复用了外景官方图）。五个可选值：`"asset"`（只用已搜素材，无素材则纯 CSS）、`"asset-then-broll"`（先搜素材，落空再生成 B-roll）、`"b-roll"`（跳过搜索直接生成）、`"asset-then-ai-image"`（先搜素材，落空再生成 T2I 静图）、`"ai-image"`（直接生成静图）。生成类策略必须配 prompt，且字段随策略分派——T2I 两值用 `aiImage.prompt`（6 维），其余用 `aiVideo.prompt`（8 维）。preflight（`verify-video.mjs --pre`）的 **B-roll strategy contract** 检查对省略 `mediaStrategy` 的 scene 发 WARN。
 
+**截图证据约定（Stage 3 素材选项，2026-10-14 用户裁决）**：某个 scene 的断言建立在某个具体公开页面上时——官方变更日志、当事人帖子、第三方归档、监管文件——该 scene 的素材就是这个页面的**真实截图**：「谁主张、谁出示」。它是素材菜单里的一项，不是优先规则：非证据 scene（分析、对比、收尾）照旧走 CSS 或 stock，用不用截图由 Agent 按脚本判断。真实截图不重构、不伪造产品页面；示意图只在明确风格化时使用，且不与截图混用。
+
+- **语言规范**：能用英文就用英文——站点有英文 UI 或帖子有英文原文时，截图必须落在英文形态上（帖子要先切回原文再截，见下）。站点只有中文时（无英文路由、无语言开关），中文界面截图直接采用，不需要为截图去改账号设置。这是生产规范，不是偏好。
+- **抓取**：走 `web-access` CDP（自动化 profile），读页面即可，公开内容不需要登录态；操作面压到最小。**先读站点经验**（`~/.agents/skills/web-access/references/site-patterns/<domain>.md`），没有就按通用模式操作并把验证过的事实写回去。
+- **隔离与裁切**：把目标卡片从页面里隔离出来（逐级隐藏兄弟节点），隐藏浏览者界面元素（导航、译文行、悬浮按钮），截图前回到页面顶部。**裁切点必须落在元素边界上**——正文底与媒体区之间的空白处；卡片高度差异很大，按固定高度裁切必然把配图或视频切一半。
+- **构图约束**：`media-bottom-bar` 的媒体窗口是 y∈[0,814] 的 1080 宽画面，而 TikTok 右侧操作栏从 x=880 起（y∈[640,1775]），帧门禁要求该区亮像素 <5%。白色网页整幅都是亮像素，故截图素材按 **880×814** 合成（上方留暗带给品牌栏、下方留暗底、两侧交给 `fit:"contain"` 的底衬），不要靠提高 overlay 过门禁——压到能过门禁时页内正文已不可读。
+- **落档**：截图写入 `content/<slug>/assets/`，在共享的 `scripts/short-video/assets/catalog.yml` 补条目（source 写 URL + 抓取日期，license 写「editorial/evidence use」；目录是 RAG 索引的输入，写错位置截图进不了语义检索），并在 `docs/refs/source-materials/<slug>-sources.md` 记录抓取方式与每个数字的页面口径。
+
 **asset-sourcer 当前限制（2026-09-03 实测）**：
 
 - 中文新闻 CDP 源（如量子位 `qbitai`）`supportsKeyword=false` 且未在 `CDP_MEDIA_CAPABILITIES` 中注册 → asset-sourcer 无法按关键词搜索这些源，只能全量抓取最新文章列表

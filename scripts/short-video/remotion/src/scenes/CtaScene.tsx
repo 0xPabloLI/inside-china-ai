@@ -41,6 +41,12 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
                   width: 160,
                   height: 104,
                   marginBottom: 40,
+                  // A canvas defaults to object-fit: fill; without this the
+                  // 648×420 mark is stretched into the box. The box aspect
+                  // (1.538) is already close to the artwork's (1.543), so
+                  // contain changes nothing visually today — it keeps a future
+                  // box edit from silently squashing the mark.
+                  objectFit: "contain",
                 }}
               />
             </ScaleIn>
