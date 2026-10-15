@@ -22,6 +22,10 @@ const THUMBNAIL = "https://th.bing.com/th?id=OVFT.abc&pid=News";
 const PAGE_VIDEO = "https://video.example/clip.mp4";
 const PUBLISHED_TIME = "2026-10-15T00:00:00Z";
 
+// `vi.hoisted` so the mock factory (hoisted above these declarations) can read
+// the per-test article shape without hitting the temporal dead zone.
+const extraction = vi.hoisted(() => ({ imageUrl: null }));
+
 vi.mock("../lib/cdp-client.mjs", () => ({
   CDP_BASE: "http://localhost:3456",
   cdpNewTab: vi.fn(async () => "tab-636"),
@@ -36,7 +40,13 @@ vi.mock("../lib/cdp-client.mjs", () => ({
       metadata: { publishedTime: PUBLISHED_TIME },
     };
   }),
-  extractWithRetry: vi.fn(async () => [{ title: "DeepSeek 具身智能", url: ARTICLE_URL }]),
+  extractWithRetry: vi.fn(async () => [
+    {
+      title: "DeepSeek 具身智能",
+      url: ARTICLE_URL,
+      ...(extraction.imageUrl ? { imageUrl: extraction.imageUrl } : {}),
+    },
+  ]),
   rateLimitBackoffDelayMs: vi.fn(() => 0),
   detectAntiBot: vi.fn(async () => null),
   runPageGates: vi.fn(async () => ({ gate: "ok" })),
@@ -62,15 +72,29 @@ function testSource(overrides = {}) {
   };
 }
 
-function collect(source) {
-  return collectFromSource(source, "DeepSeek", null, {
-    // #269 pre-flight probe: keep the fake domain off the real network.
-    probeFn: async (searchUrl) => ({ searchUrl, finalUrl: null, httpStatus: null }),
-  });
+/**
+ * Drive the real `collectFromSource` → `collectFromCdp` path with the CDP
+ * client mocked. Fake timers only to step over the fixed page-load wait
+ * (PAGE_LOAD_WAIT_MS) — otherwise each case would sit idle for 3 seconds.
+ */
+async function collect(source) {
+  vi.useFakeTimers();
+  try {
+    const promise = collectFromSource(source, "DeepSeek", null, {
+      // #269 pre-flight probe: keep the fake domain off the real network.
+      probeFn: async (searchUrl) => ({ searchUrl, finalUrl: null, httpStatus: null }),
+    });
+    await vi.advanceTimersByTimeAsync(0); // let the chain reach the wait
+    await vi.advanceTimersByTimeAsync(3000);
+    return await promise;
+  } finally {
+    vi.useRealTimers();
+  }
 }
 
 beforeEach(() => {
   capturedScripts.length = 0;
+  extraction.imageUrl = null;
 });
 
 describe("#636 — DOM image harvest honours the source declaration", () => {
@@ -98,5 +122,20 @@ describe("#636 — DOM image harvest honours the source declaration", () => {
     expect(articles[0].metadata.publishedTime).toBe(PUBLISHED_TIME);
     expect(capturedScripts).toHaveLength(1);
     expect(capturedScripts[0]).toContain("results.videos");
+  });
+
+  it("drops an imageUrl the extraction script itself emitted", async () => {
+    // The second producer: a source whose articleScript still returns one
+    // (bing_news's no longer does, but the gate must not depend on that).
+    extraction.imageUrl = THUMBNAIL;
+    const articles = await collect(testSource({ harvestImages: false }));
+    expect(articles[0].imageUrl ?? null).toBeNull();
+    expect(articles[0].hasImage).toBe(false);
+  });
+
+  it("keeps that extraction imageUrl for a source that did not opt out", async () => {
+    extraction.imageUrl = "https://publisher.example/og.jpg";
+    const articles = await collect(testSource());
+    expect(articles[0].imageUrl).toBe("https://publisher.example/og.jpg");
   });
 });
