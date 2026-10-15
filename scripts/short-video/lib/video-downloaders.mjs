@@ -232,30 +232,18 @@ function isYoutubeUrl(canonicalUrl) {
  * @returns {boolean}
  */
 function isXhsUrl(canonicalUrl) {
-  try {
-    const host = new URL(canonicalUrl).hostname;
-    return XHS_HOSTS.some((h) => host === h || host.endsWith("." + h));
-  } catch {
-    return false;
-  }
+  const host = urlHost(canonicalUrl);
+  return XHS_HOSTS.some((h) => host === h || host.endsWith("." + h));
 }
 
 export function isWeiboUrl(canonicalUrl) {
-  try {
-    const host = new URL(canonicalUrl).hostname;
-    return WEIBO_HOSTS.some((h) => host === h || host.endsWith("." + h));
-  } catch {
-    return false;
-  }
+  const host = urlHost(canonicalUrl);
+  return WEIBO_HOSTS.some((h) => host === h || host.endsWith("." + h));
 }
 
 function isBilibiliUrl(canonicalUrl) {
-  try {
-    const host = new URL(canonicalUrl).hostname.toLowerCase();
-    return BILIBILI_HOSTS.some((h) => host === h || host.endsWith("." + h));
-  } catch {
-    return false;
-  }
+  const host = urlHost(canonicalUrl).toLowerCase();
+  return BILIBILI_HOSTS.some((h) => host === h || host.endsWith("." + h));
 }
 
 /**
@@ -264,12 +252,8 @@ function isBilibiliUrl(canonicalUrl) {
  * @returns {boolean}
  */
 function isDouyinUrl(canonicalUrl) {
-  try {
-    const host = new URL(canonicalUrl).hostname.toLowerCase();
-    return DOUYIN_HOSTS.some((h) => host === h || host.endsWith("." + h));
-  } catch {
-    return false;
-  }
+  const host = urlHost(canonicalUrl).toLowerCase();
+  return DOUYIN_HOSTS.some((h) => host === h || host.endsWith("." + h));
 }
 
 /**

@@ -191,11 +191,47 @@ describe("downloadAndRecord", () => {
     });
 
     expect(ctx.skipped).toEqual([
-      { source: "youtube_search", reason: "already downloaded by yt-dlp" },
+      {
+        source: "youtube_search",
+        url: HIGH_SCORE_CANDIDATE.url,
+        reason: "already downloaded by yt-dlp",
+      },
     ]);
     expect(ctx.allAssets).toEqual([]);
     expect(ctx.failed).toEqual([]);
     expect(logSpy).toHaveBeenCalledWith("    ⏭️  youtube_search: already downloaded by yt-dlp");
+    logSpy.mockRestore();
+  });
+
+  it("records a skipped candidate's URL so the reason names its input (#636)", async () => {
+    // #636: `non-http-url` is a skip (no adapter can fetch it), so the reason
+    // alone cannot say which candidate shape was refused — the report line
+    // needs the URL next to it, same as the failed branch.
+    mockDownloadCandidate.mockResolvedValue({
+      success: false,
+      skipped: true,
+      error: "non-http-url",
+    });
+    const ctx = makeContext();
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await downloadAndRecord(
+      { ...HIGH_SCORE_CANDIDATE, url: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ" },
+      {
+        destPath: join("/tmp/assets", "good-01.jpg"),
+        contentDir: "/content",
+        label: "cached",
+        sourceName: "cached",
+        keyword: "Unitree",
+        ...ctx,
+      },
+    );
+
+    // The payload is the whole string in a data: URI — keep scheme + media
+    // type, drop the base64 body.
+    expect(ctx.skipped).toEqual([
+      { source: "cached", url: "data:image/jpeg;base64,…", reason: "non-http-url" },
+    ]);
     logSpy.mockRestore();
   });
 

@@ -1322,6 +1322,29 @@ describe("#636 — non-fetchable URL shapes never reach an adapter", () => {
     expect(result.adapter).toBe(ADAPTER_IDS.COBALT);
     expect(result.canonicalUrl).toBe("https://th.bing.com/th");
   });
+
+  it("skips every other non-http(s) scheme, not just data:", () => {
+    // #636 boundary sweep: before the guard these fell through to cobalt
+    // (which cannot fetch them either); the reason now says so up front.
+    for (const url of [
+      "javascript:void(0)",
+      "blob:https://www.bing.com/9f0d1a2b-0000-4000-8000-000000000000",
+      "file:///Users/someone/thumb.jpg",
+      "ftp://example.com/thumb.jpg",
+    ]) {
+      const result = selectStrategy(url);
+      expect(result.adapter, url).toBe("none");
+      expect(result.status, url).toBe("skipped");
+      expect(result.reason, url).toBe("non-http-url");
+    }
+  });
+
+  it("skips a relative path (no base URL to resolve against)", () => {
+    const result = selectStrategy("/assets/thumb.jpg");
+    expect(result.adapter).toBe("none");
+    expect(result.status).toBe("skipped");
+    expect(result.reason).toBe("non-http-url");
+  });
 });
 
 describe("#636 — cobalt link errors name the site", () => {
