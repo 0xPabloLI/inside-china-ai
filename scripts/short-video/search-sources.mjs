@@ -201,20 +201,29 @@ let cdpAvailable = true; // Set to false if CDP proxy check fails in main()
  *
  * @param {string} tabId - CDP tab ID (still open)
  * @param {Array<{title: string, url: string}>} articles - Articles from articleScript
+ * @param {{harvestImages?: boolean}} [opts] - false for sources whose DOM images are never usable (#636)
  * @returns {Promise<Array>} Articles with imageUrl/hasImage/videoUrls/metadata fields added
  */
-async function enrichWithMedia(tabId, articles) {
+async function enrichWithMedia(tabId, articles, { harvestImages = true } = {}) {
+  // #636: a source can declare its DOM images unusable (`harvestImages: false`
+  // in the registry — Bing news cards expose only a CDN thumbnail or a base64
+  // placeholder). The eval then skips the harvest instead of shipping an image
+  // map the caller discards, and the trend cache never receives a thumbnail
+  // the asset sourcer would later replay through loadCachedImages.
   const mediaScript = `
     var results = { images: {}, videos: {}, metadata: {} };
+    var harvestImages = ${harvestImages};
 
     // Extract images near article links (existing behavior)
-    var links = document.querySelectorAll('a[href]');
-    links.forEach(function(a) {
-      var img = a.querySelector('img') || a.parentElement?.querySelector('img') || a.closest('article, .article-item, .post-item, .list-item, .kr-flow-item, .recommend-item')?.querySelector('img');
-      if (img && img.src && img.src.startsWith('http')) {
-        results.images[a.href] = img.src;
-      }
-    });
+    if (harvestImages) {
+      var links = document.querySelectorAll('a[href]');
+      links.forEach(function(a) {
+        var img = a.querySelector('img') || a.parentElement?.querySelector('img') || a.closest('article, .article-item, .post-item, .list-item, .kr-flow-item, .recommend-item')?.querySelector('img');
+        if (img && img.src && img.src.startsWith('http')) {
+          results.images[a.href] = img.src;
+        }
+      });
+    }
 
     // Extract video signals from the page
     // <video> elements
@@ -260,7 +269,12 @@ async function enrichWithMedia(tabId, articles) {
   var metadata = mediaData.metadata || {};
 
   return articles.map(function (a) {
-    var imgUrl = a.imageUrl || (mediaData.images && mediaData.images[a.url]) || null;
+    // #636: an opted-out source carries no imageUrl at all — not from the
+    // extraction script and not from the harvest — so nothing unusable can be
+    // cached as topics[].images[].
+    var imgUrl = harvestImages
+      ? a.imageUrl || (mediaData.images && mediaData.images[a.url]) || null
+      : null;
     var result = Object.assign({}, a, {
       imageUrl: imgUrl,
       hasImage: !!imgUrl,
@@ -409,10 +423,13 @@ async function collectFromCdp(source, keyword) {
   // R1: Extract imageUrl from the same DOM — zero additional requests.
   // The tab is still open; we run a second eval to find images alongside
   // the same article items. enrichWithImages adds imageUrl/hasImage to
-  // each article that has a matching image.
+  // each article that has a matching image. A source declaring
+  // `harvestImages: false` opts out (#636).
   if (articles.length > 0) {
     try {
-      articles = await enrichWithMedia(tabId, articles);
+      articles = await enrichWithMedia(tabId, articles, {
+        harvestImages: source.harvestImages !== false,
+      });
     } catch (e) {
       // Non-fatal — articles without media still work for trend discovery
       console.warn(`  ⚠️  Media enrichment failed: ${e.message}`);

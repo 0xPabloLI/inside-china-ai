@@ -2451,6 +2451,22 @@ export function recordRateLimitSkip(err, { sourceName, keyword, skipped, logger 
 }
 
 /**
+ * Render a candidate URL for the report.
+ *
+ * A `data:` URI carries its entire payload inside the string (#636: Bing news
+ * cards lazy-load base64 thumbnails), so the report keeps the scheme and media
+ * type only — enough to name the shape, without a base64 body in every line.
+ *
+ * @param {string} url
+ * @returns {string}
+ */
+function reportableUrl(url) {
+  if (typeof url !== "string" || !url.startsWith("data:")) return url;
+  const comma = url.indexOf(",");
+  return comma === -1 ? "data:" : `${url.slice(0, comma)},…`;
+}
+
+/**
  * Download a scored candidate and record the outcome (success / skipped /
  * failed). Shared tri-branch record logic for every search phase in main().
  *
@@ -2487,10 +2503,24 @@ export async function downloadAndRecord(candidate, opts) {
     opts.allAssets.push(entry);
     console.log(`    ✅ ${label}: ${basename(destPath)} (score: ${candidate.score})`);
   } else if (dl.skipped) {
-    opts.skipped.push({ source: sourceName, reason: dl.error });
+    // #636: the URL belongs here too — `non-http-url` is a skip, so without it
+    // the report names a reason that no candidate shape can be matched to.
+    opts.skipped.push({
+      source: sourceName,
+      url: reportableUrl(candidate.url),
+      reason: dl.error,
+    });
     console.log(`    ⏭️  ${label}: ${dl.error}`);
   } else {
-    opts.failed.push({ source: sourceName, keyword, error: dl.error });
+    // #636: the failing URL belongs in the entry — without it a report line
+    // says "invalid-url" (or any other reason) but not which candidate shape
+    // the download chain rejected, which is what forced a re-probe.
+    opts.failed.push({
+      source: sourceName,
+      keyword,
+      url: reportableUrl(candidate.url),
+      error: dl.error,
+    });
     console.log(`    ❌ ${label}: ${dl.error}`);
   }
 }

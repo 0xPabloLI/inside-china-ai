@@ -31,6 +31,11 @@
  *     shape, which is half of the #346 false verdict (the other half was the
  *     order — the gate now runs before the anti-bot vocabulary).
  * - useCleanTitle: whether to run cleanTitle on extracted titles
+ * - harvestImages: false when the source's DOM images are never usable assets
+ *     (#636, Bing news cards) — enrichWithMedia then skips the same-DOM image
+ *     harvest, so no card thumbnail is cached for the asset sourcer to replay.
+ *     Distinct from an absent `capabilities.images`: that says "not searched
+ *     for images", this says "the article DOM's images are not assets".
  * - apiSearch: API direct-connect config (optional, Issue #34)
  *     { url(keyword), parser(responseText), authRequired, headers, paidApi }
  *     paidApi: true if the API consumes a limited credits quota (e.g. ScrapeCreators).
@@ -608,10 +613,23 @@ export const NEWS_SOURCES = [
     supportsKeyword: true,
     accessMethod: {
       primary: "cdp",
-      notes: "CDP search page. Articles + images from same DOM.",
+      // #636 (2026-10-15): articles only. Live probe of the real search page:
+      // every card <img> is either a base64 `data:` placeholder or a Bing CDN
+      // thumbnail exposed via `data-src-hq` (`//th.bing.com/th?id=…&w=234&h=132&dpr=2`
+      // → 468×264, under the 720p floor), and the card DOM carries no publisher
+      // original. The media channels were declared while the only URLs they
+      // could yield were the ones the deleted fallback scan already excluded;
+      // declaring them off is the fix, and an entry in CDP_MEDIA_CAPABILITIES
+      // needs a real original-image path.
+      notes: "CDP search page. Articles only — cards expose only Bing CDN thumbnails (#636).",
     },
     needsAuth: false,
     useCleanTitle: false,
+    // #636: same fact as above, for the article path. `enrichWithMedia` would
+    // otherwise cache the card's <img> as topics[].images[].url, which the
+    // asset sourcer replays through loadCachedImages as `source: "cached"` —
+    // so the thumbnail would still reach the download chain.
+    harvestImages: false,
     url: (keyword) =>
       `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
     articleScript: `
@@ -619,10 +637,9 @@ export const NEWS_SOURCES = [
       var results = [];
       items.forEach(function(el) {
         var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
         var title = el.querySelector('h3, h2, .title, .b_caption p');
         if (link && title) {
-          results.push({ title: title.textContent.trim(), url: link.href, imageUrl: img ? img.src : null });
+          results.push({ title: title.textContent.trim(), url: link.href });
         }
       });
       return results;
@@ -3069,44 +3086,13 @@ const CDP_MEDIA_CAPABILITIES = {
       return results;
     `,
   },
-  bing_news: {
-    method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
-    url: (keyword) =>
-      `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,
-    imageScript: `
-      var items = document.querySelectorAll('.news-item, .tob-article, .news-card, .b_caption');
-      var results = [];
-      items.forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var img = el.querySelector('img[src]');
-        var title = el.querySelector('h3, h2, .title, .b_caption p');
-        var titleText = title ? title.textContent.trim() : '';
-        var snippet = el.querySelector('.snippet, .b_caption p:not(.title), .news_snippet, p');
-        var snippetText = snippet ? snippet.textContent.trim().substring(0, 200) : '';
-        if (link && titleText) {
-          if (img) {
-            results.push({ title: titleText, url: img.src, type: 'image', sourceUrl: link.href, snippet: snippetText });
-          } else {
-            results.push({ title: titleText, url: link.href, type: 'text', sourceUrl: link.href, snippet: snippetText });
-          }
-        }
-      });
-      return results;
-    `,
-    imageFallbackScript: `
-      var imgs = document.querySelectorAll('img[src]');
-      var results = [];
-      imgs.forEach(function(img) {
-        if (img.naturalWidth > 200 || img.width > 200) {
-          if (!img.src.includes('bing.com') && !img.src.includes('r.bing')) {
-            results.push({ title: img.alt || '', url: img.src, type: 'image' });
-          }
-        }
-      });
-      return results;
-    `,
-  },
+  // #636 (2026-10-15): bing_news deliberately has NO entry here. Its news
+  // cards can only yield Bing CDN thumbnails (468×264) or base64 `data:`
+  // placeholders — never a publisher original — so both media channels are
+  // declared off rather than feeding the download chain URLs that can never
+  // succeed (the 2026-10-13 run: 400 candidates, 56 `invalid-url` failures).
+  // The source definition carries the probe evidence in its accessMethod
+  // comment; re-adding an entry requires a real original-image path.
   xinhua: {
     method: "cdp",
     videoScript: CDP_VIDEO_SCRIPT,

@@ -1316,11 +1316,11 @@ describe("CDP_SOURCES new additions", () => {
     expect(src.imageScript).toContain("return results");
   });
 
-  it("has bing_news source", () => {
-    const src = CDP_SOURCES.find((s) => s.name === "bing_news");
-    expect(src).toBeDefined();
-    expect(src.url("AI")).toContain("bing.com");
-    expect(src.imageScript).toContain("return results");
+  it("excludes bing_news from the CDP image loop (#636)", () => {
+    // #636: Bing news cards expose only 468×264 CDN thumbnails (or base64
+    // placeholders), so the source must not be searched for images at all.
+    // It stays a news-discovery source via capabilities.articles.
+    expect(CDP_SOURCES.find((s) => s.name === "bing_news")).toBeUndefined();
   });
 
   it("has leiphone source", () => {
@@ -2270,20 +2270,12 @@ describe("T3 — CDP type handling", () => {
     expect(src.imageScript).toContain("'image'");
   });
 
-  it("bing_news imageScript pushes type='image' when img exists", () => {
-    const src = CDP_SOURCES.find((s) => s.name === "bing_news");
-    expect(src).toBeDefined();
-    expect(src.imageScript).toContain("'image'");
-  });
+  // #636 removed bing_news from the CDP image path entirely (its cards only
+  // yield Bing CDN thumbnails); the source has no imageScript left to assert.
 
   // New: CDP scripts should also push type='text' when no img but link+title exist
   it("google_search imageScript pushes type='text' for text-only results", () => {
     const src = CDP_SOURCES.find((s) => s.name === "google_search");
-    expect(src.imageScript).toContain("'text'");
-  });
-
-  it("bing_news imageScript pushes type='text' for text-only results", () => {
-    const src = CDP_SOURCES.find((s) => s.name === "bing_news");
     expect(src.imageScript).toContain("'text'");
   });
 
@@ -2628,6 +2620,9 @@ describe("CDP_VIDEO_SOURCES", () => {
     expect(CDP_VIDEO_SOURCES.find((s) => s.name === "ithome")).toBeDefined();
     // ytdlp sources must not leak into the CDP video list
     expect(CDP_VIDEO_SOURCES.find((s) => s.name === "bilibili")).toBeUndefined();
+    // #636: bing_news declares no media channels — the generic CDP video script
+    // found nothing on its news search page and its cards only carry thumbnails
+    expect(CDP_VIDEO_SOURCES.find((s) => s.name === "bing_news")).toBeUndefined();
   });
 });
 
