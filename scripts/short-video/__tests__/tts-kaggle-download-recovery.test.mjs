@@ -332,6 +332,40 @@ describe("#581 — whole-batch download failure recovers per file", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("counts a take discarded in two passes once, not twice", async () => {
+    const dir = tempStaging("removed-dedupe");
+    writeSummary(dir, [1]);
+    // Truncated on arrival, and the first recovery round lands another
+    // truncated copy: the same file is discarded in the initial salvage pass
+    // AND in the pass after round 1. The report must not read as two files.
+    writeFileSync(wavPath(dir, 1), truncatedWavBytes(40000, 64));
+    let round = 0;
+    const runCmd = async (cmd) => {
+      if (!cmd.includes("--file-pattern")) throw SSL_CUT_ERROR;
+      const re = new RegExp(cmd.match(/--file-pattern "([^"]+)"/)[1]);
+      expect(re.test("output/scene-1.wav")).toBe(true);
+      round++;
+      writeFileSync(
+        wavPath(dir, 1),
+        round === 1 ? truncatedWavBytes(40000, 64) : wavBytes("scene-1"),
+      );
+      return { stdout: "" };
+    };
+
+    const result = await downloadKernelOutput({
+      kernelId: "u/k",
+      downloadDir: dir,
+      expectedScenes: [1],
+      runCmd,
+      sleep: async () => {},
+      log: () => {},
+    });
+
+    expect(round).toBe(2);
+    expect(result.removed).toEqual(["output/scene-1.wav"]);
+    expect(result.recovered).toEqual(["output/scene-1.wav"]);
+  });
+
   it("fetches a corrupt summary.json back instead of letting the gap surface later", async () => {
     const dir = tempStaging("summary-cut");
     // The cut landed mid-summary: unreadable JSON.

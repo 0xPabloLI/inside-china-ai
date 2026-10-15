@@ -582,8 +582,13 @@ export async function downloadKernelOutput({
   const salvagePass = () => {
     const required = requiredArtifacts(downloadDir, expectedScenes);
     const pass = salvageStagedArtifacts(downloadDir, required);
-    removed.push(...pass.removed);
-    for (const rel of pass.removed) unusable.add(rel);
+    // One entry per distinct file: a re-fetched copy that is truncated again is
+    // the same file being discarded twice, not two files. `unusable` already
+    // dedupes for the same reason.
+    for (const rel of pass.removed) {
+      if (!removed.includes(rel)) removed.push(rel);
+      unusable.add(rel);
+    }
     const intactSet = new Set(pass.intact);
     return { missing: required.filter((rel) => !intactSet.has(rel)), intactSet };
   };
