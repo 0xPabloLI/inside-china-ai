@@ -320,7 +320,9 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir, options 
     // and the tail cut changes the audio bytes, so the alignment signature
     // must be computed over the cut files — the next run cache-hits instead
     // of re-cutting.
-    const guards = await runAlignmentGuards(ttsResults, timingData);
+    // `scenes` supplies the reference text so a provisional tail cut is read
+    // back before it is committed (#232 verified-cut).
+    const guards = await runAlignmentGuards(ttsResults, timingData, scenes);
     writeFileSync(timingPath, JSON.stringify(restoreTimingTokens(timingData, scenes), null, 2));
     writeAlignmentMeta(outputDir, computeAlignmentSignature(scenes, ttsResults));
     console.log("  ✅ Subtitle timing saved (wav2vec2-large-960h-lv60-self aligned)");

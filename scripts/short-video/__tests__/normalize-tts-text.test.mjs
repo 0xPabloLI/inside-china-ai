@@ -75,9 +75,12 @@ describe("normalizeTtsText digit+unit splitting (#239)", () => {
       "It hit 720p at 60 frames per second, and the Pro does 1080p.",
     );
     expect(scenes[0].ttsText).toBe(
-      "It hit 720 P at 60 frames per second, and the Pro does 1080 P.",
+      "It hit 720 P at sixty frames per second, and the Pro does 1080 P.",
     );
     expect(scenes[0].ttsReplacements).toEqual([
+      // "60" is a bare cardinal (rule 8) and is expanded in the same pass;
+      // "720p"/"1080p" stay whole for the digit+unit rule (rule 9).
+      { original: "60", spoken: ["sixty"] },
       { original: "720p", spoken: ["720", "P"] },
       { original: "1080p", spoken: ["1080", "P"] },
     ]);
@@ -107,6 +110,59 @@ describe("normalizeTtsText digit+unit splitting (#239)", () => {
     normalizeTtsText(scenes);
     expect(scenes[0].ttsText).toBeUndefined();
     expect(scenes[0].ttsReplacements).toBeUndefined();
+  });
+});
+
+// ─── Cardinal integers: the spoken track must be digit-free ───
+// text-align.py aligns against scene.ttsText, and wav2vec2 has no digit
+// tokens. A bare cardinal ("115,000") that survives into ttsText cannot be
+// aligned: the aligner consumes what it can, stops short of the audio's real
+// end, and the #232 tail guard then cuts the unmatched speech.
+// Observed 2026-10-14: deepseek-flash-silent-update scene 3 said "That clip
+// reached 100" in the rendered video, losing "115,000 views".
+describe("normalizeTtsText cardinal integers (digit-free spoken track)", () => {
+  it("expands a thousands-grouped integer so no digit token reaches the aligner", () => {
+    const scenes = [{ id: 20, voiceover: "That clip reached 115,000 views." }];
+    normalizeTtsText(scenes);
+
+    expect(scenes[0].voiceover).toBe("That clip reached 115,000 views.");
+    expect(scenes[0].ttsText).toBe("That clip reached one hundred fifteen thousand views.");
+    expect(scenes[0].ttsReplacements).toEqual([
+      { original: "115,000", spoken: ["one", "hundred", "fifteen", "thousand"] },
+    ]);
+  });
+
+  it("expands bare integers in sentence-final position (the tail-cut risk zone)", () => {
+    const scenes = [{ id: 21, voiceover: "Fable 5.1 managed 40." }];
+    normalizeTtsText(scenes);
+
+    expect(scenes[0].ttsText).toBe("Fable five point one managed forty.");
+    expect(scenes[0].ttsReplacements).toEqual([
+      { original: "5.1", spoken: ["five", "point", "one"] },
+      { original: "40", spoken: ["forty"] },
+    ]);
+  });
+
+  it("leaves currency-prefixed amounts to the currency step", () => {
+    // "$20 million" must not become "$twenty million": the engine reads the
+    // symbol and the amount together, and step 0.5 owns that pairing.
+    const scenes = [{ id: 23, voiceover: "DeepSeek bought in for about $20 million." }];
+    normalizeTtsText(scenes);
+
+    expect(scenes[0].ttsText).toBeUndefined();
+    expect(scenes[0].ttsReplacements).toBeUndefined();
+  });
+
+  it("leaves decimals, hex, digit+unit and letter-prefixed tokens to their own rules", () => {
+    const scenes = [
+      { id: 22, voiceover: "H100 and B200 run 0x12a; $1.4B with 10x growth at 720p." },
+    ];
+    normalizeTtsText(scenes);
+
+    // "720p" is #239's seam (mirrored by the ASR alias side), everything else
+    // must stay untouched — no digit gets expanded out of a larger token.
+    expect(scenes[0].ttsText).toBe("H100 and B200 run 0x12a; $1.4B with 10x growth at 720 P.");
+    expect(scenes[0].ttsReplacements).toEqual([{ original: "720p", spoken: ["720", "P"] }]);
   });
 });
 

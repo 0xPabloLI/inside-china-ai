@@ -411,6 +411,77 @@ describe("#251 roman-numeral version equivalence", () => {
 // TTS_ACOUSTIC_HARD_BLOCK (4 takes, self-heal cannot fix a matching rule).
 // Aliases must come from the SAME curated unit whitelist as
 // normalize-tts-text (#239) — never a generic (\d+)([a-z]+) rule.
+// The spoken track spells cardinals out ("one hundred fifteen thousand"), but
+// whisper.cpp writes what it hears as digits ("115,000"). Without a digit →
+// word expansion a CORRECT take looks truncated ("missing tail word(s)
+// [thousand]") and the self-heal loop regenerates forever.
+// Observed 2026-10-14: deepseek-flash-silent-update scene 3.
+describe("cardinal integers: heard digits vs spoken-track words", () => {
+  it("expands a heard thousands-grouped integer into its spoken words", () => {
+    const heard = "That clip reached 115,000 views";
+    const set = buildExpandedAsrTokenSet(tokenize(heard), heard);
+    // tokenize() splits the comma, so the heard side is ["115","000"] — the
+    // expansion is what supplies the spoken words the expected track carries.
+    expect(set.has("115")).toBe(true);
+    expect(set.has("000")).toBe(true);
+    for (const w of ["one", "hundred", "fifteen", "thousand"]) {
+      expect(isWordInAsr(w, set)).toBe(true);
+    }
+  });
+
+  it("expands a bare heard integer too", () => {
+    const heard = "it reached 40000 people";
+    const set = buildExpandedAsrTokenSet(tokenize(heard), heard);
+    expect(isWordInAsr("forty", set)).toBe(true);
+    expect(isWordInAsr("thousand", set)).toBe(true);
+  });
+
+  it("covers spoken-track dates and years heard as digits", () => {
+    const heard = "on October 12 the IPO was planned for 2027";
+    const set = buildExpandedAsrTokenSet(tokenize(heard), heard);
+    for (const w of ["twelve", "two", "thousand", "twenty", "seven"]) {
+      expect(isWordInAsr(w, set)).toBe(true);
+    }
+  });
+
+  it("does not invent word evidence from decimals or digit+unit tokens", () => {
+    const heard = "cost 1.32 dollars at 720p output";
+    const set = buildExpandedAsrTokenSet(tokenize(heard), heard);
+    expect(set.has("thousand")).toBe(false);
+    expect(set.has("hundred")).toBe(false);
+    expect(set.has("seven")).toBe(false);
+  });
+
+  it("keeps the token-only contract when no transcript is supplied", () => {
+    // #548 callers pass tokens alone; cardinal expansion needs the raw text.
+    const set = buildExpandedAsrTokenSet(tokenize("That clip reached 115,000 views"));
+    expect(set.has("thousand")).toBe(false);
+  });
+
+  it("end-to-end: a correct take of a cardinal-heavy line is not read as truncated", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-cardinal-"));
+    const audio = join(dir, "scene-3.wav");
+    writeFileSync(audio, "RIFFdummydata");
+    const scene = {
+      id: 3,
+      voiceover:
+        "A verified account reported the same prompt looking sharper on October 12. That clip reached 115,000 views.",
+      ttsText:
+        "A verified account reported the same prompt looking sharper on October twelve. That clip reached one hundred fifteen thousand views.",
+    };
+    const heard =
+      "A verified account reported the same prompt looking sharper on October 12. That clip reached 115,000 views.";
+    const transcriber = vi.fn().mockResolvedValue({ ok: true, segments: [{ text: heard }] });
+
+    const report = await evaluateSceneTts(scene, audio, 7.68, { transcriber });
+    rmSync(dir, { recursive: true, force: true });
+
+    expect(report.issues.filter((i) => /truncation detected/i.test(i))).toEqual([]);
+    expect(report.issues.filter((i) => /incomplete speech/i.test(i))).toEqual([]);
+    expect(report.similarity).toBeGreaterThanOrEqual(0.75);
+  });
+});
+
 describe("#548 digit+unit merge aliases", () => {
   // Verbatim saved evidence from the failed real run (log lines 421-423).
   const EXPECTED =

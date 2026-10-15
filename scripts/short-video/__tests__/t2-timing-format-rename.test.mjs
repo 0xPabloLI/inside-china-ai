@@ -10,6 +10,11 @@ const { execMock, fsMock } = vi.hoisted(() => {
     existsSync: vi.fn(),
     writeFileSync: vi.fn(),
     readFileSync: vi.fn(),
+    // #232 verified-cut: the tail guard snapshots the take before trimming
+    // and reverts from that snapshot when the read-back refuses the cut.
+    copyFileSync: vi.fn(),
+    renameSync: vi.fn(),
+    rmSync: vi.fn(),
   };
   return { execMock, fsMock };
 });
@@ -26,6 +31,9 @@ vi.mock("fs", () => ({
   existsSync: fsMock.existsSync,
   writeFileSync: fsMock.writeFileSync,
   readFileSync: fsMock.readFileSync,
+  copyFileSync: fsMock.copyFileSync,
+  renameSync: fsMock.renameSync,
+  rmSync: fsMock.rmSync,
 }));
 
 // Import BOTH old and new names — the new name is the canonical one,

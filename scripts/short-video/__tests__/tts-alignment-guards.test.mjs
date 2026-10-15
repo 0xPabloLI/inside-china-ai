@@ -10,8 +10,15 @@
  *    alignment knows exactly where the last real word ends.
  * 2. Crushed-word sanity: an aligned word lasting far less than its syllable
  *    count allows was swallowed (dh-pilot scene-7 read "53.4" in 0.13s).
+ *
+ * Plus the two gates over the cut itself: #629 (skip when the alignment is
+ * self-reported suspect) and the #232 verified cut (read the trimmed take back
+ * before committing).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, readFileSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import {
   computeTailCut,
   estimateSyllables,
@@ -19,6 +26,7 @@ import {
   runAlignmentGuards,
   tailCutDecision,
   trimSceneTail,
+  verifyTrimmedTake,
   TAIL_PAD_SEC,
   TAIL_MIN_EXCESS_SEC,
   MIN_SEC_PER_SYLLABLE,
@@ -159,6 +167,15 @@ describe("runAlignmentGuards — the cut is gated on alignment trust (#629)", ()
 
   const scenes = (sceneId, words) => ({ scenes: [{ sceneId, segments: [{ words }] }] });
 
+  let dir;
+  // The verified cut (#232) snapshots the take before trimming, so a cut that
+  // proceeds needs a real file on disk — not just a mocked existsSync.
+  const scenePath = (id) => {
+    const p = join(dir, `scene-${id}.mp3`);
+    writeFileSync(p, `audio-${id}`);
+    return p;
+  };
+
   beforeEach(() => {
     execMock.mockClear();
     execFileMock.mockClear();
@@ -168,10 +185,11 @@ describe("runAlignmentGuards — the cut is gated on alignment trust (#629)", ()
     execFileMock.mockImplementation((cmd, args, cb) =>
       cb(null, { stdout: "3.440000\n", stderr: "" }),
     );
+    dir = mkdtempSync(join(tmpdir(), "tailgate-"));
   });
 
   it("skips the cut, leaves the audio alone, and reports why when alignment is suspect", async () => {
-    const ttsResults = [{ sceneId: 8, audioPath: "/out/scene-8.mp3", duration: 5.06 }];
+    const ttsResults = [{ sceneId: 8, audioPath: scenePath(8), duration: 5.06 }];
     const result = await runAlignmentGuards(ttsResults, scenes(8, suspectWords));
 
     expect(result.cuts).toEqual([]);
@@ -184,7 +202,9 @@ describe("runAlignmentGuards — the cut is gated on alignment trust (#629)", ()
   });
 
   it("still cuts a clean-alignment phantom tail (#232 behaviour preserved)", async () => {
-    const ttsResults = [{ sceneId: 7, audioPath: "/out/scene-7.mp3", duration: 6.1 }];
+    const ttsResults = [{ sceneId: 7, audioPath: scenePath(7), duration: 6.1 }];
+    // No scenes array: no reference text to read the trimmed take back
+    // against, so the cut commits on the pre-#232 verified-cut path.
     const result = await runAlignmentGuards(ttsResults, scenes(7, cleanWords));
 
     expect(result.skippedCuts).toEqual([]);
@@ -196,8 +216,8 @@ describe("runAlignmentGuards — the cut is gated on alignment trust (#629)", ()
 
   it("gates per scene: a suspect scene does not block a clean scene's cut", async () => {
     const ttsResults = [
-      { sceneId: 8, audioPath: "/out/scene-8.mp3", duration: 5.06 },
-      { sceneId: 7, audioPath: "/out/scene-7.mp3", duration: 6.1 },
+      { sceneId: 8, audioPath: scenePath(8), duration: 5.06 },
+      { sceneId: 7, audioPath: scenePath(7), duration: 6.1 },
     ];
     const timingData = {
       scenes: [
@@ -249,5 +269,159 @@ describe("trimSceneTail", () => {
     execFileMock.mockImplementation((cmd, args, cb) => cb(new Error("ffprobe missing"), null));
     expect(Number.isNaN(await trimSceneTail("/out/scene-1.mp3", 1.35))).toBe(true);
     expect(execMock.mock.calls.filter(([cmd]) => cmd.startsWith("mv "))).toHaveLength(0);
+  });
+});
+
+// ─── Verified tail cut (2026-10-14) ───
+// The alignment justifying a cut is a model output and can be wrong. Observed
+// on deepseek-flash-silent-update scene 3: wav2vec2 aligned "115,000" + "views"
+// into 0.41s and stopped at 5.93s of a 7.60s take, so the cut removed real
+// speech and the video said "That clip reached 100". These tests pin the
+// read-back that now gates the cut.
+describe("verifyTrimmedTake", () => {
+  const scene = { id: 3, voiceover: "That clip reached 115,000 views." };
+
+  const withReport = (report) => ({ evaluateScene: async () => report });
+
+  it("accepts a trimmed take whose read-back is clean", async () => {
+    const verdict = await verifyTrimmedTake(
+      scene,
+      "/out/scene-3.wav",
+      5.0,
+      withReport({ passed: true, similarity: 1, asrVerified: true, issues: [] }),
+    );
+    expect(verdict.ok).toBe(true);
+  });
+
+  it("refuses the cut when the read-back reports truncation", async () => {
+    const verdict = await verifyTrimmedTake(
+      scene,
+      "/out/scene-3.wav",
+      5.0,
+      withReport({
+        passed: false,
+        similarity: 0.8,
+        asrVerified: true,
+        issues: ["Truncation detected: missing tail word(s) [views]"],
+      }),
+    );
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toMatch(/truncation/i);
+  });
+
+  it("refuses the cut when a key number/date token went missing", async () => {
+    const verdict = await verifyTrimmedTake(
+      scene,
+      "/out/scene-3.wav",
+      5.0,
+      withReport({
+        passed: false,
+        similarity: 0.9,
+        asrVerified: true,
+        issues: ["Incomplete speech: missing key token(s) [115000]"],
+      }),
+    );
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toMatch(/incomplete speech/i);
+  });
+
+  it("refuses the cut when similarity falls below the gate threshold", async () => {
+    const verdict = await verifyTrimmedTake(
+      scene,
+      "/out/scene-3.wav",
+      5.0,
+      withReport({ passed: false, similarity: 0.4, asrVerified: true, issues: [] }),
+    );
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toMatch(/similarity/i);
+  });
+
+  it("refuses the cut when ASR did not run — unverified is not verified", async () => {
+    const verdict = await verifyTrimmedTake(
+      scene,
+      "/out/scene-3.wav",
+      5.0,
+      withReport({ passed: true, asrVerified: false, issues: [] }),
+    );
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toMatch(/unverified/i);
+  });
+
+  it("refuses the cut when the verifier itself fails (fail-safe, keep the audio)", async () => {
+    const verdict = await verifyTrimmedTake(scene, "/out/scene-3.wav", 5.0, {
+      evaluateScene: async () => {
+        throw new Error("whisper missing");
+      },
+    });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toMatch(/unavailable/i);
+  });
+
+  it("passes through when there is no reference text to check against", async () => {
+    const verdict = await verifyTrimmedTake(undefined, "/out/scene-3.wav", 5.0, {
+      evaluateScene: async () => {
+        throw new Error("must not be called");
+      },
+    });
+    expect(verdict.ok).toBe(true);
+  });
+});
+
+describe("runAlignmentGuards verified cut", () => {
+  let dir;
+  let audioPath;
+
+  beforeEach(() => {
+    execMock.mockClear();
+    execFileMock.mockClear();
+    existsSyncMock.mockClear();
+    existsSyncMock.mockReturnValue(true);
+    // ffprobe reports a finite duration so the trim probe succeeds and the
+    // verification step is actually reached.
+    execFileMock.mockImplementation((cmd, args, cb) =>
+      cb(null, { stdout: "5.000000\n", stderr: "" }),
+    );
+    dir = mkdtempSync(join(tmpdir(), "tailcut-"));
+    audioPath = join(dir, "scene-3.wav");
+    writeFileSync(audioPath, "original-audio-bytes");
+  });
+
+  const results = () => [{ sceneId: 3, audioPath, duration: 7.6 }];
+  const timing = () => [
+    {
+      sceneId: 3,
+      segments: [{ words: [{ text: "views", start: 5.5, end: 5.93 }] }],
+    },
+  ];
+  const scenes = () => [{ id: 3, voiceover: "That clip reached 115,000 views." }];
+
+  it("commits the cut when the read-back confirms the words survived", async () => {
+    const out = await runAlignmentGuards(results(), timing(), scenes(), {
+      evaluateScene: async () => ({ passed: true, similarity: 1, asrVerified: true, issues: [] }),
+    });
+
+    expect(out.cuts).toEqual([{ sceneId: 3, from: 7.6, to: 5.0 }]);
+    expect(out.refusedCuts).toEqual([]);
+    expect(() => readFileSync(`${audioPath}.pre-tailcut`)).toThrow();
+  });
+
+  it("reverts the cut and restores the original bytes when a word went missing", async () => {
+    const r = results();
+    const out = await runAlignmentGuards(r, timing(), scenes(), {
+      evaluateScene: async () => ({
+        passed: false,
+        similarity: 0.7,
+        asrVerified: true,
+        issues: ["Truncation detected: missing tail word(s) [views]"],
+      }),
+    });
+
+    expect(out.cuts).toEqual([]);
+    expect(out.refusedCuts).toHaveLength(1);
+    expect(out.refusedCuts[0].sceneId).toBe(3);
+    // duration must stay the pre-cut value so downstream timing is unchanged
+    expect(r[0].duration).toBe(7.6);
+    expect(readFileSync(audioPath, "utf8")).toBe("original-audio-bytes");
+    expect(() => readFileSync(`${audioPath}.pre-tailcut`)).toThrow();
   });
 });

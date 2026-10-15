@@ -39,6 +39,9 @@ const DIGIT_WORDS = [
   "nine",
 ];
 
+/** Scale words for 3-digit groups, most-significant-last (see numberToWords). */
+const SCALE_WORDS = ["", "thousand", "million", "billion", "trillion"];
+
 const MONTH_NAMES = [
   "January",
   "February",
@@ -106,11 +109,16 @@ function decimalToSpoken(intPart, decPart) {
 }
 
 /**
- * Convert a small integer (0-9999) to words.
+ * Convert a non-negative integer to words.
+ *
+ * Exported so the quality gate can expand the DIGITS whisper.cpp writes
+ * ("115,000") back into the same words this module puts on the spoken track —
+ * one speller for both sides of the comparison, so they cannot drift.
+ *
  * @param {number} n
- * @returns {string}
+ * @returns {string} words, or the digits again beyond the scale table
  */
-function numberToWords(n) {
+export function numberToWords(n) {
   if (n === 0) return "zero";
   if (n < 0) return `negative ${numberToWords(-n)}`;
   const ones = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
@@ -146,7 +154,23 @@ function numberToWords(n) {
     return `${ones[Math.floor(n / 100)]} hundred${n % 100 ? ` ${numberToWords(n % 100)}` : ""}`;
   if (n < 10000)
     return `${ones[Math.floor(n / 1000)]} thousand${n % 1000 ? ` ${numberToWords(n % 1000)}` : ""}`;
-  return String(n);
+  // Larger cardinals split into 3-digit groups so every digit still becomes a
+  // word. Returning String(n) here (the pre-2026-10-14 behavior) let "115,000"
+  // reach text-align.py as a digit token, which wav2vec2 cannot align: the
+  // aligner stopped short of the audio's real end and the #232 tail guard cut
+  // the unmatched speech (deepseek-flash-silent-update scene 3 said "reached
+  // 100" instead of "reached 115,000 views").
+  const groups = [];
+  for (let rest = n; rest > 0; rest = Math.floor(rest / 1000)) groups.push(rest % 1000);
+  groups.reverse();
+  return groups
+    .map((group, i) => {
+      if (group === 0) return "";
+      const scale = SCALE_WORDS[groups.length - 1 - i];
+      return scale ? `${numberToWords(group)} ${scale}` : numberToWords(group);
+    })
+    .filter(Boolean)
+    .join(" ");
 }
 
 /**
@@ -215,6 +239,27 @@ const DIGIT_UNIT_ALTERNATION = Object.keys(UNIT_SPOKEN)
 const DIGIT_UNIT_RE = new RegExp(`\\b(\\d+)(${DIGIT_UNIT_ALTERNATION})\\b`, "gi");
 /** Anchored to a single token — no /g, so .exec carries no lastIndex state. */
 const DIGIT_UNIT_TOKEN_RE = new RegExp(`^(\\d+)(${DIGIT_UNIT_ALTERNATION})$`, "i");
+
+/**
+ * Bare cardinal integers that must not survive into the spoken track.
+ *
+ * text-align.py aligns scene.ttsText, and wav2vec2 has no digit tokens: a bare
+ * "115,000" cannot be aligned against audio that reads "one hundred fifteen
+ * thousand", so the aligner stops short of the audio's real end and the #232
+ * tail guard cuts the unmatched speech.
+ *
+ * Excluded on purpose — each has its own rule:
+ *   - any digit run touching a letter ("720p", "10x", "0x12a") and
+ *     letter-prefixed codenames ("H100", "B200") — #239 owns digit+unit;
+ *   - decimals ("5.1", the "1.4" in "$1.4B") — rules 1-3 own them;
+ *   - currency-prefixed amounts ("$20 million") — step 0.5's currency
+ *     normalization owns the symbol/amount pairing, and expanding only the
+ *     digits there yields "$twenty million", which the engine would read as
+ *     "dollars twenty million".
+ * Sentence-final punctuation is deliberately NOT excluded: "...managed 40."
+ * is exactly the position where an unexpanded digit breaks the aligner.
+ */
+const CARDINAL_RE = /(?<!\d\.)(?<![\d,$€£¥])\b(\d{1,3}(?:,\d{3})+|\d+)\b(?!\.\d)(?![a-zA-Z])/g;
 
 /**
  * Split compact digit+unit tokens into spoken-safe form: "720p" → "720 P".
@@ -315,7 +360,23 @@ function normalizeVoiceover(str, replacements) {
     return dateSpoken ? record(digits, dateSpoken) : match;
   });
 
-  // 8. Digit + spec-unit splitting (#239): "720p" → "720 P".
+  // 8. Cardinal integers: "115,000" → "one hundred fifteen thousand",
+  //    "40." → "forty". Runs BEFORE the digit+unit rule so a token like
+  //    "720p" is still whole for #239 — CARDINAL_RE skips any digit run that
+  //    touches a letter or a decimal point. Without this rule a bare cardinal
+  //    reaches text-align.py as digits, the aligner cannot consume it, and the
+  //    #232 tail guard cuts the speech it failed to align.
+  str = str.replace(CARDINAL_RE, (match) => {
+    const value = parseInt(match.replace(/,/g, ""), 10);
+    if (!Number.isFinite(value)) return match;
+    const spoken = numberToWords(value);
+    // Beyond the scale table numberToWords returns the digits again — leave
+    // the token alone rather than record a replacement restore cannot map.
+    if (/\d/.test(spoken)) return match;
+    return record(match, spoken);
+  });
+
+  // 9. Digit + spec-unit splitting (#239): "720p" → "720 P".
   //    Runs LAST so version rules (1-4) have already consumed "V4.1" /
   //    "GPT-4o" style tokens. Each match is recorded as a replacement so
   //    restore-tokens maps the spoken ["720","P"] run back to "720p" for
@@ -325,6 +386,32 @@ function normalizeVoiceover(str, replacements) {
   });
 
   return str;
+}
+
+/**
+ * Spoken words for every cardinal integer in `text` — "115,000" yields
+ * ["one", "hundred", "fifteen", "thousand"].
+ *
+ * Exported for the quality gate's heard-side expansion: whisper.cpp writes
+ * numbers as digits while the spoken track spells them out, so the gate needs
+ * the same words this module produces. Sharing CARDINAL_RE and numberToWords
+ * means the two sides of that comparison cannot drift, and the same
+ * exclusions (decimals, hex, digit+unit, letter-prefixed codenames) apply.
+ *
+ * @param {string} text
+ * @returns {string[]} words, empty when the text carries no cardinal
+ */
+export function cardinalSpokenWords(text) {
+  const words = [];
+  for (const match of String(text ?? "").matchAll(CARDINAL_RE)) {
+    const value = parseInt(match[0].replace(/,/g, ""), 10);
+    if (!Number.isFinite(value)) continue;
+    const spoken = numberToWords(value);
+    // Beyond the scale table numberToWords returns the digits — not evidence.
+    if (/\d/.test(spoken)) continue;
+    words.push(...spoken.split(" "));
+  }
+  return words;
 }
 
 /**
