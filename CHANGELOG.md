@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.20.14](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.13...tanstack_start_ts-v1.20.14) (2026-10-15)
+
+
+### Bug Fixes
+
+* **short-video:** 公司 logo 不再被压扁——CanvasImage 补 objectFit ([3d45dcc](https://github.com/0xPabloLI/inside-china-ai/commit/3d45dcc4e6c7ac8a00bcb664242d3f02f4c11db8))
+* **short-video:** 就地修改素材不再被资产缓存吞掉——三处复制点改为按 stat 重放 ([7092b66](https://github.com/0xPabloLI/inside-china-ai/commit/7092b66f24ee02661c29afe9f12bf58b74527949))
+* **short-video:** 资产重放判定加 mtime 容差，消除每渲必拷的抖动 ([854b4fa](https://github.com/0xPabloLI/inside-china-ai/commit/854b4fab3313a66efa6e18be0037e5d081321d96))
+
 ## [1.20.13](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.12...tanstack_start_ts-v1.20.13) (2026-10-14)
 
 
