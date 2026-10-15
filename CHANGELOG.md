@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.18](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.17...tanstack_start_ts-v1.20.18) (2026-10-15)
+
+
+### Bug Fixes
+
+* **short-video:** recover Kaggle outputs per file when the batch download is cut ([#581](https://github.com/0xPabloLI/inside-china-ai/issues/581)) ([#684](https://github.com/0xPabloLI/inside-china-ai/issues/684)) ([7f41b7a](https://github.com/0xPabloLI/inside-china-ai/commit/7f41b7afa6e7ea44a4da656549a2ed6a13a57c7e))
+
 ## [1.20.17](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.16...tanstack_start_ts-v1.20.17) (2026-10-15)
 
 
