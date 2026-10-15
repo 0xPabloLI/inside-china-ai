@@ -1682,12 +1682,34 @@ describe("assignAssetsToScenes", () => {
     expect(assigned.media.volume).toBe(0.08);
   });
 
-  it("sets correct animation for narrative+video (zoom)", () => {
+  // #357: video no longer takes the container `zoom` preset (1.3 → 1.0 → 1.15
+  // on top of fit:cover — double motion, a second crop, cropFocus drift).
+  it("sets fade (not container zoom) for narrative+video", () => {
     const scenes = [makeScene(2, "narrative")];
     const assets = [claimed("demo.mp4", "video", 90, 2)];
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
-    expect(assigned.media.animation).toBe("zoom");
+    expect(assigned.media.animation).toBe("fade");
+  });
+
+  it("#357: never writes container zoom for any video scene type", () => {
+    for (const vt of ["hook", "narrative", "quote", "info-card"]) {
+      const scenes = [makeScene(2, vt)];
+      const assets = [claimed("demo.mp4", "video", 90, 2, { fit: "cover" })];
+      const result = assignAssetsToScenes(assets, scenes);
+      const assigned = result.find((r) => r.status === "assigned");
+      expect(assigned?.media.animation, `${vt}+video`).toBe("fade");
+    }
+  });
+
+  it("#357: images keep ken-burns (the zoom change is video-only)", () => {
+    for (const vt of ["hook", "narrative", "info-card"]) {
+      const scenes = [makeScene(2, vt)];
+      const assets = [claimed("b.jpg", "image", 90, 2, { fit: "cover" })];
+      const result = assignAssetsToScenes(assets, scenes);
+      const assigned = result.find((r) => r.status === "assigned");
+      expect(assigned?.media.animation, `${vt}+image`).toBe("ken-burns");
+    }
   });
 
   it("sets correct animation for info-card+image (ken-burns)", () => {

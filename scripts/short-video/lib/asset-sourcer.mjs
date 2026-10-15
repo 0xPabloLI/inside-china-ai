@@ -659,7 +659,7 @@ export function recommendScene(asset, scenes) {
     if (vt === "narrative") {
       return {
         sceneId: scene.id,
-        animation: asset.type === "video" ? "zoom" : "ken-burns",
+        animation: asset.type === "video" ? VIDEO_ANIMATION : "ken-burns",
         overlay: 0.7,
       };
     }
@@ -697,6 +697,35 @@ export function recommendScene(asset, scenes) {
 
   return null;
 }
+
+/**
+ * #357 — Default animation preset for VIDEO assets.
+ *
+ * The `zoom` preset (MediaBackground) is a CONTAINER-level scale: entrance
+ * 1.3 → 1.0, exit 1.0 → 1.15, applied on top of fit:"cover". On a video that
+ * costs three things at once: (a) the asset's own camera motion gets an
+ * artificial second motion stacked on it, (b) the frame is cropped twice —
+ * at 1.3 the viewer sees only ~77% of the already cover-cropped picture — and
+ * (c) the crop window drifts every frame, by up to 30%, away from the VLM
+ * cropFocus that was computed for a STATIC crop.
+ *
+ * Video therefore defaults to `fade` (1.0 → 1.05 gentle push + entrance
+ * fade-in) — the same endpoint the renderer already degrades
+ * `ken-burns + video` to (`resolvePreset()` in MediaBackground.tsx keeps the
+ * two sides in step).
+ *
+ * `fade` is NOT motionless: it still pushes 1.0 → 1.05 and drifts -30px on
+ * exit, so it cuts the crop-window drift from 30% to ~5% instead of removing
+ * it. `none` is the only zero-motion preset — and it was rejected, because
+ * MediaBackground holds `none` at a constant `baseVolume`, dropping the 4-stop
+ * volume envelope and hard-cutting a video's audio at every scene boundary.
+ * Going to `none` therefore means decoupling the audio envelope from the
+ * preset first. Rendered-still comparison: the #357 delivery record.
+ *
+ * Images keep ken-burns: for a still asset the container motion is the only
+ * motion there is.
+ */
+const VIDEO_ANIMATION = "fade";
 
 /**
  * Volume recommendation per visualType + media type.
@@ -930,7 +959,9 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         type: asset.type,
         path: asset.path,
         source: asset.source || asset.from || undefined,
-        animation: vt === "hook" ? "ken-burns" : isVideo ? "zoom" : "ken-burns",
+        // #357: see VIDEO_ANIMATION. Writing ken-burns on a hook video only
+        // made the data lie — the renderer degrades it to fade anyway.
+        animation: isVideo ? VIDEO_ANIMATION : "ken-burns",
         overlay: vt === "hook" ? 0.5 : vt === "quote" ? 0.8 : vt === "info-card" ? 0.75 : 0.7,
       };
       if (vt === "hook") media.fit = "cover";

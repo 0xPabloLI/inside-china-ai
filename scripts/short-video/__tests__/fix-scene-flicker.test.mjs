@@ -169,7 +169,10 @@ describe("S6: Preset transforms — outStart still used", () => {
   it("zoom preset scale still references outStart", () => {
     const content = readFile("components/MediaBackground.tsx");
 
-    const zoomMatch = content.match(/preset === "zoom"[\s\S]*?(?=})\s*}/);
+    // Anchor on the transform branch: `preset === "zoom"` also appears in the
+    // preset-resolution guard (#357 degrades zoom + video), and a loose match
+    // would land there instead of on the scale curve.
+    const zoomMatch = content.match(/else if \(preset === "zoom"\) \{[\s\S]*?\n  \}/);
     expect(zoomMatch).toBeTruthy();
     expect(zoomMatch[0]).toMatch(/outStart/);
   });

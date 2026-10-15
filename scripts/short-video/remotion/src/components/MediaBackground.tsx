@@ -18,7 +18,7 @@
  * Rules:
  *   - All scenes can opt in to media via scene.media (hook, narrative, etc.)
  *   - CTA scene remains CSS-only (no media rendering)
- *   - ken-burns + video → auto-degrade to fade
+ *   - ken-burns / zoom + video → auto-degrade to fade (see resolvePreset)
  *   - File not found → render nothing (pre-validated by render-remotion.mjs)
  */
 import {
@@ -67,6 +67,29 @@ const FOCUS_MAP: Record<string, string> = {
 const offsetMsToTrimBefore = (offsetMs: number | undefined, fps: number) =>
   offsetMs ? Math.round((offsetMs / 1000) * fps) : undefined;
 
+/**
+ * Which preset actually renders.
+ *
+ * A container scale is a still-asset effect: it belongs on a picture that has
+ * no motion of its own. On video it stacks a second motion on the asset's
+ * camera move and crops the frame a second time on top of fit:cover, while
+ * drifting the crop window away from the VLM cropFocus that was solved for a
+ * STATIC crop — `zoom` by up to 30% (1.3 → 1.0 → 1.15, #357), `ken-burns` by
+ * 12% plus a pan. Both degrade to `fade`, whose own 1.05 push drifts 5% —
+ * reduced, not removed; `none` is the only motionless preset.
+ *
+ * Kept in step with `VIDEO_ANIMATION` in lib/asset-sourcer.mjs — the allocator
+ * must not hand out a preset this function is going to override.
+ */
+const resolvePreset = (
+  requested: MediaField["animation"],
+  type: MediaField["type"],
+): NonNullable<MediaField["animation"]> => {
+  const preset = requested ?? "fade";
+  if (type === "video" && (preset === "ken-burns" || preset === "zoom")) return "fade";
+  return TIMING[preset] ? preset : "fade";
+};
+
 export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -79,12 +102,8 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
   // the offset to the source end, never showing pre-offset frames.
   const trimBefore = offsetMsToTrimBefore(media.videoStartOffsetMs, fps);
 
-  // Determine preset (ken-burns + video → degrade to fade)
-  let preset = media.animation ?? "fade";
-  if (preset === "ken-burns" && media.type === "video") {
-    preset = "fade";
-  }
-  if (!TIMING[preset]) preset = "fade";
+  // ken-burns + video → degrade to fade; #357: zoom + video → degrade to fade
+  const preset = resolvePreset(media.animation, media.type);
 
   const timing = TIMING[preset];
   const overlay = media.mode === "fullscreen" ? 0 : (media.overlay ?? 0.7);
