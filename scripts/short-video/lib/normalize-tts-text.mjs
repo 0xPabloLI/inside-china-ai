@@ -162,6 +162,12 @@ export function numberToWords(n) {
   // 100" instead of "reached 115,000 views").
   const groups = [];
   for (let rest = n; rest > 0; rest = Math.floor(rest / 1000)) groups.push(rest % 1000);
+  // Beyond the scale table the magnitude word would silently vanish
+  // (1e15 → "one"), and the digit guard in the callers cannot catch that —
+  // the truncated string still contains no digits. Return the digits instead
+  // so the callers leave the token alone, the same fallback the pre-2026-10-14
+  // behavior gave every large number.
+  if (groups.length > SCALE_WORDS.length) return String(n);
   groups.reverse();
   return groups
     .map((group, i) => {

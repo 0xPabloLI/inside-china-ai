@@ -5,7 +5,12 @@
  * DISPLAY track (voiceover → subtitles) must keep the original tokens.
  */
 import { describe, it, expect } from "vitest";
-import { normalizeTtsText, splitDigitUnitToken } from "../lib/normalize-tts-text.mjs";
+import {
+  normalizeTtsText,
+  splitDigitUnitToken,
+  numberToWords,
+  cardinalSpokenWords,
+} from "../lib/normalize-tts-text.mjs";
 
 describe("normalizeTtsText dual-track", () => {
   it("keeps voiceover untouched and writes ttsText + replacements", () => {
@@ -163,6 +168,26 @@ describe("normalizeTtsText cardinal integers (digit-free spoken track)", () => {
     // must stay untouched — no digit gets expanded out of a larger token.
     expect(scenes[0].ttsText).toBe("H100 and B200 run 0x12a; $1.4B with 10x growth at 720 P.");
     expect(scenes[0].ttsReplacements).toEqual([{ original: "720p", spoken: ["720", "P"] }]);
+  });
+
+  it("leaves quadrillion-scale integers alone rather than drop their magnitude word", () => {
+    // The scale table ends at trillion. Splicing a 6-group number through it
+    // emitted only the leading group ("one" for 1e15) with no digits left for
+    // the callers' digit guard to catch, so the spoken track silently lost
+    // five orders of magnitude. Returning the digits keeps the pre-2026-10-14
+    // fallback: the token stays as-is.
+    expect(numberToWords(1e15)).toBe("1000000000000000");
+    expect(numberToWords(999999999999999)).toBe(
+      "nine hundred ninety nine trillion nine hundred ninety nine billion " +
+        "nine hundred ninety nine million nine hundred ninety nine thousand " +
+        "nine hundred ninety nine",
+    );
+    expect(cardinalSpokenWords("1000000000000000")).toEqual([]);
+
+    const scenes = [{ id: 24, voiceover: "It cost 1000000000000000 tokens." }];
+    normalizeTtsText(scenes);
+    expect(scenes[0].ttsText).toBeUndefined();
+    expect(scenes[0].ttsReplacements).toBeUndefined();
   });
 });
 
