@@ -5,11 +5,11 @@
  * env override). generateTTS() delegates to the selected engine and runs
  * subtitle alignment afterwards.
  *
- * Engine priority (updated 2026-09-08):
+ * Engine priority (updated 2026-10-16):
  *   1. CosyVoice3-Kaggle-CUDA (DEFAULT — P100 GPU, full emotion fidelity, Apache-2.0, ~8-10min/batch)
  *   2. CosyVoice3-Modal-CUDA (PAID FALLBACK — A100 GPU, same CUDA emotion as Kaggle, ~$0.20-0.50/batch, used when Kaggle quota exhausted)
- *   3. CosyVoice3-NPU (FREE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA similar to MPS, RTF ~2.2x, no Kaggle/Modal quota needed)
- *   4. CosyVoice3-MLX (LOCAL FALLBACK — emotion regression vs CUDA, but fast RTF 0.64-0.87x)
+ *   3. CosyVoice3-MLX (LOCAL FALLBACK — emotion regression vs CUDA, but fast RTF 0.64-0.87x)
+ *   4. CosyVoice3-NPU (FREE REMOTE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA similar to MPS, RTF ~2.2x, no Kaggle/Modal quota needed)
  *   5. F5-TTS-MLX (BACKUP — good rhythm, natural pacing, internal duration control, CC-BY-NC)
  *
  * Manual opt-in only — NOT part of automatic fallback (user rule 2026-09-10):
@@ -22,6 +22,13 @@
  * CUDA. NPU (Ascend 910B) emotion is similar to MPS (slightly flat hook/shock).
  * Kaggle P100 CUDA matches A100 emotion baseline exactly. Modal A100 is the same
  * CUDA EP — used when Kaggle's 30h/week quota runs out (Modal ~$30/mo).
+ *
+ * Why MLX ranks above NPU (user decision 2026-10-16): the two have the same
+ * emotion grade, but NPU is strictly dominated — it needs a live AtomGit
+ * Jupyter endpoint (COSYVOICE3_NPU_JUPYTER_URL/_TOKEN, session-scoped) and runs
+ * at RTF ~2.2x, while MLX is local, dependency-free and RTF 0.64-0.87x. NPU
+ * still works as an explicit opt-in (TTS_ENGINE=npu) for the case where the
+ * local MLX venv is unavailable and a remote fallback is wanted.
  *
  * All local models run at MAX EFFORT by default (see docs/video-production-runbook.md).
  * Unified venv: ~/.video-tts-env (Python 3.12) — CosyVoice3 + F5 + whisperx all in one.
@@ -85,8 +92,8 @@ const ENGINE_FACTORIES = {
 const PRIORITY = [
   "cosyvoice3-kaggle-cuda",
   "cosyvoice3-modal-cuda",
-  "cosyvoice3-npu",
   "cosyvoice3-mlx",
+  "cosyvoice3-npu",
   "f5-mlx",
 ];
 
