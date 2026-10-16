@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.20](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.19...tanstack_start_ts-v1.20.20) (2026-10-16)
+
+
+### Bug Fixes
+
+* **tts:** 引擎自动链改为 MLX 优先于 NPU（用户裁决 2026-10-16） ([#696](https://github.com/0xPabloLI/inside-china-ai/issues/696)) ([5da3641](https://github.com/0xPabloLI/inside-china-ai/commit/5da3641612034bf93614fe590f410cba06b34cc0))
+
 ## [1.20.19](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.18...tanstack_start_ts-v1.20.19) (2026-10-16)
 
 
