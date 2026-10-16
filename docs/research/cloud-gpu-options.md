@@ -32,12 +32,13 @@
 | 引擎                 | 最优硬件     | RTF            | 成本    | 许可       | 来源                                     |
 | -------------------- | ------------ | -------------- | ------- | ---------- | ---------------------------------------- |
 | **CosyVoice3-MLX**   | **MLX 本地** | **0.64-0.87x** | 免费    | Apache-2.0 | `voice-cloning-solutions-m2-pro.md` §8.8 |
-| F5-TTS-MLX           | MLX 本地     | 1.78x          | 免费    | CC-BY-NC   | 管线默认引擎                             |
+| F5-TTS-MLX           | MLX 本地     | 1.78x          | 免费    | CC-BY-NC   | `voice-cloning-solutions-m2-pro.md` §8.8 |
 | Qwen3-TTS            | MPS 本地     | ~2x            | 免费    | Apache-2.0 | MLX 版待测                               |
 | CosyVoice3 (PyTorch) | Modal A100   | ~1x            | $2.10/h | Apache-2.0 | 已不如 MLX 本地版                        |
 | VoxCPM2              | Modal A100   | 0.33x          | $2.10/h | Apache-2.0 | MLX 版不兼容                             |
 
 > **规则**：TTS 优先 MLX 本地。仅当模型无 MLX 移植且 MPS 不可用/太慢时，才走 Kaggle → Modal。
+> **管线实际引擎链**（与上表不同：按 emotion 保真度而非成本排序）见 ADR-0019。
 > **MLX 模型发现**：搜 `mlx-community` HuggingFace（见 `model-sources-reference.md` §1.2）。`mlx-audio` / `mlx-audio-plus` 库支持 cosyvoice3/qwen3/voxcpm/indextts/spark/bark/kokoro/chatterbox 等模型。
 
 ### 交叉引用
@@ -692,7 +693,7 @@ GTX 1080 是 2016 年 Pascal 架构（算力 6.1），8GB GDDR5X：
 | **ModelScope NVIDIA GPU** | T4 16GB              | 36h                               | 一次性           | 已从主列表移除，T4 走 Kaggle 更可持续                   |
 | **ModelScope AMD GPU**    | AMD GPU 192GB        | 100h                              | 一次性           | 192GB 大显存独特价值，保留在主列表第 5 位               |
 
-> **阿里云 PAI-DSW 评估结论**（2026-09-08）：A10 24GB VRAM 比 Kaggle P100 16GB 大，750 计算时比 Kaggle 360h（3 个月）多一倍，CUDA 原生 emotion 有保障。但需阿里云账号 + 实名认证，且额度一次性用完即止。当前 fallback 链（Kaggle→Modal→MLX→NPU，2026-10-16 起 MLX 在 NPU 前）已足够，暂不纳入路由。
+> **阿里云 PAI-DSW 评估结论**（2026-09-08）：A10 24GB VRAM 比 Kaggle P100 16GB 大，750 计算时比 Kaggle 360h（3 个月）多一倍，CUDA 原生 emotion 有保障。但需阿里云账号 + 实名认证，且额度一次性用完即止。当前 fallback 链（Kaggle→Modal→MLX）已足够，暂不纳入路由。
 > **ModelScope CPU**（创空间）持续免费，但 CPU 跑 TTS RTF >10x 不实用，仅可跑 whisper 转文字或小 LLM 文本处理（本地 MLX 更快）。
 > **ModelScope xGPU**（创空间）：永久免费 GPU 应用托管服务，实时调度、availability 不定。用于部署 AI 应用（Gradio/Streamlit），不能预约/保留 GPU，不适合批量推理或训练。注册魔搭即可用。适合把模型托管为 API endpoint，不适合本项目数字人/TTS 推理管线。
 

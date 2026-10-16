@@ -5,30 +5,28 @@
  * env override). generateTTS() delegates to the selected engine and runs
  * subtitle alignment afterwards.
  *
- * Engine priority (updated 2026-10-16):
+ * Engine priority:
  *   1. CosyVoice3-Kaggle-CUDA (DEFAULT — P100 GPU, full emotion fidelity, Apache-2.0, ~8-10min/batch)
  *   2. CosyVoice3-Modal-CUDA (PAID FALLBACK — A100 GPU, same CUDA emotion as Kaggle, ~$0.20-0.50/batch, used when Kaggle quota exhausted)
  *   3. CosyVoice3-MLX (LOCAL FALLBACK — emotion regression vs CUDA, but fast RTF 0.64-0.87x)
- *   4. CosyVoice3-NPU (FREE REMOTE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA similar to MPS, RTF ~2.2x, no Kaggle/Modal quota needed)
- *   5. F5-TTS-MLX (BACKUP — good rhythm, natural pacing, internal duration control, CC-BY-NC)
+ *   4. F5-TTS-MLX (BACKUP — good rhythm, natural pacing, internal duration control, CC-BY-NC)
  *
  * Manual opt-in only — NOT part of automatic fallback (user rule 2026-09-10):
  * these engines never run unless TTS_ENGINE explicitly names them:
- *   6. edge-tts (Microsoft neural TTS, no cloning)
- *   7. macOS `say` (last resort, no cloning)
+ *   5. edge-tts (Microsoft neural TTS, no cloning)
+ *   6. macOS `say` (last resort, no cloning)
  *
- * Why CUDA engines first: MPS/MLX/NPU emotion regression verified 2026-09-08 —
+ * Why CUDA engines first: MPS/MLX emotion regression verified 2026-09-08 —
  * CoreML EP + float32 patches + MPS fallback did NOT close the emotion gap vs
- * CUDA. NPU (Ascend 910B) emotion is similar to MPS (slightly flat hook/shock).
- * Kaggle P100 CUDA matches A100 emotion baseline exactly. Modal A100 is the same
- * CUDA EP — used when Kaggle's 30h/week quota runs out (Modal ~$30/mo).
+ * CUDA. Kaggle P100 CUDA matches A100 emotion baseline exactly. Modal A100 is
+ * the same CUDA EP — used when Kaggle's 30h/week quota runs out (Modal ~$30/mo).
  *
- * Why MLX ranks above NPU (user decision 2026-10-16): the two have the same
- * emotion grade, but NPU is strictly dominated — it needs a live AtomGit
- * Jupyter endpoint (COSYVOICE3_NPU_JUPYTER_URL/_TOKEN, session-scoped) and runs
- * at RTF ~2.2x, while MLX is local, dependency-free and RTF 0.64-0.87x. NPU
- * still works as an explicit opt-in (TTS_ENGINE=npu) for the case where the
- * local MLX venv is unavailable and a remote fallback is wanted.
+ * Why no Ascend NPU engine: the AtomGit NPU adapter produced the same
+ * "slightly flat" emotion grade as MLX (ADR-0019 listening verification) while
+ * being strictly worse on everything else — it needed a live session-scoped
+ * Jupyter endpoint (COSYVOICE3_NPU_JUPYTER_URL/_TOKEN) and ran at RTF ~2.2x
+ * against MLX's local 0.64-0.87x. A remote engine that is neither better nor
+ * faster than the local one earns no slot in the chain.
  *
  * All local models run at MAX EFFORT by default (see docs/video-production-runbook.md).
  * Unified venv: ~/.video-tts-env (Python 3.12) — CosyVoice3 + F5 + whisperx all in one.
@@ -39,7 +37,6 @@ import { join } from "path";
 import { createRegenStaging, acceptRegenTake, cleanupRegenStaging } from "./staging.mjs";
 import { createCosyVoice3KaggleCudaEngine } from "./cosyvoice3-kaggle-cuda.mjs";
 import { createCosyVoice3ModalCudaEngine } from "./cosyvoice3-modal-cuda.mjs";
-import { createCosyVoice3NPUEngine } from "./cosyvoice3-npu.mjs";
 import { createCosyVoice3MLXEngine } from "./cosyvoice3-mlx.mjs";
 import { createF5MLXEngine } from "./f5-mlx.mjs";
 
@@ -71,8 +68,6 @@ const ENGINE_FACTORIES = {
   "cosyvoice3-kaggle-cuda": createCosyVoice3KaggleCudaEngine,
   "cosyvoice3-cuda": createCosyVoice3KaggleCudaEngine,
   "cosyvoice3-modal-cuda": createCosyVoice3ModalCudaEngine,
-  "cosyvoice3-npu": createCosyVoice3NPUEngine,
-  npu: createCosyVoice3NPUEngine,
   "cosyvoice3-mlx": createCosyVoice3MLXEngine,
   cosyvoice3: createCosyVoice3MLXEngine,
   cv3: createCosyVoice3MLXEngine,
@@ -89,13 +84,7 @@ const ENGINE_FACTORIES = {
  * say) are manual opt-in only and must never be selected by this loop
  * (user rule 2026-09-10).
  */
-const PRIORITY = [
-  "cosyvoice3-kaggle-cuda",
-  "cosyvoice3-modal-cuda",
-  "cosyvoice3-mlx",
-  "cosyvoice3-npu",
-  "f5-mlx",
-];
+const PRIORITY = ["cosyvoice3-kaggle-cuda", "cosyvoice3-modal-cuda", "cosyvoice3-mlx", "f5-mlx"];
 
 /**
  * Select a TTS engine.

@@ -62,9 +62,9 @@ requires `torch.istft` CPU fallback (NPU doesn't support `aclnnUnfoldGrad`)
 and automatic float64→float32 casting (similar to MPS limitation).
 
 **NPU test results:** 6/6 segments generated, RTF ~2.2x. User listening
-confirmed emotion is "slightly flat, similar to MPS" — better than nothing
-but not matching CUDA. NPU is valuable as a free, in-China fallback that
-doesn't consume Kaggle quota.
+confirmed emotion is "slightly flat, similar to MPS" — i.e. the same grade as
+CosyVoice3-MLX, and not matching CUDA. That parity is why the NPU adapter is
+not in the chain (see Decision → "Why no NPU engine").
 
 ### Why Kaggle P100 CUDA?
 
@@ -97,41 +97,35 @@ comparable to or better than larger models (IndexTTS2 1.5B: 76.5, HiggsAudio
 
 **CosyVoice3-Kaggle-CUDA is the default TTS engine**, with CosyVoice3-Modal-CUDA
 as paid CUDA fallback (same emotion quality, used when Kaggle quota exhausted),
-CosyVoice3-MLX as local fallback, CosyVoice3-NPU as free remote fallback, F5-TTS-MLX as
-backup, edge-tts as cloud fallback, and macOS
-`say` as last resort.
+CosyVoice3-MLX as local fallback, F5-TTS-MLX as backup, edge-tts as cloud
+fallback, and macOS `say` as last resort.
 
-Engine priority (2026-10-16 — see Amendment below; MLX moved ahead of NPU):
+Engine priority:
 
 1. **CosyVoice3-Kaggle-CUDA** (DEFAULT — P100 GPU, full emotion fidelity, Apache-2.0, ~8-10min/batch)
 2. **CosyVoice3-Modal-CUDA** (PAID FALLBACK — A100 GPU, same CUDA emotion as Kaggle, ~$0.20-0.50/batch, used when Kaggle 30h/week quota exhausted)
 3. **CosyVoice3-MLX** (LOCAL FALLBACK — emotion regression, but fast RTF 0.64-0.87x)
-4. **CosyVoice3-NPU** (FREE REMOTE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA, RTF ~2.2x, no Kaggle/Modal quota; explicit `TTS_ENGINE=npu` opt-in in practice)
-5. **F5-TTS-MLX** (BACKUP — good rhythm, CC-BY-NC, no emotion control)
-6. Qwen3-TTS (good emphasis, clone+emotion cannot coexist — **not registered in `ENGINE_FACTORIES`**, so not selectable)
-7. edge-tts (Microsoft neural TTS, no cloning)
-8. macOS `say` (last resort, no cloning)
+4. **F5-TTS-MLX** (BACKUP — good rhythm, CC-BY-NC, no emotion control)
+5. edge-tts (Microsoft neural TTS, no cloning — manual opt-in only)
+6. macOS `say` (last resort, no cloning — manual opt-in only)
 
-CUDA engines (Kaggle + Modal) are prioritized above MLX/NPU because emotion
-fidelity is the primary selection criterion — MLX and NPU both have emotion
-regression vs CUDA baseline (verified 2026-09-08). Kaggle is free (30h/week),
-Modal is paid (~$30/mo) but has no weekly quota limit.
+CUDA engines (Kaggle + Modal) are prioritized above MLX because emotion
+fidelity is the primary selection criterion — MLX has emotion regression vs the
+CUDA baseline (verified 2026-09-08). Kaggle is free (30h/week), Modal is paid
+(~$30/mo) but has no weekly quota limit.
 
-### Amendment 2026-10-16 — MLX ahead of NPU
+### Why no NPU engine
 
-MLX and NPU share the same emotion grade ("slightly flat", 2026-09-08 listening
-verification), so emotion fidelity cannot separate them. On the remaining axes
-NPU is strictly dominated: the adapter only comes up when
-`COSYVOICE3_NPU_JUPYTER_URL` / `COSYVOICE3_NPU_JUPYTER_TOKEN` are exported for
-the live Notebook session (the endpoint is issued per session), and inference
-runs at RTF ~2.2x, whereas MLX is local, dependency-free and RTF 0.64-0.87x.
-The automatic chain therefore selects MLX before NPU (user decision
-2026-10-16).
+The Ascend 910B NPU matched CosyVoice3-MLX on the criterion that decides this
+ranking (emotion: both "slightly flat" vs CUDA, 2026-09-08 listening) and lost
+on every other axis: it needed a live session-scoped Jupyter endpoint and ran
+at RTF ~2.2x against MLX's local 0.64-0.87x. A remote engine that is neither
+better nor faster than the local one earns no slot, so the adapter and its
+kernel template were deleted (2026-10-16) rather than kept as a dominated
+fallback.
 
-NPU is not deleted: `TTS_ENGINE=npu` still forces it, which covers the case
-where the local MLX venv/model is unavailable and a remote engine is wanted.
-The reorder changes selection only when both engines are available in the same
-run — with NPU unconfigured the chain reaches MLX either way.
+AtomGit itself stays in use as a platform (NPU core-hours, hosted models) —
+only the CosyVoice3 NPU adapter is gone.
 
 ### Emotion mapping
 
@@ -152,21 +146,17 @@ MLX version auto-appends it — do NOT include it in instruct_text for MLX.
 - `kaggle/cosyvoice3_cuda_kernel.py` — Kaggle kernel template (deps + inference)
 - `lib/tts/cosyvoice3-modal-cuda.mjs` — Modal A100 remote engine adapter (Modal CLI)
 - `modal/cosyvoice3_cuda_modal.py` — Modal script (deps + inference + volume cache)
-- `lib/tts/cosyvoice3-npu.mjs` — NPU remote engine adapter (AtomGit Jupyter; auto-chain rank 4 since 2026-10-16, `TTS_ENGINE=npu` opt-in)
-- `npu/cosyvoice3_npu_kernel.py` — NPU kernel template (deps + inference + istft CPU fallback)
 - `lib/tts/cosyvoice3-mlx.mjs` — local fallback engine adapter
 - `cosyvoice3_mlx_batch_tts.py` — local fallback Python batch script
-- `registry.mjs` — PRIORITY updated, all CosyVoice3 variants registered
+- `registry.mjs` — PRIORITY updated, CosyVoice3 CUDA + MLX variants registered
 - `tts-registry.test.mjs` — 7 test scenarios updated
-- `.env.local.example` — CosyVoice3 env vars documented (Kaggle + Modal + NPU)
+- `.env.local.example` — CosyVoice3 env vars documented (Kaggle + Modal)
 - Model (Kaggle): downloaded fresh per kernel run (~9GB, cached in kernel session)
 - Model (Modal): cached in Modal volume `cosyvoice3-cuda` (first run ~10min, subsequent ~1min)
-- Model (NPU): cached at `/tmp/cosyvoice3-model` in Notebook session
 - Model (MLX fallback): `~/.cosyvoice3-mlx-model` (1.7GB, mlx-audio format)
-- Venv (MLX fallback): `~/.video-tts-env` (shared with F5 + Qwen, Python 3.12)
+- Venv (MLX fallback): `~/.video-tts-env` (shared with F5, Python 3.12)
 - Kaggle CLI: `~/.kaggle/kaggle.json` required
 - Modal CLI: `modal token new` required (paid, ~$30/mo)
-- AtomGit Notebook: NPU 910B + 32GB CPU tier required
 - ADR-0008 superseded
 
 ### Setup requirements
@@ -182,12 +172,6 @@ Modal CUDA (paid fallback, same emotion quality):
 - Modal CLI installed + authenticated (`modal token new`)
 - A100 GPU access (included in Modal paid plan)
 - First run downloads model to volume (~10min), cached after
-
-NPU fallback (free, in-China):
-
-- AtomGit Notebook with NPU 910B + 32GB CPU tier
-- `COSYVOICE3_NPU_JUPYTER_URL` env var set to Jupyter API base URL
-- torch_npu pre-installed in Notebook environment
 
 MLX fallback (optional, for offline/fast iteration):
 

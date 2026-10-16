@@ -36,7 +36,7 @@ Stage 3b Asset sourcing + VLM analysis
   │     — AI B-roll generation (text-to-video) when no real footage fits, gated by quality
   ▼
 Stage 4  Production
-  │     — TTS voiceover (5-engine heterogeneous router, see below)
+  │     — TTS voiceover (4-engine heterogeneous router, see below)
   │     — Digital-human / avatar frames (optional)
   │     — Remotion rendering (React → frame-accurate)
   │     — FFmpeg assembly + karaoke subtitles (ASS) + BGM + loudness
@@ -78,28 +78,26 @@ Stage 6  Analytics                   — TikTok metrics, A/B testing, optimizati
 
 ## Heterogeneous compute routing
 
-The TTS/render workload runs across four hardware classes. The router tries
-the cheapest tier that meets the fidelity bar and falls through on
-quota/failure. Free quota is used first; paid cloud only when free tiers are
-exhausted.
+The video pipeline runs on four hardware classes. The router tries the
+cheapest tier that meets the fidelity bar and falls through on quota/failure.
+Free quota is used first; paid cloud only when free tiers are exhausted. The
+Ascend NPU sits outside every automatic chain — it is used manually for model
+experiments.
 
 | Tier | Hardware | Role | Cost |
 | ---- | -------- | ---- | ---- |
 | 1 | Apple Silicon MLX (M-series) | Local default for VLM, B-roll, fast TTS | $0 |
 | 2 | Kaggle T4 / P100 16GB | Free cloud CUDA for TTS (CosyVoice3, full emotion) | $0 (30h/wk) |
 | 3 | Modal T4 → L4 → A100 | Paid cloud when free quota exhausted | ~$30/mo cap |
-| 4 | Ascend 910B NPU | Chinese NPU, free fallback | $0 |
+| — | Ascend 910B NPU (AtomGit) | Manual runs: free NPU core-hours + hosted models for experiments | $0 |
 
-**TTS engine priority** (the most fidelity-sensitive stage, 5 engines):
+**TTS engine priority** (the most fidelity-sensitive stage, 4 engines):
 CosyVoice3-Kaggle-CUDA (default, P100, Apache-2.0) → CosyVoice3-Modal-CUDA
-(A100 paid) → CosyVoice3-MLX (local) → CosyVoice3-NPU (Ascend 910B) →
-F5-TTS-MLX (backup). `edge-tts` and macOS `say` are manual opt-in only.
+(A100 paid) → CosyVoice3-MLX (local) → F5-TTS-MLX (backup). `edge-tts` and
+macOS `say` are manual opt-in only.
 
-CUDA engines are prioritized because MPS/MLX/NPU have verified emotion
-regression vs CUDA; Kaggle P100 CUDA matches the A100 emotion baseline.
-MLX outranks NPU because the two share the same emotion grade while MLX is
-local and faster (RTF 0.64-0.87x vs ~2.2x); NPU stays as an explicit
-`TTS_ENGINE=npu` opt-in.
+CUDA engines are prioritized because MLX has verified emotion regression vs
+CUDA; Kaggle P100 CUDA matches the A100 emotion baseline.
 
 ---
 
@@ -111,7 +109,7 @@ local and faster (RTF 0.64-0.87x vs ~2.2x); NPU stays as an explicit
 | Database | Supabase (PostgreSQL + Auth + RLS) | Articles, subscribers, auth |
 | UI | Tailwind CSS v4 + shadcn/ui | Component system |
 | Video rendering | Remotion (React → frame-by-frame) | Scene generation |
-| TTS | CosyVoice3 (CUDA/NPU/MLX) + F5-TTS-MLX + Qwen3-TTS + edge-tts + say | 5-engine heterogeneous voiceover |
+| TTS | CosyVoice3 (CUDA/MLX) + F5-TTS-MLX + edge-tts + say | 4-engine heterogeneous voiceover |
 | VLM | Qwen3-VL-8B (mlx-vlm), Qwen3.8-27B VLM (upgraded) | Asset analysis, visual decisions, B-roll gating |
 | AI B-roll | Wan1.3B (MLX) + Lance-3B-Video | Text-to-video when no real footage fits |
 | Video assembly | FFmpeg (rubberband + libass) | Concat, subtitles, BGM, loudness |
@@ -132,7 +130,7 @@ inside-china-ai/
 │   ├── short-video/            # ← THE PIPELINE (entry: main.mjs)
 │   │   ├── content/            # Per-topic content packages (30+)
 │   │   ├── lib/
-│   │   │   ├── tts/            # 5-engine TTS registry + adapters
+│   │   │   ├── tts/            # 4-engine TTS registry + adapters
 │   │   │   ├── b-roll/         # AI B-roll orchestrator + t2i runner + gate
 │   │   │   ├── platforms/      # TikTok publish + profile model
 │   │   │   └── ...             # VLM, asset-sourcer, scene-rules, digital-human, claim-audit

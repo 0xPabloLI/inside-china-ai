@@ -194,20 +194,19 @@ node scripts/short-video/main.mjs --content series/pt4 &
 > If the machine cannot handle max effort (MPS OOM, excessive RTF),
 > the agent must explicitly notify the user and mark the run as degraded.
 
-| Priority | Engine                     | Max Effort Parameters                                            | Venv / Runtime                                 | Notes                                                                                                            |
-| -------- | -------------------------- | ---------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 1        | **CosyVoice3-Kaggle-CUDA** | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Kaggle CLI + `~/.kaggle/kaggle.json`           | **DEFAULT** (ADR-0019). Apache-2.0. P100 GPU, full emotion fidelity. ~8-10min/batch. Free 30h/week.              |
-| 2        | **CosyVoice3-Modal-CUDA**  | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Modal CLI + `modal token new`                  | **PAID FALLBACK**. A100 GPU, same CUDA emotion as Kaggle. ~$0.20-0.50/batch, used when Kaggle 30h/week runs out. |
-| 3        | **CosyVoice3-MLX**         | speed=1.0, instruct_text per visualType                          | `~/.video-tts-env` (Python 3.12)               | **LOCAL FALLBACK**. Emotion regression vs CUDA but fast RTF 0.64-0.87x. Model: `~/.cosyvoice3-mlx-model` (1.7GB) |
-| 4        | **CosyVoice3-NPU**         | instruct_text per visualType, `<\|endofprompt\|>` suffix         | AtomGit Jupyter + `COSYVOICE3_NPU_JUPYTER_URL` | **REMOTE FALLBACK** (rank 4 since 2026-10-16). Ascend 910B, emotion ≈ MLX, RTF ~2.2x. Endpoint session-scoped.   |
-| 5        | **F5-TTS-MLX**             | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12)               | **BACKUP**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control. CC-BY-NC weights.   |
-| —        | edge-tts                   | en-US-BrianNeural                                                | npm                                            | Manual opt-in only (`TTS_ENGINE=edge-tts`). Network-dependent, retry 3x; no voice cloning. Template voice only.  |
-| —        | macOS say                  | Daniel, 190 wpm                                                  | built-in                                        | Manual opt-in only (`TTS_ENGINE=say`). Last resort; no voice cloning                                             |
+| Priority | Engine                     | Max Effort Parameters                                            | Venv / Runtime                       | Notes                                                                                                            |
+| -------- | -------------------------- | ---------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| 1        | **CosyVoice3-Kaggle-CUDA** | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Kaggle CLI + `~/.kaggle/kaggle.json` | **DEFAULT** (ADR-0019). Apache-2.0. P100 GPU, full emotion fidelity. ~8-10min/batch. Free 30h/week.              |
+| 2        | **CosyVoice3-Modal-CUDA**  | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Modal CLI + `modal token new`        | **PAID FALLBACK**. A100 GPU, same CUDA emotion as Kaggle. ~$0.20-0.50/batch, used when Kaggle 30h/week runs out. |
+| 3        | **CosyVoice3-MLX**         | speed=1.0, instruct_text per visualType                          | `~/.video-tts-env` (Python 3.12)     | **LOCAL FALLBACK**. Emotion regression vs CUDA but fast RTF 0.64-0.87x. Model: `~/.cosyvoice3-mlx-model` (1.7GB) |
+| 4        | **F5-TTS-MLX**             | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12)     | **BACKUP**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control. CC-BY-NC weights.   |
+| —        | edge-tts                   | en-US-BrianNeural                                                | npm                                  | Manual opt-in only (`TTS_ENGINE=edge-tts`). Network-dependent, retry 3x; no voice cloning. Template voice only.  |
+| —        | macOS say                  | Daniel, 190 wpm                                                  | built-in                             | Manual opt-in only (`TTS_ENGINE=say`). Last resort; no voice cloning                                             |
 
-> Ranks 1-5 are the automatic chain (`lib/tts/registry.mjs` → `PRIORITY`); the
-> loop fails closed after rank 5 and never reaches edge-tts / say on its own
-> (user rule 2026-09-10). Qwen3-TTS appears in older tables but is not
-> registered in `ENGINE_FACTORIES`, so it is not selectable.
+> Ranks 1-4 are the automatic chain (`lib/tts/registry.mjs` → `PRIORITY`); the
+> loop fails closed after rank 4 and never reaches edge-tts / say on its own
+> (user rule 2026-09-10). Engines evaluated and rejected are recorded in
+> ADR-0019 (`Why no NPU engine`).
 
 **M4A → WAV conversion**: M4A is not readable by Python audio libraries (`soundfile`/`torchaudio`/`librosa` are libsndfile-based) — `LibsndfileError: Format not recognised` means an M4A was passed. Convert first, matching the ref-audio spec (24 kHz mono):
 
@@ -215,7 +214,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 ```
 
-**F5-TTS-MLX** (DEFAULT):
+**F5-TTS-MLX** (BACKUP):
 
 - Voice cloning via reference audio + reference text (zero-shot)
 - Ref audio: `voice-samples/voice-sample-24k.wav`（24kHz mono WAV）
@@ -242,15 +241,7 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 - Post-processing: **silenceremove DISABLED**. Only resample (44.1kHz) applied.
 - **Prosody DISABLED** — rubberband introduces mechanical artifacts on F5's natural output.
 
-**Qwen3-TTS** (BACKUP):
-
-- Model: `~/.qwen-tts-model` (Qwen3-TTS-12Hz-0.6B-Base)
-
-- Post-processing: **silenceremove DISABLED**. Only resample applied.
-- No duration control → pacing varies per scene.
-- Subtitle alignment may fail due to variable audio lengths.
-
-> Engine selection rationale, alternatives survey, and historical experiments: ADR-0008, `docs/research/voice-cloning-solutions-m2-pro.md`
+> Engine selection rationale, alternatives survey, and historical experiments: ADR-0008, ADR-0019, `docs/research/voice-cloning-solutions-m2-pro.md`
 
 **Per-Scene Prosody Enhancement**（基于 `visualType`，FFmpeg `rubberband` 滤镜）:
 
@@ -286,7 +277,7 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 | atempo                | OFF | OFF  | Post-hoc speed change. Causes mechanical voice. **NEVER use with F5**.                  |
 | resample (44.1kHz)    | ON  | ON   | Standardize sample rate for assembly                                                    |
 
-**Force engine**: `export TTS_ENGINE=cosyvoice3-mlx` / `f5-mlx` / `qwen-tts` / `edge-tts` / `say`
+**Force engine**: `export TTS_ENGINE=cosyvoice3-mlx` / `f5-mlx` / `edge-tts` / `say`
 
 **多管线并行与 Kaggle 排队协调（#250）**:
 
@@ -856,10 +847,9 @@ scripts/short-video/
 ├── generate-broll.mjs      # Standalone B-roll generation entrypoint (--help)
 ├── verify-subtitles.mjs    # CLI wrapper — subtitle verification
 ├── text-align.py           # wav2vec2 forced alignment (known text → audio)
-├── qwen_tts_batch.py       # Qwen3-TTS batch TTS (fallback engine)
 ├── lib/                    # Shared infrastructure (content-agnostic)
 │   ├── tts/                # TTS engine registry + adapters
-│   │   ├── registry.mjs    # Engine selector (F5-MLX > Qwen3 > edge-tts > say)
+│   │   ├── registry.mjs    # Engine selector (Kaggle-CUDA > Modal-CUDA > CosyVoice3-MLX > F5-MLX)
 │   │   └── post-process.mjs # Audio post-processing (silenceremove + prosody)
 │   ├── timeline.mjs        # Frame-exact scene durations + offsets (single source of truth)
 │   ├── subtitles/          # cues.mjs (chunking + Netflix timing) / ass.mjs (\kt anchors, 1ms) / generate.mjs
@@ -892,8 +882,7 @@ scripts/short-video/
 | Item             | Path / Value                               | Notes                                                                    |
 | ---------------- | ------------------------------------------ | ------------------------------------------------------------------------ |
 | ffmpeg-full      | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Contains libass (subtitle burn-in). Plain ffmpeg lacks subtitles filter. |
-| Unified TTS venv | `~/.video-tts-env` (Python 3.12)           | F5-TTS-MLX + Qwen3-TTS + whisperx                                        |
-| Qwen3-TTS model  | `~/.qwen-tts-model`                        | Qwen3-TTS-12Hz-0.6B-Base                                                 |
+| Unified TTS venv | `~/.video-tts-env` (Python 3.12)           | F5-TTS-MLX + CosyVoice3-MLX (`mlx-audio`) + whisperx                     |
 
 ## Running the Pipeline
 

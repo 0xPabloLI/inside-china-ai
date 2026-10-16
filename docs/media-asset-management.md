@@ -77,7 +77,7 @@ These are environment facts — the code is the source of truth, this table is a
 
 | What             | Path pattern                                          | Set in                                                                      |
 | ---------------- | ----------------------------------------------------- | --------------------------------------------------------------------------- |
-| TTS ref audio    | `voice-samples/voice-sample-24k.wav`                  | `lib/tts/{qwen-tts,f5-mlx}.mjs` via `ROOT_DIR`                              |
+| TTS ref audio    | `voice-samples/voice-sample-24k.wav`                  | `lib/tts/{cosyvoice3-mlx,f5-mlx}.mjs` via `ROOT_DIR`                        |
 | TTS ref text     | `voice-samples/voice-sample-ref-text.txt`             | same                                                                        |
 | Company logo SVG | `assets/logos/{key}.svg`                              | `remotion/src/scenes/HookScene.tsx` (staticFile)                            |
 | Brand mark SVG   | `assets/china-ai-news-mark-video.svg`                 | `build-mark-svg.mjs`（生成）；`remotion/src`（CtaScene / visuals.tsx 消费） |

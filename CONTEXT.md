@@ -81,13 +81,13 @@ _Avoid_: Footage pipeline, asset search (too generic)
 
 ## TTS & Voice
 
-**TTS Engine Adapter**: A module in `lib/tts/` that implements a common interface (`isAvailable()`, `generate()`, `info`) for a specific TTS provider. Registered in `registry.mjs` via `ENGINE_FACTORIES` and selected by `PRIORITY` order or `TTS_ENGINE` env override. Current engines: F5-TTS-MLX (default), Qwen3-TTS (backup), edge-tts (fallback), macOS `say` (last resort).
+**TTS Engine Adapter**: A module in `lib/tts/` that implements a common interface (`isAvailable()`, `generate()`, `info`) for a specific TTS provider. Registered in `registry.mjs` via `ENGINE_FACTORIES` and selected by `PRIORITY` order or `TTS_ENGINE` env override. Current engines: CosyVoice3-Kaggle-CUDA (default), CosyVoice3-Modal-CUDA (paid fallback), CosyVoice3-MLX (local fallback), F5-TTS-MLX (backup), edge-tts and macOS `say` (manual opt-in).
 _Avoid_: TTS provider, voice generator
 
-**Reference Voice**: The paired WAV audio sample + matching transcript used by F5-TTS-MLX and Qwen3-TTS for zero-shot voice cloning. All videos use the same Reference Voice for brand consistency. Format (24kHz mono WAV) and path details: `docs/video-production-runbook.md` → F5-TTS-MLX.
+**Reference Voice**: The paired WAV audio sample + matching transcript used by the CosyVoice3 engines and F5-TTS-MLX for zero-shot voice cloning. All videos use the same Reference Voice for brand consistency. Format (24kHz mono WAV) and path details: `docs/video-production-runbook.md` → TTS Engine Configuration.
 _Avoid_: Voice sample, ref audio (use Reference Voice for the paired audio+text)
 
-**Max Effort**: The highest-quality configuration for a TTS engine (F5-TTS-MLX `steps=32`/`cfg_strength=3.0`/`wps=2.8`/`method='rk4'`; Qwen3 `do_sample=False`/`repetition_penalty=1.3`). Parameters and rationale: `docs/video-production-runbook.md` → TTS Engine Configuration.
+**Max Effort**: The highest-quality configuration for a TTS engine (CosyVoice3 CUDA: `instruct_text` per `visualType`; CosyVoice3-MLX: `speed=1.0` + `instruct_text`; F5-TTS-MLX: `steps=32`/`cfg_strength=3.0`/`wps=2.8`/`method='rk4'`). Parameters and rationale: `docs/video-production-runbook.md` → TTS Engine Configuration.
 _Avoid_: High quality, max settings (too generic)
 
 ## VLM & Asset Analysis
@@ -132,7 +132,7 @@ _Avoid_: Scene template, scene renderer
 
 ## Infrastructure
 
-**Unified Venv**: A single Python 3.12 virtual environment at `~/.video-tts-env` containing F5-TTS-MLX, Qwen3-TTS, whisperx, and mlx-vlm. Replaces 3-4 separate venvs. See ADR-0011.
+**Unified Venv**: A single Python 3.12 virtual environment at `~/.video-tts-env` containing F5-TTS-MLX, CosyVoice3-MLX, whisperx, and mlx-vlm. Replaces 3-4 separate venvs. See ADR-0011.
 _Avoid_: Python env, venv (too generic — use Unified Venv for this specific shared environment)
 
 **Collection Layer**: The access method hierarchy for a source in the Source Registry: API → CDP → CDP fallback (Google site: search) → Bigsong direct / REST pool / dedicated MCP, per source declaration (#307: the Grok MCP bridge is retired; pool eligibility and the Bigsong bridge are explicit per-source flags). Each source defines its own `accessMethod` with primary and fallbacks. See ADR-0013.
