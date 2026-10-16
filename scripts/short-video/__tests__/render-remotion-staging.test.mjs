@@ -143,6 +143,39 @@ describe("stageAsset — copy destination", () => {
   });
 });
 
+describe("stageAsset — containment", () => {
+  it("derives the destination name from basename(srcPath), so a walking source cannot escape _staged/", () => {
+    // A scene-data `path` is authored text. The staged name must come from
+    // basename(), never from the authored path — that flattening is the whole
+    // reason a traversal-shaped `path` cannot write outside the staged dir.
+    const nested = join(contentDir, "assets", "b-roll", "deep.png");
+    mkdirSync(join(contentDir, "assets", "b-roll"), { recursive: true });
+    writeFileSync(nested, "deep-bytes");
+
+    // A path that walks up and back down, resolving to the real file.
+    const walking = join(contentDir, "assets", "b-roll", "..", "b-roll", "deep.png");
+    const rel = stageAsset({ srcPath: walking, publicAssetsDir, label: "📸 Copied media" });
+
+    expect(rel).toBe("_staged/deep.png");
+    expect(readFileSync(join(publicAssetsDir, "_staged", "deep.png"), "utf8")).toBe("deep-bytes");
+    // One level deep, and nothing beside or above it.
+    expect(existsSync(join(publicAssetsDir, "deep.png"))).toBe(false);
+    expect(existsSync(join(publicAssetsDir, "..", "deep.png"))).toBe(false);
+  });
+
+  it("flattens an absolute source path to its basename", () => {
+    const abs = join(contentDir, "assets", "absolute.png");
+    writeFileSync(abs, "abs-bytes");
+
+    const rel = stageAsset({ srcPath: abs, publicAssetsDir, label: "📸 Copied media" });
+
+    expect(rel).toBe("_staged/absolute.png");
+    expect(readFileSync(join(publicAssetsDir, "_staged", "absolute.png"), "utf8")).toBe(
+      "abs-bytes",
+    );
+  });
+});
+
 describe("stageAvatarVideos — staged path handed to Remotion", () => {
   it("rewrites videoPath to the _staged form and copies under _staged/", () => {
     mkdirSync(join(contentDir, "assets", "avatar"), { recursive: true });

@@ -122,6 +122,13 @@ export function stagedAssetRelPath(filename) {
  * where the copy lands, and keeping that in one place is what stops a future
  * site from re-introducing a flat copy.
  *
+ * Containment: the destination name is `basename(srcPath)`, never the authored
+ * path. `basename()` drops every directory component, so a scene-data `path` of
+ * `../../../../etc/passwd` stages as `_staged/passwd` and the copy cannot leave
+ * the staged directory. That is the whole defense and it is deliberate — a
+ * scanner reporting the `join` as a traversal sink has not modelled `basename`
+ * as the sanitizer it is.
+ *
  * @param {object} options
  * @param {string} options.srcPath - Source asset (absolute, or relative to cwd)
  * @param {string} options.publicAssetsDir - remotion/public/assets target
