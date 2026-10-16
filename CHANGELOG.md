@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.20.19](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.18...tanstack_start_ts-v1.20.19) (2026-10-16)
+
+
+### Bug Fixes
+
+* **video:** [#357](https://github.com/0xPabloLI/inside-china-ai/issues/357) 视频素材不再默认使用容器 zoom 预设 ([#690](https://github.com/0xPabloLI/inside-china-ai/issues/690)) ([d66a57d](https://github.com/0xPabloLI/inside-china-ai/commit/d66a57dd368547ba2ff033aee253b03d44bf6e7c))
+* **video:** [#425](https://github.com/0xPabloLI/inside-china-ai/issues/425) media-track 跳过显式 upscale: false 媒体 ([#694](https://github.com/0xPabloLI/inside-china-ai/issues/694)) ([477739a](https://github.com/0xPabloLI/inside-china-ai/commit/477739acbeac7a49b3747750629a118eebb59e6c))
+
 ## [1.20.18](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.17...tanstack_start_ts-v1.20.18) (2026-10-15)
 
 
