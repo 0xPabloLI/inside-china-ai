@@ -5,6 +5,7 @@
  *   1. Formatting media-patch.json for human review (#spec §4.7): review
  *      summary + copyable media blocks (applyAssignedMedia below is the
  *      runtime counterpart — main.mjs Step 1.5c).
+ *      Single source of truth for formatting lives in media-patch-format.mjs (#649).
  *   2. #192: applyAssignedMedia applies assigned entries to in-memory
  *      scenes with the mediaReject lifecycle (clear on success, report
  *      exhausted rejections).
@@ -12,7 +13,7 @@
  * Spec §4.7: Output review summary as comments, NOT as copyable fields.
  * The media object keeps existing MediaField shape — no analysis or focusAnalysis.
  *
- * Usage: node apply-media-patch.mjs [--input media-patch.json] [--output formatted.txt]
+ * Usage: node apply-media-patch.mjs [--content <slug>] [--input media-patch.json] [--output formatted.txt] [--analysis asset-analysis.json]
  *
  * @module apply-media-patch
  */
@@ -20,192 +21,20 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import {
+  formatFocusSummary,
+  formatSemanticsSummary,
+  loadAssetAnalysis,
+  formatPatchEntry,
+  formatMediaPatch,
+  normalizeMediaPatch,
+} from "./media-patch-format.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// ─── Pure functions ───
-
-/**
- * Format a focus analysis result as a human-readable comment block.
- *
- * Spec §4.7:
- *   - status=ok/partial: output readable summary (status, protectedRegions rect list, saliency available/unavailable)
- *   - status=degraded/unsupported: output warning line
- *   - status=low_information: output note that no protected regions found
- *
- * @param {Object} focusAnalysis - The focusAnalysis object from media-patch.json
- * @returns {string} Multi-line comment block (without /* wrappers, just // lines)
- */
-function formatFocusSummary(focusAnalysis) {
-  if (!focusAnalysis || typeof focusAnalysis !== "object") {
-    return "";
-  }
-
-  const status = focusAnalysis.status || "unknown";
-  const errorCode = focusAnalysis.errorCode;
-  const lines = [];
-
-  switch (status) {
-    case "ok":
-    case "partial": {
-      lines.push(`  // Focus Analysis: ${status}`);
-      const regions = focusAnalysis.protectedRegions || [];
-      if (regions.length > 0) {
-        lines.push(`  // Protected Regions (${regions.length}):`);
-        for (const r of regions) {
-          const rect = r.rect || [];
-          lines.push(
-            `  //   ${r.kind || "unknown"}: [${rect.map((n) => n.toFixed(3)).join(", ")}]` +
-              (r.confidence ? ` (conf: ${r.confidence})` : ""),
-          );
-        }
-      } else {
-        lines.push(`  // No protected regions detected.`);
-      }
-      const sal = focusAnalysis.saliency;
-      if (sal) {
-        lines.push(
-          `  // Saliency: ${sal.available ? "available" : "unavailable"}` +
-            (sal.available
-              ? `, dispersion: ${sal.dispersion?.toFixed(3)}, centroid: [${(sal.centroid || []).map((n) => n.toFixed(3)).join(", ")}]`
-              : ""),
-        );
-      }
-      break;
-    }
-
-    case "low_information": {
-      lines.push(
-        `  // Focus Analysis: low_information — no protected regions, place text normally.`,
-      );
-      break;
-    }
-
-    case "degraded": {
-      lines.push(
-        `  // ⚠️ Focus Analysis: degraded (${errorCode || "unknown"}) — ignore focusAnalysis, use default text placement.`,
-      );
-      break;
-    }
-
-    case "unsupported": {
-      lines.push(
-        `  // Focus Analysis: unsupported (${errorCode || "unknown"}) — video asset, not applicable.`,
-      );
-      break;
-    }
-
-    default: {
-      lines.push(`  // Focus Analysis: unknown status "${status}".`);
-      break;
-    }
-  }
-
-  return lines.join("\n");
-}
-
-/**
- * Format a single media-patch entry as a copyable code block with review comments.
- *
- * Output format:
- *   // Focus Analysis: ...
- *   // Protected Regions: ...
- *   media: {
- *     type: "image",
- *     path: "...",
- *     ...
- *   }
- *
- * The media object does NOT contain analysis or focusAnalysis fields.
- *
- * @param {Object} entry - A single entry from media-patch.json
- * @returns {string} Formatted block
- */
-function formatPatchEntry(entry) {
-  if (!entry || entry.status !== "assigned") {
-    return "";
-  }
-
-  const lines = [];
-
-  // Review summary comments (spec §4.7 v6 P1-3)
-  if (entry.analysis?.focusAnalysis) {
-    lines.push(formatFocusSummary(entry.analysis.focusAnalysis));
-  }
-
-  // Copyable media object
-  const media = entry.media || {};
-  lines.push(`  media: {`);
-  if (media.type) lines.push(`    type: "${media.type}",`);
-  if (media.path) lines.push(`    path: "${media.path}",`);
-  if (media.source) lines.push(`    source: "${media.source}",`);
-  if (media.animation) lines.push(`    animation: "${media.animation}",`);
-  if (media.overlay !== undefined) lines.push(`    overlay: ${media.overlay},`);
-  if (media.fit) lines.push(`    fit: "${media.fit}",`);
-  if (media.volume !== undefined) lines.push(`    volume: ${media.volume},`);
-  if (media.videoStartOffsetMs !== undefined)
-    lines.push(`    videoStartOffsetMs: ${media.videoStartOffsetMs},`);
-  // Note: focus is NOT included in new output (deprecated, spec §4.8)
-  lines.push(`  },`);
-
-  return lines.join("\n");
-}
-
-/**
- * Format the entire media-patch.json as a human-readable output.
- *
- * @param {Array} patches - Array of patch entries from media-patch.json
- * @returns {string} Complete formatted output
- */
-function formatMediaPatch(patches) {
-  if (!Array.isArray(patches)) {
-    return "No patches to display.\n";
-  }
-
-  const sections = [];
-  sections.push("=".repeat(60));
-  sections.push("📋 Media Patch — Human Review");
-  sections.push("=".repeat(60));
-  sections.push("");
-
-  const assigned = patches.filter((p) => p.status === "assigned");
-  const unassigned = patches.filter((p) => p.status === "unassigned");
-
-  if (assigned.length > 0) {
-    sections.push(`── Assigned (${assigned.length}) ──`);
-    sections.push("");
-
-    for (const entry of assigned) {
-      const header = `Scene ${entry.sceneId}: ${entry.sceneName || "(unnamed)"} (${entry.visualType || "?"})`;
-      sections.push(header);
-      sections.push(`  Score: ${entry.assetScore || 0}, Source: ${entry.source || "?"}`);
-
-      const formatted = formatPatchEntry(entry);
-      if (formatted) {
-        sections.push(formatted);
-      }
-      sections.push("");
-    }
-  }
-
-  if (unassigned.length > 0) {
-    sections.push(`── Unassigned (${unassigned.length}) ──`);
-    sections.push("");
-    for (const entry of unassigned) {
-      sections.push(
-        `  Score: ${entry.assetScore || 0}, Source: ${entry.source || "?"} — no available scene`,
-      );
-    }
-    sections.push("");
-  }
-
-  if (assigned.length === 0 && unassigned.length === 0) {
-    sections.push("(empty patch file)");
-  }
-
-  return sections.join("\n") + "\n";
-}
+// Re-export formatting functions and normalizer for unified contract (#649)
+export { formatFocusSummary, formatPatchEntry, formatMediaPatch, normalizeMediaPatch };
 
 // ─── Main ───
 
@@ -220,7 +49,12 @@ function main(args = process.argv.slice(2)) {
     return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
   };
 
-  const inputPath = getArg("input") || join(__dirname, "..", "output", "media-patch.json");
+  const contentSlug = getArg("content");
+  const slugDir = contentSlug
+    ? join(__dirname, "..", "output", contentSlug)
+    : join(__dirname, "..", "output");
+  const inputPath = getArg("input") || join(slugDir, "media-patch.json");
+  const analysisPath = getArg("analysis") || join(slugDir, "asset-analysis.json");
   const outputPath = getArg("output") || null;
 
   if (!existsSync(inputPath)) {
@@ -229,7 +63,8 @@ function main(args = process.argv.slice(2)) {
   }
 
   const patches = normalizeMediaPatch(JSON.parse(readFileSync(inputPath, "utf8")));
-  const formatted = formatMediaPatch(patches);
+  const analysisMap = loadAssetAnalysis(analysisPath);
+  const formatted = formatMediaPatch(patches, analysisMap);
 
   if (outputPath) {
     writeFileSync(outputPath, formatted, "utf8");
@@ -237,20 +72,6 @@ function main(args = process.argv.slice(2)) {
   } else {
     console.log(formatted);
   }
-}
-
-/**
- * Normalize a media-patch.json payload to the entry array (#199 2.5).
- * Accepts the new `{schemaVersion, patches}` envelope and the legacy
- * top-level array, so files written before the envelope landed stay readable.
- *
- * @param {Object|Array} raw - parsed media-patch.json content
- * @returns {Array} patch entries (empty when the payload is neither shape)
- */
-export function normalizeMediaPatch(raw) {
-  if (Array.isArray(raw)) return raw;
-  if (raw && Array.isArray(raw.patches)) return raw.patches;
-  return [];
 }
 
 // ─── Patch application (#192) ───
