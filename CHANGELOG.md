@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.22](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.21...tanstack_start_ts-v1.20.22) (2026-10-16)
+
+
+### Bug Fixes
+
+* **short-video:** 渲染暂存落到 assets/_staged/，不再污染策展目录 ([#708](https://github.com/0xPabloLI/inside-china-ai/issues/708)) ([23406ff](https://github.com/0xPabloLI/inside-china-ai/commit/23406ffa8341340253621054d3daa198eaf7aea9))
+
 ## [1.20.21](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.20...tanstack_start_ts-v1.20.21) (2026-10-16)
 
 
