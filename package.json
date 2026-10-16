@@ -39,7 +39,8 @@
     "test:python:coverage": "npm run test:python -- --cov --cov-config=scripts/short-video/__tests__/.coveragerc --cov-report=term --cov-report=json:.scratch/coverage-python/coverage.json",
     "cdp:ensure": "node scripts/short-video/cdp-ensure.mjs",
     "cdp:wx-login": "node scripts/short-video/cdp-wx-login.mjs",
-    "env:sync-tunnel": "bash scripts/sync-colima-tunnel.sh"
+    "env:sync-tunnel": "bash scripts/sync-colima-tunnel.sh",
+    "session:provision": "bash scripts/session-provision.sh"
   },
   "dependencies": {
     "@cf-wasm/resvg": "^0.4.0",

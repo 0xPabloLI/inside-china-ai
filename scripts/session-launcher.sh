@@ -14,11 +14,15 @@
 #      origin/main (fetched first; SESSION_BASE / SESSION_NO_FETCH override) —
 #      NOT on local HEAD, which is routinely behind
 #      (default path: <repo>-wt/<id> NEXT TO the repo, sibling of the checkout)
-#   4. writes the per-worktree state file
+#   4. provisions it from the main checkout (session-provision.sh): symlinks
+#      the three node_modules, copies the reference voice and the media the
+#      render fixtures load — without this the six `npx remotion still` suites
+#      fail with 76 environment false failures (SESSION_NO_PROVISION=1 skips)
+#   5. writes the per-worktree state file
 #      $(git -C <wt> rev-parse --absolute-git-dir)/session-pilot/current-session
 #      line 1 = id — this is what prepare-commit-msg (trailer auto-fill) and
 #      the reference-transaction gate (block mode) key on
-#   5. appends the registration entry to the shared registry
+#   6. appends the registration entry to the shared registry
 #
 # stop clears the state file (ending auto-fill + block mode) and removes the
 # worktree when it is clean; a dirty worktree is reported, not destroyed.
@@ -296,6 +300,15 @@ if [ "$cmd" = "start" ]; then
   # this; the main checkout keeps its relative setting.
   git config extensions.worktreeConfig true
   git -C "$wtpath" config --worktree core.hooksPath "$ROOT/.githooks"
+
+  # --- 3c. provision ----------------------------------------------------------
+  # A bare `git worktree add` has no installed dependencies and none of the
+  # gitignored local artifacts (reference voice, fixture media), so the six
+  # `npx remotion still` suites fail with 76 false failures before any work
+  # starts. Fill them in from the main checkout; fail-open, and skippable.
+  if [ -z "${SESSION_NO_PROVISION:-}" ] && [ -f "$ROOT/scripts/session-provision.sh" ]; then
+    bash "$ROOT/scripts/session-provision.sh" "$wtpath"
+  fi
 
   # --- 4. per-worktree state --------------------------------------------------
   WT_GITDIR=$(git -C "$wtpath" rev-parse --absolute-git-dir)
