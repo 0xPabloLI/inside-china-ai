@@ -194,14 +194,20 @@ node scripts/short-video/main.mjs --content series/pt4 &
 > If the machine cannot handle max effort (MPS OOM, excessive RTF),
 > the agent must explicitly notify the user and mark the run as degraded.
 
-| Priority | Engine                     | Max Effort Parameters                                            | Venv / Runtime                       | Notes                                                                                                            |
-| -------- | -------------------------- | ---------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| 1        | **CosyVoice3-Kaggle-CUDA** | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Kaggle CLI + `~/.kaggle/kaggle.json` | **DEFAULT** (ADR-0019). Apache-2.0. P100 GPU, full emotion fidelity. ~8-10min/batch. Free 30h/week.              |
-| 2        | **CosyVoice3-MLX**         | speed=1.0, instruct_text per visualType                          | `~/.video-tts-env` (Python 3.12)     | **LOCAL FALLBACK**. Emotion regression vs CUDA but fast RTF 0.64-0.87x. Model: `~/.cosyvoice3-mlx-model` (1.7GB) |
-| 3        | **F5-TTS-MLX**             | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12)     | **BACKUP**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control. CC-BY-NC weights.   |
-| 4        | Qwen3-TTS                  | `do_sample=False`, `repetition_penalty=1.3` (greedy search)      | `~/.video-tts-env` (Python 3.12)     | Autoregressive LLM. Good emphasis on data points, but no duration control.                                       |
-| 5        | edge-tts                   | en-US-BrianNeural                                                | npm                                  | Network-dependent, retry 3x; no voice cloning. Template voice only.                                              |
-| 6        | macOS say                  | Daniel, 190 wpm                                                  | built-in                             | Last resort; no voice cloning                                                                                    |
+| Priority | Engine                     | Max Effort Parameters                                            | Venv / Runtime                                 | Notes                                                                                                            |
+| -------- | -------------------------- | ---------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 1        | **CosyVoice3-Kaggle-CUDA** | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Kaggle CLI + `~/.kaggle/kaggle.json`           | **DEFAULT** (ADR-0019). Apache-2.0. P100 GPU, full emotion fidelity. ~8-10min/batch. Free 30h/week.              |
+| 2        | **CosyVoice3-Modal-CUDA**  | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Modal CLI + `modal token new`                  | **PAID FALLBACK**. A100 GPU, same CUDA emotion as Kaggle. ~$0.20-0.50/batch, used when Kaggle 30h/week runs out. |
+| 3        | **CosyVoice3-MLX**         | speed=1.0, instruct_text per visualType                          | `~/.video-tts-env` (Python 3.12)               | **LOCAL FALLBACK**. Emotion regression vs CUDA but fast RTF 0.64-0.87x. Model: `~/.cosyvoice3-mlx-model` (1.7GB) |
+| 4        | **CosyVoice3-NPU**         | instruct_text per visualType, `<\|endofprompt\|>` suffix         | AtomGit Jupyter + `COSYVOICE3_NPU_JUPYTER_URL` | **REMOTE FALLBACK** (rank 4 since 2026-10-16). Ascend 910B, emotion ≈ MLX, RTF ~2.2x. Endpoint session-scoped.   |
+| 5        | **F5-TTS-MLX**             | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12)               | **BACKUP**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control. CC-BY-NC weights.   |
+| —        | edge-tts                   | en-US-BrianNeural                                                | npm                                            | Manual opt-in only (`TTS_ENGINE=edge-tts`). Network-dependent, retry 3x; no voice cloning. Template voice only.  |
+| —        | macOS say                  | Daniel, 190 wpm                                                  | built-in                                        | Manual opt-in only (`TTS_ENGINE=say`). Last resort; no voice cloning                                             |
+
+> Ranks 1-5 are the automatic chain (`lib/tts/registry.mjs` → `PRIORITY`); the
+> loop fails closed after rank 5 and never reaches edge-tts / say on its own
+> (user rule 2026-09-10). Qwen3-TTS appears in older tables but is not
+> registered in `ENGINE_FACTORIES`, so it is not selectable.
 
 **M4A → WAV conversion**: M4A is not readable by Python audio libraries (`soundfile`/`torchaudio`/`librosa` are libsndfile-based) — `LibsndfileError: Format not recognised` means an M4A was passed. Convert first, matching the ref-audio spec (24 kHz mono):
 

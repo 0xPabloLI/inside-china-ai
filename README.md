@@ -92,11 +92,14 @@ exhausted.
 
 **TTS engine priority** (the most fidelity-sensitive stage, 5 engines):
 CosyVoice3-Kaggle-CUDA (default, P100, Apache-2.0) → CosyVoice3-Modal-CUDA
-(A100 paid) → CosyVoice3-NPU (Ascend 910B) → CosyVoice3-MLX (local) →
+(A100 paid) → CosyVoice3-MLX (local) → CosyVoice3-NPU (Ascend 910B) →
 F5-TTS-MLX (backup). `edge-tts` and macOS `say` are manual opt-in only.
 
 CUDA engines are prioritized because MPS/MLX/NPU have verified emotion
 regression vs CUDA; Kaggle P100 CUDA matches the A100 emotion baseline.
+MLX outranks NPU because the two share the same emotion grade while MLX is
+local and faster (RTF 0.64-0.87x vs ~2.2x); NPU stays as an explicit
+`TTS_ENGINE=npu` opt-in.
 
 ---
 

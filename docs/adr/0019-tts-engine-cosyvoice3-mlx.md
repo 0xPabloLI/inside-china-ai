@@ -97,25 +97,41 @@ comparable to or better than larger models (IndexTTS2 1.5B: 76.5, HiggsAudio
 
 **CosyVoice3-Kaggle-CUDA is the default TTS engine**, with CosyVoice3-Modal-CUDA
 as paid CUDA fallback (same emotion quality, used when Kaggle quota exhausted),
-CosyVoice3-NPU as free fallback, CosyVoice3-MLX as local fallback, F5-TTS-MLX as
-backup, Qwen3-TTS as secondary fallback, edge-tts as cloud fallback, and macOS
+CosyVoice3-MLX as local fallback, CosyVoice3-NPU as free remote fallback, F5-TTS-MLX as
+backup, edge-tts as cloud fallback, and macOS
 `say` as last resort.
 
-Engine priority:
+Engine priority (2026-10-16 — see Amendment below; MLX moved ahead of NPU):
 
 1. **CosyVoice3-Kaggle-CUDA** (DEFAULT — P100 GPU, full emotion fidelity, Apache-2.0, ~8-10min/batch)
 2. **CosyVoice3-Modal-CUDA** (PAID FALLBACK — A100 GPU, same CUDA emotion as Kaggle, ~$0.20-0.50/batch, used when Kaggle 30h/week quota exhausted)
-3. **CosyVoice3-NPU** (FREE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA, RTF ~2.2x, no Kaggle/Modal quota)
-4. **CosyVoice3-MLX** (LOCAL FALLBACK — emotion regression, but fast RTF 0.64-0.87x)
+3. **CosyVoice3-MLX** (LOCAL FALLBACK — emotion regression, but fast RTF 0.64-0.87x)
+4. **CosyVoice3-NPU** (FREE REMOTE FALLBACK — Ascend 910B, emotion slightly flat vs CUDA, RTF ~2.2x, no Kaggle/Modal quota; explicit `TTS_ENGINE=npu` opt-in in practice)
 5. **F5-TTS-MLX** (BACKUP — good rhythm, CC-BY-NC, no emotion control)
-6. Qwen3-TTS (good emphasis, clone+emotion cannot coexist)
+6. Qwen3-TTS (good emphasis, clone+emotion cannot coexist — **not registered in `ENGINE_FACTORIES`**, so not selectable)
 7. edge-tts (Microsoft neural TTS, no cloning)
 8. macOS `say` (last resort, no cloning)
 
-CUDA engines (Kaggle + Modal) are prioritized above NPU/MLX because emotion
-fidelity is the primary selection criterion — NPU and MLX both have emotion
+CUDA engines (Kaggle + Modal) are prioritized above MLX/NPU because emotion
+fidelity is the primary selection criterion — MLX and NPU both have emotion
 regression vs CUDA baseline (verified 2026-09-08). Kaggle is free (30h/week),
 Modal is paid (~$30/mo) but has no weekly quota limit.
+
+### Amendment 2026-10-16 — MLX ahead of NPU
+
+MLX and NPU share the same emotion grade ("slightly flat", 2026-09-08 listening
+verification), so emotion fidelity cannot separate them. On the remaining axes
+NPU is strictly dominated: the adapter only comes up when
+`COSYVOICE3_NPU_JUPYTER_URL` / `COSYVOICE3_NPU_JUPYTER_TOKEN` are exported for
+the live Notebook session (the endpoint is issued per session), and inference
+runs at RTF ~2.2x, whereas MLX is local, dependency-free and RTF 0.64-0.87x.
+The automatic chain therefore selects MLX before NPU (user decision
+2026-10-16).
+
+NPU is not deleted: `TTS_ENGINE=npu` still forces it, which covers the case
+where the local MLX venv/model is unavailable and a remote engine is wanted.
+The reorder changes selection only when both engines are available in the same
+run — with NPU unconfigured the chain reaches MLX either way.
 
 ### Emotion mapping
 
@@ -136,7 +152,7 @@ MLX version auto-appends it — do NOT include it in instruct_text for MLX.
 - `kaggle/cosyvoice3_cuda_kernel.py` — Kaggle kernel template (deps + inference)
 - `lib/tts/cosyvoice3-modal-cuda.mjs` — Modal A100 remote engine adapter (Modal CLI)
 - `modal/cosyvoice3_cuda_modal.py` — Modal script (deps + inference + volume cache)
-- `lib/tts/cosyvoice3-npu.mjs` — NPU remote engine adapter (AtomGit Jupyter)
+- `lib/tts/cosyvoice3-npu.mjs` — NPU remote engine adapter (AtomGit Jupyter; auto-chain rank 4 since 2026-10-16, `TTS_ENGINE=npu` opt-in)
 - `npu/cosyvoice3_npu_kernel.py` — NPU kernel template (deps + inference + istft CPU fallback)
 - `lib/tts/cosyvoice3-mlx.mjs` — local fallback engine adapter
 - `cosyvoice3_mlx_batch_tts.py` — local fallback Python batch script
