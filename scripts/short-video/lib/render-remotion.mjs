@@ -101,7 +101,7 @@ const MTIME_TOLERANCE_MS = 2;
  * The observed accumulation this replaced is recorded in
  * __tests__/render-remotion-staging.test.mjs — keep the numbers there, not here.
  */
-export const STAGED_ASSET_DIR = "_staged";
+const STAGED_ASSET_DIR = "_staged";
 
 /**
  * The path a staged asset is addressed by, relative to public/assets/.
