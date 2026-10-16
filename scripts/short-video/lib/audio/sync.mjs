@@ -12,8 +12,8 @@
  * sides share the same (pre-assembly) timeline.
  *
  * TTS engine output formats (used by resolveSceneAudio):
+ *   CosyVoice3 (Kaggle-CUDA / Modal-CUDA / MLX) → scene-{id}.wav
  *   F5-MLX    → scene-{id}.wav
- *   Qwen3-TTS → scene-{id}.wav
  *   edge-tts  → scene-{id}.mp3
  *   say       → scene-{id}.mp3
  * Never hard-code an extension — always use resolveSceneAudio().
@@ -29,7 +29,7 @@ import { findOnset } from "./fft.mjs";
 
 /**
  * Audio extensions supported by TTS engines, in priority order.
- * .wav first (F5-MLX, Qwen3 — lossless), .mp3 second (edge-tts, say).
+ * .wav first (CosyVoice3, F5 — lossless), .mp3 second (edge-tts, say).
  */
 const SCENE_AUDIO_EXTENSIONS = [".wav", ".mp3"];
 

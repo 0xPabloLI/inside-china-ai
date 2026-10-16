@@ -129,7 +129,7 @@ describe("#270 every TTS engine inherits the single source (anti-regression)", (
    * entries at all (5/9 styles resolved to `undefined` → the kernel fell into
    * a method that does not exist, #273 P1.3).
    */
-  it("kaggle-cuda / modal-cuda / npu resolve the PyTorch standard, mlx the MLX one", async () => {
+  it("kaggle-cuda / modal-cuda resolve the PyTorch standard, mlx the MLX one", async () => {
     const engines = {
       "cosyvoice3-kaggle-cuda": [
         (await import("../lib/tts/cosyvoice3-kaggle-cuda.mjs")).resolveInstructForScene,
@@ -137,10 +137,6 @@ describe("#270 every TTS engine inherits the single source (anti-regression)", (
       ],
       "cosyvoice3-modal-cuda": [
         (await import("../lib/tts/cosyvoice3-modal-cuda.mjs")).resolveInstructForScene,
-        INSTRUCT_FORMAT.PYTORCH,
-      ],
-      "cosyvoice3-npu": [
-        (await import("../lib/tts/cosyvoice3-npu.mjs")).resolveInstructForScene,
         INSTRUCT_FORMAT.PYTORCH,
       ],
       "cosyvoice3-mlx": [
@@ -162,7 +158,7 @@ describe("#270 every TTS engine inherits the single source (anti-regression)", (
 
   it("no engine still resolves the pre-#234 wording", async () => {
     const resolvers = await Promise.all(
-      ["cosyvoice3-kaggle-cuda", "cosyvoice3-modal-cuda", "cosyvoice3-npu", "cosyvoice3-mlx"].map(
+      ["cosyvoice3-kaggle-cuda", "cosyvoice3-modal-cuda", "cosyvoice3-mlx"].map(
         async (name) => (await import(`../lib/tts/${name}.mjs`)).resolveInstructForScene,
       ),
     );

@@ -39,7 +39,7 @@
  * pink-elephant effect) and is refused by the validator.
  *
  * `format` is an engine-family concern, not a content concern:
- *   - PyTorch/CUDA and NPU (`inference_instruct2`) require the
+ *   - PyTorch/CUDA (`inference_instruct2`) requires the
  *     `<|endofprompt|>` suffix;
  *   - MLX auto-appends it, so the same text must be sent WITHOUT the suffix.
  * The two formats therefore share one table and differ only in the suffix.
@@ -49,7 +49,7 @@
 
 /** How the selected engine family expects the instruct string to be terminated. */
 export const INSTRUCT_FORMAT = Object.freeze({
-  /** CosyVoice3 `inference_instruct2` (Kaggle CUDA, Modal CUDA, Ascend NPU). */
+  /** CosyVoice3 `inference_instruct2` (Kaggle CUDA, Modal CUDA). */
   PYTORCH: "pytorch",
   /** CosyVoice3-MLX — the runtime appends the terminator itself. */
   MLX: "mlx",

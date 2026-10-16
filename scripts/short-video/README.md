@@ -93,7 +93,7 @@ scripts/short-video/
 │   ├── scene-layout.mjs      # Slot layout system (fixed vertical bands)
 │   ├── safe-zones.mjs        # TikTok safe zones + subtitle lane constants
 │   ├── scene-rules.mjs       # Scene-data validation rules (20+ checks)
-│   ├── generate-tts.mjs      # TTS orchestration (F5-TTS-MLX / Qwen3-TTS)
+│   ├── generate-tts.mjs      # TTS orchestration shim → lib/tts/registry.mjs (engine chain)
 │   ├── assemble.mjs          # Output-path helpers (resolveOutputVideo)
 │   ├── renderer-guard.mjs    # Fail-fast on the retired HTML/Playwright path
 │   └── render-remotion.mjs   # Remotion CLI wrapper
@@ -178,15 +178,15 @@ node scripts/short-video/apply-media-patch.mjs
 
 ## Environment requirements
 
-| Component     | Path / Version                             | Purpose                                          |
-| ------------- | ------------------------------------------ | ------------------------------------------------ |
-| FFmpeg (full) | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Video assembly, rubberband, libass               |
-| Python venv   | `~/.video-tts-env`                         | F5-TTS-MLX, Qwen3-TTS, whisperx, mlx-vlm, OpenCV |
-| OpenCV        | `opencv-contrib-python==4.10.0.84`         | Focus detection (face + saliency)                |
-| VLM model     | `mlx-community/Qwen3-VL-8B-Instruct-8bit`  | Asset analysis (~11 GB resident)                 |
-| TTS model     | F5-TTS-MLX (default)                       | Voiceover generation                             |
-| Ollama        | `bge-m3:latest`                            | RAG embeddings (separate from VLM)               |
-| Chrome + CDP  | `localhost:3456`                           | Asset search (Pexels, Unitree, etc.)             |
+| Component     | Path / Version                             | Purpose                                               |
+| ------------- | ------------------------------------------ | ----------------------------------------------------- |
+| FFmpeg (full) | `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` | Video assembly, rubberband, libass                    |
+| Python venv   | `~/.video-tts-env`                         | F5-TTS-MLX, CosyVoice3-MLX, whisperx, mlx-vlm, OpenCV |
+| OpenCV        | `opencv-contrib-python==4.10.0.84`         | Focus detection (face + saliency)                     |
+| VLM model     | `mlx-community/Qwen3-VL-8B-Instruct-8bit`  | Asset analysis (~11 GB resident)                      |
+| TTS model     | CosyVoice3-Kaggle-CUDA (default)           | Voiceover generation                                  |
+| Ollama        | `bge-m3:latest`                            | RAG embeddings (separate from VLM)                    |
+| Chrome + CDP  | `localhost:3456`                           | Asset search (Pexels, Unitree, etc.)                  |
 
 ## Key design documents
 
