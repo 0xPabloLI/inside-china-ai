@@ -102,7 +102,7 @@ export function formatFocusSummary(focusAnalysis) {
  * @param {Object|null} semantics - VLM analysis fields from asset-analysis.json
  * @returns {string} Multi-line comment block
  */
-export function formatSemanticsSummary(semantics) {
+function formatSemanticsSummary(semantics) {
   if (!semantics || typeof semantics !== "object") {
     return "";
   }

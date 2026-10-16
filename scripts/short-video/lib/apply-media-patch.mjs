@@ -23,7 +23,6 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import {
   formatFocusSummary,
-  formatSemanticsSummary,
   loadAssetAnalysis,
   formatPatchEntry,
   formatMediaPatch,
