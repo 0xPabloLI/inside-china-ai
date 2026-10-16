@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 import { runMediaTrack } from "../lib/media-track.mjs";
 
 describe("media-track", () => {
@@ -231,5 +231,93 @@ describe("media-track", () => {
     writeFileSync(join(tmp, "content", "c", "found.png"), "x");
     await runMediaTrack(ctx);
     expect(scene.media.path).toBe("found.png");
+  });
+
+  it("skips upscale when scene.media.upscale is explicitly false (#425)", async () => {
+    const calls = [];
+    const scene = { id: 1, voiceover: "v", media: { path: "small.png", upscale: false } };
+    const { ctx } = makeCtx({
+      scenes: [scene],
+      broll: null,
+      deps: baseDeps({
+        autoUpscaleIfNeeded: (p) => {
+          calls.push(p);
+          return { upscaled: true, path: join(tmp, "content", "c", "big.png") };
+        },
+      }),
+    });
+    writeFileSync(join(tmp, "content", "c", "small.png"), "x");
+    await runMediaTrack(ctx);
+    expect(calls).toEqual([]);
+    expect(scene.media.path).toBe("small.png");
+    expect(scene.media.upscale).toBe(false);
+  });
+
+  it("handles mixed upscale flags: false is skipped, true/absent are upscaled (#425)", async () => {
+    const calls = [];
+    const scenes = [
+      { id: 1, voiceover: "v1", media: { path: "s1-optout.png", upscale: false } },
+      { id: 2, voiceover: "v2", media: { path: "s2-default.png" } },
+      { id: 3, voiceover: "v3", media: { path: "s3-explicit-true.png", upscale: true } },
+    ];
+    const { ctx } = makeCtx({
+      scenes,
+      broll: null,
+      deps: baseDeps({
+        autoUpscaleIfNeeded: (p) => {
+          calls.push(p);
+          const fname = p.split("/").pop();
+          return { upscaled: true, path: join(tmp, "content", "c", `upscaled-${fname}`) };
+        },
+      }),
+    });
+    writeFileSync(join(tmp, "content", "c", "s1-optout.png"), "x");
+    writeFileSync(join(tmp, "content", "c", "s2-default.png"), "x");
+    writeFileSync(join(tmp, "content", "c", "s3-explicit-true.png"), "x");
+
+    await runMediaTrack(ctx);
+
+    // s1 is never passed to autoUpscaleIfNeeded
+    expect(calls).toEqual([
+      resolve(tmp, "content", "c", "s2-default.png"),
+      resolve(tmp, "content", "c", "s3-explicit-true.png"),
+    ]);
+    expect(scenes[0].media.path).toBe("s1-optout.png");
+    expect(scenes[0].media.upscale).toBe(false);
+    expect(scenes[1].media.path).toBe("upscaled-s2-default.png");
+    expect(scenes[2].media.path).toBe("upscaled-s3-explicit-true.png");
+  });
+
+  it("respects upscale: false from applied media patch (#425)", async () => {
+    const calls = [];
+    const scene = { id: 2, voiceover: "v" };
+    const { ctx, contentDir } = makeCtx({
+      scenes: [scene],
+      broll: null,
+      deps: baseDeps({
+        autoUpscaleIfNeeded: (p) => {
+          calls.push(p);
+          return { upscaled: true, path: join(tmp, "content", "c", "patched-upscaled.png") };
+        },
+      }),
+    });
+    const patchDir = join(tmp, "output", contentDir);
+    mkdirSync(patchDir, { recursive: true });
+    writeFileSync(
+      join(patchDir, "media-patch.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        patches: [
+          { sceneId: 2, status: "assigned", media: { path: "patched.png", upscale: false } },
+        ],
+      }),
+    );
+    writeFileSync(join(tmp, "content", "c", "patched.png"), "x");
+
+    await runMediaTrack(ctx);
+
+    expect(calls).toEqual([]);
+    expect(scene.media.path).toBe("patched.png");
+    expect(scene.media.upscale).toBe(false);
   });
 });

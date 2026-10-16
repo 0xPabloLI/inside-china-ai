@@ -117,6 +117,9 @@ export async function runMediaTrack({ scenes, contentDir, baseDir, broll, deps =
       let upscaledCount = 0;
       for (const scene of scenes) {
         if (!scene.media?.path) continue;
+        // `upscale: false` is an asset's own opt-out of this safety net (#425,
+        // mirrors render-remotion.mjs:246).
+        if (scene.media.upscale === false) continue;
         const mediaPath = resolve(contentDirAbs, scene.media.path);
         const result = autoUpscaleIfNeeded(mediaPath);
         if (result.upscaled) {
