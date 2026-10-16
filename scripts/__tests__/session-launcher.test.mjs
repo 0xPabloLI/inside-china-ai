@@ -1315,7 +1315,7 @@ describe("session-launcher gc: post-delivery closeout", () => {
 //
 // `start` hands out a worktree; it must also make that worktree runnable.
 // Without the provisioned artifacts the six `npx remotion still` suites fail
-// with 76 environment false failures (no nested node_modules → `npm error
+// on environment, not on the branch (no nested node_modules → `npm error
 // could not determine executable to run`; no fixture media → `Could not load
 // <CanvasImage>`), so the wiring is asserted here rather than discovered later.
 describe("session-launcher start: provisioning wiring", () => {

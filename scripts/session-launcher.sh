@@ -17,7 +17,7 @@
 #   4. provisions it from the main checkout (session-provision.sh): symlinks
 #      the three node_modules, copies the reference voice and the media the
 #      render fixtures load — without this the six `npx remotion still` suites
-#      fail with 76 environment false failures (SESSION_NO_PROVISION=1 skips)
+#      fail on environment, not on the branch (SESSION_NO_PROVISION=1 skips)
 #   5. writes the per-worktree state file
 #      $(git -C <wt> rev-parse --absolute-git-dir)/session-pilot/current-session
 #      line 1 = id — this is what prepare-commit-msg (trailer auto-fill) and
@@ -304,8 +304,8 @@ if [ "$cmd" = "start" ]; then
   # --- 3c. provision ----------------------------------------------------------
   # A bare `git worktree add` has no installed dependencies and none of the
   # gitignored local artifacts (reference voice, fixture media), so the six
-  # `npx remotion still` suites fail with 76 false failures before any work
-  # starts. Fill them in from the main checkout; fail-open, and skippable.
+  # `npx remotion still` suites fail before any work starts. Fill them in from
+  # the main checkout; fail-open, and skippable.
   if [ -z "${SESSION_NO_PROVISION:-}" ] && [ -f "$ROOT/scripts/session-provision.sh" ]; then
     bash "$ROOT/scripts/session-provision.sh" "$wtpath"
   fi

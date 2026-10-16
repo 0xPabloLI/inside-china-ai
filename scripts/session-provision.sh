@@ -9,8 +9,9 @@
 # voice, and the media the render fixtures load — is missing, and the six
 # `npx remotion still` suites fail with `npm error could not determine
 # executable to run` (no nested node_modules) or `Could not load <CanvasImage>`
-# (no fixture media). That is a false failure: 76 tests red on a clean
+# (no fixture media). That is a false failure — tests red on a clean
 # worktree for reasons that have nothing to do with the branch.
+# (Counts live in docs/conventions/test-env-baseline.md; do not restate them here.)
 #
 # What it links or copies, and why each form:
 #   - node_modules (root + scripts/short-video + scripts/short-video/remotion)
@@ -56,7 +57,10 @@ fi
 # checkout that owns the shared .git dir. Deriving it this way (rather than
 # dirname of the common dir, or the caller's cwd) keeps the script correct when
 # it is invoked from inside a linked worktree.
-SRC=$(git -C "$TARGET" worktree list --porcelain 2>/dev/null | awk '/^worktree /{print $2; exit}')
+#
+# substr, not $2: the porcelain path is emitted raw, so field splitting would
+# truncate a checkout under a path containing a space ("My Repo" → "My").
+SRC=$(git -C "$TARGET" worktree list --porcelain 2>/dev/null | awk '/^worktree /{print substr($0, 10); exit}')
 [ -n "$SRC" ] || { warn "cannot resolve the main worktree — nothing provisioned"; exit 0; }
 SRC=$(cd "$SRC" && pwd)
 

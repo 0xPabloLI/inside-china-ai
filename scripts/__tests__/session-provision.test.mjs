@@ -15,7 +15,7 @@ import { tmpdir } from "os";
 
 // session-provision.sh: a bare `git worktree add` has no installed dependencies
 // and none of the gitignored local artifacts (reference voice, fixture media),
-// which is where the 76 environment false failures come from — six
+// which is where the environment false failures come from — six
 // `npx remotion still` suites failing with `npm error could not determine
 // executable to run` / `Could not load <CanvasImage>` on a clean worktree.
 //
@@ -50,7 +50,10 @@ describe("session-provision.sh: worktree provisioning", () => {
   beforeEach(() => {
     // realpath: on macOS tmpdir() is /var/folders/... while a shell that cd's
     // there reports /private/var/folders/..., and the script prints the latter.
-    repo = realpathSync(mkdtempSync(join(tmpdir(), "provision-test-")));
+    // The space is deliberate: `git worktree list --porcelain` emits paths raw,
+    // so every test below also guards the main-worktree resolution against
+    // field splitting.
+    repo = realpathSync(mkdtempSync(join(tmpdir(), "provision test-")));
     git(repo, "init", "-q", "--initial-branch=main");
     git(repo, "config", "user.email", "test@example.com");
     git(repo, "config", "user.name", "test");
