@@ -1310,3 +1310,80 @@ describe("session-launcher gc: post-delivery closeout", () => {
     expect(r.stdout).toContain("PR-merged session branch deleted");
   });
 });
+
+// ─── start: worktree provisioning ───────────────────────────────────────────
+//
+// `start` hands out a worktree; it must also make that worktree runnable.
+// Without the provisioned artifacts the six `npx remotion still` suites fail
+// on environment, not on the branch (no nested node_modules → `npm error
+// could not determine executable to run`; no fixture media → `Could not load
+// <CanvasImage>`), so the wiring is asserted here rather than discovered later.
+describe("session-launcher start: provisioning wiring", () => {
+  let origin;
+  let repo;
+
+  beforeEach(() => {
+    origin = mkdtempSync(join(tmpdir(), "launcher-start-origin-"));
+    git(origin, "init", "--bare", "-q", "--initial-branch=main");
+    repo = mkdtempSync(join(tmpdir(), "launcher-start-repo-"));
+    git(repo, "clone", "-q", origin, ".");
+    git(repo, "config", "user.email", "test@example.com");
+    git(repo, "config", "user.name", "test");
+    // The launcher installs hooks when hooksPath is unset; this repo has no
+    // installer, and hooks are not what this block is about.
+    git(repo, "config", "core.hooksPath", ".githooks");
+    mkdirSync(join(repo, "scripts"), { recursive: true });
+    copyFileSync(
+      join(import.meta.dirname, "..", "session-provision.sh"),
+      join(repo, "scripts", "session-provision.sh"),
+    );
+    writeFileSync(join(repo, "README.md"), "x\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "init");
+    git(repo, "push", "-q", "-u", "origin", "main");
+    // A main-checkout-only artifact, so provisioning has something to do.
+    mkdirSync(join(repo, "scripts", "short-video", "voice-samples"), { recursive: true });
+    writeFileSync(join(repo, "scripts", "short-video", "voice-samples", "ref.wav"), "wav");
+  });
+
+  afterEach(() => {
+    rmSync(origin, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  function start(extraEnv = {}) {
+    const wtpath = mkdtempSync(join(tmpdir(), "launcher-start-wt-")) + "/wt";
+    const r = spawnSync("bash", [LAUNCHER, "start", "provision-wiring", wtpath], {
+      encoding: "utf8",
+      cwd: repo,
+      env: { ...process.env, SESSION_NO_FETCH: "1", ...extraEnv },
+    });
+    return { r, wtpath };
+  }
+
+  it("provisions the new worktree before handing it over", () => {
+    const { r, wtpath } = start();
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("[provision]");
+    expect(existsSync(join(wtpath, "scripts", "short-video", "voice-samples", "ref.wav"))).toBe(
+      true,
+    );
+  });
+
+  it("SESSION_NO_PROVISION=1 skips provisioning", () => {
+    const { r, wtpath } = start({ SESSION_NO_PROVISION: "1" });
+    expect(r.status).toBe(0);
+    expect(r.stdout).not.toContain("[provision]");
+    expect(existsSync(join(wtpath, "scripts", "short-video", "voice-samples", "ref.wav"))).toBe(
+      false,
+    );
+  });
+
+  it("a missing session-provision.sh does not break start (older checkout)", () => {
+    rmSync(join(repo, "scripts", "session-provision.sh"));
+    const { r, wtpath } = start();
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("session started");
+    expect(existsSync(wtpath)).toBe(true);
+  });
+});
