@@ -16,6 +16,8 @@ import {
   formatMediaPatch,
 } from "../lib/review-media-patch.mjs";
 import { applyAssignedMedia } from "../lib/apply-media-patch.mjs";
+import * as applyLib from "../lib/apply-media-patch.mjs";
+import * as reviewLib from "../lib/review-media-patch.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -548,5 +550,189 @@ describe("validatePatchEntry — videoStartOffsetMs (#360 S9)", () => {
     );
     expect(r.valid).toBe(true);
     expect(r.errors).toHaveLength(0);
+  });
+});
+
+// ─── #649: apply-media-patch ↔ review-media-patch 双实现漂移统一与 cropFocus ───
+
+describe("#649 media patch formatting unification and cropFocus preservation", () => {
+  it("exports identical formatting functions from both lib modules (single source of truth)", () => {
+    expect(typeof applyLib.formatFocusSummary).toBe("function");
+    expect(typeof applyLib.formatPatchEntry).toBe("function");
+    expect(typeof applyLib.formatMediaPatch).toBe("function");
+    expect(typeof applyLib.normalizeMediaPatch).toBe("function");
+
+    // Both modules share the exact same underlying implementation
+    expect(applyLib.formatFocusSummary).toBe(reviewLib.formatFocusSummary);
+    expect(applyLib.formatPatchEntry).toBe(reviewLib.formatPatchEntry);
+    expect(applyLib.formatMediaPatch).toBe(reviewLib.formatMediaPatch);
+    expect(applyLib.normalizeMediaPatch).toBe(reviewLib.normalizeMediaPatch);
+  });
+
+  it("preserves cropFocus, fit, volume, and videoStartOffsetMs in formatted output", () => {
+    const entry = {
+      sceneId: 42,
+      sceneName: "Robot Precision",
+      visualType: "narrative",
+      status: "assigned",
+      media: {
+        type: "video",
+        path: "assets/robot.mp4",
+        source: "unitree",
+        animation: "fade",
+        fit: "contain",
+        cropFocus: { x: 0.42, y: 0.31 },
+        volume: 0.8,
+        videoStartOffsetMs: 1500,
+      },
+    };
+
+    const formattedApply = applyLib.formatPatchEntry(entry);
+    const formattedReview = reviewLib.formatPatchEntry(entry);
+
+    expect(formattedApply).toBe(formattedReview);
+    expect(formattedApply).toContain("cropFocus: { x: 0.42, y: 0.31 },");
+    expect(formattedApply).toContain('fit: "contain",');
+    expect(formattedApply).toContain("volume: 0.8,");
+    expect(formattedApply).toContain("videoStartOffsetMs: 1500,");
+  });
+
+  it("produces identical review text across both entrypoints with or without asset-analysis", () => {
+    const patches = [
+      {
+        sceneId: 1,
+        sceneName: "Intro",
+        visualType: "hook",
+        status: "assigned",
+        assetScore: 92,
+        source: "pexels",
+        media: {
+          type: "image",
+          path: "assets/intro.jpg",
+          animation: "fade",
+          fit: "cover",
+          cropFocus: { x: 0.5, y: 0.5 },
+        },
+        analysis: {
+          focusAnalysis: {
+            status: "ok",
+            protectedRegions: [{ rect: [0.2, 0.3, 0.4, 0.5], kind: "face", confidence: 0.95 }],
+            saliency: { available: true, dispersion: 0.04, centroid: [0.5, 0.5] },
+          },
+        },
+      },
+      {
+        sceneId: 2,
+        sceneName: "Missing",
+        status: "unassigned",
+        assetScore: 10,
+        source: "web",
+      },
+    ];
+
+    // Case 1: without analysisMap (null / undefined) -> graceful degradation without VLM comments
+    const textApplyNoMap = applyLib.formatMediaPatch(patches);
+    const textReviewNoMap = reviewLib.formatMediaPatch(patches);
+    expect(textApplyNoMap).toBe(textReviewNoMap);
+    expect(textApplyNoMap).toContain("cropFocus: { x: 0.5, y: 0.5 },");
+    expect(textApplyNoMap).toContain("Focus Analysis: ok");
+    expect(textApplyNoMap).not.toContain("VLM Description");
+
+    // Case 2: with analysisMap -> VLM comments included identically
+    const analysisMap = new Map();
+    analysisMap.set("assets/intro.jpg", {
+      description: "Humanoid robot performing task",
+      subjects: ["humanoid", "robot"],
+      contentKind: "demo",
+      fit: "contain",
+      cropDecision: {
+        status: "safe",
+        policy: "contain",
+        cropFocus: { x: 0.5, y: 0.5 },
+        reason: "Centered subject",
+      },
+    });
+
+    const textApplyWithMap = applyLib.formatMediaPatch(patches, analysisMap);
+    const textReviewWithMap = reviewLib.formatMediaPatch(patches, analysisMap);
+    expect(textApplyWithMap).toBe(textReviewWithMap);
+    expect(textApplyWithMap).toContain("VLM Description: Humanoid robot performing task");
+    expect(textApplyWithMap).toContain("Subjects: humanoid, robot");
+    expect(textApplyWithMap).toContain("Crop Decision: safe, contain, focus [0.5, 0.5]");
+  });
+
+  it("produces byte-for-byte identical CLI stdout between apply-media-patch.mjs and review-media-patch.mjs", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "media-patch-cli-test-"));
+    try {
+      const patchPath = join(tempDir, "media-patch.json");
+      const analysisPath = join(tempDir, "asset-analysis.json");
+
+      const patchData = {
+        schemaVersion: "1.0",
+        patches: [
+          {
+            sceneId: 3,
+            sceneName: "Vision Model",
+            visualType: "b-roll",
+            status: "assigned",
+            assetScore: 88,
+            source: "local",
+            media: {
+              type: "image",
+              path: "assets/vlm.png",
+              animation: "zoom-in",
+              fit: "cover",
+              cropFocus: { x: 0.35, y: 0.65 },
+            },
+            analysis: {
+              focusAnalysis: {
+                status: "ok",
+                protectedRegions: [{ rect: [0.1, 0.2, 0.3, 0.4], kind: "text", confidence: 0.88 }],
+                saliency: { available: true, dispersion: 0.05, centroid: [0.35, 0.65] },
+              },
+            },
+          },
+        ],
+      };
+
+      const analysisData = {
+        assets: [
+          {
+            path: "assets/vlm.png",
+            description: "Neural net architecture diagram",
+            subjects: ["diagram", "transformer"],
+            contentKind: "architecture",
+            cropDecision: {
+              status: "safe",
+              policy: "cover",
+              cropFocus: { x: 0.35, y: 0.65 },
+              reason: "Focused on core attention layers",
+            },
+          },
+        ],
+      };
+
+      writeFileSync(patchPath, JSON.stringify(patchData, null, 2), "utf8");
+      writeFileSync(analysisPath, JSON.stringify(analysisData, null, 2), "utf8");
+
+      const applyScript = join(__dirname, "..", "lib", "apply-media-patch.mjs");
+      const reviewScript = join(__dirname, "..", "lib", "review-media-patch.mjs");
+
+      const outApply = execSync(
+        `node "${applyScript}" --input "${patchPath}" --analysis "${analysisPath}"`,
+        { encoding: "utf8" },
+      );
+      const outReview = execSync(
+        `node "${reviewScript}" --input "${patchPath}" --analysis "${analysisPath}"`,
+        { encoding: "utf8" },
+      );
+
+      expect(outApply).toBe(outReview);
+      expect(outApply).toContain("cropFocus: { x: 0.35, y: 0.65 },");
+      expect(outApply).toContain("VLM Description: Neural net architecture diagram");
+      expect(outApply).toContain("Crop Decision: safe, cover, focus [0.35, 0.65]");
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
