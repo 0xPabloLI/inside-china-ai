@@ -1,7 +1,7 @@
 # AtomGit AI 平台调研报告
 
 > **调研日期**：2026-09-03
-> **调研方法**：浏览器 CDP 实测 ai.atomgit.com + 官方文档（`/docs/models/billing/`、`/docs/models/model-availability-test/`、`/docs/notebooks/`）+ API 实测（12 个模型全部调用成功）
+> **调研方法**：浏览器 CDP 实测 ai.atomgit.com + 官方文档（`/docs/models/billing/`、`/docs/models/model-availability-test/`、`/docs/notebooks/`）+ API 实测（可调用模型逐一调用成功；2026-10-16 复核 8 个）
 > **调研目标**：评估 AtomGit 作为模型来源 / 免费推理 API / 数字人模型测试平台的价值
 > **最终定位**：**备选平台**——模型库托管 ≠ API 可调用；数字人模型全部不可跑；但保留 200 万 Token/月 + 1000 核时/月 NPU 免费额度，万一未来有适配模型可零成本启用
 
@@ -29,6 +29,8 @@
 AtomGit AI 是开放原子开源基金会（联合阿里云、CSDN、中电科十五所、北航）建设的「开源+AI」一体化平台（ai.atomgit.com）。定位：**融合 GitHub + HuggingFace 优势的新一代开源 AI 社区**——覆盖"模型托管→推理→训练→应用"全链路。
 
 **规模**：160 万开发者、90 亿开源项目数据、模型库约 39,400 个。
+
+**它不是「NPU 专用平台」**：昇腾 NPU 只是它四条产品线里的算力那条（Notebook / Spaces 用 NPU 910B 跑），另外三条——模型库、托管推理 API、编码助手——与 NPU 无关。对我们来说可用的只有「托管推理 API 的 200 万 Token/月」这一条，NPU 算力（1000 核时/月）只是账面上留着、当前没有可跑的模型（§9）。
 
 ---
 
@@ -95,21 +97,43 @@ AtomCode CodingPlan 是独立产品（对标 Claude Code，开源 Rust 实现）
 
 | 任务类型                | 推理端口                   |
 | ----------------------- | -------------------------- |
-| 文本生成 / VLM / 多模态 | `/v1/chat_completions`     |
+| 文本生成 / VLM / 多模态 | `/v1/chat/completions`     |
 | 文本转语音（TTS）       | `/v1/audio/speech`         |
 | 自动语音识别（ASR）     | `/v1/audio/transcriptions` |
 | 向量化（Embedding）     | `/v1/embeddings`           |
 
-**认证**：在工作台 `/dashboard/api-key` 新建 API Key。
+路径与请求/响应体是标准 OpenAI 形状（SDK 可直接用），**但认证不是**：AtomGit 用 GitCode 风格的 `PRIVATE-TOKEN` header，Bearer 一律 401。这是唯一一处「OpenAI 兼容」不成立的地方，也是接 SDK 时必须改的一行。
 
-> ⚠️ **实测**：AtomGit AI API 使用 **`PRIVATE-TOKEN` header** 认证（GitCode 风格），NOT Bearer <REDACTED>！
->
-> ```bash
-> ✅ curl -H "PRIVATE-TOKEN: <key>" https://api-ai.gitcode.com/v1/models
-> ❌ curl -H "Authorization: Bearer <key>" ...  → 401 token not found
-> ```
+**为什么做成 OpenAI 兼容**：这是 2026 年国内推理平台的默认选择，不是 AtomGit 的特殊设计——请求体/响应体照抄 OpenAI，任何现成 SDK、客户端、框架都能零改动接上，平台不用为每个生态单独写适配层。代价是它们只抄了**形状**，没抄**鉴权**：AtomGit 把 key 校验挂在自家的 `PRIVATE-TOKEN`（GitCode 账号体系）上，于是「兼容」止步于 `default_headers` 那一行。
 
-也可以通过 `?access_token=<key>` query 传递。
+> ✅ 实测（2026-10-16 复核）：`GET /v1/models` 与 `POST /v1/chat/completions` 均 200，响应是标准 `chat.completion` 对象；当前可调用模型 8 个（见 §7）。
+> `PRIVATE-TOKEN` 之外还可用 `?access_token=<key>` query 传递。
+
+**调用方式**：key 与 base 在 `.env.local.atomgit`（`ATOMGIT_API_KEY` / `ATOMGIT_API_BASE`，见 `.env.local.example`）。
+
+```bash
+set -a; . ./.env.local.atomgit; set +a
+curl -H "PRIVATE-TOKEN: $ATOMGIT_API_KEY" "$ATOMGIT_API_BASE/models"
+```
+
+要用 OpenAI SDK，唯一需要改的是默认 header（SDK 发 `Authorization: Bearer`，AtomGit 只认 `PRIVATE-TOKEN`）。两个环境变量先用上面那行 `set -a; . ./.env.local.atomgit; set +a` 载入，或写进 shell profile：
+
+```python
+import os
+
+from openai import OpenAI
+
+client = OpenAI(
+    base_url=os.environ["ATOMGIT_API_BASE"],
+    api_key="unused",  # 占位，SDK 要求非空
+    default_headers={"PRIVATE-TOKEN": os.environ["ATOMGIT_API_KEY"]},
+)
+
+print(client.chat.completions.create(
+    model="Qwen/Qwen3-32B",
+    messages=[{"role": "user", "content": "ping"}],
+).choices[0].message.content)
+```
 
 ---
 
@@ -140,9 +164,11 @@ AtomCode CodingPlan 是独立产品（对标 Claude Code，开源 Rust 实现）
 
 ---
 
-## 7. API 可调用模型（实测验证，2026-09-03）
+## 7. API 可调用模型（实测验证）
 
-实测可调用模型共 12 个（`GET /v1/models`），与"模型库"39,454 个模型不等价 — 库中大部分权重需下载到 NPU Notebook 本地跑：
+可调用模型是一份**会随平台更新变动的短名单**，与「模型库」39,454 个模型不等价 — 库中大部分权重需下载到 NPU Notebook 本地跑。**判断某个模型能否调用的唯一方法是当场 `GET /v1/models`**，下表只是某次快照：
+
+2026-10-16 复核：8 个可调用模型。
 
 | 模型                                 | 参数量/类型         | 用途              | 实测状态             |
 | ------------------------------------ | ------------------- | ----------------- | -------------------- |
@@ -151,17 +177,13 @@ AtomCode CodingPlan 是独立产品（对标 Claude Code，开源 Rust 实现）
 | **Qwen/Qwen3-30B-A3B-Thinking-2507** | 30B MoE             | 链式推理          | ✅                   |
 | **Qwen/Qwen3-32B**                   | 32B dense           | 文本生成          | ✅                   |
 | **Qwen/Qwen3-4B-Instruct-2507**      | 4B dense            | 轻量文本          | ✅                   |
-| **Qwen/Qwen2-VL-72B**                | 72B VLM             | 图像+文本多模态   | ✅（纯文本测试通过） |
+| **Qwen/Qwen2.5-VL-72B**              | 72B VLM             | 图像+文本多模态   | ✅（纯文本测试通过） |
 | **deepseek-ai/DeepSeek-V4-Flash**    | MoE                 | GPT-4o 级文本推理 | ✅                   |
-| **deepseek-ai/DeepSeek-V4-Pro**      | MoE                 | DeepSeek 旗舰     | ✅                   |
-| **ascend-tribe/openPangu-2.0-Flash** | 华为开源            | 前沿多任务        | ✅                   |
-| **openpangu-2.0-pro**                | 华为                | Pangu Pro         | ✅                   |
-| **MoonshotAI/Kimi-K2.6**             | Moonshot            | Kimi 最新         | ✅                   |
-| **zai-org/GLM-5.2**                  | Zhipu               | GLM 最新          | ✅                   |
+| **zai-org/GLM-5.1**                  | Zhipu               | GLM 最新          | ✅                   |
 
 **关键结论**：
 
-- API 可调用模型 ≪ 模型库模型（12 vs 39,454）
+- API 可调用模型 ≪ 模型库模型（8 vs 39,454）
 - 大量 GLM-5.3-Flash、MiniMax-H3、LTX-2.5、OpenMOSS 等**模型库有但 API 不可直接调用**
 - 可调用模型无一是数字人唇同步模型
 
@@ -229,16 +251,16 @@ AtomCode CodingPlan 是独立产品（对标 Claude Code，开源 Rust 实现）
 | **作为 Hugging Face 替代品？** | ❌ 不能替代。模型库以昇腾 NPU 优化版为主，CUDA/MPS 硬件                 |
 |                                | 用不了。不可下载权重到本地 CUDA 机器直接跑。                            |
 |                                | ✅ 可作为中文模型发现入口和在线体验平台（体验后再去 HF 下载 CUDA 版）。 |
-| **作为免费推理 API？**         | ⚠️ 有限。已验证 12 个模型 API 可调用（而非全部 39k+）：                 |
+| **作为免费推理 API？**         | ⚠️ 有限。可调用模型是短名单（2026-10-16 为 8 个，而非全部 39k+）：      |
 |                                | - 文本生成：Qwen3-30B-A3B / Qwen3-32B / DeepSeek-V4-Flash（前沿旗舰级） |
-|                                | - 图像理解：Qwen2-VL-72B                                                |
+|                                | - 图像理解：Qwen2.5-VL-72B                                              |
 |                                | - 推理：Qwen3-30B-A3B-Thinking-2507（链式推理）                         |
 |                                | **局限**：200 万 Token/月对大模型用量偏少，性价比不如本地小模型；       |
-|                                | TTS/ASR/文生图任务类型在后台筛选中存在，但**对应模型不在 12 个          |
+|                                | TTS/ASR/文生图任务类型在后台筛选中存在，但**对应模型不在当前            |
 |                                | API 可调用列表内**，实际不可通过 API 使用。                             |
 | **作为数字人模型测试平台？**   | ❌ 不可用。NPU 910B 无法运行 CUDA 硬编码的 LatentSync/Sonic/            |
 |                                | SadTalker/MuseTalk/EchoMimicV3/LongCat-VA/InfiniteTalk。                |
-|                                | MiniMax-H3/LTX-2.5 虽在模型库但不在 12 个 API 可调用模型内，            |
+|                                | MiniMax-H3/LTX-2.5 虽在模型库但不在 API 可调用模型内，                  |
 |                                | 且无 NPU 适配版可下载到 Notebook 运行。                                 |
 | **作为编码助手？**             | ✅ CodingPlan 可作为 Claude Code 替代品，按 5h 滚动窗口发               |
 |                                | 额度，模型受限（qwen3.8/mimo/deepseek-v4-flash/GLM-5.2）。              |
@@ -247,7 +269,7 @@ AtomCode CodingPlan 是独立产品（对标 Claude Code，开源 Rust 实现）
 
 ## 11. 与我们的资源对比：哪些可替代本地小模型？（实测后修正）
 
-基于 API 实测（12 个可调用模型），对照我们实际在用的本地模型：
+基于 API 实测（可调用模型短名单），对照我们实际在用的本地模型：
 
 | 本地能力                       | AtomGit 可替代？        | 说明                                                                |
 | ------------------------------ | ----------------------- | ------------------------------------------------------------------- |
