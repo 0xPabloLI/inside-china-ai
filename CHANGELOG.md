@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.21](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.20...tanstack_start_ts-v1.20.21) (2026-10-16)
+
+
+### Bug Fixes
+
+* **session:** session:start 自动补齐 worktree 的依赖与本地构件 ([#701](https://github.com/0xPabloLI/inside-china-ai/issues/701)) ([1e813f0](https://github.com/0xPabloLI/inside-china-ai/commit/1e813f052cbfbdcef5878d733c2295e3e4468c1f))
+
 ## [1.20.20](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.19...tanstack_start_ts-v1.20.20) (2026-10-16)
 
 
