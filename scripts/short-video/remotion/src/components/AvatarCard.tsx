@@ -10,8 +10,9 @@
  * Contract:
  *   - No avatar / no videoPath → returns null (no-avatar packages render
  *     byte-identical to before — the zero-regression guarantee).
- *   - videoPath is the public/assets/ basename written by render-remotion.mjs
- *     stageAvatarVideos() (missing/corrupt files never reach this component).
+ *   - videoPath is the `_staged/` path under public/assets/ written by
+ *     render-remotion.mjs stageAvatarVideos() (missing/corrupt files never
+ *     reach this component).
  *   - `present` intervals ({from, to} in scene seconds) clip the card to
  *     those windows via <Sequence>; outside them the background media runs
  *     full-bleed. Omitted → the card covers the whole scene. The avatar clip

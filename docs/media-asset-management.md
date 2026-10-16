@@ -1,6 +1,6 @@
 # Media Asset Management
 
-> Status: Active — last updated 2026-08-14
+> Status: Active — last updated 2026-10-16
 > Scope: Where to put image/video/audio files for the short-video pipeline.
 
 ## 1. Where to put new files
@@ -11,13 +11,30 @@ Place by purpose, not by file extension:
 | -------------------------------------------------- | -------------------------------------------------------- | ------------ | ------------------------------------------------ |
 | Brand logo/mark/avatar                             | `scripts/short-video/assets/` (under `brand/`, `logos/`) | ✅           | `deepseek.svg` → `assets/logos/`                 |
 | BGM music                                          | `scripts/short-video/assets/bgm/`                        | ✅           | `news-cc-theme01.mp3`                            |
-| Content-specific media (rendered into video)       | `scripts/short-video/content/{slug}/assets/`             | ✅           | `unitree-demo.mp4` → `content/unitree/assets/`   |
+| Content-specific media (rendered into video)       | `scripts/short-video/content/{slug}/assets/`             | ❌ 默认忽略  | `unitree-demo.mp4` → `content/unitree/assets/`   |
 | TTS reference audio (voice profile to clone)       | `scripts/short-video/voice-samples/`                     | ❌           | `voice-sample-24k.wav`                           |
 | Experiment outputs (digital human, TTS comparison) | `scripts/short-video/experiments/`                       | ❌           | `hallo2-test.mp4` → `experiments/digital-human/` |
 
 **Decision rule**: Is it rendered into a video? → `content/{slug}/assets/`. Is it a global brand asset? → `assets/`. Is it a voice profile for TTS? → `voice-samples/`. Unsure if temporary? → `experiments/`.
 
 `assets/` is for **global, reusable production assets only** — never dump experiment outputs or voice samples here.
+
+### Why content media is not tracked
+
+`content/**/assets/` is gitignored (`.gitignore`): the files are downloaded or generated per package, and they are large binaries. A package's media is force-added only when a **test consumes the bytes** — the exceptions are the whole list, and each names its consumer:
+
+| Package            | Tracked files | Consumer                                                              |
+| ------------------ | ------------- | --------------------------------------------------------------------- |
+| `unitree`          | 3             | `media-bg.test.mjs`, `media-zoom-render.test.mjs`, `chunker.test.mjs` |
+| `sensetime-latest` | 5             | `focus-smoke.test.mjs` + `fixtures/focus-golden.json`                 |
+
+When you add a package whose media a test must read, force-add exactly those files and add the row here.
+
+### Render staging (`_staged/`)
+
+`render-remotion.mjs` stages content media, backdrop clips and avatar clips into `scripts/short-video/assets/_staged/` before each render, and rewrites the scene paths to `_staged/<filename>`. `remotion/public/assets` is a symlink to `assets/`, so this namespace sits **inside** the curated directory: treat `_staged/` as render scratch that is gitignored and safe to delete, and keep hand-placed assets in the curated root beside it. A copy written to the curated root instead is indistinguishable from a curated asset, and the ignore rules for downloaded files (`pexels-*`, `unsplash-*`, …) do not match arbitrary filenames.
+
+Five content copies committed before this rule landed are still tracked in the curated root; they are historical residue, not precedent, and are being retired in #707.
 
 ## 2. Asset Catalog & RAG
 
@@ -83,13 +100,13 @@ These are environment facts — the code is the source of truth, this table is a
 | Brand mark SVG   | `assets/china-ai-news-mark-video.svg`                 | `build-mark-svg.mjs`（生成）；`remotion/src`（CtaScene / visuals.tsx 消费） |
 | BGM library      | `assets/bgm/*.mp3`                                    | `lib/bgm.mjs`                                                               |
 | Content media    | `content/{slug}/assets/*`                             | `scene-data.mjs` `media.path` field                                         |
-| Remotion static  | `remotion/public/assets/` (symlink → `../../assets/`) | `render-remotion.mjs` copies content media here at render time              |
+| Remotion static  | `remotion/public/assets/` (symlink → `../../assets/`) | `render-remotion.mjs` stages content media into `_staged/` at render time   |
 
 ## Design Decisions & References
 
 - **Separation by lifecycle**: `assets/` (stable, Git-tracked) vs `experiments/` (disposable, gitignored) vs `voice-samples/` (personal, gitignored). Primary axis is lifecycle stability, not file type.
 - **`voice-samples/` not under `assets/`**: TTS reference audio is an **input** (voice profile to clone), not an **asset** (rendered into video). Different lifecycle, different consumers.
-- **Symlink `remotion/public/assets → ../../assets`**: Global assets auto-available to Remotion's `staticFile()`. Content-specific assets copied at render time by `render-remotion.mjs`.
+- **Symlink `remotion/public/assets → ../../assets`**: Global assets auto-available to Remotion's `staticFile()`. Content-specific assets are staged into the gitignored `_staged/` subdirectory at render time by `render-remotion.mjs`.
 - **Catalog over multimodal embeddings**: Text-metadata catalog works with existing `bge-m3` + `chunkMarkdown()` pipeline. Multimodal embeddings would require a separate model + image-extraction step — not worth the complexity for a local-first stack. See §2.
 - **Binaries in regular Git, NOT LFS** (2026-09-05, #196 方案 B): LFS tracking was removed — the repo had drifted into a split state (old binaries committed raw, newer ones as LFS pointers) that broke fresh checkouts/worktrees and made `git lfs pull` destructive. Total media is ~7MB with slow growth; regular Git storage is the simpler, failure-mode-free home. Do NOT re-add `filter=lfs` patterns without an approved design. SVG stays as text (diffable). RAG catalog paths unaffected.
 - **Reorganization history**: `assets/` cleaned on 2026-08-14 — removed 12 digital human experiment files, 16 voice samples, 2 TTS comparison files, 2 duplicate content assets, 10 junk files. TTS engine code updated from `assets/` to `voice-samples/`. See `docs/archive/media-asset-strategy.md` §4.5.

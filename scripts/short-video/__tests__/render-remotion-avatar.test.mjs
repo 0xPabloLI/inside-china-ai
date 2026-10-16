@@ -1,9 +1,10 @@
 // Avatar staging tests (#214 ticket 02).
 //
-// stageAvatarVideos is the render-time gate for scene.avatar.videoPath:
-// copy into remotion/public/assets/ + basename relativization, mirroring the
-// scene.media copy mechanism, with fail-closed errors (missing / corrupt /
-// still-pending-generation) instead of the media path's warn-and-strip.
+// stageAvatarVideos is the render-time gate for scene.avatar.videoPath: copy
+// into the staged namespace under remotion/public/assets/ + staged-path
+// relativization, mirroring the scene.media copy mechanism, with fail-closed
+// errors (missing / corrupt / still-pending-generation) instead of the media
+// path's warn-and-strip.
 // Real files in a temp dir — no fs mocks; ffprobe is a hard pipeline dep.
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -65,30 +66,33 @@ const sceneWith = (avatar, id = 6) => ({
 });
 
 describe("stageAvatarVideos — copy + relativize (mirrors media mechanism)", () => {
-  it("copies the video into publicAssetsDir and relativizes videoPath to the basename", () => {
+  it("copies the video into the staged namespace and rewrites videoPath to the staged path", () => {
     makeRealVideo(join(contentDir, "assets", "avatar", "cta.mp4"));
     const scene = sceneWith({ videoPath: "assets/avatar/cta.mp4", position: "right-card" });
     const staged = stageAvatarVideos({ scenes: [scene], contentDir, publicAssetsDir });
     expect(staged).toBe(1);
-    const dest = join(publicAssetsDir, "cta.mp4");
+    const dest = join(publicAssetsDir, "_staged", "cta.mp4");
     expect(existsSync(dest)).toBe(true);
     expect(readFileSync(dest).length).toBe(
       readFileSync(join(contentDir, "assets", "avatar", "cta.mp4")).length,
     );
     // videoPath rewritten to the staticFile()-relative form (like scene.media.path)
-    expect(scene.avatar.videoPath).toBe("cta.mp4");
+    expect(scene.avatar.videoPath).toBe("_staged/cta.mp4");
+    // the curated root stays clean — see render-remotion-staging.test.mjs
+    expect(existsSync(join(publicAssetsDir, "cta.mp4"))).toBe(false);
     // other declaration fields ride along untouched
     expect(scene.avatar.position).toBe("right-card");
   });
 
-  it("skips the copy when the destination already has the current file (cache), still relativizes", () => {
+  it("skips the copy when the destination already has the current file (cache), still rewrites", () => {
     makeRealVideo(join(contentDir, "assets", "avatar", "cta.mp4"));
     // A real cache hit: the staged copy is byte-identical to the source, so
     // staging must not spend the copy (and must not clobber it). A tiny
     // placeholder file is NOT a cache hit any more — size/mtime mismatch means
     // the asset was edited in place and the stale copy must be replaced.
     const src = join(contentDir, "assets", "avatar", "cta.mp4");
-    const dest = join(publicAssetsDir, "cta.mp4");
+    const dest = join(publicAssetsDir, "_staged", "cta.mp4");
+    mkdirSync(join(publicAssetsDir, "_staged"), { recursive: true });
     copyFileSync(src, dest);
     const { mtimeMs } = statSync(src);
     utimesSync(dest, mtimeMs / 1000, mtimeMs / 1000);
@@ -100,7 +104,7 @@ describe("stageAvatarVideos — copy + relativize (mirrors media mechanism)", ()
     // cache untouched — same bytes, and the file was not rewritten
     expect(readFileSync(dest).length).toBe(readFileSync(src).length);
     expect(statSync(dest).mtimeMs).toBe(before);
-    expect(scene.avatar.videoPath).toBe("cta.mp4");
+    expect(scene.avatar.videoPath).toBe("_staged/cta.mp4");
   });
 
   it("stages multiple avatar scenes and reports the count", () => {
@@ -111,8 +115,8 @@ describe("stageAvatarVideos — copy + relativize (mirrors media mechanism)", ()
       sceneWith({ videoPath: "assets/avatar/cta.mp4" }, 6),
     ];
     expect(stageAvatarVideos({ scenes, contentDir, publicAssetsDir })).toBe(2);
-    expect(scenes[0].avatar.videoPath).toBe("hook.mp4");
-    expect(scenes[1].avatar.videoPath).toBe("cta.mp4");
+    expect(scenes[0].avatar.videoPath).toBe("_staged/hook.mp4");
+    expect(scenes[1].avatar.videoPath).toBe("_staged/cta.mp4");
   });
 });
 
@@ -180,7 +184,7 @@ describe("stageAvatarVideos — fail-closed matrix", () => {
     expectStageFail(scenes, "missing.mp4");
     // sequential staging: scene 1 was already staged in-memory (harmless —
     // the throw aborts renderRemotion before any props ship to the CLI)
-    expect(scenes[0].avatar.videoPath).toBe("hook.mp4");
+    expect(scenes[0].avatar.videoPath).toBe("_staged/hook.mp4");
     // the bad scene stays untouched
     expect(scenes[1].avatar.videoPath).toBe("assets/avatar/missing.mp4");
   });

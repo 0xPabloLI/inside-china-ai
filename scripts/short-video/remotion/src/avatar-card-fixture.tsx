@@ -15,10 +15,12 @@
  *   avatar-control — identical scene WITHOUT the avatar field: the pixel
  *                    baseline the other two are diffed against (zero-regression)
  *
- * videoPath is the public/assets/ BASENAME (the form stageAvatarVideos()
- * writes into props); the fixture video itself is generated at test time by
- * the driver (ffmpeg testsrc2 @1248×1632 — the 2x-upscaled EchoMimicV3 frame
- * size) and cleaned up afterwards.
+ * videoPath here is a plain basename, which AvatarCard resolves as
+ * `assets/<basename>`; the pipeline's stageAvatarVideos() writes the
+ * `_staged/<basename>` form instead. Either resolves, because the component
+ * prepends `assets/` to any path without that prefix. The fixture video itself
+ * is generated at test time by the driver (ffmpeg testsrc2 @1248×1632 — the
+ * 2x-upscaled EchoMimicV3 frame size) and cleaned up afterwards.
  */
 import React from "react";
 import { Composition, registerRoot } from "remotion";

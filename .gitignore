@@ -149,6 +149,11 @@ scripts/short-video/assets/36kr-*
 # Pipeline-generated B-roll clips (T2V output, regenerable, not source)
 scripts/short-video/assets/scene-*-seed*.mp4
 
+# Render-time staged copies of content assets (remotion/public/assets → this dir;
+# written by render-remotion.mjs, a cache of content/{slug}/assets/, regenerated
+# on demand — delete the directory at any time)
+scripts/short-video/assets/_staged/
+
 # Per-content generated assets and search cache (binary/cache, not source code)
 scripts/short-video/content/**/assets/
 scripts/short-video/content/**/search-cache.json

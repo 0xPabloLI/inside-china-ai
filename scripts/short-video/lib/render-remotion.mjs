@@ -84,6 +84,70 @@ export function shouldRestageAsset(srcPath, destPath) {
 const MTIME_TOLERANCE_MS = 2;
 
 /**
+ * Subdirectory of remotion/public/assets/ that holds render-time staged copies.
+ *
+ * public/assets is a SYMLINK to the curated scripts/short-video/assets/ — brand
+ * assets, catalog.yml, bgm/, dh-fixtures/. A copy written straight into that
+ * directory is therefore indistinguishable from a hand-curated asset: it shows
+ * up as untracked noise after every render, and the ignore rules that hide the
+ * downloaded ones (`pexels-*`, `unsplash-*`, …) never match the rest.
+ *
+ * Staged copies are render scratch, not curated content: they live in their own
+ * namespace so the curated root keeps meaning "hand-placed". Both consumers
+ * prepend `assets/` to a path without that prefix (AvatarCard.tsx:91,
+ * MediaBackground.tsx:115 and :215), so `_staged/x.png` resolves to
+ * public/assets/_staged/x.png.
+ *
+ * The observed accumulation this replaced is recorded in
+ * __tests__/render-remotion-staging.test.mjs — keep the numbers there, not here.
+ */
+const STAGED_ASSET_DIR = "_staged";
+
+/**
+ * The path a staged asset is addressed by, relative to public/assets/.
+ *
+ * @param {string} filename - basename of the staged copy
+ * @returns {string} e.g. "_staged/chart.png"
+ */
+export function stagedAssetRelPath(filename) {
+  return `${STAGED_ASSET_DIR}/${filename}`;
+}
+
+/**
+ * Copy one content asset into the staged namespace of the public assets dir and
+ * return the path to hand Remotion.
+ *
+ * Single staging door for the three copy sites (media, backdrop, avatar): they
+ * differ in what a missing file means (warn-and-strip vs fail-closed) but not in
+ * where the copy lands, and keeping that in one place is what stops a future
+ * site from re-introducing a flat copy.
+ *
+ * Containment: the destination name is `basename(srcPath)`, never the authored
+ * path. `basename()` drops every directory component, so a scene-data `path` of
+ * `../../../../etc/passwd` stages as `_staged/passwd` and the copy cannot leave
+ * the staged directory. That is the whole defense and it is deliberate — a
+ * scanner reporting the `join` as a traversal sink has not modelled `basename`
+ * as the sanitizer it is.
+ *
+ * @param {object} options
+ * @param {string} options.srcPath - Source asset (absolute, or relative to cwd)
+ * @param {string} options.publicAssetsDir - remotion/public/assets target
+ * @param {string} options.label - Log prefix, e.g. "📸 Copied media"
+ * @returns {string} the staged path relative to public/assets/
+ */
+export function stageAsset({ srcPath, publicAssetsDir, label }) {
+  const filename = basename(srcPath);
+  const stagedDir = join(publicAssetsDir, STAGED_ASSET_DIR);
+  const dest = join(stagedDir, filename);
+  if (shouldRestageAsset(srcPath, dest)) {
+    mkdirSync(stagedDir, { recursive: true });
+    copyFileSync(srcPath, dest);
+    console.log(`  ${label}: ${filename}`);
+  }
+  return stagedAssetRelPath(filename);
+}
+
+/**
  * Derive the raw (pre-finalize) render output path from a final video path.
  * renderRemotion keeps the raw file when subtitles were burned so the
  * verification repair path (main.mjs) can rebuild the shipped artifact from
@@ -112,14 +176,15 @@ export function buildRemotionRenderCommand({ rawPath, props }) {
 }
 
 /**
- * Stage avatar videos (scene.avatar.videoPath) into public/assets/.
+ * Stage avatar videos (scene.avatar.videoPath) into the staged namespace.
  *
  * #214 ticket 02 — mirrors the media copy mechanism exactly: same
- * public/assets/ directory, same basename relativization (the component
- * resolves staticFile(`assets/${videoPath})`), same skip-if-copied cache.
- * One deliberate difference: media missing → warn and strip (sourcing finds
- * another asset); avatar missing → FAIL. The user paid to generate the
- * digital human, so a render without the card is never acceptable.
+ * public/assets/ target and same `_staged/` namespace, same staged-path
+ * relativization (the component resolves staticFile(`assets/${videoPath}`)),
+ * same skip-if-copied cache. One deliberate difference: media missing → warn
+ * and strip (sourcing finds another asset); avatar missing → FAIL. The user paid
+ * to generate the digital human, so a render without the card is never
+ * acceptable.
  *
  * The checks themselves live in ./avatar-guard.mjs (#272) so the render doors
  * and main.mjs enforce one contract: pending generation, missing,
@@ -130,7 +195,7 @@ export function buildRemotionRenderCommand({ rawPath, props }) {
  * Pure pre-render staging: throws BEFORE the Remotion CLI is invoked.
  *
  * @param {object} options
- * @param {Array} options.scenes - Sanitized scene array (mutated: videoPath relativized)
+ * @param {Array} options.scenes - Sanitized scene array (mutated: videoPath rewritten to the staged path)
  * @param {Array<number>} [options.durations] - TTS voiceover seconds, index-aligned
  *   with `scenes` (same array the props hand-off uses). Omit only when the
  *   caller genuinely has no durations.
@@ -148,14 +213,15 @@ export function stageAvatarVideos({ scenes, durations = [], contentDir = "", pub
     assertAvatarScene({ scene, voiceoverDurationSec: durations[index], contentDir });
 
     const avatarSrc = join(contentDir || ".", scene.avatar.videoPath);
-    const filename = basename(avatarSrc);
-    const avatarDest = join(publicAssetsDir, filename);
-    if (shouldRestageAsset(avatarSrc, avatarDest)) {
-      copyFileSync(avatarSrc, avatarDest);
-      console.log(`  🧑‍💼 Copied avatar: ${filename}`);
-    }
-    // Rewrite videoPath to just the filename (relative to public/assets/)
-    scene.avatar = { ...scene.avatar, videoPath: filename };
+    // Rewrite videoPath to the staged path (relative to public/assets/)
+    scene.avatar = {
+      ...scene.avatar,
+      videoPath: stageAsset({
+        srcPath: avatarSrc,
+        publicAssetsDir,
+        label: "🧑‍💼 Copied avatar",
+      }),
+    };
     staged++;
   }
   return staged;
@@ -223,10 +289,11 @@ export function renderRemotion({
     return `audio/${filename}`; // relative to public/ for staticFile()
   });
 
-  // ── 2b. Copy media files (from scene.media.path) to remotion/public/assets/ ──
+  // ── 2b. Copy media files (from scene.media.path) into the staged namespace ──
   // MediaBackground.tsx uses staticFile(media.path) which resolves relative to public/
-  // Content media files live in content/{slug}/assets/ — copy them to public/assets/
-  // Note: public/assets may be a symlink to ../../assets — that's fine, files go there
+  // Content media files live in content/{slug}/assets/ — copy them to public/assets/_staged/
+  // Note: public/assets is a symlink to ../../assets, so _staged/ lands inside the
+  // curated directory (see STAGED_ASSET_DIR for why it must stay in its own namespace).
   const publicAssetsDir = join(REMOTION_DIR, "public", "assets");
   if (!existsSync(publicAssetsDir)) {
     mkdirSync(publicAssetsDir, { recursive: true });
@@ -250,14 +317,11 @@ export function renderRemotion({
           }
           srcPath = upscaleResult.path;
         }
-        const filename = basename(srcPath);
-        const mediaDest = join(publicAssetsDir, filename);
-        if (shouldRestageAsset(srcPath, mediaDest)) {
-          copyFileSync(srcPath, mediaDest);
-          console.log(`  📸 Copied media: ${filename}`);
-        }
-        // Rewrite path to just the filename (relative to public/assets/)
-        scene.media = { ...scene.media, path: filename };
+        // Rewrite path to the staged path (relative to public/assets/)
+        scene.media = {
+          ...scene.media,
+          path: stageAsset({ srcPath, publicAssetsDir, label: "📸 Copied media" }),
+        };
       } else {
         console.warn(
           `  ⚠️  Media file not found: ${scene.media.path} — stripping media from scene ${scene.id}`,
@@ -271,14 +335,12 @@ export function renderRemotion({
     if (scene.media?.backdrop?.path) {
       const bdSrc = join(contentDir || ".", scene.media.backdrop.path);
       if (existsSync(bdSrc)) {
-        const bdDest = join(publicAssetsDir, basename(bdSrc));
-        if (shouldRestageAsset(bdSrc, bdDest)) {
-          copyFileSync(bdSrc, bdDest);
-          console.log(`  📸 Copied backdrop: ${basename(bdSrc)}`);
-        }
         scene.media = {
           ...scene.media,
-          backdrop: { ...scene.media.backdrop, path: basename(bdSrc) },
+          backdrop: {
+            ...scene.media.backdrop,
+            path: stageAsset({ srcPath: bdSrc, publicAssetsDir, label: "📸 Copied backdrop" }),
+          },
         };
       } else {
         console.warn(
@@ -291,8 +353,8 @@ export function renderRemotion({
   }
 
   // ── 2c. Stage avatar videos (scene.avatar.videoPath) ──
-  // #214 ticket 02: fail-closed pre-render check + public/assets copy +
-  // videoPath relativization (mirrors the media copy mechanism above).
+  // #214 ticket 02: fail-closed pre-render check + staged copy +
+  // videoPath rewrite (mirrors the media copy mechanism above).
   const avatarCount = stageAvatarVideos({
     scenes: sanitizedScenes,
     durations,

@@ -102,8 +102,8 @@ export interface SceneTexts {
  * #214 digital-human foreground card declaration. Schema owner:
  * lib/scene-rules.mjs checkAvatarContract (fail-closed on unknown fields).
  * videoPath is content-relative as authored; render-remotion.mjs
- * stageAvatarVideos() relativizes it to the public/assets/ basename and
- * fail-closes on missing/corrupt files before the render starts.
+ * stageAvatarVideos() rewrites it to the `_staged/` path under public/assets/
+ * and fail-closes on missing/corrupt files before the render starts.
  */
 export interface AvatarField {
   videoPath?: string;
