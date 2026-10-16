@@ -116,13 +116,23 @@ set -a; . ./.env.local.atomgit; set +a
 curl -H "PRIVATE-TOKEN: $ATOMGIT_API_KEY" "$ATOMGIT_API_BASE/models"
 ```
 
-要用 OpenAI SDK，唯一需要改的是默认 header（SDK 发 `Authorization: Bearer`，AtomGit 只认 `PRIVATE-TOKEN`）：
+要用 OpenAI SDK，唯一需要改的是默认 header（SDK 发 `Authorization: Bearer`，AtomGit 只认 `PRIVATE-TOKEN`）。两个环境变量先用上面那行 `set -a; . ./.env.local.atomgit; set +a` 载入，或写进 shell profile：
 
 ```python
+import os
+
 from openai import OpenAI
-client = OpenAI(base_url=os.environ["ATOMGIT_API_BASE"],
-                api_key="unused",                        # 占位，SDK 要求非空
-                default_headers={"PRIVATE-TOKEN": os.environ["ATOMGIT_API_KEY"]})
+
+client = OpenAI(
+    base_url=os.environ["ATOMGIT_API_BASE"],
+    api_key="unused",  # 占位，SDK 要求非空
+    default_headers={"PRIVATE-TOKEN": os.environ["ATOMGIT_API_KEY"]},
+)
+
+print(client.chat.completions.create(
+    model="Qwen/Qwen3-32B",
+    messages=[{"role": "user", "content": "ping"}],
+).choices[0].message.content)
 ```
 
 ---
