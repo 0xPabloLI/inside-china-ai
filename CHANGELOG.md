@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.20.23](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.22...tanstack_start_ts-v1.20.23) (2026-10-17)
+
+
+### Bug Fixes
+
+* **short-video:** route TikTok downloads through yt-dlp ([#300](https://github.com/0xPabloLI/inside-china-ai/issues/300)) ([ec38431](https://github.com/0xPabloLI/inside-china-ai/commit/ec38431452cd870a386812b5e59e6ef31e47d3f8))
+* **short-video:** TikTok 下载改走 yt-dlp，竞品视频批量抓取落地 ([#300](https://github.com/0xPabloLI/inside-china-ai/issues/300)) ([d8acc1b](https://github.com/0xPabloLI/inside-china-ai/commit/d8acc1b447542fae15fb8da7ebb1661bdafcc8a8))
+* **short-video:** 修 droid-review 的两条 P1 + 加固 handle 路径 ([#300](https://github.com/0xPabloLI/inside-china-ai/issues/300)) ([49bf13c](https://github.com/0xPabloLI/inside-china-ai/commit/49bf13c34d7e9464eeafbe21af56d425aa7fc831))
+
 ## [1.20.22](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.21...tanstack_start_ts-v1.20.22) (2026-10-16)
 
 
