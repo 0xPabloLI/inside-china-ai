@@ -219,13 +219,13 @@
 5. ✅ **跑批量抓取**：**已完成**——`node scripts/short-video/capture-competitor-videos.mjs`，8/9 账号成功、35 条落盘（§3.3；`@allsiekmiller` 两次 0 条列表）。
 6. ✅ **批量拆解落 schema v1 JSON → 填 `learnings` → 跨条规律上浮到对应下游 issue。** 脚本已落地（`analyze-competitor-videos.mjs` + `lib/competitor-vlm-worker.py`，见 §3.3），提示词与时间轴机制已按 §3.5 三条失效模式加固并经 3 账号验证（`rileybrown.ai` / `maverickgpt` / `shedoesai`，0 失败）；**全量 35 条跑批已完成**（`index.json` 逐条 status 汇总：`analyzed 34 / failed 1 / collapsedTimeline 0`），跨条规律上浮见 **§10**。**2026-10-18 更正**：上述 `failed 1` 与 `collapsedTimeline 0` 均为**信号失真**（分别是 #729 定界符类型错配、#730 判据假阴性）；按修复后的代码对**同一批样本**重算 → **35 条全有效、beats 层塌缩 1 条**（§10.1 复算口径）。
 
-**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；**人声稀疏视频的镜头节奏**（§3.5 ③——判据与「第二时间源兜底」已修，但兜底是**在 ASR 段跨度内重建**，并非第二**实测**时间源（如镜头切点），其节奏数字仍不能当实测用）；§2.1 账号清单的 TikTok handle 与内容主题一致性（§10.1 实测有 2 个账号不在赛道）。`beats` 数量的提示词合规性本轮已量化（**§10.5**：3–8 区间 AI 号仅 6/30）。
+**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；**人声稀疏视频的镜头节奏**（§3.5 ③——判据与兜底已修，但兜底是**在 ASR 段跨度内重建**，并非第二**实测**时间源（如镜头切点），其节奏数字仍不能当实测用；第二实测时间源已开票 **#749**）；§2.1 账号清单的 TikTok handle 与内容主题一致性（§10.1 实测有 2 个账号不在赛道，处置已开票 **#748**）。`beats` 数量的提示词合规性本轮已量化（**§10.5**：3–8 区间 AI 号仅 6/30）。
 
 ---
 
 ## 10. 阶段 3 · 跨条规律与模式库（英文侧 35 条有效；2026-10-17 跑批 · 2026-10-18 复算）
 
-> 本节只做**证据层之上**的横向上浮：单条事实在 per-video JSON 里，不在此重述（§6 纪律）。数据源 `scripts/short-video/output/competitor-benchmarks/analysis/`（gitignore，不入库）。统计为一次性本地脚本读 JSON 字段（`meta.durationSec` / `evidence.asrSegments` / `beats[]` / `shots[]` / `story_level`），未入库；每节都写明判据，可据此复算。**2026-10-18 复算**：原跑批的 1 条失败（#729）与 0 条塌缩（#730）经修复后重算，样本由 34 → **35**，本节所有 median 已按 n=35 更新（判据：`beats` 非空的记录为有效；分位数用 `statistics.quantiles(n=4)`）。
+> 本节只做**证据层之上**的横向上浮：单条事实在 per-video JSON 里，不在此重述（§6 纪律）。**数据源是两个目录，勿混用**：`scripts/short-video/output/competitor-benchmarks/analysis/` 是 **2026-10-17 原跑批（修复前）**——`sineadbovell/7599711388939980063` 在其中仍是 `error: unparseable-json`、塌缩未兜底，只作 #729 / #730 的取证底本；**本节全部数字出自 `analysis-recompute/`**（2026-10-18 修复后重跑；其 `index.json` = `total 35 / recovered 1 / stillFailed 0 / collapsedBeats 1 / collapsedShots 5 / interpolated 5`）。两目录均 gitignore、不入库。**复算入口**：判据 / 塌缩命中数 / `anchorSource` 这类可直接复核——`node scripts/short-video/competitor-benchmarks-timing-health.mjs --dir <任一目录>`（读同样字段，输出与 `index.json` 同口径，并打印每个判定的取值依据 `basis`），或直接读该目录的 `index.json`；**median 类**（hook 时长、bpm、时长分位）为**一次性本地脚本**读同样字段所得（脚本未入库），本节各节都写明判据（`meta.durationSec` / `evidence.asrSegments` / `beats[]` / `shots[]` / `story_level`）与分位法（`statistics.quantiles(n=4)`），可据此复算。**2026-10-18 复算**：原跑批的 1 条失败（#729）与 0 条塌缩（#730）经修复后重算，样本由 34 → **35**，本节所有 median 已按 n=35 更新（判据：`beats` 非空的记录为有效；分位数用 `statistics.quantiles(n=4)`）。
 
 ### 10.1 取样边界（先读，它决定这些规律能用到哪）
 
@@ -247,6 +247,7 @@
 - **保留**「粉丝量 ≥ 100K + 每账号播放量 Top 5」作为探针口径（本轮即按此执行）。
 - **门槛必须加一条内容主题校验**：回主页校验赛道归属，不能只按第三方榜单显示名匹配（本轮 9 个账号里 2 个不属 AI 赛道）。
 - **样本量不足以收紧数值阈值**：35 条有效样本下，hook 时长 p25–p75 = 4.3–6.8s（区间宽 2.5s）、shots 9–25，分位数波动大。因此本轮结论只用**中位数 + 跨账号一致的定性模式**；若要据此定死数值阈值，需把取样扩到每账号 Top 10 或增加账号数。
+- **本轮未执行、已另行开票（不在本票范围内自行扩权）**：门槛的「内容主题校验」与已落盘 5 条非赛道样本的处置 = **#748**；人声稀疏记录的**第二实测时间源**（替代 ASR 段跨度内插值）= **#749**。
 
 ### 10.2 hook 规格
 
@@ -343,5 +344,5 @@ hook = 第 1 个 beat（`beats[0]`，时间轴由 ASR 段界推导，§3.5 ①�
 - 中文侧：**已决不做**（§9.1），跨语言对比不在本票范围。
 - `@allsiekmiller`：两次列清单均 0 条（§4），该账号样本缺失。
 - `meta.likes/comments/shares/publishedAt`：仍为 `null`（§6 已定夺：需登录态逐条详情页二次抓取，未做）→ 本节的「头部」是按 `manifest` 的播放量排序取 Top 5，非按互动率。
-- 人声稀疏视频的镜头节奏：ASR 锚定拿不到（§3.5 ③）。本批判据修好后实测 **beats 层 1 条**（`shedoesai`）、**shots 层 5 条**（`kanekallaway` ×3 + `shedoesai` ×2，模型锚点越界）——原「0 条」是假阴性；已按段跨度内插值兜底，但**兜底不是第二实测时间源**（如镜头切点），该限制未消除。
+- 人声稀疏视频的镜头节奏：ASR 锚定拿不到（§3.5 ③）。本批判据修好后实测 **beats 层 1 条**（`shedoesai`）、**shots 层 5 条**（`kanekallaway` ×3 + `shedoesai` ×2，模型锚点越界）——原「0 条」是假阴性；已按段跨度内插值兜底，但**兜底不是第二实测时间源**（如镜头切点），该限制未消除，已开票 **#749**（命中集可用 `node scripts/short-video/competitor-benchmarks-timing-health.mjs --dir <分析目录>` 复算）。
 
