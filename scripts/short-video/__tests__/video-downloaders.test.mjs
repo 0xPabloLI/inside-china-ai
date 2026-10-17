@@ -12,6 +12,7 @@ import {
   buildYtdlpCommand,
   isWeiboUrl,
   weiboCookieNetscape,
+  isTiktokUrl,
 } from "../lib/video-downloaders.mjs";
 
 // ─── Test helpers ───
@@ -1020,6 +1021,101 @@ describe("weibo routing (#75 Batch 2)", () => {
     // detector instead.
     expect(isWeiboUrl("https://weibo.com/1/x")).toBe(true);
     expect(isWeiboUrl("https://www.youtube.com/watch?v=abc")).toBe(false);
+  });
+});
+
+// ─── #300 stage 2: tiktok routing through the ytdlp adapter ───
+describe("tiktok routing (#300 stage 2)", () => {
+  it("isTiktokUrl detects tiktok hosts and rejects lookalikes", () => {
+    expect(isTiktokUrl("https://www.tiktok.com/@user/video/123")).toBe(true);
+    expect(isTiktokUrl("https://m.tiktok.com/@user/video/123")).toBe(true);
+    expect(isTiktokUrl("https://vt.tiktok.com/ZSabc123")).toBe(true);
+    // Lookalikes: a substring match would route these to yt-dlp.
+    expect(isTiktokUrl("https://nottiktok.com/@user/video/123")).toBe(false);
+    expect(isTiktokUrl("https://www.youtube.com/watch?v=abc")).toBe(false);
+    expect(isTiktokUrl("")).toBe(false);
+  });
+
+  it("routes tiktok video URLs to the ytdlp adapter instead of cobalt", () => {
+    const result = selectStrategy(
+      "https://www.tiktok.com/@marcus.dipaola/video/7696961966987824398",
+    );
+    expect(result.adapter).toBe("ytdlp");
+    expect(result.canonicalUrl).toBe(
+      "https://www.tiktok.com/@marcus.dipaola/video/7696961966987824398",
+    );
+    // The pre-#300 baseline: this URL fell through to cobalt and failed.
+    expect(selectStrategy("https://www.tiktok.com/@user/video/1").adapter).not.toBe(
+      ADAPTER_IDS.COBALT,
+    );
+  });
+
+  it("keeps the cobalt fallback for other unknown platforms", () => {
+    expect(selectStrategy("https://vimeo.com/123456789").adapter).toBe(ADAPTER_IDS.COBALT);
+  });
+
+  it("buildYtdlpCommand downloads tiktok full-length: no 8s section, no 20MB cap", () => {
+    const cmd = buildYtdlpCommand("https://www.tiktok.com/@user/video/123", {
+      tmpPath: "/tmp/v.mp4",
+    });
+    // Competitor/analysis videos are consumed whole.
+    expect(cmd).not.toContain("--download-sections");
+    expect(cmd).not.toContain("--max-filesize");
+    expect(cmd).toContain("--no-playlist");
+  });
+
+  it("buildYtdlpCommand keeps tiktok cookieless (no firefox store dependency)", () => {
+    // Verified 2026-10-16: the extractor solves the JS challenge without
+    // cookies, while a missing firefox store fails before extraction.
+    const cmd = buildYtdlpCommand("https://www.tiktok.com/@user/video/123", {
+      tmpPath: "/tmp/v.mp4",
+    });
+    expect(cmd).not.toContain("--cookies-from-browser");
+    expect(cmd).not.toContain("--cookies ");
+  });
+
+  it("buildYtdlpCommand still applies the B-roll budget to youtube/bilibili/weibo", () => {
+    for (const url of [
+      "https://www.youtube.com/watch?v=abc",
+      "https://www.bilibili.com/video/BV1E7wtzaEdq",
+      "https://weibo.com/1/x",
+    ]) {
+      const cmd = buildYtdlpCommand(url, { tmpPath: "/tmp/v.mp4" });
+      expect(cmd, url).toContain("--download-sections");
+      expect(cmd, url).toContain("--max-filesize 20M");
+      expect(cmd, url).toContain("--cookies-from-browser");
+      expect(cmd, url).not.toContain("--no-playlist");
+    }
+  });
+
+  it("buildYtdlpCommand caps the long side, not `height`, for 9:16 video", () => {
+    const cmd = buildYtdlpCommand("https://www.tiktok.com/@user/video/123", {
+      tmpPath: "/tmp/v.mp4",
+    });
+    // TikTok is mostly 9:16, so `height` is the LONG side: a `height<=1080`
+    // filter excludes 1080x1920 (height=1920) and silently downloads 576x1024.
+    // Measured 2026-10-16: `[height<=1080]` → 576x1024, `[height<=1920]` → 1080x1920.
+    expect(cmd).toContain("b[height<=1920]");
+    expect(cmd).not.toContain("b[height<=1080]");
+  });
+
+  it("buildYtdlpCommand still hands the resolved proxy to tiktok downloads", () => {
+    const KEYS = ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"];
+    const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+    try {
+      for (const k of KEYS) delete process.env[k];
+      process.env.HTTPS_PROXY = "http://127.0.0.1:7897";
+      // The HK exit is blocked by TikTok; the proxy is what makes the JP exit
+      // reachable, so it must survive the tiktok branch.
+      expect(
+        buildYtdlpCommand("https://www.tiktok.com/@user/video/123", { tmpPath: "/tmp/v.mp4" }),
+      ).toContain('--proxy "http://127.0.0.1:7897"');
+    } finally {
+      for (const k of KEYS) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    }
   });
 });
 
