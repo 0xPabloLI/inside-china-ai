@@ -22,6 +22,12 @@ omit =
     # Resident ASR worker: NDJSON IPC driven by the node pipeline, needs the
     # whisper backends.
     scripts/short-video/lib/asr_worker.py
+    # Competitor breakdown worker: same shape as asr_worker.py — NDJSON IPC
+    # driven by analyze-competitor-videos.mjs, and its body needs the MLX
+    # Qwen3-VL-30B weights loaded. Every line it runs is exercised end-to-end by
+    # that runner (verified live, 3 videos); a unit test would have to load the
+    # model, so this is the node-pipeline boundary, not untested logic.
+    scripts/short-video/lib/competitor-vlm-worker.py
     # Runs in ~/.video-tts-env (funasr 1.4.14 + emotion2vec_plus_large).
     scripts/short-video/lib/emotion2vec_plugin.py
     # Has its own vitest IPC suite (focus_detector.test.mjs); needs cv2/PIL.
