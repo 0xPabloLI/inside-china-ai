@@ -36,17 +36,86 @@
 
 ## B. Remotion 模板设计
 
-### locomotion (remotion-dev/locomotion)
+### locomotion (`locomotion-pro/locomotion`，17★)
 
-- **调研日期**: 待调研
-- **描述**: 67 个单文件 Remotion 模板，6 种风格变体（Data/Text/Explainer/Social/Branding）
-- **目标**: 找适合新闻类型的克制风格模板
+- **调研日期**: 2026-10-17
+- **Repo 修正**: 追踪文档原写 `remotion-dev/locomotion`（`gh api` 实测 404），实际仓库是 [`locomotion-pro/locomotion`](https://github.com/locomotion-pro/locomotion)
+- **本地路径**: `/tmp/locomotion-survey/`（浅 clone，HEAD `d42711f9`，2026-04-01 "Update template count to 67"；会话临时目录，非仓库资产）
+- **技术栈**: 纯 Remotion `^4.0.441` + React `^19.2.4` + TypeScript + Vite——**与我们 `scripts/short-video/remotion` 同主版本**，无需适配层即可对照
+- **规模**: README 自述 67 个模板；实测 `src/templates/*/Composition.tsx` 共 **61 个模板**，每模板单文件 45–135 行（合计 3476 行），props 可编辑（text/color/variant）
+- **许可**: ❌ **无 LICENSE 文件，`package.json` 无 `license` 字段且 `private: true` → 全权保留**。README 大字写「Copy the code」但**无许可即不可合法照搬代码**——只能吸收设计模式与实现思路，不得整文件 copy 进本仓（对比 `agent-video-skills-180-screening-2026-09.md` §2 许可口径）
+- **档级判定**（按 180-screening §2 五口径）: **Tier B 只读**——许可 ✗、付费云绑定 ✓（纯本地 Remotion，无外部 API）、NVIDIA 假设 ✓（无）、活跃度 ✗（HEAD 停在 2026-04-01，近半年无提交）、能力重复 ✓
+- **视觉系统（最值得吸收）**: 一个**正交风格层**——[styles.ts](https://github.com/locomotion-pro/locomotion/blob/d42711f950c2c6776056df4d9c7c729d4490ba50/src/lib/styles.ts) 定义 6 个 `StyleVariant`（default / brutalist / rounded / minimal / glass / neo），每个只声明一组视觉 overrides（`borderRadius` `fontWeight` `shadow` `borderWidth` `borderColor` `bgStyle` `bgGradient` `letterSpacing` `fontFamily`）；[useStyle.ts](https://github.com/locomotion-pro/locomotion/blob/d42711f950c2c6776056df4d9c7c729d4490ba50/src/lib/useStyle.ts) 的 `getCompositionStyles(variant)` 把这组 overrides 派生成卡片/文字样式并注入**每个模板**。**布局与风格彻底解耦**：同一模板切换 variant prop 即得 6 种外观，模板内不写死配色/圆角/字体
+- **动画语言**: `grep` 实测——**57/61 用 `spring()`、60/61 用 `interpolate()`、0 处 `Math.random()`（全确定性）**、0 处 `Easing.*`（纯弹簧驱动，不混 bezier）。弹簧配置收敛为 **3 档 presets**：标题 `{stiffness:200, damping:20}`、逐项 stagger `{stiffness:180–200, damping:14–16}`、强调/徽章 `{stiffness:250, damping:12}`
+- **我们现状差距（同一 grep 口径，证据）**: `scripts/short-video/remotion/src/` **0 处 `spring()`**、47 处 `interpolate()`、仅 2 处自定义 `Easing.bezier`（`components/shared.ts:36/39` 的 `easeOut`/`easeOutExpo`）；**无风格变体/token 层**（`getCompositionStyles`/`styleVariant` 零命中）→ 直接印证 #291 的两条根因假设（「动画缺节奏」与「缺统一视觉语言」），并给出可落地路径
 
-### av/remotion-bits (464★)
+**值得吸收的**:
 
-- **调研日期**: 待调研
-- **描述**: Remotion 组件库
-- **目标**: 可复用组件参考
+1. **正交 style-token 层 + 单一派生入口**——`StyleVariant.overrides` 表 + `getCompositionStyles(variant)`，与我们的 `LayoutDescriptor` 思路同构，可用于 #291 建立配色/字体/圆角/阴影的统一语言
+2. **spring 3 档 presets**——`{200,20}` 标题 / `{180–200,14–16}` 逐项 / `{250,12}` 强调；替换我们当前的 `Easing.bezier` 线性缓动，补上「节奏感」
+3. **逐项 stagger delay 模式**——`delay = base + i * step`（如 StaggeredWords `i*6`、BarChartReveal `10+i*8`、MetricCard bar `20+i*3`），多元素依次入场
+4. **数据动画技法**——`MetricCard` 的 rolling counter（`Math.round(interpolate(numberS,[0,1],[0,numericVal]))` + `toLocaleString()`）、sparkline 按进度切片采样点（`slice(0, ceil(len*progress))`）、确定性 confetti（三角函数派生，非随机）→ 对应 `StatRevealScene` / `DataScene`
+5. **每模板单文件 + props 可编辑**的最小结构（无 package、无 wrapper）——与我们 scene 组件形态接近，便于对照
+
+**场景映射**（对照我仓 `remotion/src/scenes/`）:
+
+| locomotion 模板 | 我仓 scene | 可借鉴技法 |
+| --------------- | ---------- | ---------- |
+| StaggeredWords / BoldTextPunch | HookScene | 逐词 stagger 弹簧 + opacity/translateY |
+| ConceptBreakdown / StepExplainer | ContextScene / ContrastScene | eyebrow 小标签 + 标题 + 逐条 bullet 弹簧 |
+| QuoteCard | QuoteScene | 卡片/引文/作者三段错位弹簧 |
+| BarChartReveal / StatsDashboard | DataScene | 逐柱 `10+i*8` 弹簧高度 |
+| MetricCard / SalesCard | StatRevealScene | rolling counter + sparkline + 逐条 bar |
+
+**不适用的**:
+
+- 模板面向 SaaS / 产品营销（Product Hunt、confetti、销售卡片等娱乐化元素），新闻场景需克制——照搬会走向「营销腔」而非「信息型」
+- 多数模板按 web 横屏预览编排（固定 480–520px 卡片宽度），**无 9:16 竖屏版式**，直接复用需自行改比例与安全区
+- 无许可 → 代码不能复制；下列「吸收」均为**模式/技法重写**，非源码搬运
+
+**子 issue**: 无（本轮纯调研）。是否将「引入 spring presets + 正交 style-token 层」落为实施票，属 **#291**（HITL wayfinder map）的收敛决策，不由本追踪票单方开票
+
+**详细报告**: 本节即为结论（无独立报告文件；本地 clone 为会话临时目录，仓库不留资产）
+
+### av/remotion-bits (491★)
+
+- **调研日期**: 2026-10-17
+- **本地路径**: `/tmp/remotion-bits-survey/`（浅 clone，HEAD `de35fda8`，2026-09-15 "chore: sync docs lockfile to v0.2.1"；会话临时目录，非仓库资产）
+- **技术栈**: Remotion + React + TypeScript；npm 包 `remotion-bits@0.2.1`（monorepo：`src/` 组件 + `demo/` + `docs/` + `skills/`）
+- **许可**: ✅ **MIT**（`package.json` `license: "MIT"`）→ **可合法吸收，含源码**（保留许可与署名）。与 locomotion 的无许可构成关键对比
+- **规模**: `registry.json` 共 **66 个 bit**；`src/components/` 核心组件 10 个——AnimatedText、AnimatedCounter、StaggeredMotion、TypeWriter、MatrixRain、CodeBlock、GradientTransition、ScrollingImages、Scene3D（Element3D/Step/StepResponsive）、ParticleSystem（Behavior/Spawner/Particles）；其余为 `bit-*` 示例 composition（bar-chart / stat-rings / ken-burns / lower-third / list-reveal / typewriter 变体等）
+- **档级判定**（按 180-screening §2 五口径）: **Tier A（可直接吸收）**——许可 ✓ MIT、付费云绑定 ✓（纯本地）、NVIDIA 假设 ✓（无）、活跃度 ✓（2026-09-15 有提交）、能力重复 ✓（组件库正好补我们缺的动效原语）
+
+**最值得吸收的（超越 locomotion 的系统性设计）**:
+
+1. **shadcn 式组件注册表 + Agent 摄取通道（可复制范式）**——`registry.json`（66 items）+ CLI `npx remotion-bits find/fetch/mcp` + jsrepo（`npx jsrepo add --registry https://unpkg.com/remotion-bits/registry.json <bit>`）+ **MCP server 仅暴露两个工具**（`find_remotion_bits` 发现 / `fetch_remotion_bit` 取全源码）+ 自带 [`skills/remotion-bits/SKILL.md`](https://github.com/av/remotion-bits/blob/de35fda84b7b6acbe549a0b302a82ef211e8ef1e/skills/remotion-bits/SKILL.md)（声明 fallback 链 MCP → CLI → package）。这是「外部设计资产 → 本仓」的**可复制摄取范式**，正对我们的调研-吸收流程
+2. **契约驱动 catalog**——[contracts.ts](https://github.com/av/remotion-bits/blob/de35fda84b7b6acbe549a0b302a82ef211e8ef1e/src/catalog/contracts.ts) 的 `RemotionBitCatalogSummary` 自描述清单（`exportName`/`id`/`name`/`description`/`tags`/`duration`/`width`/`height`/`sourcePath`/`componentNames`/`registryDependencies`），与我们 `LayoutDescriptor` 单一真值源思路同构
+3. **声明式动画原语层**——`src/utils/motion` 提供 `useMotionTiming` / `useStepTiming` / `buildMotionStyles` / `interpolateKeyframes` / `getEasingFunction` / `StepTimingContext` + 分组 typed props（`TransformProps` / `VisualProps` / `TimingProps` / `AnimatedValue`）；组件**不手写弹簧**，而以 keyframes + progress + delay 组合（如 `AnimatedCounter` 的 `interpolateKeyframes(values, progress, easingFn, duration)` 支持 keyframe 数组与 hold 帧）→ 比 locomotion 的「每模板各写 spring」更系统、可组合
+4. **`Step` 声明式时序上下文**——`Scene3D.Step` 以 stagger 方向（`forward`/`reverse`/`center`/`random`）自动计算子元素错位，`random` 走 Remotion 确定性 seeded random
+
+**与我仓最相关的 bit 清单**（供 #291 收敛选型）: `bit-lower-third`（下三分之一）、`bit-bar-chart`、`bit-stat-rings`、`bit-ken-burns`（对比 #357 刚把视频动效收敛到 fade——Ken Burns 是另一条慢速动效路线）、`bit-list-reveal`、`bit-staggered-fade-in`、`bit-word-by-word`、`animated-counter`、`Scene3D`/`bit-carousel-3d`（相机驱动演示）
+
+**场景映射**（对照我仓 `remotion/src/scenes/`）:
+
+| remotion-bits bit/组件 | 我仓 scene | 可借鉴技法 |
+| ---------------------- | ---------- | ---------- |
+| AnimatedText / bit-word-by-word / bit-char-by-char | HookScene / NarrativeScene | keyframe+stagger 文字动效原语 |
+| AnimatedCounter / bit-bar-chart / bit-stat-rings | StatRevealScene / DataScene | 声明式数值插值与环形/柱状数据可视化 |
+| bit-lower-third | InfoCardScene / CtaScene | 下三分之一信息条版式 |
+| bit-ken-burns / Scene3D | FullscreenMedia | 慢速 Ken Burns 与相机驱动演示 |
+| StaggeredMotion / bit-list-reveal | 通用入场 | StepTimingContext 方向化错位 |
+
+**不适用的**:
+
+- MatrixRain / glitch / particle-fountain 等偏娱乐化特效，新闻场景需克制
+- Scene3D / ParticleSystem 依赖 3D/粒子栈，引入会增加渲染体积与 GPU 负担，非其值不进生产线
+- 本轮为**只读源码调研**，未实跑 `npx remotion-bits`/MCP 摄取（授权边界内不做安装验证）——摄取通道结论基于其 README/SKILL.md/源码取证，实际接入成本未实测
+
+**子 issue**: 无（纯调研）。是否引入「Agent 摄取通道（MCP/CLI）+ 声明式 motion 原语层 + 具体 bit」属 **#291**（HITL wayfinder map）的收敛决策
+
+**详细报告**: 本节即为结论（无独立报告文件；本地 clone 为会话临时目录，仓库不留资产）
+
+**维度 B 状态**: ✅ 完成（2026-10-17；两 repo `locomotion-pro/locomotion` 与 `av/remotion-bits` 均已调研并落结论）。跨 repo 综合：locomotion 提供「正交 style-token 层」思路但无许可；remotion-bits 提供「Agent 摄取通道 + 声明式 motion 原语 + 契约 catalog」且 MIT 可合法吸收——两者共同指向 #291 的两条根因（缺统一视觉语言、缺动画节奏），具体选型待 #291 收敛
 
 ---
 
