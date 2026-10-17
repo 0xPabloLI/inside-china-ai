@@ -1,6 +1,6 @@
 # TikTok 竞品视频基准调研（#300 · 阶段 1）
 
-> **状态**：阶段 1（只读调研）完成于 2026-10-16。阶段 2 已开工——**下载路线已落地并验证**（TikTok → ytdlp，§3.2）；分析侧（WhisperX + VLM 逐 scene）与批量脚本待做，见文末「下一步」。
+> **状态**：阶段 1（只读调研）完成于 2026-10-16；阶段 2（抓取 + 批量拆解）与阶段 3（跨条规律上浮）完成于 2026-10-17——英文侧 35 条 schema v1 JSON 已产出，横向规律与下游映射见 **§10**。
 > **关联**：父票 #291（视觉设计）；下游消费方 #299 / #278 / #244 / #253 / #289。
 
 本票要回答的问题：赛道头部竞品的 hook 与整条视频 scene 结构实际怎么做，作为我们 hook/scene 改进的外部参照系。
@@ -11,8 +11,9 @@
 ## 1. 结论摘要
 
 1. **英文侧是本赛道的主体，中文侧在 TikTok 上很薄。** 英文「AI 资讯」账号粉丝量 100K–4M、公司化日更；中文 AI 资讯的真实头部在抖音/快手/B站，TikTok 端未发现对应量级的纯资讯号（详见 §2）。跨语言对比若以 TikTok 为唯一取样面，中文侧样本会非常弱——这是阶段 2 抽样前必须先定的口径问题。
-2. **抓取技术路线被两层限制卡住**：区域封锁（香港出口被 TikTok 拒服务）+ 反爬签名（原先验证过的 `item/detail` 免签名路线已失效）。目前**已验证可用**的只有「登录态主页列表抓取」；视频文件下载路线需要重新验证（详见 §3）。
+2. **抓取技术路线被两层限制卡住**：区域封锁（香港出口被 TikTok 拒服务）+ 反爬签名（原先验证过的 `item/detail` 免签名路线已失效）。目前**已验证可用**的只有「登录态主页列表抓取」；视频文件下载路线已于阶段 2 定为 ytdlp（详见 §3.2、§3.3）。
 3. **分析产出的对接格式已确定**：竞品拆解按 schema v1 落 per-video JSON；**不得替换**我们自己的 scene-data，跨条规律才上浮到下游 issue（详见 §5、§6）。
+4. **阶段 3 的跨条规律（2026-10-17，34 条有效样本）**：hook 首帧 82% 有真人出镜（其中 59% 在讲话）、hook 中位 5.0s、节奏按内容形态分两档（工具/教程 13.6–18.1 beats/min vs 长叙事 5.4–9.4）；8 条可执行模式已映射到下游票（详见 §10）。
 
 ---
 
@@ -192,9 +193,9 @@
 
 | #   | 问题                                                 | 状态                                                                                                                                                                                                            |
 | --- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | 头部账号怎么识别/筛选                                | **部分**：已给候选清单；**门槛未定**（粉丝量 vs 播放量 vs 话题标签），需阶段 2 用登录态实测校准                                                                                                                 |
+| 1   | 头部账号怎么识别/筛选                                | **已决**：粉丝量 ≥ 100K + 每账号播放量 Top 5，并加主页内容主题校验；样本量限制与阈值使用边界见 §10.1「取样口径校准」                                                                                             |
 | 2   | TikTok 抓取技术路线                                  | **已决**：区域封锁 + 签名失效两个约束已实测；**下载路线已验证落地**（新增 ytdlp 路由，2/2 样本成功）                                                                                                            |
-| 3   | 视频内容分析技术路线（VLM + whisper、逐 scene 边界） | **已验证可跑通**：`understandVideo()` 单样本（85s 竖屏 HEVC）208.7s 完成 —— whisper 21 段转写（ms 级时间戳）+ Qwen3-VL-30B 出 `contentKind`/`subjects`/`description`（§3.4）。逐 scene 边界切分质量待批量后评估 |
+| 3   | 视频内容分析技术路线（VLM + whisper、逐 scene 边界） | **已验证可跑通**：`understandVideo()` 单样本（85s 竖屏 HEVC）208.7s 完成 —— whisper 21 段转写（ms 级时间戳）+ Qwen3-VL-30B 出 `contentKind`/`subjects`/`description`（§3.4）。**批量后已评估**：beats 边界实际落在 ASR 段界上（多数与段数 1:1），量化见 §10.3 / §10.5 |
 | 4   | 分析结果结构化 schema                                | **已决**：采纳 schema v1（§6）                                                                                                                                                                                  |
 | 5   | 跨语言对比维度                                       | **已决**：只做英文侧（§9 第 1 条）                                                                                                                                                                              |
 | 6   | 产出怎么 feeding 下游                                | **已决**：见 §7 归属映射                                                                                                                                                                                        |
@@ -208,7 +209,126 @@
 3. ✅ **端到端单样本**：**已跑通**——下载（§3.2 两样本）→ ASR 21 段 → VLM（§3.4）。
 4. ✅ **头部门槛与取样数（Open Q1）**：**按阶段 2 默认执行**——取 §2.1 清单中**第三方粉丝量 ≥ 100K 的英文账号**共 9 个，每账号按**播放量 Top 5**；实测列清单 36 条、落盘 35 条。门槛与取样数的最终口径仍待阶段 3 用这批数据校准（本步不改默认）。
 5. ✅ **跑批量抓取**：**已完成**——`node scripts/short-video/capture-competitor-videos.mjs`，8/9 账号成功、35 条落盘（§3.3；`@allsiekmiller` 两次 0 条列表）。
-6. ⏳ **批量拆解落 schema v1 JSON → 填 `learnings` → 跨条规律上浮到对应下游 issue。** 脚本已落地（`analyze-competitor-videos.mjs` + `lib/competitor-vlm-worker.py`，见 §3.3），提示词与时间轴机制已按 §3.5 三条失效模式加固并经 3 账号验证（`rileybrown.ai` / `maverickgpt` / `shedoesai`，0 失败）；**全量 35 条的跑批与跨条规律上浮尚未完成**。
+6. ✅ **批量拆解落 schema v1 JSON → 填 `learnings` → 跨条规律上浮到对应下游 issue。** 脚本已落地（`analyze-competitor-videos.mjs` + `lib/competitor-vlm-worker.py`，见 §3.3），提示词与时间轴机制已按 §3.5 三条失效模式加固并经 3 账号验证（`rileybrown.ai` / `maverickgpt` / `shedoesai`，0 失败）；**全量 35 条跑批已完成**（`index.json` 逐条 status 汇总：`analyzed 34 / failed 1 / collapsedTimeline 0`），跨条规律上浮见 **§10**。
 
-**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；`beats` 数量的提示词合规性（§3.5 已知偏离）；人声稀疏视频的镜头节奏（§3.5 ③）。
+**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；人声稀疏视频的镜头节奏（§3.5 ③）；§2.1 账号清单的 TikTok handle 与内容主题一致性（§10.1 实测有 2 个账号不在赛道）。`beats` 数量的提示词合规性本轮已量化（**§10.5**：3–8 区间仅 6/29）。
+
+---
+
+## 10. 阶段 3 · 跨条规律与模式库（英文侧 34 条有效，2026-10-17）
+
+> 本节只做**证据层之上**的横向上浮：单条事实在 per-video JSON 里，不在此重述（§6 纪律）。数据源 `scripts/short-video/output/competitor-benchmarks/analysis/`（gitignore，不入库）。统计为一次性本地脚本读 JSON 字段（`meta.durationSec` / `evidence.asrSegments` / `beats[]` / `shots[]` / `story_level`），未入库；每节都写明判据，可据此复算。
+
+### 10.1 取样边界（先读，它决定这些规律能用到哪）
+
+| 项 | 实测 | 含义 |
+| --- | --- | --- |
+| 落盘 | **35 条 JSON** = 9 账号 × 播放量 Top 5（2026-10-17 收口；`index.json` 逐条 status：`analyzed 34 / failed 1`） | 抽样偏「各账号最能打的那几条」，不是日常水位 |
+| **有效** | **34 条**：AI 六号 **29 条** + 非赛道 5 条 | 本节点所有 median 都剔除下面那条空壳 |
+| 空壳 / 失败 | 1 条（`sineadbovell/7599711388939980063`，`error: unparseable-json`） | JSON 存在但 `beats`/`shots` 为空数组；`.raw.txt` 末尾截断在 `"antiPatterns"` 对象中途 → **正是 §3.5 ② 的输出预算截断**，非新失效模式 |
+| 时间轴塌缩 | **0 条**（`collapsedTimeline: 0`） | 与 §3.5 ③ 的单条样本相反：这批人声都够密，ASR 锚定可用 |
+| 时长 | median **71.2s**（p25 41.1 / p75 93.7；13.8 – 323.1s） | 仅 3 条 ≤ 20s |
+| 赛道纯净度 | 非赛道 5 条：`@marcus.dipaola` 4 条 + `@natebjones` 1 条 | 见下 |
+
+- **`@marcus.dipaola`（4 条）不在 AI 赛道**：Top 5 全是美国国内社会/政治新闻（ICE 枪击、Trump 弹劾、校园枪击、白宫内幕），与 §2.1 记录的「英语·美国 4.1M 口播新闻 / 纪录片」AI race 定位不符。
+- **`@natebjones` 抓到的不是 AI 账号**：唯一一条是生活向内容（"bougie ass to Rodeo"）→ **TikTok 同名 handle 风险**。后续取样必须回主页校验内容主题，不能只按第三方榜单的显示名匹配。
+- 因此下文 hook/节奏数**以 AI 六号 29 条为主口径**，非赛道 5 条仅作对照。
+
+**取样口径校准（本阶段关闭「§8 Open Q1：头部门槛与取样数」）**：
+
+- **保留**「粉丝量 ≥ 100K + 每账号播放量 Top 5」作为探针口径（本轮即按此执行）。
+- **门槛必须加一条内容主题校验**：回主页校验赛道归属，不能只按第三方榜单显示名匹配（本轮 9 个账号里 2 个不属 AI 赛道）。
+- **样本量不足以收紧数值阈值**：34 条有效样本下，hook 时长 p25–p75 = 4.4–7.4s（区间宽 3s）、shots 9–24，分位数波动大。因此本轮结论只用**中位数 + 跨账号一致的定性模式**；若要据此定死数值阈值，需把取样扩到每账号 Top 10 或增加账号数。
+
+### 10.2 hook 规格
+
+hook = 第 1 个 beat（`beats[0]`，时间轴由 ASR 段界推导，§3.5 ①）。
+
+| 维度 | median | p25 – p75 |
+| --- | --- | --- |
+| hook 时长 | **5.0s** | 4.4 – 7.4s |
+| hook 占全片比例 | **8.8%** | — |
+| hook 文案词数 | 13.5 词 | 10 – 17 词 |
+
+**句子族命中率**（n=34，一条可命中多族，判据为 hook 文案正则）：
+
+| 句子族 | 命中 | 实例（原文） |
+| --- | --- | --- |
+| `just` + 事件 | 9/34 | "Scientists just figured out how to reverse aging with AI…" · "China just dropped an AI model that beats GPT-5 on almost every benchmark" · "Dead people are about to start posting on Facebook, and Meta just patented it" |
+| 规模 / 最高级锚点 | 11/34 | "the biggest building in human history, the TerraFab" · "the most insane tech company in the world, ASML" · "the best AI coding model in the world" |
+| 数量锚点（one / five / N / 100%） | 11/34 | "This is the one prompt you need to be putting into ChatGPT…" · "Here are five things to build with Claude in one weekend" · "This video is 100% edited by AI." |
+| 反共识 / 否定 | 6/34 | "and nobody's talking about it" · "Stop paying for … and CapCut." · "Because so many people missed it." |
+| 第二人称 / 祈使 | 10/34 | "Here's how you'll get better results every single time." · "Teach me about automation with AI, enter, check this out." |
+| 提问式 | 4/34 | "Do you have a dream?" · "What's a professor to do to, like, I don't know, prevent cheating?" |
+| 强度词（insane / massive / unbelievably…） | 4/34 | — |
+
+**hook 首帧视觉形态**（n=34，人工按 `shots[0].visual` 文本归类，逐条可复算）：
+
+| 形态 | 条数 | 占比 | 账号分布 |
+| --- | --- | --- | --- |
+| 单镜口播（对镜/对麦克风说话） | **16** | 47% | maverickgpt 5/5 · sineadbovell 4/4 · marcus.dipaola 3/4 · thechriswinfield 2/5 · rileybrown.ai 1/5 · shedoesai 1/5 |
+| 口播 + 素材**分屏** | **7** | 21% | kanekallaway 3/5 · shedoesai 2/5 · rileybrown.ai 1/5 · marcus.dipaola 1/4 |
+| 人物入镜但非口播 | 5 | 15% | thechriswinfield 3/5 · shedoesai 1/5 · natebjones 1/1 |
+| 录屏 / UI | 3 | 9% | rileybrown.ai 3/5 |
+| 纯素材 / B-roll（含 1 条纯素材分屏） | 3 | 9% | kanekallaway 2/5 · shedoesai 1/5 |
+
+> **最重要的一条：首帧真人出镜 28/34（82%），其中「对镜讲话」20/34（59%，= 单镜口播 16 + 分屏里明确在讲 4）；纯素材 / 录屏开场只有 6/34（18%）。**
+> 判据与一处人工校正：自动化「首帧出现人」判据数到 29/34，其中 `rileybrown.ai/85.3`（"A user searches for 'automation with AI' on a website."）实为界面录屏、人未入镜，校正为录屏 → 28/34。
+
+### 10.3 节奏与结构规格
+
+| 维度 | median | p25 – p75 |
+| --- | --- | --- |
+| beats（叙事单元） | 10 | 8 – 14 |
+| shots（画面 / 口播段） | 13.5 | 9 – 24（最大 96） |
+| beats/min | 11.2 | 5.8 – 15 |
+| shots / beat | 1.2 | 最小 0.4 · 最大 10.7 |
+
+**账号分层（median，AI 六号 + 非赛道对照；bpm 取每账号各条 bpm 的中位数）**——同一赛道内明显分两档：
+
+| handle | 条数 | 时长 | hook 时长 | hook 占比 | beats | shots | beats/min |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `shedoesai`（AI 工具教程） | 5 | 33.2s | 3.3s | 9.3% | 10 | 13 | **18.1** |
+| `maverickgpt`（prompt 教程） | 5 | 43.3s | 4.9s | 12.1% | 10 | 13 | **13.9** |
+| `thechriswinfield`（每日 AI 工具） | 5 | 49.7s | 5.2s | 12.2% | 14 | 15 | **13.6** |
+| `kanekallaway`（科技新闻、分屏） | 5 | 93.7s | 8.3s | 9.9% | 14 | **71** | 9.4 |
+| `sineadbovell`（科技评论、口播） | 4 | 100.7s | 5.2s | 5.0% | 15 | 10 | 7.6 |
+| `rileybrown.ai`（Agent 工具、录屏） | 5 | 115.5s | 7.4s | 8.7% | 11 | 14 | 5.7 |
+| `marcus.dipaola`（新闻，**非 AI 赛道**） | 4 | 82.8s | 4.7s | 5.7% | 10 | 10 | 7.3 |
+| `natebjones`（生活向，**非 AI 赛道**） | 1 | 15s | 7.9s | 52.8% | 4 | 4 | 16.0 |
+
+- **hook 时长总体反向，但非单调**：长叙事档 `kanekallaway` 8.3s / `rileybrown.ai` 7.4s 明显长于工具/教程档的 3.3–5.2s；`sineadbovell` 5.2s 与短号上界重叠。即「片长越长 hook 越长」在账号层面成立、**不能当单调阈值用**（与 §10.1 的样本量限制一致）。
+- **shots/beat 分布是双峰的**：median 1.2 说明多数视频 beat ≈ 镜头（1:1）；`kanekallaway` 是唯一的高制作档——5 条 shots = 18 / 24 / 71 / 95 / 96，逐条 shots/beat = 2.0 / 1.3 / 5.1 / 6.3 / **10.7**（表中最大值 10.7 的出处：96 shots / 9 beats；不可与「最大 shots ÷ 最大 beats」混算）。
+- **landing（结尾）形态**（n=34，按 `story_level.landing` 正则归类，一条可命中多类）：**评论关键词换资源** 7（maverickgpt 4/5、shedoesai 2/5、thechriswinfield 1/5）· **关注号召** 4（rileybrown.ai 2/5、shedoesai 1/5、thechriswinfield 1/5）· **punchline / 愿景收束（无 CTA）** 8（kanekallaway 4/5，另 marcus / rileybrown / sineadbovell / thechriswinfield 各 1）· 三者都不命中的叙述收束 15。**工具类偏「关键词评论」，新闻/评论类偏 punchline 收束**，分界清晰。
+
+### 10.4 模式库（可执行条目 → 目标票）
+
+每条都带本轮证据；「目标票」是该规律的下游消费者（本票只上浮，不代为决策）。
+
+| # | 模式 | 证据 | 对我方的落点 | 目标票 |
+| --- | --- | --- | --- | --- |
+| P1 | **hook 首帧放人**：口播或「口播+素材分屏」，不用通用素材/T2V 补第一帧 | 82%（28/34）首帧有人、59% 在讲话；纯素材/录屏仅 18% | 现策略是「前 3 秒靠通用素材」——方向相反 | #299 |
+| P2 | **hook 时长按 4.5–5s 对齐**（不是 3s） | median 5.0s，p25–p75 4.4–7.4s | 我们的 hook 时长口径需重定 | #278 |
+| P3 | **句子族优先级**：`just+事件` / 规模最高级 / 数量锚点（各 9–11/34）为头部，提问式少（4/34） | §10.2 表 | 与我们 P1–P6 词表对照，补「just+事件」「数量锚点」两族 | #278 |
+| P4 | **强度词要克制**：insane/massive 一类只 4/34，情绪靠具体事实承载（"beats GPT-5"、"biggest building in human history"） | §10.2 | 「情感靠写稿不靠 instruct」的外部证据 | #244（已闭票，留档）· #278 |
+| P5 | **节奏分两档**：工具/教程 13.6–18.1 beats/min（33–50s 片），长叙事 5.4–9.4（94–116s 片） | §10.3 | 语速/切点规格可按内容形态分档，而非单一全局值 | #279 · #289 |
+| P6 | **结尾分型**：工具类用「评论关键词换资源」（7 条），新闻评论类用 punchline/愿景收束（8 条） | §10.3 | 我们 CTA scene 可增「关键词兑换」形态 | #253 · #299 |
+| P7 | **分屏 = 口播在下、素材在上的双层 hook**（kanekallaway 3/5，细胞/针管/Elon 舞台 + 口播） | §10.2 | 版式库可直接吸收 | #253 |
+| P8 | **beats 与 ASR 段 1:1 是常态而非缺陷**（AI 号 8/29 完全相等，如 31 段→31 beats） | §10.5 | 若下游按「≤8 单元」消费，需要归并层 | #289 |
+
+### 10.5 提示词合规性量化（原「已知偏离」的基线）
+
+| 约束 | 命中 | 说明 |
+| --- | --- | --- |
+| `beats` ∈ [3, 8] | **6/29**（AI 号）· 9/34（全体） | 未命中者大量与 ASR 段数 1:1（31→31、21→21、20→20） |
+| `shots` ≤ 12 | **10/29**（AI 号）· 14/34（全体） | 超限最严重是 `kanekallaway`（96 / 95 / 71 shots） |
+
+**裁决（本票内定，不改提示词）**：不收紧提示词去凑 3–8——强压会丢掉 #291 视觉设计需要的细分粒度；改为**下游消费侧归并**（消费方若按「≤8 个叙事单元」读，自行聚合；需要细粒度镜头清单则直接读 `shots`）。与 §3.5 判断一致，本轮给出量化基线。
+
+### 10.6 未完成 / 不可用
+
+- 中文侧：**已决不做**（§9.1），跨语言对比不在本票范围。
+- `@allsiekmiller`：两次列清单均 0 条（§4），该账号样本缺失。
+- `meta.likes/comments/shares/publishedAt`：仍为 `null`（§6 已定夺：需登录态逐条详情页二次抓取，未做）→ 本节的「头部」是按 `manifest` 的播放量排序取 Top 5，非按互动率。
+- 人声稀疏视频的镜头节奏：ASR 锚定拿不到（§3.5 ③）；本批 0 条塌缩，但该限制未消除。
 
