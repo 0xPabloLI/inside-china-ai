@@ -13,7 +13,7 @@
 1. **英文侧是本赛道的主体，中文侧在 TikTok 上很薄。** 英文「AI 资讯」账号粉丝量 100K–4M、公司化日更；中文 AI 资讯的真实头部在抖音/快手/B站，TikTok 端未发现对应量级的纯资讯号（详见 §2）。跨语言对比若以 TikTok 为唯一取样面，中文侧样本会非常弱——这是阶段 2 抽样前必须先定的口径问题。
 2. **抓取技术路线被两层限制卡住**：区域封锁（香港出口被 TikTok 拒服务）+ 反爬签名（原先验证过的 `item/detail` 免签名路线已失效）。目前**已验证可用**的只有「登录态主页列表抓取」；视频文件下载路线已于阶段 2 定为 ytdlp（详见 §3.2、§3.3）。
 3. **分析产出的对接格式已确定**：竞品拆解按 schema v1 落 per-video JSON；**不得替换**我们自己的 scene-data，跨条规律才上浮到下游 issue（详见 §5、§6）。
-4. **阶段 3 的跨条规律（2026-10-17，34 条有效样本）**：hook 首帧 82% 有真人出镜（其中 59% 在讲话）、hook 中位 5.0s、节奏按内容形态分两档（工具/教程 13.6–18.1 beats/min vs 长叙事 5.7–9.4，均为账号中位数）；8 条可执行模式已映射到下游票（详见 §10）。
+4. **阶段 3 的跨条规律（2026-10-17 跑批 / 2026-10-18 复算，35 条有效样本）**：hook 首帧 83% 有真人出镜（其中 60% 在讲话）、hook 中位 5.0s、节奏按内容形态分两档（工具/教程 13.6–18.1 beats/min vs 长叙事 5.7–9.4，均为账号中位数）；8 条可执行模式已映射到下游票（详见 §10）。
 
 ---
 
@@ -120,11 +120,19 @@
 
 **① 模型自报的时间戳是编造的。** 输出的 `beats` 把整条叙事压在 `0–4800ms`（占 49.1s 视频的 9%），而它同时给出的分段**内容**与 ASR 段序一一对得上。原因不是模型看漏了画面，而是 mlx_vlm 的原生视频采样**只给帧、不给时钟**（`utils.py: resolve_video_inputs` 把帧均匀铺满全片，`frames_indices` 未进提示词），模型于是按「一帧一秒」补齐。**修法**：不再让模型报毫秒——提示词只给 `VIDEO_DURATION_MS` + 带实测 start/end 的编号 ASR 段，模型只负责报每个 beat/shot 起于第几段（`anchorSegment`），毫秒由 `anchorTimings()` 按段界推导（`endMs` 取下一处不同的段起点，末项取视频时长），单调性与全覆盖由构造保证；`evidence.timing.{beats,shots}Anchored` 落盘留证。
 
-**② 输出预算不足会静默丢掉整条记录。** 同轮 `rileybrown.ai/7309572377577393451`（31 段 ASR）在 2500 token 处被截断在字符串中间，JSON 没闭合 → 解析失败 → 整条视频无产出（`.raw.txt` 留痕）。**修法**：输出预算提到 6000 token，并在提示词里收紧冗长（单字段 ≤200 字符、shot ≤12 条、相邻同画面合并）。
+**② 输出层面的「整条记录丢失」有两种形态（批量后更正）。**
 
-**③ 语音稀疏的视频会把锚定时间轴「塌缩」到一个点。** 锚定修好后再跑 3 个账号，`rileybrown.ai`（31 段）与 `maverickgpt`（7 段）时间轴覆盖完整（`0 → 71600` / `0 → 49100`，与视频时长一致），但 `shedoesai/7372434986558934305`（15.8s，只有 **2 段** ASR——12 个工具 logo 轮播，几乎无人声）上，模型把 9 个 beat 的锚**全部指到第 1 段**，9 个 beat 的 `startMs` 全为 0。危险之处在于 `beatsAnchored` 仍报 9/9，看起来完全健康。**修法**：新增 `evidence.timing.{beats,shots}DistinctStarts` 与 `{beats,shots}Collapsed`（`total > 1 && distinctStarts <= 1`），并在 stderr 与 `index.json` 汇总里显式告警。**结论：人声稀疏/音乐主导的竞品视频，靠 ASR 段锚定拿不到镜头节奏**——其 `verdict`/`story_level`/`learnings` 仍可用，但 `beats`/`shots` 的**时点**不可用。
+- **②-a 输出预算截断（首跑实测）**：同轮 `rileybrown.ai/7309572377577393451`（31 段 ASR）在 2500 token 处截断在字符串中间，JSON 没闭合 → 解析失败 → 整条视频无产出（`.raw.txt` 留痕）。**修法**：输出预算提到 6000 token，并在提示词里收紧冗长（单字段 ≤200 字符、shot ≤12 条、相邻同画面合并）。已落地。
+- **②-b 定界符类型错配（批量实测更正，2026-10-18 · #729）**：2026-10-17 全量跑里唯一失败条 `sineadbovell/7599711388939980063`（112.8s / 30 段 ASR / `.raw.txt` 14010 字节）此前被本节点判为 ②-a（§10.1 旧表：「末尾截断在 `"antiPatterns"` 对象中途」）。实测**不是截断**：文本以 `}}` **完整收尾**，类型感知扫描在末字符 char 14008 首报——模型把末尾数组的 `]` 写成了 `}`（`"antiPatterns": ["None"}}` 应为 `["None"]}}`），即**一个闭合符的类型写错**，留下一个未闭合的 `[` 与短缺一次闭合的根对象。**判据**：截断停在 token 中途（字符串未闭合、尾字节像被切）；本条结束在结构字符上。**修法**：`repairBreakdownJson()` 走同一状态机，闭合符按栈期望的类型**强制取值**，且**仅当文本结束在字符串外**才补上欠的闭合符；结束在字符串内（=截断形态）仍硬失败。留证：失败保留 `.raw.txt` 且 `error` 往下游可见，修复成功则置 `evidence.breakdownRepaired`。**重算该条：12 beats / 60 shots / `verdict` + `story_level` + `learnings` 全恢复**（60 shots 越出提示词上限，属 §10.5 的合规性问题，不在本条）。
 
-> 三条的共同点是「记录看着完整，实际是错的」。下游消费 schema v1 前必须同时看 `evidence.timing`（尤其 `*Collapsed`）与 `index.json` 的 `failed` / `collapsedTimeline` 计数——只看视频数或 `verdict` 会漏掉全部三条。
+**③ 语音稀疏/锚点越界的视频会把锚定时间轴「塌缩」（判据与兜底于 2026-10-18 收紧 · #730）。** 锚定修好后再跑 3 个账号，`rileybrown.ai`（31 段）与 `maverickgpt`（7 段）时间轴覆盖完整（`0 → 71600` / `0 → 49100`，与视频时长一致），但 `shedoesai/7372434986558934305`（15.8s，只有 **2 段** ASR——12 个工具 logo 轮播，几乎无人声）上，模型把 9 个 beat 的锚**全部指到第 1 段**，9 个 beat 的 `startMs` 全为 0。危险之处在于 `beatsAnchored` 仍报 9/9，看起来完全健康。
+
+- **判据收紧**：新增 `evidence.timing.{beats,shots}DistinctStarts` 与 `{beats,shots}Collapsed`，判据由 `total > 1 && distinctStarts <= 1` 改为 **`total >= 3 && distinctStarts * 2 < total`**（`isTimelineCollapsed`）。旧判据在**全量 34 条上命中 0**——阈值恰好压在模型摇摆的边界（distinct 卡在 1↔2），而这条 9 beats / 2 起点是实打实的塌缩，属**假阴性**。新判据衡量的是**时间分辨率是否可信**（时点可信度），**不等于记录是否可用**：塌缩时 `verdict`/`story_level`/`learnings` 与 beats/shots 的**文案仍有效**，只有 `startMs`/`endMs` 不可信。
+- **第二时间源兜底**：ASR 段过少时，按**实测 ASR 段跨度**在每个「等起点分组」内插值重建（不在全片凭空铺网格），`{beats,shots}AnchorSource` 记为 `interpolated`；`*Collapsed` 仍按**实测**起点计算，健康信号保持诚实。
+- **重算（同一批 35 条）**：beats 层命中 **1 条**（本条，即全量唯一）；shots 层命中 **4 条**——后者是旧判据**完全漏报**的另一形态：模型给出**超出转写段数的锚点**（`kanekallaway` 71 shots / 22 段 → 49 条无实测锚点），因 distinct=22（远大于 1）旧判据漏掉。
+- **结论：人声稀疏、或模型锚点越界**的视频，靠 ASR 段锚定拿不到镜头节奏——其 `verdict`/`story_level`/`learnings` 与文案仍可用，但 `beats`/`shots` 的**时点**不可信（兜底为「段跨度内重建」，非实测镜头切点，仍属 §9 未验证项）。
+
+> 三条的共同点是「记录看着完整，实际是错的」。下游消费 schema v1 前必须**逐层**读 `evidence.timing`——`beatsAnchorSource`/`shotsAnchorSource`（`interpolated` = 该层时点是重建的）、`*Collapsed`（该层实测分辨率是否过半）、`*Anchored`（锚点越界会明显偏低）——以及 `index.json` 的 `failed` / `repaired` / `collapsedTimeline` 计数与逐条 `collapsedLayers`；只看视频数或 `verdict` 会漏掉全部三条。
 
 **已知偏离（未修，供后续判断）**：提示词要求 3–8 beats，实测 `rileybrown.ai` 返回 31 beats（= ASR 段数）。内容不重复、每条意图可辨（"Establish the competitive context" → "Demonstrate object recognition" …），故未强行压缩——强行压到 8 条可能丢掉 #291 视觉设计需要的细分粒度。**beat 数量的合规性目前无法保证**，若下游按「≤8 个叙事单元」消费，需另加聚合步骤。
 
@@ -174,7 +182,7 @@
 - `beats` 层的 `audienceQuestionIn` / `audienceQuestionOut`（票评论标记为「最大增量」）——**保留**，进入提示词与落盘 schema。
 - **时间轴由代码推导，不接受模型自报值**（§3.5 ①）：模型只报 `anchorSegment`，`startMs`/`endMs` 由 `anchorTimings()` 按 ASR 段界算出；`endMs` 取下一处不同的段起点，末项取视频时长。
 - `meta.likes/comments/shares/publishedAt` 本轮**留 `null`**——那需要登录态逐条详情页二次抓取，不在本步骤范围；禁止为凑字段编数。
-- 落盘新增 `evidence.timing`（`durationMs` / `beatsAnchored` / `shotsAnchored` 等）作为时间轴可信度留证。
+- 落盘新增 `evidence.timing` 作为时间轴可信度留证：`durationMs`、`beatsTotal`/`shotsTotal`、`beatsAnchored`/`shotsAnchored`（锚点落在实测段内的条数，低值=模型给了越界段号）、`beatsDistinctStarts`/`shotsDistinctStarts`、`beatsCollapsed`/`shotsCollapsed`（按**实测**起点判据，§3.5 ③）、`beatsAnchorSource`/`shotsAnchorSource`（`asr`=实测段界 / `interpolated`=段跨度内重建，**逐层独立**）。同层 `evidence.asrSegments` 是造成塌缩的段数。另 `evidence.breakdownParsed` / `breakdownRepaired` 记录解析与结构修复（§3.5 ②-b）。
 
 
 ---
@@ -209,36 +217,36 @@
 3. ✅ **端到端单样本**：**已跑通**——下载（§3.2 两样本）→ ASR 21 段 → VLM（§3.4）。
 4. ✅ **头部门槛与取样数（Open Q1）**：**已按阶段 2 默认执行并用阶段 3 数据校准**——取 §2.1 清单中**第三方粉丝量 ≥ 100K 的英文账号**共 9 个，每账号按**播放量 Top 5**；实测列清单 36 条、落盘 35 条。最终口径见 **§10.1「取样口径校准」**（保留原门槛 + 新增「回主页校验内容主题」；样本量不足以据此收紧数值阈值）。
 5. ✅ **跑批量抓取**：**已完成**——`node scripts/short-video/capture-competitor-videos.mjs`，8/9 账号成功、35 条落盘（§3.3；`@allsiekmiller` 两次 0 条列表）。
-6. ✅ **批量拆解落 schema v1 JSON → 填 `learnings` → 跨条规律上浮到对应下游 issue。** 脚本已落地（`analyze-competitor-videos.mjs` + `lib/competitor-vlm-worker.py`，见 §3.3），提示词与时间轴机制已按 §3.5 三条失效模式加固并经 3 账号验证（`rileybrown.ai` / `maverickgpt` / `shedoesai`，0 失败）；**全量 35 条跑批已完成**（`index.json` 逐条 status 汇总：`analyzed 34 / failed 1 / collapsedTimeline 0`），跨条规律上浮见 **§10**。
+6. ✅ **批量拆解落 schema v1 JSON → 填 `learnings` → 跨条规律上浮到对应下游 issue。** 脚本已落地（`analyze-competitor-videos.mjs` + `lib/competitor-vlm-worker.py`，见 §3.3），提示词与时间轴机制已按 §3.5 三条失效模式加固并经 3 账号验证（`rileybrown.ai` / `maverickgpt` / `shedoesai`，0 失败）；**全量 35 条跑批已完成**（`index.json` 逐条 status 汇总：`analyzed 34 / failed 1 / collapsedTimeline 0`），跨条规律上浮见 **§10**。**2026-10-18 更正**：上述 `failed 1` 与 `collapsedTimeline 0` 均为**信号失真**（分别是 #729 定界符类型错配、#730 判据假阴性）；按修复后的代码对**同一批样本**重算 → **35 条全有效、beats 层塌缩 1 条**（§10.1 复算口径）。
 
-**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；人声稀疏视频的镜头节奏（§3.5 ③）；§2.1 账号清单的 TikTok handle 与内容主题一致性（§10.1 实测有 2 个账号不在赛道）。`beats` 数量的提示词合规性本轮已量化（**§10.5**：3–8 区间仅 6/29）。
+**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；**人声稀疏视频的镜头节奏**（§3.5 ③——判据与「第二时间源兜底」已修，但兜底是**在 ASR 段跨度内重建**，并非第二**实测**时间源（如镜头切点），其节奏数字仍不能当实测用）；§2.1 账号清单的 TikTok handle 与内容主题一致性（§10.1 实测有 2 个账号不在赛道）。`beats` 数量的提示词合规性本轮已量化（**§10.5**：3–8 区间 AI 号仅 6/30）。
 
 ---
 
-## 10. 阶段 3 · 跨条规律与模式库（英文侧 34 条有效，2026-10-17）
+## 10. 阶段 3 · 跨条规律与模式库（英文侧 35 条有效；2026-10-17 跑批 · 2026-10-18 复算）
 
-> 本节只做**证据层之上**的横向上浮：单条事实在 per-video JSON 里，不在此重述（§6 纪律）。数据源 `scripts/short-video/output/competitor-benchmarks/analysis/`（gitignore，不入库）。统计为一次性本地脚本读 JSON 字段（`meta.durationSec` / `evidence.asrSegments` / `beats[]` / `shots[]` / `story_level`），未入库；每节都写明判据，可据此复算。
+> 本节只做**证据层之上**的横向上浮：单条事实在 per-video JSON 里，不在此重述（§6 纪律）。数据源 `scripts/short-video/output/competitor-benchmarks/analysis/`（gitignore，不入库）。统计为一次性本地脚本读 JSON 字段（`meta.durationSec` / `evidence.asrSegments` / `beats[]` / `shots[]` / `story_level`），未入库；每节都写明判据，可据此复算。**2026-10-18 复算**：原跑批的 1 条失败（#729）与 0 条塌缩（#730）经修复后重算，样本由 34 → **35**，本节所有 median 已按 n=35 更新（判据：`beats` 非空的记录为有效；分位数用 `statistics.quantiles(n=4)`）。
 
 ### 10.1 取样边界（先读，它决定这些规律能用到哪）
 
 | 项 | 实测 | 含义 |
 | --- | --- | --- |
 | 落盘 | **35 条 JSON** = 9 账号 × 播放量 Top 5（2026-10-17 收口；`index.json` 逐条 status：`analyzed 34 / failed 1`） | 抽样偏「各账号最能打的那几条」，不是日常水位 |
-| **有效** | **34 条**：AI 六号 **29 条** + 非赛道 5 条 | 本节点所有 median 都剔除下面那条空壳 |
-| 空壳 / 失败 | 1 条（`sineadbovell/7599711388939980063`，`error: unparseable-json`） | JSON 存在但 `beats`/`shots` 为空数组；`.raw.txt` 末尾截断在 `"antiPatterns"` 对象中途 → **正是 §3.5 ② 的输出预算截断**，非新失效模式 |
-| 时间轴塌缩 | **0 条**（`collapsedTimeline: 0`） | 与 §3.5 ③ 的单条样本相反：这批人声都够密，ASR 锚定可用 |
-| 时长 | median **71.2s**（p25 41.1 / p75 93.7；13.8 – 323.1s） | 仅 3 条 ≤ 20s |
+| **有效** | **35 条**：AI 六号 **30 条** + 非赛道 5 条（2026-10-18 复算，见下行） | 本节点所有 median 的样本（原为 34，因下一条修复而 +1） |
+| 曾判失败 1 条 → 修复后有效 | `sineadbovell/7599711388939980063`（112.8s / 30 段 ASR） | 原判 `error: unparseable-json` 且 `beats`/`shots` 为空数组。**复查为定界符类型错配**（`["None"}}` 应为 `["None"]}}`），**不是 §3.5 ②-a 的输出预算截断**；`repairBreakdownJson()` 修复后 **12 beats / 60 shots / `verdict`+`story_level`+`learnings` 全恢复**（§3.5 ②-b · #729） |
+| 时间轴塌缩 | **beats 层 1 条** · **shots 层 4 条**（原 `collapsedTimeline: 0` 为**假阴性**） | beats：`shedoesai/7372434986558934305`（9 beats / 2 起点 / 2 段 ASR）→ 按实测段跨度重建节奏（§3.5 ③ · #730）。shots：`kanekallaway` ×3 + `shedoesai` ×1，根因是**模型给出越界锚点**（如 71 shots 对 22 段，仅 22 条有实测锚点） |
+| 时长 | median **71.6s**（p25 41.1 / p75 95.4；13.8 – 323.1s） | 仅 3 条 ≤ 20s |
 | 赛道纯净度 | 非赛道 5 条：`@marcus.dipaola` 4 条 + `@natebjones` 1 条 | 见下 |
 
 - **`@marcus.dipaola`（4 条）不在 AI 赛道**：Top 5 全是美国国内社会/政治新闻（ICE 枪击、Trump 弹劾、校园枪击、白宫内幕），与 §2.1 记录的「英语·美国 4.1M 口播新闻 / 纪录片」AI race 定位不符。
 - **`@natebjones` 抓到的不是 AI 账号**：唯一一条是生活向内容（"bougie ass to Rodeo"）→ **TikTok 同名 handle 风险**。后续取样必须回主页校验内容主题，不能只按第三方榜单的显示名匹配。
-- 因此下文 hook/节奏数**以 AI 六号 29 条为主口径**，非赛道 5 条仅作对照。
+- 因此下文 hook/节奏数**以 AI 六号 30 条为主口径**，非赛道 5 条仅作对照。
 
 **取样口径校准（本阶段关闭「§8 Open Q1：头部门槛与取样数」）**：
 
 - **保留**「粉丝量 ≥ 100K + 每账号播放量 Top 5」作为探针口径（本轮即按此执行）。
 - **门槛必须加一条内容主题校验**：回主页校验赛道归属，不能只按第三方榜单显示名匹配（本轮 9 个账号里 2 个不属 AI 赛道）。
-- **样本量不足以收紧数值阈值**：34 条有效样本下，hook 时长 p25–p75 = 4.4–7.4s（区间宽 3s）、shots 9–24，分位数波动大。因此本轮结论只用**中位数 + 跨账号一致的定性模式**；若要据此定死数值阈值，需把取样扩到每账号 Top 10 或增加账号数。
+- **样本量不足以收紧数值阈值**：35 条有效样本下，hook 时长 p25–p75 = 4.3–6.8s（区间宽 2.5s）、shots 9–24，分位数波动大。因此本轮结论只用**中位数 + 跨账号一致的定性模式**；若要据此定死数值阈值，需把取样扩到每账号 Top 10 或增加账号数。
 
 ### 10.2 hook 规格
 
@@ -246,60 +254,63 @@ hook = 第 1 个 beat（`beats[0]`，时间轴由 ASR 段界推导，§3.5 ①�
 
 | 维度 | median | p25 – p75 |
 | --- | --- | --- |
-| hook 时长 | **5.0s** | 4.4 – 7.4s |
-| hook 占全片比例 | **8.8%** | — |
-| hook 文案词数 | 13.5 词 | 10 – 17 词 |
+| hook 时长 | **5.0s** | 4.3 – 6.8s |
+| hook 占全片比例 | **8.2%** | — |
+| hook 文案词数 | 14.0 词 | 10 – 17 词 |
 
-**句子族命中率**（n=34，一条可命中多族，判据为 hook 文案正则）：
+**句子族命中率**（n=35，一条可命中多族，判据为 hook 文案正则）：
 
 | 句子族 | 命中 | 实例（原文） |
 | --- | --- | --- |
-| `just` + 事件 | 9/34 | "Scientists just figured out how to reverse aging with AI…" · "China just dropped an AI model that beats GPT-5 on almost every benchmark" · "Dead people are about to start posting on Facebook, and Meta just patented it" |
-| 规模 / 最高级锚点 | 11/34 | "the biggest building in human history, the TerraFab" · "the most insane tech company in the world, ASML" · "the best AI coding model in the world" |
-| 数量锚点（one / five / N / 100%） | 11/34 | "This is the one prompt you need to be putting into ChatGPT…" · "Here are five things to build with Claude in one weekend" · "This video is 100% edited by AI." |
-| 反共识 / 否定 | 6/34 | "and nobody's talking about it" · "Stop paying for … and CapCut." · "Because so many people missed it." |
-| 第二人称 / 祈使 | 10/34 | "Here's how you'll get better results every single time." · "Teach me about automation with AI, enter, check this out." |
-| 提问式 | 4/34 | "Do you have a dream?" · "What's a professor to do to, like, I don't know, prevent cheating?" |
-| 强度词（insane / massive / unbelievably…） | 4/34 | — |
+| `just` + 事件 | 9/35 | "Scientists just figured out how to reverse aging with AI…" · "China just dropped an AI model that beats GPT-5 on almost every benchmark" · "Dead people are about to start posting on Facebook, and Meta just patented it" |
+| 规模 / 最高级锚点 | 11/35 | "the biggest building in human history, the TerraFab" · "the most insane tech company in the world, ASML" · "the best AI coding model in the world" |
+| 数量锚点（one / five / N / 100%） | 11/35 | "This is the one prompt you need to be putting into ChatGPT…" · "Here are five things to build with Claude in one weekend" · "This video is 100% edited by AI." |
+| 反共识 / 否定 | 6/35 | "and nobody's talking about it" · "Stop paying for … and CapCut." · "Because so many people missed it." |
+| 第二人称 / 祈使 | 10/35 | "Here's how you'll get better results every single time." · "Teach me about automation with AI, enter, check this out." |
+| 提问式 | 4/35 | "Do you have a dream?" · "What's a professor to do to, like, I don't know, prevent cheating?" |
+| 强度词（insane / massive / unbelievably…） | 4/35 | — |
 
-**hook 首帧视觉形态**（n=34，人工按 `shots[0].visual` 文本归类，逐条可复算）：
+> 复算后新增的 `sineadbovell/7599711388939980063`（#729 修复恢复）hook 为第一人称陈述（"I want to understand how foreign adversaries … could be playing in our social media ecosystem."），**不命中任一现有句子族**——故各家族命中数不变，仅分母 34→35。
+
+**hook 首帧视觉形态**（n=35，人工按 `shots[0].visual` 文本归类，逐条可复算）：
 
 | 形态 | 条数 | 占比 | 账号分布 |
 | --- | --- | --- | --- |
-| 单镜口播（对镜/对麦克风说话） | **16** | 47% | maverickgpt 5/5 · sineadbovell 4/4 · marcus.dipaola 3/4 · thechriswinfield 2/5 · rileybrown.ai 1/5 · shedoesai 1/5 |
-| 口播 + 素材**分屏** | **7** | 21% | kanekallaway 3/5 · shedoesai 2/5 · rileybrown.ai 1/5 · marcus.dipaola 1/4 |
-| 人物入镜但非口播 | 5 | 15% | thechriswinfield 3/5 · shedoesai 1/5 · natebjones 1/1 |
+| 单镜口播（对镜/对麦克风说话） | **17** | 49% | maverickgpt 5/5 · sineadbovell 5/5 · marcus.dipaola 3/4 · thechriswinfield 2/5 · rileybrown.ai 1/5 · shedoesai 1/5 |
+| 口播 + 素材**分屏** | **7** | 20% | kanekallaway 3/5 · shedoesai 2/5 · rileybrown.ai 1/5 · marcus.dipaola 1/4 |
+| 人物入镜但非口播 | 5 | 14% | thechriswinfield 3/5 · shedoesai 1/5 · natebjones 1/1 |
 | 录屏 / UI | 3 | 9% | rileybrown.ai 3/5 |
 | 纯素材 / B-roll（含 1 条纯素材分屏） | 3 | 9% | kanekallaway 2/5 · shedoesai 1/5 |
 
-> **最重要的一条：首帧真人出镜 28/34（82%），其中「对镜讲话」20/34（59%，= 单镜口播 16 + 分屏里明确在讲 4）；纯素材 / 录屏开场只有 6/34（18%）。**
-> 判据与一处人工校正：自动化「首帧出现人」判据数到 29/34，其中 `rileybrown.ai/85.3`（"A user searches for 'automation with AI' on a website."）实为界面录屏、人未入镜，校正为录屏 → 28/34。
+> **最重要的一条：首帧真人出镜 29/35（83%），其中「对镜讲话」21/35（60%，= 单镜口播 17 + 分屏里明确在讲 4）；纯素材 / 录屏开场只有 6/35（17%）。**
+> 判据与一处人工校正：自动化「首帧出现人」判据数到 30/35，其中 `rileybrown.ai/85.3`（"A user searches for 'automation with AI' on a website."）实为界面录屏、人未入镜，校正为录屏 → 29/35。`sineadbovell` 恢复条首帧为单镜口播（"A woman with curly hair speaks into a microphone."），计入 17。
 
 ### 10.3 节奏与结构规格
 
 | 维度 | median | p25 – p75 |
 | --- | --- | --- |
 | beats（叙事单元） | 10 | 8 – 14 |
-| shots（画面 / 口播段） | 13.5 | 9 – 24（最大 96） |
-| beats/min | 11.2 | 5.8 – 15 |
+| shots（画面 / 口播段） | 14.0 | 9 – 25（最大 96） |
+| beats/min | 11.2 | 5.8 – 15.0 |
 | shots / beat | 1.2 | 最小 0.4 · 最大 10.7 |
 
 **账号分层（median，AI 六号 + 非赛道对照；bpm 取每账号各条 bpm 的中位数）**——同一赛道内明显分两档：
 
 | handle | 条数 | 时长 | hook 时长 | hook 占比 | beats | shots | beats/min |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `shedoesai`（AI 工具教程） | 5 | 33.2s | 3.3s | 9.3% | 10 | 13 | **18.1** |
+| `shedoesai`（AI 工具教程） | 5 | 33.2s | 2.9s | 7.8% | 10 | 13 | **18.1** |
 | `maverickgpt`（prompt 教程） | 5 | 43.3s | 4.9s | 12.1% | 10 | 13 | **13.9** |
 | `thechriswinfield`（每日 AI 工具） | 5 | 49.7s | 5.2s | 12.2% | 14 | 15 | **13.6** |
 | `kanekallaway`（科技新闻、分屏） | 5 | 93.7s | 8.3s | 9.9% | 14 | **71** | 9.4 |
-| `sineadbovell`（科技评论、口播） | 4 | 100.7s | 5.2s | 5.0% | 15 | 10 | 7.6 |
+| `sineadbovell`（科技评论、口播） | 5 | 110.6s | 5.5s | 5.5% | 12 | 10 | 6.4 |
 | `rileybrown.ai`（Agent 工具、录屏） | 5 | 115.5s | 7.4s | 8.7% | 11 | 14 | 5.7 |
 | `marcus.dipaola`（新闻，**非 AI 赛道**） | 4 | 82.8s | 4.7s | 5.7% | 10 | 10 | 7.3 |
 | `natebjones`（生活向，**非 AI 赛道**） | 1 | 15s | 7.9s | 52.8% | 4 | 4 | 16.0 |
 
-- **hook 时长总体反向，但非单调**：长叙事档 `kanekallaway` 8.3s / `rileybrown.ai` 7.4s 明显长于工具/教程档的 3.3–5.2s；`sineadbovell` 5.2s 与短号上界重叠。即「片长越长 hook 越长」在账号层面成立、**不能当单调阈值用**（与 §10.1 的样本量限制一致）。
+- **hook 时长总体反向，但非单调**：长叙事档 `kanekallaway` 8.3s / `rileybrown.ai` 7.4s 明显长于工具/教程档的 2.9–5.2s；`sineadbovell` 5.5s 与短号上界重叠。即「片长越长 hook 越长」在账号层面成立、**不能当单调阈值用**（与 §10.1 的样本量限制一致）。
 - **shots/beat 分布是双峰的**：median 1.2 说明多数视频 beat ≈ 镜头（1:1）；`kanekallaway` 是唯一的高制作档——5 条 shots = 18 / 24 / 71 / 95 / 96，逐条 shots/beat = 2.0 / 1.3 / 5.1 / 6.3 / **10.7**（表中最大值 10.7 的出处：96 shots / 9 beats；不可与「最大 shots ÷ 最大 beats」混算）。
-- **landing（结尾）形态**（n=34，按 `story_level.landing` 正则归类，一条可命中多类）：**评论关键词换资源** 7（maverickgpt 4/5、shedoesai 2/5、thechriswinfield 1/5）· **关注号召** 4（rileybrown.ai 2/5、shedoesai 1/5、thechriswinfield 1/5）· **punchline / 愿景收束（无 CTA）** 8（kanekallaway 4/5，另 marcus / rileybrown / sineadbovell / thechriswinfield 各 1）· 三者都不命中的叙述收束 15。**工具类偏「关键词评论」，新闻/评论类偏 punchline 收束**，分界清晰。
+- **landing（结尾）形态**（n=35，按 `story_level.landing` 正则归类，一条可命中多类）：**评论关键词换资源** 7（maverickgpt 4/5、shedoesai 2/5、thechriswinfield 1/5）· **关注号召** 4（rileybrown.ai 2/5、shedoesai 1/5、thechriswinfield 1/5）· **punchline / 愿景收束（无 CTA）** 9（kanekallaway 4/5，另 marcus / rileybrown / sineadbovell ×2 / thechriswinfield 各 1）· 三者都不命中的叙述收束 15。**工具类偏「关键词评论」，新闻/评论类偏 punchline 收束**，分界清晰。
+  - 复算新增：`sineadbovell/7599711388939980063`（#729 恢复）landing 为 punchline/无 CTA 收束（结尾强调「把真实意见抄袭成多数幻觉以压票」的机制），计入 punchline 组，`sineadbovell` 该组 1→2。
 
 ### 10.4 模式库（可执行条目 → 目标票）
 
@@ -307,21 +318,23 @@ hook = 第 1 个 beat（`beats[0]`，时间轴由 ASR 段界推导，§3.5 ①�
 
 | # | 模式 | 证据 | 对我方的落点 | 目标票 |
 | --- | --- | --- | --- | --- |
-| P1 | **hook 首帧放人**：口播或「口播+素材分屏」，不用通用素材/T2V 补第一帧 | 82%（28/34）首帧有人、59% 在讲话；纯素材/录屏仅 18% | 现策略是「前 3 秒靠通用素材」——方向相反 | #299 |
-| P2 | **hook 时长按 4.5–5s 对齐**（不是 3s） | median 5.0s，p25–p75 4.4–7.4s | 我们的 hook 时长口径需重定 | #278 |
-| P3 | **句子族优先级**：`just+事件` / 规模最高级 / 数量锚点（各 9–11/34）为头部，提问式少（4/34） | §10.2 表 | 与我们 P1–P6 词表对照，补「just+事件」「数量锚点」两族 | #278 |
-| P4 | **强度词要克制**：insane/massive 一类只 4/34，情绪靠具体事实承载（"beats GPT-5"、"biggest building in human history"） | §10.2 | 「情感靠写稿不靠 instruct」的外部证据 | #244（已闭票，留档）· #278 |
+| P1 | **hook 首帧放人**：口播或「口播+素材分屏」，不用通用素材/T2V 补第一帧 | 83%（29/35）首帧有人、60% 在讲话；纯素材/录屏仅 17% | 现策略是「前 3 秒靠通用素材」——方向相反 | #299 |
+| P2 | **hook 时长按 4.5–5s 对齐**（不是 3s） | median 5.0s，p25–p75 4.3–6.8s | 我们的 hook 时长口径需重定 | #278 |
+| P3 | **句子族优先级**：`just+事件` / 规模最高级 / 数量锚点（各 9–11/35）为头部，提问式少（4/35） | §10.2 表 | 与我们 P1–P6 词表对照，补「just+事件」「数量锚点」两族 | #278 |
+| P4 | **强度词要克制**：insane/massive 一类只 4/35，情绪靠具体事实承载（"beats GPT-5"、"biggest building in human history"） | §10.2 | 「情感靠写稿不靠 instruct」的外部证据 | #244（已闭票，留档）· #278 |
 | P5 | **节奏分两档**：工具/教程 13.6–18.1 beats/min（33–50s 片），长叙事 5.7–9.4（94–116s 片） | §10.3 | 语速/切点规格可按内容形态分档，而非单一全局值 | #279 · #289 |
-| P6 | **结尾分型**：工具类用「评论关键词换资源」（7 条），新闻评论类用 punchline/愿景收束（8 条） | §10.3 | 我们 CTA scene 可增「关键词兑换」形态 | #253 · #299 |
+| P6 | **结尾分型**：工具类用「评论关键词换资源」（7 条），新闻评论类用 punchline/愿景收束（9 条） | §10.3 | 我们 CTA scene 可增「关键词兑换」形态 | #253 · #299 |
 | P7 | **分屏 = 口播在下、素材在上的双层 hook**（kanekallaway 3/5，细胞/针管/Elon 舞台 + 口播） | §10.2 | 版式库可直接吸收 | #253 |
-| P8 | **beats 与 ASR 段 1:1 是常态而非缺陷**（AI 号 8/29 完全相等，如 31 段→31 beats） | §10.5 | 若下游按「≤8 单元」消费，需要归并层 | #289 |
+| P8 | **beats 与 ASR 段 1:1 是常态而非缺陷**（AI 号 8/30 完全相等，如 31 段→31 beats） | §10.5 | 若下游按「≤8 单元」消费，需要归并层 | #289 |
 
 ### 10.5 提示词合规性量化（原「已知偏离」的基线）
 
 | 约束 | 命中 | 说明 |
 | --- | --- | --- |
-| `beats` ∈ [3, 8] | **6/29**（AI 号）· 9/34（全体） | 未命中者大量与 ASR 段数 1:1（31→31、21→21、20→20） |
-| `shots` ≤ 12 | **10/29**（AI 号）· 14/34（全体） | 超限最严重是 `kanekallaway`（96 / 95 / 71 shots） |
+| `beats` ∈ [3, 8] | **6/30**（AI 号）· 9/35（全体） | 未命中者大量与 ASR 段数 1:1（31→31、21→21、20→20） |
+| `shots` ≤ 12 | **10/30**（AI 号）· 14/35（全体） | 超限最严重是 `kanekallaway`（96 / 95 / 71 shots） |
+
+> 复算口径：新增恢复条 `sineadbovell/7599711388939980063` 为 12 beats / 60 shots，**两约束均未命中**，故点名数与分母同步 +1（分子不变）；`shots ≤ 12` 的超限名单再加一条（60 shots）。
 
 **裁决（本票内定，不改提示词）**：不收紧提示词去凑 3–8——强压会丢掉 #291 视觉设计需要的细分粒度；改为**下游消费侧归并**（消费方若按「≤8 个叙事单元」读，自行聚合；需要细粒度镜头清单则直接读 `shots`）。与 §3.5 判断一致，本轮给出量化基线。
 
@@ -330,5 +343,5 @@ hook = 第 1 个 beat（`beats[0]`，时间轴由 ASR 段界推导，§3.5 ①�
 - 中文侧：**已决不做**（§9.1），跨语言对比不在本票范围。
 - `@allsiekmiller`：两次列清单均 0 条（§4），该账号样本缺失。
 - `meta.likes/comments/shares/publishedAt`：仍为 `null`（§6 已定夺：需登录态逐条详情页二次抓取，未做）→ 本节的「头部」是按 `manifest` 的播放量排序取 Top 5，非按互动率。
-- 人声稀疏视频的镜头节奏：ASR 锚定拿不到（§3.5 ③）；本批 0 条塌缩，但该限制未消除。
+- 人声稀疏视频的镜头节奏：ASR 锚定拿不到（§3.5 ③）。本批判据修好后实测 **beats 层 1 条**（`shedoesai`）、**shots 层 4 条**（模型锚点越界）——原「0 条」是假阴性；已按段跨度内插值兜底，但**兜底不是第二实测时间源**（如镜头切点），该限制未消除。
 

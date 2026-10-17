@@ -16,7 +16,11 @@ import {
   formatTranscript,
   measurableSegments,
   parseBreakdownJson,
+  repairBreakdownJson,
   anchorTimings,
+  isTimelineCollapsed,
+  interpolateStarts,
+  resolveTimings,
   buildRecord,
   safeSegment,
   analyzeCompetitorVideos,
@@ -92,6 +96,117 @@ describe("parseBreakdownJson (#300 stage 2)", () => {
 
   it("returns null on malformed JSON rather than throwing", () => {
     expect(parseBreakdownJson('{"verdict": "unterminated')).toBeNull();
+  });
+});
+
+// ─── repairBreakdownJson (#729) ───
+
+describe("repairBreakdownJson (#729)", () => {
+  // The exact shape the batch hit: the model closed the final array with `}`
+  // instead of `]`, leaving the root object one closer short. `"antiPatterns":
+  // ["None"}}` should have been `["None"]}}` — one delimiter's *type* is wrong.
+  const MISMATCHED =
+    '{"verdict":"works","beats":[{"anchorSegment":1,"intent":"x"}],' +
+    '"learnings":{"reusable":["a"],"antiPatterns":["None"}}';
+
+  it("does not repair a well-formed or merely-fenced reply (parse handles those)", () => {
+    // Only reached when parseBreakdownJson already failed; it must not change a
+    // good payload's meaning if ever called on one.
+    expect(repairBreakdownJson('{"a":1}')).toEqual({ a: 1 });
+  });
+
+  it("recovers the delimiter-type mismatch instead of dropping the record", () => {
+    expect(parseBreakdownJson(MISMATCHED)).toBeNull(); // the failure being repaired
+    expect(repairBreakdownJson(MISMATCHED)).toEqual({
+      verdict: "works",
+      beats: [{ anchorSegment: 1, intent: "x" }],
+      learnings: { reusable: ["a"], antiPatterns: ["None"] },
+    });
+  });
+
+  it("coerces a `]` used where `}` belonged (the mirror case)", () => {
+    expect(repairBreakdownJson('{"a":{"b":1]}}')).toEqual({ a: { b: 1 } });
+  });
+
+  it("refuses a truncated reply: a text ending mid-string is not repairable", () => {
+    // Truncation's signature — the output budget cut mid-token — must stay a
+    // hard failure, never dressed up as a complete record.
+    expect(repairBreakdownJson('{"verdict":"wor')).toBeNull();
+    expect(repairBreakdownJson('{"beats":[{"anchorSeg')).toBeNull();
+  });
+
+  it("returns null when there is nothing object-shaped to repair", () => {
+    expect(repairBreakdownJson("no object here")).toBeNull();
+    expect(repairBreakdownJson(null)).toBeNull();
+  });
+
+  it("appends the closers owed when the text ends cleanly but short", () => {
+    // Ends on a structural char (not mid-string) one closer short → recoverable.
+    expect(repairBreakdownJson('{"a":[1,2')).toEqual({ a: [1, 2] });
+  });
+});
+
+// ─── isTimelineCollapsed (#730) ───
+
+describe("isTimelineCollapsed (#730)", () => {
+  it("flags the measured batch case: 9 beats over 2 distinct starts", () => {
+    // `shedoesai/7372434986558934305` — the false negative the ticket is about.
+    expect(isTimelineCollapsed(9, 2)).toBe(true);
+  });
+
+  it("does not flag a healthy 9-beat / 9-start timeline", () => {
+    expect(isTimelineCollapsed(9, 9)).toBe(false);
+  });
+
+  it("does not flag borderline ratios at or above half the items", () => {
+    expect(isTimelineCollapsed(15, 9)).toBe(false); // 0.6 — the real 2nd-lowest record
+    expect(isTimelineCollapsed(4, 2)).toBe(false); // exactly half
+    expect(isTimelineCollapsed(6, 3)).toBe(false);
+    expect(isTimelineCollapsed(5, 3)).toBe(false);
+  });
+
+  it("ignores timelines too short for a ratio to mean anything", () => {
+    expect(isTimelineCollapsed(2, 1)).toBe(false);
+    expect(isTimelineCollapsed(1, 1)).toBe(false);
+    expect(isTimelineCollapsed(0, 0)).toBe(false);
+  });
+});
+
+// ─── interpolateStarts / resolveTimings (#730) ───
+
+describe("resolveTimings (#730)", () => {
+  it("leaves a healthy timeline on the measured source", () => {
+    const items = [1, 2, 3, 4].map((anchorSegment) => ({ anchorSegment }));
+    const r = resolveTimings(items, SEGMENTS, 49100);
+    expect(r.anchorSource).toBe("asr");
+    // Anchor 4 is out of range for the 3 measurable segments, so it inherits the
+    // previous start: 3 distinct over 4 items is still healthy.
+    expect(r.rawDistinctStarts).toBe(3);
+    expect(r.items.map((b) => b.startMs)).toEqual([0, 13560, 28480, 28480]);
+  });
+
+  it("interpolates a collapsed timeline within its measured segment spans", () => {
+    // 7 items on segment 1 + 2 on segment 3, mirroring shedoesai's shape.
+    const items = [
+      ...Array.from({ length: 7 }, () => ({ anchorSegment: 1 })),
+      ...Array.from({ length: 2 }, () => ({ anchorSegment: 3 })),
+    ];
+    const r = resolveTimings(items, SEGMENTS, 28480 + 5000);
+    expect(r.anchorSource).toBe("interpolated");
+    expect(r.rawDistinctStarts).toBe(2); // what measurement actually achieved
+    expect(r.distinctStarts).toBe(9); // resolved shape
+    // Monotonic, non-zero-length ranges — the invariant the fallback must keep.
+    for (let i = 1; i < r.items.length; i++) {
+      expect(r.items[i].startMs).toBeGreaterThanOrEqual(r.items[i - 1].startMs);
+    }
+    for (const b of r.items) expect(b.endMs).toBeGreaterThan(b.startMs);
+    // The second group still starts at its real segment boundary (28480).
+    expect(r.items[7].startMs).toBe(28480);
+  });
+
+  it("keeps interpolatedStarts a no-op for a single-item group", () => {
+    const items = [{ startMs: 500 }];
+    expect(interpolateStarts(items, 1000)).toEqual([500]);
   });
 });
 
@@ -174,12 +289,14 @@ describe("anchorTimings (#300 stage 2)", () => {
       anchored: 0,
       total: 0,
       distinctStarts: 0,
+      span: 1000,
     });
     expect(anchorTimings([], null, 1000)).toEqual({
       items: [],
       anchored: 0,
       total: 0,
       distinctStarts: 0,
+      span: 1000,
     });
   });
 
@@ -291,6 +408,8 @@ describe("buildRecord (#300 stage 2)", () => {
     // Only 1 of 1 shot was anchored: the provenance must say so.
     expect(rec.evidence.timing).toEqual({
       durationMs: 49100,
+      beatsAnchorSource: "asr",
+      shotsAnchorSource: "asr",
       beatsTotal: 1,
       beatsAnchored: 1,
       shotsTotal: 1,
@@ -302,15 +421,36 @@ describe("buildRecord (#300 stage 2)", () => {
     });
   });
 
-  it("flags a collapsed timeline when every item shares one anchor", () => {
+  it("flags a collapsed timeline and reconstructs its pacing (#730)", () => {
     const breakdown = {
       beats: Array.from({ length: 9 }, () => ({ anchorSegment: 1, intent: "x" })),
       shots: Array.from({ length: 9 }, () => ({ anchorSegment: 1, visual: "y" })),
     };
     const rec = buildRecord(target, 15.8, breakdown, transcript);
+    // The health signal stays honest (it reads the *measured* resolution) …
     expect(rec.evidence.timing.beatsCollapsed).toBe(true);
     expect(rec.evidence.timing.shotsCollapsed).toBe(true);
-    expect(rec.evidence.timing.beatsDistinctStarts).toBe(1);
+    // … while the data is repaired within the segment spans, not left collapsed.
+    expect(rec.evidence.timing.beatsAnchorSource).toBe("interpolated");
+    expect(rec.evidence.timing.beatsDistinctStarts).toBe(9);
+    for (const b of rec.beats) expect(b.endMs).toBeGreaterThan(b.startMs);
+    expect(rec.evidence.asrSegments).toBe(4); // total segments, the cause-side input
+  });
+
+  it("keeps provenance per layer when only shots are reconstructed", () => {
+    // Real batch shape (kanekallaway/7676104609177423134): beats fully anchored
+    // while 30 shots use anchors 1..30 against a 3-segment transcript, so 27 have
+    // no measured start. One shared source would misstate one of the two layers.
+    const breakdown = {
+      beats: [1, 2, 3, 4].map((anchorSegment) => ({ anchorSegment })),
+      shots: Array.from({ length: 30 }, (_, i) => ({ anchorSegment: i + 1 })),
+    };
+    const rec = buildRecord(target, 84, breakdown, transcript);
+    expect(rec.evidence.timing.beatsAnchorSource).toBe("asr");
+    expect(rec.evidence.timing.shotsAnchorSource).toBe("interpolated");
+    expect(rec.evidence.timing.shotsAnchored).toBe(3); // only segs 1..3 resolve
+    expect(rec.evidence.timing.shotsCollapsed).toBe(true);
+    expect(rec.evidence.timing.beatsCollapsed).toBe(false);
   });
 
   it("does not call a single item a collapsed timeline", () => {
