@@ -294,6 +294,27 @@ describe("downloadVideo", () => {
     expect(cmd).not.toContain("--cookies-from-browser");
   });
 
+  it("downloads TikTok video via yt-dlp, cookieless and full length (#300 stage 2)", async () => {
+    mockExecAsync.mockResolvedValue({ stdout: "", stderr: "" });
+
+    const result = await downloadVideo("https://www.tiktok.com/@user/video/7339219560085703966", {
+      outputDir: "/tmp/test-download",
+    });
+
+    expect(result.platform).toBe("tiktok");
+    expect(result.videoId).toBe("7339219560085703966");
+    expect(result.author).toBe("user");
+    const cmd = mockExecAsync.mock.calls[0][0];
+    expect(cmd).toContain("yt-dlp");
+    // The dead CDP `item/detail` route must not come back; no CDP call happens.
+    expect(cmd).not.toContain("aweme");
+    // Cookieless: a machine without the firefox store would fail before extraction.
+    expect(cmd).not.toContain("--cookies-from-browser");
+    // Full length, long side capped at 1920 (9:16 makes `height` the LONG side).
+    expect(cmd).toContain("b[height<=1920]");
+    expect(cmd).not.toContain("--download-sections");
+  });
+
   it("throws on unknown platform", async () => {
     await expect(downloadVideo("https://example.com/video/123")).rejects.toThrow(
       /Unsupported platform/,

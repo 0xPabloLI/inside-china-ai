@@ -41,6 +41,7 @@ import {
   matchYtdlp412,
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
+  shellQuote,
   ytdlpProxyArg,
 } from "./ytdlp-guard.mjs";
 import { tmpdir, homedir } from "os";
@@ -156,6 +157,22 @@ const XHS_HOSTS = ["xiaohongshu.com", "xhslink.com"];
 /** 抖音/iesdouyin hostname patterns (download needs no login — share page). */
 const DOUYIN_HOSTS = ["douyin.com", "www.douyin.com", "iesdouyin.com", "www.iesdouyin.com"];
 
+/** TikTok hostname patterns (#300 stage 2) — video pages, share shortlinks. */
+const TIKTOK_HOSTS = ["tiktok.com", "m.tiktok.com", "vt.tiktok.com"];
+
+/**
+ * TikTok full-length ceiling. Competitor/analysis videos are consumed whole
+ * (duration, scene structure), so the 20MB B-roll budget does not apply here.
+ */
+const TIKTOK_MAX_FILE_BYTES = 200 * 1024 * 1024;
+
+/**
+ * TikTok extraction budget. yt-dlp solves TikTok's JS challenge before the
+ * media fetch (~40s measured on a 5-minute video, 2026-10-16), so the
+ * 2-minute B-roll budget is too tight.
+ */
+const TIKTOK_TIMEOUT_MS = 300000;
+
 /** Referer iesdouyin CDN requires for media downloads (verified 2026-09-03, issue #182). */
 const DOUYIN_REFERER = "https://www.douyin.com/";
 
@@ -239,6 +256,16 @@ function isXhsUrl(canonicalUrl) {
 export function isWeiboUrl(canonicalUrl) {
   const host = urlHost(canonicalUrl);
   return WEIBO_HOSTS.some((h) => host === h || host.endsWith("." + h));
+}
+
+/**
+ * Check if a canonical URL is a TikTok video page.
+ * @param {string} canonicalUrl
+ * @returns {boolean}
+ */
+export function isTiktokUrl(canonicalUrl) {
+  const host = urlHost(canonicalUrl).toLowerCase();
+  return TIKTOK_HOSTS.some((h) => host === h || host.endsWith("." + h));
 }
 
 function isBilibiliUrl(canonicalUrl) {
@@ -326,6 +353,15 @@ export function selectStrategy(url, options = {}) {
   // 2.5 抖音/iesdouyin → iesdouyin share page via CDP (no login needed for download)
   if (isDouyinUrl(canonical)) {
     return { adapter: ADAPTER_IDS.DOUYIN_CDP, canonicalUrl: canonical };
+  }
+
+  // 2.6 TikTok → ytdlp (#300 stage 2, verified 2026-10-16). yt-dlp's extractor
+  //     solves TikTok's JS challenge cookieless and returns one progressive
+  //     mp4; the CDN serves only Chrome-fingerprinted clients, so the
+  //     in-process fetch path (Cobalt/anchor/CDP-fetch) gets 403 on the media
+  //     URL itself.
+  if (isTiktokUrl(canonical)) {
+    return { adapter: ADAPTER_IDS.YTDLP, canonicalUrl: canonical };
   }
 
   // 3. Unknown public URL → Cobalt
@@ -471,6 +507,15 @@ export function weiboCookieNetscape(cookieStr) {
  * `WEIBO_COOKIE` env, see weiboCookieNetscape) guards against the
  * visitor-cookie system changing again (the 2025 403 outage class).
  * yt-dlp rejects Cookie headers outright, so the file is the only channel.
+ *
+ * TikTok-specific (#300 stage 2): full-length, cookieless. Two independent
+ * reasons. (a) Duration: competitor/analysis videos are consumed whole, not as
+ * 8s B-roll slices — so no `--download-sections` (which also drops the ffmpeg
+ * child dependency). (b) Cookies: the extractor solves TikTok's JS challenge
+ * on its own, while `--cookies-from-browser` adds a host-dependent failure
+ * mode (a machine without the firefox store errors out before extraction) and
+ * `--max-filesize` would cut long-form uploads short of the analysis need.
+ *
  * All URLs carry a browser-like `--user-agent` (ytdlp-guard.mjs): the
  * default python UA is part of what bilibili's 412 risk control flags
  * (yt-dlp #16571 workaround reports).
@@ -481,31 +526,63 @@ export function weiboCookieNetscape(cookieStr) {
  */
 export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
   const isWeibo = isWeiboUrl(url);
-  const parts = [
-    "yt-dlp",
-    // #328: every platform reads the firefox plaintext cookie store, so the
-    // Keychain-backed chrome store (and its blocking prompt) is off the path.
-    `--cookies-from-browser "${ytdlpCookieSource()}"`,
-    `--user-agent "${YTDLP_BROWSER_UA}"`,
-    '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
-    "--max-filesize 20M",
-    '--download-sections "*0:00-0:08"',
-    // #324: --download-sections delegates the fetch to ffmpeg, which only
-    // reads a lowercase http_proxy — hand yt-dlp the proxy explicitly.
-    ytdlpProxyArg(),
-  ].filter(Boolean);
+  const isTiktok = isTiktokUrl(url);
+  const parts = ["yt-dlp"];
+
+  // #328: every B-roll platform reads the firefox plaintext cookie store, so
+  // the Keychain-backed chrome store (and its blocking prompt) is off the
+  // path. TikTok is cookieless by design — see the header note.
+  if (!isTiktok) {
+    parts.push(`--cookies-from-browser ${shellQuote(ytdlpCookieSource())}`);
+  }
+  parts.push(`--user-agent ${shellQuote(YTDLP_BROWSER_UA)}`);
+  parts.push(
+    isTiktok
+      ? // One single-file format with audio, long side capped at 1920 (1080p).
+        // TikTok is mostly 9:16, so `height` is the LONG side — a `height<=1080`
+        // filter silently excludes the 1080x1920 and 720x1280 tracks and lands
+        // on 576x1024 (measured 2026-10-16). Cap the long side instead.
+        '-f "b[height<=1920]/b"'
+      : '-f "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best"',
+  );
+
+  if (isTiktok) {
+    parts.push("--no-playlist");
+  } else {
+    parts.push("--max-filesize 20M");
+    parts.push('--download-sections "*0:00-0:08"');
+  }
+
+  // #324: --download-sections delegates the fetch to ffmpeg, which only
+  // reads a lowercase http_proxy — hand yt-dlp the proxy explicitly.
+  const proxyArg = ytdlpProxyArg();
+  if (proxyArg) parts.push(proxyArg);
+
   if (isWeibo) {
     parts.push("--playlist-items 1");
     if (cookieFile) {
-      parts.push(`--cookies "${cookieFile}"`);
+      parts.push(`--cookies ${shellQuote(cookieFile)}`);
     }
   }
-  parts.push(`-o "${tmpPath}"`, `"${url}"`);
+  // Every interpolated value goes through shellQuote (the module's single
+  // quoting primitive): this string reaches execSync's shell, and since #300
+  // the URL can originate from scraped page content, so `"${url}"` would let a
+  // crafted href break out of the quotes and run commands.
+  parts.push(`-o ${shellQuote(tmpPath)}`, shellQuote(url));
   return parts.join(" ");
 }
 
 export function downloadYtdlpAdapter(url) {
-  const source = isYoutubeUrl(url) ? "youtube" : isWeiboUrl(url) ? "weibo" : "bilibili";
+  const isTiktok = isTiktokUrl(url);
+  const source = isTiktok
+    ? "tiktok"
+    : isYoutubeUrl(url)
+      ? "youtube"
+      : isWeiboUrl(url)
+        ? "weibo"
+        : "bilibili";
+  const maxBytes = isTiktok ? TIKTOK_MAX_FILE_BYTES : MAX_FILE_BYTES;
+  const timeoutMs = isTiktok ? TIKTOK_TIMEOUT_MS : 120000;
   const tmpPath = join(tmpdir(), `vdl-ytdlp-${Date.now()}.mp4`);
   const cookieFile = join(tmpdir(), `vdl-ytdlp-cookies-${Date.now()}.txt`);
 
@@ -539,7 +616,7 @@ export function downloadYtdlpAdapter(url) {
   removeYtdlpStaleOutput(tmpPath);
 
   try {
-    execSync(cmd, { encoding: "utf8", timeout: 120000, stdio: ["pipe", "pipe", "pipe"] });
+    execSync(cmd, { encoding: "utf8", timeout: timeoutMs, stdio: ["pipe", "pipe", "pipe"] });
 
     // #323: resolve the actual output — a webm-only source lands at
     // `<tmpPath>.webm` (yt-dlp appends the real container extension).
@@ -573,7 +650,7 @@ export function downloadYtdlpAdapter(url) {
         reason: "file-too-small",
       });
     }
-    if (buffer.length > MAX_FILE_BYTES) {
+    if (buffer.length > maxBytes) {
       return makeResult({
         status: "skipped",
         strategy: ADAPTER_IDS.YTDLP,

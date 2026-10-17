@@ -39,7 +39,7 @@ import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "./asr-defaults.mjs";
 import { guardTranscript } from "./asr-repetition-guard.mjs";
-import { ytdlpCookieSource } from "./ytdlp-guard.mjs";
+import { ytdlpCookieSource, ytdlpProxyArg } from "./ytdlp-guard.mjs";
 
 const execAsync = promisify(exec);
 
@@ -54,8 +54,12 @@ const WHISPER_CLI = "/opt/homebrew/bin/whisper-cli";
 // consumers, so this path was the de-facto (drift-prone) default instead.
 const WHISPER_MODEL = join(HOME, ".cache/whisper", `ggml-${DEFAULT_WHISPER_CPP_MODEL_NAME}.bin`);
 const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
-const YTDLP = "/opt/homebrew/bin/yt-dlp";
-const CDP_BASE = "http://localhost:3456";
+// Bare name, resolved from PATH — same as video-downloaders.mjs. The absolute
+// `/opt/homebrew/bin/yt-dlp` was pinned here and drifted out of date: at
+// 2026.07.04 the TikTok extractor failed with "Unexpected response from
+// webpage request" while the PATH binary (2026.08.19) extracted the same URL
+// fine (measured 2026-10-16).
+const YTDLP = "yt-dlp";
 
 /**
  * Whether the whisper.cpp ASR leg can run at all (#415 ①).
@@ -262,9 +266,8 @@ export function parseWhisperOutput(jsonStr) {
 // ─── Video Download ───
 
 /**
- * Download a video from YouTube, Bilibili, or TikTok.
- *
- * YouTube/Bilibili use yt-dlp. TikTok uses CDP `item/detail` API.
+ * Download a video from YouTube, Bilibili, or TikTok — all three via yt-dlp.
+ * See `buildYtdlpCommand` for the per-platform flags.
  *
  * @param {string} url - Video URL
  * @param {{outputDir?: string}} [options]
@@ -285,7 +288,7 @@ export async function downloadVideo(url, options = {}) {
 
   const meta = parseVideoMeta(fullUrl, platform);
 
-  if (platform === "youtube" || platform === "bilibili") {
+  if (platform === "youtube" || platform === "bilibili" || platform === "tiktok") {
     const videoPath = join(outputDir, `${platform}-${meta.videoId}.mp4`);
     const cmd = buildYtdlpCommand(fullUrl, videoPath, platform);
     try {
@@ -296,26 +299,21 @@ export async function downloadVideo(url, options = {}) {
     return { videoPath, ...meta };
   }
 
-  if (platform === "tiktok") {
-    const videoPath = join(outputDir, `tiktok-${meta.videoId}.mp4`);
-    await downloadTikTokVideo(fullUrl, meta.videoId, videoPath);
-    return { videoPath, ...meta };
-  }
-
   throw new Error(`Unsupported platform: ${platform}`);
 }
 
 /**
- * Build yt-dlp command string for YouTube/Bilibili.
+ * Build yt-dlp command string for the supported platforms.
  *
- * Only `downloadVideo` below calls this, and no production path reaches that
- * function today (#325). If it is ever wired into the ffmpeg-reuse path, the
- * proxy fragment must come from `ytdlpProxyArg()` (ytdlp-guard.mjs), the way
- * video-downloaders' builder does — so all three builders share one seam.
+ * TikTok (#300 stage 2) replaced the CDP `item/detail` route, which is dead:
+ * `/aweme/v1/web/item/detail/` now returns HTML instead of JSON even from a
+ * signed, logged-in page, and the media CDN additionally 403s every client
+ * without a Chrome fingerprint. yt-dlp's extractor solves the JS challenge
+ * cookieless and returns one progressive mp4.
  *
  * @param {string} url - Full URL
  * @param {string} output - Output file path
- * @param {string} platform - "youtube" or "bilibili"
+ * @param {"youtube"|"bilibili"|"tiktok"} platform
  * @returns {string}
  */
 function buildYtdlpCommand(url, output, platform) {
@@ -330,118 +328,27 @@ function buildYtdlpCommand(url, output, platform) {
     parts.push("--remote-components ejs:github");
   }
 
+  if (platform === "tiktok") {
+    // Cookieless: the extractor solves TikTok's JS challenge on its own, while
+    // `--cookies-from-browser` adds a host-dependent failure mode (a machine
+    // without that store errors out before extraction).
+    //
+    // Full length, long side capped at 1920. TikTok is mostly 9:16, so `height`
+    // is the LONG side — a `height<=1080` filter excludes the 1080x1920 and
+    // 720x1280 tracks and silently lands on 576x1024 (measured 2026-10-16).
+    parts.push('-f "b[height<=1920]/b"');
+    parts.push("--no-playlist");
+    // tiktok.com is not served at all from a HK exit, and yt-dlp does not read
+    // the macOS system proxy — so the resolved proxy is passed explicitly here
+    // (the seam #324 established for the ffmpeg-delegated paths).
+    const proxyArg = ytdlpProxyArg();
+    if (proxyArg) parts.push(proxyArg);
+  }
+
   parts.push("-o", `"${output}"`);
   parts.push(`"${url}"`);
 
   return parts.join(" ");
-}
-
-/**
- * Download a TikTok video via CDP `item/detail` API.
- *
- * Flow:
- * 1. Open TikTok page in browser (CDP new tab)
- * 2. Call `/aweme/v1/web/item/detail/?itemId=ID&aid=1988` via CDP eval
- * 3. Extract `playAddr` from response
- * 4. Download video via base64 chunking
- * 5. Close tab
- *
- * @param {string} fullUrl - Full TikTok URL
- * @param {string} itemId - TikTok video ID
- * @param {string} output - Output file path
- */
-async function downloadTikTokVideo(fullUrl, itemId, output) {
-  // Dynamic import to avoid hard dependency when CDP not needed
-  const { cdpNewTab, cdpEval, cdpCloseTab, waitForPageLoad } = await import("./cdp-client.mjs");
-
-  // Check CDP availability
-  try {
-    const resp = await fetch(`${CDP_BASE}/targets`);
-    if (!resp.ok) throw new Error("CDP proxy not responding");
-  } catch {
-    throw new Error(
-      `CDP proxy not available at ${CDP_BASE}. Start Chrome with --remote-debugging-port and the web-access skill.`,
-    );
-  }
-
-  let tabId;
-  try {
-    tabId = await cdpNewTab(fullUrl);
-    await new Promise((r) => setTimeout(r, 3000));
-    await waitForPageLoad(tabId);
-
-    // Step 1: Call item/detail API to get playAddr
-    const detailScript = `
-      const resp = await fetch(
-        'https://www.tiktok.com/aweme/v1/web/item/detail/?itemId=${itemId}&aid=1988',
-        { credentials: 'include' }
-      );
-      const data = await resp.json();
-      const playAddr = data?.itemInfo?.item?.video?.playAddr;
-      return playAddr || null;
-    `;
-    const playAddrResp = await cdpEval(tabId, `(async function(){${detailScript}})()`);
-    const playAddr = playAddrResp?.result?.value || playAddrResp?.value || null;
-
-    if (!playAddr) {
-      throw new Error("TikTok API returned no playAddr");
-    }
-
-    // Step 2: Download video via base64 chunking
-    // The video blob (5-10MB) is too large for a single CDP eval response.
-    // Strategy: fetch in browser → blob → slice → readAsDataURL → return chunks
-    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB
-
-    // First, get the total size
-    const sizeScript = `
-      const blob = await fetch(${JSON.stringify(playAddr)}, { credentials: 'include' }).then(r => r.blob());
-      return blob.size;
-    `;
-    const sizeResp = await cdpEval(tabId, `(async function(){${sizeScript}})()`);
-    const totalSize = sizeResp?.result?.value || sizeResp?.value || 0;
-
-    if (totalSize === 0) {
-      throw new Error("TikTok video download: blob size is 0");
-    }
-
-    // Download in chunks
-    const chunks = [];
-    let offset = 0;
-    let chunkIndex = 0;
-
-    while (offset < totalSize) {
-      const end = Math.min(offset + CHUNK_SIZE, totalSize);
-      const chunkScript = `
-        const blob = await fetch(${JSON.stringify(playAddr)}, { credentials: 'include' }).then(r => r.blob());
-        const slice = blob.slice(${offset}, ${end});
-        const reader = new FileReader();
-        return new Promise((resolve) => {
-          reader.onloadend = () => resolve(reader.result);
-          reader.readAsDataURL(slice);
-        });
-      `;
-      const chunkResp = await cdpEval(tabId, `(async function(){${chunkScript}})()`);
-      const dataUrl = chunkResp?.result?.value || chunkResp?.value || null;
-
-      if (!dataUrl || typeof dataUrl !== "string") {
-        throw new Error(`TikTok download: chunk ${chunkIndex} failed`);
-      }
-
-      // Strip "data:application/octet-stream;base64," prefix
-      const base64 = dataUrl.split(",")[1] || dataUrl;
-      chunks.push(Buffer.from(base64, "base64"));
-      offset = end;
-      chunkIndex++;
-    }
-
-    // Write to file
-    const fullBuffer = Buffer.concat(chunks);
-    writeFileSync(output, fullBuffer);
-  } finally {
-    if (tabId) {
-      await cdpCloseTab(tabId);
-    }
-  }
 }
 
 // ─── Audio Extraction & ASR ───
