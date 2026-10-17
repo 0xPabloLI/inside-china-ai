@@ -98,6 +98,8 @@
 - `docs/research/tiktok-hook-patterns-best-practices.md` — 已有 P1–P6 hook 模式体系与填空模板，是竞品 hook 编码的现成词表。
 - `scripts/short-video/capture-competitor-videos.mjs`（**本次新增**）— 批量抓取入口：账号清单 → 登录态主页列视频 → 按播放量 Top N → `downloadVideo()` 落盘 → `manifest.json`。内建两道代码门禁（自动化 profile、非 HK 出口），CLI 见 `--accounts/--top/--out`。
 - 分析侧：`scripts/short-video/lib/video-understand.mjs` 的 `understandVideo()`（下载 → whisper.cpp 转写 → Qwen3-VL-30B）+ `qwen38_vlm_wrapper.py`。
+- `scripts/short-video/analyze-competitor-videos.mjs`（**本次新增**）— 批量拆解入口：读 `manifest.json` → 逐条 ASR（复用 `transcribeVideo()`）→ 竞品专用 VLM 提示词（`COMPETITOR_PROMPT`）→ 落 schema v1 per-video JSON（§6）。时间轴在**代码侧**由 ASR 段界推导（`anchorTimings()`），不接受模型自报的毫秒值（原因见 §3.5）。支持增量跳过与 `--force` 重跑（`node … --help` 看全部选项）。
+- `scripts/short-video/lib/competitor-vlm-worker.py`（**本次新增**）— 行式 JSON worker：复用 `vlm_analyzer.py` 的模型装载与推理，但换用竞品提示词并回传**原始文本**（不套资产语义 schema）。只**读**`vlm_analyzer`，不改动其生产契约。
 
 ### 3.4 分析侧端到端（2026-10-16 实测）
 
@@ -110,6 +112,21 @@
 | VLM（Qwen3-VL-30B，native video） | `contentKind: product_demo`、`subjects: [search engine, AI, automation, machine learning, diagrams, technology]`、`description`（一段可读摘要） |
 
 **注意**：`understandVideo()` 产出的是**通用资产语义**（为「这条素材能不能用」设计），不是 schema v1 的竞品拆解。`relevance`/`fit` 等字段对竞品视频为空——竞品拆解需要另加一层提示词（schema v1 的 `beats`/`shots`/`learnings`）。这是阶段 2 第 6 步的工作，不在本次单样本验证范围。
+
+### 3.5 批量拆解：三个必须知道的失效模式（2026-10-17）
+
+第 6 步的第一次实跑（`analyze-competitor-videos.mjs`，单条 `maverickgpt/7533665407173938462`，49.1s）产出结构完整、内容可用，但暴露两个**静默失真**（加上修好后验证轮发现的第三个，共三条）：
+
+**① 模型自报的时间戳是编造的。** 输出的 `beats` 把整条叙事压在 `0–4800ms`（占 49.1s 视频的 9%），而它同时给出的分段**内容**与 ASR 段序一一对得上。原因不是模型看漏了画面，而是 mlx_vlm 的原生视频采样**只给帧、不给时钟**（`utils.py: resolve_video_inputs` 把帧均匀铺满全片，`frames_indices` 未进提示词），模型于是按「一帧一秒」补齐。**修法**：不再让模型报毫秒——提示词只给 `VIDEO_DURATION_MS` + 带实测 start/end 的编号 ASR 段，模型只负责报每个 beat/shot 起于第几段（`anchorSegment`），毫秒由 `anchorTimings()` 按段界推导（`endMs` 取下一处不同的段起点，末项取视频时长），单调性与全覆盖由构造保证；`evidence.timing.{beats,shots}Anchored` 落盘留证。
+
+**② 输出预算不足会静默丢掉整条记录。** 同轮 `rileybrown.ai/7309572377577393451`（31 段 ASR）在 2500 token 处被截断在字符串中间，JSON 没闭合 → 解析失败 → 整条视频无产出（`.raw.txt` 留痕）。**修法**：输出预算提到 6000 token，并在提示词里收紧冗长（单字段 ≤200 字符、shot ≤12 条、相邻同画面合并）。
+
+**③ 语音稀疏的视频会把锚定时间轴「塌缩」到一个点。** 锚定修好后再跑 3 个账号，`rileybrown.ai`（31 段）与 `maverickgpt`（7 段）时间轴覆盖完整（`0 → 71600` / `0 → 49100`，与视频时长一致），但 `shedoesai/7372434986558934305`（15.8s，只有 **2 段** ASR——12 个工具 logo 轮播，几乎无人声）上，模型把 9 个 beat 的锚**全部指到第 1 段**，9 个 beat 的 `startMs` 全为 0。危险之处在于 `beatsAnchored` 仍报 9/9，看起来完全健康。**修法**：新增 `evidence.timing.{beats,shots}DistinctStarts` 与 `{beats,shots}Collapsed`（`total > 1 && distinctStarts <= 1`），并在 stderr 与 `index.json` 汇总里显式告警。**结论：人声稀疏/音乐主导的竞品视频，靠 ASR 段锚定拿不到镜头节奏**——其 `verdict`/`story_level`/`learnings` 仍可用，但 `beats`/`shots` 的**时点**不可用。
+
+> 三条的共同点是「记录看着完整，实际是错的」。下游消费 schema v1 前必须同时看 `evidence.timing`（尤其 `*Collapsed`）与 `index.json` 的 `failed` / `collapsedTimeline` 计数——只看视频数或 `verdict` 会漏掉全部三条。
+
+**已知偏离（未修，供后续判断）**：提示词要求 3–8 beats，实测 `rileybrown.ai` 返回 31 beats（= ASR 段数）。内容不重复、每条意图可辨（"Establish the competitive context" → "Demonstrate object recognition" …），故未强行压缩——强行压到 8 条可能丢掉 #291 视觉设计需要的细分粒度。**beat 数量的合规性目前无法保证**，若下游按「≤8 个叙事单元」消费，需另加聚合步骤。
+
 
 ---
 
@@ -151,7 +168,13 @@
 - `shots` — 可观测的画面/口播段，与 beats 对齐（供 #291 视觉设计取用）
 - `learnings` — 可复用点 / 反面教训
 
-**待阶段 2 定夺**：`beats` 层的 `audience_question_in` / `audience_question_out`（票评论标记为「最大增量、待讨论」）是否保留。
+**已定夺（阶段 2）**：
+
+- `beats` 层的 `audienceQuestionIn` / `audienceQuestionOut`（票评论标记为「最大增量」）——**保留**，进入提示词与落盘 schema。
+- **时间轴由代码推导，不接受模型自报值**（§3.5 ①）：模型只报 `anchorSegment`，`startMs`/`endMs` 由 `anchorTimings()` 按 ASR 段界算出；`endMs` 取下一处不同的段起点，末项取视频时长。
+- `meta.likes/comments/shares/publishedAt` 本轮**留 `null`**——那需要登录态逐条详情页二次抓取，不在本步骤范围；禁止为凑字段编数。
+- 落盘新增 `evidence.timing`（`durationMs` / `beatsAnchored` / `shotsAnchored` 等）作为时间轴可信度留证。
+
 
 ---
 
@@ -183,8 +206,9 @@
 1. ✅ **中文侧取样口径（Open Q5）**：**已决**——只做**英文侧**对比（中文侧在 TikTok 太薄，最大约 32.5K，与英文 100K–4M 不同量级）；中文侧若日后要做，改走抖音/B站，不在本票范围。
 2. ✅ **下载路线**：**已决并落地**——TikTok → ytdlp 路由（见 §3.2 / §3.3），`downloadVideo()` 为唯一入口。
 3. ✅ **端到端单样本**：**已跑通**——下载（§3.2 两样本）→ ASR 21 段 → VLM（§3.4）。
-4. ⏳ **头部门槛与取样数（Open Q1）**：阶段 2 默认——取 §2.1 清单中**第三方粉丝量 ≥ 100K 的英文账号**，每账号按**播放量 Top 5–8**（用登录态主页实测校准；发现量级不符再调）。
-5. ⏳ **跑批量抓取**：`node scripts/short-video/capture-competitor-videos.mjs`（脚本已落地并单测，见 §3.3）——账号清单 + `--top N` → 结构化目录 + `manifest.json`；内建 profile 门禁 + 非 HK 出口门禁。
-6. ⏳ **批量拆解落 schema v1 JSON → 填 `learnings` → 跨条规律上浮到对应下游 issue。**（`understandVideo()` 目前产出的是通用资产语义，schema v1 的 `beats`/`shots`/`learnings` 层还需要一层竞品专用提示词。）
+4. ✅ **头部门槛与取样数（Open Q1）**：**按阶段 2 默认执行**——取 §2.1 清单中**第三方粉丝量 ≥ 100K 的英文账号**共 9 个，每账号按**播放量 Top 5**；实测列清单 36 条、落盘 35 条。门槛与取样数的最终口径仍待阶段 3 用这批数据校准（本步不改默认）。
+5. ✅ **跑批量抓取**：**已完成**——`node scripts/short-video/capture-competitor-videos.mjs`，8/9 账号成功、35 条落盘（§3.3；`@allsiekmiller` 两次 0 条列表）。
+6. ⏳ **批量拆解落 schema v1 JSON → 填 `learnings` → 跨条规律上浮到对应下游 issue。** 脚本已落地（`analyze-competitor-videos.mjs` + `lib/competitor-vlm-worker.py`，见 §3.3），提示词与时间轴机制已按 §3.5 三条失效模式加固并经 3 账号验证（`rileybrown.ai` / `maverickgpt` / `shedoesai`，0 失败）；**全量 35 条的跑批与跨条规律上浮尚未完成**。
 
-**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；schema v1 的 `beats`/`shots` 分层是否需要对 VLM 提示词另做适配。
+**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；`beats` 数量的提示词合规性（§3.5 已知偏离）；人声稀疏视频的镜头节奏（§3.5 ③）。
+
