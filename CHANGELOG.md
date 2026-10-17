@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.21.0...tanstack_start_ts-v1.21.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **competitor-benchmark:** 修复拆解的两处静默失真（[#729](https://github.com/0xPabloLI/inside-china-ai/issues/729) [#730](https://github.com/0xPabloLI/inside-china-ai/issues/730)） ([#741](https://github.com/0xPabloLI/inside-china-ai/issues/741)) ([c09ebb7](https://github.com/0xPabloLI/inside-china-ai/commit/c09ebb775361fb30c6d95e920438a21714867545))
+
 ## [1.21.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.23...tanstack_start_ts-v1.21.0) (2026-10-17)
 
 
