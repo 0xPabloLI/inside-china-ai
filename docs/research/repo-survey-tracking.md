@@ -121,12 +121,61 @@
 
 ## C. 信息可视化
 
-### anything2explainer (1182★)
+### anything2explainer ([`Vincentwei1021/anything2explainer`](https://github.com/Vincentwei1021/anything2explainer)，2548★)
 
-- **调研日期**: 待调研
-- **描述**: 黑底+白线条+紫点缀风格，9 阶段管线+QC，PolyForm Noncommercial
-- **目标**: 数据/对比 scene 的信息图设计参考
-- **注意**: 只做横屏，许可限制
+- **调研日期**: 2026-10-17
+- **Repo 定位**: 追踪文档原只记「anything2explainer (1182★)」未记 owner；`gh search` 定位到唯一高星同名仓库，即上列 URL。**旧记的 1182★ 已过时**（现 2548★，forks 345）
+- **本地路径**: `/tmp/anything2explainer-survey/`（浅 clone，HEAD `735c79c`，2026-09-18 "feat(overlay): 片尾默认署名…"；会话临时目录，非仓库资产）
+- **技术栈**: 单文件 [`SKILL.md`](https://github.com/Vincentwei1021/anything2explainer/blob/735c79c8724e897e8971cd59dde7e5aa11e4d6ce/SKILL.md) 编排的 Claude Code / Codex skill + Remotion `4.0.507` 可编译模板（`template/`）+ Python 工具链（`tts_build.py` 配音与时间轴 / `frame_metrics.py` / `motion_check.py` / `selfcheck.py`）；TTS 默认 **edge-tts（中文云希）/ kokoro-82m（英文 `am_liam`）**——均免费或开源，**无付费 API 硬绑定，无 CUDA 假设**（M2 Pro 可本地跑）
+- **形态与规模**: **1280×720@30fps 横屏**；黑底 + 白线条 MG + 紫色点缀，顶部紫胶囊 HUD、44px 白字黑边字幕、底部章节进度条；全片代码绘制（可选免版权 B-roll）；幕底三选（点阵波默认 / 星点+雾底）。`template/src` 实测 **39 个 `.ts/.tsx`、1932 行**——[`ui.tsx`](https://github.com/Vincentwei1021/anything2explainer/blob/735c79c8724e897e8971cd59dde7e5aa11e4d6ce/template/src/ui.tsx) 69 个图元 export、[`fx.tsx`](https://github.com/Vincentwei1021/anything2explainer/blob/735c79c8724e897e8971cd59dde7e5aa11e4d6ce/template/src/fx.tsx) 21 个光效/运镜 export、`common/` 82 个 export；`shots/G1–G8` 8 个构建组；样片《RAG 与知识库》4′35″ / 44 镜头 / 两轮 QC
+- **管线**: **9 阶段**（阶段 0 建项目 → 1 调研 → 2 解说词与时间轴 → 3 分镜 → 4 覆盖层与图元 → 5a 打样/5b 并行构建 → 6 渲染 → 7 QC 与修复 → 8 交付）+ **4 个强制 HITL 确认点**（时长与语言 / 文案定稿 / 配音 / 前 30 秒样片）
+- **许可**: ❌ [`LICENSE`](https://github.com/Vincentwei1021/anything2explainer/blob/735c79c8724e897e8971cd59dde7e5aa11e4d6ce/LICENSE) = **PolyForm Noncommercial 1.0.0** + 附加条款「非商用免费；**任何商用需作者事先授权**」+ `Required Notice: Copyright (c) 2026 Vincent Wei`（GitHub 识不出 SPDX → 显示 NOASSERTION）。**代码、模板、字体、样片帧一律不得复制进产线**，只吸收规则与版式（同 `video-talkcraft` / `OpenMontage` 先例）
+- **维护状态**: created 2026-09-08、last push 2026-09-18（29 天）、7 open issues、单作者
+- **档级判定**（按 `agent-video-skills-180-screening-2026-09.md` §2 五口径）: **Tier B 只读**——许可 ✗（PolyForm 非商用，代码不得进产线）、付费云绑定 ✓（默认 edge-tts / kokoro 本地免费）、NVIDIA 假设 ✓（无）、活跃度 ✓（29 天，在 90 天内）、能力重复 △（Remotion 管线 / 字幕 / 进度条我们已有；**帧级量化判据 + 数据/对比版式库 + 三闸门脚本不重复**）
+
+**值得吸收的**:
+
+1. **尺寸三档 + 空场判据**（`reference/composition-and-light.md` §1/§6）：主角 ≥170px（或大字 ≥96px 且整行宽 ≥300px）、配角 60–110、标签与说明 22–30，**三档之外无第四种尺寸**；内容区最大物体 <110px 持续 >45 帧即中级缺陷。这条对我们现有 24–96px 的文字块直接生效——`DataScene`/`ContrastScene` 现在正是「小字 + 小 chip」撑场
+2. **光跟主角**（同文件 §2）：主角必带光（图形用双层紫柔光、大字用 `TEXT_GLOW` + 紫硬投影、橙色指标数字用 `GLOW_ORANGE`），配角默认不发光，一帧内紫色重点 ≤1 处，重点转移时前一处 8 帧灭灯；光只有三层——白 bloom（结构线条常驻）< 紫柔光（主角常亮 + 当前重点）< 白闪（3–6 帧事件）。我方 `FrameGlow variant="amber"` 是全屏泛光，**不是**「主角光」
+3. **动词驱动的持续动作 + 落位停留**（§7）：每个字幕块讲的动词在画面上要有持续到下一拍的动作（数据流 / 光点沿箭头跑 / 逐格点亮 / 打字机 / 生长 / 旋紧队列）；元素入场后完全静止 ≤3s；**末拍落位后必须停 30–45 帧再离场**——「入场即停」与「落位即切」都判缺陷；并明确「不为凑指标给静止物体加漂浮 / 呼吸」。我方 scene 动画只有 `StampIn/SlideUp/FadeIn`（入场即停，无持续动作、无末拍稳定期），这是最直接的质量缺口
+4. **数据/对比版式库**（我们缺的四种拓扑）：大数字型 set piece（`BigNumber`/`countTo` 20 帧计数落定 + 单位小字 + 对照物 + 结论文字 `GlitchIn`）；左右对比（左 x≈300–380 / 右 x≈900–1000、标签 Pill 在上 y≈250、中间 ≈ / vs / + 符号 46–60px）；图表卡（440×300 白边黑底 + 网格 #4A4A4A 1px + 坐标字 15–18px + 紫曲线 3px + 红重点）；流程/因果节点（Pill 150×44 或 Box 200×70、间距 200、箭头 shaft 3 headL 22–24）
+5. **表现「多」用矩阵而非碎屑**（§1）：数量感用 ≥6px 的方点阵列或网格整齐排布、按节拍点亮；背景只留幕底，不撒氛围小图标
+6. **三闸门量化脚本**（可直接对标的品类）——`frame_metrics.py`（逐镜头最大物体高度 / 主角区柔光面积 / 紫色碎片指数 / 碎屑计数 → 带严重度表）、`motion_check.py`（逐镜头最长静止 ≤3s、末拍稳定期 ≥30 帧；组级与成片两个口径，**成片 `fin_frames` 为准**）、`selfcheck.py`（静态：帧覆盖 vs 分镜表、`GlitchIn` 数 vs 闪烁白名单、扫光组件 vs 扫光白名单、画面字面量 vs 事实清单）。我方现存 `text-gate.tsx` / `annotation-collision-gate.tsx` / `final-media-gate.mjs` 只覆盖文字适配与最终媒体，**没有帧级视觉 / 节奏量化**
+7. **白名单式门禁纪律**：「闪烁白名单」（每镜头 ≤1 处 `GlitchIn`）、「扫光白名单」（全片 `LightSweep`+`StageLine`+`GhostText` ≤2 处，只给核心概念首次登场），写进分镜全局约束并由脚本终检核对——把「贵的动效限量」做成可校验清单，值得照搬成我们的 manifest 式约束
+8. **全片一个贯穿示例语境**（样片「差旅报销」），跨 8 个构建组一致——与我们 `brand-system` 的示例一致性要求同源
+9. **4 个 HITL 确认点**与我们内容管线 HITL 同源，但其「**前 30 秒样片**」把手改成本从「整片重渲」压到「1 个构建组」，是可借鉴的成本控制点
+
+**场景映射**（对照我仓 `scripts/short-video/remotion/src/scenes/`）:
+
+| anything2explainer 版式 / 图元 | 我仓 scene | 可借鉴规则 |
+| --- | --- | --- |
+| 大数字型 set piece（`BigNumber`/`countTo` 计数落定 + 单位小字 + 对照物） | `StatRevealScene` | 数值滚动落定 + 必配对照物 + `GLOW_ORANGE`（我方现仅 `textShadow` 泛光） |
+| 年份/出处型（`BigNumber` 96px 滚动 + 机构胶囊 + ≥240 宽卡在旁） | `DataScene` | 出处做成胶囊而非底层小字；年份/大数字不得独站空屏 >30 帧 |
+| 左右对比版式（左 x≈300–380 / 右 x≈900–1000、标签在上、中间符号 46–60px） | `ContrastScene` | 中间符号 + 标签在上/说明在下；替代当前 `flex-wrap` 卡片堆 |
+| 图表卡（440×300 白边黑底 + 网格 + 紫曲线 + 红重点） | `DataScene`（缺） | 量化图表版式，替代静态图 / 纯数字 |
+| 卡片阵列（卡 150×92 r8、列距 24、2 帧错峰、≥12 张缩到 70 宽） | `InfoCardScene` | 尺寸三档 + 错峰入场 |
+| 流程/因果节点（Pill 150×44 或 Box 200×70、间距 200、箭头） | `ContextScene`（缺） | 因果链 / 流程版式 |
+| 「多」= ≥6px 方点阵列 / 网格按节拍点亮 | 通用背景 | 数量感用矩阵；背景只留幕底，禁碎屑 |
+| 尺寸三档 + 空场判据（§1/§6） | 全部 scene | 直接约束现有 24–96px 文字块 |
+| 光跟主角（§2） | 全部 scene | 主角光 ≠ 全屏泛光 |
+| 持续动作 + 落位停留 30–45 帧（§7） | 全部 scene | 补上「入场即停」缺口 |
+| `frame_metrics.py` / `motion_check.py` / `selfcheck.py` 三闸门 | `text-gate.tsx` / `annotation-collision-gate.tsx` / `final-media-gate.mjs` | 增补帧级视觉与节奏量化 |
+
+**不适用的**:
+
+- **许可阻断**：PolyForm Noncommercial + 商用需授权 → 代码、模板、字体、样片帧一律不得进产线（这是我方第三次遇同类许可，前两次 `video-talkcraft`、`OpenMontage`）；下列「吸收」均为**规则/版式重写**，非源码搬运
+- **只做横屏 1280×720@30fps**：我们是 1080×1920 竖屏，其安全区与尺寸三档的像素阈值需按竖屏重算，不能直接搬
+- **视觉体系不同**：它是「黑底 + 白线条 + 紫重点」，我们是 amber / blue 品牌令牌 + `GridBg`/`Scanlines`；只吸收**结构性规则**（尺寸档、光跟主角、持续动作、版式拓扑），不吸收其配色
+- **重人工编排**：9 阶段 + 4 HITL + 8 构建组 + 两轮 QC ≈ 2 小时/条，是「精雕单片」的工作流，不是我们按题材批量出片的自动化管线；吸收其**判据与版式**，不吸收其**多 agent 编排与耗时模型**
+- **样片示例数据非真值**：「差旅报销」是示例语境，其数字标注「示意」，不可当事实源
+
+**交叉引用**: 其点阵波幕底明确标注**移植自 `video-talkcraft` 的 `motion-systems/backdrop.tsx`**（[README](https://github.com/Vincentwei1021/anything2explainer/blob/735c79c8724e897e8971cd59dde7e5aa11e4d6ce/README.md) 第 38 行），视觉语言致敬抖音 @图灵宇宙（画面全自绘）——`video-talkcraft` 是我们 **D 段目标 repo**，两段调研可互相印证
+
+**子 issue**: 无（本轮为纯调研，未授权实施）。是否把「尺寸三档 / 光跟主角 / 持续动作 / 帧级闸门」落为实施票，属 **#291**（HITL wayfinder map）的收敛决策，不由本追踪票单方开票
+
+**详细报告**: 本节即为结论（无独立报告文件；本地 clone 为会话临时目录，仓库不留资产）
+
+**维度 C 状态**: ✅ 完成（2026-10-17；`anything2explainer` 已调研并落结论）。定性：这是**只读方法学**源——许可阻断代码复用，但其「尺寸三档 + 光跟主角 + 动词驱动持续动作 + 数据/对比版式库 + 三闸门量化脚本」正对着我方数据/对比 scene 的**信息图语法缺口**（现 `DataScene`/`StatRevealScene`/`ContrastScene` 仅入场动效、无量化图表、无主角光、无末拍停留）；具体选型待 #291 收敛
 
 ---
 
