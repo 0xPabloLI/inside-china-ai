@@ -98,7 +98,7 @@
 - `docs/research/tiktok-hook-patterns-best-practices.md` — 已有 P1–P6 hook 模式体系与填空模板，是竞品 hook 编码的现成词表。
 - `scripts/short-video/capture-competitor-videos.mjs`（**本次新增**）— 批量抓取入口：账号清单 → 登录态主页列视频 → 按播放量 Top N → `downloadVideo()` 落盘 → `manifest.json`。内建两道代码门禁（自动化 profile、非 HK 出口），CLI 见 `--accounts/--top/--out`。
 - 分析侧：`scripts/short-video/lib/video-understand.mjs` 的 `understandVideo()`（下载 → whisper.cpp 转写 → Qwen3-VL-30B）+ `qwen38_vlm_wrapper.py`。
-- `scripts/short-video/analyze-competitor-videos.mjs`（**本次新增**）— 批量拆解入口：读 `manifest.json` → 逐条 ASR（复用 `transcribeVideo()`）→ 竞品专用 VLM 提示词（`COMPETITOR_PROMPT`）→ 落 schema v1 per-video JSON（§6）。时间轴在**代码侧**由 ASR 段界推导（`anchorTimings()`），不接受模型自报的毫秒值（原因见 §3.5）。CLI：`--manifest/--out/--limit/--handles/--force/--asr-only/--vlm-only`。
+- `scripts/short-video/analyze-competitor-videos.mjs`（**本次新增**）— 批量拆解入口：读 `manifest.json` → 逐条 ASR（复用 `transcribeVideo()`）→ 竞品专用 VLM 提示词（`COMPETITOR_PROMPT`）→ 落 schema v1 per-video JSON（§6）。时间轴在**代码侧**由 ASR 段界推导（`anchorTimings()`），不接受模型自报的毫秒值（原因见 §3.5）。支持增量跳过与 `--force` 重跑（`node … --help` 看全部选项）。
 - `scripts/short-video/lib/competitor-vlm-worker.py`（**本次新增**）— 行式 JSON worker：复用 `vlm_analyzer.py` 的模型装载与推理，但换用竞品提示词并回传**原始文本**（不套资产语义 schema）。只**读**`vlm_analyzer`，不改动其生产契约。
 
 ### 3.4 分析侧端到端（2026-10-16 实测）
@@ -123,7 +123,7 @@
 
 **③ 语音稀疏的视频会把锚定时间轴「塌缩」到一个点。** 锚定修好后再跑 3 个账号，`rileybrown.ai`（31 段）与 `maverickgpt`（7 段）时间轴覆盖完整（`0 → 71600` / `0 → 49100`，与视频时长一致），但 `shedoesai/7372434986558934305`（15.8s，只有 **2 段** ASR——12 个工具 logo 轮播，几乎无人声）上，模型把 9 个 beat 的锚**全部指到第 1 段**，9 个 beat 的 `startMs` 全为 0。危险之处在于 `beatsAnchored` 仍报 9/9，看起来完全健康。**修法**：新增 `evidence.timing.{beats,shots}DistinctStarts` 与 `{beats,shots}Collapsed`（`total > 1 && distinctStarts <= 1`），并在 stderr 与 `index.json` 汇总里显式告警。**结论：人声稀疏/音乐主导的竞品视频，靠 ASR 段锚定拿不到镜头节奏**——其 `verdict`/`story_level`/`learnings` 仍可用，但 `beats`/`shots` 的**时点**不可用。
 
-> 三条都属于「看起来成功、实际是错的」：① 时间轴错到只剩 9% 而报告照样成文；② 只落一个 `.raw.txt` 且 `index.json` 记 `failed`；③ 时间轴塌缩成一个点但 `beatsAnchored` 报满分。下游消费 schema v1 前必须同时看 `evidence.timing`（尤其 `*Collapsed`）与 `index.json` 的 `failed` / `collapsedTimeline` 计数。
+> 三条的共同点是「记录看着完整，实际是错的」。下游消费 schema v1 前必须同时看 `evidence.timing`（尤其 `*Collapsed`）与 `index.json` 的 `failed` / `collapsedTimeline` 计数——只看视频数或 `verdict` 会漏掉全部三条。
 
 **已知偏离（未修，供后续判断）**：提示词要求 3–8 beats，实测 `rileybrown.ai` 返回 31 beats（= ASR 段数）。内容不重复、每条意图可辨（"Establish the competitive context" → "Demonstrate object recognition" …），故未强行压缩——强行压到 8 条可能丢掉 #291 视觉设计需要的细分粒度。**beat 数量的合规性目前无法保证**，若下游按「≤8 个叙事单元」消费，需另加聚合步骤。
 
