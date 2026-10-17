@@ -59,13 +59,13 @@
 
 **场景映射**（对照我仓 `remotion/src/scenes/`）:
 
-| locomotion 模板 | 我仓 scene | 可借鉴技法 |
-| --------------- | ---------- | ---------- |
-| StaggeredWords / BoldTextPunch | HookScene | 逐词 stagger 弹簧 + opacity/translateY |
+| locomotion 模板                  | 我仓 scene                   | 可借鉴技法                               |
+| -------------------------------- | ---------------------------- | ---------------------------------------- |
+| StaggeredWords / BoldTextPunch   | HookScene                    | 逐词 stagger 弹簧 + opacity/translateY   |
 | ConceptBreakdown / StepExplainer | ContextScene / ContrastScene | eyebrow 小标签 + 标题 + 逐条 bullet 弹簧 |
-| QuoteCard | QuoteScene | 卡片/引文/作者三段错位弹簧 |
-| BarChartReveal / StatsDashboard | DataScene | 逐柱 `10+i*8` 弹簧高度 |
-| MetricCard / SalesCard | StatRevealScene | rolling counter + sparkline + 逐条 bar |
+| QuoteCard                        | QuoteScene                   | 卡片/引文/作者三段错位弹簧               |
+| BarChartReveal / StatsDashboard  | DataScene                    | 逐柱 `10+i*8` 弹簧高度                   |
+| MetricCard / SalesCard           | StatRevealScene              | rolling counter + sparkline + 逐条 bar   |
 
 **不适用的**:
 
@@ -97,13 +97,13 @@
 
 **场景映射**（对照我仓 `remotion/src/scenes/`）:
 
-| remotion-bits bit/组件 | 我仓 scene | 可借鉴技法 |
-| ---------------------- | ---------- | ---------- |
-| AnimatedText / bit-word-by-word / bit-char-by-char | HookScene / NarrativeScene | keyframe+stagger 文字动效原语 |
-| AnimatedCounter / bit-bar-chart / bit-stat-rings | StatRevealScene / DataScene | 声明式数值插值与环形/柱状数据可视化 |
-| bit-lower-third | InfoCardScene / CtaScene | 下三分之一信息条版式 |
-| bit-ken-burns / Scene3D | FullscreenMedia | 慢速 Ken Burns 与相机驱动演示 |
-| StaggeredMotion / bit-list-reveal | 通用入场 | StepTimingContext 方向化错位 |
+| remotion-bits bit/组件                             | 我仓 scene                  | 可借鉴技法                          |
+| -------------------------------------------------- | --------------------------- | ----------------------------------- |
+| AnimatedText / bit-word-by-word / bit-char-by-char | HookScene / NarrativeScene  | keyframe+stagger 文字动效原语       |
+| AnimatedCounter / bit-bar-chart / bit-stat-rings   | StatRevealScene / DataScene | 声明式数值插值与环形/柱状数据可视化 |
+| bit-lower-third                                    | InfoCardScene / CtaScene    | 下三分之一信息条版式                |
+| bit-ken-burns / Scene3D                            | FullscreenMedia             | 慢速 Ken Burns 与相机驱动演示       |
+| StaggeredMotion / bit-list-reveal                  | 通用入场                    | StepTimingContext 方向化错位        |
 
 **不适用的**:
 
@@ -147,19 +147,19 @@
 
 **场景映射**（对照我仓 `scripts/short-video/remotion/src/scenes/`）:
 
-| anything2explainer 版式 / 图元 | 我仓 scene | 可借鉴规则 |
-| --- | --- | --- |
-| 大数字型 set piece（`BigNumber`/`countTo` 计数落定 + 单位小字 + 对照物） | `StatRevealScene` | 数值滚动落定 + 必配对照物 + `GLOW_ORANGE`（我方现仅 `textShadow` 泛光） |
-| 年份/出处型（`BigNumber` 96px 滚动 + 机构胶囊 + ≥240 宽卡在旁） | `DataScene` | 出处做成胶囊而非底层小字；年份/大数字不得独站空屏 >30 帧 |
-| 左右对比版式（左 x≈300–380 / 右 x≈900–1000、标签在上、中间符号 46–60px） | `ContrastScene` | 中间符号 + 标签在上/说明在下；替代当前 `flex-wrap` 卡片堆 |
-| 图表卡（440×300 白边黑底 + 网格 + 紫曲线 + 红重点） | `DataScene`（缺） | 量化图表版式，替代静态图 / 纯数字 |
-| 卡片阵列（卡 150×92 r8、列距 24、2 帧错峰、≥12 张缩到 70 宽） | `InfoCardScene` | 尺寸三档 + 错峰入场 |
-| 流程/因果节点（Pill 150×44 或 Box 200×70、间距 200、箭头） | `ContextScene`（缺） | 因果链 / 流程版式 |
-| 「多」= ≥6px 方点阵列 / 网格按节拍点亮 | 通用背景 | 数量感用矩阵；背景只留幕底，禁碎屑 |
-| 尺寸三档 + 空场判据（§1/§6） | 全部 scene | 直接约束现有 24–96px 文字块 |
-| 光跟主角（§2） | 全部 scene | 主角光 ≠ 全屏泛光 |
-| 持续动作 + 落位停留 30–45 帧（§7） | 全部 scene | 补上「入场即停」缺口 |
-| `frame_metrics.py` / `motion_check.py` / `selfcheck.py` 三闸门 | `text-gate.tsx` / `annotation-collision-gate.tsx` / `final-media-gate.mjs` | 增补帧级视觉与节奏量化 |
+| anything2explainer 版式 / 图元                                           | 我仓 scene                                                                 | 可借鉴规则                                                              |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 大数字型 set piece（`BigNumber`/`countTo` 计数落定 + 单位小字 + 对照物） | `StatRevealScene`                                                          | 数值滚动落定 + 必配对照物 + `GLOW_ORANGE`（我方现仅 `textShadow` 泛光） |
+| 年份/出处型（`BigNumber` 96px 滚动 + 机构胶囊 + ≥240 宽卡在旁）          | `DataScene`                                                                | 出处做成胶囊而非底层小字；年份/大数字不得独站空屏 >30 帧                |
+| 左右对比版式（左 x≈300–380 / 右 x≈900–1000、标签在上、中间符号 46–60px） | `ContrastScene`                                                            | 中间符号 + 标签在上/说明在下；替代当前 `flex-wrap` 卡片堆               |
+| 图表卡（440×300 白边黑底 + 网格 + 紫曲线 + 红重点）                      | `DataScene`（缺）                                                          | 量化图表版式，替代静态图 / 纯数字                                       |
+| 卡片阵列（卡 150×92 r8、列距 24、2 帧错峰、≥12 张缩到 70 宽）            | `InfoCardScene`                                                            | 尺寸三档 + 错峰入场                                                     |
+| 流程/因果节点（Pill 150×44 或 Box 200×70、间距 200、箭头）               | `ContextScene`（缺）                                                       | 因果链 / 流程版式                                                       |
+| 「多」= ≥6px 方点阵列 / 网格按节拍点亮                                   | 通用背景                                                                   | 数量感用矩阵；背景只留幕底，禁碎屑                                      |
+| 尺寸三档 + 空场判据（§1/§6）                                             | 全部 scene                                                                 | 直接约束现有 24–96px 文字块                                             |
+| 光跟主角（§2）                                                           | 全部 scene                                                                 | 主角光 ≠ 全屏泛光                                                       |
+| 持续动作 + 落位停留 30–45 帧（§7）                                       | 全部 scene                                                                 | 补上「入场即停」缺口                                                    |
+| `frame_metrics.py` / `motion_check.py` / `selfcheck.py` 三闸门           | `text-gate.tsx` / `annotation-collision-gate.tsx` / `final-media-gate.mjs` | 增补帧级视觉与节奏量化                                                  |
 
 **不适用的**:
 
@@ -287,6 +287,147 @@
 
 ---
 
-## E. 完整分类索引
+## E. 字幕与动态排版
 
-66 个 repo 的 7 类分类（A-G）在 #291 评论中。
+本维度 = **烧录字幕的逐词/逐行动效** + **画面文字的排版纪律**。三条线各取一源：字幕版式引擎（vshukla7）、字幕动效原语与分页算法（Fats403）、动态排版方法学（iart-ai skill packs）。
+
+我方基线（对照口径，逐项实测）：`scripts/short-video/lib/subtitles/ass.mjs` —— ASS 逐词 karaoke（`\kt` 绝对偏移 + `\kf` 填充），仅两色「未读 #F5F5F5 → 已读 Dispatch Blue #4d8bff」，单一硬编码样式；`cues.mjs` —— `MAX_WORDS=6`、`HARD_PX` 硬上限、`SENTENCE_END=/[.!?:;]$/`、`MIN_DURATION=0.8`、Netflix CPS 口径 + `mergeTrailingOrphan`；`lib/safe-zones.mjs` —— `SUBTITLE_LANE{marginV:570, fontSize:60, maxLines:2, maxWidth:720}`，`SAFE_ZONES.bottom=770`（内容底 1150，字幕带 1188–1350）；`remotion/src/components/animations/entrance.tsx` —— 8 个**整块**入场原语，`spring()` 实测 **0 处**。
+
+### vshukla7/remotion-captions-themes (8★)
+
+- **调研日期**: 2026-10-18
+- **Repo 坐标修正**: 无修正（owner/名与旧记一致，8★ 实测仍 8★）；forks 1、open issues 0、archived false、lang TypeScript。
+- **本地路径**: `/tmp/rct-src/vshukla7-remotion-captions-themes-c2cfe29/`（tarball 取包，HEAD `c2cfe29` 2026-06-23；会话临时目录、非仓库资产）
+- **技术栈**: 纯 **Remotion 4 + React 18 + TS 的组件包**（不是 Remotion 工程：`src/` 内 0 处 `Composition`/`registerRoot`）；peerDeps `remotion ^4.0.0`，runtime `dependencies: {}` 零依赖。
+- **形态与规模**: `src/` **13 套主题**（`src/themes/*.tsx`，文件树实测：aarit / beast / gaming-stream / grape / hustle / karaoke / kinetic-01 / kinetic-02 / podcast / pop / poppin / simple-one-word / soft-ai）+ **`src/layout/` 5 文件的 relation 版式引擎** + [registry.ts](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/registry.ts) + [CaptionTheme.tsx](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/CaptionTheme.tsx)（唯一入口）+ `src/utils/`。另有 `plan.md`（早于实现的旧设计稿，含从未落地的 fadeSlide/typewriter/bounce）。
+- **许可**: ✅ **MIT**（`gh api` 实测 `spdx_id = MIT`）→ **Tier A：代码可吸收**（保留署名）。
+- **维护状态**: created 2026-06-21、pushed **2026-06-23**、提交全挤在 3 天内、单作者、1 fork → **近 4 个月零提交**；**零测试零 CI**（文件树实测无 `*.test.*`、无 `.github/`）。README 主题清单与 `registry.ts` 不一致（README 漏列 `kinetic-02`/`podcast`）→ 文档不可信，以代码为准。
+- **档级判定**: **Tier A**（许可 ✓ / 纯本地无付费云 ✓ / NVIDIA 假设 ✓ / 活跃度 ✗ / 能力重复 △）。
+
+**值得吸收的**:
+
+1. **逐词强调的 spring 三档参数**（可直接抄）：[pop.tsx](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/themes/pop.tsx) `{damping:10, mass:0.4, stiffness:150}` → 活动词 `scale(1 + 0.2·p)`；[beast.tsx](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/themes/beast.tsx) `{damping:10, stiffness:180}` → `scale(1 + 0.15·p)` + `rotate(-2deg)`；[podcast.tsx](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/themes/podcast.tsx) `{damping:12, mass:0.4, stiffness:150}` → scale 0.8→1 + 淡入。与 B 段 locomotion 的 presets 同构（`{150}` 弹跳 / `{180}` 冲击）。
+2. **活动词强调「非对称且克制」**：活动词上 `secondaryColor`、非活动词压到 `opacity 0.6`；[gaming-stream.tsx](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/themes/gaming-stream.tsx) 只有当前词带 `textShadow 0 0 20·p secondaryColor`（**发光只给当前词**）—— 可直接当字幕「强调预算」规则。
+3. **逐字母 stagger**（我方完全没有）：[aarit.tsx](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/themes/aarit.tsx) `letterStartFrame = wordStartFrame + letterIndex*1.5`，`containerScale 1.0→1.15` 跨整行。
+4. **relation 版式引擎（独立可复用模块）**：[layoutEngine.ts](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/layout/layoutEngine.ts)（`computeLayout` / `measureText`） + [anchors.ts](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/layout/anchors.ts)（9 锚点）+ [relations.ts](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/layout/relations.ts)（`above|below|leftOf|rightOf|anchorTo` + gap）+ [collision.ts](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/layout/collision.ts)（重叠率 = 重叠面积/较小盒面积，0..1）；量宽用 Canvas 2D `actualBoundingBox*` 真测（`measureText`）；[kinetic-01.tsx](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/themes/kinetic-01.tsx) 以「最长词」为主词、余词按锚点散布并做两轮水平去重。
+5. **确定性纪律**：`seededRandom` 由 `Math.sin` 派生，全 `src/` **0 处 `Math.random()`/`Date.now()`**；动画类别按行号取模（`kinetic-01` `activeLineIdx % 3`）。
+6. 响应式基准 `scaleFactor = width / 1080` —— 与我方 1080×1920 画布天然对齐。
+
+**不适用的**:
+
+- 13 套主题的字体/字重/阴影/描边**逐套硬编码**（Outfit / Dancing Script / Impact / Rajdhani / Poppins / Komika Axis），唯一共享层 [resolveColors.ts](https://github.com/vshukla7/remotion-captions-themes/blob/c2cfe29cb732bf01aac2a92b84f58fda28fc182e/src/utils/resolveColors.ts) 只给 2 个色值 → **不是正交 token 层**，补不了我方「缺统一视觉语言」。
+- 多处用 CSS `transition:` 驱动动画 → **帧不确定**，与 Remotion 逐帧渲染铁律冲突，作**反例**记录（不是可抄优点）。
+- 分页/断行弱于我方（其 `kinetic-01` 按 ≤3/4 词成页；我方 `cues.mjs` 已含词数/像素/句末/孤儿回并 + Netflix CPS）。
+- 横屏/通用社媒覆盖层定位，无竖屏安全区与车道概念 → 我方 `SUBTITLE_LANE` 须自行保留。
+- 输入契约（`lines[].words[].start/end` 绝对秒）与我方 `words[{text,start,end}]` 兼容 → 非缺口。
+
+### Fats403/remotion-captions-kit (5★)
+
+- **调研日期**: 2026-10-18
+- **Repo 坐标**: `Fats403/remotion-captions-kit`（5★ / forks 0 / open issues 0 / archived false / TypeScript）；坐标与旧记一致。
+- **本地路径**: `/tmp/rck/`（tarball 取包，HEAD `9723227` 2026-08-15 v0.2.0「whitespace-agnostic input, abbreviation-aware sentence breaks, char cap, flash-page merging, orphan control」；会话临时目录、非仓库资产）
+- **技术栈**: 纯 Remotion/React/TS。peerDeps `remotion >=4.0.0` + **`@remotion/captions >=4.0.0`**（建立在官方 `Caption` / `TikTokPage` / `TikTokToken` 之上），tsup 构建。
+- **形态与规模**: `src/` 18 文件（含 **7 个 `.test.*`**）+ [index.ts](https://github.com/Fats403/remotion-captions-kit/blob/97232270364bd6bba4ca8d11180c350409495e95/src/index.ts) 唯一导出入口 + [demo/Root.tsx](https://github.com/Fats403/remotion-captions-kit/blob/97232270364bd6bba4ca8d11180c350409495e95/demo/Root.tsx) 6 个 1080×1920@30fps composition。
+- **许可**: ✅ **MIT**（实测 `spdx_id = MIT`）→ **Tier A：代码可吸收**（保留署名）。
+- **维护状态**: created 2026-08-01、pushed **2026-08-15**、单作者；**有 CI**（[ci.yml](https://github.com/Fats403/remotion-captions-kit/blob/97232270364bd6bba4ca8d11180c350409495e95/.github/workflows/ci.yml)：typecheck → test → build）与 7 个测试文件（实测文件名：`create-caption-pages`、`create-caption-pages.invariants`、`sentence-boundaries`、`emphasis`、`normalize-captions`、`split-captions-into-words`、`captions-from-words`）。
+- **档级判定**: **Tier A**（许可 ✓ / 纯本地 ✓ / NVIDIA 假设 ✓ / 活跃度 △ / 能力重复 △）。
+
+**值得吸收的**:
+
+1. **分页算法 `createCaptionPages`**（[create-caption-pages.ts](https://github.com/Fats403/remotion-captions-kit/blob/97232270364bd6bba4ca8d11180c350409495e95/src/create-caption-pages.ts)，默认 `maxDurationMs 1200` / `silenceGapMs 400` / `breakOnPunctuation` / `maxCharsPerPage 42` / `minDurationMs 300` / `minWordsPerPage 2`）：暂停 ≥400ms 断 → 超限时回退到**最近分句标点**（`clauseSplit`）→ 句末断 → 后处理 `mergeShortPages`（闪页合并）+ `fixOrphans`（孤儿回并，否则借一词）+ `displayDurations`（每页显示到下一页 start）。**正对我方 `cues.mjs` 缺「回退到分句标点」这一层**。
+2. **缩写感知的句末判定**（[sentence-boundaries.ts](https://github.com/Fats403/remotion-captions-kit/blob/97232270364bd6bba4ca8d11180c350409495e95/src/sentence-boundaries.ts)）：`NEVER_ENDS`（缩写表，如 `Dr.`/`U.S.`）+ `MAYBE_ENDS` + `DOTTED_ACRONYM` + `SINGLE_INITIAL` + `BARE_NUMBER` 五类判据。**直接命中我方 `SENTENCE_END = /[.!?:;]$/` 的朴素判据**（会把 `Dr.`/`U.S.` 误断）。
+3. **6 个逐词动效预设**（`src/presets/*.tsx`）：`karaoke-fill`（`clipPath inset(0 (1-progress)*100% 0 0)` 扫填）、`kinetic-slam`（`SLAM_MS=180`，uppercase/weight 900，`scale 0.4+0.6p` + `easeOutBack`）、`neon-glow`（`GLOW_MS=150`，三层光 8/24/56px、残留 0.35、`scale 1+0.05·ignite`）、`pill-karaoke`（胶囊 `borderRadius = fontSize*0.45`，入场 160ms `scale 0.92→1`）、`weight-shift`（`SHIFT_MS=160`，`WebkitTextStroke (fontSize/40)·lift`）、`editorial-emphasis`（`PAGE_IN_MS=240` 整行上浮 + `UNDERLINE_MS=200` 下划线 `scaleX` 扫过）。
+4. **唯一 token 层 [theme.ts](https://github.com/Fats403/remotion-captions-kit/blob/97232270364bd6bba4ca8d11180c350409495e95/src/theme.ts)**：`defaultTheme` 给 fontFamily / fontSize / textColor / activeColor / pillColor / position / edgeOffset / paddingX / maxWidth，`resolveTheme` + `placementStyle` 统一出样式 —— 可作我方字幕 token 的结构模板（动效毫秒数与阴影仍是逐组件硬编码，这点别学）。
+5. **确定性捷径**：全 repo **0 处 `spring()`、0 处 `interpolate()`、0 处 CSS `transition`**；[use-token-states.ts](https://github.com/Fats403/remotion-captions-kit/blob/97232270364bd6bba4ca8d11180c350409495e95/src/use-token-states.ts) 用 `useCurrentFrame()/fps` 换算**绝对 ms**，再由 [ease.ts](https://github.com/Fats403/remotion-captions-kit/blob/97232270364bd6bba4ca8d11180c350409495e95/src/ease.ts) 手写缓动（`easeOutCubic` / `easeOutBack` / `windowProgress`）驱动 —— 因「帧→ms」是决定论，仍保持帧级确定性。
+6. **测试口径**：7 个测试文件（分页 / 分页不变量 / 句末判定 / 强调 / 归一 / 切词 / 词→Caption 各一组）+ CI 三闸 —— 可对标我方字幕模块的测试覆盖口径。
+
+**不适用的**:
+
+- **英文空格分词假设**：`normalizeCaptions` / `splitCaptionsIntoWords` / `captionsFromWords` 全部以空格定词界，缩写表全英文 → **中文无空格，不可直接搬**，须另设中文分句/分词规则。
+- **渲染路径不同**：全部 `AbsoluteFill` + CSS（`textShadow` / `WebkitTextStroke` / `clipPath`），我方是 ffmpeg + libass 烧 ASS，这些属性在 libass 无对应物 → 只能取参数与规则，不能取实现。
+- 默认 `fontSize 72` + `edgeOffset 0.1`（比例制）与我方 `fontSize 60` + `marginV 570` 竖屏契约不同 → 须重标定。
+
+**与 vshukla7 的关系**: **互补为主、部分重复**。vshukla7 给**视觉皮**（13 套成品主题），本 repo 给**骨架**（分页算法 + 6 个动效原语 + token 层），两者同以 `@remotion/captions` 的 `TikTokPage` 为接口 → 可分工会话：分页/原语用本 repo，主题皮可选 vshukla7。重复面仅在「主题/样式皮」与高亮色。
+
+### iart-ai skill packs（索引仓 motion-skills 865★ + kinetic-typography-skills 14★ + tiktok-video-skills 14★）
+
+- **调研日期**: 2026-10-18
+- **Repo 坐标修正**: 旧记「motion-skills 451★ / 50 skill」**星数与形态双向失实**。实测 `iart-ai/motion-skills` = **865★ / forks 77 / MIT / created 2026-06-22 / pushed 2026-10-14**；`kinetic-typography-skills` = **14★**（旧记 12★）/ MIT；`tiktok-video-skills` = 14★ / MIT。**形态修正：motion-skills 是「索引/门户仓」，不是 skill 内容仓** —— 实测本仓文件树无任何 `SKILL.md`，只有 `README.md` + `showcase.gif` + `showcase.html` + `tools/verify/`；**真正的资产在各 pack 仓**（`gh api orgs/iart-ai/repos` 实测该 org 共 21 仓，全部 MIT，含 `motion-design-skills` 136★ / `web-animation-skills` 45★ / `explainer-video-skills` 38★ / `lower-thirds-skills` / `b-roll-skills` 等）。
+- **本地路径**: `/tmp/ms-tar/`、`/tmp/kts-tar/`、`/tmp/iart-verify/`（tarball / contents API 取件；会话临时目录、非仓库资产）
+- **技术栈**: **纯文档型 skill**（无运行时代码）；reveal 规则给 CSS / GSAP / Framer Motion / **Remotion** 四通道代码片段（我方只取 Remotion 通道）。`scripts/` 内 3 个 POSIX bash。
+- **形态与规模**: `kinetic-typography-skills/skills/kinetic-typography/`（[SKILL.md](https://github.com/iart-ai/kinetic-typography-skills/blob/fccc94bd325d824235ee9e715e65abde57b6513a/skills/kinetic-typography/SKILL.md) + [reveal-recipes.md](https://github.com/iart-ai/kinetic-typography-skills/blob/fccc94bd325d824235ee9e715e65abde57b6513a/skills/kinetic-typography/references/reveal-recipes.md)）与 `tiktok-video-skills/skills/`（[caption-animation/](https://github.com/iart-ai/tiktok-video-skills/blob/2a775336b5a638cbf8a61dbd785f9a1b649be016/skills/caption-animation/SKILL.md)（+`references/word-timed-captions.md`）、`lower-thirds/`、`countdown-video/`、`short-form-video/`）（文件树实测）。
+- **许可**: ✅ **MIT**（三仓 `spdx_id = MIT` 实测）；tree 内 **0 个字体/图片/视频素材**（推荐字体仅作建议、不捆绑）→ **无二级许可风险**。→ **Tier A**。
+- **维护状态**: 索引仓活跃（pushed 2026-10-14）；**各 pack 多停在 2026-06-22**（含本次三个），属 org 级批量发布后未再更新；无 CI、无 tests。
+- **档级判定**: **Tier A**（许可 ✓ / 无外部付费云 ✓ / NVIDIA 假设 ✓ / 活跃度 △ / 能力重复 △）。
+
+**值得吸收的**（下列参数已逐条回原文核对，非 README 转述）:
+
+1. **三档分词粒度的 stagger 时序表**（[reveal-recipes.md](https://github.com/iart-ai/kinetic-typography-skills/blob/fccc94bd325d824235ee9e715e65abde57b6513a/skills/kinetic-typography/references/reveal-recipes.md) 首行）：line **60–100ms** / word **40–70ms** / char **20–40ms**；enter 统一 `cubic-bezier(0.16, 1, 0.3, 1)`。
+2. **Remotion 逐字 reveal 参数**（同上文件 Remotion 代码块）：`delay = i * 2`（2 帧/字 ≈ 33ms@60fps）；`spring({config:{damping:200, stiffness:200, mass:0.5}})`；`translateY(110%) → 0`。
+3. **四种 workhorse reveal**：mask（`translateY(110%)→0`，最稳）/ blur-in（`blur(12px)→0`，有 fringe 风险）/ clip-path wipe / char stagger —— **我方 `entrance.tsx` 8 原语里没有 mask 抬升、wipe 扫过这两式**。
+4. **逐词 pop-in 参数**（[caption-animation/SKILL.md](https://github.com/iart-ai/tiktok-video-skills/blob/2a775336b5a638cbf8a61dbd785f9a1b649be016/skills/caption-animation/SKILL.md)）：`spring({config:{damping:12, mass:0.6}})`，`scale 0.6 → 1`（微 overshoot 即「活」感），opacity 同驱。
+5. **活动词高亮的两条硬规则**：单一 accent 色或 box 底；`transition: color 80ms linear`；**「永不整排同时变色」**。
+6. **先锁静态排版再动**（[kinetic-typography/SKILL.md](https://github.com/iart-ai/kinetic-typography-skills/blob/fccc94bd325d824235ee9e715e65abde57b6513a/skills/kinetic-typography/SKILL.md) §开头）：display headline `line-height 1.1–1.2`、body `1.4–1.6`；**display tracking 收紧 −1%~−3%**（如 `letter-spacing: -0.02em`）。
+7. **分页粒度**：**1–4 词/页**；`combineTokensWithinMilliseconds` ≈ 200–500ms（真逐词）/ 1000–1500ms（短语）。
+8. **lower-thirds 手法**（[lower-thirds/SKILL.md](https://github.com/iart-ai/tiktok-video-skills/blob/2a775336b5a638cbf8a61dbd785f9a1b649be016/skills/lower-thirds/SKILL.md)）：栏 → 名 → 角色各错 3–6 帧；名 : 角色字号 **≥1.6×**；hold 3–5s、exit 约 ⅔ 更快；9:16 上移避开底部 UI。
+9. **竖屏字幕安全区三档**（`caption-animation/SKILL.md`）：字号 **56–80px（≈8% 屏高，最低 45px）** / 描边 **2–6px** + 软阴影 / 垂直 **center band 62–70%** / 底部清 ~280px（15%）/ 侧向居中 80% 宽。
+10. **「渲染→冻结→截图→核验」三脚本**（MIT：[seek-shot.sh](https://github.com/iart-ai/tiktok-video-skills/blob/2a775336b5a638cbf8a61dbd785f9a1b649be016/scripts/seek-shot.sh) / [contact-sheet.sh](https://github.com/iart-ai/tiktok-video-skills/blob/2a775336b5a638cbf8a61dbd785f9a1b649be016/scripts/contact-sheet.sh) / [probe-mp4.sh](https://github.com/iart-ai/tiktok-video-skills/blob/2a775336b5a638cbf8a61dbd785f9a1b649be016/scripts/probe-mp4.sh)）—— 与我方 QA 抽帧范式同源。
+
+**不适用的**:
+
+- **索引仓本身不可当 skill 使用**；坐标必须按 pack 走（旧记录把索引仓当成了内容仓）。
+- GSAP SplitText / Framer Motion / After Effects 表达式三通道 → 我方栈是 Remotion + libass ASS，**仅取规则不引入这些运行时**。
+- variable-font weight 动画 → 我方无 variable font（Helvetica Neue / Times）。
+- 其字幕实现是 **Remotion 合成帧驱动 spring**，我方是 **libass 烧录**：逐词 scale overshoot 只能落成 ASS `\t` / `\fscx` 变换，**不能直接搬 spring 代码**。
+- 安全区阈值与我方 `SUBTITLE_LANE` 互证（我方更严），**非新信息**。
+
+### 缺口汇总（E 段）
+
+| 缺口               | 我方现状（证据）                                                                                                                                       | 外部做法                                               | 判定                                                 | 来源               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ---------------------------------------------------- | ------------------ |
+| 逐词强调手法单一   | `ass.mjs` 仅双色 `\kf` 填充，无 scale / 发光 / 下划线 / 胶囊                                                                                           | spring scale/rotate/glow 三档 + 6 个动效预设           | **真缺口**                                           | vshukla7 · Fats403 |
+| 动画粒度 = 整块    | `entrance.tsx` 8 原语全为**整块**入场，`spring()` 为 0                                                                                                 | line/word/char 三档 stagger 表；逐字母 stagger         | **真缺口（核心）**                                   | iart-ai · vshukla7 |
+| 缺弹簧参数表       | 0 `spring()`，仅 2 处 bezier                                                                                                                           | `{10,0.4,150}` / `{10,180}` / `{200,200,0.5}` 三档已列 | **真缺口**（与 B 段同根因）                          | vshukla7 · iart-ai |
+| reveal 原语不齐    | 8 原语，无 mask 抬升 / wipe 扫过                                                                                                                       | mask / blur-in / wipe / char stagger 四式              | **真缺口（部分重合）**                               | iart-ai            |
+| 句末判定过朴素     | `SENTENCE_END = /[.!?:;]$/`，`Dr.` / `U.S.` 会误断                                                                                                     | 缩写感知五类判据（`sentence-boundaries.ts`）           | **真缺口**                                           | Fats403            |
+| 断行无分句回退     | 仅「词数 / 硬像素 / 句末 flush」 + 尾部孤儿合并                                                                                                        | 超限回退到最近逗号/分号（`clauseSplit`）               | **真缺口**                                           | Fats403            |
+| 分页偏大           | `MAX_WORDS=6`                                                                                                                                          | 1–4 词/页、`combineTokensWithinMilliseconds` 200–500ms | **真缺口**（须按中文重标定）                         | iart-ai · Fats403  |
+| 视觉 token 层缺失  | 单一硬编码样式；位置契约在 `safe-zones.mjs`                                                                                                            | `theme.ts` token 结构；vshukla7 13 主题（但非正交层）  | **部分缺口**                                         | Fats403            |
+| 字幕带安全区       | `SUBTITLE_LANE` 1188–1350、底留 570px                                                                                                                  | caption band 62–70%、底清 ~280–320px                   | **非缺口**（互证，我方更严）                         | iart-ai            |
+| 字级对齐           | wav2vec2 强制对齐（~20–25ms 网格）                                                                                                                     | `@remotion/captions` 的 `timestampMs`                  | **非缺口**（D 段已证）                               | —                  |
+| 字幕模块测试       | **已有** 6 个测试文件（`subtitle-ass` / `subtitle-measure` / `subtitle-compliance` / `verify-subtitles` / `subtitle-timing-guard` / `restore-tokens`） | 7 文件 + CI 三闸                                       | **非缺口**（纠正本轮调研中「我方无字幕单测」的误判） | 本仓实测           |
+| 排版 tracking 纪律 | label 层 +2~+4px、display hook −10px（两档均已合理）                                                                                                   | display −1%~−3%、body line-height 1.4–1.6              | **非缺口**（仅未 token 化）                          | 本仓实测           |
+| 输入契约           | `words[{text,start,end}]` 绝对秒                                                                                                                       | `lines[].words[].start/end` 绝对秒 / `Caption`         | **非缺口**（兼容）                                   | —                  |
+
+**场景映射**: 字幕链（`ass.mjs` / `cues.mjs`）← 分页算法 + 句末判据 + 逐词动效参数 · `HookScene` ← kinetic-slam / 逐字 stagger · `QuoteScene` · `NarrativeScene` ← editorial-emphasis 下划线扫过 · `InfoCardScene` / `QuoteScene` ← lower-thirds 层级与字号比 · `components/animations/` ← mask / wipe 新原语 + spring 参数表 · QA ← `contact-sheet.sh` 类拼图核验。
+
+**交叉引用**: 逐字母/逐词 stagger 与 **B 段 locomotion** 的 `spring()` 观察同根因（B 段记「`spring(` 计数为 0」）；「活动词只给一处强调」与 **D 段 talkcraft** 的「同屏元素预算」同向；字幕安全区三档与 **D 段 talkcraft 的 12 栏栅格 + 留白锚**互证。
+
+**详细报告**: 本节即结论（字段化记录，未另立报告文件）。
+
+### E 段索引核实（#291 的 66 repo 分类索引）
+
+66 个 repo 的 7 类分类（A-G）在 #291 评论中。本轮对其中「字幕 / 动态排版」相关候选做了**坐标 + 许可实测核实**（旧索引只记星数、未记许可，故许可档级为本轮新增字段）：
+
+| repo                                     | 实测 ★ | 许可(spdx)                                                                       | Remotion?              | pushed_at  | 档级       | 定位与适配性                                                            |
+| ---------------------------------------- | ------ | -------------------------------------------------------------------------------- | ---------------------- | ---------- | ---------- | ----------------------------------------------------------------------- |
+| Fats403/remotion-captions-kit            | 5      | MIT                                                                              | 是                     | 2026-08-15 | **A**      | 本节已深读：字幕骨架（分页 + 动效原语 + token）                         |
+| vshukla7/remotion-captions-themes        | 8      | MIT                                                                              | 是                     | 2026-06-23 | **A**      | 本节已深读：字幕视觉皮（13 主题 + relation 引擎）                       |
+| iart-ai/kinetic-typography-skills        | 14     | MIT                                                                              | 是（Remotion 通道）    | 2026-06-22 | **A**      | 本节已深读：动态排版规则与参数                                          |
+| AleBrito124356/remotion-video-templates  | 4      | MIT                                                                              | 是                     | 2026-07-18 | A          | 待深读：单仓同含 KineticText + 1080×1920 逐词 karaoke（CaptionedShort） |
+| notivn/AIEV                              | 136    | MIT                                                                              | 是（Remotion 组装）    | 2026-10-09 | A          | 只作参考：全栈 AI 剪辑应用，可定点读 karaoke 字幕层                     |
+| DojoCodingLabs/remotion-superpowers      | 136    | MIT                                                                              | 是（Claude Code 插件） | 2026-10-03 | A          | 只作参考：字幕/转场/配音包，能力依赖外部付费 API                        |
+| marioecg/codrops-kinetic-typo            | 182    | MIT                                                                              | 否（Three.js demo）    | 2022-12-12 | A          | 只作参考：已停更教学 demo                                               |
+| codrops/KineticTypePageTransition        | 127    | MIT                                                                              | 否                     | 2025-05-30 | **无关**   | 网页「页面转场」概念，与视频管线无交集                                  |
+| DanteAlighieri13210914/pv-tool           | 448    | ❌ 自定义**非商用**（"PV Tool — Non-Commercial License"，实测 LICENSE 原文）     | 否（PixiJS）           | 2026-05-18 | **B 只读** | 只作参考：动态排版引擎，非 Remotion + 非商用双阻断                      |
+| SeonmiP/KineTy                           | 59     | ❌ NOASSERTION\|Other（非 OSI 自定义；CC-BY-NC 说法本轮**未取到 LICENSE 原文**） | 否（扩散模型）         | 2025-01-11 | **B 只读** | 无关：科研扩散模型生成动态排版视频                                      |
+| ali-abassi/remotion-templates            | 37     | ❌ **无 LICENSE**                                                                | 是                     | 2026-08-23 | **B 只读** | 只作参考：模板 catalog，无许可只能吸规则与版式                          |
+| shreefentsar/remotion-video-toolkit      | 25     | ❌ **无 LICENSE**                                                                | 是（skill 文档）       | 2026-01-29 | **B 只读** | 只作参考：Remotion 创作 skill 文档                                      |
+| pablostanley/typexperiments              | 33     | ❌ **无 LICENSE**                                                                | 否（Canvas）           | 2026-03-29 | **B 只读** | 只作参考：逐字形动画效果实现参考                                        |
+| httpstersk/kinetic-typography-playground | 33     | ❌ **无 LICENSE**                                                                | 否（three.js）         | 2021-06-18 | **B 只读** | 只作参考：2021 停更原型工具                                             |
+
+**坐标修正（旧索引 → 实测）**: `DojoCodingLabs/remotion-superpowers` 119→136 · `notivn/AIEV` 114→136 · `ali-abassi/remotion-templates` 19→37 · `DanteAlighieri13210914/pv-tool` 417→448 · `iart-ai/kinetic-typography-skills` 12→14 · `marioecg/codrops-kinetic-typo` 181→182 · `codrops/KineticTypePageTransition` 126→127 · `httpstersk/kinetic-typography-playground` 32→33 · `pablostanley/typexperiments` 32→33 · `AleBrito124356/remotion-video-templates` 3→4 · `shreefentsar/remotion-video-toolkit` 24→25 · `iart-ai/motion-skills` 451→**865（且形态为索引仓）**。
+
+**许可档级修正（本轮新增实测字段）**: 旧索引未记许可 → `pv-tool`（自定义非商用）与 `KineTy`（非 OSI）**曾按「开源即可吸收」处理属误判**，`ali-abassi` / `shreefentsar` / `pablostanley` / `httpstersk` **均无 LICENSE 文件**，六者一并定为 **Tier B 只读**（只吸规则与版式，代码不得进产线）。
+
+**维度 E 状态**: ✅ 完成（2026-10-18）。定性：**vshukla7（Tier A/MIT）可吸收代码**但活跃度与 token 层俱弱，定位是「13 套视觉皮」；**Fats403（Tier A/MIT）可吸收代码**且骨架最完整——分页算法、缩写感知句末判定、6 个动效原语、token 结构、7 文件测试 + CI，正对我方 `cues.mjs`（句末判据 `/[\\.!?:;]$/`、无分句回退）与「逐词强调仅双色」两处缺口；**iart-ai skill packs（Tier A/MIT）为只吸规则的参数源**——补齐「整块入场 → 逐词/逐行 kinetic」的核心缺口（与 B 段 `spring()` 为 0 同根因）。三源共同指向 #291 收敛项：**逐词/逐行动效原语与其参数表、字幕分页与句末判据升级、字幕 token 层**。本轮为纯调研、未授权实施，**未开实施票**。
