@@ -41,6 +41,7 @@ import {
   matchYtdlp412,
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
+  shellQuote,
   ytdlpProxyArg,
 } from "./ytdlp-guard.mjs";
 import { tmpdir, homedir } from "os";
@@ -532,9 +533,9 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
   // the Keychain-backed chrome store (and its blocking prompt) is off the
   // path. TikTok is cookieless by design — see the header note.
   if (!isTiktok) {
-    parts.push(`--cookies-from-browser "${ytdlpCookieSource()}"`);
+    parts.push(`--cookies-from-browser ${shellQuote(ytdlpCookieSource())}`);
   }
-  parts.push(`--user-agent "${YTDLP_BROWSER_UA}"`);
+  parts.push(`--user-agent ${shellQuote(YTDLP_BROWSER_UA)}`);
   parts.push(
     isTiktok
       ? // One single-file format with audio, long side capped at 1920 (1080p).
@@ -560,10 +561,14 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
   if (isWeibo) {
     parts.push("--playlist-items 1");
     if (cookieFile) {
-      parts.push(`--cookies "${cookieFile}"`);
+      parts.push(`--cookies ${shellQuote(cookieFile)}`);
     }
   }
-  parts.push(`-o "${tmpPath}"`, `"${url}"`);
+  // Every interpolated value goes through shellQuote (the module's single
+  // quoting primitive): this string reaches execSync's shell, and since #300
+  // the URL can originate from scraped page content, so `"${url}"` would let a
+  // crafted href break out of the quotes and run commands.
+  parts.push(`-o ${shellQuote(tmpPath)}`, shellQuote(url));
   return parts.join(" ");
 }
 

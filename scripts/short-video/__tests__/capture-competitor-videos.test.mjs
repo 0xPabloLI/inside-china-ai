@@ -27,10 +27,14 @@ vi.mock("../lib/cdp-client.mjs", () => ({
   CDP_BASE: "http://localhost:3456",
   cdpNewTab: vi.fn(async () => "tab-300"),
   cdpCloseTab: vi.fn(async () => {}),
+  // The real proxy answers `{result:{value}}` — returning a bare string here
+  // once hid the unwrap bug (droid-review P1): both gates silently fell through
+  // to their fallbacks against the real proxy, so a HK run looked like "no
+  // videos" and the HK guard read as "unknown".
   cdpEval: vi.fn(async (tabId, script) => {
-    if (script.includes("cdn-cgi/trace")) return state.traceText;
-    if (script.includes("user-post-item")) return state.listJson;
-    return "scrolled";
+    if (script.includes("cdn-cgi/trace")) return { result: { value: state.traceText } };
+    if (script.includes("user-post-item")) return { result: { value: state.listJson } };
+    return { result: { value: "scrolled" } };
   }),
 }));
 
@@ -44,10 +48,29 @@ vi.mock("../lib/video-downloaders.mjs", () => ({
   })),
 }));
 
-const { parsePlayCount, normalizeTikTokVideoUrl, captureCompetitorVideos } =
+const { parsePlayCount, normalizeTikTokVideoUrl, sanitizeHandle, captureCompetitorVideos } =
   await import("../capture-competitor-videos.mjs");
 const { cdpNewTab } = await import("../lib/cdp-client.mjs");
 const { downloadVideo } = await import("../lib/video-downloaders.mjs");
+
+describe("sanitizeHandle (#300 stage 2)", () => {
+  it("keeps the charset TikTok handles use", () => {
+    expect(sanitizeHandle("rileybrown.ai")).toBe("rileybrown.ai");
+    expect(sanitizeHandle("thechriswinfield")).toBe("thechriswinfield");
+    expect(sanitizeHandle("user_1-2")).toBe("user_1-2");
+  });
+
+  it("strips path separators so a handle cannot escape the output dir", () => {
+    expect(sanitizeHandle("../../etc/passwd")).not.toContain("/");
+    expect(sanitizeHandle("a/b")).toBe("ab");
+    expect(sanitizeHandle("C:\\tmp")).toBe("Ctmp");
+  });
+
+  it("returns an empty string for empty input (caller skips it)", () => {
+    expect(sanitizeHandle("")).toBe("");
+    expect(sanitizeHandle(null)).toBe("");
+  });
+});
 
 describe("normalizeTikTokVideoUrl (#300 stage 2)", () => {
   it("leaves an absolute href untouched", () => {

@@ -53,6 +53,25 @@ const PROFILE_RENDER_WAIT_MS = 9000;
 const SCROLL_SETTLE_MS = 1600;
 
 /**
+ * A handle becomes a directory name under outDir, so it must not carry path
+ * separators or traversal segments. Only the charset TikTok allows in handles
+ * survives; anything else is dropped.
+ *
+ * @param {string} handle
+ * @returns {string} the handle reduced to `[A-Za-z0-9._-]`
+ */
+export function sanitizeHandle(handle) {
+  return String(handle ?? "").replace(/[^A-Za-z0-9._-]/g, "");
+}
+
+/** Unwrap a CDP eval response. The proxy answers `{result:{value}}`; older
+ *  callers/tests hand back the bare value, so both shapes are accepted. */
+function cdpValue(raw, fallback) {
+  if (typeof raw === "string") return raw;
+  return raw?.result?.value ?? raw?.value ?? fallback;
+}
+
+/**
  * TikTok renders play counts with K/M suffixes ("177.5K", "2.1M") and plain
  * integers below 1,000. Sorting by plays needs the number, not the label.
  *
@@ -138,7 +157,7 @@ async function browserExitLocation() {
   try {
     await new Promise((r) => setTimeout(r, 3000));
     const raw = await cdpEval(tabId, EXIT_TRACE_SCRIPT);
-    const text = typeof raw === "string" ? raw : (raw?.value ?? "");
+    const text = cdpValue(raw, "");
     const m = String(text).match(/^loc=(\w+)/m);
     return m ? m[1] : "unknown";
   } finally {
@@ -159,7 +178,7 @@ async function listAccountVideos(handle) {
     let last = { items: [], regionBlocked: false };
     for (let round = 0; round < LIST_SCROLL_ROUNDS; round++) {
       const raw = await cdpEval(tabId, EXTRACT_LIST_SCRIPT);
-      const text = typeof raw === "string" ? raw : (raw?.value ?? "{}");
+      const text = cdpValue(raw, "{}");
       try {
         const parsed = JSON.parse(text);
         const items = (parsed.items || [])
@@ -213,7 +232,9 @@ export async function captureCompetitorVideos({
   const followersByHandle = new Map(BENCH_ACCOUNTS.map((a) => [a.handle, a.followers]));
   const manifest = { capturedAt: new Date().toISOString(), exit: loc, accounts: [] };
 
-  for (const handle of accounts) {
+  for (const rawHandle of accounts) {
+    const handle = sanitizeHandle(rawHandle);
+    if (!handle) continue;
     const dir = join(outDir, handle);
     mkdirSync(dir, { recursive: true });
     const entry = {

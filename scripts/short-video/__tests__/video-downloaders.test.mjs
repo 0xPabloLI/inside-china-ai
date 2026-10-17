@@ -1117,6 +1117,23 @@ describe("tiktok routing (#300 stage 2)", () => {
       }
     }
   });
+
+  it("quotes the URL so a crafted href cannot break out of the shell string", () => {
+    // droid-review P1: this command string reaches execSync's shell, and #300
+    // made the URL scrapable page content. A bare `"${url}"` interpolation let a
+    // href like `…/1"; touch /tmp/pwned; "` close the quote and run commands.
+    const evil = 'https://www.tiktok.com/@x/video/1"; touch /tmp/pwned; "';
+    const cmd = buildYtdlpCommand(evil, { tmpPath: "/tmp/v.mp4" });
+    expect(cmd).not.toContain('1"; touch');
+    expect(cmd).toContain('\\"');
+    // The closing quote is escaped, so the payload stays inside one shell word.
+    expect(cmd.match(/\\";/)).not.toBeNull();
+  });
+
+  it("still quotes the url and tmpPath for the non-tiktok platforms", () => {
+    const cmd = buildYtdlpCommand("https://www.bilibili.com/video/BV1", { tmpPath: "/tmp/v.mp4" });
+    expect(cmd).toContain('-o "/tmp/v.mp4" "https://www.bilibili.com/video/BV1"');
+  });
 });
 
 // ─── #75 Batch 3: xhs via RedNote-MCP (fallback-position adapter) ───

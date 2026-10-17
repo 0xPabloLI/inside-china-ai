@@ -297,7 +297,7 @@ export function resolveYtdlpProxy({
  * @param {string} value
  * @returns {string} the value wrapped in double quotes, with shell metacharacters escaped
  */
-function shellQuote(value) {
+export function shellQuote(value) {
   return `"${value.replace(/([\\"`$])/g, "\\$1")}"`;
 }
 
