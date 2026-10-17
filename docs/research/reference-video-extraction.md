@@ -32,14 +32,22 @@ what overlay value. Analyzing high-performing competitor videos would:
 > table for the full, maintained list. This section only retains TikTok CDP
 > method details (JS code too long for the quick-reference table).
 
-### TikTok — CDP `item/detail` API (verified 2026-08-24)
+### TikTok — CDP `item/detail` API (2026-08-24; **superseded 2026-10-16**)
+
+> ⚠️ **2026-10-16：本节的 CDP `item/detail` 路线已不再是默认方法。**
+> `fetch('/aweme/v1/web/item/detail/?itemId=…&aid=1988')` 现已要求签名参数（X-Bogus/msToken）：从登录取证的**页面内**调用仍返回 JSON，但一旦脱离页面（Node/curl/带 `aweme` 前缀）即返回 HTML/403；且即使拿到 `playAddr`，媒体 CDN 也会 403 掉所有非 Chrome 指纹的客户端（浏览器内 `fetch` 带 `credentials:'include'` 得 206）。因此**下载不再走 CDP**。
+>
+> **现默认路线：`yt-dlp`（cookieless，实测 2026-10-16 成功）。** 下面「Failed: yt-dlp」一节（2026-08-16 结论）已被证伪：yt-dlp 2026.08.19 的 TikTok extractor 自解 JS challenge，2/2 样本（`@rileybrown.ai` 85s / `@marcus.dipaola` 323s）各落盘单个 1080×1920 HEVC+AAC mp4，17–27s。仓储入口是 `downloadVideo(url)`（`scripts/short-video/lib/video-downloaders.mjs` 的 ytdlp 路由），不要手写命令。注意：yt-dlp **必须**是非 HK 出口（香港被 TikTok 拒服务）。
+>
+> 下文 Method A/B/C 保留为历史记录与万不得已的兜底，不是默认路径。当前状态详见 [`competitor-video-benchmarks-research.md`](competitor-video-benchmarks-research.md) §3。
 
 TikTok has no public download API — video URLs are dynamically signed and expire.
 
-**Default: CDP `item/detail` API.** Fallback: manual download when CDP
-unavailable. Network interception only if API method fails.
+**Default (2026-10-16): `yt-dlp`, cookieless, via `downloadVideo()`.** See the
+superseded note above. The history below is kept because it explains the route
+we left, and because manual download remains the last-resort fallback.
 
-**Method A (default): CDP `item/detail` API**
+**Method A (historical default): CDP `item/detail` API**
 
 - Call TikTok's internal API `aweme/v1/web/item/detail/` via CDP `fetch()`
   within the browser session — the browser carries all necessary cookies
@@ -78,27 +86,34 @@ unavailable. Network interception only if API method fails.
 - Chrome extension: [TikTok Video Downloader](https://chromewebstore.google.com/)
   or similar — adds a download button to TikTok pages
 - Or: right-click video → "Save video as" (not available on all TikTok versions)
-- Or: ask agent to use CDP method A
+- Or: ask agent to run `downloadVideo()` (the yt-dlp route) first
 - Save to: `output/reference-videos/<name>.mp4`
 
-**Failed: yt-dlp + impersonate**
+**yt-dlp — corrected 2026-10-16 (was: "Failed")**
 
-- TikTok's anti-bot challenge (`_solve_challenge_and_set_cookies`) requires
-  **JS execution** — yt-dlp cannot do this
-- This is a fingerprint problem, not a frequency problem
+- The 2026-08-16 conclusion below was **wrong as stated**. The JS challenge
+  (`_solve_challenge_and_set_cookies`) is real, but yt-dlp's TikTok extractor
+  handles it internally — measured 2026-10-16, yt-dlp 2026.08.19 downloaded two
+  TikTok videos (cookieless, non-HK exit) with no impersonation flags.
+- **Version matters**: `/opt/homebrew/bin/yt-dlp` at 2026.07.04 failed with
+  "Unexpected response from webpage request" on the same URLs. A stale binary
+  looks exactly like "yt-dlp can't do TikTok" — check the version before
+  concluding the method is dead.
+- So the accurate statement is: `yt-dlp` cannot _impersonate a browser_, and
+  does not need to; its extractor implements the challenge.
 
 ### Third-party TikTok/Douyin download solutions (2026-08-24 research)
 
 The `item/detail` → `playAddr` approach is the most common TikTok
 reverse-engineering method in the open-source community. Key projects:
 
-| Project                                    | Approach                                              | Stars | Relevance to us                                               |
-| ------------------------------------------ | ----------------------------------------------------- | ----- | ------------------------------------------------------------- |
-| **TikTokApi** (davidteather)               | Python, calls TikTok API + extracts playAddr          | ~10K+ | Same concept as our Method A, but needs signature signing     |
-| **Cobalt** (imputnet)                      | Node.js service, parses rehydration JSON for playAddr | ~3K+  | Self-deployable HTTP API; overkill for our low-frequency use  |
-| **Douyin_TikTok_Download_API** (Evil0ctal) | Python FastAPI, handles `a_bogus` signing             | 19K   | Most popular but requires reversing X-Bogus/X-Argus signature |
-| **tiktok-api-dl** (TobyG74)                | Node.js wrapper around ssstik.io + musicaldown.com    | —     | Depends on third-party scraping services (privacy risk)       |
-| **yt-dlp**                                 | Attempts HTML rehydration JSON extraction             | —     | Blocked by TikTok JS challenge                                |
+| Project                                    | Approach                                              | Stars | Relevance to us                                                                       |
+| ------------------------------------------ | ----------------------------------------------------- | ----- | ------------------------------------------------------------------------------------- |
+| **TikTokApi** (davidteather)               | Python, calls TikTok API + extracts playAddr          | ~10K+ | Same concept as our Method A, but needs signature signing                             |
+| **Cobalt** (imputnet)                      | Node.js service, parses rehydration JSON for playAddr | ~3K+  | Self-deployable HTTP API; overkill for our low-frequency use                          |
+| **Douyin_TikTok_Download_API** (Evil0ctal) | Python FastAPI, handles `a_bogus` signing             | 19K   | Most popular but requires reversing X-Bogus/X-Argus signature                         |
+| **tiktok-api-dl** (TobyG74)                | Node.js wrapper around ssstik.io + musicaldown.com    | —     | Depends on third-party scraping services (privacy risk)                               |
+| **yt-dlp**                                 | Extractor implements TikTok's JS challenge            | —     | ✅ **Chosen 2026-10-16** — cookieless, no signature reversing, no third-party service |
 
 **Why CDP over third-party:** no signature reversing (browser carries cookies +
 signed headers), no external dependency (privacy risk on ssstik.io etc.). Only
@@ -106,6 +121,10 @@ requires: user's logged-in Chrome + CDP eval.
 
 For higher-frequency needs, **Cobalt** (self-deployed) is the best
 upgrade path — it wraps the same playAddr extraction into an HTTP API.
+
+> **2026-10-16 更新**：上面这段「Why CDP over third-party」的前提已不成立——
+> CDP 路线的两个环节都断了（页面外 API 要签名；媒体 CDN 拒绝非 Chrome 指纹）。
+> 现在选 yt-dlp：同样不逆向签名、不依赖第三方服务，而且 cookieless。
 
 ## Concrete workflow (design intent — not yet implemented)
 
@@ -188,6 +207,11 @@ analysis.
   network interception feasible, manual download recommended, no TikTok official API)
 - CDP `item/detail` API method verified: 2026-08-24 (direct `playAddr` extraction,
   simpler than network interception, verified working with browser session fetch)
+- TikTok download re-decided: **2026-10-16** — the CDP method's both legs had
+  broken (page-external API needs signing; media CDN 403s non-Chrome
+  fingerprints), and the 2026-08-16 "yt-dlp blocked" conclusion was version
+  drift (2026.07.04 fails, 2026.08.19 works). Chosen: yt-dlp, cookieless,
+  routed through `downloadVideo()` (#300 stage 2)
 - Third-party TikTok download survey: 2026-08-24 (TikTokApi, Cobalt,
   Douyin_TikTok_Download_API, tiktok-api-dl, yt-dlp — our CDP method is
   more elegant: no signature reversing, no third-party dependency, no headless browser)

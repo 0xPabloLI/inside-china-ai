@@ -11,7 +11,7 @@
 > **frontier（三轨制，默认跨轨单入口瀑布见 `### Execution Semantics`）**：
 >
 > - **Track 1A · 产线快赢段（`ready-for-agent`，保持既有契约、跨 Wave 提权）**：当前段已清空（#649 已闭票，#396 解锁入候选待准入）。
-> - **Track 2 · Active Wayfinder 破冰/连续锁轨（同一时间仅激活 1 张 `wayfinder:map`）**：当前激活 **`#291`**（W3A 短视频模板视觉设计体系重做，Tier 1；原生子票 `#300/#302/#529/#289/#299`），**当前未阻塞子票 frontier = `#300`**（外部赛道爆款解构基准，只读调研先行，与 `#302` 并行；`#668` 已全图收口闭票，进入新图破冰启动态）。
+> - **Track 2 · Active Wayfinder 破冰/连续锁轨（同一时间仅激活 1 张 `wayfinder:map`）**：当前激活 **`#291`**（W3A 短视频模板视觉设计体系重做，Tier 1；原生子票 `#300/#302/#529/#289/#299`），**当前未阻塞子票 frontier = `#300`**（外部赛道爆款解构基准，只读调研先行，与 `#302` 并行；`#668` 已全图收口闭票，进入新图破冰启动态）。**⏳ 在途占用（2026-10-17）**：#300 阶段 2 批量抓取进行中，本线改动落在 `lib/video-downloaders.mjs`（Conflict Risk Matrix 冲突组 `#314/#329/#405`）与 `lib/video-understand.mjs`（冲突组 `#334/#541/#540`）——他票领取这两处 seam 前须与本线串行；`#302` 等其他子票（不触上述文件）可并行开 worktree。
 > - **Track 3 · 独立 HITL 拍板轨（`ready-for-human` 单票决策）**：**`#429`**（Tier 1 · W1D 最终实际出链 readiness 门禁）→ **`#279`**（W1B · 语速整体上探与 narrative 耦合）→ **`#278`**（W1B · Hook 文案句式规范）。
 > - **Track 1B · 工程卫生与整理段（`ready-for-agent`）**：**`#623`**（W1C · 管线 profile 并行轨道 `prof.wrap` 独立计时）→ **`#566`**（W1C · 场景音频解析双实现统一）→ **`#693`**（W1C · scene-gate-render fixture 本地红修复）→ **`#327`**（W1C · 统一本地模型存放位置 `~/.cosyvoice3-mlx-model` → `~/models/`）。
 >

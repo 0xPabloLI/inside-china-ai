@@ -104,13 +104,15 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 | **抖音**    | CDP（需登录）`/search/{kw}?type=video`           | CDP `iesdouyin.com/share/video/` → `video.currentSrc` → curl with Referer | Search ✅ 2026-09-23（需登录）+ Download ✅ 2026-09-03 |
 | **小红书**  | CDP (needs login) → MCP fallback (RedNote-MCP)   | RedNote-MCP or XHS-Downloader                                             | Yes (both)                                             | ✅ search_notes verified 2026-09-04; download untested |
 | **微博**    | CDP (search needs login) → Google site: fallback | weibo-downloader-skill (visitor cookie, no login)                         | Search: yes, Download: no                              | ✅ Download API tested                                 |
-| **TikTok**  | ScrapeCreators API (primary, no login)           | CDP `item/detail` API (default) → manual (fallback)                       | No (search)                                            | ✅ Search + Download verified                          |
+| **TikTok**  | ScrapeCreators API (primary, no login)           | `yt-dlp` (cookieless) via `downloadVideo()`                               | No (search)                                            | ✅ Download re-verified 2026-10-16 (2/2 samples)       |
 
 > **抖音下载** (verified 2026-09-03) — CDP 访问 `https://www.iesdouyin.com/share/video/{video_id}`（无需 cookie/登录），从 `<video>` 元素的 `currentSrc` 提取 CDN 下载链接，用 `curl -H "Referer: https://www.douyin.com/"` 下载。注意：chubbyskills 的 SSR 方案（从 `window._ROUTER_DATA` 提取 `videoInfoRes`）已失效——页面结构变化，`videoInfoRes` 不再存在；但 CDP 方案（客户端 JS 渲染后从 video 元素提取）可用。测试样本：video ID `7680095489249536842`（滴滴自动驾驶 R2），下载 327KB MP4 成功。
 
 > **抖音搜索（正确路由，2026-09-23 实测）** — `https://www.douyin.com/search/{keyword}?type=video`，**`?type=video` 是必需的**：综合 tab（默认）的结果卡是纯 `div` + 背景图，卡内一个 `<a href>` 都没有 → 抽取恒为 0 条（看着「源已烂」）；视频 tab 每张卡带 `//www.douyin.com/video/{id}` → 实测 20 条真结果。从首页搜索框提交会落到 `/jingxuan/search/{kw}?type=general`（**可达但同样抽不到**）——所以别拿搜索框落点当修复。登录入口 `/passport/login` 被风控拦（`error_code:22` 非法应用），登录必须手动做，但**登录本身有效**。详见 `docs/selector-auto-healing.md` §第三条轴。
 
-> **TikTok 下载** (verified 2026-08-24) — CDP `item/detail` API 是默认方法：浏览器内 `fetch('/aweme/v1/web/item/detail/?itemId=ID&aid=1988')` → `playAddr` → `fetch(playAddr, {credentials:'include'})` → Blob → base64 分块下载。无需逆向签名、无需第三方服务。详细 JS 代码见 `docs/research/reference-video-extraction.md` TikTok section。第三方方案对比（TikTokApi, Cobalt, Douyin_TikTok_Download_API, tiktok-api-dl, yt-dlp）也见该文档。
+> **TikTok 下载** (re-verified **2026-10-16**, supersedes the 2026-08-24 CDP method) — **默认走 `yt-dlp`，cookieless**：`downloadVideo(url)` 路由到 ytdlp adapter（`-f "b[height<=1920]/b" --no-playlist`，长边封顶 1920；TikTok 多为 9:16，`height` 是长边）。实测 2/2：`@rileybrown.ai`（85s）与 `@marcus.dipaola`（323s）各得单个 1080×1920 HEVC+AAC mp4（3.8–18.7MB，17–27s）。两个必须知道的前提：**非 HK 出口**（香港被 TikTok 拒服务，`ytdlpProxyArg()` 已把系统代理显式传给 yt-dlp），以及 **yt-dlp 版本**（2026.07.04 报 "Unexpected response from webpage request"，2026.08.19 正常——旧二进制看起来就像「yt-dlp 抓不了 TikTok」）。
+>
+> 旧的 CDP `item/detail` 路线**已失效**：`fetch('/aweme/v1/web/item/detail/?itemId=ID&aid=1988')` 脱离页面即返回 HTML/403（现需 X-Bogus/msToken 签名）；即便拿到 `playAddr`，媒体 CDN 也会 403 掉非 Chrome 指纹的客户端。历史细节见 `docs/research/reference-video-extraction.md` TikTok section。
 
 > **下载方法验证日志** (issue #181, 2026-09-04) — 固定公开样本实测记录：
 >
