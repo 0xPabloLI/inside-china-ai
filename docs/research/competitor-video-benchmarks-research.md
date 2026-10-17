@@ -297,8 +297,8 @@ hook = 第 1 个 beat（`beats[0]`，时间轴由 ASR 段界推导，§3.5 ①�
 | `marcus.dipaola`（新闻，**非 AI 赛道**） | 4 | 82.8s | 4.7s | 5.7% | 10 | 10 | 7.3 |
 | `natebjones`（生活向，**非 AI 赛道**） | 1 | 15s | 7.9s | 52.8% | 4 | 4 | 16.0 |
 
-- **短号快、长号慢**：工具/教程类 33–50s、13.6–18.1 beats/min；长叙事/评论类 94–116s、5.4–9.4 beats/min。**hook 时长却反向**：长号 7.4–8.3s，短号 3.3–5.2s。
-- **shots/beat 分布是双峰的**：median 1.2 说明多数视频 beat ≈ 镜头（1:1）；`kanekallaway` 是唯一的高制作档——5 条 shots = 18 / 24 / 71 / 95 / 96（对 9–18 beats，最高 ≈ 5:1 素材池）。
+- **hook 时长总体反向，但非单调**：长叙事档 `kanekallaway` 8.3s / `rileybrown.ai` 7.4s 明显长于工具/教程档的 3.3–5.2s；`sineadbovell` 5.2s 与短号上界重叠。即「片长越长 hook 越长」在账号层面成立、**不能当单调阈值用**（与 §10.1 的样本量限制一致）。
+- **shots/beat 分布是双峰的**：median 1.2 说明多数视频 beat ≈ 镜头（1:1）；`kanekallaway` 是唯一的高制作档——5 条 shots = 18 / 24 / 71 / 95 / 96，逐条 shots/beat = 2.0 / 1.3 / 5.1 / 6.3 / **10.7**（表中最大值 10.7 的出处：96 shots / 9 beats；不可与「最大 shots ÷ 最大 beats」混算）。
 - **landing（结尾）形态**（n=34，按 `story_level.landing` 正则归类，一条可命中多类）：**评论关键词换资源** 7（maverickgpt 4/5、shedoesai 2/5、thechriswinfield 1/5）· **关注号召** 4（rileybrown.ai 2/5、shedoesai 1/5、thechriswinfield 1/5）· **punchline / 愿景收束（无 CTA）** 8（kanekallaway 4/5，另 marcus / rileybrown / sineadbovell / thechriswinfield 各 1）· 三者都不命中的叙述收束 15。**工具类偏「关键词评论」，新闻/评论类偏 punchline 收束**，分界清晰。
 
 ### 10.4 模式库（可执行条目 → 目标票）
