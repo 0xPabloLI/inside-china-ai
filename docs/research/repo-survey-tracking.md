@@ -79,9 +79,43 @@
 
 ### av/remotion-bits (491★)
 
-- **调研日期**: 待调研
-- **描述**: Remotion 组件库（charts/transitions/text reveals；`master` 分支，2026-09-15 有提交）
-- **目标**: 可复用组件参考
+- **调研日期**: 2026-10-17
+- **本地路径**: `/tmp/remotion-bits-survey/`（浅 clone，HEAD `de35fda8`，2026-09-15 "chore: sync docs lockfile to v0.2.1"；会话临时目录，非仓库资产）
+- **技术栈**: Remotion + React + TypeScript；npm 包 `remotion-bits@0.2.1`（monorepo：`src/` 组件 + `demo/` + `docs/` + `skills/`）
+- **许可**: ✅ **MIT**（`package.json` `license: "MIT"`）→ **可合法吸收，含源码**（保留许可与署名）。与 locomotion 的无许可构成关键对比
+- **规模**: `registry.json` 共 **66 个 bit**；`src/components/` 核心组件 10 个——AnimatedText、AnimatedCounter、StaggeredMotion、TypeWriter、MatrixRain、CodeBlock、GradientTransition、ScrollingImages、Scene3D（Element3D/Step/StepResponsive）、ParticleSystem（Behavior/Spawner/Particles）；其余为 `bit-*` 示例 composition（bar-chart / stat-rings / ken-burns / lower-third / list-reveal / typewriter 变体等）
+- **档级判定**（按 180-screening §2 五口径）: **Tier A（可直接吸收）**——许可 ✓ MIT、付费云绑定 ✓（纯本地）、NVIDIA 假设 ✓（无）、活跃度 ✓（2026-09-15 有提交）、能力重复 ✓（组件库正好补我们缺的动效原语）
+
+**最值得吸收的（超越 locomotion 的系统性设计）**:
+
+1. **shadcn 式组件注册表 + Agent 摄取通道（可复制范式）**——`registry.json`（66 items）+ CLI `npx remotion-bits find/fetch/mcp` + jsrepo（`npx jsrepo add --registry https://unpkg.com/remotion-bits/registry.json <bit>`）+ **MCP server 仅暴露两个工具**（`find_remotion_bits` 发现 / `fetch_remotion_bit` 取全源码）+ 自带 [`skills/remotion-bits/SKILL.md`](https://github.com/av/remotion-bits/blob/de35fda84b7b6acbe549a0b302a82ef211e8ef1e/skills/remotion-bits/SKILL.md)（声明 fallback 链 MCP → CLI → package）。这是「外部设计资产 → 本仓」的**可复制摄取范式**，正对我们的调研-吸收流程
+2. **契约驱动 catalog**——[contracts.ts](https://github.com/av/remotion-bits/blob/de35fda84b7b6acbe549a0b302a82ef211e8ef1e/src/catalog/contracts.ts) 的 `RemotionBitCatalogSummary` 自描述清单（`exportName`/`id`/`name`/`description`/`tags`/`duration`/`width`/`height`/`sourcePath`/`componentNames`/`registryDependencies`），与我们 `LayoutDescriptor` 单一真值源思路同构
+3. **声明式动画原语层**——`src/utils/motion` 提供 `useMotionTiming` / `useStepTiming` / `buildMotionStyles` / `interpolateKeyframes` / `getEasingFunction` / `StepTimingContext` + 分组 typed props（`TransformProps` / `VisualProps` / `TimingProps` / `AnimatedValue`）；组件**不手写弹簧**，而以 keyframes + progress + delay 组合（如 `AnimatedCounter` 的 `interpolateKeyframes(values, progress, easingFn, duration)` 支持 keyframe 数组与 hold 帧）→ 比 locomotion 的「每模板各写 spring」更系统、可组合
+4. **`Step` 声明式时序上下文**——`Scene3D.Step` 以 stagger 方向（`forward`/`reverse`/`center`/`random`）自动计算子元素错位，`random` 走 Remotion 确定性 seeded random
+
+**与我仓最相关的 bit 清单**（供 #291 收敛选型）: `bit-lower-third`（下三分之一）、`bit-bar-chart`、`bit-stat-rings`、`bit-ken-burns`（对比 #357 刚把视频动效收敛到 fade——Ken Burns 是另一条慢速动效路线）、`bit-list-reveal`、`bit-staggered-fade-in`、`bit-word-by-word`、`animated-counter`、`Scene3D`/`bit-carousel-3d`（相机驱动演示）
+
+**场景映射**（对照我仓 `remotion/src/scenes/`）:
+
+| remotion-bits bit/组件 | 我仓 scene | 可借鉴技法 |
+| ---------------------- | ---------- | ---------- |
+| AnimatedText / bit-word-by-word / bit-char-by-char | HookScene / NarrativeScene | keyframe+stagger 文字动效原语 |
+| AnimatedCounter / bit-bar-chart / bit-stat-rings | StatRevealScene / DataScene | 声明式数值插值与环形/柱状数据可视化 |
+| bit-lower-third | InfoCardScene / CtaScene | 下三分之一信息条版式 |
+| bit-ken-burns / Scene3D | FullscreenMedia | 慢速 Ken Burns 与相机驱动演示 |
+| StaggeredMotion / bit-list-reveal | 通用入场 | StepTimingContext 方向化错位 |
+
+**不适用的**:
+
+- MatrixRain / glitch / particle-fountain 等偏娱乐化特效，新闻场景需克制
+- Scene3D / ParticleSystem 依赖 3D/粒子栈，引入会增加渲染体积与 GPU 负担，非其值不进生产线
+- 本轮为**只读源码调研**，未实跑 `npx remotion-bits`/MCP 摄取（授权边界内不做安装验证）——摄取通道结论基于其 README/SKILL.md/源码取证，实际接入成本未实测
+
+**子 issue**: 无（纯调研）。是否引入「Agent 摄取通道（MCP/CLI）+ 声明式 motion 原语层 + 具体 bit」属 **#291**（HITL wayfinder map）的收敛决策
+
+**详细报告**: 本节即为结论（无独立报告文件；本地 clone 为会话临时目录，仓库不留资产）
+
+**维度 B 状态**: ✅ 完成（2026-10-17；两 repo `locomotion-pro/locomotion` 与 `av/remotion-bits` 均已调研并落结论）。跨 repo 综合：locomotion 提供「正交 style-token 层」思路但无许可；remotion-bits 提供「Agent 摄取通道 + 声明式 motion 原语 + 契约 catalog」且 MIT 可合法吸收——两者共同指向 #291 的两条根因（缺统一视觉语言、缺动画节奏），具体选型待 #291 收敛
 
 ---
 
