@@ -35,16 +35,16 @@ const LAYERS = ["beats", "shots"];
  *
  * The trap: after #730's fallback runs, the stored `startMs` values are rebuilt
  * back to many distinct starts, so counting them alone would report a collapsed
- * record as healthy — the exact假阴性 the判据 was fixed for. But counting is
- * the *only* independent source for a record that was never rebuilt, where the
- * persisted verdict may itself be the stale pre-fix one (`analysis/` stores
- * `beatsCollapsed: false` for a layer that has 2 distinct starts). So the
- * source depends on whether the layer was rebuilt — which is what
- * `<layer>AnchorSource: "interpolated"` says:
+ * record as healthy — the exact false negative the criterion was fixed for.
+ * But counting is the *only* independent source for a record that was never
+ * rebuilt, where the persisted verdict may itself be the stale pre-fix one
+ * (`analysis/` stores `beatsCollapsed: false` for a layer that has 2 distinct
+ * starts). So the source depends on whether the layer was rebuilt — which is
+ * what `<layer>AnchorSource: "interpolated"` says:
  *
  *   1. `measuredDistinctStarts` (`<layer>MeasuredDistinctStarts`, added in the
- *      ecfeca78 follow-up): the pre-fallback count, so the判据 is re-judged
- *      here from raw evidence. Wins whenever present.
+ *      `c09ebb77` follow-up, PR #741): the pre-fallback count, so the criterion
+ *      is re-judged here from raw evidence. Wins whenever present.
  *   2. rebuilt (`interpolated`) and no measured count → `persistedCollapsed`
  *      (`<layer>Collapsed`): written by the runner from the pre-fallback
  *      count, so it is faithful for these runs.

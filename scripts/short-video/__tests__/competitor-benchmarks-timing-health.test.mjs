@@ -25,7 +25,7 @@ describe("layerHealth", () => {
 
   it("prefers the measured count over the runner's own verdict", () => {
     // A run that persisted both a verdict and the count must be re-judged, not
-    // re-read — otherwise the verifier can never catch a broken判据.
+    // re-read — otherwise the verifier can never catch a broken criterion.
     const health = layerHealth(items(COLLAPSED_9), {
       measuredDistinctStarts: 2,
       persistedCollapsed: false,
