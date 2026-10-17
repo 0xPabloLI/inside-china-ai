@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.21.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.23...tanstack_start_ts-v1.21.0) (2026-10-17)
+
+
+### Features
+
+* **short-video:** batch competitor breakdown to schema v1 ([#300](https://github.com/0xPabloLI/inside-china-ai/issues/300)) ([b76c2ee](https://github.com/0xPabloLI/inside-china-ai/commit/b76c2ee3e69b8b4369a8484925fe02e11dc4a482))
+* **short-video:** batch competitor breakdown to schema v1 ([#300](https://github.com/0xPabloLI/inside-china-ai/issues/300)) ([5284e21](https://github.com/0xPabloLI/inside-china-ai/commit/5284e21de9e6e7c2c6a5bc32cccdf64ba5299a58))
+
+
+### Bug Fixes
+
+* **short-video:** guard manifest path segments and scope --limit to real analyses ([#300](https://github.com/0xPabloLI/inside-china-ai/issues/300)) ([04331cc](https://github.com/0xPabloLI/inside-china-ai/commit/04331cc1bacf464233ea76a8b3c676514feed04d))
+
 ## [1.20.23](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.20.22...tanstack_start_ts-v1.20.23) (2026-10-17)
 
 
