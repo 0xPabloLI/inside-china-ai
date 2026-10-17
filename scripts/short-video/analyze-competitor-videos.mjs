@@ -153,6 +153,15 @@ export function formatTranscript(segments) {
     .join("\n");
 }
 
+/** Strip the Markdown fences the model adds despite being told not to. */
+function stripFences(text) {
+  return text
+    .trim()
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/, "")
+    .trim();
+}
+
 /**
  * Extract the first JSON object from raw model output.
  *
@@ -164,11 +173,7 @@ export function formatTranscript(segments) {
  */
 export function parseBreakdownJson(text) {
   if (typeof text !== "string") return null;
-  let s = text
-    .trim()
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/, "")
-    .trim();
+  const s = stripFences(text);
   const start = s.indexOf("{");
   if (start < 0) return null;
   let depth = 0;
@@ -196,6 +201,77 @@ export function parseBreakdownJson(text) {
     }
   }
   return null;
+}
+
+/**
+ * Best-effort structural repair of model JSON that `parseBreakdownJson`
+ * rejected.
+ *
+ * The measured failure (#729, `sineadbovell/7599711388939980063`) is a
+ * **delimiter-type mismatch**: the model closed the final array with a `}` —
+ * `"antiPatterns": ["None"}}` — where `]` belonged, leaving one `[` open and the
+ * root object one closer short. This is not the truncation signature (§3.5 ②):
+ * truncation stops mid-token with a quote still open, whereas here the text ends
+ * cleanly on structural characters.
+ *
+ * The repair walks the same brace/string state machine but, on a closing
+ * delimiter, emits the type the open stack *expects* instead of the one the
+ * model wrote (coercion), and — only when the text ends **outside a string** —
+ * appends the closers still owed to the stack. Both guards keep truncation a
+ * hard failure: a text ending mid-string returns null, so an output-budget cut
+ * can never be dressed up as a complete record. Callers must surface that the
+ * result was repaired (it is not the model's exact bytes).
+ *
+ * @param {string} text
+ * @returns {object|null} parsed object, or null when the text cannot be repaired
+ */
+export function repairBreakdownJson(text) {
+  if (typeof text !== "string") return null;
+  const s = stripFences(text);
+  const start = s.indexOf("{");
+  if (start < 0) return null;
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+  let out = "";
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (inString) {
+      out += ch;
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      out += ch;
+    } else if (ch === "{" || ch === "[") {
+      stack.push(ch === "{" ? "}" : "]");
+      out += ch;
+    } else if (ch === "}" || ch === "]") {
+      if (stack.length === 0) return null; // a stray closer: not repairable
+      out += stack.pop(); // coerce the closer to the type the stack expects
+      if (stack.length === 0) {
+        try {
+          return JSON.parse(out);
+        } catch {
+          return null;
+        }
+      }
+    } else {
+      out += ch;
+    }
+  }
+  // Ended with the stack still open: only a clean end (quote closed) may be
+  // treated as a missing closer rather than a truncated token.
+  if (inString || stack.length === 0) return null;
+  out += stack.reverse().join("");
+  try {
+    return JSON.parse(out);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -240,7 +316,25 @@ export function anchorTimings(items, segments, durationMs) {
     return start;
   });
 
-  const out = list.map((item, i) => {
+  return {
+    items: applyStarts(list, starts, span),
+    anchored,
+    total: list.length,
+    distinctStarts: new Set(starts).size,
+    span,
+  };
+}
+
+/**
+ * Attach `startMs`/`endMs` to items given an explicit ordered start list.
+ *
+ * An item's end is the next *distinct* start (an item anchored to the same
+ * segment as its neighbour would otherwise get a zero-length range), and the
+ * final item runs to `span`. Shared by the measured path and the interpolated
+ * fallback so both stay monotonic and gap-free by construction.
+ */
+function applyStarts(items, starts, span) {
+  return items.map((item, i) => {
     let end = span;
     for (let j = i + 1; j < starts.length; j++) {
       if (starts[j] > starts[i]) {
@@ -251,12 +345,102 @@ export function anchorTimings(items, segments, durationMs) {
     if (end <= starts[i]) end = Math.max(span, starts[i]);
     return { ...item, startMs: starts[i], endMs: end };
   });
+}
 
+/**
+ * The collapse criterion: a timeline carries no usable per-item pacing when
+ * fewer than half its items begin at a distinct measured start.
+ *
+ * It measures whether the **time resolution is trustworthy**, not whether the
+ * record is usable — `verdict`/`beats` text stays valid on a collapsed timeline,
+ * only the `startMs`/`endMs` layer is. The rule the 2026-10-17 batch demanded:
+ * the previous `total > 1 && distinctStarts <= 1` fired on 0 of 34 records while
+ * `shedoesai/7372434986558934305` (9 beats, 2 distinct starts, 2 ASR segments)
+ * was substantively collapsed — the threshold sat exactly on the boundary the
+ * model wobbles across, so the signal was vacuous at batch scale. Requiring
+ * `total >= 3` keeps a single/two-item timeline (where any count is trivially
+ * distinct) from being flagged.
+ *
+ * @param {number} total - beats or shots in the layer
+ * @param {number} distinctStarts - distinct `startMs` on the **measured** (pre-fallback) timeline
+ * @returns {boolean}
+ */
+export function isTimelineCollapsed(total, distinctStarts) {
+  return total >= 3 && distinctStarts * 2 < total;
+}
+
+/**
+ * Spread a collapsed group of items evenly across its own span.
+ *
+ * When the ASR anchor grid is too coarse (#730), the model can only point at the
+ * few segment starts it was given, so many items share one start. The measured
+ * segment boundaries are still real, so this keeps them as group edges and
+ * subdivides **within** each run of equal starts — the faithful second time
+ * source is the segment span itself, not a grid invented across the whole video.
+ * Items sharing a start `s` run from `s` to the next different start (or `span`);
+ * a run of one is left untouched.
+ *
+ * @param {Array<{startMs: number}>} items - items already carrying measured starts
+ * @param {number} span
+ * @returns {number[]} the interpolated start for each item
+ */
+export function interpolateStarts(items, span) {
+  const n = items.length;
+  const starts = items.map((it) => it.startMs);
+  const out = new Array(n);
+  let i = 0;
+  while (i < n) {
+    let j = i;
+    while (j + 1 < n && starts[j + 1] === starts[i]) j++;
+    const count = j - i + 1;
+    const groupStart = starts[i];
+    const groupEnd = j + 1 < n ? starts[j + 1] : span;
+    const width = Math.max(groupEnd - groupStart, 0);
+    for (let k = 0; k < count; k++) {
+      out[i + k] = count === 1 ? groupStart : groupStart + Math.round((width * k) / count);
+    }
+    i = j + 1;
+  }
+  return out;
+}
+
+/**
+ * Resolve one layer's timings, with the measured-source fallback.
+ *
+ * The measured path (`anchorTimings`) is used as-is while its resolution is
+ * trustworthy. Once `isTimelineCollapsed` says it is not, the starts are
+ * interpolated within the ASR segment spans and `anchorSource` flips to
+ * `"interpolated"` so downstream can tell reconstructed pacing from measured:
+ * `rawDistinctStarts` preserves what the measurement actually achieved, and the
+ * `beatsCollapsed`/`shotsCollapsed` flags are computed from it (the health
+ * signal stays honest even though the data was repaired).
+ *
+ * @param {Array<object>} items
+ * @param {Array<{start: number, end: number, text: string}>} segments
+ * @param {number|null} durationMs
+ * @returns {{items: Array<object>, anchored: number, total: number,
+ *   distinctStarts: number, rawDistinctStarts: number, anchorSource: string}}
+ */
+export function resolveTimings(items, segments, durationMs) {
+  const raw = anchorTimings(items, segments, durationMs);
+  if (!isTimelineCollapsed(raw.total, raw.distinctStarts)) {
+    return {
+      items: raw.items,
+      anchored: raw.anchored,
+      total: raw.total,
+      distinctStarts: raw.distinctStarts,
+      rawDistinctStarts: raw.distinctStarts,
+      anchorSource: "asr",
+    };
+  }
+  const starts = interpolateStarts(raw.items, raw.span);
   return {
-    items: out,
-    anchored,
-    total: list.length,
+    items: applyStarts(raw.items, starts, raw.span),
+    anchored: raw.anchored,
+    total: raw.total,
     distinctStarts: new Set(starts).size,
+    rawDistinctStarts: raw.distinctStarts,
+    anchorSource: "interpolated",
   };
 }
 
@@ -276,8 +460,8 @@ export function anchorTimings(items, segments, durationMs) {
  */
 export function buildRecord({ handle, followers, video }, durationSec, breakdown, transcript) {
   const durationMs = Number.isFinite(durationSec) ? Math.round(durationSec * 1000) : null;
-  const beats = anchorTimings(breakdown?.beats, transcript?.segments, durationMs);
-  const shots = anchorTimings(breakdown?.shots, transcript?.segments, durationMs);
+  const beats = resolveTimings(breakdown?.beats, transcript?.segments, durationMs);
+  const shots = resolveTimings(breakdown?.shots, transcript?.segments, durationMs);
   return {
     schemaVersion: "competitor-breakdown-v1",
     meta: {
@@ -303,24 +487,42 @@ export function buildRecord({ handle, followers, video }, durationSec, breakdown
       asrSegments: transcript?.segments?.length ?? 0,
       asrGuardChanged: transcript?.guard?.changed ?? null,
       breakdownParsed: breakdown !== null,
-      // Timing provenance. Read this before trusting `beats[].startMs`:
-      //  - `anchored` counts items whose start came from a measured ASR segment;
-      //    0 anchored means the timeline is fully reconstructed, not measured.
-      //  - `collapsed` catches the worse case: every item anchored to the *same*
-      //    segment. Music/visual-led videos (shedoesai/7372434986558934305, 15.8s,
-      //    only 2 ASR segments) collapse to one start for all 9 beats, which looks
-      //    like full coverage but carries no shot timing at all. Item content is
-      //    still usable; item *pacing* is not.
+      // Timing provenance. There are two independently-resolved layers, so
+      // provenance is per-layer — reading one `anchorSource` would misreport the
+      // other (beats can be fully measured while shots are reconstructed).
+      //  - `beatsAnchorSource`/`shotsAnchorSource` — `"asr"` when starts are the
+      //    measured segment starts; `"interpolated"` when that layer's measured
+      //    grid was too coarse and the starts were reconstructed within the
+      //    segment spans (see `resolveTimings`). `evidence.asrSegments` beside
+      //    this block is the grid size that caused it.
+      //  - `beatsCollapsed`/`shotsCollapsed` — `isTimelineCollapsed` on that
+      //    layer's **measured** distinct starts, so the health signal stays honest
+      //    even when the data below it was reconstructed. It is a statement about
+      //    time *resolution*, not about whether the record is usable: on a
+      //    collapsed layer the item text is still valid, only `startMs`/`endMs`
+      //    were untrustworthy.
+      //  - `beatsMeasuredDistinctStarts`/`shotsMeasuredDistinctStarts` — the
+      //    distinct starts the *measurement* achieved, before any fallback. Read
+      //    these to judge collapse; the `*DistinctStarts` beside them are the
+      //    resolved shape and are high after a fallback.
+      //  - `beatsAnchored`/`shotsAnchored` — items whose anchor resolved to a real
+      //    segment. A low count with a high total is the model naming segment
+      //    numbers beyond the transcript (the 2026-10-17 batch: 71 shots over 22
+      //    segments, so 49 had no measured anchor).
       timing: {
         durationMs,
+        beatsAnchorSource: beats.anchorSource,
+        shotsAnchorSource: shots.anchorSource,
         beatsTotal: beats.total,
         beatsAnchored: beats.anchored,
         shotsTotal: shots.total,
         shotsAnchored: shots.anchored,
+        beatsMeasuredDistinctStarts: beats.rawDistinctStarts,
+        shotsMeasuredDistinctStarts: shots.rawDistinctStarts,
         beatsDistinctStarts: beats.distinctStarts,
         shotsDistinctStarts: shots.distinctStarts,
-        beatsCollapsed: beats.total > 1 && beats.distinctStarts <= 1,
-        shotsCollapsed: shots.total > 1 && shots.distinctStarts <= 1,
+        beatsCollapsed: isTimelineCollapsed(beats.total, beats.rawDistinctStarts),
+        shotsCollapsed: isTimelineCollapsed(shots.total, shots.rawDistinctStarts),
       },
     },
   };
@@ -524,7 +726,9 @@ export async function analyzeCompetitorVideos({
     analyzed: 0,
     skipped: 0,
     failed: 0,
-    /** Videos whose beats all anchored to one ASR segment (see buildRecord). */
+    /** VLM replies that failed to parse and were structurally repaired (#729). */
+    repaired: 0,
+    /** Videos with a collapsed beats or shots timeline (see `isTimelineCollapsed`). */
     collapsedTimeline: 0,
     results: [],
   };
@@ -595,6 +799,7 @@ export async function analyzeCompetitorVideos({
 
       let breakdown = null;
       let vlmError = null;
+      let repaired = false;
       if (!asrOnly && worker) {
         const prompt = COMPETITOR_PROMPT.replace(
           "{TRANSCRIPT}",
@@ -607,12 +812,26 @@ export async function analyzeCompetitorVideos({
         } else {
           breakdown = parseBreakdownJson(reply.text);
           if (!breakdown) {
-            vlmError = "unparseable-json";
+            // The raw text is the only provenance of a malformed reply; keep it
+            // whether or not the repair succeeds, so the shape stays auditable.
             writeFileSync(join(dir, `${safeId}.raw.txt`), reply.text ?? "", "utf8");
-            process.stderr.write("  VLM: response was not parseable JSON (raw kept)\n");
-          } else {
+            breakdown = repairBreakdownJson(reply.text);
+            if (breakdown) {
+              repaired = true;
+              process.stderr.write(
+                "  VLM: JSON needed structural repair (delimiter-type mismatch); record recovered\n",
+              );
+            } else {
+              // Unrepairable (e.g. a truncated token): the failure must stay
+              // visible downstream, not be masked as a success (see #729).
+              vlmError = "unparseable-json";
+              process.stderr.write("  VLM: response was not repairable JSON (raw kept)\n");
+            }
+          }
+          if (breakdown) {
             process.stderr.write(
-              `  VLM: ${breakdown.beats?.length ?? 0} beats, ${breakdown.shots?.length ?? 0} shots\n`,
+              `  VLM: ${breakdown.beats?.length ?? 0} beats, ${breakdown.shots?.length ?? 0} shots` +
+                `${repaired ? " (repaired)" : ""}\n`,
             );
           }
         }
@@ -620,28 +839,40 @@ export async function analyzeCompetitorVideos({
 
       const record = buildRecord(target, durationSec, breakdown, transcript);
       record.error = vlmError;
+      record.evidence.breakdownRepaired = repaired;
       record.processingMs = Date.now() - startedAt;
       writeFileSync(recordPath, JSON.stringify(record, null, 2));
 
       // A collapsed timeline is the one failure that still writes a complete,
       // plausible-looking record, so it must be loud rather than only in the JSON.
-      if (record.evidence.timing.beatsCollapsed) {
+      const t = record.evidence.timing;
+      for (const layer of ["beats", "shots"]) {
+        if (!t[`${layer}Collapsed`]) continue;
         process.stderr.write(
-          "  ⚠ timeline collapsed: every beat anchored to one ASR segment " +
-            `(${record.evidence.timing.beatsDistinctStarts} distinct start). ` +
-            "Content is usable, pacing is not.\n",
+          `  ⚠ ${layer} timeline collapsed: fewer than half begin at a distinct measured ` +
+            `start (${t[`${layer}MeasuredDistinctStarts`]} measured distinct over ` +
+            `${t[`${layer}Total`]} ${layer}, ${t[`${layer}Anchored`]} anchored, ` +
+            `${record.evidence.asrSegments} ASR segments). Pacing was reconstructed from the ` +
+            `segment spans into ${t[`${layer}DistinctStarts`]} starts (source=${t[`${layer}AnchorSource`]}); ` +
+            "content is usable, measured pacing is not.\n",
         );
       }
 
       summary.analyzed++;
       processed++;
       if (vlmError) summary.failed++;
-      if (record.evidence.timing.beatsCollapsed) summary.collapsedTimeline++;
+      if (record.evidence.breakdownRepaired) summary.repaired++;
+      const collapsedLayers = ["beats", "shots"].filter(
+        (layer) => record.evidence.timing[`${layer}Collapsed`],
+      );
+      if (collapsedLayers.length > 0) summary.collapsedTimeline++;
       summary.results.push({
         handle,
         id: video.id,
         status: vlmError ? "failed" : "analyzed",
-        collapsed: record.evidence.timing.beatsCollapsed,
+        collapsed: collapsedLayers.length > 0,
+        collapsedLayers,
+        repaired: record.evidence.breakdownRepaired,
         error: vlmError,
       });
     }
