@@ -414,6 +414,8 @@ describe("buildRecord (#300 stage 2)", () => {
       beatsAnchored: 1,
       shotsTotal: 1,
       shotsAnchored: 1,
+      beatsMeasuredDistinctStarts: 1,
+      shotsMeasuredDistinctStarts: 1,
       beatsDistinctStarts: 1,
       shotsDistinctStarts: 1,
       beatsCollapsed: false,
@@ -432,7 +434,8 @@ describe("buildRecord (#300 stage 2)", () => {
     expect(rec.evidence.timing.shotsCollapsed).toBe(true);
     // … while the data is repaired within the segment spans, not left collapsed.
     expect(rec.evidence.timing.beatsAnchorSource).toBe("interpolated");
-    expect(rec.evidence.timing.beatsDistinctStarts).toBe(9);
+    expect(rec.evidence.timing.beatsMeasuredDistinctStarts).toBe(1); // what measurement achieved
+    expect(rec.evidence.timing.beatsDistinctStarts).toBe(9); // resolved shape after fallback
     for (const b of rec.beats) expect(b.endMs).toBeGreaterThan(b.startMs);
     expect(rec.evidence.asrSegments).toBe(4); // total segments, the cause-side input
   });

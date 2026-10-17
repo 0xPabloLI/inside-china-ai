@@ -501,12 +501,14 @@ export function buildRecord({ handle, followers, video }, durationSec, breakdown
       //    time *resolution*, not about whether the record is usable: on a
       //    collapsed layer the item text is still valid, only `startMs`/`endMs`
       //    were untrustworthy.
+      //  - `beatsMeasuredDistinctStarts`/`shotsMeasuredDistinctStarts` — the
+      //    distinct starts the *measurement* achieved, before any fallback. Read
+      //    these to judge collapse; the `*DistinctStarts` beside them are the
+      //    resolved shape and are high after a fallback.
       //  - `beatsAnchored`/`shotsAnchored` — items whose anchor resolved to a real
       //    segment. A low count with a high total is the model naming segment
       //    numbers beyond the transcript (the 2026-10-17 batch: 71 shots over 22
       //    segments, so 49 had no measured anchor).
-      //  - `beatsDistinctStarts`/`shotsDistinctStarts` — post-fallback distinct
-      //    starts, so a reconstructed layer reads as its resolved shape.
       timing: {
         durationMs,
         beatsAnchorSource: beats.anchorSource,
@@ -515,6 +517,8 @@ export function buildRecord({ handle, followers, video }, durationSec, breakdown
         beatsAnchored: beats.anchored,
         shotsTotal: shots.total,
         shotsAnchored: shots.anchored,
+        beatsMeasuredDistinctStarts: beats.rawDistinctStarts,
+        shotsMeasuredDistinctStarts: shots.rawDistinctStarts,
         beatsDistinctStarts: beats.distinctStarts,
         shotsDistinctStarts: shots.distinctStarts,
         beatsCollapsed: isTimelineCollapsed(beats.total, beats.rawDistinctStarts),
@@ -846,9 +850,10 @@ export async function analyzeCompetitorVideos({
         if (!t[`${layer}Collapsed`]) continue;
         process.stderr.write(
           `  ⚠ ${layer} timeline collapsed: fewer than half begin at a distinct measured ` +
-            `start (${t[`${layer}DistinctStarts`]} distinct over ${t[`${layer}Total`]} ${layer}, ` +
-            `${t[`${layer}Anchored`]} anchored, ${record.evidence.asrSegments} ASR segments). ` +
-            `Pacing was reconstructed from the segment spans (source=${t[`${layer}AnchorSource`]}); ` +
+            `start (${t[`${layer}MeasuredDistinctStarts`]} measured distinct over ` +
+            `${t[`${layer}Total`]} ${layer}, ${t[`${layer}Anchored`]} anchored, ` +
+            `${record.evidence.asrSegments} ASR segments). Pacing was reconstructed from the ` +
+            `segment spans into ${t[`${layer}DistinctStarts`]} starts (source=${t[`${layer}AnchorSource`]}); ` +
             "content is usable, measured pacing is not.\n",
         );
       }

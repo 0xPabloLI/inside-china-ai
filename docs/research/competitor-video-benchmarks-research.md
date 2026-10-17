@@ -127,7 +127,7 @@
 
 **③ 语音稀疏/锚点越界的视频会把锚定时间轴「塌缩」（判据与兜底于 2026-10-18 收紧 · #730）。** 锚定修好后再跑 3 个账号，`rileybrown.ai`（31 段）与 `maverickgpt`（7 段）时间轴覆盖完整（`0 → 71600` / `0 → 49100`，与视频时长一致），但 `shedoesai/7372434986558934305`（15.8s，只有 **2 段** ASR——12 个工具 logo 轮播，几乎无人声）上，模型把 9 个 beat 的锚**全部指到第 1 段**，9 个 beat 的 `startMs` 全为 0。危险之处在于 `beatsAnchored` 仍报 9/9，看起来完全健康。
 
-- **判据收紧**：新增 `evidence.timing.{beats,shots}DistinctStarts` 与 `{beats,shots}Collapsed`，判据由 `total > 1 && distinctStarts <= 1` 改为 **`total >= 3 && distinctStarts * 2 < total`**（`isTimelineCollapsed`）。旧判据在**全量 34 条上命中 0**——阈值恰好压在模型摇摆的边界（distinct 卡在 1↔2），而这条 9 beats / 2 起点是实打实的塌缩，属**假阴性**。新判据衡量的是**时间分辨率是否可信**（时点可信度），**不等于记录是否可用**：塌缩时 `verdict`/`story_level`/`learnings` 与 beats/shots 的**文案仍有效**，只有 `startMs`/`endMs` 不可信。
+- **判据收紧**：新增 `evidence.timing.{beats,shots}{Measured,}DistinctStarts` 与 `{beats,shots}Collapsed`，判据由 `total > 1 && distinctStarts <= 1` 改为 **`total >= 3 && distinctStarts * 2 < total`**（`isTimelineCollapsed`，比较的是 `*MeasuredDistinctStarts`）。旧判据在**全量 34 条上命中 0**——阈值恰好压在模型摇摆的边界（distinct 卡在 1↔2），而这条 9 beats / 2 起点是实打实的塌缩，属**假阴性**。新判据衡量的是**时间分辨率是否可信**（时点可信度），**不等于记录是否可用**：塌缩时 `verdict`/`story_level`/`learnings` 与 beats/shots 的**文案仍有效**，只有 `startMs`/`endMs` 不可信。
 - **第二时间源兜底**：ASR 段过少时，按**实测 ASR 段跨度**在每个「等起点分组」内插值重建（不在全片凭空铺网格），`{beats,shots}AnchorSource` 记为 `interpolated`；`*Collapsed` 仍按**实测**起点计算，健康信号保持诚实。
 - **重算（同一批 35 条）**：beats 层命中 **1 条**（本条，即全量唯一）；shots 层命中 **4 条**——后者是旧判据**完全漏报**的另一形态：模型给出**超出转写段数的锚点**（`kanekallaway` 71 shots / 22 段 → 49 条无实测锚点），因 distinct=22（远大于 1）旧判据漏掉。
 - **结论：人声稀疏、或模型锚点越界**的视频，靠 ASR 段锚定拿不到镜头节奏——其 `verdict`/`story_level`/`learnings` 与文案仍可用，但 `beats`/`shots` 的**时点**不可信（兜底为「段跨度内重建」，非实测镜头切点，仍属 §9 未验证项）。
@@ -182,7 +182,7 @@
 - `beats` 层的 `audienceQuestionIn` / `audienceQuestionOut`（票评论标记为「最大增量」）——**保留**，进入提示词与落盘 schema。
 - **时间轴由代码推导，不接受模型自报值**（§3.5 ①）：模型只报 `anchorSegment`，`startMs`/`endMs` 由 `anchorTimings()` 按 ASR 段界算出；`endMs` 取下一处不同的段起点，末项取视频时长。
 - `meta.likes/comments/shares/publishedAt` 本轮**留 `null`**——那需要登录态逐条详情页二次抓取，不在本步骤范围；禁止为凑字段编数。
-- 落盘新增 `evidence.timing` 作为时间轴可信度留证：`durationMs`、`beatsTotal`/`shotsTotal`、`beatsAnchored`/`shotsAnchored`（锚点落在实测段内的条数，低值=模型给了越界段号）、`beatsDistinctStarts`/`shotsDistinctStarts`、`beatsCollapsed`/`shotsCollapsed`（按**实测**起点判据，§3.5 ③）、`beatsAnchorSource`/`shotsAnchorSource`（`asr`=实测段界 / `interpolated`=段跨度内重建，**逐层独立**）。同层 `evidence.asrSegments` 是造成塌缩的段数。另 `evidence.breakdownParsed` / `breakdownRepaired` 记录解析与结构修复（§3.5 ②-b）。
+- 落盘新增 `evidence.timing` 作为时间轴可信度留证：`durationMs`、`beatsTotal`/`shotsTotal`、`beatsAnchored`/`shotsAnchored`（锚点落在实测段内的条数，低值=模型给了越界段号）、`beatsMeasuredDistinctStarts`/`shotsMeasuredDistinctStarts`（**实测**起点数，判断塌缩看它）、`beatsDistinctStarts`/`shotsDistinctStarts`（兜底后的落地形态）、`beatsCollapsed`/`shotsCollapsed`（按**实测**起点判据，§3.5 ③）、`beatsAnchorSource`/`shotsAnchorSource`（`asr`=实测段界 / `interpolated`=段跨度内重建，**逐层独立**）。同层 `evidence.asrSegments` 是造成塌缩的段数。另 `evidence.breakdownParsed` / `breakdownRepaired` 记录解析与结构修复（§3.5 ②-b）。
 
 
 ---
