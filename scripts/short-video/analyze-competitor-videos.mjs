@@ -461,6 +461,25 @@ function startVlmWorker({ onStderr } = {}) {
   };
 }
 
+/**
+ * A handle and a video id each become a path segment under outDir. The manifest
+ * is machine-written — capture-competitor-videos.mjs runs the handle through
+ * `sanitizeHandle()` before it lands there — so a segment outside
+ * `[A-Za-z0-9._-]` means the manifest was hand-edited or corrupted. Fail loud
+ * rather than guess a name, since a mangled segment silently scatters output.
+ *
+ * @param {unknown} value
+ * @param {string} what - which manifest field, for the error message
+ * @returns {string} the value, unchanged, once it is known to be safe
+ */
+export function safeSegment(value, what) {
+  const s = String(value ?? "");
+  if (!s || s === "." || s === ".." || !/^[A-Za-z0-9._-]+$/.test(s)) {
+    throw new Error(`manifest ${what} is not a safe path segment: ${JSON.stringify(value)}`);
+  }
+  return s;
+}
+
 // ─── Main ───
 
 /**
@@ -469,7 +488,9 @@ function startVlmWorker({ onStderr } = {}) {
  * @param {object} [opts]
  * @param {string} [opts.manifestPath]
  * @param {string} [opts.outDir]
- * @param {number} [opts.limit] - max videos to analyse this run (0/undefined = all)
+ * @param {number} [opts.limit] - max videos to analyse this run (0/undefined =
+ *   all). Only videos actually processed count; a resume that skips existing
+ *   records does not spend the budget.
  * @param {string[]} [opts.handles] - restrict to these handles
  * @param {boolean} [opts.force] - re-analyse videos that already have output
  * @param {boolean} [opts.asrOnly] - skip the VLM leg
@@ -518,14 +539,23 @@ export async function analyzeCompetitorVideos({
     process.stderr.write("VLM worker ready.\n");
   }
 
+  /** Videos this run actually processed (analyzed or failed). `--limit` is
+   *  documented as "max videos to analyse this run", so a resume that skips
+   *  existing records must not spend the budget: counting every entry of
+   *  summary.results turned "N already analysed + --limit N" into zero
+   *  analyses. */
+  let processed = 0;
+
   try {
     for (const target of targets) {
-      if (limit > 0 && summary.results.length >= limit) break;
+      if (limit > 0 && processed >= limit) break;
       const { handle, video } = target;
-      const dir = join(outDir, handle);
+      const safeHandle = safeSegment(handle, "handle");
+      const safeId = safeSegment(video.id, "video id");
+      const dir = join(outDir, safeHandle);
       mkdirSync(dir, { recursive: true });
-      const recordPath = join(dir, `${video.id}.json`);
-      const asrPath = join(dir, `${video.id}.asr.json`);
+      const recordPath = join(dir, `${safeId}.json`);
+      const asrPath = join(dir, `${safeId}.asr.json`);
 
       if (!force && existsSync(recordPath)) {
         summary.skipped++;
@@ -578,7 +608,7 @@ export async function analyzeCompetitorVideos({
           breakdown = parseBreakdownJson(reply.text);
           if (!breakdown) {
             vlmError = "unparseable-json";
-            writeFileSync(join(dir, `${video.id}.raw.txt`), reply.text ?? "", "utf8");
+            writeFileSync(join(dir, `${safeId}.raw.txt`), reply.text ?? "", "utf8");
             process.stderr.write("  VLM: response was not parseable JSON (raw kept)\n");
           } else {
             process.stderr.write(
@@ -604,6 +634,7 @@ export async function analyzeCompetitorVideos({
       }
 
       summary.analyzed++;
+      processed++;
       if (vlmError) summary.failed++;
       if (record.evidence.timing.beatsCollapsed) summary.collapsedTimeline++;
       summary.results.push({

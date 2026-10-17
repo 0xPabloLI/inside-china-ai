@@ -1,10 +1,25 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+
+// The batch leg's ASR dependency; the limit test drives the real loop through
+// it rather than loading whisper.cpp.
+vi.mock("../lib/video-understand.mjs", () => ({
+  transcribeVideo: vi.fn(async () => ({
+    language: "en",
+    segments: [{ start: 0, end: 1000, text: "the hook" }],
+  })),
+}));
+
 import {
   formatTranscript,
   measurableSegments,
   parseBreakdownJson,
   anchorTimings,
   buildRecord,
+  safeSegment,
+  analyzeCompetitorVideos,
   COMPETITOR_PROMPT,
 } from "../analyze-competitor-videos.mjs";
 
@@ -336,5 +351,64 @@ describe("COMPETITOR_PROMPT (#300 stage 2)", () => {
     // The pre-anchor prompt requested startMs/endMs in the JSON skeleton; that
     // invitation is what produced fabricated times.
     expect(COMPETITOR_PROMPT).not.toContain('"startMs": 0, "endMs": 2500');
+  });
+});
+
+// ─── path segments & limit accounting ───
+
+describe("safeSegment (#300 stage 2)", () => {
+  it("passes the values the manifest actually carries through unchanged", () => {
+    expect(safeSegment("rileybrown.ai", "handle")).toBe("rileybrown.ai");
+    expect(safeSegment("7687736415848811789", "video id")).toBe("7687736415848811789");
+    expect(safeSegment("user_1-2", "handle")).toBe("user_1-2");
+  });
+
+  it("throws on anything that could escape outDir", () => {
+    for (const bad of ["../../etc", "a/b", "C:\\tmp", ".", "..", "", null, undefined]) {
+      expect(() => safeSegment(bad, "handle")).toThrow(/not a safe path segment/);
+    }
+  });
+
+  it("names the offending field so a corrupt manifest is pinpointable", () => {
+    expect(() => safeSegment("../x", "video id")).toThrow(/video id/);
+  });
+});
+
+describe("--limit accounting (#300 stage 2)", () => {
+  // Regression: the break condition counted every entry of summary.results,
+  // including the `skipped-existing` records a resume pushes — so "N already
+  // analysed + --limit N" skipped N records, hit the limit, and analysed
+  // nothing, contradicting the documented "max videos to analyse this run".
+  it("does not spend the budget on records a resume skips", async () => {
+    const root = mkdtempSync(join(tmpdir(), "competitor-limit-"));
+    const outDir = join(root, "out");
+    const manifestPath = join(root, "manifest.json");
+    const videos = ["111", "222"].map((id) => {
+      const file = join(root, `${id}.mp4`);
+      writeFileSync(file, "");
+      return { id, status: "downloaded", file, views: 1 };
+    });
+    writeFileSync(
+      manifestPath,
+      JSON.stringify({ accounts: [{ handle: "bench", followers: "1K", videos }] }),
+    );
+    // 111 is already analysed, so a plain resume skips it before reaching 222.
+    mkdirSync(join(outDir, "bench"), { recursive: true });
+    writeFileSync(join(outDir, "bench", "111.json"), JSON.stringify({ meta: { id: "111" } }));
+
+    try {
+      const summary = await analyzeCompetitorVideos({
+        manifestPath,
+        outDir,
+        limit: 1,
+        asrOnly: true,
+      });
+
+      expect(summary.skipped).toBe(1);
+      expect(summary.analyzed).toBe(1);
+      expect(existsSync(join(outDir, "bench", "222.json"))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
