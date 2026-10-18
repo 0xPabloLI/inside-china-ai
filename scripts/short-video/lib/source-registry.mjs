@@ -2621,7 +2621,13 @@ export const STOCK_MEDIA_SOURCES = [
             const files = v.video_files || [];
             const best = files.sort((a, b) => (b.width || 0) - (a.width || 0))[0];
             return {
-              title: v.user?.name ? `${v.user.name} video` : keyword,
+              // #547: this endpoint returns no description — only the author. A
+              // synthesised title ("<author> video", or the search keyword copied
+              // in) is not content evidence: it made every Pexels video look like a
+              // keyword match while the raw score stayed at 28, below the 30 gate,
+              // so the whole source was structurally filtered out. The author stays
+              // in `author` for attribution only.
+              title: "",
               url: best?.link || undefined,
               type: "video",
               resolution: best ? `${best.width}x${best.height}` : undefined,

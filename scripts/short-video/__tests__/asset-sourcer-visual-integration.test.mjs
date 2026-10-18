@@ -735,6 +735,102 @@ describe("Ticket 03 — Pre-filter is hard gate (P1-2)", () => {
   });
 });
 
+// ─── #547: metadata-poor candidates reach visual judgment ───
+// Call-count proof (not just score assertions): both real Pexels video shapes
+// must reach detectFocus + the VLM. Ticket #547 found 28 video entries across 11
+// historical media-patch.json files and all of them unassigned.
+
+describe("#547 — absent metadata reaches detectFocus + VLM (mocked analyzer proof)", () => {
+  it("5s Pexels video at score 28 (<30 gate) is analyzed", async () => {
+    const assets = [
+      {
+        path: "/abs/pexels-video-didi-05.mp4",
+        type: "video",
+        title: "Harrun  Muhammad video", // legacy producer: author written into title
+        author: "Harrun  Muhammad",
+        searchKeyword: "didi",
+        duration: 5,
+        resolution: "1080x1920",
+      },
+    ];
+
+    await analyzeAssets(assets);
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
+    expect(mockAnalyzeAssetSemantics.mock.calls[0][0]).toBe("/abs/pexels-video-didi-05.mp4");
+    expect(mockDetectFocus).toHaveBeenCalledTimes(1);
+    expect(mockDetectFocus).toHaveBeenCalledWith("/abs/pexels-video-didi-05.mp4");
+    expect(assets[0].technicalScore).toBe(28);
+    expect(assets[0].lowConfidence).toBe(false);
+    // The pass reason stays traceable in the artifact for a reader who sees a
+    // sub-threshold score with lowConfidence=false.
+    expect(assets[0].judgedByMetadata).toBe(false);
+  });
+
+  it("16s Pexels video at score 13 (<20 and <30) is analyzed", async () => {
+    const assets = [
+      {
+        path: "/abs/pexels-video-didi-07.mp4",
+        type: "video",
+        title: "", // post-#547 producer shape
+        author: "amin naderloei",
+        searchKeyword: "didi",
+        duration: 16,
+        resolution: "1080x1920",
+      },
+    ];
+
+    await analyzeAssets(assets);
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
+    expect(mockAnalyzeAssetSemantics.mock.calls[0][0]).toBe("/abs/pexels-video-didi-07.mp4");
+    expect(mockDetectFocus).toHaveBeenCalledTimes(1);
+    expect(assets[0].technicalScore).toBe(13);
+    expect(assets[0].lowConfidence).toBe(false);
+  });
+
+  it("keeps skipping a descriptive-but-unrelated asset (regression)", async () => {
+    const assets = [
+      {
+        path: "/abs/coverr-unrelated.mp4",
+        type: "video",
+        title: "Random unrelated video",
+        searchKeyword: "Unitree",
+        duration: 300,
+        fileSize: 200_000_000,
+      },
+    ];
+
+    await analyzeAssets(assets);
+
+    expect(mockAnalyzeAssetSemantics).not.toHaveBeenCalled();
+    expect(mockDetectFocus).not.toHaveBeenCalled();
+    expect(assets[0].lowConfidence).toBe(true);
+    expect(assets[0].judgedByMetadata).toBe(true);
+  });
+
+  it("keyword echo as title (old producer fallback, no author) is analyzed too", async () => {
+    const assets = [
+      {
+        path: "/abs/pexels-video-legacy-fallback.mp4",
+        type: "video",
+        title: "didi", // the old producer wrote the keyword when the payload had no author
+        searchKeyword: "didi",
+        duration: 16,
+        resolution: "1080x1920",
+      },
+    ];
+
+    await analyzeAssets(assets);
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
+    expect(mockDetectFocus).toHaveBeenCalledTimes(1);
+    expect(assets[0].technicalScore).toBe(41); // 28 (keyword echo) + 3 + 0 + 10
+    expect(assets[0].lowConfidence).toBe(false);
+    expect(assets[0].judgedByMetadata).toBe(false);
+  });
+});
+
 // ─── Phase 3b: Crop Decision integration ───
 
 describe("analyzeAssets — Phase 3b crop decision", () => {

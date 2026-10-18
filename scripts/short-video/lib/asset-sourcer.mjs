@@ -530,19 +530,56 @@ export function scoreCandidate(candidate, keyword, semantics) {
 }
 
 /**
+ * Content-evidence seam (#547): does this candidate's metadata describe what the
+ * asset shows? Both pre-filter gates ask this same question before they may
+ * reject a candidate — a low score caused by absent metadata is not negative
+ * evidence, it is an unknown that visual judgment has to resolve.
+ *
+ * Three title shapes carry no content evidence:
+ *   - no title at all;
+ *   - attribution-only: `title` only names the author ("<author> video" written
+ *     by the Pexels videos producer, or `title === author`). The author stays on
+ *     the candidate for attribution, but cannot masquerade as a description;
+ *   - the search keyword echoed back as the title — the old producer's fallback
+ *     when the payload had no author. The query is not a description either.
+ *
+ * Legacy search-cache entries keep those shapes, so they are recognised the same way.
+ *
+ * @param {Object} candidate - { title?, author? }
+ * @param {string} keyword - Search keyword
+ * @returns {boolean} true when the title describes the content
+ */
+function hasContentEvidence(candidate, keyword) {
+  const normalize = (value) =>
+    typeof value === "string" ? value.trim().replace(/\s+/g, " ").toLowerCase() : "";
+
+  const title = normalize(candidate?.title);
+  if (!title) return false;
+
+  if (title === normalize(keyword)) return false;
+
+  const author = normalize(candidate?.author);
+  if (author && (title === author || title === `${author} video`)) return false;
+
+  return true;
+}
+
+/**
  * Pre-filter gate: assets with technicalScore < threshold are marked lowConfidence.
  *
- * Only marks lowConfidence when there's enough metadata to make a confident
- * decision. If the asset has no title or keyword, we don't have enough
- * information to judge — let VLM analyze it (hard gate, spec §3).
+ * The gate only has an opinion when the metadata can support one: a keyword must
+ * be present and the title must describe the content (see hasContentEvidence).
+ * Otherwise the score is uninformative and the asset goes to visual judgment
+ * instead (hard gate, spec §3). `judgedByMetadata` reports which of the two
+ * happened, so callers and artifacts can tell "passed" from "not judged".
  *
  * Assets with technicalScore < 30 are hard-skipped from VLM analysis
  * to save inference cost. This may miss assets with poor metadata but
  * visually relevant content; P7 caching layer can add retry logic.
  *
- * @param {Object} candidate - { title, type, duration?, fileSize?, resolution? }
+ * @param {Object} candidate - { title?, author?, type, duration?, fileSize?, resolution? }
  * @param {string} keyword - Search keyword
- * @returns {{technicalScore: number, lowConfidence: boolean}}
+ * @returns {{technicalScore: number, lowConfidence: boolean, judgedByMetadata: boolean}}
  */
 // T05: Pre-download filter threshold — lower than post-download (30) because
 // pre-download metadata is sparser (no file size from API, resolution may be missing).
@@ -552,15 +589,13 @@ export function preFilterCandidate(candidate, keyword) {
   const { technicalScore } = computeTechnicalScore(candidate, keyword);
   const PREFILTER_THRESHOLD = 30;
 
-  // Only apply the gate when we have enough signal to judge:
-  // - keyword must be present (otherwise can't score title match)
-  // - candidate must have a title (otherwise titleScore=0 is not informative)
-  const hasEnoughSignal = !!keyword && !!candidate.title;
-  const lowConfidence = hasEnoughSignal && technicalScore < PREFILTER_THRESHOLD;
+  const judgedByMetadata = !!keyword && hasContentEvidence(candidate, keyword);
+  const lowConfidence = judgedByMetadata && technicalScore < PREFILTER_THRESHOLD;
 
   return {
     technicalScore,
     lowConfidence,
+    judgedByMetadata,
   };
 }
 
@@ -1194,14 +1229,23 @@ export async function analyzeAssets(assets, opts = {}) {
   for (const asset of assets) {
     if (!asset.path) continue;
     const keyword = asset.searchKeyword || "";
-    const { technicalScore, lowConfidence } = preFilterCandidate(asset, keyword);
+    const { technicalScore, lowConfidence, judgedByMetadata } = preFilterCandidate(asset, keyword);
     asset.technicalScore = technicalScore;
     asset.lowConfidence = lowConfidence;
+    // #547: false means the metadata could not judge this asset, so the score is
+    // uninformative and the VLM decides. The artifact keeps that verdict so a
+    // reader does not mistake a sub-threshold score for "passed the gate".
+    asset.judgedByMetadata = judgedByMetadata;
     if (lowConfidence) {
       console.log(
         `  ⏭️  Skipping low-confidence asset (pre-filter): ${asset.path} (score: ${technicalScore})`,
       );
     } else {
+      if (!judgedByMetadata && technicalScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+        console.log(
+          `  🔍 Metadata can't judge this asset (score: ${technicalScore}) — kept for visual judgment: ${asset.path}`,
+        );
+      }
       analyzableAssets.push(asset);
     }
   }
@@ -1588,6 +1632,9 @@ export async function analyzeAssets(assets, opts = {}) {
           searchKeyword: a.searchKeyword || null,
           technicalScore: a.technicalScore || null,
           lowConfidence: a.lowConfidence || false,
+          // #547: false = the metadata could not judge this asset (no keyword, or
+          // no descriptive title); the score is uninformative and the VLM decides.
+          judgedByMetadata: a.judgedByMetadata ?? null,
           description: a.description || "",
           subjects: a.subjects || [],
           contentKind: a.contentKind || null,
@@ -2414,7 +2461,9 @@ export function markDownloaded(url, downloadedUrls) {
 
 /**
  * Pre-download filter gate. Records a skip when the candidate's technicalScore
- * is below PRE_DOWNLOAD_FILTER_THRESHOLD.
+ * is below PRE_DOWNLOAD_FILTER_THRESHOLD *and* the metadata describes the content
+ * (same hasContentEvidence judgment as the post-download gate, #547). A low score
+ * from absent metadata must not discard the candidate before the VLM has seen it.
  *
  * @param {Object} candidate - Candidate to score
  * @param {string} keyword - Keyword used for scoring (searchKeyword || primaryKeyword)
@@ -2423,8 +2472,8 @@ export function markDownloaded(url, downloadedUrls) {
  * @returns {boolean} true when the candidate should be skipped
  */
 export function shouldSkipByPreFilter(candidate, keyword, sourceName, skipped) {
-  const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
-  if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+  const { technicalScore: preScore, lowConfidence } = preFilterCandidate(candidate, keyword);
+  if (lowConfidence && preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
     skipped.push({ source: sourceName, reason: `pre-download filter (score: ${preScore})` });
     return true;
   }

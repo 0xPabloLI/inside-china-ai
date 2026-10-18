@@ -94,6 +94,47 @@ describe("shouldSkipByPreFilter", () => {
     const ctx2 = makeContext();
     expect(shouldSkipByPreFilter(candidate, "Unitree", "s", ctx2.skipped)).toBe(false);
   });
+
+  // #547: the pre-download gate must use the same "is there content evidence?"
+  // judgment as the post-download gate. Real cached shape: didi / 16s /
+  // 1080x1920 / "amin naderloei video" scores 13 < 20 and used to die here.
+  it("#547: does not skip a candidate whose low score comes from absent metadata", () => {
+    const candidate = {
+      source: "pexels-video",
+      title: "", // Pexels videos API returns no description
+      author: "amin naderloei",
+      type: "video",
+      duration: 16,
+      resolution: "1080x1920",
+      url: "https://example.com/pexels-video-didi-05.mp4",
+      score: 13,
+    };
+    const ctx = makeContext();
+    expect(shouldSkipByPreFilter(candidate, "didi", "pexels-video", ctx.skipped)).toBe(false);
+    expect(ctx.skipped).toEqual([]);
+  });
+
+  it("#547: legacy author-derived title is not content evidence, descriptive titles still are", () => {
+    const legacy = {
+      source: "pexels-video",
+      title: "Evgenij Mikhailov video",
+      author: "Evgenij Mikhailov",
+      type: "video",
+      duration: 16,
+      resolution: "2160x3840",
+      url: "https://example.com/a.mp4",
+      score: 13,
+    };
+    const ctx = makeContext();
+    // 3 (16s) + 10 (2160) = 13 < 20, but the title only names the author
+    expect(shouldSkipByPreFilter(legacy, "didi", "pexels-video", ctx.skipped)).toBe(false);
+    expect(ctx.skipped).toEqual([]);
+
+    const described = { ...legacy, title: "unrelated clip", author: undefined };
+    const ctx2 = makeContext();
+    expect(shouldSkipByPreFilter(described, "didi", "pexels-video", ctx2.skipped)).toBe(true);
+    expect(ctx2.skipped[0].reason).toContain("pre-download filter");
+  });
 });
 
 describe("shouldSkipByDedup", () => {

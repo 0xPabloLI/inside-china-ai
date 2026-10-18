@@ -1536,6 +1536,67 @@ describe("Pixabay API source", () => {
   });
 });
 
+// ─── Pexels videos API source (#547) ───
+
+describe("Pexels videos source", () => {
+  it("never synthesises a title from the author or the search keyword (#547)", () => {
+    // Live payload shape: the videos endpoint returns no description at all —
+    // only user.name, duration and video_files.
+    const pexelsVideo = API_SOURCES.find((s) => s.name === "pexels-video");
+    const result = pexelsVideo.parseResponse(
+      {
+        videos: [
+          {
+            user: { name: "Zarrina Khojimuratova" },
+            duration: 5,
+            video_files: [
+              {
+                link: "https://videos.pexels.com/video-files/123-uhd.mp4",
+                width: 2160,
+                height: 3840,
+              },
+              {
+                link: "https://videos.pexels.com/video-files/123-hd.mp4",
+                width: 1080,
+                height: 1920,
+              },
+            ],
+          },
+        ],
+      },
+      "amd",
+    );
+
+    expect(result).toHaveLength(1);
+    // "<author> video" used to read as a keyword hit while the score stayed at 28
+    // (< the 30 gate); the author is attribution, never a description.
+    expect(result[0].title).toBe("");
+    expect(result[0].author).toBe("Zarrina Khojimuratova");
+    // The search keyword must not be copied into the title either — that would
+    // pump the 28-point title score without describing the content.
+    expect(result[0].title).not.toBe("amd");
+    expect(result[0].url).toBe("https://videos.pexels.com/video-files/123-uhd.mp4");
+    expect(result[0].type).toBe("video");
+    expect(result[0].resolution).toBe("2160x3840");
+    expect(result[0].duration).toBe(5);
+    expect(result[0].fileSize).toBeUndefined();
+  });
+
+  it("yields no title when the payload has no user (#547)", () => {
+    const pexelsVideo = API_SOURCES.find((s) => s.name === "pexels-video");
+    const result = pexelsVideo.parseResponse(
+      {
+        videos: [
+          { duration: 30, video_files: [{ link: "https://x/v.mp4", width: 1080, height: 1920 }] },
+        ],
+      },
+      "didi",
+    );
+    expect(result[0].title).toBe("");
+    expect(result[0].author).toBeUndefined();
+  });
+});
+
 // ─── assignAssetsToScenes tests ───
 
 import { assignAssetsToScenes } from "../lib/asset-sourcer.mjs";
@@ -2202,6 +2263,127 @@ describe("T05 — Pre-download filter gate (threshold 20)", () => {
     expect(result.technicalScore).toBeGreaterThanOrEqual(PRE_DOWNLOAD_FILTER_THRESHOLD);
     // Post-download: 28 < 30 → lowConfidence (skipped from VLM)
     expect(result.lowConfidence).toBe(true);
+  });
+});
+
+// ─── #547: content evidence vs metadata absence (Pexels video shape) ───
+// The Pexels videos API returns no description — only the author — so a gate may
+// not read "no title" as "unrelated content". Fixtures are the real cached
+// shapes from scripts/short-video/content/didi-robotaxi-r2/search-cache.json:
+//   didi / 5s  / 1080x1920 / "Harrun  Muhammad video" (score 28, <30 gate)
+//   didi / 16s / 1080x1920 / "amin naderloei video"   (score 13, <20 gate)
+
+describe("#547: metadata absence is not negative evidence", () => {
+  /** Legacy cache entry: the producer wrote the author into the title. */
+  const legacyPexelsVideo = {
+    source: "pexels-video",
+    type: "video",
+    title: "Harrun  Muhammad video",
+    author: "Harrun  Muhammad",
+    duration: 5,
+    resolution: "1080x1920",
+    fileSize: undefined, // the API never returns a file size
+    searchKeyword: "didi",
+  };
+
+  it("legacy author-derived title at score 28 stays out of lowConfidence (was hard-skipped)", () => {
+    const result = preFilterCandidate(legacyPexelsVideo, "didi");
+    // The raw score is unchanged — 0 (no title match) + 18 (5s) + 0 + 10 (1080x1920)
+    expect(result.technicalScore).toBe(28);
+    // ...but an absent content signal is not negative evidence
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("legacy author-derived title whose author echoes the keyword is not evidence either", () => {
+    // author "amd" makes "<author> video" read like a keyword hit (titleScore 28)
+    // — an attribution coincidence, not a description of the asset
+    const candidate = {
+      ...legacyPexelsVideo,
+      title: "amd video",
+      author: "amd",
+      searchKeyword: "amd",
+    };
+    const result = preFilterCandidate(candidate, "amd");
+    expect(result.technicalScore).toBe(56); // 28 + 18 + 0 + 10
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("post-#547 producer shape (no title at all) passes both gates", () => {
+    const candidate = { ...legacyPexelsVideo, title: "", author: "amin naderloei", duration: 16 };
+    const result = preFilterCandidate(candidate, "didi");
+    expect(result.technicalScore).toBe(13); // 0 + 3 (16s) + 0 + 10
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("keeps gating descriptive-but-unrelated titles (regression)", () => {
+    const candidate = {
+      source: "coverr",
+      type: "video",
+      title: "Random unrelated video",
+      duration: 300,
+      fileSize: 200_000_000,
+      searchKeyword: "didi",
+    };
+    expect(preFilterCandidate(candidate, "didi").technicalScore).toBe(3);
+    expect(preFilterCandidate(candidate, "didi").lowConfidence).toBe(true);
+  });
+
+  it("keeps gating images and other video sources (regression)", () => {
+    // Pexels image with a descriptive alt-like title, no size/resolution → 14 < 30
+    const image = {
+      source: "pexels",
+      type: "image",
+      title: "aerial view of a city",
+      searchKeyword: "didi",
+    };
+    expect(preFilterCandidate(image, "didi").lowConfidence).toBe(true);
+
+    // Other video source, descriptive title, sparse metadata → 3 < 30
+    const otherVideo = {
+      source: "baidu",
+      type: "video",
+      title: "unrelated clip",
+      searchKeyword: "didi",
+    };
+    expect(preFilterCandidate(otherVideo, "didi").lowConfidence).toBe(true);
+  });
+
+  it("no keyword at all still skips the judgment (no signal either way)", () => {
+    expect(preFilterCandidate(legacyPexelsVideo, "").lowConfidence).toBe(false);
+  });
+
+  it("keyword-echo title is the old producer fallback, not content evidence", () => {
+    // `title: v.user?.name ? `${name} video` : keyword` — an authorless payload
+    // wrote the query straight into the title. Copying the keyword in is exactly
+    // what must not pump the 28-point title score.
+    const candidate = {
+      source: "pexels-video",
+      type: "video",
+      title: "didi",
+      searchKeyword: "didi",
+      duration: 16,
+      resolution: "1080x1920",
+    };
+    const result = preFilterCandidate(candidate, "didi");
+    expect(result.technicalScore).toBe(41); // 28 (keyword echo) + 3 + 0 + 10
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("attribution-only titles are not evidence for any source (shared seam)", () => {
+    // The rule is attribution-shaped (title === author / "<author> video"), not a
+    // Pexels-specific suffix heuristic, so it applies wherever a producer wrote
+    // the credit line into the title.
+    const candidate = {
+      source: "baidu",
+      type: "image",
+      title: "techchannel",
+      author: "techchannel",
+      searchKeyword: "didi",
+    };
+    expect(preFilterCandidate(candidate, "didi").lowConfidence).toBe(false);
+
+    const stillGated = { ...candidate, title: "unrelated city skyline", author: "techchannel" };
+    expect(preFilterCandidate(stillGated, "didi").lowConfidence).toBe(true);
   });
 });
 
