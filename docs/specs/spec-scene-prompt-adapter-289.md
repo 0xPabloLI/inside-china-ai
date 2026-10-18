@@ -38,14 +38,21 @@ declared prompt 写作是 Stage-3 的**执行指令**（做什么、按什么模
 `checkBrollPromptDimensions(scenes)` 扩为三判据（均为 warn）：
 
 - **(a) 数字扫描**（保留现状）：阿拉伯数字 → 移入 texts。
-- **(b) 薄写**：prompt 对 CAMERA / MOTION / LIGHTING 三个创作维度**全部无信号** → 判为 subject-only 薄写。信号词表以常量集合实现并把「启发式、非语义」写进注释与 detail。
+- **(b) 薄写**：prompt 既**无镜头景别（CAMERA）也无镜头运动（MOTION）信号** → 判为 subject-only 薄写。信号词表以常量集合实现，并把「启发式、非语义」写进注释与 detail。
 - **(c) 跨 scene 逐字重复**：归一化（trim + lower + 折叠空白）后两条以上 scene 的 prompt 相同 → 对涉及的每个场景各报一条，detail 列出重复出现次数。
 
-保持单一 check 名（`B-roll prompt dimensions`）与 warn 级别，使 preflight exit 0、下游无需改判据消费。设计取舍：只要求 CAMERA/MOTION/LIGHTING 至少其一（而非四维全在），可显著降低误报；VISUAL METAPHOR 因无法用关键词可靠识别，**不**纳入机器判据，改由 D1 协议教学。
+保持单一 check 名（`B-roll prompt dimensions`）与 warn 级别，使 preflight exit 0、下游无需改判据消费。
+
+**判据与范围决策（实施期实测回填，2026-10-18）**：
+
+- **薄写用两维（CAMERA/MOTION），不用三维**。原设想含 LIGHTING，实测否决：被 #289 点名的薄写样例 `...glowing server racks, cinematic vertical` 带光照词却无镜头方向；在真实 `anthropic-distillation-7labs` 数据上，加 LIGHTING 会让 7 条薄写中的 4 条逃逸（实测）。故 LIGHTING **不入**薄写判据。
+- **判据为启发式关键词探针，非语义阅读**：命名词表命中即算「有信号」，不判断贴切与否；detail 明标 `heuristic`。
+- VISUAL METAPHOR 无法用关键词可靠识别，**不**纳入机器判据，改由 D1 协议教学。
+- 判据覆盖**所有声明生成 prompt 的场景**——既含 `b-roll` 的 `aiVideo.prompt`，也含 `ai-image` 的 `aiImage.prompt`（`generatingPrompt` 按策略分派）。
 
 ### D3 信号表作可导出常量
 
-`BROLL_DIMENSION_SIGNALS`（CAMERA/MOTION/LIGHTING 三组正则）导出，供测试与文档指针复用，避免测试里重抄正则。
+`BROLL_SHOT_SIGNALS`（CAMERA/MOTION 两组正则，语义 = 声明了「镜头怎么拍」）导出，供测试直接消费（断言薄写样例不命中任一组）与文档指针复用，避免测试重抄正则。
 
 ### D4 per-model prompt 模板为可拆分增量（Part 3）
 
@@ -55,10 +62,10 @@ declared prompt 写作是 Stage-3 的**执行指令**（做什么、按什么模
 
 | 文件 | 改动 | 风险/回滚 |
 |---|---|---|
-| `scripts/short-video/lib/scene-rules.mjs` | 扩 `checkBrollPromptDimensions`（三判据）+ 导出 `BROLL_DIMENSION_SIGNALS` | 纯新增分支，保持 warn-only；回滚=删新增分支 |
-| `scripts/short-video/__tests__/scene-rules.test.mjs` | 新增薄写/重复/数字保留/clean 用例 | 测试文件，无生产影响 |
+| `scripts/short-video/lib/scene-rules.mjs` | 扩 `checkBrollPromptDimensions`（三判据）+ 导出 `BROLL_SHOT_SIGNALS` | 纯新增分支，保持 warn-only；回滚=删新增分支 |
+| `scripts/short-video/__tests__/scene-rules.test.mjs` | 新增薄写（含被点名样例、光照-only）/重复/数字保留/clean 用例 | 测试文件，无生产影响 |
 | `docs/video-script-writing-guide.md` | 新增 declared prompt 写作协议一节 | L1 文档；需 `npm run lint:docs` + § 编号核对 |
-| `docs/DOCS-INDEX.md` | 仅当 Part 3 新建 research 文档时更新对应行 | — |
+| `docs/DOCS-INDEX.md` | 登记本 spec 行（`specs/` 表） | 文档索引；规则 5 要求同步 |
 | per-model prompt 模板模块（新，Part 3，跟进票创建） | per-model 模板 | 增量，未接入则无行为变化 |
 | `docs/research/`（新，Part 3） | per-model prompt 最佳实践 | L2 |
 
@@ -68,15 +75,17 @@ declared prompt 写作是 Stage-3 的**执行指令**（做什么、按什么模
 
 | # | 场景 | 预期 |
 |---|---|---|
-| S1 | 薄写 subject-only prompt（如 `data visualization dashboard, digital analytics, tech interface`） | warn，detail 指向缺 CAMERA/MOTION/LIGHTING |
-| S2 | 富写 prompt（含 camera + motion + lighting 信号，如 `slow dolly push-in, medium shot, neon backlit server hall`） | 无 warn |
+| S1 | 薄写 subject-only prompt（如 `data visualization dashboard, digital analytics, tech interface`） | warn，detail 标 `heuristic` 并指向缺镜头方向 |
+| S2 | 富写 prompt（含 camera + motion，如 `slow dolly push-in, medium shot, ...`） | 无 warn |
 | S3 | 含阿拉伯数字的 prompt | 保留现状 warn（数字维度） |
 | S4 | 两 scene prompt 归一化后逐字相同 | 对每个涉及 scene 各一条 warn，detail 含出现次数 |
 | S5 | 所有 prompt 各异且非薄写 | `checkBrollPromptDimensions` 返回空数组 |
 | S6 | 非生成 scene（无 generating strategy 或空 prompt） | 静默（不产生结果） |
 | S7 | 任何以上场景 | 结果 `level` 恒为 `warn`，绝无 `fail`（preflight exit 0 保持） |
-| S8 | 已有 content dir 真实数据 | 40 条 anthropic-distillation-7labs 复现 ≥1 条重复 warn（真数据 smoke） |
+| S8 | 已有 content dir 真实数据 | 40 条 anthropic-distillation-7labs 复现 ≥1 条重复 warn + ≥1 条薄写 warn |
 | S9 | Part 1 文档 | 协议含 per-visualType 模板 + 三条反模式，且以指针指向 `VISUAL_TYPE_DIMENSION_DEFAULTS`，无常量重复 |
+| S10 | 被点名样例 `...glowing server racks, cinematic vertical`（有光照词、无镜头方向） | 仍判薄写 warn（锁死 LIGHTING 不进判据的决策） |
+| S11 | 声明生成 prompt 的 `ai-image` 场景 | 同受判据（`aiImage.prompt` 亦被扫） |
 
 ## 7. 非目标
 
@@ -88,8 +97,9 @@ declared prompt 写作是 Stage-3 的**执行指令**（做什么、按什么模
 
 ## 8. 验收
 
-- [ ] affected `scene-rules.test.mjs` + `npm test` 全绿；覆盖 S1–S8
-- [ ] 真实数据 smoke：`anthropic-distillation-7labs` 命中重复 warn（命令落 ticket demo path）
+- [ ] affected `scene-rules.test.mjs` + `npm test` 全绿；覆盖 S1–S8、S10–S11
+- [ ] 真实数据 smoke：`anthropic-distillation-7labs`（pt1–pt4，40 条）命中重复 warn + 薄写 warn
 - [ ] `npm run lint:docs` 通过；新增 § 编号存在性核对；`git diff --check`
 - [ ] `checkBrollPromptDimensions` 输出恒为 warn（S7 断言保留）
 - [ ] Part 1 协议节落地并被 `content-pipeline.md` Stage 3 链路可达（经 `video-script-writing-guide.md` 既有引用）
+- [ ] 本 spec 已登记进 `docs/DOCS-INDEX.md` 的 `specs/` 表；tickets 落 `.scratch/scene-prompt-adapter-289/issues/`（索引规则 2、287、5）

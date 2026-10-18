@@ -38,6 +38,7 @@ import {
   MEDIA_STRATEGIES,
   checkMediaOptOutDeprecation,
   checkBrollPromptDimensions,
+  BROLL_SHOT_SIGNALS,
   checkInstructCoverage,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
@@ -51,6 +52,16 @@ import { scenes as pt3Scenes } from "../content/distillation/pt3/scene-data.mjs"
 import { scenes as qwenScenes } from "../content/qwen4-preview/scene-data.mjs";
 // #289 real-data baseline: the series whose declared prompts are thin/verbatim-reused.
 import { scenes as distill7labsPt1Scenes } from "../content/anthropic-distillation-7labs/pt1/scene-data.mjs";
+import { scenes as distill7labsPt2Scenes } from "../content/anthropic-distillation-7labs/pt2/scene-data.mjs";
+import { scenes as distill7labsPt3Scenes } from "../content/anthropic-distillation-7labs/pt3/scene-data.mjs";
+import { scenes as distill7labsPt4Scenes } from "../content/anthropic-distillation-7labs/pt4/scene-data.mjs";
+
+const distill7labsAll = [
+  ...distill7labsPt1Scenes,
+  ...distill7labsPt2Scenes,
+  ...distill7labsPt3Scenes,
+  ...distill7labsPt4Scenes,
+];
 
 // ── Mock scene data ──
 
@@ -1560,7 +1571,17 @@ describe("checkBrollPromptDimensions", () => {
     expect(result[0].level).toBe("warn");
     expect(result[0].detail).toContain("3");
     expect(result[0].detail.toLowerCase()).toContain("camera");
+    expect(result[0].detail.toLowerCase()).toContain("heuristic");
     expect(result[0].fix).toContain("video-script-writing-guide.md");
+  });
+
+  it("#289 thin-write: a lighting word alone does not rescue a prompt (cited example)", () => {
+    // The #289-cited debt: a lighting word ("glowing") plus no shot direction.
+    const CITED = "futuristic AI data center with glowing server racks, cinematic vertical";
+    expect(Object.values(BROLL_SHOT_SIGNALS).some((re) => re.test(CITED))).toBe(false);
+    const result = checkBrollPromptDimensions([broll(CITED, { id: 14 })]);
+    expect(result).toHaveLength(1);
+    expect(result[0].detail.toLowerCase()).toContain("thin write");
   });
 
   it("#289 thin-write: stays silent once a framing or a camera move is stated", () => {
@@ -1595,10 +1616,12 @@ describe("checkBrollPromptDimensions", () => {
     expect(result[0].detail.toLowerCase()).toContain("reuse");
   });
 
-  it("#289 real data: the anthropic-distillation-7labs debt surfaces as a reuse warn", () => {
-    const result = checkBrollPromptDimensions(distill7labsPt1Scenes);
+  it("#289 real data: the anthropic-distillation-7labs debt surfaces as reuse + thin warns", () => {
+    const result = checkBrollPromptDimensions(distill7labsAll);
+    expect(distill7labsAll).toHaveLength(40);
     expect(result.every((r) => r.level === "warn")).toBe(true);
     expect(result.some((r) => r.detail.toLowerCase().includes("reuse"))).toBe(true);
+    expect(result.some((r) => r.detail.toLowerCase().includes("thin write"))).toBe(true);
   });
 });
 
