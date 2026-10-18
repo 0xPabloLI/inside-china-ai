@@ -64,6 +64,19 @@ describe("normalizeTtsText dual-track", () => {
     ]);
   });
 
+  it("records a 5+ letter hyphenated dotted version the same way", () => {
+    // The rule first shipped with a 1-4 letter prefix cap, so "Claude-3.5"
+    // fell through to rule 3, which consumed only "3.5" and left the same
+    // unrecoverable spoken run. Real model names are longer than 4 letters.
+    const scenes = [{ id: 1, voiceover: "Claude-3.5 is the closest rival." }];
+    normalizeTtsText(scenes);
+
+    expect(scenes[0].ttsText).toBe("Claude-three point five is the closest rival.");
+    expect(scenes[0].ttsReplacements).toEqual([
+      { original: "Claude-3.5", spoken: ["Claude-three", "point", "five"] },
+    ]);
+  });
+
   it("prefers author-authored voiceoverTts over regex rules", () => {
     const scenes = [
       {

@@ -97,7 +97,7 @@ Both readings can be true. The scores are self-reported, and the price did not m
 
 Three days ago the useful output of this story was a method, not an answer. The claim that DeepSeek had secretly improved its API was unfalsifiable by watching comparison videos, but it was falsifiable by reading one string. We wrote that if the fingerprint ever changed, the rumor would have been early rather than wrong.
 
-That is what happened, and it happened on schedule. Two days passed between the false alarm and the real thing. The leakers read the signal correctly and were simply ahead of the company's own announcement.
+That is what happened, and it happened on schedule. Three days passed between the early read and the real thing. The leakers read the signal correctly and were simply ahead of the company's own announcement.
 
 There are two honest lessons. The first is that watching a model is not a way to know what a model does. The October 12 clips were noise, and the same community that over-read them also spotted the real change by reading a string and a model list instead of judging render quality by eye. The second is that DeepSeek still does not narrate. It leaked, flipped a fingerprint, shipped a model and opened a search API, in that order, without a changelog entry ahead of any of it.
 

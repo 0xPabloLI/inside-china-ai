@@ -328,7 +328,11 @@ function normalizeVoiceover(str, replacements) {
   //     and Gate 1 false-positives. Recording the WHOLE token keeps the spoken
   //     track token-for-token with the replacement, and the hyphen spelling is
   //     preserved so the engine's input is unchanged.
-  str = str.replace(/\b([A-Za-z]{1,4})-(\d+)\.(\d+)\b/g, (match, prefix, intPart, decPart) => {
+  //     The prefix cap has to cover real model names: a 4-letter cap sent
+  //     "Claude-3.5" / "Gemini-2.5" / "Llama-3.1" through to rule 3, which
+  //     consumed only the digits and reproduced the exact break this rule
+  //     exists to fix.
+  str = str.replace(/\b([A-Za-z]{1,12})-(\d+)\.(\d+)\b/g, (match, prefix, intPart, decPart) => {
     return record(match, `${prefix}-${decimalToSpoken(intPart, decPart)}`);
   });
 
