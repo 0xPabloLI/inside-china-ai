@@ -12,7 +12,7 @@
 - 典型薄写法（subject-only）：`futuristic AI data center with glowing server racks, cinematic vertical`，在 pt1:14 / pt2:16 / pt3:15 逐字复用。
 - 债务潜伏未触发：该系列 40/40 全命中资产（无 `b-roll-report.json`），故无机器信号暴露薄写与复用。
 
-**为什么现在没有约束**：declared prompt 由 Stage-3 agent 写，但无写作契约（`docs/video-script-writing-guide.md` 只规定 `narrativeRole`/`assetNeed`/`mediaStrategy`，L283-292，**无** declared prompt 协议）；唯一机器检查 `checkBrollPromptDimensions`（[scene-rules.mjs](file:///Users/pabloli/Documents/code/inside-china-ai/scripts/short-video/lib/scene-rules.mjs#L1843-L1867)）warn-only 只扫阿拉伯数字，注释明确声明其余 7 维交给 agent。
+**为什么现在没有约束**：declared prompt 由 Stage-3 agent 写，但无写作契约（`docs/video-script-writing-guide.md` 只规定 `narrativeRole`/`assetNeed`/`mediaStrategy`，**无** declared prompt 协议）；唯一机器检查 `checkBrollPromptDimensions`（`scripts/short-video/lib/scene-rules.mjs`）warn-only 只扫阿拉伯数字，注释明确声明其余 7 维交给 agent。
 
 ## 2. 目标
 
@@ -23,9 +23,9 @@
 
 ## 3. 已决定边界（不可违反）
 
-- **注入层归属不变**（#166 layer 2，[prompt-injection.mjs](file:///Users/pabloli/Documents/code/inside-china-ai/scripts/short-video/lib/b-roll/prompt-injection.mjs)）：NEGATIVE 全代码拥有（按缺失组去重注入）；BRAND 条件注入；CAMERA/MOTION/LIGHTING 只导出建议、**从不注入**。
+- **注入层归属不变**（#166 layer 2，`scripts/short-video/lib/b-roll/prompt-injection.mjs`）：NEGATIVE 全代码拥有（按缺失组去重注入）；BRAND 条件注入；CAMERA/MOTION/LIGHTING 只导出建议、**从不注入**。
 - 因此 **declared prompt 不得手写 negative/brand**；长度不是约束（compose 后实测 45–182 / 480 token）。
-- 质量闸保持 **warn-only**，preflight exit 0 不变（S21「never fails」，[scene-rules.test.mjs](file:///Users/pabloli/Documents/code/inside-china-ai/scripts/short-video/__tests__/scene-rules.test.mjs#L1430-L1462)）。
+- 质量闸保持 **warn-only**，preflight exit 0 不变（S21「never fails」，`scripts/short-video/__tests__/scene-rules.test.mjs`）。
 
 ## 4. 方案决策
 
