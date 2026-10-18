@@ -271,7 +271,13 @@ export const scenes = [
     retentionMechanism: "loop-closure",
     mediaStrategy: "asset",
     media: null,
-    voiceover: "Follow China AI News. We read the fine print on every score.",
+    // Loop closure: the CTA has to land the hook's payoff again, not just ask
+    // for a follow. "Nine of eleven" is the hook's own number, so a rewatch
+    // reads the opening differently the second time. (checkLoopClose cannot
+    // verify this today — every pack writes meta.dataPoints as strings while
+    // the check reads dp.value, so its pass branch is dead code; tracked
+    // separately.)
+    voiceover: "Follow China AI News. Nine of eleven, and the fine print on every score.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",
