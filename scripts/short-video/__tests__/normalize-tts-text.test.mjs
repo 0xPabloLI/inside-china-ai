@@ -50,6 +50,33 @@ describe("normalizeTtsText dual-track", () => {
     expect(scenes[0].ttsReplacements).toBeUndefined();
   });
 
+  it("records a hyphenated dotted version as ONE token so restore can map it", () => {
+    // "GPT-5.6": the whole token is rewritten, not just "5.6". Recording only
+    // the digits emitted "GPT-five point six" whose first token no longer
+    // matched the spoken run, so restore left the spoken form in the timing
+    // and Gate 1 failed against the display voiceover.
+    const scenes = [{ id: 1, voiceover: "It beat GPT-5.6 on nine of eleven." }];
+    normalizeTtsText(scenes);
+
+    expect(scenes[0].ttsText).toBe("It beat GPT-five point six on nine of eleven.");
+    expect(scenes[0].ttsReplacements).toEqual([
+      { original: "GPT-5.6", spoken: ["GPT-five", "point", "six"] },
+    ]);
+  });
+
+  it("records a 5+ letter hyphenated dotted version the same way", () => {
+    // The rule first shipped with a 1-4 letter prefix cap, so "Claude-3.5"
+    // fell through to rule 3, which consumed only "3.5" and left the same
+    // unrecoverable spoken run. Real model names are longer than 4 letters.
+    const scenes = [{ id: 1, voiceover: "Claude-3.5 is the closest rival." }];
+    normalizeTtsText(scenes);
+
+    expect(scenes[0].ttsText).toBe("Claude-three point five is the closest rival.");
+    expect(scenes[0].ttsReplacements).toEqual([
+      { original: "Claude-3.5", spoken: ["Claude-three", "point", "five"] },
+    ]);
+  });
+
   it("prefers author-authored voiceoverTts over regex rules", () => {
     const scenes = [
       {

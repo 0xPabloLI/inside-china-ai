@@ -422,9 +422,19 @@ async function main() {
         },
       },
     );
-    // Update subtitles.timingData with repaired timing (if repair occurred)
+    // Update subtitles.timingData with repaired timing (if repair occurred).
+    // The ASS above was rendered from the PRE-repair timing, so it must be
+    // rebuilt too: otherwise the repair fixes the timing while the stale ASS
+    // still burns the spoken form into the render ("GPT-5.6" shipped as
+    // "GPT-five"), and only Step 6's post-render check catches it — after a
+    // full render.
     if (gateResult.timingData) {
       subtitles.timingData = gateResult.timingData;
+      const rebuilt = regenerateSubtitles({ outputDir, sceneDurations });
+      if (rebuilt) {
+        subtitles.assPath = rebuilt.assPath;
+        subtitles.cues = rebuilt.cues;
+      }
     }
     prof.end("step-4-gate1-canonical");
     console.log();

@@ -21,6 +21,51 @@ function word(text, start, end) {
 }
 
 describe("restoreTimingTokens", () => {
+  it("restores a hyphenated dotted version carried as one spoken token", () => {
+    // Regression: normalize-tts-text once recorded only the digits of
+    // "GPT-5.6" ({original:"5.6", spoken:["five","point","six"]}), while the
+    // spoken track held "GPT-five point six". The first spoken token
+    // ("GPT-five") never matched ["five"], the run was left unconsumed, and the
+    // timing kept the spoken form → Gate 1 failed against the display voiceover.
+    const vScenes = [
+      {
+        id: 7,
+        voiceover: "It beat GPT-5.6 on nine of eleven.",
+        ttsText: "It beat GPT-five point six on nine of eleven.",
+        ttsReplacements: [{ original: "GPT-5.6", spoken: ["GPT-five", "point", "six"] }],
+      },
+    ];
+    const timing = [
+      {
+        sceneId: 7,
+        segments: [
+          {
+            text: "It beat GPT-five point six on nine of eleven.",
+            start: 0,
+            end: 1,
+            words: [
+              word("It", 0, 0.1),
+              word("beat", 0.1, 0.2),
+              word("GPT-five", 0.2, 0.3),
+              word("point", 0.3, 0.4),
+              word("six", 0.4, 0.5),
+              word("on", 0.5, 0.6),
+              word("nine", 0.6, 0.7),
+              word("of", 0.7, 0.8),
+              word("eleven.", 0.8, 0.9),
+            ],
+          },
+        ],
+      },
+    ];
+
+    restoreTimingTokens(timing, vScenes);
+
+    const texts = timing[0].segments.flatMap((s) => s.words.map((w) => w.text));
+    expect(texts).toContain("GPT-5.6");
+    expect(texts).not.toContain("GPT-five");
+  });
+
   it("replaces spoken runs with the original token and unions timing", () => {
     const timing = [
       {

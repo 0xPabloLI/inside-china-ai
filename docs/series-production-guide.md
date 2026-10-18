@@ -53,6 +53,7 @@ node -e "import { evaluateArticle } from './scripts/short-video/lib/episode-eval
 - **信息间隔** — Part 1 提出问题，Part 2 解答
 - **Payoff 兑现** — 每集的承诺必须兑现
 - **间隔 ≤ 3 天** — 超过 1 周观众流失
+- **跨集引用仅限系列包** — 承接上集 hook、复用上集数字只在 `seriesId` 已声明时成立；非系列包的 standalone 要求与授权口径见 `docs/content-pipeline.md` Stage 3 Step 0
 
 ## Series Publishing Workflow
 

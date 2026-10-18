@@ -100,6 +100,11 @@ export const WIDGETS: Record<string, LazyWidget> = {
       default: m.Qwen4BenchmarksView,
     })),
   ),
+  "deepseek-1017-benchmarks": lazy(() =>
+    import("./deepseek-1017-benchmarks/benchmarks-view").then((m) => ({
+      default: m.DeepSeek1017BenchmarksView,
+    })),
+  ),
   "zhipu-model-iteration": lazy(() =>
     import("./zhipu-model-iteration/model-iteration-view").then((m) => ({
       default: m.ZhipuModelIterationView,

@@ -320,6 +320,22 @@ function normalizeVoiceover(str, replacements) {
     return record(match, `${prefixWord} ${decimalToSpoken(intPart, decPart)}`);
   });
 
+  // 1b. Hyphenated model + dotted version: "GPT-5.6", "GLM-4.5".
+  //     Must run BEFORE rule 3 (bare decimal): rule 3 would otherwise consume
+  //     only "5.6", emitting "GPT-five point six" whose first whitespace token
+  //     ("GPT-five") no longer matches the recorded spoken run ["five", ...],
+  //     so restore-tokens silently leaves the spoken form in the timing data
+  //     and Gate 1 false-positives. Recording the WHOLE token keeps the spoken
+  //     track token-for-token with the replacement, and the hyphen spelling is
+  //     preserved so the engine's input is unchanged.
+  //     The prefix cap has to cover real model names: a 4-letter cap sent
+  //     "Claude-3.5" / "Gemini-2.5" / "Llama-3.1" through to rule 3, which
+  //     consumed only the digits and reproduced the exact break this rule
+  //     exists to fix.
+  str = str.replace(/\b([A-Za-z]{1,12})-(\d+)\.(\d+)\b/g, (match, prefix, intPart, decPart) => {
+    return record(match, `${prefix}-${decimalToSpoken(intPart, decPart)}`);
+  });
+
   // 2. Standalone model names with dots: "GLM 6.0", "GPT 4.0"
   str = str.replace(/\b([A-Z]{2,4})\s+(\d+)\.(\d+)\b/g, (match, prefix, intPart, decPart) => {
     return record(match, `${prefix} ${decimalToSpoken(intPart, decPart)}`);

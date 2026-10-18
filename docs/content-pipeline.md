@@ -271,6 +271,18 @@ node scripts/rag/query.mjs "logo" --type asset-catalog        # 只搜素材目�
 
 Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `recommendedParts`（1-5，Agent cap 为 3）。`recommendedParts > 1` 时输出分集评估报告，等待用户确认后生成 N 份 scene-data。
 
+#### 单集包默认 standalone
+
+`recommendedParts === 1` 的包独立成立：它的 hook、开场数字和闭环只由本包自己的素材支撑，观众不看别的包也能看懂。
+
+**跨包连续性要用户显式授权**。默认状态下 hook 里不出现别的包的 hook 词、日期、数字或结论，闭环不回收别的包的悬念。只有用户在对话中明确要求续接（"做上一集的续集"、"Part 2"）时才按系列处理，`meta.mjs` 也才允许声明 `seriesId` / `partNumber` / `totalParts`。同一公司、同一话题的下一篇不等于续集。
+
+#### Step 0 报告的 hook 预览（HITL）
+
+Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论证（陌生观众听这一句，能否听懂发生了什么），再给分集结论。**报告发出后暂停**，等用户确认角度后才写 scene-data。
+
+- 完成标准：报告含 hook 一句 + 独立可理解论证，且用户已确认。未给 hook 就写完整 scene-data = 未完成本步。
+
 > 多集系列策略（拆分类型、集间链接、连贯规则、合集制作、系列发布）见 **`docs/series-production-guide.md`**。
 
 ### 管线进度追踪
