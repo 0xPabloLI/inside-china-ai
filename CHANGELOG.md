@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.22.1...tanstack_start_ts-v1.22.2) (2026-10-18)
+
+
+### Bug Fixes
+
+* **asset-sourcer:** stop treating absent metadata as negative evidence ([#547](https://github.com/0xPabloLI/inside-china-ai/issues/547)) ([#769](https://github.com/0xPabloLI/inside-china-ai/issues/769)) ([7aa2259](https://github.com/0xPabloLI/inside-china-ai/commit/7aa22595f236bfbd11497d7cab317c803af49f7e))
+
 ## [1.22.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.22.0...tanstack_start_ts-v1.22.1) (2026-10-18)
 
 
