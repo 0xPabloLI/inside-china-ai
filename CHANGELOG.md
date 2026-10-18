@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.22.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.22.0...tanstack_start_ts-v1.22.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **subtitles:** clause-aware sentence ends + clause-split fallback ([#746](https://github.com/0xPabloLI/inside-china-ai/issues/746)) ([8be67af](https://github.com/0xPabloLI/inside-china-ai/commit/8be67af5ec5cd25e8ded262eb1d0f3fe10ca8647))
+* **subtitles:** clause-aware sentence ends + clause-split fallback ([#746](https://github.com/0xPabloLI/inside-china-ai/issues/746)) ([51706f3](https://github.com/0xPabloLI/inside-china-ai/commit/51706f324231d4bf547c3f497f1f71294bfc0f76))
+
 ## [1.22.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.21.1...tanstack_start_ts-v1.22.0) (2026-10-18)
 
 
