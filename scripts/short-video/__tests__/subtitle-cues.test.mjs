@@ -142,6 +142,92 @@ describe("chunkWords", () => {
     expect(chunks[0].text).toBe("Go now. Fast.");
   });
 
+  it("does not flush a chunk at a clause colon or semicolon", () => {
+    // #746: 33 distinct real tokens end in `:` or `;` ("Distillation:",
+    // "target:", "scale:") and the old /[.!?:;]$/ cut a chunk on every one of
+    // them (40 chunks over 35 packs). A colon introduces the rest of the
+    // sentence, so the line must keep flowing through it.
+    const input = words(
+      ["Target:", 0, 0.3],
+      ["the", 0.3, 0.5],
+      ["cloud.", 0.5, 0.9],
+      ["Scale;", 1.0, 1.3],
+      ["then", 1.3, 1.5],
+      ["speed.", 1.5, 1.9],
+    );
+    expect(chunkWords(input).map((c) => c.text)).toEqual([
+      "Target: the cloud.",
+      "Scale; then speed.",
+    ]);
+  });
+
+  it("breaks at the nearest clause boundary when a limit forces the split", () => {
+    // "Alpha beta, gamma" then "delta" would measure 697px — past the soft
+    // limit, so the splitter must break before "delta". The comma after "beta"
+    // is the last clause boundary, so the line ends there ("Alpha beta,") and
+    // the rest of the sentence carries on, instead of cutting mid-phrase at
+    // "Alpha beta, gamma".
+    const input = words(
+      ["Alpha", 0, 0.3],
+      ["beta,", 0.3, 0.6],
+      ["gamma", 0.6, 0.9],
+      ["delta", 0.9, 1.2],
+      ["epsilon", 1.2, 1.6],
+    );
+    const chunks = chunkWords(input);
+    expect(chunks.map((c) => c.text)).toEqual(["Alpha beta,", "gamma delta epsilon"]);
+    for (const chunk of chunks) {
+      expect(measureWidth(chunk.text)).toBeLessThanOrEqual(SUBTITLE_LANE.maxWidth);
+    }
+    expect(chunks.flatMap((c) => c.words.map((x) => x.text))).toEqual(input.map((x) => x.text));
+  });
+
+  it("refuses a clause break that would blink a one-word page", () => {
+    // Same overflow trigger, but the only clause boundary sits after the first
+    // word. Breaking there would leave "Alpha," alone on screen for a blink,
+    // so the splitter cuts mid-phrase instead — the fallback must not trade a
+    // mid-phrase cut for an orphan page.
+    const input = words(
+      ["Alpha,", 0, 0.3],
+      ["beta", 0.3, 0.6],
+      ["gamma", 0.6, 0.9],
+      ["delta", 0.9, 1.2],
+      ["epsilon", 1.2, 1.6],
+    );
+    const chunks = chunkWords(input);
+    expect(chunks.map((c) => c.text)).toEqual(["Alpha, beta gamma", "delta epsilon"]);
+    expect(chunks).toHaveLength(2);
+    expect(chunks.flatMap((c) => c.words.map((x) => x.text))).toEqual(input.map((x) => x.text));
+  });
+
+  it("keeps every page inside the hard pixel limit after a clause break", () => {
+    // Real corpus regression (sensetime-latest): "Pro," is a clause boundary
+    // after one word, and the words that follow overflow the lane. A clause
+    // split shortens the line, so the width decision has to be re-taken
+    // against the remaining words — computing it once against the pre-split
+    // line emitted a 797px page (over the 720px lane).
+    const input = words(
+      ["Pro,", 0, 0.2],
+      ["a", 0.2, 0.3],
+      ["delivery-grade", 0.3, 0.6],
+      ["multimodal", 0.6, 0.9],
+      ["agent", 0.9, 1.1],
+      ["model", 1.1, 1.3],
+      ["that", 1.3, 1.5],
+    );
+    const chunks = chunkWords(input);
+    expect(chunks.map((c) => c.text)).toEqual([
+      "Pro, a delivery-grade",
+      "multimodal agent",
+      "model that",
+    ]);
+    for (const chunk of chunks) {
+      expect(measureWidth(chunk.text)).toBeLessThanOrEqual(SUBTITLE_LANE.maxWidth);
+      expect(chunk.words.length).toBeGreaterThan(1);
+    }
+    expect(chunks.flatMap((c) => c.words.map((x) => x.text))).toEqual(input.map((x) => x.text));
+  });
+
   it("returns nothing for an empty word list", () => {
     expect(chunkWords([])).toEqual([]);
   });
