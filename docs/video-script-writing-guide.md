@@ -242,6 +242,40 @@ CTA 公式：`[Action Verb] + [What They Get]`
 
 ---
 
+## Declared b-roll prompt 写作协议（scene→prompt 适配）
+
+生成类 `mediaStrategy`（`b-roll`／`asset-then-broll`／`ai-image`／`asset-then-ai-image`）必须声明 `aiVideo.prompt` 或 `aiImage.prompt`（字段随策略分派，见下文 Design Decisions）。这个 prompt 是「scene → 画面」的适配层：它看的不是 scene 的信息结构，而是**观众要看到的那段画面**。#289 质量闸（warn 级，preflight 仍 exit 0）会对**只写主体、没有镜头**的薄写和**跨 scene 逐字复用**发声。
+
+### 8 维契约（单一事实来源 = 代码，勿在此重抄常量）
+
+维度定义在 `docs/video-production-runbook.md` → "The 8-dimension prompt"：SUBJECT · VISUAL METAPHOR · BRAND · REFERENCE · CAMERA · MOTION · LIGHTING · NEGATIVE。**归属**（#166 layer 2，`scripts/short-video/lib/b-roll/prompt-injection.mjs`）：
+
+- **SUBJECT / VISUAL METAPHOR / REFERENCE**——100% agent 创作（本协议覆盖）。
+- **CAMERA / MOTION / LIGHTING**——agent 写；代码只**导出建议**（`VISUAL_TYPE_DIMENSION_DEFAULTS`，按 `visualType` 给 camera/motion/lighting），**从不注入**。写不出时用 `dimensionDefaultsFor(scene.visualType)` 取建议再改写成贴合本 scene 的词，不要照抄。
+- **NEGATIVE / BRAND**——**代码拥有**（按缺失组去重注入 / 条件注入），**不要手写**（重复会被 `coversNegativeGroup` 去重，或让 BRAND 整段被跳过）。
+
+### 按 visualType 写什么
+
+先定 SUBJECT（本 scene 特有的主体，不是 scene 类型的通名），再补一条 **CAMERA 或 MOTION**（质量闸的硬信号），最后按需补 VISUAL METAPHOR / LIGHTING / REFERENCE。`visualType` 决定重心：
+
+| visualType             | prompt 重心                                                                              |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `hook`                 | 冲击力主导：单一强主体 + 快推近；避免静态平铺                                         |
+| `narrative`            | 叙事动作：一个清晰方向的动作流，镜头随之运动                                          |
+| `data` / `stat-reveal` | 数据元素可视化：数字**不进 prompt**（移入 `texts`），画面表现"变化/增长/对比"本身 |
+| `comparison` / `contrast` | 两侧对撞：对称构图 + 一处 `whip-pan`/分屏，用色温或明暗区分两侧                    |
+| `cta`                  | 收束：缓拉远的稳定画面，留给品牌 end card                                            |
+
+具体 camera/motion/lighting 词面建议以 `VISUAL_TYPE_DIMENSION_DEFAULTS` 为准（含 `dimensionDefaultsFor` 的 narrative 兜底）。
+
+### 反模式（质量闸会 warn，评审会打回）
+
+1. **subject-only 薄写**：只有主体 + 风格词，没有任何镜头景别/运动（如 `data visualization dashboard, digital analytics, tech interface`）。至少写一条 CAMERA 或 MOTION。
+2. **跨 scene 逐字复用**：多条 scene 用同一句 prompt（历史债务：某系列 40 scene 仅 10 条 distinct）。每条 prompt 必须围绕**本 scene 自己的主体**重写。
+3. **手写 negative / brand**：`no text`、`no watermark`、品牌底色等由代码注入，手写属重复或覆盖。
+
+---
+
 ## Step 7: 运行 MRL-2 自审
 
 写完全部 scene 后，运行 `content-pipeline.md` Stage 3 的 MRL-2 检查循环（10 Blockers + 11 Warnings）。W7 检查 open loop、W8 检查 pattern interrupt、W9 检查 loop closure。三项都是 Warning 级别——缺失不阻塞渲染，但提示 Agent 补充。0 Blockers 后进入 Stage 4。
