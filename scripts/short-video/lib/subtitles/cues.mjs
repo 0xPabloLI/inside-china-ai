@@ -18,6 +18,7 @@
 import { FPS, sceneTimeline, findScene } from "../timeline.mjs";
 import { SUBTITLE_LANE } from "../safe-zones.mjs";
 import { measureWidth } from "./measure.mjs";
+import { isSentenceEnd, isClauseBreak } from "./boundaries.mjs";
 
 /** Maximum words per cue — beyond this the karaoke sweep is too fast to track. */
 export const MAX_WORDS = 6;
@@ -44,8 +45,6 @@ export const CHAIN_GAP_FRAMES = 2;
 const LEAD_IN = LEAD_IN_FRAMES / FPS;
 const CHAIN_GAP = CHAIN_GAP_FRAMES / FPS;
 const ONE_FRAME = 1 / FPS;
-
-const SENTENCE_END = /[.!?:;]$/;
 
 /**
  * Render a word list as display text.
@@ -107,22 +106,51 @@ export function chunkWords(wordList) {
     }
   };
 
+  // Index just past the last clause boundary inside `current`, or -1.
+  // `current[split - 1]` ends the clause, so `slice(0, split)` is a breakable
+  // line and `slice(split)` carries on with the rest of the sentence.
+  // Boundaries that would leave a one-word page on the left are skipped: a
+  // single-word page reads as a blink, so breaking there is worse than cutting
+  // mid-phrase (real corpus: "Pro, a delivery-grade multimodal" — breaking
+  // after "Pro," would blink one word on screen).
+  const lastClauseSplit = () => {
+    for (let i = current.length - 1; i >= 2; i--) {
+      if (isClauseBreak(current[i - 1].text)) return i;
+    }
+    return -1;
+  };
+
   for (let i = 0; i < wordList.length; i++) {
     const word = wordList[i];
+    const remainingAfter = wordList.length - (i + 1);
 
-    if (current.length > 0) {
+    // Break until the arriving word fits. A clause split shortens `current`,
+    // which can leave the carried suffix still too wide for this word, so the
+    // width decision is re-taken against the new `current` rather than applied
+    // once to the line that triggered it (the earlier line's width no longer
+    // describes the suffix).
+    while (current.length > 0) {
       const projected = measureWidth(joinWords([...current, word]));
-      const remainingAfter = wordList.length - (i + 1);
       const hardBreak = current.length >= MAX_WORDS || projected > HARD_PX;
       // Only break on the soft limit if the next chunk won't be a lone word.
       const softBreak = projected > SOFT_PX && remainingAfter >= 1;
-      if (hardBreak || softBreak) flush();
+      if (!hardBreak && !softBreak) break;
+
+      const split = lastClauseSplit();
+      if (split > 0) {
+        // A limit forced the break, but the clause it is cutting through ends
+        // earlier: break there rather than mid-phrase.
+        chunks.push(makeChunk(current.slice(0, split)));
+        current = current.slice(split);
+      } else {
+        flush();
+      }
     }
 
     current.push(word);
 
     // The sentence-final word belongs to the chunk it ends, not the next one.
-    if (SENTENCE_END.test(word.text)) flush();
+    if (isSentenceEnd(word.text)) flush();
   }
 
   flush();
