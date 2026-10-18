@@ -535,24 +535,28 @@ export function scoreCandidate(candidate, keyword, semantics) {
  * reject a candidate — a low score caused by absent metadata is not negative
  * evidence, it is an unknown that visual judgment has to resolve.
  *
- * Two title shapes carry no content evidence:
+ * Three title shapes carry no content evidence:
+ *   - no title at all;
  *   - attribution-only: `title` only names the author ("<author> video" written
  *     by the Pexels videos producer, or `title === author`). The author stays on
- *     the candidate for attribution, but cannot masquerade as a description.
- *   - a candidate with no title at all.
+ *     the candidate for attribution, but cannot masquerade as a description;
+ *   - the search keyword echoed back as the title — the old producer's fallback
+ *     when the payload had no author. The query is not a description either.
  *
- * Legacy search-cache entries keep the author-derived title but carry the author
- * in `author`, so they are recognised the same way.
+ * Legacy search-cache entries keep those shapes, so they are recognised the same way.
  *
  * @param {Object} candidate - { title?, author? }
+ * @param {string} keyword - Search keyword
  * @returns {boolean} true when the title describes the content
  */
-function hasContentEvidence(candidate) {
+function hasContentEvidence(candidate, keyword) {
   const normalize = (value) =>
     typeof value === "string" ? value.trim().replace(/\s+/g, " ").toLowerCase() : "";
 
   const title = normalize(candidate?.title);
   if (!title) return false;
+
+  if (title === normalize(keyword)) return false;
 
   const author = normalize(candidate?.author);
   if (author && (title === author || title === `${author} video`)) return false;
@@ -563,9 +567,11 @@ function hasContentEvidence(candidate) {
 /**
  * Pre-filter gate: assets with technicalScore < threshold are marked lowConfidence.
  *
- * Only marks lowConfidence when the metadata describes the content (see
- * hasContentEvidence). Without a descriptive title we cannot judge from metadata
- * — let the VLM analyze it instead (hard gate, spec §3).
+ * The gate only has an opinion when the metadata can support one: a keyword must
+ * be present and the title must describe the content (see hasContentEvidence).
+ * Otherwise the score is uninformative and the asset goes to visual judgment
+ * instead (hard gate, spec §3). `judgedByMetadata` reports which of the two
+ * happened, so callers and artifacts can tell "passed" from "not judged".
  *
  * Assets with technicalScore < 30 are hard-skipped from VLM analysis
  * to save inference cost. This may miss assets with poor metadata but
@@ -573,7 +579,7 @@ function hasContentEvidence(candidate) {
  *
  * @param {Object} candidate - { title, type, duration?, fileSize?, resolution? }
  * @param {string} keyword - Search keyword
- * @returns {{technicalScore: number, lowConfidence: boolean}}
+ * @returns {{technicalScore: number, lowConfidence: boolean, judgedByMetadata: boolean}}
  */
 // T05: Pre-download filter threshold — lower than post-download (30) because
 // pre-download metadata is sparser (no file size from API, resolution may be missing).
@@ -583,12 +589,13 @@ export function preFilterCandidate(candidate, keyword) {
   const { technicalScore } = computeTechnicalScore(candidate, keyword);
   const PREFILTER_THRESHOLD = 30;
 
-  const hasEnoughSignal = !!keyword && hasContentEvidence(candidate);
-  const lowConfidence = hasEnoughSignal && technicalScore < PREFILTER_THRESHOLD;
+  const judgedByMetadata = !!keyword && hasContentEvidence(candidate, keyword);
+  const lowConfidence = judgedByMetadata && technicalScore < PREFILTER_THRESHOLD;
 
   return {
     technicalScore,
     lowConfidence,
+    judgedByMetadata,
   };
 }
 
@@ -1222,23 +1229,21 @@ export async function analyzeAssets(assets, opts = {}) {
   for (const asset of assets) {
     if (!asset.path) continue;
     const keyword = asset.searchKeyword || "";
-    const { technicalScore, lowConfidence } = preFilterCandidate(asset, keyword);
-    // #547: record why an asset passed. lowConfidence=false with a sub-threshold
-    // score means "metadata absence, not negative evidence" — the artifact keeps
-    // that judgment so a reader (or a later gate) doesn't re-read the raw score
-    // and discard the asset again.
-    const contentEvidence = !!keyword && hasContentEvidence(asset);
+    const { technicalScore, lowConfidence, judgedByMetadata } = preFilterCandidate(asset, keyword);
     asset.technicalScore = technicalScore;
     asset.lowConfidence = lowConfidence;
-    asset.contentEvidence = contentEvidence;
+    // #547: false means the metadata could not judge this asset, so the score is
+    // uninformative and the VLM decides. The artifact keeps that verdict so a
+    // reader does not mistake a sub-threshold score for "passed the gate".
+    asset.judgedByMetadata = judgedByMetadata;
     if (lowConfidence) {
       console.log(
         `  ⏭️  Skipping low-confidence asset (pre-filter): ${asset.path} (score: ${technicalScore})`,
       );
     } else {
-      if (technicalScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+      if (!judgedByMetadata && technicalScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
         console.log(
-          `  🔍 Metadata-poor asset kept for visual judgment (score: ${technicalScore}, no content evidence): ${asset.path}`,
+          `  🔍 Metadata can't judge this asset (score: ${technicalScore}) — kept for visual judgment: ${asset.path}`,
         );
       }
       analyzableAssets.push(asset);
@@ -1627,9 +1632,9 @@ export async function analyzeAssets(assets, opts = {}) {
           searchKeyword: a.searchKeyword || null,
           technicalScore: a.technicalScore || null,
           lowConfidence: a.lowConfidence || false,
-          // #547: false means the score came from absent metadata, not from
-          // descriptive-but-unrelated fields. Preserves the pass reason.
-          contentEvidence: a.contentEvidence ?? null,
+          // #547: false = the metadata could not judge this asset (no keyword, or
+          // no descriptive title); the score is uninformative and the VLM decides.
+          judgedByMetadata: a.judgedByMetadata ?? null,
           description: a.description || "",
           subjects: a.subjects || [],
           contentKind: a.contentKind || null,

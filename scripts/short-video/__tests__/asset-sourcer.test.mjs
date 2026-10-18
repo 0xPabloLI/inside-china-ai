@@ -2351,6 +2351,40 @@ describe("#547: metadata absence is not negative evidence", () => {
   it("no keyword at all still skips the judgment (no signal either way)", () => {
     expect(preFilterCandidate(legacyPexelsVideo, "").lowConfidence).toBe(false);
   });
+
+  it("keyword-echo title is the old producer fallback, not content evidence", () => {
+    // `title: v.user?.name ? `${name} video` : keyword` — an authorless payload
+    // wrote the query straight into the title. Copying the keyword in is exactly
+    // what must not pump the 28-point title score.
+    const candidate = {
+      source: "pexels-video",
+      type: "video",
+      title: "didi",
+      searchKeyword: "didi",
+      duration: 16,
+      resolution: "1080x1920",
+    };
+    const result = preFilterCandidate(candidate, "didi");
+    expect(result.technicalScore).toBe(41); // 28 (keyword echo) + 3 + 0 + 10
+    expect(result.lowConfidence).toBe(false);
+  });
+
+  it("attribution-only titles are not evidence for any source (shared seam)", () => {
+    // The rule is attribution-shaped (title === author / "<author> video"), not a
+    // Pexels-specific suffix heuristic, so it applies wherever a producer wrote
+    // the credit line into the title.
+    const candidate = {
+      source: "baidu",
+      type: "image",
+      title: "techchannel",
+      author: "techchannel",
+      searchKeyword: "didi",
+    };
+    expect(preFilterCandidate(candidate, "didi").lowConfidence).toBe(false);
+
+    const stillGated = { ...candidate, title: "unrelated city skyline", author: "techchannel" };
+    expect(preFilterCandidate(stillGated, "didi").lowConfidence).toBe(true);
+  });
 });
 
 // ─── T1: Misfilter prevention tests ───

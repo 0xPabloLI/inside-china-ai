@@ -764,7 +764,7 @@ describe("#547 — absent metadata reaches detectFocus + VLM (mocked analyzer pr
     expect(assets[0].lowConfidence).toBe(false);
     // The pass reason stays traceable in the artifact for a reader who sees a
     // sub-threshold score with lowConfidence=false.
-    expect(assets[0].contentEvidence).toBe(false);
+    expect(assets[0].judgedByMetadata).toBe(false);
   });
 
   it("16s Pexels video at score 13 (<20 and <30) is analyzed", async () => {
@@ -806,7 +806,28 @@ describe("#547 — absent metadata reaches detectFocus + VLM (mocked analyzer pr
     expect(mockAnalyzeAssetSemantics).not.toHaveBeenCalled();
     expect(mockDetectFocus).not.toHaveBeenCalled();
     expect(assets[0].lowConfidence).toBe(true);
-    expect(assets[0].contentEvidence).toBe(true);
+    expect(assets[0].judgedByMetadata).toBe(true);
+  });
+
+  it("keyword echo as title (old producer fallback, no author) is analyzed too", async () => {
+    const assets = [
+      {
+        path: "/abs/pexels-video-legacy-fallback.mp4",
+        type: "video",
+        title: "didi", // the old producer wrote the keyword when the payload had no author
+        searchKeyword: "didi",
+        duration: 16,
+        resolution: "1080x1920",
+      },
+    ];
+
+    await analyzeAssets(assets);
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
+    expect(mockDetectFocus).toHaveBeenCalledTimes(1);
+    expect(assets[0].technicalScore).toBe(41); // 28 (keyword echo) + 3 + 0 + 10
+    expect(assets[0].lowConfidence).toBe(false);
+    expect(assets[0].judgedByMetadata).toBe(false);
   });
 });
 
