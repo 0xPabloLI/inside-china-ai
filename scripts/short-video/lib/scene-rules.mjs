@@ -1809,6 +1809,22 @@ export const NEGATIVE_GROUPS = {
 // legitimate way to describe the number of things on screen.
 const NUMERAL_PATTERN = /\d+(?:\.\d+)?/g;
 
+// #289: the creative dimensions a *declared* b-roll prompt is expected to
+// direct. CAMERA / MOTION / LIGHTING are never injected by code (#166 layer
+// 2 — prompt-injection.mjs only *suggests* them via
+// VISUAL_TYPE_DIMENSION_DEFAULTS), so their presence is the agent's job.
+// A declared prompt that states neither a framing nor a camera move is the
+// subject-only "thin write" this gate warns on. Heuristic, not semantic:
+// LIGHTING alone does not rescue a prompt (the cited thin example carries
+// "glowing" yet no framing/motion), and VISUAL METAPHOR is left to the
+// writing protocol since keywords cannot judge it.
+export const BROLL_DIMENSION_SIGNALS = {
+  CAMERA:
+    /\b(close[- ]?up|wide shot|wide|medium shot|long shot|full shot|aerial|overhead|top[- ]?down|low angle|high angle|eye[- ]?level|macro|portrait|bust shot|framing|framed|vantage point)\b/i,
+  MOTION:
+    /\b(dolly|panning|pans|tracking|track|push[- ]?in|pull[- ]?out|zoom|crane|tilt|handheld|static|steady|sweep(?:ing)?|drift(?:ing)?|orbit(?:ing)?|fly[- ]?through|moving)\b/i,
+};
+
 // Word boundaries matter: a plain substring match would credit "no texture"
 // with text protection.
 export function coversNegativeGroup(prompt, phrases) {
@@ -1829,38 +1845,80 @@ function generatingPrompt(scene) {
 }
 
 /**
- * Check the one thing about an opted-in b-roll prompt that a machine can
- * still judge: stray Arabic numerals. NEGATIVE group coverage used to be
- * warned here (first layer) — since #166 layer 2 the NEGATIVE constants are
- * injected at generation time (lib/b-roll/prompt-injection.mjs), so a
- * declared prompt without them is correct, not incomplete. The other seven
- * dimensions stay on the agent — a template cannot write them for you.
+ * The machine-judgeable part of an opted-in b-roll prompt (#289 quality gate,
+ * extending the #166 numeral sweep). Three warn-only criteria:
+ *  a) stray Arabic numerals — move data values into texts;
+ *  b) thin write — no framing and no camera move stated (subject-only);
+ *  c) cross-scene verbatim reuse — the same normalized prompt on 2+ scenes.
  *
- * Silent for scenes that never generate (no generating strategy, or a blank
- * prompt the contract check already fails) and for clean prompts: a warn-only
- * rule has nothing to say when nothing is wrong.
+ * NEGATIVE group coverage is NOT checked here: since #166 layer 2 the constants
+ * are injected at generation time (lib/b-roll/prompt-injection.mjs), so a
+ * declared prompt without them is correct, not incomplete.
+ *
+ * Warn-only by design: preflight must keep exiting 0 (S21). Silent for scenes
+ * that never generate (no generating strategy, or a blank prompt the contract
+ * check already fails) and for clean prompts.
  */
 export function checkBrollPromptDimensions(scenes) {
   const CHECK = "B-roll prompt dimensions";
   const CATEGORY = "Media";
   const results = [];
 
+  // Normalized prompt → scene ids, for the cross-scene reuse sweep.
+  const byPrompt = new Map();
+
   for (const scene of scenes) {
     const prompt = generatingPrompt(scene);
     if (prompt === null) continue;
 
+    // (a) numeral sweep.
     const numerals = [...new Set(prompt.match(NUMERAL_PATTERN) ?? [])];
-    if (numerals.length === 0) continue;
+    if (numerals.length > 0) {
+      results.push({
+        level: "warn",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `Scene ${scene.id} prompt contains Arabic numerals (${numerals.join(", ")})`,
+        fix:
+          "Move data values into texts — T2V/T2I garbles glyphs; " +
+          "an element count (e.g. '3 layers') is fine as-is",
+      });
+    }
 
-    results.push({
-      level: "warn",
-      category: CATEGORY,
-      check: CHECK,
-      detail: `Scene ${scene.id} prompt contains Arabic numerals (${numerals.join(", ")})`,
-      fix:
-        "Move data values into texts — T2V/T2I garbles glyphs; " +
-        "an element count (e.g. '3 layers') is fine as-is",
-    });
+    // (b) thin-write sweep.
+    const hasFraming = BROLL_DIMENSION_SIGNALS.CAMERA.test(prompt);
+    const hasMotion = BROLL_DIMENSION_SIGNALS.MOTION.test(prompt);
+    if (!hasFraming && !hasMotion) {
+      results.push({
+        level: "warn",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `Scene ${scene.id} prompt names no camera framing or camera move (subject-only thin write)`,
+        fix:
+          "State a framing and a camera move (e.g. 'medium shot, slow push-in'). " +
+          "Protocol: docs/video-script-writing-guide.md → Declared b-roll prompt 写作协议",
+      });
+    }
+
+    // (c) reuse bookkeeping.
+    const key = prompt.trim().toLowerCase().replace(/\s+/g, " ");
+    if (!byPrompt.has(key)) byPrompt.set(key, []);
+    byPrompt.get(key).push(scene.id);
+  }
+
+  // (c) emit reuse warnings once the whole pack is seen.
+  for (const ids of byPrompt.values()) {
+    if (ids.length < 2) continue;
+    for (const id of ids) {
+      results.push({
+        level: "warn",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `Scene ${id} declared prompt is verbatim-reused across ${ids.length} scenes (ids: ${ids.join(", ")})`,
+        fix:
+          "Rewrite each scene's prompt around its own subject — verbatim reuse defeats the scene→prompt adapter",
+      });
+    }
   }
 
   return results;
