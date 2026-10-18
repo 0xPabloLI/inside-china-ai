@@ -577,7 +577,7 @@ function hasContentEvidence(candidate, keyword) {
  * to save inference cost. This may miss assets with poor metadata but
  * visually relevant content; P7 caching layer can add retry logic.
  *
- * @param {Object} candidate - { title, type, duration?, fileSize?, resolution? }
+ * @param {Object} candidate - { title?, author?, type, duration?, fileSize?, resolution? }
  * @param {string} keyword - Search keyword
  * @returns {{technicalScore: number, lowConfidence: boolean, judgedByMetadata: boolean}}
  */
