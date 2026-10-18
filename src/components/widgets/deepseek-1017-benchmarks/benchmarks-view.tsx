@@ -94,7 +94,7 @@ export function DeepSeek1017BenchmarksView() {
               <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
                 <span className="text-sm font-semibold text-foreground">
                   {row.name}
-                  <span className="ml-2 rounded-sm bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <span className="ml-2 rounded-sm bg-muted/50 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     {row.category}
                   </span>
                 </span>
