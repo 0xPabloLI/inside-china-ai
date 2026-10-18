@@ -1665,7 +1665,9 @@ describe("ai-image strategy (#155)", () => {
     visualType: "narrative",
     voiceover: "Every four layers, three compress history with Gated DeltaNet.",
     mediaStrategy: "ai-image",
-    aiImage: { prompt: "abstract architecture diagram of memory channels, slow push-in, high detail" },
+    aiImage: {
+      prompt: "abstract architecture diagram of memory channels, slow push-in, high detail",
+    },
     ...overrides,
   });
 
@@ -1722,7 +1724,9 @@ describe("ai-image strategy (#155)", () => {
 
   it("the numeral sweep reads aiImage.prompt on image strategies", () => {
     const result = checkBrollPromptDimensions([
-      imageScene({ aiImage: { prompt: "A flow diagram with 8.6 times throughput, no text, slow push-in" } }),
+      imageScene({
+        aiImage: { prompt: "A flow diagram with 8.6 times throughput, no text, slow push-in" },
+      }),
     ]);
     expect(result).toHaveLength(1);
     expect(result[0].level).toBe("warn");

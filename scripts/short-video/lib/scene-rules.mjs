@@ -1867,7 +1867,8 @@ export function checkBrollPromptDimensions(scenes) {
   const CHECK = "B-roll prompt dimensions";
   const CATEGORY = "Media";
   const results = [];
-  const warn = (detail, fix) => results.push({ level: "warn", category: CATEGORY, check: CHECK, detail, fix });
+  const warn = (detail, fix) =>
+    results.push({ level: "warn", category: CATEGORY, check: CHECK, detail, fix });
 
   // Normalized prompt → scene ids, for the cross-scene reuse sweep.
   const byPrompt = new Map();
