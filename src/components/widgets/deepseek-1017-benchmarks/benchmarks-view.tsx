@@ -100,9 +100,7 @@ export function DeepSeek1017BenchmarksView() {
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {gain !== null && (
-                    <span className="mr-2 font-medium text-foreground">
-                      +{gain} vs previous
-                    </span>
+                    <span className="mr-2 font-medium text-foreground">+{gain} vs previous</span>
                   )}
                   {row.description}
                 </span>
@@ -169,8 +167,8 @@ export function DeepSeek1017BenchmarksView() {
 
       <p className="mt-3 text-xs italic text-muted-foreground">
         Scores as reported by DeepSeek on the official Hugging Face model card (Oct 17, 2026). The
-        comparison models are listed by DeepSeek itself and were not independently reproduced by
-        us. Missing bars mean DeepSeek did not report that score for that model.
+        comparison models are listed by DeepSeek itself and were not independently reproduced by us.
+        Missing bars mean DeepSeek did not report that score for that model.
       </p>
     </>
   );

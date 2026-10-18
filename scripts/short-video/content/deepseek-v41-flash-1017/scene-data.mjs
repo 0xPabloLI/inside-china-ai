@@ -126,8 +126,7 @@ export const scenes = [
       overlay: 0,
       fit: "contain",
     },
-    voiceover:
-      "According to DeepSeek's own model card, it leads GPT-5.6 on nine of those eleven.",
+    voiceover: "According to DeepSeek's own model card, it leads GPT-5.6 on nine of those eleven.",
     texts: {
       company: "THE BENCHMARK TABLE",
       action: "ELEVEN TESTS, SIX MODELS",
@@ -144,7 +143,8 @@ export const scenes = [
     retentionMechanism: null,
     mediaStrategy: "asset",
     media: null,
-    voiceover: "Against GPT-5.6, it took nine of eleven. The two it missed were HLE and a vision test.",
+    voiceover:
+      "Against GPT-5.6, it took nine of eleven. The two it missed were HLE and a vision test.",
     texts: {
       title: "ON DEEPSEEK'S OWN CHART",
       vs: "VS",
@@ -251,8 +251,7 @@ export const scenes = [
     retentionMechanism: "loop-closure",
     mediaStrategy: "asset",
     media: null,
-    voiceover:
-      "Nine of eleven beaten, and every single number reported by DeepSeek itself.",
+    voiceover: "Nine of eleven beaten, and every single number reported by DeepSeek itself.",
     texts: {
       badge: "LOOP CLOSURE",
       company: "9 OF 11",
