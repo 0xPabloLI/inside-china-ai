@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.22.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.21.1...tanstack_start_ts-v1.22.0) (2026-10-18)
+
+
+### Features
+
+* **content:** add the deepseek-v41-flash-1017 pack, article and source material ([6051fa2](https://github.com/0xPabloLI/inside-china-ai/commit/6051fa2f54a7daa6d2cca65c88948d521661f15f))
+* **widget:** add the deepseek-1017 benchmark widget ([fdd1edd](https://github.com/0xPabloLI/inside-china-ai/commit/fdd1eddc1147e269483ae9b51649a1abfbd2c327))
+
+
+### Bug Fixes
+
+* **deepseek-1017:** widen the version-prefix cap and fix the article timeline ([788a4c0](https://github.com/0xPabloLI/inside-china-ai/commit/788a4c024d90d6922008f142b5c876b8fa542531))
+* **short-video:** keep hyphenated model versions intact across the spoken/display split ([6ddc0cf](https://github.com/0xPabloLI/inside-china-ai/commit/6ddc0cf51110a961ee4f3a75d1c87250dbadb065))
+* **widget:** use the text-xs token for the benchmark category chip ([da257cc](https://github.com/0xPabloLI/inside-china-ai/commit/da257cc820fad0c94862c6007161bd8de1207229))
+
 ## [1.21.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.21.0...tanstack_start_ts-v1.21.1) (2026-10-17)
 
 
