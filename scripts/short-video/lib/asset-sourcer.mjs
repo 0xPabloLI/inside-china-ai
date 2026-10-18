@@ -530,11 +530,42 @@ export function scoreCandidate(candidate, keyword, semantics) {
 }
 
 /**
+ * Content-evidence seam (#547): does this candidate's metadata describe what the
+ * asset shows? Both pre-filter gates ask this same question before they may
+ * reject a candidate — a low score caused by absent metadata is not negative
+ * evidence, it is an unknown that visual judgment has to resolve.
+ *
+ * Two title shapes carry no content evidence:
+ *   - attribution-only: `title` only names the author ("<author> video" written
+ *     by the Pexels videos producer, or `title === author`). The author stays on
+ *     the candidate for attribution, but cannot masquerade as a description.
+ *   - a candidate with no title at all.
+ *
+ * Legacy search-cache entries keep the author-derived title but carry the author
+ * in `author`, so they are recognised the same way.
+ *
+ * @param {Object} candidate - { title?, author? }
+ * @returns {boolean} true when the title describes the content
+ */
+function hasContentEvidence(candidate) {
+  const normalize = (value) =>
+    typeof value === "string" ? value.trim().replace(/\s+/g, " ").toLowerCase() : "";
+
+  const title = normalize(candidate?.title);
+  if (!title) return false;
+
+  const author = normalize(candidate?.author);
+  if (author && (title === author || title === `${author} video`)) return false;
+
+  return true;
+}
+
+/**
  * Pre-filter gate: assets with technicalScore < threshold are marked lowConfidence.
  *
- * Only marks lowConfidence when there's enough metadata to make a confident
- * decision. If the asset has no title or keyword, we don't have enough
- * information to judge — let VLM analyze it (hard gate, spec §3).
+ * Only marks lowConfidence when the metadata describes the content (see
+ * hasContentEvidence). Without a descriptive title we cannot judge from metadata
+ * — let the VLM analyze it instead (hard gate, spec §3).
  *
  * Assets with technicalScore < 30 are hard-skipped from VLM analysis
  * to save inference cost. This may miss assets with poor metadata but
@@ -552,10 +583,7 @@ export function preFilterCandidate(candidate, keyword) {
   const { technicalScore } = computeTechnicalScore(candidate, keyword);
   const PREFILTER_THRESHOLD = 30;
 
-  // Only apply the gate when we have enough signal to judge:
-  // - keyword must be present (otherwise can't score title match)
-  // - candidate must have a title (otherwise titleScore=0 is not informative)
-  const hasEnoughSignal = !!keyword && !!candidate.title;
+  const hasEnoughSignal = !!keyword && hasContentEvidence(candidate);
   const lowConfidence = hasEnoughSignal && technicalScore < PREFILTER_THRESHOLD;
 
   return {
@@ -1195,13 +1223,24 @@ export async function analyzeAssets(assets, opts = {}) {
     if (!asset.path) continue;
     const keyword = asset.searchKeyword || "";
     const { technicalScore, lowConfidence } = preFilterCandidate(asset, keyword);
+    // #547: record why an asset passed. lowConfidence=false with a sub-threshold
+    // score means "metadata absence, not negative evidence" — the artifact keeps
+    // that judgment so a reader (or a later gate) doesn't re-read the raw score
+    // and discard the asset again.
+    const contentEvidence = !!keyword && hasContentEvidence(asset);
     asset.technicalScore = technicalScore;
     asset.lowConfidence = lowConfidence;
+    asset.contentEvidence = contentEvidence;
     if (lowConfidence) {
       console.log(
         `  ⏭️  Skipping low-confidence asset (pre-filter): ${asset.path} (score: ${technicalScore})`,
       );
     } else {
+      if (technicalScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+        console.log(
+          `  🔍 Metadata-poor asset kept for visual judgment (score: ${technicalScore}, no content evidence): ${asset.path}`,
+        );
+      }
       analyzableAssets.push(asset);
     }
   }
@@ -1588,6 +1627,9 @@ export async function analyzeAssets(assets, opts = {}) {
           searchKeyword: a.searchKeyword || null,
           technicalScore: a.technicalScore || null,
           lowConfidence: a.lowConfidence || false,
+          // #547: false means the score came from absent metadata, not from
+          // descriptive-but-unrelated fields. Preserves the pass reason.
+          contentEvidence: a.contentEvidence ?? null,
           description: a.description || "",
           subjects: a.subjects || [],
           contentKind: a.contentKind || null,
@@ -2414,7 +2456,9 @@ export function markDownloaded(url, downloadedUrls) {
 
 /**
  * Pre-download filter gate. Records a skip when the candidate's technicalScore
- * is below PRE_DOWNLOAD_FILTER_THRESHOLD.
+ * is below PRE_DOWNLOAD_FILTER_THRESHOLD *and* the metadata describes the content
+ * (same hasContentEvidence judgment as the post-download gate, #547). A low score
+ * from absent metadata must not discard the candidate before the VLM has seen it.
  *
  * @param {Object} candidate - Candidate to score
  * @param {string} keyword - Keyword used for scoring (searchKeyword || primaryKeyword)
@@ -2423,8 +2467,8 @@ export function markDownloaded(url, downloadedUrls) {
  * @returns {boolean} true when the candidate should be skipped
  */
 export function shouldSkipByPreFilter(candidate, keyword, sourceName, skipped) {
-  const { technicalScore: preScore } = preFilterCandidate(candidate, keyword);
-  if (preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
+  const { technicalScore: preScore, lowConfidence } = preFilterCandidate(candidate, keyword);
+  if (lowConfidence && preScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
     skipped.push({ source: sourceName, reason: `pre-download filter (score: ${preScore})` });
     return true;
   }
