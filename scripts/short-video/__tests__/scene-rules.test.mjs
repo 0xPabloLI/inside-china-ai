@@ -38,6 +38,7 @@ import {
   MEDIA_STRATEGIES,
   checkMediaOptOutDeprecation,
   checkBrollPromptDimensions,
+  BROLL_SHOT_SIGNALS,
   checkInstructCoverage,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
@@ -49,6 +50,18 @@ import { scenes as pt1Scenes } from "../content/distillation/pt1/scene-data.mjs"
 import { scenes as pt2Scenes } from "../content/distillation/pt2/scene-data.mjs";
 import { scenes as pt3Scenes } from "../content/distillation/pt3/scene-data.mjs";
 import { scenes as qwenScenes } from "../content/qwen4-preview/scene-data.mjs";
+// #289 real-data baseline: the series whose declared prompts are thin/verbatim-reused.
+import { scenes as distill7labsPt1Scenes } from "../content/anthropic-distillation-7labs/pt1/scene-data.mjs";
+import { scenes as distill7labsPt2Scenes } from "../content/anthropic-distillation-7labs/pt2/scene-data.mjs";
+import { scenes as distill7labsPt3Scenes } from "../content/anthropic-distillation-7labs/pt3/scene-data.mjs";
+import { scenes as distill7labsPt4Scenes } from "../content/anthropic-distillation-7labs/pt4/scene-data.mjs";
+
+const distill7labsAll = [
+  ...distill7labsPt1Scenes,
+  ...distill7labsPt2Scenes,
+  ...distill7labsPt3Scenes,
+  ...distill7labsPt4Scenes,
+];
 
 // ── Mock scene data ──
 
@@ -1428,13 +1441,19 @@ describe("checkMediaStrategyContract", () => {
 });
 
 // ── B-roll prompt dimensions (spec S1-S20; NEGATIVE coverage moved to
-//    code injection in #166 layer 2 — lib/b-roll/prompt-injection.mjs —
-//    so this check now owns only the numeral sweep) ──
+//    code injection in #166 layer 2 — lib/b-roll/prompt-injection.mjs — so
+//    this check owns the numeral sweep plus the declared-prompt quality gate
+//    added by #289: thin-write and cross-scene verbatim reuse) ──
 
-// Covers all three NEGATIVE groups and carries no digits.
+// Covers all three NEGATIVE groups and carries no digits. States both a
+// framing and a camera move, so the #289 thin-write sweep stays silent.
 const FULL_NEGATIVE_PROMPT =
   "One tall glowing bar shrinking beside a short one, dark reflective studio floor, " +
   "cinematic slow push-in, high detail, no text, no watermark, no hands";
+
+// #289: a stated camera move keeps each numeral-focused fixture out of the
+// thin-write sweep, so those cases still isolate the numeral dimension.
+const CINEMATIC_CLAUSE = ", cinematic slow push-in";
 
 describe("checkBrollPromptDimensions", () => {
   const broll = (prompt, overrides = {}) => ({
@@ -1452,7 +1471,9 @@ describe("checkBrollPromptDimensions", () => {
 
   it("#166: a prompt without any NEGATIVE clause is clean — the constants are injected", () => {
     expect(
-      checkBrollPromptDimensions([broll("A glowing bar shrinking slowly, high detail")]),
+      checkBrollPromptDimensions([
+        broll(`A glowing bar shrinking slowly${CINEMATIC_CLAUSE}, high detail`),
+      ]),
     ).toEqual([]);
   });
 
@@ -1477,8 +1498,8 @@ describe("checkBrollPromptDimensions", () => {
 
   it("S18: emits one warning per scene, in scene order", () => {
     const result = checkBrollPromptDimensions([
-      broll("A glowing bar at 3 meters wide", { id: 2 }),
-      broll("A flowing stream of data, 8.6 times faster", { id: 7 }),
+      broll(`A glowing bar at 3 meters wide${CINEMATIC_CLAUSE}`, { id: 2 }),
+      broll(`A flowing stream of data, 8.6 times faster${CINEMATIC_CLAUSE}`, { id: 7 }),
     ]);
     expect(result).toHaveLength(2);
     expect(result[0].detail).toContain("2");
@@ -1487,7 +1508,9 @@ describe("checkBrollPromptDimensions", () => {
 
   it("S14: warns when the prompt carries an Arabic numeral", () => {
     const result = checkBrollPromptDimensions([
-      broll("A bar chart showing 8.6 times throughput, no text, no hands, no watermark"),
+      broll(
+        `A bar chart showing 8.6 times throughput, no text, no hands, no watermark${CINEMATIC_CLAUSE}`,
+      ),
     ]);
     expect(result).toHaveLength(1);
     expect(result[0].detail).toContain("8.6");
@@ -1495,7 +1518,9 @@ describe("checkBrollPromptDimensions", () => {
 
   it("S15: still warns on an element count, and the fix explains both readings", () => {
     const result = checkBrollPromptDimensions([
-      broll("Three glowing layers, say 3 layers, no text, no hands, no watermark"),
+      broll(
+        `Three glowing layers, say 3 layers, no text, no hands, no watermark${CINEMATIC_CLAUSE}`,
+      ),
     ]);
     expect(result).toHaveLength(1);
     expect(result[0].detail).toContain("3");
@@ -1505,14 +1530,16 @@ describe("checkBrollPromptDimensions", () => {
 
   it("S16: ignores spelled-out numbers", () => {
     const result = checkBrollPromptDimensions([
-      broll("Two parallel lanes of glowing data, no text, no hands, no watermark"),
+      broll(
+        `Two parallel lanes of glowing data, no text, no hands, no watermark${CINEMATIC_CLAUSE}`,
+      ),
     ]);
     expect(result).toEqual([]);
   });
 
   it("S17: one warning per scene even with multiple numerals", () => {
     const result = checkBrollPromptDimensions([
-      broll("A bar shrinking to 1/9 of its height, high detail"),
+      broll(`A bar shrinking to 1/9 of its height, high detail${CINEMATIC_CLAUSE}`),
     ]);
     expect(result).toHaveLength(1);
     expect(result[0].detail).toContain("1");
@@ -1527,8 +1554,74 @@ describe("checkBrollPromptDimensions", () => {
   });
 
   it("S19: is wired into runAllSceneDataChecks", () => {
-    const result = runAllSceneDataChecks([broll("A glowing bar at 3 meters wide")], null);
+    const result = runAllSceneDataChecks(
+      [broll(`A glowing bar at 3 meters wide${CINEMATIC_CLAUSE}`)],
+      null,
+    );
     expect(result.warn.filter((r) => r.check === "B-roll prompt dimensions")).toHaveLength(1);
+  });
+
+  // ── #289 declared-prompt quality gate ──
+
+  it("#289 thin-write: warns when a prompt names no framing and no camera move", () => {
+    const result = checkBrollPromptDimensions([
+      broll("data visualization dashboard, digital analytics, tech interface", { id: 3 }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].detail).toContain("3");
+    expect(result[0].detail.toLowerCase()).toContain("camera");
+    expect(result[0].detail.toLowerCase()).toContain("heuristic");
+    expect(result[0].fix).toContain("video-script-writing-guide.md");
+  });
+
+  it("#289 thin-write: a lighting word alone does not rescue a prompt (cited example)", () => {
+    // The #289-cited debt: a lighting word ("glowing") plus no shot direction.
+    const CITED = "futuristic AI data center with glowing server racks, cinematic vertical";
+    expect(Object.values(BROLL_SHOT_SIGNALS).some((re) => re.test(CITED))).toBe(false);
+    const result = checkBrollPromptDimensions([broll(CITED, { id: 14 })]);
+    expect(result).toHaveLength(1);
+    expect(result[0].detail.toLowerCase()).toContain("thin write");
+  });
+
+  it("#289 thin-write: stays silent once a framing or a camera move is stated", () => {
+    expect(
+      checkBrollPromptDimensions([
+        broll("medium shot of a dim server hall, neon backlit racks, high detail"),
+      ]),
+    ).toEqual([]);
+    expect(
+      checkBrollPromptDimensions([broll("deep blue palette, slow dolly push-in, high detail")]),
+    ).toEqual([]);
+  });
+
+  it("#289 reuse: warns per scene when a declared prompt is verbatim-reused", () => {
+    const result = checkBrollPromptDimensions([
+      broll(FULL_NEGATIVE_PROMPT, { id: 14 }),
+      broll(FULL_NEGATIVE_PROMPT, { id: 16 }),
+    ]);
+    expect(result).toHaveLength(2);
+    expect(result.every((r) => r.level === "warn")).toBe(true);
+    expect(result[0].detail).toContain("14");
+    expect(result[0].detail).toContain("16");
+    expect(result[0].detail.toLowerCase()).toContain("reuse");
+  });
+
+  it("#289 reuse: normalizes whitespace/case so near-duplicates still count", () => {
+    const result = checkBrollPromptDimensions([
+      broll("  Cinematic  slow push-in,  high detail ", { id: 2 }),
+      broll("cinematic slow push-in, high detail", { id: 5 }),
+    ]);
+    expect(result).toHaveLength(2);
+    expect(result[0].detail.toLowerCase()).toContain("reuse");
+  });
+
+  it("#289 real data: the anthropic-distillation-7labs debt surfaces as reuse + thin warns", () => {
+    const result = checkBrollPromptDimensions(distill7labsAll);
+    expect(distill7labsAll).toHaveLength(40);
+    expect(result.every((r) => r.level === "warn")).toBe(true);
+    expect(result.some((r) => r.detail.toLowerCase().includes("reuse"))).toBe(true);
+    expect(result.some((r) => r.detail.toLowerCase().includes("thin write"))).toBe(true);
   });
 });
 
@@ -1572,7 +1665,9 @@ describe("ai-image strategy (#155)", () => {
     visualType: "narrative",
     voiceover: "Every four layers, three compress history with Gated DeltaNet.",
     mediaStrategy: "ai-image",
-    aiImage: { prompt: "abstract architecture diagram of memory channels, high detail" },
+    aiImage: {
+      prompt: "abstract architecture diagram of memory channels, slow push-in, high detail",
+    },
     ...overrides,
   });
 
@@ -1629,7 +1724,9 @@ describe("ai-image strategy (#155)", () => {
 
   it("the numeral sweep reads aiImage.prompt on image strategies", () => {
     const result = checkBrollPromptDimensions([
-      imageScene({ aiImage: { prompt: "A flow diagram with 8.6 times throughput, no text" } }),
+      imageScene({
+        aiImage: { prompt: "A flow diagram with 8.6 times throughput, no text, slow push-in" },
+      }),
     ]);
     expect(result).toHaveLength(1);
     expect(result[0].level).toBe("warn");
@@ -1643,7 +1740,10 @@ describe("ai-image strategy (#155)", () => {
   it("the numeral sweep ignores an aiVideo.prompt on an ai-image scene", () => {
     expect(
       checkBrollPromptDimensions([
-        imageScene({ aiVideo: { prompt: "bars at 3 meters wide" }, aiImage: { prompt: "clean" } }),
+        imageScene({
+          aiVideo: { prompt: "bars at 3 meters wide" },
+          aiImage: { prompt: "clean, slow push-in" },
+        }),
       ]),
     ).toEqual([]);
   });
