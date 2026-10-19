@@ -319,12 +319,18 @@ describe("buildManualPublishGuide", () => {
     expect(guide).toContain("chinaai.news/posts/kimi-k3-sandbox");
   });
 
-  it("derives slug from exampleEntity when articleSlug not provided", () => {
+  it("does not fabricate an article URL when articleSlug is not provided (#429)", () => {
+    // A made-up URL in the guide is how the 2026-09-30 dead-link incident
+    // reached the operator. Without a real slug the pin-comment step renders
+    // without a URL line — never a synthesized "{entity}-news" guess.
     const guide = buildManualPublishGuide({
       ...baseParams,
       exampleEntity: "DeepSeek",
     });
-    expect(guide).toContain("chinaai.news/posts/DeepSeek-news");
+    expect(guide).not.toContain("chinaai.news/posts/");
+    expect(guide).not.toContain("-news");
+    // The step itself still renders — only the fabricated URL is gone.
+    expect(guide).toContain("Pin a comment with article link");
   });
 
   it("includes API auto-publish disabled warning", () => {

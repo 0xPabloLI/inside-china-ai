@@ -542,7 +542,10 @@ if (!preMode) {
     `After publishing:\n` +
       `  1. Write a comment with the full article URL (when domain is live)\n` +
       `  2. Long-press the comment → "Pin comment"\n` +
-      `  Example: "Full article: https://chinaai.news/posts/${(rawCompany || "company").replace(/_/g, "-")}-news"\n` +
+      // #429: never synthesize a "{entity}-news" slug here — a fabricated URL
+      // is how the 2026-09-30 dead-link incident reached the operator. The
+      // real slug comes from the article (scene-data metadata.articleUrl).
+      `  Example: "Full article: https://chinaai.news/posts/<article-slug>"\n` +
       `  Why: drives traffic to website + increases engagement.`,
   );
   manual(

@@ -110,6 +110,32 @@ describe("buildPublishPackage", () => {
     expect(pkg.title.length).toBeLessThanOrEqual(20);
     expect(pkg.hashtags.length).toBeLessThanOrEqual(2);
   });
+
+  it("carries articleUrl in the metadata JSON for the final-stage readiness seam (#429)", () => {
+    const pkg = buildPublishPackage(tiktok, {
+      scenes: SCENES,
+      metadata: { ...METADATA, articleUrl: "https://chinaai.news/posts/dh-pilot" },
+      meta: META,
+    });
+    expect(pkg.metadataJson.articleUrl).toBe("https://chinaai.news/posts/dh-pilot");
+    expect(pkg.violations).toEqual([]);
+  });
+
+  it("records articleUrl: null when the content ships without a link (2026-10-13 default)", () => {
+    const pkg = buildPublishPackage(tiktok, { scenes: SCENES, metadata: METADATA, meta: META });
+    expect(pkg.metadataJson.articleUrl).toBeNull();
+    expect(pkg.violations).toEqual([]);
+  });
+
+  it("rejects a wrong-origin articleUrl at package time (the incident shape) (#429)", () => {
+    const pkg = buildPublishPackage(tiktok, {
+      scenes: SCENES,
+      metadata: { ...METADATA, articleUrl: "https://chinaainews.com/posts/dh-pilot" },
+      meta: META,
+    });
+    expect(pkg.violations).toHaveLength(1);
+    expect(pkg.violations[0]).toContain("chinaai.news");
+  });
 });
 
 describe("writePublishPackage + generatePublishPackages", () => {
