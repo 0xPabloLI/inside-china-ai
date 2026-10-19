@@ -58,7 +58,8 @@ import {
   markFailClosed,
   qualityGateSkipped,
 } from "./failure-class.mjs";
-import { MAX_TTS_SPEED, resolveSceneSpeed } from "./pacing.mjs";
+import { HOOK_MIN_SPEED, MAX_TTS_SPEED, resolveSceneSpeed } from "./pacing.mjs";
+import { DEFAULT_SILENCE_FLOOR_MS } from "./silence-trim.mjs";
 
 /**
  * Engine factory map. Keys are both the canonical name and TTS_ENGINE aliases.
@@ -307,13 +308,15 @@ async function planCachedPacing(scenes, cachedResults) {
   const empty = { scenes: [], evaluations: [], compensations: [], rerolls: [], advisory: [] };
   if (!Array.isArray(cachedResults) || cachedResults.length === 0) return empty;
 
-  const { measureWpm } = await import("./text-tokens.mjs");
+  const { measureSceneWpm } = await import("./text-tokens.mjs");
   const cachedScenes = [];
   const evaluations = [];
   for (const hit of cachedResults) {
     const scene = scenes.find((s) => s.id === hit.sceneId);
     if (!scene || !(Number(hit.duration) > 0)) continue;
-    const wpm = measureWpm(scene.ttsText || scene.voiceover || "", hit.duration);
+    // Same text resolution and rounding as the gate — a cached take must be
+    // judged with the metric it was approved under.
+    const wpm = measureSceneWpm(scene, hit.duration);
     if (wpm === 0) continue;
     cachedScenes.push(scene);
     evaluations.push({ sceneId: scene.id, passed: true, wpm });
@@ -352,7 +355,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   if (engine.useSilenceFilter) {
     // #786: internal pauses are capped (measured range mask), not
     // silenced-removed — the tail silence has to survive.
-    steps.push(`pause cap ≤${engine.silenceFloorMs ?? 250}ms`);
+    steps.push(`pause cap ≤${engine.silenceFloorMs ?? DEFAULT_SILENCE_FLOOR_MS}ms`);
   }
   if (engine.resample) steps.push("resample 44.1kHz");
   if (atempo) steps.push(`atempo ${atempo}x`);
@@ -843,6 +846,25 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
                   `  ⚠️ [Pacing Loop] Scene ${res.sceneId} compensation take failed the gate ` +
                     `(${evalRes?.issues?.join(", ") || "unknown"}) — keeping the original take`,
                 );
+                // #786: say it out loud when the take we fall back to is below
+                // the #244 hook floor. This is the one path where a finished
+                // hook can still ship under 1.1x: the floor asked for a faster
+                // take, the faster take failed the gate, and the approved audio
+                // is all we have. Next run retries (the cache hit keeps its 1.0x
+                // speed, so the ladder asks again), but the log must not read
+                // like a normal fallback.
+                const shipped = takeSpeedById.get(res.sceneId);
+                if (
+                  (scene.refStyle || scene.visualType) === "hook" &&
+                  Number.isFinite(shipped) &&
+                  shipped < HOOK_MIN_SPEED
+                ) {
+                  console.warn(
+                    `  ⚠️ [Pacing Loop] Scene ${res.sceneId} is a hook and ships at ` +
+                      `${shipped.toFixed(2)}x, below the ${HOOK_MIN_SPEED}x floor — ` +
+                      `the only faster take was rejected by the gate`,
+                  );
+                }
               }
             }
           }

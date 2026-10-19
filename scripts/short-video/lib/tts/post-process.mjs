@@ -146,8 +146,8 @@ export function engineTtsText(text) {
  * @param {Object} opts
  * @param {boolean} [opts.useSilenceFilter=true] - If true, the take is measured
  *   and internal pauses are capped at the floor (see silence-trim.mjs); the
- *   plan arrives as `silenceKeep`. If false, only the cleanup chain runs
- *   (F5/MLX path).
+ *   plan arrives as `silenceDrops` (the ranges to cut). If false, only the
+ *   cleanup chain runs (F5/MLX path).
  * @param {ProsodyProfile|null} [opts.prosody=null] - Per-scene prosody profile
  *   (pitch + tempo shift via rubberband filter).
  * @param {Array<{start: number, end: number}>|null} [opts.silenceDrops=null] -
@@ -296,7 +296,9 @@ export async function postProcessAudio(
   let maxPauseMs = 0;
   let repairPasses = 0;
   if (useSilenceFilter && removedSec > 0) {
-    for (let attempt = 0; attempt < MAX_TRIM_REPAIR_PASSES; attempt++) {
+    // Measure at the TOP of every iteration, so the numbers reported below are
+    // the ones on disk after the last repair — not the ones that triggered it.
+    for (let attempt = 0; ; attempt++) {
       const after = await probe(outputPath);
       const check = verifySilenceFloor({
         silences: after.silences,
@@ -306,6 +308,7 @@ export async function postProcessAudio(
       pauseViolations = check.violations.length;
       maxPauseMs = check.maxMs;
       if (pauseViolations === 0) break;
+      if (attempt >= MAX_TRIM_REPAIR_PASSES) break;
 
       const repair = planSilenceTrim({
         silences: after.silences,
@@ -324,9 +327,8 @@ export async function postProcessAudio(
       repairPasses += 1;
     }
     if (pauseViolations > 0) {
-      const worst = Math.max(maxPauseMs, 0);
       console.log(
-        `  ⚠️ Pause cap not fully delivered on "${outputPath}": ${pauseViolations} pause(s) over ${silenceFloorMs}ms (worst ${worst}ms) after ${repairPasses} repair pass(es)`,
+        `  ⚠️ Pause cap not fully delivered on "${outputPath}": ${pauseViolations} pause(s) over ${silenceFloorMs}ms (worst ${maxPauseMs}ms) after ${repairPasses} repair pass(es)`,
       );
     } else if (repairPasses > 0) {
       console.log(
@@ -339,16 +341,20 @@ export async function postProcessAudio(
 }
 
 /**
- * Post-process a batch engine's audio in-place (temp file + mv) and return duration.
+ * Post-process a batch engine's audio in-place (temp file + mv).
  *
  * Used by the batch engines (CosyVoice3-Kaggle-CUDA, CosyVoice3-MLX,
  * CosyVoice3-Modal-CUDA, F5-MLX): the generated audio is post-processed into a
  * -processed file (same extension as input), then moved back over the original.
  *
+ * Returns the trim bookkeeping alongside the duration so the caller can report
+ * a take whose pauses did not come out under the cap (#786 AC — the cap is
+ * measured, and a measurement nobody looks at is not a check).
+ *
  * @param {string} audioPath
  * @param {Object} opts - Same as postProcessAudio
  * @param {ProsodyProfile|null} [opts.prosody=null] - Per-scene prosody profile
- * @returns {Promise<number>} Duration of the processed audio
+ * @returns {Promise<{duration: number, removedSec: number, pauseCount: number, pauseViolations: number, maxPauseMs: number, repairPasses: number}>}
  */
 export async function postProcessBatch(audioPath, opts = {}) {
   // Support both .mp3 and .wav input (F5 now outputs WAV to avoid double lossy encoding)
@@ -356,10 +362,10 @@ export async function postProcessBatch(audioPath, opts = {}) {
   const processedPath = isWav
     ? audioPath.replace(/\.wav$/, "-processed.wav")
     : audioPath.replace(/\.mp3$/, "-processed.mp3");
-  await postProcessAudio(audioPath, processedPath, opts);
+  const trim = await postProcessAudio(audioPath, processedPath, opts);
   await execAsync(`mv "${processedPath}" "${audioPath}"`);
   const duration = await getDuration(audioPath);
-  return duration;
+  return { duration, ...trim };
 }
 
 // ── Subtitle alignment ──

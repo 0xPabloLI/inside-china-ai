@@ -37,7 +37,7 @@ import { ROOT_DIR } from "./types.mjs";
 import { REGEN_STAGING_PREFIX } from "./staging.mjs";
 import { assertRiffWaveHeader, walkRiffChunks } from "../audio/wav.mjs";
 import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-process.mjs";
-import { DEFAULT_SILENCE_FLOOR_MS } from "./silence-trim.mjs";
+import { resolveSilenceFloorMs } from "./silence-trim.mjs";
 import { resolveSceneSpeed } from "./pacing.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 
@@ -898,6 +898,10 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
   const runCmd = deps.exec ?? ((cmd) => execAsync(cmd));
   const poll = deps.poll ?? pollKernelStatus;
   const postProcess = deps.postProcess ?? postProcessBatch;
+  // One value for both the engine descriptor (which feeds the cache key) and
+  // the per-scene call, so the key can never describe a floor the trim did not
+  // use. `TTS_SILENCE_FLOOR_MS` is the documented 250→300 downgrade lever.
+  const silenceFloorMs = resolveSilenceFloorMs();
 
   return {
     name: "cosyvoice3-kaggle-cuda",
@@ -909,7 +913,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
     // cache key, so takes approved under the old (untrimmed) policy demote to
     // pending and are regenerated once instead of being replayed.
     useSilenceFilter: true,
-    silenceFloorMs: DEFAULT_SILENCE_FLOOR_MS,
+    silenceFloorMs,
     resample: true,
     // #244: exposed so the cache key folds the per-scene instruct in — an
     // INSTRUCT_STANDARD edit (#270) must invalidate affected cached takes,
@@ -1074,7 +1078,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
             : null;
         const duration = await postProcess(destPath, {
           useSilenceFilter: true,
-          silenceFloorMs: DEFAULT_SILENCE_FLOOR_MS,
+          silenceFloorMs,
           resample: true,
           prosody,
         });

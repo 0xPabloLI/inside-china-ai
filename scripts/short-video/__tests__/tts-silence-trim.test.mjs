@@ -16,6 +16,7 @@ import {
   buildTrimFilters,
   mergeSilences,
   parseSilenceDetect,
+  resolveSilenceFloorMs,
   planSilenceTrim,
   verifySilenceFloor,
 } from "../lib/tts/silence-trim.mjs";
@@ -63,9 +64,6 @@ describe("planSilenceTrim", () => {
     expect(plan.drops[0].start).toBeCloseTo(1.5 + floor / 1000 - FRAME_QUANTIZATION_GUARD_SEC, 4);
     expect(plan.drops[0].end).toBeCloseTo(2.4, 4);
     expect(plan.removedSec).toBeCloseTo(0.9 - (floor / 1000 - FRAME_QUANTIZATION_GUARD_SEC), 4);
-    // keep covers [0, ...] continuously so head/tail samples survive verbatim.
-    expect(plan.keep[0].start).toBe(0);
-    expect(plan.keep[plan.keep.length - 1].end).toBe(4.0);
   });
 
   it("leaves pauses at or under the floor untouched, trims the first one over it", () => {
@@ -94,7 +92,7 @@ describe("planSilenceTrim", () => {
       ],
       floorMs: floor,
     });
-    expect(plan.keep).toBeNull();
+    expect(plan.drops).toEqual([]);
     expect(plan.removedSec).toBe(0);
   });
 
@@ -109,20 +107,17 @@ describe("planSilenceTrim", () => {
       floorMs: floor,
     });
     expect(plan.drops.map((d) => Number(d.end.toFixed(2)))).toEqual([1.6, 2.8, 4.9]);
-    const kept = plan.keep.map((k) => [Number(k.start.toFixed(3)), Number(k.end.toFixed(3))]);
-    // Starts at 0, ends at duration, and every gap is exactly a dropped range.
-    expect(kept[0][0]).toBe(0);
-    expect(kept[kept.length - 1][1]).toBe(6);
-    const droppedEnds = plan.drops.map((d) => Number(d.end.toFixed(3)));
-    for (let i = 1; i < kept.length; i++) {
-      expect(kept[i][0]).toBeCloseTo(droppedEnds[i - 1], 3);
-      expect(kept[i][0]).toBeGreaterThan(kept[i - 1][1]);
+    // Sorted, non-overlapping, and never reaching the head/tail boundary.
+    for (let i = 1; i < plan.drops.length; i++) {
+      expect(plan.drops[i].start).toBeGreaterThan(plan.drops[i - 1].end);
     }
+    expect(plan.drops[0].start).toBeGreaterThan(0);
+    expect(plan.drops[plan.drops.length - 1].end).toBeLessThan(6);
   });
 
   it("returns a null plan for unusable duration or empty input", () => {
-    expect(planSilenceTrim({ duration: NaN, silences: [], floorMs: floor }).keep).toBeNull();
-    expect(planSilenceTrim({ duration: 2, silences: [], floorMs: floor }).keep).toBeNull();
+    expect(planSilenceTrim({ duration: NaN, silences: [], floorMs: floor }).drops).toEqual([]);
+    expect(planSilenceTrim({ duration: 2, silences: [], floorMs: floor }).drops).toEqual([]);
   });
 });
 
@@ -172,6 +167,19 @@ describe("planSilenceTrim — split pauses", () => {
     // One cut over the whole merged region, not two cuts over the pieces.
     expect(plan.drops[0].start).toBeCloseTo(3.494 + 0.25 - FRAME_QUANTIZATION_GUARD_SEC, 3);
     expect(plan.drops[0].end).toBeCloseTo(4.008, 3);
+  });
+});
+
+describe("resolveSilenceFloorMs", () => {
+  it("defaults to the decided floor", () => {
+    expect(resolveSilenceFloorMs({})).toBe(DEFAULT_SILENCE_FLOOR_MS);
+    expect(resolveSilenceFloorMs({ TTS_SILENCE_FLOOR_MS: "" })).toBe(DEFAULT_SILENCE_FLOOR_MS);
+    expect(resolveSilenceFloorMs({ TTS_SILENCE_FLOOR_MS: "abc" })).toBe(DEFAULT_SILENCE_FLOOR_MS);
+    expect(resolveSilenceFloorMs({ TTS_SILENCE_FLOOR_MS: "-5" })).toBe(DEFAULT_SILENCE_FLOOR_MS);
+  });
+
+  it("honours the documented 250 -> 300 downgrade", () => {
+    expect(resolveSilenceFloorMs({ TTS_SILENCE_FLOOR_MS: "300" })).toBe(300);
   });
 });
 

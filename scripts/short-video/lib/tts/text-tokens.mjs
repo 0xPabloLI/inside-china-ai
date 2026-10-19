@@ -40,6 +40,22 @@ export function tokenize(text) {
 }
 
 /**
+ * The text a take actually speaks.
+ *
+ * Three call sites have to agree on this or they measure different things on
+ * the same audio: the Quality Gate's WPM, the pacing ladder's compensation, and
+ * the re-judgement of an approved cached take. The order is the gate's
+ * (`voiceoverTts` is the legacy normalised track) — it lives here so a fourth
+ * caller cannot invent a fourth order.
+ *
+ * @param {{ttsText?: string, voiceoverTts?: string, voiceover?: string}} scene
+ * @returns {string}
+ */
+function resolveSpeechText(scene) {
+  return scene?.ttsText || scene?.voiceoverTts || scene?.voiceover || "";
+}
+
+/**
  * Words-per-minute for a take, using the Quality Gate's own metric: tokenized
  * expected words over measured audio duration, rounded.
  *
@@ -47,9 +63,20 @@ export function tokenize(text) {
  * @param {number} durationSec - measured audio duration
  * @returns {number} WPM (0 when there is no text/duration)
  */
-export function measureWpm(text, durationSec) {
+function measureWpm(text, durationSec) {
   const words = tokenize(text).length;
   const minutes = Math.max(0.1, Number(durationSec)) / 60;
   if (!Number.isFinite(minutes) || minutes <= 0 || words === 0) return 0;
   return Math.round(words / minutes);
+}
+
+/**
+ * WPM for a scene's take, resolving the spoken text the same way the gate does.
+ *
+ * @param {object} scene
+ * @param {number} durationSec
+ * @returns {number}
+ */
+export function measureSceneWpm(scene, durationSec) {
+  return measureWpm(resolveSpeechText(scene), durationSec);
 }

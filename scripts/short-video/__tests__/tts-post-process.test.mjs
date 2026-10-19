@@ -393,7 +393,7 @@ describe("TTS Post-Processing", () => {
         cb(null, { stdout: "3.45\n", stderr: "" }),
       ); // ffprobe duration probe (argv form, #319 deferred class sweep)
 
-      const duration = await postProcessBatch("scene-1.wav", { useSilenceFilter: false });
+      const { duration } = await postProcessBatch("scene-1.wav", { useSilenceFilter: false });
 
       expect(duration).toBe(3.45);
       // First call: ffmpeg processes .wav → -processed.wav (same ext as input)
@@ -416,7 +416,7 @@ describe("TTS Post-Processing", () => {
         cb(null, { stdout: "3.45\n", stderr: "" }),
       ); // ffprobe
 
-      const duration = await postProcessBatch("scene-1.mp3", { useSilenceFilter: false });
+      const { duration } = await postProcessBatch("scene-1.mp3", { useSilenceFilter: false });
 
       expect(duration).toBe(3.45);
       // First call: ffmpeg with -processed.mp3 output
@@ -438,7 +438,7 @@ describe("TTS Post-Processing", () => {
       ); // ffprobe
 
       let call = 0;
-      const duration2 = await postProcessBatch("scene-2.mp3", {
+      const { duration: duration2 } = await postProcessBatch("scene-2.mp3", {
         useSilenceFilter: true,
         probe: async () =>
           call++ === 0

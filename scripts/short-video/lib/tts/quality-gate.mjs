@@ -19,7 +19,7 @@ import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "../asr-defaults.mjs";
 import { splitDigitUnitToken, cardinalSpokenWords } from "../normalize-tts-text.mjs";
 import { FAILURE_CLASS, asrOptOutEnabled } from "./failure-class.mjs";
 import { validateInstructSignature } from "./instruct.mjs";
-import { cleanText, tokenize } from "./text-tokens.mjs";
+import { cleanText, measureSceneWpm, tokenize } from "./text-tokens.mjs";
 
 // #786: the tokenizer moved to ./text-tokens.mjs so the registry can judge an
 // already-approved cached take with the SAME words-per-minute the gate measures,
@@ -450,9 +450,9 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
   const expectedTokens = tokenize(expectedSpokenText);
   const wordCount = expectedTokens.length;
 
-  // 2. Measure Pacing (WPM)
-  const durationMin = Math.max(0.1, durationSec) / 60;
-  const wpm = Math.round(wordCount / durationMin);
+  // 2. Measure Pacing (WPM) — same helper the pacing ladder and the cached-take
+  // re-judgement use, so all three cannot drift apart (#786).
+  const wpm = measureSceneWpm(scene, durationSec);
 
   const issues = [];
   const warnings = [];

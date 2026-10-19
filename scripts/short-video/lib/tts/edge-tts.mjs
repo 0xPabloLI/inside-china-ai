@@ -11,6 +11,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { promisify } from "util";
 import { postProcessAudio, getDuration } from "./post-process.mjs";
+import { DEFAULT_SILENCE_FLOOR_MS } from "./silence-trim.mjs";
 
 const execAsync = promisify(exec);
 
@@ -51,6 +52,9 @@ export async function createEdgeTTSEngine() {
     name: "edge-tts",
     info: `edge-tts (${EDGE_VOICE}, rate=${EDGE_RATE})`,
     useSilenceFilter: true,
+    // #786: these engines already ran the silence filter; declaring the
+    // floor makes the cap explicit and puts it in the cache key.
+    silenceFloorMs: DEFAULT_SILENCE_FLOOR_MS,
     resample: false, // edge-tts path does NOT resample
 
     async generate(scenes, outputDir) {

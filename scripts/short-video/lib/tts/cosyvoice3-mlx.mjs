@@ -227,7 +227,7 @@ export async function createCosyVoice3MLXEngine() {
             renameSync(chunkPath, audioPath);
           }
         }
-        const duration = await postProcessBatch(audioPath, {
+        const { duration } = await postProcessBatch(audioPath, {
           useSilenceFilter: false,
           resample: true,
           prosody: null,

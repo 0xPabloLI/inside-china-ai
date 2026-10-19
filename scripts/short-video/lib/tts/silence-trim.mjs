@@ -34,6 +34,22 @@ const execFileAsync = promisify(execFile);
 export const DEFAULT_SILENCE_FLOOR_MS = 250;
 
 /**
+ * Resolve the cap, letting an operator move it without a code change.
+ *
+ * `TTS_SILENCE_FLOOR_MS` exists because the ticket's mitigation order for
+ * "sounds rushed" is 250 → 300 ms, not "revert the feature". The value enters
+ * the cache key, so moving it also regenerates the takes that were trimmed
+ * under the old cap — no manual deletion of the audio directories.
+ *
+ * @param {NodeJS.ProcessEnv} [env=process.env]
+ * @returns {number} floor in milliseconds
+ */
+export function resolveSilenceFloorMs(env = process.env) {
+  const raw = Number.parseFloat(env.TTS_SILENCE_FLOOR_MS ?? "");
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_SILENCE_FLOOR_MS;
+}
+
+/**
  * Silence detection threshold / minimum length.
  *
  * The threshold matches the research calibration (-35 dB). The minimum length
@@ -150,14 +166,15 @@ export function mergeSilences(silences, gapSec = PAUSE_MERGE_GAP_SEC) {
  * @param {Array<{start: number, end: number}>} opts.silences - detected intervals
  * @param {number} opts.duration - total media duration
  * @param {number} [opts.floorMs] - pause cap in milliseconds
- * @returns {{keep: Array<{start: number, end: number}>, drops: Array<{start: number, end: number, pauseMs: number, removedMs: number}>, removedSec: number}}
- *   `keep` is null when nothing needs trimming (callers then skip the filter).
+ * @returns {{drops: Array<{start: number, end: number, pauseMs: number}>, removedSec: number}}
+ *   `drops` is empty when nothing needs trimming (callers then skip the filter);
+ *   `removedSec` is the planned saving, not the delivered one.
  */
 export function planSilenceTrim({ silences, duration, floorMs = DEFAULT_SILENCE_FLOOR_MS }) {
   const floorSec = Math.max(0, Number(floorMs) || 0) / 1000;
   const total = Number(duration);
   if (!Number.isFinite(total) || total <= 0) {
-    return { keep: null, drops: [], removedSec: 0 };
+    return { drops: [], removedSec: 0 };
   }
 
   const drops = [];
@@ -179,19 +196,11 @@ export function planSilenceTrim({ silences, duration, floorMs = DEFAULT_SILENCE_
     drops.push({ start: cutFrom, end, pauseMs: Math.round((end - start) * 1000) });
   }
 
-  if (drops.length === 0) return { keep: null, drops: [], removedSec: 0 };
+  if (drops.length === 0) return { drops: [], removedSec: 0 };
 
   drops.sort((a, b) => a.start - b.start);
-  const keep = [];
-  let cursor = 0;
-  for (const d of drops) {
-    if (d.start > cursor) keep.push({ start: cursor, end: d.start });
-    cursor = Math.max(cursor, d.end);
-  }
-  if (cursor < total) keep.push({ start: cursor, end: total });
-
   const removedSec = drops.reduce((sum, d) => sum + (d.end - d.start), 0);
-  return { keep, drops, removedSec };
+  return { drops, removedSec };
 }
 
 /**

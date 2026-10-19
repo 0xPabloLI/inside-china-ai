@@ -64,13 +64,16 @@ const SILENCE_TRIM_POLICY_VERSION = "v1";
  * `SCENE_META_VERSION` demotes to a locally re-verified candidate (same bytes),
  * which would re-approve the untrimmed audio without regenerating it.
  *
- * Engines that do not trim (F5/MLX) keep the legacy key shape.
+ * Engines that do not trim (F5/MLX) keep the legacy key shape. The comparison
+ * is `=== false` on purpose: `postProcessAudio()` defaults `useSilenceFilter`
+ * to true, so an engine descriptor that omits the flag still trims — treating
+ * "absent" as "no trim" would hand such an engine an untrimmed key.
  *
  * @param {{useSilenceFilter?: boolean, silenceFloorMs?: number}} engine
  * @returns {string} "" for engines without the trim policy
  */
 function silenceTrimToken(engine) {
-  if (!engine?.useSilenceFilter) return "";
+  if (engine?.useSilenceFilter === false) return "";
   const floor = Number.isFinite(engine.silenceFloorMs)
     ? engine.silenceFloorMs
     : DEFAULT_SILENCE_FLOOR_MS;
