@@ -352,6 +352,32 @@ Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论�
 
 **TTS instruct（音色/口音）**：scene 的 emotion instruct 取自 `visualType`/`refStyle`，**写稿侧只需选标准风格**——不要写 `scene.instruct` 覆盖、不要写 instruct 文本。风格清单与四维标准（Persona + Accent + Emotion + Pacing）的唯一来源是 `scripts/short-video/lib/tts/instruct.mjs` 的 `INSTRUCT_STANDARD`；风格缺失时 pre-render gate 直接 FAIL，并指明该加哪个条目。机制选型与三层门控的理由见 `docs/archive/handoffs/tts-indian-accent-handoff.md` → 「单一来源与防回归门控（#270）」。
 
+### Hook 文案句式（写稿规范，#278）
+
+与上一节语速预算在**同一次写稿自检**中完成：**句式定听感节奏，密度定信息量**——密度合格而句式平淡的 hook 仍要改写。证据（#244 三轮 A/B 实听裁决，2026-09-13）：原文案只提速 1.1×「只是快了」，punchy 文案同 1.1×「情感充沛很多」——**提速救不了平淡文案**；hook 的「慢」感来自长陈述句平铺而非 WPM 低（104 anchor 原文案算术 148 WPM 听着慢，punchy 文案纯语音段 ≈162 词/分几乎同速却听着快），节奏出自短句+短顿的顿挫——**WPM ≠ 听感速度**，句式改写优先于拉速。
+
+**硬性要求**（triage 2026-09-14 裁决）：
+
+1. **核心数据/结论带具象化对比**——"10x smaller"、"比主流模型便宜 90%"这类可验证锚点，取代"大幅提升""显著领先"式模糊表述。
+2. **第一句 1.5s 内建立核心冲突**（单句 punchline）——与上一节「hook 前 3 秒点出核心价值」是同一条 hook 时间线的前后两拍：1.5s 立冲突，3s 交价值；hook 不堆铺垫句。
+
+**建议要求**：视角具象化——用场景化切入代替抽象陈述。
+
+**punchy 句式元素**（按题材取用）：短句三连、感叹号、破折号引导重音/断句、数字前置、疑问句/感叹句开场。四种公式级模式（Shocking Number / Contradiction / Curiosity Gap / Question）与轮换规则见 `docs/video-script-writing-guide.md` → Step 5，此处不重复。
+
+**题材分流**（写稿先定类，triage 2026-09-14）：
+
+| 类型             | 重心             | 句式倾向           |
+| ---------------- | ---------------- | ------------------ |
+| 突发快讯型       | 速度与颠覆感     | 短句、数字前置     |
+| 产业深度拆解型   | 反差与格局变化   | 对比与反转句式     |
+
+**疑问句开场**：进备选句式库，不设为唯一默认（#244 R3：405 疑问句开场为多内容泛化最佳，但整体仍不如 303 的 take）。
+
+**存量口径**：只管增量内容包——历史已发布包不回改。
+
+**边界**：hook 合格与否的评审判据与正面范例库归 **#752**（评审端）；本节只管写稿端。MRL-2 的 W2（Hook 具体性，Agent 判断项）按本节判据执行。
+
 ### AI Outline 话题描述规则（Step 5 细则，仅 opt-in 时适用）
 
 > TikTok AI Outline 仅移动端可用。输出质量取决于输入具体度——含公司名+数字时大幅提升。实测（2026-08-27）：泛输入→clickbait；具体输入→Title/Hook/Hashtags 均可用。
