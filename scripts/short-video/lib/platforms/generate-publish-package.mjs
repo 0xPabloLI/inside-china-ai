@@ -26,6 +26,7 @@ import {
   derivePinnedComment,
   classifyHashtags,
 } from "../caption-utils.mjs";
+import { validateArticleUrl } from "../article-url-readiness.mjs";
 import { listPlatformProfiles } from "./index.mjs";
 
 /**
@@ -158,6 +159,13 @@ export function buildPublishPackage(profile, { scenes, metadata, meta } = {}) {
       dataSource: "tiktokhashtags.com + TikTok Creative Center + competitor analysis",
     },
     pinnedComment,
+    // #429: the raw article URL rides along so the final-stage readiness seam
+    // (publish-tiktok.mjs) can check the actual outbound link without
+    // re-deriving it from the pinned comment text.
+    articleUrl:
+      typeof metadata?.articleUrl === "string" && metadata.articleUrl.trim()
+        ? metadata.articleUrl.trim()
+        : null,
     generatedAt: new Date().toISOString(),
     source: metadata ? "scene-data-metadata" : "auto-derived",
   };
@@ -174,6 +182,16 @@ export function buildPublishPackage(profile, { scenes, metadata, meta } = {}) {
     violations.push(
       `Hashtag count out of range [${limits.hashtags.min}-${limits.hashtags.max}] (${hashtags.length})`,
     );
+  }
+  // #429 stage-1 gate: a wrong-origin / malformed articleUrl is rejected here.
+  // Draft articles may legitimately 404, so no liveness is checked at package
+  // time — the 2026-09-30 incident was a wrong-ORIGIN URL (parked domain),
+  // which shape validation alone catches.
+  if (metadata?.articleUrl) {
+    const shape = validateArticleUrl(metadata.articleUrl);
+    if (!shape.ok) {
+      violations.push(`articleUrl rejected: ${shape.reason}`);
+    }
   }
 
   return { title, description, hashtags, captionText, metadataJson, pinnedComment, violations };

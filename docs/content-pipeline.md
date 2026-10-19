@@ -481,6 +481,8 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path1> [<path
 node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipelineId> --slug <slug>
 ```
 
+> **文章链接 readiness 门（#429，2026-10-19 落地）**：发布脚本在生成指南前，对**最终实际出链**做一次可达性判定（`lib/article-url-readiness.mjs`，所有走链接的消费面——manual guide 的 `{slug}` URL 与 pinned comment——共用同一 seam；纯 Caption builder 不引入网络）。两段式契约：**制包期**（`generate-caption.mjs`）只校验 origin/语法/`/posts/<slug>` 形状（草稿文章合法 404，不在此拦截）；**终检期**（本步，文章已公开后）发真实请求，HEAD 405/501 用有限 GET 复核，跨站 redirect 不算过。失败政策（用户裁决 2026-10-19，分级处置）：**确定不可达**（404/410/错 origin）→ **阻断**（退出非零，附诊断；修根因——重发文章或修 slug——后重跑）；**unknown**（reset/超时/TLS/429/可疑 403/5xx/401，含站点自身报错——非内容 bug 不卡视频）→ **自动降级**：pinned comment 去掉「Full analysis」承诺、指南不再带 URL 行、包内文件同步改写保持一致，并大声警告。降级时若检测到内容 CTA 口播了「全文在置顶评论」承诺（音频已渲染无法改），额外 🚨 警告由人工临场决定（用户裁决 2026-10-19：警告后照发，不阻断）。`--slug` 缺失时指南**不再合成** `{entity}-news` 假 URL（无 slug 即无 URL 行）。
+
 > **每平台独立发布 HITL（#219 T03）**：发布是外部不可逆动作，逐平台设确认门。TikTok 的 Profile 只启用 `manual-guide` 档——发布动作由用户按 checklist 在 App 内人工执行（确认点=执行清单本身，结构上不可跳过）；Publora `--auto` API 路径保留但默认关闭（`--auto` 会 fail-closed），启用需逐平台授权 + 沙盒验证。发布后手动回写 URL：
 >
 > ```bash

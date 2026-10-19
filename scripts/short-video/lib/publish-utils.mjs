@@ -342,9 +342,9 @@ export function buildSeriesPinnedComment(seriesMeta) {
  * @param {Object} params
  * @param {string} params.videoPath - Absolute path to the MP4 file
  * @param {string} params.caption - Full caption text (<= 2200 chars)
- * @param {string} [params.articleSlug] - Post slug for pinned comment URL
+ * @param {string} [params.articleSlug] - Post slug for pinned comment URL; when
+ *   absent the pin-comment step renders without a URL line (#429 — never fabricate)
  * @param {boolean} [params.hasAIVoice=true] - Whether AI-generated voice is used
- * @param {string} [params.exampleEntity] - Primary entity for examples (e.g. "DeepSeek")
  * @param {Object} [params.profile] - Injected profile (defaults to the TikTok profile)
  * @returns {string} Formatted manual publishing guide
  */
@@ -353,12 +353,17 @@ export function buildManualPublishGuide({
   caption,
   articleSlug,
   hasAIVoice = true,
-  exampleEntity = "company",
   profile = getPlatformProfile("tiktok"),
 }) {
-  const slug = articleSlug || `${exampleEntity.replace(/\s/g, "-")}-news`;
+  // #429: never fabricate a slug. A synthesized "{entity}-news" URL is a
+  // made-up link by construction — the 2026-09-30 incident shipped a dead
+  // link into a pinned comment, and a guess is how wrong URLs reach the
+  // operator. Without a real slug the pin-comment step renders without a
+  // URL line (the detail line carrying {slug} is skipped).
+  const slug = articleSlug || null;
   const substitutions = { videoPath, slug };
-  const fill = (text) => text.replace(/\{(videoPath|slug)\}/g, (_, key) => substitutions[key]);
+  const fill = (text) =>
+    text.replace(/\{(videoPath|slug)\}/g, (_, key) => substitutions[key] ?? "");
 
   const checklist = [];
   let stepNumber = 0;
@@ -370,6 +375,7 @@ export function buildManualPublishGuide({
     }
     checklist.push(`  [ ] ${stepNumber}. ${fill(step.label)}`);
     for (const detail of step.detail ?? []) {
+      if (!slug && detail.includes("{slug}")) continue;
       checklist.push(`         ${fill(detail)}`);
     }
   }

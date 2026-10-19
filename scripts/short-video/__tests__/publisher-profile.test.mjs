@@ -94,13 +94,18 @@ CAPTION_TEXT
     expect(guide).toBe(GOLDEN_NO_AI);
   });
 
-  it("falls back to the example-entity slug when articleSlug is absent", () => {
+  it("renders no article URL when articleSlug is absent — never a fabricated one (#429)", () => {
+    // Was: "falls back to the example-entity slug" (chinaai.news/posts/company-news).
+    // The 2026-09-30 incident shipped a dead link; a synthesized slug is a
+    // fabricated URL by construction, so the guide now omits the URL line.
     const guide = buildManualPublishGuide({
       videoPath: "/tmp/v.mp4",
       caption: "C",
       hasAIVoice: true,
     });
-    expect(guide).toContain("https://chinaai.news/posts/company-news");
+    expect(guide).not.toContain("chinaai.news/posts/");
+    expect(guide).not.toContain("company-news");
+    expect(guide).toContain("Pin a comment with article link");
   });
 });
 

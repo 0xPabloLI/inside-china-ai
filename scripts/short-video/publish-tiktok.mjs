@@ -47,6 +47,10 @@ import {
 } from "./lib/publish-utils.mjs";
 import { getPlatformProfile } from "./lib/platforms/index.mjs";
 import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
+import {
+  detectPinnedCommentPromise,
+  resolveArticleLinkReadiness,
+} from "./lib/article-url-readiness.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -131,23 +135,13 @@ function preparePublishData() {
     process.exit(1);
   }
 
-  // Derive example entity from metadata (same logic as verify-video.mjs)
-  const rawCompany =
-    metadata.keyEntities?.companies?.[0] || metadata.title?.match(/([A-Z][a-zA-Z]+)/)?.[1] || null;
-  const exampleEntity = rawCompany
-    ? rawCompany
-        .split("_")
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ")
-    : "company";
-
-  return { metadata, caption, pinnedComment, videoValidation, exampleEntity };
+  return { metadata, caption, pinnedComment, videoValidation };
 }
 
 // ─── Manual mode (default) ───
 
-function runManualMode() {
-  const { metadata, caption, pinnedComment, videoValidation, exampleEntity } = preparePublishData();
+async function runManualMode() {
+  const { metadata, caption, pinnedComment, videoValidation } = preparePublishData();
 
   console.log("📤 TikTok Manual Publishing Guide");
   console.log(`📋 Metadata: ${metadata.title?.substring(0, 50)}...`);
@@ -159,13 +153,51 @@ function runManualMode() {
     console.log(`🏷️  Series: ${seriesId} Part ${partNum}/${totalParts}`);
   }
 
+  // ─── Article link readiness (#429) ───
+  // Final delivery stage: the article is public by now (HITL confirmed), so
+  // the actual outbound links are checked here. Every consumer surface — this
+  // guide's URL and the pinned comment — resolves through one seam; pure
+  // builders (caption-utils) stay network-free. Policy (user verdict
+  // 2026-10-19, 分级处置): unreachable (404/410/off-site) → block;
+  // unknown (reset/timeout/TLS/429/suspicious 403/5xx) → degrade + warn.
+  const packagePinnedComment =
+    typeof metadata.pinnedComment === "string" ? metadata.pinnedComment : "";
+  const readiness = await resolveArticleLinkReadiness({
+    articleUrl: typeof metadata.articleUrl === "string" ? metadata.articleUrl : null,
+    guideSlug: postSlug,
+    pinnedComment: packagePinnedComment,
+  });
+
+  if (readiness.action === "block") {
+    console.error(`\n❌ Article link readiness — publishing is blocked:`);
+    console.error(`   ${readiness.error}`);
+    console.error("   Fix the root cause (republish the article / correct the slug), then re-run.");
+    process.exit(1);
+  }
+
+  let effectiveSlug = postSlug;
+  if (readiness.action === "degrade") {
+    effectiveSlug = null;
+    console.log("\n⚠️  Article link could not be verified — this package ships WITHOUT it:");
+    for (const warning of readiness.warnings) {
+      console.log(`   • ${warning}`);
+    }
+    // A CTA promising the pinned comment is baked into the rendered audio —
+    // a degrade cannot un-say it. User verdict 2026-10-19: warn loudly and
+    // post; the operator decides whether to accept the gap or re-record.
+    if (detectPinnedCommentPromise(caption)) {
+      console.log("   🚨 This caption/CTA PROMISES the pinned comment but the link is being");
+      console.log("      removed — the rendered video audio cannot be changed. Post only if");
+      console.log("      you accept the unfulfilled promise, or re-record the CTA first.");
+    }
+  }
+
   // All videos in this pipeline use TTS (F5-TTS-MLX), so AI voice = true
   const guide = buildManualPublishGuide({
     videoPath: resolve(videoPath),
     caption,
-    articleSlug: postSlug,
+    articleSlug: effectiveSlug,
     hasAIVoice: true,
-    exampleEntity,
   });
   console.log(guide);
 
@@ -175,6 +207,35 @@ function runManualMode() {
     console.log("─".repeat(40));
     console.log(pinnedComment);
     console.log("─".repeat(40));
+  }
+
+  // Degraded non-series pinned comment: print the text to actually post, and
+  // rewrite the package files so the on-disk package stays consistent with
+  // what ships (review contract 4 — no dangling "full analysis" promise).
+  // Gated on an actual change: a comment that never had a link stays silent.
+  if (
+    readiness.action === "degrade" &&
+    readiness.pinnedComment &&
+    readiness.pinnedComment !== packagePinnedComment
+  ) {
+    console.log("\n📌 Pinned Comment (article link removed — post THIS text):");
+    console.log("─".repeat(40));
+    console.log(readiness.pinnedComment);
+    console.log("─".repeat(40));
+    const paths = packageFilePaths({
+      outputRoot: OUTPUT_DIR,
+      ...(contentDir ? { pipelineId: contentDir } : {}),
+      profile: getPlatformProfile("tiktok"),
+    });
+    if (existsSync(paths.pinnedComment)) {
+      writeFileSync(paths.pinnedComment, readiness.pinnedComment, "utf8");
+      console.log(`   📝 Rewrote ${paths.pinnedComment} without the unverified link`);
+    }
+    if (existsSync(paths.metadata)) {
+      const rewritten = { ...metadata, pinnedComment: readiness.pinnedComment };
+      writeFileSync(paths.metadata, JSON.stringify(rewritten, null, 2) + "\n", "utf8");
+      console.log(`   📝 Rewrote ${paths.metadata} pinnedComment field to match`);
+    }
   }
 
   console.log("\n💡 Tip: After publishing manually, save the TikTok URL to the post:");
@@ -206,7 +267,7 @@ async function runAutoMode() {
   // Show warning
   console.log(buildAutoPublishWarning());
 
-  const { metadata, caption, pinnedComment, videoValidation, exampleEntity } = preparePublishData();
+  const { metadata, caption, pinnedComment, videoValidation } = preparePublishData();
 
   console.log("📤 TikTok Auto-Publish via Publora");
   console.log("=".repeat(60));
@@ -444,5 +505,8 @@ if (publishMethod === "api") {
     process.exit(1);
   });
 } else {
-  runManualMode();
+  runManualMode().catch((e) => {
+    console.error(`❌ ${e.message}`);
+    process.exit(1);
+  });
 }
