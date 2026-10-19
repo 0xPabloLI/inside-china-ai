@@ -124,25 +124,28 @@ describe("resolveSceneSpeed", () => {
 });
 
 describe("planPacingResponse (#252 measured-WPM ladder)", () => {
-  // Bands from the #252 review comment: <135 compensate (native 1.1-1.2),
-  // 135-225 keep, >225 reroll (take drift), reroll still >225 → block.
+  // Bands after #279 (2026-10-19): <150 compensate (native 1.1-1.2),
+  // 150-225 keep, >225 reroll (take drift), reroll still >225 → block.
   it("compensates a slow hook (116 WPM) with the clamped 1.2 speed", () => {
     const plan = planPacingResponse(enHook, 116);
     expect(plan.action).toBe("compensate");
-    expect(plan.speed).toBe(1.2); // 150/116 = 1.29 → clamp
+    expect(plan.speed).toBe(1.2); // 165/116 = 1.42 → clamp
   });
 
   it("compensates a mildly slow scene with a proportional speed", () => {
-    const plan = planPacingResponse(enNarrative, 134);
+    const plan = planPacingResponse(enNarrative, 140);
     expect(plan.action).toBe("compensate");
-    expect(plan.speed).toBeCloseTo(150 / 134, 5); // ≈1.119 — inside the 1.1-1.2 review band
+    expect(plan.speed).toBeCloseTo(165 / 140, 5); // ≈1.179 — inside the 1.1-1.2 review band
   });
 
-  it("keeps scenes inside the hysteresis band [135, 225]", () => {
-    expect(planPacingResponse(enNarrative, 135).action).toBe("keep");
+  it("keeps scenes inside the keep band [150, 225]", () => {
     expect(planPacingResponse(enNarrative, 150).action).toBe("keep");
-    expect(planPacingResponse(enNarrative, 171).action).toBe("keep"); // CTA above sweet spot, below ceiling
+    expect(planPacingResponse(enNarrative, 165).action).toBe("keep");
+    expect(planPacingResponse(enNarrative, 171).action).toBe("keep"); // CTA above target, below ceiling
     expect(planPacingResponse(enNarrative, 225).action).toBe("keep");
+    // 149 is below the #279 trigger — the bottom of the 170-190 broadcast band
+    // minus measurement noise.
+    expect(planPacingResponse(enNarrative, 149).action).toBe("compensate");
   });
 
   it("rerolls a >225 scene — take drift ±10-20% is the first lever (#234)", () => {
@@ -162,8 +165,8 @@ describe("planPacingResponse (#252 measured-WPM ladder)", () => {
   });
 
   it("exposes the review constants for cross-module checks", () => {
-    expect(WPM_TARGET).toBe(150);
-    expect(WPM_COMPENSATE_BELOW).toBe(135);
+    expect(WPM_TARGET).toBe(165);
+    expect(WPM_COMPENSATE_BELOW).toBe(150);
     expect(WPM_HARD_CEILING).toBe(225);
   });
 });
@@ -225,7 +228,7 @@ describe("hook speed floor (#244, 2026-09-13 HITL verdict)", () => {
   it("still compensates a genuinely slow hook toward 150 WPM, not just the floor", () => {
     const plan = planPacingResponse(enHook, 116);
     expect(plan.action).toBe("compensate");
-    expect(plan.speed).toBe(1.2); // 150/116 = 1.29 → clamp; floor is not a ceiling
+    expect(plan.speed).toBe(1.2); // 165/116 = 1.42 → clamp; floor is not a ceiling
   });
 
   it("does not floor non-hook scenes — the narrative keep band is unchanged", () => {

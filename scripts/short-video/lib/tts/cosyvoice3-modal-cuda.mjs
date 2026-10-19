@@ -155,7 +155,7 @@ export async function createCosyVoice3ModalCudaEngine() {
         const wavBuffer = Buffer.from(s.wav_b64, "base64");
         writeFs(destPath, wavBuffer);
 
-        const duration = await postProcessBatch(destPath, {
+        const { duration } = await postProcessBatch(destPath, {
           useSilenceFilter: false,
           resample: true,
           prosody: null,

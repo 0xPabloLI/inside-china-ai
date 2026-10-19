@@ -125,7 +125,7 @@ describe("pacing feedback loop (#252)", () => {
 
   it("in-band narrative generates exactly once — no compensation, no reroll", async () => {
     const engine = engineReturningAudio();
-    stubGate(() => 145);
+    stubGate(() => 160);
 
     await generateTTSWithEngine([makeNarrative()], dir, engine, {
       useCache: false,
@@ -138,10 +138,10 @@ describe("pacing feedback loop (#252)", () => {
 
   it("floors an in-band hook at ttsSpeed 1.1 (#244) — single-scene regeneration, no re-plan loop", async () => {
     const engine = engineReturningAudio();
-    // First pass: hook 150 (in band), narrative 145 (in band). The floor
-    // compensates the hook; the floored take re-measures 150 and is accepted
+    // First pass: hook 165 (in band), narrative 160 (in band). The floor
+    // compensates the hook; the floored take re-measures 165 and is accepted
     // as-is (the loop never re-plans a compensated take, so no infinite floor).
-    stubGate((id, call) => (id === 1 ? (call === 0 ? 150 : 150) : 145));
+    stubGate((id, call) => (id === 1 ? (call === 0 ? 165 : 165) : 160));
 
     await generateTTSWithEngine([makeHook(), makeNarrative()], dir, engine, {
       useCache: false,
@@ -157,8 +157,8 @@ describe("pacing feedback loop (#252)", () => {
 
   it("compensates a slow hook (116 WPM) with a single-scene regeneration at ttsSpeed 1.2", async () => {
     const engine = engineReturningAudio();
-    // First pass: hook 116 (slow), narrative 150 (fine). Compensation take: 142.
-    stubGate((id, call) => (id === 1 ? (call === 0 ? 116 : 142) : 150));
+    // First pass: hook 116 (slow), narrative 160 (fine). Compensation take: 165.
+    stubGate((id, call) => (id === 1 ? (call === 0 ? 116 : 165) : 160));
 
     await generateTTSWithEngine([makeHook(), makeNarrative()], dir, engine, {
       useCache: false,
@@ -169,12 +169,12 @@ describe("pacing feedback loop (#252)", () => {
     // The retry call carries ONLY the slow scene, mutated with the override.
     const retryScenes = engine.generate.mock.calls[1][0];
     expect(retryScenes.map((s) => s.id)).toEqual([1]);
-    expect(retryScenes[0].ttsSpeed).toBe(1.2); // 150/116 = 1.29 → clamp
+    expect(retryScenes[0].ttsSpeed).toBe(1.2); // 165/116 = 1.42 → clamp
   });
 
-  it("keeps a proportional compensation speed (134 WPM → ≈1.119)", async () => {
+  it("keeps a proportional compensation speed (140 WPM → ≈1.179)", async () => {
     const engine = engineReturningAudio();
-    stubGate((id, call) => (call === 0 ? 134 : 149));
+    stubGate((id, call) => (call === 0 ? 140 : 168));
 
     await generateTTSWithEngine([makeNarrative()], dir, engine, {
       useCache: false,
@@ -182,7 +182,7 @@ describe("pacing feedback loop (#252)", () => {
     });
 
     const retryScene = engine.generate.mock.calls[1][0][0];
-    expect(retryScene.ttsSpeed).toBeCloseTo(150 / 134, 5);
+    expect(retryScene.ttsSpeed).toBeCloseTo(165 / 140, 5);
   });
 
   it("falls back to the original audio and drops the override when the compensation take fails the gate", async () => {

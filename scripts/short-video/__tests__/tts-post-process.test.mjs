@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { writeFileSync, existsSync, mkdirSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 
 // ─── Mock child_process ───
 // vi.mock is hoisted, so we use vi.hoisted() to make the mock available
@@ -78,14 +81,17 @@ describe("TTS Post-Processing", () => {
       expect(filter).not.toContain("highpass");
     });
 
-    // S5: Cleanup chain order: highpass → afftdn → silenceremove → rubberband → atempo
-    it("S5: cleanup chain before silenceremove (XTTS path)", () => {
-      const filter = buildFilter({ useSilenceFilter: true });
+    // S5: Cleanup chain order: highpass → afftdn → pause trim → rubberband → atempo
+    it("S5: cleanup chain before the pause trim (XTTS path)", () => {
+      const filter = buildFilter({
+        useSilenceFilter: true,
+        silenceDrops: [{ start: 1.225, end: 1.6 }],
+      });
       const hpIdx = filter.indexOf("highpass");
       const afftdnIdx = filter.indexOf("afftdn");
-      const srIdx = filter.indexOf("silenceremove");
+      const trimIdx = filter.indexOf("aselect");
       expect(hpIdx).toBeLessThan(afftdnIdx);
-      expect(afftdnIdx).toBeLessThan(srIdx);
+      expect(afftdnIdx).toBeLessThan(trimIdx);
     });
 
     // S6: Cleanup chain + rubberband + volume (F5 path, no silenceremove)
@@ -102,19 +108,30 @@ describe("TTS Post-Processing", () => {
     });
   });
 
-  describe("buildFilter() — silenceremove", () => {
-    it("includes silenceremove when useSilenceFilter=true (default)", () => {
-      const filter = buildFilter();
-      expect(filter).toContain("silenceremove");
-      expect(filter).toContain("stop_periods=-1");
-      expect(filter).toContain("stop_duration=0.25");
-      expect(filter).toContain("stop_silence=0.08");
-      expect(filter).toContain("stop_threshold=0.018");
+  describe("buildFilter() — internal pause trim (#786)", () => {
+    it("emits the measured aselect mask when a trim plan is supplied", () => {
+      const filter = buildFilter({
+        useSilenceFilter: true,
+        silenceDrops: [{ start: 1.225, end: 1.6 }],
+      });
+      expect(filter).toContain("aselect='not(between(t,1.2250,1.6000))'");
+      expect(filter).toContain("asetpts=N/SR/TB");
+      // silenceremove cannot keep the tail, so it must be gone for good.
+      expect(filter).not.toContain("silenceremove");
     });
 
-    it("excludes silenceremove when useSilenceFilter=false (F5 path)", () => {
-      const filter = buildFilter({ useSilenceFilter: false });
+    it("emits no trim filter when the probe found nothing to trim", () => {
+      const filter = buildFilter({ useSilenceFilter: true, silenceDrops: null });
+      expect(filter).not.toContain("aselect");
       expect(filter).not.toContain("silenceremove");
+    });
+
+    it("excludes the trim when useSilenceFilter=false (F5 path)", () => {
+      const filter = buildFilter({
+        useSilenceFilter: false,
+        silenceDrops: [{ start: 0, end: 1 }],
+      });
+      expect(filter).not.toContain("aselect");
     });
   });
 
@@ -126,15 +143,16 @@ describe("TTS Post-Processing", () => {
       expect(filter).toContain("atempo=1.3");
     });
 
-    it("appends atempo after silenceremove when TTS_ATEMPO set and useSilenceFilter=true", () => {
+    it("appends atempo after the pause trim when TTS_ATEMPO set and useSilenceFilter=true", () => {
       process.env.TTS_ATEMPO = "1.3";
-      const filter = buildFilter({ useSilenceFilter: true });
-      expect(filter).toContain("silenceremove");
+      const filter = buildFilter({
+        useSilenceFilter: true,
+        silenceDrops: [{ start: 1.225, end: 1.6 }],
+      });
+      expect(filter).toContain("aselect");
       expect(filter).toContain("atempo=1.3");
-      // atempo must come after silenceremove
-      const srIdx = filter.indexOf("silenceremove");
-      const atempoIdx = filter.indexOf("atempo");
-      expect(srIdx).toBeLessThan(atempoIdx);
+      // atempo must come after the timeline reset that follows the trim.
+      expect(filter.indexOf("asetpts")).toBeLessThan(filter.indexOf("atempo"));
     });
   });
 
@@ -203,9 +221,27 @@ describe("TTS Post-Processing", () => {
   // ── postProcessAudio ──
 
   describe("postProcessAudio()", () => {
-    // Scenario 6: XTTS batch — post-process with SILENCE_FILTER
-    it("S6: applies silenceremove filter for XTTS-style audio", async () => {
-      await postProcessAudio("input.mp3", "output.mp3", { useSilenceFilter: true, resample: true });
+    // #786: the probe is the measurement seam — tests inject it so the trim
+    // plan is deterministic (production defaults to probeSilences()).
+    // The first call measures the input, the second (only when something was
+    // trimmed) measures the delivered file.
+    const makeProbe = ({ before, after }) => {
+      let call = 0;
+      return async () => (call++ === 0 ? before : after);
+    };
+    const trimmedProbe = () =>
+      makeProbe({
+        before: { duration: 4, silences: [{ start: 1.5, end: 2.4 }] },
+        after: { duration: 3.33, silences: [{ start: 1.5, end: 1.725 }] },
+      });
+
+    // Scenario 6: XTTS batch — post-process with internal-pause trimming
+    it("S6: caps internal pauses with an aselect mask for XTTS-style audio", async () => {
+      await postProcessAudio("input.mp3", "output.mp3", {
+        useSilenceFilter: true,
+        resample: true,
+        probe: trimmedProbe(),
+      });
 
       const cmd = execMock.mock.calls[0][0];
       expect(cmd).toContain("ffmpeg");
@@ -213,20 +249,129 @@ describe("TTS Post-Processing", () => {
       expect(cmd).toContain("-af");
       expect(cmd).toContain("highpass");
       expect(cmd).toContain("afftdn");
-      expect(cmd).toContain("silenceremove");
+      expect(cmd).toContain("aselect");
+      expect(cmd).not.toContain("silenceremove");
       expect(cmd).toContain("-ar 44100");
       expect(cmd).toContain("-b:a 320k");
       expect(cmd).toContain('"output.mp3"');
     });
 
-    // Scenario 7: Edge-TTS — post-process with SILENCE_FILTER, no resample
-    it("S7: applies silenceremove without resample for edge-tts audio", async () => {
-      await postProcessAudio("raw.mp3", "final.mp3", { useSilenceFilter: true, resample: false });
+    // Scenario 7: Edge-TTS — post-process with trimming, no resample
+    it("S7: trims pauses without resample for edge-tts audio", async () => {
+      await postProcessAudio("raw.mp3", "final.mp3", {
+        useSilenceFilter: true,
+        resample: false,
+        probe: trimmedProbe(),
+      });
 
       const cmd = execMock.mock.calls[0][0];
-      expect(cmd).toContain("silenceremove");
+      expect(cmd).toContain("aselect");
       expect(cmd).not.toContain("-ar 44100");
       expect(cmd).not.toContain("-b:a");
+    });
+
+    it("reports zero pause violations when the delivered take honours the cap", async () => {
+      const result = await postProcessAudio("input.mp3", "output.mp3", {
+        useSilenceFilter: true,
+        probe: trimmedProbe(),
+      });
+      expect(result.removedSec).toBeCloseTo(0.675, 3);
+      expect(result.pauseCount).toBe(1);
+      expect(result.pauseViolations).toBe(0);
+      expect(result.maxPauseMs).toBe(225);
+    });
+
+    it("reports a pause violation when the delivered take still exceeds the cap", async () => {
+      // Encode disagreed with the plan: the pause is still 900 ms.
+      const stuck = makeProbe({
+        before: { duration: 4, silences: [{ start: 1.5, end: 2.4 }] },
+        after: { duration: 3.33, silences: [{ start: 1.5, end: 2.4 }] },
+      });
+      const result = await postProcessAudio("input.mp3", "output.mp3", {
+        useSilenceFilter: true,
+        probe: stuck,
+      });
+      expect(result.pauseViolations).toBe(1);
+      expect(result.maxPauseMs).toBe(900);
+    });
+
+    it("re-plans and re-applies the trim when the first pass under-delivers", async () => {
+      // Real failure mode (silent-update scene 7): planned 225 ms, delivered
+      // 308 ms because the pause tail was a sub-threshold ramp the detector
+      // never reported. One repair pass against the measurement converges.
+      const readings = [
+        { duration: 4, silences: [{ start: 1.5, end: 2.4 }] }, // input
+        { duration: 3.33, silences: [{ start: 1.5, end: 1.808 }] }, // after pass 1: 308 ms
+        { duration: 3.25, silences: [{ start: 1.5, end: 1.725 }] }, // after repair: 225 ms
+      ];
+      let call = 0;
+      const result = await postProcessAudio("input.mp3", "output.mp3", {
+        useSilenceFilter: true,
+        probe: async () => readings[Math.min(call++, readings.length - 1)],
+      });
+      expect(result.pauseViolations).toBe(0);
+      expect(result.repairPasses).toBe(1);
+      // 0.675 s from the first pass + 0.083 s from the repair.
+      expect(result.removedSec).toBeCloseTo(0.758, 3);
+      // The repair pass is a pure trim: no second prosody / atempo application.
+      const repairCmd = execMock.mock.calls[1][0];
+      expect(repairCmd).toContain("aselect");
+      expect(repairCmd).not.toContain("rubberband");
+      expect(repairCmd).not.toContain("-ar 44100");
+    });
+
+    it("removes the repair temp file when the repair pass itself fails", async () => {
+      // A dying ffmpeg leaves a partial tmp file behind; without the cleanup the
+      // take's directory collects up to MAX_TRIM_REPAIR_PASSES orphans.
+      const dir = join(tmpdir(), `pp-trim-leak-${process.pid}-${Date.now()}`);
+      mkdirSync(dir, { recursive: true });
+      const outputPath = join(dir, "scene-1.mp3");
+      const tmpPath = `${outputPath}.trim1.mp3`;
+      const readings = [
+        { duration: 4, silences: [{ start: 1.5, end: 2.4 }] }, // input
+        { duration: 3.33, silences: [{ start: 1.5, end: 1.808 }] }, // after pass 1: 308 ms
+      ];
+      let call = 0;
+      execMock.mockImplementation((cmd, callback) => {
+        if (cmd.includes(tmpPath)) {
+          writeFileSync(tmpPath, "partial write before the crash");
+          callback(new Error("ffmpeg died"));
+          return;
+        }
+        callback(null, { stdout: "", stderr: "" });
+      });
+
+      try {
+        await expect(
+          postProcessAudio(outputPath, outputPath, {
+            useSilenceFilter: true,
+            probe: async () => readings[Math.min(call++, readings.length - 1)],
+          }),
+        ).rejects.toThrow(/ffmpeg died/);
+        expect(existsSync(tmpPath)).toBe(false);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("skips the trim when the probe finds no pause above the floor", async () => {
+      await postProcessAudio("input.mp3", "output.mp3", {
+        useSilenceFilter: true,
+        probe: async () => ({ duration: 4, silences: [{ start: 1.5, end: 1.74 }] }),
+      });
+      expect(execMock.mock.calls[0][0]).not.toContain("aselect");
+    });
+
+    it("propagates a probe failure instead of shipping untrimmed audio", async () => {
+      await expect(
+        postProcessAudio("input.mp3", "output.mp3", {
+          useSilenceFilter: true,
+          probe: async () => {
+            throw new Error("silencedetect failed");
+          },
+        }),
+      ).rejects.toThrow("silencedetect failed");
+      expect(execMock).not.toHaveBeenCalled();
     });
 
     // Scenario 5: F5 batch — post-process WITHOUT silenceremove, WITH cleanup chain
@@ -285,7 +430,7 @@ describe("TTS Post-Processing", () => {
         cb(null, { stdout: "3.45\n", stderr: "" }),
       ); // ffprobe duration probe (argv form, #319 deferred class sweep)
 
-      const duration = await postProcessBatch("scene-1.wav", { useSilenceFilter: false });
+      const { duration } = await postProcessBatch("scene-1.wav", { useSilenceFilter: false });
 
       expect(duration).toBe(3.45);
       // First call: ffmpeg processes .wav → -processed.wav (same ext as input)
@@ -308,7 +453,7 @@ describe("TTS Post-Processing", () => {
         cb(null, { stdout: "3.45\n", stderr: "" }),
       ); // ffprobe
 
-      const duration = await postProcessBatch("scene-1.mp3", { useSilenceFilter: false });
+      const { duration } = await postProcessBatch("scene-1.mp3", { useSilenceFilter: false });
 
       expect(duration).toBe(3.45);
       // First call: ffmpeg with -processed.mp3 output
@@ -321,7 +466,7 @@ describe("TTS Post-Processing", () => {
       expect(execFileMock.mock.calls[0][1]).toContain("scene-1.mp3");
     });
 
-    it("post-processes in-place with silenceremove (XTTS path)", async () => {
+    it("post-processes in-place with the pause trim (XTTS path)", async () => {
       execMock
         .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // ffmpeg
         .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })); // mv
@@ -329,10 +474,19 @@ describe("TTS Post-Processing", () => {
         cb(null, { stdout: "5.20\n", stderr: "" }),
       ); // ffprobe
 
-      const duration = await postProcessBatch("scene-2.mp3", { useSilenceFilter: true });
+      let call = 0;
+      const { duration: duration2 } = await postProcessBatch("scene-2.mp3", {
+        useSilenceFilter: true,
+        probe: async () =>
+          call++ === 0
+            ? { duration: 6, silences: [{ start: 1, end: 2 }] }
+            : { duration: 5.2, silences: [{ start: 1, end: 1.23 }] },
+      });
 
-      expect(duration).toBe(5.2);
-      expect(execMock.mock.calls[0][0]).toContain("silenceremove");
+      expect(duration2).toBe(5.2);
+      expect(execMock.mock.calls[0][0]).toContain("aselect");
+      // The verify pass measures the -processed file, before mv moves it back.
+      expect(execMock.mock.calls[0][0]).toContain("scene-2-processed.mp3");
     });
   });
 });

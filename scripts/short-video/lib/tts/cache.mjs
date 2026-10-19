@@ -36,6 +36,7 @@ import { createHash } from "crypto";
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { resolveSceneSpeed } from "./pacing.mjs";
+import { DEFAULT_SILENCE_FLOOR_MS } from "./silence-trim.mjs";
 
 /**
  * Verification version of the approved trust contract (#423). Bump when the
@@ -45,6 +46,39 @@ import { resolveSceneSpeed } from "./pacing.mjs";
  * GPU) before it can be reused as approved again.
  */
 export const SCENE_META_VERSION = 1;
+
+/**
+ * Version of the post-processing policy that shapes the audio BYTES (#786).
+ * Bump when the pause-trim algorithm changes shape (not when only the floor
+ * moves — the floor is part of the token).
+ */
+const SILENCE_TRIM_POLICY_VERSION = "v1";
+
+/**
+ * Cache-key token for the engine's post-processing policy (#786).
+ *
+ * The silence trim rewrites the audio after synthesis: same text, same speed,
+ * same instruct, different bytes. Without this token a take approved under the
+ * old untrimmed policy keeps hitting the cache, so the new pacing never reaches
+ * existing packs. The token — not `SCENE_META_VERSION` — is the right lever:
+ * `SCENE_META_VERSION` demotes to a locally re-verified candidate (same bytes),
+ * which would re-approve the untrimmed audio without regenerating it.
+ *
+ * Engines that do not trim (F5/MLX) keep the legacy key shape. The comparison
+ * is `=== false` on purpose: `postProcessAudio()` defaults `useSilenceFilter`
+ * to true, so an engine descriptor that omits the flag still trims — treating
+ * "absent" as "no trim" would hand such an engine an untrimmed key.
+ *
+ * @param {{useSilenceFilter?: boolean, silenceFloorMs?: number}} engine
+ * @returns {string} "" for engines without the trim policy
+ */
+function silenceTrimToken(engine) {
+  if (engine?.useSilenceFilter === false) return "";
+  const floor = Number.isFinite(engine.silenceFloorMs)
+    ? engine.silenceFloorMs
+    : DEFAULT_SILENCE_FLOOR_MS;
+  return `trim=${SILENCE_TRIM_POLICY_VERSION}:${floor}`;
+}
 
 /**
  * Stable cache key for one scene's TTS audio.
@@ -64,7 +98,10 @@ export const SCENE_META_VERSION = 1;
  * generated under the old instruct. Engines without the hook keep the legacy
  * key shape.
  *
- * @param {{name: string, info: string}} engine
+ * The silence-trim policy joins the key when the engine trims pauses (#786) —
+ * see silenceTrimToken().
+ *
+ * @param {{name: string, info: string, useSilenceFilter?: boolean, silenceFloorMs?: number}} engine
  * @param {string} text - scene voiceover text
  * @param {number} [speed] - per-scene native speed (#235); omit for 1.0
  * @param {string} [instruct] - resolved emotion instruct (#244); omit/empty for legacy shape
@@ -74,6 +111,8 @@ export function computeSceneKey(engine, text, speed = 1.0, instruct = "") {
   const hash = createHash("sha1").update(`${engine.name}|${engine.info}|${text}`);
   if (speed !== 1.0) hash.update(`|speed=${speed}`);
   if (instruct) hash.update(`|inst=${createHash("sha1").update(instruct).digest("hex")}`);
+  const trim = silenceTrimToken(engine);
+  if (trim) hash.update(`|${trim}`);
   return hash.digest("hex");
 }
 

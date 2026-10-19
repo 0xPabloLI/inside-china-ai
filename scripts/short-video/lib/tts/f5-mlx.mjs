@@ -263,7 +263,7 @@ export async function createF5MLXEngine() {
           continue;
         }
         // F5 post-processing: ONLY resample (24kHz → 44.1kHz).
-        const duration = await postProcessBatch(audioPath, {
+        const { duration } = await postProcessBatch(audioPath, {
           useSilenceFilter: false,
           resample: true,
           prosody: null,

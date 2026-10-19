@@ -92,7 +92,10 @@ describe("engine generate — one kernel push for the whole manifest (#241)", ()
         pollCalls.push({ kernelId, opts });
         return { queuedMs: 0, runningMs: 0 };
       },
-      postProcess: async () => 3.0,
+      // The seam is typed as `typeof postProcessBatch`, so the stub returns the
+      // real shape — a bare number would let a call site that forgot to unwrap
+      // `{duration}` pass here and crash on the real engine (#786 review P0).
+      postProcess: async () => ({ duration: 3.0 }),
     });
     expect(engine).not.toBeNull();
 
@@ -117,6 +120,9 @@ describe("engine generate — one kernel push for the whole manifest (#241)", ()
 
     expect(pollCalls).toHaveLength(1);
     expect(results.map((r) => r.sceneId)).toEqual([1, 2, 3]);
+    // Unwrapped to a number: the engine stores `duration` and calls
+    // `duration.toFixed(2)` on it right after.
+    expect(results.map((r) => r.duration)).toEqual([3.0, 3.0, 3.0]);
 
     rmSync(outDir, { recursive: true, force: true });
   });

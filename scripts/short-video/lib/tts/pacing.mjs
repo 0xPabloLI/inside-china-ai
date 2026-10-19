@@ -13,8 +13,8 @@
  *   inverting the energy curve. Whether a scene needs pace is decided by
  *   MEASURED WPM, not by scene class.
  * - Feedback loop (see planPacingResponse): first pass at 1.0 → Quality-Gate
- *   measured WPM → below 135 compensate with a per-scene `ttsSpeed` override
- *   (speed = 150/measured, clamp ≤1.2); above 225 reroll once (take drift
+ *   measured WPM → below 150 compensate with a per-scene `ttsSpeed` override
+ *   (speed = 165/measured, clamp ≤1.2); above 225 reroll once (take drift
  *   ±10-20%, #234) and hard-block if the reroll still overshoots; in between
  *   keep. Hook vs narrative relative pace is an emergent property of
  *   measurement, not a static rule — with one user-mandated exception
@@ -51,21 +51,35 @@ export const MAX_TTS_SPEED = 1.2;
  */
 export const HOOK_MIN_SPEED = 1.1;
 
-/** EN sweet-spot centre the loop compensates toward (#235 research: 140-160). */
-export const WPM_TARGET = 150;
+/**
+ * EN target the loop compensates toward (#279 decision, 2026-10-19).
+ *
+ * The #235 band (140-160, centre 150) came from teleprompter/audiobook
+ * contexts. This pipeline ships 60-second information videos, whose reference
+ * is broadcast news: Rodero 2016 (Media Psychology, 200 subjects) measured
+ * 150 WPM as "slow", 170-190 as "normal", 230 as cognitive overload; Reynolds &
+ * Givens 2001 found no comprehension penalty for synthetic speech anywhere in
+ * 130-190. 165 sits at the bottom edge of the broadcast band and leaves headroom
+ * for viewers on auto-translation (`docs/research/speech-density-pacing-2026-10.md`).
+ */
+export const WPM_TARGET = 165;
 
 /**
- * Compensate below this measured WPM (not below the 140 sweet-spot edge —
- * measurement noise + take drift make chasing the edge oscillate; the
- * #252 review ladder fixes the trigger at 135 → native 1.1-1.2x).
+ * Compensate below this measured WPM (not below the target itself —
+ * measurement noise + take drift make chasing the target oscillate; the
+ * trigger is the bottom of the broadcast band minus measurement noise).
+ *
+ * #279 raised this from 135 to 150: with pauses capped at 250 ms the measured
+ * WPM of a take moves, and a 145 WPM take that used to read "in band" now sits
+ * at the floor of the 170-190 reference range.
  *
  * #271 coupling: this must stay ABOVE `quality-gate.mjs`
- * MIN_ACCEPTABLE_WPM. A gate-failed pacing take is by definition below the
- * gate floor, so it is only plannable here while the floor sits under this
+ * MIN_ACCEPTABLE_WPM (115). A gate-failed pacing take is by definition below
+ * the gate floor, so it is only plannable here while the floor sits under this
  * trigger; otherwise the registry has no repair plan for it and fail-closes
  * the run. The relationship is pinned by a test in tts-quality-gate.test.mjs.
  */
-export const WPM_COMPENSATE_BELOW = 135;
+export const WPM_COMPENSATE_BELOW = 150;
 
 /**
  * Hard ceiling. Above this the scene rerolls once and then hard-blocks
@@ -148,7 +162,7 @@ export function resolveSceneSpeed(scene) {
  *
  * Ladder (#252 review comment):
  *   measured >  WPM_HARD_CEILING (225) → "reroll"  (take drift first, #234)
- *   measured <  WPM_COMPENSATE_BELOW   → "compensate" (speed = 150/measured)
+ *   measured <  WPM_COMPENSATE_BELOW   → "compensate" (speed = 165/measured)
  *   otherwise                          → "keep"
  *
  * Hook exception (#244 HITL): an in-band hook compensates to HOOK_MIN_SPEED
