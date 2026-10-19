@@ -167,7 +167,7 @@ async function makeEngine(mock, { postProcess } = {}) {
   return createCosyVoice3KaggleCudaEngine({
     exec: mock.exec,
     poll: async () => ({ queuedMs: 0, runningMs: 0 }),
-    postProcess: postProcess ?? (async () => 3.0),
+    postProcess: postProcess ?? (async () => ({ duration: 3.0 })),
     refAudioPath,
     // #581: the per-file download recovery backs off for real (2s/4s/8s); the
     // seam is injected so failure paths stay instant here.
@@ -249,7 +249,7 @@ describe("#420 — foreign or stale summaries fail closed", () => {
     const engine = await makeEngine(mock, {
       postProcess: async (p) => {
         postProcessCalls.push(p);
-        return 3.0;
+        return { duration: 3.0 };
       },
     });
 
@@ -324,7 +324,7 @@ describe("#420 — incomplete artifacts fail closed before promotion", () => {
     const engine = await makeEngine(mock, {
       postProcess: async (p) => {
         postProcessCalls.push(p);
-        return 3.0;
+        return { duration: 3.0 };
       },
     });
 
@@ -369,7 +369,7 @@ describe("#420 — incomplete artifacts fail closed before promotion", () => {
     const engine = await makeEngine(mock, {
       postProcess: async (p) => {
         postProcessCalls.push(p);
-        return 3.0;
+        return { duration: 3.0 };
       },
     });
 
@@ -396,7 +396,7 @@ describe("#420 — incomplete artifacts fail closed before promotion", () => {
     const engine = await createCosyVoice3KaggleCudaEngine({
       exec: failingExec,
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
-      postProcess: async () => 3.0,
+      postProcess: async () => ({ duration: 3.0 }),
       refAudioPath,
       sleep: async () => {}, // #581 recovery backoff, injected
     });

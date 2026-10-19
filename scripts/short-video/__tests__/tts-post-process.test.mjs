@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { writeFileSync, existsSync, mkdirSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 
 // ─── Mock child_process ───
 // vi.mock is hoisted, so we use vi.hoisted() to make the mock available
@@ -315,6 +318,40 @@ describe("TTS Post-Processing", () => {
       expect(repairCmd).toContain("aselect");
       expect(repairCmd).not.toContain("rubberband");
       expect(repairCmd).not.toContain("-ar 44100");
+    });
+
+    it("removes the repair temp file when the repair pass itself fails", async () => {
+      // A dying ffmpeg leaves a partial tmp file behind; without the cleanup the
+      // take's directory collects up to MAX_TRIM_REPAIR_PASSES orphans.
+      const dir = join(tmpdir(), `pp-trim-leak-${process.pid}-${Date.now()}`);
+      mkdirSync(dir, { recursive: true });
+      const outputPath = join(dir, "scene-1.mp3");
+      const tmpPath = `${outputPath}.trim1.mp3`;
+      const readings = [
+        { duration: 4, silences: [{ start: 1.5, end: 2.4 }] }, // input
+        { duration: 3.33, silences: [{ start: 1.5, end: 1.808 }] }, // after pass 1: 308 ms
+      ];
+      let call = 0;
+      execMock.mockImplementation((cmd, callback) => {
+        if (cmd.includes(tmpPath)) {
+          writeFileSync(tmpPath, "partial write before the crash");
+          callback(new Error("ffmpeg died"));
+          return;
+        }
+        callback(null, { stdout: "", stderr: "" });
+      });
+
+      try {
+        await expect(
+          postProcessAudio(outputPath, outputPath, {
+            useSilenceFilter: true,
+            probe: async () => readings[Math.min(call++, readings.length - 1)],
+          }),
+        ).rejects.toThrow(/ffmpeg died/);
+        expect(existsSync(tmpPath)).toBe(false);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
 
     it("skips the trim when the probe finds no pause above the floor", async () => {

@@ -11,7 +11,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { promisify } from "util";
 import { postProcessAudio, getDuration } from "./post-process.mjs";
-import { DEFAULT_SILENCE_FLOOR_MS } from "./silence-trim.mjs";
+import { resolveSilenceFloorMs } from "./silence-trim.mjs";
 
 const execAsync = promisify(exec);
 
@@ -47,14 +47,18 @@ async function findCommand() {
 export async function createEdgeTTSEngine() {
   const command = await findCommand();
   if (!command) return null;
+  // One read per engine instance: the descriptor (cache key) and the post-process
+  // call cannot disagree even if the env changes mid-run.
+  const silenceFloorMs = resolveSilenceFloorMs();
 
   return {
     name: "edge-tts",
     info: `edge-tts (${EDGE_VOICE}, rate=${EDGE_RATE})`,
     useSilenceFilter: true,
-    // #786: these engines already ran the silence filter; declaring the
-    // floor makes the cap explicit and puts it in the cache key.
-    silenceFloorMs: DEFAULT_SILENCE_FLOOR_MS,
+    // #786: these engines already ran the silence filter; the floor comes from
+    // the same resolver the production engine uses, so TTS_SILENCE_FLOOR_MS is
+    // one lever for every engine and always matches the cache key.
+    silenceFloorMs,
     resample: false, // edge-tts path does NOT resample
 
     async generate(scenes, outputDir) {
@@ -89,6 +93,7 @@ export async function createEdgeTTSEngine() {
         // Post-process to compress silence gaps (no resample for edge-tts)
         await postProcessAudio(rawPath, audioPath, {
           useSilenceFilter: true,
+          silenceFloorMs,
           resample: false,
         });
 

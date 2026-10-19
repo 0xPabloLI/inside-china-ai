@@ -3,7 +3,7 @@
  *
  * - buildFilter():      Build FFmpeg -af filter string based on engine config
  * - getDuration():      Probe exact audio duration with ffprobe
- * - postProcessAudio(): Apply FFmpeg post-processing (silenceremove + resample)
+ * - postProcessAudio(): Apply FFmpeg post-processing (internal-pause trim + resample)
  * - postProcessBatch(): Post-process in-place + get duration (for batch engines)
  * - runForcedAlignment(): Subtitle timing alignment via text-align.py
  *
@@ -17,7 +17,7 @@
  */
 
 import { exec } from "child_process";
-import { writeFileSync, existsSync } from "fs";
+import { writeFileSync, existsSync, rmSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
@@ -320,8 +320,15 @@ export async function postProcessAudio(
       const dot = outputPath.lastIndexOf(".");
       const ext = dot > 0 ? outputPath.slice(dot) : "";
       const tmp = `${outputPath}.trim${attempt + 1}${ext}`;
-      await applyTrimPass(outputPath, tmp, repair.drops);
-      await execAsync(`mv "${tmp}" "${outputPath}"`);
+      // A failed ffmpeg leaves a partial temp file behind; without the finally
+      // every failed pass litters the take's directory (up to
+      // MAX_TRIM_REPAIR_PASSES orphans per scene).
+      try {
+        await applyTrimPass(outputPath, tmp, repair.drops);
+        await execAsync(`mv "${tmp}" "${outputPath}"`);
+      } finally {
+        if (existsSync(tmp)) rmSync(tmp, { force: true });
+      }
       removedSec += repair.removedSec;
       pauseCount += repair.drops.length;
       repairPasses += 1;

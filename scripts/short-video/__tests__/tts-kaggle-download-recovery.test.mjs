@@ -480,7 +480,7 @@ describe("#581 — the cut batch is recovered and the takes are promoted", () =>
       exec,
       refAudioPath: refAudio,
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
-      postProcess: async () => 3.0,
+      postProcess: async () => ({ duration: 3.0 }),
       sleep: async () => {},
     });
     expect(engine).not.toBeNull();
@@ -513,7 +513,7 @@ describe("#581 — the cut batch is recovered and the takes are promoted", () =>
       exec,
       refAudioPath: refAudio,
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
-      postProcess: async () => 3.0,
+      postProcess: async () => ({ duration: 3.0 }),
       sleep: async () => {},
     });
 
@@ -530,7 +530,7 @@ describe("#581 — the cut batch is recovered and the takes are promoted", () =>
       exec,
       refAudioPath: refAudio,
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
-      postProcess: async () => 3.0,
+      postProcess: async () => ({ duration: 3.0 }),
       sleep: async () => {},
     });
 

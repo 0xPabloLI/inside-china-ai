@@ -1076,7 +1076,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
           process.env.TTS_PROSODY === "1" && scene
             ? getProsodyProfile(scene.refStyle || scene.visualType)
             : null;
-        const duration = await postProcess(destPath, {
+        const { duration } = await postProcess(destPath, {
           useSilenceFilter: true,
           silenceFloorMs,
           resample: true,
