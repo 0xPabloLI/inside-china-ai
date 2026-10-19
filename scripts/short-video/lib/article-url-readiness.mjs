@@ -68,7 +68,18 @@ export function validateArticleUrl(url, { expectedSlug = null } = {}) {
   if (!match) {
     return { ok: false, reason: `articleUrl path must be /posts/<slug> (got ${parsed.pathname})` };
   }
-  const slug = decodeURIComponent(match[1]);
+  // A malformed percent-escape (e.g. /posts/sale-50%off) throws URIError on
+  // decode — that must become a clean shape failure, not a crash: this check
+  // exists precisely to turn malformed URLs into violations (#783 review).
+  let slug;
+  try {
+    slug = decodeURIComponent(match[1]);
+  } catch {
+    return {
+      ok: false,
+      reason: `articleUrl slug is not a valid URL-encoded string: ${parsed.pathname}`,
+    };
+  }
   if (expectedSlug && slug !== expectedSlug) {
     return {
       ok: false,

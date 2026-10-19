@@ -88,6 +88,15 @@ describe("validateArticleUrl (draft/package stage — no network)", () => {
     expect(validateArticleUrl(undefined).ok).toBe(false);
   });
 
+  it("rejects a malformed percent-escape as a shape failure instead of throwing (#783 review)", () => {
+    // decodeURIComponent("sale-50%off") would throw URIError — the seam must
+    // return the { ok: false, reason } shape so the URL flows into violation
+    // / block reporting.
+    const r = validateArticleUrl(`${ARTICLE_SITE_ORIGIN}/posts/sale-50%off`);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("URL-encoded");
+  });
+
   it("enforces expectedSlug alignment when provided", () => {
     expect(validateArticleUrl(OK_URL, { expectedSlug: "deepseek-harness-desktop" }).ok).toBe(true);
     const bad = validateArticleUrl(OK_URL, { expectedSlug: "other-slug" });
