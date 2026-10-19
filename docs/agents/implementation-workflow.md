@@ -183,6 +183,13 @@ Review 报告不能只生成后忽略。
 
 ## 9. 收尾顺序
 
+**产品验证门（Hard gate —— 闭票前置条件）**：先回答「这一票改变了用户的可见产出吗」，再进入步骤 1；未回答不得闭票。二选一，并把定性同时写进交付记录与 roadmap 措辞：
+
+- **(a) 有产出差异**：用已有真实素材或真实数据跑一次真实产出（成片 / 渲染物 / 报告），给出 before/after 的用户可见差异（素材指派、封面、字幕、画面）。单条素材 smoke、mock、单测全绿都不算产出差异证据（口径同 §7 末段）。本票定性为 **quality improvement**。
+- **(b) 无产出差异**：显式声明「**enabling fix，预期无产出 diff**」，写明它解除的是哪一处结构性排除、后续哪张票才让产出变化。本票定性为 **enabling fix**。
+
+判据是产出差异，不是测试是否绿——测试绿只证明改动按设计工作，不证明观众看到了不同。enabling fix 不得在交付记录或 roadmap 里写成画质提升。
+
 1. 所有 ticket acceptance criteria 与 checklist 和实际验证结果一致。
 2. 运行最终 Verification Gate。
 3. 更新相关执行文档；S2/S3 完成后归档已结束工作的 spec、tickets 和 review，并更新 `docs/DOCS-INDEX.md` 与 `docs/archive/README.md`。
@@ -190,11 +197,11 @@ Review 报告不能只生成后忽略。
 5. push 自己的 `session/<id>` 分支并开 PR——交付请求即授权该交付链（`git-workflow.md` §5）；交付链之外的 push 仍需明确授权。
 6. PR 合并后运行 `npm run session:stop <worktree-path>` 收尾——stop 判定该 session 分支已交付时，这就是完整收尾，不需要第二条命令（机制与判据见 `git-workflow.md` §10）。
 7. 存在对应 GitHub Issue 时更新或关闭它——交付请求即授权该票的收尾写入（交付记录评论、闭票、为范围外发现开跟进票，见 `issue-tracker.md`）；他人票的状态变更与 Wayfinder decision issue 仍需授权。
-8. 最终汇报先以**产品视角**讲清这个 issue/feature 原本要什么、用户现在看到什么，再列 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。完成判据：汇报开头三句话答完「原本要解决什么用户可见问题」「用户现在看到什么变化」「哪些行为或边界没有变」；无用户可见变化时第三句明写「无用户可见变化 + 原因」，不得省略；该组内容同时是该票交付记录评论的首项（内容表见 `issue-tracker.md` 的 Session cognitive offload）。
+8. **（闭票前置条件，不是汇报格式）产品视角三句**：最终汇报与交付记录评论都以这三句开头——「原本要解决什么用户可见问题」「用户现在看到什么变化」「哪些行为或边界没有变」，且与产品验证门的 (a)/(b) 定性一致。三句之后再列 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。无用户可见变化时第三句明写「无用户可见变化 + 原因」，不得省略。该组内容同时是该票交付记录评论的首项（内容表见 `issue-tracker.md` 的 Session cognitive offload）。缺这三句即 offload 不完整，不算收尾完成。
 
 ## 10. Gate 语义
 
-- **Hard gate**：未满足必须停止，例如实施授权、失败测试、内容发布 HITL、不可逆操作确认。
+- **Hard gate**：未满足必须停止，例如实施授权、失败测试、内容发布 HITL、不可逆操作确认、产品验证门（§9 前置条件与步骤 8）。
 - **Conditional gate**：触发条件不成立时标为 N/A，不称为“跳过”，例如 S1 的 Spec/Tickets、非 UI 的浏览器验证。
 - **Exception**：本应执行但用户明确批准豁免。记录被豁免项、原因和残余风险。
 
@@ -210,3 +217,4 @@ Review 报告不能只生成后忽略。
 ## 12. 设计依据
 
 - §6 步骤 2 的选择顺序（A-lite）与根因搜索（D）：依据与上游证据见 `docs/archive/reviews/ponytail-lite-pilot-2026-09.md`（2026-09-12 期满裁决「保留」，长期规范）。§8 原 B-lite stdlib/native 重复检查经同一裁决为「未验证」已移除（`docs/research/ponytail-minimal-code-adoption-proposal.md` L2 留档）。
+- §9 产品验证门与步骤 8 的升级依据（2026-10-18 自证）：步骤 8 原先只写「产品视角三句」，属无阻断力的表述，多次交付（含 #547）随之被跳过——规则在场仍被跳过，说明缺的是阻断力而非文字。因此把它从汇报格式升为闭票前置条件，并新增产品验证门区分 quality improvement / enabling fix。判据是产出差异而非测试绿：测试绿只证明改动按设计工作。
