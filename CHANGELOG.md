@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.22.2...tanstack_start_ts-v1.22.3) (2026-10-19)
+
+
+### Bug Fixes
+
+* **publish:** gate the publish chain on article link readiness ([#429](https://github.com/0xPabloLI/inside-china-ai/issues/429)) ([#783](https://github.com/0xPabloLI/inside-china-ai/issues/783)) ([4ef1dfd](https://github.com/0xPabloLI/inside-china-ai/commit/4ef1dfd83f41938fc94561d1a83436eea5a1a225))
+
 ## [1.22.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.22.1...tanstack_start_ts-v1.22.2) (2026-10-18)
 
 
