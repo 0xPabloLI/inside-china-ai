@@ -37,6 +37,7 @@ import { ROOT_DIR } from "./types.mjs";
 import { REGEN_STAGING_PREFIX } from "./staging.mjs";
 import { assertRiffWaveHeader, walkRiffChunks } from "../audio/wav.mjs";
 import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-process.mjs";
+import { DEFAULT_SILENCE_FLOOR_MS } from "./silence-trim.mjs";
 import { resolveSceneSpeed } from "./pacing.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 
@@ -901,7 +902,14 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
   return {
     name: "cosyvoice3-kaggle-cuda",
     info: `CosyVoice3-Kaggle-CUDA (P100, cloned from ${CV3_REF_AUDIO})`,
-    useSilenceFilter: false,
+    // #786: internal pauses are capped at the floor before the take is
+    // measured. The capability existed in post-process.mjs all along but was
+    // switched off here — three real packs measured 154-161 WPM with
+    // 10.5-13.7% of airtime spent in pauses. `silenceFloorMs` also enters the
+    // cache key, so takes approved under the old (untrimmed) policy demote to
+    // pending and are regenerated once instead of being replayed.
+    useSilenceFilter: true,
+    silenceFloorMs: DEFAULT_SILENCE_FLOOR_MS,
     resample: true,
     // #244: exposed so the cache key folds the per-scene instruct in — an
     // INSTRUCT_STANDARD edit (#270) must invalidate affected cached takes,
@@ -1065,7 +1073,8 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
             ? getProsodyProfile(scene.refStyle || scene.visualType)
             : null;
         const duration = await postProcess(destPath, {
-          useSilenceFilter: false,
+          useSilenceFilter: true,
+          silenceFloorMs: DEFAULT_SILENCE_FLOOR_MS,
           resample: true,
           prosody,
         });

@@ -104,8 +104,8 @@ describe("full cache hit runs the alignment tail (#421)", () => {
   it("still runs forced alignment when every scene is an approved cache hit", async () => {
     const engine = makeEngine();
     const scenes = [
-      { id: 1, voiceover: "Scene one." },
-      { id: 2, voiceover: "Scene two." },
+      { id: 1, voiceover: "Scene one carries a full sentence of narration for the take." },
+      { id: 2, voiceover: "Scene two carries another sentence of narration for the take." },
     ];
     approveTake(dir, scenes[0]);
     approveTake(dir, scenes[1]);
@@ -128,7 +128,9 @@ describe("full cache hit runs the alignment tail (#421)", () => {
 
   it("keeps the explicit runAlignment:false escape hatch on a full hit", async () => {
     const engine = makeEngine();
-    const scenes = [{ id: 1, voiceover: "Scene one." }];
+    const scenes = [
+      { id: 1, voiceover: "Scene one carries a full sentence of narration for the take." },
+    ];
     approveTake(dir, scenes[0]);
 
     await generateTTSWithEngine(scenes, dir, engine, { useCache: true, runAlignment: false });
@@ -140,8 +142,8 @@ describe("full cache hit runs the alignment tail (#421)", () => {
     passAll();
     const engine = makeEngine();
     const scenes = [
-      { id: 1, voiceover: "Scene one." },
-      { id: 2, voiceover: "Scene two." },
+      { id: 1, voiceover: "Scene one carries a full sentence of narration for the take." },
+      { id: 2, voiceover: "Scene two carries another sentence of narration for the take." },
     ];
     approveTake(dir, scenes[0]); // scene 1 = hit; scene 2 = pending
     engine.generate = async (scenesIn, outputDir) =>
@@ -165,7 +167,9 @@ describe("full cache hit runs the alignment tail (#421)", () => {
 
   it("re-binds approved entries to the bytes the full-hit alignment tail-cut produced", async () => {
     const engine = makeEngine();
-    const scenes = [{ id: 1, voiceover: "Scene one." }];
+    const scenes = [
+      { id: 1, voiceover: "Scene one carries a full sentence of narration for the take." },
+    ];
     approveTake(dir, scenes[0], 4.0);
     runForcedAlignment.mockImplementation(async (_scenes, results) => {
       for (const r of results) {

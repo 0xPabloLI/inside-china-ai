@@ -19,6 +19,13 @@ import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "../asr-defaults.mjs";
 import { splitDigitUnitToken, cardinalSpokenWords } from "../normalize-tts-text.mjs";
 import { FAILURE_CLASS, asrOptOutEnabled } from "./failure-class.mjs";
 import { validateInstructSignature } from "./instruct.mjs";
+import { cleanText, tokenize } from "./text-tokens.mjs";
+
+// #786: the tokenizer moved to ./text-tokens.mjs so the registry can judge an
+// already-approved cached take with the SAME words-per-minute the gate measures,
+// without loading this module's ASR stack. Re-exported here because this module
+// owns the verification semantics (tts-quality-gate.test.mjs reads them here).
+export { cleanText, tokenize } from "./text-tokens.mjs";
 
 // Pacing boundaries for vertical short videos (English)
 export const MIN_ACCEPTABLE_WPM = 115; // Below 115 WPM indicates dragging / unnatural pause / accent drift
@@ -66,33 +73,6 @@ export function classifyFailure(issues) {
 // the registry can import them without loading this module's ASR stack.
 // Re-exported here because this module owns the failure semantics.
 export { partitionGateFailures, infraBlockError } from "./failure-class.mjs";
-
-/**
- * Standardize text for phonetic & token comparison:
- * lowercase, strip punctuation, normalize whitespaces.
- *
- * @param {string} text
- * @returns {string}
- */
-export function cleanText(text) {
-  if (!text) return "";
-  return String(text)
-    .toLowerCase()
-    .replace(/[^\w\s\d]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/**
- * Extract tokens from text.
- *
- * @param {string} text
- * @returns {string[]}
- */
-export function tokenize(text) {
-  const cleaned = cleanText(text);
-  return cleaned ? cleaned.split(" ") : [];
-}
 
 /**
  * Extract critical entity tokens (numbers, dates, proper nouns, and tail tokens).

@@ -59,7 +59,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 
 - Scene changes every 6-12 seconds (attention drops after 12s without visual change)
 - Within each scene, CSS animations provide staggered visual reveals
-- TTS silence compressed via FFmpeg silenceremove (pauses >0.25s → 0.08s)
+- TTS internal pauses capped at **250 ms** (head/tail silence preserved) by `lib/tts/silence-trim.mjs` on the production engine (#786); the old `silenceremove` (pauses >0.25s → 0.08s) is retired — it also trimmed the trailing silence
 
 ### Audio
 
@@ -238,7 +238,7 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 
 - Duration: `estimate_target_seconds(text)` — CJK chars / 4.5 + Latin words / 2.8 + punctuation × 0.15s
 - Internal `duration` parameter controls audio length precisely → **no atempo needed**
-- Post-processing: **silenceremove DISABLED**. Only resample (44.1kHz) applied.
+- Post-processing: **pause trimming DISABLED** (F5 keeps its natural pauses). Only resample (44.1kHz) applied.
 - **Prosody DISABLED** — rubberband introduces mechanical artifacts on F5's natural output.
 
 > Engine selection rationale, alternatives survey, and historical experiments: ADR-0008, ADR-0019, `docs/research/voice-cloning-solutions-m2-pro.md`
@@ -270,7 +270,8 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 
 | Processing            | F5  | Qwen | Notes                                                                                   |
 | --------------------- | --- | ---- | --------------------------------------------------------------------------------------- |
-| silenceremove         | OFF | OFF  | Compresses pauses >0.25s. Causes "bursting" at scene transitions. All engines disabled. |
+| `silenceremove`       | OFF | —    | **RETIRED (#786)** — also trimmed the tail silence. Replaced by the measured pause cap below. |
+| internal-pause cap ≤250ms (`silence-trim.mjs`) | OFF | ON | Production CUDA engine (`useSilenceFilter`): internal pauses capped at 250ms, head/tail silence bit-identical. Engine declares `silenceFloorMs`; the value enters the cache key. Measured → merged → `aselect` mask → **re-measured**, with up to 2 repair passes when the delivered pause is still over the cap (`✂️ Trim repaired` in the log; `⚠️ Pause cap not fully delivered` means the cap lost). |
 | highpass (80Hz)       | ON  | ON   | Removes low-frequency hum. Disable: `TTS_HIGHPASS=0`                                    |
 | afftdn denoise (nr=5) | ON  | ON   | Removes noise floor. Disable: `TTS_DENOISE=0`                                           |
 | rubberband prosody    | OFF | ON   | Per-scene pitch+tempo. F5 disabled (mechanical artifacts).                              |
@@ -850,7 +851,7 @@ scripts/short-video/
 ├── lib/                    # Shared infrastructure (content-agnostic)
 │   ├── tts/                # TTS engine registry + adapters
 │   │   ├── registry.mjs    # Engine selector (Kaggle-CUDA > Modal-CUDA > CosyVoice3-MLX > F5-MLX)
-│   │   └── post-process.mjs # Audio post-processing (silenceremove + prosody)
+│   │   └── post-process.mjs # Audio post-processing (internal-pause cap + prosody)
 │   ├── timeline.mjs        # Frame-exact scene durations + offsets (single source of truth)
 │   ├── subtitles/          # cues.mjs (chunking + Netflix timing) / ass.mjs (\kt anchors, 1ms) / generate.mjs
 │   ├── assemble.mjs        # Output-path resolution for the final video (rendering lives in render-remotion.mjs)

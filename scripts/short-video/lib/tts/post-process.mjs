@@ -22,6 +22,13 @@ import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { ffmpegCmd, getDuration } from "./ffmpeg-cmd.mjs";
+import {
+  DEFAULT_SILENCE_FLOOR_MS,
+  buildTrimFilters,
+  planSilenceTrim,
+  probeSilences,
+  verifySilenceFloor,
+} from "./silence-trim.mjs";
 import { runAlignmentGuards } from "./alignment-guards.mjs";
 import { splitDigitUnits } from "../normalize-tts-text.mjs";
 import { computeAlignmentSignature, alignmentCacheState, writeAlignmentMeta } from "./cache.mjs";
@@ -137,13 +144,17 @@ export function engineTtsText(text) {
  * Build the FFmpeg audio filter string.
  *
  * @param {Object} opts
- * @param {boolean} [opts.useSilenceFilter=true] - If true, apply silenceremove;
- *                                                  if false, only apply atempo (F5 path).
+ * @param {boolean} [opts.useSilenceFilter=true] - If true, the take is measured
+ *   and internal pauses are capped at the floor (see silence-trim.mjs); the
+ *   plan arrives as `silenceKeep`. If false, only the cleanup chain runs
+ *   (F5/MLX path).
  * @param {ProsodyProfile|null} [opts.prosody=null] - Per-scene prosody profile
  *   (pitch + tempo shift via rubberband filter).
+ * @param {Array<{start: number, end: number}>|null} [opts.silenceDrops=null] -
+ *   dropped ranges from planSilenceTrim(); null means "nothing to trim".
  * @returns {string} Filter string (may be empty).
  */
-export function buildFilter({ useSilenceFilter = true, prosody = null } = {}) {
+export function buildFilter({ useSilenceFilter = true, prosody = null, silenceDrops = null } = {}) {
   const filters = [];
 
   // 0. Cleanup chain: highpass + denoise (always first, before any other processing)
@@ -158,11 +169,11 @@ export function buildFilter({ useSilenceFilter = true, prosody = null } = {}) {
     filters.push(`afftdn=nr=${denoiseNr}:nf=-25`);
   }
 
-  // 1. Silenceremove (for non-F5 engines)
+  // 1. Internal-pause cap (#786). The trim is a measured range mask, NOT
+  //    silenceremove: silenceremove also eats the trailing silence, and the
+  //    head/tail silences carry the scene transition.
   if (useSilenceFilter) {
-    filters.push(
-      "silenceremove=stop_periods=-1:stop_duration=0.25:stop_silence=0.08:stop_threshold=0.018",
-    );
+    filters.push(...buildTrimFilters(silenceDrops));
   }
 
   // 2. Per-scene prosody: rubberband pitch shift + tempo adjustment
@@ -203,8 +214,40 @@ export function getAtempo() {
 
 // ── Post-processing ──
 
+/** Bounded repair attempts after a trim under-delivered (#786). */
+const MAX_TRIM_REPAIR_PASSES = 2;
+
+/**
+ * Run one pure trim pass: re-slice, mask the ranges out, re-stamp the timeline.
+ *
+ * Kept separate from `buildFilter` on purpose — a repair pass must NOT re-apply
+ * prosody or `TTS_ATEMPO`, they already shaped the file on the first pass.
+ *
+ * @param {string} inPath
+ * @param {string} outPath
+ * @param {Array<{start: number, end: number}>} drops
+ */
+async function applyTrimPass(inPath, outPath, drops) {
+  const chain = buildTrimFilters(drops).join(",");
+  await execAsync(`"${ffmpegCmd}" -y -i "${inPath}" -af "${chain}" "${outPath}" 2>/dev/null`);
+}
+
 /**
  * Apply FFmpeg post-processing from one file to another.
+ *
+ * When `useSilenceFilter` is on, the take is measured first (`silencedetect`)
+ * and its internal pauses are capped at `silenceFloorMs` (#786). The probe is
+ * a separate measurement-only pass; its failure propagates — a take whose
+ * pauses could not be measured must not be silently shipped untrimmed.
+ *
+ * The delivered pause is then MEASURED, and if it is still over the cap the
+ * trim is re-planned against the trimmed file and re-applied (bounded by
+ * `MAX_TRIM_REPAIR_PASSES`). This is not belt-and-braces: a pause's tail is a
+ * sub-threshold ramp into the next word, and however tight the detector's
+ * minimum length is, a ramp shorter than it stays invisible to the first pass
+ * — silent-update scene 7 measured 273 ms, was planned to 225 ms, and landed at
+ * 308 ms because 83 ms of ramp never appeared in the interval list. Repairing
+ * from the measurement converges because every pass shortens the region.
  *
  * @param {string} inputPath
  * @param {string} outputPath
@@ -212,18 +255,87 @@ export function getAtempo() {
  * @param {boolean} [opts.useSilenceFilter=true]
  * @param {boolean} [opts.resample=true] - If true, add -ar 44100 -b:a 192k
  * @param {ProsodyProfile|null} [opts.prosody=null] - Per-scene prosody profile
+ * @param {number} [opts.silenceFloorMs] - internal-pause cap (default 250 ms)
+ * @param {(path: string) => Promise<{duration: number, silences: Array}>} [opts.probe]
+ *   - measurement seam for tests (default: probeSilences)
+ * @returns {Promise<{removedSec: number, pauseCount: number, pauseViolations: number, maxPauseMs: number, repairPasses: number}>}
+ *   trim bookkeeping; `pauseViolations` is measured on the OUTPUT, not planned.
  */
 export async function postProcessAudio(
   inputPath,
   outputPath,
-  { useSilenceFilter = true, resample = true, prosody = null } = {},
+  {
+    useSilenceFilter = true,
+    resample = true,
+    prosody = null,
+    silenceFloorMs = DEFAULT_SILENCE_FLOOR_MS,
+    probe = probeSilences,
+  } = {},
 ) {
-  const filter = buildFilter({ useSilenceFilter, prosody });
+  let plan = { keep: null, drops: [], removedSec: 0 };
+  if (useSilenceFilter) {
+    const { duration, silences } = await probe(inputPath);
+    plan = planSilenceTrim({ silences, duration, floorMs: silenceFloorMs });
+  }
+
+  const filter = buildFilter({ useSilenceFilter, prosody, silenceDrops: plan.drops });
   const afArg = filter ? `-af "${filter}"` : "";
   const resampleArg = resample ? "-ar 44100 -b:a 320k" : "";
   await execAsync(
     `"${ffmpegCmd}" -y -i "${inputPath}" ${afArg} ${resampleArg} "${outputPath}" 2>/dev/null`,
   );
+  let removedSec = plan.removedSec;
+  let pauseCount = plan.drops.length;
+  if (removedSec > 0) {
+    console.log(
+      `  ✂️ Internal pauses capped (#786): ${pauseCount} pause(s), -${removedSec.toFixed(2)}s`,
+    );
+  }
+
+  let pauseViolations = 0;
+  let maxPauseMs = 0;
+  let repairPasses = 0;
+  if (useSilenceFilter && removedSec > 0) {
+    for (let attempt = 0; attempt < MAX_TRIM_REPAIR_PASSES; attempt++) {
+      const after = await probe(outputPath);
+      const check = verifySilenceFloor({
+        silences: after.silences,
+        duration: after.duration,
+        floorMs: silenceFloorMs,
+      });
+      pauseViolations = check.violations.length;
+      maxPauseMs = check.maxMs;
+      if (pauseViolations === 0) break;
+
+      const repair = planSilenceTrim({
+        silences: after.silences,
+        duration: after.duration,
+        floorMs: silenceFloorMs,
+      });
+      if (repair.removedSec <= 0) break;
+      // Keep the extension: ffmpeg picks the muxer from it.
+      const dot = outputPath.lastIndexOf(".");
+      const ext = dot > 0 ? outputPath.slice(dot) : "";
+      const tmp = `${outputPath}.trim${attempt + 1}${ext}`;
+      await applyTrimPass(outputPath, tmp, repair.drops);
+      await execAsync(`mv "${tmp}" "${outputPath}"`);
+      removedSec += repair.removedSec;
+      pauseCount += repair.drops.length;
+      repairPasses += 1;
+    }
+    if (pauseViolations > 0) {
+      const worst = Math.max(maxPauseMs, 0);
+      console.log(
+        `  ⚠️ Pause cap not fully delivered on "${outputPath}": ${pauseViolations} pause(s) over ${silenceFloorMs}ms (worst ${worst}ms) after ${repairPasses} repair pass(es)`,
+      );
+    } else if (repairPasses > 0) {
+      console.log(
+        `  ✂️ Trim repaired (#786): ${repairPasses} extra pass(es), ${pauseCount} pause(s), -${removedSec.toFixed(2)}s total`,
+      );
+    }
+  }
+
+  return { removedSec, pauseCount, pauseViolations, maxPauseMs, repairPasses };
 }
 
 /**

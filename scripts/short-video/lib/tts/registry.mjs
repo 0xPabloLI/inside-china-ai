@@ -290,6 +290,42 @@ async function finalizeTtsResults(
 }
 
 /**
+ * Measure APPROVED takes for the pacing ladder (#786).
+ *
+ * Approved scenes skip `verifyScenes` by design (no ASR, no GPU), which is how
+ * the finished hook bypassed the #244 floor: the ladder only ever judged takes
+ * generated in the current run. The duration recorded with the approval is
+ * enough to reproduce the gate's own WPM metric (words / duration) — same
+ * tokenizer, same rounding — so the cached take can be judged by the SAME
+ * ladder without paying for verification again.
+ *
+ * @param {Array<object>} scenes
+ * @param {Array<{sceneId: number, duration: number, ttsSpeed?: number}>} cachedResults
+ * @returns {Promise<{scenes: Array<object>, evaluations: Array<object>, compensations: Array, rerolls: Array, advisory: string[]}>}
+ */
+async function planCachedPacing(scenes, cachedResults) {
+  const empty = { scenes: [], evaluations: [], compensations: [], rerolls: [], advisory: [] };
+  if (!Array.isArray(cachedResults) || cachedResults.length === 0) return empty;
+
+  const { measureWpm } = await import("./text-tokens.mjs");
+  const cachedScenes = [];
+  const evaluations = [];
+  for (const hit of cachedResults) {
+    const scene = scenes.find((s) => s.id === hit.sceneId);
+    if (!scene || !(Number(hit.duration) > 0)) continue;
+    const wpm = measureWpm(scene.ttsText || scene.voiceover || "", hit.duration);
+    if (wpm === 0) continue;
+    cachedScenes.push(scene);
+    evaluations.push({ sceneId: scene.id, passed: true, wpm });
+  }
+  if (evaluations.length === 0) return empty;
+
+  const { planPacingResponses } = await import("./pacing.mjs");
+  const plan = planPacingResponses(cachedScenes, evaluations);
+  return { scenes: cachedScenes, evaluations, ...plan };
+}
+
+/**
  * generateTTS with an injected engine — the testable seam.
  *
  * @param {Array} scenes - Scene objects with {id, voiceover}
@@ -313,7 +349,11 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   console.log(`  TTS engine: ${engine.info}`);
   // Log actual post-processing based on engine config
   const steps = [];
-  if (engine.useSilenceFilter) steps.push("silenceremove");
+  if (engine.useSilenceFilter) {
+    // #786: internal pauses are capped (measured range mask), not
+    // silenced-removed — the tail silence has to survive.
+    steps.push(`pause cap ≤${engine.silenceFloorMs ?? 250}ms`);
+  }
   if (engine.resample) steps.push("resample 44.1kHz");
   if (atempo) steps.push(`atempo ${atempo}x`);
   // loudnorm is always applied at video assembly stage
@@ -340,12 +380,23 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           `re-verification (no GPU): ${plan.candidates.map((c) => `scene ${c.sceneId} (${c.reason})`).join("; ")}`,
       );
     }
-    cachedResults = plan.approved.map(({ sceneId, audioPath, duration }) => ({
+    cachedResults = plan.approved.map(({ sceneId, audioPath, duration, ttsSpeed }) => ({
       sceneId,
       audioPath,
       duration,
+      // #786: the speed that produced the take on disk. The pacing ladder needs
+      // it to tell "already at 1.1x" from "still at 1.0x" — dropping it here is
+      // how a cached 1.0x hook kept being re-compensated (or never was).
+      ttsSpeed,
       cached: true,
     }));
+    // The cached take's speed joins the scene so resolveSceneSpeed() sees what
+    // is actually on disk (hook floor / key resolution) instead of the 1.0
+    // baseline a fresh scene object starts with.
+    for (const hit of plan.approved) {
+      const scene = scenes.find((s) => s.id === hit.sceneId);
+      if (scene && Number.isFinite(hit.ttsSpeed)) scene.ttsSpeed = hit.ttsSpeed;
+    }
     candidateSpeedById = new Map(plan.candidates.map((c) => [c.sceneId, c.ttsSpeed]));
     candidateResults = plan.candidates.map(({ sceneId, audioPath, duration }) => ({
       sceneId,
@@ -355,13 +406,29 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     toGenerate = plan.pending;
   }
 
+  const isFakeEngine =
+    (engine.name && engine.name.toLowerCase().includes("fake")) ||
+    (engine.info && engine.info.toLowerCase().includes("fake"));
+  const skipQualityGate = options.skipQualityGate ?? (isFakeEngine || qualityGateSkipped());
+
   // Everything this run must (re-)verify: fresh generations plus candidates
   // whose audio already exists on disk (#423).
   const verifyScenes = [
     ...toGenerate,
     ...candidateResults.map((r) => scenes.find((s) => s.id === r.sceneId)).filter(Boolean),
   ];
-  if (verifyScenes.length === 0) {
+
+  // #786: approved takes never enter `verifyScenes`, so the pacing ladder used
+  // to see only freshly generated scenes — a hook approved at 1.0x stayed at
+  // 1.0x forever (v41-flash-1017: `ttsSpeed:1`, 163 WPM, `9/10 scenes reused`).
+  // Measure cached takes from their recorded duration (no ASR, no GPU) and let
+  // the same ladder judge them. A skip-gate run keeps the old behaviour: the
+  // operator asked for no quality decisions at all.
+  const cachedPacing = skipQualityGate ? null : await planCachedPacing(scenes, cachedResults);
+  const cachedNeedsRepair =
+    !!cachedPacing && (cachedPacing.compensations.length > 0 || cachedPacing.rerolls.length > 0);
+
+  if (verifyScenes.length === 0 && !cachedNeedsRepair) {
     // #421: full cache hit — skip generation AND re-verification, but route
     // through the shared finalize so the alignment tail still runs. Returning
     // `cachedResults` here is how the second run of a pipeline silently lost
@@ -395,10 +462,6 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     const fromPlan = candidateSpeedById.get(res.sceneId);
     speedByResult.set(res, Number.isFinite(fromPlan) ? fromPlan : resolveSceneSpeed(scene));
   }
-  const isFakeEngine =
-    (engine.name && engine.name.toLowerCase().includes("fake")) ||
-    (engine.info && engine.info.toLowerCase().includes("fake"));
-  const skipQualityGate = options.skipQualityGate ?? (isFakeEngine || qualityGateSkipped());
 
   // #423: sceneId → {result, evaluation} for the take currently on disk. Every
   // gate run refreshes it; an ACCEPTED reroll/compensation take replaces its
@@ -591,7 +654,13 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       // pacing-class takes that the loop used to skip outright — that gap is
       // how a slow take shipped with no compensation at all.
       const { planPacingResponses, WPM_HARD_CEILING } = await import("./pacing.mjs");
-      const pacing = planPacingResponses(verifyScenes, gateReport.evaluations);
+      // #786: cached approved takes join the ladder with their measured WPM —
+      // otherwise the finished hook (#244 floor) and the >225 ceiling only ever
+      // applied to takes generated in this very run.
+      const pacing = planPacingResponses(
+        [...verifyScenes, ...(cachedPacing?.scenes ?? [])],
+        [...gateReport.evaluations, ...(cachedPacing?.evaluations ?? [])],
+      );
       for (const note of pacing.advisory) {
         console.warn(`  💬 [Pacing] ${note}`);
       }
@@ -620,7 +689,20 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       // 1.2x hook) and the ladder's floor must not "compensate" it down to a
       // slower take at GPU cost. A gate-REJECTED take is excluded — it has to
       // be repaired or fail closed, never kept.
-      const takeSpeedById = new Map(validatedResults.map((r) => [r.sceneId, speedByResult.get(r)]));
+      const takeSpeedById = new Map([
+        ...validatedResults.map((r) => [r.sceneId, speedByResult.get(r)]),
+        // #786: a cached approved take's speed matches its meta — that is what
+        // lets "already at 1.1x" short-circuit instead of re-compensating every
+        // run.
+        ...cachedResults.map((r) => [r.sceneId, r.ttsSpeed]),
+      ]);
+      // #786: a repaired scene may have started from an approved cache hit.
+      // finalizeTtsResults prefers the cache hit, so the stale entry must go
+      // once the replacement take is accepted — otherwise the run would ship
+      // the old audio after paying to regenerate it.
+      const dropCachedHit = (sceneId) => {
+        cachedResults = cachedResults.filter((r) => r.sceneId !== sceneId);
+      };
       const compensationsToRun = [];
       for (const c of pacing.compensations) {
         const current = takeSpeedById.get(c.scene.id);
@@ -709,6 +791,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
                 const measured = evalRes?.wpm ?? rerolled.measuredWpm;
                 if (evalRes?.passed && measured <= WPM_HARD_CEILING) {
                   acceptRegenTake(outputDir, res);
+                  dropCachedHit(res.sceneId);
                   replaceResult(validatedResults, res);
                   verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
                   speedByResult.set(res, resolveSceneSpeed(scene));
@@ -723,6 +806,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
                 }
               } else if (evalRes?.passed) {
                 acceptRegenTake(outputDir, res);
+                dropCachedHit(res.sceneId);
                 replaceResult(validatedResults, res);
                 verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
                 speedByResult.set(res, resolveSceneSpeed(scene));
