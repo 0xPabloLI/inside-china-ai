@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.22.4...tanstack_start_ts-v1.23.0) (2026-10-19)
+
+
+### Features
+
+* **pacing:** cap internal pauses at 250ms and let the hook floor reach cached takes ([#786](https://github.com/0xPabloLI/inside-china-ai/issues/786)) ([#790](https://github.com/0xPabloLI/inside-china-ai/issues/790)) ([c0f1670](https://github.com/0xPabloLI/inside-china-ai/commit/c0f1670572496c5f4c189a62854d20e60dbc817c))
+
 ## [1.22.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.22.3...tanstack_start_ts-v1.22.4) (2026-10-19)
 
 

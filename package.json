@@ -146,5 +146,5 @@
   "overrides": {
     "esbuild": "^0.28.1"
   },
-  "version": "1.22.4"
+  "version": "1.23.0"
 }
