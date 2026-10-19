@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "sdk_version": "2.3.0",
+  "sdk_version": "3.0.5",
   "path": "/mcp",
   "auth": {
     "type": "none"
@@ -22,18 +22,18 @@
           "openWorldHint": false
         },
         "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
             "limit": {
+              "default": 20,
+              "description": "How many articles to return.",
               "type": "integer",
               "minimum": 1,
-              "maximum": 50,
-              "default": 20,
-              "description": "How many articles to return."
+              "maximum": 50
             }
           },
-          "additionalProperties": false,
-          "$schema": "http://json-schema.org/draft-07/schema#"
+          "additionalProperties": false
         },
         "outputSchema": null
       },
@@ -47,6 +47,7 @@
           "openWorldHint": false
         },
         "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
             "query": {
@@ -56,18 +57,17 @@
               "description": "Keyword or phrase to search for."
             },
             "limit": {
+              "default": 10,
+              "description": "Maximum matches to return.",
               "type": "integer",
               "minimum": 1,
-              "maximum": 25,
-              "default": 10,
-              "description": "Maximum matches to return."
+              "maximum": 25
             }
           },
           "required": [
             "query"
           ],
-          "additionalProperties": false,
-          "$schema": "http://json-schema.org/draft-07/schema#"
+          "additionalProperties": false
         },
         "outputSchema": null
       },
@@ -81,6 +81,7 @@
           "openWorldHint": false
         },
         "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
             "slug": {
@@ -93,8 +94,7 @@
           "required": [
             "slug"
           ],
-          "additionalProperties": false,
-          "$schema": "http://json-schema.org/draft-07/schema#"
+          "additionalProperties": false
         },
         "outputSchema": null
       }
