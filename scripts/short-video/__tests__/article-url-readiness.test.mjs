@@ -24,6 +24,7 @@ import {
   checkArticleUrlReachable,
   resolveReadinessAction,
   stripArticleLinkPromise,
+  detectPinnedCommentPromise,
   resolveArticleLinkReadiness,
 } from "../lib/article-url-readiness.mjs";
 
@@ -215,6 +216,25 @@ describe("stripArticleLinkPromise", () => {
   });
 });
 
+// ─── Spoken-promise detection (user verdict 2026-10-19: warn loudly, post) ───
+
+describe("detectPinnedCommentPromise", () => {
+  it("detects the incident's CTA promise (baked into rendered audio)", () => {
+    expect(detectPinnedCommentPromise("Full article in the pinned comment.")).toBe(true);
+    expect(detectPinnedCommentPromise("DeepSeek ships again\n\nLink in the PINNED COMMENT")).toBe(
+      true,
+    );
+  });
+
+  it("does not fire on captions without the promise", () => {
+    expect(detectPinnedCommentPromise("Which lab ships next? Tell me in the comments.")).toBe(
+      false,
+    );
+    expect(detectPinnedCommentPromise("")).toBe(false);
+    expect(detectPinnedCommentPromise(null)).toBe(false);
+  });
+});
+
 // ─── Orchestration: resolveArticleLinkReadiness ───
 
 describe("resolveArticleLinkReadiness", () => {
@@ -311,7 +331,8 @@ describe("resolveArticleLinkReadiness", () => {
       fetchImpl,
     });
     expect(r.action).toBe("block");
-    expect(r.error).toContain("mismatch");
+    expect(r.error).toContain("does not match expected slug");
+    expect(r.error).toContain("article-b");
     expect(called).toBe(0);
   });
 

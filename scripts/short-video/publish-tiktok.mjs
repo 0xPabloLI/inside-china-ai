@@ -47,7 +47,10 @@ import {
 } from "./lib/publish-utils.mjs";
 import { getPlatformProfile } from "./lib/platforms/index.mjs";
 import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
-import { resolveArticleLinkReadiness } from "./lib/article-url-readiness.mjs";
+import {
+  detectPinnedCommentPromise,
+  resolveArticleLinkReadiness,
+} from "./lib/article-url-readiness.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -157,10 +160,12 @@ async function runManualMode() {
   // builders (caption-utils) stay network-free. Policy (user verdict
   // 2026-10-19, 分级处置): unreachable (404/410/off-site) → block;
   // unknown (reset/timeout/TLS/429/suspicious 403/5xx) → degrade + warn.
+  const packagePinnedComment =
+    typeof metadata.pinnedComment === "string" ? metadata.pinnedComment : "";
   const readiness = await resolveArticleLinkReadiness({
     articleUrl: typeof metadata.articleUrl === "string" ? metadata.articleUrl : null,
     guideSlug: postSlug,
-    pinnedComment: typeof metadata.pinnedComment === "string" ? metadata.pinnedComment : "",
+    pinnedComment: packagePinnedComment,
   });
 
   if (readiness.action === "block") {
@@ -176,6 +181,14 @@ async function runManualMode() {
     console.log("\n⚠️  Article link could not be verified — this package ships WITHOUT it:");
     for (const warning of readiness.warnings) {
       console.log(`   • ${warning}`);
+    }
+    // A CTA promising the pinned comment is baked into the rendered audio —
+    // a degrade cannot un-say it. User verdict 2026-10-19: warn loudly and
+    // post; the operator decides whether to accept the gap or re-record.
+    if (detectPinnedCommentPromise(caption)) {
+      console.log("   🚨 This caption/CTA PROMISES the pinned comment but the link is being");
+      console.log("      removed — the rendered video audio cannot be changed. Post only if");
+      console.log("      you accept the unfulfilled promise, or re-record the CTA first.");
     }
   }
 
@@ -199,7 +212,12 @@ async function runManualMode() {
   // Degraded non-series pinned comment: print the text to actually post, and
   // rewrite the package files so the on-disk package stays consistent with
   // what ships (review contract 4 — no dangling "full analysis" promise).
-  if (readiness.action === "degrade" && readiness.pinnedComment) {
+  // Gated on an actual change: a comment that never had a link stays silent.
+  if (
+    readiness.action === "degrade" &&
+    readiness.pinnedComment &&
+    readiness.pinnedComment !== packagePinnedComment
+  ) {
     console.log("\n📌 Pinned Comment (article link removed — post THIS text):");
     console.log("─".repeat(40));
     console.log(readiness.pinnedComment);

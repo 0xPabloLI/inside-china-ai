@@ -211,6 +211,18 @@ export function stripArticleLinkPromise(pinnedComment) {
 }
 
 /**
+ * Detect a caption/CTA that promises the article lives in the pinned comment
+ * (e.g. "Full article in the pinned comment." — per-content scene-data CTA).
+ * That promise is baked into the rendered video audio: a degrade can strip
+ * the link and rewrite the text package, but cannot un-say it — the caller
+ * must warn loudly and let the operator decide (user verdict 2026-10-19:
+ * warn and post, do not block).
+ */
+export function detectPinnedCommentPromise(text) {
+  return typeof text === "string" && /pinned comment/i.test(text);
+}
+
+/**
  * Resolve every article-link surface of a publish run through the seam and
  * apply the policy. Surfaces:
  *   - the manual publish guide URL (built from --slug; never fabricated)
@@ -238,20 +250,22 @@ export async function resolveArticleLinkReadiness({
 
   // Cross-surface consistency: the guide and the pinned comment pointing at
   // different articles is a definite packaging error — block, do not probe.
+  // validateArticleUrl's expectedSlug does the slug comparison; a wrong
+  // origin or malformed comment URL fails here too, before any network call.
   if (guideUrl && commentUrl) {
     const guideShape = validateArticleUrl(guideUrl);
-    const commentShape = validateArticleUrl(commentUrl);
-    if (guideShape.ok && commentShape.ok && guideShape.slug !== commentShape.slug) {
-      return {
-        action: "block",
-        guideSlug,
-        pinnedComment,
-        warnings: [],
-        error:
-          `article link mismatch: manual guide slug "${guideShape.slug}" vs pinned ` +
-          `comment URL slug "${commentShape.slug}" — fix one of them, then re-run`,
-        checks: [],
-      };
+    if (guideShape.ok) {
+      const commentShape = validateArticleUrl(commentUrl, { expectedSlug: guideShape.slug });
+      if (!commentShape.ok) {
+        return {
+          action: "block",
+          guideSlug,
+          pinnedComment,
+          warnings: [],
+          error: `article link cross-check failed: ${commentShape.reason} — fix one of them, then re-run`,
+          checks: [],
+        };
+      }
     }
   }
 
