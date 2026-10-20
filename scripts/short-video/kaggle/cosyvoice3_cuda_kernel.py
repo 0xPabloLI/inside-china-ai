@@ -12,7 +12,7 @@ Ref audio is loaded from Kaggle dataset: xPabloLI/tts-ref-audio
 
 Output: /kaggle/working/output/<scene-N>.wav + summary.json
 """
-import subprocess, sys, os, time, json, traceback, base64, re, platform
+import subprocess, sys, os, time, json, traceback, base64, re, platform, threading
 
 _logfile = open("/kaggle/working/log.txt", "w")
 def log(msg):
@@ -340,8 +340,38 @@ def assemble_model_from_mount(src, dst):
             if not os.path.exists(d):
                 os.symlink(s, d)
         elif os.path.isdir(s) and not os.path.exists(d):
-            os.symlink(s, d)
+            if _holds_safetensors(s):
+                _copy_weights_locally(s, d)
+            else:
+                os.symlink(s, d)
     return dst
+
+def _holds_safetensors(path):
+    for _root, _dirs, files in os.walk(path):
+        if any(f.endswith(".safetensors") for f in files):
+            return True
+    return False
+
+def _copy_weights_locally(src_dir, dst_dir):
+    # `CosyVoice3.__init__` starts with `load_hyperpyyaml`, which builds
+    # `Qwen2ForCausalLM` from `CosyVoice-BlankEN/`; transformers reads
+    # `model.safetensors` through mmap. A symlink leaves that mmap pointing at
+    # the read-only dataset mount, where random page faults measured **0.6MB/s
+    # — 988MB took 1658s of a 1800s load budget** (2026-10-20, T4). Sequential
+    # reads on the same mount are fine (~34-47MB/s, measured on flow.pt), so
+    # only the mmapped tree is materialised. Later weights (`llm.pt` 2.0GB,
+    # `flow.pt` 1.3GB) go through `torch.load`, i.e. sequential, and stay
+    # symlinked to avoid copying 5GB of disk.
+    import shutil
+    t0 = time.time()
+    shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
+    total = sum(
+        os.path.getsize(os.path.join(_r, f))
+        for _r, _d, fs in os.walk(dst_dir) for f in fs
+    )
+    dt = max(time.time() - t0, 1e-6)
+    log(f"localised {os.path.basename(dst_dir)}/ ({total/1e6:.0f}MB in "
+        f"{dt:.1f}s, {total/1e6/dt:.1f}MB/s) — mmap needs real local pages")
 
 try:
     if DS_MODEL and os.path.exists(DS_MODEL):
@@ -388,7 +418,11 @@ import sys, os, time, json, traceback
 sys.path.insert(0, "/tmp/CosyVoice")
 sys.path.insert(0, "/tmp/CosyVoice/third_party/Matcha-TTS")
 import torch, soundfile as sf
-from cosyvoice.cli.cosyvoice import AutoModel
+# Explicit class, not AutoModel (#804): AutoModel dispatches on which
+# yaml it finds and checks cosyvoice.yaml (v1) first, so a polluted model_dir
+# would silently hand us the v1 class and only fail later on a missing
+# speech_tokenizer_v1.onnx. CosyVoice3 asserts the model type up front.
+from cosyvoice.cli.cosyvoice import CosyVoice3
 
 if "TTS_SEED" in os.environ:
     _seed = int(os.environ["TTS_SEED"])
@@ -418,8 +452,26 @@ if torch.cuda.is_available():
     print(f"GPU: {torch.cuda.get_device_name(0)}", flush=True)
 
 print("Loading CosyVoice3...", flush=True)
+# wetext 0.0.4 resolves its fsts with snapshot_download("pengzhendong/wetext")
+# inside Normalizer.__init__, and this snapshot is already on disk when the
+# kernel seeded it. Answer that one call from the cache so the network is not
+# on the load path at all (#804). The patch has to land before CosyVoice3()
+# runs, because `from wetext import Normalizer` binds the name at import time.
+_WETEXT_CACHE = os.path.expanduser("~/.cache/modelscope/hub/pengzhendong/wetext")
+if os.path.exists(os.path.join(_WETEXT_CACHE, "configuration.json")):
+    try:
+        import modelscope
+        _real_snapshot_download = modelscope.snapshot_download
+        def _snapshot_from_seed(repo, *args, **kwargs):
+            if repo == "pengzhendong/wetext":
+                return _WETEXT_CACHE
+            return _real_snapshot_download(repo, *args, **kwargs)
+        modelscope.snapshot_download = _snapshot_from_seed
+        print("wetext snapshot: serving from the seeded cache", flush=True)
+    except Exception as e:
+        print(f"wetext snapshot: cache patch skipped ({e})", flush=True)
 t0 = time.time()
-cosyvoice = AutoModel(model_dir=model_dir)
+cosyvoice = CosyVoice3(model_dir=model_dir)
 print(f"Loaded in {time.time()-t0:.1f}s, sr={cosyvoice.sample_rate}", flush=True)
 
 summary = {"engine": "CosyVoice3-Kaggle-CUDA", "requestId": request_id, "segments": []}
@@ -438,7 +490,6 @@ for i, t in enumerate(manifest):
                 chunks.append(j['tts_speech'])
         else:
             for j in cosyvoice.inference(t["text"], ref_path, **kwargs):
-                chunks.append(j['tts_speech'])
                 chunks.append(j['tts_speech'])
         full = torch.cat(chunks, dim=-1)
         gen_time = time.time() - seg_start
@@ -464,12 +515,122 @@ json.dump({"requestId": REQUEST_ID, "scenes": manifest}, open("/tmp/manifest.jso
 with open("/tmp/run_inference.py", "w") as f:
     f.write(INFERENCE_CODE)
 
+# ── Seed the text frontend cache (wetext) ────────────────────────────────
+# CosyVoiceFrontEnd() builds `wetext.Normalizer`, and wetext 0.0.4 calls
+# `snapshot_download("pengzhendong/wetext")` in its constructor. Measured
+# 2026-10-20 on the production 10-scene job: that download alone took
+# 1265.2s of a 1800s inner budget — unauthenticated and rate-limited — which
+# left 154s of headroom and killed the run. Pre-seeding removes the download
+# instead of widening the timeout (widening only pushes the cliff out and
+# keeps burning GPU minutes on every run).
+WETEXT_CACHE = os.path.expanduser("~/.cache/modelscope/hub/pengzhendong/wetext")
+def _copy_tree_into_cache(src_root, dst):
+    import shutil
+    os.makedirs(dst, exist_ok=True)
+    for name in os.listdir(src_root):
+        s = os.path.join(src_root, name)
+        d = os.path.join(dst, name)
+        if name.startswith("._"):
+            continue  # macOS AppleDouble from an xattr-carrying tar
+        if os.path.isfile(s) and name.endswith(".tar"):
+            os.makedirs(d[:-4], exist_ok=True)
+            subprocess.run(["tar", "xf", s, "-C", d[:-4]], check=True)
+        elif os.path.isfile(s):
+            shutil.copy2(s, d)
+        elif os.path.isdir(s):
+            shutil.copytree(s, d, dirs_exist_ok=True)
+
+def seed_wetext_cache():
+    if os.path.exists(os.path.join(WETEXT_CACHE, "configuration.json")):
+        log(f"wetext cache already present ({WETEXT_CACHE})")
+        return True
+    src = find_input_dir("cosyvoice3-wetext")
+    if not src:
+        log("WARNING: cosyvoice3-wetext mount missing — the frontend will "
+            "download ~41MB from modelscope (measured 1265s on 2026-10-20)")
+        return False
+    import shutil
+    t0 = time.time()
+    parent = os.path.dirname(WETEXT_CACHE)  # .../modelscope/hub/pengzhendong
+    os.makedirs(parent, exist_ok=True)
+    sealed_tar = os.path.join(src, "wetext-snapshot.tar")
+    sealed_zip = os.path.join(src, "wetext-snapshot.zip")
+    try:
+        if os.path.isfile(sealed_tar):
+            subprocess.run(["tar", "xf", sealed_tar, "-C", parent], check=True)
+        elif os.path.isfile(sealed_zip):
+            import zipfile
+            with zipfile.ZipFile(sealed_zip) as z:
+                z.extractall(parent)
+        elif os.path.isfile(os.path.join(src, "wetext", "configuration.json")):
+            # Kaggle unpacks archives at upload time, so the mount usually
+            # carries the snapshot one directory down instead of sealed.
+            _copy_tree_into_cache(os.path.join(src, "wetext"), WETEXT_CACHE)
+        else:
+            _copy_tree_into_cache(src, WETEXT_CACHE)
+    except Exception as exc:
+        # A truncated or corrupt archive in the mount (partial upload, an
+        # AppleDouble sidecar) raises CalledProcessError / BadZipFile, and an
+        # unguarded raise here kills the GPU run before inference starts —
+        # the exact cold-start fatality this seed exists to remove. Clear
+        # whatever landed and let the download fallback run instead.
+        log(f"WARNING: seeding from {src} failed ({type(exc).__name__}: {exc}) "
+            f"— clearing the partial cache and falling back to the download")
+        shutil.rmtree(WETEXT_CACHE, ignore_errors=True)
+        return False
+    if not os.path.exists(os.path.join(WETEXT_CACHE, "configuration.json")):
+        log(f"WARNING: seed from {src} produced no configuration.json in "
+            f"{WETEXT_CACHE} — clearing it and falling back to the download")
+        shutil.rmtree(WETEXT_CACHE, ignore_errors=True)
+        return False
+    log(f"wetext cache seeded in {time.time()-t0:.1f}s from {src}")
+    return True
+
+log("\n=== Seeding text frontend cache ===")
+seed_wetext_cache()
+
 log("\n=== Running inference ===")
-result = subprocess.run([sys.executable, "/tmp/run_inference.py"], capture_output=True, text=True, timeout=1800)
-log(result.stdout)
-if result.stderr:
-    log("STDERR:")
-    log(result.stderr[-2000:])
-if result.returncode != 0:
-    log(f"ERROR: inference exited with {result.returncode}")
+# Two budgets instead of one blanket timer: cold start and synthesis fail for
+# different reasons at different rates. Loading is network-bound and can
+# legitimately take 20+ minutes on a cold cache; synthesis runs at ~1-2x RTF.
+# The child prints "Loaded in Ns", which is the fork point between them.
+LOAD_BUDGET_SEC = 1800
+SYNTH_BASE_SEC = 300
+SYNTH_PER_SEGMENT_SEC = 60
+deadline = [time.time() + LOAD_BUDGET_SEC]
+
+# capture_output=True discarded everything the child had already printed when
+# the timeout fired, so a 30-minute GPU run left one exception and no evidence
+# of which phase died (2026-10-20, twice). Stream it instead.
+proc = subprocess.Popen(
+    [sys.executable, "/tmp/run_inference.py"],
+    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+)
+def _pump_output():
+    for line in proc.stdout:
+        log(line.rstrip("\n"))
+        if line.startswith("Loaded in"):
+            deadline[0] = (
+                time.time() + SYNTH_BASE_SEC + SYNTH_PER_SEGMENT_SEC * len(manifest)
+            )
+pump = threading.Thread(target=_pump_output, daemon=True)
+pump.start()
+timed_out = False
+while proc.poll() is None:
+    if time.time() > deadline[0]:
+        timed_out = True
+        proc.kill()
+        break
+    time.sleep(1)
+proc.wait()
+pump.join(timeout=60)
+if timed_out:
+    log("ERROR: inference exceeded its budget "
+        f"({LOAD_BUDGET_SEC}s loading, then {SYNTH_BASE_SEC}s + "
+        f"{SYNTH_PER_SEGMENT_SEC}s/segment synthesising) — the last phase "
+        "marker in the output above says where it stalled")
+    sys.exit(1)
+if proc.returncode != 0:
+    log(f"ERROR: inference exited with {proc.returncode}")
+    sys.exit(1)
 log("\n=== Kernel complete ===")
