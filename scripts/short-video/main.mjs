@@ -293,29 +293,30 @@ async function main() {
   // needs the final media state the media track produces.
   console.log("⚡ Tracks: [media: sourcing→patch→upscale→broll] ∥ [voice: TTS]\n");
   console.log("📝 Step 1: Generating TTS voiceover (parallel with media track)...\n");
-  prof.mark("media-track", { track: "media" });
-  prof.mark("step-1-tts", { track: "voice" });
   let ttsResults;
-  try {
-    // allSettled, not all: on a voice-track failure the media track still
-    // runs to its natural end, so the failure-path profile records real
-    // durations instead of the finally block prematurely closing a live step.
-    const [mediaDone, ttsDone] = await Promise.allSettled([
-      runMediaTrack({ scenes, contentDir, baseDir: __dirname, broll, prof }),
-      generateTTS(scenes, audioDir),
-    ]);
-    if (mediaDone.status === "rejected") {
-      // The track's own contract is never-reject (every stage has its own
-      // try/catch); reaching here means an unexpected bug — surface it but
-      // keep a TTS failure authoritative for the abort below.
-      console.warn(`⚠️  Media track crashed unexpectedly: ${mediaDone.reason?.message}\n`);
-    }
-    if (ttsDone.status === "rejected") throw ttsDone.reason;
-    ttsResults = ttsDone.value;
-  } finally {
-    prof.end("media-track");
-    prof.end("step-1-tts");
+  // allSettled, not all: on a voice-track failure the media track still runs
+  // to its natural end. Each track is wrapped in prof.wrap, so its profile
+  // step closes at that branch's own settle — not at the join, which would
+  // make the faster track report the slower track's duration (#623).
+  const [mediaDone, ttsDone] = await Promise.allSettled([
+    prof.wrap(
+      "media-track",
+      () => runMediaTrack({ scenes, contentDir, baseDir: __dirname, broll, prof }),
+      { track: "media", parallel: true },
+    ),
+    prof.wrap("step-1-tts", () => generateTTS(scenes, audioDir), {
+      track: "voice",
+      parallel: true,
+    }),
+  ]);
+  if (mediaDone.status === "rejected") {
+    // The track's own contract is never-reject (every stage has its own
+    // try/catch); reaching here means an unexpected bug — surface it but
+    // keep a TTS failure authoritative for the abort below.
+    console.warn(`⚠️  Media track crashed unexpectedly: ${mediaDone.reason?.message}\n`);
   }
+  if (ttsDone.status === "rejected") throw ttsDone.reason;
+  ttsResults = ttsDone.value;
 
   // ── Step 1.6: Final media gate ──
   // Runs after the join: sourcing (1.5), patch application (1.5c), upscale

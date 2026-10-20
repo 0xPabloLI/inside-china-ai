@@ -35,6 +35,24 @@ describe("pipeline-profile", () => {
     };
   }
 
+  /** Manually released gate: `await g.wait()` blocks until `g.open()`. */
+  function gate() {
+    let release;
+    const p = new Promise((resolve) => {
+      release = resolve;
+    });
+    return { wait: () => p, open: () => release() };
+  }
+
+  /** Let pending promise continuations (and wrap's finally) run. */
+  function flush() {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  function stepByName(prof, name) {
+    return prof.steps.find((s) => s.name === name);
+  }
+
   it("records a step duration via mark/end", () => {
     const clk = fakeClock();
     const prof = createProfiler({ outputDir: makeTmp(), version: "v-test", now: clk.now });
@@ -102,6 +120,93 @@ describe("pipeline-profile", () => {
     expect(prof.steps[0]).toMatchObject({ name: "step-boom", durationMs: 10 });
   });
 
+  it("wrap() + allSettled records each parallel track's own settle time (#623)", async () => {
+    const clk = fakeClock();
+    const prof = createProfiler({ outputDir: makeTmp(), version: "v-test", now: clk.now });
+    const fastGate = gate();
+    const slowGate = gate();
+
+    // Both tracks mark before either advances the clock, so both spans start
+    // at the same t0 — the shape of main.mjs's Promise.allSettled join.
+    const fastDone = prof.wrap(
+      "fast",
+      async () => {
+        await fastGate.wait();
+        clk.advance(20);
+        return "fast";
+      },
+      { track: "voice", parallel: true },
+    );
+    const slowDone = prof.wrap(
+      "slow",
+      async () => {
+        await slowGate.wait();
+        // 60 more after fast's 20: the slow span from t0 is 80.
+        clk.advance(60);
+        return "slow";
+      },
+      { track: "media", parallel: true },
+    );
+    const joined = Promise.allSettled([fastDone, slowDone]);
+
+    fastGate.open();
+    await fastDone; // fast closes at t0+20, before the slower track finishes
+    slowGate.open();
+    const [fastRes, slowRes] = await joined;
+
+    expect(fastRes).toMatchObject({ status: "fulfilled", value: "fast" });
+    expect(slowRes).toMatchObject({ status: "fulfilled", value: "slow" });
+    expect(stepByName(prof, "fast")).toMatchObject({ durationMs: 20, parallel: true });
+    expect(stepByName(prof, "slow")).toMatchObject({ durationMs: 80, parallel: true });
+    // Different spans, same start: the bug was both reporting the join span.
+    expect(stepByName(prof, "fast").startedAt).toBe(stepByName(prof, "slow").startedAt);
+    // totalMs reflects the join (the slow track), not the sum of both spans.
+    expect(prof.totalMs()).toBe(80);
+  });
+
+  it("records both tracks' durations when one rejects during the join (#623)", async () => {
+    const clk = fakeClock();
+    const prof = createProfiler({ outputDir: makeTmp(), version: "v-test", now: clk.now });
+    const voiceGate = gate();
+    const mediaGate = gate();
+
+    const joined = Promise.allSettled([
+      prof.wrap(
+        "media-track",
+        async () => {
+          await mediaGate.wait();
+          clk.advance(30);
+          return "media";
+        },
+        { track: "media", parallel: true },
+      ),
+      prof.wrap(
+        "step-1-tts",
+        async () => {
+          await voiceGate.wait();
+          clk.advance(70);
+          throw new Error("tts boom");
+        },
+        { track: "voice", parallel: true },
+      ),
+    ]);
+
+    // Voice settles first and rejects; media still runs to its natural end.
+    voiceGate.open();
+    await flush(); // let step-1-tts close at t0+70 before media advances further
+    mediaGate.open();
+    const [mediaRes, ttsRes] = await joined;
+
+    expect(ttsRes.status).toBe("rejected");
+    expect(ttsRes.reason.message).toBe("tts boom");
+    expect(mediaRes).toMatchObject({ status: "fulfilled", value: "media" });
+    // Neither step is lost to the rejection, and neither is left open.
+    expect(stepByName(prof, "step-1-tts")).toMatchObject({ durationMs: 70, track: "voice" });
+    expect(stepByName(prof, "media-track")).toMatchObject({ durationMs: 100, track: "media" });
+    expect(prof.steps.map((s) => s.name).sort()).toEqual(["media-track", "step-1-tts"]);
+    expect(prof.steps.some((s) => s.unfinished)).toBe(false);
+  });
+
   it("mark() accepts meta and stores it on the step record", () => {
     const prof = createProfiler({
       outputDir: makeTmp(),
@@ -167,6 +272,26 @@ describe("pipeline-profile", () => {
     const iHuge = out.indexOf("huge");
     const iTiny = out.indexOf("tiny");
     expect(iHuge).toBeLessThan(iTiny);
+  });
+
+  it("summary() flags parallel steps and still sorts by duration descending", () => {
+    const clk = fakeClock();
+    const prof = createProfiler({ outputDir: makeTmp(), version: "v-test", now: clk.now });
+    prof.mark("step-1-tts", { track: "voice", parallel: true });
+    prof.mark("render");
+    clk.advance(100);
+    prof.end("step-1-tts");
+    clk.advance(900);
+    prof.end("render");
+
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    prof.summary();
+    const out = log.mock.calls.map((c) => c.join(" ")).join("\n");
+
+    expect(out).toContain("step-1-tts [voice] [parallel]");
+    expect(out).not.toContain("render [parallel]");
+    // Sort order is unchanged by the parallel marker.
+    expect(out.indexOf("render")).toBeLessThan(out.indexOf("step-1-tts"));
   });
 
   it("write() includes open steps as unfinished (failure evidence)", () => {

@@ -113,7 +113,12 @@ export function createProfiler({
     for (const s of sorted) {
       const pct = totalMs() > 0 ? ((s.durationMs / totalMs()) * 100).toFixed(0) : "?";
       const track = s.track ? ` [${s.track}]` : "";
-      console.log(`   ${s.name}${track}: ${(s.durationMs / 1000).toFixed(1)}s (${pct}%)`);
+      // Parallel spans overlap the wall clock and each close at their own
+      // settle (#623), so flag them rather than letting readers sum them.
+      const parallel = s.parallel === true ? " [parallel]" : "";
+      console.log(
+        `   ${s.name}${track}${parallel}: ${(s.durationMs / 1000).toFixed(1)}s (${pct}%)`,
+      );
     }
     console.log(`   TOTAL: ${(totalMs() / 1000).toFixed(1)}s\n`);
   }
