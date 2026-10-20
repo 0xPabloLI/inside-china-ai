@@ -25,7 +25,7 @@ import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
 import {
   checkFinalMedia,
   formatFinalMediaFailures,
-  formatFinalMediaWarnings,
+  reportFinalMediaWarnings,
 } from "./lib/final-media-gate.mjs";
 import { assertSubtitleTiming, regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { runCanonicalTextGateWithRepair } from "./lib/verify-canonical-text.mjs";
@@ -325,9 +325,7 @@ async function main() {
     const contentDirAbs = resolve(__dirname, "content", contentDir);
     prof.mark("step-1.6-media-gate", { track: "media" });
     const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
-    if (gate.warnings.length > 0) {
-      console.warn(`⚠️  Step 1.6 media warnings:\n${formatFinalMediaWarnings(gate)}\n`);
-    }
+    reportFinalMediaWarnings(gate);
     if (!gate.pass) {
       console.error("❌ Step 1.6: Final media check FAILED\n");
       console.error(`   ${formatFinalMediaFailures(gate)}\n`);

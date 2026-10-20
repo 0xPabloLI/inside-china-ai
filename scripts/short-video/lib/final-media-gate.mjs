@@ -7,9 +7,10 @@
  *
  * The gate runs AFTER the asset-sourcing step, never at preflight: preflight
  * (verify-video.mjs --pre) sits before Step 1.5, so failing there would block
- * the one mechanism that can supply the missing file. Both entry points —
- * main.mjs after sourcing, render-only.mjs before rendering — call this same
- * function so the two paths cannot drift apart.
+ * the one mechanism that can supply the missing file. Every render entry point
+ * (main.mjs after sourcing, render-only.mjs, rerender.mjs, rerender-full.mjs,
+ * realign-render.mjs before rendering) calls this same function so the paths
+ * cannot drift apart.
  *
  * The hook (#299) is enforced independently of its layout: preflight only warns
  * for generation strategies, so this gate is where "generation did not land"
@@ -19,6 +20,7 @@ import { existsSync } from "fs";
 import { join } from "path";
 import { DEFAULT_NARRATIVE_LAYOUT } from "./text-slots.mjs";
 import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
+import { checkHookMediaQuality } from "./hook-media.mjs";
 // Re-export: existing consumers import NO_MEDIA_TYPES from this module.
 export { NO_MEDIA_TYPES };
 
@@ -68,6 +70,27 @@ export function checkFinalMedia({ scenes, contentDir }) {
           reason: "missing-hook-media",
           path: mediaPath,
         });
+        continue;
+      }
+      // The file landed — now enforce the same curation contract as preflight
+      // (#299), so a fit:"contain" hook cannot render through the paths that
+      // skip scene-rules (render-only / rerender / rerender-full / realign).
+      const quality = checkHookMediaQuality(scene.media);
+      for (const f of quality.failures) {
+        failures.push({
+          sceneId: scene.id,
+          layout,
+          reason: "hook-media-quality",
+          detail: f.detail,
+        });
+      }
+      for (const w of quality.warnings) {
+        warnings.push({
+          sceneId: scene.id,
+          layout,
+          reason: "hook-media-quality",
+          detail: w.detail,
+        });
       }
       continue;
     }
@@ -115,7 +138,13 @@ export function formatFinalMediaFailures(result) {
       return `  Scene ${f.sceneId}: layout "${f.layout}" needs media but the scene sets mediaOptOut — remove the opt-out or use a CSS-only layout`;
     }
     if (f.reason === "missing-hook-media") {
+      if (f.path) {
+        return `  Scene ${f.sceneId}: hook (first 3 seconds) media "${f.path}" not found — bind scene.media from the curated library, or set media:null for a deliberate CSS-only hook`;
+      }
       return `  Scene ${f.sceneId}: hook (first 3 seconds) has no media — bind scene.media from the curated library, or set media:null for a deliberate CSS-only hook`;
+    }
+    if (f.reason === "hook-media-quality") {
+      return `  Scene ${f.sceneId}: ${f.detail}`;
     }
     return `  Scene ${f.sceneId}: layout "${f.layout}" needs media${f.path ? ` — "${f.path}" not found` : " — no media declared"}`;
   });
@@ -139,7 +168,26 @@ export function formatFinalMediaWarnings(result) {
       if (w.reason === "explicit-null-on-media-layout") {
         return `Scene ${w.sceneId}: layout "${w.layout}" renders an empty band (explicit media:null)`;
       }
+      if (w.reason === "hook-media-quality") {
+        return `Scene ${w.sceneId}: ${w.detail}`;
+      }
       return `Scene ${w.sceneId}: ${w.reason}`;
     })
     .join("\n");
+}
+
+/**
+ * Print the gate's warnings through one reporter. Every entry point must call
+ * this instead of re-implementing the `if (warnings.length) console.warn(...)`
+ * block — a drifted copy is how a warning once went dead (#299 review).
+ *
+ * @param {object} gate - result from checkFinalMedia
+ * @param {(text: string) => void} [warn] - injectable for tests
+ * @returns {boolean} true when a warning block was printed
+ */
+export function reportFinalMediaWarnings(gate, warn = console.warn) {
+  const text = formatFinalMediaWarnings(gate);
+  if (!text) return false;
+  warn(`⚠️  Media warnings:\n${text}\n`);
+  return true;
 }

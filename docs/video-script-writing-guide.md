@@ -83,7 +83,7 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。默认（�
 
 - **narrativeRole**: `"S"`
 - **留存机制**：埋下 open loop 的种子（暗示有更深层的东西）
-- **素材要求**：冲击力强的背景图/视频（公司 logo、产品画面、标志性场景）。素材需求写入 scene 的 `assetNeed` 字段（如 `assetNeed: "company logo or product screenshot"`），asset-sourcer 按此做 per-scene claim 搜索
+- **素材要求**：冲击力强的背景图/视频（公司 logo、产品画面、标志性场景）。Hook 媒体逐包人工策展：直接把文件绑定为 `scene.media`（见下文 Hook 媒体策展）；不要用 `assetNeed`——asset-sourcer 结构上跳过 hook
 - **voiceover**：≤10 词。从 4 种 hook 公式中轮换选择（见 Step 5）
 - **visualType**: `"hook"`
 - **时间**：0-3s
@@ -220,7 +220,7 @@ media: {
 
 **素材库现实**：`scripts/short-video/assets/` 是全局库（约 275 文件 / 297MB，含暗调通用背景），但 `catalog.yml` 目前只有 7 条、RAG 只能搜到这 7 条。完整素材库与索引是 #310，不在本票范围；手工挑图时按文件名浏览、打开确认，不要假设 RAG 能搜到。
 
-**豁免与兜底**：纯文字 hook 写 `media: null` 显式豁免；生成兜底允许 `b-roll` / `asset-then-broll` / `ai-image` / `asset-then-ai-image`。预检与最终 media gate 的判定表只在 `docs/content-pipeline.md` → Hook 媒体策展（#299）维护，本节不重复。
+**豁免与兜底**：纯文字 hook 写 `media: null` 显式豁免；生成兜底允许 `b-roll` / `asset-then-broll` / `ai-image` / `asset-then-ai-image`。预检与最终 media gate 的判定表只在 `docs/content-pipeline.md` → Hook 媒体策展（#299）维护，本节只给策展标准。
 
 ---
 

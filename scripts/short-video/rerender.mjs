@@ -7,7 +7,7 @@ import { resolveContentDir, formatContentError } from "./lib/cli-content.mjs";
 import {
   checkFinalMedia,
   formatFinalMediaFailures,
-  formatFinalMediaWarnings,
+  reportFinalMediaWarnings,
 } from "./lib/final-media-gate.mjs";
 
 const baseDir = pathResolve(import.meta.dirname);
@@ -58,9 +58,7 @@ if (existsSync(patchPath)) {
 // rendering an empty frame.
 {
   const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
-  if (gate.warnings.length > 0) {
-    console.warn(`⚠️  Media warnings:\n${formatFinalMediaWarnings(gate)}\n`);
-  }
+  reportFinalMediaWarnings(gate);
   if (!gate.pass) {
     console.error("❌ Final media check FAILED\n");
     console.error(`   ${formatFinalMediaFailures(gate)}\n`);

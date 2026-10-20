@@ -15,6 +15,7 @@ import {
   checkFinalMedia,
   formatFinalMediaFailures,
   formatFinalMediaWarnings,
+  reportFinalMediaWarnings,
 } from "../lib/final-media-gate.mjs";
 
 /** Build a throwaway content dir with the media files the scenes reference. */
@@ -29,6 +30,9 @@ function makeContentDir(files) {
 }
 
 const withMedia = (over = {}) => ({ type: "image", path: "assets/present.jpg", ...over });
+// A hook binding that satisfies the full curation contract (fit/overlay/source),
+// used wherever the test asserts "no warnings".
+const hookMedia = (over = {}) => withMedia({ source: "official page", overlay: 0.7, ...over });
 
 describe("layout classification", () => {
   it("treats the text-over-media layouts as media dependent", () => {
@@ -166,13 +170,14 @@ describe("hook media gate (#299, layout-independent)", () => {
       reason: "missing-hook-media",
       path: "assets/gone.jpg",
     });
+    expect(formatFinalMediaFailures(result)).toContain('media "assets/gone.jpg" not found');
     rmSync(dir, { recursive: true, force: true });
   });
 
   it("PASSES a hook with an existing media file and emits no warning", () => {
     const dir = makeContentDir(["present.jpg"]);
     const result = checkFinalMedia({
-      scenes: [{ id: 3, visualType: "hook", layout: "hero-center", media: withMedia() }],
+      scenes: [{ id: 3, visualType: "hook", layout: "hero-center", media: hookMedia() }],
       contentDir: dir,
     });
     expect(result.pass).toBe(true);
@@ -235,11 +240,104 @@ describe("hook media gate (#299, layout-independent)", () => {
   });
 });
 
+// ─── #299 review: the final gate enforces the same curation contract as
+// preflight, so render-only / rerender / realign-render cannot render a hook
+// the preflight would have rejected.
+
+describe("hook media quality at the final gate (#299)", () => {
+  it("FAILS a hook whose existing file uses fit:contain", () => {
+    const dir = makeContentDir(["present.jpg"]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 8, visualType: "hook", media: hookMedia({ fit: "contain" }) }],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures).toEqual([
+      {
+        sceneId: 8,
+        layout: null,
+        reason: "hook-media-quality",
+        detail: expect.stringContaining('fit:"cover"'),
+      },
+    ]);
+    expect(formatFinalMediaFailures(result)).toContain('Scene 8: Hook media must use fit:"cover"');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("WARNS for an out-of-band overlay and a missing source, still passing", () => {
+    const dir = makeContentDir(["present.jpg"]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 9, visualType: "hook", media: withMedia({ overlay: 0.2 }) }],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(true);
+    expect(result.warnings).toHaveLength(2);
+    expect(result.warnings.map((w) => w.reason)).toEqual([
+      "hook-media-quality",
+      "hook-media-quality",
+    ]);
+    expect(result.warnings[0].detail).toContain("overlay 0.2 is outside [0.4, 0.9]");
+    expect(result.warnings[1].detail).toContain("has no source");
+    expect(formatFinalMediaWarnings(result)).toContain(
+      "Scene 9: Hook media overlay 0.2 is outside [0.4, 0.9]",
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does not apply the hook contract to non-hook scenes", () => {
+    const dir = makeContentDir(["present.jpg"]);
+    const result = checkFinalMedia({
+      scenes: [
+        {
+          id: 10,
+          visualType: "narrative",
+          layout: "stacked-cards",
+          media: withMedia({ fit: "contain" }),
+        },
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(true);
+    expect(result.warnings).toHaveLength(0);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("reportFinalMediaWarnings", () => {
+  it("prints the waiver line once through the injected reporter and returns true", () => {
+    const dir = makeContentDir([]);
+    const gate = checkFinalMedia({
+      scenes: [{ id: 4, visualType: "hook", layout: "hero-center", media: null }],
+      contentDir: dir,
+    });
+    const lines = [];
+    const printed = reportFinalMediaWarnings(gate, (text) => lines.push(text));
+    expect(printed).toBe(true);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("Scene 4: hook renders CSS-only (explicit media:null waiver)");
+    expect(lines[0].match(/Scene 4/g)).toHaveLength(1);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("prints nothing and returns false when the gate has no warnings", () => {
+    const dir = makeContentDir(["present.jpg"]);
+    const gate = checkFinalMedia({
+      scenes: [{ id: 5, visualType: "hook", media: hookMedia() }],
+      contentDir: dir,
+    });
+    const lines = [];
+    const printed = reportFinalMediaWarnings(gate, (text) => lines.push(text));
+    expect(printed).toBe(false);
+    expect(lines).toHaveLength(0);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
 describe("formatFinalMediaWarnings", () => {
   it("returns an empty string when the gate has no warnings", () => {
     const dir = makeContentDir(["present.jpg"]);
     const result = checkFinalMedia({
-      scenes: [{ id: 1, visualType: "hook", media: withMedia() }],
+      scenes: [{ id: 1, visualType: "hook", media: hookMedia() }],
       contentDir: dir,
     });
     expect(formatFinalMediaWarnings(result)).toBe("");

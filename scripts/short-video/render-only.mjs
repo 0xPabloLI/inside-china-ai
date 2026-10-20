@@ -19,7 +19,7 @@ import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
 import {
   checkFinalMedia,
   formatFinalMediaFailures,
-  formatFinalMediaWarnings,
+  reportFinalMediaWarnings,
 } from "./lib/final-media-gate.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { getDurationSync } from "./lib/tts/ffmpeg-cmd.mjs";
@@ -128,9 +128,7 @@ async function main() {
   {
     const contentDirAbs = resolve(__dirname, "content", contentDir);
     const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
-    if (gate.warnings.length > 0) {
-      console.warn(`⚠️  Step 2 media warnings:\n${formatFinalMediaWarnings(gate)}\n`);
-    }
+    reportFinalMediaWarnings(gate);
     if (!gate.pass) {
       console.error("❌ Step 2: Final media check FAILED\n");
       console.error(`   ${formatFinalMediaFailures(gate)}\n`);

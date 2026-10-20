@@ -133,6 +133,8 @@ function migrateLegacyEntry(entry, rawPrompt, generationPrompt) {
 /**
  * Land a generation winner on the scene (#156).
  *
+ * Exported for the #299 waiver-guard test; pipeline callers stay in this module.
+ *
  * @returns {"media"|"backdrop"|null} where the winner landed: "media" when
  *   the scene had no media (winner becomes the primary), "backdrop" when
  *   the scene already had media (winner becomes media.backdrop), or null

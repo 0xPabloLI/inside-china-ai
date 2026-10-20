@@ -54,6 +54,25 @@ if (existsSync(patchPath)) {
   }
 }
 
+// Final media gate (#299) — runs before TTS so a known-missing file never
+// spends Kaggle TTS. This path never sources or generates media, so a scene
+// whose layout (or hook contract) needs a file must fail here instead of
+// rendering an empty frame.
+{
+  const { checkFinalMedia, formatFinalMediaFailures, reportFinalMediaWarnings } =
+    await import("./lib/final-media-gate.mjs");
+  const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
+  reportFinalMediaWarnings(gate);
+  if (!gate.pass) {
+    console.error("❌ Final media check FAILED\n");
+    console.error(`   ${formatFinalMediaFailures(gate)}\n`);
+    console.error(
+      "   Supply the media (bind scene.media), or set media:null for a deliberate CSS-only hook.",
+    );
+    process.exit(1);
+  }
+}
+
 // Step 1: TTS (Kaggle CUDA) — regenerates audio + forced alignment
 console.log("\n🎙️  Step 1: Generating TTS (Kaggle CUDA)...");
 const { generateTTS } = await import("./lib/generate-tts.mjs");
@@ -98,26 +117,6 @@ if (existsSync(timingPath)) {
     console.error(`❌ ${err.message}`);
     console.error(
       "   Fail-closed: a voiced video without burned-in subtitles is not shippable (#421).",
-    );
-    process.exit(1);
-  }
-}
-
-// Step 4.6: final media gate (#299) — this path never sources or generates
-// media, so a scene whose layout (or hook contract) needs a file must fail
-// here instead of rendering an empty frame.
-{
-  const { checkFinalMedia, formatFinalMediaFailures, formatFinalMediaWarnings } =
-    await import("./lib/final-media-gate.mjs");
-  const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
-  if (gate.warnings.length > 0) {
-    console.warn(`⚠️  Media warnings:\n${formatFinalMediaWarnings(gate)}\n`);
-  }
-  if (!gate.pass) {
-    console.error("❌ Final media check FAILED\n");
-    console.error(`   ${formatFinalMediaFailures(gate)}\n`);
-    console.error(
-      "   Supply the media (bind scene.media), or set media:null for a deliberate CSS-only hook.",
     );
     process.exit(1);
   }

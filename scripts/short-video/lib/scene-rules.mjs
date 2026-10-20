@@ -46,6 +46,7 @@ import {
   slotCharBudget,
 } from "./text-slots.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
+import { checkHookMediaQuality } from "./hook-media.mjs";
 // SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
 // and re-exported through final-media-gate — scene-rules must not hold a copy.
 export { NO_MEDIA_TYPES };
@@ -1057,7 +1058,9 @@ export function checkHookMediaContract(scenes) {
   if (hook.media) {
     const media = hook.media;
     // The binding itself passes (media exists); quality issues are reported as
-    // their own checks so the author sees exactly what to fix.
+    // their own checks so the author sees exactly what to fix. The contract is
+    // shared with the final media gate (hook-media.mjs) so render-only /
+    // rerender paths enforce the same fit/overlay/source rules.
     const results = [
       {
         level: "pass",
@@ -1066,41 +1069,23 @@ export function checkHookMediaContract(scenes) {
         detail: `${media.type}: ${media.path}`,
       },
     ];
-    // Only "cover" keeps the 9:16 frame filled; an omitted fit is valid because
-    // the renderer defaults to cover. fill/none are CSS object-fit values that
-    // distort the frame; anything else (e.g. "cvr") is a typo.
-    if (media.fit != null && media.fit !== "cover") {
+    const quality = checkHookMediaQuality(media);
+    for (const f of quality.failures) {
       results.push({
         level: "fail",
         category: CATEGORY,
-        check: "Hook media fit",
-        detail: `Hook media must use fit:"cover" — "${media.fit}" is not supported (contain letterboxes; fill/none and typos distort or crop the 9:16 frame)`,
-        fix: 'Set fit:"cover" or omit fit (the renderer defaults to cover)',
+        check: f.check,
+        detail: f.detail,
+        fix: f.fix,
       });
     }
-    if (
-      media.overlay !== undefined &&
-      media.overlay !== null &&
-      (typeof media.overlay !== "number" ||
-        !Number.isFinite(media.overlay) ||
-        media.overlay < 0.4 ||
-        media.overlay > 0.9)
-    ) {
+    for (const w of quality.warnings) {
       results.push({
         level: "warn",
         category: CATEGORY,
-        check: "Hook media overlay",
-        detail: `Hook media overlay ${media.overlay} is outside [0.4, 0.9] — bigNumber/numberLabel legibility is at risk`,
-        fix: "Set overlay between 0.4 and 0.9 (the renderer defaults to 0.7 when omitted)",
-      });
-    }
-    if (!media.source) {
-      results.push({
-        level: "warn",
-        category: CATEGORY,
-        check: "Hook media source",
-        detail: "Hook media has no source — a manually bound file needs attribution",
-        fix: "Add media.source (official page, model card, or stock provider)",
+        check: w.check,
+        detail: w.detail,
+        fix: w.fix,
       });
     }
     return results;

@@ -446,6 +446,22 @@ describe("applyAssignedMedia (#192)", () => {
     expect(scenes[0].media.path).toBe("assets/keep.jpg");
   });
 
+  it("#299: does not overwrite an explicit media:null waiver", () => {
+    // A stale media-patch entry must not resurrect media on a deliberate
+    // CSS-only hook — `media?.path` is falsy for null, so this needs its own
+    // guard ahead of the path check.
+    const dir = makeDir();
+    const scenes = [{ id: 1, visualType: "hook", media: null }];
+    const r = applyAssignedMedia(
+      scenes,
+      [{ sceneId: 1, status: "assigned", media: { type: "image", path: "assets/new.jpg" } }],
+      dir,
+    );
+    expect(scenes[0].media).toBeNull();
+    expect(r.applied).toBe(0);
+    expect(r.skipped).toEqual([{ sceneId: 1, reason: "explicit no-media waiver" }]);
+  });
+
   it("missing file → entry skipped, not applied", () => {
     const dir = makeDir();
     const scenes = [{ id: 1, visualType: "narrative" }];
