@@ -23,7 +23,7 @@
  * All statuses are mocked through the injected exec seam — no real Kaggle calls.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "fs";
+import { readFileSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { pollKernelStatus } from "../lib/tts/cosyvoice3-kaggle-cuda.mjs";
@@ -118,6 +118,40 @@ describe("pollKernelStatus — probe timeout (#808)", () => {
     expect(state.probeFailures).toBe(0); // reset by the usable answer
     expect(state.probeFailureMs).toBe(60000); // but the spent budget stays visible
     expect(state.lastProbeError).toBeTruthy();
+  });
+});
+
+describe("pollKernelStatus — the production exec seam forwards options", () => {
+  it("the timeout reaches the real exec with NO deps.exec injected", async () => {
+    // Every other case here injects `deps.exec`, and that is exactly how the
+    // first cut of this fix shipped a timeout production never saw: the default
+    // seam was `(cmd) => execAsync(cmd)`, which drops the second argument, so
+    // all the mocked cases stayed green while the real probe could still hang
+    // forever (droid P0 on #809). This one installs a `kaggle` shim on PATH and
+    // injects nothing, so the real seam has to do the work.
+    const dir = mkdtempSync(join(tmpdir(), "kaggle-shim-"));
+    const shim = join(dir, "kaggle");
+    writeFileSync(shim, "#!/bin/sh\nsleep 3\n", { mode: 0o755 });
+    const before = process.env.PATH;
+    process.env.PATH = `${dir}:${before}`;
+    try {
+      const started = Date.now();
+      await expect(
+        pollKernelStatus("u/k", {
+          probeTimeoutMs: 400,
+          probeFailureBudgetMs: 300,
+          queueTimeoutMs: 1500,
+          pollIntervalMs: 10,
+        }),
+      ).rejects.toThrow(/without a usable answer/);
+      // Forwarded: the 3s shim is killed at ~400ms and the dead-probe budget
+      // trips at once. Not forwarded: the shim runs to completion, the probe
+      // "succeeds" with empty output, and the queue budget is what fires.
+      expect(Date.now() - started).toBeLessThan(2500);
+    } finally {
+      process.env.PATH = before;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

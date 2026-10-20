@@ -43,6 +43,18 @@ import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 
 const execAsync = promisify(exec);
 
+/**
+ * The default exec seam.
+ *
+ * It MUST forward `opts`. The previous shape was `(cmd) => execAsync(cmd)`,
+ * which silently dropped the second argument — so an exec timeout added at the
+ * call site (#808) never reached production while every injected-mock test
+ * stayed green. `deps.exec` is the only seam the tests can reach, so the
+ * wiring itself is pinned separately by a PATH-shim test that exercises this
+ * function with no `deps.exec` at all.
+ */
+const defaultExec = (cmd, opts) => execAsync(cmd, opts);
+
 // ── Config ──
 const KAGGLE_KERNEL_TEMPLATE = join(ROOT_DIR, "kaggle", "cosyvoice3_cuda_kernel.py");
 // The frozen wheelhouse this repo expects to be mounted (#521). Kaggle cannot
@@ -721,7 +733,7 @@ async function isAvailable(deps = {}) {
     // engine — the module contract is "batch contract testable without
     // touching real Kaggle", and a real `kaggle --version` can take ~9s of
     // wall-clock on shimmed Python installs (deterministic test timeout).
-    const probe = deps.exec ?? ((cmd) => execAsync(cmd));
+    const probe = deps.exec ?? defaultExec;
     await probe("kaggle --version 2>/dev/null");
     return true;
   } catch {
@@ -803,7 +815,7 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
     probeFailureBudgetMs = KAGGLE_PROBE_FAILURE_BUDGET_MS,
     statusFile = null,
   } = opts;
-  const exec = deps.exec ?? ((cmd) => execAsync(cmd));
+  const exec = deps.exec ?? defaultExec;
   const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const now = deps.now ?? Date.now;
   const log = deps.log ?? ((msg) => console.log(msg));
@@ -973,7 +985,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
   if (!(await isAvailable(deps))) return null;
 
   const username = getKaggleUsername();
-  const runCmd = deps.exec ?? ((cmd) => execAsync(cmd));
+  const runCmd = deps.exec ?? defaultExec;
   const poll = deps.poll ?? pollKernelStatus;
   const postProcess = deps.postProcess ?? postProcessBatch;
   // One value for both the engine descriptor (which feeds the cache key) and
