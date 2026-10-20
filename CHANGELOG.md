@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.0...tanstack_start_ts-v1.25.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **short-video:** keep the dual-track spoken form out of burned-in subtitles ([#753](https://github.com/0xPabloLI/inside-china-ai/issues/753)) ([#814](https://github.com/0xPabloLI/inside-china-ai/issues/814)) ([b38098e](https://github.com/0xPabloLI/inside-china-ai/commit/b38098eeb1e3f095ee3258e323b8d36766f1b63c))
+
 ## [1.25.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.24.2...tanstack_start_ts-v1.25.0) (2026-10-20)
 
 
