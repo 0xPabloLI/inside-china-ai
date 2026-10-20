@@ -128,8 +128,13 @@ describe("engine metadata — the wetext dataset rides along with the kernel", (
     process.env.COSYVOICE3_KAGGLE_USER = "test-kaggle-user";
     const outDir = join(tmpdir(), `tts-wetext-ds-${process.pid}-${Date.now()}`);
     mkdirSync(outDir, { recursive: true });
+    // voice-samples/ is not committed, so the default ref-audio probe would
+    // make isAvailable() return null on CI. Write one and pass it explicitly.
+    const refAudioPath = join(outDir, "voice-sample-24k.wav");
+    writeFileSync(refAudioPath, wavBytes("ref"));
     const scenes = [{ id: 1, voiceover: "Hook line.", visualType: "hook" }];
     const engine = await createCosyVoice3KaggleCudaEngine({
+      refAudioPath,
       exec: async (cmd) => {
         if (cmd.includes("kaggle kernels output")) {
           const dir = cmd.match(/-p "([^"]+)"/)[1];
