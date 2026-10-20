@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.24.1...tanstack_start_ts-v1.24.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **kaggle:** pre-seed the wetext snapshot so cold start stops eating the inference budget ([#804](https://github.com/0xPabloLI/inside-china-ai/issues/804)) ([#806](https://github.com/0xPabloLI/inside-china-ai/issues/806)) ([99583ae](https://github.com/0xPabloLI/inside-china-ai/commit/99583aeebeb526ebf06f0ce82193983b7b06aa13))
+
 ## [1.24.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.24.0...tanstack_start_ts-v1.24.1) (2026-10-20)
 
 
