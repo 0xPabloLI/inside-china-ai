@@ -151,9 +151,10 @@ describe("pipeline-profile", () => {
   });
 
   it("runParallel() records each parallel track's own settle time (#623)", async () => {
+    const dir = makeTmp();
     const clk = fakeClock();
     const prof = createProfiler({
-      outputDir: makeTmp(),
+      outputDir: dir,
       version: "v-test",
       now: clk.now,
       onExit: false,
@@ -178,6 +179,13 @@ describe("pipeline-profile", () => {
     expect(stepByName(prof, "fast").startedAt).toBe(stepByName(prof, "slow").startedAt);
     // totalMs reflects the join (the slow track), not the sum of both spans.
     expect(prof.totalMs()).toBe(80);
+    // Both branches settle fulfilled, and that status is persisted with the
+    // span (#623): a rejected track must read differently in the profile.
+    prof.write();
+    const json = JSON.parse(readFileSync(join(dir, "last-profile.json"), "utf8"));
+    const persisted = new Map(json.steps.map((s) => [s.name, s]));
+    expect(persisted.get("fast")).toMatchObject({ status: "fulfilled" });
+    expect(persisted.get("slow")).toMatchObject({ status: "fulfilled" });
   });
 
   it("runParallel() persists both durations when the TTS track rejects (#623)", async () => {
@@ -218,12 +226,21 @@ describe("pipeline-profile", () => {
     expect(stepByName(prof, "media-track")).toMatchObject({ durationMs: 100, track: "media" });
     expect(prof.steps.map((s) => s.name).sort()).toEqual(["media-track", "step-1-tts"]);
 
-    // The rejection path persists both closed spans: no unfinished snapshot.
+    // The rejection path persists both closed spans: no unfinished snapshot,
+    // and each span carries the side of the join it settled on.
     prof.write();
     const json = JSON.parse(readFileSync(join(dir, "last-profile.json"), "utf8"));
     const persisted = new Map(json.steps.map((s) => [s.name, s]));
-    expect(persisted.get("step-1-tts")).toMatchObject({ durationMs: 70, track: "voice" });
-    expect(persisted.get("media-track")).toMatchObject({ durationMs: 100, track: "media" });
+    expect(persisted.get("step-1-tts")).toMatchObject({
+      durationMs: 70,
+      track: "voice",
+      status: "rejected",
+    });
+    expect(persisted.get("media-track")).toMatchObject({
+      durationMs: 100,
+      track: "media",
+      status: "fulfilled",
+    });
     expect(json.steps.some((s) => s.unfinished === true)).toBe(false);
   });
 
@@ -266,9 +283,47 @@ describe("pipeline-profile", () => {
     prof.write();
     const json = JSON.parse(readFileSync(join(dir, "last-profile.json"), "utf8"));
     const persisted = new Map(json.steps.map((s) => [s.name, s]));
-    expect(persisted.get("media-track")).toMatchObject({ durationMs: 30, track: "media" });
-    expect(persisted.get("step-1-tts")).toMatchObject({ durationMs: 100, track: "voice" });
+    expect(persisted.get("media-track")).toMatchObject({
+      durationMs: 30,
+      track: "media",
+      status: "rejected",
+    });
+    expect(persisted.get("step-1-tts")).toMatchObject({
+      durationMs: 100,
+      track: "voice",
+      status: "fulfilled",
+    });
     expect(json.steps.some((s) => s.unfinished === true)).toBe(false);
+  });
+
+  it("runParallel() rejects a name already open via mark() and leaves it intact (#623)", async () => {
+    const clk = fakeClock();
+    const prof = createProfiler({
+      outputDir: makeTmp(),
+      version: "v-test",
+      now: clk.now,
+      onExit: false,
+    });
+    // A plain mark() span with the same name is the hazard: without the guard
+    // the track's mark() would overwrite it and its duration would be lost.
+    prof.mark("dup", { track: "voice" });
+    clk.advance(40);
+    const ran = vi.fn();
+
+    await expect(
+      prof.runParallel([
+        { name: "dup", fn: ran, meta: { track: "media" } },
+        { name: "other", fn: ran, meta: { track: "media" } },
+      ]),
+    ).rejects.toThrow(/already open/i);
+
+    expect(ran).not.toHaveBeenCalled();
+    expect(prof.steps).toHaveLength(0);
+    // The pre-existing span is untouched: still open, still its own duration.
+    clk.advance(10);
+    expect(prof.end("dup")).toBe(50);
+    expect(prof.steps[0]).toMatchObject({ name: "dup", track: "voice", durationMs: 50 });
+    expect(prof.steps[0].status).toBeUndefined();
   });
 
   it("runParallel() rejects duplicate track names before any track starts (#623)", async () => {

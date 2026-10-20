@@ -76,13 +76,14 @@ export function createProfiler({
 
   /**
    * Run named async tracks concurrently, closing each span at its own settle.
-   * Returns the Promise.allSettled results in input order.
+   * Returns the Promise.allSettled results in input order, and records
+   * `status: "fulfilled" | "rejected"` on each track's step.
    *
    * Each record is stamped `parallel: true` here, since this helper is
    * parallel by definition — the stamp overrides any `meta.parallel` passed
    * in. Track names must be unique: a duplicate would silently overwrite the
-   * earlier span in the `open` map, so duplicates reject before any track
-   * function runs.
+   * earlier span in the `open` map, so a name repeated within `tracks` or
+   * already open from a plain `mark()` rejects before any track function runs.
    *
    * @param {Array<{name: string, fn: () => Promise<any>, meta?: object}>} tracks
    */
@@ -92,11 +93,26 @@ export function createProfiler({
       if (seen.has(name)) {
         throw new Error(`runParallel: duplicate track name "${name}"`);
       }
+      if (open.has(name)) {
+        throw new Error(`runParallel: track name "${name}" is already open from mark()`);
+      }
       seen.add(name);
     }
-    return Promise.allSettled(
+    const results = await Promise.allSettled(
       tracks.map(({ name, fn, meta = {} }) => wrap(name, fn, { ...meta, parallel: true })),
     );
+    // Which side of the join each branch landed on is part of the timing
+    // evidence (#623): a rejected track's duration must read differently from
+    // a fulfilled one. Names are unique per the guard above, so the last
+    // record for a name is the span this call closed.
+    results.forEach((result, i) => {
+      for (let j = steps.length - 1; j >= 0; j--) {
+        if (steps[j].name !== tracks[i].name) continue;
+        steps[j].status = result.status;
+        break;
+      }
+    });
+    return results;
   }
 
   /** Persist the profile JSON (per-run file + stable last-profile.json). */

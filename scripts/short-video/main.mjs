@@ -107,7 +107,12 @@ async function main() {
     outputDir: join(__dirname, "output", meta.pipelineId),
     version,
   });
-  const prof = { mark: profiler.mark, end: profiler.end, wrap: profiler.wrap };
+  const prof = {
+    mark: profiler.mark,
+    end: profiler.end,
+    wrap: profiler.wrap,
+    runParallel: profiler.runParallel,
+  };
 
   // ── Renderer guard ──
   // The HTML/Playwright path was retired (decision 59): Remotion is the only
@@ -298,7 +303,7 @@ async function main() {
   // still runs to its natural end. runParallel closes each profile span at
   // that branch's own settle — not at the join, which would make the faster
   // track report the slower track's duration (#623).
-  const [mediaDone, ttsDone] = await profiler.runParallel([
+  const [mediaDone, ttsDone] = await prof.runParallel([
     {
       name: "media-track",
       fn: () => runMediaTrack({ scenes, contentDir, baseDir: __dirname, broll, prof }),
