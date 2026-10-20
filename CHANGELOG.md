@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.23.0...tanstack_start_ts-v1.24.0) (2026-10-20)
+
+
+### Features
+
+* **short-video:** curated hook media contract ([#299](https://github.com/0xPabloLI/inside-china-ai/issues/299)) ([#798](https://github.com/0xPabloLI/inside-china-ai/issues/798)) ([7eb3f02](https://github.com/0xPabloLI/inside-china-ai/commit/7eb3f023a7a5c1577f96246e1815189ab51797e7))
+
 ## [1.23.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.22.4...tanstack_start_ts-v1.23.0) (2026-10-19)
 
 
