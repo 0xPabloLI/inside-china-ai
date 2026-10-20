@@ -63,6 +63,27 @@ describe("kernel cold start — wetext snapshot is seeded, not downloaded (#804)
     expect(KERNEL_SRC).toContain("return False");
   });
 
+  it("degrades on a corrupt archive instead of killing the GPU run", () => {
+    // A truncated upload raises CalledProcessError / BadZipFile out of
+    // `tar xf` / `extractall`. Unguarded, that propagates to the top of the
+    // kernel and kills the run before inference — the same cold-start
+    // fatality the seed is meant to remove, so it has to be caught.
+    const fnAt = KERNEL_SRC.indexOf("def seed_wetext_cache():");
+    const seededAt = KERNEL_SRC.indexOf("wetext cache seeded in");
+    expect(fnAt).toBeGreaterThan(-1);
+    expect(seededAt).toBeGreaterThan(fnAt);
+    const fn = KERNEL_SRC.slice(fnAt, seededAt);
+    const tryAt = fn.indexOf("    try:");
+    const extractAt = fn.indexOf('subprocess.run(["tar", "xf", sealed_tar');
+    const exceptAt = fn.indexOf("except Exception as exc:");
+    expect(tryAt).toBeGreaterThan(-1);
+    expect(extractAt).toBeGreaterThan(tryAt);
+    expect(exceptAt).toBeGreaterThan(extractAt);
+    const handler = fn.slice(exceptAt);
+    expect(handler).toContain("shutil.rmtree(WETEXT_CACHE, ignore_errors=True)");
+    expect(handler).toContain("return False");
+  });
+
   it("serves the one snapshot_download call from disk when the seed exists", () => {
     // wetext binds `from modelscope import snapshot_download` at import time,
     // so the patch has to be installed before CosyVoice3() constructs the

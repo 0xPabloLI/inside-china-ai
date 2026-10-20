@@ -525,18 +525,29 @@ def seed_wetext_cache():
     os.makedirs(parent, exist_ok=True)
     sealed_tar = os.path.join(src, "wetext-snapshot.tar")
     sealed_zip = os.path.join(src, "wetext-snapshot.zip")
-    if os.path.isfile(sealed_tar):
-        subprocess.run(["tar", "xf", sealed_tar, "-C", parent], check=True)
-    elif os.path.isfile(sealed_zip):
-        import zipfile
-        with zipfile.ZipFile(sealed_zip) as z:
-            z.extractall(parent)
-    elif os.path.isfile(os.path.join(src, "wetext", "configuration.json")):
-        # Kaggle unpacks archives at upload time, so the mount usually carries
-        # the snapshot one directory down instead of as a sealed file.
-        _copy_tree_into_cache(os.path.join(src, "wetext"), WETEXT_CACHE)
-    else:
-        _copy_tree_into_cache(src, WETEXT_CACHE)
+    try:
+        if os.path.isfile(sealed_tar):
+            subprocess.run(["tar", "xf", sealed_tar, "-C", parent], check=True)
+        elif os.path.isfile(sealed_zip):
+            import zipfile
+            with zipfile.ZipFile(sealed_zip) as z:
+                z.extractall(parent)
+        elif os.path.isfile(os.path.join(src, "wetext", "configuration.json")):
+            # Kaggle unpacks archives at upload time, so the mount usually
+            # carries the snapshot one directory down instead of sealed.
+            _copy_tree_into_cache(os.path.join(src, "wetext"), WETEXT_CACHE)
+        else:
+            _copy_tree_into_cache(src, WETEXT_CACHE)
+    except Exception as exc:
+        # A truncated or corrupt archive in the mount (partial upload, an
+        # AppleDouble sidecar) raises CalledProcessError / BadZipFile, and an
+        # unguarded raise here kills the GPU run before inference starts —
+        # the exact cold-start fatality this seed exists to remove. Clear
+        # whatever landed and let the download fallback run instead.
+        log(f"WARNING: seeding from {src} failed ({type(exc).__name__}: {exc}) "
+            f"— clearing the partial cache and falling back to the download")
+        shutil.rmtree(WETEXT_CACHE, ignore_errors=True)
+        return False
     if not os.path.exists(os.path.join(WETEXT_CACHE, "configuration.json")):
         log(f"WARNING: seed from {src} produced no configuration.json in "
             f"{WETEXT_CACHE} — clearing it and falling back to the download")
