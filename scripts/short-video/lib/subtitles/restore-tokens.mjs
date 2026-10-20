@@ -15,12 +15,7 @@
  * @module subtitles/restore-tokens
  */
 
-/** Lowercase + strip trailing/leading punctuation for comparison. */
-function normWord(text) {
-  return String(text ?? "")
-    .toLowerCase()
-    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
-}
+import { normWord } from "./dual-track.mjs";
 
 /**
  * Restore original tokens in one timing array (mutates and returns it).
@@ -47,12 +42,19 @@ export function restoreTimingTokens(timingData, scenes) {
 
     const normFlat = flat.map((w) => normWord(w.text));
 
+    // Longest run first. A scene can record both "2" → ["two"] and
+    // "2030" → ["two","thousand","thirty"]; trying the shorter run first split
+    // "two thousand thirty" into "2 thousand thirty" (#753 smoke, 27 packages).
+    const ordered = reps
+      .map((rep, index) => ({ rep, index }))
+      .sort((a, b) => (b.rep?.spoken?.length ?? 0) - (a.rep?.spoken?.length ?? 0));
+
     // Walk the stream, replacing spoken runs with the original token.
     const out = [];
     let i = 0;
     while (i < flat.length) {
       let matched = false;
-      for (const rep of reps) {
+      for (const { rep } of ordered) {
         if (!rep?.spoken?.length) continue;
         if (i + rep.spoken.length > flat.length) continue;
         let ok = true;

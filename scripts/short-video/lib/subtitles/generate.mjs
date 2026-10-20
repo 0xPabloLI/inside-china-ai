@@ -12,6 +12,7 @@ import { buildCues } from "./cues.mjs";
 import { renderAss } from "./ass.mjs";
 import { checkCueCompliance, formatComplianceReport } from "./compliance.mjs";
 import { alignmentCacheState, computeAlignmentSignature } from "../tts/cache.mjs";
+import { assertDualTrackRestorable } from "./dual-track.mjs";
 
 /** Reading-speed limit for the gate; override with SUBTITLE_MAX_CPS (17 = children). */
 function subtitleMaxCps(env = process.env) {
@@ -57,9 +58,17 @@ export function enforceSubtitleCompliance(cues, env = process.env) {
  * @param {Array|object} timingData - contents of subtitle-timing.json (old array or new {scenes:[]} format)
  * @param {Array<{sceneId: number, duration: number}>} sceneDurations
  * @param {string} outputPath - .ass file to write
+ * @param {object} [options]
+ * @param {Array} [options.scenes] - scene data; when given, the dual-track
+ *   invariant is enforced before the file is written (#753)
  * @returns {{assPath: string, cues: Array, compliance: object|null}}
  */
-export function generateSubtitles(timingData, sceneDurations, outputPath) {
+export function generateSubtitles(timingData, sceneDurations, outputPath, options = {}) {
+  // Fail closed before anything reaches disk: a spoken word that restore could
+  // not map would be burned into the video (#753).
+  if (options.scenes) {
+    assertDualTrackRestorable({ scenes: options.scenes, timingData });
+  }
   const cues = buildCues(timingData, sceneDurations);
   const compliance = enforceSubtitleCompliance(cues);
   writeFileSync(outputPath, renderAss(cues), "utf8");
@@ -78,7 +87,7 @@ export function generateSubtitles(timingData, sceneDurations, outputPath) {
  * @returns {{assPath: string, timingData: (Array|object), cues: Array} | null}
  *   null when no alignment data exists
  */
-export function regenerateSubtitles({ outputDir, sceneDurations }) {
+export function regenerateSubtitles({ outputDir, sceneDurations, scenes }) {
   const audioDir = join(outputDir, "audio");
   const timingPath = join(audioDir, "subtitle-timing.json");
   if (!existsSync(timingPath)) return null;
@@ -86,7 +95,7 @@ export function regenerateSubtitles({ outputDir, sceneDurations }) {
   writeFileSync(join(audioDir, "scene-durations.json"), JSON.stringify(sceneDurations, null, 2));
   const timingData = JSON.parse(readFileSync(timingPath, "utf8"));
   const assPath = join(outputDir, "subtitles.ass");
-  const { cues } = generateSubtitles(timingData, sceneDurations, assPath);
+  const { cues } = generateSubtitles(timingData, sceneDurations, assPath, { scenes });
   return { assPath, timingData, cues };
 }
 

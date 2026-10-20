@@ -412,7 +412,7 @@ async function main() {
   // ── Step 4: Generate ASS subtitles from word-level timing ──
   prof.mark("step-4-subtitles");
   const sceneDurations = ttsResults.map((r) => ({ sceneId: r.sceneId, duration: r.duration }));
-  const subtitles = regenerateSubtitles({ outputDir, sceneDurations });
+  const subtitles = regenerateSubtitles({ outputDir, sceneDurations, scenes });
   if (subtitles) {
     console.log(`  📝 ASS generated: ${subtitles.cues.length} cues`);
 
@@ -444,7 +444,7 @@ async function main() {
     // full render.
     if (gateResult.timingData) {
       subtitles.timingData = gateResult.timingData;
-      const rebuilt = regenerateSubtitles({ outputDir, sceneDurations });
+      const rebuilt = regenerateSubtitles({ outputDir, sceneDurations, scenes });
       if (rebuilt) {
         subtitles.assPath = rebuilt.assPath;
         subtitles.cues = rebuilt.cues;

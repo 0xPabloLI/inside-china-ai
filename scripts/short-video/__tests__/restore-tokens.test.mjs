@@ -153,3 +153,37 @@ describe("restoreTimingTokens", () => {
     expect(JSON.stringify(timing)).toBe(before);
   });
 });
+
+describe("restoreTimingTokens longest-run-first (#753)", () => {
+  it("does not split a larger number with a shorter run from the same scene", () => {
+    // Real package (alibaba-ai-megabet scene 6): "maybe 2." records
+    // ["two"], "2030 target" records ["two","thousand","thirty"]. Trying the
+    // short run first restored "2030" as "2 thousand thirty".
+    const vScenes = [
+      {
+        id: 8,
+        voiceover: "It pays back in 3 years, maybe 2. 2030 target: 100 billion cloud.",
+        ttsText:
+          "It pays back in three years, maybe two. two thousand thirty target: one hundred billion cloud.",
+        ttsReplacements: [
+          { original: "3", spoken: ["three"] },
+          { original: "2", spoken: ["two"] },
+          { original: "2030", spoken: ["two", "thousand", "thirty"] },
+          { original: "100", spoken: ["one", "hundred"] },
+        ],
+      },
+    ];
+    const words = vScenes[0].ttsText
+      .split(" ")
+      .map((text, i) => ({ text, start: i, end: i + 1 }));
+    const timing = [{ sceneId: 8, segments: [{ text: vScenes[0].ttsText, words }] }];
+
+    restoreTimingTokens(timing, vScenes);
+
+    const texts = timing[0].segments[0].words.map((w) => w.text);
+    expect(texts).toContain("2030");
+    expect(texts).toContain("100");
+    expect(texts).not.toContain("thousand");
+    expect(texts.join(" ")).toContain("maybe 2.");
+  });
+});

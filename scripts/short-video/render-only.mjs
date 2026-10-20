@@ -158,7 +158,7 @@ async function main() {
 
   // ── Step 3: Re-generate subtitles from the existing alignment ──
   const sceneDurations = sceneData.map((s) => ({ sceneId: s.sceneId, duration: s.duration }));
-  const subtitles = regenerateSubtitles({ outputDir, sceneDurations });
+  const subtitles = regenerateSubtitles({ outputDir, sceneDurations, scenes });
   if (subtitles) {
     console.log(`📝 Step 3: ASS generated: ${subtitles.cues.length} cues\n`);
 
