@@ -28,6 +28,7 @@ import {
   reportFinalMediaWarnings,
 } from "./lib/final-media-gate.mjs";
 import { assertSubtitleTiming, regenerateSubtitles } from "./lib/subtitles/generate.mjs";
+import { assertDualTrackRestorable } from "./lib/subtitles/dual-track.mjs";
 import { runCanonicalTextGateWithRepair } from "./lib/verify-canonical-text.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 import { verifyWithRetry, applyDriftCorrection } from "./lib/verify-retry.mjs";
@@ -536,12 +537,16 @@ async function main() {
           buildCues(subtitles.timingData, sceneDurations),
           driftMap,
         );
+        // Both Step 6 repair paths rewrite the .ass directly; the invariant has
+        // to run here too or the guard is only as wide as generateSubtitles.
+        assertDualTrackRestorable({ scenes, timingData: subtitles.timingData });
         writeFileSync(subtitles.assPath, renderAss(cues), "utf8");
         return findBaseAndBurn() ?? { success: false };
       }
 
       if (category === "cue-gaps") {
         const cues = buildCues(subtitles.timingData, sceneDurations);
+        assertDualTrackRestorable({ scenes, timingData: subtitles.timingData });
         writeFileSync(subtitles.assPath, renderAss(cues), "utf8");
         return findBaseAndBurn() ?? { success: false };
       }
@@ -567,6 +572,7 @@ async function main() {
             subtitles.timingData,
             sceneDurations,
             subtitles.assPath,
+            { scenes },
           );
           const burnResult = findBaseAndBurn();
           return burnResult ?? { success: false };

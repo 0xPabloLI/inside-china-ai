@@ -49,13 +49,58 @@ function replacementKey(rep) {
 }
 
 /**
+ * Replacements ordered longest-run-first.
+ *
+ * Shared with `restore-tokens`: a scene can record both `2` → ["two"] and
+ * `2030` → ["two","thousand","thirty"], and trying the shorter run first split
+ * "two thousand thirty" into "2 thousand thirty" (alibaba-ai-megabet scene 6,
+ * #753 real-package smoke). One ordering function means the static check and
+ * the runtime restore cannot disagree about what a track can consume.
+ *
+ * @param {Array<{spoken?: string[]}>} reps
+ * @returns {Array<{rep: object, index: number}>}
+ */
+export function orderReplacements(reps) {
+  return (reps ?? [])
+    .map((rep, index) => ({ rep, index }))
+    .sort((a, b) => (b.rep?.spoken?.length ?? 0) - (a.rep?.spoken?.length ?? 0));
+}
+
+/**
+ * The ordered replacement whose spoken run starts at `start`, or null.
+ *
+ * @param {string[]} normWords - already normalized words
+ * @param {number} start
+ * @param {Array<{rep: {spoken?: string[]}, index: number}>} ordered
+ * @returns {{rep: object, index: number}|null}
+ */
+export function findRunAt(normWords, start, ordered) {
+  for (const entry of ordered) {
+    const run = entry.rep?.spoken;
+    if (!Array.isArray(run) || run.length === 0) continue;
+    if (start + run.length > normWords.length) continue;
+    let ok = true;
+    for (let k = 0; k < run.length; k++) {
+      if (normWords[start + k] !== normWord(run[k])) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return entry;
+  }
+  return null;
+}
+
+/**
  * Walk `tokens` the way `restoreTimingTokens` does and report which
  * replacement identities were consumed at least once.
  *
  * Identity (not index) is the unit: the same token can appear twice in one
  * line ("V4.1 … until V4.1 Pro ships"), and the restore loop legitimately
  * reuses the first matching entry both times. Counting by index reported the
- * never-inspected duplicate as a leak (#753 real-package smoke).
+ * never-inspected duplicate as a leak (#753 real-package smoke). A line where
+ * only the first of two occurrences is consumable therefore passes the static
+ * check; `findLeakedSpokenRuns` is the backstop for that case.
  *
  * @param {string[]} tokens
  * @param {Array<{spoken?: string[]}>} reps
@@ -63,34 +108,14 @@ function replacementKey(rep) {
  */
 function consumedReplacementKeys(tokens, reps) {
   const norm = tokens.map(normWord);
+  const ordered = orderReplacements(reps);
   const consumed = new Set();
-  // Same longest-run-first order as restore-tokens, so the static check and
-  // the runtime restore can never disagree about what is consumable.
-  const ordered = reps
-    .map((rep, index) => ({ rep, index }))
-    .sort((a, b) => (b.rep?.spoken?.length ?? 0) - (a.rep?.spoken?.length ?? 0));
   let i = 0;
   while (i < tokens.length) {
-    let matched = -1;
-    for (const { rep, index } of ordered) {
-      const run = rep?.spoken;
-      if (!Array.isArray(run) || run.length === 0) continue;
-      if (i + run.length > tokens.length) continue;
-      let ok = true;
-      for (let k = 0; k < run.length; k++) {
-        if (norm[i + k] !== normWord(run[k])) {
-          ok = false;
-          break;
-        }
-      }
-      if (ok) {
-        matched = index;
-        break;
-      }
-    }
-    if (matched >= 0) {
-      consumed.add(replacementKey(reps[matched]));
-      i += reps[matched].spoken.length;
+    const match = findRunAt(norm, i, ordered);
+    if (match) {
+      consumed.add(replacementKey(match.rep));
+      i += match.rep.spoken.length;
     } else {
       i += 1;
     }

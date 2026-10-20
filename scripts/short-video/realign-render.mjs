@@ -88,7 +88,7 @@ let subtitlesArg = null;
 if (existsSync(timingPath)) {
   const { generateSubtitles } = await import("./lib/subtitles/generate.mjs");
   const timingData = JSON.parse(readFileSync(timingPath, "utf-8"));
-  const result = generateSubtitles(timingData, durationsRaw, subtitlesPath);
+  const result = generateSubtitles(timingData, durationsRaw, subtitlesPath, { scenes });
   console.log(`📝 Subtitles: ${result.cues.length} cues`);
   subtitlesArg = subtitlesPath;
 }

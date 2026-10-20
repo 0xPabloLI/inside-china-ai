@@ -59,14 +59,24 @@ export function enforceSubtitleCompliance(cues, env = process.env) {
  * @param {Array<{sceneId: number, duration: number}>} sceneDurations
  * @param {string} outputPath - .ass file to write
  * @param {object} [options]
- * @param {Array} [options.scenes] - scene data; when given, the dual-track
- *   invariant is enforced before the file is written (#753)
+ * @param {Array} [options.scenes] - scene data; required unless the caller
+ *   opts out, so no production path can skip the dual-track invariant (#753)
+ * @param {boolean} [options.skipDualTrackCheck] - explicit opt-out for fixtures
+ *   that model cues only (no dual track)
  * @returns {{assPath: string, cues: Array, compliance: object|null}}
  */
 export function generateSubtitles(timingData, sceneDurations, outputPath, options = {}) {
   // Fail closed before anything reaches disk: a spoken word that restore could
-  // not map would be burned into the video (#753).
-  if (options.scenes) {
+  // not map would be burned into the video (#753). Missing `scenes` is a hard
+  // error, not a silent pass — an optional guard is the same bug one layer up.
+  if (options.skipDualTrackCheck !== true) {
+    if (!Array.isArray(options.scenes)) {
+      throw new Error(
+        "generateSubtitles requires `scenes` to enforce the dual-track invariant (#753) — " +
+          "pass the scene data, or { skipDualTrackCheck: true } in a fixture that does not " +
+          "model the dual track.",
+      );
+    }
     assertDualTrackRestorable({ scenes: options.scenes, timingData });
   }
   const cues = buildCues(timingData, sceneDurations);
@@ -84,10 +94,12 @@ export function generateSubtitles(timingData, sceneDurations, outputPath, option
  * @param {object} options
  * @param {string} options.outputDir
  * @param {Array<{sceneId: number, duration: number}>} options.sceneDurations
+ * @param {Array} [options.scenes] - required unless `skipDualTrackCheck` (#753)
+ * @param {boolean} [options.skipDualTrackCheck]
  * @returns {{assPath: string, timingData: (Array|object), cues: Array} | null}
  *   null when no alignment data exists
  */
-export function regenerateSubtitles({ outputDir, sceneDurations, scenes }) {
+export function regenerateSubtitles({ outputDir, sceneDurations, scenes, skipDualTrackCheck }) {
   const audioDir = join(outputDir, "audio");
   const timingPath = join(audioDir, "subtitle-timing.json");
   if (!existsSync(timingPath)) return null;
@@ -95,7 +107,10 @@ export function regenerateSubtitles({ outputDir, sceneDurations, scenes }) {
   writeFileSync(join(audioDir, "scene-durations.json"), JSON.stringify(sceneDurations, null, 2));
   const timingData = JSON.parse(readFileSync(timingPath, "utf8"));
   const assPath = join(outputDir, "subtitles.ass");
-  const { cues } = generateSubtitles(timingData, sceneDurations, assPath, { scenes });
+  const { cues } = generateSubtitles(timingData, sceneDurations, assPath, {
+    scenes,
+    skipDualTrackCheck,
+  });
   return { assPath, timingData, cues };
 }
 

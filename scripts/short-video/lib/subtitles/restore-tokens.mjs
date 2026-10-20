@@ -15,7 +15,7 @@
  * @module subtitles/restore-tokens
  */
 
-import { normWord } from "./dual-track.mjs";
+import { findRunAt, normWord, orderReplacements } from "./dual-track.mjs";
 
 /**
  * Restore original tokens in one timing array (mutates and returns it).
@@ -42,47 +42,32 @@ export function restoreTimingTokens(timingData, scenes) {
 
     const normFlat = flat.map((w) => normWord(w.text));
 
-    // Longest run first. A scene can record both "2" → ["two"] and
-    // "2030" → ["two","thousand","thirty"]; trying the shorter run first split
-    // "two thousand thirty" into "2 thousand thirty" (#753 smoke, 27 packages).
-    const ordered = reps
-      .map((rep, index) => ({ rep, index }))
-      .sort((a, b) => (b.rep?.spoken?.length ?? 0) - (a.rep?.spoken?.length ?? 0));
+    // Longest run first (shared ordering with the dual-track check) so a bare
+    // "2" cannot split "2030" into "2 thousand thirty" (#753).
+    const ordered = orderReplacements(reps);
 
     // Walk the stream, replacing spoken runs with the original token.
     const out = [];
     let i = 0;
     while (i < flat.length) {
-      let matched = false;
-      for (const { rep } of ordered) {
-        if (!rep?.spoken?.length) continue;
-        if (i + rep.spoken.length > flat.length) continue;
-        let ok = true;
-        for (let k = 0; k < rep.spoken.length; k++) {
-          if (normFlat[i + k] !== normWord(rep.spoken[k])) {
-            ok = false;
-            break;
-          }
-        }
-        if (!ok) continue;
-        // Carry over trailing punctuation from the last consumed word
-        // ("tenth." → "0910.") so sentence punctuation survives restore.
-        const lastRaw = String(flat[i + rep.spoken.length - 1].text ?? "");
-        const trailing = lastRaw.match(/[^\p{L}\p{N}]+$/u)?.[0] ?? "";
-        out.push({
-          text: rep.original + trailing,
-          start: flat[i].start,
-          end: flat[i + rep.spoken.length - 1].end,
-          _seg: flat[i]._seg,
-        });
-        i += rep.spoken.length;
-        matched = true;
-        break;
-      }
-      if (!matched) {
+      const match = findRunAt(normFlat, i, ordered);
+      if (!match) {
         out.push(flat[i]);
         i += 1;
+        continue;
       }
+      const { rep } = match;
+      // Carry over trailing punctuation from the last consumed word
+      // ("tenth." → "0910.") so sentence punctuation survives restore.
+      const lastRaw = String(flat[i + rep.spoken.length - 1].text ?? "");
+      const trailing = lastRaw.match(/[^\p{L}\p{N}]+$/u)?.[0] ?? "";
+      out.push({
+        text: rep.original + trailing,
+        start: flat[i].start,
+        end: flat[i + rep.spoken.length - 1].end,
+        _seg: flat[i]._seg,
+      });
+      i += rep.spoken.length;
     }
 
     // Rebuild segments from the restored words.

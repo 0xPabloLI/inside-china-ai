@@ -173,9 +173,7 @@ describe("restoreTimingTokens longest-run-first (#753)", () => {
         ],
       },
     ];
-    const words = vScenes[0].ttsText
-      .split(" ")
-      .map((text, i) => ({ text, start: i, end: i + 1 }));
+    const words = vScenes[0].ttsText.split(" ").map((text, i) => ({ text, start: i, end: i + 1 }));
     const timing = [{ sceneId: 8, segments: [{ text: vScenes[0].ttsText, words }] }];
 
     restoreTimingTokens(timing, vScenes);

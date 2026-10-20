@@ -30,16 +30,21 @@ const cleanScene = {
   id: 2,
   voiceover: "V3.2-Speciale shipped today.",
   ttsText: "V three point two-Speciale shipped today.",
-  ttsReplacements: [
-    { original: "V3.2-Speciale", spoken: ["V", "three", "point", "two-Speciale"] },
-  ],
+  ttsReplacements: [{ original: "V3.2-Speciale", spoken: ["V", "three", "point", "two-Speciale"] }],
 };
 
 function timingFor(scene, words) {
   return [
     {
       sceneId: scene.id,
-      segments: [{ text: words.join(" "), start: 0, end: 1, words: words.map((text, i) => ({ text, start: i, end: i + 1 })) }],
+      segments: [
+        {
+          text: words.join(" "),
+          start: 0,
+          end: 1,
+          words: words.map((text, i) => ({ text, start: i, end: i + 1 })),
+        },
+      ],
     },
   ];
 }
@@ -146,15 +151,23 @@ describe("generateSubtitles render boundary", () => {
     expect(existsSync(assPath)).toBe(false);
   });
 
+  it("refuses to write when the caller forgot the scene data", () => {
+    // An optional guard is the same bug one layer up: a repaired Step 6 path
+    // that forgets `scenes` used to bypass the check silently.
+    const assPath = join(dir, "subtitles.ass");
+    const timing = timingFor(cleanScene, ["V3.2-Speciale", "shipped", "today."]);
+    expect(() =>
+      generateSubtitles(timing, [{ sceneId: 2, duration: 3 }], assPath),
+    ).toThrow(/requires `scenes`/);
+    expect(existsSync(assPath)).toBe(false);
+  });
+
   it("writes the .ass once the invariant holds", () => {
     const assPath = join(dir, "subtitles.ass");
     const timing = timingFor(cleanScene, ["V3.2-Speciale", "shipped", "today."]);
-    const result = generateSubtitles(
-      timing,
-      [{ sceneId: 2, duration: 3 }],
-      assPath,
-      { scenes: [cleanScene] },
-    );
+    const result = generateSubtitles(timing, [{ sceneId: 2, duration: 3 }], assPath, {
+      scenes: [cleanScene],
+    });
     expect(result.cues.length).toBeGreaterThan(0);
     expect(existsSync(assPath)).toBe(true);
   });

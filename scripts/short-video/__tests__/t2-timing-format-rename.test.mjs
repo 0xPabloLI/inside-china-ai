@@ -154,6 +154,7 @@ describe("T2: timing JSON format adaptation + runWhisperAlignment rename", () =>
     const result = regenerateSubtitles({
       outputDir: "/output",
       sceneDurations: mockSceneDurations,
+      skipDualTrackCheck: true,
     });
 
     expect(result).not.toBeNull();
@@ -168,6 +169,7 @@ describe("T2: timing JSON format adaptation + runWhisperAlignment rename", () =>
     const result = regenerateSubtitles({
       outputDir: "/output",
       sceneDurations: mockSceneDurations,
+      skipDualTrackCheck: true,
     });
 
     expect(result).not.toBeNull();
@@ -196,7 +198,9 @@ describe("T2: timing JSON format adaptation + runWhisperAlignment rename", () =>
   // ─── generateSubtitles works with both formats ───
   it("generateSubtitles works with old array format", () => {
     fsMock.writeFileSync.mockClear();
-    const result = generateSubtitles(oldFormatTiming, mockSceneDurations, "/output/sub.ass");
+    const result = generateSubtitles(oldFormatTiming, mockSceneDurations, "/output/sub.ass", {
+      skipDualTrackCheck: true,
+    });
     expect(result.assPath).toBe("/output/sub.ass");
     expect(result.cues.length).toBeGreaterThan(0);
     expect(fsMock.writeFileSync).toHaveBeenCalledWith(
@@ -208,7 +212,9 @@ describe("T2: timing JSON format adaptation + runWhisperAlignment rename", () =>
 
   it("generateSubtitles works with new object format", () => {
     fsMock.writeFileSync.mockClear();
-    const result = generateSubtitles(newFormatTiming, mockSceneDurations, "/output/sub.ass");
+    const result = generateSubtitles(newFormatTiming, mockSceneDurations, "/output/sub.ass", {
+      skipDualTrackCheck: true,
+    });
     expect(result.assPath).toBe("/output/sub.ass");
     expect(result.cues.length).toBeGreaterThan(0);
     expect(fsMock.writeFileSync).toHaveBeenCalledWith(

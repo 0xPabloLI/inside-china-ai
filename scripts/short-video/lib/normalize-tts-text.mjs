@@ -26,7 +26,11 @@
  * @module normalize-tts-text
  */
 
-import { filterConsumableReplacements, findLeaksInTrack, formatLeak } from "./subtitles/dual-track.mjs";
+import {
+  filterConsumableReplacements,
+  findLeaksInTrack,
+  formatLeak,
+} from "./subtitles/dual-track.mjs";
 
 const DIGIT_WORDS = [
   "zero",
@@ -264,6 +268,12 @@ const DIGIT_UNIT_ALTERNATION = Object.keys(UNIT_SPOKEN)
 const TOKEN_HEAD = String.raw`(?<![\p{L}\p{N}_\-/])`;
 const TOKEN_SUFFIX = String.raw`((?:[-/][\p{L}\p{N}]+)*)`;
 const TOKEN_END = String.raw`(?![\p{L}\p{N}_\-/])`;
+/**
+ * Same boundary, plus a unit suffix. "10-20%" is a percentage range, not an
+ * MM-DD date, and "2-3x" is not a bare cardinal — a rule that would rewrite
+ * inside such a token must decline instead (#753).
+ */
+const TOKEN_END_NO_UNIT = String.raw`(?![\p{L}\p{N}_\-/%])`;
 
 const DIGIT_UNIT_RE = new RegExp(
   `${TOKEN_HEAD}(\\d+)(${DIGIT_UNIT_ALTERNATION})${TOKEN_END}`,
@@ -292,7 +302,8 @@ const DIGIT_UNIT_TOKEN_RE = new RegExp(`^(\\d+)(${DIGIT_UNIT_ALTERNATION})$`, "i
  * is exactly the position where an unexpanded digit breaks the aligner.
  */
 const CARDINAL_RE = new RegExp(
-  String.raw`(?<![\d.$€£¥,])(?<![\p{L}\p{N}_\-/])(\d{1,3}(?:,\d{3})+|\d+)(?!\.\d)(?![\p{L}\p{N}_\-/%])`,
+  String.raw`(?<![\d.$€£¥,])(?<![\p{L}\p{N}_\-/])(\d{1,3}(?:,\d{3})+|\d+)(?!\.\d)` +
+    TOKEN_END_NO_UNIT,
   "gu",
 );
 
@@ -368,10 +379,7 @@ function normalizeVoiceover(str, replacements) {
   //     consumed only the digits and reproduced the exact break this rule
   //     exists to fix.
   str = str.replace(
-    new RegExp(
-      `${TOKEN_HEAD}([A-Za-z]{1,12})-(\\d+)\\.(\\d+)${TOKEN_SUFFIX}${TOKEN_END}`,
-      "gu",
-    ),
+    new RegExp(`${TOKEN_HEAD}([A-Za-z]{1,12})-(\\d+)\\.(\\d+)${TOKEN_SUFFIX}${TOKEN_END}`, "gu"),
     (match, prefix, intPart, decPart, suffix) => {
       return record(match, `${prefix}-${decimalToSpoken(intPart, decPart)}${suffix}`);
     },
@@ -379,10 +387,7 @@ function normalizeVoiceover(str, replacements) {
 
   // 2. Standalone model names with dots: "GLM 6.0", "GPT 4.0"
   str = str.replace(
-    new RegExp(
-      `${TOKEN_HEAD}([A-Z]{2,4})\\s+(\\d+)\\.(\\d+)${TOKEN_SUFFIX}${TOKEN_END}`,
-      "gu",
-    ),
+    new RegExp(`${TOKEN_HEAD}([A-Z]{2,4})\\s+(\\d+)\\.(\\d+)${TOKEN_SUFFIX}${TOKEN_END}`, "gu"),
     (match, prefix, intPart, decPart, suffix) => {
       return record(match, `${prefix} ${decimalToSpoken(intPart, decPart)}${suffix}`);
     },
@@ -402,10 +407,7 @@ function normalizeVoiceover(str, replacements) {
 
   // 4. Hyphenated version: "GPT-4", "GPT-4o"
   str = str.replace(
-    new RegExp(
-      `${TOKEN_HEAD}([A-Z]{2,4})-(\\d+)([a-z]?)${TOKEN_SUFFIX}${TOKEN_END}`,
-      "gu",
-    ),
+    new RegExp(`${TOKEN_HEAD}([A-Z]{2,4})-(\\d+)([a-z]?)${TOKEN_SUFFIX}${TOKEN_END}`, "gu"),
     (match, prefix, num, suffixWord, tail) => {
       return record(
         match,
@@ -436,7 +438,7 @@ function normalizeVoiceover(str, replacements) {
   //    range, not October twentieth (#753).
   str = str.replace(
     new RegExp(
-      `${TOKEN_HEAD}(0[1-9]|1[0-2])[/\\-](0[1-9]|[12]\\d|3[01])(?![\\p{L}\\p{N}_\\-/%])`,
+      `${TOKEN_HEAD}(0[1-9]|1[0-2])[/\\-](0[1-9]|[12]\\d|3[01])${TOKEN_END_NO_UNIT}`,
       "gu",
     ),
     (match, mm, dd) => {
@@ -465,7 +467,7 @@ function normalizeVoiceover(str, replacements) {
   //     author can pin them with `voiceoverTts`.
   str = str.replace(
     new RegExp(
-      `${TOKEN_HEAD}(\\d{1,3})\\s*[-–]\\s*(\\d{1,3})\\s*(%|x|×)(?![\\p{L}\\p{N}_\\-/%])`,
+      `${TOKEN_HEAD}(\\d{1,3})\\s*[-–]\\s*(\\d{1,3})\\s*(%|x|×)${TOKEN_END_NO_UNIT}`,
       "gu",
     ),
     (match, from, to, unit) => {
@@ -543,43 +545,53 @@ export function cardinalSpokenWords(text) {
 export function normalizeTtsText(scenes, _meta = {}) {
   let changeCount = 0;
   /**
-   * Write the dual track only after the invariant holds. A replacement that
-   * restore cannot consume would leak the spoken form into the subtitles
-   * (#753), so a scene that fails the check keeps the display track as its
-   * spoken track instead of shipping a half-rewritten one.
+   * Plan one scene's dual track. Nothing is written until every scene passes
+   * (see the commit loop below), so a failure leaves the whole batch on the
+   * display track instead of half-rewriting scenes and then throwing (#753).
    *
    * `authored` marks the author-written `voiceoverTts` path: there the author
    * decides which tokens to expand, so replacements absent from their track
-   * are dropped rather than treated as a defect.
+   * are dropped rather than treated as a defect — but a spoken track that
+   * differs with no mapping left is called out, because restore cannot undo it.
    */
-  const commitDualTrack = (scene, spoken, replacements, { authored = false } = {}) => {
-    let reps = replacements;
-    if (authored) {
-      reps = filterConsumableReplacements(spoken, replacements);
-      if (reps.length !== replacements.length) {
-        const dropped = replacements.filter((rep) => !reps.includes(rep));
-        console.log(
-          `  ℹ️  Scene ${scene.id}: author-written voiceoverTts leaves ` +
-            `${dropped.map((rep) => `"${rep.original}"`).join(", ")} in display form — ` +
-            `no restore mapping recorded for them`,
-        );
-      }
-    } else {
+  const planDualTrack = (scene, spoken, replacements, { authored = false } = {}) => {
+    if (!authored) {
       const leaks = findLeaksInTrack(spoken, replacements);
       if (leaks.length > 0) {
-        const detail = leaks.map((leak) => formatLeak({ ...leak, sceneId: scene.id })).join("; ");
+        const detail = leaks
+          .map((leak) => formatLeak({ ...leak, sceneId: scene.id }))
+          .join("; ");
         throw new Error(
           `dual-track normalization cannot map ${leaks.length} replacement(s) back ` +
-            `(${detail}) — leaving scene ${scene.id} on the display track. ` +
+            `(${detail}) — the batch keeps the display track and no scene is rewritten. ` +
             `Set scene.voiceoverTts explicitly when the line needs a spoken form.`,
         );
       }
+      return { scene, spoken, reps: replacements };
     }
-    scene.ttsText = spoken;
-    scene.ttsReplacements = reps;
-    changeCount++;
+
+    const reps = filterConsumableReplacements(spoken, replacements);
+    if (reps.length !== replacements.length) {
+      const dropped = replacements.filter((rep) => !reps.includes(rep));
+      console.log(
+        `  ℹ️  Scene ${scene.id}: author-written voiceoverTts leaves ` +
+          `${dropped.map((rep) => `"${rep.original}"`).join(", ")} in display form — ` +
+          `no restore mapping recorded for them`,
+      );
+    }
+    if (reps.length === 0 && spoken !== scene.voiceover) {
+      console.warn(
+        `  ⚠️  Scene ${scene.id}: voiceoverTts differs from the voiceover but no replacement ` +
+          `maps back — subtitles will show the spoken form. Rewrite the spoken track through ` +
+          `the derived form (e.g. "V four point one"), or the line needs a manual check (#753).`,
+      );
+    }
+    return { scene, spoken, reps };
   };
 
+  // Two phases: plan everything, then commit. A throw in the plan phase leaves
+  // `scenes` untouched, which is what the Step 0.6 `catch` relies on.
+  const planned = [];
   for (const scene of scenes) {
     if (!scene.voiceover) continue;
     // Author-authored spoken form wins — semantics (is "0910" a date?) are
@@ -591,14 +603,20 @@ export function normalizeTtsText(scenes, _meta = {}) {
       // original voiceover via the same normalize rules.
       const reps = [];
       normalizeVoiceover(scene.voiceover, reps);
-      commitDualTrack(scene, scene.voiceoverTts, reps, { authored: true });
+      planned.push(planDualTrack(scene, scene.voiceoverTts, reps, { authored: true }));
       continue;
     }
     const replacements = [];
     const spoken = normalizeVoiceover(scene.voiceover, replacements);
     if (spoken !== scene.voiceover) {
-      commitDualTrack(scene, spoken, replacements);
+      planned.push(planDualTrack(scene, spoken, replacements));
     }
+  }
+
+  for (const { scene, spoken, reps } of planned) {
+    scene.ttsText = spoken;
+    scene.ttsReplacements = reps;
+    changeCount++;
   }
   if (changeCount > 0) {
     console.log(
