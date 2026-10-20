@@ -207,7 +207,7 @@ Hook 媒体是**逐包人工策展**，不靠通用搜源（`asset-sourcer` 结�
 media: {
   type: "image",          // 或 "video"
   path: "assets/<file>",  // 相对 content/{slug}/，不是全局 assets/
-  source: "<出处>",       // 归因；缺失仅 preflight WARN
+  source: "<出处>",       // 归因；缺失 preflight 与最终 gate 都会 WARN
   animation: "ken-burns",
   overlay: 0.7,           // 建议 0.5–0.85
   fit: "cover",
