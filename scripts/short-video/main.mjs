@@ -107,7 +107,12 @@ async function main() {
     outputDir: join(__dirname, "output", meta.pipelineId),
     version,
   });
-  const prof = { mark: profiler.mark, end: profiler.end, wrap: profiler.wrap };
+  const prof = {
+    mark: profiler.mark,
+    end: profiler.end,
+    wrap: profiler.wrap,
+    runParallel: profiler.runParallel,
+  };
 
   // ── Renderer guard ──
   // The HTML/Playwright path was retired (decision 59): Remotion is the only
@@ -293,29 +298,31 @@ async function main() {
   // needs the final media state the media track produces.
   console.log("⚡ Tracks: [media: sourcing→patch→upscale→broll] ∥ [voice: TTS]\n");
   console.log("📝 Step 1: Generating TTS voiceover (parallel with media track)...\n");
-  prof.mark("media-track", { track: "media" });
-  prof.mark("step-1-tts", { track: "voice" });
   let ttsResults;
-  try {
-    // allSettled, not all: on a voice-track failure the media track still
-    // runs to its natural end, so the failure-path profile records real
-    // durations instead of the finally block prematurely closing a live step.
-    const [mediaDone, ttsDone] = await Promise.allSettled([
-      runMediaTrack({ scenes, contentDir, baseDir: __dirname, broll, prof }),
-      generateTTS(scenes, audioDir),
-    ]);
-    if (mediaDone.status === "rejected") {
-      // The track's own contract is never-reject (every stage has its own
-      // try/catch); reaching here means an unexpected bug — surface it but
-      // keep a TTS failure authoritative for the abort below.
-      console.warn(`⚠️  Media track crashed unexpectedly: ${mediaDone.reason?.message}\n`);
-    }
-    if (ttsDone.status === "rejected") throw ttsDone.reason;
-    ttsResults = ttsDone.value;
-  } finally {
-    prof.end("media-track");
-    prof.end("step-1-tts");
+  // allSettled semantics, not all: on a voice-track failure the media track
+  // still runs to its natural end. runParallel closes each profile span at
+  // that branch's own settle — not at the join, which would make the faster
+  // track report the slower track's duration (#623).
+  const [mediaDone, ttsDone] = await prof.runParallel([
+    {
+      name: "media-track",
+      fn: () => runMediaTrack({ scenes, contentDir, baseDir: __dirname, broll, prof }),
+      meta: { track: "media" },
+    },
+    {
+      name: "step-1-tts",
+      fn: () => generateTTS(scenes, audioDir),
+      meta: { track: "voice" },
+    },
+  ]);
+  if (mediaDone.status === "rejected") {
+    // The track's own contract is never-reject (every stage has its own
+    // try/catch); reaching here means an unexpected bug — surface it but
+    // keep a TTS failure authoritative for the abort below.
+    console.warn(`⚠️  Media track crashed unexpectedly: ${mediaDone.reason?.message}\n`);
   }
+  if (ttsDone.status === "rejected") throw ttsDone.reason;
+  ttsResults = ttsDone.value;
 
   // ── Step 1.6: Final media gate ──
   // Runs after the join: sourcing (1.5), patch application (1.5c), upscale
