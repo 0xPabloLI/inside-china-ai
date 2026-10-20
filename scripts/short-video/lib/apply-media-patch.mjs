@@ -110,6 +110,12 @@ export function applyAssignedMedia(scenes, assignedEntries, contentDirAbs) {
   for (const entry of assignedEntries || []) {
     const scene = scenes.find((s) => s.id === entry.sceneId);
     if (!scene) continue;
+    // #299: an explicit media:null is a waiver, not an empty slot — a stale
+    // patch entry must not overwrite it (media?.path is falsy for null).
+    if ("media" in scene && scene.media === null) {
+      skipped.push({ sceneId: entry.sceneId, reason: "explicit no-media waiver" });
+      continue;
+    }
     if (scene.media?.path) {
       skipped.push({ sceneId: entry.sceneId, reason: "existing media" });
       continue;

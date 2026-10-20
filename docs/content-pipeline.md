@@ -378,6 +378,20 @@ Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论�
 
 **边界与验收跟踪**：hook 合格与否的评审判据与正面范例库归 **#752**（评审端）；本节只管写稿端，MRL-2 的 W2（Hook 具体性，Agent 判断项）按本节判据执行。本规范的下游验证随下一真包发生——按新模板出稿并做 HITL 听感对比（303/405 基准），完播数据回收对照 #259 的 0:01 流失基线（#278 验收项 2/3）。
 
+### Hook 媒体策展（#299）
+
+Hook 是前 3 秒，媒体**逐包人工策展**，不走通用搜源（`asset-sourcer` 结构上跳过 hook）。HITL 阶段必须三选一：
+
+| Hook 状态  | 写法                                                                                                | 预检（`--pre`）                                               | 最终 media gate（sourcing/生成后）  |
+| ---------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------- |
+| 已策展     | `scene.media = { type, path, source, fit: "cover", overlay }`                                       | 通过；`fit` 非 `"cover"`（`contain`/`fill`/`none`/拼错）FAIL，`overlay` 越界或缺 `source` WARN | 文件存在且通过同一 fit/overlay/source 契约 |
+| 故意纯文字 | `media: null`                                                                                       | WARN（显式豁免，不阻断）                                      | 通过 + `explicit-null-on-hook` 警告 |
+| 生成兜底   | 不写 `media`，`mediaStrategy` 为 `b-roll` / `asset-then-broll` / `ai-image` / `asset-then-ai-image` | WARN（不阻断生成）                                            | 文件未落地即 FAIL                   |
+
+其余情况（`mediaStrategy` 为 `asset` 或缺省、且没有 `media`）预检直接 FAIL：必须从策展库绑定 `scene.media`，或显式写 `media: null`。HITL 报告需列出 hook 媒体的来源与绑定路径。挑图标准与素材库现状见 `docs/video-script-writing-guide.md` → Hook 媒体策展；路径规则见 `docs/media-asset-management.md` → Hook 封面绑定。
+
+已有包迁移口径：hook 没有媒体**且没有生成策略**的包，下一次预检会 FAIL；带生成策略的包预检只 WARN，由最终 media gate 判定落地文件。hook 若写了已废弃的 `mediaOptOut: true` 且没有媒体，预检直接 FAIL——改用 `media: null` 显式豁免。
+
 ### AI Outline 话题描述规则（Step 5 细则，仅 opt-in 时适用）
 
 > TikTok AI Outline 仅移动端可用。输出质量取决于输入具体度——含公司名+数字时大幅提升。实测（2026-08-27）：泛输入→clickbait；具体输入→Title/Hook/Hashtags 均可用。

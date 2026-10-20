@@ -22,7 +22,11 @@ import { execFileSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
 import { renderRemotion, rawOutputPathFor } from "./lib/render-remotion.mjs";
 import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
-import { checkFinalMedia, formatFinalMediaFailures } from "./lib/final-media-gate.mjs";
+import {
+  checkFinalMedia,
+  formatFinalMediaFailures,
+  reportFinalMediaWarnings,
+} from "./lib/final-media-gate.mjs";
 import { assertSubtitleTiming, regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { runCanonicalTextGateWithRepair } from "./lib/verify-canonical-text.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
@@ -321,15 +325,18 @@ async function main() {
     const contentDirAbs = resolve(__dirname, "content", contentDir);
     prof.mark("step-1.6-media-gate", { track: "media" });
     const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
+    reportFinalMediaWarnings(gate);
     if (!gate.pass) {
       console.error("❌ Step 1.6: Final media check FAILED\n");
       console.error(`   ${formatFinalMediaFailures(gate)}\n`);
-      console.error("   A media-dependent layout renders an empty middle band without media.");
-      console.error("   Supply the media, or switch the scene to a CSS-only layout.");
+      console.error("   Missing media would render an empty band or a CSS-only hook frame.");
+      console.error(
+        "   Supply the media (bind scene.media), or set media:null for a deliberate CSS-only hook.",
+      );
       process.exit(1);
     }
     prof.end("step-1.6-media-gate");
-    console.log("✅ Step 1.6: Final media check passed (all layouts have the media they need)\n");
+    console.log("✅ Step 1.6: Final media check passed (all scenes have the media they need)\n");
   }
 
   // ── Step 2: Validate every scene received a TTS result ──

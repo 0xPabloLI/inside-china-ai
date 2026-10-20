@@ -83,7 +83,7 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。默认（�
 
 - **narrativeRole**: `"S"`
 - **留存机制**：埋下 open loop 的种子（暗示有更深层的东西）
-- **素材要求**：冲击力强的背景图/视频（公司 logo、产品画面、标志性场景）。素材需求写入 scene 的 `assetNeed` 字段（如 `assetNeed: "company logo or product screenshot"`），asset-sourcer 按此做 per-scene claim 搜索
+- **素材要求**：冲击力强的背景图/视频（公司 logo、产品画面、标志性场景）。Hook 媒体逐包人工策展：直接把文件绑定为 `scene.media`（见下文 Hook 媒体策展）；不要用 `assetNeed`——asset-sourcer 结构上跳过 hook
 - **voiceover**：≤10 词。从 4 种 hook 公式中轮换选择（见 Step 5）
 - **visualType**: `"hook"`
 - **时间**：0-3s
@@ -196,6 +196,31 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 | **Contradiction**   | "[X] 发生了，但 [X 的反面] 也是真的" | "382M users. Daily revenue under $140K."                                     | 反转/争议    |
 | **Curiosity Gap**   | "别急着 [常见行为]，先看 [这个]"     | "Don't dismiss Chinese enterprise AI until you see what ByteDance just did." | 产品/分析    |
 | **Question**        | "如果 [假设] 是错的呢？"             | "What if China's biggest AI bet isn't a model at all?"                       | 哲学/分析    |
+
+## Hook 媒体策展（#299）
+
+Hook 媒体是**逐包人工策展**，不靠通用搜源（`asset-sourcer` 结构上跳过 hook）。每条视频的 hook 封面必须对应本集主题（公司/产品/事件）：优先官方主视觉、模型海报、真页面截图；其次暗调、高对比、有动势的库存图/视频。
+
+**绑定配方**：把选定文件放进 `scripts/short-video/content/{slug}/assets/`，在 scene 1 写：
+
+```js
+media: {
+  type: "image",          // 或 "video"
+  path: "assets/<file>",  // 相对 content/{slug}/，不是全局 assets/
+  source: "<出处>",       // 归因；缺失 preflight 与最终 gate 都会 WARN
+  animation: "ken-burns",
+  overlay: 0.7,           // 建议 0.5–0.85
+  fit: "cover",
+}
+```
+
+预绑定的 `media` 优先，且不会被自动补位覆盖。
+
+**可读性**：hook 模板自带 bigNumber + numberLabel，媒体要退到背景层。`overlay` 建议 0.5–0.85（显式值超出 0.4–0.9 时 preflight WARN；缺省由渲染器取 0.7）；`fit` 必须是 `cover`（缺省即 cover）——`contain`/`fill`/`none` 或拼错值会被 preflight FAIL。不要设置 `mode: "fullscreen"`：渲染端在该模式下把 overlay 归零，满屏素材会直接压住大字。
+
+**素材库现实**：`scripts/short-video/assets/` 是全局库（约 275 文件 / 297MB，含暗调通用背景），但 `catalog.yml` 目前只有 7 条、RAG 只能搜到这 7 条。完整素材库与索引是 #310，不在本票范围；手工挑图时按文件名浏览、打开确认，不要假设 RAG 能搜到。
+
+**豁免与兜底**：纯文字 hook 写 `media: null` 显式豁免；生成兜底允许 `b-roll` / `asset-then-broll` / `ai-image` / `asset-then-ai-image`。预检与最终 media gate 的判定表只在 `docs/content-pipeline.md` → Hook 媒体策展（#299）维护，本节只给策展标准。
 
 ---
 

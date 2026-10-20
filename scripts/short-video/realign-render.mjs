@@ -45,6 +45,25 @@ if (existsSync(patchPath)) {
   }
 }
 
+// Final media gate (#299) — runs after the media patch and before forced
+// alignment / rendering. This path never sources or generates media, so a
+// scene whose layout (or hook contract) needs a file must fail here instead of
+// rendering an empty frame.
+{
+  const { checkFinalMedia, formatFinalMediaFailures, reportFinalMediaWarnings } =
+    await import("./lib/final-media-gate.mjs");
+  const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
+  reportFinalMediaWarnings(gate);
+  if (!gate.pass) {
+    console.error("❌ Final media check FAILED\n");
+    console.error(`   ${formatFinalMediaFailures(gate)}\n`);
+    console.error(
+      "   Supply the media (bind scene.media), or set media:null for a deliberate CSS-only hook.",
+    );
+    process.exit(1);
+  }
+}
+
 const durationsRaw = JSON.parse(readFileSync(join(audioDir, "scene-durations.json"), "utf-8")).sort(
   (a, b) => a.sceneId - b.sceneId,
 );

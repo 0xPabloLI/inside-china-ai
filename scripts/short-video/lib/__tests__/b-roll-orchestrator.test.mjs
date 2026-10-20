@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import {
   planScenes,
+  assignWinner,
   runBrollStage,
   scenesRequiringGeneration,
   shouldSourceStock,
@@ -82,6 +83,27 @@ describe("planScenes routing (scenarios #1, #6, #7, #8, #9, #10, #28)", () => {
   test("#10 asset-then-broll without media -> generate", () => {
     const plans = planScenes([scene({ mediaStrategy: "asset-then-broll" })]);
     expect(plans[0].action).toBe("generate");
+  });
+
+  test("#299 explicit media:null wins over a generation strategy -> skip (no warning)", () => {
+    const plans = planScenes([scene({ mediaStrategy: "b-roll", media: null })]);
+    expect(plans[0].action).toBe("skip");
+    expect(plans[0].reason).toBe("explicit-no-media");
+    expect(plans[0].warn).toBeUndefined();
+  });
+
+  test("#299 explicit media:null is checked before mediaOptOut", () => {
+    const plans = planScenes([
+      scene({ mediaStrategy: "asset-then-broll", media: null, mediaOptOut: true }),
+    ]);
+    expect(plans[0].action).toBe("skip");
+    expect(plans[0].reason).toBe("explicit-no-media");
+  });
+
+  test("#299 assignWinner never replaces an explicit media:null waiver", () => {
+    const sceneWithWaiver = scene({ mediaStrategy: "b-roll", media: null });
+    expect(assignWinner(sceneWithWaiver, "scene-6-seed1024.mp4")).toBeNull();
+    expect(sceneWithWaiver.media).toBeNull();
   });
 
   test("#28 planScenes never mutates its inputs", () => {

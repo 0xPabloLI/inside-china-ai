@@ -19,6 +19,17 @@ Place by purpose, not by file extension:
 
 `assets/` is for **global, reusable production assets only** — never dump experiment outputs or voice samples here.
 
+### Hook 封面绑定
+
+hook 场景的 `media.path` 相对 `content/{slug}/` 解析：全局库的 `scripts/short-video/assets/foo.jpg` **不能**直接写成 `assets/foo.jpg`（那会解析到 `content/{slug}/assets/foo.jpg`）。选定文件后**复制**进 `content/{slug}/assets/`——这是文档化路径，包内副本随包管理；`../../assets/<file>` 只是未文档化的绕行写法，不推荐。
+
+```js
+// content/{slug}/scene-data.mjs，scene 1
+media: { type: "image", path: "assets/hook-cover.png", source: "...", fit: "cover", overlay: 0.7 }
+```
+
+确实要做纯文字 hook 时写 `media: null` 显式豁免。门禁语义见 `docs/content-pipeline.md` → Hook 媒体策展（#299），策展标准见 `docs/video-script-writing-guide.md` → Hook 媒体策展（#299）。
+
 ### Why content media is not tracked
 
 `content/**/assets/` is gitignored (`.gitignore`): the files are downloaded or generated per package, and they are large binaries. A package's media is force-added only when a **test consumes the bytes** — the exceptions are the whole list, and each names its consumer:
