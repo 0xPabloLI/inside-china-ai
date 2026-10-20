@@ -26,6 +26,12 @@
  * @module normalize-tts-text
  */
 
+import {
+  filterConsumableReplacements,
+  findLeaksInTrack,
+  formatLeak,
+} from "./subtitles/dual-track.mjs";
+
 const DIGIT_WORDS = [
   "zero",
   "one",
@@ -242,7 +248,37 @@ const UNIT_SPOKEN = {
 const DIGIT_UNIT_ALTERNATION = Object.keys(UNIT_SPOKEN)
   .sort((a, b) => b.length - a.length)
   .join("|");
-const DIGIT_UNIT_RE = new RegExp(`\\b(\\d+)(${DIGIT_UNIT_ALTERNATION})\\b`, "gi");
+
+/**
+ * Whitespace-token boundary contract (#753).
+ *
+ * `restore-tokens.mjs` matches WHOLE whitespace tokens of the spoken track, and
+ * text-align.py emits exactly those tokens as its word stream. A rewrite that
+ * stops inside a token — "V3.2" out of "V3.2-Speciale", "2" out of "2-3x",
+ * "20" out of "涨价20%" — glues the spoken words to the leftover text
+ * ("two-Speciale", "twenty%"), restore cannot consume the run, and the spoken
+ * form is burned into the subtitles ("GPT-5.6" shipped as "GPT-five").
+ *
+ * Every rule therefore asserts that its match starts at a token boundary
+ * (`TOKEN_HEAD`), optionally carries the rest of a hyphen/slash compound
+ * (`TOKEN_SUFFIX`), and ends at a token boundary (`TOKEN_END`). A match that
+ * fails these guards is left untouched: no rewrite is always safe, a partial
+ * rewrite never is.
+ */
+const TOKEN_HEAD = String.raw`(?<![\p{L}\p{N}_\-/])`;
+const TOKEN_SUFFIX = String.raw`((?:[-/][\p{L}\p{N}]+)*)`;
+const TOKEN_END = String.raw`(?![\p{L}\p{N}_\-/])`;
+/**
+ * Same boundary, plus a unit suffix. "10-20%" is a percentage range, not an
+ * MM-DD date, and "2-3x" is not a bare cardinal — a rule that would rewrite
+ * inside such a token must decline instead (#753).
+ */
+const TOKEN_END_NO_UNIT = String.raw`(?![\p{L}\p{N}_\-/%])`;
+
+const DIGIT_UNIT_RE = new RegExp(
+  `${TOKEN_HEAD}(\\d+)(${DIGIT_UNIT_ALTERNATION})${TOKEN_END}`,
+  "giu",
+);
 /** Anchored to a single token — no /g, so .exec carries no lastIndex state. */
 const DIGIT_UNIT_TOKEN_RE = new RegExp(`^(\\d+)(${DIGIT_UNIT_ALTERNATION})$`, "i");
 
@@ -265,7 +301,11 @@ const DIGIT_UNIT_TOKEN_RE = new RegExp(`^(\\d+)(${DIGIT_UNIT_ALTERNATION})$`, "i
  * Sentence-final punctuation is deliberately NOT excluded: "...managed 40."
  * is exactly the position where an unexpanded digit breaks the aligner.
  */
-const CARDINAL_RE = /(?<!\d\.)(?<![\d,$€£¥])\b(\d{1,3}(?:,\d{3})+|\d+)\b(?!\.\d)(?![a-zA-Z])/g;
+const CARDINAL_RE = new RegExp(
+  String.raw`(?<![\d.$€£¥,])(?<![\p{L}\p{N}_\-/])(\d{1,3}(?:,\d{3})+|\d+)(?!\.\d)` +
+    TOKEN_END_NO_UNIT,
+  "gu",
+);
 
 /**
  * Split compact digit+unit tokens into spoken-safe form: "720p" → "720 P".
@@ -315,10 +355,16 @@ function normalizeVoiceover(str, replacements) {
   };
 
   // 1. Version numbers: V4.1, v3.5, GPT-4.0, GLM 6.0
-  str = str.replace(/\b([VvG])(\d+)\.(\d+)\b/g, (match, prefix, intPart, decPart) => {
-    const prefixWord = prefix.toUpperCase() === "V" ? "V" : prefix.toUpperCase();
-    return record(match, `${prefixWord} ${decimalToSpoken(intPart, decPart)}`);
-  });
+  //    TOKEN_SUFFIX keeps the rest of a hyphen compound ("V3.2-Speciale") in
+  //    the same replacement: rewriting only "V3.2" glued "two-Speciale" into
+  //    one token that restore could never match (#753).
+  str = str.replace(
+    new RegExp(`${TOKEN_HEAD}([VvG])(\\d+)\\.(\\d+)${TOKEN_SUFFIX}${TOKEN_END}`, "gu"),
+    (match, prefix, intPart, decPart, suffix) => {
+      const prefixWord = prefix.toUpperCase() === "V" ? "V" : prefix.toUpperCase();
+      return record(match, `${prefixWord} ${decimalToSpoken(intPart, decPart)}${suffix}`);
+    },
+  );
 
   // 1b. Hyphenated model + dotted version: "GPT-5.6", "GLM-4.5".
   //     Must run BEFORE rule 3 (bare decimal): rule 3 would otherwise consume
@@ -332,34 +378,50 @@ function normalizeVoiceover(str, replacements) {
   //     "Claude-3.5" / "Gemini-2.5" / "Llama-3.1" through to rule 3, which
   //     consumed only the digits and reproduced the exact break this rule
   //     exists to fix.
-  str = str.replace(/\b([A-Za-z]{1,12})-(\d+)\.(\d+)\b/g, (match, prefix, intPart, decPart) => {
-    return record(match, `${prefix}-${decimalToSpoken(intPart, decPart)}`);
-  });
+  str = str.replace(
+    new RegExp(`${TOKEN_HEAD}([A-Za-z]{1,12})-(\\d+)\\.(\\d+)${TOKEN_SUFFIX}${TOKEN_END}`, "gu"),
+    (match, prefix, intPart, decPart, suffix) => {
+      return record(match, `${prefix}-${decimalToSpoken(intPart, decPart)}${suffix}`);
+    },
+  );
 
   // 2. Standalone model names with dots: "GLM 6.0", "GPT 4.0"
-  str = str.replace(/\b([A-Z]{2,4})\s+(\d+)\.(\d+)\b/g, (match, prefix, intPart, decPart) => {
-    return record(match, `${prefix} ${decimalToSpoken(intPart, decPart)}`);
-  });
+  str = str.replace(
+    new RegExp(`${TOKEN_HEAD}([A-Z]{2,4})\\s+(\\d+)\\.(\\d+)${TOKEN_SUFFIX}${TOKEN_END}`, "gu"),
+    (match, prefix, intPart, decPart, suffix) => {
+      return record(match, `${prefix} ${decimalToSpoken(intPart, decPart)}${suffix}`);
+    },
+  );
 
   // 3. Bare decimal numbers: "1.32", "0.14"
-  //    Skip IP addresses (N.N.N.N) and file paths
-  str = str.replace(/\b(\d+)\.(\d+)\b/g, (match, intPart, decPart) => {
-    const afterMatch = str.slice(str.indexOf(match) + match.length);
-    if (/^\.\d/.test(afterMatch)) return match;
-    return record(match, decimalToSpoken(intPart, decPart));
-  });
+  //    Skip IP addresses (N.N.N.N) and file paths. The offset argument (instead
+  //    of indexOf) keeps dotted chains correct when the same number repeats.
+  str = str.replace(
+    new RegExp(`${TOKEN_HEAD}(\\d+)\\.(\\d+)${TOKEN_SUFFIX}${TOKEN_END}`, "gu"),
+    (match, intPart, decPart, suffix, offset, whole) => {
+      const afterMatch = whole.slice(offset + match.length);
+      if (/^\.\d/.test(afterMatch)) return match;
+      return record(match, `${decimalToSpoken(intPart, decPart)}${suffix}`);
+    },
+  );
 
   // 4. Hyphenated version: "GPT-4", "GPT-4o"
-  str = str.replace(/\b([A-Z]{2,4})-(\d+)([a-z]?)\b/g, (match, prefix, num, suffix) => {
-    return record(
-      match,
-      `${prefix} ${numberToWords(parseInt(num, 10))}${suffix ? ` ${suffix}` : ""}`,
-    );
-  });
+  str = str.replace(
+    new RegExp(`${TOKEN_HEAD}([A-Z]{2,4})-(\\d+)([a-z]?)${TOKEN_SUFFIX}${TOKEN_END}`, "gu"),
+    (match, prefix, num, suffixWord, tail) => {
+      return record(
+        match,
+        `${prefix} ${numberToWords(parseInt(num, 10))}${suffixWord ? ` ${suffixWord}` : ""}${tail}`,
+      );
+    },
+  );
 
   // 5. Four-digit dates in context: "expires on 0910", "deadline 0910"
   str = str.replace(
-    /\b(expires|deadline|until|through|ends?)\s+(?:on\s+)?(\d{4})\b/gi,
+    new RegExp(
+      `${TOKEN_HEAD}(expires|deadline|until|through|ends?)\\s+(?:on\\s+)?(\\d{4})${TOKEN_END}`,
+      "giu",
+    ),
     (match, keyword, digits) => {
       const dateSpoken = mmddToDateSpoken(digits);
       if (!dateSpoken) return match;
@@ -372,15 +434,57 @@ function normalizeVoiceover(str, replacements) {
   );
 
   // 6. Bare four-digit dates with slashes: "09/10", "09-10"
-  str = str.replace(/\b(0[1-9]|1[0-2])[/\-](0[1-9]|[12]\d|3[01])\b/g, (match, mm, dd) => {
-    return record(match, `${MONTH_NAMES[parseInt(mm, 10) - 1]} ${ORDINAL_WORDS[parseInt(dd, 10)]}`);
-  });
+  //    The trailing guard rejects a unit suffix: "10-20%" is a percentage
+  //    range, not October twentieth (#753).
+  str = str.replace(
+    new RegExp(
+      `${TOKEN_HEAD}(0[1-9]|1[0-2])[/\\-](0[1-9]|[12]\\d|3[01])${TOKEN_END_NO_UNIT}`,
+      "gu",
+    ),
+    (match, mm, dd) => {
+      return record(
+        match,
+        `${MONTH_NAMES[parseInt(mm, 10) - 1]} ${ORDINAL_WORDS[parseInt(dd, 10)]}`,
+      );
+    },
+  );
 
-  // 7. Bare 4-digit MMDD when preceded by "on" or "by"
-  str = str.replace(/\b(?:on|by)\s+(\d{4})\b/gi, (match, digits) => {
-    const dateSpoken = mmddToDateSpoken(digits);
-    return dateSpoken ? record(digits, dateSpoken) : match;
-  });
+  // 7. Bare 4-digit MMDD when preceded by "on" or "by".
+  //    Record ONLY the digits and re-emit the preposition, exactly like rule 5.
+  //    Consuming the whole match deleted "by"/"on" from the spoken track — the
+  //    invariants stay quiet (the run is consumable, nothing leaks, the scene
+  //    has replacements) so the missing word burned into the subtitle
+  //    invisibly: "Submit by 0910." round-tripped to "Submit 0910." (#753).
+  str = str.replace(
+    new RegExp(`${TOKEN_HEAD}(on|by)\\s+(\\d{4})${TOKEN_END}`, "giu"),
+    (match, preposition, digits) => {
+      const dateSpoken = mmddToDateSpoken(digits);
+      if (!dateSpoken) return match;
+      replacements.push({ original: digits, spoken: dateSpoken.split(" ") });
+      return `${preposition} ${dateSpoken}`;
+    },
+  );
+
+  // 7b. Numeric ranges with a unit: "2-3x", "10-20%".
+  //     Without this rule the endpoints either fell through to the cardinal
+  //     rule (which rewrote only "2" of "2-3x") or were mistaken for an MM-DD
+  //     date ("10-20%" → "October twentieth%"). Both left the spoken words
+  //     glued to the unrewritten half and restore could not map them back.
+  //     Ranges without a unit keep the prior date/cardinal behaviour — the
+  //     author can pin them with `voiceoverTts`.
+  str = str.replace(
+    new RegExp(
+      `${TOKEN_HEAD}(\\d{1,3})\\s*[-–]\\s*(\\d{1,3})\\s*(%|x|×)${TOKEN_END_NO_UNIT}`,
+      "gu",
+    ),
+    (match, from, to, unit) => {
+      const a = parseInt(from, 10);
+      const b = parseInt(to, 10);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return match;
+      const unitWord = unit === "%" ? "percent" : "x";
+      return record(match, `${numberToWords(a)} to ${numberToWords(b)} ${unitWord}`);
+    },
+  );
 
   // 8. Cardinal integers: "115,000" → "one hundred fifteen thousand",
   //    "40." → "forty". Runs BEFORE the digit+unit rule so a token like
@@ -447,29 +551,74 @@ export function cardinalSpokenWords(text) {
  */
 export function normalizeTtsText(scenes, _meta = {}) {
   let changeCount = 0;
+  /**
+   * Plan one scene's dual track. A scene that cannot be mapped back is left on
+   * the display track — per scene, not per batch: one unmappable line must not
+   * switch off normalization for the whole package (the Step 0.6 caller only
+   * warns, so a batch-wide failure would silently degrade every other scene).
+   *
+   * `authored` marks the author-written `voiceoverTts` path: there the author
+   * decides which tokens to expand, so replacements absent from their track
+   * are dropped rather than treated as a defect — but a spoken track that
+   * differs with no mapping left is called out, because restore cannot undo it.
+   */
+  const planDualTrack = (scene, spoken, replacements, { authored = false } = {}) => {
+    if (!authored) {
+      const leaks = findLeaksInTrack(spoken, replacements);
+      if (leaks.length > 0) {
+        const detail = leaks.map((leak) => formatLeak({ ...leak, sceneId: scene.id })).join("; ");
+        console.warn(
+          `  ⚠️  Scene ${scene.id}: ${leaks.length} replacement(s) cannot be mapped back ` +
+            `(${detail}) — leaving this scene on the display track. ` +
+            `Set scene.voiceoverTts explicitly when the line needs a spoken form.`,
+        );
+        return null;
+      }
+      return { scene, spoken, reps: replacements };
+    }
+
+    const reps = filterConsumableReplacements(spoken, replacements);
+    if (reps.length !== replacements.length) {
+      const dropped = replacements.filter((rep) => !reps.includes(rep));
+      console.log(
+        `  ℹ️  Scene ${scene.id}: author-written voiceoverTts leaves ` +
+          `${dropped.map((rep) => `"${rep.original}"`).join(", ")} in display form — ` +
+          `no restore mapping recorded for them`,
+      );
+    }
+    return { scene, spoken, reps };
+  };
+
+  // Plan every scene, then commit. A failed plan returns null, so nothing is
+  // half-written and the other scenes still get their spoken track.
+  const planned = [];
   for (const scene of scenes) {
     if (!scene.voiceover) continue;
     // Author-authored spoken form wins — semantics (is "0910" a date?) are
     // content knowledge, not something a regex can infer.
     if (scene.voiceoverTts) {
-      scene.ttsText = scene.voiceoverTts;
       // Generate replacements from voiceover so restore-tokens can map
       // spoken words back to display tokens.  The author-written voiceoverTts
       // is used as ttsText, but the replacement mapping is derived from the
       // original voiceover via the same normalize rules.
       const reps = [];
       normalizeVoiceover(scene.voiceover, reps);
-      scene.ttsReplacements = reps;
-      changeCount++;
+      const plan = planDualTrack(scene, scene.voiceoverTts, reps, { authored: true });
+      if (plan) planned.push(plan);
       continue;
     }
     const replacements = [];
     const spoken = normalizeVoiceover(scene.voiceover, replacements);
     if (spoken !== scene.voiceover) {
-      scene.ttsText = spoken;
-      scene.ttsReplacements = replacements;
-      changeCount++;
+      const plan = planDualTrack(scene, spoken, replacements);
+      if (plan) planned.push(plan);
     }
+  }
+
+  for (const { scene, spoken, reps } of planned) {
+    scene.ttsText = spoken;
+    scene.ttsReplacements = reps;
+    changeCount++;
   }
   if (changeCount > 0) {
     console.log(

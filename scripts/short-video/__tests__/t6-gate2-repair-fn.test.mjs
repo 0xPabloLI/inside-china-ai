@@ -73,6 +73,7 @@ describe("T6: Gate 2 — subtitle-alignment repairFn", () => {
     const result = regenerateSubtitles({
       outputDir: "/output",
       sceneDurations,
+      skipDualTrackCheck: true,
     });
     expect(result).not.toBeNull();
     expect(result.cues.length).toBeGreaterThan(0);
@@ -105,7 +106,11 @@ describe("T6: Gate 2 — subtitle-alignment repairFn", () => {
 
     // 2. Regenerate
     fsMock.writeFileSync.mockClear();
-    const regen = regenerateSubtitles({ outputDir: "/output", sceneDurations });
+    const regen = regenerateSubtitles({
+      outputDir: "/output",
+      sceneDurations,
+      skipDualTrackCheck: true,
+    });
     expect(regen).not.toBeNull();
 
     // 3. Return success with updated paths (burnSubtitles is execSync, mocked)

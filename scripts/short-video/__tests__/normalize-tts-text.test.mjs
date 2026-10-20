@@ -11,6 +11,28 @@ import {
   numberToWords,
   cardinalSpokenWords,
 } from "../lib/normalize-tts-text.mjs";
+import { restoreTimingTokens } from "../lib/subtitles/restore-tokens.mjs";
+
+/**
+ * End-to-end simulation of the dual track: the aligner emits exactly the
+ * whitespace tokens of ttsText, restore maps them back, and the result must
+ * equal the display voiceover. A leak (spoken form in the output) is exactly
+ * the #753 symptom — "GPT-five" burned into the video.
+ */
+function roundTrip(voiceover) {
+  const scenes = [{ id: 1, voiceover }];
+  normalizeTtsText(scenes);
+  const ttsText = scenes[0].ttsText ?? voiceover;
+  const words = ttsText
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((text, i) => ({ text, start: i, end: i + 1 }));
+  const restored = restoreTimingTokens(
+    [{ sceneId: 1, segments: [{ text: ttsText, words }] }],
+    scenes,
+  )[0].segments.flatMap((s) => s.words.map((w) => w.text));
+  return { scenes: scenes[0], ttsText, restored: restored.join(" ") };
+}
 
 describe("normalizeTtsText dual-track", () => {
   it("keeps voiceover untouched and writes ttsText + replacements", () => {
@@ -234,5 +256,128 @@ describe("splitDigitUnitToken (#548)", () => {
     for (const token of ["0x12a", "10x", "H100", "A100", "B200", "4b", "720p1", "x4k"]) {
       expect(splitDigitUnitToken(token)).toBeNull();
     }
+  });
+});
+
+// ─── #753: replacements must stay whitespace-token aligned ───
+// restore-tokens matches whole whitespace tokens of the spoken track. A rule
+// that rewrites only part of a token ("V3.2" inside "V3.2-Speciale", "2"
+// inside "2-3x") glues the spoken words to the leftover text, restore cannot
+// consume the run, and the spoken form is burned into the video — the defect
+// that shipped "GPT-five" instead of "GPT-5.6".
+describe("dual-track token boundary (#753)", () => {
+  it("keeps a hyphenated suffix attached to the version token", () => {
+    const { scenes, ttsText, restored } = roundTrip("V3.2-Speciale shipped today.");
+
+    expect(ttsText).toBe("V three point two-Speciale shipped today.");
+    expect(scenes.ttsReplacements).toEqual([
+      { original: "V3.2-Speciale", spoken: ["V", "three", "point", "two-Speciale"] },
+    ]);
+    expect(restored).toBe("V3.2-Speciale shipped today.");
+  });
+
+  it("keeps a hyphenated suffix attached to a dotted model name", () => {
+    const { scenes, ttsText, restored } = roundTrip("GPT-5.6-Speciale is new.");
+
+    expect(ttsText).toBe("GPT-five point six-Speciale is new.");
+    expect(scenes.ttsReplacements).toEqual([
+      { original: "GPT-5.6-Speciale", spoken: ["GPT-five", "point", "six-Speciale"] },
+    ]);
+    expect(restored).toBe("GPT-5.6-Speciale is new.");
+  });
+
+  it("reads a numeric range with a multiplier as a range, not two tokens", () => {
+    const { scenes, ttsText, restored } = roundTrip("That is a 2-3x speedup.");
+
+    expect(ttsText).toBe("That is a two to three x speedup.");
+    expect(scenes.ttsReplacements).toEqual([
+      { original: "2-3x", spoken: ["two", "to", "three", "x"] },
+    ]);
+    expect(restored).toBe("That is a 2-3x speedup.");
+  });
+
+  it("reads a percentage range as a range instead of an MM-DD date", () => {
+    const { scenes, ttsText, restored } = roundTrip("We saw 10-20% gain.");
+
+    expect(ttsText).toBe("We saw ten to twenty percent gain.");
+    expect(scenes.ttsReplacements).toEqual([
+      { original: "10-20%", spoken: ["ten", "to", "twenty", "percent"] },
+    ]);
+    expect(restored).toBe("We saw 10-20% gain.");
+  });
+
+  it("never rewrites half of a token glued to CJK text", () => {
+    // "涨价20%" is ONE whitespace token to the aligner. Expanding "20" alone
+    // produced "涨价twenty%", which restore cannot match back (#753 family).
+    const { ttsText, restored } = roundTrip("涨价20%就别买了。");
+
+    expect(ttsText).toBe("涨价20%就别买了。");
+    expect(restored).toBe("涨价20%就别买了。");
+  });
+
+  it("leaves a hyphenated version whose prefix is another word untouched", () => {
+    // "old-V3.2" is one token; rewriting the "V3.2" half is the same leak.
+    const { ttsText, restored } = roundTrip("The old-V3.2 build was retired.");
+
+    expect(ttsText).toBe("The old-V3.2 build was retired.");
+    expect(restored).toBe("The old-V3.2 build was retired.");
+  });
+
+  it("keeps the preposition of a bare MMDD date in the spoken track", () => {
+    // The rule matched "by 0910" and emitted only the date, so "by" vanished
+    // from ttsText. Every invariant stayed quiet — the run was consumable,
+    // nothing leaked, and the scene had replacements — so the missing word
+    // burned into the subtitle with no signal at all.
+    const { scenes, ttsText, restored } = roundTrip("Submit by 0910.");
+
+    expect(ttsText).toBe("Submit by September tenth.");
+    expect(scenes.ttsReplacements).toEqual([{ original: "0910", spoken: ["September", "tenth"] }]);
+    expect(restored).toBe("Submit by 0910.");
+  });
+
+  it("keeps an interior preposition when more of the sentence follows", () => {
+    const { ttsText, restored } = roundTrip("Ship it on 0910 please.");
+
+    expect(ttsText).toBe("Ship it on September tenth please.");
+    expect(restored).toBe("Ship it on 0910 please.");
+  });
+});
+
+// ─── #753: the author-written spoken track owns the expansion decision ───
+describe("author-written voiceoverTts (#753)", () => {
+  it("drops rule replacements the author deliberately left in display form", () => {
+    // deepseek-harness-desktop scene 6 ships voiceoverTts identical to the
+    // display line: the author wants "5 minutes 24 seconds" read as digits.
+    // A rule-derived replacement for "5" is then absent from the track and
+    // must be dropped instead of failing the line.
+    const scenes = [
+      { id: 30, voiceover: "5 minutes 24 seconds.", voiceoverTts: "5 minutes 24 seconds." },
+    ];
+    normalizeTtsText(scenes);
+
+    expect(scenes[0].ttsText).toBe("5 minutes 24 seconds.");
+    expect(scenes[0].ttsReplacements).toEqual([]);
+  });
+
+  it("keeps the replacements the author did apply", () => {
+    const scenes = [
+      {
+        id: 31,
+        voiceover: "On September 8, V4.1 ships.",
+        voiceoverTts: "On September 8, V four point one ships.",
+      },
+    ];
+    normalizeTtsText(scenes);
+
+    expect(scenes[0].ttsReplacements).toEqual([
+      { original: "V4.1", spoken: ["V", "four", "point", "one"] },
+    ]);
+  });
+
+  it("restores a four-digit target when the same line also says a bare 2", () => {
+    const { restored } = roundTrip(
+      "It pays back in 3 years, maybe 2. 2030 target: 100 billion cloud.",
+    );
+    expect(restored).toBe("It pays back in 3 years, maybe 2. 2030 target: 100 billion cloud.");
   });
 });

@@ -201,7 +201,9 @@ describe("subtitle compliance gate wiring", () => {
     process.env.SUBTITLE_MAX_CPS = "1";
     try {
       const out = join(tmpdir(), `compliance-warn-${Date.now()}.ass`);
-      const { compliance, cues } = generateSubtitles(timing, sceneDurations, out);
+      const { compliance, cues } = generateSubtitles(timing, sceneDurations, out, {
+        skipDualTrackCheck: true,
+      });
       expect(cues.length).toBeGreaterThan(0);
       expect(compliance.ok).toBe(false);
       expect(warnSpy).toHaveBeenCalled();

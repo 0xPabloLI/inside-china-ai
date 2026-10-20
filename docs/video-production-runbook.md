@@ -130,7 +130,11 @@ node scripts/short-video/main.mjs --content series/pt4 &
 - `scene.voiceoverTts` — 内容生产时**手工标注的朗读形式**（语义在源头确定："0910" 是日期还是门牌号只有作者知道）。优先于规则。
 - `scene.ttsText` / `scene.ttsReplacements` — Step 0.6 兜底产物：正则规则（版本号/小数/日期）派生朗读形式并记录 `{original, spoken[]}` 替换对。**不写回 voiceover**。
 
-数据流：TTS manifest 与 forced alignment（text-align.py）读 `ttsText`（wav2vec2 词典无数字 token，必须用朗读形式才能对齐）；`lib/subtitles/restore-tokens.mjs` 在对齐结果落盘前把 spoken 词序列精确映射回 `original` 显示 token（匹配失败保留 spoken，绝不更差）。字幕因此显示 "V4.1 / 0910"，朗读读 "V four point one / September tenth"。
+数据流：TTS manifest 与 forced alignment（text-align.py）读 `ttsText`（wav2vec2 词典无数字 token，必须用朗读形式才能对齐）；`lib/subtitles/restore-tokens.mjs` 在对齐结果落盘前把 spoken 词序列按**整空白 token** 映射回 `original` 显示 token。字幕因此显示 "V4.1 / 0910"，朗读读 "V four point one / September tenth"。
+
+**还原契约（#753）**：改写与还原共用同一边界原语（`TOKEN_HEAD` / `TOKEN_SUFFIX` / `TOKEN_END` / `TOKEN_END_NO_UNIT`），复合词整体改写、整体还原 —— `V3.2-Speciale` 记录的是一条 `V3.2-Speciale → [V, three, point, two-Speciale]`，而不是只改前半段；只改前半段会让口头词与 `-Speciale` 粘成一个 token，从此永远还原不回去（这正是 "GPT-5.6" 被烧成 "GPT-five" 的成因）。匹配顺序统一走 `orderReplacements`（最长 run 优先），静态检查与运行时还原共用同一实现，否则 `2` 会抢走 `2030` 的 `two`。
+
+`restore-tokens` 自身仍是软失败（匹配不上保留 spoken），**但渲染边界不再容忍它**：`lib/subtitles/dual-track.mjs#assertDualTrackRestorable` 在写 `.ass` 之前做两重检查 —— 静态（每条 replacement 必须能在本场景自己的 `ttsText` 里被消费）与动态（还原后的 timing 不得残留 spoken run），任一不满足即抛错，`generateSubtitles` / `regenerateSubtitles` 及各条 `.ass` 直写路径（`main.mjs` Step 4/6、`render-only`、`realign-render`、`rerender-full`）都已接上。无法映射的场景在 Step 0.6 按**场景**回退到显示轨并 warn（整包回退会让一行坏文本关掉全片归一化）。纯 cue 场景（无 voiceover 文本）必须显式传 `skipDualTrackCheck: true`，漏传 `scenes` 会直接报错而不是静默放行。
 
 ### 已知故障模式与固化措施（2026-09-08/09 修复清单）
 
@@ -140,6 +144,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 | --- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | HookScene `<Circle>` 遮住 bigNumber                         | `remotion/src/components/shared.ts` ANNOTATION.circle（strokeWidth:3 + padding）；HookScene 显式传参                                                            |
 | 2   | TTS 读错版本号/小数/日期（"V four [停] one"）               | 双轨文本（上文节）+ `lib/normalize-tts-text.mjs` + kernel 前端限制认知                                                                                          |
+| 2b  | 连字符/斜杠复合词只改前半段 → 口语形烧进成片字幕（"GPT-5.6" → "GPT-five"） | `#753`：整 token 边界原语（复合词整体改写）+ `lib/subtitles/dual-track.mjs` 静态/动态不变量 + 渲染边界 fail-closed（上文「还原契约」）                         |
 | 3   | sourcing 跳过所有 assetNeed 场景                            | `lib/claim-keywords.mjs` skipsMediaSourcing 的 `&& !scene.assetNeed` 守卫                                                                                       |
 | 4   | TTS prosody/speed 偏离认可基线                              | adapter 默认 `prosody:null`+无 speed，`TTS_PROSODY=1` opt-in；kernel `torch.manual_seed(20260907)`                                                              |
 | 5   | 重叠字幕 chunk 被丢弃                                       | `text-align.py` group_chunks 重叠合并（never `continue`）                                                                                                       |
