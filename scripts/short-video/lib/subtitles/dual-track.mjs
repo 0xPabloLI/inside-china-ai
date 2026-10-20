@@ -34,10 +34,13 @@ export function normWord(text) {
  * whitespace tokens as its word stream, so this is the unit both the aligner
  * and the restore step agree on.
  *
+ * Module-private: every consumer is in this file, so it is not part of the
+ * public surface (knip fails the build on unused exports).
+ *
  * @param {string} text
  * @returns {string[]}
  */
-export function splitSpokenTokens(text) {
+function splitSpokenTokens(text) {
   return String(text ?? "")
     .split(/\s+/)
     .filter(Boolean);
