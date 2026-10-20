@@ -5,7 +5,7 @@
  * `restore-tokens` fails soft (unmatched runs keep their spoken words), so the
  * render boundary needs an explicit, fail-closed check.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -13,6 +13,7 @@ import {
   findUnrestorableReplacements,
   findLeakedSpokenRuns,
   findLeaksInTrack,
+  findUnmappedSpokenScenes,
   assertDualTrackRestorable,
 } from "../lib/subtitles/dual-track.mjs";
 import { generateSubtitles } from "../lib/subtitles/generate.mjs";
@@ -156,9 +157,9 @@ describe("generateSubtitles render boundary", () => {
     // that forgets `scenes` used to bypass the check silently.
     const assPath = join(dir, "subtitles.ass");
     const timing = timingFor(cleanScene, ["V3.2-Speciale", "shipped", "today."]);
-    expect(() =>
-      generateSubtitles(timing, [{ sceneId: 2, duration: 3 }], assPath),
-    ).toThrow(/requires `scenes`/);
+    expect(() => generateSubtitles(timing, [{ sceneId: 2, duration: 3 }], assPath)).toThrow(
+      /requires `scenes`/,
+    );
     expect(existsSync(assPath)).toBe(false);
   });
 
@@ -170,5 +171,59 @@ describe("generateSubtitles render boundary", () => {
     });
     expect(result.cues.length).toBeGreaterThan(0);
     expect(existsSync(assPath)).toBe(true);
+  });
+});
+
+describe("findUnmappedSpokenScenes", () => {
+  it("flags an author-written spoken track with no replacement to undo it", () => {
+    // The remaining hole after the static check: nothing maps, so nothing is
+    // checked and the spoken form would be burned in as written.
+    const scenes = [
+      {
+        id: 40,
+        voiceover: "It beat GPT-5.6.",
+        ttsText: "It beat GPT five point six.",
+        ttsReplacements: [],
+      },
+    ];
+    expect(findUnmappedSpokenScenes(scenes)).toEqual([
+      { sceneId: 40, voiceover: "It beat GPT-5.6.", ttsText: "It beat GPT five point six." },
+    ]);
+  });
+
+  it("ignores punctuation-only drift, which normalizes to the same words", () => {
+    // No replacement here — the tracks match at the word level once punctuation
+    // is stripped, so there is nothing to compensate for.
+    const scenes = [
+      {
+        id: 41,
+        voiceover: "Dropped Flash with a new architecture.",
+        ttsText: "Dropped Flash, with a new architecture.",
+        ttsReplacements: [],
+      },
+    ];
+    expect(findUnmappedSpokenScenes(scenes)).toEqual([]);
+  });
+
+  it("stays quiet when a replacement explains the difference", () => {
+    const scenes = [cleanScene];
+    expect(findUnmappedSpokenScenes(scenes)).toEqual([]);
+  });
+});
+
+describe("assertDualTrackRestorable unmapped warning", () => {
+  it("warns instead of throwing — an unmapped line is a review item, not a leak", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const scenes = [
+      {
+        id: 42,
+        voiceover: "It beat GPT-5.6.",
+        ttsText: "It beat GPT five point six.",
+        ttsReplacements: [],
+      },
+    ];
+    expect(() => assertDualTrackRestorable({ scenes })).not.toThrow();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("no restore mapping"));
+    warn.mockRestore();
   });
 });

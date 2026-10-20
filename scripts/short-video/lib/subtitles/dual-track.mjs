@@ -247,6 +247,34 @@ export function formatLeak(leak) {
 }
 
 /**
+ * Scenes whose spoken track differs from the display track at the word level
+ * but carry no replacement explaining the difference — an author-written
+ * `voiceoverTts: "GPT five point six"` is the typical shape. Restore has
+ * nothing to map, so the spoken form reaches the subtitles and no invariant
+ * can see it (both checks skip scenes with no replacements).
+ *
+ * Reported as a warning rather than an error: punctuation-only drift
+ * ("Flash with" → "Flash, with") normalizes to the same word sequence and is
+ * legitimate, and an author may deliberately ship a spoken-looking line.
+ *
+ * @param {Array<{id: number, voiceover?: string, ttsText?: string, ttsReplacements?: Array}>} scenes
+ * @returns {Array<{sceneId: number, voiceover: string, ttsText: string}>}
+ */
+export function findUnmappedSpokenScenes(scenes) {
+  const unmapped = [];
+  for (const scene of scenes ?? []) {
+    if (!scene?.voiceover || !scene?.ttsText) continue;
+    if (Array.isArray(scene.ttsReplacements) && scene.ttsReplacements.length > 0) continue;
+    const display = splitSpokenTokens(scene.voiceover).map(normWord).join(" ");
+    const spoken = splitSpokenTokens(scene.ttsText).map(normWord).join(" ");
+    if (display !== spoken) {
+      unmapped.push({ sceneId: scene.id, voiceover: scene.voiceover, ttsText: scene.ttsText });
+    }
+  }
+  return unmapped;
+}
+
+/**
  * Fail-closed gate for the render boundary: no unconsumed spoken run may
  * reach the .ass file.
  *
@@ -256,6 +284,15 @@ export function formatLeak(leak) {
  * @throws {Error} listing every leak found
  */
 export function assertDualTrackRestorable({ scenes, timingData } = {}) {
+  const unmapped = findUnmappedSpokenScenes(scenes);
+  if (unmapped.length > 0) {
+    console.warn(
+      `  ⚠️  ${unmapped.length} scene(s) ship a spoken-looking ttsText with no restore mapping ` +
+        `(${unmapped.map((s) => `scene ${s.sceneId}`).join(", ")}) — subtitles will show the ` +
+        `spoken form. Rewrite them through the derived form, or confirm the display line (#753).`,
+    );
+  }
+
   const staticLeaks = findUnrestorableReplacements(scenes);
   const dynamicLeaks = timingData ? findLeakedSpokenRuns(scenes, timingData) : [];
 

@@ -545,9 +545,10 @@ export function cardinalSpokenWords(text) {
 export function normalizeTtsText(scenes, _meta = {}) {
   let changeCount = 0;
   /**
-   * Plan one scene's dual track. Nothing is written until every scene passes
-   * (see the commit loop below), so a failure leaves the whole batch on the
-   * display track instead of half-rewriting scenes and then throwing (#753).
+   * Plan one scene's dual track. A scene that cannot be mapped back is left on
+   * the display track — per scene, not per batch: one unmappable line must not
+   * switch off normalization for the whole package (the Step 0.6 caller only
+   * warns, so a batch-wide failure would silently degrade every other scene).
    *
    * `authored` marks the author-written `voiceoverTts` path: there the author
    * decides which tokens to expand, so replacements absent from their track
@@ -558,14 +559,13 @@ export function normalizeTtsText(scenes, _meta = {}) {
     if (!authored) {
       const leaks = findLeaksInTrack(spoken, replacements);
       if (leaks.length > 0) {
-        const detail = leaks
-          .map((leak) => formatLeak({ ...leak, sceneId: scene.id }))
-          .join("; ");
-        throw new Error(
-          `dual-track normalization cannot map ${leaks.length} replacement(s) back ` +
-            `(${detail}) — the batch keeps the display track and no scene is rewritten. ` +
+        const detail = leaks.map((leak) => formatLeak({ ...leak, sceneId: scene.id })).join("; ");
+        console.warn(
+          `  ⚠️  Scene ${scene.id}: ${leaks.length} replacement(s) cannot be mapped back ` +
+            `(${detail}) — leaving this scene on the display track. ` +
             `Set scene.voiceoverTts explicitly when the line needs a spoken form.`,
         );
+        return null;
       }
       return { scene, spoken, reps: replacements };
     }
@@ -579,18 +579,11 @@ export function normalizeTtsText(scenes, _meta = {}) {
           `no restore mapping recorded for them`,
       );
     }
-    if (reps.length === 0 && spoken !== scene.voiceover) {
-      console.warn(
-        `  ⚠️  Scene ${scene.id}: voiceoverTts differs from the voiceover but no replacement ` +
-          `maps back — subtitles will show the spoken form. Rewrite the spoken track through ` +
-          `the derived form (e.g. "V four point one"), or the line needs a manual check (#753).`,
-      );
-    }
     return { scene, spoken, reps };
   };
 
-  // Two phases: plan everything, then commit. A throw in the plan phase leaves
-  // `scenes` untouched, which is what the Step 0.6 `catch` relies on.
+  // Plan every scene, then commit. A failed plan returns null, so nothing is
+  // half-written and the other scenes still get their spoken track.
   const planned = [];
   for (const scene of scenes) {
     if (!scene.voiceover) continue;
@@ -603,13 +596,15 @@ export function normalizeTtsText(scenes, _meta = {}) {
       // original voiceover via the same normalize rules.
       const reps = [];
       normalizeVoiceover(scene.voiceover, reps);
-      planned.push(planDualTrack(scene, scene.voiceoverTts, reps, { authored: true }));
+      const plan = planDualTrack(scene, scene.voiceoverTts, reps, { authored: true });
+      if (plan) planned.push(plan);
       continue;
     }
     const replacements = [];
     const spoken = normalizeVoiceover(scene.voiceover, replacements);
     if (spoken !== scene.voiceover) {
-      planned.push(planDualTrack(scene, spoken, replacements));
+      const plan = planDualTrack(scene, spoken, replacements);
+      if (plan) planned.push(plan);
     }
   }
 
