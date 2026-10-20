@@ -449,12 +449,19 @@ function normalizeVoiceover(str, replacements) {
     },
   );
 
-  // 7. Bare 4-digit MMDD when preceded by "on" or "by"
+  // 7. Bare 4-digit MMDD when preceded by "on" or "by".
+  //    Record ONLY the digits and re-emit the preposition, exactly like rule 5.
+  //    Consuming the whole match deleted "by"/"on" from the spoken track — the
+  //    invariants stay quiet (the run is consumable, nothing leaks, the scene
+  //    has replacements) so the missing word burned into the subtitle
+  //    invisibly: "Submit by 0910." round-tripped to "Submit 0910." (#753).
   str = str.replace(
-    new RegExp(`${TOKEN_HEAD}(?:on|by)\\s+(\\d{4})${TOKEN_END}`, "giu"),
-    (match, digits) => {
+    new RegExp(`${TOKEN_HEAD}(on|by)\\s+(\\d{4})${TOKEN_END}`, "giu"),
+    (match, preposition, digits) => {
       const dateSpoken = mmddToDateSpoken(digits);
-      return dateSpoken ? record(digits, dateSpoken) : match;
+      if (!dateSpoken) return match;
+      replacements.push({ original: digits, spoken: dateSpoken.split(" ") });
+      return `${preposition} ${dateSpoken}`;
     },
   );
 

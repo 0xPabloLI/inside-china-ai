@@ -322,6 +322,25 @@ describe("dual-track token boundary (#753)", () => {
     expect(ttsText).toBe("The old-V3.2 build was retired.");
     expect(restored).toBe("The old-V3.2 build was retired.");
   });
+
+  it("keeps the preposition of a bare MMDD date in the spoken track", () => {
+    // The rule matched "by 0910" and emitted only the date, so "by" vanished
+    // from ttsText. Every invariant stayed quiet — the run was consumable,
+    // nothing leaked, and the scene had replacements — so the missing word
+    // burned into the subtitle with no signal at all.
+    const { scenes, ttsText, restored } = roundTrip("Submit by 0910.");
+
+    expect(ttsText).toBe("Submit by September tenth.");
+    expect(scenes.ttsReplacements).toEqual([{ original: "0910", spoken: ["September", "tenth"] }]);
+    expect(restored).toBe("Submit by 0910.");
+  });
+
+  it("keeps an interior preposition when more of the sentence follows", () => {
+    const { ttsText, restored } = roundTrip("Ship it on 0910 please.");
+
+    expect(ttsText).toBe("Ship it on September tenth please.");
+    expect(restored).toBe("Ship it on 0910 please.");
+  });
 });
 
 // ─── #753: the author-written spoken track owns the expansion decision ───
