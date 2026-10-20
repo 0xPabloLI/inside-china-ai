@@ -43,6 +43,18 @@ import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 
 const execAsync = promisify(exec);
 
+/**
+ * The default exec seam.
+ *
+ * It MUST forward `opts`. The previous shape was `(cmd) => execAsync(cmd)`,
+ * which silently dropped the second argument — so an exec timeout added at the
+ * call site (#808) never reached production while every injected-mock test
+ * stayed green. `deps.exec` is the only seam the tests can reach, so the
+ * wiring itself is pinned separately by a PATH-shim test that exercises this
+ * function with no `deps.exec` at all.
+ */
+const defaultExec = (cmd, opts) => execAsync(cmd, opts);
+
 // ── Config ──
 const KAGGLE_KERNEL_TEMPLATE = join(ROOT_DIR, "kaggle", "cosyvoice3_cuda_kernel.py");
 // The frozen wheelhouse this repo expects to be mounted (#521). Kaggle cannot
@@ -64,6 +76,30 @@ const KAGGLE_QUEUE_TIMEOUT_MS = parseInt(
   10,
 ); // 40 min QUEUED/waiting budget
 const KAGGLE_POLL_INTERVAL_MS = 15000; // 15s
+// Status-probe hardening (#808). `kaggle kernels status` reaches the network
+// through kaggle 2.2.4 -> kagglesdk, whose `KaggleHttpClient.call()` does
+// `self._session.send(request, **merge_environment_settings(...))` — that
+// kwargs dict carries no `timeout`, and the whole kagglesdk package contains
+// zero `timeout` hits, so requests waits forever. `promisify(exec)` adds no
+// bound either (default `timeout: 0`). One half-open connection therefore
+// parks `await exec(...)` permanently: the loop cannot iterate, prints
+// nothing, and the process stays alive while a COMPLETE kernel is never
+// collected (2026-10-20 run `deepseek-v41-flash-1017`: last log line 11:23:11,
+// kernel finished 11:50, audio never downloaded, no error anywhere).
+const KAGGLE_PROBE_TIMEOUT_MS = parseInt(
+  process.env.COSYVOICE3_KAGGLE_PROBE_TIMEOUT_MS || "60000",
+  10,
+);
+// How much wall-clock one run may spend on dead probes before failing closed.
+// Instant CLI errors cost ~1s each, so the historical "404 while QUEUED keeps
+// polling, the queue budget decides" behaviour is unchanged; only probes that
+// burn their full timeout accumulate meaningfully (~15 attempts here), which
+// is long enough to ride out a transient outage and short enough to stop
+// holding a run hostage.
+const KAGGLE_PROBE_FAILURE_BUDGET_MS = parseInt(
+  process.env.COSYVOICE3_KAGGLE_PROBE_FAILURE_BUDGET_MS || "900000",
+  10,
+);
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 
 // The kernel writes every artifact below `<working dir>/output`
@@ -697,7 +733,7 @@ async function isAvailable(deps = {}) {
     // engine — the module contract is "batch contract testable without
     // touching real Kaggle", and a real `kaggle --version` can take ~9s of
     // wall-clock on shimmed Python installs (deterministic test timeout).
-    const probe = deps.exec ?? ((cmd) => execAsync(cmd));
+    const probe = deps.exec ?? defaultExec;
     await probe("kaggle --version 2>/dev/null");
     return true;
   } catch {
@@ -749,11 +785,22 @@ function fmtDuration(ms) {
  * No automatic fallback on queue timeout (ADR-0019 quality red line): the
  * error explicitly hands the decision back to the operator.
  *
+ * Every probe is time-boxed (`probeTimeoutMs`) because the Kaggle CLI has no
+ * HTTP timeout of its own — see the constant comment above (#808). A probe
+ * that fails does NOT downgrade the phase: the last known phase is kept so
+ * RUNNING metering and the run budget keep accruing, and a failed probe can
+ * never be mistaken for kernel truth (only the first probe may report
+ * UNKNOWN). Dead probes are metered against `probeFailureBudgetMs`; past it
+ * the run fails closed with an explicit "collect it by hand, a re-run bills
+ * another GPU session" instruction.
+ *
  * @param {string} kernelId - e.g. "username/cosyvoice3-cuda-batch"
  * @param {object} [opts]
  * @param {number} [opts.runTimeoutMs] - budget for RUNNING state
  * @param {number} [opts.queueTimeoutMs] - budget for QUEUED/UNKNOWN wait
  * @param {number} [opts.pollIntervalMs]
+ * @param {number} [opts.probeTimeoutMs] - per-probe exec timeout (#808)
+ * @param {number} [opts.probeFailureBudgetMs] - dead-probe budget (#808)
  * @param {string|null} [opts.statusFile] - poll-status.json path (visibility)
  * @param {object} [deps] - injected exec/sleep/now/log for tests
  * @returns {Promise<{queuedMs: number, runningMs: number}>}
@@ -764,9 +811,11 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
     runTimeoutMs = KAGGLE_TIMEOUT_MS,
     queueTimeoutMs = KAGGLE_QUEUE_TIMEOUT_MS,
     pollIntervalMs = KAGGLE_POLL_INTERVAL_MS,
+    probeTimeoutMs = KAGGLE_PROBE_TIMEOUT_MS,
+    probeFailureBudgetMs = KAGGLE_PROBE_FAILURE_BUDGET_MS,
     statusFile = null,
   } = opts;
-  const exec = deps.exec ?? ((cmd) => execAsync(cmd));
+  const exec = deps.exec ?? defaultExec;
   const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const now = deps.now ?? Date.now;
   const log = deps.log ?? ((msg) => console.log(msg));
@@ -776,6 +825,9 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
   let runStart = null; // fake-clock time the current RUNNING stretch began
   let waitMs = 0;
   let runMs = 0;
+  let probeFailures = 0; // consecutive dead probes (reset by any usable answer)
+  let probeFailureMs = 0; // total wall-clock burned on dead probes this run
+  let lastProbeError = null;
 
   const snapshot = () => ({
     queuedMs: waitMs + (waitStart !== null ? now() - waitStart : 0),
@@ -785,17 +837,30 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
   while (true) {
     let raw = "";
     let execOk = false;
+    let probeError = null;
+    const probeStart = now();
     try {
-      const { stdout } = await exec(`kaggle kernels status ${kernelId} 2>&1`);
+      const { stdout } = await exec(`kaggle kernels status ${kernelId} 2>&1`, {
+        timeout: probeTimeoutMs,
+        killSignal: "SIGKILL",
+      });
       raw = stdout.trim();
       execOk = true;
+      probeFailures = 0;
     } catch (e) {
       raw = (e.stdout || e.message || "unknown").trim();
+      probeError = e;
+      probeFailures += 1;
+      probeFailureMs += Math.max(0, now() - probeStart);
+      lastProbeError = raw.split("\n")[0];
     }
     const firstLine = raw.split("\n")[0];
     // Non-zero CLI exit (network hiccup, 404 while QUEUED) is not kernel truth
-    // (#250 review note) — downgrade to UNKNOWN and keep polling.
-    const next = execOk ? classifyKernelStatus(raw) : "unknown";
+    // (#250 review note) — keep polling. A failed probe also must not reset the
+    // RUNNING clock (#808): the kernel is still burning GPU whatever the CLI
+    // says, so staying in the last known phase is both honest and what makes
+    // the run budget able to fire. Only the first probe can introduce UNKNOWN.
+    const next = execOk ? classifyKernelStatus(raw) : (phase ?? "unknown");
 
     if (next !== phase) {
       if (next === "running") {
@@ -824,12 +889,26 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
       phase = next;
     }
 
+    // Silence used to be the whole symptom of #808, so a dead probe is never
+    // quiet: name the failure, the phase it did not change, and the budget it
+    // is eating.
+    if (probeError) {
+      log(
+        `  ⚠️ [Kaggle] status probe failed (${probeFailures} in a row, ` +
+          `${fmtDuration(probeFailureMs)}/${fmtDuration(probeFailureBudgetMs)} dead-probe budget) ` +
+          `— staying ${String(phase).toUpperCase()}: ${firstLine}`,
+      );
+    }
+
     if (statusFile) {
       writeStatusFile(statusFile, {
         kernelId,
         phase,
         status: firstLine,
         ...snapshot(),
+        probeFailures,
+        probeFailureMs,
+        lastProbeError,
         updatedAt: new Date(now()).toISOString(),
       });
     }
@@ -872,6 +951,17 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
       }
       log(`  ⏳ [Kaggle] Kernel Status: RUNNING (${fmtDuration(ran)} elapsed)`);
     }
+    if (probeFailureMs > probeFailureBudgetMs) {
+      throw new Error(
+        `Kaggle status probe burned ${fmtDuration(probeFailureMs)} without a usable answer ` +
+          `(${probeFailures} consecutive failures, ${Math.round(probeTimeoutMs / 1000)}s per probe). ` +
+          `Last known phase: ${String(phase).toUpperCase()} — the kernel itself may well have ` +
+          `finished, but this run cannot tell. It was NOT collected, and blindly re-running ` +
+          `would bill another GPU session: check \`kaggle kernels status ${kernelId}\`, and if ` +
+          `it is COMPLETE collect the takes with \`kaggle kernels output ${kernelId} -p <dir>\`. ` +
+          `Last probe error: ${lastProbeError}`,
+      );
+    }
     await sleep(pollIntervalMs);
   }
 }
@@ -895,7 +985,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
   if (!(await isAvailable(deps))) return null;
 
   const username = getKaggleUsername();
-  const runCmd = deps.exec ?? ((cmd) => execAsync(cmd));
+  const runCmd = deps.exec ?? defaultExec;
   const poll = deps.poll ?? pollKernelStatus;
   const postProcess = deps.postProcess ?? postProcessBatch;
   // One value for both the engine descriptor (which feeds the cache key) and
