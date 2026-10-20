@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.24.2...tanstack_start_ts-v1.25.0) (2026-10-20)
+
+
+### Features
+
+* **agents:** check the product-view three sentences on the PR body ([#811](https://github.com/0xPabloLI/inside-china-ai/issues/811)) ([5f44c6a](https://github.com/0xPabloLI/inside-china-ai/commit/5f44c6adeee5b3479376c24347eecf7e38fb06e9))
+
 ## [1.24.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.24.1...tanstack_start_ts-v1.24.2) (2026-10-20)
 
 
