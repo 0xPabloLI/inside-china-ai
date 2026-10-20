@@ -340,8 +340,38 @@ def assemble_model_from_mount(src, dst):
             if not os.path.exists(d):
                 os.symlink(s, d)
         elif os.path.isdir(s) and not os.path.exists(d):
-            os.symlink(s, d)
+            if _holds_safetensors(s):
+                _copy_weights_locally(s, d)
+            else:
+                os.symlink(s, d)
     return dst
+
+def _holds_safetensors(path):
+    for _root, _dirs, files in os.walk(path):
+        if any(f.endswith(".safetensors") for f in files):
+            return True
+    return False
+
+def _copy_weights_locally(src_dir, dst_dir):
+    # `CosyVoice3.__init__` starts with `load_hyperpyyaml`, which builds
+    # `Qwen2ForCausalLM` from `CosyVoice-BlankEN/`; transformers reads
+    # `model.safetensors` through mmap. A symlink leaves that mmap pointing at
+    # the read-only dataset mount, where random page faults measured **0.6MB/s
+    # — 988MB took 1658s of a 1800s load budget** (2026-10-20, T4). Sequential
+    # reads on the same mount are fine (~34-47MB/s, measured on flow.pt), so
+    # only the mmapped tree is materialised. Later weights (`llm.pt` 2.0GB,
+    # `flow.pt` 1.3GB) go through `torch.load`, i.e. sequential, and stay
+    # symlinked to avoid copying 5GB of disk.
+    import shutil
+    t0 = time.time()
+    shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
+    total = sum(
+        os.path.getsize(os.path.join(_r, f))
+        for _r, _d, fs in os.walk(dst_dir) for f in fs
+    )
+    dt = max(time.time() - t0, 1e-6)
+    log(f"localised {os.path.basename(dst_dir)}/ ({total/1e6:.0f}MB in "
+        f"{dt:.1f}s, {total/1e6/dt:.1f}MB/s) — mmap needs real local pages")
 
 try:
     if DS_MODEL and os.path.exists(DS_MODEL):

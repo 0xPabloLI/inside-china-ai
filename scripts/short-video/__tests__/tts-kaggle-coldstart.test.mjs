@@ -97,6 +97,36 @@ describe("kernel cold start — wetext snapshot is seeded, not downloaded (#804)
   });
 });
 
+describe("kernel model assembly — mmapped weights are materialised, not symlinked", () => {
+  it("copies a directory that holds safetensors instead of symlinking it", () => {
+    // `CosyVoice3()` begins with `load_hyperpyyaml`, which builds
+    // Qwen2ForCausalLM from CosyVoice-BlankEN/ and reads model.safetensors
+    // through mmap. Symlinked to the read-only dataset mount that measured
+    // 0.6MB/s (988MB = 1658s of an 1800s budget); local pages fix it, and a
+    // 1GB copy is bounded work by comparison.
+    const mountAt = KERNEL_SRC.indexOf("def assemble_model_from_mount(");
+    const wrapperAt = KERNEL_SRC.indexOf("def _holds_safetensors(");
+    expect(mountAt).toBeGreaterThan(-1);
+    expect(wrapperAt).toBeGreaterThan(mountAt);
+    const mount = KERNEL_SRC.slice(mountAt, wrapperAt);
+    // The directory branch must branch on safetensors before symlinking.
+    const dirBranch = mount.indexOf("elif os.path.isdir(s)");
+    expect(mount.slice(dirBranch)).toContain("_holds_safetensors(s)");
+    expect(mount.slice(dirBranch).indexOf("_copy_weights_locally(s, d)")).toBeLessThan(
+      mount.slice(dirBranch).indexOf("os.symlink(s, d)"),
+    );
+  });
+
+  it("leaves the sequentially-read weights on the mount", () => {
+    // torch.load of llm.pt (2.0GB) and flow.pt (1.3GB) measured 34-47MB/s off
+    // the same mount, so copying 5GB would be pure cost.
+    expect(KERNEL_SRC).toContain("shutil.copytree(src_dir, dst_dir");
+    const fnAt = KERNEL_SRC.indexOf("def _copy_weights_locally(");
+    const fn = KERNEL_SRC.slice(fnAt, fnAt + 2000);
+    expect(fn).toContain("MB/s");
+  });
+});
+
 describe("kernel inference — model class and audio assembly", () => {
   it("constructs CosyVoice3 explicitly instead of AutoModel", () => {
     // AutoModel dispatches on which yaml it finds and checks cosyvoice.yaml
