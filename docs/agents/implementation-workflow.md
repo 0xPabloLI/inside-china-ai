@@ -197,7 +197,7 @@ Review 报告不能只生成后忽略。
 5. push 自己的 `session/<id>` 分支并开 PR——交付请求即授权该交付链（`git-workflow.md` §5）；交付链之外的 push 仍需明确授权。
 6. PR 合并后运行 `npm run session:stop <worktree-path>` 收尾——stop 判定该 session 分支已交付时，这就是完整收尾，不需要第二条命令（机制与判据见 `git-workflow.md` §10）。
 7. 存在对应 GitHub Issue 时更新或关闭它——交付请求即授权该票的收尾写入（交付记录评论、闭票、为范围外发现开跟进票，见 `issue-tracker.md`）；他人票的状态变更与 Wayfinder decision issue 仍需授权。
-8. **产品视角三句**：最终汇报与交付记录评论都以这三句开头——「原本要解决什么用户可见问题」「用户现在看到什么变化」「哪些行为或边界没有变」，且与产品验证门的定性一致。三句之后再列 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。无用户可见变化时第三句明写「无用户可见变化 + 原因」，不得省略。该组内容同时是该票交付记录评论的首项（内容表见 `issue-tracker.md` 的 Session cognitive offload）。缺这三句即收尾未完成。
+8. **产品视角三句**：最终汇报与交付记录评论都以这三句开头——「原本要解决什么用户可见问题」「用户现在看到什么变化」「哪些行为或边界没有变」，且与产品验证门的定性一致。三句之后再列 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。无用户可见变化时第三句明写「无用户可见变化 + 原因」，不得省略。该组内容同时是该票交付记录评论的首项（内容表见 `issue-tracker.md` 的 Session cognitive offload）。缺这三句即收尾未完成。**这三句同时写进 PR body 的 `## 产品视角` 节**（模板已带），由 `scripts/check-product-view.mjs` 在 CI 的 `Lint, typecheck, test` 内机械校验：缺节、不足三条实质内容、或原样留着模板占位符即红；确实没有用户面（拼写、依赖升级）打 `skip-product-view` 标签豁免。
 
 ## 10. Gate 语义
 
@@ -218,3 +218,4 @@ Review 报告不能只生成后忽略。
 
 - §6 步骤 2 的选择顺序（A-lite）与根因搜索（D）：依据与上游证据见 `docs/archive/reviews/ponytail-lite-pilot-2026-09.md`（2026-09-12 期满裁决「保留」，长期规范）。§8 原 B-lite stdlib/native 重复检查经同一裁决为「未验证」已移除（`docs/research/ponytail-minimal-code-adoption-proposal.md` L2 留档）。
 - §9 产品验证门依据（2026-10-18 自证）：步骤 8 自 2026-10-13（#617）即有产品视角三句，但此后的交付（含 #547）仍连续跳过——规则在场被跳过，说明缺的是阻断力而非文字，故把「产出差异判据 + quality improvement / enabling fix 分类」提为收尾前的 Hard gate。判据是产出差异而非测试绿。
+- §9 第 8 步的机械门禁（#810，2026-10-20）：上一条已经证明「文字在场仍被跳过」，所以这一轮不再加文字，而是把「写了三句」变成 PR body 上可判定的边界——模板带节 + `scripts/check-product-view.mjs` + CI 必需检查。判据取实质单元数（内容行与句子取大者，列表与成段都能过），占位符（冒号后无内容）不算内容：否则原样提交模板即可通过，门禁退化为装饰。它只能判「写没写」，判不了「真不真」，后者仍归产品验证门与人工。
