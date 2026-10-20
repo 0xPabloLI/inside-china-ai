@@ -147,6 +147,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 | 8   | 亮背景图透过 overlay 进右侧安全区                           | media-patch 条目加 `"overlay":0.88`（亮图/图表类）；frame analysis 右安全区阈值                                                                                 |
 | 9   | sourcing 被杀后搜索缓存全丢（"0 entries loaded"）           | `lib/asset-sourcer.mjs` 5 处搜索后立即 `saveSearchResultsCache()` 增量落盘                                                                                      |
 | 10  | Kaggle kernel 每次全量下载模型（10+ min）                   | kernel metadata `dataset_sources` 含 `xPabloLI/cosyvoice3-model`；kernel 先查 `/kaggle/input/cosyvoice3-model/cosyvoice3.yaml` 再 symlink，HF 下载仅作 fallback |
+| 10b | kernel 冷启动把 wetext 的 21 分钟下载算进推理预算（10 场景作业只剩 154s 余量，必撞 1800s 内层超时） | `dataset_sources` 含 `xPabloLI/cosyvoice3-wetext`；kernel 先把快照落到 `~/.cache/modelscope/hub/pengzhendong/wetext`，再把 `wetext==0.0.4` 内的那一次 `snapshot_download("pengzhendong/wetext")` 短路到本地；加载/合成预算分开计（`Loaded in` 为分界），子进程输出流式落日志，超时也能看出死在哪一阶段（#804） |
 | 11  | CDP 中途才检查/静默降级                                     | Step 0.2 CDP hard gate（上文节）；asset-sourcer CDP 不可用即 `process.exit(1)`                                                                                  |
 | 11b | ASR 模型缺失要烧完 TTS 批次才发现（warn + null 不算门禁）   | Step 0.3 ASR hard gate（上文节，`lib/asr-preflight.mjs`）；质检 ASR 腿 INFRA fail-closed（#415 ①）                                                              |
 | 11c | 烧完 TTS + Remotion 才死在字幕烧录（ffmpeg 无 libass）      | Step 0.4 ASS hard gate（上文节，`lib/ffmpeg-preflight.mjs`）；探测 `post-process.mjs` 消费的 `FFMPEG_FULL` 的 `-filters`，有旁白即 fail-closed（#394）           |
@@ -189,6 +190,15 @@ node scripts/short-video/main.mjs --content series/pt4 &
 > (2026-10), and a pin with no cp313 wheel kills the run during the
 > dependency install, before any inference. The kernel file is the single
 > source for which versions those are and why.
+>
+> **Text frontend snapshot (#804)**: `xpabloli/cosyvoice3-wetext` rides along
+> for the same reason. `wetext==0.0.4` calls
+> `snapshot_download("pengzhendong/wetext")` on the first `Normalizer()`, and
+> on a cold container that download measured **1265.2s of a 1800s budget**
+> (unauthenticated, rate limited) — a 10-scene job had 154s of headroom and
+> died. The kernel seeds `~/.cache/modelscope/hub/pengzhendong/wetext` from
+> the mount and short-circuits that single call, so the network is off the
+> load path. No mount → it still downloads (warned, not fail-closed).
 
 > **Max Effort Rule** (2026-08-14): All local TTS models MUST run at max effort by default.
 > If the machine cannot handle max effort (MPS OOM, excessive RTF),

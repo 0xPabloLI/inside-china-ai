@@ -979,10 +979,18 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
             // hitting PyPI. Measured saving on the 2026-10-09 py3.13 image:
             // 633s online → 512s offline for a 2-scene batch (the install is
             // ~2min; the rest is clone + model load + inference).
+            // cosyvoice3-wetext (#804): the WeTextProcessing snapshot the
+            // text frontend pulls from modelscope on first use. The acoustic
+            // model mount below does NOT contain it, so a cold container
+            // re-downloaded ~41MB and billed it to the inference budget —
+            // measured 1265.2s of 1800s on 2026-10-20, which left a 10-scene
+            // job 154s of headroom and killed it. pre-seeding removes the
+            // download rather than widening the timeout.
             dataset_sources: [
               "xPabloLI/tts-ref-audio",
               "xPabloLI/cosyvoice3-model",
               "xPabloLI/cosyvoice3-wheels",
+              "xPabloLI/cosyvoice3-wetext",
             ],
             competition_sources: [],
             kernel_sources: [],
