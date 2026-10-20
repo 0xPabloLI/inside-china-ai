@@ -108,6 +108,23 @@ jobs:
       - name: Doc hierarchy lint
         run: npm run lint:docs
 
+      - name: Product view gate (PR body)
+        # #810: §9 step 8 has required the three sentences since 2026-10-13 and
+        # deliveries kept skipping them — §12 records that wording was never the
+        # problem, blocking force was. The body is checked here, before CI goes
+        # green, because a close-out check can only be satisfied retroactively.
+        # This job is a required check, so the gate inherits the block.
+        if: github.event_name == 'pull_request'
+        env:
+          # Routed through env, same hygiene as PR_BASE above: event data never
+          # lands in the shell line. A push to main has no pull request, hence
+          # the `if` — the script would otherwise fail on a missing body.
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: node scripts/check-product-view.mjs
+
       - name: Generated API docs are fresh
         run: npm run docs:api -- --check
 
