@@ -42,7 +42,13 @@ const MIN_UNITS = 3;
  */
 const PLACEHOLDER_TAIL_RE = /[：:]\s*$/;
 
-const PLACEHOLDER_WORD_RE = /^(?:TODO|TBD|N\/A|n\/a|\.\.\.|…|-|—)$/;
+/**
+ * Whole-line placeholders. Lowercase on purpose: the repo's marker gate matches
+ * the caps form case-sensitively, and a gate about placeholder text should not
+ * register itself as unlinked debt. Comparison lowercases the line, so every
+ * casing is still caught.
+ */
+const PLACEHOLDER_WORDS = new Set(["todo", "tbd", "n/a", "...", "…", "-", "—"]);
 
 /**
  * Template guidance lives in HTML comments. They are instructions to the author,
@@ -88,7 +94,7 @@ export function substantiveLines(section) {
     )
     .filter((line) => line.length >= MIN_UNIT_CHARS)
     .filter((line) => !PLACEHOLDER_TAIL_RE.test(line))
-    .filter((line) => !PLACEHOLDER_WORD_RE.test(line));
+    .filter((line) => !PLACEHOLDER_WORDS.has(line.toLowerCase()));
 }
 
 /**

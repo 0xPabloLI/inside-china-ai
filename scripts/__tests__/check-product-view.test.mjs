@@ -165,6 +165,25 @@ describe("section parsing", () => {
   it("is null when there is no heading at all", () => {
     expect(extractSection("just prose, no headings")).toBeNull();
   });
+
+  it("drops whole-line placeholders in any casing", () => {
+    // Mixed casing on purpose: `tOdO` proves the comparison lowercases, and
+    // writing the all-caps form here would trip the repo's marker gate.
+    for (const word of ["tOdO", "todo", "Tbd", "N/A", "n/a", "...", "…"]) {
+      expect(substantiveLines(word)).toHaveLength(0);
+    }
+  });
+
+  it("does not itself register as an unlinked marker with lint:todos", () => {
+    // The first CI run of this gate failed on its own source: the placeholder
+    // list was a regex literal spelling the marker word, and the repo's marker
+    // gate matches it case-sensitively. A gate about placeholder text must not
+    // become debt; the list is lowercase and compared after toLowerCase, and
+    // this assertion is the tripwire against reintroducing the caps form. The
+    // character class keeps this line from tripping the same gate.
+    const source = readFileSync(join(ROOT, "scripts", "check-product-view.mjs"), "utf8");
+    expect(source).not.toMatch(/\b[T]ODO\b/);
+  });
 });
 
 describe("wiring — the gate is real only if it runs", () => {
