@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.24.0...tanstack_start_ts-v1.24.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **short-video:** independent parallel track timing in profile ([#623](https://github.com/0xPabloLI/inside-china-ai/issues/623)) ([#801](https://github.com/0xPabloLI/inside-china-ai/issues/801)) ([f016be0](https://github.com/0xPabloLI/inside-china-ai/commit/f016be07d9caed4f67337199daf12af7bd509db9))
+
 ## [1.24.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.23.0...tanstack_start_ts-v1.24.0) (2026-10-20)
 
 
