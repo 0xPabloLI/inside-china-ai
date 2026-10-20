@@ -14,6 +14,7 @@ import {
   NO_MEDIA_TYPES,
   checkFinalMedia,
   formatFinalMediaFailures,
+  formatFinalMediaWarnings,
 } from "../lib/final-media-gate.mjs";
 
 /** Build a throwaway content dir with the media files the scenes reference. */
@@ -205,6 +206,78 @@ describe("hook media gate (#299, layout-independent)", () => {
     expect(report).toContain("hook (first 3 seconds) has no media");
     expect(report).toContain("media:null");
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("hook precedence: media:null on a media-overlay hook passes as a hook waiver", () => {
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 6, visualType: "hook", layout: "media-overlay", media: null }],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(true);
+    expect(result.failures).toHaveLength(0);
+    expect(result.warnings).toEqual([
+      { sceneId: 6, layout: "media-overlay", reason: "explicit-null-on-hook" },
+    ]);
+  });
+
+  it("hook precedence: mediaOptOut without media fails as missing-hook-media", () => {
+    // The hook reason is layout-independent and deliberate: legacy opt-outs
+    // cannot suppress the hook contract.
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 7, visualType: "hook", layout: "media-overlay", mediaOptOut: true }],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]).toMatchObject({ sceneId: 7, reason: "missing-hook-media" });
+  });
+});
+
+describe("formatFinalMediaWarnings", () => {
+  it("returns an empty string when the gate has no warnings", () => {
+    const dir = makeContentDir(["present.jpg"]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 1, visualType: "hook", media: withMedia() }],
+      contentDir: dir,
+    });
+    expect(formatFinalMediaWarnings(result)).toBe("");
+  });
+
+  it("formats the hook waiver and the media-layout empty band, one line each", () => {
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
+      scenes: [
+        { id: 1, visualType: "hook", media: null },
+        { id: 2, visualType: "narrative", layout: "media-split", media: null },
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(true);
+    expect(formatFinalMediaWarnings(result)).toBe(
+      [
+        "Scene 1: hook renders CSS-only (explicit media:null waiver)",
+        'Scene 2: layout "media-split" renders an empty band (explicit media:null)',
+      ].join("\n"),
+    );
+  });
+});
+
+describe("formatFinalMediaFailures wording", () => {
+  it("uses layout-agnostic success text and failure header", () => {
+    expect(formatFinalMediaFailures({ pass: true, failures: [], warnings: [] })).toBe(
+      "All scenes have the media they need.",
+    );
+
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 9, visualType: "narrative", layout: "media-overlay" }],
+      contentDir: dir,
+    });
+    expect(formatFinalMediaFailures(result).split("\n")[0]).toBe(
+      "1 scene(s) would render without the media they need:",
+    );
   });
 });
 

@@ -4,6 +4,11 @@ import { renderRemotion } from "./lib/render-remotion.mjs";
 import { normalizeMediaPatch, applyAssignedMedia } from "./lib/apply-media-patch.mjs";
 import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
 import { resolveContentDir, formatContentError } from "./lib/cli-content.mjs";
+import {
+  checkFinalMedia,
+  formatFinalMediaFailures,
+  formatFinalMediaWarnings,
+} from "./lib/final-media-gate.mjs";
 
 const baseDir = pathResolve(import.meta.dirname);
 
@@ -45,6 +50,24 @@ if (existsSync(patchPath)) {
     console.log(
       `📦 Applied ${r.applied} media assignments to scenes: ${r.appliedSceneIds.join(", ")}`,
     );
+  }
+}
+
+// Final media gate (#299): this path never sources or generates media, so a
+// scene whose layout (or hook contract) needs a file must fail here instead of
+// rendering an empty frame.
+{
+  const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
+  if (gate.warnings.length > 0) {
+    console.warn(`⚠️  Media warnings:\n${formatFinalMediaWarnings(gate)}\n`);
+  }
+  if (!gate.pass) {
+    console.error("❌ Final media check FAILED\n");
+    console.error(`   ${formatFinalMediaFailures(gate)}\n`);
+    console.error(
+      "   Supply the media (bind scene.media), or set media:null for a deliberate CSS-only hook.",
+    );
+    process.exit(1);
   }
 }
 

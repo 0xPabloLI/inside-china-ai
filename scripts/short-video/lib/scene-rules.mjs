@@ -1046,7 +1046,7 @@ export function checkLoopClose(scenes, meta) {
  *  Anything else (`mediaStrategy` = "asset" or absent, no media) fails
  *  preflight: the author must bind from the curated library or waive it.
  */
-export function checkHookMediaWarning(scenes) {
+export function checkHookMediaContract(scenes) {
   const CATEGORY = "Hook";
   const CHECK = "Hook media background";
   const hook = scenes[0];
@@ -1066,14 +1066,16 @@ export function checkHookMediaWarning(scenes) {
         detail: `${media.type}: ${media.path}`,
       },
     ];
-    if (media.fit === "contain") {
+    // Only "cover" keeps the 9:16 frame filled; an omitted fit is valid because
+    // the renderer defaults to cover. fill/none are CSS object-fit values that
+    // distort the frame; anything else (e.g. "cvr") is a typo.
+    if (media.fit != null && media.fit !== "cover") {
       results.push({
         level: "fail",
         category: CATEGORY,
         check: "Hook media fit",
-        detail:
-          'Hook media must use fit:"cover" — contain letterboxes and weakens the first 3 seconds',
-        fix: 'Use fit:"cover" so the hook media fills the 9:16 frame',
+        detail: `Hook media must use fit:"cover" — "${media.fit}" is not supported (contain letterboxes; fill/none and typos distort or crop the 9:16 frame)`,
+        fix: 'Set fit:"cover" or omit fit (the renderer defaults to cover)',
       });
     }
     if (
@@ -1118,7 +1120,26 @@ export function checkHookMediaWarning(scenes) {
     ];
   }
 
-  if (isGenerationMediaStrategy(hook.mediaStrategy)) {
+  // `mediaOptOut` predates this contract: generation (planScenes) skips
+  // opt-outs, so a hook carrying it can never receive media — fail instead of
+  // promising a generation that cannot happen.
+  if (hook.mediaOptOut === true) {
+    return [
+      {
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail:
+          "Hook sets mediaOptOut:true but has no media — mediaOptOut is deprecated and generation skips opt-outs, so the first 3 seconds would render CSS-only",
+        fix: "mediaOptOut is deprecated: bind scene.media from the curated library, or use media: null for a deliberate CSS-only hook",
+      },
+    ];
+  }
+
+  // A generation strategy (b-roll / asset-then-broll / ai-image /
+  // asset-then-ai-image) can still produce the file after sourcing: warn at
+  // preflight, enforce the landed file in the final media gate.
+  if (GENERATING_STRATEGIES.has(hook.mediaStrategy)) {
     return [
       {
         level: "warn",
@@ -1141,20 +1162,28 @@ export function checkHookMediaWarning(scenes) {
   ];
 }
 
-/** Narrative scene media warning: warns when any non-CTA scene (narrative,
- *  info-card, quote, hook) lacks a media background. This catches the scenario
- *  where scene-data.mjs was created without media fields, ensuring the pipeline
- *  doesn't silently produce all-CSS videos with no background imagery.
- *  CTA / data / stat-reveal scenes are exempt (they don't use media). */
+/** Narrative scene media warning: warns when any non-CTA, non-hook scene
+ *  (narrative, info-card, quote) lacks a media background. This catches the
+ *  scenario where scene-data.mjs was created without media fields, ensuring the
+ *  pipeline doesn't silently produce all-CSS videos with no background imagery.
+ *  CTA / data / stat-reveal scenes are exempt (they don't use media), and hooks
+ *  are owned by the hook media contract (#299): reporting them here too would
+ *  double-warn and point at a tool (asset-sourcer) that skips hooks by design. */
 function checkNarrativeMediaWarning(scenes) {
-  const missing = scenes.filter((s) => !NO_MEDIA_TYPES.has(s.visualType) && !s.media?.path);
+  const mediaScenes = scenes.filter(
+    (s) => !NO_MEDIA_TYPES.has(s.visualType) && s.visualType !== "hook",
+  );
+  const missing = mediaScenes.filter((s) => !s.media?.path);
   if (missing.length === 0) {
     return [
       {
         level: "pass",
         category: "Media",
         check: "Narrative scene media coverage",
-        detail: `All ${scenes.filter((s) => !NO_MEDIA_TYPES.has(s.visualType)).length} non-CTA scenes have media`,
+        detail:
+          mediaScenes.length === 0
+            ? "No non-CTA scenes require media"
+            : `All ${mediaScenes.length} non-CTA scenes have media`,
       },
     ];
   }
@@ -1702,13 +1731,6 @@ const GENERATING_STRATEGIES = new Set([
   "asset-then-broll",
   ...IMAGE_GENERATING_STRATEGIES,
 ]);
-
-/** True when the strategy can produce media on its own after sourcing.
- *  #299: such a hook warns at preflight (the file does not exist yet) and is
- *  enforced by the final media gate instead. */
-function isGenerationMediaStrategy(strategy) {
-  return GENERATING_STRATEGIES.has(strategy);
-}
 
 /** True when the strategy generates a static image rather than a video clip. */
 export function isImageStrategy(strategy) {
@@ -2260,7 +2282,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkSemanticConsistency(scenes),
     ...checkLoopClose(scenes, meta),
     ...checkBodyTextVoRedundancy(scenes),
-    ...checkHookMediaWarning(scenes),
+    ...checkHookMediaContract(scenes),
     ...checkNarrativeMediaWarning(scenes),
     ...checkCurrencyDualAnnotation(scenes),
     ...checkTextConcatenation(scenes),

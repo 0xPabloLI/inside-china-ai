@@ -16,7 +16,11 @@ import { fileURLToPath } from "url";
 import { existsSync } from "fs";
 import { renderRemotion } from "./lib/render-remotion.mjs";
 import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
-import { checkFinalMedia, formatFinalMediaFailures } from "./lib/final-media-gate.mjs";
+import {
+  checkFinalMedia,
+  formatFinalMediaFailures,
+  formatFinalMediaWarnings,
+} from "./lib/final-media-gate.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { getDurationSync } from "./lib/tts/ffmpeg-cmd.mjs";
 import { assertSubtitleTiming, regenerateSubtitles } from "./lib/subtitles/generate.mjs";
@@ -124,13 +128,18 @@ async function main() {
   {
     const contentDirAbs = resolve(__dirname, "content", contentDir);
     const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
+    if (gate.warnings.length > 0) {
+      console.warn(`⚠️  Step 2 media warnings:\n${formatFinalMediaWarnings(gate)}\n`);
+    }
     if (!gate.pass) {
       console.error("❌ Step 2: Final media check FAILED\n");
       console.error(`   ${formatFinalMediaFailures(gate)}\n`);
-      console.error("   render-only does not source assets — supply the media first.");
+      console.error(
+        "   render-only does not source assets — bind scene.media first, or set media:null for a deliberate CSS-only hook.",
+      );
       process.exit(1);
     }
-    console.log("✅ Step 2: Final media check passed\n");
+    console.log("✅ Step 2: Final media check passed (all scenes have the media they need)\n");
   }
 
   // ── Step 2.5: BGM (optional) ──

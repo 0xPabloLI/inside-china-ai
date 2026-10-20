@@ -28,7 +28,7 @@ hook 场景的 `media.path` 相对 `content/{slug}/` 解析：全局库的 `scri
 media: { type: "image", path: "assets/hook-cover.png", source: "...", fit: "cover", overlay: 0.7 }
 ```
 
-确实要做纯文字 hook 时写 `media: null` 显式豁免；不写 `media` 且无生成策略会被预检 FAIL。门禁语义见 `docs/content-pipeline.md` → Hook 媒体策展（#299），策展标准见 `docs/video-script-writing-guide.md` → Hook 媒体策展（#299）。
+确实要做纯文字 hook 时写 `media: null` 显式豁免。门禁语义见 `docs/content-pipeline.md` → Hook 媒体策展（#299），策展标准见 `docs/video-script-writing-guide.md` → Hook 媒体策展（#299）。
 
 ### Why content media is not tracked
 

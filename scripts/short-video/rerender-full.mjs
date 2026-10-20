@@ -103,6 +103,26 @@ if (existsSync(timingPath)) {
   }
 }
 
+// Step 4.6: final media gate (#299) — this path never sources or generates
+// media, so a scene whose layout (or hook contract) needs a file must fail
+// here instead of rendering an empty frame.
+{
+  const { checkFinalMedia, formatFinalMediaFailures, formatFinalMediaWarnings } =
+    await import("./lib/final-media-gate.mjs");
+  const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
+  if (gate.warnings.length > 0) {
+    console.warn(`⚠️  Media warnings:\n${formatFinalMediaWarnings(gate)}\n`);
+  }
+  if (!gate.pass) {
+    console.error("❌ Final media check FAILED\n");
+    console.error(`   ${formatFinalMediaFailures(gate)}\n`);
+    console.error(
+      "   Supply the media (bind scene.media), or set media:null for a deliberate CSS-only hook.",
+    );
+    process.exit(1);
+  }
+}
+
 // Step 5: render
 console.log("\n🎬 Rendering...");
 const { renderRemotion } = await import("./lib/render-remotion.mjs");

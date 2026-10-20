@@ -51,6 +51,11 @@ export function hasMedia(scene) {
 export function planScenes(scenes) {
   return scenes.map((scene) => {
     const strategy = scene.mediaStrategy ?? "asset";
+    // #299: an explicit media:null is a deliberate waiver — generation must
+    // never fill it (the final gate reports it as a warning, not a failure).
+    if ("media" in scene && scene.media === null) {
+      return { scene, action: "skip", reason: "explicit-no-media" };
+    }
     if (scene.mediaOptOut === true) {
       return { scene, action: "skip", reason: "media-opt-out", warn: true };
     }
@@ -133,12 +138,15 @@ function migrateLegacyEntry(entry, rawPrompt, generationPrompt) {
  *   the scene already had media (winner becomes media.backdrop), or null
  *   when a backdrop already exists (idempotent — never overwritten).
  */
-function assignWinner(
+export function assignWinner(
   scene,
   winnerFile,
   isImage = false,
   videoSource = "AI-generated (FastVideo FastMetal-5B-QAD)",
 ) {
+  // #299: an explicit media:null is a deliberate waiver — never overwrite it
+  // with a generated file (the final gate reports it as a warning).
+  if ("media" in scene && scene.media === null) return null;
   // #155: image winners land with type "image" and no volume (a still has
   // nothing to attenuate). Like the video clips, the output is a generated
   // file that must never reach Real-ESRGAN: 480×832 (1.3B) and 704×1280 (5B,

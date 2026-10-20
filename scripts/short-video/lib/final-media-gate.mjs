@@ -108,7 +108,7 @@ export function checkFinalMedia({ scenes, contentDir }) {
 
 /** Human-readable report for the CLI. */
 export function formatFinalMediaFailures(result) {
-  if (result.pass) return "All scenes have the media their layout needs.";
+  if (result.pass) return "All scenes have the media they need.";
 
   const lines = result.failures.map((f) => {
     if (f.reason === "opt-out-on-media-layout") {
@@ -121,7 +121,25 @@ export function formatFinalMediaFailures(result) {
   });
 
   return [
-    `${result.failures.length} scene(s) would render without the media their layout needs:`,
+    `${result.failures.length} scene(s) would render without the media they need:`,
     ...lines,
   ].join("\n");
+}
+
+/**
+ * Human-readable report for deliberate no-media declarations that still pass.
+ * Returns "" when there are no warnings, so callers can `if (warnings.length)`.
+ */
+export function formatFinalMediaWarnings(result) {
+  return (result.warnings ?? [])
+    .map((w) => {
+      if (w.reason === "explicit-null-on-hook") {
+        return `Scene ${w.sceneId}: hook renders CSS-only (explicit media:null waiver)`;
+      }
+      if (w.reason === "explicit-null-on-media-layout") {
+        return `Scene ${w.sceneId}: layout "${w.layout}" renders an empty band (explicit media:null)`;
+      }
+      return `Scene ${w.sceneId}: ${w.reason}`;
+    })
+    .join("\n");
 }

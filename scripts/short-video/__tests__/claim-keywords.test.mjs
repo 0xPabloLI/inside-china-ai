@@ -315,6 +315,14 @@ describe("skipsMediaSourcing (#191)", () => {
     expect(skipsMediaSourcing({ ...base, visualType: "stat-reveal" })).toBe(true);
   });
 
+  it("skips hooks even with an assetNeed (#299: manually curated)", () => {
+    expect(skipsMediaSourcing({ ...base, visualType: "hook" })).toBe(true);
+    const claims = extractSceneClaims([
+      { ...base, id: 1, visualType: "hook", assetNeed: "curated cover" },
+    ]);
+    expect(claims).toEqual([]);
+  });
+
   it("skips explicit media:null — permanent no-media declaration", () => {
     expect(skipsMediaSourcing({ ...base, media: null })).toBe(true);
   });

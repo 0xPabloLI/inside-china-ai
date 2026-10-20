@@ -28,14 +28,18 @@ const CSS_ONLY_LAYOUTS = new Set(["hero-center", "stacked-cards"]);
 /**
  * Whether a scene is excluded from media sourcing (#191).
  *
- * Precedence: NO_MEDIA_TYPES → explicit `media: null` ("permanently no
- * media", survives reruns) → deprecated `mediaOptOut` (legacy content,
- * still honored) → CSS-only layouts. The b-roll budget check
- * (shouldSourceStock) stays with the caller.
+ * Precedence: NO_MEDIA_TYPES → hook (#299: manually curated, never
+ * auto-sourced) → explicit `media: null` ("permanently no media", survives
+ * reruns) → deprecated `mediaOptOut` (legacy content, still honored) →
+ * CSS-only layouts. The b-roll budget check (shouldSourceStock) stays with
+ * the caller.
  */
 export function skipsMediaSourcing(scene) {
   if (!scene) return true;
   if (NO_MEDIA_TYPES.has(scene.visualType)) return true;
+  // #299: hooks are manually curated — even an assetNeed must not trigger
+  // auto-sourcing (the curated hook cover is a per-package authoring decision).
+  if (scene.visualType === "hook") return true;
   if (scene.media === null) return true;
   if (scene.mediaOptOut === true) return true; // deprecated (#191)
   // A scene that explicitly declares assetNeed wants media regardless of

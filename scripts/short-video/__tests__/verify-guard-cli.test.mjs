@@ -33,6 +33,10 @@ describe("verify-video.mjs --pre guard (CLI contract)", () => {
     expect(res.status).toBe(0);
     expect(res.stdout).toContain("Scene count (6-10)");
     expect(res.stdout).toMatch(/WARN:\s+[1-9]/);
+    // #299: the hook media waiver is itself a WARN, so the counter above can no
+    // longer prove that --long-form downgraded the scene-count rule. Pin the
+    // specific warning in the WARNINGS block.
+    expect(res.stdout).toMatch(/• \[Structure\] Scene count \(6-10\) — 11 scenes/);
   });
 
   it("T1-12: compliant content passes with no flag (exit 0)", () => {
