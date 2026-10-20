@@ -53,6 +53,36 @@ describe("pipeline-profile", () => {
     return prof.steps.find((s) => s.name === name);
   }
 
+  /** Capture summary() output as one string. */
+  function captureSummary(prof) {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    prof.summary();
+    return log.mock.calls.map((c) => c.join(" ")).join("\n");
+  }
+
+  /**
+   * Drive a two-track `runParallel` join the way main.mjs does. Each track
+   * blocks on its own gate, then advances the shared clock by `advanceMs`
+   * before resolving `value` or throwing `error`. Returns the join promise
+   * plus the gates, so a test can settle the branches in any order.
+   */
+  function joinTracks(clk, prof, tracks) {
+    const gates = new Map(tracks.map((t) => [t.name, gate()]));
+    const joined = prof.runParallel(
+      tracks.map((t) => ({
+        name: t.name,
+        meta: t.meta,
+        fn: async () => {
+          await gates.get(t.name).wait();
+          clk.advance(t.advanceMs);
+          if (t.error) throw t.error;
+          return t.value;
+        },
+      })),
+    );
+    return { joined, gates };
+  }
+
   it("records a step duration via mark/end", () => {
     const clk = fakeClock();
     const prof = createProfiler({ outputDir: makeTmp(), version: "v-test", now: clk.now });
@@ -120,38 +150,17 @@ describe("pipeline-profile", () => {
     expect(prof.steps[0]).toMatchObject({ name: "step-boom", durationMs: 10 });
   });
 
-  it("wrap() + allSettled records each parallel track's own settle time (#623)", async () => {
+  it("runParallel() records each parallel track's own settle time (#623)", async () => {
     const clk = fakeClock();
     const prof = createProfiler({ outputDir: makeTmp(), version: "v-test", now: clk.now });
-    const fastGate = gate();
-    const slowGate = gate();
+    const { joined, gates } = joinTracks(clk, prof, [
+      { name: "fast", advanceMs: 20, value: "fast", meta: { track: "voice", parallel: true } },
+      { name: "slow", advanceMs: 60, value: "slow", meta: { track: "media", parallel: true } },
+    ]);
 
-    // Both tracks mark before either advances the clock, so both spans start
-    // at the same t0 — the shape of main.mjs's Promise.allSettled join.
-    const fastDone = prof.wrap(
-      "fast",
-      async () => {
-        await fastGate.wait();
-        clk.advance(20);
-        return "fast";
-      },
-      { track: "voice", parallel: true },
-    );
-    const slowDone = prof.wrap(
-      "slow",
-      async () => {
-        await slowGate.wait();
-        // 60 more after fast's 20: the slow span from t0 is 80.
-        clk.advance(60);
-        return "slow";
-      },
-      { track: "media", parallel: true },
-    );
-    const joined = Promise.allSettled([fastDone, slowDone]);
-
-    fastGate.open();
-    await fastDone; // fast closes at t0+20, before the slower track finishes
-    slowGate.open();
+    gates.get("fast").open();
+    await flush(); // fast closes at t0+20, before the slower track finishes
+    gates.get("slow").open();
     const [fastRes, slowRes] = await joined;
 
     expect(fastRes).toMatchObject({ status: "fulfilled", value: "fast" });
@@ -164,37 +173,29 @@ describe("pipeline-profile", () => {
     expect(prof.totalMs()).toBe(80);
   });
 
-  it("records both tracks' durations when one rejects during the join (#623)", async () => {
+  it("runParallel() persists both durations when the TTS track rejects (#623)", async () => {
+    const dir = makeTmp();
     const clk = fakeClock();
-    const prof = createProfiler({ outputDir: makeTmp(), version: "v-test", now: clk.now });
-    const voiceGate = gate();
-    const mediaGate = gate();
-
-    const joined = Promise.allSettled([
-      prof.wrap(
-        "media-track",
-        async () => {
-          await mediaGate.wait();
-          clk.advance(30);
-          return "media";
-        },
-        { track: "media", parallel: true },
-      ),
-      prof.wrap(
-        "step-1-tts",
-        async () => {
-          await voiceGate.wait();
-          clk.advance(70);
-          throw new Error("tts boom");
-        },
-        { track: "voice", parallel: true },
-      ),
+    const prof = createProfiler({ outputDir: dir, version: "v-test", now: clk.now });
+    const { joined, gates } = joinTracks(clk, prof, [
+      {
+        name: "media-track",
+        advanceMs: 30,
+        value: "media",
+        meta: { track: "media", parallel: true },
+      },
+      {
+        name: "step-1-tts",
+        advanceMs: 70,
+        error: new Error("tts boom"),
+        meta: { track: "voice", parallel: true },
+      },
     ]);
 
-    // Voice settles first and rejects; media still runs to its natural end.
-    voiceGate.open();
+    // TTS settles first and rejects; media still runs to its natural end.
+    gates.get("step-1-tts").open();
     await flush(); // let step-1-tts close at t0+70 before media advances further
-    mediaGate.open();
+    gates.get("media-track").open();
     const [mediaRes, ttsRes] = await joined;
 
     expect(ttsRes.status).toBe("rejected");
@@ -204,7 +205,53 @@ describe("pipeline-profile", () => {
     expect(stepByName(prof, "step-1-tts")).toMatchObject({ durationMs: 70, track: "voice" });
     expect(stepByName(prof, "media-track")).toMatchObject({ durationMs: 100, track: "media" });
     expect(prof.steps.map((s) => s.name).sort()).toEqual(["media-track", "step-1-tts"]);
-    expect(prof.steps.some((s) => s.unfinished)).toBe(false);
+
+    // The rejection path persists both closed spans: no unfinished snapshot.
+    prof.write();
+    const json = JSON.parse(readFileSync(join(dir, "last-profile.json"), "utf8"));
+    const persisted = new Map(json.steps.map((s) => [s.name, s]));
+    expect(persisted.get("step-1-tts")).toMatchObject({ durationMs: 70, track: "voice" });
+    expect(persisted.get("media-track")).toMatchObject({ durationMs: 100, track: "media" });
+    expect(json.steps.some((s) => s.unfinished === true)).toBe(false);
+  });
+
+  it("runParallel() keeps both durations when the media track rejects (#623)", async () => {
+    const dir = makeTmp();
+    const clk = fakeClock();
+    const prof = createProfiler({ outputDir: dir, version: "v-test", now: clk.now });
+    const { joined, gates } = joinTracks(clk, prof, [
+      {
+        name: "media-track",
+        advanceMs: 30,
+        error: new Error("media boom"),
+        meta: { track: "media", parallel: true },
+      },
+      {
+        name: "step-1-tts",
+        advanceMs: 70,
+        value: "voice",
+        meta: { track: "voice", parallel: true },
+      },
+    ]);
+
+    // Media settles first and rejects; the voice track still fulfills.
+    gates.get("media-track").open();
+    await flush(); // let media-track close at t0+30 before TTS advances further
+    gates.get("step-1-tts").open();
+    const [mediaRes, ttsRes] = await joined;
+
+    expect(mediaRes.status).toBe("rejected");
+    expect(mediaRes.reason.message).toBe("media boom");
+    expect(ttsRes).toMatchObject({ status: "fulfilled", value: "voice" });
+    expect(stepByName(prof, "media-track")).toMatchObject({ durationMs: 30, track: "media" });
+    expect(stepByName(prof, "step-1-tts")).toMatchObject({ durationMs: 100, track: "voice" });
+
+    prof.write();
+    const json = JSON.parse(readFileSync(join(dir, "last-profile.json"), "utf8"));
+    const persisted = new Map(json.steps.map((s) => [s.name, s]));
+    expect(persisted.get("media-track")).toMatchObject({ durationMs: 30, track: "media" });
+    expect(persisted.get("step-1-tts")).toMatchObject({ durationMs: 100, track: "voice" });
+    expect(json.steps.some((s) => s.unfinished === true)).toBe(false);
   });
 
   it("mark() accepts meta and stores it on the step record", () => {
@@ -264,9 +311,7 @@ describe("pipeline-profile", () => {
     clk.advance(1000);
     prof.end("huge");
 
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    prof.summary();
-    const out = log.mock.calls.map((c) => c.join(" ")).join("\n");
+    const out = captureSummary(prof);
     expect(out).toContain("huge");
     expect(out).toContain("tiny");
     const iHuge = out.indexOf("huge");
@@ -284,9 +329,7 @@ describe("pipeline-profile", () => {
     clk.advance(900);
     prof.end("render");
 
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    prof.summary();
-    const out = log.mock.calls.map((c) => c.join(" ")).join("\n");
+    const out = captureSummary(prof);
 
     expect(out).toContain("step-1-tts [voice] [parallel]");
     expect(out).not.toContain("render [parallel]");

@@ -74,6 +74,15 @@ export function createProfiler({
     }
   }
 
+  /**
+   * Run named async tracks concurrently, closing each span at its own settle.
+   * Returns the Promise.allSettled results in input order.
+   * @param {Array<{name: string, fn: () => Promise<any>, meta?: object}>} tracks
+   */
+  async function runParallel(tracks) {
+    return Promise.allSettled(tracks.map(({ name, fn, meta = {} }) => wrap(name, fn, meta)));
+  }
+
   /** Persist the profile JSON (per-run file + stable last-profile.json). */
   function write() {
     try {
@@ -123,5 +132,5 @@ export function createProfiler({
     console.log(`   TOTAL: ${(totalMs() / 1000).toFixed(1)}s\n`);
   }
 
-  return { mark, end, wrap, steps, write, summary, totalMs };
+  return { mark, end, wrap, runParallel, steps, write, summary, totalMs };
 }

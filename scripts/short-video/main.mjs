@@ -294,20 +294,21 @@ async function main() {
   console.log("⚡ Tracks: [media: sourcing→patch→upscale→broll] ∥ [voice: TTS]\n");
   console.log("📝 Step 1: Generating TTS voiceover (parallel with media track)...\n");
   let ttsResults;
-  // allSettled, not all: on a voice-track failure the media track still runs
-  // to its natural end. Each track is wrapped in prof.wrap, so its profile
-  // step closes at that branch's own settle — not at the join, which would
-  // make the faster track report the slower track's duration (#623).
-  const [mediaDone, ttsDone] = await Promise.allSettled([
-    prof.wrap(
-      "media-track",
-      () => runMediaTrack({ scenes, contentDir, baseDir: __dirname, broll, prof }),
-      { track: "media", parallel: true },
-    ),
-    prof.wrap("step-1-tts", () => generateTTS(scenes, audioDir), {
-      track: "voice",
-      parallel: true,
-    }),
+  // allSettled semantics, not all: on a voice-track failure the media track
+  // still runs to its natural end. runParallel closes each profile span at
+  // that branch's own settle — not at the join, which would make the faster
+  // track report the slower track's duration (#623).
+  const [mediaDone, ttsDone] = await profiler.runParallel([
+    {
+      name: "media-track",
+      fn: () => runMediaTrack({ scenes, contentDir, baseDir: __dirname, broll, prof }),
+      meta: { track: "media", parallel: true },
+    },
+    {
+      name: "step-1-tts",
+      fn: () => generateTTS(scenes, audioDir),
+      meta: { track: "voice", parallel: true },
+    },
   ]);
   if (mediaDone.status === "rejected") {
     // The track's own contract is never-reject (every stage has its own
