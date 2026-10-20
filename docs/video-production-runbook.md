@@ -194,11 +194,22 @@ node scripts/short-video/main.mjs --content series/pt4 &
 > **Text frontend snapshot (#804)**: `xpabloli/cosyvoice3-wetext` rides along
 > for the same reason. `wetext==0.0.4` calls
 > `snapshot_download("pengzhendong/wetext")` on the first `Normalizer()`, and
-> on a cold container that download measured **1265.2s of a 1800s budget**
-> (unauthenticated, rate limited) — a 10-scene job had 154s of headroom and
-> died. The kernel seeds `~/.cache/modelscope/hub/pengzhendong/wetext` from
+> on a cold container that download measured **1265.2s** — but it was not the
+> main cost (see the mmap note below). The kernel seeds
+> `~/.cache/modelscope/hub/pengzhendong/wetext` from
 > the mount and short-circuits that single call, so the network is off the
 > load path. No mount → it still downloads (warned, not fail-closed).
+>
+> **Never symlink a safetensors directory out of `/kaggle/input` (#804)**: the
+> dominant cold-start cost is `Qwen2ForCausalLM`, which `load_hyperpyyaml`
+> builds from `CosyVoice-BlankEN/` and transformers reads **through mmap**. With
+> that directory symlinked to the read-only dataset mount, page faults measured
+> **0.6MB/s — 988MB took 1658s** and blew the 1800s load budget. Sequential
+> reads on the same mount are healthy (`flow.pt` 1.33GB via `torch.load` =
+> 47MB/s, `speech_tokenizer_v3.onnx` 969MB = 34MB/s), which is why only the
+> mmapped tree is copied (`localised CosyVoice-BlankEN/ (992MB in 14.3s,
+> 69.5MB/s)`) and the 5GB of `torch.load` weights stay symlinked. After the fix:
+> `Loaded in 141.1s`, 10 scenes synthesised in 65s.
 
 > **Max Effort Rule** (2026-08-14): All local TTS models MUST run at max effort by default.
 > If the machine cannot handle max effort (MPS OOM, excessive RTF),
