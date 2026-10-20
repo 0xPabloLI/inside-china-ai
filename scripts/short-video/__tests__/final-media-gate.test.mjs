@@ -13,6 +13,7 @@ import {
   MEDIA_DEPENDENT_LAYOUTS,
   NO_MEDIA_TYPES,
   checkFinalMedia,
+  formatFinalMediaFailures,
 } from "../lib/final-media-gate.mjs";
 
 /** Build a throwaway content dir with the media files the scenes reference. */
@@ -133,6 +134,76 @@ describe("checkFinalMedia", () => {
       contentDir: dir,
     });
     expect(result.failures.map((f) => f.sceneId)).toEqual([9, 10]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// ─── #299: the hook (first 3 seconds) must land a usable media file ───
+
+describe("hook media gate (#299, layout-independent)", () => {
+  it("FAILS a hook that still has no media after sourcing/generation", () => {
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 1, visualType: "hook", mediaStrategy: "asset-then-broll" }],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures).toEqual([
+      { sceneId: 1, layout: null, reason: "missing-hook-media", path: undefined },
+    ]);
+  });
+
+  it("FAILS a hook whose declared media file is missing on disk", () => {
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 2, visualType: "hook", media: withMedia({ path: "assets/gone.jpg" }) }],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures[0]).toMatchObject({
+      sceneId: 2,
+      reason: "missing-hook-media",
+      path: "assets/gone.jpg",
+    });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("PASSES a hook with an existing media file and emits no warning", () => {
+    const dir = makeContentDir(["present.jpg"]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 3, visualType: "hook", layout: "hero-center", media: withMedia() }],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(true);
+    expect(result.failures).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("PASSES an explicit media:null hook with a visible waiver warning", () => {
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 4, visualType: "hook", layout: "hero-center", media: null }],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(true);
+    expect(result.failures).toHaveLength(0);
+    expect(result.warnings).toEqual([
+      { sceneId: 4, layout: "hero-center", reason: "explicit-null-on-hook" },
+    ]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("formats the hook failure with a manual-binding/waiver fix", () => {
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 5, visualType: "hook", layout: "hero-center" }],
+      contentDir: dir,
+    });
+    const report = formatFinalMediaFailures(result);
+    expect(report).toContain("Scene 5");
+    expect(report).toContain("hook (first 3 seconds) has no media");
+    expect(report).toContain("media:null");
     rmSync(dir, { recursive: true, force: true });
   });
 });

@@ -1031,39 +1031,112 @@ export function checkLoopClose(scenes, meta) {
   ];
 }
 
-/** Hook scene media warning (spec D5): warns when hook scene has no media
- *  background, reminding the creator that visual impact may be insufficient
- *  for the first 3 seconds. Passes when media is present or when there is no
- *  hook scene. */
+/** Hook scene media contract (#299).
+ *
+ *  The hook is the first 3 seconds, and asset-sourcer structurally skips it —
+ *  so a missing hook file is never "a sourcing gap".  A hook must have one of:
+ *
+ *    (a) a manually bound `media` object (curated: cover fit, legible overlay,
+ *        attribution),
+ *    (b) `media: null` — an explicit CSS-only waiver, surfaced as a warning,
+ *    (c) a strategy that can produce media after sourcing (b-roll /
+ *        asset-then-broll / ai-image / asset-then-ai-image) — preflight warns,
+ *        the final media gate enforces the landed file.
+ *
+ *  Anything else (`mediaStrategy` = "asset" or absent, no media) fails
+ *  preflight: the author must bind from the curated library or waive it.
+ */
 export function checkHookMediaWarning(scenes) {
+  const CATEGORY = "Hook";
+  const CHECK = "Hook media background";
   const hook = scenes[0];
   if (hook?.visualType !== "hook") {
-    return [
-      {
-        level: "pass",
-        category: "Hook",
-        check: "Hook media background",
-        detail: "No hook scene",
-      },
-    ];
+    return [{ level: "pass", category: CATEGORY, check: CHECK, detail: "No hook scene" }];
   }
+
   if (hook.media) {
-    return [
+    const media = hook.media;
+    // The binding itself passes (media exists); quality issues are reported as
+    // their own checks so the author sees exactly what to fix.
+    const results = [
       {
         level: "pass",
-        category: "Hook",
-        check: "Hook media background",
-        detail: `${hook.media.type}: ${hook.media.path}`,
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${media.type}: ${media.path}`,
+      },
+    ];
+    if (media.fit === "contain") {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: "Hook media fit",
+        detail:
+          'Hook media must use fit:"cover" — contain letterboxes and weakens the first 3 seconds',
+        fix: 'Use fit:"cover" so the hook media fills the 9:16 frame',
+      });
+    }
+    if (
+      media.overlay !== undefined &&
+      media.overlay !== null &&
+      (typeof media.overlay !== "number" ||
+        !Number.isFinite(media.overlay) ||
+        media.overlay < 0.4 ||
+        media.overlay > 0.9)
+    ) {
+      results.push({
+        level: "warn",
+        category: CATEGORY,
+        check: "Hook media overlay",
+        detail: `Hook media overlay ${media.overlay} is outside [0.4, 0.9] — bigNumber/numberLabel legibility is at risk`,
+        fix: "Set overlay between 0.4 and 0.9 (the renderer defaults to 0.7 when omitted)",
+      });
+    }
+    if (!media.source) {
+      results.push({
+        level: "warn",
+        category: CATEGORY,
+        check: "Hook media source",
+        detail: "Hook media has no source — a manually bound file needs attribution",
+        fix: "Add media.source (official page, model card, or stock provider)",
+      });
+    }
+    return results;
+  }
+
+  // Explicit `media: null` is a deliberate CSS-only hook, not an omission.
+  // Distinguish it from a missing `media` key: `"media" in hook` survives the
+  // null value, an absent key reads as falsy too.
+  if (hook.media === null && "media" in hook) {
+    return [
+      {
+        level: "warn",
+        category: CATEGORY,
+        check: CHECK,
+        detail: "explicit media:null waiver — hook renders CSS-only by choice",
       },
     ];
   }
+
+  if (isGenerationMediaStrategy(hook.mediaStrategy)) {
+    return [
+      {
+        level: "warn",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `Hook media will be generated after sourcing (mediaStrategy: ${hook.mediaStrategy}); the final media gate enforces the result`,
+      },
+    ];
+  }
+
   return [
     {
-      level: "warn",
-      category: "Hook",
-      check: "Hook media background",
-      detail: "Hook scene has no media — visual impact may be insufficient for first 3 seconds",
-      fix: "Add scene.media to hook scene, or run asset-sourcer to auto-assign a high-quality cover image",
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail:
+        "Hook scene has no media (manual curation — asset-sourcer skips hooks) — the first 3 seconds would render CSS-only",
+      fix: 'Bind scene.media from the curated library (media: { type, path: "assets/<file>", source, fit: "cover" }), or set media: null deliberately for a CSS-only hook',
     },
   ];
 }
@@ -1629,6 +1702,13 @@ const GENERATING_STRATEGIES = new Set([
   "asset-then-broll",
   ...IMAGE_GENERATING_STRATEGIES,
 ]);
+
+/** True when the strategy can produce media on its own after sourcing.
+ *  #299: such a hook warns at preflight (the file does not exist yet) and is
+ *  enforced by the final media gate instead. */
+function isGenerationMediaStrategy(strategy) {
+  return GENERATING_STRATEGIES.has(strategy);
+}
 
 /** True when the strategy generates a static image rather than a video clip. */
 export function isImageStrategy(strategy) {

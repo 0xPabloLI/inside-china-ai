@@ -10,6 +10,10 @@
  * the one mechanism that can supply the missing file. Both entry points —
  * main.mjs after sourcing, render-only.mjs before rendering — call this same
  * function so the two paths cannot drift apart.
+ *
+ * The hook (#299) is enforced independently of its layout: preflight only warns
+ * for generation strategies, so this gate is where "generation did not land"
+ * becomes a failure. An explicit `media: null` hook passes with a warning.
  */
 import { existsSync } from "fs";
 import { join } from "path";
@@ -47,6 +51,26 @@ export function checkFinalMedia({ scenes, contentDir }) {
     const layout = effectiveLayout(scene);
     const mediaPath = scene.media?.path;
     const optOut = scene.mediaOptOut === true;
+
+    // Hook enforcement is layout-independent (#299). The hook is the first 3
+    // seconds: a CSS-only hook is acceptable only as an explicit waiver, so it
+    // passes with a warning; anything else without a landed file fails — this
+    // is the last chance after sourcing/generation has run.
+    if (scene.visualType === "hook") {
+      if (scene.media === null) {
+        warnings.push({ sceneId: scene.id, layout, reason: "explicit-null-on-hook" });
+        continue;
+      }
+      if (!mediaPath || !existsSync(join(contentDir, mediaPath))) {
+        failures.push({
+          sceneId: scene.id,
+          layout,
+          reason: "missing-hook-media",
+          path: mediaPath,
+        });
+      }
+      continue;
+    }
 
     if (MEDIA_DEPENDENT_LAYOUTS.has(layout)) {
       // Explicit media:null is a deliberate "no media ever" declaration
@@ -89,6 +113,9 @@ export function formatFinalMediaFailures(result) {
   const lines = result.failures.map((f) => {
     if (f.reason === "opt-out-on-media-layout") {
       return `  Scene ${f.sceneId}: layout "${f.layout}" needs media but the scene sets mediaOptOut — remove the opt-out or use a CSS-only layout`;
+    }
+    if (f.reason === "missing-hook-media") {
+      return `  Scene ${f.sceneId}: hook (first 3 seconds) has no media — bind scene.media from the curated library, or set media:null for a deliberate CSS-only hook`;
     }
     return `  Scene ${f.sceneId}: layout "${f.layout}" needs media${f.path ? ` — "${f.path}" not found` : " — no media declared"}`;
   });

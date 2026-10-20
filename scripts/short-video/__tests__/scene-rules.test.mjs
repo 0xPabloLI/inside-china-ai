@@ -73,6 +73,15 @@ const validScenes = [
     layout: "hero-center",
     voiceover: "A leaked memo reveals DeepSeek paused its 1.4 billion dollar round.",
     texts: { hookText: "DEEPSEEK PAUSED", revealText: "$1.4B ROUNDD" },
+    // #299: a hook must bind curated media (or waive it). This fixture is the
+    // clean manual binding, so unrelated aggregate assertions stay untouched.
+    media: {
+      type: "image",
+      path: "assets/bg.jpg",
+      fit: "cover",
+      overlay: 0.5,
+      source: "test",
+    },
   },
   {
     id: 2,
@@ -1113,31 +1122,22 @@ describe("runAllSceneDataChecks", () => {
   });
 });
 
-// ── checkHookMediaWarning ──
+// ── checkHookMediaWarning (#299: hook media is curated, not sourced) ──
 
 describe("checkHookMediaWarning", () => {
-  it("warns when hook scene has no media", () => {
-    const scenes = [{ id: 1, visualType: "hook", texts: { hookText: "TEST" } }];
-    const result = checkHookMediaWarning(scenes);
-    expect(result).toHaveLength(1);
-    expect(result[0].level).toBe("warn");
-    expect(result[0].category).toBe("Hook");
-    expect(result[0].check).toContain("media");
+  const hook = (over = {}) => ({
+    id: 1,
+    visualType: "hook",
+    texts: { hookText: "TEST" },
+    ...over,
   });
-
-  it("passes when hook scene has media", () => {
-    const scenes = [
-      {
-        id: 1,
-        visualType: "hook",
-        texts: { hookText: "TEST" },
-        media: { type: "image", path: "assets/bg.jpg", animation: "ken-burns", overlay: 0.5 },
-      },
-    ];
-    const result = checkHookMediaWarning(scenes);
-    expect(result).toHaveLength(1);
-    expect(result[0].level).toBe("pass");
-  });
+  const cleanMedia = {
+    type: "image",
+    path: "assets/bg.jpg",
+    fit: "cover",
+    overlay: 0.5,
+    source: "official page",
+  };
 
   it("passes when there is no hook scene", () => {
     const scenes = [{ id: 1, visualType: "narrative", voiceover: "test" }];
@@ -1146,11 +1146,108 @@ describe("checkHookMediaWarning", () => {
     expect(result[0].level).toBe("pass");
   });
 
-  it("is included in runAllSceneDataChecks results", () => {
-    const scenes = [{ id: 1, visualType: "hook", texts: { hookText: "TEST" } }];
+  it("passes when the hook binds curated media with cover fit and attribution", () => {
+    const result = checkHookMediaWarning([hook({ media: cleanMedia })]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("pass");
+    expect(result[0].category).toBe("Hook");
+    expect(result[0].check).toContain("media");
+  });
+
+  it("FAILS when the hook has no media and no mediaStrategy (default asset)", () => {
+    const result = checkHookMediaWarning([hook()]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("fail");
+    expect(result[0].category).toBe("Hook");
+    expect(result[0].check).toContain("media");
+    expect(result[0].fix).toContain("media: null");
+    // Hooks are structurally skipped by sourcing — the old fix pointed at a
+    // mechanism that can never fill this gap.
+    expect(result[0].fix).not.toContain("asset-sourcer");
+    expect(result[0].detail).toContain("manual curation");
+  });
+
+  it("FAILS when the hook declares mediaStrategy asset and no media", () => {
+    const result = checkHookMediaWarning([hook({ mediaStrategy: "asset" })]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("fail");
+  });
+
+  it("WARNS for explicit media:null (deliberate CSS-only hook)", () => {
+    const result = checkHookMediaWarning([hook({ media: null })]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].detail).toContain("media:null");
+    expect(result[0].detail).toContain("CSS-only");
+  });
+
+  it("distinguishes explicit media:null from an absent media key", () => {
+    const waived = checkHookMediaWarning([hook({ media: null })])[0];
+    const absent = checkHookMediaWarning([hook()])[0];
+    expect(waived.level).toBe("warn");
+    expect(absent.level).toBe("fail");
+  });
+
+  for (const strategy of ["b-roll", "asset-then-broll", "ai-image", "asset-then-ai-image"]) {
+    it(`WARNS without blocking when media will be generated (${strategy})`, () => {
+      const result = checkHookMediaWarning([hook({ mediaStrategy: strategy })]);
+      expect(result).toHaveLength(1);
+      expect(result[0].level).toBe("warn");
+      expect(result[0].detail).toContain("generated");
+      expect(result[0].detail).toContain("final media gate");
+    });
+  }
+
+  it("FAILS hook media that uses fit:contain", () => {
+    const result = checkHookMediaWarning([hook({ media: { ...cleanMedia, fit: "contain" } })]);
+    const fails = result.filter((r) => r.level === "fail");
+    expect(fails).toHaveLength(1);
+    expect(fails[0].check).toContain("fit");
+    expect(fails[0].detail).toContain('fit:"cover"');
+  });
+
+  it("WARNS when the explicit overlay is outside 0.4-0.9", () => {
+    for (const overlay of [0.2, 0.39, 0.91, 1]) {
+      const result = checkHookMediaWarning([hook({ media: { ...cleanMedia, overlay } })]);
+      const warns = result.filter((r) => r.level === "warn");
+      expect(warns, `overlay ${overlay}`).toHaveLength(1);
+      expect(warns[0].check).toContain("overlay");
+    }
+  });
+
+  it("accepts the inclusive overlay bounds 0.4 and 0.9 (and a missing overlay)", () => {
+    for (const overlay of [0.4, 0.9, undefined]) {
+      const media = { ...cleanMedia };
+      if (overlay === undefined) delete media.overlay;
+      const result = checkHookMediaWarning([hook({ media })]);
+      expect(result, `overlay ${overlay}`).toHaveLength(1);
+      expect(result[0].level).toBe("pass");
+    }
+  });
+
+  it("WARNS when manually bound media has no source", () => {
+    const media = { ...cleanMedia };
+    delete media.source;
+    const result = checkHookMediaWarning([hook({ media })]);
+    const warns = result.filter((r) => r.level === "warn");
+    expect(warns).toHaveLength(1);
+    expect(warns[0].check).toContain("source");
+  });
+
+  it("is included in runAllSceneDataChecks results (fail bucket for an unbound hook)", () => {
+    const scenes = [hook()];
     const results = runAllSceneDataChecks(scenes, null);
-    const mediaWarn = results.warn.find((w) => w.check.includes("media"));
-    expect(mediaWarn).toBeDefined();
+    const mediaFail = results.fail.find((f) => f.check.includes("Hook media"));
+    expect(mediaFail).toBeDefined();
+  });
+
+  it("does not block a generation-capable hook at preflight (aggregate)", () => {
+    const results = runAllSceneDataChecks(
+      [hook({ mediaStrategy: "asset-then-broll", aiVideo: { prompt: "SUBJECT: x" } })],
+      null,
+    );
+    expect(results.fail.find((f) => f.check.includes("Hook media"))).toBeUndefined();
+    expect(results.warn.find((w) => w.check.includes("Hook media"))).toBeDefined();
   });
 });
 

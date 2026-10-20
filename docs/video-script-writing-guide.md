@@ -197,6 +197,39 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 | **Curiosity Gap**   | "别急着 [常见行为]，先看 [这个]"     | "Don't dismiss Chinese enterprise AI until you see what ByteDance just did." | 产品/分析    |
 | **Question**        | "如果 [假设] 是错的呢？"             | "What if China's biggest AI bet isn't a model at all?"                       | 哲学/分析    |
 
+## Hook 媒体策展（#299）
+
+Hook 媒体是**逐包人工策展**，不靠通用搜源（`asset-sourcer` 结构上跳过 hook）。每条视频的 hook 封面必须对应本集主题（公司/产品/事件）：优先官方主视觉、模型海报、真页面截图；其次暗调、高对比、有动势的库存图/视频。
+
+**绑定配方**：把选定文件放进 `scripts/short-video/content/{slug}/assets/`，在 scene 1 写：
+
+```js
+media: {
+  type: "image",          // 或 "video"
+  path: "assets/<file>",  // 相对 content/{slug}/，不是全局 assets/
+  source: "<出处>",       // 归因；缺失仅 preflight WARN
+  animation: "ken-burns",
+  overlay: 0.7,           // 建议 0.5–0.85
+  fit: "cover",
+}
+```
+
+预绑定的 `media` 优先，且不会被自动补位覆盖。
+
+**可读性**：hook 模板自带 bigNumber + numberLabel，媒体要退到背景层。`overlay` 建议 0.5–0.85（显式值超出 0.4–0.9 时 preflight WARN；缺省由渲染器取 0.7）；`fit` 必须 `cover`——`contain` 会 letterbox，preflight 直接 FAIL。
+
+**素材库现实**：`scripts/short-video/assets/` 是全局库（约 275 文件 / 297MB，含暗调通用背景），但 `catalog.yml` 只有 8 条、RAG 只能搜到这 8 条。完整素材库与索引是 #310，不在本票范围；手工挑图时按文件名浏览、打开确认，不要假设 RAG 能搜到。
+
+**豁免与兜底**：
+
+| Hook 状态  | 写法                                                                                  | 预检               | 最终 media gate   |
+| ---------- | ------------------------------------------------------------------------------------- | ------------------ | ----------------- |
+| 已策展     | `scene.media`（`fit: "cover"`）                                                       | 通过               | 文件存在则通过    |
+| 故意纯文字 | `media: null`                                                                         | WARN（显式豁免）   | 通过 + 告警       |
+| 生成兜底   | `mediaStrategy` 为 `b-roll` / `asset-then-broll` / `ai-image` / `asset-then-ai-image` | WARN（不阻断生成） | 文件未落地即 FAIL |
+
+不写 `media`、也没有生成策略（`mediaStrategy` 为 `asset` 或缺省）会被 preflight FAIL：从策展库绑定 `scene.media`，或显式写 `media: null`。
+
 ---
 
 ## Step 6: 优化 CTA
