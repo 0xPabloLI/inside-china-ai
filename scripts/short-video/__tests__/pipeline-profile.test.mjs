@@ -152,10 +152,15 @@ describe("pipeline-profile", () => {
 
   it("runParallel() records each parallel track's own settle time (#623)", async () => {
     const clk = fakeClock();
-    const prof = createProfiler({ outputDir: makeTmp(), version: "v-test", now: clk.now });
+    const prof = createProfiler({
+      outputDir: makeTmp(),
+      version: "v-test",
+      now: clk.now,
+      onExit: false,
+    });
     const { joined, gates } = joinTracks(clk, prof, [
-      { name: "fast", advanceMs: 20, value: "fast", meta: { track: "voice", parallel: true } },
-      { name: "slow", advanceMs: 60, value: "slow", meta: { track: "media", parallel: true } },
+      { name: "fast", advanceMs: 20, value: "fast", meta: { track: "voice" } },
+      { name: "slow", advanceMs: 60, value: "slow", meta: { track: "media" } },
     ]);
 
     gates.get("fast").open();
@@ -167,6 +172,8 @@ describe("pipeline-profile", () => {
     expect(slowRes).toMatchObject({ status: "fulfilled", value: "slow" });
     expect(stepByName(prof, "fast")).toMatchObject({ durationMs: 20, parallel: true });
     expect(stepByName(prof, "slow")).toMatchObject({ durationMs: 80, parallel: true });
+    // runParallel stamps parallel itself, so the summary must flag it too.
+    expect(captureSummary(prof)).toContain("fast [voice] [parallel]");
     // Different spans, same start: the bug was both reporting the join span.
     expect(stepByName(prof, "fast").startedAt).toBe(stepByName(prof, "slow").startedAt);
     // totalMs reflects the join (the slow track), not the sum of both spans.
@@ -176,19 +183,24 @@ describe("pipeline-profile", () => {
   it("runParallel() persists both durations when the TTS track rejects (#623)", async () => {
     const dir = makeTmp();
     const clk = fakeClock();
-    const prof = createProfiler({ outputDir: dir, version: "v-test", now: clk.now });
+    const prof = createProfiler({
+      outputDir: dir,
+      version: "v-test",
+      now: clk.now,
+      onExit: false,
+    });
     const { joined, gates } = joinTracks(clk, prof, [
       {
         name: "media-track",
         advanceMs: 30,
         value: "media",
-        meta: { track: "media", parallel: true },
+        meta: { track: "media" },
       },
       {
         name: "step-1-tts",
         advanceMs: 70,
         error: new Error("tts boom"),
-        meta: { track: "voice", parallel: true },
+        meta: { track: "voice" },
       },
     ]);
 
@@ -218,19 +230,24 @@ describe("pipeline-profile", () => {
   it("runParallel() keeps both durations when the media track rejects (#623)", async () => {
     const dir = makeTmp();
     const clk = fakeClock();
-    const prof = createProfiler({ outputDir: dir, version: "v-test", now: clk.now });
+    const prof = createProfiler({
+      outputDir: dir,
+      version: "v-test",
+      now: clk.now,
+      onExit: false,
+    });
     const { joined, gates } = joinTracks(clk, prof, [
       {
         name: "media-track",
         advanceMs: 30,
         error: new Error("media boom"),
-        meta: { track: "media", parallel: true },
+        meta: { track: "media" },
       },
       {
         name: "step-1-tts",
         advanceMs: 70,
         value: "voice",
-        meta: { track: "voice", parallel: true },
+        meta: { track: "voice" },
       },
     ]);
 
@@ -252,6 +269,26 @@ describe("pipeline-profile", () => {
     expect(persisted.get("media-track")).toMatchObject({ durationMs: 30, track: "media" });
     expect(persisted.get("step-1-tts")).toMatchObject({ durationMs: 100, track: "voice" });
     expect(json.steps.some((s) => s.unfinished === true)).toBe(false);
+  });
+
+  it("runParallel() rejects duplicate track names before any track starts (#623)", async () => {
+    const prof = createProfiler({
+      outputDir: makeTmp(),
+      version: "v-test",
+      now: () => 0,
+      onExit: false,
+    });
+    const ran = vi.fn();
+
+    await expect(
+      prof.runParallel([
+        { name: "dup", fn: ran, meta: { track: "voice" } },
+        { name: "dup", fn: ran, meta: { track: "media" } },
+      ]),
+    ).rejects.toThrow(/duplicate/i);
+
+    expect(ran).not.toHaveBeenCalled();
+    expect(prof.steps).toHaveLength(0);
   });
 
   it("mark() accepts meta and stores it on the step record", () => {

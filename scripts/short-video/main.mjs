@@ -302,12 +302,12 @@ async function main() {
     {
       name: "media-track",
       fn: () => runMediaTrack({ scenes, contentDir, baseDir: __dirname, broll, prof }),
-      meta: { track: "media", parallel: true },
+      meta: { track: "media" },
     },
     {
       name: "step-1-tts",
       fn: () => generateTTS(scenes, audioDir),
-      meta: { track: "voice", parallel: true },
+      meta: { track: "voice" },
     },
   ]);
   if (mediaDone.status === "rejected") {

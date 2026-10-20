@@ -77,10 +77,26 @@ export function createProfiler({
   /**
    * Run named async tracks concurrently, closing each span at its own settle.
    * Returns the Promise.allSettled results in input order.
+   *
+   * Each record is stamped `parallel: true` here, since this helper is
+   * parallel by definition — the stamp overrides any `meta.parallel` passed
+   * in. Track names must be unique: a duplicate would silently overwrite the
+   * earlier span in the `open` map, so duplicates reject before any track
+   * function runs.
+   *
    * @param {Array<{name: string, fn: () => Promise<any>, meta?: object}>} tracks
    */
   async function runParallel(tracks) {
-    return Promise.allSettled(tracks.map(({ name, fn, meta = {} }) => wrap(name, fn, meta)));
+    const seen = new Set();
+    for (const { name } of tracks) {
+      if (seen.has(name)) {
+        throw new Error(`runParallel: duplicate track name "${name}"`);
+      }
+      seen.add(name);
+    }
+    return Promise.allSettled(
+      tracks.map(({ name, fn, meta = {} }) => wrap(name, fn, { ...meta, parallel: true })),
+    );
   }
 
   /** Persist the profile JSON (per-run file + stable last-profile.json). */
