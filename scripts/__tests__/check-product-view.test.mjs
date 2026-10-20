@@ -133,10 +133,13 @@ describe("evaluateProductView — exemptions say why they were exempt", () => {
     expect(result.reason).toContain("bot");
   });
 
-  it("skips release-please branches", () => {
-    const result = evaluateProductView({ headRef: "release-please--branches--main", body: "" });
-    expect(result.skipped).toBe(true);
-    expect(result.reason).toContain("release-please");
+  it("refuses to exempt a branch name, because the PR author chooses it", () => {
+    // `release-please--bypass` on a fork was a one-word opt-out in the first cut
+    // (droid P2). release-please PRs come from a bot account and are covered by
+    // the author rule; a branch name is never a trust boundary.
+    const result = evaluateProductView({ headRef: "release-please--bypass", body: "" });
+    expect(result.skipped).toBe(false);
+    expect(result.ok).toBe(false);
   });
 
   it("skips an explicit skip-product-view label", () => {
@@ -166,21 +169,21 @@ describe("section parsing", () => {
     expect(extractSection("just prose, no headings")).toBeNull();
   });
 
-  it("drops whole-line placeholders in any casing", () => {
-    // Mixed casing on purpose: `tOdO` proves the comparison lowercases, and
-    // writing the all-caps form here would trip the repo's marker gate.
+  it("drops short scraps, which is also what removes the bare placeholder words", () => {
+    // No separate placeholder word-list: every such word is shorter than the
+    // unit floor, so the length filter already removes it (droid P3 killed the
+    // redundant filter). Mixed casing proves the behaviour is casing-blind.
     for (const word of ["tOdO", "todo", "Tbd", "N/A", "n/a", "...", "…"]) {
       expect(substantiveLines(word)).toHaveLength(0);
     }
   });
 
   it("does not itself register as an unlinked marker with lint:todos", () => {
-    // The first CI run of this gate failed on its own source: the placeholder
-    // list was a regex literal spelling the marker word, and the repo's marker
-    // gate matches it case-sensitively. A gate about placeholder text must not
-    // become debt; the list is lowercase and compared after toLowerCase, and
-    // this assertion is the tripwire against reintroducing the caps form. The
-    // character class keeps this line from tripping the same gate.
+    // The first CI run of this gate failed on its own source: a placeholder list
+    // spelled the marker word in caps, and the repo's marker gate matches that
+    // case-sensitively. The list is gone (the length floor covers it), so this
+    // assertion is now cheap insurance against reintroducing the caps form. The
+    // character class keeps this very line from tripping the same gate.
     const source = readFileSync(join(ROOT, "scripts", "check-product-view.mjs"), "utf8");
     expect(source).not.toMatch(/\b[T]ODO\b/);
   });
@@ -191,10 +194,14 @@ describe("wiring — the gate is real only if it runs", () => {
     expect(CI).toContain("node scripts/check-product-view.mjs");
   });
 
-  it("CI passes the four values the script reads", () => {
-    for (const key of ["PR_BODY", "PR_AUTHOR", "PR_HEAD_REF", "PR_LABELS"]) {
+  it("CI passes the three values the script reads", () => {
+    for (const key of ["PR_BODY", "PR_AUTHOR", "PR_LABELS"]) {
       expect(CI).toContain(key);
     }
+  });
+
+  it("CI never feeds the gate an author-controlled branch name", () => {
+    expect(CI).not.toContain("PR_HEAD_REF");
   });
 
   it("CI runs it on pull_request only (a push to main has no body)", () => {

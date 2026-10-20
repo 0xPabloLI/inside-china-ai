@@ -18,7 +18,6 @@
  *
  *   PR_BODY            full pull-request body
  *   PR_AUTHOR          pull_request.user.login
- *   PR_HEAD_REF        pull_request.head.ref
  *   PR_LABELS          comma-separated label names
  *   GITHUB_EVENT_NAME  defaults to "pull_request" (local runs have no event)
  *
@@ -43,12 +42,17 @@ const MIN_UNITS = 3;
 const PLACEHOLDER_TAIL_RE = /[：:]\s*$/;
 
 /**
- * Whole-line placeholders. Lowercase on purpose: the repo's marker gate matches
- * the caps form case-sensitively, and a gate about placeholder text should not
- * register itself as unlinked debt. Comparison lowercases the line, so every
- * casing is still caught.
+ * Stop patterns for `extractSection`, one per heading level the section heading
+ * can have. Hardcoded rather than built from the matched level: a `RegExp`
+ * assembled from a string trips `detect-non-literal-regexp` (Semgrep flags it as
+ * a ReDoS surface), and the level is only ever 1-3 because SECTION_RE caps it.
  */
-const PLACEHOLDER_WORDS = new Set(["todo", "tbd", "n/a", "...", "…", "-", "—"]);
+const SECTION_STOP = [
+  null, // levels are 1-based
+  /^#[ \t]/m, // this section is `#`, stop at the next `#`
+  /^#{1,2}[ \t]/m, // `##`, stop at `#` or `##`
+  /^#{1,3}[ \t]/m, // `###`, stop at `#`, `##` or `###`
+];
 
 /**
  * Template guidance lives in HTML comments. They are instructions to the author,
@@ -72,13 +76,14 @@ export function extractSection(body) {
   if (!match) return null;
   const level = match[0].match(/^#+/)[0].length;
   const rest = text.slice(match.index + match[0].length);
-  const stop = new RegExp(`^#{1,${level}}[ \\t]+`, "m").exec(rest);
+  const stop = SECTION_STOP[level].exec(rest);
   return (stop ? rest.slice(0, stop.index) : rest).trim();
 }
 
 /**
- * Content lines of a section, with markdown decoration removed and template
- * placeholders dropped.
+ * Content lines of a section: markdown decoration removed, short scraps and
+ * unfilled template bullets dropped. The length floor also removes the bare
+ * placeholder words ("todo", "n/a", "..."), which are all shorter than it.
  * @param {string} section
  * @returns {string[]}
  */
@@ -93,8 +98,7 @@ export function substantiveLines(section) {
         .trim(),
     )
     .filter((line) => line.length >= MIN_UNIT_CHARS)
-    .filter((line) => !PLACEHOLDER_TAIL_RE.test(line))
-    .filter((line) => !PLACEHOLDER_WORDS.has(line.toLowerCase()));
+    .filter((line) => !PLACEHOLDER_TAIL_RE.test(line));
 }
 
 /**
@@ -127,7 +131,6 @@ export function countUnits(section) {
  * @param {object} [input]
  * @param {string} [input.body] - pull-request body
  * @param {string} [input.author] - pull_request.user.login
- * @param {string} [input.headRef] - pull_request.head.ref
  * @param {string|string[]} [input.labels] - label names (comma-joined or array)
  * @param {string} [input.eventName] - GITHUB_EVENT_NAME
  * @returns {{ok: boolean, skipped: boolean, reason: string, units?: number}}
@@ -135,12 +138,12 @@ export function countUnits(section) {
 export function evaluateProductView(input = {}) {
   const eventName = String(input.eventName ?? "pull_request");
   const author = String(input.author ?? "");
-  const headRef = String(input.headRef ?? "");
   const labels = Array.isArray(input.labels) ? input.labels : String(input.labels ?? "").split(",");
 
   // Exemptions each exist for a reason, not for convenience: a skipped run
   // states which rule skipped it, so an exemption can never masquerade as a pass
-  // an author earned.
+  // an author earned. Every exemption has to rest on something the PR author
+  // cannot choose — see the note on branch names below.
   if (eventName !== "pull_request") {
     return {
       ok: true,
@@ -151,13 +154,11 @@ export function evaluateProductView(input = {}) {
   if (author.endsWith("[bot]")) {
     return { ok: true, skipped: true, reason: `author ${author} is a bot` };
   }
-  if (headRef.startsWith("release-please--")) {
-    return {
-      ok: true,
-      skipped: true,
-      reason: `release-please branch ${headRef} (body is generated)`,
-    };
-  }
+  // Deliberately no branch-name exemption. `pull_request.head.ref` is chosen by
+  // the PR author, including on forks, so `release-please--*` would let anyone
+  // opt out by naming a branch. release-please PRs are opened by a bot account
+  // and are already covered by the author rule; `skip-product-view` is a label,
+  // which only someone with write access can apply.
   const cleaned = labels.map((label) => label.trim()).filter(Boolean);
   if (cleaned.includes("skip-product-view")) {
     return {
@@ -222,7 +223,6 @@ if (invokedDirectly) {
     eventName: process.env.GITHUB_EVENT_NAME ?? "pull_request",
     body: process.env.PR_BODY ?? "",
     author: process.env.PR_AUTHOR ?? "",
-    headRef: process.env.PR_HEAD_REF ?? "",
     labels: process.env.PR_LABELS ?? "",
   });
   report(result);

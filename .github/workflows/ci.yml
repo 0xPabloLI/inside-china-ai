@@ -119,9 +119,11 @@ jobs:
           # Routed through env, same hygiene as PR_BASE above: event data never
           # lands in the shell line. A push to main has no pull request, hence
           # the `if` — the script would otherwise fail on a missing body.
+          # No head-branch value on purpose: the head branch is author-controlled,
+          # so it is not an input this gate may trust (see the exemption note in
+          # the script).
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: node scripts/check-product-view.mjs
 
