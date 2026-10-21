@@ -106,7 +106,32 @@ jobs:
           npm run lint:hooks
 
       - name: Doc hierarchy lint
-        run: npm run lint:docs
+        # #782: the registration gate only checks docs added or renamed in this
+        # change, so CI must hand the linter a base commit; a shallow checkout
+        # needs the same explicit fetch-and-fail-loudly treatment as the lint
+        # step above. Without a resolvable base the gate reports FAIL instead
+        # of scanning nothing and looking green.
+        env:
+          DOCS_BASE: ${{ github.event.pull_request.base.sha }}
+          DOCS_PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="$DOCS_BASE"
+          elif [ "$DOCS_PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            BASE="$DOCS_PUSH_BEFORE"
+          else
+            BASE=$(git rev-parse HEAD^)
+          fi
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            git fetch --depth=1 origin "$BASE" ||
+              git fetch --unshallow origin ||
+              echo "::warning::could not fetch DOCS_BASE $BASE"
+          fi
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "::error::cannot resolve DOCS_BASE $BASE — registration gate would scan nothing"
+            exit 1
+          fi
+          DOCS_BASE="$BASE" npm run lint:docs
 
       - name: Product view gate (PR body)
         # #810: §9 step 8 has required the three sentences since 2026-10-13 and

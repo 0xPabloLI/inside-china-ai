@@ -155,14 +155,14 @@ R3 实现前必须记录实际失败基线，例如失败的自动化测试、�
 
 所有代码改动至少运行 affected tests。已知环境性失败（隔离重跑即绿、缺本地工具、node 版本漂移）见 `docs/conventions/test-env-baseline.md`——解释失败前先对照该清单。按影响触发以下检查：
 
-| 改动                                 | 必需验证                                                                                                              |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| 仅 Agent 文档                        | `npm run lint:docs`、改动内 § 编号存在性核对、`git diff --check`                                                      |
-| `src/`、Supabase、应用配置           | affected tests、`npm test`、`npm run lint`、`npm run build`、`npx tsc --noEmit`                                       |
-| Python 代码或 Python/Node 跨进程边界 | affected Python tests（优先项目既有 `pytest`/runner）+ 对应 Node consumer tests；涉及真实模型、媒体或格式时再加 smoke |
-| UI 交互、布局或样式                  | 上述相关检查 + dev server 浏览器核心路径；对齐测量同时记录 `width`、`left`、`right`                                   |
-| 视频管线逻辑                         | affected/full relevant tests + 至少一个已有 content 目录的 Real Data Smoke Test                                       |
-| Remotion 视觉或时间线                | relevant tests + 实际 composition/still/render 检查                                                                   |
+| 改动                                                                          | 必需验证                                                                                                                                                                               |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 仅 Agent 文档（`AGENTS.md`、`CLAUDE.md`、`SKILL.md`、`docs/**`、`skills/**`） | `npm run lint:docs`（placement 与注册一致性阻断、doc-ref 可达性检查）、改动内 § 编号存在性核对、`git diff --check`；规则 6 的「加载 `writing-for-agents`」由 pre-commit 非阻断提醒承载 |
+| `src/`、Supabase、应用配置                                                    | affected tests、`npm test`、`npm run lint`、`npm run build`、`npx tsc --noEmit`                                                                                                        |
+| Python 代码或 Python/Node 跨进程边界                                          | affected Python tests（优先项目既有 `pytest`/runner）+ 对应 Node consumer tests；涉及真实模型、媒体或格式时再加 smoke                                                                  |
+| UI 交互、布局或样式                                                           | 上述相关检查 + dev server 浏览器核心路径；对齐测量同时记录 `width`、`left`、`right`                                                                                                    |
+| 视频管线逻辑                                                                  | affected/full relevant tests + 至少一个已有 content 目录的 Real Data Smoke Test                                                                                                        |
+| Remotion 视觉或时间线                                                         | relevant tests + 实际 composition/still/render 检查                                                                                                                                    |
 
 找不到真实数据时，明确报告“无真实数据可用”和原因，不得把 mock 全绿表述为真实数据通过。
 
