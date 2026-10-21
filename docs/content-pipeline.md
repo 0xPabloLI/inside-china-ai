@@ -384,13 +384,13 @@ Hook 是前 3 秒，媒体**逐包人工策展**，不走通用搜源（`asset-s
 
 | Hook 状态  | 写法                                                                                                | 预检（`--pre`）                                               | 最终 media gate（sourcing/生成后）  |
 | ---------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------- |
-| 已策展     | `scene.media = { type, path, source, fit: "cover", overlay }`                                       | 通过；`fit` 非 `"cover"`（`contain`/`fill`/`none`/拼错）FAIL，`overlay` 越界或缺 `source` WARN | 文件存在且通过同一 fit/overlay/source 契约 |
+| 已策展     | `scene.media = { type, path, source, fit: "cover", overlay }`                                       | 通过；`fit` 非 `"cover"`（`contain`/`fill`/`none`/拼错）FAIL，`overlay` 越界或缺 `source` WARN | 文件存在且字节可用（#759：0 字节/截断/占位尺寸/容器不符即 FAIL），并过同一 fit/overlay/source 契约；声明为证据（`media.evidence: true`）时缺 `media.provenance` 亦 FAIL |
 | 故意纯文字 | `media: null`                                                                                       | WARN（显式豁免，不阻断）                                      | 通过 + `explicit-null-on-hook` 警告 |
 | 生成兜底   | 不写 `media`，`mediaStrategy` 为 `b-roll` / `asset-then-broll` / `ai-image` / `asset-then-ai-image` | WARN（不阻断生成）                                            | 文件未落地即 FAIL                   |
 
 其余情况（`mediaStrategy` 为 `asset` 或缺省、且没有 `media`）预检直接 FAIL：必须从策展库绑定 `scene.media`，或显式写 `media: null`。HITL 报告需列出 hook 媒体的来源与绑定路径。挑图标准与素材库现状见 `docs/video-script-writing-guide.md` → Hook 媒体策展；路径规则见 `docs/media-asset-management.md` → Hook 封面绑定。
 
-已有包迁移口径：hook 没有媒体**且没有生成策略**的包，下一次预检会 FAIL；带生成策略的包预检只 WARN，由最终 media gate 判定落地文件。hook 若写了已废弃的 `mediaOptOut: true` 且没有媒体，预检直接 FAIL——改用 `media: null` 显式豁免。
+已有包迁移口径：hook 没有媒体**且没有生成策略**的包，下一次预检会 FAIL；带生成策略的包预检只 WARN，由最终 media gate 判定落地文件是否可用。hook 若写了已废弃的 `mediaOptOut: true` 且没有媒体，预检直接 FAIL——改用 `media: null` 显式豁免。
 
 ### AI Outline 话题描述规则（Step 5 细则，仅 opt-in 时适用）
 

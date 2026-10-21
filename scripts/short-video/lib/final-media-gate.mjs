@@ -19,21 +19,17 @@
  * Existence is not integrity (#759): once a file is present this gate opens it
  * and judges the bytes (zero-byte, truncated, placeholder, wrong container),
  * then validates any declared `media.provenance` geometry. Provenance is
- * demanded only from media the scene marks as evidence (`media.evidence: true`,
- * or an object `assetNeed` with `kind: "evidence-shot"`) — #758 is the producer,
- * so unmarked assets keep their current pass-through behaviour.
+ * demanded only from media the scene marks as evidence (`media.evidence: true`)
+ * — #758 is the producer, so unmarked assets keep their current pass-through
+ * behaviour. A scene type that renders no media layout is still checked when it
+ * declares a file, because `mode: "fullscreen"` bypasses the layout dispatch.
  */
 import { existsSync } from "fs";
 import { join } from "path";
 import { DEFAULT_NARRATIVE_LAYOUT } from "./text-slots.mjs";
 import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
-import {
-  evidenceMarker,
-  inspectMediaFile,
-  isEvidenceMedia,
-  validateProvenance,
-} from "./media-integrity.mjs";
+import { evidenceMarker, inspectMediaFile, validateProvenance } from "./media-integrity.mjs";
 // Re-export: existing consumers import NO_MEDIA_TYPES from this module.
 export { NO_MEDIA_TYPES };
 
@@ -54,8 +50,8 @@ function effectiveLayout(scene) {
  * Judge a media file that is already present on disk: bytes first, then the
  * provenance geometry the scene declares for it.
  *
- * @returns {Array<{reason: string, path: string, detail: string}>} findings to
- *          report as failures — empty when the asset is usable.
+ * @returns {Array<{reason: string, code?: string, path: string, detail: string}>}
+ *          findings to report as failures — empty when the asset is usable.
  */
 function inspectPresentMedia(scene, contentDir, probeVideo) {
   const media = scene.media;
@@ -64,22 +60,22 @@ function inspectPresentMedia(scene, contentDir, probeVideo) {
     declaredType: media.type,
     probeVideo,
   });
-  if (!verdict.ok) return [{ reason: "broken-media", path, detail: verdict.detail }];
+  if (!verdict.ok) {
+    return [{ reason: "broken-media", code: verdict.code, path, detail: verdict.detail }];
+  }
 
   if (media.provenance) {
     const { ok, errors } = validateProvenance(media.provenance);
     return ok ? [] : [{ reason: "invalid-provenance", path, detail: errors.join("; ") }];
   }
 
-  if (isEvidenceMedia(scene, media)) {
+  const marker = evidenceMarker(media);
+  if (marker) {
     return [
       {
         reason: "missing-provenance",
         path,
-        detail: `evidence media (${evidenceMarker(
-          media,
-          scene,
-        )}) declares no media.provenance — a capture must record sourceUrl, selector, rect, clip and scale so its geometry can be verified`,
+        detail: `evidence media (${marker}) declares no media.provenance — a capture must record sourceUrl, selector, rect, clip and scale so its geometry can be verified`,
       },
     ];
   }
@@ -93,14 +89,24 @@ function inspectPresentMedia(scene, contentDir, probeVideo) {
  * @param {{scenes: Array<Record<string, any>>, contentDir: string,
  *          probeVideo?: (absPath: string) => {width: number, height: number}|null}} input
  *        `probeVideo` is a test seam; production uses the real ffprobe probe.
- * @returns {{pass: boolean, failures: Array<{sceneId: number, layout: string|null, reason: string, path?: string, detail?: string}>, warnings: Array<object>}}
+ * @returns {{pass: boolean, failures: Array<{sceneId: number, layout: string|null, reason: string, code?: string, path?: string, detail?: string}>, warnings: Array<object>}}
  */
 export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
   const failures = [];
   const warnings = [];
 
   for (const scene of scenes ?? []) {
-    if (NO_MEDIA_TYPES.has(scene.visualType)) continue;
+    // Scene types that render no media layout are still checked when they
+    // declare a file: `ShortVideo.tsx` dispatches `media.mode:"fullscreen"`
+    // before any layout branch, so a broken asset here reaches the frame (#759).
+    if (NO_MEDIA_TYPES.has(scene.visualType)) {
+      if (scene.media?.path && existsSync(join(contentDir, scene.media.path))) {
+        for (const f of inspectPresentMedia(scene, contentDir, probeVideo)) {
+          failures.push({ sceneId: scene.id, layout: null, ...f });
+        }
+      }
+      continue;
+    }
 
     const layout = effectiveLayout(scene);
     const mediaPath = scene.media?.path;
@@ -217,7 +223,7 @@ export function formatFinalMediaFailures(result) {
       return `  Scene ${f.sceneId}: ${f.detail}`;
     }
     if (f.reason === "broken-media") {
-      return `  Scene ${f.sceneId}: media "${f.path}" is unusable — ${f.detail}`;
+      return `  Scene ${f.sceneId}: media "${f.path}" is unusable — ${f.code}: ${f.detail}`;
     }
     if (f.reason === "invalid-provenance") {
       return `  Scene ${f.sceneId}: media "${f.path}" has invalid provenance — ${f.detail} (fix the declaration or recapture the element)`;

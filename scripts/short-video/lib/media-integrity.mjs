@@ -11,19 +11,22 @@
  * (`content/deepseek-embodied-ai/assets/baidu_search-宇树-01.jpg`).
  *
  * `media.provenance` is the geometry a capture claims to have produced. It is
- * validated whenever it is declared, and demanded whenever the scene marks
- * itself evidence (`media.evidence: true`, or an object `assetNeed` with
- * `kind: "evidence-shot"`). Non-marked media keeps today's behaviour — #758 is
- * the producer that will start emitting provenance; this module is the gate
- * that refuses to let a violating declaration through.
+ * validated whenever it is declared, and demanded whenever the scene marks the
+ * media as evidence (`media.evidence: true`). Non-marked media keeps today's
+ * behaviour — #758 is the producer that will start emitting provenance; this
+ * module is the gate that refuses a violating declaration.
  *
  * Deliberately NOT checked: per-pixel content (the matte band, ink at the
  * edges). The ticket records a 4-edge ink heuristic as tested-and-rejected (a
  * card's own white background reads as ink), and a composed banner carries no
- * matte/element separation to verify against.
+ * matte/element separation to verify against. What that leaves open is stated
+ * plainly: this polices the *declaration*, so a capture whose provenance is
+ * absent, or whose declared clip matches its rect on paper but not in the
+ * pixels, still passes. Closing that gap is #758's job — a producer that
+ * records geometry it never hand-wrote.
  */
-import { readFileSync, statSync } from "fs";
-import { probeMedia } from "./media-probe.mjs";
+import { closeSync, openSync, readFileSync, readSync, statSync } from "fs";
+import { probeMedia, probeToolAvailable } from "./media-probe.mjs";
 
 /** Smallest accepted edge, in pixels. Guards against placeholders. */
 export const MIN_MEDIA_SIDE = 64;
@@ -31,7 +34,7 @@ export const MIN_MEDIA_SIDE = 64;
 /** Float slack for the clip ⊇ rect comparison, in page CSS px. */
 const PROVENANCE_TOLERANCE_PX = 0.01;
 
-const fail = (reason, detail) => ({ ok: false, reason, detail });
+const fail = (code, detail) => ({ ok: false, code, detail });
 
 // ─── Image headers ───
 
@@ -211,90 +214,131 @@ function videoContainer(buf) {
 
 // ─── Public: file integrity ───
 
+/** Image signature, decided from the first bytes only. */
+function imageSignature(buf) {
+  if (buf.length >= 8 && buf[0] === 0x89 && buf.toString("latin1", 1, 4) === "PNG") return "png";
+  if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xd8) return "jpeg";
+  if (
+    buf.length >= 12 &&
+    buf.toString("latin1", 0, 4) === "RIFF" &&
+    buf.toString("latin1", 8, 12) === "WEBP"
+  )
+    return "webp";
+  if (/^GIF8[79]a/.test(buf.subarray(0, 6).toString("latin1"))) return "gif";
+  return null;
+}
+
+function readHead(absPath, bytes = 64) {
+  let fd;
+  try {
+    fd = openSync(absPath, "r");
+    const buf = Buffer.alloc(bytes);
+    const read = readSync(fd, buf, 0, bytes, 0);
+    return buf.subarray(0, read);
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
 /**
  * Open one media file and decide whether a usable asset landed there.
+ *
+ * Only the head is read to classify the file; the full bytes are read solely
+ * for an image signature, where completeness (IEND / EOI / RIFF length / GIF
+ * trailer) is what makes a truncated asset detectable. A corpus video is 34 MB
+ * — sniffing 8 bytes must not load it.
  *
  * @param {string} absPath - absolute path to the media file
  * @param {{declaredType?: string, probeVideo?: (p: string) => {width: number, height: number}|null}} [options]
  *        `probeVideo` is injectable so unit tests do not need ffprobe; the
  *        default is the real ffprobe seam used across the pipeline.
  * @returns {{ok: true, kind: "image"|"video", format: string, width: number, height: number}
- *          | {ok: false, reason: string, detail: string}}
+ *          | {ok: false, code: string, detail: string}}
  */
 export function inspectMediaFile(absPath, { declaredType, probeVideo = probeMedia } = {}) {
   let stat;
   try {
     stat = statSync(absPath);
   } catch {
-    return fail("unreadable-media", "unreadable-media (the path cannot be opened)");
+    return fail("unreadable-media", "the path cannot be opened");
   }
-  if (!stat.isFile()) {
-    return fail("not-a-file", "not-a-file (the media path is a directory, not a file)");
+  if (!stat.isFile()) return fail("not-a-file", "the media path is a directory, not a file");
+  if (stat.size === 0) return fail("zero-byte", "0 B on disk — the download never landed");
+
+  let head;
+  try {
+    head = readHead(absPath);
+  } catch {
+    return fail("unreadable-media", "the file could not be read");
   }
-  if (stat.size === 0) {
-    return fail("zero-byte", "zero-byte (0 B on disk — the download or composition never landed)");
+  const signature = imageSignature(head);
+  const container = videoContainer(head);
+
+  if (declaredType === "video") {
+    if (signature) {
+      return fail(
+        "media-type-mismatch",
+        `scene declares "video", the bytes are a ${signature.toUpperCase()} image`,
+      );
+    }
+    return probeVideoFile(absPath, container, probeVideo);
+  }
+
+  if (container && !signature) {
+    if (declaredType === "image") {
+      return fail(
+        "media-type-mismatch",
+        `scene declares "image", the bytes are a ${container.toUpperCase()} video`,
+      );
+    }
+    return probeVideoFile(absPath, container, probeVideo);
+  }
+
+  if (!signature) {
+    return fail(
+      "unreadable-media",
+      "no PNG/JPEG/WebP/GIF signature and no known video container in the first bytes",
+    );
   }
 
   let buf;
   try {
     buf = readFileSync(absPath);
   } catch {
-    return fail("unreadable-media", "unreadable-media (the file could not be read)");
+    return fail("unreadable-media", "the file could not be read");
   }
-
   const image = readImage(buf);
-  const container = videoContainer(buf);
-
-  if (declaredType === "video") {
-    if (image?.ok) {
-      return fail(
-        "media-type-mismatch",
-        `media-type-mismatch (scene declares "video", the bytes are a ${image.kind.toUpperCase()} image)`,
-      );
-    }
-    return probeVideoFile(absPath, container, probeVideo);
-  }
-
-  if (container) {
-    if (declaredType === "image") {
-      return fail(
-        "media-type-mismatch",
-        `media-type-mismatch (scene declares "image", the bytes are a ${container.toUpperCase()} video)`,
-      );
-    }
-    return probeVideoFile(absPath, container, probeVideo);
-  }
-
-  if (!image) {
-    return fail(
-      "unreadable-media",
-      "unreadable-media (no PNG/JPEG/WebP/GIF signature and no known video container)",
-    );
-  }
-  if (!image.ok) {
-    return fail("unreadable-media", `unreadable-media (${image.why})`);
-  }
+  if (!image) return fail("unreadable-media", `${signature.toUpperCase()} signature has no header`);
+  if (!image.ok) return fail("unreadable-media", image.why);
   return sized("image", image.kind, image.width, image.height);
 }
 
 function probeVideoFile(absPath, container, probeVideo) {
   const probe = probeVideo(absPath);
-  if (!probe || !probe.width || !probe.height) {
+  if (probe?.width && probe?.height) {
+    return sized("video", container ?? "video", probe.width, probe.height);
+  }
+  // probeMedia swallows every failure into null: without this split, a machine
+  // missing ffprobe would be told its assets are corrupt (#759 review).
+  if (!probeToolAvailable()) {
     return fail(
-      "unreadable-media",
-      container
-        ? `unreadable-media (ffprobe could not decode the ${container.toUpperCase()} stream)`
-        : "unreadable-media (unrecognised bytes: no image signature and ffprobe found no video stream)",
+      "probe-unavailable",
+      "ffprobe is not reachable, so no video asset can be verified — install ffmpeg-full",
     );
   }
-  return sized("video", container ?? "video", probe.width, probe.height);
+  return fail(
+    "unreadable-media",
+    container
+      ? `ffprobe could not decode the ${container.toUpperCase()} stream`
+      : "unrecognised bytes: no image signature and ffprobe found no video stream",
+  );
 }
 
 function sized(kind, format, width, height) {
   if (Math.min(width, height) < MIN_MEDIA_SIDE) {
     return fail(
       "too-small",
-      `too-small (${width}×${height} — every media edge must be at least ${MIN_MEDIA_SIDE}px)`,
+      `${width}×${height} — every media edge must be at least ${MIN_MEDIA_SIDE}px`,
     );
   }
   return { ok: true, kind, format, width, height };
@@ -402,16 +446,16 @@ export function validateProvenance(provenance) {
   return { ok: errors.length === 0, errors };
 }
 
-/** True when the scene declares the bound media to be an evidence capture. */
-export function isEvidenceMedia(scene, media) {
-  if (media?.evidence === true) return true;
-  const need = scene?.assetNeed;
-  return Boolean(need && typeof need === "object" && need.kind === "evidence-shot");
-}
-
-/** The marker that made this media evidence, for the failure detail. */
-export function evidenceMarker(media, scene) {
-  if (media?.evidence === true) return "media.evidence:true";
-  if (scene?.assetNeed?.kind === "evidence-shot") return 'assetNeed.kind:"evidence-shot"';
-  return null;
+/**
+ * The marker declaring this media to be Evidence Media, or null.
+ *
+ * Only `media.evidence: true` is honoured. `assetNeed` stays out: every current
+ * consumer (`claim-keywords`, `vlm-cache`, `vlm_analyzer.py`, all shipped
+ * scene-data) reads it as a search-query string, so teaching the gate an object
+ * shape here would fork a contract #758 has not decided yet.
+ *
+ * @returns {string|null}
+ */
+export function evidenceMarker(media) {
+  return media?.evidence === true ? "media.evidence:true" : null;
 }

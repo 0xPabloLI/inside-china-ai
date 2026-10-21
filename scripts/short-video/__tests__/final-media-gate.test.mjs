@@ -6,7 +6,7 @@
  * can supply the missing media.
  */
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { PNG } from "pngjs";
@@ -18,7 +18,7 @@ import {
   formatFinalMediaWarnings,
   reportFinalMediaWarnings,
 } from "../lib/final-media-gate.mjs";
-import { MIN_MEDIA_SIDE } from "../lib/media-integrity.mjs";
+import { inspectMediaFile, MIN_MEDIA_SIDE } from "../lib/media-integrity.mjs";
 
 /**
  * A real, decodable PNG. Fixtures used to be the literal string "fake" — the
@@ -473,9 +473,10 @@ describe("media file integrity (#759)", () => {
       sceneId: 1,
       layout: "media-overlay",
       reason: "broken-media",
+      code: "zero-byte",
       path: "assets/empty.png",
     });
-    expect(result.failures[0].detail).toContain("zero-byte");
+    expect(result.failures[0].detail).toContain("0 B on disk");
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -490,7 +491,8 @@ describe("media file integrity (#759)", () => {
     });
     expect(result.pass).toBe(false);
     expect(result.failures[0].reason).toBe("broken-media");
-    expect(result.failures[0].detail).toContain("unreadable-media");
+    expect(result.failures[0].code).toBe("unreadable-media");
+    expect(result.failures[0].detail).toContain("truncated");
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -502,7 +504,7 @@ describe("media file integrity (#759)", () => {
     });
     expect(result.pass).toBe(false);
     expect(result.failures[0].reason).toBe("broken-media");
-    expect(result.failures[0].detail).toContain("unreadable-media");
+    expect(result.failures[0].code).toBe("unreadable-media");
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -515,7 +517,7 @@ describe("media file integrity (#759)", () => {
     });
     expect(result.pass).toBe(false);
     expect(result.failures[0].reason).toBe("broken-media");
-    expect(result.failures[0].detail).toContain("too-small");
+    expect(result.failures[0].code).toBe("too-small");
     expect(result.failures[0].detail).toContain(`${side}×${side}`);
     expect(result.failures[0].detail).toContain(`${MIN_MEDIA_SIDE}px`);
     rmSync(dir, { recursive: true, force: true });
@@ -529,7 +531,7 @@ describe("media file integrity (#759)", () => {
     });
     expect(result.pass).toBe(false);
     expect(result.failures[0].reason).toBe("broken-media");
-    expect(result.failures[0].detail).toContain("not-a-file");
+    expect(result.failures[0].code).toBe("not-a-file");
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -541,7 +543,7 @@ describe("media file integrity (#759)", () => {
     });
     expect(result.pass).toBe(false);
     expect(result.failures[0].reason).toBe("broken-media");
-    expect(result.failures[0].detail).toContain("media-type-mismatch");
+    expect(result.failures[0].code).toBe("media-type-mismatch");
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -572,7 +574,7 @@ describe("media file integrity (#759)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("FAILS a video when the probe returns null (unreadable-media)", () => {
+  it("FAILS a video when the probe returns null (fail-closed either way)", () => {
     const dir = makeContentDir([{ name: "clip.mp4", bytes: mp4Bytes() }]);
     const result = checkFinalMedia({
       scenes: [mediaScene({ type: "video", path: "assets/clip.mp4" })],
@@ -581,7 +583,9 @@ describe("media file integrity (#759)", () => {
     });
     expect(result.pass).toBe(false);
     expect(result.failures[0].reason).toBe("broken-media");
-    expect(result.failures[0].detail).toContain("unreadable-media");
+    // Which of the two depends on whether ffprobe is reachable on this machine;
+    // both must fail closed, and only the second tells the truth about why.
+    expect(["unreadable-media", "probe-unavailable"]).toContain(result.failures[0].code);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -734,20 +738,60 @@ describe("media provenance (#759)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("FAILS assetNeed.kind evidence-shot without provenance (missing-provenance)", () => {
+  it("keeps assetNeed a string contract — it demands no provenance", () => {
+    // Every consumer (claim-keywords, vlm-cache, vlm_analyzer.py, shipped
+    // scene-data) reads assetNeed as a search-query string. The gate must not
+    // start treating it as an object before #758 decides that shape.
     const dir = makeContentDir(["present.png"]);
     const result = checkFinalMedia({
       scenes: [
         mediaScene(
           { type: "image", path: "assets/present.png" },
-          { assetNeed: { kind: "evidence-shot" } },
+          { assetNeed: "benchmark table screenshot" },
         ),
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(true);
+    expect(result.failures).toHaveLength(0);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("checks media on a no-media-layout scene type (mode:fullscreen renders it)", () => {
+    const dir = makeContentDir([{ name: "empty.png", bytes: Buffer.alloc(0) }]);
+    const result = checkFinalMedia({
+      scenes: [
+        {
+          id: 7,
+          visualType: "data",
+          media: { type: "image", path: "assets/empty.png", mode: "fullscreen" },
+        },
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures[0]).toMatchObject({
+      sceneId: 7,
+      reason: "broken-media",
+      code: "zero-byte",
+    });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("demands provenance from evidence media whatever the scene type", () => {
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        {
+          id: 8,
+          visualType: "stat-reveal",
+          media: { type: "image", path: "assets/present.png", evidence: true },
+        },
       ],
       contentDir: dir,
     });
     expect(result.pass).toBe(false);
     expect(result.failures[0].reason).toBe("missing-provenance");
-    expect(result.failures[0].detail).toContain("evidence-shot");
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -833,6 +877,103 @@ describe("formatFinalMediaFailures for integrity/provenance (#759)", () => {
     expect(report).toContain("invalid provenance");
     expect(report).toContain("Scene 3");
     expect(report).toContain("no provenance");
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// ─── #759 review: the header parsers themselves ───
+//
+// The gate-level fixtures are all PNG, so these pin the other three formats the
+// corpus actually ships — including the headline claim that format comes from
+// bytes, not the extension.
+
+/** Real PNG bytes, written under a name that lies about them. */
+function riffWebpLossless(width, height) {
+  const payload = Buffer.alloc(16);
+  payload[0] = 0x30;
+  payload.writeUInt32LE((width - 1) | ((height - 1) << 14), 1);
+  const chunk = Buffer.concat([Buffer.from("VP8L", "latin1"), uint32(payload.length), payload]);
+  const body = Buffer.concat([Buffer.from("WEBP", "latin1"), chunk]);
+  return Buffer.concat([Buffer.from("RIFF", "latin1"), uint32(body.length), body]);
+}
+
+function uint32(n) {
+  const b = Buffer.alloc(4);
+  b.writeUInt32LE(n, 0);
+  return b;
+}
+
+function gifBytes(width, height, withTrailer) {
+  const screen = Buffer.alloc(4);
+  screen.writeUInt16LE(width, 0);
+  screen.writeUInt16LE(height, 2);
+  return Buffer.concat([
+    Buffer.from("GIF89a", "latin1"),
+    screen,
+    Buffer.alloc(3),
+    Buffer.from([0x2c]),
+    ...(withTrailer ? [Buffer.from([0x3b])] : []),
+  ]);
+}
+
+describe("media header parsers (#759)", () => {
+  const repoRoot = new URL("../../../", import.meta.url).pathname;
+
+  it("reads a real EXIF JPEG by markers, not file-name", () => {
+    const v = inspectMediaFile(`${repoRoot}scripts/short-video/assets/pexels-ai-chip.jpg`);
+    expect(v).toMatchObject({ ok: true, format: "jpeg" });
+    expect(v.width).toBeGreaterThan(0);
+  });
+
+  it("REJECTS that JPEG with its end-of-image marker cut", () => {
+    const full = readFileSync(`${repoRoot}scripts/short-video/assets/pexels-ai-chip.jpg`);
+    const dir = makeContentDir([{ name: "cut.jpg", bytes: full.subarray(0, full.length - 1) }]);
+    const v = inspectMediaFile(join(dir, "assets/cut.jpg"));
+    expect(v.ok).toBe(false);
+    expect(v.code).toBe("unreadable-media");
+    expect(v.detail).toContain("end-of-image");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("detects WebP from bytes when the file is named .jpg", () => {
+    const dir = makeContentDir([{ name: "baidu-01.jpg", bytes: riffWebpLossless(1200, 800) }]);
+    const v = inspectMediaFile(join(dir, "assets/baidu-01.jpg"), { declaredType: "image" });
+    expect(v).toMatchObject({ ok: true, format: "webp", width: 1200, height: 800 });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("REJECTS a WebP whose RIFF length promises more bytes than exist", () => {
+    const bytes = riffWebpLossless(1200, 800);
+    const dir = makeContentDir([{ name: "half.webp", bytes: bytes.subarray(0, bytes.length - 6) }]);
+    const v = inspectMediaFile(join(dir, "assets/half.webp"));
+    expect(v.ok).toBe(false);
+    expect(v.code).toBe("unreadable-media");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("accepts a GIF trailer and rejects a GIF without one", () => {
+    const dir = makeContentDir([
+      { name: "ok.gif", bytes: gifBytes(320, 240, true) },
+      { name: "cut.gif", bytes: gifBytes(320, 240, false) },
+    ]);
+    expect(inspectMediaFile(join(dir, "assets/ok.gif"))).toMatchObject({
+      ok: true,
+      format: "gif",
+      width: 320,
+      height: 240,
+    });
+    const cut = inspectMediaFile(join(dir, "assets/cut.gif"));
+    expect(cut.ok).toBe(false);
+    expect(cut.detail).toContain("trailer");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("REJECTS an audio file bound as media", () => {
+    const id3 = Buffer.concat([Buffer.from("ID3\x03\x00\x00", "latin1"), Buffer.alloc(10)]);
+    const dir = makeContentDir([{ name: "bgm.png", bytes: id3 }]);
+    const v = inspectMediaFile(join(dir, "assets/bgm.png"), { declaredType: "image" });
+    expect(v.ok).toBe(false);
+    expect(v.code).toBe("unreadable-media");
     rmSync(dir, { recursive: true, force: true });
   });
 });
