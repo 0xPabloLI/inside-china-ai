@@ -158,6 +158,10 @@ function toExpectedTokenSet(expectedTokens) {
  * for the similarity denominator (Finding A of the #689 follow-up): "Deep
  * Seek" is two ASR tokens but one spoken word.
  *
+ * Width 3 stays on purpose (#689 review): whisper.cpp can split one long token
+ * into THREE words, not just two — "singapore" can come back as "sing a pore" —
+ * so a 2-token window alone would miss the exact join and fail a correct take.
+ *
  * @param {string[]} asrTokens
  * @param {Set<string>|null} expectedSet
  * @returns {Array<{joined: string, parts: string[], start: number, width: number}>}
@@ -311,17 +315,24 @@ function countAsrUnits(asrTokens, foldRanges) {
  * @returns {Set<string>} normalized names
  */
 function collectProtectedNames(expectedText, keyEntities) {
+  const expectedTokens = new Set(tokenize(expectedText));
   const names = new Set();
   if (keyEntities && typeof keyEntities === "object") {
     for (const entities of Object.values(keyEntities)) {
       if (!Array.isArray(entities)) continue;
       for (const entity of entities) {
         if (typeof entity !== "string") continue;
+        // #689 review: a declaration only protects a name the SCRIPT actually
+        // says. meta.keyEntities is per-episode, so a company declared for a
+        // different scene used to turn a hallucinated word ("byte danse") into
+        // near-miss evidence and fold it out of the similarity denominator.
+        // The expected tokens are the ground truth; the declaration only adds
+        // permission for a name that is already spoken.
         const whole = normalizeName(entity);
-        if (whole) names.add(whole);
+        if (whole && expectedTokens.has(whole)) names.add(whole);
         for (const segment of entity.split(/[^A-Za-z0-9]+/)) {
           const normalized = normalizeName(segment);
-          if (normalized.length >= 6) names.add(normalized);
+          if (normalized.length >= 6 && expectedTokens.has(normalized)) names.add(normalized);
         }
       }
     }
@@ -405,6 +416,12 @@ export function buildExpandedAsrTokenSet(asrTokens, rawText = null, options = {}
   // ("Deep Seek") while the expected track carries the joined spelling. The
   // join is admitted only when it exactly equals an expected token, so the
   // rule cannot manufacture evidence for an unlisted compound.
+  //
+  // Review Q4: this EXACT adjacent join needs no keyEntities declaration — the
+  // expected line itself is the declaration ("moon shot" for "moonshot" is
+  // allowed). Only the looser near-miss rule requires a declared entity or a
+  // structural proper name, because there the heard form does not match the
+  // script at all and "anything goes" would excuse real mishearing.
   const expectedSet = toExpectedTokenSet(options.expectedTokens);
   for (const { joined } of findSplitJoins(asrTokens, expectedSet)) {
     expanded.add(joined);
@@ -771,6 +788,12 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
       );
     }
     for (const word of hyphenatedExpectedWords(expectedSpokenText)) {
+      // #689 review: merged evidence requires at least one LETTER. A purely
+      // numeric hyphen ("3-5") is two critical numbers, not one merged word:
+      // "35" means thirty-five, while "3-5" means three to five. Bridging them
+      // would add "3" + "5" evidence to a take that says neither. "re-run" /
+      // "GPT-4" keep merging — those are the spellings whisper.cpp re-merges.
+      if (!/[A-Za-z]/.test(word)) continue;
       const parts = tokenize(word);
       if (parts.length < 2) continue;
       const merged = parts.join("");
@@ -908,11 +931,19 @@ export async function runTtsQualityGate(scenes, ttsResults, options = {}) {
 
     if (!evalResult.passed) {
       failedCount++;
+      // #689 Q5: a failed take can still carry recognition-variance warnings
+      // (e.g. it failed on similarity while a split was detected). Print them
+      // after the issues so the "heard differently" events stay countable on
+      // failed takes too. Instruct warnings already have their own block above.
+      const takeWarnings = evalResult.warnings.filter(
+        (w) => !w.startsWith(INSTRUCT_WARNING_PREFIX),
+      );
       console.warn(
         `  ❌ Scene ${scene.id} FAILED Quality Gate:\n` +
           `     Expected: "${evalResult.expectedText}"\n` +
           `     ASR Heard: "${evalResult.asrText || "(ASR unavailable)"}"\n` +
-          `     WPM: ${evalResult.wpm} | Issues: ${evalResult.issues.join("; ")}`,
+          `     WPM: ${evalResult.wpm} | Issues: ${evalResult.issues.join("; ")}` +
+          (takeWarnings.length > 0 ? `\n     Warnings: ${takeWarnings.join("; ")}` : ""),
       );
     } else {
       const warnInfo =

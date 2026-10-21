@@ -1033,4 +1033,114 @@ describe("#689 brand-word split / near-miss recognition", () => {
     expect(res.passed).toBe(false);
     expect(res.issues.some((i) => i.includes("missing tail word(s) [deepseek]"))).toBe(true);
   });
+
+  // Review fix 1: merged evidence requires at least one LETTER in the
+  // hyphenated word. "3-5" and "35" are both critical numbers that mean
+  // different things (three to five vs thirty-five); bridging them would add
+  // "3" + "5" evidence to a take that says neither.
+  it("does not merge a purely numeric hyphen ('3-5' is not '35')", async () => {
+    const livesScene = { id: 13, voiceover: "We saved 3-5 lives." };
+    const res = await evaluateSceneTts(livesScene, audio, 1.2, {
+      transcriber: vi.fn().mockResolvedValue({
+        ok: true,
+        segments: [{ text: "We saved 35 lives." }],
+      }),
+    });
+
+    expect(res.passed).toBe(false);
+    expect(
+      res.issues.some(
+        (i) => i.includes("missing key token(s) [3, 5]") || i.includes("missing tail word(s) [5]"),
+      ),
+    ).toBe(true);
+    expect(res.warnings.some((w) => w.includes("merged"))).toBe(false);
+    // Letter-bearing hyphens keep merging — pinned by the pre-existing
+    // "Please re-run." vs "Please rerun." case above.
+  });
+
+  // Review fix 2: a declared entity the script never speaks must not protect
+  // anything. Declaring "bytedance" for a DeepSeek line used to admit the
+  // hallucinated "byte danse" as near-miss evidence AND fold it out of the
+  // similarity denominator.
+  it("does not protect a keyEntities name that is absent from the script", async () => {
+    const declaredScene = { id: 14, voiceover: "DeepSeek ships now." };
+    const heard = "Deep Seek ships byte danse now.";
+    const run = (options = {}) =>
+      evaluateSceneTts(declaredScene, audio, 1.2, {
+        transcriber: vi.fn().mockResolvedValue({ ok: true, segments: [{ text: heard }] }),
+        ...options,
+      });
+
+    const undeclared = await run();
+    expect(undeclared.passed).toBe(false);
+    expect(undeclared.similarity).toBeLessThan(0.75);
+
+    const declared = await run({ keyEntities: { companies: ["bytedance"] } });
+    expect(declared.passed).toBe(false);
+    expect(declared.similarity).toBeLessThan(0.75);
+    expect(declared.warnings.some((w) => w.includes("bytedance"))).toBe(false);
+  });
+
+  // Review Q4: an EXACT adjacent join needs no declaration — the expected
+  // line is the declaration. Only the looser near-miss rule requires
+  // keyEntities or a structural proper name.
+  it("passes an undeclared exact split join ('moon shot' for 'moonshot')", async () => {
+    const moonshotScene = { id: 15, voiceover: "We tested moonshot." };
+    const res = await evaluateSceneTts(moonshotScene, audio, 1.2, {
+      transcriber: vi.fn().mockResolvedValue({
+        ok: true,
+        segments: [{ text: "We tested moon shot." }],
+      }),
+    });
+
+    expect(res.passed).toBe(true);
+    expect(res.issues).toEqual([]);
+    expect(res.warnings).toContain('Recognition variance [split]: "moonshot" heard as "moon shot"');
+  });
+
+  it("still fails an incomplete split ('moon' alone) of 'moonshot'", async () => {
+    const moonshotScene = { id: 15, voiceover: "We tested moonshot." };
+    const res = await evaluateSceneTts(moonshotScene, audio, 1.2, {
+      transcriber: vi.fn().mockResolvedValue({
+        ok: true,
+        segments: [{ text: "We tested moon." }],
+      }),
+    });
+
+    expect(res.passed).toBe(false);
+    expect(res.issues.some((i) => i.includes("moonshot"))).toBe(true);
+  });
+
+  // Review fix 4 (Q5 countability): a take that fails for a non-variance
+  // reason can still carry recognition-variance events; the console must show
+  // them or the event count silently drops on failed takes.
+  it("prints Recognition variance warnings for a failing take", async () => {
+    const shortScene = { id: 12, voiceover: "DeepSeek ships." };
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const report = await runTtsQualityGate(
+        [shortScene],
+        [{ sceneId: 12, audioPath: audio, duration: 1.0 }],
+        {
+          transcriber: vi.fn().mockResolvedValue({
+            ok: true,
+            segments: [{ text: "Deep Seek ships extra." }],
+          }),
+        },
+      );
+
+      expect(report.passed).toBe(false);
+      expect(report.evaluations[0].similarity).toBeLessThan(0.75);
+
+      const failedBlock = warnSpy.mock.calls
+        .map((call) => call.join(" "))
+        .find((message) => message.includes("FAILED Quality Gate"));
+      expect(failedBlock).toBeDefined();
+      expect(failedBlock).toContain("Recognition variance [split]");
+    } finally {
+      logSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
 });
