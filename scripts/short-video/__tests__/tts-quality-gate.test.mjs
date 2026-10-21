@@ -822,3 +822,119 @@ describe("#415 ① ASR infrastructure failures", () => {
     expect(err.message).toMatch(/TTS_QUALITY_ALLOW_NO_ASR=1/);
   });
 });
+
+// ─── #689: split / near-miss brand-name recognition ───
+// Real repro (deepseek-flash-silent-update scene 10, 2026-10-21): whisper.cpp
+// returned "Deep Seek" / "DeepSeq" for the brand "DeepSeek", so the gate
+// hard-blocked a CORRECT take as a truncated tail. Recognition variance is
+// evidence and a warning, never an issue; genuine truncation ("Deep",
+// "DeepSee") must keep failing.
+describe("#689 brand-word split / near-miss recognition", () => {
+  const SCENE_TEXT = "Follow for the fingerprint check, every time DeepSeek ships.";
+  // Real scene-10.tts-meta.json duration.
+  const SCENE_DURATION = 2.8;
+  const scene = { id: 10, voiceover: SCENE_TEXT };
+  const dir = mkdtempSync(join(tmpdir(), "tts-689-"));
+  const audio = join(dir, "scene-10.wav");
+  beforeEach(() => writeFileSync(audio, "RIFFdummydata"));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  const gate = (heard, options = {}) => {
+    const transcriber = vi.fn().mockResolvedValue({ ok: true, segments: [{ text: heard }] });
+    return evaluateSceneTts(scene, audio, SCENE_DURATION, { transcriber, ...options });
+  };
+
+  it.each([
+    "Follow for the fingerprint check, every time Deep Seek ships.",
+    "Follow for the fingerprint check. Every time Deep Seek ships.",
+  ])("passes the real split transcript: %s", async (heard) => {
+    const res = await gate(heard);
+    expect(res.passed).toBe(true);
+    expect(res.issues).toEqual([]);
+    expect(res.warnings).toContain('Recognition variance [split]: "deepseek" heard as "deep seek"');
+    expect(res.failureClass).toBe(null);
+  });
+
+  it("passes the real near-miss transcript (DeepSeq) with a warning", async () => {
+    const res = await gate("Follow for the fingerprint check, every time DeepSeq ships.");
+    expect(res.passed).toBe(true);
+    expect(res.issues).toEqual([]);
+    expect(res.warnings).toContain(
+      'Recognition variance [near-miss]: "deepseek" heard as "deepseq"',
+    );
+    expect(res.failureClass).toBe(null);
+  });
+
+  it("still passes an exact DeepSeek transcript without a variance warning", async () => {
+    const res = await gate(SCENE_TEXT);
+    expect(res.passed).toBe(true);
+    expect(res.issues).toEqual([]);
+    expect(res.warnings.filter((w) => w.startsWith("Recognition variance"))).toEqual([]);
+  });
+
+  it("keeps a truncated 'Deep' failing as a missing tail word", async () => {
+    const res = await gate("Follow for the fingerprint check, every time Deep ships.");
+    expect(res.passed).toBe(false);
+    expect(res.issues.some((i) => i.includes("missing tail word(s) [deepseek]"))).toBe(true);
+  });
+
+  it("does not rescue a strict-prefix 'DeepSee'", async () => {
+    const res = await gate("Follow for the fingerprint check, every time DeepSee ships.");
+    expect(res.passed).toBe(false);
+    expect(res.issues.some((i) => i.includes("missing tail word(s) [deepseek]"))).toBe(true);
+  });
+
+  it("applies near-miss only to declared or structurally protected names", async () => {
+    const lowerScene = { id: 1, voiceover: "We tested Moonshot." };
+    const run = (options = {}) =>
+      evaluateSceneTts(lowerScene, audio, 1.2, {
+        transcriber: vi.fn().mockResolvedValue({
+          ok: true,
+          segments: [{ text: "We tested Moonshoq." }],
+        }),
+        ...options,
+      });
+
+    // An ordinary lowercase word is not a protected name: no rescue.
+    const undeclared = await run();
+    expect(undeclared.passed).toBe(false);
+    expect(undeclared.issues.some((i) => i.includes("moonshot"))).toBe(true);
+
+    // The same word declared in keyEntities is authoritative.
+    const declared = await run({ keyEntities: { companies: ["moonshot"] } });
+    expect(declared.passed).toBe(true);
+    expect(declared.issues).toEqual([]);
+    expect(declared.warnings).toContain(
+      'Recognition variance [near-miss]: "moonshot" heard as "moonshoq"',
+    );
+  });
+
+  it("maps a merged ASR token back onto a hyphenated expected word", async () => {
+    const hyphenScene = { id: 11, voiceover: "Please re-run." };
+    const res = await evaluateSceneTts(hyphenScene, audio, 1.2, {
+      transcriber: vi.fn().mockResolvedValue({ ok: true, segments: [{ text: "Please rerun." }] }),
+    });
+    expect(res.passed).toBe(true);
+    expect(res.issues).toEqual([]);
+    expect(res.warnings).toContain('Recognition variance [merged]: "re-run" heard as "rerun"');
+  });
+
+  it("join expansion runs only for expected tokens and stays off by default", () => {
+    const asrTokens = tokenize("Deep seek ships now");
+    const expectedTokens = tokenize("DeepSeek ships now");
+
+    const expanded = buildExpandedAsrTokenSet(asrTokens, null, { expectedTokens });
+    expect(expanded.has("deepseek")).toBe(true);
+    expect(expanded.has("seekships")).toBe(false);
+
+    // Three-token joins are allowed too, still gated by expected membership.
+    const three = buildExpandedAsrTokenSet(asrTokens, null, {
+      expectedTokens: ["seekshipsnow"],
+    });
+    expect(three.has("seekshipsnow")).toBe(true);
+
+    // No expectedTokens contract → byte-for-byte the old set.
+    const plain = buildExpandedAsrTokenSet(asrTokens);
+    expect([...plain].sort()).toEqual([...new Set(asrTokens)].sort());
+  });
+});
