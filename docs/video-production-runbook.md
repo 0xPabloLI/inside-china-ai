@@ -306,20 +306,22 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 
 **Force engine**: `export TTS_ENGINE=cosyvoice3-mlx` / `f5-mlx` / `edge-tts` / `say`
 
+**CosyVoice3-MLX 本地兜底（#704）**: 主引擎是 `cosyvoice3-mlx` 时，声学失败（`TTS_ACOUSTIC_HARD_BLOCK`）或 pacing-floor 失败（`TTS_PACING_FLOOR_BLOCK`）后，只对失败的 scene 自动用 `f5-mlx` 重生成（已通过的 take 不动）。fallback take 必须全部通过 Quality Gate 且不超过 225 WPM 硬上限才采用（兜底路径不经过 pacing 阶梯，上限在采用判据里独立执行）。若本次 run 的任一 take（包括已通过门禁的）超过 225 WPM，兜底整体放弃并保持原阻断——acoustic 阻断发生在 pacing 阶梯之前，兜底成功也不会再跑阶梯，超速 take 不能借兜底放行；fallback take 自身超限同样拒绝提升。meta 记录 `engine: f5-mlx` / `fallbackFrom: cosyvoice3-mlx`（缓存 key 按 F5 计算）；这两项只是 provenance，不是跨 run 命中路径——下一次 run 仍按**主引擎** key 尝试 MLX，不会把 F5 take 当成 MLX 命中或跨 run 复用（避免不同音色被永久锁进缓存；F5 兜底成本每次重付）；F5 按自然语速生成（`ttsSpeed: 1.0`），**音色可能与全片不同**，采用时日志会打印显眼警告。兜底 take 只过 Quality Gate + 225 WPM 上限，**不重跑 pacing 补偿阶梯**——hook 1.1x 等加速优化不适用于 F5 自然语速，这是该路径的已知边界；若其他已通过的 take 实测低于 150 WPM（本会触发补差），日志会打印显眼 warning（`pacing compensation was not re-run on the fallback path; these takes ship at their current speed`）并列出 scene 与 WPM，不会静默丢弃补偿计划。兜底失败、不可用或只回来部分 scene 时保持原 fail-closed 错误。`TTS_DISABLE_LOCAL_FALLBACK=1` 关闭该兜底；pacing-hard（>225 WPM）、infra 失败与非 MLX 主引擎不兜底。`COSYVOICE3_SEED` 固定 MLX 每场景种子，但缓存命中时仍按既有 key 复用已批准 take；要真正复现生成需配合 `TTS_NO_CACHE=1`。
+
 **多管线并行与 Kaggle 排队协调（#250）**:
 
 - Kaggle 免费层同时只允许 **1 个 GPU session 运行**。多条 `main.mjs` 管线并行时，kernel slug **默认从 content id 派生**（`cosyvoice3-cuda-<pipelineId>`，#267），每条管线自动获得独立 kernelId，**无需手动设置**；`COSYVOICE3_KAGGLE_SLUG` env 可显式覆盖。若既无 env 又无法派生 content id，会 fail-fast 报错（防串台——共用 slug 会互相覆盖 kernel 源码而不是排队）。第二个 kernel push 后进入 `QUEUED` 排队等待前一个结束，这是**预期行为**，不是卡死。
 - 轮询显式区分 `QUEUED` / `RUNNING` / `UNKNOWN`（CLI 非零退出，如 QUEUED 期间 404，不算 kernel 失败，继续等待）：日志形如 `[Kaggle] Kernel Status: QUEUED (waiting in line 3m0s, queue budget 40min)`。
 - **每次状态探测都有超时（#808）**：`kaggle kernels status` 整条链路（kaggle 2.2.4 → kagglesdk `Session.send()` → `merge_environment_settings`，全包无 `timeout`）本身**没有任何 HTTP 超时**，`promisify(exec)` 也默认 `timeout: 0`。半死连接会让那次 exec **永久不返回**：循环不再迭代、日志彻底静默、进程还活着，而 kernel 其实已经 COMPLETE 却没被取走（2026-10-20 实测，白烧一整轮 GPU）。现在每次探测由 `COSYVOICE3_KAGGLE_PROBE_TIMEOUT_MS`（默认 60s，SIGKILL）兜住，失败时**保持最后已知相位**（不重置 RUNNING 计时）并打印 `status probe failed (n in a row, Xm/min budget) — staying RUNNING`；死探测累计超过 `COSYVOICE3_KAGGLE_PROBE_FAILURE_BUDGET_MS`（默认 15min）则 fail-closed，错误里直接给出 `kaggle kernels status` / `kaggle kernels output` 的手动取件命令——**别盲目重跑，重跑会再烧一个 GPU session**。瞬时失败（404 那种秒级返回）几乎不消耗这个预算，排队仍由上面的排队预算裁决。
 - 超时独立计量：排队预算 `COSYVOICE3_KAGGLE_QUEUE_TIMEOUT_MS`（默认 40min，前序任务约 10-15min + 启动 ~5min，勿设过低）；RUNNING 后运行预算 `COSYVOICE3_KAGGLE_TIMEOUT_MS`（默认 30min，#241：20min 会被慢速 torch/模型下载误杀，纯推理 10 scene 仅 ~64s）。
-- 排队超时**不自动 fallback 到 F5**（ADR-0019 质量红线）：明确报错交人工决策——稍后重跑，或显式 `TTS_ENGINE` 覆盖。
+- 排队超时**不自动 fallback 到 F5**（ADR-0019 质量红线）：明确报错交人工决策——稍后重跑，或显式 `TTS_ENGINE` 覆盖。排队超时没有可验证的 take，仍然不兜底；#704 的 take 级兜底只发生在「已有 take 被 Quality Gate 判失败」时，与此处无关。
 - 排队/运行状态同时写入 `output/{id}/audio/.kaggle-kernel/poll-status.json`（`{phase, queuedMs, runningMs, probeFailures, probeFailureMs, lastProbeError, updatedAt}`），后台跑管线时可随时查看进度；轮询静默时先看这里的 `probeFailureMs` / `lastProbeError` 是否在涨。
 
 **批量 push 与失败语义（#241）**:
 
 - **一次 push 生成全部 scene**：`cosyvoice3-kaggle-cuda` 的 `generate()` 把所有待生成 scene 组装进一个 manifest，单次 `kaggle kernels push` 携带（kernel 启动 + 依赖安装 + 模型加载 ~5min 是主导成本，纯推理 10 scene 仅 ~64s）。cache 命中的 scene 不进 manifest（#198）。
 - **自愈重试粒度**：Quality Gate 只挂个别 scene 时，registry 重试只把失败 scene 的单条 manifest 再 push 一次，不重刷整包。**pacing 类失败不占用重抽预算**（#271）：同文本、同速度重抽抬不动实测 WPM，只烧远程 GPU，它们直接进补差环。
-- **缺音频 fail-closed**：scene 在生成 + 自愈重试后仍无音频（kernel 段失败/超时跳过）→ 管线报错中止，绝不静默缺段渲染。显式接受缺段需 `TTS_ALLOW_PARTIAL_TTS=1`。有音频但 Gate 不过则按 **#271 语义分流**：pacing 类先补差、补差仍不合格 → `TTS_PACING_FLOOR_BLOCK`；acoustic 类 → `TTS_ACOUSTIC_HARD_BLOCK`。两类硬阻断都不受 strict/non-strict 影响，唯一能绕过它们的开关是 `TTS_SKIP_QUALITY_GATE=1`；分流机制见 `docs/content-pipeline.md` → Gate 失败语义分流（阈值与 1.2× 上限见同节 #252 段）。
+- **缺音频 fail-closed**：scene 在生成 + 自愈重试后仍无音频（kernel 段失败/超时跳过）→ 管线报错中止，绝不静默缺段渲染。显式接受缺段需 `TTS_ALLOW_PARTIAL_TTS=1`。有音频但 Gate 不过则按 **#271 语义分流**：pacing 类先补差、补差仍不合格 → `TTS_PACING_FLOOR_BLOCK`；acoustic 类 → `TTS_ACOUSTIC_HARD_BLOCK`。两类硬阻断都不受 strict/non-strict 影响，唯一能绕过它们的开关是 `TTS_SKIP_QUALITY_GATE=1`（CosyVoice3-MLX 的 F5 本地兜底不算绕过：F5 take 会重新跑 Quality Gate + 225 WPM 上限，见本节 #704 段）；分流机制见 `docs/content-pipeline.md` → Gate 失败语义分流（阈值与 1.2× 上限见同节 #252 段）。
 - **下载产物身份与新鲜度（#420）**：每次 `generate()` 下载到本次调用独立的 staging（`output/{id}/audio/.kaggle-kernel/downloads/<requestId>/`）并带 `--force`，随后核对 kernel summary 回显的 requestId、scene 覆盖与 wav 完整性（RIFF/WAVE）才晋级到 `audio/`；不匹配即 fail-closed，既有音频不被改动。旧共享目录 `.kaggle-kernel/kaggle-output` 不再被读取，也不再需要「跑前手动 `rm -rf` 该目录」的恢复操作。
 - **本地初版快速验证（可选工作流）**：粗排字幕/节奏时可用 `TTS_ENGINE=cosyvoice3-mlx` 本地秒级出全片音频（RTF 0.64x，emotion 略降）做初版检查；最终成片仍用默认 Kaggle CUDA 保证 emotion 质量（ADR-0019）。
 

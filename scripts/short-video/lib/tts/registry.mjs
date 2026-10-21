@@ -58,7 +58,13 @@ import {
   markFailClosed,
   qualityGateSkipped,
 } from "./failure-class.mjs";
-import { HOOK_MIN_SPEED, MAX_TTS_SPEED, resolveSceneSpeed } from "./pacing.mjs";
+import {
+  HOOK_MIN_SPEED,
+  MAX_TTS_SPEED,
+  WPM_HARD_CEILING,
+  WPM_COMPENSATE_BELOW,
+  resolveSceneSpeed,
+} from "./pacing.mjs";
 import { DEFAULT_SILENCE_FLOOR_MS } from "./silence-trim.mjs";
 
 /**
@@ -173,8 +179,8 @@ function pacingHardBlockError(detail) {
  * not the take, has to change. Falling back to the original take is not an
  * option either: the gate had already rejected it.
  */
-function pacingFloorBlockError(detail) {
-  return markFailClosed(
+function pacingFloorBlockError(detail, failedScenes = []) {
+  const err = markFailClosed(
     new Error(
       `TTS_PACING_FLOOR_BLOCK: pacing-class take(s) still measure below the minimum-acceptable ` +
         `WPM floor after native speed compensation (≤${MAX_TTS_SPEED}x) — ${detail}. ` +
@@ -188,6 +194,10 @@ function pacingFloorBlockError(detail) {
     ),
     "TTS_PACING_FLOOR_BLOCK",
   );
+  // #704: the local-fallback gate needs to know WHICH scenes failed — the slow
+  // take is repairable by another engine even though native speed is not.
+  err.failedScenes = failedScenes;
+  return err;
 }
 
 /**
@@ -201,7 +211,7 @@ function acousticBlockError(failed, attempts) {
   const detail = failed
     .map((f) => `scene ${f.sceneId} (${(f.issues || []).join("; ") || "acoustic failure"})`)
     .join("; ");
-  return markFailClosed(
+  const err = markFailClosed(
     new Error(
       `TTS_ACOUSTIC_HARD_BLOCK: ${failed.length} scene(s) still fail the acoustic checks after ` +
         `${attempts} generated take(s) — ${detail}. NOT shipping audio whose words cannot be ` +
@@ -210,6 +220,158 @@ function acousticBlockError(failed, attempts) {
     ),
     "TTS_ACOUSTIC_HARD_BLOCK",
   );
+  // #704: structured failure scene list — the local fallback regenerates only
+  // these scenes on the other engine.
+  err.failedScenes = failed.map((f) => ({ sceneId: f.sceneId, issues: f.issues ?? [] }));
+  return err;
+}
+
+/**
+ * #704: decide whether a fail-closed Quality-Gate result may be repaired by
+ * the local F5-TTS-MLX engine.
+ *
+ * Only the CosyVoice3-MLX main engine opts in (its bad takes are an engine
+ * defect, not a script defect) and only for the two take-level blocks —
+ * acoustic failures and pacing-floor failures. `TTS_PACING_HARD_BLOCK` (a
+ * rushed take), infra blocks (the verifier never ran) and every non-MLX main
+ * engine keep their original fail-closed semantics.
+ *
+ * Pure and exported so the decision is unit-testable without an engine run.
+ *
+ * @param {object} params
+ * @param {string} [params.engineName] - the main engine's `name`
+ * @param {Error} [params.err] - the fail-closed error the gate raised
+ * @param {NodeJS.ProcessEnv} [params.env=process.env]
+ * @returns {boolean}
+ */
+export function shouldAttemptLocalFallback({ engineName, err, env = process.env }) {
+  return (
+    engineName === "cosyvoice3-mlx" &&
+    err?.failClosed === true &&
+    (err.code === "TTS_ACOUSTIC_HARD_BLOCK" || err.code === "TTS_PACING_FLOOR_BLOCK") &&
+    Array.isArray(err.failedScenes) &&
+    err.failedScenes.length > 0 &&
+    env.TTS_DISABLE_LOCAL_FALLBACK !== "1"
+  );
+}
+
+/**
+ * #704: choose the scenes the local F5-MLX fallback has to regenerate.
+ *
+ * The decision set is each scene's LATEST verdict, not the raw gate report: the
+ * report's evaluations are loaded first, then overwritten (keyed by sceneId)
+ * by `verdictByScene`. `gateReport` is only refreshed by the re-gate at the top
+ * of the self-heal loop, so a compensation/reroll accepted later in the pacing
+ * loop is recorded in `verdictByScene` alone. The overlay fixes both
+ * directions: a repaired scene is not sent to F5 (a wasted minute per scene,
+ * and an F5 rejection would turn a run whose audio is already repaired into a
+ * fail-closed false negative), and a stale high-WPM failure does not veto a
+ * take that the latest verdict has already replaced.
+ *
+ * The target set is the UNION of the scenes the block error names and every
+ * still-rejected latest verdict — minus any scene whose LATEST verdict passes.
+ * A scene with NO verdict is kept — absence of evidence is not a repair.
+ *
+ * `extraEvaluations` carries takes that never pass through the gate at all:
+ * APPROVED cache hits, measured for the pacing ladder (#786) into
+ * `cachedPacing.evaluations` rather than into `gateReport`. Without them the
+ * same fail-open reopens one level up — an approved 250 WPM hook alongside an
+ * acoustically failing scene would be repaired on F5 while the acoustic block
+ * short-circuits the ladder that would have rerolled it. They are loaded into
+ * the decision set BEFORE the report, so the report and the newer recorded
+ * verdicts both still win on conflict.
+ *
+ * The 225 WPM hard ceiling is vetoed here across the WHOLE decision set, passed
+ * or not: the acoustic block is raised BEFORE the pacing ladder runs, so a take
+ * that cleared the gate can still be over 225 WPM (e.g. scene 2 at 250 WPM
+ * while scene 1 blocks acoustically). The fallback would repair scene 1 and
+ * never reach the ladder, shipping the rushed take. Vetoing the attempt keeps
+ * the original block and the pacing-hard red line intact.
+ *
+ * `ok=false` (no repair attempt, original block stands) when no failing latest
+ * verdict exists, when any take exceeds the hard ceiling, when any failure is
+ * not take-level repairable (infra, unclassified, or pacing above the hard
+ * ceiling — only a script edit helps those), or when nothing is left to
+ * regenerate.
+ *
+ * Pure and exported so the selection is unit-testable without an engine run.
+ *
+ * @param {object} params
+ * @param {object|null} params.gateReport - latest Quality-Gate report
+ * @param {Error} [params.gateErr] - the fail-closed error the gate raised
+ * @param {Map<number, {evaluation?: {passed?: boolean}}>} [params.verdictByScene]
+ * @param {Array<{sceneId: number, passed?: boolean, wpm?: number}>} [params.extraEvaluations]
+ *   - takes measured outside the gate (approved cache hits, #786)
+ * @param {number} [params.hardCeiling=WPM_HARD_CEILING]
+ * @returns {{ok: boolean, sceneIds: number[]}}
+ */
+export function selectLocalFallbackTargets({
+  gateReport,
+  gateErr,
+  verdictByScene,
+  extraEvaluations = [],
+  hardCeiling = WPM_HARD_CEILING,
+} = {}) {
+  // Latest verdict per scene: takes outside the gate first, then the report,
+  // then the newer recorded verdicts (accepted compensation/reroll takes)
+  // overwrite it.
+  const latestByScene = new Map();
+  for (const evaluation of extraEvaluations) {
+    if (evaluation && evaluation.sceneId != null) {
+      latestByScene.set(evaluation.sceneId, evaluation);
+    }
+  }
+  for (const evaluation of gateReport?.evaluations ?? []) {
+    if (evaluation && evaluation.sceneId != null) {
+      latestByScene.set(evaluation.sceneId, evaluation);
+    }
+  }
+  for (const [sceneId, verdict] of verdictByScene ?? []) {
+    // The map key is the scene identity; stamp it on so downstream ID
+    // collection cannot depend on the verdict object carrying its own copy.
+    if (verdict?.evaluation) latestByScene.set(sceneId, { ...verdict.evaluation, sceneId });
+  }
+  const evaluations = [...latestByScene.values()];
+  // No failing latest verdict means no evidence a take-level repair is safe —
+  // fail closed.
+  const failedEvaluations = evaluations.filter((e) => !e.passed);
+  if (failedEvaluations.length === 0) return { ok: false, sceneIds: [] };
+
+  // All-or-nothing over the shipped set: a fallback must never become the way a
+  // rushed take reaches rendering, whether that take failed the gate or passed
+  // it. The ladder that would catch it on the main path does not run after the
+  // acoustic fallback (#246/#704).
+  if (evaluations.some((e) => Number.isFinite(e.wpm) && e.wpm > hardCeiling)) {
+    return { ok: false, sceneIds: [] };
+  }
+
+  const locallyRepairable = (e) => {
+    if (e.failureClass === FAILURE_CLASS.ACOUSTIC) return true;
+    // A missing/unmeasurable WPM is a pacing-floor case: F5 produces a new take
+    // whose WPM can actually be measured. Above the hard ceiling only a script
+    // edit helps, and infra/unclassified failures are not take defects.
+    if (e.failureClass !== FAILURE_CLASS.PACING) return false;
+    const wpm = Number(e.wpm);
+    return !Number.isFinite(wpm) || wpm <= hardCeiling;
+  };
+  // All-or-nothing: one unrepairable failure vetoes the whole attempt — a
+  // partial repair would leave that take in the shipped set.
+  if (failedEvaluations.some((e) => !locallyRepairable(e))) return { ok: false, sceneIds: [] };
+
+  const latestVerdictPassed = (sceneId) => latestByScene.get(sceneId)?.passed === true;
+
+  const sceneIds = [
+    ...new Set(
+      [
+        ...(gateErr?.failedScenes ?? []).map((f) => f.sceneId),
+        ...failedEvaluations.map((e) => e.sceneId),
+      ].filter((id) => !latestVerdictPassed(id)),
+    ),
+  ];
+  // Every failure in the report was repaired after all — there is no take left
+  // to regenerate, so the caller keeps the original block.
+  if (sceneIds.length === 0) return { ok: false, sceneIds: [] };
+  return { ok: true, sceneIds };
 }
 
 /**
@@ -483,10 +645,18 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     const scene = scenes.find((s) => s.id === result.sceneId);
     if (!scene) return;
     const speed = speedByResult.get(result) ?? resolveSceneSpeed(scene);
+    // #704: the cache identity belongs to the take that EXISTS on disk — a
+    // local-fallback take was produced by f5-mlx, so its key and meta must name
+    // f5-mlx, not the main engine that failed it. This is provenance, not a
+    // cross-run hit path: the next run plans against the MAIN engine's key, so
+    // an F5 fallback take is never reused as an MLX hit (a different timbre
+    // cannot be pinned into the cache for good).
+    const takeEngine = result.engine ?? engine;
     const meta = {
-      key: sceneCacheKey(engine, scene, speed),
+      key: sceneCacheKey(takeEngine, scene, speed),
       duration: result.duration,
-      engine: engine.name,
+      engine: takeEngine.name,
+      ...(result.fallbackFrom ? { fallbackFrom: result.fallbackFrom } : {}),
       audioPath: result.audioPath,
       ttsSpeed: speed,
     };
@@ -529,10 +699,210 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     for (const res of validatedResults) settleTake(res, null, reason);
   };
 
+  // #704: the LATEST gate report, hoisted out of the gate block so the local
+  // fallback sees every scene the gate currently rejects — not just the
+  // scene(s) the (earlier) block error happened to name.
+  let gateReport = null;
+
+  /**
+   * #704: repair fail-closed CosyVoice3-MLX takes on the local F5-MLX engine.
+   *
+   * The repair targets are the UNION of the block error's scenes and every
+   * still-rejected scene in the latest verdicts (gate report overlaid with
+   * `verdictByScene`), MINUS scenes whose latest verdict passes — see
+   * selectLocalFallbackTargets(), which owns that decision. The acoustic block
+   * is raised BEFORE the pacing loop runs, so a run can hold an acoustic
+   * failure on one scene and an uncompensated pacing-floor failure on another;
+   * regenerating only the acoustic scene would let the slow take ship
+   * (fail-open). The verdict overlay matters for the other direction: the
+   * pacing loop repairs scene-by-scene, and `gateReport` is stale for any
+   * compensation accepted after its last re-gate — re-generating a scene that
+   * is already fixed burns a minute and can turn a repaired run into a block.
+   *
+   * All targets are regenerated into staging. The fallback takes are accepted
+   * ONLY when every one of them passes the same Quality Gate AND stays at or
+   * below the WPM hard ceiling. The pacing ladder does NOT run on the acoustic
+   * path — the block fires before it — so the 225 ceiling has not been applied
+   * to ANY take yet, including takes that already passed the gate; that veto
+   * must happen here (inside selectLocalFallbackTargets) or a repaired run
+   * would ship a rushed take. Any failure (unrepairable failure family, engine
+   * unavailable, short batch, rejected take, exception) returns false and the
+   * caller rethrows the original block. This path can rescue a run — it must
+   * never weaken the fail-closed contract.
+   *
+   * Approved cache hits never enter `gateReport`; their WPM lives in
+   * `cachedPacing.evaluations` (#786). They join the decision set too, or a
+   * rushed approved take would be exempt from the 225 veto exactly like a
+   * rushed freshly-gated one (#704).
+   *
+   * @param {Error} gateErr - the fail-closed error from the gate block
+   * @returns {Promise<boolean>} true when replacement takes were accepted
+   */
+  const attemptLocalFallback = async (gateErr) => {
+    if (!shouldAttemptLocalFallback({ engineName: engine.name, err: gateErr })) return false;
+
+    // #704: the LATEST verdicts decide which failures are still real — a scene
+    // repaired by an accepted compensation is not a fallback target.
+    const { ok, sceneIds } = selectLocalFallbackTargets({
+      gateReport,
+      gateErr,
+      verdictByScene,
+      extraEvaluations: cachedPacing?.evaluations ?? [],
+    });
+    if (!ok) return false;
+
+    const failedSceneIds = new Set(sceneIds);
+    const fallbackScenes = verifyScenes.filter((s) => failedSceneIds.has(s.id));
+    if (fallbackScenes.length === 0) return false;
+
+    let fallbackEngine = null;
+    try {
+      fallbackEngine = await createF5MLXEngine();
+    } catch (err) {
+      console.warn(
+        `  ⚠️ [TTS Local Fallback] f5-mlx init failed: ${err.message} — keeping the original block`,
+      );
+      return false;
+    }
+    if (!fallbackEngine) {
+      console.warn(
+        `  ⚠️ [TTS Local Fallback] f5-mlx is not available — keeping the original block. ` +
+          `Install F5-TTS-MLX in ~/.video-tts-env, or set TTS_DISABLE_LOCAL_FALLBACK=1 to skip the attempt.`,
+      );
+      return false;
+    }
+
+    const staging = createRegenStaging(outputDir);
+    try {
+      let fallbackResults = [];
+      try {
+        fallbackResults = await fallbackEngine.generate(fallbackScenes, staging);
+      } catch (err) {
+        console.warn(
+          `  ⚠️ [TTS Local Fallback] f5-mlx generation failed: ${err.message} — keeping the original block`,
+        );
+        return false;
+      }
+
+      // Every failed scene must come back — a short batch is not a repair.
+      const returnedIds = new Set(fallbackResults.map((r) => r.sceneId));
+      const covered =
+        returnedIds.size === failedSceneIds.size &&
+        [...failedSceneIds].every((id) => returnedIds.has(id));
+      if (!covered) {
+        console.warn(
+          `  ⚠️ [TTS Local Fallback] f5-mlx returned ${returnedIds.size}/${failedSceneIds.size} ` +
+            `scene(s) (${[...returnedIds].join(", ") || "none"}) — keeping the original block`,
+        );
+        return false;
+      }
+
+      const { runTtsQualityGate } = await import("./quality-gate.mjs");
+      // F5 has no instruct resolver — never reuse the main engine's (#270).
+      const fallbackGateOptions = {
+        ...qualityGateOptions,
+        instructForScene: fallbackEngine.instructForScene ?? null,
+      };
+      const fallbackGate = await runTtsQualityGate(
+        fallbackScenes,
+        fallbackResults,
+        fallbackGateOptions,
+      );
+
+      // All-or-nothing: one rejected fallback take promotes nothing, and the
+      // original fail-closed error stands.
+      //
+      // #704: the pacing ladder has NOT run on the acoustic path (the block is
+      // raised before it), and a fallback take never passes through it either.
+      // The ceiling therefore belongs in the acceptance criterion: an F5 take
+      // that clears the gate but still speaks over 225 WPM is rushed audio
+      // (#246) and must not be promoted.
+      const rejected = fallbackResults.filter((res) => {
+        const evalRes = fallbackGate.evaluations.find((e) => e.sceneId === res.sceneId);
+        return !evalRes?.passed || (Number.isFinite(evalRes.wpm) && evalRes.wpm > WPM_HARD_CEILING);
+      });
+      if (rejected.length > 0) {
+        for (const res of rejected) {
+          const evalRes = fallbackGate.evaluations.find((e) => e.sceneId === res.sceneId);
+          if (evalRes?.passed) {
+            // Only the hard-ceiling clause can reject a passing evaluation.
+            console.warn(
+              `  ❌ [TTS Local Fallback] Scene ${res.sceneId} f5-mlx take passed the gate but ` +
+                `measures ${evalRes.wpm} WPM (> ${WPM_HARD_CEILING} hard ceiling) — not promoting`,
+            );
+          } else {
+            console.warn(
+              `  ❌ [TTS Local Fallback] Scene ${res.sceneId} f5-mlx take rejected: ` +
+                `${(evalRes?.issues ?? []).join("; ") || "no evaluation"}`,
+            );
+          }
+        }
+        console.warn(`  ⚠️ [TTS Local Fallback] no take promoted — keeping the original block`);
+        return false;
+      }
+
+      for (const res of fallbackResults) {
+        const evalRes = fallbackGate.evaluations.find((e) => e.sceneId === res.sceneId);
+        acceptRegenTake(outputDir, res);
+        // Cache identity follows the take's REAL engine (see settleTake).
+        res.engine = fallbackEngine;
+        res.fallbackFrom = engine.name;
+        // F5 speaks at its natural pace — scene.ttsSpeed is not consumed.
+        res.ttsSpeed = 1.0;
+        replaceResult(validatedResults, res);
+        verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
+        speedByResult.set(res, 1.0);
+      }
+
+      console.warn(
+        `\n  🚨 [TTS Local Fallback] ${engine.name} failed for scene(s) ` +
+          `${fallbackResults.map((r) => r.sceneId).join(", ")} — regenerated with ` +
+          `${fallbackEngine.name} and accepted. Voice may differ from the rest of the video.`,
+      );
+
+      // #704: this path never runs the pacing ladder (the acoustic block fires
+      // before it), so a take that already PASSED the gate but measures below
+      // the compensation trigger ships at its current speed. Taking the
+      // fallback path drops the compensation plan for those scenes — that is a
+      // known boundary, but it must never be silent.
+      const underCompensated = new Map();
+      for (const evaluation of [
+        ...(gateReport?.evaluations ?? []),
+        ...(cachedPacing?.evaluations ?? []),
+      ]) {
+        if (
+          evaluation?.passed === true &&
+          Number.isFinite(evaluation.wpm) &&
+          evaluation.wpm < WPM_COMPENSATE_BELOW
+        ) {
+          underCompensated.set(evaluation.sceneId, evaluation.wpm);
+        }
+      }
+      if (underCompensated.size > 0) {
+        const detail = [...underCompensated]
+          .map(([sceneId, wpm]) => `scene ${sceneId} (${wpm} WPM)`)
+          .join(", ");
+        console.warn(
+          `\n  🚨 [TTS Local Fallback] pacing compensation was not re-run on the fallback path; ` +
+            `these takes ship at their current speed: ${detail} ` +
+            `(below the ${WPM_COMPENSATE_BELOW} WPM compensation trigger).`,
+        );
+      }
+      return true;
+    } catch (err) {
+      console.warn(
+        `  ⚠️ [TTS Local Fallback] unexpected error: ${err.message} — keeping the original block`,
+      );
+      return false;
+    } finally {
+      cleanupRegenStaging(staging);
+    }
+  };
+
   if (!skipQualityGate) {
     try {
       const { runTtsQualityGate } = await import("./quality-gate.mjs");
-      let gateReport = await runTtsQualityGate(verifyScenes, validatedResults, qualityGateOptions);
+      gateReport = await runTtsQualityGate(verifyScenes, validatedResults, qualityGateOptions);
       recordVerdicts(validatedResults, gateReport.evaluations);
 
       // If any scene failed Quality Gate and retry is enabled
@@ -656,7 +1026,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       // BLOCK; in between → keep. #271 extends the same ladder to gate-FAILED
       // pacing-class takes that the loop used to skip outright — that gap is
       // how a slow take shipped with no compensation at all.
-      const { planPacingResponses, WPM_HARD_CEILING } = await import("./pacing.mjs");
+      const { planPacingResponses } = await import("./pacing.mjs");
       // #786: cached approved takes join the ladder with their measured WPM —
       // otherwise the finished hook (#244 floor) and the >225 ceiling only ever
       // applied to takes generated in this very run.
@@ -683,6 +1053,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           unplanned
             .map((e) => `scene ${e.sceneId} (${e.wpm ?? "unknown"} WPM, no repair plan)`)
             .join("; "),
+          unplanned.map((e) => ({ sceneId: e.sceneId })),
         );
       }
 
@@ -777,6 +1148,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
                       `scene ${c.scene.id} (${c.measuredWpm} WPM, compensation produced no audio)`,
                   )
                   .join("; "),
+                unfixable.map((c) => ({ sceneId: c.scene.id })),
               );
             }
           } else {
@@ -836,6 +1208,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
                   `scene ${res.sceneId} measured ${compensation.measuredWpm} WPM, compensated at ` +
                     `${compensation.speed.toFixed(2)}x → still failing ` +
                     `(${evalRes?.issues?.join(", ") || "gate fail"})`,
+                  [{ sceneId: res.sceneId }],
                 );
               } else {
                 // #252: a compensation of a gate-PASSED take may fall back to it —
@@ -880,12 +1253,18 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         // so the marker is the whole test. They supersede non-strict mode; the
         // operator escape hatch is TTS_SKIP_QUALITY_GATE=1, which skips the
         // gate block above.
+        //
+        // #704: CosyVoice3-MLX is the one engine whose bad takes are an engine
+        // defect rather than a script defect — the failed scenes get ONE
+        // regeneration on the local F5-MLX engine. When that succeeds the run
+        // continues (missing-audio guard + finalize below); when it does not,
+        // the original block stands untouched.
+        if (!(await attemptLocalFallback(gateErr))) throw gateErr;
+      } else if (options.strictQualityGate || process.env.TTS_STRICT_QUALITY_GATE === "1") {
         throw gateErr;
+      } else {
+        console.warn(`  ⚠️ TTS Quality Gate encountered error: ${gateErr.message}`);
       }
-      if (options.strictQualityGate || process.env.TTS_STRICT_QUALITY_GATE === "1") {
-        throw gateErr;
-      }
-      console.warn(`  ⚠️ TTS Quality Gate encountered error: ${gateErr.message}`);
     } finally {
       // #423: settle the trust state of every take the run evaluated — on the
       // success path and on every abort path (hard block, unexpected error).
