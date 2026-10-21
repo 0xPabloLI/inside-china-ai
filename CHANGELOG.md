@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.1...tanstack_start_ts-v1.25.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* **short-video:** stabilize MLX TTS with seeds and F5 fallback ([#704](https://github.com/0xPabloLI/inside-china-ai/issues/704)) ([#819](https://github.com/0xPabloLI/inside-china-ai/issues/819)) ([c756f80](https://github.com/0xPabloLI/inside-china-ai/commit/c756f80c1554aa162fae73cb722acbd743ba74b0))
+
 ## [1.25.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.0...tanstack_start_ts-v1.25.1) (2026-10-20)
 
 
