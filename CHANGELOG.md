@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.5...tanstack_start_ts-v1.25.6) (2026-10-21)
+
+
+### Bug Fixes
+
+* **short-video:** unify scene audio resolution across render and digital-human ([#566](https://github.com/0xPabloLI/inside-china-ai/issues/566)) ([#834](https://github.com/0xPabloLI/inside-china-ai/issues/834)) ([e0607e7](https://github.com/0xPabloLI/inside-china-ai/commit/e0607e70aae5fbf9153924c6716f1f72fe0deb42))
+
 ## [1.25.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.4...tanstack_start_ts-v1.25.5) (2026-10-21)
 
 
