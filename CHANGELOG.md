@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.2...tanstack_start_ts-v1.25.3) (2026-10-21)
+
+
+### Bug Fixes
+
+* **tts:** recognize split/near-miss brand names in the gate ([#689](https://github.com/0xPabloLI/inside-china-ai/issues/689)) ([#825](https://github.com/0xPabloLI/inside-china-ai/issues/825)) ([b530c9c](https://github.com/0xPabloLI/inside-china-ai/commit/b530c9cee787816813f10d0dc5c2c1e8ee29a204))
+
 ## [1.25.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.1...tanstack_start_ts-v1.25.2) (2026-10-21)
 
 
