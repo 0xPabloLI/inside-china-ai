@@ -252,21 +252,41 @@ export function shouldAttemptLocalFallback({ engineName, err, env = process.env 
 /**
  * #704: choose the scenes the local F5-MLX fallback has to regenerate.
  *
- * The target set is the UNION of the scenes the block error names and every
- * still-rejected scene in the latest gate report — minus any scene whose LATEST
- * verdict already passes. `gateReport` is only refreshed by the re-gate at the
- * top of the self-heal loop; a compensation accepted later in the pacing loop
- * is recorded in `verdictByScene` alone. Without this filter a run that
- * repaired scene 2 and blocked on scene 1 would still ship scene 2 to F5: a
- * wasted minute per scene, and an F5 rejection would turn a run whose audio is
- * already repaired into a fail-closed false negative.
+ * The decision set is each scene's LATEST verdict, not the raw gate report: the
+ * report's evaluations are loaded first, then overwritten (keyed by sceneId)
+ * by `verdictByScene`. `gateReport` is only refreshed by the re-gate at the top
+ * of the self-heal loop, so a compensation/reroll accepted later in the pacing
+ * loop is recorded in `verdictByScene` alone. The overlay fixes both
+ * directions: a repaired scene is not sent to F5 (a wasted minute per scene,
+ * and an F5 rejection would turn a run whose audio is already repaired into a
+ * fail-closed false negative), and a stale high-WPM failure does not veto a
+ * take that the latest verdict has already replaced.
  *
+ * The target set is the UNION of the scenes the block error names and every
+ * still-rejected latest verdict — minus any scene whose LATEST verdict passes.
  * A scene with NO verdict is kept — absence of evidence is not a repair.
  *
- * `ok=false` (no repair attempt, original block stands) when the report is
- * empty, when any failure is not take-level repairable (infra, unclassified, or
- * pacing above the hard ceiling — only a script edit helps those), or when
- * nothing is left to regenerate.
+ * `extraEvaluations` carries takes that never pass through the gate at all:
+ * APPROVED cache hits, measured for the pacing ladder (#786) into
+ * `cachedPacing.evaluations` rather than into `gateReport`. Without them the
+ * same fail-open reopens one level up — an approved 250 WPM hook alongside an
+ * acoustically failing scene would be repaired on F5 while the acoustic block
+ * short-circuits the ladder that would have rerolled it. They are loaded into
+ * the decision set BEFORE the report, so the report and the newer recorded
+ * verdicts both still win on conflict.
+ *
+ * The 225 WPM hard ceiling is vetoed here across the WHOLE decision set, passed
+ * or not: the acoustic block is raised BEFORE the pacing ladder runs, so a take
+ * that cleared the gate can still be over 225 WPM (e.g. scene 2 at 250 WPM
+ * while scene 1 blocks acoustically). The fallback would repair scene 1 and
+ * never reach the ladder, shipping the rushed take. Vetoing the attempt keeps
+ * the original block and the pacing-hard red line intact.
+ *
+ * `ok=false` (no repair attempt, original block stands) when no failing latest
+ * verdict exists, when any take exceeds the hard ceiling, when any failure is
+ * not take-level repairable (infra, unclassified, or pacing above the hard
+ * ceiling — only a script edit helps those), or when nothing is left to
+ * regenerate.
  *
  * Pure and exported so the selection is unit-testable without an engine run.
  *
@@ -274,6 +294,8 @@ export function shouldAttemptLocalFallback({ engineName, err, env = process.env 
  * @param {object|null} params.gateReport - latest Quality-Gate report
  * @param {Error} [params.gateErr] - the fail-closed error the gate raised
  * @param {Map<number, {evaluation?: {passed?: boolean}}>} [params.verdictByScene]
+ * @param {Array<{sceneId: number, passed?: boolean, wpm?: number}>} [params.extraEvaluations]
+ *   - takes measured outside the gate (approved cache hits, #786)
  * @param {number} [params.hardCeiling=WPM_HARD_CEILING]
  * @returns {{ok: boolean, sceneIds: number[]}}
  */
@@ -281,11 +303,41 @@ export function selectLocalFallbackTargets({
   gateReport,
   gateErr,
   verdictByScene,
+  extraEvaluations = [],
   hardCeiling = WPM_HARD_CEILING,
 } = {}) {
-  // No gate report means no evidence a take-level repair is safe — fail closed.
-  const failedEvaluations = (gateReport?.evaluations ?? []).filter((e) => !e.passed);
+  // Latest verdict per scene: takes outside the gate first, then the report,
+  // then the newer recorded verdicts (accepted compensation/reroll takes)
+  // overwrite it.
+  const latestByScene = new Map();
+  for (const evaluation of extraEvaluations) {
+    if (evaluation && evaluation.sceneId != null) {
+      latestByScene.set(evaluation.sceneId, evaluation);
+    }
+  }
+  for (const evaluation of gateReport?.evaluations ?? []) {
+    if (evaluation && evaluation.sceneId != null) {
+      latestByScene.set(evaluation.sceneId, evaluation);
+    }
+  }
+  for (const [sceneId, verdict] of verdictByScene ?? []) {
+    // The map key is the scene identity; stamp it on so downstream ID
+    // collection cannot depend on the verdict object carrying its own copy.
+    if (verdict?.evaluation) latestByScene.set(sceneId, { ...verdict.evaluation, sceneId });
+  }
+  const evaluations = [...latestByScene.values()];
+  // No failing latest verdict means no evidence a take-level repair is safe —
+  // fail closed.
+  const failedEvaluations = evaluations.filter((e) => !e.passed);
   if (failedEvaluations.length === 0) return { ok: false, sceneIds: [] };
+
+  // All-or-nothing over the shipped set: a fallback must never become the way a
+  // rushed take reaches rendering, whether that take failed the gate or passed
+  // it. The ladder that would catch it on the main path does not run after the
+  // acoustic fallback (#246/#704).
+  if (evaluations.some((e) => Number.isFinite(e.wpm) && e.wpm > hardCeiling)) {
+    return { ok: false, sceneIds: [] };
+  }
 
   const locallyRepairable = (e) => {
     if (e.failureClass === FAILURE_CLASS.ACOUSTIC) return true;
@@ -300,8 +352,7 @@ export function selectLocalFallbackTargets({
   // partial repair would leave that take in the shipped set.
   if (failedEvaluations.some((e) => !locallyRepairable(e))) return { ok: false, sceneIds: [] };
 
-  const latestVerdictPassed = (sceneId) =>
-    verdictByScene?.get?.(sceneId)?.evaluation?.passed === true;
+  const latestVerdictPassed = (sceneId) => latestByScene.get(sceneId)?.passed === true;
 
   const sceneIds = [
     ...new Set(
@@ -648,23 +699,32 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
    * #704: repair fail-closed CosyVoice3-MLX takes on the local F5-MLX engine.
    *
    * The repair targets are the UNION of the block error's scenes and every
-   * still-rejected scene in the latest gate report, MINUS scenes whose latest
-   * verdict passes — see selectLocalFallbackTargets(), which owns that decision.
-   * The acoustic block is raised BEFORE the pacing loop runs, so a run can hold
-   * an acoustic failure on one scene and an uncompensated pacing-floor failure
-   * on another; regenerating only the acoustic scene would let the slow take
-   * ship (fail-open). The verdict filter matters for the other direction: the
+   * still-rejected scene in the latest verdicts (gate report overlaid with
+   * `verdictByScene`), MINUS scenes whose latest verdict passes — see
+   * selectLocalFallbackTargets(), which owns that decision. The acoustic block
+   * is raised BEFORE the pacing loop runs, so a run can hold an acoustic
+   * failure on one scene and an uncompensated pacing-floor failure on another;
+   * regenerating only the acoustic scene would let the slow take ship
+   * (fail-open). The verdict overlay matters for the other direction: the
    * pacing loop repairs scene-by-scene, and `gateReport` is stale for any
    * compensation accepted after its last re-gate — re-generating a scene that
    * is already fixed burns a minute and can turn a repaired run into a block.
    *
    * All targets are regenerated into staging. The fallback takes are accepted
    * ONLY when every one of them passes the same Quality Gate AND stays at or
-   * below the WPM hard ceiling (this path skips the pacing ladder that
-   * normally enforces it); any failure
-   * (unrepairable failure family, engine unavailable, short batch, rejected
-   * take, exception) returns false and the caller rethrows the original block.
-   * This path can rescue a run — it must never weaken the fail-closed contract.
+   * below the WPM hard ceiling. The pacing ladder does NOT run on the acoustic
+   * path — the block fires before it — so the 225 ceiling has not been applied
+   * to ANY take yet, including takes that already passed the gate; that veto
+   * must happen here (inside selectLocalFallbackTargets) or a repaired run
+   * would ship a rushed take. Any failure (unrepairable failure family, engine
+   * unavailable, short batch, rejected take, exception) returns false and the
+   * caller rethrows the original block. This path can rescue a run — it must
+   * never weaken the fail-closed contract.
+   *
+   * Approved cache hits never enter `gateReport`; their WPM lives in
+   * `cachedPacing.evaluations` (#786). They join the decision set too, or a
+   * rushed approved take would be exempt from the 225 veto exactly like a
+   * rushed freshly-gated one (#704).
    *
    * @param {Error} gateErr - the fail-closed error from the gate block
    * @returns {Promise<boolean>} true when replacement takes were accepted
@@ -674,7 +734,12 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
 
     // #704: the LATEST verdicts decide which failures are still real — a scene
     // repaired by an accepted compensation is not a fallback target.
-    const { ok, sceneIds } = selectLocalFallbackTargets({ gateReport, gateErr, verdictByScene });
+    const { ok, sceneIds } = selectLocalFallbackTargets({
+      gateReport,
+      gateErr,
+      verdictByScene,
+      extraEvaluations: cachedPacing?.evaluations ?? [],
+    });
     if (!ok) return false;
 
     const failedSceneIds = new Set(sceneIds);
@@ -738,11 +803,11 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       // All-or-nothing: one rejected fallback take promotes nothing, and the
       // original fail-closed error stands.
       //
-      // #704: the 225 WPM hard ceiling is enforced by the pacing ladder that
-      // ran BEFORE this block, so a fallback take never passes through it. The
-      // ceiling therefore belongs in the acceptance criterion: an F5 take that
-      // clears the gate but still speaks over 225 WPM is rushed audio (#246)
-      // and must not be promoted.
+      // #704: the pacing ladder has NOT run on the acoustic path (the block is
+      // raised before it), and a fallback take never passes through it either.
+      // The ceiling therefore belongs in the acceptance criterion: an F5 take
+      // that clears the gate but still speaks over 225 WPM is rushed audio
+      // (#246) and must not be promoted.
       const rejected = fallbackResults.filter((res) => {
         const evalRes = fallbackGate.evaluations.find((e) => e.sceneId === res.sceneId);
         return !evalRes?.passed || (Number.isFinite(evalRes.wpm) && evalRes.wpm > WPM_HARD_CEILING);

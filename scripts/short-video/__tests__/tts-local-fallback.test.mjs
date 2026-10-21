@@ -55,7 +55,7 @@ import {
   selectLocalFallbackTargets,
 } from "../lib/tts/registry.mjs";
 import { runTtsQualityGate } from "../lib/tts/quality-gate.mjs";
-import { writeSceneMeta, sceneCacheKey } from "../lib/tts/cache.mjs";
+import { writeSceneMeta, sceneCacheKey, planTtsScenes } from "../lib/tts/cache.mjs";
 import { createF5MLXEngine } from "../lib/tts/f5-mlx.mjs";
 import { FAILURE_CLASS } from "../lib/tts/failure-class.mjs";
 
@@ -288,6 +288,28 @@ describe("TTS local fallback (#704)", () => {
     expect(warnText()).not.toMatch(/Voice may differ from the rest of the video/);
   });
 
+  it("a gate-PASSED take over 225 WPM vetoes the fallback — no F5 attempt", async () => {
+    const scenes = makeScenes();
+    const engine = primaryMlxEngine();
+    const f5 = f5Engine();
+    vi.mocked(createF5MLXEngine).mockResolvedValue(f5);
+    // Gate 0: scene 1 fails acoustically while scene 2 PASSES at 250 WPM. The
+    // acoustic block fires BEFORE the pacing ladder, so repairing scene 1 on F5
+    // would ship scene 2 at 250 WPM — the #246/#704 fail-open. The fallback must
+    // refuse the whole attempt and leave the original block standing.
+    stubGateSequence([(id) => (id === 1 ? failAcoustic(1) : pass(2, 250)), (id) => pass(id, 160)]);
+
+    const err = await runCapturingError(scenes, dir, engine, {
+      useCache: false,
+      runAlignment: false,
+      maxRetries: 0,
+    });
+
+    expect(err?.code).toBe("TTS_ACOUSTIC_HARD_BLOCK");
+    expect(createF5MLXEngine).not.toHaveBeenCalled();
+    expect(f5.generate).not.toHaveBeenCalled();
+  });
+
   it("F5 unavailable (factory returns null) rethrows the original error", async () => {
     const scenes = makeScenes();
     const engine = primaryMlxEngine();
@@ -493,6 +515,35 @@ describe("TTS local fallback (#704)", () => {
     expect(warnText()).toMatch(/returned 1\/1 scene/);
   });
 
+  it("an approved cached take over 225 WPM vetoes the fallback — no F5 attempt", async () => {
+    const scenes = makeScenes();
+    const engine = primaryMlxEngine();
+    const f5 = f5Engine();
+    vi.mocked(createF5MLXEngine).mockResolvedValue(f5);
+    // Scene 2 is an APPROVED cache hit speaking 250 WPM (15 tokens / 3.6s).
+    // Approved takes never enter the gate report; their measured WPM only lives
+    // in `cachedPacing.evaluations` (#786). Committing to a repair of scene 1
+    // would skip the pacing ladder that would reroll the rushed cached take.
+    vi.mocked(planTtsScenes).mockReturnValueOnce({
+      approved: [{ sceneId: 2, audioPath: join(dir, "scene-2.wav"), duration: 3.6, ttsSpeed: 1.0 }],
+      candidates: [],
+      pending: [scenes[0]],
+    });
+    stubGateSequence([(id) => failAcoustic(id)]);
+
+    const err = await runCapturingError(scenes, dir, engine, {
+      useCache: true,
+      runAlignment: false,
+      maxRetries: 0,
+    });
+
+    expect(err?.code).toBe("TTS_ACOUSTIC_HARD_BLOCK");
+    expect(createF5MLXEngine).not.toHaveBeenCalled();
+    expect(f5.generate).not.toHaveBeenCalled();
+    // Only the pending scene went to the main engine.
+    expect(engine.generate.mock.calls[0][0].map((s) => s.id)).toEqual([1]);
+  });
+
   it("accepted fallback meta records engine f5-mlx + fallbackFrom, keyed by the F5 engine", async () => {
     const scenes = makeScenes();
     const engine = primaryMlxEngine();
@@ -600,10 +651,67 @@ describe("selectLocalFallbackTargets (#704)", () => {
     const out = selectLocalFallbackTargets({
       gateReport: report([failAcoustic(1), failAcoustic(2)]),
       gateErr: gateErr([1]),
-      // Scene 2 was repaired after the report was taken.
+      // Scene 2 was repaired after the report was taken. Verdicts are full
+      // gate evaluations (real ones always are), not bare {passed} stubs.
       verdictByScene: verdicts([
-        [1, { passed: false }],
-        [2, { passed: true }],
+        [1, failAcoustic(1)],
+        [2, pass(2)],
+      ]),
+    });
+    expect(out).toEqual({ ok: true, sceneIds: [1] });
+  });
+
+  it("vetoes the whole attempt when ANY take — passed or not — exceeds the hard ceiling", () => {
+    // Scene 1 blocks acoustically; scene 2 cleared the gate but measures
+    // 250 WPM. The acoustic block precedes the pacing ladder, so the fallback
+    // is the only place that can still enforce the 225 red line.
+    expect(
+      selectLocalFallbackTargets({
+        gateReport: report([failAcoustic(1), pass(2, 250)]),
+        gateErr: gateErr([1]),
+        verdictByScene: verdicts([]),
+      }),
+    ).toEqual({ ok: false, sceneIds: [] });
+  });
+
+  it("vetoes an extra (cached) take over the hard ceiling that never entered the report", () => {
+    // Approved cache hits are measured into `cachedPacing.evaluations` (#786),
+    // not into gateReport. The acoustic block precedes the pacing ladder, so an
+    // unvetted 250 WPM cached take would ship if the fallback ignored it.
+    expect(
+      selectLocalFallbackTargets({
+        gateReport: report([failAcoustic(1)]),
+        gateErr: gateErr([1]),
+        verdictByScene: verdicts([]),
+        extraEvaluations: [pass(2, 250)],
+      }),
+    ).toEqual({ ok: false, sceneIds: [] });
+  });
+
+  it("a newer passing verdict outranks an extra take's stale high WPM", () => {
+    // The cached scene was later replaced by an accepted 160 WPM compensation:
+    // the newest verdict wins over both extraEvaluations and the report, so
+    // only the still-failing scene 1 is a fallback target.
+    expect(
+      selectLocalFallbackTargets({
+        gateReport: report([failAcoustic(1)]),
+        gateErr: gateErr([1]),
+        verdictByScene: verdicts([[2, pass(2, 160)]]),
+        extraEvaluations: [pass(2, 250)],
+      }),
+    ).toEqual({ ok: true, sceneIds: [1] });
+  });
+
+  it("a stale high-WPM failure repaired to a passing take does not veto", () => {
+    // The report still holds scene 2 failing at 250 WPM, but the LATEST verdict
+    // is a passing 160 WPM take (accepted compensation). Only the still-failing
+    // scene 1 is a fallback target.
+    const out = selectLocalFallbackTargets({
+      gateReport: report([failAcoustic(1), failPacing(2, 250)]),
+      gateErr: gateErr([1]),
+      verdictByScene: verdicts([
+        [1, { passed: false, failureClass: FAILURE_CLASS.ACOUSTIC, wpm: 60 }],
+        [2, { passed: true, wpm: 160 }],
       ]),
     });
     expect(out).toEqual({ ok: true, sceneIds: [1] });
