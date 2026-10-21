@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createPublicClient } from "@/integrations/supabase/public-client";
 
 export const getAskAnswer = createServerFn({ method: "GET" })
-  .inputValidator((d) => z.object({ slug: z.string().min(1).max(120) }).parse(d))
+  .validator((d) => z.object({ slug: z.string().min(1).max(120) }).parse(d))
   .handler(async ({ data }) => {
     const sb = createPublicClient();
     const { data: row } = await sb
@@ -46,7 +46,7 @@ export const getAskAnswer = createServerFn({ method: "GET" })
 
 /** Published answers that cite a given article — rendered as crawlable links on the article page. */
 export const listAnswersForPost = createServerFn({ method: "GET" })
-  .inputValidator((d) => z.object({ slug: z.string().min(1).max(200) }).parse(d))
+  .validator((d) => z.object({ slug: z.string().min(1).max(200) }).parse(d))
   .handler(async ({ data }) => {
     const sb = createPublicClient();
     const { data: rows } = await sb

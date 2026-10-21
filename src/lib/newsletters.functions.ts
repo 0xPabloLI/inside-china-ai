@@ -83,7 +83,7 @@ export function assertNewsletterUpdated(rows: { id: string }[] | null): void {
 
 export const saveNewsletter = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) => newsletterInput.parse(d))
+  .validator((d: unknown) => newsletterInput.parse(d))
   .handler(async ({ data, context }) => {
     if (data.id) {
       const { data: updated, error } = await context.supabase
@@ -107,7 +107,7 @@ export const saveNewsletter = createServerFn({ method: "POST" })
 
 export const deleteNewsletter = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("newsletters").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -116,7 +116,7 @@ export const deleteNewsletter = createServerFn({ method: "POST" })
 
 export const previewNewsletter = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         subject: z.string().trim().min(1).max(200),
@@ -134,7 +134,7 @@ export const previewNewsletter = createServerFn({ method: "POST" })
 
 export const sendNewsletterNow = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { dispatchNewsletter } = await import("./newsletters.server");
     return dispatchNewsletter(data.id);

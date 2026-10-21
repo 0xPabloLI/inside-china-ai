@@ -29,7 +29,7 @@ export const listPublishedPosts = createServerFn({ method: "GET" }).handler(asyn
 });
 
 export const getPublishedPost = createServerFn({ method: "GET" })
-  .inputValidator((d: { slug: string }) => z.object({ slug: z.string().min(1).max(200) }).parse(d))
+  .validator((d: { slug: string }) => z.object({ slug: z.string().min(1).max(200) }).parse(d))
   .handler(async ({ data }) => {
     const sb = createPublicClient();
     const { data: row, error } = await sb
@@ -88,7 +88,7 @@ export const listAllPostsAdmin = createServerFn({ method: "GET" })
 
 export const getPostAdmin = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from("posts")
@@ -101,7 +101,7 @@ export const getPostAdmin = createServerFn({ method: "GET" })
 
 export const savePost = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) => postInput.parse(d))
+  .validator((d: unknown) => postInput.parse(d))
   .handler(async ({ data, context }) => {
     const now = new Date().toISOString();
     if (data.id) {
@@ -170,7 +170,7 @@ export async function removeAttachmentObjects(
 
 export const deletePost = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     // Gather attachment storage paths before deleting (CASCADE will remove rows)
     const { data: atts } = await context.supabase
@@ -206,7 +206,7 @@ export const uploadAttachmentInput = z.object({
 
 export const uploadAttachment = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) => uploadAttachmentInput.parse(d))
+  .validator((d: unknown) => uploadAttachmentInput.parse(d))
   .handler(async ({ data, context }) => {
     const ext = data.fileName.includes(".") ? data.fileName.split(".").pop() : "";
     const uuid = crypto.randomUUID();
@@ -246,7 +246,7 @@ export const uploadAttachment = createServerFn({ method: "POST" })
 
 export const listAttachmentsAdmin = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .inputValidator((d: { postId: string }) => z.object({ postId: z.string().uuid() }).parse(d))
+  .validator((d: { postId: string }) => z.object({ postId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("post_attachments")
@@ -259,7 +259,7 @@ export const listAttachmentsAdmin = createServerFn({ method: "GET" })
 
 export const deleteAttachment = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: row, error: fetchErr } = await context.supabase
       .from("post_attachments")
@@ -281,7 +281,7 @@ export const deleteAttachment = createServerFn({ method: "POST" })
 
 export const renameAttachment = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: { id: string; fileName: string }) =>
+  .validator((d: { id: string; fileName: string }) =>
     z
       .object({
         id: z.string().uuid(),

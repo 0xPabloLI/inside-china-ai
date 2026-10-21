@@ -106,7 +106,7 @@ export const listTrackedKeywords = createServerFn({ method: "GET" })
 
 export const addTrackedKeyword = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         keyword: z.string().trim().min(2).max(120).toLowerCase(),
@@ -132,7 +132,7 @@ export const addTrackedKeyword = createServerFn({ method: "POST" })
 
 export const deleteTrackedKeyword = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("tracked_keywords").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -203,7 +203,7 @@ export const getAlertConfig = createServerFn({ method: "GET" })
 
 export const updateAlertSettings = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         dropThreshold: z.coerce.number().int().min(1).max(50),
@@ -226,7 +226,7 @@ export const updateAlertSettings = createServerFn({ method: "POST" })
 
 export const addAlertRecipient = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z.object({ email: z.string().trim().toLowerCase().email().max(320) }).parse(d),
   )
   .handler(async ({ data, context }) => {
@@ -239,7 +239,7 @@ export const addAlertRecipient = createServerFn({ method: "POST" })
 
 export const deleteAlertRecipient = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("ranking_alert_recipients")
@@ -256,7 +256,7 @@ export const deleteAlertRecipient = createServerFn({ method: "POST" })
  */
 export const sendTestAlertNotification = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         recipient: z.string().trim().toLowerCase().email().max(320).optional(),
