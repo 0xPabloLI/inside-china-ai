@@ -23,7 +23,7 @@ export function isDuplicateEmailError(
 }
 
 export const subscribe = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => emailSchema.parse(d))
+  .validator((d: unknown) => emailSchema.parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("subscribers").insert({ email: data.email });
@@ -46,7 +46,7 @@ export const listSubscribers = createServerFn({ method: "GET" })
 
 export const deleteSubscriber = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("subscribers").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
