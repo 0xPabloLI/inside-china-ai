@@ -79,6 +79,12 @@ _Avoid_: Search source (the old single-contract abstraction), news filter
 **Material Contract (素材契约)**: The acquisition discipline for sources serving video material — platform-faithful acquisition anchored on a contentId: site: fallback (default year window) + capability routing (yt-dlp/cobalt/direct/CDP adapter), chained after the topic is chosen. A source can serve both contracts; the query role, not the source, picks the contract.
 _Avoid_: Footage pipeline, asset search (too generic)
 
+**Evidence Media (证据素材)**: A Scene's media that carries the asserted fact itself — a real capture of the source page (model card, benchmark table, pricing page) — rather than illustrating it. Declared with `media.evidence: true`; the Final Media Gate fails the Scene when its Capture Provenance is absent. `assetNeed` stays a search-query string and is never the marker.
+_Avoid_: Illustration, background image, screenshot (names the artifact, not the role)
+
+**Capture Provenance (采集凭据)**: The geometry a capture claims to have produced — `media.provenance` with `sourceUrl`, `selector`, `rect` (the element), `clip` (what was actually captured) and `scale`; the clip must contain the rect, which is what makes a mid-glyph cut decidable at intake — for a capture that recorded it. A declaration is not a measurement: nothing yet reconciles these numbers with the pixels on disk, which is #758's producer side. Field shape and checks: `lib/media-integrity.mjs`. It is geometry, not attribution: `media.source` stays the on-screen credit.
+_Avoid_: Metadata, source note, watermark
+
 ## TTS & Voice
 
 **TTS Engine Adapter**: A module in `lib/tts/` that implements a common interface (`isAvailable()`, `generate()`, `info`) for a specific TTS provider. Registered in `registry.mjs` via `ENGINE_FACTORIES` and selected by `PRIORITY` order or `TTS_ENGINE` env override. Current engines: CosyVoice3-Kaggle-CUDA (default), CosyVoice3-Modal-CUDA (paid fallback), CosyVoice3-MLX (local fallback), F5-TTS-MLX (backup), edge-tts and macOS `say` (manual opt-in).
