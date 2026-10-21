@@ -19,6 +19,7 @@ import {
   reportFinalMediaWarnings,
 } from "../lib/final-media-gate.mjs";
 import { inspectMediaFile, MIN_MEDIA_SIDE } from "../lib/media-integrity.mjs";
+import { probeToolAvailable } from "../lib/media-probe.mjs";
 
 /**
  * A real, decodable PNG. Fixtures used to be the literal string "fake" — the
@@ -574,7 +575,7 @@ describe("media file integrity (#759)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("FAILS a video when the probe returns null (fail-closed either way)", () => {
+  it("FAILS a video when the probe returns null, and blames the right thing", () => {
     const dir = makeContentDir([{ name: "clip.mp4", bytes: mp4Bytes() }]);
     const result = checkFinalMedia({
       scenes: [mediaScene({ type: "video", path: "assets/clip.mp4" })],
@@ -583,9 +584,12 @@ describe("media file integrity (#759)", () => {
     });
     expect(result.pass).toBe(false);
     expect(result.failures[0].reason).toBe("broken-media");
-    // Which of the two depends on whether ffprobe is reachable on this machine;
-    // both must fail closed, and only the second tells the truth about why.
-    expect(["unreadable-media", "probe-unavailable"]).toContain(result.failures[0].code);
+    // Both codes fail closed; which one is correct depends on whether ffprobe is
+    // reachable here. Derived from the same probe the gate consults, so a
+    // regression that collapses the two codes cannot stay green.
+    expect(result.failures[0].code).toBe(
+      probeToolAvailable() ? "unreadable-media" : "probe-unavailable",
+    );
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -740,15 +744,44 @@ describe("media provenance (#759)", () => {
 
   it("keeps assetNeed a string contract — it demands no provenance", () => {
     // Every consumer (claim-keywords, vlm-cache, vlm_analyzer.py, shipped
-    // scene-data) reads assetNeed as a search-query string. The gate must not
-    // start treating it as an object before #758 decides that shape.
+    // scene-data) reads assetNeed as a search-query string. Re-adding an object
+    // marker here would fork that contract, so both shapes must stay inert.
+    const dir = makeContentDir(["present.png"]);
+    for (const assetNeed of ["benchmark table screenshot", { kind: "evidence-shot" }]) {
+      const result = checkFinalMedia({
+        scenes: [mediaScene({ type: "image", path: "assets/present.png" }, { assetNeed })],
+        contentDir: dir,
+      });
+      expect(result.pass).toBe(true);
+      expect(result.failures).toHaveLength(0);
+    }
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("FAILS a truthy non-boolean evidence flag instead of switching off", () => {
     const dir = makeContentDir(["present.png"]);
     const result = checkFinalMedia({
+      scenes: [mediaScene({ type: "image", path: "assets/present.png", evidence: "yes" })],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures[0].reason).toBe("invalid-evidence-flag");
+    expect(formatFinalMediaFailures(result)).toContain("unusable evidence flag");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("leaves an absent file on a no-media scene type as the CSS fallback", () => {
+    // Pre-#759 contract, kept deliberately: the renderer's validateMedia warns
+    // and paints a background, so requiring presence here would reach past this
+    // ticket. What #759 added is that a file that IS present gets judged.
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
       scenes: [
-        mediaScene(
-          { type: "image", path: "assets/present.png" },
-          { assetNeed: "benchmark table screenshot" },
-        ),
+        {
+          id: 9,
+          visualType: "data",
+          media: { type: "image", path: "assets/gone.png", mode: "fullscreen" },
+        },
       ],
       contentDir: dir,
     });
@@ -871,7 +904,7 @@ describe("formatFinalMediaFailures for integrity/provenance (#759)", () => {
     const report = formatFinalMediaFailures(result);
     expect(report).toContain("3 scene(s)");
     expect(report).toContain("Scene 1");
-    expect(report).toContain('"assets/empty.png" is unusable');
+    expect(report).toContain('"assets/empty.png" failed the integrity check');
     expect(report).toContain("zero-byte");
     expect(report).toContain("Scene 2");
     expect(report).toContain("invalid provenance");
@@ -919,14 +952,17 @@ function gifBytes(width, height, withTrailer) {
 describe("media header parsers (#759)", () => {
   const repoRoot = new URL("../../../", import.meta.url).pathname;
 
-  it("reads a real EXIF JPEG by markers, not file-name", () => {
-    const v = inspectMediaFile(`${repoRoot}scripts/short-video/assets/pexels-ai-chip.jpg`);
-    expect(v).toMatchObject({ ok: true, format: "jpeg" });
-    expect(v.width).toBeGreaterThan(0);
+  it("reads a real tracked JPEG by markers, not by file-name", () => {
+    const v = inspectMediaFile(
+      `${repoRoot}scripts/short-video/assets/dh-fixtures/portrait-small.jpg`,
+    );
+    expect(v).toMatchObject({ ok: true, format: "jpeg", width: 240, height: 308 });
   });
 
   it("REJECTS that JPEG with its end-of-image marker cut", () => {
-    const full = readFileSync(`${repoRoot}scripts/short-video/assets/pexels-ai-chip.jpg`);
+    const full = readFileSync(
+      `${repoRoot}scripts/short-video/assets/dh-fixtures/portrait-small.jpg`,
+    );
     const dir = makeContentDir([{ name: "cut.jpg", bytes: full.subarray(0, full.length - 1) }]);
     const v = inspectMediaFile(join(dir, "assets/cut.jpg"));
     expect(v.ok).toBe(false);

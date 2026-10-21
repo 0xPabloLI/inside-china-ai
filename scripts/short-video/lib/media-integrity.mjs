@@ -24,6 +24,10 @@
  * absent, or whose declared clip matches its rect on paper but not in the
  * pixels, still passes. Closing that gap is #758's job — a producer that
  * records geometry it never hand-wrote.
+ *
+ * A video whose probe fails is never a pass: when ffprobe itself is missing the
+ * rejection is `probe-unavailable` (the machine, not the asset), so the fix the
+ * operator is told matches the cause.
  */
 import { closeSync, openSync, readFileSync, readSync, statSync } from "fs";
 import { probeMedia, probeToolAvailable } from "./media-probe.mjs";
@@ -444,18 +448,4 @@ export function validateProvenance(provenance) {
   }
 
   return { ok: errors.length === 0, errors };
-}
-
-/**
- * The marker declaring this media to be Evidence Media, or null.
- *
- * Only `media.evidence: true` is honoured. `assetNeed` stays out: every current
- * consumer (`claim-keywords`, `vlm-cache`, `vlm_analyzer.py`, all shipped
- * scene-data) reads it as a search-query string, so teaching the gate an object
- * shape here would fork a contract #758 has not decided yet.
- *
- * @returns {string|null}
- */
-export function evidenceMarker(media) {
-  return media?.evidence === true ? "media.evidence:true" : null;
 }

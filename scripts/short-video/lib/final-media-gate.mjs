@@ -29,7 +29,7 @@ import { join } from "path";
 import { DEFAULT_NARRATIVE_LAYOUT } from "./text-slots.mjs";
 import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
-import { evidenceMarker, inspectMediaFile, validateProvenance } from "./media-integrity.mjs";
+import { inspectMediaFile, validateProvenance } from "./media-integrity.mjs";
 // Re-export: existing consumers import NO_MEDIA_TYPES from this module.
 export { NO_MEDIA_TYPES };
 
@@ -50,6 +50,10 @@ function effectiveLayout(scene) {
  * Judge a media file that is already present on disk: bytes first, then the
  * provenance geometry the scene declares for it.
  *
+ * `assetNeed` is deliberately not a marker: `claim-keywords`, `vlm-cache` and
+ * `vlm_analyzer.py` all read it as a search-query string, so an object shape
+ * here would fork a contract #758 has not decided.
+ *
  * @returns {Array<{reason: string, code?: string, path: string, detail: string}>}
  *          findings to report as failures — empty when the asset is usable.
  */
@@ -69,18 +73,42 @@ function inspectPresentMedia(scene, contentDir, probeVideo) {
     return ok ? [] : [{ reason: "invalid-provenance", path, detail: errors.join("; ") }];
   }
 
-  const marker = evidenceMarker(media);
-  if (marker) {
+  if (media.evidence === true) {
     return [
       {
         reason: "missing-provenance",
         path,
-        detail: `evidence media (${marker}) declares no media.provenance — a capture must record sourceUrl, selector, rect, clip and scale so its geometry can be verified`,
+        detail:
+          "a capture marked evidence:true must record sourceUrl, selector, rect, clip and scale so its geometry can be verified",
+      },
+    ];
+  }
+
+  // A truthy non-boolean would mean "evidence" to a reader and nothing to the
+  // check above — that combination must fail rather than switch the gate off.
+  if (media.evidence !== undefined && media.evidence !== false) {
+    return [
+      {
+        reason: "invalid-evidence-flag",
+        path,
+        detail: `media.evidence must be the boolean true, got ${JSON.stringify(media.evidence)}`,
       },
     ];
   }
 
   return [];
+}
+
+/**
+ * Push one scene's media findings into the failure list. One writer so the four
+ * call sites (no-media type / hook / media-dependent / CSS-only) cannot drift.
+ *
+ * @returns {number} findings pushed — truthy means "this scene is done".
+ */
+function pushMediaFindings(failures, scene, layout, contentDir, probeVideo) {
+  const found = inspectPresentMedia(scene, contentDir, probeVideo);
+  for (const f of found) failures.push({ sceneId: scene.id, layout, ...f });
+  return found.length;
 }
 
 /**
@@ -99,11 +127,12 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
     // Scene types that render no media layout are still checked when they
     // declare a file: `ShortVideo.tsx` dispatches `media.mode:"fullscreen"`
     // before any layout branch, so a broken asset here reaches the frame (#759).
+    // An *absent* file stays the CSS fallback it always was — the renderer's own
+    // `validateMedia` warns and paints a background, so demanding presence here
+    // would change #191-era behaviour beyond this ticket.
     if (NO_MEDIA_TYPES.has(scene.visualType)) {
       if (scene.media?.path && existsSync(join(contentDir, scene.media.path))) {
-        for (const f of inspectPresentMedia(scene, contentDir, probeVideo)) {
-          failures.push({ sceneId: scene.id, layout: null, ...f });
-        }
+        pushMediaFindings(failures, scene, null, contentDir, probeVideo);
       }
       continue;
     }
@@ -132,11 +161,7 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
       }
       // A broken hook file is the more specific failure — reporting the curation
       // contract on top of it would send the fix in the wrong direction (#759).
-      const hookFindings = inspectPresentMedia(scene, contentDir, probeVideo);
-      if (hookFindings.length > 0) {
-        for (const f of hookFindings) failures.push({ sceneId: scene.id, layout, ...f });
-        continue;
-      }
+      if (pushMediaFindings(failures, scene, layout, contentDir, probeVideo)) continue;
       // The file landed — now enforce the same curation contract as preflight
       // (#299), so a fit:"contain" hook cannot render through the paths that
       // skip scene-rules (render-only / rerender / rerender-full / realign).
@@ -182,22 +207,18 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
         failures.push({ sceneId: scene.id, layout, reason: "missing-media", path: mediaPath });
         continue;
       }
-      for (const f of inspectPresentMedia(scene, contentDir, probeVideo)) {
-        failures.push({ sceneId: scene.id, layout, ...f });
-      }
+      pushMediaFindings(failures, scene, layout, contentDir, probeVideo);
       continue;
     }
 
     // CSS-only layouts are legitimate without media — an explicit opt-out must
     // pass cleanly, with no lingering warning. A media path that IS declared
     // still has to be a usable file (#759).
-    if (mediaPath && !existsSync(join(contentDir, mediaPath))) {
-      failures.push({ sceneId: scene.id, layout, reason: "missing-media", path: mediaPath });
-      continue;
-    }
     if (mediaPath) {
-      for (const f of inspectPresentMedia(scene, contentDir, probeVideo)) {
-        failures.push({ sceneId: scene.id, layout, ...f });
+      if (!existsSync(join(contentDir, mediaPath))) {
+        failures.push({ sceneId: scene.id, layout, reason: "missing-media", path: mediaPath });
+      } else {
+        pushMediaFindings(failures, scene, layout, contentDir, probeVideo);
       }
     }
   }
@@ -223,13 +244,16 @@ export function formatFinalMediaFailures(result) {
       return `  Scene ${f.sceneId}: ${f.detail}`;
     }
     if (f.reason === "broken-media") {
-      return `  Scene ${f.sceneId}: media "${f.path}" is unusable — ${f.code}: ${f.detail}`;
+      return `  Scene ${f.sceneId}: media "${f.path}" failed the integrity check — ${f.code}: ${f.detail}`;
     }
     if (f.reason === "invalid-provenance") {
       return `  Scene ${f.sceneId}: media "${f.path}" has invalid provenance — ${f.detail} (fix the declaration or recapture the element)`;
     }
     if (f.reason === "missing-provenance") {
       return `  Scene ${f.sceneId}: media "${f.path}" has no provenance — ${f.detail}`;
+    }
+    if (f.reason === "invalid-evidence-flag") {
+      return `  Scene ${f.sceneId}: media "${f.path}" has an unusable evidence flag — ${f.detail} (only the boolean true demands provenance)`;
     }
     return `  Scene ${f.sceneId}: layout "${f.layout}" needs media${f.path ? ` — "${f.path}" not found` : " — no media declared"}`;
   });

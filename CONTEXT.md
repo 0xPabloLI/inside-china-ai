@@ -82,7 +82,7 @@ _Avoid_: Footage pipeline, asset search (too generic)
 **Evidence Media (证据素材)**: A Scene's media that carries the asserted fact itself — a real capture of the source page (model card, benchmark table, pricing page) — rather than illustrating it. Declared with `media.evidence: true`; the Final Media Gate fails the Scene when its Capture Provenance is absent. `assetNeed` stays a search-query string and is never the marker.
 _Avoid_: Illustration, background image, screenshot (names the artifact, not the role)
 
-**Capture Provenance (采集凭据)**: The geometry a capture claims to have produced — `media.provenance` with `sourceUrl`, `selector`, `rect` (the element), `clip` (what was actually captured) and `scale`; the clip must contain the rect, which is what makes a mid-glyph cut decidable at intake. Field shape and checks: `lib/media-integrity.mjs`. It is geometry, not attribution: `media.source` stays the on-screen credit.
+**Capture Provenance (采集凭据)**: The geometry a capture claims to have produced — `media.provenance` with `sourceUrl`, `selector`, `rect` (the element), `clip` (what was actually captured) and `scale`; the clip must contain the rect, which is what makes a mid-glyph cut decidable at intake — for a capture that recorded it. A declaration is not a measurement: nothing yet reconciles these numbers with the pixels on disk, which is #758's producer side. Field shape and checks: `lib/media-integrity.mjs`. It is geometry, not attribution: `media.source` stays the on-screen credit.
 _Avoid_: Metadata, source note, watermark
 
 ## TTS & Voice

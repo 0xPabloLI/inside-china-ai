@@ -139,15 +139,16 @@ export function parseProbeOutput(rawOutput) {
  *
  * @returns {boolean}
  */
+let probeToolCached;
 export function probeToolAvailable() {
-  if (probeToolAvailable._cached !== undefined) return probeToolAvailable._cached;
+  if (probeToolCached !== undefined) return probeToolCached;
   let ok = false;
   try {
     ok = spawnSync(ffprobeCmd, ["-version"], { encoding: "utf8", timeout: 5000 }).status === 0;
   } catch {
     ok = false;
   }
-  probeToolAvailable._cached = ok;
+  probeToolCached = ok;
   return ok;
 }
 
