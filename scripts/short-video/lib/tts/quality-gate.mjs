@@ -154,9 +154,13 @@ function toExpectedTokenSet(expectedTokens) {
  * token, so "deep" + "seek" can satisfy "deepseek" while "seek" + "ships"
  * never invents "seekships".
  *
+ * `start` / `width` let the caller fold the consumed tokens into one ASR unit
+ * for the similarity denominator (Finding A of the #689 follow-up): "Deep
+ * Seek" is two ASR tokens but one spoken word.
+ *
  * @param {string[]} asrTokens
  * @param {Set<string>|null} expectedSet
- * @returns {Array<{joined: string, parts: string[]}>}
+ * @returns {Array<{joined: string, parts: string[], start: number, width: number}>}
  */
 function findSplitJoins(asrTokens, expectedSet) {
   if (!expectedSet || expectedSet.size === 0) return [];
@@ -166,7 +170,7 @@ function findSplitJoins(asrTokens, expectedSet) {
       if (i + width > asrTokens.length) continue;
       const parts = asrTokens.slice(i, i + width);
       const joined = parts.join("");
-      if (expectedSet.has(joined)) joins.push({ joined, parts });
+      if (expectedSet.has(joined)) joins.push({ joined, parts, start: i, width });
     }
   }
   return joins;
@@ -205,28 +209,95 @@ function withinEditDistance(a, b, maxDistance) {
 }
 
 /**
- * Pick a heard token that is a near-miss of a protected name (#689):
- * "deepseq" for "deepseek". A strict prefix ("deepsee") is real truncation and
- * must keep failing, so it is never accepted as evidence.
+ * Every near-miss candidate a heard transcript offers (#689): the raw ASR
+ * tokens plus every adjacent 2/3-token join. whisper.cpp can split a name AND
+ * mishear it ("Deep Seq" for "DeepSeek"), which lives only in the join — the
+ * token set then holds "deep" and "seq", neither of which can be the near-miss
+ * itself. Each candidate remembers its position so a join that IS used as
+ * evidence can be folded into one ASR unit for the denominator.
+ *
+ * @param {string[]} asrTokens
+ * @returns {Array<{heard: string, parts: string[], start: number, width: number}>}
+ */
+function collectNearMissCandidates(asrTokens) {
+  const candidates = [];
+  for (let i = 0; i < asrTokens.length; i++) {
+    candidates.push({ heard: asrTokens[i], parts: [asrTokens[i]], start: i, width: 1 });
+  }
+  for (const width of [2, 3]) {
+    for (let i = 0; i + width <= asrTokens.length; i++) {
+      const parts = asrTokens.slice(i, i + width);
+      candidates.push({ heard: parts.join(""), parts, start: i, width });
+    }
+  }
+  // Deterministic pick: sorted heard form first (the pre-join behavior for
+  // single tokens), then the narrower/earlier candidate on a tie.
+  return candidates.sort(
+    (a, b) =>
+      (a.heard < b.heard ? -1 : a.heard > b.heard ? 1 : 0) ||
+      a.width - b.width ||
+      a.start - b.start,
+  );
+}
+
+/**
+ * Pick a heard token or join that is a near-miss of a protected name (#689):
+ * "deepseq" / "deep seq" for "deepseek". A strict prefix ("deepsee") is real
+ * truncation and must keep failing, so it is never accepted as evidence.
  *
  * @param {string} name - normalized protected name (length ≥ 6 enforced here)
- * @param {Set<string>} tokenSet
- * @returns {string|null}
+ * @param {Array<{heard: string, parts: string[], start: number, width: number}>} candidates
+ * @returns {{heard: string, parts: string[], start: number, width: number}|null}
  */
-function findNearMissCandidate(name, tokenSet) {
+function findNearMissCandidate(name, candidates) {
   if (name.length < 6) return null;
   const minLength = name.length - 2;
   const maxLength = name.length + 1;
   const minPrefix = Math.max(5, name.length - 2);
-  for (const candidate of [...tokenSet].sort()) {
-    if (candidate === name) continue;
-    if (candidate.length < minLength || candidate.length > maxLength) continue;
-    if (candidate.length < name.length && name.startsWith(candidate)) continue;
-    if (commonPrefixLength(candidate, name) < minPrefix) continue;
-    if (!withinEditDistance(candidate, name, 2)) continue;
+  for (const candidate of candidates) {
+    if (candidate.heard === name) continue;
+    if (candidate.heard.length < minLength || candidate.heard.length > maxLength) continue;
+    if (candidate.heard.length < name.length && name.startsWith(candidate.heard)) continue;
+    if (commonPrefixLength(candidate.heard, name) < minPrefix) continue;
+    if (!withinEditDistance(candidate.heard, name, 2)) continue;
     return candidate;
   }
   return null;
+}
+
+/**
+ * Count ASR units for the similarity denominator (#689): every adjacent 2/3
+ * token join that was used as recognition evidence is ONE spoken unit, while
+ * every token outside those joins still counts on its own. Extra/hallucinated
+ * words therefore stay in the denominator — folding can never eat them.
+ *
+ * Overlaps resolve greedily left-to-right (wider join first at the same
+ * start), so no token is counted twice.
+ *
+ * @param {string[]} asrTokens
+ * @param {Array<{start: number, width: number}>} foldRanges
+ * @returns {number}
+ */
+function countAsrUnits(asrTokens, foldRanges) {
+  const ranges = foldRanges
+    .filter((r) => r.width >= 2)
+    .sort((a, b) => a.start - b.start || b.width - a.width);
+  let units = 0;
+  let cursor = 0;
+  let index = 0;
+  while (cursor < asrTokens.length) {
+    while (index < ranges.length && ranges[index].start < cursor) index++;
+    const range = ranges[index];
+    if (range && range.start === cursor) {
+      units++;
+      cursor += range.width;
+      index++;
+    } else {
+      units++;
+      cursor++;
+    }
+  }
+  return units;
 }
 
 /**
@@ -426,6 +497,9 @@ export function isWordInAsr(expectedWord, asrTokenSet) {
  * @param {Set<string>} [options.asrTokenSet] - a set the caller already
  *   expanded with recognition-variance evidence (#689). Omitted → build one
  *   from the tokens, exactly as before.
+ * @param {number} [options.asrUnits] - ASR tokens after folding the joins used
+ *   as recognition evidence (#689); the denominator never drops below the
+ *   expected token count. Omitted → raw `asrTokens.length`, exactly as before.
  * @returns {number} 0.0 - 1.0
  */
 export function computeTokenSimilarity(expectedTokens, asrTokens, rawAsrText = null, options = {}) {
@@ -439,7 +513,7 @@ export function computeTokenSimilarity(expectedTokens, asrTokens, rawAsrText = n
   }
 
   // Denominator considers semantic match without penalizing normalized syllable expansion
-  return matches / Math.max(expectedTokens.length, asrTokens.length);
+  return matches / Math.max(expectedTokens.length, options.asrUnits ?? asrTokens.length);
 }
 
 /**
@@ -677,13 +751,21 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     // "115" + "000") that the spoken track spells as words. The expected
     // tokens also gate the #689 split-join expansion ("Deep Seek" → brand).
     const asrTokenSet = buildExpandedAsrTokenSet(asrTokens, asrText, { expectedTokens });
+    const splitJoins = findSplitJoins(asrTokens, new Set(expectedTokens));
 
     // #689: recognition variance is evidence plus an advisory, never a take
     // defect. Split joins were already added by the set builder; merged
     // ("rerun" for "re-run") and near-miss ("DeepSeq") evidence is added here,
     // then every event is reported once as a warning.
+    //
+    // Every join that ends up as evidence also collapses into ONE ASR unit for
+    // the similarity denominator (follow-up Finding A): "Deep Seek" is two ASR
+    // tokens but one spoken word, so a two-word scene must not score 2/3 and
+    // fail on a correct take. Tokens outside the folds still count, so extra
+    // words keep dragging the score down.
+    const foldRanges = splitJoins.map(({ start, width }) => ({ start, width }));
     const varianceEvents = [];
-    for (const { joined, parts } of findSplitJoins(asrTokens, new Set(expectedTokens))) {
+    for (const { joined, parts } of splitJoins) {
       varianceEvents.push(
         `${RECOGNITION_VARIANCE_PREFIX} [split]: "${joined}" heard as "${parts.join(" ")}"`,
       );
@@ -698,13 +780,20 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
         `${RECOGNITION_VARIANCE_PREFIX} [merged]: "${word.toLowerCase()}" heard as "${merged}"`,
       );
     }
+    // Follow-up Finding B: the near-miss candidate set is the raw tokens PLUS
+    // every adjacent 2/3-token join — "Deep Seq" only exists as a join, and a
+    // join used as near-miss evidence must fold into one ASR unit as well.
+    const nearMissCandidates = collectNearMissCandidates(asrTokens);
     for (const name of collectProtectedNames(expectedSpokenText, keyEntities)) {
       if (asrTokenSet.has(name)) continue;
-      const heard = findNearMissCandidate(name, asrTokenSet);
-      if (!heard) continue;
+      const hit = findNearMissCandidate(name, nearMissCandidates);
+      if (!hit) continue;
       asrTokenSet.add(name);
+      if (hit.width > 1) foldRanges.push({ start: hit.start, width: hit.width });
+      // A single-token near-miss still reports its own heard form ("deepseq");
+      // a joined one reports the original parts ("deep seq").
       varianceEvents.push(
-        `${RECOGNITION_VARIANCE_PREFIX} [near-miss]: "${name}" heard as "${heard}"`,
+        `${RECOGNITION_VARIANCE_PREFIX} [near-miss]: "${name}" heard as "${hit.parts.join(" ")}"`,
       );
     }
     for (const event of new Set(varianceEvents)) warnings.push(event);
@@ -725,8 +814,13 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     }
 
     // 5. Similarity Score — same expanded set, so variance evidence cannot
-    // fail the score the tail/critical checks just accepted (#689).
-    const similarity = computeTokenSimilarity(expectedTokens, asrTokens, asrText, { asrTokenSet });
+    // fail the score the tail/critical checks just accepted (#689). The
+    // denominator folds evidence joins into single ASR units (Finding A).
+    const asrUnits = countAsrUnits(asrTokens, foldRanges);
+    const similarity = computeTokenSimilarity(expectedTokens, asrTokens, asrText, {
+      asrTokenSet,
+      asrUnits,
+    });
     if (similarity < minSimilarity) {
       issues.push(
         `Low text similarity: ${(similarity * 100).toFixed(1)}% (threshold: ${minSimilarity * 100}%)`,

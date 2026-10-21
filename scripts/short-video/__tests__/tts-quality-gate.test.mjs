@@ -937,4 +937,100 @@ describe("#689 brand-word split / near-miss recognition", () => {
     const plain = buildExpandedAsrTokenSet(asrTokens);
     expect([...plain].sort()).toEqual([...new Set(asrTokens)].sort());
   });
+
+  // Finding A: split evidence must also collapse the similarity denominator.
+  // Without it "DeepSeek ships." vs "Deep Seek ships." scores 2/3 = 0.667 and
+  // a correct take is still hard-blocked although the tail check passed.
+  it("passes the short split scene with similarity 1 (join folds to one ASR unit)", async () => {
+    const shortScene = { id: 12, voiceover: "DeepSeek ships." };
+    const res = await evaluateSceneTts(shortScene, audio, 1.0, {
+      transcriber: vi.fn().mockResolvedValue({
+        ok: true,
+        segments: [{ text: "Deep Seek ships." }],
+      }),
+    });
+
+    expect(res.passed).toBe(true);
+    expect(res.issues).toEqual([]);
+    expect(res.similarity).toBe(1);
+    expect(res.warnings).toContain('Recognition variance [split]: "deepseek" heard as "deep seek"');
+  });
+
+  it("keeps a hallucinated extra word in the split scene denominator", async () => {
+    const shortScene = { id: 12, voiceover: "DeepSeek ships." };
+    const res = await evaluateSceneTts(shortScene, audio, 1.0, {
+      transcriber: vi.fn().mockResolvedValue({
+        ok: true,
+        segments: [{ text: "Deep Seek ships extra." }],
+      }),
+    });
+
+    // Folding must collapse the evidence join only (3 units), never the extra
+    // word: 2 matches / 3 units = 0.667, still below the floor.
+    expect(res.passed).toBe(false);
+    expect(res.similarity).toBeLessThan(0.75);
+    expect(res.issues.some((i) => i.includes("Low text similarity"))).toBe(true);
+  });
+
+  it("uses asrUnits as the similarity denominator only when supplied", () => {
+    const expected = tokenize("DeepSeek ships.");
+    const heard = tokenize("Deep Seek ships.");
+    const asrTokenSet = buildExpandedAsrTokenSet(heard, "Deep Seek ships.", {
+      expectedTokens: expected,
+    });
+
+    // No options → the historical denominator (raw token count) is untouched.
+    expect(computeTokenSimilarity(expected, heard)).toBeLessThan(0.75);
+    expect(computeTokenSimilarity(expected, heard, null, { asrTokenSet })).toBeLessThan(0.75);
+    // One folded join = one ASR unit, and the evidence now scores 1.
+    expect(computeTokenSimilarity(expected, heard, null, { asrTokenSet, asrUnits: 2 })).toBe(1);
+  });
+
+  // Finding B: a split near-miss ("Deep Seq" / "Deep Sec") lives only in a
+  // join, so the candidate search must scan adjacent joins, not just tokens.
+  it("passes the CTA split near-miss 'Deep Seq' and names the joined heard form", async () => {
+    const res = await gate("Follow for the fingerprint check, every time Deep Seq ships.");
+
+    expect(res.passed).toBe(true);
+    expect(res.issues).toEqual([]);
+    expect(res.warnings).toContain(
+      'Recognition variance [near-miss]: "deepseek" heard as "deep seq"',
+    );
+  });
+
+  it("passes the CTA split near-miss 'Deep Sec'", async () => {
+    const res = await gate("Follow for the fingerprint check, every time Deep Sec ships.");
+
+    expect(res.passed).toBe(true);
+    expect(res.issues).toEqual([]);
+    expect(res.warnings).toContain(
+      'Recognition variance [near-miss]: "deepseek" heard as "deep sec"',
+    );
+  });
+
+  it("collapses a near-miss join into one ASR unit in a short scene", async () => {
+    const shortScene = { id: 12, voiceover: "DeepSeek ships." };
+    const res = await evaluateSceneTts(shortScene, audio, 1.0, {
+      transcriber: vi.fn().mockResolvedValue({
+        ok: true,
+        segments: [{ text: "Deep Seq ships." }],
+      }),
+    });
+
+    expect(res.passed).toBe(true);
+    expect(res.issues).toEqual([]);
+    expect(res.similarity).toBe(1);
+    expect(res.warnings).toContain(
+      'Recognition variance [near-miss]: "deepseek" heard as "deep seq"',
+    );
+  });
+
+  it("still rejects a split near-miss that drifts past the prefix floor: 'Deep Sink'", async () => {
+    // "deepsink" shares only "deeps" (5) with "deepseek"; minPrefix is 6, so
+    // the join candidate must not be admitted.
+    const res = await gate("Follow for the fingerprint check, every time Deep Sink ships.");
+
+    expect(res.passed).toBe(false);
+    expect(res.issues.some((i) => i.includes("missing tail word(s) [deepseek]"))).toBe(true);
+  });
 });
