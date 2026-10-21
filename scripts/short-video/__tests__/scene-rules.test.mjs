@@ -924,6 +924,75 @@ describe("checkLoopClose", () => {
     const results = checkLoopClose(scenes);
     expect(results[0].level).toBe("warn");
   });
+
+  // #762: every real pack writes meta.dataPoints as string[], so the pass
+  // branch must read that schema instead of dead `dp.value` lookups.
+  it("passes when the CTA echoes a number from a string[] dataPoints entry (#762)", () => {
+    const scenes = [
+      { id: 1, voiceover: "Unitree raised 629 million dollars." },
+      { id: 2, voiceover: "Some context." },
+      { id: 3, voiceover: "Remember that 629 million? Follow for more." },
+    ];
+    const meta = { dataPoints: ["$629M Series C at a $4.3B valuation"] };
+    expect(checkLoopClose(scenes, meta)[0].level).toBe("pass");
+  });
+
+  it("passes when the CTA spells out a number that dataPoints record as digits (#762)", () => {
+    const scenes = [
+      { id: 1, voiceover: "China's DeepSeek just beat GPT-5.6 on nine of eleven benchmarks." },
+      { id: 2, voiceover: "Same family, same endpoint, same price." },
+      {
+        id: 3,
+        voiceover: "Follow China AI News. Nine of eleven, and the fine print on every score.",
+      },
+    ];
+    const meta = {
+      dataPoints: [
+        "Official benchmark scores: HLE 42.6 vs 36.8; Terminal-Bench 4.0 42.3 vs 31.2 (all 11 higher)",
+      ],
+    };
+    expect(checkLoopClose(scenes, meta)[0].level).toBe("pass");
+  });
+
+  it("matches a spelled scale word against a digit data point (#762 review)", () => {
+    const scenes = [
+      { id: 1, voiceover: "The cluster has 20,000 GPUs." },
+      { id: 2, voiceover: "Some context." },
+      { id: 3, voiceover: "Twenty thousand GPUs, and the gap to frontier. Follow for more." },
+    ];
+    const meta = { dataPoints: ["20,000 GPUs (need 200K for frontier)"] };
+    expect(checkLoopClose(scenes, meta)[0].level).toBe("pass");
+  });
+
+  it("matches a spelled decimal and scale word against a suffixed data point (#762 review)", () => {
+    const scenes = [
+      { id: 1, voiceover: "Unitree raised 629 million dollars." },
+      { id: 2, voiceover: "Some context." },
+      { id: 3, voiceover: "A four point three billion valuation, remember? Follow for more." },
+    ];
+    const meta = { dataPoints: ["$629M Series C at a $4.3B valuation"] };
+    expect(checkLoopClose(scenes, meta)[0].level).toBe("pass");
+  });
+
+  it("does not pass on a shared calendar date alone (#762 review follow-up)", () => {
+    const scenes = [
+      { id: 1, voiceover: "DeepSeek opened a test on Sep 8." },
+      { id: 2, voiceover: "Some context." },
+      { id: 3, voiceover: "A temporary test ending September 8. Follow for more." },
+    ];
+    const meta = { dataPoints: ["V4.1 Flash internal test opened Sep 8, 2026"] };
+    expect(checkLoopClose(scenes, meta)[0].level).toBe("warn");
+  });
+
+  it("warns when no number from string[] dataPoints reaches the CTA (#762)", () => {
+    const scenes = [
+      { id: 1, voiceover: "Unitree raised 629 million dollars." },
+      { id: 2, voiceover: "Some context." },
+      { id: 3, voiceover: "Follow for more." },
+    ];
+    const meta = { dataPoints: ["$629M Series C", "20K GPUs (need 200K for frontier)"] };
+    expect(checkLoopClose(scenes, meta)[0].level).toBe("warn");
+  });
 });
 
 // ── checkSemanticConsistency ──

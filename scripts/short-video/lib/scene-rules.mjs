@@ -17,6 +17,10 @@ import { getPlatformProfile } from "./platforms/index.mjs";
 // the standard from its single source. tts/instruct.mjs is pure data + pure
 // functions (no fs/child_process) — importing it does not drag the TTS stack in.
 import { hasInstructStyle, validateInstructSignature } from "./tts/instruct.mjs";
+// Digit↔word conversion lives in one module (#762 review): checkLoopClose uses
+// the inverse direction so a spelled CTA number and a digit dataPoints entry
+// compare equal without a second lexicon.
+import { numericAnchors } from "./normalize-tts-text.mjs";
 import {
   AI_BLACKLIST as _AI_BLACKLIST,
   DASH_PATTERN,
@@ -976,7 +980,13 @@ export function checkSemanticConsistency(scenes) {
  *
  * Pass state (spec: when CTA contains a core number from meta.dataPoints,
  * the loop-close is achieved — the ending recontextualizes the opening).
- * Falls back to word matching when meta is not available (legacy behavior).
+ * Real packs write dataPoints as a string[] ("$629M Series C at a $4.3B
+ * valuation"), not the {value} shape this check originally read; `dp.value`
+ * was always undefined, so the pass branch was dead code for every pack
+ * (#762). Both shapes are accepted and compared through numericAnchors, which
+ * normalizes digit and spelled forms (scale words and decimals included) onto
+ * the same values — the lexicon lives in normalize-tts-text.mjs, the module
+ * that already owns digit↔word conversion.
  *
  * @param {Array} scenes - scene-data array
  * @param {Object} [meta] - video meta with optional dataPoints array
@@ -987,10 +997,14 @@ export function checkLoopClose(scenes, meta) {
   const lastVO = (scenes[scenes.length - 1]?.voiceover || "").toLowerCase();
 
   // New: check if CTA contains any core number from meta.dataPoints
-  if (meta?.dataPoints && Array.isArray(meta.dataPoints)) {
-    const coreNumbers = meta.dataPoints.map((dp) => String(dp.value ?? "")).filter(Boolean);
-    if (coreNumbers.length > 0) {
-      const hasCoreNumber = coreNumbers.some((num) => lastVO.includes(num.toLowerCase()));
+  if (Array.isArray(meta?.dataPoints)) {
+    const anchors = new Set();
+    for (const dp of meta.dataPoints) {
+      const text = typeof dp === "string" ? dp : String(dp?.value ?? "");
+      for (const anchor of numericAnchors(text)) anchors.add(anchor);
+    }
+    if (anchors.size > 0) {
+      const hasCoreNumber = numericAnchors(lastVO).some((anchor) => anchors.has(anchor));
       if (hasCoreNumber) {
         return [
           {

@@ -10,6 +10,7 @@ import {
   splitDigitUnitToken,
   numberToWords,
   cardinalSpokenWords,
+  numericAnchors,
 } from "../lib/normalize-tts-text.mjs";
 import { restoreTimingTokens } from "../lib/subtitles/restore-tokens.mjs";
 
@@ -420,5 +421,48 @@ describe("author-written voiceoverTts (#753)", () => {
       "It pays back in 3 years, maybe 2. 2030 target: 100 billion cloud.",
     );
     expect(restored).toBe("It pays back in 3 years, maybe 2. 2030 target: 100 billion cloud.");
+  });
+});
+
+/**
+ * #762 review: checkLoopClose compares a written data point against spoken
+ * copy, so the inverse direction must fold scale words and spelled decimals
+ * onto the same values as their digit forms.
+ */
+describe("numericAnchors (#762 inverse direction)", () => {
+  it("maps a digit spelling and its spelled-out form to the same anchor", () => {
+    expect(numericAnchors("20,000 GPUs")).toContain(20000);
+    expect(numericAnchors("twenty thousand GPUs")).toContain(20000);
+  });
+
+  it("applies letter suffixes and scale words", () => {
+    expect(numericAnchors("$629M Series C")).toContain(629000000);
+    expect(numericAnchors("629 million dollars")).toContain(629000000);
+  });
+
+  it("composes spelled decimals with a scale word", () => {
+    const anchors = numericAnchors("four point three billion valuation");
+    expect(anchors).toContain(4300000000);
+    expect(numericAnchors("$4.3B valuation")).toContain(4300000000);
+  });
+
+  it("handles hundreds and compound tens", () => {
+    expect(numericAnchors("six hundred twenty-nine")).toContain(629);
+    expect(numericAnchors("one hundred five")).toContain(105);
+  });
+
+  it("drops single-digit integers but keeps decimals", () => {
+    expect(numericAnchors("9:59 PM")).not.toContain(9);
+    expect(numericAnchors("4.3 points")).toContain(4.3);
+  });
+
+  it("strips calendar dates so a month-day cannot act as a core number", () => {
+    expect(numericAnchors("expires Sep 10, 2026")).not.toContain(10);
+    expect(numericAnchors("released September 14")).not.toContain(14);
+    expect(numericAnchors("10 September release")).not.toContain(10);
+  });
+
+  it("returns an empty list for number-free text", () => {
+    expect(numericAnchors("Follow for more.")).toEqual([]);
   });
 });

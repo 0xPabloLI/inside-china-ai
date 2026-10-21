@@ -48,6 +48,38 @@ const DIGIT_WORDS = [
 /** Scale words for 3-digit groups, most-significant-last (see numberToWords). */
 const SCALE_WORDS = ["", "thousand", "million", "billion", "trillion"];
 
+/**
+ * Word tables shared by both directions of the conversion: numberToWords
+ * writes digits as words, `numericAnchors` reads words back to digits (#762
+ * review — one lexicon, so a numeral added on one side can never drift from
+ * the other).
+ */
+const ONES_WORDS = ["", ...DIGIT_WORDS.slice(1)];
+const TEENS_WORDS = [
+  "ten",
+  "eleven",
+  "twelve",
+  "thirteen",
+  "fourteen",
+  "fifteen",
+  "sixteen",
+  "seventeen",
+  "eighteen",
+  "nineteen",
+];
+const TENS_WORDS = [
+  "",
+  "",
+  "twenty",
+  "thirty",
+  "forty",
+  "fifty",
+  "sixty",
+  "seventy",
+  "eighty",
+  "ninety",
+];
+
 const MONTH_NAMES = [
   "January",
   "February",
@@ -127,39 +159,18 @@ function decimalToSpoken(intPart, decPart) {
 export function numberToWords(n) {
   if (n === 0) return "zero";
   if (n < 0) return `negative ${numberToWords(-n)}`;
-  const ones = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
-  const teens = [
-    "ten",
-    "eleven",
-    "twelve",
-    "thirteen",
-    "fourteen",
-    "fifteen",
-    "sixteen",
-    "seventeen",
-    "eighteen",
-    "nineteen",
-  ];
-  const tens = [
-    "",
-    "",
-    "twenty",
-    "thirty",
-    "forty",
-    "fifty",
-    "sixty",
-    "seventy",
-    "eighty",
-    "ninety",
-  ];
 
-  if (n < 10) return ones[n];
-  if (n < 20) return teens[n - 10];
-  if (n < 100) return `${tens[Math.floor(n / 10)]}${n % 10 ? ` ${ones[n % 10]}` : ""}`;
+  if (n < 10) return ONES_WORDS[n];
+  if (n < 20) return TEENS_WORDS[n - 10];
+  if (n < 100) return `${TENS_WORDS[Math.floor(n / 10)]}${n % 10 ? ` ${ONES_WORDS[n % 10]}` : ""}`;
   if (n < 1000)
-    return `${ones[Math.floor(n / 100)]} hundred${n % 100 ? ` ${numberToWords(n % 100)}` : ""}`;
+    return `${ONES_WORDS[Math.floor(n / 100)]} hundred${
+      n % 100 ? ` ${numberToWords(n % 100)}` : ""
+    }`;
   if (n < 10000)
-    return `${ones[Math.floor(n / 1000)]} thousand${n % 1000 ? ` ${numberToWords(n % 1000)}` : ""}`;
+    return `${ONES_WORDS[Math.floor(n / 1000)]} thousand${
+      n % 1000 ? ` ${numberToWords(n % 1000)}` : ""
+    }`;
   // Larger cardinals split into 3-digit groups so every digit still becomes a
   // word. Returning String(n) here (the pre-2026-10-14 behavior) let "115,000"
   // reach text-align.py as a digit token, which wav2vec2 cannot align: the
@@ -538,6 +549,163 @@ export function cardinalSpokenWords(text) {
     words.push(...spoken.split(" "));
   }
   return words;
+}
+
+/**
+ * Canonical numeric anchors in `text` — the inverse direction of
+ * numberToWords, for checks that compare a written data point against spoken
+ * copy (#762).
+ *
+ * Both spellings normalize to the same number, scale words included:
+ *   "20,000 GPUs"          → [20000]
+ *   "twenty thousand"      → [20000]
+ *   "$629M valuation"      → [629000000]
+ *   "629 million dollars"  → [629000000]
+ *   "4.3B" / "four point three billion" → [4300000000]
+ *   "nine of eleven"       → [11]
+ *
+ * Calendar dates are stripped before extraction: "Sep 10, 2026" is a date,
+ * not a core number, and two real packs otherwise "echo" their hook through
+ * September 10 / September 14 alone (#762 review follow-up).
+ *
+ * A scaled number also contributes its unscaled mantissa ("629 million" →
+ * 629000000 and 629), so a data point recorded without a unit still matches
+ * the same digits in copy that adds one.
+ *
+ * Integer anchors below 10 are dropped: they are almost always times, list
+ * positions or stray digits ("9:59 PM"), and keeping them invites false
+ * loop-close passes. Decimals are kept regardless of magnitude ("4.3" is a
+ * real data point). Values are rounded to 6 significant digits so a
+ * word-built decimal and its digit spelling compare equal.
+ *
+ * @param {string} text
+ * @returns {number[]} unique anchors, empty when the text carries no number
+ */
+export function numericAnchors(text) {
+  const raw = stripCalendarDates(String(text ?? "").toLowerCase());
+  const anchors = new Set();
+
+  const DIGIT_SUFFIX_SCALE = {
+    thousand: 1e3,
+    million: 1e6,
+    billion: 1e9,
+    trillion: 1e12,
+    bn: 1e9,
+    mn: 1e6,
+    k: 1e3,
+    m: 1e6,
+    b: 1e9,
+    t: 1e12,
+  };
+  const digitRe = /(\d[\d,]*(?:\.\d+)?)\s*(thousand|million|billion|trillion|bn|mn|[kmbt])?\b/g;
+  // Strip digit tokens (and a scale suffix they own) before the word scan so
+  // "20 thousand" cannot yield both 20 and 20000.
+  const wordOnly = raw.replace(digitRe, (match, digits, suffix) => {
+    const value = parseFloat(digits.replace(/,/g, ""));
+    if (!Number.isFinite(value)) return " ";
+    const scale = DIGIT_SUFFIX_SCALE[suffix] ?? 1;
+    addAnchor(anchors, value * scale);
+    if (scale > 1) addAnchor(anchors, value);
+    return " ";
+  });
+
+  const WORD_VALUES = new Map();
+  DIGIT_WORDS.forEach((word, i) => WORD_VALUES.set(word, i));
+  TEENS_WORDS.forEach((word, i) => WORD_VALUES.set(word, i + 10));
+  TENS_WORDS.forEach((word, i) => {
+    if (word) WORD_VALUES.set(word, i * 10);
+  });
+  const WORD_SCALE = {
+    hundred: 100,
+    thousand: 1e3,
+    million: 1e6,
+    billion: 1e9,
+    trillion: 1e12,
+  };
+
+  let total = 0;
+  let current = 0;
+  let fraction = "";
+  let inFraction = false;
+  let sawNumber = false;
+  let mantissas = [];
+  const flush = () => {
+    if (sawNumber) addAnchor(anchors, total + current);
+    for (const mantissa of mantissas) addAnchor(anchors, mantissa);
+    total = 0;
+    current = 0;
+    fraction = "";
+    inFraction = false;
+    sawNumber = false;
+    mantissas = [];
+  };
+
+  for (const token of wordOnly.match(/[a-z]+/g) ?? []) {
+    if (token === "and" && sawNumber) continue;
+    if (token === "point" && sawNumber) {
+      inFraction = true;
+      fraction = "";
+      continue;
+    }
+    const value = WORD_VALUES.get(token);
+    if (value !== undefined) {
+      sawNumber = true;
+      // Fraction digits are read one at a time ("four point three two").
+      if (inFraction) fraction += String(value);
+      else current += value;
+      continue;
+    }
+    if (token === "hundred") {
+      if (!sawNumber) continue;
+      current = (current || 1) * 100;
+      continue;
+    }
+    const scale = WORD_SCALE[token];
+    if (scale !== undefined && scale !== 100) {
+      if (!sawNumber) continue;
+      const base = Number(`${current || 1}${fraction ? `.${fraction}` : ""}`);
+      total += base * scale;
+      mantissas.push(base);
+      current = 0;
+      fraction = "";
+      inFraction = false;
+      continue;
+    }
+    flush();
+  }
+  flush();
+
+  return [...anchors];
+}
+
+const MONTH_PATTERN = [
+  ...MONTH_NAMES.map((name) => name.toLowerCase()),
+  "jan",
+  "feb",
+  "mar",
+  "apr",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "sept",
+  "oct",
+  "nov",
+  "dec",
+].join("|");
+const MONTH_DAY_RE = new RegExp(`\\b(?:${MONTH_PATTERN})\\.?\\s+\\d{1,2}\\b`, "g");
+const DAY_MONTH_RE = new RegExp(`\\b\\d{1,2}\\s+(?:${MONTH_PATTERN})\\b`, "g");
+
+/** Remove month-day pairs so a date cannot serve as a "core number". */
+function stripCalendarDates(text) {
+  return text.replace(MONTH_DAY_RE, " ").replace(DAY_MONTH_RE, " ");
+}
+
+/** Round to 6 significant digits and apply the <10 integer cutoff above. */
+function addAnchor(anchors, value) {
+  if (!Number.isFinite(value)) return;
+  if (Number.isInteger(value) && value >= 0 && value < 10) return;
+  anchors.add(Number(value.toPrecision(6)));
 }
 
 /**
