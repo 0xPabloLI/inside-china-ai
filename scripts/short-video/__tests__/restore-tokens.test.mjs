@@ -185,3 +185,100 @@ describe("restoreTimingTokens longest-run-first (#753)", () => {
     expect(texts.join(" ")).toContain("maybe 2.");
   });
 });
+
+describe("restoreTimingTokens leading-symbol write-back (#816)", () => {
+  it("restores prefixes beyond currency from the first spoken token", () => {
+    // normalize-tts-text leaves "+5%" / "≈3x" untouched (the "%" and "x" are
+    // token-ending units its rules decline), so the mapping is hand-built:
+    // the prefix rides on the first spoken token while the display original
+    // carries only the number+unit.
+    const cases = [
+      { original: "5%", spoken: ["+5", "percent"], display: "+5%" },
+      { original: "3x", spoken: ["≈3", "x"], display: "≈3x" },
+    ];
+    for (const { original, spoken, display } of cases) {
+      const timing = [
+        {
+          sceneId: 31,
+          segments: [
+            {
+              text: spoken.join(" "),
+              start: 0,
+              end: spoken.length,
+              words: spoken.map((text, i) => word(text, i, i + 1)),
+            },
+          ],
+        },
+      ];
+      restoreTimingTokens(timing, [
+        { id: 31, voiceover: display, ttsReplacements: [{ original, spoken }] },
+      ]);
+
+      const texts = timing[0].segments[0].words.map((w) => w.text);
+      expect(texts).toEqual([display]);
+      expect(texts[0].startsWith(display[0])).toBe(true);
+    }
+  });
+
+  it("does not duplicate a prefix the original token already carries", () => {
+    const timing = [
+      {
+        sceneId: 32,
+        segments: [
+          {
+            text: "$700 M",
+            start: 0,
+            end: 0.8,
+            words: [word("$700", 0, 0.4), word("M", 0.4, 0.8)],
+          },
+        ],
+      },
+    ];
+    restoreTimingTokens(timing, [
+      {
+        id: 32,
+        voiceover: "$700M",
+        ttsReplacements: [{ original: "$700M", spoken: ["$700", "M"] }],
+      },
+    ]);
+    expect(timing[0].segments[0].words.map((w) => w.text)).toEqual(["$700M"]);
+  });
+
+  it("prepends only the part of a multi-character edge run not already shared", () => {
+    // The spoken first token carries `"` + `$`, while the display original
+    // already starts with `$`. Suppressing the whole run would drop the quote;
+    // prepending all of it would double the dollar sign.
+    const timing = [
+      {
+        sceneId: 33,
+        segments: [
+          {
+            text: 'He said "$700 M" yesterday.',
+            start: 0,
+            end: 1,
+            words: [
+              word("He", 0, 0.1),
+              word("said", 0.1, 0.2),
+              word('"$700', 0.2, 0.4),
+              word('M"', 0.4, 0.6),
+              word("yesterday.", 0.6, 1),
+            ],
+          },
+        ],
+      },
+    ];
+    restoreTimingTokens(timing, [
+      {
+        id: 33,
+        voiceover: 'He said "$700M" yesterday.',
+        ttsReplacements: [{ original: "$700M", spoken: ["700", "M"] }],
+      },
+    ]);
+    expect(timing[0].segments[0].words.map((w) => w.text)).toEqual([
+      "He",
+      "said",
+      '"$700M"',
+      "yesterday.",
+    ]);
+  });
+});
