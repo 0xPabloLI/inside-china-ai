@@ -3,11 +3,13 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  checkAllowedPlacement,
   checkDocsIndexConsistency,
   checkL1DesignDecisions,
   checkL2CommandLines,
   checkReferenceResolution,
   checkWritingForAgentsGate,
+  parseAllowedDocDirs,
   parseDiffLines,
   parseRefBaseline,
   loadRefBaseline,
@@ -48,8 +50,8 @@ describe("checkDocsIndexConsistency", () => {
     expect(findings).toHaveLength(0);
   });
 
-  it("PASS: handoffs/ files not checked", () => {
-    const docs = [{ filename: "video-layout-standard.md", content: "# Layout" }];
+  it("PASS: a handoff under handoffs/ is matched by filename", () => {
+    const docs = [{ filename: "handoffs/video-layout-standard.md", content: "# Layout" }];
     const indexContent = "| `video-layout-standard.md` | Layout |";
     const { findings } = checkDocsIndexConsistency(docs, indexContent);
     expect(failsOf(findings)).toHaveLength(0);
@@ -73,6 +75,70 @@ describe("checkDocsIndexConsistency", () => {
     const indexContent = "| `other.md` | Other |";
     const { findings } = checkDocsIndexConsistency(docs, indexContent);
     expect(failsOf(findings)).toHaveLength(2);
+  });
+});
+
+describe("parseAllowedDocDirs", () => {
+  it("reads only ### <dir>/ section headings", () => {
+    const indexContent = [
+      "## Canonical Structure",
+      "### Layer Definitions",
+      "### `agents/` — Agent execution references",
+      "### `archive/` — Completed work",
+      "### Root — Active reference",
+    ].join("\n");
+    expect([...parseAllowedDocDirs(indexContent)]).toEqual(["agents", "archive"]);
+  });
+});
+
+describe("checkAllowedPlacement", () => {
+  const indexContent =
+    "### `agents/` — Agent execution references\n" +
+    "### `archive/` — Completed work\n" +
+    "### `proposals/` — Proposals\n" +
+    "### `refs/` — Reference materials";
+
+  it("PASS: docs root and declared directories", () => {
+    const { findings } = checkAllowedPlacement(
+      [
+        "docs/content-pipeline.md",
+        "docs/agents/git-workflow.md",
+        "docs/archive/specs/old.md",
+        "docs/proposals/p.md",
+      ],
+      indexContent,
+    );
+    expect(failsOf(findings)).toHaveLength(0);
+  });
+
+  it("FAIL: an undeclared docs subdirectory names the file and the directory", () => {
+    const { findings } = checkAllowedPlacement(["docs/notes/scratch.md"], indexContent);
+    const fails = failsOf(findings);
+    expect(fails).toHaveLength(1);
+    expect(fails[0].ruleId).toBe("docs-placement-unauthorized-dir");
+    expect(fails[0].file).toBe("docs/notes/scratch.md");
+    expect(fails[0].message).toContain("docs/notes/");
+  });
+
+  it("FAIL: a nested directory under a declared one is still unauthorized", () => {
+    const { findings } = checkAllowedPlacement(["docs/agents/nested/x.md"], indexContent);
+    expect(failsOf(findings)).toHaveLength(1);
+  });
+
+  it("PASS: archive and refs keep their historical/external nested trees", () => {
+    const { findings } = checkAllowedPlacement(
+      ["docs/archive/specs/deep/old.md", "docs/refs/source-materials/INDEX.md"],
+      indexContent,
+    );
+    expect(failsOf(findings)).toHaveLength(0);
+  });
+
+  it("ignores paths outside docs/ and non-markdown files", () => {
+    const { findings } = checkAllowedPlacement(
+      ["scripts/readme.md", "docs/notes/scratch.txt"],
+      indexContent,
+    );
+    expect(findings).toHaveLength(0);
   });
 });
 

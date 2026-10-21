@@ -1,8 +1,10 @@
 /**
  * Documentation Hierarchy Lint
  *
- * Checks five rules:
- * 1. DOCS-INDEX consistency — every docs/*.md and docs/research/*.md is listed in DOCS-INDEX.md
+ * Checks six rules:
+ * 1. DOCS-INDEX consistency — every active docs file (root, agents/, conventions/,
+ *    handoffs/, proposals/, research/, specs/, tiktok/) is listed in DOCS-INDEX.md
+ * 1b. Placement — every tracked markdown file under docs/ lives in a declared directory
  * 2. L1 Design Decisions — L1 docs with L2 references must have ## Design Decisions heading
  * 3. L2 command-line heuristic — L2 docs with ≥5 command-line patterns get WARN
  * 4. Structural pointer or normative rule changes remind the author to load writing-for-agents
@@ -61,6 +63,15 @@ const EXCLUDED_FILES = new Set([
 // Files matching these patterns are ephemeral (specs, tickets) and excluded
 const EXCLUDED_PATTERNS = [/^spec-/, /^tickets-/];
 
+// Active docs directories whose DOCS-INDEX section lists every file. Root and
+// research/ are collected separately (research/ also feeds check 3).
+const ACTIVE_DOC_SUBDIRS = ["agents", "conventions", "handoffs", "proposals", "specs", "tiktok"];
+
+// Directories whose subtrees are historical or external material, registered in
+// DOCS-INDEX as a whole. Nested paths below these are allowed; every other
+// directory must be declared at its exact path.
+const TREE_DOC_DIRS = new Set(["archive", "refs"]);
+
 function isExcluded(filename) {
   if (EXCLUDED_FILES.has(filename)) return true;
   return EXCLUDED_PATTERNS.some((p) => p.test(filename));
@@ -70,13 +81,15 @@ function isExcluded(filename) {
 
 /**
  * Check 1: DOCS-INDEX consistency.
- * Every .md file in docs/ root and docs/research/ must have its filename appear in the index content.
+ * Every .md file in the active docs scopes (docs root, research/, and
+ * ACTIVE_DOC_SUBDIRS) must have its filename appear in the index.
  */
 export function checkDocsIndexConsistency(docs, indexContent) {
   const findings = [];
   for (const { filename } of docs) {
-    if (isExcluded(filename)) continue;
-    if (!indexContent.includes(filename)) {
+    const name = basename(filename);
+    if (isExcluded(name)) continue;
+    if (!indexContent.includes(name)) {
       findings.push({
         level: "FAIL",
         ruleId: "docs-index-missing",
@@ -84,6 +97,47 @@ export function checkDocsIndexConsistency(docs, indexContent) {
         message: `${filename} not listed in DOCS-INDEX.md`,
       });
     }
+  }
+  return { findings };
+}
+
+/**
+ * Directories DOCS-INDEX declares for docs/ subdirectories.
+ *
+ * The index is the placement source of truth, so the allowlist is read from its
+ * `### \`<dir>/\` — …` sections rather than duplicated here: creating a new docs
+ * directory means registering it in the index, not editing this linter.
+ */
+export function parseAllowedDocDirs(indexContent) {
+  return new Set([...indexContent.matchAll(/^###\s+`([a-z0-9-]+)\/`/gm)].map((m) => m[1]));
+}
+
+/**
+ * Check 1b: placement.
+ * Every tracked markdown file under docs/ must live at the docs root or in a
+ * directory DOCS-INDEX declares. Nested directories count too, so a new
+ * `docs/agents/nested/` cannot ride in on an existing section. TREE_DOC_DIRS
+ * (`archive/`, `refs/`) are the exceptions: they are historical or external
+ * trees declared as a whole. This is the machine-checkable half of the placement
+ * rule: a stray file or a new undeclared directory fails, naming the file and
+ * the missing section.
+ */
+export function checkAllowedPlacement(paths, indexContent) {
+  const allowed = parseAllowedDocDirs(indexContent);
+  const findings = [];
+  for (const filename of paths) {
+    if (!filename.startsWith("docs/") || !filename.endsWith(".md")) continue;
+    const dir = posix.dirname(filename);
+    if (dir === "docs") continue; // docs/*.md root
+    const relative = dir.slice("docs/".length);
+    const [tree] = relative.split("/");
+    if (allowed.has(relative) || (allowed.has(tree) && TREE_DOC_DIRS.has(tree))) continue;
+    findings.push({
+      level: "FAIL",
+      ruleId: "docs-placement-unauthorized-dir",
+      file: filename,
+      message: `${filename} is under docs/${relative}/, which DOCS-INDEX.md does not declare; place it in a declared docs directory and register it there`,
+    });
   }
   return { findings };
 }
@@ -621,14 +675,24 @@ export function main() {
   // Gather L1 files (docs/*.md root only) and L2 files (docs/research/*.md)
   const l1Files = readMdFiles(DOCS_DIR);
   const l2Files = readMdFiles(RESEARCH_DIR);
-  const allFiles = [...l1Files, ...l2Files];
+  const activeFiles = [
+    ...l1Files,
+    ...l2Files.map((file) => ({ ...file, filename: `research/${file.filename}` })),
+    ...ACTIVE_DOC_SUBDIRS.flatMap((dir) =>
+      readMdFiles(join(DOCS_DIR, dir)).map((file) => ({
+        ...file,
+        filename: `${dir}/${file.filename}`,
+      })),
+    ),
+  ];
 
   // Run all checks
-  const indexFindings = checkDocsIndexConsistency(allFiles, indexContent).findings;
+  const refScan = collectReferenceScan();
+  const indexFindings = checkDocsIndexConsistency(activeFiles, indexContent).findings;
+  const placementFindings = checkAllowedPlacement(refScan.tracked, indexContent).findings;
   const l1Findings = checkL1DesignDecisions(l1Files).findings;
   const l2Findings = checkL2CommandLines(l2Files).findings;
   const gateFindings = checkWritingForAgentsGate(getStagedDiffs()).findings;
-  const refScan = collectReferenceScan();
   const refFindings = checkReferenceResolution(
     refScan.files,
     refScan.tracked,
@@ -661,6 +725,7 @@ export function main() {
 
   const allFindings = [
     ...indexFindings,
+    ...placementFindings,
     ...l1Findings,
     ...l2Findings,
     ...gateFindings,

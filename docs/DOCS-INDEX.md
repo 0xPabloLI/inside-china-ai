@@ -183,6 +183,10 @@ Historical specs, tickets, plans, and roadmaps. Retained for reference, no longe
 | ----------------------- | ---------------------------------------------------------------- |
 | `spec-vlm-fit-focus.md` | VLM-driven fit/focus for landscape assets in vertical video spec |
 
+### `proposals/` — Proposals
+
+- `proposal-video-pipeline-improvements-from-lov-media-creator.md` — video-pipeline improvements inspired by `lov-media-creator`; status is tracked in the document header.
+
 ### `refs/` — Reference materials
 
 External reference repos and source materials. Not project documentation.

@@ -10,7 +10,7 @@
 # Checks:
 #   1. Secret scanning (gitleaks + shell grep fallback)
 #   2. .env.local guard
-#   3. Doc hierarchy lint (when docs/ files staged)
+#   3. Agent-doc reminder (rule 6) + doc hierarchy lint (when Agent docs staged)
 #   4. LFS pointer verification (when binary files staged)
 #   (commit-msg handles Session-Id provenance — see .githooks/commit-msg)
 #
@@ -131,9 +131,13 @@ if echo "$_SIZE_SCAN" | grep -q '^BLOCK'; then
 fi
 echo "$_SIZE_SCAN" | grep '^WARN' | while IFS= read -r line; do echo -e "${YELLOW}[pre-commit] large file: $line — confirm intentional${NC}"; done
 
-# --- Method 3: Doc hierarchy lint (only when docs/ files are staged) ---
-DOCS_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/' || true)
-if [ -n "$DOCS_STAGED" ]; then
+# --- Method 3: Agent-doc reminder + doc hierarchy lint ---
+# Rule 6's "did you load writing-for-agents?" half cannot be observed from a
+# hook, so this is a reminder, never a gate. Placement and doc-pointer
+# resolution are the machine-checkable half and run in the lint below.
+AGENT_DOC_STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '(^|/)(AGENTS\.md|CLAUDE\.md|SKILL\.md)$|^docs/|^skills/|^\.agents/skills/' || true)
+if [ -n "$AGENT_DOC_STAGED" ]; then
+  echo -e "${YELLOW}[pre-commit] Agent-doc change: load the writing-for-agents skill before editing; register any new Agent-reached document in docs/DOCS-INDEX.md (AGENTS.md rule 6).${NC}"
   if command -v node &>/dev/null; then
     echo -e "${YELLOW}[pre-commit] Running doc-hierarchy lint...${NC}"
     if ! node scripts/lint-doc-hierarchy.mjs 2>&1; then
