@@ -343,6 +343,36 @@ describe("dual-track token boundary (#753)", () => {
   });
 });
 
+// ─── #816: leading symbols must survive the dual-track round trip ───
+describe("dual-track leading symbols (#816)", () => {
+  it("round-trips a leading currency symbol on a digit+unit token", () => {
+    const { ttsText, restored } = roundTrip("revenue topped $700M");
+
+    expect(ttsText).toBe("revenue topped $700 M");
+    expect(restored).toBe("revenue topped $700M");
+  });
+
+  it("round-trips a leading currency symbol on a K-suffixed token", () => {
+    const { ttsText, restored } = roundTrip("under $140K per day");
+
+    expect(ttsText).toBe("under $140 K per day");
+    expect(restored).toBe("under $140K per day");
+  });
+
+  it("round-trips a leading parenthesis on a converted number", () => {
+    const { restored } = roundTrip("Market cap: $62 billion (445 billion yuan).");
+
+    expect(restored).toBe("Market cap: $62 billion (445 billion yuan).");
+  });
+
+  it("leaves other leading prefixes untouched when no rule rewrites them", () => {
+    // normalize-tts-text does not expand "+5%" or "≈3x"; the round trip must
+    // still return the display line byte-for-byte.
+    expect(roundTrip("revenue grew +5% today.").restored).toBe("revenue grew +5% today.");
+    expect(roundTrip("roughly ≈3x faster.").restored).toBe("roughly ≈3x faster.");
+  });
+});
+
 // ─── #753: the author-written spoken track owns the expansion decision ───
 describe("author-written voiceoverTts (#753)", () => {
   it("drops rule replacements the author deliberately left in display form", () => {
