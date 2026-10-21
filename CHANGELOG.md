@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.3...tanstack_start_ts-v1.25.4) (2026-10-21)
+
+
+### Bug Fixes
+
+* **short-video:** preserve leading symbols in restored subtitle tokens ([#816](https://github.com/0xPabloLI/inside-china-ai/issues/816)) ([#829](https://github.com/0xPabloLI/inside-china-ai/issues/829)) ([1394c9c](https://github.com/0xPabloLI/inside-china-ai/commit/1394c9ca29591f021d7f1e4e9084b8dc99269f8e))
+
 ## [1.25.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.2...tanstack_start_ts-v1.25.3) (2026-10-21)
 
 
