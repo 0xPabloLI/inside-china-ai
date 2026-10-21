@@ -350,9 +350,11 @@ function collectProtectedNames(expectedText, keyEntities) {
 }
 
 /**
- * Build an expanded ASR token set that automatically unpacks composite tokens,
- * version prefixes (e.g. "v4" -> "v", "4", "four"), decimals (#234), and
- * merged digit+unit tokens (#548: "720p" -> "720", "p").
+ * Single-pass ASR evidence builder: the expanded token set plus the split
+ * joins admitted into it (#689). The join scan runs ONCE, against one
+ * normalization of `options.expectedTokens`; callers that also need the joins
+ * (warning text, denominator folds) reuse this result instead of rescanning
+ * with a second, separately-built Set (review P2).
  *
  * @param {string[]} asrTokens
  * @param {string|null} [rawText] - the untokenized transcript; lets comma-
@@ -362,10 +364,9 @@ function collectProtectedNames(expectedText, keyEntities) {
  * @param {Set<string>|string[]} [options.expectedTokens] - expected-side
  *   tokens; when supplied, adjacent 2- or 3-token ASR joins become evidence
  *   only if the join spells one of them (#689: "Deep Seek" → "deepseek").
- *   Omitted → the #548 set, unchanged.
- * @returns {Set<string>}
+ * @returns {{set: Set<string>, splitJoins: Array<{joined: string, parts: string[], start: number, width: number}>}}
  */
-export function buildExpandedAsrTokenSet(asrTokens, rawText = null, options = {}) {
+function buildAsrEvidence(asrTokens, rawText = null, options = {}) {
   const expanded = new Set(asrTokens);
   for (const t of asrTokens) {
     // Unpack "v4" / "v41" into "v" + digits
@@ -423,11 +424,32 @@ export function buildExpandedAsrTokenSet(asrTokens, rawText = null, options = {}
   // structural proper name, because there the heard form does not match the
   // script at all and "anything goes" would excuse real mishearing.
   const expectedSet = toExpectedTokenSet(options.expectedTokens);
-  for (const { joined } of findSplitJoins(asrTokens, expectedSet)) {
+  const splitJoins = findSplitJoins(asrTokens, expectedSet);
+  for (const { joined } of splitJoins) {
     expanded.add(joined);
   }
 
-  return expanded;
+  return { set: expanded, splitJoins };
+}
+
+/**
+ * Build an expanded ASR token set that automatically unpacks composite tokens,
+ * version prefixes (e.g. "v4" -> "v", "4", "four"), decimals (#234), and
+ * merged digit+unit tokens (#548: "720p" -> "720", "p").
+ *
+ * @param {string[]} asrTokens
+ * @param {string|null} [rawText] - the untokenized transcript; lets comma-
+ *   grouped cardinals ("115,000" → "115" + "000") still supply their spoken
+ *   words to the comparison.
+ * @param {object} [options]
+ * @param {Set<string>|string[]} [options.expectedTokens] - expected-side
+ *   tokens; when supplied, adjacent 2- or 3-token ASR joins become evidence
+ *   only if the join spells one of them (#689: "Deep Seek" → "deepseek").
+ *   Omitted → the #548 set, unchanged.
+ * @returns {Set<string>}
+ */
+export function buildExpandedAsrTokenSet(asrTokens, rawText = null, options = {}) {
+  return buildAsrEvidence(asrTokens, rawText, options).set;
 }
 
 /**
@@ -767,11 +789,14 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     // tokens because tokenize() splits comma-grouped cardinals ("115,000" →
     // "115" + "000") that the spoken track spells as words. The expected
     // tokens also gate the #689 split-join expansion ("Deep Seek" → brand).
-    const asrTokenSet = buildExpandedAsrTokenSet(asrTokens, asrText, { expectedTokens });
-    const splitJoins = findSplitJoins(asrTokens, new Set(expectedTokens));
+    // The same evidence pass returns those joins, so the warnings and the
+    // denominator folds below cannot diverge from the set (review P2).
+    const { set: asrTokenSet, splitJoins } = buildAsrEvidence(asrTokens, asrText, {
+      expectedTokens,
+    });
 
     // #689: recognition variance is evidence plus an advisory, never a take
-    // defect. Split joins were already added by the set builder; merged
+    // defect. Split joins were already added by the evidence builder; merged
     // ("rerun" for "re-run") and near-miss ("DeepSeq") evidence is added here,
     // then every event is reported once as a warning.
     //
