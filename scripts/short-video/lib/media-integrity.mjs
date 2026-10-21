@@ -35,6 +35,9 @@ import { probeMedia, probeToolAvailable } from "./media-probe.mjs";
 /** Smallest accepted edge, in pixels. Guards against placeholders. */
 export const MIN_MEDIA_SIDE = 64;
 
+/** The eight-byte PNG signature (RFC 2083 / PNG spec clause 5.1). */
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
 /** Float slack for the clip ⊇ rect comparison, in page CSS px. */
 const PROVENANCE_TOLERANCE_PX = 0.01;
 
@@ -44,17 +47,24 @@ const fail = (code, detail) => ({ ok: false, code, detail });
  * Render a declared value for a failure message without being able to throw:
  * `JSON.stringify` dies on BigInt and `String()` dies on `Object.create(null)`,
  * and a gate that crashes is worse than a gate that rejects (#759 review).
+ *
+ * Control bytes are escaped because scene data is author input and this string
+ * lands in an operator's terminal and log file.
  */
 export function shown(value) {
-  if (typeof value === "bigint") return `${value}n`;
-  if (typeof value === "object" && value !== null) {
+  let text;
+  if (typeof value === "bigint") text = `${value}n`;
+  else if (typeof value === "object" && value !== null) {
     try {
-      return JSON.stringify(value);
+      text = JSON.stringify(value);
     } catch {
-      return String(value);
+      text = String(value);
     }
-  }
-  return String(value);
+  } else text = String(value);
+  return text.replace(
+    /[\x00-\x1f\x7f]/g,
+    (c) => `\\x${c.charCodeAt(0).toString(16).padStart(2, "0")}`,
+  );
 }
 
 // ─── Image headers ───
@@ -64,16 +74,7 @@ export function shown(value) {
  * until IEND. A file that ends mid-IDAT has a valid IHDR and is still broken.
  */
 function readPng(buf) {
-  if (
-    buf.length < 8 ||
-    buf[0] !== 0x89 ||
-    buf.toString("latin1", 1, 4) !== "PNG" ||
-    buf[5] !== 0x0a ||
-    buf[6] !== 0x1a ||
-    buf[7] !== 0x0a
-  ) {
-    return null;
-  }
+  if (buf.length < 8 || !buf.subarray(0, 8).equals(PNG_SIGNATURE)) return null;
   if (buf.length < 33 || buf.readUInt32BE(8) !== 13 || buf.toString("latin1", 12, 16) !== "IHDR") {
     return { ok: false, why: "PNG has no valid IHDR chunk" };
   }
@@ -240,7 +241,9 @@ function videoContainer(buf) {
 
 /** Image signature, decided from the first bytes only. */
 function imageSignature(buf) {
-  if (buf.length >= 8 && buf[0] === 0x89 && buf.toString("latin1", 1, 4) === "PNG") return "png";
+  // All eight bytes: the CRLF pair at 4-7 is what stops a lookalike that merely
+  // starts with 0x89 "PNG" from being walked as a PNG (droid P3).
+  if (buf.length >= 8 && buf.subarray(0, 8).equals(PNG_SIGNATURE)) return "png";
   if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xd8) return "jpeg";
   if (
     buf.length >= 12 &&
@@ -284,6 +287,17 @@ export function inspectMediaFile(
   absPath,
   { declaredType, probeVideo = probeMedia, probeAvailable = probeToolAvailable } = {},
 ) {
+  // A type outside the renderer's own enum would make the class-agreement check
+  // below silently do nothing — reject it instead of reporting the asset fine
+  // (droid P2). `MediaField.type` in remotion/src/types.ts defines the pair.
+  if (declaredType !== undefined && declaredType !== null) {
+    if (declaredType !== "image" && declaredType !== "video") {
+      return fail(
+        "unknown-declared-type",
+        `media.type must be "image" or "video", got ${shown(declaredType)} — no verdict about the bytes is trustworthy against an undefined type`,
+      );
+    }
+  }
   let stat;
   try {
     stat = statSync(absPath);

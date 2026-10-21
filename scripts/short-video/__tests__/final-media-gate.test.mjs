@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import {
   MEDIA_DEPENDENT_LAYOUTS,
@@ -1075,7 +1076,7 @@ function gifBytes(width, height, withTrailer) {
 }
 
 describe("media header parsers (#759)", () => {
-  const repoRoot = new URL("../../../", import.meta.url).pathname;
+  const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
   it("reads a real tracked JPEG by markers, not by file-name", () => {
     const v = inspectMediaFile(
@@ -1157,6 +1158,78 @@ describe("media header parsers (#759)", () => {
     const v = inspectMediaFile(join(dir, "assets/bgm.png"), { declaredType: "image" });
     expect(v.ok).toBe(false);
     expect(v.code).toBe("unreadable-media");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("REJECTS a PNG whose signature differs only in byte 4", () => {
+    // 0x89 'P' 'N' 'G' 0x0D 0x0A 0x1A 0x0A — a lookalike with the CR replaced
+    // must not be walked as a PNG.
+    const bytes = Buffer.from(pngBytes());
+    bytes[4] = 0x0a;
+    const dir = makeContentDir([{ name: "fake.png", bytes }]);
+    const v = inspectMediaFile(join(dir, "assets/fake.png"), { declaredType: "image" });
+    expect(v.ok).toBe(false);
+    expect(v.code).toBe("unreadable-media");
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// ─── #759 round 4: the gate reads files, so it must not be pointed anywhere ───
+
+describe("path containment and declared type (#759)", () => {
+  it("REFUSES a media path that leaves the content dir", () => {
+    const root = mkdtempSync(join(tmpdir(), "media-root-"));
+    const contentDir = join(root, "content");
+    mkdirSync(join(contentDir, "assets"), { recursive: true });
+    writeFileSync(join(root, "outside.png"), pngBytes());
+    for (const path of ["../outside.png", join(root, "outside.png")]) {
+      const result = checkFinalMedia({
+        scenes: [mediaScene({ type: "image", path })],
+        contentDir,
+      });
+      expect(result.pass, path).toBe(false);
+      expect(result.failures[0]).toMatchObject({
+        reason: "broken-media",
+        code: "path-escapes-content-dir",
+      });
+      // The escape is reported for the hook branch too, not turned into
+      // "missing media" — the fix is different.
+      const hook = checkFinalMedia({
+        scenes: [
+          { id: 2, visualType: "hook", layout: "hero-center", media: { type: "image", path } },
+        ],
+        contentDir,
+      });
+      expect(hook.failures[0].code, path).toBe("path-escapes-content-dir");
+    }
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("REJECTS a media.type the renderer does not define", () => {
+    // Anything else would make the image↔video agreement check silently no-op.
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [mediaScene({ type: "gif", path: "assets/present.png" })],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures[0]).toMatchObject({
+      reason: "broken-media",
+      code: "unknown-declared-type",
+    });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("escapes control characters out of the operator-facing report", () => {
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [mediaScene({ type: "image", path: "assets/present.png", evidence: "a\u0000b" })],
+      contentDir: dir,
+    });
+    const report = formatFinalMediaFailures(result);
+    expect(result.failures[0].reason).toBe("invalid-evidence-flag");
+    expect(report).not.toContain("\u0000");
+    expect(report).toContain("a\\x00b");
     rmSync(dir, { recursive: true, force: true });
   });
 });

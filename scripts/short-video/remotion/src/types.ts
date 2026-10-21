@@ -16,6 +16,28 @@ export interface StatItem {
  * (VALID_MODES/VALID_FITS/VALID_FOCUSES) live in lib/media-bg.mjs —
  * TS/.mjs are written twice; update both together.
  */
+/**
+ * #759 Capture Provenance (采集凭据): the geometry an element-level capture
+ * claims to have produced, in page CSS px. Consumed by the Node side only —
+ * `lib/media-integrity.mjs` validates it (clip must contain rect) at the final
+ * media gate; the renderer never reads it. Declaration, not measurement:
+ * nothing reconciles these numbers with the pixels on disk until #758 lands.
+ */
+export interface MediaCaptureBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface MediaProvenance {
+  sourceUrl: string; // http(s) page the element was taken from
+  selector: string; // element the rect belongs to
+  rect: MediaCaptureBox; // the element
+  clip: MediaCaptureBox; // what was actually captured — must contain rect
+  scale: number; // device scale factor, > 0
+}
+
 export interface MediaField {
   type: "image" | "video";
   path: string;
@@ -33,6 +55,10 @@ export interface MediaField {
   upscale?: boolean;
   /** #360: start offset into the source video, ms (int ≥ 0, absent = 0). Consumed by MediaBackground to begin playback at the offset. Not produced by the pipeline (manual scene-data / patch only). */
   videoStartOffsetMs?: number;
+  /** #759: marks this media as Evidence Media — the capture that carries the asserted fact itself. The final media gate then requires `provenance`. Only the boolean `true` marks; `null`/`false`/absent mean "not evidence", any other value fails the gate. */
+  evidence?: boolean;
+  /** #759: Capture Provenance for Evidence Media (see MediaProvenance). Validated at the final media gate, never by the renderer. */
+  provenance?: MediaProvenance;
   /** VLM content classification (P3). Used by recommendScene for scene-type matching. */
   contentKind?:
     "product_demo" | "talking_head" | "landscape" | "chart" | "text_screenshot" | "other" | string;
