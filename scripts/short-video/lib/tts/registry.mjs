@@ -58,7 +58,13 @@ import {
   markFailClosed,
   qualityGateSkipped,
 } from "./failure-class.mjs";
-import { HOOK_MIN_SPEED, MAX_TTS_SPEED, WPM_HARD_CEILING, resolveSceneSpeed } from "./pacing.mjs";
+import {
+  HOOK_MIN_SPEED,
+  MAX_TTS_SPEED,
+  WPM_HARD_CEILING,
+  WPM_COMPENSATE_BELOW,
+  resolveSceneSpeed,
+} from "./pacing.mjs";
 import { DEFAULT_SILENCE_FLOOR_MS } from "./silence-trim.mjs";
 
 /**
@@ -641,7 +647,10 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     const speed = speedByResult.get(result) ?? resolveSceneSpeed(scene);
     // #704: the cache identity belongs to the take that EXISTS on disk — a
     // local-fallback take was produced by f5-mlx, so its key and meta must name
-    // f5-mlx, not the main engine that failed it.
+    // f5-mlx, not the main engine that failed it. This is provenance, not a
+    // cross-run hit path: the next run plans against the MAIN engine's key, so
+    // an F5 fallback take is never reused as an MLX hit (a different timbre
+    // cannot be pinned into the cache for good).
     const takeEngine = result.engine ?? engine;
     const meta = {
       key: sceneCacheKey(takeEngine, scene, speed),
@@ -850,6 +859,35 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           `${fallbackResults.map((r) => r.sceneId).join(", ")} — regenerated with ` +
           `${fallbackEngine.name} and accepted. Voice may differ from the rest of the video.`,
       );
+
+      // #704: this path never runs the pacing ladder (the acoustic block fires
+      // before it), so a take that already PASSED the gate but measures below
+      // the compensation trigger ships at its current speed. Taking the
+      // fallback path drops the compensation plan for those scenes — that is a
+      // known boundary, but it must never be silent.
+      const underCompensated = new Map();
+      for (const evaluation of [
+        ...(gateReport?.evaluations ?? []),
+        ...(cachedPacing?.evaluations ?? []),
+      ]) {
+        if (
+          evaluation?.passed === true &&
+          Number.isFinite(evaluation.wpm) &&
+          evaluation.wpm < WPM_COMPENSATE_BELOW
+        ) {
+          underCompensated.set(evaluation.sceneId, evaluation.wpm);
+        }
+      }
+      if (underCompensated.size > 0) {
+        const detail = [...underCompensated]
+          .map(([sceneId, wpm]) => `scene ${sceneId} (${wpm} WPM)`)
+          .join(", ");
+        console.warn(
+          `\n  🚨 [TTS Local Fallback] pacing compensation was not re-run on the fallback path; ` +
+            `these takes ship at their current speed: ${detail} ` +
+            `(below the ${WPM_COMPENSATE_BELOW} WPM compensation trigger).`,
+        );
+      }
       return true;
     } catch (err) {
       console.warn(

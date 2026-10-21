@@ -15,7 +15,10 @@
  *    and no take is promoted;
  *  - an accepted fallback take records its real engine (`f5-mlx` /
  *    `fallbackFrom: cosyvoice3-mlx`) in the cache meta, keyed with the F5
- *    engine and at ttsSpeed 1.0.
+ *    engine and at ttsSpeed 1.0;
+ *  - a successful fallback warns when a gate-PASSED take sits below the pacing
+ *    compensation trigger: the ladder does not re-run on this path, so those
+ *    takes ship at their measured speed — visibly, never silently.
  *
  * Quality gate, cache, post-process and the F5 engine are mocked; no model is
  * loaded, nothing touches the network or the repository.
@@ -230,6 +233,29 @@ describe("TTS local fallback (#704)", () => {
     expect(runTtsQualityGate.mock.calls[0][2].instructForScene).toBe(engine.instructForScene);
 
     expect(warnText()).toMatch(/Voice may differ from the rest of the video/);
+  });
+
+  it("fallback success warns that low-WPM passing takes skip pacing compensation", async () => {
+    const scenes = makeScenes();
+    const engine = primaryMlxEngine();
+    const f5 = f5Engine();
+    vi.mocked(createF5MLXEngine).mockResolvedValue(f5);
+    // Scene 2 clears the gate at 140 WPM — below the 150 WPM compensation
+    // trigger, so the normal path would have sped it up. The acoustic block on
+    // scene 1 fires before the ladder, so taking the F5 path drops that plan;
+    // the warning is the only signal it happened.
+    stubGateSequence([(id) => (id === 1 ? failAcoustic(1) : pass(2, 140)), (id) => pass(id)]);
+
+    const results = await generateTTSWithEngine(scenes, dir, engine, {
+      useCache: false,
+      runAlignment: false,
+      maxRetries: 0,
+    });
+
+    expect(results.map((r) => r.sceneId)).toEqual([1, 2]);
+    expect(results.find((r) => r.sceneId === 1).engine).toBe(f5);
+    expect(warnText()).toMatch(/scene 2 \(140 WPM\)/);
+    expect(warnText()).toMatch(/pacing compensation was not re-run on the fallback path/);
   });
 
   it("F5 also failing rethrows the ORIGINAL acoustic block and promotes nothing", async () => {
