@@ -52,15 +52,22 @@ function isInsideAudioDir(audioDir, path) {
 
 /**
  * Path recorded by a sidecar, or null when the sidecar is absent, records no
- * path, points at a missing file, or points outside the audio dir.
+ * path, records a non-string `audioPath`, points at a missing file, or points
+ * outside the audio dir.
+ *
+ * `requireExists: false` is the duration-bearing view's mode: a recorded but
+ * missing file is returned as-is so the consumer's assert fails closed on the
+ * take the sidecar names, instead of silently pairing a different take's bytes
+ * with this take's measured duration.
  */
-function recordedTakePath(audioDir, sceneId, suffix) {
+function recordedTakePath(audioDir, sceneId, suffix, { requireExists } = { requireExists: true }) {
   const metaPath = join(audioDir, `scene-${sceneId}${suffix}`);
   if (!existsSync(metaPath)) return null;
   const recorded = readJson(metaPath)?.audioPath;
-  if (!recorded) return null;
+  if (typeof recorded !== "string" || !recorded) return null;
   const path = isAbsolute(recorded) ? recorded : join(audioDir, recorded);
-  return existsSync(path) && isInsideAudioDir(audioDir, path) ? path : null;
+  if (!isInsideAudioDir(audioDir, path)) return null;
+  return requireExists && !existsSync(path) ? null : path;
 }
 
 function probeFallbackPath(audioDir, sceneId) {
@@ -71,6 +78,9 @@ function probeFallbackPath(audioDir, sceneId) {
   );
 }
 
+/** The approved sidecar owns the path-only view too — one name, one owner. */
+const APPROVED_SIDECAR = SIDECAR_SOURCES[0][1];
+
 /**
  * Path-only view used by the render entry points.
  *
@@ -80,7 +90,7 @@ function probeFallbackPath(audioDir, sceneId) {
  */
 export function resolveSceneAudioPath(audioDir, sceneId) {
   return (
-    recordedTakePath(audioDir, sceneId, ".tts-meta.json") ?? probeFallbackPath(audioDir, sceneId)
+    recordedTakePath(audioDir, sceneId, APPROVED_SIDECAR) ?? probeFallbackPath(audioDir, sceneId)
   );
 }
 
@@ -90,9 +100,11 @@ export function resolveSceneAudioPath(audioDir, sceneId) {
  * a skip-gate or aborted run leaves only this record) → legacy
  * scene-durations.json.
  *
- * The recorded path is returned even when the file is missing — fail-closed
- * stays with the consumer (digital-human planning refuses to plan a duration
- * whose audio file is gone). Returns null when no source knows the scene.
+ * A recorded path is returned even when its file is missing, so the consumer's
+ * assert fails closed on the take this sidecar names — pairing another take's
+ * bytes with this take's measured duration would be a silent mismatch. Only a
+ * path that escapes the audio dir (tampered sidecar) falls back to the default
+ * in-dir name. Returns null when no source knows the scene.
  *
  * @param {string} audioDir - `output/{pipelineId}/audio`
  * @param {number} sceneId
@@ -106,7 +118,8 @@ export function resolveSceneAudioInfo(audioDir, sceneId) {
     if (!meta || typeof meta.duration !== "number" || !(meta.duration > 0)) continue;
     return {
       audioPath:
-        recordedTakePath(audioDir, sceneId, suffix) ?? join(audioDir, `scene-${sceneId}.wav`),
+        recordedTakePath(audioDir, sceneId, suffix, { requireExists: false }) ??
+        join(audioDir, `scene-${sceneId}.wav`),
       duration: meta.duration,
       durationSource,
     };

@@ -673,6 +673,16 @@ describe("readSceneAudioInfo (#423 candidate sidecars)", () => {
     expect(info.durationSource).toBe("tts-meta");
   });
 
+  it("fails closed on the take the sidecar names, not on a different take (#566 review P1)", () => {
+    const dir = tmpDir("dh-audio-info-");
+    writeFileSync(join(dir, "scene-1.wav"), "RIFF....");
+    writeFileSync(
+      join(dir, "scene-1.tts-meta.json"),
+      JSON.stringify({ duration: 4, audioPath: "scene-1.mp3" }),
+    );
+    expect(() => readSceneAudioInfo(dir, { id: 1 })).toThrow(/scene-1\.mp3/);
+  });
+
   it("still fails closed when neither sidecar nor scene-durations.json has the scene", () => {
     const dir = tmpDir("dh-audio-info-");
     expect(() => readSceneAudioInfo(dir, { id: 7 })).toThrow(/no TTS audio metadata/);

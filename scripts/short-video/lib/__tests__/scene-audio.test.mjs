@@ -157,6 +157,29 @@ describe("resolveSceneAudioInfo (#566 unified resolution)", () => {
     expect(resolveSceneAudioInfo(audioDir, 1).duration).toBe(4);
   });
 
+  it("returns the missing recorded take, never a different take's bytes (planning fail-closed)", () => {
+    writeTake("scene-1.wav");
+    writeSidecar("scene-1.tts-meta.json", { duration: 4, audioPath: "scene-1.mp3" });
+    expect(resolveSceneAudioInfo(audioDir, 1)).toEqual({
+      audioPath: join(audioDir, "scene-1.mp3"),
+      duration: 4,
+      durationSource: "tts-meta",
+    });
+  });
+
+  it("survives a non-string audioPath instead of throwing out of planning", () => {
+    writeTake("scene-1.mp3");
+    for (const audioPath of [123, ["../x"], { path: "scene-1.mp3" }, null]) {
+      writeSidecar("scene-1.tts-meta.json", { duration: 3, audioPath });
+      expect(resolveSceneAudioInfo(audioDir, 1)).toEqual({
+        audioPath: join(audioDir, "scene-1.wav"),
+        duration: 3,
+        durationSource: "tts-meta",
+      });
+      expect(resolveSceneAudioPath(audioDir, 1)).toBe(join(audioDir, "scene-1.mp3"));
+    }
+  });
+
   it("falls through a corrupt sidecar to the next source", () => {
     writeTake("scene-1.wav");
     writeFileSync(join(audioDir, "scene-1.tts-meta.json"), "{ not json");
