@@ -312,7 +312,9 @@ async function main() {
     },
     {
       name: "step-1-tts",
-      fn: () => generateTTS(scenes, audioDir),
+      // #689: the gate may only near-miss-rescue names the author declared.
+      fn: () =>
+        generateTTS(scenes, audioDir, { qualityGateOptions: { keyEntities: meta.keyEntities } }),
       meta: { track: "voice" },
     },
   ]);

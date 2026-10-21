@@ -76,7 +76,11 @@ if (existsSync(patchPath)) {
 // Step 1: TTS (Kaggle CUDA) — regenerates audio + forced alignment
 console.log("\n🎙️  Step 1: Generating TTS (Kaggle CUDA)...");
 const { generateTTS } = await import("./lib/generate-tts.mjs");
-const ttsResults = await generateTTS(scenes, audioDir);
+// #689: keep entry-point parity with main.mjs — the gate may only near-miss
+// rescue names the author declared in meta.keyEntities.
+const ttsResults = await generateTTS(scenes, audioDir, {
+  qualityGateOptions: { keyEntities: meta.keyEntities },
+});
 console.log(`  ✅ TTS done: ${ttsResults.length} scenes`);
 
 // Ensure durations are saved for downstream consumption

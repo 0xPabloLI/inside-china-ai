@@ -124,26 +124,249 @@ export function extractGuardedTokens(text) {
 }
 
 /**
- * Check if an expected word is satisfied in the ASR token set,
- * taking numbers, digits, and ordinal equivalents into account.
- * E.g., "tenth" is satisfied by "10th" or "10"; "8" is satisfied by "eighth" or "8th".
- *
- * @param {string} expectedWord
- * @param {Set<string>} asrTokenSet
- * @returns {boolean}
+ * Prefix shared by every recognition-variance advisory (#689). These are
+ * warnings, never issues: the words were spoken, the ASR just spelled them
+ * differently.
  */
+const RECOGNITION_VARIANCE_PREFIX = "Recognition variance";
+
+/** Lowercase and strip everything the tokenizer would split on. */
+function normalizeName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/** Normalize the optional expected-token contract to a lookup Set. */
+function toExpectedTokenSet(expectedTokens) {
+  if (!expectedTokens) return null;
+  const values = expectedTokens instanceof Set ? expectedTokens : Array.from(expectedTokens);
+  const set = new Set();
+  for (const value of values) {
+    if (typeof value === "string" && value !== "") set.add(value.toLowerCase());
+  }
+  return set;
+}
+
 /**
- * Build an expanded ASR token set that automatically unpacks composite tokens,
- * version prefixes (e.g. "v4" -> "v", "4", "four"), decimals (#234), and
- * merged digit+unit tokens (#548: "720p" -> "720", "p").
+ * Find adjacent 2- or 3-token ASR joins that spell an expected token (#689).
+ * The join is evidence only when the expected side already carries that exact
+ * token, so "deep" + "seek" can satisfy "deepseek" while "seek" + "ships"
+ * never invents "seekships".
+ *
+ * `start` / `width` let the caller fold the consumed tokens into one ASR unit
+ * for the similarity denominator (Finding A of the #689 follow-up): "Deep
+ * Seek" is two ASR tokens but one spoken word.
+ *
+ * Width 3 stays on purpose (#689 review): whisper.cpp can split one long token
+ * into THREE words, not just two — "singapore" can come back as "sing a pore" —
+ * so a 2-token window alone would miss the exact join and fail a correct take.
+ *
+ * @param {string[]} asrTokens
+ * @param {Set<string>|null} expectedSet
+ * @returns {Array<{joined: string, parts: string[], start: number, width: number}>}
+ */
+function findSplitJoins(asrTokens, expectedSet) {
+  if (!expectedSet || expectedSet.size === 0) return [];
+  const joins = [];
+  for (let i = 0; i < asrTokens.length; i++) {
+    for (const width of [2, 3]) {
+      if (i + width > asrTokens.length) continue;
+      const parts = asrTokens.slice(i, i + width);
+      const joined = parts.join("");
+      if (expectedSet.has(joined)) joins.push({ joined, parts, start: i, width });
+    }
+  }
+  return joins;
+}
+
+/** Raw expected-side words that contain a hyphen ("re-run"). */
+function hyphenatedExpectedWords(text) {
+  return String(text || "").match(/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+/g) || [];
+}
+
+function commonPrefixLength(a, b) {
+  const limit = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < limit && a[i] === b[i]) i++;
+  return i;
+}
+
+/** Levenshtein distance ≤ maxDistance, with row-minimum early exit. */
+function withinEditDistance(a, b, maxDistance) {
+  if (Math.abs(a.length - b.length) > maxDistance) return false;
+  if (a === b) return true;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const curr = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      const value = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+      curr.push(value);
+      if (value < rowMin) rowMin = value;
+    }
+    if (rowMin > maxDistance) return false;
+    prev = curr;
+  }
+  return prev[b.length] <= maxDistance;
+}
+
+/**
+ * Every near-miss candidate a heard transcript offers (#689): the raw ASR
+ * tokens plus every adjacent 2/3-token join. whisper.cpp can split a name AND
+ * mishear it ("Deep Seq" for "DeepSeek"), which lives only in the join — the
+ * token set then holds "deep" and "seq", neither of which can be the near-miss
+ * itself. Each candidate remembers its position so a join that IS used as
+ * evidence can be folded into one ASR unit for the denominator.
+ *
+ * @param {string[]} asrTokens
+ * @returns {Array<{heard: string, parts: string[], start: number, width: number}>}
+ */
+function collectNearMissCandidates(asrTokens) {
+  const candidates = [];
+  for (let i = 0; i < asrTokens.length; i++) {
+    candidates.push({ heard: asrTokens[i], parts: [asrTokens[i]], start: i, width: 1 });
+  }
+  for (const width of [2, 3]) {
+    for (let i = 0; i + width <= asrTokens.length; i++) {
+      const parts = asrTokens.slice(i, i + width);
+      candidates.push({ heard: parts.join(""), parts, start: i, width });
+    }
+  }
+  // Deterministic pick: sorted heard form first (the pre-join behavior for
+  // single tokens), then the narrower/earlier candidate on a tie.
+  return candidates.sort(
+    (a, b) =>
+      (a.heard < b.heard ? -1 : a.heard > b.heard ? 1 : 0) ||
+      a.width - b.width ||
+      a.start - b.start,
+  );
+}
+
+/**
+ * Pick a heard token or join that is a near-miss of a protected name (#689):
+ * "deepseq" / "deep seq" for "deepseek". A strict prefix ("deepsee") is real
+ * truncation and must keep failing, so it is never accepted as evidence.
+ *
+ * @param {string} name - normalized protected name (length ≥ 6 enforced here)
+ * @param {Array<{heard: string, parts: string[], start: number, width: number}>} candidates
+ * @returns {{heard: string, parts: string[], start: number, width: number}|null}
+ */
+function findNearMissCandidate(name, candidates) {
+  if (name.length < 6) return null;
+  const minLength = name.length - 2;
+  const maxLength = name.length + 1;
+  const minPrefix = Math.max(5, name.length - 2);
+  for (const candidate of candidates) {
+    if (candidate.heard === name) continue;
+    if (candidate.heard.length < minLength || candidate.heard.length > maxLength) continue;
+    if (candidate.heard.length < name.length && name.startsWith(candidate.heard)) continue;
+    if (commonPrefixLength(candidate.heard, name) < minPrefix) continue;
+    if (!withinEditDistance(candidate.heard, name, 2)) continue;
+    return candidate;
+  }
+  return null;
+}
+
+/**
+ * Count ASR units for the similarity denominator (#689): every adjacent 2/3
+ * token join that was used as recognition evidence is ONE spoken unit, while
+ * every token outside those joins still counts on its own. Extra/hallucinated
+ * words therefore stay in the denominator — folding can never eat them.
+ *
+ * Overlaps resolve greedily left-to-right (wider join first at the same
+ * start), so no token is counted twice.
+ *
+ * @param {string[]} asrTokens
+ * @param {Array<{start: number, width: number}>} foldRanges
+ * @returns {number}
+ */
+function countAsrUnits(asrTokens, foldRanges) {
+  const ranges = foldRanges
+    .filter((r) => r.width >= 2)
+    .sort((a, b) => a.start - b.start || b.width - a.width);
+  let units = 0;
+  let cursor = 0;
+  let index = 0;
+  while (cursor < asrTokens.length) {
+    while (index < ranges.length && ranges[index].start < cursor) index++;
+    const range = ranges[index];
+    if (range && range.start === cursor) {
+      units++;
+      cursor += range.width;
+      index++;
+    } else {
+      units++;
+      cursor++;
+    }
+  }
+  return units;
+}
+
+/**
+ * Protected names the near-miss rule may rescue (#689): entities declared in
+ * `keyEntities`, plus words the expected text marks as proper names — an
+ * uppercase letter after the first character ("DeepSeek", "ZeroBench",
+ * "iFlytek"), or a letter+digit word the tokenizer keeps whole ("Qwen3").
+ *
+ * @param {string} expectedText
+ * @param {object|null} keyEntities
+ * @returns {Set<string>} normalized names
+ */
+function collectProtectedNames(expectedText, keyEntities) {
+  const expectedTokens = new Set(tokenize(expectedText));
+  const names = new Set();
+  if (keyEntities && typeof keyEntities === "object") {
+    for (const entities of Object.values(keyEntities)) {
+      if (!Array.isArray(entities)) continue;
+      for (const entity of entities) {
+        if (typeof entity !== "string") continue;
+        // #689 review: a declaration only protects a name the SCRIPT actually
+        // says. meta.keyEntities is per-episode, so a company declared for a
+        // different scene used to turn a hallucinated word ("byte danse") into
+        // near-miss evidence and fold it out of the similarity denominator.
+        // The expected tokens are the ground truth; the declaration only adds
+        // permission for a name that is already spoken.
+        const whole = normalizeName(entity);
+        if (whole && expectedTokens.has(whole)) names.add(whole);
+        for (const segment of entity.split(/[^A-Za-z0-9]+/)) {
+          const normalized = normalizeName(segment);
+          if (normalized.length >= 6 && expectedTokens.has(normalized)) names.add(normalized);
+        }
+      }
+    }
+  }
+
+  const words = String(expectedText || "").match(/[A-Za-z][A-Za-z0-9]*/g) || [];
+  for (const word of words) {
+    const camelCase = /[A-Z]/.test(word.slice(1));
+    const letterDigit = /\d/.test(word) && /[A-Za-z]/.test(word) && tokenize(word).length === 1;
+    if (!camelCase && !letterDigit) continue;
+    const normalized = normalizeName(word);
+    if (normalized) names.add(normalized);
+  }
+  return names;
+}
+
+/**
+ * Single-pass ASR evidence builder: the expanded token set plus the split
+ * joins admitted into it (#689). The join scan runs ONCE, against one
+ * normalization of `options.expectedTokens`; callers that also need the joins
+ * (warning text, denominator folds) reuse this result instead of rescanning
+ * with a second, separately-built Set (review P2).
  *
  * @param {string[]} asrTokens
  * @param {string|null} [rawText] - the untokenized transcript; lets comma-
  *   grouped cardinals ("115,000" → "115" + "000") still supply their spoken
  *   words to the comparison.
- * @returns {Set<string>}
+ * @param {object} [options]
+ * @param {Set<string>|string[]} [options.expectedTokens] - expected-side
+ *   tokens; when supplied, adjacent 2- or 3-token ASR joins become evidence
+ *   only if the join spells one of them (#689: "Deep Seek" → "deepseek").
+ * @returns {{set: Set<string>, splitJoins: Array<{joined: string, parts: string[], start: number, width: number}>}}
  */
-export function buildExpandedAsrTokenSet(asrTokens, rawText = null) {
+function buildAsrEvidence(asrTokens, rawText = null, options = {}) {
   const expanded = new Set(asrTokens);
   for (const t of asrTokens) {
     // Unpack "v4" / "v41" into "v" + digits
@@ -190,7 +413,43 @@ export function buildExpandedAsrTokenSet(asrTokens, rawText = null) {
     for (const w of cardinalSpokenWords(rawText)) expanded.add(w);
   }
 
-  return expanded;
+  // #689: whisper.cpp sometimes splits one brand token into adjacent words
+  // ("Deep Seek") while the expected track carries the joined spelling. The
+  // join is admitted only when it exactly equals an expected token, so the
+  // rule cannot manufacture evidence for an unlisted compound.
+  //
+  // Review Q4: this EXACT adjacent join needs no keyEntities declaration — the
+  // expected line itself is the declaration ("moon shot" for "moonshot" is
+  // allowed). Only the looser near-miss rule requires a declared entity or a
+  // structural proper name, because there the heard form does not match the
+  // script at all and "anything goes" would excuse real mishearing.
+  const expectedSet = toExpectedTokenSet(options.expectedTokens);
+  const splitJoins = findSplitJoins(asrTokens, expectedSet);
+  for (const { joined } of splitJoins) {
+    expanded.add(joined);
+  }
+
+  return { set: expanded, splitJoins };
+}
+
+/**
+ * Build an expanded ASR token set that automatically unpacks composite tokens,
+ * version prefixes (e.g. "v4" -> "v", "4", "four"), decimals (#234), and
+ * merged digit+unit tokens (#548: "720p" -> "720", "p").
+ *
+ * @param {string[]} asrTokens
+ * @param {string|null} [rawText] - the untokenized transcript; lets comma-
+ *   grouped cardinals ("115,000" → "115" + "000") still supply their spoken
+ *   words to the comparison.
+ * @param {object} [options]
+ * @param {Set<string>|string[]} [options.expectedTokens] - expected-side
+ *   tokens; when supplied, adjacent 2- or 3-token ASR joins become evidence
+ *   only if the join spells one of them (#689: "Deep Seek" → "deepseek").
+ *   Omitted → the #548 set, unchanged.
+ * @returns {Set<string>}
+ */
+export function buildExpandedAsrTokenSet(asrTokens, rawText = null, options = {}) {
+  return buildAsrEvidence(asrTokens, rawText, options).set;
 }
 
 /**
@@ -273,20 +532,27 @@ export function isWordInAsr(expectedWord, asrTokenSet) {
  * @param {string|null} [rawAsrText] - the untokenized transcript; lets comma-
  *   grouped cardinals ("115,000" → "115" + "000") still supply their spoken
  *   words to the comparison.
+ * @param {object} [options]
+ * @param {Set<string>} [options.asrTokenSet] - a set the caller already
+ *   expanded with recognition-variance evidence (#689). Omitted → build one
+ *   from the tokens, exactly as before.
+ * @param {number} [options.asrUnits] - ASR tokens after folding the joins used
+ *   as recognition evidence (#689); the denominator never drops below the
+ *   expected token count. Omitted → raw `asrTokens.length`, exactly as before.
  * @returns {number} 0.0 - 1.0
  */
-export function computeTokenSimilarity(expectedTokens, asrTokens, rawAsrText = null) {
+export function computeTokenSimilarity(expectedTokens, asrTokens, rawAsrText = null, options = {}) {
   if (expectedTokens.length === 0 && asrTokens.length === 0) return 1.0;
   if (expectedTokens.length === 0 || asrTokens.length === 0) return 0.0;
 
-  const setB = buildExpandedAsrTokenSet(asrTokens, rawAsrText);
+  const setB = options.asrTokenSet ?? buildExpandedAsrTokenSet(asrTokens, rawAsrText);
   let matches = 0;
   for (const token of expectedTokens) {
     if (isWordInAsr(token, setB)) matches++;
   }
 
   // Denominator considers semantic match without penalizing normalized syllable expansion
-  return matches / Math.max(expectedTokens.length, asrTokens.length);
+  return matches / Math.max(expectedTokens.length, options.asrUnits ?? asrTokens.length);
 }
 
 /**
@@ -425,6 +691,10 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     minSimilarity = MIN_TEXT_SIMILARITY,
     strict = false,
     instructForScene = null,
+    // #689: author-declared entities (meta.keyEntities). Only these (plus
+    // structurally proper names in the script) may be rescued by the
+    // near-miss rule; an undeclared lowercase word must keep failing.
+    keyEntities = null,
     // #415 ①: ASR is the only verifier of the WORDS. When it cannot run the
     // take is unverified — fail loudly by default, or opt into the legacy
     // render-unverified behavior explicitly. The env spelling lives in
@@ -517,8 +787,64 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
     // would fail "v4" against an ASR "VI 4.1" and trip self-heal retries on
     // pure recognition variance. The raw transcript is passed alongside the
     // tokens because tokenize() splits comma-grouped cardinals ("115,000" →
-    // "115" + "000") that the spoken track spells as words.
-    const asrTokenSet = buildExpandedAsrTokenSet(asrTokens, asrText);
+    // "115" + "000") that the spoken track spells as words. The expected
+    // tokens also gate the #689 split-join expansion ("Deep Seek" → brand).
+    // The same evidence pass returns those joins, so the warnings and the
+    // denominator folds below cannot diverge from the set (review P2).
+    const { set: asrTokenSet, splitJoins } = buildAsrEvidence(asrTokens, asrText, {
+      expectedTokens,
+    });
+
+    // #689: recognition variance is evidence plus an advisory, never a take
+    // defect. Split joins were already added by the evidence builder; merged
+    // ("rerun" for "re-run") and near-miss ("DeepSeq") evidence is added here,
+    // then every event is reported once as a warning.
+    //
+    // Every join that ends up as evidence also collapses into ONE ASR unit for
+    // the similarity denominator (follow-up Finding A): "Deep Seek" is two ASR
+    // tokens but one spoken word, so a two-word scene must not score 2/3 and
+    // fail on a correct take. Tokens outside the folds still count, so extra
+    // words keep dragging the score down.
+    const foldRanges = splitJoins.map(({ start, width }) => ({ start, width }));
+    const varianceEvents = [];
+    for (const { joined, parts } of splitJoins) {
+      varianceEvents.push(
+        `${RECOGNITION_VARIANCE_PREFIX} [split]: "${joined}" heard as "${parts.join(" ")}"`,
+      );
+    }
+    for (const word of hyphenatedExpectedWords(expectedSpokenText)) {
+      // #689 review: merged evidence requires at least one LETTER. A purely
+      // numeric hyphen ("3-5") is two critical numbers, not one merged word:
+      // "35" means thirty-five, while "3-5" means three to five. Bridging them
+      // would add "3" + "5" evidence to a take that says neither. "re-run" /
+      // "GPT-4" keep merging — those are the spellings whisper.cpp re-merges.
+      if (!/[A-Za-z]/.test(word)) continue;
+      const parts = tokenize(word);
+      if (parts.length < 2) continue;
+      const merged = parts.join("");
+      if (!asrTokenSet.has(merged)) continue;
+      for (const part of parts) asrTokenSet.add(part);
+      varianceEvents.push(
+        `${RECOGNITION_VARIANCE_PREFIX} [merged]: "${word.toLowerCase()}" heard as "${merged}"`,
+      );
+    }
+    // Follow-up Finding B: the near-miss candidate set is the raw tokens PLUS
+    // every adjacent 2/3-token join — "Deep Seq" only exists as a join, and a
+    // join used as near-miss evidence must fold into one ASR unit as well.
+    const nearMissCandidates = collectNearMissCandidates(asrTokens);
+    for (const name of collectProtectedNames(expectedSpokenText, keyEntities)) {
+      if (asrTokenSet.has(name)) continue;
+      const hit = findNearMissCandidate(name, nearMissCandidates);
+      if (!hit) continue;
+      asrTokenSet.add(name);
+      if (hit.width > 1) foldRanges.push({ start: hit.start, width: hit.width });
+      // A single-token near-miss still reports its own heard form ("deepseq");
+      // a joined one reports the original parts ("deep seq").
+      varianceEvents.push(
+        `${RECOGNITION_VARIANCE_PREFIX} [near-miss]: "${name}" heard as "${hit.parts.join(" ")}"`,
+      );
+    }
+    for (const event of new Set(varianceEvents)) warnings.push(event);
 
     // 4. Critical Token & Tail Boundary Verification
     const { criticalWords, tailWords } = extractGuardedTokens(expectedSpokenText);
@@ -535,8 +861,14 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
       issues.push(`Incomplete speech: missing key token(s) [${missingCritical.join(", ")}]`);
     }
 
-    // 5. Similarity Score
-    const similarity = computeTokenSimilarity(expectedTokens, asrTokens, asrText);
+    // 5. Similarity Score — same expanded set, so variance evidence cannot
+    // fail the score the tail/critical checks just accepted (#689). The
+    // denominator folds evidence joins into single ASR units (Finding A).
+    const asrUnits = countAsrUnits(asrTokens, foldRanges);
+    const similarity = computeTokenSimilarity(expectedTokens, asrTokens, asrText, {
+      asrTokenSet,
+      asrUnits,
+    });
     if (similarity < minSimilarity) {
       issues.push(
         `Low text similarity: ${(similarity * 100).toFixed(1)}% (threshold: ${minSimilarity * 100}%)`,
@@ -624,11 +956,19 @@ export async function runTtsQualityGate(scenes, ttsResults, options = {}) {
 
     if (!evalResult.passed) {
       failedCount++;
+      // #689 Q5: a failed take can still carry recognition-variance warnings
+      // (e.g. it failed on similarity while a split was detected). Print them
+      // after the issues so the "heard differently" events stay countable on
+      // failed takes too. Instruct warnings already have their own block above.
+      const takeWarnings = evalResult.warnings.filter(
+        (w) => !w.startsWith(INSTRUCT_WARNING_PREFIX),
+      );
       console.warn(
         `  ❌ Scene ${scene.id} FAILED Quality Gate:\n` +
           `     Expected: "${evalResult.expectedText}"\n` +
           `     ASR Heard: "${evalResult.asrText || "(ASR unavailable)"}"\n` +
-          `     WPM: ${evalResult.wpm} | Issues: ${evalResult.issues.join("; ")}`,
+          `     WPM: ${evalResult.wpm} | Issues: ${evalResult.issues.join("; ")}` +
+          (takeWarnings.length > 0 ? `\n     Warnings: ${takeWarnings.join("; ")}` : ""),
       );
     } else {
       const warnInfo =
