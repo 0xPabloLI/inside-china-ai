@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.25.7](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.6...tanstack_start_ts-v1.25.7) (2026-10-21)
+
+
+### Bug Fixes
+
+* **preflight:** warn only when a scene has no media intent ([#760](https://github.com/0xPabloLI/inside-china-ai/issues/760)) ([#840](https://github.com/0xPabloLI/inside-china-ai/issues/840)) ([bb26a35](https://github.com/0xPabloLI/inside-china-ai/commit/bb26a3521d2ea24880530f5e898666c8e6046b4a))
+* **short-video:** loop-close PASS 分支读取真实的 string[] dataPoints ([#762](https://github.com/0xPabloLI/inside-china-ai/issues/762)) ([#839](https://github.com/0xPabloLI/inside-china-ai/issues/839)) ([7d3909b](https://github.com/0xPabloLI/inside-china-ai/commit/7d3909b4bb8a10c8efe130293fcd0437d6de8eef))
+
 ## [1.25.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.5...tanstack_start_ts-v1.25.6) (2026-10-21)
 
 
