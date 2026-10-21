@@ -243,4 +243,42 @@ describe("restoreTimingTokens leading-symbol write-back (#816)", () => {
     ]);
     expect(timing[0].segments[0].words.map((w) => w.text)).toEqual(["$700M"]);
   });
+
+  it("prepends only the part of a multi-character edge run not already shared", () => {
+    // The spoken first token carries `"` + `$`, while the display original
+    // already starts with `$`. Suppressing the whole run would drop the quote;
+    // prepending all of it would double the dollar sign.
+    const timing = [
+      {
+        sceneId: 33,
+        segments: [
+          {
+            text: 'He said "$700 M" yesterday.',
+            start: 0,
+            end: 1,
+            words: [
+              word("He", 0, 0.1),
+              word("said", 0.1, 0.2),
+              word('"$700', 0.2, 0.4),
+              word('M"', 0.4, 0.6),
+              word("yesterday.", 0.6, 1),
+            ],
+          },
+        ],
+      },
+    ];
+    restoreTimingTokens(timing, [
+      {
+        id: 33,
+        voiceover: 'He said "$700M" yesterday.',
+        ttsReplacements: [{ original: "$700M", spoken: ["700", "M"] }],
+      },
+    ]);
+    expect(timing[0].segments[0].words.map((w) => w.text)).toEqual([
+      "He",
+      "said",
+      '"$700M"',
+      "yesterday.",
+    ]);
+  });
 });

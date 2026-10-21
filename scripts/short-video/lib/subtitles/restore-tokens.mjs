@@ -18,6 +18,25 @@
 import { findRunAt, normWord, orderReplacements } from "./dual-track.mjs";
 
 /**
+ * Length of the longest suffix of `run` that is also a prefix of `original`.
+ *
+ * The display token may carry part of the spoken edge run itself: restoring
+ * "$700 M" as "$700M" must prepend nothing, while `"$700 M"` must prepend only
+ * the quote. Longest overlap first so a multi-character run is not dropped or
+ * doubled wholesale.
+ *
+ * @param {string} run
+ * @param {string} original
+ * @returns {number}
+ */
+function leadingRunOverlap(run, original) {
+  for (let k = Math.min(run.length, original.length); k > 0; k -= 1) {
+    if (original.startsWith(run.slice(-k))) return k;
+  }
+  return 0;
+}
+
+/**
  * Restore original tokens in one timing array (mutates and returns it).
  *
  * @param {Array<{sceneId: number, segments: Array<{text: string, start: number, end: number, words: Array<{text: string, start: number, end: number}>}>}>} timingData
@@ -67,12 +86,12 @@ export function restoreTimingTokens(timingData, scenes) {
       const leading = firstRaw.match(/^[^\p{L}\p{N}]+/u)?.[0] ?? "";
       const trailing = lastRaw.match(/[^\p{L}\p{N}]+$/u)?.[0] ?? "";
       const original = String(rep.original ?? "");
-      // Do not double a symbol the display token already carries at that edge
-      // ("$700M" from first spoken "$700" must not become "$$700M").
-      const prefix = /^[^\p{L}\p{N}]/u.test(original) ? "" : leading;
-      const suffix = /[^\p{L}\p{N}]$/u.test(original) ? "" : trailing;
+      // Only prepend the part of the leading run the display token does not
+      // already start with ("$700M" must not become "$$700M"; `"$700M` gains
+      // only the quote).
+      const prefix = leading.slice(0, leading.length - leadingRunOverlap(leading, original));
       out.push({
-        text: prefix + original + suffix,
+        text: prefix + original + trailing,
         start: flat[i].start,
         end: flat[i + rep.spoken.length - 1].end,
         _seg: flat[i]._seg,

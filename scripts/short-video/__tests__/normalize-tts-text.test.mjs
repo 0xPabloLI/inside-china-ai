@@ -365,6 +365,17 @@ describe("dual-track leading symbols (#816)", () => {
     expect(restored).toBe("Market cap: $62 billion (445 billion yuan).");
   });
 
+  it("keeps sentence punctuation after a percent-suffixed original", () => {
+    // The display original ends in "%", a non-word char. The trailing run
+    // belongs to the sentence, not to the original, so it must still be
+    // appended (a "does the original end with punctuation?" guard would drop
+    // the period).
+    expect(roundTrip("Traffic grew 10-20%.").restored).toBe("Traffic grew 10-20%.");
+    expect(roundTrip("Traffic grew 10-20%, says the report.").restored).toBe(
+      "Traffic grew 10-20%, says the report.",
+    );
+  });
+
   it("leaves other leading prefixes untouched when no rule rewrites them", () => {
     // normalize-tts-text does not expand "+5%" or "≈3x"; the round trip must
     // still return the display line byte-for-byte.
