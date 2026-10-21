@@ -3,6 +3,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { restoreTimingTokens } from "../lib/subtitles/restore-tokens.mjs";
+import { normalizeTtsText } from "../lib/normalize-tts-text.mjs";
 
 const scenes = [
   {
@@ -183,5 +184,128 @@ describe("restoreTimingTokens longest-run-first (#753)", () => {
     expect(texts).toContain("100");
     expect(texts).not.toContain("thousand");
     expect(texts.join(" ")).toContain("maybe 2.");
+  });
+});
+
+/** Simulate text-align.py: it emits the spoken track's whitespace tokens. */
+function timingFromTts(scene) {
+  const tokens = String(scene.ttsText ?? "")
+    .split(/\s+/)
+    .filter(Boolean);
+  return {
+    sceneId: scene.id,
+    segments: [
+      {
+        text: scene.ttsText,
+        start: 0,
+        end: tokens.length,
+        words: tokens.map((text, i) => word(text, i, i + 1)),
+      },
+    ],
+  };
+}
+
+describe("restoreTimingTokens leading-symbol write-back (#816)", () => {
+  it("round-trips a leading currency symbol on a digit+unit token", () => {
+    // normWord() strips leading "$" from the first spoken token ("$700"), the
+    // old write-back kept only trailing punctuation, so subtitles showed
+    // "700M" for a "$700M" voiceover.
+    const vScenes = [{ id: 21, voiceover: "revenue topped $700M" }];
+    normalizeTtsText(vScenes);
+    expect(vScenes[0].ttsText).toBe("revenue topped $700 M");
+    expect(vScenes[0].ttsReplacements).toEqual([{ original: "700M", spoken: ["700", "M"] }]);
+
+    const timing = [timingFromTts(vScenes[0])];
+    restoreTimingTokens(timing, vScenes);
+
+    const seg = timing[0].segments[0];
+    expect(seg.words.map((w) => w.text)).toEqual(["revenue", "topped", "$700M"]);
+    expect(seg.text).toBe(vScenes[0].voiceover);
+  });
+
+  it("round-trips a leading currency symbol on a K-suffixed token", () => {
+    const vScenes = [{ id: 22, voiceover: "under $140K per day" }];
+    normalizeTtsText(vScenes);
+    expect(vScenes[0].ttsText).toBe("under $140 K per day");
+    expect(vScenes[0].ttsReplacements).toEqual([{ original: "140K", spoken: ["140", "K"] }]);
+
+    const timing = [timingFromTts(vScenes[0])];
+    restoreTimingTokens(timing, vScenes);
+
+    const seg = timing[0].segments[0];
+    expect(seg.words.map((w) => w.text)).toEqual(["under", "$140K", "per", "day"]);
+    expect(seg.text).toBe(vScenes[0].voiceover);
+  });
+
+  it("keeps a leading parenthesis carried by the first spoken token", () => {
+    const vScenes = [{ id: 23, voiceover: "Market cap: $62 billion (445 billion yuan)." }];
+    normalizeTtsText(vScenes);
+    expect(vScenes[0].ttsText).toBe(
+      "Market cap: $62 billion (four hundred forty five billion yuan).",
+    );
+
+    const timing = [timingFromTts(vScenes[0])];
+    restoreTimingTokens(timing, vScenes);
+
+    const seg = timing[0].segments[0];
+    expect(seg.words.map((w) => w.text)).toContain("(445");
+    expect(seg.text).toBe(vScenes[0].voiceover);
+  });
+
+  it("restores prefixes beyond currency from the first spoken token", () => {
+    // normalize-tts-text leaves "+5%" / "≈3x" untouched (the "%" and "x" are
+    // token-ending units its rules decline), so the mapping is hand-built:
+    // the prefix rides on the first spoken token while the display original
+    // carries only the number+unit.
+    const cases = [
+      { original: "5%", spoken: ["+5", "percent"], display: "+5%" },
+      { original: "3x", spoken: ["≈3", "x"], display: "≈3x" },
+    ];
+    for (const { original, spoken, display } of cases) {
+      const timing = [
+        {
+          sceneId: 31,
+          segments: [
+            {
+              text: spoken.join(" "),
+              start: 0,
+              end: spoken.length,
+              words: spoken.map((text, i) => word(text, i, i + 1)),
+            },
+          ],
+        },
+      ];
+      restoreTimingTokens(timing, [
+        { id: 31, voiceover: display, ttsReplacements: [{ original, spoken }] },
+      ]);
+
+      const texts = timing[0].segments[0].words.map((w) => w.text);
+      expect(texts).toEqual([display]);
+      expect(texts[0].startsWith(display[0])).toBe(true);
+    }
+  });
+
+  it("does not duplicate a prefix the original token already carries", () => {
+    const timing = [
+      {
+        sceneId: 32,
+        segments: [
+          {
+            text: "$700 M",
+            start: 0,
+            end: 0.8,
+            words: [word("$700", 0, 0.4), word("M", 0.4, 0.8)],
+          },
+        ],
+      },
+    ];
+    restoreTimingTokens(timing, [
+      {
+        id: 32,
+        voiceover: "$700M",
+        ttsReplacements: [{ original: "$700M", spoken: ["$700", "M"] }],
+      },
+    ]);
+    expect(timing[0].segments[0].words.map((w) => w.text)).toEqual(["$700M"]);
   });
 });

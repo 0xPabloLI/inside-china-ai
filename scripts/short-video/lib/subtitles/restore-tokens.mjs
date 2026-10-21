@@ -57,12 +57,22 @@ export function restoreTimingTokens(timingData, scenes) {
         continue;
       }
       const { rep } = match;
-      // Carry over trailing punctuation from the last consumed word
-      // ("tenth." → "0910.") so sentence punctuation survives restore.
+      // normWord() strips BOTH edges, so carry over the non-word runs on both
+      // edges of the consumed span. The pre-#816 write-back kept only the
+      // trailing run, which silently dropped a leading "$" or "(" and restored
+      // "$700 M" as "700M" (#816). Keep trailing punctuation too ("tenth." →
+      // "0910.") so sentence punctuation survives restore.
+      const firstRaw = String(flat[i].text ?? "");
       const lastRaw = String(flat[i + rep.spoken.length - 1].text ?? "");
+      const leading = firstRaw.match(/^[^\p{L}\p{N}]+/u)?.[0] ?? "";
       const trailing = lastRaw.match(/[^\p{L}\p{N}]+$/u)?.[0] ?? "";
+      const original = String(rep.original ?? "");
+      // Do not double a symbol the display token already carries at that edge
+      // ("$700M" from first spoken "$700" must not become "$$700M").
+      const prefix = /^[^\p{L}\p{N}]/u.test(original) ? "" : leading;
+      const suffix = /[^\p{L}\p{N}]$/u.test(original) ? "" : trailing;
       out.push({
-        text: rep.original + trailing,
+        text: prefix + original + suffix,
         start: flat[i].start,
         end: flat[i + rep.spoken.length - 1].end,
         _seg: flat[i]._seg,
