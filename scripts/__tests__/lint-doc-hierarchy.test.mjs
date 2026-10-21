@@ -4,13 +4,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   checkAllowedPlacement,
+  checkChangedDocRegistration,
   checkDocsIndexConsistency,
   checkL1DesignDecisions,
   checkL2CommandLines,
   checkReferenceResolution,
   checkWritingForAgentsGate,
+  isAgentDoc,
   parseAllowedDocDirs,
   parseDiffLines,
+  parseIndexSections,
   parseRefBaseline,
   loadRefBaseline,
 } from "../lint-doc-hierarchy.mjs";
@@ -50,9 +53,50 @@ describe("checkDocsIndexConsistency", () => {
     expect(findings).toHaveLength(0);
   });
 
-  it("PASS: a handoff under handoffs/ is matched by filename", () => {
+  it("PASS: a handoff under handoffs/ is matched in its own section", () => {
     const docs = [{ filename: "handoffs/video-layout-standard.md", content: "# Layout" }];
-    const indexContent = "| `video-layout-standard.md` | Layout |";
+    const indexContent = "### `handoffs/` — Handoffs\n| `video-layout-standard.md` | Layout |";
+    const { findings } = checkDocsIndexConsistency(docs, indexContent);
+    expect(failsOf(findings)).toHaveLength(0);
+  });
+
+  it("FAIL: a cross-directory basename in another section does not count", () => {
+    const docs = [{ filename: "conventions/git-workflow.md", content: "# Conventions" }];
+    const indexContent =
+      "### `agents/` — Agent docs\n| `git-workflow.md` | Git |\n### `conventions/` — Conventions\n";
+    const { findings } = checkDocsIndexConsistency(docs, indexContent);
+    expect(failsOf(findings)).toHaveLength(1);
+    expect(failsOf(findings)[0].message).toContain("its DOCS-INDEX.md section");
+  });
+
+  it("FAIL: an added file under an unlisted directory has no section to match", () => {
+    const docs = [{ filename: "tiktok/new-research.md", content: "# New" }];
+    const indexContent = "### `agents/` — Agent docs\n| `new-research.md` | Wrong section |";
+    const { findings } = checkDocsIndexConsistency(docs, indexContent);
+    expect(failsOf(findings)).toHaveLength(1);
+  });
+
+  it("PASS: an ADR registers by number, not filename", () => {
+    const docs = [{ filename: "adr/0016-signal-density-rule-2.md", content: "# ADR" }];
+    const indexContent = "### `adr/` — ADRs\n| 0016 | Signal density | Accepted |";
+    const { findings } = checkDocsIndexConsistency(docs, indexContent);
+    expect(failsOf(findings)).toHaveLength(0);
+  });
+
+  it("FAIL: an ADR whose number is absent from the adr/ table", () => {
+    const docs = [{ filename: "adr/0099-new-rule.md", content: "# ADR" }];
+    const indexContent = "### `adr/` — ADRs\n| 0016 | Signal density | Accepted |";
+    const { findings } = checkDocsIndexConsistency(docs, indexContent);
+    expect(failsOf(findings)).toHaveLength(1);
+    expect(failsOf(findings)[0].message).toContain("ADR-0099");
+  });
+
+  it("PASS: docs/specs files register; only docs-root spec-* stays ephemeral", () => {
+    const docs = [
+      { filename: "specs/spec-digital-human-pipeline.md", content: "# Spec" },
+      { filename: "spec-local-scratch.md", content: "# Scratch" },
+    ];
+    const indexContent = "### `specs/` — Specs\n| `spec-digital-human-pipeline.md` | Spec |";
     const { findings } = checkDocsIndexConsistency(docs, indexContent);
     expect(failsOf(findings)).toHaveLength(0);
   });
@@ -88,6 +132,67 @@ describe("parseAllowedDocDirs", () => {
       "### Root — Active reference",
     ].join("\n");
     expect([...parseAllowedDocDirs(indexContent)]).toEqual(["agents", "archive"]);
+  });
+});
+
+describe("parseIndexSections", () => {
+  const indexContent = [
+    "# Index",
+    "## Root-level Active Reference",
+    "| `content-pipeline.md` | Pipeline |",
+    "### `agents/` — Agent docs",
+    "| `git-workflow.md` | Git |",
+    "### Layer Definitions",
+    "### `archive/` — Completed work",
+    "| `old.md` | Old |",
+  ].join("\n");
+
+  it("keeps root rows out of a following ### Layer Definitions section", () => {
+    const sections = parseIndexSections(indexContent);
+    expect(sections.get("root")).toContain("content-pipeline.md");
+    expect(sections.get("root")).not.toContain("git-workflow.md");
+    expect(sections.get("agents")).toContain("git-workflow.md");
+    expect(sections.get("archive")).toContain("old.md");
+  });
+
+  it("does not let a heading-less tail leak into the last directory", () => {
+    const sections = parseIndexSections(indexContent);
+    expect(sections.get("archive")).not.toContain("stray");
+  });
+});
+
+describe("isAgentDoc", () => {
+  it("classifies rule 6 targets and leaves code alone", () => {
+    expect(isAgentDoc("AGENTS.md")).toBe(true);
+    expect(isAgentDoc("docs/agents/git-workflow.md")).toBe(true);
+    expect(isAgentDoc("skills/web-access/SKILL.md")).toBe(true);
+    expect(isAgentDoc(".agents/skills/x/SKILL.md")).toBe(true);
+    expect(isAgentDoc("remotion/src/Card.tsx")).toBe(false);
+    expect(isAgentDoc("scripts/AGENTS.md.bak")).toBe(false);
+  });
+});
+
+describe("checkChangedDocRegistration", () => {
+  const indexContent =
+    "### `agents/` — Agent docs\n| `git-workflow.md` | Git |\n### `proposals/` — Proposals\n| `p.md` | P |";
+
+  it("checks only added/renamed docs and skips archive trees", () => {
+    const { findings } = checkChangedDocRegistration(
+      [
+        "docs/agents/git-workflow.md",
+        "docs/proposals/p.md",
+        "docs/archive/specs/old.md",
+        "scripts/lint-doc-hierarchy.mjs",
+      ],
+      indexContent,
+    );
+    expect(failsOf(findings)).toHaveLength(0);
+  });
+
+  it("FAIL: a new doc in a listed directory still needs its own row", () => {
+    const { findings } = checkChangedDocRegistration(["docs/proposals/unlisted.md"], indexContent);
+    expect(failsOf(findings)).toHaveLength(1);
+    expect(failsOf(findings)[0].file).toBe("docs/proposals/unlisted.md");
   });
 });
 

@@ -2,8 +2,9 @@
  * Documentation Hierarchy Lint
  *
  * Checks six rules:
- * 1. DOCS-INDEX consistency — every active docs file (root, agents/, conventions/,
- *    handoffs/, proposals/, research/, specs/, tiktok/) is listed in DOCS-INDEX.md
+ * 1. DOCS-INDEX consistency — every added or renamed doc under docs/ is listed in
+ *    the section that owns its directory; docs root and docs/research/ are also
+ *    scanned in full so their existing inventory stays closed
  * 1b. Placement — every tracked markdown file under docs/ lives in a declared directory
  * 2. L1 Design Decisions — L1 docs with L2 references must have ## Design Decisions heading
  * 3. L2 command-line heuristic — L2 docs with ≥5 command-line patterns get WARN
@@ -63,42 +64,127 @@ const EXCLUDED_FILES = new Set([
 // Files matching these patterns are ephemeral (specs, tickets) and excluded
 const EXCLUDED_PATTERNS = [/^spec-/, /^tickets-/];
 
-// Active docs directories whose DOCS-INDEX section lists every file. Root and
-// research/ are collected separately (research/ also feeds check 3).
-const ACTIVE_DOC_SUBDIRS = ["agents", "conventions", "handoffs", "proposals", "specs", "tiktok"];
-
 // Directories whose subtrees are historical or external material, registered in
 // DOCS-INDEX as a whole. Nested paths below these are allowed; every other
 // directory must be declared at its exact path.
 const TREE_DOC_DIRS = new Set(["archive", "refs"]);
 
+// Agent-reached documents: the hook reminder and the staged-diff gate must
+// classify paths identically, so both call isAgentDoc().
+const AGENT_DOC_BASENAMES = new Set(["AGENTS.md", "CLAUDE.md", "SKILL.md"]);
+
+// ADRs register by number (`| 0001 | …`) in the index table, not by filename.
+const ADR_FILE_PATTERN = /^(\d{4})-/;
+
 function isExcluded(filename) {
-  if (EXCLUDED_FILES.has(filename)) return true;
-  return EXCLUDED_PATTERNS.some((p) => p.test(filename));
+  if (EXCLUDED_FILES.has(basename(filename))) return true;
+  // Ephemeral specs and tickets are a docs-root convention; files inside
+  // docs/specs/ are registered and must stay checked.
+  const dir = posix.dirname(filename);
+  if (dir !== "." && dir !== "docs") return false;
+  return EXCLUDED_PATTERNS.some((p) => p.test(basename(filename)));
+}
+
+export function isAgentDoc(path) {
+  return (
+    AGENT_DOC_BASENAMES.has(basename(path)) ||
+    path.startsWith("docs/") ||
+    path.startsWith("skills/") ||
+    path.startsWith(".agents/skills/")
+  );
 }
 
 // --- Pure check functions (exported for testing) ---
 
 /**
+ * Split DOCS-INDEX into the sections that own docs directories.
+ *
+ * `### \`<dir>/\`` owns that directory. `### Root — …` and `### Root-level …`
+ * headings share the "root" scope. Any other heading closes the current scope,
+ * so a basename match cannot leak in from an unrelated section.
+ */
+export function parseIndexSections(indexContent) {
+  const sections = new Map();
+  let current = null;
+  for (const line of indexContent.split("\n")) {
+    const dirHeading = /^###\s+`([a-z0-9-]+)\/`/.exec(line);
+    if (dirHeading) {
+      current = dirHeading[1];
+      sections.set(current, "");
+      continue;
+    }
+    if (/^#{2,3}\s+Root(?:[-\s]|$)/.test(line)) {
+      current = "root";
+      if (!sections.has(current)) sections.set(current, "");
+      continue;
+    }
+    if (/^#{1,6}\s/.test(line)) current = null;
+    if (current) sections.set(current, `${sections.get(current)}${line}\n`);
+  }
+  return sections;
+}
+
+function scopeFor(filename) {
+  const relative = filename.startsWith("docs/") ? filename.slice("docs/".length) : filename;
+  const dir = posix.dirname(relative);
+  if (dir === ".") return { key: "root", root: true };
+  return { key: dir.split("/")[0], root: false };
+}
+
+/**
  * Check 1: DOCS-INDEX consistency.
- * Every .md file in the active docs scopes (docs root, research/, and
- * ACTIVE_DOC_SUBDIRS) must have its filename appear in the index.
+ *
+ * Each file must be named in the section that owns its directory, not just
+ * anywhere in the index — otherwise a file passes on another directory's row
+ * that happens to share its basename. Root files fall back to the
+ * whole index only when no root section exists (unit-test fixtures).
  */
 export function checkDocsIndexConsistency(docs, indexContent) {
+  const sections = parseIndexSections(indexContent);
   const findings = [];
   for (const { filename } of docs) {
+    if (isExcluded(filename)) continue;
     const name = basename(filename);
-    if (isExcluded(name)) continue;
-    if (!indexContent.includes(name)) {
+    const { key, root } = scopeFor(filename);
+    const hasSection = sections.has(key);
+    const scope = hasSection ? sections.get(key) : root ? indexContent : "";
+    const adrNumber = key === "adr" ? ADR_FILE_PATTERN.exec(name)?.[1] : null;
+    const listed = adrNumber
+      ? new RegExp(`\\|\\s*${adrNumber}\\s*\\|`).test(scope)
+      : scope.includes(name);
+    if (!listed) {
       findings.push({
         level: "FAIL",
         ruleId: "docs-index-missing",
         file: filename,
-        message: `${filename} not listed in DOCS-INDEX.md`,
+        message: adrNumber
+          ? `${filename} (ADR-${adrNumber}) not listed in the DOCS-INDEX.md adr/ table`
+          : `${filename} not listed in its DOCS-INDEX.md section`,
       });
     }
   }
   return { findings };
+}
+
+/**
+ * Registration gate for changed docs. Only added and renamed paths are checked:
+ * legacy drift elsewhere in the tree is not this gate's debt, but a new
+ * directory entry must arrive registered.
+ */
+export function checkChangedDocRegistration(changedPaths, indexContent) {
+  const docs = changedPaths
+    .filter((path) => path.startsWith("docs/") && path.endsWith(".md"))
+    .filter((path) => {
+      const dir = posix.dirname(path.slice("docs/".length));
+      const [top] = dir.split("/");
+      // Root and research/ are scanned in full by check 1, so reporting them
+      // here would duplicate the same finding. Tree dirs are registered whole.
+      return dir !== "." && dir !== "research" && !TREE_DOC_DIRS.has(top);
+    });
+  return checkDocsIndexConsistency(
+    docs.map((filename) => ({ filename })),
+    indexContent,
+  );
 }
 
 /**
@@ -636,14 +722,9 @@ export function parseDiffLines(diffOutput) {
   return result;
 }
 
-/**
- * Get staged diffs for docs/ files and AGENTS.md.
- * Returns array of { filename, diffLines }.
- */
-export function getStagedDiffs() {
-  let stagedFiles;
+function getStagedFileNames(diffFilter = "ACMR") {
   try {
-    stagedFiles = execSync("git diff --cached --name-only --diff-filter=ACM", {
+    return execSync(`git diff --cached --name-only --diff-filter=${diffFilter}`, {
       encoding: "utf-8",
       cwd: PROJECT_ROOT,
     })
@@ -653,10 +734,45 @@ export function getStagedDiffs() {
   } catch {
     return [];
   }
+}
 
-  const docsOrAgents = stagedFiles.filter((f) => f.startsWith("docs/") || f === "AGENTS.md");
+/**
+ * Staged Agent-reached documents. The pre-commit reminder reads this, so the
+ * shell hook and the lint gate share one definition of "Agent doc staged".
+ */
+export function listStagedAgentDocs() {
+  return getStagedFileNames().filter(isAgentDoc);
+}
 
-  return docsOrAgents.map((file) => {
+/**
+ * Added and renamed docs for the registration gate. Locally that is the staged
+ * set; in CI, DOCS_BASE / DOCS_PUSH_BEFORE selects the base commit and the
+ * whole commit range is diffed. A failed diff returns an error rather than an
+ * empty list, because a gate that scans nothing must not look green.
+ */
+export function getChangedDocs() {
+  const paths = new Set(getStagedFileNames("AR"));
+  const base = process.env.DOCS_BASE || process.env.DOCS_PUSH_BEFORE;
+  if (base && !/^0+$/.test(base)) {
+    try {
+      const range = execSync(`git diff --name-only --diff-filter=AR "${base}" HEAD`, {
+        encoding: "utf-8",
+        cwd: PROJECT_ROOT,
+      });
+      for (const path of range.trim().split("\n").filter(Boolean)) paths.add(path);
+    } catch {
+      return { paths: [...paths], error: base };
+    }
+  }
+  return { paths: [...paths], error: null };
+}
+
+/**
+ * Get staged diffs for Agent-reached documents.
+ * Returns array of { filename, diffLines }.
+ */
+export function getStagedDiffs() {
+  return listStagedAgentDocs().map((file) => {
     const diff = execSync(`git diff --cached -- "${file}"`, {
       encoding: "utf-8",
       cwd: PROJECT_ROOT,
@@ -669,26 +785,38 @@ export function getStagedDiffs() {
 // --- Main ---
 
 export function main() {
+  if (process.argv.includes("--list-staged-agent-docs")) {
+    for (const path of listStagedAgentDocs()) process.stdout.write(`${path}\n`);
+    process.exit(0);
+  }
+
   const baseline = loadRefBaseline();
   const indexContent = existsSync(INDEX_PATH) ? readFileSync(INDEX_PATH, "utf-8") : "";
 
-  // Gather L1 files (docs/*.md root only) and L2 files (docs/research/*.md)
+  // Gather L1 files (docs/*.md root only) and L2 files (docs/research/*.md).
+  // Other directories are covered by the changed-doc registration gate; their
+  // legacy inventory is not scanned in full.
   const l1Files = readMdFiles(DOCS_DIR);
   const l2Files = readMdFiles(RESEARCH_DIR);
   const activeFiles = [
     ...l1Files,
     ...l2Files.map((file) => ({ ...file, filename: `research/${file.filename}` })),
-    ...ACTIVE_DOC_SUBDIRS.flatMap((dir) =>
-      readMdFiles(join(DOCS_DIR, dir)).map((file) => ({
-        ...file,
-        filename: `${dir}/${file.filename}`,
-      })),
-    ),
   ];
 
   // Run all checks
   const refScan = collectReferenceScan();
+  const changed = getChangedDocs();
   const indexFindings = checkDocsIndexConsistency(activeFiles, indexContent).findings;
+  const changedFindings = changed.error
+    ? [
+        {
+          level: "FAIL",
+          ruleId: "docs-base-diff-failed",
+          file: "docs/",
+          message: `cannot diff added/renamed docs against ${changed.error}; the registration gate would scan nothing`,
+        },
+      ]
+    : checkChangedDocRegistration(changed.paths, indexContent).findings;
   const placementFindings = checkAllowedPlacement(refScan.tracked, indexContent).findings;
   const l1Findings = checkL1DesignDecisions(l1Files).findings;
   const l2Findings = checkL2CommandLines(l2Files).findings;
@@ -725,6 +853,7 @@ export function main() {
 
   const allFindings = [
     ...indexFindings,
+    ...changedFindings,
     ...placementFindings,
     ...l1Findings,
     ...l2Findings,
