@@ -306,13 +306,15 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 
 **Force engine**: `export TTS_ENGINE=cosyvoice3-mlx` / `f5-mlx` / `edge-tts` / `say`
 
+**CosyVoice3-MLX 本地兜底（#704）**: 主引擎是 `cosyvoice3-mlx` 时，声学失败（`TTS_ACOUSTIC_HARD_BLOCK`）或 pacing-floor 失败（`TTS_PACING_FLOOR_BLOCK`）后，只对失败的 scene 自动用 `f5-mlx` 重生成（已通过的 take 不动）。fallback take 必须全部通过 Quality Gate 才采用，meta 记录 `engine: f5-mlx` / `fallbackFrom: cosyvoice3-mlx`（缓存 key 按 F5 计算）；F5 按自然语速生成（`ttsSpeed: 1.0`），**音色可能与全片不同**，采用时日志会打印显眼警告。兜底失败、不可用或只回来部分 scene 时保持原 fail-closed 错误。`TTS_DISABLE_LOCAL_FALLBACK=1` 关闭该兜底；pacing-hard（>225 WPM）、infra 失败与非 MLX 主引擎不兜底。`COSYVOICE3_SEED` 可固定 MLX 每场景种子以便复现。
+
 **多管线并行与 Kaggle 排队协调（#250）**:
 
 - Kaggle 免费层同时只允许 **1 个 GPU session 运行**。多条 `main.mjs` 管线并行时，kernel slug **默认从 content id 派生**（`cosyvoice3-cuda-<pipelineId>`，#267），每条管线自动获得独立 kernelId，**无需手动设置**；`COSYVOICE3_KAGGLE_SLUG` env 可显式覆盖。若既无 env 又无法派生 content id，会 fail-fast 报错（防串台——共用 slug 会互相覆盖 kernel 源码而不是排队）。第二个 kernel push 后进入 `QUEUED` 排队等待前一个结束，这是**预期行为**，不是卡死。
 - 轮询显式区分 `QUEUED` / `RUNNING` / `UNKNOWN`（CLI 非零退出，如 QUEUED 期间 404，不算 kernel 失败，继续等待）：日志形如 `[Kaggle] Kernel Status: QUEUED (waiting in line 3m0s, queue budget 40min)`。
 - **每次状态探测都有超时（#808）**：`kaggle kernels status` 整条链路（kaggle 2.2.4 → kagglesdk `Session.send()` → `merge_environment_settings`，全包无 `timeout`）本身**没有任何 HTTP 超时**，`promisify(exec)` 也默认 `timeout: 0`。半死连接会让那次 exec **永久不返回**：循环不再迭代、日志彻底静默、进程还活着，而 kernel 其实已经 COMPLETE 却没被取走（2026-10-20 实测，白烧一整轮 GPU）。现在每次探测由 `COSYVOICE3_KAGGLE_PROBE_TIMEOUT_MS`（默认 60s，SIGKILL）兜住，失败时**保持最后已知相位**（不重置 RUNNING 计时）并打印 `status probe failed (n in a row, Xm/min budget) — staying RUNNING`；死探测累计超过 `COSYVOICE3_KAGGLE_PROBE_FAILURE_BUDGET_MS`（默认 15min）则 fail-closed，错误里直接给出 `kaggle kernels status` / `kaggle kernels output` 的手动取件命令——**别盲目重跑，重跑会再烧一个 GPU session**。瞬时失败（404 那种秒级返回）几乎不消耗这个预算，排队仍由上面的排队预算裁决。
 - 超时独立计量：排队预算 `COSYVOICE3_KAGGLE_QUEUE_TIMEOUT_MS`（默认 40min，前序任务约 10-15min + 启动 ~5min，勿设过低）；RUNNING 后运行预算 `COSYVOICE3_KAGGLE_TIMEOUT_MS`（默认 30min，#241：20min 会被慢速 torch/模型下载误杀，纯推理 10 scene 仅 ~64s）。
-- 排队超时**不自动 fallback 到 F5**（ADR-0019 质量红线）：明确报错交人工决策——稍后重跑，或显式 `TTS_ENGINE` 覆盖。
+- 排队超时**不自动 fallback 到 F5**（ADR-0019 质量红线）：明确报错交人工决策——稍后重跑，或显式 `TTS_ENGINE` 覆盖。排队超时没有可验证的 take，仍然不兜底；#704 的 take 级兜底只发生在「已有 take 被 Quality Gate 判失败」时，与此处无关。
 - 排队/运行状态同时写入 `output/{id}/audio/.kaggle-kernel/poll-status.json`（`{phase, queuedMs, runningMs, probeFailures, probeFailureMs, lastProbeError, updatedAt}`），后台跑管线时可随时查看进度；轮询静默时先看这里的 `probeFailureMs` / `lastProbeError` 是否在涨。
 
 **批量 push 与失败语义（#241）**:
