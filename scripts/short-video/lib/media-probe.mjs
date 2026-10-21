@@ -20,7 +20,7 @@
  * @module media-probe
  */
 
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { existsSync } from "fs";
 
 // ─── Constants ───
@@ -129,6 +129,27 @@ export function parseProbeOutput(rawOutput) {
     height: videoStream.height || 0,
     rotation,
   };
+}
+
+/**
+ * Is a usable ffprobe reachable? `probeMedia` swallows every failure into
+ * `null`, so a caller that must distinguish "this asset is broken" from "this
+ * machine cannot decode anything" (the final media gate, #759) asks this first.
+ * Cached: the answer does not change within a run.
+ *
+ * @returns {boolean}
+ */
+let probeToolCached;
+export function probeToolAvailable() {
+  if (probeToolCached !== undefined) return probeToolCached;
+  let ok = false;
+  try {
+    ok = spawnSync(ffprobeCmd, ["-version"], { encoding: "utf8", timeout: 5000 }).status === 0;
+  } catch {
+    ok = false;
+  }
+  probeToolCached = ok;
+  return ok;
 }
 
 // ─── I/O function: run ffprobe ───

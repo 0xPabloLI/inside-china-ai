@@ -15,12 +15,21 @@
  * The hook (#299) is enforced independently of its layout: preflight only warns
  * for generation strategies, so this gate is where "generation did not land"
  * becomes a failure. An explicit `media: null` hook passes with a warning.
+ *
+ * Existence is not integrity (#759): once a file is present this gate opens it
+ * and judges the bytes (zero-byte, truncated, placeholder, wrong container),
+ * then validates any declared `media.provenance` geometry. Provenance is
+ * demanded only from media the scene marks as evidence (`media.evidence: true`)
+ * — #758 is the producer, so unmarked assets keep their current pass-through
+ * behaviour. A scene type that renders no media layout is still checked when it
+ * declares a file, because `mode: "fullscreen"` bypasses the layout dispatch.
  */
 import { existsSync } from "fs";
-import { join } from "path";
+import { resolve, sep } from "path";
 import { DEFAULT_NARRATIVE_LAYOUT } from "./text-slots.mjs";
 import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
+import { inspectMediaFile, shown, validateProvenance } from "./media-integrity.mjs";
 // Re-export: existing consumers import NO_MEDIA_TYPES from this module.
 export { NO_MEDIA_TYPES };
 
@@ -38,17 +47,138 @@ function effectiveLayout(scene) {
 }
 
 /**
+ * Absolute path for a scene's `media.path`, or null when it leaves the pack.
+ *
+ * Existence used to be the gate's only question, so a joined `existsSync` was
+ * harmless. The gate now opens and reads the file (#759), which turns a `../`
+ * or an absolute path in scene data into "read some other file and report on it
+ * as if it were the asset" — so the path has to stay inside `contentDir`.
+ */
+function mediaAbsolutePath(contentDir, mediaPath) {
+  const root = resolve(contentDir);
+  const abs = resolve(root, mediaPath);
+  return abs === root || abs.startsWith(root + sep) ? abs : null;
+}
+
+/** The three states a declared media path can be in. */
+function mediaPathState(contentDir, mediaPath) {
+  const abs = mediaAbsolutePath(contentDir, mediaPath);
+  if (abs === null) return "escaping";
+  return existsSync(abs) ? "present" : "absent";
+}
+
+const escapeFinding = (path, contentDir) => ({
+  reason: "broken-media",
+  code: "path-escapes-content-dir",
+  path,
+  detail: `media.path resolves outside the content dir (${contentDir}) — the gate reads the asset, so it will not follow the path out of the pack`,
+});
+
+/**
+ * Judge a media file that is already present on disk: bytes first, then the
+ * provenance geometry the scene declares for it.
+ *
+ * `assetNeed` is deliberately not a marker: `claim-keywords`, `vlm-cache` and
+ * `vlm_analyzer.py` all read it as a search-query string, so an object shape
+ * here would fork a contract #758 has not decided.
+ *
+ * @returns {Array<{reason: string, code?: string, path: string, detail: string}>}
+ *          findings to report as failures — empty when the asset is usable.
+ */
+function inspectPresentMedia(scene, contentDir, probeVideo) {
+  const media = scene.media;
+  const path = media.path;
+  const abs = mediaAbsolutePath(contentDir, path);
+  if (abs === null) return [escapeFinding(path, contentDir)];
+  const verdict = inspectMediaFile(abs, {
+    declaredType: media.type,
+    probeVideo,
+  });
+  if (!verdict.ok) {
+    return [{ reason: "broken-media", code: verdict.code, path, detail: verdict.detail }];
+  }
+
+  // Flag integrity before geometry: a marker that reads as "evidence" to an
+  // author but means nothing to this check would switch the requirement off
+  // silently, and a valid provenance next to it must not hide that (#759 r3).
+  // Absent, `null` and `false` all mean "not evidence" — the falsey pair matches
+  // the `media: null` waiver idiom (#191), so an explicit "no" stays a no.
+  if (media.evidence === true) {
+    if (!media.provenance) {
+      return [
+        {
+          reason: "missing-provenance",
+          path,
+          detail:
+            "a capture marked evidence:true must record sourceUrl, selector, rect, clip and scale so its geometry can be verified",
+        },
+      ];
+    }
+  } else if (media.evidence !== undefined && media.evidence !== null && media.evidence !== false) {
+    return [
+      {
+        reason: "invalid-evidence-flag",
+        path,
+        detail: `media.evidence must be the boolean true, got ${shown(media.evidence)} (${typeof media.evidence}) — anything else silently switches the provenance requirement off`,
+      },
+    ];
+  }
+
+  if (media.provenance) {
+    const { ok, errors } = validateProvenance(media.provenance);
+    return ok ? [] : [{ reason: "invalid-provenance", path, detail: errors.join("; ") }];
+  }
+
+  return [];
+}
+
+/**
+ * Push one scene's media findings into the failure list. One writer for the
+ * layout branches, so they cannot drift; the hook branch reads the list itself
+ * because only an unreadable file lets it skip the curation contract.
+ *
+ * @returns {number} findings pushed — truthy means "this scene is done".
+ */
+function pushMediaFindings(failures, scene, layout, contentDir, probeVideo) {
+  const found = inspectPresentMedia(scene, contentDir, probeVideo);
+  for (const f of found) failures.push({ sceneId: scene.id, layout, ...f });
+  return found.length;
+}
+
+/**
  * Check that every scene has the media its layout needs.
  *
- * @param {{scenes: Array<Record<string, any>>, contentDir: string}} input
- * @returns {{pass: boolean, failures: Array<{sceneId: number, layout: string|null, reason: string, path?: string}>, warnings: Array<object>}}
+ * @param {{scenes: Array<Record<string, any>>, contentDir: string,
+ *          probeVideo?: (absPath: string) => {width: number, height: number}|null}} input
+ *        `probeVideo` is a test seam; production uses the real ffprobe probe.
+ * @returns {{pass: boolean, failures: Array<{sceneId: number, layout: string|null, reason: string, code?: string, path?: string, detail?: string}>, warnings: Array<object>}}
  */
-export function checkFinalMedia({ scenes, contentDir }) {
+export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
   const failures = [];
   const warnings = [];
 
   for (const scene of scenes ?? []) {
-    if (NO_MEDIA_TYPES.has(scene.visualType)) continue;
+    // Scene types that render no media layout are still checked when they
+    // declare a file: `ShortVideo.tsx` dispatches `media.mode:"fullscreen"`
+    // before any layout branch, so a broken asset here reaches the frame (#759).
+    // An *absent* file stays the CSS fallback it always was — the renderer's own
+    // `validateMedia` warns and paints a background, so demanding presence here
+    // would change #191-era behaviour beyond this ticket.
+    if (NO_MEDIA_TYPES.has(scene.visualType)) {
+      if (scene.media?.path) {
+        const state = mediaPathState(contentDir, scene.media.path);
+        if (state === "escaping") {
+          failures.push({
+            sceneId: scene.id,
+            layout: null,
+            ...escapeFinding(scene.media.path, contentDir),
+          });
+        } else if (state === "present") {
+          pushMediaFindings(failures, scene, null, contentDir, probeVideo);
+        }
+      }
+      continue;
+    }
 
     const layout = effectiveLayout(scene);
     const mediaPath = scene.media?.path;
@@ -63,7 +193,12 @@ export function checkFinalMedia({ scenes, contentDir }) {
         warnings.push({ sceneId: scene.id, layout, reason: "explicit-null-on-hook" });
         continue;
       }
-      if (!mediaPath || !existsSync(join(contentDir, mediaPath))) {
+      const hookState = mediaPath ? mediaPathState(contentDir, mediaPath) : "absent";
+      if (hookState === "escaping") {
+        failures.push({ sceneId: scene.id, layout, ...escapeFinding(mediaPath, contentDir) });
+        continue;
+      }
+      if (!mediaPath || hookState === "absent") {
         failures.push({
           sceneId: scene.id,
           layout,
@@ -72,6 +207,13 @@ export function checkFinalMedia({ scenes, contentDir }) {
         });
         continue;
       }
+      // An unreadable hook file is the more specific failure — reporting the
+      // curation contract on top of it sends the fix the wrong way. Declaration
+      // findings (provenance, evidence flag) do NOT excuse the contract: a hook
+      // with intact bytes must still fail fit:"contain" (#759 round 3).
+      const mediaFindings = inspectPresentMedia(scene, contentDir, probeVideo);
+      for (const f of mediaFindings) failures.push({ sceneId: scene.id, layout, ...f });
+      if (mediaFindings.some((f) => f.reason === "broken-media")) continue;
       // The file landed — now enforce the same curation contract as preflight
       // (#299), so a fit:"contain" hook cannot render through the paths that
       // skip scene-rules (render-only / rerender / rerender-full / realign).
@@ -113,16 +255,31 @@ export function checkFinalMedia({ scenes, contentDir }) {
         });
         continue;
       }
-      if (!mediaPath || !existsSync(join(contentDir, mediaPath))) {
-        failures.push({ sceneId: scene.id, layout, reason: "missing-media", path: mediaPath });
+      const layoutState = mediaPath ? mediaPathState(contentDir, mediaPath) : "absent";
+      if (layoutState === "escaping") {
+        failures.push({ sceneId: scene.id, layout, ...escapeFinding(mediaPath, contentDir) });
+        continue;
       }
+      if (!mediaPath || layoutState === "absent") {
+        failures.push({ sceneId: scene.id, layout, reason: "missing-media", path: mediaPath });
+        continue;
+      }
+      pushMediaFindings(failures, scene, layout, contentDir, probeVideo);
       continue;
     }
 
     // CSS-only layouts are legitimate without media — an explicit opt-out must
-    // pass cleanly, with no lingering warning.
-    if (mediaPath && !existsSync(join(contentDir, mediaPath))) {
-      failures.push({ sceneId: scene.id, layout, reason: "missing-media", path: mediaPath });
+    // pass cleanly, with no lingering warning. A media path that IS declared
+    // still has to be a usable file (#759).
+    if (mediaPath) {
+      const cssState = mediaPathState(contentDir, mediaPath);
+      if (cssState === "escaping") {
+        failures.push({ sceneId: scene.id, layout, ...escapeFinding(mediaPath, contentDir) });
+      } else if (cssState === "absent") {
+        failures.push({ sceneId: scene.id, layout, reason: "missing-media", path: mediaPath });
+      } else {
+        pushMediaFindings(failures, scene, layout, contentDir, probeVideo);
+      }
     }
   }
 
@@ -145,6 +302,18 @@ export function formatFinalMediaFailures(result) {
     }
     if (f.reason === "hook-media-quality") {
       return `  Scene ${f.sceneId}: ${f.detail}`;
+    }
+    if (f.reason === "broken-media") {
+      return `  Scene ${f.sceneId}: media "${f.path}" failed the integrity check — ${f.code}: ${f.detail}`;
+    }
+    if (f.reason === "invalid-provenance") {
+      return `  Scene ${f.sceneId}: media "${f.path}" has invalid provenance — ${f.detail} (fix the declaration or recapture the element)`;
+    }
+    if (f.reason === "missing-provenance") {
+      return `  Scene ${f.sceneId}: media "${f.path}" has no provenance — ${f.detail}`;
+    }
+    if (f.reason === "invalid-evidence-flag") {
+      return `  Scene ${f.sceneId}: media "${f.path}" has an unusable evidence flag — ${f.detail} (only the boolean true demands provenance)`;
     }
     return `  Scene ${f.sceneId}: layout "${f.layout}" needs media${f.path ? ` — "${f.path}" not found` : " — no media declared"}`;
   });
