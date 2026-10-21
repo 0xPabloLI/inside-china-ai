@@ -1168,10 +1168,13 @@ export function checkHookMediaContract(scenes) {
  *
  *  #760: shares `skipsMediaSourcing` with asset-sourcer. The two modules must
  *  agree on what counts as "intentionally no media" (media: null, CSS-only
- *  layouts, hooks, NO_MEDIA_TYPES), otherwise this warning scolds scenes the
- *  sourcer skips by design. Preflight runs before Step 1.5, so a declared
- *  assetNeed or generating strategy is a plan, not a gap — final-media-gate
- *  enforces the landed file at render time. */
+ *  layouts, hooks, NO_MEDIA_TYPES, and the deprecated `mediaOptOut` waiver),
+ *  otherwise this warning scolds scenes the sourcer skips by design. An
+ *  `mediaOptOut` on a media-dependent layout is still a hard failure in
+ *  final-media-gate, so realignment here does not soften the render gate.
+ *  Preflight runs before Step 1.5, so a declared `assetNeed` or generating
+ *  strategy is a plan, not a gap — final-media-gate enforces the landed file
+ *  at render time. */
 function checkNarrativeMediaWarning(scenes) {
   const mediaScenes = scenes.filter(
     (s) => !skipsMediaSourcing(s) && !GENERATING_STRATEGIES.has(s.mediaStrategy),
