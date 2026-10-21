@@ -44,8 +44,11 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // scenes 5/6 are gone because the constants are code-injected now.
     // #270: pass went 47 → 48 — checkInstructCoverage added one pre-render
     // check (TTS instruct coverage, single source in lib/tts/instruct.mjs).
-    expect(before.pass).toHaveLength(48);
-    expect(before.warn).toHaveLength(3);
+    // #760: pass 48 → 49, warn 3 → 2 — the media coverage warning now shares
+    // the sourcer's predicate, so qwen4's stacked-cards scenes (CSS-only by
+    // layout choice) are intentionally waived instead of scolded.
+    expect(before.pass).toHaveLength(49);
+    expect(before.warn).toHaveLength(2);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });
 });

@@ -50,6 +50,7 @@ import {
   slotCharBudget,
 } from "./text-slots.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
+import { skipsMediaSourcing } from "./claim-keywords.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
 // SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
 // and re-exported through final-media-gate — scene-rules must not hold a copy.
@@ -1161,18 +1162,21 @@ export function checkHookMediaContract(scenes) {
   ];
 }
 
-/** Narrative scene media warning: warns when any non-CTA, non-hook scene
- *  (narrative, info-card, quote) lacks a media background. This catches the
- *  scenario where scene-data.mjs was created without media fields, ensuring the
- *  pipeline doesn't silently produce all-CSS videos with no background imagery.
- *  CTA / data / stat-reveal scenes are exempt (they don't use media), and hooks
- *  are owned by the hook media contract (#299): reporting them here too would
- *  double-warn and point at a tool (asset-sourcer) that skips hooks by design. */
+/** Narrative scene media warning: warns when a sourcing-eligible scene declares
+ *  no media intent at all — no bound media, no `assetNeed` (Step 1.5 sourcing
+ *  can still fill it), no generating strategy, and no deliberate waiver.
+ *
+ *  #760: shares `skipsMediaSourcing` with asset-sourcer. The two modules must
+ *  agree on what counts as "intentionally no media" (media: null, CSS-only
+ *  layouts, hooks, NO_MEDIA_TYPES), otherwise this warning scolds scenes the
+ *  sourcer skips by design. Preflight runs before Step 1.5, so a declared
+ *  assetNeed or generating strategy is a plan, not a gap — final-media-gate
+ *  enforces the landed file at render time. */
 function checkNarrativeMediaWarning(scenes) {
   const mediaScenes = scenes.filter(
-    (s) => !NO_MEDIA_TYPES.has(s.visualType) && s.visualType !== "hook",
+    (s) => !skipsMediaSourcing(s) && !GENERATING_STRATEGIES.has(s.mediaStrategy),
   );
-  const missing = mediaScenes.filter((s) => !s.media?.path);
+  const missing = mediaScenes.filter((s) => !s.media?.path && !s.assetNeed);
   if (missing.length === 0) {
     return [
       {
@@ -1181,8 +1185,8 @@ function checkNarrativeMediaWarning(scenes) {
         check: "Narrative scene media coverage",
         detail:
           mediaScenes.length === 0
-            ? "No non-CTA scenes require media"
-            : `All ${mediaScenes.length} non-CTA scenes have media`,
+            ? "No scenes are missing a media plan"
+            : `All ${mediaScenes.length} sourcing-eligible scenes declare media or assetNeed`,
       },
     ];
   }
@@ -1192,8 +1196,8 @@ function checkNarrativeMediaWarning(scenes) {
       level: "warn",
       category: "Media",
       check: "Narrative scene media coverage",
-      detail: `${missing.length} scene(s) missing media: [${missingIds}] — scenes will render with CSS-only background (no images/video)`,
-      fix: "Run asset-sourcer to auto-search and assign media, or manually add scene.media fields to scene-data.mjs",
+      detail: `${missing.length} scene(s) without any media intent: [${missingIds}] — sourcing falls back to generic keywords and may leave the scene CSS-only`,
+      fix: "Declare assetNeed (for Step 1.5 sourcing), bind scene.media, choose a generating strategy (b-roll / ai-image), or set media: null for a deliberate CSS-only scene",
     },
   ];
 }

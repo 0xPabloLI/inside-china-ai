@@ -1363,6 +1363,58 @@ describe("checkHookMediaContract", () => {
   });
 });
 
+// ── checkNarrativeMediaWarning (#760: intent-aware, shares the sourcer predicate) ──
+
+describe("narrative scene media coverage warning (#760)", () => {
+  const scene = (over = {}) => ({
+    id: 2,
+    visualType: "narrative",
+    layout: "media-overlay",
+    voiceover: "test",
+    ...over,
+  });
+  const coverageWarn = (scenes) =>
+    runAllSceneDataChecks(scenes, null).warn.find(
+      (w) => w.check === "Narrative scene media coverage",
+    );
+
+  it("does not warn for explicit media:null (deliberate CSS-only)", () => {
+    expect(coverageWarn([scene({ media: null })])).toBeUndefined();
+  });
+
+  it("does not warn while Step 1.5 sourcing is still pending (assetNeed declared)", () => {
+    expect(coverageWarn([scene({ assetNeed: "official benchmark table" })])).toBeUndefined();
+  });
+
+  it("does not warn for CSS-only layouts without assetNeed", () => {
+    expect(coverageWarn([scene({ layout: "stacked-cards" })])).toBeUndefined();
+    expect(coverageWarn([scene({ layout: "hero-center" })])).toBeUndefined();
+  });
+
+  for (const strategy of ["b-roll", "asset-then-broll", "ai-image", "asset-then-ai-image"]) {
+    it(`does not warn when the scene generates media (${strategy})`, () => {
+      const generated = scene({
+        mediaStrategy: strategy,
+        aiVideo: { prompt: "SUBJECT: x" },
+        aiImage: { prompt: "SUBJECT: x" },
+      });
+      expect(coverageWarn([generated])).toBeUndefined();
+    });
+  }
+
+  it("warns when a sourcing-eligible scene declares no media intent", () => {
+    const warn = coverageWarn([scene()]);
+    expect(warn).toBeDefined();
+    expect(warn.detail).toContain("[2]");
+    expect(warn.fix).toContain("assetNeed");
+    expect(warn.fix).toContain("media: null");
+    // The old fix sent agents to asset-sourcer (evidence gap → generic stock)
+    // and recommended the deprecated mediaOptOut flag.
+    expect(warn.fix).not.toContain("mediaOptOut");
+    expect(warn.fix).not.toContain("Run asset-sourcer");
+  });
+});
+
 // ── checkOpenLoop (W7) ──
 
 describe("checkOpenLoop", () => {
