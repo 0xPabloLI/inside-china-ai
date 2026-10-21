@@ -19,7 +19,6 @@ import {
   reportFinalMediaWarnings,
 } from "../lib/final-media-gate.mjs";
 import { inspectMediaFile, MIN_MEDIA_SIDE } from "../lib/media-integrity.mjs";
-import { probeToolAvailable } from "../lib/media-probe.mjs";
 
 /**
  * A real, decodable PNG. Fixtures used to be the literal string "fake" — the
@@ -575,7 +574,7 @@ describe("media file integrity (#759)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("FAILS a video when the probe returns null, and blames the right thing", () => {
+  it("FAILS a video when the probe returns null (fail-closed)", () => {
     const dir = makeContentDir([{ name: "clip.mp4", bytes: mp4Bytes() }]);
     const result = checkFinalMedia({
       scenes: [mediaScene({ type: "video", path: "assets/clip.mp4" })],
@@ -584,12 +583,27 @@ describe("media file integrity (#759)", () => {
     });
     expect(result.pass).toBe(false);
     expect(result.failures[0].reason).toBe("broken-media");
-    // Both codes fail closed; which one is correct depends on whether ffprobe is
-    // reachable here. Derived from the same probe the gate consults, so a
-    // regression that collapses the two codes cannot stay green.
-    expect(result.failures[0].code).toBe(
-      probeToolAvailable() ? "unreadable-media" : "probe-unavailable",
-    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("blames the machine, not the asset, when ffprobe itself is missing", () => {
+    // Both halves asserted against injected availability, so collapsing them
+    // into one code fails a test (deriving the expectation from the same probe
+    // the gate reads would be a tautology and pass either way).
+    const dir = makeContentDir([{ name: "clip.mp4", bytes: mp4Bytes() }]);
+    const abs = join(dir, "assets/clip.mp4");
+    const noTool = inspectMediaFile(abs, {
+      declaredType: "video",
+      probeVideo: () => null,
+      probeAvailable: () => false,
+    });
+    const withTool = inspectMediaFile(abs, {
+      declaredType: "video",
+      probeVideo: () => null,
+      probeAvailable: () => true,
+    });
+    expect(noTool).toMatchObject({ ok: false, code: "probe-unavailable" });
+    expect(withTool).toMatchObject({ ok: false, code: "unreadable-media" });
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -767,6 +781,87 @@ describe("media provenance (#759)", () => {
     expect(result.pass).toBe(false);
     expect(result.failures[0].reason).toBe("invalid-evidence-flag");
     expect(formatFinalMediaFailures(result)).toContain("unusable evidence flag");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("FAILS a bad evidence flag even when the provenance beside it is valid", () => {
+    // Round-3 finding: the provenance branch used to return first, so
+    // {evidence:"yes", provenance:<valid>} passed and enforcement stayed off.
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        mediaScene({
+          type: "image",
+          path: "assets/present.png",
+          evidence: "yes",
+          provenance: provenance(),
+        }),
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures.map((f) => f.reason)).toEqual(["invalid-evidence-flag"]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("reads evidence:null as 'not evidence', matching media:null (#191)", () => {
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [mediaScene({ type: "image", path: "assets/present.png", evidence: null })],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(true);
+    expect(result.failures).toHaveLength(0);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("reports a declared value it cannot name without throwing", () => {
+    // JSON.stringify(10n) throws: a gate that crashes is worse than one that
+    // rejects, and the message still has to name the value.
+    const dir = makeContentDir(["present.png"]);
+    const flag = checkFinalMedia({
+      scenes: [mediaScene({ type: "image", path: "assets/present.png", evidence: 10n })],
+      contentDir: dir,
+    });
+    expect(flag.failures[0]).toMatchObject({ reason: "invalid-evidence-flag" });
+    expect(flag.failures[0].detail).toContain("10");
+
+    const scale = checkFinalMedia({
+      scenes: [
+        mediaScene({
+          type: "image",
+          path: "assets/present.png",
+          provenance: provenance({ scale: 7n }),
+        }),
+      ],
+      contentDir: dir,
+    });
+    expect(scale.failures[0].reason).toBe("invalid-provenance");
+    expect(scale.failures[0].detail).toContain("7n");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("still enforces the hook contract when only the declaration is wrong", () => {
+    // Round-3 finding: any media finding used to skip hook quality, so a hook
+    // with intact bytes and fit:"contain" + a missing provenance shipped the
+    // fit violation.
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        {
+          id: 11,
+          visualType: "hook",
+          layout: "hero-center",
+          media: { type: "image", path: "assets/present.png", fit: "contain", evidence: true },
+        },
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures.map((f) => f.reason)).toEqual([
+      "missing-provenance",
+      "hook-media-quality",
+    ]);
     rmSync(dir, { recursive: true, force: true });
   });
 

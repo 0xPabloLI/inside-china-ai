@@ -40,6 +40,23 @@ const PROVENANCE_TOLERANCE_PX = 0.01;
 
 const fail = (code, detail) => ({ ok: false, code, detail });
 
+/**
+ * Render a declared value for a failure message without being able to throw:
+ * `JSON.stringify` dies on BigInt, and a gate that crashes is worse than a gate
+ * that rejects (#759 review).
+ */
+function shown(value) {
+  if (typeof value === "bigint") return `${value}n`;
+  if (typeof value === "object" && value !== null) {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
 // ─── Image headers ───
 
 /**
@@ -253,13 +270,17 @@ function readHead(absPath, bytes = 64) {
  * — sniffing 8 bytes must not load it.
  *
  * @param {string} absPath - absolute path to the media file
- * @param {{declaredType?: string, probeVideo?: (p: string) => {width: number, height: number}|null}} [options]
- *        `probeVideo` is injectable so unit tests do not need ffprobe; the
- *        default is the real ffprobe seam used across the pipeline.
+ * @param {{declaredType?: string, probeVideo?: (p: string) => {width: number, height: number}|null,
+ *          probeAvailable?: () => boolean}} [options]
+ *        `probeVideo` / `probeAvailable` are injectable so a test can pin both
+ *        halves of the ffprobe split; production uses the real seams.
  * @returns {{ok: true, kind: "image"|"video", format: string, width: number, height: number}
  *          | {ok: false, code: string, detail: string}}
  */
-export function inspectMediaFile(absPath, { declaredType, probeVideo = probeMedia } = {}) {
+export function inspectMediaFile(
+  absPath,
+  { declaredType, probeVideo = probeMedia, probeAvailable = probeToolAvailable } = {},
+) {
   let stat;
   try {
     stat = statSync(absPath);
@@ -285,7 +306,7 @@ export function inspectMediaFile(absPath, { declaredType, probeVideo = probeMedi
         `scene declares "video", the bytes are a ${signature.toUpperCase()} image`,
       );
     }
-    return probeVideoFile(absPath, container, probeVideo);
+    return probeVideoFile(absPath, container, probeVideo, probeAvailable);
   }
 
   if (container && !signature) {
@@ -295,7 +316,7 @@ export function inspectMediaFile(absPath, { declaredType, probeVideo = probeMedi
         `scene declares "image", the bytes are a ${container.toUpperCase()} video`,
       );
     }
-    return probeVideoFile(absPath, container, probeVideo);
+    return probeVideoFile(absPath, container, probeVideo, probeAvailable);
   }
 
   if (!signature) {
@@ -317,14 +338,14 @@ export function inspectMediaFile(absPath, { declaredType, probeVideo = probeMedi
   return sized("image", image.kind, image.width, image.height);
 }
 
-function probeVideoFile(absPath, container, probeVideo) {
+function probeVideoFile(absPath, container, probeVideo, probeAvailable) {
   const probe = probeVideo(absPath);
   if (probe?.width && probe?.height) {
     return sized("video", container ?? "video", probe.width, probe.height);
   }
   // probeMedia swallows every failure into null: without this split, a machine
   // missing ffprobe would be told its assets are corrupt (#759 review).
-  if (!probeToolAvailable()) {
+  if (!probeAvailable()) {
     return fail(
       "probe-unavailable",
       "ffprobe is not reachable, so no video asset can be verified — install ffmpeg-full",
@@ -359,9 +380,7 @@ function boxErrors(box, name) {
   const errors = [];
   for (const key of ["x", "y", "w", "h"]) {
     if (!isFiniteNumber(box[key])) {
-      errors.push(
-        `provenance.${name}.${key} must be a finite number, got ${JSON.stringify(box[key])}`,
-      );
+      errors.push(`provenance.${name}.${key} must be a finite number, got ${shown(box[key])}`);
     }
   }
   if (errors.length) return errors;
@@ -399,11 +418,11 @@ export function validateProvenance(provenance) {
     try {
       url = new URL(sourceUrl);
     } catch {
-      errors.push(`provenance.sourceUrl is not a valid URL: ${JSON.stringify(sourceUrl)}`);
+      errors.push(`provenance.sourceUrl is not a valid URL: ${shown(sourceUrl)}`);
     }
     if (url && url.protocol !== "http:" && url.protocol !== "https:") {
       errors.push(
-        `provenance.sourceUrl must be http(s), got "${url.protocol}" (${JSON.stringify(sourceUrl)})`,
+        `provenance.sourceUrl must be http(s), got "${url.protocol}" (${shown(sourceUrl)})`,
       );
     }
   }
@@ -417,7 +436,7 @@ export function validateProvenance(provenance) {
   errors.push(...rectErrors, ...clipErrors);
 
   if (!isFiniteNumber(scale) || scale <= 0) {
-    errors.push(`provenance.scale must be a finite number > 0, got ${JSON.stringify(scale)}`);
+    errors.push(`provenance.scale must be a finite number > 0, got ${shown(scale)}`);
   }
 
   // Containment is only judgeable once both boxes are well-formed.

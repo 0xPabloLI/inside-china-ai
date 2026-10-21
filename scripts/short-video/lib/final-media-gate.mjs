@@ -68,32 +68,35 @@ function inspectPresentMedia(scene, contentDir, probeVideo) {
     return [{ reason: "broken-media", code: verdict.code, path, detail: verdict.detail }];
   }
 
+  // Flag integrity before geometry: a marker that is neither true nor absent
+  // means the author intended enforcement, and a valid provenance sitting next
+  // to it must not become the reason that enforcement never happens (#759 r3).
+  // `null` reads as "not evidence", matching `media: null` (#191).
+  if (media.evidence !== undefined && media.evidence !== null) {
+    if (media.evidence !== true) {
+      return [
+        {
+          reason: "invalid-evidence-flag",
+          path,
+          detail: `media.evidence must be the boolean true, got ${String(media.evidence)} (${typeof media.evidence}) — anything else silently switches the provenance requirement off`,
+        },
+      ];
+    }
+    if (!media.provenance) {
+      return [
+        {
+          reason: "missing-provenance",
+          path,
+          detail:
+            "a capture marked evidence:true must record sourceUrl, selector, rect, clip and scale so its geometry can be verified",
+        },
+      ];
+    }
+  }
+
   if (media.provenance) {
     const { ok, errors } = validateProvenance(media.provenance);
     return ok ? [] : [{ reason: "invalid-provenance", path, detail: errors.join("; ") }];
-  }
-
-  if (media.evidence === true) {
-    return [
-      {
-        reason: "missing-provenance",
-        path,
-        detail:
-          "a capture marked evidence:true must record sourceUrl, selector, rect, clip and scale so its geometry can be verified",
-      },
-    ];
-  }
-
-  // A truthy non-boolean would mean "evidence" to a reader and nothing to the
-  // check above — that combination must fail rather than switch the gate off.
-  if (media.evidence !== undefined && media.evidence !== false) {
-    return [
-      {
-        reason: "invalid-evidence-flag",
-        path,
-        detail: `media.evidence must be the boolean true, got ${JSON.stringify(media.evidence)}`,
-      },
-    ];
   }
 
   return [];
@@ -159,9 +162,13 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
         });
         continue;
       }
-      // A broken hook file is the more specific failure — reporting the curation
-      // contract on top of it would send the fix in the wrong direction (#759).
-      if (pushMediaFindings(failures, scene, layout, contentDir, probeVideo)) continue;
+      // An unreadable hook file is the more specific failure — reporting the
+      // curation contract on top of it sends the fix the wrong way. Declaration
+      // findings (provenance, evidence flag) do NOT excuse the contract: a hook
+      // with intact bytes must still fail fit:"contain" (#759 round 3).
+      const mediaFindings = inspectPresentMedia(scene, contentDir, probeVideo);
+      for (const f of mediaFindings) failures.push({ sceneId: scene.id, layout, ...f });
+      if (mediaFindings.some((f) => f.reason === "broken-media")) continue;
       // The file landed — now enforce the same curation contract as preflight
       // (#299), so a fit:"contain" hook cannot render through the paths that
       // skip scene-rules (render-only / rerender / rerender-full / realign).
