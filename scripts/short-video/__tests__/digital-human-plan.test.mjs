@@ -677,4 +677,29 @@ describe("readSceneAudioInfo (#423 candidate sidecars)", () => {
     const dir = tmpDir("dh-audio-info-");
     expect(() => readSceneAudioInfo(dir, { id: 7 })).toThrow(/no TTS audio metadata/);
   });
+
+  it("delegates the audio-dir containment rule to the shared resolver (#566)", () => {
+    const dir = tmpDir("dh-audio-info-");
+    const inside = join(dir, "scene-1.wav");
+    const outside = join(tmpDir("dh-audio-outside-"), "evil.wav");
+    writeFileSync(inside, "RIFF....");
+    writeFileSync(outside, "evil");
+    writeFileSync(
+      join(dir, "scene-1.tts-meta.json"),
+      JSON.stringify({ duration: 4, audioPath: outside }),
+    );
+    const info = readSceneAudioInfo(dir, { id: 1 });
+    expect(info.audioPath).toBe(inside);
+    expect(info.duration).toBe(4);
+  });
+
+  it("uses the shared .mp3-first fallback order for legacy durations (#566)", () => {
+    const dir = tmpDir("dh-audio-info-");
+    writeFileSync(join(dir, "scene-1.wav"), "RIFF....");
+    writeFileSync(join(dir, "scene-1.mp3"), "ID3....");
+    writeFileSync(join(dir, "scene-durations.json"), JSON.stringify([{ sceneId: 1, duration: 5 }]));
+    const info = readSceneAudioInfo(dir, { id: 1 });
+    expect(info.audioPath).toBe(join(dir, "scene-1.mp3"));
+    expect(info.durationSource).toBe("scene-durations");
+  });
 });

@@ -86,6 +86,7 @@ import { pathToFileURL, fileURLToPath } from "url";
 import { execSync, spawnSync } from "child_process";
 import { FFMPEG_PATH } from "./upscale.mjs";
 import { upscaleDigitalHuman } from "./dh-upscale.mjs";
+import { resolveSceneAudioInfo } from "./scene-audio.mjs";
 import {
   REMOTE_TASKS_PATH,
   KAGGLE_USERNAME,
@@ -457,76 +458,27 @@ export function computeScenePlan({
 // ─── Package artifact readers (fs — local reads only) ───
 
 /**
- * Resolve a scene's TTS audio duration + file. Priority: #198 cache meta
- * (scene-{id}.tts-meta.json — exact ffprobe duration + engine-written audio
- * path) → #423 candidate sidecar (scene-{id}.tts-candidate.json — same
- * duration for a take that is on disk but not yet finally verified; a
- * skip-gate or aborted run leaves only this record) → legacy
- * scene-durations.json. Throws fail-closed when none has the scene: planning
- * without the TTS artifacts is meaningless.
+ * Resolve a scene's TTS audio duration + file for planning. Delegates the
+ * sidecar chain and the audio-dir containment check to {@link resolveSceneAudioInfo}
+ * (#566: the render entry points read the same contract, so a take cannot
+ * resolve differently per consumer). Fail-closed stays here: planning without
+ * the audio artifacts is meaningless.
  *
  * @param {string} audioDir - output/{pipelineId}/audio
  * @param {{id: number}} scene
  * @returns {{audioPath: string, duration: number, durationSource: "tts-meta"|"tts-candidate"|"scene-durations"}}
  */
 export function readSceneAudioInfo(audioDir, scene) {
-  for (const [fileName, durationSource] of [
-    [`scene-${scene.id}.tts-meta.json`, "tts-meta"],
-    [`scene-${scene.id}.tts-candidate.json`, "tts-candidate"],
-  ]) {
-    const metaPath = join(audioDir, fileName);
-    if (!existsSync(metaPath)) continue;
-    let fromMeta = null;
-    try {
-      const meta = JSON.parse(readFileSync(metaPath, "utf8"));
-      if (typeof meta.duration === "number" && meta.duration > 0) {
-        fromMeta = {
-          audioPath: meta.audioPath
-            ? resolve(audioDir, meta.audioPath)
-            : join(audioDir, `scene-${scene.id}.wav`),
-          duration: meta.duration,
-          durationSource,
-        };
-      }
-    } catch {
-      // corrupt meta → try the next source
-    }
-    if (fromMeta) {
-      assertAudioFileExists(scene.id, fromMeta.audioPath);
-      return fromMeta;
-    }
+  const info = resolveSceneAudioInfo(audioDir, scene.id);
+  if (!info) {
+    throw new Error(
+      `Scene ${scene.id}: no TTS audio metadata in ${audioDir} ` +
+        `(expected scene-${scene.id}.tts-meta.json, scene-${scene.id}.tts-candidate.json ` +
+        `or scene-durations.json) — run the TTS pipeline (main.mjs --content <dir>) before planning`,
+    );
   }
-
-  const durationsPath = join(audioDir, "scene-durations.json");
-  if (existsSync(durationsPath)) {
-    let fromDurations = null;
-    try {
-      const all = JSON.parse(readFileSync(durationsPath, "utf8"));
-      const entry = (Array.isArray(all) ? all : all?.scenes)?.find((d) => d.sceneId === scene.id);
-      if (entry && typeof entry.duration === "number" && entry.duration > 0) {
-        fromDurations = {
-          audioPath:
-            [".wav", ".mp3"]
-              .map((ext) => join(audioDir, `scene-${scene.id}${ext}`))
-              .find((p) => existsSync(p)) ?? join(audioDir, `scene-${scene.id}.wav`),
-          duration: entry.duration,
-          durationSource: "scene-durations",
-        };
-      }
-    } catch {
-      // fall through
-    }
-    if (fromDurations) {
-      assertAudioFileExists(scene.id, fromDurations.audioPath);
-      return fromDurations;
-    }
-  }
-
-  throw new Error(
-    `Scene ${scene.id}: no TTS audio metadata in ${audioDir} ` +
-      `(expected scene-${scene.id}.tts-meta.json, scene-${scene.id}.tts-candidate.json ` +
-      `or scene-durations.json) — run the TTS pipeline (main.mjs --content <dir>) before planning`,
-  );
+  assertAudioFileExists(scene.id, info.audioPath);
+  return info;
 }
 
 /**
