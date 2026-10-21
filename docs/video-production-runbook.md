@@ -306,7 +306,7 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 
 **Force engine**: `export TTS_ENGINE=cosyvoice3-mlx` / `f5-mlx` / `edge-tts` / `say`
 
-**CosyVoice3-MLX 本地兜底（#704）**: 主引擎是 `cosyvoice3-mlx` 时，声学失败（`TTS_ACOUSTIC_HARD_BLOCK`）或 pacing-floor 失败（`TTS_PACING_FLOOR_BLOCK`）后，只对失败的 scene 自动用 `f5-mlx` 重生成（已通过的 take 不动）。fallback take 必须全部通过 Quality Gate 才采用，meta 记录 `engine: f5-mlx` / `fallbackFrom: cosyvoice3-mlx`（缓存 key 按 F5 计算）；F5 按自然语速生成（`ttsSpeed: 1.0`），**音色可能与全片不同**，采用时日志会打印显眼警告。兜底失败、不可用或只回来部分 scene 时保持原 fail-closed 错误。`TTS_DISABLE_LOCAL_FALLBACK=1` 关闭该兜底；pacing-hard（>225 WPM）、infra 失败与非 MLX 主引擎不兜底。`COSYVOICE3_SEED` 可固定 MLX 每场景种子以便复现。
+**CosyVoice3-MLX 本地兜底（#704）**: 主引擎是 `cosyvoice3-mlx` 时，声学失败（`TTS_ACOUSTIC_HARD_BLOCK`）或 pacing-floor 失败（`TTS_PACING_FLOOR_BLOCK`）后，只对失败的 scene 自动用 `f5-mlx` 重生成（已通过的 take 不动）。fallback take 必须全部通过 Quality Gate 且不超过 225 WPM 硬上限才采用（兜底路径不经过 pacing 阶梯，上限在采用判据里独立执行；任一 take 超限即拒绝提升，保持原阻断），meta 记录 `engine: f5-mlx` / `fallbackFrom: cosyvoice3-mlx`（缓存 key 按 F5 计算）；F5 按自然语速生成（`ttsSpeed: 1.0`），**音色可能与全片不同**，采用时日志会打印显眼警告。兜底 take 只过 Quality Gate + 225 WPM 上限，**不重跑 pacing 补偿阶梯**——hook 1.1x 等加速优化不适用于 F5 自然语速，这是该路径的已知边界。兜底失败、不可用或只回来部分 scene 时保持原 fail-closed 错误。`TTS_DISABLE_LOCAL_FALLBACK=1` 关闭该兜底；pacing-hard（>225 WPM）、infra 失败与非 MLX 主引擎不兜底。`COSYVOICE3_SEED` 固定 MLX 每场景种子，但缓存命中时仍按既有 key 复用已批准 take；要真正复现生成需配合 `TTS_NO_CACHE=1`。
 
 **多管线并行与 Kaggle 排队协调（#250）**:
 

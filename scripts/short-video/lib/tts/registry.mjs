@@ -659,7 +659,9 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
    * is already fixed burns a minute and can turn a repaired run into a block.
    *
    * All targets are regenerated into staging. The fallback takes are accepted
-   * ONLY when every one of them passes the same Quality Gate; any failure
+   * ONLY when every one of them passes the same Quality Gate AND stays at or
+   * below the WPM hard ceiling (this path skips the pacing ladder that
+   * normally enforces it); any failure
    * (unrepairable failure family, engine unavailable, short batch, rejected
    * take, exception) returns false and the caller rethrows the original block.
    * This path can rescue a run — it must never weaken the fail-closed contract.
@@ -735,17 +737,31 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
 
       // All-or-nothing: one rejected fallback take promotes nothing, and the
       // original fail-closed error stands.
+      //
+      // #704: the 225 WPM hard ceiling is enforced by the pacing ladder that
+      // ran BEFORE this block, so a fallback take never passes through it. The
+      // ceiling therefore belongs in the acceptance criterion: an F5 take that
+      // clears the gate but still speaks over 225 WPM is rushed audio (#246)
+      // and must not be promoted.
       const rejected = fallbackResults.filter((res) => {
         const evalRes = fallbackGate.evaluations.find((e) => e.sceneId === res.sceneId);
-        return !evalRes?.passed;
+        return !evalRes?.passed || (Number.isFinite(evalRes.wpm) && evalRes.wpm > WPM_HARD_CEILING);
       });
       if (rejected.length > 0) {
         for (const res of rejected) {
           const evalRes = fallbackGate.evaluations.find((e) => e.sceneId === res.sceneId);
-          console.warn(
-            `  ❌ [TTS Local Fallback] Scene ${res.sceneId} f5-mlx take rejected: ` +
-              `${(evalRes?.issues ?? []).join("; ") || "no evaluation"}`,
-          );
+          if (evalRes?.passed) {
+            // Only the hard-ceiling clause can reject a passing evaluation.
+            console.warn(
+              `  ❌ [TTS Local Fallback] Scene ${res.sceneId} f5-mlx take passed the gate but ` +
+                `measures ${evalRes.wpm} WPM (> ${WPM_HARD_CEILING} hard ceiling) — not promoting`,
+            );
+          } else {
+            console.warn(
+              `  ❌ [TTS Local Fallback] Scene ${res.sceneId} f5-mlx take rejected: ` +
+                `${(evalRes?.issues ?? []).join("; ") || "no evaluation"}`,
+            );
+          }
         }
         console.warn(`  ⚠️ [TTS Local Fallback] no take promoted — keeping the original block`);
         return false;

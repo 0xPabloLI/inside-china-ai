@@ -4,6 +4,7 @@ Run via the suite runner: npm run test:python.
 These tests do NOT load the CosyVoice3 model, download anything or run
 generation — MLX is replaced with a fake module injected into sys.modules.
 """
+import json
 import os
 import random
 import sys
@@ -175,3 +176,124 @@ def test_clear_cache_does_not_swallow_keyboard_interrupt(install_fake_mlx):
 
     with pytest.raises(KeyboardInterrupt):
         batch_tts.clear_mlx_cache()
+
+
+# ── generate_batch wiring ──────────────────────────────────────────────────
+#
+# These helpers alone staying green is not enough: #704 regressed because
+# generate_batch could stop calling them without any test noticing. The test
+# below pins the per-scene call order inside generate_batch itself.
+
+SCENE_TEXTS = {1: "Scene one voiceover text.", 2: "Scene two voiceover text."}
+
+
+def _write_two_scene_manifest(tmp_path):
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            [
+                {"sceneId": scene_id, "text": text, "output": f"scene-{scene_id}.wav"}
+                for scene_id, text in SCENE_TEXTS.items()
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return manifest_path
+
+
+@pytest.fixture
+def fake_generation_stack(monkeypatch):
+    """Fake ``mlx``/``mlx_audio`` sharing one ordered event log.
+
+    Seeding, generation and cache clearing all append to ``events`` so that
+    ``generate_batch``'s wiring (not just its helpers) can be asserted. No
+    real model is loaded, no audio is written and ``ffprobe`` never runs.
+    """
+    events = []
+    generate_calls = []
+    load_calls = []
+    model_sentinel = object()
+    scene_by_text = {text: scene_id for scene_id, text in SCENE_TEXTS.items()}
+
+    def record_seed(value):
+        events.append(("seed", value))
+
+    def record_clear():
+        events.append(("clear",))
+
+    core = types.ModuleType("mlx.core")
+    core.random = types.SimpleNamespace(seed=record_seed)
+    core.clear_cache = record_clear
+
+    mlx_package = types.ModuleType("mlx")
+    mlx_package.core = core
+    monkeypatch.setitem(sys.modules, "mlx", mlx_package)
+    monkeypatch.setitem(sys.modules, "mlx.core", core)
+
+    def load_model(**kwargs):
+        load_calls.append(kwargs)
+        return model_sentinel
+
+    def generate_audio(**kwargs):
+        events.append(("gen", scene_by_text[kwargs["text"]]))
+        generate_calls.append(kwargs)
+
+    mlx_audio_package = types.ModuleType("mlx_audio")
+    tts_package = types.ModuleType("mlx_audio.tts")
+    generate_module = types.ModuleType("mlx_audio.tts.generate")
+    generate_module.load_model = load_model
+    generate_module.generate_audio = generate_audio
+    mlx_audio_package.tts = tts_package
+    tts_package.generate = generate_module
+    monkeypatch.setitem(sys.modules, "mlx_audio", mlx_audio_package)
+    monkeypatch.setitem(sys.modules, "mlx_audio.tts", tts_package)
+    monkeypatch.setitem(sys.modules, "mlx_audio.tts.generate", generate_module)
+
+    return types.SimpleNamespace(
+        events=events,
+        generate_calls=generate_calls,
+        load_calls=load_calls,
+        model_sentinel=model_sentinel,
+    )
+
+
+def test_generate_batch_seeds_each_scene_then_clears_cache(
+    fake_generation_stack, monkeypatch, tmp_path
+):
+    """#704 wiring: seed(scene_seed(base, id)) -> generate -> clear, per scene.
+
+    Deleting either the ``seed_scene_rngs(seed)`` or the ``clear_mlx_cache()``
+    call from ``generate_batch`` must turn this test red.
+    """
+    stack = fake_generation_stack
+    manifest_path = _write_two_scene_manifest(tmp_path)
+    monkeypatch.setenv("COSYVOICE3_SEED", "42")
+    monkeypatch.setattr(
+        batch_tts.subprocess,
+        "run",
+        lambda *args, **kwargs: types.SimpleNamespace(stdout="1.0\n"),
+    )
+
+    results = batch_tts.generate_batch(
+        str(manifest_path), str(tmp_path), "ref.wav", "ref text"
+    )
+
+    assert len(stack.load_calls) == 1, "the batch must load the model exactly once"
+    assert stack.events == [
+        ("seed", batch_tts.scene_seed(42, 1)),
+        ("gen", 1),
+        ("clear",),
+        ("seed", batch_tts.scene_seed(42, 2)),
+        ("gen", 2),
+        ("clear",),
+    ]
+    # generate_audio ran once per scene, in manifest order.
+    assert [call["text"] for call in stack.generate_calls] == [
+        SCENE_TEXTS[1],
+        SCENE_TEXTS[2],
+    ]
+    assert all(call["model"] is stack.model_sentinel for call in stack.generate_calls)
+    # Exactly one cache clear per finished scene.
+    assert sum(1 for event in stack.events if event[0] == "clear") == 2
+    assert [item["sceneId"] for item in results] == [1, 2]
+    assert [item["duration"] for item in results] == [1.0, 1.0]

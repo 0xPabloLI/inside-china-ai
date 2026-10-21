@@ -22,7 +22,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { join } from "path";
-import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 
 vi.mock("../lib/tts/quality-gate.mjs", () => ({
@@ -260,6 +260,32 @@ describe("TTS local fallback (#704)", () => {
       ([, sceneId, meta]) => sceneId === 2 && meta.engine === "f5-mlx",
     );
     expect(f5Approved).toHaveLength(0);
+  });
+
+  it("an F5 take that passes the gate but exceeds 225 WPM is NOT promoted", async () => {
+    const scenes = makeScenes();
+    const engine = primaryMlxEngine();
+    const f5 = f5Engine();
+    vi.mocked(createF5MLXEngine).mockResolvedValue(f5);
+    // Scene 2 fails acoustically on the main engine. The F5 repair clears the
+    // Quality Gate but speaks at 250 WPM — over the 225 hard ceiling that the
+    // pacing ladder enforces on the main path. The fallback path skips that
+    // ladder, so acceptance itself must reject the rushed take (#246/#704).
+    stubGateSequence([(id) => (id === 2 ? failAcoustic(2) : pass(1)), (id) => pass(id, 250)]);
+
+    const err = await runCapturingError(scenes, dir, engine, {
+      useCache: false,
+      runAlignment: false,
+      maxRetries: 0,
+    });
+
+    // The original acoustic block stands; the F5 take was never promoted.
+    expect(err?.code).toBe("TTS_ACOUSTIC_HARD_BLOCK");
+    expect(f5.generate).toHaveBeenCalledTimes(1);
+    expect(existsSync(join(dir, "scene-2.wav"))).toBe(false);
+    expect(warnText()).toMatch(/225/);
+    expect(warnText()).toMatch(/hard ceiling/);
+    expect(warnText()).not.toMatch(/Voice may differ from the rest of the video/);
   });
 
   it("F5 unavailable (factory returns null) rethrows the original error", async () => {
