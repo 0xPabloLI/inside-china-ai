@@ -740,6 +740,27 @@ describe("media provenance (#759)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it.each([
+    ["left", { x: 110, y: 200, w: 290, h: 150 }],
+    ["top", { x: 100, y: 210, w: 300, h: 140 }],
+    ["right", { x: 100, y: 200, w: 250, h: 150 }],
+    ["bottom", { x: 100, y: 200, w: 300, h: 100 }],
+  ])("FAILS when the clip is short on the %s edge", (_edge, clip) => {
+    // All four containment arms asserted: a mutation that drops any one of them
+    // must turn a test red, not ship a clipped capture.
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        mediaScene({ type: "image", path: "assets/present.png", provenance: provenance({ clip }) }),
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures[0].reason).toBe("invalid-provenance");
+    expect(result.failures[0].detail).toContain("provenance.clip");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("FAILS media.evidence:true without provenance (missing-provenance)", () => {
     const dir = makeContentDir(["present.png"]);
     const result = checkFinalMedia({
@@ -804,40 +825,49 @@ describe("media provenance (#759)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("reads evidence:null as 'not evidence', matching media:null (#191)", () => {
+  it("reads evidence:null and evidence:false as 'not evidence', like media:null (#191)", () => {
     const dir = makeContentDir(["present.png"]);
-    const result = checkFinalMedia({
-      scenes: [mediaScene({ type: "image", path: "assets/present.png", evidence: null })],
-      contentDir: dir,
-    });
-    expect(result.pass).toBe(true);
-    expect(result.failures).toHaveLength(0);
+    for (const evidence of [null, false, undefined]) {
+      const result = checkFinalMedia({
+        scenes: [mediaScene({ type: "image", path: "assets/present.png", evidence })],
+        contentDir: dir,
+      });
+      expect(result.pass, `evidence: ${String(evidence)}`).toBe(true);
+      expect(result.failures).toHaveLength(0);
+    }
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("reports a declared value it cannot name without throwing", () => {
-    // JSON.stringify(10n) throws: a gate that crashes is worse than one that
-    // rejects, and the message still has to name the value.
+  it("names a declared value without throwing, whatever it is", () => {
+    // JSON.stringify dies on BigInt and String() dies on a prototype-less
+    // object; either crash in the failure path would replace a rejection with
+    // an exception the operator cannot read. (The labels below are written by
+    // hand for exactly that reason.)
     const dir = makeContentDir(["present.png"]);
-    const flag = checkFinalMedia({
-      scenes: [mediaScene({ type: "image", path: "assets/present.png", evidence: 10n })],
-      contentDir: dir,
-    });
-    expect(flag.failures[0]).toMatchObject({ reason: "invalid-evidence-flag" });
-    expect(flag.failures[0].detail).toContain("10");
-
+    const cases = [
+      ["bigint", 10n],
+      ["prototype-less object", Object.create(null)],
+      ["array", [1, 2]],
+    ];
+    for (const [label, evidence] of cases) {
+      const flag = checkFinalMedia({
+        scenes: [mediaScene({ type: "image", path: "assets/present.png", evidence })],
+        contentDir: dir,
+      });
+      expect(flag.failures[0].reason, label).toBe("invalid-evidence-flag");
+    }
     const scale = checkFinalMedia({
       scenes: [
         mediaScene({
           type: "image",
           path: "assets/present.png",
-          provenance: provenance({ scale: 7n }),
+          provenance: provenance({ rect: { x: 1n, y: 2, w: 3, h: 4 } }),
         }),
       ],
       contentDir: dir,
     });
     expect(scale.failures[0].reason).toBe("invalid-provenance");
-    expect(scale.failures[0].detail).toContain("7n");
+    expect(scale.failures[0].detail).toContain("1n");
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -1075,10 +1105,32 @@ describe("media header parsers (#759)", () => {
 
   it("REJECTS a WebP whose RIFF length promises more bytes than exist", () => {
     const bytes = riffWebpLossless(1200, 800);
-    const dir = makeContentDir([{ name: "half.webp", bytes: bytes.subarray(0, bytes.length - 6) }]);
-    const v = inspectMediaFile(join(dir, "assets/half.webp"));
-    expect(v.ok).toBe(false);
-    expect(v.code).toBe("unreadable-media");
+    // One byte is the case a padding exemption used to wave through.
+    for (const cut of [1, 6]) {
+      const dir = makeContentDir([
+        { name: "half.webp", bytes: bytes.subarray(0, bytes.length - cut) },
+      ]);
+      const v = inspectMediaFile(join(dir, "assets/half.webp"));
+      expect(v.ok, `cut ${cut}B`).toBe(false);
+      expect(v.code).toBe("unreadable-media");
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads WebP extended-canvas dimensions", () => {
+    const payload = Buffer.alloc(10);
+    const chunk = Buffer.concat([Buffer.from("VP8X", "latin1"), uint32(payload.length), payload]);
+    const body = Buffer.concat([Buffer.from("WEBP", "latin1"), chunk]);
+    const file = Buffer.concat([Buffer.from("RIFF", "latin1"), uint32(body.length), body]);
+    file.writeUIntLE(1200 - 1, 24, 3);
+    file.writeUIntLE(800 - 1, 27, 3);
+    const dir = makeContentDir([{ name: "ext.webp", bytes: file }]);
+    expect(inspectMediaFile(join(dir, "assets/ext.webp"))).toMatchObject({
+      ok: true,
+      format: "webp",
+      width: 1200,
+      height: 800,
+    });
     rmSync(dir, { recursive: true, force: true });
   });
 

@@ -29,7 +29,7 @@ import { join } from "path";
 import { DEFAULT_NARRATIVE_LAYOUT } from "./text-slots.mjs";
 import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
-import { inspectMediaFile, validateProvenance } from "./media-integrity.mjs";
+import { inspectMediaFile, shown, validateProvenance } from "./media-integrity.mjs";
 // Re-export: existing consumers import NO_MEDIA_TYPES from this module.
 export { NO_MEDIA_TYPES };
 
@@ -68,20 +68,12 @@ function inspectPresentMedia(scene, contentDir, probeVideo) {
     return [{ reason: "broken-media", code: verdict.code, path, detail: verdict.detail }];
   }
 
-  // Flag integrity before geometry: a marker that is neither true nor absent
-  // means the author intended enforcement, and a valid provenance sitting next
-  // to it must not become the reason that enforcement never happens (#759 r3).
-  // `null` reads as "not evidence", matching `media: null` (#191).
-  if (media.evidence !== undefined && media.evidence !== null) {
-    if (media.evidence !== true) {
-      return [
-        {
-          reason: "invalid-evidence-flag",
-          path,
-          detail: `media.evidence must be the boolean true, got ${String(media.evidence)} (${typeof media.evidence}) — anything else silently switches the provenance requirement off`,
-        },
-      ];
-    }
+  // Flag integrity before geometry: a marker that reads as "evidence" to an
+  // author but means nothing to this check would switch the requirement off
+  // silently, and a valid provenance next to it must not hide that (#759 r3).
+  // Absent, `null` and `false` all mean "not evidence" — the falsey pair matches
+  // the `media: null` waiver idiom (#191), so an explicit "no" stays a no.
+  if (media.evidence === true) {
     if (!media.provenance) {
       return [
         {
@@ -92,6 +84,14 @@ function inspectPresentMedia(scene, contentDir, probeVideo) {
         },
       ];
     }
+  } else if (media.evidence !== undefined && media.evidence !== null && media.evidence !== false) {
+    return [
+      {
+        reason: "invalid-evidence-flag",
+        path,
+        detail: `media.evidence must be the boolean true, got ${shown(media.evidence)} (${typeof media.evidence}) — anything else silently switches the provenance requirement off`,
+      },
+    ];
   }
 
   if (media.provenance) {
@@ -103,8 +103,9 @@ function inspectPresentMedia(scene, contentDir, probeVideo) {
 }
 
 /**
- * Push one scene's media findings into the failure list. One writer so the four
- * call sites (no-media type / hook / media-dependent / CSS-only) cannot drift.
+ * Push one scene's media findings into the failure list. One writer for the
+ * layout branches, so they cannot drift; the hook branch reads the list itself
+ * because only an unreadable file lets it skip the curation contract.
  *
  * @returns {number} findings pushed — truthy means "this scene is done".
  */

@@ -11,10 +11,10 @@
  * (`content/deepseek-embodied-ai/assets/baidu_search-宇树-01.jpg`).
  *
  * `media.provenance` is the geometry a capture claims to have produced. It is
- * validated whenever it is declared, and demanded whenever the scene marks the
- * media as evidence (`media.evidence: true`). Non-marked media keeps today's
- * behaviour — #758 is the producer that will start emitting provenance; this
- * module is the gate that refuses a violating declaration.
+ * validated once the file itself is usable, and demanded whenever the scene
+ * marks the media as evidence (`media.evidence: true`). One finding per scene,
+ * most specific first: unreadable bytes or a broken marker is reported before
+ * geometry, because fixing the file is the precondition for judging it.
  *
  * Deliberately NOT checked: per-pixel content (the matte band, ink at the
  * edges). The ticket records a 4-edge ink heuristic as tested-and-rejected (a
@@ -42,10 +42,10 @@ const fail = (code, detail) => ({ ok: false, code, detail });
 
 /**
  * Render a declared value for a failure message without being able to throw:
- * `JSON.stringify` dies on BigInt, and a gate that crashes is worse than a gate
- * that rejects (#759 review).
+ * `JSON.stringify` dies on BigInt and `String()` dies on `Object.create(null)`,
+ * and a gate that crashes is worse than a gate that rejects (#759 review).
  */
-function shown(value) {
+export function shown(value) {
   if (typeof value === "bigint") return `${value}n`;
   if (typeof value === "object" && value !== null) {
     try {
@@ -160,8 +160,11 @@ function readWebp(buf) {
   if (buf.toString("latin1", 8, 12) !== "WEBP") return null;
   // RIFF declares its own payload length, so a cut file is decidable from the
   // header alone (chunks are padded to an even byte count).
+  // RIFF declares its own payload length. A file may carry one extra pad byte
+  // (chunks align to even), but never fewer bytes than it promises — the old
+  // ±1 exemption let a WebP truncated by exactly one byte pass (#759 round 4).
   const declared = buf.readUInt32LE(4) + 8;
-  if (buf.length < declared && buf.length + 1 !== declared) {
+  if (buf.length < declared) {
     return {
       ok: false,
       why: `WebP is truncated: RIFF declares ${declared} B, the file holds ${buf.length} B`,
