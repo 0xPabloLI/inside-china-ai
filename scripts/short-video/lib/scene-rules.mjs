@@ -17,6 +17,10 @@ import { getPlatformProfile } from "./platforms/index.mjs";
 // the standard from its single source. tts/instruct.mjs is pure data + pure
 // functions (no fs/child_process) — importing it does not drag the TTS stack in.
 import { hasInstructStyle, validateInstructSignature } from "./tts/instruct.mjs";
+// Digit↔word conversion lives in one module (#762 review): checkLoopClose uses
+// the inverse direction so a spelled CTA number and a digit dataPoints entry
+// compare equal without a second lexicon.
+import { numericAnchors } from "./normalize-tts-text.mjs";
 import {
   AI_BLACKLIST as _AI_BLACKLIST,
   DASH_PATTERN,
@@ -972,64 +976,6 @@ export function checkSemanticConsistency(scenes) {
 }
 
 /**
- * Numeric anchors behind checkLoopClose (#762).
- *
- * Voiceovers spell numbers out ("nine of eleven") while meta.dataPoints record
- * them as digits ("all 11 higher"). Normalize the written forms first, then
- * compare digit tokens; tokens shorter than two characters are dropped so a
- * bare "9" from a time like "9:59 PM" cannot match a stray CTA digit.
- */
-const TENS_WORD_VALUES = {
-  twenty: 20,
-  thirty: 30,
-  forty: 40,
-  fifty: 50,
-  sixty: 60,
-  seventy: 70,
-  eighty: 80,
-  ninety: 90,
-};
-const UNIT_WORD_VALUES = {
-  one: 1,
-  two: 2,
-  three: 3,
-  four: 4,
-  five: 5,
-  six: 6,
-  seven: 7,
-  eight: 8,
-  nine: 9,
-};
-const NUMBER_WORD_VALUES = {
-  zero: 0,
-  ...UNIT_WORD_VALUES,
-  ten: 10,
-  eleven: 11,
-  twelve: 12,
-  thirteen: 13,
-  fourteen: 14,
-  fifteen: 15,
-  sixteen: 16,
-  seventeen: 17,
-  eighteen: 18,
-  nineteen: 19,
-  ...TENS_WORD_VALUES,
-};
-const NUMBER_WORD_RE = new RegExp(`\\b(${Object.keys(NUMBER_WORD_VALUES).join("|")})\\b`, "g");
-const TENS_UNIT_RE =
-  /\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-](one|two|three|four|five|six|seven|eight|nine)\b/g;
-
-function extractNumberAnchors(text) {
-  const digits = String(text)
-    .toLowerCase()
-    .replace(TENS_UNIT_RE, (_, tens, unit) =>
-      String(TENS_WORD_VALUES[tens] + UNIT_WORD_VALUES[unit]),
-    )
-    .replace(NUMBER_WORD_RE, (word) => String(NUMBER_WORD_VALUES[word]));
-  return (digits.match(/\d+(?:[.,]\d+)*/g) ?? []).filter((token) => token.length >= 2);
-}
-
-/**
  * Loop-close: last scene should reference the hook for natural rewatch.
  *
  * Pass state (spec: when CTA contains a core number from meta.dataPoints,
@@ -1037,9 +983,10 @@ function extractNumberAnchors(text) {
  * Real packs write dataPoints as a string[] ("$629M Series C at a $4.3B
  * valuation"), not the {value} shape this check originally read; `dp.value`
  * was always undefined, so the pass branch was dead code for every pack
- * (#762). Both shapes are accepted and compared by numeric anchor: voiceovers
- * spell numbers out ("nine of eleven"), so both sides are normalized to digits
- * first. Falls back to word matching when no number can be compared.
+ * (#762). Both shapes are accepted and compared through numericAnchors, which
+ * normalizes digit and spelled forms (scale words and decimals included) onto
+ * the same values — the lexicon lives in normalize-tts-text.mjs, the module
+ * that already owns digit↔word conversion.
  *
  * @param {Array} scenes - scene-data array
  * @param {Object} [meta] - video meta with optional dataPoints array
@@ -1054,10 +1001,10 @@ export function checkLoopClose(scenes, meta) {
     const anchors = new Set();
     for (const dp of meta.dataPoints) {
       const text = typeof dp === "string" ? dp : String(dp?.value ?? "");
-      for (const anchor of extractNumberAnchors(text)) anchors.add(anchor);
+      for (const anchor of numericAnchors(text)) anchors.add(anchor);
     }
     if (anchors.size > 0) {
-      const hasCoreNumber = extractNumberAnchors(lastVO).some((anchor) => anchors.has(anchor));
+      const hasCoreNumber = numericAnchors(lastVO).some((anchor) => anchors.has(anchor));
       if (hasCoreNumber) {
         return [
           {

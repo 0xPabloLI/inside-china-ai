@@ -954,6 +954,36 @@ describe("checkLoopClose", () => {
     expect(checkLoopClose(scenes, meta)[0].level).toBe("pass");
   });
 
+  it("matches a spelled scale word against a digit data point (#762 review)", () => {
+    const scenes = [
+      { id: 1, voiceover: "The cluster has 20,000 GPUs." },
+      { id: 2, voiceover: "Some context." },
+      { id: 3, voiceover: "Twenty thousand GPUs, and the gap to frontier. Follow for more." },
+    ];
+    const meta = { dataPoints: ["20,000 GPUs (need 200K for frontier)"] };
+    expect(checkLoopClose(scenes, meta)[0].level).toBe("pass");
+  });
+
+  it("matches a spelled decimal and scale word against a suffixed data point (#762 review)", () => {
+    const scenes = [
+      { id: 1, voiceover: "Unitree raised 629 million dollars." },
+      { id: 2, voiceover: "Some context." },
+      { id: 3, voiceover: "A four point three billion valuation, remember? Follow for more." },
+    ];
+    const meta = { dataPoints: ["$629M Series C at a $4.3B valuation"] };
+    expect(checkLoopClose(scenes, meta)[0].level).toBe("pass");
+  });
+
+  it("does not pass on a shared calendar date alone (#762 review follow-up)", () => {
+    const scenes = [
+      { id: 1, voiceover: "DeepSeek opened a test on Sep 8." },
+      { id: 2, voiceover: "Some context." },
+      { id: 3, voiceover: "A temporary test ending September 8. Follow for more." },
+    ];
+    const meta = { dataPoints: ["V4.1 Flash internal test opened Sep 8, 2026"] };
+    expect(checkLoopClose(scenes, meta)[0].level).toBe("warn");
+  });
+
   it("warns when no number from string[] dataPoints reaches the CTA (#762)", () => {
     const scenes = [
       { id: 1, voiceover: "Unitree raised 629 million dollars." },
