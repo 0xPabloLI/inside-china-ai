@@ -260,15 +260,16 @@ function lineStartOf(text, index) {
 }
 
 /**
- * Where a property begins: its line start and its indent when it opens the
- * line, or `null` indent when it shares the line with other code.
+ * Where a property begins: its line start, the indent to format at ("" when the
+ * property shares its line with other code), and whether it opens that line.
  *
- * @returns {{ lineStart: number, indent: string|null }}
+ * @returns {{ lineStart: number, indent: string, opensLine: boolean }}
  */
 function propertyLineAt(text, propertyStart) {
   const lineStart = lineStartOf(text, propertyStart);
   const prefix = text.slice(lineStart, propertyStart);
-  return { lineStart, indent: /^[ \t]*$/.test(prefix) ? prefix : null };
+  const opensLine = /^[ \t]*$/.test(prefix);
+  return { lineStart, indent: opensLine ? prefix : "", opensLine };
 }
 
 function propertyValueIsMultiline(text, valueStart, valueEnd) {
@@ -277,7 +278,7 @@ function propertyValueIsMultiline(text, valueStart, valueEnd) {
 
 /** Insert `block` (a `media: {...},` declaration) immediately before `property`. */
 function insertBeforeProperty(text, property, block, placement) {
-  if (placement.indent !== null) {
+  if (placement.opensLine) {
     return (
       text.slice(0, placement.lineStart) +
       `${placement.indent}${block}\n` +
@@ -822,7 +823,15 @@ export async function main(args = process.argv.slice(2)) {
       for (const err of preview.errors) console.error(`   • ${err}`);
       process.exit(1);
     }
-    console.log(formatDryRun(preview.applied, [...skipped, ...preview.skipped]));
+    // applyPatchesToText reports only ids; carry the patch's scene names over so
+    // the preview can identify scenes.
+    const namesById = new Map(toApply.map((entry) => [entry.sceneId, entry.sceneName]));
+    console.log(
+      formatDryRun(
+        preview.applied.map((entry) => ({ ...entry, sceneName: namesById.get(entry.sceneId) })),
+        [...skipped, ...preview.skipped],
+      ),
+    );
     process.exit(0);
   }
 

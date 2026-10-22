@@ -1433,6 +1433,31 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
     expect(result.modifiedContent).toContain('subjects: ["Alpha","Beta"],');
   });
 
+  it("rewrites a scene written on one line into importable scene-data", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "apply-patch-inline-"));
+    const file = join(dir, "scene-data.mjs");
+    try {
+      const text = sceneFile(
+        '  { id: 17, media: { type: "image", path: "assets/old.png" }, voiceover: "x" },',
+      );
+      const result = applyPatchesToText(text, [
+        { sceneId: 17, media: { type: "image", path: "assets/new.png", overlay: 0.6 } },
+      ]);
+
+      expect(result.errors).toEqual([]);
+      expect(result.modifiedContent).not.toContain("null");
+      expect(result.modifiedContent).toContain('path: "assets/new.png"');
+      expect(result.modifiedContent.match(/\{/g)).toHaveLength(
+        result.modifiedContent.match(/\}/g).length,
+      );
+      writeFileSync(file, result.modifiedContent, "utf8");
+      const mod = await import(`file://${file}`);
+      expect(mod.scenes[0].media).toEqual({ type: "image", path: "assets/new.png", overlay: 0.6 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("escapes patch values so scene-data stays importable", async () => {
     const dir = mkdtempSync(join(tmpdir(), "apply-patch-846-"));
     const file = join(dir, "scene-data.mjs");
