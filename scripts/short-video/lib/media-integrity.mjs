@@ -35,6 +35,16 @@ import { probeMedia, probeToolAvailable } from "./media-probe.mjs";
 /** Smallest accepted edge, in pixels. Guards against placeholders. */
 export const MIN_MEDIA_SIDE = 64;
 
+/**
+ * A non-array object (`{}` yes, `[]` and `null` no).
+ *
+ * Shared by the media field schema and the patch formatter, which both judge
+ * `scene.media` values; two private copies had already appeared (#846 review).
+ */
+export function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 /** The eight-byte PNG signature (RFC 2083 / PNG spec clause 5.1). */
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 

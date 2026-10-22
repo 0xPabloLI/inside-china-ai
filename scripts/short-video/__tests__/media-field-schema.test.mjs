@@ -10,7 +10,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
-import { MEDIA_FIELD_KEYS, checkMediaFieldSchema } from "../lib/media-field-schema.mjs";
+import {
+  BACKDROP_FIELD_KEYS,
+  MEDIA_FIELD_KEYS,
+  checkMediaFieldSchema,
+} from "../lib/media-field-schema.mjs";
 import { runAllSceneDataChecks } from "../lib/scene-rules.mjs";
 
 const mediaScene = (media) => ({ id: 1, visualType: "narrative", layout: "media-overlay", media });
@@ -201,5 +205,16 @@ describe("media field schema (#836)", () => {
     // the sets equal while the runtime still reads `.evidence` / `.provenance`.
     expect(MEDIA_FIELD_KEYS.has("evidence")).toBe(true);
     expect(MEDIA_FIELD_KEYS.has("provenance")).toBe(true);
+  });
+
+  it("keeps BACKDROP_FIELD_KEYS in step with MediaField.backdrop in remotion/src/types.ts", () => {
+    const typesPath = fileURLToPath(new URL("../remotion/src/types.ts", import.meta.url));
+    const source = readFileSync(typesPath, "utf8");
+    const body = source.match(/backdrop\?: \{([\s\S]*?)\n {2}\};/);
+    expect(body, "MediaField.backdrop not found").toBeTruthy();
+    const declared = new Set(
+      [...body[1].matchAll(/^ {4}([A-Za-z][A-Za-z0-9]*)\??:/gm)].map((m) => m[1]),
+    );
+    expect([...declared].sort()).toEqual([...BACKDROP_FIELD_KEYS].sort());
   });
 });

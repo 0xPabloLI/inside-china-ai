@@ -6,7 +6,15 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execSync } from "child_process";
-import { writeFileSync, mkdirSync, rmSync, existsSync, mkdtempSync } from "fs";
+import {
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+} from "fs";
 import { join, dirname } from "path";
 import { tmpdir } from "os";
 import { fileURLToPath } from "url";
@@ -21,7 +29,11 @@ import * as reviewLib from "../lib/review-media-patch.mjs";
 import {
   applyPatchesToText,
   validatePatchEntry as validateCliPatchEntry,
+  detectConflict,
+  listScenes,
 } from "../apply-media-patch.mjs";
+import { parsePatchPayload } from "../lib/media-patch-format.mjs";
+import { MEDIA_FIELD_KEYS } from "../lib/media-field-schema.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1127,5 +1139,493 @@ describe("#758 evidence capture fields in media patches", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("#846 manual apply: structure-aware rewrite, evidence guard, single formatter", () => {
+  const sceneFile = (body) => `export const scenes = [\n${body}\n];\n`;
+
+  it("replaces a media block that follows a nested object (the old scene regex stopped at its close)", () => {
+    const text = sceneFile(
+      [
+        "  {",
+        '    aiVideo: { provider: "fal", clip: { start: 0 } },',
+        "    id: 1,",
+        "    media: {",
+        '      type: "image",',
+        '      path: "assets/old.png",',
+        "    },",
+        '    voiceover: "one",',
+        "  },",
+        "  {",
+        "    id: 2,",
+        "    media: {",
+        '      type: "image",',
+        '      path: "assets/second.png",',
+        "    },",
+        '    voiceover: "two",',
+        "  },",
+      ].join("\n"),
+    );
+
+    const result = applyPatchesToText(text, [
+      { sceneId: 1, action: "replace", media: { type: "image", path: "assets/new.png" } },
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.applied).toEqual([
+      { sceneId: 1, action: "replaced", media: { type: "image", path: "assets/new.png" } },
+    ]);
+    expect(result.modifiedContent).not.toContain("assets/old.png");
+    expect(result.modifiedContent).toContain('path: "assets/second.png"');
+    expect(result.modifiedContent.match(/\{/g)).toHaveLength(
+      result.modifiedContent.match(/\}/g).length,
+    );
+    expect(listScenes(result.modifiedContent).map((scene) => scene.id)).toEqual([1, 2]);
+  });
+
+  it("replaces a block carrying nested cropFocus and backdrop objects", () => {
+    const text = sceneFile(
+      [
+        "  {",
+        "    id: 15,",
+        "    media: {",
+        '      type: "image",',
+        '      path: "assets/old.png",',
+        "      cropFocus: { x: 0.2, y: 0.8 },",
+        '      backdrop: { type: "video", path: "assets/bg.mp4" },',
+        "    },",
+        '    voiceover: "x",',
+        "  },",
+      ].join("\n"),
+    );
+
+    const result = applyPatchesToText(text, [
+      {
+        sceneId: 15,
+        action: "replace",
+        media: { type: "image", path: "assets/new.png", cropFocus: { x: 0.4, y: 0.6 } },
+      },
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.modifiedContent).not.toContain("assets/old.png");
+    expect(result.modifiedContent).not.toContain("assets/bg.mp4");
+    expect(result.modifiedContent).toContain("cropFocus: { x: 0.4, y: 0.6 },");
+    expect(result.modifiedContent.match(/\bmedia:/g)).toHaveLength(1);
+    expect(result.modifiedContent.match(/\{/g)).toHaveLength(
+      result.modifiedContent.match(/\}/g).length,
+    );
+  });
+
+  it("inserts before the scene's own voiceover, not one nested inside avatar", () => {
+    const text = sceneFile(
+      [
+        "  {",
+        "    id: 5,",
+        '    avatar: { enabled: true, voiceover: "nested" },',
+        '    voiceover: "top level",',
+        "  },",
+      ].join("\n"),
+    );
+
+    const result = applyPatchesToText(text, [
+      { sceneId: 5, action: "add", media: { type: "image", path: "assets/new.png" } },
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.modifiedContent).toContain('    avatar: { enabled: true, voiceover: "nested" },');
+    const mediaAt = result.modifiedContent.indexOf("    media: {");
+    const topVoiceoverAt = result.modifiedContent.indexOf('    voiceover: "top level",');
+    expect(mediaAt).toBeGreaterThan(-1);
+    expect(mediaAt).toBeLessThan(topVoiceoverAt);
+    expect(listScenes(result.modifiedContent).map((scene) => scene.id)).toEqual([5]);
+  });
+
+  it("replaces `media: null` whose trailing comment contains a comma", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "apply-patch-null-comment-"));
+    const file = join(dir, "scene-data.mjs");
+    try {
+      const text = sceneFile(
+        [
+          "  {",
+          "    id: 8,",
+          "    media: null // deliberate CSS-only scene, keep it, see #191",
+          '    voiceover: "x",',
+          "  },",
+        ].join("\n"),
+      );
+
+      const result = applyPatchesToText(text, [
+        { sceneId: 8, media: { type: "image", path: "assets/new.png" } },
+      ]);
+
+      expect(result.errors).toEqual([]);
+      // The comment belongs to the null declaration, so it goes with it; what
+      // must not happen is its text being spliced into scene-data as code.
+      expect(result.modifiedContent).not.toContain("keep it");
+      expect(result.modifiedContent).not.toContain("see #191");
+      writeFileSync(file, result.modifiedContent, "utf8");
+      const mod = await import(`file://${file}`);
+      expect(mod.scenes[0].media).toEqual({ type: "image", path: "assets/new.png" });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a falsy invalid cropFocus instead of dropping the declaration", () => {
+    const text = sceneFile(["  {", "    id: 9,", '    voiceover: "x",', "  },"].join("\n"));
+    const result = applyPatchesToText(text, [
+      { sceneId: 9, media: { type: "image", path: "assets/a.png", cropFocus: 0 } },
+    ]);
+
+    expect(result.applied).toEqual([]);
+    expect(result.errors[0]).toContain("cropFocus values must be numbers in [0, 1]");
+  });
+
+  it("rejects an unknown backdrop key instead of dropping it", () => {
+    const text = sceneFile(["  {", "    id: 9,", '    voiceover: "x",', "  },"].join("\n"));
+    const result = applyPatchesToText(text, [
+      {
+        sceneId: 9,
+        media: {
+          type: "video",
+          path: "assets/a.mp4",
+          backdrop: { type: "video", path: "assets/bg.mp4", volme: 0.05 },
+        },
+      },
+    ]);
+
+    expect(result.applied).toEqual([]);
+    expect(result.errors[0]).toContain("media.backdrop has unknown field(s): volme");
+  });
+
+  it("replaces `media: null` instead of adding a duplicate media key", () => {
+    const text = sceneFile(
+      ["  {", "    id: 7,", "    media: null,", '    voiceover: "x",', "  },"].join("\n"),
+    );
+
+    const result = applyPatchesToText(text, [
+      { sceneId: 7, action: "add", media: { type: "image", path: "assets/new.png" } },
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.modifiedContent).not.toContain("media: null");
+    expect(result.modifiedContent.match(/\bmedia:/g)).toHaveLength(1);
+    expect(result.modifiedContent.match(/\{/g)).toHaveLength(
+      result.modifiedContent.match(/\}/g).length,
+    );
+  });
+
+  describe("Evidence Media guard", () => {
+    const provenance = {
+      sourceUrl: "https://example.com/benchmark",
+      selector: "table:nth-of-type(1)",
+      rect: { x: 104, y: 923, w: 288, h: 144 },
+      clip: { x: 88, y: 907, w: 320, h: 160 },
+      scale: 2,
+    };
+    const evidenceScene = sceneFile(
+      [
+        "  {",
+        "    id: 9,",
+        "    media: {",
+        '      type: "image",',
+        '      path: "assets/capture.png",',
+        "      evidence: true,",
+        `      provenance: ${JSON.stringify(provenance)},`,
+        "    },",
+        '    voiceover: "x",',
+        "  },",
+      ].join("\n"),
+    );
+
+    it("refuses a silent overwrite (no evidence field in the patch)", () => {
+      const result = applyPatchesToText(evidenceScene, [
+        { sceneId: 9, action: "replace", media: { type: "image", path: "assets/new.png" } },
+      ]);
+
+      expect(result.applied).toEqual([]);
+      expect(result.modifiedContent).toBe(evidenceScene);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toContain("Evidence Media");
+      expect(result.errors[0]).toContain("media.evidence: false");
+    });
+
+    it("allows an explicit de-designation with evidence: false", () => {
+      const result = applyPatchesToText(evidenceScene, [
+        {
+          sceneId: 9,
+          action: "replace",
+          media: { type: "image", path: "assets/new.png", evidence: false },
+        },
+      ]);
+
+      expect(result.errors).toEqual([]);
+      expect(result.modifiedContent).not.toContain("provenance");
+      expect(result.modifiedContent).toContain("evidence: false,");
+    });
+
+    it("keeps the declaration when evidence: true carries a valid provenance", () => {
+      const result = applyPatchesToText(evidenceScene, [
+        {
+          sceneId: 9,
+          action: "replace",
+          media: {
+            type: "image",
+            path: "assets/new.png",
+            evidence: true,
+            provenance,
+          },
+        },
+      ]);
+
+      expect(result.errors).toEqual([]);
+      expect(result.modifiedContent).toContain('path: "assets/new.png"');
+      expect(result.modifiedContent).toContain("evidence: true,");
+      expect(result.modifiedContent).toContain('sourceUrl: "https://example.com/benchmark",');
+    });
+
+    it("rejects evidence: true without a valid provenance", () => {
+      const result = applyPatchesToText(evidenceScene, [
+        {
+          sceneId: 9,
+          action: "replace",
+          media: { type: "image", path: "assets/new.png", evidence: true },
+        },
+      ]);
+
+      expect(result.applied).toEqual([]);
+      expect(result.modifiedContent).toBe(evidenceScene);
+      expect(result.errors[0]).toContain("valid provenance is required");
+    });
+
+    it("rejects the ambiguous evidence: null instead of dropping the declaration", () => {
+      const result = applyPatchesToText(evidenceScene, [
+        {
+          sceneId: 9,
+          action: "replace",
+          media: { type: "image", path: "assets/new.png", evidence: null },
+        },
+      ]);
+
+      expect(result.applied).toEqual([]);
+      expect(result.modifiedContent).toBe(evidenceScene);
+      expect(result.errors[0]).toContain("media.evidence: false");
+    });
+
+    it("treats the same file with an explicit evidence change as a conflict", () => {
+      const existing = { type: "image", path: "assets/a.png", evidence: true };
+      expect(detectConflict({ type: "image", path: "assets/a.png" }, existing)).toBe(
+        "already-applied",
+      );
+      expect(
+        detectConflict({ type: "image", path: "assets/a.png", evidence: false }, existing),
+      ).toBe("conflict");
+    });
+
+    it("still detects evidence: true when a comment trails the literal", () => {
+      const commented = sceneFile(
+        [
+          "  {",
+          "    id: 10,",
+          "    media: {",
+          '      type: "image",',
+          '      path: "assets/capture.png",',
+          "      evidence: true /* captured from the vendor page */,",
+          `      provenance: ${JSON.stringify(provenance)},`,
+          "    },",
+          '    voiceover: "x",',
+          "  },",
+        ].join("\n"),
+      );
+
+      const result = applyPatchesToText(commented, [
+        { sceneId: 10, action: "replace", media: { type: "image", path: "assets/new.png" } },
+      ]);
+
+      expect(result.applied).toEqual([]);
+      expect(result.errors[0]).toContain("Evidence Media");
+    });
+  });
+
+  it("writes every key MEDIA_FIELD_KEYS declares", () => {
+    const text = sceneFile(["  {", "    id: 11,", '    voiceover: "x",', "  },"].join("\n"));
+    const media = {
+      type: "video",
+      path: "assets/capture.mp4",
+      source: "youtube",
+      mode: "replace",
+      fit: "cover",
+      focus: "left",
+      animation: "fade",
+      overlay: 0.7,
+      volume: 0.08,
+      upscale: true,
+      videoStartOffsetMs: 1500,
+      cropFocus: { x: 0.3, y: 0.5 },
+      evidence: false,
+      provenance: {
+        sourceUrl: "https://example.com/benchmark",
+        selector: "table",
+        rect: { x: 1, y: 2, w: 3, h: 4 },
+        clip: { x: 0, y: 0, w: 9, h: 9 },
+        scale: 2,
+      },
+      contentKind: "diagram",
+      subjects: ["Alpha", "Beta"],
+      backdrop: { type: "image", path: "assets/bg.png", volume: 0.05, upscale: true },
+    };
+
+    // Every key the schema accepts must be declared in the fixture: a new key
+    // added to MEDIA_FIELD_KEYS without a sample here fails this guard, so the
+    // writer cannot drift behind the schema a third time (#649/#836/#846).
+    expect(Object.keys(media).sort()).toEqual([...MEDIA_FIELD_KEYS].sort());
+
+    const result = applyPatchesToText(text, [{ sceneId: 11, media }]);
+
+    expect(result.errors).toEqual([]);
+    for (const key of MEDIA_FIELD_KEYS) {
+      expect(result.modifiedContent).toMatch(new RegExp(`\\b${key}:`));
+    }
+    expect(result.modifiedContent).toContain('subjects: ["Alpha","Beta"],');
+  });
+
+  it("rewrites a scene written on one line into importable scene-data", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "apply-patch-inline-"));
+    const file = join(dir, "scene-data.mjs");
+    try {
+      const text = sceneFile(
+        '  { id: 17, media: { type: "image", path: "assets/old.png" }, voiceover: "x" },',
+      );
+      const result = applyPatchesToText(text, [
+        { sceneId: 17, media: { type: "image", path: "assets/new.png", overlay: 0.6 } },
+      ]);
+
+      expect(result.errors).toEqual([]);
+      expect(result.modifiedContent).not.toContain("null");
+      expect(result.modifiedContent).toContain('path: "assets/new.png"');
+      expect(result.modifiedContent.match(/\{/g)).toHaveLength(
+        result.modifiedContent.match(/\}/g).length,
+      );
+      writeFileSync(file, result.modifiedContent, "utf8");
+      const mod = await import(`file://${file}`);
+      expect(mod.scenes[0].media).toEqual({ type: "image", path: "assets/new.png", overlay: 0.6 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("escapes patch values so scene-data stays importable", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "apply-patch-846-"));
+    const file = join(dir, "scene-data.mjs");
+    const trickyPath = 'assets/a"b\\c\nnewline.png';
+    try {
+      const text = sceneFile(["  {", "    id: 13,", '    voiceover: "x",', "  },"].join("\n"));
+      const result = applyPatchesToText(text, [
+        { sceneId: 13, action: "add", media: { type: "image", path: trickyPath } },
+      ]);
+      expect(result.errors).toEqual([]);
+      writeFileSync(file, result.modifiedContent, "utf8");
+      const mod = await import(`file://${file}`);
+      expect(mod.scenes[0].media.path).toBe(trickyPath);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a malformed media field as a comment instead of crashing the review copy", () => {
+    const out = formatPatchEntry({
+      sceneId: 1,
+      status: "assigned",
+      media: { type: "image", path: "assets/a.png", overlay: "0.7" },
+    });
+    expect(out).toContain("INVALID media");
+    expect(out).toContain("media: {},");
+  });
+
+  it("accepts the { schemaVersion, patches } envelope and rejects any other shape", () => {
+    const entry = { sceneId: 1, action: "add", media: { type: "image", path: "a.png" } };
+    expect(parsePatchPayload([entry])).toHaveLength(1);
+    expect(parsePatchPayload({ schemaVersion: "1.0", patches: [entry] })).toHaveLength(1);
+    expect(() => parsePatchPayload({ patches: "nope" })).toThrow(/envelope/);
+    expect(() => parsePatchPayload({ schemaVersion: "1.0" })).toThrow(/envelope/);
+  });
+
+  it("rejects an unknown media key instead of dropping it silently", () => {
+    const result = validateCliPatchEntry(
+      {
+        sceneId: 1,
+        status: "assigned",
+        media: { type: "image", path: "assets/a.png", evidnce: true },
+      },
+      [{ id: 1 }],
+      "/fake/content",
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.includes("Unknown media field"))).toBe(true);
+    expect(result.errors.some((error) => error.includes("evidnce"))).toBe(true);
+  });
+
+  it("locates every scene in the real corpus, including scenes after nested objects", () => {
+    const contentRoot = join(__dirname, "..", "content");
+    let packs = 0;
+    let scenesChecked = 0;
+    const failures = [];
+
+    for (const packName of readdirSync(contentRoot)) {
+      const file = join(contentRoot, packName, "scene-data.mjs");
+      if (!existsSync(file)) continue;
+      const source = readFileSync(file, "utf8");
+      const ids = listScenes(source).map((scene) => scene.id);
+      // A pack that declares scenes but locates none is the exact failure this
+      // test exists to catch, so it cannot be skipped as "no scenes here".
+      if (ids.length === 0) {
+        failures.push({ pack: packName, sceneId: null, errors: ["locator found no scene ids"] });
+        continue;
+      }
+      packs++;
+
+      for (const sceneId of ids) {
+        scenesChecked++;
+        const result = applyPatchesToText(source, [
+          {
+            sceneId,
+            action: "replace",
+            // evidence:false is the explicit de-designation, so the guard does
+            // not mask whether the block itself was locatable.
+            media: { type: "image", path: "assets/probe.png", evidence: false },
+          },
+        ]);
+        if (result.errors.length > 0 || result.applied.length !== 1) {
+          failures.push({ pack: packName, sceneId, errors: result.errors });
+          continue;
+        }
+        if (
+          listScenes(result.modifiedContent)
+            .map((scene) => scene.id)
+            .join(",") !== ids.join(",")
+        ) {
+          failures.push({ pack: packName, sceneId, errors: ["scene ids changed"] });
+          continue;
+        }
+        const opens = result.modifiedContent.match(/\{/g)?.length ?? 0;
+        const closes = result.modifiedContent.match(/\}/g)?.length ?? 0;
+        if (opens !== closes) {
+          failures.push({
+            pack: packName,
+            sceneId,
+            errors: [`unbalanced braces ${opens}/${closes}`],
+          });
+        }
+      }
+    }
+
+    // No content-count thresholds: the corpus grows and packages get archived,
+    // so a fixed floor fails for reasons unrelated to the locator. Non-empty
+    // output is asserted per pack above instead.
+    expect(packs).toBeGreaterThan(0);
+    expect(scenesChecked).toBeGreaterThanOrEqual(packs);
+    expect(failures).toEqual([]);
   });
 });
