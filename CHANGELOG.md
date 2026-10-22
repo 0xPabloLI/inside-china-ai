@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.2...tanstack_start_ts-v1.28.3) (2026-10-22)
+
+
+### Bug Fixes
+
+* **short-video:** stop the Step 6 subtitle-alignment retry from spinning ([#818](https://github.com/0xPabloLI/inside-china-ai/issues/818)) ([#869](https://github.com/0xPabloLI/inside-china-ai/issues/869)) ([96013fc](https://github.com/0xPabloLI/inside-china-ai/commit/96013fc56a6b1e6c52bf0abb8e9526d7cb39d09c))
+
 ## [1.28.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.1...tanstack_start_ts-v1.28.2) (2026-10-22)
 
 
