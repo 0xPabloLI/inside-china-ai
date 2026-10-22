@@ -25,6 +25,7 @@ describe("capture-evidence-shot CLI", () => {
       await new Promise((done) => setTimeout(done, 0));
       expect(typeof mod.parseViewport).toBe("function");
       expect(typeof mod.resolveContentDir).toBe("function");
+      expect(typeof mod.selectCaptures).toBe("function");
       expect(log).not.toHaveBeenCalled();
       expect(error).not.toHaveBeenCalled();
       expect(process.exitCode).toBe(before);
@@ -39,7 +40,18 @@ describe("capture-evidence-shot CLI", () => {
     expect(parseViewport("320X240")).toEqual({ width: 320, height: 240 });
     expect(() => parseViewport("1280")).toThrow(/<width>x<height>/);
     expect(() => parseViewport("1280×900")).toThrow(/<width>x<height>/);
-    expect(() => parseViewport("0x900")).not.toThrow();
+    expect(() => parseViewport("0x900")).toThrow(/positive dimensions/);
+    expect(() => parseViewport("1280x0")).toThrow(/positive dimensions/);
+  });
+
+  it("selects one scene's recipe, or the whole manifest when no scene is given", async () => {
+    const { selectCaptures } = await loadCli();
+    const manifest = { 1: { url: "https://a.example" }, 2: { url: "https://b.example" } };
+    expect(selectCaptures(manifest, 2)).toEqual({ 2: { url: "https://b.example" } });
+    expect(selectCaptures(manifest, "2")).toEqual({ 2: { url: "https://b.example" } });
+    expect(selectCaptures(manifest, 3)).toEqual({});
+    expect(selectCaptures(manifest, undefined)).toBe(manifest);
+    expect(selectCaptures(null, 2)).toBeNull();
   });
 
   it("resolves a slug under the content root and refuses escapes", async () => {

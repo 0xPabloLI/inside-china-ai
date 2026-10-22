@@ -522,5 +522,19 @@ describe("evidence-capture-runner", () => {
       expect(result.uncovered.map((scene) => scene.id)).toEqual([3, 4]);
       expect(result.errors).toEqual([]);
     });
+
+    it("reports a malformed manifest without throwing and marks evidence scenes uncovered", async () => {
+      const dir = pack();
+      writeFileSync(join(dir, "evidence-captures.json"), "{ not json");
+      const result = await runEvidenceCaptures({
+        scenes: [evidenceScene(3)],
+        contentDirAbs: dir,
+        deps: { launchBrowser: vi.fn() },
+      });
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toContain("not valid JSON");
+      expect(result.uncovered.map((scene) => scene.id)).toEqual([3]);
+      expect(result.captured).toEqual([]);
+    });
   });
 });

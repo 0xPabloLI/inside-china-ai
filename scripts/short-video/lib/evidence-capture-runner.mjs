@@ -246,10 +246,14 @@ export async function captureFromPage(page, recipe, declared, outputAbs) {
   // The browser is unauthenticated, so a login wall or a canonical move shows
   // up as a different final URL. Capturing that page would bind a screenshot of
   // something other than the element the provenance names.
-  const finalUrl = page.url();
-  if (finalUrl !== url) {
+  // Compare normalized hrefs: `new URL("http://host").href` is "http://host/",
+  // which is what the browser reports for the same recipe — a raw string
+  // comparison would call every root URL a redirect.
+  const requested = new URL(url).href;
+  const finalUrl = new URL(page.url()).href;
+  if (finalUrl !== requested) {
     throw new Error(
-      `page redirected to ${finalUrl} — use the final URL in the recipe ` +
+      `page redirected to ${page.url()} — use the final URL in the recipe ` +
         "(a login redirect cannot be captured as evidence)",
     );
   }
@@ -387,8 +391,20 @@ export async function captureEvidenceShot({ recipe, outputAbs, declared, deps = 
  *            uncovered: Array<Record<string, any>>}>}
  */
 export async function runEvidenceCaptures({ scenes, contentDirAbs, force = false, deps = {} }) {
-  const manifest = loadCaptureManifest(contentDirAbs);
+  let manifest;
+  let manifestError = null;
+  try {
+    manifest = loadCaptureManifest(contentDirAbs);
+  } catch (e) {
+    // A malformed manifest is one diagnosis, not a reason to lose the rest of
+    // the stage: report it and treat every evidence scene as uncovered.
+    manifestError = e.message;
+    manifest = null;
+  }
   const uncovered = findUncoveredEvidenceScenes(scenes, manifest);
+  if (manifestError) {
+    return { manifest: false, captured: [], skipped: [], errors: [manifestError], uncovered };
+  }
   if (!manifest) return { manifest: false, captured: [], skipped: [], errors: [], uncovered };
 
   const plan = planEvidenceCaptures({

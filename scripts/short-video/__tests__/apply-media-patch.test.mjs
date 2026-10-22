@@ -890,6 +890,34 @@ describe("#758 evidence capture fields in media patches", () => {
     );
   });
 
+  it("replace fallback on a one-line scene closes the media block by depth", () => {
+    const text = [
+      "export const scenes = [",
+      '  { id: 3, visualType: "narrative", media: { type: "image", path: "assets/old.png" }, voiceover: "hi" },',
+      "];",
+      "",
+    ].join("\n");
+    const result = applyPatchesToText(text, [{ sceneId: 3, action: "replace", media: media() }]);
+    expect(result.errors).toEqual([]);
+    expect(result.applied).toHaveLength(1);
+    expect(result.modifiedContent).toContain('path: "assets/capture.png"');
+    expect(result.modifiedContent).toContain("provenance: {");
+    expect(result.modifiedContent).toContain('voiceover: "hi"');
+    expect(result.modifiedContent.match(/\{/g)).toHaveLength(
+      result.modifiedContent.match(/\}/g).length,
+    );
+  });
+
+  it("formatPatchEntry refuses an invalid provenance instead of printing undefined", () => {
+    expect(() =>
+      formatPatchEntry({
+        sceneId: 1,
+        status: "assigned",
+        media: { type: "image", path: "assets/bad.png", provenance: { selector: "table" } },
+      }),
+    ).toThrow(/provenance is invalid/);
+  });
+
   it("rejects evidence:true without provenance", () => {
     const r = validateCliPatchEntry(
       {

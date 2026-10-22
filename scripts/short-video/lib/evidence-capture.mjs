@@ -24,6 +24,16 @@ const isFiniteNumber = (value) => typeof value === "number" && Number.isFinite(v
 /** Playwright's `page.goto` waitUntil values. */
 const WAIT_UNTIL_VALUES = new Set(["load", "domcontentloaded", "networkidle", "commit"]);
 
+const RECIPE_FIELDS = new Set([
+  "url",
+  "selector",
+  "padding",
+  "deviceScaleFactor",
+  "viewport",
+  "waitUntil",
+  "timeoutMs",
+]);
+
 const DEFAULT_VIEWPORT = Object.freeze({ width: 1280, height: 900 });
 
 /**
@@ -59,6 +69,13 @@ export function normalizeCaptureRecipe(entry, sceneId) {
   const fail = (message) => {
     throw new Error(`${where}: ${message}`);
   };
+
+  const unknown = Object.keys(entry).filter((key) => !RECIPE_FIELDS.has(key));
+  if (unknown.length > 0) {
+    fail(
+      `unknown field(s): ${unknown.sort().join(", ")} — allowed: ${[...RECIPE_FIELDS].join(", ")}`,
+    );
+  }
 
   if (typeof entry.url !== "string" || entry.url.trim() === "") {
     fail(`url must be a non-empty string, got ${shown(entry.url)}`);
@@ -110,7 +127,10 @@ export function normalizeCaptureRecipe(entry, sceneId) {
   }
 
   return {
-    url: entry.url,
+    // Normalized href, not the raw string: `new URL("http://host").href` adds
+    // the root slash the browser will report as the final URL, and the redirect
+    // guard compares those two normalized forms.
+    url: url.href,
     selector: entry.selector,
     padding,
     deviceScaleFactor,

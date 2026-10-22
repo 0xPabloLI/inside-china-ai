@@ -86,7 +86,20 @@ const displayPath = (abs) => relative(process.cwd(), abs) || abs;
 export function parseViewport(text) {
   const match = /^(\d+)x(\d+)$/i.exec(text);
   if (!match) throw new Error(`--viewport must be <width>x<height> in px, got "${text}"`);
-  return { width: Number(match[1]), height: Number(match[2]) };
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (width <= 0 || height <= 0) {
+    throw new Error(`--viewport must have positive dimensions, got "${text}"`);
+  }
+  return { width, height };
+}
+
+/** Select one scene's recipe, or the whole manifest when no scene is given. */
+export function selectCaptures(manifest, scene) {
+  if (manifest === null || scene === undefined) return manifest;
+  return Object.fromEntries(
+    Object.entries(manifest).filter(([key]) => String(key) === String(scene)),
+  );
 }
 
 function parseNumber(name, text) {
@@ -181,15 +194,10 @@ async function capturePack({ contentDirAbs, content, scene, force }) {
     return 1;
   }
 
-  let selected = manifest;
-  if (scene !== undefined) {
-    selected = Object.fromEntries(
-      Object.entries(manifest).filter(([key]) => String(key) === String(scene)),
-    );
-    if (Object.keys(selected).length === 0) {
-      const available = Object.keys(manifest).join(", ") || "none";
-      throw new Error(`scene ${scene} has no capture recipe (manifest scenes: ${available})`);
-    }
+  const selected = selectCaptures(manifest, scene);
+  if (scene !== undefined && Object.keys(selected).length === 0) {
+    const available = Object.keys(manifest).join(", ") || "none";
+    throw new Error(`scene ${scene} has no capture recipe (manifest scenes: ${available})`);
   }
 
   const plan = planEvidenceCaptures({ scenes, contentDirAbs, manifest: selected, force });
@@ -316,13 +324,8 @@ async function main(argv) {
       console.log(`No evidence-captures.json in content/${values.content} — nothing to check.`);
       return 0;
     }
-    const selected =
-      manifest === null || values.scene === undefined
-        ? manifest
-        : Object.fromEntries(
-            Object.entries(manifest).filter(([key]) => String(key) === String(values.scene)),
-          );
-    if (manifest !== null && Object.keys(selected).length === 0) {
+    const selected = selectCaptures(manifest, values.scene);
+    if (manifest !== null && values.scene !== undefined && Object.keys(selected).length === 0) {
       throw new Error(`scene ${values.scene} has no capture recipe`);
     }
     const plan =

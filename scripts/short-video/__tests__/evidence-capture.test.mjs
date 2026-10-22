@@ -71,17 +71,18 @@ describe("normalizeCaptureRecipe", () => {
     expect(CAPTURE_DEFAULTS.viewport.width).toBe(1280);
   });
 
-  it("drops unknown keys instead of passing unvalidated values downstream", () => {
-    const normalized = normalizeCaptureRecipe(recipe({ output: "screenshots/x.png" }), 1);
-    expect(Object.keys(normalized)).toEqual([
-      "url",
-      "selector",
-      "padding",
-      "deviceScaleFactor",
-      "viewport",
-      "waitUntil",
-      "timeoutMs",
-    ]);
+  it("rejects unknown keys instead of silently dropping them", () => {
+    // A typo like `selectors` used to be dropped, then the required `selector`
+    // check blamed the operator for a field they never wrote.
+    expect(() => normalizeCaptureRecipe(recipe({ output: "screenshots/x.png" }), 1)).toThrow(
+      /unknown field\(s\): output/,
+    );
+  });
+
+  it("normalizes a root URL so the redirect guard compares hrefs", () => {
+    expect(
+      normalizeCaptureRecipe({ url: "https://example.com", selector: "table" }, 1).url,
+    ).toBe("https://example.com/");
   });
 
   it.each([

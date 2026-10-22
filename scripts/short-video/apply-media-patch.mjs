@@ -309,17 +309,23 @@ export function applyPatchesToText(fileContent, patches, options = { force: fals
         applied.push({ sceneId, action: "replaced", media });
         appliedSceneIds.add(sceneId);
       } else {
-        // Fallback: try single-line media
+        // Fallback: a scene written on one line. Find the opening brace and
+        // close by depth too — the old `\{[^}]*\}` stopped at the first nested
+        // brace, which a provenance block always has.
         const singleLineRegex = new RegExp(
-          `(\\{[^}]*?id:\\s*${sceneId}\\b[^}]*?)media:\\s*\\{[^}]*\\}`,
+          `(\\{[^}]*?id:\\s*${sceneId}\\b[^}]*?)media:\\s*\\{`,
           "s",
         );
         const slMatch = modifiedContent.match(singleLineRegex);
-        if (slMatch) {
-          modifiedContent = modifiedContent.replace(
-            singleLineRegex,
-            `$1${mediaBlock.replace(/\n/g, " ").replace(/,$/, "")}`,
-          );
+        const slOpen = slMatch ? slMatch.index + slMatch[0].length - 1 : -1;
+        const slClose = slOpen === -1 ? -1 : matchingBrace(modifiedContent, slOpen);
+        if (slMatch && slClose !== -1) {
+          const newBlock = mediaBlock.replace(/\n/g, " ").replace(/,$/, "");
+          modifiedContent =
+            modifiedContent.slice(0, slMatch.index) +
+            slMatch[1] +
+            newBlock +
+            modifiedContent.slice(slClose + 1);
           applied.push({ sceneId, action: "replaced", media });
           appliedSceneIds.add(sceneId);
         } else {

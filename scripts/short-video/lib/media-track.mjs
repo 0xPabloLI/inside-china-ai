@@ -59,9 +59,10 @@ export async function runMediaTrack({ scenes, contentDir, baseDir, broll, deps =
         `⚠️  Step 1.5a: scene ${scene.id}: no capture recipe — add it to evidence-captures.json or declare composed:true`,
       );
     }
-    if (result.captured.length > 0) {
-      const ids = result.captured.map((entry) => entry.sceneId).join(", ");
-      console.log(`📸 Step 1.5a: Captured ${result.captured.length} evidence scene(s): ${ids}\n`);
+    const captured = result.captured ?? [];
+    if (captured.length > 0) {
+      const ids = captured.map((entry) => entry.sceneId).join(", ");
+      console.log(`📸 Step 1.5a: Captured ${captured.length} evidence scene(s): ${ids}\n`);
     }
   } catch (e) {
     console.warn(`⚠️  Evidence capture skipped: ${e.message}\n`);
