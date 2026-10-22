@@ -32,7 +32,6 @@ const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/text-gate-render.test.mjs", // npx remotion still
   "scripts/short-video/__tests__/tiktok-video-details.test.mjs", // external fetch
   "scripts/short-video/__tests__/tts-kaggle-batch.test.mjs", // local model assets
-  "scripts/short-video/__tests__/verify-retry-loop.test.mjs", // local pipeline services
 ];
 
 export default defineConfig({

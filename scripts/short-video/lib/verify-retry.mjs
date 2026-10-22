@@ -42,8 +42,10 @@ const NON_RETRYABLE = new Map([
 /**
  * Can the retry loop do anything about this failure category?
  *
- * Exposed so the caller (and its tests) can ask the same question the loop
- * asks, instead of inferring it from log text.
+ * The loop asks this itself; it is exported so tests and the real-data smoke
+ * script can assert the classification directly instead of inferring it from
+ * log text. The caller (main.mjs) fails closed on the returned report and does
+ * not branch on it.
  *
  * @param {string} category - from classifyFailure()
  * @returns {boolean}
