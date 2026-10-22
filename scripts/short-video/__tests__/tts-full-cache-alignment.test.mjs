@@ -138,6 +138,37 @@ describe("full cache hit runs the alignment tail (#421)", () => {
     expect(runForcedAlignment).not.toHaveBeenCalled();
   });
 
+  // #827: the alignment tail's verified tail cut re-runs the TTS gate, so the
+  // declared entity dictionary has to travel with it — the read-back would
+  // otherwise refuse the cut on a declared lowercase brand heard as a near-miss.
+  it("carries the declared entity dictionary into the alignment tail", async () => {
+    const engine = makeEngine();
+    const scenes = [
+      { id: 1, voiceover: "Scene one carries a full sentence of narration for the take." },
+    ];
+    approveTake(dir, scenes[0]);
+
+    await generateTTSWithEngine(scenes, dir, engine, {
+      useCache: true,
+      qualityGateOptions: { keyEntities: { companies: ["moonshot"] } },
+    });
+
+    const options = runForcedAlignment.mock.calls[0][3];
+    expect(options).toMatchObject({ keyEntities: { companies: ["moonshot"] } });
+  });
+
+  it("passes a null dictionary when the caller declared none", async () => {
+    const engine = makeEngine();
+    const scenes = [
+      { id: 1, voiceover: "Scene one carries a full sentence of narration for the take." },
+    ];
+    approveTake(dir, scenes[0]);
+
+    await generateTTSWithEngine(scenes, dir, engine, { useCache: true });
+
+    expect(runForcedAlignment.mock.calls[0][3]).toMatchObject({ keyEntities: null });
+  });
+
   it("reassembles partial hits in scene order regardless of engine return order", async () => {
     passAll();
     const engine = makeEngine();

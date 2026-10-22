@@ -414,7 +414,9 @@ export function selectLocalFallbackTargets({
  * @param {Array} cachedResults - approved hits from planTtsScenes
  * @param {Array} verifiedResults - fresh/candidate takes this run verified
  * @param {string} outputDir - Audio output directory
- * @param {{runAlignment: boolean, useCache: boolean}} options
+ * @param {{runAlignment: boolean, useCache: boolean, keyEntities: object|null}} options
+ *   `keyEntities` is the gate's declared-entity dictionary; the alignment tail
+ *   hands it to the guards' verified tail cut, which re-runs the gate (#827)
  * @returns {Promise<TTSResult[]>} results in scene order
  */
 async function finalizeTtsResults(
@@ -422,7 +424,7 @@ async function finalizeTtsResults(
   cachedResults,
   verifiedResults,
   outputDir,
-  { runAlignment, useCache },
+  { runAlignment, useCache, keyEntities = null },
 ) {
   // Reassemble in scene order; drop scenes the engine skipped.
   const byId = new Map(verifiedResults.map((r) => [r.sceneId, r]));
@@ -435,7 +437,7 @@ async function finalizeTtsResults(
 
   // Run subtitle alignment for accurate timing
   if (runAlignment) {
-    const alignment = await runForcedAlignment(scenes, merged, outputDir);
+    const alignment = await runForcedAlignment(scenes, merged, outputDir, { keyEntities });
     // #423: the tail-cut guard trims approved audio in place — re-bind those
     // entries to the bytes actually on disk, or every later run would demote
     // the scene to a candidate over the pipeline's own cut. Unverified takes
@@ -622,7 +624,11 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     // through the shared finalize so the alignment tail still runs. Returning
     // `cachedResults` here is how the second run of a pipeline silently lost
     // its subtitles.
-    return finalizeTtsResults(scenes, cachedResults, [], outputDir, { runAlignment, useCache });
+    return finalizeTtsResults(scenes, cachedResults, [], outputDir, {
+      runAlignment,
+      useCache,
+      keyEntities: qualityGateOptions.keyEntities,
+    });
   }
 
   // The primary round writes DIRECTLY into the audio dir, unlike the regen
@@ -1439,5 +1445,6 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   return finalizeTtsResults(scenes, cachedResults, validatedResults, outputDir, {
     runAlignment,
     useCache,
+    keyEntities: qualityGateOptions.keyEntities,
   });
 }

@@ -192,7 +192,10 @@ export async function trimSceneTail(audioPath, cutSec) {
  * @param {Object} scene - scene-data entry (the reference text lives here)
  * @param {string} audioPath - the already-trimmed take
  * @param {number} durationSec - its measured duration
- * @param {{evaluateScene?: Function}} [options] - evaluateScene injectable for tests
+ * @param {{evaluateScene?: Function, keyEntities?: object|null}} [options] -
+ *   `evaluateScene` is the test injection seam; EVERY other key is forwarded to
+ *   the gate as its own options (#827: `keyEntities` is the one that changes a
+ *   verdict, so dropping it here silently refused cuts on declared names).
  * @returns {Promise<{ok: boolean, reason?: string}>}
  */
 export async function verifyTrimmedTake(scene, audioPath, durationSec, options = {}) {
@@ -200,10 +203,13 @@ export async function verifyTrimmedTake(scene, audioPath, durationSec, options =
   // original justification (alignment said the audio was excess) stands.
   if (!scene) return { ok: true };
 
-  const evaluate = options.evaluateScene ?? evaluateSceneTts;
+  // The read-back IS a gate call, so it runs with the same options the gate
+  // got elsewhere — minus the seam itself, which must not travel as data.
+  const { evaluateScene, ...gateOptions } = options;
+  const evaluate = evaluateScene ?? evaluateSceneTts;
   let report;
   try {
-    report = await evaluate(scene, audioPath, durationSec);
+    report = await evaluate(scene, audioPath, durationSec, gateOptions);
   } catch (e) {
     return { ok: false, reason: `verification unavailable (${String(e?.message).slice(0, 60)})` };
   }
@@ -235,7 +241,8 @@ export async function verifyTrimmedTake(scene, audioPath, durationSec, options =
  * @param {Array|{scenes: Array}} timingData - RAW (pre-restore) alignment data
  * @param {Array} [scenes] - scene-data entries; supplies the reference text the
  *   trimmed take is read back against. Omit to skip cut verification.
- * @param {{evaluateScene?: Function}} [options] - evaluateScene injectable for tests
+ * @param {{evaluateScene?: Function, keyEntities?: object|null}} [options] -
+ *   forwarded to verifyTrimmedTake, and through it to the gate (#827)
  * @returns {Promise<{cuts: Array<{sceneId: number, from: number, to: number}>, crushedWords: Array<{sceneId: number, word: string, duration: number, minDuration: number}>, skippedCuts: Array<{sceneId: number, reason: string}>, refusedCuts: Array<{sceneId: number, reason: string}>}>}
  */
 export async function runAlignmentGuards(ttsResults, timingData, scenes, options = {}) {
