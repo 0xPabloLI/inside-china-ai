@@ -29,9 +29,11 @@ import * as reviewLib from "../lib/review-media-patch.mjs";
 import {
   applyPatchesToText,
   validatePatchEntry as validateCliPatchEntry,
+  detectConflict,
   listSceneIds,
   normalizePatchInput,
 } from "../apply-media-patch.mjs";
+import { MEDIA_FIELD_KEYS } from "../lib/media-field-schema.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1325,9 +1327,71 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
       expect(result.modifiedContent).toContain("evidence: true,");
       expect(result.modifiedContent).toContain('sourceUrl: "https://example.com/benchmark",');
     });
+
+    it("rejects evidence: true without a valid provenance", () => {
+      const result = applyPatchesToText(evidenceScene, [
+        {
+          sceneId: 9,
+          action: "replace",
+          media: { type: "image", path: "assets/new.png", evidence: true },
+        },
+      ]);
+
+      expect(result.applied).toEqual([]);
+      expect(result.modifiedContent).toBe(evidenceScene);
+      expect(result.errors[0]).toContain("valid provenance is required");
+    });
+
+    it("rejects the ambiguous evidence: null instead of dropping the declaration", () => {
+      const result = applyPatchesToText(evidenceScene, [
+        {
+          sceneId: 9,
+          action: "replace",
+          media: { type: "image", path: "assets/new.png", evidence: null },
+        },
+      ]);
+
+      expect(result.applied).toEqual([]);
+      expect(result.modifiedContent).toBe(evidenceScene);
+      expect(result.errors[0]).toContain("media.evidence: false");
+    });
+
+    it("treats the same file with an explicit evidence change as a conflict", () => {
+      const existing = { type: "image", path: "assets/a.png", evidence: true };
+      expect(detectConflict({ type: "image", path: "assets/a.png" }, existing)).toBe(
+        "already-applied",
+      );
+      expect(
+        detectConflict({ type: "image", path: "assets/a.png", evidence: false }, existing),
+      ).toBe("conflict");
+    });
+
+    it("still detects evidence: true when a comment trails the literal", () => {
+      const commented = sceneFile(
+        [
+          "  {",
+          "    id: 10,",
+          "    media: {",
+          '      type: "image",',
+          '      path: "assets/capture.png",',
+          "      evidence: true /* captured from the vendor page */,",
+          `      provenance: ${JSON.stringify(provenance)},`,
+          "    },",
+          '    voiceover: "x",',
+          "  },",
+        ].join("\n"),
+      );
+
+      const result = applyPatchesToText(commented, [
+        { sceneId: 10, action: "replace", media: { type: "image", path: "assets/new.png" } },
+      ]);
+
+      expect(result.applied).toEqual([]);
+      expect(result.errors[0]).toContain("Evidence Media");
+    });
   });
 
-  it("writes every declared MediaField key, including the five the old writer dropped", () => {
+  it("writes every key MEDIA_FIELD_KEYS declares", () => {
     const text = sceneFile(["  {", "    id: 11,", '    voiceover: "x",', "  },"].join("\n"));
     const media = {
       type: "video",
@@ -1343,24 +1407,30 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
       videoStartOffsetMs: 1500,
       cropFocus: { x: 0.3, y: 0.5 },
       evidence: false,
+      provenance: {
+        sourceUrl: "https://example.com/benchmark",
+        selector: "table",
+        rect: { x: 1, y: 2, w: 3, h: 4 },
+        clip: { x: 0, y: 0, w: 9, h: 9 },
+        scale: 2,
+      },
       contentKind: "diagram",
       subjects: ["Alpha", "Beta"],
       backdrop: { type: "image", path: "assets/bg.png", volume: 0.05, upscale: true },
     };
 
-    const result = applyPatchesToText(text, [{ sceneId: 11, action: "add", media }]);
+    // Every key the schema accepts must be declared in the fixture: a new key
+    // added to MEDIA_FIELD_KEYS without a sample here fails this guard, so the
+    // writer cannot drift behind the schema a third time (#649/#836/#846).
+    expect(Object.keys(media).sort()).toEqual([...MEDIA_FIELD_KEYS].sort());
+
+    const result = applyPatchesToText(text, [{ sceneId: 11, media }]);
 
     expect(result.errors).toEqual([]);
-    for (const fragment of [
-      'mode: "replace",',
-      "upscale: true,",
-      'contentKind: "diagram",',
-      'subjects: ["Alpha","Beta"],',
-      'backdrop: { type: "image", path: "assets/bg.png", volume: 0.05, upscale: true },',
-      'focus: "left",',
-    ]) {
-      expect(result.modifiedContent).toContain(fragment);
+    for (const key of MEDIA_FIELD_KEYS) {
+      expect(result.modifiedContent).toMatch(new RegExp(`\\b${key}:`));
     }
+    expect(result.modifiedContent).toContain('subjects: ["Alpha","Beta"],');
   });
 
   it("escapes patch values so scene-data stays importable", async () => {
@@ -1416,7 +1486,7 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
 
   it("locates every scene in the real corpus, including scenes after nested objects", () => {
     const contentRoot = join(__dirname, "..", "content");
-    let packsWithScenes = 0;
+    let packs = 0;
     let scenesChecked = 0;
     const failures = [];
 
@@ -1425,8 +1495,13 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
       if (!existsSync(file)) continue;
       const source = readFileSync(file, "utf8");
       const ids = listSceneIds(source);
-      if (ids.length === 0) continue;
-      packsWithScenes++;
+      // A pack that declares scenes but locates none is the exact failure this
+      // test exists to catch, so it cannot be skipped as "no scenes here".
+      if (ids.length === 0) {
+        failures.push({ pack: packName, sceneId: null, errors: ["locator found no scene ids"] });
+        continue;
+      }
+      packs++;
 
       for (const sceneId of ids) {
         scenesChecked++;
@@ -1459,8 +1534,11 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
       }
     }
 
-    expect(packsWithScenes).toBeGreaterThan(10);
-    expect(scenesChecked).toBeGreaterThan(100);
+    // No content-count thresholds: the corpus grows and packages get archived,
+    // so a fixed floor fails for reasons unrelated to the locator. Non-empty
+    // output is asserted per pack above instead.
+    expect(packs).toBeGreaterThan(0);
+    expect(scenesChecked).toBeGreaterThanOrEqual(packs);
     expect(failures).toEqual([]);
   });
 });

@@ -198,9 +198,17 @@ function booleanField(name, value) {
   return String(value);
 }
 
+const BACKDROP_FIELDS = new Set(["type", "path", "source", "animation", "volume", "upscale"]);
+
 function formatBackdrop(backdrop) {
   if (!isPlainObject(backdrop)) {
     throw new Error(`media.backdrop must be an object, got ${shown(backdrop)}`);
+  }
+  // Same rule as the top-level media body: an unknown key would be dropped, so
+  // refuse it rather than write a declaration with no effect.
+  const unknown = Object.keys(backdrop).filter((key) => !BACKDROP_FIELDS.has(key));
+  if (unknown.length > 0) {
+    throw new Error(`media.backdrop has unknown field(s): ${unknown.sort().join(", ")}`);
   }
   const parts = [];
   if (backdrop.type !== undefined)

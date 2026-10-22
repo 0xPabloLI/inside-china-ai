@@ -56,6 +56,15 @@ export function isPathContained(mediaPath, contentDir) {
 export function detectConflict(patchMedia, existingMedia) {
   if (!existingMedia) return "none";
   if (patchMedia.type === existingMedia.type && patchMedia.path === existingMedia.path) {
+    // Same file, different evidence decision is not "already applied": the
+    // de-designation (`evidence: false`) must still reach the text (#846).
+    if (
+      patchMedia.evidence !== undefined &&
+      patchMedia.evidence !== null &&
+      patchMedia.evidence !== existingMedia.evidence
+    ) {
+      return "conflict";
+    }
     return "already-applied";
   }
   return "conflict";
@@ -250,6 +259,35 @@ function lineStartOf(text, index) {
   return text.lastIndexOf("\n", index - 1) + 1;
 }
 
+/**
+ * Where a property begins: its line start and its indent when it opens the
+ * line, or `null` indent when it shares the line with other code.
+ *
+ * @returns {{ lineStart: number, indent: string|null }}
+ */
+function propertyLineAt(text, propertyStart) {
+  const lineStart = lineStartOf(text, propertyStart);
+  const prefix = text.slice(lineStart, propertyStart);
+  return { lineStart, indent: /^[ \t]*$/.test(prefix) ? prefix : null };
+}
+
+function propertyValueIsMultiline(text, valueStart, valueEnd) {
+  return text.slice(valueStart, valueEnd + 1).includes("\n");
+}
+
+/** Insert `block` (a `media: {...},` declaration) immediately before `property`. */
+function insertBeforeProperty(text, property, block, placement) {
+  if (placement.indent !== null) {
+    return (
+      text.slice(0, placement.lineStart) +
+      `${placement.indent}${block}\n` +
+      text.slice(placement.lineStart)
+    );
+  }
+  const flat = block.replace(/\n\s*/g, " ");
+  return text.slice(0, property.propertyStart) + `${flat} ` + text.slice(property.propertyStart);
+}
+
 function readLiteral(text, start) {
   const char = text[start];
   if (char === '"' || char === "'" || char === "`") {
@@ -370,23 +408,38 @@ function findSceneRange(text, sceneId) {
   return null;
 }
 
-/** True when the media object at [openIndex, closeIndex] declares `evidence: true`. */
+/**
+ * True when the media object at [openIndex, closeIndex] declares `evidence: true`.
+ *
+ * Fail closed: a trailing comment (`evidence: true // captured`) or
+ * `Boolean(true)` still counts, because missing the marker here is what lets a
+ * `--force` overwrite erase the declaration (#846).
+ */
 function hasEvidenceTrue(text, openIndex, closeIndex) {
   const property = findTopLevelProperty(text, openIndex, closeIndex, "evidence");
   if (!property) return false;
   const end = valueEndOf(text, property.valueStart);
-  return end !== -1 && text.slice(property.valueStart, end + 1).trim() === "true";
+  if (end === -1) return false;
+  const literal = text
+    .slice(property.valueStart, end + 1)
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/[^\n]*/g, " ")
+    .trim();
+  return /^true\b/.test(literal) || /^Boolean\(\s*true\s*\)$/.test(literal);
 }
 
 /**
  * Apply patches to scene-data.mjs text (pure text transformation, no disk write).
  *
+ * The entry's declared `action` is advisory: whether a scene is added or
+ * replaced is re-derived from the file, so `media: null` is replaced rather
+ * than duplicated (#846).
+ *
  * @param {string} fileContent - Original scene-data.mjs text
- * @param {Array} patches - Array of { sceneId, media, action: "add"|"replace" }
- * @param {{ force: boolean }} options
+ * @param {Array} patches - Array of { sceneId, media }
  * @returns {{ modifiedContent: string, applied: Array, skipped: Array, errors: Array }}
  */
-export function applyPatchesToText(fileContent, patches, options = { force: false }) {
+export function applyPatchesToText(fileContent, patches) {
   let modifiedContent = fileContent;
   const applied = [];
   const skipped = [];
@@ -430,16 +483,14 @@ export function applyPatchesToText(fileContent, patches, options = { force: fals
       // silently erased `evidence: true` and its capture geometry. An Evidence
       // Media may only be overwritten with an explicit decision: `evidence:
       // false` to de-designate it, or `evidence: true` plus valid provenance to
-      // keep the declaration. Anything else is an error, not a success.
+      // keep the declaration. Anything else — including the ambiguous null — is
+      // an error, not a success.
       if (
         modifiedContent[mediaProperty.valueStart] === "{" &&
         hasEvidenceTrue(modifiedContent, mediaProperty.valueStart, valueEnd)
       ) {
         const declared = media?.evidence;
-        if (
-          declared === undefined ||
-          (declared !== true && declared !== false && declared !== null)
-        ) {
+        if (declared !== true && declared !== false) {
           errors.push(
             `Scene ${sceneId} media is an Evidence Media (evidence: true); pass media.evidence: false to de-designate it, or evidence: true with a valid provenance to keep the declaration.`,
           );
@@ -456,12 +507,21 @@ export function applyPatchesToText(fileContent, patches, options = { force: fals
         }
       }
 
-      const lineStart = lineStartOf(modifiedContent, mediaProperty.propertyStart);
-      const linePrefix = modifiedContent.slice(lineStart, mediaProperty.propertyStart);
-      const indent = /^[ \t]*$/.test(linePrefix) ? linePrefix : "";
-      const oldValue = modifiedContent.slice(mediaProperty.valueStart, valueEnd + 1);
-      let replacement = `media: ${formatMediaObject(media, indent, { includeDeprecatedFocus: true })},`;
-      if (!oldValue.includes("\n")) replacement = replacement.replace(/\n\s*/g, " ");
+      // Keep the file's own formatting: a property that starts its own line is
+      // rewritten as a multi-line block at that indent, a property written
+      // inline stays on one line. The formatter can throw (bad cropFocus,
+      // unknown backdrop key), which must become an error, not a crash.
+      const placement = propertyLineAt(modifiedContent, mediaProperty.propertyStart);
+      let replacement;
+      try {
+        replacement = `media: ${formatMediaObject(media, placement.indent, { includeDeprecatedFocus: true })},`;
+      } catch (error) {
+        errors.push(`Scene ${sceneId} media patch is not writable: ${error.message}`);
+        continue;
+      }
+      if (!propertyValueIsMultiline(modifiedContent, mediaProperty.valueStart, valueEnd)) {
+        replacement = replacement.replace(/\n\s*/g, " ");
+      }
       let end = valueEnd + 1;
       if (modifiedContent[end] === ",") end++;
       modifiedContent =
@@ -485,20 +545,13 @@ export function applyPatchesToText(fileContent, patches, options = { force: fals
       continue;
     }
 
-    const lineStart = lineStartOf(modifiedContent, voiceoverProperty.propertyStart);
-    const linePrefix = modifiedContent.slice(lineStart, voiceoverProperty.propertyStart);
-    const block = `media: ${formatMediaObject(media, /^[ \t]*$/.test(linePrefix) ? linePrefix : "", { includeDeprecatedFocus: true })},`;
-    if (/^[ \t]*$/.test(linePrefix)) {
-      modifiedContent =
-        modifiedContent.slice(0, lineStart) +
-        `${linePrefix}${block}\n` +
-        modifiedContent.slice(lineStart);
-    } else {
-      const flat = block.replace(/\n\s*/g, " ");
-      modifiedContent =
-        modifiedContent.slice(0, voiceoverProperty.propertyStart) +
-        `${flat} ` +
-        modifiedContent.slice(voiceoverProperty.propertyStart);
+    const placement = propertyLineAt(modifiedContent, voiceoverProperty.propertyStart);
+    try {
+      const block = `media: ${formatMediaObject(media, placement.indent, { includeDeprecatedFocus: true })},`;
+      modifiedContent = insertBeforeProperty(modifiedContent, voiceoverProperty, block, placement);
+    } catch (error) {
+      errors.push(`Scene ${sceneId} media patch is not writable: ${error.message}`);
+      continue;
     }
     applied.push({ sceneId, action: "added", media });
     appliedSceneIds.add(sceneId);
@@ -536,19 +589,27 @@ export function generateReceipt(applied, skipped, meta) {
 /**
  * Format dry-run output as human-readable text.
  *
- * @param {Array} applied - Array of applied entries
- * @param {Array} skipped - Array of skipped entries
+ * @param {Array} applied - Entries `applyPatchesToText` reports as added/replaced
+ * @param {Array} skipped - Entries it reports as skipped
  * @returns {string} Formatted output
  */
 export function formatDryRun(applied, skipped) {
   const lines = [];
 
   for (const entry of applied) {
-    const mediaStr = entry.media
-      ? `{ type: "${entry.media.type}", path: "${entry.media.path}", animation: "${entry.media.animation || "fade"}", overlay: ${entry.media.overlay || 0.7} }`
-      : "{}";
+    // The same formatter as the real write, so the preview cannot advertise
+    // fields the write would drop (or invent animation/overlay defaults).
+    let mediaStr = "{}";
+    try {
+      mediaStr = formatMediaObject(entry.media, "", { includeDeprecatedFocus: true }).replace(
+        /\n\s*/g,
+        " ",
+      );
+    } catch {
+      // Validation already rejected unwritable patches before this point.
+    }
     lines.push(`Scene ${entry.sceneId} (${entry.sceneName || "unknown"}):`);
-    lines.push(`  + media: ${mediaStr}`);
+    lines.push(`  ${entry.action === "added" ? "+" : "~"} media: ${mediaStr}`);
     lines.push("");
   }
 
@@ -564,12 +625,8 @@ export function formatDryRun(applied, skipped) {
     lines.push("");
   }
 
-  // toApply entries carry "add"/"replace"; applyPatchesToText results carry
-  // "added"/"replaced". The dry-run summary reads toApply, so match both.
-  const addCount = applied.filter((a) => a.action === "added" || a.action === "add").length;
-  const replaceCount = applied.filter(
-    (a) => a.action === "replaced" || a.action === "replace",
-  ).length;
+  const addCount = applied.filter((a) => a.action === "added").length;
+  const replaceCount = applied.filter((a) => a.action === "replaced").length;
   const conflictCount = skipped.filter((s) => s.reason === "conflict").length;
   const alreadyCount = skipped.filter((s) => s.reason === "already-applied").length;
   const otherSkipCount = skipped.length - conflictCount - alreadyCount;
@@ -759,19 +816,19 @@ export async function main(args = process.argv.slice(2)) {
     // #846: run the same transformation so a patch the real run would reject
     // (Evidence Media overwrite, unlocatable scene) fails here too, instead of
     // printing a reassuring "+ media" line and then exiting 1 on the real run.
-    const preview = applyPatchesToText(readFileSync(sceneDataPath, "utf8"), toApply, { force });
+    const preview = applyPatchesToText(readFileSync(sceneDataPath, "utf8"), toApply);
     if (preview.errors.length > 0) {
       console.error("❌ Errors during text transformation:");
       for (const err of preview.errors) console.error(`   • ${err}`);
       process.exit(1);
     }
-    console.log(formatDryRun(toApply, [...skipped, ...preview.skipped]));
+    console.log(formatDryRun(preview.applied, [...skipped, ...preview.skipped]));
     process.exit(0);
   }
 
   // ── Apply patches to text ──
   const originalContent = readFileSync(sceneDataPath, "utf8");
-  const applyResult = applyPatchesToText(originalContent, toApply, { force });
+  const applyResult = applyPatchesToText(originalContent, toApply);
 
   if (applyResult.errors.length > 0) {
     console.error("❌ Errors during text transformation:");
