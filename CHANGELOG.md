@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.7...tanstack_start_ts-v1.26.0) (2026-10-22)
+
+
+### Features
+
+* **short-video:** validate the media field schema at preflight ([#836](https://github.com/0xPabloLI/inside-china-ai/issues/836)) ([#847](https://github.com/0xPabloLI/inside-china-ai/issues/847)) ([bd79301](https://github.com/0xPabloLI/inside-china-ai/commit/bd79301e96a960e1d72d08f8dfc31e7f6e4065a9))
+
 ## [1.25.7](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.6...tanstack_start_ts-v1.25.7) (2026-10-21)
 
 
