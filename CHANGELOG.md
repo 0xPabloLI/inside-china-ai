@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.1...tanstack_start_ts-v1.28.2) (2026-10-22)
+
+
+### Bug Fixes
+
+* **tts:** thread keyEntities into the alignment-guards trim read-back ([#827](https://github.com/0xPabloLI/inside-china-ai/issues/827)) ([#863](https://github.com/0xPabloLI/inside-china-ai/issues/863)) ([d2378bd](https://github.com/0xPabloLI/inside-china-ai/commit/d2378bd9174a4991d15738bb2cc421a6145640a5))
+
 ## [1.28.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.0...tanstack_start_ts-v1.28.1) (2026-10-22)
 
 
