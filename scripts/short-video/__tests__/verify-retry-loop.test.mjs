@@ -140,8 +140,36 @@ describe("verifyWithRetry — repair crash handling", () => {
 
     expect(result.report.summary.passed).toBe(false);
     expect(mockRepair).toHaveBeenCalledTimes(1);
-    // A crashed repair left the files as they were — re-reading them can only
-    // reproduce the same report, so the loop must not spend the budget (#818).
+    // A repair that threw before writing left the files as they were —
+    // re-reading them can only reproduce the same report, so the loop must not
+    // spend the budget (#818).
+    expect(mockVerify).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops even when a failed repair already rewrote a file", async () => {
+    // main.mjs's repairs rewrite the .ass and only then re-burn the video, so a
+    // failed burn leaves a new .ass beside the old video. Re-verifying would
+    // judge that half-applied state, and a "pass" would describe an artifact
+    // the repair never produced — the shipped video still carries the old
+    // subtitles. Stopping keeps the pre-repair report, and the caller fails
+    // closed on it (#818).
+    const mockVerify = vi.fn().mockReturnValue(makeReport(false, 2, 0));
+    const mockRepair = vi.fn().mockImplementation((_category, _report, state) => {
+      // "wrote" the corrected .ass, then the burn failed
+      state.assPath = "/tmp/subs.ass";
+      return { success: false };
+    });
+
+    const result = await verifyWithRetry({
+      verifyFn: mockVerify,
+      repairFn: mockRepair,
+      maxRetries: 2,
+      videoPath: "/tmp/video.mp4",
+      assPath: "/tmp/subs.ass",
+    });
+
+    expect(result.report.summary.passed).toBe(false);
+    expect(result.report.summary.errors).toBe(2);
     expect(mockVerify).toHaveBeenCalledTimes(1);
   });
 });

@@ -172,7 +172,7 @@ export function relaxGapParams(attempt) {
  * maxRetries, return the final report (caller decides exit).
  *
  * The loop stops early — without spending the rest of the budget — in two
- * cases, because a retry could only reproduce the same report (#818):
+ * cases, because a retry could only produce a misleading verdict (#818):
  * the category is non-retryable (see NON_RETRYABLE), or the repair did not run
  * (returned `success: false`, or crashed) so nothing on disk changed.
  *
@@ -224,10 +224,15 @@ export async function verifyWithRetry({
     }
 
     if (!repairResult?.success) {
-      // The repair reported failure or crashed, so the artifacts on disk are
-      // what they were — re-verifying them would reproduce this same report
-      // and burn the remaining budget on nothing (#818).
-      console.log(`  ⏹️  Repair did not run (attempt ${attempt}) — nothing changed, stopping`);
+      // A repair that reports failure has either written nothing (it threw
+      // before touching disk) or stopped half-way — main.mjs's repairs rewrite
+      // the .ass and only then re-burn the video, so a failed burn leaves a
+      // new .ass beside the old video. Re-verifying is wrong in both cases: in
+      // the first it can only reproduce this report, and in the second a
+      // "pass" would describe an artifact the repair never produced (the
+      // shipped video still carries the old subtitles). Stop and let the
+      // caller fail closed on the pre-repair report (#818).
+      console.log(`  ⏹️  Repair did not run (attempt ${attempt}) — stopping, not re-verifying`);
       break;
     }
 
