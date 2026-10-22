@@ -256,13 +256,50 @@ export function shouldAttemptLocalFallback({ engineName, err, env = process.env 
 }
 
 /**
+ * The LATEST verdict per scene, in one place (#704 + #820).
+ *
+ * `gateReport` is only refreshed by the re-gate at the top of the self-heal
+ * loop, so a compensation/reroll accepted later in the pacing loop is recorded
+ * in `verdictByScene` alone. Takes that never enter the gate at all (approved
+ * cache hits, measured for the pacing ladder, #786) live only in
+ * `extraEvaluations`. Loading them in that order — extras, report, recorded
+ * verdicts — makes the last writer the newest truth, and both consumers judge a
+ * scene by the take that is actually on disk:
+ *   - `selectLocalFallbackTargets` (which scenes F5 must regenerate),
+ *   - the pacing ladder itself (#820), which runs twice on the fallback path
+ *     and must not re-plan a scene against its replaced take.
+ *
+ * @param {object} params
+ * @param {object|null} [params.gateReport] - latest Quality-Gate report
+ * @param {Map<number, {evaluation?: object}>} [params.verdictByScene]
+ * @param {Array<{sceneId: number}>} [params.extraEvaluations]
+ * @returns {Array<object>} one evaluation per scene, newest verdict winning
+ */
+function latestEvaluationsByScene({ gateReport, verdictByScene, extraEvaluations = [] }) {
+  const latestByScene = new Map();
+  for (const evaluation of extraEvaluations) {
+    if (evaluation && evaluation.sceneId != null) {
+      latestByScene.set(evaluation.sceneId, evaluation);
+    }
+  }
+  for (const evaluation of gateReport?.evaluations ?? []) {
+    if (evaluation && evaluation.sceneId != null) {
+      latestByScene.set(evaluation.sceneId, evaluation);
+    }
+  }
+  for (const [sceneId, verdict] of verdictByScene ?? []) {
+    // The map key is the scene identity; stamp it on so downstream ID
+    // collection cannot depend on the verdict object carrying its own copy.
+    if (verdict?.evaluation) latestByScene.set(sceneId, { ...verdict.evaluation, sceneId });
+  }
+  return [...latestByScene.values()];
+}
+
+/**
  * #704: choose the scenes the local F5-MLX fallback has to regenerate.
  *
- * The decision set is each scene's LATEST verdict, not the raw gate report: the
- * report's evaluations are loaded first, then overwritten (keyed by sceneId)
- * by `verdictByScene`. `gateReport` is only refreshed by the re-gate at the top
- * of the self-heal loop, so a compensation/reroll accepted later in the pacing
- * loop is recorded in `verdictByScene` alone. The overlay fixes both
+ * The decision set is each scene's LATEST verdict, not the raw gate report —
+ * see `latestEvaluationsByScene`. The overlay fixes both
  * directions: a repaired scene is not sent to F5 (a wasted minute per scene,
  * and an F5 rejection would turn a run whose audio is already repaired into a
  * fail-closed false negative), and a stale high-WPM failure does not veto a
@@ -312,26 +349,7 @@ export function selectLocalFallbackTargets({
   extraEvaluations = [],
   hardCeiling = WPM_HARD_CEILING,
 } = {}) {
-  // Latest verdict per scene: takes outside the gate first, then the report,
-  // then the newer recorded verdicts (accepted compensation/reroll takes)
-  // overwrite it.
-  const latestByScene = new Map();
-  for (const evaluation of extraEvaluations) {
-    if (evaluation && evaluation.sceneId != null) {
-      latestByScene.set(evaluation.sceneId, evaluation);
-    }
-  }
-  for (const evaluation of gateReport?.evaluations ?? []) {
-    if (evaluation && evaluation.sceneId != null) {
-      latestByScene.set(evaluation.sceneId, evaluation);
-    }
-  }
-  for (const [sceneId, verdict] of verdictByScene ?? []) {
-    // The map key is the scene identity; stamp it on so downstream ID
-    // collection cannot depend on the verdict object carrying its own copy.
-    if (verdict?.evaluation) latestByScene.set(sceneId, { ...verdict.evaluation, sceneId });
-  }
-  const evaluations = [...latestByScene.values()];
+  const evaluations = latestEvaluationsByScene({ gateReport, verdictByScene, extraEvaluations });
   // No failing latest verdict means no evidence a take-level repair is safe —
   // fail closed.
   const failedEvaluations = evaluations.filter((e) => !e.passed);
@@ -339,8 +357,8 @@ export function selectLocalFallbackTargets({
 
   // All-or-nothing over the shipped set: a fallback must never become the way a
   // rushed take reaches rendering, whether that take failed the gate or passed
-  // it. The ladder that would catch it on the main path does not run after the
-  // acoustic fallback (#246/#704).
+  // it. The re-run ladder (#820) also catches a rushed take, but only after the
+  // F5 round is paid for — the veto belongs BEFORE the promotion (#246/#704).
   if (evaluations.some((e) => Number.isFinite(e.wpm) && e.wpm > hardCeiling)) {
     return { ok: false, sceneIds: [] };
   }
@@ -358,7 +376,10 @@ export function selectLocalFallbackTargets({
   // partial repair would leave that take in the shipped set.
   if (failedEvaluations.some((e) => !locallyRepairable(e))) return { ok: false, sceneIds: [] };
 
-  const latestVerdictPassed = (sceneId) => latestByScene.get(sceneId)?.passed === true;
+  // A scene the block error names may have been repaired since — the latest
+  // verdict, not the error, decides whether it still needs regeneration.
+  const latestById = new Map(evaluations.map((e) => [e.sceneId, e]));
+  const latestVerdictPassed = (sceneId) => latestById.get(sceneId)?.passed === true;
 
   const sceneIds = [
     ...new Set(
@@ -703,6 +724,304 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   // fallback sees every scene the gate currently rejects — not just the
   // scene(s) the (earlier) block error happened to name.
   let gateReport = null;
+  // Self-heal round counter (#271). Lives outside the gate block because the
+  // pacing ladder can also run AFTER the local fallback (#820), and its
+  // fail-closed messages report how many take rounds the run paid for.
+  let attempt = 1;
+
+  // #786: a repaired scene may have started from an approved cache hit.
+  // finalizeTtsResults prefers the cache hit, so the stale entry must go once
+  // the replacement take is accepted — otherwise the run would ship the old
+  // audio after paying to regenerate it.
+  const dropCachedHit = (sceneId) => {
+    cachedResults = cachedResults.filter((r) => r.sceneId !== sceneId);
+  };
+
+  /**
+   * The #252/#271 pacing ladder, re-entrant since #820.
+   *
+   * Plans repairs from the LATEST verdicts (`gateReport` overlaid with
+   * `verdictByScene` and the cached-take measurements), regenerates the
+   * affected scenes on the MAIN engine into staging, and accepts only takes
+   * that pass the gate. The normal flow calls it once; the local-fallback path
+   * calls it AGAIN after replacing the failing takes, because the fail-closed
+   * block that triggered the fallback had short-circuited the ladder — a scene
+   * that PASSED the gate below the compensation trigger would otherwise ship
+   * at its measured speed (#820).
+   *
+   * Re-entrancy rules:
+   *  - takes the local fallback produced are EXCLUDED from planning: F5 speaks
+   *    at its natural pace and never consumes `scene.ttsSpeed`, so a
+   *    compensation plan for one could only hand the scene back to the engine
+   *    that just failed it;
+   *  - an accepted compensation records its take AND its speed, so a second run
+   *    short-circuits ("already at X") instead of paying for the same take
+   *    twice;
+   *  - the #271 fail-closed invariant reads the LATEST verdicts, not the raw
+   *    report: after a fallback the report still names the repaired scenes, and
+   *    judging those as unplanned would block a run whose audio is already
+   *    fixed.
+   *
+   * @returns {Promise<{stranded: Array<{sceneId: number, wpm: number, reason: string}>}>}
+   *   `stranded` = takes that still ship below the compensation trigger after
+   *   this run, each with the reason the ladder could not lift it. The caller
+   *   decides how loud to be (the fallback path warns; the normal path keeps
+   *   its existing ⏭️ log line).
+   */
+  const runPacingLadder = async () => {
+    const { planPacingResponses, planPacingResponse } = await import("./pacing.mjs");
+    const { runTtsQualityGate } = await import("./quality-gate.mjs");
+
+    // #786: cached approved takes join the ladder with their measured WPM —
+    // otherwise the finished hook (#244 floor) and the >225 ceiling only ever
+    // applied to takes generated in this very run.
+    const latest = latestEvaluationsByScene({
+      gateReport,
+      verdictByScene,
+      extraEvaluations: cachedPacing?.evaluations ?? [],
+    });
+    const fallbackTakeIds = new Set(
+      validatedResults.filter((r) => r.fallbackFrom).map((r) => r.sceneId),
+    );
+    const pacing = planPacingResponses(
+      [...verifyScenes, ...(cachedPacing?.scenes ?? [])],
+      latest.filter((e) => !fallbackTakeIds.has(e.sceneId)),
+    );
+    for (const note of pacing.advisory) {
+      console.warn(`  💬 [Pacing] ${note}`);
+    }
+
+    // #271 fail-closed invariant: every gate-failed pacing-class scene that
+    // reaches this point must own a repair plan. One the ladder could not
+    // plan (e.g. no usable WPM measurement) would otherwise ship the take the
+    // gate already rejected.
+    const plannedIds = new Set([...pacing.compensations, ...pacing.rerolls].map((p) => p.scene.id));
+    const unplanned = latest.filter(
+      (e) => !e.passed && e.failureClass === FAILURE_CLASS.PACING && !plannedIds.has(e.sceneId),
+    );
+    if (unplanned.length > 0) {
+      throw pacingFloorBlockError(
+        unplanned
+          .map((e) => `scene ${e.sceneId} (${e.wpm ?? "unknown"} WPM, no repair plan)`)
+          .join("; "),
+        unplanned.map((e) => ({ sceneId: e.sceneId })),
+      );
+    }
+
+    // #423: a PASSING take is shippable by definition, so the loop never
+    // regenerates it at a speed it already meets (or below). This is the
+    // candidate path: its bytes were generated at a recorded speed (e.g. a
+    // 1.2x hook) and the ladder's floor must not "compensate" it down to a
+    // slower take at GPU cost. A gate-REJECTED take is excluded — it has to
+    // be repaired or fail closed, never kept.
+    const takeSpeedById = new Map([
+      ...validatedResults.map((r) => [r.sceneId, speedByResult.get(r)]),
+      // #786: a cached approved take's speed matches its meta — that is what
+      // lets "already at 1.1x" short-circuit instead of re-compensating every
+      // run.
+      ...cachedResults.map((r) => [r.sceneId, r.ttsSpeed]),
+    ]);
+    const compensationsToRun = [];
+    // #820: why a take still ships below the trigger — surfaced by the fallback
+    // path, which owns the "stranded" warning.
+    const strandReasons = new Map();
+    for (const c of pacing.compensations) {
+      const current = takeSpeedById.get(c.scene.id);
+      if (c.originalPassed !== false && Number.isFinite(current) && c.speed <= current + 1e-9) {
+        console.log(
+          `  ⏭️ [Pacing Loop] Scene ${c.scene.id} take already at ${current.toFixed(2)}x ` +
+            `(planned ${c.speed.toFixed(2)}x) — keeping the verified take`,
+        );
+        strandReasons.set(c.scene.id, `already at ${current.toFixed(2)}x`);
+        continue;
+      }
+      compensationsToRun.push(c);
+    }
+
+    const regenScenes = [
+      ...compensationsToRun.map((c) => {
+        c.scene.ttsSpeed = c.speed; // consumed by resolveSceneSpeed → engine manifest + cache key
+        return c.scene;
+      }),
+      ...pacing.rerolls.map((r) => r.scene),
+    ];
+    if (regenScenes.length > 0) {
+      const summary = [
+        ...compensationsToRun.map(
+          (c) =>
+            `scene ${c.scene.id} ${c.measuredWpm}→${Math.round(c.measuredWpm * c.speed)} WPM @ ${c.speed.toFixed(2)}x`,
+        ),
+        ...pacing.rerolls.map(
+          (r) => `scene ${r.scene.id} ${r.measuredWpm} WPM > ${WPM_HARD_CEILING} → reroll`,
+        ),
+      ].join("; ");
+      console.log(
+        `  🔁 [Pacing Loop] Regenerating ${regenScenes.length} scene(s) from measured WPM: ${summary}`,
+      );
+
+      let regenResults = [];
+      // #423: compensation/reroll takes regenerate into staging; only an
+      // accepted take is promoted into the audio directory.
+      const pacingStaging = createRegenStaging(outputDir);
+      try {
+        try {
+          regenResults = await engine.generate(regenScenes, pacingStaging);
+        } catch (err) {
+          console.warn(`  ⚠️ [Pacing Loop] Regeneration error: ${err.message}`);
+        }
+
+        if (regenResults.length === 0) {
+          // No new takes: compensation overrides are meaningless without new
+          // audio — drop them; rerolled scenes keep their >225 audio, which
+          // is exactly what #252 forbids shipping.
+          for (const c of compensationsToRun) delete c.scene.ttsSpeed;
+          if (pacing.rerolls.length > 0) {
+            throw pacingHardBlockError(
+              pacing.rerolls
+                .map((r) => `scene ${r.scene.id} (${r.measuredWpm} WPM, reroll produced no audio)`)
+                .join("; "),
+            );
+          }
+          // #271: a compensation whose SOURCE take had failed the gate has no
+          // shippable fallback — the only audio left IS the take the gate
+          // rejected. Block instead of quietly shipping it.
+          const unfixable = compensationsToRun.filter((c) => c.originalPassed === false);
+          if (unfixable.length > 0) {
+            throw pacingFloorBlockError(
+              unfixable
+                .map(
+                  (c) =>
+                    `scene ${c.scene.id} (${c.measuredWpm} WPM, compensation produced no audio)`,
+                )
+                .join("; "),
+              unfixable.map((c) => ({ sceneId: c.scene.id })),
+            );
+          }
+        } else {
+          const regenGate = await runTtsQualityGate(regenScenes, regenResults, qualityGateOptions);
+          for (const res of regenResults) {
+            const evalRes = regenGate.evaluations.find((e) => e.sceneId === res.sceneId);
+            const scene = regenScenes.find((s) => s.id === res.sceneId);
+            const rerolled = pacing.rerolls.find((r) => r.scene.id === res.sceneId);
+            const compensation = compensationsToRun.find((c) => c.scene.id === res.sceneId);
+            if (rerolled) {
+              const measured = evalRes?.wpm ?? rerolled.measuredWpm;
+              if (evalRes?.passed && measured <= WPM_HARD_CEILING) {
+                acceptRegenTake(outputDir, res);
+                dropCachedHit(res.sceneId);
+                replaceResult(validatedResults, res);
+                verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
+                speedByResult.set(res, resolveSceneSpeed(scene));
+                console.log(
+                  `  ✅ [Pacing Loop] Scene ${res.sceneId} reroll healed: ${measured} WPM ≤ ${WPM_HARD_CEILING}`,
+                );
+              } else {
+                throw pacingHardBlockError(
+                  `scene ${res.sceneId} still measures ${measured} WPM after a reroll ` +
+                    `(first take ${rerolled.measuredWpm} WPM)`,
+                );
+              }
+            } else if (evalRes?.passed) {
+              acceptRegenTake(outputDir, res);
+              dropCachedHit(res.sceneId);
+              replaceResult(validatedResults, res);
+              verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
+              speedByResult.set(res, resolveSceneSpeed(scene));
+              console.log(`  ✅ [Pacing Loop] Scene ${res.sceneId} compensated take accepted`);
+            } else if (compensation && compensation.originalPassed === false) {
+              // #271: the compensated take still fails AND the take it would
+              // replace had already been rejected by the gate — nothing
+              // shippable is left, so fail closed rather than fall back. Report
+              // the family the COMPENSATED take actually failed in: a 1.2x take
+              // can come back truncated, and "trim the script" is the wrong
+              // remedy for that.
+              if (evalRes?.failureClass === FAILURE_CLASS.ACOUSTIC) {
+                throw acousticBlockError(
+                  [
+                    {
+                      sceneId: res.sceneId,
+                      issues: evalRes.issues?.length ? evalRes.issues : ["acoustic failure"],
+                    },
+                  ],
+                  attempt + 1,
+                );
+              }
+              throw pacingFloorBlockError(
+                `scene ${res.sceneId} measured ${compensation.measuredWpm} WPM, compensated at ` +
+                  `${compensation.speed.toFixed(2)}x → still failing ` +
+                  `(${evalRes?.issues?.join(", ") || "gate fail"})`,
+                [{ sceneId: res.sceneId }],
+              );
+            } else {
+              // #252: a compensation of a gate-PASSED take may fall back to it —
+              // that take is shippable by definition. Drop the override so the
+              // cache meta stays consistent with the audio actually shipped.
+              delete scene.ttsSpeed;
+              strandReasons.set(res.sceneId, "the compensated take was rejected by the gate");
+              console.warn(
+                `  ⚠️ [Pacing Loop] Scene ${res.sceneId} compensation take failed the gate ` +
+                  `(${evalRes?.issues?.join(", ") || "unknown"}) — keeping the original take`,
+              );
+              // #786: say it out loud when the take we fall back to is below
+              // the #244 hook floor. This is the one path where a finished
+              // hook can still ship under 1.1x: the floor asked for a faster
+              // take, the faster take failed the gate, and the approved audio
+              // is all we have. Next run retries (the cache hit keeps its 1.0x
+              // speed, so the ladder asks again), but the log must not read
+              // like a normal fallback.
+              const shipped = takeSpeedById.get(res.sceneId);
+              if (
+                (scene.refStyle || scene.visualType) === "hook" &&
+                Number.isFinite(shipped) &&
+                shipped < HOOK_MIN_SPEED
+              ) {
+                console.warn(
+                  `  ⚠️ [Pacing Loop] Scene ${res.sceneId} is a hook and ships at ` +
+                    `${shipped.toFixed(2)}x, below the ${HOOK_MIN_SPEED}x floor — ` +
+                    `the only faster take was rejected by the gate`,
+                );
+              }
+            }
+          }
+        }
+      } finally {
+        cleanupRegenStaging(pacingStaging);
+      }
+    }
+
+    // #820: what still ships below the compensation trigger after this run, and
+    // why — computed from the FINAL verdicts so an accepted compensation clears
+    // its scene. Two conditions, both necessary: the take measures under the
+    // trigger, AND the ladder would have compensated it (its EN detection keeps
+    // ZH takes, which are never compensated, out of this list). A hook the
+    // ladder lifted to the #244 floor is not "below the trigger" and stays out.
+    const finalEvaluations = latestEvaluationsByScene({
+      gateReport,
+      verdictByScene,
+      extraEvaluations: cachedPacing?.evaluations ?? [],
+    });
+    const sceneById = new Map(
+      [...verifyScenes, ...(cachedPacing?.scenes ?? [])].map((s) => [s.id, s]),
+    );
+    const stranded = [];
+    for (const evaluation of finalEvaluations) {
+      if (
+        evaluation?.passed !== true ||
+        !Number.isFinite(evaluation.wpm) ||
+        evaluation.wpm >= WPM_COMPENSATE_BELOW
+      ) {
+        continue;
+      }
+      const scene = sceneById.get(evaluation.sceneId);
+      if (!scene || planPacingResponse(scene, evaluation.wpm).action !== "compensate") continue;
+      const res = validatedResults.find((r) => r.sceneId === evaluation.sceneId);
+      const reason = res?.fallbackFrom
+        ? `${res.engine?.name ?? "local-fallback"} take — that engine speaks at its natural pace`
+        : (strandReasons.get(evaluation.sceneId) ?? "no further compensation available");
+      stranded.push({ sceneId: evaluation.sceneId, wpm: evaluation.wpm, reason });
+    }
+    return { stranded };
+  };
 
   /**
    * #704: repair fail-closed CosyVoice3-MLX takes on the local F5-MLX engine.
@@ -721,14 +1040,19 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
    *
    * All targets are regenerated into staging. The fallback takes are accepted
    * ONLY when every one of them passes the same Quality Gate AND stays at or
-   * below the WPM hard ceiling. The pacing ladder does NOT run on the acoustic
-   * path — the block fires before it — so the 225 ceiling has not been applied
-   * to ANY take yet, including takes that already passed the gate; that veto
-   * must happen here (inside selectLocalFallbackTargets) or a repaired run
-   * would ship a rushed take. Any failure (unrepairable failure family, engine
+   * below the WPM hard ceiling. The block that got us here fired BEFORE the
+   * pacing ladder could apply the 225 ceiling to the whole set, so a take that
+   * already passed the gate can still be over it; that veto must happen here
+   * (inside selectLocalFallbackTargets) or a repaired run would ship a rushed
+   * take. Once the takes are promoted, the pacing ladder RE-RUNS over the
+   * merged set (#820): the block had short-circuited it, and a scene that
+   * passed the gate below the compensation trigger would otherwise ship at its
+   * measured speed. Any failure (unrepairable failure family, engine
    * unavailable, short batch, rejected take, exception) returns false and the
-   * caller rethrows the original block. This path can rescue a run — it must
-   * never weaken the fail-closed contract.
+   * caller rethrows the original block; a fail-closed error from the ladder
+   * re-run propagates instead, because it names the take that actually blocks
+   * now. This path can rescue a run — it must never weaken the fail-closed
+   * contract.
    *
    * Approved cache hits never enter `gateReport`; their WPM lives in
    * `cachedPacing.evaluations` (#786). They join the decision set too, or a
@@ -860,36 +1184,29 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           `${fallbackEngine.name} and accepted. Voice may differ from the rest of the video.`,
       );
 
-      // #704: this path never runs the pacing ladder (the acoustic block fires
-      // before it), so a take that already PASSED the gate but measures below
-      // the compensation trigger ships at its current speed. Taking the
-      // fallback path drops the compensation plan for those scenes — that is a
-      // known boundary, but it must never be silent.
-      const underCompensated = new Map();
-      for (const evaluation of [
-        ...(gateReport?.evaluations ?? []),
-        ...(cachedPacing?.evaluations ?? []),
-      ]) {
-        if (
-          evaluation?.passed === true &&
-          Number.isFinite(evaluation.wpm) &&
-          evaluation.wpm < WPM_COMPENSATE_BELOW
-        ) {
-          underCompensated.set(evaluation.sceneId, evaluation.wpm);
-        }
-      }
-      if (underCompensated.size > 0) {
-        const detail = [...underCompensated]
-          .map(([sceneId, wpm]) => `scene ${sceneId} (${wpm} WPM)`)
+      // #820: the fail-closed block short-circuited the pacing ladder, and the
+      // fallback just replaced the takes that caused it. Re-run the ladder over
+      // the merged set — a scene that PASSED the gate below the compensation
+      // trigger (the surviving scenes) must still be compensated, or block with
+      // an explicit reason. The fallback's own takes are excluded inside the
+      // ladder: F5 speaks at its natural pace and never consumes scene.ttsSpeed.
+      attempt += 1; // the F5 round is another generated-take round
+      const { stranded } = await runPacingLadder();
+      if (stranded.length > 0) {
+        const detail = stranded
+          .map((s) => `scene ${s.sceneId} (${s.wpm} WPM, ${s.reason})`)
           .join(", ");
         console.warn(
-          `\n  🚨 [TTS Local Fallback] pacing compensation was not re-run on the fallback path; ` +
-            `these takes ship at their current speed: ${detail} ` +
-            `(below the ${WPM_COMPENSATE_BELOW} WPM compensation trigger).`,
+          `\n  🚨 [TTS Local Fallback] the pacing ladder re-ran on the fallback path, but these ` +
+            `takes still ship below the ${WPM_COMPENSATE_BELOW} WPM compensation trigger: ${detail}.`,
         );
       }
       return true;
     } catch (err) {
+      // #820: a fail-closed error from the ladder re-run is the CURRENT reason
+      // the run cannot proceed — the original block names takes the fallback
+      // already repaired, so it must not mask it.
+      if (err?.failClosed) throw err;
       console.warn(
         `  ⚠️ [TTS Local Fallback] unexpected error: ${err.message} — keeping the original block`,
       );
@@ -907,7 +1224,8 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
 
       // If any scene failed Quality Gate and retry is enabled
       const maxRetries = options.maxRetries ?? parseInt(process.env.TTS_RETRY_COUNT || "2", 10);
-      let attempt = 1;
+      // `attempt` lives outside the gate block — the pacing ladder reads it too
+      // (#820), and both paths must see the same count.
       // #271: pacing-class failures do NOT consume the reroll budget. A reroll
       // regenerates the same text at the same speed, so it cannot lift WPM — it
       // only burns remote GPU time. Those takes belong to the compensation loop
@@ -1021,230 +1339,14 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       // The #235 static pair (hook 1.0 / non-hook 1.2) inverted the energy
       // curve (#246: hook 157 vs narrative 228/257 WPM) and let Scene 5 ship
       // at 257 WPM as a mere warning. Now: gate-passed scenes are classified
-      // by MEASURED WPM — below 135 → compensate with scene.ttsSpeed (clamp
+      // by MEASURED WPM — below 150 → compensate with scene.ttsSpeed (clamp
       // ≤1.2); above 225 → one reroll (take drift ±10-20%, #234) then HARD
       // BLOCK; in between → keep. #271 extends the same ladder to gate-FAILED
       // pacing-class takes that the loop used to skip outright — that gap is
-      // how a slow take shipped with no compensation at all.
-      const { planPacingResponses } = await import("./pacing.mjs");
-      // #786: cached approved takes join the ladder with their measured WPM —
-      // otherwise the finished hook (#244 floor) and the >225 ceiling only ever
-      // applied to takes generated in this very run.
-      const pacing = planPacingResponses(
-        [...verifyScenes, ...(cachedPacing?.scenes ?? [])],
-        [...gateReport.evaluations, ...(cachedPacing?.evaluations ?? [])],
-      );
-      for (const note of pacing.advisory) {
-        console.warn(`  💬 [Pacing] ${note}`);
-      }
-
-      // #271 fail-closed invariant: every gate-failed pacing-class scene that
-      // reaches this point must own a repair plan. One the ladder could not
-      // plan (e.g. no usable WPM measurement) would otherwise ship the take the
-      // gate already rejected.
-      const plannedIds = new Set(
-        [...pacing.compensations, ...pacing.rerolls].map((p) => p.scene.id),
-      );
-      const unplanned = gateReport.evaluations.filter(
-        (e) => !e.passed && e.failureClass === FAILURE_CLASS.PACING && !plannedIds.has(e.sceneId),
-      );
-      if (unplanned.length > 0) {
-        throw pacingFloorBlockError(
-          unplanned
-            .map((e) => `scene ${e.sceneId} (${e.wpm ?? "unknown"} WPM, no repair plan)`)
-            .join("; "),
-          unplanned.map((e) => ({ sceneId: e.sceneId })),
-        );
-      }
-
-      // #423: a PASSING take is shippable by definition, so the loop never
-      // regenerates it at a speed it already meets (or below). This is the
-      // candidate path: its bytes were generated at a recorded speed (e.g. a
-      // 1.2x hook) and the ladder's floor must not "compensate" it down to a
-      // slower take at GPU cost. A gate-REJECTED take is excluded — it has to
-      // be repaired or fail closed, never kept.
-      const takeSpeedById = new Map([
-        ...validatedResults.map((r) => [r.sceneId, speedByResult.get(r)]),
-        // #786: a cached approved take's speed matches its meta — that is what
-        // lets "already at 1.1x" short-circuit instead of re-compensating every
-        // run.
-        ...cachedResults.map((r) => [r.sceneId, r.ttsSpeed]),
-      ]);
-      // #786: a repaired scene may have started from an approved cache hit.
-      // finalizeTtsResults prefers the cache hit, so the stale entry must go
-      // once the replacement take is accepted — otherwise the run would ship
-      // the old audio after paying to regenerate it.
-      const dropCachedHit = (sceneId) => {
-        cachedResults = cachedResults.filter((r) => r.sceneId !== sceneId);
-      };
-      const compensationsToRun = [];
-      for (const c of pacing.compensations) {
-        const current = takeSpeedById.get(c.scene.id);
-        if (c.originalPassed !== false && Number.isFinite(current) && c.speed <= current + 1e-9) {
-          console.log(
-            `  ⏭️ [Pacing Loop] Scene ${c.scene.id} take already at ${current.toFixed(2)}x ` +
-              `(planned ${c.speed.toFixed(2)}x) — keeping the verified take`,
-          );
-          continue;
-        }
-        compensationsToRun.push(c);
-      }
-
-      const regenScenes = [
-        ...compensationsToRun.map((c) => {
-          c.scene.ttsSpeed = c.speed; // consumed by resolveSceneSpeed → engine manifest + cache key
-          return c.scene;
-        }),
-        ...pacing.rerolls.map((r) => r.scene),
-      ];
-      if (regenScenes.length > 0) {
-        const summary = [
-          ...compensationsToRun.map(
-            (c) =>
-              `scene ${c.scene.id} ${c.measuredWpm}→${Math.round(c.measuredWpm * c.speed)} WPM @ ${c.speed.toFixed(2)}x`,
-          ),
-          ...pacing.rerolls.map(
-            (r) => `scene ${r.scene.id} ${r.measuredWpm} WPM > ${WPM_HARD_CEILING} → reroll`,
-          ),
-        ].join("; ");
-        console.log(
-          `  🔁 [Pacing Loop] Regenerating ${regenScenes.length} scene(s) from measured WPM: ${summary}`,
-        );
-
-        let regenResults = [];
-        // #423: compensation/reroll takes regenerate into staging; only an
-        // accepted take is promoted into the audio directory.
-        const pacingStaging = createRegenStaging(outputDir);
-        try {
-          try {
-            regenResults = await engine.generate(regenScenes, pacingStaging);
-          } catch (err) {
-            console.warn(`  ⚠️ [Pacing Loop] Regeneration error: ${err.message}`);
-          }
-
-          if (regenResults.length === 0) {
-            // No new takes: compensation overrides are meaningless without new
-            // audio — drop them; rerolled scenes keep their >225 audio, which
-            // is exactly what #252 forbids shipping.
-            for (const c of compensationsToRun) delete c.scene.ttsSpeed;
-            if (pacing.rerolls.length > 0) {
-              throw pacingHardBlockError(
-                pacing.rerolls
-                  .map(
-                    (r) => `scene ${r.scene.id} (${r.measuredWpm} WPM, reroll produced no audio)`,
-                  )
-                  .join("; "),
-              );
-            }
-            // #271: a compensation whose SOURCE take had failed the gate has no
-            // shippable fallback — the only audio left IS the take the gate
-            // rejected. Block instead of quietly shipping it.
-            const unfixable = compensationsToRun.filter((c) => c.originalPassed === false);
-            if (unfixable.length > 0) {
-              throw pacingFloorBlockError(
-                unfixable
-                  .map(
-                    (c) =>
-                      `scene ${c.scene.id} (${c.measuredWpm} WPM, compensation produced no audio)`,
-                  )
-                  .join("; "),
-                unfixable.map((c) => ({ sceneId: c.scene.id })),
-              );
-            }
-          } else {
-            const regenGate = await runTtsQualityGate(
-              regenScenes,
-              regenResults,
-              qualityGateOptions,
-            );
-            for (const res of regenResults) {
-              const evalRes = regenGate.evaluations.find((e) => e.sceneId === res.sceneId);
-              const scene = regenScenes.find((s) => s.id === res.sceneId);
-              const rerolled = pacing.rerolls.find((r) => r.scene.id === res.sceneId);
-              const compensation = compensationsToRun.find((c) => c.scene.id === res.sceneId);
-              if (rerolled) {
-                const measured = evalRes?.wpm ?? rerolled.measuredWpm;
-                if (evalRes?.passed && measured <= WPM_HARD_CEILING) {
-                  acceptRegenTake(outputDir, res);
-                  dropCachedHit(res.sceneId);
-                  replaceResult(validatedResults, res);
-                  verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
-                  speedByResult.set(res, resolveSceneSpeed(scene));
-                  console.log(
-                    `  ✅ [Pacing Loop] Scene ${res.sceneId} reroll healed: ${measured} WPM ≤ ${WPM_HARD_CEILING}`,
-                  );
-                } else {
-                  throw pacingHardBlockError(
-                    `scene ${res.sceneId} still measures ${measured} WPM after a reroll ` +
-                      `(first take ${rerolled.measuredWpm} WPM)`,
-                  );
-                }
-              } else if (evalRes?.passed) {
-                acceptRegenTake(outputDir, res);
-                dropCachedHit(res.sceneId);
-                replaceResult(validatedResults, res);
-                verdictByScene.set(res.sceneId, { result: res, evaluation: evalRes });
-                speedByResult.set(res, resolveSceneSpeed(scene));
-                console.log(`  ✅ [Pacing Loop] Scene ${res.sceneId} compensated take accepted`);
-              } else if (compensation && compensation.originalPassed === false) {
-                // #271: the compensated take still fails AND the take it would
-                // replace had already been rejected by the gate — nothing
-                // shippable is left, so fail closed rather than fall back. Report
-                // the family the COMPENSATED take actually failed in: a 1.2x take
-                // can come back truncated, and "trim the script" is the wrong
-                // remedy for that.
-                if (evalRes?.failureClass === FAILURE_CLASS.ACOUSTIC) {
-                  throw acousticBlockError(
-                    [
-                      {
-                        sceneId: res.sceneId,
-                        issues: evalRes.issues?.length ? evalRes.issues : ["acoustic failure"],
-                      },
-                    ],
-                    attempt + 1,
-                  );
-                }
-                throw pacingFloorBlockError(
-                  `scene ${res.sceneId} measured ${compensation.measuredWpm} WPM, compensated at ` +
-                    `${compensation.speed.toFixed(2)}x → still failing ` +
-                    `(${evalRes?.issues?.join(", ") || "gate fail"})`,
-                  [{ sceneId: res.sceneId }],
-                );
-              } else {
-                // #252: a compensation of a gate-PASSED take may fall back to it —
-                // that take is shippable by definition. Drop the override so the
-                // cache meta stays consistent with the audio actually shipped.
-                delete scene.ttsSpeed;
-                console.warn(
-                  `  ⚠️ [Pacing Loop] Scene ${res.sceneId} compensation take failed the gate ` +
-                    `(${evalRes?.issues?.join(", ") || "unknown"}) — keeping the original take`,
-                );
-                // #786: say it out loud when the take we fall back to is below
-                // the #244 hook floor. This is the one path where a finished
-                // hook can still ship under 1.1x: the floor asked for a faster
-                // take, the faster take failed the gate, and the approved audio
-                // is all we have. Next run retries (the cache hit keeps its 1.0x
-                // speed, so the ladder asks again), but the log must not read
-                // like a normal fallback.
-                const shipped = takeSpeedById.get(res.sceneId);
-                if (
-                  (scene.refStyle || scene.visualType) === "hook" &&
-                  Number.isFinite(shipped) &&
-                  shipped < HOOK_MIN_SPEED
-                ) {
-                  console.warn(
-                    `  ⚠️ [Pacing Loop] Scene ${res.sceneId} is a hook and ships at ` +
-                      `${shipped.toFixed(2)}x, below the ${HOOK_MIN_SPEED}x floor — ` +
-                      `the only faster take was rejected by the gate`,
-                  );
-                }
-              }
-            }
-          }
-        } finally {
-          cleanupRegenStaging(pacingStaging);
-        }
-      }
+      // how a slow take shipped with no compensation at all. The ladder itself
+      // is hoisted above the gate block (#820): the local-fallback path re-runs
+      // it after replacing the failing takes.
+      await runPacingLadder();
     } catch (gateErr) {
       if (gateErr?.failClosed) {
         // #252/#271 acceptance: hard blocks are never downgraded to
