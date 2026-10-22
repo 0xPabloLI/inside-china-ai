@@ -32,7 +32,7 @@
  * invent recipes for this pack. New evidence captures use
  * `evidence-captures.json` + `capture-evidence-shot.mjs`, bind the raw element
  * screenshot, and let the layout handle fit and safe zones; re-capturing these
- * three is a separate content task.
+ * three is tracked in #848.
  *
  * Layout note: only `narrative` consumes `scene.layout`. `hook` (scene 1)
  * renders `scene.media` through `MediaBackground` whatever the layout says, so
