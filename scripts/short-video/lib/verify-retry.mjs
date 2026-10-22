@@ -15,6 +15,44 @@
 const PRIORITY = ["audio-sync-drift", "subtitle-alignment", "cue-gaps"];
 
 /**
+ * Categories whose repair cannot change the verdict, so the loop must not
+ * spend a retry on them. The value is the reason printed to the operator.
+ *
+ * `subtitle-alignment` is here by measurement, not by assumption (#818). The
+ * check compares the rendered `.ass` against `expectedWordTimes(timingData)`,
+ * and that `.ass` is generated from the same `timingData` — so a mismatch is a
+ * deterministic disagreement inside the generation pipeline (chunking /
+ * restore), not stale state a second pass could refresh. The only lever the
+ * repair had was re-running forced alignment, and re-running it on unchanged
+ * inputs reproduces `subtitle-timing.json` byte-for-byte (measured: two real
+ * packages, 20 takes, identical sha256 — #818). The repair also called a
+ * `generateSubtitles` that main.mjs never imported, so it threw before writing
+ * anything at all.
+ */
+const NON_RETRYABLE = new Map([
+  ["unknown", "the failure could not be classified"],
+  ["audio-sync-skipped", "no audio-sync measurement to compensate"],
+  [
+    "subtitle-alignment",
+    "the .ass is generated from the same timing this check compares against — " +
+      "re-aligning cannot change the verdict",
+  ],
+]);
+
+/**
+ * Can the retry loop do anything about this failure category?
+ *
+ * Exposed so the caller (and its tests) can ask the same question the loop
+ * asks, instead of inferring it from log text.
+ *
+ * @param {string} category - from classifyFailure()
+ * @returns {boolean}
+ */
+export function isRetryable(category) {
+  return !NON_RETRYABLE.has(category);
+}
+
+/**
  * Classify a verification report's failure into a repair category.
  *
  * Returns null when the report passes. When multiple categories fail, picks
@@ -131,6 +169,11 @@ export function relaxGapParams(attempt) {
  * repairs where summary.errors strictly decreased; otherwise rollback. After
  * maxRetries, return the final report (caller decides exit).
  *
+ * The loop stops early — without spending the rest of the budget — in two
+ * cases, because a retry could only reproduce the same report (#818):
+ * the category is non-retryable (see NON_RETRYABLE), or the repair did not run
+ * (returned `success: false`, or crashed) so nothing on disk changed.
+ *
  * @param {object} options
  * @param {Function} options.verifyFn - () => report (verifySubtitles or mock)
  * @param {Function} [options.repairFn] - (category, report, state) => { success, videoPath?, assPath? }
@@ -159,8 +202,12 @@ export async function verifyWithRetry({
     const category = classifyFailure(report);
     console.log(`  🔄 Retry ${attempt}/${maxRetries}: failure category "${category}"`);
 
-    if (category === "unknown" || category === "audio-sync-skipped") {
-      console.log(`  ⏭️  ${category} — not retryable, skipping repair`);
+    const reason = NON_RETRYABLE.get(category);
+    if (reason) {
+      // No repair is dispatched and no re-verify is spent: the failure is
+      // deterministic for this category, so a retry can only reproduce it.
+      // The caller fails closed on the returned report.
+      console.log(`  ⏭️  ${category} — not retryable (${reason}); no repair attempted`);
       break;
     }
 
@@ -175,8 +222,11 @@ export async function verifyWithRetry({
     }
 
     if (!repairResult?.success) {
-      console.log(`  ↩️  Repair did not reduce errors (attempt ${attempt})`);
-      // Re-verify anyway (repair may have partially helped)
+      // The repair reported failure or crashed, so the artifacts on disk are
+      // what they were — re-verifying them would reproduce this same report
+      // and burn the remaining budget on nothing (#818).
+      console.log(`  ⏹️  Repair did not run (attempt ${attempt}) — nothing changed, stopping`);
+      break;
     }
 
     // Use repaired paths if provided
