@@ -291,6 +291,16 @@ describe("validateMedia", () => {
     expect(result.warnings.some((w) => w.includes("mode"))).toBe(false);
   });
 
+  it("returns valid when mode is 'card' (#848)", () => {
+    const result = validateMedia(
+      { type: "image", path: "assets/demo.jpg", mode: "card" },
+      CONTENT_DIR,
+    );
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings.some((w) => w.includes("mode"))).toBe(false);
+  });
+
   it("warns when mode has an invalid value", () => {
     const result = validateMedia(
       { type: "video", path: "assets/demo.mp4", mode: "split" },

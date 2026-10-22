@@ -22,8 +22,9 @@ import {
   ScaleIn,
   FadeIn,
 } from "../components/animations/entrance";
-import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION } from "../components/shared";
+import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION, MEDIA_BOTTOM_BAR } from "../components/shared";
 import { MediaBackground } from "../components/MediaBackground";
+import { MediaCard } from "../components/MediaCard";
 import { TextGate } from "../components/text-gate";
 import { TextGroupGate } from "../components/text-group-gate";
 import { SplitHighlight } from "../components/substring-highlight";
@@ -175,25 +176,31 @@ export const NarrativeScene: React.FC<{
   // Media top, text bar in lower safe zone (above subtitle lane)
   // Safe zone: y∈[220,1150]. Text bar anchored to y=1150, grows upward.
   const MediaBottomBar: React.FC = () => {
-    const textBarHeight = 336; // 1150 - 814, leaves media top 814px (~42%)
-    const textBarTop = 1150 - textBarHeight; // = 814
+    // Geometry lives in safe-zones.mjs next to EVIDENCE_CARD — the card's
+    // bottom edge IS this bar's top edge, so the two cannot drift apart.
+    const textBarHeight = MEDIA_BOTTOM_BAR.textBarHeight; // 336
+    const textBarTop = MEDIA_BOTTOM_BAR.textBarTop; // 814
     return (
       <>
-        {/* Media fills top portion up to text bar */}
-        {hasMedia && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: textBarTop,
-              overflow: "hidden",
-            }}
-          >
-            <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
-          </div>
-        )}
+        {/* Media fills top portion up to text bar; card mode keeps the raw
+            capture inside the #663 evidence card instead of full-bleed. */}
+        {hasMedia &&
+          (scene.media!.mode === "card" ? (
+            <MediaCard media={scene.media!} duration={duration} />
+          ) : (
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: textBarTop,
+                overflow: "hidden",
+              }}
+            >
+              <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
+            </div>
+          ))}
         {/* Text bar anchored to safe zone bottom (y=1150) */}
         <div
           data-text-container

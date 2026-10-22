@@ -13,6 +13,8 @@ export {
   SUBTITLE_LANE,
   WATERMARK_POS,
   BRAND_FONT_STACK,
+  MEDIA_BOTTOM_BAR,
+  EVIDENCE_CARD,
 } from "../../../lib/safe-zones.mjs";
 export {
   FPS,

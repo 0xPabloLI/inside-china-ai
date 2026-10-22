@@ -44,7 +44,7 @@ export const VALID_PRESETS = ["fade", "ken-burns", "slide", "zoom", "none"];
  * written twice — TS side for Remotion components, this side for validation).
  * Update both together.
  */
-const VALID_MODES = ["background", "fullscreen"];
+const VALID_MODES = ["background", "fullscreen", "card"];
 
 /**
  * Valid fit values for landscape-to-vertical placement.

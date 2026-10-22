@@ -1,0 +1,38 @@
+{
+  "1": {
+    "url": "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    "selector": "section:has(.model-card-content)",
+    "padding": 0,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "deviceScaleFactor": 1,
+    "waitUntil": "domcontentloaded",
+    "timeoutMs": 60000
+  },
+  "3": {
+    "url": "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    "selector": "table:has(thead th:nth-child(7))",
+    "padding": 16,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "deviceScaleFactor": 2,
+    "waitUntil": "domcontentloaded",
+    "timeoutMs": 60000
+  },
+  "7": {
+    "url": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "selector": "#search--fetch-pricing ~ table",
+    "padding": 16,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "deviceScaleFactor": 2,
+    "waitUntil": "networkidle",
+    "timeoutMs": 60000
+  }
+}

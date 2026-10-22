@@ -25,19 +25,18 @@
  * launched, the head-to-head split, the biggest jump, the self-report caveat,
  * the demo summary, the loop closure, the CTA) rather than evidence.
  *
- * Legacy assets (pre-#758, 2026-10-17): the three screenshots here predate the
- * deterministic capture producer. They were hand-composed at 880x814 so the
- * page card would clear TikTok's action rail (x>880 in the frame gate), and are
- * deliberately NOT marked `media.evidence: true` — do not add the flag or
- * invent recipes for this pack. New evidence captures use
- * `evidence-captures.json` + `capture-evidence-shot.mjs`, bind the raw element
- * screenshot, and let the layout handle fit and safe zones; re-capturing these
- * three is tracked in #848.
+ * Evidence captures (2026-10-22, #848): the three images are raw element
+ * captures from the live pages, not hand-composed banners. Recipes live in
+ * `evidence-captures.json`; each media block carries `media.evidence: true`
+ * and the provider-measured `media.provenance`. Missing assets are re-captured
+ * by Stage 1.5a from the recipes.
  *
- * Layout note: only `narrative` consumes `scene.layout`. `hook` (scene 1)
- * renders `scene.media` through `MediaBackground` whatever the layout says, so
- * the hook carries a 1080x1920 portrait composite (dark top band for the brand
- * bar, page card below, faded into the matte).
+ * Layout note: all three evidence scenes use `media.mode: "card"` (#663) —
+ * the raw capture renders inside a framed card locked to [60,220,820,594]
+ * (brand bar above, subtitle lane below). Scenes 3/7 are `media-bottom-bar`
+ * narratives whose card sits above the text bar; the hook's card sits behind
+ * the hook text under a 0.7 dim, cover-cropped from the page top so the
+ * title and the table's first rows read behind the headline.
  *
  * Text budget constraint (found by MRL-3 on this pack): `media-bottom-bar`'s
  * four rows share one 302px content box (contract width 724px), so each of
@@ -67,16 +66,32 @@ export const scenes = [
     narrativeRole: "S",
     retentionMechanism: null,
     mediaStrategy: "asset",
+    // The hook's evidence: the live HF model card, framed in the #663 card,
+    // cover-cropped from the page top so the title and the table's first rows
+    // sit behind the hook text under a 0.55 dim.
     media: {
       type: "image",
-      path: "assets/hf-model-card.png",
-      source: "Hugging Face: deepseek-ai/DeepSeek-V4.1-Flash-1017",
+      path: "assets/evidence-hf-model-card.png",
+      source: "Hugging Face model card: DeepSeek-V4.1-Flash-1017",
       animation: "fade",
-      // Portrait composite: dark band y<440 carries the brand bar and the
-      // headline; the page card below is already faded into the matte, so this
-      // overlay only has to seat the big number that renders mid-frame.
-      overlay: 0.55,
+      mode: "card",
       fit: "cover",
+      cropFocus: { x: 0.5, y: 0 },
+      // 70% dim: the raw page is a light surface, and white hook text needs
+      // the card darkened to near-background before contrast holds (0.55
+      // left the page mid-gray and washed the headline out).
+      overlay: 0.7,
+      // DSF-1 capture: keep the file as captured so evidence and provenance
+      // stay the same object.
+      upscale: false,
+      evidence: true,
+      provenance: {
+        sourceUrl: "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        selector: "section:has(.model-card-content)",
+        rect: { x: 16, y: 239, w: 718, h: 2718.797 },
+        clip: { x: 16, y: 239, w: 718, h: 2718.797 },
+        scale: 1,
+      },
     },
     voiceover: "China's DeepSeek just beat GPT-5.6 on nine of eleven benchmarks.",
     texts: {
@@ -122,11 +137,20 @@ export const scenes = [
     mediaStrategy: "asset",
     media: {
       type: "image",
-      path: "assets/hf-benchmarks.png",
+      path: "assets/evidence-hf-benchmark.png",
       source: "Hugging Face model card: official benchmark table",
       animation: "fade",
+      mode: "card",
       overlay: 0,
       fit: "contain",
+      evidence: true,
+      provenance: {
+        sourceUrl: "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        selector: "table:has(thead th:nth-child(7))",
+        rect: { x: 16, y: 909.672, w: 598, h: 608.25 },
+        clip: { x: 0, y: 893.672, w: 630, h: 640.25 },
+        scale: 2,
+      },
     },
     voiceover: "According to DeepSeek's own model card, it leads GPT-5.6 on nine of those eleven.",
     texts: {
@@ -209,11 +233,23 @@ export const scenes = [
     mediaStrategy: "asset",
     media: {
       type: "image",
-      path: "assets/search-api-docs.png",
-      source: "DeepSeek official API docs: Search & Fetch billing",
+      path: "assets/evidence-search-api-pricing.png",
+      source: "DeepSeek official API docs: Search & Fetch pricing",
       animation: "fade",
+      mode: "card",
       overlay: 0,
       fit: "contain",
+      // A 320px-high table: keep the raw capture instead of ESRGAN, so the
+      // evidence file and its provenance stay the same object.
+      upscale: false,
+      evidence: true,
+      provenance: {
+        sourceUrl: "https://api-docs.deepseek.com/quick_start/pricing/",
+        selector: "#search--fetch-pricing ~ table",
+        rect: { x: 316, y: 1902.562, w: 391.672, h: 128.172 },
+        clip: { x: 300, y: 1886.562, w: 423.672, h: 160.172 },
+        scale: 2,
+      },
     },
     voiceover:
       "The same release opened DeepSeek's own search engine: 75 cents per thousand calls, free until November.",

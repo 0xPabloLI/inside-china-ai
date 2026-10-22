@@ -44,7 +44,7 @@ export interface MediaProvenance {
 export interface MediaField {
   type: "image" | "video";
   path: string;
-  mode?: "background" | "fullscreen"; // default "background"
+  mode?: "background" | "fullscreen" | "card"; // default "background" — card = framed evidence card (#663)
   fit?: "cover" | "contain"; // default "cover" — how to place landscape media in 9:16
   /** @deprecated Replaced by protectedRegions from detectFocus() in Phase 2. Existing scene-data values still render, but new auto-analysis no longer writes this field. */
   focus?: "top" | "center" | "bottom"; // default "center" — crop focus when fit is "cover"

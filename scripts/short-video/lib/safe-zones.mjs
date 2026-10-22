@@ -44,6 +44,32 @@ export const SAFE_ZONES = {
 };
 
 /**
+ * media-bottom-bar text bar geometry (NarrativeScene's MediaBottomBar).
+ * Exported so the evidence card and the text bar share one boundary instead
+ * of two hand-kept-equal constants.
+ */
+export const MEDIA_BOTTOM_BAR = {
+  /** Text bar height — the four contract rows (company/action/result/source). */
+  textBarHeight: 336,
+  /** Text bar top edge on the canvas (y = 1150 − 336 = 814). */
+  textBarTop: CANVAS.height - SAFE_ZONES.bottom - 336,
+};
+
+/**
+ * Evidence card geometry (#663 contract, #848): where `media.mode:"card"`
+ * renders a raw page capture. The card fills the content band's width and its
+ * bottom edge IS the media-bottom-bar text bar's top edge (derived from
+ * MEDIA_BOTTOM_BAR, not restated), so card scenes never push content toward
+ * the burned-subtitle lane and the brand bar (y≈140-188) stays clear above.
+ */
+export const EVIDENCE_CARD = {
+  left: SAFE_ZONES.left,
+  top: SAFE_ZONES.top,
+  width: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right, // 820
+  height: MEDIA_BOTTOM_BAR.textBarTop - SAFE_ZONES.top, // 594
+};
+
+/**
  * Burned-in subtitle lane (ASS style, lib/subtitles/ass.mjs).
  *
  * The subtitle lane is LEFT-SHIFTED to match the content band's center, not

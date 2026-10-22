@@ -6,6 +6,8 @@ import {
   SUBTITLE_LANE_TOP,
   SUBTITLE_LANE_BOTTOM,
   WATERMARK_POS,
+  EVIDENCE_CARD,
+  MEDIA_BOTTOM_BAR,
 } from "../lib/safe-zones.mjs";
 
 /**
@@ -104,5 +106,27 @@ describe("region separation (single source of truth)", () => {
   it("keeps the watermark corner inside the top band", () => {
     expect(WATERMARK_POS.top).toBeLessThan(SAFE_ZONES.top);
     expect(WATERMARK_POS.left).toBeLessThan(SAFE_ZONES.right);
+  });
+});
+
+describe("evidence card (#663, #848)", () => {
+  it("locks the card to the #663 contract geometry [60,220,820,594]", () => {
+    expect(EVIDENCE_CARD).toEqual({ left: 60, top: 220, width: 820, height: 594 });
+  });
+
+  it("keeps the card's bottom edge exactly on the media-bottom-bar text bar top", () => {
+    expect(EVIDENCE_CARD.top + EVIDENCE_CARD.height).toBe(MEDIA_BOTTOM_BAR.textBarTop);
+    expect(MEDIA_BOTTOM_BAR.textBarTop).toBe(814);
+  });
+
+  it("stays inside every protected zone", () => {
+    expect(EVIDENCE_CARD.left).toBeGreaterThanOrEqual(SAFE_ZONES.left);
+    expect(EVIDENCE_CARD.top).toBeGreaterThanOrEqual(SAFE_ZONES.top);
+    expect(EVIDENCE_CARD.left + EVIDENCE_CARD.width).toBeLessThanOrEqual(
+      CANVAS.width - SAFE_ZONES.right,
+    );
+    expect(EVIDENCE_CARD.top + EVIDENCE_CARD.height).toBeLessThanOrEqual(
+      CANVAS.height - SAFE_ZONES.bottom,
+    );
   });
 });

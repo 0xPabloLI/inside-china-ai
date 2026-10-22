@@ -25,7 +25,19 @@
   source: "Screenshot of https://api-docs.deepseek.com/updates (live page, CDP capture 2026-10-14)"
   license: "DeepSeek official documentation — screenshot for editorial/evidence use"
   used_in: [deepseek-flash-silent-update/S1]
-  keywords: [deepseek, api, change log, changelog, official record, v4.1-flash, september 10, no october update, evidence, screenshot]
+  keywords:
+    [
+      deepseek,
+      api,
+      change log,
+      changelog,
+      official record,
+      v4.1-flash,
+      september 10,
+      no october update,
+      evidence,
+      screenshot,
+    ]
 
 - file: content/deepseek-flash-silent-update/assets/loktar-evidence.png
   type: image
@@ -33,7 +45,19 @@
   source: "Screenshot of https://x.com/loktar00/status/2109652056063582631 (live page, CDP capture 2026-10-14)"
   license: "X post — screenshot for editorial/evidence use"
   used_in: [deepseek-flash-silent-update/S2]
-  keywords: [x post, twitter, loktar00, deepseek flash, stealth upgrade, community claim, viral, 44k views, evidence, screenshot]
+  keywords:
+    [
+      x post,
+      twitter,
+      loktar00,
+      deepseek flash,
+      stealth upgrade,
+      community claim,
+      viral,
+      44k views,
+      evidence,
+      screenshot,
+    ]
 
 - file: content/deepseek-flash-silent-update/assets/quimedesu-evidence.png
   type: image
@@ -41,7 +65,18 @@
   source: "Video thumbnail from https://x.com/quimedesu/status/2109718081681449325 (X CDN, 2026-10-14)"
   license: "X post — thumbnail for editorial/evidence use"
   used_in: [deepseek-flash-silent-update/S3]
-  keywords: [x post, quimedesu, deepseek v4.1, side by side comparison, sep 9 vs oct 12, viral clip, 115k views, voxel, evidence]
+  keywords:
+    [
+      x post,
+      quimedesu,
+      deepseek v4.1,
+      side by side comparison,
+      sep 9 vs oct 12,
+      viral clip,
+      115k views,
+      voxel,
+      evidence,
+    ]
 
 - file: content/deepseek-flash-silent-update/assets/dummer-evidence.png
   type: image
@@ -49,7 +84,18 @@
   source: "Screenshot of https://x.com/dummerspast39/status/2109681157742760299 (live page, CDP capture 2026-10-14)"
   license: "X post — screenshot for editorial/evidence use"
   used_in: [deepseek-flash-silent-update/S5]
-  keywords: [x post, twitter, dummerspast39, rebuttal, dissent, no new checkpoint, random output, counter-evidence, screenshot]
+  keywords:
+    [
+      x post,
+      twitter,
+      dummerspast39,
+      rebuttal,
+      dissent,
+      no new checkpoint,
+      random output,
+      counter-evidence,
+      screenshot,
+    ]
 
 - file: content/deepseek-flash-silent-update/assets/archive-log.png
   type: image
@@ -57,4 +103,74 @@
   source: "Screenshot of https://deepseek-monitor-archive.pages.dev/fingerprints/ (live page, CDP capture 2026-10-14)"
   license: "DeepSeek Monitor Archive — screenshot for editorial/evidence use"
   used_in: [deepseek-flash-silent-update/S6]
-  keywords: [deepseek, system fingerprint, monitor archive, event log, no change, september 19, machine record, evidence, screenshot]
+  keywords:
+    [
+      deepseek,
+      system fingerprint,
+      monitor archive,
+      event log,
+      no change,
+      september 19,
+      machine record,
+      evidence,
+      screenshot,
+    ]
+
+- file: content/deepseek-v41-flash-1017/assets/evidence-hf-model-card.png
+  type: image
+  description: "Hugging Face model card for DeepSeek-V4.1-Flash-1017: title, Introduction, and the official benchmark table"
+  source: "Screenshot of https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017 (live page, element capture 2026-10-22, selector section:has(.model-card-content))"
+  license: "Hugging Face model card — screenshot for editorial/evidence use"
+  used_in: [deepseek-v41-flash-1017/S1]
+  keywords:
+    [
+      deepseek,
+      v4.1-flash-1017,
+      model card,
+      hugging face,
+      benchmark table,
+      official,
+      evidence,
+      screenshot,
+    ]
+
+- file: content/deepseek-v41-flash-1017/assets/evidence-hf-benchmark.png
+  type: image
+  description: "Official DeepSeek-V4.1-Flash-1017 benchmark table: seven columns (Benchmark, DS-V4.1-Flash-1017, DS-V4.1-Flash, K3, GLM-5.3, GPT-5.6 Sol, Opus 5) and eleven benchmark rows"
+  source: "Screenshot of https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017 (live page, element capture 2026-10-22, selector table:has(thead th:nth-child(7)))"
+  license: "Hugging Face model card — screenshot for editorial/evidence use"
+  used_in: [deepseek-v41-flash-1017/S3]
+  keywords:
+    [
+      deepseek,
+      benchmark table,
+      HLE,
+      Terminal-Bench,
+      DeepSWE,
+      GPT-5.6,
+      Opus 5,
+      K3,
+      GLM-5.3,
+      official,
+      evidence,
+      screenshot,
+    ]
+
+- file: content/deepseek-v41-flash-1017/assets/evidence-search-api-pricing.png
+  type: image
+  description: "DeepSeek API docs Search & Fetch pricing table: Search and Fetch each $0.75 per 1,000 successful requests"
+  source: "Screenshot of https://api-docs.deepseek.com/quick_start/pricing/ (live page, element capture 2026-10-22, selector #search--fetch-pricing ~ table)"
+  license: "DeepSeek official API documentation — screenshot for editorial/evidence use"
+  used_in: [deepseek-v41-flash-1017/S7]
+  keywords:
+    [
+      deepseek,
+      search api,
+      fetch api,
+      pricing,
+      $0.75,
+      per 1000 requests,
+      api docs,
+      evidence,
+      screenshot,
+    ]

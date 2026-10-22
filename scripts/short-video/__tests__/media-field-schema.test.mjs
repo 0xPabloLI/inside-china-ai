@@ -158,6 +158,34 @@ describe("media field schema (#836)", () => {
     expect(result.fail.some((r) => r.check.includes("Media field schema"))).toBe(true);
   });
 
+  // ── mode:"card" applicability (#848 review) ──
+  // MediaCard exists only in HookScene and NarrativeScene media-bottom-bar;
+  // anywhere else the mode silently falls back to full-bleed MediaBackground.
+
+  it("fails mode:'card' on a layout that never renders the card", () => {
+    const results = checkMediaFieldSchema([
+      mediaScene({ type: "image", path: "assets/x.png", mode: "card" }),
+    ]);
+    const fail = failures(results).find((r) => r.check.includes('mode "card"'));
+    expect(fail, failureText(results)).toBeTruthy();
+    expect(fail.detail).toContain("media-overlay");
+  });
+
+  it("passes mode:'card' on hook and on narrative media-bottom-bar", () => {
+    const hook = {
+      id: 1,
+      visualType: "hook",
+      media: { type: "image", path: "assets/x.png", mode: "card" },
+    };
+    const bar = {
+      id: 2,
+      visualType: "narrative",
+      layout: "media-bottom-bar",
+      media: { type: "image", path: "assets/x.png", mode: "card" },
+    };
+    expect(failures(checkMediaFieldSchema([hook, bar]))).toHaveLength(0);
+  });
+
   it("keeps MEDIA_FIELD_KEYS in step with MediaField in remotion/src/types.ts", () => {
     const typesPath = fileURLToPath(new URL("../remotion/src/types.ts", import.meta.url));
     const source = readFileSync(typesPath, "utf8");
