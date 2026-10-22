@@ -13,7 +13,9 @@ Environment:
   COSYVOICE3_REF_AUDIO — path to ref-audio WAV (24kHz)
   COSYVOICE3_REF_TEXT  — exact transcription of ref-audio
   COSYVOICE3_SPEED     — speech speed multiplier (default: 1.0)
-  COSYVOICE3_MLX_MODEL_DIR — model directory (default: ~/.cosyvoice3-mlx-model)
+  COSYVOICE3_MLX_MODEL_DIR — model directory (default: ~/models/cosyvoice3-mlx;
+                         the pre-#327 ~/.cosyvoice3-mlx-model is auto-detected
+                         when the new path is absent)
   COSYVOICE3_SEED      — optional int seed for reproducible takes; when unset,
                          each process draws its own entropy base seed (#704)
 """
@@ -32,6 +34,45 @@ os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 # share a seed, then masked into MLX's non-negative 31-bit seed range.
 SCENE_SEED_STRIDE = 1009
 SEED_MASK = 0x7FFFFFFF
+
+# #327: models live under ~/models/. The pre-#327 install used a hidden
+# dot-directory; the resolver keeps that working as a fallback without moving
+# or deleting the user's existing model.
+CV3_MODEL_RELATIVE_PATH = os.path.join("models", "cosyvoice3-mlx")
+CV3_LEGACY_MODEL_DIRNAME = ".cosyvoice3-mlx-model"
+
+
+def resolve_model_dir(cli_value=None, env=None, home=None):
+    """Resolve the CosyVoice3-MLX model directory (#327).
+
+    Priority:
+    1. ``cli_value`` (``--model-dir``) — explicit, used verbatim.
+    2. ``COSYVOICE3_MLX_MODEL_DIR`` — explicit, used verbatim (no existence
+       probe: a wrong path must fail loudly at model load, not silently
+       fall back).
+    3. ``<home>/models/cosyvoice3-mlx`` when it exists.
+    4. ``<home>/.cosyvoice3-mlx-model`` when it exists (pre-#327 install).
+    5. ``<home>/models/cosyvoice3-mlx`` — canonical default, so the eventual
+       error names the location the model is expected to live in.
+    """
+    if cli_value:
+        return cli_value
+
+    if env is None:
+        env = os.environ
+    explicit = env.get("COSYVOICE3_MLX_MODEL_DIR")
+    if explicit:
+        return explicit
+
+    home_dir = home or env.get("HOME") or os.path.expanduser("~")
+    candidates = [
+        os.path.join(home_dir, CV3_MODEL_RELATIVE_PATH),
+        os.path.join(home_dir, CV3_LEGACY_MODEL_DIRNAME),
+    ]
+    for candidate in candidates:
+        if os.path.isdir(candidate):
+            return candidate
+    return candidates[0]
 
 
 def resolve_seed_base(env=os.environ):
@@ -108,7 +149,7 @@ def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0, mo
         scenes = json.load(f)
 
     if model_dir is None:
-        model_dir = os.path.join(os.path.expanduser("~"), ".cosyvoice3-mlx-model")
+        model_dir = resolve_model_dir()
 
     print(f"\nLoading CosyVoice3-MLX model from {model_dir}...", file=sys.stderr)
     t0 = time.time()
@@ -186,7 +227,7 @@ def main():
     ref_audio = args.ref_audio or os.environ.get("COSYVOICE3_REF_AUDIO")
     ref_text = args.ref_text or os.environ.get("COSYVOICE3_REF_TEXT")
     speed = float(os.environ.get("COSYVOICE3_SPEED", args.speed))
-    model_dir = args.model_dir or os.environ.get("COSYVOICE3_MLX_MODEL_DIR")
+    model_dir = resolve_model_dir(cli_value=args.model_dir)
 
     if not ref_audio or not ref_text:
         print("Error: --ref-audio and --ref-text (or COSYVOICE3_REF_AUDIO/COSYVOICE3_REF_TEXT env vars) are required", file=sys.stderr)
