@@ -238,6 +238,129 @@ describe("formatPatchEntry — output boundary", () => {
     expect(result).toContain("videoStartOffsetMs: 5000,");
   });
 
+  // #836: the same round-trip contract for the evidence marker and capture
+  // geometry — the review copy is what gets pasted back into scene-data, so a
+  // dropped declaration would silently switch the gate's requirement off.
+  it("#836: includes evidence and provenance in the review copy", () => {
+    const entry = {
+      sceneId: 1,
+      media: {
+        type: "image",
+        path: "test.png",
+        evidence: true,
+        provenance: {
+          sourceUrl: "https://example.com/a",
+          selector: "table",
+          rect: { x: 1, y: 2, w: 3, h: 4 },
+          clip: { x: 1, y: 2, w: 3, h: 4 },
+          scale: 2,
+        },
+      },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    expect(result).toContain("evidence: true,");
+    expect(result).toContain('sourceUrl: "https://example.com/a",');
+    expect(result).toContain("rect: { x: 1, y: 2, w: 3, h: 4 },");
+    expect(result).toContain("scale: 2,");
+  });
+
+  it("#836: keeps an explicit evidence:false and omits an absent provenance", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "image", path: "test.png", evidence: false },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    expect(result).toContain("evidence: false,");
+    expect(result).not.toContain("provenance");
+  });
+
+  // droid review on PR #847: the block is pasted into an ES module, so a
+  // non-numeric coordinate would be code injection, not cosmetics.
+  it("#836: never emits unvalidated provenance values as code", () => {
+    const entry = {
+      sceneId: 1,
+      media: {
+        type: "image",
+        path: "test.png",
+        evidence: true,
+        provenance: {
+          sourceUrl: "https://example.com/a",
+          selector: "table",
+          rect: { x: "0 }, globalThis.__pwned = 1, { x: 0", y: 2, w: 3, h: 4 },
+          clip: { x: 1, y: 2, w: 3, h: 4 },
+          scale: 2,
+        },
+      },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    const emittedCode = result
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("//"))
+      .join("\n");
+    expect(emittedCode).not.toContain("__pwned");
+    expect(result).toContain("INVALID provenance");
+  });
+
+  it("#836: a newline in the value cannot break out of the comment", () => {
+    const result = formatPatchEntry({
+      sceneId: 1,
+      media: {
+        type: "image",
+        path: "test.png",
+        evidence: true,
+        provenance: {
+          sourceUrl: "https://example.com/a",
+          selector: "table",
+          rect: { x: "1\n}); globalThis.__pwned2 = 1; //", y: 2, w: 3, h: 4 },
+          clip: { x: 1, y: 2, w: 3, h: 4 },
+          scale: 2,
+        },
+      },
+      status: "assigned",
+    });
+    const emittedCode = result
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("//"))
+      .join("\n");
+    expect(emittedCode).not.toContain("__pwned2");
+    // shown() escapes the newline, so the invalid value stays on the comment line
+    expect(result).toContain("\\x0a");
+  });
+
+  it("#836: an incomplete or non-finite provenance does not crash the formatter", () => {
+    for (const provenance of [
+      { sourceUrl: "https://example.com/a", selector: "table", scale: 2 },
+      {
+        sourceUrl: "https://example.com/a",
+        selector: "table",
+        rect: { x: 1, y: 2, w: 3, h: 4 },
+        clip: { x: 1, y: 2, w: 3, h: 4 },
+        scale: Number.NaN,
+      },
+    ]) {
+      const result = formatPatchEntry({
+        sceneId: 1,
+        media: { type: "image", path: "test.png", provenance },
+        status: "assigned",
+      });
+      expect(result).toContain("INVALID provenance");
+      expect(result).not.toContain("provenance: {");
+    }
+  });
+
+  it("#836: a non-boolean evidence marker is not emitted as code", () => {
+    const result = formatPatchEntry({
+      sceneId: 1,
+      media: { type: "image", path: "test.png", evidence: 10n },
+      status: "assigned",
+    });
+    expect(result).toContain("INVALID evidence");
+    expect(result).not.toContain("evidence: 10");
+  });
+
   it("VC-22: does NOT include videoStartOffsetMs line when absent", () => {
     const entry = {
       sceneId: 1,
@@ -908,14 +1031,14 @@ describe("#758 evidence capture fields in media patches", () => {
     );
   });
 
-  it("formatPatchEntry refuses an invalid provenance instead of printing undefined", () => {
-    expect(() =>
-      formatPatchEntry({
-        sceneId: 1,
-        status: "assigned",
-        media: { type: "image", path: "assets/bad.png", provenance: { selector: "table" } },
-      }),
-    ).toThrow(/provenance is invalid/);
+  it("formatPatchEntry refuses to copy an invalid provenance as code", () => {
+    const out = formatPatchEntry({
+      sceneId: 1,
+      status: "assigned",
+      media: { type: "image", path: "assets/bad.png", provenance: { selector: "table" } },
+    });
+    expect(out).toContain("INVALID provenance");
+    expect(out).not.toContain("sourceUrl: undefined");
   });
 
   it("rejects evidence:true without provenance", () => {

@@ -406,6 +406,8 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 
 **MRL-2 检查项**（B1–B13 Blockers + W1–W9 Warnings）：由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器强制；Agent 在 HITL 报告中引用其输出（报告含检查项名称与详情，无需查表）。B5（无 Widget 标记）、B6（数据一致性）、W2（Hook 具体性）为 Agent 判断项。完整清单与阈值见 `scene-rules.mjs`；W2 的判据见 Stage 3 → Hook 文案句式（#278）。
 
+`media` 对象另有一条 schema 检查（`lib/media-field-schema.mjs`，check 名以 `Media field schema:` 开头，#836）：**未知键即 FAIL**（拼错 `evidnce` 不会静默关掉 evidence 强制）、`evidence` 只接受 `true`/`false`/`null`、`evidence: true` 必须同时声明 `provenance`、声明了 `provenance` 就先跑 `validateProvenance()`（clip ⊇ rect）。允许的键集合是 `remotion/src/types.ts` 里 `MediaField` 的 .mjs 镜像，两边由单测钉住——加字段必须同改两处。
+
 **文本溢出双层防线**（spec 决策 14/71，T11 同步）：
 
 1. **字符预算 = 提示级（WARN）**：`checkTextWidthBudget`（`scene-rules.mjs`）从文本槽契约推导预算——`slotCharBudget()`（`lib/text-slots.mjs`）用实测内容盒宽度 ÷ `SLOT_FIELDS.preferredSize` 计算，不手写字符锚点；未实测的槽位直接跳过（不猜测）。超预算只产生 `warn` 级创作提示（建议缩短或换布局），**不阻断**。仅覆盖文本槽契约声明的字段。
