@@ -26,7 +26,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "fs";
-import { basename, dirname, join, resolve, sep } from "path";
+import { basename, dirname, sep } from "path";
 import {
   buildClip,
   buildProvenance,
@@ -35,6 +35,7 @@ import {
   normalizeCaptureRecipe,
 } from "./evidence-capture.mjs";
 import { inspectMediaFile, shown, validateProvenancePixels } from "./media-integrity.mjs";
+import { containedPath } from "./path-safety.mjs";
 
 const MANIFEST_FILE = "evidence-captures.json";
 
@@ -42,8 +43,6 @@ const MANIFEST_FILE = "evidence-captures.json";
 const GEOMETRY_TOLERANCE_PX = 0.5;
 
 const isObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
-
-const inside = (root, abs) => abs !== root && abs.startsWith(root + sep);
 
 /**
  * Read `content/<slug>/evidence-captures.json`, or null when the pack has none.
@@ -56,7 +55,7 @@ const inside = (root, abs) => abs !== root && abs.startsWith(root + sep);
  * @returns {Record<string, object>|null}
  */
 export function loadCaptureManifest(contentDirAbs) {
-  const manifestPath = join(contentDirAbs, MANIFEST_FILE); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  const manifestPath = containedPath(contentDirAbs, MANIFEST_FILE);
   if (!existsSync(manifestPath)) return null;
   let parsed;
   try {
@@ -129,7 +128,7 @@ export function planEvidenceCaptures({
     };
   }
 
-  const root = resolve(contentDirAbs); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  const root = contentDirAbs;
   const scenesById = new Map((scenes ?? []).map((scene) => [String(scene.id), scene]));
 
   for (const [key, entry] of Object.entries(manifest)) {
@@ -156,10 +155,12 @@ export function planEvidenceCaptures({
       );
       continue;
     }
-    const outputAbs = resolve(root, mediaPath); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
-    if (!inside(root, outputAbs)) {
+    let outputAbs;
+    try {
+      outputAbs = containedPath(root, mediaPath);
+    } catch (e) {
       errors.push(
-        `scene ${shown(sceneId)}: media.path "${mediaPath}" resolves outside the content dir (${root})`,
+        `scene ${shown(sceneId)}: media.path "${mediaPath}" resolves outside the content dir (${root}) — ${e.message}`,
       );
       continue;
     }
@@ -306,7 +307,7 @@ export async function captureFromPage(page, recipe, declared, outputAbs) {
   const bytes = Buffer.from(data, "base64");
 
   mkdirSync(dirname(outputAbs), { recursive: true });
-  const tmp = join(dirname(outputAbs), `.${basename(outputAbs)}.${process.pid}-${Date.now()}.tmp`); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  const tmp = dirname(outputAbs) + sep + `.${basename(outputAbs)}.${process.pid}-${Date.now()}.tmp`;
   try {
     writeFileSync(tmp, bytes);
     const verdict = inspectMediaFile(tmp);

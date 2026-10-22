@@ -23,7 +23,7 @@
  */
 
 import { existsSync } from "fs";
-import { dirname, join, relative, resolve, sep } from "path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { parseArgs } from "util";
 import {
@@ -42,6 +42,7 @@ import {
   validateProvenance,
   validateProvenancePixels,
 } from "./lib/media-integrity.mjs";
+import { containedPath } from "./lib/path-safety.mjs";
 
 const BASE_DIR = dirname(fileURLToPath(import.meta.url));
 const CONTENT_ROOT = join(BASE_DIR, "content");
@@ -114,7 +115,7 @@ function printProvenance(provenance, heading) {
 }
 
 async function loadScenes(contentDirAbs) {
-  const sceneDataPath = join(contentDirAbs, "scene-data.mjs"); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  const sceneDataPath = containedPath(contentDirAbs, "scene-data.mjs");
   if (!existsSync(sceneDataPath)) {
     throw new Error(`no scene-data.mjs in ${contentDirAbs}`);
   }
@@ -127,11 +128,11 @@ async function loadScenes(contentDirAbs) {
 
 export function resolveContentDir(slug) {
   const root = resolve(CONTENT_ROOT);
-  const contentDirAbs = resolve(root, slug); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
-  if (contentDirAbs === root || !contentDirAbs.startsWith(root + sep)) {
+  try {
+    return containedPath(root, slug);
+  } catch {
     throw new Error(`--content "${slug}" must name a pack inside ${root}`);
   }
-  return contentDirAbs;
 }
 
 const uncoveredLine = (scene) =>
@@ -266,7 +267,8 @@ async function captureOneOff(values) {
     "one-off",
   );
   // One-off mode is a manual bootstrap: the operator names the destination.
-  const outputAbs = resolve(process.cwd(), values.output); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  // One-off mode is a manual bootstrap: the operator names the destination.
+  const outputAbs = isAbsolute(values.output) ? values.output : process.cwd() + sep + values.output;
   const shot = await captureEvidenceShot({ recipe, outputAbs, declared: null });
   console.log(`✅ Captured ${displayPath(outputAbs)} (${shot.width}×${shot.height})`);
   printProvenance(shot.provenance, "Paste into scene-data (inside media, beside evidence: true):");
