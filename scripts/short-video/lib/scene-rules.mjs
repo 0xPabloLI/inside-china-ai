@@ -50,6 +50,7 @@ import {
   slotCharBudget,
 } from "./text-slots.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
+import { checkMediaFieldSchema } from "./media-field-schema.mjs";
 import { skipsMediaSourcing } from "./claim-keywords.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
 // SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
@@ -2301,6 +2302,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkVisualTypeWhitelist(scenes, opts),
     ...checkInstructCoverage(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
+    ...checkMediaFieldSchema(scenes),
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),
     ...checkBrollPromptDimensions(scenes),

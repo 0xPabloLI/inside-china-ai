@@ -47,7 +47,9 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // #760: pass 48 → 49, warn 3 → 2 — the media coverage warning now shares
     // the sourcer's predicate, so qwen4's stacked-cards scenes (CSS-only by
     // layout choice) are intentionally waived instead of scolded.
-    expect(before.pass).toHaveLength(49);
+    // #836: pass 49 → 50 — the media field schema check joined the aggregate
+    // (unknown media keys / evidence flag / provenance shape).
+    expect(before.pass).toHaveLength(50);
     expect(before.warn).toHaveLength(2);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });

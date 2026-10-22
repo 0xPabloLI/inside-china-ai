@@ -3,7 +3,8 @@
  *
  * Single source of truth for:
  *   1. Human-readable review summary (focus analysis + VLM semantics comments, spec §4.7)
- *   2. Copyable media: { ... } code blocks (including cropFocus, fit, volume, videoStartOffsetMs)
+ *   2. Copyable media: { ... } code blocks (including cropFocus, fit, volume, videoStartOffsetMs,
+ *      evidence, provenance)
  *   3. Normalization of media-patch envelopes (both array and {schemaVersion, patches} shapes)
  *   4. Asset analysis lookup map loading
  *
@@ -13,6 +14,7 @@
  */
 
 import { readFileSync, existsSync } from "fs";
+import { shown, validateProvenance } from "./media-integrity.mjs";
 
 /**
  * Format a focus analysis result as a human-readable comment block.
@@ -225,6 +227,39 @@ export function formatPatchEntry(entry, analysisMap) {
   if (media.volume !== undefined) lines.push(`    volume: ${media.volume},`);
   if (media.videoStartOffsetMs !== undefined)
     lines.push(`    videoStartOffsetMs: ${media.videoStartOffsetMs},`);
+  // #836: the review copy is what an agent pastes back into scene-data, so a
+  // declared evidence marker or capture geometry must survive the round trip
+  // (same contract as VC-21 for videoStartOffsetMs). Values are interpolated
+  // into generated JS, so only validated input becomes code: a bad coordinate
+  // would otherwise be a code-injection surface (media-patch.json is
+  // agent-produced JSON influenced by scraped pages) or silently change type.
+  if (media.evidence !== undefined) {
+    if (media.evidence === true || media.evidence === false || media.evidence === null) {
+      lines.push(`    evidence: ${JSON.stringify(media.evidence)},`);
+    } else {
+      lines.push(
+        `    // INVALID evidence (${shown(media.evidence)}): must be true, false or null — not copied`,
+      );
+    }
+  }
+  if (media.provenance) {
+    const { ok, errors } = validateProvenance(media.provenance);
+    if (!ok) {
+      lines.push(`    // INVALID provenance — not copied as code: ${errors.join("; ")}`);
+    } else {
+      lines.push(`    provenance: {`);
+      lines.push(`      sourceUrl: ${JSON.stringify(media.provenance.sourceUrl)},`);
+      lines.push(`      selector: ${JSON.stringify(media.provenance.selector)},`);
+      lines.push(
+        `      rect: { x: ${media.provenance.rect.x}, y: ${media.provenance.rect.y}, w: ${media.provenance.rect.w}, h: ${media.provenance.rect.h} },`,
+      );
+      lines.push(
+        `      clip: { x: ${media.provenance.clip.x}, y: ${media.provenance.clip.y}, w: ${media.provenance.clip.w}, h: ${media.provenance.clip.h} },`,
+      );
+      lines.push(`      scale: ${media.provenance.scale},`);
+      lines.push(`    },`);
+    }
+  }
   // Note: focus is NOT included in new output (deprecated, spec §4.8)
   lines.push(`  },`);
 
