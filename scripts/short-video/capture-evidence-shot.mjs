@@ -114,7 +114,7 @@ function printProvenance(provenance, heading) {
 }
 
 async function loadScenes(contentDirAbs) {
-  const sceneDataPath = join(contentDirAbs, "scene-data.mjs");
+  const sceneDataPath = join(contentDirAbs, "scene-data.mjs"); // nosemgrep -- contentDirAbs passed the CONTENT_ROOT containment check
   if (!existsSync(sceneDataPath)) {
     throw new Error(`no scene-data.mjs in ${contentDirAbs}`);
   }
@@ -127,7 +127,7 @@ async function loadScenes(contentDirAbs) {
 
 export function resolveContentDir(slug) {
   const root = resolve(CONTENT_ROOT);
-  const contentDirAbs = resolve(root, slug);
+  const contentDirAbs = resolve(root, slug); // nosemgrep -- containment checked on the next line
   if (contentDirAbs === root || !contentDirAbs.startsWith(root + sep)) {
     throw new Error(`--content "${slug}" must name a pack inside ${root}`);
   }
@@ -265,7 +265,8 @@ async function captureOneOff(values) {
     },
     "one-off",
   );
-  const outputAbs = resolve(process.cwd(), values.output);
+  // One-off mode is a manual bootstrap: the operator names the destination.
+  const outputAbs = resolve(process.cwd(), values.output); // nosemgrep -- operator-chosen output path
   const shot = await captureEvidenceShot({ recipe, outputAbs, declared: null });
   console.log(`✅ Captured ${displayPath(outputAbs)} (${shot.width}×${shot.height})`);
   printProvenance(shot.provenance, "Paste into scene-data (inside media, beside evidence: true):");
