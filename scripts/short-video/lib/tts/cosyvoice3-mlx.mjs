@@ -20,6 +20,7 @@ import { homedir } from "os";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
+import { containedPath } from "../path-safety.mjs";
 import { postProcessBatch, engineTtsText } from "./post-process.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 import { offlineEnvPrefix } from "./offline-env.mjs";
@@ -36,7 +37,7 @@ const CV3_REF_TEXT_FILE = join(ROOT_DIR, "voice-samples", "voice-sample-ref-text
 // #327: models live under ~/models/. The pre-#327 install used a hidden
 // dot-directory; the resolver keeps that working as a fallback so an existing
 // checkout does not have to be moved (and nothing is deleted).
-const CV3_MODEL_RELATIVE_PATH = join("models", "cosyvoice3-mlx");
+const CV3_MODEL_SEGMENTS = ["models", "cosyvoice3-mlx"];
 const CV3_LEGACY_MODEL_DIRNAME = ".cosyvoice3-mlx-model";
 
 function isDirectory(path) {
@@ -72,8 +73,8 @@ export function resolveCV3ModelDir({ env = process.env, home, isDir = isDirector
 
   const homeDir = home || env.HOME || homedir();
   const candidates = [
-    join(homeDir, CV3_MODEL_RELATIVE_PATH),
-    join(homeDir, CV3_LEGACY_MODEL_DIRNAME),
+    containedPath(homeDir, ...CV3_MODEL_SEGMENTS),
+    containedPath(homeDir, CV3_LEGACY_MODEL_DIRNAME),
   ];
   return candidates.find(isDir) ?? candidates[0];
 }

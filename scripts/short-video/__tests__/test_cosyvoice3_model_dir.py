@@ -1,5 +1,7 @@
 """Tests for CosyVoice3-MLX model directory resolution (#327).
 
+Run via the suite runner: npm run test:python.
+
 The default moved from ``~/.cosyvoice3-mlx-model`` to
 ``~/models/cosyvoice3-mlx`` with the old path kept as an automatic fallback.
 These tests only exercise the resolver: no model is loaded, nothing is
