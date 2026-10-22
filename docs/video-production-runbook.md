@@ -225,7 +225,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 | -------- | -------------------------- | ---------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | 1        | **CosyVoice3-Kaggle-CUDA** | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Kaggle CLI + `~/.kaggle/kaggle.json` | **DEFAULT** (ADR-0019). Apache-2.0. P100 GPU, full emotion fidelity. ~8-10min/batch. Free 30h/week.              |
 | 2        | **CosyVoice3-Modal-CUDA**  | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Modal CLI + `modal token new`        | **PAID FALLBACK**. A100 GPU, same CUDA emotion as Kaggle. ~$0.20-0.50/batch, used when Kaggle 30h/week runs out. |
-| 3        | **CosyVoice3-MLX**         | speed=1.0, instruct_text per visualType                          | `~/.video-tts-env` (Python 3.12)     | **LOCAL FALLBACK**. Emotion regression vs CUDA but fast RTF 0.64-0.87x. Model: `~/.cosyvoice3-mlx-model` (1.7GB) |
+| 3        | **CosyVoice3-MLX**         | speed=1.0, instruct_text per visualType                          | `~/.video-tts-env` (Python 3.12)     | **LOCAL FALLBACK**. Emotion regression vs CUDA but fast RTF 0.64-0.87x. Model: `~/models/cosyvoice3-mlx` (1.7GB) |
 | 4        | **F5-TTS-MLX**             | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12)     | **BACKUP**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control. CC-BY-NC weights.   |
 | —        | edge-tts                   | en-US-BrianNeural                                                | npm                                  | Manual opt-in only (`TTS_ENGINE=edge-tts`). Network-dependent, retry 3x; no voice cloning. Template voice only.  |
 | —        | macOS say                  | Daniel, 190 wpm                                                  | built-in                             | Manual opt-in only (`TTS_ENGINE=say`). Last resort; no voice cloning                                             |
@@ -234,6 +234,13 @@ node scripts/short-video/main.mjs --content series/pt4 &
 > loop fails closed after rank 4 and never reaches edge-tts / say on its own
 > (user rule 2026-09-10). Engines evaluated and rejected are recorded in
 > ADR-0019 (`Why no NPU engine`).
+>
+> **CosyVoice3-MLX model directory (#327)**: defaults to
+> `~/models/cosyvoice3-mlx`; an existing `~/.cosyvoice3-mlx-model` is
+> auto-detected. Before moving the model, update or remove
+> `COSYVOICE3_MLX_MODEL_DIR` in `.env.local` — an explicit value is used as-is
+> and bypasses the legacy probe. Then run
+> `mkdir -p ~/models && mv ~/.cosyvoice3-mlx-model ~/models/cosyvoice3-mlx`.
 
 **M4A → WAV conversion**: M4A is not readable by Python audio libraries (`soundfile`/`torchaudio`/`librosa` are libsndfile-based) — `LibsndfileError: Format not recognised` means an M4A was passed. Convert first, matching the ref-audio spec (24 kHz mono):
 

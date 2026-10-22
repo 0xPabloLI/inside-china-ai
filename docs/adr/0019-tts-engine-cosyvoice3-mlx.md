@@ -153,7 +153,7 @@ MLX version auto-appends it — do NOT include it in instruct_text for MLX.
 - `.env.local.example` — CosyVoice3 env vars documented (Kaggle + Modal)
 - Model (Kaggle): downloaded fresh per kernel run (~9GB, cached in kernel session)
 - Model (Modal): cached in Modal volume `cosyvoice3-cuda` (first run ~10min, subsequent ~1min)
-- Model (MLX fallback): `~/.cosyvoice3-mlx-model` (1.7GB, mlx-audio format)
+- Model (MLX fallback): `~/models/cosyvoice3-mlx` (1.7GB, mlx-audio format; legacy `~/.cosyvoice3-mlx-model` auto-detected when the new path is absent)
 - Venv (MLX fallback): `~/.video-tts-env` (shared with F5, Python 3.12)
 - Kaggle CLI: `~/.kaggle/kaggle.json` required
 - Modal CLI: `modal token new` required (paid, ~$30/mo)
@@ -176,7 +176,7 @@ Modal CUDA (paid fallback, same emotion quality):
 MLX fallback (optional, for offline/fast iteration):
 
 - `~/.video-tts-env` Python 3.12 venv with mlx-audio
-- `~/.cosyvoice3-mlx-model` model directory
+- `~/models/cosyvoice3-mlx` model directory (legacy `~/.cosyvoice3-mlx-model` auto-detected when the new path is absent)
 
 ### Future engine swap
 

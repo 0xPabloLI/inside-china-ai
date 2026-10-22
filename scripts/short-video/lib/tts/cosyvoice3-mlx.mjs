@@ -15,10 +15,12 @@
  */
 
 import { exec } from "child_process";
-import { existsSync, readFileSync, symlinkSync } from "fs";
+import { existsSync, readFileSync, statSync, symlinkSync } from "fs";
+import { homedir } from "os";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
+import { containedPath } from "../path-safety.mjs";
 import { postProcessBatch, engineTtsText } from "./post-process.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 import { offlineEnvPrefix } from "./offline-env.mjs";
@@ -29,10 +31,53 @@ const execAsync = promisify(exec);
 const CV3_MLX_BATCH_SCRIPT = join(ROOT_DIR, "cosyvoice3_mlx_batch_tts.py");
 const CV3_MLX_VENV = join(process.env.HOME || "", ".video-tts-env");
 const CV3_MLX_SPEED = parseFloat(process.env.COSYVOICE3_SPEED) || 1.0;
-const CV3_MLX_MODEL_DIR =
-  process.env.COSYVOICE3_MLX_MODEL_DIR || join(process.env.HOME || "", ".cosyvoice3-mlx-model");
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 const CV3_REF_TEXT_FILE = join(ROOT_DIR, "voice-samples", "voice-sample-ref-text.txt");
+
+// #327: models live under ~/models/. The pre-#327 install used a hidden
+// dot-directory; the resolver keeps that working as a fallback so an existing
+// checkout does not have to be moved (and nothing is deleted).
+const CV3_MODEL_SEGMENTS = ["models", "cosyvoice3-mlx"];
+const CV3_LEGACY_MODEL_DIRNAME = ".cosyvoice3-mlx-model";
+
+function isDirectory(path) {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve the CosyVoice3-MLX model directory (#327). Resolved per call — the
+ * model-dir default must not be frozen at module load, or a test/worker with a
+ * different HOME (and an upgraded install) would keep pointing at the stale path.
+ *
+ * Priority:
+ * 1. `COSYVOICE3_MLX_MODEL_DIR` — explicit, used verbatim (no existence probe:
+ *    a wrong path must fail loudly at model load, not silently fall back).
+ * 2. `<home>/models/cosyvoice3-mlx` when it exists.
+ * 3. `<home>/.cosyvoice3-mlx-model` when it exists (pre-#327 install).
+ * 4. `<home>/models/cosyvoice3-mlx` — canonical default, so the eventual error
+ *    names the location the model is expected to live in.
+ *
+ * @param {object} [options]
+ * @param {NodeJS.ProcessEnv} [options.env=process.env]
+ * @param {string} [options.home] - overrides HOME (tests)
+ * @param {(path: string) => boolean} [options.isDir] - directory probe (tests)
+ * @returns {string}
+ */
+export function resolveCV3ModelDir({ env = process.env, home, isDir = isDirectory } = {}) {
+  const explicit = env.COSYVOICE3_MLX_MODEL_DIR;
+  if (explicit) return explicit;
+
+  const homeDir = home || env.HOME || homedir();
+  const candidates = [
+    containedPath(homeDir, ...CV3_MODEL_SEGMENTS),
+    containedPath(homeDir, CV3_LEGACY_MODEL_DIRNAME),
+  ];
+  return candidates.find(isDir) ?? candidates[0];
+}
 
 // mlx_audio's S3TokenizerV3.from_pretrained() defaults to repo_id="/tmp/s3-tokenizer",
 // a LOCAL dir it does not create. When it is missing, the hand-patched fetch_from_hub
@@ -99,7 +144,8 @@ export function buildCV3Manifest(scenes) {
  *
  * Unlike those two spawns, this one carries NO offline cache-miss hint, and
  * that is deliberate: the weights load from the local `--model-dir`
- * (`~/.cosyvoice3-mlx-model`), and the one HF-cached dependency
+ * (`~/models/cosyvoice3-mlx`, with the legacy `~/.cosyvoice3-mlx-model`
+ * auto-detected), and the one HF-cached dependency
  * (mlx-community/S3TokenizerV3) is checked before the spawn by
  * `ensureS3Tokenizer()`, which already throws with the restore command. The
  * offline flag here is defensive — do not "fix" the missing hint by adding a
@@ -110,8 +156,9 @@ export function buildCV3Manifest(scenes) {
  * @param {string} options.outputDir
  * @param {string} options.refText - default reference transcription
  * @param {number} [options.speed=CV3_MLX_SPEED]
- * @param {string} [options.modelDir=CV3_MLX_MODEL_DIR]
  * @param {NodeJS.ProcessEnv} [options.env=process.env]
+ * @param {string} [options.modelDir] - defaults to resolveCV3ModelDir({ env });
+ *   empty/omitted resolves at call time so the passed `env` wins
  * @returns {string}
  */
 export function buildCV3BatchCommand({
@@ -119,15 +166,16 @@ export function buildCV3BatchCommand({
   outputDir,
   refText,
   speed = CV3_MLX_SPEED,
-  modelDir = CV3_MLX_MODEL_DIR,
   env = process.env,
+  modelDir,
 }) {
+  const resolvedModelDir = modelDir || resolveCV3ModelDir({ env });
   return (
     `source ${CV3_MLX_VENV}/bin/activate && ${offlineEnvPrefix({ env })} HF_HUB_DISABLE_XET=1 PYTHONUNBUFFERED=1 ` +
     `python3 "${CV3_MLX_BATCH_SCRIPT}" ` +
     `--manifest "${manifestPath}" --output-dir "${outputDir}" ` +
     `--ref-audio "${CV3_REF_AUDIO}" --ref-text "${refText.replace(/"/g, '\\"')}" ` +
-    `--speed ${speed} --model-dir "${modelDir}" 2>&1`
+    `--speed ${speed} --model-dir "${resolvedModelDir}" 2>&1`
   );
 }
 
@@ -139,7 +187,7 @@ async function isAvailable() {
   if (!existsSync(CV3_MLX_BATCH_SCRIPT)) return false;
   if (!existsSync(CV3_MLX_VENV)) return false;
   if (!existsSync(CV3_REF_AUDIO)) return false;
-  if (!existsSync(CV3_MLX_MODEL_DIR)) return false;
+  if (!existsSync(resolveCV3ModelDir())) return false;
   try {
     await execAsync(
       `source ${CV3_MLX_VENV}/bin/activate && python3 -c "import mlx_audio" 2>/dev/null`,
@@ -219,7 +267,7 @@ export async function createCosyVoice3MLXEngine() {
           continue;
         }
         const chunkPath = audioPath.replace(/\.wav$/, "_000.wav");
-        const { statSync, renameSync } = await import("fs");
+        const { renameSync } = await import("fs");
         if (existsSync(chunkPath)) {
           const chunkM = statSync(chunkPath).mtimeMs;
           const reportedM = existsSync(audioPath) ? statSync(audioPath).mtimeMs : -1;
