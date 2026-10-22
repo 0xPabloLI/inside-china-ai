@@ -56,7 +56,7 @@ const inside = (root, abs) => abs !== root && abs.startsWith(root + sep);
  * @returns {Record<string, object>|null}
  */
 export function loadCaptureManifest(contentDirAbs) {
-  const manifestPath = join(contentDirAbs, MANIFEST_FILE); // nosemgrep -- pack dir is containment-checked by the caller
+  const manifestPath = join(contentDirAbs, MANIFEST_FILE); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   if (!existsSync(manifestPath)) return null;
   let parsed;
   try {
@@ -129,7 +129,7 @@ export function planEvidenceCaptures({
     };
   }
 
-  const root = resolve(contentDirAbs); // nosemgrep -- pack dir is containment-checked by the caller
+  const root = resolve(contentDirAbs); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   const scenesById = new Map((scenes ?? []).map((scene) => [String(scene.id), scene]));
 
   for (const [key, entry] of Object.entries(manifest)) {
@@ -156,7 +156,7 @@ export function planEvidenceCaptures({
       );
       continue;
     }
-    const outputAbs = resolve(root, mediaPath); // nosemgrep -- containment checked on the next lines
+    const outputAbs = resolve(root, mediaPath); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
     if (!inside(root, outputAbs)) {
       errors.push(
         `scene ${shown(sceneId)}: media.path "${mediaPath}" resolves outside the content dir (${root})`,
@@ -306,7 +306,7 @@ export async function captureFromPage(page, recipe, declared, outputAbs) {
   const bytes = Buffer.from(data, "base64");
 
   mkdirSync(dirname(outputAbs), { recursive: true });
-  const tmp = join(dirname(outputAbs), `.${basename(outputAbs)}.${process.pid}-${Date.now()}.tmp`); // nosemgrep -- outputAbs is contained by the plan (or operator-chosen in one-off mode)
+  const tmp = join(dirname(outputAbs), `.${basename(outputAbs)}.${process.pid}-${Date.now()}.tmp`); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   try {
     writeFileSync(tmp, bytes);
     const verdict = inspectMediaFile(tmp);
