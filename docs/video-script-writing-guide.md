@@ -351,9 +351,12 @@ CTA 公式：`[Action Verb] + [What They Get]`
 **截图证据约定（Stage 3 素材选项，2026-10-14 用户裁决）**：某个 scene 的断言建立在某个具体公开页面上时——官方变更日志、当事人帖子、第三方归档、监管文件——该 scene 的素材就是这个页面的**真实截图**：「谁主张、谁出示」。它是素材菜单里的一项，不是优先规则：非证据 scene（分析、对比、收尾）照旧走 CSS 或 stock，用不用截图由 Agent 按脚本判断。真实截图不重构、不伪造产品页面；示意图只在明确风格化时使用，且不与截图混用。
 
 - **语言规范**：能用英文就用英文——站点有英文 UI 或帖子有英文原文时，截图必须落在英文形态上（帖子要先切回原文再截，见下）。站点只有中文时（无英文路由、无语言开关），中文界面截图直接采用，不需要为截图去改账号设置。这是生产规范，不是偏好。
-- **抓取**：走 `web-access` CDP（自动化 profile），读页面即可，公开内容不需要登录态；操作面压到最小。**先读站点经验**（`~/.agents/skills/web-access/references/site-patterns/<domain>.md`），没有就按通用模式操作并把验证过的事实写回去。
-- **隔离与裁切**：把目标卡片从页面里隔离出来（逐级隐藏兄弟节点），隐藏浏览者界面元素（导航、译文行、悬浮按钮），截图前回到页面顶部。**裁切点必须落在元素边界上**——正文底与媒体区之间的空白处；卡片高度差异很大，按固定高度裁切必然把配图或视频切一半。
-- **构图约束**：`media-bottom-bar` 的媒体窗口是 y∈[0,814] 的 1080 宽画面，而 TikTok 右侧操作栏从 x=880 起（y∈[640,1775]），帧门禁要求该区亮像素 <5%。白色网页整幅都是亮像素，故截图素材按 **880×814** 合成（上方留暗带给品牌栏、下方留暗底、两侧交给 `fit:"contain"` 的底衬），不要靠提高 overlay 过门禁——压到能过门禁时页内正文已不可读。
+- **抓取**：**默认走 `capture-evidence-shot.mjs`**（Playwright + 系统 Chrome，用 `EVIDENCE_CAPTURE_CHANNEL` / `EVIDENCE_CAPTURE_EXECUTABLE` 指定浏览器）。它只适用于公开页面；需要登录态、站点经验或页面交互时，才退回 `web-access` CDP（自动化 profile）手动路径——手动路径先读站点经验（`~/.agents/skills/web-access/references/site-patterns/<domain>.md`），没有就按通用模式操作并把验证过的事实写回去。
+- **隔离与裁切**：确定性路径由 `selector` 隔离目标元素，工具按元素边界加 `padding` 裁切并记录 `rect` / `clip`；不要手动隐藏兄弟节点，也不要按固定高度裁切。只有手动路径才需要隐藏浏览者界面元素（导航、译文行、悬浮按钮）并回到页面顶部，裁切点落在元素边界上——卡片高度差异很大，按固定高度裁切必然把配图或视频切一半。
+- **确定性捕获**：截图配方写进 `content/<slug>/evidence-captures.mjs`，按 scene id 键控 `url` / `selector` / `padding` / `viewport` / `deviceScaleFactor` / `waitUntil` / `timeoutMs`，不要手写几何。新页面先跑 `node scripts/short-video/capture-evidence-shot.mjs --url <http(s)> --selector <sel> --output content/<slug>/assets/<name>.png` 取得第一份 provenance block，粘进 scene-data 的 `media.provenance`，并设 `media.evidence: true`。
+- **重捕获与校验**：`node scripts/short-video/capture-evidence-shot.mjs --content <slug> [--scene <id>]` 只补缺失文件；`--force` 全量重截；`--check` 不开浏览器，只校验文件字节与已声明几何。Stage 1.5 在 stock sourcing 之前运行，`media.evidence: true` 的 scene 永不回退到 stock。
+- **硬失败**：选择器命中 0 个或多个、实测几何与声明漂移超过 0.5px，都直接失败——不写文件，打印可粘贴的新 provenance block，重录后更新 scene-data。缺文件或捕获失败由 final media gate 拦截，不会用 stock 顶替。
+- **不做预合成**：不要手工拼 880×814 画布，构图交给布局的 `fit` 与安全区（#663/#668）。`composed: true` 只用于历史预合成证据图并跳过像素对账——新捕获不得设置。
 - **落档**：截图写入 `content/<slug>/assets/`，在共享的 `scripts/short-video/assets/catalog.yml` 补条目（source 写 URL + 抓取日期，license 写「editorial/evidence use」；目录是 RAG 索引的输入，写错位置截图进不了语义检索），并在 `docs/refs/source-materials/<slug>-sources.md` 记录抓取方式与每个数字的页面口径。
 
 **asset-sourcer 当前限制（2026-09-03 实测）**：

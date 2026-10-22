@@ -431,6 +431,8 @@ node scripts/rag/index.mjs
 node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 → 合成（不含 BGM）
 ```
 
+> **Step 1.5 证据截图**：媒体轨在 asset sourcing 之前，按 `content/<slug>/evidence-captures.mjs` 重捕获缺失的证据截图（手动入口 `capture-evidence-shot.mjs`）；`media.evidence: true` 的 scene 不参与 stock 搜索。配方、失败语义与落档约定见 `docs/video-script-writing-guide.md` §截图证据约定。
+
 > **BGM 不在 Stage 4 自动添加**。视频先以纯 VO 产出，BGM 在 Stage 5 HITL 确认后通过 `mix-bgm.mjs` 独立混入。
 
 > **每轮交付必开**（用户裁决，2026-10-14）：一轮修改做完、把新版本交回用户时 `open <新 mp4 路径>`，HITL 检查点同样如此。一轮里中间过程重渲几次不用打开，用户要的是「这一轮改完了，看这个」——交付时只给路径等于让用户自己去 output 目录翻版本。
