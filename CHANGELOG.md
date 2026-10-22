@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.27.0...tanstack_start_ts-v1.28.0) (2026-10-22)
+
+
+### Features
+
+* **short-video:** native evidence card layout for raw page captures ([#848](https://github.com/0xPabloLI/inside-china-ai/issues/848)) ([#856](https://github.com/0xPabloLI/inside-china-ai/issues/856)) ([811e844](https://github.com/0xPabloLI/inside-china-ai/commit/811e844c4c3d22d3270259c4e5519c7677fb87ce))
+
 ## [1.27.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.26.0...tanstack_start_ts-v1.27.0) (2026-10-22)
 
 
