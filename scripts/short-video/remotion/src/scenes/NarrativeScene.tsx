@@ -24,6 +24,7 @@ import {
 } from "../components/animations/entrance";
 import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION } from "../components/shared";
 import { MediaBackground } from "../components/MediaBackground";
+import { MediaCard } from "../components/MediaCard";
 import { TextGate } from "../components/text-gate";
 import { TextGroupGate } from "../components/text-group-gate";
 import { SplitHighlight } from "../components/substring-highlight";
@@ -179,21 +180,25 @@ export const NarrativeScene: React.FC<{
     const textBarTop = 1150 - textBarHeight; // = 814
     return (
       <>
-        {/* Media fills top portion up to text bar */}
-        {hasMedia && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: textBarTop,
-              overflow: "hidden",
-            }}
-          >
-            <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
-          </div>
-        )}
+        {/* Media fills top portion up to text bar; card mode keeps the raw
+            capture inside the #663 evidence card instead of full-bleed. */}
+        {hasMedia &&
+          (scene.media!.mode === "card" ? (
+            <MediaCard media={scene.media!} duration={duration} contentDir={contentDir} />
+          ) : (
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: textBarTop,
+                overflow: "hidden",
+              }}
+            >
+              <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
+            </div>
+          ))}
         {/* Text bar anchored to safe zone bottom (y=1150) */}
         <div
           data-text-container

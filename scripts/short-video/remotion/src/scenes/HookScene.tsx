@@ -25,6 +25,7 @@ import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
 import { SPACING, ANNOTATION } from "../components/shared";
 import { NumberPulse, ScanSweep } from "../components/animations/loops";
 import { MediaBackground } from "../components/MediaBackground";
+import { MediaCard } from "../components/MediaCard";
 import { TextGate } from "../components/text-gate";
 import { HOOK_SUBJECT_ROW, hookSubjectTextWidth } from "../../../lib/text-slots.mjs";
 import { AnnotationCollisionAssert } from "../components/annotation-collision-gate";
@@ -76,9 +77,12 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      {scene.media && (
-        <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
-      )}
+      {scene.media &&
+        (scene.media.mode === "card" ? (
+          <MediaCard media={scene.media} duration={duration} contentDir={contentDir} />
+        ) : (
+          <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
+        ))}
       {/* Background layers — CSS: .grid-bg + .glow-tint + .scanlines + .scan-sweep */}
       <GridBg />
       <div

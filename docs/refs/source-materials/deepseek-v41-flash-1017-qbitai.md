@@ -19,11 +19,11 @@
 9. **Community consensus**: "更聪明、更快，输出也更简洁了" (smarter, faster, more concise output). Blogger Chetaslua: new version renders richer detail and more realistic lighting. Another said it is smoother than Gemini 4 Argon. Blogger Hakm's multimodal outputs show stronger 3D generation.
 10. **Search API opened**: DeepSeek's self-built search engine ships two endpoints — Search (find pages by keyword, supports site/language/publish-time filters) and Fetch (read the page body as Markdown). Pricing: ¥5 per 1,000 successful requests; failed / no-result / timed-out requests are free. Available when using DeepSeek API inside DeepSeek Harness, Claude Code or Codex. Free until Nov 1, 2026.
 11. **Sign-up credit**: eligible users who log into DeepSeek Harness for the first time get ¥6 credit, valid 7 days, while supplies last.
-12. **Links**: 
+12. **Links**:
     - HuggingFace: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
     - ModelScope: https://modelscope.cn/models/deepseek-ai/DeepSeek-V4.1-Flash-1017
     - Search API docs: https://api-docs.deepseek.com/guides/search/
-13. **Cited X posts**: 
+13. **Cited X posts**:
     - https://x.com/aitrackerbot/status/2111295736411300047
     - https://x.com/yugen_matuni/status/2111336985554227345
     - https://x.com/hakmgpt/status/2111314470433947988
@@ -33,35 +33,39 @@
 ## Verified primary sources (full text extracted 2026-10-17)
 
 ### HuggingFace official model card (deepseek-ai/DeepSeek-V4.1-Flash-1017)
+
 - "a minor update to DeepSeek-V4.1-Flash, delivering substantial improvements across reasoning, coding, agentic tasks, and visual benchmarks. Alongside these gains, the model reduces task execution time and output length ... advancing the performance–cost Pareto frontier across multiple agent harnesses."
 - **License: MIT** (both repository and model weights).
 - Official benchmark table:
 
-| Benchmark | DS-V4.1-Flash-1017 | DS-V4.1-Flash | K3 | GLM-5.3 | GPT-5.6 Sol | Opus 5 |
-| --- | --- | --- | --- | --- | --- | --- |
-| HLE w/o tools | 42.6 (44.0†) | 36.8 (39.1†) | 43.5 | 42.0† | 44.5 | 56.3 |
-| Terminal-Bench 4.0 | 42.3 | 31.2 | 12.6 | 37.9 | 39.9 | 51.8 |
-| DeepSWE v1.1 | 77.0 | 74.2 | 67.5 | 66.9 | 73.0 | 74.0 |
-| ProgramBench | 29.1 | 20.3 | 17.5 | 19.0 | 23.0 | 37.0 |
-| NL2Repo-Bench | 68.2 | 65.4 | 58.0 | 58.0 | 56.8 | 75.3 |
-| Automation-Bench v1.0.6 | 60.5 | 54.8 | 46.7 | 48.8 | 45.8 | 50.3 |
-| Agents' Last Exam | 35.4 | 31.8 | 27.6 | 28.5 | 26.7 | 28.6 |
-| Apex Bench v1.1 | 72.1 | 64.6 | 47.8 | 56.6 | 54.3 | 65.8 |
-| Chartography (w/tools) | 83.0 | 78.9 | 68.1 | — | 79.9 | 84.0 |
-| BabyVision (w/tools) | 92.5 | 89.6 | 85.7 | — | 88.9 | 94.1 |
-| ZeroBench-main (w/tools) | 51.0 | 49.0 | 41.0 | — | 53.0 | 52.0 |
+| Benchmark                | DS-V4.1-Flash-1017 | DS-V4.1-Flash | K3   | GLM-5.3 | GPT-5.6 Sol | Opus 5 |
+| ------------------------ | ------------------ | ------------- | ---- | ------- | ----------- | ------ |
+| HLE w/o tools            | 42.6 (44.0†)       | 36.8 (39.1†)  | 43.5 | 42.0†   | 44.5        | 56.3   |
+| Terminal-Bench 4.0       | 42.3               | 31.2          | 12.6 | 37.9    | 39.9        | 51.8   |
+| DeepSWE v1.1             | 77.0               | 74.2          | 67.5 | 66.9    | 73.0        | 74.0   |
+| ProgramBench             | 29.1               | 20.3          | 17.5 | 19.0    | 23.0        | 37.0   |
+| NL2Repo-Bench            | 68.2               | 65.4          | 58.0 | 58.0    | 56.8        | 75.3   |
+| Automation-Bench v1.0.6  | 60.5               | 54.8          | 46.7 | 48.8    | 45.8        | 50.3   |
+| Agents' Last Exam        | 35.4               | 31.8          | 27.6 | 28.5    | 26.7        | 28.6   |
+| Apex Bench v1.1          | 72.1               | 64.6          | 47.8 | 56.6    | 54.3        | 65.8   |
+| Chartography (w/tools)   | 83.0               | 78.9          | 68.1 | —       | 79.9        | 84.0   |
+| BabyVision (w/tools)     | 92.5               | 89.6          | 85.7 | —       | 88.9        | 94.1   |
+| ZeroBench-main (w/tools) | 51.0               | 49.0          | 41.0 | —       | 53.0        | 52.0   |
 
 † = text-only subset of HLE. Terminal-Bench 4.0 uses the Claude Code harness; DeepSWE v1.1 uses Mini-SWE-V2.
+
 - No Jinja chat template this release; a self-contained `encoding.py` reference implementation ships instead, plus `deepseek-recipe` Rust libraries with Python bindings.
 - Recommended sampling: temperature 1.0, top_p 1.0, context window 1M tokens, max_tokens ≥ 256K.
 - Paper title: "DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression".
 
 ### IT之家 (Oct 17, 16:17 CST)
+
 - API calling method and price unchanged — still call `deepseek-flash` to reach the newest model.
 - Weights released on both HuggingFace and ModelScope; continues the V4.1 Flash MIT open-source strategy.
 - DeepSeek specifically adapted optimization for DeepSeek Harness, Tencent CodeBuddy and WorkBuddy; upgrade Harness to 0.2.1-rc.1 or higher for full support.
 
 ### IT之家 (Oct 17, second report — API-layer changes)
+
 - **Search / Fetch API launched**: both use DeepSeek's in-house search engine. Base URL `api.deepseek.com`, same Bearer auth as the DeepSeek API. Endpoints: `POST /v1/tools/search`, `POST /v1/tools/fetch`.
 - Billing: **¥5 per 1,000 successful requests**. Charged only when Search returns a non-empty result list, or Fetch returns body content with HTTP 200. Failed requests, empty results and timeouts are not billed. Number of results does not affect price.
 - Rate limits: 5 queries/second each for Search and Fetch, counted independently; Fetch also has a per-domain limit; over-limit returns HTTP 429.
@@ -72,14 +76,28 @@
 - **Harness v0.2.1-rc1 released**: first RC of the 0.2.1 series. Adds custom plugin index sources, a "let the Agent create a plugin" entry, dependency sync for plugin enable/disable/uninstall/update with hot reload, minimal-mode optional plugins, Official plugin list bundling Claude Code / Codex packages for headless/SDK/ACP profiles, experimental Session state interface, experimental Claude Code Mods compatibility layer (validation only, not full compat), experimental developer-tool bundle with inlined NodeJS DevTools, experimental thinking-process machine translation plugin (Bing / Google / paid DeepSeek Flash), experimental Git Worktrees plugin, per-model reasoning levels configured via UI, `working_directory` tool plus TS/Python SDK interfaces, SSH helper runtime, secrets/token masking by default, and more.
 
 ### Pandaily (English, Oct 17)
+
 - Headline: "DeepSeek Harness v0.2.1-rc1 Arrives as an Unannounced V4.1 Flash Snapshot Briefly Surfaces".
 - Confirms the `deepseek-v4.1-flash-1017` entry appeared and was removed, and that the public `deepseek-flash` still points to V4.1 Flash at the time of writing.
 
 ### RuntimeWire (English, Oct 17 12:08 AM CT)
-- Written *before* the official release was public; cautious framing: "A dated label is not evidence of a new model or changed performance; DeepSeek's public materials still map deepseek-flash to V4.1-Flash."
+
+- Written _before_ the official release was public; cautious framing: "A dated label is not evidence of a new model or changed performance; DeepSeek's public materials still map deepseek-flash to V4.1-Flash."
 - Notes the fingerprint-change report came from X user @teortaxesTex, who said the model "felt smarter and probably terser" — impressions, not proof.
 - Documents the public API model list mapping `deepseek-flash` → display name DeepSeek-V4.1-Flash, context window 1,048,576 tokens; change log dates V4.1-Flash to Sep 10, 2026.
 
 ## Editorial angle for this pack
 
 This is the direct sequel to the Oct 14 "silent update" story (`deepseek-flash-silent-update`). That pack's conclusion was: the fingerprint has NOT changed since Sep 10 and there is no new checkpoint. Three days later, the rumored change actually happened — the fingerprint flipped and a new model shipped. The narrative reversal is the differentiator; avoid repeating the Oct 14 angle.
+
+## Evidence screenshots (2026-10-22, #848)
+
+The pack's three evidence images are raw element captures from the live pages, produced by `scripts/short-video/capture-evidence-shot.mjs` from `content/deepseek-v41-flash-1017/evidence-captures.json`:
+
+| Scene        | Asset                             | Page             | Selector                           | Capture                               |
+| ------------ | --------------------------------- | ---------------- | ---------------------------------- | ------------------------------------- |
+| S1 hook      | `evidence-hf-model-card.png`      | HF model card    | `section:has(.model-card-content)` | 718×2718, scale 1, `domcontentloaded` |
+| S3 benchmark | `evidence-hf-benchmark.png`       | HF model card    | `table:has(thead th:nth-child(7))` | 1260×1280, scale 2                    |
+| S7 pricing   | `evidence-search-api-pricing.png` | API docs pricing | `#search--fetch-pricing ~ table`   | 846×320, scale 2, `networkidle`       |
+
+`media.provenance` lives in scene-data; the final media gate reconciles `clip × scale` with the file pixels. If the gitignored assets are missing, re-run `node scripts/short-video/capture-evidence-shot.mjs --content deepseek-v41-flash-1017`. The API docs URL must keep its trailing slash (`/pricing` redirects to `/pricing/`); the HF hook uses `waitUntil: domcontentloaded` because the page's `load` event can exceed 30s.
