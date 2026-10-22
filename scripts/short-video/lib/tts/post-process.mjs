@@ -452,7 +452,8 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir, options 
     // of re-cutting.
     // `scenes` supplies the reference text so a provisional tail cut is read
     // back before it is committed (#232 verified-cut); `keyEntities` rides
-    // along so that read-back judges the take exactly as the gate did (#827).
+    // along so that read-back recognises the same declared names the gate
+    // does — it is the only option that changes a verdict (#827).
     const guards = await runAlignmentGuards(ttsResults, timingData, scenes, { keyEntities });
     writeFileSync(timingPath, JSON.stringify(restoreTimingTokens(timingData, scenes), null, 2));
     writeAlignmentMeta(outputDir, computeAlignmentSignature(scenes, ttsResults));

@@ -434,7 +434,8 @@ describe("runAlignmentGuards verified cut", () => {
 // Without the dictionary the cut is refused — fail-safe, but it drops the trim
 // on exactly the scenes #689 exists for.
 describe("#827 — verifyTrimmedTake forwards the gate's entity dictionary", () => {
-  const audioPath = join(tmpdir(), "827-readback.wav");
+  let dir;
+  let audioPath;
   const scene = {
     id: 3,
     voiceover: "The lab that built this new model is called moonshot.",
@@ -443,6 +444,8 @@ describe("#827 — verifyTrimmedTake forwards the gate's entity dictionary", () 
   const hearing = (text) => vi.fn().mockResolvedValue({ ok: true, segments: [{ text }] });
 
   beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "827-readback-"));
+    audioPath = join(dir, "scene-3.wav");
     writeFileSync(audioPath, "RIFF827");
   });
 

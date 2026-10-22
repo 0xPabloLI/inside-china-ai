@@ -192,10 +192,13 @@ export async function trimSceneTail(audioPath, cutSec) {
  * @param {Object} scene - scene-data entry (the reference text lives here)
  * @param {string} audioPath - the already-trimmed take
  * @param {number} durationSec - its measured duration
- * @param {{evaluateScene?: Function, keyEntities?: object|null}} [options] -
- *   `evaluateScene` is the test injection seam; EVERY other key is forwarded to
- *   the gate as its own options (#827: `keyEntities` is the one that changes a
- *   verdict, so dropping it here silently refused cuts on declared names).
+ * @param {{evaluateScene?: Function} & Record<string, unknown>} [options] -
+ *   `evaluateScene` is the test injection seam: it is stripped and never
+ *   forwarded. Every other key is passed to the gate as its own options —
+ *   which is not the same as "the gate's full option set", because the caller
+ *   decides what to hand over (#827: `keyEntities` is the one option that
+ *   changes a verdict, so dropping it here silently refused cuts on names the
+ *   script does say).
  * @returns {Promise<{ok: boolean, reason?: string}>}
  */
 export async function verifyTrimmedTake(scene, audioPath, durationSec, options = {}) {
