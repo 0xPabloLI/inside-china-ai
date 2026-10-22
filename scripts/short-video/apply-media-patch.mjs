@@ -22,7 +22,8 @@ import { existsSync, readFileSync, writeFileSync, renameSync, copyFileSync } fro
 import { join, dirname, resolve, sep } from "path";
 import { fileURLToPath } from "url";
 import { shown, validateProvenance } from "./lib/media-integrity.mjs";
-import { formatProvenanceBlock } from "./lib/evidence-capture.mjs";
+import { formatMediaObject, normalizeMediaPatch } from "./lib/media-patch-format.mjs";
+import { MEDIA_FIELD_KEYS } from "./lib/media-field-schema.mjs";
 
 // ─── Pure functions ───
 
@@ -100,6 +101,17 @@ export function validatePatchEntry(entry, scenes, contentDir) {
     errors.push(`Invalid media type: "${entry.media.type}". Must be "image" or "video".`);
   }
 
+  // #846: the formatter writes MEDIA_FIELD_KEYS and nothing else, so an unknown
+  // key would be dropped on the way to scene-data. Reject it here instead of
+  // reporting a successful patch that lost a declaration (#836's preflight
+  // rule, applied to the writer).
+  const unknownMediaKeys = Object.keys(entry.media).filter((key) => !MEDIA_FIELD_KEYS.has(key));
+  if (unknownMediaKeys.length > 0) {
+    errors.push(
+      `Unknown media field(s): ${unknownMediaKeys.sort().join(", ")}. Add the key to MediaField (remotion/src/types.ts) and MEDIA_FIELD_KEYS (lib/media-field-schema.mjs) first.`,
+    );
+  }
+
   // Check media path exists
   if (!entry.media.path) {
     errors.push("Media path is required.");
@@ -166,97 +178,204 @@ export function validatePatchEntry(entry, scenes, contentDir) {
   return { valid: true, errors: [], reason: "none", scene };
 }
 
-/**
- * Format a media object as a scene-data.mjs code block.
- *
- * @param {Object} media - Media object { type, path, source?, animation?, overlay?, volume?, fit?, focus?, cropFocus? }
- * @param {string} indent - Indentation string (e.g., "    ")
- * @returns {string} Formatted media block
- */
-function formatMediaBlock(media, indent = "    ") {
-  const lines = ["media: {"];
-  lines.push(`  type: "${media.type}",`);
-  lines.push(`  path: "${media.path}",`);
-  if (media.source) lines.push(`  source: "${media.source}",`);
-  if (media.animation) lines.push(`  animation: "${media.animation}",`);
-  if (media.overlay !== undefined) lines.push(`  overlay: ${media.overlay},`);
-  if (media.volume !== undefined) lines.push(`  volume: ${media.volume},`);
-  if (media.fit) lines.push(`  fit: "${media.fit}",`);
-  if (media.videoStartOffsetMs !== undefined)
-    lines.push(`  videoStartOffsetMs: ${media.videoStartOffsetMs},`);
-  if (media.cropFocus) {
-    // Validate cropFocus numeric bounds
-    if (typeof media.cropFocus.x !== "number" || typeof media.cropFocus.y !== "number") {
-      throw new Error(
-        `cropFocus values must be numbers, got x: ${typeof media.cropFocus.x}, y: ${typeof media.cropFocus.y}`,
-      );
+// ─── Text scanning ───
+//
+// scene-data.mjs is authored JS with comments, trailing commas and nested
+// objects (aiVideo / aiImage / avatar / evidence provenance), so the rewrite
+// locates structure by brace depth, skipping strings and comments — never with
+// a `[^}]*` regex that stops at the first nested close (#846).
+
+const IDENT_START = /[A-Za-z_$]/;
+const IDENT_PART = /[A-Za-z0-9_$]/;
+
+/** Index after the string/comment starting at `i`, or 0 when `i` is neither. */
+function skipAtomic(text, i) {
+  const char = text[i];
+  if (char === '"' || char === "'" || char === "`") {
+    let j = i + 1;
+    while (j < text.length) {
+      if (text[j] === "\\") j += 2;
+      else if (text[j] === char) return j + 1;
+      else j++;
     }
-    if (
-      media.cropFocus.x < 0 ||
-      media.cropFocus.x > 1 ||
-      media.cropFocus.y < 0 ||
-      media.cropFocus.y > 1
-    ) {
-      throw new Error(
-        `cropFocus values must be in [0, 1], got x: ${media.cropFocus.x}, y: ${media.cropFocus.y}`,
-      );
-    }
-    lines.push(`  cropFocus: { x: ${media.cropFocus.x}, y: ${media.cropFocus.y} },`);
+    return text.length;
   }
-  if (media.focus) lines.push(`  focus: "${media.focus}",`);
-  // #758: these two wiped on the way to scene-data before this ticket; the
-  // formatter is the only writer, so a dropped field is a silent contract loss.
-  if (media.evidence !== undefined) lines.push(`  evidence: ${media.evidence},`);
-  lines.push("},");
-  const block = lines.map((l) => indent + l);
-  if (media.provenance) {
-    const provenanceLines = formatProvenanceBlock(media.provenance, `${indent}  `).split("\n");
-    // Before the closing "}," so the block stays one media object.
-    block.splice(block.length - 1, 0, ...provenanceLines);
+  if (char === "/" && text[i + 1] === "/") {
+    const end = text.indexOf("\n", i + 2);
+    return end === -1 ? text.length : end;
   }
-  return block.join("\n");
+  if (char === "/" && text[i + 1] === "*") {
+    const end = text.indexOf("*/", i + 2);
+    return end === -1 ? text.length : end + 2;
+  }
+  return 0;
 }
 
-/**
- * Index of the `}` that closes the object opening at `openIndex`, or -1.
- *
- * The replace path used `\{[^}]*\}` per media block, which stops at the first
- * *nested* close. That was harmless while every media field was flat; once a
- * block carries `provenance: { rect: {...}, ... }` (#758) the regex rewrote the
- * prefix and left the old tail behind, corrupting scene-data. Braces inside
- * string literals and inside `//` / block comments are skipped so a selector or
- * a commented-out field containing "}" cannot end early.
- */
+function skipTrivia(text, i) {
+  while (i < text.length) {
+    if (/\s/.test(text[i])) {
+      i++;
+      continue;
+    }
+    const skipped = skipAtomic(text, i);
+    if (skipped) {
+      i = skipped;
+      continue;
+    }
+    break;
+  }
+  return i;
+}
+
+/** Index of the `}` closing the object opening at `openIndex`, or -1. */
 function matchingBrace(text, openIndex) {
   let depth = 0;
-  let quote = null;
-  for (let i = openIndex; i < text.length; i++) {
-    const char = text[i];
-    if (quote) {
-      if (char === "\\") i++;
-      else if (char === quote) quote = null;
+  for (let i = openIndex; i < text.length;) {
+    const skipped = skipAtomic(text, i);
+    if (skipped) {
+      i = skipped;
       continue;
     }
-    if (char === "/" && text[i + 1] === "/") {
-      const end = text.indexOf("\n", i + 2);
-      if (end === -1) return -1;
-      i = end;
-      continue;
-    }
-    if (char === "/" && text[i + 1] === "*") {
-      const end = text.indexOf("*/", i + 2);
-      if (end === -1) return -1;
-      i = end + 1;
-      continue;
-    }
-    if (char === '"' || char === "'" || char === "`") quote = char;
-    else if (char === "{") depth++;
-    else if (char === "}") {
+    if (text[i] === "{") depth++;
+    else if (text[i] === "}") {
       depth--;
       if (depth === 0) return i;
     }
+    i++;
   }
   return -1;
+}
+
+function lineStartOf(text, index) {
+  return text.lastIndexOf("\n", index - 1) + 1;
+}
+
+function readLiteral(text, start) {
+  const char = text[start];
+  if (char === '"' || char === "'" || char === "`") {
+    const end = skipAtomic(text, start) - 1;
+    return text.slice(start + 1, end);
+  }
+  const match = /^-?\d+(?:\.\d+)?/.exec(text.slice(start, start + 32));
+  return match ? Number(match[0]) : null;
+}
+
+/** Index of the last character of the value starting at `start`, or -1. */
+function valueEndOf(text, start) {
+  const char = text[start];
+  if (char === "{") return matchingBrace(text, start);
+  if (char === "[") {
+    let depth = 0;
+    for (let i = start; i < text.length;) {
+      const skipped = skipAtomic(text, i);
+      if (skipped) {
+        i = skipped;
+        continue;
+      }
+      if (text[i] === "[") depth++;
+      else if (text[i] === "]") {
+        depth--;
+        if (depth === 0) return i;
+      }
+      i++;
+    }
+    return -1;
+  }
+  if (char === '"' || char === "'" || char === "`") return skipAtomic(text, start) - 1;
+  let i = start;
+  while (i < text.length && !/[,}\]\n]/.test(text[i])) i++;
+  return i - 1;
+}
+
+/**
+ * Locate a top-level property of the object spanning [objectStart, objectEnd].
+ * Nested objects keep their own depth, so `id` inside `aiVideo: { ... }` or a
+ * `}` inside a comment cannot shadow the scene's own field.
+ */
+function findTopLevelProperty(text, objectStart, objectEnd, key) {
+  let depth = 0;
+  let i = objectStart + 1;
+  while (i < objectEnd) {
+    const skipped = skipAtomic(text, i);
+    if (skipped) {
+      i = skipped;
+      continue;
+    }
+    const char = text[i];
+    if (char === "{" || char === "[" || char === "(") {
+      depth++;
+      i++;
+      continue;
+    }
+    if (char === "}" || char === "]" || char === ")") {
+      depth--;
+      i++;
+      continue;
+    }
+    if (depth === 0 && IDENT_START.test(char)) {
+      let end = i + 1;
+      while (end < objectEnd && IDENT_PART.test(text[end])) end++;
+      const ident = text.slice(i, end);
+      const after = skipTrivia(text, end);
+      if (ident === key && text[after] === ":") {
+        return { propertyStart: i, valueStart: skipTrivia(text, after + 1) };
+      }
+      i = end;
+      continue;
+    }
+    i++;
+  }
+  return null;
+}
+
+/** The `{ ... }` ranges of every top-level element in `export const scenes = [...]`. */
+export function listSceneRanges(text) {
+  const ranges = [];
+  const match = /export\s+const\s+scenes\s*=\s*\[/.exec(text);
+  if (!match) return ranges;
+  let i = match.index + match[0].length;
+  while (i < text.length) {
+    const skipped = skipAtomic(text, i);
+    if (skipped) {
+      i = skipped;
+      continue;
+    }
+    if (text[i] === "{") {
+      const end = matchingBrace(text, i);
+      if (end === -1) break;
+      ranges.push({ start: i, end });
+      i = end + 1;
+      continue;
+    }
+    if (text[i] === "]") break;
+    i++;
+  }
+  return ranges;
+}
+
+/** Scene ids in source order (numeric ids and quoted ids alike). */
+export function listSceneIds(text) {
+  return listSceneRanges(text)
+    .map((range) => findTopLevelProperty(text, range.start, range.end, "id"))
+    .filter(Boolean)
+    .map((property) => readLiteral(text, property.valueStart))
+    .filter((id) => id !== null);
+}
+
+function findSceneRange(text, sceneId) {
+  for (const range of listSceneRanges(text)) {
+    const idProperty = findTopLevelProperty(text, range.start, range.end, "id");
+    if (idProperty && readLiteral(text, idProperty.valueStart) === sceneId) return range;
+  }
+  return null;
+}
+
+/** True when the media object at [openIndex, closeIndex] declares `evidence: true`. */
+function hasEvidenceTrue(text, openIndex, closeIndex) {
+  const property = findTopLevelProperty(text, openIndex, closeIndex, "evidence");
+  if (!property) return false;
+  const end = valueEndOf(text, property.valueStart);
+  return end !== -1 && text.slice(property.valueStart, end + 1).trim() === "true";
 }
 
 /**
@@ -275,7 +394,7 @@ export function applyPatchesToText(fileContent, patches, options = { force: fals
   const appliedSceneIds = new Set();
 
   for (const patch of patches) {
-    const { sceneId, media, action } = patch;
+    const { sceneId, media } = patch;
 
     // Skip if this scene was already processed
     if (appliedSceneIds.has(sceneId)) {
@@ -283,81 +402,106 @@ export function applyPatchesToText(fileContent, patches, options = { force: fals
       continue;
     }
 
-    const mediaBlock = formatMediaBlock(media);
-
-    if (action === "replace") {
-      // Locate the scene and the opening brace of its media object; the close is
-      // found by brace depth, not by regex (see matchingBrace).
-      const sceneRegex = new RegExp(
-        `((?:^|\\n)[ \\t]*\\{[^}]*?id:\\s*${sceneId}\\b[^}]*?)\\n([ \\t]*)media:\\s*\\{`,
-        "s",
-      );
-      const match = modifiedContent.match(sceneRegex);
-      const open = match ? match.index + match[0].length - 1 : -1;
-      const close = open === -1 ? -1 : matchingBrace(modifiedContent, open);
-      if (match && close !== -1) {
-        const indent = match[2];
-        const newBlock = mediaBlock.replace(/^(    )/gm, indent);
-        let end = close + 1;
-        if (modifiedContent[end] === ",") end++;
-        modifiedContent =
-          modifiedContent.slice(0, match.index) +
-          match[1] +
-          "\n" +
-          newBlock +
-          modifiedContent.slice(end);
-        applied.push({ sceneId, action: "replaced", media });
-        appliedSceneIds.add(sceneId);
-      } else {
-        // Fallback: a scene written on one line. Find the opening brace and
-        // close by depth too — the old `\{[^}]*\}` stopped at the first nested
-        // brace, which a provenance block always has.
-        const singleLineRegex = new RegExp(
-          `(\\{[^}]*?id:\\s*${sceneId}\\b[^}]*?)media:\\s*\\{`,
-          "s",
-        );
-        const slMatch = modifiedContent.match(singleLineRegex);
-        const slOpen = slMatch ? slMatch.index + slMatch[0].length - 1 : -1;
-        const slClose = slOpen === -1 ? -1 : matchingBrace(modifiedContent, slOpen);
-        if (slMatch && slClose !== -1) {
-          const newBlock = mediaBlock.replace(/\n/g, " ").replace(/,$/, "");
-          modifiedContent =
-            modifiedContent.slice(0, slMatch.index) +
-            slMatch[1] +
-            newBlock +
-            modifiedContent.slice(slClose + 1);
-          applied.push({ sceneId, action: "replaced", media });
-          appliedSceneIds.add(sceneId);
-        } else {
-          errors.push(`Could not locate media block to replace in scene ${sceneId}.`);
-        }
-      }
-    } else {
-      // Insert: find scene by id, insert media before voiceover
-      const sceneRegex = new RegExp(
-        `(\\{[^}]*?id:\\s*${sceneId}\\b[^}]*?)(\\n([ \\t]*)voiceover:)`,
-        "s",
-      );
-      const match = modifiedContent.match(sceneRegex);
-      if (match) {
-        const indent = match[3];
-        const newBlock = mediaBlock.replace(/^(    )/gm, indent);
-        modifiedContent = modifiedContent.replace(sceneRegex, `$1\n${newBlock}$2`);
-        applied.push({ sceneId, action: "added", media });
-        appliedSceneIds.add(sceneId);
-      } else {
-        // Try to detect if media already exists (already-applied check)
-        const mediaCheckRegex = new RegExp(
-          `id:\\s*${sceneId}\\b[^}]*?media:\\s*\\{[^}]*?path:\\s*"${media.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`,
-          "s",
-        );
-        if (modifiedContent.match(mediaCheckRegex)) {
-          skipped.push({ sceneId, reason: "already-applied" });
-        } else {
-          errors.push(`Could not locate voiceover field in scene ${sceneId} for media insertion.`);
-        }
-      }
+    // The patch's declared action is re-derived from the file: `media: null`
+    // imports as falsy and the CLI calls that "add", but the property already
+    // exists, so inserting would duplicate the key. A located property is always
+    // replaced; a missing one is always inserted (#846).
+    const sceneRange = findSceneRange(modifiedContent, sceneId);
+    if (!sceneRange) {
+      errors.push(`Could not find scene ${sceneId} in scene-data.mjs.`);
+      continue;
     }
+
+    const mediaProperty = findTopLevelProperty(
+      modifiedContent,
+      sceneRange.start,
+      sceneRange.end,
+      "media",
+    );
+
+    if (mediaProperty) {
+      const valueEnd = valueEndOf(modifiedContent, mediaProperty.valueStart);
+      if (valueEnd === -1) {
+        errors.push(`Could not locate media block to replace in scene ${sceneId}.`);
+        continue;
+      }
+
+      // #846: `--force` forced the replacement of every media block, which
+      // silently erased `evidence: true` and its capture geometry. An Evidence
+      // Media may only be overwritten with an explicit decision: `evidence:
+      // false` to de-designate it, or `evidence: true` plus valid provenance to
+      // keep the declaration. Anything else is an error, not a success.
+      if (
+        modifiedContent[mediaProperty.valueStart] === "{" &&
+        hasEvidenceTrue(modifiedContent, mediaProperty.valueStart, valueEnd)
+      ) {
+        const declared = media?.evidence;
+        if (
+          declared === undefined ||
+          (declared !== true && declared !== false && declared !== null)
+        ) {
+          errors.push(
+            `Scene ${sceneId} media is an Evidence Media (evidence: true); pass media.evidence: false to de-designate it, or evidence: true with a valid provenance to keep the declaration.`,
+          );
+          continue;
+        }
+        if (declared === true) {
+          const provenance = validateProvenance(media.provenance || {});
+          if (!provenance.ok) {
+            errors.push(
+              `Scene ${sceneId} media is an Evidence Media (evidence: true); a valid provenance is required to keep the declaration: ${provenance.errors.join("; ")}`,
+            );
+            continue;
+          }
+        }
+      }
+
+      const lineStart = lineStartOf(modifiedContent, mediaProperty.propertyStart);
+      const linePrefix = modifiedContent.slice(lineStart, mediaProperty.propertyStart);
+      const indent = /^[ \t]*$/.test(linePrefix) ? linePrefix : "";
+      const oldValue = modifiedContent.slice(mediaProperty.valueStart, valueEnd + 1);
+      let replacement = `media: ${formatMediaObject(media, indent, { includeDeprecatedFocus: true })},`;
+      if (!oldValue.includes("\n")) replacement = replacement.replace(/\n\s*/g, " ");
+      let end = valueEnd + 1;
+      if (modifiedContent[end] === ",") end++;
+      modifiedContent =
+        modifiedContent.slice(0, mediaProperty.propertyStart) +
+        replacement +
+        modifiedContent.slice(end);
+      applied.push({ sceneId, action: "replaced", media });
+      appliedSceneIds.add(sceneId);
+      continue;
+    }
+
+    // Insert: put the media block immediately before voiceover.
+    const voiceoverProperty = findTopLevelProperty(
+      modifiedContent,
+      sceneRange.start,
+      sceneRange.end,
+      "voiceover",
+    );
+    if (!voiceoverProperty) {
+      errors.push(`Could not locate voiceover field in scene ${sceneId} for media insertion.`);
+      continue;
+    }
+
+    const lineStart = lineStartOf(modifiedContent, voiceoverProperty.propertyStart);
+    const linePrefix = modifiedContent.slice(lineStart, voiceoverProperty.propertyStart);
+    const block = `media: ${formatMediaObject(media, /^[ \t]*$/.test(linePrefix) ? linePrefix : "", { includeDeprecatedFocus: true })},`;
+    if (/^[ \t]*$/.test(linePrefix)) {
+      modifiedContent =
+        modifiedContent.slice(0, lineStart) +
+        `${linePrefix}${block}\n` +
+        modifiedContent.slice(lineStart);
+    } else {
+      const flat = block.replace(/\n\s*/g, " ");
+      modifiedContent =
+        modifiedContent.slice(0, voiceoverProperty.propertyStart) +
+        `${flat} ` +
+        modifiedContent.slice(voiceoverProperty.propertyStart);
+    }
+    applied.push({ sceneId, action: "added", media });
+    appliedSceneIds.add(sceneId);
   }
 
   return { modifiedContent, applied, skipped, errors };
@@ -420,8 +564,12 @@ export function formatDryRun(applied, skipped) {
     lines.push("");
   }
 
-  const addCount = applied.filter((a) => a.action === "added").length;
-  const replaceCount = applied.filter((a) => a.action === "replaced").length;
+  // toApply entries carry "add"/"replace"; applyPatchesToText results carry
+  // "added"/"replaced". The dry-run summary reads toApply, so match both.
+  const addCount = applied.filter((a) => a.action === "added" || a.action === "add").length;
+  const replaceCount = applied.filter(
+    (a) => a.action === "replaced" || a.action === "replace",
+  ).length;
   const conflictCount = skipped.filter((s) => s.reason === "conflict").length;
   const alreadyCount = skipped.filter((s) => s.reason === "already-applied").length;
   const otherSkipCount = skipped.length - conflictCount - alreadyCount;
@@ -434,6 +582,26 @@ export function formatDryRun(applied, skipped) {
 }
 
 // ─── Main orchestrator ───
+
+/**
+ * Accept both patch shapes the pipeline writes: a bare array, and the
+ * `{ schemaVersion, patches: [...] }` envelope `media-patch-format.mjs` emits.
+ * Before this, an envelope parsed as a non-array and the CLI exited with
+ * "must be a JSON array" even though normalization already supported it (#846).
+ *
+ * @param {unknown} raw - Parsed patch JSON
+ * @returns {Array} Normalized patch entries
+ * @throws {Error} When the payload is neither shape
+ */
+export function normalizePatchInput(raw) {
+  const isArray = Array.isArray(raw);
+  const isEnvelope =
+    raw !== null && typeof raw === "object" && !Array.isArray(raw) && Array.isArray(raw.patches);
+  if (!isArray && !isEnvelope) {
+    throw new Error("Patch file must be a JSON array or a { schemaVersion, patches } envelope.");
+  }
+  return normalizeMediaPatch(raw);
+}
 
 /**
  * Main entry point.
@@ -482,14 +650,9 @@ export async function main(args = process.argv.slice(2)) {
   // ── Load patch JSON ──
   let patches;
   try {
-    patches = JSON.parse(readFileSync(resolvedPatchPath, "utf8"));
+    patches = normalizePatchInput(JSON.parse(readFileSync(resolvedPatchPath, "utf8")));
   } catch (e) {
     console.error(`❌ Failed to parse patch JSON: ${e.message}`);
-    process.exit(1);
-  }
-
-  if (!Array.isArray(patches)) {
-    console.error("❌ Patch file must be a JSON array.");
     process.exit(1);
   }
 
@@ -593,8 +756,16 @@ export async function main(args = process.argv.slice(2)) {
 
   // ── Dry-run mode ──
   if (dryRun) {
-    const output = formatDryRun(toApply, skipped);
-    console.log(output);
+    // #846: run the same transformation so a patch the real run would reject
+    // (Evidence Media overwrite, unlocatable scene) fails here too, instead of
+    // printing a reassuring "+ media" line and then exiting 1 on the real run.
+    const preview = applyPatchesToText(readFileSync(sceneDataPath, "utf8"), toApply, { force });
+    if (preview.errors.length > 0) {
+      console.error("❌ Errors during text transformation:");
+      for (const err of preview.errors) console.error(`   • ${err}`);
+      process.exit(1);
+    }
+    console.log(formatDryRun(toApply, [...skipped, ...preview.skipped]));
     process.exit(0);
   }
 

@@ -172,6 +172,141 @@ export function loadAssetAnalysis(analysisPath) {
   }
 }
 
+const isPlainObject = (value) =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+function stringField(name, value) {
+  if (typeof value !== "string") {
+    throw new Error(`media.${name} must be a string, got ${shown(value)}`);
+  }
+  // JSON.stringify, not bare interpolation: patch values are agent-produced
+  // from scraped pages, so a quote or newline must not close the literal.
+  return JSON.stringify(value);
+}
+
+function numberField(name, value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`media.${name} must be a finite number, got ${shown(value)}`);
+  }
+  return String(value);
+}
+
+function booleanField(name, value) {
+  if (typeof value !== "boolean") {
+    throw new Error(`media.${name} must be a boolean, got ${shown(value)}`);
+  }
+  return String(value);
+}
+
+function formatBackdrop(backdrop) {
+  if (!isPlainObject(backdrop)) {
+    throw new Error(`media.backdrop must be an object, got ${shown(backdrop)}`);
+  }
+  const parts = [];
+  if (backdrop.type !== undefined)
+    parts.push(`type: ${stringField("backdrop.type", backdrop.type)}`);
+  if (backdrop.path !== undefined)
+    parts.push(`path: ${stringField("backdrop.path", backdrop.path)}`);
+  if (backdrop.source !== undefined)
+    parts.push(`source: ${stringField("backdrop.source", backdrop.source)}`);
+  if (backdrop.animation !== undefined)
+    parts.push(`animation: ${stringField("backdrop.animation", backdrop.animation)}`);
+  if (backdrop.volume !== undefined)
+    parts.push(`volume: ${numberField("backdrop.volume", backdrop.volume)}`);
+  if (backdrop.upscale !== undefined)
+    parts.push(`upscale: ${booleanField("backdrop.upscale", backdrop.upscale)}`);
+  return `{ ${parts.join(", ")} }`;
+}
+
+/**
+ * Format a `scene.media` object as a JS object literal (no `media:` prefix,
+ * no trailing comma). The single writer for every surface: the review copy
+ * (`formatPatchEntry`) and the manual CLI's scene-data rewrite
+ * (`apply-media-patch.mjs`) (#846).
+ *
+ * Fields follow `MEDIA_FIELD_KEYS` in `media-field-schema.mjs`, so a key the
+ * schema accepts cannot be silently dropped on the way to scene-data.
+ * Invalid `evidence`/`provenance` values are omitted here; the review caller
+ * prints a comment explaining why, and the CLI rejects them before writing.
+ *
+ * @param {Object} media - Media object from a patch entry
+ * @param {string} propertyIndent - Indentation of the line holding the object
+ * @param {{ includeDeprecatedFocus?: boolean }} [options]
+ * @returns {string} `{ ... }` object literal
+ */
+export function formatMediaObject(media, propertyIndent = "  ", options = {}) {
+  if (!isPlainObject(media)) {
+    throw new Error(`media must be an object, got ${shown(media)}`);
+  }
+  const { includeDeprecatedFocus = false } = options;
+  const fieldIndent = propertyIndent + "  ";
+  const lines = ["{"];
+
+  if (media.type !== undefined)
+    lines.push(`${fieldIndent}type: ${stringField("type", media.type)},`);
+  if (media.path !== undefined)
+    lines.push(`${fieldIndent}path: ${stringField("path", media.path)},`);
+  if (media.source !== undefined)
+    lines.push(`${fieldIndent}source: ${stringField("source", media.source)},`);
+  if (media.mode !== undefined)
+    lines.push(`${fieldIndent}mode: ${stringField("mode", media.mode)},`);
+  if (media.fit !== undefined) lines.push(`${fieldIndent}fit: ${stringField("fit", media.fit)},`);
+  if (media.animation !== undefined)
+    lines.push(`${fieldIndent}animation: ${stringField("animation", media.animation)},`);
+  if (media.overlay !== undefined)
+    lines.push(`${fieldIndent}overlay: ${numberField("overlay", media.overlay)},`);
+  if (media.volume !== undefined)
+    lines.push(`${fieldIndent}volume: ${numberField("volume", media.volume)},`);
+  if (media.videoStartOffsetMs !== undefined)
+    lines.push(
+      `${fieldIndent}videoStartOffsetMs: ${numberField("videoStartOffsetMs", media.videoStartOffsetMs)},`,
+    );
+  if (media.cropFocus) {
+    if (
+      typeof media.cropFocus.x !== "number" ||
+      typeof media.cropFocus.y !== "number" ||
+      media.cropFocus.x < 0 ||
+      media.cropFocus.x > 1 ||
+      media.cropFocus.y < 0 ||
+      media.cropFocus.y > 1
+    ) {
+      throw new Error(
+        `cropFocus values must be numbers in [0, 1], got x: ${shown(media.cropFocus.x)}, y: ${shown(media.cropFocus.y)}`,
+      );
+    }
+    lines.push(`${fieldIndent}cropFocus: { x: ${media.cropFocus.x}, y: ${media.cropFocus.y} },`);
+  }
+  // Deprecated but still rendered; the review copy deliberately drops it,
+  // the scene-data writer keeps it so a manual patch cannot lose the field.
+  if (includeDeprecatedFocus && media.focus !== undefined)
+    lines.push(`${fieldIndent}focus: ${stringField("focus", media.focus)},`);
+  if (media.upscale !== undefined)
+    lines.push(`${fieldIndent}upscale: ${booleanField("upscale", media.upscale)},`);
+  if (media.evidence === true || media.evidence === false || media.evidence === null) {
+    lines.push(`${fieldIndent}evidence: ${JSON.stringify(media.evidence)},`);
+  }
+  if (media.provenance) {
+    const { ok } = validateProvenance(media.provenance);
+    if (ok) lines.push(formatProvenanceBlock(media.provenance, fieldIndent));
+  }
+  if (media.contentKind !== undefined)
+    lines.push(`${fieldIndent}contentKind: ${stringField("contentKind", media.contentKind)},`);
+  if (media.subjects !== undefined) {
+    if (
+      !Array.isArray(media.subjects) ||
+      media.subjects.some((subject) => typeof subject !== "string")
+    ) {
+      throw new Error(`media.subjects must be an array of strings, got ${shown(media.subjects)}`);
+    }
+    lines.push(`${fieldIndent}subjects: ${JSON.stringify(media.subjects)},`);
+  }
+  if (media.backdrop !== undefined)
+    lines.push(`${fieldIndent}backdrop: ${formatBackdrop(media.backdrop)},`);
+
+  lines.push(`${propertyIndent}}`);
+  return lines.join("\n");
+}
+
 /**
  * Format a single media-patch entry as a copyable code block with review comments.
  *
@@ -213,48 +348,35 @@ export function formatPatchEntry(entry, analysisMap) {
     lines.push(formatFocusSummary(entry.analysis.focusAnalysis));
   }
 
-  // Copyable media object
+  // #846/#836/#758: one formatter for every writer. The review copy is what an
+  // agent pastes back into scene-data, so a declared evidence marker or capture
+  // geometry must survive the round trip (same contract as VC-21). Values are
+  // interpolated into generated JS, so only validated input becomes code: a bad
+  // coordinate would otherwise be a code-injection surface or change type.
   const media = entry.media || {};
-  lines.push(`  media: {`);
-  if (media.type) lines.push(`    type: "${media.type}",`);
-  if (media.path) lines.push(`    path: "${media.path}",`);
-  if (media.source) lines.push(`    source: "${media.source}",`);
-  if (media.animation) lines.push(`    animation: "${media.animation}",`);
-  if (media.overlay !== undefined) lines.push(`    overlay: ${media.overlay},`);
-  if (media.fit) lines.push(`    fit: "${media.fit}",`);
-  if (media.cropFocus) {
-    lines.push(`    cropFocus: { x: ${media.cropFocus.x}, y: ${media.cropFocus.y} },`);
-  }
-  if (media.volume !== undefined) lines.push(`    volume: ${media.volume},`);
-  if (media.videoStartOffsetMs !== undefined)
-    lines.push(`    videoStartOffsetMs: ${media.videoStartOffsetMs},`);
-  // #836/#758: the review copy is what an agent pastes back into scene-data, so
-  // a declared evidence marker or capture geometry must survive the round trip
-  // (same contract as VC-21 for videoStartOffsetMs). Values are interpolated
-  // into generated JS, so only validated input becomes code: a bad coordinate
-  // would otherwise be a code-injection surface (media-patch.json is
-  // agent-produced JSON influenced by scraped pages) or silently change type.
-  if (media.evidence !== undefined) {
-    if (media.evidence === true || media.evidence === false || media.evidence === null) {
-      lines.push(`    evidence: ${JSON.stringify(media.evidence)},`);
-    } else {
-      lines.push(
-        `    // INVALID evidence (${shown(media.evidence)}): must be true, false or null — not copied`,
-      );
-    }
+  if (
+    media.evidence !== undefined &&
+    media.evidence !== true &&
+    media.evidence !== false &&
+    media.evidence !== null
+  ) {
+    lines.push(
+      `    // INVALID evidence (${shown(media.evidence)}): must be true, false or null — not copied`,
+    );
   }
   if (media.provenance) {
     const { ok, errors } = validateProvenance(media.provenance);
-    if (!ok) {
-      lines.push(`    // INVALID provenance — not copied as code: ${errors.join("; ")}`);
-    } else {
-      // One formatter for every writer; it revalidates, which is cheap and
-      // keeps the pasted block's number formatting stable.
-      lines.push(formatProvenanceBlock(media.provenance, "    "));
-    }
+    if (!ok) lines.push(`    // INVALID provenance — not copied as code: ${errors.join("; ")}`);
   }
   // Note: focus is NOT included in new output (deprecated, spec §4.8)
-  lines.push(`  },`);
+  // A malformed field must not take down the whole review summary: render the
+  // reason as a comment and keep the block empty, same as evidence/provenance.
+  try {
+    lines.push(`  media: ${formatMediaObject(media, "  ")},`);
+  } catch (error) {
+    lines.push(`  // INVALID media — not copied as code: ${error.message}`);
+    lines.push(`  media: {},`);
+  }
 
   return lines.join("\n");
 }
