@@ -273,7 +273,10 @@ export function shouldAttemptLocalFallback({ engineName, err, env = process.env 
  * @param {object|null} [params.gateReport] - latest Quality-Gate report
  * @param {Map<number, {evaluation?: object}>} [params.verdictByScene]
  * @param {Array<{sceneId: number}>} [params.extraEvaluations]
- * @returns {Array<object>} one evaluation per scene, newest verdict winning
+ * @returns {Map<number, object>} sceneId → latest evaluation, newest verdict
+ *   winning. A Map because both consumers want the lookup (`selectLocalFallbackTargets`
+ *   asks "does this scene's latest verdict pass?") and the list; deriving one
+ *   from the other twice is how the two views drift apart.
  */
 function latestEvaluationsByScene({ gateReport, verdictByScene, extraEvaluations = [] }) {
   const latestByScene = new Map();
@@ -292,7 +295,7 @@ function latestEvaluationsByScene({ gateReport, verdictByScene, extraEvaluations
     // collection cannot depend on the verdict object carrying its own copy.
     if (verdict?.evaluation) latestByScene.set(sceneId, { ...verdict.evaluation, sceneId });
   }
-  return [...latestByScene.values()];
+  return latestByScene;
 }
 
 /**
@@ -349,7 +352,8 @@ export function selectLocalFallbackTargets({
   extraEvaluations = [],
   hardCeiling = WPM_HARD_CEILING,
 } = {}) {
-  const evaluations = latestEvaluationsByScene({ gateReport, verdictByScene, extraEvaluations });
+  const latestById = latestEvaluationsByScene({ gateReport, verdictByScene, extraEvaluations });
+  const evaluations = [...latestById.values()];
   // No failing latest verdict means no evidence a take-level repair is safe —
   // fail closed.
   const failedEvaluations = evaluations.filter((e) => !e.passed);
@@ -378,7 +382,6 @@ export function selectLocalFallbackTargets({
 
   // A scene the block error names may have been repaired since — the latest
   // verdict, not the error, decides whether it still needs regeneration.
-  const latestById = new Map(evaluations.map((e) => [e.sceneId, e]));
   const latestVerdictPassed = (sceneId) => latestById.get(sceneId)?.passed === true;
 
   const sceneIds = [
@@ -786,7 +789,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     // F5 takes leave the planning set entirely: they are not planned for, so
     // they must not be judged for having no plan either (the #271 invariant
     // below reads this same set).
-    const planningEvaluations = latest.filter((e) => !fallbackTakeIds.has(e.sceneId));
+    const planningEvaluations = [...latest.values()].filter((e) => !fallbackTakeIds.has(e.sceneId));
     const pacing = planPacingResponses(
       [...verifyScenes, ...(cachedPacing?.scenes ?? [])],
       planningEvaluations,
@@ -1008,7 +1011,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       [...verifyScenes, ...(cachedPacing?.scenes ?? [])].map((s) => [s.id, s]),
     );
     const stranded = [];
-    for (const evaluation of finalEvaluations) {
+    for (const evaluation of finalEvaluations.values()) {
       if (
         evaluation?.passed !== true ||
         !Number.isFinite(evaluation.wpm) ||

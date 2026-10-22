@@ -216,7 +216,8 @@ describe("TTS local fallback (#704)", () => {
       maxRetries: 0,
     });
 
-    // Main engine generated the whole batch once; F5 got ONLY scene 2.
+    // Main engine generated the whole batch, then the #820 re-run paid for ONE
+    // more round; F5 got ONLY scene 2.
     expect(engine.generate.mock.calls[0][0].map((s) => s.id)).toEqual([1, 2]);
     expect(f5.generate).toHaveBeenCalledTimes(1);
     expect(f5.generate.mock.calls[0][0].map((s) => s.id)).toEqual([2]);
