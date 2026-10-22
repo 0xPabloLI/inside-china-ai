@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.0...tanstack_start_ts-v1.28.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **tts:** re-run the pacing ladder after the MLX→F5 fallback promotes takes ([#820](https://github.com/0xPabloLI/inside-china-ai/issues/820)) ([ac96dd5](https://github.com/0xPabloLI/inside-china-ai/commit/ac96dd51b4a647592a93461a76154c52fdb5480d))
+
 ## [1.28.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.27.0...tanstack_start_ts-v1.28.0) (2026-10-22)
 
 
