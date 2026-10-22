@@ -783,9 +783,13 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     const fallbackTakeIds = new Set(
       validatedResults.filter((r) => r.fallbackFrom).map((r) => r.sceneId),
     );
+    // F5 takes leave the planning set entirely: they are not planned for, so
+    // they must not be judged for having no plan either (the #271 invariant
+    // below reads this same set).
+    const planningEvaluations = latest.filter((e) => !fallbackTakeIds.has(e.sceneId));
     const pacing = planPacingResponses(
       [...verifyScenes, ...(cachedPacing?.scenes ?? [])],
-      latest.filter((e) => !fallbackTakeIds.has(e.sceneId)),
+      planningEvaluations,
     );
     for (const note of pacing.advisory) {
       console.warn(`  💬 [Pacing] ${note}`);
@@ -796,7 +800,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     // plan (e.g. no usable WPM measurement) would otherwise ship the take the
     // gate already rejected.
     const plannedIds = new Set([...pacing.compensations, ...pacing.rerolls].map((p) => p.scene.id));
-    const unplanned = latest.filter(
+    const unplanned = planningEvaluations.filter(
       (e) => !e.passed && e.failureClass === FAILURE_CLASS.PACING && !plannedIds.has(e.sceneId),
     );
     if (unplanned.length > 0) {
@@ -1051,8 +1055,9 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
    * unavailable, short batch, rejected take, exception) returns false and the
    * caller rethrows the original block; a fail-closed error from the ladder
    * re-run propagates instead, because it names the take that actually blocks
-   * now. This path can rescue a run — it must never weaken the fail-closed
-   * contract.
+   * now (defensive: the promotion criteria above leave no failing take for the
+   * re-run to block on). This path can rescue a run — it must never weaken the
+   * fail-closed contract.
    *
    * Approved cache hits never enter `gateReport`; their WPM lives in
    * `cachedPacing.evaluations` (#786). They join the decision set too, or a
@@ -1061,6 +1066,8 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
    *
    * @param {Error} gateErr - the fail-closed error from the gate block
    * @returns {Promise<boolean>} true when replacement takes were accepted
+   * @throws {Error} a fail-closed error raised by the ladder re-run — it
+   *   replaces the original block (see above)
    */
   const attemptLocalFallback = async (gateErr) => {
     if (!shouldAttemptLocalFallback({ engineName: engine.name, err: gateErr })) return false;
@@ -1165,6 +1172,13 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         return false;
       }
 
+      // The takes are ACCEPTED here (they passed the fallback gate above), so
+      // they are promoted and recorded before the ladder re-run: the re-run
+      // plans over the merged set, and a scene F5 just repaired must not be
+      // planned against the take it replaced. A re-run that then fails closed
+      // aborts a run whose repaired audio is already on disk — deliberate: the
+      // take passed every criterion this path owns, and the per-engine cache key
+      // keeps it from being reused by the next (main-engine) run.
       for (const res of fallbackResults) {
         const evalRes = fallbackGate.evaluations.find((e) => e.sceneId === res.sceneId);
         acceptRegenTake(outputDir, res);
