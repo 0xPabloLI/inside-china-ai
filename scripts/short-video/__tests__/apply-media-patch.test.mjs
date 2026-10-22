@@ -30,9 +30,9 @@ import {
   applyPatchesToText,
   validatePatchEntry as validateCliPatchEntry,
   detectConflict,
-  listSceneIds,
-  normalizePatchInput,
+  listScenes,
 } from "../apply-media-patch.mjs";
+import { parsePatchPayload } from "../lib/media-patch-format.mjs";
 import { MEDIA_FIELD_KEYS } from "../lib/media-field-schema.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1181,7 +1181,7 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
     expect(result.modifiedContent.match(/\{/g)).toHaveLength(
       result.modifiedContent.match(/\}/g).length,
     );
-    expect(listSceneIds(result.modifiedContent)).toEqual([1, 2]);
+    expect(listScenes(result.modifiedContent).map((scene) => scene.id)).toEqual([1, 2]);
   });
 
   it("replaces a block carrying nested cropFocus and backdrop objects", () => {
@@ -1239,7 +1239,65 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
     const topVoiceoverAt = result.modifiedContent.indexOf('    voiceover: "top level",');
     expect(mediaAt).toBeGreaterThan(-1);
     expect(mediaAt).toBeLessThan(topVoiceoverAt);
-    expect(listSceneIds(result.modifiedContent)).toEqual([5]);
+    expect(listScenes(result.modifiedContent).map((scene) => scene.id)).toEqual([5]);
+  });
+
+  it("replaces `media: null` whose trailing comment contains a comma", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "apply-patch-null-comment-"));
+    const file = join(dir, "scene-data.mjs");
+    try {
+      const text = sceneFile(
+        [
+          "  {",
+          "    id: 8,",
+          "    media: null // deliberate CSS-only scene, keep it, see #191",
+          '    voiceover: "x",',
+          "  },",
+        ].join("\n"),
+      );
+
+      const result = applyPatchesToText(text, [
+        { sceneId: 8, media: { type: "image", path: "assets/new.png" } },
+      ]);
+
+      expect(result.errors).toEqual([]);
+      // The comment belongs to the null declaration, so it goes with it; what
+      // must not happen is its text being spliced into scene-data as code.
+      expect(result.modifiedContent).not.toContain("keep it");
+      expect(result.modifiedContent).not.toContain("see #191");
+      writeFileSync(file, result.modifiedContent, "utf8");
+      const mod = await import(`file://${file}`);
+      expect(mod.scenes[0].media).toEqual({ type: "image", path: "assets/new.png" });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a falsy invalid cropFocus instead of dropping the declaration", () => {
+    const text = sceneFile(["  {", "    id: 9,", '    voiceover: "x",', "  },"].join("\n"));
+    const result = applyPatchesToText(text, [
+      { sceneId: 9, media: { type: "image", path: "assets/a.png", cropFocus: 0 } },
+    ]);
+
+    expect(result.applied).toEqual([]);
+    expect(result.errors[0]).toContain("cropFocus values must be numbers in [0, 1]");
+  });
+
+  it("rejects an unknown backdrop key instead of dropping it", () => {
+    const text = sceneFile(["  {", "    id: 9,", '    voiceover: "x",', "  },"].join("\n"));
+    const result = applyPatchesToText(text, [
+      {
+        sceneId: 9,
+        media: {
+          type: "video",
+          path: "assets/a.mp4",
+          backdrop: { type: "video", path: "assets/bg.mp4", volme: 0.05 },
+        },
+      },
+    ]);
+
+    expect(result.applied).toEqual([]);
+    expect(result.errors[0]).toContain("media.backdrop has unknown field(s): volme");
   });
 
   it("replaces `media: null` instead of adding a duplicate media key", () => {
@@ -1488,10 +1546,10 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
 
   it("accepts the { schemaVersion, patches } envelope and rejects any other shape", () => {
     const entry = { sceneId: 1, action: "add", media: { type: "image", path: "a.png" } };
-    expect(normalizePatchInput([entry])).toHaveLength(1);
-    expect(normalizePatchInput({ schemaVersion: "1.0", patches: [entry] })).toHaveLength(1);
-    expect(() => normalizePatchInput({ patches: "nope" })).toThrow(/envelope/);
-    expect(() => normalizePatchInput({ schemaVersion: "1.0" })).toThrow(/envelope/);
+    expect(parsePatchPayload([entry])).toHaveLength(1);
+    expect(parsePatchPayload({ schemaVersion: "1.0", patches: [entry] })).toHaveLength(1);
+    expect(() => parsePatchPayload({ patches: "nope" })).toThrow(/envelope/);
+    expect(() => parsePatchPayload({ schemaVersion: "1.0" })).toThrow(/envelope/);
   });
 
   it("rejects an unknown media key instead of dropping it silently", () => {
@@ -1519,7 +1577,7 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
       const file = join(contentRoot, packName, "scene-data.mjs");
       if (!existsSync(file)) continue;
       const source = readFileSync(file, "utf8");
-      const ids = listSceneIds(source);
+      const ids = listScenes(source).map((scene) => scene.id);
       // A pack that declares scenes but locates none is the exact failure this
       // test exists to catch, so it cannot be skipped as "no scenes here".
       if (ids.length === 0) {
@@ -1543,7 +1601,11 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
           failures.push({ pack: packName, sceneId, errors: result.errors });
           continue;
         }
-        if (listSceneIds(result.modifiedContent).join(",") !== ids.join(",")) {
+        if (
+          listScenes(result.modifiedContent)
+            .map((scene) => scene.id)
+            .join(",") !== ids.join(",")
+        ) {
           failures.push({ pack: packName, sceneId, errors: ["scene ids changed"] });
           continue;
         }

@@ -11,7 +11,7 @@
  * `remotion/src/types.ts` (`MediaField`) says so in its own header, and
  * `media-field-schema.test.mjs` fails when the two drift apart.
  */
-import { shown, validateProvenance } from "./media-integrity.mjs";
+import { isPlainObject, shown, validateProvenance } from "./media-integrity.mjs";
 
 /** Every key a `scene.media` object may carry. Mirrors `MediaField`. */
 export const MEDIA_FIELD_KEYS = new Set([
@@ -34,10 +34,24 @@ export const MEDIA_FIELD_KEYS = new Set([
   "backdrop",
 ]);
 
-const isPlainObject = (value) =>
-  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+/**
+ * Every key `scene.media.backdrop` may carry. Mirrors `MediaField["backdrop"]`
+ * in `remotion/src/types.ts`; the same drift test keeps both lists honest.
+ */
+export const BACKDROP_FIELD_KEYS = new Set([
+  "type",
+  "path",
+  "source",
+  "animation",
+  "volume",
+  "upscale",
+]);
 
-const FIX_UNKNOWN_KEY =
+/**
+ * Guidance for an unknown media key, shared with the patch writer so both
+ * surfaces name the same two repo-root paths (#846 review).
+ */
+export const FIX_UNKNOWN_MEDIA_KEY =
   "Fix the key name, or add the field to MediaField (scripts/short-video/remotion/src/types.ts) and MEDIA_FIELD_KEYS (scripts/short-video/lib/media-field-schema.mjs) in the same change — the two halves are one contract.";
 
 /**
@@ -76,7 +90,7 @@ export function checkMediaFieldSchema(scenes) {
         category: "Media",
         check: `Media field schema: Scene ${scene.id} keys are recognised`,
         detail: `unknown media key(s): ${unknown.sort().join(", ")} — nothing reads them, so the declaration has no effect`,
-        fix: FIX_UNKNOWN_KEY,
+        fix: FIX_UNKNOWN_MEDIA_KEY,
       });
     }
 

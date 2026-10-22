@@ -22,8 +22,8 @@ import { existsSync, readFileSync, writeFileSync, renameSync, copyFileSync } fro
 import { join, dirname, resolve, sep } from "path";
 import { fileURLToPath } from "url";
 import { shown, validateProvenance } from "./lib/media-integrity.mjs";
-import { formatMediaObject, normalizeMediaPatch } from "./lib/media-patch-format.mjs";
-import { MEDIA_FIELD_KEYS } from "./lib/media-field-schema.mjs";
+import { formatMediaObject, parsePatchPayload } from "./lib/media-patch-format.mjs";
+import { FIX_UNKNOWN_MEDIA_KEY, MEDIA_FIELD_KEYS } from "./lib/media-field-schema.mjs";
 
 // ─── Pure functions ───
 
@@ -117,7 +117,7 @@ export function validatePatchEntry(entry, scenes, contentDir) {
   const unknownMediaKeys = Object.keys(entry.media).filter((key) => !MEDIA_FIELD_KEYS.has(key));
   if (unknownMediaKeys.length > 0) {
     errors.push(
-      `Unknown media field(s): ${unknownMediaKeys.sort().join(", ")}. Add the key to MediaField (remotion/src/types.ts) and MEDIA_FIELD_KEYS (lib/media-field-schema.mjs) first.`,
+      `Unknown media field(s): ${unknownMediaKeys.sort().join(", ")}. ${FIX_UNKNOWN_MEDIA_KEY}`,
     );
   }
 
@@ -321,8 +321,19 @@ function valueEndOf(text, start) {
     return -1;
   }
   if (char === '"' || char === "'" || char === "`") return skipAtomic(text, start) - 1;
+  // The unquoted scan (numbers, true/false/null) must skip comments too: a
+  // trailing `// see #123, keep CSS-only` ends at a comma the splice would then
+  // treat as the end of the value, writing the comment tail into scene-data.
   let i = start;
-  while (i < text.length && !/[,}\]\n]/.test(text[i])) i++;
+  while (i < text.length) {
+    const skipped = skipAtomic(text, i);
+    if (skipped) {
+      i = skipped;
+      continue;
+    }
+    if (/[,}\]\n]/.test(text[i])) break;
+    i++;
+  }
   return i - 1;
 }
 
@@ -392,21 +403,16 @@ export function listSceneRanges(text) {
   return ranges;
 }
 
-/** Scene ids in source order (numeric ids and quoted ids alike). */
-export function listSceneIds(text) {
-  return listSceneRanges(text)
-    .map((range) => findTopLevelProperty(text, range.start, range.end, "id"))
-    .filter(Boolean)
-    .map((property) => readLiteral(text, property.valueStart))
-    .filter((id) => id !== null);
+/** Every top-level scene with its id (`null` when the id is not a literal). */
+export function listScenes(text) {
+  return listSceneRanges(text).map((range) => {
+    const idProperty = findTopLevelProperty(text, range.start, range.end, "id");
+    return { ...range, id: idProperty ? readLiteral(text, idProperty.valueStart) : null };
+  });
 }
 
 function findSceneRange(text, sceneId) {
-  for (const range of listSceneRanges(text)) {
-    const idProperty = findTopLevelProperty(text, range.start, range.end, "id");
-    if (idProperty && readLiteral(text, idProperty.valueStart) === sceneId) return range;
-  }
-  return null;
+  return listScenes(text).find((scene) => scene.id === sceneId) ?? null;
 }
 
 /**
@@ -642,26 +648,6 @@ export function formatDryRun(applied, skipped) {
 // ─── Main orchestrator ───
 
 /**
- * Accept both patch shapes the pipeline writes: a bare array, and the
- * `{ schemaVersion, patches: [...] }` envelope `media-patch-format.mjs` emits.
- * Before this, an envelope parsed as a non-array and the CLI exited with
- * "must be a JSON array" even though normalization already supported it (#846).
- *
- * @param {unknown} raw - Parsed patch JSON
- * @returns {Array} Normalized patch entries
- * @throws {Error} When the payload is neither shape
- */
-export function normalizePatchInput(raw) {
-  const isArray = Array.isArray(raw);
-  const isEnvelope =
-    raw !== null && typeof raw === "object" && !Array.isArray(raw) && Array.isArray(raw.patches);
-  if (!isArray && !isEnvelope) {
-    throw new Error("Patch file must be a JSON array or a { schemaVersion, patches } envelope.");
-  }
-  return normalizeMediaPatch(raw);
-}
-
-/**
  * Main entry point.
  *
  * @param {string[]} args - CLI arguments
@@ -708,7 +694,7 @@ export async function main(args = process.argv.slice(2)) {
   // ── Load patch JSON ──
   let patches;
   try {
-    patches = normalizePatchInput(JSON.parse(readFileSync(resolvedPatchPath, "utf8")));
+    patches = parsePatchPayload(JSON.parse(readFileSync(resolvedPatchPath, "utf8")));
   } catch (e) {
     console.error(`❌ Failed to parse patch JSON: ${e.message}`);
     process.exit(1);

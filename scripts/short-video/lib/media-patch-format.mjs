@@ -15,7 +15,8 @@
 
 import { readFileSync, existsSync } from "fs";
 import { formatProvenanceBlock } from "./evidence-capture.mjs";
-import { shown, validateProvenance } from "./media-integrity.mjs";
+import { isPlainObject, shown, validateProvenance } from "./media-integrity.mjs";
+import { BACKDROP_FIELD_KEYS } from "./media-field-schema.mjs";
 
 /**
  * Format a focus analysis result as a human-readable comment block.
@@ -172,9 +173,6 @@ export function loadAssetAnalysis(analysisPath) {
   }
 }
 
-const isPlainObject = (value) =>
-  Boolean(value) && typeof value === "object" && !Array.isArray(value);
-
 function stringField(name, value) {
   if (typeof value !== "string") {
     throw new Error(`media.${name} must be a string, got ${shown(value)}`);
@@ -198,15 +196,13 @@ function booleanField(name, value) {
   return String(value);
 }
 
-const BACKDROP_FIELDS = new Set(["type", "path", "source", "animation", "volume", "upscale"]);
-
 function formatBackdrop(backdrop) {
   if (!isPlainObject(backdrop)) {
     throw new Error(`media.backdrop must be an object, got ${shown(backdrop)}`);
   }
   // Same rule as the top-level media body: an unknown key would be dropped, so
   // refuse it rather than write a declaration with no effect.
-  const unknown = Object.keys(backdrop).filter((key) => !BACKDROP_FIELDS.has(key));
+  const unknown = Object.keys(backdrop).filter((key) => !BACKDROP_FIELD_KEYS.has(key));
   if (unknown.length > 0) {
     throw new Error(`media.backdrop has unknown field(s): ${unknown.sort().join(", ")}`);
   }
@@ -269,7 +265,10 @@ export function formatMediaObject(media, propertyIndent = "  ", options = {}) {
     lines.push(
       `${fieldIndent}videoStartOffsetMs: ${numberField("videoStartOffsetMs", media.videoStartOffsetMs)},`,
     );
-  if (media.cropFocus) {
+  // `0`/""/false are invalid cropFocus values, not "absent": a truthy check
+  // dropped them silently, the same lost-declaration failure the unknown-key
+  // rejection exists to prevent (#846 review).
+  if (media.cropFocus !== undefined && media.cropFocus !== null) {
     if (
       typeof media.cropFocus.x !== "number" ||
       typeof media.cropFocus.y !== "number" ||
@@ -457,4 +456,23 @@ export function normalizeMediaPatch(raw) {
   if (Array.isArray(raw)) return raw;
   if (raw && Array.isArray(raw.patches)) return raw.patches;
   return [];
+}
+
+/**
+ * Strict variant of {@link normalizeMediaPatch} for writers.
+ *
+ * Durations may read an unrecognised payload as "no patches" (a no-op review),
+ * but a CLI that rewrites scene-data must not: an envelope was reported as
+ * "must be a JSON array" before this existed (#846). Shape detection stays
+ * here so the accepted payload contract has one home.
+ *
+ * @param {unknown} raw - parsed patch JSON
+ * @returns {Array} patch entries
+ * @throws {Error} when the payload is neither shape
+ */
+export function parsePatchPayload(raw) {
+  if (Array.isArray(raw) || (isPlainObject(raw) && Array.isArray(raw.patches))) {
+    return normalizeMediaPatch(raw);
+  }
+  throw new Error("Patch file must be a JSON array or a { schemaVersion, patches } envelope.");
 }
