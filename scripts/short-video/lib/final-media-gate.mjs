@@ -18,18 +18,26 @@
  *
  * Existence is not integrity (#759): once a file is present this gate opens it
  * and judges the bytes (zero-byte, truncated, placeholder, wrong container),
- * then validates any declared `media.provenance` geometry. Provenance is
+ * then validates any declared `media.provenance` geometry and, since #758,
+ * reconciles its `clip × scale` with the file's real pixel size. Provenance is
  * demanded only from media the scene marks as evidence (`media.evidence: true`)
- * — #758 is the producer, so unmarked assets keep their current pass-through
- * behaviour. A scene type that renders no media layout is still checked when it
- * declares a file, because `mode: "fullscreen"` bypasses the layout dispatch.
+ * — #758 is the producer that attaches one; an unmarked asset without
+ * provenance keeps its current pass-through behaviour, while one that declares
+ * provenance is judged like any other. A scene type that renders no media
+ * layout is still checked when it declares a file, because
+ * `mode: "fullscreen"` bypasses the layout dispatch.
  */
 import { existsSync } from "fs";
 import { resolve, sep } from "path";
 import { DEFAULT_NARRATIVE_LAYOUT } from "./text-slots.mjs";
 import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
-import { inspectMediaFile, shown, validateProvenance } from "./media-integrity.mjs";
+import {
+  inspectMediaFile,
+  shown,
+  validateProvenance,
+  validateProvenancePixels,
+} from "./media-integrity.mjs";
 // Re-export: existing consumers import NO_MEDIA_TYPES from this module.
 export { NO_MEDIA_TYPES };
 
@@ -126,7 +134,15 @@ function inspectPresentMedia(scene, contentDir, probeVideo) {
 
   if (media.provenance) {
     const { ok, errors } = validateProvenance(media.provenance);
-    return ok ? [] : [{ reason: "invalid-provenance", path, detail: errors.join("; ") }];
+    if (!ok) return [{ reason: "invalid-provenance", path, detail: errors.join("; ") }];
+    // #758: the declaration must also match the pixels. Applied whenever
+    // provenance is present, not only for evidence media — #759 already
+    // validates any declared provenance, and a wrong geometry on an unmarked
+    // scene is the same wrong claim a reader would see in the frame.
+    const pixels = validateProvenancePixels(media.provenance, verdict);
+    if (!pixels.ok) {
+      return [{ reason: "provenance-pixel-mismatch", path, detail: pixels.errors.join("; ") }];
+    }
   }
 
   return [];
@@ -308,6 +324,9 @@ export function formatFinalMediaFailures(result) {
     }
     if (f.reason === "invalid-provenance") {
       return `  Scene ${f.sceneId}: media "${f.path}" has invalid provenance — ${f.detail} (fix the declaration or recapture the element)`;
+    }
+    if (f.reason === "provenance-pixel-mismatch") {
+      return `  Scene ${f.sceneId}: media "${f.path}" does not match its declared capture — ${f.detail} (recapture the element or correct clip/scale to the file's real size)`;
     }
     if (f.reason === "missing-provenance") {
       return `  Scene ${f.sceneId}: media "${f.path}" has no provenance — ${f.detail}`;

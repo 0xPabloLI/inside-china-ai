@@ -20,8 +20,8 @@ export interface StatItem {
  * #759 Capture Provenance (采集凭据): the geometry an element-level capture
  * claims to have produced, in page CSS px. Consumed by the Node side only —
  * `lib/media-integrity.mjs` validates it (clip must contain rect) at the final
- * media gate; the renderer never reads it. Declaration, not measurement:
- * nothing reconciles these numbers with the pixels on disk until #758 lands.
+ * media gate; the renderer never reads it. The gate also reconciles
+ * `clip × scale` with the file's real pixel size (#758).
  */
 export interface MediaCaptureBox {
   x: number;
@@ -36,6 +36,8 @@ export interface MediaProvenance {
   rect: MediaCaptureBox; // the element
   clip: MediaCaptureBox; // what was actually captured — must contain rect
   scale: number; // device scale factor, > 0
+  /** true = the bound file is a composition of this capture (legacy pre-composed banner), so the final gate skips pixel reconciliation. The deterministic producer never emits it. */
+  composed?: boolean;
 }
 
 export interface MediaField {

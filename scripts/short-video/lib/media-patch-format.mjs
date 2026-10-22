@@ -13,6 +13,7 @@
  */
 
 import { readFileSync, existsSync } from "fs";
+import { formatProvenanceBlock } from "./evidence-capture.mjs";
 
 /**
  * Format a focus analysis result as a human-readable comment block.
@@ -225,6 +226,10 @@ export function formatPatchEntry(entry, analysisMap) {
   if (media.volume !== undefined) lines.push(`    volume: ${media.volume},`);
   if (media.videoStartOffsetMs !== undefined)
     lines.push(`    videoStartOffsetMs: ${media.videoStartOffsetMs},`);
+  // #758: a review block that drops these two fields teaches the operator to
+  // paste a capture the gate will reject for missing provenance.
+  if (media.evidence !== undefined) lines.push(`    evidence: ${media.evidence},`);
+  if (media.provenance) lines.push(formatProvenanceBlock(media.provenance, "    "));
   // Note: focus is NOT included in new output (deprecated, spec §4.8)
   lines.push(`  },`);
 
