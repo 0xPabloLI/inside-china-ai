@@ -25,12 +25,14 @@
  * launched, the head-to-head split, the biggest jump, the self-report caveat,
  * the demo summary, the loop closure, the CTA) rather than evidence.
  *
- * Rail constraint (found by MRL-3 on this pack, 2026-10-17): `media-bottom-bar`
- * renders its media window 1080x814 at y=0, but TikTok's action rail starts at
- * x=880 and the frame gate fails any scene with >5% bright pixels in
- * x>880, y 640-1775. These are white documentation pages, so every banner
- * asset is composed 880x814 with the page card inside y 200..626 and dark matte
- * below, plus `fit:"contain"` for the branded matte on both sides.
+ * Legacy assets (pre-#758, 2026-10-17): the three screenshots here predate the
+ * deterministic capture producer. They were hand-composed at 880x814 so the
+ * page card would clear TikTok's action rail (x>880 in the frame gate), and are
+ * deliberately NOT marked `media.evidence: true` — do not add the flag or
+ * invent recipes for this pack. New evidence captures use
+ * `evidence-captures.json` + `capture-evidence-shot.mjs`, bind the raw element
+ * screenshot, and let the layout handle fit and safe zones; re-capturing these
+ * three is tracked in #848.
  *
  * Layout note: only `narrative` consumes `scene.layout`. `hook` (scene 1)
  * renders `scene.media` through `MediaBackground` whatever the layout says, so

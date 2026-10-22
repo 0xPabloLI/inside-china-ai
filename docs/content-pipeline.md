@@ -384,7 +384,7 @@ Hook 是前 3 秒，媒体**逐包人工策展**，不走通用搜源（`asset-s
 
 | Hook 状态  | 写法                                                                                                | 预检（`--pre`）                                               | 最终 media gate（sourcing/生成后）  |
 | ---------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------- |
-| 已策展     | `scene.media = { type, path, source, fit: "cover", overlay }`                                       | 通过；`fit` 非 `"cover"`（`contain`/`fill`/`none`/拼错）FAIL，`overlay` 越界或缺 `source` WARN | 文件存在且字节可用（#759：0 字节/截断/占位尺寸/声明类型与真实字节类别不符（图↔视频）即 FAIL），并过同一 fit/overlay/source 契约；声明为证据（`media.evidence: true`）时缺 `media.provenance` 亦 FAIL |
+| 已策展     | `scene.media = { type, path, source, fit: "cover", overlay }`                                       | 通过；`fit` 非 `"cover"`（`contain`/`fill`/`none`/拼错）FAIL，`overlay` 越界或缺 `source` WARN | 文件存在且字节可用（#759：0 字节/截断/占位尺寸/声明类型与真实字节类别不符（图↔视频）即 FAIL），并过同一 fit/overlay/source 契约；声明为证据（`media.evidence: true`）时缺 `media.provenance` 亦 FAIL，且 provenance 需通过 `clip × scale` 像素对账（`composed: true` 的历史预合成图除外，记 warning） |
 | 故意纯文字 | `media: null`                                                                                       | WARN（显式豁免，不阻断）                                      | 通过 + `explicit-null-on-hook` 警告 |
 | 生成兜底   | 不写 `media`，`mediaStrategy` 为 `b-roll` / `asset-then-broll` / `ai-image` / `asset-then-ai-image` | WARN（不阻断生成）                                            | 文件未落地即 FAIL                   |
 
@@ -432,6 +432,8 @@ node scripts/rag/index.mjs
 ```bash
 node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 → 合成（不含 BGM）
 ```
+
+> **Step 1.5 证据截图**：媒体轨在 asset sourcing 之前，按 `content/<slug>/evidence-captures.json` 重捕获缺失的证据截图（手动入口 `capture-evidence-shot.mjs`）；`media.evidence: true` 的 scene 不参与 stock 搜索。配方、失败语义与落档约定见 `docs/video-script-writing-guide.md` §截图证据约定。
 
 > **BGM 不在 Stage 4 自动添加**。视频先以纯 VO 产出，BGM 在 Stage 5 HITL 确认后通过 `mix-bgm.mjs` 独立混入。
 

@@ -18,6 +18,10 @@ import {
 import { applyAssignedMedia } from "../lib/apply-media-patch.mjs";
 import * as applyLib from "../lib/apply-media-patch.mjs";
 import * as reviewLib from "../lib/review-media-patch.mjs";
+import {
+  applyPatchesToText,
+  validatePatchEntry as validateCliPatchEntry,
+} from "../apply-media-patch.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -872,6 +876,256 @@ describe("#649 media patch formatting unification and cropFocus preservation", (
       expect(outApply).toContain("Crop Decision: safe, cover, focus [0.35, 0.65]");
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ─── #758: the writer must not silently drop evidence/provenance ───
+
+describe("#758 evidence capture fields in media patches", () => {
+  const provenance = (over = {}) => ({
+    sourceUrl: "https://example.com/benchmark-table",
+    selector: "table:nth-of-type(1)",
+    rect: { x: 104, y: 923, w: 288, h: 144 },
+    clip: { x: 88, y: 907, w: 320, h: 160 },
+    scale: 2,
+    ...over,
+  });
+
+  const media = () => ({
+    type: "image",
+    path: "assets/capture.png",
+    evidence: true,
+    provenance: provenance(),
+  });
+
+  it("formatPatchEntry emits evidence and a paste-ready provenance block", () => {
+    const out = formatPatchEntry({ sceneId: 1, status: "assigned", media: media() });
+    expect(out).toContain("    evidence: true,");
+    expect(out).toContain("    provenance: {");
+    expect(out).toContain('      sourceUrl: "https://example.com/benchmark-table",');
+    expect(out).toContain('      selector: "table:nth-of-type(1)",');
+    expect(out).toContain("      rect: { x: 104, y: 923, w: 288, h: 144 },");
+    expect(out).toContain("      scale: 2,");
+  });
+
+  it("formatPatchEntry omits both fields when absent", () => {
+    const out = formatPatchEntry({
+      sceneId: 1,
+      status: "assigned",
+      media: { type: "image", path: "assets/plain.png" },
+    });
+    expect(out).not.toContain("provenance");
+    expect(out).not.toContain("evidence");
+  });
+
+  it("applyPatchesToText writes both fields into scene data", () => {
+    const text = [
+      "export const scenes = [",
+      "  {",
+      "    id: 3,",
+      '    visualType: "narrative",',
+      '    voiceover: "hi",',
+      "  },",
+      "];",
+      "",
+    ].join("\n");
+    const result = applyPatchesToText(text, [{ sceneId: 3, action: "add", media: media() }]);
+    expect(result.errors).toEqual([]);
+    expect(result.applied).toHaveLength(1);
+    // The scene body is indented 4, so the media block's own indent is 4 and
+    // its fields land at 6.
+    expect(result.modifiedContent).toContain("      evidence: true,");
+    expect(result.modifiedContent).toContain("      provenance: {");
+    expect(result.modifiedContent).toContain('        selector: "table:nth-of-type(1)",');
+    expect(result.modifiedContent).toContain("      },");
+    expect(result.modifiedContent).toContain('    voiceover: "hi",');
+  });
+
+  it("replace round-trips a flat block and then a provenance block (--force re-apply)", () => {
+    // The nested block is what this ticket adds; a regex that stops at the
+    // first inner "}" used to leave the previous clip/scale tail behind.
+    const text = [
+      "export const scenes = [",
+      "  {",
+      "    id: 3,",
+      '    visualType: "narrative",',
+      "    media: {",
+      '      type: "image",',
+      '      path: "assets/old.png",',
+      "    },",
+      '    voiceover: "hi",',
+      "  },",
+      "];",
+      "",
+    ].join("\n");
+    const first = applyPatchesToText(text, [{ sceneId: 3, action: "replace", media: media() }]);
+    expect(first.errors).toEqual([]);
+    expect(first.modifiedContent).not.toContain('path: "assets/old.png"');
+    expect(first.modifiedContent).toContain("provenance: {");
+
+    const second = applyPatchesToText(first.modifiedContent, [
+      {
+        sceneId: 3,
+        action: "replace",
+        media: { ...media(), provenance: provenance({ sourceUrl: "https://newer.example/y" }) },
+      },
+    ]);
+    expect(second.errors).toEqual([]);
+    expect(second.modifiedContent).not.toContain("https://example.com/benchmark-table");
+    expect(second.modifiedContent).toContain('"https://newer.example/y"');
+    expect(second.modifiedContent.match(/provenance: \{/g)).toHaveLength(1);
+    expect(second.modifiedContent).toContain('    voiceover: "hi",');
+    expect(second.modifiedContent.match(/\{/g)).toHaveLength(
+      second.modifiedContent.match(/\}/g).length,
+    );
+  });
+
+  it("replace skips braces inside comments in the old media block", () => {
+    // A brace scanner that only understands strings closes the block at the
+    // `}` inside the comment and leaves the old tail (brace-imbalanced) behind.
+    const text = [
+      "export const scenes = [",
+      "  {",
+      "    id: 3,",
+      '    visualType: "narrative",',
+      "    media: {",
+      '      type: "image",',
+      '      path: "assets/old.png",',
+      "      // } end-of-field note",
+      "      /* { block note } */",
+      "    },",
+      '    voiceover: "hi",',
+      "  },",
+      "];",
+      "",
+    ].join("\n");
+    const result = applyPatchesToText(text, [{ sceneId: 3, action: "replace", media: media() }]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.applied).toHaveLength(1);
+    expect(result.modifiedContent).not.toContain('path: "assets/old.png"');
+    expect(result.modifiedContent).not.toContain("end-of-field note");
+    expect(result.modifiedContent).toContain("provenance: {");
+    expect(result.modifiedContent).toContain('    voiceover: "hi",');
+    expect(result.modifiedContent.match(/\{/g)).toHaveLength(
+      result.modifiedContent.match(/\}/g).length,
+    );
+  });
+
+  it("replace fallback on a one-line scene closes the media block by depth", () => {
+    const text = [
+      "export const scenes = [",
+      '  { id: 3, visualType: "narrative", media: { type: "image", path: "assets/old.png" }, voiceover: "hi" },',
+      "];",
+      "",
+    ].join("\n");
+    const result = applyPatchesToText(text, [{ sceneId: 3, action: "replace", media: media() }]);
+    expect(result.errors).toEqual([]);
+    expect(result.applied).toHaveLength(1);
+    expect(result.modifiedContent).toContain('path: "assets/capture.png"');
+    expect(result.modifiedContent).toContain("provenance: {");
+    expect(result.modifiedContent).toContain('voiceover: "hi"');
+    expect(result.modifiedContent.match(/\{/g)).toHaveLength(
+      result.modifiedContent.match(/\}/g).length,
+    );
+  });
+
+  it("formatPatchEntry refuses to copy an invalid provenance as code", () => {
+    const out = formatPatchEntry({
+      sceneId: 1,
+      status: "assigned",
+      media: { type: "image", path: "assets/bad.png", provenance: { selector: "table" } },
+    });
+    expect(out).toContain("INVALID provenance");
+    expect(out).not.toContain("sourceUrl: undefined");
+  });
+
+  it("rejects evidence:true without provenance", () => {
+    const r = validateCliPatchEntry(
+      {
+        sceneId: 1,
+        status: "assigned",
+        media: { type: "image", path: "assets/capture.png", evidence: true },
+      },
+      [{ id: 1 }],
+      "/fake/content",
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("provenance"))).toBe(true);
+  });
+
+  it("accepts evidence:true with a valid provenance", () => {
+    const r = validateCliPatchEntry(
+      { sceneId: 1, status: "assigned", media: media() },
+      [{ id: 1 }],
+      "/fake/content",
+    );
+    expect(r.valid).toBe(true);
+    expect(r.errors).toEqual([]);
+  });
+
+  it.each([
+    ["string", "yes"],
+    ["number", 1],
+    ["object", {}],
+  ])("rejects a %s evidence flag", (_label, evidence) => {
+    const r = validateCliPatchEntry(
+      { sceneId: 1, status: "assigned", media: { ...media(), evidence } },
+      [{ id: 1 }],
+      "/fake/content",
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("evidence"))).toBe(true);
+  });
+
+  it.each([
+    ["null", null],
+    ["false", false],
+  ])("accepts evidence:%s as a non-evidence declaration", (_label, evidence) => {
+    const r = validateCliPatchEntry(
+      {
+        sceneId: 1,
+        status: "assigned",
+        media: { type: "image", path: "assets/capture.png", evidence },
+      },
+      [{ id: 1 }],
+      "/fake/content",
+    );
+    expect(r.valid).toBe(true);
+    expect(r.errors).toEqual([]);
+  });
+
+  it("rejects an invalid provenance shape", () => {
+    const r = validateCliPatchEntry(
+      {
+        sceneId: 1,
+        status: "assigned",
+        media: { ...media(), provenance: provenance({ scale: 0 }) },
+      },
+      [{ id: 1 }],
+      "/fake/content",
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("provenance.scale"))).toBe(true);
+  });
+
+  it("applyAssignedMedia preserves evidence and provenance when spreading the entry", () => {
+    const dir = mkdtempSync(join(tmpdir(), "apply-patch-758-"));
+    mkdirSync(join(dir, "assets"), { recursive: true });
+    writeFileSync(join(dir, "assets", "capture.png"), "x");
+    try {
+      const scenes = [{ id: 1, visualType: "narrative" }];
+      const r = applyAssignedMedia(
+        scenes,
+        [{ sceneId: 1, status: "assigned", media: media() }],
+        dir,
+      );
+      expect(r.applied).toBe(1);
+      expect(scenes[0].media.evidence).toBe(true);
+      expect(scenes[0].media.provenance).toEqual(provenance());
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

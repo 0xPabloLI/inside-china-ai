@@ -3,8 +3,9 @@
  * used to run serially before TTS, extracted verbatim from main.mjs so they
  * can run as a track concurrent with the voice track.
  *
- * Stages (in order): asset sourcing (1.5) → media-patch application (1.5c)
- * → media upscale (1.5b) → B-roll generation (1.5d).
+ * Stages (in order): evidence captures (1.5a) → asset sourcing (1.5) →
+ * media-patch application (1.5c) → media upscale (1.5b) → B-roll generation
+ * (1.5d).
  *
  * Contract preserved from main.mjs:
  *   - The track only touches scene media fields (media.path, b-roll
@@ -38,8 +39,42 @@ import { skipsMediaSourcing } from "./claim-keywords.mjs";
 export async function runMediaTrack({ scenes, contentDir, baseDir, broll, deps = {}, prof = {} }) {
   const contentDirAbs = resolve(baseDir, "content", contentDir);
 
+  // ── Stage 1.5a: Evidence captures (re-capture missing screenshots) ──
+  // Runs before stock sourcing: an evidence scene's file is a capture of the
+  // asserted page, so sourcing has nothing to offer it. A failed capture only
+  // warns here; the final media gate is what blocks the render.
+  prof.mark?.("step-1.5-evidence-capture", { track: "media" });
+  try {
+    const runEvidenceCaptures =
+      deps.runEvidenceCaptures ??
+      (await import("./evidence-capture-runner.mjs")).runEvidenceCaptures;
+    const result = await runEvidenceCaptures({ scenes, contentDirAbs });
+    // A rejected recipe is per-scene: report it loudly and keep the captures
+    // that are valid. The final media gate is what blocks the render.
+    for (const error of result.errors ?? []) {
+      console.warn(`⚠️  Step 1.5a: evidence capture recipe rejected — ${error}`);
+    }
+    for (const scene of result.uncovered ?? []) {
+      console.warn(
+        `⚠️  Step 1.5a: scene ${scene.id}: no capture recipe — add it to evidence-captures.json or declare composed:true`,
+      );
+    }
+    const captured = result.captured ?? [];
+    if (captured.length > 0) {
+      const ids = captured.map((entry) => entry.sceneId).join(", ");
+      console.log(`📸 Step 1.5a: Captured ${captured.length} evidence scene(s): ${ids}\n`);
+    }
+  } catch (e) {
+    console.warn(`⚠️  Evidence capture skipped: ${e.message}\n`);
+  }
+  prof.end?.("step-1.5-evidence-capture");
+
   // ── Stage 1.5: Asset sourcing (auto-search missing media) ──
   const scenesNeedingMedia = scenes.filter((s) => {
+    // Evidence media is captured, never stock-sourced — a stock image cannot
+    // carry the fact the scene asserts. This holds whether the capture
+    // succeeded or not: a missing capture must fail the gate, not fall back.
+    if (s.media?.evidence === true) return false;
     if (skipsMediaSourcing(s)) return false;
     // A scene that chose pure b-roll must not spend the sourcing budget.
     if (broll && !broll.shouldSourceStock(s)) return false;

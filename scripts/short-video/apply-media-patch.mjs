@@ -21,6 +21,8 @@
 import { existsSync, readFileSync, writeFileSync, renameSync, copyFileSync } from "fs";
 import { join, dirname, resolve, sep } from "path";
 import { fileURLToPath } from "url";
+import { shown, validateProvenance } from "./lib/media-integrity.mjs";
+import { formatProvenanceBlock } from "./lib/evidence-capture.mjs";
 
 // ─── Pure functions ───
 
@@ -124,6 +126,30 @@ export function validatePatchEntry(entry, scenes, contentDir) {
     }
   }
 
+  // #758: a patch is the writer that used to silently drop evidence and
+  // provenance, so it must not accept a declaration the final gate would
+  // reject. The pixel reconciliation is NOT here — no file bytes are read at
+  // patch-validation time; the final media gate owns that half.
+  if (
+    entry.media.evidence !== undefined &&
+    entry.media.evidence !== null &&
+    typeof entry.media.evidence !== "boolean"
+  ) {
+    errors.push(
+      `Invalid evidence flag: ${shown(entry.media.evidence)}. Must be a boolean or null (only true marks evidence media).`,
+    );
+  } else if (entry.media.evidence === true && !entry.media.provenance) {
+    errors.push(
+      "media.evidence:true requires media.provenance (sourceUrl, selector, rect, clip, scale).",
+    );
+  }
+  if (entry.media.provenance) {
+    const provenance = validateProvenance(entry.media.provenance);
+    if (!provenance.ok) {
+      errors.push(`Invalid media.provenance: ${provenance.errors.join("; ")}`);
+    }
+  }
+
   if (errors.length > 0) {
     return { valid: false, errors };
   }
@@ -178,8 +204,59 @@ function formatMediaBlock(media, indent = "    ") {
     lines.push(`  cropFocus: { x: ${media.cropFocus.x}, y: ${media.cropFocus.y} },`);
   }
   if (media.focus) lines.push(`  focus: "${media.focus}",`);
+  // #758: these two wiped on the way to scene-data before this ticket; the
+  // formatter is the only writer, so a dropped field is a silent contract loss.
+  if (media.evidence !== undefined) lines.push(`  evidence: ${media.evidence},`);
   lines.push("},");
-  return lines.map((l) => (l === "media: {" || l === "}," ? indent + l : indent + l)).join("\n");
+  const block = lines.map((l) => indent + l);
+  if (media.provenance) {
+    const provenanceLines = formatProvenanceBlock(media.provenance, `${indent}  `).split("\n");
+    // Before the closing "}," so the block stays one media object.
+    block.splice(block.length - 1, 0, ...provenanceLines);
+  }
+  return block.join("\n");
+}
+
+/**
+ * Index of the `}` that closes the object opening at `openIndex`, or -1.
+ *
+ * The replace path used `\{[^}]*\}` per media block, which stops at the first
+ * *nested* close. That was harmless while every media field was flat; once a
+ * block carries `provenance: { rect: {...}, ... }` (#758) the regex rewrote the
+ * prefix and left the old tail behind, corrupting scene-data. Braces inside
+ * string literals and inside `//` / block comments are skipped so a selector or
+ * a commented-out field containing "}" cannot end early.
+ */
+function matchingBrace(text, openIndex) {
+  let depth = 0;
+  let quote = null;
+  for (let i = openIndex; i < text.length; i++) {
+    const char = text[i];
+    if (quote) {
+      if (char === "\\") i++;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "/" && text[i + 1] === "/") {
+      const end = text.indexOf("\n", i + 2);
+      if (end === -1) return -1;
+      i = end;
+      continue;
+    }
+    if (char === "/" && text[i + 1] === "*") {
+      const end = text.indexOf("*/", i + 2);
+      if (end === -1) return -1;
+      i = end + 1;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === "`") quote = char;
+    else if (char === "{") depth++;
+    else if (char === "}") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
 }
 
 /**
@@ -209,31 +286,46 @@ export function applyPatchesToText(fileContent, patches, options = { force: fals
     const mediaBlock = formatMediaBlock(media);
 
     if (action === "replace") {
-      // Replace existing media block within the scene object
-      // Find the scene by id, then find media: { ... } within it
+      // Locate the scene and the opening brace of its media object; the close is
+      // found by brace depth, not by regex (see matchingBrace).
       const sceneRegex = new RegExp(
-        `((?:^|\\n)[ \\t]*\\{[^}]*?id:\\s*${sceneId}\\b[^}]*?)\\n([ \\t]*)media:\\s*\\{[^}]*\\},`,
+        `((?:^|\\n)[ \\t]*\\{[^}]*?id:\\s*${sceneId}\\b[^}]*?)\\n([ \\t]*)media:\\s*\\{`,
         "s",
       );
       const match = modifiedContent.match(sceneRegex);
-      if (match) {
+      const open = match ? match.index + match[0].length - 1 : -1;
+      const close = open === -1 ? -1 : matchingBrace(modifiedContent, open);
+      if (match && close !== -1) {
         const indent = match[2];
         const newBlock = mediaBlock.replace(/^(    )/gm, indent);
-        modifiedContent = modifiedContent.replace(sceneRegex, `$1\n${newBlock}`);
+        let end = close + 1;
+        if (modifiedContent[end] === ",") end++;
+        modifiedContent =
+          modifiedContent.slice(0, match.index) +
+          match[1] +
+          "\n" +
+          newBlock +
+          modifiedContent.slice(end);
         applied.push({ sceneId, action: "replaced", media });
         appliedSceneIds.add(sceneId);
       } else {
-        // Fallback: try single-line media
+        // Fallback: a scene written on one line. Find the opening brace and
+        // close by depth too — the old `\{[^}]*\}` stopped at the first nested
+        // brace, which a provenance block always has.
         const singleLineRegex = new RegExp(
-          `(\\{[^}]*?id:\\s*${sceneId}\\b[^}]*?)media:\\s*\\{[^}]*\\}`,
+          `(\\{[^}]*?id:\\s*${sceneId}\\b[^}]*?)media:\\s*\\{`,
           "s",
         );
         const slMatch = modifiedContent.match(singleLineRegex);
-        if (slMatch) {
-          modifiedContent = modifiedContent.replace(
-            singleLineRegex,
-            `$1${mediaBlock.replace(/\n/g, " ").replace(/,$/, "")}`,
-          );
+        const slOpen = slMatch ? slMatch.index + slMatch[0].length - 1 : -1;
+        const slClose = slOpen === -1 ? -1 : matchingBrace(modifiedContent, slOpen);
+        if (slMatch && slClose !== -1) {
+          const newBlock = mediaBlock.replace(/\n/g, " ").replace(/,$/, "");
+          modifiedContent =
+            modifiedContent.slice(0, slMatch.index) +
+            slMatch[1] +
+            newBlock +
+            modifiedContent.slice(slClose + 1);
           applied.push({ sceneId, action: "replaced", media });
           appliedSceneIds.add(sceneId);
         } else {

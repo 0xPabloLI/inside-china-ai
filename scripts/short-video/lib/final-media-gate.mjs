@@ -18,18 +18,26 @@
  *
  * Existence is not integrity (#759): once a file is present this gate opens it
  * and judges the bytes (zero-byte, truncated, placeholder, wrong container),
- * then validates any declared `media.provenance` geometry. Provenance is
+ * then validates any declared `media.provenance` geometry and, since #758,
+ * reconciles its `clip × scale` with the file's real pixel size. Provenance is
  * demanded only from media the scene marks as evidence (`media.evidence: true`)
- * — #758 is the producer, so unmarked assets keep their current pass-through
- * behaviour. A scene type that renders no media layout is still checked when it
- * declares a file, because `mode: "fullscreen"` bypasses the layout dispatch.
+ * — #758 is the producer that attaches one; an unmarked asset without
+ * provenance keeps its current pass-through behaviour, while one that declares
+ * provenance is judged like any other. A scene type that renders no media
+ * layout is still checked when it declares a file, because
+ * `mode: "fullscreen"` bypasses the layout dispatch.
  */
 import { existsSync } from "fs";
 import { resolve, sep } from "path";
 import { DEFAULT_NARRATIVE_LAYOUT } from "./text-slots.mjs";
 import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
-import { inspectMediaFile, shown, validateProvenance } from "./media-integrity.mjs";
+import {
+  inspectMediaFile,
+  shown,
+  validateProvenance,
+  validateProvenancePixels,
+} from "./media-integrity.mjs";
 // Re-export: existing consumers import NO_MEDIA_TYPES from this module.
 export { NO_MEDIA_TYPES };
 
@@ -82,20 +90,24 @@ const escapeFinding = (path, contentDir) => ({
  * `vlm_analyzer.py` all read it as a search-query string, so an object shape
  * here would fork a contract #758 has not decided.
  *
- * @returns {Array<{reason: string, code?: string, path: string, detail: string}>}
- *          findings to report as failures — empty when the asset is usable.
+ * @returns {{failures: Array<{reason: string, code?: string, path: string, detail: string}>,
+ *            warnings: Array<{reason: string, path: string, detail: string}>}}
+ *          failures are empty when the asset is usable.
  */
 function inspectPresentMedia(scene, contentDir, probeVideo) {
   const media = scene.media;
   const path = media.path;
   const abs = mediaAbsolutePath(contentDir, path);
-  if (abs === null) return [escapeFinding(path, contentDir)];
+  if (abs === null) return { failures: [escapeFinding(path, contentDir)], warnings: [] };
   const verdict = inspectMediaFile(abs, {
     declaredType: media.type,
     probeVideo,
   });
   if (!verdict.ok) {
-    return [{ reason: "broken-media", code: verdict.code, path, detail: verdict.detail }];
+    return {
+      failures: [{ reason: "broken-media", code: verdict.code, path, detail: verdict.detail }],
+      warnings: [],
+    };
   }
 
   // Flag integrity before geometry: a marker that reads as "evidence" to an
@@ -105,31 +117,64 @@ function inspectPresentMedia(scene, contentDir, probeVideo) {
   // the `media: null` waiver idiom (#191), so an explicit "no" stays a no.
   if (media.evidence === true) {
     if (!media.provenance) {
-      return [
-        {
-          reason: "missing-provenance",
-          path,
-          detail:
-            "a capture marked evidence:true must record sourceUrl, selector, rect, clip and scale so its geometry can be verified",
-        },
-      ];
+      return {
+        failures: [
+          {
+            reason: "missing-provenance",
+            path,
+            detail:
+              "a capture marked evidence:true must record sourceUrl, selector, rect, clip and scale so its geometry can be verified",
+          },
+        ],
+        warnings: [],
+      };
     }
   } else if (media.evidence !== undefined && media.evidence !== null && media.evidence !== false) {
-    return [
-      {
-        reason: "invalid-evidence-flag",
-        path,
-        detail: `media.evidence must be the boolean true, got ${shown(media.evidence)} (${typeof media.evidence}) — anything else silently switches the provenance requirement off`,
-      },
-    ];
+    return {
+      failures: [
+        {
+          reason: "invalid-evidence-flag",
+          path,
+          detail: `media.evidence must be the boolean true, got ${shown(media.evidence)} (${typeof media.evidence}) — anything else silently switches the provenance requirement off`,
+        },
+      ],
+      warnings: [],
+    };
   }
 
+  const warnings = [];
   if (media.provenance) {
     const { ok, errors } = validateProvenance(media.provenance);
-    return ok ? [] : [{ reason: "invalid-provenance", path, detail: errors.join("; ") }];
+    if (!ok) {
+      return {
+        failures: [{ reason: "invalid-provenance", path, detail: errors.join("; ") }],
+        warnings: [],
+      };
+    }
+    // #758: the declaration must also match the pixels. Applied whenever
+    // provenance is present, not only for evidence media — #759 already
+    // validates any declared provenance, and a wrong geometry on an unmarked
+    // scene is the same wrong claim a reader would see in the frame.
+    const pixels = validateProvenancePixels(media.provenance, verdict);
+    if (!pixels.ok) {
+      return {
+        failures: [{ reason: "provenance-pixel-mismatch", path, detail: pixels.errors.join("; ") }],
+        warnings: [],
+      };
+    }
+    if (media.provenance.composed === true) {
+      // The legacy opt-out passes by design; a silent skip is how it survives
+      // forever, so every run names the scene that bypassed the reconciliation.
+      warnings.push({
+        reason: "composed-provenance",
+        path,
+        detail:
+          "pixel reconciliation is skipped for a declared composition (composed: true) — the file is a hand-composed banner, not a raw element capture",
+      });
+    }
   }
 
-  return [];
+  return { failures: [], warnings };
 }
 
 /**
@@ -139,10 +184,11 @@ function inspectPresentMedia(scene, contentDir, probeVideo) {
  *
  * @returns {number} findings pushed — truthy means "this scene is done".
  */
-function pushMediaFindings(failures, scene, layout, contentDir, probeVideo) {
+function pushMediaFindings(failures, warnings, scene, layout, contentDir, probeVideo) {
   const found = inspectPresentMedia(scene, contentDir, probeVideo);
-  for (const f of found) failures.push({ sceneId: scene.id, layout, ...f });
-  return found.length;
+  for (const f of found.failures) failures.push({ sceneId: scene.id, layout, ...f });
+  for (const w of found.warnings) warnings.push({ sceneId: scene.id, layout, ...w });
+  return found.failures.length;
 }
 
 /**
@@ -174,7 +220,7 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
             ...escapeFinding(scene.media.path, contentDir),
           });
         } else if (state === "present") {
-          pushMediaFindings(failures, scene, null, contentDir, probeVideo);
+          pushMediaFindings(failures, warnings, scene, null, contentDir, probeVideo);
         }
       }
       continue;
@@ -212,8 +258,9 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
       // findings (provenance, evidence flag) do NOT excuse the contract: a hook
       // with intact bytes must still fail fit:"contain" (#759 round 3).
       const mediaFindings = inspectPresentMedia(scene, contentDir, probeVideo);
-      for (const f of mediaFindings) failures.push({ sceneId: scene.id, layout, ...f });
-      if (mediaFindings.some((f) => f.reason === "broken-media")) continue;
+      for (const f of mediaFindings.failures) failures.push({ sceneId: scene.id, layout, ...f });
+      for (const w of mediaFindings.warnings) warnings.push({ sceneId: scene.id, layout, ...w });
+      if (mediaFindings.failures.some((f) => f.reason === "broken-media")) continue;
       // The file landed — now enforce the same curation contract as preflight
       // (#299), so a fit:"contain" hook cannot render through the paths that
       // skip scene-rules (render-only / rerender / rerender-full / realign).
@@ -264,7 +311,7 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
         failures.push({ sceneId: scene.id, layout, reason: "missing-media", path: mediaPath });
         continue;
       }
-      pushMediaFindings(failures, scene, layout, contentDir, probeVideo);
+      pushMediaFindings(failures, warnings, scene, layout, contentDir, probeVideo);
       continue;
     }
 
@@ -278,7 +325,7 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
       } else if (cssState === "absent") {
         failures.push({ sceneId: scene.id, layout, reason: "missing-media", path: mediaPath });
       } else {
-        pushMediaFindings(failures, scene, layout, contentDir, probeVideo);
+        pushMediaFindings(failures, warnings, scene, layout, contentDir, probeVideo);
       }
     }
   }
@@ -308,6 +355,9 @@ export function formatFinalMediaFailures(result) {
     }
     if (f.reason === "invalid-provenance") {
       return `  Scene ${f.sceneId}: media "${f.path}" has invalid provenance — ${f.detail} (fix the declaration or recapture the element)`;
+    }
+    if (f.reason === "provenance-pixel-mismatch") {
+      return `  Scene ${f.sceneId}: media "${f.path}" does not match its declared capture — ${f.detail} (recapture the element or correct clip/scale to the file's real size)`;
     }
     if (f.reason === "missing-provenance") {
       return `  Scene ${f.sceneId}: media "${f.path}" has no provenance — ${f.detail}`;
@@ -339,6 +389,9 @@ export function formatFinalMediaWarnings(result) {
       }
       if (w.reason === "hook-media-quality") {
         return `Scene ${w.sceneId}: ${w.detail}`;
+      }
+      if (w.reason === "composed-provenance") {
+        return `Scene ${w.sceneId}: media "${w.path}" — ${w.detail}`;
       }
       return `Scene ${w.sceneId}: ${w.reason}`;
     })

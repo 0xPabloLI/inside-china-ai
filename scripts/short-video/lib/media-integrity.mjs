@@ -19,11 +19,11 @@
  * Deliberately NOT checked: per-pixel content (the matte band, ink at the
  * edges). The ticket records a 4-edge ink heuristic as tested-and-rejected (a
  * card's own white background reads as ink), and a composed banner carries no
- * matte/element separation to verify against. What that leaves open is stated
- * plainly: this polices the *declaration*, so a capture whose provenance is
- * absent, or whose declared clip matches its rect on paper but not in the
- * pixels, still passes. Closing that gap is #758's job — a producer that
- * records geometry it never hand-wrote.
+ * matte/element separation to verify against. Since #758 the declared
+ * `clip × scale` must also match the file's real pixel size
+ * (`validateProvenancePixels`), so a hand-written clip that nobody captured no
+ * longer passes; the remaining gap is a producer that records geometry it never
+ * hand-wrote, which the capture tool (`capture-evidence-shot.mjs`) closes.
  *
  * A video whose probe fails is never a pass: when ffprobe itself is missing the
  * rejection is `probe-unavailable` (the machine, not the asset), so the fix the
@@ -426,7 +426,14 @@ export function validateProvenance(provenance) {
     return { ok: false, errors: ["provenance must be an object"] };
   }
   const errors = [];
-  const { sourceUrl, selector, rect, clip, scale } = provenance;
+  const { sourceUrl, selector, rect, clip, scale, composed } = provenance;
+
+  // #758: a legacy pre-composed banner declares that its file is a composition
+  // of the capture, so pixel reconciliation does not apply. Only the boolean
+  // true carries that meaning; anything else would read like a skip switch.
+  if (composed !== undefined && typeof composed !== "boolean") {
+    errors.push("provenance.composed must be a boolean when present");
+  }
 
   if (typeof sourceUrl !== "string" || sourceUrl.trim() === "") {
     errors.push("provenance.sourceUrl must be a non-empty URL");
@@ -484,4 +491,63 @@ export function validateProvenance(provenance) {
   }
 
   return { ok: errors.length === 0, errors };
+}
+
+/**
+ * Reconcile a declared provenance with the pixels the media file actually holds
+ * (#758).
+ *
+ * `validateProvenance` only proves the geometry is plausible on paper; this is
+ * what ties it to disk: a capture of `clip` CSS px at `scale` device pixels per
+ * CSS px must produce a file of `round(clip.w × scale) × round(clip.h × scale)`.
+ * A mismatch means the bound file is not the capture the scene describes.
+ *
+ * `composed: true` is the legacy pre-composed banner opt-out: its file is a
+ * composition of the capture, so there is no one-to-one pixel geometry to
+ * reconcile. The deterministic producer never emits it.
+ *
+ * Assumes shape validation already ran; missing fields are reported instead of
+ * thrown so the gate's failure path cannot itself crash.
+ *
+ * @param {unknown} provenance
+ * @param {{width?: number, height?: number}} actual - dimensions from inspectMediaFile
+ * @param {number} [tolerancePx=1] - rounding slack between CSS and device pixels
+ * @returns {{ok: boolean, skipped: boolean, errors: string[]}}
+ */
+export function validateProvenancePixels(provenance, { width, height } = {}, tolerancePx = 1) {
+  if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) {
+    return { ok: false, skipped: false, errors: ["provenance must be an object"] };
+  }
+  if (provenance.composed === true) return { ok: true, skipped: true, errors: [] };
+
+  const errors = [];
+  const { clip, scale } = provenance;
+  if (!clip || typeof clip !== "object" || Array.isArray(clip)) {
+    errors.push(`provenance.clip must be an object { x, y, w, h }, got ${shown(clip)}`);
+  } else {
+    for (const key of ["w", "h"]) {
+      if (!isFiniteNumber(clip[key])) {
+        errors.push(`provenance.clip.${key} must be a finite number, got ${shown(clip[key])}`);
+      }
+    }
+  }
+  if (!isFiniteNumber(scale) || scale <= 0) {
+    errors.push(`provenance.scale must be a finite number > 0, got ${shown(scale)}`);
+  }
+  if (!isFiniteNumber(width) || !isFiniteNumber(height)) {
+    errors.push(
+      `the media file's pixel size is unknown (${shown(width)}×${shown(height)}) — declared clip × scale cannot be reconciled`,
+    );
+  }
+  if (errors.length > 0) return { ok: false, skipped: false, errors };
+
+  const expectedW = Math.round(clip.w * scale);
+  const expectedH = Math.round(clip.h * scale);
+  if (Math.abs(width - expectedW) > tolerancePx || Math.abs(height - expectedH) > tolerancePx) {
+    errors.push(
+      `declared clip ${clip.w}×${clip.h} @${scale}× implies ${expectedW}×${expectedH} px, the file is ${width}×${height}`,
+    );
+  }
+
+  return { ok: errors.length === 0, skipped: false, errors };
 }

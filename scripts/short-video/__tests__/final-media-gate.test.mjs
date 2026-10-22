@@ -651,7 +651,9 @@ describe("media file integrity (#759)", () => {
 
 describe("media provenance (#759)", () => {
   it("PASSES when clip equals rect", () => {
-    const dir = makeContentDir(["present.png"]);
+    // Since #758 the file must also match clip × scale, so the fixture is the
+    // 600×300 px a 300×150 CSS-px clip at 2× produces.
+    const dir = makeContentDir([{ name: "present.png", bytes: pngBytes(600, 300) }]);
     const result = checkFinalMedia({
       scenes: [mediaScene({ type: "image", path: "assets/present.png", provenance: provenance() })],
       contentDir: dir,
@@ -662,7 +664,7 @@ describe("media provenance (#759)", () => {
   });
 
   it("PASSES when clip is larger than rect", () => {
-    const dir = makeContentDir(["present.png"]);
+    const dir = makeContentDir([{ name: "present.png", bytes: pngBytes(800, 500) }]);
     const result = checkFinalMedia({
       scenes: [
         mediaScene({
@@ -966,7 +968,7 @@ describe("media provenance (#759)", () => {
   });
 
   it("FAILS valid provenance that is attached to evidence media only when malformed", () => {
-    const dir = makeContentDir(["present.png"]);
+    const dir = makeContentDir([{ name: "present.png", bytes: pngBytes(600, 300) }]);
     const ok = checkFinalMedia({
       scenes: [
         mediaScene({
@@ -993,6 +995,186 @@ describe("media provenance (#759)", () => {
     });
     expect(bad.pass).toBe(false);
     expect(bad.failures[0].reason).toBe("invalid-provenance");
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// ─── #758: a declared provenance must match the pixels on disk ───
+
+/** 320×160 CSS px at 2× — a 640×320 file. */
+const captureProvenance = (over = {}) => ({
+  sourceUrl: "https://example.com/benchmark-table",
+  selector: "table:nth-of-type(1)",
+  rect: { x: 104, y: 923, w: 288, h: 144 },
+  clip: { x: 88, y: 907, w: 320, h: 160 },
+  scale: 2,
+  ...over,
+});
+
+describe("evidence capture pixel reconciliation (#758)", () => {
+  it("PASSES evidence media whose clip × scale matches the real PNG size", () => {
+    const dir = makeContentDir([{ name: "capture.png", bytes: pngBytes(640, 320) }]);
+    const result = checkFinalMedia({
+      scenes: [
+        mediaScene({
+          type: "image",
+          path: "assets/capture.png",
+          evidence: true,
+          provenance: captureProvenance(),
+        }),
+      ],
+      contentDir: dir,
+    });
+    expect(result.failures).toEqual([]);
+    expect(result.pass).toBe(true);
+    expect(result.warnings).toEqual([]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("FAILS a file whose pixels differ from clip × scale (provenance-pixel-mismatch)", () => {
+    // present.png is 64×64; the declaration claims 640×320.
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        mediaScene({
+          type: "image",
+          path: "assets/present.png",
+          evidence: true,
+          provenance: captureProvenance(),
+        }),
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]).toMatchObject({
+      sceneId: 1,
+      reason: "provenance-pixel-mismatch",
+      path: "assets/present.png",
+    });
+    expect(result.failures[0].detail).toContain("640×320");
+    expect(result.failures[0].detail).toContain("64×64");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("PASSES composed:true with mismatched dims — a declared composition is not reconciled", () => {
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        mediaScene({
+          type: "image",
+          path: "assets/present.png",
+          evidence: true,
+          provenance: captureProvenance({ composed: true }),
+        }),
+      ],
+      contentDir: dir,
+    });
+    expect(result.failures).toEqual([]);
+    expect(result.pass).toBe(true);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("WARNS that pixel reconciliation is skipped for a composed declaration (#758)", () => {
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        mediaScene({
+          type: "image",
+          path: "assets/present.png",
+          evidence: true,
+          provenance: captureProvenance({ composed: true }),
+        }),
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(true);
+    expect(result.warnings).toEqual([
+      {
+        sceneId: 1,
+        layout: "media-overlay",
+        reason: "composed-provenance",
+        path: "assets/present.png",
+        detail: expect.stringContaining("pixel reconciliation is skipped"),
+      },
+    ]);
+    expect(formatFinalMediaWarnings(result)).toContain(
+      'Scene 1: media "assets/present.png" — pixel reconciliation is skipped for a declared composition',
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("FAILS a non-boolean composed flag as invalid-provenance", () => {
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        mediaScene({
+          type: "image",
+          path: "assets/present.png",
+          evidence: true,
+          provenance: captureProvenance({ composed: "yes" }),
+        }),
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures[0].reason).toBe("invalid-provenance");
+    expect(result.failures[0].detail).toContain("provenance.composed must be a boolean");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("FAILS composed:false with mismatched dims — only the boolean true skips", () => {
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        mediaScene({
+          type: "image",
+          path: "assets/present.png",
+          evidence: true,
+          provenance: captureProvenance({ composed: false }),
+        }),
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures[0].reason).toBe("provenance-pixel-mismatch");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("reconciles non-evidence media too — provenance is validated whenever present", () => {
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        mediaScene({
+          type: "image",
+          path: "assets/present.png",
+          provenance: captureProvenance(),
+        }),
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures[0].reason).toBe("provenance-pixel-mismatch");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("formats the pixel mismatch with the recapture/correct fix", () => {
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        mediaScene({
+          type: "image",
+          path: "assets/present.png",
+          evidence: true,
+          provenance: captureProvenance(),
+        }),
+      ],
+      contentDir: dir,
+    });
+    const report = formatFinalMediaFailures(result);
+    expect(report).toContain("does not match its declared capture");
+    expect(report).toContain("declared clip 320×160 @2× implies 640×320 px, the file is 64×64");
+    expect(report).toContain("recapture");
     rmSync(dir, { recursive: true, force: true });
   });
 });

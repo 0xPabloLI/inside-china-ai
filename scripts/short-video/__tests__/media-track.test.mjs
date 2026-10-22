@@ -49,6 +49,13 @@ describe("media-track", () => {
   function baseDeps(over = {}) {
     return {
       sourcerMain: async () => {},
+      runEvidenceCaptures: async () => ({
+        manifest: false,
+        captured: [],
+        skipped: [],
+        errors: [],
+        uncovered: [],
+      }),
       autoUpscaleIfNeeded: () => ({ upscaled: false }),
       closeVisualAnalyzer: async () => {},
       ...over,
@@ -67,7 +74,7 @@ describe("media-track", () => {
     writeFileSync(join(tmp, "content", "c", "exists.png"), "x");
   }
 
-  it("runs stages in order: sourcing → patch → upscale → broll", async () => {
+  it("runs stages in order: capture → sourcing → patch → upscale → broll", async () => {
     const order = [];
     const scenes = scenePair();
     const { ctx } = makeCtx({
@@ -80,6 +87,10 @@ describe("media-track", () => {
         },
       }),
       deps: baseDeps({
+        runEvidenceCaptures: async () => {
+          order.push("capture");
+          return { manifest: true, captured: [], skipped: [], errors: [], uncovered: [] };
+        },
         sourcerMain: async () => {
           order.push("sourcing");
         },
@@ -91,7 +102,157 @@ describe("media-track", () => {
     });
     writeSceneMedia();
     await runMediaTrack(ctx);
-    expect(order).toEqual(["sourcing", "upscale", "broll"]);
+    expect(order).toEqual(["capture", "sourcing", "upscale", "broll"]);
+  });
+
+  it("never stock-sources an evidence scene, even when the capture stage throws", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const sourcer = vi.fn();
+    const scene = {
+      id: 1,
+      voiceover: "v",
+      media: {
+        type: "image",
+        path: "assets/table.png",
+        evidence: true,
+        provenance: {
+          sourceUrl: "https://example.com/changelog",
+          selector: "table",
+          rect: { x: 0, y: 200, w: 900, h: 400 },
+          clip: { x: 0, y: 184, w: 932, h: 432 },
+          scale: 2,
+        },
+      },
+    };
+    const { ctx } = makeCtx({
+      scenes: [scene],
+      broll: brollStub(),
+      deps: baseDeps({
+        runEvidenceCaptures: async () => {
+          throw new Error("browser missing");
+        },
+        sourcerMain: sourcer,
+      }),
+    });
+    await expect(runMediaTrack(ctx)).resolves.toBeUndefined();
+    expect(sourcer).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Evidence capture skipped"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("browser missing"));
+  });
+
+  it("leaves an evidence scene out of sourcing even when the capture left no file", async () => {
+    // The stub deliberately writes nothing: sourcing must be skipped because of
+    // the evidence exclusion, not because the file happened to exist.
+    const sourcer = vi.fn();
+    const scene = {
+      id: 1,
+      voiceover: "v",
+      media: { type: "image", path: "assets/table.png", evidence: true, provenance: {} },
+    };
+    const { ctx } = makeCtx({
+      scenes: [scene],
+      broll: brollStub(),
+      deps: baseDeps({
+        runEvidenceCaptures: async () => ({
+          manifest: true,
+          captured: [],
+          skipped: [],
+          errors: [],
+          uncovered: [],
+        }),
+        sourcerMain: sourcer,
+      }),
+    });
+    await runMediaTrack(ctx);
+    expect(sourcer).not.toHaveBeenCalled();
+  });
+
+  it("warns for every rejected recipe and still logs the captures that succeeded", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const scene = {
+      id: 1,
+      voiceover: "v",
+      media: { type: "image", path: "assets/table.png", evidence: true, provenance: {} },
+    };
+    const { ctx } = makeCtx({
+      scenes: [scene],
+      broll: brollStub(),
+      deps: baseDeps({
+        runEvidenceCaptures: async () => ({
+          manifest: true,
+          captured: [{ sceneId: 1, path: "assets/table.png", provenance: {} }],
+          skipped: [],
+          errors: ["scene 2: recipe selector must be a non-empty element selector"],
+          uncovered: [],
+        }),
+      }),
+    });
+    await runMediaTrack(ctx);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("scene 2: recipe selector must be a non-empty element selector"),
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Captured 1 evidence scene(s): 1"));
+  });
+
+  it("warns for an evidence scene with no capture recipe", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const scene = {
+      id: 7,
+      voiceover: "v",
+      media: { type: "image", path: "assets/table.png", evidence: true, provenance: {} },
+    };
+    const { ctx } = makeCtx({
+      scenes: [scene],
+      broll: brollStub(),
+      deps: baseDeps({
+        runEvidenceCaptures: async () => ({
+          manifest: true,
+          captured: [],
+          skipped: [],
+          errors: [],
+          uncovered: [scene],
+        }),
+      }),
+    });
+    await runMediaTrack(ctx);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "scene 7: no capture recipe — add it to evidence-captures.json or declare composed:true",
+      ),
+    );
+  });
+
+  it("a capture failure warns and later stages still run", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const order = [];
+    const scene = {
+      id: 1,
+      voiceover: "v",
+      media: { type: "image", path: "assets/table.png", evidence: true, provenance: {} },
+    };
+    const { ctx } = makeCtx({
+      scenes: [scene],
+      broll: brollStub({
+        scenesRequiringGeneration: () => [scene],
+        runBrollStage: async () => {
+          order.push("broll");
+          return { counts: {} };
+        },
+      }),
+      deps: baseDeps({
+        runEvidenceCaptures: async () => {
+          throw new Error("selector matched 0 elements");
+        },
+        autoUpscaleIfNeeded: () => {
+          order.push("upscale");
+          return { upscaled: false };
+        },
+      }),
+    });
+    await expect(runMediaTrack(ctx)).resolves.toBeUndefined();
+    expect(order).toEqual(["upscale", "broll"]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Evidence capture skipped"));
   });
 
   it("a sourcing failure is contained: later stages still run, no throw", async () => {
