@@ -35,7 +35,6 @@ import { verifyWithRetry, applyDriftCorrection } from "./lib/verify-retry.mjs";
 import { buildCues } from "./lib/subtitles/cues.mjs";
 import { renderAss } from "./lib/subtitles/ass.mjs";
 import { finalizeRenderedVideo } from "./lib/post-process.mjs";
-import { runForcedAlignment } from "./lib/tts/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { createProfiler } from "./lib/pipeline-profile.mjs";
 import { runMediaTrack } from "./lib/media-track.mjs";
@@ -558,36 +557,10 @@ async function main() {
         return findBaseAndBurn() ?? { success: false };
       }
 
-      if (category === "subtitle-alignment") {
-        // Re-run forced alignment (text-align.py) + regenerate ASS + re-burn
-        // This is an async repair — verifyWithRetry supports async repairFn
-
-        return (async () => {
-          try {
-            // #827: same dictionary as Gate 1 — the realign re-runs the guards.
-            await runForcedAlignment(scenes, ttsResults, join(outputDir, "audio"), {
-              force: true,
-              keyEntities: meta.keyEntities,
-            });
-          } catch {
-            return { success: false };
-          }
-          // Re-read timing from disk (text-align.py updated it)
-          const timingPath = join(outputDir, "audio", "subtitle-timing.json");
-          if (!existsSync(timingPath)) return { success: false };
-          subtitles.timingData = JSON.parse(readFileSync(timingPath, "utf8"));
-          // Regenerate ASS
-          const { cues } = generateSubtitles(
-            subtitles.timingData,
-            sceneDurations,
-            subtitles.assPath,
-            { scenes },
-          );
-          const burnResult = findBaseAndBurn();
-          return burnResult ?? { success: false };
-        })();
-      }
-
+      // `subtitle-alignment` has no repair here on purpose: it is classified
+      // non-retryable in verify-retry.mjs (#818) because the check compares the
+      // .ass against the timing it was generated from, so re-running alignment
+      // cannot change the verdict. The loop stops before this dispatch.
       return { success: false };
     };
 
