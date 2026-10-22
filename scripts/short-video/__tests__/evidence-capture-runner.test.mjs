@@ -249,17 +249,20 @@ describe("evidence-capture-runner", () => {
       ["url", { url: "https://example.com/other" }, "provenance.sourceUrl"],
       ["selector", { selector: "table.results" }, "provenance.selector"],
       ["deviceScaleFactor", { deviceScaleFactor: 3 }, "provenance.scale"],
-    ])("reports a recipe %s that disagrees with the declared provenance", (_field, over, needle) => {
-      const plan = planEvidenceCaptures({
-        scenes: [evidenceScene(3)],
-        contentDirAbs: pack(),
-        manifest: { 3: { ...RECIPE_ENTRY, ...over } },
-      });
-      expect(plan.planned).toEqual([]);
-      expect(plan.errors).toHaveLength(1);
-      expect(plan.errors[0]).toContain("scene 3");
-      expect(plan.errors[0]).toContain(needle);
-    });
+    ])(
+      "reports a recipe %s that disagrees with the declared provenance",
+      (_field, over, needle) => {
+        const plan = planEvidenceCaptures({
+          scenes: [evidenceScene(3)],
+          contentDirAbs: pack(),
+          manifest: { 3: { ...RECIPE_ENTRY, ...over } },
+        });
+        expect(plan.planned).toEqual([]);
+        expect(plan.errors).toHaveLength(1);
+        expect(plan.errors[0]).toContain("scene 3");
+        expect(plan.errors[0]).toContain(needle);
+      },
+    );
 
     it("skips an existing output unless forced", () => {
       const dir = pack();
@@ -376,7 +379,9 @@ describe("evidence-capture-runner", () => {
       const outputAbs = join(dir, "assets", "capture.png");
       const { page } = fakePage({ finalUrl: "https://example.com/login?next=/changelog" });
       const error = await captureFromPage(page, RECIPE_ENTRY, null, outputAbs).catch((e) => e);
-      expect(error.message).toContain("page redirected to https://example.com/login?next=/changelog");
+      expect(error.message).toContain(
+        "page redirected to https://example.com/login?next=/changelog",
+      );
       expect(error.message).toContain("use the final URL in the recipe");
       expect(readdirSync(join(dir, "assets"))).toEqual([]);
     });

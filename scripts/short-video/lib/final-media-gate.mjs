@@ -158,9 +158,7 @@ function inspectPresentMedia(scene, contentDir, probeVideo) {
     const pixels = validateProvenancePixels(media.provenance, verdict);
     if (!pixels.ok) {
       return {
-        failures: [
-          { reason: "provenance-pixel-mismatch", path, detail: pixels.errors.join("; ") },
-        ],
+        failures: [{ reason: "provenance-pixel-mismatch", path, detail: pixels.errors.join("; ") }],
         warnings: [],
       };
     }

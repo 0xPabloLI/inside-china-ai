@@ -65,9 +65,7 @@ export function loadCaptureManifest(contentDirAbs) {
     throw new Error(`${manifestPath} is not valid JSON: ${e.message}`);
   }
   if (!isObject(parsed)) {
-    throw new Error(
-      `${manifestPath} must be an object keyed by scene id, got ${shown(parsed)}`,
-    );
+    throw new Error(`${manifestPath} must be an object keyed by scene id, got ${shown(parsed)}`);
   }
   return parsed;
 }

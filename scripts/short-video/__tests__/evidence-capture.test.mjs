@@ -80,9 +80,9 @@ describe("normalizeCaptureRecipe", () => {
   });
 
   it("normalizes a root URL so the redirect guard compares hrefs", () => {
-    expect(
-      normalizeCaptureRecipe({ url: "https://example.com", selector: "table" }, 1).url,
-    ).toBe("https://example.com/");
+    expect(normalizeCaptureRecipe({ url: "https://example.com", selector: "table" }, 1).url).toBe(
+      "https://example.com/",
+    );
   });
 
   it.each([
@@ -338,7 +338,9 @@ describe("formatProvenanceBlock", () => {
   });
 
   it("formats a valid block", () => {
-    expect(formatProvenanceBlock(provenance())).toContain('sourceUrl: "https://example.com/model-card"');
+    expect(formatProvenanceBlock(provenance())).toContain(
+      'sourceUrl: "https://example.com/model-card"',
+    );
     expect(() => formatProvenanceBlock(null)).toThrow(/provenance/);
   });
 });
