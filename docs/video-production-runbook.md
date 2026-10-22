@@ -237,10 +237,10 @@ node scripts/short-video/main.mjs --content series/pt4 &
 >
 > **CosyVoice3-MLX model directory (#327)**: defaults to
 > `~/models/cosyvoice3-mlx`; an existing `~/.cosyvoice3-mlx-model` is
-> auto-detected. Migrate with
+> auto-detected. Before moving the model, update or remove
+> `COSYVOICE3_MLX_MODEL_DIR` in `.env.local` — an explicit value is used as-is
+> and bypasses the legacy probe. Then run
 > `mkdir -p ~/models && mv ~/.cosyvoice3-mlx-model ~/models/cosyvoice3-mlx`.
-> Update or remove `COSYVOICE3_MLX_MODEL_DIR` in `.env.local` first — an
-> explicit value is used as-is and bypasses the legacy probe.
 
 **M4A → WAV conversion**: M4A is not readable by Python audio libraries (`soundfile`/`torchaudio`/`librosa` are libsndfile-based) — `LibsndfileError: Format not recognised` means an M4A was passed. Convert first, matching the ref-audio spec (24 kHz mono):
 
