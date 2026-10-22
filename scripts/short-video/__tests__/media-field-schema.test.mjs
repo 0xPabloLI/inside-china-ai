@@ -73,18 +73,41 @@ describe("media field schema (#836)", () => {
     expect(failureText(results)).toContain("media must be an object or null");
   });
 
-  it.each([
-    ["string", "yes"],
-    ["number", 1],
-    ["object", {}],
-    ["bigint", 10n],
-  ])("FAILS a %s evidence value (the gate would switch the requirement off)", (_label, value) => {
-    const results = checkMediaFieldSchema([
-      mediaScene({ type: "image", path: "assets/x.png", evidence: value }),
-    ]);
-    expect(failureText(results)).toContain("media.evidence");
-    expect(failureText(results)).toContain("true");
+  it("FAILS an array media value (arrays are not object declarations)", () => {
+    const results = checkMediaFieldSchema([mediaScene([{ type: "image" }])]);
+    expect(failureText(results)).toContain("media must be an object or null");
+    expect(failureText(results)).toContain("array");
   });
+
+  it("FAILS evidence:true with provenance:null (null is not a declaration)", () => {
+    const results = checkMediaFieldSchema([
+      mediaScene({ type: "image", path: "assets/x.png", evidence: true, provenance: null }),
+    ]);
+    expect(failureText(results)).toContain("media.provenance");
+  });
+
+  it.each([
+    ["string", "yes", "yes (string)"],
+    ["number", 1, "1 (number)"],
+    ["empty string", "", " (string)"],
+    ["zero", 0, "0 (number)"],
+    ["object", {}, "{} (object)"],
+    ["bigint", 10n, "10n (bigint)"],
+  ])(
+    "FAILS a %s evidence value (the gate would switch the requirement off)",
+    (_label, value, fragment) => {
+      const results = checkMediaFieldSchema([
+        mediaScene({ type: "image", path: "assets/x.png", evidence: value }),
+      ]);
+      const detail = failures(results)
+        .map((r) => r.detail)
+        .join("\n");
+      expect(detail).toContain("media.evidence");
+      // The rendered value must come from the offending declaration, not from the
+      // message template — assert the value *and* its type.
+      expect(detail).toContain(fragment);
+    },
+  );
 
   it.each([true, false, null])("accepts evidence:%s", (value) => {
     const media = { type: "image", path: "assets/x.png", evidence: value };
@@ -146,5 +169,9 @@ describe("media field schema (#836)", () => {
       [...body[1].matchAll(/^ {2}([A-Za-z][A-Za-z0-9]*)\??:/gm)].map((m) => m[1]),
     );
     expect([...declared].sort()).toEqual([...MEDIA_FIELD_KEYS].sort());
+    // Parity alone is not enough: a coordinated rename in both halves would keep
+    // the sets equal while the runtime still reads `.evidence` / `.provenance`.
+    expect(MEDIA_FIELD_KEYS.has("evidence")).toBe(true);
+    expect(MEDIA_FIELD_KEYS.has("provenance")).toBe(true);
   });
 });

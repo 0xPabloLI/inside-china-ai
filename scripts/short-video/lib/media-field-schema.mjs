@@ -11,7 +11,7 @@
  * `remotion/src/types.ts` (`MediaField`) says so in its own header, and
  * `media-field-schema.test.mjs` fails when the two drift apart.
  */
-import { validateProvenance } from "./media-integrity.mjs";
+import { shown, validateProvenance } from "./media-integrity.mjs";
 
 /** Every key a `scene.media` object may carry. Mirrors `MediaField`. */
 export const MEDIA_FIELD_KEYS = new Set([
@@ -44,7 +44,8 @@ const FIX_UNKNOWN_KEY =
  * Validate the shape of every declared `scene.media` object.
  *
  * Deliberately FAILs on unknown keys: the shipped corpus uses only keys from
- * {@link MEDIA_FIELD_KEYS} (96 declarations measured when this landed), and a
+ * {@link MEDIA_FIELD_KEYS} (38 scene-data files / 95 declarations measured
+ * recursively when this landed), and a
  * WARN would reproduce the always-noisy check this repo keeps deleting.
  *
  * @param {Array<Record<string, any>>} scenes
@@ -89,7 +90,7 @@ export function checkMediaFieldSchema(scenes) {
         level: "fail",
         category: "Media",
         check: `Media field schema: Scene ${scene.id} evidence is a boolean`,
-        detail: `media.evidence must be true, false or null, got ${String(media.evidence)} (${typeof media.evidence}) — any other value switches the provenance requirement off`,
+        detail: `media.evidence must be true, false or null, got ${shown(media.evidence)} (${typeof media.evidence}) — any other value switches the provenance requirement off`,
         fix: "Use `evidence: true` on Evidence Media, `false`/`null` for an explicit non-evidence declaration, or drop the field.",
       });
     }

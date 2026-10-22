@@ -234,6 +234,44 @@ describe("formatPatchEntry — output boundary", () => {
     expect(result).toContain("videoStartOffsetMs: 5000,");
   });
 
+  // #836: the same round-trip contract for the evidence marker and capture
+  // geometry — the review copy is what gets pasted back into scene-data, so a
+  // dropped declaration would silently switch the gate's requirement off.
+  it("#836: includes evidence and provenance in the review copy", () => {
+    const entry = {
+      sceneId: 1,
+      media: {
+        type: "image",
+        path: "test.png",
+        evidence: true,
+        provenance: {
+          sourceUrl: "https://example.com/a",
+          selector: "table",
+          rect: { x: 1, y: 2, w: 3, h: 4 },
+          clip: { x: 1, y: 2, w: 3, h: 4 },
+          scale: 2,
+        },
+      },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    expect(result).toContain("evidence: true,");
+    expect(result).toContain('sourceUrl: "https://example.com/a",');
+    expect(result).toContain("rect: { x: 1, y: 2, w: 3, h: 4 },");
+    expect(result).toContain("scale: 2,");
+  });
+
+  it("#836: keeps an explicit evidence:false and omits an absent provenance", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "image", path: "test.png", evidence: false },
+      status: "assigned",
+    };
+    const result = formatPatchEntry(entry);
+    expect(result).toContain("evidence: false,");
+    expect(result).not.toContain("provenance");
+  });
+
   it("VC-22: does NOT include videoStartOffsetMs line when absent", () => {
     const entry = {
       sceneId: 1,

@@ -13,8 +13,9 @@ export interface StatItem {
 /** Media background field (from lib/media-bg.mjs data contract). */
 /**
  * Media object shape (#199 2.8). The validation-side enum constants
- * (VALID_MODES/VALID_FITS/VALID_FOCUSES) live in lib/media-bg.mjs —
- * TS/.mjs are written twice; update both together.
+ * (VALID_MODES/VALID_FITS/VALID_FOCUSES) live in lib/media-bg.mjs; the key set
+ * lives in lib/media-field-schema.mjs (MEDIA_FIELD_KEYS, #836). TS/.mjs are
+ * written twice; update both together — a test fails when the key sets drift.
  */
 /**
  * #759 Capture Provenance (采集凭据): the geometry an element-level capture

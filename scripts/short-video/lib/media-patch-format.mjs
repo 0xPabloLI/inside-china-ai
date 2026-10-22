@@ -3,7 +3,8 @@
  *
  * Single source of truth for:
  *   1. Human-readable review summary (focus analysis + VLM semantics comments, spec §4.7)
- *   2. Copyable media: { ... } code blocks (including cropFocus, fit, volume, videoStartOffsetMs)
+ *   2. Copyable media: { ... } code blocks (including cropFocus, fit, volume, videoStartOffsetMs,
+ *      evidence, provenance)
  *   3. Normalization of media-patch envelopes (both array and {schemaVersion, patches} shapes)
  *   4. Asset analysis lookup map loading
  *
@@ -225,6 +226,25 @@ export function formatPatchEntry(entry, analysisMap) {
   if (media.volume !== undefined) lines.push(`    volume: ${media.volume},`);
   if (media.videoStartOffsetMs !== undefined)
     lines.push(`    videoStartOffsetMs: ${media.videoStartOffsetMs},`);
+  // #836: the review copy is what an agent pastes back into scene-data, so a
+  // declared evidence marker or capture geometry must survive the round trip
+  // (same contract as VC-21 for videoStartOffsetMs).
+  if (media.evidence !== undefined) {
+    lines.push(`    evidence: ${JSON.stringify(media.evidence)},`);
+  }
+  if (media.provenance) {
+    lines.push(`    provenance: {`);
+    lines.push(`      sourceUrl: ${JSON.stringify(media.provenance.sourceUrl)},`);
+    lines.push(`      selector: ${JSON.stringify(media.provenance.selector)},`);
+    lines.push(
+      `      rect: { x: ${media.provenance.rect.x}, y: ${media.provenance.rect.y}, w: ${media.provenance.rect.w}, h: ${media.provenance.rect.h} },`,
+    );
+    lines.push(
+      `      clip: { x: ${media.provenance.clip.x}, y: ${media.provenance.clip.y}, w: ${media.provenance.clip.w}, h: ${media.provenance.clip.h} },`,
+    );
+    lines.push(`      scale: ${media.provenance.scale},`);
+    lines.push(`    },`);
+  }
   // Note: focus is NOT included in new output (deprecated, spec §4.8)
   lines.push(`  },`);
 
