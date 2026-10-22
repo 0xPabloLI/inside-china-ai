@@ -80,7 +80,12 @@ const ttsResults = scenes.map((s, i) => ({
   duration: durations[i],
 }));
 const { runForcedAlignment } = await import("./lib/tts/post-process.mjs");
-await runForcedAlignment(scenes, ttsResults, audioDir, { force: true });
+// #827: the guards' verified tail cut re-runs the gate, so the realign gets the
+// same declared-entity dictionary main.mjs hands it.
+await runForcedAlignment(scenes, ttsResults, audioDir, {
+  force: true,
+  keyEntities: meta.keyEntities,
+});
 
 const timingPath = join(audioDir, "subtitle-timing.json");
 const subtitlesPath = join(outputDir, "subtitles.ass");

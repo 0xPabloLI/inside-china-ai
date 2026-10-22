@@ -393,10 +393,14 @@ export async function postProcessBatch(audioPath, opts = {}) {
  * @param {string} outputDir
  * @param {object} [options]
  * @param {boolean} [options.force=false] - skip the cache and realign
+ * @param {object|null} [options.keyEntities=null] - the episode's declared
+ *   entities (#689). The guards' verified tail cut re-runs the TTS gate, so it
+ *   needs the same dictionary the gate got or a declared lowercase brand heard
+ *   as a near-miss reads as truncation and the cut is refused (#827).
  * @returns {Promise<{skipped: boolean, reason?: string}>}
  */
 export async function runForcedAlignment(scenes, ttsResults, outputDir, options = {}) {
-  const { force = false } = options;
+  const { force = false, keyEntities = null } = options;
   const alignScript = join(ROOT_DIR, "text-align.py");
 
   if (!force) {
@@ -447,8 +451,10 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir, options 
     // must be computed over the cut files — the next run cache-hits instead
     // of re-cutting.
     // `scenes` supplies the reference text so a provisional tail cut is read
-    // back before it is committed (#232 verified-cut).
-    const guards = await runAlignmentGuards(ttsResults, timingData, scenes);
+    // back before it is committed (#232 verified-cut); `keyEntities` rides
+    // along so that read-back recognises the same declared names the gate
+    // does — it is the only option that changes a verdict (#827).
+    const guards = await runAlignmentGuards(ttsResults, timingData, scenes, { keyEntities });
     writeFileSync(timingPath, JSON.stringify(restoreTimingTokens(timingData, scenes), null, 2));
     writeAlignmentMeta(outputDir, computeAlignmentSignature(scenes, ttsResults));
     console.log("  ✅ Subtitle timing saved (wav2vec2-large-960h-lv60-self aligned)");

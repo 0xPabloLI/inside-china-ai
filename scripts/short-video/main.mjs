@@ -431,7 +431,12 @@ async function main() {
         label: "Gate 1",
         realignFn: async () => {
           const { runForcedAlignment } = await import("./lib/tts/post-process.mjs");
-          await runForcedAlignment(scenes, ttsResults, audioDir, { force: true });
+          // #827: the repair realigns and re-cuts, so its verified read-back
+          // needs the same declared-entity dictionary the gate got.
+          await runForcedAlignment(scenes, ttsResults, audioDir, {
+            force: true,
+            keyEntities: meta.keyEntities,
+          });
         },
         reloadTimingFn: () => {
           const timingPath = join(audioDir, "subtitle-timing.json");
@@ -559,8 +564,10 @@ async function main() {
 
         return (async () => {
           try {
+            // #827: same dictionary as Gate 1 — the realign re-runs the guards.
             await runForcedAlignment(scenes, ttsResults, join(outputDir, "audio"), {
               force: true,
+              keyEntities: meta.keyEntities,
             });
           } catch {
             return { success: false };

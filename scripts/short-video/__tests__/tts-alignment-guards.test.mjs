@@ -425,3 +425,131 @@ describe("runAlignmentGuards verified cut", () => {
     expect(() => readFileSync(`${audioPath}.pre-tailcut`)).toThrow();
   });
 });
+
+// ─── #827 — the read-back inherits the gate's entity dictionary ───
+// The verified cut (#232) re-runs the TTS gate over the trimmed take, so it
+// has to be handed the same gate options. `keyEntities` (#689) is the one that
+// changes a verdict: a declared lowercase brand ("moonshot") whose tail ASR
+// spelled as a near-miss ("moonshoq") is recognition variance, not truncation.
+// Without the dictionary the cut is refused — fail-safe, but it drops the trim
+// on exactly the scenes #689 exists for.
+describe("#827 — verifyTrimmedTake forwards the gate's entity dictionary", () => {
+  let dir;
+  let audioPath;
+  const scene = {
+    id: 3,
+    voiceover: "The lab that built this new model is called moonshot.",
+  };
+  /** Stand-in for whisper.cpp reading the TRIMMED take back. */
+  const hearing = (text) => vi.fn().mockResolvedValue({ ok: true, segments: [{ text }] });
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "827-readback-"));
+    audioPath = join(dir, "scene-3.wav");
+    writeFileSync(audioPath, "RIFF827");
+  });
+
+  it("accepts the trimmed take when the declared brand came back a near-miss", async () => {
+    const verdict = await verifyTrimmedTake(scene, audioPath, 5.0, {
+      keyEntities: { companies: ["moonshot"] },
+      transcriber: hearing("The lab that built this new model is called moonshoq."),
+    });
+    expect(verdict.ok).toBe(true);
+  });
+
+  it("refuses the same take when the dictionary is not passed", async () => {
+    const verdict = await verifyTrimmedTake(scene, audioPath, 5.0, {
+      transcriber: hearing("The lab that built this new model is called moonshoq."),
+    });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toMatch(/truncation/i);
+  });
+
+  it("still refuses a real truncation of a declared name", async () => {
+    const declared = {
+      id: 3,
+      voiceover: "The lab released the newest model and it is deepseek.",
+    };
+    for (const heard of [
+      "The lab released the newest model and it is deepsee.", // strict prefix
+      "The lab released the newest model and it is deep.", // half the name
+    ]) {
+      const verdict = await verifyTrimmedTake(declared, audioPath, 5.0, {
+        keyEntities: { companies: ["deepseek"] },
+        transcriber: hearing(heard),
+      });
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toMatch(/truncation/i);
+    }
+  });
+
+  it("hands the injected evaluateScene the gate options but never itself", async () => {
+    const evaluateScene = vi.fn().mockResolvedValue({
+      passed: true,
+      similarity: 1,
+      asrVerified: true,
+      issues: [],
+    });
+    const verdict = await verifyTrimmedTake(scene, audioPath, 5.0, {
+      keyEntities: { companies: ["moonshot"] },
+      evaluateScene,
+    });
+
+    expect(verdict.ok).toBe(true);
+    expect(evaluateScene).toHaveBeenCalledWith(scene, audioPath, 5.0, {
+      keyEntities: { companies: ["moonshot"] },
+    });
+  });
+});
+
+describe("#827 — runAlignmentGuards hands the dictionary to the read-back", () => {
+  let dir;
+  let audioPath;
+
+  beforeEach(() => {
+    execMock.mockClear();
+    execFileMock.mockClear();
+    existsSyncMock.mockClear();
+    existsSyncMock.mockReturnValue(true);
+    execFileMock.mockImplementation((cmd, args, cb) =>
+      cb(null, { stdout: "5.000000\n", stderr: "" }),
+    );
+    dir = mkdtempSync(join(tmpdir(), "tailcut-827-"));
+    audioPath = join(dir, "scene-3.wav");
+    writeFileSync(audioPath, "original-audio-bytes");
+  });
+
+  const results = () => [{ sceneId: 3, audioPath, duration: 7.6 }];
+  const timing = () => [
+    { sceneId: 3, segments: [{ words: [{ text: "moonshot", start: 5.5, end: 5.93 }] }] },
+  ];
+  const scenes = () => [
+    { id: 3, voiceover: "The lab that built this new model is called moonshot." },
+  ];
+  const hearing = (text) => vi.fn().mockResolvedValue({ ok: true, segments: [{ text }] });
+
+  it("commits the cut when the declared brand is a near-miss in the read-back", async () => {
+    const r = results();
+    const out = await runAlignmentGuards(r, timing(), scenes(), {
+      keyEntities: { companies: ["moonshot"] },
+      transcriber: hearing("The lab that built this new model is called moonshoq."),
+    });
+
+    expect(out.cuts).toEqual([{ sceneId: 3, from: 7.6, to: 5.0 }]);
+    expect(out.refusedCuts).toEqual([]);
+    expect(r[0].duration).toBe(5.0);
+  });
+
+  it("refuses the same cut when the dictionary never reaches the read-back", async () => {
+    const r = results();
+    const out = await runAlignmentGuards(r, timing(), scenes(), {
+      transcriber: hearing("The lab that built this new model is called moonshoq."),
+    });
+
+    expect(out.cuts).toEqual([]);
+    expect(out.refusedCuts).toHaveLength(1);
+    expect(out.refusedCuts[0].reason).toMatch(/truncation/i);
+    expect(r[0].duration).toBe(7.6);
+    expect(readFileSync(audioPath, "utf8")).toBe("original-audio-bytes");
+  });
+});
