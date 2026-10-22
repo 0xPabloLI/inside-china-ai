@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.26.0...tanstack_start_ts-v1.27.0) (2026-10-22)
+
+
+### Features
+
+* **short-video:** deterministic evidence captures ([#758](https://github.com/0xPabloLI/inside-china-ai/issues/758)) ([#850](https://github.com/0xPabloLI/inside-china-ai/issues/850)) ([5848088](https://github.com/0xPabloLI/inside-china-ai/commit/58480889245974f9b957ec6cc88780bc8d4b6b0e))
+
 ## [1.26.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.25.7...tanstack_start_ts-v1.26.0) (2026-10-22)
 
 
