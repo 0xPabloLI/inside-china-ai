@@ -79,7 +79,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       {scene.media &&
         (scene.media.mode === "card" ? (
-          <MediaCard media={scene.media} duration={duration} contentDir={contentDir} />
+          <MediaCard media={scene.media} duration={duration} />
         ) : (
           <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
         ))}

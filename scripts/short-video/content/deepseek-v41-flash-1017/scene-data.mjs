@@ -35,7 +35,7 @@
  * the raw capture renders inside a framed card locked to [60,220,820,594]
  * (brand bar above, subtitle lane below). Scenes 3/7 are `media-bottom-bar`
  * narratives whose card sits above the text bar; the hook's card sits behind
- * the hook text under a 0.55 dim, cover-cropped from the page top so the
+ * the hook text under a 0.7 dim, cover-cropped from the page top so the
  * title and the table's first rows read behind the headline.
  *
  * Text budget constraint (found by MRL-3 on this pack): `media-bottom-bar`'s

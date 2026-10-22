@@ -15,10 +15,9 @@ import type { MediaField } from "../types";
 interface Props {
   media: MediaField;
   duration: number;
-  contentDir?: string;
 }
 
-export const MediaCard: React.FC<Props> = ({ media, duration, contentDir }) => (
+export const MediaCard: React.FC<Props> = ({ media, duration }) => (
   <div
     style={{
       position: "absolute",
@@ -32,6 +31,6 @@ export const MediaCard: React.FC<Props> = ({ media, duration, contentDir }) => (
       background: "#0a0a14",
     }}
   >
-    <MediaBackground media={media} duration={duration} contentDir={contentDir} />
+    <MediaBackground media={media} duration={duration} />
   </div>
 );

@@ -80,6 +80,22 @@ export function checkMediaFieldSchema(scenes) {
       });
     }
 
+    // mode:"card" is honored only where the MediaCard branch exists; elsewhere
+    // it silently falls back to the full-bleed MediaBackground it exists to
+    // prevent (#848 review). Fail at preflight instead of at render.
+    const cardHonored =
+      scene.visualType === "hook" ||
+      (scene.visualType === "narrative" && scene.layout === "media-bottom-bar");
+    if (media.mode === "card" && !cardHonored) {
+      results.push({
+        level: "fail",
+        category: "Media",
+        check: `Media field schema: Scene ${scene.id} mode "card" is honored by its layout`,
+        detail: `mode:"card" renders only in HookScene and NarrativeScene media-bottom-bar; scene ${scene.id} is ${scene.visualType}/${scene.layout ?? "no layout"} — it would silently fall back to full-bleed MediaBackground`,
+        fix: 'Switch the scene to a narrative with layout "media-bottom-bar", or drop mode:"card" and keep the default background render.',
+      });
+    }
+
     if (
       media.evidence !== undefined &&
       media.evidence !== null &&
