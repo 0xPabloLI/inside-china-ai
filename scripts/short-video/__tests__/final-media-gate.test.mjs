@@ -1027,6 +1027,7 @@ describe("evidence capture pixel reconciliation (#758)", () => {
     });
     expect(result.failures).toEqual([]);
     expect(result.pass).toBe(true);
+    expect(result.warnings).toEqual([]);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -1071,6 +1072,35 @@ describe("evidence capture pixel reconciliation (#758)", () => {
     });
     expect(result.failures).toEqual([]);
     expect(result.pass).toBe(true);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("WARNS that pixel reconciliation is skipped for a composed declaration (#758)", () => {
+    const dir = makeContentDir(["present.png"]);
+    const result = checkFinalMedia({
+      scenes: [
+        mediaScene({
+          type: "image",
+          path: "assets/present.png",
+          evidence: true,
+          provenance: captureProvenance({ composed: true }),
+        }),
+      ],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(true);
+    expect(result.warnings).toEqual([
+      {
+        sceneId: 1,
+        layout: "media-overlay",
+        reason: "composed-provenance",
+        path: "assets/present.png",
+        detail: expect.stringContaining("pixel reconciliation is skipped"),
+      },
+    ]);
+    expect(formatFinalMediaWarnings(result)).toContain(
+      'Scene 1: media "assets/present.png" — pixel reconciliation is skipped for a declared composition',
+    );
     rmSync(dir, { recursive: true, force: true });
   });
 

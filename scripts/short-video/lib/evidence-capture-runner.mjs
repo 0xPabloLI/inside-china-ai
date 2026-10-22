@@ -7,10 +7,14 @@
  * page coordinates, screenshots exactly that clip through CDP, and refuses to
  * write when the selector or the geometry no longer matches the declaration.
  *
- * Recipes live in `content/<slug>/evidence-captures.mjs`, keyed by scene id,
+ * Recipes live in `content/<slug>/evidence-captures.json`, keyed by scene id,
  * rather than in `scene.media`: `scene.media` has a strict field contract and
  * `sourceRef` belongs to the claim's source text. A per-pack manifest keeps
  * the browser recipe out of both.
+ *
+ * The browser is a fresh, unauthenticated context: only public pages can be
+ * captured, and a redirect (a login wall, a canonical move) is a failure, not
+ * a quietly different page.
  *
  * Browser code is imported dynamically so importing this module (tests, the
  * pipeline's stage import) never loads Playwright. Playwright's bundled
@@ -21,9 +25,8 @@
  * @module evidence-capture-runner
  */
 
-import { existsSync, mkdirSync, renameSync, unlinkSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "fs";
 import { basename, dirname, join, resolve, sep } from "path";
-import { pathToFileURL } from "url";
 import {
   buildClip,
   buildProvenance,
@@ -33,7 +36,7 @@ import {
 } from "./evidence-capture.mjs";
 import { inspectMediaFile, shown, validateProvenancePixels } from "./media-integrity.mjs";
 
-const MANIFEST_FILE = "evidence-captures.mjs";
+const MANIFEST_FILE = "evidence-captures.json";
 
 /** Slack for sub-pixel layout noise between the declared and measured boxes. */
 const GEOMETRY_TOLERANCE_PX = 0.5;
@@ -43,25 +46,51 @@ const isObject = (value) => Boolean(value) && typeof value === "object" && !Arra
 const inside = (root, abs) => abs !== root && abs.startsWith(root + sep);
 
 /**
- * Read `content/<slug>/evidence-captures.mjs`, or null when the pack has none.
+ * Read `content/<slug>/evidence-captures.json`, or null when the pack has none.
  *
  * A pack without a manifest is the normal case for non-evidence content, so
- * absence is not an error. An export that is not an object is: silently
+ * absence is not an error. A payload that is not an object is: silently
  * treating it as empty would make a typo look like "no captures to run".
  *
  * @param {string} contentDirAbs - absolute content pack directory
- * @returns {Promise<Record<string, object>|null>}
+ * @returns {Record<string, object>|null}
  */
-export async function loadCaptureManifest(contentDirAbs) {
+export function loadCaptureManifest(contentDirAbs) {
   const manifestPath = join(contentDirAbs, MANIFEST_FILE);
   if (!existsSync(manifestPath)) return null;
-  const module = await import(pathToFileURL(manifestPath).href);
-  if (!isObject(module.captures)) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(manifestPath, "utf8"));
+  } catch (e) {
+    throw new Error(`${manifestPath} is not valid JSON: ${e.message}`);
+  }
+  if (!isObject(parsed)) {
     throw new Error(
-      `${manifestPath} must export a captures object keyed by scene id, got ${shown(module.captures)}`,
+      `${manifestPath} must be an object keyed by scene id, got ${shown(parsed)}`,
     );
   }
-  return module.captures;
+  return parsed;
+}
+
+/**
+ * Evidence scenes a fresh clone cannot re-capture: `media.evidence: true` with
+ * no manifest entry.
+ *
+ * `composed: true` is exempt — a legacy hand-composed banner has no producer to
+ * run, so demanding a recipe would ask for one that cannot exist.
+ *
+ * @param {Array<Record<string, any>>} scenes - scene data
+ * @param {Record<string, object>|null} manifest - loaded manifest, or null
+ * @returns {Array<Record<string, any>>} the uncovered scenes
+ */
+export function findUncoveredEvidenceScenes(scenes, manifest) {
+  const covered = new Set(Object.keys(manifest ?? {}));
+  return (scenes ?? []).filter(
+    (scene) =>
+      scene.media?.evidence === true &&
+      scene.media.provenance?.composed !== true &&
+      !covered.has(String(scene.id)),
+  );
 }
 
 /**
@@ -74,7 +103,7 @@ export async function loadCaptureManifest(contentDirAbs) {
  * @param {object} input
  * @param {Array<Record<string, any>>} input.scenes - scene data
  * @param {string} input.contentDirAbs - absolute content pack directory
- * @param {Record<string, object>|null} input.manifest - `captures` export
+ * @param {Record<string, object>|null} input.manifest - parsed manifest
  * @param {boolean} [input.force=false] - plan existing outputs too
  * @param {(path: string) => boolean} [input.exists] - injectable file probe
  * @returns {{planned: Array<{sceneId: number|string, recipe: object, outputAbs: string, declared: object}>,
@@ -214,6 +243,17 @@ export async function captureFromPage(page, recipe, declared, outputAbs) {
   const { url, selector, padding, deviceScaleFactor, waitUntil, timeoutMs } = recipe;
   await page.goto(url, { waitUntil, timeout: timeoutMs });
 
+  // The browser is unauthenticated, so a login wall or a canonical move shows
+  // up as a different final URL. Capturing that page would bind a screenshot of
+  // something other than the element the provenance names.
+  const finalUrl = page.url();
+  if (finalUrl !== url) {
+    throw new Error(
+      `page redirected to ${finalUrl} — use the final URL in the recipe ` +
+        "(a login redirect cannot be captured as evidence)",
+    );
+  }
+
   const locator = page.locator(selector);
   const count = await locator.count();
   if (count !== 1) {
@@ -332,6 +372,9 @@ export async function captureEvidenceShot({ recipe, outputAbs, declared, deps = 
  * stage only fills gaps, so a normal pipeline run does not re-open pages.
  * `force` is the manual drift check.
  *
+ * A rejected recipe is returned in `errors`, not thrown: one typo must not cost
+ * every other scene its capture. The caller decides whether that is fatal.
+ *
  * @param {object} input
  * @param {Array<Record<string, any>>} input.scenes
  * @param {string} input.contentDirAbs
@@ -339,11 +382,14 @@ export async function captureEvidenceShot({ recipe, outputAbs, declared, deps = 
  * @param {object} [input.deps] - `launchBrowser`, `exists`
  * @returns {Promise<{manifest: boolean,
  *            captured: Array<{sceneId: number|string, path: string, provenance: object}>,
- *            skipped: Array<object>}>}
+ *            skipped: Array<object>,
+ *            errors: string[],
+ *            uncovered: Array<Record<string, any>>}>}
  */
 export async function runEvidenceCaptures({ scenes, contentDirAbs, force = false, deps = {} }) {
-  const manifest = await loadCaptureManifest(contentDirAbs);
-  if (!manifest) return { manifest: false, captured: [], skipped: [] };
+  const manifest = loadCaptureManifest(contentDirAbs);
+  const uncovered = findUncoveredEvidenceScenes(scenes, manifest);
+  if (!manifest) return { manifest: false, captured: [], skipped: [], errors: [], uncovered };
 
   const plan = planEvidenceCaptures({
     scenes,
@@ -352,11 +398,6 @@ export async function runEvidenceCaptures({ scenes, contentDirAbs, force = false
     force,
     exists: deps.exists ?? existsSync,
   });
-  if (plan.errors.length > 0) {
-    throw new Error(
-      `evidence capture plan rejected:\n${plan.errors.map((error) => `  - ${error}`).join("\n")}`,
-    );
-  }
 
   const captured = [];
   for (const entry of plan.planned) {
@@ -368,5 +409,11 @@ export async function runEvidenceCaptures({ scenes, contentDirAbs, force = false
     });
     captured.push({ sceneId: entry.sceneId, path: entry.outputAbs, provenance: shot.provenance });
   }
-  return { manifest: true, captured, skipped: plan.skipped };
+  return {
+    manifest: true,
+    captured,
+    skipped: plan.skipped,
+    errors: plan.errors,
+    uncovered,
+  };
 }

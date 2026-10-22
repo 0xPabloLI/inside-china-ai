@@ -15,7 +15,7 @@
  * @module evidence-capture
  */
 
-import { shown } from "./media-integrity.mjs";
+import { shown, validateProvenance } from "./media-integrity.mjs";
 
 const isObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -271,6 +271,8 @@ const quote = (value) => (typeof value === "string" ? JSON.stringify(value) : sh
  * The single source for every writer (`media-patch-format.mjs` and the capture
  * CLI): a second copy of this layout would drift and hand the
  * operator a block the gate rejects for a reason that looks like their mistake.
+ * The declaration is validated first — formatting a block with a missing field
+ * would print `undefined` and teach the operator to paste it back.
  * `composed` is only emitted when true, because it is an opt-out and printing
  * `composed: false` on every capture would imply the reconciliation was skipped.
  *
@@ -282,17 +284,13 @@ export function formatProvenanceBlock(provenance, indent = "      ") {
   if (!isObject(provenance)) {
     throw new Error(`provenance must be an object, got ${shown(provenance)}`);
   }
-  const { rect, clip } = provenance;
-  for (const [name, box] of [
-    ["rect", rect],
-    ["clip", clip],
-  ]) {
-    if (!isObject(box)) {
-      throw new Error(
-        `provenance.${name} must be an object { x, y, w, h }, got ${shown(box)} — refusing to format an incomplete provenance`,
-      );
-    }
+  // A guard per field would still print `undefined` for whatever it forgot;
+  // the gate's own validator is the single definition of a usable block.
+  const shape = validateProvenance(provenance);
+  if (!shape.ok) {
+    throw new Error(`provenance is invalid: ${shape.errors.join("; ")}`);
   }
+  const { rect, clip } = provenance;
   const box = (b) =>
     `{ x: ${formatNumber(b.x)}, y: ${formatNumber(b.y)}, w: ${formatNumber(b.w)}, h: ${formatNumber(b.h)} }`;
 

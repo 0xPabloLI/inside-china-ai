@@ -3,7 +3,7 @@
  * Capture evidence screenshots from a web page (#758).
  *
  * Two modes:
- *   - pack: read `content/<slug>/evidence-captures.mjs`, capture every scene
+ *   - pack: read `content/<slug>/evidence-captures.json`, capture every scene
  *     whose file is missing, and print the provenance block to paste into
  *     `scene-data.mjs`. `--check` verifies existing files without a browser.
  *   - one-off: capture a URL + selector + output path with no scene data. This
@@ -33,6 +33,7 @@ import {
 } from "./lib/evidence-capture.mjs";
 import {
   captureEvidenceShot,
+  findUncoveredEvidenceScenes,
   loadCaptureManifest,
   planEvidenceCaptures,
 } from "./lib/evidence-capture-runner.mjs";
@@ -47,7 +48,7 @@ const CONTENT_ROOT = join(BASE_DIR, "content");
 
 const HELP = `Capture evidence screenshots for short-video scenes (#758)
 
-Pack mode — capture missing files declared in content/<slug>/evidence-captures.mjs:
+Pack mode — capture missing files declared in content/<slug>/evidence-captures.json:
   node scripts/short-video/capture-evidence-shot.mjs --content <slug> [options]
 
     --content <slug>   Content pack under scripts/short-video/content/
@@ -58,12 +59,13 @@ Pack mode — capture missing files declared in content/<slug>/evidence-captures
 One-off mode — bootstrap the first provenance block for a page:
   node scripts/short-video/capture-evidence-shot.mjs \\
     --url https://example.com/changelog --selector "table" \\
-    --output content/my-pack/assets/changelog.png \\
+    --output scripts/short-video/content/my-pack/assets/changelog.png \\
     --padding 16 --scale 2 --viewport 1280x900
 
     --url <http(s)>    Page to open
     --selector <sel>   Exactly one element must match
-    --output <path>    PNG destination (parent directories are created)
+    --output <path>    PNG destination, relative to the current working directory
+                       (parent directories are created)
     --padding <n>      CSS px added on every edge (default ${CAPTURE_DEFAULTS.padding})
     --scale <n>        Device scale factor (default ${CAPTURE_DEFAULTS.deviceScaleFactor})
     --viewport <WxH>   Page viewport (default ${CAPTURE_DEFAULTS.viewport.width}x${CAPTURE_DEFAULTS.viewport.height})
@@ -72,7 +74,8 @@ Environment:
   EVIDENCE_CAPTURE_CHANNEL      Chrome channel (default "chrome")
   EVIDENCE_CAPTURE_EXECUTABLE   Explicit browser binary (overrides the channel)
 
-Exit: 0 = captured / verified / nothing to do, 1 = failure (drift, selector, missing file).
+Exit: 0 = captured / verified / nothing to do, 1 = failure (drift, selector, missing file,
+      evidence scene without a capture recipe).
 `;
 
 const isObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -80,7 +83,7 @@ const isObject = (value) => Boolean(value) && typeof value === "object" && !Arra
 /** Relative path for terminal output, without leaving a dangling "" for cwd. */
 const displayPath = (abs) => relative(process.cwd(), abs) || abs;
 
-function parseViewport(text) {
+export function parseViewport(text) {
   const match = /^(\d+)x(\d+)$/i.exec(text);
   if (!match) throw new Error(`--viewport must be <width>x<height> in px, got "${text}"`);
   return { width: Number(match[1]), height: Number(match[2]) };
@@ -109,7 +112,7 @@ async function loadScenes(contentDirAbs) {
   return module.scenes;
 }
 
-function resolveContentDir(slug) {
+export function resolveContentDir(slug) {
   const root = resolve(CONTENT_ROOT);
   const contentDirAbs = resolve(root, slug);
   if (contentDirAbs === root || !contentDirAbs.startsWith(root + sep)) {
@@ -118,8 +121,11 @@ function resolveContentDir(slug) {
   return contentDirAbs;
 }
 
-async function checkCaptures({ planned, errors }) {
-  const failures = [...errors];
+const uncoveredLine = (scene) =>
+  `Scene ${scene.id}: no capture recipe — add it to evidence-captures.json or declare composed:true`;
+
+async function checkCaptures({ planned, errors, uncovered }) {
+  const failures = [...errors, ...uncovered.map(uncoveredLine)];
   for (const entry of planned) {
     const scene = `Scene ${entry.sceneId}`;
     if (!existsSync(entry.outputAbs)) {
@@ -160,10 +166,19 @@ async function checkCaptures({ planned, errors }) {
 
 async function capturePack({ contentDirAbs, content, scene, force }) {
   const scenes = await loadScenes(contentDirAbs);
-  const manifest = await loadCaptureManifest(contentDirAbs);
+  const manifest = loadCaptureManifest(contentDirAbs);
+  // Judged against the whole manifest: a --scene run must not report every
+  // other evidence scene as a gap.
+  const uncovered = findUncoveredEvidenceScenes(scenes, manifest);
+
   if (!manifest) {
-    console.log(`No evidence-captures.mjs in content/${content} — nothing to capture.`);
-    return 0;
+    if (uncovered.length === 0) {
+      console.log(`No evidence-captures.json in content/${content} — nothing to capture.`);
+      return 0;
+    }
+    console.error(`Evidence scenes with no capture recipe in content/${content}:`);
+    for (const entry of uncovered) console.error(`  - ${uncoveredLine(entry)}`);
+    return 1;
   }
 
   let selected = manifest;
@@ -184,7 +199,7 @@ async function capturePack({ contentDirAbs, content, scene, force }) {
     return 1;
   }
 
-  if (plan.planned.length === 0) {
+  if (plan.planned.length === 0 && uncovered.length === 0) {
     const already = plan.skipped.length;
     console.log(
       already > 0
@@ -213,6 +228,11 @@ async function capturePack({ contentDirAbs, content, scene, force }) {
       failures++;
       console.error(`\n❌ Scene ${entry.sceneId}: ${error.message}`);
     }
+  }
+  if (uncovered.length > 0) {
+    failures += uncovered.length;
+    console.error(`\nEvidence scenes with no capture recipe in content/${content}:`);
+    for (const entry of uncovered) console.error(`  - ${uncoveredLine(entry)}`);
   }
   return failures > 0 ? 1 : 0;
 }
@@ -283,34 +303,33 @@ async function main(argv) {
 
   if (values.padding !== undefined || values.scale !== undefined || values.viewport !== undefined) {
     throw new Error(
-      "--padding/--scale/--viewport only apply in one-off mode; put them in evidence-captures.mjs",
+      "--padding/--scale/--viewport only apply in one-off mode; put them in evidence-captures.json",
     );
   }
 
   const contentDirAbs = resolveContentDir(values.content);
   if (values.check) {
     const scenes = await loadScenes(contentDirAbs);
-    const manifest = await loadCaptureManifest(contentDirAbs);
-    if (!manifest) {
-      console.log(`No evidence-captures.mjs in content/${values.content} — nothing to check.`);
+    const manifest = loadCaptureManifest(contentDirAbs);
+    const uncovered = findUncoveredEvidenceScenes(scenes, manifest);
+    if (!manifest && uncovered.length === 0) {
+      console.log(`No evidence-captures.json in content/${values.content} — nothing to check.`);
       return 0;
     }
     const selected =
-      values.scene === undefined
+      manifest === null || values.scene === undefined
         ? manifest
         : Object.fromEntries(
             Object.entries(manifest).filter(([key]) => String(key) === String(values.scene)),
           );
-    if (Object.keys(selected).length === 0) {
+    if (manifest !== null && Object.keys(selected).length === 0) {
       throw new Error(`scene ${values.scene} has no capture recipe`);
     }
-    const plan = planEvidenceCaptures({
-      scenes,
-      contentDirAbs,
-      manifest: selected,
-      force: true,
-    });
-    return checkCaptures(plan);
+    const plan =
+      manifest === null
+        ? { planned: [], errors: [], skipped: [] }
+        : planEvidenceCaptures({ scenes, contentDirAbs, manifest: selected, force: true });
+    return checkCaptures({ ...plan, uncovered });
   }
 
   return capturePack({
@@ -321,11 +340,16 @@ async function main(argv) {
   });
 }
 
-main(process.argv.slice(2))
-  .then((code) => {
-    process.exitCode = code;
-  })
-  .catch((error) => {
-    console.error(`❌ ${error.message}`);
-    process.exitCode = 1;
-  });
+const isMainModule =
+  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMainModule) {
+  main(process.argv.slice(2))
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((error) => {
+      console.error(`❌ ${error.message}`);
+      process.exitCode = 1;
+    });
+}

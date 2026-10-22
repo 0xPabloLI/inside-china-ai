@@ -858,6 +858,38 @@ describe("#758 evidence capture fields in media patches", () => {
     );
   });
 
+  it("replace skips braces inside comments in the old media block", () => {
+    // A brace scanner that only understands strings closes the block at the
+    // `}` inside the comment and leaves the old tail (brace-imbalanced) behind.
+    const text = [
+      "export const scenes = [",
+      "  {",
+      "    id: 3,",
+      '    visualType: "narrative",',
+      "    media: {",
+      '      type: "image",',
+      '      path: "assets/old.png",',
+      "      // } end-of-field note",
+      "      /* { block note } */",
+      "    },",
+      '    voiceover: "hi",',
+      "  },",
+      "];",
+      "",
+    ].join("\n");
+    const result = applyPatchesToText(text, [{ sceneId: 3, action: "replace", media: media() }]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.applied).toHaveLength(1);
+    expect(result.modifiedContent).not.toContain('path: "assets/old.png"');
+    expect(result.modifiedContent).not.toContain("end-of-field note");
+    expect(result.modifiedContent).toContain("provenance: {");
+    expect(result.modifiedContent).toContain('    voiceover: "hi",');
+    expect(result.modifiedContent.match(/\{/g)).toHaveLength(
+      result.modifiedContent.match(/\}/g).length,
+    );
+  });
+
   it("rejects evidence:true without provenance", () => {
     const r = validateCliPatchEntry(
       {

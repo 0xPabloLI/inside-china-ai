@@ -49,7 +49,13 @@ describe("media-track", () => {
   function baseDeps(over = {}) {
     return {
       sourcerMain: async () => {},
-      runEvidenceCaptures: async () => ({ manifest: false, captured: [], skipped: [] }),
+      runEvidenceCaptures: async () => ({
+        manifest: false,
+        captured: [],
+        skipped: [],
+        errors: [],
+        uncovered: [],
+      }),
       autoUpscaleIfNeeded: () => ({ upscaled: false }),
       closeVisualAnalyzer: async () => {},
       ...over,
@@ -83,7 +89,7 @@ describe("media-track", () => {
       deps: baseDeps({
         runEvidenceCaptures: async () => {
           order.push("capture");
-          return { manifest: true, captured: [], skipped: [] };
+          return { manifest: true, captured: [], skipped: [], errors: [], uncovered: [] };
         },
         sourcerMain: async () => {
           order.push("sourcing");
@@ -134,7 +140,9 @@ describe("media-track", () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("browser missing"));
   });
 
-  it("a successful capture leaves the scene out of stock sourcing", async () => {
+  it("leaves an evidence scene out of sourcing even when the capture left no file", async () => {
+    // The stub deliberately writes nothing: sourcing must be skipped because of
+    // the evidence exclusion, not because the file happened to exist.
     const sourcer = vi.fn();
     const scene = {
       id: 1,
@@ -145,20 +153,74 @@ describe("media-track", () => {
       scenes: [scene],
       broll: brollStub(),
       deps: baseDeps({
-        runEvidenceCaptures: async ({ contentDirAbs }) => {
-          mkdirSync(join(contentDirAbs, "assets"), { recursive: true });
-          writeFileSync(join(contentDirAbs, "assets/table.png"), "png");
-          return {
-            manifest: true,
-            captured: [{ sceneId: 1, path: "assets/table.png", provenance: {} }],
-            skipped: [],
-          };
-        },
+        runEvidenceCaptures: async () => ({
+          manifest: true,
+          captured: [],
+          skipped: [],
+          errors: [],
+          uncovered: [],
+        }),
         sourcerMain: sourcer,
       }),
     });
     await runMediaTrack(ctx);
     expect(sourcer).not.toHaveBeenCalled();
+  });
+
+  it("warns for every rejected recipe and still logs the captures that succeeded", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const scene = {
+      id: 1,
+      voiceover: "v",
+      media: { type: "image", path: "assets/table.png", evidence: true, provenance: {} },
+    };
+    const { ctx } = makeCtx({
+      scenes: [scene],
+      broll: brollStub(),
+      deps: baseDeps({
+        runEvidenceCaptures: async () => ({
+          manifest: true,
+          captured: [{ sceneId: 1, path: "assets/table.png", provenance: {} }],
+          skipped: [],
+          errors: ["scene 2: recipe selector must be a non-empty element selector"],
+          uncovered: [],
+        }),
+      }),
+    });
+    await runMediaTrack(ctx);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("scene 2: recipe selector must be a non-empty element selector"),
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Captured 1 evidence scene(s): 1"));
+  });
+
+  it("warns for an evidence scene with no capture recipe", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const scene = {
+      id: 7,
+      voiceover: "v",
+      media: { type: "image", path: "assets/table.png", evidence: true, provenance: {} },
+    };
+    const { ctx } = makeCtx({
+      scenes: [scene],
+      broll: brollStub(),
+      deps: baseDeps({
+        runEvidenceCaptures: async () => ({
+          manifest: true,
+          captured: [],
+          skipped: [],
+          errors: [],
+          uncovered: [scene],
+        }),
+      }),
+    });
+    await runMediaTrack(ctx);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "scene 7: no capture recipe — add it to evidence-captures.json or declare composed:true",
+      ),
+    );
   });
 
   it("a capture failure warns and later stages still run", async () => {

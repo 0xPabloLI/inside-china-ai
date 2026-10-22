@@ -1,8 +1,7 @@
 /**
- * Tests for the evidence capture contract (#758 slice 1).
+ * Tests for the evidence capture contract (#758).
  *
- * Pure geometry only — the Playwright producer is slice 2, so nothing here
- * needs a browser.
+ * Pure geometry only — nothing here needs a browser.
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -309,10 +308,10 @@ describe("formatProvenanceBlock", () => {
   it("keeps integers as integers and caps float noise at 3 decimals", () => {
     const block = formatProvenanceBlock({
       ...provenance(),
-      rect: { x: 10.123456, y: 20, w: 681.0004, h: 507.5 },
+      rect: { x: 104.123456, y: 923, w: 681.0004, h: 507.5 },
       scale: 1.3333333333,
     });
-    expect(block).toContain("rect: { x: 10.123, y: 20, w: 681, h: 507.5 },");
+    expect(block).toContain("rect: { x: 104.123, y: 923, w: 681, h: 507.5 },");
     expect(block).toContain("scale: 1.333,");
   });
 
@@ -324,9 +323,21 @@ describe("formatProvenanceBlock", () => {
     );
   });
 
-  it("refuses an incomplete provenance rather than writing broken scene data", () => {
+  it.each([
+    ["sourceUrl", (p) => delete p.sourceUrl],
+    ["selector", (p) => delete p.selector],
+    ["scale", (p) => delete p.scale],
+    ["rect", (p) => delete p.rect],
+    ["clip", (p) => delete p.clip],
+    ["a clip that cuts the rect", (p) => (p.clip = { ...p.clip, w: 10 })],
+  ])("refuses a provenance with %s instead of printing undefined", (_label, mutate) => {
+    const broken = provenance();
+    mutate(broken);
+    expect(() => formatProvenanceBlock(broken)).toThrow(/provenance is invalid:/);
+  });
+
+  it("formats a valid block", () => {
+    expect(formatProvenanceBlock(provenance())).toContain('sourceUrl: "https://example.com/model-card"');
     expect(() => formatProvenanceBlock(null)).toThrow(/provenance/);
-    expect(() => formatProvenanceBlock({ ...provenance(), rect: undefined })).toThrow(/rect/);
-    expect(() => formatProvenanceBlock({ ...provenance(), clip: undefined })).toThrow(/clip/);
   });
 });

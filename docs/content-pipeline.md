@@ -431,7 +431,7 @@ node scripts/rag/index.mjs
 node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 → 合成（不含 BGM）
 ```
 
-> **Step 1.5 证据截图**：媒体轨在 asset sourcing 之前，按 `content/<slug>/evidence-captures.mjs` 重捕获缺失的证据截图（手动入口 `capture-evidence-shot.mjs`）；`media.evidence: true` 的 scene 不参与 stock 搜索。配方、失败语义与落档约定见 `docs/video-script-writing-guide.md` §截图证据约定。
+> **Step 1.5 证据截图**：媒体轨在 asset sourcing 之前，按 `content/<slug>/evidence-captures.json` 重捕获缺失的证据截图（手动入口 `capture-evidence-shot.mjs`）；`media.evidence: true` 的 scene 不参与 stock 搜索。配方、失败语义与落档约定见 `docs/video-script-writing-guide.md` §截图证据约定。
 
 > **BGM 不在 Stage 4 自动添加**。视频先以纯 VO 产出，BGM 在 Stage 5 HITL 确认后通过 `mix-bgm.mjs` 独立混入。
 

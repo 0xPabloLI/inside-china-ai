@@ -48,10 +48,20 @@ export async function runMediaTrack({ scenes, contentDir, baseDir, broll, deps =
     const runEvidenceCaptures =
       deps.runEvidenceCaptures ??
       (await import("./evidence-capture-runner.mjs")).runEvidenceCaptures;
-    const captured = await runEvidenceCaptures({ scenes, contentDirAbs });
-    if (captured.captured.length > 0) {
-      const ids = captured.captured.map((entry) => entry.sceneId).join(", ");
-      console.log(`📸 Step 1.5a: Captured ${captured.captured.length} evidence scene(s): ${ids}\n`);
+    const result = await runEvidenceCaptures({ scenes, contentDirAbs });
+    // A rejected recipe is per-scene: report it loudly and keep the captures
+    // that are valid. The final media gate is what blocks the render.
+    for (const error of result.errors ?? []) {
+      console.warn(`⚠️  Step 1.5a: evidence capture recipe rejected — ${error}`);
+    }
+    for (const scene of result.uncovered ?? []) {
+      console.warn(
+        `⚠️  Step 1.5a: scene ${scene.id}: no capture recipe — add it to evidence-captures.json or declare composed:true`,
+      );
+    }
+    if (result.captured.length > 0) {
+      const ids = result.captured.map((entry) => entry.sceneId).join(", ");
+      console.log(`📸 Step 1.5a: Captured ${result.captured.length} evidence scene(s): ${ids}\n`);
     }
   } catch (e) {
     console.warn(`⚠️  Evidence capture skipped: ${e.message}\n`);

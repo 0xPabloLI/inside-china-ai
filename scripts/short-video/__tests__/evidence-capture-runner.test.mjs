@@ -14,6 +14,7 @@ import { buildClip, buildProvenance } from "../lib/evidence-capture.mjs";
 import {
   captureEvidenceShot,
   captureFromPage,
+  findUncoveredEvidenceScenes,
   loadCaptureManifest,
   planEvidenceCaptures,
   runEvidenceCaptures,
@@ -55,9 +56,10 @@ function pngSize(absPath) {
 
 /**
  * Fake page. `counts` is consumed in order so one page can return 0 then 1 if a
- * test ever needs that; the producer only asks once.
+ * test ever needs that; the producer only asks once. `url()` reports the final
+ * URL after navigation — the same URL unless a test simulates a redirect.
  */
-function fakePage({ count = 1, rect = RECT, sizeOffset = 0 } = {}) {
+function fakePage({ count = 1, rect = RECT, sizeOffset = 0, finalUrl = RECIPE_ENTRY.url } = {}) {
   const state = { goto: null, pageOptions: null };
   const locator = {
     count: async () => count,
@@ -82,6 +84,7 @@ function fakePage({ count = 1, rect = RECT, sizeOffset = 0 } = {}) {
     goto: async (url, options) => {
       state.goto = { url, options };
     },
+    url: () => finalUrl,
     locator: () => locator,
     context: () => ({ newCDPSession: async () => session }),
   };
@@ -93,6 +96,9 @@ function makePack() {
   mkdirSync(join(dir, "assets"), { recursive: true });
   return dir;
 }
+
+const writeManifest = (dir, manifest) =>
+  writeFileSync(join(dir, "evidence-captures.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 
 function evidenceScene(id, over = {}) {
   return {
@@ -123,24 +129,26 @@ describe("evidence-capture-runner", () => {
   };
 
   describe("loadCaptureManifest", () => {
-    it("returns null when the pack has no manifest", async () => {
-      expect(await loadCaptureManifest(pack())).toBeNull();
+    it("returns null when the pack has no manifest", () => {
+      expect(loadCaptureManifest(pack())).toBeNull();
     });
 
-    it("loads the captures export", async () => {
+    it("loads the JSON object keyed by scene id", () => {
       const dir = pack();
-      writeFileSync(
-        join(dir, "evidence-captures.mjs"),
-        `export const captures = { 3: ${JSON.stringify(RECIPE_ENTRY)} };\n`,
-      );
-      const manifest = await loadCaptureManifest(dir);
-      expect(manifest).toEqual({ 3: RECIPE_ENTRY });
+      writeManifest(dir, { 3: RECIPE_ENTRY });
+      expect(loadCaptureManifest(dir)).toEqual({ 3: RECIPE_ENTRY });
     });
 
-    it("rejects a manifest whose captures export is not an object", async () => {
+    it("rejects a top-level value that is not an object", () => {
       const dir = pack();
-      writeFileSync(join(dir, "evidence-captures.mjs"), "export const captures = [];\n");
-      await expect(loadCaptureManifest(dir)).rejects.toThrow(/captures object/);
+      writeManifest(dir, []);
+      expect(() => loadCaptureManifest(dir)).toThrow(/object keyed by scene id/);
+    });
+
+    it("rejects invalid JSON with the file path", () => {
+      const dir = pack();
+      writeFileSync(join(dir, "evidence-captures.json"), "{ not json");
+      expect(() => loadCaptureManifest(dir)).toThrow(/evidence-captures\.json is not valid JSON/);
     });
   });
 
@@ -363,6 +371,16 @@ describe("evidence-capture-runner", () => {
       expect(readdirSync(join(dir, "assets"))).toEqual([]);
     });
 
+    it("fails when the page redirected, naming the final URL", async () => {
+      const dir = pack();
+      const outputAbs = join(dir, "assets", "capture.png");
+      const { page } = fakePage({ finalUrl: "https://example.com/login?next=/changelog" });
+      const error = await captureFromPage(page, RECIPE_ENTRY, null, outputAbs).catch((e) => e);
+      expect(error.message).toContain("page redirected to https://example.com/login?next=/changelog");
+      expect(error.message).toContain("use the final URL in the recipe");
+      expect(readdirSync(join(dir, "assets"))).toEqual([]);
+    });
+
     it("closes the page and browser even when the capture fails", async () => {
       const dir = pack();
       const outputAbs = join(dir, "assets", "capture.png");
@@ -393,38 +411,67 @@ describe("evidence-capture-runner", () => {
     });
   });
 
+  describe("findUncoveredEvidenceScenes", () => {
+    it("reports an evidence scene with no manifest entry", () => {
+      const scenes = [evidenceScene(3), evidenceScene(4)];
+      const uncovered = findUncoveredEvidenceScenes(scenes, { 3: RECIPE_ENTRY });
+      expect(uncovered.map((scene) => scene.id)).toEqual([4]);
+    });
+
+    it("exempts a legacy composed banner", () => {
+      const scene = evidenceScene(5, { provenance: { ...provenanceFor(), composed: true } });
+      expect(findUncoveredEvidenceScenes([scene], {})).toEqual([]);
+    });
+
+    it("treats every evidence scene as uncovered when the manifest is absent", () => {
+      expect(findUncoveredEvidenceScenes([evidenceScene(3)], null).map((s) => s.id)).toEqual([3]);
+    });
+  });
+
   describe("runEvidenceCaptures", () => {
     it("returns manifest:false without launching a browser when the pack has no manifest", async () => {
       const launchBrowser = vi.fn();
+      const scenes = [evidenceScene(3)];
       const result = await runEvidenceCaptures({
-        scenes: [evidenceScene(3)],
+        scenes,
         contentDirAbs: pack(),
         deps: { launchBrowser },
       });
-      expect(result).toEqual({ manifest: false, captured: [], skipped: [] });
+      expect(result).toEqual({
+        manifest: false,
+        captured: [],
+        skipped: [],
+        errors: [],
+        uncovered: scenes,
+      });
       expect(launchBrowser).not.toHaveBeenCalled();
     });
 
-    it("throws with every plan error before launching a browser", async () => {
+    it("captures the valid entry and reports a bad one instead of throwing", async () => {
       const dir = pack();
-      writeFileSync(join(dir, "evidence-captures.mjs"), `export const captures = { 99: {} };\n`);
-      const launchBrowser = vi.fn();
-      await expect(
-        runEvidenceCaptures({
-          scenes: [evidenceScene(3)],
-          contentDirAbs: dir,
-          deps: { launchBrowser },
-        }),
-      ).rejects.toThrow(/no scene/);
-      expect(launchBrowser).not.toHaveBeenCalled();
+      writeManifest(dir, { 3: RECIPE_ENTRY, 99: {} });
+      const { page } = fakePage();
+      const browser = { newPage: async () => page, close: async () => {} };
+
+      const result = await runEvidenceCaptures({
+        scenes: [evidenceScene(3)],
+        contentDirAbs: dir,
+        deps: { launchBrowser: async () => browser },
+      });
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toContain("99");
+      expect(result.captured).toHaveLength(1);
+      expect(result.captured[0].sceneId).toBe(3);
+      expect(pngSize(result.captured[0].path)).toEqual({
+        width: Math.round(CLIP.w * SCALE),
+        height: Math.round(CLIP.h * SCALE),
+      });
     });
 
     it("captures a missing file and returns its path and provenance", async () => {
       const dir = pack();
-      writeFileSync(
-        join(dir, "evidence-captures.mjs"),
-        `export const captures = { 3: ${JSON.stringify(RECIPE_ENTRY)} };\n`,
-      );
+      writeManifest(dir, { 3: RECIPE_ENTRY });
       const { page } = fakePage();
       const browser = { newPage: async () => page, close: async () => {} };
 
@@ -435,6 +482,8 @@ describe("evidence-capture-runner", () => {
       });
 
       expect(result.manifest).toBe(true);
+      expect(result.errors).toEqual([]);
+      expect(result.uncovered).toEqual([]);
       expect(result.captured).toHaveLength(1);
       expect(result.captured[0].sceneId).toBe(3);
       expect(result.captured[0].path).toBe(join(dir, "assets/scene-3.png"));
@@ -446,10 +495,7 @@ describe("evidence-capture-runner", () => {
 
     it("skips an existing file without launching a browser", async () => {
       const dir = pack();
-      writeFileSync(
-        join(dir, "evidence-captures.mjs"),
-        `export const captures = { 3: ${JSON.stringify(RECIPE_ENTRY)} };\n`,
-      );
+      writeManifest(dir, { 3: RECIPE_ENTRY });
       writeFileSync(join(dir, "assets/scene-3.png"), "present");
       const launchBrowser = vi.fn();
 
@@ -462,6 +508,19 @@ describe("evidence-capture-runner", () => {
       expect(result.captured).toEqual([]);
       expect(result.skipped).toHaveLength(1);
       expect(launchBrowser).not.toHaveBeenCalled();
+    });
+
+    it("returns uncovered evidence scenes without throwing", async () => {
+      const dir = pack();
+      writeManifest(dir, {});
+      const scenes = [evidenceScene(3), evidenceScene(4)];
+      const result = await runEvidenceCaptures({
+        scenes,
+        contentDirAbs: dir,
+        deps: { launchBrowser: vi.fn() },
+      });
+      expect(result.uncovered.map((scene) => scene.id)).toEqual([3, 4]);
+      expect(result.errors).toEqual([]);
     });
   });
 });

@@ -224,7 +224,8 @@ function formatMediaBlock(media, indent = "    ") {
  * *nested* close. That was harmless while every media field was flat; once a
  * block carries `provenance: { rect: {...}, ... }` (#758) the regex rewrote the
  * prefix and left the old tail behind, corrupting scene-data. Braces inside
- * string literals are skipped so a selector containing "}" cannot end early.
+ * string literals and inside `//` / block comments are skipped so a selector or
+ * a commented-out field containing "}" cannot end early.
  */
 function matchingBrace(text, openIndex) {
   let depth = 0;
@@ -234,6 +235,18 @@ function matchingBrace(text, openIndex) {
     if (quote) {
       if (char === "\\") i++;
       else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "/" && text[i + 1] === "/") {
+      const end = text.indexOf("\n", i + 2);
+      if (end === -1) return -1;
+      i = end;
+      continue;
+    }
+    if (char === "/" && text[i + 1] === "*") {
+      const end = text.indexOf("*/", i + 2);
+      if (end === -1) return -1;
+      i = end + 1;
       continue;
     }
     if (char === '"' || char === "'" || char === "`") quote = char;
