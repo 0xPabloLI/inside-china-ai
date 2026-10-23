@@ -755,7 +755,9 @@ describe("imageApiSourceMetadata", () => {
       ...fakeSource,
       capabilities: { images: { method: "api", requiresApiKey: true } },
     };
-    expect(() => imageApiSourceMetadata(source)).toThrow(/requires capabilities\.images\.apiKeyEnv/);
+    expect(() => imageApiSourceMetadata(source)).toThrow(
+      /requires capabilities\.images\.apiKeyEnv/,
+    );
   });
 
   it("returns apiKeyEnv null for an unkeyed source (searxng shape)", () => {

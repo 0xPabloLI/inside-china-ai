@@ -143,7 +143,9 @@ export function imageApiSourceMetadata(source, name = source?.name) {
     throw new Error(`imageApiSourceMetadata: "${name}" requires capabilities.images.apiKeyEnv`);
   }
   if (cap.apiKeyEnv != null && typeof cap.apiKeyEnv !== "string") {
-    throw new Error(`imageApiSourceMetadata: "${name}" capabilities.images.apiKeyEnv must be a string`);
+    throw new Error(
+      `imageApiSourceMetadata: "${name}" capabilities.images.apiKeyEnv must be a string`,
+    );
   }
   return {
     label: source.label,
