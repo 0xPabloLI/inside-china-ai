@@ -8,6 +8,7 @@
  * All values are精确对照 from their templateCss() / baseStyles().
  */
 import { staticFile, CanvasImage } from "remotion";
+import { SLOT_FIELDS } from "../../../lib/text-slots.mjs";
 import { CANVAS, SAFE_ZONES, WATERMARK_POS } from "./shared";
 import { TextGate } from "./text-gate";
 import type { ReactNode } from "react";
@@ -137,15 +138,14 @@ export const BrandBar: React.FC = () => (
 
 /**
  * Badge pill — hook scene badge (NOT the breaking badge). Matches
- * .s-hook .badge-pill. `fontSize` is injected by the TextGate when gated;
- * the default mirrors the contract's `badge` preferredSize (40px, the
- * metadata floor — see SLOT_FIELDS) so the ungated preview shape cannot
- * reintroduce the 22px badge #688 raised away. HookScene always passes a
- * gated fontSize, so nothing renders from this default.
+ * .s-hook .badge-pill. `fontSize` is injected by the TextGate when gated
+ * (HookScene is the only caller and always passes it); the default reads the
+ * contract's `badge` preferredSize so an ungated preview cannot reintroduce
+ * the 22px badge #688 raised away, and so a future raise moves it too.
  */
 export const BadgePill: React.FC<{ text: string; fontSize?: number }> = ({
   text,
-  fontSize = 40,
+  fontSize = SLOT_FIELDS.badge.preferredSize,
 }) => (
   <div
     style={{
@@ -271,16 +271,16 @@ export const StatCard: React.FC<{
         </div>
       ) : (
         <>
-          <div style={{ fontSize: 56, fontWeight: 900 }}>
+          <div style={{ fontSize: SLOT_FIELDS.statCard.preferredSize, fontWeight: 900 }}>
             {numRow(
-              28,
+              "0.5em",
               label ? (
                 <div
                   style={{
-                    // Mirrors the gated branch's 0.5em ratio (see above) so the
-                    // ungated preview shape cannot reintroduce the 20px label
-                    // #688 removed. No production caller reaches this path —
-                    // HookScene always passes sceneId + index.
+                    // Both the base and the ratios come from the contract, so
+                    // the ungated preview tracks the gated render exactly. No
+                    // production caller reaches this path — HookScene always
+                    // passes sceneId + index.
                     fontSize: "0.5em",
                     fontWeight: 700,
                     color: "#cbd5e1",
