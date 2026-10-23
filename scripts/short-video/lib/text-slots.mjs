@@ -30,12 +30,16 @@ import { BRAND_FONT_STACK } from "./safe-zones.mjs";
  * repo's own brand-system type scale (Labels 22-28 / Body 28-40) — "too small"
  * was a contract property, not a shrink-ladder accident. The copy class now
  * starts at 48px and the metadata class (source / badge / attribution /
- * verified) at 40px; floors follow round(0.72 x preferred) (decision 46).
+ * verified) at 40px. The floor rule is round(0.72 x preferred) (decision 46)
+ * with FIVE standing exceptions the fields carry inline. Above the rule
+ * (stricter): subject 64 -> 48 (rule 46), numberLabel 48 -> 36 (35), stat
+ * 240 -> 180 (173). Below it (relaxed): revealText 80 -> 56 (58), bigNumber
+ * 240 -> 150 (173, decision 72). Every other field satisfies the rule exactly.
  *
  * The lead class moved up with it where — and only where — the loop's
  * hierarchy-ratio rule (docs/conventions/visual-design-loop.md: adjacent
  * levels >= 1.25x) demands it: company 48 -> 60 (60 / 48 copy = 1.25), title
- * 48 -> 60, label 48 -> 60, result 56 -> 64, statCard 56 -> 64 (64 / 48
+ * 48 -> 60, label 36 -> 60, result 56 -> 64, statCard 56 -> 64 (64 / 48
  * numberLabel = 1.33). Without these a title would sit at the SAME size as
  * its own body text. subject (64) and brand (72) were left alone: their
  * adjacent ratios already hold (badge 40 -> 64 = 1.6; brand 72 -> tagline
