@@ -30,7 +30,7 @@ import {
   searchCdpVideoSource,
   normalizeCdpVideoCandidates,
 } from "../lib/progressive-search.mjs";
-import { ALL_SOURCES, imageApiEngineMetadata } from "../lib/source-registry.mjs";
+import { ALL_SOURCES } from "../lib/source-registry.mjs";
 import {
   cdpNewTab,
   cdpCloseTab,
@@ -314,6 +314,18 @@ describe("searchBraveImages", () => {
     expect(tracker.getCount()).toBe(1);
   });
 
+  it("passes count through to the registry URL builder (SSOT)", async () => {
+    let capturedUrl = null;
+    globalThis.fetch = vi.fn().mockImplementation((url) => {
+      capturedUrl = url;
+      return Promise.resolve({ ok: true, json: async () => ({ results: [] }) });
+    });
+
+    await searchBraveImages("test", "key", { count: 3 });
+
+    expect(capturedUrl).toContain("count=3");
+  });
+
   it("returns empty array when API key is null/undefined (scenario #3)", async () => {
     const tracker = new BraveQuotaTracker();
     const candidates = await searchBraveImages("test", null, { quotaTracker: tracker });
@@ -397,6 +409,18 @@ describe("searchSearXngImages", () => {
     expect(candidates[0].source).toBe("searxng_image");
   });
 
+  it("passes baseUrl through to the registry URL builder (SSOT)", async () => {
+    let capturedUrl = null;
+    globalThis.fetch = vi.fn().mockImplementation((url) => {
+      capturedUrl = url;
+      return Promise.resolve({ ok: true, json: async () => ({ results: [] }) });
+    });
+
+    await searchSearXngImages("test", { baseUrl: "http://example.test:9999" });
+
+    expect(capturedUrl.startsWith("http://example.test:9999/search")).toBe(true);
+  });
+
   it("returns empty array when fetch fails (scenario #5: SearXNG unreachable)", async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
     const candidates = await searchSearXngImages("test", { baseUrl: "http://localhost:8888" });
@@ -460,7 +484,6 @@ describe("IMAGE_SEARCH_ENGINES", () => {
       const registrySource = registryByName.get(engine.name);
       if (!registrySource) continue; // engines not in registry (e.g. tavily_images) are fine
       expect(engine.label).toBe(registrySource.label);
-      expect(engine.type).toBe(registrySource.capabilities.images.method);
       expect(engine.requiresApiKey).toBe(registrySource.capabilities.images.requiresApiKey);
       expect(engine.apiKeyEnv).toBe(registrySource.capabilities.images.apiKeyEnv);
     }
@@ -509,72 +532,6 @@ describe("IMAGE_SEARCH_ENGINES", () => {
 
     expect(candidates).toHaveLength(1);
     expect(candidates[0].source).toBe("searxng_image");
-  });
-});
-
-// ─── imageApiEngineMetadata (registry SSOT derivation, #344) ───
-
-describe("imageApiEngineMetadata", () => {
-  const fakeSource = {
-    name: "fake_image",
-    label: "Fake Image Search",
-    capabilities: {
-      images: { method: "api", requiresApiKey: true, apiKeyEnv: "FAKE_KEY" },
-    },
-  };
-
-  it("derives label, type and credential metadata (fail-closed shape)", () => {
-    expect(imageApiEngineMetadata(fakeSource)).toEqual({
-      label: "Fake Image Search",
-      type: "api",
-      requiresApiKey: true,
-      apiKeyEnv: "FAKE_KEY",
-    });
-  });
-
-  it("throws when the source is missing", () => {
-    expect(() => imageApiEngineMetadata(undefined, "ghost_image")).toThrow(
-      /"ghost_image" must be an API image source in source-registry/,
-    );
-  });
-
-  it("throws when the image channel is not an API (cdp)", () => {
-    const source = {
-      ...fakeSource,
-      capabilities: { images: { method: "cdp", requiresApiKey: false, apiKeyEnv: null } },
-    };
-    expect(() => imageApiEngineMetadata(source)).toThrow(/must be an API image source/);
-  });
-
-  it('throws when requiresApiKey is not a boolean (e.g. the string "true")', () => {
-    const source = {
-      ...fakeSource,
-      capabilities: { images: { method: "api", requiresApiKey: "true", apiKeyEnv: "FAKE_KEY" } },
-    };
-    expect(() => imageApiEngineMetadata(source)).toThrow(/must declare a boolean/);
-  });
-
-  it("throws when a keyed source is missing apiKeyEnv", () => {
-    const source = {
-      ...fakeSource,
-      capabilities: { images: { method: "api", requiresApiKey: true } },
-    };
-    expect(() => imageApiEngineMetadata(source)).toThrow(
-      /requires capabilities\.images\.apiKeyEnv/,
-    );
-  });
-
-  it("returns apiKeyEnv null for an unkeyed source (searxng shape)", () => {
-    const source = {
-      ...fakeSource,
-      capabilities: { images: { method: "api", requiresApiKey: false, apiKeyEnv: null } },
-    };
-    expect(imageApiEngineMetadata(source)).toEqual({
-      label: "Fake Image Search",
-      type: "api",
-      requiresApiKey: false,
-      apiKeyEnv: null,
-    });
   });
 });
 

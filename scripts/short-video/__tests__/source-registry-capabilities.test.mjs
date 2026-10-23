@@ -19,6 +19,7 @@ import {
   WECHAT_RSS_SOURCES,
   STOCK_MEDIA_SOURCES,
   SOURCE_ATTRIBUTIONS,
+  imageApiSourceMetadata,
 } from "../lib/source-registry.mjs";
 
 // ─── Capabilities field presence ───
@@ -705,5 +706,75 @@ describe("#636 — bing_news declares articles only", () => {
     // The harvest (enrichWithMedia) fills imageUrl for any article whose
     // nearby <img> is an http URL — on Bing that is the same CDN thumbnail.
     expect(bing.harvestImages).toBe(false);
+  });
+});
+
+// ─── imageApiSourceMetadata (registry SSOT derivation, #344) ───
+
+describe("imageApiSourceMetadata", () => {
+  const fakeSource = {
+    name: "fake_image",
+    label: "Fake Image Search",
+    capabilities: {
+      images: { method: "api", requiresApiKey: true, apiKeyEnv: "FAKE_KEY" },
+    },
+  };
+
+  it("derives label and credential metadata (fail-closed shape)", () => {
+    expect(imageApiSourceMetadata(fakeSource)).toEqual({
+      label: "Fake Image Search",
+      requiresApiKey: true,
+      apiKeyEnv: "FAKE_KEY",
+    });
+  });
+
+  it("throws when the source is missing", () => {
+    expect(() => imageApiSourceMetadata(undefined, "ghost_image")).toThrow(
+      /"ghost_image" must be an API image source in source-registry/,
+    );
+  });
+
+  it("throws when the image channel is not an API (cdp)", () => {
+    const source = {
+      ...fakeSource,
+      capabilities: { images: { method: "cdp", requiresApiKey: false, apiKeyEnv: null } },
+    };
+    expect(() => imageApiSourceMetadata(source)).toThrow(/must be an API image source/);
+  });
+
+  it('throws when requiresApiKey is not a boolean (e.g. the string "true")', () => {
+    const source = {
+      ...fakeSource,
+      capabilities: { images: { method: "api", requiresApiKey: "true", apiKeyEnv: "FAKE_KEY" } },
+    };
+    expect(() => imageApiSourceMetadata(source)).toThrow(/must declare a boolean/);
+  });
+
+  it("throws when a keyed source is missing apiKeyEnv", () => {
+    const source = {
+      ...fakeSource,
+      capabilities: { images: { method: "api", requiresApiKey: true } },
+    };
+    expect(() => imageApiSourceMetadata(source)).toThrow(/requires capabilities\.images\.apiKeyEnv/);
+  });
+
+  it("returns apiKeyEnv null for an unkeyed source (searxng shape)", () => {
+    const source = {
+      ...fakeSource,
+      capabilities: { images: { method: "api", requiresApiKey: false, apiKeyEnv: null } },
+    };
+    expect(imageApiSourceMetadata(source)).toEqual({
+      label: "Fake Image Search",
+      requiresApiKey: false,
+      apiKeyEnv: null,
+    });
+  });
+
+  it("throws when an unkeyed source declares a non-string apiKeyEnv", () => {
+    const source = {
+      ...fakeSource,
+      capabilities: { images: { method: "api", requiresApiKey: false, apiKeyEnv: 42 } },
+    };
+    expect(() => imageApiSourceMetadata(source)).toThrow(/apiKeyEnv must be a string/);
   });
 });
