@@ -242,11 +242,17 @@ if [ "$cmd" = "start" ]; then
   [ -n "$task" ] || { echo "usage: session-launcher.sh start <task-slug> [worktree-path]" >&2; exit 1; }
   task=$(printf '%s' "$task" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//')
   [ -n "$task" ] || { echo "error: task slug normalizes to empty" >&2; exit 1; }
+  # Everything below is anchored on the MAIN checkout, never on $ROOT: start can
+  # be invoked from inside a session worktree (npm resolves that worktree's own
+  # package.json), and a path written from there names a checkout that
+  # session:stop later deletes — the new session would silently lose its gates
+  # (#864).
+  [ -n "$MAIN_WT" ] || { echo "error: cannot resolve the main worktree from $(git rev-parse --git-common-dir) — refusing to start" >&2; exit 1; }
 
   # --- 2. hooks present? ------------------------------------------------------
   if [ "$(git config core.hooksPath 2>/dev/null || echo '')" != ".githooks" ]; then
     echo "[session] hooksPath unset — running the installer first"
-    bash "$ROOT/scripts/install-git-hooks.sh"
+    bash "$MAIN_WT/scripts/install-git-hooks.sh"
   fi
   [ -f "$REGISTRY" ] || { mkdir -p "$REGISTRY_DIR"; printf '# Session Registration Log\n' > "$REGISTRY"; }
 
@@ -262,7 +268,7 @@ if [ "$cmd" = "start" ]; then
 
   # --- 3. worktree ------------------------------------------------------------
   if [ -z "$wtpath" ]; then
-    wtpath="$(dirname "$ROOT")/$(basename "$ROOT")-wt/$id"
+    wtpath="$(dirname "$MAIN_WT")/$(basename "$MAIN_WT")-wt/$id"
   fi
   mkdir -p "$(dirname "$wtpath")"
 
@@ -294,20 +300,41 @@ if [ "$cmd" = "start" ]; then
   # --- 3b. worktree -----------------------------------------------------------
   git worktree add -b "session/$id" "$wtpath" "$base_sha" >/dev/null
 
-  # A RELATIVE core.hooksPath resolves inside each worktree, where .githooks
-  # does not exist — hooks would silently never run there (measured: no
-  # commit-msg, no ref-gate). Per-worktree config with an ABSOLUTE path fixes
-  # this; the main checkout keeps its relative setting.
+  # `.githooks/` is tracked today (#406 removed the .gitignore rule), so a
+  # relative core.hooksPath would resolve inside every worktree. The absolute
+  # path is kept because it names ONE authority — the main checkout's tracked
+  # hooks, the same contract install-git-hooks.sh and git-workflow §9 use — and
+  # because the per-worktree config keeps the main checkout's relative setting
+  # untouched. $MAIN_WT, never $ROOT: a start launched from a session worktree
+  # would otherwise pin this one to a checkout that session:stop deletes (#864).
   git config extensions.worktreeConfig true
-  git -C "$wtpath" config --worktree core.hooksPath "$ROOT/.githooks"
+  git -C "$wtpath" config --worktree core.hooksPath "$MAIN_WT/.githooks"
+
+  # Fail-closed assertion: a hooksPath git cannot resolve is not an error to
+  # git — every hook just stops running, silently (measured: a pre-commit that
+  # must exit 1 lets the commit through). Never hand over a worktree whose
+  # gates are unreachable. A main checkout older than the gate script still gets
+  # the minimum assertion rather than none.
+  hook_gate_failed=""
+  if [ -f "$MAIN_WT/scripts/check-hook-liveness.mjs" ]; then
+    node "$MAIN_WT/scripts/check-hook-liveness.mjs" --repo "$wtpath" || hook_gate_failed=1
+  elif [ ! -x "$MAIN_WT/.githooks/commit-msg" ]; then
+    echo "[session] no gate script in this checkout and $MAIN_WT/.githooks/commit-msg is not executable"
+    hook_gate_failed=1
+  fi
+  if [ -n "$hook_gate_failed" ]; then
+    echo "[session] error: the new worktree's hooks are not live — refusing to hand over a session whose commits would run no gate" >&2
+    echo "[session] the worktree was left at $wtpath for inspection; remove it with: git worktree remove --force \"$wtpath\" && git branch -D \"session/$id\"" >&2
+    exit 1
+  fi
 
   # --- 3c. provision ----------------------------------------------------------
   # A bare `git worktree add` has no installed dependencies and none of the
   # gitignored local artifacts (reference voice, fixture media), so the six
   # `npx remotion still` suites fail before any work starts. Fill them in from
   # the main checkout; fail-open, and skippable.
-  if [ -z "${SESSION_NO_PROVISION:-}" ] && [ -f "$ROOT/scripts/session-provision.sh" ]; then
-    bash "$ROOT/scripts/session-provision.sh" "$wtpath"
+  if [ -z "${SESSION_NO_PROVISION:-}" ] && [ -f "$MAIN_WT/scripts/session-provision.sh" ]; then
+    bash "$MAIN_WT/scripts/session-provision.sh" "$wtpath"
   fi
 
   # --- 4. per-worktree state --------------------------------------------------

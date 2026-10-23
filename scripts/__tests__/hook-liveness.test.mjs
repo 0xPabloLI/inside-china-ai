@@ -24,6 +24,12 @@ function runGate(repo, script = GATE) {
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }
 
+/** Default mode: inspect every worktree of the repo the cwd belongs to. */
+function runGateAll(repo) {
+  const result = spawnSync(process.execPath, [GATE], { cwd: repo, encoding: "utf8" });
+  return { status: result.status, output: `${result.stdout}${result.stderr}` };
+}
+
 /** A hook file with the exec bit, as the repo tracks them (100755). */
 function writeHook(dir, name, body = "#!/bin/sh\nexit 0\n") {
   const path = join(dir, name);
@@ -34,6 +40,7 @@ function writeHook(dir, name, body = "#!/bin/sh\nexit 0\n") {
 describe("check-hook-liveness", () => {
   let repo;
   let hooksDir;
+  let extraDirs;
 
   beforeEach(() => {
     repo = mkdtempSync(join(tmpdir(), "hook-liveness-"));
@@ -42,11 +49,21 @@ describe("check-hook-liveness", () => {
     git(repo, "init", "-q", "--initial-branch=main");
     git(repo, "config", "user.email", "test@example.com");
     git(repo, "config", "user.name", "test");
+    extraDirs = [];
   });
 
   afterEach(() => {
     rmSync(repo, { recursive: true, force: true });
+    for (const dir of extraDirs) rmSync(dir, { recursive: true, force: true });
   });
+
+  /** A linked worktree of `repo`, as `session:start` creates them. */
+  function addWorktree() {
+    const dir = mkdtempSync(join(tmpdir(), "hook-liveness-wt-"));
+    extraDirs.push(dir);
+    git(repo, "worktree", "add", "-q", "-b", `session/wt${extraDirs.length}`, dir, "HEAD");
+    return dir;
+  }
 
   /** The healthy shape: one tracked, executable hook, hooksPath activated. */
   function makeLiveRepo() {
@@ -181,5 +198,42 @@ describe("check-hook-liveness", () => {
     mkdirSync(join(hooksDir, "post-checkout"));
 
     expect(runGate(repo).status).toBe(0);
+  });
+
+  // The launcher's self-check covers the worktree it just created; this default
+  // mode covers every other one — a per-worktree `core.hooksPath` pointing at a
+  // deleted checkout leaves a worktree whose commits run no gate at all, and
+  // nothing else reports it (#864).
+  it("default mode checks every worktree and passes when all are live", () => {
+    makeLiveRepo();
+    addWorktree();
+
+    const { status, output } = runGateAll(repo);
+    expect(output).toMatch(/2 worktree/i);
+    expect(status).toBe(0);
+  });
+
+  it("default mode fails and names a worktree whose per-worktree hooksPath dangles", () => {
+    makeLiveRepo();
+    const wt = addWorktree();
+    const gone = join(wt, "deleted-outer-worktree", ".githooks");
+    git(repo, "config", "extensions.worktreeConfig", "true");
+    git(wt, "config", "--worktree", "core.hooksPath", gone);
+
+    const { status, output } = runGateAll(repo);
+    expect(status).toBe(1);
+    expect(output).toContain(wt);
+    expect(output).toMatch(/core\.hooksPath/);
+    expect(output).toMatch(/pre-commit/);
+  });
+
+  it("default mode refuses a vacuous pass when there is no worktree to check", () => {
+    const bare = mkdtempSync(join(tmpdir(), "hook-liveness-bare-"));
+    extraDirs.push(bare);
+    git(bare, "init", "-q", "--bare");
+
+    const { status, output } = runGateAll(bare);
+    expect(status).toBe(1);
+    expect(output).toMatch(/no worktree to check/);
   });
 });

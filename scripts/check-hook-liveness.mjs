@@ -29,6 +29,13 @@
  * Usage:
  *   node scripts/check-hook-liveness.mjs [--repo <path>]
  *
+ *   --repo <path>  inspect exactly this checkout (session:start asserts the
+ *                  worktree it just created this way)
+ *   (no flag)      inspect every worktree of the repo the cwd belongs to — a
+ *                  linked worktree carries its own per-worktree
+ *                  `core.hooksPath`, and one that points at a deleted checkout
+ *                  runs no hook at all while git reports no error (#864)
+ *
  * Exit: 0 = every hook is tracked, activated and reachable; 1 = otherwise.
  */
 
@@ -163,10 +170,87 @@ function findHookLivenessFindings(repo) {
   return { hooks: present, findings };
 }
 
+/**
+ * Every non-bare worktree of the repo `cwd` belongs to. `git worktree list` is
+ * shared state, so this answers the same from any of them; a bare repo has no
+ * checkout to judge and is dropped. Porcelain paths are raw, never quoted.
+ *
+ * @param {string} cwd
+ * @returns {string[]} existing worktree roots
+ */
+function listWorktrees(cwd) {
+  const entries = [];
+  let current = null;
+  for (const line of git(cwd, "worktree", "list", "--porcelain").split("\n")) {
+    if (line.startsWith("worktree ")) {
+      current = { path: line.slice("worktree ".length), bare: false };
+      entries.push(current);
+    } else if (line === "bare" && current) {
+      current.bare = true;
+    }
+  }
+  return entries
+    .filter(
+      (entry) =>
+        !entry.bare && statSync(entry.path, { throwIfNoEntry: false })?.isDirectory() === true,
+    )
+    .map((entry) => entry.path);
+}
+
 function main(argv) {
   const flag = argv.indexOf("--repo");
-  const repo = resolve(flag >= 0 && argv[flag + 1] ? argv[flag + 1] : process.cwd());
 
+  // One checkout on request — session:start passes the worktree it just made.
+  if (flag >= 0) return reportSingle(resolve(argv[flag + 1] || process.cwd()));
+
+  // Default: every worktree. A linked worktree's per-worktree core.hooksPath is
+  // invisible to the main checkout's own check, and a dangling one means that
+  // worktree's commits run no gate while git reports no error (#864).
+  let worktrees;
+  try {
+    worktrees = listWorktrees(process.cwd());
+  } catch (error) {
+    console.error(`check-hook-liveness: ${process.cwd()}: ${error.message}`);
+    return 1;
+  }
+  // Non-vacuity, same as the single-checkout mode: a bare repo has no checkout
+  // to judge, and "nothing to check" must never read as green.
+  if (worktrees.length === 0) {
+    console.error(
+      `check-hook-liveness: ${process.cwd()}: no worktree to check — refusing a vacuous pass`,
+    );
+    return 1;
+  }
+
+  const failed = [];
+  for (const wt of worktrees) {
+    let findings;
+    try {
+      ({ findings } = findHookLivenessFindings(wt));
+    } catch (error) {
+      findings = [error.message];
+    }
+    if (findings.length > 0) failed.push({ wt, findings });
+  }
+
+  if (failed.length > 0) {
+    console.error(
+      `[hook-liveness] FAIL — ${failed.length} of ${worktrees.length} worktree(s) have findings`,
+    );
+    for (const { wt, findings } of failed) {
+      console.error(`${wt}:`);
+      for (const finding of findings) console.error(`  - ${finding}`);
+    }
+    return 1;
+  }
+
+  console.log(
+    `[hook-liveness] clean — ${worktrees.length} worktree(s) checked, hooks tracked, activated and reachable`,
+  );
+  return 0;
+}
+
+function reportSingle(repo) {
   let hooks;
   let findings;
   try {
