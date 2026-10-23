@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 24 轮盘点 + 54 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述。
+> 本文件按时间倒序排列，共 25 轮盘点 + 55 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round LXXXV → LV）
+## 逐轮盘点（Round LXXXVI → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round LXXXVI：#707 策展 assets 根目录平铺副本清理交付闭票 + frontier 复算**——squash `48f299d2`（PR #885；三提交：主体清理 → 两轴评审修复 → droid P1 修复）。**定性 enabling fix（无产出 diff）**：解除的结构性排除是「策展根目录仍跟踪 5 份 content 包平铺副本，其中手制 Qwen 图是唯一被跟踪副本」——删除 4 份孤儿/重复副本（`scene-5/8-seed1024.mp4` 与根目录两张 qwen 图），`scene-10.mp4` 以 100% rename 迁入 `assets/dh-fixtures/` 并改绑 3 个手工 MiniCPM 脚本；droid P1 指出两张手制 Qwen 图删除后新 clone 无法重渲染，修复为把包内同名副本 force-add 进 `qwen4-preview` 与 `dh-pilot-qwen4`（SHA-256 与根副本一致，`scene-data.mjs` 路径本就指向包内），并在 `docs/media-asset-management.md` 的 force-add 例外表登记两包。**验证**：b-roll orchestrator 37/37、scene-rules 210 + scene-rules-avatar 26、`lint:mjs` 588 clean、`lint:docs` 0 FAIL、prettier/diff-check 干净、`py_compile` 3 脚本；droid-review 复核 head `f2e2af5d` 确认 P1 已解；CI（Lint/typecheck/test + Semgrep SAST/OSS + Socket）绿。**顺带核对**：策展根已无被跟踪的 content 同名副本；剩余平铺件均被 source-prefix ignore 规则覆盖（`pexels-ai-chip.jpg` 未跟踪，保持原状）。**未做/边界**：未改 `scene-data.mjs`（包内路径本就正确）；未触碰 `content/**` 其他未跟踪素材。**frontier 复算**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首仍 `#688`；Track 1B W1C 段清空，按 Tier 2 表顺序下一张为 **`#344`**（W2B · SearXNG 覆盖面审计，P2）→ `#779` → `#778` → `#353` → `#358` → `#329`。）
 
 （**Round LXXXV：#864 交付闭票 + frontier 复算**——squash `afe0826b`（PR #882；三提交：launcher/gate 修复 → docs 规则同步 → review 跟进）。**定性 enabling fix（无产出 diff）**：解除的结构性排除是「`session:start` 只能从主 checkout 启动」——launcher 从不阻止嵌套启动，于是从 session worktree 内启动时，`git rev-parse --show-toplevel` 取的是**调用者 checkout**，把外层 worktree 写进新 worktree 的 per-worktree `core.hooksPath`；外层 `session:stop` 删除该 checkout 后路径悬空，而 git 对悬空 hooksPath 不报错、只当没有 hook（#827 的首个 commit 就这样在零 hook 下完成：无 gitleaks、无 Session-Id trailer，需两次 amend 补回）。**实现**：以 `$MAIN_WT`（`git-common-dir` 推导）统一锚定默认 worktree 路径、`install-git-hooks.sh`、`core.hooksPath` 与 `session-provision.sh`；创建后跑 `check-hook-liveness.mjs --repo <新 worktree>`，不可达即 `error: ` fail-closed 拒绝交付（主 checkout 过旧无该脚本时退化为 `.githooks/commit-msg` 可执行的最小断言）；`check-hook-liveness.mjs` 默认模式从「只查 cwd 这一个 checkout」改为巡检仓库**全部** worktree——per-worktree 悬空路径正是主 checkout 自查看不到的形态，并拒绝「没有 worktree 可查」的空转绿，`--repo` 保留单 checkout 形态供 launcher 断言；保留绝对路径而非改相对 `.githooks`（指向唯一权威，且 per-worktree 配置不动主 checkout 的相对设置）。**review**：两轴 review + droid-review 2 条（P3 安装器守卫拿绝对锚点与字面量 `.githooks` 比较，导致每次 start-from-worktree 误报 unset 并重跑安装器 → 改为仅在为空时安装；P2 新 fatal 错误写作 `[session] error: ` 与脚本其余四条不一致 → 统一 `error: `），均已修并手动 resolve。**验证**：`session-launcher` + `hook-liveness` 76 passed（嵌套启动落在主 checkout 兄弟目录、外层 worktree 删除后新 worktree 的 `commit-msg` 仍拦提交、不可达时非零退出且不打印 `session started`；默认模式点名悬空 worktree 并打印 `core.hooksPath`、bare 仓库拒绝空转绿）；真实仓库冒烟：从本会话 worktree 内启动，新 worktree 落在 `inside-china-ai-wt/`、hooksPath → 主 checkout，默认模式 4 个真实 worktree clean。**frontier 复算**：Track 1A 段内队列仍空（本轮无新符合判据的 `ready-for-agent` 票）；Track 1B 队首 **`#707`**（P3）；Track 2 Active Map `#291` frontier 空；Track 3 队首 **`#688`**。）
 
@@ -65,10 +67,12 @@
 
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
-## 近轮一句话档案（Round LXXX → J）
+## 近轮一句话档案（Round LXXXI → J）
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round LXXXI**（`#818` 交付闭票——Step 6 `subtitle-alignment` 空转查明：候选 1 确认（漏导入 `generateSubtitles` 必抛 `ReferenceError`）、候选 2 独立排除（`.ass` 与门禁 expected 侧同源 + 强制对齐逐字节确定）、候选 3 对本次事故排除但管道潜伏缺陷另开 `#870`；该类别移出重试集合、修复未跑成时不再复验未变/半应用产物；真机 `--sweep` 33 包 0 词序列失配 + A/B 两包对照；两轴 review 抓出 CI skip 陈旧条目（回归测试在 CI 从不执行，已移除）与证据不可复跑（已落 `--determinism`）；PR #869 squash `96013fc5`；frontier：Track 1A 队首 → `#846` → `#817`）
 
 **Round LXXX**（4 张新开/待分流票 `#864`/`#846`/`#818`/`#817` 源码核验、语料实测、方案审查/补齐与 Triage 入表 + frontier 复算：`#864`（P1 bug，`session:start` 统一用 `$MAIN_WT` 替代外层 `$ROOT` + 创建末尾 `check-hook-liveness.mjs` 自检 + 全 worktree 遍历）入 Tier 1 · P1·W1C 并升任 Track 1B 队首；`#818`（P2 bug，证实 `main.mjs` 漏导入 `generateSubtitles` 致 Step 6 `subtitle-alignment` 修复每次抛 `ReferenceError` 且 `verify-retry.mjs` 在 `success:false` 时仍空转重跑 `verifyFn()`，外加 `wav2vec2` 确定性不可自愈 `.ass` vs `timingData` 词序漂移——移出自动重试 fail-fast）、`#846`（P2 bug，`#758` 后全仓 26 包实测仍有 18 个含前置 `aiVideo`/`aiImage`/`avatar` 或 `media:null` 的真实场景因 `[^}]*?` 定位失败，外加 `--force` 抹除 `evidence:true`、4 处 formatter 重复漏 5 个 `MEDIA_FIELD_KEYS`、CLI 拒 `schemaVersion` 信封）、`#817`（P2 enhancement，双轨第 4 轴词数守恒——兼容 Rule 2 多词 `original` 如 `"GPT 5.5"` 与独立标点 `—` 后全仓 231 有声场景 231/231 零误报通过）入 Tier 2 · P1·W1A/W1C 并组成 Track 1A 新队列 `#818 → #846 → #817`；清理 `comments-unread`）；更早轮次（Round LXXIX → J）见 [`archive/roadmap-inventory-history-2026-10-22.md`](archive/roadmap-inventory-history-2026-10-22.md)；2026-09-24 精简前的全量叙事见 [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md) 与 issues/269 评论。
 
@@ -323,7 +327,7 @@
 - **docs/tools-catalog.md adr/0021-tool-catalog-split.md docs/DOCS-INDEX** — ✅ **#864**（`scripts/session-launcher.sh` 的 `$MAIN_WT` 锚定 + `scripts/check-hook-liveness.mjs` 的全 worktree 遍历/`--repo` 单点模式，session/hook seam 释放）已交付闭票（2026-10-23，PR #882 squash `afe0826b`，Round LXXXV）
 - **remotion/src/scenes/HookScene.tsx ContrastScene.tsx Narrativ** — ✅ **#846**（`apply-media-patch.mjs` + `lib/media-patch-format.mjs` 串行段释放）已交付闭票（2026-10-22，PR #875 squash `18624d71`，Round LXXXIII）
 - **scripts/short-video/main.mjs render-only.mjs lib/media-track** — ✅ **#759**（PR #831）、✅ **#753**（PR #814）、✅ **#764**（2026-10-20）、✅ **#623**（PR #801）、✅ **#624**、✅ **#425**（PR #694）与 ✅ **#421**（PR #561）均已交付闭票
-- **scripts/short-video/search-sources.mjs lib/source-registry.m** — ✅ #424（PR #586）、✅ #447（PR #614）、✅ #636（PR #681）、✅ **#547**（PR #769）已交付闭票；其余保持source-health seam契约
+- **scripts/short-video/search-sources.mjs lib/source-registry.m** — ✅ #424（PR #586）、✅ #447（PR #614）、✅ #636（PR #681）、✅ **#547**（PR #769）已交付闭票；✅ **#344** 已于 2026-10-23 交付闭票（PR #887，squash `27e60278`）；其余保持source-health seam契约
 - **lib/source-health.mjs lib/search-pool.mjs pool-canary.mjs __** — ✅ #286 已随 #309 闭票
 - **lib/video-downloaders.mjs lib/ytdlp-guard.mjs bench/keyframe** — ✅ #328 已交付闭票（2026-10-15，PR #640 `0a45432e`：Firefox 固定 profile 通道 + argv 化）
 - **lib/video-downloaders.mjs lib/ytdlp-guard.mjs bench/keyframe** — ✅ #636 已交付闭票（PR #681：`selectStrategy` 非 http(s) 跳过 + `classifyError` 主机命名 + `urlHost` 复用）；bench全长与生产clip契约分开
