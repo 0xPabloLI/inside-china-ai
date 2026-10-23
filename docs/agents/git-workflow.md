@@ -70,7 +70,7 @@
 - session 结束时记录 commit hash、未 push 状态、验证证据、产品影响（`implementation-workflow.md` §9 步骤 8）和剩余 blocker。
 - **Issue 交付落档与读票**：per-issue 交付记录按 `docs/agents/issue-tracker.md` 的 Session cognitive offload 表执行——closing comment 落档，不改正文（body 编辑是整体替换，会覆盖其他 session 的内容）。读票同样按该文件的 read-before-claim 规则执行：正文不是票的完整状态，开工前必须读评论，判定方式与唯一读法见该文件。
 - **Session-Id 关联标识（安装了 hooks 的 checkout 强制，commit-msg hook 校验 trailer；strict 模式另校验登记）**：
-  - 开工先确认已安装：`npm run lint:hooks`——它断言 `core.hooksPath` 已设、`.githooks/` 每个 hook 都被 git 跟踪且在 index 里带 `100755` 执行位、激活目录里可达可执行、`.git/hooks/` 无惰性影子文件（#406 的代码门禁，替代原先只读 `git config` 的自查：那只验配置对不对，验不出某份 hook 被写到了被该配置屏蔽的目录）。新 clone 跑 `npm run setup:hooks` 安装；它同时设置 strict 登记门控。未安装时本规则仍是约定，只是无 hook 兜底。
+  - 开工先确认已安装：`npm run lint:hooks`——它断言 `core.hooksPath` 已设、`.githooks/` 每个 hook 都被 git 跟踪且在 index 里带 `100755` 执行位、激活目录里可达可执行、`.git/hooks/` 无惰性影子文件（#406 的代码门禁，替代原先只读 `git config` 的自查：那只验配置对不对，验不出某份 hook 被写到了被该配置屏蔽的目录）。**默认巡检所有 worktree**（每个 worktree 的 per-worktree `core.hooksPath` 也在其内——#864：指向已删除 checkout 的路径不会让 git 报错，只会让该 worktree 的所有 commit 静默无门禁）；`--repo <path>` 只查指定 checkout。`npm run session:start` 在交出新 worktree 前用它自检，不可达即 fail-closed 拒绝交付该 session。新 clone 跑 `npm run setup:hooks` 安装；它同时设置 strict 登记门控。未安装时本规则仍是约定，只是无 hook 兜底。
   - session 开工生成 id（格式 `<yyyymmdd>-<task>-<6hex>`，如 `20260903-refactor-a1b2c3`）并登记 `$(git rev-parse --git-common-dir)/session-pilot/pilot-log.md`（所有 worktree 共享；tool / Session-Id / baseline / commit 清单 / compact 状态）。
   - commit 带 `--trailer "Session-Id: <id>"`；strict 下 hook 校验 id 已登记（fail-closed：无登记表也拦截）；amend 不得叠加第二个 id（双 id 让两侧精确查询都失效）。
   - 用 `npm run session:start` 开工的会话无需手写 trailer：per-session 状态文件存在时 prepare-commit-msg 自动填 `Session-Id`（amend 与显式 `--trailer` 均不会叠加第二个 id）；无状态文件的 checkout 才需手动 `--trailer`。
