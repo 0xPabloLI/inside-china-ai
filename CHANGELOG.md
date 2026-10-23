@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.4...tanstack_start_ts-v1.28.5) (2026-10-23)
+
+
+### Bug Fixes
+
+* **session:** 嵌套 session 的 hooks 锚定主 checkout，交付前 fail-closed 自检 ([#864](https://github.com/0xPabloLI/inside-china-ai/issues/864)) ([#882](https://github.com/0xPabloLI/inside-china-ai/issues/882)) ([afe0826](https://github.com/0xPabloLI/inside-china-ai/commit/afe0826bed12e83ee3815a4bfb234145b37a3d66))
+
 ## [1.28.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.3...tanstack_start_ts-v1.28.4) (2026-10-23)
 
 
