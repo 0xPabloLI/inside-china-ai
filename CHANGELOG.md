@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.3...tanstack_start_ts-v1.28.4) (2026-10-23)
+
+
+### Bug Fixes
+
+* **short-video:** make apply-media-patch rewrite structure-aware ([#846](https://github.com/0xPabloLI/inside-china-ai/issues/846)) ([#875](https://github.com/0xPabloLI/inside-china-ai/issues/875)) ([18624d7](https://github.com/0xPabloLI/inside-china-ai/commit/18624d71e490c0ed2181fb69534107bff8eea621))
+
 ## [1.28.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.2...tanstack_start_ts-v1.28.3) (2026-10-22)
 
 
