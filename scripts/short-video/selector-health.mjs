@@ -47,7 +47,7 @@ import {
 } from "./lib/source-url-heal.mjs";
 import { judgeRelevance } from "./lib/source-health.mjs";
 import { loadEnv } from "./lib/load-env.mjs";
-import { ensureSearxng, isSearxngAutoStartEnabled } from "../searxng/lifecycle.mjs";
+import { ensureSearxng } from "../searxng/lifecycle.mjs";
 import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import {
   cdpNewTab,
@@ -577,7 +577,7 @@ async function main() {
 
   // #891: a parked container is healthy, not a dead source. Start it before
   // probing so the health report measures the selector, not the park state.
-  if (sources.some((s) => s.name === "searxng_search") && isSearxngAutoStartEnabled()) {
+  if (sources.some((s) => s.name === "searxng_search")) {
     const searxng = await ensureSearxng({ quiet: true });
     if (!searxng.ok && !searxng.skipped) {
       console.log(`  ⚠️  SearXNG not started: ${searxng.reason || "unknown"}`);

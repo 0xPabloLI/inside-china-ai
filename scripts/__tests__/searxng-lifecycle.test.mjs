@@ -1,11 +1,14 @@
-import { describe, it, expect } from "vitest";
+import os from "node:os";
+import { promises as fs } from "node:fs";
+import { describe, it, expect, afterAll } from "vitest";
 import {
   parseNetIo,
   parseMemoryFreePct,
   nextParkState,
   decidePark,
   isSearxngAutoStartEnabled,
-  isLocalSearxngUrl,
+  ensureSearxng,
+  parkSearxng,
 } from "../searxng/lifecycle.mjs";
 
 describe("parseNetIo", () => {
@@ -144,16 +147,73 @@ describe("isSearxngAutoStartEnabled", () => {
   });
 });
 
-describe("isLocalSearxngUrl", () => {
-  it("recognizes the local SearXNG endpoints", () => {
-    expect(isLocalSearxngUrl("http://localhost:8888/search")).toBe(true);
-    expect(isLocalSearxngUrl("http://127.0.0.1:8888/config")).toBe(true);
-    expect(isLocalSearxngUrl("http://localhost/")).toBe(true);
+describe("ensureSearxng", () => {
+  it("skips without touching docker when SEARXNG_AUTO_START=0", async () => {
+    const original = process.env.SEARXNG_AUTO_START;
+    process.env.SEARXNG_AUTO_START = "0";
+    try {
+      await expect(ensureSearxng()).resolves.toEqual({
+        ok: false,
+        skipped: true,
+        reason: "auto-start-disabled",
+      });
+    } finally {
+      if (original === undefined) delete process.env.SEARXNG_AUTO_START;
+      else process.env.SEARXNG_AUTO_START = original;
+    }
+  });
+});
+
+describe("parkSearxng settle recheck", () => {
+  const statePath = os.tmpdir() + `/searxng-park-test-${process.pid}.json`;
+
+  afterAll(() => fs.rm(statePath, { force: true }));
+
+  it("aborts the stop when NetIO moves during the settle window", async () => {
+    await fs.writeFile(
+      statePath,
+      JSON.stringify({ netIo: "10MB / 5MB", lastChangeAt: Date.now() - 600_000 }),
+    );
+    let reads = 0;
+    const stopped = [];
+    const result = await parkSearxng({
+      apply: true,
+      settleMs: 1,
+      statePath,
+      platform: "darwin",
+      deps: {
+        colimaRunning: async () => true,
+        containerRunning: async () => true,
+        readNetIo: async () => (reads++ === 0 ? "10MB / 5MB" : "12MB / 7MB"),
+        readMemoryFreePct: async () => 9,
+        docker: async (args) => stopped.push(args),
+      },
+    });
+    expect(result.park).toBe(false);
+    expect(result.reason).toBe("netio-moved-during-settle");
+    expect(stopped).toHaveLength(0);
   });
 
-  it("rejects remote and lookalike hosts", () => {
-    expect(isLocalSearxngUrl("https://example.test/search")).toBe(false);
-    expect(isLocalSearxngUrl("http://localhost.evil/search")).toBe(false);
-    expect(isLocalSearxngUrl("")).toBe(false);
+  it("stops when NetIO stays flat through the settle window", async () => {
+    await fs.writeFile(
+      statePath,
+      JSON.stringify({ netIo: "10MB / 5MB", lastChangeAt: Date.now() - 600_000 }),
+    );
+    const stopped = [];
+    const result = await parkSearxng({
+      apply: true,
+      settleMs: 1,
+      statePath,
+      platform: "darwin",
+      deps: {
+        colimaRunning: async () => true,
+        containerRunning: async () => true,
+        readNetIo: async () => "10MB / 5MB",
+        readMemoryFreePct: async () => 9,
+        docker: async (args) => stopped.push(args),
+      },
+    });
+    expect(result.park).toBe(true);
+    expect(stopped).toEqual([["stop", "searxng"]]);
   });
 });

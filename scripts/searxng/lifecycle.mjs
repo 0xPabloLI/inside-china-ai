@@ -45,6 +45,10 @@ const DOCKER_TIMEOUT_MS = 15_000;
 const COLIMA_TIMEOUT_MS = 10_000;
 const START_TIMEOUT_MS = 30_000;
 const MEMORY_PRESSURE_BIN = "/usr/bin/memory_pressure";
+// The park agent's NetIO baseline is up to 5 minutes stale, so a query that
+// started seconds before the sample can look quiet. Re-sample after this
+// settle delay before an actual stop; movement aborts the park.
+const PARK_SETTLE_MS = 10_000;
 
 /** Normalize Docker's "43.2MB / 15.1MB" NetIO reading for equality checks. */
 export function parseNetIo(raw) {
@@ -62,11 +66,6 @@ export function parseMemoryFreePct(text) {
 /** Shared opt-out for pipeline callers (`SEARXNG_AUTO_START=0`). */
 export function isSearxngAutoStartEnabled() {
   return process.env.SEARXNG_AUTO_START !== "0";
-}
-
-/** The container (and therefore ensure) only makes sense for the local URL. */
-export function isLocalSearxngUrl(url) {
-  return /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::|\/|$)/.test(String(url ?? ""));
 }
 
 /**
@@ -199,6 +198,9 @@ async function removeState(file = STATE_PATH) {
  * with cobalt/watchtower/buildkit and the user chose container-level parking.
  */
 export async function ensureSearxng({ quiet = false, log = console.log } = {}) {
+  if (!isSearxngAutoStartEnabled()) {
+    return { ok: false, skipped: true, reason: "auto-start-disabled" };
+  }
   if (process.platform !== "darwin") return { ok: false, skipped: true, reason: "not-macos" };
   if (await httpOk()) return { ok: true, started: false };
   if (!(await colimaRunning())) {
@@ -234,19 +236,29 @@ export async function parkSearxng({
   idleMs = IDLE_MS,
   pressureFreePct = PRESSURE_FREE_PCT,
   statePath = STATE_PATH,
+  settleMs = PARK_SETTLE_MS,
   log = console.log,
+  deps = {},
+  platform = process.platform,
 } = {}) {
-  if (process.platform !== "darwin") return { park: false, skipped: true, reason: "not-macos" };
-  if (!(await colimaRunning())) {
+  const {
+    colimaRunning: colimaRunningFn = colimaRunning,
+    containerRunning: containerRunningFn = containerRunning,
+    readNetIo: readNetIoFn = readNetIo,
+    readMemoryFreePct: readMemoryFreePctFn = readMemoryFreePct,
+    docker: dockerFn = docker,
+  } = deps;
+  if (platform !== "darwin") return { park: false, skipped: true, reason: "not-macos" };
+  if (!(await colimaRunningFn())) {
     return { park: false, skipped: true, reason: "colima-not-running" };
   }
-  if (!(await containerRunning())) {
+  if (!(await containerRunningFn())) {
     await removeState(statePath);
     return { park: false, skipped: true, reason: "container-not-running" };
   }
 
-  const netIo = await readNetIo();
-  const freePct = await readMemoryFreePct();
+  const netIo = await readNetIoFn();
+  const freePct = await readMemoryFreePctFn();
   const previous = await readState(statePath);
   const state = nextParkState({ now, netIo, previous });
   if (state && state !== previous) await writeState(state, statePath);
@@ -271,8 +283,18 @@ export async function parkSearxng({
   }
   if (!apply) return { park: false, wouldPark: true, reason: decision.reason, netIo, freePct };
 
+  if (settleMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, settleMs));
+    const recheck = await readNetIoFn();
+    if (recheck && recheck !== netIo) {
+      // Traffic appeared between the sample and the stop: a query is in
+      // flight and the stale baseline lied. Leave it running.
+      return { park: false, skipped: true, reason: "netio-moved-during-settle", netIo, recheck };
+    }
+  }
+
   try {
-    await docker(["stop", CONTAINER_NAME], { timeout: 60_000 });
+    await dockerFn(["stop", CONTAINER_NAME], { timeout: 60_000 });
     await removeState(statePath);
     const message = `searxng: parked (${decision.reason})`;
     log(message);

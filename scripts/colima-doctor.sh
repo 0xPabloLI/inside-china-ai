@@ -64,7 +64,9 @@ check_searxng_container() {
   fi
   # #891: the park agent stops the container by design; a clean exit with the
   # agent installed is parked, not a failure. Do not send the user to --rebuild.
-  if [ -f "$HOME/Library/LaunchAgents/com.inside-china-ai.searxng-park.plist" ]; then
+  # Detect the agent by content (it invokes lifecycle.mjs park), not by plist
+  # label — the label is owned by install-park-agent.mjs and may change.
+  if grep -rls "lifecycle.mjs" "$HOME/Library/LaunchAgents" >/dev/null 2>&1; then
     case "${status:-}" in
       "Exited (0)"*)
         SEARXNG_PARKED=true

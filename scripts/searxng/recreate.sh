@@ -11,6 +11,14 @@ if ! colima status >/dev/null 2>&1; then
   exit 1
 fi
 
+# Docker creates a missing host dir as an empty root-owned directory, so a
+# bind-mount without settings boots default config where format=json is
+# disabled — the /config probe below would still report 200.
+if [ ! -f "$HOME/searxng/settings.yml" ]; then
+  echo "missing $HOME/searxng/settings.yml; rescue it first (see scripts/colima-doctor.sh)" >&2
+  exit 1
+fi
+
 echo "Recreating searxng container (--cpus 0.5 --memory 768m)..."
 colima ssh -- sudo docker rm -f searxng >/dev/null 2>&1 || true
 colima ssh -- sudo docker run -d --name searxng --restart unless-stopped -p 8888:8080 \

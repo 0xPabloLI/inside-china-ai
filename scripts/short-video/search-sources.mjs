@@ -75,7 +75,7 @@ import {
   dedupByUrl,
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS, resolveLoginGate } from "./lib/source-registry.mjs";
-import { ensureSearxng, isSearxngAutoStartEnabled } from "../searxng/lifecycle.mjs";
+import { ensureSearxng } from "../searxng/lifecycle.mjs";
 import {
   updateSourceHealth,
   deriveZeroResultSources,
@@ -714,8 +714,9 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
   } = deps;
 
   // #891: ensure right before this source is collected, not only at run start
-  // (a long research run can outlive the park window). Fail-open.
-  if (source?.name === "searxng_search" && isSearxngAutoStartEnabled()) {
+  // (a long research run can outlive the park window). The SEARXNG_AUTO_START
+  // opt-out lives inside ensureSearxng. Fail-open.
+  if (source?.name === "searxng_search") {
     await ensureSearxng({ quiet: true }).catch(() => {});
   }
 
