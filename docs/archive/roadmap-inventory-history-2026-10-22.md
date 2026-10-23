@@ -216,7 +216,6 @@
 ### Dominant & Satellite Issue Hierarchy（主导与卫星 Issue 层级）
 
 - **Phase 1: 管线可靠性与安全闭环** — ✅ **#864** (session:start 嵌套 worktree `core.hooksPath` 悬空修复与全 worktree 存活巡检, P1 bug——已交付闭票 2026-10-23，PR #882 squash `afe0826b`，Round LXXXV；enabling fix)
-
 - **Phase 1: 管线可靠性与安全闭环** — ✅ **#271** TTS Quality Gate 语义分流与出片阻断 (P1, 已闭票)
 - **Phase 1: 管线可靠性与安全闭环** — ✅ **#272** Avatar 唇同步时长一致性 Gate (P1, 已闭票)
 - **Phase 1: 管线可靠性与安全闭环** — ✅ **#270** TTS instruct 标准机制级化 (P2, 已闭票)
@@ -265,7 +264,6 @@
 ### Execution Waves（执行波次总表）
 
 - **W1C · 工程卫生、安全与状态治理** — ✅ **#864**（`session:start` 以 `$MAIN_WT` 锚定 worktree 路径/安装器/`core.hooksPath`/provisioning + 交付前 `check-hook-liveness.mjs` fail-closed 自检 + gate 默认模式巡检全部 worktree）已交付闭票（2026-10-23，PR #882 squash `afe0826b`，Round LXXXV）
-
 - **W1C · 工程卫生、安全与状态治理** — ✅ **#846**（apply-media-patch 顶层大括号扫描、Evidence 覆盖显式决定与单源格式化）已交付闭票（2026-10-22，PR #875 squash `18624d71`，Round LXXXIII）
 - **W1A · 既有门控与产物可靠性续补** — ✅ **#827**（alignment-guards trim 回读透传 `keyEntities`）已交付闭票（2026-10-22，PR #863 squash `d2378bd9`，Round LXXIX）
 - **W1A · 既有门控与产物可靠性续补** — ✅ **#820**（F5 兜底后重跑 pacing 补偿阶梯）已交付闭票（2026-10-22，PR #859 squash `ac96dd51`，Round LXXVIII）
@@ -299,7 +297,6 @@
 ### Detailed Phase Roadmaps（阶段执行分解）
 
 - **Wave 1C（工程卫生、安全与状态治理）** — ✅ **#864**（`session:start` 从 session worktree 内启动时把外层 worktree 写进新 worktree 的 per-worktree `core.hooksPath`，外层 `session:stop` 删 checkout 后 hook 静默全灭——git 对悬空 hooksPath 不报错）已交付闭票（2026-10-23，PR #882 squash `afe0826b`，Round LXXXV）
-
 - **Wave 1C（工程卫生、安全与状态治理）** — ✅ **#846**（`apply-media-patch` 顶层 scene 大括号扫描替代 `[^}]*?` 前缀正则、Evidence 覆盖显式决定、单源 `media-patch-format.mjs`）已交付闭票（2026-10-22，PR #875 squash `18624d71`，Round LXXXIII）
 - **Wave 1A（既有门控续补）** — ✅ #271/#272原交付保留
 - **Wave 1A（既有门控续补）** — ✅ **#629**（尾裁切对齐可疑守卫 + 基数词发音展开与裁切后二次 ASR 读回验证）已交付闭票（2026-10-15，PR #640 `0a45432e` + PR #671 `95a7f5ca`）
@@ -320,7 +317,6 @@
 ### Conflict Risk Matrix（文件并发风险矩阵）
 
 - **docs/tools-catalog.md adr/0021-tool-catalog-split.md docs/DOCS-INDEX** — ✅ **#864**（`scripts/session-launcher.sh` 的 `$MAIN_WT` 锚定 + `scripts/check-hook-liveness.mjs` 的全 worktree 遍历/`--repo` 单点模式，session/hook seam 释放）已交付闭票（2026-10-23，PR #882 squash `afe0826b`，Round LXXXV）
-
 - **remotion/src/scenes/HookScene.tsx ContrastScene.tsx Narrativ** — ✅ **#846**（`apply-media-patch.mjs` + `lib/media-patch-format.mjs` 串行段释放）已交付闭票（2026-10-22，PR #875 squash `18624d71`，Round LXXXIII）
 - **scripts/short-video/main.mjs render-only.mjs lib/media-track** — ✅ **#759**（PR #831）、✅ **#753**（PR #814）、✅ **#764**（2026-10-20）、✅ **#623**（PR #801）、✅ **#624**、✅ **#425**（PR #694）与 ✅ **#421**（PR #561）均已交付闭票
 - **scripts/short-video/search-sources.mjs lib/source-registry.m** — ✅ #424（PR #586）、✅ #447（PR #614）、✅ #636（PR #681）、✅ **#547**（PR #769）已交付闭票；其余保持source-health seam契约
