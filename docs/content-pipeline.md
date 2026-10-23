@@ -443,6 +443,10 @@ node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 �
 
 > **Tier 3 图片搜索池（#112）**：asset-sourcer 在 Tier 1（stock API）+ Tier 2（CDP 新闻源）素材不足时，触发 Tier 3 开放搜索引擎图片搜索。引擎注册表在 `scripts/short-video/lib/progressive-search.mjs` → `IMAGE_SEARCH_ENGINES`（其中 `brave_image`/`searxng_image` 的 label/凭据/URL/parser 派生自 `source-registry.mjs`，SSOT；pool 只保留传输层：quota、错误吞掉），按序运行：Brave Image（`BRAVE_SEARCH_API_KEY`，无 key 跳过）→ SearXNG Image（localhost:8888，不可用跳过）→ Google Images（CDP `tbm=isch`）→ Bing Images（CDP，`a.iusc` murl 全分辨率）→ DuckDuckGo Images（纯 fetch，vqd token + `i.js` JSON，无 CDP）→ Tavily Images（`TAVILY_API_KEY`，`include_images` 兜底，末位）。引擎间 `Promise.allSettled` 并行、同引擎内关键词串行（防反爬；CDP 域名级限流由 `cdpNewTab` 的 rate-limiter 承担）。结果与 Brave/SearXNG 同管道：preFilter → 去重 → 下载 → 版权未验证标注。新增引擎改 `IMAGE_SEARCH_ENGINES`，不动 asset-sourcer；调整 `brave_image`/`searxng_image` 的身份/凭据/URL/解析改 `source-registry.mjs`。
 
+> **源产出基线断言（#779）**：每次 run 结束时写 `output/<slug>/source-yield-report.json`（每源 contributed＝本轮进入素材池的 image/video 数，text-only 与 `cached-media` 不计；连同 skipped/failed 对照基线），并追加一行到 `output/source-yield-history.jsonl`（仅期望源，含 0）。
+> 基线规则＝最近 **10 次**历史 run 中的**最低正贡献**（0 视为未观测、不计入；纯算术、可由持久化数据重算，无网络/模型调用）；ledger 为空时首次 run 从既有 `output/asset-report.json` 与各包 `output/<slug>/media-patch.json` bootstrap。
+> 跌破基线（含 0）时打印非阻塞 `⚠️ [SOURCE-YIELD-DROP] <source>: actual <n> < baseline <b> — <原因>`；独立运行加 `--strict-yield` 才以退出码 1 失败，`media-track` 内调用保持不阻断。
+
 > **云 GPU 资源**：当需要跑 CUDA 模型时，使用云 GPU 资源 pool。优先级和 fallback 规则见 `docs/research/digital-human-test-progress.md` → 「云 GPU 资源 Pool 与 Fallback」章节。
 
 ### 4b. RAG Reindex（多媒体素材）
