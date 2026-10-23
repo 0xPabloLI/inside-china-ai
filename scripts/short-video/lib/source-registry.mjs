@@ -1932,7 +1932,7 @@ export const GENERAL_SEARCH_SOURCES = [
         "Self-hosted SearXNG metasearch (Docker in colima, localhost:8888; #92). JSON API primary — no API key, no per-query cost, aggregates 261 engines (live config, 2026-10-23). CDP HTML fallback for API outages. Backend engines sit behind the host proxy and may CAPTCHA/timeout; multi-engine redundancy covers.",
     },
     useCleanTitle: false,
-    // JSON API (fast-first layer, measured 19-20s on 2026-10-23). Requires search.formats: [html, json]
+    // JSON API (fast-first layer; measured 10-20s wall time). Requires search.formats: [html, json]
     // in the container's settings.yml and outgoing.proxies pointing at the
     // host proxy — SearXNG's httpx client ignores proxy environment variables.
     apiSearch: {
@@ -2881,6 +2881,35 @@ export const STOCK_MEDIA_SOURCES = [
     },
   },
 ];
+
+/**
+ * Identity/credential metadata for an API image source, shared by consumers
+ * that build their own transport (the Tier 3 image engine pool). Fail-closed:
+ * a missing source, a non-API image channel, or a keyed source without a key
+ * env is a definition bug, not a runtime fallback.
+ */
+export function imageApiEngineMetadata(source, name = source?.name) {
+  const cap = source?.capabilities?.images;
+  if (!source || cap?.method !== "api") {
+    throw new Error(
+      `imageApiEngineMetadata: "${name ?? "<unknown>"}" must be an API image source in source-registry`,
+    );
+  }
+  if (typeof cap.requiresApiKey !== "boolean") {
+    throw new Error(
+      `imageApiEngineMetadata: "${name}" must declare a boolean capabilities.images.requiresApiKey`,
+    );
+  }
+  if (cap.requiresApiKey && (typeof cap.apiKeyEnv !== "string" || cap.apiKeyEnv.length === 0)) {
+    throw new Error(`imageApiEngineMetadata: "${name}" requires capabilities.images.apiKeyEnv`);
+  }
+  return {
+    label: source.label,
+    type: cap.method,
+    requiresApiKey: cap.requiresApiKey,
+    apiKeyEnv: cap.apiKeyEnv ?? null,
+  };
+}
 
 // ─── CDP image extraction capabilities ───
 //

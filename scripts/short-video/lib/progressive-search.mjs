@@ -19,7 +19,7 @@
  *   duckduckgo_images— duckduckgo.com vqd token + i.js JSON, #112
  *   tavily_images    — Tavily REST include_images last-resort, #112
  *
- * brave_image/searxng_image derive label and credential metadata from
+ * brave_image/searxng_image derive label, type and credential metadata from
  * source-registry.mjs (SSOT, #344); the remaining engines are defined here.
  *
  * Brave Image Search API (verified 2026-08-24):
@@ -34,7 +34,7 @@
  * @module progressive-search
  */
 
-import { ALL_SOURCES } from "./source-registry.mjs";
+import { ALL_SOURCES, imageApiEngineMetadata } from "./source-registry.mjs";
 
 // ─── Tier evaluation ───
 
@@ -654,27 +654,15 @@ export function normalizeCdpVideoCandidates(raw, sourceName, keyword = "") {
 // ─── Pluggable engine pool (#112) ───
 
 /**
- * Read the identity/credential metadata of an API image source from
- * source-registry (SSOT). Fail-closed: a missing source — or one whose image
- * channel is not an API — is a definition bug, not a runtime fallback.
- *
- * @param {string} name - Source name in source-registry
- * @returns {{label: string, requiresApiKey: boolean, apiKeyEnv: string|null}}
+ * Thin adapter over source-registry's imageApiEngineMetadata(): resolve the
+ * source from ALL_SOURCES by name, then derive label/type/credentials there
+ * (SSOT). The metadata helper fails closed on definition bugs.
  */
-function registryApiImageEngine(name) {
-  const source = ALL_SOURCES.find((s) => s.name === name);
-  const cap = source?.capabilities?.images;
-  if (!source || cap?.method !== "api") {
-    throw new Error(
-      `IMAGE_SEARCH_ENGINES: "${name}" must be an API image source in source-registry`,
-    );
-  }
-  return {
-    label: source.label,
-    requiresApiKey: cap.requiresApiKey ?? false,
-    apiKeyEnv: cap.apiKeyEnv ?? null,
-  };
-}
+const registryImageEngine = (name) =>
+  imageApiEngineMetadata(
+    ALL_SOURCES.find((s) => s.name === name),
+    name,
+  );
 
 /**
  * Pluggable Tier 3 image search engine pool.
@@ -693,14 +681,13 @@ function registryApiImageEngine(name) {
  * @type {Array<{name: string, label: string, type: string, requiresApiKey?: boolean, apiKeyEnv?: string|null, search: (keyword: string, ctx?: object) => Promise<Array>}>}
  */
 export const IMAGE_SEARCH_ENGINES = [
-  // brave_image / searxng_image: identity (label) and credentials derive from
-  // source-registry (SSOT); their transport layer (quota tracking, error
+  // brave_image / searxng_image: identity (label/type) and credentials derive
+  // from source-registry (SSOT); their transport layer (quota tracking, error
   // swallowing, result shape) stays in this pool — the Tier 1 capability
   // parser and the Tier 3 search contract are deliberately different (#344).
   {
     name: "brave_image",
-    ...registryApiImageEngine("brave_image"),
-    type: "api",
+    ...registryImageEngine("brave_image"),
     search: (keyword, ctx = {}) =>
       searchBraveImages(keyword, ctx.apiKey, {
         count: 20,
@@ -709,8 +696,7 @@ export const IMAGE_SEARCH_ENGINES = [
   },
   {
     name: "searxng_image",
-    ...registryApiImageEngine("searxng_image"),
-    type: "api",
+    ...registryImageEngine("searxng_image"),
     search: (keyword) => searchSearXngImages(keyword, { count: 20 }),
   },
   {
