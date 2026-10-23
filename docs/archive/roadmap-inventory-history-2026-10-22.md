@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 22 轮盘点 + 52 条一句话档案 + 13 条已闭票行 + 110 条表内已闭票叙述。
+> 本文件按时间倒序排列，共 23 轮盘点 + 53 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round LXXXIII → LV）
+## 逐轮盘点（Round LXXXIV → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round LXXXIV：#817 交付闭票 + frontier 复算**——实现 squash `c077d5ed`（PR #879；三提交：第 4 轴实现 → droid review 修复 → review 二次修复）。**定性 enabling fix（无产出 diff）**：此前「归一化规则吞掉/重复一个 replacement 之外的词」是**三条不变量全静默**的缺陷类别——run 可消费、无 spoken 残留、场景有映射，于是 `"Submit by 0910."` 被还原成 `"Submit 0910."` 却一路绿灯进成片；现在静态（`ttsText` 词数 = `voiceover` 词数 + 各 replacement 净增减）与动态（还原后 timing 展开词数 = `voiceover` 词数）两式在渲染边界 fail-closed，Step 0.6 对漂移场景回退显示轨并告警。当前语料 38 包 / 333 有声场景 333/333 零漂移（含 `distillation/pt1..pt3`、`restraint/pt1`/`pt3`、`anthropic-distillation-7labs/pt1..pt4` 等嵌套多段包——语料测试原先只 `readdir` 顶层目录，droid review 指出后改为递归遍历），成片画面不变，解除的是「丢词不可见」这层结构性排除。**实现**：`dual-track.mjs` 新增 `findTokenCountDriftInScenes` / `findRestoredTokenCountDrift`，`countWordTokens` 按 `normWord` 过滤纯标点 token（`—` 无词级 timing）；`original` 按 token 计数而非假定单 token（Rule 2 记录双词 `"GPT 5.5"`，还原时四词合并为一个 `words[]` 元素）；重复 replacement 按身份折叠；无 `ttsReplacements` 的场景归 `findUnmappedSpokenScenes` 的告警所有，不升级为硬失败；作者手写 `voiceoverTts` 漂移只 warn。**两轴 review**：Spec 判 4 条验收全交付、静态/动态两式口径一致；Standards 抓出「同一根因双轴重复报同一场景」（已按 sceneId 折叠，优先报静态侧）、模块头注释仍写两轴（已补齐四轴）、语料测试自证空转（`planDualTrack` 已把漂移场景降级，断言改为 spy 捕获降级 warn）与标点用例短路（补 replacement 使删过滤器即红）。**droid review** 2 轮共 5 条（1 条 P2 认领契约注释、4 条 P3 测试/注释），全部修复并逐条回复后手动 resolve。**范围外**：pre-push 漏洞门禁因既有 `ip-address@10.7.2`（GHSA-rxp7-6hxx-x8q5，经 express-rate-limit 传递）阻断，锁文件升 `10.7.4`（仍在 `^10.2.0`）后 `scan:deps` 清。**frontier 复算**：Track 1A 队列清空（`#818`/`#846`/`#817` 全部闭票，段内无其余符合条件的 `ready-for-agent` 票）；Track 1B 队首 **`#864`**（P1）→ `#707`；Track 2 Active Map `#291` frontier 空；Track 3 队首 **`#688`**。
 
 （**Round LXXXIII：#846 交付闭票 + frontier 复算**——实现 squash `18624d71`（PR #875；三提交：结构感知重写主体 + 两轴评审修复 + 内联场景回归修复）。**定性 enabling fix（无产出 diff）**：真实语料 26 包 / 231 场景此前 18 个回写失败（replace 5 + add 13，`errors: []` 假成功）现全数成功，解除的是「手动补丁 CLI 无法安全回写含嵌套对象的 media 块」这层结构性排除；渲染链路、`applyAssignedMedia` 运行时合并与证据门禁 fail-closed 语义未变，视频画面逐字节不变。**实现**：`media` 定位改为括号平衡扫描（跳过字符串与注释），`media: null` 按替换而非插入，未知 media/backdrop 键拒绝而非静默丢；Evidence Media 覆盖需显式决定（`evidence: false` 去指定，或 `evidence: true` + 合法 provenance；注释尾随与 `Boolean(true)` fail-closed，`null` 拒绝）；CLI 与评审副本共用 `formatMediaObject`（覆盖全部 17 个 `MEDIA_FIELD_KEYS`，值 JSON 转义）；接受 `{ schemaVersion, patches }` 信封；dry-run 走真实变换故被拒补丁在预览即 exit 1。**两轴 review**：Standards 抓出 evidence 判据可被非字面量绕过 / dead `force` / backdrop 未知键 / 语料测试静默绿灯等 8 项，Spec 抓出同路径去证据被判 already-applied、字段往返断言只覆盖 6 个片段、`evidence: null` 当已决定等 7 项；**droid review** 7 条（1 条 P2 真缺陷：`valueEndOf` 未跳过注释，`media: null // note, see #191` 会在注释内逗号处拼接写坏文件；1 条 P2 假值 `cropFocus` 静默丢；5 条契约卫生）全部修复于同 PR 后续提交（已随 squash 合入 `18624d71`），逐条回复证据后手动 resolve；末轮修掉自引入的内联场景 `indent: null` 回归（`media: { null … }` 非法）。**验证**：定向 81 例、`npm test` 5720 通过 / 7 skipped、`lint:mjs` 588 文件 clean、真机 dry-run 与语料清扫 0 失败。**frontier 复算**：Track 1A 队首 **`#817`**（W1A · 双轨字幕第 4 不变量轴词数守恒，P2）；Track 1B 队首仍 **`#864`**（P1）；Track 2 Active Map `#291` frontier 空；Track 3 队首 **`#688`**。
 
@@ -61,10 +63,12 @@
 
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
-## 近轮一句话档案（Round LXXVIII → J）
+## 近轮一句话档案（Round LXXIX → J）
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round LXXIX**（#827 `keyEntities` 透传 trim 回读交付闭票：PR #863 squash `d2378bd9`，定性 quality improvement（条件性，当前语料不可观测端到端）；verified tail cut 的回读本身就是一次门禁调用却只拿到三个位置参数，于是 #689 的 near-miss 规则在回读里全部失效——声明过的小写品牌被 ASR 听成近音即判截断、尾部静音留在成片（fail-safe，只是少裁一段尾音）；修法是把 `keyEntities` 沿 `generateTTSWithEngine`→`finalizeTtsResults`→`runForcedAlignment`→`runAlignmentGuards`→`verifyTrimmedTake`→`evaluateSceneTts` 逐层透传（含 `main.mjs` Gate 1/Step 6 与 `realign-render.mjs`），并把除注入 seam 外的每个 option 转发给门禁、seam 剥掉不作数据；真实数据（脚本入库可复跑）：A 真门禁 A/B 扫全语料得 29 次真实 near-miss/12 受跟踪包（未跟踪进行中包带上后 38/14）、B 19 个真实可裁场景真实 guard 路径 A/B 逐字节一致；诚实边界：无场景同时满足「尾部窗口含声明小写品牌 + 尾部富余 ≥0.5s」，端到端翻转不可观测；两轴 review：Spec 5 项全交付、Standards 无硬违规 3 条已修（「与门禁同判据」字面不成立、固定 /tmp 路径、证据仅存 PR 正文）；droid-review pass 0 thread；范围外开 `#864`（session:start 从 session worktree 内启动致新 worktree 的 hooksPath 指向外层、外层 stop 后 hook 静默全灭——git 对悬空 hooksPath 不报错只当没有 hook，本票首提交即在零 hook 下完成）；机制：回读一个门禁必须拿到它的 options，但「转发全部 options」≠「拿到完整 option 集」（调用方决定交出什么）、注入 seam 必须剥离、单一真值源不做二次推导）
 
 **Round LXXVIII**（#820 F5 兜底后重跑 pacing 补偿阶梯交付闭票：PR #859 squash `ac96dd51`，定性 quality improvement（条件性）；把整个 pacing 补偿阶梯抽成可重入的 `runPacingLadder()`，兜底提升 F5 take 后对合并集（排除 `fallbackFrom` 的 F5 take）重跑一次，存活但实测 <150 WPM 的 gate-PASS 场景由「原速出片」变为「照常补差」，补不动的点名 scene+WPM+原因（`🚨 stranded`）；真实数据：3 个真实包 30 条已出片 take 中 12 条低于触发线 + 3 条 hook floor，重跑后 0 stranded；真实端到端 TTS run 走通兜底路径（真 MLX/whisper.cpp 门禁/F5-MLX）但 F5 take 未获提升 → 原阻断原样抛出，证明 fail-closed 完整、未观测到重跑本身（写进票评）；两轴 review 无硬违规，droid review 3 条 [P2] 全修（helper 返回 Map 消除同源双写、过期测试注释、runbook 把不可达的防御分支写成可达路径）；机制：「阻断发生在优化阶梯之前」是结构性漏洞（fail-closed 先于任何优化阶梯触发，该阶梯收益在该路径静默归零）、重跑自带三条不变量（不重复付费/不把 take 交回刚失败的引擎/不让过期错误掩盖当前错误）、防御性分支写进文档就是谎话；frontier：Track 1A 队首推进为 #827，Track 1B #707、HITL #688 不变，#820 移出 frontier）
 
@@ -211,6 +215,7 @@
 
 ### Dominant & Satellite Issue Hierarchy（主导与卫星 Issue 层级）
 
+- **Phase 1: 管线可靠性与安全闭环** — ✅ **#864** (session:start 嵌套 worktree `core.hooksPath` 悬空修复与全 worktree 存活巡检, P1 bug——已交付闭票 2026-10-23，PR #882 squash `afe0826b`，Round LXXXV；enabling fix)
 - **Phase 1: 管线可靠性与安全闭环** — ✅ **#271** TTS Quality Gate 语义分流与出片阻断 (P1, 已闭票)
 - **Phase 1: 管线可靠性与安全闭环** — ✅ **#272** Avatar 唇同步时长一致性 Gate (P1, 已闭票)
 - **Phase 1: 管线可靠性与安全闭环** — ✅ **#270** TTS instruct 标准机制级化 (P2, 已闭票)
@@ -258,6 +263,7 @@
 - **Phase 3: 视觉设计系统与媒体素材重构** — ✅ **#425** (media-track 尊重显式 upscale:false, P2 bug——已交付闭票 PR #694 `477739ac`)
 ### Execution Waves（执行波次总表）
 
+- **W1C · 工程卫生、安全与状态治理** — ✅ **#864**（`session:start` 以 `$MAIN_WT` 锚定 worktree 路径/安装器/`core.hooksPath`/provisioning + 交付前 `check-hook-liveness.mjs` fail-closed 自检 + gate 默认模式巡检全部 worktree）已交付闭票（2026-10-23，PR #882 squash `afe0826b`，Round LXXXV）
 - **W1C · 工程卫生、安全与状态治理** — ✅ **#846**（apply-media-patch 顶层大括号扫描、Evidence 覆盖显式决定与单源格式化）已交付闭票（2026-10-22，PR #875 squash `18624d71`，Round LXXXIII）
 - **W1A · 既有门控与产物可靠性续补** — ✅ **#827**（alignment-guards trim 回读透传 `keyEntities`）已交付闭票（2026-10-22，PR #863 squash `d2378bd9`，Round LXXIX）
 - **W1A · 既有门控与产物可靠性续补** — ✅ **#820**（F5 兜底后重跑 pacing 补偿阶梯）已交付闭票（2026-10-22，PR #859 squash `ac96dd51`，Round LXXVIII）
@@ -290,6 +296,7 @@
 - **W3C · 画面适配与智能写稿** — ✅ **#762**（`checkLoopClose` PASS 死分支，PR #839）、✅ **#759**（final-media-gate，PR #831）与 ✅ **#760**（媒体覆盖判据对齐，PR #840）已闭票，Track 1A 段为空
 ### Detailed Phase Roadmaps（阶段执行分解）
 
+- **Wave 1C（工程卫生、安全与状态治理）** — ✅ **#864**（`session:start` 从 session worktree 内启动时把外层 worktree 写进新 worktree 的 per-worktree `core.hooksPath`，外层 `session:stop` 删 checkout 后 hook 静默全灭——git 对悬空 hooksPath 不报错）已交付闭票（2026-10-23，PR #882 squash `afe0826b`，Round LXXXV）
 - **Wave 1C（工程卫生、安全与状态治理）** — ✅ **#846**（`apply-media-patch` 顶层 scene 大括号扫描替代 `[^}]*?` 前缀正则、Evidence 覆盖显式决定、单源 `media-patch-format.mjs`）已交付闭票（2026-10-22，PR #875 squash `18624d71`，Round LXXXIII）
 - **Wave 1A（既有门控续补）** — ✅ #271/#272原交付保留
 - **Wave 1A（既有门控续补）** — ✅ **#629**（尾裁切对齐可疑守卫 + 基数词发音展开与裁切后二次 ASR 读回验证）已交付闭票（2026-10-15，PR #640 `0a45432e` + PR #671 `95a7f5ca`）
@@ -309,6 +316,7 @@
 - **#310 · 素材库体系（统一素材库+索引+收获率 log）** — ✅ #758 已交付（PR #850）
 ### Conflict Risk Matrix（文件并发风险矩阵）
 
+- **docs/tools-catalog.md adr/0021-tool-catalog-split.md docs/DOCS-INDEX** — ✅ **#864**（`scripts/session-launcher.sh` 的 `$MAIN_WT` 锚定 + `scripts/check-hook-liveness.mjs` 的全 worktree 遍历/`--repo` 单点模式，session/hook seam 释放）已交付闭票（2026-10-23，PR #882 squash `afe0826b`，Round LXXXV）
 - **remotion/src/scenes/HookScene.tsx ContrastScene.tsx Narrativ** — ✅ **#846**（`apply-media-patch.mjs` + `lib/media-patch-format.mjs` 串行段释放）已交付闭票（2026-10-22，PR #875 squash `18624d71`，Round LXXXIII）
 - **scripts/short-video/main.mjs render-only.mjs lib/media-track** — ✅ **#759**（PR #831）、✅ **#753**（PR #814）、✅ **#764**（2026-10-20）、✅ **#623**（PR #801）、✅ **#624**、✅ **#425**（PR #694）与 ✅ **#421**（PR #561）均已交付闭票
 - **scripts/short-video/search-sources.mjs lib/source-registry.m** — ✅ #424（PR #586）、✅ #447（PR #614）、✅ #636（PR #681）、✅ **#547**（PR #769）已交付闭票；其余保持source-health seam契约
@@ -330,4 +338,4 @@
 - **eslint.config.js .github/workflows/ci.yml vitest.config.ts d** — ✅ #447 已交付闭票（PR #614）
 - **eslint.config.js .github/workflows/ci.yml vitest.config.ts d** — ✅ #555 已交付闭票（PR #641）
 
-（共 110 条已闭票句子。）
+（共 114 条已闭票句子。）
