@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.29.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.7...tanstack_start_ts-v1.29.0) (2026-10-23)
+
+
+### Features
+
+* **asset-sourcer:** per-source yield baseline assertion ([fbee7ed](https://github.com/0xPabloLI/inside-china-ai/commit/fbee7ed6d43c074fa73705bea24327796f2d8046))
+* **searxng:** park idle container and cap its resources ([#891](https://github.com/0xPabloLI/inside-china-ai/issues/891)) ([#896](https://github.com/0xPabloLI/inside-china-ai/issues/896)) ([74374af](https://github.com/0xPabloLI/inside-china-ai/commit/74374af5a233568775c572e1a8bd184896073435))
+
+
+### Bug Fixes
+
+* **asset-sourcer:** count nested patch media, dedupe bootstrap, single drop print ([9ceaff8](https://github.com/0xPabloLI/inside-china-ai/commit/9ceaff86ce175ce1c8f1159a858d59e796810a53))
+* **asset-sourcer:** make formatSourceYieldDropLine module-internal (knip) ([f6c579c](https://github.com/0xPabloLI/inside-china-ai/commit/f6c579c5ce6d4c188cfd2d4416d8a1ab35f82d05))
+
 ## [1.28.7](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.6...tanstack_start_ts-v1.28.7) (2026-10-23)
 
 
