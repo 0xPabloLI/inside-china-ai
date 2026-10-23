@@ -20,6 +20,7 @@ import {
   HOOK_SUBJECT_ROW,
   MEASURED_MAX_WIDTH,
   SLOT_FIELDS,
+  READABILITY_TIERS,
   REMOTION_SLOT_MAP,
 } from "../lib/text-slots.mjs";
 
@@ -46,9 +47,13 @@ describe("slot id", () => {
 
 describe("field size defaults", () => {
   it("gives result its preferred and minimum size", () => {
+    // #688: result moved 56/40 -> 64/46 as part of the lead-class raise (the
+    // copy floor at 48 would otherwise leave result at its own body text's
+    // size). Asserted against the contract so the value is not re-pinned here.
     const slot = getSlot("narrative.media-overlay.result");
-    expect(slot.preferredSize).toBe(56);
-    expect(slot.minSize).toBe(40);
+    expect(slot.preferredSize).toBe(SLOT_FIELDS.result.preferredSize);
+    expect(slot.minSize).toBe(SLOT_FIELDS.result.minSize);
+    expect(slot.minSize).toBe(Math.round(0.72 * slot.preferredSize));
   });
 
   it("covers every field the scene templates render", () => {
@@ -113,9 +118,10 @@ describe("fit ladder", () => {
     // together. That produced unreadable text instead of a failure, so the
     // ladder stops dead at minSize — callers must cancelRender instead.
     const ladder = fitCandidates(getSlot("narrative.media-overlay.result"));
-    expect(ladder[0]).toBe(56);
-    expect(ladder[ladder.length - 1]).toBe(40);
-    expect(Math.min(...ladder)).toBe(40);
+    const spec = SLOT_FIELDS.result;
+    expect(ladder[0]).toBe(spec.preferredSize);
+    expect(ladder[ladder.length - 1]).toBe(spec.minSize);
+    expect(Math.min(...ladder)).toBe(spec.minSize);
   });
 
   it("walks the focus number down from 240 to 150", () => {
@@ -245,10 +251,50 @@ describe("T5 field registry", () => {
       "points",
       "subtext",
       "statCard",
+      // #688: the copy/metadata class raised to the readability floors.
+      "source",
+      "attribution",
+      "note",
+      "subtitle",
+      "left",
+      "right",
+      "context",
+      "action",
+      "tagline",
+      "topic",
+      "quote",
+      "label",
     ]) {
       const { preferredSize, minSize } = SLOT_FIELDS[field];
       expect(minSize, `${field} minSize`).toBe(Math.round(0.72 * preferredSize));
     }
+  });
+
+  it("#688: keeps every field at or above its readability tier's floor", () => {
+    // #688 (user decision, 2026-10-23): before this the contract rendered most
+    // on-screen copy at 20-36px — 62% of 1080 real text instances across the 26
+    // shipped packs sat below the platform's must-read floor of 48px (4.4% of a
+    // 1080px frame), and below this repo's own brand-system type scale (Labels
+    // 22-28 / Body 28-40). These floors are platform convergence values, not
+    // template history: a future field cannot silently ship below them.
+    //
+    // The tier is contract data (SLOT_FIELDS[field].tier, defaulting to the
+    // stricter `copy`), so this test derives the class instead of restating
+    // it — a new field inherits a floor the moment it is declared.
+    for (const [field, spec] of Object.entries(SLOT_FIELDS)) {
+      const tier = spec.tier ?? "copy";
+      const floor = READABILITY_TIERS[tier];
+      expect(floor, `${field} has an unknown tier "${tier}"`).toBeDefined();
+      expect(spec.preferredSize, `${field} preferredSize (tier ${tier})`).toBeGreaterThanOrEqual(
+        floor,
+      );
+      expect(spec.minSize, `${field} minSize`).toBeGreaterThanOrEqual(
+        Math.round(0.72 * READABILITY_TIERS.metadata),
+      );
+    }
+    // The metadata tier exists to let context text sit below the copy floor —
+    // if nothing is in it, the tier is dead and every field should be copy.
+    expect(Object.values(SLOT_FIELDS).some((s) => s.tier === "metadata")).toBe(true);
   });
 
   it("keeps the focus number family single-line at 240 preferred", () => {
@@ -467,11 +513,12 @@ describe("assertKnownTextFields (T5 render-layer validation)", () => {
 
 describe("slotCharBudget (#153 review: contract-derived budget single source)", () => {
   it("derives the advisory char budget from measured width / preferredSize", () => {
-    // narrative.media-overlay.result: 692px, preferredSize 56 →
-    // floor(692 / (56 * 0.55)) = 22
+    // narrative.media-overlay.result: 692px / (preferredSize * 0.55em).
+    // #688 raised result 56 -> 64, so the derived budget shrank 22 -> 19 —
+    // the intended trade (bigger type, shorter copy).
     expect(
       slotCharBudget({ visualType: "narrative", layout: "media-overlay", field: "result" }),
-    ).toBe(Math.floor(692 / (56 * 0.55)));
+    ).toBe(Math.floor(692 / (SLOT_FIELDS.result.preferredSize * 0.55)));
   });
 
   it("returns null for an unmeasured slot (never guess)", () => {

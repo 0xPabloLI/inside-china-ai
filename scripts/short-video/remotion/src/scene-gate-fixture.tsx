@@ -768,6 +768,12 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "baseline-narrative" 
   // override. group-shrink-measure wraps the scene in the measurement probe
   // (the walk's final sizes ride out on data-group-fit); group-overflow-fail
   // relies on the group's own structured group-overflow TextFitError.
+  // The 200 budget sits between the #688 floors' height (~146: source 29 +
+  // context 35 one line each + result 40) and the initial content height
+  // (~298: the 22-char result line wraps to two lines at its 56px preferred,
+  // the 43-char context to two at 48), so the walk must exhaust source and
+  // context and then step result 56 → 54 → 52 → 50, where the copy collapses
+  // to ONE line and the band settles at 187 ≤ 200.
   if (scenario === "group-shrink-measure") {
     return (
       <MeasureProbe>
@@ -775,7 +781,7 @@ const FixtureScene: React.FC<FixtureProps> = ({ scenario = "baseline-narrative" 
           scene={S9_SCENE}
           duration={4}
           contentDir=""
-          gateOverrides={{ "narrative.media-overlay.bottom-band": { groupMaxHeight: 116 } }}
+          gateOverrides={{ "narrative.media-overlay.bottom-band": { groupMaxHeight: 200 } }}
         />
       </MeasureProbe>
     );

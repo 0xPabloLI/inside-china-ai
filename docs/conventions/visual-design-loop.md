@@ -12,7 +12,8 @@
 
 - `remotion/src/scenes/*.tsx` — Remotion 场景组件（实际渲染的代码）
 - `remotion/src/components/visuals.tsx` — 共享视觉组件（StatCard、BadgePill 等）
-- `lib/scene-layout.mjs` — Slot 布局系统
+- `lib/text-slots.mjs` — 字号契约（`SLOT_FIELDS`）
+- `lib/safe-zones.mjs` — 画布 / 安全区 / 槽位几何常量
 - 任何影响 scene 视觉间距/字号/层次结构的改动
 
 **不触发**：纯文案修改、颜色值替换、动画 timing 调整（不涉及间距/字号/层次）。
@@ -27,13 +28,13 @@
 
 用 Impeccable `layout.md` 的 5 维度逐个检查所有间距关系：
 
-| 维度                 | 检查内容                                                                  | 客观标准                                                 |
-| -------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------- |
-| **Spacing**          | 所有 margin/gap 在 8px scale 上？                                         | 值 ∈ {8, 16, 24, 32, 48, 64}；padding 在 4px scale 上    |
-| **Visual Hierarchy** | 字号层次分明？squint test 通过？                                          | 相邻层级 ratio ≥ 1.25×；同 zone 内无相同字号             |
-| **Rhythm**           | tight/medium/generous 交替？                                              | 组内 tight (8-12px)、组间 medium (24px) 或 large (32px+) |
-| **Density**          | slot 占用率合理？                                                         | 60-99% slot 高度；不溢出 safe zone                       |
-| **Consistency**      | 间距/字号值与 `lib/scene-layout.mjs`、`lib/safe-zones.mjs` 单一真源一致？ | 无硬编码重复值                                           |
+| 维度                 | 检查内容                                                                               | 客观标准                                                 |
+| -------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Spacing**          | 所有 margin/gap 在 8px scale 上？                                                      | 值 ∈ {8, 16, 24, 32, 48, 64}；padding 在 4px scale 上    |
+| **Visual Hierarchy** | 字号层次分明？squint test 通过？                                                       | 相邻层级 ratio ≥ 1.25×；同 zone 内无相同字号             |
+| **Rhythm**           | tight/medium/generous 交替？                                                           | 组内 tight (8-12px)、组间 medium (24px) 或 large (32px+) |
+| **Density**          | slot 占用率合理？                                                                      | 60-99% slot 高度；不溢出 safe zone                       |
+| **Consistency**      | 间距/字号值与 `lib/safe-zones.mjs`（几何）、`lib/text-slots.mjs`（字号）单一真源一致？ | 无硬编码重复值                                           |
 
 **工具支持**（自动执行）：
 
@@ -105,7 +106,7 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 #### Sync（一致性）
 
-> Remotion 是唯一渲染器后（决策 59，2026-09-01），不再有 React ↔ HTML 双源，原 `verify-template-sync.mjs` 随 HTML 路径退役（归档已于 2026-09-20 删除）。一致性现在由单一真源保证：间距/安全区常量只在 `lib/scene-layout.mjs` / `lib/safe-zones.mjs` 定义。
+> Remotion 是唯一渲染器后（决策 59，2026-09-01），不再有 React ↔ HTML 双源，原 `verify-template-sync.mjs` 随 HTML 路径退役（归档已于 2026-09-20 删除）。一致性现在由单一真源保证：几何/安全区常量只在 `lib/safe-zones.mjs` 定义，字号契约只在 `lib/text-slots.mjs` 定义。（`lib/scene-layout.mjs` 是已退役的 HTML 路径固定槽位网格，无生产消费方，不作为真源。）
 
 ### 间距语义角色参考
 

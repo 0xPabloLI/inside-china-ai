@@ -80,7 +80,7 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
             </TextGate>
           </ScaleIn>
 
-          {/* Tagline — fadeIn 0.5s at 0.7s, contract tagline 32px */}
+          {/* Tagline — fadeIn 0.5s at 0.7s, contract tagline 48px */}
           {txt.tagline && (
             <FadeIn delay={0.7} duration={0.5}>
               <TextGate sceneId={sceneId} slotId="cta.hero-center.tagline">
@@ -105,9 +105,14 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
       </Slot>
 
       {/* Support slot — action stamp + topic.
-          Shifted up to match hero slot centering. */}
-      <Slot variant="support" top={885} height={200}>
-        {/* Action — stampIn 0.5s at 1.0s, contract action 32px amber */}
+          Shifted up to match hero slot centering.
+          #688: the band grew 200 -> 265px because the copy it holds did: the
+          action stamp's text (48px) wraps to two lines (~154px with padding)
+          and the 48px topic adds ~79px, so the old 200px band cancelled the
+          render (topic gate pushed outside its container). The band's top
+          stays put and its bottom moves to the safe-zone bottom (1150). */}
+      <Slot variant="support" top={885} height={265}>
+        {/* Action — stampIn 0.5s at 1.0s, contract action 48px amber */}
         {txt.action && (
           <StampIn delay={1.0} duration={0.5}>
             <div
@@ -139,7 +144,7 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
             </div>
           </StampIn>
         )}
-        {/* Topic — fadeIn 0.5s at 1.3s, contract topic 36px */}
+        {/* Topic — fadeIn 0.5s at 1.3s, contract topic 48px */}
         {txt.topic && (
           <FadeIn delay={1.3} duration={0.5}>
             <TextGate sceneId={sceneId} slotId="cta.hero-center.topic">

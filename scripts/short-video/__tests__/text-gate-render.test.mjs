@@ -22,6 +22,7 @@ import { tmpdir } from "os";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { ANNOTATION_OVERDRAW_BY_TYPE } from "../lib/text-geometry.mjs";
+import { SLOT_FIELDS } from "../lib/text-slots.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -124,7 +125,9 @@ describe(
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();
       expect(payload.reason).toBe("fit-bottom");
-      expect(payload.fontSize).toBe(40); // the hard floor of the result field
+      // #688 raised the result floor 40 -> 46; read it from the contract so
+      // the next size change cannot leave a stale value pinned here.
+      expect(payload.fontSize).toBe(SLOT_FIELDS.result.minSize);
     });
 
     it("F4 shape: annotation drawn bounds beyond the slot content box FAILs", () => {

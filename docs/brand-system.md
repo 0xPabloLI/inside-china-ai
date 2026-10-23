@@ -106,10 +106,14 @@ Font stack: `'Times New Roman', Times, serif`（**衬线渲染基准**）
 
 | Context      | Size     | Weight  | Spacing          |
 | ------------ | -------- | ------- | ---------------- |
-| Headlines    | 48-130px | 800-900 | 2-5px            |
-| Body         | 28-40px  | 600-800 | normal           |
-| Labels       | 22-28px  | 700     | 2-3px, uppercase |
-| Data anchors | 64-300px | 900     | tight            |
+| Headlines    | 48-80px  | 800-900 | 2-5px            |
+| Body         | 48px     | 600-800 | normal           |
+| Labels       | 40px     | 700     | 2-3px, uppercase |
+| Data anchors | 56-240px | 900     | tight            |
+
+> **Readability floor (#688, 2026-10-23).** The single source of truth for slot sizes is `SLOT_FIELDS` in `scripts/short-video/lib/text-slots.mjs` (`preferredSize` → `minSize`, floor = `round(0.72 × preferred)`); this table is its summary. Sizes here are _preferred_ sizes — `TextGate` may still step a field down to its floor when the copy does not fit the 820px content box, and a field that cannot fit even at the floor cancels the render.
+>
+> Consequence for copy: the char budget (`slotCharBudget`) is derived from the contract, so a size raise shrinks the characters a slot can hold. `scene-rules` reports over-budget fields as WARN — shorten the copy, never shrink the type back down.
 
 ## Subtitle Specification (Video)
 
@@ -194,7 +198,7 @@ Based on TikTok color best practices research (2025-2026):
 
 ### Placement Rules
 
-1. **Hook scene**: Logo + name in a centered row as the first element of the **hero slot** (y 400–950 top; nothing above y 220 — the kicker slot 220–400 holds the badge). Appears at 0.3s (slideUp delay).
+1. **Hook scene**: Logo + name in a centered row as the first element of the **hero slot** (y 298–840 top; nothing above y 220 — the kicker slot 220–298 holds the badge). Appears at 0.3s (slideUp delay).
 2. **Featured scenes**: Logo can be centered or top-aligned, depending on layout. Name below or beside logo.
 3. **Never use muted gray** (`--muted` / `#475569`) for the subject company name — use `--white` or the entity's semantic color.
 4. **Drop shadow**: Logo SVG gets `filter: drop-shadow(0 0 25-30px rgba(brand-color, 0.3))` for depth on dark background.
@@ -260,7 +264,9 @@ Reference implementation: `lib/safe-zones.mjs` (SAFE_ZONES / SUBTITLE_LANE / WAT
 
 9 layout patterns for **1080×1920 vertical mobile video** scenes. CSS-animated, timed to TTS duration. All scenes must be 9:16 — never horizontal.
 
-> **Slot system (mandatory).** Every scene composes its content into the fixed vertical slots from `lib/scene-layout.mjs` via `sceneFrame({ kicker, hero, support })` — never a hand-rolled full-screen `flex` with `justify-content: space-between` (that pattern stretched scenes into three islands with dead space and pushed content into the subtitle lane). Slots: `kicker` 220–400, `hero` 400–950, `support` 950–1150. Slot edges derive from `SAFE_ZONES`, so a scene either fits the grid or TextGate refuses to ship it.
+> **Slot system (mandatory).** Every scene composes its content into fixed vertical slots — never a hand-rolled full-screen `flex` with `justify-content: space-between` (that pattern stretched scenes into three islands with dead space and pushed content into the subtitle lane). Remotion scenes use `<Slot>` from `remotion/src/components/visuals.tsx`; the default split is `kicker` 220–400, `hero` 400–950, `support` 950–1150. Slot edges derive from `SAFE_ZONES`, so a scene either fits the grid or TextGate refuses to ship it.
+>
+> A template whose own content needs a different split overrides the band's `top`/`height` in the scene component — `HOOK_BANDS` in `HookScene.tsx`, the hero/support pair in `CtaScene.tsx`, and `ContrastScene.tsx`'s single full-safe-zone band. Bands must stay inside `SAFE_ZONES` and stay contiguous; `lib/scene-layout.mjs` still carries the original HTML-path split for the retired `sceneFrame()` and is not the live source.
 
 > **Vertical-stacking rule (mandatory for comparisons).** Any comparison / contrast / VS scene must stack its items **vertically** (A on top, VS divider in the middle, B on the bottom) — never place two or more cards **side by side** in a horizontal row. A 1080-wide portrait frame cannot fit a landscape two-column layout without shrinking text to unreadable sizes or overflowing the right safe zone. Reference: `bytedance-distillation` S6/S7/S8.（原 `scene-drift.test.mjs` 守卫已随 HTML 路径退役，现由 `remotion/src/` 场景组件的纵向结构本身保证）
 
@@ -268,19 +274,21 @@ Reference implementation: `lib/safe-zones.mjs` (SAFE_ZONES / SUBTITLE_LANE / WAT
 
 **Standard: the shared HookScene opening card** (`remotion/src/scenes/HookScene.tsx`, spec: `docs/archive/spec-hook-opening-card.md`). Scene 1 of every new video must delegate to HookScene — fixed skeleton, data-driven slots, zero hand-written offsets. Old hand-written hooks (deepseek / distillation / restraint) migrate when next revisited.
 
-Slot composition (1080×1920; bands from `lib/scene-layout.mjs` — kicker / hero / support):
+Slot composition (1080×1920; bands re-derived by #688 from the band contents at the new type scale — `HOOK_BANDS` in `HookScene.tsx`):
 
 ```
-kicker (220–400)     [badge]    optional red pill (BREAKING) — red urgency
-hero   (400–950)     [subject]  optional logo 120px + name 80px/900
+kicker (220–298)     [badge]    optional red pill (BREAKING) — red urgency
+hero   (298–840)     [subject]  optional logo 120px + name 64px/900
                      [focal]    REQUIRED, exactly one of:
                        A number-led: bigNumber (amber 300px glow)
                                      + numberLabel (highlight wraps .hl)
                        B claim-led:  hookText (frame-1, no delay)
                                      + revealText (1.5s stampIn payoff)
-support (950–1150)   [stats]    optional stat cards (staggered 1.3s+)
+support (840–1150)   [stats]    optional stat cards (staggered 1.3s+)
                      [source]   optional source line (2.1s)
 ```
+
+The support band grew 200 → 310px because the copy it holds did: the `source` line went 20 → 40px and now wraps to two lines, and the stat card's label went 0.36em → 0.5em of the card (20 → 28px). Measured on the real packs, the worst case is 305.8px of stat card + source. The kicker band gave up the difference — it only ever holds the badge pill (71px) — and the badge pill's vertical padding went 16 → 12px. The three bands' worst cases sum to 915.8 of the 930px safe zone, so the split is tight but not over-subscribed.
 
 - Background layers: `grid-bg` + color-tinted glow (semantic color token drives the tint) + `scanlines` + blue `scan-sweep`
 - Animation contract: badge 0.2s → subject 0.2s → hookText **frame 1** (thumbnail carries the claim) → bigNumber 0.3s / revealText 0.8s → stats 0.8s+ → source 1.3s
@@ -361,8 +369,8 @@ Numbered analysis cards.
 
 Brand closer — the single shared CtaScene component (`remotion/src/scenes/CtaScene.tsx`), routed through the slot system. No URL (testing phase).
 
-- **Hero slot (400–950)**: brand logo (130px) → brand name `CHINA AI NEWS` (72px, 900, "AI" in blue) → tagline `CHINA AI, DECODED` (32px, sec)
-- **Support slot (950–1150)**: action stamp `FOLLOW FOR MORE →` (amber stampBox) → optional series `topic` teaser
+- **Hero slot (335–885)**: brand logo (130px) → brand name `CHINA AI NEWS` (72px, 900, "AI" in blue) → tagline `CHINA AI, DECODED` (48px, sec)
+- **Support slot (885–1150)**: action stamp `FOLLOW FOR MORE →` (amber stampBox) → optional series `topic` teaser
 - Fade-to-black at end (0.8s before duration ends)
 
 ## Implementation
@@ -370,7 +378,9 @@ Brand closer — the single shared CtaScene component (`remotion/src/scenes/CtaS
 The CSS implementation of these specs lives in:
 
 - `scripts/short-video/lib/safe-zones.mjs` — **single source of truth** for safe-zone + subtitle-lane + watermark constants. Every other layer (slot layout, subtitle ASS, TextGate) derives from these values; never hardcode them elsewhere.
-- `scripts/short-video/lib/scene-layout.mjs` — the fixed slot system (`SLOTS`, `slotCss()`, `sceneFrame()`). All scenes compose into kicker/hero/support slots.
+- `scripts/short-video/lib/text-slots.mjs` — **single source of truth** for every slot's font size, floor, max lines and shrink priority (`SLOT_FIELDS`).
+- `scripts/short-video/remotion/src/components/visuals.tsx` — the live `Slot` band container (`kicker` / `hero` / `support`); scene components override `top`/`height` when their own content needs a different split.
+- `scripts/short-video/lib/scene-layout.mjs` — **retired**: the fixed slot grid of the deleted HTML path (`SLOTS`, `slotCss()`, `sceneFrame()`). No production consumer since decision 59; kept only for its own unit test. Do not read band geometry from it.
 - `scripts/short-video/remotion/src/` — Remotion scene components (hook/cta/narrative/…); scene building blocks live in `components/`. Display copy comes from `scene-data.mjs`.
 - `scripts/youtube-thumbnail.html` — thumbnail HTML/CSS
 

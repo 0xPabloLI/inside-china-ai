@@ -40,6 +40,40 @@ const COLORS: Record<string, string> = {
   cyan: "#22d3ee",
 };
 
+/**
+ * The hook's three-band partition of the safe zone (y 220-1150, 930px).
+ *
+ * Re-derived from the band CONTENTS under the #688 type scale, measured by
+ * rendering every hook scene of every content pack plus the gate fixtures
+ * (fixture scenario `measure-props`; box union per band). Each band's budget
+ * is its worst case, and the three worst cases come from different scenes:
+ *
+ *   band     need (worst case)                    was   now
+ *   kicker   71  badge pill (hook)                180   78
+ *   hero     539 hook-logo-long: 2-line subject   550   542
+ *                at 64 + bigNumber + numberLabel
+ *   support  305.8 hook-logo-claim: 1 stat card   200   310
+ *                at 64 (two-line 0.5em label) +
+ *                two-line 40px source
+ *
+ * Sum 915.8 of 930 — the remaining 14.2px is the distributed slack (7 / 3 /
+ * 4.2). Before the re-derivation the support band's 200px cancelled every
+ * hook whose stat card carries a two-line label AND whose source wraps, and
+ * the 180px kicker held a 71px pill.
+ *
+ * Reclaiming the budget needed three on-scale tightenings rather than a
+ * shave: the badge pill's vertical padding 16 -> 12, the stat card's 16 -> 12,
+ * and the source line's margin 12 -> 8 (12 was off the 8px spacing scale —
+ * see docs/conventions/visual-design-loop.md).
+ *
+ * The three bands stay contiguous and inside the safe zone.
+ */
+const HOOK_BANDS = {
+  kicker: { top: 220, height: 78 },
+  hero: { top: 298, height: 542 },
+  support: { top: 840, height: 310 },
+};
+
 export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDir?: string }> = ({
   scene,
   duration,
@@ -103,7 +137,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
 
       {/* Kicker slot — optional badge pill (NOT breaking badge) */}
       {txt.badge && (
-        <Slot variant="kicker">
+        <Slot variant="kicker" top={HOOK_BANDS.kicker.top} height={HOOK_BANDS.kicker.height}>
           <StampIn delay={0.2} duration={0.4}>
             <TextGate sceneId={sceneId} slotId="hook.hero-center.badge">
               {(fontSize) => <BadgePill text={txt.badge as string} fontSize={fontSize} />}
@@ -113,7 +147,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
       )}
 
       {/* Hero slot — subject row + focal */}
-      <Slot variant="hero">
+      <Slot variant="hero" top={HOOK_BANDS.hero.top} height={HOOK_BANDS.hero.height}>
         {/* Subject row (logo 96px + name 64px) */}
         {(txt.subjectLogo || txt.subject) && (
           <SlideUp
@@ -351,7 +385,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
       </Slot>
 
       {/* Support slot — stats + source */}
-      <Slot variant="support">
+      <Slot variant="support" top={HOOK_BANDS.support.top} height={HOOK_BANDS.support.height}>
         {stats.length > 0 && (
           <div style={{ display: "flex", gap: 24, justifyContent: "center", width: "100%" }}>
             {stats.map((s, i) => (
@@ -386,9 +420,10 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                   // exactly, resting the source gate flush on the band's
                   // bottom edge — which coincides with the content safe-zone
                   // bottom — so a glyph ink descent ("p" in "DeepSeek")
-                  // overflowed the container by 0.277px. 12px keeps the gate
-                  // off that edge by half the freed space when centered.
-                  marginTop: stats.length > 0 ? 12 : 0,
+                  // overflowed the container by 0.277px. 8px keeps the gate
+                  // off that edge (and is on the 8px spacing scale; the
+                  // original 12px was not).
+                  marginTop: stats.length > 0 ? 8 : 0,
                 }}
               >
                 {txt.source as string}
