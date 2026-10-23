@@ -1482,6 +1482,10 @@ describe("session-launcher start: launched from inside a session worktree (#864)
     // resolves to the main checkout, never to `$ROOT` (the caller).
     const configured = git(wtpath, "config", "--get", "core.hooksPath").trim();
     expect(realpathSync(configured)).toBe(realpathSync(join(repo, ".githooks")));
+    // The caller's hooksPath is the outer worktree's absolute anchor, not the
+    // literal `.githooks` — "unset" would be a false diagnostic and would re-run
+    // the installer on every start-from-worktree.
+    expect(r.stdout).not.toContain("hooksPath unset");
   });
 
   it("the new worktree's hooks still run after the outer worktree is removed", () => {
@@ -1510,6 +1514,8 @@ describe("session-launcher start: launched from inside a session worktree (#864)
 
     const r = startFromOuter();
     expect(r.status).not.toBe(0);
+    // Fatal `start` errors keep the script's one shape: `error: ` on stderr.
+    expect(r.stderr).toMatch(/^error: /m);
     expect(r.stderr).toContain("hooks are not live");
     expect(r.stdout).not.toContain("session started");
   });

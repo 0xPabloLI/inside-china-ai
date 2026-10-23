@@ -250,7 +250,13 @@ if [ "$cmd" = "start" ]; then
   [ -n "$MAIN_WT" ] || { echo "error: cannot resolve the main worktree from $(git rev-parse --git-common-dir) — refusing to start" >&2; exit 1; }
 
   # --- 2. hooks present? ------------------------------------------------------
-  if [ "$(git config core.hooksPath 2>/dev/null || echo '')" != ".githooks" ]; then
+  # Only an UNSET hooksPath means "not installed yet". A start launched from a
+  # session worktree sees that worktree's absolute per-worktree anchor, which
+  # never equals the main checkout's relative `.githooks` — comparing against the
+  # literal would re-run the installer and print "unset" on every such start
+  # (#864). A set-but-unreachable path is the gate's job below, not the
+  # installer's.
+  if [ -z "$(git config core.hooksPath 2>/dev/null || echo '')" ]; then
     echo "[session] hooksPath unset — running the installer first"
     bash "$MAIN_WT/scripts/install-git-hooks.sh"
   fi
@@ -319,12 +325,11 @@ if [ "$cmd" = "start" ]; then
   if [ -f "$MAIN_WT/scripts/check-hook-liveness.mjs" ]; then
     node "$MAIN_WT/scripts/check-hook-liveness.mjs" --repo "$wtpath" || hook_gate_failed=1
   elif [ ! -x "$MAIN_WT/.githooks/commit-msg" ]; then
-    echo "[session] no gate script in this checkout and $MAIN_WT/.githooks/commit-msg is not executable"
     hook_gate_failed=1
   fi
   if [ -n "$hook_gate_failed" ]; then
-    echo "[session] error: the new worktree's hooks are not live — refusing to hand over a session whose commits would run no gate" >&2
-    echo "[session] the worktree was left at $wtpath for inspection; remove it with: git worktree remove --force \"$wtpath\" && git branch -D \"session/$id\"" >&2
+    echo "error: the new worktree's hooks are not live — refusing to hand over a session whose commits would run no gate" >&2
+    echo "error: the worktree was left at $wtpath for inspection; remove it with: git worktree remove --force \"$wtpath\" && git branch -D \"session/$id\"" >&2
     exit 1
   fi
 
