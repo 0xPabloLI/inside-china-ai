@@ -13,10 +13,17 @@
  * This module turns that soft failure into a checkable invariant:
  *
  *   1. static  — every recorded replacement must be consumable in the scene's
- *                 own `ttsText` (checked before the ASS is generated);
- *   2. dynamic — the restored timing must not still contain a spoken run.
+ *                own `ttsText` (checked before the ASS is generated);
+ *   2. dynamic — the restored timing must not still contain a spoken run;
+ *   3. mapped  — a spoken-looking `ttsText` needs a replacement (warning only:
+ *                an author may confirm the line, #753);
+ *   4. counts  — word tokens are conserved end to end (#817): `ttsText` equals
+ *                `voiceover` plus each replacement's net delta, and the restored
+ *                timing words equal `voiceover`. Without this, a rule that eats
+ *                or duplicates a word outside the replacements keeps axes 1-3
+ *                silent while restore reproduces a different sentence.
  *
- * Both are cheap, pure and side-effect free so callers can decide whether to
+ * All four are cheap, pure and side-effect free so callers can decide whether to
  * throw (render boundary) or warn (diagnostics).
  *
  * @module subtitles/dual-track
@@ -398,9 +405,18 @@ export function assertDualTrackRestorable({ scenes, timingData } = {}) {
   const staticDrifts = findTokenCountDriftInScenes(scenes);
   const dynamicDrifts = timingData ? findRestoredTokenCountDrift(scenes, timingData) : [];
 
+  // One root cause (a rewrite that ate a word) trips both count axes for the
+  // same scene; report the scene once, preferring the static finding because it
+  // points at the rewrite rather than at the restore that merely inherited it.
+  const driftsByScene = new Map();
+  for (const drift of [...staticDrifts, ...dynamicDrifts]) {
+    if (!driftsByScene.has(drift.sceneId)) driftsByScene.set(drift.sceneId, drift);
+  }
+  const allDrifts = [...driftsByScene.values()];
+
   // An authored `voiceoverTts` may deliberately add or drop words; the author
   // owns that line, so drift is a review item there, not a leak (#817).
-  const authoredDrifts = [...staticDrifts, ...dynamicDrifts].filter((drift) => drift.authored);
+  const authoredDrifts = allDrifts.filter((drift) => drift.authored);
   if (authoredDrifts.length > 0) {
     console.warn(
       `  ⚠️  ${authoredDrifts.length} authored scene(s) drift in token count ` +
@@ -408,7 +424,7 @@ export function assertDualTrackRestorable({ scenes, timingData } = {}) {
         `voiceoverTts is author-owned; review the line (#817).`,
     );
   }
-  const drifts = [...staticDrifts, ...dynamicDrifts].filter((drift) => !drift.authored);
+  const drifts = allDrifts.filter((drift) => !drift.authored);
 
   if (staticLeaks.length === 0 && dynamicLeaks.length === 0 && drifts.length === 0) return;
 

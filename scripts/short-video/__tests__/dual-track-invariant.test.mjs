@@ -298,6 +298,30 @@ describe("token count conservation (#817)", () => {
     expect(findTokenCountDriftInScenes([scene])).toEqual([]);
   });
 
+  it("reports a scene once when both count axes fire on the same root cause", () => {
+    // The rewrite drops "c" (static drift) and the restore therefore yields a
+    // two-word sentence for a three-word display line (dynamic drift). One bug,
+    // one line of output.
+    const scene = {
+      id: 57,
+      voiceover: "A b c.",
+      ttsText: "A b.",
+      ttsReplacements: [{ original: "c", spoken: ["see"] }],
+    };
+    const restored = timingFor(scene, ["A", "b."]);
+    let message = "";
+    try {
+      assertDualTrackRestorable({ scenes: [scene], timingData: restored });
+    } catch (error) {
+      message = error.message;
+    }
+    expect(message).toContain("1 scene(s) changed word token count");
+    // The drift block lists the scene once; the unrelated glued-token leak for
+    // the same scene keeps its own line above.
+    const driftBlock = message.slice(message.indexOf("changed word token count"));
+    expect(driftBlock.match(/scene 57/g)).toHaveLength(1);
+  });
+
   it("warns instead of throwing for an authored voiceoverTts", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const scene = {
