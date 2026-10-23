@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 25 轮盘点 + 56 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述。
+> 本文件按时间倒序排列，共 26 轮盘点 + 57 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round LXXXVII → LV）
+## 逐轮盘点（Round LXXXVIII → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round LXXXVIII：#891 SearXNG 资源生命周期交付闭票 + frontier 复算**——实现 squash `74374af5`（PR #896；四提交：主体 lifecycle → 稳定副本安装器 → 两轴评审修复 → droid 第二轮修复）。**定性 enabling fix（无产出 diff）**：解除「SearXNG 容器无上限常驻（~460 MiB）、空闲不让位」这层运行环境排除——容器按 `--cpus 0.5 --memory 768m --memory-swap 768m --restart unless-stopped` 重建（inspect 实证 NanoCpus/Memory/Swap），LaunchAgent `com.inside-china-ai.searxng-park` 每 5 分钟检查：空闲 15 分钟（Docker NetIO 无变化）或宿主 free <15%（2 分钟静默宽限）停容器，停前 10s settle 二次采样有流量即放弃（机制教训：累积计数器的采样间隔是判据滞后上界，「2 分钟静默」实际只能证明「距上次观测 ≥2 分钟」）；管线三处用前自动拉起（collectFromSource 源前 / 图片 Tier 3 每次 re-ensure、只去重并发防中途 park 毒化 / selector-health 探测前 parked≠死源），`SEARXNG_AUTO_START=0` 单一守卫点收进 `ensureSearxng`；`searxng:recreate` 可复现重建（缺 `~/searxng/settings.yml` 拒绝——防 Docker 建空目录后默认配置启动而 `/config` 探针照样 200）；doctor parked 判 healthy/skip、冷查询超时 10→40s、挂载路径 `~/.searxng`→`~/searxng` 修正、agent 以 plist 内容探测不硬编码 label。验证：23+139 tests、`lint:mjs` 592、`lint:docs` exit 0、diff-check 净、两轮 CI 全绿（Lint/typecheck/test + Semgrep + Socket）；真机 smoke：park→ensure 往返（idle 与强制压力）、195 结果/19.9s（0.5 CPU 下）、容器用量 165.7→98.4 MiB、doctor 运行/parked 双态 healthy、LaunchAgent 按时触发、worktree 版 doctor 实跑全绿。**未做（已写进票评）**：主 checkout 落后且 dirty，pull 前旧管线无 ensure（`npm run searxng:ensure` 可手动拉起，LaunchAgent 不依赖 pull）。**frontier 复算**：本票未入任何 track 行（创建当日即领即交付）；Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首仍 `#688`；Track 1B 队首 `#779` 已于本轮期间由另一 session 交付闭票（PR #892，squash `fbee7ed6`，交付记录见票评）→ 下一张 **`#778`** → `#353` → `#358` → `#329`。）
 
 （**Round LXXXVII：#344 SearXNG 覆盖面审计交付闭票 + frontier 复算**——实现 squash `27e60278`（PR #887；四提交：元数据收编 → fail-closed/测试 → URL/parser 全收编 → prettier）。**定性 enabling fix（无产出 diff）**：文本搜索四源 `google_search`/`bing_news`/`baidu_search`/`searxng_search` 全部保留、0 收敛——真实探测证明 SearXNG 的 Google/Baidu 引擎不可用（access denied / disabled+CAPTCHA）、bing news 当前 `categories=general&language=en` 参数面不覆盖且 `time_range` 非严格 7 天，原源仍带 `qdr:w`/`interval=7`/zh-CN 与媒体契约；平台源 11 + API 契约源 12 + feed 13 + 站内新闻 11 + last30days 3 + stock_media 8 = 58 源按票面边界排除。票面第 4 项（#77 未收编的 `brave_image`/`searxng_image` 双份定义）并入本票：label/凭据/URL builder/response parser 全部收敛到 `source-registry.mjs` 的 `imageApiSourceMetadata()` 与 capability，Tier 3 pool 只留 quota/错误吞掉/source 标记；`apiKeyEnv` 类型与 keyed 缺失均 fail-closed 并有合成 source 单测。文档同步 `content-pipeline.md`/`tools-catalog.md`（后者按「不抄数字」规则删掉引擎计数）。验证：四套 608 tests、eslint 改动文件、`lint:mjs` 588、`lint:docs`（DOCS_BASE）exit 0、selector-health 4/4（10/12/8/20）、真实内容包 `deepseek-embodied-ai` assetNeed → searxng_image 20 条、live `/config` 261 engines。**范围外发现已开跟进票 `#888`**：bing_news 前置探针把 `www.bing.com/news` 地理重定向到 `cn.bing.com` 首页判成 dead-url，跳过 CDP 后生产静默 0 条（探针绕过则 CDP 6/12 条）。**frontier 复算**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首仍 `#688`；Track 1B 下一张 **`#779`**（W2B · asset-sourcer 产出基线断言）→ `#778` → `#353` → `#358` → `#329`。）
 
@@ -69,10 +71,12 @@
 
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
-## 近轮一句话档案（Round LXXXIV → J）
+## 近轮一句话档案（Round LXXXV → J）
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round LXXXV**（`#864` 交付闭票——`session:start` 从 session worktree 内启动时把**外层 worktree** 写进新 worktree 的 per-worktree `core.hooksPath`（`--show-toplevel` 取的是调用者 checkout），外层 `session:stop` 删 checkout 后路径悬空，git 不报错、只当没有 hook（#827 首 commit 零 hook 通过）；改用 `$MAIN_WT` 锚定 worktree 路径/安装器/hooksPath/provisioning，创建后 `check-hook-liveness.mjs --repo` fail-closed 自检，gate 默认模式改为巡检全部 worktree 并拒绝空转绿；保留绝对路径指向唯一权威；两轴 review + droid-review 2 条（P3 安装器误判 unset 重跑、P2 fatal 错误前缀不一致）全修并手动 resolve；launcher/hook-liveness 两套 76 passed + 真实仓库嵌套冒烟 4 worktree clean；PR #882 squash `afe0826b`；frontier：Track 1A 仍空，Track 1B 队首 `#707`（P3），HITL `#688`）
 
 **Round LXXXIV**（`#817` 交付闭票——双轨第 4 不变量轴「词数守恒」：静态式 `ttsText` 词数 = `voiceover` 词数 + 各 replacement 净增减、动态式还原后 timing 展开词数 = `voiceover` 词数，两式在渲染边界 fail-closed、Step 0.6 漂移场景回退显示轨并告警；`original` 按 token 计数兼容 Rule 2 双词 `"GPT 5.5"`、纯标点 `—` 不计入词数、重复 replacement 按身份折叠、无映射场景归 `findUnmappedSpokenScenes` 告警、作者 `voiceoverTts` 漂移只 warn；全仓 38 包 333 有声场景 333/333 零漂移（递归遍历含嵌套多段包），解除「规则吞掉/重复 replacement 之外的词」这层三轴全静默的结构性排除；两轴 review 修掉双轴重复报同一场景/模块头两轴描述/语料测试自证空转/标点用例短路，droid review 2 轮 5 条全修；范围外把 `ip-address` 锁文件升 `10.7.4` 解 pre-push 漏洞门禁；PR #879 squash `c077d5ed`；frontier：Track 1A 队列清空，Track 1B 队首 `#864` → `#707`，HITL `#688`）
 
