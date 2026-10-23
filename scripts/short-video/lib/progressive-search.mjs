@@ -37,11 +37,25 @@
  */
 
 import { ALL_SOURCES, imageApiSourceMetadata } from "./source-registry.mjs";
+import { ensureSearxng } from "../../searxng/lifecycle.mjs";
 
 // Resolve an image source's registry declaration by name. The pool entries and
 // the two parsers below all go through this, so the registry stays the only
 // place where a source's identity, URL and response shape are declared.
 const registryImageSource = (name) => ALL_SOURCES.find((s) => s.name === name);
+
+// #891: SearXNG parks its container when idle. Ensure before the image engine
+// runs, deduplicating concurrent callers only — each search re-ensures so a
+// mid-run park cannot poison the rest of the run (a failed start is fail-open).
+let searxngEnsurePromise = null;
+function ensureSearxngOnce() {
+  searxngEnsurePromise ??= ensureSearxng({ quiet: true })
+    .catch(() => {})
+    .finally(() => {
+      searxngEnsurePromise = null;
+    });
+  return searxngEnsurePromise;
+}
 
 // ─── Tier evaluation ───
 
@@ -170,6 +184,8 @@ export async function searchBraveImages(keyword, apiKey, options = {}) {
  */
 export async function searchSearXngImages(keyword, options = {}) {
   const { baseUrl = "http://localhost:8888", count = 20 } = options;
+
+  await ensureSearxngOnce();
 
   const cap = registryImageSource("searxng_image").capabilities.images;
   const url = cap.searchUrl(keyword, null, { baseUrl });

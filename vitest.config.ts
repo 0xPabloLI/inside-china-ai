@@ -42,6 +42,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // #891: tests must never start the local SearXNG container.
+    env: { SEARXNG_AUTO_START: "0" },
     include: [
       "src/**/*.test.{ts,tsx}",
       "scripts/**/*.test.{ts,tsx,mjs}",

@@ -75,6 +75,7 @@ import {
   dedupByUrl,
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS, resolveLoginGate } from "./lib/source-registry.mjs";
+import { ensureSearxng } from "../searxng/lifecycle.mjs";
 import {
   updateSourceHealth,
   deriveZeroResultSources,
@@ -711,6 +712,13 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     probeFn = probeSourceUrl,
     probeCache = new Map(),
   } = deps;
+
+  // #891: ensure right before this source is collected, not only at run start
+  // (a long research run can outlive the park window). The SEARXNG_AUTO_START
+  // opt-out lives inside ensureSearxng. Fail-open.
+  if (source?.name === "searxng_search") {
+    await ensureSearxng({ quiet: true }).catch(() => {});
+  }
 
   // #200: per-layer outcome trajectory. Each event is
   // {source, layer, count, reason?} — count null means the layer didn't run
