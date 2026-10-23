@@ -611,6 +611,76 @@ describe("bootstrapYieldHistory", () => {
     expect(history[2].sources).toEqual([{ source: "coverr", contributed: 2, status: "observed" }]);
   });
 
+  it("counts assigned patch media nested under `media` (writer shape)", () => {
+    tmp = mkdtempSync(join(tmpdir(), "source-yield-bootstrap-"));
+    const outputDir = join(tmp, "output");
+    writeJson(
+      join(outputDir, "alpha", "media-patch.json"),
+      {
+        schemaVersion: 1,
+        patches: [
+          {
+            sceneId: 6,
+            status: "assigned",
+            source: "pexels",
+            media: { type: "image", path: "assets/pexels-chart-01.jpg", source: "pexels" },
+          },
+          {
+            sceneId: 7,
+            status: "assigned",
+            source: "pexels-video",
+            media: { type: "video", path: "assets/pexels-clip.mp4", source: "pexels-video" },
+          },
+          { status: "unassigned", source: "searxng_image", assetScore: 82 },
+        ],
+      },
+      "2026-01-01T00:00:00.000Z",
+    );
+    const historyPath = join(tmp, "history", YIELD_HISTORY_FILE);
+
+    const result = bootstrapYieldHistory({ outputDir, historyPath, before: BEFORE });
+    expect(result).toEqual({ ok: true, bootstrapped: true, entries: 1 });
+    const history = loadYieldHistory(historyPath);
+    expect(history[0].content).toBe("alpha");
+    expect(history[0].sources).toEqual([
+      { source: "pexels", contributed: 1, status: "observed" },
+      { source: "pexels-video", contributed: 1, status: "observed" },
+    ]);
+  });
+
+  it("does not double-count the run behind asset-report.json when its media-patch.json exists", () => {
+    tmp = mkdtempSync(join(tmpdir(), "source-yield-bootstrap-"));
+    const outputDir = join(tmp, "output");
+    writeJson(
+      join(outputDir, "asset-report.json"),
+      {
+        content: "alpha",
+        assets: [{ source: "pexels", type: "image", path: "a.jpg" }],
+      },
+      "2026-01-01T00:00:00.000Z",
+    );
+    writeJson(
+      join(outputDir, "alpha", "media-patch.json"),
+      [
+        { source: "pexels", path: "a.jpg" },
+        { source: "pexels", path: "b.jpg" },
+      ],
+      "2026-01-01T00:00:05.000Z",
+    );
+    writeJson(
+      join(outputDir, "beta", "media-patch.json"),
+      [{ source: "coverr", path: "c.webm" }],
+      "2026-01-02T00:00:00.000Z",
+    );
+    const historyPath = join(tmp, "history", YIELD_HISTORY_FILE);
+
+    const result = bootstrapYieldHistory({ outputDir, historyPath, before: BEFORE });
+    expect(result).toEqual({ ok: true, bootstrapped: true, entries: 2 });
+    const history = loadYieldHistory(historyPath);
+    expect(history.map((entry) => entry.content)).toEqual(["alpha", "beta"]);
+    expect(history[0].sources).toEqual([{ source: "pexels", contributed: 2, status: "observed" }]);
+  });
+
   it("is a no-op when the history already has a valid entry", () => {
     const outputDir = fixture();
     const historyPath = join(tmp, YIELD_HISTORY_FILE);

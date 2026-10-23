@@ -86,7 +86,6 @@ import {
   bootstrapYieldHistory,
   buildSourceYieldReport,
   deriveBaselines,
-  formatSourceYieldDropLine,
   loadYieldHistory,
   renderSourceYieldSummary,
   selectBaselineWindow,
@@ -3587,7 +3586,6 @@ export async function main(args = process.argv.slice(2)) {
     console.warn(`⚠️  Source yield report not saved: ${reportSave.error}`);
   }
   for (const line of renderSourceYieldSummary(sourceYield)) console.log(line);
-  for (const drop of sourceYield.drops) console.warn(formatSourceYieldDropLine(drop));
   if (strictYield && sourceYield.drops.length > 0) {
     console.warn(
       `⚠️  --strict-yield: ${sourceYield.drops.length} source yield drop(s) fail a standalone run`,
@@ -3597,7 +3595,7 @@ export async function main(args = process.argv.slice(2)) {
   if (!historySave.ok) {
     console.warn(`⚠️  Source yield history not saved: ${historySave.error}`);
   }
-  return { sourceYield };
+  return { sourceYield, strictYield };
 }
 
 // Auto-run if called directly
@@ -3605,7 +3603,7 @@ const isMainModule = process.argv[1] && process.argv[1].endsWith("asset-sourcer.
 if (isMainModule) {
   main()
     .then((result) => {
-      if (strictYieldExitCode(result?.sourceYield, process.argv.includes("--strict-yield")) === 1) {
+      if (strictYieldExitCode(result?.sourceYield, result?.strictYield) === 1) {
         process.exitCode = 1;
       }
     })

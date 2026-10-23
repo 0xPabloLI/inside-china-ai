@@ -492,7 +492,18 @@ function readBootstrapObservation(filePath, kind) {
   } else {
     const patches = Array.isArray(parsed) ? parsed : parsed?.patches;
     if (!Array.isArray(patches)) return null;
-    assets = patches;
+    // Assigned patch entries nest the actual media under `media` (type/path),
+    // with only `source`/`status` at the top level — flatten so
+    // collectContributedCounts can classify them.
+    assets = patches.map((patch) =>
+      patch?.media && (patch.media.type || patch.media.path)
+        ? {
+            source: patch.source || patch.media.source,
+            type: patch.media.type,
+            path: patch.media.path,
+          }
+        : patch,
+    );
     content = basename(dirname(filePath));
   }
   const counts = collectContributedCounts(assets);
@@ -556,21 +567,31 @@ export function bootstrapYieldHistory({ outputDir, historyPath, before } = {}) {
     }
 
     const observations = [];
+    const patchContents = new Set();
     for (const { filePath, kind } of candidates) {
       const observation = readBootstrapObservation(filePath, kind);
       if (!observation || !(observation.mtimeMs < beforeMs)) continue;
+      if (kind === "patch" && observation.entry.content) {
+        patchContents.add(observation.entry.content);
+      }
       observations.push(observation);
     }
-    if (observations.length === 0) return { ok: true, bootstrapped: false, entries: 0 };
+    // asset-report.json is written by the same run as that slug's
+    // media-patch.json; the patch entry (pool entries) is the closer match to
+    // the contributed metric, so drop the duplicate report entry.
+    const deduped = observations.filter(
+      (o) => o.filePath !== reportPath || !o.entry.content || !patchContents.has(o.entry.content),
+    );
+    if (deduped.length === 0) return { ok: true, bootstrapped: false, entries: 0 };
 
-    observations.sort((a, b) => a.mtimeMs - b.mtimeMs || compareNames(a.filePath, b.filePath));
+    deduped.sort((a, b) => a.mtimeMs - b.mtimeMs || compareNames(a.filePath, b.filePath));
     mkdirSync(dirname(historyPath), { recursive: true });
     appendFileSync(
       historyPath,
-      observations.map((observation) => JSON.stringify(observation.entry)).join("\n") + "\n",
+      deduped.map((observation) => JSON.stringify(observation.entry)).join("\n") + "\n",
       "utf8",
     );
-    return { ok: true, bootstrapped: true, entries: observations.length };
+    return { ok: true, bootstrapped: true, entries: deduped.length };
   } catch (error) {
     return {
       ok: false,
