@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.30.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.29.0...tanstack_start_ts-v1.30.0) (2026-10-23)
+
+
+### Features
+
+* **short-video:** raise the whole type scale to the readability floors ([#688](https://github.com/0xPabloLI/inside-china-ai/issues/688)) ([793eaf8](https://github.com/0xPabloLI/inside-china-ai/commit/793eaf85f157291a2e05760932705f201cc0df37))
+
 ## [1.29.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.7...tanstack_start_ts-v1.29.0) (2026-10-23)
 
 
