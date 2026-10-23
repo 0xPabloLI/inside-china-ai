@@ -5,8 +5,8 @@
  * DISPLAY track (voiceover → subtitles) must keep the original tokens.
  */
 import { describe, it, expect, vi } from "vitest";
-import { existsSync, readdirSync } from "fs";
-import { dirname, join } from "path";
+import { readdirSync } from "fs";
+import { dirname, join, relative } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import {
   normalizeTtsText,
@@ -472,6 +472,17 @@ describe("numericAnchors (#762 inverse direction)", () => {
 });
 
 describe("token count conservation on the real corpus (#817)", () => {
+  /** Every `scene-data.mjs` under `content/`, nested multi-part packs included. */
+  function findSceneDataFiles(root) {
+    const found = [];
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      const full = join(root, entry.name);
+      if (entry.isDirectory()) found.push(...findSceneDataFiles(full));
+      else if (entry.name === "scene-data.mjs") found.push(full);
+    }
+    return found;
+  }
+
   it("keeps every derived spoken track at the display track's word count", async () => {
     const contentRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "content");
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -481,9 +492,12 @@ describe("token count conservation on the real corpus (#817)", () => {
     let scenes = 0;
 
     try {
-      for (const packName of readdirSync(contentRoot)) {
-        const file = join(contentRoot, packName, "scene-data.mjs");
-        if (!existsSync(file)) continue;
+      // Walk the tree: multi-part packs live one level deeper
+      // (`content/distillation/pt1`, `content/restraint/pt3`, …) and a
+      // top-level-only readdir silently skipped them while the test still
+      // claimed corpus-wide coverage.
+      for (const file of findSceneDataFiles(contentRoot)) {
+        const packName = relative(contentRoot, file).replace(/\/scene-data\.mjs$/, "");
         const mod = await import(pathToFileURL(file).href);
         const list = Array.isArray(mod.scenes) ? mod.scenes : [];
         if (list.length === 0) continue;
@@ -508,8 +522,11 @@ describe("token count conservation on the real corpus (#817)", () => {
 
     // Guard against the corpus silently emptying out (a readdir change would
     // otherwise turn this regression test green by having nothing to check).
-    expect(packs).toBeGreaterThan(20);
-    expect(scenes).toBeGreaterThan(200);
+    // Floors sit just under the measured 38 packs / 333 scenes so a lost
+    // subdirectory (the nested multi-part packs) fails instead of shrinking
+    // the sample unnoticed.
+    expect(packs).toBeGreaterThanOrEqual(36);
+    expect(scenes).toBeGreaterThanOrEqual(320);
     expect(drifts).toEqual([]);
   });
 });
