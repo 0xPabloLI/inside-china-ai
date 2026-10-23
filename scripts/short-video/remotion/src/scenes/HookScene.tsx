@@ -45,8 +45,9 @@ const COLORS: Record<string, string> = {
  *
  * Re-derived from the band CONTENTS under the #688 type scale, measured by
  * rendering every hook scene of every content pack plus the gate fixtures
- * (fixture scenario `measure-props`; box union per band). Each band's budget
- * is its worst case, and the three worst cases come from different scenes:
+ * through a temporary box-union probe (each band's [data-text-container]
+ * children, min top to max bottom). Each band's budget is its worst case, and
+ * the three worst cases come from different scenes:
  *
  *   band     need (worst case)                    was   now
  *   kicker   71  badge pill (hook)                180   78

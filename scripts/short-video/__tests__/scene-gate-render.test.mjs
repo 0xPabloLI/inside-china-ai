@@ -187,14 +187,13 @@ describe(
       // The probe cancels the render with the measurement payload once every
       // gate (and group approval) has settled; measuredGroupFits carries each
       // band's final font sizes. The budget override (200) sits between the
-      // #688 floors' height (~146: source 29 + context 35 on one line each +
-      // result 40) and the initial content height (~298: T8's partial-fragment
-      // highlight no longer forces the result line nowrap, so width Fit accepts
-      // 56 on two lines and context starts at its preferred 48 on two), so the
-      // walk must exhaust source (priority 5, floor 29) and context (10, floor
-      // 35) and then step result 56 → 54 → 52 → 50, where the copy collapses
-      // to ONE line and the band settles at 187 ≤ 200 — the walk never steps a
-      // field below what the band needs.
+      // #688 floors' measured height (182: source 29 + context 35 wrapping to
+      // two lines + result 46) and the measured initial content height (321:
+      // result 64, context 48, source 40), so the walk must exhaust source
+      // (priority 5, floor 29) and context (10, floor 35) and then step result
+      // 64 → 62 → … → 50, where the copy collapses to ONE line and the band
+      // settles at 187 ≤ 200 — the walk never steps a field below what the
+      // band needs, and it stops at 50 rather than 46 because 187 already fits.
       const { ok, payload, raw } = renderScenario("group-shrink-measure");
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();

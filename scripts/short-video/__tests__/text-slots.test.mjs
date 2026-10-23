@@ -49,10 +49,14 @@ describe("field size defaults", () => {
   it("gives result its preferred and minimum size", () => {
     // #688: result moved 56/40 -> 64/46 as part of the lead-class raise (the
     // copy floor at 48 would otherwise leave result at its own body text's
-    // size). Asserted against the contract so the value is not re-pinned here.
+    // size). Pinned as literals with the decision citation — asserting
+    // `getSlot(...)` against `SLOT_FIELDS` would compare the contract to its
+    // own spread and could never fail. The rendered-gate uses of
+    // `SLOT_FIELDS.result.minSize` elsewhere assert a payload, which is
+    // behavioral and does belong to the contract.
     const slot = getSlot("narrative.media-overlay.result");
-    expect(slot.preferredSize).toBe(SLOT_FIELDS.result.preferredSize);
-    expect(slot.minSize).toBe(SLOT_FIELDS.result.minSize);
+    expect(slot.preferredSize).toBe(64);
+    expect(slot.minSize).toBe(46);
     expect(slot.minSize).toBe(Math.round(0.72 * slot.preferredSize));
   });
 
@@ -118,10 +122,9 @@ describe("fit ladder", () => {
     // together. That produced unreadable text instead of a failure, so the
     // ladder stops dead at minSize — callers must cancelRender instead.
     const ladder = fitCandidates(getSlot("narrative.media-overlay.result"));
-    const spec = SLOT_FIELDS.result;
-    expect(ladder[0]).toBe(spec.preferredSize);
-    expect(ladder[ladder.length - 1]).toBe(spec.minSize);
-    expect(Math.min(...ladder)).toBe(spec.minSize);
+    expect(ladder[0]).toBe(64); // #688: preferred, was 56
+    expect(ladder[ladder.length - 1]).toBe(46); // #688: floor, was 40
+    expect(Math.min(...ladder)).toBe(46);
   });
 
   it("walks the focus number down from 240 to 150", () => {
@@ -518,7 +521,7 @@ describe("slotCharBudget (#153 review: contract-derived budget single source)", 
     // the intended trade (bigger type, shorter copy).
     expect(
       slotCharBudget({ visualType: "narrative", layout: "media-overlay", field: "result" }),
-    ).toBe(Math.floor(692 / (SLOT_FIELDS.result.preferredSize * 0.55)));
+    ).toBe(19);
   });
 
   it("returns null for an unmeasured slot (never guess)", () => {

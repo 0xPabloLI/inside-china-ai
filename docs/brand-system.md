@@ -109,7 +109,7 @@ Font stack: `'Times New Roman', Times, serif`（**衬线渲染基准**）
 | Headlines    | 48-80px  | 800-900 | 2-5px            |
 | Body         | 48px     | 600-800 | normal           |
 | Labels       | 40px     | 700     | 2-3px, uppercase |
-| Data anchors | 56-240px | 900     | tight            |
+| Data anchors | 64-240px | 900     | tight            |
 
 > **Readability floor (#688, 2026-10-23).** The single source of truth for slot sizes is `SLOT_FIELDS` in `scripts/short-video/lib/text-slots.mjs` (`preferredSize` → `minSize`, floor = `round(0.72 × preferred)`); this table is its summary. Sizes here are _preferred_ sizes — `TextGate` may still step a field down to its floor when the copy does not fit the 820px content box, and a field that cannot fit even at the floor cancels the render.
 >
@@ -189,12 +189,12 @@ Based on TikTok color best practices research (2025-2026):
 
 ### Sizing Rules
 
-| Context                                      | Logo (SVG container) | Company Name (text)    | Weight | Color                           | Rationale                                                                                                                                                                       |
-| -------------------------------------------- | -------------------- | ---------------------- | ------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Hook scene (Scene 1)**                     | ≥ 120px              | ≥ 80px                 | 900    | `--white` with brand-color glow | First 3s = 70% of completion. Logo must be readable at feed thumbnail size (~200px wide on phone). 120px on 1080px canvas = ~22px at thumbnail scale — minimum for recognition. |
-| **Featured scenes** (company is the topic)   | ≥ 100px              | ≥ 48px                 | 800    | `--white` or entity color       | Mid-video reinforcement. Slightly smaller is OK since viewer already committed.                                                                                                 |
-| **Comparison scenes** (company vs another)   | ≥ 80px               | ≥ 40px                 | 800    | Entity color                    | Two logos side by side, each can be slightly smaller.                                                                                                                           |
-| **Channel brand bar** (top-left, all scenes) | 48px                 | 24px ("CHINA AI NEWS") | 900    | `--white`, "AI" in `--blue`     | Channel identity, not subject. Small and consistent — doesn't compete with content.                                                                                             |
+| Context                                      | Logo (SVG container) | Company Name (text)    | Weight | Color                           | Rationale                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------- | -------------------- | ---------------------- | ------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Hook scene (Scene 1)**                     | ≥ 120px (ships 96px) | ≥ 80px (ships 64px)    | 900    | `--white` with brand-color glow | First 3s = 70% of completion. Logo must be readable at feed thumbnail size (~200px wide on phone). 120px on 1080px canvas = ~22px at thumbnail scale — minimum for recognition. `HOOK_SUBJECT_ROW` ships 96px today (the 96 + 24px gap is what the subject's width budget reserves); the 120px target is a #291 redesign item, not what renders. |
+| **Featured scenes** (company is the topic)   | ≥ 100px              | ≥ 48px                 | 800    | `--white` or entity color       | Mid-video reinforcement. Slightly smaller is OK since viewer already committed.                                                                                                                                                                                                                                                                  |
+| **Comparison scenes** (company vs another)   | ≥ 80px               | ≥ 40px                 | 800    | Entity color                    | Two logos side by side, each can be slightly smaller.                                                                                                                                                                                                                                                                                            |
+| **Channel brand bar** (top-left, all scenes) | 48px                 | 24px ("CHINA AI NEWS") | 900    | `--white`, "AI" in `--blue`     | Channel identity, not subject. Small and consistent — doesn't compete with content.                                                                                                                                                                                                                                                              |
 
 ### Placement Rules
 
@@ -225,7 +225,7 @@ Same as color tokens — each company has a consistent semantic color:
 
 ## Content Patterns
 
-- **Data anchors**: oversized numbers (64-300px) as focal points — amber for Hook, semantic color elsewhere
+- **Data anchors**: oversized numbers (64-240px) as focal points — amber for Hook, semantic color elsewhere
 - **Quotes**: left-border accent color, italic, keyword highlighted
 - **Verdicts**: full-width stamp with text-shadow glow
 - **Color coding**: consistent — same entity always same color across all scenes
@@ -278,7 +278,7 @@ Slot composition (1080×1920; bands re-derived by #688 from the band contents at
 
 ```
 kicker (220–298)     [badge]    optional red pill (BREAKING) — red urgency
-hero   (298–840)     [subject]  optional logo 120px + name 64px/900
+hero   (298–840)     [subject]  optional logo 96px + name 64px/900
                      [focal]    REQUIRED, exactly one of:
                        A number-led: bigNumber (amber 300px glow)
                                      + numberLabel (highlight wraps .hl)
@@ -288,7 +288,7 @@ support (840–1150)   [stats]    optional stat cards (staggered 1.3s+)
                      [source]   optional source line (2.1s)
 ```
 
-The support band grew 200 → 310px because the copy it holds did: the `source` line went 20 → 40px and now wraps to two lines, and the stat card's label went 0.36em → 0.5em of the card (20 → 28px). Measured on the real packs, the worst case is 305.8px of stat card + source. The kicker band gave up the difference — it only ever holds the badge pill (71px) — and the badge pill's vertical padding went 16 → 12px. The three bands' worst cases sum to 915.8 of the 930px safe zone, so the split is tight but not over-subscribed.
+The support band grew 200 → 310px because the copy it holds did: the `source` line went 20 → 40px and now wraps to two lines, and the stat card's label went 0.36em → 0.5em of the card (20 → 32px at the 64px card). Measured on the real packs, the worst case is 305.8px of stat card + source. The kicker band gave up the difference — it only ever holds the badge pill (71px) — and the badge pill's vertical padding went 16 → 12px. The three bands' worst cases sum to 915.8 of the 930px safe zone, so the split is tight but not over-subscribed.
 
 - Background layers: `grid-bg` + color-tinted glow (semantic color token drives the tint) + `scanlines` + blue `scan-sweep`
 - Animation contract: badge 0.2s → subject 0.2s → hookText **frame 1** (thumbnail carries the claim) → bigNumber 0.3s / revealText 0.8s → stats 0.8s+ → source 1.3s
@@ -369,7 +369,7 @@ Numbered analysis cards.
 
 Brand closer — the single shared CtaScene component (`remotion/src/scenes/CtaScene.tsx`), routed through the slot system. No URL (testing phase).
 
-- **Hero slot (335–885)**: brand logo (130px) → brand name `CHINA AI NEWS` (72px, 900, "AI" in blue) → tagline `CHINA AI, DECODED` (48px, sec)
+- **Hero slot (335–885)**: brand logo (160×104 `CanvasImage` box) → brand name `CHINA AI NEWS` (72px, 900, "AI" in blue) → tagline `CHINA AI, DECODED` (48px, sec)
 - **Support slot (885–1150)**: action stamp `FOLLOW FOR MORE →` (amber stampBox) → optional series `topic` teaser
 - Fade-to-black at end (0.8s before duration ends)
 

@@ -33,7 +33,7 @@ The first 3 seconds determine 70% of completion rate. Rules:
 | Principle              | Rule                                                  | Why                                                                                       |
 | ---------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | **One core message**   | First frame conveys ONE number/word/claim, not a menu | Users scroll at ~1 per second; multi-item frames read as "too much work"                  |
-| **Text ≥ 32px**        | Minimum 32px on a 1080×1920 canvas; titles ≥ 60px     | At thumbnail size in-feed, < 32px is invisible                                            |
+| **Text ≥ 48px**        | Contract floor 48px (metadata 40px) on a 1080×1920 canvas; titles ≥ 60px | At thumbnail size in-feed, < 48px is unreadable — it is the platform must-read line (4.4% of frame width); sizes come from `lib/text-slots.mjs`, and #688 raised every class to its floor. |
 | **Upper 2/3 rule**     | Critical content above y=1150 (safe-zone bottom edge) | Below y=1150 sits the subtitle lane (y≈1188–1350) + TikTok caption UI (buttons, captions) |
 | **No dead space**      | Fill the full 1920px height — no > 200px gaps         | Blank zones signal "no content" → scroll past                                             |
 | **Bold color blocks**  | Use solid-color areas (not gradients) for contrast    | Gradients compress poorly at thumbnail size; solid blocks pop                             |
@@ -829,7 +829,7 @@ Install mflux in its **own venv** — `python3 -m venv ~/.video-t2i-env && ~/.vi
 
 - **Brand bar** (top-left on opener/mid scenes): 48px, in `brandBar()`
 - **Watermark** (top-left on non-brand scenes): 55px, `opacity: 0.35`, at `top: 60px; left: 60px` (`WATERMARK_POS` in `lib/safe-zones.mjs`)
-- **CTA scene**: 130px centered in the hero slot — rendered by the shared CtaScene end card (`remotion/src/scenes/CtaScene.tsx`), never hand-rolled
+- **CTA scene**: 160×104 centered in the hero slot — rendered by the shared CtaScene end card (`remotion/src/scenes/CtaScene.tsx`), never hand-rolled
 
 > Logo asset creation (PNG→SVG conversion, posterize, vtracer) is a branding task, documented in `docs/brand-system.md`.
 

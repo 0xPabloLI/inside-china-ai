@@ -137,12 +137,15 @@ export const BrandBar: React.FC = () => (
 
 /**
  * Badge pill — hook scene badge (NOT the breaking badge). Matches
- * .s-hook .badge-pill. `fontSize` is injected by the TextGate when gated
- * (contract field `badge`, 40px); the 26 below is only the ungated default.
+ * .s-hook .badge-pill. `fontSize` is injected by the TextGate when gated;
+ * the default mirrors the contract's `badge` preferredSize (40px, the
+ * metadata floor — see SLOT_FIELDS) so the ungated preview shape cannot
+ * reintroduce the 22px badge #688 raised away. HookScene always passes a
+ * gated fontSize, so nothing renders from this default.
  */
 export const BadgePill: React.FC<{ text: string; fontSize?: number }> = ({
   text,
-  fontSize = 22,
+  fontSize = 40,
 }) => (
   <div
     style={{
@@ -247,9 +250,10 @@ export const StatCard: React.FC<{
                         // (0.72em) without wrapping the label to two lines and
                         // pushing 13 of the 26 shipped packs past the support
                         // band. 0.5em — the unit's own ratio — is the largest
-                        // value the measured worst case absorbs: 28px, a 40%
-                        // raise, with the support band's real worst case at
-                        // 305.8 of its 310px.
+                        // value the measured worst case absorbs: 32px at the
+                        // 64px card (0.36em of the old 56px card was 20px), with
+                        // the support band's real worst case at 305.8 of its
+                        // 310px.
                         fontSize: "0.5em",
                         fontWeight: 700,
                         color: "#cbd5e1",
