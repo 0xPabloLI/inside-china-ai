@@ -4,7 +4,10 @@
  * User decision 2026-09-09: TTS may read a rewritten spoken form, but the
  * DISPLAY track (voiceover → subtitles) must keep the original tokens.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { existsSync, readdirSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath, pathToFileURL } from "url";
 import {
   normalizeTtsText,
   splitDigitUnitToken,
@@ -12,6 +15,7 @@ import {
   cardinalSpokenWords,
   numericAnchors,
 } from "../lib/normalize-tts-text.mjs";
+import { findTokenCountDriftInScenes } from "../lib/subtitles/dual-track.mjs";
 import { restoreTimingTokens } from "../lib/subtitles/restore-tokens.mjs";
 
 /**
@@ -464,5 +468,42 @@ describe("numericAnchors (#762 inverse direction)", () => {
 
   it("returns an empty list for number-free text", () => {
     expect(numericAnchors("Follow for more.")).toEqual([]);
+  });
+});
+
+describe("token count conservation on the real corpus (#817)", () => {
+  it("keeps every derived spoken track at the display track's word count", async () => {
+    const contentRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "content");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const drifts = [];
+    let packs = 0;
+    let scenes = 0;
+
+    try {
+      for (const packName of readdirSync(contentRoot)) {
+        const file = join(contentRoot, packName, "scene-data.mjs");
+        if (!existsSync(file)) continue;
+        const mod = await import(pathToFileURL(file).href);
+        const list = Array.isArray(mod.scenes) ? mod.scenes : [];
+        if (list.length === 0) continue;
+        packs += 1;
+        scenes += list.length;
+        normalizeTtsText(list);
+        for (const drift of findTokenCountDriftInScenes(list)) {
+          if (drift.authored) continue;
+          drifts.push({ pack: packName, ...drift });
+        }
+      }
+    } finally {
+      log.mockRestore();
+      warn.mockRestore();
+    }
+
+    // Guard against the corpus silently emptying out (a readdir change would
+    // otherwise turn this regression test green by having nothing to check).
+    expect(packs).toBeGreaterThan(20);
+    expect(scenes).toBeGreaterThan(200);
+    expect(drifts).toEqual([]);
   });
 });
