@@ -7,15 +7,16 @@
 
 Place by purpose, not by file extension:
 
-| File type                                          | Directory                                                | Git tracked? | Example                                          |
-| -------------------------------------------------- | -------------------------------------------------------- | ------------ | ------------------------------------------------ |
-| Brand logo/mark/avatar                             | `scripts/short-video/assets/` (under `brand/`, `logos/`) | ✅           | `deepseek.svg` → `assets/logos/`                 |
-| BGM music                                          | `scripts/short-video/assets/bgm/`                        | ✅           | `news-cc-theme01.mp3`                            |
-| Content-specific media (rendered into video)       | `scripts/short-video/content/{slug}/assets/`             | ❌ 默认忽略  | `unitree-demo.mp4` → `content/unitree/assets/`   |
-| TTS reference audio (voice profile to clone)       | `scripts/short-video/voice-samples/`                     | ❌           | `voice-sample-24k.wav`                           |
-| Experiment outputs (digital human, TTS comparison) | `scripts/short-video/experiments/`                       | ❌           | `hallo2-test.mp4` → `experiments/digital-human/` |
+| File type                                          | Directory                                                | Git tracked? | Example                                               |
+| -------------------------------------------------- | -------------------------------------------------------- | ------------ | ----------------------------------------------------- |
+| Brand logo/mark/avatar                             | `scripts/short-video/assets/` (under `brand/`, `logos/`) | ✅           | `deepseek.svg` → `assets/logos/`                      |
+| BGM music                                          | `scripts/short-video/assets/bgm/`                        | ✅           | `news-cc-theme01.mp3`                                 |
+| Content-specific media (rendered into video)       | `scripts/short-video/content/{slug}/assets/`             | ❌ 默认忽略  | `unitree-demo.mp4` → `content/unitree/assets/`        |
+| Digital-human test fixtures (manual model tests)   | `scripts/short-video/assets/dh-fixtures/`                | ✅           | `scene-10.mp4` → consumers in `dh-fixtures/README.md` |
+| TTS reference audio (voice profile to clone)       | `scripts/short-video/voice-samples/`                     | ❌           | `voice-sample-24k.wav`                                |
+| Experiment outputs (digital human, TTS comparison) | `scripts/short-video/experiments/`                       | ❌           | `hallo2-test.mp4` → `experiments/digital-human/`      |
 
-**Decision rule**: Is it rendered into a video? → `content/{slug}/assets/`. Is it a global brand asset? → `assets/`. Is it a voice profile for TTS? → `voice-samples/`. Unsure if temporary? → `experiments/`.
+**Decision rule**: Is it rendered into a video? → `content/{slug}/assets/`. Is it a global brand asset? → `assets/`. Is it a tracked fixture consumed by a manual model test? → `assets/dh-fixtures/`. Is it a voice profile for TTS? → `voice-samples/`. Unsure if temporary? → `experiments/`.
 
 `assets/` is for **global, reusable production assets only** — never dump experiment outputs or voice samples here.
 
@@ -45,7 +46,7 @@ When you add a package whose media a test must read, force-add exactly those fil
 
 `render-remotion.mjs` stages content media, backdrop clips and avatar clips into `scripts/short-video/assets/_staged/` before each render, and rewrites the scene paths to `_staged/<filename>`. `remotion/public/assets` is a symlink to `assets/`, so this namespace sits **inside** the curated directory: treat `_staged/` as render scratch that is gitignored and safe to delete, and keep hand-placed assets in the curated root beside it. A copy written to the curated root instead is indistinguishable from a curated asset, and the ignore rules for downloaded files (`pexels-*`, `unsplash-*`, …) do not match arbitrary filenames.
 
-Five content copies committed before this rule landed were retired in #707; they were historical residue, not precedent. Content media belongs in `content/{slug}/assets/`, and the digital-human clip the manual MiniCPM scripts read lives in `assets/dh-fixtures/` as a fixture, not a curated content asset.
+Five content copies committed before this rule landed were handled in #707: four were deleted, and the digital-human clip the manual MiniCPM scripts read was relocated to `assets/dh-fixtures/` as a test fixture. They were historical residue, not precedent. Content media belongs in `content/{slug}/assets/`; after #707 no tracked content-name copy remains in the curated root (ignored download copies are covered by the source-prefix rules).
 
 ## 2. Asset Catalog & RAG
 

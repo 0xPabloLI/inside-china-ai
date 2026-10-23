@@ -27,6 +27,8 @@ instead of keeping private duplicates.
 | -------------- | --------------------------------------------------- | --------------------------------- | ------------------------------- |
 | `scene-10.mp4` | `content/dh-pilot-qwen4/assets/avatar/scene-10.mp4` | `test_minicpm_{audio,av,omni}.py` | DH pilot avatar clip (no audio) |
 
+`scene-10.mp4` is a byte-identical snapshot of the source above (sha256 `a1a1724c386100b49d815b7c7880e4b1f2a116de8417f74fd90cd51a2100d136`); the content-package copy is the production original.
+
 ## Usage
 
 ### Kaggle tests
