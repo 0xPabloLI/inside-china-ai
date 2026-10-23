@@ -353,7 +353,7 @@ export function strictYieldExitCode(report, strict) {
  * @param {object} row - report row with status "drop"
  * @returns {string}
  */
-export function formatSourceYieldDropLine(row) {
+function formatSourceYieldDropLine(row) {
   const reasons = row?.reasons?.length ? row.reasons.join("; ") : "no candidates returned";
   return `⚠️ [SOURCE-YIELD-DROP] ${row?.source}: actual ${row?.contributed} < baseline ${row?.baseline} — ${reasons}`;
 }
