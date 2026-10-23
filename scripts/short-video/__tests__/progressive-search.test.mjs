@@ -459,8 +459,17 @@ describe("IMAGE_SEARCH_ENGINES", () => {
     for (const engine of IMAGE_SEARCH_ENGINES) {
       const registrySource = registryByName.get(engine.name);
       if (!registrySource) continue; // engines not in registry (e.g. tavily_images) are fine
+      expect(engine.label).toBe(registrySource.label);
       expect(engine.requiresApiKey).toBe(registrySource.capabilities.images.requiresApiKey);
       expect(engine.apiKeyEnv).toBe(registrySource.capabilities.images.apiKeyEnv);
+    }
+  });
+
+  it("brave_image and searxng_image are API image sources in the registry (helper precondition)", () => {
+    for (const name of ["brave_image", "searxng_image"]) {
+      const source = ALL_SOURCES.find((s) => s.name === name);
+      expect(source).toBeDefined();
+      expect(source.capabilities?.images?.method).toBe("api");
     }
   });
 

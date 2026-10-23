@@ -1929,10 +1929,10 @@ export const GENERAL_SEARCH_SOURCES = [
     accessMethod: {
       primary: "api",
       notes:
-        "Self-hosted SearXNG metasearch (Docker in colima, localhost:8888; #92). JSON API primary — no API key, no per-query cost, aggregates 269 engines. CDP HTML fallback for API outages. Backend engines sit behind the host proxy and may CAPTCHA/timeout; multi-engine redundancy covers.",
+        "Self-hosted SearXNG metasearch (Docker in colima, localhost:8888; #92). JSON API primary — no API key, no per-query cost, aggregates 261 engines (live config, 2026-10-23). CDP HTML fallback for API outages. Backend engines sit behind the host proxy and may CAPTCHA/timeout; multi-engine redundancy covers.",
     },
     useCleanTitle: false,
-    // JSON API (fast-first layer, ~2s). Requires search.formats: [html, json]
+    // JSON API (fast-first layer, measured 19-20s on 2026-10-23). Requires search.formats: [html, json]
     // in the container's settings.yml and outgoing.proxies pointing at the
     // host proxy — SearXNG's httpx client ignores proxy environment variables.
     apiSearch: {
