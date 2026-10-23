@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 25 轮盘点 + 55 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述。
+> 本文件按时间倒序排列，共 25 轮盘点 + 56 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -71,6 +71,8 @@
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round LXXXIV**（`#817` 交付闭票——双轨第 4 不变量轴「词数守恒」：静态式 `ttsText` 词数 = `voiceover` 词数 + 各 replacement 净增减、动态式还原后 timing 展开词数 = `voiceover` 词数，两式在渲染边界 fail-closed、Step 0.6 漂移场景回退显示轨并告警；`original` 按 token 计数兼容 Rule 2 双词 `"GPT 5.5"`、纯标点 `—` 不计入词数、重复 replacement 按身份折叠、无映射场景归 `findUnmappedSpokenScenes` 告警、作者 `voiceoverTts` 漂移只 warn；全仓 38 包 333 有声场景 333/333 零漂移（递归遍历含嵌套多段包），解除「规则吞掉/重复 replacement 之外的词」这层三轴全静默的结构性排除；两轴 review 修掉双轴重复报同一场景/模块头两轴描述/语料测试自证空转/标点用例短路，droid review 2 轮 5 条全修；范围外把 `ip-address` 锁文件升 `10.7.4` 解 pre-push 漏洞门禁；PR #879 squash `c077d5ed`；frontier：Track 1A 队列清空，Track 1B 队首 `#864` → `#707`，HITL `#688`）
 
 **Round LXXXI**（`#818` 交付闭票——Step 6 `subtitle-alignment` 空转查明：候选 1 确认（漏导入 `generateSubtitles` 必抛 `ReferenceError`）、候选 2 独立排除（`.ass` 与门禁 expected 侧同源 + 强制对齐逐字节确定）、候选 3 对本次事故排除但管道潜伏缺陷另开 `#870`；该类别移出重试集合、修复未跑成时不再复验未变/半应用产物；真机 `--sweep` 33 包 0 词序列失配 + A/B 两包对照；两轴 review 抓出 CI skip 陈旧条目（回归测试在 CI 从不执行，已移除）与证据不可复跑（已落 `--determinism`）；PR #869 squash `96013fc5`；frontier：Track 1A 队首 → `#846` → `#817`）
 
