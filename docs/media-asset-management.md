@@ -45,7 +45,7 @@ When you add a package whose media a test must read, force-add exactly those fil
 
 `render-remotion.mjs` stages content media, backdrop clips and avatar clips into `scripts/short-video/assets/_staged/` before each render, and rewrites the scene paths to `_staged/<filename>`. `remotion/public/assets` is a symlink to `assets/`, so this namespace sits **inside** the curated directory: treat `_staged/` as render scratch that is gitignored and safe to delete, and keep hand-placed assets in the curated root beside it. A copy written to the curated root instead is indistinguishable from a curated asset, and the ignore rules for downloaded files (`pexels-*`, `unsplash-*`, …) do not match arbitrary filenames.
 
-Five content copies committed before this rule landed are still tracked in the curated root; they are historical residue, not precedent, and are being retired in #707.
+Five content copies committed before this rule landed were retired in #707; they were historical residue, not precedent. Content media belongs in `content/{slug}/assets/`, and the digital-human clip the manual MiniCPM scripts read lives in `assets/dh-fixtures/` as a fixture, not a curated content asset.
 
 ## 2. Asset Catalog & RAG
 

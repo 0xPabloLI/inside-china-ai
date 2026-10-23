@@ -21,6 +21,12 @@ instead of keeping private duplicates.
 | `audio.mp3`     | ~10s     | MP3 44.1kHz mono 192kbps | EchoMimicV3 format                       |
 | `audio-10s.mp3` | ~10s     | MP3 44.1kHz mono 128kbps | EchoMimicV3 short clip                   |
 
+## Video
+
+| File           | Source                                              | Consumers                         | Notes                           |
+| -------------- | --------------------------------------------------- | --------------------------------- | ------------------------------- |
+| `scene-10.mp4` | `content/dh-pilot-qwen4/assets/avatar/scene-10.mp4` | `test_minicpm_{audio,av,omni}.py` | DH pilot avatar clip (no audio) |
+
 ## Usage
 
 ### Kaggle tests
