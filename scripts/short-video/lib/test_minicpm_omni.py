@@ -155,7 +155,7 @@ TEST_IMAGES = [
 TEST_VIDEOS = [
     "pexels-video-alibaba-01.mp4",
     "scene-1-seed1024.mp4",
-    "scene-10.mp4",
+    "dh-fixtures/scene-10.mp4",
 ]
 
 

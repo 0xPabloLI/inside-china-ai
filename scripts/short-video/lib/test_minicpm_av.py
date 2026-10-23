@@ -34,7 +34,7 @@ TESTS = [
     },
     {
         "label": "scene-10-video + tts-audio",
-        "video": os.path.join(ASSETS_DIR, "scene-10.mp4"),
+        "video": os.path.join(ASSETS_DIR, "dh-fixtures", "scene-10.mp4"),
         "audio": os.path.join(ASSETS_DIR, "tts-comparison", "indextts-emotion", "indextts-hook-shock-zh.wav"),
         "desc": "Scene-10 video (no audio) + TTS hook-shock Chinese audio",
     },

@@ -111,7 +111,7 @@ One sentence summary of this audio segment's characteristics.
 
 VIDEO_AUDIO_TESTS = [
     {
-        "video": os.path.join(ASSETS_DIR, "scene-10.mp4"),
+        "video": os.path.join(ASSETS_DIR, "dh-fixtures", "scene-10.mp4"),
         "label": "scene-10-video+extracted-audio",
     },
 ]

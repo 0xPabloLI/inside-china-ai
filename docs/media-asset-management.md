@@ -7,15 +7,16 @@
 
 Place by purpose, not by file extension:
 
-| File type                                          | Directory                                                | Git tracked? | Example                                          |
-| -------------------------------------------------- | -------------------------------------------------------- | ------------ | ------------------------------------------------ |
-| Brand logo/mark/avatar                             | `scripts/short-video/assets/` (under `brand/`, `logos/`) | ✅           | `deepseek.svg` → `assets/logos/`                 |
-| BGM music                                          | `scripts/short-video/assets/bgm/`                        | ✅           | `news-cc-theme01.mp3`                            |
-| Content-specific media (rendered into video)       | `scripts/short-video/content/{slug}/assets/`             | ❌ 默认忽略  | `unitree-demo.mp4` → `content/unitree/assets/`   |
-| TTS reference audio (voice profile to clone)       | `scripts/short-video/voice-samples/`                     | ❌           | `voice-sample-24k.wav`                           |
-| Experiment outputs (digital human, TTS comparison) | `scripts/short-video/experiments/`                       | ❌           | `hallo2-test.mp4` → `experiments/digital-human/` |
+| File type                                          | Directory                                                | Git tracked? | Example                                               |
+| -------------------------------------------------- | -------------------------------------------------------- | ------------ | ----------------------------------------------------- |
+| Brand logo/mark/avatar                             | `scripts/short-video/assets/` (under `brand/`, `logos/`) | ✅           | `deepseek.svg` → `assets/logos/`                      |
+| BGM music                                          | `scripts/short-video/assets/bgm/`                        | ✅           | `news-cc-theme01.mp3`                                 |
+| Content-specific media (rendered into video)       | `scripts/short-video/content/{slug}/assets/`             | ❌ 默认忽略  | `unitree-demo.mp4` → `content/unitree/assets/`        |
+| Digital-human test fixtures (manual model tests)   | `scripts/short-video/assets/dh-fixtures/`                | ✅           | `scene-10.mp4` → consumers in `dh-fixtures/README.md` |
+| TTS reference audio (voice profile to clone)       | `scripts/short-video/voice-samples/`                     | ❌           | `voice-sample-24k.wav`                                |
+| Experiment outputs (digital human, TTS comparison) | `scripts/short-video/experiments/`                       | ❌           | `hallo2-test.mp4` → `experiments/digital-human/`      |
 
-**Decision rule**: Is it rendered into a video? → `content/{slug}/assets/`. Is it a global brand asset? → `assets/`. Is it a voice profile for TTS? → `voice-samples/`. Unsure if temporary? → `experiments/`.
+**Decision rule**: Is it rendered into a video? → `content/{slug}/assets/`. Is it a global brand asset? → `assets/`. Is it a tracked fixture consumed by a manual model test? → `assets/dh-fixtures/`. Is it a voice profile for TTS? → `voice-samples/`. Unsure if temporary? → `experiments/`.
 
 `assets/` is for **global, reusable production assets only** — never dump experiment outputs or voice samples here.
 
@@ -32,20 +33,22 @@ media: { type: "image", path: "assets/hook-cover.png", source: "...", fit: "cove
 
 ### Why content media is not tracked
 
-`content/**/assets/` is gitignored (`.gitignore`): the files are downloaded or generated per package, and they are large binaries. A package's media is force-added only when a **test consumes the bytes** — the exceptions are the whole list, and each names its consumer:
+`content/**/assets/` is gitignored (`.gitignore`): the files are downloaded or generated per package, and they are large binaries. A package's media is force-added only when a **test consumes the bytes or the asset is hand-made and cannot be re-sourced** — the exceptions are the whole list, and each names its consumer:
 
-| Package            | Tracked files | Consumer                                                              |
-| ------------------ | ------------- | --------------------------------------------------------------------- |
-| `unitree`          | 3             | `media-bg.test.mjs`, `media-zoom-render.test.mjs`, `chunker.test.mjs` |
-| `sensetime-latest` | 5             | `focus-smoke.test.mjs` + `fixtures/focus-golden.json`                 |
+| Package            | Tracked files | Consumer                                                                                                             |
+| ------------------ | ------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `unitree`          | 3             | `media-bg.test.mjs`, `media-zoom-render.test.mjs`, `chunker.test.mjs`                                                |
+| `sensetime-latest` | 5             | `focus-smoke.test.mjs` + `fixtures/focus-golden.json`                                                                |
+| `qwen4-preview`    | 2             | `render-remotion.mjs` stages `assets/qwen-{architecture,throughput}.png`; hand-made diagrams no source can reproduce |
+| `dh-pilot-qwen4`   | 2             | Same two hand-made diagrams, reused by the digital-human pilot                                                       |
 
-When you add a package whose media a test must read, force-add exactly those files and add the row here.
+When you add a package whose media a test must read, or whose hand-made asset cannot be re-sourced, force-add exactly those files and add the row here.
 
 ### Render staging (`_staged/`)
 
 `render-remotion.mjs` stages content media, backdrop clips and avatar clips into `scripts/short-video/assets/_staged/` before each render, and rewrites the scene paths to `_staged/<filename>`. `remotion/public/assets` is a symlink to `assets/`, so this namespace sits **inside** the curated directory: treat `_staged/` as render scratch that is gitignored and safe to delete, and keep hand-placed assets in the curated root beside it. A copy written to the curated root instead is indistinguishable from a curated asset, and the ignore rules for downloaded files (`pexels-*`, `unsplash-*`, …) do not match arbitrary filenames.
 
-Five content copies committed before this rule landed are still tracked in the curated root; they are historical residue, not precedent, and are being retired in #707.
+Five content copies committed before this rule landed were handled in #707: the four flat copies were deleted, the digital-human clip the manual MiniCPM scripts read was relocated to `assets/dh-fixtures/` as a test fixture, and the two hand-made Qwen diagrams are now tracked inside `qwen4-preview` and `dh-pilot-qwen4` (the package copies existed but were untracked), so their only tracked copies survive a fresh checkout. They were historical residue, not precedent. Content media belongs in `content/{slug}/assets/`; after #707 no tracked content-name copy remains in the curated root (ignored download copies are covered by the source-prefix rules).
 
 ## 2. Asset Catalog & RAG
 
