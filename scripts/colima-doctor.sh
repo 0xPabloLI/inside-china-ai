@@ -99,9 +99,9 @@ do_rebuild() {
   # The live searxng uses anonymous volumes, so colima delete destroys its
   # settings.yml. Rescue it to a host mount first — the rebuilt container
   # mounts the host dir from then on, so future rebuilds preserve config.
-  mkdir -p "$HOME/.searxng"
-  if docker cp searxng:/etc/searxng/settings.yml "$HOME/.searxng/settings.yml" 2>/dev/null; then
-    echo "  📋 settings.yml rescued to ~/.searxng/settings.yml"
+  mkdir -p "$HOME/searxng"
+  if docker cp searxng:/etc/searxng/settings.yml "$HOME/searxng/settings.yml" 2>/dev/null; then
+    echo "  📋 settings.yml rescued to ~/searxng/settings.yml"
   else
     echo "  ⚠️  Could not rescue settings.yml (container dead?) — SearXNG will start with defaults;"
     echo "      re-apply search.formats: [html,json] + outgoing.proxies per docs/tools-catalog.md"
@@ -119,8 +119,11 @@ do_rebuild() {
   docker pull searxng/searxng:latest
   docker pull ghcr.io/containrrr/watchtower:latest
   docker rm -f searxng watchtower 2>/dev/null || true
-  docker run -d --name searxng -p 8888:8080 \
-    -v "$HOME/.searxng:/etc/searxng" searxng/searxng:latest
+  # #891: bound the container so it yields to other programs; the park agent
+  # stops it when idle or under host memory pressure.
+  docker run -d --name searxng --restart unless-stopped -p 8888:8080 \
+    -v "$HOME/searxng:/etc/searxng" \
+    --cpus 0.5 --memory 768m --memory-swap 768m searxng/searxng:latest
   docker run -d --name watchtower -v /var/run/docker.sock:/var/run/docker.sock \
     ghcr.io/containrrr/watchtower:latest --interval 86400
   echo "⏳ Waiting for searxng JSON API..."

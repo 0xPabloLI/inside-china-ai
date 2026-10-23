@@ -75,6 +75,7 @@ import {
   dedupByUrl,
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS, resolveLoginGate } from "./lib/source-registry.mjs";
+import { ensureSearxng } from "../searxng/lifecycle.mjs";
 import {
   updateSourceHealth,
   deriveZeroResultSources,
@@ -1178,6 +1179,15 @@ async function main() {
     const names = skippedPaidSources.map((s) => s.name).join(", ");
     console.log(`  💰 Skipping ${skippedPaidSources.length} paid-API source(s): ${names}`);
     console.log(`     Use --include-paid to enable them.`);
+  }
+
+  // #891: the container parks when idle; bring it back before a run that will
+  // use it. Fail-open — discovery continues without it.
+  if (process.env.SEARXNG_AUTO_START !== "0" && sources.some((s) => s.name === "searxng_search")) {
+    const searxng = await ensureSearxng({ quiet: true });
+    if (!searxng.ok && !searxng.skipped) {
+      console.warn(`  ⚠️  SearXNG unavailable: ${searxng.reason || "unknown"}`);
+    }
   }
 
   const sourceBreakdown = {
