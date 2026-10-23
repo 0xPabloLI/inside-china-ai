@@ -80,6 +80,19 @@ import {
 import { downloadCandidate } from "./download-candidate.mjs";
 import { RateLimitedSkipError } from "./cdp-client.mjs";
 import {
+  YIELD_HISTORY_FILE,
+  YIELD_REPORT_FILE,
+  appendYieldHistory,
+  bootstrapYieldHistory,
+  buildSourceYieldReport,
+  deriveBaselines,
+  loadYieldHistory,
+  renderSourceYieldSummary,
+  selectBaselineWindow,
+  strictYieldExitCode,
+  writeYieldReport,
+} from "./source-yield.mjs";
+import {
   YTDLP_BROWSER_UA,
   ytdlpCookieSource,
   ytdlpDomain,
@@ -2067,6 +2080,43 @@ export const CDP_VIDEO_SOURCES = ALL_SOURCES.filter(
 }));
 
 /**
+ * Union of every source the run can consult, with its media capabilities.
+ *
+ * This is the SSOT for source yield assertions (#779): it derives from the
+ * same arrays the search phases execute, so a newly registered source cannot
+ * silently miss its yield assertion. `conditional` is true only when EVERY
+ * phase that contributes the source is Tier 3 (i.e. it is not also an
+ * API/CDP/yt-dlp source) — a Tier-3-only engine legitimately does not run
+ * when Tier 1+2 already cover the scenes.
+ *
+ * @returns {Array<{source: string, capabilities: Array<"image"|"video">, conditional: boolean}>}
+ */
+export function buildExpectedYieldSources() {
+  const bySource = new Map();
+  const add = (source, capability, tier3 = false) => {
+    if (!source) return;
+    const entry = bySource.get(source) || { capabilities: new Set(), onlyTier3: true };
+    if (capability === "image" || capability === "video") entry.capabilities.add(capability);
+    if (!tier3) entry.onlyTier3 = false;
+    bySource.set(source, entry);
+  };
+
+  for (const source of API_SOURCES) add(source.name, source.type);
+  for (const source of YTDLP_SOURCES) add(source.name, "video");
+  for (const source of CDP_SOURCES) add(source.name, "image");
+  for (const source of CDP_VIDEO_SOURCES) add(source.name, "video");
+  for (const engine of IMAGE_SEARCH_ENGINES) add(engine.name, "image", true);
+
+  return [...bySource.entries()]
+    .map(([source, entry]) => ({
+      source,
+      capabilities: ["image", "video"].filter((capability) => entry.capabilities.has(capability)),
+      conditional: entry.onlyTier3,
+    }))
+    .sort((a, b) => (a.source < b.source ? -1 : a.source > b.source ? 1 : 0));
+}
+
+/**
  * Build attribution object for an asset.
  *
  * For sources with `dynamicAttribution: true` (e.g., Wikimedia), the `attributionRequired`
@@ -2641,10 +2691,16 @@ export async function main(args = process.argv.slice(2)) {
   const relevanceThreshold = parseFloat(
     getArg("relevance-threshold") || String(DEFAULT_RELEVANCE_THRESHOLD),
   );
+  // #779: the yield cutoff is captured at run start so a slow run's own
+  // artifacts can never be read back as its baseline.
+  const runStartedAt = new Date().toISOString();
+  // Only the standalone runner turns drops into a non-zero exit; in-process
+  // callers (media-track) stay non-blocking regardless of this flag.
+  const strictYield = args.includes("--strict-yield");
 
   if (!contentSlug) {
     console.error(
-      "Usage: node asset-sourcer.mjs --content <slug> [--keywords <kw>] [--max-per-source <n>]",
+      "Usage: node asset-sourcer.mjs --content <slug> [--keywords <kw>] [--max-per-source <n>] [--strict-yield]",
     );
     process.exit(1);
   }
@@ -2653,7 +2709,23 @@ export async function main(args = process.argv.slice(2)) {
   const __dirname = dirname(__filename);
   const contentDir = join(__dirname, "..", "content", contentSlug);
   const assetsDir = join(contentDir, "assets");
-  const outputPath = join(__dirname, "..", "output", "asset-report.json");
+  const outputRoot = join(__dirname, "..", "output");
+  const outputPath = join(outputRoot, "asset-report.json");
+  const yieldHistoryPath = join(outputRoot, YIELD_HISTORY_FILE);
+
+  // #779: seed the baseline ledger from run artifacts that predate this
+  // feature, so the first run asserts against real history. Runs before any
+  // phase writes, and only reads artifacts older than runStartedAt.
+  const yieldBootstrap = bootstrapYieldHistory({
+    outputDir: outputRoot,
+    historyPath: yieldHistoryPath,
+    before: runStartedAt,
+  });
+  if (!yieldBootstrap.ok) {
+    console.warn(`⚠️  Source yield baseline bootstrap skipped: ${yieldBootstrap.error}`);
+  } else if (yieldBootstrap.bootstrapped) {
+    console.log(`  Source yield: bootstrapped ${yieldBootstrap.entries} historical run record(s)`);
+  }
 
   console.log("🎬 Asset Sourcer");
   console.log("=".repeat(60));
@@ -3223,7 +3295,9 @@ export async function main(args = process.argv.slice(2)) {
   const scenesNeedingMedia = scenes.filter(
     (s) => !NO_MEDIA_TYPES.has(s.visualType) && !s.media,
   ).length;
+  let tier3Ran = false;
   if (shouldTriggerTier3(allAssets.length, scenesNeedingMedia)) {
+    tier3Ran = true;
     console.log("\n🔍 Tier 3: Progressive Search (open search engine images):");
     console.log(
       `   ${allAssets.length} assets found in Tier 1+2, ${scenesNeedingMedia} scenes need media`,
@@ -3489,13 +3563,52 @@ export async function main(args = process.argv.slice(2)) {
   console.log(
     `   Media patch: ${patchPath} (${assignedCount} assigned, ${unassignedCount} unassigned)`,
   );
+
+  // ── Source yield assertion (#779) — additive, non-blocking by default ──
+  // Runs after media-patch.json is written; the history cutoff is runStartedAt,
+  // so this run's artifacts can never feed its own baseline.
+  const history = loadYieldHistory(yieldHistoryPath);
+  const baselines = deriveBaselines(history, { before: runStartedAt });
+  const priorRuns = selectBaselineWindow(history, { before: runStartedAt }).length;
+  const sourceYield = buildSourceYieldReport({
+    contentSlug,
+    runAt: runStartedAt,
+    expectedSources: buildExpectedYieldSources(),
+    assets: allAssets,
+    skipped,
+    failed,
+    baselines,
+    tier3Ran,
+    priorRuns,
+  });
+  const reportSave = writeYieldReport(join(patchDir, YIELD_REPORT_FILE), sourceYield);
+  if (!reportSave.ok) {
+    console.warn(`⚠️  Source yield report not saved: ${reportSave.error}`);
+  }
+  for (const line of renderSourceYieldSummary(sourceYield)) console.log(line);
+  if (strictYield && sourceYield.drops.length > 0) {
+    console.warn(
+      `⚠️  --strict-yield: ${sourceYield.drops.length} source yield drop(s) fail a standalone run`,
+    );
+  }
+  const historySave = appendYieldHistory(yieldHistoryPath, sourceYield);
+  if (!historySave.ok) {
+    console.warn(`⚠️  Source yield history not saved: ${historySave.error}`);
+  }
+  return { sourceYield, strictYield };
 }
 
 // Auto-run if called directly
 const isMainModule = process.argv[1] && process.argv[1].endsWith("asset-sourcer.mjs");
 if (isMainModule) {
-  main().catch((e) => {
-    console.error(`❌ ${e.message}`);
-    process.exit(1);
-  });
+  main()
+    .then((result) => {
+      if (strictYieldExitCode(result?.sourceYield, result?.strictYield) === 1) {
+        process.exitCode = 1;
+      }
+    })
+    .catch((e) => {
+      console.error(`❌ ${e.message}`);
+      process.exit(1);
+    });
 }
