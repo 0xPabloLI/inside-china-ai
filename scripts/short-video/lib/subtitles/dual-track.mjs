@@ -13,10 +13,17 @@
  * This module turns that soft failure into a checkable invariant:
  *
  *   1. static  — every recorded replacement must be consumable in the scene's
- *                 own `ttsText` (checked before the ASS is generated);
- *   2. dynamic — the restored timing must not still contain a spoken run.
+ *                own `ttsText` (checked before the ASS is generated);
+ *   2. dynamic — the restored timing must not still contain a spoken run;
+ *   3. mapped  — a spoken-looking `ttsText` needs a replacement (warning only:
+ *                an author may confirm the line, #753);
+ *   4. counts  — word tokens are conserved end to end (#817): `ttsText` equals
+ *                `voiceover` plus each replacement's net delta, and the restored
+ *                timing words equal `voiceover`. Without this, a rule that eats
+ *                or duplicates a word outside the replacements keeps axes 1-3
+ *                silent while restore reproduces a different sentence.
  *
- * Both are cheap, pure and side-effect free so callers can decide whether to
+ * All four are cheap, pure and side-effect free so callers can decide whether to
  * throw (render boundary) or warn (diagnostics).
  *
  * @module subtitles/dual-track
@@ -49,6 +56,18 @@ function splitSpokenTokens(text) {
 /** Stable identity of a replacement — duplicates must collapse when counted. */
 function replacementKey(rep) {
   return `${rep?.original ?? ""}\u0000${(rep?.spoken ?? []).join("\u0001")}`;
+}
+
+/**
+ * Whitespace tokens that carry a word (#817). Punctuation-only tokens ("—")
+ * produce no word timing in text-align.py, so they must not count on either
+ * side of the conservation comparison.
+ *
+ * @param {string} text
+ * @returns {number}
+ */
+function countWordTokens(text) {
+  return splitSpokenTokens(text).filter((token) => normWord(token).length > 0).length;
 }
 
 /**
@@ -278,6 +297,91 @@ export function findUnmappedSpokenScenes(scenes) {
 }
 
 /**
+ * Static fourth axis (#817): a rewrite may consume or duplicate a word the
+ * replacement does not describe. The first three axes are silent for that
+ * defect — the run is consumable, nothing spoken survives, the scene has
+ * replacements — yet the restored subtitle is a different sentence
+ * ("Submit by 0910." → "Submit 0910.").
+ *
+ * Conservation is exact by construction: restore maps every recorded spoken
+ * run back to one display token, so
+ *   tokens(ttsText) === tokens(voiceover) + Σ(tokens(spoken) − tokens(original)).
+ * `original` is token-counted rather than assumed to be one token: rule 2
+ * records the multi-word "GPT 5.5" (two tokens), while restore merges its four
+ * spoken words into one `words[]` element.
+ *
+ * @param {Array<{id: number, voiceover?: string, ttsText?: string, ttsReplacements?: Array, voiceoverTts?: string}>} scenes
+ * @returns {Array<{sceneId: number, expected: number, actual: number, voiceover: string, ttsText: string, authored: boolean}>}
+ */
+export function findTokenCountDriftInScenes(scenes) {
+  const drifts = [];
+  for (const scene of scenes ?? []) {
+    if (!scene?.voiceover || !scene?.ttsText) continue;
+    const reps = Array.isArray(scene.ttsReplacements) ? scene.ttsReplacements : [];
+    // With no mapping, restore has nothing to merge and the spoken form simply
+    // reaches the subtitles: `findUnmappedSpokenScenes` owns that case as a
+    // warning, so counting it here would turn a review item into a hard fail.
+    if (reps.length === 0) continue;
+    const expected = reps.reduce((count, rep) => {
+      const spoken = countWordTokens((rep?.spoken ?? []).join(" "));
+      return count + spoken - countWordTokens(rep?.original ?? "");
+    }, countWordTokens(scene.voiceover));
+    const actual = countWordTokens(scene.ttsText);
+    if (actual !== expected) {
+      drifts.push({
+        sceneId: scene.id,
+        expected,
+        actual,
+        voiceover: scene.voiceover,
+        ttsText: scene.ttsText,
+        authored: Boolean(scene.voiceoverTts),
+      });
+    }
+  }
+  return drifts;
+}
+
+/**
+ * Dynamic fourth axis (#817): after restore, the timing words must spell the
+ * display track token-for-token. A word consumed or duplicated during restore
+ * changes the count even when both text tracks were sound.
+ *
+ * Restored words are re-expanded with `countWordTokens` because restore merges
+ * a multi-word original ("GPT 5.5") into one `words[]` element.
+ *
+ * @param {Array<{id: number, voiceover?: string, ttsText?: string, ttsReplacements?: Array, voiceoverTts?: string}>} scenes
+ * @param {Array|{scenes: Array}} timingData
+ * @returns {Array<{sceneId: number, expected: number, actual: number, voiceover: string, ttsText: string, authored: boolean}>}
+ */
+export function findRestoredTokenCountDrift(scenes, timingData) {
+  const timing = Array.isArray(timingData) ? timingData : (timingData?.scenes ?? []);
+  const drifts = [];
+  for (const sceneTiming of timing) {
+    const scene = (scenes ?? []).find((s) => s.id === sceneTiming?.sceneId);
+    if (!scene?.voiceover) continue;
+    const reps = Array.isArray(scene.ttsReplacements) ? scene.ttsReplacements : [];
+    // Same boundary as the static axis: no mapping means the alignment ran on
+    // a spoken-looking track and `findUnmappedSpokenScenes` already warns.
+    if (reps.length === 0) continue;
+    const words = (sceneTiming.segments ?? []).flatMap((seg) => seg.words ?? []);
+    if (words.length === 0) continue;
+    const actual = words.reduce((count, word) => count + countWordTokens(word?.text ?? ""), 0);
+    const expected = countWordTokens(scene.voiceover);
+    if (actual !== expected) {
+      drifts.push({
+        sceneId: scene.id,
+        expected,
+        actual,
+        voiceover: scene.voiceover,
+        ttsText: String(scene.ttsText ?? ""),
+        authored: Boolean(scene.voiceoverTts),
+      });
+    }
+  }
+  return drifts;
+}
+
+/**
  * Fail-closed gate for the render boundary: no unconsumed spoken run may
  * reach the .ass file.
  *
@@ -298,8 +402,31 @@ export function assertDualTrackRestorable({ scenes, timingData } = {}) {
 
   const staticLeaks = findUnrestorableReplacements(scenes);
   const dynamicLeaks = timingData ? findLeakedSpokenRuns(scenes, timingData) : [];
+  const staticDrifts = findTokenCountDriftInScenes(scenes);
+  const dynamicDrifts = timingData ? findRestoredTokenCountDrift(scenes, timingData) : [];
 
-  if (staticLeaks.length === 0 && dynamicLeaks.length === 0) return;
+  // One root cause (a rewrite that ate a word) trips both count axes for the
+  // same scene; report the scene once, preferring the static finding because it
+  // points at the rewrite rather than at the restore that merely inherited it.
+  const driftsByScene = new Map();
+  for (const drift of [...staticDrifts, ...dynamicDrifts]) {
+    if (!driftsByScene.has(drift.sceneId)) driftsByScene.set(drift.sceneId, drift);
+  }
+  const allDrifts = [...driftsByScene.values()];
+
+  // An authored `voiceoverTts` may deliberately add or drop words; the author
+  // owns that line, so drift is a review item there, not a leak (#817).
+  const authoredDrifts = allDrifts.filter((drift) => drift.authored);
+  if (authoredDrifts.length > 0) {
+    console.warn(
+      `  ⚠️  ${authoredDrifts.length} authored scene(s) drift in token count ` +
+        `(${authoredDrifts.map((d) => `scene ${d.sceneId}: expected ${d.expected}, got ${d.actual}`).join("; ")}) — ` +
+        `voiceoverTts is author-owned; review the line (#817).`,
+    );
+  }
+  const drifts = allDrifts.filter((drift) => !drift.authored);
+
+  if (staticLeaks.length === 0 && dynamicLeaks.length === 0 && drifts.length === 0) return;
 
   const lines = [];
   if (staticLeaks.length > 0) {
@@ -312,6 +439,16 @@ export function assertDualTrackRestorable({ scenes, timingData } = {}) {
     lines.push(
       `${dynamicLeaks.length} spoken run(s) survived restoration in the timing data:`,
       ...dynamicLeaks.map((leak) => `  - ${formatLeak(leak)}`),
+    );
+  }
+  if (drifts.length > 0) {
+    lines.push(
+      `${drifts.length} scene(s) changed word token count (a rewrite or restore dropped/duplicated words):`,
+      ...drifts.map(
+        (drift) =>
+          `  - scene ${drift.sceneId}: expected ${drift.expected}, got ${drift.actual}\n` +
+          `    voiceover: ${drift.voiceover}\n    ttsText: ${drift.ttsText}`,
+      ),
     );
   }
   throw new Error(

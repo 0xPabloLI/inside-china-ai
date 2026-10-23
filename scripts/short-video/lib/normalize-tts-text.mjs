@@ -29,6 +29,7 @@
 import {
   filterConsumableReplacements,
   findLeaksInTrack,
+  findTokenCountDriftInScenes,
   formatLeak,
 } from "./subtitles/dual-track.mjs";
 
@@ -738,6 +739,20 @@ export function normalizeTtsText(scenes, _meta = {}) {
         console.warn(
           `  ⚠️  Scene ${scene.id}: ${leaks.length} replacement(s) cannot be mapped back ` +
             `(${detail}) — leaving this scene on the display track. ` +
+            `Set scene.voiceoverTts explicitly when the line needs a spoken form.`,
+        );
+        return null;
+      }
+      // Fourth axis (#817): a rule may drop or duplicate a word the
+      // replacements do not describe. Restore would then reproduce a different
+      // sentence, and no earlier axis can see it.
+      const [drift] = findTokenCountDriftInScenes([
+        { ...scene, ttsText: spoken, ttsReplacements: replacements },
+      ]);
+      if (drift) {
+        console.warn(
+          `  ⚠️  Scene ${scene.id}: token count drift (expected ${drift.expected}, got ${drift.actual}) — ` +
+            `a normalization rule dropped or duplicated words; leaving this scene on the display track. ` +
             `Set scene.voiceoverTts explicitly when the line needs a spoken form.`,
         );
         return null;

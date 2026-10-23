@@ -135,7 +135,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 
 **还原契约（#753）**：改写与还原共用同一边界原语（`TOKEN_HEAD` / `TOKEN_SUFFIX` / `TOKEN_END` / `TOKEN_END_NO_UNIT`），复合词整体改写、整体还原 —— `V3.2-Speciale` 记录的是一条 `V3.2-Speciale → [V, three, point, two-Speciale]`，而不是只改前半段；只改前半段会让口头词与 `-Speciale` 粘成一个 token，从此永远还原不回去（这正是 "GPT-5.6" 被烧成 "GPT-five" 的成因）。匹配顺序统一走 `orderReplacements`（最长 run 优先），静态检查与运行时还原共用同一实现，否则 `2` 会抢走 `2030` 的 `two`。
 
-`restore-tokens` 自身仍是软失败（匹配不上保留 spoken），**但渲染边界不再容忍它**：`lib/subtitles/dual-track.mjs#assertDualTrackRestorable` 在写 `.ass` 之前做两重检查 —— 静态（每条 replacement 必须能在本场景自己的 `ttsText` 里被消费）与动态（还原后的 timing 不得残留 spoken run），任一不满足即抛错，`generateSubtitles` / `regenerateSubtitles` 及各条 `.ass` 直写路径（`main.mjs` Step 4/6、`render-only`、`realign-render`、`rerender-full`）都已接上。无法映射的场景在 Step 0.6 按**场景**回退到显示轨并 warn（整包回退会让一行坏文本关掉全片归一化）。纯 cue 场景（无 voiceover 文本）必须显式传 `skipDualTrackCheck: true`，漏传 `scenes` 会直接报错而不是静默放行。
+`restore-tokens` 自身仍是软失败（匹配不上保留 spoken），**但渲染边界不再容忍它**：`lib/subtitles/dual-track.mjs#assertDualTrackRestorable` 在写 `.ass` 之前做三重检查 —— 静态（每条 replacement 必须能在本场景自己的 `ttsText` 里被消费）、动态（还原后的 timing 不得残留 spoken run）与词数守恒（`#817`：`ttsText` 的有效词 token 数必须等于 `voiceover` 的词数加上各 replacement 的净增减，还原后的 timing 展开词数必须等于 `voiceover`；这两条能抓住「规则吞掉/重复一个替换对之外的词」这类前两条全静默的丢词缺陷），任一不满足即抛错，`generateSubtitles` / `regenerateSubtitles` 及各条 `.ass` 直写路径（`main.mjs` Step 4/6、`render-only`、`realign-render`、`rerender-full`）都已接上。无法映射的场景在 Step 0.6 按**场景**回退到显示轨并 warn（整包回退会让一行坏文本关掉全片归一化）；`voiceoverTts` 作者手写轨的词数漂移只 warn 不阻断（作者拥有该行）。纯 cue 场景（无 voiceover 文本）必须显式传 `skipDualTrackCheck: true`，漏传 `scenes` 会直接报错而不是静默放行。
 
 ### 已知故障模式与固化措施（2026-09-08/09 修复清单）
 
@@ -146,6 +146,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 | 1   | HookScene `<Circle>` 遮住 bigNumber                         | `remotion/src/components/shared.ts` ANNOTATION.circle（strokeWidth:3 + padding）；HookScene 显式传参                                                            |
 | 2   | TTS 读错版本号/小数/日期（"V four [停] one"）               | 双轨文本（上文节）+ `lib/normalize-tts-text.mjs` + kernel 前端限制认知                                                                                          |
 | 2b  | 连字符/斜杠复合词只改前半段 → 口语形烧进成片字幕（"GPT-5.6" → "GPT-five"） | `#753`：整 token 边界原语（复合词整体改写）+ `lib/subtitles/dual-track.mjs` 静态/动态不变量 + 渲染边界 fail-closed（上文「还原契约」）                         |
+| 2c  | 规则吞掉/重复 replacement 之外的一个词 → 还原后字幕少/多一个词（"Submit by 0910." → "Submit 0910."），前三条不变量全静默 | `#817`：`dual-track.mjs` 词数守恒（静态 + 还原后动态）+ Step 0.6 单场景回退（上文「还原契约」）                                                                |
 | 3   | sourcing 跳过所有 assetNeed 场景                            | `lib/claim-keywords.mjs` skipsMediaSourcing 的 `&& !scene.assetNeed` 守卫                                                                                       |
 | 4   | TTS prosody/speed 偏离认可基线                              | adapter 默认 `prosody:null`+无 speed，`TTS_PROSODY=1` opt-in；kernel `torch.manual_seed(20260907)`                                                              |
 | 5   | 重叠字幕 chunk 被丢弃                                       | `text-align.py` group_chunks 重叠合并（never `continue`）                                                                                                       |
