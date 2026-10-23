@@ -13,6 +13,8 @@ import { fileURLToPath } from "node:url";
 
 const LABEL = "com.inside-china-ai.searxng-park";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const installDir = path.join(os.homedir(), "Library/Application Support/inside-china-ai/searxng");
+const installedScript = path.join(installDir, "lifecycle.mjs");
 const plistPath = path.join(os.homedir(), "Library/LaunchAgents", `${LABEL}.plist`);
 const logPath = path.join(os.homedir(), "Library/Logs", "searxng-park.log");
 const uid = typeof process.getuid === "function" ? process.getuid() : "";
@@ -36,7 +38,9 @@ function xml(value) {
 
 function launchctl(args, { ignoreFailure = false } = {}) {
   try {
-    execFileSync("/bin/launchctl", args, { stdio: "inherit" });
+    execFileSync("/bin/launchctl", args, {
+      stdio: ignoreFailure ? "ignore" : "inherit",
+    });
   } catch (err) {
     if (!ignoreFailure) throw err;
   }
@@ -45,6 +49,12 @@ function launchctl(args, { ignoreFailure = false } = {}) {
 if (uninstall) {
   launchctl(["bootout", `gui/${uid}`, plistPath], { ignoreFailure: true });
   fs.rmSync(plistPath, { force: true });
+  fs.rmSync(installedScript, { force: true });
+  try {
+    fs.rmdirSync(installDir);
+  } catch {
+    // Other installed files may keep the directory alive.
+  }
   console.log(`removed ${plistPath}`);
   process.exit(0);
 }
@@ -59,7 +69,7 @@ const plist = `<?xml version="1.0" encoding="UTF-8"?>
   <array>
     <string>/usr/bin/env</string>
     <string>node</string>
-    <string>${xml(path.join(repoRoot, "scripts/searxng/lifecycle.mjs"))}</string>
+    <string>${xml(installedScript)}</string>
     <string>park</string>
     <string>--apply</string>
   </array>
@@ -69,7 +79,7 @@ const plist = `<?xml version="1.0" encoding="UTF-8"?>
     <string>${xml(autoPath)}</string>
   </dict>
   <key>WorkingDirectory</key>
-  <string>${xml(repoRoot)}</string>
+  <string>${xml(installDir)}</string>
   <key>RunAtLoad</key>
   <false/>
   <key>StartInterval</key>
@@ -84,10 +94,14 @@ const plist = `<?xml version="1.0" encoding="UTF-8"?>
 </plist>
 `;
 
+fs.mkdirSync(installDir, { recursive: true });
+fs.copyFileSync(path.join(repoRoot, "scripts/searxng/lifecycle.mjs"), installedScript);
+fs.chmodSync(installedScript, 0o755);
 fs.mkdirSync(path.dirname(plistPath), { recursive: true });
 fs.mkdirSync(path.dirname(logPath), { recursive: true });
 fs.writeFileSync(plistPath, plist);
 launchctl(["bootout", `gui/${uid}`, plistPath], { ignoreFailure: true });
 launchctl(["bootstrap", `gui/${uid}`, plistPath]);
+console.log(`installed ${installedScript}`);
 console.log(`installed ${plistPath}`);
 console.log(`runs every 300s; logs: ${logPath}`);

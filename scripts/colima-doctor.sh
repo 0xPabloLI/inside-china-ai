@@ -96,11 +96,13 @@ do_restart() {
 
 do_rebuild() {
   echo "💥 DESTRUCTIVE: deleting colima VM '$COLIMA_PROFILE' (all containers + volumes lost)..."
-  # The live searxng uses anonymous volumes, so colima delete destroys its
-  # settings.yml. Rescue it to a host mount first — the rebuilt container
-  # mounts the host dir from then on, so future rebuilds preserve config.
+  # The live searxng keeps settings on the host mount; rescue only when that
+  # copy is missing (an older deploy may have left the container as the only
+  # copy). The rebuilt container mounts the host dir from then on.
   mkdir -p "$HOME/searxng"
-  if docker cp searxng:/etc/searxng/settings.yml "$HOME/searxng/settings.yml" 2>/dev/null; then
+  if [ -f "$HOME/searxng/settings.yml" ]; then
+    echo "  📋 settings.yml already on host mount"
+  elif docker cp searxng:/etc/searxng/settings.yml "$HOME/searxng/settings.yml" 2>/dev/null; then
     echo "  📋 settings.yml rescued to ~/searxng/settings.yml"
   else
     echo "  ⚠️  Could not rescue settings.yml (container dead?) — SearXNG will start with defaults;"

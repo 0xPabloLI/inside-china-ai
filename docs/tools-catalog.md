@@ -157,7 +157,7 @@
 - **费用**：免费（Docker 自托管，无 API key、无每查询成本、无前端层限额）
 - **状态**：✅ 已部署并接入管线（#92，2026-09-05）
 - **部署**：colima 里 `searxng/searxng:latest` 容器，宿主端口 `8888`；配置固化在宿主 `~/searxng/settings.yml`（挂载进容器——Watchtower 每 24h 自动更新镜像**不丢配置**）；JSON API 已启用
-- **资源生命周期（#891）**：容器固定 `--cpus 0.5 --memory 768m --memory-swap 768m`；LaunchAgent 每 5 分钟检查，15 分钟 Docker NetIO 无变化或宿主 free <15% 时停容器；`search-sources` 与图片 Tier 3 使用前自动 `docker start`（约 2-5 秒）。命令：`npm run searxng:status` / `searxng:ensure` / `searxng:park`；安装/卸载 `npm run searxng:install-park` / `searxng:uninstall-park`；`SEARXNG_AUTO_START=0` 关闭自动拉起。只停容器，不停 colima。
+- **资源生命周期（#891）**：容器固定 `--cpus 0.5 --memory 768m --memory-swap 768m`；LaunchAgent 每 5 分钟检查，15 分钟 Docker NetIO 无变化或宿主 free <15% 时停容器；`search-sources` 与图片 Tier 3 使用前自动 `docker start`（约 2-5 秒）。命令：`npm run searxng:status` / `searxng:ensure` / `searxng:park`；安装/卸载 `npm run searxng:install-park` / `searxng:uninstall-park`（安装器把 `lifecycle.mjs` 复制到 `~/Library/Application Support/inside-china-ai/searxng/`，LaunchAgent 指向该副本）；`SEARXNG_AUTO_START=0` 关闭自动拉起。只停容器，不停 colima。
 - **管线接入**：`source-registry.mjs` 的 `searxng_search` 源（GENERAL_SEARCH_SOURCES）——apiSearch 直连 JSON API（collectFromSource Layer 0），CDP HTML 结果页兜底；rate-limiter 对 `localhost` 零延迟、无小时上限（自托管前端不设限）
 - **搜索位置**：零额度优先（非低延迟——聚合查询实测 15–20s，见下方「慢是常态」）；其后仍是 Brave/Tavily/Jina pool（#65）与 CDP 精度兜底
 - **运维要点（2026-09-05 / 09-24 / 09-30 三轮实测）**：

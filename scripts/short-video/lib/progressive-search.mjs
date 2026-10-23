@@ -48,14 +48,17 @@ const registryImageSource = (name) => ALL_SOURCES.find((s) => s.name === name);
 // the image engine runs; a failed ensure is fail-open (the fetch returns []).
 let searxngEnsurePromise = null;
 function ensureSearxngOnce() {
-  if (
-    process.env.VITEST ||
-    process.env.NODE_ENV === "test" ||
-    process.env.SEARXNG_AUTO_START === "0"
-  ) {
-    return Promise.resolve();
-  }
-  searxngEnsurePromise ??= ensureSearxng({ quiet: true }).catch(() => {});
+  if (process.env.SEARXNG_AUTO_START === "0") return Promise.resolve();
+  searxngEnsurePromise ??= ensureSearxng({ quiet: true })
+    .then((result) => {
+      // A skipped/failed start must not poison later image searches in the
+      // same process (colima may come up between the text and image steps).
+      if (!result.ok) searxngEnsurePromise = null;
+      return result;
+    })
+    .catch(() => {
+      searxngEnsurePromise = null;
+    });
   return searxngEnsurePromise;
 }
 
