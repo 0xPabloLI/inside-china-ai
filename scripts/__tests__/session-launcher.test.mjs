@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { execFileSync, spawnSync } from "child_process";
-import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, copyFileSync } from "fs";
+import {
+  mkdtempSync,
+  rmSync,
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  copyFileSync,
+  realpathSync,
+} from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
@@ -1337,6 +1345,14 @@ describe("session-launcher start: provisioning wiring", () => {
       join(import.meta.dirname, "..", "session-provision.sh"),
       join(repo, "scripts", "session-provision.sh"),
     );
+    // `start` now asserts the handed-over worktree's hooks are live (#864), so
+    // the fixture must look like a checkout that has them.
+    copyFileSync(
+      join(import.meta.dirname, "..", "check-hook-liveness.mjs"),
+      join(repo, "scripts", "check-hook-liveness.mjs"),
+    );
+    mkdirSync(join(repo, ".githooks"), { recursive: true });
+    writeFileSync(join(repo, ".githooks", "commit-msg"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
     writeFileSync(join(repo, "README.md"), "x\n");
     git(repo, "add", ".");
     git(repo, "commit", "-q", "-m", "init");
@@ -1385,5 +1401,122 @@ describe("session-launcher start: provisioning wiring", () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("session started");
     expect(existsSync(wtpath)).toBe(true);
+  });
+});
+
+// ─── start: launched from inside a session worktree (#864) ───────────────────
+//
+// `npm run session:start` resolves the repo through the caller's checkout. Run
+// from inside a session worktree, the old launcher wrote that OUTER worktree
+// into the new one: its path nested under `<outer>-wt/`, and its
+// `core.hooksPath` pointed at the outer `.githooks` — which `session:stop`
+// deletes with the outer worktree. A dangling hooksPath is not an error to git,
+// it just means no hook runs: commits pass with no gitleaks scan and no
+// Session-Id trailer, silently. Measured on the 827 session (issue #864).
+describe("session-launcher start: launched from inside a session worktree (#864)", () => {
+  let origin;
+  let repo;
+  let outer;
+  let repoWt = "";
+
+  beforeEach(() => {
+    origin = mkdtempSync(join(tmpdir(), "launcher-nested-origin-"));
+    git(origin, "init", "--bare", "-q", "--initial-branch=main");
+    repo = mkdtempSync(join(tmpdir(), "launcher-nested-repo-"));
+    git(repo, "clone", "-q", origin, ".");
+    git(repo, "config", "user.email", "test@example.com");
+    git(repo, "config", "user.name", "test");
+    git(repo, "config", "core.hooksPath", ".githooks");
+    mkdirSync(join(repo, "scripts"), { recursive: true });
+    // The gate the launcher now asserts the new worktree against. A healthy
+    // checkout tracks it, exactly like this repo does.
+    copyFileSync(
+      join(import.meta.dirname, "..", "check-hook-liveness.mjs"),
+      join(repo, "scripts", "check-hook-liveness.mjs"),
+    );
+    // A hook whose only job is to prove it was reached: it always refuses, so
+    // "the commit went through" can only mean the hook never ran.
+    mkdirSync(join(repo, ".githooks"), { recursive: true });
+    writeFileSync(
+      join(repo, ".githooks", "commit-msg"),
+      "#!/bin/sh\necho 'fixture commit-msg reached' >&2\nexit 1\n",
+      { mode: 0o755 },
+    );
+    writeFileSync(join(repo, "README.md"), "x\n");
+    git(repo, "add", ".");
+    // --no-verify: the fixture hook refuses every commit by design; only the
+    // assertions at the end may reach it.
+    git(repo, "commit", "-q", "--no-verify", "-m", "init");
+    git(repo, "push", "-q", "-u", "origin", "main");
+    // The outer session worktree: the checkout this start is launched FROM.
+    repoWt = `${repo}-wt`;
+    mkdirSync(repoWt, { recursive: true });
+    outer = join(repoWt, "outer");
+    git(repo, "worktree", "add", "-q", "-b", "session/outer", outer, "origin/main");
+  });
+
+  afterEach(() => {
+    rmSync(origin, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(repoWt, { recursive: true, force: true });
+  });
+
+  function startFromOuter() {
+    return spawnSync("bash", [LAUNCHER, "start", "inner"], {
+      encoding: "utf8",
+      cwd: outer,
+      env: { ...process.env, SESSION_NO_FETCH: "1", SESSION_NO_PROVISION: "1" },
+    });
+  }
+
+  it("creates the sibling worktree and anchors its hooks to the main checkout", () => {
+    const r = startFromOuter();
+    expect(r.status).toBe(0);
+    const wtpath = realpathSync(r.stdout.match(/worktree:\s+(\S+)/)?.[1] ?? "");
+    // Sibling of the repo, like a start from the main checkout — not nested
+    // under the outer session worktree (which forced a manual worktree move).
+    expect(wtpath.startsWith(`${realpathSync(repoWt)}/`)).toBe(true);
+    expect(wtpath).not.toContain("outer-wt");
+    expect(wtpath).not.toContain(`${realpathSync(outer)}-wt`);
+    // The hooks reference must survive the outer worktree's removal, so it
+    // resolves to the main checkout, never to `$ROOT` (the caller).
+    const configured = git(wtpath, "config", "--get", "core.hooksPath").trim();
+    expect(realpathSync(configured)).toBe(realpathSync(join(repo, ".githooks")));
+    // The caller's hooksPath is the outer worktree's absolute anchor, not the
+    // literal `.githooks` — "unset" would be a false diagnostic and would re-run
+    // the installer on every start-from-worktree.
+    expect(r.stdout).not.toContain("hooksPath unset");
+  });
+
+  it("the new worktree's hooks still run after the outer worktree is removed", () => {
+    const r = startFromOuter();
+    expect(r.status).toBe(0);
+    const wtpath = r.stdout.match(/worktree:\s+(\S+)/)?.[1] ?? "";
+    // session:stop of the outer session deletes its checkout (and .githooks
+    // with it); the inner session must keep its gates.
+    git(repo, "worktree", "remove", "--force", outer);
+    writeFileSync(join(wtpath, "note.txt"), "x\n");
+    git(wtpath, "add", "note.txt");
+    const commit = spawnSync("git", ["commit", "-m", "no trailer"], {
+      encoding: "utf8",
+      cwd: wtpath,
+    });
+    expect(commit.status).not.toBe(0);
+    expect(commit.stderr).toContain("fixture commit-msg reached");
+  });
+
+  it("refuses to hand over a worktree whose hooks are unreachable", () => {
+    // A checkout that lost its tracked hooks: the gate must fail closed rather
+    // than start a session whose commits run none.
+    git(repo, "rm", "-q", "-r", ".githooks");
+    git(repo, "commit", "-q", "--no-verify", "-m", "drop hooks");
+    git(repo, "push", "-q", "origin", "main");
+
+    const r = startFromOuter();
+    expect(r.status).not.toBe(0);
+    // Fatal `start` errors keep the script's one shape: `error: ` on stderr.
+    expect(r.stderr).toMatch(/^error: /m);
+    expect(r.stderr).toContain("hooks are not live");
+    expect(r.stdout).not.toContain("session started");
   });
 });
