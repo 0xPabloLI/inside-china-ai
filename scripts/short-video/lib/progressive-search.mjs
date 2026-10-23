@@ -19,6 +19,11 @@
  *   duckduckgo_images— duckduckgo.com vqd token + i.js JSON, #112
  *   tavily_images    — Tavily REST include_images last-resort, #112
  *
+ * brave_image/searxng_image derive label, credentials, URL builder and response
+ * parser from source-registry.mjs (SSOT, #344); the pool keeps only the
+ * transport layer (quota, error swallowing, source tagging). The remaining
+ * engines are defined here.
+ *
  * Brave Image Search API (verified 2026-08-24):
  *   GET https://api.search.brave.com/res/v1/images/search?q=...&count=20
  *   Header: X-Subscription-Token: <API_KEY>
@@ -30,6 +35,13 @@
  *
  * @module progressive-search
  */
+
+import { ALL_SOURCES, imageApiSourceMetadata } from "./source-registry.mjs";
+
+// Resolve an image source's registry declaration by name. The pool entries and
+// the two parsers below all go through this, so the registry stays the only
+// place where a source's identity, URL and response shape are declared.
+const registryImageSource = (name) => ALL_SOURCES.find((s) => s.name === name);
 
 // ─── Tier evaluation ───
 
@@ -83,44 +95,31 @@ export class BraveQuotaTracker {
 /**
  * Parse Brave Image Search API response into candidate objects.
  *
+ * Delegates to the registry's capabilities.images.parseResponse (SSOT) and
+ * tags the pool-level source field.
+ *
  * @param {Object} data - API response JSON
- * @param {string} keyword - Search keyword (unused, for API compat)
+ * @param {string} keyword - Search keyword
  * @returns {Array<{url: string, title: string, type: string, resolution: string|undefined, source: string}>}
  */
 export function parseBraveImageResponse(data, keyword) {
-  const results = data?.results || [];
-  return results
-    .filter((r) => r?.properties?.url)
-    .map((r) => ({
-      url: r.properties.url,
-      title: r.title || keyword,
-      type: "image",
-      resolution:
-        r.properties.width && r.properties.height
-          ? `${r.properties.width}x${r.properties.height}`
-          : undefined,
-      source: "brave_image",
-    }));
+  const cap = registryImageSource("brave_image").capabilities.images;
+  return cap.parseResponse(data, keyword).map((r) => ({ ...r, source: "brave_image" }));
 }
 
 /**
  * Parse SearXNG image search response into candidate objects.
  *
+ * Delegates to the registry's capabilities.images.parseResponse (SSOT) and
+ * tags the pool-level source field.
+ *
  * @param {Object} data - API response JSON
- * @param {string} keyword - Search keyword (unused, for API compat)
+ * @param {string} keyword - Search keyword
  * @returns {Array<{url: string, title: string, type: string, resolution: string|undefined, source: string}>}
  */
 export function parseSearXngImageResponse(data, keyword) {
-  const results = data?.results || [];
-  return results
-    .filter((r) => r?.img_src)
-    .map((r) => ({
-      url: r.img_src,
-      title: r.title || keyword,
-      type: "image",
-      resolution: r.resolution || undefined,
-      source: "searxng_image",
-    }));
+  const cap = registryImageSource("searxng_image").capabilities.images;
+  return cap.parseResponse(data, keyword).map((r) => ({ ...r, source: "searxng_image" }));
 }
 
 // ─── Search functions ───
@@ -142,15 +141,13 @@ export async function searchBraveImages(keyword, apiKey, options = {}) {
   // Skip if quota exhausted (scenario #4)
   if (quotaTracker && !quotaTracker.canTrack()) return [];
 
-  const url = `https://api.search.brave.com/res/v1/images/search?q=${encodeURIComponent(keyword)}&count=${count}&safesearch=strict`;
+  const cap = registryImageSource("brave_image").capabilities.images;
+  const url = cap.searchUrl(keyword, apiKey, { count });
+  const headers = { Accept: "application/json" };
+  if (cap.authHeader) headers[cap.authHeader] = cap.authValue ? cap.authValue(apiKey) : apiKey;
 
   try {
-    const resp = await fetch(url, {
-      headers: {
-        "X-Subscription-Token": apiKey,
-        Accept: "application/json",
-      },
-    });
+    const resp = await fetch(url, { headers });
 
     if (!resp.ok) return []; // 429, 401, etc.
 
@@ -174,7 +171,8 @@ export async function searchBraveImages(keyword, apiKey, options = {}) {
 export async function searchSearXngImages(keyword, options = {}) {
   const { baseUrl = "http://localhost:8888", count = 20 } = options;
 
-  const url = `${baseUrl}/search?q=${encodeURIComponent(keyword)}&format=json&categories=images`;
+  const cap = registryImageSource("searxng_image").capabilities.images;
+  const url = cap.searchUrl(keyword, null, { baseUrl });
 
   try {
     const resp = await fetch(url, {
@@ -649,6 +647,17 @@ export function normalizeCdpVideoCandidates(raw, sourceName, keyword = "") {
 // ─── Pluggable engine pool (#112) ───
 
 /**
+ * Thin adapter over source-registry's imageApiSourceMetadata(): resolve the
+ * source from ALL_SOURCES by name, then derive label/credentials there (SSOT).
+ * `type: "api"` is the pool contract, not a registry field — the helper fails
+ * closed unless the image channel is an API, so this cannot drift.
+ */
+const registryImageEngine = (name) => ({
+  ...imageApiSourceMetadata(registryImageSource(name), name),
+  type: "api",
+});
+
+/**
  * Pluggable Tier 3 image search engine pool.
  *
  * Each engine: { name, label, type, requiresApiKey?, apiKeyEnv?, search }.
@@ -665,12 +674,14 @@ export function normalizeCdpVideoCandidates(raw, sourceName, keyword = "") {
  * @type {Array<{name: string, label: string, type: string, requiresApiKey?: boolean, apiKeyEnv?: string|null, search: (keyword: string, ctx?: object) => Promise<Array>}>}
  */
 export const IMAGE_SEARCH_ENGINES = [
+  // brave_image / searxng_image: label, credentials, URL builder and response
+  // parser derive from source-registry (SSOT); the pool keeps only the
+  // transport layer (quota tracking, error swallowing, source tagging) — the
+  // Tier 1 capability parser and the Tier 3 search contract stay different by
+  // design (#344).
   {
     name: "brave_image",
-    label: "Brave Image",
-    type: "api",
-    requiresApiKey: true,
-    apiKeyEnv: "BRAVE_SEARCH_API_KEY",
+    ...registryImageEngine("brave_image"),
     search: (keyword, ctx = {}) =>
       searchBraveImages(keyword, ctx.apiKey, {
         count: 20,
@@ -679,10 +690,7 @@ export const IMAGE_SEARCH_ENGINES = [
   },
   {
     name: "searxng_image",
-    label: "SearXNG Image",
-    type: "api",
-    requiresApiKey: false,
-    apiKeyEnv: null,
+    ...registryImageEngine("searxng_image"),
     search: (keyword) => searchSearXngImages(keyword, { count: 20 }),
   },
   {

@@ -121,6 +121,39 @@ export function resolveLoginGate(source) {
   };
 }
 
+/**
+ * Identity/credential metadata for an API image source. The Tier 3 image
+ * engine pool reuses the registry's URL builder and response parser; this
+ * helper supplies the remaining identity fields. Fail-closed on definition
+ * bugs (missing source, non-API image channel, keyed source without an env).
+ */
+export function imageApiSourceMetadata(source, name = source?.name) {
+  const cap = source?.capabilities?.images;
+  if (!source || cap?.method !== "api") {
+    throw new Error(
+      `imageApiSourceMetadata: "${name ?? "<unknown>"}" must be an API image source in source-registry`,
+    );
+  }
+  if (typeof cap.requiresApiKey !== "boolean") {
+    throw new Error(
+      `imageApiSourceMetadata: "${name}" must declare a boolean capabilities.images.requiresApiKey`,
+    );
+  }
+  if (cap.requiresApiKey && (typeof cap.apiKeyEnv !== "string" || cap.apiKeyEnv.length === 0)) {
+    throw new Error(`imageApiSourceMetadata: "${name}" requires capabilities.images.apiKeyEnv`);
+  }
+  if (cap.apiKeyEnv != null && typeof cap.apiKeyEnv !== "string") {
+    throw new Error(
+      `imageApiSourceMetadata: "${name}" capabilities.images.apiKeyEnv must be a string`,
+    );
+  }
+  return {
+    label: source.label,
+    requiresApiKey: cap.requiresApiKey,
+    apiKeyEnv: cap.apiKeyEnv ?? null,
+  };
+}
+
 // ─── Google site: fallback shared pieces (#88 autogen + #309 explicit promotion) ───
 
 /**
@@ -1929,10 +1962,10 @@ export const GENERAL_SEARCH_SOURCES = [
     accessMethod: {
       primary: "api",
       notes:
-        "Self-hosted SearXNG metasearch (Docker in colima, localhost:8888; #92). JSON API primary — no API key, no per-query cost, aggregates 269 engines. CDP HTML fallback for API outages. Backend engines sit behind the host proxy and may CAPTCHA/timeout; multi-engine redundancy covers.",
+        "Self-hosted SearXNG metasearch (Docker in colima, localhost:8888; #92). JSON API primary — no API key, no per-query cost, aggregates 261 engines (live config, 2026-10-23). CDP HTML fallback for API outages. Backend engines sit behind the host proxy and may CAPTCHA/timeout; multi-engine redundancy covers.",
     },
     useCleanTitle: false,
-    // JSON API (fast-first layer, ~2s). Requires search.formats: [html, json]
+    // JSON API (fast-first layer). Requires search.formats: [html, json]
     // in the container's settings.yml and outgoing.proxies pointing at the
     // host proxy — SearXNG's httpx client ignores proxy environment variables.
     apiSearch: {
@@ -2823,8 +2856,8 @@ export const STOCK_MEDIA_SOURCES = [
         apiKeyEnv: "BRAVE_SEARCH_API_KEY",
         authHeader: "X-Subscription-Token",
         authValue: (key) => key,
-        searchUrl: (keyword, key) =>
-          `https://api.search.brave.com/res/v1/images/search?q=${encodeURIComponent(keyword)}&count=20&safesearch=strict`,
+        searchUrl: (keyword, key, { count = 20 } = {}) =>
+          `https://api.search.brave.com/res/v1/images/search?q=${encodeURIComponent(keyword)}&count=${count}&safesearch=strict`,
         parseResponse: (data, keyword) => {
           const results = data?.results || [];
           return results
@@ -2862,8 +2895,8 @@ export const STOCK_MEDIA_SOURCES = [
         method: "api",
         requiresApiKey: false,
         apiKeyEnv: null,
-        searchUrl: (keyword, key) =>
-          `http://localhost:8888/search?q=${encodeURIComponent(keyword)}&format=json&categories=images`,
+        searchUrl: (keyword, key, { baseUrl = "http://localhost:8888" } = {}) =>
+          `${baseUrl}/search?q=${encodeURIComponent(keyword)}&format=json&categories=images`,
         parseResponse: (data, keyword) => {
           const results = data?.results || [];
           return results

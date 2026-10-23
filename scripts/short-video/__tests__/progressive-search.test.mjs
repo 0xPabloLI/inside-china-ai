@@ -314,6 +314,18 @@ describe("searchBraveImages", () => {
     expect(tracker.getCount()).toBe(1);
   });
 
+  it("passes count through to the registry URL builder (SSOT)", async () => {
+    let capturedUrl = null;
+    globalThis.fetch = vi.fn().mockImplementation((url) => {
+      capturedUrl = url;
+      return Promise.resolve({ ok: true, json: async () => ({ results: [] }) });
+    });
+
+    await searchBraveImages("test", "key", { count: 3 });
+
+    expect(capturedUrl).toContain("count=3");
+  });
+
   it("returns empty array when API key is null/undefined (scenario #3)", async () => {
     const tracker = new BraveQuotaTracker();
     const candidates = await searchBraveImages("test", null, { quotaTracker: tracker });
@@ -397,6 +409,18 @@ describe("searchSearXngImages", () => {
     expect(candidates[0].source).toBe("searxng_image");
   });
 
+  it("passes baseUrl through to the registry URL builder (SSOT)", async () => {
+    let capturedUrl = null;
+    globalThis.fetch = vi.fn().mockImplementation((url) => {
+      capturedUrl = url;
+      return Promise.resolve({ ok: true, json: async () => ({ results: [] }) });
+    });
+
+    await searchSearXngImages("test", { baseUrl: "http://example.test:9999" });
+
+    expect(capturedUrl.startsWith("http://example.test:9999/search")).toBe(true);
+  });
+
   it("returns empty array when fetch fails (scenario #5: SearXNG unreachable)", async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
     const candidates = await searchSearXngImages("test", { baseUrl: "http://localhost:8888" });
@@ -459,8 +483,17 @@ describe("IMAGE_SEARCH_ENGINES", () => {
     for (const engine of IMAGE_SEARCH_ENGINES) {
       const registrySource = registryByName.get(engine.name);
       if (!registrySource) continue; // engines not in registry (e.g. tavily_images) are fine
+      expect(engine.label).toBe(registrySource.label);
       expect(engine.requiresApiKey).toBe(registrySource.capabilities.images.requiresApiKey);
       expect(engine.apiKeyEnv).toBe(registrySource.capabilities.images.apiKeyEnv);
+    }
+  });
+
+  it("brave_image and searxng_image are API image sources in the registry (helper precondition)", () => {
+    for (const name of ["brave_image", "searxng_image"]) {
+      const source = ALL_SOURCES.find((s) => s.name === name);
+      expect(source).toBeDefined();
+      expect(source.capabilities?.images?.method).toBe("api");
     }
   });
 

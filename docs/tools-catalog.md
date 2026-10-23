@@ -153,7 +153,7 @@
 
 ### SearXNG — 自托管 metasearch（快速优先搜索层）
 
-- **分类**：搜索（自托管 metasearch，聚合最多 269 个引擎）
+- **分类**：搜索（自托管 metasearch）
 - **费用**：免费（Docker 自托管，无 API key、无每查询成本、无前端层限额）
 - **状态**：✅ 已部署并接入管线（#92，2026-09-05）
 - **部署**：colima 里 `searxng/searxng:latest` 容器，宿主端口 `8888`；配置固化在宿主 `~/searxng/settings.yml`（挂载进容器——Watchtower 每 24h 自动更新镜像**不丢配置**）；JSON API 已启用
