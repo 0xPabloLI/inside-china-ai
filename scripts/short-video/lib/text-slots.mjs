@@ -31,10 +31,10 @@ import { BRAND_FONT_STACK } from "./safe-zones.mjs";
  * was a contract property, not a shrink-ladder accident. The copy class now
  * starts at 48px and the metadata class (source / badge / attribution /
  * verified) at 40px. The floor rule is round(0.72 x preferred) (decision 46)
- * with FIVE standing exceptions the fields carry inline: subject 64 -> 48,
- * numberLabel 48 -> 36, revealText 80 -> 56 (all three raised above the rule),
- * and bigNumber 240 -> 150 / stat 240 -> 180 (both relaxed, decision 72).
- * Every other field satisfies the rule exactly.
+ * with FIVE standing exceptions the fields carry inline. Above the rule
+ * (stricter): subject 64 -> 48 (rule 46), numberLabel 48 -> 36 (35), stat
+ * 240 -> 180 (173). Below it (relaxed): revealText 80 -> 56 (58), bigNumber
+ * 240 -> 150 (173, decision 72). Every other field satisfies the rule exactly.
  *
  * The lead class moved up with it where — and only where — the loop's
  * hierarchy-ratio rule (docs/conventions/visual-design-loop.md: adjacent
