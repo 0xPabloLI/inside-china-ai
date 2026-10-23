@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.5...tanstack_start_ts-v1.28.6) (2026-10-23)
+
+
+### Bug Fixes
+
+* **short-video:** single-source image-engine definitions in registry ([#344](https://github.com/0xPabloLI/inside-china-ai/issues/344)) ([#887](https://github.com/0xPabloLI/inside-china-ai/issues/887)) ([27e6027](https://github.com/0xPabloLI/inside-china-ai/commit/27e60278a93c2ca2bd73e15796c257abe30b9ff6))
+
 ## [1.28.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.28.4...tanstack_start_ts-v1.28.5) (2026-10-23)
 
 
