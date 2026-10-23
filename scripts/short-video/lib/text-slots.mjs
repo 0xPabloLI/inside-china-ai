@@ -21,14 +21,49 @@ import { BRAND_FONT_STACK } from "./safe-zones.mjs";
  *
  * `shrinkPriority` decides who gives up size first when a slot's fields no
  * longer fit: lowest shrinks first, so body detail goes before the headline.
+ *
+ * Readability floors (#688, user decision 2026-10-23). Before this the
+ * contract carried the templates' own first-draft sizes: most on-screen copy
+ * rendered at 20-36px, i.e. 2-3% of the 1080px frame. Measured against the 26
+ * shipped content packs (1080 real text instances), 62% sat below the
+ * platform's must-read floor of 48px (~4.4% of frame width) and below this
+ * repo's own brand-system type scale (Labels 22-28 / Body 28-40) — "too small"
+ * was a contract property, not a shrink-ladder accident. The copy class now
+ * starts at 48px and the metadata class (source / badge / attribution /
+ * verified) at 40px; floors follow round(0.72 x preferred) (decision 46).
+ *
+ * The lead class moved up with it where — and only where — the loop's
+ * hierarchy-ratio rule (docs/conventions/visual-design-loop.md: adjacent
+ * levels >= 1.25x) demands it: company 48 -> 60 (60 / 48 copy = 1.25), title
+ * 48 -> 60, label 48 -> 60, result 56 -> 64, statCard 56 -> 64 (64 / 48
+ * numberLabel = 1.33). Without these a title would sit at the SAME size as
+ * its own body text. subject (64) and brand (72) were left alone: their
+ * adjacent ratios already hold (badge 40 -> 64 = 1.6; brand 72 -> tagline
+ * 48 = 1.5), and the hero band they share is the binding vertical constraint.
+ * hero/giant anchors (hookText 78, revealText 80, bigNumber/stat 240) keep
+ * their sizes; the template-derived floors on bigNumber (150, decision 72)
+ * and stat (180) stand.
+ *
+ * Raising a preferredSize also tightens the writing budget: slotCharBudget()
+ * divides the measured box width by it, so a 22 -> 48px move roughly halves
+ * the chars a slot can hold. That is the intended trade — bigger type means
+ * shorter copy — and the budget stays a warn-level hint; the render-time
+ * TextGate remains the hard gate.
  */
 export const SLOT_FIELDS = {
   // Narrative body fields
-  result: { preferredSize: 56, minSize: 40, fontWeight: 900, shrinkPriority: 40 },
-  company: { preferredSize: 48, minSize: 36, fontWeight: 900, shrinkPriority: 30 },
-  action: { preferredSize: 32, minSize: 24, fontWeight: 700, shrinkPriority: 20 },
-  context: { preferredSize: 24, minSize: 18, fontWeight: 600, shrinkPriority: 10 },
-  source: { preferredSize: 20, minSize: 16, fontWeight: 600, shrinkPriority: 5, required: false },
+  result: { preferredSize: 64, minSize: 46, fontWeight: 900, shrinkPriority: 40 },
+  company: { preferredSize: 60, minSize: 43, fontWeight: 900, shrinkPriority: 30 },
+  action: { preferredSize: 48, minSize: 35, fontWeight: 700, shrinkPriority: 20 },
+  context: { preferredSize: 48, minSize: 35, fontWeight: 600, shrinkPriority: 10 },
+  source: {
+    preferredSize: 40,
+    minSize: 29,
+    fontWeight: 600,
+    shrinkPriority: 5,
+    required: false,
+    tier: "metadata",
+  },
 
   // Hook fields
   subject: { preferredSize: 64, minSize: 48, fontWeight: 900, shrinkPriority: 35 },
@@ -48,11 +83,17 @@ export const SLOT_FIELDS = {
   revealText: { preferredSize: 80, minSize: 56, fontWeight: 900, shrinkPriority: 35 },
 
   // Other templates
-  quote: { preferredSize: 36, minSize: 26, fontWeight: 600, shrinkPriority: 35 },
-  title: { preferredSize: 48, minSize: 36, fontWeight: 900, shrinkPriority: 35 },
-  attribution: { preferredSize: 24, minSize: 18, fontWeight: 700, shrinkPriority: 10 },
-  tagline: { preferredSize: 32, minSize: 24, fontWeight: 600, shrinkPriority: 15 },
-  topic: { preferredSize: 36, minSize: 26, fontWeight: 700, shrinkPriority: 15 },
+  quote: { preferredSize: 48, minSize: 35, fontWeight: 600, shrinkPriority: 35 },
+  title: { preferredSize: 60, minSize: 43, fontWeight: 900, shrinkPriority: 35 },
+  attribution: {
+    preferredSize: 40,
+    minSize: 29,
+    fontWeight: 700,
+    shrinkPriority: 10,
+    tier: "metadata",
+  },
+  tagline: { preferredSize: 48, minSize: 35, fontWeight: 600, shrinkPriority: 15 },
+  topic: { preferredSize: 48, minSize: 35, fontWeight: 700, shrinkPriority: 15 },
   // Focus number family: bigNumber and stat are the same concept (one giant
   // number the whole scene is about). T5 unified them at 240/180 single-line.
   stat: {
@@ -68,25 +109,32 @@ export const SLOT_FIELDS = {
   },
 
   // T5 registrations: fields the Remotion templates already render, now under
-  // contract. Preferred sizes are the templates' current sizes; floors follow
-  // the round(0.72 × preferred) rule (spec decision 46).
-  badge: { preferredSize: 22, minSize: 16, fontWeight: 900, shrinkPriority: 8 },
+  // contract. Preferred sizes were the templates' current sizes at T5 and are
+  // the copy/metadata readability floors as of #688; floors follow the
+  // round(0.72 × preferred) rule (spec decision 46).
+  badge: { preferredSize: 40, minSize: 29, fontWeight: 900, shrinkPriority: 8, tier: "metadata" },
   brand: { preferredSize: 72, minSize: 52, fontWeight: 900, shrinkPriority: 38 },
-  label: { preferredSize: 36, minSize: 26, fontWeight: 700, shrinkPriority: 25 },
-  subtext: { preferredSize: 26, minSize: 19, fontWeight: 600, shrinkPriority: 12 },
-  detail: { preferredSize: 22, minSize: 16, fontWeight: 600, shrinkPriority: 8 },
-  subtitle: { preferredSize: 22, minSize: 16, fontWeight: 700, shrinkPriority: 12 },
-  note: { preferredSize: 22, minSize: 16, fontWeight: 600, shrinkPriority: 10 },
+  label: { preferredSize: 60, minSize: 43, fontWeight: 700, shrinkPriority: 25 },
+  subtext: { preferredSize: 48, minSize: 35, fontWeight: 600, shrinkPriority: 12 },
+  detail: { preferredSize: 48, minSize: 35, fontWeight: 600, shrinkPriority: 8 },
+  subtitle: { preferredSize: 48, minSize: 35, fontWeight: 700, shrinkPriority: 12 },
+  note: { preferredSize: 48, minSize: 35, fontWeight: 600, shrinkPriority: 10 },
   // Contrast chip columns; each entry gates as left[i] / right[i].
-  left: { preferredSize: 22, minSize: 16, fontWeight: 700, shrinkPriority: 15 },
-  right: { preferredSize: 22, minSize: 16, fontWeight: 700, shrinkPriority: 15 },
-  vs: { preferredSize: 22, minSize: 16, fontWeight: 900, shrinkPriority: 8 },
-  verified: { preferredSize: 24, minSize: 17, fontWeight: 700, shrinkPriority: 8 },
-  points: { preferredSize: 26, minSize: 19, fontWeight: 700, shrinkPriority: 15 },
+  left: { preferredSize: 48, minSize: 35, fontWeight: 700, shrinkPriority: 15 },
+  right: { preferredSize: 48, minSize: 35, fontWeight: 700, shrinkPriority: 15 },
+  vs: { preferredSize: 48, minSize: 35, fontWeight: 900, shrinkPriority: 8 },
+  verified: {
+    preferredSize: 40,
+    minSize: 29,
+    fontWeight: 700,
+    shrinkPriority: 8,
+    tier: "metadata",
+  },
+  points: { preferredSize: 48, minSize: 35, fontWeight: 700, shrinkPriority: 15 },
   // One hook stat card, gated WHOLE: num and unit share a nowrap row, so their
   // widths compete and cannot be gated independently. The gate injects the
-  // card's number size; unit/label render at fixed ratios (0.5× / 0.36×).
-  statCard: { preferredSize: 56, minSize: 40, fontWeight: 900, shrinkPriority: 40 },
+  // card's number size; unit/label render at fixed ratios (0.5× / 0.5×).
+  statCard: { preferredSize: 64, minSize: 46, fontWeight: 900, shrinkPriority: 40 },
 };
 
 /** Slot defaults applied to every field unless the field overrides them. */
@@ -101,7 +149,18 @@ const SLOT_DEFAULTS = {
   /** Frame by which entrance animations and annotations have settled. */
   settledFrame: 40,
   required: true,
+  tier: "copy",
 };
+
+/**
+ * Readability tiers (#688) — the floor a field's preferredSize must clear.
+ *
+ * `copy` is the default: everything a viewer must actually read. `metadata` is
+ * for text that is context rather than message. The tier lives on the contract
+ * (not in a test list) so adding a field forces its author to pick a floor, and
+ * omitting the tier fails safe to the stricter one.
+ */
+export const READABILITY_TIERS = { copy: 48, metadata: 40 };
 
 /**
  * Measured content-box widths, keyed by slot id.

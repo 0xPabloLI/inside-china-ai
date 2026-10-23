@@ -677,7 +677,12 @@ const FixtureScene: React.FC<FixtureProps> = ({
     // Wrapping copy inside a fixed-height container: Fit only sees the gate's
     // own box (which grows with the text), so ONLY the container assert can
     // catch the vertical clipping that overflow:hidden would hide.
-    const containerHeight = scenario === "container-overflow" ? 90 : 500;
+    //
+    // The "generous" height tracks the contract: the copy lays out at ~518px
+    // when the result field is at its preferredSize, so 500 stopped being
+    // generous when #688 raised that 56 -> 64. 600 keeps real headroom, and
+    // the 90px case stays far below the smallest candidate either way.
+    const containerHeight = scenario === "container-overflow" ? 90 : 600;
     return (
       <Stage>
         <div

@@ -20,18 +20,23 @@ const fullNarrative = {
   },
 };
 
+// qwen4-preview s5's shipped copy — the historical media-split clipping
+// incident. Both tests below run the SAME texts through two layouts, so the
+// layout-derived budget is the only variable.
+const S5_TEXTS = {
+  company: "THE COST",
+  action: "TRAINING COMPUTE VS QWEN3.7-PLUS (397B)",
+  result: "1/9 THE TRAINING COST",
+  source: "SOURCE: Qwen official blog",
+};
+
 describe("checkTextWidthBudget", () => {
   it("warns (not fails) when a result line busts the derived budget in media-split", () => {
     const clipped = {
       id: 5,
       visualType: "narrative",
       layout: "media-split",
-      texts: {
-        company: "THE COST",
-        action: "TRAINING COMPUTE VS QWEN3.7-PLUS (397B)",
-        result: "1/9 THE TRAINING COST",
-        source: "SOURCE: Qwen official blog",
-      },
+      texts: S5_TEXTS,
     };
     const results = checkTextWidthBudget([clipped]);
     expect(results.filter((r) => r.level === "fail")).toHaveLength(0);
@@ -42,10 +47,24 @@ describe("checkTextWidthBudget", () => {
     expect(resultWarn.fix).toMatch(/shorten|full-width|geometry/i);
   });
 
-  it("does not warn for the same texts once the scene moves to the wider media-overlay band", () => {
-    const fixed = clonedScene5FullWidth();
-    const results = checkTextWidthBudget([fixed]);
-    expect(results.filter((r) => r.level === "warn")).toHaveLength(0);
+  it("derives the budget from the layout band, not the copy: same texts warn in media-split, clear in media-overlay", () => {
+    // The budget is layout-derived (measured box width / preferredSize), so
+    // the wider band raises it. #688 raised the copy floor to 48px, which
+    // shrank every budget — qwen4-preview s5's 21-char result now busts BOTH
+    // bands (10 / 19 chars), so the layout difference surfaces on `source`
+    // (16 / 31 chars) instead.
+    //
+    // Asserted as the exact warn set per layout. A subset check (the warn
+    // simply "disappears", or the total just drops) would let any other
+    // field silently gain or lose its signal unnoticed.
+    const warnedFields = (layout) =>
+      checkTextWidthBudget([{ id: 5, visualType: "narrative", layout, texts: S5_TEXTS }])
+        .filter((r) => r.level === "warn")
+        .map((r) => r.check.match(/— (\w+) in /)[1])
+        .sort();
+
+    expect(warnedFields("media-split")).toEqual(["action", "result", "source"]);
+    expect(warnedFields("media-overlay")).toEqual(["action", "result"]);
   });
 
   it("passes a full-width narrative whose fields fit the derived budgets", () => {
@@ -91,20 +110,6 @@ describe("checkTextWidthBudget", () => {
     expect(results.filter((r) => r.level === "warn")).toHaveLength(0);
   });
 });
-
-function clonedScene5FullWidth() {
-  return {
-    id: 5,
-    visualType: "narrative",
-    layout: "media-overlay",
-    texts: {
-      company: "THE COST",
-      action: "TRAINING COMPUTE VS QWEN3.7-PLUS (397B)",
-      result: "1/9 THE TRAINING COST",
-      source: "SOURCE: Qwen official blog",
-    },
-  };
-}
 
 describe("checkVisualTypeWhitelist", () => {
   it("fails a visualType the Remotion dispatcher cannot render (default renderer)", () => {

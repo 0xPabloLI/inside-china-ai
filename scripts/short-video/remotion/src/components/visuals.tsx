@@ -137,12 +137,15 @@ export const BrandBar: React.FC = () => (
 
 /**
  * Badge pill — hook scene badge (NOT the breaking badge). Matches
- * .s-hook .badge-pill. `fontSize` is injected by the TextGate when gated
- * (contract field `badge`, 22px); the 26 below is only the ungated default.
+ * .s-hook .badge-pill. `fontSize` is injected by the TextGate when gated;
+ * the default mirrors the contract's `badge` preferredSize (40px, the
+ * metadata floor — see SLOT_FIELDS) so the ungated preview shape cannot
+ * reintroduce the 22px badge #688 raised away. HookScene always passes a
+ * gated fontSize, so nothing renders from this default.
  */
 export const BadgePill: React.FC<{ text: string; fontSize?: number }> = ({
   text,
-  fontSize = 22,
+  fontSize = 40,
 }) => (
   <div
     style={{
@@ -151,7 +154,11 @@ export const BadgePill: React.FC<{ text: string; fontSize?: number }> = ({
       gap: 10,
       background: "#ef4444",
       color: "white",
-      padding: "16px 48px",
+      // #688: 16 -> 12 vertical. The badge pill is 71px tall at the 40px
+      // metadata floor, and the hook's three bands must together fit the 930px
+      // safe zone (see HookScene.HOOK_BANDS) — the pill is the only thing the
+      // kicker band holds, so its padding is where that budget comes from.
+      padding: "12px 48px",
       fontSize,
       fontWeight: 900,
       letterSpacing: "4px",
@@ -176,11 +183,14 @@ export const BadgePill: React.FC<{ text: string; fontSize?: number }> = ({
  * When `sceneId` + `index` are given (T5), the card gates WHOLE through one
  * TextGate (slot hook.hero-center.statCard[i]): num and unit share a nowrap
  * row, so their widths compete and cannot be gated apart. The gate injects
- * the number size; unit/label render at fixed ratios (0.5em / 0.36em) so the
+ * the number size; unit/label render at fixed ratios (0.5em / 0.5em) so the
  * fit ladder scales the whole card proportionally. The card root carries
  * data-text-container so the container assert catches a gate wider than the
  * card's actual content box (cards are flex:1 — width varies with count).
  * Without sceneId/index the card renders statically, ungated.
+ * The card has no fixed height, so Fit only ever fails on WIDTH — a taller
+ * label wraps and grows the card instead, which is what the #688 support band
+ * is sized against (see HookScene.HOOK_BANDS).
  */
 export const StatCard: React.FC<{
   num: string;
@@ -214,7 +224,11 @@ export const StatCard: React.FC<{
         border: "1px solid rgba(255,255,255,0.2)",
         borderTop: `5px solid ${color}`,
         borderRadius: 14,
-        padding: "16px 20px",
+        // #688: 16 -> 12 vertical. Two stat cards + a two-line source is the
+        // hook support band's worst case, and the card is what grows with the
+        // type scale (num + a 0.5em label) — the padding is where the band's
+        // budget comes from. Horizontal padding is unchanged.
+        padding: "12px 20px",
         textAlign: "center",
       }}
     >
@@ -228,7 +242,19 @@ export const StatCard: React.FC<{
                   label ? (
                     <div
                       style={{
-                        fontSize: "0.36em",
+                        // #688: 0.36em put the card's label at 20px (1.9% of the
+                        // frame) — the smallest text on any screen. It is the
+                        // one field the contract cannot reach: the label is
+                        // derived from the card's own size, not gated, and the
+                        // card's 200px box cannot hold the 40px metadata floor
+                        // (0.72em) without wrapping the label to two lines and
+                        // pushing 13 of the 26 shipped packs past the support
+                        // band. 0.5em — the unit's own ratio — is the largest
+                        // value the measured worst case absorbs: 32px at the
+                        // 64px card (0.36em of the old 56px card was 20px), with
+                        // the support band's real worst case at 305.8 of its
+                        // 310px.
+                        fontSize: "0.5em",
                         fontWeight: 700,
                         color: "#cbd5e1",
                         letterSpacing: "1px",
@@ -251,7 +277,11 @@ export const StatCard: React.FC<{
               label ? (
                 <div
                   style={{
-                    fontSize: 20,
+                    // Mirrors the gated branch's 0.5em ratio (see above) so the
+                    // ungated preview shape cannot reintroduce the 20px label
+                    // #688 removed. No production caller reaches this path —
+                    // HookScene always passes sceneId + index.
+                    fontSize: "0.5em",
                     fontWeight: 700,
                     color: "#cbd5e1",
                     letterSpacing: "1px",
@@ -294,6 +324,18 @@ export const Watermark: React.FC = () => (
  * Carries `data-text-container` so every TextGate inside asserts its drawn
  * box stays within the band (spec decision 44): Fit never sees the band's
  * fixed height, only the container assert catches vertical clipping.
+ *
+ * The defaults are the canonical split — kicker 220-400, hero 400-950,
+ * support 950-1150 — sized for a scene whose content is one short element per
+ * band. A scene whose content does not fit passes `top`/`height`;
+ * `HookScene.HOOK_BANDS` is the reference (its support band is 310px, not 200,
+ * because stat cards + a wrapped source need the room), and `CtaScene` /
+ * `ContrastScene` do the same.
+ *
+ * Overrides must stay inside SAFE_ZONES (y 220-1150) and keep the bands
+ * contiguous. Only the first half is enforced: TextGate's safe-zone assert
+ * fails a band that leaves the zone, but nothing checks contiguity — a band
+ * with a gap or an overlap renders. Verify by hand when changing a split.
  */
 export const Slot: React.FC<{
   variant: "kicker" | "hero" | "support";

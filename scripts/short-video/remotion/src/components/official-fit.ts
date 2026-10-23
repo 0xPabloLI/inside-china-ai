@@ -340,7 +340,7 @@ function predictContainer(
  * (what the TextGate ladder walks). The TextGate renders its initial
  * `preferredSize` before Fit runs, so a container's computed font-size over
  * the preferred size is exactly its scaling ratio — em-based sub-elements
- * (statCard's 0.5em unit, 0.36em label) convert correctly.
+ * (statCard's 0.5em unit and label) convert correctly.
  *
  * An empty result means "no model" — the caller falls back to the unseeded
  * full ladder, which is byte-for-byte the pre-T12 behaviour.

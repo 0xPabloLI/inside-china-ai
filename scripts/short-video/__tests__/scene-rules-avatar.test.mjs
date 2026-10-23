@@ -49,8 +49,14 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // layout choice) are intentionally waived instead of scolded.
     // #836: pass 49 → 50 — the media field schema check joined the aggregate
     // (unknown media keys / evidence flag / provenance shape).
-    expect(before.pass).toHaveLength(50);
-    expect(before.warn).toHaveLength(2);
+    // #688: pass 50 → 49, warn 2 → 23 — the type-scale raise shrank every
+    // slot's char budget (`slotCharBudget` derives from `preferredSize`), so
+    // this pack's pre-#688 copy now trips the advisory Text width budget check
+    // on 21 fields (19 from the copy-floor raise, 2 more from the lead-class
+    // raise that followed). WARN-level by design: it advises shorter copy and
+    // never blocks a render.
+    expect(before.pass).toHaveLength(49);
+    expect(before.warn).toHaveLength(23);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });
 });

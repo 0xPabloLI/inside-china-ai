@@ -51,7 +51,14 @@ export const ContrastScene: React.FC<{ scene: SceneData; duration: number }> = (
       <BrandBar />
       <FrameGlow variant="amber" />
 
-      <Slot variant="hero">
+      {/* #688: the shared hero band (400-950) was sized for 22px chips. At the
+          48px copy floor this scene's own content — title, vs chip, two chip
+          cards and the note — measures 718px (fixture `measure:contrast`), so
+          the band becomes the whole safe zone (220-1150, 930px). The content
+          stays vertically centred (flex), so it lands on the safe zone's centre
+          (685) rather than the old band's (675) — a 10px shift, and the old
+          550px band could not hold the content at all. */}
+      <Slot variant="hero" top={220} height={930}>
         {txt.title && (
           <SlideUp delay={0.2} duration={0.5} style={{ marginBottom: SPACING.xl }}>
             <TextGate sceneId={sceneId} slotId="contrast.hero-center.title">
