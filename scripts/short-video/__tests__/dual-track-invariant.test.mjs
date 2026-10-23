@@ -275,13 +275,13 @@ describe("token count conservation (#817)", () => {
   it('ignores standalone punctuation tokens ("—") that carry no word timing', () => {
     const scene = {
       id: 53,
-      voiceover: "Fast — very fast.",
-      ttsText: "Fast, very fast.",
-      ttsReplacements: [],
+      voiceover: "Fast — V4.1 very fast.",
+      ttsText: "Fast, V four point one very fast.",
+      ttsReplacements: [{ original: "V4.1", spoken: ["V", "four", "point", "one"] }],
     };
     expect(findTokenCountDriftInScenes([scene])).toEqual([]);
     expect(
-      findRestoredTokenCountDrift([scene], timingFor(scene, ["Fast,", "very", "fast."])),
+      findRestoredTokenCountDrift([scene], timingFor(scene, ["Fast,", "V4.1", "very", "fast."])),
     ).toEqual([]);
   });
 

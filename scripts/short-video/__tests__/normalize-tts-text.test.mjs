@@ -495,6 +495,12 @@ describe("token count conservation on the real corpus (#817)", () => {
           drifts.push({ pack: packName, ...drift });
         }
       }
+      // `planDualTrack` downgrades a drifting scene to the display track with a
+      // warn instead of committing a drifting `ttsText`, so `drifts` below is
+      // empty by construction for non-authored scenes. The warn is the real
+      // signal that a normalization rule dropped or duplicated a word — assert
+      // it while the spy is still live (`mockRestore` clears call history).
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("token count drift"));
     } finally {
       log.mockRestore();
       warn.mockRestore();

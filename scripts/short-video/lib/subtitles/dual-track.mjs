@@ -349,7 +349,7 @@ export function findTokenCountDriftInScenes(scenes) {
  * Restored words are re-expanded with `countWordTokens` because restore merges
  * a multi-word original ("GPT 5.5") into one `words[]` element.
  *
- * @param {Array<{id: number, voiceover?: string, voiceoverTts?: string}>} scenes
+ * @param {Array<{id: number, voiceover?: string, ttsText?: string, ttsReplacements?: Array, voiceoverTts?: string}>} scenes
  * @param {Array|{scenes: Array}} timingData
  * @returns {Array<{sceneId: number, expected: number, actual: number, voiceover: string, ttsText: string, authored: boolean}>}
  */
