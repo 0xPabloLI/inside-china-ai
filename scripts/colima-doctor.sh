@@ -19,6 +19,7 @@
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 set -uo pipefail
+DOCTOR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 # Profile shape matches the running default (colima list): 2 CPU / 2GiB / 10GiB docker.
 COLIMA_PROFILE="default"
@@ -26,6 +27,7 @@ COLIMA_ARGS=(--cpu 2 --memory 2 --disk 10 --runtime docker)
 SEARXNG_URL="http://localhost:8888/search?q=healthcheck&format=json"
 
 FAILURES=()
+SEARXNG_PARKED=false
 
 check() {
   local name="$1" ok="$2" detail="${3:-}"
@@ -53,14 +55,37 @@ check_docker_daemon() {
 }
 
 check_searxng_container() {
-  local status
-  status=$(docker ps --filter "name=searxng" --format "{{.Status}}" 2>/dev/null | head -1)
-  check "searxng container up" "$([ -n "${status:-}" ] && echo true || echo false)" "${status:-not found}"
+  local running status
+  running=$(docker ps --filter "name=^/searxng$" --format "{{.Names}}" 2>/dev/null | head -1)
+  status=$(docker ps -a --filter "name=^/searxng$" --format "{{.Status}}" 2>/dev/null | head -1)
+  if [ -n "${running:-}" ]; then
+    check "searxng container up" true "$status"
+    return
+  fi
+  # #891: the park agent stops the container by design; a clean exit with the
+  # agent installed is parked, not a failure. Do not send the user to --rebuild.
+  if [ -f "$HOME/Library/LaunchAgents/com.inside-china-ai.searxng-park.plist" ]; then
+    case "${status:-}" in
+      "Exited (0)"*)
+        SEARXNG_PARKED=true
+        echo "  ✅ searxng container parked (expected; park agent installed) — $status"
+        return
+        ;;
+    esac
+  fi
+  check "searxng container up" false "${status:-not found}"
 }
 
 check_searxng_json_api() {
+  if [ "${SEARXNG_PARKED:-false}" = "true" ]; then
+    echo "  ⏭️  searxng JSON API skipped — container parked"
+    return
+  fi
   local http_code
-  http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$SEARXNG_URL" 2>/dev/null)
+  # Aggregated queries routinely take ~20s (docs/tools-catalog.md); a 10s
+  # timeout reported a healthy cold instance as HTTP 000 and sent the user to
+  # the destructive rebuild.
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 40 "$SEARXNG_URL" 2>/dev/null)
   check "searxng JSON API (localhost:8888)" "$([ "$http_code" = "200" ] && echo true || echo false)" \
     "HTTP ${http_code:-timeout}"
 }
@@ -121,11 +146,9 @@ do_rebuild() {
   docker pull searxng/searxng:latest
   docker pull ghcr.io/containrrr/watchtower:latest
   docker rm -f searxng watchtower 2>/dev/null || true
-  # #891: bound the container so it yields to other programs; the park agent
-  # stops it when idle or under host memory pressure.
-  docker run -d --name searxng --restart unless-stopped -p 8888:8080 \
-    -v "$HOME/searxng:/etc/searxng" \
-    --cpus 0.5 --memory 768m --memory-swap 768m searxng/searxng:latest
+  # #891: single create path for the capped container (also preserves the
+  # ~/searxng bind mount); the park agent stops it when idle/pressured.
+  bash "$DOCTOR_DIR/searxng/recreate.sh"
   docker run -d --name watchtower -v /var/run/docker.sock:/var/run/docker.sock \
     ghcr.io/containrrr/watchtower:latest --interval 86400
   echo "⏳ Waiting for searxng JSON API..."

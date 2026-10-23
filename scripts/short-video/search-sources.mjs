@@ -75,7 +75,7 @@ import {
   dedupByUrl,
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS, resolveLoginGate } from "./lib/source-registry.mjs";
-import { ensureSearxng } from "../searxng/lifecycle.mjs";
+import { ensureSearxng, isSearxngAutoStartEnabled } from "../searxng/lifecycle.mjs";
 import {
   updateSourceHealth,
   deriveZeroResultSources,
@@ -713,6 +713,12 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     probeCache = new Map(),
   } = deps;
 
+  // #891: ensure right before this source is collected, not only at run start
+  // (a long research run can outlive the park window). Fail-open.
+  if (source?.name === "searxng_search" && isSearxngAutoStartEnabled()) {
+    await ensureSearxng({ quiet: true }).catch(() => {});
+  }
+
   // #200: per-layer outcome trajectory. Each event is
   // {source, layer, count, reason?} — count null means the layer didn't run
   // or failed structurally, and reason explains why ("zero-results",
@@ -1179,15 +1185,6 @@ async function main() {
     const names = skippedPaidSources.map((s) => s.name).join(", ");
     console.log(`  💰 Skipping ${skippedPaidSources.length} paid-API source(s): ${names}`);
     console.log(`     Use --include-paid to enable them.`);
-  }
-
-  // #891: the container parks when idle; bring it back before a run that will
-  // use it. Fail-open — discovery continues without it.
-  if (process.env.SEARXNG_AUTO_START !== "0" && sources.some((s) => s.name === "searxng_search")) {
-    const searxng = await ensureSearxng({ quiet: true });
-    if (!searxng.ok && !searxng.skipped) {
-      console.warn(`  ⚠️  SearXNG unavailable: ${searxng.reason || "unknown"}`);
-    }
   }
 
   const sourceBreakdown = {

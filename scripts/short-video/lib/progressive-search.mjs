@@ -37,7 +37,11 @@
  */
 
 import { ALL_SOURCES, imageApiSourceMetadata } from "./source-registry.mjs";
-import { ensureSearxng } from "../../searxng/lifecycle.mjs";
+import {
+  ensureSearxng,
+  isLocalSearxngUrl,
+  isSearxngAutoStartEnabled,
+} from "../../searxng/lifecycle.mjs";
 
 // Resolve an image source's registry declaration by name. The pool entries and
 // the two parsers below all go through this, so the registry stays the only
@@ -48,7 +52,7 @@ const registryImageSource = (name) => ALL_SOURCES.find((s) => s.name === name);
 // the image engine runs; a failed ensure is fail-open (the fetch returns []).
 let searxngEnsurePromise = null;
 function ensureSearxngOnce() {
-  if (process.env.SEARXNG_AUTO_START === "0") return Promise.resolve();
+  if (!isSearxngAutoStartEnabled()) return Promise.resolve();
   searxngEnsurePromise ??= ensureSearxng({ quiet: true })
     .then((result) => {
       // A skipped/failed start must not poison later image searches in the
@@ -190,7 +194,7 @@ export async function searchBraveImages(keyword, apiKey, options = {}) {
 export async function searchSearXngImages(keyword, options = {}) {
   const { baseUrl = "http://localhost:8888", count = 20 } = options;
 
-  if (/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::|\/)/.test(baseUrl)) {
+  if (isLocalSearxngUrl(baseUrl)) {
     await ensureSearxngOnce();
   }
 

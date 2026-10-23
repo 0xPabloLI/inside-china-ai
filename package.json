@@ -44,6 +44,7 @@
     "searxng:park": "node scripts/searxng/lifecycle.mjs park --apply",
     "searxng:install-park": "node scripts/searxng/install-park-agent.mjs",
     "searxng:uninstall-park": "node scripts/searxng/install-park-agent.mjs --uninstall",
+    "searxng:recreate": "bash scripts/searxng/recreate.sh",
     "env:sync-tunnel": "bash scripts/sync-colima-tunnel.sh",
     "session:provision": "bash scripts/session-provision.sh"
   },

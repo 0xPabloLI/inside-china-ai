@@ -19,6 +19,7 @@
  *   SEARXNG_URL                 config endpoint (default http://localhost:8888/config)
  *   SEARXNG_IDLE_MINUTES        idle window before parking (default 15)
  *   SEARXNG_PRESSURE_FREE_PCT   park when host free memory is below this (default 15)
+ *   SEARXNG_PRESSURE_GRACE_MINUTES  quiet window before a pressure stop (default 2)
  *   SEARXNG_PARK_STATE          state file (default ~/.searxng-park-state.json)
  *   SEARXNG_AUTO_START=0        callers skip ensure (pipeline-side opt-out)
  */
@@ -35,13 +36,15 @@ export const CONTAINER_NAME = "searxng";
 export const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8888/config";
 export const IDLE_MS = Math.max(0, Number(process.env.SEARXNG_IDLE_MINUTES ?? 15)) * 60_000;
 export const PRESSURE_FREE_PCT = Number(process.env.SEARXNG_PRESSURE_FREE_PCT ?? 15);
+export const PRESSURE_GRACE_MS =
+  Math.max(0, Number(process.env.SEARXNG_PRESSURE_GRACE_MINUTES ?? 2)) * 60_000;
 export const STATE_PATH =
   process.env.SEARXNG_PARK_STATE || path.join(os.homedir(), ".searxng-park-state.json");
 
 const DOCKER_TIMEOUT_MS = 15_000;
 const COLIMA_TIMEOUT_MS = 10_000;
 const START_TIMEOUT_MS = 30_000;
-const MEMORY_PRESSURE_BIN = process.env.MEMORY_PRESSURE_BIN || "/usr/bin/memory_pressure";
+const MEMORY_PRESSURE_BIN = "/usr/bin/memory_pressure";
 
 /** Normalize Docker's "43.2MB / 15.1MB" NetIO reading for equality checks. */
 export function parseNetIo(raw) {
@@ -54,6 +57,16 @@ export function parseNetIo(raw) {
 export function parseMemoryFreePct(text) {
   const match = String(text ?? "").match(/System-wide memory free percentage:\s*(\d+)\s*%/);
   return match ? Number(match[1]) : null;
+}
+
+/** Shared opt-out for pipeline callers (`SEARXNG_AUTO_START=0`). */
+export function isSearxngAutoStartEnabled() {
+  return process.env.SEARXNG_AUTO_START !== "0";
+}
+
+/** The container (and therefore ensure) only makes sense for the local URL. */
+export function isLocalSearxngUrl(url) {
+  return /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::|\/|$)/.test(String(url ?? ""));
 }
 
 /**
@@ -78,17 +91,21 @@ export function decidePark({
   freePct,
   idleMs = IDLE_MS,
   pressureFreePct = PRESSURE_FREE_PCT,
+  pressureGraceMs = PRESSURE_GRACE_MS,
 } = {}) {
-  if (Number.isFinite(freePct) && freePct < pressureFreePct) {
+  // No baseline means the first sample just established it; never stop before
+  // there is evidence of how long the container has been quiet.
+  const hasBaseline = Number.isFinite(lastChangeAt) && Boolean(netIo) && Boolean(lastNetIo);
+  const quietFor = hasBaseline ? now - lastChangeAt : null;
+  if (
+    Number.isFinite(freePct) &&
+    freePct < pressureFreePct &&
+    quietFor != null &&
+    quietFor >= pressureGraceMs
+  ) {
     return { park: true, reason: "pressure" };
   }
-  if (
-    netIo &&
-    lastNetIo &&
-    netIo === lastNetIo &&
-    Number.isFinite(lastChangeAt) &&
-    now - lastChangeAt >= idleMs
-  ) {
+  if (quietFor != null && netIo === lastNetIo && quietFor >= idleMs) {
     return { park: true, reason: "idle" };
   }
   return { park: false, reason: null };

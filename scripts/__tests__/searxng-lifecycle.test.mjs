@@ -4,7 +4,9 @@ import {
   parseMemoryFreePct,
   nextParkState,
   decidePark,
-} from "../../searxng/lifecycle.mjs";
+  isSearxngAutoStartEnabled,
+  isLocalSearxngUrl,
+} from "../searxng/lifecycle.mjs";
 
 describe("parseNetIo", () => {
   it("normalizes Docker's cumulative NetIO reading", () => {
@@ -70,8 +72,34 @@ describe("decidePark", () => {
     pressureFreePct: 15,
   };
 
-  it("parks under memory pressure even when the container is active", () => {
-    expect(decidePark({ ...base, freePct: 10 })).toEqual({ park: true, reason: "pressure" });
+  it("does not park under pressure while NetIO moved recently", () => {
+    expect(
+      decidePark({
+        ...base,
+        freePct: 10,
+        idleMs: 600_000,
+        lastChangeAt: base.now - 30_000,
+      }),
+    ).toEqual({ park: false, reason: null });
+  });
+
+  it("parks under pressure after the quiet grace window", () => {
+    expect(
+      decidePark({
+        ...base,
+        freePct: 10,
+        idleMs: 600_000,
+        lastChangeAt: base.now - 120_000,
+        pressureGraceMs: 120_000,
+      }),
+    ).toEqual({ park: true, reason: "pressure" });
+  });
+
+  it("does not park under pressure on the first sample", () => {
+    expect(decidePark({ ...base, freePct: 10, lastChangeAt: undefined, lastNetIo: null })).toEqual({
+      park: false,
+      reason: null,
+    });
   });
 
   it("parks after the idle window with unchanged NetIO", () => {
@@ -98,5 +126,34 @@ describe("decidePark", () => {
       park: false,
       reason: null,
     });
+  });
+});
+
+describe("isSearxngAutoStartEnabled", () => {
+  it("is enabled unless SEARXNG_AUTO_START=0", () => {
+    const original = process.env.SEARXNG_AUTO_START;
+    try {
+      delete process.env.SEARXNG_AUTO_START;
+      expect(isSearxngAutoStartEnabled()).toBe(true);
+      process.env.SEARXNG_AUTO_START = "0";
+      expect(isSearxngAutoStartEnabled()).toBe(false);
+    } finally {
+      if (original === undefined) delete process.env.SEARXNG_AUTO_START;
+      else process.env.SEARXNG_AUTO_START = original;
+    }
+  });
+});
+
+describe("isLocalSearxngUrl", () => {
+  it("recognizes the local SearXNG endpoints", () => {
+    expect(isLocalSearxngUrl("http://localhost:8888/search")).toBe(true);
+    expect(isLocalSearxngUrl("http://127.0.0.1:8888/config")).toBe(true);
+    expect(isLocalSearxngUrl("http://localhost/")).toBe(true);
+  });
+
+  it("rejects remote and lookalike hosts", () => {
+    expect(isLocalSearxngUrl("https://example.test/search")).toBe(false);
+    expect(isLocalSearxngUrl("http://localhost.evil/search")).toBe(false);
+    expect(isLocalSearxngUrl("")).toBe(false);
   });
 });
