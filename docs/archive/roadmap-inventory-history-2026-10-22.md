@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 26 轮盘点 + 57 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述。
+> 本文件按时间倒序排列，共 29 轮盘点 + 59 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round LXXXIX → LV）
+## 逐轮盘点（Round XC → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round XC：#688 全版式字号强制上调交付闭票**——按 HITL 三决（幅度分层 A / 不回改存量 / loop 首轮暴露 title 与正文同号后追加「A 抬标题」）把 `SLOT_FIELDS` 全量抬到可读性下限：copy 类 **48/35**（原 22-36/16-26）、metadata 类 **40/29**（原 20-24/16-18）、lead 类 company/title/label **60/43**、result/statCard **64/46**；subject 64 与 brand 72 不动（相邻 ratio 已达标且共享 hero 带是垂直瓶颈），240 锚点与 hookText/revealText 保持。字号层级成为**契约数据**（`SLOT_FIELDS[field].tier` + `READABILITY_TIERS`，缺省落更严的 copy），新字段一经声明即继承下限。版式分带按 band 内容**实测**重推（渲染每个真实包的每个 hook 场景取 box 并集）：hook kicker/hero/support 180/550/200 → **78/542/310**，三带最坏值合计 915.8/930px（余量 7/3/4.2），腾预算靠三处在 scale 上的收紧（badge pill padding 16→12、stat card padding 16→12、source margin 12→8）；CtaScene support → 265、ContrastScene hero → 整个安全区、StatCard label 0.36em→0.5em（20→32px，契约够不到的字段）。**定性 quality improvement（有产出差异）**：九幕 `_gate-smoke` 包改动前后各渲一次、两边都端到端成功，before/after 对比图见 PR。红基线 `expected 32 to be greater than or equal to 40`；`scene-gate-render` 37/37（改前 12 挂）、全量 5816 passed、tsc/eslint(42=基线)/knip/lint:mjs/lint:docs/prettier 全净、CI 全绿。视觉设计 loop（强制）3 轮内收敛：相邻层级违例 10 对/8 区 → 12 对/9 区，余项为角色豁免或既有 hero 锚点对。droid-review 9 条（2×P2 + 7×P3）全修并 resolve，含 2 处自证断言（`getSlot` 对 `SLOT_FIELDS` 自身的 spread）与 T9 的 floor 算术（实测 182/321/187）。PR #901 squash `793eaf85`。**frontier 复算**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首推进至 **`#752`**（→ `#757` → `#761` → `#763`）；Track 1B 下一张 **`#778`** → `#353` → `#358` → `#329`。）
 
 （**Round LXXXIX：#779 asset-sourcer 产出基线断言交付闭票（与 #891 并行撞号，后合者改下一号）**——实现 `scripts/short-video/lib/source-yield.mjs`（纯函数核心 + fail-open IO）与 `asset-sourcer.mjs` 接缝（PR #892，merge `fbee7ed6`；droid-review 9 条处置：P1 bootstrap 漏计 media-patch 嵌套 `media.{type,path}`、P2 drop 行双打 / `--strict-yield` 双解析 / bootstrap 同 run 双计、knip 未用导出，全修并 resolve）。**定性 enabling fix（无产出 diff）**：每次 run 结束写 `output/<slug>/source-yield-report.json`（每源 contributed＝进入素材池的 image/video 数，text-only 与 cached-media 不计——对齐 #547 post-gate 归零的真实失败形态）并追加一行 `output/source-yield-history.jsonl`（仅期望源，含 0；23 期望源 SSOT＝API_SOURCES/YTDLP_SOURCES/CDP_SOURCES/CDP_VIDEO_SOURCES/IMAGE_SEARCH_ENGINES，Tier-3-only 源标 conditional）；基线＝最近 10 次历史 run 的最低正贡献（0 视为未观测、纯算术可由持久化数据重算、无网络/模型调用），runStartedAt 截止使本 run 产物永不喂自身基线；跌破基线（含 0）打印非阻塞 `⚠️ [SOURCE-YIELD-DROP]`，`--strict-yield` 仅独立运行以退出码 1 失败、media-track 内调用不阻断；skipped（no API key/rate limit）环境性原因不判 drop。首 run 从既有产物 bootstrap（asset-report.json + 各包 media-patch.json，assigned 条目嵌套 `media` 拍平、同 run report/patch 去重只记 patch）：真实产物 smoke 播种 8 条历史、12 源基线（pexels=1、pexels-video=2、brave_image=4 等）。文档同步 `content-pipeline.md`。验证：新套 42 tests、全量 5790 passed 本地绿、eslint/prettier/knip 净、CI 全绿（Lint/typecheck/test、Semgrep SAST、Socket、droid-review）。**frontier 复算**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首仍 `#688`；Track 1B 下一张 **`#778`**（W2B · source-registry 契约 fixture）→ `#353` → `#358` → `#329`。
 
@@ -73,10 +75,12 @@
 
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
-## 近轮一句话档案（Round LXXXVI → J）
+## 近轮一句话档案（Round LXXXVII → J）
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round LXXXVII**（#344 交付闭票——SearXNG 覆盖面审计：四文本源全保留、0 收敛；第 4 项 #77 未收编的 `brave_image`/`searxng_image` 双份定义并入，label/凭据/URL/parser 收敛到 source-registry，pool 只留传输层；608 tests、eslint、lint:mjs/docs、selector-health 4/4、真实内容包 smoke 20 条；PR #887 squash `27e60278`；范围外 bing_news 探针误判开 #888；frontier：Track 1B 下一张 #779）
 
 **Round LXXXVI**（`#707` 交付闭票——策展 `assets/` 根目录 5 份平铺副本清理：4 份孤儿/重复删除、`scene-10.mp4` 迁入 `assets/dh-fixtures/` 并改绑 3 个手工脚本；droid P1 要求保留手制 Qwen 图的唯一跟踪副本，修复为 force-add 进 `qwen4-preview`/`dh-pilot-qwen4` 两个内容包并在例外表登记；b-roll 37 + scene-rules 236 绿、lint/docs/prettier 净、CI 全绿；PR #885 squash `48f299d2`；frontier：Track 1B W1C 段清空，下一张 `#344` → `#779` → `#778` → `#353`，HITL `#688`）
 
