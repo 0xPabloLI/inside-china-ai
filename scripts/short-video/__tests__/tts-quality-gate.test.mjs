@@ -608,6 +608,87 @@ describe("#548 digit+unit merge aliases", () => {
   });
 });
 
+// ─── heard-side currency mirror: spoken "thirty eight dollars" vs heard "$38" ───
+// Repro context lives with the gate hunk (quality-gate.mjs); these tests pin the
+// words the "$" itself proves were spoken.
+describe("heard-side currency mirror", () => {
+  it("expands a heard dollar integer into its spoken words", () => {
+    const heard = "DeepSeek reported revenue of $38 for every GPU hour at off-peak pricing";
+    const set = buildExpandedAsrTokenSet(tokenize(heard), heard);
+    // set.has is the strict form: isWordInAsr could pass via an unrelated
+    // equivalence, while only the mirror can put these words in the set.
+    expect(set.has("thirty")).toBe(true);
+    expect(set.has("eight")).toBe(true);
+    expect(set.has("dollars")).toBe(true);
+  });
+
+  it("expands comma-grouped dollar amounts too", () => {
+    const heard = "the cluster bills $1,234 per day";
+    const set = buildExpandedAsrTokenSet(tokenize(heard), heard);
+    for (const w of ["one", "thousand", "two", "hundred", "thirty", "four", "dollars"]) {
+      expect(set.has(w)).toBe(true);
+    }
+  });
+
+  it("adds no evidence for decimals or letter-suffixed amounts (#548 boundary)", () => {
+    const heard = "the API costs $1.4B and the bill came to $2.50";
+    const set = buildExpandedAsrTokenSet(tokenize(heard), heard);
+    expect(set.has("dollars")).toBe(false);
+    expect(set.has("one")).toBe(false);
+    expect(set.has("two")).toBe(false);
+    expect(set.has("fifty")).toBe(false);
+  });
+
+  it("keeps the saved scene 4 pair above the floor on the gate's similarity measure", () => {
+    // Verbatim from the 2026-10-21 run. The near-miss rule (#825) later rescued
+    // "DeepSeq" → "DeepSeek", so evaluateSceneTts now reaches 80% on this pair
+    // WITHOUT the mirror; the raw measure scores 73.3% before it and 93.3%
+    // after, and the delta is what decides shorter scenes.
+    const expected = tokenize(
+      "DeepSeek reported revenue of thirty eight dollars for every GPU hour, at off-peak pricing",
+    );
+    const heard = "DeepSeq reported revenue of $38 for every GPU hour at off-peak pricing";
+    expect(computeTokenSimilarity(expected, tokenize(heard), heard)).toBeGreaterThanOrEqual(0.75);
+  });
+
+  it("end-to-end: a short currency scene stops hard-blocking", async () => {
+    // Currency words are the ONLY missing content: 5/8 = 62.5% before the
+    // mirror, 8/8 after. 8 words at 133 WPM over 3.6s keeps pacing in range.
+    const EXPECTED = "DeepSeek charges thirty eight dollars per GPU hour.";
+    const HEARD = "DeepSeek charges $38 per GPU hour";
+    const dir = mkdtempSync(join(tmpdir(), "tts-currency-"));
+    const audio = join(dir, "scene-4.wav");
+    writeFileSync(audio, "RIFFdummydata");
+    const scene = { id: 4, voiceover: EXPECTED, ttsText: EXPECTED };
+    const transcriber = vi.fn().mockResolvedValue({ ok: true, segments: [{ text: HEARD }] });
+
+    const res = await evaluateSceneTts(scene, audio, 3.6, { transcriber });
+    rmSync(dir, { recursive: true, force: true });
+
+    expect(res.passed).toBe(true);
+    expect(res.issues).toEqual([]);
+    expect(res.similarity).toBeGreaterThanOrEqual(0.75);
+  });
+
+  it("end-to-end negative: a take that drops other content still fails", async () => {
+    // The mirror satisfies the currency words, but the dropped clause must
+    // still sink the take: 8/12 = 66.7% — evidence, never a fabricated pass.
+    const EXPECTED = "DeepSeek charges thirty eight dollars per GPU hour at off-peak rates.";
+    const HEARD = "DeepSeek charges $38 per GPU hour";
+    const dir = mkdtempSync(join(tmpdir(), "tts-currency-neg-"));
+    const audio = join(dir, "scene-4.wav");
+    writeFileSync(audio, "RIFFdummydata");
+    const scene = { id: 4, voiceover: EXPECTED, ttsText: EXPECTED };
+    const transcriber = vi.fn().mockResolvedValue({ ok: true, segments: [{ text: HEARD }] });
+
+    const res = await evaluateSceneTts(scene, audio, 4.8, { transcriber });
+    rmSync(dir, { recursive: true, force: true });
+
+    expect(res.passed).toBe(false);
+    expect(res.similarity).toBeLessThan(0.75);
+  });
+});
+
 // ─── #271: cross-module threshold coupling ───
 // The registry fail-closes a gate-failed pacing take it cannot plan, so the
 // compensation trigger (pacing.mjs) is a hard lower bound for the gate floor:

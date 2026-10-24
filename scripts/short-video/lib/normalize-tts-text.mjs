@@ -540,16 +540,50 @@ function normalizeVoiceover(str, replacements) {
  * @returns {string[]} words, empty when the text carries no cardinal
  */
 export function cardinalSpokenWords(text) {
-  const words = [];
-  for (const match of String(text ?? "").matchAll(CARDINAL_RE)) {
-    const value = parseInt(match[0].replace(/,/g, ""), 10);
-    if (!Number.isFinite(value)) continue;
-    const spoken = numberToWords(value);
-    // Beyond the scale table numberToWords returns the digits — not evidence.
-    if (/\d/.test(spoken)) continue;
-    words.push(...spoken.split(" "));
+  // Group 1 is the number in both regexes; the lookarounds around it are
+  // zero-width, so this is also the whole match.
+  return [...capturedIntegers(text, CARDINAL_RE, 1)].flatMap(spokenWordsFor);
+}
+
+/** Words for one integer; empty when numberToWords cannot express it (≥1e15). */
+function spokenWordsFor(value) {
+  const spoken = numberToWords(value);
+  // Beyond the scale table numberToWords returns the digits — not evidence.
+  return /\d/.test(spoken) ? [] : spoken.split(" ");
+}
+
+/** Whole integers captured by `re` at `index`, commas stripped. */
+function* capturedIntegers(text, re, index) {
+  for (const match of String(text ?? "").matchAll(re)) {
+    const value = parseInt(match[index].replace(/,/g, ""), 10);
+    if (Number.isFinite(value)) yield value;
   }
-  return words;
+}
+
+/** `$1,234` / `$38` / `$38.` — whole-dollar amounts only. */
+const CURRENCY_AMOUNT_RE = /\$\s?(\d{1,3}(?:,\d{3})+|\d+)(?!\d|[.,]\d|\p{L})/gu;
+
+/**
+ * Spoken words for every whole-dollar amount in an ASR transcript — "$38"
+ * yields ["thirty", "eight", "dollars"].
+ *
+ * whisper.cpp normalizes a spoken "thirty eight dollars" to "$38", and
+ * CARDINAL_RE deliberately skips currency-prefixed digits (step 0.5 owns the
+ * symbol/amount pairing on the spoken side), so the heard-side expansion in
+ * the quality gate has no evidence for words the audio does contain. The "$"
+ * is itself proof the currency word was spoken, so the noun joins the number.
+ * Decimals and letter-suffixed magnitudes stay out: their display-side
+ * annotation is a different path, and expanding them would manufacture
+ * evidence the audio does not carry.
+ *
+ * @param {string} text
+ * @returns {string[]} words, empty when the text carries no whole-dollar amount
+ */
+export function currencySpokenWords(text) {
+  return [...capturedIntegers(text, CURRENCY_AMOUNT_RE, 1)].flatMap((value) => {
+    const words = spokenWordsFor(value);
+    return words.length === 0 ? [] : [...words, value === 1 ? "dollar" : "dollars"];
+  });
 }
 
 /**

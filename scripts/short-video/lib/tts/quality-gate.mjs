@@ -16,7 +16,11 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { transcribeVideo } from "../video-understand.mjs";
 import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "../asr-defaults.mjs";
-import { splitDigitUnitToken, cardinalSpokenWords } from "../normalize-tts-text.mjs";
+import {
+  splitDigitUnitToken,
+  cardinalSpokenWords,
+  currencySpokenWords,
+} from "../normalize-tts-text.mjs";
 import { FAILURE_CLASS, asrOptOutEnabled } from "./failure-class.mjs";
 import { validateInstructSignature } from "./instruct.mjs";
 import { cleanText, measureSceneWpm, tokenize } from "./text-tokens.mjs";
@@ -411,6 +415,13 @@ function buildAsrEvidence(asrTokens, rawText = null, options = {}) {
   // CARDINAL_RE the spoken side uses, so both sides agree by construction.
   if (rawText) {
     for (const w of cardinalSpokenWords(rawText)) expanded.add(w);
+    // Heard-side currency mirror: the spoken track spells amounts out while
+    // whisper.cpp normalizes what it heard to "$38", and CARDINAL_RE skips
+    // $-prefixed digits by design — so a CORRECT take loses the words the
+    // audio does contain. Observed 2026-10-21 on deepinfer scene 4: the raw
+    // similarity scored 73.3% against the 75% floor, and the fixed TTS seed
+    // made the self-heal loop regenerate the identical take three times.
+    for (const w of currencySpokenWords(rawText)) expanded.add(w);
   }
 
   // #689: whisper.cpp sometimes splits one brand token into adjacent words
