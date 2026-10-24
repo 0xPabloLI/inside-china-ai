@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 33 轮盘点 + 63 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案）。
+> 本文件按时间倒序排列，共 34 轮盘点 + 64 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -16,6 +16,8 @@
 ## 逐轮盘点（Round XCIV → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round XCV：`#763` 交付闭票——MRL-2 机检门 / 编辑建议分层**——47 个注册检查拆为 30 类机检门 + 18 项编辑建议（17 个函数 + 头像策略子项）；判断类不再进 pass/warn/fail，也不影响退出码；`checkLayoutField` 只对 narrative 强制 `layout`（7 个旧包的 58 个假 FAIL 清零）；`checkSemanticConsistency` 改词边界匹配并删除需实体作用域的 `up/down` 等词对；`--pre` 通过项按类别折叠（didi 80→48 行）。droid 5 条（ReDoS / B5·B6 悬空引用 / hook 标签 / brand-system 严重度 / pass 行契约）全修并 resolve；4696 tests 全绿；PR #926 squash `25533acc`。**产出 diff：preflight 输出行数与分层（quality improvement），视频产物无变化**。frontier：Track 3 HITL 队首 **`#529`**（→ `#723`）；Track 2 `#291` AFK 空；Track 1B **`#778`**。）
 
 （**Round XCIV：`#922` 接线票分流入表（triage-only，无交付）**——`#757` follow-up「per-family T2V 模板接进 b-roll 生成路径」（`prompt-templates.mjs` 已并入主干但**无调用方**）完成分流 → Tier 2 · `P3·W3B` · `P2 enhancement` · `ready-for-agent`；六条验收取自 `docs/research/t2v-model-prompt-templates.md` §5 的四项接线待办（档位→familyId、negative 双路径不可互换、超预算报错、VLM gate 分离）；与 #355（预算）/ #535（provider·缓存身份）/ #541（gate 消费）同属 `lib/b-roll/` 串行带。**无代码改动、无产出 diff。frontier 不变**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首仍 **`#763`**（→ `#529` → `#723`）；Track 1B 下一张仍 **`#778`**。）
 
@@ -87,6 +89,8 @@
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round XCII**（`#757` 交付闭票——T2V 逐模型 prompt 模板：HITL 两决收 3 family（`wan2.2`/`wan2.1` 在产线 + `seedance` 候选）＋「数据表 + 纯渲染函数」；`prompt-templates.mjs` 导出 6 个符号，`MODEL_TIER_FAMILIES` import 时由 `modelTiers` 派生（同档位重复归属报错）并用测试锁到 `runner.mjs MODEL_TIERS`，渲染器按名拒绝 `brand`/`negative`、Wan 超 480 token 抛错不截断；研究笔记一手取证四家官方契约并**纠正旧横评「HunyuanVideo 1.5 Apache-2.0」**（实为 Tencent community license，EU/UK/KR 排除，仓库 6.5 个月无提交）；CogVideoX 5B 商用登记 + 仓库约 12 个月无提交 → 两者只留证据不入表；**未接线，零行为变化**；droid 2 条（P2 派生表重复 / P3 文档导出一致性）全修并 resolve；20 tests、`lib/__tests__` 369 绿、CI 全绿；PR #916 squash `d3983f29`；frontier：Track 3 HITL `#761`、Track 1B `#778`）
 
 **Round XCI**（`#752` 交付闭票——Hook 评审端三轴判据（首句冲突密度 / 可感知比较锚点（无数字记 N/A）/ 三轨同频）入 `content-pipeline.md`，Step 0 报告须附逐轴自评、不新增 CI 硬门禁；guide Step 5 正反校准表：内部 303/405＋外部 4 条＋4 反例各带三轴改写与 `机检` 列，303 落地改写同时过数字/破折号两门；HITL 四决（强制力/范例/人工裁决优先/冲突只标注留 #763）；triage 的 `checkHookSpecificity` 经核验不存在；enabling fix 无产出 diff；droid-review 5 条全修并 resolve；PR #912 squash `cf13c13f`。同期解除 pre-push 依赖阻塞：#909（squash `146fe2d0`）升 4 个传递 pin（body-parser/fast-uri/undici/qs）并回退 @emnapi 丢失与 peer 噪声，`scan:deps` 转绿、全量 5814 绿，范围外开 #910/#911；frontier：Track 3 HITL `#757`、Track 1B `#778`）
 
