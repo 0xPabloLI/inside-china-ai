@@ -84,7 +84,7 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。默认（�
 - **narrativeRole**: `"S"`
 - **留存机制**：埋下 open loop 的种子（暗示有更深层的东西）
 - **素材要求**：冲击力强的背景图/视频（公司 logo、产品画面、标志性场景）。Hook 媒体逐包人工策展：直接把文件绑定为 `scene.media`（见下文 Hook 媒体策展）；不要用 `assetNeed`——asset-sourcer 结构上跳过 hook
-- **voiceover**：≤10 词。从 4 种 hook 公式中轮换选择（见 Step 5）
+- **voiceover**：≤10 词（**与已验证样本冲突，见 Step 5 校准表；裁决归 #763**）。从 4 种 hook 公式中轮换选择（见 Step 5）
 - **visualType**: `"hook"`
 - **时间**：0-3s
 
@@ -174,7 +174,7 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 | 规则                   | 怎么做                                          |
 | ---------------------- | ----------------------------------------------- |
 | **Write for the ear**  | 缩写（don't, can't, it's）、句子片段、口语化    |
-| **短句**               | Hook ≤10 词；body ≤25 词（一口气）              |
+| **短句**               | Hook ≤10 词（与已验证样本冲突，见 Step 5 校准表）；body ≤25 词（一口气） |
 | **Vary line length**   | 在 15 词的 context 行之间插入 3-5 词 punch line |
 | **No hedging**         | 删除 maybe, sort of, kinda, perhaps             |
 | **No written openers** | 不以 "In this video," "Today we'll" 开头        |
@@ -196,6 +196,43 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 | **Contradiction**   | "[X] 发生了，但 [X 的反面] 也是真的" | "382M users. Daily revenue under $140K."                                     | 反转/争议    |
 | **Curiosity Gap**   | "别急着 [常见行为]，先看 [这个]"     | "Don't dismiss Chinese enterprise AI until you see what ByteDance just did." | 产品/分析    |
 | **Question**        | "如果 [假设] 是错的呢？"             | "What if China's biggest AI bet isn't a model at all?"                       | 哲学/分析    |
+
+### Hook 正反面校准表（#752）
+
+**口径**：判据来源是**人工裁决**（#244 三轮 A/B 实听 + 陌生观众自足性），播放量只作**入选门槛**，#259 的 0:01 流失基线只作**回收对照**——#259 起的 analytics 复盘显示我方已发布视频留存落点全部落在 0:01–0:02（零正例），不能当判据来源。逐条「为何算好」按评审端三轴（`docs/content-pipeline.md` → Hook 合格判据）拆解。
+
+#### 正面基准 · 内部已验证（#244，2026-09-13 HITL 实听）
+
+| 样本 | 原始 take 文本 | 三轴拆解 |
+| --- | --- | --- |
+| **303**（胜出，用户裁决「情感充沛很多」） | DeepSeek just dropped a bombshell! V four point one Flash — brand new architecture, native multimodal. This changes everything. | 轴1 首分句 5 词即落 "bombshell"（冲突先于对象）；轴2 "brand new architecture" 与上代形成对照；轴3 锚点词 = 模型名，与 hook 屏上 `subject` 同指 |
+| **405**（疑问句，多内容泛化最佳；整体仍不如 303） | What if one GPU could run a world model for 1.3 billion people? Ant Group just proved it. In real time. | 轴1 首分句 13 词，但前 3 词已抛假设冲突；轴2 "1.3 billion people" 自带体量反差，第二句给主体；轴3 三拍短句，屏上焦点可同步 |
+
+**落地改写（必读）**：303 原始 take 文本含 `—`，直接照抄会被 MRL-2 的 `checkNoEmDashes`（em/en/double dash = fail）判死。落地版按 #278 降级规则用句号切分承载断句意图（语义不变；**听感未经复核**——照抄后如要确认节奏，按 #278 的方式实听对比）：
+
+> DeepSeek just dropped a bombshell! V four point one Flash. Brand new architecture, native multimodal. This changes everything.
+
+**词数口径冲突（未决）**：303 = 18 词、405 = 21 词，外部样本中位 14.0 词——都超本 guide「Hook ≤10 词」的现行写法。两者冲突待 #763 三分类审计裁决；在此之前以**已验证样本**为准，不要为凑 ≤10 词牺牲轴 1 / 轴 2。
+
+#### 正面基准 · 外部（#300，2026-10-17 抓取快照；样本 = 各账号播放量 Top 5）
+
+| 账号（档位） | 原文 | 句子族 | 三轴拆解 |
+| --- | --- | --- | --- |
+| `maverickgpt`（prompt 教程） | China just dropped an AI model that beats GPT-5 on almost every benchmark, and nobody's talking about it. | `just` + 事件 | 轴1 首分句 14 词，但 "beats GPT-5" 即冲突；轴2 对手即锚点（GPT-5）；轴3 首帧真人对镜口播，与口播锚点同指 |
+| `kanekallaway`（科技新闻、分屏） | Elon is now creating the biggest building in human history, the TerraFab. | 规模 / 最高级锚点 | 轴1 "biggest building in human history" 先于主体名落地；轴2 最高级即参照系；轴3 首帧分屏（Elon 舞台 + 口播），画面与口播同指 |
+| `kanekallaway` | This is the most insane tech company in the world, ASML. | 规模 / 最高级锚点 | 轴1 悬念前置（"the most insane"）再给主体；轴2 最高级锚点；轴3 首帧是芯片特写而非人像——**吸收其句式，不要照搬首帧策略**（首帧策略归 #299） |
+| `sineadbovell`（科技评论、口播） | What's a professor to do to, like, I don't know, prevent cheating? | 提问式 | 轴1 疑问句开场，冲突藏在「提问者无解」里；轴2 无数字锚点——**疑问句样本不以轴 2 取胜**；轴3 首帧真人出镜说话 |
+
+**取证边界**：外部原文取自 `docs/research/competitor-video-benchmarks-research.md` §10.2 的句子族实例（已入库）；播放量为抓取快照（本地 `output/competitor-benchmarks/manifest.json`，gitignored 不入库）；账号赛道归属的完整校验归 **#748**（本表 4 条均取自 #300 的 AI 六号，不在已落盘 5 条非赛道样本内）。
+
+#### 反面教材（Anti-Patterns）
+
+| 反例 | 文本 | 病在哪 | 按三轴改写 |
+| --- | --- | --- | --- |
+| **302 原文案**（#244 R2 裁决「只是快了」：同 instruct、同语速下听着仍慢） | DeepSeek just dropped V four point one Flash, with a new architecture and native multimodal. | 轴1 首分句是「发布 + 对象」顺叙，冲突没落地；轴2 "new architecture" 无对照物 | DeepSeek just dropped a bombshell! V four point one Flash. Brand new architecture, native multimodal. |
+| **平静陈述句开场**（#278 明令不满足） | 泛指：`X 公司今天发布了 Y 模型` | 轴1 铺垫先行，1.5s 内无冲突 | 结果先行：把 Y 的反常之处提到第一句 |
+| **续集式钩子 / 不自足**（#752 实例：`deepseek-v41-flash-1017` 的 hook 草稿在 Step 0 hook 预览被拦，成片改用自足版） | 泛指：承接上一条的数字/悬念，陌生观众缺前置 | 陌生观众听不出「发生了什么」 | 本包自足：hook 只由本包素材支撑；跨包引用需用户显式授权（Stage 3 Step 0） |
+| **裸报大数字无锚点**（#278 硬性要求 1 的反面） | 泛指：`它训练用了 10T tokens` | 轴2 绝对量无参照系 | 补锚点：10T tokens, twice what GPT-5 used. |
 
 ## Hook 媒体策展（#299）
 
