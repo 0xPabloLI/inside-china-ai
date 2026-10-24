@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.0...tanstack_start_ts-v1.31.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **remotion:** render contrast media and route evidence off text-first layouts ([#761](https://github.com/0xPabloLI/inside-china-ai/issues/761)) ([#919](https://github.com/0xPabloLI/inside-china-ai/issues/919)) ([4845d3b](https://github.com/0xPabloLI/inside-china-ai/commit/4845d3be50057d482a40bfd302a26e5325ccaa82))
+
 ## [1.31.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.30.1...tanstack_start_ts-v1.31.0) (2026-10-24)
 
 
