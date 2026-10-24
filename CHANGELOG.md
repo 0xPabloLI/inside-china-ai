@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.30.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.30.0...tanstack_start_ts-v1.30.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **tts:** mirror whole-dollar amounts on the quality gate's heard side ([#914](https://github.com/0xPabloLI/inside-china-ai/issues/914)) ([afe93c5](https://github.com/0xPabloLI/inside-china-ai/commit/afe93c52be64a79d19cd49d4e92121f75eb1de84)), closes [#908](https://github.com/0xPabloLI/inside-china-ai/issues/908)
+
 ## [1.30.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.29.0...tanstack_start_ts-v1.30.0) (2026-10-23)
 
 
