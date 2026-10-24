@@ -426,15 +426,15 @@ Hook 是前 3 秒，媒体**逐包人工策展**，不走通用搜源（`asset-s
 
 Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循环（每集单独检查），0 Blockers 后直接进入 Stage 4（不暂停）。
 
-**MRL-2 检查项**：由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器执行，Agent 在 HITL 报告中引用其输出（报告含检查项名称与详情，无需查表）。输出分三层（#763）：
+**MRL-2 检查项**：由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器执行，Agent 在 HITL 报告中引用其输出：FAIL/WARN 项带检查名与详情，通过项按类别计数（#763 折叠，单包输出从约 80 行降到约 20 行）。输出分三层：
 
 | 层 | 语义 | 输出位置 |
 | --- | --- | --- |
 | 机检门（Blockers） | 违反即渲染契约/产物/schema 破裂，必须修 | `❌ FAIL` / `⚠️ WARN` 行 + FIX |
 | 编辑建议（advisory） | 需要品味/上下文/世界知识，**不进退出码、不算 WARN** | `🧭 Editorial Suggestions` 区块 |
-| Agent 判断项 | 机器无法判定，Agent 自评 | HITL 报告（B5 / B6） |
+| Agent 判断项 | 机器无法判定，Agent 自评 | HITL 报告 |
 
-机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 具体性、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；W2 的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端）。分类依据与逐项处置见 #763 交付评论。
+机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 三轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端）。分类依据与逐项处置见 #763 交付评论。
 
 `media` 对象另有一条 schema 检查（`lib/media-field-schema.mjs`，check 名以 `Media field schema:` 开头，#836）：**未知键即 FAIL**（拼错 `evidnce` 不会静默关掉 evidence 强制）、`evidence` 只接受 `true`/`false`/`null`、`evidence: true` 必须同时声明 `provenance`、声明了 `provenance` 就先跑 `validateProvenance()`（clip ⊇ rect）。允许的键集合是 `remotion/src/types.ts` 里 `MediaField` 的 .mjs 镜像，两边由单测钉住——加字段必须同改两处。
 

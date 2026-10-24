@@ -113,7 +113,7 @@ Font stack: `'Times New Roman', Times, serif`（**衬线渲染基准**）
 
 > **Readability floor (#688, 2026-10-23).** The single source of truth for slot sizes is `SLOT_FIELDS` in `scripts/short-video/lib/text-slots.mjs` (`preferredSize` → `minSize`); this table is its summary. The floor rule is `round(0.72 × preferred)` (decision 46) with **five standing exceptions** the fields carry inline: `subject` 64 → 48, `numberLabel` 48 → 36 and `stat` 240 → 180 sit **above** the rule (stricter than 46 / 35 / 173), while `revealText` 80 → 56 and `bigNumber` 240 → 150 sit **below** it (relaxed; bigNumber's is decision 72). Every other field satisfies the rule exactly. Sizes here are _preferred_ sizes — `TextGate` may still step a field down to its floor when the copy does not fit the 820px content box, and a field that cannot fit even at the floor cancels the render.
 >
-> Consequence for copy: the char budget (`slotCharBudget`) is derived from the contract, so a size raise shrinks the characters a slot can hold. `scene-rules` reports over-budget fields as WARN — shorten the copy, never shrink the type back down.
+> Consequence for copy: the char budget (`slotCharBudget`) is derived from the contract, so a size raise shrinks the characters a slot can hold. `scene-rules` reports over-budget fields as advisory (`🧭 Editorial Suggestions`, non-blocking, #763) — shorten the copy, never shrink the type back down.
 
 ## Subtitle Specification (Video)
 
@@ -220,8 +220,8 @@ Same as color tokens — each company has a consistent semantic color:
 
 `verify-video.mjs` checks subject visibility in `checkSubjectVisibility()` (from `lib/scene-rules.mjs`):
 
-- **Warn** if no known company name appears in Scene 1's on-screen text
-- The warning is non-blocking (scene may use logo-only design), but if warned, the logo MUST meet the ≥120px sizing rule above
+- **Editorial advice** when no known company name appears in Scene 1's on-screen text (`🧭 Editorial Suggestions`, advisory — it does not enter the WARN count, #763)
+- The advice is non-blocking (scene may use logo-only design), but if flagged, the logo MUST meet the ≥120px sizing rule above
 
 ## Content Patterns
 

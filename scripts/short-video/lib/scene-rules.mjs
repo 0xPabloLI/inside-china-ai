@@ -73,10 +73,26 @@ function sceneVO(scene) {
 /**
  * Word-boundary term match (#763). Substring matching made "illegal" satisfy
  * "legal" and turned self-consistent scenes into contradictions.
+ *
+ * Scans for each occurrence and checks the neighbouring characters instead of
+ * building a RegExp from the term: the table is trusted, but a dynamic pattern
+ * is still a ReDoS shape the security scan must not have to reason about.
  */
+function isAsciiWordChar(ch) {
+  if (!ch) return false;
+  const code = ch.charCodeAt(0);
+  return (code >= 48 && code <= 57) || (code >= 97 && code <= 122);
+}
+
 function hasTerm(haystack, term) {
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`).test(haystack);
+  let index = haystack.indexOf(term);
+  while (index !== -1) {
+    const before = index === 0 ? "" : haystack[index - 1];
+    const after = haystack[index + term.length];
+    if (!isAsciiWordChar(before) && !isAsciiWordChar(after)) return true;
+    index = haystack.indexOf(term, index + 1);
+  }
+  return false;
 }
 
 // ─── Check functions ───
@@ -1313,7 +1329,7 @@ function checkTextConcatenation(scenes) {
  * a value checkTemplateContract then warned was ignored — one rule demanding
  * dead data, another scolding it (#763). Non-narrative scenes now pass whether
  * or not the field exists; a divergent value is still flagged by
- * checkTemplateContract.
+ * checkTemplateContract for every template in REMOTION_SLOT_MAP.
  */
 const VALID_LAYOUTS = [
   "hero-center",
