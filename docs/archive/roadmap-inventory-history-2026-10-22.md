@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 29 轮盘点 + 59 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准）。
+> 本文件按时间倒序排列，共 30 轮盘点 + 60 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round XC → LV）
+## 逐轮盘点（Round XCI → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round XCI**：#752 Hook 评审端判据与正反范例库交付闭票 + 解除 pre-push 依赖阻塞——① **#752**：`docs/content-pipeline.md` 新增 `### Hook 合格判据（评审端，#752）`（三轴：首句冲突密度 / 可感知比较锚点（无度量数字记 N/A）/ 三轨同频；Step 0 报告须附逐轴自评；**不新增 CI 硬门禁**），`docs/video-script-writing-guide.md` Step 5 新增 `### Hook 正反面校准表（#752）`（内部正例 303/405 + 外部 4 条 + 4 条反例各带三轴改写 + `机检` 列；303 落地改写同时过 `checkHookCompellingElement` 与 `checkNoEmDashes`）。HITL 四决：强制力＝Step 0 自评＋引用、范例＝内部 303/405＋外部 4 条、口径＝人工裁决优先（播放量仅入选门槛、#259 的 0:01 仅回收对照）、冲突＝只标注并给去破折号改写版（「hook ≤10 词」留 #763）。triage 的 `checkHookSpecificity` 前提经代码核验**不存在**（`scripts/`+`src/` 零命中），已在文内记录。**定性 enabling fix（无产出 diff）**：该 doc 是 303/405 take 文本的首个 durable 落点（此前只在 gitignored A/B 脚本与票评里）。机检口径逐行复算（303 原稿 FAIL/FAIL、落地版 PASS/PASS、405 PASS、maverickgpt PASS、kanekallaway×2 与 sineadbovell 仅 compelling FAIL）由 import 真 `scene-rules.mjs` 得出；droid-review 5 条（4×P2＋1×P3，全为单一事实来源/内部一致性）全修并 resolve；`lint:docs` 新增 0、`git diff --check` 净；PR #912。② **依赖阻塞**：pre-push 的 `osv-scanner` 门禁在 main 上即红（8 条真实告警）且 fail-closed 拦下所有分支推送，另开 `session/20261024-deps-transitive-cve-0bde8d` 修 4 个传递 pin（`body-parser` 2.3.0→2.4.0 / `fast-uri` 3.1.8→3.1.9 / `undici` 8.12.1→8.12.3 / `qs` 6.16.0→6.16.1，全在父包既有 range 内，无需 override）；回退了 `npm update --package-lock-only` 在 npm 11.6.2 下的两类无关噪声（丢 3 条 `@emnapi` 条目会破 `npm ci`、49 个包加 `peer: true`），最终 diff 恰 4 条；`npm ci`、`npm ls --all`（0 invalid）、`scan:deps`（No issues found）、`tsc`、`build`、全量 vitest 5814 passed（2 条 session-launcher gc 超时为 `test-env-baseline.md` 记载的负载 flake，隔离重跑 61/61 绿）全绿；两轴 review 无硬伤；PR #909 合并 `146fe2d0`。范围外发现开跟进票 **#910**（`scripts/short-video/remotion` 嵌套 lockfile 5 条可修告警且不在任何扫描面）、**#911**（`osv-scanner.toml` 的 `GHSA-hp3w-g68c-fv3c` 已于 2026-10-22 被上游撤回，成死配置并每次扫描告警）。**frontier 复算**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首推进至 **`#757`**（→ `#761` → `#763`）；Track 1B 下一张 **`#778`** → `#353` → `#358` → `#329`。）
 
 （**Round XC：#688 全版式字号强制上调交付闭票**——按 HITL 三决（幅度分层 A / 不回改存量 / loop 首轮暴露 title 与正文同号后追加「A 抬标题」）把 `SLOT_FIELDS` 全量抬到可读性下限：copy 类 **48/35**（原 22-36/16-26）、metadata 类 **40/29**（原 20-24/16-18）、lead 类 company/title/label **60/43**、result/statCard **64/46**；subject 64 与 brand 72 不动（相邻 ratio 已达标且共享 hero 带是垂直瓶颈），240 锚点与 hookText/revealText 保持。字号层级成为**契约数据**（`SLOT_FIELDS[field].tier` + `READABILITY_TIERS`，缺省落更严的 copy），新字段一经声明即继承下限。版式分带按 band 内容**实测**重推（渲染每个真实包的每个 hook 场景取 box 并集）：hook kicker/hero/support 180/550/200 → **78/542/310**，三带最坏值合计 915.8/930px（余量 7/3/4.2），腾预算靠三处在 scale 上的收紧（badge pill padding 16→12、stat card padding 16→12、source margin 12→8）；CtaScene support → 265、ContrastScene hero → 整个安全区、StatCard label 0.36em→0.5em（20→32px，契约够不到的字段）。**定性 quality improvement（有产出差异）**：九幕 `_gate-smoke` 包改动前后各渲一次、两边都端到端成功，before/after 对比图见 PR。红基线 `expected 32 to be greater than or equal to 40`；`scene-gate-render` 37/37（改前 12 挂）、全量 5816 passed、tsc/eslint(42=基线)/knip/lint:mjs/lint:docs/prettier 全净、CI 全绿。视觉设计 loop（强制）3 轮内收敛：相邻层级违例 10 对/8 区 → 12 对/9 区，余项为角色豁免或既有 hero 锚点对。droid-review 9 条（2×P2 + 7×P3）全修并 resolve，含 2 处自证断言（`getSlot` 对 `SLOT_FIELDS` 自身的 spread）与 T9 的 floor 算术（实测 182/321/187）。PR #901 squash `793eaf85`。**frontier 复算**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首推进至 **`#752`**（→ `#757` → `#761` → `#763`）；Track 1B 下一张 **`#778`** → `#353` → `#358` → `#329`。）
 
@@ -79,6 +81,8 @@
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round LXXXVIII**（#891 交付闭票——SearXNG 资源生命周期：容器 0.5 CPU/768 MiB 硬上限（inspect 实证）+ 空闲/压力 park（2 分钟静默宽限 + 停前 10s settle 二次采样）+ 管线三处用前 ensure（每次 re-ensure 防中途 park 毒化）+ `searxng:recreate`（缺 settings.yml 拒绝）+ doctor parked 去伪与 40s 冷查询超时；enabling fix 无产出 diff；23+139 tests、两轮 CI 全绿、真机 smoke 195 结果/19.9s @0.5 CPU、165.7→98.4 MiB；PR #896 squash `74374af5`；frontier：Track 1B 队首 #779 本轮期间已闭（PR #892，squash `fbee7ed6`），下一张 `#778`，HITL `#688`）
 
 **Round LXXXVII**（#344 交付闭票——SearXNG 覆盖面审计：四文本源全保留、0 收敛；第 4 项 #77 未收编的 `brave_image`/`searxng_image` 双份定义并入，label/凭据/URL/parser 收敛到 source-registry，pool 只留传输层；608 tests、eslint、lint:mjs/docs、selector-health 4/4、真实内容包 smoke 20 条；PR #887 squash `27e60278`；范围外 bing_news 探针误判开 #888；frontier：Track 1B 下一张 #779）
 
