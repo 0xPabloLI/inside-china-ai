@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 31 轮盘点 + 61 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案）。
+> 本文件按时间倒序排列，共 32 轮盘点 + 62 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round XCII → LV）
+## 逐轮盘点（Round XCIII → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round XCIII：#761 文本优先版式的媒体职责与证据路由交付闭票**——HITL 两决：① 路线＝**混合**（`stacked-cards` 保留既有全幅氛围背景；`contrast` 接线 `MediaBackground` + `contentDir`，修掉「素材已绑定却永不上屏」；两版式只承载氛围，证据需求路由 `media-bottom-bar` / `media-split` / `media-overlay` / `media.mode:"fullscreen"`，不新增纵向媒体窗、不触碰 #688 字号）；② 存量＝**fail-closed + 作者三选一**（换版式 / 删 `assetNeed` 做氛围 / 删 `assetNeed` 并 `media:null`），本票不迁移存量。新增 preflight `Text-first layout media routing`（`scene-rules.mjs`：这两个版式上的 `assetNeed` 或 `media.evidence:true` 判 FAIL；`media.mode:"fullscreen"` 因 `FullscreenMedia` 先于版式分发而豁免；媒体窗清单由 `MEDIA_DEPENDENT_LAYOUTS` 派生）；修正 `claim-keywords.mjs` / `NarrativeScene.tsx` 中「两版式都渲染 MediaBackground」的失真注释；`docs/video-script-writing-guide.md` 增 Stage 3 版式↔素材职责规范。**定性 quality improvement（有产出 diff）**：真实包 `didi-robotaxi-r2` s5/s7 的 Tesla FSD / Pony 官方产品图首次作为全幅背景上屏（before/after 静帧 `output/_761-contrast-stills/`）；渲染级回归＝同文案媒体版 vs 纯文字版像素差 > 200k / 2,073,600。真实数据：didi preflight 恰 1 条 FAIL（s5/s7 `assetNeed`）、`qwen4-preview` 0 新增命中；18 个存量场景按决策不迁移，各自下次跑 preflight 时按三选一整改。droid-review 1 条 P1（新 still 套件缺 CI 环境门）已修（`CI_SKIPPED_MACHINE_BOUND`）并 resolve；`scene-rules` 219 tests、全量 `scripts/short-video/__tests__` 4689 绿、`lint:mjs` 596 文件净、`lint:docs` 新增 0、CI 全绿；PR #919 squash `4845d3be`。**frontier 复算**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首推进至 **`#763`**（→ `#529` → `#723`）；Track 1B 下一张 **`#778`**。）
 
 （**Round XCII**：#757 T2V 模型专属 prompt 模板交付闭票——HITL 两决：模板表收 **3 family**（`wan2.2`/`wan2.1` 在产线 + `seedance` 云端候选），交付形态选「数据表 + 纯渲染函数」。新增 `scripts/short-video/lib/b-roll/prompt-templates.mjs`（导出 `PROMPT_SLOTS`/`PROMPT_TEMPLATES`/`MODEL_TIER_FAMILIES`/`familyForModelTier`/`getPromptTemplate`/`renderPromptForModel`；`MODEL_TIER_FAMILIES` 由模板 `modelTiers` 在 import 时派生并对同档位重复归属报错，测试另锁其 key 都在 `runner.mjs MODEL_TIERS`；渲染器按名拒绝 code-owned 的 `brand`/`negative`，Wan 超 480 token 抛错而非截断，Seedance 声明 `maxPromptTokens: null`/`negativeMode: none`）。研究笔记 `docs/research/t2v-model-prompt-templates.md` 一手取证四家官方契约：Wan 基础/高级公式（Entity+Scene+Motion+Aesthetic+Stylization）与云 API `negative_prompt`（≤500 字符，本地 MLX 驱动无此参数）、Seedance「镜头语言+光影」前置 + 官方运镜/景别/视角词表且无 negative 参数、**HunyuanVideo 1.5 旧横评「Apache-2.0」结论被官方 LICENSE 纠正**（Tencent Hunyuan Community License，EU/UK/KR 不适用）且仓库 6.5 个月无提交、CogVideoX 224/226 token 英文长 prompt + 5B 商用登记且仓库约 12 个月无提交——后两者只留证据、不入模板表。**未接线**：生成路径零行为变化，接线项落笔记 §5。droid-review 2 条（1×P2 派生表重复、1×P3 文档导出一致性）全修并 resolve；新套 20 tests、`lib/__tests__` 369 绿、CI 全绿；PR #916 squash `d3983f29`。**frontier 复算**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首推进至 **`#761`**（→ `#763` → `#529`）；Track 1B 下一张 **`#778`**。）
 
@@ -83,6 +85,8 @@
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round XC**（`#688` 交付闭票——全版式字号强制上调：HITL 三决（分层 A / 不回改存量 / loop 首轮后追加「抬标题」）；copy 48/35、metadata 40/29、lead 60-64，tier 上契约（`SLOT_FIELDS.tier` + `READABILITY_TIERS`）；band 按内容实测重推 hook 180/550/200→78/542/310（最坏值合计 915.8/930）、CTA 265、contrast 全区、StatCard label 20→32px；quality improvement（九幕 smoke 前后各渲一次 + before/after 图）；scene-gate 37/37、全量 5816、CI 全绿；设计 loop 3 轮收敛；droid 9 条全修（含 2 处自证断言）；PR #901 squash `793eaf85`；frontier：Track 3 HITL `#752`、Track 1B `#778`）
 
 **Round LXXXIX**（`#779` 交付闭票——asset-sourcer 每源产出基线断言：source-yield.mjs 纯函数核心 + run 末写 `source-yield-report.json`/追加 `source-yield-history.jsonl`；指标＝post-gate contributed（text-only/cached-media 不计）、基线＝最近 10 run 最低正贡献（0 不计、纯算术可重算）、跌破打非阻塞 `SOURCE-YIELD-DROP`、`--strict-yield` 仅独立运行硬失败；首 run 从 asset-report/media-patch bootstrap（嵌套 media 拍平 + 同 run 去重），真实产物 8 条历史 12 源基线；droid 9 条 P1/P2 全修；新套 42 tests、全量 5790 绿、CI 全绿；PR #892 merge `fbee7ed6`；frontier：Track 1B 下一张 `#778`）
 
