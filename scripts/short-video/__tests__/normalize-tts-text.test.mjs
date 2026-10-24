@@ -13,6 +13,7 @@ import {
   splitDigitUnitToken,
   numberToWords,
   cardinalSpokenWords,
+  currencySpokenWords,
   numericAnchors,
 } from "../lib/normalize-tts-text.mjs";
 import { findTokenCountDriftInScenes } from "../lib/subtitles/dual-track.mjs";
@@ -528,5 +529,44 @@ describe("token count conservation on the real corpus (#817)", () => {
     expect(packs).toBeGreaterThanOrEqual(36);
     expect(scenes).toBeGreaterThanOrEqual(320);
     expect(drifts).toEqual([]);
+  });
+});
+
+// ─── heard-side currency mirror (quality gate #908) ───
+// whisper.cpp writes a spoken "thirty eight dollars" as "$38"; CARDINAL_RE
+// skips currency-prefixed digits, so this helper supplies the words the "$"
+// itself proves were spoken.
+describe("currencySpokenWords", () => {
+  it("expands whole-dollar amounts, comma groups included", () => {
+    expect(currencySpokenWords("revenue of $38 per hour")).toEqual(["thirty", "eight", "dollars"]);
+    expect(currencySpokenWords("$1,234 per day")).toEqual([
+      "one",
+      "thousand",
+      "two",
+      "hundred",
+      "thirty",
+      "four",
+      "dollars",
+    ]);
+    expect(currencySpokenWords("it ended at $38.")).toEqual(["thirty", "eight", "dollars"]);
+  });
+
+  it("uses the singular noun for one dollar", () => {
+    expect(currencySpokenWords("$1 to start")).toEqual(["one", "dollar"]);
+  });
+
+  it("leaves decimals, letter-suffixed magnitudes and other currencies alone", () => {
+    expect(currencySpokenWords("$1.4B and $2.50")).toEqual([]);
+    expect(currencySpokenWords("$5B raise")).toEqual([]);
+    expect(currencySpokenWords("$38s")).toEqual([]);
+    // €/£/¥ stay out of scope until a real scene needs them: the display-side
+    // annotation path is different and no heard-side evidence exists yet.
+    expect(currencySpokenWords("€38 and £38 and ¥38")).toEqual([]);
+  });
+
+  it("returns nothing for empty input or integers numberToWords cannot express", () => {
+    expect(currencySpokenWords("")).toEqual([]);
+    expect(currencySpokenWords(null)).toEqual([]);
+    expect(currencySpokenWords("$1000000000000000")).toEqual([]);
   });
 });
