@@ -233,7 +233,7 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 | 反例 | 文本 | 病在哪 | 按三轴改写 |
 | --- | --- | --- | --- |
-| **302 原文案**（#244 R2 裁决「只是快了」：同 instruct、同语速下听着仍慢） | DeepSeek just dropped V four point one Flash, with a new architecture and native multimodal. | 轴1 首分句是「发布 + 对象」顺叙，冲突没落地；轴2 "new architecture" 无对照物 | DeepSeek just dropped a bombshell! V four point one Flash. Brand new architecture, native multimodal. |
+| **302 原文案**（#244 R2 裁决「只是快了」：同 instruct、同语速下听着仍慢） | DeepSeek just dropped V four point one Flash, with a new architecture and native multimodal. | 轴1 首分句是「发布 + 对象」顺叙，冲突没落地；轴2 "new architecture" 无对照物 | 同上方 303 落地改写（先落冲突、版本号写阿拉伯数字形式，两处机检风险一并解决） |
 | **平静陈述句开场**（#278 明令不满足） | 泛指：`X 公司今天发布了 Y 模型` | 轴1 铺垫先行，1.5s 内无冲突 | 结果先行：把 Y 的反常之处提到第一句 |
 | **续集式钩子 / 不自足**（Step 0 hook 预览门禁拦下的那一类，见 Stage 3 Step 0） | 泛指：承接上一条的数字/悬念，陌生观众缺前置 | 陌生观众听不出「发生了什么」 | 本包自足：hook 只由本包素材支撑；跨包引用需用户显式授权（Stage 3 Step 0） |
 | **裸报大数字无锚点**（#278 硬性要求 1 的反面） | 泛指：`它训练用了 10T tokens` | 轴2 绝对量无参照系 | 补锚点：10T tokens, twice what GPT-5 used. |
