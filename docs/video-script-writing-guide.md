@@ -201,18 +201,18 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 **口径**：判据来源是**人工裁决**（#244 三轮 A/B 实听 + 陌生观众自足性），播放量只作**入选门槛**，#259 的 0:01 留存落点只作**回收对照**（该口径下我方无正例）。逐条「为何算好」按评审端三轴（`docs/content-pipeline.md` → Hook 合格判据）拆解。
 
-**机检提醒（照抄前必读）**：`checkHookCompellingElement` 要求 hook VO 含阿拉伯数字或强词表之一（`leaked|paused|crash|surge|breakthrough|exclusive|secret|revealed|banned|crisis|first|never|only`）。本表正例校准的是**句式与三轴质量**，不是机检合规——下表 `机检` 列逐条标注；标 ✗ 的样本作为本包 hook 落地时必须补一个数字锚点或强词，否则 MRL-2 的 B 级检查直接 FAIL。
+**机检提醒（照抄前必读）**：`checkHookCompellingElement` 要求 hook VO 含**阿拉伯数字**或强词表之一（`leaked|paused|crash|surge|breakthrough|exclusive|secret|revealed|banned|crisis|first|never|only`；拼写的数字不算——`NUMBER_PATTERN` 只认 `\d`）。本表正例校准的是**句式与三轴质量**，不是机检合规——下表 `机检` 列逐条标注；标 ✗ 的样本作为本包 hook 落地时必须补一个数字锚点或强词，否则 MRL-2 的 fail 级检查直接判死。
 
 #### 正面基准 · 内部已验证（#244，2026-09-13 HITL 实听）
 
 | 样本 | 原始 take 文本 | 三轴拆解 | 机检 |
 | --- | --- | --- | --- |
-| **303**（胜出，用户裁决「情感充沛很多」） | DeepSeek just dropped a bombshell! V four point one Flash — brand new architecture, native multimodal. This changes everything. | 轴1 首分句 5 词即落 "bombshell"（冲突先于对象）；轴2 "brand new architecture" 与上代形成对照；轴3 锚点词 = 模型名，与 hook 屏上 `subject` 同指 | ✗ 无数字（"V four point one" 为拼写）、"bombshell" 不在强词表 |
+| **303**（胜出，用户裁决「情感充沛很多」） | DeepSeek just dropped a bombshell! V four point one Flash — brand new architecture, native multimodal. This changes everything. | 轴1 首分句 5 词即落 "bombshell"（冲突先于对象）；轴2 "brand new architecture" 与上代形成对照；轴3 锚点词 = 模型名，与 hook 屏上 `subject` 同指 | ✗ 无阿拉伯数字（"V four point one" 为拼写）、"bombshell" 不在强词表 |
 | **405**（疑问句，多内容泛化最佳；整体仍不如 303） | What if one GPU could run a world model for 1.3 billion people? Ant Group just proved it. In real time. | 轴1 首分句 13 词，但前 3 词已抛假设冲突；轴2 "1.3 billion people" 自带体量反差，第二句给主体；轴3 三拍短句，屏上焦点可同步 | ✓ 含 "1.3" |
 
-**落地改写（必读）**：303 原始 take 文本有两处机检风险——含 `—`（`checkNoEmDashes` 对 em/en/double dash 是 fail）且无数字/强词（见上表）。落地版按 #278 降级规则用句号切分，并补数字锚点：
+**落地改写（必读）**：303 原始 take 文本有两处机检风险——含 `—`（`checkNoEmDashes` 对 em/en/double dash 是 fail）且无阿拉伯数字/强词（见上表）。落地版把版本号写回**阿拉伯数字形式**（TTS 朗读形式由管线 Step 0.6 从版本号派生，不需要在 voiceover 里拼写）并按 #278 降级规则用句号切分：
 
-> DeepSeek just dropped a bombshell! Nine of eleven benchmarks, brand new architecture, native multimodal.
+> DeepSeek just dropped a bombshell! V4.1 Flash. Brand new architecture, native multimodal.
 
 （断句切分的听感**未经复核**——要确认节奏按 #278 的方式实听对比。）
 
