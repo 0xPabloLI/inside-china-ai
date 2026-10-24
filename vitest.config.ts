@@ -27,6 +27,7 @@ const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/renderer-guard.test.mjs", // spawns pipeline process
   "scripts/short-video/__tests__/media-start-offset.test.mjs", // npx remotion still
   "scripts/short-video/__tests__/media-zoom-render.test.mjs", // npx remotion still
+  "scripts/short-video/__tests__/contrast-media-render.test.mjs", // npx remotion still (#761)
   "scripts/short-video/__tests__/scene-gate-render.test.mjs", // npx remotion still
   "scripts/short-video/__tests__/test-f5-duration.test.mjs", // python subprocess (baseline doc)
   "scripts/short-video/__tests__/text-gate-render.test.mjs", // npx remotion still

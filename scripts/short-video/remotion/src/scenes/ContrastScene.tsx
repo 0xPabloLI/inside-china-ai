@@ -1,6 +1,13 @@
 /**
  * ContrastScene — two-column comparison (left vs right).
  * Scene 8 in the Unitree video (Unitree vs AgiBot).
+ *
+ * Media role (#761): `scene.media` renders as a full-bleed ambient background,
+ * exactly like `narrative/stacked-cards` — the comparison cards sit on top of
+ * it. Evidence assets (charts, screenshots) are not routed here because the
+ * text block covers them; `scene-rules.checkLayoutMediaRouting` fails that
+ * combination. Before this wiring the template dropped a bound `scene.media`
+ * silently (two real scenes had product photos that never rendered).
  */
 import { Interactive } from "remotion";
 import { type SceneData } from "../types";
@@ -8,12 +15,18 @@ import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../component
 import { SlideUp, StampIn, FadeIn } from "../components/animations/entrance";
 import { SPACING } from "../components/shared";
 import { TextGate } from "../components/text-gate";
+import { MediaBackground } from "../components/MediaBackground";
 
-export const ContrastScene: React.FC<{ scene: SceneData; duration: number }> = ({ scene }) => {
+export const ContrastScene: React.FC<{
+  scene: SceneData;
+  duration: number;
+  contentDir: string;
+}> = ({ scene, duration, contentDir }) => {
   const txt = scene.texts || {};
   const sceneId = `contrast-${scene.id}`;
   const left = txt.left ?? [];
   const right = txt.right ?? [];
+  const hasMedia = Boolean(scene.media);
 
   const Chip: React.FC<{
     text: string;
@@ -45,7 +58,12 @@ export const ContrastScene: React.FC<{ scene: SceneData; duration: number }> = (
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <GridBg />
+      {hasMedia && (
+        <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
+      )}
+      {/* GridBg only when no media — same rule as NarrativeScene, so the grid
+          never competes with a bound background image. */}
+      {!hasMedia && <GridBg />}
       <Glow color="blue" />
       <Scanlines />
       <BrandBar />

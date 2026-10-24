@@ -1797,6 +1797,82 @@ export function checkMediaOptOutDeprecation(scenes) {
   return results;
 }
 
+/**
+ * Whether the scene renders one of the two text-first layouts (#761).
+ *
+ * `narrative/stacked-cards` and `contrast` (which always renders hero-center)
+ * draw their text block over the full-bleed media layer. `media.mode:
+ * "fullscreen"` is the exception: ShortVideo hands the scene to FullscreenMedia
+ * before the layout dispatch, so the picture fills the frame with only the
+ * source label on top — evidence stays readable there, whatever the layout.
+ */
+function isTextFirstLayoutScene(scene) {
+  if (scene.media?.mode === "fullscreen") return false;
+  return resolveRenderLayout(scene) === "stacked-cards" || scene.visualType === "contrast";
+}
+
+/**
+ * #761 media routing for the two text-first layouts.
+ *
+ * `narrative/stacked-cards` and `contrast/hero-center` render `scene.media` as
+ * a full-bleed ambient background; the cards / comparison columns sit on top of
+ * it. Atmosphere works there, evidence structurally does not: a chart, table or
+ * screenshot behind the text block cannot be read, so the beat ships as
+ * text-only while claiming it asked for a picture.
+ *
+ * An `assetNeed` or an `evidence: true` binding on either layout is therefore a
+ * contradiction. Fail it before Step 1.5 spends money and let the author choose
+ * one of three resolutions (same shape as the #299 hook contract): route the
+ * beat to a media-window layout or `mode: "fullscreen"`, drop the evidence
+ * intent and ship it as ambient, or drop the intent AND declare `media: null`
+ * as a deliberate text-only scene.
+ *
+ * Scoped to these two layouts on purpose: context / info-card / hook also use
+ * hero-center but DO render media; #761 is about the two that cannot show it.
+ */
+export function checkLayoutMediaRouting(scenes) {
+  const CHECK = "Text-first layout media routing";
+  const CATEGORY = "Media";
+  // Single source of truth for the layouts that DO carry their own media
+  // window (final-media-gate.MEDIA_DEPENDENT_LAYOUTS) — a new one cannot leave
+  // this fix text stale.
+  const MEDIA_WINDOW_LAYOUTS = [...MEDIA_DEPENDENT_LAYOUTS]
+    .map((layout) => `narrative ${layout}`)
+    .join(" / ");
+  const needOnTextFirst = [];
+  const evidenceOnTextFirst = [];
+  for (const scene of scenes) {
+    if (!isTextFirstLayoutScene(scene)) continue;
+    // Whitespace is not intent: a blank string sources nothing, so it cannot
+    // be the contradiction this check is about.
+    if (typeof scene.assetNeed === "string" && scene.assetNeed.trim() !== "") {
+      needOnTextFirst.push(String(scene.id));
+    }
+    if (scene.media && scene.media.evidence === true) evidenceOnTextFirst.push(String(scene.id));
+  }
+
+  const results = [];
+  if (needOnTextFirst.length > 0) {
+    results.push({
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene(s) ${needOnTextFirst.join(", ")} declare assetNeed on a text-first layout (stacked-cards / contrast) — that layout only shows media as a dimmed background behind the text, so the requested picture cannot be read`,
+      fix: `Choose one: move the beat to a media-window layout (${MEDIA_WINDOW_LAYOUTS}, or \`media.mode: "fullscreen"\`); OR drop assetNeed and ship it as ambient (bind a background image or leave it CSS-only); OR drop assetNeed AND set media: null for a deliberate text-only scene — assetNeed alone keeps the contradiction, so media: null does not waive this check`,
+    });
+  }
+  if (evidenceOnTextFirst.length > 0) {
+    results.push({
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene(s) ${evidenceOnTextFirst.join(", ")} bind evidence media on a text-first layout (stacked-cards / contrast) — the text block covers the evidence, so it is neither readable nor verifiable`,
+      fix: `Move the evidence beat to a layout with its own media window (${MEDIA_WINDOW_LAYOUTS}, or \`media.mode: "fullscreen"\`) — or, if the asset is decoration and not page evidence, drop \`evidence: true\` and treat it as ambient. Evidence must not become a background texture`,
+    });
+  }
+  return results;
+}
+
 export function checkMediaStrategyContract(scenes) {
   const CHECK = "B-roll strategy contract";
   const CATEGORY = "Media";
@@ -2305,6 +2381,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkMediaFieldSchema(scenes),
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),
+    ...checkLayoutMediaRouting(scenes),
     ...checkBrollPromptDimensions(scenes),
     ...checkAvatarContract(scenes),
   ];

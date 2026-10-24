@@ -37,6 +37,7 @@ import {
   checkMediaStrategyContract,
   MEDIA_STRATEGIES,
   checkMediaOptOutDeprecation,
+  checkLayoutMediaRouting,
   checkBrollPromptDimensions,
   BROLL_SHOT_SIGNALS,
   checkInstructCoverage,
@@ -1412,6 +1413,112 @@ describe("narrative scene media coverage warning (#760)", () => {
     // and recommended the deprecated mediaOptOut flag.
     expect(warn.fix).not.toContain("mediaOptOut");
     expect(warn.fix).not.toContain("Run asset-sourcer");
+  });
+});
+
+// ── checkLayoutMediaRouting (#761: text-first layouts cannot carry evidence) ──
+
+describe("checkLayoutMediaRouting (#761)", () => {
+  const narrative = (over = {}) => ({
+    id: 2,
+    visualType: "narrative",
+    layout: "stacked-cards",
+    voiceover: "test",
+    ...over,
+  });
+  const contrast = (over = {}) => ({
+    id: 4,
+    visualType: "contrast",
+    layout: "hero-center",
+    voiceover: "test",
+    ...over,
+  });
+  const findings = (scenes) => checkLayoutMediaRouting(scenes);
+
+  it("fails assetNeed on narrative stacked-cards", () => {
+    const [fail] = findings([narrative({ assetNeed: "benchmark table screenshot" })]);
+    expect(fail.level).toBe("fail");
+    expect(fail.check).toBe("Text-first layout media routing");
+    expect(fail.detail).toContain("Scene(s) 2 ");
+    expect(fail.fix).toContain("media-bottom-bar");
+  });
+
+  it("fails assetNeed on contrast (it always renders hero-center)", () => {
+    // The declared layout is irrelevant — resolveRenderLayout forces
+    // hero-center for every non-narrative template.
+    const [fail] = findings([contrast({ layout: "media-split", assetNeed: "official chart" })]);
+    expect(fail.level).toBe("fail");
+    expect(fail.detail).toContain("Scene(s) 4 ");
+  });
+
+  it("fails evidence media bound on stacked-cards", () => {
+    const [fail] = findings([
+      narrative({
+        media: { type: "image", path: "assets/table.png", evidence: true, source: "SRC" },
+      }),
+    ]);
+    expect(fail.level).toBe("fail");
+    expect(fail.detail).toContain("evidence media");
+  });
+
+  it("passes ambient media on stacked-cards (no assetNeed, no evidence flag)", () => {
+    expect(
+      findings([
+        narrative({
+          media: { type: "image", path: "assets/dc.jpg", source: "PEXELS", overlay: 0.7 },
+        }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("passes whitespace-only assetNeed (no intent declared)", () => {
+    expect(findings([narrative({ media: null, assetNeed: "   " })])).toEqual([]);
+  });
+
+  it("does not waive on media: null while assetNeed still declares the need", () => {
+    // The fix's third option is "drop assetNeed AND set media: null" — the
+    // null alone leaves the contradiction (ask for a picture, promise none).
+    const [fail] = findings([narrative({ media: null, assetNeed: "official chart" })]);
+    expect(fail.level).toBe("fail");
+  });
+
+  it("passes fullscreen media mode (FullscreenMedia bypasses the layout)", () => {
+    // ShortVideo routes media.mode:"fullscreen" to FullscreenMedia before the
+    // layout dispatch, so the evidence fills the frame and stays readable.
+    expect(
+      findings([
+        narrative({
+          assetNeed: "benchmark table screenshot",
+          media: {
+            type: "image",
+            path: "assets/table.png",
+            mode: "fullscreen",
+            evidence: true,
+            source: "SRC",
+          },
+        }),
+        contrast({
+          assetNeed: "official chart",
+          media: { type: "image", path: "assets/chart.png", mode: "fullscreen", source: "SRC" },
+        }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("does not touch other hero-center templates that do render media", () => {
+    // context / info-card use hero-center and render MediaBackground — their
+    // assetNeed is legitimate (#761 is scoped to the two layouts that cannot).
+    expect(
+      findings([
+        { id: 6, visualType: "context", layout: "hero-center", assetNeed: "company logo" },
+        { id: 7, visualType: "info-card", layout: "hero-center", assetNeed: "product shot" },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("is wired into runAllSceneDataChecks", () => {
+    const { fail } = runAllSceneDataChecks([narrative({ assetNeed: "official chart" })], null);
+    expect(fail.some((f) => f.check === "Text-first layout media routing")).toBe(true);
   });
 });
 
