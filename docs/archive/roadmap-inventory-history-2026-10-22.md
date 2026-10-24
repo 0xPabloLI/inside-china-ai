@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 30 轮盘点 + 60 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案）。
+> 本文件按时间倒序排列，共 31 轮盘点 + 61 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round XCI → LV）
+## 逐轮盘点（Round XCII → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round XCII**：#757 T2V 模型专属 prompt 模板交付闭票——HITL 两决：模板表收 **3 family**（`wan2.2`/`wan2.1` 在产线 + `seedance` 云端候选），交付形态选「数据表 + 纯渲染函数」。新增 `scripts/short-video/lib/b-roll/prompt-templates.mjs`（导出 `PROMPT_SLOTS`/`PROMPT_TEMPLATES`/`MODEL_TIER_FAMILIES`/`familyForModelTier`/`getPromptTemplate`/`renderPromptForModel`；`MODEL_TIER_FAMILIES` 由模板 `modelTiers` 在 import 时派生并对同档位重复归属报错，测试另锁其 key 都在 `runner.mjs MODEL_TIERS`；渲染器按名拒绝 code-owned 的 `brand`/`negative`，Wan 超 480 token 抛错而非截断，Seedance 声明 `maxPromptTokens: null`/`negativeMode: none`）。研究笔记 `docs/research/t2v-model-prompt-templates.md` 一手取证四家官方契约：Wan 基础/高级公式（Entity+Scene+Motion+Aesthetic+Stylization）与云 API `negative_prompt`（≤500 字符，本地 MLX 驱动无此参数）、Seedance「镜头语言+光影」前置 + 官方运镜/景别/视角词表且无 negative 参数、**HunyuanVideo 1.5 旧横评「Apache-2.0」结论被官方 LICENSE 纠正**（Tencent Hunyuan Community License，EU/UK/KR 不适用）且仓库 6.5 个月无提交、CogVideoX 224/226 token 英文长 prompt + 5B 商用登记且仓库约 12 个月无提交——后两者只留证据、不入模板表。**未接线**：生成路径零行为变化，接线项落笔记 §5。droid-review 2 条（1×P2 派生表重复、1×P3 文档导出一致性）全修并 resolve；新套 20 tests、`lib/__tests__` 369 绿、CI 全绿；PR #916 squash `d3983f29`。**frontier 复算**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首推进至 **`#761`**（→ `#763` → `#529`）；Track 1B 下一张 **`#778`**。）
 
 （**Round XCI**：#752 Hook 评审端判据与正反范例库交付闭票 + 解除 pre-push 依赖阻塞——① **#752**：`docs/content-pipeline.md` 新增 `### Hook 合格判据（评审端，#752）`（三轴：首句冲突密度 / 可感知比较锚点（无度量数字记 N/A）/ 三轨同频；Step 0 报告须附逐轴自评；**不新增 CI 硬门禁**），`docs/video-script-writing-guide.md` Step 5 新增 `### Hook 正反面校准表（#752）`（内部正例 303/405 + 外部 4 条 + 4 条反例各带三轴改写 + `机检` 列；303 落地改写同时过 `checkHookCompellingElement` 与 `checkNoEmDashes`）。HITL 四决：强制力＝Step 0 自评＋引用、范例＝内部 303/405＋外部 4 条、口径＝人工裁决优先（播放量仅入选门槛、#259 的 0:01 仅回收对照）、冲突＝只标注并给去破折号改写版（「hook ≤10 词」留 #763）。triage 的 `checkHookSpecificity` 前提经代码核验**不存在**（`scripts/`+`src/` 零命中），已在文内记录。**定性 enabling fix（无产出 diff）**：该 doc 是 303/405 take 文本的首个 durable 落点（此前只在 gitignored A/B 脚本与票评里）。机检口径逐行复算（303 原稿 FAIL/FAIL、落地版 PASS/PASS、405 PASS、maverickgpt PASS、kanekallaway×2 与 sineadbovell 仅 compelling FAIL）由 import 真 `scene-rules.mjs` 得出；droid-review 5 条（4×P2＋1×P3，全为单一事实来源/内部一致性）全修并 resolve；`lint:docs` 新增 0、`git diff --check` 净；PR #912。② **依赖阻塞**：pre-push 的 `osv-scanner` 门禁在 main 上即红（8 条真实告警）且 fail-closed 拦下所有分支推送，另开 `session/20261024-deps-transitive-cve-0bde8d` 修 4 个传递 pin（`body-parser` 2.3.0→2.4.0 / `fast-uri` 3.1.8→3.1.9 / `undici` 8.12.1→8.12.3 / `qs` 6.16.0→6.16.1，全在父包既有 range 内，无需 override）；回退了 `npm update --package-lock-only` 在 npm 11.6.2 下的两类无关噪声（丢 3 条 `@emnapi` 条目会破 `npm ci`、49 个包加 `peer: true`），最终 diff 恰 4 条；`npm ci`、`npm ls --all`（0 invalid）、`scan:deps`（No issues found）、`tsc`、`build`、全量 vitest 5814 passed（2 条 session-launcher gc 超时为 `test-env-baseline.md` 记载的负载 flake，隔离重跑 61/61 绿）全绿；两轴 review 无硬伤；PR #909 合并 `146fe2d0`。范围外发现开跟进票 **#910**（`scripts/short-video/remotion` 嵌套 lockfile 5 条可修告警且不在任何扫描面）、**#911**（`osv-scanner.toml` 的 `GHSA-hp3w-g68c-fv3c` 已于 2026-10-22 被上游撤回，成死配置并每次扫描告警）。**frontier 复算**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首推进至 **`#757`**（→ `#761` → `#763`）；Track 1B 下一张 **`#778`** → `#353` → `#358` → `#329`。）
 
@@ -77,10 +79,12 @@
 
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
-## 近轮一句话档案（Round LXXXVII → J）
+## 近轮一句话档案（Round LXXXIX → J）
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round LXXXIX**（`#779` 交付闭票——asset-sourcer 每源产出基线断言：source-yield.mjs 纯函数核心 + run 末写 `source-yield-report.json`/追加 `source-yield-history.jsonl`；指标＝post-gate contributed（text-only/cached-media 不计）、基线＝最近 10 run 最低正贡献（0 不计、纯算术可重算）、跌破打非阻塞 `SOURCE-YIELD-DROP`、`--strict-yield` 仅独立运行硬失败；首 run 从 asset-report/media-patch bootstrap（嵌套 media 拍平 + 同 run 去重），真实产物 8 条历史 12 源基线；droid 9 条 P1/P2 全修；新套 42 tests、全量 5790 绿、CI 全绿；PR #892 merge `fbee7ed6`；frontier：Track 1B 下一张 `#778`）
 
 **Round LXXXVIII**（#891 交付闭票——SearXNG 资源生命周期：容器 0.5 CPU/768 MiB 硬上限（inspect 实证）+ 空闲/压力 park（2 分钟静默宽限 + 停前 10s settle 二次采样）+ 管线三处用前 ensure（每次 re-ensure 防中途 park 毒化）+ `searxng:recreate`（缺 settings.yml 拒绝）+ doctor parked 去伪与 40s 冷查询超时；enabling fix 无产出 diff；23+139 tests、两轮 CI 全绿、真机 smoke 195 结果/19.9s @0.5 CPU、165.7→98.4 MiB；PR #896 squash `74374af5`；frontier：Track 1B 队首 #779 本轮期间已闭（PR #892，squash `fbee7ed6`），下一张 `#778`，HITL `#688`）
 
