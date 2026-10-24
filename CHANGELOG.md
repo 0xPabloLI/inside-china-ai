@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.30.1...tanstack_start_ts-v1.31.0) (2026-10-24)
+
+
+### Features
+
+* **b-roll:** per-family T2V prompt templates ([#757](https://github.com/0xPabloLI/inside-china-ai/issues/757)) ([#916](https://github.com/0xPabloLI/inside-china-ai/issues/916)) ([d3983f2](https://github.com/0xPabloLI/inside-china-ai/commit/d3983f2951d49360f66e939e9004ccc85ce4ba21))
+
 ## [1.30.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.30.0...tanstack_start_ts-v1.30.1) (2026-10-24)
 
 
