@@ -1026,6 +1026,30 @@ describe("checkSemanticConsistency", () => {
     expect(results[0].detail).toContain("can buy");
   });
 
+  it("matches on word boundaries, so 'illegal' no longer satisfies 'legal' (#763)", () => {
+    const scenes = [
+      {
+        id: 1,
+        voiceover: "ByteDance says the practice was illegal.",
+        texts: { label: "ILLEGAL PRACTICE" },
+      },
+    ];
+    const results = checkSemanticConsistency(scenes);
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("does not flag 'up'/'down' without entity scope (#763)", () => {
+    const scenes = [
+      {
+        id: 1,
+        voiceover: "Robotaxi shipments are up 3% while unit costs go down.",
+        texts: { action: "COSTS DOWN" },
+      },
+    ];
+    const results = checkSemanticConsistency(scenes);
+    expect(results[0].level).toBe("pass");
+  });
+
   it("warns (not fails) in comparison scenes with antonym pairs", () => {
     const scenes = [
       {
@@ -1090,17 +1114,54 @@ describe("checkSemanticConsistency", () => {
   });
 });
 
+// ── checkLayoutField (#763: only narrative reads `layout`) ──
+
+describe("checkLayoutField", () => {
+  const layoutRow = (scenes, id) =>
+    [...runAllSceneDataChecks(scenes).pass, ...runAllSceneDataChecks(scenes).fail].find(
+      (r) => r.check === `Scene ${id} layout field`,
+    );
+
+  it("fails a narrative scene without layout (it picks the text-slot variant)", () => {
+    const row = layoutRow([{ id: 2, visualType: "narrative", texts: {} }], 2);
+    expect(row.level).toBe("fail");
+  });
+
+  it("does not require layout on a forced-layout template", () => {
+    const row = layoutRow([{ id: 3, visualType: "info-card", texts: {} }], 3);
+    expect(row.level).toBe("pass");
+    expect(row.detail).toContain("not required");
+  });
+
+  it("does not fail an invalid layout on a template that ignores the value", () => {
+    const results = runAllSceneDataChecks([
+      { id: 4, visualType: "data", layout: "media-overlay", texts: {} },
+    ]);
+    expect(results.fail.map((r) => r.check)).not.toContain("Scene 4 layout field");
+  });
+
+  it("still accepts a valid narrative layout", () => {
+    const row = layoutRow(
+      [{ id: 5, visualType: "narrative", layout: "media-split", texts: {} }],
+      5,
+    );
+    expect(row.level).toBe("pass");
+  });
+});
+
 // ── runAllSceneDataChecks ──
 
 describe("runAllSceneDataChecks", () => {
-  it("returns { pass, warn, fail } arrays", () => {
+  it("returns { pass, warn, fail, editorial } arrays", () => {
     const results = runAllSceneDataChecks(validScenes, validSeriesMeta);
     expect(results).toHaveProperty("pass");
     expect(results).toHaveProperty("warn");
     expect(results).toHaveProperty("fail");
+    expect(results).toHaveProperty("editorial");
     expect(Array.isArray(results.pass)).toBe(true);
     expect(Array.isArray(results.warn)).toBe(true);
     expect(Array.isArray(results.fail)).toBe(true);
+    expect(Array.isArray(results.editorial)).toBe(true);
   });
 
   it("produces 0 fails for valid scenes", () => {
@@ -1115,12 +1176,12 @@ describe("runAllSceneDataChecks", () => {
     expect(hookFail).toBeDefined();
   });
 
-  it("includes checkNoGreeting in results", () => {
+  it("includes checkNoGreeting in the editorial bucket (#763)", () => {
     const results = runAllSceneDataChecks(validScenes, validSeriesMeta);
-    const greetingCheck = [...results.pass, ...results.warn, ...results.fail].find((r) =>
-      r.check.toLowerCase().includes("greeting"),
-    );
+    const greetingCheck = results.editorial.find((r) => r.check.toLowerCase().includes("greeting"));
     expect(greetingCheck).toBeDefined();
+    expect(greetingCheck.level).toBe("advisory");
+    expect(results.pass.concat(results.warn, results.fail)).not.toContain(greetingCheck);
   });
 
   it("catches missing visualType=cta", () => {
@@ -1140,14 +1201,17 @@ describe("runAllSceneDataChecks", () => {
     expect(dashFail).toBeDefined();
   });
 
-  it("catches AI vocabulary", () => {
+  it("catches AI vocabulary (editorial, #763)", () => {
     const badScenes = [
       { ...validScenes[0], voiceover: "They leverage AI." },
       ...validScenes.slice(1),
     ];
     const results = runAllSceneDataChecks(badScenes, null);
-    const aiFail = results.fail.find((f) => f.check.includes("blacklist"));
-    expect(aiFail).toBeDefined();
+    const aiAdvice = results.editorial.find(
+      (f) => f.check.includes("blacklist") && f.severity === "fail",
+    );
+    expect(aiAdvice).toBeDefined();
+    expect(results.fail.find((f) => f.check.includes("blacklist"))).toBeUndefined();
   });
 
   it("catches expanded blacklist words (journey, realm, moreover)", () => {
@@ -1164,16 +1228,16 @@ describe("runAllSceneDataChecks", () => {
     expect(results[0].level).toBe("fail");
   });
 
-  it("catches dead closer", () => {
+  it("catches dead closer (editorial, #763)", () => {
     const badScenes = [
       ...validScenes.slice(0, -1),
       { ...validScenes[5], voiceover: "Thanks for watching!" },
     ];
     const results = runAllSceneDataChecks(badScenes, null);
-    const closerFail = results.fail.find(
-      (f) => f.check.includes("closer") || f.check.includes("dead"),
+    const closerAdvice = results.editorial.find(
+      (f) => (f.check.includes("closer") || f.check.includes("dead")) && f.severity === "fail",
     );
-    expect(closerFail).toBeDefined();
+    expect(closerAdvice).toBeDefined();
   });
 
   it("catches clickbait", () => {

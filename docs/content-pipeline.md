@@ -105,7 +105,7 @@ Stage 0 完成后，文章轨与视频轨基于同一素材集合并行推进：
 | MRL       | 位置                    | 检查对象                    | Blocker 数              | Warning 数   |
 | --------- | ----------------------- | --------------------------- | ----------------------- | ------------ |
 | **MRL-1** | Stage 1（自审，不暂停） | 文章 frontmatter + markdown | 清单见 guide            | 清单见 guide |
-| **MRL-2** | Stage 3（自审，不暂停） | scene-data.mjs（每集）      | 13                      | 9            |
+| **MRL-2** | Stage 3（自审，不暂停） | scene-data.mjs（每集）      | 分层见 MRL-2            | 分层见 MRL-2 |
 | **MRL-3** | Stage 5 → HITL 前       | 视频成品 mp4                | `verify-video.mjs` 已有 | +内容检查    |
 
 **MRL 报告格式**（Agent 在 HITL 输出中附带）：
@@ -304,7 +304,7 @@ Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论�
 3. **确定叙事类型** — 根据素材内容选择叙事结构（详见 `docs/video-script-writing-guide.md` → Step 2 叙事类型）
 4. **提炼核心叙事线** — 从素材中提取 3-5 个关键点，确定每个 scene 的素材需求（详见 `docs/video-script-writing-guide.md` → Scene 模板）。素材菜单里包含**真实截图**这一项：断言建立在具体公开页面上时，该 scene 用那个页面的实拍（约定与语言规范见同文档 → 截图证据约定）
 5. **AI Outline 话题描述（opt-in 旁路，默认跳过）** — **默认整步跳过**（等价于旧的"用户跳过"降级分支）：不生成话题描述、不暂停、不询问。仅当用户显式点名启用时：Agent 基于核心叙事线生成一段含具体公司名+数字+事件的话题描述（≤30 词），输出到对话中，**Agent 暂停**等用户在 TikTok 移动端 CSI → AI Outline 中输入并抄回结果。
-6. **按 S.T.A.R.T. 映射表设计 scene** — 逐 scene 按叙事角色设计。每个 scene 填写 `narrativeRole`（S.T.A.R.T. 角色）和 `retentionMechanism`（留存机制），以及 voiceover、素材需求。W7 检查 open loop (S2)、W8 检查 pattern interrupt (S5)、W9 检查 loop closure (S9)。详见 `docs/video-script-writing-guide.md` → Step 3。
+6. **按 S.T.A.R.T. 映射表设计 scene** — 逐 scene 按叙事角色设计。每个 scene 填写 `narrativeRole`（S.T.A.R.T. 角色）和 `retentionMechanism`（留存机制），以及 voiceover、素材需求。W7 检查 open loop (S2)、W8 检查 pattern interrupt (S5)、W9 检查 loop closure (S9)；三项均为编辑建议（不阻断，见 MRL-2）。详见 `docs/video-script-writing-guide.md` → Step 3。
 7. **设计 SEO 标题**（≤60 chars）——默认只用 Agent 自有生成的 title；仅当 opt-in 且已拿到 AI Outline 结果时才对比两者取更优者
 8. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。每个 scene 的 `media` 字段必须匹配 Step 4 确定的素材要求——未手工指定 media 的 scene 填写 `assetNeed` 字段，asset-sourcer 按 claim 做 per-scene 搜索 + VLM 相关性审查 + 跨内容复用上限（见 `docs/video-script-writing-guide.md` → assetNeed 约定）。素材**生成**比采购更合适的 scene（抽象概念、无现成画面）声明 `mediaStrategy` + prompt：**动态画面**用 `aiVideo.prompt`（8 维模板），**静态图/架构图/数据图**用 `aiImage.prompt`（6 维 = 8 维去掉 CAMERA/MOTION；策略值 `ai-image` / `asset-then-ai-image`，#155）。字段契约、模板与 preflight 规则见 `docs/video-production-runbook.md` → B-roll Generation 与 AI Image (T2I) generation。
    8b. **VLM stock 图片相关性评判** — scene-data 写完后，对每个 `media.type === "image"` 的场景运行 VLM 相关性评判：`node scripts/short-video/evaluate-stock-relevance.mjs --content <dir>`。Qwen3-VL 对每张 stock 图片评分（0-100），检查与 voiceover + texts 的相关性。**完成标准**：所有图片 relevance ≥ 60。低于阈值的场景用 `search-replacement-images.mjs` 搜索 Pexels 替换，或声明 `mediaStrategy: "b-roll"` 转为 AI 生成。
@@ -380,7 +380,7 @@ Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论�
 
 ### Hook 合格判据（评审端，#752）
 
-**这是评审门，不是 CI 门。** 三轴由 Agent 在 Step 0 报告与 MRL-2 自审时**逐轴自评**，任一轴 FAIL 即改写 hook 再往下走；`scene-rules.mjs` **不新增机械阻断**（理由与依据见本节末）。机检已覆盖的项不在此重复（`checkHookContract` / `checkHookCompellingElement` / `checkHookDiffersFromText` / `checkNoWrittenOpener` / `checkHookMediaContract` 见 `scene-rules.mjs`）。
+**这是评审门，不是 CI 门。** 三轴由 Agent 在 Step 0 报告与 MRL-2 自审时**逐轴自评**，任一轴 FAIL 即改写 hook 再往下走；`scene-rules.mjs` **不新增机械阻断**（理由与依据见本节末）。hook 的机检项只报编辑建议（`checkHookCompellingElement` / `checkNoWrittenOpener`，见 🧭 Editorial Suggestions），不进退出码；机械契约仍由 `checkHookContract` / `checkHookDiffersFromText` / `checkHookMediaContract` 把门（#763）。
 
 | 轴 | 检查项（逐项勾选） | FAIL 签名 |
 | --- | --- | --- |
@@ -426,13 +426,21 @@ Hook 是前 3 秒，媒体**逐包人工策展**，不走通用搜源（`asset-s
 
 Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循环（每集单独检查），0 Blockers 后直接进入 Stage 4（不暂停）。
 
-**MRL-2 检查项**（B1–B13 Blockers + W1–W9 Warnings）：由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器强制；Agent 在 HITL 报告中引用其输出（报告含检查项名称与详情，无需查表）。B5（无 Widget 标记）、B6（数据一致性）、W2（Hook 具体性）为 Agent 判断项。完整清单与阈值见 `scene-rules.mjs`；W2 的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端）。
+**MRL-2 检查项**：由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器执行，Agent 在 HITL 报告中引用其输出（报告含检查项名称与详情，无需查表）。输出分三层（#763）：
+
+| 层 | 语义 | 输出位置 |
+| --- | --- | --- |
+| 机检门（Blockers） | 违反即渲染契约/产物/schema 破裂，必须修 | `❌ FAIL` / `⚠️ WARN` 行 + FIX |
+| 编辑建议（advisory） | 需要品味/上下文/世界知识，**不进退出码、不算 WARN** | `🧭 Editorial Suggestions` 区块 |
+| Agent 判断项 | 机器无法判定，Agent 自评 | HITL 报告（B5 / B6） |
+
+机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 具体性、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；W2 的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端）。分类依据与逐项处置见 #763 交付评论。
 
 `media` 对象另有一条 schema 检查（`lib/media-field-schema.mjs`，check 名以 `Media field schema:` 开头，#836）：**未知键即 FAIL**（拼错 `evidnce` 不会静默关掉 evidence 强制）、`evidence` 只接受 `true`/`false`/`null`、`evidence: true` 必须同时声明 `provenance`、声明了 `provenance` 就先跑 `validateProvenance()`（clip ⊇ rect）。允许的键集合是 `remotion/src/types.ts` 里 `MediaField` 的 .mjs 镜像，两边由单测钉住——加字段必须同改两处。
 
 **文本溢出双层防线**（spec 决策 14/71，T11 同步）：
 
-1. **字符预算 = 提示级（WARN）**：`checkTextWidthBudget`（`scene-rules.mjs`）从文本槽契约推导预算——`slotCharBudget()`（`lib/text-slots.mjs`）用实测内容盒宽度 ÷ `SLOT_FIELDS.preferredSize` 计算，不手写字符锚点；未实测的槽位直接跳过（不猜测）。超预算只产生 `warn` 级创作提示（建议缩短或换布局），**不阻断**。仅覆盖文本槽契约声明的字段。
+1. **字符预算 = 提示级（advisory）**：`checkTextWidthBudget`（`scene-rules.mjs`）从文本槽契约推导预算——`slotCharBudget()`（`lib/text-slots.mjs`）用实测内容盒宽度 ÷ `SLOT_FIELDS.preferredSize` 计算，不手写字符锚点；未实测的槽位直接跳过（不猜测）。超预算只进入 `🧭 Editorial Suggestions` 创作提示（建议缩短或换布局），**不阻断、不算 WARN**（#763）。仅覆盖文本槽契约声明的字段。
 2. **几何验证门槛 = 渲染时硬门**：真实判定交给 Remotion 渲染期的 TextGate（`remotion/src/` + `lib/text-geometry.mjs`）——逐行、逐样式 run 的真实几何 + ink 外溢检查，`minSize` 触底仍超即 `cancelRender`（`[TextFitError]`），文案必须改写而非静默缩到不可读。
 
 ### 3b. RAG Reindex（scene-data 就绪后自动触发）

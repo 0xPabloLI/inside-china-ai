@@ -55,8 +55,12 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // on 21 fields (19 from the copy-floor raise, 2 more from the lead-class
     // raise that followed). WARN-level by design: it advises shorter copy and
     // never blocks a render.
-    expect(before.pass).toHaveLength(49);
-    expect(before.warn).toHaveLength(23);
+    // #763: pass 49 → 35, warn 23 → 1 — the 17 editorial-judgment checks left
+    // pass/warn/fail for the `editorial` bucket (text width, loop-close, hook
+    // specificity, de-AI style...). The remaining warn is the B-roll strategy
+    // contract; the advice rows are still in `before.editorial`.
+    expect(before.pass).toHaveLength(35);
+    expect(before.warn).toHaveLength(1);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });
 });
