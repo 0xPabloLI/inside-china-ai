@@ -281,7 +281,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 
 Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论证（陌生观众听这一句，能否听懂发生了什么），再给分集结论。**报告发出后暂停**，等用户确认角度后才写 scene-data。
 
-- 完成标准：报告含 hook 一句 + 独立可理解论证，且用户已确认。未给 hook 就写完整 scene-data = 未完成本步。
+- 完成标准：报告含 hook 一句 + 独立可理解论证 + **该 hook 的三轴自评（Hook 合格判据，评审端）**，且用户已确认。未给 hook 就写完整 scene-data = 未完成本步。
 
 > 多集系列策略（拆分类型、集间链接、连贯规则、合集制作、系列发布）见 **`docs/series-production-guide.md`**。
 
@@ -376,7 +376,29 @@ Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论�
 
 **存量口径**：只管增量内容包——历史已发布包不回改。
 
-**边界与验收跟踪**：hook 合格与否的评审判据与正面范例库归 **#752**（评审端）；本节只管写稿端，MRL-2 的 W2（Hook 具体性，Agent 判断项）按本节判据执行。本规范的下游验证随下一真包发生——按新模板出稿并做 HITL 听感对比（303/405 基准），完播数据回收对照 #259 的 0:01 流失基线（#278 验收项 2/3）。
+**边界与验收跟踪**：hook 合格与否的评审判据与正面范例库归 **#752**（评审端，见下节）；本节只管写稿端，MRL-2 的 W2（Hook 具体性，Agent 判断项）按本节判据执行。本规范的下游验证随下一真包发生——按新模板出稿并做 HITL 听感对比（303/405 基准），完播数据回收对照 #259 的 0:01 流失基线（#278 验收项 2/3）。
+
+### Hook 合格判据（评审端，#752）
+
+**这是评审门，不是 CI 门。** 三轴由 Agent 在 Step 0 报告与 MRL-2 自审时**逐轴自评**，任一轴 FAIL 即改写 hook 再往下走；`scene-rules.mjs` **不新增机械阻断**（理由与依据见本节末）。机检已覆盖的项不在此重复（`checkHookContract` / `checkHookCompellingElement` / `checkHookDiffersFromText` / `checkNoWrittenOpener` / `checkHookMediaContract` 见 `scene-rules.mjs`）。
+
+| 轴 | 检查项（逐项勾选） | FAIL 签名 |
+| --- | --- | --- |
+| **1 首句冲突密度** | hook 前 1.5s（首分句，读到第一个句读 `. ! ?` 或 `,` 为止）是否已落出**冲突/反差/冲击本身**（结果先行）？ | 顺叙开场且对象是中性描述（模型名/参数/功能）——"X just released Y"；铺垫句开场（"According to…"、"In a move that…"） |
+| **2 可感知比较锚点** | hook 里出现的每个**度量数字**（金额/参数量/跑分/人数/时长）是否在同句或紧邻分句给出参照系（`vs 对手` / `1/N 成本` / `从 X 到 Y` / 分母如 "nine of eleven" / 量级对照如 one GPU vs 1.3 billion people）？hook 无度量数字时本轴记 **N/A**，不因缺数字判 FAIL | 裸报绝对量无对照（"raised $10B"、"10T tokens"） |
+| **3 三轨同频** | 3a 台词核心锚点词与 `texts.bigNumber` / `texts.subject` 是否指向**同一对象**（同一秒落点）？<br>3b hook media 是否满足 #299 契约（判定表与严重度见下节 `### Hook 媒体策展（#299）`；机检在 `lib/hook-media.mjs`），或显式 `media: null`？ | 3a 口播讲 A、屏幕大字写 B；3b 违反 #299 契约（项与严重度按该表判，本表不重述） |
+
+**建议级（不计 FAIL）**：首拍可被陌生观众识别的新实体（公司/模型/产品/事件）≤2 个。triage 原把它列为轴 3 的硬项，本轮按 HITL「不新增机械阻断」降为建议级——一句话塞进 3 家公司是密度问题，owner 归 #235/#252。
+
+**不设词数阈值**：已验证的正面样本首分句 5–13 词，任何固定词数阈值都会把 405 与外部样本判死。hook **总**词数的现行口径（guide 写「≤10 词」）与实测证据冲突——完整表述与裁决跟踪见 `docs/video-script-writing-guide.md` → Step 5 校准表。
+
+**与既有句式库的关系**：与 P1–P6（`docs/research/tiktok-hook-patterns-best-practices.md`）不冲突。`[Company] just [verb]…` 这个**形状**本身不判 FAIL——FAIL 的是首分句落在中性对象上。P1a 的既有范例 "SenseTime just posted its strongest year ever." 首分句落的是最高级结果，过轴 1；P1 模板里的 `[specific number]` 若为裸数，另须过轴 2 锚点。
+
+**W2 的机械面**：W2（Hook 具体性）仍是 Agent 判断项——triage 提议把 `checkHookSpecificity` 收缩为「只保留最底线机械检查」，但该函数在代码中**不存在**（`scripts/` 与 `src/` 零命中），故 W2 无机械项可收缩，本表即其唯一判据。
+
+**与 Step 0 的关系**：Step 0 报告给出的 hook 一句必须附本表三轴的逐轴自评（PASS / FAIL / N/A + 一句理由）；「陌生观众能否独立听懂」仍由 Step 0 的独立可理解论证项判定，不在本表重复。
+
+**为什么不做成硬门禁**：句式张力与锚点质量不可机械判定——本仓库的门禁假阳性教训（#548/#689 家族）与判据依据（#244 HITL 实听、#300 §10.2/§10.3）不在本文重述。正反范例与逐条拆解见 `docs/video-script-writing-guide.md` → Step 5 校准表。
 
 ### Hook 媒体策展（#299）
 
@@ -404,7 +426,7 @@ Hook 是前 3 秒，媒体**逐包人工策展**，不走通用搜源（`asset-s
 
 Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循环（每集单独检查），0 Blockers 后直接进入 Stage 4（不暂停）。
 
-**MRL-2 检查项**（B1–B13 Blockers + W1–W9 Warnings）：由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器强制；Agent 在 HITL 报告中引用其输出（报告含检查项名称与详情，无需查表）。B5（无 Widget 标记）、B6（数据一致性）、W2（Hook 具体性）为 Agent 判断项。完整清单与阈值见 `scene-rules.mjs`；W2 的判据见 Stage 3 → Hook 文案句式（#278）。
+**MRL-2 检查项**（B1–B13 Blockers + W1–W9 Warnings）：由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器强制；Agent 在 HITL 报告中引用其输出（报告含检查项名称与详情，无需查表）。B5（无 Widget 标记）、B6（数据一致性）、W2（Hook 具体性）为 Agent 判断项。完整清单与阈值见 `scene-rules.mjs`；W2 的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端）。
 
 `media` 对象另有一条 schema 检查（`lib/media-field-schema.mjs`，check 名以 `Media field schema:` 开头，#836）：**未知键即 FAIL**（拼错 `evidnce` 不会静默关掉 evidence 强制）、`evidence` 只接受 `true`/`false`/`null`、`evidence: true` 必须同时声明 `provenance`、声明了 `provenance` 就先跑 `validateProvenance()`（clip ⊇ rect）。允许的键集合是 `remotion/src/types.ts` 里 `MediaField` 的 .mjs 镜像，两边由单测钉住——加字段必须同改两处。
 
