@@ -386,7 +386,7 @@ Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论�
 | --- | --- | --- |
 | **1 首句冲突密度** | hook 前 1.5s（首分句，读到第一个句读 `. ! ?` 或 `,` 为止）是否已落出**冲突/反差/冲击本身**（结果先行）？ | 顺叙开场且对象是中性描述（模型名/参数/功能）——"X just released Y"；铺垫句开场（"According to…"、"In a move that…"） |
 | **2 可感知比较锚点** | hook 里出现的每个**度量数字**（金额/参数量/跑分/人数/时长）是否在同句或紧邻分句给出参照系（`vs 对手` / `1/N 成本` / `从 X 到 Y` / 分母如 "nine of eleven" / 量级对照如 one GPU vs 1.3 billion people）？hook 无度量数字时本轴记 **N/A**，不因缺数字判 FAIL | 裸报绝对量无对照（"raised $10B"、"10T tokens"） |
-| **3 三轨同频** | 3a 台词核心锚点词与 `texts.bigNumber` / `texts.subject` 是否指向**同一对象**（同一秒落点）？<br>3b hook media 是否满足 #299 契约（`fit` 为 `cover` 或缺省；`overlay` 缺省取渲染默认 0.7、显式值落在 0.4–0.9；`source` 已声明），或显式 `media: null`？ | 3a 口播讲 A、屏幕大字写 B；3b `fit` 非 `cover`（FAIL 级）、`overlay` 越界或缺 `source`（WARN 级） |
+| **3 三轨同频** | 3a 台词核心锚点词与 `texts.bigNumber` / `texts.subject` 是否指向**同一对象**（同一秒落点）？<br>3b hook media 是否满足 #299 契约（判定表与严重度见下节 `### Hook 媒体策展（#299）`；机检在 `lib/hook-media.mjs`），或显式 `media: null`？ | 3a 口播讲 A、屏幕大字写 B；3b 违反 #299 契约（项与严重度按该表判，本表不重述） |
 
 **建议级（不计 FAIL）**：首拍可被陌生观众识别的新实体（公司/模型/产品/事件）≤2 个。triage 原把它列为轴 3 的硬项，本轮按 HITL「不新增机械阻断」降为建议级——一句话塞进 3 家公司是密度问题，owner 归 #235/#252。
 
@@ -396,7 +396,7 @@ Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论�
 
 **W2 的机械面**：W2（Hook 具体性）仍是 Agent 判断项——triage 提议把 `checkHookSpecificity` 收缩为「只保留最底线机械检查」，但该函数在代码中**不存在**（`scripts/` 与 `src/` 零命中），故 W2 无机械项可收缩，本表即其唯一判据。
 
-**与 Step 0 的关系**：Step 0 报告给出的 hook 一句必须附本表三轴的逐轴自评（PASS / FAIL / N-A + 一句理由）；「陌生观众能否独立听懂」仍由 Step 0 的独立可理解论证项判定，不在本表重复。
+**与 Step 0 的关系**：Step 0 报告给出的 hook 一句必须附本表三轴的逐轴自评（PASS / FAIL / N/A + 一句理由）；「陌生观众能否独立听懂」仍由 Step 0 的独立可理解论证项判定，不在本表重复。
 
 **为什么不做成硬门禁**：句式张力与锚点质量不可机械判定——本仓库的门禁假阳性教训（#548/#689 家族）与判据依据（#244 HITL 实听、#300 §10.2/§10.3）不在本文重述。正反范例与逐条拆解见 `docs/video-script-writing-guide.md` → Step 5 校准表。
 

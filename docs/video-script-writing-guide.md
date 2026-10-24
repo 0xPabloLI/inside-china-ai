@@ -201,13 +201,13 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 **口径**：判据来源是**人工裁决**（#244 三轮 A/B 实听 + 陌生观众自足性），播放量只作**入选门槛**，#259 的 0:01 留存落点只作**回收对照**（该口径下我方无正例）。逐条「为何算好」按评审端三轴（`docs/content-pipeline.md` → Hook 合格判据）拆解。
 
-**机检提醒（照抄前必读）**：`checkHookCompellingElement` 要求 hook VO 含**阿拉伯数字**或强词表之一（`leaked|paused|crash|surge|breakthrough|exclusive|secret|revealed|banned|crisis|first|never|only`；拼写的数字不算——`NUMBER_PATTERN` 只认 `\d`）。本表正例校准的是**句式与三轴质量**，不是机检合规——下表 `机检` 列逐条标注；标 ✗ 的样本作为本包 hook 落地时必须补一个数字锚点或强词，否则 MRL-2 的 fail 级检查直接判死。
+**机检提醒（照抄前必读）**：`checkHookCompellingElement`（`scripts/short-video/lib/scene-rules.mjs`）要求 hook VO 命中 `NUMBER_PATTERN`（阿拉伯数字）或 `STRONG_WORD_PATTERN` 强词表之一；两个常量的唯一来源是 `scripts/short-video/lib/tiktok-rules.mjs`（该模块自述为规则内容 SSOT），**词表与正则不在此重抄**。本表正例校准的是**句式与三轴质量**，不是机检合规——下表 `机检` 列逐条标注，口径是跑真门禁所得；标 ✗ 的样本作为本包 hook 落地时必须补一个数字锚点或强词，否则 MRL-2 的 fail 级检查直接判死。
 
 #### 正面基准 · 内部已验证（#244，2026-09-13 HITL 实听）
 
 | 样本 | 原始 take 文本 | 三轴拆解 | 机检 |
 | --- | --- | --- | --- |
-| **303**（胜出，用户裁决「情感充沛很多」） | DeepSeek just dropped a bombshell! V four point one Flash — brand new architecture, native multimodal. This changes everything. | 轴1 首分句 5 词即落 "bombshell"（冲突先于对象）；轴2 "brand new architecture" 与上代形成对照；轴3 锚点词 = 模型名，与 hook 屏上 `subject` 同指 | ✗ 无阿拉伯数字（"V four point one" 为拼写）、"bombshell" 不在强词表 |
+| **303**（胜出，用户裁决「情感充沛很多」） | DeepSeek just dropped a bombshell! V four point one Flash — brand new architecture, native multimodal. This changes everything. | 轴1 首分句 5 词即落 "bombshell"（冲突先于对象）；轴2 **N/A**（无度量数字）；轴3 锚点词 = 模型名，与 hook 屏上 `subject` 同指。非轴补记：「brand new architecture」与上代形成对照（对照质量，非数字锚点，不计轴 2） | ✗ 无阿拉伯数字（"V four point one" 为拼写）、"bombshell" 不在强词表 |
 | **405**（疑问句，多内容泛化最佳；整体仍不如 303） | What if one GPU could run a world model for 1.3 billion people? Ant Group just proved it. In real time. | 轴1 首分句 13 词，但前 3 词已抛假设冲突；轴2 "1.3 billion people" 自带体量反差，第二句给主体；轴3 三拍短句，屏上焦点可同步 | ✓ 含 "1.3" |
 
 **落地改写（必读）**：303 原始 take 文本有两处机检风险——含 `—`（`checkNoEmDashes` 对 em/en/double dash 是 fail）且无阿拉伯数字/强词（见上表）。落地版把版本号写回**阿拉伯数字形式**（TTS 朗读形式由管线 Step 0.6 从版本号派生，不需要在 voiceover 里拼写）并按 #278 降级规则用句号切分：
@@ -222,18 +222,18 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 | 账号（档位） | 原文（ASR 首段） | 句子族 | 三轴拆解 | 机检 |
 | --- | --- | --- | --- | --- |
-| `maverickgpt`（prompt 教程） | China just dropped an AI model that beats GPT-5 on almost every benchmark, and nobody's talking about it. | `just` + 事件 | 轴1 首分句 13 词，但 "beats GPT-5" 即冲突；轴2 对手即锚点（GPT-5）；轴3 首帧真人对镜口播，与口播锚点同指 | ✓ 含 "GPT-5" |
-| `kanekallaway`（科技新闻、分屏） | Elon is now creating the biggest building in human history, the TerraFab. | 规模 / 最高级锚点 | 轴1 "biggest building in human history" 先于主体名落地；轴2 最高级即参照系；轴3 首帧分屏（Elon 舞台 + 口播），画面与口播同指 | ✗ 无数字、无强词 |
-| `kanekallaway` | This is the most insane tech company in the world, ASML. | 规模 / 最高级锚点 | 轴1 悬念前置（"the most insane"）再给主体；轴2 最高级锚点；轴3 首帧是芯片特写而非人像——**吸收其句式，不要照搬首帧策略**（首帧策略归 #299） | ✗ 无数字、无强词 |
-| `sineadbovell`（科技评论、口播） | What's a professor to do to, like, I don't know, prevent cheating? | 提问式 | 轴1 疑问句开场，冲突藏在「提问者无解」里；轴2 本轴 **N/A**（无度量数字）；轴3 首帧真人出镜说话 | ✗ 无数字、无强词 |
+| `maverickgpt`（prompt 教程） | China just dropped an AI model that beats GPT-5 on almost every benchmark, and nobody's talking about it. | `just` + 事件 | 轴1 首分句 13 词，但 "beats GPT-5" 即冲突；轴2 **N/A**（无度量数字）；轴3 首帧真人对镜口播，与口播锚点同指。非轴补记：对手名（GPT-5）即参照系，非数字锚点，不计轴 2 | ✓ 含 "GPT-5" |
+| `kanekallaway`（科技新闻、分屏） | Elon is now creating the biggest building in human history, the TerraFab. | 规模 / 最高级锚点 | 轴1 "biggest building in human history" 先于主体名落地；轴2 **N/A**（无度量数字）；轴3 首帧分屏（Elon 舞台 + 口播），画面与口播同指。非轴补记：最高级（biggest…in history）即参照系，非数字锚点 | ✗ 无数字、无强词 |
+| `kanekallaway` | This is the most insane tech company in the world, ASML. | 规模 / 最高级锚点 | 轴1 悬念前置（"the most insane"）再给主体；轴2 **N/A**（无度量数字）；轴3 首帧是芯片特写而非人像——**吸收其句式，不要照搬首帧策略**（首帧策略归 #299）。非轴补记：最高级即参照系，非数字锚点 | ✗ 无数字、无强词 |
+| `sineadbovell`（科技评论、口播） | What's a professor to do to, like, I don't know, prevent cheating? | 提问式 | 轴1 疑问句开场，冲突藏在「提问者无解」里；轴2 **N/A**（无度量数字）；轴3 首帧真人出镜说话 | ✗ 无数字、无强词 |
 
-**取证边界**：原文 = 各条 ASR 首段（本地 `output/competitor-benchmarks/analysis/`，gitignored 不入库）；句子族归类取自 `docs/research/competitor-video-benchmarks-research.md` §10.2（该节实例为**节选**，故与 ASR 首段并非逐字相同）；播放量同为抓取快照。账号赛道归属的完整校验归 **#748**（本表 4 条取自 #300 的 AI 六号，不在已落盘 5 条非赛道样本内）。
+**取证边界**：原文 = 各条 ASR 首段，取自 `scripts/short-video/output/competitor-benchmarks/analysis/<账号>/<videoId>.asr.json`（gitignored 不入库）。**该目录是唯一带 ASR 侧车的目录**——`analysis-recompute/` 只有修复后的分析记录、无 ASR 文本；两目录按 `docs/research/competitor-video-benchmarks-research.md` §10 的「勿混用」纪律分工：**数字类结论**出自 `analysis-recompute/`，**ASR 原文**出自 `analysis/`。本表四条（`7580410789442440479` / `7676104609177423134` / `7666090654434413855` / `7276858408584727838`）与已知坏记录 `7599711388939980063` 无关（后者在 `analysis/` 仍是 `error: unparseable-json`，本表未引用）。句子族归类取自 §10.2（该节实例为**节选**，故与 ASR 首段并非逐字相同；族名含「锚点」二字是 §10.2 的用词，与轴 2 的「数字锚点」不是同一概念）。播放量同为抓取快照。账号赛道归属的完整校验归 **#748**（本表 4 条取自 #300 的 AI 六号，不在已落盘 5 条非赛道样本内）。
 
 #### 反面教材（Anti-Patterns）
 
 | 反例 | 文本 | 病在哪 | 按三轴改写 |
 | --- | --- | --- | --- |
-| **302 原文案**（#244 R2 裁决「只是快了」：同 instruct、同语速下听着仍慢） | DeepSeek just dropped V four point one Flash, with a new architecture and native multimodal. | 轴1 首分句是「发布 + 对象」顺叙，冲突没落地；轴2 "new architecture" 无对照物 | 同上方 303 落地改写（先落冲突、版本号写阿拉伯数字形式，两处机检风险一并解决） |
+| **302 原文案**（#244 R2 裁决「只是快了」：同 instruct、同语速下听着仍慢） | DeepSeek just dropped V four point one Flash, with a new architecture and native multimodal. | 轴1 首分句是「发布 + 对象」顺叙，冲突没落地；轴2 **N/A**（无度量数字——「new architecture」无对照物属对照质量问题，不计轴 2） | 同上方 303 落地改写（先落冲突、版本号写阿拉伯数字形式，两处机检风险一并解决） |
 | **平静陈述句开场**（#278 明令不满足） | 泛指：`X 公司今天发布了 Y 模型` | 轴1 铺垫先行，1.5s 内无冲突 | 结果先行：把 Y 的反常之处提到第一句 |
 | **续集式钩子 / 不自足**（Step 0 hook 预览门禁拦下的那一类，见 Stage 3 Step 0） | 泛指：承接上一条的数字/悬念，陌生观众缺前置 | 陌生观众听不出「发生了什么」 | 本包自足：hook 只由本包素材支撑；跨包引用需用户显式授权（Stage 3 Step 0） |
 | **裸报大数字无锚点**（#278 硬性要求 1 的反面） | 泛指：`它训练用了 10T tokens` | 轴2 绝对量无参照系 | 补锚点：10T tokens, twice what GPT-5 used. |
