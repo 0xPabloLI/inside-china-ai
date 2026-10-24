@@ -9,6 +9,7 @@ import {
   renderPromptForModel,
 } from "../b-roll/prompt-templates.mjs";
 import { MAX_PROMPT_TOKENS } from "../b-roll/prompt-injection.mjs";
+import { MODEL_TIERS } from "../b-roll/runner.mjs";
 
 // ─── template table ───
 
@@ -54,6 +55,21 @@ describe("admitted families (#757)", () => {
     expect(familyForModelTier("fastmetal-5b")).toBe("wan2.2");
     expect(familyForModelTier("fastmetal-1.3b")).toBe("wan2.1");
     expect(Object.keys(MODEL_TIER_FAMILIES).sort()).toEqual(["fastmetal-1.3b", "fastmetal-5b"]);
+  });
+
+  test("derived tier→family keys all exist in runner.mjs MODEL_TIERS", () => {
+    const knownTiers = Object.keys(MODEL_TIERS);
+    for (const tier of Object.keys(MODEL_TIER_FAMILIES)) {
+      expect(knownTiers).toContain(tier);
+    }
+  });
+
+  test("every family with a live integration declares at least one tier", () => {
+    for (const template of Object.values(PROMPT_TEMPLATES)) {
+      if (template.integration === "pipeline") {
+        expect(template.modelTiers.length).toBeGreaterThan(0);
+      }
+    }
   });
 });
 

@@ -87,7 +87,7 @@
 | `wan2.1` | 在产线（退路 `fastmetal-1.3b`） | 同 `wan2.2` | Apache-2.0 + 现役退路档 | 同 `wan2.2` |
 | `seedance` | 候选（云端 API，未接线） | （镜头语言 + 光影）+ 主体 + 主体运动 + 场景 +（氛围）+（风格） | 唯一有独立官方契约的云端候选；闭源 API 只吸规则 | 官方文档无 negative 参数 |
 
-实现：`scripts/short-video/lib/b-roll/prompt-templates.mjs`（`PROMPT_TEMPLATES` + `getPromptTemplate` + `renderPromptForModel`，纯函数、未接线）；测试：`scripts/short-video/lib/__tests__/b-roll-prompt-templates.test.mjs`。
+实现：`scripts/short-video/lib/b-roll/prompt-templates.mjs`（导出 `PROMPT_SLOTS`、`PROMPT_TEMPLATES`、`MODEL_TIER_FAMILIES`、`familyForModelTier`、`getPromptTemplate`、`renderPromptForModel`，纯函数、未接线）。`MODEL_TIER_FAMILIES` 由各模板的 `modelTiers` 在 import 时派生（含同档位重复归属报错），测试同时校验其 key 都在 `runner.mjs` 的 `MODEL_TIERS` 内。测试：`scripts/short-video/lib/__tests__/b-roll-prompt-templates.test.mjs`。
 
 **未入表（证据保留在本笔记）**：`hunyuanvideo`（community license + 仓库 >6 个月无提交）、`cogvideox`（5B 商用登记 + 仓库约 12 个月无提交）。若后续重新准入，按本笔记 §2.3 / §2.4 的官方公式补表即可，不改模块结构。
 
@@ -109,7 +109,7 @@
 
 本模块**不接入生成路径**，因此无运行时行为变化。接线票需要处理：
 
-1. 从 `resolveModelTier()` 的档位映射到 familyId（`fastmetal-5b → wan2.2`、`fastmetal-1.3b → wan2.1`），避免第二套模型命名。
+1. 用已导出的 `familyForModelTier()` / `MODEL_TIER_FAMILIES` 把 `resolveModelTier()` 的结果转成 familyId，不要再建第二套模型命名。
 2. 云端 Wan API 才可使用 `negative_prompt` 参数；本地路径继续用正向排除子句，二者不能互换。
 3. 模板渲染必须过 `MAX_PROMPT_TOKENS`（480），超预算要在接线层报出，而不是静默截断。
 4. 渲染结果必须与 VLM claim gate 使用的 raw declared prompt 分离（沿用 #166 的 gate separation）。

@@ -122,12 +122,26 @@ export const PROMPT_TEMPLATES = Object.freeze({
   },
 });
 
-/** Live generation tier → family. The wiring ticket uses this instead of a
- * second model-naming scheme (runner.mjs MODEL_TIERS stays the source of tiers). */
-export const MODEL_TIER_FAMILIES = Object.freeze({
-  "fastmetal-5b": "wan2.2",
-  "fastmetal-1.3b": "wan2.1",
-});
+/**
+ * Live generation tier → family, derived from each template's `modelTiers` so
+ * the relation has one source (runner.mjs MODEL_TIERS stays the source of tier
+ * IDs). Built at import time and checked for collisions: a tier claimed by two
+ * families would otherwise collapse silently into the last one.
+ */
+export const MODEL_TIER_FAMILIES = (() => {
+  const byTier = new Map();
+  for (const template of Object.values(PROMPT_TEMPLATES)) {
+    for (const tier of template.modelTiers) {
+      if (byTier.has(tier)) {
+        throw new Error(
+          `Model tier "${tier}" is claimed by both "${byTier.get(tier)}" and "${template.id}"`,
+        );
+      }
+      byTier.set(tier, template.id);
+    }
+  }
+  return Object.freeze(Object.fromEntries(byTier));
+})();
 
 export function familyForModelTier(modelTier) {
   const familyId = MODEL_TIER_FAMILIES[modelTier];
