@@ -164,7 +164,7 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。默认（�
 
 抽象隐喻可以用，但必须由立即可读的对象、关系、状态或空间变化承载；只有抽象材质、能量线或巨型文字的构图不成立。三问是写稿侧自检，不是新的机械门禁；渲染侧仍由既有 preflight 与媒体门禁负责。
 
-> 来源：#529 R6②（`erduo-broll-loop-engineering` 的「画面理解合同」，MIT，读思路档）。与 #733 的版式配方、#735 的量化闸门分属写稿、版式、渲染三层。
+> 来源：#529 R6②（`erduo1998-cell/erduo-broll-loop-engineering` 的「画面理解合同」，MIT，读思路档）。研究依据见 `docs/research/agent-video-skills-180-screening-2026-09.md` §R6.2。与 #733 的镜头配方卡、#735 的量化验收闸门分属写稿、分镜、渲染验收三层；渲染侧现有机械门禁仍是 preflight 与媒体门禁。
 
 ### Grounding 规则
 
