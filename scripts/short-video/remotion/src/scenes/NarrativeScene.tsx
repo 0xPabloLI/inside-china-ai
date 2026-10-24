@@ -5,7 +5,9 @@
  *   - media-bottom-bar: media top 70%, text bar bottom 30%
  *   - media-split: media left half, text right half
  *   - media-overlay: fullscreen media, text overlay top+bottom
- *   - stacked-cards: no media, cards stack vertically
+ *   - stacked-cards: text-first cards; `scene.media` renders as a dimmed
+ *     full-bleed background behind them (ambient only — evidence is routed to
+ *     the media-window layouts by #761)
  *
  * Each variant has its own entrance animation pattern and uses
  * SPACING tokens, Interactive.Div on company/result, and conditional GridBg.
@@ -387,7 +389,9 @@ export const NarrativeScene: React.FC<{
   );
 
   // ─── Variant: stacked-cards ───
-  // No media, cards stack vertically within safe zone
+  // Text-first cards stack vertically within the safe zone. A bound
+  // `scene.media` renders as a full-bleed background behind them (see the
+  // render block below) — ambient only, never evidence (#761).
   // Safe zone: y∈[220,1150], x∈[60,880]
   const StackedCards: React.FC = () => {
     const cards = [

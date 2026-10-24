@@ -102,6 +102,9 @@ const BASELINES = [
   "baseline-quote",
   "baseline-context",
   "baseline-contrast",
+  // #761: the same copy with an ambient image bound — the media layer must
+  // render behind the cards without breaking the text gates.
+  "baseline-contrast-media",
   "baseline-data",
   "baseline-info-card",
   "baseline-fullscreen",

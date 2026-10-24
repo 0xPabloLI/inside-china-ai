@@ -19,9 +19,11 @@
 export const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
 
 /**
- * Layouts that never auto-source media (#191): hero-center is forced for all
- * non-narrative visualTypes whose templates are text-only; narrative +
- * stacked-cards is designed to work without media (GridBg fallback).
+ * Layouts that are skipped when the scene declares no media intent (#191).
+ * `hero-center` covers the text-only templates, but context / info-card / hook
+ * also render media behind it — so "CSS-only" here means "no media unless the
+ * scene asks for it". `stacked-cards` is the narrative text-first layout
+ * (ambient background only; evidence is rejected at preflight by #761).
  */
 const CSS_ONLY_LAYOUTS = new Set(["hero-center", "stacked-cards"]);
 
@@ -42,9 +44,11 @@ export function skipsMediaSourcing(scene) {
   if (scene.visualType === "hook") return true;
   if (scene.media === null) return true;
   if (scene.mediaOptOut === true) return true; // deprecated (#191)
-  // A scene that explicitly declares assetNeed wants media regardless of
-  // layout — both hero-center and stacked-cards render MediaBackground when
-  // scene.media is present. Only skip CSS-only layouts when no assetNeed.
+  // A scene that explicitly declares assetNeed is asking for media regardless
+  // of layout. hero-center renders it for context / info-card / hook; the two
+  // text-first layouts (stacked-cards, contrast) only show it as a background,
+  // and #761 fails evidence needs there at preflight — sourcing itself stays
+  // layout-agnostic.
   if (CSS_ONLY_LAYOUTS.has(scene.layout) && !scene.assetNeed) return true;
   return false;
 }

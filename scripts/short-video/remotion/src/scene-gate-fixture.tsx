@@ -130,6 +130,36 @@ const F6_SCENE: SceneData = {
   },
 };
 
+const CONTRAST_SCENE: SceneData = {
+  id: 7,
+  visualType: "contrast",
+  voiceover: "contrast",
+  texts: {
+    title: "TWO PATHS TO HUMANOIDS",
+    vs: "VS",
+    left: ["REAL ROBOT SHIPPING", "FULL STACK HARDWARE"],
+    right: ["DEMO FIRST ENERGY", "CONSUMER HYPE CYCLE"],
+    note: "SAME YEAR, DIFFERENT BET",
+    noteHighlight: "DIFFERENT",
+  },
+};
+
+/**
+ * #761: the same copy with a bound ambient image. Before the wiring,
+ * ContrastScene dropped `scene.media` entirely (the template never rendered a
+ * media layer), so this pair is the render-level regression guard.
+ */
+const CONTRAST_MEDIA_SCENE: SceneData = {
+  ...CONTRAST_SCENE,
+  media: {
+    type: "image",
+    path: "assets/pexels-ai-chip.jpg",
+    animation: "none",
+    source: "PEXELS",
+    overlay: 0.7,
+  },
+};
+
 /** Legal-copy baselines, one scene per template (#35). */
 const BASELINE_SCENES: Record<string, SceneData> = {
   "baseline-hook": {
@@ -375,19 +405,8 @@ const BASELINE_SCENES: Record<string, SceneData> = {
       detail: "NO VRAM REQUIRED FOR INFERENCE",
     },
   },
-  "baseline-contrast": {
-    id: 7,
-    visualType: "contrast",
-    voiceover: "contrast",
-    texts: {
-      title: "TWO PATHS TO HUMANOIDS",
-      vs: "VS",
-      left: ["REAL ROBOT SHIPPING", "FULL STACK HARDWARE"],
-      right: ["DEMO FIRST ENERGY", "CONSUMER HYPE CYCLE"],
-      note: "SAME YEAR, DIFFERENT BET",
-      noteHighlight: "DIFFERENT",
-    },
-  },
+  "baseline-contrast": CONTRAST_SCENE,
+  "baseline-contrast-media": CONTRAST_MEDIA_SCENE,
   "baseline-data": {
     id: 8,
     visualType: "data",
