@@ -77,7 +77,7 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。默认（�
 - `narrativeRole`: 枚举 `"S"` | `"T"` | `"A"` | `"R"` | `"T-Tell"`。声明此 scene 在 S.T.A.R.T. 中的角色。
 - `retentionMechanism`: 枚举 `null` | `"open-loop"` | `"pattern-interrupt"` | `"loop-closure"` | `"curiosity-gap"` | `"approaching-closure"`。声明此 scene 的留存机制。
 
-两个字段都是**可选的**——旧 scene-data 不填不影响渲染。新写的 scene-data 应该填。`verify-video.mjs --pre` 的 W7/W8/W9 检查这三项。
+两个字段都是**可选的**——旧 scene-data 不填不影响渲染。新写的 scene-data 应该填。`verify-video.mjs --pre` 的 W7/W8/W9 以**编辑建议**口径检查这三项（`🧭 Editorial Suggestions`，不阻断渲染，#763）。
 
 #### Scene 1: Stop（S — Stop）
 
@@ -201,7 +201,7 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 **口径**：判据来源是**人工裁决**（#244 三轮 A/B 实听 + 陌生观众自足性），播放量只作**入选门槛**，#259 的 0:01 留存落点只作**回收对照**（该口径下我方无正例）。逐条「为何算好」按评审端三轴（`docs/content-pipeline.md` → Hook 合格判据）拆解。
 
-**机检提醒（照抄前必读）**：`checkHookCompellingElement`（`scripts/short-video/lib/scene-rules.mjs`）要求 hook VO 命中 `NUMBER_PATTERN`（阿拉伯数字）或 `STRONG_WORD_PATTERN` 强词表之一；两个常量的唯一来源是 `scripts/short-video/lib/tiktok-rules.mjs`（该模块自述为规则内容 SSOT），**词表与正则不在此重抄**。本表正例校准的是**句式与三轴质量**，不是机检合规——下表 `机检` 列逐条标注，口径是跑真门禁所得；标 ✗ 的样本作为本包 hook 落地时必须补一个数字锚点或强词，否则 MRL-2 的 fail 级检查直接判死。
+**机检提醒（照抄前必读）**：`checkHookCompellingElement`（`scripts/short-video/lib/scene-rules.mjs`）要求 hook VO 命中 `NUMBER_PATTERN`（阿拉伯数字）或 `STRONG_WORD_PATTERN` 强词表之一；两个常量的唯一来源是 `scripts/short-video/lib/tiktok-rules.mjs`（该模块自述为规则内容 SSOT），**词表与正则不在此重抄**。该检查自 #763 起只进 `🧭 Editorial Suggestions`（advisory，不阻断），且它只判「含数字/强词」——孤立数字如 `9` 也能过，**不能当作 hook 合格的证据**；合格判定走 `docs/content-pipeline.md` → Hook 合格判据（#752 三轴）。本表正例校准的是**句式与三轴质量**，不是机检合规——下表 `机检` 列逐条标注，口径是跑真门禁所得。
 
 #### 正面基准 · 内部已验证（#244，2026-09-13 HITL 实听）
 
@@ -346,7 +346,7 @@ CTA 公式：`[Action Verb] + [What They Get]`
 
 ## Step 7: 运行 MRL-2 自审
 
-写完全部 scene 后，运行 `content-pipeline.md` Stage 3 的 MRL-2 检查循环（10 Blockers + 11 Warnings）。W7 检查 open loop、W8 检查 pattern interrupt、W9 检查 loop closure。三项都是 Warning 级别——缺失不阻塞渲染，但提示 Agent 补充。0 Blockers 后进入 Stage 4。
+写完全部 scene 后，运行 `content-pipeline.md` Stage 3 的 MRL-2 检查循环（机检门 + `🧭 Editorial Suggestions` 两层，分层口径见该节）。W7 检查 open loop、W8 检查 pattern interrupt、W9 检查 loop closure；这三项属于编辑建议层——缺失不阻塞渲染，但 Agent 应在 HITL 报告里补充说明。0 Blockers 后进入 Stage 4。
 
 ---
 

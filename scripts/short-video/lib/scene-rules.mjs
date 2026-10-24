@@ -70,6 +70,31 @@ function sceneVO(scene) {
   return (scene.voiceover || "").toLowerCase();
 }
 
+/**
+ * Word-boundary term match (#763). Substring matching made "illegal" satisfy
+ * "legal" and turned self-consistent scenes into contradictions.
+ *
+ * Scans for each occurrence and checks the neighbouring characters instead of
+ * building a RegExp from the term: the table is trusted, but a dynamic pattern
+ * is still a ReDoS shape the security scan must not have to reason about.
+ */
+function isAsciiWordChar(ch) {
+  if (!ch) return false;
+  const code = ch.charCodeAt(0);
+  return (code >= 48 && code <= 57) || (code >= 97 && code <= 122);
+}
+
+function hasTerm(haystack, term) {
+  let index = haystack.indexOf(term);
+  while (index !== -1) {
+    const before = index === 0 ? "" : haystack[index - 1];
+    const after = haystack[index + term.length];
+    if (!isAsciiWordChar(before) && !isAsciiWordChar(after)) return true;
+    index = haystack.indexOf(term, index + 1);
+  }
+  return false;
+}
+
 // ─── Check functions ───
 
 /**
@@ -898,9 +923,15 @@ function normalizeForCompare(text) {
  * Semantic consistency check — detects contradictions between voiceover
  * and on-screen text within the same scene.
  *
- * Uses a curated antonym/contradiction pair table. When term A appears in
- * the VO and term B (its opposite) appears in the on-screen text, the check
- * flags it as a potential factual contradiction.
+ * Uses a curated contradiction table. Both sides are matched on WORD
+ * BOUNDARIES: the previous substring matching let "illegal" satisfy the
+ * "legal" term, so a scene that agreed with itself could still be flagged
+ * (#763).
+ *
+ * Pairs that need entity scope to be a contradiction are deliberately absent:
+ * "up"/"down" (`up 3%` alongside `costs down` is agreement, not contradiction)
+ * and "restricted"/"available" (a chip can be export-restricted and available
+ * in China in the same breath). What remains flips a fact, not a direction.
  *
  * Comparison scenes (texts containing "vs"/"VS") get WARN only — antonyms
  * are expected when contrasting two different entities. Non-comparison
@@ -915,32 +946,23 @@ function normalizeForCompare(text) {
 export function checkSemanticConsistency(scenes) {
   // [voTerm, textTerm, description]
   // voTerm: if found in voiceover (case-insensitive, word-boundary)
-  // textTerm: if found in on-screen text (case-insensitive substring)
+  // textTerm: if found in on-screen text (case-insensitive, word-boundary)
   const CONTRADICTION_PAIRS = [
     ["restricted", "can buy", "VO says 'restricted' but text says 'can buy'"],
-    ["restricted", "available", "VO says 'restricted' but text says 'available'"],
-    ["restricted", "legal", "VO says 'restricted' but text says 'legal'"],
     ["export-restricted", "can buy", "VO says 'export-restricted' but text says 'can buy'"],
-    ["export-restricted", "available", "VO says 'export-restricted' but text says 'available'"],
-    ["export-restricted", "legal", "VO says 'export-restricted' but text says 'legal'"],
     ["illegal", "can buy", "VO says 'illegal' but text says 'can buy'"],
-    ["illegal", "legal", "VO says 'illegal' but text says 'legal'"],
     ["not allowed", "can buy", "VO says 'not allowed' but text says 'can buy'"],
-    ["not allowed", "available", "VO says 'not allowed' but text says 'available'"],
     ["banned", "can buy", "VO says 'banned' but text says 'can buy'"],
-    ["banned", "available", "VO says 'banned' but text says 'available'"],
     ["banned", "legal", "VO says 'banned' but text says 'legal'"],
     ["legal", "banned", "VO says 'legal' but text says 'banned'"],
     ["legal", "illegal", "VO says 'legal' but text says 'illegal'"],
     ["clean", "accused", "VO says 'clean' but text says 'accused'"],
     ["clean", "guilty", "VO says 'clean' but text says 'guilty'"],
-    ["not on that list", "accused", "VO says 'not on that list' but text says 'accused'"],
     ["rejected", "accepted", "VO says 'rejected' but text says 'accepted'"],
     ["rejected", "approved", "VO says 'rejected' but text says 'approved'"],
     ["raises", "lowers", "VO says 'raises' but text says 'lowers'"],
     ["raises", "cuts", "VO says 'raises' but text says 'cuts'"],
     ["increases", "decreases", "VO says 'increases' but text says 'decreases'"],
-    ["up", "down", "VO says 'up' but text says 'down'"],
     ["open source", "closed source", "VO says 'open source' but text says 'closed source'"],
     ["closed source", "open source", "VO says 'closed source' but text says 'open source'"],
   ];
@@ -953,7 +975,7 @@ export function checkSemanticConsistency(scenes) {
     const isComparison = /\bvs\b/i.test(texts);
 
     for (const [voTerm, textTerm, description] of CONTRADICTION_PAIRS) {
-      if (vo.includes(voTerm) && texts.includes(textTerm)) {
+      if (hasTerm(vo, voTerm) && hasTerm(texts, textTerm)) {
         results.push({
           level: isComparison ? "warn" : "fail",
           category: "Fact-Check",
@@ -1298,7 +1320,17 @@ function checkTextConcatenation(scenes) {
   ];
 }
 
-/** Check that non-cta scenes have a valid layout field. */
+/**
+ * Check the layout field only where the render layer actually reads it.
+ *
+ * resolveRenderLayout is the single authority (#190): narrative consumes
+ * scene.layout, fullscreen forces "media", every other template forces
+ * "hero-center". Requiring `layout` on those templates forced authors to write
+ * a value checkTemplateContract then warned was ignored — one rule demanding
+ * dead data, another scolding it (#763). Non-narrative scenes now pass whether
+ * or not the field exists; a divergent value is still flagged by
+ * checkTemplateContract for every template in REMOTION_SLOT_MAP.
+ */
 const VALID_LAYOUTS = [
   "hero-center",
   "media-bottom-bar",
@@ -1310,14 +1342,24 @@ const VALID_LAYOUTS = [
 function checkLayoutField(scenes) {
   const results = [];
   for (const scene of scenes) {
-    if (scene.visualType === "cta") continue; // CTA scenes don't need layout
     const layout = scene.layout;
+    if (scene.visualType !== "narrative") {
+      results.push({
+        level: "pass",
+        category: "Structure",
+        check: `Scene ${scene.id} layout field`,
+        detail: layout
+          ? `layout="${layout}" — ${scene.visualType} renders "${resolveRenderLayout(scene)}"`
+          : `not required — ${scene.visualType} renders "${resolveRenderLayout(scene)}"`,
+      });
+      continue;
+    }
     if (!layout) {
       results.push({
         level: "fail",
         category: "Structure",
         check: `Scene ${scene.id} layout field`,
-        detail: "layout field missing",
+        detail: "layout field missing (narrative reads it to pick a text-slot variant)",
         fix: `Add layout to scene ${scene.id} (one of: ${VALID_LAYOUTS.join(", ")})`,
       });
     } else if (!VALID_LAYOUTS.includes(layout)) {
@@ -1380,10 +1422,10 @@ export function checkTemplateContract(scenes) {
         category: "Structure",
         check: `Scene ${scene.id} template contract`,
         detail: `layout="${scene.layout}" is ignored — ${scene.visualType} templates always render "${layout}"`,
-        // The layout FIELD stays: checkLayoutField fails any non-cta scene
-        // without one. Only the value is dead data — point at the value the
-        // template actually renders.
-        fix: `Set scene ${scene.id} layout to "${layout}" (the value ${scene.visualType} renders)`,
+        // The layout FIELD is optional outside narrative (#763): this value is
+        // dead data the template never reads, so delete it or set it to what
+        // the template actually renders.
+        fix: `Remove scene ${scene.id} layout (${scene.visualType} never reads it) or set it to "${layout}"`,
       });
     }
   }
@@ -2120,7 +2162,8 @@ export function checkBrollPromptDimensions(scenes) {
  */
 const AVATAR_POSITIONS = ["right-card"];
 const AVATAR_KEYS = ["videoPath", "position", "scale", "present"];
-
+/** Advisory usage-strategy rows; the aggregate sends these to the editorial bucket. */
+const AVATAR_USAGE_CHECK = "Avatar usage strategy";
 // Present-interval overflow can only be estimated here (scene-rules runs
 // pre-TTS): 2.5 words/sec is the established voiceover pace
 // (checkVoiceoverWordCount). The generation step enforces the exact TTS
@@ -2298,13 +2341,13 @@ export function checkAvatarContract(scenes) {
   // Usage-strategy warnings (docs/research/dh-presenter-usage-strategy-research.md,
   // executed as the guide's whitelist/blacklist subset that is mechanically
   // checkable). Warn-only — the semantic judgment stays with the script agent
-  // and the plan dry-run HITL, never a fail.
-  const WARN_CHECK = "Avatar usage strategy";
+  // and the plan dry-run HITL, never a fail. The aggregate routes these to the
+  // editorial bucket (#763): a judgment call, not a render contract.
   if (scenes[0]?.avatar !== undefined && scenes[0]?.visualType === "hook") {
     results.push({
       level: "warn",
       category: CATEGORY,
-      check: WARN_CHECK,
+      check: AVATAR_USAGE_CHECK,
       detail: `Scene ${scenes[0].id} (hook) declares an avatar — hook is on the declaration blacklist: a face in the first seconds adds little retention (30s retention turns negative; a human-voice hook is an order of magnitude stronger)`,
       fix: "Remove this avatar declaration, or scope present to exclude the first ~3s of the hook",
     });
@@ -2313,7 +2356,7 @@ export function checkAvatarContract(scenes) {
     results.push({
       level: "warn",
       category: CATEGORY,
-      check: WARN_CHECK,
+      check: AVATAR_USAGE_CHECK,
       detail: `${avatarScenes.length} scenes declare avatars — the evidence-based band for a 30-60s package is 2-4 on-screen segments (AI presenter is an accent, not the channel's backbone; news-explainer has the LOWEST AI-presenter acceptance)`,
       fix: "Trim to CTA / key-payoff / data-moment scenes per the script guide's avatar strategy section",
     });
@@ -2324,7 +2367,7 @@ export function checkAvatarContract(scenes) {
         results.push({
           level: "warn",
           category: CATEGORY,
-          check: WARN_CHECK,
+          check: AVATAR_USAGE_CHECK,
           detail: `Scene ${scene.id}: present interval ${iv.from}-${iv.to}s holds the avatar on screen for ${(iv.to - iv.from).toFixed(0)}s continuously — evidence supports cutting away within a few seconds (pattern-interrupt cadence)`,
           fix: "Split the interval or let the background run full-bleed mid-segment",
         });
@@ -2336,45 +2379,29 @@ export function checkAvatarContract(scenes) {
 
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const meta = opts.meta || null;
-  const allChecks = [
+  const avatarResults = checkAvatarContract(scenes);
+  const gateChecks = [
     ...checkSceneCount(scenes, opts),
     ...checkHookVisualType(scenes),
     ...checkHookContract(scenes),
     ...checkCTAVisualType(scenes),
     ...checkCTAActionContract(scenes),
-    ...checkHookCompellingElement(scenes),
     ...checkNoEmDashes(scenes),
-    ...checkNoAIVocabulary(scenes),
-    ...checkNoWrittenOpener(scenes),
     ...checkHookDiffersFromText(scenes),
-    ...checkNoDeadClosers(scenes),
-    ...checkNoGreeting(scenes),
     ...checkSEOKeywords(scenes),
     ...checkSourceAttribution(scenes),
-    ...checkShareWorthyData(scenes),
     ...checkVoiceoverWordCount(scenes, opts),
     ...checkOneBreath(scenes),
-    ...checkSubjectVisibility(scenes, meta),
     ...checkSeriesMeta(seriesMeta),
     ...checkClickbait(scenes),
     ...checkUnverifiedClaims(scenes),
     ...checkNoWatermarks(scenes),
-    ...checkTeleprompterRhythm(scenes),
-    ...checkCTAStacking(scenes),
-    ...checkPrimaryGoal(scenes),
     ...checkSemanticConsistency(scenes),
-    ...checkLoopClose(scenes, meta),
-    ...checkBodyTextVoRedundancy(scenes),
     ...checkHookMediaContract(scenes),
     ...checkNarrativeMediaWarning(scenes),
-    ...checkCurrencyDualAnnotation(scenes),
     ...checkTextConcatenation(scenes),
     ...checkLayoutField(scenes),
     ...checkTemplateContract(scenes),
-    ...checkOpenLoop(scenes),
-    ...checkPatternInterrupt(scenes),
-    ...checkLoopClosureNarrative(scenes),
-    ...checkTextWidthBudget(scenes),
     ...checkVisualTypeWhitelist(scenes, opts),
     ...checkInstructCoverage(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
@@ -2383,12 +2410,40 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkMediaOptOutDeprecation(scenes),
     ...checkLayoutMediaRouting(scenes),
     ...checkBrollPromptDimensions(scenes),
-    ...checkAvatarContract(scenes),
+    ...avatarResults.filter((r) => r.check !== AVATAR_USAGE_CHECK),
   ];
 
+  // Editorial judgment (#763): assertions that need taste, context or world
+  // knowledge the run cannot supply. They are reported as advice and never
+  // reach pass/warn/fail, so they can't block a render or inflate the gate.
+  const EDITORIAL_RUNNERS = [
+    () => checkHookCompellingElement(scenes),
+    () => checkShareWorthyData(scenes),
+    () => checkSubjectVisibility(scenes, meta),
+    () => checkTeleprompterRhythm(scenes),
+    () => checkCTAStacking(scenes),
+    () => checkPrimaryGoal(scenes),
+    () => checkLoopClose(scenes, meta),
+    () => checkBodyTextVoRedundancy(scenes),
+    () => checkOpenLoop(scenes),
+    () => checkPatternInterrupt(scenes),
+    () => checkLoopClosureNarrative(scenes),
+    () => checkTextWidthBudget(scenes),
+    () => checkNoAIVocabulary(scenes),
+    () => checkNoWrittenOpener(scenes),
+    () => checkNoDeadClosers(scenes),
+    () => checkNoGreeting(scenes),
+    () => checkCurrencyDualAnnotation(scenes),
+    () => avatarResults.filter((r) => r.check === AVATAR_USAGE_CHECK),
+  ];
+  const editorial = EDITORIAL_RUNNERS.flatMap((run) =>
+    run().map(({ level, ...rest }) => ({ ...rest, level: "advisory", severity: level })),
+  );
+
   return {
-    pass: allChecks.filter((r) => r.level === "pass"),
-    warn: allChecks.filter((r) => r.level === "warn"),
-    fail: allChecks.filter((r) => r.level === "fail"),
+    pass: gateChecks.filter((r) => r.level === "pass"),
+    warn: gateChecks.filter((r) => r.level === "warn"),
+    fail: gateChecks.filter((r) => r.level === "fail"),
+    editorial,
   };
 }

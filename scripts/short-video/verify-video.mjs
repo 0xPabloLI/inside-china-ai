@@ -85,6 +85,7 @@ const results = {
   warn: [],
   fail: [],
   manual: [],
+  advisory: [],
 };
 
 function pass(category, check, detail = "") {
@@ -325,8 +326,19 @@ pass("Scene Data", "Scenes array exists", `${scenes.length} scenes`);
 
 // Run all scene-data validation rules from lib/scene-rules.mjs
 const sceneResults = runAllSceneDataChecks(scenes, seriesMeta, { longForm, meta });
+
+// Passing checks collapse to one line per category: the gate is read for what
+// needs action, not for a 60-line wall of ✅ (#763). Failures and warnings keep
+// their full row + fix.
+const passesByCategory = new Map();
 for (const r of sceneResults.pass) {
-  console.log(`  ✅ ${r.check}${r.detail ? ` — ${r.detail}` : ""}`);
+  const list = passesByCategory.get(r.category) || [];
+  list.push(r);
+  passesByCategory.set(r.category, list);
+}
+for (const [category, rows] of passesByCategory) {
+  const names = rows.length <= 3 ? ` (${rows.map((r) => r.check).join(", ")})` : "";
+  console.log(`  ✅ ${category} — ${rows.length} checks passed${names}`);
 }
 results.pass.push(...sceneResults.pass);
 for (const r of sceneResults.warn) {
@@ -338,6 +350,22 @@ for (const r of sceneResults.fail) {
   console.log(`  ❌ ${r.check}${r.detail ? ` — ${r.detail}` : ""}`);
   if (r.fix) console.log(`     → FIX: ${r.fix}`);
   results.fail.push(r);
+}
+
+// Editorial judgment checks (#763): advice, never a gate. They do not change
+// the exit code and are not counted as warnings — only the items that would
+// have flagged are printed, so the block stays short.
+if (sceneResults.editorial.length > 0) {
+  const advice = sceneResults.editorial.filter((r) => r.severity !== "pass");
+  const clean = sceneResults.editorial.length - advice.length;
+  console.log("\n🧭 Editorial Suggestions (advisory — does not block)");
+  console.log("─".repeat(50));
+  console.log(`  ${clean}/${sceneResults.editorial.length} reviewed clean by the mechanical pass`);
+  for (const a of advice) {
+    console.log(`  💡 ${a.check}${a.detail ? ` — ${a.detail}` : ""}`);
+    if (a.fix) console.log(`     → CONSIDER: ${a.fix}`);
+  }
+  results.advisory.push(...advice);
 }
 
 // ─── Media background checks (shared: pre-render + post-render) ───
@@ -575,6 +603,9 @@ function printSummary() {
   console.log(`  ✅ PASS:   ${results.pass.length}`);
   console.log(`  ⚠️  WARN:    ${results.warn.length}`);
   console.log(`  ❌ FAIL:   ${results.fail.length}`);
+  if (results.advisory.length > 0) {
+    console.log(`  🧭 ADVICE: ${results.advisory.length} (editorial, non-blocking)`);
+  }
   if (!preMode) {
     console.log(`  👤 MANUAL: ${results.manual.length}`);
   }
