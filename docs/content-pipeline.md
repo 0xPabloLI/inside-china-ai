@@ -380,21 +380,25 @@ Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论�
 
 ### Hook 合格判据（评审端，#752）
 
-**这是评审门，不是 CI 门。** 三轴由 Agent 在 Step 0 报告与 MRL-2 自审时**逐轴自评**，任一轴 FAIL 即改写 hook 再往下走；`scene-rules.mjs` **不新增机械阻断**——句式张力与锚点质量不可机械判定，本仓库已有门禁假阳性教训（#548/#689 家族），把主观判断自动化成硬阻断需要证据支撑。机检已覆盖的项不在此重复（`checkHookContract` / `checkHookCompellingElement` / `checkHookDiffersFromText` / `checkNoWrittenOpener` / `checkHookMediaContract` 见 `scene-rules.mjs`）。
+**这是评审门，不是 CI 门。** 三轴由 Agent 在 Step 0 报告与 MRL-2 自审时**逐轴自评**，任一轴 FAIL 即改写 hook 再往下走；`scene-rules.mjs` **不新增机械阻断**（理由与依据见本节末）。机检已覆盖的项不在此重复（`checkHookContract` / `checkHookCompellingElement` / `checkHookDiffersFromText` / `checkNoWrittenOpener` / `checkHookMediaContract` 见 `scene-rules.mjs`）。
 
 | 轴 | 检查项（逐项勾选） | FAIL 签名 |
 | --- | --- | --- |
-| **1 首句冲突密度** | hook 第一个句读（`. ! ?` 或 `,`）之前，是否已落出**冲突/反差/冲击本身**（结果先行）？ | 顺叙开场且对象是中性描述（模型名/参数/功能）——"X just released Y"；铺垫句开场（"According to…"、"In a move that…"） |
-| **2 可感知比较锚点** | hook 里出现的每个**度量数字**（金额/参数量/跑分/人数/时长），是否在同句或紧邻分句给出参照系（`vs 对手` / `1/N 成本` / `从 X 到 Y` / 分母如 "nine of eleven" / 量级对照如 one GPU vs 1.3 billion people）？ | 裸报绝对量无对照（"raised $10B"、"10T tokens"） |
-| **3 三轨同频** | 3a 台词核心锚点词与 `texts.bigNumber` / `texts.subject` 是否指向**同一对象**（同一秒落点）？<br>3b hook media 是否满足 #299 契约（强主体 + `fit: "cover"` + `overlay` + `source`），或显式 `media: null`？ | 3a 口播讲 A、屏幕大字写 B；3b `fit` 越界或缺 `source` |
+| **1 首句冲突密度** | hook 前 1.5s（首分句，读到第一个句读 `. ! ?` 或 `,` 为止）是否已落出**冲突/反差/冲击本身**（结果先行）？ | 顺叙开场且对象是中性描述（模型名/参数/功能）——"X just released Y"；铺垫句开场（"According to…"、"In a move that…"） |
+| **2 可感知比较锚点** | hook 里出现的每个**度量数字**（金额/参数量/跑分/人数/时长）是否在同句或紧邻分句给出参照系（`vs 对手` / `1/N 成本` / `从 X 到 Y` / 分母如 "nine of eleven" / 量级对照如 one GPU vs 1.3 billion people）？hook 无度量数字时本轴记 **N/A**，不因缺数字判 FAIL | 裸报绝对量无对照（"raised $10B"、"10T tokens"） |
+| **3 三轨同频** | 3a 台词核心锚点词与 `texts.bigNumber` / `texts.subject` 是否指向**同一对象**（同一秒落点）？<br>3b hook media 是否满足 #299 契约（`fit` 为 `cover` 或缺省；`overlay` 缺省取渲染默认 0.7、显式值落在 0.4–0.9；`source` 已声明），或显式 `media: null`？ | 3a 口播讲 A、屏幕大字写 B；3b `fit` 非 `cover`（FAIL 级）、`overlay` 越界或缺 `source`（WARN 级） |
 
-**建议级（不计 FAIL）**：首拍可被陌生观众识别的新实体（公司/模型/产品/事件）≤2 个——一句话塞进 3 家公司是密度问题，预算归 #235/#252。
+**建议级（不计 FAIL）**：首拍可被陌生观众识别的新实体（公司/模型/产品/事件）≤2 个。triage 原把它列为轴 3 的硬项，本轮按 HITL「不新增机械阻断」降为建议级——一句话塞进 3 家公司是密度问题，owner 归 #235/#252。
 
-**不设词数阈值**：已验证的正面样本首分句 5–14 词（见 `docs/video-script-writing-guide.md` → Step 5 校准表），任何固定词数阈值都会把 405 与外部样本判死。hook **总**词数的现行口径（guide 写「≤10 词」）与实测证据冲突，待 #763 三分类审计裁决。
+**不设词数阈值**：已验证的正面样本首分句 5–13 词，任何固定词数阈值都会把 405 与外部样本判死。hook **总**词数的现行口径（guide 写「≤10 词」）与实测证据冲突——完整表述与裁决跟踪见 `docs/video-script-writing-guide.md` → Step 5 校准表。
 
-**与 Step 0 的关系**：Step 0 报告给出的 hook 一句必须附本表三轴的逐轴自评（PASS/FAIL + 一句理由）；「陌生观众能否独立听懂」仍由 Step 0 的独立可理解论证项判定，不在本表重复。
+**与既有句式库的关系**：与 P1–P6（`docs/research/tiktok-hook-patterns-best-practices.md`）不冲突。`[Company] just [verb]…` 这个**形状**本身不判 FAIL——FAIL 的是首分句落在中性对象上。P1a 的既有范例 "SenseTime just posted its strongest year ever." 首分句落的是最高级结果，过轴 1；P1 模板里的 `[specific number]` 若为裸数，另须过轴 2 锚点。
 
-**依据**：内部基准 = #244 三轮 A/B HITL 实听（2026-09-13）；外部基准 = #300（`docs/research/competitor-video-benchmarks-research.md` §10.2 句子族 / §10.3 账号档位）；正反范例与逐条拆解见 `docs/video-script-writing-guide.md` → Step 5 校准表。
+**W2 的机械面**：W2（Hook 具体性）仍是 Agent 判断项——triage 提议把 `checkHookSpecificity` 收缩为「只保留最底线机械检查」，但该函数在代码中**不存在**（`scripts/` 与 `src/` 零命中），故 W2 无机械项可收缩，本表即其唯一判据。
+
+**与 Step 0 的关系**：Step 0 报告给出的 hook 一句必须附本表三轴的逐轴自评（PASS / FAIL / N-A + 一句理由）；「陌生观众能否独立听懂」仍由 Step 0 的独立可理解论证项判定，不在本表重复。
+
+**为什么不做成硬门禁**：句式张力与锚点质量不可机械判定，本仓库已有门禁假阳性教训（#548/#689 家族）——把主观判断自动化成硬阻断需要证据支撑。判据依据：内部基准 = #244 三轮 A/B HITL 实听（2026-09-13）；外部基准 = #300（`docs/research/competitor-video-benchmarks-research.md` §10.2 句子族 / §10.3 账号档位）；正反范例与逐条拆解见 `docs/video-script-writing-guide.md` → Step 5 校准表。
 
 ### Hook 媒体策展（#299）
 
