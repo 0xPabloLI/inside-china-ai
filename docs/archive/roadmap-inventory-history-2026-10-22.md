@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 32 轮盘点 + 62 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案）。
+> 本文件按时间倒序排列，共 33 轮盘点 + 63 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round XCIII → LV）
+## 逐轮盘点（Round XCIV → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round XCIV：`#922` 接线票分流入表（triage-only，无交付）**——`#757` follow-up「per-family T2V 模板接进 b-roll 生成路径」（`prompt-templates.mjs` 已并入主干但**无调用方**）完成分流 → Tier 2 · `P3·W3B` · `P2 enhancement` · `ready-for-agent`；六条验收取自 `docs/research/t2v-model-prompt-templates.md` §5 的四项接线待办（档位→familyId、negative 双路径不可互换、超预算报错、VLM gate 分离）；与 #355（预算）/ #535（provider·缓存身份）/ #541（gate 消费）同属 `lib/b-roll/` 串行带。**无代码改动、无产出 diff。frontier 不变**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首仍 **`#763`**（→ `#529` → `#723`）；Track 1B 下一张仍 **`#778`**。）
 
 （**Round XCIII：#761 文本优先版式的媒体职责与证据路由交付闭票**——HITL 两决：① 路线＝**混合**（`stacked-cards` 保留既有全幅氛围背景；`contrast` 接线 `MediaBackground` + `contentDir`，修掉「素材已绑定却永不上屏」；两版式只承载氛围，证据需求路由 `media-bottom-bar` / `media-split` / `media-overlay` / `media.mode:"fullscreen"`，不新增纵向媒体窗、不触碰 #688 字号）；② 存量＝**fail-closed + 作者三选一**（换版式 / 删 `assetNeed` 做氛围 / 删 `assetNeed` 并 `media:null`），本票不迁移存量。新增 preflight `Text-first layout media routing`（`scene-rules.mjs`：这两个版式上的 `assetNeed` 或 `media.evidence:true` 判 FAIL；`media.mode:"fullscreen"` 因 `FullscreenMedia` 先于版式分发而豁免；媒体窗清单由 `MEDIA_DEPENDENT_LAYOUTS` 派生）；修正 `claim-keywords.mjs` / `NarrativeScene.tsx` 中「两版式都渲染 MediaBackground」的失真注释；`docs/video-script-writing-guide.md` 增 Stage 3 版式↔素材职责规范。**定性 quality improvement（有产出 diff）**：真实包 `didi-robotaxi-r2` s5/s7 的 Tesla FSD / Pony 官方产品图首次作为全幅背景上屏（before/after 静帧 `output/_761-contrast-stills/`）；渲染级回归＝同文案媒体版 vs 纯文字版像素差 > 200k / 2,073,600。真实数据：didi preflight 恰 1 条 FAIL（s5/s7 `assetNeed`）、`qwen4-preview` 0 新增命中；18 个存量场景按决策不迁移，各自下次跑 preflight 时按三选一整改。droid-review 1 条 P1（新 still 套件缺 CI 环境门）已修（`CI_SKIPPED_MACHINE_BOUND`）并 resolve；`scene-rules` 219 tests、全量 `scripts/short-video/__tests__` 4689 绿、`lint:mjs` 596 文件净、`lint:docs` 新增 0、CI 全绿；PR #919 squash `4845d3be`。**frontier 复算**：Track 1A 空；Track 2 `#291` AFK 空；Track 3 HITL 队首推进至 **`#763`**（→ `#529` → `#723`）；Track 1B 下一张 **`#778`**。）
 
@@ -85,6 +87,8 @@
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round XCI**（`#752` 交付闭票——Hook 评审端三轴判据（首句冲突密度 / 可感知比较锚点（无数字记 N/A）/ 三轨同频）入 `content-pipeline.md`，Step 0 报告须附逐轴自评、不新增 CI 硬门禁；guide Step 5 正反校准表：内部 303/405＋外部 4 条＋4 反例各带三轴改写与 `机检` 列，303 落地改写同时过数字/破折号两门；HITL 四决（强制力/范例/人工裁决优先/冲突只标注留 #763）；triage 的 `checkHookSpecificity` 经核验不存在；enabling fix 无产出 diff；droid-review 5 条全修并 resolve；PR #912 squash `cf13c13f`。同期解除 pre-push 依赖阻塞：#909（squash `146fe2d0`）升 4 个传递 pin（body-parser/fast-uri/undici/qs）并回退 @emnapi 丢失与 peer 噪声，`scan:deps` 转绿、全量 5814 绿，范围外开 #910/#911；frontier：Track 3 HITL `#757`、Track 1B `#778`）
 
 **Round XC**（`#688` 交付闭票——全版式字号强制上调：HITL 三决（分层 A / 不回改存量 / loop 首轮后追加「抬标题」）；copy 48/35、metadata 40/29、lead 60-64，tier 上契约（`SLOT_FIELDS.tier` + `READABILITY_TIERS`）；band 按内容实测重推 hook 180/550/200→78/542/310（最坏值合计 915.8/930）、CTA 265、contrast 全区、StatCard label 20→32px；quality improvement（九幕 smoke 前后各渲一次 + before/after 图）；scene-gate 37/37、全量 5816、CI 全绿；设计 loop 3 轮收敛；droid 9 条全修（含 2 处自证断言）；PR #901 squash `793eaf85`；frontier：Track 3 HITL `#752`、Track 1B `#778`）
 
