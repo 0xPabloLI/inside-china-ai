@@ -743,8 +743,9 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
 
   // #269 Phase 1: pre-flight probe of the source's own search URL before the
   // CDP layer opens a tab. Cached per URL within the run; verdicts are judged
-  // by judgeUrlProbeForSource (fail-open on network errors, and never against a
-  // login-gated source — #285). A dead URL skips the CDP layer with reason
+  // by judgeUrlProbeForSource (fail-open on network errors, and never against
+  // a source the bare probe cannot speak for — login-gated #285 or
+  // geo/cookie-redirected #888). A dead URL skips the CDP layer with reason
   // "dead-url" so googleSiteFallback/mcpFallback take over.
   async function probeSearchUrlGate() {
     const searchUrl = buildSourceSearchUrl(source, keyword);
@@ -797,11 +798,14 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     if (cdpAvailable && isProbeAuthoritative(source)) {
       // #285 (generalizing #317): an auth-walled page answers the bare probe
       // fetch with 4xx while the cookie-carrying CDP layer renders it fine
-      // (s.weibo.com 404 → CDP 19/19, live-verified). The probe has no session,
-      // so it can only report "no session", never "no source" — skip it and let
-      // the CDP layer's own loginCheck decide (fail-open). The same predicate
-      // guards the quarantine recheck path below; both live in
-      // lib/source-health.mjs so future gates cannot drift apart again.
+      // (s.weibo.com 404 → CDP 19/19, live-verified). #888 adds the second
+      // class: a geo/cookie-redirected source (bing_news) whose bare fetch
+      // bounces to another region's homepage while CDP opens the search page.
+      // The probe has no session, so it can only report "no session", never
+      // "no source" — skip it and let the CDP layer's own checks decide
+      // (fail-open). The same predicate guards the quarantine recheck path
+      // below; both live in lib/source-health.mjs so future gates cannot drift
+      // apart again.
       try {
         probeVerdict = await probeSearchUrlGate();
       } catch {

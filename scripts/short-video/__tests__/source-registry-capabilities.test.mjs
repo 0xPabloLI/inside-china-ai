@@ -780,3 +780,23 @@ describe("imageApiSourceMetadata", () => {
     expect(() => imageApiSourceMetadata(source)).toThrow(/apiKeyEnv must be a string/);
   });
 });
+
+// ─── #888: probe authority is declared per source and survives enrichment ───
+
+describe("#888 probeAuthoritative passthrough", () => {
+  it("bing_news declares probeAuthoritative:false on the source and in capabilities.articles", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "bing_news");
+    expect(src).toBeDefined();
+    expect(src.probeAuthoritative).toBe(false);
+    expect(src.capabilities.articles.probeAuthoritative).toBe(false);
+  });
+
+  it("bing_news is the only source opted out — the opt-out must stay per-source", () => {
+    // A second silent opt-out would hide the real dead-source cases the probe
+    // exists to catch (#269), so this asserts the declared set explicitly.
+    const optedOut = ALL_SOURCES.filter(
+      (s) => s.capabilities.articles?.probeAuthoritative === false,
+    ).map((s) => s.name);
+    expect(optedOut).toEqual(["bing_news"]);
+  });
+});

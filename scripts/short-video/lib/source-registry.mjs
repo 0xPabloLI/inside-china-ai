@@ -657,6 +657,14 @@ export const NEWS_SOURCES = [
       notes: "CDP search page. Articles only — cards expose only Bing CDN thumbnails (#636).",
     },
     needsAuth: false,
+    // #888 (2026-10-25): a bare Node fetch of this URL intermittently follows a
+    // geo redirect to https://cn.bing.com/ (HTTP 200 → judged `redirected-home`)
+    // because it carries no browser geo/session cookie, while the CDP layer
+    // opens /news/search and yields 6–12 real articles. The probe has no
+    // session, so its verdict is noise for this source — skip it and let CDP
+    // speak. Keep the shared `redirected-home` judge untouched: other sources
+    // genuinely die in that shape (#269).
+    probeAuthoritative: false,
     useCleanTitle: false,
     // #636: same fact as above, for the article path. `enrichWithMedia` would
     // otherwise cache the card's <img> as topics[].images[].url, which the
@@ -3748,6 +3756,10 @@ function enrichWithCapabilities(sources) {
         articleScript: source.articleScript,
         loginCheckScript: source.loginCheckScript || null,
         needsAuth: source.needsAuth || false,
+        // #888: per-source opt-out from the unauthenticated URL probe. Absent
+        // means "probeable" — only a source with live evidence that its browser
+        // path works while the bare fetch is geo/cookie-redirected may opt out.
+        probeAuthoritative: source.probeAuthoritative ?? true,
         useCleanTitle: source.useCleanTitle || false,
         // API credentials (source-level, not apiSearch-level)
         apiSearch: api, // direct reference; undefined if not configured
