@@ -602,9 +602,10 @@ async function main() {
     }
 
     // The accepted artifact is the path of record for everything after Step 6
-    // (the completion banner prints result.path; later steps read it too).
-    if (verifiedVideoPath) result.path = verifiedVideoPath;
-    if (verifiedAssPath) subtitles.assPath = verifiedAssPath;
+    // (#870): the loop guarantees a path, and the completion banner reads
+    // result.path.
+    result.path = verifiedVideoPath;
+    subtitles.assPath = verifiedAssPath;
     prof.end("step-6-verify");
   }
 

@@ -277,6 +277,38 @@ describe("verifyWithRetry — repaired paths reach the re-verify (#870)", () => 
     expect(result.assPath).toBe("/tmp/repaired.ass");
   });
 
+  it("keeps the last accepted repair's paths when a later repair is rolled back", async () => {
+    const states = [];
+    const reports = [
+      makeReport(false, 3, 3), // initial
+      makeReport(false, 1, 1), // repair 1 accepted (3 → 1)
+      makeReport(false, 1, 1), // repair 2 rolls back (1 → 1)
+    ];
+    const mockVerify = vi.fn().mockImplementation(() => reports.shift());
+    const mockRepair = vi.fn().mockImplementation((_category, _report, state) => {
+      states.push(state);
+      return {
+        success: true,
+        videoPath: `/tmp/good-${states.length}.mp4`,
+        assPath: `/tmp/good-${states.length}.ass`,
+      };
+    });
+
+    const result = await verifyWithRetry({
+      verifyFn: mockVerify,
+      repairFn: mockRepair,
+      maxRetries: 2,
+      videoPath: "/tmp/video.mp4",
+      assPath: "/tmp/subs.ass",
+    });
+
+    expect(states[1]).toEqual({ videoPath: "/tmp/good-1.mp4", assPath: "/tmp/good-1.ass" });
+    // The second repair wrote different paths, but it did not win — the state
+    // must stay on the accepted first repair, not reset to the initial paths.
+    expect(result.videoPath).toBe("/tmp/good-1.mp4");
+    expect(result.assPath).toBe("/tmp/good-1.ass");
+  });
+
   it("keeps the pre-repair paths when the repair is rolled back", async () => {
     const states = [];
     const mockVerify = vi.fn().mockReturnValue(makeReport(false, 2, 2)); // never improves
