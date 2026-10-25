@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 37 轮盘点 + 67 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案）。
+> 本文件按时间倒序排列，共 38 轮盘点 + 68 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round XCVIII → LV）
+## 逐轮盘点（Round XCIX → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round XCIX：`#870` verify-retry 路径闭环交付闭票**——`verifyWithRetry` 过去把修复返回的 `{ videoPath, assPath }` 写进局部变量却既不用于复验也不交给调用方：首检与每次复检一律 `verifyFn()` 零参、`main.mjs` 丢弃返回值，且被回滚的修复会把坏产物路径带进下一轮。现在循环把当前 `{ videoPath, assPath }` 传给 `verifyFn`（首检与复检同一契约）；修复返回的路径仅作候选，错误数严格下降（修复被接受）才晋升，回滚保持上一轮已接受状态而不回退到初始路径；`main.mjs` Step 6 的 `verifyFn`/`repairFn` 直接消费透传路径（无 `?? result.path` 兜底——兜底一旦触发就是重新读旧产物），并采纳返回的 `videoPath` 作为成片路径。验证：修复前 red 基线（新测试分别命中 `verifyFn` 收到 `undefined` 与 `/tmp/bad-1.*` 泄漏）、3 条新回归（新路径复验 / 初始路径回滚 / 先接受后回滚不回退）、`scripts/short-video/__tests__` **4708 passed / 7 skipped**、`eslint`/`lint:mjs`/`lint:docs` 净、真实素材 smoke（`deepseek-v41-flash-1017`）健康臂 0 errors、非重试臂一次复验即停；droid-review 2 条（死写 `subtitles.assPath`、不可达的 `?? result.path` 兜底）全修并 resolve，两轴 review 的采纳分支、accept-then-rollback 覆盖与 runbook Step 6 行已同步。**定性 enabling fix（预期无产出 diff）**：当前两类修复均原地重写并返回同一路径，正常 run 成片零变化，差异只在「修复返回新路径」「修复被回滚」两条内部路径；回滚仍不恢复磁盘（修复自身责任，未改语义）。PR **#939** squash `c0e88494`。**frontier 复算**：Track 1A 仅余 **`#888`（P2·Tier 2）**（`#870`/`#925` 均闭票）；Track 2 `#291` AFK 空；Track 1B（Step 4 ①）**`#910` → `#778` → `#353` → `#358` → `#329` → `#922`**；Track 3 HITL（Step 4 ②）队首 `#723`；Step 4 ④ 低优工程卫生含 `#911`。）
 
 （**Round XCVIII：`#925` pacing 补偿失败静默发布旧 take 交付闭票**——`runPacingLadder` 在补差/重抽轮抛错或部分返回时不再「删 `ttsSpeed` 后放行」：未拿到新音频的计划场景先清 override 再 fail-closed；源 take 已过门 → 新增 **`TTS_PACING_COMPENSATION_BLOCK`**（**不入 F5 白名单**：F5 不消费 `ttsSpeed`，替换已过门 take 不是 infra 修复），源 take 被 gate 拒 → 仍 `TTS_PACING_FLOOR_BLOCK`（F5 可修），重抽缺音频 → `TTS_PACING_HARD_BLOCK`。补抓三处漏洞：部分返回从未进结果循环（`for (const res of regenResults)`）、返回条目但无音频字节被当成「新 take 被声学门禁拒」、`stranded` 硬截断 `wpm >= 150` 漏掉 `#244` `<1.1x` Hook 且常态路径丢弃返回值。`stranded` 统一为「`<150 WPM` 或低于计划速度」并在**常态路径与 F5 兜底路径共用一条 warning**（`warnStrandedTakes`）；缺失/零字节判定抽为叶子模块 `lib/tts/audio-file.mjs`，gate 与 ladder 单一来源（gate 导出会被 mock 掉，故选叶子模块）。验证：新 10 例单测（整批失败 × in-band hook / `<150`、override 与 meta 键、>225 reroll、部分批次、gate 拒过的缺补偿仍走 floor、无音频字节、有字节仍回退、F5 不介入、常态 stranded 告警）、`tts-*` 534 passed、`scripts/short-video/__tests__` **4706 passed / 7 skipped**、`eslint`/`lint:mjs`/`lint:docs` 净；droid-review 2 条（P2「`hasUsableAudio` 第二事实来源」、P3「stranded 文案与 `already at` 自相矛盾」）全修并 resolve；两轴 review 5 条（F5 可达性、OQ1 缺失音频分支、重复 map、文案、runbook 可达性断言）全修后复核无回归。**定性 enabling fix（预期无产出 diff）**：成功 run 的成片零变化，仅在补偿失败路径把「静默发 1.0x take」改为具名阻断；复现需 30 分钟 Kaggle 超时，无新成片可对比，以真实 `unitree-h2x-guardian` hook（10 词 @179 WPM）计划复算 1.1x floor 作真实内容核对。PR **#935** squash `074a68cb`。**frontier 复算**：Track 1A 推进至 **`#870`（P2·Tier 2）→ `#888`（P2·Tier 2）**（`#925` 闭票）；Track 2 `#291` AFK 空；Track 1B（Step 4 ①）**`#910` → `#778` → `#353` → `#358` → `#329` → `#922`**；Track 3 HITL（Step 4 ②）队首 `#723`；Step 4 ④ 低优工程卫生含 `#911`。）
 
@@ -91,10 +93,12 @@
 
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
-## 近轮一句话档案（Round XCV → J）
+## 近轮一句话档案（Round XCVI → J）
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round XCVI**（`#529` 执行期清单处置——11 条批准类全部处置：R2①③/R3①②③/R8① 路由 owner 票（#733/#731/#735/#734/#732），R2④ 无动作，R6②「画面理解合同」落 `video-script-writing-guide.md` + Stage 3 入口指针，R6③ 挂 runbook 下次改动、R6① 挂外部长视频立项；dead-air 不新增（证据门槛未满足）；`#529` 转 `dormant` 触发账本；PR #929 squash `35e09578`；droid 3 条全修 resolve；enabling fix 无产出 diff；frontier：Track 3 HITL `#723`、Track 1B `#778`）
 
 **Round XCV**（`#763` 交付闭票——MRL-2 分层：47 个注册检查拆为 30 类机检门 + 18 项编辑建议（17 函数 + 头像策略）；`editorial` 第四返回桶不进退出码；`checkLayoutField` 仅 narrative 强制 `layout`（7 旧包 58 个假 FAIL 清零）；`checkSemanticConsistency` 词边界匹配并删除需实体作用域的 `up/down` 等；通过项按类别折叠（didi 80→48 行）；droid 5 条全修 resolve；4696 tests、CI 全绿；PR #926 squash `25533acc`；frontier：Track 3 HITL `#529`、Track 1B `#778`）
 
