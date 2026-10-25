@@ -22,7 +22,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { join } from "path";
-import { mkdtempSync, rmSync } from "fs";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 
 vi.mock("../lib/tts/quality-gate.mjs", () => ({
@@ -270,5 +270,254 @@ describe("pacing feedback loop (#252)", () => {
     const metaCall = writeSceneMeta.mock.calls.find(([, id]) => id === 1);
     expect(metaCall).toBeTruthy();
     expect(metaCall[2].ttsSpeed).toBe(1.2);
+  });
+});
+
+/**
+ * #925 — a compensation round that produces NO take is an infrastructure
+ * failure, not a decision that compensation is unnecessary.
+ *
+ * Before this ticket the `catch` around `engine.generate` only warned, then the
+ * "no new takes" branch dropped the `ttsSpeed` override and shipped the old
+ * 1.0x take whenever the source take had passed the gate. A Kaggle timeout
+ * therefore published a 1.0x hook (unitree-h2x-guardian, 2026-10-24) with no
+ * warning anywhere in the log. The ticket's verdict: generation failures fail
+ * closed — including the partial-batch hole, where a missing scene never
+ * entered the result loop at all.
+ */
+describe("#925 compensation generation failure is fail-closed", () => {
+  let dir;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dir = mkdtempSync(join(tmpdir(), "tts-925-"));
+    delete process.env.TTS_SKIP_QUALITY_GATE;
+    delete process.env.TTS_STRICT_QUALITY_GATE;
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    delete process.env.TTS_SKIP_QUALITY_GATE;
+    delete process.env.TTS_STRICT_QUALITY_GATE;
+  });
+
+  function engineReturningAudio() {
+    const engine = fakeEngine();
+    engine.generate.mockImplementation(async (scenes) =>
+      scenes.map((s) => ({
+        sceneId: s.id,
+        audioPath: join(dir, `scene-${s.id}.wav`),
+        duration: 5,
+      })),
+    );
+    return engine;
+  }
+
+  /** First (baseline) round succeeds; every regeneration round throws. */
+  function engineWithFailingRegen(error = "Kaggle kernel timed out after 30m5s") {
+    const engine = fakeEngine();
+    let calls = 0;
+    engine.generate.mockImplementation(async (scenes) => {
+      calls += 1;
+      if (calls > 1) throw new Error(error);
+      return scenes.map((s) => ({
+        sceneId: s.id,
+        audioPath: join(dir, `scene-${s.id}.wav`),
+        duration: 5,
+      }));
+    });
+    return engine;
+  }
+
+  it("RED: an in-band hook (179 WPM, 1.1x floor) blocks instead of shipping 1.0x", async () => {
+    const engine = engineWithFailingRegen();
+    stubGate(() => 179);
+
+    const promise = generateTTSWithEngine([makeHook()], dir, engine, {
+      useCache: false,
+      runAlignment: false,
+    });
+
+    await expect(promise).rejects.toMatchObject({ code: "TTS_PACING_COMPENSATION_BLOCK" });
+    await expect(promise).rejects.toThrow(/scene 1/);
+    expect(engine.generate).toHaveBeenCalledTimes(2);
+  });
+
+  it("RED: a 140 WPM narrative (below the trigger) blocks instead of shipping the slow take", async () => {
+    const engine = engineWithFailingRegen();
+    stubGate(() => 140);
+
+    const promise = generateTTSWithEngine([makeNarrative()], dir, engine, {
+      useCache: false,
+      runAlignment: false,
+    });
+
+    await expect(promise).rejects.toMatchObject({ code: "TTS_PACING_COMPENSATION_BLOCK" });
+    await expect(promise).rejects.toThrow(/scene 2/);
+  });
+
+  it("drops the planned override before blocking (meta stays keyed to the shipped 1.0x take)", async () => {
+    const engine = engineWithFailingRegen();
+    stubGate(() => 179);
+    const hook = makeHook();
+
+    await expect(
+      generateTTSWithEngine([hook], dir, engine, { useCache: true, runAlignment: false }),
+    ).rejects.toMatchObject({ code: "TTS_PACING_COMPENSATION_BLOCK" });
+
+    expect(hook.ttsSpeed).toBeUndefined();
+    const metaCall = writeSceneMeta.mock.calls.find(([, id]) => id === 1);
+    expect(metaCall).toBeTruthy();
+    expect(metaCall[2].ttsSpeed).toBe(1.0);
+  });
+
+  it("keeps the >225 reroll hard block for a reroll that produced no take", async () => {
+    const engine = engineWithFailingRegen();
+    stubGate(() => 257);
+
+    await expect(
+      generateTTSWithEngine([makeNarrative()], dir, engine, {
+        useCache: false,
+        runAlignment: false,
+      }),
+    ).rejects.toMatchObject({ code: "TTS_PACING_HARD_BLOCK" });
+  });
+
+  it("RED: a partial batch that drops a planned compensation blocks (missing scene never entered the loop)", async () => {
+    const engine = fakeEngine();
+    let calls = 0;
+    engine.generate.mockImplementation(async (scenes) => {
+      calls += 1;
+      // Round 2 returns only the hook; the narrative's take is missing.
+      const returned = calls === 1 ? scenes : scenes.filter((s) => s.id === 1);
+      return returned.map((s) => ({
+        sceneId: s.id,
+        audioPath: join(dir, `scene-${s.id}.wav`),
+        duration: 5,
+      }));
+    });
+    // First pass: hook 165 (floor 1.1), narrative 140 (compensate).
+    stubGate((id, call) => (call === 0 ? (id === 1 ? 165 : 140) : 160));
+
+    const promise = generateTTSWithEngine([makeHook(), makeNarrative()], dir, engine, {
+      useCache: false,
+      runAlignment: false,
+    });
+
+    await expect(promise).rejects.toMatchObject({ code: "TTS_PACING_COMPENSATION_BLOCK" });
+    await expect(promise).rejects.toThrow(/scene 2/);
+    await expect(promise).rejects.not.toThrow(/scene 1/);
+  });
+
+  it("a missing compensation of a gate-REJECTED take stays TTS_PACING_FLOOR_BLOCK (F5 may repair it)", async () => {
+    const engine = fakeEngine();
+    let calls = 0;
+    engine.generate.mockImplementation(async (scenes) => {
+      calls += 1;
+      const returned = calls === 1 ? scenes : scenes.filter((s) => s.id === 2);
+      return returned.map((s) => ({
+        sceneId: s.id,
+        audioPath: join(dir, `scene-${s.id}.wav`),
+        duration: 5,
+      }));
+    });
+    // Gate 0: scene 1 failed pacing (100 WPM), scene 2 passed at 140.
+    stubGate(
+      (id, call) => (id === 1 ? (call === 0 ? 100 : 160) : 140),
+      (id, call) => !(id === 1 && call === 0),
+    );
+    // The failing verdict needs its pacing class for the compensation plan.
+    const base = runTtsQualityGate.getMockImplementation();
+    runTtsQualityGate.mockImplementation(async (scenes, results, opts) => {
+      const report = await base(scenes, results, opts);
+      for (const e of report.evaluations) {
+        if (!e.passed) e.failureClass = "pacing";
+      }
+      return report;
+    });
+
+    await expect(
+      generateTTSWithEngine([makeNarrative(), makeHook()], dir, engine, {
+        useCache: false,
+        runAlignment: false,
+      }),
+    ).rejects.toMatchObject({ code: "TTS_PACING_FLOOR_BLOCK" });
+  });
+
+  it("#925×#820: the normal path warns when an in-band hook still ships below its 1.1x floor", async () => {
+    const engine = engineReturningAudio();
+    // 165 WPM hook: in band, but the #244 floor plans 1.1x. The compensation
+    // take is rejected, so the original 1.0x audio ships — previously silent.
+    stubGate(
+      (id, call) => (call === 0 ? 165 : 142),
+      (id, call) => call === 0,
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await generateTTSWithEngine([makeHook()], dir, engine, {
+      useCache: false,
+      runAlignment: false,
+    });
+
+    const text = warn.mock.calls.map((c) => c.join(" ")).join("\n");
+    expect(text).toMatch(/still ship below/);
+    expect(text).toMatch(/scene 1/);
+    warn.mockRestore();
+  });
+
+  /** Gate: first pass in-band, the compensation take fails acoustically. */
+  function stubAcousticCompensationFailure() {
+    let gateCall = 0;
+    runTtsQualityGate.mockImplementation(async (_scenes, results) => {
+      const call = gateCall++;
+      const evaluations = results.map((r) => ({
+        sceneId: r.sceneId,
+        passed: call === 0,
+        wpm: call === 0 ? 165 : 142,
+        issues: call === 0 ? [] : ["Audio file missing or zero bytes"],
+        failureClass: call === 0 ? null : "acoustic",
+        warnings: [],
+      }));
+      return {
+        passed: evaluations.every((e) => e.passed),
+        failedCount: evaluations.filter((e) => !e.passed).length,
+        evaluations,
+      };
+    });
+  }
+
+  it("RED (#925): a returned take with no audio bytes blocks — it was never produced", async () => {
+    const engine = engineReturningAudio(); // returns paths, writes no bytes
+    stubAcousticCompensationFailure();
+    const hook = makeHook();
+
+    const promise = generateTTSWithEngine([hook], dir, engine, {
+      useCache: true,
+      runAlignment: false,
+    });
+
+    await expect(promise).rejects.toMatchObject({ code: "TTS_PACING_COMPENSATION_BLOCK" });
+    expect(hook.ttsSpeed).toBeUndefined();
+  });
+
+  it("a gate-rejected compensation WITH audio bytes still falls back to the original take (#252)", async () => {
+    const engine = fakeEngine();
+    engine.generate.mockImplementation(async (scenes) => {
+      const batch = scenes.map((s) => ({
+        sceneId: s.id,
+        audioPath: join(dir, `scene-${s.id}.wav`),
+        duration: 5,
+      }));
+      for (const res of batch) writeFileSync(res.audioPath, "audio-bytes");
+      return batch;
+    });
+    stubAcousticCompensationFailure();
+
+    const results = await generateTTSWithEngine([makeHook()], dir, engine, {
+      useCache: true,
+      runAlignment: false,
+    });
+
+    expect(results.map((r) => r.sceneId)).toEqual([1]);
+    const metaCall = writeSceneMeta.mock.calls.find(([, id]) => id === 1);
+    expect(metaCall[2].ttsSpeed).toBe(1.0);
   });
 });

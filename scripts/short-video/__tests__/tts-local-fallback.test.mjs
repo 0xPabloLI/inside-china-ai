@@ -270,8 +270,12 @@ describe("TTS local fallback (#704)", () => {
     expect(engine.generate.mock.calls[1][0].map((s) => s.id)).toEqual([2]);
     expect(engine.generate.mock.calls[1][0][0].ttsSpeed).toBeCloseTo(165 / 140, 6);
     expect(scenes[1].ttsSpeed).toBeCloseTo(165 / 140, 6);
-    // Nothing is left below the trigger, so the stranded warning stays silent.
-    expect(warnText()).not.toMatch(/still ship below/);
+    // Scene 2 is compensated, so it drops out. Scene 1 is a hook the F5 repair
+    // left at 1.0x (F5 never consumes `scene.ttsSpeed`), so the unified
+    // stranded readout (#925) still names it: the #244 1.1x floor is unmet.
+    expect(warnText()).toMatch(/still ship below/);
+    expect(warnText()).toMatch(/scene 1 \(160 WPM, f5-mlx take/);
+    expect(warnText()).not.toMatch(/scene 2 \(/);
   });
 
   it("#820: mixed pacing-floor block + a surviving 140 WPM scene — the survivor is compensated", async () => {
@@ -376,7 +380,38 @@ describe("TTS local fallback (#704)", () => {
     expect(results.find((r) => r.sceneId === 1).engine).toBe(f5);
     expect(engine.generate).toHaveBeenCalledTimes(1);
     expect(warnText()).toMatch(/scene 1 \(130 WPM, f5-mlx take/);
-    expect(warnText()).toMatch(/still ship below the 150 WPM compensation trigger/);
+    expect(warnText()).toMatch(/still ship below the speed the ladder planned/);
+  });
+
+  it("#925: a failed compensation round does NOT route to F5 (F5 cannot consume ttsSpeed)", async () => {
+    const scenes = [makeScenes()[0]]; // in-band hook → #244 1.1x floor plan
+    let calls = 0;
+    const engine = {
+      name: "cosyvoice3-mlx",
+      info: "CosyVoice3-MLX (test)",
+      instructForScene: vi.fn(() => "mlx-instruct"),
+      generate: vi.fn(async (batch, outDir) => {
+        if (calls++ > 0) throw new Error("Kaggle kernel timed out after 30m5s");
+        return batch.map((s) => ({
+          sceneId: s.id,
+          audioPath: join(outDir, `scene-${s.id}.wav`),
+          duration: 5,
+        }));
+      }),
+    };
+    stubGateSequence([(id) => pass(id, 165)]);
+
+    const err = await runCapturingError(scenes, dir, engine, {
+      useCache: false,
+      runAlignment: false,
+      maxRetries: 0,
+    });
+
+    expect(err?.code).toBe("TTS_PACING_COMPENSATION_BLOCK");
+    expect(err?.failedScenes).toEqual([{ sceneId: 1 }]);
+    // The new block code is outside the F5 whitelist on purpose: replacing a
+    // gate-passing take with another engine's voice is not an infra repair.
+    expect(createF5MLXEngine).not.toHaveBeenCalled();
   });
 
   it("F5 also failing rethrows the ORIGINAL acoustic block and promotes nothing", async () => {
