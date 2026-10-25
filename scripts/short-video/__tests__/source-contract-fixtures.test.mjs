@@ -1,35 +1,41 @@
 /**
- * Wire-contract locks for the API media sources (#778, registry batch 1).
+ * Wire-contract locks for the API media sources and progressive image parsers
+ * (#778).
  *
  * Fixtures under `fixtures/source-contracts/` are REAL responses captured on
- * 2026-10-25 from each source's production `searchUrl` (keyword "artificial
+ * 2026-10-25 from each source's production search URL (keyword "artificial
  * intelligence robot"): Pexels/Unsplash/Pixabay/Coverr/Brave via curl, SearXNG
- * from the local instance (`npm run searxng:ensure`). Each fixture keeps two
- * wire entries and the fields the adapter consumes; every kept value is
- * verbatim — nothing is hand-authored. Unconsumed sibling fields are dropped
- * to keep the fixture small.
+ * from the local instance (`npm run searxng:ensure`), DuckDuckGo via the
+ * automation Chrome (i.js needs a live vqd). Each fixture keeps two wire
+ * entries and the fields the adapter consumes; every kept value is verbatim —
+ * nothing is hand-authored. Unconsumed sibling fields are dropped to keep the
+ * fixture small.
  *
- * Recapture: call `capabilities[kind].searchUrl(KEYWORD, key)` from
- * `source-registry.mjs`, then trim to two entries without editing values.
+ * Recapture registry sources: call `capabilities[kind].searchUrl(KEYWORD, key)`
+ * from `source-registry.mjs`; recapture the progressive parsers by hitting the
+ * DDG `i.js` endpoint (landing page first for vqd) and Tavily `/search` with
+ * `include_images`. Then trim to two entries without editing values.
  *
  * Each test runs the real adapter over its fixture and locks:
  *   - every wire entry parses into a candidate with a usable url and a title
  *     that came from the wire (not the keyword fallback), so a dropped title
  *     field cannot hide behind `title || keyword`;
- *   - Pexels video's empty title and Wikimedia's unresolved url are the
- *     documented source behavior, not contract violations;
+ *   - Pexels video's empty title, Wikimedia's unresolved url and Tavily's
+ *     keyword-only title are documented source behavior, not violations;
  *   - renaming the response container, an identity field, a title field or a
  *     numeric type fails with the source and field named — an external schema
  *     change cannot resurface as a silent "0 results".
  *
- * A new API media source must ship a fixture here — the missing-fixture guard
- * fails until one is captured (same rule as the pool contract, #305).
+ * A new API media source or progressive image parser must ship a fixture here
+ * — the missing-fixture guard fails until one is captured (same rule as the
+ * pool contract, #305).
  */
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { STOCK_MEDIA_SOURCES } from "../lib/source-registry.mjs";
+import * as progressiveSearch from "../lib/progressive-search.mjs";
 
 const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "source-contracts");
 const KEYWORD = "artificial intelligence robot";
@@ -224,6 +230,54 @@ const CONTRACTS = [
     },
     titleDrift: { mutate: (body) => renameInEntries(body, ["results"], "title", "title_v2") },
   },
+  {
+    // Not a registry source: this parser lives in progressive-search.mjs and
+    // feeds the same candidate path.
+    parser: "parseDuckDuckGoImagesResponse",
+    label: "duckduckgo_images",
+    fixture: "duckduckgo-images",
+    container: ["results"],
+    wireField: "image",
+    hasUrl: (entry) => isNonEmpty(entry?.image),
+    required: [
+      { label: "url (wire: image)", get: (c) => c.url, check: isHttp },
+      { label: "resolution (wire: width+height)", get: (c) => c.resolution, check: isWxH },
+      { label: "title (wire: title)", get: (c) => c.title, check: titleFromWire },
+    ],
+    assert: (candidates) => {
+      for (const c of candidates) expect(c.source).toBe("duckduckgo_images");
+    },
+    drift: {
+      field: "image",
+      mutate: (body) => renameInEntries(body, ["results"], "image", "imageUrl"),
+    },
+    titleDrift: { mutate: (body) => renameInEntries(body, ["results"], "title", "title_v2") },
+  },
+  {
+    // Tavily returns image entry strings (no title/description on the wire), so
+    // the keyword fallback in the title is the real contract here — there is
+    // no wire title field that could disappear.
+    parser: "parseTavilyImagesResponse",
+    label: "tavily_images",
+    fixture: "tavily-images",
+    container: ["images"],
+    wireField: "images[] string|entry.url",
+    hasUrl: (entry) => (typeof entry === "string" ? isNonEmpty(entry) : isHttp(entry?.url)),
+    required: [
+      { label: "url (wire: images[] string|entry.url)", get: (c) => c.url, check: isHttp },
+      { label: "title (wire: description | keyword)", get: (c) => c.title, check: isNonEmpty },
+    ],
+    assert: (candidates) => {
+      for (const c of candidates) expect(c.source).toBe("tavily_images");
+    },
+    drift: {
+      field: "images[] string|entry.url",
+      // The endpoint switching to objects with an unrecognised url key.
+      mutate: (body) => {
+        body.images = body.images.map((url) => ({ src: url }));
+      },
+    },
+  },
 ];
 
 function loadFixture(name) {
@@ -245,6 +299,10 @@ function capability(name, kind) {
   return cap;
 }
 
+function sourceOf(contract) {
+  return contract.registry?.name ?? contract.label;
+}
+
 /** Entries the adapter is expected to keep: all of them, minus url-less drops. */
 function expectedCandidateCount(contract, body) {
   const entries = entriesAt(body, contract.container);
@@ -257,11 +315,10 @@ function expectedCandidateCount(contract, body) {
  * downstream empty candidate pool.
  */
 function assertContract(contract, body, expectedCount) {
-  const source = contract.registry.name;
-  const candidates = capability(contract.registry.name, contract.registry.kind).parseResponse(
-    body,
-    KEYWORD,
-  );
+  const source = sourceOf(contract);
+  const candidates = contract.parser
+    ? progressiveSearch[contract.parser](body, KEYWORD)
+    : capability(contract.registry.name, contract.registry.kind).parseResponse(body, KEYWORD);
 
   if (candidates.length !== expectedCount) {
     throw new Error(
@@ -304,21 +361,32 @@ function escapeRegExp(value) {
 }
 
 function sourcePattern(contract, field) {
-  return new RegExp(`${escapeRegExp(contract.registry.name)}.*${escapeRegExp(field)}`);
+  return new RegExp(`${escapeRegExp(sourceOf(contract))}.*${escapeRegExp(field)}`);
 }
 
 describe("media source wire contracts (#778)", () => {
   it("every API media source ships a captured fixture", () => {
-    const covered = new Set(CONTRACTS.map((c) => `${c.registry.name}:${c.registry.kind}`));
+    const covered = new Set(
+      CONTRACTS.filter((c) => c.registry).map((c) => `${c.registry.name}:${c.registry.kind}`),
+    );
     const missing = STOCK_MEDIA_SOURCES.flatMap((source) =>
       Object.entries(source.capabilities ?? {})
         .filter(([kind, cap]) => cap?.method === "api" && (kind === "images" || kind === "videos"))
         .map(([kind]) => `${source.name}:${kind}`),
     ).filter((id) => !covered.has(id));
 
-    if (missing.length > 0) {
+    const coveredParsers = new Set(CONTRACTS.filter((c) => c.parser).map((c) => c.parser));
+    const missingParsers = Object.keys(progressiveSearch).filter(
+      (name) =>
+        /^parse.*ImagesResponse$/.test(name) &&
+        typeof progressiveSearch[name] === "function" &&
+        !coveredParsers.has(name),
+    );
+
+    const gaps = [...missing, ...missingParsers.map((n) => `progressive ${n}`)];
+    if (gaps.length > 0) {
       throw new Error(
-        `missing wire fixture for ${missing.join(", ")} — capture the production searchUrl response ` +
+        `missing wire fixture for ${gaps.join(", ")} — capture the production response ` +
           `into __tests__/fixtures/source-contracts/ and add a contract row before shipping`,
       );
     }
@@ -327,7 +395,7 @@ describe("media source wire contracts (#778)", () => {
   for (const contract of CONTRACTS) {
     const fixturePath = join(FIXTURE_DIR, `${contract.fixture}.json`);
 
-    describe(`${contract.registry.name} contract`, () => {
+    describe(`${sourceOf(contract)} contract`, () => {
       if (!existsSync(fixturePath)) {
         it("has a captured wire fixture", () => {
           throw new Error(
