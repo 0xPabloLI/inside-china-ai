@@ -11,10 +11,11 @@
  * @module tts/quality-gate
  */
 
-import { existsSync, statSync, mkdtempSync, rmSync } from "fs";
+import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { transcribeVideo } from "../video-understand.mjs";
+import { hasAudioBytes } from "./audio-file.mjs";
 import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "../asr-defaults.mjs";
 import {
   splitDigitUnitToken,
@@ -715,7 +716,7 @@ export async function evaluateSceneTts(scene, audioPath, durationSec, options = 
   } = options;
 
   // 1. Verify audio file exists and has non-zero size
-  if (!existsSync(audioPath) || statSync(audioPath).size === 0) {
+  if (!hasAudioBytes(audioPath)) {
     return {
       sceneId: scene.id,
       passed: false,
