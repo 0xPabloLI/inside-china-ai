@@ -1,0 +1,24 @@
+{
+  "query": {
+    "searchinfo": {
+      "totalhits": 7492
+    },
+    "search": [
+      {
+        "ns": 6,
+        "title": "File:ChatGPT and artificial intelligence in higher education.pdf",
+        "pageid": 131226375
+      },
+      {
+        "ns": 6,
+        "title": "File:Artificial Intelligence Concept Hypermap.pdf",
+        "pageid": 147733734
+      }
+    ]
+  },
+  "batchcomplete": "",
+  "continue": {
+    "sroffset": 10,
+    "continue": "-||"
+  }
+}

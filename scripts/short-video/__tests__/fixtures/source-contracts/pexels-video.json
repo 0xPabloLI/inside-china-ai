@@ -1,0 +1,94 @@
+{
+  "videos": [
+    {
+      "id": 8087025,
+      "width": 2160,
+      "height": 3840,
+      "duration": 19,
+      "user": {
+        "name": "Pavel Danilyuk"
+      },
+      "video_files": [
+        {
+          "link": "https://videos.pexels.com/video-files/8087025/8087025-hd_1080_1920_25fps.mp4",
+          "width": 1080,
+          "height": 1920
+        },
+        {
+          "link": "https://videos.pexels.com/video-files/8087025/8087025-sd_240_426_25fps.mp4",
+          "width": 240,
+          "height": 426
+        },
+        {
+          "link": "https://videos.pexels.com/video-files/8087025/8087025-sd_360_640_25fps.mp4",
+          "width": 360,
+          "height": 640
+        },
+        {
+          "link": "https://videos.pexels.com/video-files/8087025/8087025-uhd_2160_3840_25fps.mp4",
+          "width": 2160,
+          "height": 3840
+        },
+        {
+          "link": "https://videos.pexels.com/video-files/8087025/8087025-sd_540_960_25fps.mp4",
+          "width": 540,
+          "height": 960
+        },
+        {
+          "link": "https://videos.pexels.com/video-files/8087025/8087025-hd_720_1280_25fps.mp4",
+          "width": 720,
+          "height": 1280
+        },
+        {
+          "link": "https://videos.pexels.com/video-files/8087025/8087025-uhd_1440_2560_25fps.mp4",
+          "width": 1440,
+          "height": 2560
+        }
+      ]
+    },
+    {
+      "id": 35280160,
+      "width": 2160,
+      "height": 3840,
+      "duration": 24,
+      "user": {
+        "name": "Magda Ehlers"
+      },
+      "video_files": [
+        {
+          "link": "https://videos.pexels.com/video-files/35280160/14945651_360_640_25fps.mp4",
+          "width": 360,
+          "height": 640
+        },
+        {
+          "link": "https://videos.pexels.com/video-files/35280160/14945652_540_960_25fps.mp4",
+          "width": 540,
+          "height": 960
+        },
+        {
+          "link": "https://videos.pexels.com/video-files/35280160/14945653_720_1280_25fps.mp4",
+          "width": 720,
+          "height": 1280
+        },
+        {
+          "link": "https://videos.pexels.com/video-files/35280160/14945654_1080_1920_25fps.mp4",
+          "width": 1080,
+          "height": 1920
+        },
+        {
+          "link": "https://videos.pexels.com/video-files/35280160/14945655_1440_2560_25fps.mp4",
+          "width": 1440,
+          "height": 2560
+        },
+        {
+          "link": "https://videos.pexels.com/video-files/35280160/14945656_2160_3840_25fps.mp4",
+          "width": 2160,
+          "height": 3840
+        }
+      ]
+    }
+  ],
+  "page": 1,
+  "per_page": 10,
+  "total_results": 2758
+}
