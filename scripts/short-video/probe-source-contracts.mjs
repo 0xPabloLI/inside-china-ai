@@ -3,11 +3,15 @@
  * Recapture the wire fixtures used by
  * `__tests__/source-contract-fixtures.test.mjs` (#778).
  *
- * Calls each source the same way production does, keeps the first two entries
- * of the response container untouched (all fields, all values), and writes
- * `__tests__/fixtures/source-contracts/<name>.json`. Nothing is hand-authored
- * and nothing is pruned — a fixture must keep the real wire shape so it can
- * disprove (not just confirm) our assumptions.
+ * Calls each source the same way production does and writes
+ * `__tests__/fixtures/source-contracts/<name>.json`. Entries keep all of their
+ * fields and values — nothing is hand-authored — so a fixture can disprove
+ * (not just confirm) our assumptions. Every top-level array is trimmed to its
+ * first two entries and the file is stored minified, which keeps each fixture
+ * under the 10 KB budget from the #778 triage proposal without dropping any
+ * entry field. Only credentials/PII are redacted: DuckDuckGo's ephemeral
+ * anti-bot tokens, Coverr's legacy `userToken`, and email addresses
+ * (contributor/author bios).
  *
  * Not part of CI: network + API keys live only on the operator machine.
  *
@@ -67,16 +71,44 @@ function firstTwo(body, path) {
   return body;
 }
 
+/**
+ * Trim every top-level array to two entries too (e.g. Tavily's web `results`,
+ * DuckDuckGo's `query_expansions`). Keeps the wire shape of each entry while
+ * holding each fixture under the ticket's 10 KB budget.
+ */
+function trimTopLevelArrays(body) {
+  for (const value of Object.values(body)) {
+    if (Array.isArray(value)) value.splice(2);
+  }
+  return body;
+}
+
+const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+
+/** Redact PII (emails in author bios etc.) recursively; field shape survives. */
+function redactEmails(value) {
+  if (typeof value === "string") return value.replace(EMAIL, "<redacted>");
+  if (Array.isArray(value)) return value.map(redactEmails);
+  if (value && typeof value === "object") {
+    for (const key of Object.keys(value)) value[key] = redactEmails(value[key]);
+  }
+  return value;
+}
+
 function write(name, body, path) {
-  const trimmed = firstTwo(structuredClone(body), path);
+  const trimmed = trimTopLevelArrays(redactEmails(firstTwo(structuredClone(body), path)));
   const entries = path.reduce((node, key) => node?.[key], trimmed);
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new Error("captured container is empty (challenge page or blocked search)");
   }
   mkdirSync(OUT_DIR, { recursive: true });
   const file = join(OUT_DIR, `${name}.json`);
-  writeFileSync(file, `${JSON.stringify(trimmed, null, 2)}\n`);
-  console.log(`${name}: ${entries.length} entries, ${readFileSync(file).length} bytes`);
+  // Minified: the fixture is loaded by tests, never read by hand; keeping it
+  // compact holds the 10 KB/file budget from the #778 triage proposal.
+  writeFileSync(file, `${JSON.stringify(trimmed)}\n`);
+  const bytes = readFileSync(file).length;
+  console.log(`${name}: ${entries.length} entries, ${bytes} bytes`);
+  if (bytes > 10 * 1024) console.warn(`${name}: fixture exceeds the 10 KB budget (${bytes} bytes)`);
 }
 
 function captureDuckDuckGo() {
@@ -116,16 +148,14 @@ function captureDuckDuckGo() {
 }
 
 /**
- * Coverr echoes the request query string in `params` (including the legacy
- * `userToken`) and exposes contributor emails. Both are credentials/PII, not
- * contract fields; redact them in place so the field shape survives.
+ * Coverr echoes the request query string in `params`, including the legacy
+ * `userToken`. That is a credential, not a contract field; redact it in place
+ * so the field shape survives. Contributor emails are handled by the generic
+ * `redactEmails` pass.
  */
 function sanitizeCoverr(body) {
   if (typeof body.params === "string") {
     body.params = body.params.replace(/(userToken=)[^&]+/, "$1<redacted>");
-  }
-  for (const hit of body.hits ?? []) {
-    if (hit.contributor?.email) hit.contributor.email = "<redacted>";
   }
   return body;
 }

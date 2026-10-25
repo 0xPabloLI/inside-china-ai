@@ -5,16 +5,15 @@
  * Fixtures under `fixtures/source-contracts/` are REAL responses captured on
  * 2026-10-25 by `scripts/short-video/probe-source-contracts.mjs` (keyword
  * "artificial intelligence robot"): Pexels/Unsplash/Pixabay/Coverr/Brave/
- * Tavily/SearXNG from their production endpoints, SearXNG from the local
- * instance (`npm run searxng:ensure`), DuckDuckGo from its i.js endpoint
- * (landing page first for the dynamic vqd). Each fixture keeps the first two
- * entries of its response container with every content field and value
- * untouched — nothing is hand-authored or pruned, so the fixture can disprove
- * our assumptions (e.g. Pexels video entries really have no `description`).
- * Credentials/PII are the only redactions, in place so the field shape
- * survives: DuckDuckGo's ephemeral anti-bot tokens (`vqd`, `image_token`,
- * `thumbnail_token`) and Coverr's legacy `userToken` plus contributor emails.
- * None are contract fields.
+ * Tavily from their production endpoints, SearXNG from the local instance
+ * (`npm run searxng:ensure`), DuckDuckGo from its i.js endpoint (landing page
+ * first for the dynamic vqd). Each entry keeps every field and value —
+ * nothing is hand-authored — so the fixture can disprove our assumptions
+ * (e.g. Pexels video entries really have no `description`). Every top-level
+ * array is trimmed to two entries and the JSON is minified to stay under the
+ * 10 KB/file budget; credentials/PII are the only redactions: DuckDuckGo's
+ * ephemeral anti-bot tokens (`vqd`, `image_token`, `thumbnail_token`),
+ * Coverr's legacy `userToken`, and email addresses. None are contract fields.
  *
  * Each test runs the real adapter over its fixture and locks:
  *   - every kept wire entry parses into the candidate the wire implies:
@@ -35,7 +34,7 @@
  * pool contract, #305).
  */
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { STOCK_MEDIA_SOURCES } from "../lib/source-registry.mjs";
@@ -527,6 +526,18 @@ describe("media source wire contracts (#778)", () => {
       throw new Error(
         `missing wire fixture for ${gaps.join(", ")} — capture the production response with ` +
           `scripts/short-video/probe-source-contracts.mjs and add a contract row before shipping`,
+      );
+    }
+
+    // #778 triage proposal: 2–3 real entries per fixture, under 10 KB/file.
+    const oversized = [...new Set(CONTRACTS.map((c) => c.fixture))].filter((name) => {
+      const file = join(FIXTURE_DIR, `${name}.json`);
+      return existsSync(file) && statSync(file).size > 10 * 1024;
+    });
+    if (oversized.length > 0) {
+      throw new Error(
+        `fixture over the 10 KB/file budget: ${oversized.join(", ")} — trim unrelated ` +
+          `containers in scripts/short-video/probe-source-contracts.mjs and recapture`,
       );
     }
   });
