@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 39 轮盘点 + 69 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案；Round CI 收尾再下沉 C 盘点与 XCVII 一句话档案）。
+> 本文件按时间倒序排列，共 40 轮盘点 + 70 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案；Round CI 收尾再下沉 C 盘点与 XCVII 一句话档案；Round CII 收尾再下沉 CI 盘点与 XCVIII 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,7 +13,7 @@
 
 ---
 
-## 逐轮盘点（Round C → LV）
+## 逐轮盘点（Round CI → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
 
@@ -99,6 +99,8 @@
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round XCVIII**（`#925` 交付闭票——pacing 补偿轮失败/部分返回/无音频字节一律 fail-closed：源 take 已过门 → 新 `TTS_PACING_COMPENSATION_BLOCK`（不入 F5 白名单），gate 拒过的仍 floor block，重抽缺音频仍 hard block；补「部分返回从未进结果循环」「有条目无音频字节被当成新 take 拒收」「`stranded` 只认 <150 WPM」三个洞；`stranded` 统一为「<150 WPM 或低于计划速度」并在常态路径告警，缺失/零字节判定单源 `lib/tts/audio-file.mjs`；10 例新单测、`tts-*` 534 + 全量 4706 绿、droid 2 条（P2 第二事实来源 / P3 文案自相矛盾）修并 resolve、两轴 review 5 条修后复核无回归；enabling fix 无产出 diff；PR #935 squash `074a68cb`；frontier：Track 1A `#870 → #888`、Track 1B `#910 → #778`、HITL `#723`）
 
 **Round XCVII**（5 张新票 `#925`/`#911`/`#910`/`#888`/`#870` 源码与真机产物核验、方案审查/补齐与 Triage 入表（triage-only，无代码改动）——`#925`（P1·Tier 1·W1A：pacing 补偿超时/缺失结果 fail-closed 阻断 + 部分返回防漏 + 统一 `stranded` 并在常态路径输出）、`#870`（P2·Tier 2·W1A：`verifyWithRetry` 全链路透传 `{ videoPath, assPath }` + Rollback 分支路径保护 + `main.mjs` 消费返回路径）、`#888`（P2·Tier 2·W2B：`bing_news` 声明 `probeAuthoritative: false` 防裸 `fetch` 跳 `cn.bing.com` 误杀 CDP）入 Track 1A；`#910`（P2·Tier 2·W1C：`remotion` 声明 `zod` override 升 `4.6.6` + `fast-uri 3.1.9`、`scan:deps` 与 `pre-push` 扩显式双 `--lockfile`，禁 `--recursive` 防 PyPI 142 条误报）入 Track 1B（Step 4 ①）；`#911`（P3·Tier 3·W1C：删 `osv-scanner.toml` 已撤回 `GHSA-hp3w-g68c-fv3c` 并补撤回规则）归 Step 4 ④ 低优整理段；清理 8 张票 `comments-unread`；frontier：Track 1A `#925 → #870 → #888`、Track 1B `#910 → #778`、HITL `#723`）
 
