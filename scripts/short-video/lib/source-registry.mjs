@@ -10,6 +10,11 @@
  * - label: display name
  * - category: "news" | "self_media" | "general" | "international" | "last30days" | "wechat"
  * - needsAuth: whether login is required
+ * - probeAuthoritative: false when the unauthenticated URL probe cannot speak
+ *     for this source (#888) — its bare fetch is geo/cookie-redirected to
+ *     another region's homepage while the CDP layer opens the search page.
+ *     Absent means probeable. Passed into capabilities.articles and read only
+ *     through isProbeAuthoritative() in lib/source-health.mjs.
  * - supportsKeyword: whether the source supports keyword search (vs homepage-only)
  * - sourceRole: evidence-group role (optional, issue #97) —
  *     "tracked-feed-context" for fixed public feeds (Wechat2RSS): fetched once
@@ -657,6 +662,14 @@ export const NEWS_SOURCES = [
       notes: "CDP search page. Articles only — cards expose only Bing CDN thumbnails (#636).",
     },
     needsAuth: false,
+    // #888 (2026-10-25): a bare Node fetch of this URL intermittently follows a
+    // geo redirect to https://cn.bing.com/ (HTTP 200 → judged `redirected-home`)
+    // because it carries no browser geo/session cookie, while the CDP layer
+    // opens /news/search and yields 6–12 real articles. The probe has no
+    // session, so its verdict is noise for this source — skip it and let CDP
+    // speak. Keep the shared `redirected-home` judge untouched: other sources
+    // genuinely die in that shape (#269).
+    probeAuthoritative: false,
     useCleanTitle: false,
     // #636: same fact as above, for the article path. `enrichWithMedia` would
     // otherwise cache the card's <img> as topics[].images[].url, which the
@@ -3748,6 +3761,10 @@ function enrichWithCapabilities(sources) {
         articleScript: source.articleScript,
         loginCheckScript: source.loginCheckScript || null,
         needsAuth: source.needsAuth || false,
+        // #888: per-source opt-out from the unauthenticated URL probe. Absent
+        // means "probeable" — only a source with live evidence that its browser
+        // path works while the bare fetch is geo/cookie-redirected may opt out.
+        probeAuthoritative: source.probeAuthoritative ?? true,
         useCleanTitle: source.useCleanTitle || false,
         // API credentials (source-level, not apiSearch-level)
         apiSearch: api, // direct reference; undefined if not configured

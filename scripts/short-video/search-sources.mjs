@@ -743,9 +743,13 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
 
   // #269 Phase 1: pre-flight probe of the source's own search URL before the
   // CDP layer opens a tab. Cached per URL within the run; verdicts are judged
-  // by judgeUrlProbeForSource (fail-open on network errors, and never against a
-  // login-gated source — #285). A dead URL skips the CDP layer with reason
+  // by judgeUrlProbeForSource (fail-open on network errors, and never against
+  // a source the bare probe cannot speak for — login-gated #285 or
+  // geo/cookie-redirected #888). A dead URL skips the CDP layer with reason
   // "dead-url" so googleSiteFallback/mcpFallback take over.
+  // The verdict is a function of (source, url) but the cache is keyed by URL
+  // alone: safe only because the caller-level isProbeAuthoritative() gate below
+  // means a non-authoritative source never writes or reads this cache.
   async function probeSearchUrlGate() {
     const searchUrl = buildSourceSearchUrl(source, keyword);
     if (!searchUrl) return null;
@@ -797,11 +801,14 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     if (cdpAvailable && isProbeAuthoritative(source)) {
       // #285 (generalizing #317): an auth-walled page answers the bare probe
       // fetch with 4xx while the cookie-carrying CDP layer renders it fine
-      // (s.weibo.com 404 → CDP 19/19, live-verified). The probe has no session,
-      // so it can only report "no session", never "no source" — skip it and let
-      // the CDP layer's own loginCheck decide (fail-open). The same predicate
-      // guards the quarantine recheck path below; both live in
-      // lib/source-health.mjs so future gates cannot drift apart again.
+      // (s.weibo.com 404 → CDP 19/19, live-verified). #888 adds the second
+      // class: a geo/cookie-redirected source (bing_news) whose bare fetch
+      // bounces to another region's homepage while CDP opens the search page.
+      // The probe has no session, so it can only report "no session", never
+      // "no source" — skip it and let the CDP layer's own checks decide
+      // (fail-open). The same predicate guards the quarantine recheck path
+      // below; both live in lib/source-health.mjs so future gates cannot drift
+      // apart again.
       try {
         probeVerdict = await probeSearchUrlGate();
       } catch {
@@ -1306,12 +1313,14 @@ async function main() {
         );
       } else {
         // #285: the source is login-gated, so no probe ran and there is no
-        // verdict to trust. Spend the recheck window on one supervised
-        // collection instead — a real result clears the quarantine via
-        // updateSourceHealth, another zero keeps it. Releasing preemptively
-        // would hand every login-walled source a free streak reset each cycle.
+        // verdict to trust. #888 extends the same branch to a declared
+        // probe-unauthoritative source (bare fetch geo/cookie-redirected).
+        // Spend the recheck window on one supervised collection instead — a
+        // real result clears the quarantine via updateSourceHealth, another
+        // zero keeps it. Releasing preemptively would hand every such source a
+        // free streak reset each cycle.
         console.log(
-          `🔓 ${source.name} needs a login session the probe cannot carry (#285) — running one supervised attempt; a result clears the quarantine, another zero keeps it`,
+          `🔓 ${source.name} cannot be judged by the bare probe (login-gated or geo/cookie-redirected, #285/#888) — running one supervised attempt; a result clears the quarantine, another zero keeps it`,
         );
       }
     }

@@ -56,6 +56,18 @@ describe("judgeUrlProbe", () => {
     expect(v.reason).toBe("redirected-home");
   });
 
+  it("marks a redirect to a different host AND path as redirected-off-search", () => {
+    // #888 AC: the shared dead-URL judge keeps this sibling verdict — the
+    // per-source probe opt-out must not be mistaken for a weakened #269.
+    const v = judgeUrlProbe({
+      searchUrl: "https://www.ithome.com/search?word=x",
+      finalUrl: "https://news.ithome.com/list",
+      httpStatus: 200,
+    });
+    expect(v.dead).toBe(true);
+    expect(v.reason).toBe("redirected-off-search");
+  });
+
   it("keeps a same-page redirect (query-only change) alive", () => {
     const v = judgeUrlProbe({
       searchUrl: "https://www.news.cn/search/news.htm?keyword=x",
@@ -130,6 +142,83 @@ describe("judgeUrlProbeForSource (#285 — login-gated sources)", () => {
     // unknown/absent → still probeable: the wider false-negative net must not
     // become a blanket opt-out that hides genuinely dead sources.
     expect(isProbeAuthoritative({})).toBe(true);
+  });
+});
+
+// ─── #888: geo/cookie-redirected sources cannot be judged by a bare probe ───
+
+describe("judgeUrlProbeForSource (#888 — geo/cookie-redirected sources)", () => {
+  // Live evidence (2026-10-23, #344 audit): a bare Node fetch of
+  // www.bing.com/news/search follows a geo redirect to https://cn.bing.com/
+  // (HTTP 200), while the cookie-carrying CDP layer opens /news/search and
+  // yields 6–12 real articles. Same shape as #285's login wall: the probe has
+  // no browser session, so it can only report "no session", never "no source".
+  const geoRedirected = () => ({
+    name: "bing_news",
+    needsAuth: false,
+    probeAuthoritative: false,
+    capabilities: { articles: { needsAuth: false, probeAuthoritative: false } },
+  });
+  const bingProbe = () => ({
+    searchUrl: "https://www.bing.com/news/search?q=AI&qft=interval%3d%227%22",
+    finalUrl: "https://cn.bing.com/",
+    httpStatus: 200,
+  });
+
+  it("never marks a probeAuthoritative:false source dead on a homepage geo redirect", () => {
+    const v = judgeUrlProbeForSource(geoRedirected(), bingProbe());
+    expect(v.dead).toBe(false);
+    expect(v.probeSkipped).toBe(true);
+    expect(v.reason).toBeNull();
+  });
+
+  it("reads capabilities.articles.probeAuthoritative before the top-level field (#199)", () => {
+    expect(
+      isProbeAuthoritative({
+        name: "x",
+        probeAuthoritative: true,
+        capabilities: { articles: { probeAuthoritative: false } },
+      }),
+    ).toBe(false);
+    expect(
+      isProbeAuthoritative({
+        name: "x",
+        probeAuthoritative: false,
+        capabilities: { articles: { probeAuthoritative: true } },
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps the #269 redirected-home guard intact for ordinary sources", () => {
+    // The same probe shape stays fatal for a source that has NOT opted out —
+    // the opt-out is per-source, not a relaxation of the shared URL judge.
+    const v = judgeUrlProbeForSource(
+      { name: "ithome", needsAuth: false },
+      {
+        ...bingProbe(),
+        searchUrl: "https://www.ithome.com/search?word=x",
+        finalUrl: "https://www.ithome.com/",
+      },
+    );
+    expect(v.dead).toBe(true);
+    expect(v.reason).toBe("redirected-home");
+    expect(v.probeSkipped).toBeFalsy();
+    // …and the source-less judge still reports it dead too.
+    expect(
+      judgeUrlProbe({
+        searchUrl: "https://www.ithome.com/search?word=x",
+        finalUrl: "https://www.ithome.com/",
+        httpStatus: 200,
+      }).dead,
+    ).toBe(true);
+  });
+
+  it("isProbeAuthoritative: probeAuthoritative:false opts out, absent defaults to probeable", () => {
+    expect(isProbeAuthoritative(geoRedirected())).toBe(false);
+    expect(
+      isProbeAuthoritative({ name: "ithome", needsAuth: false, probeAuthoritative: true }),
+    ).toBe(true);
+    expect(isProbeAuthoritative({ name: "ithome", needsAuth: false })).toBe(true);
   });
 });
 
@@ -331,6 +420,25 @@ describe("planQuarantineRecheck (#285 — the recheck must not misjudge login-ga
     expect(plan.verdict.dead).toBe(false);
     expect(plan.releaseNow).toBe(true);
   });
+
+  it("#888: a geo-redirected probeAuthoritative:false source gets a supervised attempt, not a skip", async () => {
+    const calls = [];
+    const plan = await planQuarantineRecheck({
+      source: { name: "bing_news", needsAuth: false, probeAuthoritative: false },
+      searchUrl: "https://www.bing.com/news/search?q=AI&qft=interval%3d%227%22",
+      probeFn: async (u) => {
+        calls.push(u);
+        return { httpStatus: 200, finalUrl: "https://cn.bing.com/" };
+      },
+    });
+    // No unauthenticated fetch was fired — its geo-redirect verdict is noise…
+    expect(calls).toEqual([]);
+    // …so the recheck window is spent on a real attempt, not a skip, and the
+    // quarantine is not released preemptively (same discipline as #285).
+    expect(plan.verdict.dead).toBe(false);
+    expect(plan.action).toBe("attempt");
+    expect(plan.releaseNow).toBe(false);
+  });
 });
 
 // ─── collectFromSource wiring (stubbed layers) ───
@@ -448,6 +556,58 @@ describe("collectFromSource dead-url probe + relevance guard", () => {
     expect(cdpCalls).toContain("ithome");
     expect(cdpCalls).toContain("ithome_fallback");
     expect(collected).toEqual([]);
+  });
+
+  it("#888: a probeAuthoritative:false source is not skipped when the bare probe geo-redirects home", async () => {
+    // Production failure (#344 audit): www.bing.com/news/search → https://cn.bing.com/
+    // on a bare fetch, while CDP still opens the search page. The pre-flight
+    // gate must not record dead-url and skip the layer that actually works.
+    const geoSource = {
+      ...source,
+      name: "bing_news",
+      label: "Bing News Search",
+      probeAuthoritative: false,
+      capabilities: {
+        articles: {
+          ...source.capabilities.articles,
+          probeAuthoritative: false,
+          url: (kw) =>
+            `https://www.bing.com/news/search?q=${encodeURIComponent(kw)}&qft=interval%3d%227%22`,
+          googleSiteFallback: null,
+        },
+      },
+    };
+    const events = [];
+    const cdpCalls = [];
+    const probeUrls = [];
+    const collected = await collectFromSource(
+      geoSource,
+      "AI",
+      (e) => events.push(e),
+      stubDeps({
+        probeFn: async (url) => {
+          probeUrls.push(url);
+          return { httpStatus: 200, finalUrl: "https://cn.bing.com/" };
+        },
+        collectCdp: async (src) => {
+          cdpCalls.push(src.name);
+          return {
+            articles: [
+              {
+                title: "AI chip startup raises round",
+                url: "https://www.bing.com/news/apiclick?1",
+              },
+              { title: "AI model shipped", url: "https://www.bing.com/news/apiclick?2" },
+            ],
+            status: null,
+          };
+        },
+      }),
+    );
+    expect(probeUrls).toEqual([]); // the bare probe never fired…
+    expect(events.find((e) => e.layer === "cdp")?.reason).not.toBe("dead-url"); // …no false death verdict…
+    expect(cdpCalls).toContain("bing_news"); // …and the working CDP layer ran.
+    expect(collected).toHaveLength(2);
   });
 
   it("caches the probe verdict within the run (one probe per URL)", async () => {
