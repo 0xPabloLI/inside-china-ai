@@ -139,7 +139,7 @@ const CONTRACTS = [
     assert: (candidates, entries) => {
       for (const [i, c] of candidates.entries()) {
         const entry = entries[i];
-        expect(c.url).toBe(entry.src.original ?? entry.src.large);
+        expect(c.url).toBe(entry.src.original || entry.src.large);
         expect(c.resolution).toBe(`${entry.width}x${entry.height}`);
         expect(c.title).toBe(entry.alt);
       }
@@ -211,7 +211,7 @@ const CONTRACTS = [
     assert: (candidates, entries) => {
       for (const [i, c] of candidates.entries()) {
         const entry = entries[i];
-        expect(c.url).toBe(entry.urls.full ?? entry.urls.regular);
+        expect(c.url).toBe(entry.urls.full || entry.urls.regular);
         expect(c.resolution).toBe(`${entry.width}x${entry.height}`);
         expect(c.title).toBe(entry.alt_description);
       }
@@ -309,7 +309,7 @@ const CONTRACTS = [
     assert: (candidates, entries) => {
       for (const [i, c] of candidates.entries()) {
         const entry = entries[i];
-        expect(c.url).toBe(entry.largeImageURL ?? entry.webformatURL);
+        expect(c.url).toBe(entry.largeImageURL || entry.webformatURL);
         // Quality-first: the large rendition, not the 426x640 preview.
         expect(c.resolution).toBe(`${entry.imageWidth}x${entry.imageHeight}`);
         expect(c.resolution).not.toBe(`${entry.webformatWidth}x${entry.webformatHeight}`);

@@ -16,38 +16,47 @@
  * Not part of CI: network + API keys live only on the operator machine.
  *
  * Usage:
- *   ENV_FILE=.env.local node scripts/short-video/probe-source-contracts.mjs
+ *   ENV_FILE=/path/to/inside-china-ai/.env.local node scripts/short-video/probe-source-contracts.mjs
  *   # SearXNG fixture needs the local instance: npm run searxng:ensure
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadEnv } from "./lib/load-env.mjs";
+import { extractVqd } from "./lib/progressive-search.mjs";
+import { STOCK_MEDIA_SOURCES } from "./lib/source-registry.mjs";
+import { YTDLP_BROWSER_UA } from "./lib/ytdlp-guard.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(HERE, "__tests__", "fixtures", "source-contracts");
-const ENV_FILE = process.env.ENV_FILE || ".env.local";
 const KEYWORD = "artificial intelligence robot";
-const UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
-function loadEnv(path) {
-  const env = { ...process.env };
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-    if (m) env[m[1]] = m[2].replace(/^['"]|['"]$/g, "");
+loadEnv(process.env.ENV_FILE);
+const env = process.env;
+
+/**
+ * Run curl and surface a sanitized failure. `execFileSync`'s error message
+ * embeds the full argv, including API keys in headers or the Pixabay URL, so
+ * only the exit status and curl's own stderr may leave this function.
+ */
+function curlText(args) {
+  try {
+    return execFileSync(
+      "curl",
+      ["-sS", "--fail", "--compressed", "--max-time", "45", "-L", ...args],
+      {
+        encoding: "utf8",
+        maxBuffer: 32 * 1024 * 1024,
+      },
+    );
+  } catch (e) {
+    throw new Error(`curl exited ${e.status ?? "by signal"}: ${(e.stderr || "").trim()}`);
   }
-  return env;
 }
 
-const env = loadEnv(ENV_FILE);
-
 function curlJson(args) {
-  const out = execFileSync("curl", ["-sS", "--compressed", "--max-time", "45", "-L", ...args], {
-    encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
-  });
-  return JSON.parse(out);
+  return JSON.parse(curlText(args));
 }
 
 function headers(map) {
@@ -60,6 +69,21 @@ function getJson(url, headerMap = {}) {
 
 function postJson(url, headerMap, payload) {
   return curlJson([...headers(headerMap), "-X", "POST", "-d", JSON.stringify(payload), url]);
+}
+
+/**
+ * Build the request exactly as production does: the registry owns the URL,
+ * auth header and API-key env name (SSOT, #344). Tavily and DuckDuckGo are not
+ * registry capabilities and keep their explicit request builders below.
+ */
+function captureApi(name, kind, options) {
+  const cap = STOCK_MEDIA_SOURCES.find((s) => s.name === name)?.capabilities?.[kind];
+  if (!cap?.searchUrl) throw new Error(`no ${kind} API capability for ${name}`);
+  const key = cap.apiKeyEnv ? env[cap.apiKeyEnv] : null;
+  const headerMap = { Accept: "application/json" };
+  if (cap.authHeader) headerMap[cap.authHeader] = cap.authValue ? cap.authValue(key) : key;
+  if (cap.userAgent) headerMap["User-Agent"] = cap.userAgent;
+  return getJson(cap.searchUrl(KEYWORD, key, options), headerMap);
 }
 
 /** Keep the first two entries of the container; every field stays untouched. */
@@ -113,24 +137,15 @@ function write(name, body, path) {
 
 function captureDuckDuckGo() {
   const headerMap = {
-    "User-Agent": UA,
+    "User-Agent": YTDLP_BROWSER_UA,
     Accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
   };
-  const landing = execFileSync(
-    "curl",
-    [
-      "-sS",
-      "--compressed",
-      "--max-time",
-      "45",
-      "-L",
-      ...headers(headerMap),
-      `https://duckduckgo.com/?q=${encodeURIComponent(KEYWORD)}&iax=images&ia=images`,
-    ],
-    { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
-  );
-  const vqd = landing.match(/vqd=["']([^"']+)["']/)?.[1] || landing.match(/vqd=([\w-]+)/)?.[1];
+  const landing = curlText([
+    ...headers(headerMap),
+    `https://duckduckgo.com/?q=${encodeURIComponent(KEYWORD)}&iax=images&ia=images`,
+  ]);
+  const vqd = extractVqd(landing);
   if (!vqd) throw new Error("no vqd token on the landing page");
   const body = getJson(
     `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(KEYWORD)}&vqd=${vqd}&f=,,,&p=1`,
@@ -164,73 +179,42 @@ const JOBS = [
   {
     name: "pexels-images",
     path: ["photos"],
-    capture: () =>
-      getJson(
-        `https://api.pexels.com/v1/search?query=${encodeURIComponent(KEYWORD)}&orientation=portrait&per_page=10`,
-        { Authorization: env.PEXELS_API_KEY },
-      ),
+    capture: () => captureApi("pexels", "images"),
   },
   {
     name: "pexels-video",
     path: ["videos"],
-    capture: () =>
-      getJson(
-        `https://api.pexels.com/videos/search?query=${encodeURIComponent(KEYWORD)}&orientation=portrait&per_page=10`,
-        { Authorization: env.PEXELS_API_KEY },
-      ),
+    capture: () => captureApi("pexels-video", "videos"),
   },
   {
     name: "unsplash",
     path: ["results"],
-    capture: () =>
-      getJson(
-        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(KEYWORD)}&orientation=portrait&per_page=10`,
-        { Authorization: `Client-ID ${env.UNSPLASH_ACCESS_KEY}` },
-      ),
+    capture: () => captureApi("unsplash", "images"),
   },
   {
     name: "pixabay-images",
     path: ["hits"],
-    capture: () =>
-      getJson(
-        `https://pixabay.com/api/?key=${env.PIXABAY_API_KEY}&q=${encodeURIComponent(KEYWORD)}&image_type=photo&orientation=vertical&per_page=10`,
-      ),
+    capture: () => captureApi("pixabay", "images"),
   },
   {
     name: "wikimedia",
     path: ["query", "search"],
-    capture: () =>
-      getJson(
-        `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(KEYWORD)}&srnamespace=6&format=json&srlimit=10`,
-        { "User-Agent": "ChinaAINews/1.0 (contact@china-ai.news)" },
-      ),
+    capture: () => captureApi("wikimedia", "images"),
   },
   {
     name: "coverr",
     path: ["hits"],
-    capture: () =>
-      sanitizeCoverr(
-        getJson(`https://api.coverr.co/videos?query=${encodeURIComponent(KEYWORD)}`, {
-          Authorization: `Bearer ${env.COVERR_API_KEY}`,
-        }),
-      ),
+    capture: () => sanitizeCoverr(captureApi("coverr", "videos")),
   },
   {
     name: "brave-image",
     path: ["results"],
-    capture: () =>
-      getJson(
-        `https://api.search.brave.com/res/v1/images/search?q=${encodeURIComponent(KEYWORD)}&count=20&safesearch=strict`,
-        { "X-Subscription-Token": env.BRAVE_SEARCH_API_KEY, Accept: "application/json" },
-      ),
+    capture: () => captureApi("brave_image", "images", { count: 20 }),
   },
   {
     name: "searxng-image",
     path: ["results"],
-    capture: () =>
-      getJson(
-        `${env.SEARXNG_BASE_URL || "http://localhost:8888"}/search?q=${encodeURIComponent(KEYWORD)}&format=json&categories=images`,
-      ),
+    capture: () => captureApi("searxng_image", "images", { baseUrl: env.SEARXNG_BASE_URL }),
   },
   {
     name: "tavily-images",
