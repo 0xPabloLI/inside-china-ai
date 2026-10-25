@@ -5,8 +5,8 @@
 # (config-mode connection issue upstream).
 if command -v osv-scanner >/dev/null 2>&1; then
   printf "[pre-push] Running dependency vulnerability scan (osv-scanner)...\n"
-  osv-scanner --lockfile package-lock.json || {
-    printf >&2 "[pre-push] BLOCKED: known vulnerabilities in dependencies. Run 'npm run scan:deps' for details.\n"
+  npm run --silent scan:deps || {
+    printf >&2 "[pre-push] BLOCKED: dependency scan failed — known vulnerabilities or a scan error. Run 'npm run scan:deps' for details.\n"
     exit 1
   }
   printf "[pre-push] osv-scanner: clean\n"
