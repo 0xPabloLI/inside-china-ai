@@ -243,22 +243,23 @@ else {
   console.log(`video=${s.video}`);
   console.log(`scenes=${s.sceneDurations.length}`);
 
-  const verifyWith = (timing) => () =>
-    verifySubtitles({
-      videoPath: s.videoPath,
-      assPath: s.assPath,
-      timingData: timing,
-      sceneDurations: s.sceneDurations,
-      outputDir: s.work,
-      audioPaths: s.audioPaths,
-    });
+  const verifyWith = (timing) =>
+    ({ videoPath, assPath } = {}) =>
+      verifySubtitles({
+        videoPath: videoPath ?? s.videoPath,
+        assPath: assPath ?? s.assPath,
+        timingData: timing,
+        sceneDurations: s.sceneDurations,
+        outputDir: s.work,
+        audioPaths: s.audioPaths,
+      });
 
   const runLoop = async (verifyFn, repairFn) => {
     const dispatched = [];
     let verifies = 0;
-    const counting = () => {
+    const counting = (paths) => {
       verifies++;
-      return verifyFn();
+      return verifyFn(paths);
     };
     const wrapped = (cat, report, state) => {
       dispatched.push(cat);

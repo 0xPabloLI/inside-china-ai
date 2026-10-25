@@ -247,6 +247,65 @@ describe("verifyWithRetry — non-retryable failure categories (#818)", () => {
   });
 });
 
+// ─── #870 — the repaired artifact must be the one that gets re-verified ───
+describe("verifyWithRetry — repaired paths reach the re-verify (#870)", () => {
+  it("verifies the path a repair returned and returns it to the caller", async () => {
+    const seen = [];
+    const mockVerify = vi.fn().mockImplementation((paths) => {
+      seen.push(paths);
+      return seen.length === 1 ? makeReport(false, 2, 2) : makeReport(true, 0);
+    });
+    const mockRepair = vi.fn().mockReturnValue({
+      success: true,
+      videoPath: "/tmp/repaired.mp4",
+      assPath: "/tmp/repaired.ass",
+    });
+
+    const result = await verifyWithRetry({
+      verifyFn: mockVerify,
+      repairFn: mockRepair,
+      maxRetries: 2,
+      videoPath: "/tmp/video.mp4",
+      assPath: "/tmp/subs.ass",
+    });
+
+    // The first check reads the initial artifact…
+    expect(seen[0]).toEqual({ videoPath: "/tmp/video.mp4", assPath: "/tmp/subs.ass" });
+    // …and the re-check must read what the repair produced, not the stale path.
+    expect(seen[1]).toEqual({ videoPath: "/tmp/repaired.mp4", assPath: "/tmp/repaired.ass" });
+    expect(result.videoPath).toBe("/tmp/repaired.mp4");
+    expect(result.assPath).toBe("/tmp/repaired.ass");
+  });
+
+  it("keeps the pre-repair paths when the repair is rolled back", async () => {
+    const states = [];
+    const mockVerify = vi.fn().mockReturnValue(makeReport(false, 2, 2)); // never improves
+    const mockRepair = vi.fn().mockImplementation((_category, _report, state) => {
+      states.push(state);
+      return {
+        success: true,
+        videoPath: `/tmp/bad-${states.length}.mp4`,
+        assPath: `/tmp/bad-${states.length}.ass`,
+      };
+    });
+
+    const result = await verifyWithRetry({
+      verifyFn: mockVerify,
+      repairFn: mockRepair,
+      maxRetries: 2,
+      videoPath: "/tmp/video.mp4",
+      assPath: "/tmp/subs.ass",
+    });
+
+    // A rolled-back repair must not become the state of the next attempt…
+    expect(states[0]).toEqual({ videoPath: "/tmp/video.mp4", assPath: "/tmp/subs.ass" });
+    expect(states[1]).toEqual({ videoPath: "/tmp/video.mp4", assPath: "/tmp/subs.ass" });
+    // …nor the paths returned alongside the rolled-back report.
+    expect(result.videoPath).toBe("/tmp/video.mp4");
+    expect(result.assPath).toBe("/tmp/subs.ass");
+  });
+});
+
 describe("verifyWithRetry — logs attempts", () => {
   it("logs category, repair action, and errors before/after", async () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
