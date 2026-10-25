@@ -38,10 +38,11 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { STOCK_MEDIA_SOURCES } from "../lib/source-registry.mjs";
+import { SOURCE_CONTRACT_KEYWORD } from "../lib/source-contract-keyword.mjs";
 import * as progressiveSearch from "../lib/progressive-search.mjs";
 
 const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "source-contracts");
-const KEYWORD = "artificial intelligence robot";
+const KEYWORD = SOURCE_CONTRACT_KEYWORD;
 
 const isHttp = (v) => typeof v === "string" && /^https?:\/\//.test(v);
 const isWxH = (v) => typeof v === "string" && /^\d+x\d+$/.test(v);
