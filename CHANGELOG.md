@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.2...tanstack_start_ts-v1.31.3) (2026-10-25)
+
+
+### Bug Fixes
+
+* **short-video:** re-verify the artifact a repair produced and adopt its paths ([#870](https://github.com/0xPabloLI/inside-china-ai/issues/870)) ([#939](https://github.com/0xPabloLI/inside-china-ai/issues/939)) ([c0e8849](https://github.com/0xPabloLI/inside-china-ai/commit/c0e88494882dfa45bf9d64a1cdb9f4a21855ada2))
+
 ## [1.31.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.1...tanstack_start_ts-v1.31.2) (2026-10-25)
 
 
