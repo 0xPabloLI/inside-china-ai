@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.4...tanstack_start_ts-v1.31.5) (2026-10-25)
+
+
+### Bug Fixes
+
+* **deps:** scan the nested remotion lockfile and clear its five advisories ([#910](https://github.com/0xPabloLI/inside-china-ai/issues/910)) ([#946](https://github.com/0xPabloLI/inside-china-ai/issues/946)) ([7222741](https://github.com/0xPabloLI/inside-china-ai/commit/72227416b0884f0158826fa3172135fd0772ee8e))
+
 ## [1.31.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.3...tanstack_start_ts-v1.31.4) (2026-10-25)
 
 
