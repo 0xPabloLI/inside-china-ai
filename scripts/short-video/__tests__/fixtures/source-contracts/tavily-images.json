@@ -8,6 +8,37 @@
   ],
   "results": [
     {
+      "url": "https://www.articsledge.com/post/ai-robots",
+      "title": "What is an AI Robot? Complete 2026 Guide & Real Examples",
+      "content": "An AI robot is a machine that combines physical robotics with artificial intelligence to sense its environment, make decisions, and perform tasks autonomously. Unlike traditional robots that follow pre-programmed instructions, AI robots learn from experience, adapt to new situations, and improve their performance over time through technologieslike machine learning, computer vision, and natural language processing.\n\nBonus: AI in Business: Applications, Benefits & Implementation Guide [...] Traditional robots are like assembly line workers following a script. They repeat the same movements over and over. Change the task? You need to reprogram everything.\n\nAI robots are different. They observe. They learn. They adapt.\n\nThe core definition: An AI robot combines mechanical hardware (arms, wheels, sensors) with artificial intelligence software that enables it to perceive its environment, understand what it sees, make decisions, and take action—all without constant human direction. [...] Robotics is about physical machines that can move and interact with the environment. Traditional industrial robots have been around since the 1960s without AI—they simply follow pre-programmed instructions.\n\nArtificial Intelligence is software that enables machines to learn, reason, and make decisions. AI can exist without robotics (like chatbots or recommendation systems).\n\nAn AI robot combines both: physical robotics hardware plus AI software for intelligent behavior.",
+      "score": 0.9281033,
+      "raw_content": null,
+      "images": [
+        "https://static.wixstatic.com/media/68f1c8_fcfbf5acd58544daa57655ed82125934~mv2.jpg/v1/fill/w_1200,h_800,al_c/68f1c8_fcfbf5acd58544daa57655ed82125934~mv2.jpg"
+      ],
+      "id": "caa94d-00"
+    },
+    {
+      "url": "https://www.rob.co/en-us/technology/autonomy/ai-overview",
+      "title": "Physical AI x Robotics | Autonomous Industrial Robotics | RobCo",
+      "content": "An AI robot is more than just a programmed machine. It uses sensors to record its environment, while artificial intelligence algorithms process this data in real time. This enables an intelligent robot to recognize patterns and adapt its actions accordingly. The use of AI robots is ideal wherever flexibility is required. For example, a logistics robot can sort different goods independently. AI robots can also take on complex tasks in production automation that change easily. This advanced [...] + icon\n\nAn artificial intelligence robot from RobCo can be seamlessly integrated into your existing environment.The robot interacts natively with standard industrial systems such as PLCs and SCADA. Thanks to the latest RobFlow 7.0 update, it now also features direct SQL/HTTP connectivity. This enables a direct link to your MES or ERP systems.\n\nHow long does the implementation take?\n\n+ icon [...] ## The advantages: What a robot with AI can do better\n\nA robot with AI takes automation to a whole new level. While conventional robots stubbornly execute a program, an intelligent robot thinks for itself and learns. This ability creates decisive advantages in daily operation.\n\nGreater flexibility: AI systems adapt to variations in products or workflows instead of stopping at the slightest deviation.",
+      "score": 0.90692574,
+      "raw_content": null,
+      "images": [
+        "https://cdn.prod.website-files.com/68f2341d705f07db40d6f962/68f2341d705f07db40d6ffad_RobCo%20Logo.svg",
+        "https://cdn.prod.website-files.com/68f2341d705f07db40d6f962/68f2341d705f07db40d6ffb0_Icon%20ai%20%2B%20modular.svg",
+        "https://cdn.prod.website-files.com/68f2341d705f07db40d6f962/68f2341d705f07db40d6ffb1_Icon%20ai%20%2B%20robvision.svg",
+        "https://cdn.prod.website-files.com/68f2341d705f07db40d6f962/68f2341d705f07db40d6ffb4_Icon%20teach%20by%20demo.svg",
+        "https://cdn.prod.website-files.com/68f2341d705f07db40d6f962/68f2341d705f07db40d6ffb5_Icon%20ai%20modular.svg",
+        "https://cdn.prod.website-files.com/68f2341d705f07db40d6f962/68f2341d705f07db40d6ffb2_Icon%20adaptive%20motion.svg",
+        "https://cdn.prod.website-files.com/68f2341d705f07db40d6f962/68f2341d705f07db40d6ffb3_Icon%20self-correcting.svg",
+        "https://cdn.prod.website-files.com/68f2341d705f07db40d6f962/68f2341d705f07db40d6ffb6_RobVision%20Camera.jpg",
+        "https://cdn.prod.website-files.com/68f2341d705f07db40d6f962/68f2341d705f07db40d6ffca_RobVision%20Camera%20Vision%20(1).jpg",
+        "https://cdn.prod.website-files.com/68f2341d705f07db40d6f962/68f2341d705f07db40d7015e_icon__plus--black.svg"
+      ],
+      "id": "784285-01"
+    },
+    {
       "url": "https://www.geeksforgeeks.org/artificial-intelligence/artificial-intelligence-in-robotics",
       "title": "Artificial Intelligence in Robotics - GeeksforGeeks",
       "content": "Artificial Intelligence (AI) in robotics represents one of the most transformative technological revolutions of the modern age. By combining the mechanical precision of robots with the cognitive power of AI, we are witnessing machines that can perceive, learn, decide and act autonomously. Unlike traditional programmed robots that follow fixed instructions, AI-powered robots can adapt to new situations, analyze data in real-time and make intelligent decisions. This integration is driving massive [...] Artificial Intelligence plays a transformative role in robotics by infusing cognitive intelligence into mechanical systems. It allows robots to act intelligently, adapt to changes and collaborate efficiently with humans. [...] Artificial Intelligence is a collection of interrelated technologies that together make robots intelligent, perceptive and self-learning. Each AI subfield contributes specific abilities that enhance robotic performance and autonomy.\n\n### 1. Machine Learning (ML)\n\nMachine Learning enables robots to learn from data and experiences rather than relying solely on hard-coded instructions. It allows robots to identify patterns, make predictions and continuously refine their behavior.",
@@ -18,42 +49,255 @@
         "https://media.geeksforgeeks.org/gfg-gg-logo.svg",
         "https://media.geeksforgeeks.org/auth-dashboard-uploads/Property=Light---Default.svg"
       ],
-      "id": "05b36d-00"
+      "id": "67d029-02"
     },
     {
-      "url": "https://blog.robotiq.com/whats-the-difference-between-robotics-and-artificial-intelligence",
-      "title": "What's the Difference Between Robotics and Artificial Intelligence?",
-      "content": "A more recent example is AlphaGo, an AI which beat Lee Sedol the world champion Go player, in 2016. There were no robotic elements to AlphaGo. The playing pieces were moved by a human who watched the robot's moves on a screen.\n\n## What are Artificially Intelligent Robots?\n\nArtificially intelligent robots are the bridge between robotics and AI. These are robots that are controlled by AI programs. [...] The first thing to clarify is that robotics and artificial intelligence are not the same things at all. In fact, the two fields are almost entirely separate.\n\nA Venn diagram of the two fields would look like this:\n\nAs you can see, there is one area small where the two fields overlap: Artificially Intelligent Robots. It is within this overlap that people sometimes confuse the two concepts. \n\nTo understand how these three terms relate to each other, let's look at each of them individually. [...] In general, most artificially intelligent robots only use AI in one particular aspect of their operation. In our example, AI is only used in object detection. The robot's movements are not really controlled by AI (though the output of the object detector does influence its movements).\n\nDiscover our Cobot Solutions\n\n## Where it all gets confusing…\n\nAs you can see, robotics and artificial intelligence are really two separate things.",
-      "score": 0.84183896,
+      "url": "https://robotnik.eu/how-do-ai-robots-work-artificial-intelligence-and-mobile-robotics",
+      "title": "How do AI robots work? Artificial intelligence and mobile robotics | Robotnik ®",
+      "content": "The foundation of an intelligent robot is Artificial Intelligence, a branch of IT that seeks to create systems capable of performing tasks that would otherwise require human intervention. Intelligent robots are equipped with machine learning algorithms, allowing them to acquire knowledge from data and improve their performance over time. [...] Artificial intelligence significantly enhances a robot’s capabilities by enabling it to process data more sophisticatedly, learn from experience, and improve performance over time. This dynamic learning capability is crucial for intelligent robots to perform increasingly complex and efficient tasks.\n\nWhat are the practical applications of intelligent robots today? [...] An intelligent robot is characterized by its ability to continually learn and adapt to new situations through the incorporation of advanced artificial intelligence systems. Unlike conventional robots, these devices can make autonomous decisions based on information received from their environment.\n\nHow does artificial intelligence benefit robots?",
+      "score": 0.86080295,
       "raw_content": null,
       "images": [
-        "http://blog.robotiq.com/hubfs/artificial_intelligence-511738-edited.jpg",
-        "https://no-cache.hubspot.com/cta/default/13401/a8b6863b-1f25-4adb-9a33-e5203cfb44b1.png",
-        "https://blog.robotiq.com/hubfs/AlexOwenHillHeadshot.jpg",
-        "https://no-cache.hubspot.com/cta/default/13401/75e9dd04-c9db-43d7-8e95-d7f64d1d4e4f.png",
-        "https://no-cache.hubspot.com/cta/default/13401/f16d20ce-125c-4b3d-80b4-45e4dc272356.png",
-        "https://blog.robotiq.com/hubfs/Case%20Studies/Glenhaven/Robotiq_Glenhaven-13.jpg",
-        "https://blog.robotiq.com/hubfs/Samuel%20Bouchard.png",
-        "https://blog.robotiq.com/hubfs/automatedassembly.jpg",
-        "https://blog.robotiq.com/hubfs/Robotiq-Pierres.png",
-        "https://blog.robotiq.com/hubfs/napco%20palletizing.jpeg",
-        "https://blog.robotiq.com/hubfs/Lauzier-Nicolas-1.png"
+        "https://robotnik.eu/wp-content/uploads/2023/11/230815_energy_robotics_shell_rheinland_014-scaled.jpg"
       ],
-      "id": "d6570c-01"
+      "id": "492e4c-03"
+    },
+    {
+      "url": "https://onlinedegrees.sandiego.edu/application-of-ai-in-robotics",
+      "title": "9 Applications of AI in Robotics by Industry",
+      "content": "Robots equipped with artificial intelligence can analyze data, adapt to new scenarios and perform tasks with precision that surpasses traditional automated systems. AI’s integration into robotics enhances capabilities like natural language understanding, machine learning and computer vision, making robots smarter, more flexible and more autonomous. Here are key ways AI is used in robotics today: [...] The future of AI in robotics is vast and exciting. The next stage of AI, known as AGI or Artificial General Intelligence, holds the potential to reach levels of true human understanding. The key to this is integrating the computational system of AI with a robot. The robot must possess mobility, senses (such as touch, vision and hearing) and the ability to interact with physical objects, which will enable the system to experience immediate sensory feedback from every action it takes. This [...] The intersection of robotics and artificial intelligence (AI) is quickly becoming a driving force in the creation of new industries, cutting-edge technologies and increased productivity and efficiency in existing sectors. As the field of AI in robotics continues to evolve, its applications in the real world are becoming increasingly apparent.",
+      "score": 0.8512743,
+      "raw_content": null,
+      "images": [
+        "https://onlinedegrees.sandiego.edu/wp-content/uploads/2023/04/Applications-of-AI-in-Robots_An-Introduction.jpg"
+      ],
+      "id": "fc7c7f-04"
+    },
+    {
+      "url": "https://thinkrobotics.com/blogs/learn/robotics-ai-complete-guide-to-artificial-intelligence-in-modern-robots",
+      "title": "Robotics AI: Complete Guide to Artificial Intelligence in Modern Robot – Atlantis Robotics",
+      "content": "Simultaneous Localization and Mapping is the fundamental technology that lets robots navigate unknown spaces. The robot builds a map while simultaneously tracking its location within it. Every autonomous mobile robot uses some version of SLAM.\n\nModern implementations combine data from multiple sensors, such as cameras, LIDAR, and accelerometers. Deep learning improves feature detection, making SLAM more reliable in challenging conditions such as changing lighting or dynamic environments. [...] ## Conclusion\n\nRobotics AI brings together mechanical engineering, electronics, computer science, and artificial intelligence to create machines that perceive, reason, and act with increasing sophistication. From factories to hospitals, warehouses to farms, intelligent robots are changing how work gets done. [...] Foundation models for robotics, similar to large language models, could enable general-purpose robot intelligence that handles diverse tasks with minimal specific training. Embodied AI research emphasizes learning through physical interaction rather than just processing data.",
+      "score": 0.8332299,
+      "raw_content": null,
+      "images": [
+        "https://cdn.shopify.com/s/files/1/0014/4313/5560/articles/Untitled_design_4_83e3001d-11f2-4a8e-bda1-42dfb778f2af.png?v=1766517186",
+        "https://thinkrobotics.com/blogs/learn/robotics-ai-complete-guide-to-artificial-intelligence-in-modern-robots",
+        "https://thinkrobotics.com/cdn/shop/t/90/assets/whatsapp-icon.png?v=20598900632904341011782223113",
+        "https://thinkrobotics.com/cdn/shop/articles/Untitled_design_4_83e3001d-11f2-4a8e-bda1-42dfb778f2af.png?v=1766517186&width=1600"
+      ],
+      "id": "4e429b-05"
+    },
+    {
+      "url": "https://encord.com/blog/ai-and-robotics",
+      "title": "AI and Robotics: How AI Is Transforming Robotics | Encord",
+      "content": "Artificial intelligence (AI) in robotics defines new ways organizations can use machines to optimize operations. AI-powered automation could boost global productivity by up to 1.4% annually, with sectors like manufacturing, healthcare, and logistics seeing the most significant transformation.(McKinsey Research) [...] ## Difference between AI and Robotics\n\nArtificial Intelligence (AI) and robotics are different yet interconnected fields within engineering and technology. Robotics focuses on designing and building machines capable of performing physical tasks, while AI enables these machines to perceive, learn, and make intelligent decisions. [...] AI enables robots to perceive, learn, and make decisions, improving automation in industries like manufacturing, healthcare, and self-driving cars.\n AI enhances robot autonomy, adaptability, and intelligence, allowing them to operate efficiently in dynamic environments.\n Robotics involves building physical machines, while AI provides intelligence for learning, decision-making, and adaptability.",
+      "score": 0.8319231,
+      "raw_content": null,
+      "images": [
+        "https://images.prismic.io/encord/Z-U3e3dAxsiBv-U8_image.png?auto=format%2Ccompress&fit=max",
+        "https://images.prismic.io/encord/465115b2-d765-4fa1-ac06-dd4b09c6548d_Haziqa.jpeg?auto=compress%2Cformat&fit=max"
+      ],
+      "id": "d8fcc9-06"
     },
     {
       "url": "https://www.intel.com/content/www/us/en/learn/artificial-intelligence-robotics.html",
       "title": "Learn How Artificial Intelligence (AI) Is Changing Robotics – Intel",
-      "content": "AI-enabled robots will likely evolve to learn autonomously by grouping similar experiences, receiving feedback from their environments—also called reinforcement learning—and running simulations to solve problems without physical action. Unlike humans who learn gradually, networked robots could instantly share and build upon collective knowledge, with improvements to one system benefiting all others. [...] AI-enabled robots will likely evolve to learn autonomously by grouping similar experiences, receiving feedback from their environments—also called reinforcement learning—and running simulations to solve problems without physical action. Unlike humans who learn gradually, networked robots could instantly share and build upon collective knowledge, with improvements to one system benefiting all others. [...] ### Improved Quality and Accuracy\n\nAI robots can see and understand their environments, which enables them to complete complex tasks such as quality-control inspections on assembly lines. In industrial applications, AI robots can check the quality of goods in line instead of delaying the task until the end of the process, saving the manufacturer time and money.\n\n### Enhanced Worker Safety",
-      "score": 0.8415267,
+      "content": "# Robots and Artificial Intelligence\n\nFind out how artificial intelligence (AI) is changing robotics to help businesses solve problems in new ways.\n\n## Key Takeaways\n\nAI-powered robots use sensors, AI applications, and onboard, edge, or cloud computing to collect and analyze data in near real-time.\n\nBased on data analysis and programmed directives, AI-powered robots can perform complex tasks autonomously.\n\nCompanies use AI-enabled robots for a range of applications across industries. [...] Integrating AI with robotics increases productivity and efficiency, improves quality and accuracy, and enhances worker safety.\n\nauthor-image\n\nBy\n\nAcross industries, robots and artificial intelligence (AI) are enabling innovative solutions to the challenges faced by businesses of all sizes.\n\nAcross industries, robots and artificial intelligence (AI) are enabling innovative solutions to the challenges faced by businesses of all sizes. [...] ## AI Robot Capabilities\n\nA common misconception about robots augmented with AI is that they will begin to act freely or in a way that is beyond the scope of their original task. However, robot intelligence is not the same as human intelligence. Robots cannot create new abilities outside the scope of what they were programmed to do.",
+      "score": 0.82254606,
       "raw_content": null,
       "images": [
         "https://www.intel.com/content/dam/www/central-libraries/us/en/images/2024-12/adobestock-441036255-ai-abstract-tech.jpg",
         "https://www.intel.com/content/dam/logos/intel-header-logo.svg"
       ],
-      "id": "a6abf9-02"
+      "id": "5ca506-07"
+    },
+    {
+      "url": "https://www.inbolt.com/resources/blog/thinking-machines-why-robots-rely-on-artificial-intelligence",
+      "title": "Thinking Machines: Why Robots Rely on Artificial Intelligence - Inbolt",
+      "content": "The idea of AI, thus far, has been to equip system with a high level of information in order to help systems make decision on their own—if only partly.\n\nWithin the manufacturing industry, AI robotics has evolved to be able integrated into:\n\n High-precision assembly line\n Collaborative robots that work beside humans\n AI-driven computer vision to enable real-time course correction, like Inbolt’s guideNOW system\n\nReach out to us to learn more about how you can automate your automation process. [...] Robotics with AI refers to robots that can learn, adapt, and make decisions autonomously. AI enables them to process information from their environment, learn from experiences, and perform complex tasks with a level of ‘intelligence’.\n\nThe key difference is the level of autonomy and adaptability.\n\nAI lets robots handle unpredictability and complexity in their tasks and environments, which is not possible with traditional robotics.\n\n### What AI means for robotics [...] Robotics without AI refers to robots that operate based on predefined rules and algorithms, without the ability to learn from their experiences or adapt to new situations autonomously.\n\nIn practice, it’s possible to have robots with or without AI.",
+      "score": 0.8055255,
+      "raw_content": null,
+      "images": [
+        "https://www.inbolt.com/wp-content/uploads/Thinking-Machines-Why-Robots-Rely-on-Artificial-Intelligence.jpg"
+      ],
+      "id": "c2e848-08"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=sl3rNRb4ssg",
+      "title": "Robotics and Artificial Intelligence - Why AI is important for Robotics? Are You Ready?",
+      "content": "We’ll then dive into the fascinating world of artificial intelligence and its role in transforming robotics. Discover how AI is not just improving how robots work but is taking them to the next level by enabling them to learn, adapt, and make decisions on their own. From self-driving cars to healthcare robots, AI is opening up endless possibilities for the future of robotics. [...] [2:03] vision and perception with AI robots can see and understand their environment using cameras and sensors this is how\n[2:11] self-driving cars recognize traffic signals and pedestrians human robot interaction a\n[2:19] enables robots to understand speech gestures and emotions this is transforming Industries like healthcare\n[2:26] where robots assist patients with empathy and precision autonomous decision making AI allows [...] [1:30] it makes robots smarter and more capable without AI robot needs explicit instructions for every task but with AI\n[1:39] it can learn and adapt making it far more efficient and versatile so how exactly is AI revolutionizing robotics\n[1:47] let's explore some real world examples learning from experience AI powered robots can analyze their mistakes and\n[1:55] improve over time for instance robots with Warehouse use AI to optimize their paths making deliveries more faster",
+      "score": 0.78532547,
+      "raw_content": null,
+      "images": [
+        "https://i.ytimg.com/vi/sl3rNRb4ssg/maxresdefault.jpg"
+      ],
+      "id": "9f615c-09"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=HOgCL8lKuDc&vl=en",
+      "title": "New AI Robot Is Starting to Feel Human (Artificial Humans Are Here)",
+      "content": "Realbotix just launched Vinci with a humanoid robot delivery to Ericsson, bringing face recognition, conversation memory, and real-time engagement tracking into a real enterprise setting. UniX AI also unveiled Panther for real household deployment, IHMC revealed Alex for dangerous real-world environments, Princeton built a soft robot that moves using heat instead of motors, scientists created living neurobots with self-organized nervous systems, Arizona State researchers built artificial [...] [7:01] one is built for situations where humans shouldn't go. Alex is the successor to a robot called Nadia, which was already\n[7:08] known for things like playing pingpong and boxing. The new version focuses more on realworld mobility, autonomy, and\n[7:16] response speed. One of the biggest upgrades is weight reduction. Alex weighs about 187 lbs, including its battery, [music] [...] [9:45] fold and unfold. They even integrated flexible circuit boards during the printing [music] process, so everything is built as one system instead of being\n[9:53] assembled afterward. The robot includes temperature sensors and closed loop control, meaning it can adjust itself in real time to maintain accuracy over\n[10:02] repeated movements. They demonstrated it with an origami inspired structure that flaps like a crane, and it does this repeatedly without noticeable wear.",
+      "score": 0.725824,
+      "raw_content": null,
+      "images": [
+        "https://i.ytimg.com/vi/HOgCL8lKuDc/maxresdefault.jpg"
+      ],
+      "id": "c8bfeb-10"
+    },
+    {
+      "url": "https://www.robotshop.com/collections/robots-using-ai",
+      "title": "Robots using AI",
+      "content": "Explore AI-powered robots: automation, education kits, robotic arms, autonomous navigation. Enhance projects with cutting-edge machine",
+      "score": 0.69049704,
+      "raw_content": null,
+      "images": [],
+      "id": "bb63b3-11"
+    },
+    {
+      "url": "https://spectrum.ieee.org/ai-robots",
+      "title": "AI Robots: When Will They Be in Our Homes?",
+      "content": "Optimus, G1, and GR-1 show off their flexibility.OPTIMUS (TESLA); G1 (UNITREE ROBOTICS); GR-1 (FOURIER)\n\nAdding fuel to this robot explosion is AI.\n\nSome believe that the current artificial intelligence boom will propel robots too.\n\nAI could help robots learn tasks that have proved difficult for them like grasping arbitrary objects.OPEN X-EMBODIMENT COLLABORATION\n\nAI could finally solve the hardest problems in robotics—such as performing complex and dexterous tasks. [...] Enter AI.\n\nRobotics and artificial intelligence have long evolved hand in hand.\n\n This browser does not support the video tag. \n\nG1 learned this skill using AI and simulation.G1 (UNITREE ROBOTICS)\n\nSo it’s no surprise that the rise of generative AI has electrified the robotics industry.\n\nThe hope is that AI could finally unlock the power of robot learning. [...] This browser does not support the video tag. \n\nThis two-armed robot powered by AI created by Physical Intelligence can fold clothing autonomously.π0 (PHYSICAL INTELLIGENCE)\n\nThese problems have largely kept humanoids confined to labs as experiments.\n\n This browser does not support the video tag. \n\nPhoenix can grasp cups of different shapes, sizes, and materials.PHOENIX (SANCTUARY AI)\n\nThe recent wave of AI breakthroughs gave us ChatGPT.\n\nNext, will it teach robots how to make you a sandwich?",
+      "score": 0.6796259,
+      "raw_content": null,
+      "images": [
+        "https://spectrum.ieee.org/media-library/the-robot-helper-rosie-from-the-tv-show-the-jetsons-next-to-a-group-of-new-ai-robots-consisting-of-neo-from-1x-technologies-apo.jpg?id=54170092&width=1200&height=600&coordinates=0%2C15%2C0%2C15",
+        "https://spectrum.ieee.org/files/67738/roomba-800x800-0loss-750kB.gif",
+        "https://spectrum.ieee.org/media-library/image.jpg?id=54168569&width=1200",
+        "https://assets.rbl.ms/54455475/origin.png",
+        "https://spectrum.ieee.org/media-library/homepage-2-jpg.jpg?id=54170090&width=1200",
+        "https://public.flourish.studio/uploads/606324/855a71c8-5785-470e-bdc3-dd62c303e41f.jpg",
+        "https://public.flourish.studio/uploads/606324/1d043850-d4a5-41fb-8be1-e4ecc6127d5b.jpg",
+        "https://public.flourish.studio/uploads/606324/aa1c4e24-28c8-488f-9903-3a54936aa2f6.jpg",
+        "https://public.flourish.studio/uploads/606324/1b2d0cec-f4cd-4875-a130-285f95ea19fe.jpg",
+        "https://public.flourish.studio/uploads/606324/008e00c6-2f33-45e0-85b8-a40d760475c5.jpg",
+        "https://public.flourish.studio/uploads/606324/c648fd7e-b943-418f-a73b-60a8e25f1b0b.jpg",
+        "https://public.flourish.studio/uploads/606324/7af0339b-ac9c-41be-ace7-fb8000573a16.jpg",
+        "https://public.flourish.studio/uploads/606324/d807fdc9-cd8f-4cf0-b525-aada599be225.jpg",
+        "https://public.flourish.studio/uploads/606324/7e6a9a3f-d739-4eee-89e6-fd3bb09ad981.jpg",
+        "https://public.flourish.studio/uploads/606324/7bcb19c1-890d-4fd9-8c50-20213660b18e.jpg",
+        "https://public.flourish.studio/uploads/606324/19d20838-157e-4ce9-8c01-f7cc962e94ef.jpg",
+        "https://public.flourish.studio/uploads/606324/ff8bc20f-7088-4b36-b708-94e988a214fc.jpg",
+        "https://public.flourish.studio/uploads/606324/d9268fc0-e3c5-4748-894a-e7cea83646dc.jpg",
+        "https://public.flourish.studio/uploads/606324/eb47a5de-6ba4-4af5-8df8-00d150ea7d5e.jpg",
+        "https://public.flourish.studio/uploads/606324/56869ead-f9fa-4bcf-9cf8-624f90807066.jpg",
+        "https://public.flourish.studio/uploads/606324/aa532737-a544-474e-9c7c-726affda75e5.jpg",
+        "https://public.flourish.studio/uploads/606324/fe418133-4338-4b8a-a40e-50bc50803d5f.jpg",
+        "https://public.flourish.studio/uploads/606324/d819641b-5013-4c76-b2e2-5dfefb67ffee.jpeg",
+        "https://public.flourish.studio/uploads/606324/e899d966-8b05-4f79-8e6c-5feb284ab21a.jpg",
+        "https://public.flourish.studio/uploads/606324/97c69a88-272a-4025-b30f-98001ece45d0.jpg",
+        "https://public.flourish.studio/uploads/606324/db909abc-4fd5-474e-8433-8606b6eb33a7.jpg",
+        "https://public.flourish.studio/uploads/606324/fbead74d-f2dd-48c9-b35c-3de66a98a92a.jpeg",
+        "https://public.flourish.studio/uploads/606324/138a588f-1d60-4820-87c5-03a8b0819627.jpeg",
+        "https://public.flourish.studio/uploads/606324/61ed7816-ea63-4cc3-9ff5-657a232ee4c7.jpg",
+        "https://public.flourish.studio/uploads/606324/b40409d1-40e1-46fe-bf6c-6605afea730d.jpeg",
+        "https://public.flourish.studio/uploads/606324/56a5aa3a-1178-43f7-8153-975fa2219dab.jpg",
+        "https://public.flourish.studio/uploads/606324/d14b29c1-4354-4b72-bb35-d57e57e31cb4.jpg",
+        "https://public.flourish.studio/uploads/606324/1b0ce26a-4f51-4cc7-a6ef-204a6bb6e9ef.webp",
+        "https://public.flourish.studio/uploads/606324/6d4ac4ec-0a56-4b3f-aa66-334937cd0df2.gif",
+        "https://public.flourish.studio/uploads/606324/6fa3009d-cdbd-4a8a-bb1a-02b62840079d.jpeg",
+        "https://public.flourish.studio/uploads/606324/0fd2326d-2b0e-4cdf-b816-b30ff3d96e00.jpeg",
+        "https://public.flourish.studio/uploads/606324/151dc44d-20ba-4125-a740-eab6032b49db.jpeg",
+        "https://public.flourish.studio/uploads/606324/0de6bf8d-520b-4fe5-a0e7-1fcee9bade0f.jpg",
+        "https://public.flourish.studio/uploads/606324/f89bd6aa-81c7-4d13-953c-ab5e1bbbcff5.jpg",
+        "https://public.flourish.studio/uploads/606324/6b189c03-1b2e-448f-bc05-80fa98a49feb.jpeg",
+        "https://public.flourish.studio/uploads/606324/12793f89-7205-4df3-bd50-c2a234917dec.jpg",
+        "https://public.flourish.studio/uploads/606324/0f8abeca-8fbf-414d-9d35-1a0900c09f13.jpg",
+        "https://public.flourish.studio/uploads/606324/f6800cb4-503f-4d74-8bb9-0860c3dea5cf.png",
+        "https://public.flourish.studio/uploads/606324/1d1c2548-2475-494f-98cf-37b773f93d3d.png",
+        "https://public.flourish.studio/uploads/606324/96b42704-d2a3-4229-8004-bb0f39621dd0.png",
+        "https://public.flourish.studio/uploads/606324/0edbf7c5-877c-4d3a-91f3-e4a173367f6d.png",
+        "https://public.flourish.studio/uploads/606324/94311363-ee7d-4a0f-b3f5-75d9fbad7b53.gif",
+        "https://public.flourish.studio/uploads/606324/0b99e1b6-6a96-4b67-9884-67f53a9a3bc5.gif",
+        "https://public.flourish.studio/uploads/606324/fd60e38c-bf3e-4734-be99-cf876153f9d5.jpg",
+        "https://public.flourish.studio/uploads/606324/b5febef0-0c19-4e27-a964-55dda04299da.jpg",
+        "https://public.flourish.studio/uploads/606324/08e4fd6f-cee1-425b-9486-f4a1a8eabf09.png",
+        "https://public.flourish.studio/uploads/606324/ced86b64-7ef2-4fd1-a946-f222236ad6a3.png",
+        "https://public.flourish.studio/uploads/606324/93df93a7-9cad-4fd2-b2e0-528163f50879.jpg",
+        "https://public.flourish.studio/uploads/606324/7702e648-4747-48dd-af53-0ba23f850b50.jpg",
+        "https://public.flourish.studio/uploads/606324/ac3c23ee-3c30-47dd-b651-d381a831b556.jpg",
+        "https://public.flourish.studio/uploads/606324/76007949-fb4b-47d6-8c8b-a37b28187581.jpg",
+        "https://public.flourish.studio/uploads/606324/1b5c7794-f47d-44fc-81ed-eda9a80be9c2.jpg",
+        "https://public.flourish.studio/uploads/606324/f4eb2a26-f448-4567-9ead-5a004fb75b3c.gif",
+        "https://public.flourish.studio/uploads/606324/19fc8d8a-dea7-4ad0-9289-5aaa822df59e.jpg",
+        "https://public.flourish.studio/uploads/606324/3c8a3058-5f9b-468c-a89f-b40bea26161b.jpg",
+        "https://public.flourish.studio/uploads/606324/c6bf9563-4a12-4a35-816c-90889a448baa.jpg",
+        "https://public.flourish.studio/uploads/606324/23240210-e9b3-4902-a3bc-e38de2ef3ad8.jpg",
+        "https://public.flourish.studio/uploads/606324/8402d809-d143-4a25-8ca3-216dff6e0e39.jpg",
+        "https://public.flourish.studio/uploads/606324/1861d6f8-dc97-4ada-a5f3-77ca72ca4274.jpg",
+        "https://public.flourish.studio/uploads/606324/1073e12b-4740-4bd5-b381-cb58253de79e.jpg",
+        "https://public.flourish.studio/uploads/606324/23fd0161-112c-438a-a56e-f781c80c3b7e.jpeg",
+        "https://public.flourish.studio/uploads/606324/af7718ac-9d96-4802-a685-8a532749857f.png"
+      ],
+      "id": "3e9977-12"
+    },
+    {
+      "url": "https://www.wired.com/story/generalist-ai-robots-learn-like-clever-toddlers",
+      "title": "I Saw the Future of AI in a Robot That Can Learn on the Spot | WIRED",
+      "content": "Traditionally, training an AI-powered robot to do different tasks has meant feeding thousands of examples into the model. This is a notoriously imperfect kind of learning, though, and a robot will struggle with the task if you change something as simple as the lighting. [...] The arms mastered a range of tasks after ingesting a short, instructional video and, most impressively, no specific training for a given task. One of the most striking examples involved a robot that was instructed to sweep a block into a bowl using a dustpan and brush. When the brush was removed from the scene, the robot improvised by using the dustpan like a brush and flicking the block into the bowl. [...] In another case, a two-armed robot watched a videoclip of someone unzipping a purse before removing some banknotes. I watched—somewhat slack-jawed—as the robot unzipped a different kind of purse and carefully removed the notes. Most amazingly, when it couldn’t grab the money, it switched from using its right gripper to its left to get a better angle of attack. “Ha,” said one engineer standing nearby. “It never did that before.”",
+      "score": 0.66959417,
+      "raw_content": null,
+      "images": [
+        "https://media.wired.com/photos/6a85e8ea4518d27679a9b132/191:100/w_1280,c_limit/AI-Lab-Very-Clever-Robot-Creeped-Me-Out-Business.jpg",
+        "https://media.wired.com/photos/6a85e8ea4518d27679a9b132/191:100/w_1280,c_limit/AI-Lab-Very-Clever-Robot-Creeped-Me-Out-Business.jpg?mbid=social_retweet"
+      ],
+      "id": "5744e6-13"
+    },
+    {
+      "url": "https://www.nature.com/immersive/robotics-ai/index.html",
+      "title": "Robotics and artificial intelligence",
+      "content": "At the end of the twentieth century, computing was transformed from the preserve of laboratories and industry to a ubiquitous part of everyday life. We are now living through the early stages of a similarly rapid revolution in robotics and artificial intelligence — and the effect on society could be just as enormous. [...] Nature\nNature\n\nNature Outlook logo\n\n# Robotics and artificial intelligence\n\nIntelligent machines could shape the future of science and society.\n\nUpdated 27 November 2025\n\nIllustration: Peter Crowther\n\nImage credit: Peter Crowther [...] ### Learning over a lifetime\n\nArtificial-intelligence researchers turn to lifelong learning in the hopes of making machine intelligence more adaptable. By Neil Savage\n\n20 July 2022\n\nA robotic hand holding a marble between two glowing fingertips\n\n### Teaching robots to touch\n\nRobots have become increasingly adept at interacting with the world around them. But to fulfil their potential, they also need a sense of touch. By Marcus Woo\n\n26 May 2022",
+      "score": 0.6396691,
+      "raw_content": null,
+      "images": [
+        "https://www.nature.com/immersive/robotics-ai/assets/pDqz0DiY5e/robotics-and-ai-sm-1200x675-1200x675.jpeg",
+        "https://www.nature.com/immersive/robotics-ai/assets/logo-black-no-text.svg"
+      ],
+      "id": "98bea0-14"
+    },
+    {
+      "url": "https://www.technologyreview.com/2026/10/08/1145923/ai-breakthroughs-in-robotics-wont-change-your-life-any-time-soon",
+      "title": "AI breakthroughs in robotics won't change your life any time soon | MIT Technology Review",
+      "content": "In the heart of San Francisco’s Mission District, the startup Physical Intelligence—or PI (as in π), as it likes to be known—is focused on developing a universal brain that could, theoretically, turn any robot into a generalist. Using an everything-including-the-kitchen sink approach to training AI models for robots, the company recently observed a hint of what a robotic brain equipped with a world model could be capable of. [...] All, at the time, were impressive—even jaw-dropping—feats of engineering. But none were ready to navigate the real world. Today’s robots, even with the transformative power of advanced AI, still face the same existential challenge.\n\n### Deep Dive\n\n### Artificial intelligence\n\n### Don’t be fooled—LLMs don’t reason\n\nTen years after AlphaGo’s match against Go champion Lee Sedol, today’s AI still isn’t tapping into the machinery that made that win possible. [...] A decade or so ago, a series of breakthroughs led to a generative AI revolution that turned the long-imagined possibility of artificial intelligence into reality. Roboticists—though they disagree on exactly when this will happen—believe that an equally transformative revolution is possible in robotics, one that will endow machines with physical intuition and fluidity that has long been out of reach. As progress in robotics inches forward, the question is whether the same methods and tools that",
+      "score": 0.63125396,
+      "raw_content": null,
+      "images": [],
+      "id": "6bb2c5-15"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=sYji5dVdR8s",
+      "title": "I Watched a Humanoid Robot Use an AI Brain 🤯 | Aether",
+      "content": "[0:25] that literally takes a completely different approach to humanoid robots.\n[0:29] So, what exactly is Aether? The easiest way that I can explain it is Aether is essentially an AI brain for a humanoid\n[0:37] robot. So, instead of programming a robot to perform one specific movement over and over again, the idea is that you give the robot a goal or tell it [...] [5:41] able to interact with softwares and actually perform tasks. The next obvious question is what happens when you give that intelligence a physical body.\n[5:51] That's where embodied AI comes in.\n[5:54] Instead of AI existing only inside your computer or your phone, the AI can actually perceive the physical world and\n[6:01] interact with it through a robot. And that's the direction I think humanoid robotics is ultimately heading. Now, I want to be clear. I haven't personally [...] [3:40] of different objects interacting with each other. And a robot has to understand what it's looking at and what it needs to do next. And that's why I\n[3:48] think AI side of humanoid robotics is arguably just as important as the hardware. You can build a robot with incredible motors, incredibly precise\n[3:57] hands, and a human-like body. But if the robot doesn't understand what to do with it, you still have a very expensive",
+      "score": 0.5925965,
+      "raw_content": null,
+      "images": [
+        "https://i.ytimg.com/vi/sYji5dVdR8s/maxresdefault.jpg"
+      ],
+      "id": "46b902-16"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=r7gsbTFGn7g",
+      "title": "Harnessing Artificial Intelligence 4.0 - Robots and AI",
+      "content": "Dr. Douglas Horner of the NPS Department of Mechanical and Aerospace Engineering offers lecture #10 in the Harnessing Artificial",
+      "score": 0.49802306,
+      "raw_content": null,
+      "images": [],
+      "id": "73b505-17"
+    },
+    {
+      "url": "https://deepmind.google/models/gemini-robotics",
+      "title": "Gemini Robotics — Google DeepMind",
+      "content": "## Capabilities\n\nGemini Robotics 2 is the next step on our journey towards general, useful robotics. It brings whole-body intelligence to humanoids, enables advanced dexterity, and can coordinate multiple robots to work together in shared spaces.\n\nSlide 1 of 6\n\n### General [...] Google DeepMind\n\nBuild with Gemini Try Gemini\n\n \n\nSlide 1 of 4\n\n# Gemini Robotics 2\n\nThe intelligence layer to power any kind of robot\n\nTry Gemini Robotics ER 2\n\n## Gemini Robotics 2\n\nOur most advanced VLA model: capable of intelligently controlling any type of robot, from bi-arms to full humanoids\n\nLearn more\n\n## Gemini Robotics ER 2\n\nOur embodied reasoning model: capable of real-world understanding and complex, multi-step planning\n\nLearn moreTry Gemini Robotics ER 2 [...] ### General\n\nMost robots are trained to do one specific task over and over. But Gemini Robotics 2 can complete a variety of tasks – even if it hasn’t been trained on them before. It’s able to adapt to new and unfamiliar situations on the fly.\n\n### Powers any embodiment\n\nCan be adapted to any bi-arm robot in just a few hours, scaling its intelligence from arms to complex humanoid bodies.\n\n### Advanced dexterity",
+      "score": 0.22528063,
+      "raw_content": null,
+      "images": [
+        "https://lh3.googleusercontent.com/1OBfM3QyH93IeOIbVqsGjHNj8AZyOlJti8lZqIiTb4hrbN4-t_EYHeaVBhaGqAWfqs3WwZlvTzE4VNxdLNSb_69GopywJb_OdsPjX4kNVSzRxAUqTGM=w1200-h630-n-nu-rw",
+        "https://deepmind.google/static/images/fallback/video_poster_fallback_light.57b61d57842a.jpg",
+        "https://deepmind.google/static/images/fallback/video_poster_fallback_dark.4d55bc99efa6.jpg",
+        "https://storage.googleapis.com/gdm-deepmind-com-prod-public/media/original_images/nav__dm__gemini__large.svg"
+      ],
+      "id": "89ad02-18"
     }
   ],
-  "response_time": 0,
-  "request_id": "22b76e98-a260-496a-a471-56723c6215b6"
+  "response_time": 1.61,
+  "request_id": "a0e993bd-5ad9-4d2f-ac4f-4023f798eb10"
 }

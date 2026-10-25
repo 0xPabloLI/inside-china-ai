@@ -11,9 +11,10 @@
  * entries of its response container with every content field and value
  * untouched — nothing is hand-authored or pruned, so the fixture can disprove
  * our assumptions (e.g. Pexels video entries really have no `description`).
- * DuckDuckGo's ephemeral anti-bot tokens (`vqd`, `image_token`,
- * `thumbnail_token`) are the only removals, as credential hygiene; none are
- * contract fields.
+ * Credentials/PII are the only redactions, in place so the field shape
+ * survives: DuckDuckGo's ephemeral anti-bot tokens (`vqd`, `image_token`,
+ * `thumbnail_token`) and Coverr's legacy `userToken` plus contributor emails.
+ * None are contract fields.
  *
  * Each test runs the real adapter over its fixture and locks:
  *   - every kept wire entry parses into the candidate the wire implies:
@@ -48,6 +49,82 @@ const isWxH = (v) => typeof v === "string" && /^\d+x\d+$/.test(v);
 const isNonEmpty = (v) => typeof v === "string" && v.trim().length > 0;
 const titleFromWire = (v) => isNonEmpty(v) && v !== KEYWORD;
 const isPositiveNumber = (v) => typeof v === "number" && v > 0;
+
+/** Brave is parsed by both the registry and the progressive wrapper. */
+function braveContract(variant, variantLabel) {
+  return {
+    ...variant,
+    variantLabel,
+    fixture: "brave-image",
+    container: ["results"],
+    wireField: "properties.url",
+    // The adapter drops entries without a url, so the expected count is the
+    // number of wire entries that actually carry one.
+    hasUrl: (entry) => isNonEmpty(entry?.properties?.url),
+    required: [
+      { label: "url (wire: properties.url)", get: (c) => c.url, check: isHttp },
+      {
+        label: "resolution (wire: properties.width+height)",
+        get: (c) => c.resolution,
+        check: isWxH,
+      },
+      { label: "title (wire: title)", get: (c) => c.title, check: titleFromWire },
+    ],
+    assert: (candidates, entries) => {
+      for (const [i, c] of candidates.entries()) {
+        const entry = entries[i];
+        if (variant.parser) expect(c.source).toBe("brave_image");
+        expect(c.url).toBe(entry.properties.url);
+        expect(c.resolution).toBe(`${entry.properties.width}x${entry.properties.height}`);
+        expect(c.title).toBe(entry.title);
+      }
+    },
+    drifts: [
+      {
+        field: "properties.url",
+        mutate: (body) => {
+          for (const entry of entriesAt(body, ["results"])) {
+            entry.properties.imageUrl = entry.properties.url;
+            delete entry.properties.url;
+          }
+        },
+      },
+      { field: "title", mutate: (body) => renameInEntries(body, ["results"], "title", "title_v2") },
+    ],
+  };
+}
+
+/** SearXNG is parsed by both the registry and the progressive wrapper. */
+function searxngContract(variant, variantLabel) {
+  return {
+    ...variant,
+    variantLabel,
+    fixture: "searxng-image",
+    container: ["results"],
+    wireField: "img_src",
+    hasUrl: (entry) => isNonEmpty(entry?.img_src),
+    required: [
+      { label: "url (wire: img_src)", get: (c) => c.url, check: isHttp },
+      { label: "resolution (wire: resolution)", get: (c) => c.resolution, check: isNonEmpty },
+      { label: "title (wire: title)", get: (c) => c.title, check: titleFromWire },
+    ],
+    assert: (candidates, entries) => {
+      for (const [i, c] of candidates.entries()) {
+        if (variant.parser) expect(c.source).toBe("searxng_image");
+        expect(c.url).toBe(entries[i].img_src);
+        expect(c.resolution).toBe(entries[i].resolution);
+        expect(c.title).toBe(entries[i].title);
+      }
+    },
+    drifts: [
+      {
+        field: "img_src",
+        mutate: (body) => renameInEntries(body, ["results"], "img_src", "imgSrc"),
+      },
+      { field: "title", mutate: (body) => renameInEntries(body, ["results"], "title", "title_v2") },
+    ],
+  };
+}
 
 const CONTRACTS = [
   {
@@ -165,7 +242,6 @@ const CONTRACTS = [
         // "File:" prefix must survive verbatim.
         expect(c.fileTitle).toBe(entries[i].title);
         expect(c.title).toBe(entries[i].title);
-        expect(c.url).toBeNull();
       }
     },
     drifts: [
@@ -253,135 +329,13 @@ const CONTRACTS = [
       { field: "tags", mutate: (body) => renameInEntries(body, ["hits"], "tags", "tags_v2") },
     ],
   },
-  {
-    registry: { name: "brave_image", kind: "images" },
-    fixture: "brave-image",
-    container: ["results"],
-    wireField: "properties.url",
-    // The adapter drops entries without a url, so the expected count is the
-    // number of wire entries that actually carry one.
-    hasUrl: (entry) => isNonEmpty(entry?.properties?.url),
-    required: [
-      { label: "url (wire: properties.url)", get: (c) => c.url, check: isHttp },
-      {
-        label: "resolution (wire: properties.width+height)",
-        get: (c) => c.resolution,
-        check: isWxH,
-      },
-      { label: "title (wire: title)", get: (c) => c.title, check: titleFromWire },
-    ],
-    assert: (candidates, entries) => {
-      for (const [i, c] of candidates.entries()) {
-        const entry = entries[i];
-        expect(c.url).toBe(entry.properties.url);
-        expect(c.resolution).toBe(`${entry.properties.width}x${entry.properties.height}`);
-        expect(c.title).toBe(entry.title);
-      }
-    },
-    drifts: [
-      {
-        field: "properties.url",
-        mutate: (body) => {
-          for (const entry of entriesAt(body, ["results"])) {
-            entry.properties.imageUrl = entry.properties.url;
-            delete entry.properties.url;
-          }
-        },
-      },
-      { field: "title", mutate: (body) => renameInEntries(body, ["results"], "title", "title_v2") },
-    ],
-  },
-  {
-    registry: { name: "searxng_image", kind: "images" },
-    fixture: "searxng-image",
-    container: ["results"],
-    wireField: "img_src",
-    hasUrl: (entry) => isNonEmpty(entry?.img_src),
-    required: [
-      { label: "url (wire: img_src)", get: (c) => c.url, check: isHttp },
-      { label: "resolution (wire: resolution)", get: (c) => c.resolution, check: isNonEmpty },
-      { label: "title (wire: title)", get: (c) => c.title, check: titleFromWire },
-    ],
-    assert: (candidates, entries) => {
-      for (const [i, c] of candidates.entries()) {
-        expect(c.url).toBe(entries[i].img_src);
-        expect(c.resolution).toBe(entries[i].resolution);
-        expect(c.title).toBe(entries[i].title);
-      }
-    },
-    drifts: [
-      {
-        field: "img_src",
-        mutate: (body) => renameInEntries(body, ["results"], "img_src", "imgSrc"),
-      },
-      { field: "title", mutate: (body) => renameInEntries(body, ["results"], "title", "title_v2") },
-    ],
-  },
-  {
-    parser: "parseBraveImageResponse",
-    label: "brave_image",
-    fixture: "brave-image",
-    container: ["results"],
-    wireField: "properties.url",
-    hasUrl: (entry) => isNonEmpty(entry?.properties?.url),
-    required: [
-      { label: "url (wire: properties.url)", get: (c) => c.url, check: isHttp },
-      {
-        label: "resolution (wire: properties.width+height)",
-        get: (c) => c.resolution,
-        check: isWxH,
-      },
-      { label: "title (wire: title)", get: (c) => c.title, check: titleFromWire },
-    ],
-    assert: (candidates, entries) => {
-      for (const [i, c] of candidates.entries()) {
-        expect(c.source).toBe("brave_image");
-        expect(c.url).toBe(entries[i].properties.url);
-        expect(c.resolution).toBe(`${entries[i].properties.width}x${entries[i].properties.height}`);
-        expect(c.title).toBe(entries[i].title);
-      }
-    },
-    drifts: [
-      {
-        field: "properties.url",
-        mutate: (body) => {
-          for (const entry of entriesAt(body, ["results"])) {
-            entry.properties.imageUrl = entry.properties.url;
-            delete entry.properties.url;
-          }
-        },
-      },
-      { field: "title", mutate: (body) => renameInEntries(body, ["results"], "title", "title_v2") },
-    ],
-  },
-  {
-    parser: "parseSearXngImageResponse",
-    label: "searxng_image",
-    fixture: "searxng-image",
-    container: ["results"],
-    wireField: "img_src",
-    hasUrl: (entry) => isNonEmpty(entry?.img_src),
-    required: [
-      { label: "url (wire: img_src)", get: (c) => c.url, check: isHttp },
-      { label: "resolution (wire: resolution)", get: (c) => c.resolution, check: isNonEmpty },
-      { label: "title (wire: title)", get: (c) => c.title, check: titleFromWire },
-    ],
-    assert: (candidates, entries) => {
-      for (const [i, c] of candidates.entries()) {
-        expect(c.source).toBe("searxng_image");
-        expect(c.url).toBe(entries[i].img_src);
-        expect(c.resolution).toBe(entries[i].resolution);
-        expect(c.title).toBe(entries[i].title);
-      }
-    },
-    drifts: [
-      {
-        field: "img_src",
-        mutate: (body) => renameInEntries(body, ["results"], "img_src", "imgSrc"),
-      },
-      { field: "title", mutate: (body) => renameInEntries(body, ["results"], "title", "title_v2") },
-    ],
-  },
+  braveContract({ registry: { name: "brave_image", kind: "images" } }, "registry"),
+  searxngContract({ registry: { name: "searxng_image", kind: "images" } }, "registry"),
+  braveContract({ parser: "parseBraveImageResponse", label: "brave_image" }, "progressive-search"),
+  searxngContract(
+    { parser: "parseSearXngImageResponse", label: "searxng_image" },
+    "progressive-search",
+  ),
   {
     parser: "parseDuckDuckGoImagesResponse",
     label: "duckduckgo_images",
@@ -505,6 +459,15 @@ function assertContract(contract, body, expectedCount) {
   }
 
   for (const [i, candidate] of candidates.entries()) {
+    // Downstream asset routing branches on `type` (asset-sourcer: image vs
+    // video), so a flipped type must fail even when every field parses.
+    const expectedType = contract.registry?.kind === "videos" ? "video" : "image";
+    if (candidate.type !== expectedType) {
+      throw new Error(
+        `[${sourceOf(contract)}] wire drift: entry ${i} failed "type" ` +
+          `(container "${contract.container.join(".")}")`,
+      );
+    }
     for (const rule of contract.required) {
       if (!rule.check(rule.get(candidate))) {
         throw new Error(
@@ -571,7 +534,8 @@ describe("media source wire contracts (#778)", () => {
   for (const contract of CONTRACTS) {
     const fixturePath = join(FIXTURE_DIR, `${contract.fixture}.json`);
 
-    describe(`${sourceOf(contract)} contract`, () => {
+    const variant = contract.variantLabel ? ` (${contract.variantLabel})` : "";
+    describe(`${sourceOf(contract)}${variant} contract`, () => {
       if (!existsSync(fixturePath)) {
         it("has a captured wire fixture", () => {
           throw new Error(

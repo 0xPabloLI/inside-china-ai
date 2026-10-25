@@ -16,7 +16,7 @@
  *   # SearXNG fixture needs the local instance: npm run searxng:ensure
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -102,12 +102,7 @@ function captureDuckDuckGo() {
   if (!vqd) throw new Error("no vqd token on the landing page");
   const body = getJson(
     `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(KEYWORD)}&vqd=${vqd}&f=,,,&p=1`,
-    {
-      ...headerMap,
-      Accept: "application/json, text/javascript, */*; q=0.01",
-      "X-Requested-With": "XMLHttpRequest",
-      Referer: "https://duckduckgo.com/",
-    },
+    { ...headerMap, Referer: "https://duckduckgo.com/" },
   );
   // Credential hygiene: vqd / image_token / thumbnail_token are ephemeral
   // anti-bot tokens (the secret scanner flags the hashes). They are not
@@ -116,6 +111,21 @@ function captureDuckDuckGo() {
   for (const entry of body.results ?? []) {
     delete entry.image_token;
     delete entry.thumbnail_token;
+  }
+  return body;
+}
+
+/**
+ * Coverr echoes the request query string in `params` (including the legacy
+ * `userToken`) and exposes contributor emails. Both are credentials/PII, not
+ * contract fields; redact them in place so the field shape survives.
+ */
+function sanitizeCoverr(body) {
+  if (typeof body.params === "string") {
+    body.params = body.params.replace(/(userToken=)[^&]+/, "$1<redacted>");
+  }
+  for (const hit of body.hits ?? []) {
+    if (hit.contributor?.email) hit.contributor.email = "<redacted>";
   }
   return body;
 }
@@ -169,9 +179,11 @@ const JOBS = [
     name: "coverr",
     path: ["hits"],
     capture: () =>
-      getJson(`https://api.coverr.co/videos?query=${encodeURIComponent(KEYWORD)}`, {
-        Authorization: `Bearer ${env.COVERR_API_KEY}`,
-      }),
+      sanitizeCoverr(
+        getJson(`https://api.coverr.co/videos?query=${encodeURIComponent(KEYWORD)}`, {
+          Authorization: `Bearer ${env.COVERR_API_KEY}`,
+        }),
+      ),
   },
   {
     name: "brave-image",
@@ -187,7 +199,7 @@ const JOBS = [
     path: ["results"],
     capture: () =>
       getJson(
-        `${process.env.SEARXNG_BASE_URL || "http://localhost:8888"}/search?q=${encodeURIComponent(KEYWORD)}&format=json&categories=images`,
+        `${env.SEARXNG_BASE_URL || "http://localhost:8888"}/search?q=${encodeURIComponent(KEYWORD)}&format=json&categories=images`,
       ),
   },
   {
@@ -197,7 +209,7 @@ const JOBS = [
       postJson(
         "https://api.tavily.com/search",
         { Authorization: `Bearer ${env.TAVILY_API_KEY}`, "Content-Type": "application/json" },
-        { query: KEYWORD, include_images: true, max_results: 3 },
+        { query: KEYWORD, max_results: 20, include_images: true },
       ),
   },
   {
@@ -207,10 +219,20 @@ const JOBS = [
   },
 ];
 
+let failed = 0;
 for (const job of JOBS) {
   try {
     write(job.name, job.capture(), job.path);
   } catch (e) {
+    failed += 1;
     console.error(`${job.name}: CAPTURE FAILED — ${e.message}`);
   }
 }
+
+const missing = JOBS.filter((job) => !existsSync(join(OUT_DIR, `${job.name}.json`)));
+if (missing.length > 0) {
+  failed += missing.length;
+  console.error(`missing fixtures after capture: ${missing.map((job) => job.name).join(", ")}`);
+}
+
+if (failed > 0) process.exitCode = 1;

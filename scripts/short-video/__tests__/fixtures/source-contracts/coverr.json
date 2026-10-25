@@ -2,7 +2,7 @@
   "page": 0,
   "pages": 1,
   "page_size": 20,
-  "params": "query=artificial+intelligence+robot&attributesToHighlight=%5B%5D&hitsPerPage=20&page=0&filters=%28is_premium%3A%22false%22%29&analytics=true&clickAnalytics=true&userToken=D62C58B530442DD8F892&attributesToRetrieve=%5B%22objectID%22%2C%22title%22%2C%22description%22%2C%22tags%22%2C%22downloads%22%2C%22downloads_last_month%22%2C%22is_vertical%22%2C%22created_at%22%2C%22updated_at%22%2C%22base_filename%22%2C%22poster%22%2C%22thumbnail%22%2C%22state%22%2C%22views%22%2C%22likes%22%2C%22contributor_id%22%2C%22published_at%22%2C%22playback_id%22%2C%22aspect_ratio%22%2C%22duration%22%2C%22max_height%22%2C%22max_width%22%2C%22video_id%22%2C%22d2v_ratio%22%2C%22id%22%2C%22published_at_timestamp%22%2C%22translations%22%2C%22urls%22%2C%22blur_hash%22%2C%22is_premium%22%2C%22keywords%22%2C%22fps%22%2C%22is_ai_generated%22%2C%22slug%22%2C%22default_variant%22%2C%22scene%22%5D",
+  "params": "query=artificial+intelligence+robot&attributesToHighlight=%5B%5D&hitsPerPage=20&page=0&filters=%28is_premium%3A%22false%22%29&analytics=true&clickAnalytics=true&userToken=<redacted>&attributesToRetrieve=%5B%22objectID%22%2C%22title%22%2C%22description%22%2C%22tags%22%2C%22downloads%22%2C%22downloads_last_month%22%2C%22is_vertical%22%2C%22created_at%22%2C%22updated_at%22%2C%22base_filename%22%2C%22poster%22%2C%22thumbnail%22%2C%22state%22%2C%22views%22%2C%22likes%22%2C%22contributor_id%22%2C%22published_at%22%2C%22playback_id%22%2C%22aspect_ratio%22%2C%22duration%22%2C%22max_height%22%2C%22max_width%22%2C%22video_id%22%2C%22d2v_ratio%22%2C%22id%22%2C%22published_at_timestamp%22%2C%22translations%22%2C%22urls%22%2C%22blur_hash%22%2C%22is_premium%22%2C%22keywords%22%2C%22fps%22%2C%22is_ai_generated%22%2C%22slug%22%2C%22default_variant%22%2C%22scene%22%5D",
   "total": 2,
   "hits": [
     {
@@ -56,7 +56,7 @@
       "contributor": {
         "id": "Izx6H58waOnT",
         "username": "mezdez",
-        "email": "mezdez@gmail.com",
+        "email": "<redacted>",
         "fullname": "mezdez",
         "interests": [
           "beach",
@@ -126,7 +126,7 @@
       "contributor": {
         "id": "9TLVkOpsDFh3",
         "username": "zapwiala",
-        "email": "zapiwala@gmail.com",
+        "email": "<redacted>",
         "fullname": "ZapiWala AI",
         "interests": [],
         "bio": "Zapiwala! is🌟 your ultimate destination for diving deep into the world of ai & ai tools with a fun twist! Here, we're all about making learning engaging and accessible to everyone.",
@@ -137,5 +137,5 @@
   "hitsPerPage": 20,
   "nbHits": 2,
   "nbPages": 1,
-  "query_id": "042f58b6cc00f97969abb96c2117d595"
+  "query_id": "0736c3837d00ebf2f8bc767dc6e94f42"
 }
