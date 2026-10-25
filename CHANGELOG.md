@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.3...tanstack_start_ts-v1.31.4) (2026-10-25)
+
+
+### Bug Fixes
+
+* **short-video:** stop the bare URL probe from killing bing_news on geo redirects ([#888](https://github.com/0xPabloLI/inside-china-ai/issues/888)) ([#942](https://github.com/0xPabloLI/inside-china-ai/issues/942)) ([84297f3](https://github.com/0xPabloLI/inside-china-ai/commit/84297f3782d6e653df89609afce903a6d33cad7e))
+
 ## [1.31.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.2...tanstack_start_ts-v1.31.3) (2026-10-25)
 
 
