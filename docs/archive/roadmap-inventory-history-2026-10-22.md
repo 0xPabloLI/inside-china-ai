@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 34 轮盘点 + 64 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案）。
+> 本文件按时间倒序排列，共 35 轮盘点 + 65 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round XCV → LV）
+## 逐轮盘点（Round XCVI → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round XCVI：`#529` 执行期清单逐条处置 + 画面描述合同落地**——11 条待批清单按用户四决全部处置：R2/R3/R8 中 7 条路由到既有 owner 票（R2①③ / R3①②③ / R8①；R2④ 无动作，留 R5 对照输入），不新增 `mediaStrategy` 取值、不新增 dead-air 检查（2026-10-10 证据门槛未满足）；R6②「画面理解合同」落地 `docs/video-script-writing-guide.md`（含 Stage 3 步骤 6 入口指针 + L2 研究清单勾销），R6③ 挂 runbook 下次改动、R6① 挂外部长视频立项；R1 建表项随 `#300` 关闭终止；R4/R5/R7 触发门不变。`#529` 从 `ready-for-human` 转 `dormant`（触发账本），Track 3 HITL frontier 推进至 **`#723`**。PR #929 squash `35e09578`；droid-review 3 条（读者入口 / L2 指针与全称 / 票归属措辞）全修并 resolve；`lint:docs` 0 新增引用、`git diff --check` 净、CI 全绿。**enabling fix：写稿侧自检落地，无成片产出 diff**。frontier（2026-10-25 裁决 A + B）：Track 1B 产线修复 **`#778`** → `#353` → `#358` → `#329`，**先于一切 HITL**；其后依次为非吸收 HITL（`#723`/`#748`/`#466`/`#650`/`#320`/`#430`/`#431`）与外部吸收组（`#529` dormant + `#291` 派生票）；Track 2 `#291` AFK 空。）
 
 （**Round XCV：`#763` 交付闭票——MRL-2 机检门 / 编辑建议分层**——47 个注册检查拆为 30 类机检门 + 18 项编辑建议（17 个函数 + 头像策略子项）；判断类不再进 pass/warn/fail，也不影响退出码；`checkLayoutField` 只对 narrative 强制 `layout`（7 个旧包的 58 个假 FAIL 清零）；`checkSemanticConsistency` 改词边界匹配并删除需实体作用域的 `up/down` 等词对；`--pre` 通过项按类别折叠（didi 80→48 行）。droid 5 条（ReDoS / B5·B6 悬空引用 / hook 标签 / brand-system 严重度 / pass 行契约）全修并 resolve；4696 tests 全绿；PR #926 squash `25533acc`。**产出 diff：preflight 输出行数与分层（quality improvement），视频产物无变化**。frontier：Track 3 HITL 队首 **`#529`**（→ `#723`）；Track 2 `#291` AFK 空；Track 1B **`#778`**。）
 
@@ -85,10 +87,12 @@
 
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
-## 近轮一句话档案（Round XCII → J）
+## 近轮一句话档案（Round XCIII → J）
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round XCIII**（`#761` 交付闭票——文本优先版式媒体职责：HITL 两决（混合路线＝contrast 接线 `MediaBackground` + `contentDir`，两版式只承载氛围背景，证据路由 `media-window` / `media.mode:"fullscreen"`，不新增纵向窗口、不碰 #688；存量 fail-closed + 作者三选一，不迁移）；新 preflight `Text-first layout media routing` 对 `assetNeed` / `media.evidence:true` 判 FAIL、`fullscreen` 豁免；quality improvement——didi s5/s7 官方产品图首次上屏；droid 1 条 P1（CI 环境门）修并 resolve；219 scene-rules tests、4689 全绿；PR #919 squash `4845d3be`；frontier：Track 3 HITL `#763`、Track 1B `#778`）
 
 **Round XCII**（`#757` 交付闭票——T2V 逐模型 prompt 模板：HITL 两决收 3 family（`wan2.2`/`wan2.1` 在产线 + `seedance` 候选）＋「数据表 + 纯渲染函数」；`prompt-templates.mjs` 导出 6 个符号，`MODEL_TIER_FAMILIES` import 时由 `modelTiers` 派生（同档位重复归属报错）并用测试锁到 `runner.mjs MODEL_TIERS`，渲染器按名拒绝 `brand`/`negative`、Wan 超 480 token 抛错不截断；研究笔记一手取证四家官方契约并**纠正旧横评「HunyuanVideo 1.5 Apache-2.0」**（实为 Tencent community license，EU/UK/KR 排除，仓库 6.5 个月无提交）；CogVideoX 5B 商用登记 + 仓库约 12 个月无提交 → 两者只留证据不入表；**未接线，零行为变化**；droid 2 条（P2 派生表重复 / P3 文档导出一致性）全修并 resolve；20 tests、`lib/__tests__` 369 绿、CI 全绿；PR #916 squash `d3983f29`；frontier：Track 3 HITL `#761`、Track 1B `#778`）
 
@@ -250,7 +254,6 @@
 
 ✅ **Round XL 闭票 7 张**：**#629**（尾裁切对齐可疑守卫 PR #640 + 基数词发音展开与裁切后二次 ASR 读回验证 PR #671）、**#328**（yt-dlp Firefox 通道与 argv 化 PR #640）、**#347**（package-lock 同步与 CI `npm ci` 门禁 PR #371）、**#391**（22 方法拆帧 bench 矩阵 PR #392/#395/#419 + 四子票 `#414/#415/#417/#418` 全闭 + 生产统一 Qwen3-VL 原生采样 PR #543）、**#286**（随 #309 交付覆盖关闭）、**#244**（TTS/instruct 三提交已落地、文案拆 #278）、**#637**（重复票并入 **#462** 关闭）。✅ **#325** 已交付闭票（2026-10-14，PR #645，squash `3baee899`：lib 124 条 knip finding 全裁决——114 去 export、4 死符号删除、`SUPPORTED_YTDLP_PLATFORMS` 补真实消费方、`@public` 保留测试断言的模块 API；机制：knip hints 随 workspace node_modules 环境翻转）。✅ **#555** 已交付闭票（2026-10-14，PR #641，squash `1fc0aaff`：Python 套件进 CI + 单一 pytest runner + 零测试硬门禁，15 文件 247 用例，红线两类文件各实证一次）。✅ **#319** 已交付闭票（2026-10-13，PR #630，squash `359b7185`：六份报告 M/L 批次 127 条裁决 **14 修复 + 1 部分 + 39 won't-fix + 73 证伪**——slug 去边、newsletters 作者/空更新、og:image:type、订阅判重 23505、附件删除上报、markdown 块插入、剪贴板结果、social preview slug 同步、theme toggle 存储兜底、ui displayName、analytics 满页告警；遗留 Publora 分页契约与扫描覆盖缺口见票评）。W1C 同波可并行：**#623**（P2）、**#327**（P3）、**#566**（P3，曾与 #319 同触 digital-human.mjs，现可独立领取）、**#649**（P3）；#404/#462 为 P2 `needs-triage`，#466/#650 为 `ready-for-human`；Tier 1 仍无 AFK P1 可领取项（#429 ready-for-human、#291/#216 HITL）。✅ **#426** 已交付闭票（2026-10-12，PR #589，squash `96775184`：有界重试 + 写后按 slug 核对 + 409 收敛 + 脱敏诊断；后续 PR #593（`28c6d688`）补齐 2xx 空响应收敛与被替换行重定位，真实服务 smoke 已授权通过；`publish-utils.mjs` 唯一写 seam 已加固，W1D 内容包契约轨剩余 #429/#430/#431/#434 均为 HITL/人工）。✅ **#424** 已交付闭票（2026-10-12，PR #586：`filterPaidSources()` 值返回 seam 消除 const 重赋值，8 格离线矩阵 + 真实 CLI 冒烟；`search-sources.mjs:1124` 单一 owner 期结束，与 #447 的软串行随之解除）。✅ **#394** 已交付闭票（2026-10-12，PR #582：offline 显式覆盖 seam + 缺缓存诊断 + Step 0.4 ASS 门禁；**W1A 原列已清空**，#581 承接 Kaggle 下载兜底并已转 `ready-for-agent`）；✅ **#576** 已交付闭票（2026-10-12，PR #578：claim reveal `lineHeight` 1.05→1.1，逐边 poke 在 preferred 盒归零、floor 边界数字入测试，gate 未动）；✅ **#422** 已交付闭票（2026-10-12，PR #573：logo row 预留宽度 `hookSubjectTextWidth()` 单一真值源 + row 钉 band 内容盒 + 真实几何取证四盒全在安全区）；✅ **#421** 已交付闭票（2026-10-11，PR #561：`finalizeTtsResults()` 统一汇合 + 五入口渲染边界 fail-closed + `scene-audio` sidecar 解析）；✅ **#548** 已交付闭票（2026-10-11，PR #554：digit+unit 合并形别名，TTS seam 已解锁）；✅ **#423** 已交付闭票（2026-10-11，PR #551）。✅ 真实Kaggle TTS跑已解锁（**#231** 2026-10-09交付闭票：py3.13重钉版 + 离线wheelhouse挂载，在线/离线双路径真机取证；挂载冻结校验已由 **#521** 收口，PR #522）。**#424** 的 crash 修复已交付，W1C **#447** 正确性 gate（tracker P2·ready-for-agent）不再与其串行，可独立领取，**后于 Round XXX 交付闭票**（PR #614，squash `440d3746`）。W3C **#391** 已闭票，**#334**（VLM Prompt 优化）可与 **#541** 衔接推进；#425/#357/#358/#636/#547 快赢可穿插。**待人工裁决**：#429最终链接失败政策、#430 Widget门禁、#431跨轨回检边界、#463/#663/#624版面契约子图（#668）、#466跨仓CI访问、#469站点经验治理、#541人工标注/实验预算、#650扫描器分流契约；#535保留低紧迫度准入待证，#291/#216既有HITL仍保留。**#414 生产落地已裁决并落地**（2026-10-09：四档 → `buildWindowPlan()`，见 [`keyframe-extraction-research.md` §18.2](../research/keyframe-extraction-research.md)）；**#391 已闭票收口**（2026-10-10 引擎统一 Qwen 原生 + A1 转写 PR #543 关 #542，2026-10-15 #391 闭票，YuNet 内核评估独立归 #396）。开工前重新读取评论、状态、assignee与依赖API。
 
-
 ## 表内已闭票叙述（2026-10-22 下沉）
 
 > 各表自己的规则是「只列 open 票」「已全部闭票的历史行 → archive」，但每轮都往同一行追加交付句子。
@@ -305,6 +308,7 @@
 - **Phase 3: 视觉设计系统与媒体素材重构** — ✅ **#297** (素材匹配 Fail-closed 留空, P1, 已闭票)
 - **Phase 3: 视觉设计系统与媒体素材重构** — ✅ **#357** (视频默认容器 zoom 退场快修, P2 bug——已交付闭票 PR #690 `d66a57dd`)
 - **Phase 3: 视觉设计系统与媒体素材重构** — ✅ **#425** (media-track 尊重显式 upscale:false, P2 bug——已交付闭票 PR #694 `477739ac`)
+
 ### Execution Waves（执行波次总表）
 
 - **W1C · 工程卫生、安全与状态治理** — ✅ **#864**（`session:start` 以 `$MAIN_WT` 锚定 worktree 路径/安装器/`core.hooksPath`/provisioning + 交付前 `check-hook-liveness.mjs` fail-closed 自检 + gate 默认模式巡检全部 worktree）已交付闭票（2026-10-23，PR #882 squash `afe0826b`，Round LXXXV）
@@ -338,6 +342,7 @@
 - **W3B · 媒体底座与素材体系** — ✅ **#547** 已交付闭票（PR #769，2026-10-18）
 - **W3C · 画面适配与智能写稿** — ✅ **#391**、✅ **#244**、✅ **#519**、✅ **#463**、✅ **#663**、✅ **#624**、✅ **#397**、✅ **#289**（PR #755）与 ✅ **#668** 已闭票
 - **W3C · 画面适配与智能写稿** — ✅ **#762**（`checkLoopClose` PASS 死分支，PR #839）、✅ **#759**（final-media-gate，PR #831）与 ✅ **#760**（媒体覆盖判据对齐，PR #840）已闭票，Track 1A 段为空
+
 ### Detailed Phase Roadmaps（阶段执行分解）
 
 - **Wave 1C（工程卫生、安全与状态治理）** — ✅ **#864**（`session:start` 从 session worktree 内启动时把外层 worktree 写进新 worktree 的 per-worktree `core.hooksPath`，外层 `session:stop` 删 checkout 后 hook 静默全灭——git 对悬空 hooksPath 不报错）已交付闭票（2026-10-23，PR #882 squash `afe0826b`，Round LXXXV）
@@ -354,10 +359,12 @@
 - **Wave 2A（【调研先行】探针摸底与环境底座，✅ 本波次完成）** — ✅ **#281**（Search Pool 引擎可用性复测：Serper 可用并修复 `parseArticles` 映射 bug、Brave TUN 故障未复现，绕行方法留档）+ ✅ **#287**（管线入口顶层统一加载 `.env.local`，彻底闭环 **#275**，已闭票）。
 - **Wave 2B（本轮新增切片）** — ✅ **#424**（paid 过滤 crash 已交付闭票，PR #586）
 - **Wave 3C（ASR独立评估）** — ✅ **#418** 已交付闭票（2026-10-09，PR #526）——复用 #415 安全门/#417 loader 与已有公平计时，补齐四格矩阵与**词级差异率**（ctx-off 口径 0%–52.6%，同模型 ≠ 同输出）；裁决**保留 whisper.cpp**（每次新进程 MLX 更慢），三条路径收敛、WhisperX 保持 dormant、wav2vec2 未动；缺失自检落 **Step 0.3 硬门禁** + ggml 完整性校验。
+
 ### Execution Tiers（open 票放置）
 
 - **#846 · apply-media-patch 顶层大括号扫描、Evidence 覆盖显式决定与单源格式化** — ✅ 已交付闭票（2026-10-22，PR #875 squash `18624d71`，Round LXXXIII；P1·W1C·P2 bug）
 - **#310 · 素材库体系（统一素材库+索引+收获率 log）** — ✅ #758 已交付（PR #850）
+
 ### Conflict Risk Matrix（文件并发风险矩阵）
 
 - **docs/tools-catalog.md adr/0021-tool-catalog-split.md docs/DOCS-INDEX** — ✅ **#864**（`scripts/session-launcher.sh` 的 `$MAIN_WT` 锚定 + `scripts/check-hook-liveness.mjs` 的全 worktree 遍历/`--repo` 单点模式，session/hook seam 释放）已交付闭票（2026-10-23，PR #882 squash `afe0826b`，Round LXXXV）
