@@ -396,7 +396,7 @@
 **R1 待批清单**（2026-09-28 用户已全部批准 ✅；批准 ≠ 立即实施——各条的实际落地动作见括号说明）：
 - [x] 抄结构①：把 `recap_story_plan.json` 的 `director_intent` / `audience_question_in/out` / `evidence` 字段吸收进 R1.6 草案（草案已按此写，**批的是"草案方向"本身**）→ 已批准，无需后续动作
 - [x] 抄结构②：R1.6 草案作为 #300 竞品基准的记录格式起点（讨论用，不建表不写码）→ **已执行**：草案全文内联贴入 [#300 评论](https://github.com/0xPabloLI/inside-china-ai/issues/300#issuecomment-5865492050)（2026-09-28，用户授权；因本文档未 push 远端，评论贴草案本体而非文档链接），并附 3 个待讨论问题
-- [x] 读思路③：ASR 精度 sidecar 的"精度诚实声明"做法 → 未来写进我们 alignment 层文档（意向已批准，作为既定方向记录；实际改 `lib/subtitles` 相关文档时单独提请）
+- [x] 读思路③：ASR 精度 sidecar 的"精度诚实声明"做法 → **已落地**（#529，2026-10-25）：`docs/video-production-runbook.md` → Subtitle alignment 节的「Alignment output is a draft」纪律（精度声明只报实测事实，不升级为 word-accurate）。未新增机械门禁。
 
 ### R2 镜头 / 视觉语法（2026-09-28 完成）
 
@@ -612,7 +612,7 @@
 
 **最值钱的是它的教训，不是功能**：SKILL.md 开篇就自曝翻车记录——**「MFA times 是 DRAFT，不是 ground truth」**：retake 密集的素材上 Whisper 会把重复句塌缩成一条转写，MFA 就把一次转写对齐到多次实际口播上，实测后半段漂移 **1–6 秒**（给了具体数字：MFA 说 217.2s、真实起点 225.4s）。对策：每个 keep boundary 必须用 isolated-window 重新转写校验后才准渲染。
 
-**对我们的直接意义**：我们用 wav2vec2 forced alignment，同为 forced aligner，**同一类失败模式适用**——我们的素材是文稿驱动（TTS 朗读、无 retake），风险远低于它的口播素材，但「对齐时间是草稿、发布前要抽查校验」这条纪律应该进我们 alignment 层的共识（与 R1.1 的精度诚实声明合并为一条待批项）。
+**对我们的直接意义**：我们用 wav2vec2 forced alignment，同为 forced aligner，**同一类失败模式适用**——我们的素材是文稿驱动（TTS 朗读、无 retake），风险远低于它的口播素材，但「对齐时间是草稿、发布前要抽查校验」这条纪律已进我们 alignment 层的共识（与 R1.1 的精度诚实声明合并为一条，**#529 已落地**于 `docs/video-production-runbook.md` → Subtitle alignment 节）。
 
 #### R6.4 B3 归属更正 + B4/B2 结案
 
@@ -623,7 +623,7 @@
 **R6 待批清单**：
 - [ ] 抄结构①：claude-shorts 5 维 rubric（分值锚定枚举 + red flags 形态）改造成我们选段评分词表（实施前先出 schema 提案）
 - [x] 读思路②：erduo「画面理解合同」三问（锚点/动作/结果）并入 scene-data 场景描述验收标准的意向 → **已落地**（#529，2026-10-24）：`docs/video-script-writing-guide.md` → 画面描述合同；Stage 3 步骤 6 有入口指针。未新增机械门禁。
-- [ ] 读思路③：cut-video「对齐时间是草稿」+ R1.1 精度诚实声明，合并为 alignment 层文档的一条纪律意向（与 R1 待批③同源，落地时合并处理）
+- [x] 读思路③：cut-video「对齐时间是草稿」+ R1.1 精度诚实声明，合并为 alignment 层文档的一条纪律意向（与 R1 待批③同源，落地时合并处理）→ **已落地**（#529，2026-10-25）：`docs/video-production-runbook.md` → Subtitle alignment 节，「对齐时间是草稿，发布前抽查校验」已与精度诚实声明合并为一条纪律。未新增机械门禁。
 
 ### R7 数字人 fallback（2026-09-28 完成；**开口子与否是你的决策，本轮只给成本事实与建议触发条件**）
 
