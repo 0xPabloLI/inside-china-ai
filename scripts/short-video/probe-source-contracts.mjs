@@ -25,12 +25,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadEnv } from "./lib/load-env.mjs";
 import { extractVqd } from "./lib/progressive-search.mjs";
+import { SOURCE_CONTRACT_KEYWORD } from "./lib/source-contract-keyword.mjs";
 import { STOCK_MEDIA_SOURCES } from "./lib/source-registry.mjs";
 import { YTDLP_BROWSER_UA } from "./lib/ytdlp-guard.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(HERE, "__tests__", "fixtures", "source-contracts");
-const KEYWORD = "artificial intelligence robot";
+const KEYWORD = SOURCE_CONTRACT_KEYWORD;
 
 loadEnv(process.env.ENV_FILE);
 const env = process.env;
