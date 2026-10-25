@@ -513,13 +513,7 @@ async function main() {
     // Repair dispatch: maps failure categories to repair actions.
     // The loop passes the artifact it will re-verify (#870), so repairs work on
     // the current path instead of the constants captured at render time.
-    const repairFn = (
-      category,
-      report,
-      { videoPath: currentVideoPath, assPath: currentAssPath } = {},
-    ) => {
-      const repairVideoPath = currentVideoPath ?? result.path;
-      const repairAssPath = currentAssPath ?? subtitles.assPath;
+    const repairFn = (category, report, { videoPath: repairVideoPath, assPath: repairAssPath }) => {
       const findBaseAndBurn = () => {
         // The finalize pass keeps the RAW render output as the repair base.
         // Rebuild the shipped file from it with the corrected ASS — the full
@@ -572,15 +566,11 @@ async function main() {
       return { success: false };
     };
 
-    const {
-      report: finalReport,
-      videoPath: verifiedVideoPath,
-      assPath: verifiedAssPath,
-    } = await verifyWithRetry({
-      verifyFn: ({ videoPath, assPath } = {}) =>
+    const { report: finalReport, videoPath: verifiedVideoPath } = await verifyWithRetry({
+      verifyFn: ({ videoPath, assPath }) =>
         verifySubtitles({
-          videoPath: videoPath ?? result.path,
-          assPath: assPath ?? subtitles.assPath,
+          videoPath,
+          assPath,
           timingData: subtitles.timingData,
           sceneDurations,
           outputDir,
@@ -601,11 +591,8 @@ async function main() {
       process.exit(1);
     }
 
-    // The accepted artifact is the path of record for everything after Step 6
-    // (#870): the loop guarantees a path, and the completion banner reads
-    // result.path.
+    // Adopt the accepted video path: the completion banner reads result.path.
     result.path = verifiedVideoPath;
-    subtitles.assPath = verifiedAssPath;
     prof.end("step-6-verify");
   }
 

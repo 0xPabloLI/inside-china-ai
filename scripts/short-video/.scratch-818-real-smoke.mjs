@@ -243,7 +243,8 @@ else {
   console.log(`video=${s.video}`);
   console.log(`scenes=${s.sceneDurations.length}`);
 
-  const verifyWith = (timing) =>
+  const verifyWith =
+    (timing) =>
     ({ videoPath, assPath } = {}) =>
       verifySubtitles({
         videoPath: videoPath ?? s.videoPath,
