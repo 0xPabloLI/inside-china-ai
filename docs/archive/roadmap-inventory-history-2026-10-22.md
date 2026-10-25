@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 37 轮盘点 + 67 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案）。
+> 本文件按时间倒序排列，共 38 轮盘点 + 68 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
