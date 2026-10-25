@@ -1,4 +1,9 @@
 {
+  "batchcomplete": "",
+  "continue": {
+    "sroffset": 10,
+    "continue": "-||"
+  },
   "query": {
     "searchinfo": {
       "totalhits": 7492
@@ -7,18 +12,21 @@
       {
         "ns": 6,
         "title": "File:ChatGPT and artificial intelligence in higher education.pdf",
-        "pageid": 131226375
+        "pageid": 131226375,
+        "size": 612,
+        "wordcount": 139,
+        "snippet": "Commons Attribution-Share Alike 3.0 truetrue English ChatGPT and <span class=\"searchmatch\">artificial</span> <span class=\"searchmatch\">intelligence</span> in higher education: quick start guide determination method or",
+        "timestamp": "2025-08-08T06:00:16Z"
       },
       {
         "ns": 6,
         "title": "File:Artificial Intelligence Concept Hypermap.pdf",
-        "pageid": 147733734
+        "pageid": 147733734,
+        "size": 572,
+        "wordcount": 159,
+        "snippet": "Creative Commons Attribution-Share Alike 4.0 truetrue English <span class=\"searchmatch\">Artificial</span> <span class=\"searchmatch\">Intelligence</span> explained in a concept map with links. author name string: Trebol6",
+        "timestamp": "2026-05-03T14:58:23Z"
       }
     ]
-  },
-  "batchcomplete": "",
-  "continue": {
-    "sroffset": 10,
-    "continue": "-||"
   }
 }
