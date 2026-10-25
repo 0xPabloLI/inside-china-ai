@@ -510,27 +510,29 @@ async function main() {
         ")...\n",
     );
 
-    // Repair dispatch: maps failure categories to repair actions
-    const repairFn = (category, report) => {
+    // Repair dispatch: maps failure categories to repair actions.
+    // The loop passes the artifact it will re-verify (#870), so repairs work on
+    // the current path instead of the constants captured at render time.
+    const repairFn = (category, report, { videoPath: repairVideoPath, assPath: repairAssPath }) => {
       const findBaseAndBurn = () => {
         // The finalize pass keeps the RAW render output as the repair base.
         // Rebuild the shipped file from it with the corrected ASS — the full
         // single-pass chain (subs + BGM + loudnorm + #176 head trim), not a
         // bare re-burn, so the repaired artifact matches the shipped recipe.
-        const rawPath = rawOutputPathFor(result.path);
+        const rawPath = rawOutputPathFor(repairVideoPath);
         if (!existsSync(rawPath)) return null;
         finalizeRenderedVideo({
           videoPath: rawPath,
-          assPath: subtitles.assPath,
+          assPath: repairAssPath,
           bgmPath,
-          outputPath: result.path,
+          outputPath: repairVideoPath,
           realign: {
             outputDir,
             sceneDurations,
             audioPaths: ttsResults.map((t) => t.audioPath),
           },
         });
-        return { success: true, videoPath: result.path, assPath: subtitles.assPath };
+        return { success: true, videoPath: repairVideoPath, assPath: repairAssPath };
       };
 
       if (category === "audio-sync-drift") {
@@ -546,14 +548,14 @@ async function main() {
         // Both Step 6 repair paths rewrite the .ass directly; the invariant has
         // to run here too or the guard is only as wide as generateSubtitles.
         assertDualTrackRestorable({ scenes, timingData: subtitles.timingData });
-        writeFileSync(subtitles.assPath, renderAss(cues), "utf8");
+        writeFileSync(repairAssPath, renderAss(cues), "utf8");
         return findBaseAndBurn() ?? { success: false };
       }
 
       if (category === "cue-gaps") {
         const cues = buildCues(subtitles.timingData, sceneDurations);
         assertDualTrackRestorable({ scenes, timingData: subtitles.timingData });
-        writeFileSync(subtitles.assPath, renderAss(cues), "utf8");
+        writeFileSync(repairAssPath, renderAss(cues), "utf8");
         return findBaseAndBurn() ?? { success: false };
       }
 
@@ -564,11 +566,11 @@ async function main() {
       return { success: false };
     };
 
-    const { report: finalReport } = await verifyWithRetry({
-      verifyFn: () =>
+    const { report: finalReport, videoPath: verifiedVideoPath } = await verifyWithRetry({
+      verifyFn: ({ videoPath, assPath }) =>
         verifySubtitles({
-          videoPath: result.path,
-          assPath: subtitles.assPath,
+          videoPath,
+          assPath,
           timingData: subtitles.timingData,
           sceneDurations,
           outputDir,
@@ -588,6 +590,9 @@ async function main() {
       );
       process.exit(1);
     }
+
+    // Adopt the accepted video path: the completion banner reads result.path.
+    result.path = verifiedVideoPath;
     prof.end("step-6-verify");
   }
 

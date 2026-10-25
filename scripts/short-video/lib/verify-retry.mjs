@@ -177,8 +177,8 @@ export function relaxGapParams(attempt) {
  * (returned `success: false`, or crashed) so nothing on disk changed.
  *
  * @param {object} options
- * @param {Function} options.verifyFn - () => report (verifySubtitles or mock)
- * @param {Function} [options.repairFn] - (category, report, state) => { success, videoPath?, assPath? }
+ * @param {Function} options.verifyFn - ({ videoPath, assPath }) => report (verifySubtitles or mock)
+ * @param {Function} [options.repairFn] - (category, report, { videoPath, assPath }) => { success, videoPath?, assPath? }
  * @param {number} [options.maxRetries=2] - max repair attempts
  * @param {string} options.videoPath - initial video path
  * @param {string} options.assPath - initial .ass path
@@ -193,7 +193,7 @@ export async function verifyWithRetry({
 }) {
   let videoPath = initialVideoPath;
   let assPath = initialAssPath;
-  let report = verifyFn();
+  let report = verifyFn({ videoPath, assPath });
   let prevErrors = report.summary?.errors ?? 0;
 
   if (report.summary?.passed) {
@@ -236,11 +236,13 @@ export async function verifyWithRetry({
       break;
     }
 
-    // Use repaired paths if provided
-    if (repairResult?.videoPath) videoPath = repairResult.videoPath;
-    if (repairResult?.assPath) assPath = repairResult.assPath;
+    // The repaired artifact is what must be re-verified (#870). Candidate paths
+    // are promoted only if the repair is accepted, so a rolled-back attempt
+    // cannot leak its paths into the next dispatch or the final return.
+    const nextVideoPath = repairResult?.videoPath || videoPath;
+    const nextAssPath = repairResult?.assPath || assPath;
 
-    const newReport = verifyFn();
+    const newReport = verifyFn({ videoPath: nextVideoPath, assPath: nextAssPath });
     const newErrors = newReport.summary?.errors ?? 0;
 
     console.log(
@@ -252,6 +254,8 @@ export async function verifyWithRetry({
       // Accept the repair
       report = newReport;
       prevErrors = newErrors;
+      videoPath = nextVideoPath;
+      assPath = nextAssPath;
       if (report.summary?.passed) {
         return { report, videoPath, assPath };
       }
