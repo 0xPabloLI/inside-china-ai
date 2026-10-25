@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.1...tanstack_start_ts-v1.31.2) (2026-10-25)
+
+
+### Bug Fixes
+
+* **tts:** fail closed when the pacing compensation round produces no take ([#925](https://github.com/0xPabloLI/inside-china-ai/issues/925)) ([#935](https://github.com/0xPabloLI/inside-china-ai/issues/935)) ([074a68c](https://github.com/0xPabloLI/inside-china-ai/commit/074a68cb1c5dceab7bd4c7d30e1aaf6a243b7e60))
+
 ## [1.31.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.0...tanstack_start_ts-v1.31.1) (2026-10-24)
 
 
