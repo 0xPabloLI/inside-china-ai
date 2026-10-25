@@ -32,9 +32,9 @@
  * Unified venv: ~/.video-tts-env (Python 3.12) — CosyVoice3 + F5 + whisperx all in one.
  */
 
-import { existsSync, statSync } from "fs";
 import { join } from "path";
 import { createRegenStaging, acceptRegenTake, cleanupRegenStaging } from "./staging.mjs";
+import { hasAudioBytes } from "./audio-file.mjs";
 import { createCosyVoice3KaggleCudaEngine } from "./cosyvoice3-kaggle-cuda.mjs";
 import { createCosyVoice3ModalCudaEngine } from "./cosyvoice3-modal-cuda.mjs";
 import { createCosyVoice3MLXEngine } from "./cosyvoice3-mlx.mjs";
@@ -159,30 +159,17 @@ function replaceResult(results, res) {
 }
 
 /**
- * Whether a generated result actually carries audio bytes (#925). The gate
- * reports a missing/zero-byte file as an acoustic failure, but for the pacing
- * ladder it means the take was NEVER produced — the same infra failure as a
- * missing result, and it must not be mistaken for a rejected take.
- */
-function hasUsableAudio(res) {
-  if (!res?.audioPath) return false;
-  try {
-    return statSync(res.audioPath).size > 0;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * #820 + #925: one warning for takes that still ship below what the pacing
- * ladder planned. Shared by the normal path and the F5-fallback re-run so the
- * two cannot drift into describing different criteria (the fallback used to
- * say "below the 150 WPM trigger" while listing an in-band hook).
+ * #820 + #925: one warning for takes that still ship below the 150 WPM trigger
+ * OR below the speed this run planned for them. Shared by the normal path and
+ * the F5-fallback re-run so the two cannot drift into describing different
+ * criteria (the fallback used to say "below the 150 WPM trigger" while listing
+ * an in-band hook).
  */
 function warnStrandedTakes(stranded) {
   if (stranded.length === 0) return;
   console.warn(
-    `  ⚠️ [Pacing Loop] these takes still ship below the speed the ladder planned for them: ` +
+    `  ⚠️ [Pacing Loop] these takes still ship below the ${WPM_COMPENSATE_BELOW} WPM trigger ` +
+      `or the speed the ladder planned for them: ` +
       `${stranded.map((s) => `scene ${s.sceneId} (${s.wpm} WPM, ${s.reason})`).join(", ")}. ` +
       `The plan's pacing target is not met — trim the script or use a speed lever ` +
       `(docs/content-pipeline.md → 旁白语速预算).`,
@@ -1029,7 +1016,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
             } else if (
               compensation &&
               evalRes?.failureClass === FAILURE_CLASS.ACOUSTIC &&
-              !hasUsableAudio(res)
+              !hasAudioBytes(res.audioPath)
             ) {
               // #925: the engine returned an entry but no audio bytes reached
               // the staging dir (download failed / kernel wrote nothing). The

@@ -380,7 +380,9 @@ describe("TTS local fallback (#704)", () => {
     expect(results.find((r) => r.sceneId === 1).engine).toBe(f5);
     expect(engine.generate).toHaveBeenCalledTimes(1);
     expect(warnText()).toMatch(/scene 1 \(130 WPM, f5-mlx take/);
-    expect(warnText()).toMatch(/still ship below the speed the ladder planned/);
+    expect(warnText()).toMatch(
+      /still ship below the 150 WPM trigger or the speed the ladder planned/,
+    );
   });
 
   it("#925: a failed compensation round does NOT route to F5 (F5 cannot consume ttsSpeed)", async () => {
