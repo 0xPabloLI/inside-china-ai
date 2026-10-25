@@ -130,8 +130,8 @@ export function judgeUrlProbe({ searchUrl, finalUrl, httpStatus, error } = {}) {
  *
  * Evidence is not status-specific: the probe answers a login wall with 403,
  * 404 or anything else depending on the site, so this is a blanket skip for
- * login-gated sources, not a relaxation of the 403 branch (Open Question 3 of
- * the issue). None of those answers carry information about the
+ * probe-unauthoritative sources, not a relaxation of the 403 branch (Open
+ * Question 3 of the issue). None of those answers carry information about the
  * cookie-carrying path, including a 200.
  *
  * Unknown sources stay probeable (fail-open): widening this predicate into a

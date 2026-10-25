@@ -56,6 +56,18 @@ describe("judgeUrlProbe", () => {
     expect(v.reason).toBe("redirected-home");
   });
 
+  it("marks a redirect to a different host AND path as redirected-off-search", () => {
+    // #888 AC: the shared dead-URL judge keeps this sibling verdict — the
+    // per-source probe opt-out must not be mistaken for a weakened #269.
+    const v = judgeUrlProbe({
+      searchUrl: "https://www.ithome.com/search?word=x",
+      finalUrl: "https://news.ithome.com/list",
+      httpStatus: 200,
+    });
+    expect(v.dead).toBe(true);
+    expect(v.reason).toBe("redirected-off-search");
+  });
+
   it("keeps a same-page redirect (query-only change) alive", () => {
     const v = judgeUrlProbe({
       searchUrl: "https://www.news.cn/search/news.htm?keyword=x",

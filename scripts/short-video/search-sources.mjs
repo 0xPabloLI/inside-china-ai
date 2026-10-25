@@ -747,6 +747,9 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
   // a source the bare probe cannot speak for — login-gated #285 or
   // geo/cookie-redirected #888). A dead URL skips the CDP layer with reason
   // "dead-url" so googleSiteFallback/mcpFallback take over.
+  // The verdict is a function of (source, url) but the cache is keyed by URL
+  // alone: safe only because the caller-level isProbeAuthoritative() gate below
+  // means a non-authoritative source never writes or reads this cache.
   async function probeSearchUrlGate() {
     const searchUrl = buildSourceSearchUrl(source, keyword);
     if (!searchUrl) return null;
@@ -1310,12 +1313,14 @@ async function main() {
         );
       } else {
         // #285: the source is login-gated, so no probe ran and there is no
-        // verdict to trust. Spend the recheck window on one supervised
-        // collection instead — a real result clears the quarantine via
-        // updateSourceHealth, another zero keeps it. Releasing preemptively
-        // would hand every login-walled source a free streak reset each cycle.
+        // verdict to trust. #888 extends the same branch to a declared
+        // probe-unauthoritative source (bare fetch geo/cookie-redirected).
+        // Spend the recheck window on one supervised collection instead — a
+        // real result clears the quarantine via updateSourceHealth, another
+        // zero keeps it. Releasing preemptively would hand every such source a
+        // free streak reset each cycle.
         console.log(
-          `🔓 ${source.name} needs a login session the probe cannot carry (#285) — running one supervised attempt; a result clears the quarantine, another zero keeps it`,
+          `🔓 ${source.name} cannot be judged by the bare probe (login-gated or geo/cookie-redirected, #285/#888) — running one supervised attempt; a result clears the quarantine, another zero keeps it`,
         );
       }
     }

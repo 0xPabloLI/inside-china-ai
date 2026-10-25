@@ -10,6 +10,11 @@
  * - label: display name
  * - category: "news" | "self_media" | "general" | "international" | "last30days" | "wechat"
  * - needsAuth: whether login is required
+ * - probeAuthoritative: false when the unauthenticated URL probe cannot speak
+ *     for this source (#888) — its bare fetch is geo/cookie-redirected to
+ *     another region's homepage while the CDP layer opens the search page.
+ *     Absent means probeable. Passed into capabilities.articles and read only
+ *     through isProbeAuthoritative() in lib/source-health.mjs.
  * - supportsKeyword: whether the source supports keyword search (vs homepage-only)
  * - sourceRole: evidence-group role (optional, issue #97) —
  *     "tracked-feed-context" for fixed public feeds (Wechat2RSS): fetched once

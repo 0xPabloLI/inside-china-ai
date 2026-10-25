@@ -26,6 +26,7 @@ source-url-sweep.mjs（轴 1）→ source-url-discover.mjs（轴 2+3，回收 re
 | `--keys` 报某变量 MISSING                        | 测量缺陷                   | 配 key；**不要碰源**                                                   |
 | `probe-no-egress`                                | 测量缺陷（无路由）         | 查代理/出口；**不要碰源**                                              |
 | `probe-not-authoritative` / `login-wall`         | 测量缺陷（答复关于探针）   | 用真浏览器复核；先看请求头，再看登录态                                 |
+| 同域地理重定向（如 `bing_news` 跳到 `cn.bing.com/`） | 测量缺陷（裸探针无会话）   | 源声明 `probeAuthoritative: false`（#888）；**不要**放宽 `redirected-home` 判据 |
 | `extracts-despite-verdict`                       | 轴 2 误读                  | **什么都不改**；改轴 2 的判据                                          |
 | `http-dead` / `redirected-home` / `still-broken` | 源侧真问题                 | 先走 **A. URL 修复**                                                   |
 | `url-alive-but-extraction-empty`                 | registry 脚本腐烂          | 先走 A（URL 可能本就不对），A 出来仍是 0 条再走 **B**                  |
