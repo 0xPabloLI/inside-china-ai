@@ -163,7 +163,7 @@ export function recordMissingReminder() {
     "",
     "请补一条**自包含**的交付记录评论——开头是产品影响三句（" +
       PRODUCT_VIEW_ROLES.join("、") +
-      "），再列 commit sha、验证证据（测试 / live evidence）、发现的机制和遗留项；标准是「没见过这个 session 的读者仅凭该评论就能恢复或审计这项工作，并知道用户看到了什么变化」。",
+      "），再列 commit sha、验证证据（测试 / live evidence）、发现的机制和遗留项——每项用自己的 `##` 标题分段，最终汇报渲染产品视角时就只会拿到三句（节的边界见 `implementation-workflow.md` §9 第 8 步）；标准是「没见过这个 session 的读者仅凭该评论就能恢复或审计这项工作，并知道用户看到了什么变化」。",
     "",
     `补登后 \`${DELIVERY_RECORD_LABEL}\` 自动摘除；缺失超 ${STALE_DAYS} 天未补，日检会催办一次。`,
     `账本查询：\`gh issue list --label ${DELIVERY_RECORD_LABEL} --state closed\`。`,
