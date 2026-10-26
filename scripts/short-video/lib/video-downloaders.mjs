@@ -622,6 +622,10 @@ export function downloadYtdlpAdapter(url) {
     // instead of relying on upstream's --proxy injection. Applied on every
     // branch: the proxy already rides --proxy for all of them, so this only
     // adds the spelling ffmpeg reads.
+    // Known Semgrep false positive: the detect-child-process dataflow from
+    // `url` cannot break a shell word here — buildYtdlpCommand routes every
+    // interpolated value through shellQuote (#300), and the rest are literals.
+    // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
     execSync(cmd, {
       encoding: "utf8",
       timeout: timeoutMs,
