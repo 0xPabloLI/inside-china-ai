@@ -238,7 +238,7 @@ export const tiktokProfile = {
         // STANDING DEFAULT (user, 2026-10-25): once the video is approved at
         // HITL, publish it end to end — attach the music bed, set its level,
         // disclose AIGC, click 发布 — without coming back with a BGM question.
-        label: 'Audio: attach the music bed at the calibrated level, then publish',
+        label: "Audio: attach the music bed at the calibrated level, then publish",
         detail: [
           "Automation (one pass, after HITL approval):",
           'node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --sound "Breaking News" --sound-owner Voxie --volume-db -15 --publish',

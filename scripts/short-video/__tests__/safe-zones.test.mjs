@@ -184,7 +184,8 @@ describe("media band (full-bleed footage)", () => {
   });
 
   it("spends the right vignette on the action rail, not on the subject", () => {
-    const contentCentreX = SAFE_ZONES.left + (CANVAS.width - SAFE_ZONES.right - SAFE_ZONES.left) / 2;
+    const contentCentreX =
+      SAFE_ZONES.left + (CANVAS.width - SAFE_ZONES.right - SAFE_ZONES.left) / 2;
     // The rail is x∈[880,1080]. The ramp has to start left of it, so the rail
     // sits inside the gradient rather than past its end...
     expect(MEDIA_BAND.vignetteStartX).toBeLessThan(880);

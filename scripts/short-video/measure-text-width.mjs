@@ -86,7 +86,9 @@ try {
     );
   }
   console.log(`\navailable width: ${AVAILABLE}px`);
-  console.log(overflow === 0 ? "✅ every candidate fits one line" : `❌ ${overflow} candidate(s) wrap`);
+  console.log(
+    overflow === 0 ? "✅ every candidate fits one line" : `❌ ${overflow} candidate(s) wrap`,
+  );
 } finally {
   await fetch(`http://localhost:3456/close?target=${targetId}`).catch(() => {});
 }

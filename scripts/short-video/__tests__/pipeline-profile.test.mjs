@@ -291,7 +291,13 @@ describe("pipeline-profile", () => {
     const long = `first line\nsecond line\t${"x".repeat(900)}`;
 
     await prof.runParallel([
-      { name: "step-1-tts", fn: async () => { throw new Error(long); }, meta: { track: "voice" } },
+      {
+        name: "step-1-tts",
+        fn: async () => {
+          throw new Error(long);
+        },
+        meta: { track: "voice" },
+      },
     ]);
 
     const { error } = stepByName(prof, "step-1-tts");
@@ -315,14 +321,26 @@ describe("pipeline-profile", () => {
     // Engines reject with plain objects and strings, not just Errors; a
     // JSON.stringify on a circular value must not become the new failure.
     await prof.runParallel([
-      { name: "step-1-tts", fn: async () => { throw { code: "E_KAGGLE", retryable: false }; }, meta: {} },
+      {
+        name: "step-1-tts",
+        fn: async () => {
+          throw { code: "E_KAGGLE", retryable: false };
+        },
+        meta: {},
+      },
     ]);
     expect(stepByName(prof, "step-1-tts").error).toBe('{"code":"E_KAGGLE","retryable":false}');
 
     const circular = {};
     circular.self = circular;
     await prof.runParallel([
-      { name: "step-2-tts", fn: async () => { throw circular; }, meta: {} },
+      {
+        name: "step-2-tts",
+        fn: async () => {
+          throw circular;
+        },
+        meta: {},
+      },
     ]);
     expect(stepByName(prof, "step-2-tts").error).toBe("[object Object]");
   });

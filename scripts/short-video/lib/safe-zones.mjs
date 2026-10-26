@@ -257,7 +257,10 @@ export const MEDIA_BAND = {
  * track the curve closely enough that the frame gate's measured ratio does not
  * move versus the smoothstep the calibration used.
  */
-const SCRIM_CURVE = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ offset: t, weight: t * t * (3 - 2 * t) }));
+const SCRIM_CURVE = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
+  offset: t,
+  weight: t * t * (3 - 2 * t),
+}));
 
 /**
  * Build a scrim's CSS gradient from the curve above.

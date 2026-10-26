@@ -388,8 +388,7 @@ export const scenes = [
     // "said" is load-bearing: SOURCE_PATTERN needs it in ≥2 scenes and scene 2
     // carries the other one ("According to Unitree"). The lift clause sits
     // second so it lands as the wheel comes up.
-    voiceover:
-      "Unitree said the props are for reference only. The car's front end comes up.",
+    voiceover: "Unitree said the props are for reference only. The car's front end comes up.",
     texts: {
       company: "CAR LIFTED",
       action: "FRONT OFF THE GROUND",

@@ -44,7 +44,9 @@ function errorReason(reason) {
               return String(reason);
             }
           })();
-  const flat = String(text ?? "unknown").replace(/\s+/g, " ").trim();
+  const flat = String(text ?? "unknown")
+    .replace(/\s+/g, " ")
+    .trim();
   return flat.length > MAX_ERROR_CHARS ? `${flat.slice(0, MAX_ERROR_CHARS)}…` : flat;
 }
 

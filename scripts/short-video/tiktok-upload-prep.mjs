@@ -252,7 +252,6 @@ const FILL_CAPTION = (caption) => `
   });
 })()`;
 
-
 /**
  * Read the page state after a publish click, to catch a TikTok-side rejection
  * instead of reporting success on a form that never submitted.
@@ -641,7 +640,11 @@ async function clickAtElement(tabId, selector) {
 }
 
 /** Poll a predicate script until it reports ready. */
-async function waitFor(tabId, script, { timeoutMs = 180_000, intervalMs = 4000, label = "state" } = {}) {
+async function waitFor(
+  tabId,
+  script,
+  { timeoutMs = 180_000, intervalMs = 4000, label = "state" } = {},
+) {
   const started = Date.now();
   let last = null;
   while (Date.now() - started < timeoutMs) {
@@ -652,7 +655,9 @@ async function waitFor(tabId, script, { timeoutMs = 180_000, intervalMs = 4000, 
     );
     await sleep(intervalMs);
   }
-  throw new Error(`${label} not reached within ${timeoutMs / 1000}s — last state: ${JSON.stringify(last)}`);
+  throw new Error(
+    `${label} not reached within ${timeoutMs / 1000}s — last state: ${JSON.stringify(last)}`,
+  );
 }
 
 async function main() {
@@ -662,7 +667,9 @@ async function main() {
   // required for it — that is the whole point of the mode.
   if (!videoArg && !dryRun) {
     console.error("❌ --video is required");
-    console.error("   Example: --video output/unitree-h2x-guardian/xxx-short.mp4 --content unitree-h2x-guardian");
+    console.error(
+      "   Example: --video output/unitree-h2x-guardian/xxx-short.mp4 --content unitree-h2x-guardian",
+    );
     process.exit(1);
   }
   const videoPath = videoArg ? resolve(videoArg) : null;
@@ -680,7 +687,9 @@ async function main() {
   let caption = getArg("caption");
   const captionFile =
     getArg("caption-file") ||
-    (contentId ? join(__dirname, "output", contentId, "publish", "tiktok", "tiktok-caption.txt") : null);
+    (contentId
+      ? join(__dirname, "output", contentId, "publish", "tiktok", "tiktok-caption.txt")
+      : null);
   if (!caption && captionFile && existsSync(captionFile)) {
     caption = readFileSync(captionFile, "utf8").trim();
   }
@@ -770,7 +779,8 @@ async function main() {
         await sleep(1500);
 
         const confirm = await evalJson(tab, TAG_AIGC_CONFIRM);
-        if (!confirm.ok) throw new Error(`AIGC confirmation did not open: ${JSON.stringify(confirm)}`);
+        if (!confirm.ok)
+          throw new Error(`AIGC confirmation did not open: ${JSON.stringify(confirm)}`);
         await clickAtElement(tab, "#__aigcConfirm");
         await sleep(1500);
 
@@ -789,7 +799,8 @@ async function main() {
 
     console.log("  6/6 attaching the native sound…");
     const opened = await evalJson(tab, OPEN_MUSIC_TAB);
-    if (!opened.ok) throw new Error(`music tab not found — editor tabs: ${JSON.stringify(opened.tabs)}`);
+    if (!opened.ok)
+      throw new Error(`music tab not found — editor tabs: ${JSON.stringify(opened.tabs)}`);
     await waitFor(tab, MUSIC_PANEL_READY, { timeoutMs: 60_000, label: "sound library" });
     process.stdout.write("\n");
 
@@ -873,7 +884,9 @@ async function main() {
       const after = await evalJson(tab, PUBLISH_STATE);
       if (after.error) throw new Error(`TikTok reported an error after publish: ${after.error}`);
       if (/\/upload/.test(after.url)) {
-        throw new Error(`still on the upload page after the publish click — check the tab: ${after.url}`);
+        throw new Error(
+          `still on the upload page after the publish click — check the tab: ${after.url}`,
+        );
       }
       console.log("=".repeat(60));
       console.log("✅ Published.");

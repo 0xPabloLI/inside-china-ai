@@ -12,15 +12,7 @@ export const meta = {
       "Unitree published no spec sheet, no price and no release date for the H2-X, and the film's own closing card calls the demonstrations extreme testing with props and warns against imitation; the only hard number in the release is the roughly 8 hour endurance.",
     storyType: "phenomenon",
   },
-  topics: [
-    "china-ai",
-    "unitree",
-    "humanoid",
-    "robotics",
-    "security-robot",
-    "embodied-ai",
-    "h2-x",
-  ],
+  topics: ["china-ai", "unitree", "humanoid", "robotics", "security-robot", "embodied-ai", "h2-x"],
   keyEntities: {
     companies: ["unitree"],
     people: [],
