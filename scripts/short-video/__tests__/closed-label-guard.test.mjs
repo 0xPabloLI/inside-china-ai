@@ -44,10 +44,11 @@ function workflowPriorityRegex() {
 describe("#321 closed-label deny-list sync (workflow ↔ triage-labels.md)", () => {
   // wontfix lives in the State Labels table but is deliberately KEPT on
   // closed issues — it answers "why closed", which is semantics, not state.
-  // delivery-record-missing (#315) is ADDED after close by check-delivery-record
-  // and must survive the strip — it is the missing-record ledger, cleared when
-  // the record lands (behavioral contract: delivery-record-guard.test.mjs).
-  const KEEP_ON_CLOSE = new Set(["wontfix", "delivery-record-missing"]);
+  // The two delivery ledgers (#315, #810 follow-up) are ADDED after close by
+  // check-delivery-record and must survive the strip — they are the ledgers,
+  // cleared when the record (or its product-view section) lands (behavioral
+  // contract: delivery-record-guard.test.mjs, signals-gate.test.mjs).
+  const KEEP_ON_CLOSE = new Set(["wontfix", "delivery-record-missing", "product-view-missing"]);
 
   it("STRIP set == (state ∪ signal labels) − keep-on-close", () => {
     const expected = new Set([

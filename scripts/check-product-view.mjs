@@ -35,6 +35,18 @@ const MIN_UNIT_CHARS = 8;
 const MIN_UNITS = 3;
 
 /**
+ * The three roles, in the order §9 step 8 asks for them. Exported because the
+ * closing ledger's reminders and escalations quote them: one wording, so the
+ * prompt a failed gate prints and the prompt a closed issue receives cannot
+ * drift into asking for different things.
+ */
+export const PRODUCT_VIEW_ROLES = [
+  "原本要解决什么用户可见问题",
+  "用户现在看到什么变化",
+  "哪些行为或边界没有变（无用户可见变化时写明原因）",
+];
+
+/**
  * A template bullet left as `- 原本要解决的用户可见问题：` ends in a colon with
  * nothing after it. Without this rule, submitting the template verbatim would
  * satisfy the gate and the gate would be decorative.
@@ -194,13 +206,50 @@ export function evaluateProductView(input = {}) {
   return { ok: true, skipped: false, units, reason: `${units} substantive units` };
 }
 
-const PROMPTS = [
-  "原本要解决什么用户可见问题",
-  "用户现在看到什么变化",
-  "哪些行为或边界没有变（无用户可见变化时写明原因）",
-];
+/**
+ * The same three sentences, judged on a closing comment.
+ *
+ * A PR body is written before delivery, for a reviewer; the closing comment is
+ * written after, for whoever reads the ticket later. #353 shipped the first and
+ * skipped the second: the record carried a squash sha, a change list and test
+ * evidence, the `交付记录` marker cleared `delivery-record-missing`, and the
+ * ledger read as a complete delivery with no sentence about users. The marker
+ * only proves a comment exists, so the content check has to sit beside it.
+ *
+ * There is no author or label exemption here on purpose. The PR gate exempts bot
+ * authors and `skip-product-view`; both are choices an author could reach for to
+ * opt out of the very surface this checks.
+ *
+ * @param {string} body - one comment body
+ * @returns {{ok: boolean, units: number, reason: string}}
+ */
+export function evaluateCommentProductView(body) {
+  const text = String(body ?? "");
+  if (!text.trim()) return { ok: false, units: 0, reason: "the comment body is empty" };
+  const section = extractSection(text);
+  if (section === null) {
+    return {
+      ok: false,
+      units: 0,
+      reason: "no product-view section (expected a `## 产品视角` or `## Product view` heading)",
+    };
+  }
+  const units = countUnits(section);
+  if (units < MIN_UNITS) {
+    return {
+      ok: false,
+      units,
+      reason: `the product-view section holds ${units} substantive unit(s), needs ${MIN_UNITS}`,
+    };
+  }
+  return { ok: true, units, reason: `${units} substantive units` };
+}
 
-/** @param {{ok: boolean, skipped: boolean, reason: string}} result */
+const PROMPTS = PRODUCT_VIEW_ROLES;
+
+/**
+ * @param {{ok: boolean, skipped?: boolean, reason: string}} result
+ */
 function report(result) {
   const tag = result.skipped ? "SKIP" : result.ok ? "PASS" : "FAIL";
   console.log(`[product-view] ${tag}: ${result.reason}`);
@@ -219,6 +268,10 @@ const invokedDirectly =
   Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invokedDirectly) {
+  // One CLI, for the PR body: that is the only surface a shell can supply. The
+  // closing comment is judged through `evaluateCommentProductView`, imported by
+  // `scripts/issue-tracker-ledger.mjs` — a `--comment` flag here would be a
+  // second entry point nothing calls.
   const result = evaluateProductView({
     eventName: process.env.GITHUB_EVENT_NAME ?? "pull_request",
     body: process.env.PR_BODY ?? "",

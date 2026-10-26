@@ -1,6 +1,6 @@
 name: Issue tracker signals
 
-# 四条机器兜底，替代「靠自觉」：
+# 五条机器兜底，替代「靠自觉」：
 #   1. open 票收到任何新评论 → 自动打 comments-unread
 #      （信号出现在 `gh issue list` 的输出里 —— agent triage 时本来就会跑这条命令，
 #       零额外调用、零额外自觉；读完并把状态落进 roadmap 后由该 session 摘掉）
@@ -11,6 +11,8 @@ name: Issue tracker signals
 #         纯靠约定的清理规则在这里**机制性不可执行**，必须机器兜底
 #   4. #315 交付记录账本闭环：补记录评论落地即摘标（事件驱动）+ 日 cron 兜底复检
 #      与逾期催办 + 存量回填（workflow_dispatch + sweep_delivery）
+#   5. #810 follow-up 产品视角账本：记录里缺 `## 产品视角` 三句 → product-view-missing
+#      （#353 的形态：sha + 改动清单 + 测试证据，一句用户视角都没有）
 #
 # 规则出处：docs/agents/issue-tracker.md（Conventions 的 read-before-claim + Session cognitive offload）
 # 标签定义：docs/agents/triage-labels.md（Signal Labels，由 CI 管理，不计入 triage 的 category/state 约定）
@@ -101,9 +103,31 @@ jobs:
     if: github.event_name == 'issues' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
+      # 判定与标签词表都在 scripts/issue-tracker-ledger.mjs，四个 job 共用一份；
+      # 在这里另写一套，就是 2026-10-26 那次漏判的复现条件。
+      - uses: actions/checkout@v7
       - uses: actions/github-script@v9
         with:
           script: |
+            const { execFileSync } = require('node:child_process');
+            const { join } = require('node:path');
+            // 判定、标签词表、阈值、cutoff 与文案都在 scripts/issue-tracker-ledger.mjs。
+            // 下面四行在四个 job 里逐字相同（signals-gate 逐字比对）：任何一份漂移，
+            // 四个 job 就会对同一张票给出不同答案。
+            const LEDGER_CLI = join(process.env.GITHUB_WORKSPACE, 'scripts', 'issue-tracker-ledger.mjs');
+            const config = JSON.parse(
+              execFileSync('node', [LEDGER_CLI, '--config', '--owner', context.repo.owner], {
+                encoding: 'utf8',
+              }),
+            );
+            const decide = (comments) =>
+              JSON.parse(
+                execFileSync('node', [LEDGER_CLI], {
+                  input: JSON.stringify(comments),
+                  encoding: 'utf8',
+                }),
+              );
+
             const issue = context.payload.issue;
 
             // 拒绝项没有交付记录可言
@@ -121,56 +145,66 @@ jobs:
               issue_number: issue.number,
               per_page: 100,
             });
+            const decision = decide(comments);
+            const { deliveryRecord, productView } = config.labels;
 
-            // 交付记录的唯一 home 是评论（正文 write-once），以固定标记开头以便机器校验。
-            // ⚠️ Bot 评论不算数 —— 本 bot 自己发的缺失告警正文里就含「交付记录缺失」，
-            // 会被 marker 误判成已补登（重开再关的场景：上一次的告警评论还在场）。
-            // 交付记录只会由 session 以真实账号发出。
-            const marker = /交付记录|Delivery record/i;
-            const hasRecord = comments.some(
-              (c) => c.user.type !== 'Bot' && marker.test(c.body || ''),
-            );
-            if (hasRecord) {
-              // 重开再关且账本标签还挂着：顺手清掉，避免「有记录却带缺失标」的脏状态
-              await github.rest.issues
+            const clearLabel = (name) =>
+              github.rest.issues
                 .removeLabel({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: issue.number,
-                  name: 'delivery-record-missing',
+                  name,
                 })
                 .catch((err) => {
                   if (err.status !== 404) throw err;
                 });
-              core.info(`delivery record found on #${issue.number} (${comments.length} comments)`);
+            const addLabel = (name) =>
+              github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: [name],
+              });
+            const say = (body) =>
+              github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body,
+              });
+
+            // 显式豁免同时清掉两只账本：不要求记录，也就无从要求三句。
+            if (decision.hasWaiver) {
+              await clearLabel(deliveryRecord);
+              await clearLabel(productView);
+              core.info(`delivery record waived on #${issue.number}`);
               return;
             }
 
-            // #315：缺失进账本 —— label 是可查询的持久状态
-            // （gh issue list --label delivery-record-missing --state closed），
-            // 不再是一次性留言；摘除与催办见下面两个 job。
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issue.number,
-              labels: ['delivery-record-missing'],
-            });
+            if (decision.recordCount === 0) {
+              // #315：缺失进账本 —— label 是可查询的持久状态
+              // （gh issue list --label delivery-record-missing --state closed）。
+              await addLabel(deliveryRecord);
+              await say(decision.recordMissingReminder);
+              core.info(`delivery record missing on #${issue.number} — reminder posted + ledger label set`);
+              return;
+            }
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issue.number,
-              body: [
-                '⚠️ **交付记录缺失** —— 这张票已关闭，但没有任何评论带 `交付记录` / `Delivery record` 标记。',
-                '',
-                '按 `docs/agents/issue-tracker.md` 的 Session cognitive offload：per-issue 交付记录的**唯一 home 是评论**（正文是 write-once，不改）。',
-                '',
-                '请补一条**自包含**的交付记录评论——产品影响（原本要解决什么用户可见问题、用户现在看到什么变化、哪些行为或边界没有变；无用户可见变化时写明原因）、commit sha、验证证据（测试 / live evidence）、发现的机制、遗留项；标准是「没见过这个 session 的读者仅凭该评论就能恢复或审计这项工作，并知道用户看到了什么变化」。',
-                '',
-                '补登后 `delivery-record-missing` 自动摘除；缺失超 3 天未补，日检会催办一次。',
-              ].join('\n'),
-            });
-            core.info(`delivery record missing on #${issue.number} — reminder posted + ledger label set`);
+            // 重开再关且账本标签还挂着：顺手清掉，避免「有记录却带缺失标」的脏状态
+            await clearLabel(deliveryRecord);
+
+            // 记录在，三句不在 —— #353 的形态：sha + 改动清单 + 测试证据，没有一句讲用户。
+            // 两个账本分开记：读者要能分清「没写记录」和「写了记录但没讲产品」。
+            if (decision.coversProductView) {
+              await clearLabel(productView);
+              core.info(`delivery record + product view ok on #${issue.number}`);
+              return;
+            }
+
+            await addLabel(productView);
+            await say(decision.productViewReminder);
+            core.info(`product view missing on #${issue.number} — ledger label set + reminder posted`);
 
   # #315：交付记录补登 → 立即摘账本标签（事件驱动，不等 cron）。
   # #252 的场景：记录在闭票同一分钟落地，旧门禁不复检、告警永不消。
@@ -179,9 +213,30 @@ jobs:
     if: github.event_name == 'issue_comment' && github.event.action == 'created'
     runs-on: ubuntu-latest
     steps:
+      # 产品视角判定复用同一个脚本：摘标不能比打标更宽松
+      - uses: actions/checkout@v7
       - uses: actions/github-script@v9
         with:
           script: |
+            const { execFileSync } = require('node:child_process');
+            const { join } = require('node:path');
+            // 判定、标签词表、阈值、cutoff 与文案都在 scripts/issue-tracker-ledger.mjs。
+            // 下面四行在四个 job 里逐字相同（signals-gate 逐字比对）：任何一份漂移，
+            // 四个 job 就会对同一张票给出不同答案。
+            const LEDGER_CLI = join(process.env.GITHUB_WORKSPACE, 'scripts', 'issue-tracker-ledger.mjs');
+            const config = JSON.parse(
+              execFileSync('node', [LEDGER_CLI, '--config', '--owner', context.repo.owner], {
+                encoding: 'utf8',
+              }),
+            );
+            const decide = (comments) =>
+              JSON.parse(
+                execFileSync('node', [LEDGER_CLI], {
+                  input: JSON.stringify(comments),
+                  encoding: 'utf8',
+                }),
+              );
+
             const comment = context.payload.comment;
 
             // 回读当前 state（与 mark-unread 同因：payload 是评论创建那一刻的快照）
@@ -195,38 +250,91 @@ jobs:
             // Bot 评论不算数：缺失告警与催办都是 bot 发的
             if (comment.user.type === 'Bot') return;
 
-            const hasLedgerLabel = current.labels.some(
-              (l) => (typeof l === 'string' ? l : l.name) === 'delivery-record-missing',
-            );
-            if (!hasLedgerLabel) return;
+            const names = current.labels.map((l) => (typeof l === 'string' ? l : l.name));
+            const { deliveryRecord, productView } = config.labels;
+            const hadRecord = names.includes(deliveryRecord);
+            const hadProductView = names.includes(productView);
+            if (!hadRecord && !hadProductView) return;
 
-            const marker = /交付记录|Delivery record/i;
-            const WAIVER = /无需交付记录|delivery-record-waived/i;
-            // 豁免先判 —— 「无需交付记录」子串含「交付记录」，marker 先判会把豁免走成补登确认
-            const isWaiver = WAIVER.test(comment.body || '');
-            const isRecord = !isWaiver && marker.test(comment.body || '');
-            if (!isRecord && !isWaiver) return;
-
-            await github.rest.issues
-              .removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: current.number,
-                name: 'delivery-record-missing',
-              })
-              .catch((err) => {
-                // 404 = 已被并发动作（如日 cron 复检）摘掉，不算失败
-                if (err.status !== 404) throw err;
-              });
-            await github.rest.issues.createComment({
+            // 判定按整张票的记录集，而不是「这一条评论」：先挂账、后来补一条合格记录，
+            // 也要能清账。只看新评论会让补登永远摘不掉账本标签。
+            const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: current.number,
-              body: isWaiver
-                ? '✅ 交付记录已豁免，摘除 `delivery-record-missing`。'
-                : '✅ 交付记录已补登，摘除 `delivery-record-missing`（#315 账本闭环）。',
+              per_page: 100,
             });
-            core.info(`#${current.number} delivery-record-missing cleared by user comment`);
+            const decision = decide(comments);
+
+            const clearLabel = (name) =>
+              github.rest.issues
+                .removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: current.number,
+                  name,
+                })
+                .catch((err) => {
+                  // 404 = 已被并发动作（如日 cron 复检）摘掉，不算失败
+                  if (err.status !== 404) throw err;
+                });
+            const say = (body) =>
+              github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: current.number,
+                body,
+              });
+            const cleared = [];
+
+            // 豁免表示「不要求记录」，两只账本一起清
+            if (decision.hasWaiver) {
+              for (const name of [deliveryRecord, productView]) {
+                if (!names.includes(name)) continue;
+                await clearLabel(name);
+                cleared.push(name);
+              }
+              if (cleared.length === 0) return;
+              await say(`✅ 交付记录已豁免，摘除 ${cleared.map((n) => `\`${n}\``).join(' 与 ')}。`);
+              core.info(`#${current.number} waived: ${cleared.join(', ')}`);
+              return;
+            }
+
+            // 还没有记录：那是记录账本的事，本 job 不改状态 ——
+            // 否则任何一句无关评论都会把标签重新点亮。
+            if (decision.recordCount === 0) return;
+
+            if (hadRecord) {
+              await clearLabel(deliveryRecord);
+              cleared.push(deliveryRecord);
+            }
+            if (decision.coversProductView && hadProductView) {
+              await clearLabel(productView);
+              cleared.push(productView);
+            }
+
+            const lines = [];
+            if (cleared.includes(deliveryRecord)) {
+              lines.push(`✅ 交付记录已补登，摘除 \`${deliveryRecord}\`（#315 账本闭环）。`);
+            }
+            if (cleared.includes(productView)) {
+              lines.push(`✅ 产品视角三句已补齐，摘除 \`${productView}\`。`);
+            }
+            // #353 的晚到版本：先缺记录、后补一条只有 sha + 证据的记录。
+            // 只摘记录标、不打产品标，就是门禁在闭票之后被绕过的那个口子。
+            if (!decision.coversProductView && !hadProductView) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: current.number,
+                labels: [productView],
+              });
+              lines.push(decision.productViewReminder);
+            }
+            if (lines.length === 0) return;
+
+            await say(lines.join('\n\n'));
+            core.info(`#${current.number} cleared by user comment: ${cleared.join(', ') || 'none'}`);
 
   # #315：日 cron 复检账本 —— 兜底 comment 事件的竞态/漏网 + 逾期催办一次。
   delivery-record-recheck:
@@ -236,15 +344,36 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.delivery_recheck)
     runs-on: ubuntu-latest
     steps:
+      # 产品视角判定复用同一个脚本：复检不能比打标更宽松
+      - uses: actions/checkout@v7
       - uses: actions/github-script@v9
         with:
           script: |
-            const LEDGER = 'delivery-record-missing';
-            const ESCALATION = '<!-- delivery-record-escalation -->';
-            const STALE_DAYS = 3;
+            const { execFileSync } = require('node:child_process');
+            const { join } = require('node:path');
+            // 判定、标签词表、阈值、cutoff 与文案都在 scripts/issue-tracker-ledger.mjs。
+            // 下面四行在四个 job 里逐字相同（signals-gate 逐字比对）：任何一份漂移，
+            // 四个 job 就会对同一张票给出不同答案。
+            const LEDGER_CLI = join(process.env.GITHUB_WORKSPACE, 'scripts', 'issue-tracker-ledger.mjs');
+            const config = JSON.parse(
+              execFileSync('node', [LEDGER_CLI, '--config', '--owner', context.repo.owner], {
+                encoding: 'utf8',
+              }),
+            );
+            const decide = (comments) =>
+              JSON.parse(
+                execFileSync('node', [LEDGER_CLI], {
+                  input: JSON.stringify(comments),
+                  encoding: 'utf8',
+                }),
+              );
+
+            const { deliveryRecord: LEDGER, productView: PV_LABEL } = config.labels;
+            const STALE_DAYS = config.staleDays;
+            const ESCALATION = config.markers.record;
             // 祖父化（用户裁决 2026-09-20）：cutoff = 门禁 CI 化 + 存量补登日。
             // 161 张约定前的旧闭票（dry-run 35511083073 实测）永不入账本、永不催办。
-            const LEDGER_CUTOFF = Date.parse('2026-09-19T00:00:00Z');
+            const LEDGER_CUTOFF = Date.parse(config.ledgerCutoff);
 
             // 只扫账本内的票（服务端过滤），不重扫全量闭票
             const labeled = await github.paginate(github.rest.issues.listForRepo, {
@@ -258,6 +387,7 @@ jobs:
             let cleared = 0;
             let escalated = 0;
             let pending = 0;
+            let productViewOpened = 0;
             for (const issue of labeled) {
               // 祖父化：cutoff 前闭票豁免账本 —— 不应有标签，有则静默摘除，绝不催办
               if (new Date(issue.closed_at).getTime() < LEDGER_CUTOFF) {
@@ -281,22 +411,14 @@ jobs:
                 per_page: 100,
               });
               // Bot 评论不算数 —— 告警与催办评论都含「交付记录」字样，会假阳性
-              const marker = /交付记录|Delivery record/i;
-              // 显式豁免先判（#315 review 补的转移）：用户确认无需交付记录即清账；
-              // 「无需交付记录」子串含「交付记录」，marker 先判会吞掉豁免分支
-              const WAIVER = /无需交付记录|delivery-record-waived/i;
-              const hasWaiver = comments.some(
-                (c) => c.user.type !== 'Bot' && WAIVER.test(c.body || ''),
-              );
-              const hasRecord =
-                !hasWaiver &&
-                comments.some((c) => c.user.type !== 'Bot' && marker.test(c.body || ''));
+              const decision = decide(comments);
+              const hasRecord = !decision.hasWaiver && decision.recordCount > 0;
 
               // 拒绝项没有交付记录可言 —— 摘掉误挂的账本标签即可
               const rejected =
                 issue.state_reason === 'not_planned' ||
                 issue.labels.some((l) => l.name === 'wontfix');
-              if (rejected || hasRecord || hasWaiver) {
+              if (rejected || hasRecord || decision.hasWaiver) {
                 await github.rest.issues
                   .removeLabel({
                     owner: context.repo.owner,
@@ -308,6 +430,29 @@ jobs:
                     if (err.status !== 404) throw err;
                   });
                 cleared += 1;
+
+                // 本 job 存在的理由就是兜住评论事件的竞态/漏网，所以补登路径也要
+                // 走完整门禁：记录到了、三句没到，就补挂产品视角账本并留言。
+                // 只摘记录标不补这一手，等于关票后的门禁在兜底路径上不存在。
+                // 豁免与拒绝项没有三句可要求，跳过；标签已在就不重复留言。
+                const hasViewLabel = issue.labels.some((l) => l.name === PV_LABEL);
+                const wantsProductView =
+                  !decision.hasWaiver && !rejected && !decision.coversProductView && !hasViewLabel;
+                if (wantsProductView) {
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    labels: [PV_LABEL],
+                  });
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: decision.productViewReminder,
+                  });
+                  productViewOpened += 1;
+                }
                 continue;
               }
 
@@ -322,23 +467,89 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issue.number,
-                body: [
-                  ESCALATION,
-                  `🏳️ 这张票已关闭超过 ${STALE_DAYS} 天，仍没有带 \`交付记录\` / \`Delivery record\` 标记的评论。`,
-                  '',
-                  `@${context.repo.owner} 请补登交付记录（产品影响：原本要解决什么用户可见问题 / 用户现在看到什么变化 / 哪些没变，无变化时写明原因；commit / 证据 / 遗留项）；确认无需交付记录（如拒绝项）时，回复包含 \`无需交付记录\` 的评论即可清账。`,
-                  '账本查询：`gh issue list --label delivery-record-missing --state closed`。',
-                ].join('\n'),
+                body: config.escalations.record,
               });
               escalated += 1;
               core.info(`#${issue.number} escalation posted (closed ${Math.floor(closedForDays)}d, still missing)`);
             }
+
+            // #353 follow-up：产品视角账本只复检已挂标的票 —— 新闭票由 close 事件入账，
+            // 晚到补登由 comment 事件入账。所以这里不需要 cutoff：没有一次判定就不会有标，
+            // 存在的标都对应「某次写下的记录」，没有可追溯打扰的存量。
+            const PV_ESCALATION = config.markers.productView;
+            const pvLabeled = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              labels: PV_LABEL,
+              per_page: 100,
+            });
+
+            let pvCleared = 0;
+            let pvEscalated = 0;
+            let pvPending = 0;
+            for (const issue of pvLabeled) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                per_page: 100,
+              });
+              const decision = decide(comments);
+              const clearPv = () =>
+                github.rest.issues
+                  .removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    name: PV_LABEL,
+                  })
+                  .catch((err) => {
+                    if (err.status !== 404) throw err;
+                  });
+
+              // 拒绝项与显式豁免同样没有产品视角可言
+              const rejected =
+                issue.state_reason === 'not_planned' ||
+                issue.labels.some((l) => l.name === 'wontfix');
+              if (rejected || decision.hasWaiver || decision.coversProductView) {
+                await clearPv();
+                pvCleared += 1;
+                continue;
+              }
+
+              pvPending += 1;
+              const closedForDays =
+                (Date.now() - new Date(issue.closed_at).getTime()) / 86_400_000;
+              if (closedForDays < STALE_DAYS) continue;
+              if (comments.some((c) => c.body && c.body.includes(PV_ESCALATION))) continue;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: config.escalations.productView,
+              });
+              pvEscalated += 1;
+              core.info(`#${issue.number} product-view escalation posted (closed ${Math.floor(closedForDays)}d)`);
+            }
+
+            core.info(
+              [
+                `mode=product-view-recheck`,
+                `ledger_size=${pvLabeled.length}`,
+                `cleared=${pvCleared}`,
+                `pending=${pvPending}`,
+                `escalated_now=${pvEscalated}`,
+              ].join(' '),
+            );
 
             core.info(
               [
                 `mode=delivery-record-recheck`,
                 `ledger_size=${labeled.length}`,
                 `cleared=${cleared}`,
+                `opened_product_view=${productViewOpened}`,
                 `pending=${pending}`,
                 `escalated_now=${escalated}`,
               ].join(' '),
@@ -351,15 +562,35 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.sweep_delivery
     runs-on: ubuntu-latest
     steps:
+      # 存量回填也走共享判定：自定义一套「有记录」的判据，正是它会和门禁分叉的地方
+      - uses: actions/checkout@v7
       - uses: actions/github-script@v9
         with:
           script: |
+            const { execFileSync } = require('node:child_process');
+            const { join } = require('node:path');
+            // 判定、标签词表、阈值、cutoff 与文案都在 scripts/issue-tracker-ledger.mjs。
+            // 下面四行在四个 job 里逐字相同（signals-gate 逐字比对）：任何一份漂移，
+            // 四个 job 就会对同一张票给出不同答案。
+            const LEDGER_CLI = join(process.env.GITHUB_WORKSPACE, 'scripts', 'issue-tracker-ledger.mjs');
+            const config = JSON.parse(
+              execFileSync('node', [LEDGER_CLI, '--config', '--owner', context.repo.owner], {
+                encoding: 'utf8',
+              }),
+            );
+            const decide = (comments) =>
+              JSON.parse(
+                execFileSync('node', [LEDGER_CLI], {
+                  input: JSON.stringify(comments),
+                  encoding: 'utf8',
+                }),
+              );
+
             // 与 strip-closed-labels 同一套 apply 门控：默认 dry-run 只打印清单
             const apply = String(context.payload.inputs?.apply) === 'true';
-            const LEDGER = 'delivery-record-missing';
+            const LEDGER = config.labels.deliveryRecord;
             // 祖父化（用户裁决 2026-09-20）：cutoff 前闭票不进账本（161 张历史票实测）
-            const LEDGER_CUTOFF = Date.parse('2026-09-19T00:00:00Z');
-            const marker = /交付记录|Delivery record/i;
+            const LEDGER_CUTOFF = Date.parse(config.ledgerCutoff);
 
             const issues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
@@ -392,8 +623,10 @@ jobs:
                 issue_number: issue.number,
                 per_page: 100,
               });
-              // 旧 era 的 bot 告警评论含「交付记录」字样 —— 排除 Bot，否则漏挂账本
-              if (comments.some((c) => c.user.type !== 'Bot' && marker.test(c.body || ''))) continue;
+              // 旧 era 的 bot 告警评论含「交付记录」字样 —— 排除 Bot 由模块负责，
+              // 这里只问「这张票算不算已有记录」，不自己扫正文。
+              const decision = decide(comments);
+              if (decision.hasWaiver || decision.recordCount > 0) continue;
 
               missing += 1;
               core.info(`#${issue.number} missing delivery record${apply ? ' -> labeling' : ' (dry-run)'}`);

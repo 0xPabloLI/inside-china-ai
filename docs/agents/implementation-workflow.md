@@ -197,7 +197,7 @@ Review 报告不能只生成后忽略。
 5. push 自己的 `session/<id>` 分支并开 PR——交付请求即授权该交付链（`git-workflow.md` §5）；交付链之外的 push 仍需明确授权。
 6. PR 合并后运行 `npm run session:stop <worktree-path>` 收尾——stop 判定该 session 分支已交付时，这就是完整收尾，不需要第二条命令（机制与判据见 `git-workflow.md` §10）。
 7. 存在对应 GitHub Issue 时更新或关闭它——交付请求即授权该票的收尾写入（交付记录评论、闭票、为范围外发现开跟进票，见 `issue-tracker.md`）；他人票的状态变更与 Wayfinder decision issue 仍需授权。
-8. **产品视角三句**：最终汇报与交付记录评论都以这三句开头——「原本要解决什么用户可见问题」「用户现在看到什么变化」「哪些行为或边界没有变」，且与产品验证门的定性一致。三句之后再列 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。无用户可见变化时第三句明写「无用户可见变化 + 原因」，不得省略。该组内容同时是该票交付记录评论的首项（内容表见 `issue-tracker.md` 的 Session cognitive offload）。缺这三句即收尾未完成。**这三句同时写进 PR body 的 `## 产品视角` 节**（模板已带），由 `scripts/check-product-view.mjs` 在 CI 的 `Lint, typecheck, test` 内机械校验：缺节、不足三条实质内容、或原样留着模板占位符即红；确实没有用户面（拼写、依赖升级）打 `skip-product-view` 标签豁免。
+8. **产品视角三句**：最终汇报与交付记录评论都以这三句开头——「原本要解决什么用户可见问题」「用户现在看到什么变化」「哪些行为或边界没有变」，且与产品验证门的定性一致。三句之后再列 completed gates、evidence、remaining blockers 和真正 N/A 的条件分支。无用户可见变化时第三句明写「无用户可见变化 + 原因」，不得省略。该组内容同时是该票交付记录评论的首项（内容表见 `issue-tracker.md` 的 Session cognitive offload）。缺这三句即收尾未完成。**这三句同时写进 PR body 的 `## 产品视角` 节**（模板已带），由 `scripts/check-product-view.mjs` 在 CI 的 `Lint, typecheck, test` 内机械校验：缺节、不足三条实质内容、或原样留着模板占位符即红；确实没有用户面（拼写、依赖升级）打 `skip-product-view` 标签豁免。**同一个判定也跑在关票上**：`scripts/issue-tracker-ledger.mjs` 把交付记录评论喂给 `evaluateCommentProductView`（与 PR body 共用的同一套「节 + 实质条数」计数，但**不**继承 bot 作者与 `skip-product-view` 豁免），有 `交付记录` 标记但缺三句就把该票挂进 `product-view-missing` 账本，补一条**同时带 `## 产品视角` 节与 `交付记录` 标记**的评论才会自动摘除（只带节不算交付记录；账本语义见 `issue-tracker.md` Session cognitive offload）。
 
 ## 10. Gate 语义
 
@@ -219,4 +219,5 @@ Review 报告不能只生成后忽略。
 - §6 步骤 2 的选择顺序（A-lite）与根因搜索（D）：依据与上游证据见 `docs/archive/reviews/ponytail-lite-pilot-2026-09.md`（2026-09-12 期满裁决「保留」，长期规范）。§8 原 B-lite stdlib/native 重复检查经同一裁决为「未验证」已移除（`docs/research/ponytail-minimal-code-adoption-proposal.md` L2 留档）。
 - §9 产品验证门依据（2026-10-18 自证）：步骤 8 自 2026-10-13（#617）即有产品视角三句，但此后的交付（含 #547）仍连续跳过——规则在场被跳过，说明缺的是阻断力而非文字，故把「产出差异判据 + quality improvement / enabling fix 分类」提为收尾前的 Hard gate。判据是产出差异而非测试绿。
 - §9 第 8 步的机械门禁（#810，2026-10-20）：上一条已经证明「文字在场仍被跳过」，所以这一轮不再加文字，而是把「写了三句」变成 PR body 上可判定的边界——模板带节 + `scripts/check-product-view.mjs` + CI 必需检查。判据取实质单元数（内容行与句子取大者，列表与成段都能过），占位符（冒号后无内容）不算内容：否则原样提交模板即可通过，门禁退化为装饰。它只能判「写没写」，判不了「真不真」，后者仍归产品验证门与人工。
+- §9 第 8 步的第二个面（2026-10-26 自证）：#810 把门禁只装在 PR body 上，交付记录评论仍按 `交付记录` 标记判——#353 的记录评论带着 squash sha、改动清单和 242 tests 全绿，一句用户视角都没有，账本照样摘了 `delivery-record-missing`。于是把关票链路的判定接到同一个计数上（`scripts/issue-tracker-ledger.mjs` → `evaluateCommentProductView`），并给内容缺失单独一只账本（`product-view-missing`），而不是再写一遍规则：规则自 10-13 就在场，缺的始终是阻断力。两条补登路径（评论事件 / 次日复检）行为一致，复检不会成为绕过门禁的后门。
 - 篇幅实测（2026-10-20，回应「是不是文档太长导致遗漏」）：221 行 / 19.2KB，含日期的行 4 条、纯历史括注 3 处（其中 2 处是事故背景，属该保留的 gotcha）。**没有可删的冗余**——唯一的分支材料是 §5 的 Spec/Tickets（16 行，仅 S2/S3 走），拆出去净减 14 行（-6%），而压到 150 行要删 71 行活规则。遗漏的根因是完成判据不可判定、且落在收尾第 8 步（见上两条），**不是篇幅**；再提瘦身前先读这一条。
