@@ -32,13 +32,29 @@ const linkedDir = join(root, "scripts-link");
 symlinkSync(scriptsDir, linkedDir, "dir");
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
+/**
+ * The environment a case gets: the ambient one minus every `GITHUB_*` / `PR_*`
+ * variable. Actions sets `GITHUB_EVENT_NAME` on every step, so inheriting it
+ * would make these cases pass or fail by which event triggered the run — on
+ * `push` to main the gate is exempt (`eventName !== "pull_request"`), the
+ * assertion flips, and the suite goes red only after merge. Each case declares
+ * the context it means to test instead.
+ */
+function baseEnv() {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("GITHUB_") || key.startsWith("PR_")) delete env[key];
+  }
+  return env;
+}
+
 /** Both spellings of the same file, so a case can be run through each. */
 function runBoth(script, args, { env = {}, input } = {}) {
   const run = (path) =>
     spawnSync("node", [path, ...args], {
       encoding: "utf8",
       input,
-      env: { ...process.env, ...env },
+      env: { ...baseEnv(), ...env },
     });
   const direct = run(join(scriptsDir, script));
   const linked = run(join(linkedDir, script));
@@ -50,7 +66,11 @@ describe("a gate CLI does the same thing whichever path invoked it", () => {
     // No section in the body, so the gate must fail: exit 1 plus the prompts.
     // A no-op exit 0 would read as "the body is fine" to every caller.
     const { direct, linked } = runBoth("check-product-view.mjs", [], {
-      env: { PR_BODY: "## Summary\n\nno product view here", PR_AUTHOR: "octocat" },
+      env: {
+        GITHUB_EVENT_NAME: "pull_request",
+        PR_BODY: "## Summary\n\nno product view here",
+        PR_AUTHOR: "octocat",
+      },
     });
 
     expect(direct.status).toBe(1);
