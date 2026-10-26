@@ -342,7 +342,14 @@ export function resolveYtdlpProxy({
  * Empty when there is nothing to inject: no proxy applies, or a lower-case
  * variable is already exported and the child inherits it as-is.
  *
+ * Carries resolveYtdlpProxy's side effect: the first SOCKS-only verdict in the
+ * process emits its one warning here too.
+ *
  * @param {Object} [deps] - Same seams as resolveYtdlpProxy
+ * @param {Record<string, string|undefined>} [deps.env] - Environment to read
+ * @param {() => ({httpProxy: string|null, httpsProxy: string|null, socksProxy?: string|null}|null)} [deps.readSystemProxy] - System proxy source
+ * @param {{socksOnly?: boolean}} [deps.warnings] - SOCKS-only dedupe state
+ * @param {(message: string) => void} [deps.warn] - Warning sink (side effect: called at most once per `warnings` object)
  * @returns {{http_proxy?: string}} overlay to spread into the spawn env
  */
 export function ytdlpProxyEnv(deps = {}) {
