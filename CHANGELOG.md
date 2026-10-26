@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.33.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.32.0...tanstack_start_ts-v1.33.0) (2026-10-26)
+
+
+### Features
+
+* **gates:** require the product-view three sentences in the closing comment, not just the PR body ([#966](https://github.com/0xPabloLI/inside-china-ai/issues/966)) ([5ad6a94](https://github.com/0xPabloLI/inside-china-ai/commit/5ad6a94b2434c011d4aa7bce8317d4f4072ef872))
+
 ## [1.32.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.6...tanstack_start_ts-v1.32.0) (2026-10-26)
 
 
