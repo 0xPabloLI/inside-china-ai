@@ -24,7 +24,8 @@
  * @module capture-competitor-videos
  */
 
-import { mkdirSync, writeFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { mkdirSync, realpathSync, writeFileSync } from "fs";
 import { join, resolve } from "path";
 import { cdpNewTab, cdpEval, cdpCloseTab } from "./lib/cdp-client.mjs";
 import { checkAutomationProfile, formatVerdict } from "./lib/cdp-profile-guard.mjs";
@@ -300,7 +301,7 @@ function argValue(flag, fallback = null) {
   return next && !next.startsWith("--") ? next : fallback;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const topN = Number.parseInt(argValue("--top", String(DEFAULT_TOP_N)), 10);
   const accountsArg = argValue("--accounts");
   const accounts = accountsArg

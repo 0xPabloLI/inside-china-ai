@@ -32,6 +32,8 @@ import { searchPool } from "./search-pool.mjs";
 import { loadEnv } from "./load-env.mjs";
 import { ALL_SOURCES } from "./source-registry.mjs";
 import { callMcpTool, parseMcpResult } from "./mcp-client.mjs";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 export const TOOL_NAME = "web_search";
 
@@ -214,7 +216,8 @@ async function main() {
   }
 }
 
-const isMainModule = process.argv[1] && process.argv[1].endsWith("search-pool-server.mjs");
+const isMainModule =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMainModule) {
   main().catch((err) => {
     console.error(`❌ ${err.message}`);

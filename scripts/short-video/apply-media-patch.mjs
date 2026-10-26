@@ -18,7 +18,14 @@
  * @module apply-media-patch
  */
 
-import { existsSync, readFileSync, writeFileSync, renameSync, copyFileSync } from "fs";
+import {
+  copyFileSync,
+  existsSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  writeFileSync,
+} from "fs";
 import { join, dirname, resolve, sep } from "path";
 import { fileURLToPath } from "url";
 import { shown, validateProvenance } from "./lib/media-integrity.mjs";
@@ -918,7 +925,8 @@ export async function main(args = process.argv.slice(2)) {
 }
 
 // Auto-run if called directly
-const isMainModule = process.argv[1] && process.argv[1].endsWith("apply-media-patch.mjs");
+const isMainModule =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMainModule) {
   main().catch((e) => {
     console.error(`❌ ${e.message}`);

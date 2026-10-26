@@ -21,7 +21,7 @@
  * @module review-media-patch
  */
 
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { existsSync, readFileSync, realpathSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import {
@@ -77,7 +77,8 @@ function main(args = process.argv.slice(2)) {
 }
 
 // Auto-run if called directly
-const isMainModule = process.argv[1] && process.argv[1].endsWith("review-media-patch.mjs");
+const isMainModule =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMainModule) {
   main();
 }

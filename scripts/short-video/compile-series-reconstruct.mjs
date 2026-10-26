@@ -13,7 +13,7 @@
  *   scripts/short-video/scene-data-compilation.mjs (default)
  */
 
-import { writeFileSync } from "fs";
+import { realpathSync, writeFileSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 
@@ -158,7 +158,7 @@ export const scenes = ${JSON.stringify(merged, null, 2)};
 }
 
 // Run main only when executed directly (not when imported by tests)
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && realpathSync(process.argv[1]) === __filename) {
   main().catch((e) => {
     console.error(`❌ ${e.message}`);
     process.exit(1);

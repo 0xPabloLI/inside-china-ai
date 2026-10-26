@@ -33,7 +33,15 @@
  */
 
 import { spawn, execFileSync } from "child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import { tmpdir, homedir } from "os";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -906,7 +914,8 @@ function parseArgs(argv) {
   return opts;
 }
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+const isMain =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const summary = await analyzeCompetitorVideos(parseArgs(process.argv.slice(2)));
   process.stderr.write(

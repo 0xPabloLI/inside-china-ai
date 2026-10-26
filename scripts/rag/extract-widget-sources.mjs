@@ -12,7 +12,7 @@
  * Scenarios covered: #15 (paywall → stub), #16 (403/429 → stub), #17 (dedup)
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -364,7 +364,7 @@ export async function main(options = {}) {
 }
 
 // CLI entry point
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
   main({ dryRun }).catch((err) => {

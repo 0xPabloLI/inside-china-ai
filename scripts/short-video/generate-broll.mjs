@@ -10,6 +10,7 @@
  * scene, gates them through the VLM, assigns winners in-memory, and records
  * everything in output/<dir>/b-roll-report.json for the agent iteration loop.
  */
+import { realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -166,7 +167,7 @@ export async function runBrollCli({
 }
 
 const invokedDirectly =
-  process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+  process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
   const { closeVisualAnalyzer } = await import("./lib/visual-analyzer.mjs");

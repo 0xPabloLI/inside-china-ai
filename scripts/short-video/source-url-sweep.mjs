@@ -24,7 +24,7 @@
  * Read-only against sources: GET only, no login, no writes.
  */
 
-import { writeFileSync, mkdirSync } from "fs";
+import { mkdirSync, realpathSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -409,7 +409,7 @@ function truncate(s, n) {
   return str.length > n ? `${str.slice(0, n - 1)}…` : str;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
     console.error(err);
     process.exit(1);

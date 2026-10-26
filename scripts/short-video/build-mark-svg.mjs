@@ -18,8 +18,8 @@
  * Run:  node scripts/short-video/build-mark-svg.mjs
  */
 
-import { readFileSync, writeFileSync } from "fs";
-import { fileURLToPath, pathToFileURL } from "url";
+import { readFileSync, realpathSync, writeFileSync } from "fs";
+import { fileURLToPath } from "url";
 
 /** Dispatch Blue — brand accent on dark video surfaces. */
 export const BRAND_BLUE = "#4d8bff";
@@ -94,7 +94,7 @@ export function buildMarkSvg(sourcePath, outputPath) {
 }
 
 // CLI entry: node scripts/short-video/build-mark-svg.mjs
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const source = new URL("./assets/china-ai-news-mark.svg", import.meta.url);
   const output = new URL("./assets/china-ai-news-mark-video.svg", import.meta.url);
   const { replacements } = buildMarkSvg(source, output);

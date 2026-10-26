@@ -40,6 +40,7 @@
  * the resident MCP stdio server (search-pool-server.mjs) is deprecated.
  */
 
+import { realpathSync } from "fs";
 import { fileURLToPath } from "url";
 import { loadEnv } from "./load-env.mjs";
 
@@ -571,7 +572,8 @@ export async function runSearchPoolCli(argv, deps = {}) {
 }
 
 /** ESM direct-execution guard: only run main() when invoked as a script. */
-const isMainModule = process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url);
+const isMainModule =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMainModule) {
   loadEnv(); // #287 — the CLI entry owns env loading; the library never self-loads
   process.exitCode = await runSearchPoolCli(process.argv.slice(2));

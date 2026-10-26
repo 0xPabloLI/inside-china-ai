@@ -29,7 +29,7 @@
  * automation-profile guard first.
  */
 
-import { writeFileSync, mkdirSync } from "fs";
+import { mkdirSync, realpathSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -1338,7 +1338,7 @@ async function main() {
 
 // Entry-point guard, matching source-url-sweep: importing this module for its
 // pure helpers (verdictReason / failureClass tests) must not start a CDP run.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((e) => {
     console.error(`❌ ${e.message}`);
     process.exit(1);

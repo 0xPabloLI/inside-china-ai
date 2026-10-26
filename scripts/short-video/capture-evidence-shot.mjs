@@ -22,7 +22,7 @@
  * @module capture-evidence-shot
  */
 
-import { existsSync } from "fs";
+import { existsSync, realpathSync } from "fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { parseArgs } from "util";
@@ -347,7 +347,7 @@ async function main(argv) {
 }
 
 const isMainModule =
-  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  process.argv[1] !== undefined && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMainModule) {
   main(process.argv.slice(2))

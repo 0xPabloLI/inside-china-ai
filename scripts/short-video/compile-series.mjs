@@ -16,7 +16,7 @@
  * shell, so metacharacters in filenames are data, not commands.
  */
 
-import { copyFileSync, existsSync, statSync } from "fs";
+import { copyFileSync, existsSync, realpathSync, statSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
@@ -226,7 +226,7 @@ async function main() {
 }
 
 // Run main only when executed directly (not when imported by tests)
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && realpathSync(process.argv[1]) === __filename) {
   main().catch((e) => {
     console.error(`❌ ${e.message}`);
     process.exit(1);

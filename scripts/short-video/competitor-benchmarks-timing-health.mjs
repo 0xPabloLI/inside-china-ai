@@ -21,7 +21,7 @@
  * @module competitor-benchmarks-timing-health
  */
 
-import { existsSync, readFileSync, readdirSync } from "fs";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { isTimelineCollapsed } from "./analyze-competitor-videos.mjs";
@@ -224,4 +224,4 @@ function main() {
   console.log(args.json ? JSON.stringify(summary, null, 2) : formatReport(args.dir, summary));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) main();

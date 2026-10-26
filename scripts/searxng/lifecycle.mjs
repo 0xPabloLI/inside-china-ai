@@ -24,10 +24,10 @@
  *   SEARXNG_AUTO_START=0        callers skip ensure (pipeline-side opt-out)
  */
 import { execFile } from "node:child_process";
-import { promises as fs } from "node:fs";
+import { promises as fs, realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -350,8 +350,8 @@ async function main() {
   process.exitCode = 2;
 }
 
-const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
-if (invokedPath && import.meta.url === pathToFileURL(invokedPath).href) {
+const invokedPath = process.argv[1] ? realpathSync(process.argv[1]) : "";
+if (invokedPath && invokedPath === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
     console.error(err);
     process.exitCode = 1;
