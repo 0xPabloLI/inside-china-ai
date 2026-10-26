@@ -10,10 +10,17 @@
  * guessing.
  *
  * So this script removes the third surface instead of policing it. The report
- * quotes a section that already passed the gate — the newest human record comment
- * carrying the marker, or the pull-request body when no comment carries one. The
- * report cannot then say something different from what the ticket says, because
- * it is not saying anything of its own.
+ * quotes a section that already passed the gate — the newest compliant record
+ * comment written by someone with write access, or the pull-request body when no
+ * comment qualifies. The report cannot then say something different from what the
+ * ticket says, because it is not saying anything of its own.
+ *
+ * Quoting is not vouching, and the difference is load-bearing: the gate checks
+ * that a section has shape, not that its sentences are true or benign, so a
+ * comment body is still untrusted text. Two things keep that honest — the output
+ * opens with a marker naming its source (it travels with a paste, so the quoted
+ * text never reads as the agent's own claim), and only authors GitHub calls
+ * OWNER / MEMBER / COLLABORATOR can be quoted at all.
  *
  * What it is not: a gate. It renders, and it refuses to print a section the gate
  * would reject. An agent that forgets to run it produces a report with the whole
@@ -24,7 +31,7 @@
  * Contract:
  *
  *   node scripts/product-view-section.mjs <issue-or-pr-number> [--repo owner/name]
- *     stdout: `## 产品视角` and the section body, to paste verbatim
+ *     stdout: a source marker, `## 产品视角`, and the section body, to paste verbatim
  *     stderr: provenance (`source=comment:<id>` / `source=pr-body`) or the reason
  *     exit 0 = rendered, 1 = nothing compliant to quote, 2 = bad usage
  */
@@ -37,9 +44,41 @@ import { runGh } from "./short-video/lib/gh-cli.mjs";
 /** The heading the report opens with; the gate accepts the English spelling too. */
 const HEADING = "## 产品视角";
 
+/**
+ * GitHub's `author_association` values for people who can write to the repo. The
+ * report quotes this text as the ticket's account, so only these authors can be
+ * the source; see the note at the filter for why the ledger is broader.
+ */
+const WRITERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+
 /** How to fix the failure, quoted in every message so it needs no doc lookup. */
 const FIX =
   "post the delivery record (marker `交付记录` / `Delivery record` plus a `## 产品视角` section) and render again";
+
+/**
+ * @param {string[]} reasons
+ * @returns {string[]} one entry per distinct reason; two bare records are one bug
+ */
+function dedupe(reasons) {
+  return [...new Set(reasons)];
+}
+
+/**
+ * The text the report pastes: the section, preceded by a marker naming where it
+ * came from.
+ *
+ * The marker travels with a paste, which is what keeps the quoted text from
+ * reading as the agent's own verified claim — and it is an HTML comment, which
+ * `stripHtmlComments` removes, so it never changes how the gate counts the
+ * section it wraps.
+ *
+ * @param {string} body
+ * @param {string} provenance - `comment:<id>` or `pr-body`
+ * @returns {string}
+ */
+function render(body, provenance) {
+  return `<!-- product-view: source=${provenance} (quoted from the ticket) -->\n${HEADING}\n\n${extractSection(body)}\n`;
+}
 
 /**
  * @typedef {{ok: true, text: string, source: {kind: "comment", id?: number} | {kind: "pr-body"}} |
@@ -72,7 +111,16 @@ export function renderProductViewSection({ number, repo, runGh: gh = runGh } = {
   // Newest compliant wins, which is deliberately not "newest record": the ledger
   // is satisfied by *any* compliant record, and a later comment restating only
   // the commits must not displace the section the ticket already earned.
-  const records = comments.filter(isRecordComment).reverse();
+  const allRecords = comments.filter(isRecordComment).reverse();
+
+  // Write access only. The report presents this text as what the ticket says, so
+  // a stranger's comment must not stand in for the delivery account — the
+  // structural gate checks shape, and shape is exactly what an injected line has.
+  // The ledger still counts every human record (that is its own contract); this
+  // narrows who the *report* will quote.
+  const records = allRecords.filter((comment) => WRITERS.has(comment.author_association));
+  const outsiders = allRecords.length - records.length;
+
   const rejections = [];
   for (const comment of records) {
     const verdict = evaluateCommentProductView(comment.body ?? "");
@@ -82,38 +130,32 @@ export function renderProductViewSection({ number, repo, runGh: gh = runGh } = {
     }
     return {
       ok: true,
-      text: `${HEADING}\n\n${extractSection(comment.body ?? "")}\n`,
+      text: render(comment.body, `comment:${comment.id}`),
       source: { kind: "comment", id: comment.id },
     };
   }
 
   const isPullRequest = Boolean(issue.pull_request);
-  if (isPullRequest) {
+  const bodyVerdict = isPullRequest ? evaluateCommentProductView(issue.body ?? "") : null;
+  if (bodyVerdict?.ok) {
     // The PR body is gate-checked, so it is a legitimate fallback. An issue body
     // is not: it is a write-once spec no gate ever judged for these sentences.
-    const verdict = evaluateCommentProductView(issue.body ?? "");
-    if (verdict.ok) {
-      return {
-        ok: true,
-        text: `${HEADING}\n\n${extractSection(issue.body ?? "")}\n`,
-        source: { kind: "pr-body" },
-      };
-    }
-    rejections.push(`the pull-request body: ${verdict.reason}`);
+    return { ok: true, text: render(issue.body, "pr-body"), source: { kind: "pr-body" } };
   }
 
-  // Two bare records fail the same way; repeating the reason reads as two bugs.
-  const reasons = [...new Set(rejections)];
-  const inspected =
+  // Every surface that was examined, and why it did not qualify — including the
+  // body, whose rejection used to be collected and then dropped.
+  const inspected = [
     records.length === 0
-      ? "no record comment carries the `交付记录` marker"
-      : `${records.length} record comment(s): ${reasons.join("; ")}`;
-  const noFallback = isPullRequest
-    ? ""
-    : " (not a pull request, so there is no gate-checked body to fall back to)";
+      ? outsiders === 0
+        ? "no record comment carries the `交付记录` marker"
+        : `no record comment from someone with write access (${outsiders} from other authors)`
+      : `${records.length} record comment(s) from writers: ${dedupe(rejections).join("; ")}`,
+    bodyVerdict ? `the pull-request body: ${bodyVerdict.reason}` : "no body to fall back to",
+  ];
   return {
     ok: false,
-    reason: `no compliant \`## 产品视角\` section on #${number}: ${inspected}${noFallback} — ${FIX}`,
+    reason: `no compliant \`## 产品视角\` section on #${number}: ${inspected.join("; ")} — ${FIX}`,
   };
 }
 

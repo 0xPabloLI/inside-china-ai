@@ -33,8 +33,20 @@ import { afterAll, describe, expect, it } from "vitest";
 import { evaluateCommentProductView } from "../check-product-view.mjs";
 import { renderProductViewSection, parseArgs } from "../product-view-section.mjs";
 
-const USER = { type: "User" };
-const BOT = { type: "Bot" };
+const USER = { type: "User", login: "octocat" };
+const BOT = { type: "Bot", login: "droid[bot]" };
+/** GitHub's `author_association` values: write access vs. a stranger's comment. */
+const OWNER = "OWNER";
+const STRANGER = "NONE";
+
+/** A comment fixture; `assoc` defaults to write access, the normal case. */
+const userComment = (id, body, assoc = OWNER) => ({
+  id,
+  user: USER,
+  author_association: assoc,
+  body,
+});
+const botComment = (id, body) => ({ id, user: BOT, author_association: STRANGER, body });
 
 const OLDER = `## 交付记录
 
@@ -94,14 +106,12 @@ describe("renderProductViewSection — which section it quotes", () => {
   it("renders the newest compliant record comment, with the heading a reader expects", () => {
     const result = call({
       runGh: fakeGh({
-        comments: [
-          { id: 1, user: USER, body: OLDER },
-          { id: 2, user: USER, body: NEWER },
-        ],
+        comments: [userComment(1, OLDER), userComment(2, NEWER)],
       }),
     });
     expect(result.ok).toBe(true);
-    expect(result.text.startsWith("## 产品视角\n")).toBe(true);
+    expect(result.text.startsWith("## 产品视角\n")).toBe(false);
+    expect(result.text).toContain("## 产品视角\n");
     expect(result.text).toContain("交付记录可以完全不讲用户");
     expect(result.text).not.toContain("旧的巡检结论");
     expect(result.source).toEqual({ kind: "comment", id: 2 });
@@ -110,7 +120,7 @@ describe("renderProductViewSection — which section it quotes", () => {
   it("prints a section the gate accepts, so quoting cannot launder a weak section", () => {
     // The round trip is the contract: whatever the report pastes, the same
     // counting that judged the record still judges it.
-    const result = call({ runGh: fakeGh({ comments: [{ id: 7, user: USER, body: NEWER }] }) });
+    const result = call({ runGh: fakeGh({ comments: [userComment(7, NEWER)] }) });
     expect(evaluateCommentProductView(result.text).ok).toBe(true);
   });
 
@@ -119,7 +129,7 @@ describe("renderProductViewSection — which section it quotes", () => {
       runGh: fakeGh({
         isPullRequest: true,
         body: NEWER,
-        comments: [{ id: 8, user: USER, body: BARE_RECORD }],
+        comments: [userComment(8, BARE_RECORD)],
       }),
     });
     expect(result.ok).toBe(true);
@@ -132,7 +142,7 @@ describe("renderProductViewSection — which section it quotes", () => {
       runGh: fakeGh({
         isPullRequest: true,
         body: OLDER,
-        comments: [{ id: 9, user: USER, body: NEWER }],
+        comments: [userComment(9, NEWER)],
       }),
     });
     expect(result.source).toEqual({ kind: "comment", id: 9 });
@@ -146,10 +156,7 @@ describe("renderProductViewSection — which section it quotes", () => {
       runGh: fakeGh({
         isPullRequest: true,
         body: OLDER,
-        commentPages: [
-          [{ id: 30, user: USER, body: BARE_RECORD }],
-          [{ id: 31, user: USER, body: NEWER }],
-        ],
+        commentPages: [[userComment(30, BARE_RECORD)], [userComment(31, NEWER)]],
       }),
     });
     expect(result.source).toEqual({ kind: "comment", id: 31 });
@@ -160,7 +167,7 @@ describe("renderProductViewSection — which section it quotes", () => {
 describe("renderProductViewSection — what never counts as the source", () => {
   it("a section without the record marker is not a delivery record", () => {
     const result = call({
-      runGh: fakeGh({ comments: [{ id: 10, user: USER, body: SECTION_ONLY }] }),
+      runGh: fakeGh({ comments: [userComment(10, SECTION_ONLY)] }),
     });
     expect(result.ok).toBe(false);
     expect(result.reason).toContain("#353");
@@ -168,17 +175,14 @@ describe("renderProductViewSection — what never counts as the source", () => {
   });
 
   it("a bot comment is not a delivery record", () => {
-    const result = call({ runGh: fakeGh({ comments: [{ id: 11, user: BOT, body: NEWER }] }) });
+    const result = call({ runGh: fakeGh({ comments: [botComment(11, NEWER)] }) });
     expect(result.ok).toBe(false);
   });
 
   it("names a repeated failure once, so two bare records do not read as two bugs", () => {
     const result = call({
       runGh: fakeGh({
-        comments: [
-          { id: 14, user: USER, body: BARE_RECORD },
-          { id: 15, user: USER, body: BARE_RECORD },
-        ],
+        comments: [userComment(14, BARE_RECORD), userComment(15, BARE_RECORD)],
       }),
     });
     expect(result.ok).toBe(false);
@@ -188,13 +192,13 @@ describe("renderProductViewSection — what never counts as the source", () => {
 
   it("an explicit waiver is not a delivery record, even when it carries a section", () => {
     const body = `无需交付记录：拒绝项\n\n${NEWER}`;
-    const result = call({ runGh: fakeGh({ comments: [{ id: 12, user: USER, body }] }) });
+    const result = call({ runGh: fakeGh({ comments: [userComment(12, body)] }) });
     expect(result.ok).toBe(false);
   });
 
   it("a section the gate would reject is not rendered", () => {
     const twoUnits = `## 交付记录\n\n## 产品视角\n\n- 原本要解决什么用户可见问题：只有两条\n- 用户现在看到什么变化：第二条`;
-    const result = call({ runGh: fakeGh({ comments: [{ id: 13, user: USER, body: twoUnits }] }) });
+    const result = call({ runGh: fakeGh({ comments: [userComment(13, twoUnits)] }) });
     expect(result.ok).toBe(false);
     expect(result.reason).toContain("substantive unit");
   });
@@ -205,8 +209,54 @@ describe("renderProductViewSection — what never counts as the source", () => {
     // The failure text is the instruction: post the record, then render.
     expect(result.reason).toContain("交付记录");
     expect(result.reason).toContain("#353");
-    // An issue has no gate-checked body, so the message must not claim one.
-    expect(result.reason).toContain("not a pull request");
+    // An issue has no gate-checked body, so the message says there is none.
+    expect(result.reason).toContain("no body to fall back to");
+  });
+
+  it("never quotes a commenter without write access, however compliant the text", () => {
+    // The report presents the text as what the ticket says. A stranger's comment
+    // passes the same structural check an injected line would, so it cannot be
+    // the source; the message then says how many such comments were skipped.
+    const result = call({
+      runGh: fakeGh({ comments: [userComment(16, NEWER, STRANGER)] }),
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain("write access");
+    expect(result.reason).toContain("1 from other authors");
+  });
+
+  it("a writer's record still wins over a stranger's newer one", () => {
+    const result = call({
+      runGh: fakeGh({
+        comments: [userComment(17, OLDER, OWNER), userComment(18, NEWER, "CONTRIBUTOR")],
+      }),
+    });
+    expect(result.ok).toBe(true);
+    expect(result.source).toEqual({ kind: "comment", id: 17 });
+  });
+
+  it("says why the pull-request body did not qualify when there is no record at all", () => {
+    // The body verdict used to be collected and then dropped whenever the ticket
+    // had zero record comments, leaving the operator unable to tell whether the
+    // fallback had been judged at all.
+    const result = call({
+      runGh: fakeGh({ isPullRequest: true, body: "## Summary\n\nno section here", comments: [] }),
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain("the pull-request body:");
+    expect(result.reason).toContain("no product-view section");
+  });
+});
+
+describe("the rendered text carries where it came from", () => {
+  it("opens with a source marker that the gate ignores when it counts", () => {
+    // Quoting is not vouching: the marker travels with the paste so the text
+    // never reads as the agent's own verified claim. It is an HTML comment, so
+    // the gate strips it and counts the same section either way.
+    const result = call({ runGh: fakeGh({ comments: [userComment(19, NEWER)] }) });
+    expect(result.ok).toBe(true);
+    expect(result.text.startsWith("<!-- product-view: source=comment:19")).toBe(true);
+    expect(evaluateCommentProductView(result.text).ok).toBe(true);
   });
 });
 
@@ -265,7 +315,7 @@ describe("the CLI an agent actually runs", () => {
     return dir;
   }
 
-  const withRecord = stubDir("with-record", [{ id: 21, user: USER, body: NEWER }], "");
+  const withRecord = stubDir("with-record", [userComment(21, NEWER)], "");
   const empty = stubDir("empty", [], "");
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
@@ -285,11 +335,11 @@ describe("the CLI an agent actually runs", () => {
   it("prints the section on stdout and its provenance on stderr", () => {
     const result = run(withRecord, ["353", "--repo", "owner/repo"]);
     expect(result.status).toBe(0);
-    expect(result.stdout.trim().startsWith("## 产品视角")).toBe(true);
+    expect(result.stdout).toContain("## 产品视角\n");
     expect(evaluateCommentProductView(result.stdout).ok).toBe(true);
-    // Provenance is on stderr so the pasted markdown stays pure — and it names the
-    // comment the section came from, which is how a reader audits the quote.
-    expect(result.stdout).not.toContain("source=");
+    // The source marker travels with a paste; the stderr line is for the operator.
+    // Both name the comment the section came from, which is how it is audited.
+    expect(result.stdout).toContain("<!-- product-view: source=comment:21");
     expect(result.stderr).toContain("source=comment:21");
   });
 
