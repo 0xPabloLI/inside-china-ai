@@ -347,8 +347,10 @@ jobs:
                 ),
               );
 
-            const { deliveryRecord: LEDGER, productView: PV_LABEL } = decide([]).labels;
-            const STALE_DAYS = decide([]).staleDays;
+            // 一次空调用取回标签词表与陈旧阈值；判定本身每票各跑一次。
+            const defaults = decide([]);
+            const { deliveryRecord: LEDGER, productView: PV_LABEL } = defaults.labels;
+            const STALE_DAYS = defaults.staleDays;
             const ESCALATION = '<!-- delivery-record-escalation -->';
             // 祖父化（用户裁决 2026-09-20）：cutoff = 门禁 CI 化 + 存量补登日。
             // 161 张约定前的旧闭票（dry-run 35511083073 实测）永不入账本、永不催办。
