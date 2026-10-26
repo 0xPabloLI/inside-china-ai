@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.34.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.33.1...tanstack_start_ts-v1.34.0) (2026-10-26)
+
+
+### Features
+
+* **gates:** render the final report's product view instead of retyping it ([#972](https://github.com/0xPabloLI/inside-china-ai/issues/972)) ([f0acde7](https://github.com/0xPabloLI/inside-china-ai/commit/f0acde7ed6ef0fce3c033e6757e2e3bcef58a1e5))
+
 ## [1.33.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.33.0...tanstack_start_ts-v1.33.1) (2026-10-26)
 
 
