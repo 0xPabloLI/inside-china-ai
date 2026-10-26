@@ -907,11 +907,22 @@ describe("#324 yt-dlp proxy hand-off", () => {
     expect(opts.env.http_proxy).toBe("http://127.0.0.1:7897");
   });
 
-  it("downloadYtdlpAdapter hands the shell-spawned child the lower-case http_proxy", () => {
+  it("downloadYtdlpAdapter prefixes the shell command with the lower-case http_proxy", () => {
     uppercaseOnly();
     downloadYtdlpAdapter("https://www.youtube.com/watch?v=abc");
-    const opts = execSyncMock.mock.calls[0][1];
-    expect(opts.env.http_proxy).toBe("http://127.0.0.1:7897");
+    const cmd = execSyncMock.mock.calls[0][0];
+    // The assignment rides the command word, so yt-dlp and its ffmpeg child
+    // inherit it without the spawn site carrying a second mechanism.
+    expect(cmd).toContain('http_proxy="http://127.0.0.1:7897" yt-dlp');
+  });
+
+  it("downloadYtdlpAdapter emits no prefix for an already-exported lower-case proxy", () => {
+    process.env.http_proxy = "http://127.0.0.1:8888";
+    process.env.https_proxy = "http://127.0.0.1:8888";
+    downloadYtdlpAdapter("https://www.youtube.com/watch?v=abc");
+    const cmd = execSyncMock.mock.calls[0][0];
+    expect(cmd.startsWith("yt-dlp")).toBe(true);
+    expect(cmd).not.toContain("http_proxy=");
   });
 
   it("leaves an exported lower-case proxy untouched (no second copy)", () => {

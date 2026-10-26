@@ -185,8 +185,9 @@ const STATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "output");
 // timeout. #329 therefore stops depending on it: the two spawn sites that can
 // hand the fetch to ffmpeg (`asset-sourcer.downloadYtdlp`, and the
 // non-TikTok branches of `video-downloaders.downloadYtdlpAdapter`) carry the
-// lower-case variable themselves via `ytdlpProxyEnv()`, and the real-binary
-// probe in the test suite pins the yt-dlp → ffmpeg hop.
+// lower-case variable themselves via `ytdlpProxyEnv()` — as spawn env on the
+// argv path, as a shell prefix on the command-string path — and the
+// real-binary probe in the test suite pins the yt-dlp → ffmpeg hop.
 // `video-understand.downloadVideo` is not wired: it has no
 // `--download-sections` (no ffmpeg child) and no production caller — its
 // command construction is #325's cleanup scope.

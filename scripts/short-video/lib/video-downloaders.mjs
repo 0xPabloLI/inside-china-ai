@@ -570,7 +570,14 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
   // the URL can originate from scraped page content, so `"${url}"` would let a
   // crafted href break out of the quotes and run commands.
   parts.push(`-o ${shellQuote(tmpPath)}`, shellQuote(url));
-  return parts.join(" ");
+
+  // #329: ffmpeg reads only the lower-case http_proxy. A shell env assignment
+  // on the command word delivers it to yt-dlp and to its ffmpeg child, which is
+  // the same value already carried by `--proxy`; emitted only when this side
+  // resolved a proxy (an exported lower-case variable needs no copy).
+  const proxyEnv = ytdlpProxyEnv();
+  const envPrefix = proxyEnv.http_proxy ? `http_proxy=${shellQuote(proxyEnv.http_proxy)} ` : "";
+  return `${envPrefix}${parts.join(" ")}`;
 }
 
 export function downloadYtdlpAdapter(url) {
@@ -617,21 +624,7 @@ export function downloadYtdlpAdapter(url) {
   removeYtdlpStaleOutput(tmpPath);
 
   try {
-    // #329: the non-TikTok branches use --download-sections, which delegates
-    // the fetch to ffmpeg; hand that child the lower-case variable directly
-    // instead of relying on upstream's --proxy injection. Applied on every
-    // branch: the proxy already rides --proxy for all of them, so this only
-    // adds the spelling ffmpeg reads.
-    // Known Semgrep false positive: the detect-child-process dataflow from
-    // `url` cannot break a shell word here — buildYtdlpCommand routes every
-    // interpolated value through shellQuote (#300), and the rest are literals.
-    // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
-    execSync(cmd, {
-      encoding: "utf8",
-      timeout: timeoutMs,
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, ...ytdlpProxyEnv() },
-    });
+    execSync(cmd, { encoding: "utf8", timeout: timeoutMs, stdio: ["pipe", "pipe", "pipe"] });
 
     // #323: resolve the actual output — a webm-only source lands at
     // `<tmpPath>.webm` (yt-dlp appends the real container extension).
