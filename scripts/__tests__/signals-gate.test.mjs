@@ -340,13 +340,44 @@ describe("delivery-record-recheck — the nightly sweep of both ledgers", () => 
     expect(calls.comments.join("\n")).toContain("原本要解决什么用户可见问题");
   });
 
-  it("a record ledger entry whose record arrived is cleared without escalation", async () => {
+  it("a record ledger entry whose compliant record arrived is cleared without escalation", async () => {
+    const calls = await runJob("delivery-record-recheck", {
+      ledgerIssues: [stale],
+      commentsByIssue: { 900: [{ user: USER, body: RECORD_WITH_VIEW }] },
+    });
+    expect(calls.removed).toEqual([RECORD_LABEL]);
+    expect(calls.comments).toEqual([]);
+    expect(calls.added).toEqual([]);
+  });
+
+  it("a late bare record is caught on the nightly path, not only by the comment event", async () => {
+    // The recheck exists to backstop a missed comment event. Clearing the record
+    // ledger there without opening the product-view ledger would reproduce the
+    // #353 hole on exactly the path that is supposed to catch it.
     const calls = await runJob("delivery-record-recheck", {
       ledgerIssues: [stale],
       commentsByIssue: { 900: [{ user: USER, body: RECORD_WITHOUT_VIEW }] },
     });
     expect(calls.removed).toEqual([RECORD_LABEL]);
+    expect(calls.added.flat()).toEqual([VIEW_LABEL]);
+    expect(calls.comments.join("\n")).toContain("原本要解决什么用户可见问题");
+  });
+
+  it("a waiver on the nightly path clears without opening anything", async () => {
+    const calls = await runJob("delivery-record-recheck", {
+      ledgerIssues: [stale],
+      commentsByIssue: { 900: [{ user: USER, body: WAIVER }] },
+    });
+    expect(calls.added).toEqual([]);
     expect(calls.comments).toEqual([]);
+  });
+
+  it("a not-planned closure on the nightly path opens nothing", async () => {
+    const calls = await runJob("delivery-record-recheck", {
+      ledgerIssues: [{ ...stale, state_reason: "not_planned" }],
+      commentsByIssue: { 900: [{ user: USER, body: RECORD_WITHOUT_VIEW }] },
+    });
+    expect(calls.added).toEqual([]);
   });
 
   it("a stale product-view entry is escalated, naming the three roles", async () => {

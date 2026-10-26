@@ -120,6 +120,17 @@ jobs:
                   { input: JSON.stringify(comments), encoding: 'utf8' },
                 ),
               );
+            // 标签名与陈旧窗口是常量，不该靠「判一张没有评论的票」去取。
+            const config = JSON.parse(
+              execFileSync(
+                'node',
+                [
+                  join(process.env.GITHUB_WORKSPACE, 'scripts', 'issue-tracker-ledger.mjs'),
+                  '--config',
+                ],
+                { encoding: 'utf8' },
+              ),
+            );
 
             const issue = context.payload.issue;
 
@@ -222,6 +233,16 @@ jobs:
                   { input: JSON.stringify(comments), encoding: 'utf8' },
                 ),
               );
+            const config = JSON.parse(
+              execFileSync(
+                'node',
+                [
+                  join(process.env.GITHUB_WORKSPACE, 'scripts', 'issue-tracker-ledger.mjs'),
+                  '--config',
+                ],
+                { encoding: 'utf8' },
+              ),
+            );
 
             const comment = context.payload.comment;
 
@@ -237,7 +258,7 @@ jobs:
             if (comment.user.type === 'Bot') return;
 
             const names = current.labels.map((l) => (typeof l === 'string' ? l : l.name));
-            const { deliveryRecord, productView } = decide([]).labels;
+            const { deliveryRecord, productView } = config.labels;
             const hadRecord = names.includes(deliveryRecord);
             const hadProductView = names.includes(productView);
             if (!hadRecord && !hadProductView) return;
@@ -347,10 +368,19 @@ jobs:
                 ),
               );
 
-            // 一次空调用取回标签词表与陈旧阈值；判定本身每票各跑一次。
-            const defaults = decide([]);
-            const { deliveryRecord: LEDGER, productView: PV_LABEL } = defaults.labels;
-            const STALE_DAYS = defaults.staleDays;
+            // 常量走 --config，不去「判一张没有评论的票」。
+            const config = JSON.parse(
+              execFileSync(
+                'node',
+                [
+                  join(process.env.GITHUB_WORKSPACE, 'scripts', 'issue-tracker-ledger.mjs'),
+                  '--config',
+                ],
+                { encoding: 'utf8' },
+              ),
+            );
+            const { deliveryRecord: LEDGER, productView: PV_LABEL } = config.labels;
+            const STALE_DAYS = config.staleDays;
             const ESCALATION = '<!-- delivery-record-escalation -->';
             // 祖父化（用户裁决 2026-09-20）：cutoff = 门禁 CI 化 + 存量补登日。
             // 161 张约定前的旧闭票（dry-run 35511083073 实测）永不入账本、永不催办。
@@ -368,6 +398,7 @@ jobs:
             let cleared = 0;
             let escalated = 0;
             let pending = 0;
+            let productViewOpened = 0;
             for (const issue of labeled) {
               // 祖父化：cutoff 前闭票豁免账本 —— 不应有标签，有则静默摘除，绝不催办
               if (new Date(issue.closed_at).getTime() < LEDGER_CUTOFF) {
@@ -410,6 +441,28 @@ jobs:
                     if (err.status !== 404) throw err;
                   });
                 cleared += 1;
+
+                // 本 job 存在的理由就是兜住评论事件的竞态/漏网，所以补登路径也要
+                // 走完整门禁：记录到了、三句没到，就补挂产品视角账本并留言。
+                // 只摘记录标不补这一手，等于关票后的门禁在兜底路径上不存在。
+                // 豁免与拒绝项没有三句可要求，跳过。
+                const wantsProductView =
+                  !decision.hasWaiver && !rejected && !decision.coversProductView;
+                if (wantsProductView) {
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    labels: [PV_LABEL],
+                  });
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: decision.productViewReminder,
+                  });
+                  productViewOpened += 1;
+                }
                 continue;
               }
 
@@ -518,6 +571,7 @@ jobs:
                 `mode=delivery-record-recheck`,
                 `ledger_size=${labeled.length}`,
                 `cleared=${cleared}`,
+                `opened_product_view=${productViewOpened}`,
                 `pending=${pending}`,
                 `escalated_now=${escalated}`,
               ].join(' '),

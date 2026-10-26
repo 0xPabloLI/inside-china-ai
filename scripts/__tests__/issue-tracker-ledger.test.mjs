@@ -17,6 +17,7 @@ import {
   hasWaiver,
   isRecordComment,
   isWaiverComment,
+  ledgerConfig,
   PRODUCT_VIEW_LABEL,
   productViewReminder,
   recordMissingReminder,
@@ -96,6 +97,28 @@ describe("commentCoversProductView", () => {
     for (const body of [RECORD_WITHOUT_VIEW, RECORD_WITH_VIEW, ""]) {
       expect(commentCoversProductView({ body })).toBe(evaluateCommentProductView(body).ok);
     }
+  });
+});
+
+describe("ledgerConfig", () => {
+  it("answers the constants without needing an issue", () => {
+    const config = ledgerConfig();
+    expect(config.labels).toEqual({
+      deliveryRecord: "delivery-record-missing",
+      productView: "product-view-missing",
+    });
+    expect(config.staleDays).toBe(3);
+    expect(config.productViewReminder).toBe(productViewReminder());
+    expect(config.recordMissingReminder).toBe(recordMissingReminder());
+  });
+
+  it("is the same object decideLedgerState spreads into a per-issue answer", () => {
+    const config = ledgerConfig();
+    const state = decideLedgerState([]);
+    expect(state.labels).toEqual(config.labels);
+    expect(state.staleDays).toBe(config.staleDays);
+    expect(state.productViewReminder).toBe(config.productViewReminder);
+    expect(state.recordMissingReminder).toBe(config.recordMissingReminder);
   });
 });
 

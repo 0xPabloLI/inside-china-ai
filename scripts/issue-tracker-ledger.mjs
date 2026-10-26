@@ -134,6 +134,21 @@ export function recordMissingReminder() {
 }
 
 /**
+ * The constants the jobs need before they can talk to any issue: which labels
+ * exist, how long an entry may sit unresolved, and the wording of both
+ * reminders. Read once per job run through `--config`.
+ * @returns {{labels: {deliveryRecord: string, productView: string}, staleDays: number, recordMissingReminder: string, productViewReminder: string}}
+ */
+export function ledgerConfig() {
+  return {
+    labels: { deliveryRecord: DELIVERY_RECORD_LABEL, productView: PRODUCT_VIEW_LABEL },
+    staleDays: STALE_DAYS,
+    recordMissingReminder: recordMissingReminder(),
+    productViewReminder: productViewReminder(),
+  };
+}
+
+/**
  * Everything the three jobs need to know about one issue's comments.
  *
  * `recordCount` counts records; `coversProductView` is true when **any** record
@@ -141,26 +156,19 @@ export function recordMissingReminder() {
  * record is accounted for even if a later comment restates only the commits.
  *
  * @param {Array<{user?: object, body?: string}>} [comments]
- * @returns {{
- *   labels: {deliveryRecord: string, productView: string},
- *   staleDays: number,
+ * @returns {ReturnType<typeof ledgerConfig> & {
  *   hasWaiver: boolean,
  *   recordCount: number,
  *   coversProductView: boolean,
- *   recordMissingReminder: string,
- *   productViewReminder: string,
  * }}
  */
 export function decideLedgerState(comments = []) {
   const records = comments.filter(isRecordComment);
   return {
-    labels: { deliveryRecord: DELIVERY_RECORD_LABEL, productView: PRODUCT_VIEW_LABEL },
-    staleDays: STALE_DAYS,
+    ...ledgerConfig(),
     hasWaiver: comments.some(isWaiverComment),
     recordCount: records.length,
     coversProductView: records.some(commentCoversProductView),
-    recordMissingReminder: recordMissingReminder(),
-    productViewReminder: productViewReminder(),
   };
 }
 
@@ -168,11 +176,18 @@ const invokedDirectly =
   Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invokedDirectly) {
-  const raw = readFileSync(0, "utf8");
-  const parsed = raw.trim() ? JSON.parse(raw) : [];
-  if (!Array.isArray(parsed)) {
-    console.error("[issue-tracker-ledger] stdin must be a JSON array of comments");
-    process.exit(1);
+  // `--config` answers "what are the labels and the stale window" without
+  // needing an issue; the plain form answers "what does this issue's comment
+  // list say". Two questions, two shapes — an empty issue is not a config.
+  if (process.argv.includes("--config")) {
+    process.stdout.write(`${JSON.stringify(ledgerConfig())}\n`);
+  } else {
+    const raw = readFileSync(0, "utf8");
+    const parsed = raw.trim() ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) {
+      console.error("[issue-tracker-ledger] stdin must be a JSON array of comments");
+      process.exit(1);
+    }
+    process.stdout.write(`${JSON.stringify(decideLedgerState(parsed))}\n`);
   }
-  process.stdout.write(`${JSON.stringify(decideLedgerState(parsed))}\n`);
 }
