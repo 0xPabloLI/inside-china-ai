@@ -7,6 +7,11 @@
  *   it enables AIGC label, trending audio, in-app editing, and geo tag —
  *   all critical algorithm-favoring signals that API publishing bypasses.
  *
+ *   The AIGC label and the sound/volume are scripted: drive the same flow
+ *   through `tiktok-upload-prep.mjs` (CDP against the Studio web UI) instead
+ *   of doing them by hand. It fails closed on the disclosure, because TikTok
+ *   cannot add the label after publishing. This API path cannot set it at all.
+ *
  * --auto: Publish via Publora REST API (shows risk warning first).
  *   Flow: create draft -> get upload URL -> upload MP4 to S3 -> schedule/publish
  *
