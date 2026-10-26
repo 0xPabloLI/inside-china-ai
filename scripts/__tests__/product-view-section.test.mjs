@@ -31,7 +31,7 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { evaluateCommentProductView } from "../check-product-view.mjs";
-import { renderProductViewSection } from "../product-view-section.mjs";
+import { renderProductViewSection, parseArgs } from "../product-view-section.mjs";
 
 const USER = { type: "User" };
 const BOT = { type: "Bot" };
@@ -62,13 +62,18 @@ const SECTION_ONLY =
 
 /**
  * A `gh api` stand-in. It answers the two endpoints the renderer reads, and
- * throws on anything else so a third call cannot slip in unnoticed.
+ * throws on anything else so a third call cannot slip in unnoticed. `--slurp`
+ * wraps every page in an outer array, which is the shape a single page has too.
  */
-function fakeGh({ body = "", isPullRequest = false, comments = [] }) {
+function fakeGh({ body = "", isPullRequest = false, comments = [], commentPages }) {
+  const pages = commentPages ?? [comments];
   return (args) => {
     expect(args[0]).toBe("api");
-    const endpoint = args[1];
-    if (endpoint.endsWith("/comments?per_page=100")) return JSON.stringify(comments);
+    const endpoint = args.at(-1);
+    if (endpoint.endsWith("/comments?per_page=100")) {
+      expect(args).toContain("--paginate");
+      return JSON.stringify(pages);
+    }
     if (/\/issues\/\d+$/.test(endpoint)) {
       return JSON.stringify({
         number: 353,
@@ -129,6 +134,24 @@ describe("renderProductViewSection — which section it quotes", () => {
     });
     expect(result.source).toEqual({ kind: "comment", id: 9 });
   });
+
+  it("reads every page, so a long ticket's newest record is not missed", () => {
+    // The comments endpoint returns oldest first, so a record on page two is the
+    // newest one. Reading only page one would fall back to the PR body — or fail —
+    // while the ticket already carries the section.
+    const result = call({
+      runGh: fakeGh({
+        isPullRequest: true,
+        body: OLDER,
+        commentPages: [
+          [{ id: 30, user: USER, body: BARE_RECORD }],
+          [{ id: 31, user: USER, body: NEWER }],
+        ],
+      }),
+    });
+    expect(result.source).toEqual({ kind: "comment", id: 31 });
+    expect(result.text).toContain("关票缺三句就挂 product-view-missing");
+  });
 });
 
 describe("renderProductViewSection — what never counts as the source", () => {
@@ -170,22 +193,47 @@ describe("renderProductViewSection — what never counts as the source", () => {
   });
 });
 
+describe("parseArgs — silence would quote the wrong repository", () => {
+  it("reads the number and both spellings of --repo", () => {
+    expect(parseArgs(["810"])).toEqual({ number: 810, repo: undefined });
+    expect(parseArgs(["810", "--repo", "owner/repo"])).toEqual({ number: 810, repo: "owner/repo" });
+    expect(parseArgs(["--repo=owner/repo", "810"])).toEqual({ number: 810, repo: "owner/repo" });
+  });
+
+  it("rejects a valueless --repo instead of falling back to the working directory", () => {
+    // Falling back means reading the cwd's repo: a section from the wrong
+    // repository, reported as success.
+    expect(() => parseArgs(["810", "--repo"])).toThrow(/owner\/name/);
+    expect(() => parseArgs(["810", "--repo", "--paginate"])).toThrow(/owner\/name/);
+    expect(() => parseArgs(["810", "--repo="])).toThrow(/owner\/name/);
+  });
+
+  it("rejects unknown flags and non-numbers", () => {
+    expect(() => parseArgs(["810", "--verbose"])).toThrow(/unknown flag/);
+    expect(() => parseArgs([])).toThrow(/number/);
+    expect(() => parseArgs(["abc"])).toThrow(/number/);
+    expect(() => parseArgs(["0"])).toThrow(/number/);
+  });
+});
+
 describe("the CLI an agent actually runs", () => {
   const root = mkdtempSync(join(tmpdir(), "product-view-section-"));
   const script = join(import.meta.dirname, "..", "product-view-section.mjs");
 
-  /** A `gh` on PATH answering the two endpoints; `endpoint` is argv[2]. */
+  /** A `gh` on PATH answering the two endpoints from JSON files, not shell quotes. */
   function stubDir(name, comments, body) {
     const dir = join(root, name);
     mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "comments.json"), JSON.stringify([comments]));
+    writeFileSync(join(dir, "issue.json"), JSON.stringify({ number: 353, body }));
     const stub = join(dir, "gh");
     writeFileSync(
       stub,
       [
         "#!/bin/sh",
-        'case "$2" in',
-        `  */comments*) printf '%s' '${JSON.stringify(comments)}' ;;`,
-        `  *) printf '%s' '${JSON.stringify({ number: 353, body })}' ;;`,
+        'case "$*" in',
+        `  *"/comments?"*) cat '${join(dir, "comments.json")}' ;;`,
+        `  *) cat '${join(dir, "issue.json")}' ;;`,
         "esac",
         "",
       ].join("\n"),

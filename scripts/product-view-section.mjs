@@ -61,11 +61,17 @@ export function renderProductViewSection({ number, repo, runGh: gh = runGh } = {
   // and the issues API returns a `pull_request` key for the latter.
   const base = `${repo ? `repos/${repo}` : "repos/{owner}/{repo}"}/issues/${number}`;
   const issue = JSON.parse(gh(["api", base]));
-  const comments = JSON.parse(gh(["api", `${base}/comments?per_page=100`]));
+  // Every page, not the first: the comments endpoint returns oldest first, so a
+  // ticket with more comments than one page holds its newest record on a later
+  // page — reading page one would miss the very section the report must quote.
+  const pages = JSON.parse(gh(["api", "--paginate", "--slurp", `${base}/comments?per_page=100`]));
+  const comments = pages.flat();
 
   // Records only: a section without the marker is not a delivery record, a bot
   // comment is not one either, and a waiver explicitly declines to write one.
-  // Newest first, because a later record is the one the ticket now stands on.
+  // Newest compliant wins, which is deliberately not "newest record": the ledger
+  // is satisfied by *any* compliant record, and a later comment restating only
+  // the commits must not displace the section the ticket already earned.
   const records = comments.filter(isRecordComment).reverse();
   const rejections = [];
   for (const comment of records) {
@@ -109,31 +115,59 @@ export function renderProductViewSection({ number, repo, runGh: gh = runGh } = {
   };
 }
 
+/**
+ * Parse `<number> [--repo owner/name]`.
+ *
+ * An unknown flag or a valueless `--repo` is an error rather than something to
+ * ignore: ignoring it leaves the number's repo to the working directory, which
+ * would quote a section from the wrong repository and look like success.
+ *
+ * @param {string[]} argv
+ * @returns {{number: number, repo?: string}}
+ */
+export function parseArgs(argv) {
+  let number;
+  let repo;
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    const inline = arg.startsWith("--repo=") ? arg.slice("--repo=".length) : null;
+    if (arg === "--repo" || inline !== null) {
+      const value = inline ?? argv[index + 1];
+      if (!value || value.startsWith("--")) throw new Error("--repo needs an owner/name value");
+      repo = value;
+      if (inline === null) index += 1;
+      continue;
+    }
+    if (arg.startsWith("-")) throw new Error(`unknown flag ${arg}`);
+    if (number !== undefined) throw new Error(`unexpected argument ${arg}`);
+    number = Number(arg);
+  }
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new Error("expected an issue or pull-request number");
+  }
+  return { number, repo };
+}
+
 const invokedDirectly =
   Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invokedDirectly) {
-  const repoAt = process.argv.indexOf("--repo");
-  const repo = repoAt === -1 ? undefined : process.argv[repoAt + 1];
-  const positional = process.argv.slice(2).filter((arg, index, all) => {
-    if (arg.startsWith("--")) return false;
-    return all[index - 1] !== "--repo";
-  });
-  const number = Number(positional[0]);
-
-  if (!Number.isInteger(number) || number <= 0) {
-    console.error(
-      "usage: node scripts/product-view-section.mjs <issue-or-pr-number> [--repo owner/name]",
-    );
+  const USAGE =
+    "usage: node scripts/product-view-section.mjs <issue-or-pr-number> [--repo owner/name]";
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    console.error(`${error.message}\n${USAGE}`);
     process.exit(2);
   }
 
   let result;
   try {
-    result = renderProductViewSection({ number, repo });
+    result = renderProductViewSection(args);
   } catch (error) {
     // `gh` missing, logged out, 404 — never a reason to print a partial section.
-    console.error(`[product-view] gh failed for #${number}: ${error.message}`);
+    console.error(`[product-view] gh failed for #${args.number}: ${error.message}`);
     process.exit(1);
   }
 

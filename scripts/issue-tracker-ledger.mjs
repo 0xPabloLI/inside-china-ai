@@ -146,7 +146,7 @@ export function productViewReminder() {
     "",
     roleList(),
     "",
-    `补一条带 \`## 产品视角\` 节、且仍带 \`交付记录\` 标记的评论即可，\`${PRODUCT_VIEW_LABEL}\` 账本自动摘除。`,
+    `补一条带 \`## 产品视角\` 节、且仍带 \`交付记录\` 标记的评论即可，\`${PRODUCT_VIEW_LABEL}\` 账本自动摘除；证据与遗留项各自用 \`##\` 标题分段，最终汇报渲染时就只会拿到三句。`,
     `账本查询：\`gh issue list --label ${PRODUCT_VIEW_LABEL} --state closed\`。`,
   ].join("\n");
 }

@@ -82,7 +82,7 @@ The tracker is the session's external memory: a fresh session must be able to re
 
 Completion criterion: close the terminal and imagine a colleague opens a fresh one — if they would need to ask you anything the tracker already could have answered, the offload is incomplete.
 
-The final report does not restate the record's product-view section from memory: it renders it with `scripts/product-view-section.mjs <N>` and quotes the output, so the chat and the ticket cannot disagree. An agent that skips the command leaves the whole section out — visible to the reader, which is the failure mode this design prefers over a plausible paraphrase.
+The final report quotes the record's product-view section instead of restating it: `scripts/product-view-section.mjs <N>` prints it, and the report pastes that output (why there is no third gate, and what remains unenforced: `implementation-workflow.md` §9 step 8 and §12).
 
 That marker is machine-checked: `.github/workflows/issue-tracker-signals.yml` posts a reminder when a non-`wontfix` issue closes with no delivery-record comment, and (#315) the missing case is a ledger, not a one-shot reminder — the closed issue carries `delivery-record-missing`, a later user comment with the marker (or an explicit `无需交付记录` waiver) clears it, a daily recheck escalates once after 3 days, and the backlog is auditable via `gh issue list --label delivery-record-missing --state closed` (grandfathered: only issues closed on/after 2026-09-19, the gate's CI rollout date, participate).
 
