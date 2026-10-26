@@ -29,11 +29,11 @@
  * automation-profile guard first.
  */
 
-import { execFileSync } from "node:child_process";
 import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
+import { runGh } from "./lib/gh-cli.mjs";
 import {
   ALL_SOURCES,
   missingApiKey,
@@ -227,13 +227,26 @@ export function apiFailureVerdict({ status, body = "", cap = {} } = {}) {
  * @param {{ ok: boolean, reason?: string|null }} result
  * @returns {"none"|"source"|"probe"}
  */
+export const ALERTABLE_SOURCE_VERDICTS = new Set([
+  "zero_results",
+  "http-dead",
+  "network-error",
+  "redirected-home",
+  "not-search-page",
+]);
+
 export function failureClass(result) {
   if (result.ok) return "none";
   const reason = String(result.reason ?? "");
-  if (reason.startsWith("anti_bot") || reason === "need_login" || reason === "captcha") {
+  if (
+    reason.startsWith("anti_bot") ||
+    reason.startsWith("error:") ||
+    reason === "need_login" ||
+    reason === "captcha"
+  ) {
     return "probe";
   }
-  return isFailureVerdict(reason) ? "source" : "probe";
+  return ALERTABLE_SOURCE_VERDICTS.has(reason) && isFailureVerdict(reason) ? "source" : "probe";
 }
 
 /**
@@ -372,7 +385,6 @@ export function buildHealthReport({
   const normalizedResults = results.map((r) => summarizeResultRow(r, { checkedAt, layer }));
   return {
     checkedAt,
-    timestamp: checkedAt,
     keyword,
     keywords,
     envLoaded: true,
@@ -483,11 +495,29 @@ function selectorRecoveryCommentBody(row, { keyword, checkedAt }) {
   ].join("\n");
 }
 
-function defaultGhRunner(args, inputEnv = {}) {
-  return execFileSync("gh", args, {
-    encoding: "utf8",
-    env: { ...process.env, ...inputEnv },
-  }).trim();
+function containsSourceToken(text, sourceName) {
+  const needle = String(sourceName ?? "").toLowerCase();
+  if (!needle) return false;
+  const tokens = String(text ?? "")
+    .toLowerCase()
+    .split(/[^a-z0-9_]+/);
+  return tokens.includes(needle);
+}
+
+function matchesIssuePhenomenon(item, sourceName, verdict) {
+  const title = String(item?.title ?? "");
+  if (title.startsWith("feat: selector-health")) return false;
+  const body = String(item?.body ?? "");
+  const titleMatch = title.match(/^\[selector-health\]\s+([a-z0-9_-]+)\s*:/i);
+  if (titleMatch && titleMatch[1].toLowerCase() === String(sourceName ?? "").toLowerCase()) {
+    return true;
+  }
+  const hasSource = containsSourceToken(title, sourceName) || containsSourceToken(body, sourceName);
+  const verdictLower = String(verdict ?? "").toLowerCase();
+  const hasVerdict =
+    Boolean(verdictLower) &&
+    (title.toLowerCase().includes(verdictLower) || body.toLowerCase().includes(verdictLower));
+  return hasSource && hasVerdict;
 }
 
 /**
@@ -498,7 +528,9 @@ function defaultGhRunner(args, inputEnv = {}) {
  *   2. For each `failureClass === "source"` row:
  *      - Match existing open `[selector-health] <source>` issue first;
  *      - Otherwise search open issues by `"<source>" "<verdict>"` phenomenon text
- *        (#338 vs #330 deduplication lesson);
+ *        (#338 vs #330 deduplication lesson), falling back to non-indexed
+ *        `repos/${repo}/issues?state=open&labels=bug` so rapid reruns within
+ *        GitHub Search API's indexing window still deduplicate;
  *      - If an open issue exists, append an occurrence-incremented comment;
  *      - Otherwise create `[selector-health] <source>: <verdict>` (bug + needs-triage).
  *   3. For each primary-healthy row (`ok: true && via !== "site-fallback"`):
@@ -512,78 +544,181 @@ export function syncSelectorHealthIssues({
   checkedAt = new Date().toISOString(),
   repo = DEFAULT_REPO,
   token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN,
-  ghRunner = defaultGhRunner,
+  ghRunner = runGh,
 } = {}) {
   const env = token ? { GH_TOKEN: token } : {};
   const buckets = classifyAlertBuckets(results);
   const actions = [];
-
-  const openListRaw = ghRunner(
-    [
-      "api",
-      "-X",
-      "GET",
-      "search/issues",
-      "-f",
-      `q=repo:${repo} "[selector-health]" in:title state:open type:issue`,
-      "-f",
-      "per_page=100",
-    ],
-    env,
-  );
-  const openItems = JSON.parse(openListRaw || '{"items":[]}').items ?? [];
   const openBySource = new Map();
-  for (const item of openItems) {
-    const match = String(item.title ?? "").match(/^\[selector-health\]\s+([a-z0-9_-]+)\s*:/i);
-    if (match && !openBySource.has(match[1])) {
-      openBySource.set(match[1], item);
+
+  try {
+    const openListRaw = ghRunner(
+      [
+        "api",
+        "-X",
+        "GET",
+        "search/issues",
+        "-f",
+        `q=repo:${repo} "[selector-health]" in:title state:open type:issue`,
+        "-f",
+        "per_page=100",
+      ],
+      env,
+    );
+    const openItems = JSON.parse(openListRaw || '{"items":[]}').items ?? [];
+    for (const item of openItems) {
+      const match = String(item.title ?? "").match(/^\[selector-health\]\s+([a-z0-9_-]+)\s*:/i);
+      if (match && !openBySource.has(match[1])) {
+        openBySource.set(match[1], item);
+      }
     }
+  } catch (err) {
+    actions.push({
+      source: "*",
+      verdict: "batch-search",
+      action: "error",
+      error: err.message,
+    });
+  }
+
+  let directOpenIssues = null;
+  function getDirectOpenIssues() {
+    if (directOpenIssues !== null) return directOpenIssues;
+    try {
+      const raw = ghRunner(
+        [
+          "api",
+          "-X",
+          "GET",
+          `repos/${repo}/issues`,
+          "-f",
+          "state=open",
+          "-f",
+          "labels=bug",
+          "-f",
+          "per_page=100",
+        ],
+        env,
+      );
+      const parsed = JSON.parse(raw || "[]");
+      directOpenIssues = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      directOpenIssues = [];
+    }
+    return directOpenIssues;
   }
 
   const keywordText = `${keywords.zh} / ${keywords.en}`;
 
   for (const row of buckets.alerting) {
     const verdict = row.reason ?? "unknown";
-    let existing = openBySource.get(row.source) ?? null;
+    try {
+      let existing = openBySource.get(row.source) ?? null;
 
-    if (!existing) {
-      const dedupRaw = ghRunner(
-        [
-          "api",
-          "-X",
-          "GET",
-          "search/issues",
-          "-f",
-          `q=repo:${repo} "${row.source}" "${verdict}" state:open type:issue`,
-          "-f",
-          "per_page=10",
-        ],
-        env,
-      );
-      const candidates = JSON.parse(dedupRaw || '{"items":[]}').items ?? [];
-      const sourcePattern = new RegExp(`(^|[^a-z0-9_])${row.source}([^a-z0-9_]|$)`, "i");
-      existing =
-        candidates.find(
-          (item) =>
-            !String(item.title ?? "").startsWith("feat: selector-health") &&
-            (sourcePattern.test(String(item.title ?? "")) ||
-              sourcePattern.test(String(item.body ?? ""))),
-        ) ?? null;
+      if (!existing) {
+        const dedupRaw = ghRunner(
+          [
+            "api",
+            "-X",
+            "GET",
+            "search/issues",
+            "-f",
+            `q=repo:${repo} "${row.source}" "${verdict}" state:open type:issue`,
+            "-f",
+            "per_page=10",
+          ],
+          env,
+        );
+        const candidates = JSON.parse(dedupRaw || '{"items":[]}').items ?? [];
+        existing =
+          candidates.find((item) => matchesIssuePhenomenon(item, row.source, verdict)) ?? null;
+      }
+
+      if (!existing) {
+        existing =
+          getDirectOpenIssues().find((item) => matchesIssuePhenomenon(item, row.source, verdict)) ??
+          null;
+      }
+
+      if (existing) {
+        const commentsRaw = ghRunner(
+          ["api", `repos/${repo}/issues/${existing.number}/comments`, "-f", "per_page=100"],
+          env,
+        );
+        const comments = JSON.parse(commentsRaw || "[]");
+        const prevCount = parseOccurrenceCount([
+          existing.body ?? "",
+          ...comments.map((c) => c.body ?? ""),
+        ]);
+        const occurrences = Math.max(1, prevCount) + 1;
+        const commentBody = selectorRepeatCommentBody(row, {
+          occurrences,
+          keyword: keywordText,
+          checkedAt,
+        });
+        ghRunner(
+          [
+            "api",
+            "-X",
+            "POST",
+            `repos/${repo}/issues/${existing.number}/comments`,
+            "-f",
+            `body=${commentBody}`,
+          ],
+          env,
+        );
+        actions.push({
+          source: row.source,
+          verdict,
+          action: "commented",
+          issueNumber: existing.number,
+          occurrences,
+        });
+      } else {
+        const title = selectorIssueTitle(row.source, verdict);
+        const body = selectorIssueBody(row, { keyword: keywordText, checkedAt });
+        const createdRaw = ghRunner(
+          [
+            "api",
+            "-X",
+            "POST",
+            `repos/${repo}/issues`,
+            "-f",
+            `title=${title}`,
+            "-f",
+            `body=${body}`,
+            "-f",
+            "labels[]=bug",
+            "-f",
+            "labels[]=needs-triage",
+          ],
+          env,
+        );
+        const created = JSON.parse(createdRaw || "{}");
+        actions.push({
+          source: row.source,
+          verdict,
+          action: "created",
+          issueNumber: created.number ?? null,
+          url: created.html_url ?? null,
+          occurrences: 1,
+        });
+      }
+    } catch (err) {
+      actions.push({
+        source: row.source,
+        verdict,
+        action: "error",
+        error: err.message,
+      });
     }
+  }
 
-    if (existing) {
-      const commentsRaw = ghRunner(
-        ["api", `repos/${repo}/issues/${existing.number}/comments`, "-f", "per_page=100"],
-        env,
-      );
-      const comments = JSON.parse(commentsRaw || "[]");
-      const prevCount = parseOccurrenceCount([
-        existing.body ?? "",
-        ...comments.map((c) => c.body ?? ""),
-      ]);
-      const occurrences = Math.max(1, prevCount) + 1;
-      const commentBody = selectorRepeatCommentBody(row, {
-        occurrences,
+  for (const row of buckets.primaryHealthy) {
+    const existing = openBySource.get(row.source);
+    if (!existing) continue;
+    try {
+      const recoveryBody = selectorRecoveryCommentBody(row, {
         keyword: keywordText,
         checkedAt,
       });
@@ -594,86 +729,38 @@ export function syncSelectorHealthIssues({
           "POST",
           `repos/${repo}/issues/${existing.number}/comments`,
           "-f",
-          `body=${commentBody}`,
+          `body=${recoveryBody}`,
         ],
         env,
       );
-      actions.push({
-        source: row.source,
-        verdict,
-        action: "commented",
-        issueNumber: existing.number,
-        occurrences,
-      });
-    } else {
-      const title = selectorIssueTitle(row.source, verdict);
-      const body = selectorIssueBody(row, { keyword: keywordText, checkedAt });
-      const createdRaw = ghRunner(
+      ghRunner(
         [
           "api",
           "-X",
-          "POST",
-          `repos/${repo}/issues`,
+          "PATCH",
+          `repos/${repo}/issues/${existing.number}`,
           "-f",
-          `title=${title}`,
+          "state=closed",
           "-f",
-          `body=${body}`,
-          "-f",
-          "labels[]=bug",
-          "-f",
-          "labels[]=needs-triage",
+          "state_reason=completed",
         ],
         env,
       );
-      const created = JSON.parse(createdRaw || "{}");
       actions.push({
         source: row.source,
-        verdict,
-        action: "created",
-        issueNumber: created.number ?? null,
-        url: created.html_url ?? null,
-        occurrences: 1,
+        verdict: "healthy",
+        action: "closed",
+        issueNumber: existing.number,
+      });
+    } catch (err) {
+      actions.push({
+        source: row.source,
+        verdict: "healthy",
+        action: "error",
+        issueNumber: existing.number,
+        error: err.message,
       });
     }
-  }
-
-  for (const row of buckets.primaryHealthy) {
-    const existing = openBySource.get(row.source);
-    if (!existing) continue;
-    const recoveryBody = selectorRecoveryCommentBody(row, {
-      keyword: keywordText,
-      checkedAt,
-    });
-    ghRunner(
-      [
-        "api",
-        "-X",
-        "POST",
-        `repos/${repo}/issues/${existing.number}/comments`,
-        "-f",
-        `body=${recoveryBody}`,
-      ],
-      env,
-    );
-    ghRunner(
-      [
-        "api",
-        "-X",
-        "PATCH",
-        `repos/${repo}/issues/${existing.number}`,
-        "-f",
-        "state=closed",
-        "-f",
-        "state_reason=completed",
-      ],
-      env,
-    );
-    actions.push({
-      source: row.source,
-      verdict: "healthy",
-      action: "closed",
-      issueNumber: existing.number,
-    });
   }
 
   return actions;
@@ -1076,6 +1163,10 @@ async function main() {
             } else if (act.action === "closed") {
               console.log(
                 `  🔔 Alert sync: auto-closed #${act.issueNumber} (${act.source} recovered on primary)`,
+              );
+            } else if (act.action === "error") {
+              console.warn(
+                `  ⚠️  Alert sync error for ${act.source} (${act.verdict}): ${act.error}`,
               );
             }
           }

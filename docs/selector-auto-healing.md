@@ -14,7 +14,7 @@ selector-health.mjs [--alert]（发现：轴 3 抽取；--alert 对 source 真�
       ↓
 source-url-sweep.mjs（轴 1）→ source-url-discover.mjs（轴 2+3，回收 registry 行）
       ↓                                  └─ 审计分支：--compare / --all（URL 对齐：「能用」≠「对」）
-本 runbook（修复）→ selector-health.mjs --only <源> [--alert]（验证；--alert 在主层转绿时自动留言关票）
+本 runbook（修复）→ selector-health.mjs --only <源> [--alert]（验证；--alert 在主层转绿时自动留言关闭 open [selector-health] 票）
 ```
 
 ## 修复步骤（对每个 failing 源）

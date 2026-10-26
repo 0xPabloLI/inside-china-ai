@@ -26,8 +26,8 @@
  *
  * Usage: node scripts/short-video/pool-canary.mjs [--query <q>] [--update-issues]
  */
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { runGh as gh } from "./lib/gh-cli.mjs";
 import { loadEnv } from "./lib/load-env.mjs";
 import { searchPool, POOL_ENGINES } from "./lib/search-pool.mjs";
 
@@ -115,13 +115,6 @@ function issueBody(engineName, findings, query) {
       engineName +
       ".json` from a real response and repair the matching adapter in `scripts/short-video/lib/search-pool.mjs` (see issue #305).",
   ].join("\n");
-}
-
-function gh(args, inputEnv) {
-  return execFileSync("gh", args, {
-    encoding: "utf8",
-    env: { ...process.env, ...inputEnv },
-  }).trim();
 }
 
 /** Find the open canary issue for one engine, by title substring. */

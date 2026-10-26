@@ -256,7 +256,7 @@ describe("summarizeResultRow & classifyAlertBuckets & buildHealthReport (#353)",
       checkedAt,
     });
     expect(report.checkedAt).toBe(checkedAt);
-    expect(report.timestamp).toBe(checkedAt);
+    expect("timestamp" in report).toBe(false);
     expect(report.summary).toEqual({
       none: 2,
       source: 1,
@@ -306,14 +306,25 @@ describe("syncSelectorHealthIssues — #353 开票、去重累加、恢复自动
     ).toBe(5);
   });
 
-  it("AC1 & AC2：真失败（source）且无既有 open 票时自动新建；probe 与 site-fallback 不开票", () => {
+  it("AC1 & AC2：真失败（source）且无既有 open 票时自动新建；probe、error:* 与 site-fallback 不开票", () => {
     const calls = [];
     const ghRunner = (args) => {
       calls.push(args);
       if (args[0] === "api" && args.includes("search/issues")) {
         return JSON.stringify({ items: [] });
       }
-      if (args[0] === "api" && args.includes("repos/0xPabloLI/inside-china-ai/issues")) {
+      if (
+        args[0] === "api" &&
+        args.includes("GET") &&
+        args.includes("repos/0xPabloLI/inside-china-ai/issues")
+      ) {
+        return JSON.stringify([]);
+      }
+      if (
+        args[0] === "api" &&
+        args.includes("POST") &&
+        args.includes("repos/0xPabloLI/inside-china-ai/issues")
+      ) {
         return JSON.stringify({
           number: 999,
           html_url: "https://github.com/0xPabloLI/inside-china-ai/issues/999",
@@ -341,12 +352,26 @@ describe("syncSelectorHealthIssues — #353 开票、去重累加、恢复自动
           reason: "probe-no-egress",
           durationMs: 8000,
         },
+        {
+          source: "36kr",
+          ok: false,
+          count: 0,
+          reason: 'error:CDP proxy disconnected "unexpectedly"',
+          durationMs: 1200,
+        },
       ],
       keywords,
       checkedAt,
       ghRunner,
     });
 
+    expect(
+      failureClass({
+        source: "36kr",
+        ok: false,
+        reason: 'error:CDP proxy disconnected "unexpectedly"',
+      }),
+    ).toBe("probe");
     expect(actions).toEqual([
       {
         source: "qbitai",
@@ -357,7 +382,9 @@ describe("syncSelectorHealthIssues — #353 开票、去重累加、恢复自动
         occurrences: 1,
       },
     ]);
-    const createCall = calls.find((c) => c.includes("POST") && c.some((a) => a.endsWith("/issues")));
+    const createCall = calls.find(
+      (c) => c.includes("POST") && c.some((a) => a.endsWith("/issues")),
+    );
     expect(createCall).toBeTruthy();
     expect(createCall.join(" ")).toContain("title=[selector-health] qbitai: zero_results");
     expect(createCall.join(" ")).toContain("正文是创建时的规格（write-once，永不改写）");
@@ -434,9 +461,9 @@ describe("syncSelectorHealthIssues — #353 开票、去重累加、恢复自动
       },
     ]);
     // 绝不调用 POST .../issues 新建重复票
-    expect(calls.some((c) => c.includes("POST") && c.includes("repos/0xPabloLI/inside-china-ai/issues"))).toBe(
-      false,
-    );
+    expect(
+      calls.some((c) => c.includes("POST") && c.includes("repos/0xPabloLI/inside-china-ai/issues")),
+    ).toBe(false);
   });
 
   it("AC4：源主层恢复健康后下次运行自动留言（含交付记录标记）并关闭 open 票；site-fallback 与 probe 不误关票", () => {
@@ -523,5 +550,104 @@ describe("syncSelectorHealthIssues — #353 开票、去重累加、恢复自动
     const closeCall = calls.find((c) => c.includes("PATCH") && c.join(" ").includes("issues/601"));
     expect(closeCall.join(" ")).toContain("state=closed");
     expect(closeCall.join(" ")).toContain("state_reason=completed");
+  });
+
+  it("AC3 索引延迟防护：Search API 尚未索引新建票时，回退直查 repos/<repo>/issues 避免快速重跑重复建票", () => {
+    const calls = [];
+    const ghRunner = (args) => {
+      calls.push(args);
+      const joined = args.join(" ");
+      if (joined.includes("search/issues")) {
+        // 模拟 Search API 索引延迟：两层 search 均返回空
+        return JSON.stringify({ items: [] });
+      }
+      if (args.includes("GET") && joined.includes("repos/0xPabloLI/inside-china-ai/issues")) {
+        return JSON.stringify([
+          {
+            number: 777,
+            title: "[selector-health] qbitai: zero_results",
+            body: "<!-- selector-health:source=qbitai verdict=zero_results occurrences=1 -->",
+          },
+        ]);
+      }
+      if (joined.includes("issues/777/comments") && !joined.includes("POST")) {
+        return JSON.stringify([]);
+      }
+      if (joined.includes("POST") && joined.includes("issues/777/comments")) {
+        return JSON.stringify({ id: 22 });
+      }
+      throw new Error(`unexpected gh call: ${joined}`);
+    };
+
+    const actions = syncSelectorHealthIssues({
+      results: [
+        { source: "qbitai", ok: false, count: 0, reason: "zero_results", durationMs: 5000 },
+      ],
+      keywords,
+      checkedAt,
+      ghRunner,
+    });
+
+    expect(actions).toEqual([
+      {
+        source: "qbitai",
+        verdict: "zero_results",
+        action: "commented",
+        issueNumber: 777,
+        occurrences: 2,
+      },
+    ]);
+  });
+
+  it("单源 gh 失败按行隔离：后续告警源继续处理且已完成动作不丢失", () => {
+    const ghRunner = (args) => {
+      const joined = args.join(" ");
+      if (joined.includes('"[selector-health]" in:title')) {
+        return JSON.stringify({ items: [] });
+      }
+      if (joined.includes('"qbitai"')) {
+        throw new Error("HTTP 403 rate limit exceeded");
+      }
+      if (joined.includes('"ithome"')) {
+        return JSON.stringify({ items: [] });
+      }
+      if (args.includes("GET") && joined.includes("repos/0xPabloLI/inside-china-ai/issues")) {
+        return JSON.stringify([]);
+      }
+      if (args.includes("POST") && joined.includes("repos/0xPabloLI/inside-china-ai/issues")) {
+        return JSON.stringify({
+          number: 888,
+          html_url: "https://github.com/0xPabloLI/inside-china-ai/issues/888",
+        });
+      }
+      throw new Error(`unexpected gh call: ${joined}`);
+    };
+
+    const actions = syncSelectorHealthIssues({
+      results: [
+        { source: "qbitai", ok: false, count: 0, reason: "zero_results", durationMs: 5000 },
+        { source: "ithome", ok: false, count: 0, reason: "http-dead", durationMs: 1200 },
+      ],
+      keywords,
+      checkedAt,
+      ghRunner,
+    });
+
+    expect(actions).toEqual([
+      {
+        source: "qbitai",
+        verdict: "zero_results",
+        action: "error",
+        error: "HTTP 403 rate limit exceeded",
+      },
+      {
+        source: "ithome",
+        verdict: "http-dead",
+        action: "created",
+        issueNumber: 888,
+        url: "https://github.com/0xPabloLI/inside-china-ai/issues/888",
+        occurrences: 1,
+      },
+    ]);
   });
 });
