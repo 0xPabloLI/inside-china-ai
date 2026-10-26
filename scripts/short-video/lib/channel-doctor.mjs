@@ -60,6 +60,18 @@ export function deriveChannels(source) {
   }
   // #88 auto-generated fallbacks live under capabilities.articles (explicit
   // source-level config stays on the source itself) — read both.
+  // #358: HTTP-native site: layer (SearXNG). Pushed before the Google layer
+  // because the sort below only keys on `primary`, so insertion order IS the
+  // reported chain order — and production probes this layer first.
+  const apiSiteFallback = source.apiSiteFallback ?? source.capabilities?.articles?.apiSiteFallback;
+  if (apiSiteFallback) {
+    channels.push({
+      type: "searxng-site",
+      detail: `site:${apiSiteFallback.site ?? "?"} via SearXNG`,
+      primary: false,
+      probe: "http",
+    });
+  }
   const siteFallback =
     source.googleSiteFallback ?? source.capabilities?.articles?.googleSiteFallback;
   if (siteFallback) {

@@ -111,6 +111,73 @@ describe("collectFromSource fallback chain order", () => {
     expect(fallbackSource.url("kw")).toContain("site:test.test");
   });
 
+  // #358: an api-native site: layer (SearXNG) sits between the api/CDP pair and
+  // the Google CDP fallback. It exists for sources whose api endpoint refuses
+  // anonymous traffic and whose CDP fallback is the SAME url (reddit_search:
+  // no browser session can rescue a 403 that the Server answers pre-session).
+  const apiSiteFallbackFixture = {
+    site: "test.test",
+    url: (kw) => `http://localhost:8888/search?q=site:test.test ${kw}`,
+    parser: () => [],
+    timeoutMs: 30000,
+    authRequired: false,
+  };
+
+  it("#358 api 型 site: 兜底层在 CDP 跳过之后接手并短路后续层", async () => {
+    const { promise, calls, events } = harness(
+      {
+        collectApi: async (src) =>
+          src.name === "test_src_api_fallback"
+            ? [{ title: "from-searxng", url: "https://www.reddit.com/r/x/comments/1/a/" }]
+            : [],
+      },
+      {
+        apiSearch: { url: (kw) => `https://api.test/q?kw=${kw}` },
+        url: (kw) => `https://api.test/q?kw=${kw}`,
+        apiSiteFallback: apiSiteFallbackFixture,
+      },
+    );
+    const articles = await promise;
+    expect(articles.map((a) => a.title)).toEqual(["from-searxng"]);
+    expect(articles[0].source).toBe("test_src");
+    // api → (cdp same-url skip, no collectCdp call) → api site: fallback → stop
+    expect(calls.map((c) => c.fn)).toEqual(["collectApi", "collectApi"]);
+    const fbSource = calls[1].args[0];
+    expect(fbSource.name).toBe("test_src_api_fallback");
+    expect(fbSource.capabilities.articles.apiSearch).toBe(apiSiteFallbackFixture);
+    expect(events).toContainEqual(
+      expect.objectContaining({ source: "test_src", layer: "api-site-fallback", count: 1 }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({ layer: "cdp", reason: "skipped-same-url-as-api" }),
+    );
+  });
+
+  it("#358 api 兜底层空结果时让位给 googleSiteFallback（顺序：api → api-site → google）", async () => {
+    const { promise, calls } = harness(
+      { collectCdp: async () => ({ articles: [], status: null }) },
+      {
+        url: () => "https://search.test/q",
+        apiSearch: { url: () => "https://api.test/q" },
+        apiSiteFallback: apiSiteFallbackFixture,
+        googleSiteFallback: {
+          url: (kw) => `https://www.google.com/search?q=site:test.test+${kw}`,
+          articleScript: "return [];",
+        },
+      },
+    );
+    await promise;
+    expect(calls.map((c) => c.fn)).toEqual([
+      "collectApi",
+      "collectCdp",
+      "collectApi",
+      "collectCdp",
+      "isPoolEligibleFn",
+    ]);
+    expect(calls[2].args[0].name).toBe("test_src_api_fallback");
+    expect(calls[3].args[0].name).toBe("test_src_fallback");
+  });
+
   // #292 root-cause fix: collectFromCdp reads `cap?.url ?? source.url` and
   // `cap?.articleScript ?? source.articleScript` (#199 rule — cap wins). The
   // synthesized fallback source spreads `...source` and therefore inherits the

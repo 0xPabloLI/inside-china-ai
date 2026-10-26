@@ -940,6 +940,73 @@ describe("apiSearch configuration", () => {
     expect(() => src.apiSearch.parser("not json")).toThrow();
   });
 
+  // #358: reddit_search 的两层都是死路（apiSearch 403、CDP 兜底是同一个 URL），
+  // 第三层用本机 SearXNG 的 `site:reddit.com`。`site:` 算子在部分引擎会被丢弃
+  // （2026-10-26 实测 136 条里只有 37 条是 reddit.com），所以过滤必须落在
+  // result.url 上，不能指望查询本身。
+  it("#358 reddit_search 声明 apiSiteFallback，指向本机 SearXNG 的 site:reddit.com", () => {
+    const src = LAST30DAYS_SOURCES.find((s) => s.name === "reddit_search");
+    expect(src.apiSiteFallback).toBeDefined();
+    expect(typeof src.apiSiteFallback.url).toBe("function");
+    expect(typeof src.apiSiteFallback.parser).toBe("function");
+    expect(src.apiSiteFallback.authRequired).toBe(false);
+    const url = src.apiSiteFallback.url("DeepSeek");
+    expect(url).toContain("localhost:8888");
+    expect(url).toContain("format=json");
+    expect(decodeURIComponent(url)).toContain("site:reddit.com DeepSeek");
+  });
+
+  it("#358 reddit 兜底 parser 只保留 reddit.com 上的帖子链接", () => {
+    const src = LAST30DAYS_SOURCES.find((s) => s.name === "reddit_search");
+    const payload = JSON.stringify({
+      results: [
+        { title: "post", url: "https://www.reddit.com/r/LocalLLaMA/comments/abc/x/" },
+        { title: "junk", url: "https://futurism.com/ai-is-here" },
+        { title: "subreddit", url: "https://www.reddit.com/r/artificial/" },
+        { title: "user", url: "https://www.reddit.com/user/someone/" },
+        { title: "old", url: "https://old.reddit.com/r/artificial/comments/def/y/" },
+        { title: "lookalike", url: "https://notreddit.com/r/x/comments/1/z/" },
+      ],
+    });
+    const rows = src.apiSiteFallback.parser(payload);
+    expect(rows.map((r) => r.url)).toEqual([
+      "https://www.reddit.com/r/LocalLLaMA/comments/abc/x/",
+      "https://old.reddit.com/r/artificial/comments/def/y/",
+    ]);
+  });
+
+  it("#358 reddit 兜底 parser 带上 publishedDate 与 snippet", () => {
+    const src = LAST30DAYS_SOURCES.find((s) => s.name === "reddit_search");
+    const payload = JSON.stringify({
+      results: [
+        {
+          title: "post",
+          url: "https://www.reddit.com/r/x/comments/1/a/",
+          content: "snippet text",
+          publishedDate: "2026-10-20T00:00:00+00:00",
+        },
+      ],
+    });
+    const [row] = src.apiSiteFallback.parser(payload);
+    expect(row.title).toBe("post");
+    expect(row.snippet).toBe("snippet text");
+    expect(row.publishedAt).toBe("2026-10-20T00:00:00+00:00");
+  });
+
+  it("#358 searxng_search 自己的 parser 不受兜底过滤影响（共享解析器回归）", () => {
+    const src = GENERAL_SEARCH_SOURCES.find((s) => s.name === "searxng_search");
+    const payload = JSON.stringify({
+      results: [
+        { title: "a", url: "https://example.com/a", content: "c" },
+        { title: "b", url: "https://futurism.com/b" },
+      ],
+    });
+    expect(src.apiSearch.parser(payload).map((r) => r.url)).toEqual([
+      "https://example.com/a",
+      "https://futurism.com/b",
+    ]);
+  });
+
   it("hackernews_search has apiSearch", () => {
     const src = LAST30DAYS_SOURCES.find((s) => s.name === "hackernews_search");
     expect(src.apiSearch).toBeDefined();

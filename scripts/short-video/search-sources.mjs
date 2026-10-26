@@ -15,7 +15,9 @@
  * TELEGRAM/STOCK arrays).
  *
  * Fallback chain (#292, 2026-09-15 verdict): apiSearch (if configured) → CDP
- * → googleSiteFallback (Google site: search) → apiFallback (direct Bigsong
+ * → apiSiteFallback (#358: HTTP-native site: layer — SearXNG `site:<domain>`
+ * with a `result.url` host filter) → googleSiteFallback (Google site: search)
+ * → apiFallback (direct Bigsong
  * bridge ≡ mcp-search-bridge backend, x_search only — platform-faithful) →
  * pool (Serper > Brave > Tavily > Jina, pool-eligible sources only) →
  * mcpFallback (Grok bridge for pool-eligible web_search sources; dedicated
@@ -774,6 +776,8 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
   const cap = source.capabilities?.articles;
   const apiSearch = cap?.apiSearch ?? source.apiSearch;
   const googleSiteFallback = cap?.googleSiteFallback ?? source.googleSiteFallback;
+  // #358: HTTP-native site: layer (SearXNG `site:<domain>` with a host filter).
+  const apiSiteFallback = cap?.apiSiteFallback ?? source.apiSiteFallback;
   const mcpFallback = cap?.mcpFallback ?? source.mcpFallback;
   const apiFallback = cap?.apiFallback ?? source.apiFallback;
   const useCleanTitle = cap?.useCleanTitle ?? source.useCleanTitle;
@@ -850,6 +854,45 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
     // #200: same-endpoint skip — by design there is no next layer after the
     // API; the explicit reason keeps this from reading as "all layers dead".
     record("cdp", null, "skipped-same-url-as-api");
+  }
+
+  // Step 1.5 (#358): HTTP-native site: fallback — SearXNG `site:<domain>` with
+  // a host filter on `result.url`. This exists for the shape reddit_search has:
+  // the api endpoint refuses anonymous clients outright (403 + block page) and
+  // the CDP fallback is the SAME url, so no browser session can rescue it. The
+  // layer is api-shaped (cheap HTTP), which is why it is not a googleSiteFallback.
+  if (articles.length === 0 && apiSiteFallback?.url) {
+    if (apiSiteFallback.lifecycle === "searxng") {
+      // #891: a parked container is a park state, not a dead layer.
+      await ensureSearxng({ quiet: true }).catch(() => {});
+    }
+    console.log(`  🛰  Trying ${apiSiteFallback.site ?? "site:"} fallback for ${source.label}...`);
+    const fallbackSource = {
+      ...source,
+      name: source.name + "_api_fallback",
+      label: source.label + " (api fallback)",
+      // #292 lesson: cap wins over the spread source, so the synthesized
+      // source must override capabilities.articles.apiSearch explicitly.
+      capabilities: {
+        ...(source.capabilities ?? {}),
+        articles: { ...(cap ?? {}), apiSearch: apiSiteFallback },
+      },
+    };
+    const raw = await collectApi(fallbackSource, keyword);
+    // Same relevance guard the CDP layers get: SearXNG drops `site:` on some
+    // engines, so a result set can be large and entirely off-topic.
+    articles = applyRelevanceGuard(keyword, raw, `${source.label} (api fallback)`);
+    const apiGuardInvalidated = articles.length === 0 && raw.length > 0;
+    record(
+      "api-site-fallback",
+      articles.length,
+      articles.length === 0
+        ? apiGuardInvalidated
+          ? "invalid-relevance"
+          : "zero-results"
+        : undefined,
+      apiGuardInvalidated ? { extracted: raw.length } : undefined,
+    );
   }
 
   // Step 2: If CDP failed and CDP fallback is configured, try it

@@ -43,8 +43,10 @@ import {
 } from "./lib/source-registry.mjs";
 import {
   classifyProbe,
+  ENDPOINT_BLOCKED_VERDICT,
   EGRESS_UNREACHABLE_VERDICT,
   isFailureVerdict,
+  resolveCredentiallessBlockVerdict,
 } from "./lib/source-url-heal.mjs";
 import { judgeRelevance } from "./lib/source-health.mjs";
 import { loadEnv } from "./lib/load-env.mjs";
@@ -196,13 +198,25 @@ async function originReachable(url) {
 export function apiFailureVerdict({ status, body = "", cap = {} } = {}) {
   const missingKey = missingApiKey(cap);
   if (missingKey) return { reason: "probe-not-authoritative", missingKey };
-  return {
-    // finalUrl/homeUrl are empty on purpose: for an api probe there is no
-    // landing page to compare against a site root, and keyword hits are not
-    // what a 4xx is answering about.
-    reason: classifyProbe({ status, finalUrl: "", homeUrl: "", html: body, keywordHits: null }),
-    missingKey: null,
-  };
+  const reason = resolveCredentiallessBlockVerdict({
+    reason: classifyProbe({
+      // finalUrl/homeUrl are empty on purpose: for an api probe there is no
+      // landing page to compare against a site root, and keyword hits are not
+      // what a 4xx is answering about.
+      status,
+      finalUrl: "",
+      homeUrl: "",
+      html: body,
+      keywordHits: null,
+    }),
+    status,
+    // #358: `authRequired: false` is what makes "a credential can be supplied"
+    // false. The rule itself lives in lib/source-url-heal.mjs so axis 1 cannot
+    // drift from axis 3 (docs/selector-auto-healing.md, 第三/第四个假判决).
+    authRequired: cap?.apiSearch?.authRequired,
+    body,
+  });
+  return { reason, missingKey: null };
 }
 
 /**
@@ -233,6 +247,9 @@ export const ALERTABLE_SOURCE_VERDICTS = new Set([
   "network-error",
   "redirected-home",
   "not-search-page",
+  // #358: an anonymous endpoint that refuses service is a source failure, not
+  // a measurement gap — it has to reach the failure list and #353's alerting.
+  ENDPOINT_BLOCKED_VERDICT,
 ]);
 
 export function failureClass(result) {
@@ -900,6 +917,75 @@ async function checkSource(source, keywords) {
 }
 
 /**
+ * #358: live-test an api-native site: fallback layer (SearXNG `site:<domain>`).
+ *
+ * The CDP fallback audit (#337, checkFallbackSource below) cannot see this
+ * layer: it is HTTP+JSON, not a page a browser opens. The row is diagnostic —
+ * only `applyFallbackTakeover` consumes it, and a failed fallback leaves the
+ * primary verdict untouched — so its own failures are reported with the
+ * vocabulary that describes them (probe/transport), never as the source's
+ * death. For the same reason there is no `originReachable` egress control
+ * here: that control exists to stop a measurement failure from being written
+ * down as a dead source, and this row never carries a source verdict. The
+ * failure is surfaced as `fallbackReason` on the primary row instead.
+ *
+ * `fetchImpl` is the injection seam so the rule is testable without a network
+ * (the same reason checkApiSource is exported).
+ *
+ * @param {object} source
+ * @param {string} keyword
+ * @param {{ fetchImpl?: Function }} [deps]
+ * @returns {Promise<object>} row with layer:"fallback"
+ */
+export async function checkApiFallbackSource(source, keyword, { fetchImpl = fetch } = {}) {
+  const fb = source.capabilities?.articles?.apiSiteFallback ?? source.apiSiteFallback;
+  const started = Date.now();
+  // A parked self-hosted container is a park state, not a dead fallback (#891).
+  if (fb?.lifecycle === "searxng") {
+    await ensureSearxng({ quiet: true }).catch(() => {});
+  }
+  try {
+    const resp = await fetchImpl(fb.url(keyword), {
+      headers: resolveApiHeaders(fb),
+      signal: AbortSignal.timeout(fb.timeoutMs ?? 30000),
+    });
+    const body = await resp.text();
+    if (!resp.ok) {
+      return {
+        source: source.name,
+        ok: false,
+        count: 0,
+        // cap {} keeps the fallback's own refusal out of the source's
+        // endpoint_blocked verdict: this row answers "can the layer serve".
+        reason: apiFailureVerdict({ status: resp.status, body, cap: {} }).reason,
+        layer: "fallback",
+        durationMs: Date.now() - started,
+      };
+    }
+    const articles = fb.parser(body);
+    return {
+      source: source.name,
+      ok: articles.length > 0,
+      count: articles.length,
+      reason: articles.length === 0 ? "zero_results" : null,
+      layer: "fallback",
+      sampleUrls: articles.slice(0, 3).map((a) => String(a.url ?? "").slice(0, 120)),
+      durationMs: Date.now() - started,
+    };
+  } catch (e) {
+    return {
+      source: source.name,
+      ok: false,
+      count: 0,
+      reason: "network-error",
+      error: e.message,
+      layer: "fallback",
+      durationMs: Date.now() - started,
+    };
+  }
+}
+
+/**
  * #337 AC1: live-test one source's googleSiteFallback layer in isolation.
  *
  * Production only reaches this layer when the primary layer fails, so a dead
@@ -1082,14 +1168,43 @@ async function main() {
     // failures (probe-not-authoritative / probe-no-egress / anti_bot / the
     // login gate's own need_login and captcha) mean "we cannot measure" and
     // must not be flipped by the fallback layer.
-    if (
-      !fallbackMode &&
-      failureClass(result) === "source" &&
-      (source.capabilities?.articles?.googleSiteFallback ?? source.googleSiteFallback)
-    ) {
-      console.log(`      ↳ primary failed — probing site: fallback layer...`);
-      const fb = await checkFallbackSource(source, keywords);
-      result = applyFallbackTakeover(result, fb);
+    if (!fallbackMode && failureClass(result) === "source") {
+      const googleFb =
+        source.capabilities?.articles?.googleSiteFallback ?? source.googleSiteFallback;
+      const apiSiteFb = source.capabilities?.articles?.apiSiteFallback ?? source.apiSiteFallback;
+      if (googleFb || apiSiteFb?.url) {
+        // Probe in production order — api-native site: layer first, then the
+        // CDP Google layer (search-sources collectFromSource) — so the audit
+        // and the collection chain cannot disagree about which layer serves.
+        const fallbackRows = [];
+        if (apiSiteFb?.url) {
+          console.log(`      ↳ primary failed — probing api site: fallback layer...`);
+          fallbackRows.push(
+            await checkApiFallbackSource(
+              source,
+              keywords[source.locale === "zh-CN" ? "zh" : "en"] ?? keywords.zh,
+            ),
+          );
+        }
+        if (googleFb) {
+          console.log(`      ↳ primary failed — probing site: fallback layer...`);
+          fallbackRows.push(await checkFallbackSource(source, keywords));
+        }
+        const serving = fallbackRows.find((r) => r.ok && r.count > 0);
+        result = serving
+          ? applyFallbackTakeover(result, serving)
+          : {
+              ...result,
+              // Diagnostic only: the primary verdict stays the truth, but the
+              // reader can tell "the source is closed" from "the route around
+              // it is down too" (e.g. a parked/stopped SearXNG).
+              fallbackReason:
+                fallbackRows
+                  .map((r) => r.reason)
+                  .filter(Boolean)
+                  .join("+") || "unknown",
+            };
+      }
     }
     results.push(result);
     const cls = failureClass(result);

@@ -49,14 +49,19 @@
  *       Credentials live in `capabilities.articles.{requiresApiKey, apiKeyEnv}`
  *       (#67), never in this block.
  * - googleSiteFallback: Google site: search fallback config (optional)
+ * - apiSiteFallback: HTTP-native site: fallback config (optional, #358) —
+ *     {url(keyword), parser(text), timeoutMs, lifecycle?} in the apiSearch
+ *     shape. Built by makeSearxngSiteFallback(domain, {pathPattern}); the
+ *     parser filters on result.url because `site:` is dropped by some engines.
  * - mcpFallback: MCP server fallback config (optional)
  *
  * Collection layer order (in search-sources.mjs collectFromSource):
  *   1. apiSearch (if configured) — direct API call, parse JSON/XML response
  *   2. CDP (primary for most sources)
- *   3. googleSiteFallback (Google site: search, if configured)
- *   4. search pool (Brave > Tavily > Jina, #65 — generic web_search fallbacks only)
- *   5. mcpFallback (mcp-search-bridge/Grok last resort; platform MCPs go here directly)
+ *   3. apiSiteFallback (HTTP site: layer, #358 — before the CDP Google layer)
+ *   4. googleSiteFallback (Google site: search, if configured)
+ *   5. search pool (Brave > Tavily > Jina, #65 — generic web_search fallbacks only)
+ *   6. mcpFallback (mcp-search-bridge/Grok last resort; platform MCPs go here directly)
  *
  * Used by search-sources.mjs.
  */
@@ -1988,19 +1993,10 @@ export const GENERAL_SEARCH_SOURCES = [
       timeoutMs: 30000,
       url: (keyword) =>
         `http://localhost:8888/search?q=${encodeURIComponent(keyword + " China AI")}&format=json&categories=general&language=en`,
-      parser: (text) => {
-        const data = JSON.parse(text);
-        if (!Array.isArray(data.results)) return [];
-        return data.results
-          .filter((r) => r?.url)
-          .slice(0, 20)
-          .map((r) => ({
-            title: r.title || "",
-            url: r.url,
-            snippet: r.content ? String(r.content).substring(0, 200) : "",
-            publishedAt: r.publishedDate || "",
-          }));
-      },
+      // Shared with reddit_search's apiSiteFallback (#358) so the JSON shape
+      // has one owner; this source applies no host filter (it is the layer
+      // itself, not a site: delegation).
+      parser: (text) => parseSearxngResults(text),
       authRequired: false,
     },
     // CDP fallback: same query against the HTML results page (simple theme).
@@ -2077,7 +2073,7 @@ export const LAST30DAYS_SOURCES = [
     accessMethod: {
       primary: "api",
       notes:
-        "API (reddit.com/search.json, free, no auth) → CDP fallback. Reddit returns JSON directly.",
+        "API (reddit.com/search.json, free, no auth) → apiSiteFallback (SearXNG site:reddit.com) → CDP fallback (same URL as the API, so it is skipped as redundant). #358 (2026-10-26): Reddit answers search.json with 403 + a block page to every non-browser client, so the API layer is effectively closed to us; the SearXNG layer is the only path that still yields post URLs, and its host filter is what keeps non-reddit rows out (site: is dropped by several engines).",
     },
     useCleanTitle: false,
     // Reddit JSON API: direct fetch returns JSON, no CDP needed
@@ -2100,6 +2096,12 @@ export const LAST30DAYS_SOURCES = [
       authRequired: false,
       headers: { "User-Agent": "ChinaAINews/1.0" },
     },
+    // #358: HTTP-native site: layer. `pathPattern` keeps the source's post
+    // contract — SearXNG happily returns subreddit listings and user pages,
+    // which are reddit.com but not posts.
+    apiSiteFallback: makeSearxngSiteFallback("reddit.com", {
+      pathPattern: /\/r\/[^/]+\/comments\//,
+    }),
     // CDP fallback: same URL, but parsed via DOM (articleScript)
     url: (keyword) =>
       `https://www.reddit.com/search.json?q=${encodeURIComponent(keyword)}&sort=new&limit=10`,
@@ -3740,6 +3742,86 @@ export function autoGenerateGoogleSiteFallback(source) {
   };
 }
 
+/**
+ * #358: shared SearXNG JSON → article mapping.
+ *
+ * `hostFilter` exists because `site:` is advisory, not a contract: the instance
+ * aggregates many engines and several drop the operator outright. Measured
+ * 2026-10-26 for `site:reddit.com`: 136 rows, only 37 on reddit.com — google and
+ * brave were refusing the instance at the same time. A fallback that trusted
+ * the query text would have handed back futurism.com / github.com as "Reddit".
+ *
+ * `pathPattern` narrows to the object shape the source's contract promises
+ * (reddit_search returns posts, not subreddit listings or user pages).
+ *
+ * @param {string} text - SearXNG JSON body
+ * @param {{hostFilter?: string|null, pathPattern?: RegExp|null, limit?: number}} [opts]
+ * @returns {Array<{title: string, url: string, snippet: string, publishedAt: string}>}
+ */
+export function parseSearxngResults(
+  text,
+  { hostFilter = null, pathPattern = null, limit = 20 } = {},
+) {
+  const data = JSON.parse(text);
+  if (!Array.isArray(data.results)) return [];
+  return data.results
+    .filter((r) => r?.url && matchesSearxngSite(r.url, { hostFilter, pathPattern }))
+    .slice(0, limit)
+    .map((r) => ({
+      title: r.title || "",
+      url: r.url,
+      snippet: r.content ? String(r.content).substring(0, 200) : "",
+      publishedAt: r.publishedDate || "",
+    }));
+}
+
+function matchesSearxngSite(rawUrl, { hostFilter, pathPattern }) {
+  // Unfiltered parser (searxng_search itself): keep the pre-#358 behavior,
+  // which accepted any non-empty url string. Only a delegating layer parses.
+  if (!hostFilter && !pathPattern) return true;
+  let u;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (hostFilter) {
+    const host = u.hostname.toLowerCase();
+    const site = hostFilter.toLowerCase();
+    if (host !== site && !host.endsWith(`.${site}`)) return false;
+  }
+  if (pathPattern && !pathPattern.test(u.pathname)) return false;
+  return true;
+}
+
+/**
+ * #358: a `site:` fallback layer that speaks HTTP instead of driving a browser.
+ *
+ * `googleSiteFallback` is CDP-only (it navigates Google and runs an
+ * articleScript), so a source with no articleScript — or one whose only dead
+ * layer is HTTP — had no site: fallback at all. This is the api-shaped sibling:
+ * the SearXNG JSON API with the same `{url, parser}` contract as `apiSearch`,
+ * a host filter applied to `result.url`, and `lifecycle: "searxng"` so
+ * consumers can start the parked container before measuring (#891).
+ *
+ * @param {string} site - domain the results must belong to (e.g. "reddit.com")
+ * @param {{pathPattern?: RegExp|null, limit?: number}} [opts]
+ * @returns {{site: string, lifecycle: string, timeoutMs: number, authRequired: boolean,
+ *            url: Function, parser: Function}}
+ */
+export function makeSearxngSiteFallback(site, { pathPattern = null, limit = 20 } = {}) {
+  return {
+    site,
+    lifecycle: "searxng",
+    // Same budget as searxng_search: 200+ engines aggregate to 10-20s.
+    timeoutMs: 30000,
+    authRequired: false,
+    url: (keyword) =>
+      `http://localhost:8888/search?q=${encodeURIComponent(`site:${site} ${keyword}`)}&format=json&categories=general&language=en`,
+    parser: (text) => parseSearxngResults(text, { hostFilter: site, pathPattern, limit }),
+  };
+}
+
 function enrichWithCapabilities(sources) {
   return sources.map((source) => {
     // Skip sources that already have capabilities (stock API sources)
@@ -3773,6 +3855,9 @@ function enrichWithCapabilities(sources) {
         paidApi: !!api?.paidApi,
         // Fallback chain: explicit config takes priority, then auto-generated
         googleSiteFallback: source.googleSiteFallback || autoFallback,
+        // #358: HTTP-native site: layer (SearXNG `site:<domain>`), consumed by
+        // search-sources and selector-health before the CDP fallbacks.
+        apiSiteFallback: source.apiSiteFallback,
         mcpFallback: source.mcpFallback,
         apiFallback: source.apiFallback,
       };

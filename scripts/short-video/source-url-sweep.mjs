@@ -38,6 +38,7 @@ import {
   extractRssLinks,
   inspectFeed,
   looksLikeResults,
+  resolveCredentiallessBlockVerdict,
 } from "./lib/source-url-heal.mjs";
 
 /** API keys ride in the URL for several sources (gnews `apikey=`). The probe
@@ -177,14 +178,31 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
     }
   }
 
-  const verdict = classifyProbe({
+  // #358: axis 1 probes the apiSearch endpoint for api-primary sources, and
+  // that request IS the production request — so an anonymous 403 there is the
+  // same `endpoint_blocked` answer axis 3 records, not a probe artefact. The
+  // upgrade is a shared seam (lib/source-url-heal.mjs) so the two axes cannot
+  // disagree; a bare CDP-page probe passes `authRequired: true` and keeps the
+  // probe reading, because a browser second opinion can still differ.
+  const verdict = resolveCredentiallessBlockVerdict({
+    reason: classifyProbe({
+      status: primary.status,
+      finalUrl: primary.finalUrl,
+      homeUrl,
+      // null = no keyword in play (listing/feed source) → relevance gate N/A.
+      keywordHits: keyword ? hits : null,
+      requestedUrl: probedUrl,
+      controlReachable,
+    }),
     status: primary.status,
-    finalUrl: primary.finalUrl,
-    homeUrl,
-    // null = no keyword in play (listing/feed source) → relevance gate N/A.
-    keywordHits: keyword ? hits : null,
-    requestedUrl: probedUrl,
-    controlReachable,
+    authRequired: useApi
+      ? (source.capabilities?.articles?.apiSearch?.authRequired ??
+        source.apiSearch?.authRequired ??
+        true)
+      : true,
+    // Rate-limit wording keeps the probe reading: GitHub's anonymous Search
+    // API answers a spent quota with 403 + "API rate limit exceeded".
+    body: primary.text,
   });
 
   const row = {
