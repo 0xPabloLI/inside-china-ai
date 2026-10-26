@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.34.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.0...tanstack_start_ts-v1.34.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **gates:** run the gate CLIs when the invoked path goes through a symlink ([#974](https://github.com/0xPabloLI/inside-china-ai/issues/974)) ([17d0336](https://github.com/0xPabloLI/inside-china-ai/commit/17d0336c1511e01fcb271f92b2e44acbcc37619e))
+
 ## [1.34.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.33.1...tanstack_start_ts-v1.34.0) (2026-10-26)
 
 
