@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.32.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.6...tanstack_start_ts-v1.32.0) (2026-10-26)
+
+
+### Features
+
+* **selector-health:** runtime --alert issue deduplication and recovery sync ([#353](https://github.com/0xPabloLI/inside-china-ai/issues/353)) ([#962](https://github.com/0xPabloLI/inside-china-ai/issues/962)) ([8dd9e6b](https://github.com/0xPabloLI/inside-china-ai/commit/8dd9e6b6c0f6e77cec0d039e30e69b4b88893ffd))
+
 ## [1.31.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.5...tanstack_start_ts-v1.31.6) (2026-10-26)
 
 
