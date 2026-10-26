@@ -35,6 +35,18 @@ const MIN_UNIT_CHARS = 8;
 const MIN_UNITS = 3;
 
 /**
+ * The three roles, in the order §9 step 8 asks for them. Exported because the
+ * closing ledger's reminders and escalations quote them: one wording, so the
+ * prompt a failed gate prints and the prompt a closed issue receives cannot
+ * drift into asking for different things.
+ */
+export const PRODUCT_VIEW_ROLES = [
+  "原本要解决什么用户可见问题",
+  "用户现在看到什么变化",
+  "哪些行为或边界没有变（无用户可见变化时写明原因）",
+];
+
+/**
  * A template bullet left as `- 原本要解决的用户可见问题：` ends in a colon with
  * nothing after it. Without this rule, submitting the template verbatim would
  * satisfy the gate and the gate would be decorative.
@@ -233,21 +245,16 @@ export function evaluateCommentProductView(body) {
   return { ok: true, units, reason: `${units} substantive units` };
 }
 
-const PROMPTS = [
-  "原本要解决什么用户可见问题",
-  "用户现在看到什么变化",
-  "哪些行为或边界没有变（无用户可见变化时写明原因）",
-];
+const PROMPTS = PRODUCT_VIEW_ROLES;
 
 /**
  * @param {{ok: boolean, skipped?: boolean, reason: string}} result
- * @param {"pull-request body"|"closing comment"} surface
  */
-function report(result, surface = "pull-request body") {
+function report(result) {
   const tag = result.skipped ? "SKIP" : result.ok ? "PASS" : "FAIL";
   console.log(`[product-view] ${tag}: ${result.reason}`);
   if (result.ok) return;
-  console.log(`[product-view] add this to the ${surface}, three lines of substance:`);
+  console.log("[product-view] add this to the pull-request body, three lines of substance:");
   for (const prompt of PROMPTS) console.log(`[product-view]   - ${prompt}：<这里是内容>`);
   console.log(
     "[product-view] no user-visible change? say so in the third line instead of leaving it short,",
@@ -261,15 +268,16 @@ const invokedDirectly =
   Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invokedDirectly) {
-  const asComment = process.argv.includes("--comment");
-  const result = asComment
-    ? evaluateCommentProductView(process.env.COMMENT_BODY ?? "")
-    : evaluateProductView({
-        eventName: process.env.GITHUB_EVENT_NAME ?? "pull_request",
-        body: process.env.PR_BODY ?? "",
-        author: process.env.PR_AUTHOR ?? "",
-        labels: process.env.PR_LABELS ?? "",
-      });
-  report(result, asComment ? "closing comment" : "pull-request body");
+  // One CLI, for the PR body: that is the only surface a shell can supply. The
+  // closing comment is judged through `evaluateCommentProductView`, imported by
+  // `scripts/issue-tracker-ledger.mjs` — a `--comment` flag here would be a
+  // second entry point nothing calls.
+  const result = evaluateProductView({
+    eventName: process.env.GITHUB_EVENT_NAME ?? "pull_request",
+    body: process.env.PR_BODY ?? "",
+    author: process.env.PR_AUTHOR ?? "",
+    labels: process.env.PR_LABELS ?? "",
+  });
+  report(result);
   process.exit(result.ok ? 0 : 1);
 }

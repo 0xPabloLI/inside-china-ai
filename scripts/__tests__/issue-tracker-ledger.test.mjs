@@ -1,28 +1,32 @@
 /**
  * The two closing ledgers' shared vocabulary (`scripts/issue-tracker-ledger.mjs`).
  *
- * These rules used to live inline in three `github-script` jobs, written out
- * three times, in a file no linter reads. The first cut of the product-view gate
+ * These rules used to live inline in four `github-script` jobs, written out four
+ * times, in a file no linter reads. The first cut of the product-view gate
  * therefore shipped a branch that filed `无需交付记录` waivers under the
  * missing-record ledger: the waiver regex never got the chance to run because the
  * record regex matched its substring first. The unit under test here is exactly
- * that precedence, plus the "one compliant record covers the issue" rule the
- * workflows delegate to.
+ * that precedence, the "one compliant record covers the issue" rule the workflow
+ * delegates to, and the promise that no job has to hold its own prose.
  */
 import { describe, expect, it } from "vitest";
 import {
   commentCoversProductView,
   decideLedgerState,
   DELIVERY_RECORD_LABEL,
-  hasWaiver,
+  ESCALATION_MARKERS,
   isRecordComment,
   isWaiverComment,
+  LEDGER_CUTOFF_ISO,
   ledgerConfig,
   PRODUCT_VIEW_LABEL,
+  productViewEscalation,
   productViewReminder,
+  recordMissingEscalation,
   recordMissingReminder,
   STALE_DAYS,
 } from "../issue-tracker-ledger.mjs";
+import { PRODUCT_VIEW_ROLES } from "../check-product-view.mjs";
 
 const USER = { type: "User" };
 const BOT = { type: "Bot" };
@@ -43,6 +47,7 @@ describe("labels", () => {
     expect(DELIVERY_RECORD_LABEL).toBe("delivery-record-missing");
     expect(PRODUCT_VIEW_LABEL).toBe("product-view-missing");
     expect(STALE_DAYS).toBe(3);
+    expect(LEDGER_CUTOFF_ISO).toBe("2026-09-19T00:00:00Z");
   });
 });
 
@@ -68,7 +73,7 @@ describe("bot comments never count", () => {
     // The reminder CI posts itself contains the marker word, so a bot comment
     // that repeats it must not satisfy the very gate it complains about.
     expect(isRecordComment({ user: BOT, body: RECORD_WITH_VIEW })).toBe(false);
-    expect(hasWaiver([{ user: BOT, body: "无需交付记录" }])).toBe(false);
+    expect(decideLedgerState([{ user: BOT, body: "无需交付记录" }]).hasWaiver).toBe(false);
   });
 
   it("tolerates a missing user object without throwing", () => {
@@ -108,17 +113,27 @@ describe("ledgerConfig", () => {
       productView: "product-view-missing",
     });
     expect(config.staleDays).toBe(3);
-    expect(config.productViewReminder).toBe(productViewReminder());
-    expect(config.recordMissingReminder).toBe(recordMissingReminder());
+    expect(config.ledgerCutoff).toBe(LEDGER_CUTOFF_ISO);
+    expect(config.markers).toEqual({
+      record: "<!-- delivery-record-escalation -->",
+      productView: "<!-- product-view-escalation -->",
+    });
+    // No owner, no escalation: a body addressed to nobody is worse than none.
+    expect(config.escalations).toBeNull();
   });
 
-  it("is the same object decideLedgerState spreads into a per-issue answer", () => {
-    const config = ledgerConfig();
-    const state = decideLedgerState([]);
-    expect(state.labels).toEqual(config.labels);
-    expect(state.staleDays).toBe(config.staleDays);
-    expect(state.productViewReminder).toBe(config.productViewReminder);
-    expect(state.recordMissingReminder).toBe(config.recordMissingReminder);
+  it("addresses the escalations to whoever asks, carrying their own dedup markers", () => {
+    const config = ledgerConfig("0xPabloLI");
+    expect(config.escalations.record.startsWith(ESCALATION_MARKERS.record)).toBe(true);
+    expect(config.escalations.productView.startsWith(ESCALATION_MARKERS.productView)).toBe(true);
+    expect(config.escalations.record).toContain("@0xPabloLI");
+    expect(config.escalations.productView).toContain("@0xPabloLI");
+    expect(config.escalations.record).toContain(
+      `gh issue list --label ${DELIVERY_RECORD_LABEL} --state closed`,
+    );
+    expect(config.escalations.productView).toContain(
+      `gh issue list --label ${PRODUCT_VIEW_LABEL} --state closed`,
+    );
   });
 });
 
@@ -129,8 +144,6 @@ describe("decideLedgerState", () => {
       hasWaiver: false,
       recordCount: 0,
       coversProductView: false,
-      staleDays: 3,
-      labels: { deliveryRecord: DELIVERY_RECORD_LABEL, productView: PRODUCT_VIEW_LABEL },
     });
   });
 
@@ -168,12 +181,28 @@ describe("decideLedgerState", () => {
   });
 });
 
-describe("productViewReminder", () => {
-  it("names the three roles and the ledger query", () => {
-    const text = productViewReminder();
-    expect(text).toContain("原本要解决什么用户可见问题");
-    expect(text).toContain("用户现在看到什么变化");
-    expect(text).toContain("没有变");
-    expect(text).toContain("gh issue list --label product-view-missing --state closed");
+describe("the three roles have one wording", () => {
+  it("the reminder, the escalation and the gate's report quote the same three roles", () => {
+    // #353's failure mode was a rule everyone had read and nobody followed; the
+    // second way to lose it is four surfaces asking for subtly different things.
+    for (const text of [
+      productViewReminder(),
+      productViewEscalation("owner"),
+      recordMissingReminder(),
+      recordMissingEscalation("owner"),
+    ]) {
+      for (const role of PRODUCT_VIEW_ROLES) {
+        expect(text).toContain(role);
+      }
+    }
+  });
+
+  it("names the ledger query with the label it actually writes", () => {
+    expect(productViewReminder()).toContain(
+      `gh issue list --label ${PRODUCT_VIEW_LABEL} --state closed`,
+    );
+    expect(recordMissingReminder()).toContain(
+      `gh issue list --label ${DELIVERY_RECORD_LABEL} --state closed`,
+    );
   });
 });

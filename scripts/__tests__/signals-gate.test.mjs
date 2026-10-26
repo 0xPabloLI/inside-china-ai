@@ -99,6 +99,8 @@ const VIEW_LABEL = "product-view-missing";
  * @param {{user?: object, body?: string}} [input.newComment] - the triggering comment
  * @param {Array<object>} [input.ledgerIssues] - issues returned for the record ledger listing
  * @param {Array<object>} [input.viewLedgerIssues] - issues returned for the product-view listing
+ * @param {Array<object>} [input.sweepIssues] - issues returned by the unfiltered closed listing
+ * @param {Record<string, string>} [input.inputs] - workflow_dispatch inputs
  * @param {Record<number, Array<{user?: object, body?: string}>>} [input.commentsByIssue]
  * @returns {Promise<{added: string[][], removed: string[], comments: string[], logged: string[]}>}
  */
@@ -110,6 +112,8 @@ async function runJob(name, input = {}) {
     stateReason = "completed",
     ledgerIssues = [],
     viewLedgerIssues = [],
+    sweepIssues = [],
+    inputs = {},
     commentsByIssue = {},
     newComment,
   } = input;
@@ -128,7 +132,8 @@ async function runJob(name, input = {}) {
       if (fn === endpoints.listForRepo) {
         if (opts.labels === RECORD_LABEL) return ledgerIssues;
         if (opts.labels === VIEW_LABEL) return viewLedgerIssues;
-        return [];
+        // Unfiltered closed listing: the backlog sweep's world.
+        return sweepIssues;
       }
       if (opts.issue_number === 353) return issueComments;
       return commentsByIssue[opts.issue_number] ?? [];
@@ -157,6 +162,7 @@ async function runJob(name, input = {}) {
         labels: labels.map((n) => ({ name: n })),
       },
       comment: newComment,
+      inputs,
     },
   };
   const core = {
@@ -427,5 +433,61 @@ describe("delivery-record-recheck — the nightly sweep of both ledgers", () => 
     });
     expect(calls.removed).toEqual([]);
     expect(calls.comments).toEqual([]);
+  });
+
+  it("a second nightly run does not re-ping what the first one escalated", async () => {
+    // The contract is "escalates once after 3 days", and the once lives in the
+    // marker dedup. Deleting that line would keep every other test green while
+    // production re-pinged the owner every night until backfill.
+    const first = await runJob("delivery-record-recheck", {
+      ledgerIssues: [stale],
+      viewLedgerIssues: [stale],
+      commentsByIssue: { 900: [{ user: USER, body: RECORD_WITHOUT_VIEW }] },
+    });
+    expect(first.comments).toHaveLength(2);
+
+    // Next night: the same issue, now carrying the label the first run set and
+    // the two escalations this job posts.
+    const posted = [
+      { user: USER, body: RECORD_WITHOUT_VIEW },
+      ...first.comments.map((body) => ({ user: BOT, body })),
+    ];
+    const second = await runJob("delivery-record-recheck", {
+      ledgerIssues: [{ ...stale, labels: [{ name: VIEW_LABEL }] }],
+      viewLedgerIssues: [{ ...stale, labels: [{ name: VIEW_LABEL }] }],
+      commentsByIssue: { 900: posted },
+    });
+    expect(second.comments).toEqual([]);
+  });
+});
+
+describe("sweep-delivery-records — the backlog uses the gate's judgement", () => {
+  const pastCutoff = { number: 901, closed_at: "2026-10-01T00:00:00Z", labels: [] };
+
+  it("labels a backlog issue with no record and no waiver", async () => {
+    const calls = await runJob("sweep-delivery-records", {
+      inputs: { sweep_delivery: "true", apply: "true" },
+      sweepIssues: [pastCutoff],
+      commentsByIssue: { 901: [] },
+    });
+    expect(calls.added.flat()).toEqual([RECORD_LABEL]);
+  });
+
+  it("leaves a waived backlog issue alone", async () => {
+    const calls = await runJob("sweep-delivery-records", {
+      inputs: { sweep_delivery: "true", apply: "true" },
+      sweepIssues: [pastCutoff],
+      commentsByIssue: { 901: [{ user: USER, body: WAIVER }] },
+    });
+    expect(calls.added).toEqual([]);
+  });
+
+  it("leaves a bot-authored record alone, like the event path does", async () => {
+    const calls = await runJob("sweep-delivery-records", {
+      inputs: { sweep_delivery: "true", apply: "true" },
+      sweepIssues: [pastCutoff],
+      commentsByIssue: { 901: [{ user: BOT, body: RECORD_WITH_VIEW }] },
+    });
+    expect(calls.added.flat()).toEqual([RECORD_LABEL]);
   });
 });

@@ -50,7 +50,14 @@ export const WAIVER_LITERAL = /\/无需交付记录\|delivery-record-waived\/i/;
 
 /** The three #315/#810 jobs, and the module path each one quotes. */
 const LEDGER_CLI = "issue-tracker-ledger.mjs";
-const GATED_JOBS = ["check-delivery-record", "clear-delivery-record", "delivery-record-recheck"];
+// Every job that reads or writes a ledger. The backlog sweep is in here because
+// a job with its own copy of the marker is how the copies drift apart.
+const GATED_JOBS = [
+  "check-delivery-record",
+  "clear-delivery-record",
+  "delivery-record-recheck",
+  "sweep-delivery-records",
+];
 
 /** Bot-authored comments never count as delivery records (either polarity). */
 export const BOT_GUARD = /user\??\.type\s*[!=]==\s*['"]Bot['"]/;
@@ -114,9 +121,9 @@ describe("#315 delivery-record gate (workflow contract)", () => {
 
   it("on-close check: missing record adds the label, found record clears a stale one", () => {
     const body = jobs["check-delivery-record"];
-    // Labels come from the shared decision, never from a literal in the YAML.
+    // Labels come from the shared config, never from a literal in the YAML.
     expect(body).toContain(LEDGER_CLI);
-    expect(body).toMatch(/decision\.labels/);
+    expect(body).toMatch(/config\.labels/);
     expect(body).toMatch(/addLabel\(deliveryRecord\)/);
     expect(body).toMatch(/clearLabel\(deliveryRecord\)/);
     // Bot exclusion lives in the shared module now; this job must not re-derive it.
@@ -152,17 +159,32 @@ describe("#315 delivery-record gate (workflow contract)", () => {
     expect(body).toContain(LEDGER_CLI);
     expect(body).toMatch(/deliveryRecord: LEDGER/);
     expect(body).toMatch(/staleDays/);
-    // One ping per issue: marker-guarded escalation @ the repo owner.
-    expect(body).toContain(ESCALATION_MARKER);
-    expect(body).toMatch(/@\$\{context\.repo\.owner\}/);
+    // One ping per issue: the marker comes from the module, never a literal here.
+    expect(body).toMatch(/config\.markers\.record/);
+    expect(body).toMatch(/config\.markers\.productView/);
     // not_planned / wontfix closures have no delivery record to expect.
     expect(body).toMatch(/not_planned/);
     expect(body).toMatch(/wontfix/);
-    // The escalation body names the waiver path.
-    expect(body).toContain(WAIVER_TOKEN);
     // The bot's own escalation comment mentions the marker words — the module
     // excludes it, and the job must not grow a second scan of its own.
     expect(body).toMatch(/decision\.hasWaiver/);
+  });
+
+  it("the escalation prose is the module's, not the job's", () => {
+    // Second source of truth: the three-role enumeration and the label names are
+    // owned by check-product-view/issue-tracker-ledger. A job that re-types them
+    // is how the prompt a closed issue receives drifts from the one CI prints.
+    for (const id of ["delivery-record-recheck"]) {
+      const body = jobs[id];
+      expect(body).not.toContain("原本要解决什么用户可见问题");
+      expect(body).toMatch(/config\.escalations\.record/);
+      expect(body).toMatch(/config\.escalations\.productView/);
+      // No @-mention literal either: the module addresses the escalation.
+      expect(body).not.toMatch(/@\$\{context\.repo\.owner\}/);
+    }
+    const clear = jobs["clear-delivery-record"];
+    expect(clear).not.toContain("`product-view-missing`");
+    expect(clear).not.toContain("`delivery-record-missing`");
   });
 
   it("the marker, the waiver and the bot exclusion have exactly one home", () => {
@@ -196,8 +218,27 @@ describe("#315 delivery-record gate (workflow contract)", () => {
     // Same apply-gate as strip-closed-labels: write only when apply=true.
     expect(body).toMatch(/apply/);
     expect(body).toMatch(/state: 'closed'/);
-    // Old-era bot warning comments contain the marker words — must be excluded.
-    expect(body).toMatch(BOT_GUARD);
+    // The backlog judgement is the gate's judgement: a sweep with its own marker
+    // scan would disagree with the gate about a waived or bot-authored record.
+    expect(body).toContain(LEDGER_CLI);
+    expect(body).toMatch(/decision\.recordCount/);
+    expect(body).not.toMatch(BOT_GUARD);
+  });
+
+  it("every gated job wires the ledger CLI identically", () => {
+    // Four copies of "spawn the CLI and parse its JSON" must agree on the path,
+    // the flags and the stdin protocol, or the jobs disagree about one issue.
+    // Comparing the blocks byte for byte makes a drifting copy fail here.
+    const blocks = GATED_JOBS.map((id) => {
+      const at = jobs[id].indexOf("const { execFileSync }");
+      expect(at, `job ${id} never spawns the ledger CLI`).toBeGreaterThanOrEqual(0);
+      const end = jobs[id].indexOf("\n\n", at);
+      return { id, chunk: jobs[id].slice(at, end === -1 ? undefined : end).trim() };
+    });
+    const reference = blocks[0].chunk;
+    for (const { id, chunk } of blocks.slice(1)) {
+      expect(chunk, `job ${id} wires the ledger differently`).toBe(reference);
+    }
   });
 
   it("every inline github-script compiles (smoke 35510954855: dup const = SyntaxError text contracts cannot see)", () => {
@@ -223,9 +264,13 @@ describe("#315 delivery-record gate (workflow contract)", () => {
   it("grandfather cutoff: closures before 2026-09-19 are exempt from the ledger", () => {
     // 161 pre-convention closures (sweep dry-run 35511083073) must never be
     // labeled or escalated — the ledger only governs post-cutoff closures.
+    // The date has one home; two jobs repeating it is the drift risk.
+    expect(ledgerModuleText).toContain('LEDGER_CUTOFF_ISO = "2026-09-19T00:00:00Z"');
+    expect(ledgerModuleText).not.toMatch(/LEDGER_CUTOFF\b/);
     for (const id of ["delivery-record-recheck", "sweep-delivery-records"]) {
       const body = jobs[id];
-      expect(body).toContain("LEDGER_CUTOFF = Date.parse('2026-09-19T00:00:00Z')");
+      expect(body).not.toMatch(/Date\.parse\('2026-09-19/);
+      expect(body).toContain("LEDGER_CUTOFF = Date.parse(config.ledgerCutoff)");
       expect(body).toContain(".getTime() < LEDGER_CUTOFF");
     }
   });
