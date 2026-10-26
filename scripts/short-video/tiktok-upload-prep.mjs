@@ -83,9 +83,9 @@
  *                         label cannot be added after publishing.
  *   --publish             Click 发布 after preparing. Without it the script
  *                         never publishes.
- *   --keep-tab            Leave the tab open on success (default: keep, so the
- *                         operator can publish; --close-tab closes it instead)
- *   --close-tab           Close the tab when done (dry runs / testing)
+ *   --close-tab           Close the tab when done (dry runs / testing). The
+ *                         tab is kept by default, so the operator can review
+ *                         and publish by hand.
  *   --save-draft          After preparing, click 保存草稿 (Save draft) so the
  *                         post lands in the account's TikTok drafts. Still
  *                         never publishes. The attached sound does NOT survive
@@ -681,7 +681,21 @@ async function main() {
   const contentId = getArg("content");
   const sound = getArg("sound") || DEFAULT_SOUND;
   const soundOwner = getArg("sound-owner") ?? DEFAULT_SOUND_OWNER;
-  const volumeDb = getArg("volume-db") !== null ? Number(getArg("volume-db")) : DEFAULT_VOLUME_DB;
+
+  // Validate the volume BEFORE anything runs. `Number("--publish")` is NaN, and
+  // NaN would flow into the marker's CSS and then into the read-back guard —
+  // `Math.abs(vol.db - NaN) > 1` is false for every reading, so the check that
+  // exists to catch a wrong mix would pass a mix it never verified. Fail here
+  // instead, where the message can name the argument.
+  const volumeArg = getArg("volume-db");
+  const volumeDb = volumeArg !== null ? Number(volumeArg) : DEFAULT_VOLUME_DB;
+  if (!Number.isFinite(volumeDb)) {
+    console.error(`❌ --volume-db must be a number, got: ${JSON.stringify(volumeArg)}`);
+    console.error(
+      '   Example: --volume-db -15   (a missing value swallows the next flag, e.g. "--volume-db --publish")',
+    );
+    process.exit(1);
+  }
 
   // Caption resolution: explicit text > explicit file > the pipeline package.
   let caption = getArg("caption");
@@ -692,6 +706,23 @@ async function main() {
       : null);
   if (!caption && captionFile && existsSync(captionFile)) {
     caption = readFileSync(captionFile, "utf8").trim();
+  }
+
+  // Publishing is irreversible and the caption field arrives pre-filled with
+  // the video's FILENAME (see the header). Without a caption the run would
+  // publish a post whose entire description is "…-short.mp4". A typo'd
+  // --content or a run before generate-caption.mjs lands here, so refuse
+  // rather than ship it; preparing without publishing stays allowed.
+  if (hasFlag("publish") && !caption) {
+    console.error("❌ refusing to --publish with no caption resolved.");
+    console.error(`   Looked for: ${captionFile ?? "(no --content, so no default path)"}`);
+    console.error(
+      "   The description field is pre-filled with the video's filename, so this would publish that filename as the caption.",
+    );
+    console.error(
+      "   Fix: run generate-caption.mjs, or pass --caption / --caption-file. Drop --publish to prepare the post and review it first.",
+    );
+    process.exit(1);
   }
 
   // The publish path is a security boundary — the same profile guard the rest

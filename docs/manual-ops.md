@@ -29,33 +29,30 @@
 > **前置条件**：HITL 已通过（用户确认「视频 OK，发布」）。Agent 发布流程详见 `docs/content-pipeline.md` Stage 5。
 > 以下为 TikTok App 中需要手动完成的操作。
 
-| #   | 操作               | 说明                                                      | 为什么                                        |
-| --- | ------------------ | --------------------------------------------------------- | --------------------------------------------- |
-| 1   | **AIGC 标签**      | 发布界面打开 "AI-generated content"                       | TikTok 要求标注 AI 内容，不标注会被降权       |
-| 2   | **背景音乐**       | 使用 HITL 推荐的 BGM 或 TikTok trending sound，音量 5-12% | BGM 增加视频氛围，trending sound 算法加权更高 |
-| 3   | **地理标签**       | 添加 China/US 位置标签                                    | 本地内容算法优先推同区域用户                  |
-| 4   | **Pinned comment** | 发布后置顶含文章 URL 的评论                               | 引导流量到网站                                |
-| 5   | **回复评论**       | 发布后 1 小时内回复所有评论                               | 首小时互动信号影响算法推荐                    |
-| 6   | **非高峰时段**     | 查看粉丝活跃时间，选低峰发布                              | 竞争少，算法更容易推                          |
+| #   | 操作               | 说明                                                  | 为什么                                     |
+| --- | ------------------ | ----------------------------------------------------- | ------------------------------------------ |
+| 1   | **AIGC 标签**      | 发布界面打开 "AI-generated content"                   | TikTok 要求标注 AI 内容，不标注会被降权    |
+| 2   | **背景音乐**       | 由 Agent 在上传脚本里一次挂好，默认 `--volume-db -15` | 播报必须压过音乐；音量按实测标定，不按感觉 |
+| 3   | **地理标签**       | 添加 China/US 位置标签                                | 本地内容算法优先推同区域用户               |
+| 4   | **Pinned comment** | 发布后置顶含文章 URL 的评论                           | 引导流量到网站                             |
+| 5   | **回复评论**       | 发布后 1 小时内回复所有评论                           | 首小时互动信号影响算法推荐                 |
+| 6   | **非高峰时段**     | 查看粉丝活跃时间，选低峰发布                          | 竞争少，算法更容易推                       |
 
-### BGM 两种方案
+### 背景音乐
 
-HITL 检查点时 Agent 会提供两个选项：
-
-**选项 A — 混入视频（CC-BY BGM）**
-
-Agent 从 `assets/bgm/` 池中自动选择一个 CC-BY 新闻 BGM，确认后通过 `mix-bgm.mjs` 混入视频。优点：可控、即刻起声、无版权风险。音量 12%。
-
-**选项 B — TikTok trending sound（推荐）**
-
-Agent 通过 `trending-sounds.mjs` 获取当前 TikTok trending sounds 并按内容关键词匹配，推荐用户在 TikTok App 内手动添加。优点：算法加权更高、无版权风险（TikTok 已授权）。音量 5-10%。
+**Agent 一条龙完成，不再问用户选哪首**（用户决定 2026-10-25）。HITL 确认「视频 OK」之后，Agent 在 `tiktok-upload-prep.mjs` 里同一次运行挂上 Breaking News (Voxie)、设好音量、打 AIGC 标记、点发布。
 
 ```bash
-# Agent 在 HITL 时执行
-node scripts/short-video/trending-sounds.mjs --content <dir>
+node scripts/short-video/tiktok-upload-prep.mjs \
+  --video output/{id}/{id}-v…-short.mp4 --content {id} \
+  --sound "Breaking News" --sound-owner Voxie --volume-db -15 --publish
 ```
 
-> **为什么 trending sound 更好**：TikTok 算法对使用 trending sound 的视频有 discoverability 加权。混入视频的 BGM 不享受这个加权。所以如果 trending sound 中有匹配的，优先选 B。
+**音量红线**：滑杆读数与「相对播报的 dB」不是同一个量（实测滑杆 −20 dB = 音乐比播报低 22.2 dB，听感偏轻），所以用默认的 −15 dB，脚本会回读滑杆值并在偏差超过 1 dB 时中止。推导与测量方法见 `docs/research/music-under-voice-calibration-2026-10.md`。
+
+> 旧行为（2026-10-24 及以前）：HITL 时给出 A/B/C 选项（选项 A 用 `mix-bgm.mjs` 混入 CC-BY BGM，选项 B 用 `trending-sounds.mjs` 推荐 TikTok trending sound）。**已废弃**——不要再在 HITL 里问配乐问题。
+>
+> `mix-bgm.mjs` 与 `trending-sounds.mjs` 仍可用，但只在用户点名要别的音乐、或需要非 TikTok 表面（本地混流）时才用。`trending-sounds.mjs` 的算法加权理由仍然成立，只是不再作为默认提问路径。
 
 ### 发布后自动提示
 
@@ -158,9 +155,9 @@ TikTok 视频无法通过 yt-dlp 下载（反爬拦截），也没有官方下�
 
 ## Design Decisions & References
 
-| Decision                                 | Rationale                                                | Source                                         |
-| ---------------------------------------- | -------------------------------------------------------- | ---------------------------------------------- |
-| HITL 检查点设在视频成品审阅（发布前）    | 文章+视频一旦发布难以撤回，在发布前设置唯一强制确认点    | `docs/content-pipeline.md` HITL 章节           |
-| TikTok AIGC 标签必须手动开启             | TikTok App 发布界面无 API，Agent 无法自动标注            | TikTok 政策要求                                |
-| BGM 两方案并存（混入 vs trending sound） | trending sound 有算法加权但不可控，混入 BGM 可控但无加权 | `docs/research/tiktok-practical-guide-2026.md` |
-| 竞品参考视频手动下载                     | TikTok 视频无法 yt-dlp 下载，YouTube 可以                | `docs/research/reference-video-extraction.md`  |
+| Decision                                                | Rationale                                                        | Source                                                   |
+| ------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------- |
+| HITL 检查点设在视频成品审阅（发布前）                   | 文章+视频一旦发布难以撤回，在发布前设置唯一强制确认点            | `docs/content-pipeline.md` HITL 章节                     |
+| TikTok AIGC 标签必须手动开启                            | TikTok App 发布界面无 API，Agent 无法自动标注                    | TikTok 政策要求                                          |
+| BGM 默认在平台后台挂（`tiktok-upload-prep.mjs` 一条龙） | 用户决定 2026-10-25：确认后直接挂音乐+标 AIGC+发布，不再问选哪首 | `docs/research/music-under-voice-calibration-2026-10.md` |
+| 竞品参考视频手动下载                                    | TikTok 视频无法 yt-dlp 下载，YouTube 可以                        | `docs/research/reference-video-extraction.md`            |

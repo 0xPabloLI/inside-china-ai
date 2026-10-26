@@ -10,8 +10,9 @@ different script:
                   High = the voice moves around instead of sitting on a note.
   loudness dyn. — RMS p90-p10 in dB. Wider = more dynamic stress.
 
-Also reports voiced ratio and speech rate so a slower/flatter take cannot be
-mistaken for a calmer one.
+Also reports voiced ratio and voiced seconds, so a slower/flatter take cannot
+be mistaken for a calmer one. (Neither is a speech rate: dividing syllables by
+voiced time would need a syllable detector, which this probe does not have.)
 
 Usage: prosody-probe.py <wav> [<wav> ...]
 """
