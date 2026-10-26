@@ -11,8 +11,8 @@
  * (docs/selector-auto-healing.md) before anyone rewrites selectors blind.
  *
  * Usage:
- *   node scripts/short-video/selector-health.mjs [--keyword <kw>] [--json]
- *   node scripts/short-video/selector-health.mjs --only baidu_news,qbitai
+ *   node scripts/short-video/selector-health.mjs [--keyword <kw>] [--json] [--alert]
+ *   node scripts/short-video/selector-health.mjs --only baidu_news,qbitai [--alert]
  *   node scripts/short-video/selector-health.mjs --env <main-checkout>/.env.local
  *   node scripts/short-video/selector-health.mjs --fallback [--json]
  *                                                     (#337: audit the site:
@@ -29,6 +29,7 @@
  * automation-profile guard first.
  */
 
+import { execFileSync } from "node:child_process";
 import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -285,6 +286,398 @@ export function applyFallbackTakeover(primary, fallback) {
     };
   }
   return primary;
+}
+
+/**
+ * #353 AC5: normalize one check result into the machine-readable summary row
+ * (source / verdict / count / via / failureClass / timestamp) while preserving
+ * all diagnostic fields.
+ */
+export function summarizeResultRow(
+  result,
+  { checkedAt = new Date().toISOString(), layer = "primary" } = {},
+) {
+  const cls = failureClass(result);
+  const via = result.via ?? result.layer ?? layer;
+  const verdict = result.ok
+    ? via === "site-fallback"
+      ? "site-fallback"
+      : "healthy"
+    : (result.reason ?? "unknown");
+  return {
+    ...result,
+    source: result.source,
+    ok: Boolean(result.ok),
+    verdict,
+    reason: result.reason ?? null,
+    count: result.count ?? 0,
+    via,
+    failureClass: cls,
+    timestamp: result.timestamp ?? checkedAt,
+  };
+}
+
+/**
+ * #353 AC1/AC2: partition results into the four run-bound buckets:
+ *   - alerting:        real source failures (failureClass === "source") → alert + open/update issue
+ *   - viaSiteFallback: production-usable via site: fallback → do not alert, list separately in summary
+ *   - probeIgnored:    probe/session-dependent failures (failureClass === "probe") → list only, never alert/file
+ *   - primaryHealthy:  genuinely healthy on primary layer → eligible to auto-close open [selector-health] issues
+ */
+export function classifyAlertBuckets(results = []) {
+  const alerting = [];
+  const viaSiteFallback = [];
+  const probeIgnored = [];
+  const primaryHealthy = [];
+  for (const r of results) {
+    const cls = failureClass(r);
+    if (cls === "source") {
+      alerting.push(r);
+    } else if (cls === "probe") {
+      probeIgnored.push(r);
+    } else if (r.via === "site-fallback") {
+      viaSiteFallback.push(r);
+    } else if (r.ok) {
+      primaryHealthy.push(r);
+    }
+  }
+  return { alerting, viaSiteFallback, probeIgnored, primaryHealthy };
+}
+
+/**
+ * #353 AC5: build the machine-readable summary JSON emitted on every run for
+ * diffing and recovery determination.
+ */
+export function buildHealthReport({
+  results = [],
+  keyword = "AI大模型",
+  keywords = { zh: keyword, en: "artificial intelligence" },
+  layer = "primary",
+  keyReport = { required: 0, present: 0, missing: [], entries: [] },
+  checkedAt = new Date().toISOString(),
+  issueActions = null,
+} = {}) {
+  const byClass = { none: 0, source: 0, probe: 0 };
+  for (const r of results) byClass[failureClass(r)] += 1;
+  const buckets = classifyAlertBuckets(results);
+  const normalizedResults = results.map((r) => summarizeResultRow(r, { checkedAt, layer }));
+  return {
+    checkedAt,
+    timestamp: checkedAt,
+    keyword,
+    keywords,
+    envLoaded: true,
+    layer,
+    credentials: {
+      required: keyReport.required,
+      present: keyReport.present,
+      missing: keyReport.missing,
+      entries: keyReport.entries,
+    },
+    summary: {
+      ...byClass,
+      total: results.length,
+      healthy: byClass.none,
+      viaSiteFallback: buckets.viaSiteFallback.map((r) => r.source),
+      alertingSources: buckets.alerting.map((r) => r.source),
+      probeSources: buckets.probeIgnored.map((r) => r.source),
+    },
+    alerts: {
+      alerting: buckets.alerting.map((r) => ({
+        source: r.source,
+        verdict: r.reason ?? "unknown",
+        count: r.count ?? 0,
+        via: r.via ?? layer,
+      })),
+      viaSiteFallback: buckets.viaSiteFallback.map((r) => ({
+        source: r.source,
+        verdict: "site-fallback",
+        primaryReason: r.primaryReason ?? "zero_results",
+        count: r.count ?? 0,
+        via: "site-fallback",
+      })),
+      probeIgnored: buckets.probeIgnored.map((r) => ({
+        source: r.source,
+        verdict: r.reason ?? "unknown",
+        count: r.count ?? 0,
+        via: r.via ?? layer,
+      })),
+      issueActions,
+    },
+    results: normalizedResults,
+  };
+}
+
+const DEFAULT_REPO = process.env.SELECTOR_HEALTH_REPO || "0xPabloLI/inside-china-ai";
+const WRITE_ONCE_NOTICE =
+  "> **正文是创建时的规格（write-once，永不改写）。** 当前状态、跨 session 证据与交付记录都在评论里——读票必须带评论（`gh issue view <N> --comments`），只读正文会把已决策的问题重新问一遍。";
+
+/**
+ * #353 AC1/AC3: stable title naming by `<source> + verdict` so deduplication
+ * and recovery lookup are deterministic.
+ */
+export function selectorIssueTitle(sourceName, verdict) {
+  return `[selector-health] ${sourceName}: ${verdict}`;
+}
+
+/**
+ * #353 AC3: extract the highest recorded occurrence counter from an issue's
+ * body and comments. Falls back to 1 when an open issue exists without a
+ * machine marker (e.g. a human-opened ticket matched via phenomenon search),
+ * or 0 when no text exists.
+ */
+export function parseOccurrenceCount(texts = []) {
+  if (!Array.isArray(texts) || texts.length === 0) return 0;
+  let max = 0;
+  for (const text of texts) {
+    const str = String(text ?? "");
+    for (const match of str.matchAll(/\boccurrences=(\d+)\b/g)) {
+      const n = Number.parseInt(match[1], 10);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+  }
+  return max > 0 ? max : 1;
+}
+
+function selectorIssueBody(row, { keyword, checkedAt }) {
+  const verdict = row.reason ?? "unknown";
+  return [
+    WRITE_ONCE_NOTICE,
+    "",
+    `<!-- selector-health:source=${row.source} verdict=${verdict} occurrences=1 -->`,
+    `\`[selector-health]\` 运行时告警：**${row.source}** 在 ${checkedAt.slice(0, 10)} 触发源侧真失败（\`${verdict}\`）。`,
+    "",
+    `- **源（source）**：\`${row.source}\``,
+    `- **判决（verdict）**：\`${verdict}\`（\`failureClass: "source"\`）`,
+    `- **结果条数（count）**：\`${row.count ?? 0}\``,
+    `- **探测层级（via）**：\`${row.via ?? "primary"}\``,
+    `- **查询词（keyword）**：\`${keyword}\``,
+    `- **观测时间（checkedAt）**：\`${checkedAt}\``,
+    "- **累计触发次数（occurrences）**：1",
+    "",
+    "修复步骤请按 `docs/selector-auto-healing.md` 执行；重复触发将在本票评论区累加计数，源主层恢复后自动留言关票。",
+  ].join("\n");
+}
+
+function selectorRepeatCommentBody(row, { occurrences, keyword, checkedAt }) {
+  const verdict = row.reason ?? "unknown";
+  return [
+    `<!-- selector-health:source=${row.source} verdict=${verdict} occurrences=${occurrences} -->`,
+    `\`[selector-health]\` 持续失败告警（第 **${occurrences}** 次记录）：**${row.source}** 仍为 \`${verdict}\`。`,
+    "",
+    `- **累计触发次数（occurrences）**：${occurrences}`,
+    `- **判决（verdict）**：\`${verdict}\``,
+    `- **结果条数（count）**：\`${row.count ?? 0}\``,
+    `- **探测层级（via）**：\`${row.via ?? "primary"}\``,
+    `- **查询词（keyword）**：\`${keyword}\``,
+    `- **观测时间（checkedAt）**：\`${checkedAt}\``,
+  ].join("\n");
+}
+
+function selectorRecoveryCommentBody(row, { keyword, checkedAt }) {
+  return [
+    "## 交付记录（selector-health 自动恢复）",
+    "",
+    `- **原本要解决什么用户可见问题**：\`${row.source}\` 此前在 \`selector-health\` 运行时触发源侧真失败，导致该源主层无法产出候选素材。`,
+    `- **用户现在看到什么变化**：\`${row.source}\` 在 \`${checkedAt}\` 的体检中主层已恢复健康（抽出 \`${row.count}\` 条，\`via: "${row.via ?? "primary"}"\`，查询词 \`${keyword}\`），自动留言并关闭告警票。`,
+    "- **哪些行为或边界没有变**：仅关闭已恢复源的自动告警票，不改动 `source-registry.mjs` 选择器与回退链配置。",
+  ].join("\n");
+}
+
+function defaultGhRunner(args, inputEnv = {}) {
+  return execFileSync("gh", args, {
+    encoding: "utf8",
+    env: { ...process.env, ...inputEnv },
+  }).trim();
+}
+
+/**
+ * #353 AC1–AC4: synchronize GitHub issues behind `--alert`.
+ *
+ *   1. Batch-fetch all open `[selector-health]` issues in one search call (avoids
+ *      O(N) GitHub Search API calls across 30+ sources).
+ *   2. For each `failureClass === "source"` row:
+ *      - Match existing open `[selector-health] <source>` issue first;
+ *      - Otherwise search open issues by `"<source>" "<verdict>"` phenomenon text
+ *        (#338 vs #330 deduplication lesson);
+ *      - If an open issue exists, append an occurrence-incremented comment;
+ *      - Otherwise create `[selector-health] <source>: <verdict>` (bug + needs-triage).
+ *   3. For each primary-healthy row (`ok: true && via !== "site-fallback"`):
+ *      - If an open `[selector-health] <source>` issue exists, post a recovery
+ *        delivery-record comment and close the issue.
+ *   4. `probe` and `via: "site-fallback"` rows never open or close issues.
+ */
+export function syncSelectorHealthIssues({
+  results = [],
+  keywords = { zh: "AI大模型", en: "artificial intelligence" },
+  checkedAt = new Date().toISOString(),
+  repo = DEFAULT_REPO,
+  token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN,
+  ghRunner = defaultGhRunner,
+} = {}) {
+  const env = token ? { GH_TOKEN: token } : {};
+  const buckets = classifyAlertBuckets(results);
+  const actions = [];
+
+  const openListRaw = ghRunner(
+    [
+      "api",
+      "-X",
+      "GET",
+      "search/issues",
+      "-f",
+      `q=repo:${repo} "[selector-health]" in:title state:open type:issue`,
+      "-f",
+      "per_page=100",
+    ],
+    env,
+  );
+  const openItems = JSON.parse(openListRaw || '{"items":[]}').items ?? [];
+  const openBySource = new Map();
+  for (const item of openItems) {
+    const match = String(item.title ?? "").match(/^\[selector-health\]\s+([a-z0-9_-]+)\s*:/i);
+    if (match && !openBySource.has(match[1])) {
+      openBySource.set(match[1], item);
+    }
+  }
+
+  const keywordText = `${keywords.zh} / ${keywords.en}`;
+
+  for (const row of buckets.alerting) {
+    const verdict = row.reason ?? "unknown";
+    let existing = openBySource.get(row.source) ?? null;
+
+    if (!existing) {
+      const dedupRaw = ghRunner(
+        [
+          "api",
+          "-X",
+          "GET",
+          "search/issues",
+          "-f",
+          `q=repo:${repo} "${row.source}" "${verdict}" state:open type:issue`,
+          "-f",
+          "per_page=10",
+        ],
+        env,
+      );
+      const candidates = JSON.parse(dedupRaw || '{"items":[]}').items ?? [];
+      const sourcePattern = new RegExp(`(^|[^a-z0-9_])${row.source}([^a-z0-9_]|$)`, "i");
+      existing =
+        candidates.find(
+          (item) =>
+            !String(item.title ?? "").startsWith("feat: selector-health") &&
+            (sourcePattern.test(String(item.title ?? "")) ||
+              sourcePattern.test(String(item.body ?? ""))),
+        ) ?? null;
+    }
+
+    if (existing) {
+      const commentsRaw = ghRunner(
+        ["api", `repos/${repo}/issues/${existing.number}/comments`, "-f", "per_page=100"],
+        env,
+      );
+      const comments = JSON.parse(commentsRaw || "[]");
+      const prevCount = parseOccurrenceCount([
+        existing.body ?? "",
+        ...comments.map((c) => c.body ?? ""),
+      ]);
+      const occurrences = Math.max(1, prevCount) + 1;
+      const commentBody = selectorRepeatCommentBody(row, {
+        occurrences,
+        keyword: keywordText,
+        checkedAt,
+      });
+      ghRunner(
+        [
+          "api",
+          "-X",
+          "POST",
+          `repos/${repo}/issues/${existing.number}/comments`,
+          "-f",
+          `body=${commentBody}`,
+        ],
+        env,
+      );
+      actions.push({
+        source: row.source,
+        verdict,
+        action: "commented",
+        issueNumber: existing.number,
+        occurrences,
+      });
+    } else {
+      const title = selectorIssueTitle(row.source, verdict);
+      const body = selectorIssueBody(row, { keyword: keywordText, checkedAt });
+      const createdRaw = ghRunner(
+        [
+          "api",
+          "-X",
+          "POST",
+          `repos/${repo}/issues`,
+          "-f",
+          `title=${title}`,
+          "-f",
+          `body=${body}`,
+          "-f",
+          "labels[]=bug",
+          "-f",
+          "labels[]=needs-triage",
+        ],
+        env,
+      );
+      const created = JSON.parse(createdRaw || "{}");
+      actions.push({
+        source: row.source,
+        verdict,
+        action: "created",
+        issueNumber: created.number ?? null,
+        url: created.html_url ?? null,
+        occurrences: 1,
+      });
+    }
+  }
+
+  for (const row of buckets.primaryHealthy) {
+    const existing = openBySource.get(row.source);
+    if (!existing) continue;
+    const recoveryBody = selectorRecoveryCommentBody(row, {
+      keyword: keywordText,
+      checkedAt,
+    });
+    ghRunner(
+      [
+        "api",
+        "-X",
+        "POST",
+        `repos/${repo}/issues/${existing.number}/comments`,
+        "-f",
+        `body=${recoveryBody}`,
+      ],
+      env,
+    );
+    ghRunner(
+      [
+        "api",
+        "-X",
+        "PATCH",
+        `repos/${repo}/issues/${existing.number}`,
+        "-f",
+        "state=closed",
+        "-f",
+        "state_reason=completed",
+      ],
+      env,
+    );
+    actions.push({
+      source: row.source,
+      verdict: "healthy",
+      action: "closed",
+      issueNumber: existing.number,
+    });
+  }
+
+  return actions;
 }
 
 /**
@@ -629,9 +1022,11 @@ async function main() {
     }
   }
 
+  const checkedAt = new Date().toISOString();
+  const buckets = classifyAlertBuckets(results);
   const byClass = { none: 0, source: 0, probe: 0 };
   for (const r of results) byClass[failureClass(r)] += 1;
-  const viaFallback = results.filter((r) => r.via === "site-fallback");
+  const viaFallback = buckets.viaSiteFallback;
   console.log("─".repeat(60));
   console.log(
     `  ${byClass.none}/${results.length} healthy` +
@@ -641,40 +1036,60 @@ async function main() {
   );
   if (byClass.probe > 0) {
     console.log(
-      `  ⚠️  ${byClass.probe} probe-not-authoritative / session-dependent — not source death, not for the ledger`,
+      `  ⚠️  ${byClass.probe} probe-not-authoritative / session-dependent (${buckets.probeIgnored.map((r) => `${r.source}:${r.reason}`).join(", ")}) — not source death, not for the ledger`,
     );
   }
   if (byClass.source > 0) {
     console.log(
-      `  ❌ ${byClass.source} real failures — repair runbook: docs/selector-auto-healing.md`,
+      `  ❌ ${byClass.source} real failures (${buckets.alerting.map((r) => `${r.source}:${r.reason}`).join(", ")}) — repair runbook: docs/selector-auto-healing.md`,
     );
   }
 
-  if (hasFlag("json") || byClass.source + byClass.probe > 0) {
-    mkdirSync(dirname(REPORT_PATH), { recursive: true });
-    writeFileSync(
-      REPORT_PATH,
-      JSON.stringify(
-        {
-          checkedAt: new Date().toISOString(),
-          keyword,
-          envLoaded: true,
-          layer: fallbackMode ? "fallback" : "primary",
-          credentials: {
-            required: keyReport.required,
-            present: keyReport.present,
-            missing: keyReport.missing,
-            entries: keyReport.entries,
-          },
-          summary: byClass,
-          results: results.map((r) => ({ ...r, failureClass: failureClass(r) })),
-        },
-        null,
-        2,
-      ) + "\n",
-      "utf8",
-    );
-    if (hasFlag("json")) console.log(`  📁 Report: ${REPORT_PATH}`);
+  let issueActions = [];
+  if (hasFlag("alert")) {
+    issueActions = syncSelectorHealthIssues({
+      results,
+      keywords,
+      checkedAt,
+      repo: getArg("repo") || DEFAULT_REPO,
+    });
+    if (issueActions.length === 0) {
+      console.log("  🔔 Alert sync: no issue actions needed");
+    } else {
+      for (const act of issueActions) {
+        if (act.action === "created") {
+          console.log(
+            `  🔔 Alert sync: opened #${act.issueNumber ?? "new"} for ${act.source} (${act.verdict})`,
+          );
+        } else if (act.action === "commented") {
+          console.log(
+            `  🔔 Alert sync: updated #${act.issueNumber} for ${act.source} (${act.verdict}, occurrences=${act.occurrences})`,
+          );
+        } else if (act.action === "closed") {
+          console.log(
+            `  🔔 Alert sync: auto-closed #${act.issueNumber} (${act.source} recovered on primary)`,
+          );
+        }
+      }
+    }
+  } else if (byClass.source > 0) {
+    console.log("  💡 Tip: pass --alert to auto-file or update GitHub issues for real failures");
+  }
+
+  const outPath = getArg("out") || REPORT_PATH;
+  const report = buildHealthReport({
+    results,
+    keyword,
+    keywords,
+    layer: fallbackMode ? "fallback" : "primary",
+    keyReport,
+    checkedAt,
+    issueActions,
+  });
+  mkdirSync(dirname(outPath), { recursive: true });
+  writeFileSync(outPath, JSON.stringify(report, null, 2) + "\n", "utf8");
+  if (hasFlag("json") || hasFlag("alert") || byClass.source + byClass.probe > 0) {
+    console.log(`  📁 Report: ${outPath}`);
   }
   // Only a verdict about the *source* is a failed health check. A missing key
   // or a browser-session answer would otherwise make CI red for a reason the

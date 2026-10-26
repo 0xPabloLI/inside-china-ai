@@ -5,6 +5,12 @@ import {
   apiFailureVerdict,
   failureClass,
   applyFallbackTakeover,
+  summarizeResultRow,
+  classifyAlertBuckets,
+  buildHealthReport,
+  selectorIssueTitle,
+  parseOccurrenceCount,
+  syncSelectorHealthIssues,
 } from "../selector-health.mjs";
 
 /**
@@ -166,5 +172,342 @@ describe("applyFallbackTakeover — 主层失败时的 site: 兜底接管", () =
       layer: "fallback",
     });
     expect(merged).toBe(primary);
+  });
+});
+
+/**
+ * #353 AC2/AC5：机器可读摘要与三档告警分流（真失败 / probe 忽略 / site-fallback 单列）。
+ */
+describe("summarizeResultRow & classifyAlertBuckets & buildHealthReport (#353)", () => {
+  const checkedAt = "2026-10-26T02:00:00.000Z";
+  const sampleResults = [
+    { source: "thepaper", ok: true, count: 25, reason: null, durationMs: 4200 },
+    {
+      source: "jiqizhixin",
+      ok: true,
+      count: 10,
+      via: "site-fallback",
+      reason: null,
+      primaryReason: "zero_results",
+      durationMs: 38100,
+    },
+    { source: "qbitai", ok: false, count: 0, reason: "zero_results", durationMs: 35000 },
+    {
+      source: "tiktok_creator",
+      ok: false,
+      count: 0,
+      reason: "probe-no-egress",
+      durationMs: 8100,
+    },
+    { source: "douyin", ok: false, count: 0, reason: "need_login", durationMs: 3200 },
+  ];
+
+  it("summarizeResultRow 输出标准字段：source / verdict / count / via / failureClass / timestamp", () => {
+    const healthy = summarizeResultRow(sampleResults[0], { checkedAt });
+    expect(healthy).toMatchObject({
+      source: "thepaper",
+      ok: true,
+      verdict: "healthy",
+      count: 25,
+      via: "primary",
+      failureClass: "none",
+      timestamp: checkedAt,
+    });
+
+    const fallback = summarizeResultRow(sampleResults[1], { checkedAt });
+    expect(fallback).toMatchObject({
+      source: "jiqizhixin",
+      ok: true,
+      verdict: "site-fallback",
+      count: 10,
+      via: "site-fallback",
+      primaryReason: "zero_results",
+      failureClass: "none",
+      timestamp: checkedAt,
+    });
+
+    const failed = summarizeResultRow(sampleResults[2], { checkedAt });
+    expect(failed).toMatchObject({
+      source: "qbitai",
+      ok: false,
+      verdict: "zero_results",
+      count: 0,
+      via: "primary",
+      failureClass: "source",
+      timestamp: checkedAt,
+    });
+  });
+
+  it("classifyAlertBuckets：真失败进 alerting、probe 进 probeIgnored、site-fallback 单列且不进 primaryHealthy", () => {
+    const buckets = classifyAlertBuckets(sampleResults);
+    expect(buckets.alerting.map((r) => r.source)).toEqual(["qbitai"]);
+    expect(buckets.viaSiteFallback.map((r) => r.source)).toEqual(["jiqizhixin"]);
+    expect(buckets.probeIgnored.map((r) => r.source)).toEqual(["tiktok_creator", "douyin"]);
+    expect(buckets.primaryHealthy.map((r) => r.source)).toEqual(["thepaper"]);
+  });
+
+  it("buildHealthReport 生成完整机器可读摘要，供后续 diff 与恢复判定消费", () => {
+    const report = buildHealthReport({
+      results: sampleResults,
+      keyword: "AI大模型",
+      keywords: { zh: "AI大模型", en: "artificial intelligence" },
+      layer: "primary",
+      keyReport: { required: 9, present: 9, missing: [], entries: [] },
+      checkedAt,
+    });
+    expect(report.checkedAt).toBe(checkedAt);
+    expect(report.timestamp).toBe(checkedAt);
+    expect(report.summary).toEqual({
+      none: 2,
+      source: 1,
+      probe: 2,
+      total: 5,
+      healthy: 2,
+      viaSiteFallback: ["jiqizhixin"],
+      alertingSources: ["qbitai"],
+      probeSources: ["tiktok_creator", "douyin"],
+    });
+    expect(report.alerts.viaSiteFallback).toEqual([
+      {
+        source: "jiqizhixin",
+        verdict: "site-fallback",
+        primaryReason: "zero_results",
+        count: 10,
+        via: "site-fallback",
+      },
+    ]);
+    expect(report.results).toHaveLength(5);
+    expect(report.results.every((r) => Boolean(r.verdict && r.via && r.timestamp))).toBe(true);
+  });
+});
+
+/**
+ * #353 AC1/AC2/AC3/AC4：运行时告警自动开票、现象原文去重、重复计数累加与恢复自动留言关票。
+ */
+describe("syncSelectorHealthIssues — #353 开票、去重累加、恢复自动关票", () => {
+  const checkedAt = "2026-10-26T02:00:00.000Z";
+  const keywords = { zh: "AI大模型", en: "artificial intelligence" };
+
+  it("selectorIssueTitle 按 <source> + verdict 稳定命名", () => {
+    expect(selectorIssueTitle("qbitai", "zero_results")).toBe(
+      "[selector-health] qbitai: zero_results",
+    );
+  });
+
+  it("parseOccurrenceCount 从 issue 正文与评论列表提取最大累计次数", () => {
+    expect(parseOccurrenceCount([])).toBe(0);
+    expect(parseOccurrenceCount(["human opened issue without marker"])).toBe(1);
+    expect(
+      parseOccurrenceCount([
+        "<!-- selector-health:source=qbitai verdict=zero_results occurrences=1 -->",
+        "<!-- selector-health:source=qbitai verdict=zero_results occurrences=2 -->",
+        "<!-- selector-health:source=qbitai verdict=zero_results occurrences=5 -->",
+      ]),
+    ).toBe(5);
+  });
+
+  it("AC1 & AC2：真失败（source）且无既有 open 票时自动新建；probe 与 site-fallback 不开票", () => {
+    const calls = [];
+    const ghRunner = (args) => {
+      calls.push(args);
+      if (args[0] === "api" && args.includes("search/issues")) {
+        return JSON.stringify({ items: [] });
+      }
+      if (args[0] === "api" && args.includes("repos/0xPabloLI/inside-china-ai/issues")) {
+        return JSON.stringify({
+          number: 999,
+          html_url: "https://github.com/0xPabloLI/inside-china-ai/issues/999",
+        });
+      }
+      throw new Error(`unexpected gh call: ${args.join(" ")}`);
+    };
+
+    const actions = syncSelectorHealthIssues({
+      results: [
+        { source: "qbitai", ok: false, count: 0, reason: "zero_results", durationMs: 35000 },
+        {
+          source: "jiqizhixin",
+          ok: true,
+          count: 10,
+          via: "site-fallback",
+          reason: null,
+          primaryReason: "zero_results",
+          durationMs: 38000,
+        },
+        {
+          source: "tiktok_creator",
+          ok: false,
+          count: 0,
+          reason: "probe-no-egress",
+          durationMs: 8000,
+        },
+      ],
+      keywords,
+      checkedAt,
+      ghRunner,
+    });
+
+    expect(actions).toEqual([
+      {
+        source: "qbitai",
+        verdict: "zero_results",
+        action: "created",
+        issueNumber: 999,
+        url: "https://github.com/0xPabloLI/inside-china-ai/issues/999",
+        occurrences: 1,
+      },
+    ]);
+    const createCall = calls.find((c) => c.includes("POST") && c.some((a) => a.endsWith("/issues")));
+    expect(createCall).toBeTruthy();
+    expect(createCall.join(" ")).toContain("title=[selector-health] qbitai: zero_results");
+    expect(createCall.join(" ")).toContain("正文是创建时的规格（write-once，永不改写）");
+    expect(createCall.join(" ")).toContain("occurrences=1");
+  });
+
+  it("AC3：重复运行同一失败不重复开票（命中既有 [selector-health] 或现象原文 open 票，追加计数评论）", () => {
+    const calls = [];
+    const ghRunner = (args) => {
+      calls.push(args);
+      const joined = args.join(" ");
+      // 第一次批量拉 [selector-health] 标题票：含 qbitai (#501)，不含 ithome
+      if (joined.includes('"[selector-health]" in:title')) {
+        return JSON.stringify({
+          items: [
+            {
+              number: 501,
+              title: "[selector-health] qbitai: zero_results",
+              body: "<!-- selector-health:source=qbitai verdict=zero_results occurrences=2 -->",
+            },
+          ],
+        });
+      }
+      // 第二层现象原文搜重：ithome + http-dead 命中人工已开的 open 票 #502（#338 vs #330 教训）
+      if (joined.includes('"ithome"') && joined.includes('"http-dead"')) {
+        return JSON.stringify({
+          items: [
+            {
+              number: 502,
+              title: "fix: ithome 搜索端点 404 (http-dead)",
+              body: "ithome 主层探针报 http-dead",
+            },
+          ],
+        });
+      }
+      if (joined.includes("issues/501/comments") && !joined.includes("POST")) {
+        return JSON.stringify([
+          { body: "<!-- selector-health:source=qbitai verdict=zero_results occurrences=2 -->" },
+        ]);
+      }
+      if (joined.includes("issues/502/comments") && !joined.includes("POST")) {
+        return JSON.stringify([]);
+      }
+      if (joined.includes("POST") && joined.includes("/comments")) {
+        return JSON.stringify({ id: 1 });
+      }
+      throw new Error(`unexpected gh call: ${joined}`);
+    };
+
+    const actions = syncSelectorHealthIssues({
+      results: [
+        { source: "qbitai", ok: false, count: 0, reason: "zero_results", durationMs: 32000 },
+        { source: "ithome", ok: false, count: 0, reason: "http-dead", durationMs: 1200 },
+      ],
+      keywords,
+      checkedAt,
+      ghRunner,
+    });
+
+    expect(actions).toEqual([
+      {
+        source: "qbitai",
+        verdict: "zero_results",
+        action: "commented",
+        issueNumber: 501,
+        occurrences: 3,
+      },
+      {
+        source: "ithome",
+        verdict: "http-dead",
+        action: "commented",
+        issueNumber: 502,
+        occurrences: 2,
+      },
+    ]);
+    // 绝不调用 POST .../issues 新建重复票
+    expect(calls.some((c) => c.includes("POST") && c.includes("repos/0xPabloLI/inside-china-ai/issues"))).toBe(
+      false,
+    );
+  });
+
+  it("AC4：源主层恢复健康后下次运行自动留言（含交付记录标记）并关闭 open 票；site-fallback 与 probe 不误关票", () => {
+    const calls = [];
+    const ghRunner = (args) => {
+      calls.push(args);
+      const joined = args.join(" ");
+      if (joined.includes('"[selector-health]" in:title')) {
+        return JSON.stringify({
+          items: [
+            {
+              number: 601,
+              title: "[selector-health] thepaper: zero_results",
+              body: "<!-- selector-health:source=thepaper verdict=zero_results occurrences=1 -->",
+            },
+            {
+              number: 602,
+              title: "[selector-health] jiqizhixin: zero_results",
+              body: "<!-- selector-health:source=jiqizhixin verdict=zero_results occurrences=1 -->",
+            },
+            {
+              number: 603,
+              title: "[selector-health] douyin: zero_results",
+              body: "<!-- selector-health:source=douyin verdict=zero_results occurrences=1 -->",
+            },
+          ],
+        });
+      }
+      if (joined.includes("POST") && joined.includes("issues/601/comments")) {
+        return JSON.stringify({ id: 10 });
+      }
+      if (joined.includes("PATCH") && joined.includes("issues/601")) {
+        return JSON.stringify({ number: 601, state: "closed" });
+      }
+      throw new Error(`unexpected gh call: ${joined}`);
+    };
+
+    const actions = syncSelectorHealthIssues({
+      results: [
+        // thepaper 主层真恢复 ⇒ 留言 + 关票 #601
+        { source: "thepaper", ok: true, count: 25, reason: null, durationMs: 4100 },
+        // jiqizhixin 仅靠 site-fallback 顶住（主层仍 zero_results）⇒ 不误关 #602，也不重开新票
+        {
+          source: "jiqizhixin",
+          ok: true,
+          count: 10,
+          via: "site-fallback",
+          reason: null,
+          primaryReason: "zero_results",
+          durationMs: 38000,
+        },
+        // douyin 本次是 need_login（probe）⇒ 测不了，不误关 #603
+        { source: "douyin", ok: false, count: 0, reason: "need_login", durationMs: 3000 },
+      ],
+      keywords,
+      checkedAt,
+      ghRunner,
+    });
+
+    expect(actions).toEqual([
+      {
+        source: "thepaper",
+        verdict: "healthy",
+        action: "closed",
+        issueNumber: 601,
+      },
+    ]);
+    const commentCall = calls.find((c) => c.join(" ").includes("issues/601/comments"));
+    expect(commentCall.join(" ")).toContain("交付记录");
+    const closeCall = calls.find((c) => c.includes("PATCH") && c.join(" ").includes("issues/601"));
+    expect(closeCall.join(" ")).toContain("state=closed");
+    expect(closeCall.join(" ")).toContain("state_reason=completed");
   });
 });
