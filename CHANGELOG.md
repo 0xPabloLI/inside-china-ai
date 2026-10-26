@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.5...tanstack_start_ts-v1.31.6) (2026-10-26)
+
+
+### Bug Fixes
+
+* **short-video:** render media at cover, gate the media band, disclose AIGC, calibrate BGM ([#960](https://github.com/0xPabloLI/inside-china-ai/issues/960)) ([10321a0](https://github.com/0xPabloLI/inside-china-ai/commit/10321a0d3b14f8f3d61cdc7be22cb25232932980))
+
 ## [1.31.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.4...tanstack_start_ts-v1.31.5) (2026-10-25)
 
 
