@@ -561,6 +561,7 @@ xhs 未登录时判成 `anti_bot:验证码`，指令是「那是风控，不修�
 两处修复，都落在 seam 上：
 
 - **判据**（`resolveCredentiallessBlockVerdict`，`lib/source-url-heal.mjs`）：`authRequired: false` 的源遇到 **403**（且 `classifyProbe` 认出是封锁页/短响应体）→ 新判决 **`endpoint_blocked`**，source 类：进死源台账、进 #353 告警、退出码非零。轴 3（`apiFailureVerdict`）与轴 1（`source-url-sweep` 的 apiSearch 探针）共用这一个 seam；边界由证据定：401 不升级（它说「要凭据」，是声明错了）、429 与正文含「限流」的 403 不升级（限流是「慢一点」，采集器会重试——GitHub 匿名 Search API 的额度耗尽就是这个形状）、404 仍是 `http-dead`，缺 key 的判断优先于一切。
+- **限流只认正文措辞，不认 `Retry-After`**：加固这条判据时扩 `RATE_LIMIT_RE` 的措辞面，不要加响应头判据。2026-10-26 实测 reddit 的封锁页自己就带 `retry-after: 0` —— 按「有 `Retry-After` 就是限流」写，会把刚修好的这条源重新关回探针类。
 - **路由**：新增 `apiSiteFallback`（`makeSearxngSiteFallback(domain, { pathPattern })`）——HTTP 型的 `site:` 兜底层，接在 api/CDP 之后、Google CDP 兜底之前，走本机 SearXNG。`site:` 运算符在部分引擎会被丢弃（2026-10-26 实测 `site:reddit.com` 136 条里只有 37 条在 reddit.com），所以**过滤必须落在 `result.url` 上**，并用 `pathPattern` 维持「只返回帖子」的源契约。
 
 判读：`selector-health --only reddit_search` 现在给的是**明确结论**——主层 `endpoint_blocked`、兜底层 20 条 ⇒ 报告 `via: site-fallback`，进「生产可用、不告警」桶；SearXNG 停着时兜底层也失败 ⇒ 保留 `endpoint_blocked` 并告警。真机：生产链 `collectFromSource(reddit_search)` = api 403 → cdp `skipped-same-url-as-api` → `api-site-fallback` 20 条、全部 reddit.com、3.8s。
