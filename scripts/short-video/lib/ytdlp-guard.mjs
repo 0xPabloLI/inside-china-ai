@@ -182,13 +182,14 @@ const STATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "output");
 // (yt_dlp/downloader/external.py; still true in 2026.07.04). That is upstream
 // behaviour this repo cannot pin — if it changes, the ffmpeg leg silently
 // falls back to a direct connection and the failure only shows up as a CDN
-// timeout. #329 therefore stops depending on it: both ffmpeg-delegated spawns
-// (the two `--download-sections` paths, `asset-sourcer.downloadYtdlp` and
-// `video-downloaders.downloadYtdlpAdapter`) carry the lower-case variable
-// themselves via `ytdlpProxyEnv()`, and the real-binary probe in the test
-// suite pins the yt-dlp → ffmpeg hop. `video-understand.downloadVideo` is not
-// wired: it has no `--download-sections` (no ffmpeg child) and no production
-// caller — its command construction is #325's cleanup scope.
+// timeout. #329 therefore stops depending on it: the two spawn sites that can
+// hand the fetch to ffmpeg (`asset-sourcer.downloadYtdlp`, and the
+// non-TikTok branches of `video-downloaders.downloadYtdlpAdapter`) carry the
+// lower-case variable themselves via `ytdlpProxyEnv()`, and the real-binary
+// probe in the test suite pins the yt-dlp → ffmpeg hop.
+// `video-understand.downloadVideo` is not wired: it has no
+// `--download-sections` (no ffmpeg child) and no production caller — its
+// command construction is #325's cleanup scope.
 //
 // Observed on this host 2026-09-21 (ffmpeg-wrapper probe): without `--proxy`
 // the child saw only HTTP_PROXY/HTTPS_PROXY; with `--proxy` it also saw
@@ -283,9 +284,11 @@ const proxyWarnings = { socksOnly: false };
  * Resolve the proxy to hand to yt-dlp via `--proxy`, or null when none is needed.
  *
  * A lowercase `http_proxy` means the ffmpeg child already inherits the exact
- * variable it reads, so nothing is injected — injecting anyway would override
- * yt-dlp's own no_proxy handling for no gain. Every other case (uppercase-only
- * env, or nothing but the macOS system proxy) leaves the child without it.
+ * variable it reads, so this returns null — duplicating it would override
+ * yt-dlp's own no_proxy handling for no gain (`ytdlpProxyEnv()` then adds
+ * nothing, and the child keeps the inherited value). Every other case
+ * (uppercase-only env, or nothing but the macOS system proxy) resolves a URL
+ * callers pass both as `--proxy` and as the spawn-env overlay.
  *
  * A SOCKS-only system config yields null: ffmpeg cannot use SOCKS, and
  * yt-dlp's own layer already resolves SystemConfiguration by itself. #329
@@ -322,7 +325,7 @@ export function resolveYtdlpProxy({
     warnings.socksOnly = true;
     warn(
       `[ytdlp-guard] system proxy is SOCKS-only (${system.socksProxy}); ffmpeg cannot use SOCKS, ` +
-        `so --download-sections downloads go direct and may time out at the CDN. ` +
+        `so downloads it handles (e.g. --download-sections) go direct and may time out at the CDN. ` +
         `Export http_proxy=<an HTTP proxy> to cover the ffmpeg leg (#329).`,
     );
   }
@@ -360,6 +363,9 @@ export function shellQuote(value) {
 /**
  * Shell fragment for the yt-dlp proxy hand-off — empty when no proxy applies.
  * One place owns the quoting so every call site composes the same way.
+ *
+ * Carries resolveYtdlpProxy's side effect: the first SOCKS-only verdict in the
+ * process emits its one warning here too.
  *
  * @returns {string} `--proxy "<url>"`, or "" when nothing is injected
  */
