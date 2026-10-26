@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+// spawnSync is left real by the module mock below — the #329 probe shells out
+// to the actual yt-dlp binary on purpose.
+import { spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   writeFileSync,
@@ -65,6 +68,7 @@ import {
   ytdlpContainerMime,
   ytdlpCookieSource,
   ytdlpProxyArg,
+  ytdlpProxyEnv,
 } from "../lib/ytdlp-guard.mjs";
 import { searchYtdlp, downloadYtdlp } from "../lib/asset-sourcer.mjs";
 import { downloadYtdlpAdapter } from "../lib/video-downloaders.mjs";
@@ -635,11 +639,20 @@ const SCUTIL_ALL_ENABLED = `<dictionary> {
   SOCKSProxy : 127.0.0.1
 }`;
 
+// #329 verdict fixture: SOCKS on, HTTP/HTTPS off.
+const SCUTIL_SOCKS_ONLY = SCUTIL_ALL_ENABLED.replace("HTTPEnable : 1", "HTTPEnable : 0").replace(
+  "HTTPSEnable : 1",
+  "HTTPSEnable : 0",
+);
+
 describe("#324 system proxy parsing", () => {
-  it("reads every enabled HTTP(S) protocol, skipping the nested ExceptionsList entries", () => {
+  it("reads every enabled HTTP(S)/SOCKS protocol, skipping the nested ExceptionsList entries", () => {
     expect(parseMacSystemProxy(SCUTIL_ALL_ENABLED)).toEqual({
       httpProxy: "127.0.0.1:7897",
       httpsProxy: "127.0.0.1:7897",
+      // #329: SOCKS is surfaced so the SOCKS-only verdict can name the
+      // endpoint ffmpeg cannot use instead of resolving to a bare null.
+      socksProxy: "127.0.0.1:7897",
     });
   });
 
@@ -653,12 +666,21 @@ describe("#324 system proxy parsing", () => {
     expect(parseMacSystemProxy(SCUTIL_PAC_ONLY)).toEqual({
       httpProxy: null,
       httpsProxy: null,
+      socksProxy: null,
     });
   });
 
   it("survives empty or missing input", () => {
-    expect(parseMacSystemProxy("")).toEqual({ httpProxy: null, httpsProxy: null });
-    expect(parseMacSystemProxy(null)).toEqual({ httpProxy: null, httpsProxy: null });
+    expect(parseMacSystemProxy("")).toEqual({
+      httpProxy: null,
+      httpsProxy: null,
+      socksProxy: null,
+    });
+    expect(parseMacSystemProxy(null)).toEqual({
+      httpProxy: null,
+      httpsProxy: null,
+      socksProxy: null,
+    });
   });
 });
 
@@ -705,18 +727,55 @@ describe("#324 proxy resolution", () => {
     ).toBe("http://127.0.0.1:7897");
   });
 
-  it("returns null when only SOCKS is enabled (ffmpeg cannot use SOCKS)", () => {
-    // Real scutil shape: SOCKS on, HTTP/HTTPS off. parseMacSystemProxy does
-    // not surface SOCKS, so this resolves to nothing rather than to an
-    // endpoint ffmpeg would reject.
-    const socksOnly = SCUTIL_ALL_ENABLED.replace("HTTPEnable : 1", "HTTPEnable : 0").replace(
-      "HTTPSEnable : 1",
-      "HTTPSEnable : 0",
-    );
-    expect(socksOnly).toContain("SOCKSEnable : 1");
+  it("returns null and warns once when only SOCKS is enabled (ffmpeg cannot use SOCKS)", () => {
+    // #329: ffmpeg has no SOCKS support and yt-dlp only report_warning's about
+    // it, so a SOCKS-only system config leaves the `--download-sections` leg
+    // direct-connected. The verdict stays "no proxy", but it is now a stated
+    // one instead of a silent null.
+    expect(SCUTIL_SOCKS_ONLY).toContain("SOCKSEnable : 1");
+    const warnings = {};
+    const warn = vi.fn();
+    const deps = {
+      env: {},
+      readSystemProxy: () => parseMacSystemProxy(SCUTIL_SOCKS_ONLY),
+      warnings,
+      warn,
+    };
+    expect(resolveYtdlpProxy(deps)).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+    // Names the endpoint so the operator can see which proxy is unusable, and
+    // says what to export instead.
+    expect(warn.mock.calls[0][0]).toContain("127.0.0.1:7897");
+    expect(warn.mock.calls[0][0]).toContain("http_proxy");
+    // Once per process: callers resolve per candidate, not per session.
+    expect(resolveYtdlpProxy(deps)).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not warn about SOCKS while an HTTP(S) system proxy is usable", () => {
+    const warn = vi.fn();
     expect(
-      resolveYtdlpProxy({ env: {}, readSystemProxy: () => parseMacSystemProxy(socksOnly) }),
-    ).toBeNull();
+      resolveYtdlpProxy({
+        env: {},
+        readSystemProxy: () => parseMacSystemProxy(SCUTIL_ALL_ENABLED),
+        warnings: {},
+        warn,
+      }),
+    ).toBe("http://127.0.0.1:7897");
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("does not warn when an env proxy already decides the route", () => {
+    const warn = vi.fn();
+    expect(
+      resolveYtdlpProxy({
+        env: { HTTP_PROXY: "http://127.0.0.1:7897" },
+        readSystemProxy: () => parseMacSystemProxy(SCUTIL_SOCKS_ONLY),
+        warnings: {},
+        warn,
+      }),
+    ).toBe("http://127.0.0.1:7897");
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("returns null on a PAC-only / no-proxy configuration", () => {
@@ -834,4 +893,163 @@ describe("#324 yt-dlp proxy hand-off", () => {
     const argv = fileArgv(execFileSyncMock.mock.calls[0]);
     expect(flagValue(argv, "--proxy")).toBe("http://127.0.0.1:7897");
   });
+
+  // ─── #329: the ffmpeg leg does not depend on upstream's injection ───
+  // yt-dlp only hands ffmpeg a proxy when `--proxy` is given (FFmpegFD), and
+  // that is upstream behaviour this repo cannot pin. Every ffmpeg-delegated
+  // spawn therefore carries the lower-case variable itself; these assertions
+  // are the CI gate that keeps that true.
+
+  it("downloadYtdlp hands the spawned child the lower-case http_proxy", () => {
+    uppercaseOnly();
+    downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "c.mp4"));
+    const opts = execFileSyncMock.mock.calls[0][2];
+    expect(opts.env.http_proxy).toBe("http://127.0.0.1:7897");
+  });
+
+  it("downloadYtdlpAdapter prefixes the shell command with the lower-case http_proxy", () => {
+    uppercaseOnly();
+    downloadYtdlpAdapter("https://www.youtube.com/watch?v=abc");
+    const cmd = execSyncMock.mock.calls[0][0];
+    // The assignment rides the command word, so yt-dlp and its ffmpeg child
+    // inherit it without the spawn site carrying a second mechanism.
+    expect(cmd).toContain('http_proxy="http://127.0.0.1:7897" yt-dlp');
+  });
+
+  it("downloadYtdlpAdapter emits no prefix for an already-exported lower-case proxy", () => {
+    process.env.http_proxy = "http://127.0.0.1:8888";
+    process.env.https_proxy = "http://127.0.0.1:8888";
+    downloadYtdlpAdapter("https://www.youtube.com/watch?v=abc");
+    const cmd = execSyncMock.mock.calls[0][0];
+    expect(cmd.startsWith("yt-dlp")).toBe(true);
+    expect(cmd).not.toContain("http_proxy=");
+  });
+
+  it("leaves an exported lower-case proxy untouched (no second copy)", () => {
+    process.env.http_proxy = "http://127.0.0.1:8888";
+    process.env.https_proxy = "http://127.0.0.1:8888";
+    downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "d.mp4"));
+    const opts = execFileSyncMock.mock.calls[0][2];
+    expect(opts.env.http_proxy).toBe("http://127.0.0.1:8888");
+  });
+});
+
+// ─── #329: real-binary probe for the ffmpeg env hand-off ───
+//
+// Protocol — this is a developer-machine gate, not a CI gate. It needs the
+// real yt-dlp on PATH (the pipeline host has it); elsewhere the block is
+// skipped, because CI carries no such guarantee and the 2026-09-25 triage
+// ruled out depending on the binary or the network there.
+//
+// What it pins: the last hop (yt-dlp → ffmpeg) for the overlay OUR seam
+// produces — the unit tests above pin that both spawn sites call
+// ytdlpProxyEnv(). If yt-dlp stops copying the parent env into the ffmpeg
+// child, this goes red on a machine that runs the pipeline.
+//
+// Offline by construction: yt-dlp reads a hand-written info JSON instead of a
+// page, and a stub `ffmpeg` records its own environment instead of fetching.
+// Upstream FFmpegFD's own `--proxy` injection is deliberately not asserted:
+// it is no longer load-bearing, and a red test with no production impact
+// would be noise.
+const ytdlpVersion = spawnSync("yt-dlp", ["--version"], { encoding: "utf8", timeout: 20000 });
+
+describe.skipIf(ytdlpVersion.status !== 0)("#329 ffmpeg env hand-off (real yt-dlp)", () => {
+  it("the lower-case http_proxy reaches the ffmpeg child", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ytdlp-env-probe-"));
+    try {
+      const bin = join(dir, "bin");
+      mkdirSync(bin);
+      const dump = join(dir, "ffmpeg.env");
+      // yt-dlp first asks ffmpeg for its bitstream-filter list, then starts the
+      // download. Answer capability probes; capture the download invocation.
+      writeFileSync(
+        join(bin, "ffmpeg"),
+        [
+          "#!/bin/sh",
+          'case "$1" in',
+          "  -bsfs|-version) printf '\\n'; exit 0 ;;",
+          "esac",
+          '{ echo "ARGV: $*"; env; } > "$PROBE_DUMP"',
+          "exit 1",
+          "",
+        ].join("\n"),
+        { mode: 0o755 },
+      );
+      const info = join(dir, "info.json");
+      writeFileSync(
+        info,
+        JSON.stringify({
+          id: "probe",
+          title: "probe",
+          extractor: "generic",
+          extractor_key: "Generic",
+          url: "http://127.0.0.1:9/clip.mp4",
+          ext: "mp4",
+          protocol: "http",
+          formats: [
+            {
+              format_id: "0",
+              url: "http://127.0.0.1:9/clip.mp4",
+              ext: "mp4",
+              protocol: "http",
+              vcodec: "h264",
+              acodec: "aac",
+              height: 720,
+              width: 1280,
+            },
+          ],
+        }),
+      );
+      // The overlay comes from the seam under test, not from the test itself,
+      // so the probe covers helper → child as one chain.
+      const overlay = ytdlpProxyEnv({
+        env: { HTTP_PROXY: "http://127.0.0.1:18888" },
+        readSystemProxy: () => null,
+      });
+      expect(overlay).toEqual({ http_proxy: "http://127.0.0.1:18888" });
+      // Minimal child env on purpose: the stub writes its env to a temp file,
+      // and the developer shell's secrets (API keys and the like) must not be
+      // copied into it. No --proxy either: the overlay is what must arrive.
+      const childEnv = {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        LANG: process.env.LANG ?? "en_US.UTF-8",
+        ...overlay,
+        PROBE_DUMP: dump,
+      };
+      if (process.env.TMPDIR) childEnv.TMPDIR = process.env.TMPDIR;
+      const res = spawnSync(
+        "yt-dlp",
+        [
+          "--no-config",
+          "--no-warnings",
+          "--load-info-json",
+          info,
+          // Force the ffmpeg downloader: the native one would never spawn it.
+          "--downloader",
+          "http:ffmpeg",
+          "--ffmpeg-location",
+          bin,
+          "-o",
+          join(dir, "out.mp4"),
+        ],
+        {
+          env: childEnv,
+          encoding: "utf8",
+          timeout: 60000,
+        },
+      );
+      expect(existsSync(dump), `yt-dlp stderr: ${res.stderr}`).toBe(true);
+      const lines = readFileSync(dump, "utf8").split("\n");
+      const argvLine = lines.find((l) => l.startsWith("ARGV: ")) ?? "";
+      const httpProxyLine = lines.find((l) => l.startsWith("http_proxy=")) ?? "";
+      // Guard against a stub misfire: a capability probe dumping its env would
+      // leave the variable visible without the download path having run.
+      expect(argvLine).not.toContain("-bsfs");
+      expect(argvLine).not.toContain("-version");
+      expect(httpProxyLine).toBe("http_proxy=http://127.0.0.1:18888");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 90000);
 });

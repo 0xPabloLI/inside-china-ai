@@ -104,6 +104,7 @@ import {
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
   resolveYtdlpProxy,
+  ytdlpProxyEnv,
 } from "./ytdlp-guard.mjs";
 // Artifact schema versions (#199 2.5) — bump on breaking shape changes so
 // consumers can branch. asset-analysis.json carries its own `version: 1`.
@@ -1894,7 +1895,13 @@ export function downloadYtdlp(url, destPath) {
   // argv, never a shell string: `url` is externally-derived (it comes out of
   // search results parsed from yt-dlp's own output), so it must not reach a
   // shell. Same treatment as searchYtdlp above (#319's argv direction).
-  const proxy = resolveYtdlpProxy();
+  //
+  // #324: --download-sections delegates the fetch to ffmpeg, which reads only
+  // a lowercase http_proxy. Pass the proxy to yt-dlp, and (#329) put it in the
+  // child env as well so the ffmpeg leg does not depend on upstream repeating
+  // the injection; the probe in ytdlp-guard's tests pins the yt-dlp→ffmpeg hop.
+  const proxyEnv = ytdlpProxyEnv();
+  const proxy = proxyEnv.http_proxy;
   const args = [
     // #328: every platform reads the firefox plaintext cookie store, so the
     // Keychain-backed chrome store (and its blocking prompt) is off the path.
@@ -1925,6 +1932,7 @@ export function downloadYtdlp(url, destPath) {
       encoding: "utf8",
       timeout: 120000,
       stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, ...proxyEnv },
     });
 
     // #323: yt-dlp appends the real container extension when the -o template's

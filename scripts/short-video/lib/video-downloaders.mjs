@@ -43,6 +43,7 @@ import {
   resolveYtdlpOutputPath,
   shellQuote,
   ytdlpProxyArg,
+  ytdlpProxyEnv,
 } from "./ytdlp-guard.mjs";
 import { tmpdir, homedir } from "os";
 import { fileURLToPath } from "url";
@@ -569,7 +570,14 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
   // the URL can originate from scraped page content, so `"${url}"` would let a
   // crafted href break out of the quotes and run commands.
   parts.push(`-o ${shellQuote(tmpPath)}`, shellQuote(url));
-  return parts.join(" ");
+
+  // #329: ffmpeg reads only the lower-case http_proxy. A shell env assignment
+  // on the command word delivers it to yt-dlp and to its ffmpeg child, which is
+  // the same value already carried by `--proxy`; emitted only when this side
+  // resolved a proxy (an exported lower-case variable needs no copy).
+  const proxyEnv = ytdlpProxyEnv();
+  const envPrefix = proxyEnv.http_proxy ? `http_proxy=${shellQuote(proxyEnv.http_proxy)} ` : "";
+  return `${envPrefix}${parts.join(" ")}`;
 }
 
 export function downloadYtdlpAdapter(url) {

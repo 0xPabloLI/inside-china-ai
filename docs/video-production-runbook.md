@@ -165,6 +165,8 @@ node scripts/short-video/main.mjs --content series/pt4 &
 | 15  | Agent 嫌 f5-mlx 慢自行降级 edge-tts（声音机械）             | `lib/tts/registry.mjs` PRIORITY 截断至 f5-mlx + 注释：自动 fallback 到 f5 为止，qwen/edge/say 仅 TTS_ENGINE 人工指定（2a36a48）                                 |
 | 16  | yt-dlp 读 YouTube cookie 触发 Keychain 弹窗，无人值守时挂到 120s timeout | 全部调用点走 `lib/ytdlp-guard.mjs` 的 `ytdlpCookieSource()`：**firefox 明文 cookie 库，不经过 Keychain，无弹窗**。逃生舱 `YTDLP_FIREFOX_PROFILE`（#328）          |
 | 17  | yt-dlp 自选 firefox profile 选到空库 → search 静默 0 结果   | 同一 resolver **固定 profile 绝对路径**，按「Install 级 Default → Profile 级 Default → 其余」排序候选并跳过空 `cookies.sqlite`（#328）                          |
+| 18  | 小写 `http_proxy` 没进 ffmpeg 子进程 → `--download-sections` 段直连、CDN 超时（`ffmpeg exited with code 196`） | `lib/ytdlp-guard.mjs#ytdlpProxyEnv()` 展开进两处 ffmpeg 委派 spawn 的子进程 env（`asset-sourcer.downloadYtdlp` / `video-downloaders.downloadYtdlpAdapter`），不再依赖上游 FFmpegFD 的 `--proxy` 注入；真实 yt-dlp → stub ffmpeg 探针守最后一跳（#329，需本机有 yt-dlp；无该二进制时 skip） |
+| 18b | 系统代理只有 SOCKS → ffmpeg 段仍走直连                     | 上游硬限（2026-09-25 裁决，不造 SOCKS→HTTP 桥）：`resolveYtdlpProxy` 每进程一次性 warn，点名 SOCKS 端点并提示改用 `http_proxy` 的 HTTP 出口；`parseMacSystemProxy` 为该判决暴露 `socksProxy`（#329） |
 
 ## Content Standards
 
