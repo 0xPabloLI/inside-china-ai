@@ -58,8 +58,6 @@ def probe(path):
     duration = float(librosa.get_duration(y=y, sr=sr))
     # Speech rate over voiced time only: pauses must not masquerade as calm.
     voiced_seconds = duration * voiced_ratio
-    syllables = librosa.beat.tempo(y=y, sr=sr)[0]  # rough tempo, unused placeholder
-    del syllables
 
     return {
         "path": path,
