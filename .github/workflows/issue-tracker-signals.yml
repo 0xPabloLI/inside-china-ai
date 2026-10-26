@@ -101,9 +101,30 @@ jobs:
     if: github.event_name == 'issues' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
+      # 产品视角判定只有一份实现（与 PR body 门禁同一个脚本），所以这个 job 要 checkout。
+      # 在这里另写一套判定，就是 2026-10-26 那次漏判的复现条件：两处规则各写各的，漂移没人发现。
+      - uses: actions/checkout@v7
       - uses: actions/github-script@v9
         with:
           script: |
+            const { execFileSync } = require('node:child_process');
+            const { join } = require('node:path');
+
+            // 与 PR body 门禁同一个判定函数：缺节、不足三条实质内容、或留着占位符都不合格。
+            // 用子进程而不是 shell step，是因为要在一张票的多条记录上逐条判定（任何一条合格即算有）。
+            function productViewPasses(bodyText) {
+              try {
+                execFileSync(
+                  'node',
+                  [join(process.env.GITHUB_WORKSPACE, 'scripts', 'check-product-view.mjs'), '--comment'],
+                  { env: { ...process.env, COMMENT_BODY: bodyText }, stdio: 'pipe' },
+                );
+                return true;
+              } catch {
+                return false;
+              }
+            }
+
             const issue = context.payload.issue;
 
             // 拒绝项没有交付记录可言
@@ -127,22 +148,72 @@ jobs:
             // 会被 marker 误判成已补登（重开再关的场景：上一次的告警评论还在场）。
             // 交付记录只会由 session 以真实账号发出。
             const marker = /交付记录|Delivery record/i;
-            const hasRecord = comments.some(
-              (c) => c.user.type !== 'Bot' && marker.test(c.body || ''),
+            // 显式豁免先判：「无需交付记录」子串含「交付记录」，marker 先判会把豁免走成记录
+            const WAIVER = /无需交付记录|delivery-record-waived/i;
+            const records = comments.filter(
+              (c) =>
+                c.user.type !== 'Bot' &&
+                marker.test(c.body || '') &&
+                !WAIVER.test(c.body || ''),
             );
-            if (hasRecord) {
-              // 重开再关且账本标签还挂着：顺手清掉，避免「有记录却带缺失标」的脏状态
-              await github.rest.issues
+            const clearLabel = (name) =>
+              github.rest.issues
                 .removeLabel({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: issue.number,
-                  name: 'delivery-record-missing',
+                  name,
                 })
                 .catch((err) => {
                   if (err.status !== 404) throw err;
                 });
-              core.info(`delivery record found on #${issue.number} (${comments.length} comments)`);
+
+            // 显式豁免同时清掉两只账本：不要求记录，也就无从要求三句。
+            // 豁免串含「交付记录」子串，所以必须先于 records 判定。
+            const waived = comments.some(
+              (c) => c.user.type !== 'Bot' && WAIVER.test(c.body || ''),
+            );
+            if (waived) {
+              await clearLabel('delivery-record-missing');
+              await clearLabel('product-view-missing');
+              core.info(`delivery record waived on #${issue.number}`);
+              return;
+            }
+
+            if (records.length > 0) {
+              // 重开再关且账本标签还挂着：顺手清掉，避免「有记录却带缺失标」的脏状态
+              await clearLabel('delivery-record-missing');
+              // 记录在，三句不在 —— #353 的形态：sha + 改动清单 + 测试证据，没有一句讲用户。
+              // 两个账本分开记：读者要能分清「没写记录」和「写了记录但没讲产品」。
+              if (records.some((c) => productViewPasses(c.body || ''))) {
+                await clearLabel('product-view-missing');
+                core.info(`delivery record + product view ok on #${issue.number}`);
+                return;
+              }
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: ['product-view-missing'],
+              });
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: [
+                  '⚠️ **交付记录缺产品视角三句** —— 有带 `交付记录` 标记的评论，但它没有 `## 产品视角` 节，或不足三条实质内容。',
+                  '',
+                  '按 `docs/agents/issue-tracker.md` 的 Session cognitive offload 与 `docs/agents/implementation-workflow.md` §9 第 8 步，交付记录以这三句开头：',
+                  '',
+                  '1. 原本要解决什么用户可见问题',
+                  '2. 用户现在看到什么变化',
+                  '3. 哪些行为或边界没有变（无用户可见变化时写明原因）',
+                  '',
+                  '在此票补一条带 `## 产品视角` 节、且仍带 `交付记录` 标记的评论即可，`product-view-missing` 会自动摘除。',
+                  '账本查询：`gh issue list --label product-view-missing --state closed`。',
+                ].join('\n'),
+              });
+              core.info(`product view missing on #${issue.number} — ledger label set + reminder posted`);
               return;
             }
 
@@ -179,9 +250,27 @@ jobs:
     if: github.event_name == 'issue_comment' && github.event.action == 'created'
     runs-on: ubuntu-latest
     steps:
+      # 产品视角判定复用同一个脚本：摘标不能比打标更宽松
+      - uses: actions/checkout@v7
       - uses: actions/github-script@v9
         with:
           script: |
+            const { execFileSync } = require('node:child_process');
+            const { join } = require('node:path');
+
+            function productViewPasses(bodyText) {
+              try {
+                execFileSync(
+                  'node',
+                  [join(process.env.GITHUB_WORKSPACE, 'scripts', 'check-product-view.mjs'), '--comment'],
+                  { env: { ...process.env, COMMENT_BODY: bodyText }, stdio: 'pipe' },
+                );
+                return true;
+              } catch {
+                return false;
+              }
+            }
+
             const comment = context.payload.comment;
 
             // 回读当前 state（与 mark-unread 同因：payload 是评论创建那一刻的快照）
@@ -195,38 +284,67 @@ jobs:
             // Bot 评论不算数：缺失告警与催办都是 bot 发的
             if (comment.user.type === 'Bot') return;
 
-            const hasLedgerLabel = current.labels.some(
-              (l) => (typeof l === 'string' ? l : l.name) === 'delivery-record-missing',
-            );
-            if (!hasLedgerLabel) return;
+            const names = current.labels.map((l) => (typeof l === 'string' ? l : l.name));
+            const hasLedgerLabel = names.includes('delivery-record-missing');
+            const hasProductViewLabel = names.includes('product-view-missing');
+            // 两条账本独立：摘哪条只看该条自己的条件是否满足
+            if (!hasLedgerLabel && !hasProductViewLabel) return;
 
             const marker = /交付记录|Delivery record/i;
             const WAIVER = /无需交付记录|delivery-record-waived/i;
             // 豁免先判 —— 「无需交付记录」子串含「交付记录」，marker 先判会把豁免走成补登确认
             const isWaiver = WAIVER.test(comment.body || '');
             const isRecord = !isWaiver && marker.test(comment.body || '');
-            if (!isRecord && !isWaiver) return;
+            const recordOk = isRecord && hasLedgerLabel;
+            // 三句合格才算补齐；补登记录但仍旧没讲产品，只摘交付记录那条
+            const productViewOk = isRecord && hasProductViewLabel && productViewPasses(comment.body || '');
+            // 豁免表示「不要求记录」，两只账本一起清
+            const clearRecord = recordOk || (isWaiver && hasLedgerLabel);
+            const clearProductView = productViewOk || (isWaiver && hasProductViewLabel);
+            if (!clearRecord && !clearProductView) return;
 
-            await github.rest.issues
-              .removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: current.number,
-                name: 'delivery-record-missing',
-              })
-              .catch((err) => {
-                // 404 = 已被并发动作（如日 cron 复检）摘掉，不算失败
-                if (err.status !== 404) throw err;
-              });
+            const clearLabel = (name) =>
+              github.rest.issues
+                .removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: current.number,
+                  name,
+                })
+                .catch((err) => {
+                  // 404 = 已被并发动作（如日 cron 复检）摘掉，不算失败
+                  if (err.status !== 404) throw err;
+                });
+
+            const cleared = [];
+            if (clearRecord) {
+              await clearLabel('delivery-record-missing');
+              cleared.push('delivery-record-missing');
+            }
+            if (clearProductView) {
+              await clearLabel('product-view-missing');
+              cleared.push('product-view-missing');
+            }
+            if (cleared.length === 0) return;
+
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: current.number,
-              body: isWaiver
-                ? '✅ 交付记录已豁免，摘除 `delivery-record-missing`。'
-                : '✅ 交付记录已补登，摘除 `delivery-record-missing`（#315 账本闭环）。',
+              body: [
+                isWaiver && cleared.includes('delivery-record-missing')
+                  ? '✅ 交付记录已豁免，摘除 `delivery-record-missing`。'
+                  : cleared.includes('delivery-record-missing')
+                    ? '✅ 交付记录已补登，摘除 `delivery-record-missing`（#315 账本闭环）。'
+                    : null,
+                cleared.includes('product-view-missing')
+                  ? '✅ 产品视角三句已补齐，摘除 `product-view-missing`。'
+                  : null,
+              ]
+                .filter(Boolean)
+                .join('\n'),
             });
-            core.info(`#${current.number} delivery-record-missing cleared by user comment`);
+            core.info(`#${current.number} cleared by user comment: ${cleared.join(', ')}`);
 
   # #315：日 cron 复检账本 —— 兜底 comment 事件的竞态/漏网 + 逾期催办一次。
   delivery-record-recheck:
@@ -236,9 +354,27 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.delivery_recheck)
     runs-on: ubuntu-latest
     steps:
+      # 产品视角判定复用同一个脚本：复检不能比打标更宽松
+      - uses: actions/checkout@v7
       - uses: actions/github-script@v9
         with:
           script: |
+            const { execFileSync } = require('node:child_process');
+            const { join } = require('node:path');
+
+            function productViewPasses(bodyText) {
+              try {
+                execFileSync(
+                  'node',
+                  [join(process.env.GITHUB_WORKSPACE, 'scripts', 'check-product-view.mjs'), '--comment'],
+                  { env: { ...process.env, COMMENT_BODY: bodyText }, stdio: 'pipe' },
+                );
+                return true;
+              } catch {
+                return false;
+              }
+            }
+
             const LEDGER = 'delivery-record-missing';
             const ESCALATION = '<!-- delivery-record-escalation -->';
             const STALE_DAYS = 3;
@@ -333,6 +469,94 @@ jobs:
               escalated += 1;
               core.info(`#${issue.number} escalation posted (closed ${Math.floor(closedForDays)}d, still missing)`);
             }
+
+            // #353 follow-up：产品视角账本只复检已挂标的票 —— 新闭票由 close 事件入账。
+            // 因此这里不需要 cutoff：没被 close job 判过的历史闭票永远不会挂上这个标，
+            // 存量不会被追溯打扰（与 delivery-record 账本的祖父化意图相同，实现更简单）。
+            const PV_LABEL = 'product-view-missing';
+            const PV_ESCALATION = '<!-- product-view-escalation -->';
+            const pvLabeled = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              labels: PV_LABEL,
+              per_page: 100,
+            });
+
+            let pvCleared = 0;
+            let pvEscalated = 0;
+            let pvPending = 0;
+            for (const issue of pvLabeled) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                per_page: 100,
+              });
+              const records = comments.filter(
+                (c) =>
+                  c.user.type !== 'Bot' &&
+                  /交付记录|Delivery record/i.test(c.body || '') &&
+                  !/无需交付记录|delivery-record-waived/i.test(c.body || ''),
+              );
+              const clearPv = () =>
+                github.rest.issues
+                  .removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    name: PV_LABEL,
+                  })
+                  .catch((err) => {
+                    if (err.status !== 404) throw err;
+                  });
+
+              // 拒绝项与显式豁免同样没有产品视角可言
+              const rejected =
+                issue.state_reason === 'not_planned' ||
+                issue.labels.some((l) => l.name === 'wontfix');
+              const hasWaiver = comments.some(
+                (c) =>
+                  c.user.type !== 'Bot' &&
+                  /无需交付记录|delivery-record-waived/i.test(c.body || ''),
+              );
+              if (rejected || hasWaiver || records.some((c) => productViewPasses(c.body || ''))) {
+                await clearPv();
+                pvCleared += 1;
+                continue;
+              }
+
+              pvPending += 1;
+              const closedForDays =
+                (Date.now() - new Date(issue.closed_at).getTime()) / 86_400_000;
+              if (closedForDays < STALE_DAYS) continue;
+              if (comments.some((c) => c.body && c.body.includes(PV_ESCALATION))) continue;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: [
+                  PV_ESCALATION,
+                  `🏳️ 这张票已关闭超过 ${STALE_DAYS} 天，交付记录仍缺产品视角三句（原本要解决什么用户可见问题 / 用户现在看到什么变化 / 哪些没变）。`,
+                  '',
+                  `@${context.repo.owner} 补一条带 \`## 产品视角\` 节与 \`交付记录\` 标记的评论即可清账。`,
+                  '账本查询：`gh issue list --label product-view-missing --state closed`。',
+                ].join('\n'),
+              });
+              pvEscalated += 1;
+              core.info(`#${issue.number} product-view escalation posted (closed ${Math.floor(closedForDays)}d)`);
+            }
+
+            core.info(
+              [
+                `mode=product-view-recheck`,
+                `ledger_size=${pvLabeled.length}`,
+                `cleared=${pvCleared}`,
+                `pending=${pvPending}`,
+                `escalated_now=${pvEscalated}`,
+              ].join(' '),
+            );
 
             core.info(
               [

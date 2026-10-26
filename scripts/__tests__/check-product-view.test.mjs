@@ -13,6 +13,7 @@ import { join } from "node:path";
 import {
   countSentences,
   countUnits,
+  evaluateCommentProductView,
   evaluateProductView,
   extractSection,
   substantiveLines,
@@ -21,6 +22,24 @@ import {
 const ROOT = join(import.meta.dirname, "..", "..");
 const CI = readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8");
 const TEMPLATE = readFileSync(join(ROOT, ".github", "pull_request_template.md"), "utf8");
+const SIGNALS = readFileSync(
+  join(ROOT, ".github", "workflows", "issue-tracker-signals.yml"),
+  "utf8",
+);
+
+/**
+ * One job's slice of the workflow, so a wiring assertion names the job that has
+ * to carry it instead of passing on a match somewhere else in the file.
+ * @param {string} name
+ * @returns {string}
+ */
+function jobSlice(name) {
+  const start = SIGNALS.indexOf(`  ${name}:`);
+  expect(start, `job ${name} is missing from the workflow`).toBeGreaterThan(-1);
+  const rest = SIGNALS.slice(start + 1);
+  const next = rest.search(/^ {2}[a-z-]+:$/m);
+  return next === -1 ? rest : rest.slice(0, next);
+}
 
 const THREE_BULLETS = `## 产品视角
 
@@ -227,5 +246,141 @@ describe("documents the gate protects still exist", () => {
     const doc = readFileSync(join(ROOT, "docs", "agents", "implementation-workflow.md"), "utf8");
     expect(doc).toContain("产品视角三句");
     expect(existsSync(join(ROOT, "scripts", "check-product-view.mjs"))).toBe(true);
+  });
+});
+
+/**
+ * #353 delivery record: the closing comment cleared `delivery-record-missing`
+ * with a commit sha, a change list and test evidence, and not one sentence about
+ * users. The marker was the only part the machine read, so the ledger said done.
+ * These cases pin the second surface: the record comment itself must carry the
+ * same three sentences the PR body carries.
+ */
+describe("evaluateCommentProductView — the closing comment carries the three sentences", () => {
+  it("accepts a record whose product-view section holds three bullets", () => {
+    const result = evaluateCommentProductView(`## 交付记录\n\n${THREE_BULLETS}`);
+    expect(result.ok).toBe(true);
+    expect(result.units).toBe(3);
+  });
+
+  it("accepts a three-sentence paragraph inside the section", () => {
+    const result = evaluateCommentProductView(
+      [
+        "## 交付记录",
+        "",
+        "## 产品视角",
+        "",
+        "原本要解决什么用户可见问题：巡检结论只活在终端里，不读那次就没有记录。用户现在看到什么变化：每次运行都落盘一份可 diff 的 JSON，真失败会自动开票。哪些行为或边界没有变：探哪些源、判定规则与回退链全部未动。",
+      ].join("\n"),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects the shape that motivated the gate: commits + evidence, no product view", () => {
+    const result = evaluateCommentProductView(
+      [
+        "## 交付记录",
+        "",
+        "- **已合并 PR**：PR #962（squash commit 8dd9e6b6）",
+        "- **核心改动**：新增 --alert 运行时告警同步与 output/selector-health.json",
+        "- **验收证据**：242 tests passed，CI 全绿",
+      ].join("\n"),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain("产品视角");
+  });
+
+  it("rejects the template's empty bullets, so pasting the labels is not a pass", () => {
+    const result = evaluateCommentProductView(
+      [
+        "## 交付记录",
+        "",
+        "## 产品视角",
+        "",
+        "- 原本要解决什么用户可见问题：",
+        "- 用户现在看到什么变化：",
+        "- 没有变的行为或边界：",
+      ].join("\n"),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects two units and names the count", () => {
+    const result = evaluateCommentProductView(
+      [
+        "## 交付记录",
+        "",
+        "## 产品视角",
+        "",
+        "- 原本要解决什么用户可见问题：巡检只看终端",
+        "- 用户现在看到什么变化：每次都落盘 JSON",
+      ].join("\n"),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.units).toBe(2);
+    expect(result.reason).toContain("2");
+  });
+
+  it("accepts the English heading like the PR gate does", () => {
+    const result = evaluateCommentProductView(
+      [
+        "## Delivery record",
+        "",
+        "## Product view",
+        "",
+        "- Problem: health checks only printed to a terminal",
+        "- Now: every run writes a JSON report",
+        "- Unchanged: probing, verdicts and fallback chains",
+      ].join("\n"),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("has no author or label exemption: a comment is judged on its content alone", () => {
+    // The PR gate exempts bots and `skip-product-view`. If the comment gate
+    // forwarded those inputs, a bot-authored record would pass with nothing in it.
+    const result = evaluateCommentProductView("## 交付记录\n\n- 已合并 PR #1\n- 242 tests passed");
+    expect(result.ok).toBe(false);
+    expect(result.skipped).toBeUndefined();
+  });
+});
+
+describe("wiring — the closing-comment gate is real only if it runs", () => {
+  it("the close job runs the same evaluator on the record comment", () => {
+    const job = jobSlice("check-delivery-record");
+    expect(job).toContain("check-product-view.mjs");
+    expect(job).toContain("--comment");
+    expect(job).toContain("COMMENT_BODY");
+  });
+
+  it("the close job judges the record before it sets any ledger label", () => {
+    const job = jobSlice("check-delivery-record");
+    const gate = job.indexOf("--comment");
+    const ledger = job.indexOf("product-view-missing");
+    expect(gate).toBeGreaterThan(-1);
+    expect(ledger).toBeGreaterThan(gate);
+  });
+
+  it("a record without the three sentences lands in a queryable ledger", () => {
+    const job = jobSlice("check-delivery-record");
+    expect(job).toContain("product-view-missing");
+    expect(job).toMatch(/addLabels/);
+  });
+
+  it("the event-driven clear knows the label", () => {
+    expect(jobSlice("clear-delivery-record")).toContain("product-view-missing");
+  });
+
+  it("the daily recheck knows the label", () => {
+    const job = jobSlice("delivery-record-recheck");
+    expect(job).toContain("product-view-missing");
+    expect(job).toContain("check-product-view.mjs");
+  });
+
+  it("the reminder names the three roles, so the fix is unambiguous", () => {
+    const job = jobSlice("check-delivery-record");
+    expect(job).toContain("原本要解决什么用户可见问题");
+    expect(job).toContain("用户现在看到什么变化");
+    expect(job).toContain("没有变");
   });
 });

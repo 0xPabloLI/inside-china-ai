@@ -194,18 +194,60 @@ export function evaluateProductView(input = {}) {
   return { ok: true, skipped: false, units, reason: `${units} substantive units` };
 }
 
+/**
+ * The same three sentences, judged on a closing comment.
+ *
+ * A PR body is written before delivery, for a reviewer; the closing comment is
+ * written after, for whoever reads the ticket later. #353 shipped the first and
+ * skipped the second: the record carried a squash sha, a change list and test
+ * evidence, the `交付记录` marker cleared `delivery-record-missing`, and the
+ * ledger read as a complete delivery with no sentence about users. The marker
+ * only proves a comment exists, so the content check has to sit beside it.
+ *
+ * There is no author or label exemption here on purpose. The PR gate exempts bot
+ * authors and `skip-product-view`; both are choices an author could reach for to
+ * opt out of the very surface this checks.
+ *
+ * @param {string} body - one comment body
+ * @returns {{ok: boolean, units: number, reason: string}}
+ */
+export function evaluateCommentProductView(body) {
+  const text = String(body ?? "");
+  if (!text.trim()) return { ok: false, units: 0, reason: "the comment body is empty" };
+  const section = extractSection(text);
+  if (section === null) {
+    return {
+      ok: false,
+      units: 0,
+      reason: "no product-view section (expected a `## 产品视角` or `## Product view` heading)",
+    };
+  }
+  const units = countUnits(section);
+  if (units < MIN_UNITS) {
+    return {
+      ok: false,
+      units,
+      reason: `the product-view section holds ${units} substantive unit(s), needs ${MIN_UNITS}`,
+    };
+  }
+  return { ok: true, units, reason: `${units} substantive units` };
+}
+
 const PROMPTS = [
   "原本要解决什么用户可见问题",
   "用户现在看到什么变化",
   "哪些行为或边界没有变（无用户可见变化时写明原因）",
 ];
 
-/** @param {{ok: boolean, skipped: boolean, reason: string}} result */
-function report(result) {
+/**
+ * @param {{ok: boolean, skipped?: boolean, reason: string}} result
+ * @param {"pull-request body"|"closing comment"} surface
+ */
+function report(result, surface = "pull-request body") {
   const tag = result.skipped ? "SKIP" : result.ok ? "PASS" : "FAIL";
   console.log(`[product-view] ${tag}: ${result.reason}`);
   if (result.ok) return;
-  console.log("[product-view] add this to the pull-request body, three lines of substance:");
+  console.log(`[product-view] add this to the ${surface}, three lines of substance:`);
   for (const prompt of PROMPTS) console.log(`[product-view]   - ${prompt}：<这里是内容>`);
   console.log(
     "[product-view] no user-visible change? say so in the third line instead of leaving it short,",
@@ -219,12 +261,15 @@ const invokedDirectly =
   Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invokedDirectly) {
-  const result = evaluateProductView({
-    eventName: process.env.GITHUB_EVENT_NAME ?? "pull_request",
-    body: process.env.PR_BODY ?? "",
-    author: process.env.PR_AUTHOR ?? "",
-    labels: process.env.PR_LABELS ?? "",
-  });
-  report(result);
+  const asComment = process.argv.includes("--comment");
+  const result = asComment
+    ? evaluateCommentProductView(process.env.COMMENT_BODY ?? "")
+    : evaluateProductView({
+        eventName: process.env.GITHUB_EVENT_NAME ?? "pull_request",
+        body: process.env.PR_BODY ?? "",
+        author: process.env.PR_AUTHOR ?? "",
+        labels: process.env.PR_LABELS ?? "",
+      });
+  report(result, asComment ? "closing comment" : "pull-request body");
   process.exit(result.ok ? 0 : 1);
 }
