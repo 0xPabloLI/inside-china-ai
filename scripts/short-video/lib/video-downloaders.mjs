@@ -43,6 +43,7 @@ import {
   resolveYtdlpOutputPath,
   shellQuote,
   ytdlpProxyArg,
+  ytdlpProxyEnv,
 } from "./ytdlp-guard.mjs";
 import { tmpdir, homedir } from "os";
 import { fileURLToPath } from "url";
@@ -616,7 +617,15 @@ export function downloadYtdlpAdapter(url) {
   removeYtdlpStaleOutput(tmpPath);
 
   try {
-    execSync(cmd, { encoding: "utf8", timeout: timeoutMs, stdio: ["pipe", "pipe", "pipe"] });
+    // #329: the non-TikTok branches use --download-sections, which delegates
+    // the fetch to ffmpeg; hand that child the lower-case variable directly
+    // instead of relying on upstream's --proxy injection.
+    execSync(cmd, {
+      encoding: "utf8",
+      timeout: timeoutMs,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, ...ytdlpProxyEnv() },
+    });
 
     // #323: resolve the actual output — a webm-only source lands at
     // `<tmpPath>.webm` (yt-dlp appends the real container extension).

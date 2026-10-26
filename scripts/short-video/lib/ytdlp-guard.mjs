@@ -177,15 +177,25 @@ const STATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "output");
 // then dies at the CDN segment (`Error opening input ... timed out`,
 // `ffmpeg exited with code 196`).
 //
-// Upstream yt-dlp already solves this in FFmpegFD: when `--proxy` is given it
-// hands the ffmpeg child BOTH HTTP_PROXY and http_proxy
-// (yt_dlp/downloader/external.py). So this module resolves the proxy the
-// caller already has and hands it to yt-dlp — it does NOT grow its own
-// env-injection path, which would have to track ffmpeg's own semantics.
+// Upstream yt-dlp also covers part of this in FFmpegFD: when `--proxy` is
+// given it hands the ffmpeg child BOTH HTTP_PROXY and http_proxy
+// (yt_dlp/downloader/external.py; still true in 2026.07.04). That is upstream
+// behaviour this repo cannot pin — if it changes, the ffmpeg leg silently
+// falls back to a direct connection and the failure only shows up as a CDN
+// timeout. #329 therefore stops depending on it: every ffmpeg-delegated spawn
+// carries the lower-case variable itself (`ytdlpProxyEnv()`), and the real-
+// binary probe in the test suite pins the yt-dlp → ffmpeg hop.
 //
 // Observed on this host 2026-09-21 (ffmpeg-wrapper probe): without `--proxy`
 // the child saw only HTTP_PROXY/HTTPS_PROXY; with `--proxy` it also saw
-// `http_proxy`.
+// `http_proxy`. Re-observed 2026-10-26 (#329 probe): the env overlay alone
+// reaches the child, with or without `--proxy`.
+//
+// SOCKS-only system proxy (2026-09-25 triage verdict, #329): ffmpeg has no
+// SOCKS support and there is no local SOCKS→HTTP bridge, so this is an
+// upstream hard limit, not something to paper over. resolveYtdlpProxy states
+// it once per process — `--download-sections` fetches go direct in that
+// configuration and can time out at the CDN.
 
 /** `scutil` is /usr/sbin/scutil and is absent from a minimal PATH. */
 const SCUTIL_BIN = "/usr/sbin/scutil";
@@ -198,7 +208,7 @@ const SCUTIL_BIN = "/usr/sbin/scutil";
  * numeric-keyed entries inside it — are skipped without a real parser.
  *
  * @param {string} text - raw `scutil --proxy` stdout
- * @returns {{httpProxy: string|null, httpsProxy: string|null}} `host:port` per enabled protocol, null when disabled
+ * @returns {{httpProxy: string|null, httpsProxy: string|null, socksProxy: string|null}} `host:port` per enabled protocol, null when disabled
  */
 export function parseMacSystemProxy(text) {
   /** @type {Record<string, string>} */
@@ -211,11 +221,12 @@ export function parseMacSystemProxy(text) {
     dict[`${proto}Enable`] === "1" && dict[`${proto}Proxy`] && dict[`${proto}Port`]
       ? `${dict[`${proto}Proxy`]}:${dict[`${proto}Port`]}`
       : null;
-  // SOCKS is deliberately not surfaced: ffmpeg cannot use it, so no caller
-  // has anything to do with the endpoint (see resolveYtdlpProxy).
+  // SOCKS is surfaced for the verdict only: ffmpeg cannot use it, so
+  // resolveYtdlpProxy reports it rather than handing it to a caller as a proxy.
   return {
     httpProxy: endpoint("HTTP"),
     httpsProxy: endpoint("HTTPS"),
+    socksProxy: endpoint("SOCKS"),
   };
 }
 
@@ -256,6 +267,13 @@ function withScheme(value) {
 }
 
 /**
+ * Per-process SOCKS-only verdict state — callers resolve per candidate, so
+ * without dedupe the warning would repeat for every one. Injectable so tests
+ * can get a fresh verdict without touching module state.
+ */
+const proxyWarnings = { socksOnly: false };
+
+/**
  * Resolve the proxy to hand to yt-dlp via `--proxy`, or null when none is needed.
  *
  * A lowercase `http_proxy` means the ffmpeg child already inherits the exact
@@ -265,17 +283,22 @@ function withScheme(value) {
  *
  * A SOCKS-only system config yields null: ffmpeg cannot use SOCKS, and
  * yt-dlp's own layer already resolves SystemConfiguration by itself, so
- * injecting would add a warning without fixing the section download. That is
- * also why parseMacSystemProxy does not surface the SOCKS endpoint.
+ * injecting would add a warning without fixing the section download. #329
+ * verdict (2026-09-25): that is an upstream hard limit, so the null is stated
+ * once per process instead of being silent.
  *
  * @param {Object} [deps]
  * @param {Record<string, string|undefined>} [deps.env] - Environment to read
- * @param {() => ({httpProxy: string|null, httpsProxy: string|null}|null)} [deps.readSystemProxy] - System proxy source
+ * @param {() => ({httpProxy: string|null, httpsProxy: string|null, socksProxy?: string|null}|null)} [deps.readSystemProxy] - System proxy source
+ * @param {{socksOnly?: boolean}} [deps.warnings] - SOCKS-only dedupe state
+ * @param {(message: string) => void} [deps.warn] - Warning sink
  * @returns {string|null} proxy URL to pass as `--proxy`, or null
  */
 export function resolveYtdlpProxy({
   env = process.env,
   readSystemProxy = readMacSystemProxy,
+  warnings = proxyWarnings,
+  warn = (message) => console.warn(message),
 } = {}) {
   if (env.http_proxy) return null;
   const fromEnv = env.https_proxy || env.HTTP_PROXY || env.HTTPS_PROXY;
@@ -287,7 +310,33 @@ export function resolveYtdlpProxy({
     return null;
   }
   const endpoint = system?.httpsProxy || system?.httpProxy;
-  return endpoint ? withScheme(endpoint) : null;
+  if (endpoint) return withScheme(endpoint);
+  if (system?.socksProxy && !warnings.socksOnly) {
+    warnings.socksOnly = true;
+    warn(
+      `[ytdlp-guard] system proxy is SOCKS-only (${system.socksProxy}); ffmpeg cannot use SOCKS, ` +
+        `so --download-sections downloads go direct and may time out at the CDN. ` +
+        `Export http_proxy=<an HTTP proxy> to cover the ffmpeg leg (#329).`,
+    );
+  }
+  return null;
+}
+
+/**
+ * Environment overlay for a yt-dlp spawn that delegates the fetch to ffmpeg
+ * (#329). ffmpeg reads only the lower-case `http_proxy`, and yt-dlp hands its
+ * child whatever the parent env holds — so passing the resolved proxy here
+ * makes that hop a property of this repo instead of an upstream detail.
+ *
+ * Empty when there is nothing to inject: no proxy applies, or a lower-case
+ * variable is already exported and the child inherits it as-is.
+ *
+ * @param {Object} [deps] - Same seams as resolveYtdlpProxy
+ * @returns {{http_proxy?: string}} overlay to spread into the spawn env
+ */
+export function ytdlpProxyEnv(deps = {}) {
+  const proxy = resolveYtdlpProxy(deps);
+  return proxy ? { http_proxy: proxy } : {};
 }
 
 /**
