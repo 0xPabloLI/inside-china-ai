@@ -16,7 +16,7 @@
  *   - the failure path is loud and names the fix, because "no output" is exactly
  *     the silent failure this replaces.
  */
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -71,7 +71,10 @@ function fakeGh({ body = "", isPullRequest = false, comments = [], commentPages 
     expect(args[0]).toBe("api");
     const endpoint = args.at(-1);
     if (endpoint.endsWith("/comments?per_page=100")) {
+      // Both matter: without `--paginate` only page one is read, and without
+      // `--slurp` the multi-page shape is a different structure entirely.
       expect(args).toContain("--paginate");
+      expect(args).toContain("--slurp");
       return JSON.stringify(pages);
     }
     if (/\/issues\/\d+$/.test(endpoint)) {
@@ -220,6 +223,12 @@ describe("parseArgs — silence would quote the wrong repository", () => {
     expect(() => parseArgs(["810", "--repo"])).toThrow(/owner\/name/);
     expect(() => parseArgs(["810", "--repo", "--paginate"])).toThrow(/owner\/name/);
     expect(() => parseArgs(["810", "--repo="])).toThrow(/owner\/name/);
+    expect(() => parseArgs(["810", "--repo", "-x"])).toThrow(/owner\/name/);
+  });
+
+  it("rejects --repo twice, so the winner is never whichever came last", () => {
+    expect(() => parseArgs(["810", "--repo", "a/b", "--repo", "c/d"])).toThrow(/twice/);
+    expect(() => parseArgs(["810", "--repo=a/b", "--repo", "c/d"])).toThrow(/twice/);
   });
 
   it("rejects unknown flags and non-numbers", () => {
@@ -260,31 +269,43 @@ describe("the CLI an agent actually runs", () => {
   const empty = stubDir("empty", [], "");
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-  const run = (bin, args) =>
-    execFileSync("node", [script, ...args], {
+  /**
+   * stdout, stderr and the exit status. `spawnSync` rather than `execFileSync`:
+   * the latter only hands back stdout, and this contract puts provenance on
+   * stderr — the assertion has to see it on the success path too.
+   */
+  const run = (bin, args) => {
+    const result = spawnSync("node", [script, ...args], {
       encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
     });
+    return { stdout: result.stdout ?? "", stderr: result.stderr ?? "", status: result.status };
+  };
 
-  it("prints the section on stdout, exit 0", () => {
-    const rendered = run(withRecord, ["353", "--repo", "owner/repo"]).trim();
-    expect(rendered.startsWith("## 产品视角")).toBe(true);
-    expect(evaluateCommentProductView(rendered).ok).toBe(true);
+  it("prints the section on stdout and its provenance on stderr", () => {
+    const result = run(withRecord, ["353", "--repo", "owner/repo"]);
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim().startsWith("## 产品视角")).toBe(true);
+    expect(evaluateCommentProductView(result.stdout).ok).toBe(true);
+    // Provenance is on stderr so the pasted markdown stays pure — and it names the
+    // comment the section came from, which is how a reader audits the quote.
+    expect(result.stdout).not.toContain("source=");
+    expect(result.stderr).toContain("source=comment:21");
   });
 
-  it("exits non-zero when there is nothing compliant to quote", () => {
+  it("exits 1 with an empty stdout when there is nothing compliant to quote", () => {
     // The whole point of this script is that its failure is loud: an agent that
     // forgets to render gets no output at all, not a plausible-looking one.
-    let error;
-    try {
-      run(empty, ["353", "--repo", "owner/repo"]);
-    } catch (err) {
-      error = err;
-    }
-    expect(error, "the CLI exited 0 with nothing to quote").toBeTruthy();
-    expect(error.status).toBe(1);
-    expect(String(error.stderr)).toContain("no compliant");
+    const result = run(empty, ["353", "--repo", "owner/repo"]);
+    expect(result.status, "the CLI exited 0 with nothing to quote").toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("no compliant");
+  });
+
+  it("exits 2 on a malformed command line, before touching gh", () => {
+    const result = run(empty, ["353", "--repo"]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("usage:");
   });
 });
 

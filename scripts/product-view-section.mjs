@@ -135,7 +135,8 @@ export function parseArgs(argv) {
     const inline = arg.startsWith("--repo=") ? arg.slice("--repo=".length) : null;
     if (arg === "--repo" || inline !== null) {
       const value = inline ?? argv[index + 1];
-      if (!value || value.startsWith("--")) throw new Error("--repo needs an owner/name value");
+      if (!value || value.startsWith("-")) throw new Error("--repo needs an owner/name value");
+      if (repo !== undefined) throw new Error("--repo given twice");
       repo = value;
       if (inline === null) index += 1;
       continue;
