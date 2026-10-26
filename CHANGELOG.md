@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.34.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.1...tanstack_start_ts-v1.34.2) (2026-10-26)
+
+
+### Bug Fixes
+
+* **scripts:** give every CLI the entry guard that survives a symlink ([#976](https://github.com/0xPabloLI/inside-china-ai/issues/976)) ([8bf2d74](https://github.com/0xPabloLI/inside-china-ai/commit/8bf2d74407539d2be5fc2b3baffca6c7fa27c110))
+
 ## [1.34.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.0...tanstack_start_ts-v1.34.1) (2026-10-26)
 
 
