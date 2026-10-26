@@ -962,12 +962,33 @@ export async function checkApiFallbackSource(source, keyword, { fetchImpl = fetc
         durationMs: Date.now() - started,
       };
     }
-    const articles = fb.parser(body);
+    let raw;
+    try {
+      raw = fb.parser(body);
+    } catch (e) {
+      // A 200 that is not the JSON we expect (json format off in settings.yml,
+      // an interstitial, an HTML error page) is a layer defect, not transport.
+      return {
+        source: source.name,
+        ok: false,
+        count: 0,
+        reason: "parse-error",
+        error: e.message,
+        layer: "fallback",
+        durationMs: Date.now() - started,
+      };
+    }
+    // Production runs this layer through applyRelevanceGuard (#269) because
+    // SearXNG drops `site:` on some engines: the probe must judge the rows the
+    // collector would keep, or an off-topic set reads as "the layer serves".
+    const relevance = judgeRelevance(keyword, raw);
+    const articles = relevance.invalid ? [] : raw;
     return {
       source: source.name,
       ok: articles.length > 0,
       count: articles.length,
-      reason: articles.length === 0 ? "zero_results" : null,
+      reason: articles.length > 0 ? null : relevance.invalid ? "invalid-relevance" : "zero_results",
+      ...(relevance.invalid ? { extracted: raw.length } : {}),
       layer: "fallback",
       sampleUrls: articles.slice(0, 3).map((a) => String(a.url ?? "").slice(0, 120)),
       durationMs: Date.now() - started,

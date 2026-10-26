@@ -134,7 +134,10 @@ describe("collectFromSource fallback chain order", () => {
       {
         apiSearch: { url: (kw) => `https://api.test/q?kw=${kw}` },
         url: (kw) => `https://api.test/q?kw=${kw}`,
-        apiSiteFallback: apiSiteFallbackFixture,
+        // #199: this layer is read from capabilities only (it postdates the
+        // rule), so the fixture declares it where enrichWithCapabilities puts
+        // it in production.
+        capabilities: { articles: { apiSiteFallback: apiSiteFallbackFixture } },
       },
     );
     const articles = await promise;
@@ -159,7 +162,7 @@ describe("collectFromSource fallback chain order", () => {
       {
         url: () => "https://search.test/q",
         apiSearch: { url: () => "https://api.test/q" },
-        apiSiteFallback: apiSiteFallbackFixture,
+        capabilities: { articles: { apiSiteFallback: apiSiteFallbackFixture } },
         googleSiteFallback: {
           url: (kw) => `https://www.google.com/search?q=site:test.test+${kw}`,
           articleScript: "return [];",

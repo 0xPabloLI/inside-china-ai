@@ -192,6 +192,11 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
       // null = no keyword in play (listing/feed source) → relevance gate N/A.
       keywordHits: keyword ? hits : null,
       requestedUrl: probedUrl,
+      // The block-page gate reads the body: without it `detectBlockPage` only
+      // ever sees an empty string, which "is under 2000 bytes" for free. Axis 3
+      // (`apiFailureVerdict`) passes the body, so passing it here is what makes
+      // the two axes agree by construction rather than by coincidence.
+      html: primary.text,
       controlReachable,
     }),
     status: primary.status,

@@ -777,7 +777,8 @@ export async function collectFromSource(source, keyword, recorder = null, deps =
   const apiSearch = cap?.apiSearch ?? source.apiSearch;
   const googleSiteFallback = cap?.googleSiteFallback ?? source.googleSiteFallback;
   // #358: HTTP-native site: layer (SearXNG `site:<domain>` with a host filter).
-  const apiSiteFallback = cap?.apiSiteFallback ?? source.apiSiteFallback;
+  // Capabilities-only: this layer postdates #199, so it gets no pre-enrich read.
+  const apiSiteFallback = cap?.apiSiteFallback;
   const mcpFallback = cap?.mcpFallback ?? source.mcpFallback;
   const apiFallback = cap?.apiFallback ?? source.apiFallback;
   const useCleanTitle = cap?.useCleanTitle ?? source.useCleanTitle;

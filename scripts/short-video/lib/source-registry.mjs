@@ -60,8 +60,9 @@
  *   2. CDP (primary for most sources)
  *   3. apiSiteFallback (HTTP site: layer, #358 — before the CDP Google layer)
  *   4. googleSiteFallback (Google site: search, if configured)
- *   5. search pool (Brave > Tavily > Jina, #65 — generic web_search fallbacks only)
- *   6. mcpFallback (mcp-search-bridge/Grok last resort; platform MCPs go here directly)
+ *   5. apiFallback (Bigsong direct bridge / platform MCP, if configured)
+ *   6. search pool (Serper > Brave > Tavily > Jina, #65 — pool-eligible only)
+ *   7. mcpFallback (dedicated platform MCPs: sogou_weixin/weibo_hot/bilibili)
  *
  * Used by search-sources.mjs.
  */

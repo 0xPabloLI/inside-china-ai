@@ -343,6 +343,42 @@ describe("checkApiFallbackSource — api 型 site: 兜底层的体检", () => {
     expect(r.ok).toBe(false);
     expect(r.reason).toBe("network-error");
   });
+
+  // SearXNG drops `site:` on some engines, so a large result set can be
+  // entirely off-topic. Production runs this layer through applyRelevanceGuard
+  // (#269); a probe that skipped it would call an unusable layer healthy.
+  it("兜底层全是跑题的条目 ⇒ 与生产同一道相关性护栏，判 invalid-relevance", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          // RELEVANCE_MIN_RESULTS is 10: below it the guard deliberately
+          // stands down, so the fixture has to clear the threshold.
+          results: Array.from({ length: 12 }, (_, i) => ({
+            title: `unrelated headline ${i}`,
+            url: `https://www.reddit.com/r/other/comments/${i}/x/`,
+          })),
+        }),
+    });
+    const r = await checkApiFallbackSource(src, "quantum computing chips", { fetchImpl });
+    expect(r.ok).toBe(false);
+    expect(r.count).toBe(0);
+    expect(r.reason).toBe("invalid-relevance");
+    // Keep the raw size: "0 kept out of N" is what tells rot from a dead engine.
+    expect(r.extracted).toBe(12);
+  });
+
+  it("兜底层 200 但不是 JSON ⇒ parse-error，不伪装成 network-error", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => "<html><body>searxng: json format disabled</body></html>",
+    });
+    const r = await checkApiFallbackSource(src, "ai", { fetchImpl });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("parse-error");
+  });
 });
 
 /**
