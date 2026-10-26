@@ -462,6 +462,11 @@ describe("syncSelectorHealthIssues — #353 开票、去重累加、恢复自动
               title: "[selector-health] douyin: zero_results",
               body: "<!-- selector-health:source=douyin verdict=zero_results occurrences=1 -->",
             },
+            {
+              number: 604,
+              title: "[selector-health] qbitai: zero_results",
+              body: "<!-- selector-health:source=qbitai verdict=zero_results occurrences=1 -->",
+            },
           ],
         });
       }
@@ -490,6 +495,15 @@ describe("syncSelectorHealthIssues — #353 开票、去重累加、恢复自动
         },
         // douyin 本次是 need_login（probe）⇒ 测不了，不误关 #603
         { source: "douyin", ok: false, count: 0, reason: "need_login", durationMs: 3000 },
+        // qbitai 来自 --fallback 审计层（layer: "fallback"）⇒ 不是主层恢复，不误关 #604
+        {
+          source: "qbitai",
+          ok: true,
+          count: 8,
+          reason: null,
+          layer: "fallback",
+          durationMs: 5000,
+        },
       ],
       keywords,
       checkedAt,

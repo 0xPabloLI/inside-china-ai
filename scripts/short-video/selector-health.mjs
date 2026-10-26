@@ -337,11 +337,20 @@ export function classifyAlertBuckets(results = []) {
       probeIgnored.push(r);
     } else if (r.via === "site-fallback") {
       viaSiteFallback.push(r);
-    } else if (r.ok) {
+    } else if (r.ok && r.layer !== "fallback") {
       primaryHealthy.push(r);
     }
   }
   return { alerting, viaSiteFallback, probeIgnored, primaryHealthy };
+}
+
+function toAlertEntry(row, layer) {
+  return {
+    source: row.source,
+    verdict: row.reason ?? "unknown",
+    count: row.count ?? 0,
+    via: row.via ?? layer,
+  };
 }
 
 /**
@@ -383,12 +392,7 @@ export function buildHealthReport({
       probeSources: buckets.probeIgnored.map((r) => r.source),
     },
     alerts: {
-      alerting: buckets.alerting.map((r) => ({
-        source: r.source,
-        verdict: r.reason ?? "unknown",
-        count: r.count ?? 0,
-        via: r.via ?? layer,
-      })),
+      alerting: buckets.alerting.map((r) => toAlertEntry(r, layer)),
       viaSiteFallback: buckets.viaSiteFallback.map((r) => ({
         source: r.source,
         verdict: "site-fallback",
@@ -396,12 +400,7 @@ export function buildHealthReport({
         count: r.count ?? 0,
         via: "site-fallback",
       })),
-      probeIgnored: buckets.probeIgnored.map((r) => ({
-        source: r.source,
-        verdict: r.reason ?? "unknown",
-        count: r.count ?? 0,
-        via: r.via ?? layer,
-      })),
+      probeIgnored: buckets.probeIgnored.map((r) => toAlertEntry(r, layer)),
       issueActions,
     },
     results: normalizedResults,
@@ -1034,6 +1033,11 @@ async function main() {
         ? ` (incl. ${viaFallback.length} production-usable via site-fallback: ${viaFallback.map((r) => r.source).join(", ")})`
         : ""),
   );
+  if (viaFallback.length > 0) {
+    console.log(
+      `  🛟 ${viaFallback.length} via site-fallback (primary failed, do not alert): ${viaFallback.map((r) => `${r.source}:${r.primaryReason ?? "zero_results"}`).join(", ")}`,
+    );
+  }
   if (byClass.probe > 0) {
     console.log(
       `  ⚠️  ${byClass.probe} probe-not-authoritative / session-dependent (${buckets.probeIgnored.map((r) => `${r.source}:${r.reason}`).join(", ")}) — not source death, not for the ledger`,
@@ -1047,29 +1051,37 @@ async function main() {
 
   let issueActions = [];
   if (hasFlag("alert")) {
-    issueActions = syncSelectorHealthIssues({
-      results,
-      keywords,
-      checkedAt,
-      repo: getArg("repo") || DEFAULT_REPO,
-    });
-    if (issueActions.length === 0) {
-      console.log("  🔔 Alert sync: no issue actions needed");
+    if (fallbackMode) {
+      console.log("  🔔 Alert sync: skipped in --fallback audit mode");
     } else {
-      for (const act of issueActions) {
-        if (act.action === "created") {
-          console.log(
-            `  🔔 Alert sync: opened #${act.issueNumber ?? "new"} for ${act.source} (${act.verdict})`,
-          );
-        } else if (act.action === "commented") {
-          console.log(
-            `  🔔 Alert sync: updated #${act.issueNumber} for ${act.source} (${act.verdict}, occurrences=${act.occurrences})`,
-          );
-        } else if (act.action === "closed") {
-          console.log(
-            `  🔔 Alert sync: auto-closed #${act.issueNumber} (${act.source} recovered on primary)`,
-          );
+      try {
+        issueActions = syncSelectorHealthIssues({
+          results,
+          keywords,
+          checkedAt,
+          repo: getArg("repo") || DEFAULT_REPO,
+        });
+        if (issueActions.length === 0) {
+          console.log("  🔔 Alert sync: no issue actions needed");
+        } else {
+          for (const act of issueActions) {
+            if (act.action === "created") {
+              console.log(
+                `  🔔 Alert sync: opened #${act.issueNumber ?? "new"} for ${act.source} (${act.verdict})`,
+              );
+            } else if (act.action === "commented") {
+              console.log(
+                `  🔔 Alert sync: updated #${act.issueNumber} for ${act.source} (${act.verdict}, occurrences=${act.occurrences})`,
+              );
+            } else if (act.action === "closed") {
+              console.log(
+                `  🔔 Alert sync: auto-closed #${act.issueNumber} (${act.source} recovered on primary)`,
+              );
+            }
+          }
         }
+      } catch (err) {
+        console.warn(`  ⚠️  Alert sync failed: ${err.message}`);
       }
     }
   } else if (byClass.source > 0) {
