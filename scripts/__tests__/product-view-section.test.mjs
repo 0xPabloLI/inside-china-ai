@@ -22,8 +22,10 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -356,6 +358,39 @@ describe("the CLI an agent actually runs", () => {
     const result = run(empty, ["353", "--repo"]);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("usage:");
+  });
+
+  it("still runs when the path it was invoked by goes through a symlink", () => {
+    // `import.meta.url` is realpath-resolved and `argv[1]` keeps the link, so a
+    // raw `===` comparison concludes "this file was imported" and the process
+    // exits 0 having printed nothing. macOS `/tmp` and `/var` are symlinks, and so
+    // is any worktree reached through one — the failure is a silent empty success
+    // in exactly the tool whose job is to make that impossible.
+    const linked = join(root, "linked");
+    symlinkSync(realpathSync(join(import.meta.dirname, "..")), linked, "dir");
+    const viaSymlink = join(linked, "product-view-section.mjs");
+
+    const direct = run(withRecord, ["353", "--repo", "owner/repo"]);
+    const through = spawnSync("node", [viaSymlink, "353", "--repo", "owner/repo"], {
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${withRecord}:${process.env.PATH}` },
+    });
+
+    expect(through.status, "a symlinked path made the CLI a no-op").toBe(direct.status);
+    expect(through.stdout).toBe(direct.stdout);
+    expect(through.stdout).toContain("## 产品视角\n");
+  });
+
+  it("fails loudly through a symlink too, instead of exiting 0 with no output", () => {
+    const linked = join(root, "linked-empty");
+    symlinkSync(realpathSync(join(import.meta.dirname, "..")), linked, "dir");
+    const through = spawnSync(
+      "node",
+      [join(linked, "product-view-section.mjs"), "353", "--repo", "owner/repo"],
+      { encoding: "utf8", env: { ...process.env, PATH: `${empty}:${process.env.PATH}` } },
+    );
+    expect(through.status).toBe(1);
+    expect(through.stderr).toContain("no compliant");
   });
 });
 
