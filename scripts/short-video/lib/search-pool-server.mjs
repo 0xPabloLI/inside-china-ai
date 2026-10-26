@@ -28,12 +28,13 @@
  * implements the client side of the same protocol.
  */
 
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { searchPool } from "./search-pool.mjs";
 import { loadEnv } from "./load-env.mjs";
 import { ALL_SOURCES } from "./source-registry.mjs";
 import { callMcpTool, parseMcpResult } from "./mcp-client.mjs";
-import { realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 
 export const TOOL_NAME = "web_search";
 

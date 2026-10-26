@@ -132,16 +132,21 @@ describe("no script reintroduces a guard the symlink defeats", () => {
     },
     {
       name: "comparing resolve(argv[1]) to import.meta.url",
-      // path.resolve normalizes `..` but keeps symlinks.
-      test: (line) =>
-        /(?:^|[^.\w])resolve\(process\.argv\[1\]\)/.test(line) &&
-        line.includes("fileURLToPath(import.meta.url)"),
+      // path.resolve normalizes `..` but keeps symlinks. `\b` rather than a
+      // boundary character, so the qualified `path.resolve(...)` spelling — the
+      // one `searxng/lifecycle.mjs` carried — is covered too.
+      test: (line, source) =>
+        /\bresolve\(process\.argv\[1\]\)/.test(line) &&
+        !line.includes("realpathSync") &&
+        source.includes("fileURLToPath(import.meta.url)"),
     },
     {
       name: "matching the script's basename",
-      // Accepts any file with that name anywhere on disk, which is how a guard
-      // fires on the wrong process.
-      test: (line) => line.includes("process.argv[1].endsWith("),
+      // `.endsWith` and `.includes` on the invoked path accept any file with
+      // that name anywhere on disk, which is how a guard fires on the wrong
+      // process — `snapshot-trending.mjs` carried both spellings.
+      test: (line) =>
+        line.includes("process.argv[1].endsWith(") || line.includes("process.argv[1].includes("),
     },
   ];
 
@@ -180,12 +185,49 @@ describe("no script reintroduces a guard the symlink defeats", () => {
   it.each(BANNED)("rejects $name", ({ test }) => {
     const offenders = [];
     for (const file of cliScripts()) {
-      readFileSync(join(repoRoot, file), "utf8")
-        .split("\n")
-        .forEach((line, i) => {
-          if (test(line)) offenders.push(`${file}:${i + 1}: ${line.trim()}`);
-        });
+      const source = readFileSync(join(repoRoot, file), "utf8");
+      source.split("\n").forEach((line, i) => {
+        if (test(line, source)) offenders.push(`${file}:${i + 1}: ${line.trim()}`);
+      });
     }
     expect(offenders, "use realpathSync(argv[1]) === fileURLToPath(import.meta.url)").toEqual([]);
+  });
+
+  /**
+   * The bans above only catch a shape somebody thought of. These cases feed the
+   * shapes this repository actually shipped to the rule set, so a future edit
+   * that narrows a rule fails here even if no file in the tree carries it.
+   */
+  it.each([
+    ["path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)", "resolve(argv[1])"],
+    [
+      "const isMain = resolve(process.argv[1]) === fileURLToPath(import.meta.url);",
+      "resolve(argv[1])",
+    ],
+    ['if (process.argv[1].includes("snapshot-trending")) {', "basename"],
+    [
+      'const isMainModule = process.argv[1] && process.argv[1].endsWith("asset-sourcer.mjs");',
+      "basename",
+    ],
+    ["if (import.meta.url === `file://${process.argv[1]}`) {", "`file://`"],
+    [
+      "if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {",
+      "pathToFileURL",
+    ],
+  ])("flags %s", (line, expectedName) => {
+    const hits = BANNED.filter((rule) =>
+      rule.test(
+        line,
+        "import { fileURLToPath } from 'node:url'; // fileURLToPath(import.meta.url)",
+      ),
+    ).map((rule) => rule.name);
+    expect(hits.join(" | ")).toContain(expectedName);
+  });
+
+  it("leaves the accepted guard alone", () => {
+    // The positive target, so the rule set is checked for false positives too.
+    const line =
+      "if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {";
+    expect(BANNED.filter((rule) => rule.test(line, line))).toEqual([]);
   });
 });
