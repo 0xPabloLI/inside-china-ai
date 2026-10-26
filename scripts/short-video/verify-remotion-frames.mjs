@@ -26,7 +26,7 @@ import { join, dirname } from "path";
 import { resolveSceneAudio } from "./lib/audio/sync.mjs";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
-import { SAFE_ZONES } from "./lib/safe-zones.mjs";
+import { MEDIA_BAND, SAFE_ZONES } from "./lib/safe-zones.mjs";
 import { FPS, sceneTimeline, scheduleTotalFrames, TRANSITION_FRAMES } from "./lib/timeline.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
 import { runFrameAnalysis, checkFinalFrameHasContent } from "./lib/frame-analysis.mjs";
@@ -216,8 +216,17 @@ for (let i = 0; i < scenes.length; i++) {
     continue;
   }
 
-  // Run analysis
-  const analysisResults = runFrameAnalysis(buf, SAFE_ZONES);
+  // Run analysis. The media-band fill check probes the TOP of a band, which is
+  // only unambiguous where no chrome or copy lives: media-bottom-bar clips the
+  // picture at MEDIA_BAND.bottom and keeps its text in the lower half. The hook
+  // paints full-frame media under the brand bar and badge, and every other
+  // layout (context/cta, card mode) has no full-bleed picture to measure, so
+  // both are left unprobed rather than reported as a pass they did not earn.
+  const mediaBandBottom =
+    scene.media && scene.media.mode !== "card" && scene.layout === "media-bottom-bar"
+      ? MEDIA_BAND.bottom
+      : null;
+  const analysisResults = runFrameAnalysis(buf, SAFE_ZONES, { mediaBandBottom });
   for (const r of analysisResults) {
     logResult(r);
   }

@@ -11,6 +11,14 @@
  * MediaBackground is unaffected because it sets `objectFit` in mediaStyle; the
  * logo sites simply omitted it. This test keeps a future logo site from doing
  * the same: any <CanvasImage> bound to a static asset must declare its fit.
+ *
+ * Revised 2026-10-25 — the "MediaBackground is unaffected" note above was
+ * WRONG, and this file was pinning the bug. `objectFit` in mediaStyle does
+ * reach <CanvasImage>/<Img> (plain DOM elements), but @remotion/media's
+ * <Video> takes it as a PROP and ignores the style form, defaulting to
+ * `contain`. So the video branch letterboxed every scene while the image
+ * branch honoured `fit`, and this test asserted the style pattern as if it
+ * covered both. The last case now pins the correct split.
  */
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -79,8 +87,21 @@ describe("CanvasImage fit contract", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("media images keep their own fit through mediaStyle", () => {
+  it("media keeps its declared fit on BOTH branches: prop for <Video>, style for the DOM elements", () => {
     const media = readFileSync(join(REMOTION_SRC, "components", "MediaBackground.tsx"), "utf8");
-    expect(media).toMatch(/objectFit:\s*media\.fit\s*\?\?\s*"cover"/);
+
+    // One resolved fit value, defaulting to cover.
+    expect(media).toMatch(/const fit\s*=\s*media\.fit\s*\?\?\s*"cover"/);
+
+    // @remotion/media's <Video> only reads the PROP. A style-only declaration
+    // silently renders `contain` — the 2026-10-25 letterbox bug.
+    expect(media).toMatch(/objectFit=\{fit\}/);
+    expect(media).toMatch(/objectFit="cover"/);
+
+    // The style form must NOT come back for the video branches.
+    expect(media).not.toMatch(/objectFit:\s*media\.fit/);
+
+    // <CanvasImage>/<Img> are plain DOM, so they take the style form.
+    expect(media).toMatch(/objectFit:\s*fit/);
   });
 });

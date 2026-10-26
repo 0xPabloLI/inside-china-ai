@@ -215,8 +215,37 @@ export const tiktokProfile = {
       },
       {
         id: "add-sound",
-        label: 'Tap "Add sound" → Pick a trending sound (set volume 5-10%)',
-        detail: ["Trending audio boosts discoverability significantly."],
+        // Was an app-only manual step, then scripted on 2026-10-24 via the web
+        // upload page's 音乐 (Music) tab. Corrected 2026-10-25 after the first
+        // real publish, because the scripted path had two defects that both
+        // failed SILENTLY:
+        //
+        //   1. The volume slider is a custom TUX component; writing to the
+        //      0x0 `input[type=range]` inside it changed nothing while the
+        //      script reported "-20 dB". The music therefore stayed at 0 dB —
+        //      ~1 dB ABOVE the narration — which is the opposite of the mix we
+        //      want. The script now clicks the real slider and reads the value
+        //      back, and refuses to continue if it does not match.
+        //   2. Attaching alone does not apply anything: the editor has to be
+        //      saved (保存) before the music joins the clip, and the publish
+        //      button sits below the fold behind the editor overlay.
+        //
+        // What the web flow CANNOT do is label the post with the sound. The
+        // music is written into the clip's own audio, so the published post's
+        // sound still reads "原声 - Chinaainews" (verified on the live post
+        // 7700554811866909970). A "Breaking News - Voxie" label needs the app.
+        //
+        // STANDING DEFAULT (user, 2026-10-25): once the video is approved at
+        // HITL, publish it end to end — attach the music bed, set its level,
+        // disclose AIGC, click 发布 — without coming back with a BGM question.
+        label: "Audio: attach the music bed at the calibrated level, then publish",
+        detail: [
+          "Automation (one pass, after HITL approval):",
+          'node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --sound "Breaking News" --sound-owner Voxie --volume-db -15 --publish',
+          "Set the level by measurement: a -20 dB slider reading measured 22.2 dB below the narration on the live post.",
+          "-15 dB lands near -17 dB, mid-range in the 15-25 dB guidance for music under speech.",
+          "The script reads the slider back and aborts if it misses by more than 1 dB.",
+        ],
       },
       {
         id: "location",

@@ -36,6 +36,12 @@ omit =
     scripts/short-video/lib/qwen38_vlm_wrapper.py
     # Manual probe scripts that happen to sit in lib/.
     scripts/short-video/lib/test_minicpm_*.py
+    # Prosody probe: a CLI that measures F0 range/motion and loudness dynamics
+    # from a wav, to compare TTS takes by ear-independent numbers before
+    # spending a batch. Needs librosa (not in the CI venv above, so a test could
+    # not import it) plus real audio to measure anything; every line runs when
+    # an operator invokes it. Diagnostic tool, not pipeline logic.
+    scripts/short-video/lib/prosody-probe.py
     # B-roll generation: the generator bodies need MLX int8 weights and model
     # downloads, so the only part CI can reach is the planning functions — and
     # test_broll_warmup.py already asserts those directly (functional checks of

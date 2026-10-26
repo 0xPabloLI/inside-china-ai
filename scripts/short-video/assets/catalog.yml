@@ -174,3 +174,91 @@
       evidence,
       screenshot,
     ]
+
+# ── unitree-h2x-guardian (2026-10-21 H2-X announcement film) ──
+# Six acts cut from the official 60.72s film (1920x1080@50fps). Binaries are
+# gitignored per .gitignore `content/**/assets/`; these entries exist so the
+# clips are RAG-searchable and their provenance is recorded. Act boundaries and
+# the extraction commands are in docs/refs/source-materials/unitree-h2x-guardian-2026-10-21.md.
+
+- file: content/unitree-h2x-guardian/assets/clips/act1-martial.mp4
+  type: video
+  description: "Act 1 — H2-X in a scrapyard performing martial-arts moves, then jumping onto a stack of cars. Official caption visible: real footage with no speed-up"
+  source: "YouTube official Unitree film https://www.youtube.com/watch?v=Y3zb4o47yqA (act1 0.30-9.85s, cut 2026-10-25)"
+  license: "Unitree Robotics official release — used as news footage"
+  used_in: [unitree-h2x-guardian/S2]
+  keywords:
+    [
+      unitree,
+      h2-x,
+      humanoid robot,
+      martial arts,
+      scrapyard,
+      car stack,
+      official footage,
+      no speed-up,
+    ]
+
+- file: content/unitree-h2x-guardian/assets/clips/act2-parkour.mp4
+  type: video
+  description: "Act 2 — H2-X vaults over a parked car, under the official caption '4 meter high platform'"
+  source: "YouTube official Unitree film https://www.youtube.com/watch?v=Y3zb4o47yqA (act2 9.90-18.80s, cut 2026-10-25)"
+  license: "Unitree Robotics official release — used as news footage"
+  used_in: [unitree-h2x-guardian/S3]
+  keywords:
+    [unitree, h2-x, humanoid robot, parkour, vault, car, 4 meter high platform, official footage]
+
+- file: content/unitree-h2x-guardian/assets/clips/act3-jump.mp4
+  type: video
+  description: "Act 3 — H2-X drops from a 4 metre platform and lands, then backflips"
+  source: "YouTube official Unitree film https://www.youtube.com/watch?v=Y3zb4o47yqA (act3 18.85-27.30s, cut 2026-10-25)"
+  license: "Unitree Robotics official release — used as news footage"
+  used_in: [unitree-h2x-guardian/S4]
+  keywords: [unitree, h2-x, humanoid robot, 4 meter drop, backflip, landing, official footage]
+
+- file: content/unitree-h2x-guardian/assets/clips/act4-night.mp4
+  type: video
+  description: "Act 4 — night villa security scenario: H2-X intercepts and disarms a person holding a knife, under the official caption 'security demonstration'"
+  source: "YouTube official Unitree film https://www.youtube.com/watch?v=Y3zb4o47yqA (act4 27.35-41.05s, cut 2026-10-25)"
+  license: "Unitree Robotics official release — used as news footage"
+  used_in: [unitree-h2x-guardian/S5]
+  keywords:
+    [
+      unitree,
+      h2-x,
+      humanoid robot,
+      security robot,
+      guard,
+      knife,
+      disarm,
+      night,
+      villa,
+      staged demonstration,
+    ]
+
+- file: content/unitree-h2x-guardian/assets/clips/act5-lift.mp4
+  type: video
+  description: "Act 5 — daylight shot of H2-X lifting a car off the ground; also the hook frame"
+  source: "YouTube official Unitree film https://www.youtube.com/watch?v=Y3zb4o47yqA (act5 41.10-47.72s, cut 2026-10-25)"
+  license: "Unitree Robotics official release — used as news footage"
+  used_in: [unitree-h2x-guardian/S1, unitree-h2x-guardian/S6]
+  keywords: [unitree, h2-x, humanoid robot, car lift, strength, daylight, hook, official footage]
+
+- file: content/unitree-h2x-guardian/assets/clips/act6-rescue.mp4
+  type: video
+  description: "Act 6 — a second gold-coloured H2-X pulls a dummy clear from under a car, under the official caption 'props used for reference only'"
+  source: "YouTube official Unitree film https://www.youtube.com/watch?v=Y3zb4o47yqA (act6 47.75-54.30s, cut 2026-10-25)"
+  license: "Unitree Robotics official release — used as news footage"
+  used_in: [unitree-h2x-guardian/S7]
+  keywords:
+    [
+      unitree,
+      h2-x,
+      humanoid robot,
+      rescue,
+      dummy,
+      car,
+      gold,
+      props for reference only,
+      staged demonstration,
+    ]

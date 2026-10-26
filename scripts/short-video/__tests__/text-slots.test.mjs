@@ -151,11 +151,11 @@ describe("shrink order", () => {
 describe("group budgets (T9, decision 68)", () => {
   it("calibrates both media-overlay bands", () => {
     // Top band: safe-zone top (220) down to the bottom band's highest possible
-    // top edge (1150 − 336 = 814) — the two bands may never overlap.
-    expect(getGroup("narrative.media-overlay.top-band").maxHeight).toBe(594);
-    // Bottom band: the pipeline's established bottom-band budget, the same
-    // 336px text bar media-bottom-bar anchors at y=1150.
-    expect(getGroup("narrative.media-overlay.bottom-band").maxHeight).toBe(336);
+    // top edge (1150 − 312 = 838) — the two bands may never overlap.
+    expect(getGroup("narrative.media-overlay.top-band").maxHeight).toBe(618);
+    // Bottom band: the four-row ceiling the media-bottom-bar text bar caps at,
+    // anchored at y=1150.
+    expect(getGroup("narrative.media-overlay.bottom-band").maxHeight).toBe(312);
   });
 
   it("refuses a group nobody calibrated", () => {

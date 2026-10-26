@@ -93,8 +93,12 @@ export const AvatarCard: React.FC<{ avatar?: AvatarField; duration: number }> = 
               style={{
                 width: "100%",
                 height: "100%",
-                objectFit: "cover",
               }}
+              // Prop, not style — @remotion/media's <Video> ignores
+              // style.objectFit and falls back to `contain` (see
+              // MediaBackground.tsx). The DH card is a fixed 420x550 box, so
+              // the difference is a letterboxed head inside the card.
+              objectFit="cover"
               trimBefore={w.from}
               volume={0}
             />

@@ -361,7 +361,10 @@ function paintedBoxOfSvg(
   svg.querySelectorAll("path").forEach((path) => {
     const sw = Number.parseFloat(path.getAttribute("stroke-width") ?? "0") || 0;
     const half = sw / 2;
-    let len = 0;
+    // Pre-existing on main; the incremental lint gate scans any file this PR
+    // touches, so it has to be clean to land. `len` only ever holds the
+    // measurement, so the throwaway initialiser was dead.
+    let len: number;
     try {
       len = path.getTotalLength();
     } catch {
@@ -521,8 +524,8 @@ export const TextGate: React.FC<TextGateProps> = ({
 
   const fail = (
     reason: string,
-    measured: { width: number; height: number | null },
-    available: { width: number; height: number | null },
+    measured: { x?: number; y?: number; width: number; height: number | null },
+    available: { x?: number; y?: number; width: number; height: number | null },
     size: number,
     inkPad: Pad,
   ): never => {
@@ -819,13 +822,7 @@ export const TextGate: React.FC<TextGateProps> = ({
         if (entranceContainer) {
           const containerBox = layoutContentBoxOf(entranceContainer);
           if (!boxWithin(gateBox, containerBox, EPS)) {
-            fail(
-              FIT_REASONS.containerOverflow,
-              { width: gateBox.width, height: gateBox.height },
-              { width: containerBox.width, height: containerBox.height },
-              fontSize,
-              inkRef.current,
-            );
+            fail(FIT_REASONS.containerOverflow, gateBox, containerBox, fontSize, inkRef.current);
           }
         }
       }
@@ -905,13 +902,7 @@ export const TextGate: React.FC<TextGateProps> = ({
         const containerLayout = layoutContentBoxOf(containerEl);
         const gateLayoutBox = layoutBoxOf(gate);
         if (!boxWithin(gateLayoutBox, containerLayout, EPS)) {
-          fail(
-            FIT_REASONS.containerOverflow,
-            { width: gateLayoutBox.width, height: gateLayoutBox.height },
-            { width: containerLayout.width, height: containerLayout.height },
-            fontSize,
-            ink,
-          );
+          fail(FIT_REASONS.containerOverflow, gateLayoutBox, containerLayout, fontSize, ink);
         }
         // Annotation bounds: the content box plus the annotation family's
         // measured overdraw tolerance (decision 70) — stability-polled, see
