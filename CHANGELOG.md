@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.33.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.33.0...tanstack_start_ts-v1.33.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **short-video:** endpoint_blocked verdict + SearXNG site: fallback for reddit ([#358](https://github.com/0xPabloLI/inside-china-ai/issues/358)) ([#967](https://github.com/0xPabloLI/inside-china-ai/issues/967)) ([75fb270](https://github.com/0xPabloLI/inside-china-ai/commit/75fb270439b982b21287d644c5947b211bf6e291))
+
 ## [1.33.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.32.0...tanstack_start_ts-v1.33.0) (2026-10-26)
 
 
