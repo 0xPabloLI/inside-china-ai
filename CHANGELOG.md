@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.34.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.2...tanstack_start_ts-v1.34.3) (2026-10-26)
+
+
+### Bug Fixes
+
+* **ytdlp:** own the ffmpeg child's http_proxy ([#329](https://github.com/0xPabloLI/inside-china-ai/issues/329)) ([#979](https://github.com/0xPabloLI/inside-china-ai/issues/979)) ([a0242a1](https://github.com/0xPabloLI/inside-china-ai/commit/a0242a1bcf5fde1d77b33d440ca7849fa88d26bc))
+
 ## [1.34.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.1...tanstack_start_ts-v1.34.2) (2026-10-26)
 
 
