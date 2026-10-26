@@ -68,6 +68,7 @@ import {
   ytdlpContainerMime,
   ytdlpCookieSource,
   ytdlpProxyArg,
+  ytdlpProxyEnv,
 } from "../lib/ytdlp-guard.mjs";
 import { searchYtdlp, downloadYtdlp } from "../lib/asset-sourcer.mjs";
 import { downloadYtdlpAdapter } from "../lib/video-downloaders.mjs";
@@ -638,6 +639,12 @@ const SCUTIL_ALL_ENABLED = `<dictionary> {
   SOCKSProxy : 127.0.0.1
 }`;
 
+// #329 verdict fixture: SOCKS on, HTTP/HTTPS off.
+const SCUTIL_SOCKS_ONLY = SCUTIL_ALL_ENABLED.replace("HTTPEnable : 1", "HTTPEnable : 0").replace(
+  "HTTPSEnable : 1",
+  "HTTPSEnable : 0",
+);
+
 describe("#324 system proxy parsing", () => {
   it("reads every enabled HTTP(S)/SOCKS protocol, skipping the nested ExceptionsList entries", () => {
     expect(parseMacSystemProxy(SCUTIL_ALL_ENABLED)).toEqual({
@@ -725,14 +732,15 @@ describe("#324 proxy resolution", () => {
     // it, so a SOCKS-only system config leaves the `--download-sections` leg
     // direct-connected. The verdict stays "no proxy", but it is now a stated
     // one instead of a silent null.
-    const socksOnly = SCUTIL_ALL_ENABLED.replace("HTTPEnable : 1", "HTTPEnable : 0").replace(
-      "HTTPSEnable : 1",
-      "HTTPSEnable : 0",
-    );
-    expect(socksOnly).toContain("SOCKSEnable : 1");
+    expect(SCUTIL_SOCKS_ONLY).toContain("SOCKSEnable : 1");
     const warnings = {};
     const warn = vi.fn();
-    const deps = { env: {}, readSystemProxy: () => parseMacSystemProxy(socksOnly), warnings, warn };
+    const deps = {
+      env: {},
+      readSystemProxy: () => parseMacSystemProxy(SCUTIL_SOCKS_ONLY),
+      warnings,
+      warn,
+    };
     expect(resolveYtdlpProxy(deps)).toBeNull();
     expect(warn).toHaveBeenCalledTimes(1);
     // Names the endpoint so the operator can see which proxy is unusable, and
@@ -758,17 +766,15 @@ describe("#324 proxy resolution", () => {
   });
 
   it("does not warn when an env proxy already decides the route", () => {
-    const socksOnly = SCUTIL_ALL_ENABLED.replace("HTTPEnable : 1", "HTTPEnable : 0").replace(
-      "HTTPSEnable : 1",
-      "HTTPSEnable : 0",
-    );
     const warn = vi.fn();
-    resolveYtdlpProxy({
-      env: { HTTP_PROXY: "http://127.0.0.1:7897" },
-      readSystemProxy: () => parseMacSystemProxy(socksOnly),
-      warnings: {},
-      warn,
-    });
+    expect(
+      resolveYtdlpProxy({
+        env: { HTTP_PROXY: "http://127.0.0.1:7897" },
+        readSystemProxy: () => parseMacSystemProxy(SCUTIL_SOCKS_ONLY),
+        warnings: {},
+        warn,
+      }),
+    ).toBe("http://127.0.0.1:7897");
     expect(warn).not.toHaveBeenCalled();
   });
 
@@ -919,13 +925,21 @@ describe("#324 yt-dlp proxy hand-off", () => {
 
 // ─── #329: real-binary probe for the ffmpeg env hand-off ───
 //
-// The unit tests above pin that we hand the variable to the yt-dlp child; this
-// probe closes the last hop (yt-dlp → ffmpeg) with the real binary. It is
-// offline by construction: yt-dlp reads a hand-written info JSON instead of a
-// page, and a stub `ffmpeg` captures its own environment instead of fetching.
-// Skipped where yt-dlp is absent (CI carries no such guarantee) — on a machine
-// that runs the pipeline it is the end-to-end canary: if yt-dlp stops
-// inheriting the parent env into the ffmpeg child, this goes red.
+// Protocol — this is a developer-machine gate, not a CI gate. It needs the
+// real yt-dlp on PATH (the pipeline host has it); elsewhere the block is
+// skipped, because CI carries no such guarantee and the 2026-09-25 triage
+// ruled out depending on the binary or the network there.
+//
+// What it pins: the last hop (yt-dlp → ffmpeg) for the overlay OUR seam
+// produces — the unit tests above pin that both spawn sites call
+// ytdlpProxyEnv(). If yt-dlp stops copying the parent env into the ffmpeg
+// child, this goes red on a machine that runs the pipeline.
+//
+// Offline by construction: yt-dlp reads a hand-written info JSON instead of a
+// page, and a stub `ffmpeg` records its own environment instead of fetching.
+// Upstream FFmpegFD's own `--proxy` injection is deliberately not asserted:
+// it is no longer load-bearing, and a red test with no production impact
+// would be noise.
 const ytdlpVersion = spawnSync("yt-dlp", ["--version"], { encoding: "utf8", timeout: 20000 });
 
 describe.skipIf(ytdlpVersion.status !== 0)("#329 ffmpeg env hand-off (real yt-dlp)", () => {
@@ -975,6 +989,24 @@ describe.skipIf(ytdlpVersion.status !== 0)("#329 ffmpeg env hand-off (real yt-dl
           ],
         }),
       );
+      // The overlay comes from the seam under test, not from the test itself,
+      // so the probe covers helper → child as one chain.
+      const overlay = ytdlpProxyEnv({
+        env: { HTTP_PROXY: "http://127.0.0.1:18888" },
+        readSystemProxy: () => null,
+      });
+      expect(overlay).toEqual({ http_proxy: "http://127.0.0.1:18888" });
+      // Minimal child env on purpose: the stub writes its env to a temp file,
+      // and the developer shell's secrets (API keys and the like) must not be
+      // copied into it. No --proxy either: the overlay is what must arrive.
+      const childEnv = {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        LANG: process.env.LANG ?? "en_US.UTF-8",
+        ...overlay,
+        PROBE_DUMP: dump,
+      };
+      if (process.env.TMPDIR) childEnv.TMPDIR = process.env.TMPDIR;
       const res = spawnSync(
         "yt-dlp",
         [
@@ -991,15 +1023,12 @@ describe.skipIf(ytdlpVersion.status !== 0)("#329 ffmpeg env hand-off (real yt-dl
           join(dir, "out.mp4"),
         ],
         {
-          // No --proxy on purpose: the overlay we ship is what must arrive.
-          env: { ...process.env, http_proxy: "http://127.0.0.1:18888", PROBE_DUMP: dump },
+          env: childEnv,
           encoding: "utf8",
           timeout: 60000,
         },
       );
       expect(existsSync(dump), `yt-dlp stderr: ${res.stderr}`).toBe(true);
-      // Read only the two lines under test: the dump holds the whole child env
-      // (API keys included), and a failing assertion would print all of it.
       const lines = readFileSync(dump, "utf8").split("\n");
       const argvLine = lines.find((l) => l.startsWith("ARGV: ")) ?? "";
       const httpProxyLine = lines.find((l) => l.startsWith("http_proxy=")) ?? "";

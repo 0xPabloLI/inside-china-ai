@@ -619,7 +619,9 @@ export function downloadYtdlpAdapter(url) {
   try {
     // #329: the non-TikTok branches use --download-sections, which delegates
     // the fetch to ffmpeg; hand that child the lower-case variable directly
-    // instead of relying on upstream's --proxy injection.
+    // instead of relying on upstream's --proxy injection. Applied on every
+    // branch: the proxy already rides --proxy for all of them, so this only
+    // adds the spelling ffmpeg reads.
     execSync(cmd, {
       encoding: "utf8",
       timeout: timeoutMs,
