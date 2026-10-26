@@ -19,10 +19,25 @@ import { REVIEW_THRESHOLD } from "./source-health.mjs";
 const EMPTY_SCRIPT_RE = /^var results = \[\];\s*return results;\s*;?$/;
 
 /**
+ * Resolve a channel's url getter into a probeable string.
+ *
+ * @param {Function|string|undefined} urlFn
+ * @param {string} keyword - placeholder keyword for layers built from a getter
+ * @returns {string} the URL, or "" when it cannot be resolved
+ */
+function safeUrl(urlFn, keyword) {
+  try {
+    return typeof urlFn === "function" ? String(urlFn(keyword)) : String(urlFn ?? "");
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Derive the ordered access channels of one registry source.
  *
  * @param {object} source - registry source definition
- * @returns {Array<{type: string, detail: string, primary: boolean, probe: "http"|"browser"|"command", command?: string, toolName?: string}>}
+ * @returns {Array<{type: string, detail: string, primary: boolean, probe: "http"|"browser"|"command", probeUrl?: string, command?: string, toolName?: string}>}
  *   channels ordered so the declared primary (accessMethod.primary) comes first
  */
 export function deriveChannels(source) {
@@ -60,6 +75,22 @@ export function deriveChannels(source) {
   }
   // #88 auto-generated fallbacks live under capabilities.articles (explicit
   // source-level config stays on the source itself) — read both.
+  // #358: HTTP-native site: layer (SearXNG). Pushed before the Google layer
+  // because the sort below only keys on `primary`, so insertion order IS the
+  // reported chain order — and production probes this layer first.
+  const apiSiteFallback = source.apiSiteFallback ?? source.capabilities?.articles?.apiSiteFallback;
+  if (apiSiteFallback) {
+    channels.push({
+      type: "searxng-site",
+      detail: `site:${apiSiteFallback.site ?? "?"} via SearXNG`,
+      // The detail above is human-readable, so it can never satisfy the
+      // `startsWith("http")` probe gate; the layer's own URL is what a live
+      // probe can actually GET (it answers whether the aggregator serves).
+      probeUrl: safeUrl(apiSiteFallback.url, "test"),
+      primary: false,
+      probe: "http",
+    });
+  }
   const siteFallback =
     source.googleSiteFallback ?? source.capabilities?.articles?.googleSiteFallback;
   if (siteFallback) {
@@ -150,7 +181,8 @@ export function summarizeChannelInventory(inventory) {
  * - command: checks the MCP host binary exists on PATH (module availability
  *   is NOT verified — spawning each MCP server would be far too heavy).
  * - http (live mode only): GET with a short timeout; records the status and
- *   a blocked flag for 403/429.
+ *   a blocked flag for 403/429. `probeUrl` wins over `detail` when a channel
+ *   reports a human-readable detail (the searxng-site layer does).
  * - browser: never probed — needs a logged-in CDP session, reported as unprobed.
  *
  * @param {object} entry - inventory entry with channels
@@ -171,9 +203,14 @@ export async function probeChannels(entry, opts = {}) {
       } catch {
         probe.status = "command-missing";
       }
-    } else if (channel.probe === "http" && live && channel.detail.startsWith("http")) {
+    } else if (
+      channel.probe === "http" &&
+      live &&
+      (channel.probeUrl ?? channel.detail).startsWith("http")
+    ) {
+      const target = channel.probeUrl ?? channel.detail;
       try {
-        const resp = await fetch(channel.detail, {
+        const resp = await fetch(target, {
           signal: AbortSignal.timeout(timeoutMs),
           headers: { "User-Agent": "Mozilla/5.0 (channel-doctor; inside-china-ai)" },
         });

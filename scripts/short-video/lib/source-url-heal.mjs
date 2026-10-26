@@ -105,8 +105,13 @@ export function detectLoginWall({ finalUrl = "", html = "" } = {}) {
 
 /** Anti-bot / WAF / rate-limit signatures. A 403 that comes from a WAF says
  * nothing about whether the URL pattern is alive: xinhua's `so.news.cn/getNews`
- * answers a real browser with 200 + JSON and a Node fetch with 403 (openresty),
- * and reddit answers *everything* non-browser with a network-security block.
+ * answers a real browser with 200 + JSON and a Node fetch with 403 (openresty).
+ *
+ * Reddit used to be the second example here, and the 2026-10-26 measurement
+ * (#358) split its case off: `search.json` answers *every* non-browser client
+ * with 403 + a block page, and the source declares no credential, so there is
+ * no browser second opinion to bring — that is `endpoint_blocked`
+ * (resolveCredentiallessBlockVerdict below), not a probe artefact.
  *
  * This list is necessarily incomplete and should be treated as such — it is a
  * vocabulary of observed interstitials, not a detector. The structural protection
@@ -190,11 +195,19 @@ export function detectZeroResults(text) {
  *   login-wall             the answer depends on cookies, not on the URL
  *   probe-not-authoritative 401/403/405/429 — an edge/WAF/credential answer
  *                          about the *probe*; a real browser may differ
+ *   endpoint_blocked      403 from a source that declares no credential at all
+ *                          (`apiSearch.authRequired: false`): there is no key to
+ *                          bring and no cookie layer behind the probe, so the
+ *                          refusal is the endpoint's answer to the source, not
+ *                          a measurement gap (#358, reddit). Produced by
+ *                          resolveCredentiallessBlockVerdict below — the api
+ *                          layer's entry point, not classifyProbe itself.
  *
- * The last three are the accuracy fixes of 2026-09-22/23: calling them "dead" is
- * what sent live sources to the repair queue while the actual repair was "look
- * at it from a browser", or "the probe has no route to this host" (#269 Phase 2
- * methodology step 5).
+ * The three entries before `endpoint_blocked` (`login-wall`,
+ * `probe-not-authoritative`, `probe-no-egress`) are the accuracy fixes of
+ * 2026-09-22/23: calling them "dead" is what sent live sources to the repair
+ * queue while the actual repair was "look at it from a browser", or "the probe
+ * has no route to this host" (#269 Phase 2 methodology step 5).
  */
 
 /**
@@ -283,7 +296,72 @@ export const PROBE_UNAUTHORITATIVE_VERDICTS = new Set([
   EGRESS_UNREACHABLE_VERDICT,
 ]);
 
-/** True when the verdict means the source itself needs repair or quarantine. */
+/**
+ * #358: the endpoint refuses anonymous traffic and the source has no credential
+ * to supply.
+ *
+ * `probe-not-authoritative` is the right label when the answer is about the
+ * *probe* — "bring a key", "bring a browser session". For an api layer that
+ * declares `authRequired: false` there is neither: the probe request IS the
+ * production request, and nothing behind it can rescue the call. Reddit answers
+ * `search.json` with 403 + a ~190KB block page to every non-browser client, and
+ * its CDP fallback is the same URL, so the old verdict ("we cannot measure")
+ * left a dead source outside the failure ledger and invisible to #353's
+ * alerting.
+ *
+ * Source class on purpose: it must reach the failure list, alerting and a
+ * non-zero exit code the way `http-dead` does.
+ *
+ * **403 only.** A 401 from an endpoint that declares no credentials is not
+ * "closed to anonymous traffic" — it says a credential *is* required, so the
+ * registry declaration is wrong (a probe/config fact), and that answer keeps
+ * its `probe-not-authoritative` reading. A 403 whose body says "rate limit"
+ * keeps it too: throttling is temporary and the collector retries
+ * (looksRateLimited below).
+ *
+ * Callers: axis 3 (`apiFailureVerdict` in selector-health) and axis 1
+ * (`source-url-sweep`, apiSearch probes). Only a probe of the *api endpoint*
+ * may upgrade — a bare fetch of a CDP search page is a measurement whose browser
+ * second opinion can still differ, so those callers pass `authRequired: true`.
+ * The rule lives here rather than in either caller because the runbook's own
+ * lesson is that a criterion copied per axis drifts per axis
+ * (docs/selector-auto-healing.md, 第三/第四个假判决).
+ */
+export const ENDPOINT_BLOCKED_VERDICT = "endpoint_blocked";
+
+/**
+ * "You are over your quota" is not "we do not serve anonymous clients".
+ *
+ * Both arrive as 403 with a short body, so status alone cannot separate them.
+ * GitHub's unauthenticated Search API answers a spent anonymous quota with
+ * 403 + `{"message":"API rate limit exceeded for …"}`; recording that as
+ * `endpoint_blocked` would write a working, merely throttled source into the
+ * dead ledger — the same false-dead class #332 removed for 429. Wording, not
+ * status, is the discriminator here (429 is a rate-limit answer by itself).
+ */
+const RATE_LIMIT_RE =
+  /rate.?limit|too many requests|throttl|quota exceeded|请求过于频繁|访问频率|访问过于频繁|api 调用.{0,12}上限/i;
+
+function looksRateLimited({ status, body = "" } = {}) {
+  if (status === 429) return true;
+  return RATE_LIMIT_RE.test(String(body ?? ""));
+}
+
+/**
+ * @param {{reason?: string|null, status?: number|null, authRequired?: boolean|null, body?: string}} probe
+ * @returns {string|null|undefined} the reason to record (upgraded when applicable)
+ */
+export function resolveCredentiallessBlockVerdict({ reason, status, authRequired, body } = {}) {
+  if (reason !== "probe-not-authoritative") return reason;
+  if (authRequired !== false) return reason;
+  if (status !== 403) return reason;
+  if (looksRateLimited({ status, body })) return reason;
+  return ENDPOINT_BLOCKED_VERDICT;
+}
+
+/** True when the verdict means the source itself needs repair or quarantine.
+ * `endpoint_blocked` (#358) lands here by construction: it is neither healthy
+ * nor probe-side, so it feeds the dead-source ledger like `http-dead` does. */
 export function isFailureVerdict(verdict) {
   return !HEALTHY_VERDICTS.has(verdict) && !PROBE_UNAUTHORITATIVE_VERDICTS.has(verdict);
 }

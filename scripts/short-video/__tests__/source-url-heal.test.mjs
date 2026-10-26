@@ -20,6 +20,7 @@ import {
   detectBlockPage,
   detectLoginWall,
   detectZeroResults,
+  ENDPOINT_BLOCKED_VERDICT,
   EXTRACTION_EMPTY_LABEL,
   EGRESS_UNREACHABLE_VERDICT,
   HEALTHY_VERDICTS,
@@ -34,6 +35,7 @@ import {
   buildFindSearchBoxScript,
   buildSubmitSearchScript,
   registryUrlLine,
+  resolveCredentiallessBlockVerdict,
   resolveHealth,
   stripVolatileParams,
   templateFromLandedUrl,
@@ -409,6 +411,71 @@ describe("verdict sets", () => {
     for (const v of [...PROBE_UNAUTHORITATIVE_VERDICTS, "http-dead", "redirected-home"]) {
       expect(needsCdpSecondOpinion(v)).toBe(true);
     }
+  });
+
+  it("#358 endpoint_blocked is a source-class verdict (credentialless 403)", () => {
+    expect(ENDPOINT_BLOCKED_VERDICT).toBe("endpoint_blocked");
+    expect(isFailureVerdict(ENDPOINT_BLOCKED_VERDICT)).toBe(true);
+    expect(PROBE_UNAUTHORITATIVE_VERDICTS.has(ENDPOINT_BLOCKED_VERDICT)).toBe(false);
+    // A blocked endpoint is not a login wall: the reader's next move is to
+    // route around the endpoint, not to bring a cookie.
+    expect(resolveHealth({ verdict: ENDPOINT_BLOCKED_VERDICT })).toBe("still-broken");
+  });
+
+  it("#358 the upgrade rule is one seam: only a 403 from an unauthenticated api layer", () => {
+    const base = "probe-not-authoritative";
+    expect(
+      resolveCredentiallessBlockVerdict({ reason: base, status: 403, authRequired: false }),
+    ).toBe(ENDPOINT_BLOCKED_VERDICT);
+    // 401 says a credential IS required — the registry declaration is wrong,
+    // which is a probe/config fact, not a closed endpoint.
+    expect(
+      resolveCredentiallessBlockVerdict({ reason: base, status: 401, authRequired: false }),
+    ).toBe(base);
+    // 429 = slow down (the collector retries), 405 = wrong method.
+    for (const status of [429, 405, 404, 503]) {
+      expect(resolveCredentiallessBlockVerdict({ reason: base, status, authRequired: false })).toBe(
+        base,
+      );
+    }
+    // A keyed source can still bring its credential, and an undeclared source
+    // keeps the old fail-open reading.
+    expect(
+      resolveCredentiallessBlockVerdict({ reason: base, status: 403, authRequired: true }),
+    ).toBe(base);
+    expect(resolveCredentiallessBlockVerdict({ reason: base, status: 403 })).toBe(base);
+    // Non-probe verdicts pass through untouched.
+    expect(
+      resolveCredentiallessBlockVerdict({ reason: "http-dead", status: 403, authRequired: false }),
+    ).toBe("http-dead");
+    // A 403 that says "rate limit" is throttling, not closure: GitHub's
+    // anonymous Search API answers a spent quota with exactly this shape.
+    expect(
+      resolveCredentiallessBlockVerdict({
+        reason: base,
+        status: 403,
+        authRequired: false,
+        body: '{"message":"API rate limit exceeded for 203.0.113.7.","documentation_url":"…"}',
+      }),
+    ).toBe(base);
+    expect(
+      resolveCredentiallessBlockVerdict({
+        reason: base,
+        status: 403,
+        authRequired: false,
+        body: "请求过于频繁，请稍后再试",
+      }),
+    ).toBe(base);
+    // The real reddit block page carries no rate-limit wording, so it still
+    // upgrades (measured 2026-10-26, 189,908 bytes).
+    expect(
+      resolveCredentiallessBlockVerdict({
+        reason: base,
+        status: 403,
+        authRequired: false,
+        body: "<body class=theme-beta>blocked by network security</body>",
+      }),
+    ).toBe(ENDPOINT_BLOCKED_VERDICT);
   });
 });
 
