@@ -22,24 +22,6 @@ import {
 const ROOT = join(import.meta.dirname, "..", "..");
 const CI = readFileSync(join(ROOT, ".github", "workflows", "ci.yml"), "utf8");
 const TEMPLATE = readFileSync(join(ROOT, ".github", "pull_request_template.md"), "utf8");
-const SIGNALS = readFileSync(
-  join(ROOT, ".github", "workflows", "issue-tracker-signals.yml"),
-  "utf8",
-);
-
-/**
- * One job's slice of the workflow, so a wiring assertion names the job that has
- * to carry it instead of passing on a match somewhere else in the file.
- * @param {string} name
- * @returns {string}
- */
-function jobSlice(name) {
-  const start = SIGNALS.indexOf(`  ${name}:`);
-  expect(start, `job ${name} is missing from the workflow`).toBeGreaterThan(-1);
-  const rest = SIGNALS.slice(start + 1);
-  const next = rest.search(/^ {2}[a-z-]+:$/m);
-  return next === -1 ? rest : rest.slice(0, next);
-}
 
 const THREE_BULLETS = `## 产品视角
 
@@ -342,45 +324,5 @@ describe("evaluateCommentProductView — the closing comment carries the three s
     const result = evaluateCommentProductView("## 交付记录\n\n- 已合并 PR #1\n- 242 tests passed");
     expect(result.ok).toBe(false);
     expect(result.skipped).toBeUndefined();
-  });
-});
-
-describe("wiring — the closing-comment gate is real only if it runs", () => {
-  it("the close job runs the same evaluator on the record comment", () => {
-    const job = jobSlice("check-delivery-record");
-    expect(job).toContain("check-product-view.mjs");
-    expect(job).toContain("--comment");
-    expect(job).toContain("COMMENT_BODY");
-  });
-
-  it("the close job judges the record before it sets any ledger label", () => {
-    const job = jobSlice("check-delivery-record");
-    const gate = job.indexOf("--comment");
-    const ledger = job.indexOf("product-view-missing");
-    expect(gate).toBeGreaterThan(-1);
-    expect(ledger).toBeGreaterThan(gate);
-  });
-
-  it("a record without the three sentences lands in a queryable ledger", () => {
-    const job = jobSlice("check-delivery-record");
-    expect(job).toContain("product-view-missing");
-    expect(job).toMatch(/addLabels/);
-  });
-
-  it("the event-driven clear knows the label", () => {
-    expect(jobSlice("clear-delivery-record")).toContain("product-view-missing");
-  });
-
-  it("the daily recheck knows the label", () => {
-    const job = jobSlice("delivery-record-recheck");
-    expect(job).toContain("product-view-missing");
-    expect(job).toContain("check-product-view.mjs");
-  });
-
-  it("the reminder names the three roles, so the fix is unambiguous", () => {
-    const job = jobSlice("check-delivery-record");
-    expect(job).toContain("原本要解决什么用户可见问题");
-    expect(job).toContain("用户现在看到什么变化");
-    expect(job).toContain("没有变");
   });
 });

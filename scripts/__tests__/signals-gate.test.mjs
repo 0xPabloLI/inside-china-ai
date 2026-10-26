@@ -1,18 +1,25 @@
 /**
  * Behavioural gate test for `.github/workflows/issue-tracker-signals.yml`.
  *
- * The sibling `check-product-view.test.mjs` asserts the wiring by string
- * presence, which proves the YAML mentions the gate and nothing more. The two
- * jobs here decide what happens to a real ticket, and the first cut of this
- * change got a branch wrong (a `无需交付记录` waiver started landing in the
- * missing-record ledger), which no string assertion would have caught. So these
- * tests compile each job's inline `github-script` body and run it against
- * synthetic API responses, asserting on the visible effects: labels added,
- * labels removed, comments posted.
+ * The jobs in that file are inline `github-script` bodies, which no linter and
+ * no type checker reads, and which only run on real GitHub events. The first cut
+ * of the closing-comment gate shipped a branch that silently filed explicit
+ * `无需交付记录` waivers under the missing-record ledger; a string assertion that
+ * the YAML mentions the right words would have passed it. So these tests compile
+ * each job body and run it against a fake GitHub surface, then assert on the
+ * effects a user can see: which labels were added, which were removed, and which
+ * comments were posted.
  *
- * There is deliberately no YAML parser: the repo carries no direct `yaml`
- * dependency, and the two things needed here (job boundaries and one block
- * scalar) are decided by indentation in a file these tests also guard.
+ * Two consequences worth knowing when reading failures here:
+ *
+ *   - `GITHUB_WORKSPACE` points at this worktree, so each job spawns the real
+ *     `scripts/issue-tracker-ledger.mjs`, which imports the real
+ *     `scripts/check-product-view.mjs`. A broken gate fails these tests; the
+ *     fakes only stand in for the GitHub API, never for the judgement or the
+ *     labels.
+ *   - There is no YAML parser: the repo carries no direct `yaml` dependency, and
+ *     the two things needed (job boundaries, one block scalar) are decided by
+ *     indentation. A reformat fails loudly by throwing, never by passing.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -27,13 +34,13 @@ const WORKFLOW = readFileSync(
 const require = createRequire(import.meta.url);
 
 beforeAll(() => {
-  // The job bodies resolve the gate script from the workspace root, exactly as
+  // The job bodies resolve the ledger module from the workspace root, exactly as
   // actions/checkout lays it out on a runner.
   process.env.GITHUB_WORKSPACE = ROOT;
 });
 
 /**
- * One job's `github-script` body, dedented.
+ * One job's inline `github-script` body, dedented to column 0.
  * @param {string} name - job id under `jobs:`
  * @returns {string}
  */
@@ -59,42 +66,6 @@ function jobScript(name) {
   return kept.join("\n");
 }
 
-/**
- * Run one job body with a fake GitHub surface.
- * @param {string} name - job id
- * @param {{comments?: object[], labels?: string[], state?: string, stateReason?: string, newComment?: object}} input
- * @returns {Promise<{added: string[][], removed: string[], comments: string[]}>}
- */
-async function runJob(name, input = {}) {
-  const { comments = [], labels = [], state = "closed", stateReason = "completed" } = input;
-  const calls = { added: [], removed: [], comments: [] };
-  const github = {
-    paginate: async () => comments,
-    rest: {
-      issues: {
-        get: async () => ({
-          data: { number: 353, state, labels: labels.map((value) => ({ name: value })) },
-        }),
-        addLabels: async (arg) => calls.added.push(arg.labels),
-        removeLabel: async (arg) => calls.removed.push(arg.name),
-        createComment: async (arg) => calls.comments.push(arg.body),
-      },
-    },
-  };
-  const context = {
-    repo: { owner: "owner", repo: "repo" },
-    issue: { number: 353 },
-    payload: {
-      issue: { number: 353, state_reason: stateReason, labels: labels.map((l) => ({ name: l })) },
-      comment: input.newComment,
-    },
-  };
-  const core = { info: () => {}, setOutput: () => {}, exportVariable: () => {} };
-  const body = `return (async () => {\n${jobScript(name)}\n})();`;
-  await new Function("github", "context", "core", "require", body)(github, context, core, require);
-  return calls;
-}
-
 const USER = { type: "User" };
 const BOT = { type: "Bot" };
 
@@ -109,20 +80,108 @@ const RECORD_WITHOUT_VIEW =
   "## 交付记录\n\n- **已合并 PR**：PR #962（squash commit 8dd9e6b6）\n- **核心改动**：新增 --alert\n- **验收证据**：242 tests passed";
 const RECORD_WITH_VIEW = `## 交付记录\n\n${THREE_SENTENCES}`;
 const WAIVER = "无需交付记录：拒绝项";
+const RECORD_LABEL = "delivery-record-missing";
+const VIEW_LABEL = "product-view-missing";
 
-describe("check-delivery-record — what a close puts in the ledger", () => {
-  it("no record at all keeps landing in delivery-record-missing", async () => {
+/**
+ * Run one job body against a fake GitHub surface.
+ *
+ * `paginate` dispatches on the same thing the real client does — the endpoint it
+ * is given — so the nightly recheck, which lists two different ledgers and then
+ * fetches comments per issue, sees a coherent world instead of one fixed array.
+ *
+ * @param {string} name - job id
+ * @param {object} [input]
+ * @param {Array<{user?: object, body?: string}>} [input.comments] - comments on the payload issue
+ * @param {string[]} [input.labels] - labels currently on the payload issue
+ * @param {string} [input.state] - payload issue state
+ * @param {string} [input.stateReason]
+ * @param {{user?: object, body?: string}} [input.newComment] - the triggering comment
+ * @param {Array<object>} [input.ledgerIssues] - issues returned for the record ledger listing
+ * @param {Array<object>} [input.viewLedgerIssues] - issues returned for the product-view listing
+ * @param {Record<number, Array<{user?: object, body?: string}>>} [input.commentsByIssue]
+ * @returns {Promise<{added: string[][], removed: string[], comments: string[], logged: string[]}>}
+ */
+async function runJob(name, input = {}) {
+  const {
+    comments = [],
+    labels = [],
+    state = "closed",
+    stateReason = "completed",
+    ledgerIssues = [],
+    viewLedgerIssues = [],
+    commentsByIssue = {},
+    newComment,
+  } = input;
+  const calls = { added: [], removed: [], comments: [], logged: [] };
+  // GitHub's own listing includes the comment that triggered the event.
+  const issueComments = newComment ? [...comments, newComment] : comments;
+  // Dispatch on the endpoint function, not on option shapes: the real client is
+  // called as `paginate(github.rest.issues.listComments, { issue_number })`, and
+  // the close job and the nightly recheck ask for different things through it.
+  const endpoints = {
+    listForRepo: () => ({}),
+    listComments: () => ({}),
+  };
+  const github = {
+    paginate: async (fn, opts = {}) => {
+      if (fn === endpoints.listForRepo) {
+        if (opts.labels === RECORD_LABEL) return ledgerIssues;
+        if (opts.labels === VIEW_LABEL) return viewLedgerIssues;
+        return [];
+      }
+      if (opts.issue_number === 353) return issueComments;
+      return commentsByIssue[opts.issue_number] ?? [];
+    },
+    rest: {
+      issues: {
+        ...endpoints,
+        get: async () => ({
+          data: { number: 353, state, labels: labels.map((value) => ({ name: value })) },
+        }),
+        addLabels: async (arg) => calls.added.push(arg.labels),
+        removeLabel: async (arg) => calls.removed.push(arg.name),
+        createComment: async (arg) => calls.comments.push(arg.body),
+      },
+    },
+  };
+  const context = {
+    eventName: "issues",
+    repo: { owner: "owner", repo: "repo" },
+    issue: { number: 353 },
+    payload: {
+      issue: {
+        number: 353,
+        state,
+        state_reason: stateReason,
+        labels: labels.map((n) => ({ name: n })),
+      },
+      comment: newComment,
+    },
+  };
+  const core = {
+    info: (message) => calls.logged.push(message),
+    setOutput: () => {},
+    exportVariable: () => {},
+  };
+  const body = `return (async () => {\n${jobScript(name)}\n})();`;
+  await new Function("github", "context", "core", "require", body)(github, context, core, require);
+  return calls;
+}
+
+describe("check-delivery-record — what a close puts in the ledgers", () => {
+  it("no record at all lands in the missing-record ledger", async () => {
     const calls = await runJob("check-delivery-record");
-    expect(calls.added.flat()).toContain("delivery-record-missing");
+    expect(calls.added.flat()).toEqual([RECORD_LABEL]);
     expect(calls.comments).toHaveLength(1);
   });
 
-  it("a record with no product view lands in product-view-missing, not the record ledger", async () => {
+  it("a record with no product view lands in the product-view ledger only", async () => {
     const calls = await runJob("check-delivery-record", {
       comments: [{ user: USER, body: RECORD_WITHOUT_VIEW }],
     });
-    expect(calls.added.flat()).toEqual(["product-view-missing"]);
-    expect(calls.removed).toContain("delivery-record-missing");
+    expect(calls.added.flat()).toEqual([VIEW_LABEL]);
+    expect(calls.removed).toEqual([RECORD_LABEL]);
   });
 
   it("the product-view reminder names the three roles", async () => {
@@ -140,10 +199,18 @@ describe("check-delivery-record — what a close puts in the ledger", () => {
       comments: [{ user: USER, body: RECORD_WITH_VIEW }],
     });
     expect(calls.added).toEqual([]);
-    expect(calls.removed).toEqual(
-      expect.arrayContaining(["delivery-record-missing", "product-view-missing"]),
-    );
+    expect(calls.removed).toEqual(expect.arrayContaining([RECORD_LABEL, VIEW_LABEL]));
     expect(calls.comments).toEqual([]);
+  });
+
+  it("one compliant record covers an issue that also holds a bare one", async () => {
+    const calls = await runJob("check-delivery-record", {
+      comments: [
+        { user: USER, body: RECORD_WITHOUT_VIEW },
+        { user: USER, body: RECORD_WITH_VIEW },
+      ],
+    });
+    expect(calls.added).toEqual([]);
   });
 
   it("the waiver clears both ledgers instead of demanding a record", async () => {
@@ -151,16 +218,18 @@ describe("check-delivery-record — what a close puts in the ledger", () => {
       comments: [{ user: USER, body: WAIVER }],
     });
     expect(calls.added).toEqual([]);
-    expect(calls.removed).toEqual(
-      expect.arrayContaining(["delivery-record-missing", "product-view-missing"]),
-    );
+    expect(calls.removed).toEqual(expect.arrayContaining([RECORD_LABEL, VIEW_LABEL]));
   });
 
-  it("a bot comment cannot satisfy the gate", async () => {
-    const calls = await runJob("check-delivery-record", {
+  it("a bot comment cannot stand in for a record, and a waiver containing the marker is still a waiver", async () => {
+    const botRecord = await runJob("check-delivery-record", {
       comments: [{ user: BOT, body: RECORD_WITH_VIEW }],
     });
-    expect(calls.added.flat()).toContain("delivery-record-missing");
+    expect(botRecord.added.flat()).toEqual([RECORD_LABEL]);
+    const botWaiver = await runJob("check-delivery-record", {
+      comments: [{ user: BOT, body: WAIVER }],
+    });
+    expect(botWaiver.added.flat()).toEqual([RECORD_LABEL]);
   });
 
   it("not-planned closes are exempt from both ledgers", async () => {
@@ -170,47 +239,60 @@ describe("check-delivery-record — what a close puts in the ledger", () => {
   });
 });
 
-describe("clear-delivery-record — what a late comment clears", () => {
-  const both = ["delivery-record-missing", "product-view-missing"];
-
-  it("a record without the three sentences clears only the record ledger", async () => {
+describe("clear-delivery-record — what a late comment changes", () => {
+  it("a late record with no product view fixes the record and opens the product-view ledger", async () => {
+    // The hole the spec review found: close with no record -> backfill a record
+    // with sha + evidence but no product view. Clearing the record ledger alone
+    // would let the delivery pass with no sentence about users, which is exactly
+    // what #353 shipped.
     const calls = await runJob("clear-delivery-record", {
-      labels: both,
+      labels: [RECORD_LABEL],
       newComment: { user: USER, body: RECORD_WITHOUT_VIEW },
     });
-    expect(calls.removed).toEqual(["delivery-record-missing"]);
-    expect(calls.comments).toHaveLength(1);
-    expect(calls.comments[0]).not.toContain("产品视角三句已补齐");
+    expect(calls.removed).toEqual([RECORD_LABEL]);
+    expect(calls.added.flat()).toEqual([VIEW_LABEL]);
+    expect(calls.comments.join("\n")).toContain("原本要解决什么用户可见问题");
   });
 
-  it("a compliant record clears both ledgers", async () => {
+  it("a late compliant record clears both ledgers and asks for nothing", async () => {
     const calls = await runJob("clear-delivery-record", {
-      labels: both,
+      labels: [RECORD_LABEL, VIEW_LABEL],
       newComment: { user: USER, body: RECORD_WITH_VIEW },
     });
-    expect(calls.removed).toEqual(expect.arrayContaining(both));
+    expect(calls.removed).toEqual(expect.arrayContaining([RECORD_LABEL, VIEW_LABEL]));
+    expect(calls.added).toEqual([]);
+  });
+
+  it("a later compliant record clears a ledger that only tracks the product view", async () => {
+    const calls = await runJob("clear-delivery-record", {
+      labels: [VIEW_LABEL],
+      newComment: { user: USER, body: RECORD_WITH_VIEW },
+    });
+    expect(calls.removed).toEqual([VIEW_LABEL]);
+    expect(calls.added).toEqual([]);
   });
 
   it("the waiver clears both ledgers", async () => {
     const calls = await runJob("clear-delivery-record", {
-      labels: both,
+      labels: [RECORD_LABEL, VIEW_LABEL],
       newComment: { user: USER, body: WAIVER },
     });
-    expect(calls.removed).toEqual(expect.arrayContaining(both));
+    expect(calls.removed).toEqual(expect.arrayContaining([RECORD_LABEL, VIEW_LABEL]));
   });
 
   it("an unrelated comment changes nothing", async () => {
     const calls = await runJob("clear-delivery-record", {
-      labels: both,
+      labels: [RECORD_LABEL, VIEW_LABEL],
       newComment: { user: USER, body: "thanks!" },
     });
     expect(calls.removed).toEqual([]);
+    expect(calls.added).toEqual([]);
     expect(calls.comments).toEqual([]);
   });
 
   it("a bot comment cannot clear a ledger", async () => {
     const calls = await runJob("clear-delivery-record", {
-      labels: both,
+      labels: [RECORD_LABEL, VIEW_LABEL],
       newComment: { user: BOT, body: RECORD_WITH_VIEW },
     });
     expect(calls.removed).toEqual([]);
@@ -219,9 +301,100 @@ describe("clear-delivery-record — what a late comment clears", () => {
   it("open issues are left to the unread-comment signal", async () => {
     const calls = await runJob("clear-delivery-record", {
       state: "open",
-      labels: both,
+      labels: [RECORD_LABEL, VIEW_LABEL],
       newComment: { user: USER, body: RECORD_WITH_VIEW },
     });
     expect(calls.removed).toEqual([]);
+  });
+
+  it("an issue with no ledger label is ignored", async () => {
+    const calls = await runJob("clear-delivery-record", {
+      labels: [],
+      newComment: { user: USER, body: RECORD_WITH_VIEW },
+    });
+    expect(calls.removed).toEqual([]);
+    expect(calls.added).toEqual([]);
+  });
+});
+
+describe("delivery-record-recheck — the nightly sweep of both ledgers", () => {
+  // After the grandfathering cutoff (2026-09-19) and stale by more than the
+  // 3-day grace window: the only combination the sweep escalates. A date before
+  // the cutoff exercises the silent-clear path instead, which is why it is
+  // spelled out here rather than left as "some old date".
+  const stale = {
+    number: 900,
+    closed_at: "2026-10-01T00:00:00Z",
+    labels: [],
+    state_reason: "completed",
+  };
+
+  it("a stale record ledger entry with no record is escalated once", async () => {
+    const calls = await runJob("delivery-record-recheck", {
+      ledgerIssues: [stale],
+      commentsByIssue: { 900: [] },
+    });
+    // Escalation keeps the label: the entry is still unresolved.
+    expect(calls.removed).toEqual([]);
+    expect(calls.comments.join("\n")).toContain("交付记录");
+    expect(calls.comments.join("\n")).toContain("原本要解决什么用户可见问题");
+  });
+
+  it("a record ledger entry whose record arrived is cleared without escalation", async () => {
+    const calls = await runJob("delivery-record-recheck", {
+      ledgerIssues: [stale],
+      commentsByIssue: { 900: [{ user: USER, body: RECORD_WITHOUT_VIEW }] },
+    });
+    expect(calls.removed).toEqual([RECORD_LABEL]);
+    expect(calls.comments).toEqual([]);
+  });
+
+  it("a stale product-view entry is escalated, naming the three roles", async () => {
+    const calls = await runJob("delivery-record-recheck", {
+      viewLedgerIssues: [stale],
+      commentsByIssue: { 900: [{ user: USER, body: RECORD_WITHOUT_VIEW }] },
+    });
+    expect(calls.removed).toEqual([]);
+    const escalation = calls.comments.join("\n");
+    expect(escalation).toContain("原本要解决什么用户可见问题");
+    expect(escalation).toContain("没有变");
+  });
+
+  it("a product-view entry whose section arrived is cleared", async () => {
+    const calls = await runJob("delivery-record-recheck", {
+      viewLedgerIssues: [stale],
+      commentsByIssue: { 900: [{ user: USER, body: RECORD_WITH_VIEW }] },
+    });
+    expect(calls.removed).toEqual([VIEW_LABEL]);
+    expect(calls.comments).toEqual([]);
+  });
+
+  it("a waiver clears both ledgers on the nightly sweep too", async () => {
+    const calls = await runJob("delivery-record-recheck", {
+      ledgerIssues: [stale],
+      viewLedgerIssues: [stale],
+      commentsByIssue: { 900: [{ user: USER, body: WAIVER }] },
+    });
+    expect(calls.removed).toEqual(expect.arrayContaining([RECORD_LABEL, VIEW_LABEL]));
+  });
+
+  it("an entry closed before the grandfathering cutoff is cleared silently, never escalated", async () => {
+    const calls = await runJob("delivery-record-recheck", {
+      ledgerIssues: [{ ...stale, closed_at: "2026-01-01T00:00:00Z" }],
+      commentsByIssue: { 900: [] },
+    });
+    expect(calls.removed).toEqual([RECORD_LABEL]);
+    expect(calls.comments).toEqual([]);
+  });
+
+  it("entries inside the 3-day grace window are left alone", async () => {
+    const recent = { ...stale, closed_at: new Date().toISOString() };
+    const calls = await runJob("delivery-record-recheck", {
+      ledgerIssues: [recent],
+      viewLedgerIssues: [recent],
+      commentsByIssue: { 900: [] },
+    });
+    expect(calls.removed).toEqual([]);
+    expect(calls.comments).toEqual([]);
   });
 });
