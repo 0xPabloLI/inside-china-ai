@@ -342,7 +342,7 @@ export const ENDPOINT_BLOCKED_VERDICT = "endpoint_blocked";
 const RATE_LIMIT_RE =
   /rate.?limit|too many requests|throttl|quota exceeded|请求过于频繁|访问频率|访问过于频繁|api 调用.{0,12}上限/i;
 
-export function looksRateLimited({ status, body = "" } = {}) {
+function looksRateLimited({ status, body = "" } = {}) {
   if (status === 429) return true;
   return RATE_LIMIT_RE.test(String(body ?? ""));
 }

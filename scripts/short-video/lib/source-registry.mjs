@@ -3758,7 +3758,7 @@ export function autoGenerateGoogleSiteFallback(source) {
  * @param {{hostFilter?: string|null, pathPattern?: RegExp|null, limit?: number}} [opts]
  * @returns {Array<{title: string, url: string, snippet: string, publishedAt: string}>}
  */
-export function parseSearxngResults(
+function parseSearxngResults(
   text,
   { hostFilter = null, pathPattern = null, limit = 20 } = {},
 ) {
@@ -3809,7 +3809,7 @@ function matchesSearxngSite(rawUrl, { hostFilter, pathPattern }) {
  * @returns {{site: string, lifecycle: string, timeoutMs: number, authRequired: boolean,
  *            url: Function, parser: Function}}
  */
-export function makeSearxngSiteFallback(site, { pathPattern = null, limit = 20 } = {}) {
+function makeSearxngSiteFallback(site, { pathPattern = null, limit = 20 } = {}) {
   return {
     site,
     lifecycle: "searxng",
