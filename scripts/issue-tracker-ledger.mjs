@@ -38,8 +38,8 @@
  * touches, and the manual sweep only writes the missing-record ledger.
  */
 
-import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { evaluateCommentProductView, PRODUCT_VIEW_ROLES } from "./check-product-view.mjs";
 
@@ -260,8 +260,12 @@ export function decideLedgerState(comments = []) {
   };
 }
 
+// `import.meta.url` is realpath-resolved while `argv[1]` keeps the link it was
+// typed as, so the two must both be resolved before comparing: a raw `===` reads
+// a symlinked path (macOS `/tmp`, `/var`, a linked worktree) as an import and
+// exits 0 having done nothing.
 const invokedDirectly =
-  Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
   // `--config` answers "what are the labels, the stale window, the cutoff and the

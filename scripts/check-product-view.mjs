@@ -23,7 +23,8 @@
  *
  * Exit 0 = pass or exempt, exit 1 = fail with the reason and the three prompts.
  */
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 /** Accepted heading, Chinese first because that is what the template ships. */
 const SECTION_RE = /^#{1,3}[ \t]+(?:产品视角|product[\s-]?view)[ \t]*$/im;
@@ -264,8 +265,12 @@ function report(result) {
   );
 }
 
+// `import.meta.url` is realpath-resolved while `argv[1]` keeps the link it was
+// typed as, so the two must both be resolved before comparing: a raw `===` reads
+// a symlinked path (macOS `/tmp`, `/var`, a linked worktree) as an import and
+// exits 0 having done nothing.
 const invokedDirectly =
-  Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
   // One CLI, for the PR body: that is the only surface a shell can supply. The
