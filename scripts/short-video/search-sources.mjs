@@ -56,7 +56,7 @@
  *   --research: output/research-results.json
  */
 
-import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -1653,7 +1653,8 @@ async function runChannelDoctor() {
 // Auto-run only when invoked directly as a CLI script (same pattern as
 // asset-sourcer.mjs). Required so tests can import collectFromSource /
 // shouldSkipCdpOnApiFail without triggering a live discovery run.
-const isMainModule = process.argv[1] && process.argv[1].endsWith("search-sources.mjs");
+const isMainModule =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMainModule) {
   loadEnv(); // #287 — the CLI entry owns env loading; the library never self-loads
   if (hasFlag("doctor")) {

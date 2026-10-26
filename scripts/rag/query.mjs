@@ -30,6 +30,8 @@
  *   noise:  < 0.50 — likely irrelevant, filtered out by default
  */
 
+import { realpathSync } from "fs";
+import { fileURLToPath } from "url";
 import { embed, isOllamaAvailable } from "./lib/ollama.mjs";
 import { createRagClient, queryContent } from "./lib/supabase-client.mjs";
 import { bm25PreFilter } from "./lib/bm25.mjs";
@@ -59,7 +61,8 @@ export function classifyConfidence(similarity) {
 
 // ─── CLI execution (guarded so import doesn't trigger process.exit) ───
 
-const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+const isMainModule =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMainModule) {
   const args = process.argv.slice(2);

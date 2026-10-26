@@ -28,6 +28,9 @@
  * implements the client side of the same protocol.
  */
 
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { searchPool } from "./search-pool.mjs";
 import { loadEnv } from "./load-env.mjs";
 import { ALL_SOURCES } from "./source-registry.mjs";
@@ -214,7 +217,8 @@ async function main() {
   }
 }
 
-const isMainModule = process.argv[1] && process.argv[1].endsWith("search-pool-server.mjs");
+const isMainModule =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMainModule) {
   main().catch((err) => {
     console.error(`❌ ${err.message}`);

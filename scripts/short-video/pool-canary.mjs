@@ -26,6 +26,7 @@
  *
  * Usage: node scripts/short-video/pool-canary.mjs [--query <q>] [--update-issues]
  */
+import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { runGh as gh } from "./lib/gh-cli.mjs";
 import { loadEnv } from "./lib/load-env.mjs";
@@ -234,7 +235,7 @@ async function main(argv) {
 }
 
 /** ESM direct-execution guard: only run main() when invoked as a script. */
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main(process.argv.slice(2)).then(
     (code) => process.exit(code),
     (err) => {

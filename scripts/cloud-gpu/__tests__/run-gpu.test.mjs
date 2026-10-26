@@ -24,6 +24,10 @@ vi.mock("fs", () => ({
   mkdirSync: vi.fn(),
   rmSync: vi.fn(),
   copyFileSync: vi.fn(),
+  // The module's entry guard runs at import time and calls this to decide
+  // "directly invoked vs. imported". Pass-through, so the guard sees real
+  // paths and keeps returning false under vitest (`argv[1]` is the runner).
+  realpathSync: vi.fn((path) => path),
 }));
 
 import { execSync, exec } from "child_process";

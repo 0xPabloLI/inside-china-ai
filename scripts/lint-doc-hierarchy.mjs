@@ -15,7 +15,14 @@
  * Exit codes: 0 = PASS/WARN, 1 = FAIL
  */
 
-import { readdirSync, readFileSync, existsSync, readlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, basename, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
@@ -905,6 +912,6 @@ export function main() {
 }
 
 // Run if called directly (not imported)
-if (process.argv[1] && process.argv[1].endsWith("lint-doc-hierarchy.mjs")) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main();
 }

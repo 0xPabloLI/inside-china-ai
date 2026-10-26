@@ -14,7 +14,7 @@
  * Depends on: T-16 (query.mjs), T-23 (golden-queries.yaml)
  */
 
-import { readFileSync } from "fs";
+import { readFileSync, realpathSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import * as yaml from "js-yaml";
@@ -292,7 +292,7 @@ async function main() {
 }
 
 // CLI entry point
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
     console.error(`\n❌ Fatal error: ${err.message}`);
     process.exit(1);

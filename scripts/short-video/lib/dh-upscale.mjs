@@ -24,7 +24,7 @@
  * @module dh-upscale
  */
 
-import { existsSync, mkdirSync, renameSync, rmSync } from "fs";
+import { existsSync, mkdirSync, realpathSync, renameSync, rmSync } from "fs";
 import { extname, join } from "path";
 import { tmpdir } from "os";
 import { fileURLToPath } from "url";
@@ -344,7 +344,8 @@ function parseArgs(argv) {
   return { positional, options };
 }
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+const isMain =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const { positional, options } = parseArgs(process.argv.slice(2));
   if (positional.length < 1) {

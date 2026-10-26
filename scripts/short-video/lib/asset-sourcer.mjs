@@ -51,12 +51,13 @@
 
 import {
   existsSync,
-  writeFileSync,
   mkdirSync,
-  statSync,
-  readFileSync,
   mkdtempSync,
+  readFileSync,
+  realpathSync,
   rmSync,
+  statSync,
+  writeFileSync,
 } from "fs";
 import { join, dirname, basename, extname, relative, isAbsolute } from "path";
 import { tmpdir } from "os";
@@ -3599,7 +3600,8 @@ export async function main(args = process.argv.slice(2)) {
 }
 
 // Auto-run if called directly
-const isMainModule = process.argv[1] && process.argv[1].endsWith("asset-sourcer.mjs");
+const isMainModule =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMainModule) {
   main()
     .then((result) => {

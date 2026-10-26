@@ -25,7 +25,7 @@
  *      docs/content-pipeline.md Stage 3 Step 7
  */
 
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -285,9 +285,7 @@ async function main() {
 
 // Run main() only when executed directly (not imported)
 const isMain =
-  process.argv[1] &&
-  (process.argv[1].endsWith("snapshot-trending.mjs") ||
-    process.argv[1].includes("snapshot-trending"));
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMain) {
   main();
