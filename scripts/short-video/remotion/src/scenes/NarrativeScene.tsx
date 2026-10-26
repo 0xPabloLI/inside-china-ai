@@ -2,7 +2,8 @@
  * NarrativeScene — layout-driven scene template.
  *
  * Dispatches by `scene.layout` field into 4 variants:
- *   - media-bottom-bar: media top 70%, text bar bottom 30%
+ *   - media-bottom-bar: full-bleed media to the subtitle lane, text over a
+ *     gradient scrim (see MEDIA_BAND in lib/safe-zones.mjs)
  *   - media-split: media left half, text right half
  *   - media-overlay: fullscreen media, text overlay top+bottom
  *   - stacked-cards: text-first cards; `scene.media` renders as a dimmed
@@ -24,7 +25,13 @@ import {
   ScaleIn,
   FadeIn,
 } from "../components/animations/entrance";
-import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION, MEDIA_BOTTOM_BAR } from "../components/shared";
+import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION } from "../components/shared";
+import {
+  mediaBottomBarHeightFor,
+  mediaBottomBarTopFor,
+  MEDIA_BAND,
+} from "../../../lib/safe-zones.mjs";
+import { MediaScrims } from "../components/MediaScrims";
 import { MediaBackground } from "../components/MediaBackground";
 import { MediaCard } from "../components/MediaCard";
 import { TextGate } from "../components/text-gate";
@@ -180,30 +187,49 @@ export const NarrativeScene: React.FC<{
   const MediaBottomBar: React.FC = () => {
     // Geometry lives in safe-zones.mjs next to EVIDENCE_CARD — the card's
     // bottom edge IS this bar's top edge, so the two cannot drift apart.
-    const textBarHeight = MEDIA_BOTTOM_BAR.textBarHeight; // 336
-    const textBarTop = MEDIA_BOTTOM_BAR.textBarTop; // 814
+    // The bar height is per scene (2026-10-24): a scene that declares fewer
+    // rows gets a shorter bar, so its text block starts lower in the frame.
+    const textBarHeight = mediaBottomBarHeightFor(txt);
+    const textBarTop = mediaBottomBarTopFor(txt);
     return (
       <>
-        {/* Media fills top portion up to text bar; card mode keeps the raw
-            capture inside the #663 evidence card instead of full-bleed. */}
+        {/* Media fills the frame down to the subtitle lane (2026-10-25), not
+            just to the text bar. The picture used to stop at textBarTop and
+            the rest of the frame was opaque panel, which put the composition's
+            weight in the top half. The scrims below are what keep a full-bleed
+            band inside the frame gate's rail and subtitle-gap limits — see the
+            MEDIA_BAND note in lib/safe-zones.mjs. Card mode keeps its own
+            geometry: it renders a page capture, not a full-bleed picture. */}
         {hasMedia &&
           (scene.media!.mode === "card" ? (
-            <MediaCard media={scene.media!} duration={duration} />
+            <MediaCard media={scene.media!} duration={duration} bottom={textBarTop} />
           ) : (
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: textBarTop,
-                overflow: "hidden",
-              }}
-            >
-              <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
-            </div>
+            <>
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: MEDIA_BAND.bottom,
+                  overflow: "hidden",
+                }}
+              >
+                <MediaBackground
+                  media={scene.media!}
+                  duration={duration}
+                  contentDir={contentDir}
+                />
+              </div>
+              {/* The scrims are what keep a full-bleed band inside the frame
+                  gate's rail and subtitle-gap limits — see the MEDIA_BAND note
+                  in lib/safe-zones.mjs. */}
+              <MediaScrims mediaBottom={MEDIA_BAND.bottom} />
+            </>
           ))}
-        {/* Text bar anchored to safe zone bottom (y=1150) */}
+        {/* Text block anchored to the safe zone bottom (y=1150), drawn over the
+            picture. No panel background: the bottom scrim already guarantees
+            contrast, and an opaque bar would undo the full-bleed band. */}
         <div
           data-text-container
           style={{
@@ -213,7 +239,6 @@ export const NarrativeScene: React.FC<{
             right: SAFE_ZONES.right,
             height: textBarHeight,
             maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right - 2 * SPACING.xl,
-            background: "rgba(10,10,20,0.85)",
             padding: `${SPACING.lg}px ${SPACING.xl}px`,
             display: "flex",
             flexDirection: "column",

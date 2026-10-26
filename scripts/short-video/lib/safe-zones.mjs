@@ -47,13 +47,57 @@ export const SAFE_ZONES = {
  * media-bottom-bar text bar geometry (NarrativeScene's MediaBottomBar).
  * Exported so the evidence card and the text bar share one boundary instead
  * of two hand-kept-equal constants.
+ *
+ * The bar height is PER SCENE, derived from the rows the scene actually
+ * declares (2026-10-24). A fixed height has to be sized for the worst case
+ * (all four rows), so every scene that renders fewer rows paid for rows it
+ * did not show: the media band was capped at the four-row height and the bar
+ * sat on 86px of empty space. Deriving the height gives those scenes a taller
+ * media band instead, and the bar reads as light rather than padded.
+ *
+ * `textBarHeight` remains the MAXIMUM (the four-row height) and is what
+ * EVIDENCE_CARD anchors to, so the card's bottom edge stays put no matter how
+ * many rows a given scene renders.
  */
 export const MEDIA_BOTTOM_BAR = {
-  /** Text bar height — the four contract rows (company/action/result/source). */
-  textBarHeight: 336,
-  /** Text bar top edge on the canvas (y = 1150 − 336 = 814). */
-  textBarTop: CANVAS.height - SAFE_ZONES.bottom - 336,
+  /** Text bar height ceiling — the four-row stack (company/action/result/source). */
+  textBarHeight: 312,
+  /** Text bar top edge on the canvas (y = 1150 − 312 = 838). */
+  textBarTop: CANVAS.height - SAFE_ZONES.bottom - 312,
+  /**
+   * Measured rendered height of each row, in px. These are the numbers the
+   * render-time container gate reported for real copy (company 69, action 55,
+   * result 74 on one line, source 47), not the nominal font sizes.
+   */
+  rowHeights: { company: 69, action: 55, result: 74, source: 47 },
+  /** Flex gap between rows (SPACING.sm). */
+  rowGap: 8,
+  /** Vertical padding (SPACING.lg × 2) + the 2px top border. */
+  chrome: 34,
+  /** Safety pad so a slightly longer string cannot tip the bar into overflow. */
+  rowSafety: 16,
 };
+
+/**
+ * Height of the media-bottom-bar text bar for a scene's declared rows.
+ *
+ * @param {object} texts - the scene's `texts` block
+ * @returns {number} bar height in px, never above MEDIA_BOTTOM_BAR.textBarHeight
+ */
+export function mediaBottomBarHeightFor(texts = {}) {
+  const order = ["company", "action", "result", "source"];
+  const present = order.filter((key) => texts[key]);
+  if (present.length === 0) return MEDIA_BOTTOM_BAR.textBarHeight;
+  const glyphs = present.reduce((sum, key) => sum + MEDIA_BOTTOM_BAR.rowHeights[key], 0);
+  const gaps = (present.length - 1) * MEDIA_BOTTOM_BAR.rowGap;
+  const height = glyphs + gaps + MEDIA_BOTTOM_BAR.chrome + MEDIA_BOTTOM_BAR.rowSafety;
+  return Math.min(height, MEDIA_BOTTOM_BAR.textBarHeight);
+}
+
+/** Top edge of the media band (and of the bar) for a scene's declared rows. */
+export function mediaBottomBarTopFor(texts = {}) {
+  return CANVAS.height - SAFE_ZONES.bottom - mediaBottomBarHeightFor(texts);
+}
 
 /**
  * Evidence card geometry (#663 contract, #848): where `media.mode:"card"`
@@ -66,7 +110,7 @@ export const EVIDENCE_CARD = {
   left: SAFE_ZONES.left,
   top: SAFE_ZONES.top,
   width: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right, // 820
-  height: MEDIA_BOTTOM_BAR.textBarTop - SAFE_ZONES.top, // 594
+  height: MEDIA_BOTTOM_BAR.textBarTop - SAFE_ZONES.top, // 618
 };
 
 /**
@@ -85,14 +129,28 @@ export const EVIDENCE_CARD = {
  * reach the rail. Our karaoke cues can be up to 720px wide (6 words at 60px),
  * which would be occluded if centered.
  *
- * marginV places the cue BOTTOM edge at 1920 − 570 = 1350; the lane reserves
- * height for two lines of 60px text (with 1.35 line-height safety factor),
- * sitting at ~62-70% of frame height (TikTok native-caption band) and clearing
- * both scene content (ends y=1150) and the bottom caption UI (y≥1500).
+ * marginV places the cue BOTTOM edge at 1920 − 500 = 1420; the lane reserves
+ * height for two lines of 60px text (with 1.35 line-height safety factor).
+ *
+ * Recalibrated 2026-10-24 from a measured TikTok Studio preview. The old
+ * marginV 570 put the lane at y 1188-1350 and cleared the caption UI by 150px
+ * against TIKTOK_CAPTION_TOP = 1500 — but 1500 was itself a conservative
+ * screenshot estimate. Measuring the real preview DOM with this pack's own
+ * 1166-character caption in place (`.meta-data` inside `.video-overlay-container`,
+ * the element that carries the username and the first caption lines) puts the
+ * caption block's top edge at canvas y ≈ 1676. The lane now sits at 1258-1420:
+ * still 256px clear of the measured caption top, and 128px clear of the
+ * content band, while the cue reads noticeably lower in frame.
+ *
+ * The 60-70% "best readability" band from the vSubtitle/Blitzcut research is
+ * deliberately exceeded (1420/1920 = 74%): that band is a guideline for
+ * canvas-centred native captions, and this lane is left-shifted to the content
+ * band's centre, where the action rail no longer crowds it. The binding
+ * constraint is the caption UI, and the measurement says there is room.
  */
 export const SUBTITLE_LANE = {
   /** ASS MarginV — subtitle bottom edge distance from the canvas bottom */
-  marginV: 570,
+  marginV: 500,
   /** ASS font size (Helvetica Neue Bold) — matches TikTok native ~60px */
   fontSize: 60,
   /** Reserved line count (worst-case wrap) */
@@ -120,6 +178,102 @@ export const SUBTITLE_LANE_TOP =
   CANVAS.height -
   SUBTITLE_LANE.marginV -
   Math.ceil(SUBTITLE_LANE.fontSize * SUBTITLE_LANE.lineHeight * SUBTITLE_LANE.maxLines);
+
+/**
+ * Full-bleed media band for `media-bottom-bar` scenes (2026-10-25).
+ *
+ * Before this change the media stopped at the text bar's top edge (838 with
+ * four rows, less with fewer) and the bar below it was an opaque
+ * `rgba(10,10,20,0.85)` panel. That confined the picture to the top 43-53% of
+ * the frame and left everything under it solid background: measured on the
+ * 2026-10-24 unitree render the content centroid sat at y≈685 against a frame
+ * centre of 960, and the user read the result as "内容整体还是太偏上了".
+ *
+ * The band now runs to the content band's bottom edge (y=1150), so the picture
+ * occupies 60% of the frame instead of 43-53%, and the text is drawn ON the
+ * picture over a gradient scrim rather than in an opaque panel below it. The
+ * band deliberately stops at 1150 rather than at the subtitle lane: see the
+ * `bottom` note below for the measured reason (the source's own bottom-corner
+ * captions would land in the FAIL-only subtitle gap).
+ *
+ * The scrims are not decoration. They are what lets the full-bleed band pass
+ * the frame gate: verify-remotion-frames.mjs fails a frame when more than 5% of
+ * the pixels in the TikTok action rail (x 880-1080, y 640-1775) are brighter
+ * than luminance 80, and for a full-bleed band that region maps to the middle
+ * of the source frame, which is bright in every shot of the unitree film.
+ * Measured over that film's own acts, the right vignette plus the bottom scrim
+ * hold the rail at 0-3% with `overlay` 0.35; without them it sat at 20-100%.
+ *
+ * Known trade-off: a burned-in caption in the source's bottom-left corner is
+ * dimmed by the bottom scrim. It stays above the gate's threshold and inside
+ * the content band (measured: y 1070-1118, x 51-858 for the unitree film), so
+ * it reads as dimmed evidence rather than disappearing, but it is no longer at
+ * full brightness. Top-corner captions are unaffected.
+ */
+export const MEDIA_BAND = {
+  /**
+   * Media bottom edge — the content band's own bottom limit, NOT the subtitle
+   * lane top.
+   *
+   * The taller value (SUBTITLE_LANE_TOP, 1258) was measured and rejected: a
+   * 16:9 source cover-cropped into a 1080xH band shows its full height, so a
+   * caption burned into the source's bottom-left corner lands at source y
+   * 1005-1050 → canvas y 0.93H-0.97H. At H=1258 that is y 1171-1223, which is
+   * inside the FAIL-only subtitle gap (1150-1258): the frame gate would read
+   * the caption as content in the gap and fail, and the scrim needed to pass
+   * would dim the caption past readability. At H=1150 the same caption lands
+   * at y 1070-1118 — inside the content band, above the gap, and outside the
+   * action rail (x 51-858 vs the rail's x≥880) — so it survives as evidence.
+   *
+   * 1150 still grows the picture from 43-53% of the frame to 60%, which is the
+   * change that answers the "content sits too high" note.
+   */
+  bottom: CANVAS.height - SAFE_ZONES.bottom,
+  /** Bottom scrim fades in from this canvas y. */
+  scrimTop: 820,
+  /** Bottom scrim alpha at MEDIA_BAND.bottom. */
+  scrimAlpha: 0.75,
+  /** Right vignette fades in from this canvas x. */
+  vignetteStartX: 700,
+  /** Right vignette alpha at the canvas right edge. */
+  vignetteAlpha: 0.95,
+  /** Top scrim is at full strength at y=0 and gone by this canvas y. */
+  topScrimHeight: 200,
+  /**
+   * Top scrim alpha at y=0. Deliberately lighter than the bottom scrim: the
+   * top band only WARNs when it carries content, and the film's own captions
+   * sit in the source's top corners ("4 Meter High Platform" at source y
+   * 44-144 → canvas y 47-153). At 0.55 those captions still read as evidence,
+   * which is the point of keeping them in frame.
+   */
+  topScrimAlpha: 0.55,
+};
+
+/**
+ * Normalised stops approximating smoothstep(t) = t²(3-2t).
+ *
+ * CSS gradients interpolate linearly between stops, so a two-stop gradient
+ * reads as a hard ramp and puts visible banding across the picture. Five stops
+ * track the curve closely enough that the frame gate's measured ratio does not
+ * move versus the smoothstep the calibration used.
+ */
+const SCRIM_CURVE = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ offset: t, weight: t * t * (3 - 2 * t) }));
+
+/**
+ * Build a scrim's CSS gradient from the curve above.
+ *
+ * @param {number} alpha - peak alpha, applied at the weighted end
+ * @param {"to bottom" | "to right"} direction - CSS gradient direction
+ * @param {boolean} [reverse=false] - put the peak at the START instead of the end
+ * @returns {string} a CSS `linear-gradient(...)` value
+ */
+export function scrimGradient(alpha, direction, reverse = false) {
+  const stops = SCRIM_CURVE.map(({ offset, weight }) => {
+    const a = alpha * (reverse ? 1 - weight : weight);
+    return `rgba(10,10,20,${a.toFixed(4)}) ${(offset * 100).toFixed(0)}%`;
+  });
+  return `linear-gradient(${direction}, ${stops.join(", ")})`;
+}
 
 /** Channel watermark position (top-left corner, outside the content band). */
 export const WATERMARK_POS = { top: 60, left: 60 };

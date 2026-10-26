@@ -21,6 +21,33 @@
 import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 
+/** Cap on a recorded failure reason, so one runaway log tail cannot bloat the profile. */
+const MAX_ERROR_CHARS = 500;
+
+/**
+ * One-line reason for a rejected track, for the profile record.
+ *
+ * `status: "rejected"` alone says a run died without saying why, which is how
+ * two unitree rounds (2026-10-25) paid 2059s of TTS and produced no render
+ * while their profiles stayed silent about the cause.
+ */
+function errorReason(reason) {
+  const text =
+    reason instanceof Error
+      ? reason.message
+      : typeof reason === "string"
+        ? reason
+        : (() => {
+            try {
+              return JSON.stringify(reason);
+            } catch {
+              return String(reason);
+            }
+          })();
+  const flat = String(text ?? "unknown").replace(/\s+/g, " ").trim();
+  return flat.length > MAX_ERROR_CHARS ? `${flat.slice(0, MAX_ERROR_CHARS)}…` : flat;
+}
+
 /**
  * Create a profiler instance.
  *
@@ -109,6 +136,11 @@ export function createProfiler({
       for (let j = steps.length - 1; j >= 0; j--) {
         if (steps[j].name !== tracks[i].name) continue;
         steps[j].status = result.status;
+        // The cause is the only part of a rejection that is actionable after
+        // the fact: the duration says what the round cost, not what killed it.
+        if (result.status === "rejected") {
+          steps[j].error = errorReason(result.reason);
+        }
         break;
       }
     });
@@ -157,8 +189,12 @@ export function createProfiler({
       // Parallel spans overlap the wall clock and each close at their own
       // settle (#623), so flag them rather than letting readers sum them.
       const parallel = s.parallel === true ? " [parallel]" : "";
+      // A rejected span printed like any other one: the unitree 04-56-44 run
+      // read "step-1-tts [voice] [parallel]: 1003.7s (99%)" and looked like a
+      // slow success instead of a round that produced nothing.
+      const failed = s.status === "rejected" ? ` ❌ FAILED${s.error ? `: ${s.error}` : ""}` : "";
       console.log(
-        `   ${s.name}${track}${parallel}: ${(s.durationMs / 1000).toFixed(1)}s (${pct}%)`,
+        `   ${s.name}${track}${parallel}: ${(s.durationMs / 1000).toFixed(1)}s (${pct}%)${failed}`,
       );
     }
     console.log(`   TOTAL: ${(totalMs() / 1000).toFixed(1)}s\n`);

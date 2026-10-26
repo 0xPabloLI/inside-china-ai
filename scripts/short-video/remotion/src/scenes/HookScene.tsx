@@ -22,9 +22,10 @@ import {
   FrameGlow,
 } from "../components/visuals";
 import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
-import { SPACING, ANNOTATION } from "../components/shared";
+import { SPACING, ANNOTATION, CANVAS } from "../components/shared";
 import { NumberPulse, ScanSweep } from "../components/animations/loops";
 import { MediaBackground } from "../components/MediaBackground";
+import { MediaScrims } from "../components/MediaScrims";
 import { MediaCard } from "../components/MediaCard";
 import { TextGate } from "../components/text-gate";
 import { HOOK_SUBJECT_ROW, hookSubjectTextWidth } from "../../../lib/text-slots.mjs";
@@ -116,7 +117,14 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
         (scene.media.mode === "card" ? (
           <MediaCard media={scene.media} duration={duration} />
         ) : (
-          <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
+          <>
+            <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
+            {/* The hook's media is full-frame, so it covers the action rail and
+                the subtitle gap directly. The scrims are what hold those
+                regions under the frame gate's brightness limit for daylight
+                footage — see the MEDIA_BAND note in lib/safe-zones.mjs. */}
+            <MediaScrims mediaBottom={CANVAS.height} />
+          </>
         ))}
       {/* Background layers — CSS: .grid-bg + .glow-tint + .scanlines + .scan-sweep */}
       <GridBg />

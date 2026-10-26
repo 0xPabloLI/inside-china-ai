@@ -9,6 +9,7 @@ import {
   checkSafeZoneBottom,
   checkContentPresence,
   checkNotAllBlack,
+  checkMediaBandFill,
   checkTextOverflow,
   checkClippedText,
   checkFinalFrameHasContent,
@@ -518,5 +519,110 @@ describe("checkFinalFrameHasContent", () => {
   it("passes when the CTA is still on screen on the last frame", () => {
     const result = checkFinalFrameHasContent(contentBuffer(), SAFE_ZONES);
     expect(result.level).toBe("pass");
+  });
+});
+
+// ─── Media band fill (the letterbox check) ───
+//
+// Regression cover for the 2026-10-25 defect: @remotion/media's <Video>
+// ignored style.objectFit and rendered `contain`, so every scene that declared
+// fit:"cover" letterboxed a 16:9 source inside the 1150px media band — 263px
+// of dead space above AND below the picture — and passed every gate, because a
+// letterboxed frame is perfectly "safe". These cases pin the detector.
+
+describe("checkMediaBandFill", () => {
+  /**
+   * A buffer that carries picture only within `picture` (canvas y range).
+   *
+   * "Picture" here is anything far from the background luminance, which is what
+   * the check measures — see the BACKGROUND_DELTA note in frame-analysis.mjs.
+   */
+  function bandBuffer(picture) {
+    const buf = solidBuffer(CANVAS.width, CANVAS.height, 10, 10, 20);
+    for (let y = picture.yStart; y < picture.yEnd; y++) {
+      for (let x = 0; x < CANVAS.width; x++) {
+        const idx = (CANVAS.width * y + x) * 4;
+        const on = Math.floor(x / 40) % 2 === 0;
+        buf.data[idx] = on ? 220 : 60;
+        buf.data[idx + 1] = on ? 210 : 60;
+        buf.data[idx + 2] = on ? 200 : 70;
+      }
+    }
+    return buf;
+  }
+
+  it("WARNS when the picture letterboxes inside the band (the real defect)", () => {
+    // Measured on the 2026-10-25 unitree render: a 16:9 source in a 1080-wide
+    // box is 607px tall, centred in the 1150px band → y 271..878, so the band
+    // top (y 220) is flat background.
+    const buf = bandBuffer({ yStart: 271, yEnd: 878 });
+    const result = checkMediaBandFill(buf, SAFE_ZONES, 1150);
+    expect(result.level).toBe("warn");
+    expect(result.detail).toMatch(/letterboxed/);
+    expect(result.detail).toMatch(/objectFit PROP/);
+  });
+
+  it("PASSES when the picture starts at the band top (cover fills it)", () => {
+    const buf = bandBuffer({ yStart: SAFE_ZONES.top, yEnd: 1150 });
+    const result = checkMediaBandFill(buf, SAFE_ZONES, 1150);
+    expect(result.level).toBe("pass");
+    expect(result.metrics.ratio).toBeGreaterThan(0.5);
+  });
+
+  it("PASSES on a DARK picture — variance, not brightness, is the signal", () => {
+    // The real night-villa scene: a picture whose pixels sit near the
+    // background's brightness but are textured (measured row std 17-30 vs the
+    // background's 2.6). A luminance-delta probe calls this background.
+    const buf = solidBuffer(CANVAS.width, CANVAS.height, 10, 10, 20);
+    for (let y = SAFE_ZONES.top; y < 1150; y++) {
+      for (let x = 0; x < CANVAS.width; x++) {
+        const idx = (CANVAS.width * y + x) * 4;
+        // Period must be ≤ SAMPLE_STEP so the sampler actually sees the
+        // alternation — a wider block reads as a constant to a step-8 scan.
+        const on = Math.floor(x / 8) % 2 === 0;
+        // Dark, but textured at the level the real night scene measured
+        // (luminance std ≈ 13 here; the live frame measured 17-30).
+        buf.data[idx] = on ? 34 : 6;
+        buf.data[idx + 1] = on ? 32 : 6;
+        buf.data[idx + 2] = on ? 44 : 14;
+      }
+    }
+    const result = checkMediaBandFill(buf, SAFE_ZONES, 1150);
+    expect(result.level).toBe("pass");
+  });
+
+  it("is not fooled by text rows in the band (why it probes the top, not the bottom)", () => {
+    // The real render puts three rows of white copy at y 920-1106 inside the
+    // band. A bottom-probing version counted those as picture and reported
+    // "picture reaches y=1100", missing the 263px letterbox entirely.
+    const buf = bandBuffer({ yStart: 271, yEnd: 878 });
+    for (const [yStart, yEnd] of [
+      [920, 962],
+      [996, 1029],
+      [1062, 1106],
+    ]) {
+      for (let y = yStart; y < yEnd; y++) {
+        for (let x = 200; x < 700; x += 3) {
+          const idx = (CANVAS.width * y + x) * 4;
+          buf.data[idx] = 255;
+          buf.data[idx + 1] = 255;
+          buf.data[idx + 2] = 255;
+        }
+      }
+    }
+    const result = checkMediaBandFill(buf, SAFE_ZONES, 1150);
+    expect(result.level).toBe("warn");
+  });
+
+  it("is skipped entirely when the scene declares no media band", () => {
+    const checks = runFrameAnalysis(contentBuffer(), SAFE_ZONES).map((r) => r.check);
+    expect(checks).not.toContain("Media band is filled");
+  });
+
+  it("is included when a band bottom is supplied", () => {
+    const checks = runFrameAnalysis(contentBuffer(), SAFE_ZONES, {
+      mediaBandBottom: 1150,
+    }).map((r) => r.check);
+    expect(checks).toContain("Media band is filled");
   });
 });

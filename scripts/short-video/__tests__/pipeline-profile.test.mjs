@@ -244,6 +244,116 @@ describe("pipeline-profile", () => {
     expect(json.steps.some((s) => s.unfinished === true)).toBe(false);
   });
 
+  it("runParallel() records the rejection reason on the rejected track", async () => {
+    const dir = makeTmp();
+    const clk = fakeClock();
+    const prof = createProfiler({
+      outputDir: dir,
+      version: "v-test",
+      now: clk.now,
+      onExit: false,
+    });
+    const { joined, gates } = joinTracks(clk, prof, [
+      { name: "media-track", advanceMs: 30, value: "media", meta: { track: "media" } },
+      {
+        name: "step-1-tts",
+        advanceMs: 70,
+        error: new Error("kernel timed out after 1800000ms"),
+        meta: { track: "voice" },
+      },
+    ]);
+
+    gates.get("step-1-tts").open();
+    await flush();
+    gates.get("media-track").open();
+    await joined;
+
+    // Two unitree rounds paid 2059s of TTS and produced no render, and the
+    // profiles said only "rejected" — the cost was visible, the cause was not.
+    expect(stepByName(prof, "step-1-tts").error).toBe("kernel timed out after 1800000ms");
+    // A fulfilled track carries no error: absence is the success signal.
+    expect(stepByName(prof, "media-track").error).toBeUndefined();
+
+    prof.write();
+    const json = JSON.parse(readFileSync(join(dir, "last-profile.json"), "utf8"));
+    const persisted = new Map(json.steps.map((s) => [s.name, s]));
+    expect(persisted.get("step-1-tts").error).toBe("kernel timed out after 1800000ms");
+    expect(persisted.get("media-track")).not.toHaveProperty("error");
+  });
+
+  it("runParallel() flattens and caps a multi-line rejection reason", async () => {
+    const prof = createProfiler({
+      outputDir: makeTmp(),
+      version: "v-test",
+      now: fakeClock().now,
+      onExit: false,
+    });
+    const long = `first line\nsecond line\t${"x".repeat(900)}`;
+
+    await prof.runParallel([
+      { name: "step-1-tts", fn: async () => { throw new Error(long); }, meta: { track: "voice" } },
+    ]);
+
+    const { error } = stepByName(prof, "step-1-tts");
+    // A stack-free one-liner keeps the profile readable and single-line JSON.
+    expect(error).not.toContain("\n");
+    expect(error).not.toContain("\t");
+    expect(error.startsWith("first line second line x")).toBe(true);
+    // One runaway log tail must not bloat every profile file.
+    expect(error.length).toBeLessThanOrEqual(501);
+    expect(error.endsWith("…")).toBe(true);
+  });
+
+  it("runParallel() records a non-Error rejection without throwing", async () => {
+    const prof = createProfiler({
+      outputDir: makeTmp(),
+      version: "v-test",
+      now: fakeClock().now,
+      onExit: false,
+    });
+
+    // Engines reject with plain objects and strings, not just Errors; a
+    // JSON.stringify on a circular value must not become the new failure.
+    await prof.runParallel([
+      { name: "step-1-tts", fn: async () => { throw { code: "E_KAGGLE", retryable: false }; }, meta: {} },
+    ]);
+    expect(stepByName(prof, "step-1-tts").error).toBe('{"code":"E_KAGGLE","retryable":false}');
+
+    const circular = {};
+    circular.self = circular;
+    await prof.runParallel([
+      { name: "step-2-tts", fn: async () => { throw circular; }, meta: {} },
+    ]);
+    expect(stepByName(prof, "step-2-tts").error).toBe("[object Object]");
+  });
+
+  it("summary() flags a rejected track and names its reason", async () => {
+    const prof = createProfiler({
+      outputDir: makeTmp(),
+      version: "v-test",
+      now: fakeClock().now,
+      onExit: false,
+    });
+
+    await prof.runParallel([
+      { name: "media-track", fn: async () => "media", meta: { track: "media" } },
+      {
+        name: "step-1-tts",
+        fn: async () => {
+          throw new Error("kernel timed out");
+        },
+        meta: { track: "voice" },
+      },
+    ]);
+
+    const out = captureSummary(prof);
+    // The line a human reads must distinguish a failed round from a slow one:
+    // 1003.7s of TTS that produced no render used to print as a plain success.
+    expect(out).toContain("❌ FAILED: kernel timed out");
+    // The fulfilled track stays clean.
+    expect(out).not.toContain("media-track [media]: 0.0s (?) ❌");
+  });
+
   it("runParallel() keeps both durations when the media track rejects (#623)", async () => {
     const dir = makeTmp();
     const clk = fakeClock();

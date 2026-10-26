@@ -177,7 +177,22 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
     // < dim overlay). A positive zIndex lifts the media above the overlay and
     // safe-zone brightness checks fail (#201). The backdrop-branch primary is
     // a regular <Img> for the same reason — CanvasImage would paint below <Video>.
-    objectFit: media.fit ?? "cover",
+    //
+    // NO objectFit HERE — it is a PROP on @remotion/media's <Video>, and the
+    // component ignores it in `style` (it logs "Use the `objectFit` prop
+    // instead of the `style` prop" once, then renders with its own default of
+    // `contain`). Declaring it here looked correct and did nothing: every
+    // scene asked for `fit: "cover"` and every scene letterboxed.
+    //
+    // Measured on the 2026-10-25 unitree render: a 16:9 source sat at canvas
+    // y 263-887 inside a 1150px media band — 263px of dead space above and
+    // below the picture, in every narrative scene, for the whole video. The
+    // MediaBand geometry in lib/safe-zones.mjs was sized assuming cover (its
+    // comments compute where the source's burned-in captions land "cover-
+    // cropped into a 1080xH band"), so the band was never the problem.
+    //
+    // objectPosition still belongs here: it is a plain CSS property on the
+    // underlying element and does apply.
     objectPosition: media.cropFocus
       ? `${media.cropFocus.x * 100}% ${media.cropFocus.y * 100}%`
       : (FOCUS_MAP[media.focus ?? "center"] ?? "center"),
@@ -185,6 +200,9 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
     transform: `translate(${translateX}, ${translateY}) scale(${scale})`,
     filter: filter !== "none" ? filter : undefined,
   };
+
+  /** The resolved fit mode, shared by every media branch below. */
+  const fit = media.fit ?? "cover";
 
   // ─── Branded matte (image + contain only) ───
   // When an image uses fit:"contain" (landscape source that can't survive
@@ -240,9 +258,9 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
             inset: 0,
             width: "100%",
             height: "100%",
-            objectFit: "cover",
             opacity: BACKDROP_OPACITY,
           }}
+          objectFit="cover"
           volume={0}
           loop
         />
@@ -253,17 +271,21 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
         // beneath <Video> elements regardless of DOM order/z-index, which
         // would hide the primary media behind the backdrop.
         backdropPath ? (
-          <Img src={src} style={mediaStyle} />
+          <Img src={src} style={{ ...mediaStyle, objectFit: fit }} />
         ) : (
-          <CanvasImage src={src} style={mediaStyle} />
+          <CanvasImage src={src} style={{ ...mediaStyle, objectFit: fit }} />
         )
       ) : (
         // Background video is a texture, not a clip to be watched once: a
         // source shorter than the scene must keep moving (matches the `loop`
         // in lib/media-bg.mjs mediaLayer (the retired HTML renderer).
+        //
+        // `objectFit` is a PROP on @remotion/media's <Video>, not a style —
+        // see the note on mediaStyle. Omitting it silently means `contain`.
         <Video
           src={src}
           style={mediaStyle}
+          objectFit={fit}
           volume={videoVolume}
           effects={effects}
           trimBefore={trimBefore}

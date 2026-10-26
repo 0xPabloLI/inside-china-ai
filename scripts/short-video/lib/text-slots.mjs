@@ -283,15 +283,15 @@ export const MEASURED_MAX_WIDTH = {
  * content's own height — keyed by the group id the template puts on its
  * `data-text-group` band. Current calibration (media-overlay, safe zone
  * y ∈ [220, 1150]):
- *   - bottom band 336 — the pipeline's established bottom-band budget, the
- *     same text-bar height media-bottom-bar anchors at y=1150;
- *   - top band 594 — from the safe-zone top (220) down to the bottom band's
- *     highest possible top edge (1150 − 336 = 814), so the two overlay bands
+ *   - bottom band 312 — the same four-row ceiling media-bottom-bar's bar caps
+ *     at (MEDIA_BOTTOM_BAR.textBarHeight), anchored at y=1150;
+ *   - top band 618 — from the safe-zone top (220) down to the bottom band's
+ *     highest possible top edge (1150 − 312 = 838), so the two overlay bands
  *     can never overlap.
  */
 const MEASURED_MAX_HEIGHT = {
-  "narrative.media-overlay.top-band": 594,
-  "narrative.media-overlay.bottom-band": 336,
+  "narrative.media-overlay.top-band": 618,
+  "narrative.media-overlay.bottom-band": 312,
 };
 
 /**

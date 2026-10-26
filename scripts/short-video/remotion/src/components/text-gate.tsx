@@ -521,8 +521,8 @@ export const TextGate: React.FC<TextGateProps> = ({
 
   const fail = (
     reason: string,
-    measured: { width: number; height: number | null },
-    available: { width: number; height: number | null },
+    measured: { x?: number; y?: number; width: number; height: number | null },
+    available: { x?: number; y?: number; width: number; height: number | null },
     size: number,
     inkPad: Pad,
   ): never => {
@@ -821,8 +821,8 @@ export const TextGate: React.FC<TextGateProps> = ({
           if (!boxWithin(gateBox, containerBox, EPS)) {
             fail(
               FIT_REASONS.containerOverflow,
-              { width: gateBox.width, height: gateBox.height },
-              { width: containerBox.width, height: containerBox.height },
+              gateBox,
+              containerBox,
               fontSize,
               inkRef.current,
             );
@@ -907,8 +907,8 @@ export const TextGate: React.FC<TextGateProps> = ({
         if (!boxWithin(gateLayoutBox, containerLayout, EPS)) {
           fail(
             FIT_REASONS.containerOverflow,
-            { width: gateLayoutBox.width, height: gateLayoutBox.height },
-            { width: containerLayout.width, height: containerLayout.height },
+            gateLayoutBox,
+            containerLayout,
             fontSize,
             ink,
           );

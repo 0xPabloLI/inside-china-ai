@@ -21,6 +21,9 @@ import {
 
 describe("buildManualPublishGuide golden (S1/S6 zero text change)", () => {
   // Captured verbatim from the pre-T03 implementation (HEAD 087395b).
+  // Item 6 was re-captured 2026-10-25: the sound step's text changed on
+  // purpose (the standing default is now no music bed, and the scripted flow
+  // gained the save + volume-read-back steps), so the golden follows it.
   const GOLDEN_WITH_AI = `
 ============================================================
 📤 TikTok Manual Publishing Guide
@@ -47,8 +50,12 @@ CAPTION_TEXT
   [ ] 4. Paste caption above into description field
   [ ] 5. Tap "Edit" → Add a text sticker or effect (algorithm bonus)
          TikTok algorithm favors content edited within the app.
-  [ ] 6. Tap "Add sound" → Pick a trending sound (set volume 5-10%)
-         Trending audio boosts discoverability significantly.
+  [ ] 6. Audio: attach the music bed at the calibrated level, then publish
+         Automation (one pass, after HITL approval):
+         node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --sound "Breaking News" --sound-owner Voxie --volume-db -15 --publish
+         Set the level by measurement: a -20 dB slider reading measured 22.2 dB below the narration on the live post.
+         -15 dB lands near -17 dB, mid-range in the 15-25 dB guidance for music under speech.
+         The script reads the slider back and aborts if it misses by more than 1 dB.
   [ ] 7. Tap "Location" → Select "China" or "United States"
          Algorithm prioritizes local content.
   [ ] 8. Set privacy to "Public" (or "Friends" for testing)

@@ -128,8 +128,8 @@ Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word h
 | Secondary color    | White (#F5F5F5, ASS: &H00F5F5F5) — unspoken words                                                         |
 | Outline            | Black, 3px (ASS: &H66000000, semi-transparent)                                                            |
 | Shadow             | 1px                                                                                                       |
-| Position           | Bottom-center (Alignment=2), in the 62–70% native-caption band                                            |
-| Margin from bottom | 570px (cue bottom edge y=1350, above the TikTok caption zone)                                             |
+| Position           | Bottom-center (Alignment=2), in the lower third below the content band                                    |
+| Margin from bottom | 500px (cue bottom edge y=1420, 256px above the measured TikTok caption top)                              |
 | Margins L/R        | 110/250 (left-shifted to match content band center; cue right edge x=830, clears the action rail by 50px) |
 | Max lines          | 2 (single line preferred; worst-case wrap stays inside the reserved lane)                                 |
 | Background         | None (transparent, text outline only)                                                                     |
@@ -137,12 +137,12 @@ Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word h
 | Timing             | wav2vec2 forced alignment (`text-align.py`), per-word timestamps                                          |
 | Generation         | `lib/subtitles/` (JS, see docs/video-production-runbook.md)                                               |
 
-All subtitle values derive from `SUBTITLE_LANE` in `lib/safe-zones.mjs` (single source of truth) — never hardcode them. The subtitle lane (y≈1188–1350) is structurally separated from the content band (ends y=1150), so burned subtitles can never overlap scene content.
+All subtitle values derive from `SUBTITLE_LANE` in `lib/safe-zones.mjs` (single source of truth) — never hardcode them. The subtitle lane (y≈1258–1420) is structurally separated from the content band (ends y=1150), so burned subtitles can never overlap scene content.
 
 ASS Style line:
 
 ```
-Style: Default,Helvetica Neue,60,&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000,-1,0,0,0,100,100,0,0,1,3,1,2,110,250,570,1
+Style: Default,Helvetica Neue,60,&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000,-1,0,0,0,100,100,0,0,1,3,1,2,110,250,500,1
 ```
 
 ## Background Layers
@@ -243,7 +243,7 @@ Calibrated against real FYP playback screenshots cross-checked with 2026 researc
 | Bottom | 770                          | y ≤ 1150     | Bottom UI: caption, progress bar; also clears the subtitle lane                                               |
 | Left   | 60                           | x ≥ 60       | Left margin (no overlay, but content breathes here)                                                           |
 
-Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1150]**. The subtitle lane sits below it (y≈1188–1350, left-shifted to x∈[110,830]); the TikTok caption UI starts ~y1500.
+Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1150]**. The subtitle lane sits below it (y≈1258–1420, left-shifted to x∈[110,830]); the TikTok caption UI starts at the measured y≈1676.
 
 Enforcement semantics (top / bottom band crossing → FAIL; right band crossing x > 880 → FAIL when the element's bottom is inside the action rail y > 640, WARN above it) are implemented by TextGate/text-geometry on the Remotion side.
 

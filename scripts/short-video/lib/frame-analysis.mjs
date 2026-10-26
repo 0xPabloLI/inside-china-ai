@@ -12,6 +12,8 @@
  * @module frame-analysis
  */
 
+import { MEDIA_BAND, SUBTITLE_LANE_TOP } from "./safe-zones.mjs";
+
 // ─── Constants ───
 
 /**
@@ -44,6 +46,46 @@ export const BLACK_THRESHOLD = 5;
 
 /** Bright-pixel ratio below which the LAST frame counts as empty background. */
 const FINAL_FRAME_BRIGHT_RATIO_FAIL = 0.01;
+
+/**
+ * Row-variance threshold separating flat background from picture.
+ *
+ * Row variance is the right signal, not mean luminance. A dark night shot has
+ * a picture whose pixels sit near the background's brightness but are textured
+ * (measured: 17-30 std), so a luminance-delta probe calls it background. The
+ * canvas background is a smooth gradient, so its rows are flat (measured 2.6
+ * std on real renders), while picture rows run 17-46.
+ *
+ * Measured on the real 2026-10-25 render, top of the media band:
+ *   letterboxed (the defect)  2.6
+ *   night picture            24.9
+ *   daylight picture         44.7
+ * 6 sits in the gap.
+ *
+ * A text row also has high variance, which is exactly why this probe reads the
+ * TOP of the band — media-bottom-bar keeps its copy in the lower half.
+ */
+const PICTURE_ROW_VARIANCE = 6;
+
+/**
+ * Depth of the strip probed at the top of a media band.
+ *
+ * Must sit entirely inside the letterbox that `contain` produces, or the probe
+ * averages picture rows in with the background and reads a false pass. For the
+ * narrowest common case — a 16:9 source in the 1150px band — the letterbox is
+ * 263px tall, so the flat strip above the picture is 51px (y 220-270). 40 stays
+ * inside it. Measured with 56 instead, three of the six narrative scenes read
+ * 10.8-19.8% non-background and wrongly passed.
+ */
+const MEDIA_BAND_PROBE_DEPTH = 40;
+
+/**
+ * Fraction of the probed rows that must carry picture.
+ *
+ * A cover-fitted band has every probed row textured; a letterboxed one has
+ * none. 0.5 tolerates a scene whose very first rows are genuinely flat.
+ */
+const MEDIA_BAND_FILL_MIN_ROWS = 0.5;
 
 // ─── Types (JSDoc) ───
 
@@ -283,8 +325,12 @@ export function checkSafeZoneRight(buf, safeZones) {
 }
 
 /**
- * Check that the gap between content area and subtitle lane (y 1150-1188)
- * is clear. Content should end at y=1150; subtitles start at y≈1188.
+ * Check that the gap between the content area and the subtitle lane is clear.
+ * Content ends at y=1150; subtitles start at SUBTITLE_LANE_TOP.
+ *
+ * The lane top is read from the constant rather than hardcoded, so moving the
+ * lane (as on 2026-10-24, 1188 -> 1258) widens this check instead of leaving
+ * it watching a band the subtitles no longer occupy.
  *
  * @param {PixelBuffer} buf
  * @param {{bottom: number}} safeZones
@@ -292,10 +338,8 @@ export function checkSafeZoneRight(buf, safeZones) {
  */
 export function checkSafeZoneBottom(buf, safeZones) {
   // Content bottom edge = height - safeZones.bottom = 1920 - 770 = 1150
-  // Subtitle lane top ≈ 1188 (SUBTITLE_LANE_TOP)
-  // Check the narrow gap: y ∈ [1150, 1188]
   const contentBottom = buf.height - safeZones.bottom;
-  const subtitleLaneTop = 1188; // matches SUBTITLE_LANE_TOP calculation
+  const subtitleLaneTop = SUBTITLE_LANE_TOP;
   const region = {
     xStart: 0,
     xEnd: buf.width,
@@ -348,6 +392,111 @@ export function checkContentPresence(buf, safeZones) {
     check: "Content area has content",
     detail: `${bright}/${total} bright pixels (${(ratio * 100).toFixed(1)}%)`,
     metrics: { bright, total, brightRatio: ratio },
+  };
+}
+
+/**
+ * Check that a full-bleed scene's picture actually starts at the top of its
+ * declared media band.
+ *
+ * Why this exists: every other check in this file judges the RESULT of a
+ * layout (is anything in the rail? is the gap clean?). None of them notices
+ * when the picture is smaller than the box it was given, because a letterboxed
+ * frame is perfectly safe — it just leaves a third of the frame empty.
+ *
+ * That is exactly what shipped on 2026-10-25: every scene declared
+ * `fit: "cover"`, and @remotion/media's `<Video>` silently ignored the style
+ * form of `objectFit` and rendered `contain`. A 16:9 source sat at canvas
+ * y 263-887 inside the 1150px media band — 263px of dead space above AND below
+ * the picture, in every narrative scene — and passed every gate, because a
+ * frame with a 263px letterbox above the picture is still "safe".
+ *
+ * WHY IT PROBES THE TOP AND NOT THE BOTTOM: the bottom of a media-bottom-bar
+ * band carries the scene's own text rows, and a text row looks like picture to
+ * any pixel statistic — measured on the real render, a row of white type has
+ * per-row variance 63-93 (picture: 17-46) while covering only 18-26% of the
+ * width with non-background pixels (picture: 48-86%). Probing the bottom
+ * therefore reported "picture reaches y=1100" and missed the real 263px
+ * letterbox entirely. The top of the band carries no text, so the strip there
+ * is unambiguous: with `contain` it is flat background, with `cover` it is
+ * picture.
+ *
+ * The check is a WARN, not a FAIL. A source can legitimately start dark, and a
+ * scene may deliberately declare `fit: "contain"`. The point is to name the
+ * condition loudly enough that a human looks at it.
+ *
+ * @param {PixelBuffer} buf
+ * @param {{top: number, right: number, bottom: number, left: number}} safeZones
+ * @param {number} bandBottom - canvas y the picture is expected to reach
+ * @returns {AnalysisResult}
+ */
+export function checkMediaBandFill(buf, safeZones, bandBottom = MEDIA_BAND.bottom) {
+  const bandTop = safeZones.top;
+  const xStart = safeZones.left;
+  const xEnd = buf.width - safeZones.right;
+  const probeDepth = Math.min(MEDIA_BAND_PROBE_DEPTH, Math.max(0, bandBottom - bandTop));
+
+  if (probeDepth < SAMPLE_STEP * 2) {
+    return {
+      level: "pass",
+      check: "Media band is filled",
+      detail: "media band is too short to probe",
+      metrics: { bandTop, bandBottom, probeDepth },
+    };
+  }
+
+  let pictureRows = 0;
+  let totalRows = 0;
+  const rowVariances = [];
+  for (let y = bandTop; y < bandTop + probeDepth; y += SAMPLE_STEP) {
+    let sum = 0;
+    let sumSq = 0;
+    let n = 0;
+    for (let x = xStart; x < xEnd; x += SAMPLE_STEP) {
+      const idx = (buf.width * y + x) * 4;
+      const lum = luminance(buf.data[idx], buf.data[idx + 1], buf.data[idx + 2]);
+      sum += lum;
+      sumSq += lum * lum;
+      n++;
+    }
+    totalRows++;
+    if (n === 0) continue;
+    const mean = sum / n;
+    const variance = Math.sqrt(Math.max(0, sumSq / n - mean * mean));
+    rowVariances.push(Math.round(variance));
+    if (variance > PICTURE_ROW_VARIANCE) pictureRows++;
+  }
+
+  const ratio = totalRows === 0 ? 0 : pictureRows / totalRows;
+  const metrics = { bandTop, bandBottom, probeDepth, pictureRows, totalRows, ratio, rowVariances };
+
+  if (totalRows === 0) {
+    return {
+      level: "pass",
+      check: "Media band is filled",
+      detail: "media band is too short to probe",
+      metrics,
+    };
+  }
+
+  if (ratio < MEDIA_BAND_FILL_MIN_ROWS) {
+    return {
+      level: "warn",
+      check: "Media band is filled",
+      detail:
+        `the top ${probeDepth}px of the media band (y ${bandTop}-${bandTop + probeDepth}) is flat background ` +
+        `(${pictureRows}/${totalRows} rows carry picture, row std ${JSON.stringify(rowVariances)}) — the picture ` +
+        `does not reach the band top, so it is letterboxed rather than filling the band. ` +
+        `Check the objectFit PROP (not style) on <Video>.`,
+      metrics,
+    };
+  }
+
+  return {
+    level: "pass",
+    check: "Media band is filled",
+    detail: `band top carries picture (${pictureRows}/${totalRows} rows, row std ${JSON.stringify(rowVariances)})`,
+    metrics,
   };
 }
 
@@ -584,12 +733,20 @@ export function checkClippedText(buf, safeZones) {
 
 /**
  * Run all frame analysis checks and return results.
+ *
  * @param {PixelBuffer} buf
  * @param {{top: number, right: number, bottom: number, left: number}} safeZones
+ * @param {{mediaBandBottom?: number|null}} [options] - `mediaBandBottom` is the
+ *   canvas y this scene's full-bleed media is expected to reach. Pass it for
+ *   media-bottom-bar scenes, whose band top carries no text and can be probed
+ *   unambiguously. Omit or pass null for scenes with no full-bleed media, and
+ *   for the hook — its media is full-frame, so its band top is covered by the
+ *   brand bar and badge and the probe cannot tell picture from chrome.
  * @returns {AnalysisResult[]}
  */
-export function runFrameAnalysis(buf, safeZones) {
-  return [
+export function runFrameAnalysis(buf, safeZones, options = {}) {
+  const { mediaBandBottom = null } = options;
+  const results = [
     checkNotAllBlack(buf),
     checkSafeZoneTop(buf, safeZones),
     checkSafeZoneRight(buf, safeZones),
@@ -598,4 +755,8 @@ export function runFrameAnalysis(buf, safeZones) {
     checkTextOverflow(buf, safeZones),
     checkClippedText(buf, safeZones),
   ];
+  if (mediaBandBottom !== null) {
+    results.push(checkMediaBandFill(buf, safeZones, mediaBandBottom));
+  }
+  return results;
 }

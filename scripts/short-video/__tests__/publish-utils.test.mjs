@@ -288,10 +288,14 @@ describe("buildManualPublishGuide", () => {
     expect(guide).toContain("sticker");
   });
 
-  it("includes trending audio step", () => {
+  it("includes the sound step (now automated, still discoverable)", () => {
     const guide = buildManualPublishGuide(baseParams);
-    expect(guide).toContain("Add sound");
+    // The step is no longer a manual "tap Add sound" action — the automation
+    // attaches the sound — but the guide must still name it so a publisher
+    // knows to confirm it, and it must still carry the trending rationale.
+    expect(guide).toContain("sound");
     expect(guide).toContain("trending");
+    expect(guide).toContain("tiktok-upload-prep.mjs");
   });
 
   it("includes geographic tag step", () => {

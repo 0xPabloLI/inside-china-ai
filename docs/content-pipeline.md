@@ -533,14 +533,20 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
    > **置顶评论只出 commentHook（用户决定 2026-10-13）**：`metadata.articleUrl` 留空，置顶评论与 Caption 因此不带链接。这是「网站就绪前先不引流」的落地方式。要恢复引流：在该内容的 scene-data 填回 `articleUrl`，重跑 `generate-caption.mjs`（`lib/caption-utils.mjs` → `derivePinnedComment`：无 url 时只返回 hook）。
 
-7. **BGM 选择与确认**（HITL 内）— Agent 自动执行：
-   a. 从 BGM 池中按 pipelineId 确定性选择一个 CC-BY BGM（`lib/bgm.mjs` → `selectBGM`）
-   b. 获取 TikTok trending sounds 并按内容关键词匹配（`trending-sounds.mjs --content <dir>`）
-   c. 输出推荐（选项 A: 混入视频 CC-BY / 选项 B: TikTok trending sound / 选项 C: 不加 BGM）
-   d. 等待用户选择 A / B / C
-   e. 如选 A：执行 `node scripts/short-video/mix-bgm.mjs --video <path> --pipeline-id <id>`
+7. **BGM 与发布 — 用户确认后一条龙，不再单独问 BGM**（用户决定 2026-10-25：*"我觉得以后的pipeline是不是也可以改成：我确认之后，你直接去TikTok加上背景音乐，直接发布就好了。"*）
 
-8. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布
+   **新默认路径**：HITL 用户确认「视频 OK」后，Agent 不停下来问配乐，直接：
+   a. 用 `scripts/short-video/tiktok-upload-prep.mjs` 上传，**自动挂 Breaking News (Voxie)**，音量按下面红线设好并回读校验
+   b. 同一次运行里打上 **AIGC 标记**（脚本第 5 步，fail-closed）
+   c. 点发布（`--publish`）
+
+   **音量红线**：播报必须压过音乐，用默认的 `--volume-db -15`。滑杆读数与「相对播报的 dB」不是同一个量（实测滑杆 −20 dB = 音乐比播报低 22.2 dB，用户听感判定偏轻），设完必须**回读滑杆值**确认（脚本已 fail-closed），不能只看脚本报的 dB 数。推导、测量方法与出处见 `docs/research/music-under-voice-calibration-2026-10.md`。
+
+   > 旧行为（2026-10-24 及以前）：输出 A/B/C 选项等用户选。**已废弃**——不要在 HITL 里再问配乐问题。
+
+   > 备选音源（仅当用户点名要别的音乐）：CC-BY BGM 池 `lib/bgm.mjs` → `selectBGM`，混流用 `mix-bgm.mjs`；TikTok 曲库别的曲子改 `--sound` / `--sound-owner` 参数。
+
+8. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布。确认之后按第 7 步一条龙走完，不再二次确认配乐。
 
 > **视频/脚本修改时的自动更新规则**：如果用户在 HITL 阶段要求修改视频或 scene-data，Agent 修改完成并重新渲染视频后，必须自动重新运行 `generate-caption.mjs` 以更新 Caption 和 Pinned Comment，然后重新输出发步包。
 

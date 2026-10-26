@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 /**
- * Standalone BGM Mixer — adds background music to an existing video.
+ * Standalone BGM Mixer — burns background music into an existing video.
  *
- * Used AFTER HITL confirmation: the pipeline produces video without BGM,
- * user reviews at HITL, confirms BGM choice, then this script mixes it in.
+ * This is the ALTERNATE path, not the default one. The default (user decision
+ * 2026-10-25) is to attach the bed on the platform inside
+ * `tiktok-upload-prep.mjs` — same run as the AIGC label and the publish — so
+ * the pipeline never stops to ask about music. Reach for this script only when
+ * the user names a different track, or when a local mix is needed for a
+ * non-TikTok surface (it also backs `render-only.mjs --bgm`).
  *
  * Usage:
  *   node scripts/short-video/mix-bgm.mjs --video <path> [--bgm-file <path>] [--pipeline-id <id>]
@@ -12,6 +16,13 @@
  * Output: <video-path> with BGM mixed in (original saved as -nobgm.mp4)
  *
  * Mix settings: 0.1s fade-in (instant start), 12% volume, auto-loop, 3s fade-out.
+ *
+ * ⚠️ The `volume=0.12` below (≈ −18.4 dB gain on the bed) is a DIFFERENT scale
+ * from the platform slider's dB reading, and unlike that slider it was never
+ * calibrated against a rendered artifact. It is inside the 15–25 dB-below-voice
+ * band by arithmetic (the bed is ~2 dB quieter than the voice to begin with),
+ * but "inside the band by arithmetic" is the same reasoning that shipped the
+ * −20 dB default the user rejected. Verify the mix, don't trust the constant.
  */
 
 import { execFileSync } from "child_process";
