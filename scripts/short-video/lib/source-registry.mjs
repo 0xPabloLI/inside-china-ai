@@ -3758,10 +3758,7 @@ export function autoGenerateGoogleSiteFallback(source) {
  * @param {{hostFilter?: string|null, pathPattern?: RegExp|null, limit?: number}} [opts]
  * @returns {Array<{title: string, url: string, snippet: string, publishedAt: string}>}
  */
-function parseSearxngResults(
-  text,
-  { hostFilter = null, pathPattern = null, limit = 20 } = {},
-) {
+function parseSearxngResults(text, { hostFilter = null, pathPattern = null, limit = 20 } = {}) {
   const data = JSON.parse(text);
   if (!Array.isArray(data.results)) return [];
   return data.results
