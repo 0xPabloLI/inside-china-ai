@@ -36,6 +36,18 @@ if (!contentId || frame === null) {
   console.error("usage: still-frame.mjs --content <id> --frame <n> [--out <png>]");
   process.exit(1);
 }
+// The id becomes a path segment below. Content ids are directory names
+// (`unitree-h2x-guardian`, `_gate-smoke`), so hold it to that shape. The
+// leading-character rule is what rejects `..`: neither `/` nor a leading `.`
+// can appear, so no id can escape the content tree. A typo like `../..` would
+// otherwise import a scene-data.mjs from outside it and render a still that
+// has nothing to do with the package the caller named.
+if (!/^[a-z0-9_][a-z0-9._-]*$/.test(contentId)) {
+  console.error(
+    `❌ --content must be a content id (lowercase letters, digits, . _ -), got: ${JSON.stringify(contentId)}`,
+  );
+  process.exit(1);
+}
 const out = getArg("out") || `/tmp/still-${contentId}-${frame}.png`;
 
 const contentDir = join(__dirname, "content", contentId);
