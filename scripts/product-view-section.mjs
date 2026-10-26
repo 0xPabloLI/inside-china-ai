@@ -102,10 +102,12 @@ export function renderProductViewSection({ number, repo, runGh: gh = runGh } = {
     rejections.push(`the pull-request body: ${verdict.reason}`);
   }
 
+  // Two bare records fail the same way; repeating the reason reads as two bugs.
+  const reasons = [...new Set(rejections)];
   const inspected =
     records.length === 0
       ? "no record comment carries the `交付记录` marker"
-      : `${records.length} record comment(s): ${rejections.join("; ")}`;
+      : `${records.length} record comment(s): ${reasons.join("; ")}`;
   const noFallback = isPullRequest
     ? ""
     : " (not a pull request, so there is no gate-checked body to fall back to)";

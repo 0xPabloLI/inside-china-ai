@@ -169,6 +169,20 @@ describe("renderProductViewSection — what never counts as the source", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("names a repeated failure once, so two bare records do not read as two bugs", () => {
+    const result = call({
+      runGh: fakeGh({
+        comments: [
+          { id: 14, user: USER, body: BARE_RECORD },
+          { id: 15, user: USER, body: BARE_RECORD },
+        ],
+      }),
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain("2 record comment(s)");
+    expect(result.reason.match(/no product-view section/g)).toHaveLength(1);
+  });
+
   it("an explicit waiver is not a delivery record, even when it carries a section", () => {
     const body = `无需交付记录：拒绝项\n\n${NEWER}`;
     const result = call({ runGh: fakeGh({ comments: [{ id: 12, user: USER, body }] }) });
