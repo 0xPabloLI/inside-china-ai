@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 45 轮盘点 + 74 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案；Round CI 收尾再下沉 C 盘点与 XCVII 一句话档案；Round CII 收尾再下沉 CI 盘点与 XCVIII 一句话档案；Round CIII 收尾再下沉 CII 盘点与 XCIX 一句话档案；Round CIV 收尾再下沉 CIII 盘点与 C 一句话档案；Round CV 收尾再下沉 CIV 盘点；Round CVI 收尾再下沉 CV 盘点，补记 CVI/CV 一句话档案并下沉 CII 与 CI 一句话档案；Round CVII 收尾再下沉 CVI 盘点，补记 CVII 一句话档案并下沉 CIII 一句话档案）。
+> 本文件按时间倒序排列，共 46 轮盘点 + 75 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案；Round CI 收尾再下沉 C 盘点与 XCVII 一句话档案；Round CII 收尾再下沉 CI 盘点与 XCVIII 一句话档案；Round CIII 收尾再下沉 CII 盘点与 XCIX 一句话档案；Round CIV 收尾再下沉 CIII 盘点与 C 一句话档案；Round CV 收尾再下沉 CIV 盘点；Round CVI 收尾再下沉 CV 盘点，补记 CVI/CV 一句话档案并下沉 CII 与 CI 一句话档案；Round CVII 收尾再下沉 CVI 盘点，补记 CVII 一句话档案并下沉 CIII 一句话档案；Round CIX 收尾再下沉 CVII 盘点，补记 CIX 一句话档案并下沉 CIV 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round CVI → LV）
+## 逐轮盘点（Round CVII → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round CVII：`#334` VLM Prompt 优化交付闭票（PR #987，merge `894a6127`）**——图片语义 prompt 从「六段含 Reason + 绕的 Fit 定义」收敛为「Critical Edge Text 先于 Fit、Fit 只许一个词、Reason 并入边缘解释」；claim 模式不再把 `## Scene Claim` 作为 section 追加，而是把 narration + desired visual 放到任务前 preamble，模型回显落在第一个 `##` 之前被 parser 忽略；claim base 仍保留 Subjects/Content Kind（asset-sourcer 的 `scoreCandidate` 与 hook 门槛依赖），并新增 `SEMANTICS_PROMPT_IMAGE_CLAIM`/`SEMANTICS_PROMPT_VIDEO_CLAIM` 两个显式常量。真实 Qwen3-VL-30B A/B（5 个资产）：claim 输出字符 1180→592、1010→728、1160→761（−28%～−50%），图表资产两模式均 `contain`、干净主体静帧均 `cover`；基础图片 prompt 文本因显式规则约 +34%、claim 图片 prompt 约 +4.2%，故 triage 的「30–40% token 节省」只在输出侧成立。验证：Python 294 passed；Node 目标套 96 passed；全量 `npm test` 296 files / 6110 tests passed（7 skipped）；`lint:mjs` 614 files 净、`lint:docs` 净、改动文件 eslint 净；`npm run lint` 的 5 条 Prettier 错误为 `asr-repetition-guard.test.mjs`/`tts-kaggle-deps-dataset.test.mjs` 既有问题，未计入通过；两轴 review + droid-review 3 条 P2 全修 resolve（含 review 抓到的 claim 模式丢 Subjects/Content Kind 回归）。**定性 quality improvement**：同一图表资产不再因 base/claim 两模式给出相反 fit，claim 输出体积下降；无完整内容包重跑，故以 prompt A/B 与 `analyzeAssetSemantics` 端到端 smoke 为证据。**frontier 复算**：Track 1A 空；Step 4 ① Track 1B 推进至 **`#540`**（W3C · whisper 重复循环研究，P2·ready-for-agent；`#541`/`#396` 仍为 `needs-triage`，跳过）；Track 2 `#291` AFK 空；Track 3 HITL（Step 4 ②）队首 `#723`；Step 4 ④ 低优工程卫生含 `#911`、`#978`、`#990`、`#991`、`#992`。）
 
 （**Round CVI：`#922` per-family T2V 模板接线交付闭票（PR #982，merge `1af55605`）**——模板层接入生成路径：`runBrollStage` 经 `familyForModelTier(resolveModelTier(env))` 一次性解析 family（未知 `BROLL_MODEL` 严格拒绝，不静默回退默认档）；declared prompt 由 `renderDeclaredPrompt` 按 family 预算门禁（新 `PromptBudgetError`，reason 含 family/估算 token/超限量），组合 prompt 生成前同门禁（`budgetOvershootReason` 统一报文形状）；报告视频条目新增 `promptFamily` 溯源，图像（T2I）路径不 ride T2V family；gate 分离保留（VLM claim 仍读 raw declared prompt）；预算符号拆到新 `prompt-budget.mjs`（打破注入层→模板层模块环）；declared 门禁为生成时门禁，legacy 超限缓存 winner 继续复用不翻成 failed。范围按用户裁决走**最小接线**：两在产 Wan family slotOrder 相同故槽位重排为无操作——无 `SUBJECT:` 标签解析、无新结构化 scene 字段。验证：目标套件 126/126 绿；**零产出 diff**（32 内容包 / 292 场景 / 15 视频 prompt，wan2.2+wan2.1 双 family 0 diff）；真实报告缓存 smoke 9 cached / 0 generated / 0 analyzer；全量套件仅余基线同数环境性失败（逐文件在基线 commit 复跑证实）；两轴 code-review 9 条 + droid-review 3 条（含 P2 门禁顺序翻掉 legacy 缓存 winner、P2 测试未真正 exercising 判别守卫）全修 resolve。**定性 enabling fix（预期无产出 diff）**：解除的是「模板契约只停在研究数据表、档位切换退化静默」的失察面。**frontier 复算**：Track 1A 空；Step 4 ① Track 1B 推进至 **`#334`**；Track 2 `#291` AFK 空；Track 3 HITL（Step 4 ②）队首 `#723`；Step 4 ④ 低优工程卫生含 `#911`、`#978`。）
 
@@ -111,6 +113,8 @@
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round CIV**（`#358` 交付闭票——`endpoint_blocked` 判决 + SearXNG `site:` 兜底层：`resolveCredentiallessBlockVerdict` 一个 seam 供轴 1/轴 3 共用，`authRequired: false` 的源遇 403（封锁页/极短边缘体）即判 source 类进台账告警，401/429/正文含限流的 403/404 一律不升级，缺 key 优先；新增 `apiSiteFallback` 层走本机 SearXNG、`result.url` 主机过滤 + `pathPattern` 守源契约，`selector-health` 报 `via: site-fallback` 且兜底层跑生产同款 `judgeRelevance` 与 `parse-error` 分档，`channel-doctor` 新层带 `probeUrl` 真机可探；4821 tests 绿、三条真机 smoke（体检 20 条 / 清扫 `endpoint_blocked` / 生产链 20 条 3.8s）、CI 全绿、droid 9 条 + 两轴 2 轮全修；enabling fix 无产出 diff；PR #967 squash `75fb2704`；frontier：Track 1A 空、Track 1B `#329 → #922`、HITL `#723`）
 
 **Round CIII**（`#353` 交付闭票——`selector-health.mjs` 新增 `--alert` 运行时告警同步与每次运行必出的 `output/selector-health.json`（`summarizeResultRow`/`classifyAlertBuckets`/`buildHealthReport`/`syncSelectorHealthIssues` + 共用 `lib/gh-cli.mjs`）：仅 `ALERTABLE_SOURCE_VERDICTS` 真失败自动开票/累加，`probe`（含 `error:*`）与 `via=site-fallback` 单列绝不开票；先查 `[selector-health]` 标题再查 `<source> + <verdict>` 现象原文并附非索引直查兜底防索引延迟重跑重开，重复触发以 HTML comment 标记累加 `occurrences`；主层真恢复自动发含 `交付记录` 评论并关闭 open `[selector-health]` 票，`--fallback` 审计层与 `site-fallback` 不误关票；单源 `gh` 异常按行隔离保留已完成动作；30 单测 + 242 关联绿、真机 API+CDP smoke 落盘通过、Semgrep + droid 7 条与两轴 review 2 条全修 resolve；enabling fix 无产出 diff；PR #962；frontier：Track 1A 空、Track 1B `#358 → #329 → #922`、HITL `#723`）
 
