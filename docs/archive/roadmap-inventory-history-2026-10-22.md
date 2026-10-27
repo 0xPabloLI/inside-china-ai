@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 43 轮盘点 + 72 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案；Round CI 收尾再下沉 C 盘点与 XCVII 一句话档案；Round CII 收尾再下沉 CI 盘点与 XCVIII 一句话档案；Round CIII 收尾再下沉 CII 盘点与 XCIX 一句话档案；Round CIV 收尾再下沉 CIII 盘点与 C 一句话档案；Round CV 收尾再下沉 CIV 盘点）。
+> 本文件按时间倒序排列，共 44 轮盘点 + 74 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案；Round CI 收尾再下沉 C 盘点与 XCVII 一句话档案；Round CII 收尾再下沉 CI 盘点与 XCVIII 一句话档案；Round CIII 收尾再下沉 CII 盘点与 XCIX 一句话档案；Round CIV 收尾再下沉 CIII 盘点与 C 一句话档案；Round CV 收尾再下沉 CIV 盘点；Round CVI 收尾再下沉 CV 盘点，补记 CVI/CV 一句话档案并下沉 CII 与 CI 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round CIV → LV）
+## 逐轮盘点（Round CV → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round CV：`#329` yt-dlp ffmpeg 段代理交接收口交付闭票（PR #979）**——缺口 1 落到「自有注入 + 常驻断言」：新增 `ytdlpProxyEnv()`（`lib/ytdlp-guard.mjs`）并接入两条可委派 ffmpeg 的 spawn（`asset-sourcer.downloadYtdlp`、`video-downloaders.downloadYtdlpAdapter` 的非 TikTok 分支），上游 `FFmpegFD` 的 `--proxy` 注入降为第二层（2026-07.04 实测仍在，但不再承重）；CI 级断言守两条 spawn 的 env，另有离线真 yt-dlp → stub ffmpeg 探针（手工 info JSON + 最小子进程 env，无网络）守最后一跳，无 yt-dlp 的机器 skip。缺口 2 按 2026-09-25 triage 判为上游硬限：`parseMacSystemProxy` 暴露 `socksProxy`，`resolveYtdlpProxy` 每进程一次性 warn 点名端点与 `http_proxy` 出口，seam 头注释与 runbook 第 18/18b 行留痕。偏差与裁决：triage 建议纯契约断言，但纯断言在无 yt-dlp 的 CI 上 skip（自证式门禁是 no-op），故同时移除运行时假设；2026-10-27 用户确认保留自有注入。验证：受影响三套 418 passed；全量 6082 passed / 1 计时假失败（`session-launcher` 满载 5s 超时，隔离 61/61）/ 7 skipped；真实 `downloadYtdlp` smoke 475,540 B / 3.2s；两轴 code-review 两轮 findings 全修；OCR A 模式尝试失败（本地模型 3/3 文件 300s 超时，无产出，记档未当通过）。**定性 enabling fix（预期无产出 diff）**：解除的是「ffmpeg 段代理依赖上游隐式注入」这处静默失效面。另开 follow-up **`#978`**（env `http_proxy=socks5://` 早退无告警，P3/Tier 3）。**frontier 复算**：Track 1A 空；Step 4 ① Track 1B 推进至 **`#922`**；Track 2 `#291` AFK 空；Track 3 HITL（Step 4 ②）队首 `#723`；Step 4 ④ 低优工程卫生含 `#911`、`#978`。）
 
 （**Round CIV：`#358` 匿名端点 403 判决与 SearXNG `site:` 兜底层交付闭票（PR #967）**——新增 `endpoint_blocked` 判决，产出点收敛到一个 seam `resolveCredentiallessBlockVerdict`（`lib/source-url-heal.mjs`），轴 1（`source-url-sweep` 的 apiSearch 探针）与轴 3（`selector-health` 的 `apiFailureVerdict`）共用，两轴无法各判一套：`apiSearch.authRequired: false` 的源遇 **403**（封锁页或极短边缘响应体）即判 source 类——进死源台账、进 #353 告警、退出码非零；边界由证据定：401 不升级（它说「要凭据」，是注册表声明错了）、429 与**正文含「限流」的 403** 不升级（GitHub 匿名 Search API 额度耗尽正是 `403 + API rate limit exceeded` 这个形状，升级即把可用源写进死源台账，与 #332 修掉的 429 同类假死）、404 仍 `http-dead`、缺 key 优先；新增 `apiSiteFallback` 层（`makeSearxngSiteFallback`）：HTTP 型 `site:` 走本机 SearXNG，接在 api/CDP 之后、Google CDP 兜底之前，`site:` 在部分引擎会被丢弃（2026-10-26 实测 `site:reddit.com` 136 条里只有 37–43 条在域内），故主机过滤落在 `result.url` 上、`pathPattern` 维持「只返帖子」的源契约，并与 `searxng_search` 共用同一 JSON 映射器（不带过滤的调用方行为不变）；`selector-health` 按生产顺序探兜底层并在有一层可用时报 `via: site-fallback`（兜底层也死则保留 `endpoint_blocked` 告警并记 `fallbackReason`），`checkApiFallbackSource` 跑与生产同一道 `judgeRelevance` 护栏（判 `invalid-relevance` + `extracted`，200 而非 JSON 判 `parse-error` 而非 `network-error`）；`channel-doctor` 列出新层（在 Google 层之前）且带 `probeUrl` 使 `--live` 真能探到（实测 `status: ok, httpStatus: 200`）。验证：全量 `scripts/short-video/__tests__` **4821 passed / 7 skipped**，`lint:mjs`/`lint:docs`/eslint 净，`knip` 无未使用导出；三条真机 smoke（`selector-health --only reddit_search` 主层 `endpoint_blocked` + 兜底 20 条全 reddit.com；`source-url-sweep` 判 `endpoint_blocked`；生产链 api 403 → cdp `skipped-same-url-as-api` → `api-site-fallback` 20 条、3.8s）；CI 全绿；droid-review 9 条（P2×6/P3×3）与两轴 code-review 两轮 findings 全修并逐条 resolve。**定性 enabling fix（预期无产出 diff）**：无成片/渲染物变化，解除的是「匿名 403 被读成测不了」与「reddit 无任何可用兜底层」两处结构性排除。**frontier 复算**：Track 1A **空**；Step 4 ① Track 1B 推进至 **`#329` → `#922`**；Track 2 `#291` AFK 空；Track 3 HITL（Step 4 ②）队首 `#723`；Step 4 ④ 低优工程卫生含 `#911`。）
 
@@ -107,6 +109,10 @@
 
 > 原「近轮一句话档案」行的轮次条目，原样下沉——仅去掉条目之间的 `；` 分隔符，改为独立段落。
 > 轮次有缺口是正常的：只有真正改动过该行的轮次才留下条目。
+
+**Round CIII**（`#353` 交付闭票——`selector-health.mjs` 新增 `--alert` 运行时告警同步与每次运行必出的 `output/selector-health.json`（`summarizeResultRow`/`classifyAlertBuckets`/`buildHealthReport`/`syncSelectorHealthIssues` + 共用 `lib/gh-cli.mjs`）：仅 `ALERTABLE_SOURCE_VERDICTS` 真失败自动开票/累加，`probe`（含 `error:*`）与 `via=site-fallback` 单列绝不开票；先查 `[selector-health]` 标题再查 `<source> + <verdict>` 现象原文并附非索引直查兜底防索引延迟重跑重开，重复触发以 HTML comment 标记累加 `occurrences`；主层真恢复自动发含 `交付记录` 评论并关闭 open `[selector-health]` 票，`--fallback` 审计层与 `site-fallback` 不误关票；单源 `gh` 异常按行隔离保留已完成动作；30 单测 + 242 关联绿、真机 API+CDP smoke 落盘通过、Semgrep + droid 7 条与两轴 review 2 条全修 resolve；enabling fix 无产出 diff；PR #962；frontier：Track 1A 空、Track 1B `#358 → #329 → #922`、HITL `#723`）
+
+**Round CIV**（`#358` 交付闭票——`endpoint_blocked` 判决 + SearXNG `site:` 兜底层：`resolveCredentiallessBlockVerdict` 一个 seam 供轴 1/轴 3 共用，`authRequired: false` 的源遇 403（封锁页/极短边缘体）即判 source 类进台账告警，401/429/正文含限流的 403/404 一律不升级，缺 key 优先；新增 `apiSiteFallback` 层走本机 SearXNG、`result.url` 主机过滤 + `pathPattern` 守源契约，`selector-health` 报 `via: site-fallback` 且兜底层跑生产同款 `judgeRelevance` 与 `parse-error` 分档，`channel-doctor` 新层带 `probeUrl` 真机可探；4821 tests 绿、三条真机 smoke（体检 20 条 / 清扫 `endpoint_blocked` / 生产链 20 条 3.8s）、CI 全绿、droid 9 条 + 两轴 2 轮全修；enabling fix 无产出 diff；PR #967 squash `75fb2704`；frontier：Track 1A 空、Track 1B `#329 → #922`、HITL `#723`）
 
 **Round C**（`#888` 交付闭票——`bing_news` 声明 `probeAuthoritative: false` 并经 `isProbeAuthoritative()` 单一 seam 退出裸探针，地理重定向 `cn.bing.com/` 不再误判 `redirected-home`；`judgeUrlProbe` 三条判据与普通源不变，quarantine 复检仍受监督；9 条回归 + 4718 tests 绿、lint 净；真实 smoke 取到 12 条；droid LGTM、两轴 review 4 条全修；quality improvement（条件触发）PR #942 squash `84297f37`；frontier：Track 1A 空、Track 1B `#910 → #778`、HITL `#723`）
 
