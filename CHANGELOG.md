@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.37.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.36.0...tanstack_start_ts-v1.37.0) (2026-10-27)
+
+
+### Features
+
+* **short-video:** admit a borderline asset only on its subject check, and name pool failure ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([a345b90](https://github.com/0xPabloLI/inside-china-ai/commit/a345b900f1ca56937b254743c30e03fa3187babb))
+* **short-video:** judge the visible subject, then re-check borderline assets ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([9366aac](https://github.com/0xPabloLI/inside-china-ai/commit/9366aacbef8d46769bf96914ac1e9f505e443947))
+* **short-video:** make stock relevance a verdict system, not a single threshold ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([cee187b](https://github.com/0xPabloLI/inside-china-ai/commit/cee187b69acd353f07b1354a5556f6e9ce8d4a37))
+* **short-video:** one module for relevance bands, pool verdict and admission ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([886a17b](https://github.com/0xPabloLI/inside-china-ai/commit/886a17bc0cafe17bdb730584e49eb4138dc58236))
+* **short-video:** report four relevance states and a pool verdict in step 8b ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([5ab45ac](https://github.com/0xPabloLI/inside-china-ai/commit/5ab45acdebde6283cfe66ec7c86a5365eb87d336))
+
+
+### Bug Fixes
+
+* **short-video:** let admission decide satisfiability everywhere ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([a3b0f37](https://github.com/0xPabloLI/inside-china-ai/commit/a3b0f37cd9c7b4585eed207bf3467514eef47628))
+
 ## [1.36.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.35.0...tanstack_start_ts-v1.36.0) (2026-10-27)
 
 
