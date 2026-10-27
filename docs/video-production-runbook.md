@@ -634,6 +634,20 @@ Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
 `sourceMode` 记录模型实际看到了什么：`native`（视频文件直进）/ `frames`（ffmpeg 抽帧，
 窗口请求或 `frames` 引擎）/ `degraded`（分析失败）。
 
+### 语义 Prompt 契约（#334，2026-10-27）
+
+- **`## Fit` 是单词判定**（`cover` / `contain`），不再让模型预测「会不会被放进 9:16 画布」。
+  先输出 `## Critical Edge Text`，Fit 由它推导；单独的 `## Reason` 已移除，解释合并进
+  Critical Edge Text——media patch 展示的正是这个字段。
+- **claim 模式只去掉重复的 Reason**，保留 `Description` / `Subjects` / `Content Kind`：
+  `Subjects` 进 `scoreCandidate` 的分数（hook gate 读这个分数），`Content Kind` 进
+  `asset-analysis.json` 与 media-patch 评审。图像另有 Critical Edge Text / Fit；视频没有 Fit。
+- **claim 上下文是任务前的 preamble**（scene narration + desired visual），不是 `##`
+  section：放成 section 会被模型当输出填成散文/游离分数，或把标签回声进 `## Fit` 导致
+  枚举解析失败。
+- **改 prompt 必须同步 bump `VLM_CACHE_PROMPT_VERSION`**（`lib/vlm-cache.mjs`），否则旧
+  缓存继续服务旧答案形状。当前 `v3-2026-10-27`。
+
 ### A1 转写接线（#542 L3，2026-10-10）
 
 **视频资产的 ASR 转写随 prompt 一起进语义分析**——这是 Q&A bench 里唯一活下来的

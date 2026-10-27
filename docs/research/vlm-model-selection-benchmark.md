@@ -654,6 +654,8 @@ GLM-4.1V-9B 在 **中文品牌识别** 上明显优于 Qwen3.5-4B-MLX（识别�
 > **数据文件**：`/tmp/vlm_benchmark_results.json`
 > **脚本**：`/tmp/vlm_benchmark.py`
 
+> **2026-10-27（#334）测试 prompt 一致性**：`lib/test_minicpm_omni.py` 此前在本文件里复制了一份生产 prompt，已与 `vlm_analyzer.py` 漂移。该脚本现改为直接 import `SEMANTICS_PROMPT_IMAGE` / `SEMANTICS_PROMPT_VIDEO`（由 `__tests__/test_claim_prompt.py` 断言同一对象）。本节 R10 结论仍按旧 prompt 记录；若要复验 Fit/Reason 结构，必须用新 prompt 重跑该脚本，不能沿用本节数字。
+
 ### 性能对比
 
 | 维度         | Qwen3-VL-2B-4bit (基线) | Qwen3-VL-30B-A3B-4bit (候选) | 倍率     |
