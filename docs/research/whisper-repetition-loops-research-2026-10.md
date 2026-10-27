@@ -12,7 +12,7 @@
 |---|---|---|---|
 | **1. VAD 门控** | 是。WhisperX、faster-whisper、whisper.cpp 都内置；ICASSP 2025 的非语音幻觉论文把 Silero VAD 列为**单项最强**缓解手段 | 在真实生产循环音频上 **17 段 → 0 段**（14.3s → 1.8s）；在干净旁白上 54 → 52 词（相似度 0.9623）；在音乐/歌唱素材上 **62 → 16 词、86 → 2 词** | **不作全局默认**；只作为「已判定为不可收敛循环」的**二次确认探针** |
 | **2. 解码参数** | 各后端各有一套；`repetition_penalty` 只存在于 faster-whisper 系 | whisper.cpp 无重复惩罚项；`-nf` / `-tp 0` / `-et 3.0` / `-nth 0.9` 全部**压不住**该循环；`-bo 1 -bs 1` 反而更差（19 段 / 16 次 "Thank you"） | **不值得改**生产解码；**不引入第三个 ASR 运行时** |
-| **3. 检测判据** | OpenAI 用 30s 窗 compression ratio；BoH 用幻觉短语表；WhisperX 靠 VAD + 对齐 | 30s 窗 compression ratio 对该循环**完全漏检**（最大 0.84）；全文 ratio 3.8 能抓但误报 33/143；3-gram 计数 ≥6 误报 40/143；**段级循环判据 10/143**：6 例护栏已修 + 4 例未修（3 例护栏完全未判 + FEMA 判了改不了），读文无假阳性 | **值得加**（仅检测、不改写）：把「交错多短语循环」作为独立形状写进护栏结果 |
+| **3. 检测判据** | OpenAI 用 30s 窗 compression ratio；BoH 用幻觉短语表；WhisperX 靠 VAD + 对齐 | 30s 窗 compression ratio 对该循环**完全漏检**（最大 0.84）；全文 ratio 3.8 能抓但误报 33/143；3-gram 计数 ≥6 命中 37/143、其中 21 例并非循环；**段级循环判据 10/143**：6 例护栏已修 + 4 例未修（3 例护栏完全未判 + FEMA 判了改不了），读文无假阳性 | **值得加**（仅检测、不改写）：把「交错多短语循环」作为独立形状写进护栏结果 |
 | **4. 下游处置** | 无共识；各项目按消费方决定 | 固定视频/claim 的 A/B：不传 / 原始循环 / 收敛一次三档，relevance 与画面描述**一致**（302 字符灾难文本没有带偏 VLM） | **不值得改**默认：保留 guarded fullText + provenance，不按 `contaminated` 丢 transcript；唯一丢弃路径是 VAD 确认无语音；TTS 侧保持 fail-closed（§5.4） |
 
 一句话：**该循环的根因是非语音段被当成语音解码，不是「解码器忘了惩罚重复」。** 所以能修的杠杆只有「别把非语音送进解码器」（VAD）和「在文本侧认出并标注这个形状」；调参数与换运行时都不触及根因。
@@ -23,7 +23,8 @@
 
 ### 1.1 现状（本仓库）
 
-- 生产转写唯一运行时：whisper.cpp `large-v3-turbo`，命令口径 `-t 8 -fa -mc 0`（ctx-off，ADR-0020）。
+- 生产转写唯一运行时：whisper.cpp `large-v3-turbo`，命令口径 `-t 8 -fa -mc 0`
+  （ctx-off 来自 #418 的等价性实验；模型默认见 ADR-0020 §2）。
 - 解码后护栏：`scripts/short-video/lib/asr-repetition-guard.mjs`（JS，whisper.cpp 出口）与
   `asr_repetition_guard.py`（Python，装载层出口），判据为**周期感知连续循环**：
   单元 ≤16 词、连续重复 ≥6 次、跨度 ≥18 词 → 保留首次 + `[重复×N已收敛]` 标记；
@@ -58,7 +59,8 @@ FEMA 循环的原始输出（本次复跑逐字复现，17 段 / 46 词）：
 - `docs/research/whisper-repetition-loops-fema-baseline-2026-10.json` — 生产口径的 FEMA 原始输出（17 段）
 - `docs/research/whisper-repetition-loops-fema-vad-2026-10.json` — 同一音频加 VAD（0 段）
 - `docs/research/whisper-repetition-loops-vlm-ab-2026-10.json` — §5.2 的三档 A/B 结果
-- `docs/research/whisper-repetition-loops-corpus-scan-2026-10.csv` — §4.2 的逐文件指标（143 行）
+- `docs/research/whisper-repetition-loops-corpus-scan-2026-10.csv` — §4.2 的逐文件指标（143 行；
+  `words` 是护栏的**空格切词**计数，与覆盖率同分母，不是正则 token 数）
 
 （whisper.cpp 的 `-oj` JSON 只记录 `model/language/translate`，不记录 `-t/-fa/-mc` 或 VAD 参数；
 命令口径以 §8 为准。）
@@ -77,11 +79,10 @@ FEMA 循环的原始输出（本次复跑逐字复现，17 段 / 46 词）：
 | 2 | 多词短语循环（整句 ×N） | 收敛 | 是（`-XpJeDGh8No`、`3EQzRz-V7uE` 的整句重复） |
 | 3 | 跨度 <18 词的连续重复 | 不动（即使 `contaminated=true`） | 本次没有出现「已判但不动」的该类；`1pHkv4KUiFY` 连判都没判（见 4′） |
 | 4 | 交错多短语循环（多段交替出现） | 判得出、收不了（FEMA） | 是（生产 FEMA） |
-| 4′ | **短转写里的交错/单文本循环**（本次新增子类） | 未覆盖：三个绝对下限都够不着 | 是（`-gnfUTPmnNU`、`1pHkv4KUiFY`、`CwzjlmBLfrQ`） |
+| 4′ | **转写下限之外的循环**（本次新增子类） | 未覆盖：运行下限、分词或严格周期任一不满足即漏 | 是（`-gnfUTPmnNU`、`1pHkv4KUiFY`、`CwzjlmBLfrQ`） |
 
-4′ 不是新形状，而是第 4 类在「短转写 / 带占位符」下的变体：形状肉眼可见
-（连续 8–9 段只有 1–3 种文本），但 `MIN_RUN_WORDS=18`、`MIN_WORDS_FOR_COVERAGE=40`
-和严格周期三项都过不了（见 §4.3）。
+4′ 不是新形状，而是第 4 类在「短转写 / 额外 token / 无空格脚本」下的变体：形状肉眼可见
+（连续 8–9 段只有 1–3 种文本），但严格周期运行立不起来（见 §4.3）。
 
 ---
 
@@ -238,7 +239,7 @@ VAD 不增加内存：模型加载是主要项，跳过解码反而略降峰值�
 | 重复 n-gram 计数 | 整篇 | 某个 n-gram 出现 ≥K 次 | 命中（2-gram 12 次、3-gram 8 次），但单独使用误报高 |
 | BoH（ICASSP 2025） | 短语表 | Aho–Corasick 匹配已知幻觉短语并删除 | **不命中**：论文明确把 `thank you` 这类高频短语过滤出 BoH（log p −9.22 > −10），而该循环 12/17 段就是 "Thank you." |
 | WhisperX | 音频切分 + 对齐 | VAD 切批；`condition_on_prev_text=False` | 通过 VAD 前置避免（与本报告轴 1 同源） |
-| 本仓库护栏 | 整篇 + 每段 | 周期运行 ≤16 词 / ≥6 次 / 运行 ≥18 词 / 覆盖率 >0.5（≥40 词） | FEMA：`contaminated=true`、`changed=false`（判得出、改不了）；6× "Thank you." 的短尾巴（12 词）**根本没判** |
+| 本仓库护栏 | 整篇 + 每段 | 周期运行 ≤16 词 / ≥6 次 / 运行 ≥18 词 / 覆盖率 >0.5（≥40 词） | FEMA：`contaminated=true`、`changed=false`（判得出、改不了）；`CwzjlmBLfrQ` 的 6× "Thank you." 尾巴只有 12 词，**根本没判**（FEMA 自身最长连续 run 是 5） |
 
 ### 4.2 本机语料统计（142 份非空 MLX + 1 份 cpp FEMA）
 
@@ -249,8 +250,8 @@ VAD 不增加内存：模型加载是主要项，跳过解码反而略降峰值�
 | 全文 compression ratio >2.4 | **33/143**（英文 17/102） | 多语种/非拉丁脚本会天然高压缩比，不能当整篇门 |
 | 全文 compression ratio >3.0 | 16/143 | 仍含大量真内容 |
 | 任一 30s 段 ratio >2.4 | 11/143 | FEMA 的最大段 0.84，**不在其中** |
-| 3-gram 出现 ≥6 次 | 40/143 | 单独使用误报 28% |
-| 3-gram 出现 ≥10 次 | 21/143 | 仍偏宽 |
+| 3-gram 出现 ≥6 次 | 37/143 | 含全部 16 例已改写循环，另 21 例不是循环 |
+| 3-gram 出现 ≥10 次 | 18/143 | 含 14/16 例已改写循环，仍偏宽 |
 | **段级循环判据**（≤3 种不同文本 / ≥6 个非空段 / 跨度 ≥120s） | **10/143** | 10/10 读文为真循环；其中 6 例护栏已改写、4 例未改写（3 例护栏完全未判 + FEMA 判了改不了） |
 
 「不同文本数 ≤ 窗口段数一半」的变体（按比例的版本）会命中 **16** 份，但混入真对话
@@ -272,9 +273,11 @@ VAD 不增加内存：模型加载是主要项，跳过解码反而略降峰值�
 | `Gokw6n0qf-w`（ko） | 67 段 / 373s / 3 种 | 已改写 | 지옥 ×N |
 | `[cpp FEMA loop]` | 17 段 / 489s / 3 种 | 判坏未改写（`contaminated=true`、`changed=false`） | 生产循环本体 |
 
-结论：段级判据补上的不只是「判得出、改不了」，还有**三类护栏完全没判的短转写**
-（18–92 词）：护栏的运行下限是 ≥18 词、覆盖率基数是 ≥40 词、且要求 ≥6 次周期重复，
-短转写在这三条上都够不着；而它们在段级形状上非常显眼（连续 8–9 段只有 1–3 种文本）。
+结论：段级判据补上的不只是「判得出、改不了」，还有**三类护栏完全没判的转写**
+（护栏词数 11–92，见下）：护栏要求「≥18 词的严格周期运行」，而这三例各自缺一样——
+高棉文按空格切只剩 11 个 token（重复落在 token 内部，3-gram 没有可比单元）、
+`¶¶` 作为额外 token 打断周期、6× "Thank you." 只有 12 词（低于运行下限）。
+它们在段级形状上却非常显眼（连续 8–9 段只有 1–3 种文本）。
 在这批语料上 10/10 读文为真循环，**但没有听音标注，不能声称召回率**。
 
 三个「护栏未判」案例的 VAD 复核是独立证据：`1pHkv4KUiFY` 与 `-gnfUTPmnNU` 的 VAD 输出
@@ -285,17 +288,20 @@ VAD 不增加内存：模型加载是主要项，跳过解码反而略降峰值�
 
 - 缺一个**可机读的形状标签**。`contaminated` 只在 FEMA 这类被覆盖率「擦边」判中的样本上
   为 true；另外 3 例连 `contaminated` 都没有，provenance 里没有任何痕迹。
-- 护栏的三个绝对下限（≥6 次重复、运行 ≥18 词、覆盖率基数 ≥40 词）都是为长转写调的。
-  实测两种漏判机制：
+- 护栏的绝对下限（≥6 次重复、运行 ≥18 词、覆盖率基数 ≥40 词）都是为长转写调的。
+  实测三种漏判机制：
   - **运行太短**：6× "Thank you." 只有 12 词，周期运行不成立（`MIN_RUN_WORDS=18`），
     覆盖率基数也不够（12 < 40）。
-  - **占位符打断周期**：转写里的 `¶¶` 这类标点-only token 会变成占位符，
-    把「thank you」的严格周期打断；同一文本去掉 `¶¶` 后 `contaminated` 立刻为 true
+  - **额外 token 打断周期**：`¶¶` 不在 `STRIP_CHARS` 里，归一化后不是空，
+    因此作为**普通 token**（不是占位符）进入序列，把「thank you」的严格周期打断；
+    同一文本去掉 `¶¶` 后 `contaminated` 立刻为 true
     （本机复现：9× "Thank you." = 18 词 → true；插入 `¶¶` 后 19 词 → false）。
+  - **无空格脚本切不出词**：高棉文按空格切只剩 11 个 token，重复落在 token 内部，
+    3-gram 没有可比单元（CJK 则直接走 `wordless-script` 跳过）。
 - FEMA 的覆盖率余量只有 0.022（0.522 vs 0.50），同一形状稍短一点就会掉出判定。
-- **无空格脚本是另一条盲区**：护栏对 CJK 这类无空格文本直接跳过
-  （`skipped: "wordless-script"`），中文/日文转写根本不进入周期判据。
-  本批语料里的 ko/km/si 有空格，走的是正常路径；zh/ja 的循环形状本报告**没有测**，
+- **无空格脚本是另一条盲区**：护栏对 CJK 直接跳过（`skipped: "wordless-script"`），
+  中文/日文转写根本不进入周期判据；高棉文虽然不被跳过，但按空格切只剩 11 个 token，
+  周期判据同样失效。本批语料里 ko/si 有空格、走的是正常路径；zh/ja 没有语料，
   段级判据（按段计数，不依赖分词）是那边唯一现成的形状信号。
 - 段级判据不依赖词数、覆盖率或严格周期，只数「连续多段里有几种文本」，因此这 4 例都命中。
 
@@ -462,6 +468,7 @@ CSV_OUT=docs/research/whisper-repetition-loops-corpus-scan-2026-10.csv \
 ```js
 const norm = (t) => (String(t).toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []).join(" ");
 function loopWindow(segs, maxDistinct = 3, minSegs = 6, minSpanS = 120) {
+  let best = null; // 取非空段最多的窗口，与 CSV 的「窗口」列一致
   for (let i = 0; i < segs.length; i += 1) {
     const seen = new Set();
     let nonEmpty = 0;
@@ -473,10 +480,12 @@ function loopWindow(segs, maxDistinct = 3, minSegs = 6, minSpanS = 120) {
       }
       if (key) nonEmpty += 1;
       const span = segs[j].end - segs[i].start;
-      if (nonEmpty >= minSegs && span >= minSpanS) return { nonEmpty, span, seen };
+      if (nonEmpty >= minSegs && span >= minSpanS && (!best || nonEmpty > best.nonEmpty)) {
+        best = { nonEmpty, span, seen };
+      }
     }
   }
-  return null;
+  return best;
 }
 ```
 
