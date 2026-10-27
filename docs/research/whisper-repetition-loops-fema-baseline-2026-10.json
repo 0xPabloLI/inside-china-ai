@@ -1,0 +1,219 @@
+{
+	"systeminfo": "WHISPER : COREML = 0 | OPENVINO = 0 | MTL : EMBED_LIBRARY = 1 | CPU : NEON = 1 | ARM_FMA = 1 | MATMUL_INT8 = 1 | DOTPROD = 1 | ACCELERATE = 1 | OPENMP = 1 | REPACK = 1 | ",
+	"model": {
+		"type": "large",
+		"multilingual": true,
+		"vocab": 51866,
+		"audio": {
+			"ctx": 1500,
+			"state": 1280,
+			"head": 20,
+			"layer": 32
+		},
+		"text": {
+			"ctx": 448,
+			"state": 1280,
+			"head": 20,
+			"layer": 4
+		},
+		"mels": 128,
+		"ftype": 1
+	},
+	"params": {
+		"model": "~/.cache/whisper/ggml-large-v3-turbo.bin",
+		"language": "en",
+		"translate": false
+	},
+	"result": {
+		"language": "en"
+	},
+	"transcription": [
+		{
+			"timestamps": {
+				"from": "00:00:00,000",
+				"to": "00:00:29,980"
+			},
+			"offsets": {
+				"from": 0,
+				"to": 29980
+			},
+			"text": " The End"
+		},
+		{
+			"timestamps": {
+				"from": "00:00:30,000",
+				"to": "00:00:59,980"
+			},
+			"offsets": {
+				"from": 30000,
+				"to": 59980
+			},
+			"text": " For more information, visit www.fema.org"
+		},
+		{
+			"timestamps": {
+				"from": "00:01:00,000",
+				"to": "00:01:29,980"
+			},
+			"offsets": {
+				"from": 60000,
+				"to": 89980
+			},
+			"text": " Thank you."
+		},
+		{
+			"timestamps": {
+				"from": "00:01:30,000",
+				"to": "00:01:59,980"
+			},
+			"offsets": {
+				"from": 90000,
+				"to": 119980
+			},
+			"text": " Thank you."
+		},
+		{
+			"timestamps": {
+				"from": "00:02:00,000",
+				"to": "00:02:29,980"
+			},
+			"offsets": {
+				"from": 120000,
+				"to": 149980
+			},
+			"text": " For more information, visit www.fema.org"
+		},
+		{
+			"timestamps": {
+				"from": "00:02:30,000",
+				"to": "00:02:59,980"
+			},
+			"offsets": {
+				"from": 150000,
+				"to": 179980
+			},
+			"text": " Thank you."
+		},
+		{
+			"timestamps": {
+				"from": "00:03:00,000",
+				"to": "00:03:29,980"
+			},
+			"offsets": {
+				"from": 180000,
+				"to": 209980
+			},
+			"text": " Thank you."
+		},
+		{
+			"timestamps": {
+				"from": "00:03:30,000",
+				"to": "00:03:59,980"
+			},
+			"offsets": {
+				"from": 210000,
+				"to": 239980
+			},
+			"text": " Thank you."
+		},
+		{
+			"timestamps": {
+				"from": "00:04:00,000",
+				"to": "00:04:29,980"
+			},
+			"offsets": {
+				"from": 240000,
+				"to": 269980
+			},
+			"text": " Thank you."
+		},
+		{
+			"timestamps": {
+				"from": "00:04:30,000",
+				"to": "00:04:59,980"
+			},
+			"offsets": {
+				"from": 270000,
+				"to": 299980
+			},
+			"text": " Thank you."
+		},
+		{
+			"timestamps": {
+				"from": "00:05:00,000",
+				"to": "00:05:29,980"
+			},
+			"offsets": {
+				"from": 300000,
+				"to": 329980
+			},
+			"text": " For more information, visit www.fema.org"
+		},
+		{
+			"timestamps": {
+				"from": "00:05:30,000",
+				"to": "00:05:59,980"
+			},
+			"offsets": {
+				"from": 330000,
+				"to": 359980
+			},
+			"text": " Thank you."
+		},
+		{
+			"timestamps": {
+				"from": "00:06:00,000",
+				"to": "00:06:29,980"
+			},
+			"offsets": {
+				"from": 360000,
+				"to": 389980
+			},
+			"text": " Thank you."
+		},
+		{
+			"timestamps": {
+				"from": "00:06:30,000",
+				"to": "00:06:59,980"
+			},
+			"offsets": {
+				"from": 390000,
+				"to": 419980
+			},
+			"text": " Thank you."
+		},
+		{
+			"timestamps": {
+				"from": "00:07:00,000",
+				"to": "00:07:29,980"
+			},
+			"offsets": {
+				"from": 420000,
+				"to": 449980
+			},
+			"text": " Thank you."
+		},
+		{
+			"timestamps": {
+				"from": "00:07:30,000",
+				"to": "00:07:59,980"
+			},
+			"offsets": {
+				"from": 450000,
+				"to": 479980
+			},
+			"text": " For more information visit www.fema.org"
+		},
+		{
+			"timestamps": {
+				"from": "00:08:00,000",
+				"to": "00:08:08,560"
+			},
+			"offsets": {
+				"from": 480000,
+				"to": 488560
+			},
+			"text": " Thank you."
+		}
+	]
+}

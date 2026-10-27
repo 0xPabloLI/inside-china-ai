@@ -1,0 +1,79 @@
+[
+ {
+  "description": "The video shows a person making a small, knitted octopus keychain using blue yarn and a can lid as a base. They use a needle to wrap the yarn around the lid, create a spiral shape, and then add details like eyes and a tail to complete the craft.",
+  "subjects": [
+   "craft",
+   "knitting",
+   "yarn",
+   "can lid",
+   "octopus",
+   "keychain"
+  ],
+  "contentKind": "product_demo",
+  "fit": null,
+  "criticalEdgeText": null,
+  "reason": null,
+  "relevance": 0,
+  "relevanceReason": "The video is a craft tutorial and has no connection to disaster relief or emergency information.",
+  "sourceMode": "native",
+  "error": null,
+  "requestId": "no_transcript",
+  "_wall_s": 167.3,
+  "_variant": "no_transcript",
+  "_transcript_chars": 0
+ },
+ {
+  "description": "The video shows a person creating a small, knitted octopus keychain using blue yarn and a can lid as a loom. The process involves looping the yarn around the lid, using a needle to weave the yarn, and adding details like eyes and a keyring.",
+  "subjects": [
+   "craft",
+   "knitting",
+   "yarn",
+   "can lid",
+   "octopus",
+   "keychain",
+   "needle",
+   "glue gun"
+  ],
+  "contentKind": "product_demo",
+  "fit": null,
+  "criticalEdgeText": null,
+  "reason": null,
+  "relevance": 0,
+  "relevanceReason": "The video is a craft tutorial and has no connection to disaster relief or FEMA. It is completely unrelated to the scene claim about hurricane relief information.",
+  "sourceMode": "native",
+  "transcriptChars": 302,
+  "error": null,
+  "requestId": "raw_loop",
+  "_wall_s": 96.4,
+  "_variant": "raw_loop",
+  "_transcript_chars": 302
+ },
+ {
+  "description": "The video shows a person creating a small, knitted octopus keychain using blue yarn, a can lid, a needle, and a cotton bud. The process involves wrapping the yarn around the can lid, securing it with a needle, and then using a cotton bud to form the body and a hot glue gun to attach the eyes and a keyring.",
+  "subjects": [
+   "craft",
+   "knitting",
+   "octopus",
+   "keychain",
+   "yarn",
+   "can lid",
+   "needle",
+   "cotton bud",
+   "glue gun",
+   "eyes"
+  ],
+  "contentKind": "product_demo",
+  "fit": null,
+  "criticalEdgeText": null,
+  "reason": null,
+  "relevance": 0,
+  "relevanceReason": "The video is a craft tutorial and has no connection to disaster relief or emergency information.",
+  "sourceMode": "native",
+  "transcriptChars": 61,
+  "error": null,
+  "requestId": "collapsed_once",
+  "_wall_s": 92.5,
+  "_variant": "collapsed_once",
+  "_transcript_chars": 61
+ }
+]
