@@ -22,10 +22,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 import pytest  # noqa: E402
 
 from vlm_analyzer import (
+    RELEVANCE_CHECK_PROMPT_IMAGE,
+    RELEVANCE_CHECK_PROMPT_VIDEO,
     SEMANTICS_PROMPT_IMAGE,
     SEMANTICS_PROMPT_IMAGE_CLAIM,
     SEMANTICS_PROMPT_VIDEO,
     SEMANTICS_PROMPT_VIDEO_CLAIM,
+    _parse_subject_match,
+    build_relevance_check_prompt,
     build_semantics_prompt,
     parse_markdown_to_dict,
 )
@@ -241,6 +245,145 @@ check(
     legacy.get("fit") == "cover"
     and legacy.get("contentKind") == "product_demo"
     and legacy.get("description") == "desc",
+)
+
+# ── #294: subject-level criterion + second-pass subject check ──
+
+print("#294 relevance verdict:")
+
+check(
+    "first-pass relevance judges the visible subject",
+    "visible subject" in claim_image,
+)
+check(
+    "first-pass relevance forbids demanding the abstract event",
+    "not whether the asset depicts the abstract event" in claim_image,
+)
+check(
+    "first-pass relevance says foreign-language labels are not negative evidence",
+    "different language" in claim_image and "not negative evidence" in claim_image,
+)
+
+check_image = build_relevance_check_prompt(is_video=False, claim=CLAIM)
+check_video = build_relevance_check_prompt(is_video=True, claim=CLAIM)
+
+check(
+    "subject-check prompt carries the claim preamble",
+    check_image.startswith("Scene claim for relevance scoring:")
+    and "Qwen4 beats Claude at coding benchmarks." in check_image
+    and "benchmark chart comparison" in check_image,
+)
+check(
+    "subject-check prompt asks for exactly match/no_match",
+    "Output exactly one word: match or no_match." in check_image,
+)
+check(
+    "subject-check prompt matches on kind, not the exact action or setting",
+    "the same kind of thing the desired visual names" in check_image
+    and "The action, setting, or specific instance does not need to match" in check_image,
+    "a real run rejected a robot arm for not lifting a block",
+)
+check(
+    "subject-check prompt makes the desired visual the standard and the narration context",
+    "The narration is background context" in check_image,
+    "a real run judged a robot arm against the entities named in the narration",
+)
+check(
+    "subject-check prompt rules out the abstract-event test",
+    "abstract event" in check_image,
+)
+check(
+    "subject-check prompt keeps the language rule",
+    "different language" in check_image,
+)
+check(
+    "subject-check prompt names logos/UI as strong evidence",
+    "A logo, product UI" in check_image,
+    "the 2026-09-29 measured false negative was an official Chinese UI screenshot",
+)
+check(
+    "subject-check prompt is enum-only (no Description/Fit sections)",
+    "## Description" not in check_image and "## Fit" not in check_image,
+)
+check(
+    "subject-check video prompt names the video subject",
+    "this video's visible subject" in check_video,
+)
+check(
+    "subject-check prompt without a claim is the bare prompt",
+    build_relevance_check_prompt(is_video=False, claim=None) == RELEVANCE_CHECK_PROMPT_IMAGE,
+)
+
+for name, body, expected in [
+    ("bare match", "match", "match"),
+    ("bold match", "**Match**", "match"),
+    ("match with reason tail", "Match — the logo belongs to the named company.", "match"),
+    ("bare no_match", "no_match", "no_match"),
+    ("spaced no match", "no match", "no_match"),
+    ("bold no_match", "**NO_MATCH**", "no_match"),
+    ("matching is not a verdict", "matching the claim loosely", None),
+    ("prose is not a verdict", "The image is probably related.", None),
+    ("empty body", "", None),
+]:
+    check(
+        f"subject match parser: {name}",
+        _parse_subject_match(body) == expected,
+        f"got {_parse_subject_match(body)!r}",
+    )
+
+parsed_check = parse_markdown_to_dict(
+    """## Subject Match
+match
+
+## Reason
+Visible subject is the named company's robot.
+"""
+)
+check(
+    "parse_markdown_to_dict exposes subjectMatch",
+    parsed_check.get("subjectMatch") == "match",
+    f"got {parsed_check.get('subjectMatch')!r}",
+)
+check(
+    "subject_match is not duplicated as a raw section",
+    "subject_match" not in parsed_check,
+)
+missing_check = parse_markdown_to_dict("## Description\nd\n")
+check("missing Subject Match → None", missing_check.get("subjectMatch") is None)
+
+# Real Qwen3-VL run (2026-10-27): the single-question prompt came back as
+# "no_match\n\nThe visible subject is ..." with no header. Accept only an
+# unambiguous leading verdict; prose must stay fail-closed.
+headless_no = parse_markdown_to_dict(
+    "no_match\n\nThe visible subject is the DeepSeek logo, not a robot hand.\n"
+)
+check(
+    "headless leading no_match parsed",
+    headless_no.get("subjectMatch") == "no_match",
+    f"got {headless_no.get('subjectMatch')!r}",
+)
+check(
+    "headless verdict keeps the explanation as reason",
+    "DeepSeek logo" in (headless_no.get("reason") or ""),
+    f"got {headless_no.get('reason')!r}",
+)
+headless_yes = parse_markdown_to_dict("match\n\nThe subject is the named company's robot.\n")
+check(
+    "headless leading match parsed",
+    headless_yes.get("subjectMatch") == "match",
+    f"got {headless_yes.get('subjectMatch')!r}",
+)
+prose_only = parse_markdown_to_dict("The image is probably related to the claim.\n")
+check(
+    "headerless prose is not a verdict",
+    prose_only.get("subjectMatch") is None,
+    f"got {prose_only.get('subjectMatch')!r}",
+)
+variant_header = parse_markdown_to_dict("## Match\nno_match\n")
+check(
+    "shortened ## Match header accepted",
+    variant_header.get("subjectMatch") == "no_match",
+    f"got {variant_header.get('subjectMatch')!r}",
 )
 
 # ── Report ──

@@ -325,6 +325,49 @@ Comma-separated key subject terms (e.g., "robot, factory, mobility").
 One of: product_demo, talking_head, landscape, chart, text_screenshot, other
 """
 
+# Second-pass relevance check (#294). A first-pass score in the 40-59 band is
+# not a verdict: the claim prompt asks whether the asset depicts the claim's
+# *specific* event, which no stock or official image can do for a funding
+# round, a strategy shift or a hiring plan. This prompt asks the narrower,
+# answerable question — is the visible subject the thing the scene is about? —
+# and answers with a strict enum so the caller can admit or keep it closed.
+#
+# The language rule exists because of a measured false negative (2026-09-29):
+# an official Chinese UI screenshot of the exact product the scene described
+# scored 0 with the reason "unrelated system text in a foreign language". The
+# channel's first-party material is largely Chinese UI; judging the language
+# of the labels instead of the subject systematically kills the best evidence.
+_RELEVANCE_CHECK_RULES = """## Subject Match
+Output exactly one word: match or no_match.
+- match: the visible subject is the same kind of thing the desired visual names — a robot arm for "robot arm picking up a block", a humanoid robot for "humanoid robot in a kitchen", the named company's logo or UI for a scene about that company. The action, setting, or specific instance does not need to match.
+- no_match: a different kind of thing — a logo for a robot hand, a building for a person, a landscape for a product demo.
+Judge against the desired visual. The narration is background context — an asset does not need to depict the people, companies, or events it names.
+Judge what is visible, not whether the asset depicts the abstract event in the narration (a funding round, a strategy shift, a hiring plan) — no stock or official image can show those.
+On-screen text in a different language from the narration is not negative evidence by itself: judge the subject, not the language of its labels.
+A logo, product UI, or screenshot of the named company is strong evidence: match.
+
+## Reason
+One sentence explaining the verdict.
+
+Example:
+## Subject Match
+match
+
+## Reason
+The visible subject is a Unitree humanoid robot, the company the scene names."""
+
+RELEVANCE_CHECK_PROMPT_IMAGE = (
+    "Decide whether this image's visible subject fits the scene's desired visual. "
+    "This is a second look at a candidate that scored borderline on the stricter claim test.\n\n"
+    + _RELEVANCE_CHECK_RULES
+)
+
+RELEVANCE_CHECK_PROMPT_VIDEO = (
+    "Decide whether this video's visible subject fits the scene's desired visual. "
+    "This is a second look at a candidate that scored borderline on the stricter claim test.\n\n"
+    + _RELEVANCE_CHECK_RULES
+)
+
 SEMANTICS_PROMPT_AUDIO = """Analyze this audio for use in a short video production pipeline. Provide your analysis as Markdown with the following sections:
 
 ## Transcription
@@ -360,6 +403,45 @@ def strip_control_tokens(text):
     return _CONTROL_TOKEN_RE.sub("", text).strip()
 
 
+def _claim_preamble(claim):
+    """The shared scene-claim preamble used by both relevance prompts (#294).
+
+    Kept in one place so the first pass and the second-pass subject check can
+    never describe the same scene differently.
+
+    The claim context is PREAMBLE, like the transcript block — never a
+    `## ` section between output sections. Two real-run failures drove
+    this: (1) a `## Scene Claim` header was filled by the model as if it
+    were an output section (a prose paragraph, or a stray "100"), and
+    (2) after it became a plain label, the model echoed the label *after*
+    `## Fit`, whose body then contained the echo and failed the
+    cover/contain enum. As preamble, any echo lands before the first
+    header and the parser ignores it; the Relevance instructions stay
+    with the output sections.
+    """
+    voiceover = str(claim.get("voiceover") or "").strip()
+    need = str(claim.get("assetNeed") or "").strip()
+    context = "Scene claim for relevance scoring:"
+    if voiceover:
+        context += f'\nScene narration: "{voiceover}"'
+    if need:
+        context += f'\nDesired visual: "{need}"'
+    return context
+
+
+def build_relevance_check_prompt(is_video=False, claim=None):
+    """Build the #294 second-pass subject-match prompt.
+
+    No transcript block: the check is about the visible subject, and ASR text
+    describes speech, not the picture. `claim=None` returns the bare prompt
+    (useful for tests), but production always passes a claim.
+    """
+    base = RELEVANCE_CHECK_PROMPT_VIDEO if is_video else RELEVANCE_CHECK_PROMPT_IMAGE
+    if not claim:
+        return base
+    return _claim_preamble(claim) + "\n\n" + base
+
+
 def build_semantics_prompt(is_video=False, claim=None, transcript=None):
     """Build the semantics prompt, optionally with a transcript / claim block.
 
@@ -388,27 +470,10 @@ def build_semantics_prompt(is_video=False, claim=None, transcript=None):
         if text:
             preambles.append(f"{TRANSCRIPT_HEAD}\n{text[:TRANSCRIPT_MAX_CHARS]}")
 
-    voiceover = ""
-    need = ""
     if claim:
-        voiceover = str(claim.get("voiceover") or "").strip()
-        need = str(claim.get("assetNeed") or "").strip()
-
-        # The claim context is PREAMBLE, like the transcript block — never a
-        # `## ` section between output sections. Two real-run failures drove
-        # this: (1) a `## Scene Claim` header was filled by the model as if it
-        # were an output section (a prose paragraph, or a stray "100"), and
-        # (2) after it became a plain label, the model echoed the label *after*
-        # `## Fit`, whose body then contained the echo and failed the
-        # cover/contain enum. As preamble, any echo lands before the first
-        # header and the parser ignores it; the Relevance instructions stay
-        # with the output sections.
-        context = "Scene claim for relevance scoring:"
-        if voiceover:
-            context += f'\nScene narration: "{voiceover}"'
-        if need:
-            context += f'\nDesired visual: "{need}"'
-        preambles.append(context)
+        # The scene claim is preamble for both prompts (#294 shares the
+        # builder). See _claim_preamble for why it must not be a section.
+        preambles.append(_claim_preamble(claim))
 
     if preambles:
         base = "\n\n".join(preambles) + "\n\n" + base
@@ -419,9 +484,16 @@ def build_semantics_prompt(is_video=False, claim=None, transcript=None):
     return (
         base
         + "\n\n## Relevance\n"
-        "Score 0-100: how well this asset supports the scene claim above. "
-        "100 = directly supports it, 50 = loosely related, 0 = completely unrelated. "
-        "Output the bare integer only.\n\n"
+        "Score 0-100: how well the visible subject of this asset supports the scene claim above.\n"
+        "Judge the subject the viewer can see (the company, product, person, place, or object), "
+        "not whether the asset depicts the abstract event in the narration. No stock or official "
+        "image can show a funding round, a strategy shift, or a hiring plan; an image of the "
+        "company, product, or people involved is strong support for such a claim.\n"
+        "On-screen text in a different language from the narration is not negative evidence — "
+        "judge what the asset shows, not the language of its labels.\n"
+        "100 = the visible subject is the exact company, product, person, place, or event the "
+        "claim is about, 50 = same domain but a generic or different subject, 0 = unrelated "
+        "subject. Output the bare integer only.\n\n"
         "## Relevance Reason\n"
         "One sentence explaining the score.\n"
     )
@@ -453,6 +525,24 @@ def _parse_relevance_value(body):
     return value if 0 <= value <= 100 else None
 
 
+def _parse_subject_match(body):
+    """Extract the #294 second-pass verdict from `## Subject Match`.
+
+    Strict by design: only an explicit match/no_match in the first line
+    counts. "matching", "partially matches", a prose paragraph or a missing
+    section all fail closed to None, and the caller must then keep the
+    candidate closed. A silent promotion here would admit images on a
+    sentence the model did not actually commit to.
+    """
+    if not body:
+        return None
+    first_line = body.strip().split("\n", 1)[0].strip().strip("*").strip().lower()
+    match = re.match(r"^(match|no[ _-]?match)(?:\b|$)", first_line)
+    if not match:
+        return None
+    return "no_match" if match.group(1).startswith("no") else "match"
+
+
 def parse_markdown_to_dict(raw_text):
     """Parse VLM Markdown output into a dict with 8 mandatory keys.
 
@@ -468,7 +558,8 @@ def parse_markdown_to_dict(raw_text):
 
     Returns dict with mandatory keys: description, subjects, contentKind,
     fit, criticalEdgeText, reason, relevance (int 0-100 or None),
-    relevanceReason. Missing fields = None/[].
+    relevanceReason, subjectMatch (#294: "match" | "no_match" | None).
+    Missing fields = None/[].
     """
     result = {
         "description": None,
@@ -479,6 +570,7 @@ def parse_markdown_to_dict(raw_text):
         "reason": None,
         "relevance": None,
         "relevanceReason": None,
+        "subjectMatch": None,
     }
 
     if not raw_text or not raw_text.strip():
@@ -501,6 +593,19 @@ def parse_markdown_to_dict(raw_text):
 
     # 2. Check if there are any '## ' headers
     if "## " not in text:
+        # A single-question prompt (#294 subject check) is sometimes answered
+        # without the header: a real Qwen3-VL run returned "no_match\n\n<why>".
+        # Accept only an unambiguous leading verdict; everything else keeps the
+        # historical "whole text is a description" behavior. Guessing a verdict
+        # from prose would admit images the model never committed to.
+        headless_verdict = _parse_subject_match(text)
+        if headless_verdict:
+            remainder = text.split("\n", 1)[1].strip() if "\n" in text else ""
+            result["description"] = ""
+            result["subjects"] = []
+            result["subjectMatch"] = headless_verdict
+            result["reason"] = remainder or None
+            return result
         # No headers — entire text becomes description
         result["description"] = text.strip()
         result["subjects"] = []
@@ -585,9 +690,20 @@ def parse_markdown_to_dict(raw_text):
     else:
         result["relevanceReason"] = None
 
+    # subjectMatch — #294 second-pass verdict (strict enum, fail-closed).
+    # `## Match` is accepted as a header variant (the model sometimes shortens
+    # the section name); anything that is not an explicit enum fails closed.
+    if "subject_match" in raw_sections:
+        result["subjectMatch"] = _parse_subject_match(raw_sections["subject_match"])
+    elif "match" in raw_sections:
+        result["subjectMatch"] = _parse_subject_match(raw_sections["match"])
+    else:
+        result["subjectMatch"] = None
+
     # 5. Add unknown sections as extra key-value pairs
     known_keys = {"description", "subjects", "content_kind", "fit",
-                  "critical_edge_text", "reason", "relevance", "relevance_reason"}
+                  "critical_edge_text", "reason", "relevance", "relevance_reason",
+                  "subject_match", "match"}
     for key, value in raw_sections.items():
         if key not in known_keys:
             result[key] = value
@@ -1264,6 +1380,9 @@ def merge_window_results(parsed_results, windows, plan=None):
         "reason": None,
         "relevance": None,
         "relevanceReason": None,
+        # #294: a windowed semantics pass is not a subject check; the key is
+        # present so the response shape stays uniform and fail-closed.
+        "subjectMatch": None,
     }
 
     # When a plan is given, the denominator reflects the FULL plan size and
@@ -1314,7 +1433,7 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
                              window=None, windows=None, claim=None,
                              crop_focus=None, frame_strategy=None,
                              max_frames=None, sample_fps=None,
-                             transcript=None):
+                             transcript=None, relevance_check=False):
     """Handle an analyze_semantics request.
 
     Dispatches to image or video prompt based on file extension.
@@ -1359,7 +1478,14 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
 
     ext = os.path.splitext(path)[1].lower()
     is_video = ext in (".mp4", ".mov", ".avi", ".mkv")
-    prompt_text = build_semantics_prompt(is_video, claim, transcript)
+    # #294 second pass: the subject-match prompt replaces the semantics prompt
+    # entirely. It answers one enum question, so it carries no Fit/Subjects
+    # sections — the caller only reads subjectMatch from this response.
+    prompt_text = (
+        build_relevance_check_prompt(is_video, claim)
+        if relevance_check
+        else build_semantics_prompt(is_video, claim, transcript)
+    )
     # Provenance for the artifact: the chars actually fed to the prompt
     # (capped), not the raw transcript length. Absent/ignored → not set.
     transcript_chars = len(transcript.strip()[:TRANSCRIPT_MAX_CHARS]) if (
@@ -1378,8 +1504,10 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
 
     # Multi-window segmented analysis (#360 ticket-1): one pass per window,
     # merged into a single 8-field-compatible result. Images have no time
-    # axis — a windows list is ignored there.
-    window_list = normalize_windows(windows) if is_video else None
+    # axis — a windows list is ignored there. A #294 relevance check is a
+    # whole-asset judgment (one verdict, not one per segment), so it takes
+    # the single-pass path even for videos.
+    window_list = normalize_windows(windows) if (is_video and not relevance_check) else None
     if window_list:
         parsed_results = []
         successful_windows = []
@@ -1613,6 +1741,9 @@ def main():
                 crop_focus = _parse_crop_focus(request.get("cropFocus"))
                 # A1 transcript (#542 L3) — absent = no transcript block.
                 transcript = request.get("transcript")
+                # #294 second-pass subject check — absent/false = the normal
+                # semantics prompt.
+                relevance_check = bool(request.get("relevanceCheck"))
                 # Frame-selection params (#391): request value wins over the
                 # CLI default; absent on both → current behavior (S1).
                 frame_strategy = request.get(
@@ -1629,6 +1760,7 @@ def main():
                     max_frames=max_frames,
                     sample_fps=sample_fps,
                     transcript=transcript,
+                    relevance_check=relevance_check,
                 )
                 if err:
                     response = _degraded_result(err)
@@ -1676,6 +1808,7 @@ def _degraded_result(error):
         "reason": None,
         "relevance": None,
         "relevanceReason": None,
+        "subjectMatch": None,
         "error": error,
     }
 
