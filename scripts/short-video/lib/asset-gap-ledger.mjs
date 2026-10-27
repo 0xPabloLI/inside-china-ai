@@ -25,7 +25,8 @@
 import { createHash } from "node:crypto";
 import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
 
-export const ASSET_GAP_SCHEMA_VERSION = 1;
+/** Internal: the ledger file's schema tag, read and written only in here. */
+const ASSET_GAP_SCHEMA_VERSION = 1;
 
 /** Why a scene stayed empty after sourcing. */
 export const GAP_REASON = {
@@ -269,7 +270,7 @@ export function deriveGaps({
 }
 
 /** @returns {{schemaVersion: number, updatedAt: string, gaps: Array<object>}} */
-export function emptyLedger(now = new Date()) {
+function emptyLedger(now = new Date()) {
   return { schemaVersion: ASSET_GAP_SCHEMA_VERSION, updatedAt: nowIso(now), gaps: [] };
 }
 
