@@ -4,10 +4,10 @@
  * For each scene with media.type === "image", runs analyzeAssetSemantics with
  * the scene's claim and reports a verdict. #294 changed three things:
  *
- *   1. The claim is the pipeline's claim — `assetNeed` when declared — not a
- *      re-synthesis from texts. The old version asked the VLM about a
- *      different question than asset-sourcer asked, so its verdicts could not
- *      explain the assignment decision.
+ *   1. The claim is `assetNeed` when the scene declares one — the same
+ *      statement asset-sourcer scores — not a re-synthesis from texts. The old
+ *      version asked the VLM a different question than asset-sourcer asked, so
+ *      its verdicts could not explain the assignment decision.
  *   2. `null` is reported as UNAVAILABLE (tool outcome), not a failed image.
  *   3. A 40-59 score gets the same second-pass subject check the sourcer runs,
  *      and a `match` admits the image.
@@ -43,6 +43,7 @@ import { analyzeAssetSemantics, closeVisualAnalyzer } from "./lib/visual-analyze
 import {
   BORDERLINE_FLOOR,
   DEFAULT_RELEVANCE_THRESHOLD,
+  POOL_VERDICT,
   RELEVANCE_BAND,
   admissionSource,
   classifyPool,
@@ -65,12 +66,14 @@ function getArg(argv, name) {
 }
 
 /**
- * Build the claim the pipeline actually used for this scene.
+ * Build the claim for a scene that already has a bound image.
  *
- * Priority matches asset-sourcer's sourcing path: the structured `assetNeed`
- * is the scene's declared visual intent; a generated-media prompt is the next
- * best statement of intent; texts are the last resort for hand-bound legacy
- * scenes with neither.
+ * `assetNeed` is the same statement of visual intent asset-sourcer scores, so
+ * it wins whenever the scene declares one. The remaining branches exist only
+ * for hand-bound legacy scenes the sourcer never touched (it sources nothing
+ * without an `assetNeed`): a generation prompt is the next best statement of
+ * intent, and texts are the last resort. This precedence describes the report,
+ * not a sourcer fallback chain — the sourcer has none.
  *
  * @param {Object} scene
  * @returns {{claim: {voiceover: string, assetNeed: string}, claimSource: string}}
@@ -366,7 +369,7 @@ async function main(argv = process.argv.slice(2)) {
 
   if (summary.evaluated === 0) {
     console.log("\nNo bound stock image is outside the waiver — nothing to judge.");
-  } else if (summary.verdict === "unsatisfiable") {
+  } else if (summary.verdict === POOL_VERDICT.UNSATISFIABLE) {
     console.log(
       "\n⚠️  No evaluated image is admissible. Treat this as an unsatisfiable criterion for the package,",
     );
@@ -374,7 +377,7 @@ async function main(argv = process.argv.slice(2)) {
       "    not as N individual mistakes: replace the approach (B-roll / layout) or record a repo-visible",
     );
     console.log("    `metadata.stockRelevanceExemption` with the reason.");
-  } else if (summary.verdict === "unavailable") {
+  } else if (summary.verdict === POOL_VERDICT.UNAVAILABLE) {
     console.log(
       "\n⚠️  No image produced a parseable score. This is a tool outcome, not a content verdict —",
     );

@@ -122,6 +122,7 @@ import { isReusedAsset } from "./used-asset-index.mjs";
 // a leaf module shared with the B-roll gate and evaluate-stock-relevance.mjs.
 import {
   DEFAULT_RELEVANCE_THRESHOLD,
+  POOL_VERDICT,
   RELEVANCE_BAND,
   admissionSource,
   classifyPool,
@@ -129,9 +130,6 @@ import {
   isRelevanceAdmitted,
   needsSecondPass,
 } from "./relevance-verdict.mjs";
-
-// Kept as a public export: main() and the CLI default read it from here.
-export { DEFAULT_RELEVANCE_THRESHOLD };
 
 // Re-export SOURCE_ATTRIBUTIONS from source-registry (single source of truth)
 export { SOURCE_ATTRIBUTIONS };
@@ -1038,7 +1036,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
           reason =
             "VLM relevance unavailable (analysis failed or score unparseable) — fail-closed, not a content verdict (宁缺毋滥)";
           reason +=
-            pool.verdict === "unavailable"
+            pool.verdict === POOL_VERDICT.UNAVAILABLE
               ? "; scene pool unavailable (no parseable score) — escalate to B-roll/human"
               : `; scene pool ceiling ${pool.ceiling} (other candidates scored)`;
         } else {
@@ -1049,7 +1047,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
                 ? "; second-pass subject check: no_match"
                 : "; no second-pass subject check";
           }
-          if (pool.verdict === "unsatisfiable") {
+          if (pool.verdict === POOL_VERDICT.UNSATISFIABLE) {
             reason += `; scene pool ceiling ${pool.ceiling} — unsatisfiable, escalate to B-roll/human`;
           }
         }
