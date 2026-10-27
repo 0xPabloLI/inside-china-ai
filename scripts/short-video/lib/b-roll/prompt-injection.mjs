@@ -17,9 +17,12 @@
  * the generation jobs receive the composed string — a negative clause must
  * never leak into the gate's positive assetNeed.
  */
-import { MAX_SEQUENCE_LENGTH } from "./runner.mjs";
 import { NEGATIVE_GROUPS, coversNegativeGroup } from "../scene-rules.mjs";
 import { buildEntityColorAliases } from "../company-relations.mjs";
+import { renderDeclaredPrompt } from "./prompt-templates.mjs";
+// #922: the budget lives in prompt-budget.mjs so the template layer can read
+// it without cycling through this module. Callers import budget symbols from
+// there directly.
 
 // Bumped whenever the injected constants change shape: report entries record
 // it so cache decisions can tell pre-injection winners from post-injection
@@ -210,48 +213,30 @@ function composePrompt(declared, scene) {
   return parts.join(", ");
 }
 
-export function composeGenerationPrompt(scene) {
-  return composePrompt((scene?.aiVideo?.prompt ?? "").trim(), scene);
+/**
+ * Compose the generation prompt for a scene's T2V family (#922). The family
+ * must be resolved by the caller (`familyForModelTier(resolveModelTier(env))`)
+ * — admission and the family's token budget are the template layer's contract,
+ * so a scene never rides a family the pipeline has not admitted.
+ *
+ * Gate separation (#166): the declared prompt is passed through the family
+ * renderer first, then composed with the injected BRAND / NEGATIVE constants —
+ * the VLM claim keeps reading the raw declared prompt and never sees them.
+ *
+ * @param {object} scene
+ * @param {string} familyId admitted T2V prompt family (e.g. "wan2.2")
+ * @returns {string} the prompt that reaches the generator ("" for no prompt)
+ */
+export function composeGenerationPrompt(scene, familyId) {
+  if (typeof familyId !== "string" || familyId === "") {
+    throw new Error(
+      "composeGenerationPrompt requires a prompt family — resolve it with familyForModelTier(resolveModelTier(env))",
+    );
+  }
+  const declared = renderDeclaredPrompt((scene?.aiVideo?.prompt ?? "").trim(), familyId);
+  return composePrompt(declared, scene);
 }
 
 export function composeImagePrompt(scene) {
   return composePrompt((scene?.aiImage?.prompt ?? "").trim(), scene);
 }
-
-// ─── token budget (#166 constraint 2: no silent 512 truncation) ───
-
-// The text encoder silently truncates at max_sequence_length (runner.mjs).
-// Injection appends to the tail, which is exactly what truncation eats first —
-// so the composed prompt gets a hard budget with headroom below the encoder
-// limit, enforced before generation.
-export const MAX_PROMPT_TOKENS = MAX_SEQUENCE_LENGTH - 32;
-
-/**
- * Conservative UMT5 token estimate. Each CJK ideograph/kana/hangul counts as
- * its own token (UMT5 ≈ 1 token per CJK character); the remainder assumes
- * ~1 token per two characters, floored by the word count. Over-estimates
- * English, never discounts CJK — the budget gate fails safe.
- */
-const CJK_CHAR_PATTERN = /[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/g;
-
-export function estimateTokens(text) {
-  if (!text) return 0;
-  const cjkChars = (text.match(CJK_CHAR_PATTERN) ?? []).length;
-  const rest = text.replace(CJK_CHAR_PATTERN, "");
-  const words = rest.trim().split(/\s+/).filter(Boolean).length;
-  return cjkChars + Math.max(words, Math.ceil(rest.length / 2));
-}
-
-export function tokenBudgetExceeded(text, limit = MAX_PROMPT_TOKENS) {
-  return estimateTokens(text) > limit;
-}
-
-// ─── image budget (#155) ───
-
-// Z-Image's text encoder is a Qwen3 LLM with a far larger native context than
-// UMT5's 512, and mflux exposes no per-model sequence constant to pin — so
-// the T2I path reuses the same conservative 480-token estimate. It over-
-// estimates and fails safe on every current and future backend (a FLUX-family
-// UMT5 backend truncates at exactly this limit, tail-first, where the injected
-// constants live), and image prompts are short diagram descriptions anyway.
-export const IMAGE_MAX_PROMPT_TOKENS = MAX_PROMPT_TOKENS;

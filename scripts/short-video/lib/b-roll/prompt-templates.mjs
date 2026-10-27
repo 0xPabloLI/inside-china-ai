@@ -1,10 +1,15 @@
 /**
- * Per-family T2V prompt templates (#757) — template data plus a pure renderer.
+ * Per-family T2V prompt templates (#757) — template data, a pure clause
+ * renderer, and the declared-prompt entry the pipeline uses (#922).
  *
- * NOT wired into generation: no caller imports this module yet, and wiring is a
- * separate ticket (see docs/research/t2v-model-prompt-templates.md §5). The
- * module exists so the per-model contract (slot order, camera vocabulary, token
- * budget, negative capability) has a single executable source instead of prose.
+ * Two entry points:
+ * - `renderPromptForModel(parts, familyId)` orders structured dimension clauses;
+ *   it is for future structured clause input and has no pipeline caller yet.
+ * - `renderDeclaredPrompt(declaredPrompt, familyId)` is the CURRENT generation
+ *   entry: today's declared prompt is one opaque clause, so slot order is a
+ *   no-op for the live families — what it enforces is admission (integration /
+ *   negative mode) plus the family's token budget before generation. Wiring
+ *   ticket: #922.
  *
  * Ownership stays as in prompt-injection.mjs:
  * - BRAND / NEGATIVE are code-owned and never accepted here — the renderer
@@ -16,7 +21,12 @@
  * Sources: Alibaba Model Studio prompt guide, Volcano Engine Seedance prompt
  * guide. Both are recorded with tiers in the research note above.
  */
-import { MAX_PROMPT_TOKENS, estimateTokens } from "./prompt-injection.mjs";
+import {
+  MAX_PROMPT_TOKENS,
+  PromptBudgetError,
+  budgetOvershootReason,
+  estimateTokens,
+} from "./prompt-budget.mjs";
 
 /** Agent-written dimensions the renderer accepts. */
 export const PROMPT_SLOTS = Object.freeze([
@@ -69,7 +79,7 @@ export const PROMPT_TEMPLATES = Object.freeze({
     // REFERENCE is a production note, not part of the official formula, so last.
     slotOrder: ["subject", "visualMetaphor", "motion", "lighting", "camera", "reference"],
     // The 5B driver pins 512 internally; the shared 480 budget is the
-    // conservative gate both tiers use (prompt-injection.mjs derives it).
+    // conservative gate both tiers use (prompt-budget.mjs derives it).
     maxPromptTokens: MAX_PROMPT_TOKENS,
     negativeMode: "prompt-clause",
     // Cloud Wan (2.1–2.6) also accepts a native parameter; the local MLX
@@ -198,8 +208,62 @@ export function renderPromptForModel(parts, familyId) {
   if (template.maxPromptTokens !== null) {
     const tokens = estimateTokens(prompt);
     if (tokens > template.maxPromptTokens) {
-      throw new RangeError(
-        `${familyId} prompt is ~${tokens} tokens, over the ${template.maxPromptTokens}-token budget — shorten the declared clauses instead of relying on tail truncation`,
+      throw new PromptBudgetError(
+        budgetOvershootReason(
+          `${familyId} prompt`,
+          tokens,
+          template.maxPromptTokens,
+          "shorten the declared clauses instead of relying on tail truncation",
+        ),
+      );
+    }
+  }
+  return prompt;
+}
+
+/**
+ * Render the scene's declared prompt for one family (#922) — the pipeline
+ * entry. The declared prompt is an opaque single clause today, so it is
+ * returned trimmed and otherwise byte-identical (slot order does not apply to
+ * a single clause; prompt-injection trims the trailing full stop when it
+ * appends constants, never here).
+ *
+ * Admission is enforced, not assumed: only families integrated with the
+ * pipeline may ride it, and only `prompt-clause` negative handling — the local
+ * MLX driver has no negative parameter, so a family that expects one would
+ * silently lose its exclusions.
+ *
+ * @param {string} declaredPrompt agent-written prompt (raw, untrimmed)
+ * @param {string} familyId admitted T2V prompt family
+ * @returns {string} trimmed prompt, "" when blank
+ * @throws {Error} unknown or unadmitted family, or negativeMode mismatch
+ * @throws {RangeError} declared prompt over the family's token budget
+ */
+export function renderDeclaredPrompt(declaredPrompt, familyId) {
+  const template = getPromptTemplate(familyId);
+  if (template.integration !== "pipeline") {
+    throw new Error(
+      `T2V family "${familyId}" is not admitted to the generation pipeline (integration: ${template.integration})`,
+    );
+  }
+  if (template.negativeMode !== "prompt-clause") {
+    throw new Error(
+      `T2V family "${familyId}" declares negativeMode "${template.negativeMode}" — the local MLX driver has no negative parameter, so it must not ride the prompt-clause path`,
+    );
+  }
+  const prompt = (declaredPrompt ?? "").trim();
+  if (!prompt) return "";
+  const budget = template.maxPromptTokens;
+  if (budget !== null) {
+    const tokens = estimateTokens(prompt);
+    if (tokens > budget) {
+      throw new PromptBudgetError(
+        budgetOvershootReason(
+          `${familyId} declared prompt`,
+          tokens,
+          budget,
+          "shorten the declared prompt instead of relying on tail truncation",
+        ),
       );
     }
   }

@@ -335,7 +335,7 @@ describe("runBrollStage", () => {
     // #166: the hash covers the COMPOSED prompt (declared + injected
     // constants); the entry records both surfaces plus the injection version
     // so cache decisions can survive constant changes.
-    expect(entry.promptHash).toBe(promptHash(composeGenerationPrompt(scenes[0])));
+    expect(entry.promptHash).toBe(promptHash(composeGenerationPrompt(scenes[0], "wan2.2")));
     expect(entry.prompt).toBe("eight-dimension prompt");
     expect(entry.generationPrompt).toContain(BRAND_BASE_PROMPT);
     expect(entry.generationPrompt).toContain("no text");
@@ -722,6 +722,91 @@ describe("runBrollStage #166 wiring", () => {
     }
   });
 
+  test("report and claim split: claim gets the raw prompt, report the composed one (#922)", async () => {
+    const dirs = stageDirs();
+    const claims = [];
+    const { generate } = okGenerateMock();
+    const raw = "One tall glowing bar shrinking beside a short one";
+    const scenes = [scene({ id: "6", mediaStrategy: "b-roll", aiVideo: { prompt: raw } })];
+    await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        generate,
+        analyzer: async (path, opts) => {
+          claims.push(opts.claim.assetNeed);
+          return { relevance: 99, relevanceReason: "great" };
+        },
+      }),
+    );
+
+    // Gate separation: the VLM claim never sees BRAND / NEGATIVE.
+    expect(claims.length).toBe(2);
+    for (const assetNeed of claims) {
+      expect(assetNeed).toBe(raw);
+      expect(assetNeed).not.toContain(BRAND_BASE_PROMPT);
+      expect(assetNeed).not.toContain("no text");
+    }
+    const entry = readReport(reportPath(dirs.outputDir)).scenes["6"];
+    expect(entry.prompt).toBe(raw);
+    expect(entry.generationPrompt).toContain(BRAND_BASE_PROMPT);
+    expect(entry.generationPrompt).toContain("no text");
+    expect(entry.generationPrompt).toContain("no watermark");
+  });
+
+  test("success entry records the prompt family resolved from the tier (#922)", async () => {
+    const dirs = stageDirs();
+    await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [scene({ id: "6", mediaStrategy: "b-roll" })],
+        generate: okGenerateMock().generate,
+        env: {},
+      }),
+    );
+    expect(readReport(reportPath(dirs.outputDir)).scenes["6"].promptFamily).toBe("wan2.2");
+  });
+
+  test("the 1.3B escape hatch records its own family (#922)", async () => {
+    const dirs = stageDirs();
+    await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [scene({ id: "6", mediaStrategy: "b-roll" })],
+        generate: okGenerateMock().generate,
+        env: { BROLL_MODEL: "fastmetal-1.3b" },
+      }),
+    );
+    const entry = readReport(reportPath(dirs.outputDir)).scenes["6"];
+    expect(entry.promptFamily).toBe("wan2.1");
+    expect(entry.winner.source).toBe("AI-generated (FastVideo FastMetal-1.3B-QAD)");
+  });
+
+  test("image entries carry no promptFamily — T2I does not ride a T2V family (#922)", async () => {
+    const dirs = stageDirs();
+    await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [
+          scene({
+            id: "11",
+            mediaStrategy: "ai-image",
+            aiVideo: undefined,
+            aiImage: { prompt: "abstract transformer memory channels, high detail" },
+          }),
+        ],
+        generate: okGenerateMock().generate,
+        resolveImageDeps: () => ({
+          ok: true,
+          bin: "/bin/mflux",
+          backend: "mflux-boogu",
+          missing: [],
+          message: null,
+        }),
+      }),
+    );
+    const entry = readReport(reportPath(dirs.outputDir)).scenes["11"];
+    expect(entry.status).toBe("won");
+    expect(entry.promptFamily).toBeUndefined();
+    expect("promptFamily" in entry).toBe(false);
+  });
+
   test("a prompt that covers every dimension generates unchanged (idempotent)", async () => {
     const dirs = stageDirs();
     const { generate, calls } = okGenerateMock();
@@ -772,7 +857,7 @@ describe("runBrollStage #166 wiring", () => {
     const entry = readReport(reportPath(dirs.outputDir)).scenes["6"];
     expect(entry.injectionVersion).toBe(PROMPT_INJECTION_VERSION);
     expect(entry.promptHash).toBe(
-      promptHash(composeGenerationPrompt({ aiVideo: { prompt: raw } })),
+      promptHash(composeGenerationPrompt({ aiVideo: { prompt: raw } }, "wan2.2")),
     );
   });
 
@@ -809,7 +894,7 @@ describe("runBrollStage #166 wiring", () => {
     const entry = readReport(reportPath(dirs.outputDir)).scenes["8"];
     expect(entry.injectionVersion).toBe(PROMPT_INJECTION_VERSION);
     expect(entry.promptHash).toBe(
-      promptHash(composeGenerationPrompt({ aiVideo: { prompt: raw } })),
+      promptHash(composeGenerationPrompt({ aiVideo: { prompt: raw } }, "wan2.2")),
     );
   });
 
@@ -862,7 +947,64 @@ describe("runBrollStage #166 wiring", () => {
     expect(result.counts.failed).toBe(1);
     const entry = readReport(reportPath(dirs.outputDir)).scenes["6"];
     expect(entry.status).toBe("failed");
-    expect(entry.reason).toContain("token budget");
+    expect(entry.reason).toContain("wan2.2");
+    expect(entry.reason).toContain("over the 480-token budget");
+    expect(entry.generationPrompt).toBeNull();
+    expect(entry.promptFamily).toBe("wan2.2");
     expect(entry.winner).toBeNull();
+    // The composed prompt never existed — a raw-prompt hash would collide
+    // with cache decisions that hash the composed string.
+    expect(entry.promptHash).toBeNull();
+  });
+
+  test("a declared prompt under budget is refused once the injected constants push composition over", async () => {
+    const dirs = stageDirs();
+    let generateCalled = 0;
+    // ~475 tokens declared (< 480) — only BRAND + NEGATIVE injection pushes
+    // the composed string over the family budget.
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [
+          scene({ id: "6", mediaStrategy: "b-roll", aiVideo: { prompt: "a ".repeat(475) } }),
+        ],
+        generate: async () => {
+          generateCalled += 1;
+          return { ok: true, fatal: null, results: [] };
+        },
+      }),
+    );
+    expect(generateCalled).toBe(0);
+    expect(result.counts.failed).toBe(1);
+    const entry = readReport(reportPath(dirs.outputDir)).scenes["6"];
+    expect(entry.status).toBe("failed");
+    expect(entry.reason).toContain("wan2.2 composed prompt");
+    expect(entry.reason).toContain("over the 480-token budget");
+    expect(typeof entry.generationPrompt).toBe("string");
+    expect(entry.promptHash).toBe(promptHash(entry.generationPrompt));
+  });
+
+  test("an unknown BROLL_MODEL is rejected, never silently defaulted (#922 AC2)", async () => {
+    const dirs = stageDirs();
+    await expect(
+      runBrollStage(baseOpts(dirs, { scenes: [scene()], env: { BROLL_MODEL: "fastmetal-99b" } })),
+    ).rejects.toThrow(/Unknown BROLL_MODEL "fastmetal-99b"/);
+    expect(readReport(reportPath(dirs.outputDir))).toBeNull();
+  });
+
+  test("non-budget composition errors surface instead of becoming a report refusal", async () => {
+    const dirs = stageDirs();
+    // Not built via scene(): the spread would evaluate the getter here
+    // instead of inside composeGenerationPrompt.
+    const throwingScene = {
+      id: "6",
+      mediaStrategy: "b-roll",
+      get aiVideo() {
+        throw new TypeError("boom");
+      },
+    };
+    await expect(runBrollStage(baseOpts(dirs, { scenes: [throwingScene] }))).rejects.toThrow(
+      TypeError,
+    );
+    expect(readReport(reportPath(dirs.outputDir))).toBeNull();
   });
 });

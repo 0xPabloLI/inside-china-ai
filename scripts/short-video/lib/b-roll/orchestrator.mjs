@@ -27,14 +27,19 @@ import {
 } from "./t2i-runner.mjs";
 import {
   PROMPT_INJECTION_VERSION,
-  MAX_PROMPT_TOKENS,
-  IMAGE_MAX_PROMPT_TOKENS,
   composeGenerationPrompt,
   composeImagePrompt,
   declaresOwnArtDirection,
   stripNegativeClauses,
-  tokenBudgetExceeded,
 } from "./prompt-injection.mjs";
+import {
+  IMAGE_MAX_PROMPT_TOKENS,
+  PromptBudgetError,
+  budgetOvershootReason,
+  estimateTokens,
+  tokenBudgetExceeded,
+} from "./prompt-budget.mjs";
+import { familyForModelTier, getPromptTemplate } from "./prompt-templates.mjs";
 import { NEGATIVE_GROUPS, coversNegativeGroup, isImageStrategy } from "../scene-rules.mjs";
 
 export const SEED_BASE = 1024;
@@ -231,6 +236,17 @@ export async function runBrollStage(opts) {
   // Report provenance follows the tier (#298): the winner source label must
   // match the model that actually ran.
   const videoSource = MODEL_TIERS[resolveModelTier(env)]?.winnerSource ?? null;
+  // #922: one family per run — the tier is a run-level decision, so prompts,
+  // budgets and provenance all resolve from the same template. An unknown
+  // BROLL_MODEL must not silently fall back to the default tier: the whole
+  // run would generate against a family the agent never chose.
+  if (env.BROLL_MODEL && !MODEL_TIERS[env.BROLL_MODEL]) {
+    throw new Error(
+      `Unknown BROLL_MODEL "${env.BROLL_MODEL}" — known tiers: ${Object.keys(MODEL_TIERS).join(", ")}`,
+    );
+  }
+  const promptFamily = familyForModelTier(resolveModelTier(env));
+  const videoPromptBudget = getPromptTemplate(promptFamily).maxPromptTokens;
 
   const reportFile = reportPath(outputDir);
   const report = readReport(reportFile) ?? emptyReport(contentSlug, threshold);
@@ -245,6 +261,34 @@ export async function runBrollStage(opts) {
   // Cache + escalation pass before touching dependencies.
   const toGenerate = [];
   let reportDirty = false;
+  // Shared failed-entry shape for the per-scene refusals (#166 composed
+  // budget, #922 declared budget): report entry, count and progress line move
+  // together — only the reason and the hash differ.
+  const recordSceneFailure = (
+    scene,
+    sceneId,
+    entry,
+    { isImage, rawPrompt, generationPrompt, reason, promptHashValue },
+  ) => {
+    report.scenes = report.scenes ?? {};
+    report.scenes[sceneId] = {
+      ...(entry ?? {}),
+      strategy: scene.mediaStrategy,
+      promptHash: promptHashValue,
+      injectionVersion: PROMPT_INJECTION_VERSION,
+      round: entry?.round ?? 1,
+      status: "failed",
+      prompt: rawPrompt,
+      generationPrompt,
+      ...(isImage ? {} : { promptFamily }),
+      candidates: [],
+      winner: null,
+      reason,
+    };
+    reportDirty = true;
+    counts.failed += 1;
+    onProgress?.(`scene ${sceneId}: ${reason}`);
+  };
   for (const plan of generatePlans) {
     const scene = plan.scene;
     const sceneId = String(scene.id);
@@ -253,10 +297,32 @@ export async function runBrollStage(opts) {
     // readability); generation receives the composed prompt with the injected
     // constants. #155: image strategies compose from aiImage.prompt.
     const rawPrompt = (isImage ? scene.aiImage?.prompt : scene.aiVideo?.prompt) ?? "";
-    const generationPrompt = isImage ? composeImagePrompt(scene) : composeGenerationPrompt(scene);
-    const tokenBudget = isImage ? IMAGE_MAX_PROMPT_TOKENS : MAX_PROMPT_TOKENS;
+    const tokenBudget = isImage ? IMAGE_MAX_PROMPT_TOKENS : videoPromptBudget;
     const entry = report.scenes?.[sceneId];
     const winnerFile = entry?.winner?.file;
+
+    let generationPrompt;
+    if (isImage) {
+      generationPrompt = composeImagePrompt(scene);
+    } else {
+      try {
+        generationPrompt = composeGenerationPrompt(scene, promptFamily);
+      } catch (error) {
+        // #922: only the declared-prompt budget is an expected per-scene
+        // failure. Admission errors mean the wiring itself is wrong and must
+        // surface, not be swallowed into a report entry. The composed prompt
+        // never existed, so there is nothing to hash.
+        if (!(error instanceof PromptBudgetError)) throw error;
+        recordSceneFailure(scene, sceneId, entry, {
+          isImage,
+          rawPrompt,
+          generationPrompt: null,
+          reason: error.message,
+          promptHashValue: null,
+        });
+        continue;
+      }
+    }
 
     if (!force && entry) {
       // Legacy migration is video-only: image entries are new in #155, there
@@ -279,29 +345,24 @@ export async function runBrollStage(opts) {
     }
 
     // #166 constraint: the text encoder truncates silently at
-    // max_sequence_length — never feed it an over-budget prompt.
-    if (tokenBudgetExceeded(generationPrompt, tokenBudget)) {
-      report.scenes = report.scenes ?? {};
-      report.scenes[sceneId] = {
-        ...(entry ?? {}),
-        strategy: scene.mediaStrategy,
-        promptHash: promptHash(generationPrompt),
-        injectionVersion: PROMPT_INJECTION_VERSION,
-        round: entry?.round ?? 1,
-        status: "failed",
-        prompt: rawPrompt,
+    // max_sequence_length — never feed it an over-budget prompt. #922: the
+    // video limit is the family's, and the reason names the family so the
+    // agent knows which contract it overshot. A null family budget means the
+    // family has no local encoder (the API owns truncation); comparing
+    // against null would read as zero.
+    if (tokenBudget !== null && tokenBudgetExceeded(generationPrompt, tokenBudget)) {
+      const tokens = estimateTokens(generationPrompt);
+      const hint = "(the encoder truncates silently) — shorten the declared prompt";
+      const reason = isImage
+        ? budgetOvershootReason("composed prompt", tokens, tokenBudget, hint)
+        : budgetOvershootReason(`${promptFamily} composed prompt`, tokens, tokenBudget, hint);
+      recordSceneFailure(scene, sceneId, entry, {
+        isImage,
+        rawPrompt,
         generationPrompt,
-        candidates: [],
-        winner: null,
-        reason:
-          `composed prompt exceeds the ${tokenBudget}-token budget ` +
-          "(the encoder truncates silently) — shorten the declared prompt",
-      };
-      reportDirty = true;
-      counts.failed += 1;
-      onProgress?.(
-        `scene ${sceneId}: composed prompt exceeds the ${tokenBudget}-token budget — generation skipped`,
-      );
+        reason,
+        promptHashValue: promptHash(generationPrompt),
+      });
       continue;
     }
 
@@ -470,6 +531,7 @@ export async function runBrollStage(opts) {
         status: winner ? "won" : "failed",
         prompt: rawPrompt,
         generationPrompt,
+        ...(isImage ? {} : { promptFamily }),
         voiceover: scene.voiceover ?? "",
         candidates,
         // Persist the winner's provenance so cache reuse under a different

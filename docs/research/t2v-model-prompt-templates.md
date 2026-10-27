@@ -87,7 +87,7 @@
 | `wan2.1` | 在产线（退路 `fastmetal-1.3b`） | 同 `wan2.2` | Apache-2.0 + 现役退路档 | 同 `wan2.2` |
 | `seedance` | 候选（云端 API，未接线） | （镜头语言 + 光影）+ 主体 + 主体运动 + 场景 +（氛围）+（风格） | 唯一有独立官方契约的云端候选；闭源 API 只吸规则 | 官方文档无 negative 参数 |
 
-实现：`scripts/short-video/lib/b-roll/prompt-templates.mjs`（导出 `PROMPT_SLOTS`、`PROMPT_TEMPLATES`、`MODEL_TIER_FAMILIES`、`familyForModelTier`、`getPromptTemplate`、`renderPromptForModel`，纯函数、未接线）。`MODEL_TIER_FAMILIES` 由各模板的 `modelTiers` 在 import 时派生（含同档位重复归属报错），测试同时校验其 key 都在 `runner.mjs` 的 `MODEL_TIERS` 内。测试：`scripts/short-video/lib/__tests__/b-roll-prompt-templates.test.mjs`。
+实现：`scripts/short-video/lib/b-roll/prompt-templates.mjs`（导出 `PROMPT_SLOTS`、`PROMPT_TEMPLATES`、`MODEL_TIER_FAMILIES`、`familyForModelTier`、`getPromptTemplate`、`renderPromptForModel`、`renderDeclaredPrompt`，纯函数）。`MODEL_TIER_FAMILIES` 由各模板的 `modelTiers` 在 import 时派生（含同档位重复归属报错），测试同时校验其 key 都在 `runner.mjs` 的 `MODEL_TIERS` 内。测试：`scripts/short-video/lib/__tests__/b-roll-prompt-templates.test.mjs`。
 
 **未入表（证据保留在本笔记）**：`hunyuanvideo`（community license + 仓库 >6 个月无提交）、`cogvideox`（5B 商用登记 + 仓库约 12 个月无提交）。若后续重新准入，按本笔记 §2.3 / §2.4 的官方公式补表即可，不改模块结构。
 
@@ -105,14 +105,26 @@
 
 外部事实均按 `docs/agents/proposal-review.md` §3 做了双源校验：官方 prompt guide + 官方 API/repo/model card；许可以 LICENSE 原文为准，不以横评转述为准。
 
-## 5. 未接线声明与后续接线票
+## 5. 接线现状（#922）与仍未接线项
 
-本模块**不接入生成路径**，因此无运行时行为变化。接线票需要处理：
+#922 已把模板层接进 b-roll 生成路径，采用**最小接线**：不解析 `SUBJECT:` 式标签、不新增结构化字段、不重排现有 prompt，因此现有内容包的 declared / composed prompt 逐字不变。接线的是四件事：
 
-1. 用已导出的 `familyForModelTier()` / `MODEL_TIER_FAMILIES` 把 `resolveModelTier()` 的结果转成 familyId，不要再建第二套模型命名。
-2. 云端 Wan API 才可使用 `negative_prompt` 参数；本地路径继续用正向排除子句，二者不能互换。
-3. 模板渲染必须过 `MAX_PROMPT_TOKENS`（480），超预算要在接线层报出，而不是静默截断。
-4. 渲染结果必须与 VLM claim gate 使用的 raw declared prompt 分离（沿用 #166 的 gate separation）。
+1. **family 解析** — `orchestrator.mjs` 的 `runBrollStage` 每次 run 用 `familyForModelTier(resolveModelTier(env))` 解析一次（约等于档位 → family 的单一映射）。
+2. **family 预算门禁** — `composeGenerationPrompt(scene, familyId)` 先过 `renderDeclaredPrompt()`：declared 超预算抛 `RangeError`，orchestrator 写 `failed` entry（reason 带 family、实际 tokens 与超出量）；composed 再用 `getPromptTemplate(familyId).maxPromptTokens` 判一次，reason 同样带 family 与超出量。
+3. **report provenance** — 视频 entry 记录 `promptFamily`；图片 entry 不记（T2I 不骑 T2V family）。
+4. **local negative-mode 守卫** — `renderDeclaredPrompt()` 拒绝 `integration !== "pipeline"` 或 `negativeMode !== "prompt-clause"` 的 family，因为本地 MLX 驱动没有 negative 参数。
+
+历史四条要求的落点（保留）：
+
+1. 用已导出的 `familyForModelTier()` / `MODEL_TIER_FAMILIES` 把 `resolveModelTier()` 的结果转成 familyId，不要再建第二套模型命名 → 已由 `runBrollStage` 消费。
+2. 云端 Wan API 才可使用 `negative_prompt` 参数；本地路径继续用正向排除子句，二者不能互换 → `renderDeclaredPrompt()` 的 `negativeMode` 守卫把非 `prompt-clause` family 挡在产线外。
+3. 模板渲染必须过 `MAX_PROMPT_TOKENS`（480），超预算要在接线层报出，而不是静默截断 → declared 门禁抛 `RangeError`，composed 门禁写 `token-budget` failure reason。
+4. 渲染结果必须与 VLM claim gate 使用的 raw declared prompt 分离（沿用 #166 的 gate separation）→ `composeGenerationPrompt` 只作用于 generation jobs；`buildClaim` 仍读 raw prompt，由 #922 测试锁定。
+
+**仍未接线**：
+
+- **槽位重排**（`renderPromptForModel`）：现有 declared prompt 是不透明单 clause，且两个在产 family 的 `slotOrder` 完全相同；重排需要先有结构化 clause，否则只会产生零收益 diff。
+- **Seedance**：`integration: "candidate"`，云端 API 候选，非产线。
 
 ## 6. 已否决的替代方案
 
