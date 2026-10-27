@@ -1409,3 +1409,99 @@ describe("analyzeAssets — Phase 2.5 probe + window (T6)", () => {
     expect(assets[0].durationMs).toBeUndefined();
   });
 });
+
+// ─── #294: second-pass subject check ───
+
+describe("analyzeAssets — #294 second-pass subject check", () => {
+  const claim = { sceneId: 2, voiceover: "DeepSeek leads a robot round", assetNeed: "robot lab" };
+
+  const borderline = {
+    ...FULL_SEMANTICS,
+    relevance: 50,
+    relevanceReason: "topically correct but does not depict the funding event",
+  };
+
+  it("runs the subject check once for a borderline image and records the match", async () => {
+    mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
+      Promise.resolve(
+        opts?.relevanceCheck
+          ? { subjectMatch: "match", reason: "visible subject is the named company's robot" }
+          : { ...borderline },
+      ),
+    );
+
+    const assets = [{ path: "/abs/img1.jpg", type: "image", claimSceneId: 2 }];
+    await analyzeAssets(assets, { claims: [claim] });
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(2);
+    const checkCall = mockAnalyzeAssetSemantics.mock.calls[1];
+    expect(checkCall[0]).toBe("/abs/img1.jpg");
+    expect(checkCall[1].relevanceCheck).toBe(true);
+    expect(checkCall[1].claim).toEqual(claim);
+    expect(assets[0].relevanceCheck).toEqual({
+      verdict: "match",
+      reason: "visible subject is the named company's robot",
+    });
+    // The numeric score stays the first pass's honest reading.
+    expect(assets[0].relevanceScore).toBe(50);
+  });
+
+  it("keeps a no_match verdict and does not promote the score", async () => {
+    mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
+      Promise.resolve(
+        opts?.relevanceCheck
+          ? { subjectMatch: "no_match", reason: "different subject" }
+          : { ...borderline },
+      ),
+    );
+
+    const assets = [{ path: "/abs/img2.jpg", type: "image", claimSceneId: 2 }];
+    await analyzeAssets(assets, { claims: [claim] });
+
+    expect(assets[0].relevanceCheck.verdict).toBe("no_match");
+    expect(assets[0].relevanceScore).toBe(50);
+  });
+
+  it("does not run the check for a first-pass pass", async () => {
+    mockAnalyzeAssetSemantics.mockResolvedValue({
+      ...FULL_SEMANTICS,
+      relevance: 80,
+      relevanceReason: "direct match",
+    });
+
+    const assets = [{ path: "/abs/img3.jpg", type: "image", claimSceneId: 2 }];
+    await analyzeAssets(assets, { claims: [claim] });
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
+    expect(assets[0].relevanceCheck).toBeUndefined();
+  });
+
+  it("records a null verdict when the check fails, and keeps the asset closed", async () => {
+    mockAnalyzeAssetSemantics.mockImplementation((_path, opts) => {
+      if (opts?.relevanceCheck) return Promise.reject(new Error("worker timeout"));
+      return Promise.resolve({ ...borderline });
+    });
+
+    const assets = [{ path: "/abs/img4.jpg", type: "image", claimSceneId: 2 }];
+    await analyzeAssets(assets, { claims: [claim] });
+
+    expect(assets[0].relevanceCheck.verdict).toBe(null);
+    expect(assets[0].relevanceCheck.reason).toMatch(/timeout/);
+
+    const [patch] = assignAssetsToScenes(assets, [{ id: 2, visualType: "narrative" }]);
+    expect(patch.status).toBe("unassigned");
+  });
+
+  it("does not run the check for a borderline video (image-only second pass)", async () => {
+    mockAnalyzeAssetSemantics.mockResolvedValue({
+      ...FULL_SEMANTICS,
+      relevance: 50,
+    });
+
+    const assets = [{ path: "/abs/clip.mp4", type: "video", claimSceneId: 2 }];
+    await analyzeAssets(assets, { claims: [claim] });
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
+    expect(assets[0].relevanceCheck).toBeUndefined();
+  });
+});
