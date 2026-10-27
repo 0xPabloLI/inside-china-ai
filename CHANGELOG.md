@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.35.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.3...tanstack_start_ts-v1.35.0) (2026-10-27)
+
+
+### Features
+
+* **short-video:** wire per-family T2V prompt budgets into b-roll generation ([#922](https://github.com/0xPabloLI/inside-china-ai/issues/922)) ([d63c955](https://github.com/0xPabloLI/inside-china-ai/commit/d63c9556b7159deeebf204d15492407fda694c49))
+
+
+### Bug Fixes
+
+* **short-video:** review follow-ups for [#922](https://github.com/0xPabloLI/inside-china-ai/issues/922) wiring ([8b10237](https://github.com/0xPabloLI/inside-china-ai/commit/8b102379825729c000e4f6d47bd3dd600d5ddb18))
+
 ## [1.34.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.2...tanstack_start_ts-v1.34.3) (2026-10-26)
 
 
