@@ -993,18 +993,62 @@ describe("runBrollStage #166 wiring", () => {
 
   test("non-budget composition errors surface instead of becoming a report refusal", async () => {
     const dirs = stageDirs();
-    // Not built via scene(): the spread would evaluate the getter here
-    // instead of inside composeGenerationPrompt.
+    // The orchestrator's own rawPrompt read touches aiVideo first — that read
+    // must succeed, and the getter must throw only from the read inside
+    // composeGenerationPrompt, so the TypeError provably enters the
+    // PromptBudgetError discrimination guard instead of failing earlier.
+    let aiVideoReads = 0;
     const throwingScene = {
       id: "6",
       mediaStrategy: "b-roll",
       get aiVideo() {
-        throw new TypeError("boom");
+        aiVideoReads += 1;
+        if (aiVideoReads > 1) throw new TypeError("boom");
+        return { prompt: "a rack" };
       },
     };
     await expect(runBrollStage(baseOpts(dirs, { scenes: [throwingScene] }))).rejects.toThrow(
       TypeError,
     );
+    expect(aiVideoReads).toBeGreaterThan(1);
     expect(readReport(reportPath(dirs.outputDir))).toBeNull();
+  });
+
+  test("a legacy cached winner keeps reusing even when the declared prompt reads over the family budget", async () => {
+    const dirs = stageDirs();
+    const overBudget = "glowing bar ".repeat(600);
+    writeReport(reportPath(dirs.outputDir), {
+      content: "demo",
+      threshold: 85,
+      scenes: {
+        6: {
+          status: "won",
+          round: 1,
+          prompt: overBudget,
+          promptHash: promptHash(overBudget),
+          winner: {
+            file: "scene-6-seed1024.mp4",
+            source: "AI-generated (FastVideo FastMetal-5B-QAD)",
+          },
+        },
+      },
+      updatedAt: null,
+    });
+    let generateCalled = 0;
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [scene({ id: "6", mediaStrategy: "b-roll", aiVideo: { prompt: overBudget } })],
+        generate: async () => {
+          generateCalled += 1;
+          return { ok: true, fatal: null, results: [] };
+        },
+      }),
+    );
+    expect(generateCalled).toBe(0);
+    expect(result.counts.cached).toBe(1);
+    expect(result.counts.failed).toBe(0);
+    const entry = readReport(reportPath(dirs.outputDir)).scenes["6"];
+    expect(entry.status).toBe("won");
+    expect(entry.winner.file).toBe("scene-6-seed1024.mp4");
   });
 });

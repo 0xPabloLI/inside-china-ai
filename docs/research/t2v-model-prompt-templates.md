@@ -20,7 +20,7 @@
 | 事实 | 位置 |
 | --- | --- |
 | 生成 prompt = declared prompt + BRAND 条件注入 + 缺失 NEGATIVE 子句 | `scripts/short-video/lib/b-roll/prompt-injection.mjs` `composeGenerationPrompt` / `composeImagePrompt` |
-| 文本编码器上限 512，预算硬门禁 480 | `runner.mjs` `MAX_SEQUENCE_LENGTH = 512`；`prompt-injection.mjs` `MAX_PROMPT_TOKENS = 480` |
+| 文本编码器上限 512，预算硬门禁 480 | `runner.mjs` `MAX_SEQUENCE_LENGTH = 512`；`prompt-budget.mjs` `MAX_PROMPT_TOKENS = 480`（#922 自 prompt-injection.mjs 拆出） |
 | 两个模型档位 | `runner.mjs` `MODEL_TIERS`：`fastmetal-5b`（704×1280×121f@24fps，UMT5 512，预量化）/ `fastmetal-1.3b`（480×832×81f@16fps，int8） |
 | 本地驱动只接受 prompt 字符串 | `mlx_wan_batch.py` jobs 字段 `{label, prompt, output_path, seed?}`，无 negative 参数 |
 | declared prompt 写作协议与 8 维归属 | `docs/video-script-writing-guide.md` §Declared b-roll prompt 写作协议；`prompt-injection.mjs` 头注释 |
@@ -139,7 +139,7 @@
 2. https://help.aliyun.com/zh/model-studio/legacy-wan-text-to-video-api-reference — 万相文生视频 API（2.1–2.6）：`negative_prompt` 支持中英文、≤500 字符 — **Tier 1**，访问 2026-10-24。
 3. https://github.com/Wan-Video/Wan2.2 — Wan2.2 官方仓库：Apache-2.0 `LICENSE.txt`、TI2V-5B 入口、`--use_prompt_extend`（DashScope / local_qwen）— **Tier 1**，访问 2026-10-24。
 4. https://huggingface.co/FastVideo/FastMetal-5B-QAD — FastMetal-5B-QAD 模型卡：base Wan2.2-TI2V-5B、INT8 QAT、Apache-2.0 — **Tier 1**，访问 2026-10-24。
-5. 本地代码：`scripts/short-video/lib/b-roll/runner.mjs`（`MAX_SEQUENCE_LENGTH=512`、`MODEL_TIERS`）、`mlx_wan_batch.py`（jobs 无 negative 字段）、`prompt-injection.mjs`（compose 与预算 480）— **Tier 1 本地实测**，2026-10-24。
+5. 本地代码：`scripts/short-video/lib/b-roll/runner.mjs`（`MAX_SEQUENCE_LENGTH=512`、`MODEL_TIERS`）、`mlx_wan_batch.py`（jobs 无 negative 字段）、`prompt-injection.mjs`（compose）、`prompt-budget.mjs`（预算 480）— **Tier 1 本地实测**，2026-10-24。
 6. https://www.volcengine.com/docs/82379/1631633?lang=zh — 火山引擎：Seedance-1.0-pro & pro-fast 提示词指南（参数、基础/复杂运镜、景别、多镜头示例）— **Tier 1**，访问 2026-10-24。
 7. https://www.volcengine.com/docs/86081/1805694 — 火山引擎智能视频：文生视频 prompt 公式「（镜头语言 + 光影）+ 主体 + 主体运动 + 场景 +（氛围）+（风格）」— **Tier 1**，访问 2026-10-24。
 8. https://huggingface.co/tencent/HunyuanVideo-1.5 — 腾讯混元 1.5 模型卡：`License: tencent-hunyuan-community`、Prompt Guide 入口 — **Tier 1**，访问 2026-10-24。

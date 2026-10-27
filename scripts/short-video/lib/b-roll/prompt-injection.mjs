@@ -237,6 +237,16 @@ export function composeGenerationPrompt(scene, familyId) {
   return composePrompt(declared, scene);
 }
 
+/**
+ * Ungated video composition: declared prompt trimmed, constants injected —
+ * no family budget gate. The orchestrator uses it to let the cache rules
+ * judge reuse for an over-budget declared prompt: the declared gate is a
+ * generation-time gate and must never flip a cached winner to failed.
+ */
+export function composeVideoPrompt(scene) {
+  return composePrompt((scene?.aiVideo?.prompt ?? "").trim(), scene);
+}
+
 export function composeImagePrompt(scene) {
   return composePrompt((scene?.aiImage?.prompt ?? "").trim(), scene);
 }

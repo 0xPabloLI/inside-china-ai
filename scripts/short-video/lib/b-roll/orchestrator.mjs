@@ -29,6 +29,7 @@ import {
   PROMPT_INJECTION_VERSION,
   composeGenerationPrompt,
   composeImagePrompt,
+  composeVideoPrompt,
   declaresOwnArtDirection,
   stripNegativeClauses,
 } from "./prompt-injection.mjs";
@@ -302,6 +303,7 @@ export async function runBrollStage(opts) {
     const winnerFile = entry?.winner?.file;
 
     let generationPrompt;
+    let declaredBudgetReason = null;
     if (isImage) {
       generationPrompt = composeImagePrompt(scene);
     } else {
@@ -310,17 +312,15 @@ export async function runBrollStage(opts) {
       } catch (error) {
         // #922: only the declared-prompt budget is an expected per-scene
         // failure. Admission errors mean the wiring itself is wrong and must
-        // surface, not be swallowed into a report entry. The composed prompt
-        // never existed, so there is nothing to hash.
+        // surface, not be swallowed into a report entry.
         if (!(error instanceof PromptBudgetError)) throw error;
-        recordSceneFailure(scene, sceneId, entry, {
-          isImage,
-          rawPrompt,
-          generationPrompt: null,
-          reason: error.message,
-          promptHashValue: null,
-        });
-        continue;
+        declaredBudgetReason = error.message;
+        // The declared gate is a generation-time gate — same position as the
+        // composed one (#166) — so a cached winner keeps reusing even when
+        // the declared prompt reads over budget (legacy reports are exactly
+        // where such prompts live). Compose leniently, no gate, purely so
+        // the cache rules below can judge reuse.
+        generationPrompt = composeVideoPrompt(scene);
       }
     }
 
@@ -342,6 +342,20 @@ export async function runBrollStage(opts) {
         counts.cached += 1;
         continue;
       }
+    }
+
+    // Declared-prompt refusal — only for scenes the cache did not save. The
+    // lenient composition above never existed as a generation input, so there
+    // is nothing to hash.
+    if (declaredBudgetReason) {
+      recordSceneFailure(scene, sceneId, entry, {
+        isImage,
+        rawPrompt,
+        generationPrompt: null,
+        reason: declaredBudgetReason,
+        promptHashValue: null,
+      });
+      continue;
     }
 
     // #166 constraint: the text encoder truncates silently at
