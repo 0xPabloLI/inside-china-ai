@@ -12,9 +12,11 @@
 `build_semantics_prompt(is_video, claim)` 在基础 prompt 上追加：
 
 ```
-## Scene Claim (judge relevance against this)
+Scene claim for relevance scoring:          ← preamble，位于任务 prompt 之前
 Scene narration: "{voiceover}"
 Desired visual: "{assetNeed}"
+
+<任务 prompt：Description / Critical Edge Text / Fit …>
 
 ## Relevance
 Score 0-100: how well this asset supports the scene claim above.
@@ -24,6 +26,12 @@ Output the bare integer only.
 ## Relevance Reason
 One sentence explaining the score.
 ```
+
+> 2026-10-27（#334）：claim 上下文经历两次真实失败后定为**任务前的 preamble**。
+> (1) `## Scene Claim` 是输出形状的头，模型会把它当待填 section，写整段散文或一个游离的
+> `100`；(2) 改成纯标签但夹在输出 section 之间时，模型会把标签回声到 `## Fit` 体内，
+> `fit` 枚举解析失败。preamble 在第一个 `## ` 之前，回声被解析器忽略，Relevance 指令仍
+> 留在输出 section 区。
 
 ### 1.2 Relevance 的实际用途
 

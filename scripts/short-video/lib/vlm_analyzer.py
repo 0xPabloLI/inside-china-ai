@@ -18,6 +18,10 @@ Response format (one line):
    "error": null}
   {"description": "", "subjects": [], ..., "error": "reason"}
 
+`reason` is still parsed for legacy cached outputs; the current image prompts
+fold that explanation into `criticalEdgeText` and no longer ask for a separate
+section (#334).
+
 VLM outputs Markdown with ## Section headers. Python parses it via
 parse_markdown_to_dict() — pure string manipulation, no LLM needed.
 
@@ -212,6 +216,31 @@ TRANSCRIPT_HEAD = "视频的语音转写（可能不完整、可能有错）："
 TRANSCRIPT_MAX_CHARS = 2000
 
 
+# Critical Edge Text now carries the explanation the old `## Reason` section
+# duplicated (#334). It is the field the media patch shows to a reviewer, so
+# merging keeps the information without a second model call section. It comes
+# BEFORE Fit on purpose: the model decides Fit from its own edge finding, so
+# the two fields cannot contradict each other ("no edge text" + "contain").
+_CRITICAL_EDGE_RULE = """## Critical Edge Text
+First decide this. Start with "yes" or "no".
+- "yes" only when cropping would cut information a viewer must read or identify: text, numbers, logos, UI or chart labels.
+- "no" when everything cuttable at the edge is background texture, lighting, sky, floor, or non-essential scenery.
+If yes, name the edge and what must not be cropped; if no, say briefly why."""
+
+# Fit is a single-word decision, not a description (#334). The previous
+# wording ("will this image be placed in a 9:16 vertical canvas?") asked the
+# model to predict a pipeline decision it cannot know; a real A/B on the same
+# already-cropped chart returned `cover` in base mode and `contain` once a
+# claim block was appended. This rule keys on the edge finding the model can
+# actually see, with the crop criterion restated as a fallback. Kept as a
+# shared block so the base and claim prompts cannot drift apart.
+_FIT_RULE = """## Fit
+Output exactly one word: cover or contain.
+- If Critical Edge Text starts with "no", output cover.
+- If it starts with "yes", output contain when that edge content must stay fully visible; otherwise output cover.
+- If Critical Edge Text is missing or unclear, output contain when text, numbers, logos, UI or chart labels near an edge would be cut; otherwise output cover.
+Never output both words."""
+
 SEMANTICS_PROMPT_IMAGE = """Analyze this image for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
 
 ## Description
@@ -223,33 +252,23 @@ Comma-separated key subject terms (e.g., "robot, kitchen, product").
 ## Content Kind
 One of: product_demo, talking_head, landscape, chart, text_screenshot, other
 
-## Fit
-"cover" or "contain" — will this image be placed in a 9:16 vertical canvas? Use "cover" if edge content is non-critical and can be cropped. Use "contain" if edges have text/UI that must not be cropped.
-
-## Critical Edge Text
-"yes" or "no" followed by a brief note if yes (e.g., "yes — bottom edge has product label text").
-
-## Reason
-One sentence explaining the fit decision.
+""" + _CRITICAL_EDGE_RULE + "\n\n" + _FIT_RULE + """
 
 Example:
 ## Description
-A humanoid robot demonstrating household tasks in a kitchen setting.
+A bar chart of quarterly revenue with axis labels along the left and bottom edges.
 
 ## Subjects
-robot, kitchen, product
+chart, revenue, quarter
 
 ## Content Kind
-product_demo
+chart
+
+## Critical Edge Text
+yes — left edge has the y-axis label "Revenue (¥B)", which a centered crop would cut.
 
 ## Fit
 contain
-
-## Critical Edge Text
-yes — bottom edge has product label text
-
-## Reason
-Bottom edge has product label text that would be cropped in vertical format.
 """
 
 SEMANTICS_PROMPT_VIDEO = """Analyze this video for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
@@ -272,6 +291,38 @@ robot, factory, mobility
 
 ## Content Kind
 talking_head
+"""
+
+# Claim mode (#334): the base prompt minus the duplicated Reason section.
+# Subjects stays: asset-sourcer re-scores EVERY asset with
+# scoreCandidate(description, subjects) before assignment, and the hook gate
+# reads that score (HOOK_MIN_SCORE). Content Kind stays because it is
+# persisted in asset-analysis.json and rendered in the media-patch review.
+# Reason is folded into Critical Edge Text above; Fit stays for hook
+# assignment (images only — the base video prompt never asked for it).
+SEMANTICS_PROMPT_IMAGE_CLAIM = """Analyze this image for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
+
+## Description
+1-2 sentences describing what is happening in this image.
+
+## Subjects
+Comma-separated key subject terms (e.g., "robot, kitchen, product").
+
+## Content Kind
+One of: product_demo, talking_head, landscape, chart, text_screenshot, other
+
+""" + _CRITICAL_EDGE_RULE + "\n\n" + _FIT_RULE
+
+SEMANTICS_PROMPT_VIDEO_CLAIM = """Analyze this video for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
+
+## Description
+1-2 sentences describing what is happening in this video.
+
+## Subjects
+Comma-separated key subject terms (e.g., "robot, factory, mobility").
+
+## Content Kind
+One of: product_demo, talking_head, landscape, chart, text_screenshot, other
 """
 
 SEMANTICS_PROMPT_AUDIO = """Analyze this audio for use in a short video production pipeline. Provide your analysis as Markdown with the following sections:
@@ -321,36 +372,59 @@ def build_semantics_prompt(is_video=False, claim=None, transcript=None):
 
     claim=None → exactly the base prompt (backward compatible with all
     existing callers). When a claim ({voiceover, assetNeed}) is provided,
-    the scene's narration and desired visual are injected and the model is
-    asked for `## Relevance` (bare 0-100 integer) + `## Relevance Reason`.
+    the prompt switches to the compact claim variant — only the sections the
+    claim path consumes — and the scene's narration and desired visual are
+    injected as PREAMBLE, followed by `## Relevance` (bare 0-100 integer) +
+    `## Relevance Reason` output sections (#334).
     """
-    base = SEMANTICS_PROMPT_VIDEO if is_video else SEMANTICS_PROMPT_IMAGE
+    if claim:
+        base = SEMANTICS_PROMPT_VIDEO_CLAIM if is_video else SEMANTICS_PROMPT_IMAGE_CLAIM
+    else:
+        base = SEMANTICS_PROMPT_VIDEO if is_video else SEMANTICS_PROMPT_IMAGE
 
+    preambles = []
     if is_video and isinstance(transcript, str):
         text = transcript.strip()
         if text:
-            base = f"{TRANSCRIPT_HEAD}\n{text[:TRANSCRIPT_MAX_CHARS]}\n\n{base}"
+            preambles.append(f"{TRANSCRIPT_HEAD}\n{text[:TRANSCRIPT_MAX_CHARS]}")
+
+    voiceover = ""
+    need = ""
+    if claim:
+        voiceover = str(claim.get("voiceover") or "").strip()
+        need = str(claim.get("assetNeed") or "").strip()
+
+        # The claim context is PREAMBLE, like the transcript block — never a
+        # `## ` section between output sections. Two real-run failures drove
+        # this: (1) a `## Scene Claim` header was filled by the model as if it
+        # were an output section (a prose paragraph, or a stray "100"), and
+        # (2) after it became a plain label, the model echoed the label *after*
+        # `## Fit`, whose body then contained the echo and failed the
+        # cover/contain enum. As preamble, any echo lands before the first
+        # header and the parser ignores it; the Relevance instructions stay
+        # with the output sections.
+        context = "Scene claim for relevance scoring:"
+        if voiceover:
+            context += f'\nScene narration: "{voiceover}"'
+        if need:
+            context += f'\nDesired visual: "{need}"'
+        preambles.append(context)
+
+    if preambles:
+        base = "\n\n".join(preambles) + "\n\n" + base
 
     if not claim:
         return base
 
-    voiceover = str(claim.get("voiceover") or "").strip()
-    need = str(claim.get("assetNeed") or "").strip()
-
-    block = "\n\n## Scene Claim (judge relevance against this)\n"
-    if voiceover:
-        block += f'Scene narration: "{voiceover}"\n'
-    if need:
-        block += f'Desired visual: "{need}"\n'
-    block += (
-        "\n## Relevance\n"
+    return (
+        base
+        + "\n\n## Relevance\n"
         "Score 0-100: how well this asset supports the scene claim above. "
         "100 = directly supports it, 50 = loosely related, 0 = completely unrelated. "
         "Output the bare integer only.\n\n"
         "## Relevance Reason\n"
         "One sentence explaining the score.\n"
     )
-    return base + block
 
 
 # ─── Markdown parser ───

@@ -30,6 +30,15 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
+_here = os.path.dirname(os.path.abspath(__file__))
+if _here not in sys.path:
+    sys.path.insert(0, _here)
+
+# Production prompts (#334): import them instead of copying, so the benchmark
+# can never measure a prompt production no longer sends. The old local copies
+# had already drifted from vlm_analyzer.py.
+from vlm_analyzer import SEMANTICS_PROMPT_IMAGE, SEMANTICS_PROMPT_VIDEO  # noqa: E402
+
 # ─── Image preprocessing (mirrors vlm_analyzer.py production logic) ───
 
 MAX_IMAGE_LONG_EDGE = 1920
@@ -62,70 +71,6 @@ def resize_image_if_needed(img_path):
     except Exception as e:
         print(f"    [preprocess] Resize failed, using original: {e}")
         return img_path, None
-
-# ─── Production prompts (copied from vlm_analyzer.py) ───
-
-SEMANTICS_PROMPT_IMAGE = """Analyze this image for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
-
-## Description
-1-2 sentences describing what is happening in this image.
-
-## Subjects
-Comma-separated key subject terms (e.g., "robot, kitchen, product").
-
-## Content Kind
-One of: product_demo, talking_head, landscape, chart, text_screenshot, other
-
-## Fit
-"cover" or "contain" — will this image be placed in a 9:16 vertical canvas? Use "cover" if edge content is non-critical and can be cropped. Use "contain" if edges have text/UI that must not be cropped.
-
-## Critical Edge Text
-"yes" or "no" followed by a brief note if yes (e.g., "yes — bottom edge has product label text").
-
-## Reason
-One sentence explaining the fit decision.
-
-Example:
-## Description
-A humanoid robot demonstrating household tasks in a kitchen setting.
-
-## Subjects
-robot, kitchen, product
-
-## Content Kind
-product_demo
-
-## Fit
-contain
-
-## Critical Edge Text
-yes — bottom edge has product label text
-
-## Reason
-Bottom edge has product label text that would be cropped in vertical format.
-"""
-
-SEMANTICS_PROMPT_VIDEO = """Analyze this video for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
-
-## Description
-1-2 sentences describing what is happening in this video.
-
-## Subjects
-Comma-separated key subject terms (e.g., "robot, factory, mobility").
-
-## Content Kind
-One of: product_demo, talking_head, landscape, chart, text_screenshot, other
-
-Example:
-## Description
-A humanoid robot walking through a factory floor, demonstrating mobility.
-
-## Subjects
-robot, factory, mobility
-
-## Content Kind
-talking_head
-"""
 
 # ─── Model configs ───
 

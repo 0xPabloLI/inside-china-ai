@@ -23,10 +23,13 @@ import pytest  # noqa: E402
 
 from vlm_analyzer import (
     SEMANTICS_PROMPT_IMAGE,
+    SEMANTICS_PROMPT_IMAGE_CLAIM,
     SEMANTICS_PROMPT_VIDEO,
+    SEMANTICS_PROMPT_VIDEO_CLAIM,
     build_semantics_prompt,
     parse_markdown_to_dict,
 )
+import test_minicpm_omni as _bench  # noqa: E402  (lib/ is on sys.path above)
 
 CLAIM = {
     "voiceover": "Qwen4 beats Claude at coding benchmarks.",
@@ -60,17 +63,98 @@ check(
 claim_image = build_semantics_prompt(is_video=False, claim=CLAIM)
 claim_video = build_semantics_prompt(is_video=True, claim=CLAIM)
 
-check("claim image prompt starts with base prompt", claim_image.startswith(SEMANTICS_PROMPT_IMAGE))
-check("claim video prompt starts with base prompt", claim_video.startswith(SEMANTICS_PROMPT_VIDEO))
+check(
+    "claim image context is preamble",
+    claim_image.startswith("Scene claim for relevance scoring:"),
+)
+check(
+    "claim video context is preamble",
+    claim_video.startswith("Scene claim for relevance scoring:"),
+)
+check(
+    "claim image prompt carries the compact claim base",
+    SEMANTICS_PROMPT_IMAGE_CLAIM in claim_image,
+)
+check(
+    "claim video prompt carries the compact claim base",
+    SEMANTICS_PROMPT_VIDEO_CLAIM in claim_video,
+)
+check(
+    "claim context precedes the first output section",
+    claim_image.index("Scene claim for relevance scoring:")
+    < claim_image.index("## Description"),
+)
 check("claim voiceover injected", "Qwen4 beats Claude at coding benchmarks." in claim_image)
 check("assetNeed injected", "benchmark chart comparison" in claim_image)
 check("Relevance section present", "## Relevance" in claim_image)
 check("Relevance Reason section present", "## Relevance Reason" in claim_image)
 
+# #334: claim mode keeps every section a downstream consumer reads. Subjects
+# feeds scoreCandidate (the hook gate reads that score), Content Kind is
+# persisted and rendered in the media-patch review, Fit drives hook
+# assignment, and Critical Edge Text carries the merged Reason explanation.
+for name, prompt in (("image", claim_image), ("video", claim_video)):
+    check(f"claim {name} keeps Description", "## Description" in prompt)
+    check(f"claim {name} keeps Subjects", "## Subjects" in prompt)
+    check(f"claim {name} keeps Content Kind", "## Content Kind" in prompt)
+    check(f"claim {name} drops the Reason section", "\n## Reason\n" not in prompt)
+check("claim image keeps Fit", "## Fit" in claim_image)
+check("claim image keeps Critical Edge Text", "## Critical Edge Text" in claim_image)
+check("claim video drops Fit", "## Fit" not in claim_video)
+check(
+    "compact claim base is smaller than the base prompt",
+    len(SEMANTICS_PROMPT_IMAGE_CLAIM) < len(SEMANTICS_PROMPT_IMAGE),
+    f"claim={len(SEMANTICS_PROMPT_IMAGE_CLAIM)} base={len(SEMANTICS_PROMPT_IMAGE)}",
+)
+
+# #334: Fit is a single-word decision rule, and the redundant Reason section
+# is gone from the base image prompt (Critical Edge Text owns the explanation).
+check(
+    "base image Fit asks for exactly one word",
+    "Output exactly one word: cover or contain." in SEMANTICS_PROMPT_IMAGE,
+)
+check(
+    "base image Fit forbids emitting both words",
+    "Never output both words." in SEMANTICS_PROMPT_IMAGE,
+)
+check(
+    "base image prompt has no separate Reason section",
+    "\n## Reason\n" not in SEMANTICS_PROMPT_IMAGE,
+)
+check(
+    "Critical Edge Text carries the fit explanation",
+    "background texture" in SEMANTICS_PROMPT_IMAGE,
+)
+for name, prompt in (
+    ("base image", SEMANTICS_PROMPT_IMAGE),
+    ("claim image", SEMANTICS_PROMPT_IMAGE_CLAIM),
+):
+    check(
+        f"{name} prompt orders Critical Edge Text before Fit",
+        prompt.index("## Critical Edge Text") < prompt.index("## Fit"),
+    )
+
 empty_claim = build_semantics_prompt(is_video=False, claim={"voiceover": "", "assetNeed": ""})
 check(
     "empty claim strings still request Relevance section",
     "## Relevance" in empty_claim,
+)
+check(
+    "empty claim still uses the compact claim base",
+    SEMANTICS_PROMPT_IMAGE_CLAIM in empty_claim,
+)
+
+# #334 point 4: the benchmark harness must send the production prompt text,
+# not a copy that silently drifts. `lib/` is on sys.path (line 19), so the
+# harness is imported by its real module name — same pattern as the sibling
+# bench_prompt import in test_transcript_prompt.py.
+check(
+    "bench harness imports the production image prompt",
+    _bench.SEMANTICS_PROMPT_IMAGE is SEMANTICS_PROMPT_IMAGE,
+)
+check(
+    "bench harness imports the production video prompt",
+    _bench.SEMANTICS_PROMPT_VIDEO is SEMANTICS_PROMPT_VIDEO,
 )
 
 # ── parse_markdown_to_dict: relevance ──
