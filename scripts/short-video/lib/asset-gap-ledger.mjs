@@ -23,7 +23,8 @@
  */
 
 import { createHash } from "node:crypto";
-import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
+import { skipsMediaSourcing } from "./claim-keywords.mjs";
+import { GENERATING_STRATEGIES } from "./scene-rules.mjs";
 
 /** Internal: the ledger file's schema tag, read and written only in here. */
 const ASSET_GAP_SCHEMA_VERSION = 1;
@@ -45,17 +46,17 @@ export const GAP_REASON = {
 export const GAP_STATUS = { OPEN: "open", SATISFIED: "satisfied" };
 
 /**
- * Strategies that never buy stock. A scene on one of these has no library
- * need by design — unless a relevance report proves stock was tried before
- * the strategy moved (the documented escape hatch switches to `b-roll`, and
- * that must not erase the miss).
+ * Strategies that never buy stock: the generating vocabulary minus the
+ * `asset-then-*` ones, which try the library first.
  *
- * Owner of the generating vocabulary is `scene-rules.mjs`; this set is the
- * generating strategies minus the `asset-then-*` ones (which do buy stock).
- * `asset-gap-ledger.test.mjs` asserts the two stay in sync, so a new strategy
- * turns the suite red instead of silently entering or missing the ledger.
+ * Derived from `scene-rules.mjs`, which owns the vocabulary, so a new strategy
+ * lands on the correct side here without a second literal set to keep in sync.
+ * The `asset-then-*` prefix is the pipeline's own naming convention for
+ * "sourcing first, generation as the fallback".
  */
-export const GENERATION_ONLY_STRATEGIES = new Set(["b-roll", "ai-image"]);
+export const GENERATION_ONLY_STRATEGIES = new Set(
+  [...GENERATING_STRATEGIES].filter((strategy) => !strategy.startsWith("asset-then-")),
+);
 
 const NEED_MAX_CHARS = 240;
 const OCCURRENCE_MAX = 20;
@@ -94,9 +95,13 @@ export function gapId(need) {
 
 /**
  * Whether a scene asked for stock media and still has none. This is the one
- * definition of "should be in the ledger"; asset-sourcer skips scenes with
- * media, text-only visual types and generation-only strategies for the same
- * reasons.
+ * definition of "should be in the ledger".
+ *
+ * The policy exclusions (text-only visual types, hooks, `media: null`,
+ * `mediaOptOut`) are read from `skipsMediaSourcing`, the predicate sourcing
+ * itself applies (#191, #299). A scene sourcing never tries can therefore
+ * never be reported as a sourcing miss — otherwise every replay would
+ * re-derive a gap that `--satisfy` could never close.
  *
  * `stockAttempted` widens it for the one case the strategy alone would hide:
  * a scene that was judged against stock and only then switched to generation.
@@ -108,7 +113,7 @@ export function gapId(need) {
 export function hasStockIntent(scene, { stockAttempted = false } = {}) {
   if (!scene || typeof scene !== "object") return false;
   if (scene.media) return false;
-  if (NO_MEDIA_TYPES.has(scene.visualType)) return false;
+  if (skipsMediaSourcing(scene)) return false;
   if (GENERATION_ONLY_STRATEGIES.has(scene.mediaStrategy) && !stockAttempted) return false;
   return normalizeNeed(scene.assetNeed).length > 0;
 }
@@ -306,10 +311,15 @@ const sortGaps = (gaps) =>
 /**
  * Fold one run's gaps into the ledger.
  *
- * - a need seen again increments `seenCount` and refreshes `lastSeen`;
+ * - a need seen again in **another** package/scene increments `seenCount` and
+ *   refreshes `lastSeen`;
+ * - replaying the same package and scene is not a new observation: it only
+ *   refreshes that occurrence (and its reason, which a re-run of the stage can
+ *   change), so `--record` twice leaves the same ledger;
  * - a satisfied gap that misses again is reopened — the library has an asset,
  *   yet sourcing still could not use it, and hiding that would make the
- *   ledger lie;
+ *   ledger lie. A replay is not "again": it would reopen a gap the library
+ *   has already closed;
  * - occurrences stay bounded (newest packages win) so the file cannot grow
  *   without limit.
  *
@@ -344,20 +354,25 @@ export function mergeGaps(ledger, gaps, { now = new Date() } = {}) {
       });
       continue;
     }
+    const occurrences = new Map(
+      (existing.occurrences ?? []).map((item) => [occurrenceKey(item), item]),
+    );
+    const key = occurrenceKey(occurrence);
+    // Re-recording a package is a replay of evidence the ledger already holds,
+    // not a second sighting: no count, no reopen, and the stored occurrence
+    // keeps its original timestamp.
+    existing.reason = gap.reason ?? existing.reason;
+    if (occurrences.has(key)) continue;
+    occurrences.set(key, occurrence);
+    existing.occurrences = trimOccurrences([...occurrences.values()]);
     existing.lastSeen = seenAt;
     existing.seenCount = (existing.seenCount ?? 0) + 1;
-    existing.reason = gap.reason ?? existing.reason;
     if (existing.status === GAP_STATUS.SATISFIED) {
       existing.status = GAP_STATUS.OPEN;
       existing.reopenedAt = seenAt;
       delete existing.satisfiedAt;
       delete existing.satisfiedBy;
     }
-    const occurrences = new Map(
-      (existing.occurrences ?? []).map((item) => [occurrenceKey(item), item]),
-    );
-    occurrences.set(occurrenceKey(occurrence), occurrence);
-    existing.occurrences = trimOccurrences([...occurrences.values()]);
   }
 
   return {

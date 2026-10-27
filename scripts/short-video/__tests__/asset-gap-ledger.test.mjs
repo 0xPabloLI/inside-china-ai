@@ -35,6 +35,9 @@ const scene = (id, overrides = {}) => ({
   ...overrides,
 });
 
+/** Deterministic clock: `at(3)` is three minutes after `at(0)`. */
+const at = (minute) => new Date(Date.UTC(2026, 0, 1, 0, minute));
+
 describe("hasStockIntent — what belongs in the ledger", () => {
   it("counts a scene that asked for stock and has no media", () => {
     expect(hasStockIntent(scene(1))).toBe(true);
@@ -50,6 +53,16 @@ describe("hasStockIntent — what belongs in the ledger", () => {
     expect(hasStockIntent(scene(1, { assetNeed: undefined }))).toBe(false);
   });
 
+  it("skips the policy exclusions sourcing itself applies (#191/#299)", () => {
+    // A hook is hand-curated even when it declares assetNeed; `media: null` and
+    // `mediaOptOut` are explicit opt-outs. Sourcing never tries these, so a gap
+    // recorded here would never come true and never close: every replay would
+    // re-derive it after `--satisfy`, forever.
+    expect(hasStockIntent(scene(1, { visualType: "hook" }))).toBe(false);
+    expect(hasStockIntent(scene(1, { media: null }))).toBe(false);
+    expect(hasStockIntent(scene(1, { mediaOptOut: true }))).toBe(false);
+  });
+
   it("treats an absent mediaStrategy as stock-first (the pipeline default)", () => {
     expect(hasStockIntent(scene(1, { mediaStrategy: undefined }))).toBe(true);
   });
@@ -61,14 +74,18 @@ describe("hasStockIntent — what belongs in the ledger", () => {
     );
   });
 
-  it("stays inside the scene-rules generating vocabulary (no silent drift)", () => {
-    // The ledger's set is "generating strategies that never buy stock".
-    // scene-rules.mjs owns the vocabulary; a new strategy must be classified
-    // here on purpose, not inherited by accident.
-    const expected = [...GENERATING_STRATEGIES]
-      .filter((strategy) => !strategy.startsWith("asset-then-"))
-      .sort();
-    expect([...GENERATION_ONLY_STRATEGIES].sort()).toEqual(expected);
+  it("derives the never-buys-stock set from the generating vocabulary", () => {
+    // `asset-then-*` try the library first, so they can still leave a gap;
+    // every other generating strategy never buys stock. The set is computed
+    // from scene-rules' vocabulary, so a new strategy cannot silently enter or
+    // miss the ledger.
+    for (const strategy of GENERATING_STRATEGIES) {
+      expect(GENERATION_ONLY_STRATEGIES.has(strategy)).toBe(!strategy.startsWith("asset-then-"));
+    }
+    expect(GENERATION_ONLY_STRATEGIES.has("b-roll")).toBe(true);
+    expect(GENERATION_ONLY_STRATEGIES.has("ai-image")).toBe(true);
+    expect(GENERATION_ONLY_STRATEGIES.has("asset-then-broll")).toBe(false);
+    expect(GENERATION_ONLY_STRATEGIES.has("asset")).toBe(false);
   });
 });
 
@@ -301,8 +318,38 @@ describe("mergeGaps — the ledger grows, it does not restart", () => {
     expect(ledger.gaps[0].reopenedAt).toBeTruthy();
   });
 
+  it("does not count a replay of the same package as a second sighting", () => {
+    const gap = {
+      id: "gap-aaaa1111",
+      need: "humanoid robot",
+      contentSlug: "a",
+      sceneId: 2,
+      reason: "no-candidates",
+    };
+    const first = mergeGaps(null, [gap], { now: at(0) });
+    const replay = mergeGaps(first, [{ ...gap, reason: "unclassified" }], { now: at(5) });
+    expect(replay.gaps[0].seenCount).toBe(1);
+    expect(replay.gaps[0].lastSeen).toBe(first.gaps[0].lastSeen);
+    expect(replay.gaps[0].occurrences).toHaveLength(1);
+    expect(replay.gaps[0].occurrences[0].lastSeen).toBe(first.gaps[0].occurrences[0].lastSeen);
+    // Only the reason may move: a re-run of Stage 3 can find better evidence.
+    expect(replay.gaps[0].reason).toBe("unclassified");
+  });
+
+  it("does not reopen a satisfied gap when the same package is re-recorded", () => {
+    // `--satisfy` then `--record` on the same package is the natural sequence
+    // after a prefetch; the ledger must not undo the closure.
+    let ledger = mergeGaps(null, [
+      { id: "gap-aaaa1111", need: "humanoid robot", contentSlug: "a", sceneId: 2 },
+    ]);
+    ledger = satisfyGaps(ledger, "gap-aaaa1111", { by: "assets/robot.jpg" }).ledger;
+    ledger = mergeGaps(ledger, [
+      { id: "gap-aaaa1111", need: "humanoid robot", contentSlug: "a", sceneId: 2 },
+    ]);
+    expect(ledger.gaps[0].status).toBe(GAP_STATUS.SATISFIED);
+  });
+
   it("bounds occurrences so the file cannot grow without limit", () => {
-    const at = (minute) => new Date(Date.UTC(2026, 0, 1, 0, minute));
     let ledger = mergeGaps(
       null,
       [{ id: "gap-aaaa1111", need: "humanoid robot", contentSlug: "pkg-0", sceneId: 1 }],
@@ -466,6 +513,25 @@ describe("asset-gaps CLI", () => {
     const list = collect();
     await runCli(["--query", "robot"], { repoRoot: tmp, ledgerPath, ...list });
     expect(list.lines.join("\n")).toContain("gap-");
+  });
+
+  it("replays the same package without counting it twice", async () => {
+    const { ledgerPath } = seedRepo({
+      scenes: [
+        { id: 1, visualType: "narrative", mediaStrategy: "asset", assetNeed: "humanoid robot" },
+      ],
+      patches: [{ status: "unassigned", claimSceneId: 1, relevanceBand: "low", relevanceScore: 0 }],
+    });
+    const run = () =>
+      runCli(["--record", "--content", "demo"], { repoRoot: tmp, ledgerPath, ...collect() });
+
+    expect(await run()).toBe(0);
+    const first = JSON.parse(readFileSync(ledgerPath, "utf8"));
+    expect(await run()).toBe(0);
+    // Only the file's `updatedAt` moves; the content a replay produces is the
+    // content the ledger already held.
+    expect(JSON.parse(readFileSync(ledgerPath, "utf8")).gaps).toEqual(first.gaps);
+    expect(first.gaps[0].seenCount).toBe(1);
   });
 
   it("prints JSON for machine consumers", async () => {

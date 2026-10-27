@@ -45,7 +45,12 @@ import { normalizeMediaPatch } from "./lib/media-patch-format.mjs";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..", "..");
-const DEFAULT_LEDGER = join(REPO_ROOT, "knowledge", "asset-gaps.json");
+/**
+ * Where the ledger lives, relative to the repo root. `runCli` joins it onto
+ * the caller's `repoRoot`, so the path is stated once and stays valid for
+ * in-process runs against a fixture tree.
+ */
+const DEFAULT_LEDGER = join("knowledge", "asset-gaps.json");
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 
@@ -163,7 +168,7 @@ export async function runCli(args, opts = {}) {
   const parsed = parseArgs(args);
   const ledgerPath = parsed.ledger
     ? resolve(parsed.ledger)
-    : (opts.ledgerPath ?? join(repoRoot, "knowledge", "asset-gaps.json"));
+    : (opts.ledgerPath ?? join(repoRoot, DEFAULT_LEDGER));
   if (parsed.status && !STATUS_VALUES.has(parsed.status)) {
     err(`❌ --status must be one of ${[...STATUS_VALUES].join(" | ")} (got "${parsed.status}")`);
     return 1;
