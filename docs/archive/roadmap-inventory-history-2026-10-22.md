@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 44 轮盘点 + 74 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案；Round CI 收尾再下沉 C 盘点与 XCVII 一句话档案；Round CII 收尾再下沉 CI 盘点与 XCVIII 一句话档案；Round CIII 收尾再下沉 CII 盘点与 XCIX 一句话档案；Round CIV 收尾再下沉 CIII 盘点与 C 一句话档案；Round CV 收尾再下沉 CIV 盘点；Round CVI 收尾再下沉 CV 盘点，补记 CVI/CV 一句话档案并下沉 CII 与 CI 一句话档案）。
+> 本文件按时间倒序排列，共 45 轮盘点 + 74 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案；Round CI 收尾再下沉 C 盘点与 XCVII 一句话档案；Round CII 收尾再下沉 CI 盘点与 XCVIII 一句话档案；Round CIII 收尾再下沉 CII 盘点与 XCIX 一句话档案；Round CIV 收尾再下沉 CIII 盘点与 C 一句话档案；Round CV 收尾再下沉 CIV 盘点；Round CVI 收尾再下沉 CV 盘点，补记 CVI/CV 一句话档案并下沉 CII 与 CI 一句话档案；Round CVII 收尾再下沉 CVI 盘点，补记 CVII 一句话档案并下沉 CIII 一句话档案）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,9 +13,11 @@
 
 ---
 
-## 逐轮盘点（Round CV → LV）
+## 逐轮盘点（Round CVI → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
+
+（**Round CVI：`#922` per-family T2V 模板接线交付闭票（PR #982，merge `1af55605`）**——模板层接入生成路径：`runBrollStage` 经 `familyForModelTier(resolveModelTier(env))` 一次性解析 family（未知 `BROLL_MODEL` 严格拒绝，不静默回退默认档）；declared prompt 由 `renderDeclaredPrompt` 按 family 预算门禁（新 `PromptBudgetError`，reason 含 family/估算 token/超限量），组合 prompt 生成前同门禁（`budgetOvershootReason` 统一报文形状）；报告视频条目新增 `promptFamily` 溯源，图像（T2I）路径不 ride T2V family；gate 分离保留（VLM claim 仍读 raw declared prompt）；预算符号拆到新 `prompt-budget.mjs`（打破注入层→模板层模块环）；declared 门禁为生成时门禁，legacy 超限缓存 winner 继续复用不翻成 failed。范围按用户裁决走**最小接线**：两在产 Wan family slotOrder 相同故槽位重排为无操作——无 `SUBJECT:` 标签解析、无新结构化 scene 字段。验证：目标套件 126/126 绿；**零产出 diff**（32 内容包 / 292 场景 / 15 视频 prompt，wan2.2+wan2.1 双 family 0 diff）；真实报告缓存 smoke 9 cached / 0 generated / 0 analyzer；全量套件仅余基线同数环境性失败（逐文件在基线 commit 复跑证实）；两轴 code-review 9 条 + droid-review 3 条（含 P2 门禁顺序翻掉 legacy 缓存 winner、P2 测试未真正 exercising 判别守卫）全修 resolve。**定性 enabling fix（预期无产出 diff）**：解除的是「模板契约只停在研究数据表、档位切换退化静默」的失察面。**frontier 复算**：Track 1A 空；Step 4 ① Track 1B 推进至 **`#334`**；Track 2 `#291` AFK 空；Track 3 HITL（Step 4 ②）队首 `#723`；Step 4 ④ 低优工程卫生含 `#911`、`#978`。）
 
 （**Round CV：`#329` yt-dlp ffmpeg 段代理交接收口交付闭票（PR #979）**——缺口 1 落到「自有注入 + 常驻断言」：新增 `ytdlpProxyEnv()`（`lib/ytdlp-guard.mjs`）并接入两条可委派 ffmpeg 的 spawn（`asset-sourcer.downloadYtdlp`、`video-downloaders.downloadYtdlpAdapter` 的非 TikTok 分支），上游 `FFmpegFD` 的 `--proxy` 注入降为第二层（2026-07.04 实测仍在，但不再承重）；CI 级断言守两条 spawn 的 env，另有离线真 yt-dlp → stub ffmpeg 探针（手工 info JSON + 最小子进程 env，无网络）守最后一跳，无 yt-dlp 的机器 skip。缺口 2 按 2026-09-25 triage 判为上游硬限：`parseMacSystemProxy` 暴露 `socksProxy`，`resolveYtdlpProxy` 每进程一次性 warn 点名端点与 `http_proxy` 出口，seam 头注释与 runbook 第 18/18b 行留痕。偏差与裁决：triage 建议纯契约断言，但纯断言在无 yt-dlp 的 CI 上 skip（自证式门禁是 no-op），故同时移除运行时假设；2026-10-27 用户确认保留自有注入。验证：受影响三套 418 passed；全量 6082 passed / 1 计时假失败（`session-launcher` 满载 5s 超时，隔离 61/61）/ 7 skipped；真实 `downloadYtdlp` smoke 475,540 B / 3.2s；两轴 code-review 两轮 findings 全修；OCR A 模式尝试失败（本地模型 3/3 文件 300s 超时，无产出，记档未当通过）。**定性 enabling fix（预期无产出 diff）**：解除的是「ffmpeg 段代理依赖上游隐式注入」这处静默失效面。另开 follow-up **`#978`**（env `http_proxy=socks5://` 早退无告警，P3/Tier 3）。**frontier 复算**：Track 1A 空；Step 4 ① Track 1B 推进至 **`#922`**；Track 2 `#291` AFK 空；Track 3 HITL（Step 4 ②）队首 `#723`；Step 4 ④ 低优工程卫生含 `#911`、`#978`。）
 
