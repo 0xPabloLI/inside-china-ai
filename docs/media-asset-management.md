@@ -106,11 +106,11 @@ Text assets (articles, scene-data) have auto-triggers in the content pipeline (S
 
 `knowledge/asset-gaps.json` 是「场景声明了素材需求、sourcing 却没给到」的 durable 缺口记录。它是跨包资产：Stage 3 生产结束写入，下一轮 Stage 0 预获取读取——素材库因此逐轮增长，而不是每次从零撞运气。`output/<slug>/media-patch.json` 只活到本包结束，不能当账本。
 
-- **写入**：`node scripts/short-video/asset-gaps.mjs --record --content <slug>`（`docs/content-pipeline.md` Stage 3 第 8d 步，必须执行）。证据来自 scene-data + `media-patch.json` + 8b 的 `stock-relevance-report.json`；不重新搜索、不下载。
+- **写入**：`node scripts/short-video/asset-gaps.mjs --record --content <slug>`（`docs/content-pipeline.md` Stage 3 第 8d 步，必须执行）。证据来自 scene-data + `media-patch.json` + 8b 的 `stock-relevance-report.json` + Stage 4 的 `b-roll-report.json`；不重新搜索、不下载。
 - **读取**：`--query "<实体,概念>"`（按需短路）或 `--list`（默认只看 open）。
 - **关闭**：素材真正入库后 `--satisfy <gap-id|need 子串> --by <catalog 路径>`。已 satisfied 的缺口再次 miss 会重新 open——库里有图但 sourcing 没用上，同样是缺口。
-- **归因**：`no-candidates`（什么都没搜到/下载到）、`relevance-rejected`（候选被打分但都过不了准入）、`vlm-unavailable`（工具失败，不是内容判决）、`unclassified`（历史产物没有 per-scene 证据）。工具失败不得写成内容判决，口径同 `lib/relevance-verdict.mjs`（#294）。
-- **边界**：生成类 `mediaStrategy`（`b-roll` / `ai-image`）与已有 `media` 的场景不入账；缺口按 need 文本去重（大小写/空白归一），同一 need 跨包累加 `seenCount` 与出现包。
+- **归因**：`no-candidates`（什么都没搜到/下载到）、`relevance-rejected`（候选被打分但都过不了准入）、`vlm-unavailable`（工具失败，不是内容判决）、`fell-through-to-generation`（`asset-then-*` 策略在 `b-roll-report.json` 里落到了生成：sourcing 没给出可用素材）、`unclassified`（历史产物没有 per-scene 证据）。工具失败不得写成内容判决，口径同 `lib/relevance-verdict.mjs`（#294）。
+- **边界**：纯生成策略（`b-roll` / `ai-image`）从不需要素材库，不入账；唯一例外是 8b 已经评判过该场景（报告有记录）——因判据不可满足而改成生成策略，缺口仍然保留。已有 `media` 的场景不入账。缺口按 need 文本去重（大小写/空白归一），同一 need 跨包累加 `seenCount` 与出现包。
 - **体积**：每缺口最多保留 20 条出现记录（按最近见到时间淘汰），文件不会随轮次无限增长。
 
 ### Cross-content reuse cap (asset-sourcer)
@@ -129,6 +129,7 @@ These are environment facts — the code is the source of truth, this table is a
 | Brand mark SVG   | `assets/china-ai-news-mark-video.svg`                 | `build-mark-svg.mjs`（生成）；`remotion/src`（CtaScene / visuals.tsx 消费） |
 | BGM library      | `assets/bgm/*.mp3`                                    | `lib/bgm.mjs`                                                               |
 | Content media    | `content/{slug}/assets/*`                             | `scene-data.mjs` `media.path` field                                         |
+| Asset gap ledger | `knowledge/asset-gaps.json`                            | `scripts/short-video/asset-gaps.mjs` (`DEFAULT_LEDGER`)                       |
 | Remotion static  | `remotion/public/assets/` (symlink → `../../assets/`) | `render-remotion.mjs` stages content media into `_staged/` at render time   |
 
 ## Design Decisions & References

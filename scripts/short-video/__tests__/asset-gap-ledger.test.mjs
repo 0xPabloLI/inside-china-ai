@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   GAP_REASON,
   GAP_STATUS,
+  GENERATION_ONLY_STRATEGIES,
   deriveGaps,
   formatGapLine,
   gapId,
@@ -17,6 +18,7 @@ import {
   serializeLedger,
 } from "../lib/asset-gap-ledger.mjs";
 import { runCli } from "../asset-gaps.mjs";
+import { GENERATING_STRATEGIES } from "../lib/scene-rules.mjs";
 
 let tmp = null;
 
@@ -50,6 +52,23 @@ describe("hasStockIntent — what belongs in the ledger", () => {
 
   it("treats an absent mediaStrategy as stock-first (the pipeline default)", () => {
     expect(hasStockIntent(scene(1, { mediaStrategy: undefined }))).toBe(true);
+  });
+
+  it("keeps a generation-only scene only when stock was already judged", () => {
+    expect(hasStockIntent(scene(1, { mediaStrategy: "b-roll" }))).toBe(false);
+    expect(hasStockIntent(scene(1, { mediaStrategy: "b-roll" }), { stockAttempted: true })).toBe(
+      true,
+    );
+  });
+
+  it("stays inside the scene-rules generating vocabulary (no silent drift)", () => {
+    // The ledger's set is "generating strategies that never buy stock".
+    // scene-rules.mjs owns the vocabulary; a new strategy must be classified
+    // here on purpose, not inherited by accident.
+    const expected = [...GENERATING_STRATEGIES]
+      .filter((strategy) => !strategy.startsWith("asset-then-"))
+      .sort();
+    expect([...GENERATION_ONLY_STRATEGIES].sort()).toEqual(expected);
   });
 });
 
@@ -185,6 +204,29 @@ describe("deriveGaps — classification", () => {
       patches: [{ status: "unassigned", claimSceneId: 1, reason: "cross-content reuse cap" }],
     });
     expect(gaps[0].reason).toBe(GAP_REASON.UNCLASSIFIED);
+  });
+
+  it("records a fall-through to generation from the b-roll report", () => {
+    const gaps = deriveGaps({
+      contentSlug: "pkg",
+      scenes: [scene(1, { mediaStrategy: "asset-then-broll" })],
+      brollReport: { scenes: { 1: { strategy: "asset-then-broll", status: "won" } } },
+    });
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].reason).toBe(GAP_REASON.FELL_THROUGH_TO_GENERATION);
+  });
+
+  it("keeps a gap whose strategy was switched to generation after an 8b judgement", () => {
+    // The documented escape hatch changes mediaStrategy to "b-roll". The
+    // report is the evidence that stock was tried, so the library miss
+    // survives the switch.
+    const gaps = deriveGaps({
+      contentSlug: "pkg",
+      scenes: [scene(1, { mediaStrategy: "b-roll" })],
+      report: { results: [{ sceneId: 1, status: "FAIL" }] },
+    });
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].reason).toBe(GAP_REASON.RELEVANCE_REJECTED);
   });
 
   it("skips text-only and generation-only scenes entirely", () => {
@@ -367,7 +409,7 @@ describe("formatGapLine", () => {
 });
 
 describe("asset-gaps CLI", () => {
-  const seedRepo = ({ scenes, patches, report }) => {
+  const seedRepo = ({ scenes, patches, report, brollReport }) => {
     tmp = mkdtempSync(join(tmpdir(), "asset-gaps-"));
     const contentDir = join(tmp, "scripts", "short-video", "content", "demo");
     const outputDir = join(tmp, "scripts", "short-video", "output", "demo");
@@ -385,6 +427,9 @@ describe("asset-gaps CLI", () => {
     }
     if (report) {
       writeFileSync(join(contentDir, "stock-relevance-report.json"), JSON.stringify(report));
+    }
+    if (brollReport) {
+      writeFileSync(join(outputDir, "b-roll-report.json"), JSON.stringify(brollReport));
     }
     return { ledgerPath: join(tmp, "knowledge", "asset-gaps.json") };
   };
@@ -439,7 +484,7 @@ describe("asset-gaps CLI", () => {
     expect(payload).toMatchObject({ content: "demo", recorded: 1, open: 1 });
   });
 
-  it("satisfies a gap and refuses an unknown selector", async () => {
+  it("satisfies a gap with a real library path and refuses an unknown selector", async () => {
     const { ledgerPath } = seedRepo({
       scenes: [
         { id: 1, visualType: "narrative", mediaStrategy: "asset", assetNeed: "humanoid robot" },
@@ -447,8 +492,12 @@ describe("asset-gaps CLI", () => {
     });
     await runCli(["--record", "--content", "demo"], { repoRoot: tmp, ledgerPath, ...collect() });
 
+    const catalogPath = join(tmp, "scripts", "short-video", "assets", "robot.jpg");
+    mkdirSync(dirname(catalogPath), { recursive: true });
+    writeFileSync(catalogPath, "not-a-real-image");
+
     const ok = collect();
-    const okCode = await runCli(["--satisfy", "humanoid robot", "--by", "assets/robot.jpg"], {
+    const okCode = await runCli(["--satisfy", "humanoid robot", "--by", catalogPath], {
       repoRoot: tmp,
       ledgerPath,
       ...ok,
@@ -464,6 +513,62 @@ describe("asset-gaps CLI", () => {
       stderr: () => {},
     });
     expect(badCode).toBe(1);
+  });
+
+  it("refuses a --by path that does not exist (the claim would be false)", async () => {
+    const { ledgerPath } = seedRepo({
+      scenes: [
+        { id: 1, visualType: "narrative", mediaStrategy: "asset", assetNeed: "humanoid robot" },
+      ],
+    });
+    await runCli(["--record", "--content", "demo"], { repoRoot: tmp, ledgerPath, ...collect() });
+    const err = collect();
+    const code = await runCli(["--satisfy", "humanoid robot", "--by", join(tmp, "nope.jpg")], {
+      repoRoot: tmp,
+      ledgerPath,
+      ...err,
+      stderr: err.stdout,
+    });
+    expect(code).toBe(1);
+    expect(err.lines.join("\n")).toContain("does not exist");
+    expect(JSON.parse(readFileSync(ledgerPath, "utf8")).gaps[0].status).toBe(GAP_STATUS.OPEN);
+  });
+
+  it("rejects an unknown --status instead of silently listing nothing", async () => {
+    const { ledgerPath } = seedRepo({
+      scenes: [
+        { id: 1, visualType: "narrative", mediaStrategy: "asset", assetNeed: "humanoid robot" },
+      ],
+    });
+    await runCli(["--record", "--content", "demo"], { repoRoot: tmp, ledgerPath, ...collect() });
+    const err = collect();
+    const code = await runCli(["--list", "--status", "opne"], {
+      repoRoot: tmp,
+      ledgerPath,
+      ...err,
+      stderr: err.stdout,
+    });
+    expect(code).toBe(1);
+    expect(err.lines.join("\n")).toContain("--status must be one of");
+  });
+
+  it("records the fall-through reason from the b-roll report", async () => {
+    const { ledgerPath } = seedRepo({
+      scenes: [
+        {
+          id: 1,
+          visualType: "narrative",
+          mediaStrategy: "asset-then-broll",
+          assetNeed: "humanoid robot",
+        },
+      ],
+      brollReport: { scenes: { 1: { strategy: "asset-then-broll", status: "won" } } },
+    });
+    const out = collect();
+    await runCli(["--record", "--content", "demo"], { repoRoot: tmp, ledgerPath, ...out });
+    expect(JSON.parse(readFileSync(ledgerPath, "utf8")).gaps[0].reason).toBe(
+      GAP_REASON.FELL_THROUGH_TO_GENERATION,
+    );
   });
 
   it("fails cleanly on a missing scene-data instead of writing a ledger", async () => {

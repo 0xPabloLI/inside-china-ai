@@ -35,6 +35,8 @@ export const GAP_REASON = {
   RELEVANCE_REJECTED: "relevance-rejected",
   /** Candidates existed but the VLM produced no parseable score. Tool failure. */
   VLM_UNAVAILABLE: "vlm-unavailable",
+  /** Sourcing produced nothing usable and the scene fell through to generation. */
+  FELL_THROUGH_TO_GENERATION: "fell-through-to-generation",
   /** Replayed from artifacts that carry no per-scene evidence. */
   UNCLASSIFIED: "unclassified",
 };
@@ -43,7 +45,14 @@ export const GAP_STATUS = { OPEN: "open", SATISFIED: "satisfied" };
 
 /**
  * Strategies that never buy stock. A scene on one of these has no library
- * need by design, so it is not a gap.
+ * need by design — unless a relevance report proves stock was tried before
+ * the strategy moved (the documented escape hatch switches to `b-roll`, and
+ * that must not erase the miss).
+ *
+ * Owner of the generating vocabulary is `scene-rules.mjs`; this set is the
+ * generating strategies minus the `asset-then-*` ones (which do buy stock).
+ * `asset-gap-ledger.test.mjs` asserts the two stay in sync, so a new strategy
+ * turns the suite red instead of silently entering or missing the ledger.
  */
 export const GENERATION_ONLY_STRATEGIES = new Set(["b-roll", "ai-image"]);
 
@@ -88,14 +97,18 @@ export function gapId(need) {
  * media, text-only visual types and generation-only strategies for the same
  * reasons.
  *
+ * `stockAttempted` widens it for the one case the strategy alone would hide:
+ * a scene that was judged against stock and only then switched to generation.
+ *
  * @param {object} scene
+ * @param {{stockAttempted?: boolean}} [opts]
  * @returns {boolean}
  */
-export function hasStockIntent(scene) {
+export function hasStockIntent(scene, { stockAttempted = false } = {}) {
   if (!scene || typeof scene !== "object") return false;
   if (scene.media) return false;
   if (NO_MEDIA_TYPES.has(scene.visualType)) return false;
-  if (GENERATION_ONLY_STRATEGIES.has(scene.mediaStrategy)) return false;
+  if (GENERATION_ONLY_STRATEGIES.has(scene.mediaStrategy) && !stockAttempted) return false;
   return normalizeNeed(scene.assetNeed).length > 0;
 }
 
@@ -110,23 +123,37 @@ const reportStatusByScene = (report) => {
 const rejectionBand = (entry) => entry?.relevanceBand ?? null;
 
 /**
+ * @typedef {object} SceneEvidence
+ * @property {Array<object>} rejections - media-patch entries bound to this scene
+ * @property {object|null} reportResult - this scene's 8b relevance result
+ * @property {Array<object>|null} candidates - sourcing candidates, in-process runs only
+ * @property {object|null} brollEntry - this scene's b-roll report entry
+ * @property {Array<object>} patches - the whole media-patch (evidence of attempts)
+ * @property {boolean} bindingsAvailable - whether rejections can be attributed
+ *   to a scene at all (bound entries or an in-process candidate list)
+ */
+
+/**
  * Classify one unmet scene. Evidence precedence: the 8b relevance report
- * (per-scene, explicit status) → the media-patch rejections bound to that
- * scene → no evidence.
+ * (per-scene, explicit status) → the b-roll report (the scene fell through
+ * sourcing into generation) → the media-patch rejections bound to that scene
+ * → the in-process candidate pool → no evidence.
  *
- * @param {object} params
- * @param {Array<object>} params.rejections - media-patch entries for this scene
- * @param {object|null} params.reportResult
- * @param {Array<object>|null} params.candidates - sourcing candidates for this scene
- * @param {Array<object>} params.patches - the whole media-patch (evidence of attempts)
- * @param {boolean} params.bindingsAvailable - whether this patch can attribute
- *   rejections to scenes (bound entries or an in-process candidate list)
+ * @param {SceneEvidence} evidence
  * @returns {string}
  */
-function classifyUnmet({ rejections, reportResult, candidates, patches, bindingsAvailable }) {
+function classifyUnmet(evidence) {
+  const { rejections, reportResult, candidates, brollEntry, patches, bindingsAvailable } = evidence;
   const status = typeof reportResult?.status === "string" ? reportResult.status.toLowerCase() : "";
   if (status === "fail") return GAP_REASON.RELEVANCE_REJECTED;
   if (status === "unavailable") return GAP_REASON.VLM_UNAVAILABLE;
+
+  // A b-roll entry means the scene reached the generation stage. For an
+  // `asset-then-*` strategy that is the definition of "sourcing produced
+  // nothing usable" — Stage 4's view of the same miss.
+  if (brollEntry && String(brollEntry.strategy ?? "").startsWith("asset-then-")) {
+    return GAP_REASON.FELL_THROUGH_TO_GENERATION;
+  }
 
   if (rejections.length > 0) {
     if (rejections.some((entry) => rejectionBand(entry) === "unavailable")) {
@@ -166,6 +193,7 @@ function classifyUnmet({ rejections, reportResult, candidates, patches, bindings
  * @param {Array<object>} [params.patches] - media-patch entries (assigned + unassigned)
  * @param {Array<object>|null} [params.assets] - sourcing candidates (in-process runs only)
  * @param {object|null} [params.report] - stock-relevance report (Stage 3 8b)
+ * @param {object|null} [params.brollReport] - b-roll report (Stage 4, `scenes` keyed by id)
  * @param {string|Date} [params.runAt]
  * @returns {Array<object>} gap records, one per unmet scene
  */
@@ -175,6 +203,7 @@ export function deriveGaps({
   patches = [],
   assets = null,
   report = null,
+  brollReport = null,
   runAt = new Date(),
 } = {}) {
   const seenAt = nowIso(runAt);
@@ -201,12 +230,17 @@ export function deriveGaps({
     }
   }
   const reportByScene = reportStatusByScene(report);
+  const brollByScene = brollReport?.scenes ?? {};
   const bindingsAvailable =
     Array.isArray(assets) || patchList.some((entry) => entry?.claimSceneId != null);
 
   const gaps = [];
   for (const scene of Array.isArray(scenes) ? scenes : []) {
-    if (!hasStockIntent(scene)) continue;
+    const reportResult = reportByScene.get(scene.id) ?? null;
+    // A scene judged against stock and only then switched to generation still
+    // owes the library an asset — the 8b report is what keeps that visible.
+    const stockAttempted = reportResult != null;
+    if (!hasStockIntent(scene, { stockAttempted })) continue;
     if (assignedSceneIds.has(scene.id)) continue;
     const normalizedNeed = normalizeNeed(scene.assetNeed);
     // Identity comes from the whole need; only the stored text is bounded, so
@@ -218,9 +252,10 @@ export function deriveGaps({
       need: normalizedNeed.slice(0, NEED_MAX_CHARS),
       reason: classifyUnmet({
         rejections: rejectionsByScene.get(scene.id) ?? [],
-        reportResult: reportByScene.get(scene.id) ?? null,
+        reportResult,
         candidates: Array.isArray(assets) ? (candidatesByScene.get(scene.id) ?? []) : null,
-        patches,
+        brollEntry: brollByScene[String(scene.id)] ?? null,
+        patches: patchList,
         bindingsAvailable,
       }),
       contentSlug,
@@ -243,6 +278,11 @@ const occurrenceKey = (occurrence) => `${occurrence.content}#${occurrence.sceneI
 const sortOccurrences = (occurrences) =>
   [...occurrences].sort((a, b) => occurrenceKey(a).localeCompare(occurrenceKey(b)));
 
+const byLastSeen = (a, b) => String(a.lastSeen).localeCompare(String(b.lastSeen));
+
+/** The most recent package that hit this need, or null when unknown. */
+const latestOccurrence = (occurrences) => [...(occurrences ?? [])].sort(byLastSeen).at(-1) ?? null;
+
 /**
  * Keep the newest occurrences. Sorting by key alone would drop `pkg-25` and
  * keep `pkg-9` (string order), so the trim is by last-seen time; equal
@@ -251,10 +291,7 @@ const sortOccurrences = (occurrences) =>
  */
 const trimOccurrences = (occurrences) => {
   if (occurrences.length <= OCCURRENCE_MAX) return sortOccurrences(occurrences);
-  const byTime = [...occurrences].sort((a, b) =>
-    String(a.lastSeen).localeCompare(String(b.lastSeen)),
-  );
-  const kept = new Set(byTime.slice(-OCCURRENCE_MAX).map(occurrenceKey));
+  const kept = new Set([...occurrences].sort(byLastSeen).slice(-OCCURRENCE_MAX).map(occurrenceKey));
   return sortOccurrences(occurrences.filter((item) => kept.has(occurrenceKey(item))));
 };
 
@@ -423,9 +460,7 @@ export function satisfyGaps(ledger, selector, { by = null, now = new Date() } = 
 
 /** Human-readable one-liner for CLI output. */
 export function formatGapLine(gap) {
-  const latest = [...(gap.occurrences ?? [])]
-    .sort((a, b) => String(a.lastSeen).localeCompare(String(b.lastSeen)))
-    .at(-1);
+  const latest = latestOccurrence(gap.occurrences);
   const where = latest ? ` last ${latest.lastSeen} in ${latest.content}#${latest.sceneId}` : "";
   return `${gap.id}  ${gap.seenCount ?? 1}x  ${gap.reason}  ${gap.need}${where}`;
 }

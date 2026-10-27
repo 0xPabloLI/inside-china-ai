@@ -21,7 +21,14 @@
  * Exit codes: 0 success, 1 unusable input (missing scene-data, unknown gap).
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -62,17 +69,25 @@ const parseArgs = (args) => {
   };
 };
 
-/** Read the ledger; a missing file is an empty ledger, a corrupt one is reported by the caller. */
+/**
+ * Read the ledger. A missing file is an empty ledger; an unparseable or
+ * wrong-shaped one is also read as empty, but reported — a corrupt ledger
+ * must not block a production run (the same fail-open stance as the
+ * used-asset index), and it must not be silently overwritten either.
+ *
+ * @returns {{ledger: object, corrupt: boolean}}
+ */
 const loadLedgerAt = (path) => {
   if (!existsSync(path)) return { ledger: parseLedger(null), corrupt: false };
   const text = readFileSync(path, "utf8");
-  let corrupt = false;
+  const ledger = parseLedger(text);
+  let valid = false;
   try {
-    corrupt = !Array.isArray(JSON.parse(text)?.gaps);
+    valid = Array.isArray(JSON.parse(text)?.gaps);
   } catch {
-    corrupt = text.trim() !== "";
+    valid = false;
   }
-  return { ledger: parseLedger(text), corrupt };
+  return { ledger, corrupt: text.trim() !== "" && !valid };
 };
 
 const writeLedgerAt = (path, ledger) => {
@@ -120,6 +135,18 @@ const loadReport = (repoRoot, slug) => {
   }
 };
 
+const loadBrollReport = (repoRoot, slug) => {
+  const reportPath = join(repoRoot, "scripts", "short-video", "output", slug, "b-roll-report.json");
+  if (!existsSync(reportPath)) return null;
+  try {
+    return readJson(reportPath);
+  } catch {
+    return null;
+  }
+};
+
+const STATUS_VALUES = new Set([GAP_STATUS.OPEN, GAP_STATUS.SATISFIED, "all"]);
+
 /**
  * CLI entry point. Exported so tests can drive it in-process with a fixture
  * repo root instead of spawning node.
@@ -137,6 +164,17 @@ export async function runCli(args, opts = {}) {
   const ledgerPath = parsed.ledger
     ? resolve(parsed.ledger)
     : (opts.ledgerPath ?? join(repoRoot, "knowledge", "asset-gaps.json"));
+  if (parsed.status && !STATUS_VALUES.has(parsed.status)) {
+    err(`❌ --status must be one of ${[...STATUS_VALUES].join(" | ")} (got "${parsed.status}")`);
+    return 1;
+  }
+  if (parsed.by && !existsSync(resolve(parsed.by))) {
+    // Satisfying a gap is the only write that claims the library now holds
+    // the asset. A path that does not exist makes that claim false.
+    err(`❌ --by path does not exist: ${parsed.by}`);
+    return 1;
+  }
+
   const { ledger, corrupt } = loadLedgerAt(ledgerPath);
   if (corrupt) {
     err(`⚠️  ${ledgerPath} could not be parsed — treating it as an empty ledger`);
@@ -153,7 +191,8 @@ export async function runCli(args, opts = {}) {
       const scenes = await loadScenes(repoRoot, slug);
       const patches = loadPatches(repoRoot, slug);
       const report = loadReport(repoRoot, slug);
-      gaps = deriveGaps({ contentSlug: slug, scenes, patches, report });
+      const brollReport = loadBrollReport(repoRoot, slug);
+      gaps = deriveGaps({ contentSlug: slug, scenes, patches, report, brollReport });
     } catch (error) {
       err(`❌ ${error.message}`);
       return 1;
@@ -173,14 +212,16 @@ export async function runCli(args, opts = {}) {
       out(`No asset gaps recorded from ${slug} (every stock scene was satisfied)`);
     } else {
       out(`Recorded ${gaps.length} gap(s) from ${slug} → ${ledgerPath}`);
-      for (const gap of gaps) out(`  ${formatGapLine({ ...gap, seenCount: 1 })}`);
+      for (const gap of gaps) out(`  ${formatGapLine(gap)}`);
       out(`Open gaps in ledger: ${open}`);
     }
     return 0;
   }
 
   if (parsed.satisfy) {
-    const { ledger: next, matched } = satisfyGaps(ledger, parsed.satisfy, { by: parsed.by });
+    const { ledger: next, matched } = satisfyGaps(ledger, parsed.satisfy, {
+      by: parsed.by ? resolve(parsed.by) : null,
+    });
     if (matched.length === 0) {
       err(`❌ no gap matched "${parsed.satisfy}" in ${ledgerPath}`);
       return 1;
@@ -198,7 +239,7 @@ export async function runCli(args, opts = {}) {
     out(JSON.stringify({ ledger: ledgerPath, status, count: gaps.length, gaps }, null, 2));
     return 0;
   }
-  const label = parsed.query ? `matching "${parsed.query}"` : `${status ?? "all"} gaps`;
+  const label = parsed.query ? `matching "${parsed.query}"` : `(${status ?? "all"})`;
   out(`${gaps.length} asset gap(s) ${label} — ${ledgerPath}`);
   for (const gap of gaps) {
     out(`  ${formatGapLine(gap)}`);
@@ -206,8 +247,12 @@ export async function runCli(args, opts = {}) {
   return 0;
 }
 
+// realpathSync, not resolve: import.meta.url is realpath-resolved while
+// argv[1] keeps the link it was typed as, so a checkout reached through a
+// symlink (macOS /var, /tmp, any linked worktree) would compare unequal and
+// the CLI would exit 0 having done nothing (scripts/__tests__/cli-entry-guard).
 const isMainModule =
-  Boolean(process.argv[1]) && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMainModule) {
   runCli(process.argv.slice(2)).then((code) => {
     process.exitCode = code;

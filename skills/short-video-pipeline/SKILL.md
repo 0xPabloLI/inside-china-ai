@@ -199,7 +199,7 @@ Pipeline stages: media gate → TTS → validate TTS results → (BGM if --bgm) 
 
 Output: `scripts/short-video/output/{pipelineId}/{subject}-{pipelineId}-v{version}-short.mp4` (versioned, timestamp-based, canonical — no symlink). The `subject` field in `meta.mjs` (e.g. "deepseek", "china-llm") ensures the filename identifies WHO the video is about.
 
-**Record the asset gap ledger (mandatory, #293)** after sourcing: `node scripts/short-video/asset-gaps.mjs --record --content <dir>`. It writes the scenes the library could not satisfy into `knowledge/asset-gaps.json`; the next Stage 0 prefetch reads them.
+**Record the asset gap ledger (mandatory, #293)** — the content-pipeline's Stage 3 step 8d, run once sourcing is done: `node scripts/short-video/asset-gaps.mjs --record --content <dir>`. It writes the scenes the library could not satisfy into `knowledge/asset-gaps.json`; the next Stage 0 prefetch reads them.
 
 **Completion criterion**: versioned output file exists and is non-empty, and the gap-ledger command ran (outputs `Recorded N gap(s)` or `No asset gaps recorded`).
 
