@@ -1,53 +1,103 @@
 {
+  "schemaVersion": 2,
   "threshold": 60,
+  "borderlineFloor": 40,
+  "summary": {
+    "evaluated": 4,
+    "passed": 2,
+    "borderlineAdmitted": 2,
+    "failed": 0,
+    "unavailable": 0,
+    "exempted": 2,
+    "ceiling": 80,
+    "verdict": "satisfiable"
+  },
   "results": [
     {
       "sceneId": 2,
       "sceneName": "open-loop",
       "asset": "assets/baidu_search-robot-startup-office-humanoid-03.jpg",
-      "relevance": 0,
-      "reason": "The image shows robots in a lab setting but does not relate to Liang Wenfeng, iFeng reporting, or the specific narrative about meeting founders and two paths. It is completely unrelated to the scene claim.",
-      "passed": false
+      "claimSource": "assetNeed",
+      "relevance": 80,
+      "reason": "The image shows a humanoid robot prototype in a lab, which directly supports the scene claim about Liang Wenfeng meeting robot founders and considering two paths. The visual subject is a robot prototype, aligning with the topic of robotics development.",
+      "band": "pass",
+      "subjectMatch": null,
+      "subjectReason": null,
+      "admittedBy": "score",
+      "passed": true,
+      "status": "PASS"
     },
     {
       "sceneId": 3,
       "sceneName": "unitree-stake",
       "asset": "assets/baidu_search-宇树-03.jpg",
-      "relevance": 0,
-      "reason": "The image shows a robot demonstration at a trade show but does not contain any information about DeepSeek's investment, an IPO, a cooperation deal, or financial details, making it completely unrelated to the scene claim.",
-      "passed": false
+      "claimSource": "assetNeed",
+      "relevance": 80,
+      "reason": "The image shows a Unitree humanoid robot, which is the subject of the claim. The visible branding confirms the company name, making it a strong visual support for the claim about DeepSeek's investment in Unitree.",
+      "band": "pass",
+      "subjectMatch": null,
+      "subjectReason": null,
+      "admittedBy": "score",
+      "passed": true,
+      "status": "PASS"
     },
     {
       "sceneId": 4,
       "sceneName": "winverse",
       "asset": "assets/baidu_search-robot-startup-office-humanoid-01.jpg",
-      "relevance": 0,
-      "reason": "The image features a robot at a visitor center, which is completely unrelated to the scene claim about Winverse AI, its founders, funding, or valuation.",
-      "passed": false
+      "claimSource": "assetNeed",
+      "relevance": 50,
+      "reason": "The image shows a humanoid robot, which is relevant to the AI theme of the news claim about Winverse AI. However, the robot is not explicitly linked to DeepSeek or Winverse AI, making it a generic image of a robot startup rather than a direct representation of the event.",
+      "band": "borderline",
+      "subjectMatch": "match",
+      "subjectReason": "The visible subject is a humanoid robot, which matches the desired visual of a \"humanoid robot\" in the scene description.",
+      "admittedBy": "second-pass",
+      "passed": true,
+      "status": "PASS (second-pass)"
     },
     {
       "sceneId": 6,
       "sceneName": "gpt6-trigger",
       "asset": "assets/baidu_search-robot-arm-picking-up-02.jpg",
-      "relevance": 50,
-      "reason": "The image shows a robotic arm, which is relevant to the topic of robot control tasks, but it does not provide any context about the specific AI models (GPT-6 Astra, Fable 5.1) or the performance comparison mentioned in the scene claim.",
-      "passed": false
+      "exempted": true,
+      "exemptionReason": "2026-10-14 decision: the bound images are the actual Unitree / robot-lab subjects and the video is published, not re-rendered. Scenes 6 and 9 ask for actions (picking up a block; a hand reaching for a glow) that no stock frame in the pool depicts.",
+      "relevance": null,
+      "reason": null,
+      "band": null,
+      "subjectMatch": null,
+      "subjectReason": null,
+      "admittedBy": null,
+      "passed": false,
+      "status": "EXEMPT"
     },
     {
       "sceneId": 7,
       "sceneName": "homebody-demo",
       "asset": "assets/baidu_search-宇树-01.jpg",
-      "relevance": 80,
-      "reason": "The image directly shows a Unitree robot, which is central to the scene claim. While it doesn't show the robot in a kitchen or performing the specific actions mentioned, it visually confirms the key subject of the demo: the Unitree robot.",
-      "passed": true
+      "claimSource": "assetNeed",
+      "relevance": 50,
+      "reason": "The image shows a Unitree robot, which is relevant to the scene claim about a robot exploring a kitchen. However, the image is a close-up of the robot's head and torso, not a full view of it in a kitchen environment, so it only partially supports the claim.",
+      "band": "borderline",
+      "subjectMatch": "match",
+      "subjectReason": "The visible subject is a Unitree humanoid robot, the company the scene names.",
+      "admittedBy": "second-pass",
+      "passed": true,
+      "status": "PASS (second-pass)"
     },
     {
       "sceneId": 9,
       "sceneName": "loop-closure",
       "asset": "assets/baidu_search-深度求索-03.jpg",
-      "relevance": 50,
-      "reason": "The image features a logo that appears to be a stylized version of \"DeepSeek,\" which is relevant to the scene claim about DeepSeek's strategic decisions. However, it does not visually represent the concepts of hiring, funding, or strategic pivots mentioned in the narration, making it only loosely related.",
-      "passed": false
+      "exempted": true,
+      "exemptionReason": "2026-10-14 decision: the bound images are the actual Unitree / robot-lab subjects and the video is published, not re-rendered. Scenes 6 and 9 ask for actions (picking up a block; a hand reaching for a glow) that no stock frame in the pool depicts.",
+      "relevance": null,
+      "reason": null,
+      "band": null,
+      "subjectMatch": null,
+      "subjectReason": null,
+      "admittedBy": null,
+      "passed": false,
+      "status": "EXEMPT"
     }
   ]
 }
