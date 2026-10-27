@@ -8,7 +8,8 @@ Covers:
   - transcript injection for videos: position (before the task), bench-parity
     header wording and 2000-char cap (bench_prompt.py is the measured arm)
   - images ignore a transcript (no audio channel)
-  - claim block stays after the base prompt (transcript, base+claim order)
+  - claim context is a preamble before the compact claim base
+    (transcript, claim, task order)
   - whitespace-only transcript → no block
   - videoInput capability: real config values + fail-fast on malformed entries
   - resolve_source_mode: native / frames / image
@@ -116,7 +117,7 @@ check(
 
 with_claim = build_semantics_prompt(is_video=True, claim=CLAIM, transcript=TRANSCRIPT)
 check("claim + transcript → transcript first", with_claim.startswith(TRANSCRIPT_HEAD))
-check("claim + transcript → claim block present", "## Relevance" in with_claim)
+check("claim + transcript → claim context present", "## Relevance" in with_claim)
 check(
     "claim + transcript → claim context precedes the compact claim base",
     with_claim.index("Scene claim for relevance scoring:")

@@ -14,7 +14,6 @@ The checks below run at import time and record into RESULTS; pytest replays
 them as one test per check (#555), so the file contributes real tests instead
 of a bare "0 collected".
 """
-import importlib.util
 import sys
 import os
 
@@ -30,6 +29,7 @@ from vlm_analyzer import (
     build_semantics_prompt,
     parse_markdown_to_dict,
 )
+import test_minicpm_omni as _bench  # noqa: E402  (lib/ is on sys.path above)
 
 CLAIM = {
     "voiceover": "Qwen4 beats Claude at coding benchmarks.",
@@ -145,12 +145,9 @@ check(
 )
 
 # #334 point 4: the benchmark harness must send the production prompt text,
-# not a copy that silently drifts. Assert the module-level constants are the
-# same objects imported from vlm_analyzer.
-_bench_path = os.path.join(os.path.dirname(__file__), "..", "lib", "test_minicpm_omni.py")
-_spec = importlib.util.spec_from_file_location("test_minicpm_omni_bench", _bench_path)
-_bench = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_bench)
+# not a copy that silently drifts. `lib/` is on sys.path (line 19), so the
+# harness is imported by its real module name — same pattern as the sibling
+# bench_prompt import in test_transcript_prompt.py.
 check(
     "bench harness imports the production image prompt",
     _bench.SEMANTICS_PROMPT_IMAGE is SEMANTICS_PROMPT_IMAGE,

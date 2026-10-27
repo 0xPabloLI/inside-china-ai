@@ -37,10 +37,7 @@ if _here not in sys.path:
 # Production prompts (#334): import them instead of copying, so the benchmark
 # can never measure a prompt production no longer sends. The old local copies
 # had already drifted from vlm_analyzer.py.
-import vlm_analyzer as va  # noqa: E402
-
-SEMANTICS_PROMPT_IMAGE = va.SEMANTICS_PROMPT_IMAGE
-SEMANTICS_PROMPT_VIDEO = va.SEMANTICS_PROMPT_VIDEO
+from vlm_analyzer import SEMANTICS_PROMPT_IMAGE, SEMANTICS_PROMPT_VIDEO  # noqa: E402
 
 # ─── Image preprocessing (mirrors vlm_analyzer.py production logic) ───
 
