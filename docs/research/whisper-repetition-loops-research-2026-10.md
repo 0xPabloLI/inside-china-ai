@@ -60,8 +60,28 @@ FEMA 循环的原始输出（本次复跑逐字复现，17 段 / 46 词）：
 - `docs/research/whisper-repetition-loops-vlm-ab-2026-10.json` — §5.2 的三档 A/B 结果
 - `docs/research/whisper-repetition-loops-corpus-scan-2026-10.csv` — §4.2 的逐文件指标（143 行）
 
-**证据分级**：本报告把「本地实测」与「上游文档/论文」分开列；凡只有单一来源的，
-在表格里标 `单源`。没有做逐段听音标注（见 §7 未知项）。
+（whisper.cpp 的 `-oj` JSON 只记录 `model/language/translate`，不记录 `-t/-fa/-mc` 或 VAD 参数；
+命令口径以 §8 为准。）
+
+**证据分级**：本地实测（命令与产物见 §8 与 `docs/research/` 下的附属文件）、上游文档/论文、
+本报告推断，三类分开写。没有第三方复现，也没有逐段听音标注（见 §7 未知项）。
+
+### 1.3 循环形状分类（runbook §④b 的四类 + 本次新增的子类）
+
+`docs/video-production-runbook.md` §④b 已经把护栏实测边界列成四类；本报告沿用这个分类，
+只在第 4 类下面再切出一个子类：
+
+| # | 形状 | runbook 行为 | 本次是否出现 |
+|---|---|---|---|
+| 1 | 单 token 循环（`Kampung` ×26、`go` ×56） | 收敛 | 是（`0ag_Qi5OEd0` 的 Kampung、`3x8pvm0g5AU` 的 Kepala、`Gokw6n0qf-w` 的 지옥） |
+| 2 | 多词短语循环（整句 ×N） | 收敛 | 是（`-XpJeDGh8No`、`3EQzRz-V7uE` 的整句重复） |
+| 3 | 跨度 <18 词的连续重复 | 不动（即使 `contaminated=true`） | 本次没有出现「已判但不动」的该类；`1pHkv4KUiFY` 连判都没判（见 4′） |
+| 4 | 交错多短语循环（多段交替出现） | 判得出、收不了（FEMA） | 是（生产 FEMA） |
+| 4′ | **短转写里的交错/单文本循环**（本次新增子类） | 未覆盖：三个绝对下限都够不着 | 是（`-gnfUTPmnNU`、`1pHkv4KUiFY`、`CwzjlmBLfrQ`） |
+
+4′ 不是新形状，而是第 4 类在「短转写 / 带占位符」下的变体：形状肉眼可见
+（连续 8–9 段只有 1–3 种文本），但 `MIN_RUN_WORDS=18`、`MIN_WORDS_FOR_COVERAGE=40`
+和严格周期三项都过不了（见 §4.3）。
 
 ---
 
@@ -93,7 +113,7 @@ whisper-cli ... --vad -vm ~/.cache/whisper/ggml-silero-v5.1.2.bin -oj -of vad
 
 | 素材 | 基线 | VAD（默认 0.5） | 变化 |
 |---|---|---|---|
-| FEMA 循环（488.65s，视频 `0ag_Qi5OEd0`，画面实为钩针教程） | 17 段 / 54 词 / 14.3s | **0 段 / 0 词 / 1.8s** | 幻觉 100% 消除 |
+| FEMA 循环（488.65s，视频 `0ag_Qi5OEd0`，画面实为钩针教程；runbook 归为低信噪/音乐段） | 17 段 / 46 词 / 14.3s | **0 段 / 0 词 / 1.8s** | 循环消失 |
 | 干净旁白（`HmnKbBmYii8`，65s） | 5 段 / 54 词 / 2.7s | 6 段 / 52 词 / 1.7s | 词级相似度 0.9623；删 `at last`，`old`→`hole` |
 | 歌唱 + 音乐（`-qTAeVGl_e8`，76s） | 7 段 / 62 词 | 3 段 / 16 词 | **−74% 词**（歌词被当非语音） |
 | 歌曲（`026dzf-vc5g`，86s） | 12 段 / 86 词 | 1 段 / 2 词 | **−98% 词** |
@@ -113,6 +133,20 @@ whisper-cli ... --vad -vm ~/.cache/whisper/ggml-silero-v5.1.2.bin -oj -of vad
    同时会把 FEMA 的非语音重新放进解码器（vt 0.10 立刻吐 "Thank you."）。
    **不存在一个同时满足两者的阈值。**
 2. VAD 不是延迟成本：它跳过非语音，FEMA 反而从 14.3s 降到 1.8s。代价全在**内容损失**。
+
+峰值内存（`/usr/bin/time -l`，同一音频、同一模型；第二轮回放，墙钟比 §2.2 首测低约 1s，属系统噪声）：
+
+| 口径 | 墙钟 | 峰值 RSS |
+|---|---|---|
+| 基线 | 13.45s | 2.08 GB |
+| VAD | 1.69s | 1.93 GB |
+
+VAD 不增加内存：模型加载是主要项，跳过解码反而略降峰值。
+
+**不要把 FEMA 的「0 段」当成 VAD 能治重复循环的证据**。runbook §④b 把这类循环的根因
+归为**低信噪/音乐段**，而 FEMA 音频本身就是非语音：VAD 在这里做的是「确认没有语音」，
+不是「把一段有语音的循环解码对了」。本报告没有做低信噪**人声**的负对照，
+所以 §2.4 只把 VAD 当确认探针，不当解码修复。
 
 ### 2.3 与本仓库现状相比缺什么
 
@@ -173,11 +207,18 @@ whisper-cli ... --vad -vm ~/.cache/whisper/ggml-silero-v5.1.2.bin -oj -of vad
 （19.5/20.3% vs beam 5 的 28.2/37.4%）。那是在「语音 + 非语音」合成集上按**幻觉率**
 统计；本机在「整段非语音」单例上 beam=1 反而更长。两者不矛盾——**beam=1 不是这个形状的解**。
 
+时间轴：所有变体的总跨度都不变（0 → 488.6s），但**改了文本的变体也改了分段**
+——`-nf` / `-tp 0` 的 18 个段起点里只有 `0.0` 与基线相同，`-bo 1 -bs 1` 一个都不相同；
+`-et 3.0` / `-nth 0.9` 的 17 段起点与基线逐段相同（文本也没变）。
+结论：这两个参数要么无效、要么在改变循环的同时重排时间轴，没有「只压重复、不动分段」的开关。
+
 ### 3.3 裁决
 
 - **不值得改**生产解码参数：whisper.cpp 侧没有任何一个开关能压住该循环；能压住的参数
   （`repetition_penalty`）不在生产运行时里。
-- **不值得**为这一个参数引入 faster-whisper：它违反 ADR-0020 的单运行时裁决，
+- **不值得**为这一个参数引入 faster-whisper：它违反 ADR-0020 §2 的「whisper.cpp 首选」
+  与 runbook §⑤ 固定的「生产转写唯一运行时」（ADR 本身仍保留 WhisperX 做对齐，但那是
+  alignment 路径，不是转写后端），
   增加第三个 ASR 运行时与模型权重，而且该参数作用于「已进入解码器的重复」，
   不解决「非语音被送进解码器」的根因。
 - 若未来要做，唯一有文献支撑的 MLX 侧参数是 `hallucination_silence_threshold`
@@ -319,6 +360,10 @@ assetNeed: "official emergency relief information"}`；Qwen3-VL-30B-A3B-Instruct
   信号，必须拿 raw segments 或 `guard.changed`，不能只看 guarded segments。
 - 结论：**共享 `transcribeVideo` 出口 ≠ 共享失败策略**。VLM 侧 fail-open（transcript 只是
   上下文），TTS 侧必须 fail-closed（现有实现已如此，保持）。
+- **raw 目前不落盘**：`asset-sourcer` 把 ASR 产物写进 `mkdtemp` 目录，`finally` 里
+  `rmSync` 删除；`transcriptGuard` 只留下判定结果，raw 文本与段边界都不留。
+  所以 (e) 要求的「raw + processed + provenance」目前只满足后两项——发生改写或形状命中时，
+  事后能看到的只有 `asset-analysis.json` 里的 `transcriptChars` 与 guard 计数。
 
 ### 5.4 裁决
 
@@ -341,12 +386,15 @@ assetNeed: "official emergency relief information"}`；Qwen3-VL-30B-A3B-Instruct
 
 ## 6. 建议清单
 
+> 本节是后续票的输入，不是本票授权的改动；真要实施时按 `implementation-workflow.md`
+> 重新做 scale/risk 判定与 TDD。
+
 | # | 建议 | 改动点 | 预期收益 | 代价/风险 | 验证 |
 |---|---|---|---|---|---|
 | 1 | 段级循环仅检测 | `lib/asr-repetition-guard.mjs` + `asr_repetition_guard.py` 的 `inspect`/`guard` 结果；`transcriptGuard` 由 ASR 侧重算、不进 VLM 缓存键，无需 bump `VLM_CACHE_*_VERSION` | 4 例新增可识别（142 份 MLX 中 3 例护栏完全未判 + 生产 FEMA 判了改不了），下游与 VAD 探针可据 `shape` 分支 | 纯文本计算；需双实现一致性测试 | 现有跨语言向量 + 新增 10 例语料回归 |
-| 2 | VAD 二次确认 | 只在 `shape === "interleaved-segments" && !changed` 时，由 **asset-sourcer 调用方** 跑 VAD 探针，结果写 provenance（`vadProbe: "no-speech"` / `"speech-present"`）；`no-speech` 时下游按无转写处理，`speech-present` 时保留原转写 | 让「判得出、改不了」可归因（本次 3 例全是非语音），并给「无语音」一个由证据触发的丢弃路径；对正常人声零影响 | 稀有路径多一次 VAD 进程（1.5–3s）；需新增 `vadProbe()` 叶子函数；改动只在 asset-sourcer 调用方，不进 `transcribeVideo` | FEMA/1pHk/gnf/Cwzj 四例 + 干净旁白对照 |
-| 3 | 不改全局 VAD / 解码参数 / 运行时 | — | 避免音乐/歌唱素材静默丢词；保持 ADR-0020 单运行时 | — | 本报告 §2.2/§3.2 |
-| 4 | TTS 质检的共享出口 | `tts/quality-gate.mjs` 消费的是 segments（已被护栏改写段内循环） | 防止 TTS 重复被护栏「洗白」 | 需把 raw segments 或 `guard.changed` 透传给质检；改动影响 TTS 门禁 | 合成 TTS 重复用例 + 现有 quality-gate 套件 |
+| 2 | VAD 二次确认 | 只在 `shape === "interleaved-segments" && !changed` 时，由 **asset-sourcer 调用方** 跑 VAD 探针，结果写 provenance（`vadProbe: "no-speech"` / `"speech-present"`）；`no-speech` 时下游按无转写处理，`speech-present` 时保留原转写 | 让「判得出、改不了」可归因（本次 3 例全是非语音），并给「无语音」一个由证据触发的丢弃路径；对正常人声零影响 | 稀有路径多一次 VAD 进程（1.7s / +0 GB 峰值）；需新增 `vadProbe()` 叶子函数；改动只在 asset-sourcer 调用方，不进 `transcribeVideo` | FEMA/1pHk/gnf/Cwzj 四例 + 干净旁白对照 |
+| 3 | 不改全局 VAD / 解码参数 / 运行时 | — | 避免音乐/歌唱素材静默丢词；保持 ADR-0020 §2 的 whisper.cpp 首选与 runbook §⑤ 的唯一生产运行时 | — | 本报告 §2.2/§3.2 |
+| 4 | 保留 raw（仅形状命中或改写时） | `asset-sourcer` 在 `rmSync(asrDir)` 前把 raw 文本（或 hash + 截断）写进 provenance；`transcribeVideo` 已能返回未改写的 segments | 补齐「raw + processed + provenance」；事后能审计护栏改了什么 | 只对稀有样本落盘；不进 VLM prompt、不进缓存键 | FEMA/1pHk/gnf/Cwzj 四例 + 干净对照 |
 
 ---
 
@@ -357,8 +405,13 @@ assetNeed: "official emergency relief information"}`；Qwen3-VL-30B-A3B-Instruct
   不能声称召回率。逐文件指标已随报告提交：
   `docs/research/whisper-repetition-loops-corpus-scan-2026-10.csv`。
 - **VAD 在「音乐 + 人声」上的收益只测了 2 份素材**；没有覆盖「低信噪人声」「重叠说话」。
-- **没有测内存峰值**：VAD 的代价只测了墙钟与词丢失；whisper.cpp 的 VAD 参数不改变
-  模型内存，但「多起一个进程」的峰值未记录。
+- **内存只在 FEMA 上测了一次**（2.08 → 1.93 GB 峰值）；没有在长音频、并发或音乐素材上
+  复测 VAD 的额外占用。
+- **raw 文本不落盘**：生产在 `rmSync` 后只剩 guarded 文本与 guard 计数（§5.3）。
+  本报告用 §1.2 的附属文件补 raw 一侧，但那是研究产物，不是生产保留。
+- **TTS 质检的共享出口未动**：段内循环会在到达质检前被护栏改写（§5.3）。
+  要不要把 raw segments 或 `guard.changed` 透传给质检，属于独立的后续票，
+  本报告只记录风险，不据此提改动。
 - **zh/ja 没有语料**：护栏对无空格脚本走 `wordless-script` 跳过路径，本报告没有验证
   段级判据在中文/日文转写上的假阳性率。
 - **BoH 未在本地语料上跑**：只核对了论文的过滤规则与命中形状；未下载其短语表做 A/B。
@@ -373,6 +426,10 @@ assetNeed: "official emergency relief information"}`；Qwen3-VL-30B-A3B-Instruct
 ---
 
 ## 8. 复现
+
+以下命令假设 `.scratch/keyframe-bench/` 的语料与音频还在本机（gitignored，不随仓库分发）。
+仓库内可直接复核的是 §1.2 的三个 JSON 与 CSV；判据统计脚本是 scratch 里的临时助手，
+其判据已在 §4.2 写成一句话（≤3 种不同文本 / ≥6 个非空段 / 跨度 ≥120s）。
 
 ```bash
 # 语料与 FEMA 原始音频（主 checkout 的 .scratch，gitignored）
@@ -389,12 +446,38 @@ whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo.bin -f audio.wav -l en \
 whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo.bin -f audio.wav -l en \
   -t 8 -fa -mc 0 --vad -vm ~/.cache/whisper/ggml-silero-v5.1.2.bin -oj -of vad
 
+# 峰值内存（§2.2 的 2.08 / 1.93 GB）
+/usr/bin/time -l whisper-cli ... -mc 0 -oj -of baseline    # maximum resident set size
+
 # 判据统计（段级形状 + 压缩比；CSV 即报告附表）
 CSV_OUT=docs/research/whisper-repetition-loops-corpus-scan-2026-10.csv \
   node .scratch/asr-repetition-research/scan.mjs
 
 # 下游 A/B（Qwen3-VL-30B，三档 transcript；结果 vlm_ab.json）
 ~/.venvs/mlx-vlm/bin/python .scratch/asr-repetition-research/vlm_ab.py
+```
+
+判据本体（不依赖 scratch 脚本，`segs` 为 `{start,end,text}[]`）：
+
+```js
+const norm = (t) => (String(t).toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []).join(" ");
+function loopWindow(segs, maxDistinct = 3, minSegs = 6, minSpanS = 120) {
+  for (let i = 0; i < segs.length; i += 1) {
+    const seen = new Set();
+    let nonEmpty = 0;
+    for (let j = i; j < segs.length; j += 1) {
+      const key = norm(segs[j].text);
+      if (key && !seen.has(key)) {
+        if (seen.size + 1 > maxDistinct) break; // 再延伸只会更多种
+        seen.add(key);
+      }
+      if (key) nonEmpty += 1;
+      const span = segs[j].end - segs[i].start;
+      if (nonEmpty >= minSegs && span >= minSpanS) return { nonEmpty, span, seen };
+    }
+  }
+  return null;
+}
 ```
 
 ---
