@@ -34,6 +34,18 @@
 >
 > 详细 spec 见 `docs/archive/specs/spec-research-evidence-pipeline.md`。
 
+### Stage 0 素材预获取（必做，#293）
+
+Stage 0 的「素材集合」不只有全文与媒体 URL。进入 Stage 1 前，Agent 必须为**本轮点名过的实体与通用概念**跑一次素材预获取——「找够素材」是 setup 的必含步骤，不是留给 Stage 3 现搜碰运气。
+
+1. **读缺口账本**（上一轮生产的回流）：`node scripts/short-video/asset-gaps.mjs --query "<公司/人物/模型/术语>"`。open 缺口是预获取优先级——它们已经让至少一个真实包空手而归。账本形状与生命周期见 `docs/media-asset-management.md` §2「素材缺口账本」。
+2. **查库内复用**：`node scripts/rag/query.mjs "<实体或概念>" --type asset-catalog --format json`。命中 → 按 `docs/media-asset-management.md` §1 复制进 `content/<slug>/assets/`（hook 必须；全局路径不能直接写成 `media.path`），在 scene-data 里引用；不要重复下载。
+3. **缺口预取**：对每个「本轮必需 + 库内无命中」的实体/概念，从官方或一手渠道预取 **1–2 条**（公司 logo/代表图、人物典型照、产品/术语图、主题特定画面）。只预取本轮素材里点名过的对象，不做整题批量下载。
+4. **入库与质量底线**：全局可复用的素材放 `scripts/short-video/assets/` 并写 `catalog.yml`（description / keywords / source / license / width / height）；短边 <720p 不入全局库——包内素材交给媒体轨 1.5b 的 `autoUpscaleIfNeeded`（`lib/media-track.mjs`，`upscale: false` 才跳过），或换高清源。写完执行 `node scripts/rag/index.mjs`。
+5. **回填账本**：新增素材满足的缺口执行 `node scripts/short-video/asset-gaps.mjs --satisfy <gap-id|need 子串> --by <catalog 路径>`。
+
+**完成标准**：预获取清单逐条给出 `reuse` / `prefetch` / `accepted-gap` 三态之一；`accepted-gap` 写明原因（许可、平台限制、结构性稀缺，见 #186）。静默跳过 = 未完成本步。
+
 ### Stage 0 核实规范：权威报告与一手信源（#266）
 
 核实权威报告（官方 PDF/白皮书/监管文件/法庭文书）时的三条硬规则：
@@ -309,6 +321,7 @@ Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论�
 8. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。每个 scene 的 `media` 字段必须匹配 Step 4 确定的素材要求——未手工指定 media 的 scene 填写 `assetNeed` 字段，asset-sourcer 按 claim 做 per-scene 搜索 + VLM 相关性审查 + 跨内容复用上限（见 `docs/video-script-writing-guide.md` → assetNeed 约定）。素材**生成**比采购更合适的 scene（抽象概念、无现成画面）声明 `mediaStrategy` + prompt：**动态画面**用 `aiVideo.prompt`（8 维模板），**静态图/架构图/数据图**用 `aiImage.prompt`（6 维 = 8 维去掉 CAMERA/MOTION；策略值 `ai-image` / `asset-then-ai-image`，#155）。字段契约、模板与 preflight 规则见 `docs/video-production-runbook.md` → B-roll Generation 与 AI Image (T2I) generation。
    8b. **VLM stock 图片相关性评判** — scene-data 写完后，对每个 `media.type === "image"` 的场景运行 VLM 相关性评判：`node scripts/short-video/evaluate-stock-relevance.mjs --content <dir>`。判据与 asset-sourcer 分配时**同一个**：claim 取 scene 的 `assetNeed`（asset-sourcer 也只认 `assetNeed`；无 `assetNeed` 的手工绑定场景才退回 `aiImage.prompt` / `aiVideo.prompt`，最后是 texts），不是另拼一套文案。结论分四态：**PASS**（首评 ≥ 60）；**PASS (second-pass)**（40–59 的 borderline 经二次「画面主体」校验返回 `match`，报告中 `relevance` 仍记首评分数）；**FAIL**（low，或 borderline 的二次校验 `no_match`/失败）；**UNAVAILABLE**（无分数：分析失败或解析失败，属工具问题，先修 analyzer/引擎，不要靠换图）。**完成标准**：没有 FAIL 与 UNAVAILABLE。整包**没有一张可准入**（`Verdict: unsatisfiable`——分数存在但都过不了准入规则；只是首评上限低于阈值、却有 borderline 经二次校验放行时仍是 `satisfiable`）时，按「判据不可满足」处理——改用 `mediaStrategy: "b-roll"` / 纯版式承载，或在 `metadata.stockRelevanceExemption` 写一条**落仓库、随代码 review** 的豁免（字符串=整包；对象 `{ reason, scenes? }`，省略 `scenes` 即整包，也可给单个 scene id 或数组；非法 id 会被丢弃并告警，不会静默放宽成整包），而不是继续换图直到有一张过线。脚本无论结论如何仍以 0 退出（8b 的完成标准要不要接硬门禁、接在哪一层，是独立决策，见 #294）。
    8c. **数字人声明评估（必须执行）** — scene-data 写完后，按 `docs/video-script-writing-guide.md` →「数字人（scene.avatar）使用策略」评估本包是否声明数字人：对照声明白名单（CTA / 关键论点 payoff / 程式化数据时刻）与黑名单（hook / 高情感段 / 突发新闻表述），**逐包给出显式结论**——符合白名单的 scene 写入 `scene.avatar: {}`（生成走 plan → approve → run，见 `docs/specs/spec-digital-human-pipeline.md`），不符合的在对话中说明"本包不加数字人及理由"。**完成标准**：对话中存在一次明确的加/不加结论（静默跳过 = 未完成此步）。`plan dry-run` 的机械警告（hook 声明 / 出镜段数 / 单段时长）会拦截明显违规，但语义判断在本步。
+   8d. **素材缺口回流账本（必须执行）** — 本轮 sourcing 结束后运行 `node scripts/short-video/asset-gaps.mjs --record --content <dir>`。它从 scene-data + `output/<dir>/media-patch.json` + 8b 的 `stock-relevance-report.json` + Stage 4 的 `b-roll-report.json` 推导「声明了 `assetNeed` 却没有素材」的场景，把工具失败、内容判决与「落空后改走生成」分开归因（原因码与边界见 `docs/media-asset-management.md` §2「素材缺口账本」），并入 `knowledge/asset-gaps.json`。**8b 的豁免只说明「本包可以不带这张图」，不等于素材库已有**——缺口保持 open，直到 Stage 0 真正入库并 `--satisfy`；因不可满足而把 `mediaStrategy` 改成 `b-roll` 也不会抹掉记录（8b 报告仍在）。下一轮 Stage 0 的预获取优先级由本账本决定。**完成标准**：命令输出 `Recorded N gap(s)` 或 `No asset gaps recorded`（后者也必须真的跑过）。
 9. **检查 TikTok Creative Center trending 标签（必须执行）** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），在 scene-data 的 metadata 中注明 `trendingChecked: true` 即可。此步骤为**必须执行**（不是可选）。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。也可用 `node scripts/short-video/snapshot-trending.mjs --keywords "keyword1,keyword2"` 自动执行。
 
 ### 素材 → 视频的节奏适配

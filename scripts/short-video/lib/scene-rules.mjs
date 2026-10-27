@@ -1791,6 +1791,11 @@ export function isImageStrategy(strategy) {
 // must not require a "keep in sync" edit in the report layer.
 export { IMAGE_GENERATING_STRATEGIES };
 
+// Same for the whole generating vocabulary: the asset gap ledger derives its
+// "never buys stock" set from this one, so a new strategy cannot silently
+// enter or miss the ledger (asserted in asset-gap-ledger.test.mjs).
+export { GENERATING_STRATEGIES };
+
 /**
  * Contract for the B-roll fields (`mediaStrategy` / `aiVideo.prompt`).
  * Silent for content that uses neither field, so existing scene-data is

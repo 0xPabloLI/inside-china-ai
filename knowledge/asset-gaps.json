@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-27T14:46:08.970Z",
+  "gaps": [
+    {
+      "id": "gap-0492650f",
+      "need": "ai vision architecture diagram showing integrated multimodal processing, dark tech theme",
+      "status": "open",
+      "reason": "unclassified",
+      "firstSeen": "2026-10-27T14:46:08.913Z",
+      "lastSeen": "2026-10-27T14:46:08.913Z",
+      "seenCount": 1,
+      "occurrences": [
+        {
+          "content": "deepseek-v41-flash",
+          "sceneId": 3,
+          "lastSeen": "2026-10-27T14:46:08.912Z"
+        }
+      ]
+    },
+    {
+      "id": "gap-9134b0cf",
+      "need": "api code interface or developer testing screen, dark theme",
+      "status": "open",
+      "reason": "unclassified",
+      "firstSeen": "2026-10-27T14:46:08.913Z",
+      "lastSeen": "2026-10-27T14:46:08.913Z",
+      "seenCount": 1,
+      "occurrences": [
+        {
+          "content": "deepseek-v41-flash",
+          "sceneId": 2,
+          "lastSeen": "2026-10-27T14:46:08.912Z"
+        }
+      ]
+    },
+    {
+      "id": "gap-02550e59",
+      "need": "calendar or timeline visualization with tech dates, dark background",
+      "status": "open",
+      "reason": "unclassified",
+      "firstSeen": "2026-10-27T14:46:08.913Z",
+      "lastSeen": "2026-10-27T14:46:08.913Z",
+      "seenCount": 1,
+      "occurrences": [
+        {
+          "content": "deepseek-v41-flash",
+          "sceneId": 4,
+          "lastSeen": "2026-10-27T14:46:08.912Z"
+        }
+      ]
+    },
+    {
+      "id": "gap-e0b2d6e7",
+      "need": "price comparison or cost analysis visualization, dark tech theme with blue and amber",
+      "status": "open",
+      "reason": "unclassified",
+      "firstSeen": "2026-10-27T14:46:08.913Z",
+      "lastSeen": "2026-10-27T14:46:08.913Z",
+      "seenCount": 1,
+      "occurrences": [
+        {
+          "content": "deepseek-v41-flash",
+          "sceneId": 5,
+          "lastSeen": "2026-10-27T14:46:08.912Z"
+        }
+      ]
+    }
+  ]
+}
