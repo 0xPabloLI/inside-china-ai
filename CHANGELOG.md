@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.38.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.37.0...tanstack_start_ts-v1.38.0) (2026-10-27)
+
+
+### Features
+
+* **short-video:** keep unsatisfied stock needs in a gap ledger ([#293](https://github.com/0xPabloLI/inside-china-ai/issues/293)) ([#999](https://github.com/0xPabloLI/inside-china-ai/issues/999)) ([62d3087](https://github.com/0xPabloLI/inside-china-ai/commit/62d308704a3336e2a2245b690ec24bbdfa56de88))
+
 ## [1.37.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.36.0...tanstack_start_ts-v1.37.0) (2026-10-27)
 
 
