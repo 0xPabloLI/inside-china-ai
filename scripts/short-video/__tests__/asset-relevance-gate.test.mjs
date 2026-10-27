@@ -333,3 +333,130 @@ describe("assignAssetsToScenes — mediaReject (#192)", () => {
     expect(result.find((r) => r.status === "assigned" && r.sceneId === 2)).toBeTruthy();
   });
 });
+
+// ── #294: borderline second pass, unavailable ≠ low, pool satisfiability ──
+
+describe("assignAssetsToScenes — #294 relevance verdict", () => {
+  it("admits a borderline candidate whose subject check matched", () => {
+    const assets = [
+      img({
+        claimSceneId: 2,
+        relevanceScore: 50,
+        relevanceReason: "generic robot lab",
+        relevanceCheck: {
+          verdict: "match",
+          reason: "visible subject is the named company's robot",
+        },
+      }),
+    ];
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    expect(result[0].status).toBe("assigned");
+    expect(result[0].sceneId).toBe(2);
+    expect(result[0].relevanceScore).toBe(50);
+    expect(result[0].relevanceBand).toBe("borderline");
+    expect(result[0].relevanceAdmittedBy).toBe("second-pass");
+    expect(result[0].relevanceCheck).toEqual({
+      verdict: "match",
+      reason: "visible subject is the named company's robot",
+    });
+  });
+
+  it("keeps a borderline candidate closed when the subject check said no_match", () => {
+    const assets = [
+      img({
+        claimSceneId: 2,
+        relevanceScore: 50,
+        relevanceCheck: { verdict: "no_match", reason: "different subject" },
+      }),
+    ];
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    expect(result[0].status).toBe("unassigned");
+    expect(result[0].reason).toMatch(/borderline/i);
+    expect(result[0].reason).toMatch(/below threshold/i);
+    expect(result[0].relevanceBand).toBe("borderline");
+  });
+
+  it("keeps a borderline candidate closed when the second pass failed to answer", () => {
+    const assets = [img({ claimSceneId: 2, relevanceScore: 50, relevanceCheck: null })];
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    expect(result[0].status).toBe("unassigned");
+  });
+
+  it("does not read a null score as a content failure", () => {
+    const assets = [img({ claimSceneId: 1, relevanceScore: null })];
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    expect(result[0].status).toBe("unassigned");
+    expect(result[0].reason).toMatch(/unavailable/i);
+    expect(result[0].reason).toMatch(/not a content verdict/i);
+    expect(result[0].relevanceBand).toBe("unavailable");
+  });
+
+  it("marks a below-floor score as low, not unavailable", () => {
+    const assets = [img({ claimSceneId: 1, relevanceScore: 0 })];
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    expect(result[0].status).toBe("unassigned");
+    expect(result[0].relevanceBand).toBe("low");
+    expect(result[0].reason).toMatch(/low/i);
+  });
+
+  it("names the pool ceiling when every candidate for the scene is below threshold", () => {
+    const assets = [
+      img({ path: "assets/a.jpg", claimSceneId: 2, relevanceScore: 50 }),
+      img({ path: "assets/b.jpg", claimSceneId: 2, relevanceScore: 40 }),
+    ];
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    expect(result.every((r) => r.status === "unassigned")).toBe(true);
+    for (const entry of result) {
+      expect(entry.poolVerdict).toBe("unsatisfiable");
+      expect(entry.poolCeiling).toBe(50);
+      expect(entry.reason).toMatch(/unsatisfiable/i);
+      expect(entry.reason).toMatch(/escalate/i);
+    }
+  });
+
+  it("does not call the pool unsatisfiable when another candidate clears the bar", () => {
+    const assets = [
+      img({ path: "assets/pass.jpg", claimSceneId: 2, relevanceScore: 80 }),
+      img({ path: "assets/near.jpg", claimSceneId: 2, relevanceScore: 50 }),
+    ];
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    const assigned = result.find((r) => r.status === "assigned");
+    const rejected = result.find((r) => r.status === "unassigned");
+    expect(assigned.relevanceAdmittedBy).toBe("score");
+    expect(rejected.reason).toMatch(/below threshold/i);
+    expect(rejected.reason).not.toMatch(/unsatisfiable/i);
+    expect(rejected.poolVerdict).toBe("satisfiable");
+  });
+
+  it("counts a second-pass match as pool satisfaction", () => {
+    const assets = [
+      img({
+        path: "assets/matched.jpg",
+        claimSceneId: 2,
+        relevanceScore: 50,
+        relevanceCheck: { verdict: "match", reason: "robot subject" },
+      }),
+      img({ path: "assets/other.jpg", claimSceneId: 2, relevanceScore: 45 }),
+    ];
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    const assigned = result.find((r) => r.status === "assigned");
+    const rejected = result.find((r) => r.status === "unassigned");
+    expect(assigned.relevanceAdmittedBy).toBe("second-pass");
+    expect(rejected.poolVerdict).toBe("satisfiable");
+    expect(rejected.reason).not.toMatch(/unsatisfiable/i);
+  });
+
+  it("reports an unavailable pool when no candidate produced a score", () => {
+    const assets = [
+      img({ path: "assets/a.jpg", claimSceneId: 2, relevanceScore: null }),
+      img({ path: "assets/b.jpg", claimSceneId: 2 }),
+    ];
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    expect(result.every((r) => r.status === "unassigned")).toBe(true);
+    for (const entry of result) {
+      expect(entry.poolVerdict).toBe("unavailable");
+      expect(entry.reason).toMatch(/pool/i);
+      expect(entry.reason).toMatch(/unavailable/i);
+    }
+  });
+});

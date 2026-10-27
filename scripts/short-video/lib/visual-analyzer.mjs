@@ -76,6 +76,9 @@ const DEGRADED_RESULT = Object.freeze({
   reason: null,
   relevance: null,
   relevanceReason: null,
+  // #294 second-pass verdict — null means "no answer", which callers must
+  // treat as not-admitted.
+  subjectMatch: null,
 });
 
 /**
@@ -441,6 +444,8 @@ function sendRequest(worker, request) {
     // A1 (#542 L3): the ASR transcript, injected into the prompt before the
     // task by the Python side. Absent = no transcript block (current behavior).
     ...(request.transcript ? { transcript: request.transcript } : {}),
+    // #294: second-pass subject-match prompt — absent = normal semantics.
+    ...(request.relevanceCheck ? { relevanceCheck: true } : {}),
     // #391: frame-selection params — pass-through only; absent = current
     // behavior (uniform / 16 frames / 2.0 fps on the Python side)
     ...(request.frameStrategy ? { frameStrategy: request.frameStrategy } : {}),
@@ -532,12 +537,14 @@ export function getVlmVideoInput() {
  * - transcriptChars (int | undefined) — videos only; the chars of the A1
  *   transcript (#542) that actually reached the prompt
  * - relevance (int 0-100 | null) / relevanceReason — claim mode only
+ * - subjectMatch ("match" | "no_match" | null) — only when
+ *   `opts.relevanceCheck` is true (#294 second pass)
  *
  * On any failure (VLM unavailable, parse error, timeout), resolves with
  * a degraded result where all fields are empty/null.
  *
  * @param {string} assetPath - Absolute path to the image/video file.
- * @param {{startMs?: number, endMs?: number, sampleFps?: number, windows?: {startMs: number, endMs: number, sampleFps: number}[], claim?: {voiceover: string, assetNeed: string}, cropFocus?: {x: number, y: number}, transcript?: string, frameStrategy?: "uniform"|"scene", maxFrames?: number}} [opts] - Optional time window or multi-window plan (video only), scene claim (relevance judging), crop hint (images only), ASR transcript (#542, video only), and frame-selection params (#391, pass-through; absent = current behavior)
+ * @param {{startMs?: number, endMs?: number, sampleFps?: number, windows?: {startMs: number, endMs: number, sampleFps: number}[], claim?: {voiceover: string, assetNeed: string}, cropFocus?: {x: number, y: number}, transcript?: string, relevanceCheck?: boolean, frameStrategy?: "uniform"|"scene", maxFrames?: number}} [opts] - Optional time window or multi-window plan (video only), scene claim (relevance judging), crop hint (images only), ASR transcript (#542, video only), second-pass subject check (#294), and frame-selection params (#391, pass-through; absent = current behavior)
  * @returns {Promise<{description: string, subjects: string[], contentKind: string|null,
  *   fit: string|null, criticalEdgeText: string|null, reason: string|null,
  *   window?: {startMs: number, endMs: number, sampleFps: number},
@@ -578,6 +585,10 @@ export function analyzeAssetSemantics(assetPath, opts) {
   const frameStrategy = opts?.frameStrategy || undefined;
   const maxFrames = opts?.maxFrames ?? undefined;
   const sampleFps = opts?.sampleFps ?? undefined;
+  // #294 second pass: swap the semantics prompt for the subject-match prompt.
+  // The response then carries `subjectMatch` ("match" | "no_match" | null)
+  // instead of Description/Subjects/Fit; callers only read that field.
+  const relevanceCheck = opts?.relevanceCheck === true;
 
   return new Promise((resolve, reject) => {
     requestQueue.push({
@@ -590,6 +601,7 @@ export function analyzeAssetSemantics(assetPath, opts) {
       claim,
       cropFocus,
       transcript,
+      relevanceCheck,
       frameStrategy,
       maxFrames,
       sampleFps,

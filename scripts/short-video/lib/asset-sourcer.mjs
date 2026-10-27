@@ -118,6 +118,18 @@ import {
   NO_MEDIA_TYPES as SHARED_NO_MEDIA_TYPES,
 } from "./claim-keywords.mjs";
 import { isReusedAsset } from "./used-asset-index.mjs";
+// #294: the relevance verdict (bands, pool satisfiability, admission rule) is
+// a leaf module shared with the B-roll gate and evaluate-stock-relevance.mjs.
+import {
+  DEFAULT_RELEVANCE_THRESHOLD,
+  POOL_VERDICT,
+  RELEVANCE_BAND,
+  admissionSource,
+  classifyPool,
+  classifyRelevance,
+  isRelevanceAdmitted,
+  needsSecondPass,
+} from "./relevance-verdict.mjs";
 
 // Re-export SOURCE_ATTRIBUTIONS from source-registry (single source of truth)
 export { SOURCE_ATTRIBUTIONS };
@@ -826,33 +838,36 @@ export const RELEVANCE_SOURCE = {
 };
 
 /**
- * Default VLM relevance threshold for gated assignment (#297). main() reads
- * --relevance-threshold over this; omitting opts.relevanceThreshold falls
- * back to it so the un-gated legacy mode cannot resurface.
- */
-export const DEFAULT_RELEVANCE_THRESHOLD = 60;
-
-/**
  * Build the flat relevance field group carried by assigned patch entries.
  * Keeps the four fields (relevanceScore / relevanceSource / relevanceReason /
  * reused) as a single construction site instead of hand-written primitives.
  * NOTE: `reason || null` (not `??`) — a falsy reason is normalized to null,
  * preserving the historical `asset.relevanceReason || null` semantics.
  *
+ * #294 adds two optional audit fields: `band` (pass/borderline) and
+ * `admittedBy` ("score" | "second-pass"). They are omitted when absent so the
+ * historical four-key shape stays byte-identical for callers that do not
+ * pass them.
+ *
  * @param {Object} params
  * @param {number} params.score - relevanceScore
  * @param {string} params.source - RELEVANCE_SOURCE member
  * @param {string|null} params.reason - relevanceReason (falsy → null)
  * @param {boolean} params.reused - reused flag
- * @returns {{relevanceScore: number, relevanceSource: string, relevanceReason: string|null, reused: boolean}}
+ * @param {string} [params.band] - relevanceBand
+ * @param {string} [params.admittedBy] - relevanceAdmittedBy
+ * @returns {{relevanceScore: number, relevanceSource: string, relevanceReason: string|null, reused: boolean, relevanceBand?: string, relevanceAdmittedBy?: string}}
  */
-export function makeRelevance({ score, source, reason, reused }) {
-  return {
+export function makeRelevance({ score, source, reason, reused, band, admittedBy }) {
+  const entry = {
     relevanceScore: score,
     relevanceSource: source,
     relevanceReason: reason || null,
     reused,
   };
+  if (band) entry.relevanceBand = band;
+  if (admittedBy) entry.relevanceAdmittedBy = admittedBy;
+  return entry;
 }
 
 /**
@@ -884,6 +899,12 @@ function isRejectedFor(asset, scene) {
  * Relevance-gated assignment (spec #130 D6/D7 + #297) — the only mode:
  *   - claim binding: assets with `claimSceneId` only enter their bound scene
  *     and must carry a VLM `relevanceScore` >= threshold (missing → fail-closed)
+ *   - #294 verdicts: a 40-59 score is admitted only when the second-pass
+ *     subject check returned `match` (`asset.relevanceCheck`). A null score is
+ *     reported as `unavailable` (tool outcome), never as a low content score;
+ *     rejections also carry the scene's `poolVerdict` / `poolCeiling`, so a
+ *     pool whose ceiling is below the bar reads as unsatisfiable (escalate to
+ *     B-roll/human) instead of "this image was judged irrelevant"
  *   - #297 fail-closed: assets without a claim binding are never assigned —
  *     VLM relevance is claim-mode-only, so no relevance judgment exists to
  *     admit them and token overlap must not substitute. Slots stay empty;
@@ -908,11 +929,28 @@ function isRejectedFor(asset, scene) {
 export function assignAssetsToScenes(assets, scenes, opts = {}) {
   if (!assets || assets.length === 0) return [];
 
+  // #297: main() reads --relevance-threshold over this; omitting
+  // opts.relevanceThreshold falls back to the shared bar so the un-gated
+  // legacy mode cannot resurface.
   const threshold =
     typeof opts.relevanceThreshold === "number"
       ? opts.relevanceThreshold
       : DEFAULT_RELEVANCE_THRESHOLD;
   const reusedCap = typeof opts.reusedCap === "number" ? opts.reusedCap : 0.4;
+
+  // #294: satisfiability belongs to the scene's candidate pool, not to one
+  // asset. Computed before the loop so a rejection reason can name the pool
+  // ceiling instead of implying the image itself was judged irrelevant. The
+  // candidates carry their subject check, so a borderline-but-matched sibling
+  // makes the pool satisfiable rather than "ceiling 50 — unsatisfiable".
+  const poolCandidates = new Map();
+  for (const asset of assets) {
+    if (asset?.claimSceneId == null) continue;
+    const candidates = poolCandidates.get(asset.claimSceneId) ?? [];
+    candidates.push(asset);
+    poolCandidates.set(asset.claimSceneId, candidates);
+  }
+  const poolFor = (sceneId) => classifyPool(poolCandidates.get(sceneId) ?? [], { threshold });
 
   // Sort assets by score descending (greedy: highest score gets first pick)
   const sorted = [...assets].sort((a, b) => (b.score || 0) - (a.score || 0));
@@ -932,7 +970,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
     return isReusedAsset({ url: asset.url, filePath: asset.absPath }, opts.usedIndex);
   };
 
-  const unassignedEntry = (asset, reason) => {
+  const unassignedEntry = (asset, reason, extra = {}) => {
     const entry = {
       assetScore: asset.score || 0,
       source: asset.source || asset.from || "unknown",
@@ -943,7 +981,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       entry.reason = reason;
       entry.path = asset.path; // audit trail for gated rejections
     }
-    return entry;
+    return { ...entry, ...extra };
   };
 
   for (const asset of sorted) {
@@ -977,13 +1015,42 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
     // ── Claim binding: per-scene sourced assets never spill to other scenes ──
     if (asset.claimSceneId != null) {
       const target = scenes.find((s) => s.id === asset.claimSceneId);
+      const pool = poolFor(asset.claimSceneId);
+      const band = classifyRelevance(asset.relevanceScore, { threshold });
       let reason = null;
+      let relevanceExtra = null;
       if (!target) {
         reason = `claim scene ${asset.claimSceneId} not found`;
-      } else if (asset.relevanceScore == null) {
-        reason = "VLM relevance missing — fail-closed (宁缺毋滥)";
-      } else if (asset.relevanceScore < threshold) {
-        reason = `VLM relevance ${asset.relevanceScore} below threshold ${threshold}`;
+      } else if (!isRelevanceAdmitted(asset, { threshold })) {
+        // #294: keep the three outcomes distinct. A missing score is a tool
+        // failure, not evidence about the image; a borderline score may have
+        // been closed by the second-pass subject check; and a scene whose
+        // whole pool sits under the bar is unsatisfiable, not "unmet".
+        relevanceExtra = {
+          relevanceBand: band,
+          poolVerdict: pool.verdict,
+          poolCeiling: pool.ceiling,
+        };
+        if (asset.relevanceCheck) relevanceExtra.relevanceCheck = asset.relevanceCheck;
+        if (band === RELEVANCE_BAND.UNAVAILABLE) {
+          reason =
+            "VLM relevance unavailable (analysis failed or score unparseable) — fail-closed, not a content verdict (宁缺毋滥)";
+          reason +=
+            pool.verdict === POOL_VERDICT.UNAVAILABLE
+              ? "; scene pool unavailable (no parseable score) — escalate to B-roll/human"
+              : `; scene pool ceiling ${pool.ceiling} (other candidates scored)`;
+        } else {
+          reason = `VLM relevance ${asset.relevanceScore} below threshold ${threshold} (${band})`;
+          if (band === RELEVANCE_BAND.BORDERLINE) {
+            reason +=
+              asset.relevanceCheck?.verdict === "no_match"
+                ? "; second-pass subject check: no_match"
+                : "; no second-pass subject check";
+          }
+          if (pool.verdict === POOL_VERDICT.UNSATISFIABLE) {
+            reason += `; scene pool ceiling ${pool.ceiling} — unsatisfiable, escalate to B-roll/human`;
+          }
+        }
       } else if (isRejectedFor(asset, target)) {
         reason = `scene ${target.id} mediaReject rejected this asset`;
       } else if (
@@ -1000,7 +1067,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       }
 
       if (reason) {
-        result.push(unassignedEntry(asset, reason));
+        result.push(unassignedEntry(asset, reason, relevanceExtra ?? {}));
         continue;
       }
 
@@ -1034,7 +1101,10 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
           source: RELEVANCE_SOURCE.VLM,
           reason: asset.relevanceReason,
           reused,
+          band,
+          admittedBy: admissionSource(asset, { threshold }),
         }),
+        ...(asset.relevanceCheck ? { relevanceCheck: asset.relevanceCheck } : {}),
       });
       assignedSceneIds.add(target.id);
       assignedPaths.add(asset.path);
@@ -1522,6 +1592,7 @@ export async function analyzeAssets(assets, opts = {}) {
           reason: null,
           relevance: null,
           relevanceReason: null,
+          subjectMatch: null,
         };
       }
       // Persist successful raw VLM output; failed/degraded runs are not cached
@@ -1544,6 +1615,82 @@ export async function analyzeAssets(assets, opts = {}) {
       }
     }
 
+    // ── Phase 3a-2: second-pass subject check (#294) ──
+    // A 40-59 first-pass score is not a verdict: the claim prompt asks whether
+    // the asset depicts the claim's specific event, which a topically correct
+    // stock image cannot do. Ask the narrower, answerable question once —
+    // "is the visible subject the thing the scene is about?" — and record the
+    // answer. Only an explicit `match` can admit the asset downstream; a
+    // failed or unparseable check is recorded as a null verdict (closed).
+    // Images only: a video's first-pass score is already a whole-clip
+    // judgment, and the check has no per-window answer.
+    let relevanceCheck = null;
+    if (
+      claimInfo &&
+      asset.type === "image" &&
+      needsSecondPass({ relevanceScore: semantics.relevance })
+    ) {
+      let checkSemantics = null;
+      let checkError = null;
+      let checkKey = null;
+      if (cacheDir && !cacheDisabled) {
+        try {
+          checkKey = await computeCacheKey({
+            filePath: absPath,
+            model: modelId,
+            claim: claimInfo,
+            cropFocus: cropHint ?? null,
+            relevanceCheck: true,
+          });
+          const cached = getCachedResult(cacheDir, checkKey);
+          if (cached) {
+            checkSemantics = cached.data;
+            console.log(`  💾 Subject-check cache hit: ${absPath}`);
+          }
+        } catch {
+          // Cache read problems never block the check (unreadable file → miss)
+        }
+      }
+      if (!checkSemantics) {
+        try {
+          checkSemantics = await analyzeAssetSemantics(absPath, {
+            claim: claimInfo,
+            relevanceCheck: true,
+            ...(cropHint ? { cropFocus: cropHint } : {}),
+          });
+          // Only a committed verdict is cacheable — a degraded response is a
+          // tool failure, and a rerun should retry rather than pin it.
+          if (cacheDir && !cacheDisabled && checkKey && checkSemantics?.subjectMatch) {
+            writeCachedResult(cacheDir, checkKey, {
+              data: { ...checkSemantics },
+              meta: {
+                model: modelId,
+                durationMs: Date.now() - startTime,
+                sourceMode: null,
+              },
+            });
+          }
+        } catch (err) {
+          console.warn(`  ⚠️  Subject check failed for ${absPath}: ${err.message}`);
+          checkError = err?.message ?? String(err);
+          checkSemantics = null;
+        }
+      }
+      relevanceCheck = checkSemantics?.subjectMatch
+        ? {
+            verdict: checkSemantics.subjectMatch,
+            reason: checkSemantics.reason ?? null,
+          }
+        : {
+            verdict: null,
+            reason:
+              checkError ?? checkSemantics?.error ?? "subject check returned no parseable verdict",
+          };
+      console.log(
+        `  🔎 Subject check: ${absPath} → ${relevanceCheck.verdict ?? "unavailable"}${relevanceCheck.reason ? ` (${relevanceCheck.reason})` : ""}`,
+      );
+    }
+
     // Store VLM fields on asset (replaces old aiDescription/aiFit/aiFitReason)
     asset.description = semantics.description;
     asset.subjects = semantics.subjects;
@@ -1557,6 +1704,12 @@ export async function analyzeAssets(assets, opts = {}) {
     // by assignAssetsToScenes + makeRelevance. Mapping stays here on purpose.
     asset.relevanceScore = semantics.relevance ?? null;
     asset.relevanceReason = semantics.relevanceReason ?? null;
+    // #294: the second-pass verdict lives beside the score, never replacing
+    // it — the numeric score stays the first pass's honest reading, and the
+    // patch entry records which path admitted the asset.
+    if (relevanceCheck) {
+      asset.relevanceCheck = relevanceCheck;
+    }
     // Store window and sourceMode for video assets (T6; #360 adds windows)
     if (semantics.window) {
       asset.window = semantics.window;
