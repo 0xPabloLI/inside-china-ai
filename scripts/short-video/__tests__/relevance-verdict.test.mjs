@@ -92,6 +92,27 @@ describe("classifyPool — satisfiability of one scene's candidate set", () => {
     expect(pool.ceiling).toBe(55);
     expect(pool.count).toBe(1);
   });
+
+  it("is satisfiable when the best candidate is a borderline score that passed its check", () => {
+    const pool = classifyPool([
+      { relevanceScore: 0 },
+      { relevanceScore: 50, relevanceCheck: { verdict: "match" } },
+    ]);
+    expect(pool.verdict).toBe(POOL_VERDICT.SATISFIABLE);
+    expect(pool.ceiling).toBe(50);
+    expect(pool.admitted).toBe(1);
+  });
+
+  it("stays unsatisfiable when the borderline candidate has no match", () => {
+    for (const check of [null, { verdict: "no_match" }, { verdict: null }]) {
+      const pool = classifyPool([
+        { relevanceScore: 50, relevanceCheck: check },
+        { relevanceScore: 55 },
+      ]);
+      expect(pool.verdict).toBe(POOL_VERDICT.UNSATISFIABLE);
+      expect(pool.admitted).toBe(0);
+    }
+  });
 });
 
 describe("isRelevanceAdmitted — the single admission rule", () => {

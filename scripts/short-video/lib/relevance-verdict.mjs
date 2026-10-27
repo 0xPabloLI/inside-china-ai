@@ -12,9 +12,9 @@
  *     stock photo cannot pass that test. Candidates in this band get a
  *     second, subject-focused VLM check (`relevanceCheck`).
  *   - satisfiability is a property of the candidate pool, not of one asset.
- *     When every candidate for a scene scores below the threshold, the right
- *     output is "unsatisfiable → escalate to B-roll/human", not "pick the
- *     least-bad photo".
+ *     When no candidate for a scene is admissible, the right output is
+ *     "unsatisfiable → escalate to B-roll/human", not "pick the least-bad
+ *     photo".
  *
  * This module owns the bands, the pool verdict and the admission rule so
  * asset-sourcer, the B-roll gate and evaluate-stock-relevance.mjs cannot drift
@@ -50,6 +50,15 @@ export const POOL_VERDICT = {
 
 const isScore = (value) => typeof value === "number" && Number.isFinite(value);
 
+/** A pool member is either a bare score or an asset-like candidate. */
+const candidateScore = (candidate) =>
+  isScore(candidate) ? candidate : isScore(candidate?.relevanceScore) ? candidate.relevanceScore : null;
+
+const candidateAdmitted = (candidate, opts) =>
+  isScore(candidate)
+    ? candidate >= (opts.threshold ?? DEFAULT_RELEVANCE_THRESHOLD)
+    : isRelevanceAdmitted(candidate, opts);
+
 /**
  * Classify one VLM score.
  *
@@ -80,25 +89,33 @@ export function needsSecondPass(asset, opts = {}) {
 }
 
 /**
- * Pool verdict for one scene. `unavailable` means the pool had candidates but
- * none produced a parseable score — again a tool outcome, not "all irrelevant".
+ * Pool verdict for one scene. Satisfiability is decided by admission, not by
+ * the ceiling alone: a pool whose best candidate sits at 50 but passed its
+ * subject check *is* satisfiable, and saying otherwise would tell the caller
+ * to escalate on a scene that already has an accepted asset.
  *
- * @param {Array<number|null|undefined>} scores
- * @param {{threshold?: number}} [opts]
- * @returns {{verdict: "satisfiable"|"unsatisfiable"|"unavailable", ceiling: number|null, count: number}}
+ * `unavailable` means the pool had candidates but none produced a parseable
+ * score — again a tool outcome, not "all irrelevant".
+ *
+ * @param {Array<number|null|undefined|{relevanceScore?: number|null, relevanceCheck?: {verdict?: string}|null}>} candidates
+ *   Bare scores, or the asset-shaped candidates assignment and the report
+ *   already hold.
+ * @param {{threshold?: number, borderlineFloor?: number}} [opts]
+ * @returns {{verdict: "satisfiable"|"unsatisfiable"|"unavailable", ceiling: number|null, count: number, admitted: number}}
  */
-export function classifyPool(scores, opts = {}) {
-  const threshold = opts.threshold ?? DEFAULT_RELEVANCE_THRESHOLD;
-  const numeric = (Array.isArray(scores) ? scores : []).filter(isScore);
-  if (numeric.length === 0) {
-    return { verdict: POOL_VERDICT.UNAVAILABLE, ceiling: null, count: 0 };
+export function classifyPool(candidates, opts = {}) {
+  const scored = (Array.isArray(candidates) ? candidates : []).filter(
+    (candidate) => candidateScore(candidate) !== null,
+  );
+  if (scored.length === 0) {
+    return { verdict: POOL_VERDICT.UNAVAILABLE, ceiling: null, count: 0, admitted: 0 };
   }
-  const ceiling = Math.max(...numeric);
+  const admitted = scored.filter((candidate) => candidateAdmitted(candidate, opts)).length;
   return {
-    verdict:
-      ceiling >= threshold ? POOL_VERDICT.SATISFIABLE : POOL_VERDICT.UNSATISFIABLE,
-    ceiling,
-    count: numeric.length,
+    verdict: admitted > 0 ? POOL_VERDICT.SATISFIABLE : POOL_VERDICT.UNSATISFIABLE,
+    ceiling: Math.max(...scored.map(candidateScore)),
+    count: scored.length,
+    admitted,
   };
 }
 
@@ -114,12 +131,7 @@ export function classifyPool(scores, opts = {}) {
  * @returns {boolean}
  */
 export function isRelevanceAdmitted(asset, opts = {}) {
-  const band = classifyRelevance(asset?.relevanceScore, opts);
-  if (band === RELEVANCE_BAND.PASS) return true;
-  if (band === RELEVANCE_BAND.BORDERLINE && asset?.relevanceCheck?.verdict === "match") {
-    return true;
-  }
-  return false;
+  return admissionSource(asset, opts) !== null;
 }
 
 /**

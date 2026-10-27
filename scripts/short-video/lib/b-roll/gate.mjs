@@ -8,7 +8,11 @@
  */
 
 import { isImageStrategy } from "../scene-rules.mjs";
-import { DEFAULT_RELEVANCE_THRESHOLD } from "../relevance-verdict.mjs";
+import {
+  DEFAULT_RELEVANCE_THRESHOLD,
+  RELEVANCE_BAND,
+  classifyRelevance,
+} from "../relevance-verdict.mjs";
 
 // Same yardstick as the sourcing-side relevance gate. #294 moved the number
 // into lib/relevance-verdict.mjs; importing it here removes the hand-synced
@@ -30,14 +34,16 @@ export function buildClaim(scene) {
 }
 
 /**
- * Score candidates through the analyzer. Fail-closed: a missing/null relevance
- * or an analyzer error marks the candidate as not passed.
+ * Score candidates through the analyzer. Fail-closed: an unadmitted candidate
+ * never wins. Each candidate also carries its `band`, so a null score reads as
+ * `unavailable` (the analyzer failed) rather than as a low content score —
+ * #294's defect 2 landed on this gate too.
  *
  * @param {Array<{seed: number, file: string}>} candidates absolute file paths
  * @param {{analyzer: Function, claim: {voiceover: string, assetNeed: string},
  *   window?: {startMs: number, endMs: number, sampleFps?: number},
  *   threshold?: number}} opts
- * @returns {Promise<Array<{seed, file, relevance: number|null, reason: string|null, passed: boolean}>>}
+ * @returns {Promise<Array<{seed, file, relevance: number|null, band: string, reason: string|null, passed: boolean}>>}
  */
 export async function scoreCandidates(candidates, opts) {
   const { analyzer, claim, window } = opts;
@@ -54,11 +60,13 @@ export async function scoreCandidates(candidates, opts) {
     } catch (error) {
       reason = `analyzer error: ${error?.message ?? error}`;
     }
+    const band = classifyRelevance(relevance, { threshold });
     scored.push({
       ...candidate,
       relevance,
+      band,
       reason,
-      passed: relevance !== null && relevance >= threshold,
+      passed: band === RELEVANCE_BAND.PASS,
     });
   }
   return scored;

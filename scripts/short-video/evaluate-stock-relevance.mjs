@@ -17,9 +17,12 @@
  *   export const metadata = {
  *     stockRelevanceExemption: {
  *       reason: "…why the bound images are deliberate…",
- *       scenes: [2, 3, 7],   // omit → whole package
+ *       scenes: [2, 3, 7],   // omit → whole package; one id or a list
  *     },
  *   };
+ *
+ * A malformed scene id is dropped and warned about; it never widens the
+ * waiver to the whole package.
  *
  * Exempted scenes are still listed, but they leave the pass/fail tally. This
  * is the channel the 2026-10-14 decision asked for: the reason lives in
@@ -42,6 +45,7 @@ import {
   DEFAULT_RELEVANCE_THRESHOLD,
   RELEVANCE_BAND,
   admissionSource,
+  classifyPool,
   classifyRelevance,
   needsSecondPass,
 } from "./lib/relevance-verdict.mjs";
@@ -51,6 +55,9 @@ const __dirname = dirname(__filename);
 
 const THRESHOLD = DEFAULT_RELEVANCE_THRESHOLD;
 const REPORT_SCHEMA_VERSION = 2;
+
+/** Report status per admission source. Anything unadmitted is a FAIL. */
+const STATUS_BY_ADMISSION = { score: "PASS", "second-pass": "PASS (second-pass)" };
 
 function getArg(argv, name) {
   const idx = argv.indexOf(`--${name}`);
@@ -100,12 +107,16 @@ export function buildClaim(scene) {
 /**
  * Normalize `metadata.stockRelevanceExemption`.
  *
- * A string is a whole-package reason. An object requires a non-empty `reason`;
- * `scenes` omitted → whole package, `scenes: []` → explicitly no scenes
- * (a mistake is visible, not silently widened).
+ * A string is a whole-package reason. An object requires a non-empty `reason`.
+ * `scenes` omitted → whole package; a positive integer or an array of them →
+ * exactly those scenes; `scenes: []` → explicitly no scenes.
+ *
+ * Malformed entries never widen the waiver: a non-integer id is dropped and
+ * reported via `dropped`, so `scenes: ["6"]` waives nothing and says so
+ * instead of quietly exempting the whole package.
  *
  * @param {Object|null|undefined} metadata
- * @returns {{reason: string, scenes: number[]|null}|null}
+ * @returns {{reason: string, scenes: number[]|null, dropped: number}|null}
  */
 export function normalizeExemption(metadata) {
   const raw = metadata?.stockRelevanceExemption;
@@ -117,10 +128,13 @@ export function normalizeExemption(metadata) {
         ? raw.reason.trim()
         : "";
   if (!reason) return null;
-  const scenes = Array.isArray(raw?.scenes)
-    ? raw.scenes.filter((value) => Number.isInteger(value))
-    : null;
-  return { reason, scenes };
+
+  const declared = typeof raw === "string" ? undefined : raw?.scenes;
+  if (declared === undefined) return { reason, scenes: null, dropped: 0 };
+
+  const list = Array.isArray(declared) ? declared : [declared];
+  const scenes = list.filter((value) => Number.isInteger(value) && value > 0);
+  return { reason, scenes, dropped: list.length - scenes.length };
 }
 
 /**
@@ -177,11 +191,7 @@ export async function evaluateScene(scene, contentDir, analyze) {
   const status =
     band === RELEVANCE_BAND.UNAVAILABLE
       ? "UNAVAILABLE"
-      : admittedBy === "second-pass"
-        ? "PASS (second-pass)"
-        : admittedBy === "score"
-          ? "PASS"
-          : "FAIL";
+      : (STATUS_BY_ADMISSION[admittedBy] ?? "FAIL");
 
   return {
     sceneId: scene.id,
@@ -200,16 +210,22 @@ export async function evaluateScene(scene, contentDir, analyze) {
 }
 
 /**
- * Package-level rollup. This is not the per-scene pool verdict asset-sourcer
- * computes (which knows every candidate): it answers "does this package have
- * at least one admissible bound image, and if not, is that a criterion
- * problem or a tool problem?".
+ * Package-level rollup. The satisfiability question is the same one
+ * asset-sourcer asks of a scene pool, so it is answered by the same function:
+ * "at least one candidate is admissible" versus "scores exist but none is
+ * admissible" (a criterion problem) versus "no score at all" (a tool problem).
  *
  * @param {Array<Object>} results
  */
 export function summarizeResults(results) {
   const evaluated = results.filter((entry) => !entry.exempted);
-  const numeric = evaluated.filter((entry) => typeof entry.relevance === "number");
+  const pool = classifyPool(
+    evaluated.map((entry) => ({
+      relevanceScore: entry.relevance,
+      relevanceCheck: entry.subjectMatch ? { verdict: entry.subjectMatch } : null,
+    })),
+    { threshold: THRESHOLD },
+  );
   const passed = evaluated.filter((entry) => entry.admittedBy === "score").length;
   const borderlineAdmitted = evaluated.filter(
     (entry) => entry.admittedBy === "second-pass",
@@ -220,12 +236,6 @@ export function summarizeResults(results) {
   const failed = evaluated.filter(
     (entry) => !entry.admittedBy && entry.band !== RELEVANCE_BAND.UNAVAILABLE,
   ).length;
-  const verdict =
-    passed + borderlineAdmitted > 0
-      ? "satisfiable"
-      : numeric.length > 0
-        ? "unsatisfiable"
-        : "unavailable";
 
   return {
     evaluated: evaluated.length,
@@ -234,8 +244,11 @@ export function summarizeResults(results) {
     failed,
     unavailable,
     exempted: results.length - evaluated.length,
-    ceiling: numeric.length > 0 ? Math.max(...numeric.map((entry) => entry.relevance)) : null,
-    verdict,
+    ceiling: pool.ceiling,
+    // A fully exempted package has nothing to judge. Reporting `unavailable`
+    // would read as "the analyzer failed" and send the caller to fix an engine
+    // that was never asked.
+    verdict: evaluated.length === 0 ? null : pool.verdict,
   };
 }
 
@@ -279,6 +292,11 @@ async function main(argv = process.argv.slice(2)) {
   if (metadata?.stockRelevanceExemption && !exemption) {
     console.warn(
       "⚠️  metadata.stockRelevanceExemption is present but has no non-empty `reason` — ignored (a waiver must be reviewable).",
+    );
+  }
+  if (exemption?.dropped) {
+    console.warn(
+      `⚠️  metadata.stockRelevanceExemption.scenes dropped ${exemption.dropped} malformed id(s) — a waiver never widens to the whole package by accident.`,
     );
   }
 
@@ -348,9 +366,11 @@ async function main(argv = process.argv.slice(2)) {
     console.log(`Exempted: ${summary.exempted}`);
   }
   console.log(`Pool ceiling: ${summary.ceiling ?? "none"}`);
-  console.log(`Verdict: ${summary.verdict}`);
+  console.log(`Verdict: ${summary.verdict ?? "n/a (nothing to evaluate)"}`);
 
-  if (summary.verdict === "unsatisfiable") {
+  if (summary.evaluated === 0) {
+    console.log("\nNo bound stock image is outside the waiver — nothing to judge.");
+  } else if (summary.verdict === "unsatisfiable") {
     console.log(
       "\n⚠️  No evaluated image is admissible. Treat this as an unsatisfiable criterion for the package,",
     );
@@ -407,5 +427,3 @@ if (isMainModule) {
     process.exit(1);
   });
 }
-
-export { THRESHOLD };

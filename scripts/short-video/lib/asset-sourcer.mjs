@@ -840,13 +840,6 @@ export const RELEVANCE_SOURCE = {
 };
 
 /**
- * Default VLM relevance threshold for gated assignment (#297). main() reads
- * --relevance-threshold over this; omitting opts.relevanceThreshold falls
- * back to it so the un-gated legacy mode cannot resurface. #294 moved the
- * constant to lib/relevance-verdict.mjs so every consumer shares one bar.
- */
-
-/**
  * Build the flat relevance field group carried by assigned patch entries.
  * Keeps the four fields (relevanceScore / relevanceSource / relevanceReason /
  * reused) as a single construction site instead of hand-written primitives.
@@ -938,6 +931,9 @@ function isRejectedFor(asset, scene) {
 export function assignAssetsToScenes(assets, scenes, opts = {}) {
   if (!assets || assets.length === 0) return [];
 
+  // #297: main() reads --relevance-threshold over this; omitting
+  // opts.relevanceThreshold falls back to the shared bar so the un-gated
+  // legacy mode cannot resurface.
   const threshold =
     typeof opts.relevanceThreshold === "number"
       ? opts.relevanceThreshold
@@ -946,15 +942,18 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
 
   // #294: satisfiability belongs to the scene's candidate pool, not to one
   // asset. Computed before the loop so a rejection reason can name the pool
-  // ceiling instead of implying the image itself was judged irrelevant.
-  const poolScores = new Map();
+  // ceiling instead of implying the image itself was judged irrelevant. The
+  // candidates carry their subject check, so a borderline-but-matched sibling
+  // makes the pool satisfiable rather than "ceiling 50 — unsatisfiable".
+  const poolCandidates = new Map();
   for (const asset of assets) {
     if (asset?.claimSceneId == null) continue;
-    const scores = poolScores.get(asset.claimSceneId) ?? [];
-    scores.push(asset.relevanceScore);
-    poolScores.set(asset.claimSceneId, scores);
+    const candidates = poolCandidates.get(asset.claimSceneId) ?? [];
+    candidates.push(asset);
+    poolCandidates.set(asset.claimSceneId, candidates);
   }
-  const poolFor = (sceneId) => classifyPool(poolScores.get(sceneId) ?? [], { threshold });
+  const poolFor = (sceneId) =>
+    classifyPool(poolCandidates.get(sceneId) ?? [], { threshold });
 
   // Sort assets by score descending (greedy: highest score gets first pick)
   const sorted = [...assets].sort((a, b) => (b.score || 0) - (a.score || 0));

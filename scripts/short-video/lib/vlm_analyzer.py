@@ -356,17 +356,17 @@ match
 ## Reason
 The visible subject is a Unitree humanoid robot, the company the scene names."""
 
-RELEVANCE_CHECK_PROMPT_IMAGE = (
-    "Decide whether this image's visible subject fits the scene's desired visual. "
-    "This is a second look at a candidate that scored borderline on the stricter claim test.\n\n"
-    + _RELEVANCE_CHECK_RULES
-)
+def _relevance_check_prompt(subject_noun):
+    """The #294 subject-check prompt for one asset kind (image / video)."""
+    return (
+        f"Decide whether this {subject_noun}'s visible subject fits the scene's desired visual. "
+        "This is a second look at a candidate that scored borderline on the stricter claim test.\n\n"
+        + _RELEVANCE_CHECK_RULES
+    )
 
-RELEVANCE_CHECK_PROMPT_VIDEO = (
-    "Decide whether this video's visible subject fits the scene's desired visual. "
-    "This is a second look at a candidate that scored borderline on the stricter claim test.\n\n"
-    + _RELEVANCE_CHECK_RULES
-)
+
+RELEVANCE_CHECK_PROMPT_IMAGE = _relevance_check_prompt("image")
+RELEVANCE_CHECK_PROMPT_VIDEO = _relevance_check_prompt("video")
 
 SEMANTICS_PROMPT_AUDIO = """Analyze this audio for use in a short video production pipeline. Provide your analysis as Markdown with the following sections:
 
@@ -543,6 +543,23 @@ def _parse_subject_match(body):
     return "no_match" if match.group(1).startswith("no") else "match"
 
 
+def _split_headless_verdict(text):
+    """Split a headerless single-question answer into (verdict, reason).
+
+    The #294 subject-check prompt asks one question, and a real Qwen3-VL run
+    answered it as `no_match\n\n<why>` with no `## Subject Match` header. Only
+    an unambiguous leading verdict is accepted; guessing a verdict from prose
+    would admit images the model never committed to. Returns None when the
+    text is not a verdict, so the caller keeps the historical
+    "whole text is a description" behavior.
+    """
+    verdict = _parse_subject_match(text)
+    if not verdict:
+        return None
+    remainder = text.split("\n", 1)[1].strip() if "\n" in text else ""
+    return verdict, (remainder or None)
+
+
 def parse_markdown_to_dict(raw_text):
     """Parse VLM Markdown output into a dict with 8 mandatory keys.
 
@@ -594,17 +611,16 @@ def parse_markdown_to_dict(raw_text):
     # 2. Check if there are any '## ' headers
     if "## " not in text:
         # A single-question prompt (#294 subject check) is sometimes answered
-        # without the header: a real Qwen3-VL run returned "no_match\n\n<why>".
-        # Accept only an unambiguous leading verdict; everything else keeps the
-        # historical "whole text is a description" behavior. Guessing a verdict
-        # from prose would admit images the model never committed to.
-        headless_verdict = _parse_subject_match(text)
-        if headless_verdict:
-            remainder = text.split("\n", 1)[1].strip() if "\n" in text else ""
-            result["description"] = ""
-            result["subjects"] = []
-            result["subjectMatch"] = headless_verdict
-            result["reason"] = remainder or None
+        # without the header — see `_split_headless_verdict`.
+        headless = _split_headless_verdict(text)
+        if headless:
+            verdict, reason = headless
+            result.update(
+                description="",
+                subjects=[],
+                subjectMatch=verdict,
+                reason=reason,
+            )
             return result
         # No headers — entire text becomes description
         result["description"] = text.strip()

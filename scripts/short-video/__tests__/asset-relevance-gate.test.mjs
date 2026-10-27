@@ -425,6 +425,24 @@ describe("assignAssetsToScenes — #294 relevance verdict", () => {
     expect(rejected.poolVerdict).toBe("satisfiable");
   });
 
+  it("counts a second-pass match as pool satisfaction", () => {
+    const assets = [
+      img({
+        path: "assets/matched.jpg",
+        claimSceneId: 2,
+        relevanceScore: 50,
+        relevanceCheck: { verdict: "match", reason: "robot subject" },
+      }),
+      img({ path: "assets/other.jpg", claimSceneId: 2, relevanceScore: 45 }),
+    ];
+    const result = assignAssetsToScenes(assets, scenes, THRESHOLD);
+    const assigned = result.find((r) => r.status === "assigned");
+    const rejected = result.find((r) => r.status === "unassigned");
+    expect(assigned.relevanceAdmittedBy).toBe("second-pass");
+    expect(rejected.poolVerdict).toBe("satisfiable");
+    expect(rejected.reason).not.toMatch(/unsatisfiable/i);
+  });
+
   it("reports an unavailable pool when no candidate produced a score", () => {
     const assets = [
       img({ path: "assets/a.jpg", claimSceneId: 2, relevanceScore: null }),

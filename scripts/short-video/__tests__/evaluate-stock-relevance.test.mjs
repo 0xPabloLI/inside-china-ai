@@ -53,7 +53,7 @@ describe("buildClaim — the evaluation asks the pipeline's question", () => {
 describe("normalizeExemption — the repo-visible waiver channel", () => {
   it("accepts a whole-package string", () => {
     expect(normalizeExemption({ stockRelevanceExemption: "published package, not re-rendering" })).toEqual(
-      { reason: "published package, not re-rendering", scenes: null },
+      { reason: "published package, not re-rendering", scenes: null, dropped: 0 },
     );
   });
 
@@ -62,7 +62,13 @@ describe("normalizeExemption — the repo-visible waiver channel", () => {
       normalizeExemption({
         stockRelevanceExemption: { reason: "deliberate", scenes: [2, 7] },
       }),
-    ).toEqual({ reason: "deliberate", scenes: [2, 7] });
+    ).toEqual({ reason: "deliberate", scenes: [2, 7], dropped: 0 });
+  });
+
+  it("accepts a single scene id", () => {
+    expect(
+      normalizeExemption({ stockRelevanceExemption: { reason: "x", scenes: 6 } }),
+    ).toEqual({ reason: "x", scenes: [6], dropped: 0 });
   });
 
   it("ignores a waiver without a reviewable reason", () => {
@@ -74,7 +80,16 @@ describe("normalizeExemption — the repo-visible waiver channel", () => {
   it("keeps an empty scene list as 'no scenes', not 'whole package'", () => {
     expect(
       normalizeExemption({ stockRelevanceExemption: { reason: "x", scenes: [] } }),
-    ).toEqual({ reason: "x", scenes: [] });
+    ).toEqual({ reason: "x", scenes: [], dropped: 0 });
+  });
+
+  it("drops malformed ids instead of widening the waiver to the whole package", () => {
+    const exemption = normalizeExemption({
+      stockRelevanceExemption: { reason: "x", scenes: ["6", -1, 2.5, 9] },
+    });
+    expect(exemption).toEqual({ reason: "x", scenes: [9], dropped: 3 });
+    expect(isExemptScene(2, exemption)).toBe(false);
+    expect(isExemptScene(9, exemption)).toBe(true);
   });
 
   it("scopes the waiver to the listed scenes", () => {
@@ -173,7 +188,13 @@ describe("summarizeResults — package-level rollup", () => {
   it("counts passes, second-pass admissions, failures and exemptions", () => {
     const summary = summarizeResults([
       { relevance: 80, band: "pass", admittedBy: "score", exempted: false },
-      { relevance: 50, band: "borderline", admittedBy: "second-pass", exempted: false },
+      {
+        relevance: 50,
+        band: "borderline",
+        admittedBy: "second-pass",
+        subjectMatch: "match",
+        exempted: false,
+      },
       { relevance: 50, band: "borderline", admittedBy: null, exempted: false },
       { relevance: 0, band: "low", admittedBy: null, exempted: false },
       { relevance: null, band: "unavailable", admittedBy: null, exempted: false },
@@ -207,5 +228,14 @@ describe("summarizeResults — package-level rollup", () => {
         { relevance: null, band: "unavailable", admittedBy: null, exempted: false },
       ]).verdict,
     ).toBe("unavailable");
+  });
+
+  it("reports no verdict when the waiver covers every image", () => {
+    const summary = summarizeResults([
+      { relevance: null, band: null, admittedBy: null, exempted: true },
+    ]);
+    expect(summary.evaluated).toBe(0);
+    expect(summary.verdict).toBeNull();
+    expect(summary.ceiling).toBeNull();
   });
 });
