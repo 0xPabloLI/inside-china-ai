@@ -30,7 +30,16 @@ Gather raw materials from the user (article URL, screenshots, tips, data points)
 
 Verify claims against multiple sources, find specific numbers and quotes.
 
-**Completion criterion**: every number that will appear in the video has a source. Exclude unverified claims.
+**Asset prefetch (mandatory, #293)** — before writing scene-data, run the Stage 0 prefetch for the entities this round names:
+
+```bash
+node scripts/short-video/asset-gaps.mjs --query "unitree,humanoid"   # open gaps from previous packages
+node scripts/rag/query.mjs "unitree robot" --type asset-catalog      # what the library already has
+```
+
+Reuse hits (copy into `content/<slug>/assets/`), prefetch 1–2 official sources for the rest, write `catalog.yml` entries (+ reindex), and `--satisfy` the gaps the new assets close. Every item ends as `reuse` / `prefetch` / `accepted-gap`. Full rules: `docs/content-pipeline.md` → Stage 0 素材预获取, ledger format: `docs/media-asset-management.md` §2.
+
+**Completion criterion**: every number that will appear in the video has a source, and the prefetch list has a disposition for every entity the round names.
 
 ### 2. Write scene-data.mjs
 
@@ -190,7 +199,9 @@ Pipeline stages: media gate → TTS → validate TTS results → (BGM if --bgm) 
 
 Output: `scripts/short-video/output/{pipelineId}/{subject}-{pipelineId}-v{version}-short.mp4` (versioned, timestamp-based, canonical — no symlink). The `subject` field in `meta.mjs` (e.g. "deepseek", "china-llm") ensures the filename identifies WHO the video is about.
 
-**Completion criterion**: versioned output file exists and is non-empty.
+**Record the asset gap ledger (mandatory, #293)** after sourcing: `node scripts/short-video/asset-gaps.mjs --record --content <dir>`. It writes the scenes the library could not satisfy into `knowledge/asset-gaps.json`; the next Stage 0 prefetch reads them.
+
+**Completion criterion**: versioned output file exists and is non-empty, and the gap-ledger command ran (outputs `Recorded N gap(s)` or `No asset gaps recorded`).
 
 ### 4. Generate thumbnail (optional — YouTube Shorts only)
 

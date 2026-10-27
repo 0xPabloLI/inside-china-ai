@@ -61,6 +61,20 @@ describe("assignAssetsToScenes — relevance gate", () => {
     expect(result[0].reason).toMatch(/below threshold/i);
   });
 
+  it("keeps the claim binding on a rejection so the gap ledger can name the scene (#293)", () => {
+    const result = assignAssetsToScenes(
+      [img({ claimSceneId: 1, relevanceScore: 30 })],
+      scenes,
+      THRESHOLD,
+    );
+    expect(result[0].status).toBe("unassigned");
+    expect(result[0].claimSceneId).toBe(1);
+
+    const unbound = assignAssetsToScenes([img({ relevanceScore: 30 })], scenes, THRESHOLD);
+    expect(unbound[0].status).toBe("unassigned");
+    expect(unbound[0].claimSceneId).toBeUndefined();
+  });
+
   it("accepts at exactly the threshold (>= semantics)", () => {
     const assets = [img({ claimSceneId: 1, relevanceScore: 60, relevanceReason: "borderline" })];
     const result = assignAssetsToScenes(assets, scenes, THRESHOLD);

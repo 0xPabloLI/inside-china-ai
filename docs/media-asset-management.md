@@ -68,9 +68,13 @@ An **asset catalog** (`scripts/short-video/assets/catalog.yml`) holds text metad
   description: "Unitree H1 humanoid robot walking and doing backflips"
   source: YouTube (yt-dlp)
   license: "Unitree Robotics official"
+  width: 1080
+  height: 1920
   used_in: [unitree/S2, unitree/S5, unitree/S6]
   keywords: [robot, humanoid, unitree, walking, backflip]
 ```
+
+`width` / `height` are optional for legacy entries and **required for Stage 0 prefetched assets** (#293): the prefetch step admits an asset to the global library only when its short side is ≥720p; anything below is upscaled first or kept as package-local media. Recording the numbers is what makes that rule checkable later.
 
 Each entry becomes one RAG chunk with `content_type: "asset-catalog"`. The chunk text is composed from `description` + `keywords` + `file` + `source` + `license` + `used_in` (only present fields). Query results include `metadata.file_path` so Agent can locate the file directly.
 
@@ -97,6 +101,17 @@ Text assets (articles, scene-data) have auto-triggers in the content pipeline (S
 > Incremental indexing is the default — `index.mjs` computes SHA-256 hash per chunk, compares against DB, and only embeds changed chunks. Unchanged chunks are skipped. First run embeds everything; subsequent runs only embed what changed. `triggerRagReindex()` is non-blocking — failure prints a warning and suggests manual re-run.
 
 **Catalog entry quality**: Agent writes `description` and `keywords` when downloading assets. Description quality directly affects RAG search relevance — Agent should review and edit entries for clarity before reindexing. Do not auto-generate catalog entries from `asset-sourcer.mjs` (quality control matters).
+
+### 素材缺口账本（#293）
+
+`knowledge/asset-gaps.json` 是「场景声明了素材需求、sourcing 却没给到」的 durable 缺口记录。它是跨包资产：Stage 3 生产结束写入，下一轮 Stage 0 预获取读取——素材库因此逐轮增长，而不是每次从零撞运气。`output/<slug>/media-patch.json` 只活到本包结束，不能当账本。
+
+- **写入**：`node scripts/short-video/asset-gaps.mjs --record --content <slug>`（`docs/content-pipeline.md` Stage 3 第 8d 步，必须执行）。证据来自 scene-data + `media-patch.json` + 8b 的 `stock-relevance-report.json`；不重新搜索、不下载。
+- **读取**：`--query "<实体,概念>"`（按需短路）或 `--list`（默认只看 open）。
+- **关闭**：素材真正入库后 `--satisfy <gap-id|need 子串> --by <catalog 路径>`。已 satisfied 的缺口再次 miss 会重新 open——库里有图但 sourcing 没用上，同样是缺口。
+- **归因**：`no-candidates`（什么都没搜到/下载到）、`relevance-rejected`（候选被打分但都过不了准入）、`vlm-unavailable`（工具失败，不是内容判决）、`unclassified`（历史产物没有 per-scene 证据）。工具失败不得写成内容判决，口径同 `lib/relevance-verdict.mjs`（#294）。
+- **边界**：生成类 `mediaStrategy`（`b-roll` / `ai-image`）与已有 `media` 的场景不入账；缺口按 need 文本去重（大小写/空白归一），同一 need 跨包累加 `seenCount` 与出现包。
+- **体积**：每缺口最多保留 20 条出现记录（按最近见到时间淘汰），文件不会随轮次无限增长。
 
 ### Cross-content reuse cap (asset-sourcer)
 

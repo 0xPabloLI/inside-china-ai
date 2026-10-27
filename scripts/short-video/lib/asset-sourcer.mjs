@@ -977,6 +977,10 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       attribution: asset.attribution || null,
       status: "unassigned",
     };
+    // #293: keep the claim binding on rejections. The gap ledger derives
+    // which scene stayed empty from these entries, and a rejection without
+    // its scene can only be reported as "unclassified".
+    if (asset.claimSceneId != null) entry.claimSceneId = asset.claimSceneId;
     if (reason) {
       entry.reason = reason;
       entry.path = asset.path; // audit trail for gated rejections
