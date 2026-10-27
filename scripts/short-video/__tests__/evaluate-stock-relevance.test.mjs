@@ -52,9 +52,9 @@ describe("buildClaim — the evaluation asks the pipeline's question", () => {
 
 describe("normalizeExemption — the repo-visible waiver channel", () => {
   it("accepts a whole-package string", () => {
-    expect(normalizeExemption({ stockRelevanceExemption: "published package, not re-rendering" })).toEqual(
-      { reason: "published package, not re-rendering", scenes: null, dropped: 0 },
-    );
+    expect(
+      normalizeExemption({ stockRelevanceExemption: "published package, not re-rendering" }),
+    ).toEqual({ reason: "published package, not re-rendering", scenes: null, dropped: 0 });
   });
 
   it("accepts an object with a scene list", () => {
@@ -66,9 +66,11 @@ describe("normalizeExemption — the repo-visible waiver channel", () => {
   });
 
   it("accepts a single scene id", () => {
-    expect(
-      normalizeExemption({ stockRelevanceExemption: { reason: "x", scenes: 6 } }),
-    ).toEqual({ reason: "x", scenes: [6], dropped: 0 });
+    expect(normalizeExemption({ stockRelevanceExemption: { reason: "x", scenes: 6 } })).toEqual({
+      reason: "x",
+      scenes: [6],
+      dropped: 0,
+    });
   });
 
   it("ignores a waiver without a reviewable reason", () => {
@@ -78,9 +80,11 @@ describe("normalizeExemption — the repo-visible waiver channel", () => {
   });
 
   it("keeps an empty scene list as 'no scenes', not 'whole package'", () => {
-    expect(
-      normalizeExemption({ stockRelevanceExemption: { reason: "x", scenes: [] } }),
-    ).toEqual({ reason: "x", scenes: [], dropped: 0 });
+    expect(normalizeExemption({ stockRelevanceExemption: { reason: "x", scenes: [] } })).toEqual({
+      reason: "x",
+      scenes: [],
+      dropped: 0,
+    });
   });
 
   it("drops malformed ids instead of widening the waiver to the whole package", () => {

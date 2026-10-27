@@ -952,8 +952,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
     candidates.push(asset);
     poolCandidates.set(asset.claimSceneId, candidates);
   }
-  const poolFor = (sceneId) =>
-    classifyPool(poolCandidates.get(sceneId) ?? [], { threshold });
+  const poolFor = (sceneId) => classifyPool(poolCandidates.get(sceneId) ?? [], { threshold });
 
   // Sort assets by score descending (greedy: highest score gets first pick)
   const sorted = [...assets].sort((a, b) => (b.score || 0) - (a.score || 0));
@@ -1628,7 +1627,11 @@ export async function analyzeAssets(assets, opts = {}) {
     // Images only: a video's first-pass score is already a whole-clip
     // judgment, and the check has no per-window answer.
     let relevanceCheck = null;
-    if (claimInfo && asset.type === "image" && needsSecondPass({ relevanceScore: semantics.relevance })) {
+    if (
+      claimInfo &&
+      asset.type === "image" &&
+      needsSecondPass({ relevanceScore: semantics.relevance })
+    ) {
       let checkSemantics = null;
       let checkError = null;
       let checkKey = null;
@@ -1683,9 +1686,7 @@ export async function analyzeAssets(assets, opts = {}) {
         : {
             verdict: null,
             reason:
-              checkError ??
-              checkSemantics?.error ??
-              "subject check returned no parseable verdict",
+              checkError ?? checkSemantics?.error ?? "subject check returned no parseable verdict",
           };
       console.log(
         `  🔎 Subject check: ${absPath} → ${relevanceCheck.verdict ?? "unavailable"}${relevanceCheck.reason ? ` (${relevanceCheck.reason})` : ""}`,

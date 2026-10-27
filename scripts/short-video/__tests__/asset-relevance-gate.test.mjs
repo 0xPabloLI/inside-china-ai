@@ -343,7 +343,10 @@ describe("assignAssetsToScenes — #294 relevance verdict", () => {
         claimSceneId: 2,
         relevanceScore: 50,
         relevanceReason: "generic robot lab",
-        relevanceCheck: { verdict: "match", reason: "visible subject is the named company's robot" },
+        relevanceCheck: {
+          verdict: "match",
+          reason: "visible subject is the named company's robot",
+        },
       }),
     ];
     const result = assignAssetsToScenes(assets, scenes, THRESHOLD);

@@ -38,9 +38,7 @@ describe("classifyRelevance — score bands", () => {
     expect(classifyRelevance(70, { threshold: 80, borderlineFloor: 60 })).toBe(
       RELEVANCE_BAND.BORDERLINE,
     );
-    expect(classifyRelevance(59, { threshold: 80, borderlineFloor: 60 })).toBe(
-      RELEVANCE_BAND.LOW,
-    );
+    expect(classifyRelevance(59, { threshold: 80, borderlineFloor: 60 })).toBe(RELEVANCE_BAND.LOW);
   });
 
   it("keeps the historical threshold and the ticket's borderline floor", () => {
@@ -121,9 +119,9 @@ describe("isRelevanceAdmitted — the single admission rule", () => {
   });
 
   it("admits a borderline candidate only when the second pass says match", () => {
-    expect(
-      isRelevanceAdmitted({ relevanceScore: 50, relevanceCheck: { verdict: "match" } }),
-    ).toBe(true);
+    expect(isRelevanceAdmitted({ relevanceScore: 50, relevanceCheck: { verdict: "match" } })).toBe(
+      true,
+    );
     expect(
       isRelevanceAdmitted({ relevanceScore: 50, relevanceCheck: { verdict: "no_match" } }),
     ).toBe(false);
@@ -131,9 +129,9 @@ describe("isRelevanceAdmitted — the single admission rule", () => {
   });
 
   it("never promotes a low or unavailable score, even with a match", () => {
-    expect(
-      isRelevanceAdmitted({ relevanceScore: 0, relevanceCheck: { verdict: "match" } }),
-    ).toBe(false);
+    expect(isRelevanceAdmitted({ relevanceScore: 0, relevanceCheck: { verdict: "match" } })).toBe(
+      false,
+    );
     expect(
       isRelevanceAdmitted({ relevanceScore: null, relevanceCheck: { verdict: "match" } }),
     ).toBe(false);
@@ -143,9 +141,9 @@ describe("isRelevanceAdmitted — the single admission rule", () => {
 describe("admissionSource — patch-entry provenance", () => {
   it("names the path that admitted the asset", () => {
     expect(admissionSource({ relevanceScore: 80 })).toBe("score");
-    expect(
-      admissionSource({ relevanceScore: 50, relevanceCheck: { verdict: "match" } }),
-    ).toBe("second-pass");
+    expect(admissionSource({ relevanceScore: 50, relevanceCheck: { verdict: "match" } })).toBe(
+      "second-pass",
+    );
   });
 
   it("returns null when nothing admitted the asset", () => {

@@ -52,7 +52,11 @@ const isScore = (value) => typeof value === "number" && Number.isFinite(value);
 
 /** A pool member is either a bare score or an asset-like candidate. */
 const candidateScore = (candidate) =>
-  isScore(candidate) ? candidate : isScore(candidate?.relevanceScore) ? candidate.relevanceScore : null;
+  isScore(candidate)
+    ? candidate
+    : isScore(candidate?.relevanceScore)
+      ? candidate.relevanceScore
+      : null;
 
 const candidateAdmitted = (candidate, opts) =>
   isScore(candidate)

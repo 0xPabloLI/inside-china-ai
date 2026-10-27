@@ -122,11 +122,7 @@ export function normalizeExemption(metadata) {
   const raw = metadata?.stockRelevanceExemption;
   if (!raw) return null;
   const reason =
-    typeof raw === "string"
-      ? raw.trim()
-      : typeof raw?.reason === "string"
-        ? raw.reason.trim()
-        : "";
+    typeof raw === "string" ? raw.trim() : typeof raw?.reason === "string" ? raw.reason.trim() : "";
   if (!reason) return null;
 
   const declared = typeof raw === "string" ? undefined : raw?.scenes;
@@ -227,12 +223,8 @@ export function summarizeResults(results) {
     { threshold: THRESHOLD },
   );
   const passed = evaluated.filter((entry) => entry.admittedBy === "score").length;
-  const borderlineAdmitted = evaluated.filter(
-    (entry) => entry.admittedBy === "second-pass",
-  ).length;
-  const unavailable = evaluated.filter(
-    (entry) => entry.band === RELEVANCE_BAND.UNAVAILABLE,
-  ).length;
+  const borderlineAdmitted = evaluated.filter((entry) => entry.admittedBy === "second-pass").length;
+  const unavailable = evaluated.filter((entry) => entry.band === RELEVANCE_BAND.UNAVAILABLE).length;
   const failed = evaluated.filter(
     (entry) => !entry.admittedBy && entry.band !== RELEVANCE_BAND.UNAVAILABLE,
   ).length;
@@ -271,7 +263,9 @@ function printResult(result) {
     console.log(`  ⏭️  EXEMPT — ${result.exemptionReason}`);
     return;
   }
-  console.log(`  → ${result.status} — relevance: ${result.relevance ?? "null"} (band: ${result.band})`);
+  console.log(
+    `  → ${result.status} — relevance: ${result.relevance ?? "null"} (band: ${result.band})`,
+  );
   if (result.reason) console.log(`    reason: ${result.reason}`);
   if (result.subjectMatch !== null || result.subjectReason) {
     console.log(
@@ -302,7 +296,9 @@ async function main(argv = process.argv.slice(2)) {
 
   console.log(`\n=== Stock Image Relevance Evaluation ===`);
   console.log(`Content: ${contentSlug}`);
-  console.log(`Threshold: ${THRESHOLD} (borderline band: ${BORDERLINE_FLOOR}-${THRESHOLD - 1}, second-pass subject check)`);
+  console.log(
+    `Threshold: ${THRESHOLD} (borderline band: ${BORDERLINE_FLOOR}-${THRESHOLD - 1}, second-pass subject check)`,
+  );
   if (exemption) {
     console.log(
       `Waiver: ${exemption.scenes === null ? "whole package" : `scenes ${exemption.scenes.join(", ")}`} — ${exemption.reason}`,
@@ -385,9 +381,7 @@ async function main(argv = process.argv.slice(2)) {
     console.log("    fix the analyzer/engine before changing images.");
   }
 
-  const failedEntries = results.filter(
-    (entry) => !entry.exempted && !entry.admittedBy,
-  );
+  const failedEntries = results.filter((entry) => !entry.exempted && !entry.admittedBy);
   if (failedEntries.length > 0) {
     console.log(`\n=== Scenes not admitted ===`);
     for (const entry of failedEntries) {
@@ -419,8 +413,7 @@ async function main(argv = process.argv.slice(2)) {
 // Auto-run when invoked as a script (symlink-safe, same guard as the rest of
 // the short-video CLIs). Importing this module for its pure helpers must not
 // start a VLM session.
-const isMainModule =
-  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === __filename;
+const isMainModule = Boolean(process.argv[1]) && realpathSync(process.argv[1]) === __filename;
 if (isMainModule) {
   main().catch((err) => {
     console.error(err);
