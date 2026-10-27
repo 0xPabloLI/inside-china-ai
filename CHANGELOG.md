@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.36.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.35.0...tanstack_start_ts-v1.36.0) (2026-10-27)
+
+
+### Features
+
+* **vlm:** compact claim prompt and single-word fit rule ([#334](https://github.com/0xPabloLI/inside-china-ai/issues/334)) ([#987](https://github.com/0xPabloLI/inside-china-ai/issues/987)) ([894a612](https://github.com/0xPabloLI/inside-china-ai/commit/894a6127a229569c28ece0036917815c7fc3915b))
+
 ## [1.35.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.3...tanstack_start_ts-v1.35.0) (2026-10-27)
 
 
