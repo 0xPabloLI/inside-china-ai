@@ -10,13 +10,15 @@ import {
   composeGenerationPrompt,
   composeImagePrompt,
   dimensionDefaultsFor,
-  estimateTokens,
-  tokenBudgetExceeded,
   detectEntityColor,
   stripNegativeClauses,
+} from "../b-roll/prompt-injection.mjs";
+import {
   MAX_PROMPT_TOKENS,
   IMAGE_MAX_PROMPT_TOKENS,
-} from "../b-roll/prompt-injection.mjs";
+  estimateTokens,
+  tokenBudgetExceeded,
+} from "../b-roll/prompt-budget.mjs";
 import { NEGATIVE_GROUPS, coversNegativeGroup } from "../scene-rules.mjs";
 
 // ─── fixtures ───
@@ -83,7 +85,7 @@ describe("injection constants (#166)", () => {
 describe("NEGATIVE injection (#166 R3 baseline)", () => {
   test("scene 5 baseline: prompt without watermark protection gets the ARTIFACT clause injected", () => {
     const raw = "One tall glowing bar, dark reflective studio floor, no text, no letters, no hands";
-    const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }));
+    const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }), "wan2.2");
     expect(composed).toContain("no watermark");
     // Explicit clauses are preserved, never duplicated.
     expect(composed.match(/\bno text\b/g)).toHaveLength(1);
@@ -92,7 +94,7 @@ describe("NEGATIVE injection (#166 R3 baseline)", () => {
 
   test("scene 6 baseline: prompt with only 'no hands' gets TEXT and ARTIFACT clauses injected", () => {
     const raw = "Abstract transformer layers folding inward, no hands";
-    const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }));
+    const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }), "wan2.2");
     expect(composed).toContain("no text");
     expect(composed).toContain("no watermark");
     expect(composed.match(/\bno hands\b/g)).toHaveLength(1);
@@ -100,18 +102,18 @@ describe("NEGATIVE injection (#166 R3 baseline)", () => {
 
   test("a prompt already covering all three groups gets no NEGATIVE injection", () => {
     const raw = "Two lanes of glowing particles, dark studio, no text, no watermark, no hands";
-    expect(composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }))).toBe(raw);
+    expect(composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }), "wan2.2")).toBe(raw);
   });
 
   test("'no texture' is not credited as TEXT coverage", () => {
     const raw = "A bar with no texture, no hands, no watermark";
-    const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }));
+    const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }), "wan2.2");
     expect(composed).toContain("no text");
   });
 
   test("matching is case-insensitive", () => {
     const raw = "A glowing bar on a dark stage, No Text, No Hands, No Watermark";
-    expect(composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }))).toBe(raw);
+    expect(composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }), "wan2.2")).toBe(raw);
   });
 
   test("coversNegativeGroup uses word boundaries", () => {
@@ -125,14 +127,14 @@ describe("NEGATIVE injection (#166 R3 baseline)", () => {
 describe("BRAND base injection", () => {
   test("a prompt without a dark-background descriptor gets the brand base appended", () => {
     const raw = "One tall glowing vertical bar shrinking beside a short one";
-    const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }));
+    const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }), "wan2.2");
     expect(composed).toContain(BRAND_BASE_PROMPT);
   });
 
   test("a prompt that already declares a dark scene is not branded twice (agent wins)", () => {
     const raw =
       "Two lanes of glowing particles across a dark studio, no text, no watermark, no hands";
-    const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }));
+    const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: raw } }), "wan2.2");
     expect(composed).not.toContain("#0a0a14");
     expect(composed).toBe(raw);
   });
@@ -180,6 +182,7 @@ describe("entity color detection and injection", () => {
     const raw = "A giant chip stamped with the model name, no text, no watermark, no hands";
     const composed = composeGenerationPrompt(
       scene({ aiVideo: { prompt: raw }, voiceover: "Qwen ships it open-source." }),
+      "wan2.2",
     );
     expect(composed).toContain("amber");
     expect(composed).toContain("#f59e0b");
@@ -190,6 +193,7 @@ describe("entity color detection and injection", () => {
       "Two lanes of glowing particles in deep blue and cyan, no text, no watermark, no hands";
     const composed = composeGenerationPrompt(
       scene({ aiVideo: { prompt: raw }, voiceover: "Qwen ships it open-source." }),
+      "wan2.2",
     );
     expect(composed).not.toContain("#f59e0b");
     expect(composed).toBe(raw);
@@ -203,6 +207,7 @@ describe("composeGenerationPrompt", () => {
     const raw = "One tall glowing vertical bar shrinking beside a short one";
     const composed = composeGenerationPrompt(
       scene({ aiVideo: { prompt: raw }, voiceover: "DeepSeek trained it for less." }),
+      "wan2.2",
     );
     const brandIdx = composed.indexOf(BRAND_BASE_PROMPT);
     const entityIdx = composed.indexOf("#4d8bff");
@@ -215,15 +220,20 @@ describe("composeGenerationPrompt", () => {
   });
 
   test("returns the empty string for a scene without a declared prompt", () => {
-    expect(composeGenerationPrompt(scene({ aiVideo: undefined }))).toBe("");
-    expect(composeGenerationPrompt(scene({ aiVideo: { prompt: "   " } }))).toBe("");
+    expect(composeGenerationPrompt(scene({ aiVideo: undefined }), "wan2.2")).toBe("");
+    expect(composeGenerationPrompt(scene({ aiVideo: { prompt: "   " } }), "wan2.2")).toBe("");
+  });
+
+  test("requires a resolved prompt family — never guesses a default (#922)", () => {
+    expect(() => composeGenerationPrompt(scene())).toThrow(/requires a prompt family/);
+    expect(() => composeGenerationPrompt(scene(), "")).toThrow(/requires a prompt family/);
   });
 
   test("is deterministic and never mutates the scene", () => {
     const s = scene();
     const snapshot = JSON.stringify(s);
-    const a = composeGenerationPrompt(s);
-    const b = composeGenerationPrompt(s);
+    const a = composeGenerationPrompt(s, "wan2.2");
+    const b = composeGenerationPrompt(s, "wan2.2");
     expect(a).toBe(b);
     expect(JSON.stringify(s)).toBe(snapshot);
   });
@@ -231,13 +241,17 @@ describe("composeGenerationPrompt", () => {
   test("strips the declared prompt's trailing full stop when appending", () => {
     const composed = composeGenerationPrompt(
       scene({ aiVideo: { prompt: "A glowing bar with high detail." } }),
+      "wan2.2",
     );
     expect(composed.startsWith("A glowing bar with high detail, dark")).toBe(true);
     expect(composed).not.toContain("detail.,");
   });
 
   test("trim surrounding whitespace of the declared prompt", () => {
-    const composed = composeGenerationPrompt(scene({ aiVideo: { prompt: "  A glowing bar  " } }));
+    const composed = composeGenerationPrompt(
+      scene({ aiVideo: { prompt: "  A glowing bar  " } }),
+      "wan2.2",
+    );
     expect(composed.startsWith("A glowing bar")).toBe(true);
   });
 });
@@ -255,7 +269,7 @@ describe("dimensionDefaultsFor", () => {
   });
 
   test("defaults are suggestions only — composeGenerationPrompt never injects them", () => {
-    const composed = composeGenerationPrompt(scene());
+    const composed = composeGenerationPrompt(scene(), "wan2.2");
     for (const dims of Object.values(VISUAL_TYPE_DIMENSION_DEFAULTS)) {
       expect(composed).not.toContain(dims.camera);
     }
@@ -358,9 +372,9 @@ describe("composeImagePrompt (#155)", () => {
 
   test("video composition is untouched — composeGenerationPrompt still reads aiVideo.prompt", () => {
     const scene = imageScene();
-    expect(composeGenerationPrompt(scene)).toBe("");
+    expect(composeGenerationPrompt(scene, "wan2.2")).toBe("");
     const videoScene = { id: 5, aiVideo: { prompt: "a video prompt" } };
-    expect(composeGenerationPrompt(videoScene)).toContain("a video prompt");
+    expect(composeGenerationPrompt(videoScene, "wan2.2")).toContain("a video prompt");
   });
 
   test("image budget: the same conservative 480-token estimate applies via the explicit limit", () => {
