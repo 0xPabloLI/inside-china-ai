@@ -8,11 +8,12 @@
  */
 
 import { isImageStrategy } from "../scene-rules.mjs";
+import { DEFAULT_RELEVANCE_THRESHOLD } from "../relevance-verdict.mjs";
 
-// Same yardstick as the sourcing-side relevance gate. asset-sourcer.mjs keeps
-// this as a CLI default (`--relevance-threshold`, default "60", not exported),
-// so the constant is mirrored here — keep the two in sync.
-export const GATE_THRESHOLD = 60;
+// Same yardstick as the sourcing-side relevance gate. #294 moved the number
+// into lib/relevance-verdict.mjs; importing it here removes the hand-synced
+// mirror this comment used to describe.
+export const GATE_THRESHOLD = DEFAULT_RELEVANCE_THRESHOLD;
 
 /**
  * The VLM claim the candidates are scored against. #155: image strategies
