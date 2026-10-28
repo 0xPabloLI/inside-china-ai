@@ -15,6 +15,8 @@
  * @module claim-keywords
  */
 
+import { GENERATION_ONLY_STRATEGIES } from "./media-strategies.mjs";
+
 /**
  * Scene types that must never receive media — single source of truth.
  * asset-sourcer imports this; do not mirror the set elsewhere.
@@ -326,13 +328,6 @@ const MAX_KEYWORDS = 3;
 /** Max writer-supplied search phrases per scene (#354). */
 const MAX_SEARCH_HINTS = 4;
 
-/**
- * Strategies that never buy stock (mirrors `shouldSourceStock` in
- * b-roll/orchestrator.mjs). Only derived supply honours this: an explicit
- * `assetNeed` stays the writer's override until #355 unifies the chain.
- */
-const GENERATION_ONLY_STRATEGIES = new Set(["b-roll", "ai-image"]);
-
 /** Words in the primary search phrase. */
 const PRIMARY_PHRASE_WORDS = 4;
 
@@ -364,7 +359,9 @@ export function extractSceneClaims(scenes) {
     if (skipsMediaSourcing(scene)) continue;
 
     const declared = typeof scene.assetNeed === "string" ? scene.assetNeed.trim() : "";
-    if (!declared && scene.media) continue;
+    // `media.path` is the binding test, not the object: a malformed `media: {}`
+    // has no asset to protect, and other checks report the shape.
+    if (!declared && scene.media?.path) continue;
     if (!declared && GENERATION_ONLY_STRATEGIES.has(scene.mediaStrategy)) continue;
 
     const voiceover = typeof scene.voiceover === "string" ? scene.voiceover : "";
@@ -385,6 +382,38 @@ export function extractSceneClaims(scenes) {
 }
 
 /**
+ * Search phrases per scene, including scenes whose claim yields none (an empty
+ * array). Preflight asks two questions of this one map: "does this scene have a
+ * usable claim?" (media coverage) and "would a declared searchHints be read at
+ * all?" (schema check) — building the claim set twice invited the two answers
+ * to drift.
+ *
+ * @param {Array|null} scenes
+ * @returns {Map<number, string[]>} sceneId → phrases
+ */
+export function sceneClaimPhrases(scenes) {
+  const map = new Map();
+  for (const claim of extractSceneClaims(scenes)) {
+    map.set(claim.sceneId, claimQueryPhrases(claim));
+  }
+  return map;
+}
+
+/**
+ * The phrase one `searchHints` entry contributes, or "" when it cannot be
+ * used. Shared by the preflight validator and the runtime normalizer so the
+ * two cannot disagree about what "usable" means.
+ *
+ * @param {unknown} hint
+ * @returns {string}
+ */
+function usableHintPhrase(hint) {
+  if (typeof hint !== "string") return "";
+  if (hint.trim().split(/\s+/).length > PRIMARY_PHRASE_WORDS) return "";
+  return claimToKeywords(hint)[0] ?? "";
+}
+
+/**
  * Whether a scene's `searchHints` are usable (#354): a non-empty array of at
  * most MAX_SEARCH_HINTS short phrases, each of which survives the #635
  * sanitiser without losing words. Preflight uses this so a typo
@@ -398,12 +427,7 @@ export function extractSceneClaims(scenes) {
 export function isUsableSearchHints(hints) {
   if (hints === undefined) return true;
   if (!Array.isArray(hints) || hints.length === 0 || hints.length > MAX_SEARCH_HINTS) return false;
-  return hints.every(
-    (hint) =>
-      typeof hint === "string" &&
-      hint.trim().split(/\s+/).length <= PRIMARY_PHRASE_WORDS &&
-      claimToKeywords(hint).length > 0,
-  );
+  return hints.every((hint) => usableHintPhrase(hint) !== "");
 }
 
 /**
@@ -423,8 +447,7 @@ function normalizeSearchHints(hints) {
   const out = [];
   const seen = new Set();
   for (const hint of hints) {
-    if (typeof hint !== "string") continue;
-    const [phrase] = claimToKeywords(hint);
+    const phrase = usableHintPhrase(hint);
     if (!phrase || seen.has(phrase)) continue;
     seen.add(phrase);
     out.push(phrase);

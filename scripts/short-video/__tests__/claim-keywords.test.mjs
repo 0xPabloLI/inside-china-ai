@@ -94,6 +94,19 @@ describe("extractSceneClaims", () => {
     expect(extractSceneClaims(scenes)).toEqual([]);
   });
 
+  it("derives when a malformed media object carries no path", () => {
+    const scenes = [
+      {
+        id: 7,
+        visualType: "narrative",
+        layout: "media-overlay",
+        voiceover: "A robot arm lifts a block.",
+        media: { type: "image" },
+      },
+    ];
+    expect(extractSceneClaims(scenes)).toHaveLength(1);
+  });
+
   it("does not derive supply for generation-only scenes (#354 shares shouldSourceStock)", () => {
     const base = {
       id: 5,

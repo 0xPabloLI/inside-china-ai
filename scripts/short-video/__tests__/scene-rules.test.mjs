@@ -1526,15 +1526,22 @@ describe("searchHints schema (#354)", () => {
     expect(fail.level).toBe("fail");
   });
 
-  it("fails searchHints on a scene the sourcer skips (declared but no effect)", () => {
+  it("fails searchHints on a scene without a claim path (declared but no effect)", () => {
     const [hookFail] = hintFails([
       scene({ visualType: "hook", searchHints: ["humanoid robot factory"] }),
     ]);
-    expect(hookFail.check).toContain("Scene 2 is sourced");
+    expect(hookFail.check).toContain("Scene 2 has a claim path");
     const [cssFail] = hintFails([
       scene({ layout: "stacked-cards", searchHints: ["humanoid robot factory"] }),
     ]);
-    expect(cssFail.check).toContain("Scene 2 is sourced");
+    expect(cssFail.check).toContain("Scene 2 has a claim path");
+    const [boundFail] = hintFails([
+      scene({
+        media: { type: "image", path: "assets/x.jpg" },
+        searchHints: ["humanoid robot factory"],
+      }),
+    ]);
+    expect(boundFail.check).toContain("Scene 2 has a claim path");
   });
 
   it("fails empty and over-long lists", () => {

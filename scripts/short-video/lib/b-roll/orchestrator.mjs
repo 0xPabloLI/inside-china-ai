@@ -77,15 +77,8 @@ export function planScenes(scenes) {
   });
 }
 
-/**
- * Step 1.5 sourcing rule: a scene that chose pure generation (b-roll or
- * ai-image) must not buy stock assets; `asset-then-*` strategies still source
- * first and only fall back to generation when sourcing left it without media.
- */
-export function shouldSourceStock(scene) {
-  const strategy = scene.mediaStrategy ?? "asset";
-  return strategy !== "b-roll" && strategy !== "ai-image";
-}
+// Step 1.5 sourcing rule, shared with claim derivation (#354).
+export { shouldSourceStock } from "../media-strategies.mjs";
 
 /**
  * Scenes the stage would attempt, before cache and round rules are applied.

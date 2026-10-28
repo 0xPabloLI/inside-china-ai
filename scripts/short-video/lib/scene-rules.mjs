@@ -51,12 +51,12 @@ import {
 } from "./text-slots.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
+import { skipsMediaSourcing, sceneClaimPhrases, isUsableSearchHints } from "./claim-keywords.mjs";
 import {
-  skipsMediaSourcing,
-  extractSceneClaims,
-  claimQueryPhrases,
-  isUsableSearchHints,
-} from "./claim-keywords.mjs";
+  MEDIA_STRATEGIES,
+  IMAGE_GENERATING_STRATEGIES,
+  GENERATING_STRATEGIES,
+} from "./media-strategies.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
 // SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
 // and re-exported through final-media-gate — scene-rules must not hold a copy.
@@ -1213,9 +1213,9 @@ function checkNarrativeMediaWarning(scenes) {
   const mediaScenes = scenes.filter(
     (s) => !skipsMediaSourcing(s) && !GENERATING_STRATEGIES.has(s.mediaStrategy),
   );
-  const claims = new Map(extractSceneClaims(scenes).map((claim) => [claim.sceneId, claim]));
+  const phrases = sceneClaimPhrases(scenes);
   const missing = mediaScenes.filter(
-    (s) => !s.media?.path && claimQueryPhrases(claims.get(s.id)).length === 0,
+    (s) => !s.media?.path && (phrases.get(s.id) ?? []).length === 0,
   );
   if (missing.length === 0) {
     return [
@@ -1248,15 +1248,16 @@ function checkNarrativeMediaWarning(scenes) {
  *  the #836 failure mode applied to the new field. */
 function checkSearchHintsSchema(scenes) {
   const declared = (scenes ?? []).filter((scene) => scene?.searchHints !== undefined);
+  const phrases = sceneClaimPhrases(scenes);
   const findings = [];
   for (const scene of declared) {
-    if (skipsMediaSourcing(scene)) {
+    if (!phrases.has(scene.id)) {
       findings.push({
         level: "fail",
         category: "Media",
-        check: `Search hints schema: Scene ${scene.id} is sourced`,
-        detail: `searchHints is declared on a scene the sourcer skips (${scene.visualType}${scene.layout ? `/${scene.layout}` : ""}${scene.media === null ? ", media: null" : ""}) — nothing reads it`,
-        fix: "Remove searchHints from this scene, or make it sourcing-eligible first (hook scenes are curated by hand; text-first layouts need an explicit assetNeed).",
+        check: `Search hints schema: Scene ${scene.id} has a claim path`,
+        detail: `searchHints is declared on a scene the sourcer never claims (hook / text-first layout / media: null / already bound media / no voiceover) — nothing reads it`,
+        fix: "Remove searchHints from this scene, or make it sourcing-eligible first (hooks are curated by hand; text-first layouts cannot carry evidence — see #761).",
       });
       continue;
     }
@@ -1822,37 +1823,18 @@ export function checkAssetNeedAnnotation(scenes) {
   ];
 }
 
-export const MEDIA_STRATEGIES = [
-  "asset",
-  "b-roll",
-  "asset-then-broll",
-  "ai-image",
-  "asset-then-ai-image",
-];
-// Strategies whose prompt targets a still image (T2I, #155). Their contract
-// field is `aiImage.prompt` (6 dimensions = the video template minus
-// CAMERA/MOTION); every other generating strategy reads `aiVideo.prompt`.
-const IMAGE_GENERATING_STRATEGIES = new Set(["ai-image", "asset-then-ai-image"]);
-const GENERATING_STRATEGIES = new Set([
-  "b-roll",
-  "asset-then-broll",
-  ...IMAGE_GENERATING_STRATEGIES,
-]);
+// The vocabulary lives in a leaf module so claim-keywords (#354) and the B-roll
+// orchestrator can read it without cycling through scene-rules.
+export {
+  MEDIA_STRATEGIES,
+  IMAGE_GENERATING_STRATEGIES,
+  GENERATING_STRATEGIES,
+} from "./media-strategies.mjs";
 
 /** True when the strategy generates a static image rather than a video clip. */
 export function isImageStrategy(strategy) {
   return IMAGE_GENERATING_STRATEGIES.has(strategy);
 }
-
-// Single source of truth for the image strategy set. b-roll/report.mjs
-// imports it instead of mirroring the literal set — a third image strategy
-// must not require a "keep in sync" edit in the report layer.
-export { IMAGE_GENERATING_STRATEGIES };
-
-// Same for the whole generating vocabulary: the asset gap ledger derives its
-// "never buys stock" set from this one, so a new strategy cannot silently
-// enter or miss the ledger (asserted in asset-gap-ledger.test.mjs).
-export { GENERATING_STRATEGIES };
 
 /**
  * Contract for the B-roll fields (`mediaStrategy` / `aiVideo.prompt`).
