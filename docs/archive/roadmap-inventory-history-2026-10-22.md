@@ -2,7 +2,7 @@
 
 > **L3 archive（不再维护）。** 这些是 `docs/issue-roadmap.md`「当前状态」段里逐轮累积的叙述。
 > 2026-10-22 二次下沉：该段此后只保留**当前轮**盘点与最近 4 轮一句话档案，其余整段移到这里。
-> 本文件按时间倒序排列，共 49 轮盘点 + 77 条一句话档案 + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案；Round CI 收尾再下沉 C 盘点与 XCVII 一句话档案；Round CII 收尾再下沉 CI 盘点与 XCVIII 一句话档案；Round CIII 收尾再下沉 CII 盘点与 XCIX 一句话档案；Round CIV 收尾再下沉 CIII 盘点与 C 一句话档案；Round CV 收尾再下沉 CIV 盘点；Round CVI 收尾再下沉 CV 盘点，补记 CVI/CV 一句话档案并下沉 CII 与 CI 一句话档案；Round CVII 收尾再下沉 CVI 盘点，补记 CVII 一句话档案并下沉 CIII 一句话档案；Round CIX 收尾再下沉 CVII 盘点，补记 CIX 一句话档案并下沉 CIV 一句话档案；Round CXI 收尾再下沉 CX 盘点，补记 CXI 一句话档案并下沉 CVI 一句话档案，并按实际条目复核订正计数——此前记 46/75 时盘点已少计 1 轮，本轮净 +1/+1 后为 48/76；Round CXII 收尾再下沉 CXI 盘点，补记 CXII 一句话档案并下沉 CVII 一句话档案，净 +1/+1 后为 49/77）。
+> 本文件按时间倒序排列，共 49 轮盘点 + 77 条一句话档案（其中 CIV 与 L 各含 1 条逐字重复，为本次改动前的既有状态） + 13 条已闭票行 + 114 条表内已闭票叙述（2026-10-24 复核订正：原记 26/57 与实际条目数不符，此前即已失准；Round XCII 收尾再下沉 XCI 盘点和 LXXXVIII 一句话档案；Round XCIII 收尾再下沉 XCII 盘点和 LXXXIX 一句话档案；Round XCIV triage 收尾再下沉 XCIII 盘点与 XC 一句话档案；Round XCV 收尾再下沉 XCIV 盘点与 XCI 一句话档案；Round XCVI 收尾再下沉 XCV 盘点与 XCII 一句话档案；Round XCVII triage 收尾再下沉 XCVI 盘点与 XCIII 一句话档案；Round XCVIII 收尾再下沉 XCVII 盘点与 XCIV 一句话档案；Round XCIX 收尾再下沉 XCVIII 盘点与 XCV 一句话档案；Round C 收尾再下沉 XCIX 盘点与 XCVI 一句话档案；Round CI 收尾再下沉 C 盘点与 XCVII 一句话档案；Round CII 收尾再下沉 CI 盘点与 XCVIII 一句话档案；Round CIII 收尾再下沉 CII 盘点与 XCIX 一句话档案；Round CIV 收尾再下沉 CIII 盘点与 C 一句话档案；Round CV 收尾再下沉 CIV 盘点；Round CVI 收尾再下沉 CV 盘点，补记 CVI/CV 一句话档案并下沉 CII 与 CI 一句话档案；Round CVII 收尾再下沉 CVI 盘点，补记 CVII 一句话档案并下沉 CIII 一句话档案；Round CIX 收尾再下沉 CVII 盘点，补记 CIX 一句话档案并下沉 CIV 一句话档案；Round CXI 收尾再下沉 CX 盘点，补记 CXI 一句话档案并下沉 CVI 一句话档案，并按实际条目复核订正计数——此前记 46/75 时盘点已少计 1 轮，本轮净 +1/+1 后为 48/76；Round CXII 收尾再下沉 CXI 盘点，补记 CXII 一句话档案并下沉 CVII 一句话档案，净 +1/+1 后为 49/77）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -13,7 +13,7 @@
 
 ---
 
-## 逐轮盘点（Round CX → LV）
+## 逐轮盘点（Round CXI → LV）
 
 > 原 `Last inventory` 行的连续轮次段，原样下沉——仅拆成独立段落、去掉行尾一个多余的 `）`（旧行拼接的残留）。
 
