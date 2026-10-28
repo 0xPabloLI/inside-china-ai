@@ -1031,7 +1031,7 @@ export const SELF_MEDIA_SOURCES = [
     accessMethod: {
       primary: "cdp",
       notes:
-        "CDP search (requires login) at /search/{kw}?type=video → iesdouyin share page (no login for download, verified 2026-09-03). needsAuth=true for search only.",
+        "CDP search (requires login) at /search/{kw}?type=video → desktop /video/{id} page's signed CDN tracks → 8s H.264 clip (#314, verified 2026-10-28; the old iesdouyin share page now 302s to an MSE player). needsAuth=true for search only.",
     },
     needsAuth: true,
     useCleanTitle: true,

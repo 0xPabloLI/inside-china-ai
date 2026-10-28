@@ -15,6 +15,7 @@
  */
 
 import { canonicalizeUrl } from "./url-normalizer.mjs";
+import { BROLL_CLIP_SECONDS, brollSectionSpec } from "./media-window.mjs";
 import { cdpNewTab, cdpCloseTab, cdpEval, waitForPageLoad, extractFromTab } from "./cdp-client.mjs";
 import { callMcpTool, parseMcpResult } from "./mcp-client.mjs";
 import {
@@ -204,10 +205,10 @@ const DOUYIN_MEDIA_TRACKS_SCRIPT = `(() => {
 const DOUYIN_TRACK_POLL_INTERVAL_MS = 500;
 const DOUYIN_TRACK_POLL_TIMEOUT_MS = 12000;
 
-/** B-roll clip length, matching yt-dlp's `--download-sections *0:00-0:08`.
- *  Douyin's full tracks are 23-139MB (measured live 2026-10-28), so the
- *  adapter never pulls whole tracks — only the first 8 seconds. */
-const DOUYIN_CLIP_SECONDS = 8;
+/** B-roll clip length, shared with the yt-dlp `--download-sections` spec
+ *  (media-window.mjs). Douyin's full tracks are 23-139MB (measured live
+ *  2026-10-28), so the adapter never pulls whole tracks — only this window. */
+const DOUYIN_CLIP_SECONDS = BROLL_CLIP_SECONDS;
 const DOUYIN_CLIP_TIMEOUT_MS = 120000;
 
 /**
@@ -219,6 +220,11 @@ const DOUYIN_CLIP_TIMEOUT_MS = 120000;
 function douyinTrackList(value) {
   let v = value;
   if (v && !Array.isArray(v)) v = v.result?.value ?? v.value ?? v;
+  // #308: a proxy page-script failure must not read as "no tracks" — it would
+  // burn the poll budget and report a silent empty result.
+  if (v && typeof v === "object" && !Array.isArray(v) && v.error) {
+    throw new Error(`cdp eval failed: ${JSON.stringify(v.error).slice(0, 200)}`);
+  }
   if (typeof v === "string") {
     try {
       v = JSON.parse(v);
@@ -667,7 +673,7 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
     parts.push("--no-playlist");
   } else {
     parts.push("--max-filesize 20M");
-    parts.push('--download-sections "*0:00-0:08"');
+    parts.push(`--download-sections "${brollSectionSpec()}"`);
   }
 
   // #324: --download-sections delegates the fetch to ffmpeg, which only
@@ -1305,7 +1311,7 @@ export async function downloadDouyinCdp(url, opts = {}) {
       });
     }
 
-    return {
+    return makeResult({
       status: "downloaded",
       strategy,
       source,
@@ -1315,7 +1321,7 @@ export async function downloadDouyinCdp(url, opts = {}) {
       extension: "mp4",
       byteLength: buffer.length,
       buffer,
-    };
+    });
   } catch (e) {
     const message = e?.message?.substring(0, 200) || "cdp-error";
     return makeResult({

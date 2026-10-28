@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { canonicalizeUrl } from "../lib/url-normalizer.mjs";
+import { BROLL_CLIP_SECONDS, brollSectionSpec } from "../lib/media-window.mjs";
 import {
   selectStrategy,
   ADAPTER_IDS,
@@ -60,6 +61,13 @@ validBuffer.writeUInt32BE(0x20, 0); // box size
 validBuffer.write("ftyp", 4, "ascii"); // box type
 
 // ─── T-VDL-1: canonicalizeUrl ───
+
+describe("media-window", () => {
+  it("is the single 8s B-roll source shared by yt-dlp and the douyin clip", () => {
+    expect(BROLL_CLIP_SECONDS).toBe(8);
+    expect(brollSectionSpec()).toBe("*0:00-0:08");
+  });
+});
 
 describe("canonicalizeUrl", () => {
   it("strips query string and fragment", () => {
@@ -891,6 +899,11 @@ describe("douyin-cdp adapter (#314)", () => {
       expect(result.extension).toBe("mp4");
       expect(result.byteLength).toBe(clip.length);
       expect(result.buffer).toBe(clip);
+      // makeResult supplies the documented contract defaults, not undefined.
+      expect(result.durationMs).toBe(0);
+      expect(result.provenance).toEqual(
+        expect.objectContaining({ adapterVersion: expect.any(String) }),
+      );
       expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
     });
 
@@ -951,6 +964,20 @@ describe("douyin-cdp adapter (#314)", () => {
       expect(result.byteLength).toBe(clip.length);
       expect(clipFn).toHaveBeenCalledTimes(1);
       expect(clipFn.mock.calls[0][0]).toMatchObject({ videoUrl: VIDEO_TRACK, audioUrl: null });
+      expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+    });
+
+    it("surfaces a proxy eval error instead of polling it as an empty track list", async () => {
+      const fakes = makeDouyinFakes();
+      fakes.evalFn = async () => ({ error: "Script execution failed" });
+      const clipFn = vi.fn();
+
+      const result = await downloadDouyinCdp(SOURCE_URL, { ...fakes, clipFn });
+
+      expect(result.status).toBe("failed");
+      expect(result.reason).toContain("cdp eval failed");
+      expect(result.retryable).toBe(true);
+      expect(clipFn).not.toHaveBeenCalled();
       expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
     });
 

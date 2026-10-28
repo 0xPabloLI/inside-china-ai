@@ -36,7 +36,7 @@
  * @module progressive-search
  */
 
-import { ALL_SOURCES, imageApiSourceMetadata } from "./source-registry.mjs";
+import { ALL_SOURCES, imageApiSourceMetadata, resolveLoginGate } from "./source-registry.mjs";
 import { ensureSearxng } from "../../searxng/lifecycle.mjs";
 
 // Resolve an image source's registry declaration by name. The pool entries and
@@ -598,11 +598,11 @@ export async function searchCdpVideoSource(source, keyword, options = {}) {
     // #314: douyin's search page needs a logged-in profile. Run the same gate
     // as the article path before extracting, so an expired login is reported
     // as a gate hit instead of "0 videos" (silent empty-result failure).
-    const gate = await runPageGates({
-      tabId,
-      needsAuth: !!source.needsAuth,
-      loginCheckScript: source.loginCheckScript || null,
-    });
+    // #314: run the same gate as the article path. The flattened video source
+    // carries the fields at top level; resolveLoginGate is the single resolver
+    // the other page-gate call sites use, so a future precedence change lands
+    // everywhere at once.
+    const gate = await runPageGates({ tabId, ...resolveLoginGate(source) });
     if (gate) {
       console.warn(
         `  ⛔ ${source.name} video search gated (${gate.gate}: ${gate.status}) — skipping source`,

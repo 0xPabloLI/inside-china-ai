@@ -64,6 +64,7 @@ import { tmpdir } from "os";
 import { fileURLToPath, pathToFileURL } from "url";
 import { execFileSync } from "child_process";
 import { ALL_SOURCES, SOURCE_ATTRIBUTIONS, SUPPORTED_YTDLP_PLATFORMS } from "./source-registry.mjs";
+import { brollSectionSpec } from "./media-window.mjs";
 import {
   getCachedSearchResults,
   getOrSearchResults,
@@ -2071,7 +2072,7 @@ export function downloadYtdlp(url, destPath) {
     "--max-filesize",
     "20M",
     "--download-sections",
-    "*0:00-0:08",
+    brollSectionSpec(),
     // #324: --download-sections delegates the fetch to ffmpeg, which only
     // reads a lowercase http_proxy — hand yt-dlp the proxy explicitly.
     ...(proxy ? ["--proxy", proxy] : []),
