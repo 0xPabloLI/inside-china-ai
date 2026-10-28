@@ -1,6 +1,6 @@
 # Asset Source Quick Reference
 
-> Status: Active — last updated 2026-09-04
+> Status: Active — last updated 2026-10-28
 > Scope: Human-readable quick reference for all content sources — both **multimedia assets** (images, videos, audio for video production) and **text content** (articles, news, trending topics for trend discovery and script writing).
 >
 > **When to use this doc**: When deciding which sources to use for a new content piece, checking which API keys are needed, or evaluating a new source for integration. Not for pipeline consumption — pipeline reads `asset-sourcer.mjs` and `source-registry.mjs` source definitions directly.
@@ -11,7 +11,7 @@
 | --- | --------------------- | ------------ | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------------------------------------- |
 | 1   | **YouTube**           | Video        | ❌ No                    | Firefox cookies (`--cookies-from-browser firefox`)                                                                                        | ✅ Working                                  | Product demos, company videos             |
 | 2   | **B站 (Bilibili)**    | Video        | ❌ No                    | `bilibili-api-python` (search) + `yt-dlp --cookies-from-browser firefox` (download)                                                       | ✅ **Search + Download tested**             | Chinese tech content, UP主 videos         |
-| 3   | **抖音 (Douyin)**     | Video        | ❌ No                    | [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API) (19K stars)                                         | ✅ CDP download verified 2026-09-03         | Chinese viral content, short clips        |
+| 3   | **抖音 (Douyin)**     | Video        | ❌ No                    | [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API) (19K stars)                                         | ✅ CDP download re-verified 2026-10-28 (signed-track 8s clip) | Chinese viral content, short clips        |
 | 4   | **小红书 (XHS)**      | Image/Video  | ❌ No                    | [RedNote-MCP](https://github.com/iFurySt/RedNote-MCP) (npm) or [XHS-Downloader](https://github.com/JoeanAmier/XHS-Downloader) (12K stars) | ✅ Search verified 2026-09-04 (rednote-mcp) | Product photos, lifestyle shots           |
 | 5   | **微博 (Weibo)**      | Image/Video  | ❌ No                    | [weibo-downloader-skill](https://github.com/belingud/weibo-downloader-skill) (visitor cookie, no login)                                   | ✅ API tested                               | News clips, trending topics               |
 | 6   | **Pexels**            | Image+Video  | ✅ `PEXELS_API_KEY`      | `Authorization: KEY` header                                                                                                               | ✅ Working                                  | Generic B-roll, abstract backgrounds      |
@@ -101,14 +101,14 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 | ----------- | ------------------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------ |
 | **YouTube** | MCP fallback (search)                            | `yt-dlp --cookies-from-browser firefox`                                   | No                                                     | ✅ Download re-verified 2026-09-04                     |
 | **B站**     | `bilibili-api-python` (search) + CDP fallback    | `yt-dlp --cookies-from-browser firefox`                                   | No                                                     | ✅ Search + Download re-verified 2026-09-04            |
-| **抖音**    | CDP（需登录）`/search/{kw}?type=video`           | CDP `iesdouyin.com/share/video/` → `video.currentSrc` → curl with Referer | Search ✅ 2026-09-23（需登录）+ Download ✅ 2026-09-03 |
-| **小红书**  | CDP (needs login) → MCP fallback (RedNote-MCP)   | RedNote-MCP or XHS-Downloader                                             | Yes (both)                                             | ✅ search_notes verified 2026-09-04; download untested |
+| **抖音**    | CDP（需登录）`/search/{kw}?type=video`           | CDP `/video/{id}` → `performance` 签名轨道 → ffmpeg 取前 8s 转 H.264 | Yes (search)                                           | Search ✅ 2026-09-23 + Download ✅ 2026-10-28（旧 share-page 法已失效） |
+| **小红书**  | CDP (needs login) → MCP fallback (RedNote-MCP)   | RedNote-MCP or XHS-Downloader                                             | Yes (both)                                             | ✅ search_notes verified 2026-09-04; download untested；视频发现未声明（2026-10-28 登录态过期） |
 | **微博**    | CDP (search needs login) → Google site: fallback | weibo-downloader-skill (visitor cookie, no login)                         | Search: yes, Download: no                              | ✅ Download API tested                                 |
 | **TikTok**  | ScrapeCreators API (primary, no login)           | `yt-dlp` (cookieless) via `downloadVideo()`                               | No (search)                                            | ✅ Download re-verified 2026-10-16 (2/2 samples)       |
 
-> **抖音下载** (verified 2026-09-03) — CDP 访问 `https://www.iesdouyin.com/share/video/{video_id}`（无需 cookie/登录），从 `<video>` 元素的 `currentSrc` 提取 CDN 下载链接，用 `curl -H "Referer: https://www.douyin.com/"` 下载。注意：chubbyskills 的 SSR 方案（从 `window._ROUTER_DATA` 提取 `videoInfoRes`）已失效——页面结构变化，`videoInfoRes` 不再存在；但 CDP 方案（客户端 JS 渲染后从 video 元素提取）可用。测试样本：video ID `7680095489249536842`（滴滴自动驾驶 R2），下载 327KB MP4 成功。
-
-> **抖音搜索（正确路由，2026-09-23 实测）** — `https://www.douyin.com/search/{keyword}?type=video`，**`?type=video` 是必需的**：综合 tab（默认）的结果卡是纯 `div` + 背景图，卡内一个 `<a href>` 都没有 → 抽取恒为 0 条（看着「源已烂」）；视频 tab 每张卡带 `//www.douyin.com/video/{id}` → 实测 20 条真结果。从首页搜索框提交会落到 `/jingxuan/search/{kw}?type=general`（**可达但同样抽不到**）——所以别拿搜索框落点当修复。登录入口 `/passport/login` 被风控拦（`error_code:22` 非法应用），登录必须手动做，但**登录本身有效**。详见 `docs/selector-auto-healing.md` §第三条轴。
+> **抖音下载（2026-10-28 重测，取代 2026-09-03 的 share-page 法）** — `iesdouyin.com/share/video/{id}` 现在 302 到 `www.douyin.com/video/{id}`，播放器走 MSE（`<video>.currentSrc` 是 `blob:`，拿不到 CDN 链接）；旧方法因此失效。新方法：打开 `/video/{id}`，从 `performance.getEntriesByType("resource")` 取 `douyinvod.com` 的签名 `mime_type=video_mp4` 轨道（画面与声音是两条独立 URL），用 ffmpeg 带 `Referer: https://www.douyin.com/` 直接读 URL、`-t 8` 只取前 8 秒并转 H.264/AAC。实测（2026-10-28，人工智能搜索结果）：前 4 条完整轨道 23–139MB，裁剪后 0.5–1.9MB、约 2–3s；输出 720×1280 H.264+AAC，8.00s。`window._ROUTER_DATA` 的 SSR 方案仍不可用（只有页面元数据，无 play_addr）。
+>
+> **抖音搜索（正确路由，2026-09-23 实测）** — `https://www.douyin.com/search/{keyword}?type=video`，**`?type=video` 是必需的**：综合 tab（默认）的结果卡是纯 `div` + 背景图，卡内一个 `<a href>` 都没有 → 抽取恒为 0 条（看着「源已烂」）；视频 tab 每张卡带 `//www.douyin.com/video/{id}` → 实测 20 条真结果。从首页搜索框提交会落到 `/jingxuan/search/{kw}?type=general`（**可达但同样抽不到**）——所以别拿搜索框落点当修复。登录入口 `/passport/login` 被风控拦（`error_code:22` 非法应用），登录必须手动做，但**登录本身有效**。详见 `docs/selector-auto-healing.md` §第三条轴。2026-10-28 复测：20 条真结果 → 规范化 20 条 → 下载链路出 8s H.264 成片（#314）。
 
 > **TikTok 下载** (re-verified **2026-10-16**, supersedes the 2026-08-24 CDP method) — **默认走 `yt-dlp`，cookieless**：`downloadVideo(url)` 路由到 ytdlp adapter（`-f "b[height<=1920]/b" --no-playlist`，长边封顶 1920；TikTok 多为 9:16，`height` 是长边）。实测 2/2：`@rileybrown.ai`（85s）与 `@marcus.dipaola`（323s）各得单个 1080×1920 HEVC+AAC mp4（3.8–18.7MB，17–27s）。两个必须知道的前提：**非 HK 出口**（香港被 TikTok 拒服务，`ytdlpProxyArg()` 已把系统代理显式传给 yt-dlp），以及 **yt-dlp 版本**（2026.07.04 报 "Unexpected response from webpage request"，2026.08.19 正常——旧二进制看起来就像「yt-dlp 抓不了 TikTok」）。
 >
@@ -120,7 +120,7 @@ No key needed for: YouTube, B站, Wikimedia Commons, Mixkit, Internet Archive, a
 > - **B站** (yt-dlp + Firefox cookies): `BV1DPbc68EjK` → mp4，163.1s，8,977,576 B（bv+ba 合并）✅；搜索 API `api.bilibili.com/x/web-interface/search/all/v2` 无登录可用（code 0）✅
 > - **小红书** (rednote-mcp `--stdio` + `search_notes`): 2026-08-21 的 cookies 仍有效，`{"keywords": "人工智能", "limit": 3}` 返回 3 条完整笔记（标题/正文/点赞/链接）✅。注意：bin 必须以 `rednote-mcp --stdio` 启动（无标志会进 CLI help），参数名是复数 `keywords`
 > - **Cobalt v11.7.1** (localhost:9000): YouTube 返回 tunnel URL 但拉流 0 字节（HTTP 200 空 body、无 content-type）——较上次 smoke（tunnel ✅）降级；TikTok `error.api.fetch.fail`；抖音 `error.api.link.invalid`（douyin 不在 services 列表）。维持「不作为核心依赖」结论
-> - **TikTok** CDP `item/detail`（✅ 2026-08-24）与**抖音** iesdouyin CDP share page（✅ 2026-09-03，327KB MP4）沿用上文已记录证据，本次未重跑（需 CDP 浏览器会话）
+> - **TikTok** CDP `item/detail`（✅ 2026-08-24）与**抖音** iesdouyin CDP share page（✅ 2026-09-03，327KB MP4）沿用上文已记录证据，本次未重跑（需 CDP 浏览器会话）；抖音 share-page 法已于 2026-10-28 失效并被 `/video/{id}` + 签名轨道法取代
 
 ### Video Download Layer (VDL) — Unified adapter registry
 
@@ -184,7 +184,7 @@ Text sources collect article titles + URLs for trend discovery and script writin
 | T9  | **搜狗微信** (sogou_weixin) | Article URLs | No          | ✅ Working                            | WeChat公众号文章搜索              |
 | T10 | **微博热搜** (weibo_hot)    | Hot topics   | No          | ✅ Working                            | Trending topics, public sentiment |
 | T11 | **B站搜索** (bilibili)      | Video URLs   | No          | ⚠️ 412 intermittent                   | Tech video search                 |
-| T12 | **抖音搜索** (douyin)       | Video URLs   | Yes (login) | ✅ 2026-09-23（登录 + `?type=video`） | Viral content discovery           |
+| T12 | **抖音搜索** (douyin)       | Video URLs   | Yes (login) | ✅ 2026-10-28（搜索 + 8s H.264 下载；`?type=video`） | Viral content discovery           |
 | T13 | **TikTok Creator**          | Video URLs   | Yes (login) | ⚠️ Needs login                        | International TikTok trends       |
 | T14 | **知乎** (zhihu)            | Q&A URLs     | No          | ✅ Working                            | Deep-dive discussions             |
 | T15 | **X (Twitter)**             | Posts        | Yes (login) | ⚠️ Needs login                        | International AI discourse        |

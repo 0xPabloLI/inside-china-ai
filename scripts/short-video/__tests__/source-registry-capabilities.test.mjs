@@ -642,9 +642,14 @@ describe("#249 — baidu_search media CDP capabilities", () => {
     expect(baidu.capabilities.articles.url("kw AI")).toContain("www.baidu.com/s");
   });
 
-  it("sources without videoUrl keep the shared media URL for videos (regression)", () => {
-    const qbitai = ALL_SOURCES.find((s) => s.name === "qbitai");
-    expect(qbitai.capabilities.videos.url("kw")).toBe(qbitai.capabilities.images.url("kw"));
+  it("baidu_search is the only CDP media entry declaring videos (#314)", () => {
+    // #314 removed the 8 unverified news video declarations; douyin's video
+    // channel is video-only (no images capability), so it never appears here.
+    const cdpVideos = ALL_SOURCES.filter(
+      (s) => s.capabilities?.videos?.method === "cdp" && s.capabilities.images,
+    );
+    expect(cdpVideos.map((s) => s.name)).toEqual(["baidu_search"]);
+    expect(ALL_SOURCES.find((s) => s.name === "qbitai").capabilities.videos).toBeUndefined();
   });
 
   it("attributes media from baidu via the shared SOURCE_ATTRIBUTIONS entry", () => {

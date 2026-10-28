@@ -704,6 +704,52 @@ export const NEWS_SOURCES = [
 
 // ─── New self-media sources (TE-T2) ───
 
+// #314: douyin's search extractor and login gate are also used by the CDP
+// video-only discovery channel (CDP_VIDEO_CAPABILITIES), so they live at
+// module scope instead of inline in the source definition.
+const DOUYIN_SEARCH_SCRIPT = `
+      var results = [];
+      // 卡片类名是 CSS-module hash（search-result-card / PtY9QFFE），DOM 一改就漂，
+      // 所以只用语义锚点：视频详情链接。综合 tab 无此链接，故 url 必须带 type=video。
+      document.querySelectorAll('a[href*="/video/"]').forEach(function(a) {
+        // 锚文本是「时长 + 播放量 + 标题 + 话题 + 作者 + 日期」的拼接，直接取会得到
+        // "04:181195Meta的Muse真的…" 这种脏标题。标题是锚内**最长的单个文本块**
+        // （实测：标题 65/114/90 字符 vs 时长 5、播放量 4、作者 9）——按最长块取。
+        var best = '';
+        a.querySelectorAll('div, span, p').forEach(function(el) {
+          var own = '';
+          for (var i = 0; i < el.childNodes.length; i++) {
+            if (el.childNodes[i].nodeType === 3) own += el.childNodes[i].textContent;
+          }
+          own = own.trim();
+          if (own.length > best.length) best = own;
+        });
+        var title = best || (a.getAttribute('title') || a.textContent || '').trim();
+        if (title && title.length > 5) results.push({ title: title, url: a.href });
+      });
+      return results;
+    `;
+
+// 旧的 `[class*="login"]` + 正文含「登录」在登录态下会假阳（导航里有登录相关
+// 文案），改为「没有结果链接 **且** 页面在喊登录」才算未登录。
+// #346: return 之前缺失 → 这个门从未生效（checkLogin 的契约见文件头）。
+// #314: 结果卡是客户端水合出来的（同一类竞态见 zhihu 的 zero_results 记录）：
+// 加载完成后立刻查链接会得到 0 条。强登录墙文案（登录后查看/请先登录/扫码登录）
+// 仍立即判决；只有弱文案「登录账号」（登录态导航里也会出现）或正文尚无内容时，
+// 先等最多 3s 让结果卡出现，再决定是否判 need_login。
+const DOUYIN_LOGIN_CHECK_SCRIPT = `
+      var body = document.body ? document.body.innerText : '';
+      if (/登录后查看|请先登录|扫码登录/.test(body)) return 'need_login';
+      var videos = document.querySelectorAll('a[href*="/video/"]').length;
+      var weakLogin = /登录账号/.test(body);
+      var deadline = Date.now() + 3000;
+      while (videos === 0 && Date.now() < deadline) {
+        await new Promise(function (r) { setTimeout(r, 500); });
+        videos = document.querySelectorAll('a[href*="/video/"]').length;
+      }
+      return (videos === 0 && weakLogin) ? 'need_login' : 'ok'
+    `;
+
 export const SELF_MEDIA_SOURCES = [
   {
     name: "xhs",
@@ -985,7 +1031,7 @@ export const SELF_MEDIA_SOURCES = [
     accessMethod: {
       primary: "cdp",
       notes:
-        "CDP search (requires login) at /search/{kw}?type=video → iesdouyin share page (no login for download, verified 2026-09-03). needsAuth=true for search only.",
+        "CDP search (requires login) at /search/{kw}?type=video → desktop /video/{id} page's signed CDN tracks → 8s H.264 clip (#314, verified 2026-10-28; the old iesdouyin share page now 302s to an MSE player). needsAuth=true for search only.",
     },
     needsAuth: true,
     useCleanTitle: true,
@@ -998,36 +1044,8 @@ export const SELF_MEDIA_SOURCES = [
     // 才是可用路由。复测证据见 docs/selector-auto-healing.md。
     url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}?type=video`,
 
-    // 旧的 `[class*="login"]` + 正文含「登录」在登录态下会假阳（导航里有登录相关
-    // 文案），改为「没有结果链接 **且** 页面在喊登录」才算未登录。
-    // #346: return 之前缺失 → 这个门从未生效（checkLogin 的契约见文件头）。
-    loginCheckScript: `
-      var body = document.body ? document.body.innerText : '';
-      var videos = document.querySelectorAll('a[href*="/video/"]').length;
-      return (videos === 0 && /登录账号|登录后查看|请先登录/.test(body)) ? 'need_login' : 'ok'
-    `,
-    articleScript: `
-      var results = [];
-      // 卡片类名是 CSS-module hash（search-result-card / PtY9QFFE），DOM 一改就漂，
-      // 所以只用语义锚点：视频详情链接。综合 tab 无此链接，故 url 必须带 type=video。
-      document.querySelectorAll('a[href*="/video/"]').forEach(function(a) {
-        // 锚文本是「时长 + 播放量 + 标题 + 话题 + 作者 + 日期」的拼接，直接取会得到
-        // "04:181195Meta的Muse真的…" 这种脏标题。标题是锚内**最长的单个文本块**
-        // （实测：标题 65/114/90 字符 vs 时长 5、播放量 4、作者 9）——按最长块取。
-        var best = '';
-        a.querySelectorAll('div, span, p').forEach(function(el) {
-          var own = '';
-          for (var i = 0; i < el.childNodes.length; i++) {
-            if (el.childNodes[i].nodeType === 3) own += el.childNodes[i].textContent;
-          }
-          own = own.trim();
-          if (own.length > best.length) best = own;
-        });
-        var title = best || (a.getAttribute('title') || a.textContent || '').trim();
-        if (title && title.length > 5) results.push({ title: title, url: a.href });
-      });
-      return results;
-    `,
+    loginCheckScript: DOUYIN_LOGIN_CHECK_SCRIPT,
+    articleScript: DOUYIN_SEARCH_SCRIPT,
   },
   {
     name: "tiktok_creator",
@@ -2941,6 +2959,14 @@ export const STOCK_MEDIA_SOURCES = [
 // self-hosted <video> sources + B站/YouTube iframe embeds. Player iframes are
 // converted to watch URLs here too (defense-in-depth) — normalizeCdpVideoCandidates
 // on the Node side handles any embed forms this script misses.
+//
+// #314 (2026-10-28): the 8 news sources that used to declare this script were
+// removed — a live per-site check (keyword 人工智能; 26 article pages across the
+// 6 sites that returned search results) found 0 <video>/iframe players, and a
+// broader probe of 12 of those pages found 0 players among all iframes too.
+// jiqizhixin/zhidx returned 0 search results, so their declarations are removed
+// as unverified rather than proven empty. The script still backs baidu_search's
+// verified vsearch vertical.
 const CDP_VIDEO_SCRIPT = `
   var results = [];
   document.querySelectorAll('video').forEach(function(v) {
@@ -2961,6 +2987,26 @@ const CDP_VIDEO_SCRIPT = `
   });
   return results;
 `;
+
+// ─── CDP video-only discovery (no image channel) ───
+//
+// #314: a separate channel from CDP_MEDIA_CAPABILITIES, because any entry in
+// that map also declares `capabilities.images` unconditionally. Douyin has a
+// verified video search page but no verified image discovery, so declaring it
+// there would over-claim images. Declaration rule (ticket #314, user decision
+// 2026-09-19): a source appears here only after an end-to-end live check —
+// search yields real post links AND the download path produces a playable file.
+const CDP_VIDEO_CAPABILITIES = {
+  douyin: {
+    method: "cdp",
+    url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}?type=video`,
+    videoScript: DOUYIN_SEARCH_SCRIPT,
+    needsAuth: true,
+    loginCheckScript: DOUYIN_LOGIN_CHECK_SCRIPT,
+    // Verified 2026-10-28: 20 real /video/ results for 人工智能 in the automation
+    // profile; desktop page tracks + ffmpeg mux produce a playable mp4.
+  },
+};
 
 const CDP_MEDIA_CAPABILITIES = {
   // baidu_news CDP media capability removed with the source (2026-09-07,
@@ -3012,7 +3058,6 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   qbitai: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: () => "https://www.qbitai.com/",
     imageScript: `
       var results = [];
@@ -3040,7 +3085,6 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   ithome: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.list .item, .news-list .item, article, .search-result .item');
@@ -3072,7 +3116,6 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   jiqizhixin: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.jiqizhixin.com/search?keywords=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item');
@@ -3106,7 +3149,6 @@ const CDP_MEDIA_CAPABILITIES = {
   // former google_news image capability moved here (same news-vertical DOM).
   google_search: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) =>
       `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
     imageScript: `
@@ -3150,7 +3192,6 @@ const CDP_MEDIA_CAPABILITIES = {
   // comment; re-adding an entry requires a real original-image path.
   xinhua: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.news.cn/search/news.htm?keyword=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
@@ -3182,7 +3223,6 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   thepaper: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.thepaper.cn/searchResult?keyword=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
@@ -3214,7 +3254,6 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   leiphone: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.leiphone.com/search?s=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.article-list .item, .post-item, article, .search-result .item');
@@ -3248,7 +3287,6 @@ const CDP_MEDIA_CAPABILITIES = {
   // #140 P5 — docs/research/zh-source-recovery-research-2026-09.md).
   zhidx: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://zhidx.com/?s=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
@@ -3866,15 +3904,21 @@ function enrichWithCapabilities(sources) {
       capabilities.images = CDP_MEDIA_CAPABILITIES[source.name];
     }
 
-    // Videos: CDP sources declaring a videoScript (#183). videoUrl overrides
-    // the shared media URL when the video vertical lives on a different path
-    // (baidu_search, #249).
-    if (CDP_MEDIA_CAPABILITIES[source.name]?.videoScript) {
+    // Videos: CDP media entries with a videoScript (#183/#249) plus the
+    // video-only discovery channel (#314). One block, so the capability shape
+    // and its auth metadata cannot drift between the two channels. videoUrl
+    // overrides the media URL for a separate video vertical (baidu_search).
+    // The login gate resolver keeps the #199 precedence: capabilities.articles
+    // wins over the top-level source fields.
+    const mediaCap = CDP_MEDIA_CAPABILITIES[source.name];
+    const videoOnlyCap = CDP_VIDEO_CAPABILITIES[source.name];
+    const cdpVideoCap = videoOnlyCap ?? (mediaCap?.videoScript ? mediaCap : null);
+    if (cdpVideoCap) {
       capabilities.videos = {
         method: "cdp",
-        url:
-          CDP_MEDIA_CAPABILITIES[source.name].videoUrl || CDP_MEDIA_CAPABILITIES[source.name].url,
-        videoScript: CDP_MEDIA_CAPABILITIES[source.name].videoScript,
+        url: cdpVideoCap.videoUrl || cdpVideoCap.url,
+        videoScript: cdpVideoCap.videoScript,
+        ...resolveLoginGate({ ...source, capabilities }),
       };
     }
 
