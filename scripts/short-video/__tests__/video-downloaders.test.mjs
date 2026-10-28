@@ -1416,7 +1416,7 @@ describe("XhsCdp adapter (#1004)", () => {
     let round = 0;
     return {
       calls,
-      cdpNewTab: async (url) => {
+      cdpNewTabFn: async (url) => {
         if (newTabError) throw newTabError;
         calls.tabs.push(url);
         return "tab-1";
@@ -1425,7 +1425,7 @@ describe("XhsCdp adapter (#1004)", () => {
         calls.loadedTabs.push(tabId);
         return true;
       },
-      cdpCloseTab: async (tabId) => {
+      cdpCloseTabFn: async (tabId) => {
         calls.closedTabs.push(tabId);
       },
       sleepFn: async (ms) => {

@@ -2818,7 +2818,7 @@ describe("CDP_VIDEO_SOURCES", () => {
   it("derives exactly the verified CDP video sources (#314)", () => {
     expect(names).toContain("baidu_search");
     expect(names).toContain("douyin");
-    // #1004: xhs's search page was live-verified (14/27 video notes).
+    // #1004: xhs's search page was live-verified (13-14 of 27 video notes across runs).
     expect(names).toContain("xhs");
     // #314: the generic news script found 0 players on 5 live article pages
     // per site (2026-10-28) — the declarations are gone.

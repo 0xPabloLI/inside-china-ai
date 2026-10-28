@@ -242,6 +242,13 @@ function unwrapEvalValue(raw) {
     if (v.result && typeof v.result === "object" && "value" in v.result) v = v.result.value;
     else if ("value" in v) v = v.value;
   }
+  if (typeof v === "string") {
+    try {
+      v = JSON.parse(v);
+    } catch {
+      return v;
+    }
+  }
   if (v && typeof v === "object" && !Array.isArray(v) && v.error) {
     throw new Error(`cdp eval failed: ${JSON.stringify(v.error).slice(0, 200)}`);
   }
@@ -1467,7 +1474,7 @@ export async function downloadRednoteMcp(url, opts = {}) {
   }
 
   const dl = await downloader(videoUrl, {
-    headers: { Referer: "https://www.xiaohongshu.com/" },
+    headers: { Referer: XHS_REFERER },
   });
   if (dl.status !== "downloaded") {
     return makeResult({
@@ -1508,13 +1515,13 @@ export async function downloadRednoteMcp(url, opts = {}) {
  * requests media are all reported by name, never as a silent empty.
  *
  * @param {string} url - xiaohongshu note URL (xsec_token included when known)
- * @param {object} [opts] - injectable seams: cdpNewTab, cdpCloseTab, evalFn,
- *   sleepFn, clipFn
+ * @param {object} [opts] - injectable seams: cdpNewTabFn, cdpCloseTabFn,
+ *   waitForPageLoadFn, evalFn, sleepFn, clipFn
  * @returns {Promise<DownloadResult>}
  */
 export async function downloadXhsCdp(url, opts = {}) {
-  const newTab = opts.cdpNewTab || cdpNewTab;
-  const closeTab = opts.cdpCloseTab || cdpCloseTab;
+  const newTab = opts.cdpNewTabFn || cdpNewTab;
+  const closeTab = opts.cdpCloseTabFn || cdpCloseTab;
   const waitForPageLoadFn = opts.waitForPageLoadFn || waitForPageLoad;
   const evalFn = opts.evalFn || cdpEval;
   const sleepFn = opts.sleepFn || ((ms) => new Promise((r) => setTimeout(r, ms)));

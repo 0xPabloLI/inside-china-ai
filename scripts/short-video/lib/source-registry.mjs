@@ -3043,8 +3043,9 @@ const CDP_VIDEO_CAPABILITIES = {
     // Candidate URLs carry short-lived xsec_token values; a cached search
     // result replayed hours later is a dead link for every note.
     cacheable: false,
-    // Verified 2026-10-28: 14/27 video notes for 人工智能, token-bearing cover
-    // links, signed mp4 via resource timing, 8s H.264 clip downloaded.
+    // Verified 2026-10-28: 13-14 video notes of 27 cards for 人工智能 across
+    // runs (14/27 on the first), token-bearing cover links, signed mp4 via
+    // resource timing, 8s H.264 clip downloaded.
   },
 };
 
