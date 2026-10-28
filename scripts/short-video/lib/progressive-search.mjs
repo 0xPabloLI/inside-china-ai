@@ -640,8 +640,11 @@ export async function searchCdpVideoSource(source, keyword, options = {}) {
  *   (platform "youtube")
  * - Douyin post URLs (douyin.com/video/{id}, iesdouyin.com/share/video/{id})
  *   kept as-is with platform null (#314 — downloaded by the douyin-cdp adapter)
+ * - XHS note URLs (xiaohongshu.com/explore/{id}, /search_result/{id}) kept
+ *   verbatim — the `xsec_token` query IS the access credential — with platform
+ *   null; deduped by note id so two tokens for one note collapse (#1004)
  * - Direct self-hosted video sources kept as-is (platform null)
- * - Dedupe by URL; non-video URLs dropped.
+ * - Dedupe by URL (or note id for xhs); non-video URLs dropped.
  *
  * @param {Array} raw - Raw extraction output (may be null/undefined)
  * @param {string} sourceName - Source name stamped into candidates
@@ -658,6 +661,7 @@ export function normalizeCdpVideoCandidates(raw, sourceName, keyword = "") {
     url = url.trim();
 
     let platform = null;
+    let dedupeKey = null;
     let m = url.match(/player\.bilibili\.com\/player\.html\?.*?bvid=([\w]+)/);
     if (m) {
       url = `https://www.bilibili.com/video/${m[1]}`;
@@ -677,14 +681,24 @@ export function normalizeCdpVideoCandidates(raw, sourceName, keyword = "") {
     ) {
       url = `https://www.douyin.com/video/${m[1]}`;
       platform = null;
+    } else if (
+      // #1004: xhs note URL. Keep it verbatim (query included): the
+      // `xsec_token` is what makes the note reachable. Identity is the note
+      // id, so explore/search_result forms and token refreshes dedupe.
+      (m = url.match(
+        /^https?:\/\/(?:www\.)?xiaohongshu\.com\/(?:explore|search_result)\/([0-9a-f]+)(?:[/?#]|$)/i,
+      ))
+    ) {
+      platform = null;
+      dedupeKey = `xhs:${m[1]}`;
     } else if (/^https?:\/\//i.test(url) && /\.(mp4|webm|m3u8|mov|ogg)([?#]|$)/i.test(url)) {
       platform = null; // self-hosted direct video source
     } else {
       continue; // relative/data:/garbage
     }
 
-    if (seen.has(url)) continue;
-    seen.add(url);
+    if (seen.has(dedupeKey ?? url)) continue;
+    seen.add(dedupeKey ?? url);
     out.push({
       url,
       title: item.title || keyword,

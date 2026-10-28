@@ -512,9 +512,9 @@ describe("buildExpectedYieldSources", () => {
   const sources = buildExpectedYieldSources();
   const byName = new Map(sources.map((row) => [row.source, row]));
 
-  it("lists all 24 distinct expected sources exactly once", () => {
-    expect(sources).toHaveLength(24);
-    expect(new Set(sources.map((row) => row.source)).size).toBe(24);
+  it("lists all 25 distinct expected sources exactly once", () => {
+    expect(sources).toHaveLength(25);
+    expect(new Set(sources.map((row) => row.source)).size).toBe(25);
   });
 
   it("derives capabilities from API, yt-dlp, CDP, and Tier 3 phases", () => {
@@ -525,6 +525,7 @@ describe("buildExpectedYieldSources", () => {
     // 5 live article pages); douyin has a verified video search page.
     expect(byName.get("qbitai")?.capabilities).toEqual(["image"]);
     expect(byName.get("douyin")?.capabilities).toEqual(["video"]);
+    expect(byName.get("xhs")?.capabilities).toEqual(["video"]);
     expect(byName.get("baidu_search")?.capabilities).toEqual(["image", "video"]);
   });
 

@@ -1457,6 +1457,22 @@ describe("#314 video capability declarations", () => {
     expect(douyin.capabilities.images).toBeUndefined();
   });
 
+  it("exposes xhs as a CDP video source with auth gate metadata (#1004)", () => {
+    const xhs = ALL_SOURCES.find((s) => s.name === "xhs");
+    expect(xhs.capabilities.videos).toBeDefined();
+    expect(xhs.capabilities.videos.method).toBe("cdp");
+    expect(xhs.capabilities.videos.videoScript).toBeTruthy();
+    expect(xhs.capabilities.videos.url("人工智能")).toContain("xiaohongshu.com/search_result");
+    expect(xhs.capabilities.videos.needsAuth).toBe(true);
+    expect(xhs.capabilities.videos.loginCheckScript).toEqual(expect.any(String));
+    expect(xhs.capabilities.videos.loginCheckScript.length).toBeGreaterThan(0);
+  });
+
+  it("does not over-claim images for xhs (video-only channel, #1004)", () => {
+    const xhs = ALL_SOURCES.find((s) => s.name === "xhs");
+    expect(xhs.capabilities.images).toBeUndefined();
+  });
+
   it("drops the unverified video declarations from the 8 news sources", () => {
     for (const name of [
       "qbitai",
