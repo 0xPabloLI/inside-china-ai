@@ -1437,15 +1437,52 @@ describe("#88 Part 2 — shouldAutoGenGoogleSiteFallback", () => {
   });
 });
 
-describe("CDP video capabilities (#183)", () => {
-  it("exposes capabilities.videos (method cdp) for Chinese news CDP sources", async () => {
-    const { ALL_SOURCES } = await import("../lib/source-registry.mjs");
-    const ithome = ALL_SOURCES.find((s) => s.name === "ithome");
-    expect(ithome.capabilities.videos).toBeDefined();
-    expect(ithome.capabilities.videos.method).toBe("cdp");
-    expect(ithome.capabilities.videos.videoScript).toContain("iframe");
-    const qbitai = ALL_SOURCES.find((s) => s.name === "qbitai");
-    expect(qbitai.capabilities.videos.method).toBe("cdp");
+// ─── #314: CDP video-only discovery channel + honest news video declarations ───
+
+describe("#314 video capability declarations", () => {
+  it("exposes douyin as a CDP video source with auth gate metadata", () => {
+    const douyin = ALL_SOURCES.find((s) => s.name === "douyin");
+    expect(douyin.capabilities.videos).toBeDefined();
+    expect(douyin.capabilities.videos.method).toBe("cdp");
+    expect(douyin.capabilities.videos.videoScript).toBeTruthy();
+    expect(douyin.capabilities.videos.url("人工智能")).toContain("douyin.com/search/");
+    expect(douyin.capabilities.videos.url("人工智能")).toContain("?type=video");
+    expect(douyin.capabilities.videos.needsAuth).toBe(true);
+    expect(douyin.capabilities.videos.loginCheckScript).toEqual(expect.any(String));
+    expect(douyin.capabilities.videos.loginCheckScript.length).toBeGreaterThan(0);
+  });
+
+  it("does not over-claim images for douyin (video-only channel)", () => {
+    const douyin = ALL_SOURCES.find((s) => s.name === "douyin");
+    expect(douyin.capabilities.images).toBeUndefined();
+  });
+
+  it("drops the unverified video declarations from the 8 news sources", () => {
+    for (const name of [
+      "qbitai",
+      "ithome",
+      "jiqizhixin",
+      "google_search",
+      "xinhua",
+      "thepaper",
+      "leiphone",
+      "zhidx",
+    ]) {
+      const src = ALL_SOURCES.find((s) => s.name === name);
+      expect(src, name).toBeDefined();
+      expect(src.capabilities.videos, name).toBeUndefined();
+    }
+  });
+
+  it("keeps baidu_search's verified vsearch video channel", () => {
+    const baidu = ALL_SOURCES.find((s) => s.name === "baidu_search");
+    expect(baidu.capabilities.videos).toBeDefined();
+    expect(baidu.capabilities.videos.method).toBe("cdp");
+    expect(baidu.capabilities.videos.videoScript).toBeTruthy();
+  });
+
+  it("keeps the source count at 62", () => {
+    expect(ALL_SOURCES).toHaveLength(62);
   });
 });
 

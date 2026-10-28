@@ -568,7 +568,7 @@ export async function searchTavilyImages(keyword, apiKey) {
  */
 export async function searchCdpVideoSource(source, keyword, options = {}) {
   const { waitMs = 3000 } = options;
-  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad, ScriptError } =
+  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad, runPageGates, ScriptError } =
     await import("./cdp-client.mjs");
 
   let tabId;
@@ -581,27 +581,52 @@ export async function searchCdpVideoSource(source, keyword, options = {}) {
     return [];
   }
 
-  await new Promise((r) => setTimeout(r, waitMs));
-  await waitForPageLoad(tabId);
+  // The tab is released exactly once, whichever exit path is taken.
+  let closed = false;
+  const closeOnce = async () => {
+    if (closed) return;
+    closed = true;
+    try {
+      await cdpCloseTab(tabId);
+    } catch {}
+  };
 
-  // #308: a broken videoScript is not "no videos" — fail the source LOUDLY
-  // (fail-open: the caller keeps its fallback chain, the tab is released).
   try {
+    await new Promise((r) => setTimeout(r, waitMs));
+    await waitForPageLoad(tabId);
+
+    // #314: douyin's search page needs a logged-in profile. Run the same gate
+    // as the article path before extracting, so an expired login is reported
+    // as a gate hit instead of "0 videos" (silent empty-result failure).
+    const gate = await runPageGates({
+      tabId,
+      needsAuth: source.needsAuth,
+      loginCheckScript: source.loginCheckScript,
+    });
+    if (gate) {
+      console.warn(
+        `  ⛔ ${source.name} video search gated (${gate.gate}: ${gate.status}) — skipping source`,
+      );
+      return [];
+    }
+
+    // #308: a broken videoScript is not "no videos" — fail the source LOUDLY
+    // (fail-open: the caller keeps its fallback chain, the tab is released).
     let candidates = await extractFromTab(tabId, source.videoScript);
     if (candidates.length === 0) {
       await new Promise((r) => setTimeout(r, waitMs));
       candidates = await extractFromTab(tabId, source.videoScript);
     }
 
-    await cdpCloseTab(tabId);
     return candidates;
   } catch (e) {
-    await cdpCloseTab(tabId);
     if (e instanceof ScriptError) {
       console.warn(`  🚨 ${source.name} videoScript broken (no retry, #308): ${e.message}`);
       return [];
     }
     throw e;
+  } finally {
+    await closeOnce();
   }
 }
 
@@ -613,6 +638,8 @@ export async function searchCdpVideoSource(source, keyword, options = {}) {
  *   → https://www.bilibili.com/video/BVx (platform "bilibili")
  * - YouTube embeds (/embed/ID) → https://www.youtube.com/watch?v=ID
  *   (platform "youtube")
+ * - Douyin post URLs (douyin.com/video/{id}, iesdouyin.com/share/video/{id})
+ *   kept as-is with platform null (#314 — downloaded by the douyin-cdp adapter)
  * - Direct self-hosted video sources kept as-is (platform null)
  * - Dedupe by URL; non-video URLs dropped.
  *
@@ -641,6 +668,13 @@ export function normalizeCdpVideoCandidates(raw, sourceName, keyword = "") {
     } else if ((m = url.match(/^https?:\/\/www\.bilibili\.com\/video\/([\w]+)/))) {
       url = `https://www.bilibili.com/video/${m[1]}`;
       platform = "bilibili";
+    } else if (
+      /^https?:\/\/(?:www\.)?douyin\.com\/video\/\d+/.test(url) ||
+      /^https?:\/\/(?:www\.)?iesdouyin\.com\/share\/video\/\d+/.test(url)
+    ) {
+      // #314: douyin post URL, kept verbatim (id + host) for the douyin-cdp
+      // download adapter — no platform hint, no rewriting.
+      platform = null;
     } else if (/^https?:\/\//i.test(url) && /\.(mp4|webm|m3u8|mov|ogg)([?#]|$)/i.test(url)) {
       platform = null; // self-hosted direct video source
     } else {

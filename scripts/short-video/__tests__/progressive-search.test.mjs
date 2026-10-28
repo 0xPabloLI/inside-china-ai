@@ -36,6 +36,7 @@ import {
   cdpCloseTab,
   extractFromTab,
   waitForPageLoad,
+  runPageGates,
   ScriptError,
 } from "../lib/cdp-client.mjs";
 
@@ -47,6 +48,8 @@ vi.mock("../lib/cdp-client.mjs", () => ({
   waitForPageLoad: vi.fn(),
   extractFromTab: vi.fn(),
   checkLogin: vi.fn(),
+  // #314: searchCdpVideoSource runs the article-path login gate before extracting.
+  runPageGates: vi.fn(),
   findCdpProxyScript: vi.fn(),
   ensureCdpProxy: vi.fn(),
   // #308: searchCdpSource/searchCdpVideoSource do `instanceof ScriptError` —
@@ -978,6 +981,37 @@ describe("searchCdpVideoSource", () => {
     expect(out).toHaveLength(1);
     expect(cdpCloseTab).toHaveBeenCalledWith("tab-v");
   });
+
+  it("runs the source auth gate and skips with the tab closed once (#314)", async () => {
+    vi.clearAllMocks();
+    const source = {
+      name: "douyin",
+      url: (kw) => `https://www.douyin.com/search/${encodeURIComponent(kw)}?type=video`,
+      videoScript: "return results;",
+      needsAuth: true,
+      loginCheckScript: "return 'need_login'",
+    };
+    cdpNewTab.mockResolvedValue("tab-gated");
+    waitForPageLoad.mockResolvedValue(true);
+    runPageGates.mockResolvedValueOnce({ gate: "login", status: "need_login" });
+    cdpCloseTab.mockResolvedValue(undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      await expect(searchCdpVideoSource(source, "人工智能")).resolves.toEqual([]);
+      expect(runPageGates).toHaveBeenCalledWith({
+        tabId: "tab-gated",
+        needsAuth: true,
+        loginCheckScript: "return 'need_login'",
+      });
+      expect(extractFromTab).not.toHaveBeenCalled();
+      expect(cdpCloseTab).toHaveBeenCalledTimes(1);
+      expect(cdpCloseTab).toHaveBeenCalledWith("tab-gated");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("douyin"));
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 
 describe("normalizeCdpVideoCandidates", () => {
@@ -1021,6 +1055,38 @@ describe("normalizeCdpVideoCandidates", () => {
       platform: null,
       title: "clip",
     });
+  });
+
+  it("accepts douyin post URLs, keeps them as-is and stamps platform null (#314)", () => {
+    const out = normalizeCdpVideoCandidates(
+      [
+        { url: "https://www.douyin.com/video/123456", title: "一条抖音视频" },
+        { url: "https://www.iesdouyin.com/share/video/123456", title: "share" },
+      ],
+      "douyin",
+      "kw",
+    );
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({
+      url: "https://www.douyin.com/video/123456",
+      platform: null,
+      title: "一条抖音视频",
+      source: "douyin",
+      type: "video",
+    });
+    expect(out[1]).toMatchObject({
+      url: "https://www.iesdouyin.com/share/video/123456",
+      platform: null,
+    });
+  });
+
+  it("still rejects arbitrary article pages (#314)", () => {
+    const out = normalizeCdpVideoCandidates(
+      [{ url: "https://www.douyin.com/article/123456", title: "article" }],
+      "douyin",
+      "kw",
+    );
+    expect(out).toEqual([]);
   });
 
   it("dedupes by url and rejects non-video urls", () => {

@@ -2243,6 +2243,10 @@ export const CDP_VIDEO_SOURCES = ALL_SOURCES.filter(
   label: s.label,
   url: s.capabilities.videos.url,
   videoScript: s.capabilities.videos.videoScript,
+  // #314: carry auth metadata so the video search path runs the same login
+  // gate as the article path (douyin).
+  needsAuth: !!s.capabilities.videos.needsAuth,
+  loginCheckScript: s.capabilities.videos.loginCheckScript || null,
 }));
 
 /**

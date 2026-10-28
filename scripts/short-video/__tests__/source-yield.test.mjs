@@ -512,16 +512,19 @@ describe("buildExpectedYieldSources", () => {
   const sources = buildExpectedYieldSources();
   const byName = new Map(sources.map((row) => [row.source, row]));
 
-  it("lists all 23 distinct expected sources exactly once", () => {
-    expect(sources).toHaveLength(23);
-    expect(new Set(sources.map((row) => row.source)).size).toBe(23);
+  it("lists all 24 distinct expected sources exactly once", () => {
+    expect(sources).toHaveLength(24);
+    expect(new Set(sources.map((row) => row.source)).size).toBe(24);
   });
 
   it("derives capabilities from API, yt-dlp, CDP, and Tier 3 phases", () => {
     expect(byName.get("pexels")?.capabilities).toEqual(["image"]);
     expect(byName.get("pexels-video")?.capabilities).toEqual(["video"]);
     expect(byName.get("youtube_search")?.capabilities).toEqual(["video"]);
-    expect(byName.get("qbitai")?.capabilities).toEqual(["image", "video"]);
+    // #314: qbitai's generic CDP video declaration was removed (0 players on
+    // 5 live article pages); douyin has a verified video search page.
+    expect(byName.get("qbitai")?.capabilities).toEqual(["image"]);
+    expect(byName.get("douyin")?.capabilities).toEqual(["video"]);
     expect(byName.get("baidu_search")?.capabilities).toEqual(["image", "video"]);
   });
 
