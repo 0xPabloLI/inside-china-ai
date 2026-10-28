@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.40.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.40.0...tanstack_start_ts-v1.40.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** bump seroval and @hono/node-server to clear OSV findings ([#1016](https://github.com/0xPabloLI/inside-china-ai/issues/1016)) ([8cf8d4a](https://github.com/0xPabloLI/inside-china-ai/commit/8cf8d4a141a642f54ba51e32afc066373a469101))
+
 ## [1.40.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.39.0...tanstack_start_ts-v1.40.0) (2026-10-28)
 
 
