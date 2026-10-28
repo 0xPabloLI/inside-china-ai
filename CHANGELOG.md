@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.40.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.39.0...tanstack_start_ts-v1.40.0) (2026-10-28)
+
+
+### Features
+
+* **sources:** declare xhs as a verified video source ([#1004](https://github.com/0xPabloLI/inside-china-ai/issues/1004)) ([#1009](https://github.com/0xPabloLI/inside-china-ai/issues/1009)) ([930e42f](https://github.com/0xPabloLI/inside-china-ai/commit/930e42fe9adf6686d37daf5df1ed8df335c10a59))
+
 ## [1.39.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.38.0...tanstack_start_ts-v1.39.0) (2026-10-28)
 
 
