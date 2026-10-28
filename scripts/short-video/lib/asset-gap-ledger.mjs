@@ -45,10 +45,6 @@ export const GAP_REASON = {
 
 export const GAP_STATUS = { OPEN: "open", SATISFIED: "satisfied" };
 
-// Re-exported for the ledger's public surface; the vocabulary itself lives in
-// media-strategies.mjs so claim derivation (#354) reads the same set.
-export { GENERATION_ONLY_STRATEGIES };
-
 const NEED_MAX_CHARS = 240;
 const OCCURRENCE_MAX = 20;
 

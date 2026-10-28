@@ -15,7 +15,7 @@
  * @module claim-keywords
  */
 
-import { GENERATION_ONLY_STRATEGIES } from "./media-strategies.mjs";
+import { shouldSourceStock } from "./media-strategies.mjs";
 
 /**
  * Scene types that must never receive media — single source of truth.
@@ -362,7 +362,7 @@ export function extractSceneClaims(scenes) {
     // `media.path` is the binding test, not the object: a malformed `media: {}`
     // has no asset to protect, and other checks report the shape.
     if (!declared && scene.media?.path) continue;
-    if (!declared && GENERATION_ONLY_STRATEGIES.has(scene.mediaStrategy)) continue;
+    if (!declared && !shouldSourceStock(scene)) continue;
 
     const voiceover = typeof scene.voiceover === "string" ? scene.voiceover : "";
     if (!declared && !voiceover.trim()) continue;

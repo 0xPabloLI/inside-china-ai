@@ -1542,6 +1542,10 @@ describe("searchHints schema (#354)", () => {
       }),
     ]);
     expect(boundFail.check).toContain("Scene 2 has a claim path");
+    const [generationFail] = hintFails([
+      scene({ mediaStrategy: "b-roll", searchHints: ["humanoid robot factory"] }),
+    ]);
+    expect(generationFail.check).toContain("Scene 2 has a claim path");
   });
 
   it("fails a misspelled key instead of silently ignoring it", () => {
