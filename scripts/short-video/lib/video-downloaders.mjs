@@ -223,24 +223,29 @@ const XHS_MEDIA_TRACKS_SCRIPT = `(() => {
     return performance
       .getEntriesByType("resource")
       .map((e) => e.name)
-      .filter((u) => /sns-video.*\\.mp4|xhscdn.*\\.mp4/i.test(u));
+      .filter((u) => /sns-video.*\\.mp4/i.test(u));
   } catch (e) {
     return [];
   }
 })()`;
 
 /** Unwrap a CDP eval payload (`{result:{value}}`, `{value}`) to its value.
+ *  A proxy page-script failure (`{error}`) throws instead of reading as an
+ *  empty/undefined result — the same #308 rule evalTrackList applies.
  *  @param {unknown} raw
  *  @returns {any}
  */
 function unwrapEvalValue(raw) {
-  if (raw && typeof raw === "object") {
-    if ("href" in raw || "hasVideo" in raw) return raw;
-    if (raw.result && typeof raw.result === "object" && "value" in raw.result)
-      return raw.result.value;
-    if ("value" in raw) return raw.value;
+  let v = raw;
+  if (v && typeof v === "object") {
+    if ("href" in v || "hasVideo" in v || "loginWall" in v) return v;
+    if (v.result && typeof v.result === "object" && "value" in v.result) v = v.result.value;
+    else if ("value" in v) v = v.value;
   }
-  return raw;
+  if (v && typeof v === "object" && !Array.isArray(v) && v.error) {
+    throw new Error(`cdp eval failed: ${JSON.stringify(v.error).slice(0, 200)}`);
+  }
+  return v;
 }
 
 /** Track polling budget: the player requests its CDN tracks a few seconds
@@ -252,7 +257,7 @@ const DOUYIN_TRACK_POLL_TIMEOUT_MS = 12000;
  *  (media-window.mjs). Douyin's full tracks are 23-139MB (measured live
  *  2026-10-28), so the adapter never pulls whole tracks — only this window. */
 const DOUYIN_CLIP_SECONDS = BROLL_CLIP_SECONDS;
-const DOUYIN_CLIP_TIMEOUT_MS = 120000;
+const CLIP_TIMEOUT_MS = 120000;
 
 /**
  * Normalize a CDP eval response to an array of URL strings.
@@ -261,13 +266,7 @@ const DOUYIN_CLIP_TIMEOUT_MS = 120000;
  * @returns {string[]}
  */
 function evalTrackList(value) {
-  let v = value;
-  if (v && !Array.isArray(v)) v = v.result?.value ?? v.value ?? v;
-  // #308: a proxy page-script failure must not read as "no tracks" — it would
-  // burn the poll budget and report a silent empty result.
-  if (v && typeof v === "object" && !Array.isArray(v) && v.error) {
-    throw new Error(`cdp eval failed: ${JSON.stringify(v.error).slice(0, 200)}`);
-  }
+  let v = unwrapEvalValue(value);
   if (typeof v === "string") {
     try {
       v = JSON.parse(v);
@@ -346,7 +345,7 @@ function clipTracks({ videoUrl, audioUrl, referer, seconds }) {
     try {
       execFileSync("ffmpeg", args, {
         stdio: "pipe",
-        timeout: DOUYIN_CLIP_TIMEOUT_MS,
+        timeout: CLIP_TIMEOUT_MS,
       });
     } catch (e) {
       const stderr = String(e.stderr || "")
@@ -1554,7 +1553,12 @@ export async function downloadXhsCdp(url, opts = {}) {
         try { v.load(); } catch (e) {}
         try { v.play().catch(function () {}); } catch (e) {}
       }
-      return { href: location.href, title: document.title, hasVideo: !!v };
+      return {
+        href: location.href,
+        title: document.title,
+        hasVideo: !!v,
+        loginWall: /登录后查看|扫码登录|请先登录/.test(document.body ? document.body.innerText : ""),
+      };
     })()`;
     const state = unwrapEvalValue(await evalFn(tabId, kickScript));
     const href = typeof state?.href === "string" ? state.href : "";
@@ -1576,7 +1580,9 @@ export async function downloadXhsCdp(url, opts = {}) {
         strategy,
         source,
         sourceUrl: url,
-        reason: "note has no video element",
+        reason: state?.loginWall
+          ? "login wall (xhs session expired?)"
+          : "note has no video element",
         retryable: true,
       });
     }

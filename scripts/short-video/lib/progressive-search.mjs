@@ -642,7 +642,8 @@ export async function searchCdpVideoSource(source, keyword, options = {}) {
  *   kept as-is with platform null (#314 — downloaded by the douyin-cdp adapter)
  * - XHS note URLs (xiaohongshu.com/explore/{id}, /search_result/{id}) kept
  *   verbatim — the `xsec_token` query IS the access credential — with platform
- *   null; deduped by note id so two tokens for one note collapse (#1004)
+ *   null; tokenless note URLs are dropped; deduped by note id so two tokens
+ *   for one note collapse (#1004)
  * - Direct self-hosted video sources kept as-is (platform null)
  * - Dedupe by URL (or note id for xhs); non-video URLs dropped.
  *
@@ -689,6 +690,10 @@ export function normalizeCdpVideoCandidates(raw, sourceName, keyword = "") {
         /^https?:\/\/(?:www\.)?xiaohongshu\.com\/(?:explore|search_result)\/([0-9a-f]+)(?:[/?#]|$)/i,
       ))
     ) {
+      // The token is the access credential; a tokenless note URL is a dead
+      // candidate that would later surface as `note unreachable` and could
+      // shadow a tokened sibling in the id-dedupe.
+      if (!/[?&]xsec_token=/.test(url)) continue;
       platform = null;
       dedupeKey = `xhs:${m[1]}`;
     } else if (/^https?:\/\//i.test(url) && /\.(mp4|webm|m3u8|mov|ogg)([?#]|$)/i.test(url)) {

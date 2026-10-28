@@ -1407,9 +1407,10 @@ describe("XhsCdp adapter (#1004)", () => {
   const MEDIA_URL = "https://sns-video-qc.xhscdn.com/stream/abc.mp4?sign=xyz&t=123";
 
   function makeXhsFakes({
-    state = { href: NOTE_URL, title: "一条视频笔记", hasVideo: true },
+    state = { href: NOTE_URL, title: "一条视频笔记", hasVideo: true, loginWall: false },
     mediaResponses = [[], [MEDIA_URL]],
     newTabError = null,
+    evalError = null,
   } = {}) {
     const calls = { tabs: [], loadedTabs: [], closedTabs: [], scripts: [], slept: [] };
     let round = 0;
@@ -1432,6 +1433,7 @@ describe("XhsCdp adapter (#1004)", () => {
       },
       evalFn: async (tabId, script) => {
         calls.scripts.push(script);
+        if (evalError && /hasVideo/.test(script)) return { error: evalError };
         if (/getEntriesByType/.test(script)) {
           const value = mediaResponses[Math.min(round, mediaResponses.length - 1)];
           round += 1;
@@ -1494,6 +1496,33 @@ describe("XhsCdp adapter (#1004)", () => {
     expect(r.status).toBe("failed");
     expect(r.reason).toContain("note unreachable");
     expect(r.retryable).toBe(true);
+    expect(clipFn).not.toHaveBeenCalled();
+    expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+  });
+
+  it("surfaces a kick-eval proxy error instead of misreading it as no video", async () => {
+    const fakes = makeXhsFakes({ evalError: "Script execution failed" });
+    const clipFn = vi.fn();
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
+    expect(r.status).toBe("failed");
+    expect(r.reason).toContain("cdp eval failed");
+    expect(r.reason).not.toContain("no video element");
+    expect(clipFn).not.toHaveBeenCalled();
+    expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+  });
+
+  it("names a login wall separately from an image-only note", async () => {
+    const fakes = makeXhsFakes({
+      state: { href: NOTE_URL, title: "登录后查看", hasVideo: false, loginWall: true },
+    });
+    const clipFn = vi.fn();
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
+    expect(r.status).toBe("failed");
+    expect(r.reason).toContain("login wall");
     expect(clipFn).not.toHaveBeenCalled();
     expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
   });

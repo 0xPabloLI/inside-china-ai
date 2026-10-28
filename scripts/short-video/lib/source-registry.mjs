@@ -761,6 +761,11 @@ const XHS_LOGIN_CHECK_SCRIPT = `
       return (body.includes('请先登录') || body.includes('扫码登录') || body.includes('登录后查看')) ? 'need_login' : 'ok'
     `;
 
+// #1004: the one xhs search URL, shared by the article source and the video
+// capability so a route change is a one-place edit.
+const XHS_SEARCH_URL = (keyword) =>
+  `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`;
+
 // #1004: 搜索结果里视频笔记带 `.play-icon`，图文笔记没有——只收视频笔记。
 // 封面锚点必须是可见的 `a[href*="/search_result/"]`：它带 xsec_token（相对
 // href，用 location.origin 绝对化）；隐藏的首个锚点是 /explore/{id} 且**没有**
@@ -769,7 +774,7 @@ const XHS_VIDEO_SEARCH_SCRIPT = `
   var out = [], seen = {};
   document.querySelectorAll('section.note-item, .note-item').forEach(function (el) {
     if (!el.querySelector('.play-icon')) return;
-    var a = el.querySelector('a[href*="/search_result/"]') || el.querySelector('a[href*="/explore/"]');
+    var a = el.querySelector('a[href*="/search_result/"]');
     if (!a) return;
     var href = a.getAttribute('href') || '';
     var m = href.match(/\\/(?:search_result|explore)\\/([0-9a-f]+)/i);
@@ -798,8 +803,7 @@ export const SELF_MEDIA_SOURCES = [
     },
     needsAuth: true,
     useCleanTitle: true,
-    url: (keyword) =>
-      `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`,
+    url: XHS_SEARCH_URL,
     loginCheckScript: XHS_LOGIN_CHECK_SCRIPT,
     articleScript: `
       var items = document.querySelectorAll('section.note-item, .note-item, .search-result-item');
@@ -3032,11 +3036,13 @@ const CDP_VIDEO_CAPABILITIES = {
   },
   xhs: {
     method: "cdp",
-    url: (keyword) =>
-      `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`,
+    url: XHS_SEARCH_URL,
     videoScript: XHS_VIDEO_SEARCH_SCRIPT,
     needsAuth: true,
     loginCheckScript: XHS_LOGIN_CHECK_SCRIPT,
+    // Candidate URLs carry short-lived xsec_token values; a cached search
+    // result replayed hours later is a dead link for every note.
+    cacheable: false,
     // Verified 2026-10-28: 14/27 video notes for 人工智能, token-bearing cover
     // links, signed mp4 via resource timing, 8s H.264 clip downloaded.
   },
@@ -3952,6 +3958,9 @@ function enrichWithCapabilities(sources) {
         method: "cdp",
         url: cdpVideoCap.videoUrl || cdpVideoCap.url,
         videoScript: cdpVideoCap.videoScript,
+        // #1004: false when candidate URLs carry short-lived credentials
+        // (xhs xsec_token); the asset-sourcer then bypasses the result cache.
+        cacheable: cdpVideoCap.cacheable !== false,
         ...resolveLoginGate({ ...source, capabilities }),
       };
     }

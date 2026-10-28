@@ -1161,6 +1161,23 @@ describe("normalizeCdpVideoCandidates", () => {
     expect(out).toEqual([]);
   });
 
+  it("drops tokenless xhs note URLs — the token is the credential (#1004)", () => {
+    const out = normalizeCdpVideoCandidates(
+      [
+        { url: "https://www.xiaohongshu.com/explore/66aa11bb22cc", title: "no token" },
+        {
+          url: "https://www.xiaohongshu.com/explore/66aa11bb22cc?xsec_token=TOK",
+          title: "tokened",
+        },
+      ],
+      "xhs",
+      "kw",
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toContain("xsec_token=TOK");
+    expect(out[0].title).toBe("tokened");
+  });
+
   it("dedupes by url and rejects non-video urls", () => {
     const out = normalizeCdpVideoCandidates(
       [

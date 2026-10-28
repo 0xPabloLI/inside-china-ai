@@ -2857,6 +2857,9 @@ describe("CDP_VIDEO_SOURCES", () => {
     expect(xhs).toBeDefined();
     expect(xhs.needsAuth).toBe(true);
     expect(xhs.loginCheckScript).toBeTruthy();
+    // xsec_token is short-lived: the video phase must bypass the result cache.
+    expect(xhs.cacheable).toBe(false);
+    expect(CDP_VIDEO_SOURCES.find((s) => s.name === "douyin").cacheable).toBe(true);
   });
 });
 
