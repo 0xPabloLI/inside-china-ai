@@ -2818,6 +2818,8 @@ describe("CDP_VIDEO_SOURCES", () => {
   it("derives exactly the verified CDP video sources (#314)", () => {
     expect(names).toContain("baidu_search");
     expect(names).toContain("douyin");
+    // #1004: xhs's search page was live-verified (13-14 of 27 video notes across runs).
+    expect(names).toContain("xhs");
     // #314: the generic news script found 0 players on 5 live article pages
     // per site (2026-10-28) — the declarations are gone.
     for (const removed of [
@@ -2848,6 +2850,16 @@ describe("CDP_VIDEO_SOURCES", () => {
     const douyin = CDP_VIDEO_SOURCES.find((s) => s.name === "douyin");
     expect(douyin.needsAuth).toBe(true);
     expect(douyin.loginCheckScript).toBeTruthy();
+  });
+
+  it("carries xhs's auth gate metadata (#1004)", () => {
+    const xhs = CDP_VIDEO_SOURCES.find((s) => s.name === "xhs");
+    expect(xhs).toBeDefined();
+    expect(xhs.needsAuth).toBe(true);
+    expect(xhs.loginCheckScript).toBeTruthy();
+    // xsec_token is short-lived: the video phase must bypass the result cache.
+    expect(xhs.cacheable).toBe(false);
+    expect(CDP_VIDEO_SOURCES.find((s) => s.name === "douyin").cacheable).toBe(true);
   });
 });
 

@@ -2248,6 +2248,9 @@ export const CDP_VIDEO_SOURCES = ALL_SOURCES.filter(
   // gate as the article path (douyin).
   needsAuth: !!s.capabilities.videos.needsAuth,
   loginCheckScript: s.capabilities.videos.loginCheckScript || null,
+  // #1004: false when candidate URLs carry short-lived credentials (xhs
+  // xsec_token) — a cached result set is stale on the next run.
+  cacheable: s.capabilities.videos.cacheable !== false,
 }));
 
 /**
@@ -3391,17 +3394,23 @@ export async function main(args = process.argv.slice(2)) {
           // #249: rate-limited source → record skip, continue with next source
           let result;
           try {
-            result = await getOrSearchResults(searchCache, {
-              source: source.name,
-              keyword: `video:${keyword}`,
-              search: () => searchCdpVideoSource(source, keyword),
-            });
+            // #1004: sources whose candidates carry short-lived credentials
+            // (xhs xsec_token) skip the cache — replaying a 24h-old result set
+            // would turn every note into `note unreachable`.
+            result =
+              source.cacheable === false
+                ? { cacheHit: false, results: await searchCdpVideoSource(source, keyword) }
+                : await getOrSearchResults(searchCache, {
+                    source: source.name,
+                    keyword: `video:${keyword}`,
+                    search: () => searchCdpVideoSource(source, keyword),
+                  });
           } catch (err) {
             if (!recordRateLimitSkip(err, { sourceName: source.name, keyword, skipped })) throw err;
             continue;
           }
           const candidates = result.results;
-          if (!result.cacheHit && candidates.length > 0) {
+          if (source.cacheable !== false && !result.cacheHit && candidates.length > 0) {
             searchCacheDirty = true;
             saveSearchResultsCache(searchCachePath, searchCache);
           }

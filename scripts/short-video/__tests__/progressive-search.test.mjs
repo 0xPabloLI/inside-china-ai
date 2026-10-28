@@ -1105,6 +1105,79 @@ describe("normalizeCdpVideoCandidates", () => {
     expect(out).toEqual([]);
   });
 
+  it("keeps xhs explore / search_result note URLs with their xsec_token (#1004)", () => {
+    const out = normalizeCdpVideoCandidates(
+      [
+        {
+          url: "https://www.xiaohongshu.com/explore/66aa11bb22cc?xsec_token=TOK1&xsec_source=pc_search",
+          title: "笔记一",
+        },
+        {
+          url: "https://www.xiaohongshu.com/search_result/66dd33ee44ff?xsec_token=TOK2",
+          title: "笔记二",
+        },
+      ],
+      "xhs",
+      "kw",
+    );
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({
+      url: "https://www.xiaohongshu.com/explore/66aa11bb22cc?xsec_token=TOK1&xsec_source=pc_search",
+      platform: null,
+      title: "笔记一",
+      source: "xhs",
+      type: "video",
+    });
+    expect(out[1]).toMatchObject({
+      url: "https://www.xiaohongshu.com/search_result/66dd33ee44ff?xsec_token=TOK2",
+      platform: null,
+    });
+  });
+
+  it("dedupes xhs notes by note id, keeping the first token-bearing URL (#1004)", () => {
+    const out = normalizeCdpVideoCandidates(
+      [
+        { url: "https://www.xiaohongshu.com/explore/66aa11bb22cc?xsec_token=TOK1", title: "first" },
+        {
+          url: "https://www.xiaohongshu.com/explore/66aa11bb22cc?xsec_token=TOK2",
+          title: "second",
+        },
+        { url: "https://www.xiaohongshu.com/search_result/66aa11bb22cc?xsec_token=TOK3" },
+      ],
+      "xhs",
+      "kw",
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toBe("https://www.xiaohongshu.com/explore/66aa11bb22cc?xsec_token=TOK1");
+    expect(out[0].title).toBe("first");
+  });
+
+  it("still rejects non-note xhs pages (#1004)", () => {
+    const out = normalizeCdpVideoCandidates(
+      [{ url: "https://www.xiaohongshu.com/user/profile/abc123", title: "user" }],
+      "xhs",
+      "kw",
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("drops tokenless xhs note URLs — the token is the credential (#1004)", () => {
+    const out = normalizeCdpVideoCandidates(
+      [
+        { url: "https://www.xiaohongshu.com/explore/66aa11bb22cc", title: "no token" },
+        {
+          url: "https://www.xiaohongshu.com/explore/66aa11bb22cc?xsec_token=TOK",
+          title: "tokened",
+        },
+      ],
+      "xhs",
+      "kw",
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toContain("xsec_token=TOK");
+    expect(out[0].title).toBe("tokened");
+  });
+
   it("dedupes by url and rejects non-video urls", () => {
     const out = normalizeCdpVideoCandidates(
       [

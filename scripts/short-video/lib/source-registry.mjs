@@ -750,6 +750,42 @@ const DOUYIN_LOGIN_CHECK_SCRIPT = `
       return (videos === 0 && weakLogin) ? 'need_login' : 'ok'
     `;
 
+// #1004: extracted from the xhs source definition so the CDP video-only
+// channel runs the exact same login gate as the article path.
+const XHS_LOGIN_CHECK_SCRIPT = `
+      // #346: 未登录时页面是「登录后查看搜索结果」面板（面板里有「获取验证码」
+      // 按钮——它的文案同时命中 anti-bot 词表的「验证码」，所以这个门必须先于
+      // runPageGates 里的反爬检查认出面板；真因是登录态过期，不是站点挑战）。
+      // return 是必需的：checkLogin 读的是这个函数的返回值（见文件头契约）。
+      var body = document.body ? document.body.innerText : '';
+      return (body.includes('请先登录') || body.includes('扫码登录') || body.includes('登录后查看')) ? 'need_login' : 'ok'
+    `;
+
+// #1004: the one xhs search URL, shared by the article source and the video
+// capability so a route change is a one-place edit.
+const XHS_SEARCH_URL = (keyword) =>
+  `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`;
+
+// #1004: 搜索结果里视频笔记带 `.play-icon`，图文笔记没有——只收视频笔记。
+// 封面锚点必须是可见的 `a[href*="/search_result/"]`：它带 xsec_token（相对
+// href，用 location.origin 绝对化）；隐藏的首个锚点是 /explore/{id} 且**没有**
+// token，打开后落 404，不能用。id 去重，避免"图文/视频"两张卡指向同一笔记。
+const XHS_VIDEO_SEARCH_SCRIPT = `
+  var out = [], seen = {};
+  document.querySelectorAll('section.note-item, .note-item').forEach(function (el) {
+    if (!el.querySelector('.play-icon')) return;
+    var a = el.querySelector('a[href*="/search_result/"]');
+    if (!a) return;
+    var href = a.getAttribute('href') || '';
+    var m = href.match(/\\/(?:search_result|explore)\\/([0-9a-f]+)/i);
+    if (!m || seen[m[1]]) return;
+    seen[m[1]] = 1;
+    var t = el.querySelector('.title, .note-title, .desc, .content');
+    out.push({ title: t ? t.textContent.trim() : '', url: new URL(href, location.origin).href });
+  });
+  return out;
+`;
+
 export const SELF_MEDIA_SOURCES = [
   {
     name: "xhs",
@@ -767,16 +803,8 @@ export const SELF_MEDIA_SOURCES = [
     },
     needsAuth: true,
     useCleanTitle: true,
-    url: (keyword) =>
-      `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`,
-    loginCheckScript: `
-      // #346: 未登录时页面是「登录后查看搜索结果」面板（面板里有「获取验证码」
-      // 按钮——它的文案同时命中 anti-bot 词表的「验证码」，所以这个门必须先于
-      // runPageGates 里的反爬检查认出面板；真因是登录态过期，不是站点挑战）。
-      // return 是必需的：checkLogin 读的是这个函数的返回值（见文件头契约）。
-      var body = document.body ? document.body.innerText : '';
-      return (body.includes('请先登录') || body.includes('扫码登录') || body.includes('登录后查看')) ? 'need_login' : 'ok'
-    `,
+    url: XHS_SEARCH_URL,
+    loginCheckScript: XHS_LOGIN_CHECK_SCRIPT,
     articleScript: `
       var items = document.querySelectorAll('section.note-item, .note-item, .search-result-item');
       var results = [];
@@ -3006,6 +3034,19 @@ const CDP_VIDEO_CAPABILITIES = {
     // Verified 2026-10-28: 20 real /video/ results for 人工智能 in the automation
     // profile; desktop page tracks + ffmpeg mux produce a playable mp4.
   },
+  xhs: {
+    method: "cdp",
+    url: XHS_SEARCH_URL,
+    videoScript: XHS_VIDEO_SEARCH_SCRIPT,
+    needsAuth: true,
+    loginCheckScript: XHS_LOGIN_CHECK_SCRIPT,
+    // Candidate URLs carry short-lived xsec_token values; a cached search
+    // result replayed hours later is a dead link for every note.
+    cacheable: false,
+    // Verified 2026-10-28: 13-14 video notes of 27 cards for 人工智能 across
+    // runs (14/27 on the first), token-bearing cover links, signed mp4 via
+    // resource timing, 8s H.264 clip downloaded.
+  },
 };
 
 const CDP_MEDIA_CAPABILITIES = {
@@ -3918,6 +3959,9 @@ function enrichWithCapabilities(sources) {
         method: "cdp",
         url: cdpVideoCap.videoUrl || cdpVideoCap.url,
         videoScript: cdpVideoCap.videoScript,
+        // #1004: false when candidate URLs carry short-lived credentials
+        // (xhs xsec_token); the asset-sourcer then bypasses the result cache.
+        cacheable: cdpVideoCap.cacheable !== false,
         ...resolveLoginGate({ ...source, capabilities }),
       };
     }
