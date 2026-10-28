@@ -69,11 +69,11 @@ function getArg(argv, name) {
  * Build the claim for a scene that already has a bound image.
  *
  * `assetNeed` is the same statement of visual intent asset-sourcer scores, so
- * it wins whenever the scene declares one. The remaining branches exist only
- * for hand-bound legacy scenes the sourcer never touched (it sources nothing
- * without an `assetNeed`): a generation prompt is the next best statement of
- * intent, and texts are the last resort. This precedence describes the report,
- * not a sourcer fallback chain — the sourcer has none.
+ * it wins whenever the scene declares one. The remaining branches are for
+ * hand-bound scenes: they already carry `media`, so #354's voiceover-derived
+ * claim never applies to them (derivation is limited to scenes without bound
+ * media). A generation prompt is the next best statement of intent, and texts
+ * are the last resort.
  *
  * @param {Object} scene
  * @returns {{claim: {voiceover: string, assetNeed: string}, claimSource: string}}

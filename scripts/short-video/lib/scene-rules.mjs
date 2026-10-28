@@ -51,7 +51,12 @@ import {
 } from "./text-slots.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
-import { skipsMediaSourcing } from "./claim-keywords.mjs";
+import {
+  skipsMediaSourcing,
+  extractSceneClaims,
+  claimQueryPhrases,
+  isUsableSearchHints,
+} from "./claim-keywords.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
 // SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
 // and re-exported through final-media-gate — scene-rules must not hold a copy.
@@ -1185,9 +1190,15 @@ export function checkHookMediaContract(scenes) {
   ];
 }
 
-/** Narrative scene media warning: warns when a sourcing-eligible scene declares
- *  no media intent at all — no bound media, no `assetNeed` (Step 1.5 sourcing
- *  can still fill it), no generating strategy, and no deliberate waiver.
+/** Narrative scene media warning: warns when a sourcing-eligible scene has no
+ *  usable search claim — no bound media, no generating strategy, and no
+ *  `assetNeed` or voiceover that tokenizes into search phrases.
+ *
+ *  #354 made `assetNeed` an override: asset-sourcer derives a claim from the
+ *  voiceover for every eligible scene without bound media, so "declares no
+ *  assetNeed" is no longer a gap by itself. The remaining gap is a scene whose
+ *  claim yields no query at all — sourcing cannot build a search from it, and
+ *  the scene stays CSS-only unless it generates.
  *
  *  #760: shares `skipsMediaSourcing` with asset-sourcer. The two modules must
  *  agree on what counts as "intentionally no media" (media: null, CSS-only
@@ -1195,14 +1206,17 @@ export function checkHookMediaContract(scenes) {
  *  otherwise this warning scolds scenes the sourcer skips by design. An
  *  `mediaOptOut` on a media-dependent layout is still a hard failure in
  *  final-media-gate, so realignment here does not soften the render gate.
- *  Preflight runs before Step 1.5, so a declared `assetNeed` or generating
- *  strategy is a plan, not a gap — final-media-gate enforces the landed file
- *  at render time. */
+ *  Preflight runs before Step 1.5, so a usable claim or generating strategy is
+ *  a plan, not a gap — final-media-gate enforces the landed file at render
+ *  time. */
 function checkNarrativeMediaWarning(scenes) {
   const mediaScenes = scenes.filter(
     (s) => !skipsMediaSourcing(s) && !GENERATING_STRATEGIES.has(s.mediaStrategy),
   );
-  const missing = mediaScenes.filter((s) => !s.media?.path && !s.assetNeed);
+  const claims = new Map(extractSceneClaims(scenes).map((claim) => [claim.sceneId, claim]));
+  const missing = mediaScenes.filter(
+    (s) => !s.media?.path && claimQueryPhrases(claims.get(s.id)).length === 0,
+  );
   if (missing.length === 0) {
     return [
       {
@@ -1212,7 +1226,7 @@ function checkNarrativeMediaWarning(scenes) {
         detail:
           mediaScenes.length === 0
             ? "No scenes are missing a media plan"
-            : `All ${mediaScenes.length} sourcing-eligible scenes declare media or assetNeed`,
+            : `All ${mediaScenes.length} sourcing-eligible scenes have a usable search claim`,
       },
     ];
   }
@@ -1222,10 +1236,54 @@ function checkNarrativeMediaWarning(scenes) {
       level: "warn",
       category: "Media",
       check: "Narrative scene media coverage",
-      detail: `${missing.length} scene(s) without any media intent: [${missingIds}] — sourcing falls back to generic keywords and may leave the scene CSS-only`,
-      fix: "Declare assetNeed (for Step 1.5 sourcing), bind scene.media, choose a generating strategy (b-roll / ai-image), or set media: null for a deliberate CSS-only scene",
+      detail: `${missing.length} scene(s) without a usable stock claim: [${missingIds}] — the voiceover has no searchable content words and no assetNeed is declared, so sourcing cannot query and the scene may stay CSS-only`,
+      fix: "Declare assetNeed (and optional searchHints) for Step 1.5 sourcing, bind scene.media, choose a generating strategy (b-roll / ai-image), or set media: null for a deliberate CSS-only scene",
     },
   ];
+}
+
+/** `searchHints` schema check (#354). The field is the writer override for
+ *  the search phrases derived from a scene's claim; without a preflight look a
+ *  typo would behave like "no hints" and silently fall back to tokenization —
+ *  the #836 failure mode applied to the new field. */
+function checkSearchHintsSchema(scenes) {
+  const declared = (scenes ?? []).filter((scene) => scene?.searchHints !== undefined);
+  const findings = [];
+  for (const scene of declared) {
+    if (skipsMediaSourcing(scene)) {
+      findings.push({
+        level: "fail",
+        category: "Media",
+        check: `Search hints schema: Scene ${scene.id} is sourced`,
+        detail: `searchHints is declared on a scene the sourcer skips (${scene.visualType}${scene.layout ? `/${scene.layout}` : ""}${scene.media === null ? ", media: null" : ""}) — nothing reads it`,
+        fix: "Remove searchHints from this scene, or make it sourcing-eligible first (hook scenes are curated by hand; text-first layouts need an explicit assetNeed).",
+      });
+      continue;
+    }
+    if (!isUsableSearchHints(scene.searchHints)) {
+      findings.push({
+        level: "fail",
+        category: "Media",
+        check: `Search hints schema: Scene ${scene.id} is a usable string array (max 4)`,
+        detail: `searchHints must be an array of 1-4 retrievable phrases of at most 4 words each, got ${JSON.stringify(scene.searchHints)}`,
+        fix: 'Write the phrases the stock indexes can retrieve, most specific first (e.g. ["unitree h1 humanoid robot", "humanoid robot factory"]), or omit the field to keep the claim-derived phrases. Style-only words ("cinematic close-up") and phrases over 4 words do not count.',
+      });
+    }
+  }
+  if (findings.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Media",
+        check: "Search hints schema",
+        detail:
+          declared.length === 0
+            ? "No scene declares searchHints"
+            : `searchHints usable on ${declared.length} scene(s)`,
+      },
+    ];
+  }
+  return findings;
 }
 
 /**
@@ -2411,6 +2469,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkInstructCoverage(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
     ...checkMediaFieldSchema(scenes),
+    ...checkSearchHintsSchema(scenes),
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),
     ...checkLayoutMediaRouting(scenes),

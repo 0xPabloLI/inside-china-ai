@@ -5,6 +5,9 @@
  * Scene-data declares visual intent via the structured `assetNeed` field
  * (the inline `[ASSET NEEDED: ...]` text annotation is deprecated — it
  * leaks into TTS if written into voiceover; scene-rules B13 guards that).
+ * #354 made that field an override: every sourcing-eligible scene without
+ * bound media derives a claim from its voiceover, and a writer can add
+ * `searchHints` to replace the derived search phrases.
  *
  * Pure functions only — no I/O, no LLM. Same input always yields the same
  * keywords, so sourcing runs are reproducible and unit-testable.
@@ -82,6 +85,24 @@ const STOPWORDS = new Set([
   "those",
   "it",
   "its",
+  // Pronouns (#354): voiceover narration is full of them and none can be a
+  // visual subject — "we build moat" must reduce to "build moat".
+  "i",
+  "me",
+  "my",
+  "we",
+  "us",
+  "our",
+  "you",
+  "your",
+  "they",
+  "them",
+  "their",
+  "he",
+  "him",
+  "his",
+  "she",
+  "her",
   "as",
   "into",
   "about",
@@ -144,6 +165,7 @@ const STOPWORDS = new Set([
   "do",
   "does",
   "did",
+  "not",
   "can",
   "could",
   "will",
@@ -301,6 +323,16 @@ const NON_KEYWORD_WORDS = new Set([
 /** Max keywords returned per claim. */
 const MAX_KEYWORDS = 3;
 
+/** Max writer-supplied search phrases per scene (#354). */
+const MAX_SEARCH_HINTS = 4;
+
+/**
+ * Strategies that never buy stock (mirrors `shouldSourceStock` in
+ * b-roll/orchestrator.mjs). Only derived supply honours this: an explicit
+ * `assetNeed` stays the writer's override until #355 unifies the chain.
+ */
+const GENERATION_ONLY_STRATEGIES = new Set(["b-roll", "ai-image"]);
+
 /** Words in the primary search phrase. */
 const PRIMARY_PHRASE_WORDS = 4;
 
@@ -310,12 +342,18 @@ const PHRASE_WINDOW_WORDS = 3;
 /**
  * Extract per-scene asset claims from scene-data.
  *
- * A scene yields a claim when it has a non-empty `assetNeed`, is not
- * opted out (`mediaOptOut: true` wins over assetNeed), and its visualType
- * is allowed to carry media.
+ * #354: every sourcing-eligible scene owns a claim. An explicit `assetNeed`
+ * wins; a scene that only has narration gets a derived claim — the voiceover
+ * is the claim text, and claimQueryPhrases() tokenizes it for search. The
+ * derivation is on-demand, so legacy packages without `assetNeed` need no
+ * backfill. Scenes that already carry bound media are not derived for: they
+ * already have their asset, and a derived claim there could only produce
+ * searches whose candidates assignment rejects as occupied. Generation-only
+ * strategies (`b-roll`, `ai-image`) are not derived for either — the Step 1.5
+ * rule says they must not buy stock.
  *
  * @param {Array|null} scenes - Scene data array
- * @returns {Array<{sceneId: number, claim: string, voiceover: string}>}
+ * @returns {Array<{sceneId: number, assetNeed: string, voiceover: string, searchHints?: string[], sourceRef?: object}>}
  */
 export function extractSceneClaims(scenes) {
   if (!scenes || !Array.isArray(scenes)) return [];
@@ -325,19 +363,92 @@ export function extractSceneClaims(scenes) {
     if (!scene) continue;
     if (skipsMediaSourcing(scene)) continue;
 
-    const claim = typeof scene.assetNeed === "string" ? scene.assetNeed.trim() : "";
-    if (!claim) continue;
+    const declared = typeof scene.assetNeed === "string" ? scene.assetNeed.trim() : "";
+    if (!declared && scene.media) continue;
+    if (!declared && GENERATION_ONLY_STRATEGIES.has(scene.mediaStrategy)) continue;
 
+    const voiceover = typeof scene.voiceover === "string" ? scene.voiceover : "";
+    if (!declared && !voiceover.trim()) continue;
+
+    const searchHints = normalizeSearchHints(scene.searchHints);
     claims.push({
       sceneId: scene.id,
-      assetNeed: claim,
-      voiceover: scene.voiceover || "",
+      assetNeed: declared,
+      voiceover,
+      ...(searchHints.length > 0 ? { searchHints } : {}),
       // #185: original-language source material — zh keyword extraction
       // consumes sourceText; url/title ride along for attribution/audit.
       ...(scene.sourceRef ? { sourceRef: scene.sourceRef } : {}),
     });
   }
   return claims;
+}
+
+/**
+ * Whether a scene's `searchHints` are usable (#354): a non-empty array of at
+ * most MAX_SEARCH_HINTS short phrases, each of which survives the #635
+ * sanitiser without losing words. Preflight uses this so a typo
+ * (`searchHints: "robot"`), a style-only phrase ("cinematic close-up"), an
+ * over-long list, or a phrase longer than the primary-phrase window (which
+ * would be silently truncated) cannot degrade sourcing unnoticed.
+ *
+ * @param {unknown} hints
+ * @returns {boolean}
+ */
+export function isUsableSearchHints(hints) {
+  if (hints === undefined) return true;
+  if (!Array.isArray(hints) || hints.length === 0 || hints.length > MAX_SEARCH_HINTS) return false;
+  return hints.every(
+    (hint) =>
+      typeof hint === "string" &&
+      hint.trim().split(/\s+/).length <= PRIMARY_PHRASE_WORDS &&
+      claimToKeywords(hint).length > 0,
+  );
+}
+
+/**
+ * Normalize the writer's `searchHints` override (#354).
+ *
+ * Hints are already human-written search phrases, but they pass through the
+ * same #635 sanitiser as claim-derived keywords: a hint that is pure style or
+ * framing ("cinematic close-up") sanitises to nothing and is dropped, and a
+ * long hint is cut to its primary phrase. Order is preserved — writers list
+ * specific phrases first, general fallbacks after — and duplicates collapse.
+ *
+ * @param {unknown} hints
+ * @returns {string[]} 0..MAX_SEARCH_HINTS phrases
+ */
+function normalizeSearchHints(hints) {
+  if (!Array.isArray(hints)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const hint of hints) {
+    if (typeof hint !== "string") continue;
+    const [phrase] = claimToKeywords(hint);
+    if (!phrase || seen.has(phrase)) continue;
+    seen.add(phrase);
+    out.push(phrase);
+    if (out.length >= MAX_SEARCH_HINTS) break;
+  }
+  return out;
+}
+
+/**
+ * The search phrases a claim contributes to sourcing.
+ *
+ * A writer-supplied `searchHints` list replaces the deterministic tokenization
+ * of the claim text: the writer knows which phrases the stock indexes can
+ * retrieve. Without hints, the explicit `assetNeed` — or, for a derived claim,
+ * the scene's voiceover — is tokenized by claimToKeywords, so the #635 rules
+ * still keep a style phrase like "cinematic close-up" from becoming a query.
+ *
+ * @param {{assetNeed?: string, voiceover?: string, searchHints?: string[]}|null|undefined} claim
+ * @returns {string[]}
+ */
+export function claimQueryPhrases(claim) {
+  if (!claim) return [];
+  if (Array.isArray(claim.searchHints) && claim.searchHints.length > 0) return claim.searchHints;
+  return claimToKeywords(claim.assetNeed || claim.voiceover || "");
 }
 
 /**
@@ -349,11 +460,23 @@ export function extractSceneClaims(scenes) {
  */
 function tokenizeClaimWords(text) {
   if (!text || typeof text !== "string") return [];
-  return text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .split(/\s+/)
-    .filter((t) => t.length > 0 && !/^\d+$/u.test(t) && !NON_KEYWORD_WORDS.has(t));
+  return (
+    text
+      .toLowerCase()
+      // Contractions are function words, not tokens: stripping the apostrophe
+      // to a space turned "they'd" into "they d" and "couldn't" into "couldn t",
+      // and those fragments consumed phrase slots. Voiceover-derived claims
+      // (#354) hit this constantly; curated assetNeed text mostly did not.
+      .replace(/\b(can|won)['’]t\b/gu, (_, stem) => (stem === "can" ? "can not" : "will not"))
+      .replace(/\b(\p{L}+)n['’]t\b/gu, "$1 not")
+      // Possessives are part of the noun: "Unitree's" must not become "unitree s".
+      .replace(/['’](?:s|d|ll|re|ve|m)\b/gu, "")
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .split(/\s+/)
+      // A single letter is never a subject ("s", "d", "t" left by an
+      // unexpanded contraction); digits are quantifiers, never subjects.
+      .filter((t) => t.length > 1 && !/^\d+$/u.test(t) && !NON_KEYWORD_WORDS.has(t))
+  );
 }
 
 /**
@@ -373,7 +496,7 @@ function tokenizeClaimWords(text) {
 function anchorWords(claim) {
   const anchors = new Set();
   for (const raw of claim.split(/\s+/)) {
-    const bare = raw.replace(/[^\p{L}\p{N}]/gu, "");
+    const bare = raw.replace(/['’]s\b/giu, "").replace(/[^\p{L}\p{N}]/gu, "");
     if (!bare || /^\d+$/u.test(bare)) continue; // bare numbers are quantifiers
     const hasLowercase = /[a-z]/.test(bare);
     if (/[0-9]/u.test(bare) || (hasLowercase && /[A-Z]/u.test(bare.slice(1)))) {
@@ -519,9 +642,9 @@ export function extractZhKeywords(text, opts = {}) {
  *   non-anchor word), the scene yields no claim keywords and the caller's
  *   pool takes over — fail-closed beats a noisy query.
  *
- * Scope boundary: this function only decides *what to search with*. The VLM
- * still scores candidates against the untouched assetNeed text (#294 owns
- * relevance judgment; #354 owns handwritten searchHints overrides).
+ * Scope boundary: this function only decides *what to search with* when the
+ * writer has not supplied `searchHints` (#354); the VLM still scores
+ * candidates against the untouched claim text (#294 owns relevance judgment).
  *
  * @param {string} claim - Asset-need description
  * @returns {string[]} Keyword array (0..3 entries; each is a ≥2-word phrase or an anchor)

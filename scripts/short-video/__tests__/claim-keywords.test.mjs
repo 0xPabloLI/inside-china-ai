@@ -3,11 +3,14 @@ import { readdirSync, existsSync } from "node:fs";
 import {
   extractSceneClaims,
   claimToKeywords,
+  claimQueryPhrases,
+  isUsableSearchHints,
   skipsMediaSourcing,
   extractZhKeywords,
 } from "../lib/claim-keywords.mjs";
 import { buildQueryGroups } from "../lib/asset-sourcer.mjs";
 import { scenes as qwen4Scenes } from "../content/qwen4-preview/scene-data.mjs";
+import { scenes as unitreeScenes } from "../content/unitree/scene-data.mjs";
 
 // ── extractSceneClaims ──
 
@@ -17,10 +20,10 @@ describe("extractSceneClaims", () => {
       {
         id: 2,
         visualType: "narrative",
+        layout: "media-overlay",
         voiceover: "It previews the Qwen4 architecture.",
         assetNeed: "  transformer architecture diagram  ",
       },
-      { id: 3, visualType: "narrative", voiceover: "No need here." },
     ];
     expect(extractSceneClaims(scenes)).toEqual([
       {
@@ -31,11 +34,11 @@ describe("extractSceneClaims", () => {
     ]);
   });
 
-  it("treats empty, whitespace, and missing assetNeed as no claim", () => {
+  it("treats empty, whitespace, and missing assetNeed as no explicit claim", () => {
     const scenes = [
-      { id: 1, visualType: "narrative", voiceover: "a", assetNeed: "" },
-      { id: 2, visualType: "narrative", voiceover: "b", assetNeed: "   " },
-      { id: 3, visualType: "narrative", voiceover: "c" },
+      { id: 1, visualType: "narrative", layout: "media-overlay", assetNeed: "" },
+      { id: 2, visualType: "narrative", layout: "media-overlay", assetNeed: "   " },
+      { id: 3, visualType: "narrative", layout: "media-overlay" },
     ];
     expect(extractSceneClaims(scenes)).toEqual([]);
   });
@@ -62,11 +65,145 @@ describe("extractSceneClaims", () => {
     expect(extractSceneClaims(scenes)).toEqual([]);
   });
 
-  it("handles null/undefined scenes array and real qwen4-preview scene-data (no assetNeed yet)", () => {
+  it("handles null/undefined scenes array and real qwen4-preview scene-data", () => {
     expect(extractSceneClaims(null)).toEqual([]);
     expect(extractSceneClaims([])).toEqual([]);
-    // Real content smoke: qwen4-preview has no assetNeed fields — zero claims, no throw.
+    // Real content smoke: qwen4-preview has no assetNeed, and its only
+    // sourcing-eligible scenes (6, 8) already carry bound media — derived
+    // supply has nothing to search for, so there are still zero claims.
     expect(extractSceneClaims(qwen4Scenes)).toEqual([]);
+  });
+
+  it("derives a claim from the voiceover for a sourcing-eligible scene without media (#354)", () => {
+    const voiceover = "Unitree's H1 humanoid walks across a factory floor.";
+    expect(
+      extractSceneClaims([{ id: 2, visualType: "narrative", layout: "media-overlay", voiceover }]),
+    ).toEqual([{ sceneId: 2, assetNeed: "", voiceover }]);
+  });
+
+  it("does not derive a claim for a scene that already carries media", () => {
+    const scenes = [
+      {
+        id: 2,
+        visualType: "narrative",
+        layout: "media-overlay",
+        voiceover: "A humanoid robot walks.",
+        media: { type: "image", path: "assets/x.jpg" },
+      },
+    ];
+    expect(extractSceneClaims(scenes)).toEqual([]);
+  });
+
+  it("does not derive supply for generation-only scenes (#354 shares shouldSourceStock)", () => {
+    const base = {
+      id: 5,
+      visualType: "narrative",
+      layout: "media-overlay",
+      voiceover: "A humanoid robot walks across a factory floor.",
+    };
+    for (const mediaStrategy of ["b-roll", "ai-image"]) {
+      expect(extractSceneClaims([{ ...base, mediaStrategy }])).toEqual([]);
+    }
+    for (const mediaStrategy of ["asset", "asset-then-broll", "asset-then-ai-image"]) {
+      expect(extractSceneClaims([{ ...base, mediaStrategy }])).toHaveLength(1);
+    }
+  });
+
+  it("keeps an explicit assetNeed on a generation-only scene (writer override until #355)", () => {
+    expect(
+      extractSceneClaims([
+        {
+          id: 6,
+          visualType: "narrative",
+          layout: "media-overlay",
+          voiceover: "vo",
+          mediaStrategy: "b-roll",
+          assetNeed: "benchmark chart",
+        },
+      ]),
+    ).toHaveLength(1);
+  });
+
+  it("skips derivation when the scene has no voiceover either", () => {
+    expect(
+      extractSceneClaims([{ id: 9, visualType: "narrative", layout: "media-overlay" }]),
+    ).toEqual([]);
+  });
+
+  it("carries searchHints in writer order, sanitised and deduped (#354)", () => {
+    const [claim] = extractSceneClaims([
+      {
+        id: 4,
+        visualType: "narrative",
+        layout: "media-overlay",
+        voiceover: "vo",
+        assetNeed: "humanoid robot",
+        searchHints: [
+          "Unitree H1 humanoid robot",
+          "robot",
+          "cinematic close-up",
+          "humanoid robot factory",
+          "Unitree H1 humanoid robot",
+        ],
+      },
+    ]);
+    expect(claim.searchHints).toEqual(["unitree h1 humanoid robot", "humanoid robot factory"]);
+  });
+});
+
+describe("isUsableSearchHints (#354 preflight shape)", () => {
+  it("accepts an omitted field and usable phrase lists", () => {
+    expect(isUsableSearchHints(undefined)).toBe(true);
+    expect(isUsableSearchHints(["humanoid robot factory"])).toBe(true);
+    expect(
+      isUsableSearchHints([
+        "unitree h1 humanoid robot",
+        "humanoid robot factory",
+        "warehouse automation",
+        "robot arm assembly",
+      ]),
+    ).toBe(true);
+  });
+
+  it("rejects non-arrays, empty lists, over-long lists and unretrievable phrases", () => {
+    expect(isUsableSearchHints("humanoid robot")).toBe(false);
+    expect(isUsableSearchHints([])).toBe(false);
+    expect(isUsableSearchHints(["a", "b", "c", "d", "e"])).toBe(false);
+    expect(isUsableSearchHints(["robot"])).toBe(false); // single generic word
+    expect(isUsableSearchHints(["cinematic close-up"])).toBe(false);
+    expect(isUsableSearchHints([42])).toBe(false);
+    // Longer phrases would be truncated to the primary window at sourcing
+    // time — fail instead of silently losing words.
+    expect(isUsableSearchHints(["humanoid robot factory assembly line"])).toBe(false);
+  });
+});
+
+describe("claimQueryPhrases (#354)", () => {
+  it("tokenizes an explicit assetNeed", () => {
+    expect(claimQueryPhrases({ assetNeed: "benchmark chart", voiceover: "vo" })).toEqual([
+      "benchmark chart",
+    ]);
+  });
+
+  it("tokenizes the voiceover when the claim is derived", () => {
+    expect(
+      claimQueryPhrases({ assetNeed: "", voiceover: "Factory robots assemble phones." }),
+    ).toEqual(["factory robots assemble phones"]);
+  });
+
+  it("lets writer searchHints replace the tokenized phrases", () => {
+    expect(
+      claimQueryPhrases({
+        assetNeed: "humanoid robot",
+        voiceover: "vo",
+        searchHints: ["unitree h1 humanoid robot", "humanoid robot factory"],
+      }),
+    ).toEqual(["unitree h1 humanoid robot", "humanoid robot factory"]);
+  });
+
+  it("returns no phrases for a missing claim or empty text", () => {
+    expect(claimQueryPhrases(null)).toEqual([]);
+    expect(claimQueryPhrases({ assetNeed: "", voiceover: "" })).toEqual([]);
   });
 });
 
@@ -114,6 +251,21 @@ describe("claimToKeywords", () => {
     expect(
       claimToKeywords("close up of an advanced AI processor chip glowing red on a circuit board"),
     ).toEqual(["advanced processor chip circuit"]);
+  });
+
+  it("keeps possessives part of their noun instead of leaking a stray 's' (#354)", () => {
+    expect(claimToKeywords("Unitree's humanoid robot walks")).toEqual([
+      "unitree humanoid robot walks",
+    ]);
+    expect(claimToKeywords("Alibaba's Qwen team")).toEqual(["alibaba qwen team"]);
+  });
+
+  it("expands or drops contractions instead of emitting letter fragments (#354)", () => {
+    expect(claimToKeywords("DeepSeek couldn't match Nvidia's pricing")).toEqual([
+      "deepseek match nvidia pricing",
+    ]);
+    expect(claimToKeywords("We won't build a moat")).toEqual(["build moat"]);
+    expect(claimToKeywords("They'd ship it")).toEqual([]); // remnants are all function words
   });
 
   it("collapses repeated words instead of echoing them (#635)", () => {
@@ -248,10 +400,10 @@ describe("#635 — assetNeed keyword hygiene", () => {
       if (!mod.scenes) continue;
       for (const claim of extractSceneClaims(mod.scenes)) {
         checked++;
-        for (const kw of claimToKeywords(claim.assetNeed)) {
+        for (const kw of claimQueryPhrases(claim)) {
           expect(
             kw.includes(" ") || /[0-9]/.test(kw),
-            `"${kw}" from ${dir}: "${claim.assetNeed}"`,
+            `"${kw}" from ${dir}: "${claim.assetNeed || claim.voiceover}"`,
           ).toBe(true);
         }
       }
@@ -263,14 +415,62 @@ describe("#635 — assetNeed keyword hygiene", () => {
 // ── buildQueryGroups（asset-sourcer 搜索计划，矩阵行 #2/#5）──
 
 describe("buildQueryGroups", () => {
-  it("returns empty groups when no assetNeed and no keyEntities (row 2: graceful pool)", () => {
+  it("returns empty groups when there is no claim text and no keyEntities (row 2: graceful pool)", () => {
     const { queryGroups, allKeywords } = buildQueryGroups(
-      [{ id: 1, visualType: "narrative", voiceover: "nothing here" }],
+      [{ id: 1, visualType: "narrative", layout: "media-overlay" }],
       null,
       null,
     );
     expect(queryGroups).toEqual([]);
     expect(allKeywords).toEqual([]);
+  });
+
+  it("builds a claim-bound group from a voiceover-derived claim (#354)", () => {
+    const { queryGroups, claimCount } = buildQueryGroups(
+      [
+        {
+          id: 3,
+          visualType: "narrative",
+          layout: "media-overlay",
+          voiceover: "Unitree's humanoid robot walks across a factory floor.",
+        },
+      ],
+      null,
+      null,
+    );
+    expect(claimCount).toBe(1);
+    // extractKeywords also emits a company-entity fallback group (claimSceneId
+    // null) from the capitalized "Unitree" in the voiceover — filter to the
+    // claim-bound groups this test is about.
+    expect(queryGroups.filter((g) => g.claimSceneId === 3)).toEqual([
+      { keywords: ["unitree humanoid robot walks", "factory floor"], claimSceneId: 3 },
+    ]);
+  });
+
+  it("uses searchHints instead of tokenizing when the writer supplies them (#354)", () => {
+    const { queryGroups } = buildQueryGroups(
+      [
+        {
+          id: 4,
+          visualType: "narrative",
+          layout: "media-overlay",
+          voiceover: "Unitree's humanoid robot walks across a factory floor.",
+          searchHints: ["unitree h1 humanoid robot", "humanoid robot factory"],
+        },
+      ],
+      null,
+      null,
+    );
+    expect(queryGroups.filter((g) => g.claimSceneId === 4)).toEqual([
+      { keywords: ["unitree h1 humanoid robot", "humanoid robot factory"], claimSceneId: 4 },
+    ]);
+  });
+
+  it("derives claim-bound groups on a real package (unitree)", () => {
+    const { queryGroups, claimCount } = buildQueryGroups(unitreeScenes, null, null);
+    expect(claimCount).toBeGreaterThanOrEqual(2);
+    expect(queryGroups.filter((g) => g.claimSceneId === 6)).toHaveLength(1);
+    expect(queryGroups.filter((g) => g.claimSceneId === 8)).toHaveLength(1);
   });
 
   it("skips all-stopword claims but keeps the fallback pool (row 5)", () => {
