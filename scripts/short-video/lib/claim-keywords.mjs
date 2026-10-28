@@ -38,8 +38,8 @@ const CSS_ONLY_LAYOUTS = new Set(["hero-center", "stacked-cards"]);
  * Precedence: NO_MEDIA_TYPES → hook (#299: manually curated, never
  * auto-sourced) → explicit `media: null` ("permanently no media", survives
  * reruns) → deprecated `mediaOptOut` (legacy content, still honored) →
- * CSS-only layouts. The b-roll budget check (shouldSourceStock) stays with
- * the caller.
+ * CSS-only layouts. Derived supply additionally honours `shouldSourceStock`
+ * (#354); an explicit `assetNeed` does not, until #355 unifies the chain.
  */
 export function skipsMediaSourcing(scene) {
   if (!scene) return true;

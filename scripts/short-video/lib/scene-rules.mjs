@@ -1209,11 +1209,10 @@ export function checkHookMediaContract(scenes) {
  *  Preflight runs before Step 1.5, so a usable claim or generating strategy is
  *  a plan, not a gap — final-media-gate enforces the landed file at render
  *  time. */
-function checkNarrativeMediaWarning(scenes) {
+function checkNarrativeMediaWarning(scenes, phrases = sceneClaimPhrases(scenes)) {
   const mediaScenes = scenes.filter(
     (s) => !skipsMediaSourcing(s) && !GENERATING_STRATEGIES.has(s.mediaStrategy),
   );
-  const phrases = sceneClaimPhrases(scenes);
   const missing = mediaScenes.filter(
     (s) => !s.media?.path && (phrases.get(s.id) ?? []).length === 0,
   );
@@ -1245,18 +1244,35 @@ function checkNarrativeMediaWarning(scenes) {
 /** `searchHints` schema check (#354). The field is the writer override for
  *  the search phrases derived from a scene's claim; without a preflight look a
  *  typo would behave like "no hints" and silently fall back to tokenization —
- *  the #836 failure mode applied to the new field. */
-function checkSearchHintsSchema(scenes) {
+ *  the #836 failure mode applied to the new field. That includes a misspelled
+ *  key (`searchHint`, `search_hints`), which would otherwise leave the field
+ *  invisible to every reader. */
+const HINT_KEY_VARIANTS = /^search[_-]?hints?$/i;
+
+function checkSearchHintsSchema(scenes, phrases = sceneClaimPhrases(scenes)) {
   const declared = (scenes ?? []).filter((scene) => scene?.searchHints !== undefined);
-  const phrases = sceneClaimPhrases(scenes);
   const findings = [];
+  for (const [index, scene] of (scenes ?? []).entries()) {
+    const typo = Object.keys(scene ?? {}).find(
+      (key) => key !== "searchHints" && HINT_KEY_VARIANTS.test(key),
+    );
+    if (typo) {
+      findings.push({
+        level: "fail",
+        category: "Media",
+        check: `Search hints schema: Scene ${scene.id ?? index + 1} key is spelled searchHints`,
+        detail: `unknown key "${typo}" — nothing reads it, so the hints have no effect`,
+        fix: "Rename the field to searchHints.",
+      });
+    }
+  }
   for (const scene of declared) {
     if (!phrases.has(scene.id)) {
       findings.push({
         level: "fail",
         category: "Media",
         check: `Search hints schema: Scene ${scene.id} has a claim path`,
-        detail: `searchHints is declared on a scene the sourcer never claims (hook / text-first layout / media: null / already bound media / no voiceover) — nothing reads it`,
+        detail: `searchHints is declared on a scene the sourcer never claims (hook / text-first layout / media: null / bound media without an explicit assetNeed / no voiceover) — nothing reads it`,
         fix: "Remove searchHints from this scene, or make it sourcing-eligible first (hooks are curated by hand; text-first layouts cannot carry evidence — see #761).",
       });
       continue;
@@ -2425,6 +2441,9 @@ export function checkAvatarContract(scenes) {
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const meta = opts.meta || null;
   const avatarResults = checkAvatarContract(scenes);
+  // One claim map for both checks, so "has a usable claim" and "would hints be
+  // read" can never disagree about the same scene (#354 review).
+  const claimPhrases = sceneClaimPhrases(scenes);
   const gateChecks = [
     ...checkSceneCount(scenes, opts),
     ...checkHookVisualType(scenes),
@@ -2443,7 +2462,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkNoWatermarks(scenes),
     ...checkSemanticConsistency(scenes),
     ...checkHookMediaContract(scenes),
-    ...checkNarrativeMediaWarning(scenes),
+    ...checkNarrativeMediaWarning(scenes, claimPhrases),
     ...checkTextConcatenation(scenes),
     ...checkLayoutField(scenes),
     ...checkTemplateContract(scenes),
@@ -2451,7 +2470,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkInstructCoverage(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
     ...checkMediaFieldSchema(scenes),
-    ...checkSearchHintsSchema(scenes),
+    ...checkSearchHintsSchema(scenes, claimPhrases),
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),
     ...checkLayoutMediaRouting(scenes),

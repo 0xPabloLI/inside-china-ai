@@ -1544,6 +1544,12 @@ describe("searchHints schema (#354)", () => {
     expect(boundFail.check).toContain("Scene 2 has a claim path");
   });
 
+  it("fails a misspelled key instead of silently ignoring it", () => {
+    const [fail] = hintFails([scene({ searchHint: ["humanoid robot factory"] })]);
+    expect(fail.check).toContain("spelled searchHints");
+    expect(fail.detail).toContain("searchHint");
+  });
+
   it("fails empty and over-long lists", () => {
     expect(hintFails([scene({ searchHints: [] })])).toHaveLength(1);
     expect(
