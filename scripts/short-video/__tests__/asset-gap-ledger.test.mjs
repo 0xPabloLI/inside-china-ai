@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import {
   GAP_REASON,
   GAP_STATUS,
-  GENERATION_ONLY_STRATEGIES,
   deriveGaps,
   formatGapLine,
   gapId,
@@ -19,6 +18,7 @@ import {
 } from "../lib/asset-gap-ledger.mjs";
 import { runCli } from "../asset-gaps.mjs";
 import { GENERATING_STRATEGIES } from "../lib/scene-rules.mjs";
+import { GENERATION_ONLY_STRATEGIES } from "../lib/media-strategies.mjs";
 
 let tmp = null;
 

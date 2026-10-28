@@ -24,7 +24,7 @@
 
 import { createHash } from "node:crypto";
 import { skipsMediaSourcing } from "./claim-keywords.mjs";
-import { GENERATING_STRATEGIES } from "./scene-rules.mjs";
+import { GENERATION_ONLY_STRATEGIES } from "./media-strategies.mjs";
 
 /** Internal: the ledger file's schema tag, read and written only in here. */
 const ASSET_GAP_SCHEMA_VERSION = 1;
@@ -44,19 +44,6 @@ export const GAP_REASON = {
 };
 
 export const GAP_STATUS = { OPEN: "open", SATISFIED: "satisfied" };
-
-/**
- * Strategies that never buy stock: the generating vocabulary minus the
- * `asset-then-*` ones, which try the library first.
- *
- * Derived from `scene-rules.mjs`, which owns the vocabulary, so a new strategy
- * lands on the correct side here without a second literal set to keep in sync.
- * The `asset-then-*` prefix is the pipeline's own naming convention for
- * "sourcing first, generation as the fallback".
- */
-export const GENERATION_ONLY_STRATEGIES = new Set(
-  [...GENERATING_STRATEGIES].filter((strategy) => !strategy.startsWith("asset-then-")),
-);
 
 const NEED_MAX_CHARS = 240;
 const OCCURRENCE_MAX = 20;

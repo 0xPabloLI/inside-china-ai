@@ -114,7 +114,7 @@ export const MEDIA_PATCH_SCHEMA_VERSION = 1;
 
 import {
   extractSceneClaims,
-  claimToKeywords,
+  claimQueryPhrases,
   extractZhKeywords,
   NO_MEDIA_TYPES as SHARED_NO_MEDIA_TYPES,
 } from "./claim-keywords.mjs";
@@ -228,6 +228,10 @@ const HOOK_REQUIRED_FIT = "cover";
 /**
  * Build the per-run search plan from scene-data claims + fallback keywords.
  *
+ * Claims come from `extractSceneClaims`: an explicit `assetNeed`, or the
+ * voiceover for a sourcing-eligible scene without bound media (#354). A
+ * writer-supplied `searchHints` list replaces the tokenized phrases.
+ *
  * Pure function so the "no queries available" edge is testable without
  * touching the CLI (spec #130 Scenario row 2: empty pool → graceful
  * degradation, never a hard failure — sourcerMain runs in-process from
@@ -243,7 +247,9 @@ export function buildQueryGroups(scenes, meta, cliKeywords) {
   const queryGroups = [];
   const zhQueryGroups = [];
   for (const claimInfo of claims) {
-    const kws = claimToKeywords(claimInfo.assetNeed);
+    // #354: explicit searchHints win; otherwise the claim text (assetNeed, or
+    // the voiceover for a derived claim) is tokenized deterministically.
+    const kws = claimQueryPhrases(claimInfo);
     if (kws.length === 0) continue; // all stopwords → covered by fallback pool
     queryGroups.push({ keywords: kws, claimSceneId: claimInfo.sceneId });
     // #185: zh pool from the scene's original-language source material
@@ -2935,7 +2941,8 @@ export async function main(args = process.argv.slice(2)) {
     }
   }
 
-  // Per-scene claims (structured assetNeed) + company-entity fallback pool.
+  // Per-scene claims (explicit assetNeed or voiceover-derived, #354) +
+  // company-entity fallback pool.
   // Claim-bound candidates are tagged with claimSceneId so they can only be
   // assigned to the scene they were sourced for (spec #130 D3/D7).
   const cliKeywords = keywordsArg ? keywordsArg.split(",").map((k) => k.trim()) : null;
@@ -2959,7 +2966,7 @@ export async function main(args = process.argv.slice(2)) {
   const sceneClaims = extractSceneClaims(scenes);
   const primaryKeyword = queryGroups[0]?.keywords[0] || "asset";
   console.log(
-    `  Claims: ${claimCount} scene(s) with assetNeed → ${queryGroups.length} query group(s)`,
+    `  Claims: ${claimCount} scene(s) (assetNeed or voiceover-derived) → ${queryGroups.length} query group(s)`,
   );
   console.log(`  Keywords: ${allKeywords.join(", ") || "(none)"}`);
 
@@ -2967,10 +2974,10 @@ export async function main(args = process.argv.slice(2)) {
     // Graceful degradation (spec #130 Scenario row 2): scenes render with
     // CSS fallback instead of aborting the in-process pipeline run.
     console.warn(
-      "⚠️  No search queries available (no assetNeed claims, no meta.keyEntities, no --keywords).",
+      "⚠️  No search queries available (no usable claims, no meta.keyEntities, no --keywords).",
     );
     console.warn(
-      "   Scenes will render with CSS fallback. Add assetNeed to scene-data for per-scene sourcing.",
+      "   Scenes will render with CSS fallback. Add assetNeed/searchHints to scene-data for per-scene sourcing.",
     );
     return;
   }
