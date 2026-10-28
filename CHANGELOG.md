@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.39.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.38.0...tanstack_start_ts-v1.39.0) (2026-10-28)
+
+
+### Features
+
+* **sources:** douyin video discovery + honest CDP video declarations ([#314](https://github.com/0xPabloLI/inside-china-ai/issues/314)) ([#1005](https://github.com/0xPabloLI/inside-china-ai/issues/1005)) ([180921d](https://github.com/0xPabloLI/inside-china-ai/commit/180921dd611257d7e0d67ba6d52601a192795472))
+
 ## [1.38.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.37.0...tanstack_start_ts-v1.38.0) (2026-10-27)
 
 
