@@ -10,6 +10,7 @@ import {
   downloadVideo,
   CobaltAdapter,
   buildYtdlpCommand,
+  buildDouyinClipArgs,
   isWeiboUrl,
   weiboCookieNetscape,
   isTiktokUrl,
@@ -80,6 +81,18 @@ describe("canonicalizeUrl", () => {
   it("lowercases hostname", () => {
     expect(canonicalizeUrl("https://WWW.Example.COM/Video.mp4")).toBe(
       "https://www.example.com/Video.mp4",
+    );
+  });
+
+  it("keeps the query (and still drops the fragment) with keepQuery (#314)", () => {
+    expect(
+      canonicalizeUrl("https://WWW.XiaoHongShu.com/explore/abc/?xsec_token=TOK&xsec_source=x#c", {
+        keepQuery: true,
+      }),
+    ).toBe("https://www.xiaohongshu.com/explore/abc?xsec_token=TOK&xsec_source=x");
+    // Default behavior is unchanged: query stripped.
+    expect(canonicalizeUrl("https://www.xiaohongshu.com/explore/abc?xsec_token=TOK")).toBe(
+      "https://www.xiaohongshu.com/explore/abc",
     );
   });
 
@@ -818,6 +831,35 @@ describe("douyin-cdp adapter (#314)", () => {
     });
   });
 
+  describe("buildDouyinClipArgs (#314)", () => {
+    it("passes the douyin Referer to each input and bounds the output to the clip", () => {
+      const args = buildDouyinClipArgs({
+        videoUrl: VIDEO_TRACK,
+        audioUrl: AUDIO_TRACK,
+        referer: "https://www.douyin.com/",
+        seconds: 8,
+        outPath: "/tmp/out.mp4",
+      });
+      expect(args.filter((a) => a === "-headers")).toHaveLength(2);
+      expect(args.filter((a) => a === "Referer: https://www.douyin.com/\r\n")).toHaveLength(2);
+      expect(args.slice(args.indexOf("-t"), args.indexOf("-t") + 2)).toEqual(["-t", "8"]);
+      expect(args).toContain("libx264");
+      expect(args).toContain("aac");
+      expect(args.at(-1)).toBe("/tmp/out.mp4");
+    });
+
+    it("passes one -headers when there is no audio track", () => {
+      const args = buildDouyinClipArgs({
+        videoUrl: VIDEO_TRACK,
+        audioUrl: null,
+        referer: "https://www.douyin.com/",
+        seconds: 8,
+        outPath: "/tmp/out.mp4",
+      });
+      expect(args.filter((a) => a === "-headers")).toHaveLength(1);
+    });
+  });
+
   describe("downloadDouyinCdp", () => {
     it("polls until tracks appear, clips video+audio once with the douyin Referer, closes the tab", async () => {
       const fakes = makeDouyinFakes({
@@ -876,6 +918,23 @@ describe("douyin-cdp adapter (#314)", () => {
       expect(result.status).toBe("failed");
       expect(result.reason).toBe("clip-failed");
       expect(result.retryable).toBe(true);
+      expect(result.cause).toContain("ffmpeg exited 1");
+      expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+    });
+
+    it("reports a missing ffmpeg binary as permanent, not retryable", async () => {
+      const fakes = makeDouyinFakes();
+      const clipFn = vi.fn(async () => {
+        const err = new Error("spawn ffmpeg ENOENT");
+        err.code = "ENOENT";
+        throw err;
+      });
+
+      const result = await downloadDouyinCdp(SOURCE_URL, { ...fakes, clipFn });
+
+      expect(result.status).toBe("failed");
+      expect(result.reason).toBe("ffmpeg-missing");
+      expect(result.retryable).toBe(false);
       expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
     });
 
@@ -1173,19 +1232,17 @@ describe("RedNote-MCP adapter (#75 Batch 3)", () => {
 
   it("preserves the xsec_token query when canonicalizing xhs URLs (#314)", () => {
     const result = selectStrategy(
-      "https://www.xiaohongshu.com/explore/abc123?xsec_token=TOK&xsec_source=pc_search",
+      "https://WWW.XiaoHongShu.com/explore/abc123/?xsec_token=TOK&xsec_source=pc_search",
     );
     expect(result.adapter).toBe(ADAPTER_IDS.XHS_DOWNLOADER);
-    expect(result.canonicalUrl).toContain("abc123");
-    expect(result.canonicalUrl).toContain("xsec_token=TOK");
-    expect(result.canonicalUrl).toContain("xsec_source=pc_search");
+    expect(result.canonicalUrl).toBe(
+      "https://www.xiaohongshu.com/explore/abc123?xsec_token=TOK&xsec_source=pc_search",
+    );
 
     const fragment = selectStrategy(
       "http://www.xiaohongshu.com/explore/abc123?xsec_token=TOK#comments",
     );
-    expect(fragment.canonicalUrl.startsWith("https://")).toBe(true);
-    expect(fragment.canonicalUrl).toContain("xsec_token=TOK");
-    expect(fragment.canonicalUrl).not.toContain("#");
+    expect(fragment.canonicalUrl).toBe("https://www.xiaohongshu.com/explore/abc123?xsec_token=TOK");
   });
 
   it("keeps the no-query xhs URL behavior unchanged (#314)", () => {

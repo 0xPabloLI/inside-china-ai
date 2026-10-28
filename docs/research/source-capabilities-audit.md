@@ -4,7 +4,7 @@
 >
 > 前身：`docs/archive/reviews/source-registry-capability-audit-2026-08-19.md`（#77 首轮审计，59 源、#67 schema 落地前时代）。该轮的 P0（xhs/douyin/weibo_hot ytdlp 误标）与 P1（google_news/bing_news 图片混入文本候选）已在此后修复；本轮为 schema 落地 + #92/#65 增源后的全面复核，覆盖面取代旧报告。
 >
-> **后续变更（勿据本表判当前状态）**：2026-10-15 `bing_news` 收敛为 articles-only（#636）——其卡片只产出 Bing CDN 缩略图（468×264）或 base64 占位符，`images`/`videos` 能力已下掉，下表仍记审计当日（2026-09-06）的 16/14 计数。**2026-10-28（#314）**：8 个 CDP 新闻源（qbitai / jiqizhixin / ithome / xinhua / thepaper / leiphone / zhidx / google_search）的 `capabilities.videos` 全部摘除——逐站实测（关键词「人工智能」、每站 5 篇当日文章）`<video>`/iframe 播放器命中 **0/40**；`baidu_search` 的 vsearch 视频通道保留（真实内联播放器）。`douyin` 新增视频发现声明（`/search/{kw}?type=video`，2026-10-28 实测 20 条真结果 → 8s H.264 下载成功）；`xhs` 仍未声明（自动化 profile 登录态过期，未验证）。
+> **后续变更（勿据本表判当前状态）**：2026-10-15 `bing_news` 收敛为 articles-only（#636）——其卡片只产出 Bing CDN 缩略图（468×264）或 base64 占位符，`images`/`videos` 能力已下掉，下表仍记审计当日（2026-09-06）的 16/14 计数。**2026-10-28（#314）**：8 个 CDP 新闻源（qbitai / jiqizhixin / ithome / xinhua / thepaper / leiphone / zhidx / google_search）的 `capabilities.videos` 全部摘除。逐站实测（关键词「人工智能」，2026-10-28）：ithome 65 条结果 / 3 篇、qbitai 33 / 3、xinhua 9 / 5、thepaper 25 / 5、leiphone 16 / 5、google_search 10 / 5——合计 **26 篇文章、0 个 `<video>` 或 bilibili/youtube iframe**；jiqizhixin 与 zhidx 搜索返回 0 条（未验证，按未验证摘除）。另对其中 12 篇做「任意 iframe」复查：0 个 `<video>`、0 个播放器 iframe（仅广告/日历/登录组件）。`baidu_search` 的 vsearch 视频通道保留（真实内联播放器）。`douyin` 新增视频发现声明（`/search/{kw}?type=video`，实测 20 条真结果 → 8s H.264 下载成功）；`xhs` 仍未声明（自动化 profile 登录态过期，未验证，跟进 #1004）。
 
 ## 0. 总体结论
 

@@ -2961,9 +2961,12 @@ export const STOCK_MEDIA_SOURCES = [
 // on the Node side handles any embed forms this script misses.
 //
 // #314 (2026-10-28): the 8 news sources that used to declare this script were
-// removed — a live per-site check (keyword 人工智能, 5 article pages each) found
-// 0 <video>/iframe players, so the declarations only produced zero-result
-// sources. The script still backs baidu_search's verified vsearch vertical.
+// removed — a live per-site check (keyword 人工智能; 26 article pages across the
+// 6 sites that returned search results) found 0 <video>/iframe players, and a
+// broader probe of 12 of those pages found 0 players among all iframes too.
+// jiqizhixin/zhidx returned 0 search results, so their declarations are removed
+// as unverified rather than proven empty. The script still backs baidu_search's
+// verified vsearch vertical.
 const CDP_VIDEO_SCRIPT = `
   var results = [];
   document.querySelectorAll('video').forEach(function(v) {
@@ -3901,30 +3904,21 @@ function enrichWithCapabilities(sources) {
       capabilities.images = CDP_MEDIA_CAPABILITIES[source.name];
     }
 
-    // Videos: CDP video-only discovery channel (#314). Carries auth metadata so the
-    // video search path can run the same login gate as the article path.
-    const cdpVideoOnly = CDP_VIDEO_CAPABILITIES[source.name];
-    if (cdpVideoOnly) {
+    // Videos: CDP media entries with a videoScript (#183/#249) plus the
+    // video-only discovery channel (#314). One block, so the capability shape
+    // and its auth metadata cannot drift between the two channels. videoUrl
+    // overrides the media URL for a separate video vertical (baidu_search).
+    // The login gate resolver keeps the #199 precedence: capabilities.articles
+    // wins over the top-level source fields.
+    const mediaCap = CDP_MEDIA_CAPABILITIES[source.name];
+    const videoOnlyCap = CDP_VIDEO_CAPABILITIES[source.name];
+    const cdpVideoCap = videoOnlyCap ?? (mediaCap?.videoScript ? mediaCap : null);
+    if (cdpVideoCap) {
       capabilities.videos = {
         method: "cdp",
-        url: cdpVideoOnly.videoUrl || cdpVideoOnly.url,
-        videoScript: cdpVideoOnly.videoScript,
-        needsAuth: !!cdpVideoOnly.needsAuth,
-        loginCheckScript: cdpVideoOnly.loginCheckScript || null,
-      };
-    }
-
-    // Videos: CDP sources declaring a videoScript (#183). videoUrl overrides
-    // the shared media URL when the video vertical lives on a different path
-    // (baidu_search, #249).
-    if (CDP_MEDIA_CAPABILITIES[source.name]?.videoScript) {
-      capabilities.videos = {
-        method: "cdp",
-        url:
-          CDP_MEDIA_CAPABILITIES[source.name].videoUrl || CDP_MEDIA_CAPABILITIES[source.name].url,
-        videoScript: CDP_MEDIA_CAPABILITIES[source.name].videoScript,
-        needsAuth: !!source.needsAuth,
-        loginCheckScript: source.loginCheckScript || null,
+        url: cdpVideoCap.videoUrl || cdpVideoCap.url,
+        videoScript: cdpVideoCap.videoScript,
+        ...resolveLoginGate({ ...source, capabilities }),
       };
     }
 

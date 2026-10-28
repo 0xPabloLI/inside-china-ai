@@ -600,8 +600,8 @@ export async function searchCdpVideoSource(source, keyword, options = {}) {
     // as a gate hit instead of "0 videos" (silent empty-result failure).
     const gate = await runPageGates({
       tabId,
-      needsAuth: source.needsAuth,
-      loginCheckScript: source.loginCheckScript,
+      needsAuth: !!source.needsAuth,
+      loginCheckScript: source.loginCheckScript || null,
     });
     if (gate) {
       console.warn(
@@ -669,11 +669,13 @@ export function normalizeCdpVideoCandidates(raw, sourceName, keyword = "") {
       url = `https://www.bilibili.com/video/${m[1]}`;
       platform = "bilibili";
     } else if (
-      /^https?:\/\/(?:www\.)?douyin\.com\/video\/\d+/.test(url) ||
-      /^https?:\/\/(?:www\.)?iesdouyin\.com\/share\/video\/\d+/.test(url)
+      // #314: douyin post URL, normalized to the desktop form so a share link
+      // and its /video/ twin dedupe to one candidate. The id is the identity;
+      // no platform hint (the douyin-cdp adapter handles it).
+      (m = url.match(/^https?:\/\/(?:www\.)?douyin\.com\/video\/(\d+)/)) ||
+      (m = url.match(/^https?:\/\/(?:www\.)?iesdouyin\.com\/share\/video\/(\d+)/))
     ) {
-      // #314: douyin post URL, kept verbatim (id + host) for the douyin-cdp
-      // download adapter — no platform hint, no rewriting.
+      url = `https://www.douyin.com/video/${m[1]}`;
       platform = null;
     } else if (/^https?:\/\//i.test(url) && /\.(mp4|webm|m3u8|mov|ogg)([?#]|$)/i.test(url)) {
       platform = null; // self-hosted direct video source

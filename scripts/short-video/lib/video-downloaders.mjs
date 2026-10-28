@@ -182,8 +182,13 @@ const DOUYIN_REFERER = "https://www.douyin.com/";
  *  timings. The player uses MSE (`blob:` currentSrc), so the <video> element
  *  carries no fetchable URL; the page does request separate signed
  *  video/audio tracks from douyinvod.com. Returns an array — written as an
- *  IIFE expression because CDP eval has no top-level return. */
+ *  IIFE expression because CDP eval has no top-level return. Raises the
+ *  resource-timing buffer first: the live page already holds ~240 entries and
+ *  the media requests must not be evicted while the adapter polls. */
 const DOUYIN_MEDIA_TRACKS_SCRIPT = `(() => {
+  try {
+    performance.setResourceTimingBufferSize(2000);
+  } catch (e) {}
   try {
     return performance
       .getEntriesByType("resource")
@@ -203,6 +208,7 @@ const DOUYIN_TRACK_POLL_TIMEOUT_MS = 12000;
  *  Douyin's full tracks are 23-139MB (measured live 2026-10-28), so the
  *  adapter never pulls whole tracks — only the first 8 seconds. */
 const DOUYIN_CLIP_SECONDS = 8;
+const DOUYIN_CLIP_TIMEOUT_MS = 120000;
 
 /**
  * Normalize a CDP eval response to an array of URL strings.
@@ -224,6 +230,38 @@ function douyinTrackList(value) {
 }
 
 /**
+ * Build the ffmpeg argv for the douyin 8s clip (pure, exported for tests).
+ *
+ * Two inputs, each with its own `-headers` (ffmpeg applies the option to the
+ * next input only), then an output bounded by `-t` and transcoded to H.264/AAC
+ * for Chromium/Remotion.
+ *
+ * @param {{videoUrl: string, audioUrl?: string|null, referer: string, seconds: number, outPath: string}} params
+ * @returns {string[]}
+ */
+export function buildDouyinClipArgs({ videoUrl, audioUrl, referer, seconds, outPath }) {
+  const headers = `Referer: ${referer}\r\n`;
+  const args = ["-y", "-headers", headers, "-i", videoUrl];
+  if (audioUrl) args.push("-headers", headers, "-i", audioUrl);
+  args.push(
+    "-t",
+    String(seconds),
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "22",
+    "-c:a",
+    "aac",
+    "-movflags",
+    "+faststart",
+    outPath,
+  );
+  return args;
+}
+
+/**
  * Default clipper: an 8s H.264 b-roll clip straight off Douyin's signed CDN
  * tracks. Douyin serves picture and sound as separate URLs that only answer
  * with `Referer: https://www.douyin.com/`; ffmpeg reads them over HTTP with
@@ -231,7 +269,7 @@ function douyinTrackList(value) {
  * ranges it needs (verified live 2026-10-28: 0.5-0.8MB in 2-3s for sources
  * weighing 23-139MB). The source is HEVC, which Chromium/Remotion cannot
  * decode reliably, so both streams are transcoded to H.264/AAC.
- * Temp files are always removed.
+ * Temp files are always removed; a failure carries the ffmpeg stderr tail.
  * @param {{videoUrl: string, audioUrl?: string|null, referer: string, seconds: number}} params
  * @returns {Buffer}
  */
@@ -239,25 +277,20 @@ function clipDouyinTracks({ videoUrl, audioUrl, referer, seconds }) {
   const workDir = mkdtempSync(join(tmpdir(), "douyin-clip-"));
   try {
     const outPath = join(workDir, "clip.mp4");
-    const headers = `Referer: ${referer}\r\n`;
-    const args = ["-y", "-headers", headers, "-i", videoUrl];
-    if (audioUrl) args.push("-headers", headers, "-i", audioUrl);
-    args.push(
-      "-t",
-      String(seconds),
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-crf",
-      "22",
-      "-c:a",
-      "aac",
-      "-movflags",
-      "+faststart",
-      outPath,
-    );
-    execFileSync("ffmpeg", args, { stdio: "ignore" });
+    const args = buildDouyinClipArgs({ videoUrl, audioUrl, referer, seconds, outPath });
+    try {
+      execFileSync("ffmpeg", args, {
+        stdio: "pipe",
+        timeout: DOUYIN_CLIP_TIMEOUT_MS,
+      });
+    } catch (e) {
+      const stderr = String(e.stderr || "")
+        .trim()
+        .slice(-400);
+      const err = new Error(`ffmpeg clip failed: ${stderr || e.message}`);
+      err.code = e.code;
+      throw err;
+    }
     return readFileSync(outPath);
   } finally {
     try {
@@ -380,26 +413,6 @@ export function extractDouyinVideoId(canonicalUrl) {
 // ─── Strategy selector ───
 
 /**
- * Preserve the query string of an xhs URL (#314).
- *
- * xhs note URLs need `xsec_token` in the query for the downloader, but
- * `canonicalizeUrl` strips it — and both xhs adapters receive `canonicalUrl`.
- * Normalizes scheme/host like canonicalizeUrl does, trims, and drops only the
- * fragment.
- *
- * @param {string} url
- * @returns {string}
- */
-function preserveQueryUrl(url) {
-  let result = url.trim();
-  if (result.startsWith("http://")) result = "https://" + result.slice(7);
-  if (result.startsWith("//")) result = "https:" + result;
-  const hashIdx = result.indexOf("#");
-  if (hashIdx !== -1) result = result.slice(0, hashIdx);
-  return result;
-}
-
-/**
  * Select the download strategy for a URL.
  *
  * Priority:
@@ -444,9 +457,13 @@ export function selectStrategy(url, options = {}) {
   // adapter is the in-process fallback; RedNote-MCP stays exported but
   // unrouted (upstream detail scraping currently returns empty).
   // #314: keep the query — xhs note URLs need `xsec_token`, and both adapters
-  // receive this canonicalUrl.
+  // receive this canonicalUrl. The rest of the canonical form still applies
+  // (scheme/host/trailing slash).
   if (isXhsUrl(canonical)) {
-    return { adapter: ADAPTER_IDS.XHS_DOWNLOADER, canonicalUrl: preserveQueryUrl(url) };
+    return {
+      adapter: ADAPTER_IDS.XHS_DOWNLOADER,
+      canonicalUrl: canonicalizeUrl(url, { keepQuery: true }),
+    };
   }
 
   // 2.5 抖音/iesdouyin → desktop /video/ page via CDP (#314: signed CDN
@@ -1263,14 +1280,18 @@ export async function downloadDouyinCdp(url, opts = {}) {
         referer: DOUYIN_REFERER,
         seconds: DOUYIN_CLIP_SECONDS,
       });
-    } catch {
+    } catch (e) {
+      // A missing ffmpeg binary is permanent, not retryable; anything else
+      // (CDN hiccup, bad range, transcode failure) may succeed on a retry.
+      const missingBinary = e?.code === "ENOENT";
       return makeResult({
         status: "failed",
         strategy,
         source,
         sourceUrl: url,
-        reason: "clip-failed",
-        retryable: true,
+        reason: missingBinary ? "ffmpeg-missing" : "clip-failed",
+        cause: e?.message?.substring(0, 400) || undefined,
+        retryable: !missingBinary,
       });
     }
 

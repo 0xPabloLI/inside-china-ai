@@ -970,6 +970,9 @@ describe("searchCdpVideoSource", () => {
     };
     cdpNewTab.mockResolvedValue("tab-v");
     waitForPageLoad.mockResolvedValue(true);
+    // #314: a source without needsAuth still passes through the shared gate;
+    // an absent gate result (null) must leave extraction untouched.
+    runPageGates.mockResolvedValueOnce(null);
     extractFromTab.mockResolvedValue([
       { url: "https://www.bilibili.com/video/BV1x", type: "video" },
     ]);
@@ -977,6 +980,11 @@ describe("searchCdpVideoSource", () => {
 
     const out = await searchCdpVideoSource(source, "滴滴");
     expect(cdpNewTab).toHaveBeenCalledWith(expect.stringContaining("ithome.com"));
+    expect(runPageGates).toHaveBeenCalledWith({
+      tabId: "tab-v",
+      needsAuth: false,
+      loginCheckScript: null,
+    });
     expect(extractFromTab).toHaveBeenCalledWith("tab-v", "var r = []; return r;");
     expect(out).toHaveLength(1);
     expect(cdpCloseTab).toHaveBeenCalledWith("tab-v");
@@ -1057,7 +1065,7 @@ describe("normalizeCdpVideoCandidates", () => {
     });
   });
 
-  it("accepts douyin post URLs, keeps them as-is and stamps platform null (#314)", () => {
+  it("normalizes douyin post URLs to one canonical candidate with platform null (#314)", () => {
     const out = normalizeCdpVideoCandidates(
       [
         { url: "https://www.douyin.com/video/123456", title: "一条抖音视频" },
@@ -1066,7 +1074,9 @@ describe("normalizeCdpVideoCandidates", () => {
       "douyin",
       "kw",
     );
-    expect(out).toHaveLength(2);
+    // Both forms share the id; dedupe keeps the first and rewrites the share
+    // link to the desktop form so a mixed result list cannot download twice.
+    expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({
       url: "https://www.douyin.com/video/123456",
       platform: null,
@@ -1074,10 +1084,16 @@ describe("normalizeCdpVideoCandidates", () => {
       source: "douyin",
       type: "video",
     });
-    expect(out[1]).toMatchObject({
-      url: "https://www.iesdouyin.com/share/video/123456",
-      platform: null,
-    });
+  });
+
+  it("rewrites an iesdouyin share URL to the desktop form (#314)", () => {
+    const out = normalizeCdpVideoCandidates(
+      [{ url: "https://www.iesdouyin.com/share/video/999", title: "share" }],
+      "douyin",
+      "kw",
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toBe("https://www.douyin.com/video/999");
   });
 
   it("still rejects arbitrary article pages (#314)", () => {
