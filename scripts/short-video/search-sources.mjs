@@ -157,6 +157,7 @@ import {
   ScriptError,
 } from "./lib/cdp-client.mjs";
 import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
+import { EMBED_HOST_PLATFORMS, PAGE_DATE_META_SELECTORS } from "./lib/page-media-signals.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -245,12 +246,14 @@ async function enrichWithMedia(tabId, articles, { harvestImages = true } = {}) {
     // <iframe> embeds (YouTube, Bilibili, Douyin)
     // #945: substring list, not a regex literal — inside this template string
     // the regex's backslashes are consumed before the page ever sees them,
-    // leaving "SyntaxError: Invalid regular expression flags".
-    var EMBED_URL_PATTERNS = ['youtube.com/embed', 'player.bilibili.com', 'douyin.com', 'player.youku.com'];
+    // leaving "SyntaxError: Invalid regular expression flags". The hosts come
+    // from the shared page-media-signals module (also used by extract-media).
+    var EMBED_HOST_PLATFORMS = ${JSON.stringify(EMBED_HOST_PLATFORMS)};
+    var EMBED_HOSTS = Object.keys(EMBED_HOST_PLATFORMS);
     document.querySelectorAll('iframe[src]').forEach(function(f) {
       var src = f.src || '';
       var lower = src.toLowerCase();
-      var isEmbed = EMBED_URL_PATTERNS.some(function(p) { return lower.indexOf(p) !== -1; });
+      var isEmbed = EMBED_HOSTS.some(function(h) { return lower.indexOf(h) !== -1; });
       if (isEmbed) {
         results.videos._page = results.videos._page || [];
         if (!results.videos._page.includes(src)) results.videos._page.push(src);
@@ -261,8 +264,11 @@ async function enrichWithMedia(tabId, articles, { harvestImages = true } = {}) {
     var ogImage = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
     var ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
     var ogVideo = document.querySelector('meta[property="og:video"]')?.getAttribute('content');
-    var publishedTime = document.querySelector('meta[property="article:published_time"]')?.getAttribute('content')
-      || document.querySelector('meta[property="og:article:published_time"]')?.getAttribute('content');
+    var PAGE_DATE_SELECTORS = ${JSON.stringify(PAGE_DATE_META_SELECTORS)};
+    var publishedTime = null;
+    for (var i = 0; i < PAGE_DATE_SELECTORS.length && !publishedTime; i++) {
+      publishedTime = document.querySelector(PAGE_DATE_SELECTORS[i])?.getAttribute('content');
+    }
     if (ogImage) results.metadata.ogImage = ogImage;
     if (ogTitle) results.metadata.ogTitle = ogTitle;
     if (publishedTime) results.metadata.publishedTime = publishedTime;

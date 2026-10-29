@@ -127,7 +127,7 @@ describe("#945 — the dispatched media script is valid page JavaScript", () => 
     const documentStub = {
       querySelectorAll: (sel) => (sel === "a[href]" ? links : []),
       querySelector: (sel) =>
-        sel === 'meta[property="article:published_time"]'
+        sel === "meta[property='article:published_time']"
           ? { getAttribute: () => PUBLISHED_TIME }
           : null,
     };
@@ -145,7 +145,7 @@ describe("#945 — the dispatched media script is valid page JavaScript", () => 
     const documentStub = {
       querySelectorAll: () => [],
       querySelector: (sel) =>
-        sel === 'meta[property="og:article:published_time"]'
+        sel === "meta[property='og:article:published_time']"
           ? { getAttribute: () => PUBLISHED_TIME }
           : null,
     };

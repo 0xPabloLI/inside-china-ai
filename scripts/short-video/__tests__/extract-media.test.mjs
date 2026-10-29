@@ -49,6 +49,34 @@ describe("buildMediaExtractScript", () => {
     expect(script).toContain("og:image");
     expect(script).toContain("og:video");
   });
+
+  it("#945: parses, and reads the shared og: publish-date fallback", () => {
+    const documentStub = {
+      querySelectorAll: () => [],
+      querySelector: (sel) =>
+        sel === "meta[property='og:article:published_time']"
+          ? { getAttribute: () => "2026-10-15T00:00:00Z" }
+          : null,
+    };
+    const out = new Function("document", buildMediaExtractScript())(documentStub);
+    expect(out.metadata.publishedTime).toBe("2026-10-15T00:00:00Z");
+  });
+
+  it("#945: maps the shared embed hosts to their platforms", () => {
+    const iframes = [
+      { src: "https://www.youtube.com/embed/abc" },
+      { src: "https://player.bilibili.com/player.html?bvid=1" },
+      { src: "https://www.douyin.com/video/1" },
+      { src: "https://player.youku.com/embed/x" },
+      { src: "https://example.com/embed/player" },
+    ];
+    const documentStub = {
+      querySelectorAll: (sel) => (sel === "iframe[src]" ? iframes : []),
+      querySelector: () => null,
+    };
+    const out = new Function("document", buildMediaExtractScript())(documentStub);
+    expect(out.videos.map((v) => v.platform)).toEqual(["youtube", "bilibili", "douyin", "youku"]);
+  });
 });
 
 // ─── parseMediaExtractResult: normalize CDP eval output ───
