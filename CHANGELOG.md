@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.41.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.40.1...tanstack_start_ts-v1.41.0) (2026-10-28)
+
+
+### Features
+
+* **media:** derive claims from voiceover; assetNeed/searchHints become overrides ([#354](https://github.com/0xPabloLI/inside-china-ai/issues/354)) ([#1018](https://github.com/0xPabloLI/inside-china-ai/issues/1018)) ([40f178f](https://github.com/0xPabloLI/inside-china-ai/commit/40f178f6d1031aeb267b71d0dd73070a53e804a9))
+
 ## [1.40.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.40.0...tanstack_start_ts-v1.40.1) (2026-10-28)
 
 
