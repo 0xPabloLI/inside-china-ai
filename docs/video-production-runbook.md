@@ -30,16 +30,16 @@ The first 3 seconds determine 70% of completion rate. Rules:
 
 #### First Frame Best Practices (TikTok / YouTube Shorts / Reels)
 
-| Principle              | Rule                                                  | Why                                                                                       |
-| ---------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **One core message**   | First frame conveys ONE number/word/claim, not a menu | Users scroll at ~1 per second; multi-item frames read as "too much work"                  |
+| Principle              | Rule                                                                       | Why                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **One core message**   | First frame conveys ONE number/word/claim, not a menu                      | Users scroll at ~1 per second; multi-item frames read as "too much work"                                                                                                                                                                                                                                                                                                                                                                       |
 | **Text ≥ 48px**        | Readability tier 48px (metadata 40px) on a 1080×1920 canvas; titles ≥ 60px | 48px is the platform must-read line (4.4% of frame width) and the minimum `preferredSize` a copy-class field may declare (`READABILITY_TIERS` in `lib/text-slots.mjs`, raised to this by #688). It is not a hard render floor: `TextGate`'s shrink ladder may still step a field down to its `minSize` (copy 35 / metadata 29) when the copy does not fit, and cancels the render if it cannot fit even there — so write copy that fits at 48. |
-| **Upper 2/3 rule**     | Critical content above y=1150 (safe-zone bottom edge) | Below y=1150 sits the subtitle lane (y≈1258–1420) + TikTok caption UI (measured top y≈1676) |
-| **No dead space**      | Fill the full 1920px height — no > 200px gaps         | Blank zones signal "no content" → scroll past                                             |
-| **Bold color blocks**  | Use solid-color areas (not gradients) for contrast    | Gradients compress poorly at thumbnail size; solid blocks pop                             |
-| **Asymmetric layout**  | Offset the main element left or right of center       | Centered layouts read as "AI-generated"; asymmetry feels human-designed                   |
-| **Scan line / motion** | Subtle continuous animation (scan sweep, pulse)       | A static frame in autoplay feed looks like a still image, not a video                     |
-| **Max 2 stat cards**   | Don't stack 3+ data points on the hook frame          | Users can't parse 3+ numbers in 1 second; 2 is the limit                                  |
+| **Upper 2/3 rule**     | Critical content above y=1309 (safe-zone bottom edge)                      | Below y=1309 sits the subtitle lane (y=1339–1420) + TikTok caption UI (measured top y≈1676)                                                                                                                                                                                                                                                                                                                                                    |
+| **No dead space**      | Fill the full 1920px height — no > 200px gaps                              | Blank zones signal "no content" → scroll past                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Bold color blocks**  | Use solid-color areas (not gradients) for contrast                         | Gradients compress poorly at thumbnail size; solid blocks pop                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Asymmetric layout**  | Offset the main element left or right of center                            | Centered layouts read as "AI-generated"; asymmetry feels human-designed                                                                                                                                                                                                                                                                                                                                                                        |
+| **Scan line / motion** | Subtle continuous animation (scan sweep, pulse)                            | A static frame in autoplay feed looks like a still image, not a video                                                                                                                                                                                                                                                                                                                                                                          |
+| **Max 2 stat cards**   | Don't stack 3+ data points on the hook frame                               | Users can't parse 3+ numbers in 1 second; 2 is the limit                                                                                                                                                                                                                                                                                                                                                                                       |
 
 **Standard hook template**: Scene 1 MUST use the shared HookScene opening card (`remotion/src/scenes/HookScene.tsx`) — fixed skeleton (badge → subject → focal → stats/source in the `HookScene.tsx` `HOOK_BANDS` grid; sizes from `lib/text-slots.mjs`), two focal variants (number-led `bigNumber` / claim-led `hookText`+`revealText`). The focal is mandatory and exclusive, enforced FAIL-level by `checkHookContract`. Data contract in the HookScene docblock (spec: `docs/archive/spec-hook-opening-card.md`). The claim or number renders on frame 1 with no animation delay — the thumbnail itself must carry the hook.
 
@@ -78,7 +78,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 **Design rules for vertical:**
 
 - Content flows top-to-bottom in a natural reading order
-- Never put critical info below y=1150 (`1920 − SAFE_ZONES.bottom`): the burned-subtitle lane (y≈1258–1420) and TikTok caption UI live there — see Layout Safety in `docs/brand-system.md`
+- Never put critical info below y=1309 (`1920 − SAFE_ZONES.bottom`): the burned-subtitle lane (y=1339–1420) and TikTok caption UI live there — see Layout Safety in `docs/brand-system.md`
 - Use absolute positioning with explicit `top:` values — not flex centering (which can shift with dynamic content)
 - Test at thumbnail size: if text is unreadable at 240×426 (1/4 scale), it's too small
 
@@ -141,32 +141,32 @@ node scripts/short-video/main.mjs --content series/pt4 &
 
 修复固化在代码与本文档，不依赖会话记忆。回归时按表定位。
 
-| #   | 故障                                                        | 固化位置                                                                                                                                                        |
-| --- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | HookScene `<Circle>` 遮住 bigNumber                         | `remotion/src/components/shared.ts` ANNOTATION.circle（strokeWidth:3 + padding）；HookScene 显式传参                                                            |
-| 2   | TTS 读错版本号/小数/日期（"V four [停] one"）               | 双轨文本（上文节）+ `lib/normalize-tts-text.mjs` + kernel 前端限制认知                                                                                          |
-| 2b  | 连字符/斜杠复合词只改前半段 → 口语形烧进成片字幕（"GPT-5.6" → "GPT-five"） | `#753`：整 token 边界原语（复合词整体改写）+ `lib/subtitles/dual-track.mjs` 静态/动态不变量 + 渲染边界 fail-closed（上文「还原契约」）                         |
-| 2c  | 规则吞掉/重复 replacement 之外的一个词 → 还原后字幕少/多一个词（"Submit by 0910." → "Submit 0910."），前三条不变量全静默 | `#817`：`dual-track.mjs` 词数守恒（静态 + 还原后动态）+ Step 0.6 单场景回退（上文「还原契约」）                                                                |
-| 3   | sourcing 跳过所有 assetNeed 场景                            | `lib/claim-keywords.mjs` skipsMediaSourcing 的 `&& !scene.assetNeed` 守卫                                                                                       |
-| 4   | TTS prosody/speed 偏离认可基线                              | adapter 默认 `prosody:null`+无 speed，`TTS_PROSODY=1` opt-in；kernel `torch.manual_seed(20260907)`                                                              |
-| 5   | 重叠字幕 chunk 被丢弃                                       | `text-align.py` group_chunks 重叠合并（never `continue`）                                                                                                       |
-| 7   | media-patch.json 缺 `type` 字段 → 图片被当视频加载          | 每个条目必须 `"type":"image"                                                                                                                                    | "video"`；`remotion/src/components/MediaBackground.tsx:206` 按 type 分派 |
-| 8   | 亮背景图透过 overlay 进右侧安全区                           | media-patch 条目加 `"overlay":0.88`（亮图/图表类）；frame analysis 右安全区阈值                                                                                 |
-| 9   | sourcing 被杀后搜索缓存全丢（"0 entries loaded"）           | `lib/asset-sourcer.mjs` 5 处搜索后立即 `saveSearchResultsCache()` 增量落盘                                                                                      |
-| 10  | Kaggle kernel 每次全量下载模型（10+ min）                   | kernel metadata `dataset_sources` 含 `xPabloLI/cosyvoice3-model`；kernel 先查 `/kaggle/input/cosyvoice3-model/cosyvoice3.yaml` 再 symlink，HF 下载仅作 fallback |
-| 10b | kernel 冷启动把 wetext 的 21 分钟下载算进推理预算（10 场景作业只剩 154s 余量，必撞 1800s 内层超时） | `dataset_sources` 含 `xPabloLI/cosyvoice3-wetext`；kernel 先把快照落到 `~/.cache/modelscope/hub/pengzhendong/wetext`，再把 `wetext==0.0.4` 内的那一次 `snapshot_download("pengzhendong/wetext")` 短路到本地；加载/合成预算分开计（`Loaded in` 为分界），子进程输出流式落日志，超时也能看出死在哪一阶段（#804） |
-| 11  | CDP 中途才检查/静默降级                                     | Step 0.2 CDP hard gate（上文节）；asset-sourcer CDP 不可用即 `process.exit(1)`                                                                                  |
-| 11b | ASR 模型缺失要烧完 TTS 批次才发现（warn + null 不算门禁）   | Step 0.3 ASR hard gate（上文节，`lib/asr-preflight.mjs`）；质检 ASR 腿 INFRA fail-closed（#415 ①）                                                              |
-| 11c | 烧完 TTS + Remotion 才死在字幕烧录（ffmpeg 无 libass）      | Step 0.4 ASS hard gate（上文节，`lib/ffmpeg-preflight.mjs`）；探测 `post-process.mjs` 消费的 `FFMPEG_FULL` 的 `-filters`，有旁白即 fail-closed（#394）           |
-| 11d | `export HF_HUB_OFFLINE=0` 想拉权重却被硬编码 flag 静默覆盖  | 三处 TTS/对齐 spawn（F5 / CosyVoice3-MLX / 对齐）统一走 `lib/tts/offline-env.mjs`：默认离线、显式 env 优先（`TRANSFORMERS_OFFLINE` 只对 transformers 消费者生效，两值冲突时 `HF_HUB_OFFLINE` 优先）。其中**真正从 HF 缓存取权重的两处**（F5 的 vocos、对齐的 wav2vec2）缺缓存时打印缺失模型与一次性拉取命令；CV3 的权重在本地 `--model-dir`，其唯一 HF 依赖（S3TokenizerV3）由 spawn 前的 `ensureS3Tokenizer()` 单独报错（#394） |
-| 12  | CosyVoice3-Kaggle 偶发印度口音/音素拖长/WPM骤降             | Kaggle 环境固化（`onnxruntime-gpu==1.20.0` + commit `074ca6d`）+ 四维 Prompt 规范（Persona+美音+情绪+节奏）+ TTS Quality Gate 自愈（#234）                      |
-| 13  | TTS Quality Gate 版本号/小数 Token 错配导致相似度假阳性扣分 | `quality-gate.mjs` 实现 `buildExpandedAsrTokenSet` 及 `point` 音素桥接映射，实现 100% 语义匹配 (#234)                                                           |
-| 14  | MRL-3 帧审计 final frame 提取越界误报 FAIL                  | `verify-remotion-frames.mjs` ffprobe 实测帧数 clamp lastFrame（scheduleTotalFrames 按预算算，TTS 音频短于预算时渲染帧数更少；4d6ebd4）                          |
-| 15  | Agent 嫌 f5-mlx 慢自行降级 edge-tts（声音机械）             | `lib/tts/registry.mjs` PRIORITY 截断至 f5-mlx + 注释：自动 fallback 到 f5 为止，qwen/edge/say 仅 TTS_ENGINE 人工指定（2a36a48）                                 |
-| 16  | yt-dlp 读 YouTube cookie 触发 Keychain 弹窗，无人值守时挂到 120s timeout | 全部调用点走 `lib/ytdlp-guard.mjs` 的 `ytdlpCookieSource()`：**firefox 明文 cookie 库，不经过 Keychain，无弹窗**。逃生舱 `YTDLP_FIREFOX_PROFILE`（#328）          |
-| 17  | yt-dlp 自选 firefox profile 选到空库 → search 静默 0 结果   | 同一 resolver **固定 profile 绝对路径**，按「Install 级 Default → Profile 级 Default → 其余」排序候选并跳过空 `cookies.sqlite`（#328）                          |
-| 18  | 小写 `http_proxy` 没进 ffmpeg 子进程 → `--download-sections` 段直连、CDN 超时（`ffmpeg exited with code 196`） | `lib/ytdlp-guard.mjs#ytdlpProxyEnv()` 展开进两处 ffmpeg 委派 spawn 的子进程 env（`asset-sourcer.downloadYtdlp` / `video-downloaders.downloadYtdlpAdapter`），不再依赖上游 FFmpegFD 的 `--proxy` 注入；真实 yt-dlp → stub ffmpeg 探针守最后一跳（#329，需本机有 yt-dlp；无该二进制时 skip） |
-| 18b | 系统代理只有 SOCKS → ffmpeg 段仍走直连                     | 上游硬限（2026-09-25 裁决，不造 SOCKS→HTTP 桥）：`resolveYtdlpProxy` 每进程一次性 warn，点名 SOCKS 端点并提示改用 `http_proxy` 的 HTTP 出口；`parseMacSystemProxy` 为该判决暴露 `socksProxy`（#329） |
+| #   | 故障                                                                                                                     | 固化位置                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | HookScene `<Circle>` 遮住 bigNumber                                                                                      | `remotion/src/components/shared.ts` ANNOTATION.circle（strokeWidth:3 + padding）；HookScene 显式传参                                                                                                                                                                                                                                                                                                                             |
+| 2   | TTS 读错版本号/小数/日期（"V four [停] one"）                                                                            | 双轨文本（上文节）+ `lib/normalize-tts-text.mjs` + kernel 前端限制认知                                                                                                                                                                                                                                                                                                                                                           |
+| 2b  | 连字符/斜杠复合词只改前半段 → 口语形烧进成片字幕（"GPT-5.6" → "GPT-five"）                                               | `#753`：整 token 边界原语（复合词整体改写）+ `lib/subtitles/dual-track.mjs` 静态/动态不变量 + 渲染边界 fail-closed（上文「还原契约」）                                                                                                                                                                                                                                                                                           |
+| 2c  | 规则吞掉/重复 replacement 之外的一个词 → 还原后字幕少/多一个词（"Submit by 0910." → "Submit 0910."），前三条不变量全静默 | `#817`：`dual-track.mjs` 词数守恒（静态 + 还原后动态）+ Step 0.6 单场景回退（上文「还原契约」）                                                                                                                                                                                                                                                                                                                                  |
+| 3   | sourcing 跳过所有 assetNeed 场景                                                                                         | `lib/claim-keywords.mjs` skipsMediaSourcing 的 `&& !scene.assetNeed` 守卫                                                                                                                                                                                                                                                                                                                                                        |
+| 4   | TTS prosody/speed 偏离认可基线                                                                                           | adapter 默认 `prosody:null`+无 speed，`TTS_PROSODY=1` opt-in；kernel `torch.manual_seed(20260907)`                                                                                                                                                                                                                                                                                                                               |
+| 5   | 重叠字幕 chunk 被丢弃                                                                                                    | `text-align.py` group_chunks 重叠合并（never `continue`）                                                                                                                                                                                                                                                                                                                                                                        |
+| 7   | media-patch.json 缺 `type` 字段 → 图片被当视频加载                                                                       | 每个条目必须 `"type":"image"                                                                                                                                                                                                                                                                                                                                                                                                     | "video"`；`remotion/src/components/MediaBackground.tsx:206` 按 type 分派 |
+| 8   | 亮背景图透过 overlay 进右侧安全区                                                                                        | media-patch 条目加 `"overlay":0.88`（亮图/图表类）；frame analysis 右安全区阈值                                                                                                                                                                                                                                                                                                                                                  |
+| 9   | sourcing 被杀后搜索缓存全丢（"0 entries loaded"）                                                                        | `lib/asset-sourcer.mjs` 5 处搜索后立即 `saveSearchResultsCache()` 增量落盘                                                                                                                                                                                                                                                                                                                                                       |
+| 10  | Kaggle kernel 每次全量下载模型（10+ min）                                                                                | kernel metadata `dataset_sources` 含 `xPabloLI/cosyvoice3-model`；kernel 先查 `/kaggle/input/cosyvoice3-model/cosyvoice3.yaml` 再 symlink，HF 下载仅作 fallback                                                                                                                                                                                                                                                                  |
+| 10b | kernel 冷启动把 wetext 的 21 分钟下载算进推理预算（10 场景作业只剩 154s 余量，必撞 1800s 内层超时）                      | `dataset_sources` 含 `xPabloLI/cosyvoice3-wetext`；kernel 先把快照落到 `~/.cache/modelscope/hub/pengzhendong/wetext`，再把 `wetext==0.0.4` 内的那一次 `snapshot_download("pengzhendong/wetext")` 短路到本地；加载/合成预算分开计（`Loaded in` 为分界），子进程输出流式落日志，超时也能看出死在哪一阶段（#804）                                                                                                                   |
+| 11  | CDP 中途才检查/静默降级                                                                                                  | Step 0.2 CDP hard gate（上文节）；asset-sourcer CDP 不可用即 `process.exit(1)`                                                                                                                                                                                                                                                                                                                                                   |
+| 11b | ASR 模型缺失要烧完 TTS 批次才发现（warn + null 不算门禁）                                                                | Step 0.3 ASR hard gate（上文节，`lib/asr-preflight.mjs`）；质检 ASR 腿 INFRA fail-closed（#415 ①）                                                                                                                                                                                                                                                                                                                               |
+| 11c | 烧完 TTS + Remotion 才死在字幕烧录（ffmpeg 无 libass）                                                                   | Step 0.4 ASS hard gate（上文节，`lib/ffmpeg-preflight.mjs`）；探测 `post-process.mjs` 消费的 `FFMPEG_FULL` 的 `-filters`，有旁白即 fail-closed（#394）                                                                                                                                                                                                                                                                           |
+| 11d | `export HF_HUB_OFFLINE=0` 想拉权重却被硬编码 flag 静默覆盖                                                               | 三处 TTS/对齐 spawn（F5 / CosyVoice3-MLX / 对齐）统一走 `lib/tts/offline-env.mjs`：默认离线、显式 env 优先（`TRANSFORMERS_OFFLINE` 只对 transformers 消费者生效，两值冲突时 `HF_HUB_OFFLINE` 优先）。其中**真正从 HF 缓存取权重的两处**（F5 的 vocos、对齐的 wav2vec2）缺缓存时打印缺失模型与一次性拉取命令；CV3 的权重在本地 `--model-dir`，其唯一 HF 依赖（S3TokenizerV3）由 spawn 前的 `ensureS3Tokenizer()` 单独报错（#394） |
+| 12  | CosyVoice3-Kaggle 偶发印度口音/音素拖长/WPM骤降                                                                          | Kaggle 环境固化（`onnxruntime-gpu==1.20.0` + commit `074ca6d`）+ 四维 Prompt 规范（Persona+美音+情绪+节奏）+ TTS Quality Gate 自愈（#234）                                                                                                                                                                                                                                                                                       |
+| 13  | TTS Quality Gate 版本号/小数 Token 错配导致相似度假阳性扣分                                                              | `quality-gate.mjs` 实现 `buildExpandedAsrTokenSet` 及 `point` 音素桥接映射，实现 100% 语义匹配 (#234)                                                                                                                                                                                                                                                                                                                            |
+| 14  | MRL-3 帧审计 final frame 提取越界误报 FAIL                                                                               | `verify-remotion-frames.mjs` ffprobe 实测帧数 clamp lastFrame（scheduleTotalFrames 按预算算，TTS 音频短于预算时渲染帧数更少；4d6ebd4）                                                                                                                                                                                                                                                                                           |
+| 15  | Agent 嫌 f5-mlx 慢自行降级 edge-tts（声音机械）                                                                          | `lib/tts/registry.mjs` PRIORITY 截断至 f5-mlx + 注释：自动 fallback 到 f5 为止，qwen/edge/say 仅 TTS_ENGINE 人工指定（2a36a48）                                                                                                                                                                                                                                                                                                  |
+| 16  | yt-dlp 读 YouTube cookie 触发 Keychain 弹窗，无人值守时挂到 120s timeout                                                 | 全部调用点走 `lib/ytdlp-guard.mjs` 的 `ytdlpCookieSource()`：**firefox 明文 cookie 库，不经过 Keychain，无弹窗**。逃生舱 `YTDLP_FIREFOX_PROFILE`（#328）                                                                                                                                                                                                                                                                         |
+| 17  | yt-dlp 自选 firefox profile 选到空库 → search 静默 0 结果                                                                | 同一 resolver **固定 profile 绝对路径**，按「Install 级 Default → Profile 级 Default → 其余」排序候选并跳过空 `cookies.sqlite`（#328）                                                                                                                                                                                                                                                                                           |
+| 18  | 小写 `http_proxy` 没进 ffmpeg 子进程 → `--download-sections` 段直连、CDN 超时（`ffmpeg exited with code 196`）           | `lib/ytdlp-guard.mjs#ytdlpProxyEnv()` 展开进两处 ffmpeg 委派 spawn 的子进程 env（`asset-sourcer.downloadYtdlp` / `video-downloaders.downloadYtdlpAdapter`），不再依赖上游 FFmpegFD 的 `--proxy` 注入；真实 yt-dlp → stub ffmpeg 探针守最后一跳（#329，需本机有 yt-dlp；无该二进制时 skip）                                                                                                                                       |
+| 18b | 系统代理只有 SOCKS → ffmpeg 段仍走直连                                                                                   | 上游硬限（2026-09-25 裁决，不造 SOCKS→HTTP 桥）：`resolveYtdlpProxy` 每进程一次性 warn，点名 SOCKS 端点并提示改用 `http_proxy` 的 HTTP 出口；`parseMacSystemProxy` 为该判决暴露 `socksProxy`（#329）                                                                                                                                                                                                                             |
 
 ## Content Standards
 
@@ -217,7 +217,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 > reads on the same mount are healthy (`flow.pt` 1.33GB via `torch.load` =
 > 47MB/s, `speech_tokenizer_v3.onnx` 969MB = 34MB/s), which is why only the
 > mmapped tree is copied (`localised CosyVoice-BlankEN/ (992MB in 14.3s,
-> 69.5MB/s)`) and the 5GB of `torch.load` weights stay symlinked. After the fix:
+69.5MB/s)`) and the 5GB of `torch.load` weights stay symlinked. After the fix:
 > `Loaded in 141.1s`, 10 scenes synthesised in 65s.
 
 > **Max Effort Rule** (2026-08-14): All local TTS models MUST run at max effort by default.
@@ -305,15 +305,15 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 
 **Post-Processing** (applied to all engines):
 
-| Processing            | F5  | Qwen | Notes                                                                                   |
-| --------------------- | --- | ---- | --------------------------------------------------------------------------------------- |
-| `silenceremove`       | OFF | —    | **RETIRED (#786)** — also trimmed the tail silence. Replaced by the measured pause cap below. |
-| internal-pause cap ≤250ms (`silence-trim.mjs`) | OFF | ON | Production CUDA engine (`useSilenceFilter`): internal pauses capped at 250ms, head/tail silence bit-identical. Engine declares `silenceFloorMs`; the value enters the cache key. Measured → merged → `aselect` mask → **re-measured**, with up to 2 repair passes when the delivered pause is still over the cap (`✂️ Trim repaired` in the log; `⚠️ Pause cap not fully delivered` means the cap lost). Floor lever: `TTS_SILENCE_FLOOR_MS` (default 250; the documented downgrade step to 300 when a pack sounds rushed) — it enters the cache key, so moving it regenerates the affected takes. Also on for `edge-tts` / `say`. |
-| highpass (80Hz)       | ON  | ON   | Removes low-frequency hum. Disable: `TTS_HIGHPASS=0`                                    |
-| afftdn denoise (nr=5) | ON  | ON   | Removes noise floor. Disable: `TTS_DENOISE=0`                                           |
-| rubberband prosody    | OFF | ON   | Per-scene pitch+tempo. F5 disabled (mechanical artifacts).                              |
-| atempo                | OFF | OFF  | Post-hoc speed change. Causes mechanical voice. **NEVER use with F5**.                  |
-| resample (44.1kHz)    | ON  | ON   | Standardize sample rate for assembly                                                    |
+| Processing                                     | F5  | Qwen | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------------------------------------------- | --- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `silenceremove`                                | OFF | —    | **RETIRED (#786)** — also trimmed the tail silence. Replaced by the measured pause cap below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| internal-pause cap ≤250ms (`silence-trim.mjs`) | OFF | ON   | Production CUDA engine (`useSilenceFilter`): internal pauses capped at 250ms, head/tail silence bit-identical. Engine declares `silenceFloorMs`; the value enters the cache key. Measured → merged → `aselect` mask → **re-measured**, with up to 2 repair passes when the delivered pause is still over the cap (`✂️ Trim repaired` in the log; `⚠️ Pause cap not fully delivered` means the cap lost). Floor lever: `TTS_SILENCE_FLOOR_MS` (default 250; the documented downgrade step to 300 when a pack sounds rushed) — it enters the cache key, so moving it regenerates the affected takes. Also on for `edge-tts` / `say`. |
+| highpass (80Hz)                                | ON  | ON   | Removes low-frequency hum. Disable: `TTS_HIGHPASS=0`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| afftdn denoise (nr=5)                          | ON  | ON   | Removes noise floor. Disable: `TTS_DENOISE=0`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| rubberband prosody                             | OFF | ON   | Per-scene pitch+tempo. F5 disabled (mechanical artifacts).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| atempo                                         | OFF | OFF  | Post-hoc speed change. Causes mechanical voice. **NEVER use with F5**.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| resample (44.1kHz)                             | ON  | ON   | Standardize sample rate for assembly                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 **Force engine**: `export TTS_ENGINE=cosyvoice3-mlx` / `f5-mlx` / `edge-tts` / `say`
 
@@ -368,10 +368,10 @@ max-effort 下限）。**字幕对齐不走 ASR**（见上一段的 wav2vec2 强
 
 **① 档位（2026-09-29 实测，4 段真实素材）**
 
-| 档位 | 相对速度 | 音乐/歌唱段表现 |
-|---|---|---|
-| `large-v3-turbo`（当前默认） | 快约 2× | **易陷入重复幻觉**（同一句实测连吐 8 次） |
-| `large-v3`（完整） | 慢约 2× | 保守：同一段只输出 4 个词（主动放弃） |
+| 档位                         | 相对速度 | 音乐/歌唱段表现                           |
+| ---------------------------- | -------- | ----------------------------------------- |
+| `large-v3-turbo`（当前默认） | 快约 2×  | **易陷入重复幻觉**（同一句实测连吐 8 次） |
+| `large-v3`（完整）           | 慢约 2×  | 保守：同一段只输出 4 个词（主动放弃）     |
 
 **② 必须关闭跨段上下文**
 
@@ -405,12 +405,12 @@ whisper-cli -m ~/.cache/whisper/ggml-large-v3-turbo.bin -f audio.wav -l en \
 护栏刻意保守（宁可漏报也不误伤真实口语），**实测边界不要当成更强的保证**
 （148 份真实转写：145 份 MLX ctx-off 语料 + 3 份 whisper.cpp 生产输出）：
 
-| 形态 | 行为 |
-|---|---|
-| 单 token 循环（Kampung ×26、go ×56、norge ×71、Wow. ×29） | **收敛** |
-| 多词短语循环（"I'm not sure if I can do this." ×14、"Stay in the corner." ×23、德语 "Es war ein sehr schwieriger Tag für die Flieger." ×8、whisper.cpp 冒烟的 "One is red," ×7） | **收敛**；扩展后 17/148 份被改写（旧判据 10/148，全是单 token） |
-| 跨度 <18 词的连续重复（真内容 "Goal!" ×10、"Bang," ×14；"Thank you." ×8） | **不动**（即使 `contaminated=true`）——保守不对称 |
-| 交错多短语循环（whisper.cpp 生产实测的 FEMA 循环：488s 内 17 段只有 4 种文本） | **判得出、收不了**：`contaminated=true` 而文本不变；根因是低信噪/音乐段（VAD 领域） |
+| 形态                                                                                                                                                                             | 行为                                                                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 单 token 循环（Kampung ×26、go ×56、norge ×71、Wow. ×29）                                                                                                                        | **收敛**                                                                            |
+| 多词短语循环（"I'm not sure if I can do this." ×14、"Stay in the corner." ×23、德语 "Es war ein sehr schwieriger Tag für die Flieger." ×8、whisper.cpp 冒烟的 "One is red," ×7） | **收敛**；扩展后 17/148 份被改写（旧判据 10/148，全是单 token）                     |
+| 跨度 <18 词的连续重复（真内容 "Goal!" ×10、"Bang," ×14；"Thank you." ×8）                                                                                                        | **不动**（即使 `contaminated=true`）——保守不对称                                    |
+| 交错多短语循环（whisper.cpp 生产实测的 FEMA 循环：488s 内 17 段只有 4 种文本）                                                                                                   | **判得出、收不了**：`contaminated=true` 而文本不变；根因是低信噪/音乐段（VAD 领域） |
 
 四条边界都用测试钉在 `scripts/short-video/__tests__/asr-repetition-guard.test.mjs`
 （含 Python ↔ JS 跨语言向量对照，防止两个实现漂移）。扩展后的规则在 148 份
@@ -422,11 +422,11 @@ ADR-0020 §2 首选）；MLX 只存在于 bench 实验轴（`bench/keyframe/`：
 `asr_timing_matrix.py` 计时/内存四格、`asr_equivalence.py` 词级差异率），**不接生产**
 （登记于 `docs/research/model-sources-reference.md` §ASR 速查）。三条历史路径的处置：
 
-| 路径 | 处置 |
-|---|---|
-| whisper.cpp（`video-understand.mjs` → 质检回读 + `understandVideo`） | 生产唯一转写运行时；Step 0.3 自检门禁（见 Pipeline Execution） |
-| WhisperX/faster-whisper（`asr-analyzer.mjs` 窗口化网关，#98 契约） | **无生产转写消费者**：`main.mjs` 只 import `closeAsrAnalyzer` 做收尾，`transcribeAudioWindow` 无测试外调用者 —— 故保持 dormant。损坏的模型缓存已删（2026-10-09 用户批准）；缺失现在报 `model_load_failed`，不再是 `Invalid string length`（实测：`HF_HUB_OFFLINE=1 ~/.video-tts-env/bin/python3 scripts/short-video/lib/asr_worker.py` 对缺失 snapshot 返回 `model_load_failed: Cannot find an appropriate cached snapshot folder ...`）。接消费者时先裁决「修/重下模型」还是「改走 whisper.cpp」 |
-| wav2vec2（`text-align.py`） | 强制对齐，不是 ASR——不动 |
+| 路径                                                                 | 处置                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| whisper.cpp（`video-understand.mjs` → 质检回读 + `understandVideo`） | 生产唯一转写运行时；Step 0.3 自检门禁（见 Pipeline Execution）                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| WhisperX/faster-whisper（`asr-analyzer.mjs` 窗口化网关，#98 契约）   | **无生产转写消费者**：`main.mjs` 只 import `closeAsrAnalyzer` 做收尾，`transcribeAudioWindow` 无测试外调用者 —— 故保持 dormant。损坏的模型缓存已删（2026-10-09 用户批准）；缺失现在报 `model_load_failed`，不再是 `Invalid string length`（实测：`HF_HUB_OFFLINE=1 ~/.video-tts-env/bin/python3 scripts/short-video/lib/asr_worker.py` 对缺失 snapshot 返回 `model_load_failed: Cannot find an appropriate cached snapshot folder ...`）。接消费者时先裁决「修/重下模型」还是「改走 whisper.cpp」 |
+| wav2vec2（`text-align.py`）                                          | 强制对齐，不是 ASR——不动                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 **⑥ 计时与内存四格（2026-10-09 空机实测）**：4 视频（音频均值 78s）、ctx-off、每格 2 次。
 原始数据 `.scratch/keyframe-bench/asr_timing_matrix.json`——**下表每个数字都是该文件
@@ -434,14 +434,15 @@ ADR-0020 §2 首选）；MLX 只存在于 bench 实验轴（`bench/keyframe/`：
 机器负载快照与 `metal_evidence` 一并留存。同配置的前一次 run
 （`asr_timing_matrix.run1-1940.json`）与下表各格相差 ≤6%，内存与 Metal 峰值逐格相同。
 
-| 引擎/档位 | 单次转写·冷进程（中位 / 最快） | 进程内首次（含加载） | 常驻（warm） | 峰值内存 |
-|---|---|---|---|---|
-| whisper.cpp `turbo`（生产默认） | **4.30s** / 3.60s | 不适用（每次新进程） | 不适用 | RSS **1.95GB** |
-| whisper.cpp `large-v3` | 8.95s / 6.18s（音乐段单次 28.6s） | 不适用 | 不适用 | RSS **4.11GB** |
-| MLX `turbo` | 4.69s / 4.16s | 3.27s | **2.87s** | RSS 1.82GB · Metal 峰值 2.52GB |
-| MLX `large-v3` | 8.80s / 5.90s | 7.09s | **6.11s** | RSS 3.59GB · Metal 峰值 3.99GB |
+| 引擎/档位                       | 单次转写·冷进程（中位 / 最快）    | 进程内首次（含加载） | 常驻（warm） | 峰值内存                       |
+| ------------------------------- | --------------------------------- | -------------------- | ------------ | ------------------------------ |
+| whisper.cpp `turbo`（生产默认） | **4.30s** / 3.60s                 | 不适用（每次新进程） | 不适用       | RSS **1.95GB**                 |
+| whisper.cpp `large-v3`          | 8.95s / 6.18s（音乐段单次 28.6s） | 不适用               | 不适用       | RSS **4.11GB**                 |
+| MLX `turbo`                     | 4.69s / 4.16s                     | 3.27s                | **2.87s**    | RSS 1.82GB · Metal 峰值 2.52GB |
+| MLX `large-v3`                  | 8.80s / 5.90s                     | 7.09s                | **6.11s**    | RSS 3.59GB · Metal 峰值 3.99GB |
 
 **读法（三列口径不同，不可混着比）**：
+
 - **`single_call_s_*` 才是生产形态**：一次转写、冷进程。cpp 的每次 `wall_s` 本来就是一次；
   MLX 的 `wall_s` 覆盖同一进程里的 run1+run2 **两次**转写，所以单次值 = `wall_s - run2_s`
   （= 解释器启动 + run1）。**本表此前把 MLX 的两次墙钟和 cpp 的单次墙钟并列**（写 8.33s），
@@ -474,15 +475,16 @@ cpp 的占用随进程结束。
 同一批音频、同权重（turbo）。原始数据 `.scratch/keyframe-bench/asr_equiv_ctxoff.json`
 （含两侧全文，可人工复核差异是同义改写还是漏内容）：
 
-| 素材 | 词序列相似度 | 词级差异率 | 每百词改动 | 最大重复 n-gram（cpp / MLX） |
-|---|---|---|---|---|
-| `-O6mJ0VBTc4`（英语讲述） | 1.0000 | **0%** | 0.0 | 2 / 2 |
-| `-ApL8d6tX5U` | 0.9121 | **8.8%** | 13.7 | 2 / 2 |
-| `026dzf-vc5g` | 0.8372 | **16.3%** | 22.2 | 9 / 7 |
-| `-qTAeVGl_e8`（音乐/歌唱） | 0.4741 | **52.6%** | 76.7 | 4 / 6 |
-| **均值** | 0.8059 | **19.4%** | — | — |
+| 素材                       | 词序列相似度 | 词级差异率 | 每百词改动 | 最大重复 n-gram（cpp / MLX） |
+| -------------------------- | ------------ | ---------- | ---------- | ---------------------------- |
+| `-O6mJ0VBTc4`（英语讲述）  | 1.0000       | **0%**     | 0.0        | 2 / 2                        |
+| `-ApL8d6tX5U`              | 0.9121       | **8.8%**   | 13.7       | 2 / 2                        |
+| `026dzf-vc5g`              | 0.8372       | **16.3%**  | 22.2       | 9 / 7                        |
+| `-qTAeVGl_e8`（音乐/歌唱） | 0.4741       | **52.6%**  | 76.7       | 4 / 6                        |
+| **均值**                   | 0.8059       | **19.4%**  | —          | —                            |
 
 结论三条：
+
 1. **同模型不同运行时不是逐词等价的**：纯语音段可以完全一致（0%），音乐段差到 52.6%，
    均值 19.4%。**两侧输出不可混用**（换运行时 = 换转写结果，质检基线随之漂移）。
 2. **ctx-off 压住了大循环但没压干净**：最大重复 n-gram 仍有 9 次（cpp，`026dzf-vc5g`）——
@@ -499,18 +501,19 @@ cpp 的占用随进程结束。
 `.scratch/keyframe-bench/long_audio_373s.json`、`long_audio_174min.json`、`crossover_592_876.json`、
 `decoder_interleaved.json`）：
 
-| 音频长度 | whisper.cpp | mlx-whisper | 谁快 |
-|---|---|---|---|
-| 64–93s（四格，空机，每格 8 次） | 4.30s（中位） | 4.69s（中位） | cpp 1.09×（两轮独立复现） |
-| 373s（6.2 分钟） | 14.3 / 14.4s | 13.8 / 19.1s | **无可靠差异**（同一配置两轮抖动 38%） |
-| 592s | 41.4 / 44.9s | 39.7 / 36.3s | MLX 略快，噪声内 |
-| 876s | 31.9 / 34.1s | 53.1 / 60.6s | **cpp 1.6–1.9×** |
-| 1046s（17.4 分钟） | 57.1s | ~43.6s（单次口径） | MLX 1.31×（仅 1 轮） |
+| 音频长度                        | whisper.cpp   | mlx-whisper        | 谁快                                   |
+| ------------------------------- | ------------- | ------------------ | -------------------------------------- |
+| 64–93s（四格，空机，每格 8 次） | 4.30s（中位） | 4.69s（中位）      | cpp 1.09×（两轮独立复现）              |
+| 373s（6.2 分钟）                | 14.3 / 14.4s  | 13.8 / 19.1s       | **无可靠差异**（同一配置两轮抖动 38%） |
+| 592s                            | 41.4 / 44.9s  | 39.7 / 36.3s       | MLX 略快，噪声内                       |
+| 876s                            | 31.9 / 34.1s  | 53.1 / 60.6s       | **cpp 1.6–1.9×**                       |
+| 1046s（17.4 分钟）              | 57.1s         | ~43.6s（单次口径） | MLX 1.31×（仅 1 轮）                   |
 
 **只有第一行可信**（空机、每格 8 次、两轮独立复现）；下面四行是同一台机器上、
 分辨率不足的测量，**不作为结论**。876s 与 1046s 两行方向相反（前者 cpp 快 1.6–1.9×，
 后者 MLX 快 1.31×）就是噪声的直接证据——差异来自 cpp 解码耗时的方差，不是运行时优劣。
 原因如实记录：
+
 1. **测量期间机器不空**（并行 session 的 Playwright，load 5.1→9.4；四格那轮是 2.9→3.3）。
    同一配置两次跑出 49.7s 与 80.6s（差 62%），单次值已被噪声淹没。
 2. **cpp 的解码耗时本身高方差**：同一段 10–15 分钟音频，`batchd` 在 7.5s–43.6s 之间跳
@@ -531,15 +534,15 @@ cpp 的占用随进程结束。
 平均音频 >10 分钟，或 ASR 总时长与 TTS/渲染同量级（今天 ASR ≈5s/视频、TTS 主导 → 未触发）。
 触发后按以下协议，每条对应本轮一次真实踩坑：
 
-| 协议要求 | 防的是 |
-|---|---|
-| 空机守卫：记录 `load_avg`，>4 中止改期 | 本轮 5.1→9.4 的污染（同配置跑出 49.7s vs 80.6s） |
-| **每进程只做一次转写**，两侧口径逐字节对齐 | ⑥ 的 8.33s 错误：MLX 的两次转写被拿去和 cpp 单次并列 |
-| cpp / mlx 交错执行 | 热漂移与负载漂移 |
-| 每侧 ≥5 次，报**中位数 + IQR**，不用均值 | 每格首条含一次性 Metal 冷编译（6.89s vs 其余 1.36–1.82s） |
-| 同时记录 cpp 的 `batchd` | 同段音频 7.1–43.6s 的摆动；落在摆动内的「胜利」不是胜利 |
-| 两个长度（~5 分钟 / ~15 分钟） | 交叉点与长度相关，单点不能外推 |
-| **决策规则：两侧 IQR 不重叠才算差异**；重叠即维持现状并记录 | 给「持平」一个明确结论，而不是靠 1.31× 这种单轮数字 |
+| 协议要求                                                    | 防的是                                                    |
+| ----------------------------------------------------------- | --------------------------------------------------------- |
+| 空机守卫：记录 `load_avg`，>4 中止改期                      | 本轮 5.1→9.4 的污染（同配置跑出 49.7s vs 80.6s）          |
+| **每进程只做一次转写**，两侧口径逐字节对齐                  | ⑥ 的 8.33s 错误：MLX 的两次转写被拿去和 cpp 单次并列      |
+| cpp / mlx 交错执行                                          | 热漂移与负载漂移                                          |
+| 每侧 ≥5 次，报**中位数 + IQR**，不用均值                    | 每格首条含一次性 Metal 冷编译（6.89s vs 其余 1.36–1.82s） |
+| 同时记录 cpp 的 `batchd`                                    | 同段音频 7.1–43.6s 的摆动；落在摆动内的「胜利」不是胜利   |
+| 两个长度（~5 分钟 / ~15 分钟）                              | 交叉点与长度相关，单点不能外推                            |
+| **决策规则：两侧 IQR 不重叠才算差异**；重叠即维持现状并记录 | 给「持平」一个明确结论，而不是靠 1.31× 这种单轮数字       |
 
 **范围提醒**：真触发时要比的是**部署 vs 部署**——cpp 一次性进程 vs `whisper-server`（brew 已装）
 vs MLX 常驻 worker，而不是 ⑥ 的进程 vs 进程。那是一个新实验，不是本节的重复。
@@ -547,17 +550,18 @@ vs MLX 常驻 worker，而不是 ⑥ 的进程 vs 进程。那是一个新实验
 **⑩ CoreML / ANE encoder 的收益上限（2026-10-09 实测占比）**：CoreML 与 ANEForge 都**只加速
 encoder**，所以先量 encoder 占多少。whisper-cli 自报计时（turbo、ctx-off）：
 
-| 音频 | encode 占比 | 解码侧（batchd+sample）占比 | 理论上限（encoder 归零） |
-|---|---|---|---|
-| 78s（四格均值，n=8） | **43%**（2.05 / 4.75s） | 未记录（该轮只抓了 encode/decode） | 1.75× |
-| 373s | **56%**（7.95 / 14.2s） | — | 2.3× |
-| 1046s | **37%**（21.3 / 57.4s） | 58% | 1.6× |
+| 音频                 | encode 占比             | 解码侧（batchd+sample）占比        | 理论上限（encoder 归零） |
+| -------------------- | ----------------------- | ---------------------------------- | ------------------------ |
+| 78s（四格均值，n=8） | **43%**（2.05 / 4.75s） | 未记录（该轮只抓了 encode/decode） | 1.75×                    |
+| 373s                 | **56%**（7.95 / 14.2s） | —                                  | 2.3×                     |
+| 1046s                | **37%**（21.3 / 57.4s） | 58%                                | 1.6×                     |
 
 占比算法：`cli_timings.encode_ms ÷ cli_timings.total_ms`（whisper-cli 自报，逐次记录在产物
 `results[].cli_timings`；78s 行取四格那轮 8 次的均值，373s/1046s 行见
 `long_audio_373s.json` / `long_audio_174min.json`）。
 
 结论：**收益有天花板，而且上游数据不支持「CoreML 比我们现在的 Metal encoder 更快」**——
+
 1. encoder 占 37–56%，所以任何「只加速 encoder」的方案上限就是 1.6–2.3×；
 2. 上游唯一一组 CoreML / Metal 同机 per-call 对比（[ANEForge PR #3905](https://github.com/ggml-org/whisper.cpp/pull/3905)，
    M5 Pro，fp16）里 **CoreML 反而比 Metal 慢约 2×**（medium 236ms vs 120ms，tiny 11.2ms vs 7.3ms）。
@@ -580,11 +584,11 @@ ASR 只有约 5s。若将来 ASR 成为瓶颈，先测 `-bs 1`（本机实测仅
 `lang = auto` 出 `DeepSeek`（自动检测 p = 0.998）。修复按调用方语义分开，**唯一的生产调用者
 行为不变**：
 
-| 调用方 | 语言口径 | 说明 |
-|---|---|---|
-| TTS 质检回读（`quality-gate.mjs`） | `-l en` | 英文配音本来就该用 en；原先靠「默认恰好是 en」，现在显式钉住（`languageHint` 此前只是被塞进 `meta`、从未生效） |
-| `understandVideo`（任意来源视频） | `-l auto` | TikTok/YouTube/Bilibili 不保证英文；该路径目前 dormant（无生产调用者），接消费者时即正确 |
-| `transcribeVideo` 其他调用 | 不传 → 继承 `en` | 新增 `options.language`，不传则与修复前逐字节同命令 |
+| 调用方                             | 语言口径         | 说明                                                                                                           |
+| ---------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| TTS 质检回读（`quality-gate.mjs`） | `-l en`          | 英文配音本来就该用 en；原先靠「默认恰好是 en」，现在显式钉住（`languageHint` 此前只是被塞进 `meta`、从未生效） |
+| `understandVideo`（任意来源视频）  | `-l auto`        | TikTok/YouTube/Bilibili 不保证英文；该路径目前 dormant（无生产调用者），接消费者时即正确                       |
+| `transcribeVideo` 其他调用         | 不传 → 继承 `en` | 新增 `options.language`，不传则与修复前逐字节同命令                                                            |
 
 验证：`video-understand.test.mjs` 新增 2 条（变异检查确认有判别力：注入变异体后新测试失败，
 还原后逐字节一致）；真实中文素材冒烟（同一 wav 两种口径的文本对照，见上）；
@@ -610,11 +614,11 @@ Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
 `lib/vlm-model.json` 是引擎的单一真值源，两个进程同读（`vlm_analyzer.py` 加载权重、
 `vlm-model.mjs` 出缓存键材料），改引擎只改这一个文件：
 
-| 引擎 | `videoInput` | `concurrency` | 说明 |
-|---|---|---|---|
-| **`qwen3-vl-moe`（默认）** | `native` | 1 | Qwen3-VL-30B-A3B-Instruct-4bit（17GB）。**视频文件直接进模型**，由 mlx-vlm 按处理器的 `fps=2.0 / max_frames=768` 自采样（阈值 384s）。 |
-| `qwen3-vl-thinking` | `native` | 1 | 同上，推理链版；已裁决不用（短档回退率未知）。 |
-| `minicpm` | `frames` | 2 | MiniCPM-o 4.5 4bit（5GB）。无原生视频支持，调用方抽帧（`extract_frames`）。 |
+| 引擎                       | `videoInput` | `concurrency` | 说明                                                                                                                                   |
+| -------------------------- | ------------ | ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **`qwen3-vl-moe`（默认）** | `native`     | 1             | Qwen3-VL-30B-A3B-Instruct-4bit（17GB）。**视频文件直接进模型**，由 mlx-vlm 按处理器的 `fps=2.0 / max_frames=768` 自采样（阈值 384s）。 |
+| `qwen3-vl-thinking`        | `native`     | 1             | 同上，推理链版；已裁决不用（短档回退率未知）。                                                                                         |
+| `minicpm`                  | `frames`     | 2             | MiniCPM-o 4.5 4bit（5GB）。无原生视频支持，调用方抽帧（`extract_frames`）。                                                            |
 
 `concurrency` = **这台机器能同时装几个该引擎的实例**，即 VLM 进程池大小
 （`VLM_CONCURRENCY` 环境变量仍可覆盖，用于实验）。它必须跟着引擎走：
@@ -708,7 +712,7 @@ to_minicpm_units(r)                   # 官方「1 帧 + 1 段音频」单元，
   是否被改写（段级与整篇分别收敛，见上一节 ④b 的实测边界）；loader 版本因此
   升到 3（v1 无护栏、v2 只收单 token 循环，两者的缓存都不复用）。
 - **引擎缺失或抛错不炸装载**：`transcript.status ∈ {unavailable, no_audio,
-  not_requested}` + 原因；放行与否由调用方门禁决定（INFRA 语义，与
+not_requested}` + 原因；放行与否由调用方门禁决定（INFRA 语义，与
   `tts/quality-gate.mjs` 一致）。
 - **缓存 key** = sha256(loader 版本, 视频内容 hash, 帧时刻集合, want_audio, audio_sr,
   ASR 规格) → `{cache_dir}/{key}/{manifest.json, frames/, audio/, transcript.json}`；
@@ -772,12 +776,12 @@ In `mlx_wan_batch.py` every job denoises before anything decodes: `taehv` calls 
 
 ### Dependencies
 
-| Env var                | Default                                                                      |
-| ---------------------- | ---------------------------------------------------------------------------- |
-| `FASTVIDEO_REPO`       | `scripts/short-video/experiments/fastvideo-spike/repo` (gitignored checkout) |
-| `FASTVIDEO_PYTHON`     | probes `repo/.venv/bin/python3`, then `~/.video-tts-env/bin/python3`         |
+| Env var                | Default                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `FASTVIDEO_REPO`       | `scripts/short-video/experiments/fastvideo-spike/repo` (gitignored checkout)                               |
+| `FASTVIDEO_PYTHON`     | probes `repo/.venv/bin/python3`, then `~/.video-tts-env/bin/python3`                                       |
 | `BROLL_MODEL_ROOT`     | unset → HF cache snapshot of `FastMetal-1.3B-QAD` (1.3B driver only — the 5B driver has no `--model-root`) |
-| `BROLL_MLX_CHECKPOINT` | unset → discovered under `BROLL_MODEL_ROOT`                                  |
+| `BROLL_MLX_CHECKPOINT` | unset → discovered under `BROLL_MODEL_ROOT`                                                                |
 
 The repo-local venv is the working interpreter — `~/.video-tts-env` lacks `cloudpickle`. A `FASTVIDEO_PYTHON` you set yourself is honored as given, with no fallback. When a dependency is missing the stage prints `⚠️ B-roll skipped: …` and the pipeline continues without generated media.
 
@@ -830,13 +834,13 @@ Static-image counterpart of the video path above, for scenes that need a picture
 
 **Dependencies**:
 
-| Env var                              | Default                                                                                              |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `AI_IMAGE_BACKEND`                   | `mflux-boogu` (also accepts `mflux-z-image`, `sd3.5`)                                                |
-| `MFLUX_BIN`                          | probes `~/.video-t2i-env/bin/mflux-generate-boogu`, then `~/.video-tts-env/bin/…`, then PATH         |
-| `AI_IMAGE_MODEL`                     | `Boogu/Boogu-Image-0.1-Turbo`                                                                        |
-| `AI_IMAGE_WIDTH` / `AI_IMAGE_HEIGHT` | 832 / 1216 (portrait, matching the 9:16 frame)                                                       |
-| `AI_IMAGE_STEPS`                     | 4 (the distilled schedule)                                                                           |
+| Env var                              | Default                                                                                      |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `AI_IMAGE_BACKEND`                   | `mflux-boogu` (also accepts `mflux-z-image`, `sd3.5`)                                        |
+| `MFLUX_BIN`                          | probes `~/.video-t2i-env/bin/mflux-generate-boogu`, then `~/.video-tts-env/bin/…`, then PATH |
+| `AI_IMAGE_MODEL`                     | `Boogu/Boogu-Image-0.1-Turbo`                                                                |
+| `AI_IMAGE_WIDTH` / `AI_IMAGE_HEIGHT` | 832 / 1216 (portrait, matching the 9:16 frame)                                               |
+| `AI_IMAGE_STEPS`                     | 4 (the distilled schedule)                                                                   |
 
 Install mflux in its **own venv** — `python3 -m venv ~/.video-t2i-env && ~/.video-t2i-env/bin/pip install mflux` (or `uv tool install mflux`). mflux's dependency floor (`huggingface-hub>=1.1.6`, `pillow>=12.3`, `torch`) conflicts with the TTS pins in the shared `~/.video-tts-env` (`mlx-audio` needs `transformers<5`, `pillow<12`), which is why the probe order prefers the dedicated venv; putting it in the shared venv breaks TTS. First run downloads the checkpoint to the HF cache — like the video runner, the child defaults to `HF_HUB_OFFLINE=1`, so a deliberate first download or model upgrade runs with `HF_HUB_OFFLINE=0`. When the binary is missing the stage prints `⚠️ B-roll skipped: …` for the image kind only and the pipeline continues; video generation on the same run is unaffected (each backend kind probes and fails independently).
 
@@ -986,16 +990,16 @@ node scripts/short-video/realign-render.mjs [--content <dir>]  # forced realign 
 
 ### Pipeline Steps
 
-| Step | Action                                                                                                                                                                                                                                                                       | Output                                                   |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| 1    | Generate TTS voiceover (F5-TTS-MLX)                                                                                                                                                                                                                                          | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
-| 1.6  | **Final media gate — hard FAIL** after sourcing/patch/upscale/b-roll: media layouts must have their media, and a file that exists must also be a usable asset — format read from bytes (not the extension), decodable to end, ≥64px per edge, image↔video class matching `media.type`; a video the probe cannot read fails closed, and when ffprobe itself is unreachable the rejection says so (`probe-unavailable`) rather than blaming the asset. A usable file's declared `media.provenance` is then validated (one finding per scene, most specific first); Evidence Media (`media.evidence: true`) must declare one (#759); a marker that is neither `true` nor absent fails as `invalid-evidence-flag` rather than switching the requirement off. Since #758 the declaration is also reconciled with the file's real pixels — `clip × scale` must equal the PNG dimensions or the scene fails as `provenance-pixel-mismatch`; the legacy opt-out `provenance.composed: true` (hand-composed banner) skips that reconciliation and is reported as a `composed-provenance` warning instead of passing silently. Field shape and thresholds: `lib/media-integrity.mjs`                                                                                                                                  | `lib/final-media-gate.mjs` failure list                  |
-| 2    | Validate every scene received a TTS result                                                                                                                                                                                                                                   | fail-fast on missing voiceover                           |
-| 3    | Generate BGM (optional, `--bgm`)                                                                                                                                                                                                                                             | `output/{id}/bgm.mp3`                                    |
-| 4    | Generate ASS subtitles                                                                                                                                                                                                                                                       | `output/{id}/subtitles.ass`                              |
-| 4.5  | **Subtitle render boundary — hard FAIL (#421)**: immediately before render, a voiced run must have a fresh `subtitle-timing.json` (signature over scene text + audio bytes) yielding ≥1 cue; missing/corrupt/stale → exit 1, no render                                       | `lib/subtitles/generate.mjs` failure message             |
-| 5    | Render the final video with Remotion (React → frame-by-frame, 1080×1920): TextGate geometry gate (safe zones / container overflow / glyph ink / annotation bounds, `cancelRender` with `[TextFitError]`) runs during this render, then ASS burn-in / BGM mix / loudness norm | `output/{id}/{id}-v{version}-short.mp4`                  |
-| 6    | Verify subtitles with auto-retry (auto, `--skip-verify` to skip, `--max-retries N` default 2); categories whose repair cannot change the verdict stop after one verify instead of burning the budget (#818); the re-check reads the artifact the repair returned, and only an accepted repair's paths are kept and carried on (#870) | `output/{id}/verification-report.json`                   |
+| Step | Action                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Output                                                   |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 1    | Generate TTS voiceover (F5-TTS-MLX)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `output/{id}/audio/scene-*.mp3` + `subtitle-timing.json` |
+| 1.6  | **Final media gate — hard FAIL** after sourcing/patch/upscale/b-roll: media layouts must have their media, and a file that exists must also be a usable asset — format read from bytes (not the extension), decodable to end, ≥64px per edge, image↔video class matching `media.type`; a video the probe cannot read fails closed, and when ffprobe itself is unreachable the rejection says so (`probe-unavailable`) rather than blaming the asset. A usable file's declared `media.provenance` is then validated (one finding per scene, most specific first); Evidence Media (`media.evidence: true`) must declare one (#759); a marker that is neither `true` nor absent fails as `invalid-evidence-flag` rather than switching the requirement off. Since #758 the declaration is also reconciled with the file's real pixels — `clip × scale` must equal the PNG dimensions or the scene fails as `provenance-pixel-mismatch`; the legacy opt-out `provenance.composed: true` (hand-composed banner) skips that reconciliation and is reported as a `composed-provenance` warning instead of passing silently. Field shape and thresholds: `lib/media-integrity.mjs` | `lib/final-media-gate.mjs` failure list                  |
+| 2    | Validate every scene received a TTS result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | fail-fast on missing voiceover                           |
+| 3    | Generate BGM (optional, `--bgm`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `output/{id}/bgm.mp3`                                    |
+| 4    | Generate ASS subtitles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `output/{id}/subtitles.ass`                              |
+| 4.5  | **Subtitle render boundary — hard FAIL (#421)**: immediately before render, a voiced run must have a fresh `subtitle-timing.json` (signature over scene text + audio bytes) yielding ≥1 cue; missing/corrupt/stale → exit 1, no render                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `lib/subtitles/generate.mjs` failure message             |
+| 5    | Render the final video with Remotion (React → frame-by-frame, 1080×1920): TextGate geometry gate (safe zones / container overflow / glyph ink / annotation bounds, `cancelRender` with `[TextFitError]`) runs during this render, then ASS burn-in / BGM mix / loudness norm                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `output/{id}/{id}-v{version}-short.mp4`                  |
+| 6    | Verify subtitles with auto-retry (auto, `--skip-verify` to skip, `--max-retries N` default 2); categories whose repair cannot change the verdict stop after one verify instead of burning the budget (#818); the re-check reads the artifact the repair returned, and only an accepted repair's paths are kept and carried on (#870)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `output/{id}/verification-report.json`                   |
 
 ### Version Numbers
 
