@@ -33,6 +33,7 @@ import { fileURLToPath } from "url";
 
 import { cdpNewTab, cdpEval, cdpCloseTab, waitForPageLoad } from "./cdp-client.mjs";
 import { isLogoOrIcon } from "./asset-sourcer.mjs";
+import { EMBED_HOST_PLATFORMS, PAGE_DATE_META_SELECTORS } from "./page-media-signals.mjs";
 
 // ─── Constants ───
 
@@ -78,17 +79,14 @@ export function buildMediaExtractScript() {
       if (s.src) results.videos.push({ url: s.src, platform: 'direct' });
     });
 
-    // <iframe> embeds
+    // <iframe> embeds — host list shared with search-sources (page-media-signals)
+    var EMBED_HOST_PLATFORMS = ${JSON.stringify(EMBED_HOST_PLATFORMS)};
     document.querySelectorAll('iframe[src]').forEach(function(f) {
       var src = f.src || '';
-      if (/youtube\\.com\\/embed/i.test(src)) {
-        results.videos.push({ url: src, platform: 'youtube' });
-      } else if (/player\\.bilibili\\.com/i.test(src)) {
-        results.videos.push({ url: src, platform: 'bilibili' });
-      } else if (/douyin\\.com/i.test(src)) {
-        results.videos.push({ url: src, platform: 'douyin' });
-      } else if (/player\\.youku\\.com/i.test(src)) {
-        results.videos.push({ url: src, platform: 'youku' });
+      var lower = src.toLowerCase();
+      var host = Object.keys(EMBED_HOST_PLATFORMS).find(function(h) { return lower.indexOf(h) !== -1; });
+      if (host) {
+        results.videos.push({ url: src, platform: EMBED_HOST_PLATFORMS[host] });
       }
     });
 
@@ -96,7 +94,11 @@ export function buildMediaExtractScript() {
     var ogImage = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
     var ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
     var ogVideo = document.querySelector('meta[property="og:video"]')?.getAttribute('content');
-    var publishedTime = document.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
+    var PAGE_DATE_SELECTORS = ${JSON.stringify(PAGE_DATE_META_SELECTORS)};
+    var publishedTime = null;
+    for (var i = 0; i < PAGE_DATE_SELECTORS.length && !publishedTime; i++) {
+      publishedTime = document.querySelector(PAGE_DATE_SELECTORS[i])?.getAttribute('content');
+    }
     if (ogImage) results.metadata.ogImage = ogImage;
     if (ogTitle) results.metadata.ogTitle = ogTitle;
     if (publishedTime) results.metadata.publishedTime = publishedTime;
@@ -115,10 +117,10 @@ export function buildMediaExtractScript() {
  */
 function detectPlatform(url) {
   if (!url || typeof url !== "string") return "direct";
-  if (/youtube\.com\/embed/i.test(url)) return "youtube";
-  if (/player\.bilibili\.com/i.test(url)) return "bilibili";
-  if (/douyin\.com/i.test(url)) return "douyin";
-  if (/player\.youku\.com/i.test(url)) return "youku";
+  const lower = url.toLowerCase();
+  for (const [host, platform] of Object.entries(EMBED_HOST_PLATFORMS)) {
+    if (lower.includes(host)) return platform;
+  }
   return "direct";
 }
 

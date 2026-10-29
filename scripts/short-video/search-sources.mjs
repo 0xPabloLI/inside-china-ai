@@ -147,6 +147,7 @@ import {
   cdpCloseTab,
   waitForPageLoad,
   extractFromTab,
+  evalInTab,
   extractWithRetry,
   rateLimitBackoffDelayMs,
   detectAntiBot,
@@ -156,6 +157,7 @@ import {
   ScriptError,
 } from "./lib/cdp-client.mjs";
 import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
+import { EMBED_HOST_PLATFORMS, PAGE_DATE_META_SELECTORS } from "./lib/page-media-signals.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -242,9 +244,17 @@ async function enrichWithMedia(tabId, articles, { harvestImages = true } = {}) {
       }
     });
     // <iframe> embeds (YouTube, Bilibili, Douyin)
+    // #945: substring list, not a regex literal — inside this template string
+    // the regex's backslashes are consumed before the page ever sees them,
+    // leaving "SyntaxError: Invalid regular expression flags". The hosts come
+    // from the shared page-media-signals module (also used by extract-media).
+    var EMBED_HOST_PLATFORMS = ${JSON.stringify(EMBED_HOST_PLATFORMS)};
+    var EMBED_HOSTS = Object.keys(EMBED_HOST_PLATFORMS);
     document.querySelectorAll('iframe[src]').forEach(function(f) {
       var src = f.src || '';
-      if (/youtube\.com\/embed|player\.bilibili\.com|douyin\.com|player\.youku\.com/i.test(src)) {
+      var lower = src.toLowerCase();
+      var isEmbed = EMBED_HOSTS.some(function(h) { return lower.indexOf(h) !== -1; });
+      if (isEmbed) {
         results.videos._page = results.videos._page || [];
         if (!results.videos._page.includes(src)) results.videos._page.push(src);
       }
@@ -254,7 +264,11 @@ async function enrichWithMedia(tabId, articles, { harvestImages = true } = {}) {
     var ogImage = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
     var ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
     var ogVideo = document.querySelector('meta[property="og:video"]')?.getAttribute('content');
-    var publishedTime = document.querySelector('meta[property="article:published_time"]')?.getAttribute('content');
+    var PAGE_DATE_SELECTORS = ${JSON.stringify(PAGE_DATE_META_SELECTORS)};
+    var publishedTime = null;
+    for (var i = 0; i < PAGE_DATE_SELECTORS.length && !publishedTime; i++) {
+      publishedTime = document.querySelector(PAGE_DATE_SELECTORS[i])?.getAttribute('content');
+    }
     if (ogImage) results.metadata.ogImage = ogImage;
     if (ogTitle) results.metadata.ogTitle = ogTitle;
     if (publishedTime) results.metadata.publishedTime = publishedTime;
@@ -265,8 +279,10 @@ async function enrichWithMedia(tabId, articles, { harvestImages = true } = {}) {
 
     return results;
   `;
-  const mediaData = await extractFromTab(tabId, mediaScript);
-  if (!mediaData || typeof mediaData !== "object") return articles;
+  // #945: the media script returns an object, so it goes through the
+  // value-transparent eval — extractFromTab's array narrowing would discard it.
+  const mediaData = await evalInTab(tabId, mediaScript);
+  if (!mediaData || typeof mediaData !== "object" || Array.isArray(mediaData)) return articles;
 
   var pageVideos = (mediaData.videos && mediaData.videos._page) || [];
   var metadata = mediaData.metadata || {};
@@ -434,8 +450,15 @@ async function collectFromCdp(source, keyword) {
         harvestImages: source.harvestImages !== false,
       });
     } catch (e) {
-      // Non-fatal — articles without media still work for trend discovery
-      console.warn(`  ⚠️  Media enrichment failed: ${e.message}`);
+      // Non-fatal — articles without media still work for trend discovery.
+      // #945: a ScriptError is our own generated script failing to parse or
+      // run — a code defect, not a network blip — so it gets a loud prefix
+      // instead of blending into the generic warning.
+      if (e instanceof ScriptError) {
+        console.warn(`  🚨 ${source.label} media enrichment script broken: ${e.message}`);
+      } else {
+        console.warn(`  ⚠️  Media enrichment failed: ${e.message}`);
+      }
     }
   }
 

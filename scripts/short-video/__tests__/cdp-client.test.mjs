@@ -41,6 +41,7 @@ import {
   cdpCloseTab,
   waitForPageLoad,
   extractFromTab,
+  evalInTab,
   checkLogin,
   findCdpProxyScript,
   ensureCdpProxy,
@@ -287,6 +288,94 @@ describe("extractFromTab", () => {
     const call = global.fetch.mock.calls[0];
     expect(call[1].body).toContain("(async function(){");
     expect(call[1].body).toContain("})()");
+  });
+});
+
+// ─── evalInTab (#945) ───
+
+describe("evalInTab", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("S945a (#945): returns a null result as null, not as the proxy envelope", async () => {
+    // Both proxy shapes: the proxy's own { value } answer and a CDP
+    // passthrough { result: { value } }.
+    global.fetch.mockResolvedValue(mockFetchResponse({ value: null }));
+    expect(await evalInTab("tab_123", "return null")).toBeNull();
+
+    global.fetch.mockResolvedValue(mockFetchResponse({ result: { value: null } }));
+    expect(await evalInTab("tab_123", "return null")).toBeNull();
+  });
+
+  it("S945b (#945): returns an object value unchanged instead of narrowing it to []", async () => {
+    const media = {
+      images: { "https://publisher.example/a": "https://publisher.example/a.jpg" },
+      videos: { _page: ["https://video.example/1.mp4"] },
+      metadata: { ogImage: "https://publisher.example/og.jpg" },
+    };
+    global.fetch.mockResolvedValue(mockFetchResponse({ value: media }));
+
+    const result = await evalInTab("tab_123", "return {}");
+    expect(result).toEqual(media);
+  });
+
+  it("S945c (#945): parses a JSON-stringified object (proxy serialization)", async () => {
+    const media = { images: {}, videos: {}, metadata: { publishedTime: "2026-10-15T00:00:00Z" } };
+    global.fetch.mockResolvedValue(mockFetchResponse({ value: JSON.stringify(media) }));
+
+    const result = await evalInTab("tab_123", "return {}");
+    expect(result).toEqual(media);
+  });
+
+  it("S945d (#945): leaves a non-JSON string as-is", async () => {
+    global.fetch.mockResolvedValue(mockFetchResponse({ value: "some random text" }));
+
+    expect(await evalInTab("tab_123", "return ''")).toBe("some random text");
+  });
+
+  it("S945e (#945): returns undefined for a script that returned undefined", async () => {
+    // CDP's RemoteObject for undefined carries no value field, so the proxy
+    // answers with its raw result envelope.
+    global.fetch.mockResolvedValue(
+      mockFetchResponse({ result: { type: "undefined", description: "undefined" } }),
+    );
+
+    expect(await evalInTab("tab_123", "return undefined")).toBeUndefined();
+  });
+
+  it("S945f (#945): throws ScriptError when the page script throws", async () => {
+    global.fetch.mockResolvedValue(
+      mockFetchResponse({ error: "SyntaxError: Invalid regular expression flags" }),
+    );
+
+    const err = await evalInTab("tab_123", "return {}").catch((e) => e);
+    expect(err).toBeInstanceOf(ScriptError);
+    expect(err.message).toContain("Invalid regular expression flags");
+  });
+});
+
+// The array contract the 17 CDP article scripts depend on stays with
+// extractFromTab even though evalInTab now returns the raw value.
+describe("extractFromTab keeps its array narrowing (#945)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("S945g (#945): narrows an object return value to []", async () => {
+    global.fetch.mockResolvedValue(mockFetchResponse({ value: { images: {} } }));
+
+    expect(await extractFromTab("tab_123", "return {}")).toEqual([]);
   });
 });
 
