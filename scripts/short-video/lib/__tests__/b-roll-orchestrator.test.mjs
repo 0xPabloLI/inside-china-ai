@@ -102,7 +102,14 @@ describe("planScenes routing (scenarios #1, #6, #7, #8, #9, #10, #28)", () => {
 
   test("#299 assignWinner never replaces an explicit media:null waiver", () => {
     const sceneWithWaiver = scene({ mediaStrategy: "b-roll", media: null });
-    expect(assignWinner(sceneWithWaiver, "scene-6-seed1024.mp4")).toBeNull();
+    expect(
+      assignWinner(
+        sceneWithWaiver,
+        "scene-6-seed1024.mp4",
+        false,
+        "AI-generated (FastVideo FastMetal-5B-QAD)",
+      ),
+    ).toBeNull();
     expect(sceneWithWaiver.media).toBeNull();
   });
 

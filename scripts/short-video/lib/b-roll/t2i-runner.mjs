@@ -41,7 +41,7 @@ export const MFLUX_BIN_CANDIDATES = [
 ];
 // Boogu-Image-0.1-Turbo: 10B params, Apache 2.0, CUHK + HKUST.
 // Requires 4-bit quantization to fit in 32GB unified memory.
-const DEFAULT_IMAGE_MODEL = "Boogu/Boogu-Image-0.1-Turbo";
+export const DEFAULT_IMAGE_MODEL = "Boogu/Boogu-Image-0.1-Turbo";
 const DEFAULT_IMAGE_QUANTIZE = 4;
 // Portrait native, matching the b-roll video's 9:16 frame.
 export const DEFAULT_IMAGE_WIDTH = 832;
@@ -64,6 +64,44 @@ function supportsNegativePrompt(backend) {
 }
 
 /**
+ * #985: audience-facing provenance per checkpoint. Keyed on the model actually
+ * passed to mflux, not on `AI_IMAGE_BACKEND` — that key only selects the
+ * negative-prompt contract, while `AI_IMAGE_MODEL` picks the checkpoint. Same
+ * discipline as the video MODEL_TIERS winnerSource (#298): the label follows
+ * the model that ran.
+ */
+export const IMAGE_MODEL_SOURCE_LABELS = {
+  "Boogu/Boogu-Image-0.1-Turbo": "AI-generated (mflux Boogu Turbo)",
+};
+
+export function resolveImageBackend(env = process.env) {
+  return env.AI_IMAGE_BACKEND || DEFAULT_IMAGE_BACKEND;
+}
+
+export function resolveImageModel(env = process.env) {
+  return env.AI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL;
+}
+
+/**
+ * Label for a checkpoint. Unknown checkpoints derive their own label rather
+ * than borrowing a known model's name — a wrong attribution is worse than an
+ * unfamiliar one.
+ */
+export function imageModelSourceLabel(model = resolveImageModel()) {
+  return IMAGE_MODEL_SOURCE_LABELS[model] ?? `AI-generated (mflux ${model})`;
+}
+
+// Every image label is `AI-generated (mflux …)`, every video label
+// `AI-generated (FastVideo …)` — so the runtime prefix is what distinguishes a
+// trustworthy stored image provenance from the pre-#985 video-label pollution.
+const IMAGE_SOURCE_PATTERN = /^AI-generated \(mflux .+\)$/;
+
+/** True when `source` is a label this module produces for an image model. */
+export function isImageSourceLabel(source) {
+  return typeof source === "string" && IMAGE_SOURCE_PATTERN.test(source);
+}
+
+/**
  * Probe the mflux dependency. Environment overrides:
  * - AI_IMAGE_BACKEND — backend key (default mflux-boogu); decides the
  *   negative-prompt contract, not the binary.
@@ -74,7 +112,7 @@ function supportsNegativePrompt(backend) {
  * Returns { ok, backend, bin, missing[], message }.
  */
 export function resolveImageDependencies(env = process.env) {
-  const backend = env.AI_IMAGE_BACKEND || DEFAULT_IMAGE_BACKEND;
+  const backend = resolveImageBackend(env);
   let bin = null;
   let missing = [];
   if (env.MFLUX_BIN) {

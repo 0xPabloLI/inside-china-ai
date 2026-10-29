@@ -36,6 +36,26 @@ function okGenerateMock() {
   return { generate, calls };
 }
 
+function cachedImageReport(file, winnerSource) {
+  const report = emptyReport("demo", 60);
+  report.scenes["11"] = {
+    strategy: "ai-image",
+    promptHash: promptHash(composeImagePrompt(imageScene())),
+    injectionVersion: PROMPT_INJECTION_VERSION,
+    round: 1,
+    status: "won",
+    prompt: "abstract transformer memory channels folding inward, high detail",
+    voiceover: "v",
+    candidates: [{ seed: 9999, file, relevance: 84, reason: "ok" }],
+    winner: {
+      seed: 9999,
+      file,
+      ...(winnerSource === undefined ? {} : { source: winnerSource }),
+    },
+  };
+  return report;
+}
+
 // ─── routing ───
 
 describe("image strategy routing (#155)", () => {
@@ -165,6 +185,9 @@ describe("runBrollStage image strategy (#155)", () => {
     expect(scenes[0].media).toMatchObject({
       type: "image",
       path: "assets/b-roll/scene-11-seed1024.png",
+      // #985: provenance follows the backend that ran — the default T2I
+      // backend is Boogu Turbo, not the old Z-Image hardcode.
+      source: "AI-generated (mflux Boogu Turbo)",
       animation: "fade",
       upscale: false,
     });
@@ -211,23 +234,51 @@ describe("runBrollStage image strategy (#155)", () => {
     expect(entry.winner.file).toMatch(/\.png$/);
   });
 
+  test("#985 report winner.source records the image model, never the video tier label", async () => {
+    const dirs = stageDirs();
+    const scenes = [imageScene()];
+    await runBrollStage(baseOpts(dirs, { scenes, generate: okGenerateMock().generate }));
+    const entry = readReport(reportPath(dirs.outputDir)).scenes["11"];
+    expect(entry.winner.source).toBe("AI-generated (mflux Boogu Turbo)");
+  });
+
+  test("#985 AI_IMAGE_MODEL drives both the landing label and winner.source", async () => {
+    const dirs = stageDirs();
+    const scenes = [imageScene()];
+    const model = "filipstrand/Z-Image-Turbo-mflux-4bit";
+    await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        generate: okGenerateMock().generate,
+        env: { AI_IMAGE_MODEL: model },
+      }),
+    );
+    expect(scenes[0].media.source).toBe(`AI-generated (mflux ${model})`);
+    expect(readReport(reportPath(dirs.outputDir)).scenes["11"].winner.source).toBe(
+      `AI-generated (mflux ${model})`,
+    );
+  });
+
+  test("#985 AI_IMAGE_BACKEND alone must not re-label the winner (it only gates the negative prompt)", async () => {
+    const dirs = stageDirs();
+    const scenes = [imageScene()];
+    await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        generate: okGenerateMock().generate,
+        env: { AI_IMAGE_BACKEND: "mflux-z-image" },
+      }),
+    );
+    expect(scenes[0].media.source).toBe("AI-generated (mflux Boogu Turbo)");
+    expect(readReport(reportPath(dirs.outputDir)).scenes["11"].winner.source).toBe(
+      "AI-generated (mflux Boogu Turbo)",
+    );
+  });
+
   test("cache hit on an unchanged image prompt assigns the winner without generation", async () => {
     const dirs = stageDirs();
     const file = "scene-11-seed9999.png";
-    const composed = composeImagePrompt(imageScene());
-    const report = emptyReport("demo", 60);
-    report.scenes["11"] = {
-      strategy: "ai-image",
-      promptHash: promptHash(composed),
-      injectionVersion: PROMPT_INJECTION_VERSION,
-      round: 1,
-      status: "won",
-      prompt: "abstract transformer memory channels folding inward, high detail",
-      voiceover: "v",
-      candidates: [{ seed: 9999, file, relevance: 84, reason: "ok" }],
-      winner: { seed: 9999, file },
-    };
-    writeReport(reportPath(dirs.outputDir), report);
+    writeReport(reportPath(dirs.outputDir), cachedImageReport(file));
 
     let generateCalled = 0;
     const scenes = [imageScene()];
@@ -242,7 +293,105 @@ describe("runBrollStage image strategy (#155)", () => {
     );
     expect(generateCalled).toBe(0);
     expect(result.counts.cached).toBe(1);
-    expect(scenes[0].media).toMatchObject({ type: "image", path: `assets/b-roll/${file}` });
+    expect(scenes[0].media).toMatchObject({
+      type: "image",
+      path: `assets/b-roll/${file}`,
+      // Pre-#985 entries stored no source; the reused label must still be the
+      // image backend's, not the video tier's.
+      source: "AI-generated (mflux Boogu Turbo)",
+    });
+    expect(readReport(reportPath(dirs.outputDir)).scenes["11"].winner.source).toBe(
+      "AI-generated (mflux Boogu Turbo)",
+    );
+  });
+
+  test("#985 a cached image entry polluted with a video label is repaired on reuse", async () => {
+    const dirs = stageDirs();
+    const file = "scene-11-seed9999.png";
+    const report = cachedImageReport(file, "AI-generated (FastVideo FastMetal-5B-QAD)");
+    writeReport(reportPath(dirs.outputDir), report);
+
+    const scenes = [imageScene()];
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        generate: async () => {
+          throw new Error("cache reuse must not generate");
+        },
+      }),
+    );
+    expect(result.counts.cached).toBe(1);
+    expect(scenes[0].media.source).toBe("AI-generated (mflux Boogu Turbo)");
+    // The stored provenance is repaired too, so the report stops disagreeing
+    // with the scene — no regeneration needed.
+    expect(readReport(reportPath(dirs.outputDir)).scenes["11"].winner.source).toBe(
+      "AI-generated (mflux Boogu Turbo)",
+    );
+  });
+
+  test("#985 a cached image label from an earlier image backend is preserved (#298 semantics)", async () => {
+    const dirs = stageDirs();
+    const file = "scene-11-seed9999.png";
+    writeReport(
+      reportPath(dirs.outputDir),
+      cachedImageReport(file, "AI-generated (mflux Z-Image Turbo)"),
+    );
+
+    const scenes = [imageScene()];
+    await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        generate: async () => {
+          throw new Error("cache reuse must not generate");
+        },
+        env: { AI_IMAGE_BACKEND: "mflux-boogu" },
+      }),
+    );
+    // Provenance follows the backend that actually generated the file.
+    expect(scenes[0].media.source).toBe("AI-generated (mflux Z-Image Turbo)");
+    expect(readReport(reportPath(dirs.outputDir)).scenes["11"].winner.source).toBe(
+      "AI-generated (mflux Z-Image Turbo)",
+    );
+  });
+
+  test("#985 a repaired report is persisted when cached and generated scenes coexist", async () => {
+    const dirs = stageDirs();
+    writeReport(
+      reportPath(dirs.outputDir),
+      cachedImageReport("scene-11-seed9999.png", "AI-generated (FastVideo FastMetal-5B-QAD)"),
+    );
+    const scenes = [
+      imageScene(),
+      imageScene({ id: 12, aiImage: { prompt: "second diagram folding memory channels" } }),
+    ];
+    const result = await runBrollStage(
+      baseOpts(dirs, { scenes, generate: okGenerateMock().generate }),
+    );
+    expect(result.counts.cached).toBe(1);
+    expect(result.counts.generated).toBe(1);
+    expect(readReport(reportPath(dirs.outputDir)).scenes["11"].winner.source).toBe(
+      "AI-generated (mflux Boogu Turbo)",
+    );
+  });
+
+  test("#985 an unmapped model's label survives cache reuse instead of re-labelling", async () => {
+    const dirs = stageDirs();
+    const file = "scene-11-seed9999.png";
+    const label = "AI-generated (mflux some-org/some-future-model)";
+    writeReport(reportPath(dirs.outputDir), cachedImageReport(file, label));
+
+    const scenes = [imageScene()];
+    await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        generate: async () => {
+          throw new Error("cache reuse must not generate");
+        },
+        env: { AI_IMAGE_MODEL: "some-other/checkpoint" },
+      }),
+    );
+    expect(scenes[0].media.source).toBe(label);
+    expect(readReport(reportPath(dirs.outputDir)).scenes["11"].winner.source).toBe(label);
   });
 
   test("image rounds escalate past 3 like video (same report semantics)", async () => {

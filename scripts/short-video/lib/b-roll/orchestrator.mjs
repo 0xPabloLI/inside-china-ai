@@ -22,6 +22,9 @@ import { resolveDependencies, runGeneration, resolveModelTier, MODEL_TIERS } fro
 import {
   resolveImageDependencies,
   runImageGeneration,
+  resolveImageModel,
+  imageModelSourceLabel,
+  isImageSourceLabel,
   DEFAULT_IMAGE_WIDTH,
   DEFAULT_IMAGE_HEIGHT,
 } from "./t2i-runner.mjs";
@@ -139,12 +142,7 @@ function migrateLegacyEntry(entry, rawPrompt, generationPrompt) {
  *   the scene already had media (winner becomes media.backdrop), or null
  *   when a backdrop already exists (idempotent — never overwritten).
  */
-export function assignWinner(
-  scene,
-  winnerFile,
-  isImage = false,
-  videoSource = "AI-generated (FastVideo FastMetal-5B-QAD)",
-) {
+export function assignWinner(scene, winnerFile, isImage, winnerSource) {
   // #299: an explicit media:null is a deliberate waiver — never overwrite it
   // with a generated file (the final gate reports it as a warning).
   if ("media" in scene && scene.media === null) return null;
@@ -158,14 +156,14 @@ export function assignWinner(
     ? {
         type: "image",
         path: `assets/b-roll/${winnerFile}`,
-        source: "AI-generated (mflux Z-Image Turbo)",
+        source: winnerSource,
         animation: "fade",
         upscale: false,
       }
     : {
         type: "video",
         path: `assets/b-roll/${winnerFile}`,
-        source: videoSource,
+        source: winnerSource,
         animation: "fade",
         volume: 0,
         upscale: false,
@@ -228,8 +226,10 @@ export async function runBrollStage(opts) {
     ? new Set(Array.isArray(sceneFilter) ? sceneFilter : [sceneFilter])
     : null;
   // Report provenance follows the tier (#298): the winner source label must
-  // match the model that actually ran.
+  // match the model that actually ran. Images label from the checkpoint
+  // (#985) — AI_IMAGE_MODEL, not the AI_IMAGE_BACKEND contract switch.
   const videoSource = MODEL_TIERS[resolveModelTier(env)]?.winnerSource ?? null;
+  const imageSource = imageModelSourceLabel(resolveImageModel(env));
   // #922: one family per run — the tier is a run-level decision, so prompts,
   // budgets and provenance all resolve from the same template. An unknown
   // BROLL_MODEL must not silently fall back to the default tier: the whole
@@ -331,7 +331,21 @@ export async function runBrollStage(opts) {
         // the current env: a 1.3B-era winner reused under the 5B default must
         // keep its original label. Legacy entries without a stored source
         // fall back to the current tier's label (pre-#298 behavior).
-        assignWinner(scene, winnerFile, isImage, entry.winner?.source ?? videoSource);
+        // #985: image entries written before this fix stored the video label
+        // (or none) — only a recognized image label is trustworthy provenance.
+        const storedSource = entry.winner?.source ?? null;
+        const reuseSource = isImage
+          ? isImageSourceLabel(storedSource)
+            ? storedSource
+            : imageSource
+          : (storedSource ?? videoSource);
+        // #985: repair pre-fix report entries so the stored provenance stops
+        // disagreeing with the scene after a cached rerun (no regeneration).
+        if (isImage && entry.winner && reuseSource !== storedSource) {
+          entry.winner.source = reuseSource;
+          reportDirty = true;
+        }
+        assignWinner(scene, winnerFile, isImage, reuseSource);
         counts.cached += 1;
         continue;
       }
@@ -527,8 +541,9 @@ export async function runBrollStage(opts) {
         ...failedCandidates,
       ];
 
+      const winnerSource = isImage ? imageSource : videoSource;
       const landedOn = winner
-        ? assignWinner(scene, basename(winner.file), isImage, videoSource)
+        ? assignWinner(scene, basename(winner.file), isImage, winnerSource)
         : null;
       report.scenes[sceneId] = {
         strategy: scene.mediaStrategy,
@@ -542,9 +557,11 @@ export async function runBrollStage(opts) {
         voiceover: scene.voiceover ?? "",
         candidates,
         // Persist the winner's provenance so cache reuse under a different
-        // tier can re-label the scene accurately (see the reuse path above).
+        // model/backend can re-label the scene accurately (see the reuse path
+        // above). #985: image entries carry the image backend label, never the
+        // video tier's.
         winner: winner
-          ? { seed: winner.seed, file: basename(winner.file), source: videoSource }
+          ? { seed: winner.seed, file: basename(winner.file), source: winnerSource }
           : null,
         // null (idempotent re-run over an existing backdrop) preserves the
         // previous report's landing record.
