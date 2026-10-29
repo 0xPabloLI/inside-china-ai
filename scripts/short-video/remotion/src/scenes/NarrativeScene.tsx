@@ -31,7 +31,6 @@ import {
   mediaBottomBarHeightFor,
   mediaBottomBarTopFor,
   MEDIA_BAND,
-  SAFE_ZONES,
 } from "../../../lib/safe-zones.mjs";
 import { MediaScrims } from "../components/MediaScrims";
 import { MediaBackground } from "../components/MediaBackground";
