@@ -5,8 +5,13 @@ import { join } from "node:path";
 
 import {
   DEFAULT_IMAGE_BACKEND,
+  DEFAULT_IMAGE_MODEL,
   MFLUX_BIN_CANDIDATES,
   buildImageArgs,
+  imageModelSourceLabel,
+  isImageSourceLabel,
+  resolveImageBackend,
+  resolveImageModel,
   resolveImageDependencies,
   runImageGeneration,
 } from "../b-roll/t2i-runner.mjs";
@@ -322,5 +327,51 @@ describe("runImageGeneration (#155, same protocol as the video runner)", () => {
       env: { HF_HUB_OFFLINE: "0" },
     });
     expect(lines).toContain("[image] HF_HUB_OFFLINE=0");
+  });
+});
+
+describe("image provenance label (#985)", () => {
+  test("default checkpoint labels the winner as Boogu Turbo, not Z-Image", () => {
+    expect(imageModelSourceLabel()).toBe("AI-generated (mflux Boogu Turbo)");
+    expect(imageModelSourceLabel(DEFAULT_IMAGE_MODEL)).toBe("AI-generated (mflux Boogu Turbo)");
+  });
+
+  test("a checkpoint override changes the label; the backend switch alone does not", () => {
+    expect(imageModelSourceLabel("filipstrand/Z-Image-Turbo-mflux-4bit")).toBe(
+      "AI-generated (mflux filipstrand/Z-Image-Turbo-mflux-4bit)",
+    );
+    // AI_IMAGE_BACKEND only gates the negative-prompt contract; the model —
+    // and therefore the provenance label — still defaults to Boogu.
+    expect(imageModelSourceLabel(resolveImageModel({ AI_IMAGE_BACKEND: "mflux-z-image" }))).toBe(
+      "AI-generated (mflux Boogu Turbo)",
+    );
+  });
+
+  test("an unknown checkpoint derives its own label instead of borrowing a known model name", () => {
+    const label = imageModelSourceLabel("some-org/some-future-model");
+    expect(label).toBe("AI-generated (mflux some-org/some-future-model)");
+    // Still recognizable as image provenance, so cache reuse keeps it rather
+    // than re-labelling the winner with the current model.
+    expect(isImageSourceLabel(label)).toBe(true);
+  });
+
+  test("isImageSourceLabel separates image labels from video-tier labels", () => {
+    expect(isImageSourceLabel("AI-generated (mflux Boogu Turbo)")).toBe(true);
+    expect(isImageSourceLabel("AI-generated (FastVideo FastMetal-5B-QAD)")).toBe(false);
+    expect(isImageSourceLabel("AI-generated (FastVideo FastMetal-1.3B-QAD)")).toBe(false);
+    expect(isImageSourceLabel(undefined)).toBe(false);
+    expect(isImageSourceLabel("")).toBe(false);
+  });
+
+  test("resolveImageModel follows AI_IMAGE_MODEL over the default", () => {
+    expect(resolveImageModel({})).toBe(DEFAULT_IMAGE_MODEL);
+    expect(resolveImageModel({ AI_IMAGE_MODEL: "org/model" })).toBe("org/model");
+    expect(resolveImageModel({ AI_IMAGE_MODEL: "" })).toBe(DEFAULT_IMAGE_MODEL);
+  });
+
+  test("resolveImageBackend follows AI_IMAGE_BACKEND over the default", () => {
+    expect(resolveImageBackend({})).toBe(DEFAULT_IMAGE_BACKEND);
+    expect(resolveImageBackend({ AI_IMAGE_BACKEND: "mflux-z-image" })).toBe("mflux-z-image");
+    expect(resolveImageBackend({ AI_IMAGE_BACKEND: "" })).toBe(DEFAULT_IMAGE_BACKEND);
   });
 });
