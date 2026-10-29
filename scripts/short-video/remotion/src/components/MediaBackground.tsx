@@ -193,9 +193,23 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
     //
     // objectPosition still belongs here: it is a plain CSS property on the
     // underlying element and does apply.
-    objectPosition: media.cropFocus
-      ? `${media.cropFocus.x * 100}% ${media.cropFocus.y * 100}%`
-      : (FOCUS_MAP[media.focus ?? "center"] ?? "center"),
+    //
+    // VERTICAL for fit:"contain" is forced to 100% (bottom). cropFocus.y is a
+    // CROP-framing value — it chooses which slice of a cover-cropped source
+    // survives — and a contained picture keeps the whole source, so there is
+    // nothing left to frame. What the vertical still controls is where the
+    // letterboxed picture sits inside its band. Centre-anchoring (the old
+    // behaviour) split the dead space above and below and left the picture
+    // ~300px above the frame's centre of mass — the "内容整体太靠上" report.
+    // Bottom-anchoring drops the picture directly onto the text bar so the two
+    // read as one captioned unit; see CONTAIN_MEDIA_BOTTOM in lib/safe-zones.mjs
+    // for the band that decides where that lands.
+    objectPosition:
+      (media.fit ?? "cover") === "contain"
+        ? `${(media.cropFocus?.x ?? 0.5) * 100}% 100%`
+        : media.cropFocus
+          ? `${media.cropFocus.x * 100}% ${media.cropFocus.y * 100}%`
+          : (FOCUS_MAP[media.focus ?? "center"] ?? "center"),
     opacity,
     transform: `translate(${translateX}, ${translateY}) scale(${scale})`,
     filter: filter !== "none" ? filter : undefined,

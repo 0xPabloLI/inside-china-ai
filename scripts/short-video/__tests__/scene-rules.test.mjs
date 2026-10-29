@@ -1332,13 +1332,24 @@ describe("checkHookMediaContract", () => {
     });
   }
 
-  it("FAILS hook media whose fit is present and not cover", () => {
-    for (const fit of ["contain", "fill", "none", "cvr"]) {
+  // 2026-10-29: "contain" moved from fail to pass. The old rule rejected it
+  // for letterboxing, but cover fills the frame by CUTTING it — for a 16:9
+  // source in the hook's 1080x1920 box that discards 68.4% of the picture,
+  // and the user rejected the crop outright ("这个是我不能接受的"). A
+  // letterboxed hook that matches a letterboxed body is the coherent
+  // alternative; a cover hook in front of a contain body switches composition
+  // at t=3.4s, which is worse than either choice alone.
+  it("PASSES hook media using contain (letterbox, full picture preserved)", () => {
+    const result = checkHookMediaContract([hook({ media: { ...cleanMedia, fit: "contain" } })]);
+    expect(result.filter((r) => r.level === "fail")).toHaveLength(0);
+  });
+
+  it("FAILS hook media whose fit is neither cover nor contain", () => {
+    for (const fit of ["fill", "none", "cvr"]) {
       const result = checkHookMediaContract([hook({ media: { ...cleanMedia, fit } })]);
       const fails = result.filter((r) => r.level === "fail");
       expect(fails, `fit ${fit}`).toHaveLength(1);
       expect(fails[0].check).toContain("fit");
-      expect(fails[0].detail).toContain('fit:"cover"');
       expect(fails[0].detail).toContain(fit);
     }
   });

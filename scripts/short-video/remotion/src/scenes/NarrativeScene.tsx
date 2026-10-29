@@ -27,9 +27,11 @@ import {
 } from "../components/animations/entrance";
 import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION } from "../components/shared";
 import {
+  CONTAIN_MEDIA_BOTTOM,
   mediaBottomBarHeightFor,
   mediaBottomBarTopFor,
   MEDIA_BAND,
+  SAFE_ZONES,
 } from "../../../lib/safe-zones.mjs";
 import { MediaScrims } from "../components/MediaScrims";
 import { MediaBackground } from "../components/MediaBackground";
@@ -208,10 +210,16 @@ export const NarrativeScene: React.FC<{
               <div
                 style={{
                   position: "absolute",
-                  top: 0,
+                  // contain → the picture's own band, hung on the text bar
+                  // (CONTAIN_MEDIA_BOTTOM + MediaBackground's bottom anchor).
+                  // cover → the full-bleed band, unchanged.
+                  top: scene.media!.fit === "contain" ? SAFE_ZONES.top : 0,
                   left: 0,
                   right: 0,
-                  height: MEDIA_BAND.bottom,
+                  height:
+                    scene.media!.fit === "contain"
+                      ? CONTAIN_MEDIA_BOTTOM - SAFE_ZONES.top
+                      : MEDIA_BAND.bottom,
                   overflow: "hidden",
                 }}
               >
@@ -219,8 +227,14 @@ export const NarrativeScene: React.FC<{
               </div>
               {/* The scrims are what keep a full-bleed band inside the frame
                   gate's rail and subtitle-gap limits — see the MEDIA_BAND note
-                  in lib/safe-zones.mjs. */}
-              <MediaScrims mediaBottom={MEDIA_BAND.bottom} />
+                  in lib/safe-zones.mjs. A contained picture stops at
+                  CONTAIN_MEDIA_BOTTOM, so its scrim does too: darkening the
+                  empty letterbox below it would only dim bare background. */}
+              <MediaScrims
+                mediaBottom={
+                  scene.media!.fit === "contain" ? CONTAIN_MEDIA_BOTTOM : MEDIA_BAND.bottom
+                }
+              />
             </>
           ))}
         {/* Text block anchored to the safe zone bottom (y=1150), drawn over the

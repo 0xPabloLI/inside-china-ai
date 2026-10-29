@@ -27,14 +27,26 @@ export function checkHookMediaQuality(media) {
   const warnings = [];
   const m = media ?? {};
 
-  // Only "cover" keeps the 9:16 frame filled; an omitted fit is valid because
-  // the renderer defaults to cover. fill/none are CSS object-fit values that
-  // distort the frame; anything else (e.g. "cvr") is a typo.
-  if (m.fit != null && m.fit !== "cover") {
+  // "cover" keeps the 9:16 frame filled and stays the default; an omitted fit
+  // is valid because the renderer defaults to cover. "contain" was a FAILURE
+  // until 2026-10-29 and is now allowed — see below.
+  //
+  // The old rule rejected contain because it "letterboxes". That premise only
+  // holds when cover is available as the alternative: cover fills the frame by
+  // CUTTING it, and for a 16:9 source in the hook's full-frame 1080x1920 box
+  // that means scaling 1.78x and showing 31.6% of the source width — 68.4% of
+  // the picture is discarded. The user rejected that outright ("这个是我不能
+  // 接受的"), so for a film whose body is already composed as a letterbox the
+  // hook must be allowed to match it. A letterboxed hook is consistent with a
+  // letterboxed body; a cover hook in front of a contain body is not, and that
+  // inconsistent switch at t=3.4s is worse than either choice alone.
+  //
+  // fill/none remain failures: they distort the frame rather than fitting it.
+  if (m.fit != null && m.fit !== "cover" && m.fit !== "contain") {
     failures.push({
       check: "Hook media fit",
-      detail: `Hook media must use fit:"cover" — "${m.fit}" is not supported (contain letterboxes; fill/none and typos distort or crop the 9:16 frame)`,
-      fix: 'Set fit:"cover" or omit fit (the renderer defaults to cover)',
+      detail: `Hook media fit "${m.fit}" is not supported (fill/none distort the frame; anything else is likely a typo)`,
+      fix: 'Set fit:"cover" (fills the frame by cropping) or fit:"contain" (letterboxes the whole picture), or omit fit to default to cover',
     });
   }
 

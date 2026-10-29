@@ -29,6 +29,7 @@ import { MediaScrims } from "../components/MediaScrims";
 import { MediaCard } from "../components/MediaCard";
 import { TextGate } from "../components/text-gate";
 import { HOOK_SUBJECT_ROW, hookSubjectTextWidth } from "../../../lib/text-slots.mjs";
+import { CONTAIN_MEDIA_BOTTOM, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
 import { AnnotationCollisionAssert } from "../components/annotation-collision-gate";
 import { SplitHighlight } from "../components/substring-highlight";
 
@@ -111,6 +112,20 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
   const hasSubjectLogo = !!txt.subjectLogo;
   const subjectWidth = hookSubjectTextWidth({ hasLogo: hasSubjectLogo });
 
+  // Height and top of the hook's media band.
+  //
+  // cover → the whole frame. That is what makes the hook punchy, and it is the
+  // long-standing default.
+  // contain → the SAME band the body's media-bottom-bar scenes use
+  // ([SAFE_ZONES.top, CONTAIN_MEDIA_BOTTOM], bottom-anchored). Containing into
+  // `inset: 0` instead would centre the letterboxed picture on the full 1920
+  // frame (a 16:9 source at 1080 wide is 608px tall, so y 656-1264), which runs
+  // straight through the text bar and into the subtitle lane — and it would
+  // still not match the body, so the composition would jump at the t=3.4s cut.
+  const hookIsContain = scene.media?.fit === "contain";
+  const hookMediaTop = hookIsContain ? SAFE_ZONES.top : 0;
+  const hookMediaHeight = hookIsContain ? CONTAIN_MEDIA_BOTTOM - SAFE_ZONES.top : CANVAS.height;
+
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       {scene.media &&
@@ -118,12 +133,22 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
           <MediaCard media={scene.media} duration={duration} />
         ) : (
           <>
-            <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
-            {/* The hook's media is full-frame, so it covers the action rail and
-                the subtitle gap directly. The scrims are what hold those
-                regions under the frame gate's brightness limit for daylight
-                footage — see the MEDIA_BAND note in lib/safe-zones.mjs. */}
-            <MediaScrims mediaBottom={CANVAS.height} />
+            <div
+              style={{
+                position: "absolute",
+                top: hookMediaTop,
+                left: 0,
+                right: 0,
+                height: hookMediaHeight,
+                overflow: "hidden",
+              }}
+            >
+              <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
+            </div>
+            {/* The scrims are what hold the action rail and the subtitle gap
+                under the frame gate's brightness limit for daylight footage —
+                see the MEDIA_BAND note in lib/safe-zones.mjs. */}
+            <MediaScrims mediaBottom={hookIsContain ? CONTAIN_MEDIA_BOTTOM : CANVAS.height} />
           </>
         ))}
       {/* Background layers — CSS: .grid-bg + .glow-tint + .scanlines + .scan-sweep */}

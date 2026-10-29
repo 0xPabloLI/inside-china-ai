@@ -279,10 +279,10 @@ describe("hook media gate (#299, layout-independent)", () => {
 // the preflight would have rejected.
 
 describe("hook media quality at the final gate (#299)", () => {
-  it("FAILS a hook whose existing file uses fit:contain", () => {
+  it("FAILS a hook whose existing file uses an unsupported fit", () => {
     const dir = makeContentDir(["present.jpg"]);
     const result = checkFinalMedia({
-      scenes: [{ id: 8, visualType: "hook", media: hookMedia({ fit: "contain" }) }],
+      scenes: [{ id: 8, visualType: "hook", media: hookMedia({ fit: "fill" }) }],
       contentDir: dir,
     });
     expect(result.pass).toBe(false);
@@ -291,10 +291,10 @@ describe("hook media quality at the final gate (#299)", () => {
         sceneId: 8,
         layout: null,
         reason: "hook-media-quality",
-        detail: expect.stringContaining('fit:"cover"'),
+        detail: expect.stringContaining('"fill"'),
       },
     ]);
-    expect(formatFinalMediaFailures(result)).toContain('Scene 8: Hook media must use fit:"cover"');
+    expect(formatFinalMediaFailures(result)).toContain('Scene 8: Hook media fit "fill"');
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -876,8 +876,9 @@ describe("media provenance (#759)", () => {
 
   it("still enforces the hook contract when only the declaration is wrong", () => {
     // Round-3 finding: any media finding used to skip hook quality, so a hook
-    // with intact bytes and fit:"contain" + a missing provenance shipped the
-    // fit violation.
+    // with intact bytes and an unsupported fit + a missing provenance shipped
+    // the fit violation. (fit was "contain" here until 2026-10-29, when contain
+    // became a valid hook fit — "fill" still trips the same contract.)
     const dir = makeContentDir(["present.png"]);
     const result = checkFinalMedia({
       scenes: [
@@ -885,7 +886,7 @@ describe("media provenance (#759)", () => {
           id: 11,
           visualType: "hook",
           layout: "hero-center",
-          media: { type: "image", path: "assets/present.png", fit: "contain", evidence: true },
+          media: { type: "image", path: "assets/present.png", fit: "fill", evidence: true },
         },
       ],
       contentDir: dir,

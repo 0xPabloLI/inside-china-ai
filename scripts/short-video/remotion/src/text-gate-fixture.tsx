@@ -509,7 +509,12 @@ const FixtureScene: React.FC<FixtureProps> = ({
       extrapolateRight: "clamp",
     });
     return (
-      <Stage offsetY={400 + progress * 40}>
+      // 400 → 560 on 2026-10-29: SAFE_ZONES.bottom moved 770 → 710 → 611, so
+      // the content band's bottom edge went 1210 → 1309 and a slot resting at
+      // the old offset no longer breached anything. The offset only has to put
+      // the slot's bottom edge below y=1309; 560 (stage top 1260) does so with
+      // margin for the copy's own height.
+      <Stage offsetY={560 + progress * 40}>
         <TextGate sceneId={SCENE_ID} slotId={SLOT_ID}>
           {(fontSize) => textNode(fontSize, COPY_FIT)}
         </TextGate>

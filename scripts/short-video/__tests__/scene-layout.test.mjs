@@ -26,10 +26,11 @@ describe("SLOTS (vertical bands)", () => {
   });
 
   it("keeps the support slot fully above the subtitle lane", () => {
-    // Content bottom edge = 1920 - SAFE_ZONES.bottom = 1150 (recalibrated:
-    // content ends higher to clear the larger 60px subtitle lane at y1188).
+    // Content bottom edge = 1920 - SAFE_ZONES.bottom = 1309 (recalibrated
+    // 2026-10-29: 770 → 710 → 611 moved the stack down; the first step was too
+    // small to read, the user's report was "我感觉不到你内容有多少下移").
     expect(SLOTS.support.bottom).toBe(1920 - SAFE_ZONES.bottom);
-    expect(SLOTS.support.bottom).toBe(1150);
+    expect(SLOTS.support.bottom).toBe(1309);
   });
 
   it("keeps the brand header in the top chrome corner", () => {

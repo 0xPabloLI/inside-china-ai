@@ -37,8 +37,27 @@ export const SAFE_ZONES = {
   top: 220,
   /** Right margin = 200 → content right edge x=880, clearing the action rail */
   right: 200,
-  /** Content bottom edge = 1920 − 770 = 1150 — ABOVE the subtitle lane */
-  bottom: 770,
+  /**
+   * Content bottom edge = 1920 − 611 = 1309 — ABOVE the subtitle lane.
+   *
+   * 770 → 710 → 611. The 2026-10-29 second pass took it to 611 because the
+   * first (710 → content bottom 1210) moved the stack 60px, which is 3% of the
+   * frame — the user's report was "我感觉不到你内容有多少下移", and they were
+   * right: 60px is below the threshold where a composition shift reads.
+   *
+   * 611 is the HARD CEILING, not a taste call. The text bar is bottom-anchored
+   * here, so this edge also fixes the contained picture's bottom edge (see
+   * CONTAIN_MEDIA_BOTTOM): a 16:9 source at 1080 wide is 608px tall, so pushing
+   * this value lower walks the picture's top down until the bar's own height
+   * starts eating it. 1309 puts a 3-row scene's picture at y 429-1037 and its
+   * caption block at 1041-1309, with 30px still clear of the lane.
+   *
+   * Everything below this line is reservation, not picture:
+   *   30px  declared content → lane gap
+   *   81px  the lane's second-line reserve (now disabled, see maxLines)
+   *   125px the cue's own offset above its lane bottom (marginV 500)
+   */
+  bottom: 611,
   /** Content must stay at least this many px from the left edge */
   left: 60,
 };
@@ -149,12 +168,43 @@ export const EVIDENCE_CARD = {
  * constraint is the caption UI, and the measurement says there is room.
  */
 export const SUBTITLE_LANE = {
-  /** ASS MarginV — subtitle bottom edge distance from the canvas bottom */
+  /**
+   * ASS MarginV — subtitle bottom edge distance from the canvas bottom.
+   *
+   * Held at 500 after testing 608 on 2026-10-28. Moving the cue UP does close
+   * the measured 267px gap to the text bar, but it does so by spending the one
+   * thing the user asked to keep: "this lane reads noticeably lower in frame"
+   * (2026-10-24) is a deliberate choice, and 608 also dragged the lane out of
+   * the lower third (1420/1920 = 74% → 1312/1920 = 68%) and onto the content
+   * band's own edge.
+   *
+   * The gap is closed from the other end instead — SAFE_ZONES.bottom 770 → 710
+   * moves the content stack DOWN 60px, which takes the text-bar-to-cue gap
+   * from 267px to 48px without touching the cue's position at all.
+   */
   marginV: 500,
   /** ASS font size (Helvetica Neue Bold) — matches TikTok native ~60px */
   fontSize: 60,
-  /** Reserved line count (worst-case wrap) */
-  maxLines: 2,
+  /**
+   * Reserved line count.
+   *
+   * 2 → 1 on 2026-10-29. This is NOT a subtitle change — the cue is
+   * bottom-anchored at `marginV`, so `maxLines` moves nothing on screen. What
+   * it moves is SUBTITLE_LANE_TOP, and therefore how low the CONTENT band is
+   * allowed to reach: 1258 → 1339, i.e. 81px the content stack can claim.
+   *
+   * The 2-line reservation is a worst-case guard, and it costs every scene that
+   * never wraps. This pack has 46 cues and ZERO `\N` breaks — the reserved
+   * second line has never rendered once. Dropping to 1 spends a guarantee the
+   * video does not use on the composition the user actually asked for.
+   *
+   * RISK, stated plainly: a cue that DOES wrap to two lines extends upward from
+   * the bottom anchor to y 1258, which is now inside the content band. It will
+   * still RENDER (ASS does not clip to this box), it just overlaps content.
+   * Any pack that wraps must set this back to 2 — the value is only safe
+   * alongside a cue set with no long lines.
+   */
+  maxLines: 1,
   /** Per-line height factor (font ascent/descent + safety) */
   lineHeight: 1.35,
   /** Max single-line cue width in px */
@@ -219,24 +269,41 @@ export const MEDIA_BAND = {
    * 16:9 source cover-cropped into a 1080xH band shows its full height, so a
    * caption burned into the source's bottom-left corner lands at source y
    * 1005-1050 → canvas y 0.93H-0.97H. At H=1258 that is y 1171-1223, which is
-   * inside the FAIL-only subtitle gap (1150-1258): the frame gate would read
-   * the caption as content in the gap and fail, and the scrim needed to pass
-   * would dim the caption past readability. At H=1150 the same caption lands
-   * at y 1070-1118 — inside the content band, above the gap, and outside the
-   * action rail (x 51-858 vs the rail's x≥880) — so it survives as evidence.
+   * inside the FAIL-only subtitle gap (now 1210-1258): the frame gate would
+   * read the caption as content in the gap and fail, and the scrim needed to
+   * pass would dim the caption past readability. At H=1210 the same caption
+   * lands at y 1125-1174 — inside the content band, above the gap, and outside
+   * the action rail (x 51-858 vs the rail's x≥880) — so it survives as
+   * evidence, with 36px of headroom before the gap begins.
    *
-   * 1150 still grows the picture from 43-53% of the frame to 60%, which is the
-   * change that answers the "content sits too high" note.
+   * H tracks SAFE_ZONES.bottom, so the 770 → 710 change above grew the band
+   * from 1150 to 1210 and the picture from 60% to 63% of the frame.
    */
   bottom: CANVAS.height - SAFE_ZONES.bottom,
   /** Bottom scrim fades in from this canvas y. */
   scrimTop: 820,
   /** Bottom scrim alpha at MEDIA_BAND.bottom. */
   scrimAlpha: 0.75,
-  /** Right vignette fades in from this canvas x. */
-  vignetteStartX: 700,
-  /** Right vignette alpha at the canvas right edge. */
-  vignetteAlpha: 0.95,
+  /**
+   * Right vignette fades in from this canvas x.
+   *
+   * 700 → 880 (the action rail's own left edge) on 2026-10-29. At 700 the ramp
+   * began 180px inside the picture, so it darkened the right third of the
+   * SUBJECT to buy headroom the rail check never measures — the user read it as
+   * "右边的内容好像被你遮挡掉一些了", which is exactly what it was. The gate
+   * only samples x 880-1080, so starting at 880 spends the whole ramp inside
+   * the region that actually needs it.
+   */
+  vignetteStartX: 880,
+  /**
+   * Right vignette alpha at the canvas right edge.
+   *
+   * 0.95 → 0.6. 0.95 made the outer 200px effectively opaque, which is not
+   * "dimmed evidence" — it is a removed one. 0.6 holds bright frames under the
+   * gate's luminance-80 threshold while leaving rail-adjacent picture legible;
+   * re-measure with verify-remotion-frames.mjs if the source gets brighter.
+   */
+  vignetteAlpha: 0.6,
   /** Top scrim is at full strength at y=0 and gone by this canvas y. */
   topScrimHeight: 200,
   /**
@@ -248,6 +315,27 @@ export const MEDIA_BAND = {
    */
   topScrimAlpha: 0.55,
 };
+
+/**
+ * Bottom edge of a `fit:"contain"` picture (2026-10-29).
+ *
+ * A contained picture is placed in the band [SAFE_ZONES.top, this] and anchored
+ * to its BOTTOM (see MediaBackground — contain anchors bottom, not centre). The
+ * picture therefore hangs directly above the text bar and the pair reads as one
+ * captioned still, instead of floating in the middle of a band with dead space
+ * above AND below it.
+ *
+ * 1037 = the three-row text bar's top edge (1309 − 264) minus the 8px gap. A
+ * four-row scene's bar reaches 40px higher (top 997) and so overlaps the
+ * picture's bottom edge — the same overlap cover mode has always had, where the
+ * bar draws over the footage. Deliberate: anchoring to the four-row bar instead
+ * would pull every picture 48px higher to protect a row set most scenes do not
+ * declare, and the user's complaint is that the picture is too high already.
+ *
+ * Net effect for a 16:9 source at full width (608px tall): picture y 429-1037,
+ * up from y 301-909 under the old centre-anchored band. +128px.
+ */
+export const CONTAIN_MEDIA_BOTTOM = 1037;
 
 /**
  * Normalised stops approximating smoothstep(t) = t²(3-2t).
