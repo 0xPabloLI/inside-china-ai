@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.41.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.41.0...tanstack_start_ts-v1.41.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* **media:** restore CDP media enrichment with a parseable script and object-preserving eval ([#945](https://github.com/0xPabloLI/inside-china-ai/issues/945)) ([#1023](https://github.com/0xPabloLI/inside-china-ai/issues/1023)) ([788534d](https://github.com/0xPabloLI/inside-china-ai/commit/788534dfefb97c75e60fd3637e6e01d3b830d3d7))
+
 ## [1.41.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.40.1...tanstack_start_ts-v1.41.0) (2026-10-28)
 
 
