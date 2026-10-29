@@ -15,7 +15,8 @@
  */
 
 import { canonicalizeUrl } from "./url-normalizer.mjs";
-import { cdpNewTab, cdpCloseTab, waitForPageLoad, extractFromTab } from "./cdp-client.mjs";
+import { BROLL_CLIP_SECONDS, brollSectionSpec } from "./media-window.mjs";
+import { cdpNewTab, cdpCloseTab, cdpEval, waitForPageLoad } from "./cdp-client.mjs";
 import { callMcpTool, parseMcpResult } from "./mcp-client.mjs";
 import {
   existsSync,
@@ -43,6 +44,7 @@ import {
   resolveYtdlpOutputPath,
   shellQuote,
   ytdlpProxyArg,
+  ytdlpProxyEnv,
 } from "./ytdlp-guard.mjs";
 import { tmpdir, homedir } from "os";
 import { fileURLToPath } from "url";
@@ -154,7 +156,8 @@ const WEIBO_HOSTS = ["weibo.com", "weibo.cn", "m.weibo.cn"];
 /** Xiaohongshu note hosts (#75 Batch 3) — explore pages and share shortlinks. */
 const XHS_HOSTS = ["xiaohongshu.com", "xhslink.com"];
 
-/** 抖音/iesdouyin hostname patterns (download needs no login — share page). */
+/** 抖音/iesdouyin hostname patterns (#314: download uses the desktop /video/
+ *  page's signed CDN tracks — the iesdouyin share page now 302s there anyway). */
 const DOUYIN_HOSTS = ["douyin.com", "www.douyin.com", "iesdouyin.com", "www.iesdouyin.com"];
 
 /** TikTok hostname patterns (#300 stage 2) — video pages, share shortlinks. */
@@ -176,18 +179,196 @@ const TIKTOK_TIMEOUT_MS = 300000;
 /** Referer iesdouyin CDN requires for media downloads (verified 2026-09-03, issue #182). */
 const DOUYIN_REFERER = "https://www.douyin.com/";
 
-/** CDP eval script: the <video> element's currentSrc on the rendered share page.
- *  Returns an array — extractFromTab's contract is array-shaped (it JSON-parses
- *  string returns and swallows non-JSON strings to []).
- *  Polls in-page: the share page redirects to douyin.com and hydrates the
- *  xgplayer asynchronously — currentSrc only appears several seconds after
- *  page load (observed ~6s on real data, issue #182 smoke). */
-const DOUYIN_CURRENT_SRC_SCRIPT = `let src = document.querySelector("video")?.currentSrc || "";
-for (let i = 0; i < 5 && !src.trim(); i++) {
-  await new Promise((r) => setTimeout(r, i === 0 ? 500 : 2000));
-  src = document.querySelector("video")?.currentSrc || "";
+/** Referer xhscdn's signed stream URLs require (#1004, verified 2026-10-28). */
+const XHS_REFERER = "https://www.xiaohongshu.com/";
+
+/** Settle + poll windows: the note page hydrates its player after the
+ *  document loads, and the signed mp4 lands ~1s after the player is kicked
+ *  (verified live 2026-10-28). */
+const XHS_NOTE_SETTLE_MS = 3500;
+const XHS_MEDIA_POLL_INTERVAL_MS = 500;
+const XHS_MEDIA_POLL_TIMEOUT_MS = 10000;
+
+/** CDP eval script: signed media track URLs from the desktop player's resource
+ *  timings. The player uses MSE (`blob:` currentSrc), so the <video> element
+ *  carries no fetchable URL; the page does request separate signed
+ *  video/audio tracks from douyinvod.com. Returns an array — written as an
+ *  IIFE expression because CDP eval has no top-level return. Raises the
+ *  resource-timing buffer first: the live page already holds ~240 entries and
+ *  the media requests must not be evicted while the adapter polls. */
+const DOUYIN_MEDIA_TRACKS_SCRIPT = `(() => {
+  try {
+    performance.setResourceTimingBufferSize(2000);
+  } catch (e) {}
+  try {
+    return performance
+      .getEntriesByType("resource")
+      .map((e) => e.name)
+      .filter((u) => /douyinvod\\.com/.test(u) && /mime_type=video_mp4/.test(u));
+  } catch (e) {
+    return [];
+  }
+})()`;
+
+/** CDP eval script: xhs's signed stream URL from resource timings (#1004).
+ *  The note player is MSE (`video.currentSrc` is `blob:`), so the `<video>`
+ *  element carries no fetchable URL; the page requests an
+ *  `sns-video*.xhscdn.com/stream/...mp4?sign=...` instead. Same IIFE shape and
+ *  buffer bump as douyin's track reader. */
+const XHS_MEDIA_TRACKS_SCRIPT = `(() => {
+  try {
+    performance.setResourceTimingBufferSize(2000);
+  } catch (e) {}
+  try {
+    return performance
+      .getEntriesByType("resource")
+      .map((e) => e.name)
+      .filter((u) => /sns-video.*\\.mp4/i.test(u));
+  } catch (e) {
+    return [];
+  }
+})()`;
+
+/** Unwrap a CDP eval payload (`{result:{value}}`, `{value}`) to its value.
+ *  A proxy page-script failure (`{error}`) throws instead of reading as an
+ *  empty/undefined result — the same #308 rule evalTrackList applies.
+ *  @param {unknown} raw
+ *  @returns {any}
+ */
+function unwrapEvalValue(raw) {
+  let v = raw;
+  if (v && typeof v === "object") {
+    if ("href" in v || "hasVideo" in v || "loginWall" in v) return v;
+    if (v.result && typeof v.result === "object" && "value" in v.result) v = v.result.value;
+    else if ("value" in v) v = v.value;
+  }
+  if (typeof v === "string") {
+    try {
+      v = JSON.parse(v);
+    } catch {
+      return v;
+    }
+  }
+  if (v && typeof v === "object" && !Array.isArray(v) && v.error) {
+    throw new Error(`cdp eval failed: ${JSON.stringify(v.error).slice(0, 200)}`);
+  }
+  return v;
 }
-return [src];`;
+
+/** Track polling budget: the player requests its CDN tracks a few seconds
+ *  after load (verified 2026-10-28 on a 65-minute clip). */
+const DOUYIN_TRACK_POLL_INTERVAL_MS = 500;
+const DOUYIN_TRACK_POLL_TIMEOUT_MS = 12000;
+
+/** B-roll clip length, shared with the yt-dlp `--download-sections` spec
+ *  (media-window.mjs). Douyin's full tracks are 23-139MB (measured live
+ *  2026-10-28), so the adapter never pulls whole tracks — only this window. */
+const DOUYIN_CLIP_SECONDS = BROLL_CLIP_SECONDS;
+const CLIP_TIMEOUT_MS = 120000;
+
+/**
+ * Normalize a CDP eval response to an array of URL strings.
+ * Accepts a raw array, `{ value }`, `{ result: { value } }`, or a JSON string.
+ * @param {unknown} value
+ * @returns {string[]}
+ */
+function evalTrackList(value) {
+  let v = unwrapEvalValue(value);
+  if (typeof v === "string") {
+    try {
+      v = JSON.parse(v);
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(v) ? v.filter((u) => typeof u === "string" && u) : [];
+}
+
+/**
+ * Build the ffmpeg argv for an 8s B-roll clip (pure, exported for tests).
+ *
+ * Every input gets its own `-headers` (ffmpeg applies the option to the next
+ * input only), then an output bounded by `-t` and transcoded to H.264/AAC for
+ * Chromium/Remotion.
+ *
+ * @param {{inputs: Array<{url: string, referer: string}>, seconds: number, outPath: string}} params
+ * @returns {string[]}
+ */
+export function buildClipArgs({ inputs, seconds, outPath }) {
+  const args = ["-y"];
+  for (const { url, referer } of inputs) {
+    args.push("-headers", `Referer: ${referer}\r\n`, "-i", url);
+  }
+  args.push(
+    "-t",
+    String(seconds),
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "22",
+    "-c:a",
+    "aac",
+    "-movflags",
+    "+faststart",
+    outPath,
+  );
+  return args;
+}
+
+/**
+ * Douyin's two signed tracks (picture + optional sound) → the generalized
+ * `buildClipArgs` input list. Kept as a thin wrapper (#314 shape) so callers
+ * and tests that speak in video/audio URLs do not need to know about it.
+ *
+ * @param {{videoUrl: string, audioUrl?: string|null, referer: string, seconds: number, outPath: string}} params
+ * @returns {string[]}
+ */
+export function buildDouyinClipArgs({ videoUrl, audioUrl, referer, seconds, outPath }) {
+  const inputs = [{ url: videoUrl, referer }];
+  if (audioUrl) inputs.push({ url: audioUrl, referer });
+  return buildClipArgs({ inputs, seconds, outPath });
+}
+
+/**
+ * Default clipper: an 8s H.264 b-roll clip straight off a signed CDN track.
+ * Douyin serves picture and sound as separate URLs; xhs serves one mp4, so
+ * `inputs` generalizes both (#1004). The CDNs only answer with the site's
+ * Referer; ffmpeg reads them over HTTP with that header and, because `-t`
+ * bounds the output, fetches only the byte ranges it needs (verified live
+ * 2026-10-28: 0.5-0.8MB in 2-3s for sources weighing 23-139MB). Douyin's
+ * source is HEVC, which Chromium/Remotion cannot decode reliably, so both
+ * streams are transcoded to H.264/AAC.
+ * Temp files are always removed; a failure carries the ffmpeg stderr tail.
+ * @param {{videoUrl: string, audioUrl?: string|null, referer: string, seconds: number}} params
+ * @returns {Buffer}
+ */
+function clipTracks({ videoUrl, audioUrl, referer, seconds }) {
+  const workDir = mkdtempSync(join(tmpdir(), "clip-"));
+  try {
+    const outPath = join(workDir, "clip.mp4");
+    const args = buildDouyinClipArgs({ videoUrl, audioUrl, referer, seconds, outPath });
+    try {
+      execFileSync("ffmpeg", args, {
+        stdio: "pipe",
+        timeout: CLIP_TIMEOUT_MS,
+      });
+    } catch (e) {
+      const stderr = String(e.stderr || "")
+        .trim()
+        .slice(-400);
+      const err = new Error(`ffmpeg clip failed: ${stderr || e.message}`);
+      err.code = e.code;
+      throw err;
+    }
+    return readFileSync(outPath);
+  } finally {
+    try {
+      rmSync(workDir, { recursive: true, force: true });
+    } catch {}
+  }
+}
 
 /**
  * Read the hostname out of a URL string, or "" when there is none.
@@ -346,11 +527,18 @@ export function selectStrategy(url, options = {}) {
   // signing/token/anti-bot handling; cookie via XHS_COOKIE env). The CDP
   // adapter is the in-process fallback; RedNote-MCP stays exported but
   // unrouted (upstream detail scraping currently returns empty).
+  // #314: keep the query — xhs note URLs need `xsec_token`, and both adapters
+  // receive this canonicalUrl. The rest of the canonical form still applies
+  // (scheme/host/trailing slash).
   if (isXhsUrl(canonical)) {
-    return { adapter: ADAPTER_IDS.XHS_DOWNLOADER, canonicalUrl: canonical };
+    return {
+      adapter: ADAPTER_IDS.XHS_DOWNLOADER,
+      canonicalUrl: canonicalizeUrl(url, { keepQuery: true }),
+    };
   }
 
-  // 2.5 抖音/iesdouyin → iesdouyin share page via CDP (no login needed for download)
+  // 2.5 抖音/iesdouyin → desktop /video/ page via CDP (#314: signed CDN
+  //     tracks; the iesdouyin share page now redirects to the same page).
   if (isDouyinUrl(canonical)) {
     return { adapter: ADAPTER_IDS.DOUYIN_CDP, canonicalUrl: canonical };
   }
@@ -550,7 +738,7 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
     parts.push("--no-playlist");
   } else {
     parts.push("--max-filesize 20M");
-    parts.push('--download-sections "*0:00-0:08"');
+    parts.push(`--download-sections "${brollSectionSpec()}"`);
   }
 
   // #324: --download-sections delegates the fetch to ffmpeg, which only
@@ -569,7 +757,14 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
   // the URL can originate from scraped page content, so `"${url}"` would let a
   // crafted href break out of the quotes and run commands.
   parts.push(`-o ${shellQuote(tmpPath)}`, shellQuote(url));
-  return parts.join(" ");
+
+  // #329: ffmpeg reads only the lower-case http_proxy. A shell env assignment
+  // on the command word delivers it to yt-dlp and to its ffmpeg child, which is
+  // the same value already carried by `--proxy`; emitted only when this side
+  // resolved a proxy (an exported lower-case variable needs no copy).
+  const proxyEnv = ytdlpProxyEnv();
+  const envPrefix = proxyEnv.http_proxy ? `http_proxy=${shellQuote(proxyEnv.http_proxy)} ` : "";
+  return `${envPrefix}${parts.join(" ")}`;
 }
 
 export function downloadYtdlpAdapter(url) {
@@ -1069,79 +1264,134 @@ class CobaltAdapter {
 // ─── Adapter: DouyinCdp ───
 
 /**
- * iesdouyin share-page download via CDP (issue #182, method verified 2026-09-03).
+ * Douyin /video/ page download via CDP (issue #314; method verified live
+ * 2026-10-28). The old iesdouyin share page now 302-redirects to the desktop
+ * page, whose player is MSE-based (`blob:` currentSrc) — the <video> element
+ * exposes no fetchable URL. The page does request signed CDN tracks:
  *
- * Flow: cdpNewTab(share URL) → waitForPageLoad → extract <video>.currentSrc
- * → downloadDirectHttp with `Referer: https://www.douyin.com/` → close tab.
- * No douyin login needed for download (search is the login-gated half).
+ * Flow: cdpNewTab(/video/{id}) → waitForPageLoad → poll
+ * `performance.getEntriesByType("resource")` for douyinvod URLs → ffmpeg
+ * clips 8s of both tracks to H.264/AAC with `Referer:
+ * https://www.douyin.com/` → close tab.
  *
- * All cdp-client functions are injectable for testing; production callers
- * get the real ones by default.
+ * Only the first 8 seconds are fetched (B-roll semantics), so the 20MB
+ * B-roll cap is not consulted here: live tracks weigh 23-139MB, and every
+ * one of them would be rejected.
+ *
+ * All collaborators are injectable for testing; production callers get the
+ * real ones by default.
  *
  * @param {string} url - douyin/iesdouyin video URL
  * @param {Object} [opts]
- * @param {typeof fetch} [opts.fetchFn] - injectable fetch (media download)
  * @param {(url: string) => Promise<string>} [opts.cdpNewTabFn]
  * @param {(tabId: string) => Promise<boolean>} [opts.waitForPageLoadFn]
- * @param {(tabId: string, script: string) => Promise<string>} [opts.extractFn]
+ * @param {(tabId: string, script: string) => Promise<unknown>} [opts.evalFn]
+ * @param {(ms: number) => Promise<void>} [opts.sleepFn]
+ * @param {(params: {videoUrl: string, audioUrl: string|null, referer: string, seconds: number}) => Promise<Buffer>} [opts.clipFn]
  * @param {(tabId: string) => Promise<void>} [opts.cdpCloseTabFn]
  * @returns {Promise<DownloadResult>}
  */
 export async function downloadDouyinCdp(url, opts = {}) {
   const cdpNewTabFn = opts.cdpNewTabFn || cdpNewTab;
   const waitForPageLoadFn = opts.waitForPageLoadFn || waitForPageLoad;
-  const extractFn = opts.extractFn || extractFromTab;
+  const evalFn = opts.evalFn || cdpEval;
+  const sleepFn = opts.sleepFn || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const clipFn = opts.clipFn || clipTracks;
   const closeTabFn = opts.cdpCloseTabFn || cdpCloseTab;
-  const fetchFn = opts.fetchFn || globalThis.fetch;
   const source = "douyin";
+  const strategy = ADAPTER_IDS.DOUYIN_CDP;
 
   const videoId = extractDouyinVideoId(url);
   if (!videoId) {
     return makeResult({
       status: "unsupported",
-      strategy: ADAPTER_IDS.DOUYIN_CDP,
+      strategy,
       source,
       sourceUrl: url,
       reason: "no-video-id",
     });
   }
 
-  const shareUrl = `https://www.iesdouyin.com/share/video/${videoId}`;
   let tabId = null;
   try {
-    tabId = await cdpNewTabFn(shareUrl);
+    tabId = await cdpNewTabFn(`https://www.douyin.com/video/${videoId}`);
     await waitForPageLoadFn(tabId);
-    const extracted = await extractFn(tabId, DOUYIN_CURRENT_SRC_SCRIPT);
-    const currentSrc = ((Array.isArray(extracted) ? extracted[0] : extracted) || "").trim();
 
-    if (!currentSrc) {
+    // Poll the resource-timing list: the player hydrates asynchronously and
+    // only then requests its signed CDN tracks.
+    const maxAttempts = Math.ceil(DOUYIN_TRACK_POLL_TIMEOUT_MS / DOUYIN_TRACK_POLL_INTERVAL_MS);
+    let tracks = [];
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      tracks = evalTrackList(await evalFn(tabId, DOUYIN_MEDIA_TRACKS_SCRIPT));
+      // Wait for the picture track specifically — audio may land first.
+      if (tracks.some((u) => /media-video/.test(u))) break;
+      if (attempt < maxAttempts - 1) await sleepFn(DOUYIN_TRACK_POLL_INTERVAL_MS);
+    }
+
+    const videoUrl = tracks.find((u) => /media-video/.test(u));
+    const audioUrl = tracks.find((u) => /media-audio/.test(u));
+    if (!videoUrl) {
       return makeResult({
         status: "failed",
-        strategy: ADAPTER_IDS.DOUYIN_CDP,
+        strategy,
         source,
         sourceUrl: url,
-        reason: "no-current-src",
+        reason: "no-media-tracks",
         retryable: true,
       });
     }
 
-    const mediaResult = await downloadDirectHttp(currentSrc, {
-      fetchFn,
-      headers: { Referer: DOUYIN_REFERER },
-    });
+    // Clip 8s straight off both signed tracks; ffmpeg bounds the HTTP fetch
+    // by the requested duration, so no content-length pre-check is needed.
+    let buffer;
+    try {
+      buffer = await clipFn({
+        videoUrl,
+        audioUrl: audioUrl ?? null,
+        referer: DOUYIN_REFERER,
+        seconds: DOUYIN_CLIP_SECONDS,
+      });
+    } catch (e) {
+      // A missing ffmpeg binary is permanent, not retryable; anything else
+      // (CDN hiccup, bad range, transcode failure) may succeed on a retry.
+      const missingBinary = e?.code === "ENOENT";
+      return makeResult({
+        status: "failed",
+        strategy,
+        source,
+        sourceUrl: url,
+        reason: missingBinary ? "ffmpeg-missing" : "clip-failed",
+        cause: e?.message?.substring(0, 400) || undefined,
+        retryable: !missingBinary,
+      });
+    }
 
-    // Re-shape the direct-http result onto this adapter's identity.
-    return {
-      ...mediaResult,
-      strategy: ADAPTER_IDS.DOUYIN_CDP,
+    if (buffer.length < MIN_FILE_BYTES) {
+      return makeResult({
+        status: "failed",
+        strategy,
+        source,
+        sourceUrl: url,
+        reason: "file-too-small",
+      });
+    }
+
+    return makeResult({
+      status: "downloaded",
+      strategy,
       source,
       sourceUrl: url,
-    };
+      finalUrl: videoUrl,
+      mimeType: "video/mp4",
+      extension: "mp4",
+      byteLength: buffer.length,
+      buffer,
+    });
   } catch (e) {
     const message = e?.message?.substring(0, 200) || "cdp-error";
     return makeResult({
       status: "failed",
-      strategy: ADAPTER_IDS.DOUYIN_CDP,
+      strategy,
       source,
       sourceUrl: url,
       reason: tabId === null ? "cdp-unavailable" : message,
@@ -1224,7 +1474,7 @@ export async function downloadRednoteMcp(url, opts = {}) {
   }
 
   const dl = await downloader(videoUrl, {
-    headers: { Referer: "https://www.xiaohongshu.com/" },
+    headers: { Referer: XHS_REFERER },
   });
   if (dl.status !== "downloaded") {
     return makeResult({
@@ -1254,113 +1504,181 @@ export async function downloadRednoteMcp(url, opts = {}) {
  * (#75 Batch 4, the MediaCrawler-recommended pattern: reuse a real browser's
  * login state through CDP to stay under the anti-bot radar).
  *
- * Chain: open the note URL (feed-harvested URLs carry xsec_token) in the CDP
- * Chrome → wait for the detail page → extract `<video>` src (xhscdn direct
- * link) → direct-http with the xhs Referer.
+ * Chain: open the note URL in a CDP tab (feed-harvested URLs carry
+ * `xsec_token`; the search_result form redirects to the note) → muted
+ * `load()` + `play()` to make the MSE player request its media → the signed
+ * `sns-video*.xhscdn.com/...mp4?sign=...` URL is read from resource timings
+ * (#1004) → ffmpeg clips the first 8s with the xhs Referer.
  *
- * Fail-closed with reason classification: a page that renders without a
- * video element is reported as a login/anti-bot wall, never a silent empty.
+ * Fail-closed with reason classification: a 404 page ("页面不见了"), a page
+ * without `<video>` (image-only note / login wall) and a player that never
+ * requests media are all reported by name, never as a silent empty.
  *
  * @param {string} url - xiaohongshu note URL (xsec_token included when known)
- * @param {object} [opts] - injectable seams: cdpNewTab, waitForPageLoad,
- *   extractFromTab, cdpCloseTab, downloader
+ * @param {object} [opts] - injectable seams: cdpNewTabFn, cdpCloseTabFn,
+ *   waitForPageLoadFn, evalFn, sleepFn, clipFn
  * @returns {Promise<DownloadResult>}
  */
 export async function downloadXhsCdp(url, opts = {}) {
-  const {
-    cdpNewTab: newTab = cdpNewTab,
-    extractFromTab: extract = extractFromTab,
-    cdpCloseTab: closeTab = cdpCloseTab,
-    downloader = downloadDirectHttp,
-  } = opts;
+  const newTab = opts.cdpNewTabFn || cdpNewTab;
+  const closeTab = opts.cdpCloseTabFn || cdpCloseTab;
+  const waitForPageLoadFn = opts.waitForPageLoadFn || waitForPageLoad;
+  const evalFn = opts.evalFn || cdpEval;
+  const sleepFn = opts.sleepFn || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const clipFn = opts.clipFn || clipTracks;
+  const strategy = ADAPTER_IDS.XHS_CDP;
+  const source = "xhs";
 
-  // Proven live mechanics (#75): open the feed first (session/context
-  // prewarm), then navigate THE SAME TAB to the note URL — xhscdn tokens are
-  // short-lived and context-bound, so a cold tab on the note URL alone lands
-  // on "你访问的页面不见了". Navigation + lazy-media wait + extraction run as
-  // one in-page async script.
-  const FEED_URL = "https://www.xiaohongshu.com/explore?channel_id=homefeed_recommend";
-  let tabId;
+  let tabId = null;
   try {
-    tabId = await newTab(FEED_URL);
-    await new Promise((r) => setTimeout(r, 4000));
-  } catch (e) {
-    return makeResult({
-      status: "failed",
-      strategy: ADAPTER_IDS.XHS_CDP,
-      sourceUrl: url,
-      reason: `cdp open failed: ${e.message}`,
-      retryable: true,
-    });
-  }
+    try {
+      tabId = await newTab(url);
+      await waitForPageLoadFn(tabId);
+    } catch (e) {
+      return makeResult({
+        status: "failed",
+        strategy,
+        source,
+        sourceUrl: url,
+        reason: "cdp-unavailable",
+        cause: e?.message?.substring(0, 200) || undefined,
+        retryable: true,
+      });
+    }
+    await sleepFn(XHS_NOTE_SETTLE_MS);
 
-  try {
-    const script = `
-      location.assign(${JSON.stringify(url)});
-      await new Promise(function(r) { setTimeout(r, 9000); });
+    // Read the page state and kick the player: a paused MSE video never
+    // requests its media. `load()` is the part that matters — `play()` alone
+    // stays at readyState 0 with no media request (measured 2026-10-28);
+    // `load()` + muted `play()` fetches the signed mp4. The same kick is
+    // repeated if the first poll window comes back empty: slow hydrations
+    // were observed live (2 of 4 notes needed a second kick).
+    const kickScript = `(() => {
       var v = document.querySelector("video");
-      var src = v ? (v.src || (v.querySelector("source") ? v.querySelector("source").src : "")) : "";
-      var notFound = document.title.indexOf("页面不见了") >= 0;
-      var ogVideo = document.querySelector('meta[property="og:video:url"], meta[property="og:video"]');
-      JSON.stringify([{
-        videoSrc: src || (ogVideo ? ogVideo.content : "") || "",
-        notFound: notFound,
-        pageTitle: document.title.slice(0, 40),
-      }]);
-    `;
-    const parsed = await extract(tabId, script);
-    const info = Array.isArray(parsed) ? parsed[0] : null;
-
-    if (!info?.videoSrc) {
-      const reason = info?.notFound
-        ? "note unreachable — xsec_token stale or note gone (tokens are short-lived; consume them fresh from the same CDP session)"
-        : info
-          ? `note has no video element (title: ${info.pageTitle || "?"})`
-          : "note page extraction returned nothing";
+      if (v) {
+        v.muted = true;
+        try { v.load(); } catch (e) {}
+        try { v.play().catch(function () {}); } catch (e) {}
+      }
+      return {
+        href: location.href,
+        title: document.title,
+        hasVideo: !!v,
+        loginWall: /登录后查看|扫码登录|请先登录/.test(document.body ? document.body.innerText : ""),
+      };
+    })()`;
+    const state = unwrapEvalValue(await evalFn(tabId, kickScript));
+    const href = typeof state?.href === "string" ? state.href : "";
+    const title = typeof state?.title === "string" ? state.title : "";
+    if (title.includes("页面不见了") || href.includes("/404")) {
       return makeResult({
         status: "failed",
-        strategy: ADAPTER_IDS.XHS_CDP,
+        strategy,
+        source,
         sourceUrl: url,
-        reason,
+        reason:
+          "note unreachable — page gone/404 (xsec_token stale or note deleted; consume tokens fresh from the same CDP session)",
+        retryable: true,
+      });
+    }
+    if (!state?.hasVideo) {
+      return makeResult({
+        status: "failed",
+        strategy,
+        source,
+        sourceUrl: url,
+        reason: state?.loginWall
+          ? "login wall (xhs session expired?)"
+          : "note has no video element",
         retryable: true,
       });
     }
 
-    const dl = await downloader(info.videoSrc, {
-      headers: { Referer: "https://www.xiaohongshu.com/" },
-    });
-    if (dl.status !== "downloaded") {
+    // Poll resource timing: the signed mp4 lands ~1s after the kick.
+    const maxAttempts = Math.ceil(XHS_MEDIA_POLL_TIMEOUT_MS / XHS_MEDIA_POLL_INTERVAL_MS);
+    const pollOnce = async () => {
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const urls = evalTrackList(await evalFn(tabId, XHS_MEDIA_TRACKS_SCRIPT));
+        if (urls.length > 0) return urls[0];
+        if (attempt < maxAttempts - 1) await sleepFn(XHS_MEDIA_POLL_INTERVAL_MS);
+      }
+      return null;
+    };
+    let mediaUrl = await pollOnce();
+    if (!mediaUrl) {
+      await evalFn(tabId, kickScript);
+      mediaUrl = await pollOnce();
+    }
+    if (!mediaUrl) {
       return makeResult({
         status: "failed",
-        strategy: ADAPTER_IDS.XHS_CDP,
+        strategy,
+        source,
         sourceUrl: url,
-        finalUrl: info.videoSrc,
-        reason: dl.reason ?? "cdn download failed",
+        reason: "no-media-url",
         retryable: true,
       });
     }
+
+    let buffer;
+    try {
+      buffer = await clipFn({
+        videoUrl: mediaUrl,
+        audioUrl: null,
+        referer: XHS_REFERER,
+        seconds: BROLL_CLIP_SECONDS,
+      });
+    } catch (e) {
+      // A missing ffmpeg binary is permanent, not retryable; anything else
+      // (CDN hiccup, bad range, transcode failure) may succeed on a retry.
+      const missingBinary = e?.code === "ENOENT";
+      return makeResult({
+        status: "failed",
+        strategy,
+        source,
+        sourceUrl: url,
+        reason: missingBinary ? "ffmpeg-missing" : "clip-failed",
+        cause: e?.message?.substring(0, 400) || undefined,
+        retryable: !missingBinary,
+      });
+    }
+
+    if (buffer.length < MIN_FILE_BYTES) {
+      return makeResult({
+        status: "failed",
+        strategy,
+        source,
+        sourceUrl: url,
+        reason: "file-too-small",
+      });
+    }
+
     return makeResult({
       status: "downloaded",
-      strategy: ADAPTER_IDS.XHS_CDP,
+      strategy,
+      source,
       sourceUrl: url,
-      finalUrl: info.videoSrc,
-      mimeType: dl.mimeType ?? "video/mp4",
-      extension: dl.extension ?? "mp4",
-      byteLength: dl.byteLength,
-      buffer: dl.buffer,
+      finalUrl: mediaUrl,
+      mimeType: "video/mp4",
+      extension: "mp4",
+      byteLength: buffer.length,
+      buffer,
     });
   } catch (e) {
     return makeResult({
       status: "failed",
-      strategy: ADAPTER_IDS.XHS_CDP,
+      strategy,
+      source,
       sourceUrl: url,
-      reason: `xhs cdp failed: ${e.message}`,
+      reason: `xhs cdp failed: ${e?.message?.substring(0, 200) || "cdp-error"}`,
       retryable: true,
     });
   } finally {
-    try {
-      await closeTab(tabId);
-    } catch {}
+    if (tabId !== null) {
+      try {
+        await closeTab(tabId);
+      } catch {}
+    }
   }
 }
 

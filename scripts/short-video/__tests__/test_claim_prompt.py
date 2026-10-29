@@ -22,11 +22,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 import pytest  # noqa: E402
 
 from vlm_analyzer import (
+    RELEVANCE_CHECK_PROMPT_IMAGE,
+    RELEVANCE_CHECK_PROMPT_VIDEO,
     SEMANTICS_PROMPT_IMAGE,
+    SEMANTICS_PROMPT_IMAGE_CLAIM,
     SEMANTICS_PROMPT_VIDEO,
+    SEMANTICS_PROMPT_VIDEO_CLAIM,
+    _parse_subject_match,
+    build_relevance_check_prompt,
     build_semantics_prompt,
     parse_markdown_to_dict,
 )
+import test_minicpm_omni as _bench  # noqa: E402  (lib/ is on sys.path above)
 
 CLAIM = {
     "voiceover": "Qwen4 beats Claude at coding benchmarks.",
@@ -60,17 +67,98 @@ check(
 claim_image = build_semantics_prompt(is_video=False, claim=CLAIM)
 claim_video = build_semantics_prompt(is_video=True, claim=CLAIM)
 
-check("claim image prompt starts with base prompt", claim_image.startswith(SEMANTICS_PROMPT_IMAGE))
-check("claim video prompt starts with base prompt", claim_video.startswith(SEMANTICS_PROMPT_VIDEO))
+check(
+    "claim image context is preamble",
+    claim_image.startswith("Scene claim for relevance scoring:"),
+)
+check(
+    "claim video context is preamble",
+    claim_video.startswith("Scene claim for relevance scoring:"),
+)
+check(
+    "claim image prompt carries the compact claim base",
+    SEMANTICS_PROMPT_IMAGE_CLAIM in claim_image,
+)
+check(
+    "claim video prompt carries the compact claim base",
+    SEMANTICS_PROMPT_VIDEO_CLAIM in claim_video,
+)
+check(
+    "claim context precedes the first output section",
+    claim_image.index("Scene claim for relevance scoring:")
+    < claim_image.index("## Description"),
+)
 check("claim voiceover injected", "Qwen4 beats Claude at coding benchmarks." in claim_image)
 check("assetNeed injected", "benchmark chart comparison" in claim_image)
 check("Relevance section present", "## Relevance" in claim_image)
 check("Relevance Reason section present", "## Relevance Reason" in claim_image)
 
+# #334: claim mode keeps every section a downstream consumer reads. Subjects
+# feeds scoreCandidate (the hook gate reads that score), Content Kind is
+# persisted and rendered in the media-patch review, Fit drives hook
+# assignment, and Critical Edge Text carries the merged Reason explanation.
+for name, prompt in (("image", claim_image), ("video", claim_video)):
+    check(f"claim {name} keeps Description", "## Description" in prompt)
+    check(f"claim {name} keeps Subjects", "## Subjects" in prompt)
+    check(f"claim {name} keeps Content Kind", "## Content Kind" in prompt)
+    check(f"claim {name} drops the Reason section", "\n## Reason\n" not in prompt)
+check("claim image keeps Fit", "## Fit" in claim_image)
+check("claim image keeps Critical Edge Text", "## Critical Edge Text" in claim_image)
+check("claim video drops Fit", "## Fit" not in claim_video)
+check(
+    "compact claim base is smaller than the base prompt",
+    len(SEMANTICS_PROMPT_IMAGE_CLAIM) < len(SEMANTICS_PROMPT_IMAGE),
+    f"claim={len(SEMANTICS_PROMPT_IMAGE_CLAIM)} base={len(SEMANTICS_PROMPT_IMAGE)}",
+)
+
+# #334: Fit is a single-word decision rule, and the redundant Reason section
+# is gone from the base image prompt (Critical Edge Text owns the explanation).
+check(
+    "base image Fit asks for exactly one word",
+    "Output exactly one word: cover or contain." in SEMANTICS_PROMPT_IMAGE,
+)
+check(
+    "base image Fit forbids emitting both words",
+    "Never output both words." in SEMANTICS_PROMPT_IMAGE,
+)
+check(
+    "base image prompt has no separate Reason section",
+    "\n## Reason\n" not in SEMANTICS_PROMPT_IMAGE,
+)
+check(
+    "Critical Edge Text carries the fit explanation",
+    "background texture" in SEMANTICS_PROMPT_IMAGE,
+)
+for name, prompt in (
+    ("base image", SEMANTICS_PROMPT_IMAGE),
+    ("claim image", SEMANTICS_PROMPT_IMAGE_CLAIM),
+):
+    check(
+        f"{name} prompt orders Critical Edge Text before Fit",
+        prompt.index("## Critical Edge Text") < prompt.index("## Fit"),
+    )
+
 empty_claim = build_semantics_prompt(is_video=False, claim={"voiceover": "", "assetNeed": ""})
 check(
     "empty claim strings still request Relevance section",
     "## Relevance" in empty_claim,
+)
+check(
+    "empty claim still uses the compact claim base",
+    SEMANTICS_PROMPT_IMAGE_CLAIM in empty_claim,
+)
+
+# #334 point 4: the benchmark harness must send the production prompt text,
+# not a copy that silently drifts. `lib/` is on sys.path (line 19), so the
+# harness is imported by its real module name — same pattern as the sibling
+# bench_prompt import in test_transcript_prompt.py.
+check(
+    "bench harness imports the production image prompt",
+    _bench.SEMANTICS_PROMPT_IMAGE is SEMANTICS_PROMPT_IMAGE,
+)
+check(
+    "bench harness imports the production video prompt",
+    _bench.SEMANTICS_PROMPT_VIDEO is SEMANTICS_PROMPT_VIDEO,
 )
 
 # ── parse_markdown_to_dict: relevance ──
@@ -157,6 +245,145 @@ check(
     legacy.get("fit") == "cover"
     and legacy.get("contentKind") == "product_demo"
     and legacy.get("description") == "desc",
+)
+
+# ── #294: subject-level criterion + second-pass subject check ──
+
+print("#294 relevance verdict:")
+
+check(
+    "first-pass relevance judges the visible subject",
+    "visible subject" in claim_image,
+)
+check(
+    "first-pass relevance forbids demanding the abstract event",
+    "not whether the asset depicts the abstract event" in claim_image,
+)
+check(
+    "first-pass relevance says foreign-language labels are not negative evidence",
+    "different language" in claim_image and "not negative evidence" in claim_image,
+)
+
+check_image = build_relevance_check_prompt(is_video=False, claim=CLAIM)
+check_video = build_relevance_check_prompt(is_video=True, claim=CLAIM)
+
+check(
+    "subject-check prompt carries the claim preamble",
+    check_image.startswith("Scene claim for relevance scoring:")
+    and "Qwen4 beats Claude at coding benchmarks." in check_image
+    and "benchmark chart comparison" in check_image,
+)
+check(
+    "subject-check prompt asks for exactly match/no_match",
+    "Output exactly one word: match or no_match." in check_image,
+)
+check(
+    "subject-check prompt matches on kind, not the exact action or setting",
+    "the same kind of thing the desired visual names" in check_image
+    and "The action, setting, or specific instance does not need to match" in check_image,
+    "a real run rejected a robot arm for not lifting a block",
+)
+check(
+    "subject-check prompt makes the desired visual the standard and the narration context",
+    "The narration is background context" in check_image,
+    "a real run judged a robot arm against the entities named in the narration",
+)
+check(
+    "subject-check prompt rules out the abstract-event test",
+    "abstract event" in check_image,
+)
+check(
+    "subject-check prompt keeps the language rule",
+    "different language" in check_image,
+)
+check(
+    "subject-check prompt names logos/UI as strong evidence",
+    "A logo, product UI" in check_image,
+    "the 2026-09-29 measured false negative was an official Chinese UI screenshot",
+)
+check(
+    "subject-check prompt is enum-only (no Description/Fit sections)",
+    "## Description" not in check_image and "## Fit" not in check_image,
+)
+check(
+    "subject-check video prompt names the video subject",
+    "this video's visible subject" in check_video,
+)
+check(
+    "subject-check prompt without a claim is the bare prompt",
+    build_relevance_check_prompt(is_video=False, claim=None) == RELEVANCE_CHECK_PROMPT_IMAGE,
+)
+
+for name, body, expected in [
+    ("bare match", "match", "match"),
+    ("bold match", "**Match**", "match"),
+    ("match with reason tail", "Match — the logo belongs to the named company.", "match"),
+    ("bare no_match", "no_match", "no_match"),
+    ("spaced no match", "no match", "no_match"),
+    ("bold no_match", "**NO_MATCH**", "no_match"),
+    ("matching is not a verdict", "matching the claim loosely", None),
+    ("prose is not a verdict", "The image is probably related.", None),
+    ("empty body", "", None),
+]:
+    check(
+        f"subject match parser: {name}",
+        _parse_subject_match(body) == expected,
+        f"got {_parse_subject_match(body)!r}",
+    )
+
+parsed_check = parse_markdown_to_dict(
+    """## Subject Match
+match
+
+## Reason
+Visible subject is the named company's robot.
+"""
+)
+check(
+    "parse_markdown_to_dict exposes subjectMatch",
+    parsed_check.get("subjectMatch") == "match",
+    f"got {parsed_check.get('subjectMatch')!r}",
+)
+check(
+    "subject_match is not duplicated as a raw section",
+    "subject_match" not in parsed_check,
+)
+missing_check = parse_markdown_to_dict("## Description\nd\n")
+check("missing Subject Match → None", missing_check.get("subjectMatch") is None)
+
+# Real Qwen3-VL run (2026-10-27): the single-question prompt came back as
+# "no_match\n\nThe visible subject is ..." with no header. Accept only an
+# unambiguous leading verdict; prose must stay fail-closed.
+headless_no = parse_markdown_to_dict(
+    "no_match\n\nThe visible subject is the DeepSeek logo, not a robot hand.\n"
+)
+check(
+    "headless leading no_match parsed",
+    headless_no.get("subjectMatch") == "no_match",
+    f"got {headless_no.get('subjectMatch')!r}",
+)
+check(
+    "headless verdict keeps the explanation as reason",
+    "DeepSeek logo" in (headless_no.get("reason") or ""),
+    f"got {headless_no.get('reason')!r}",
+)
+headless_yes = parse_markdown_to_dict("match\n\nThe subject is the named company's robot.\n")
+check(
+    "headless leading match parsed",
+    headless_yes.get("subjectMatch") == "match",
+    f"got {headless_yes.get('subjectMatch')!r}",
+)
+prose_only = parse_markdown_to_dict("The image is probably related to the claim.\n")
+check(
+    "headerless prose is not a verdict",
+    prose_only.get("subjectMatch") is None,
+    f"got {prose_only.get('subjectMatch')!r}",
+)
+variant_header = parse_markdown_to_dict("## Match\nno_match\n")
+check(
+    "shortened ## Match header accepted",
+    variant_header.get("subjectMatch") == "no_match",
+    f"got {variant_header.get('subjectMatch')!r}",
 )
 
 # ── Report ──

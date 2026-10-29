@@ -59,7 +59,9 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // pass/warn/fail for the `editorial` bucket (text width, loop-close, hook
     // specificity, de-AI style...). The remaining warn is the B-roll strategy
     // contract; the advice rows are still in `before.editorial`.
-    expect(before.pass).toHaveLength(35);
+    // #354: pass 35 → 36 — the searchHints schema check joined the aggregate
+    // (shape, retrievability, and "declared on a scene sourcing skips").
+    expect(before.pass).toHaveLength(36);
     expect(before.warn).toHaveLength(1);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });

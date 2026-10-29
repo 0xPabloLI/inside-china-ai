@@ -84,6 +84,37 @@ describe("vlm-cache (#189)", () => {
     expect(kA2).toBe(kA); // same plan → stable key
   });
 
+  // #294: the second-pass subject check swaps the whole prompt. A check
+  // response must never be served for a first-pass request (or vice versa).
+  it("#294: relevanceCheck is key material", async () => {
+    const base = await computeCacheKey({
+      filePath: imgA,
+      model: "m1",
+      claim: { voiceover: "v", assetNeed: "n" },
+    });
+    const check = await computeCacheKey({
+      filePath: imgA,
+      model: "m1",
+      claim: { voiceover: "v", assetNeed: "n" },
+      relevanceCheck: true,
+    });
+    const checkAgain = await computeCacheKey({
+      filePath: imgA,
+      model: "m1",
+      claim: { voiceover: "v", assetNeed: "n" },
+      relevanceCheck: true,
+    });
+    const explicitFalse = await computeCacheKey({
+      filePath: imgA,
+      model: "m1",
+      claim: { voiceover: "v", assetNeed: "n" },
+      relevanceCheck: false,
+    });
+    expect(check).not.toBe(base);
+    expect(checkAgain).toBe(check);
+    expect(explicitFalse).toBe(base);
+  });
+
   // #542 L3 (A1): the transcript is prompt content, so it is key material —
   // the same asset with a different transcript is a different analysis.
   it("#542: transcript is key material (no stale hits across transcripts)", async () => {

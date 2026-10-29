@@ -4,7 +4,7 @@
 >
 > 前身：`docs/archive/reviews/source-registry-capability-audit-2026-08-19.md`（#77 首轮审计，59 源、#67 schema 落地前时代）。该轮的 P0（xhs/douyin/weibo_hot ytdlp 误标）与 P1（google_news/bing_news 图片混入文本候选）已在此后修复；本轮为 schema 落地 + #92/#65 增源后的全面复核，覆盖面取代旧报告。
 >
-> **后续变更（勿据本表判当前状态）**：2026-10-15 `bing_news` 收敛为 articles-only（#636）——其卡片只产出 Bing CDN 缩略图（468×264）或 base64 占位符，`images`/`videos` 能力已下掉，下表仍记审计当日（2026-09-06）的 16/14 计数。
+> **后续变更（勿据本表判当前状态）**：2026-10-15 `bing_news` 收敛为 articles-only（#636）——其卡片只产出 Bing CDN 缩略图（468×264）或 base64 占位符，`images`/`videos` 能力已下掉，下表仍记审计当日（2026-09-06）的 16/14 计数。**2026-10-28（#314）**：8 个 CDP 新闻源（qbitai / jiqizhixin / ithome / xinhua / thepaper / leiphone / zhidx / google_search）的 `capabilities.videos` 全部摘除。逐站实测（关键词「人工智能」，2026-10-28）：ithome 65 条结果 / 3 篇、qbitai 33 / 3、xinhua 9 / 5、thepaper 25 / 5、leiphone 16 / 5、google_search 10 / 5——合计 **26 篇文章、0 个 `<video>` 或 bilibili/youtube iframe**；jiqizhixin 与 zhidx 搜索返回 0 条（未验证，按未验证摘除）。另对其中 12 篇做「任意 iframe」复查：0 个 `<video>`、0 个播放器 iframe（仅广告/日历/登录组件）。`baidu_search` 的 vsearch 视频通道保留（真实内联播放器）。`douyin` 新增视频发现声明（`/search/{kw}?type=video`，实测 20 条真结果 → 8s H.264 下载成功）；`xhs` 于同日登录后验证并声明（搜索 27 张卡中 13–14 条带 `.play-icon` 的视频笔记，首次为 14/27；封面锚点带 `xsec_token`、MSE 播放器经 `load()+play()` 后从 resource timing 取签名 mp4、8s H.264 片段实测）。
 
 ## 0. 总体结论
 
@@ -88,6 +88,8 @@ apiSearch → CDP（shouldSkipCdpOnApiFail 同 URL 短路）→ googleSiteFallba
 | baidu_news               | images:cdp + videos:cdp（补 CDP_MEDIA_CAPABILITIES entry） | 无——实现侧已就绪（CDP_VIDEO_SCRIPT 共享脚本）                                   | 疑点 1 三处自相矛盾；notes 自声明 images from same DOM                                                                             |
 | xhs / douyin / weibo_hot | videos（method 待定：cdp 或 api）                          | **与下载器集成绑定**（RedNote-MCP / chubbyskills / weibo-downloader，#75 主体） | 内嵌视频概率高；但 CDP_VIDEO_SCRIPT 抽 `<video>` 标签对登录墙+懒加载平台基本无效，标注必须在下载器可用后同步落地，避免重蹈 P4 误标 |
 | tiktok_creator           | videos:api（待确认）                                       | 查 ScrapeCreators API 响应是否含 video 字段（paidApi，付费配额）                | issue 高优先级表遗留项                                                                                                             |
+
+> **2026-10-28 状态（#314/#1004）**：douyin 已按「验证一个声明一个」落地——搜索页 20 条真结果 + 8s H.264 下载均实测通过；xhs 同日登录后同样落地（27 张卡中 13–14 条视频笔记、签名 mp4、8s H.264 片段）；weibo_hot 维持不标注。
 
 ### 4.2 不标注（live 抽样定论）
 

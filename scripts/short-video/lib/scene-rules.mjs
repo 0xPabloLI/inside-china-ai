@@ -51,7 +51,12 @@ import {
 } from "./text-slots.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
-import { skipsMediaSourcing } from "./claim-keywords.mjs";
+import { skipsMediaSourcing, sceneClaimPhrases, isUsableSearchHints } from "./claim-keywords.mjs";
+import {
+  MEDIA_STRATEGIES,
+  IMAGE_GENERATING_STRATEGIES,
+  GENERATING_STRATEGIES,
+} from "./media-strategies.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
 // SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
 // and re-exported through final-media-gate — scene-rules must not hold a copy.
@@ -1185,9 +1190,15 @@ export function checkHookMediaContract(scenes) {
   ];
 }
 
-/** Narrative scene media warning: warns when a sourcing-eligible scene declares
- *  no media intent at all — no bound media, no `assetNeed` (Step 1.5 sourcing
- *  can still fill it), no generating strategy, and no deliberate waiver.
+/** Narrative scene media warning: warns when a sourcing-eligible scene has no
+ *  usable search claim — no bound media, no generating strategy, and no
+ *  `assetNeed` or voiceover that tokenizes into search phrases.
+ *
+ *  #354 made `assetNeed` an override: asset-sourcer derives a claim from the
+ *  voiceover for every eligible scene without bound media, so "declares no
+ *  assetNeed" is no longer a gap by itself. The remaining gap is a scene whose
+ *  claim yields no query at all — sourcing cannot build a search from it, and
+ *  the scene stays CSS-only unless it generates.
  *
  *  #760: shares `skipsMediaSourcing` with asset-sourcer. The two modules must
  *  agree on what counts as "intentionally no media" (media: null, CSS-only
@@ -1195,14 +1206,16 @@ export function checkHookMediaContract(scenes) {
  *  otherwise this warning scolds scenes the sourcer skips by design. An
  *  `mediaOptOut` on a media-dependent layout is still a hard failure in
  *  final-media-gate, so realignment here does not soften the render gate.
- *  Preflight runs before Step 1.5, so a declared `assetNeed` or generating
- *  strategy is a plan, not a gap — final-media-gate enforces the landed file
- *  at render time. */
-function checkNarrativeMediaWarning(scenes) {
+ *  Preflight runs before Step 1.5, so a usable claim or generating strategy is
+ *  a plan, not a gap — final-media-gate enforces the landed file at render
+ *  time. */
+function checkNarrativeMediaWarning(scenes, phrases = sceneClaimPhrases(scenes)) {
   const mediaScenes = scenes.filter(
     (s) => !skipsMediaSourcing(s) && !GENERATING_STRATEGIES.has(s.mediaStrategy),
   );
-  const missing = mediaScenes.filter((s) => !s.media?.path && !s.assetNeed);
+  const missing = mediaScenes.filter(
+    (s) => !s.media?.path && (phrases.get(s.id) ?? []).length === 0,
+  );
   if (missing.length === 0) {
     return [
       {
@@ -1212,7 +1225,7 @@ function checkNarrativeMediaWarning(scenes) {
         detail:
           mediaScenes.length === 0
             ? "No scenes are missing a media plan"
-            : `All ${mediaScenes.length} sourcing-eligible scenes declare media or assetNeed`,
+            : `All ${mediaScenes.length} sourcing-eligible scenes have a usable search claim`,
       },
     ];
   }
@@ -1222,10 +1235,72 @@ function checkNarrativeMediaWarning(scenes) {
       level: "warn",
       category: "Media",
       check: "Narrative scene media coverage",
-      detail: `${missing.length} scene(s) without any media intent: [${missingIds}] — sourcing falls back to generic keywords and may leave the scene CSS-only`,
-      fix: "Declare assetNeed (for Step 1.5 sourcing), bind scene.media, choose a generating strategy (b-roll / ai-image), or set media: null for a deliberate CSS-only scene",
+      detail: `${missing.length} scene(s) without a usable stock claim: [${missingIds}] — the voiceover has no searchable content words and no assetNeed is declared, so sourcing cannot query and the scene may stay CSS-only`,
+      fix: "Declare assetNeed (and optional searchHints) for Step 1.5 sourcing, bind scene.media, choose a generating strategy (b-roll / ai-image), or set media: null for a deliberate CSS-only scene",
     },
   ];
+}
+
+/** `searchHints` schema check (#354). The field is the writer override for
+ *  the search phrases derived from a scene's claim; without a preflight look a
+ *  typo would behave like "no hints" and silently fall back to tokenization —
+ *  the #836 failure mode applied to the new field. That includes a misspelled
+ *  key (`searchHint`, `search_hints`), which would otherwise leave the field
+ *  invisible to every reader. */
+const HINT_KEY_VARIANTS = /^search[_-]?hints?$/i;
+
+function checkSearchHintsSchema(scenes, phrases = sceneClaimPhrases(scenes)) {
+  const declared = (scenes ?? []).filter((scene) => scene?.searchHints !== undefined);
+  const findings = [];
+  for (const [index, scene] of (scenes ?? []).entries()) {
+    const typo = Object.keys(scene ?? {}).find(
+      (key) => key !== "searchHints" && HINT_KEY_VARIANTS.test(key),
+    );
+    if (typo) {
+      findings.push({
+        level: "fail",
+        category: "Media",
+        check: `Search hints schema: Scene ${scene.id ?? index + 1} key is spelled searchHints`,
+        detail: `unknown key "${typo}" — nothing reads it, so the hints have no effect`,
+        fix: "Rename the field to searchHints.",
+      });
+    }
+  }
+  for (const scene of declared) {
+    if (!phrases.has(scene.id)) {
+      findings.push({
+        level: "fail",
+        category: "Media",
+        check: `Search hints schema: Scene ${scene.id} has a claim path`,
+        detail: `searchHints is declared on a scene the sourcer never claims: hook, text-first layout, media: null, bound media without an explicit assetNeed, generation-only strategy (b-roll / ai-image) without an explicit assetNeed, or neither voiceover nor assetNeed — nothing reads it`,
+        fix: "Remove searchHints from this scene, or make it sourcing-eligible first (hooks are curated by hand; text-first layouts cannot carry evidence — see #761).",
+      });
+      continue;
+    }
+    if (!isUsableSearchHints(scene.searchHints)) {
+      findings.push({
+        level: "fail",
+        category: "Media",
+        check: `Search hints schema: Scene ${scene.id} is a usable string array (max 4)`,
+        detail: `searchHints must be an array of 1-4 retrievable phrases of at most 4 words each, got ${JSON.stringify(scene.searchHints)}`,
+        fix: 'Write the phrases the stock indexes can retrieve, most specific first (e.g. ["unitree h1 humanoid robot", "humanoid robot factory"]), or omit the field to keep the claim-derived phrases. Style-only words ("cinematic close-up") and phrases over 4 words do not count.',
+      });
+    }
+  }
+  if (findings.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Media",
+        check: "Search hints schema",
+        detail:
+          declared.length === 0
+            ? "No scene declares searchHints"
+            : `searchHints usable on ${declared.length} scene(s)`,
+      },
+    ];
+  }
+  return findings;
 }
 
 /**
@@ -1764,32 +1839,18 @@ export function checkAssetNeedAnnotation(scenes) {
   ];
 }
 
-export const MEDIA_STRATEGIES = [
-  "asset",
-  "b-roll",
-  "asset-then-broll",
-  "ai-image",
-  "asset-then-ai-image",
-];
-// Strategies whose prompt targets a still image (T2I, #155). Their contract
-// field is `aiImage.prompt` (6 dimensions = the video template minus
-// CAMERA/MOTION); every other generating strategy reads `aiVideo.prompt`.
-const IMAGE_GENERATING_STRATEGIES = new Set(["ai-image", "asset-then-ai-image"]);
-const GENERATING_STRATEGIES = new Set([
-  "b-roll",
-  "asset-then-broll",
-  ...IMAGE_GENERATING_STRATEGIES,
-]);
+// The vocabulary lives in a leaf module so claim-keywords (#354) and the B-roll
+// orchestrator can read it without cycling through scene-rules.
+export {
+  MEDIA_STRATEGIES,
+  IMAGE_GENERATING_STRATEGIES,
+  GENERATING_STRATEGIES,
+} from "./media-strategies.mjs";
 
 /** True when the strategy generates a static image rather than a video clip. */
 export function isImageStrategy(strategy) {
   return IMAGE_GENERATING_STRATEGIES.has(strategy);
 }
-
-// Single source of truth for the image strategy set. b-roll/report.mjs
-// imports it instead of mirroring the literal set — a third image strategy
-// must not require a "keep in sync" edit in the report layer.
-export { IMAGE_GENERATING_STRATEGIES };
 
 /**
  * Contract for the B-roll fields (`mediaStrategy` / `aiVideo.prompt`).
@@ -2380,6 +2441,9 @@ export function checkAvatarContract(scenes) {
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const meta = opts.meta || null;
   const avatarResults = checkAvatarContract(scenes);
+  // One claim map for both checks, so "has a usable claim" and "would hints be
+  // read" can never disagree about the same scene (#354 review).
+  const claimPhrases = sceneClaimPhrases(scenes);
   const gateChecks = [
     ...checkSceneCount(scenes, opts),
     ...checkHookVisualType(scenes),
@@ -2398,7 +2462,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkNoWatermarks(scenes),
     ...checkSemanticConsistency(scenes),
     ...checkHookMediaContract(scenes),
-    ...checkNarrativeMediaWarning(scenes),
+    ...checkNarrativeMediaWarning(scenes, claimPhrases),
     ...checkTextConcatenation(scenes),
     ...checkLayoutField(scenes),
     ...checkTemplateContract(scenes),
@@ -2406,6 +2470,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkInstructCoverage(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
     ...checkMediaFieldSchema(scenes),
+    ...checkSearchHintsSchema(scenes, claimPhrases),
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),
     ...checkLayoutMediaRouting(scenes),

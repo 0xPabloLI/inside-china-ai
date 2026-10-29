@@ -24,7 +24,7 @@
  * Read-only against sources: GET only, no login, no writes.
  */
 
-import { writeFileSync, mkdirSync } from "fs";
+import { mkdirSync, realpathSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -38,6 +38,7 @@ import {
   extractRssLinks,
   inspectFeed,
   looksLikeResults,
+  resolveCredentiallessBlockVerdict,
 } from "./lib/source-url-heal.mjs";
 
 /** API keys ride in the URL for several sources (gnews `apikey=`). The probe
@@ -177,14 +178,36 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
     }
   }
 
-  const verdict = classifyProbe({
+  // #358: axis 1 probes the apiSearch endpoint for api-primary sources, and
+  // that request IS the production request — so an anonymous 403 there is the
+  // same `endpoint_blocked` answer axis 3 records, not a probe artefact. The
+  // upgrade is a shared seam (lib/source-url-heal.mjs) so the two axes cannot
+  // disagree; a bare CDP-page probe passes `authRequired: true` and keeps the
+  // probe reading, because a browser second opinion can still differ.
+  const verdict = resolveCredentiallessBlockVerdict({
+    reason: classifyProbe({
+      status: primary.status,
+      finalUrl: primary.finalUrl,
+      homeUrl,
+      // null = no keyword in play (listing/feed source) → relevance gate N/A.
+      keywordHits: keyword ? hits : null,
+      requestedUrl: probedUrl,
+      // The block-page gate reads the body: without it `detectBlockPage` only
+      // ever sees an empty string, which "is under 2000 bytes" for free. Axis 3
+      // (`apiFailureVerdict`) passes the body, so passing it here is what makes
+      // the two axes agree by construction rather than by coincidence.
+      html: primary.text,
+      controlReachable,
+    }),
     status: primary.status,
-    finalUrl: primary.finalUrl,
-    homeUrl,
-    // null = no keyword in play (listing/feed source) → relevance gate N/A.
-    keywordHits: keyword ? hits : null,
-    requestedUrl: probedUrl,
-    controlReachable,
+    authRequired: useApi
+      ? (source.capabilities?.articles?.apiSearch?.authRequired ??
+        source.apiSearch?.authRequired ??
+        true)
+      : true,
+    // Rate-limit wording keeps the probe reading: GitHub's anonymous Search
+    // API answers a spent quota with 403 + "API rate limit exceeded".
+    body: primary.text,
   });
 
   const row = {
@@ -386,7 +409,7 @@ function truncate(s, n) {
   return str.length > n ? `${str.slice(0, n - 1)}…` : str;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
     console.error(err);
     process.exit(1);

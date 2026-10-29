@@ -8,7 +8,8 @@ Covers:
   - transcript injection for videos: position (before the task), bench-parity
     header wording and 2000-char cap (bench_prompt.py is the measured arm)
   - images ignore a transcript (no audio channel)
-  - claim block stays after the base prompt (transcript, base+claim order)
+  - claim context is a preamble before the compact claim base
+    (transcript, claim, task order)
   - whitespace-only transcript → no block
   - videoInput capability: real config values + fail-fast on malformed entries
   - resolve_source_mode: native / frames / image
@@ -32,6 +33,7 @@ import pytest  # noqa: E402
 from vlm_analyzer import (  # noqa: E402
     SEMANTICS_PROMPT_IMAGE,
     SEMANTICS_PROMPT_VIDEO,
+    SEMANTICS_PROMPT_VIDEO_CLAIM,
     TRANSCRIPT_HEAD,
     TRANSCRIPT_MAX_CHARS,
     VIDEO_INPUT_FRAMES,
@@ -115,14 +117,19 @@ check(
 
 with_claim = build_semantics_prompt(is_video=True, claim=CLAIM, transcript=TRANSCRIPT)
 check("claim + transcript → transcript first", with_claim.startswith(TRANSCRIPT_HEAD))
-check("claim + transcript → claim block present", "## Relevance" in with_claim)
+check("claim + transcript → claim context present", "## Relevance" in with_claim)
 check(
-    "claim + transcript → claim block stays after the base prompt",
-    with_claim.index(SEMANTICS_PROMPT_VIDEO) < with_claim.index("## Scene Claim"),
+    "claim + transcript → claim context precedes the compact claim base",
+    with_claim.index("Scene claim for relevance scoring:")
+    < with_claim.index(SEMANTICS_PROMPT_VIDEO_CLAIM),
+)
+check(
+    "claim context is not an output-shaped `## ` section",
+    "## Scene Claim" not in with_claim,
 )
 check(
     "claim=None + transcript → no claim block",
-    "## Scene Claim" not in with_transcript,
+    "Scene claim for relevance scoring:" not in with_transcript,
 )
 
 # ── bench parity (the measured arm is bench_prompt.py) ──

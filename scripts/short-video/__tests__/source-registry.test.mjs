@@ -940,6 +940,73 @@ describe("apiSearch configuration", () => {
     expect(() => src.apiSearch.parser("not json")).toThrow();
   });
 
+  // #358: reddit_search 的两层都是死路（apiSearch 403、CDP 兜底是同一个 URL），
+  // 第三层用本机 SearXNG 的 `site:reddit.com`。`site:` 算子在部分引擎会被丢弃
+  // （2026-10-26 实测 136 条里只有 37 条是 reddit.com），所以过滤必须落在
+  // result.url 上，不能指望查询本身。
+  it("#358 reddit_search 声明 apiSiteFallback，指向本机 SearXNG 的 site:reddit.com", () => {
+    const src = LAST30DAYS_SOURCES.find((s) => s.name === "reddit_search");
+    expect(src.apiSiteFallback).toBeDefined();
+    expect(typeof src.apiSiteFallback.url).toBe("function");
+    expect(typeof src.apiSiteFallback.parser).toBe("function");
+    expect(src.apiSiteFallback.authRequired).toBe(false);
+    const url = src.apiSiteFallback.url("DeepSeek");
+    expect(url).toContain("localhost:8888");
+    expect(url).toContain("format=json");
+    expect(decodeURIComponent(url)).toContain("site:reddit.com DeepSeek");
+  });
+
+  it("#358 reddit 兜底 parser 只保留 reddit.com 上的帖子链接", () => {
+    const src = LAST30DAYS_SOURCES.find((s) => s.name === "reddit_search");
+    const payload = JSON.stringify({
+      results: [
+        { title: "post", url: "https://www.reddit.com/r/LocalLLaMA/comments/abc/x/" },
+        { title: "junk", url: "https://futurism.com/ai-is-here" },
+        { title: "subreddit", url: "https://www.reddit.com/r/artificial/" },
+        { title: "user", url: "https://www.reddit.com/user/someone/" },
+        { title: "old", url: "https://old.reddit.com/r/artificial/comments/def/y/" },
+        { title: "lookalike", url: "https://notreddit.com/r/x/comments/1/z/" },
+      ],
+    });
+    const rows = src.apiSiteFallback.parser(payload);
+    expect(rows.map((r) => r.url)).toEqual([
+      "https://www.reddit.com/r/LocalLLaMA/comments/abc/x/",
+      "https://old.reddit.com/r/artificial/comments/def/y/",
+    ]);
+  });
+
+  it("#358 reddit 兜底 parser 带上 publishedDate 与 snippet", () => {
+    const src = LAST30DAYS_SOURCES.find((s) => s.name === "reddit_search");
+    const payload = JSON.stringify({
+      results: [
+        {
+          title: "post",
+          url: "https://www.reddit.com/r/x/comments/1/a/",
+          content: "snippet text",
+          publishedDate: "2026-10-20T00:00:00+00:00",
+        },
+      ],
+    });
+    const [row] = src.apiSiteFallback.parser(payload);
+    expect(row.title).toBe("post");
+    expect(row.snippet).toBe("snippet text");
+    expect(row.publishedAt).toBe("2026-10-20T00:00:00+00:00");
+  });
+
+  it("#358 searxng_search 自己的 parser 不受兜底过滤影响（共享解析器回归）", () => {
+    const src = GENERAL_SEARCH_SOURCES.find((s) => s.name === "searxng_search");
+    const payload = JSON.stringify({
+      results: [
+        { title: "a", url: "https://example.com/a", content: "c" },
+        { title: "b", url: "https://futurism.com/b" },
+      ],
+    });
+    expect(src.apiSearch.parser(payload).map((r) => r.url)).toEqual([
+      "https://example.com/a",
+      "https://futurism.com/b",
+    ]);
+  });
+
   it("hackernews_search has apiSearch", () => {
     const src = LAST30DAYS_SOURCES.find((s) => s.name === "hackernews_search");
     expect(src.apiSearch).toBeDefined();
@@ -1370,15 +1437,74 @@ describe("#88 Part 2 — shouldAutoGenGoogleSiteFallback", () => {
   });
 });
 
-describe("CDP video capabilities (#183)", () => {
-  it("exposes capabilities.videos (method cdp) for Chinese news CDP sources", async () => {
-    const { ALL_SOURCES } = await import("../lib/source-registry.mjs");
-    const ithome = ALL_SOURCES.find((s) => s.name === "ithome");
-    expect(ithome.capabilities.videos).toBeDefined();
-    expect(ithome.capabilities.videos.method).toBe("cdp");
-    expect(ithome.capabilities.videos.videoScript).toContain("iframe");
-    const qbitai = ALL_SOURCES.find((s) => s.name === "qbitai");
-    expect(qbitai.capabilities.videos.method).toBe("cdp");
+// ─── #314: CDP video-only discovery channel + honest news video declarations ───
+
+describe("#314 video capability declarations", () => {
+  it("exposes douyin as a CDP video source with auth gate metadata", () => {
+    const douyin = ALL_SOURCES.find((s) => s.name === "douyin");
+    expect(douyin.capabilities.videos).toBeDefined();
+    expect(douyin.capabilities.videos.method).toBe("cdp");
+    expect(douyin.capabilities.videos.videoScript).toBeTruthy();
+    expect(douyin.capabilities.videos.url("人工智能")).toContain("douyin.com/search/");
+    expect(douyin.capabilities.videos.url("人工智能")).toContain("?type=video");
+    expect(douyin.capabilities.videos.needsAuth).toBe(true);
+    expect(douyin.capabilities.videos.loginCheckScript).toEqual(expect.any(String));
+    expect(douyin.capabilities.videos.loginCheckScript.length).toBeGreaterThan(0);
+  });
+
+  it("does not over-claim images for douyin (video-only channel)", () => {
+    const douyin = ALL_SOURCES.find((s) => s.name === "douyin");
+    expect(douyin.capabilities.images).toBeUndefined();
+  });
+
+  it("exposes xhs as a CDP video source with auth gate metadata (#1004)", () => {
+    const xhs = ALL_SOURCES.find((s) => s.name === "xhs");
+    expect(xhs.capabilities.videos).toBeDefined();
+    expect(xhs.capabilities.videos.method).toBe("cdp");
+    expect(xhs.capabilities.videos.videoScript).toBeTruthy();
+    expect(xhs.capabilities.videos.url("人工智能")).toContain("xiaohongshu.com/search_result");
+    expect(xhs.capabilities.videos.needsAuth).toBe(true);
+    expect(xhs.capabilities.videos.loginCheckScript).toEqual(expect.any(String));
+    expect(xhs.capabilities.videos.loginCheckScript.length).toBeGreaterThan(0);
+    // The visible cover anchor is the only token-bearing link; the hidden
+    // /explore/{id} anchor lacks the token and opens a 404.
+    expect(xhs.capabilities.videos.videoScript).toContain("/search_result/");
+    expect(xhs.capabilities.videos.videoScript).not.toContain('a[href*="/explore/"]');
+  });
+
+  it("does not over-claim images for xhs (video-only channel, #1004)", () => {
+    const xhs = ALL_SOURCES.find((s) => s.name === "xhs");
+    expect(xhs.capabilities.images).toBeUndefined();
+    // Credential-bearing candidates must not be replayed from the cache.
+    expect(xhs.capabilities.videos.cacheable).toBe(false);
+  });
+
+  it("drops the unverified video declarations from the 8 news sources", () => {
+    for (const name of [
+      "qbitai",
+      "ithome",
+      "jiqizhixin",
+      "google_search",
+      "xinhua",
+      "thepaper",
+      "leiphone",
+      "zhidx",
+    ]) {
+      const src = ALL_SOURCES.find((s) => s.name === name);
+      expect(src, name).toBeDefined();
+      expect(src.capabilities.videos, name).toBeUndefined();
+    }
+  });
+
+  it("keeps baidu_search's verified vsearch video channel", () => {
+    const baidu = ALL_SOURCES.find((s) => s.name === "baidu_search");
+    expect(baidu.capabilities.videos).toBeDefined();
+    expect(baidu.capabilities.videos.method).toBe("cdp");
+    expect(baidu.capabilities.videos.videoScript).toBeTruthy();
+  });
+
+  it("keeps the source count at 62", () => {
+    expect(ALL_SOURCES).toHaveLength(62);
   });
 });
 

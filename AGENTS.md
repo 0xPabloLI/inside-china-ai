@@ -81,8 +81,9 @@
 ## Session Start
 
 1. If `scripts/short-video/output/pending-analysis.json` exists, its `status` is not `"done"`, and `publishedAt` is more than 48 hours old, remind the user to export Analytics CSV.
-2. Check for an unfinished content pipeline or a pending HITL checkpoint before starting conflicting pipeline work.
-3. If the user supplied no task, offer the content entry points: “写文章（给素材）” or “做视频（给话题/跑 trends）”.
+2. Before a new video setup (Stage 0), run `node scripts/short-video/asset-gaps.mjs --query "<本轮实体>"` and treat open gaps as prefetch priority — the asset library grows from them. See `docs/content-pipeline.md` → Stage 0 素材预获取.
+3. Check for an unfinished content pipeline or a pending HITL checkpoint before starting conflicting pipeline work.
+4. If the user supplied no task, offer the content entry points: “写文章（给素材）” or “做视频（给话题/跑 trends）”.
 
 ## Collaboration Preferences
 

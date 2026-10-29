@@ -24,7 +24,8 @@
  * @module tiktok-video-details
  */
 
-import { writeFileSync, mkdirSync } from "fs";
+import { mkdirSync, realpathSync, writeFileSync } from "fs";
+import { fileURLToPath } from "url";
 import { dirname } from "path";
 import { CDP_BASE, cdpNewTab, cdpEval, cdpCloseTab } from "./cdp-client.mjs";
 
@@ -345,7 +346,8 @@ export async function fetchVideoDetails(opts = {}) {
 
 // ─── CLI Entry ───
 
-const isMain = process.argv[1] && process.argv[1].endsWith("tiktok-video-details.mjs");
+const isMain =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMain) {
   const args = process.argv.slice(2);

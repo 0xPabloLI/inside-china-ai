@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { canonicalizeUrl } from "../lib/url-normalizer.mjs";
+import { BROLL_CLIP_SECONDS, brollSectionSpec } from "../lib/media-window.mjs";
 import {
   selectStrategy,
   ADAPTER_IDS,
@@ -10,6 +11,9 @@ import {
   downloadVideo,
   CobaltAdapter,
   buildYtdlpCommand,
+  buildDouyinClipArgs,
+  buildClipArgs,
+  downloadXhsCdp,
   isWeiboUrl,
   weiboCookieNetscape,
   isTiktokUrl,
@@ -41,7 +45,11 @@ function mockResponse({
     ok,
     status,
     headers: {
-      get: (key) => (key.toLowerCase() === "content-type" ? contentType : null),
+      get: (key) => {
+        const name = key.toLowerCase();
+        if (name === "content-type") return contentType;
+        return null;
+      },
     },
     arrayBuffer: async () => body,
     json: async () => JSON.parse(body.toString()),
@@ -55,6 +63,13 @@ validBuffer.writeUInt32BE(0x20, 0); // box size
 validBuffer.write("ftyp", 4, "ascii"); // box type
 
 // ─── T-VDL-1: canonicalizeUrl ───
+
+describe("media-window", () => {
+  it("is the single 8s B-roll source shared by yt-dlp and the douyin clip", () => {
+    expect(BROLL_CLIP_SECONDS).toBe(8);
+    expect(brollSectionSpec()).toBe("*0:00-0:08");
+  });
+});
 
 describe("canonicalizeUrl", () => {
   it("strips query string and fragment", () => {
@@ -76,6 +91,18 @@ describe("canonicalizeUrl", () => {
   it("lowercases hostname", () => {
     expect(canonicalizeUrl("https://WWW.Example.COM/Video.mp4")).toBe(
       "https://www.example.com/Video.mp4",
+    );
+  });
+
+  it("keeps the query (and still drops the fragment) with keepQuery (#314)", () => {
+    expect(
+      canonicalizeUrl("https://WWW.XiaoHongShu.com/explore/abc/?xsec_token=TOK&xsec_source=x#c", {
+        keepQuery: true,
+      }),
+    ).toBe("https://www.xiaohongshu.com/explore/abc?xsec_token=TOK&xsec_source=x");
+    // Default behavior is unchanged: query stripped.
+    expect(canonicalizeUrl("https://www.xiaohongshu.com/explore/abc?xsec_token=TOK")).toBe(
+      "https://www.xiaohongshu.com/explore/abc",
     );
   });
 
@@ -736,30 +763,46 @@ describe("T1 — Image support in VDL", () => {
   });
 });
 
-// ─── #182: iesdouyin CDP download adapter ───
+// ─── #314: douyin desktop player → signed CDN tracks → 8s H.264 clip ───
 
-describe("douyin-cdp adapter (#182)", () => {
+describe("douyin-cdp adapter (#314)", () => {
   const VIDEO_ID = "7680095489249536842";
-  const MEDIA_URL = "https://www.douyin.com/aweme/v1/play/?video_id=abc123";
+  const SOURCE_URL = `https://www.douyin.com/video/${VIDEO_ID}`;
+  const VIDEO_TRACK =
+    "https://v3-web.douyinvod.com/abc/video/tos/cn/tos-cn-ve-15/mime_type=video_mp4&media-video-1";
+  const AUDIO_TRACK =
+    "https://v3-web.douyinvod.com/abc/audio/tos/cn/tos-cn-ve-15/mime_type=video_mp4&media-audio-1";
 
-  /** Injectable cdp-client fakes following the cdpNewTab → waitForPageLoad → extractFromTab → cdpCloseTab flow. */
-  function makeCdpFakes({ currentSrc = MEDIA_URL, newTabError = null, extractError = null } = {}) {
-    const calls = { shareUrls: [], extractScripts: [], closedTabs: [] };
+  /**
+   * Injectable CDP fakes for the #314 flow:
+   * cdpNewTab → waitForPageLoad → poll evalFn(media tracks) → close.
+   * `trackResponses` is a per-poll sequence; the last entry repeats.
+   */
+  function makeDouyinFakes({
+    trackResponses = [[VIDEO_TRACK, AUDIO_TRACK]],
+    newTabError = null,
+  } = {}) {
+    const calls = { tabs: [], closedTabs: [], scripts: [], slept: [] };
+    let round = 0;
     return {
       calls,
       cdpNewTabFn: async (url) => {
         if (newTabError) throw newTabError;
-        calls.shareUrls.push(url);
+        calls.tabs.push(url);
         return "tab-1";
       },
       waitForPageLoadFn: async () => true,
-      extractFn: async (tabId, script) => {
-        if (extractError) throw extractError;
-        calls.extractScripts.push(script);
-        return currentSrc;
+      evalFn: async (tabId, script) => {
+        calls.scripts.push(script);
+        const value = trackResponses[Math.min(round, trackResponses.length - 1)];
+        round += 1;
+        return value;
       },
       cdpCloseTabFn: async (tabId) => {
         calls.closedTabs.push(tabId);
+      },
+      sleepFn: async (ms) => {
+        calls.slept.push(ms);
       },
     };
   }
@@ -798,118 +841,225 @@ describe("douyin-cdp adapter (#182)", () => {
     });
   });
 
+  describe("buildDouyinClipArgs (#314)", () => {
+    it("passes the douyin Referer to each input and bounds the output to the clip", () => {
+      const args = buildDouyinClipArgs({
+        videoUrl: VIDEO_TRACK,
+        audioUrl: AUDIO_TRACK,
+        referer: "https://www.douyin.com/",
+        seconds: 8,
+        outPath: "/tmp/out.mp4",
+      });
+      expect(args.filter((a) => a === "-headers")).toHaveLength(2);
+      expect(args.filter((a) => a === "Referer: https://www.douyin.com/\r\n")).toHaveLength(2);
+      expect(args.slice(args.indexOf("-t"), args.indexOf("-t") + 2)).toEqual(["-t", "8"]);
+      expect(args).toContain("libx264");
+      expect(args).toContain("aac");
+      expect(args.at(-1)).toBe("/tmp/out.mp4");
+    });
+
+    it("passes one -headers when there is no audio track", () => {
+      const args = buildDouyinClipArgs({
+        videoUrl: VIDEO_TRACK,
+        audioUrl: null,
+        referer: "https://www.douyin.com/",
+        seconds: 8,
+        outPath: "/tmp/out.mp4",
+      });
+      expect(args.filter((a) => a === "-headers")).toHaveLength(1);
+    });
+  });
+
+  describe("buildClipArgs (#1004, generalized from douyin)", () => {
+    it("emits one -headers per input with its own referer", () => {
+      const args = buildClipArgs({
+        inputs: [
+          { url: "https://vod.example/v.mp4", referer: "https://www.douyin.com/" },
+          { url: "https://vod.example/a.mp4", referer: "https://www.douyin.com/" },
+        ],
+        seconds: 8,
+        outPath: "/tmp/out.mp4",
+      });
+      expect(args.filter((a) => a === "-headers")).toHaveLength(2);
+      expect(args.filter((a) => a === "Referer: https://www.douyin.com/\r\n")).toHaveLength(2);
+      expect(args.slice(args.indexOf("-t"), args.indexOf("-t") + 2)).toEqual(["-t", "8"]);
+      expect(args).toContain("libx264");
+      expect(args).toContain("aac");
+      expect(args).toContain("+faststart");
+      expect(args.at(-1)).toBe("/tmp/out.mp4");
+    });
+
+    it("supports a single xhs input with the xhs Referer", () => {
+      const args = buildClipArgs({
+        inputs: [
+          {
+            url: "https://sns-video-qc.xhscdn.com/stream/x.mp4",
+            referer: "https://www.xiaohongshu.com/",
+          },
+        ],
+        seconds: 8,
+        outPath: "/tmp/xhs.mp4",
+      });
+      expect(args.filter((a) => a === "-headers")).toHaveLength(1);
+      expect(args).toContain("Referer: https://www.xiaohongshu.com/\r\n");
+      expect(args).toContain("https://sns-video-qc.xhscdn.com/stream/x.mp4");
+    });
+  });
+
   describe("downloadDouyinCdp", () => {
-    it("opens the iesdouyin share page, downloads media with douyin Referer, closes the tab", async () => {
-      const fakes = makeCdpFakes();
-      const fetchFn = makeMockFetch({
-        [MEDIA_URL]: mockResponse({ body: validBuffer }),
+    it("polls until tracks appear, clips video+audio once with the douyin Referer, closes the tab", async () => {
+      const fakes = makeDouyinFakes({
+        trackResponses: [[], [VIDEO_TRACK, AUDIO_TRACK]],
       });
+      const clip = Buffer.alloc(4096, 0x03);
+      const clipFn = vi.fn(async () => clip);
 
-      const result = await downloadDouyinCdp(`https://www.douyin.com/video/${VIDEO_ID}`, {
-        ...fakes,
-        fetchFn,
+      const result = await downloadDouyinCdp(SOURCE_URL, { ...fakes, clipFn });
+
+      expect(fakes.calls.tabs).toEqual([`https://www.douyin.com/video/${VIDEO_ID}`]);
+      // The eval script reads the player's resource timings, not the blob currentSrc.
+      expect(fakes.calls.scripts.length).toBeGreaterThanOrEqual(2);
+      expect(fakes.calls.scripts[0]).toContain("douyinvod");
+      expect(fakes.calls.slept.length).toBeGreaterThanOrEqual(1);
+      expect(clipFn).toHaveBeenCalledTimes(1);
+      expect(clipFn).toHaveBeenCalledWith({
+        videoUrl: VIDEO_TRACK,
+        audioUrl: AUDIO_TRACK,
+        referer: "https://www.douyin.com/",
+        seconds: 8,
       });
-
-      expect(fakes.calls.shareUrls).toEqual([`https://www.iesdouyin.com/share/video/${VIDEO_ID}`]);
-      expect(fetchFn.calls).toHaveLength(1);
-      expect(fetchFn.calls[0].opts.headers.Referer).toBe("https://www.douyin.com/");
       expect(result.status).toBe("downloaded");
       expect(result.strategy).toBe(ADAPTER_IDS.DOUYIN_CDP);
       expect(result.source).toBe("douyin");
-      expect(result.sourceUrl).toBe(`https://www.douyin.com/video/${VIDEO_ID}`);
-      expect(result.finalUrl).toBe(MEDIA_URL);
-      expect(result.byteLength).toBe(validBuffer.length);
-      expect(result.buffer).toEqual(validBuffer);
+      expect(result.sourceUrl).toBe(SOURCE_URL);
+      expect(result.finalUrl).toBe(VIDEO_TRACK);
+      expect(result.mimeType).toBe("video/mp4");
+      expect(result.extension).toBe("mp4");
+      expect(result.byteLength).toBe(clip.length);
+      expect(result.buffer).toBe(clip);
+      // makeResult supplies the documented contract defaults, not undefined.
+      expect(result.durationMs).toBe(0);
+      expect(result.provenance).toEqual(
+        expect.objectContaining({ adapterVersion: expect.any(String) }),
+      );
       expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
     });
 
-    it("fails retryable when the video element has no currentSrc, still closing the tab", async () => {
-      const fakes = makeCdpFakes({ currentSrc: "" });
-      const fetchFn = makeMockFetch({});
+    it("fails retryable with no-media-tracks when the player exposes none, closing the tab", async () => {
+      const fakes = makeDouyinFakes({ trackResponses: [[]] });
+      const clipFn = vi.fn();
 
-      const result = await downloadDouyinCdp(`https://www.douyin.com/video/${VIDEO_ID}`, {
-        ...fakes,
-        fetchFn,
-      });
+      const result = await downloadDouyinCdp(SOURCE_URL, { ...fakes, clipFn });
 
       expect(result.status).toBe("failed");
-      expect(result.reason).toBe("no-current-src");
+      expect(result.reason).toBe("no-media-tracks");
       expect(result.retryable).toBe(true);
+      expect(clipFn).not.toHaveBeenCalled();
       expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
     });
 
-    it("treats extractFromTab's array contract as possibly empty or blank (real-data #182)", async () => {
-      // extractFromTab swallows non-array string returns to [] — the adapter
-      // must handle [] and whitespace-only entries as no-current-src.
-      for (const extracted of [[], ["   "], [""]]) {
-        const fakes = makeCdpFakes();
-        const result = await downloadDouyinCdp(`https://www.douyin.com/video/${VIDEO_ID}`, {
-          ...fakes,
-          extractFn: async () => extracted,
-          fetchFn: makeMockFetch({}),
-        });
-        expect(result.status).toBe("failed");
-        expect(result.reason).toBe("no-current-src");
-        expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
-      }
+    it("fails with clip-failed when ffmpeg clipping throws, closing the tab", async () => {
+      const fakes = makeDouyinFakes();
+      const clipFn = vi.fn(async () => {
+        throw new Error("ffmpeg exited 1");
+      });
+
+      const result = await downloadDouyinCdp(SOURCE_URL, { ...fakes, clipFn });
+
+      expect(result.status).toBe("failed");
+      expect(result.reason).toBe("clip-failed");
+      expect(result.retryable).toBe(true);
+      expect(result.cause).toContain("ffmpeg exited 1");
+      expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
     });
 
-    it("fails retryable as cdp-unavailable when the tab cannot be opened", async () => {
-      const fakes = makeCdpFakes({ newTabError: new Error("proxy dead") });
-      const fetchFn = makeMockFetch({});
-
-      const result = await downloadDouyinCdp(`https://www.douyin.com/video/${VIDEO_ID}`, {
-        ...fakes,
-        fetchFn,
+    it("reports a missing ffmpeg binary as permanent, not retryable", async () => {
+      const fakes = makeDouyinFakes();
+      const clipFn = vi.fn(async () => {
+        const err = new Error("spawn ffmpeg ENOENT");
+        err.code = "ENOENT";
+        throw err;
       });
+
+      const result = await downloadDouyinCdp(SOURCE_URL, { ...fakes, clipFn });
+
+      expect(result.status).toBe("failed");
+      expect(result.reason).toBe("ffmpeg-missing");
+      expect(result.retryable).toBe(false);
+      expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+    });
+
+    it("downloads a video-only page by clipping the picture track alone", async () => {
+      const fakes = makeDouyinFakes({ trackResponses: [[VIDEO_TRACK]] });
+      const clip = Buffer.alloc(4096, 0x01);
+      const clipFn = vi.fn(async () => clip);
+
+      const result = await downloadDouyinCdp(SOURCE_URL, { ...fakes, clipFn });
+
+      expect(result.status).toBe("downloaded");
+      expect(result.finalUrl).toBe(VIDEO_TRACK);
+      expect(result.buffer).toBe(clip);
+      expect(result.byteLength).toBe(clip.length);
+      expect(clipFn).toHaveBeenCalledTimes(1);
+      expect(clipFn.mock.calls[0][0]).toMatchObject({ videoUrl: VIDEO_TRACK, audioUrl: null });
+      expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+    });
+
+    it("surfaces a proxy eval error instead of polling it as an empty track list", async () => {
+      const fakes = makeDouyinFakes();
+      fakes.evalFn = async () => ({ error: "Script execution failed" });
+      const clipFn = vi.fn();
+
+      const result = await downloadDouyinCdp(SOURCE_URL, { ...fakes, clipFn });
+
+      expect(result.status).toBe("failed");
+      expect(result.reason).toContain("cdp eval failed");
+      expect(result.retryable).toBe(true);
+      expect(clipFn).not.toHaveBeenCalled();
+      expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+    });
+
+    it("reports cdp-unavailable when the tab cannot be opened (#182 behavior kept)", async () => {
+      const fakes = makeDouyinFakes({ newTabError: new Error("proxy dead") });
+      const clipFn = vi.fn();
+
+      const result = await downloadDouyinCdp(SOURCE_URL, { ...fakes, clipFn });
 
       expect(result.status).toBe("failed");
       expect(result.reason).toBe("cdp-unavailable");
       expect(result.retryable).toBe(true);
+      expect(fakes.calls.tabs).toEqual([]);
       expect(fakes.calls.closedTabs).toEqual([]);
-    });
-
-    it("closes the tab when extraction throws", async () => {
-      const fakes = makeCdpFakes({ extractError: new Error("eval failed") });
-      const fetchFn = makeMockFetch({});
-
-      const result = await downloadDouyinCdp(`https://www.douyin.com/video/${VIDEO_ID}`, {
-        ...fakes,
-        fetchFn,
-      });
-
-      expect(result.status).toBe("failed");
-      expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+      expect(clipFn).not.toHaveBeenCalled();
     });
 
     it("returns unsupported for douyin URLs without a video id", async () => {
-      const fakes = makeCdpFakes();
+      const fakes = makeDouyinFakes();
       const result = await downloadDouyinCdp("https://www.douyin.com/user/xyz", {
         ...fakes,
-        fetchFn: makeMockFetch({}),
+        clipFn: vi.fn(),
       });
       expect(result.status).toBe("unsupported");
       expect(result.reason).toBe("no-video-id");
-      expect(fakes.calls.shareUrls).toEqual([]);
+      expect(fakes.calls.tabs).toEqual([]);
     });
   });
 
   describe("downloadVideo wiring", () => {
     it("routes douyin URLs through douyin-cdp without touching Cobalt", async () => {
-      const fakes = makeCdpFakes();
-      const fetchFn = makeMockFetch({
-        [MEDIA_URL]: mockResponse({ body: validBuffer }),
-      });
+      const fakes = makeDouyinFakes({ trackResponses: [[VIDEO_TRACK]] });
+      const clipFn = vi.fn(async () => validBuffer);
       const cobalt = new CobaltAdapter();
       const preflightSpy = vi.spyOn(cobalt, "preflight");
 
-      const result = await downloadVideo(`https://www.douyin.com/video/${VIDEO_ID}`, {
+      const result = await downloadVideo(SOURCE_URL, {
         ...fakes,
-        fetchFn,
+        clipFn,
         cobaltAdapter: cobalt,
       });
 
       expect(preflightSpy).not.toHaveBeenCalled();
+      expect(clipFn).toHaveBeenCalledTimes(1);
       expect(result.status).toBe("downloaded");
       expect(result.strategy).toBe(ADAPTER_IDS.DOUYIN_CDP);
       expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
@@ -1145,6 +1295,27 @@ describe("RedNote-MCP adapter (#75 Batch 3)", () => {
     expect(short.adapter).toBe("xhs-downloader");
   });
 
+  it("preserves the xsec_token query when canonicalizing xhs URLs (#314)", () => {
+    const result = selectStrategy(
+      "https://WWW.XiaoHongShu.com/explore/abc123/?xsec_token=TOK&xsec_source=pc_search",
+    );
+    expect(result.adapter).toBe(ADAPTER_IDS.XHS_DOWNLOADER);
+    expect(result.canonicalUrl).toBe(
+      "https://www.xiaohongshu.com/explore/abc123?xsec_token=TOK&xsec_source=pc_search",
+    );
+
+    const fragment = selectStrategy(
+      "http://www.xiaohongshu.com/explore/abc123?xsec_token=TOK#comments",
+    );
+    expect(fragment.canonicalUrl).toBe("https://www.xiaohongshu.com/explore/abc123?xsec_token=TOK");
+  });
+
+  it("keeps the no-query xhs URL behavior unchanged (#314)", () => {
+    const result = selectStrategy("https://www.xiaohongshu.com/explore/65a1b2c3");
+    expect(result.adapter).toBe(ADAPTER_IDS.XHS_DOWNLOADER);
+    expect(result.canonicalUrl).toBe("https://www.xiaohongshu.com/explore/65a1b2c3");
+  });
+
   it("pulls the CDN mp4 via get_note_content and downloads with the xhs Referer", async () => {
     const mcpCalls = [];
     const downloadCalls = [];
@@ -1230,81 +1401,226 @@ describe("RedNote-MCP adapter (#75 Batch 3)", () => {
   });
 });
 
-// ─── #75 Batch 4: downloadXhsCdp — logged-session CDP adapter ───
-describe("XhsCdp adapter (#75 Batch 4)", () => {
-  it("opens the note URL in CDP, extracts the video src, downloads with Referer", async () => {
-    const calls = { tab: [], extract: [], download: [] };
-    const fake = {
-      cdpNewTab: async (url) => {
-        calls.tab.push(url);
-        return "tid-1";
+// ─── #314/#1004: downloadXhsCdp — MSE blob → signed mp4 via resource timings ───
+describe("XhsCdp adapter (#1004)", () => {
+  const NOTE_URL = "https://www.xiaohongshu.com/explore/abc123?xsec_token=T&xsec_source=pc_search";
+  const MEDIA_URL = "https://sns-video-qc.xhscdn.com/stream/abc.mp4?sign=xyz&t=123";
+
+  function makeXhsFakes({
+    state = { href: NOTE_URL, title: "一条视频笔记", hasVideo: true, loginWall: false },
+    mediaResponses = [[], [MEDIA_URL]],
+    newTabError = null,
+    evalError = null,
+  } = {}) {
+    const calls = { tabs: [], loadedTabs: [], closedTabs: [], scripts: [], slept: [] };
+    let round = 0;
+    return {
+      calls,
+      cdpNewTabFn: async (url) => {
+        if (newTabError) throw newTabError;
+        calls.tabs.push(url);
+        return "tab-1";
       },
-      waitForPageLoad: async () => true,
-      extractFromTab: async (tid, script) => {
-        calls.extract.push({ tid, script });
-        return [{ videoSrc: "https://sns-video.xhscdn.com/v.mp4", noteId: "abc123" }];
+      waitForPageLoadFn: async (tabId) => {
+        calls.loadedTabs.push(tabId);
+        return true;
       },
-      cdpCloseTab: async () => {},
-      downloader: async (url, opts = {}) => {
-        calls.download.push({ url, headers: opts.headers });
-        return {
-          status: "downloaded",
-          strategy: "direct-http",
-          sourceUrl: url,
-          mimeType: "video/mp4",
-          extension: "mp4",
-          byteLength: 8000,
-          buffer: Buffer.alloc(8000),
-        };
+      cdpCloseTabFn: async (tabId) => {
+        calls.closedTabs.push(tabId);
+      },
+      sleepFn: async (ms) => {
+        calls.slept.push(ms);
+      },
+      evalFn: async (tabId, script) => {
+        calls.scripts.push(script);
+        if (evalError && /hasVideo/.test(script)) return { error: evalError };
+        if (/getEntriesByType/.test(script)) {
+          const value = mediaResponses[Math.min(round, mediaResponses.length - 1)];
+          round += 1;
+          return value;
+        }
+        return state;
       },
     };
-    const { downloadXhsCdp } = await import("../lib/video-downloaders.mjs");
-    const r = await downloadXhsCdp("https://www.xiaohongshu.com/explore/abc123?xsec_token=T", fake);
+  }
+
+  it("opens the note directly, kicks the MSE player, polls the signed mp4 and clips it once", async () => {
+    const fakes = makeXhsFakes();
+    const clip = Buffer.alloc(4096, 0x04);
+    const clipFn = vi.fn(async () => clip);
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
+    // The tokened note URL is opened directly (its search_result form
+    // redirects to the note); no feed prewarm in between.
+    expect(fakes.calls.tabs).toEqual([NOTE_URL]);
+    expect(fakes.calls.loadedTabs).toEqual(["tab-1"]);
+    expect(fakes.calls.slept.filter((ms) => ms === 3500)).toHaveLength(1);
+    // Page state probe; `load()` + muted `play()` is what kicks the MSE player.
+    expect(fakes.calls.scripts[0]).toContain("hasVideo");
+    expect(fakes.calls.scripts[0]).toContain("muted");
+    expect(fakes.calls.scripts[0]).toContain("load");
+    expect(fakes.calls.scripts[0]).toContain("play");
+    // The player is MSE (blob:), so the media URL comes from resource timings.
+    expect(fakes.calls.scripts[1]).toContain("getEntriesByType");
+    expect(clipFn).toHaveBeenCalledTimes(1);
+    expect(clipFn).toHaveBeenCalledWith({
+      videoUrl: MEDIA_URL,
+      audioUrl: null,
+      referer: "https://www.xiaohongshu.com/",
+      seconds: 8,
+    });
+
     expect(r.status).toBe("downloaded");
-    expect(r.strategy).toBe("xhs-cdp");
-    // feed prewarm first, then same-tab navigation to the tokened note URL
-    expect(calls.tab[0]).toContain("channel_id=homefeed_recommend");
-    expect(calls.extract[0].script).toContain("xsec_token=T");
-    expect(calls.extract[0].script).toContain("location.assign");
-    expect(calls.download[0].url).toBe("https://sns-video.xhscdn.com/v.mp4");
-    expect(calls.download[0].headers.Referer).toContain("xiaohongshu.com");
+    expect(r.strategy).toBe(ADAPTER_IDS.XHS_CDP);
+    expect(r.source).toBe("xhs");
+    expect(r.sourceUrl).toBe(NOTE_URL);
+    expect(r.finalUrl).toBe(MEDIA_URL);
+    expect(r.mimeType).toBe("video/mp4");
+    expect(r.extension).toBe("mp4");
+    expect(r.byteLength).toBe(clip.length);
+    expect(r.buffer).toBe(clip);
+    expect(r.durationMs).toBe(0);
+    expect(r.provenance).toEqual(expect.objectContaining({ adapterVersion: expect.any(String) }));
+    expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
   });
 
-  it("reports login-wall when the page renders without a video element", async () => {
-    const fake = {
-      cdpNewTab: async () => "tid-2",
-      waitForPageLoad: async () => true,
-      extractFromTab: async () => [{ videoSrc: null, loginWall: true }],
-      cdpCloseTab: async () => {},
-      downloader: async () => {
-        throw new Error("should not download");
-      },
-    };
-    const { downloadXhsCdp } = await import("../lib/video-downloaders.mjs");
-    const r = await downloadXhsCdp("https://www.xiaohongshu.com/explore/abc", fake);
+  it("fails retryable with note unreachable on a 404 page, without clipping", async () => {
+    const fakes = makeXhsFakes({
+      state: { href: "https://www.xiaohongshu.com/404", title: "页面不见了", hasVideo: false },
+    });
+    const clipFn = vi.fn();
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
     expect(r.status).toBe("failed");
-    expect(r.reason).toMatch(/login|no video/i);
+    expect(r.reason).toContain("note unreachable");
+    expect(r.retryable).toBe(true);
+    expect(clipFn).not.toHaveBeenCalled();
+    expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
   });
 
-  it("cleans up the tab on extraction failure", async () => {
-    let closed = 0;
-    const fake = {
-      cdpNewTab: async () => "tid-3",
-      waitForPageLoad: async () => true,
-      extractFromTab: async () => {
-        throw new Error("extract exploded");
-      },
-      cdpCloseTab: async () => {
-        closed += 1;
-      },
-      downloader: async () => {
-        throw new Error("should not download");
-      },
-    };
-    const { downloadXhsCdp } = await import("../lib/video-downloaders.mjs");
-    const r = await downloadXhsCdp("https://www.xiaohongshu.com/explore/abc", fake);
+  it("surfaces a kick-eval proxy error instead of misreading it as no video", async () => {
+    const fakes = makeXhsFakes({ evalError: "Script execution failed" });
+    const clipFn = vi.fn();
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
     expect(r.status).toBe("failed");
-    expect(closed).toBe(1);
+    expect(r.reason).toContain("cdp eval failed");
+    expect(r.reason).not.toContain("no video element");
+    expect(clipFn).not.toHaveBeenCalled();
+    expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+  });
+
+  it("names a login wall separately from an image-only note", async () => {
+    const fakes = makeXhsFakes({
+      state: { href: NOTE_URL, title: "登录后查看", hasVideo: false, loginWall: true },
+    });
+    const clipFn = vi.fn();
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
+    expect(r.status).toBe("failed");
+    expect(r.reason).toContain("login wall");
+    expect(clipFn).not.toHaveBeenCalled();
+    expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+  });
+
+  it("reports cdp-unavailable when the note tab cannot be opened", async () => {
+    const fakes = makeXhsFakes({ newTabError: new Error("proxy dead") });
+    const clipFn = vi.fn();
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
+    expect(r.status).toBe("failed");
+    expect(r.reason).toBe("cdp-unavailable");
+    expect(r.retryable).toBe(true);
+    expect(r.cause).toContain("proxy dead");
+    expect(clipFn).not.toHaveBeenCalled();
+    expect(fakes.calls.closedTabs).toEqual([]);
+  });
+
+  it("fails retryable when the note renders without a video element", async () => {
+    const fakes = makeXhsFakes({
+      state: { href: NOTE_URL, title: "图文笔记", hasVideo: false },
+    });
+    const clipFn = vi.fn();
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
+    expect(r.status).toBe("failed");
+    expect(r.reason).toBe("note has no video element");
+    expect(r.retryable).toBe(true);
+    expect(clipFn).not.toHaveBeenCalled();
+    expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+  });
+
+  it("fails retryable with no-media-url when resource timings never expose the mp4", async () => {
+    const fakes = makeXhsFakes({ mediaResponses: [[]] });
+    const clipFn = vi.fn();
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
+    expect(r.status).toBe("failed");
+    expect(r.reason).toBe("no-media-url");
+    expect(r.retryable).toBe(true);
+    expect(clipFn).not.toHaveBeenCalled();
+    // Two poll windows (a kick in between): 500ms cadence, ~10s each.
+    expect(fakes.calls.slept.filter((ms) => ms === 500).length).toBeGreaterThanOrEqual(20);
+    expect(fakes.calls.scripts.filter((sc) => sc.includes("hasVideo"))).toHaveLength(2);
+    expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+  });
+
+  it("re-kicks the player and succeeds when the first poll window is empty", async () => {
+    // Twenty empty polls = the first 10s window (500ms cadence); the re-kick
+    // is followed by the media URL on the next poll.
+    const fakes = makeXhsFakes({ mediaResponses: [...Array(20).fill([]), [MEDIA_URL]] });
+    const clip = Buffer.alloc(4096, 0x05);
+    const clipFn = vi.fn(async () => clip);
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
+    expect(r.status).toBe("downloaded");
+    expect(clipFn).toHaveBeenCalledWith({
+      videoUrl: MEDIA_URL,
+      audioUrl: null,
+      referer: "https://www.xiaohongshu.com/",
+      seconds: 8,
+    });
+    expect(fakes.calls.scripts.filter((sc) => sc.includes("hasVideo"))).toHaveLength(2);
+    expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+  });
+
+  it("fails with clip-failed when the clip helper throws, closing the tab once", async () => {
+    const fakes = makeXhsFakes();
+    const clipFn = vi.fn(async () => {
+      throw new Error("ffmpeg exited 1");
+    });
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
+    expect(r.status).toBe("failed");
+    expect(r.reason).toBe("clip-failed");
+    expect(r.retryable).toBe(true);
+    expect(r.cause).toContain("ffmpeg exited 1");
+    expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
+  });
+
+  it("reports a missing ffmpeg binary as permanent, not retryable", async () => {
+    const fakes = makeXhsFakes();
+    const clipFn = vi.fn(async () => {
+      const err = new Error("spawn ffmpeg ENOENT");
+      err.code = "ENOENT";
+      throw err;
+    });
+
+    const r = await downloadXhsCdp(NOTE_URL, { ...fakes, clipFn });
+
+    expect(r.status).toBe("failed");
+    expect(r.reason).toBe("ffmpeg-missing");
+    expect(r.retryable).toBe(false);
+    expect(fakes.calls.closedTabs).toEqual(["tab-1"]);
   });
 });
 

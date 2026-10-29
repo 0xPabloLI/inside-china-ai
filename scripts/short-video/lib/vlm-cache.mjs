@@ -34,8 +34,28 @@ import { join } from "path";
  * v2-2026-10-10 (#542 L3): the semantics prompt gained the A1 transcript
  * block for video assets — the same file + window now produces a different
  * prompt when a transcript is supplied, so pre-A1 entries must not serve.
+ *
+ * v3-2026-10-27 (#334): image Fit is now a single-word edge rule and the
+ * redundant `## Reason` section is gone; claim mode uses a compact prompt.
+ * Same asset + claim now produces a different answer shape, so v2 entries
+ * must not serve.
+ *
+ * v4-2026-10-27 (#294): the claim relevance criterion now judges the visible
+ * subject instead of demanding the abstract claim be depicted, and the new
+ * second-pass subject check is a distinct prompt (keyed by `relevanceCheck`).
+ * Same asset + claim scores differently and can produce a different answer
+ * shape, so v3 entries must not serve.
+ *
+ * v5-2026-10-27 (#294): the second-pass check now states that the desired
+ * visual is the standard and the narration is context (a real run judged a
+ * robot arm against the named entities in the narration instead). The first
+ * pass is unchanged, but one version covers both prompts.
+ *
+ * v6-2026-10-27 (#294): the check's match rule is now same-kind
+ * ("a robot arm for 'robot arm picking up a block'"); v5 still demanded the
+ * action/setting and rejected topically correct stock.
  */
-export const VLM_CACHE_PROMPT_VERSION = "v2-2026-10-10";
+export const VLM_CACHE_PROMPT_VERSION = "v6-2026-10-27";
 
 /**
  * Bump when the pipeline-side analysis semantics change (envelope format,
@@ -91,7 +111,8 @@ function stableStringify(value) {
  *          windows?: {startMs: number, endMs: number, sampleFps: number}[],
  *          claim?: {voiceover: string, assetNeed: string},
  *          cropFocus?: {x: number, y: number} | null,
- *          transcript?: string | null}} req
+ *          transcript?: string | null,
+ *          relevanceCheck?: boolean}} req
  * @returns {Promise<string>} 64-char hex sha256
  */
 export async function computeCacheKey(req) {
@@ -115,6 +136,9 @@ export async function computeCacheKey(req) {
       transcript: req.transcript ? createHash("sha256").update(req.transcript).digest("hex") : null,
     }),
   );
+  // #294: the second-pass subject check swaps the whole prompt, so it must
+  // never hit a first-pass entry (or vice versa). Absent = first pass.
+  h.update(stableStringify({ relevanceCheck: req.relevanceCheck === true ? true : null }));
   return h.digest("hex");
 }
 

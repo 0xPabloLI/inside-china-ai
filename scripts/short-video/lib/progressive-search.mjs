@@ -36,7 +36,7 @@
  * @module progressive-search
  */
 
-import { ALL_SOURCES, imageApiSourceMetadata } from "./source-registry.mjs";
+import { ALL_SOURCES, imageApiSourceMetadata, resolveLoginGate } from "./source-registry.mjs";
 import { ensureSearxng } from "../../searxng/lifecycle.mjs";
 
 // Resolve an image source's registry declaration by name. The pool entries and
@@ -568,7 +568,7 @@ export async function searchTavilyImages(keyword, apiKey) {
  */
 export async function searchCdpVideoSource(source, keyword, options = {}) {
   const { waitMs = 3000 } = options;
-  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad, ScriptError } =
+  const { cdpNewTab, cdpCloseTab, extractFromTab, waitForPageLoad, runPageGates, ScriptError } =
     await import("./cdp-client.mjs");
 
   let tabId;
@@ -581,27 +581,52 @@ export async function searchCdpVideoSource(source, keyword, options = {}) {
     return [];
   }
 
-  await new Promise((r) => setTimeout(r, waitMs));
-  await waitForPageLoad(tabId);
+  // The tab is released exactly once, whichever exit path is taken.
+  let closed = false;
+  const closeOnce = async () => {
+    if (closed) return;
+    closed = true;
+    try {
+      await cdpCloseTab(tabId);
+    } catch {}
+  };
 
-  // #308: a broken videoScript is not "no videos" — fail the source LOUDLY
-  // (fail-open: the caller keeps its fallback chain, the tab is released).
   try {
+    await new Promise((r) => setTimeout(r, waitMs));
+    await waitForPageLoad(tabId);
+
+    // #314: douyin's search page needs a logged-in profile. Run the same gate
+    // as the article path before extracting, so an expired login is reported
+    // as a gate hit instead of "0 videos" (silent empty-result failure).
+    // #314: run the same gate as the article path. The flattened video source
+    // carries the fields at top level; resolveLoginGate is the single resolver
+    // the other page-gate call sites use, so a future precedence change lands
+    // everywhere at once.
+    const gate = await runPageGates({ tabId, ...resolveLoginGate(source) });
+    if (gate) {
+      console.warn(
+        `  ⛔ ${source.name} video search gated (${gate.gate}: ${gate.status}) — skipping source`,
+      );
+      return [];
+    }
+
+    // #308: a broken videoScript is not "no videos" — fail the source LOUDLY
+    // (fail-open: the caller keeps its fallback chain, the tab is released).
     let candidates = await extractFromTab(tabId, source.videoScript);
     if (candidates.length === 0) {
       await new Promise((r) => setTimeout(r, waitMs));
       candidates = await extractFromTab(tabId, source.videoScript);
     }
 
-    await cdpCloseTab(tabId);
     return candidates;
   } catch (e) {
-    await cdpCloseTab(tabId);
     if (e instanceof ScriptError) {
       console.warn(`  🚨 ${source.name} videoScript broken (no retry, #308): ${e.message}`);
       return [];
     }
     throw e;
+  } finally {
+    await closeOnce();
   }
 }
 
@@ -613,8 +638,14 @@ export async function searchCdpVideoSource(source, keyword, options = {}) {
  *   → https://www.bilibili.com/video/BVx (platform "bilibili")
  * - YouTube embeds (/embed/ID) → https://www.youtube.com/watch?v=ID
  *   (platform "youtube")
+ * - Douyin post URLs (douyin.com/video/{id}, iesdouyin.com/share/video/{id})
+ *   kept as-is with platform null (#314 — downloaded by the douyin-cdp adapter)
+ * - XHS note URLs (xiaohongshu.com/explore/{id}, /search_result/{id}) kept
+ *   verbatim — the `xsec_token` query IS the access credential — with platform
+ *   null; tokenless note URLs are dropped; deduped by note id so two tokens
+ *   for one note collapse (#1004)
  * - Direct self-hosted video sources kept as-is (platform null)
- * - Dedupe by URL; non-video URLs dropped.
+ * - Dedupe by URL (or note id for xhs); non-video URLs dropped.
  *
  * @param {Array} raw - Raw extraction output (may be null/undefined)
  * @param {string} sourceName - Source name stamped into candidates
@@ -631,6 +662,7 @@ export function normalizeCdpVideoCandidates(raw, sourceName, keyword = "") {
     url = url.trim();
 
     let platform = null;
+    let dedupeKey = null;
     let m = url.match(/player\.bilibili\.com\/player\.html\?.*?bvid=([\w]+)/);
     if (m) {
       url = `https://www.bilibili.com/video/${m[1]}`;
@@ -641,14 +673,37 @@ export function normalizeCdpVideoCandidates(raw, sourceName, keyword = "") {
     } else if ((m = url.match(/^https?:\/\/www\.bilibili\.com\/video\/([\w]+)/))) {
       url = `https://www.bilibili.com/video/${m[1]}`;
       platform = "bilibili";
+    } else if (
+      // #314: douyin post URL, normalized to the desktop form so a share link
+      // and its /video/ twin dedupe to one candidate. The id is the identity;
+      // no platform hint (the douyin-cdp adapter handles it).
+      (m = url.match(/^https?:\/\/(?:www\.)?douyin\.com\/video\/(\d+)/)) ||
+      (m = url.match(/^https?:\/\/(?:www\.)?iesdouyin\.com\/share\/video\/(\d+)/))
+    ) {
+      url = `https://www.douyin.com/video/${m[1]}`;
+      platform = null;
+    } else if (
+      // #1004: xhs note URL. Keep it verbatim (query included): the
+      // `xsec_token` is what makes the note reachable. Identity is the note
+      // id, so explore/search_result forms and token refreshes dedupe.
+      (m = url.match(
+        /^https?:\/\/(?:www\.)?xiaohongshu\.com\/(?:explore|search_result)\/([0-9a-f]+)(?:[/?#]|$)/i,
+      ))
+    ) {
+      // The token is the access credential; a tokenless note URL is a dead
+      // candidate that would later surface as `note unreachable` and could
+      // shadow a tokened sibling in the id-dedupe.
+      if (!/[?&]xsec_token=/.test(url)) continue;
+      platform = null;
+      dedupeKey = `xhs:${m[1]}`;
     } else if (/^https?:\/\//i.test(url) && /\.(mp4|webm|m3u8|mov|ogg)([?#]|$)/i.test(url)) {
       platform = null; // self-hosted direct video source
     } else {
       continue; // relative/data:/garbage
     }
 
-    if (seen.has(url)) continue;
-    seen.add(url);
+    if (seen.has(dedupeKey ?? url)) continue;
+    seen.add(dedupeKey ?? url);
     out.push({
       url,
       title: item.title || keyword,

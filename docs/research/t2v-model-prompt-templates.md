@@ -20,7 +20,7 @@
 | 事实 | 位置 |
 | --- | --- |
 | 生成 prompt = declared prompt + BRAND 条件注入 + 缺失 NEGATIVE 子句 | `scripts/short-video/lib/b-roll/prompt-injection.mjs` `composeGenerationPrompt` / `composeImagePrompt` |
-| 文本编码器上限 512，预算硬门禁 480 | `runner.mjs` `MAX_SEQUENCE_LENGTH = 512`；`prompt-injection.mjs` `MAX_PROMPT_TOKENS = 480` |
+| 文本编码器上限 512，预算硬门禁 480 | `runner.mjs` `MAX_SEQUENCE_LENGTH = 512`；`prompt-budget.mjs` `MAX_PROMPT_TOKENS = 480`（#922 自 prompt-injection.mjs 拆出） |
 | 两个模型档位 | `runner.mjs` `MODEL_TIERS`：`fastmetal-5b`（704×1280×121f@24fps，UMT5 512，预量化）/ `fastmetal-1.3b`（480×832×81f@16fps，int8） |
 | 本地驱动只接受 prompt 字符串 | `mlx_wan_batch.py` jobs 字段 `{label, prompt, output_path, seed?}`，无 negative 参数 |
 | declared prompt 写作协议与 8 维归属 | `docs/video-script-writing-guide.md` §Declared b-roll prompt 写作协议；`prompt-injection.mjs` 头注释 |
@@ -87,7 +87,7 @@
 | `wan2.1` | 在产线（退路 `fastmetal-1.3b`） | 同 `wan2.2` | Apache-2.0 + 现役退路档 | 同 `wan2.2` |
 | `seedance` | 候选（云端 API，未接线） | （镜头语言 + 光影）+ 主体 + 主体运动 + 场景 +（氛围）+（风格） | 唯一有独立官方契约的云端候选；闭源 API 只吸规则 | 官方文档无 negative 参数 |
 
-实现：`scripts/short-video/lib/b-roll/prompt-templates.mjs`（导出 `PROMPT_SLOTS`、`PROMPT_TEMPLATES`、`MODEL_TIER_FAMILIES`、`familyForModelTier`、`getPromptTemplate`、`renderPromptForModel`，纯函数、未接线）。`MODEL_TIER_FAMILIES` 由各模板的 `modelTiers` 在 import 时派生（含同档位重复归属报错），测试同时校验其 key 都在 `runner.mjs` 的 `MODEL_TIERS` 内。测试：`scripts/short-video/lib/__tests__/b-roll-prompt-templates.test.mjs`。
+实现：`scripts/short-video/lib/b-roll/prompt-templates.mjs`（导出 `PROMPT_SLOTS`、`PROMPT_TEMPLATES`、`MODEL_TIER_FAMILIES`、`familyForModelTier`、`getPromptTemplate`、`renderPromptForModel`、`renderDeclaredPrompt`，纯函数）。`MODEL_TIER_FAMILIES` 由各模板的 `modelTiers` 在 import 时派生（含同档位重复归属报错），测试同时校验其 key 都在 `runner.mjs` 的 `MODEL_TIERS` 内。测试：`scripts/short-video/lib/__tests__/b-roll-prompt-templates.test.mjs`。
 
 **未入表（证据保留在本笔记）**：`hunyuanvideo`（community license + 仓库 >6 个月无提交）、`cogvideox`（5B 商用登记 + 仓库约 12 个月无提交）。若后续重新准入，按本笔记 §2.3 / §2.4 的官方公式补表即可，不改模块结构。
 
@@ -105,14 +105,26 @@
 
 外部事实均按 `docs/agents/proposal-review.md` §3 做了双源校验：官方 prompt guide + 官方 API/repo/model card；许可以 LICENSE 原文为准，不以横评转述为准。
 
-## 5. 未接线声明与后续接线票
+## 5. 接线现状（#922）与仍未接线项
 
-本模块**不接入生成路径**，因此无运行时行为变化。接线票需要处理：
+#922 已把模板层接进 b-roll 生成路径，采用**最小接线**：不解析 `SUBJECT:` 式标签、不新增结构化字段、不重排现有 prompt，因此现有内容包的 declared / composed prompt 逐字不变。接线的是四件事：
 
-1. 用已导出的 `familyForModelTier()` / `MODEL_TIER_FAMILIES` 把 `resolveModelTier()` 的结果转成 familyId，不要再建第二套模型命名。
-2. 云端 Wan API 才可使用 `negative_prompt` 参数；本地路径继续用正向排除子句，二者不能互换。
-3. 模板渲染必须过 `MAX_PROMPT_TOKENS`（480），超预算要在接线层报出，而不是静默截断。
-4. 渲染结果必须与 VLM claim gate 使用的 raw declared prompt 分离（沿用 #166 的 gate separation）。
+1. **family 解析** — `orchestrator.mjs` 的 `runBrollStage` 每次 run 用 `familyForModelTier(resolveModelTier(env))` 解析一次（约等于档位 → family 的单一映射）。
+2. **family 预算门禁** — `composeGenerationPrompt(scene, familyId)` 先过 `renderDeclaredPrompt()`：declared 超预算抛 `RangeError`，orchestrator 写 `failed` entry（reason 带 family、实际 tokens 与超出量）；composed 再用 `getPromptTemplate(familyId).maxPromptTokens` 判一次，reason 同样带 family 与超出量。
+3. **report provenance** — 视频 entry 记录 `promptFamily`；图片 entry 不记（T2I 不骑 T2V family）。
+4. **local negative-mode 守卫** — `renderDeclaredPrompt()` 拒绝 `integration !== "pipeline"` 或 `negativeMode !== "prompt-clause"` 的 family，因为本地 MLX 驱动没有 negative 参数。
+
+历史四条要求的落点（保留）：
+
+1. 用已导出的 `familyForModelTier()` / `MODEL_TIER_FAMILIES` 把 `resolveModelTier()` 的结果转成 familyId，不要再建第二套模型命名 → 已由 `runBrollStage` 消费。
+2. 云端 Wan API 才可使用 `negative_prompt` 参数；本地路径继续用正向排除子句，二者不能互换 → `renderDeclaredPrompt()` 的 `negativeMode` 守卫把非 `prompt-clause` family 挡在产线外。
+3. 模板渲染必须过 `MAX_PROMPT_TOKENS`（480），超预算要在接线层报出，而不是静默截断 → declared 门禁抛 `RangeError`，composed 门禁写 `token-budget` failure reason。
+4. 渲染结果必须与 VLM claim gate 使用的 raw declared prompt 分离（沿用 #166 的 gate separation）→ `composeGenerationPrompt` 只作用于 generation jobs；`buildClaim` 仍读 raw prompt，由 #922 测试锁定。
+
+**仍未接线**：
+
+- **槽位重排**（`renderPromptForModel`）：现有 declared prompt 是不透明单 clause，且两个在产 family 的 `slotOrder` 完全相同；重排需要先有结构化 clause，否则只会产生零收益 diff。
+- **Seedance**：`integration: "candidate"`，云端 API 候选，非产线。
 
 ## 6. 已否决的替代方案
 
@@ -127,7 +139,7 @@
 2. https://help.aliyun.com/zh/model-studio/legacy-wan-text-to-video-api-reference — 万相文生视频 API（2.1–2.6）：`negative_prompt` 支持中英文、≤500 字符 — **Tier 1**，访问 2026-10-24。
 3. https://github.com/Wan-Video/Wan2.2 — Wan2.2 官方仓库：Apache-2.0 `LICENSE.txt`、TI2V-5B 入口、`--use_prompt_extend`（DashScope / local_qwen）— **Tier 1**，访问 2026-10-24。
 4. https://huggingface.co/FastVideo/FastMetal-5B-QAD — FastMetal-5B-QAD 模型卡：base Wan2.2-TI2V-5B、INT8 QAT、Apache-2.0 — **Tier 1**，访问 2026-10-24。
-5. 本地代码：`scripts/short-video/lib/b-roll/runner.mjs`（`MAX_SEQUENCE_LENGTH=512`、`MODEL_TIERS`）、`mlx_wan_batch.py`（jobs 无 negative 字段）、`prompt-injection.mjs`（compose 与预算 480）— **Tier 1 本地实测**，2026-10-24。
+5. 本地代码：`scripts/short-video/lib/b-roll/runner.mjs`（`MAX_SEQUENCE_LENGTH=512`、`MODEL_TIERS`）、`mlx_wan_batch.py`（jobs 无 negative 字段）、`prompt-injection.mjs`（compose）、`prompt-budget.mjs`（预算 480）— **Tier 1 本地实测**，2026-10-24。
 6. https://www.volcengine.com/docs/82379/1631633?lang=zh — 火山引擎：Seedance-1.0-pro & pro-fast 提示词指南（参数、基础/复杂运镜、景别、多镜头示例）— **Tier 1**，访问 2026-10-24。
 7. https://www.volcengine.com/docs/86081/1805694 — 火山引擎智能视频：文生视频 prompt 公式「（镜头语言 + 光影）+ 主体 + 主体运动 + 场景 +（氛围）+（风格）」— **Tier 1**，访问 2026-10-24。
 8. https://huggingface.co/tencent/HunyuanVideo-1.5 — 腾讯混元 1.5 模型卡：`License: tencent-hunyuan-community`、Prompt Guide 入口 — **Tier 1**，访问 2026-10-24。

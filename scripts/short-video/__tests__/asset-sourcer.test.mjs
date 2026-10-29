@@ -2813,20 +2813,53 @@ describe("toCachedMediaCandidate", () => {
 // ─── #183: CDP video sources ───
 
 describe("CDP_VIDEO_SOURCES", () => {
-  it("derives cdp video sources from capabilities.videos", () => {
-    expect(CDP_VIDEO_SOURCES.length).toBeGreaterThanOrEqual(9);
+  const names = CDP_VIDEO_SOURCES.map((s) => s.name);
+
+  it("derives exactly the verified CDP video sources (#314)", () => {
+    expect(names).toContain("baidu_search");
+    expect(names).toContain("douyin");
+    // #1004: xhs's search page was live-verified (13-14 of 27 video notes across runs).
+    expect(names).toContain("xhs");
+    // #314: the generic news script found 0 players on 5 live article pages
+    // per site (2026-10-28) — the declarations are gone.
+    for (const removed of [
+      "qbitai",
+      "ithome",
+      "jiqizhixin",
+      "google_search",
+      "xinhua",
+      "thepaper",
+      "leiphone",
+      "zhidx",
+    ]) {
+      expect(names, removed).not.toContain(removed);
+    }
+    // other channels must not leak into the CDP video list
+    expect(names).not.toContain("bilibili");
+    expect(names).not.toContain("bing_news");
+  });
+
+  it("carries a truthy videoScript and a url builder for every entry", () => {
     for (const s of CDP_VIDEO_SOURCES) {
       expect(s.videoScript).toBeTruthy();
-      expect(s.videoScript).toContain("iframe");
       expect(typeof s.url).toBe("function");
     }
-    expect(CDP_VIDEO_SOURCES.find((s) => s.name === "qbitai")).toBeDefined();
-    expect(CDP_VIDEO_SOURCES.find((s) => s.name === "ithome")).toBeDefined();
-    // ytdlp sources must not leak into the CDP video list
-    expect(CDP_VIDEO_SOURCES.find((s) => s.name === "bilibili")).toBeUndefined();
-    // #636: bing_news declares no media channels — the generic CDP video script
-    // found nothing on its news search page and its cards only carry thumbnails
-    expect(CDP_VIDEO_SOURCES.find((s) => s.name === "bing_news")).toBeUndefined();
+  });
+
+  it("carries douyin's auth gate metadata (#314)", () => {
+    const douyin = CDP_VIDEO_SOURCES.find((s) => s.name === "douyin");
+    expect(douyin.needsAuth).toBe(true);
+    expect(douyin.loginCheckScript).toBeTruthy();
+  });
+
+  it("carries xhs's auth gate metadata (#1004)", () => {
+    const xhs = CDP_VIDEO_SOURCES.find((s) => s.name === "xhs");
+    expect(xhs).toBeDefined();
+    expect(xhs.needsAuth).toBe(true);
+    expect(xhs.loginCheckScript).toBeTruthy();
+    // xsec_token is short-lived: the video phase must bypass the result cache.
+    expect(xhs.cacheable).toBe(false);
+    expect(CDP_VIDEO_SOURCES.find((s) => s.name === "douyin").cacheable).toBe(true);
   });
 });
 

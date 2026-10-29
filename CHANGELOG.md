@@ -1,5 +1,117 @@
 # Changelog
 
+## [1.41.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.40.1...tanstack_start_ts-v1.41.0) (2026-10-28)
+
+
+### Features
+
+* **media:** derive claims from voiceover; assetNeed/searchHints become overrides ([#354](https://github.com/0xPabloLI/inside-china-ai/issues/354)) ([#1018](https://github.com/0xPabloLI/inside-china-ai/issues/1018)) ([40f178f](https://github.com/0xPabloLI/inside-china-ai/commit/40f178f6d1031aeb267b71d0dd73070a53e804a9))
+
+## [1.40.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.40.0...tanstack_start_ts-v1.40.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **deps:** bump seroval and @hono/node-server to clear OSV findings ([#1016](https://github.com/0xPabloLI/inside-china-ai/issues/1016)) ([8cf8d4a](https://github.com/0xPabloLI/inside-china-ai/commit/8cf8d4a141a642f54ba51e32afc066373a469101))
+
+## [1.40.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.39.0...tanstack_start_ts-v1.40.0) (2026-10-28)
+
+
+### Features
+
+* **sources:** declare xhs as a verified video source ([#1004](https://github.com/0xPabloLI/inside-china-ai/issues/1004)) ([#1009](https://github.com/0xPabloLI/inside-china-ai/issues/1009)) ([930e42f](https://github.com/0xPabloLI/inside-china-ai/commit/930e42fe9adf6686d37daf5df1ed8df335c10a59))
+
+## [1.39.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.38.0...tanstack_start_ts-v1.39.0) (2026-10-28)
+
+
+### Features
+
+* **sources:** douyin video discovery + honest CDP video declarations ([#314](https://github.com/0xPabloLI/inside-china-ai/issues/314)) ([#1005](https://github.com/0xPabloLI/inside-china-ai/issues/1005)) ([180921d](https://github.com/0xPabloLI/inside-china-ai/commit/180921dd611257d7e0d67ba6d52601a192795472))
+
+## [1.38.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.37.0...tanstack_start_ts-v1.38.0) (2026-10-27)
+
+
+### Features
+
+* **short-video:** keep unsatisfied stock needs in a gap ledger ([#293](https://github.com/0xPabloLI/inside-china-ai/issues/293)) ([#999](https://github.com/0xPabloLI/inside-china-ai/issues/999)) ([62d3087](https://github.com/0xPabloLI/inside-china-ai/commit/62d308704a3336e2a2245b690ec24bbdfa56de88))
+
+## [1.37.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.36.0...tanstack_start_ts-v1.37.0) (2026-10-27)
+
+
+### Features
+
+* **short-video:** admit a borderline asset only on its subject check, and name pool failure ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([a345b90](https://github.com/0xPabloLI/inside-china-ai/commit/a345b900f1ca56937b254743c30e03fa3187babb))
+* **short-video:** judge the visible subject, then re-check borderline assets ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([9366aac](https://github.com/0xPabloLI/inside-china-ai/commit/9366aacbef8d46769bf96914ac1e9f505e443947))
+* **short-video:** make stock relevance a verdict system, not a single threshold ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([cee187b](https://github.com/0xPabloLI/inside-china-ai/commit/cee187b69acd353f07b1354a5556f6e9ce8d4a37))
+* **short-video:** one module for relevance bands, pool verdict and admission ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([886a17b](https://github.com/0xPabloLI/inside-china-ai/commit/886a17bc0cafe17bdb730584e49eb4138dc58236))
+* **short-video:** report four relevance states and a pool verdict in step 8b ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([5ab45ac](https://github.com/0xPabloLI/inside-china-ai/commit/5ab45acdebde6283cfe66ec7c86a5365eb87d336))
+
+
+### Bug Fixes
+
+* **short-video:** let admission decide satisfiability everywhere ([#294](https://github.com/0xPabloLI/inside-china-ai/issues/294)) ([a3b0f37](https://github.com/0xPabloLI/inside-china-ai/commit/a3b0f37cd9c7b4585eed207bf3467514eef47628))
+
+## [1.36.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.35.0...tanstack_start_ts-v1.36.0) (2026-10-27)
+
+
+### Features
+
+* **vlm:** compact claim prompt and single-word fit rule ([#334](https://github.com/0xPabloLI/inside-china-ai/issues/334)) ([#987](https://github.com/0xPabloLI/inside-china-ai/issues/987)) ([894a612](https://github.com/0xPabloLI/inside-china-ai/commit/894a6127a229569c28ece0036917815c7fc3915b))
+
+## [1.35.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.3...tanstack_start_ts-v1.35.0) (2026-10-27)
+
+
+### Features
+
+* **short-video:** wire per-family T2V prompt budgets into b-roll generation ([#922](https://github.com/0xPabloLI/inside-china-ai/issues/922)) ([d63c955](https://github.com/0xPabloLI/inside-china-ai/commit/d63c9556b7159deeebf204d15492407fda694c49))
+
+
+### Bug Fixes
+
+* **short-video:** review follow-ups for [#922](https://github.com/0xPabloLI/inside-china-ai/issues/922) wiring ([8b10237](https://github.com/0xPabloLI/inside-china-ai/commit/8b102379825729c000e4f6d47bd3dd600d5ddb18))
+
+## [1.34.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.2...tanstack_start_ts-v1.34.3) (2026-10-26)
+
+
+### Bug Fixes
+
+* **ytdlp:** own the ffmpeg child's http_proxy ([#329](https://github.com/0xPabloLI/inside-china-ai/issues/329)) ([#979](https://github.com/0xPabloLI/inside-china-ai/issues/979)) ([a0242a1](https://github.com/0xPabloLI/inside-china-ai/commit/a0242a1bcf5fde1d77b33d440ca7849fa88d26bc))
+
+## [1.34.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.1...tanstack_start_ts-v1.34.2) (2026-10-26)
+
+
+### Bug Fixes
+
+* **scripts:** give every CLI the entry guard that survives a symlink ([#976](https://github.com/0xPabloLI/inside-china-ai/issues/976)) ([8bf2d74](https://github.com/0xPabloLI/inside-china-ai/commit/8bf2d74407539d2be5fc2b3baffca6c7fa27c110))
+
+## [1.34.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.34.0...tanstack_start_ts-v1.34.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **gates:** run the gate CLIs when the invoked path goes through a symlink ([#974](https://github.com/0xPabloLI/inside-china-ai/issues/974)) ([17d0336](https://github.com/0xPabloLI/inside-china-ai/commit/17d0336c1511e01fcb271f92b2e44acbcc37619e))
+
+## [1.34.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.33.1...tanstack_start_ts-v1.34.0) (2026-10-26)
+
+
+### Features
+
+* **gates:** render the final report's product view instead of retyping it ([#972](https://github.com/0xPabloLI/inside-china-ai/issues/972)) ([f0acde7](https://github.com/0xPabloLI/inside-china-ai/commit/f0acde7ed6ef0fce3c033e6757e2e3bcef58a1e5))
+
+## [1.33.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.33.0...tanstack_start_ts-v1.33.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **short-video:** endpoint_blocked verdict + SearXNG site: fallback for reddit ([#358](https://github.com/0xPabloLI/inside-china-ai/issues/358)) ([#967](https://github.com/0xPabloLI/inside-china-ai/issues/967)) ([75fb270](https://github.com/0xPabloLI/inside-china-ai/commit/75fb270439b982b21287d644c5947b211bf6e291))
+
+## [1.33.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.32.0...tanstack_start_ts-v1.33.0) (2026-10-26)
+
+
+### Features
+
+* **gates:** require the product-view three sentences in the closing comment, not just the PR body ([#966](https://github.com/0xPabloLI/inside-china-ai/issues/966)) ([5ad6a94](https://github.com/0xPabloLI/inside-china-ai/commit/5ad6a94b2434c011d4aa7bce8317d4f4072ef872))
+
 ## [1.32.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.31.6...tanstack_start_ts-v1.32.0) (2026-10-26)
 
 

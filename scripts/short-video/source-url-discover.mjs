@@ -47,7 +47,7 @@
  * Read-only against sources: navigation only, no login, no writes.
  */
 
-import { writeFileSync, mkdirSync, readFileSync } from "fs";
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -881,7 +881,7 @@ function truncate(s, n) {
 
 export { discoverSource };
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
     console.error(err);
     process.exit(1);

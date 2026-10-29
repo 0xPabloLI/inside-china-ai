@@ -397,7 +397,11 @@ CTA 公式：`[Action Verb] + [What They Get]`
 - **S.T.A.R.T. 为主框架的原因**：15 源验证的创作者社区共识最高框架。AI Outline 来自 TikTok 官方 Creator Search Insights（2026-08-27 实测验证），是平台数据的工具化输出，作为 **opt-in 工具输入**消费（默认不启用）——opt-in 时 Agent 拿到用户抄回的 AI Outline 后按消费映射表提取内容建议，而非用其结构替代 S.T.A.R.T.。
 - **为什么每个 scene 有素材要求**：之前 scene 的 media 字段是事后填充的——先写 voiceover 再找图。现在每个 scene 在设计时就定义素材需求，让脚本驱动素材收集，而不是素材适配脚本。
 
-**assetNeed 约定（Stage 3 必填实践）**：scene 的素材需求写入结构化字段 `assetNeed: "一句英文视觉描述"`（不是 voiceover 里的文字标注——TTS 会把内嵌 `[ASSET NEEDED` 标注读出来，scene-rules B13 会 FAIL）。asset-sourcer 消费 `assetNeed` 做 per-scene claim 搜索并绑定到该 scene；VLM 对照 voiceover 主张做相关性审查，低于阈值的素材宁缺毋滥（scene 保持纯 CSS 是合法结果）。公司实体关键词仅作为无 `assetNeed` scene 的 fallback。
+**assetNeed / searchHints 约定（Stage 3 默认实践，#354）**：每个 sourcing-eligible scene 默认拥有认领供给——asset-sourcer 对没有绑定 `media.path`、且不是纯生成策略（`b-roll` / `ai-image`）的场景，在缺省 `assetNeed` 时从 voiceover 派生 claim（claim 文本就是该 scene 的 voiceover 本身，不另造英文描述；查询词由确定性分词给出，best-effort）。因此 `assetNeed` 是**覆盖**而不是供给开关：显式写 `assetNeed: "一句英文视觉描述"` 仍然决定 VLM 的相关性判据（比分词器更懂画面），不写也不会再掉进「无认领 → fail-closed」；存量包不需要回填，派生按需发生。
+
+`searchHints?: string[]`：写稿时由你从 voiceover 提炼的英文检索短语（它是**覆盖**，可以不完全取自 voiceover，但必须与 claim 同指），按**具体 → 泛化**排序（如 `["unitree h1 humanoid robot", "humanoid robot factory", "warehouse automation"]`），最多 4 条、每条最多 4 个词。asset-sourcer 用它们替换 claim 分词出来的查询短语（顺序即尝试顺序；VLM 仍按 claim 打分）。只放宽、不过窄；不要写纯风格词（`cinematic` / `dark blue`）或裸泛用词（`robot` / `object`）——preflight 的 `Search hints schema` 会 FAIL 掉不可用的条目（拼写错误、非数组、空列表、超过 4 条、单条超过 4 个词、分词后无法检索的短语），也会 FAIL 掉写在「没有认领路径」的场景上的 `searchHints`（hook / 文本优先版式 / `media: null` / 已绑定媒体且无显式 `assetNeed` / 纯生成策略且无显式 `assetNeed` / 既无 voiceover 也无 `assetNeed`——声明了也没有任何东西读它），以及字段名拼错（`searchHint` / `search_hints`）。
+
+素材标注不要写进 voiceover（TTS 会读出来，scene-rules B13 会 FAIL）。VLM 判的是**画面主体是不是 claim 要的那类东西**（公司 / 产品 / 人物 / 地点 / 物体），不要求拍出旁白里的抽象事件（融资、战略调整、招聘计划）；外语界面文字不算负面证据，官方中文 UI 截图反而是强证据。40–59 分属 borderline，会再跑一次「画面主体」二度校验，`match` 才准入；分数缺失或解析失败记 UNAVAILABLE，属工具问题、先修 analyzer 而不是换图。宁缺毋滥：scene 保持纯 CSS 是合法结果（见 `docs/content-pipeline.md` → 8b）。
 
 **版式与素材职责（Stage 3 必填实践，#761）**：`narrative/stacked-cards` 与 `contrast/hero-center` 是**文本优先版式**——`scene.media` 只作为全幅暗化背景垫在文字块下面，证据类素材（图表、表格、页面截图、必须看清的官方图）放进去会被卡片或对比栏遮住，等于没给。因此这两个版式**禁止声明 `assetNeed`，也禁止绑定 `media.evidence: true`**；preflight 的 `Text-first layout media routing` 会直接 FAIL，并给出三选一修法。需要证据的拍必须路由到有独立媒体视窗的版式：`narrative` 用 `media-bottom-bar` / `media-split` / `media-overlay`，整屏素材用 `visualType: "fullscreen"` 或 `media.mode: "fullscreen"`（后者绕过版式，文字只剩 source 标注）。只要氛围的拍删掉 `assetNeed`、绑定一张 stock/实拍背景（或保持纯 CSS）即可；确定不要素材就**同时**删掉 `assetNeed` 并写 `media: null`——只写 `media: null` 不解除门禁。判据是「这一拍是否真的要让观众读清一张图」，不是素材文件名听起来像不像图表。
 
@@ -418,7 +422,7 @@ CTA 公式：`[Action Verb] + [What They Get]`
 **asset-sourcer 当前限制（2026-09-03 实测）**：
 
 - 中文新闻 CDP 源（如量子位 `qbitai`）`supportsKeyword=false` 且未在 `CDP_MEDIA_CAPABILITIES` 中注册 → asset-sourcer 无法按关键词搜索这些源，只能全量抓取最新文章列表
-- `claimToKeywords` 只从 `assetNeed` 生成英文视觉概念短语，不包含中文产品名/公司名 → 搜不到中文新闻站点的官方图片
+- `claimToKeywords` 从 `assetNeed`（或 #354 派生的 voiceover）生成英文视觉概念短语，不包含中文产品名/公司名 → 搜不到中文新闻站点的官方图片
 - 量子位等站点图片有 Referer 保护，下载链路不发送 Referer header → 403 AccessDenied
 - **手动 fallback**：从量子位文章手动下载图片时加 `-H "Referer: https://www.qbitai.com/"` header；下载后放入 `content/<topic>/assets/` 并在 scene-data 的 `media` 字段手动绑定
 - **改进方向**（未实现）：给中文新闻 CDP 源添加 `supportsKeyword=true` + 搜索 URL；`claimToKeywords` 融合 scene 的公司实体中文名；下载链路按源域名添加 Referer header

@@ -26,6 +26,7 @@ source-url-sweep.mjs（轴 1）→ source-url-discover.mjs（轴 2+3，回收 re
 | `--keys` 报某变量 MISSING                        | 测量缺陷                   | 配 key；**不要碰源**                                                   |
 | `probe-no-egress`                                | 测量缺陷（无路由）         | 查代理/出口；**不要碰源**                                              |
 | `probe-not-authoritative` / `login-wall`         | 测量缺陷（答复关于探针）   | 用真浏览器复核；先看请求头，再看登录态                                 |
+| `endpoint_blocked`                               | 源侧真问题（匿名端点关门） | 换路由层（`apiSiteFallback`，如 SearXNG `site:reddit.com`）；**没有凭据可补**（#358） |
 | 同域地理重定向（如 `bing_news` 跳到 `cn.bing.com/`） | 测量缺陷（裸探针无会话）   | 源声明 `probeAuthoritative: false`（#888）；**不要**放宽 `redirected-home` 判据 |
 | `extracts-despite-verdict`                       | 轴 2 误读                  | **什么都不改**；改轴 2 的判据                                          |
 | `http-dead` / `redirected-home` / `still-broken` | 源侧真问题                 | 先走 **A. URL 修复**                                                   |
@@ -182,9 +183,14 @@ node scripts/short-video/source-url-discover.mjs --only <源名> --keyword-zh �
             redirected-off-site      落到别的主机且丢了关键词
             alive-no-keyword         能打开但关键词不出现
             alive-zero-results       页面自述该查询 0 条结果（URL 活着，查询没结果）
+            endpoint_blocked         403 且源声明 `apiSearch.authRequired: false`
+                                     —— 没有凭据可补，端点对匿名流量关门（#358）；
+                                     正文说「限流」的 403 仍算探针类（可重试）
 探针问题    login-wall               答案取决于 cookie，不取决于 URL
 （不是源的  probe-not-authoritative 401/403/405/429 —— 边缘/WAF/凭据在回答「探针」
  问题）                            的问题，真浏览器可能不同
+            probe-no-egress          探针根本连不上该主机（裸 `<origin>/` 也不通）
+                                     —— 关于测量路由，与源无关
 ```
 
 判据统一落在 `isFailureVerdict()` / `needsCdpSecondOpinion()`（`lib/source-url-heal.mjs`）这两个 seam：**只有「失败」那一栏才进死源台账**，#285 建立的 login-wall 语义在 2026-09-22 扩到了 WAF 一层。下游消费方不要各自再判一次。
@@ -491,7 +497,7 @@ https://www.douyin.com/jingxuan/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD
 
 - `resolveApiHeaders(api)`（`lib/source-registry.mjs`）：对象或 getter/函数两种形态都收，请求时解析。注册表里 `tiktok_creator` / `github_search` 的 headers 改成 **getter**，所以调用点（`search-sources`、两个探针）一行都不用改，而 key 一定在请求时读取。
 - `missingApiKey(capabilities.articles)`：读 #67 已定的凭据权威（`requiresApiKey` + `apiKeyEnv`，后者来自 `API_KEY_ENV_MAP`），**只对声明必需的 key 生效**。
-- `checkApiSource()`：缺 key **在发请求之前**就判 `probe-not-authoritative`；其余 4xx 交给轴 1 同款 `classifyProbe` —— 401/403/405/429/503 是「关于探针的回答」，404/410 才是「关于端点的回答」。
+- `checkApiSource()`：缺 key **在发请求之前**就判 `probe-not-authoritative`；其余 4xx 交给轴 1 同款 `classifyProbe` —— 401/403/405/429/503 是「关于探针的回答」，404/410 才是「关于端点的回答」。**例外是 `apiSearch.authRequired: false` 的源**：没有 key 可补、后面也没有 cookie 层，**403**（且正文不是限流）判 `endpoint_blocked`（source 类，进台账与告警，见下节 #358）；401 仍属 probe（它说「要凭据」，是声明错了）。
 - `failureClass(result)` 三分类：`none` / `source`（真失败，进修复手册）/ `probe`（`anti_bot:*`、`need_login`、`captcha`（登录门自报的「请手动过验证」）、`login-wall`、`probe-not-authoritative`——隔离，不进台账）。**只有 `source` 才让退出码非零**，避免「缺 key」「没登录」或「人工过验证」把健康检查染红。
 
 实测（`checkApiSource` 直调，绕开 CDP；keyword = artificial intelligence）：
@@ -516,7 +522,7 @@ https://www.douyin.com/jingxuan/search/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD
 
 ### 第七个假判决：chrome-error 落地被算成 0 条（2026-09-24，digg_search 定界）
 
-`digg_search` 落地 `chrome-error://chromewebdata/` = **导航本身没产出页面**（DNS/代理/传输层），根本没有 DOM 可抽——旧流程照样跑抽取、把失败读成 `zero_results`，看起来像选择器腐烂。主层检查现在先查落地地址（`landedChromeError`）：命中先换新标签重试一次（网络抖动），仍错用 `networkLayerVerdict` 定界——**裸 `<origin>/` 控制组**：控制组也不通 → `probe-no-egress`（关于探针的路由，不进死源台账）；控制组通 → `network-error`（这条 URL 自己的传输失败，进失败栏）。两个值都来自 10 值判决词汇表，不新增野生值。与 §第六个假判决同一条纪律：**先分清「谁的问题」再选手册**。
+`digg_search` 落地 `chrome-error://chromewebdata/` = **导航本身没产出页面**（DNS/代理/传输层），根本没有 DOM 可抽——旧流程照样跑抽取、把失败读成 `zero_results`，看起来像选择器腐烂。主层检查现在先查落地地址（`landedChromeError`）：命中先换新标签重试一次（网络抖动），仍错用 `networkLayerVerdict` 定界——**裸 `<origin>/` 控制组**：控制组也不通 → `probe-no-egress`（关于探针的路由，不进死源台账）；控制组通 → `network-error`（这条 URL 自己的传输失败，进失败栏）。两个值都来自判决词汇表（12 值），不新增野生值。与 §第六个假判决同一条纪律：**先分清「谁的问题」再选手册**。
 
 ### site: 兜底层自己的巡检：`selector-health --fallback`（2026-09-24，#337）
 
@@ -547,6 +553,18 @@ xhs 未登录时判成 `anti_bot:验证码`，指令是「那是风控，不修�
 端到端证据：合成面板页上走生产路径 `collectFromSource → collectFromCdp`，新门 → `reason: need_login`，旧门（其余不变）→ `reason: anti_bot`；真实 `selector-health --only xhs` → **18 条 healthy**（登录态下门不误报，无回归）；`--only douyin` 主层仍 `zero_results`（活门在当前页面不触发，行为与修复前一致）。
 
 留给下一轮的边界：登录门只在 `needsAuth && loginCheckScript` 时被咨询。`sogou_weixin` / `zhihu` 声明 `needsAuth: false` 却带着同形态（缺 `return`）的脚本 —— 它们**今天不被咨询**，修不修都不改变行为，属另一件事（zhihu 的 `needsAuth: false` 本身就与 runbook 的「知乎需登录」结论不一致）。
+
+### 第十个假判决：匿名端点的 403 被读成「测不了」（2026-10-26，reddit_search，#358）
+
+`reddit_search` 的两层都是死路：`search.json` 对所有非浏览器客户端回 **403 + ~190KB 封锁页**（UA `ChinaAINews/1.0` 与 Chrome UA 同结果），而它的 CDP 兜底用的是**同一个 URL**，主层死则兜底必然同死；`googleSiteFallback` / `apiFallback` / `mcpFallback` 都没声明。旧判据把 403 一律读成 `probe-not-authoritative`（「凭据可补」），可这个源 `apiSearch.authRequired: false`——**没有凭据可补**，匿名请求被端点拒绝就是终局。结果：一个死源既不进失败清单，也不被 #353 的告警看见，体检还以 0 失败退出。
+
+两处修复，都落在 seam 上：
+
+- **判据**（`resolveCredentiallessBlockVerdict`，`lib/source-url-heal.mjs`）：`authRequired: false` 的源遇到 **403**（且 `classifyProbe` 认出是封锁页/短响应体）→ 新判决 **`endpoint_blocked`**，source 类：进死源台账、进 #353 告警、退出码非零。轴 3（`apiFailureVerdict`）与轴 1（`source-url-sweep` 的 apiSearch 探针）共用这一个 seam；边界由证据定：401 不升级（它说「要凭据」，是声明错了）、429 与正文含「限流」的 403 不升级（限流是「慢一点」，采集器会重试——GitHub 匿名 Search API 的额度耗尽就是这个形状）、404 仍是 `http-dead`，缺 key 的判断优先于一切。
+- **限流只认正文措辞，不认 `Retry-After`**：加固这条判据时扩 `RATE_LIMIT_RE` 的措辞面，不要加响应头判据。2026-10-26 实测 reddit 的封锁页自己就带 `retry-after: 0` —— 按「有 `Retry-After` 就是限流」写，会把刚修好的这条源重新关回探针类。
+- **路由**：新增 `apiSiteFallback`（`makeSearxngSiteFallback(domain, { pathPattern })`）——HTTP 型的 `site:` 兜底层，接在 api/CDP 之后、Google CDP 兜底之前，走本机 SearXNG。`site:` 运算符在部分引擎会被丢弃（2026-10-26 实测 `site:reddit.com` 136 条里只有 37 条在 reddit.com），所以**过滤必须落在 `result.url` 上**，并用 `pathPattern` 维持「只返回帖子」的源契约。
+
+判读：`selector-health --only reddit_search` 现在给的是**明确结论**——主层 `endpoint_blocked`、兜底层 20 条 ⇒ 报告 `via: site-fallback`，进「生产可用、不告警」桶；SearXNG 停着时兜底层也失败 ⇒ 保留 `endpoint_blocked` 并告警。真机：生产链 `collectFromSource(reddit_search)` = api 403 → cdp `skipped-same-url-as-api` → `api-site-fallback` 20 条、全部 reddit.com、3.8s。
 
 ### 二轮台账（2026-09-22，55 源清扫 + 10 源 CDP 复核）
 

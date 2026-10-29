@@ -1478,7 +1478,7 @@ describe("narrative scene media coverage warning (#760)", () => {
     });
   }
 
-  it("warns when a sourcing-eligible scene declares no media intent", () => {
+  it("warns when a sourcing-eligible scene has no usable claim text", () => {
     const warn = coverageWarn([scene()]);
     expect(warn).toBeDefined();
     expect(warn.detail).toContain("[2]");
@@ -1488,6 +1488,92 @@ describe("narrative scene media coverage warning (#760)", () => {
     // and recommended the deprecated mediaOptOut flag.
     expect(warn.fix).not.toContain("mediaOptOut");
     expect(warn.fix).not.toContain("Run asset-sourcer");
+  });
+
+  it("does not warn for a media-less scene whose voiceover yields a claim (#354)", () => {
+    expect(
+      coverageWarn([
+        scene({ voiceover: "Unitree's humanoid robot walks across a factory floor." }),
+      ]),
+    ).toBeUndefined();
+  });
+
+  it("warns when the voiceover has no searchable content words (#354)", () => {
+    // "test" is a single generic token — claimToKeywords yields no phrase, so
+    // sourcing cannot query for this scene.
+    expect(coverageWarn([scene({ voiceover: "test" })])).toBeDefined();
+  });
+});
+
+// ── checkSearchHintsSchema (#354: a typo must not silently mean "no hints") ──
+
+describe("searchHints schema (#354)", () => {
+  const scene = (over = {}) => ({
+    id: 2,
+    visualType: "narrative",
+    layout: "media-overlay",
+    voiceover: "A humanoid robot walks.",
+    ...over,
+  });
+  const hintFails = (scenes) =>
+    runAllSceneDataChecks(scenes, null).fail.filter((f) =>
+      f.check.startsWith("Search hints schema"),
+    );
+
+  it("accepts usable phrase lists, including in-order specific→general hints", () => {
+    expect(
+      hintFails([scene({ searchHints: ["unitree h1 humanoid robot", "humanoid robot factory"] })]),
+    ).toEqual([]);
+  });
+
+  it("fails a bare string instead of treating it as no hints", () => {
+    const [fail] = hintFails([scene({ searchHints: "humanoid robot factory" })]);
+    expect(fail.level).toBe("fail");
+    expect(fail.check).toContain("Scene 2");
+  });
+
+  it("fails style-only phrases that the sanitiser would drop", () => {
+    const [fail] = hintFails([scene({ searchHints: ["cinematic close-up"] })]);
+    expect(fail.level).toBe("fail");
+  });
+
+  it("fails searchHints on a scene without a claim path (declared but no effect)", () => {
+    const [hookFail] = hintFails([
+      scene({ visualType: "hook", searchHints: ["humanoid robot factory"] }),
+    ]);
+    expect(hookFail.check).toContain("Scene 2 has a claim path");
+    const [cssFail] = hintFails([
+      scene({ layout: "stacked-cards", searchHints: ["humanoid robot factory"] }),
+    ]);
+    expect(cssFail.check).toContain("Scene 2 has a claim path");
+    const [boundFail] = hintFails([
+      scene({
+        media: { type: "image", path: "assets/x.jpg" },
+        searchHints: ["humanoid robot factory"],
+      }),
+    ]);
+    expect(boundFail.check).toContain("Scene 2 has a claim path");
+    const [generationFail] = hintFails([
+      scene({ mediaStrategy: "b-roll", searchHints: ["humanoid robot factory"] }),
+    ]);
+    expect(generationFail.check).toContain("Scene 2 has a claim path");
+  });
+
+  it("fails a misspelled key instead of silently ignoring it", () => {
+    const [fail] = hintFails([scene({ searchHint: ["humanoid robot factory"] })]);
+    expect(fail.check).toContain("spelled searchHints");
+    expect(fail.detail).toContain("searchHint");
+  });
+
+  it("fails empty and over-long lists", () => {
+    expect(hintFails([scene({ searchHints: [] })])).toHaveLength(1);
+    expect(
+      hintFails([
+        scene({
+          searchHints: ["a robot arm", "b robot arm", "c robot arm", "d robot arm", "e robot arm"],
+        }),
+      ]),
+    ).toHaveLength(1);
   });
 });
 

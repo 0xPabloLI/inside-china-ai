@@ -305,23 +305,38 @@ The trigger looks like GPT-6. Astra scored 95% on a robot control task in Septem
   // it. Omitting the field makes derivePinnedComment emit the hook alone
   // (lib/caption-utils.mjs:125).
   //
-  // Stock relevance waived on purpose (user decision 2026-10-14): step 8b's
-  // completion criterion is "all images relevance >= 60", and 5 of the 6 bound
-  // images scored below it (0/0/0/50/50 — see stock-relevance-report.json).
-  // The images ship anyway because the scoring prompt asks whether the image
-  // depicts the scene's *specific* claim (a named funding event, a named
-  // model), which no generic robot photograph can satisfy; every alternative
-  // in the pool scored equal or lower, so the criterion is unsatisfiable for
-  // this package rather than merely unmet. What the media layer is for —
-  // topically correct footage (Unitree hardware, robot arms, a robot lab) — is
-  // satisfied. The video is published and is not being re-rendered.
+  // Stock relevance waived on purpose (user decision 2026-10-14). The report at
+  // that time read 1 of 6 bound images over the line (distribution
+  // [0, 0, 0, 50, 80, 50], recorded in #294); the pre-#294 rerun of 2026-10-27
+  // read 2 of 6 ([50, 50, 0, 50, 80, 80]) — same picture, most of the pool
+  // under the bar. The images shipped anyway because the scoring prompt asked
+  // whether the image depicted the scene's *specific* claim (a named funding
+  // event, a named model), which no generic robot photograph can satisfy;
+  // every alternative in the pool scored equal or lower, so the criterion was
+  // unsatisfiable for this package rather than merely unmet. The video is
+  // published and is not being re-rendered.
+  //
+  // Re-evaluated 2026-10-27 under #294 (subject-level criterion + borderline
+  // second pass): scenes 2/3 pass on the first score (80/80), 4/7 pass the
+  // second-pass subject check at 50. The current numbers live in
+  // stock-relevance-report.json; the two distributions above are the
+  // pre-#294 measurements that motivated the 2026-10-14 decision. The two
+  // remaining scenes ask for an action no stock frame shows (a robot arm
+  // lifting a block, a robot hand reaching for a glow), so the waiver below is
+  // scoped to them and lives in scene-data where it is reviewed with the code
+  // — the channel #294 asked for.
+  stockRelevanceExemption: {
+    reason:
+      "2026-10-14 decision: the bound images are the actual Unitree / robot-lab subjects and the video is published, not re-rendered. Scenes 6 and 9 ask for actions (picking up a block; a hand reaching for a glow) that no stock frame in the pool depicts.",
+    scenes: [6, 9],
+  },
   //
   // The two sanctioned remediations were not used: no
   // `search-replacement-images.mjs` replacement exists that scores higher, and
   // `mediaStrategy: "b-roll"` would replace accurate footage of the actual
-  // subject with generated imagery. The deeper gap this exposes — step 8b
+  // subject with generated imagery. The deeper gap this exposed — step 8b
   // states a completion criterion that no gate enforces, because
-  // evaluate-stock-relevance.mjs always exits 0 — is tracked in #294.
+  // evaluate-stock-relevance.mjs always exits 0 — is still tracked in #294.
   trendingChecked: true,
   trendingHashtags: [],
 };

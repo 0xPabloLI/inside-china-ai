@@ -17,7 +17,15 @@
 
 import { exec } from "child_process";
 import { execSync } from "child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from "fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import { basename, join, dirname, resolve } from "path";
 import { randomBytes } from "crypto";
 import { fileURLToPath } from "url";
@@ -564,7 +572,7 @@ async function main() {
 }
 
 // Run if invoked directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && realpathSync(process.argv[1]) === __filename) {
   main().catch((e) => {
     console.error(`Fatal error: ${e.message}`);
     process.exit(1);

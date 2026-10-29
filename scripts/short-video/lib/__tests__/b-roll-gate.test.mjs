@@ -74,6 +74,19 @@ describe("scoreCandidates", () => {
     expect(scored[0].reason).toMatch(/analyzer/i);
   });
 
+  test("#294 a null score is banded unavailable, not low (#294 defect 2)", async () => {
+    const analyzer = fakeAnalyzer({
+      "/tmp/b-roll/scene-6-seed1024.mp4": () => ({ relevance: null }),
+      "/tmp/b-roll/scene-6-seed2048.mp4": () => ({ relevance: 10 }),
+    });
+    const scored = await scoreCandidates(CANDIDATES, {
+      analyzer,
+      claim: { voiceover: "v", assetNeed: "p" },
+    });
+    expect(scored.map((c) => c.band)).toEqual(["unavailable", "low"]);
+    expect(scored.map((c) => c.passed)).toEqual([false, false]);
+  });
+
   test("claim is forwarded to the analyzer", async () => {
     const seen = [];
     const analyzer = async (path, opts) => {

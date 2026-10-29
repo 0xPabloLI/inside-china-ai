@@ -5,6 +5,7 @@ import {
   apiFailureVerdict,
   failureClass,
   applyFallbackTakeover,
+  checkApiFallbackSource,
   summarizeResultRow,
   classifyAlertBuckets,
   buildHealthReport,
@@ -92,6 +93,88 @@ describe("apiFailureVerdict — api 探针失败的归因", () => {
   });
 });
 
+/**
+ * #358 (2026-10-26): 「凭据可补」是 `probe-not-authoritative` 成立的前提。
+ * 匿名端点（`apiSearch.authRequired: false`）上没有 key 可补、后面也没有
+ * cookie 层——api 探针就是生产请求本身。reddit_search 实测：`search.json`
+ * 对所有非浏览器客户端回 403 + 190KB 封锁页，旧判据把它读成「测不了」，
+ * 于是它既不在失败清单里，也不会被 #353 的告警看见。
+ */
+describe("#358 — 匿名端点拒绝服务是关于源的回答", () => {
+  const anonCap = (over = {}) => ({
+    requiresApiKey: false,
+    apiKeyEnv: null,
+    apiSearch: { authRequired: false },
+    ...over,
+  });
+  const redditBlockPage =
+    "<html><body>" +
+    "blocked by network security — whoa there, pardner!".repeat(20) +
+    "</body></html>";
+
+  it("authRequired:false + 403 封锁页 ⇒ endpoint_blocked", () => {
+    expect(apiFailureVerdict({ status: 403, body: redditBlockPage, cap: anonCap() }).reason).toBe(
+      "endpoint_blocked",
+    );
+  });
+
+  it("authRequired:false + 403 短响应体（边缘/WAF 拒绝）⇒ endpoint_blocked", () => {
+    expect(apiFailureVerdict({ status: 403, body: "Forbidden", cap: anonCap() }).reason).toBe(
+      "endpoint_blocked",
+    );
+  });
+
+  it("authRequired:false + 403 但正文是限流 ⇒ 仍是 probe（GitHub 匿名额度形状）", () => {
+    const body =
+      '{"message":"API rate limit exceeded for 203.0.113.7. (But here\'s the good news: Authenticated requests get a higher rate limit.)"}';
+    expect(apiFailureVerdict({ status: 403, body, cap: anonCap() }).reason).toBe(
+      "probe-not-authoritative",
+    );
+  });
+
+  it("authRequired:false + 401 仍是 probe-not-authoritative（401 说「要凭据」，是声明错了）", () => {
+    expect(apiFailureVerdict({ status: 401, body: "{}", cap: anonCap() }).reason).toBe(
+      "probe-not-authoritative",
+    );
+  });
+
+  it("authRequired:true + 403 仍是 probe-not-authoritative（凭据可补）", () => {
+    const cap = anonCap({ apiSearch: { authRequired: true } });
+    expect(apiFailureVerdict({ status: 403, body: redditBlockPage, cap }).reason).toBe(
+      "probe-not-authoritative",
+    );
+  });
+
+  it("authRequired 未声明（旧 registry 字面量）时保持旧判据，不擅自升格", () => {
+    expect(apiFailureVerdict({ status: 403, body: redditBlockPage, cap: {} }).reason).toBe(
+      "probe-not-authoritative",
+    );
+  });
+
+  it("authRequired:false + 429 仍是 probe（限流是「慢一点」，不是「关门」）", () => {
+    expect(apiFailureVerdict({ status: 429, body: "{}", cap: anonCap() }).reason).toBe(
+      "probe-not-authoritative",
+    );
+  });
+
+  it("authRequired:false + 404 仍是 http-dead（端点真的没了）", () => {
+    expect(apiFailureVerdict({ status: 404, body: "Not Found", cap: anonCap() }).reason).toBe(
+      "http-dead",
+    );
+  });
+
+  it("缺 key 的判定优先于 endpoint_blocked（那是探针没带凭据）", () => {
+    const cap = anonCap({
+      requiresApiKey: true,
+      apiKeyEnv: "REDDIT_KEY_ABSENT_FOR_TEST",
+      apiSearch: { authRequired: true },
+    });
+    const r = apiFailureVerdict({ status: 403, body: redditBlockPage, cap });
+    expect(r.reason).toBe("probe-not-authoritative");
+    expect(r.missingKey).toBe("REDDIT_KEY_ABSENT_FOR_TEST");
+  });
+});
+
 describe("failureClass — 只有关于源的失败才算失败", () => {
   it("有结果 ⇒ none", () => {
     expect(failureClass({ ok: true, reason: null })).toBe("none");
@@ -119,6 +202,10 @@ describe("failureClass — 只有关于源的失败才算失败", () => {
 
   it("probe-not-authoritative ⇒ probe", () => {
     expect(failureClass({ ok: false, reason: "probe-not-authoritative" })).toBe("probe");
+  });
+
+  it("#358 endpoint_blocked ⇒ source（进失败清单与 #353 告警，退出码非零）", () => {
+    expect(failureClass({ ok: false, reason: "endpoint_blocked" })).toBe("source");
   });
 
   it("network-error ⇒ source（与第一轴口径一致）", () => {
@@ -172,6 +259,125 @@ describe("applyFallbackTakeover — 主层失败时的 site: 兜底接管", () =
       layer: "fallback",
     });
     expect(merged).toBe(primary);
+  });
+
+  it("#358 匿名端点被拒（endpoint_blocked）同样可由兜底层接管", () => {
+    const merged = applyFallbackTakeover(
+      { source: "reddit_search", ok: false, count: 0, reason: "endpoint_blocked" },
+      { source: "reddit_search", ok: true, count: 12, layer: "fallback" },
+    );
+    expect(merged.ok).toBe(true);
+    expect(merged.via).toBe("site-fallback");
+    expect(merged.primaryReason).toBe("endpoint_blocked");
+  });
+});
+
+/**
+ * #358: the api site: fallback layer has to be measurable on its own — the
+ * takeover above only helps if the fallback row is honest about what it got.
+ * `fetchImpl` is the injection seam so the check is testable without network.
+ */
+describe("checkApiFallbackSource — api 型 site: 兜底层的体检", () => {
+  const src = {
+    name: "reddit_search",
+    label: "Reddit",
+    accessMethod: { primary: "api" },
+    capabilities: {
+      articles: {
+        apiSiteFallback: {
+          url: (kw) => `http://localhost:8888/search?q=site:reddit.com+${kw}`,
+          parser: (text) => {
+            const data = JSON.parse(text);
+            return data.results.map((r) => ({ title: r.title, url: r.url }));
+          },
+          timeoutMs: 1234,
+        },
+      },
+    },
+  };
+
+  it("兜底层抽到结果 ⇒ ok + count + layer:fallback", async () => {
+    const fetchImpl = async (url) => {
+      expect(url).toContain("site:reddit.com");
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            results: [
+              { title: "a", url: "https://www.reddit.com/r/x/comments/1/a/" },
+              { title: "b", url: "https://www.reddit.com/r/x/comments/2/b/" },
+            ],
+          }),
+      };
+    };
+    const r = await checkApiFallbackSource(src, "ai", { fetchImpl });
+    expect(r).toMatchObject({ source: "reddit_search", ok: true, count: 2, layer: "fallback" });
+    expect(r.reason).toBe(null);
+  });
+
+  it("兜底层 0 条 ⇒ ok:false + zero_results（不翻转主层判决）", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ results: [] }),
+    });
+    const r = await checkApiFallbackSource(src, "ai", { fetchImpl });
+    expect(r.ok).toBe(false);
+    expect(r.count).toBe(0);
+    expect(r.reason).toBe("zero_results");
+  });
+
+  it("兜底层 HTTP 失败 ⇒ 记录探针类原因，而不是把兜底的错误算成源的判决", async () => {
+    const fetchImpl = async () => ({ ok: false, status: 403, text: async () => "Forbidden" });
+    const r = await checkApiFallbackSource(src, "ai", { fetchImpl });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("probe-not-authoritative");
+  });
+
+  it("兜底层传输失败 ⇒ network-error", async () => {
+    const fetchImpl = async () => {
+      throw new Error("ECONNREFUSED");
+    };
+    const r = await checkApiFallbackSource(src, "ai", { fetchImpl });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("network-error");
+  });
+
+  // SearXNG drops `site:` on some engines, so a large result set can be
+  // entirely off-topic. Production runs this layer through applyRelevanceGuard
+  // (#269); a probe that skipped it would call an unusable layer healthy.
+  it("兜底层全是跑题的条目 ⇒ 与生产同一道相关性护栏，判 invalid-relevance", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          // RELEVANCE_MIN_RESULTS is 10: below it the guard deliberately
+          // stands down, so the fixture has to clear the threshold.
+          results: Array.from({ length: 12 }, (_, i) => ({
+            title: `unrelated headline ${i}`,
+            url: `https://www.reddit.com/r/other/comments/${i}/x/`,
+          })),
+        }),
+    });
+    const r = await checkApiFallbackSource(src, "quantum computing chips", { fetchImpl });
+    expect(r.ok).toBe(false);
+    expect(r.count).toBe(0);
+    expect(r.reason).toBe("invalid-relevance");
+    // Keep the raw size: "0 kept out of N" is what tells rot from a dead engine.
+    expect(r.extracted).toBe(12);
+  });
+
+  it("兜底层 200 但不是 JSON ⇒ parse-error，不伪装成 network-error", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => "<html><body>searxng: json format disabled</body></html>",
+    });
+    const r = await checkApiFallbackSource(src, "ai", { fetchImpl });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("parse-error");
   });
 });
 
@@ -244,6 +450,14 @@ describe("summarizeResultRow & classifyAlertBuckets & buildHealthReport (#353)",
     expect(buckets.viaSiteFallback.map((r) => r.source)).toEqual(["jiqizhixin"]);
     expect(buckets.probeIgnored.map((r) => r.source)).toEqual(["tiktok_creator", "douyin"]);
     expect(buckets.primaryHealthy.map((r) => r.source)).toEqual(["thepaper"]);
+  });
+
+  it("#358 endpoint_blocked 进 alerting（兜底层也失败时必须被 #353 看见）", () => {
+    const buckets = classifyAlertBuckets([
+      { source: "reddit_search", ok: false, count: 0, reason: "endpoint_blocked" },
+    ]);
+    expect(buckets.alerting.map((r) => r.source)).toEqual(["reddit_search"]);
+    expect(buckets.probeIgnored).toEqual([]);
   });
 
   it("buildHealthReport 生成完整机器可读摘要，供后续 diff 与恢复判定消费", () => {

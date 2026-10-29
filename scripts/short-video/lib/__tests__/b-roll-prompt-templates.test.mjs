@@ -6,9 +6,10 @@ import {
   MODEL_TIER_FAMILIES,
   familyForModelTier,
   getPromptTemplate,
+  renderDeclaredPrompt,
   renderPromptForModel,
 } from "../b-roll/prompt-templates.mjs";
-import { MAX_PROMPT_TOKENS } from "../b-roll/prompt-injection.mjs";
+import { MAX_PROMPT_TOKENS, PromptBudgetError } from "../b-roll/prompt-budget.mjs";
 import { MODEL_TIERS } from "../b-roll/runner.mjs";
 
 // ─── template table ───
@@ -165,5 +166,54 @@ describe("renderPromptForModel (#757)", () => {
   test("Seedance has no local budget gate", () => {
     const long = Array.from({ length: 400 }, (_, i) => `clause${i}`).join(" ");
     expect(renderPromptForModel({ subject: long }, "seedance").length).toBeGreaterThan(0);
+  });
+});
+
+// ─── declared-prompt entry (#922) ───
+
+describe("renderDeclaredPrompt (#922)", () => {
+  const declared = "A lone server rack glowing blue beside one small cube, no text.";
+
+  test("both live Wan families return the declared prompt trimmed, otherwise byte-identical", () => {
+    expect(renderDeclaredPrompt(`  ${declared}  `, "wan2.2")).toBe(declared);
+    expect(renderDeclaredPrompt(`  ${declared}  `, "wan2.1")).toBe(declared);
+    // The trailing full stop belongs to the declared prompt — prompt-injection
+    // strips it only when it appends constants.
+    expect(renderDeclaredPrompt(declared, "wan2.2").endsWith("no text.")).toBe(true);
+  });
+
+  test("blank or missing declared prompts render empty", () => {
+    expect(renderDeclaredPrompt("", "wan2.2")).toBe("");
+    expect(renderDeclaredPrompt("   ", "wan2.2")).toBe("");
+    expect(renderDeclaredPrompt(undefined, "wan2.1")).toBe("");
+    expect(renderDeclaredPrompt(null, "wan2.1")).toBe("");
+  });
+
+  test("over-budget declared prompts throw PromptBudgetError naming family, tokens and overshoot", () => {
+    const long = "glowing bar ".repeat(600);
+    let error;
+    try {
+      renderDeclaredPrompt(long, "wan2.2");
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(PromptBudgetError);
+    expect(error).toBeInstanceOf(RangeError);
+    expect(error.message).toContain("wan2.2");
+    expect(error.message).toMatch(/~\d+ tokens/);
+    expect(error.message).toContain("over the 480-token budget");
+    expect(error.message).toMatch(/,\s*\d+ over the 480-token budget/);
+  });
+
+  test("unknown families are rejected with the known ids", () => {
+    expect(() => renderDeclaredPrompt("a rack", "wan9")).toThrow(
+      /Unknown T2V prompt family "wan9"/,
+    );
+  });
+
+  test("candidate families are refused by the pipeline entry", () => {
+    expect(() => renderDeclaredPrompt("a rack", "seedance")).toThrow(
+      /not admitted to the generation pipeline/,
+    );
   });
 });

@@ -22,7 +22,7 @@
  *
  * See docs/tools-catalog.md → SearXNG.
  */
-import { readFileSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -143,7 +143,7 @@ function main() {
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     process.exit(main());
   } catch (error) {

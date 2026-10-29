@@ -18,6 +18,10 @@ Response format (one line):
    "error": null}
   {"description": "", "subjects": [], ..., "error": "reason"}
 
+`reason` is still parsed for legacy cached outputs; the current image prompts
+fold that explanation into `criticalEdgeText` and no longer ask for a separate
+section (#334).
+
 VLM outputs Markdown with ## Section headers. Python parses it via
 parse_markdown_to_dict() — pure string manipulation, no LLM needed.
 
@@ -212,6 +216,31 @@ TRANSCRIPT_HEAD = "视频的语音转写（可能不完整、可能有错）："
 TRANSCRIPT_MAX_CHARS = 2000
 
 
+# Critical Edge Text now carries the explanation the old `## Reason` section
+# duplicated (#334). It is the field the media patch shows to a reviewer, so
+# merging keeps the information without a second model call section. It comes
+# BEFORE Fit on purpose: the model decides Fit from its own edge finding, so
+# the two fields cannot contradict each other ("no edge text" + "contain").
+_CRITICAL_EDGE_RULE = """## Critical Edge Text
+First decide this. Start with "yes" or "no".
+- "yes" only when cropping would cut information a viewer must read or identify: text, numbers, logos, UI or chart labels.
+- "no" when everything cuttable at the edge is background texture, lighting, sky, floor, or non-essential scenery.
+If yes, name the edge and what must not be cropped; if no, say briefly why."""
+
+# Fit is a single-word decision, not a description (#334). The previous
+# wording ("will this image be placed in a 9:16 vertical canvas?") asked the
+# model to predict a pipeline decision it cannot know; a real A/B on the same
+# already-cropped chart returned `cover` in base mode and `contain` once a
+# claim block was appended. This rule keys on the edge finding the model can
+# actually see, with the crop criterion restated as a fallback. Kept as a
+# shared block so the base and claim prompts cannot drift apart.
+_FIT_RULE = """## Fit
+Output exactly one word: cover or contain.
+- If Critical Edge Text starts with "no", output cover.
+- If it starts with "yes", output contain when that edge content must stay fully visible; otherwise output cover.
+- If Critical Edge Text is missing or unclear, output contain when text, numbers, logos, UI or chart labels near an edge would be cut; otherwise output cover.
+Never output both words."""
+
 SEMANTICS_PROMPT_IMAGE = """Analyze this image for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
 
 ## Description
@@ -223,33 +252,23 @@ Comma-separated key subject terms (e.g., "robot, kitchen, product").
 ## Content Kind
 One of: product_demo, talking_head, landscape, chart, text_screenshot, other
 
-## Fit
-"cover" or "contain" — will this image be placed in a 9:16 vertical canvas? Use "cover" if edge content is non-critical and can be cropped. Use "contain" if edges have text/UI that must not be cropped.
-
-## Critical Edge Text
-"yes" or "no" followed by a brief note if yes (e.g., "yes — bottom edge has product label text").
-
-## Reason
-One sentence explaining the fit decision.
+""" + _CRITICAL_EDGE_RULE + "\n\n" + _FIT_RULE + """
 
 Example:
 ## Description
-A humanoid robot demonstrating household tasks in a kitchen setting.
+A bar chart of quarterly revenue with axis labels along the left and bottom edges.
 
 ## Subjects
-robot, kitchen, product
+chart, revenue, quarter
 
 ## Content Kind
-product_demo
+chart
+
+## Critical Edge Text
+yes — left edge has the y-axis label "Revenue (¥B)", which a centered crop would cut.
 
 ## Fit
 contain
-
-## Critical Edge Text
-yes — bottom edge has product label text
-
-## Reason
-Bottom edge has product label text that would be cropped in vertical format.
 """
 
 SEMANTICS_PROMPT_VIDEO = """Analyze this video for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
@@ -273,6 +292,81 @@ robot, factory, mobility
 ## Content Kind
 talking_head
 """
+
+# Claim mode (#334): the base prompt minus the duplicated Reason section.
+# Subjects stays: asset-sourcer re-scores EVERY asset with
+# scoreCandidate(description, subjects) before assignment, and the hook gate
+# reads that score (HOOK_MIN_SCORE). Content Kind stays because it is
+# persisted in asset-analysis.json and rendered in the media-patch review.
+# Reason is folded into Critical Edge Text above; Fit stays for hook
+# assignment (images only — the base video prompt never asked for it).
+SEMANTICS_PROMPT_IMAGE_CLAIM = """Analyze this image for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
+
+## Description
+1-2 sentences describing what is happening in this image.
+
+## Subjects
+Comma-separated key subject terms (e.g., "robot, kitchen, product").
+
+## Content Kind
+One of: product_demo, talking_head, landscape, chart, text_screenshot, other
+
+""" + _CRITICAL_EDGE_RULE + "\n\n" + _FIT_RULE
+
+SEMANTICS_PROMPT_VIDEO_CLAIM = """Analyze this video for use in a 9:16 vertical video. Provide your analysis as Markdown with the following sections:
+
+## Description
+1-2 sentences describing what is happening in this video.
+
+## Subjects
+Comma-separated key subject terms (e.g., "robot, factory, mobility").
+
+## Content Kind
+One of: product_demo, talking_head, landscape, chart, text_screenshot, other
+"""
+
+# Second-pass relevance check (#294). A first-pass score in the 40-59 band is
+# not a verdict: the claim prompt asks whether the asset depicts the claim's
+# *specific* event, which no stock or official image can do for a funding
+# round, a strategy shift or a hiring plan. This prompt asks the narrower,
+# answerable question — is the visible subject the thing the scene is about? —
+# and answers with a strict enum so the caller can admit or keep it closed.
+#
+# The language rule exists because of a measured false negative (2026-09-29):
+# an official Chinese UI screenshot of the exact product the scene described
+# scored 0 with the reason "unrelated system text in a foreign language". The
+# channel's first-party material is largely Chinese UI; judging the language
+# of the labels instead of the subject systematically kills the best evidence.
+_RELEVANCE_CHECK_RULES = """## Subject Match
+Output exactly one word: match or no_match.
+- match: the visible subject is the same kind of thing the desired visual names — a robot arm for "robot arm picking up a block", a humanoid robot for "humanoid robot in a kitchen", the named company's logo or UI for a scene about that company. The action, setting, or specific instance does not need to match.
+- no_match: a different kind of thing — a logo for a robot hand, a building for a person, a landscape for a product demo.
+Judge against the desired visual. The narration is background context — an asset does not need to depict the people, companies, or events it names.
+Judge what is visible, not whether the asset depicts the abstract event in the narration (a funding round, a strategy shift, a hiring plan) — no stock or official image can show those.
+On-screen text in a different language from the narration is not negative evidence by itself: judge the subject, not the language of its labels.
+A logo, product UI, or screenshot of the named company is strong evidence: match.
+
+## Reason
+One sentence explaining the verdict.
+
+Example:
+## Subject Match
+match
+
+## Reason
+The visible subject is a Unitree humanoid robot, the company the scene names."""
+
+def _relevance_check_prompt(subject_noun):
+    """The #294 subject-check prompt for one asset kind (image / video)."""
+    return (
+        f"Decide whether this {subject_noun}'s visible subject fits the scene's desired visual. "
+        "This is a second look at a candidate that scored borderline on the stricter claim test.\n\n"
+        + _RELEVANCE_CHECK_RULES
+    )
+
+
+RELEVANCE_CHECK_PROMPT_IMAGE = _relevance_check_prompt("image")
+RELEVANCE_CHECK_PROMPT_VIDEO = _relevance_check_prompt("video")
 
 SEMANTICS_PROMPT_AUDIO = """Analyze this audio for use in a short video production pipeline. Provide your analysis as Markdown with the following sections:
 
@@ -309,6 +403,45 @@ def strip_control_tokens(text):
     return _CONTROL_TOKEN_RE.sub("", text).strip()
 
 
+def _claim_preamble(claim):
+    """The shared scene-claim preamble used by both relevance prompts (#294).
+
+    Kept in one place so the first pass and the second-pass subject check can
+    never describe the same scene differently.
+
+    The claim context is PREAMBLE, like the transcript block — never a
+    `## ` section between output sections. Two real-run failures drove
+    this: (1) a `## Scene Claim` header was filled by the model as if it
+    were an output section (a prose paragraph, or a stray "100"), and
+    (2) after it became a plain label, the model echoed the label *after*
+    `## Fit`, whose body then contained the echo and failed the
+    cover/contain enum. As preamble, any echo lands before the first
+    header and the parser ignores it; the Relevance instructions stay
+    with the output sections.
+    """
+    voiceover = str(claim.get("voiceover") or "").strip()
+    need = str(claim.get("assetNeed") or "").strip()
+    context = "Scene claim for relevance scoring:"
+    if voiceover:
+        context += f'\nScene narration: "{voiceover}"'
+    if need:
+        context += f'\nDesired visual: "{need}"'
+    return context
+
+
+def build_relevance_check_prompt(is_video=False, claim=None):
+    """Build the #294 second-pass subject-match prompt.
+
+    No transcript block: the check is about the visible subject, and ASR text
+    describes speech, not the picture. `claim=None` returns the bare prompt
+    (useful for tests), but production always passes a claim.
+    """
+    base = RELEVANCE_CHECK_PROMPT_VIDEO if is_video else RELEVANCE_CHECK_PROMPT_IMAGE
+    if not claim:
+        return base
+    return _claim_preamble(claim) + "\n\n" + base
+
+
 def build_semantics_prompt(is_video=False, claim=None, transcript=None):
     """Build the semantics prompt, optionally with a transcript / claim block.
 
@@ -321,36 +454,49 @@ def build_semantics_prompt(is_video=False, claim=None, transcript=None):
 
     claim=None → exactly the base prompt (backward compatible with all
     existing callers). When a claim ({voiceover, assetNeed}) is provided,
-    the scene's narration and desired visual are injected and the model is
-    asked for `## Relevance` (bare 0-100 integer) + `## Relevance Reason`.
+    the prompt switches to the compact claim variant — only the sections the
+    claim path consumes — and the scene's narration and desired visual are
+    injected as PREAMBLE, followed by `## Relevance` (bare 0-100 integer) +
+    `## Relevance Reason` output sections (#334).
     """
-    base = SEMANTICS_PROMPT_VIDEO if is_video else SEMANTICS_PROMPT_IMAGE
+    if claim:
+        base = SEMANTICS_PROMPT_VIDEO_CLAIM if is_video else SEMANTICS_PROMPT_IMAGE_CLAIM
+    else:
+        base = SEMANTICS_PROMPT_VIDEO if is_video else SEMANTICS_PROMPT_IMAGE
 
+    preambles = []
     if is_video and isinstance(transcript, str):
         text = transcript.strip()
         if text:
-            base = f"{TRANSCRIPT_HEAD}\n{text[:TRANSCRIPT_MAX_CHARS]}\n\n{base}"
+            preambles.append(f"{TRANSCRIPT_HEAD}\n{text[:TRANSCRIPT_MAX_CHARS]}")
+
+    if claim:
+        # The scene claim is preamble for both prompts (#294 shares the
+        # builder). See _claim_preamble for why it must not be a section.
+        preambles.append(_claim_preamble(claim))
+
+    if preambles:
+        base = "\n\n".join(preambles) + "\n\n" + base
 
     if not claim:
         return base
 
-    voiceover = str(claim.get("voiceover") or "").strip()
-    need = str(claim.get("assetNeed") or "").strip()
-
-    block = "\n\n## Scene Claim (judge relevance against this)\n"
-    if voiceover:
-        block += f'Scene narration: "{voiceover}"\n'
-    if need:
-        block += f'Desired visual: "{need}"\n'
-    block += (
-        "\n## Relevance\n"
-        "Score 0-100: how well this asset supports the scene claim above. "
-        "100 = directly supports it, 50 = loosely related, 0 = completely unrelated. "
-        "Output the bare integer only.\n\n"
+    return (
+        base
+        + "\n\n## Relevance\n"
+        "Score 0-100: how well the visible subject of this asset supports the scene claim above.\n"
+        "Judge the subject the viewer can see (the company, product, person, place, or object), "
+        "not whether the asset depicts the abstract event in the narration. No stock or official "
+        "image can show a funding round, a strategy shift, or a hiring plan; an image of the "
+        "company, product, or people involved is strong support for such a claim.\n"
+        "On-screen text in a different language from the narration is not negative evidence — "
+        "judge what the asset shows, not the language of its labels.\n"
+        "100 = the visible subject is the exact company, product, person, place, or event the "
+        "claim is about, 50 = same domain but a generic or different subject, 0 = unrelated "
+        "subject. Output the bare integer only.\n\n"
         "## Relevance Reason\n"
         "One sentence explaining the score.\n"
     )
-    return base + block
 
 
 # ─── Markdown parser ───
@@ -379,6 +525,41 @@ def _parse_relevance_value(body):
     return value if 0 <= value <= 100 else None
 
 
+def _parse_subject_match(body):
+    """Extract the #294 second-pass verdict from `## Subject Match`.
+
+    Strict by design: only an explicit match/no_match in the first line
+    counts. "matching", "partially matches", a prose paragraph or a missing
+    section all fail closed to None, and the caller must then keep the
+    candidate closed. A silent promotion here would admit images on a
+    sentence the model did not actually commit to.
+    """
+    if not body:
+        return None
+    first_line = body.strip().split("\n", 1)[0].strip().strip("*").strip().lower()
+    match = re.match(r"^(match|no[ _-]?match)(?:\b|$)", first_line)
+    if not match:
+        return None
+    return "no_match" if match.group(1).startswith("no") else "match"
+
+
+def _split_headless_verdict(text):
+    """Split a headerless single-question answer into (verdict, reason).
+
+    The #294 subject-check prompt asks one question, and a real Qwen3-VL run
+    answered it as `no_match\n\n<why>` with no `## Subject Match` header. Only
+    an unambiguous leading verdict is accepted; guessing a verdict from prose
+    would admit images the model never committed to. Returns None when the
+    text is not a verdict, so the caller keeps the historical
+    "whole text is a description" behavior.
+    """
+    verdict = _parse_subject_match(text)
+    if not verdict:
+        return None
+    remainder = text.split("\n", 1)[1].strip() if "\n" in text else ""
+    return verdict, (remainder or None)
+
+
 def parse_markdown_to_dict(raw_text):
     """Parse VLM Markdown output into a dict with 8 mandatory keys.
 
@@ -394,7 +575,8 @@ def parse_markdown_to_dict(raw_text):
 
     Returns dict with mandatory keys: description, subjects, contentKind,
     fit, criticalEdgeText, reason, relevance (int 0-100 or None),
-    relevanceReason. Missing fields = None/[].
+    relevanceReason, subjectMatch (#294: "match" | "no_match" | None).
+    Missing fields = None/[].
     """
     result = {
         "description": None,
@@ -405,6 +587,7 @@ def parse_markdown_to_dict(raw_text):
         "reason": None,
         "relevance": None,
         "relevanceReason": None,
+        "subjectMatch": None,
     }
 
     if not raw_text or not raw_text.strip():
@@ -427,6 +610,18 @@ def parse_markdown_to_dict(raw_text):
 
     # 2. Check if there are any '## ' headers
     if "## " not in text:
+        # A single-question prompt (#294 subject check) is sometimes answered
+        # without the header — see `_split_headless_verdict`.
+        headless = _split_headless_verdict(text)
+        if headless:
+            verdict, reason = headless
+            result.update(
+                description="",
+                subjects=[],
+                subjectMatch=verdict,
+                reason=reason,
+            )
+            return result
         # No headers — entire text becomes description
         result["description"] = text.strip()
         result["subjects"] = []
@@ -511,9 +706,20 @@ def parse_markdown_to_dict(raw_text):
     else:
         result["relevanceReason"] = None
 
+    # subjectMatch — #294 second-pass verdict (strict enum, fail-closed).
+    # `## Match` is accepted as a header variant (the model sometimes shortens
+    # the section name); anything that is not an explicit enum fails closed.
+    if "subject_match" in raw_sections:
+        result["subjectMatch"] = _parse_subject_match(raw_sections["subject_match"])
+    elif "match" in raw_sections:
+        result["subjectMatch"] = _parse_subject_match(raw_sections["match"])
+    else:
+        result["subjectMatch"] = None
+
     # 5. Add unknown sections as extra key-value pairs
     known_keys = {"description", "subjects", "content_kind", "fit",
-                  "critical_edge_text", "reason", "relevance", "relevance_reason"}
+                  "critical_edge_text", "reason", "relevance", "relevance_reason",
+                  "subject_match", "match"}
     for key, value in raw_sections.items():
         if key not in known_keys:
             result[key] = value
@@ -1190,6 +1396,9 @@ def merge_window_results(parsed_results, windows, plan=None):
         "reason": None,
         "relevance": None,
         "relevanceReason": None,
+        # #294: a windowed semantics pass is not a subject check; the key is
+        # present so the response shape stays uniform and fail-closed.
+        "subjectMatch": None,
     }
 
     # When a plan is given, the denominator reflects the FULL plan size and
@@ -1240,7 +1449,7 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
                              window=None, windows=None, claim=None,
                              crop_focus=None, frame_strategy=None,
                              max_frames=None, sample_fps=None,
-                             transcript=None):
+                             transcript=None, relevance_check=False):
     """Handle an analyze_semantics request.
 
     Dispatches to image or video prompt based on file extension.
@@ -1285,7 +1494,14 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
 
     ext = os.path.splitext(path)[1].lower()
     is_video = ext in (".mp4", ".mov", ".avi", ".mkv")
-    prompt_text = build_semantics_prompt(is_video, claim, transcript)
+    # #294 second pass: the subject-match prompt replaces the semantics prompt
+    # entirely. It answers one enum question, so it carries no Fit/Subjects
+    # sections — the caller only reads subjectMatch from this response.
+    prompt_text = (
+        build_relevance_check_prompt(is_video, claim)
+        if relevance_check
+        else build_semantics_prompt(is_video, claim, transcript)
+    )
     # Provenance for the artifact: the chars actually fed to the prompt
     # (capped), not the raw transcript length. Absent/ignored → not set.
     transcript_chars = len(transcript.strip()[:TRANSCRIPT_MAX_CHARS]) if (
@@ -1304,8 +1520,10 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
 
     # Multi-window segmented analysis (#360 ticket-1): one pass per window,
     # merged into a single 8-field-compatible result. Images have no time
-    # axis — a windows list is ignored there.
-    window_list = normalize_windows(windows) if is_video else None
+    # axis — a windows list is ignored there. A #294 relevance check is a
+    # whole-asset judgment (one verdict, not one per segment), so it takes
+    # the single-pass path even for videos.
+    window_list = normalize_windows(windows) if (is_video and not relevance_check) else None
     if window_list:
         parsed_results = []
         successful_windows = []
@@ -1539,6 +1757,9 @@ def main():
                 crop_focus = _parse_crop_focus(request.get("cropFocus"))
                 # A1 transcript (#542 L3) — absent = no transcript block.
                 transcript = request.get("transcript")
+                # #294 second-pass subject check — absent/false = the normal
+                # semantics prompt.
+                relevance_check = bool(request.get("relevanceCheck"))
                 # Frame-selection params (#391): request value wins over the
                 # CLI default; absent on both → current behavior (S1).
                 frame_strategy = request.get(
@@ -1555,6 +1776,7 @@ def main():
                     max_frames=max_frames,
                     sample_fps=sample_fps,
                     transcript=transcript,
+                    relevance_check=relevance_check,
                 )
                 if err:
                     response = _degraded_result(err)
@@ -1602,6 +1824,7 @@ def _degraded_result(error):
         "reason": None,
         "relevance": None,
         "relevanceReason": None,
+        "subjectMatch": None,
         "error": error,
     }
 

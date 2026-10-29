@@ -49,14 +49,20 @@
  *       Credentials live in `capabilities.articles.{requiresApiKey, apiKeyEnv}`
  *       (#67), never in this block.
  * - googleSiteFallback: Google site: search fallback config (optional)
+ * - apiSiteFallback: HTTP-native site: fallback config (optional, #358) —
+ *     {url(keyword), parser(text), timeoutMs, lifecycle?} in the apiSearch
+ *     shape. Built by makeSearxngSiteFallback(domain, {pathPattern}); the
+ *     parser filters on result.url because `site:` is dropped by some engines.
  * - mcpFallback: MCP server fallback config (optional)
  *
  * Collection layer order (in search-sources.mjs collectFromSource):
  *   1. apiSearch (if configured) — direct API call, parse JSON/XML response
  *   2. CDP (primary for most sources)
- *   3. googleSiteFallback (Google site: search, if configured)
- *   4. search pool (Brave > Tavily > Jina, #65 — generic web_search fallbacks only)
- *   5. mcpFallback (mcp-search-bridge/Grok last resort; platform MCPs go here directly)
+ *   3. apiSiteFallback (HTTP site: layer, #358 — before the CDP Google layer)
+ *   4. googleSiteFallback (Google site: search, if configured)
+ *   5. apiFallback (Bigsong direct bridge / platform MCP, if configured)
+ *   6. search pool (Serper > Brave > Tavily > Jina, #65 — pool-eligible only)
+ *   7. mcpFallback (dedicated platform MCPs: sogou_weixin/weibo_hot/bilibili)
  *
  * Used by search-sources.mjs.
  */
@@ -698,6 +704,88 @@ export const NEWS_SOURCES = [
 
 // ─── New self-media sources (TE-T2) ───
 
+// #314: douyin's search extractor and login gate are also used by the CDP
+// video-only discovery channel (CDP_VIDEO_CAPABILITIES), so they live at
+// module scope instead of inline in the source definition.
+const DOUYIN_SEARCH_SCRIPT = `
+      var results = [];
+      // 卡片类名是 CSS-module hash（search-result-card / PtY9QFFE），DOM 一改就漂，
+      // 所以只用语义锚点：视频详情链接。综合 tab 无此链接，故 url 必须带 type=video。
+      document.querySelectorAll('a[href*="/video/"]').forEach(function(a) {
+        // 锚文本是「时长 + 播放量 + 标题 + 话题 + 作者 + 日期」的拼接，直接取会得到
+        // "04:181195Meta的Muse真的…" 这种脏标题。标题是锚内**最长的单个文本块**
+        // （实测：标题 65/114/90 字符 vs 时长 5、播放量 4、作者 9）——按最长块取。
+        var best = '';
+        a.querySelectorAll('div, span, p').forEach(function(el) {
+          var own = '';
+          for (var i = 0; i < el.childNodes.length; i++) {
+            if (el.childNodes[i].nodeType === 3) own += el.childNodes[i].textContent;
+          }
+          own = own.trim();
+          if (own.length > best.length) best = own;
+        });
+        var title = best || (a.getAttribute('title') || a.textContent || '').trim();
+        if (title && title.length > 5) results.push({ title: title, url: a.href });
+      });
+      return results;
+    `;
+
+// 旧的 `[class*="login"]` + 正文含「登录」在登录态下会假阳（导航里有登录相关
+// 文案），改为「没有结果链接 **且** 页面在喊登录」才算未登录。
+// #346: return 之前缺失 → 这个门从未生效（checkLogin 的契约见文件头）。
+// #314: 结果卡是客户端水合出来的（同一类竞态见 zhihu 的 zero_results 记录）：
+// 加载完成后立刻查链接会得到 0 条。强登录墙文案（登录后查看/请先登录/扫码登录）
+// 仍立即判决；只有弱文案「登录账号」（登录态导航里也会出现）或正文尚无内容时，
+// 先等最多 3s 让结果卡出现，再决定是否判 need_login。
+const DOUYIN_LOGIN_CHECK_SCRIPT = `
+      var body = document.body ? document.body.innerText : '';
+      if (/登录后查看|请先登录|扫码登录/.test(body)) return 'need_login';
+      var videos = document.querySelectorAll('a[href*="/video/"]').length;
+      var weakLogin = /登录账号/.test(body);
+      var deadline = Date.now() + 3000;
+      while (videos === 0 && Date.now() < deadline) {
+        await new Promise(function (r) { setTimeout(r, 500); });
+        videos = document.querySelectorAll('a[href*="/video/"]').length;
+      }
+      return (videos === 0 && weakLogin) ? 'need_login' : 'ok'
+    `;
+
+// #1004: extracted from the xhs source definition so the CDP video-only
+// channel runs the exact same login gate as the article path.
+const XHS_LOGIN_CHECK_SCRIPT = `
+      // #346: 未登录时页面是「登录后查看搜索结果」面板（面板里有「获取验证码」
+      // 按钮——它的文案同时命中 anti-bot 词表的「验证码」，所以这个门必须先于
+      // runPageGates 里的反爬检查认出面板；真因是登录态过期，不是站点挑战）。
+      // return 是必需的：checkLogin 读的是这个函数的返回值（见文件头契约）。
+      var body = document.body ? document.body.innerText : '';
+      return (body.includes('请先登录') || body.includes('扫码登录') || body.includes('登录后查看')) ? 'need_login' : 'ok'
+    `;
+
+// #1004: the one xhs search URL, shared by the article source and the video
+// capability so a route change is a one-place edit.
+const XHS_SEARCH_URL = (keyword) =>
+  `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`;
+
+// #1004: 搜索结果里视频笔记带 `.play-icon`，图文笔记没有——只收视频笔记。
+// 封面锚点必须是可见的 `a[href*="/search_result/"]`：它带 xsec_token（相对
+// href，用 location.origin 绝对化）；隐藏的首个锚点是 /explore/{id} 且**没有**
+// token，打开后落 404，不能用。id 去重，避免"图文/视频"两张卡指向同一笔记。
+const XHS_VIDEO_SEARCH_SCRIPT = `
+  var out = [], seen = {};
+  document.querySelectorAll('section.note-item, .note-item').forEach(function (el) {
+    if (!el.querySelector('.play-icon')) return;
+    var a = el.querySelector('a[href*="/search_result/"]');
+    if (!a) return;
+    var href = a.getAttribute('href') || '';
+    var m = href.match(/\\/(?:search_result|explore)\\/([0-9a-f]+)/i);
+    if (!m || seen[m[1]]) return;
+    seen[m[1]] = 1;
+    var t = el.querySelector('.title, .note-title, .desc, .content');
+    out.push({ title: t ? t.textContent.trim() : '', url: new URL(href, location.origin).href });
+  });
+  return out;
+`;
+
 export const SELF_MEDIA_SOURCES = [
   {
     name: "xhs",
@@ -715,16 +803,8 @@ export const SELF_MEDIA_SOURCES = [
     },
     needsAuth: true,
     useCleanTitle: true,
-    url: (keyword) =>
-      `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&type=1`,
-    loginCheckScript: `
-      // #346: 未登录时页面是「登录后查看搜索结果」面板（面板里有「获取验证码」
-      // 按钮——它的文案同时命中 anti-bot 词表的「验证码」，所以这个门必须先于
-      // runPageGates 里的反爬检查认出面板；真因是登录态过期，不是站点挑战）。
-      // return 是必需的：checkLogin 读的是这个函数的返回值（见文件头契约）。
-      var body = document.body ? document.body.innerText : '';
-      return (body.includes('请先登录') || body.includes('扫码登录') || body.includes('登录后查看')) ? 'need_login' : 'ok'
-    `,
+    url: XHS_SEARCH_URL,
+    loginCheckScript: XHS_LOGIN_CHECK_SCRIPT,
     articleScript: `
       var items = document.querySelectorAll('section.note-item, .note-item, .search-result-item');
       var results = [];
@@ -979,7 +1059,7 @@ export const SELF_MEDIA_SOURCES = [
     accessMethod: {
       primary: "cdp",
       notes:
-        "CDP search (requires login) at /search/{kw}?type=video → iesdouyin share page (no login for download, verified 2026-09-03). needsAuth=true for search only.",
+        "CDP search (requires login) at /search/{kw}?type=video → desktop /video/{id} page's signed CDN tracks → 8s H.264 clip (#314, verified 2026-10-28; the old iesdouyin share page now 302s to an MSE player). needsAuth=true for search only.",
     },
     needsAuth: true,
     useCleanTitle: true,
@@ -992,36 +1072,8 @@ export const SELF_MEDIA_SOURCES = [
     // 才是可用路由。复测证据见 docs/selector-auto-healing.md。
     url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}?type=video`,
 
-    // 旧的 `[class*="login"]` + 正文含「登录」在登录态下会假阳（导航里有登录相关
-    // 文案），改为「没有结果链接 **且** 页面在喊登录」才算未登录。
-    // #346: return 之前缺失 → 这个门从未生效（checkLogin 的契约见文件头）。
-    loginCheckScript: `
-      var body = document.body ? document.body.innerText : '';
-      var videos = document.querySelectorAll('a[href*="/video/"]').length;
-      return (videos === 0 && /登录账号|登录后查看|请先登录/.test(body)) ? 'need_login' : 'ok'
-    `,
-    articleScript: `
-      var results = [];
-      // 卡片类名是 CSS-module hash（search-result-card / PtY9QFFE），DOM 一改就漂，
-      // 所以只用语义锚点：视频详情链接。综合 tab 无此链接，故 url 必须带 type=video。
-      document.querySelectorAll('a[href*="/video/"]').forEach(function(a) {
-        // 锚文本是「时长 + 播放量 + 标题 + 话题 + 作者 + 日期」的拼接，直接取会得到
-        // "04:181195Meta的Muse真的…" 这种脏标题。标题是锚内**最长的单个文本块**
-        // （实测：标题 65/114/90 字符 vs 时长 5、播放量 4、作者 9）——按最长块取。
-        var best = '';
-        a.querySelectorAll('div, span, p').forEach(function(el) {
-          var own = '';
-          for (var i = 0; i < el.childNodes.length; i++) {
-            if (el.childNodes[i].nodeType === 3) own += el.childNodes[i].textContent;
-          }
-          own = own.trim();
-          if (own.length > best.length) best = own;
-        });
-        var title = best || (a.getAttribute('title') || a.textContent || '').trim();
-        if (title && title.length > 5) results.push({ title: title, url: a.href });
-      });
-      return results;
-    `,
+    loginCheckScript: DOUYIN_LOGIN_CHECK_SCRIPT,
+    articleScript: DOUYIN_SEARCH_SCRIPT,
   },
   {
     name: "tiktok_creator",
@@ -1988,19 +2040,10 @@ export const GENERAL_SEARCH_SOURCES = [
       timeoutMs: 30000,
       url: (keyword) =>
         `http://localhost:8888/search?q=${encodeURIComponent(keyword + " China AI")}&format=json&categories=general&language=en`,
-      parser: (text) => {
-        const data = JSON.parse(text);
-        if (!Array.isArray(data.results)) return [];
-        return data.results
-          .filter((r) => r?.url)
-          .slice(0, 20)
-          .map((r) => ({
-            title: r.title || "",
-            url: r.url,
-            snippet: r.content ? String(r.content).substring(0, 200) : "",
-            publishedAt: r.publishedDate || "",
-          }));
-      },
+      // Shared with reddit_search's apiSiteFallback (#358) so the JSON shape
+      // has one owner; this source applies no host filter (it is the layer
+      // itself, not a site: delegation).
+      parser: (text) => parseSearxngResults(text),
       authRequired: false,
     },
     // CDP fallback: same query against the HTML results page (simple theme).
@@ -2077,7 +2120,7 @@ export const LAST30DAYS_SOURCES = [
     accessMethod: {
       primary: "api",
       notes:
-        "API (reddit.com/search.json, free, no auth) → CDP fallback. Reddit returns JSON directly.",
+        "API (reddit.com/search.json, free, no auth) → apiSiteFallback (SearXNG site:reddit.com) → CDP fallback (same URL as the API, so it is skipped as redundant). #358 (2026-10-26): Reddit answers search.json with 403 + a block page to every non-browser client, so the API layer is effectively closed to us; the SearXNG layer is the only path that still yields post URLs, and its host filter is what keeps non-reddit rows out (site: is dropped by several engines).",
     },
     useCleanTitle: false,
     // Reddit JSON API: direct fetch returns JSON, no CDP needed
@@ -2100,6 +2143,12 @@ export const LAST30DAYS_SOURCES = [
       authRequired: false,
       headers: { "User-Agent": "ChinaAINews/1.0" },
     },
+    // #358: HTTP-native site: layer. `pathPattern` keeps the source's post
+    // contract — SearXNG happily returns subreddit listings and user pages,
+    // which are reddit.com but not posts.
+    apiSiteFallback: makeSearxngSiteFallback("reddit.com", {
+      pathPattern: /\/r\/[^/]+\/comments\//,
+    }),
     // CDP fallback: same URL, but parsed via DOM (articleScript)
     url: (keyword) =>
       `https://www.reddit.com/search.json?q=${encodeURIComponent(keyword)}&sort=new&limit=10`,
@@ -2938,6 +2987,14 @@ export const STOCK_MEDIA_SOURCES = [
 // self-hosted <video> sources + B站/YouTube iframe embeds. Player iframes are
 // converted to watch URLs here too (defense-in-depth) — normalizeCdpVideoCandidates
 // on the Node side handles any embed forms this script misses.
+//
+// #314 (2026-10-28): the 8 news sources that used to declare this script were
+// removed — a live per-site check (keyword 人工智能; 26 article pages across the
+// 6 sites that returned search results) found 0 <video>/iframe players, and a
+// broader probe of 12 of those pages found 0 players among all iframes too.
+// jiqizhixin/zhidx returned 0 search results, so their declarations are removed
+// as unverified rather than proven empty. The script still backs baidu_search's
+// verified vsearch vertical.
 const CDP_VIDEO_SCRIPT = `
   var results = [];
   document.querySelectorAll('video').forEach(function(v) {
@@ -2958,6 +3015,39 @@ const CDP_VIDEO_SCRIPT = `
   });
   return results;
 `;
+
+// ─── CDP video-only discovery (no image channel) ───
+//
+// #314: a separate channel from CDP_MEDIA_CAPABILITIES, because any entry in
+// that map also declares `capabilities.images` unconditionally. Douyin has a
+// verified video search page but no verified image discovery, so declaring it
+// there would over-claim images. Declaration rule (ticket #314, user decision
+// 2026-09-19): a source appears here only after an end-to-end live check —
+// search yields real post links AND the download path produces a playable file.
+const CDP_VIDEO_CAPABILITIES = {
+  douyin: {
+    method: "cdp",
+    url: (keyword) => `https://www.douyin.com/search/${encodeURIComponent(keyword)}?type=video`,
+    videoScript: DOUYIN_SEARCH_SCRIPT,
+    needsAuth: true,
+    loginCheckScript: DOUYIN_LOGIN_CHECK_SCRIPT,
+    // Verified 2026-10-28: 20 real /video/ results for 人工智能 in the automation
+    // profile; desktop page tracks + ffmpeg mux produce a playable mp4.
+  },
+  xhs: {
+    method: "cdp",
+    url: XHS_SEARCH_URL,
+    videoScript: XHS_VIDEO_SEARCH_SCRIPT,
+    needsAuth: true,
+    loginCheckScript: XHS_LOGIN_CHECK_SCRIPT,
+    // Candidate URLs carry short-lived xsec_token values; a cached search
+    // result replayed hours later is a dead link for every note.
+    cacheable: false,
+    // Verified 2026-10-28: 13-14 video notes of 27 cards for 人工智能 across
+    // runs (14/27 on the first), token-bearing cover links, signed mp4 via
+    // resource timing, 8s H.264 clip downloaded.
+  },
+};
 
 const CDP_MEDIA_CAPABILITIES = {
   // baidu_news CDP media capability removed with the source (2026-09-07,
@@ -3009,7 +3099,6 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   qbitai: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: () => "https://www.qbitai.com/",
     imageScript: `
       var results = [];
@@ -3037,7 +3126,6 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   ithome: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.ithome.com/search?word=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.list .item, .news-list .item, article, .search-result .item');
@@ -3069,7 +3157,6 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   jiqizhixin: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.jiqizhixin.com/search?keywords=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.article-list__item, .post-item, article, .list-item');
@@ -3103,7 +3190,6 @@ const CDP_MEDIA_CAPABILITIES = {
   // former google_news image capability moved here (same news-vertical DOM).
   google_search: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) =>
       `https://www.google.com/search?q=${encodeURIComponent(keyword)}&tbm=nws&tbs=qdr:w`,
     imageScript: `
@@ -3147,7 +3233,6 @@ const CDP_MEDIA_CAPABILITIES = {
   // comment; re-adding an entry requires a real original-image path.
   xinhua: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.news.cn/search/news.htm?keyword=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
@@ -3179,7 +3264,6 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   thepaper: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.thepaper.cn/searchResult?keyword=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.search-result .item, .news-list .item, article');
@@ -3211,7 +3295,6 @@ const CDP_MEDIA_CAPABILITIES = {
   },
   leiphone: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://www.leiphone.com/search?s=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.article-list .item, .post-item, article, .search-result .item');
@@ -3245,7 +3328,6 @@ const CDP_MEDIA_CAPABILITIES = {
   // #140 P5 — docs/research/zh-source-recovery-research-2026-09.md).
   zhidx: {
     method: "cdp",
-    videoScript: CDP_VIDEO_SCRIPT,
     url: (keyword) => `https://zhidx.com/?s=${encodeURIComponent(keyword)}`,
     imageScript: `
       var items = document.querySelectorAll('.post-item, article, .list-item, .search-result .item');
@@ -3740,6 +3822,83 @@ export function autoGenerateGoogleSiteFallback(source) {
   };
 }
 
+/**
+ * #358: shared SearXNG JSON → article mapping.
+ *
+ * `hostFilter` exists because `site:` is advisory, not a contract: the instance
+ * aggregates many engines and several drop the operator outright. Measured
+ * 2026-10-26 for `site:reddit.com`: 136 rows, only 37 on reddit.com — google and
+ * brave were refusing the instance at the same time. A fallback that trusted
+ * the query text would have handed back futurism.com / github.com as "Reddit".
+ *
+ * `pathPattern` narrows to the object shape the source's contract promises
+ * (reddit_search returns posts, not subreddit listings or user pages).
+ *
+ * @param {string} text - SearXNG JSON body
+ * @param {{hostFilter?: string|null, pathPattern?: RegExp|null, limit?: number}} [opts]
+ * @returns {Array<{title: string, url: string, snippet: string, publishedAt: string}>}
+ */
+function parseSearxngResults(text, { hostFilter = null, pathPattern = null, limit = 20 } = {}) {
+  const data = JSON.parse(text);
+  if (!Array.isArray(data.results)) return [];
+  return data.results
+    .filter((r) => r?.url && matchesSearxngSite(r.url, { hostFilter, pathPattern }))
+    .slice(0, limit)
+    .map((r) => ({
+      title: r.title || "",
+      url: r.url,
+      snippet: r.content ? String(r.content).substring(0, 200) : "",
+      publishedAt: r.publishedDate || "",
+    }));
+}
+
+function matchesSearxngSite(rawUrl, { hostFilter, pathPattern }) {
+  // Unfiltered parser (searxng_search itself): keep the pre-#358 behavior,
+  // which accepted any non-empty url string. Only a delegating layer parses.
+  if (!hostFilter && !pathPattern) return true;
+  let u;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (hostFilter) {
+    const host = u.hostname.toLowerCase();
+    const site = hostFilter.toLowerCase();
+    if (host !== site && !host.endsWith(`.${site}`)) return false;
+  }
+  if (pathPattern && !pathPattern.test(u.pathname)) return false;
+  return true;
+}
+
+/**
+ * #358: a `site:` fallback layer that speaks HTTP instead of driving a browser.
+ *
+ * `googleSiteFallback` is CDP-only (it navigates Google and runs an
+ * articleScript), so a source with no articleScript — or one whose only dead
+ * layer is HTTP — had no site: fallback at all. This is the api-shaped sibling:
+ * the SearXNG JSON API with the same `{url, parser}` contract as `apiSearch`,
+ * a host filter applied to `result.url`, and `lifecycle: "searxng"` so
+ * consumers can start the parked container before measuring (#891).
+ *
+ * @param {string} site - domain the results must belong to (e.g. "reddit.com")
+ * @param {{pathPattern?: RegExp|null, limit?: number}} [opts]
+ * @returns {{site: string, lifecycle: string, timeoutMs: number, authRequired: boolean,
+ *            url: Function, parser: Function}}
+ */
+function makeSearxngSiteFallback(site, { pathPattern = null, limit = 20 } = {}) {
+  return {
+    site,
+    lifecycle: "searxng",
+    // Same budget as searxng_search: 200+ engines aggregate to 10-20s.
+    timeoutMs: 30000,
+    authRequired: false,
+    url: (keyword) =>
+      `http://localhost:8888/search?q=${encodeURIComponent(`site:${site} ${keyword}`)}&format=json&categories=general&language=en`,
+    parser: (text) => parseSearxngResults(text, { hostFilter: site, pathPattern, limit }),
+  };
+}
+
 function enrichWithCapabilities(sources) {
   return sources.map((source) => {
     // Skip sources that already have capabilities (stock API sources)
@@ -3773,6 +3932,9 @@ function enrichWithCapabilities(sources) {
         paidApi: !!api?.paidApi,
         // Fallback chain: explicit config takes priority, then auto-generated
         googleSiteFallback: source.googleSiteFallback || autoFallback,
+        // #358: HTTP-native site: layer (SearXNG `site:<domain>`), consumed by
+        // search-sources and selector-health before the CDP fallbacks.
+        apiSiteFallback: source.apiSiteFallback,
         mcpFallback: source.mcpFallback,
         apiFallback: source.apiFallback,
       };
@@ -3783,15 +3945,24 @@ function enrichWithCapabilities(sources) {
       capabilities.images = CDP_MEDIA_CAPABILITIES[source.name];
     }
 
-    // Videos: CDP sources declaring a videoScript (#183). videoUrl overrides
-    // the shared media URL when the video vertical lives on a different path
-    // (baidu_search, #249).
-    if (CDP_MEDIA_CAPABILITIES[source.name]?.videoScript) {
+    // Videos: CDP media entries with a videoScript (#183/#249) plus the
+    // video-only discovery channel (#314). One block, so the capability shape
+    // and its auth metadata cannot drift between the two channels. videoUrl
+    // overrides the media URL for a separate video vertical (baidu_search).
+    // The login gate resolver keeps the #199 precedence: capabilities.articles
+    // wins over the top-level source fields.
+    const mediaCap = CDP_MEDIA_CAPABILITIES[source.name];
+    const videoOnlyCap = CDP_VIDEO_CAPABILITIES[source.name];
+    const cdpVideoCap = videoOnlyCap ?? (mediaCap?.videoScript ? mediaCap : null);
+    if (cdpVideoCap) {
       capabilities.videos = {
         method: "cdp",
-        url:
-          CDP_MEDIA_CAPABILITIES[source.name].videoUrl || CDP_MEDIA_CAPABILITIES[source.name].url,
-        videoScript: CDP_MEDIA_CAPABILITIES[source.name].videoScript,
+        url: cdpVideoCap.videoUrl || cdpVideoCap.url,
+        videoScript: cdpVideoCap.videoScript,
+        // #1004: false when candidate URLs carry short-lived credentials
+        // (xhs xsec_token); the asset-sourcer then bypasses the result cache.
+        cacheable: cdpVideoCap.cacheable !== false,
+        ...resolveLoginGate({ ...source, capabilities }),
       };
     }
 

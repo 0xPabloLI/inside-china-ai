@@ -18,7 +18,7 @@
  * @module apply-media-patch
  */
 
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { existsSync, readFileSync, realpathSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import {
@@ -143,7 +143,8 @@ export function applyAssignedMedia(scenes, assignedEntries, contentDirAbs) {
 }
 
 // Auto-run if called directly
-const isMainModule = process.argv[1] && process.argv[1].endsWith("apply-media-patch.mjs");
+const isMainModule =
+  Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMainModule) {
   main();
 }

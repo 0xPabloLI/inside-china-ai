@@ -165,6 +165,8 @@ node scripts/short-video/main.mjs --content series/pt4 &
 | 15  | Agent 嫌 f5-mlx 慢自行降级 edge-tts（声音机械）             | `lib/tts/registry.mjs` PRIORITY 截断至 f5-mlx + 注释：自动 fallback 到 f5 为止，qwen/edge/say 仅 TTS_ENGINE 人工指定（2a36a48）                                 |
 | 16  | yt-dlp 读 YouTube cookie 触发 Keychain 弹窗，无人值守时挂到 120s timeout | 全部调用点走 `lib/ytdlp-guard.mjs` 的 `ytdlpCookieSource()`：**firefox 明文 cookie 库，不经过 Keychain，无弹窗**。逃生舱 `YTDLP_FIREFOX_PROFILE`（#328）          |
 | 17  | yt-dlp 自选 firefox profile 选到空库 → search 静默 0 结果   | 同一 resolver **固定 profile 绝对路径**，按「Install 级 Default → Profile 级 Default → 其余」排序候选并跳过空 `cookies.sqlite`（#328）                          |
+| 18  | 小写 `http_proxy` 没进 ffmpeg 子进程 → `--download-sections` 段直连、CDN 超时（`ffmpeg exited with code 196`） | `lib/ytdlp-guard.mjs#ytdlpProxyEnv()` 展开进两处 ffmpeg 委派 spawn 的子进程 env（`asset-sourcer.downloadYtdlp` / `video-downloaders.downloadYtdlpAdapter`），不再依赖上游 FFmpegFD 的 `--proxy` 注入；真实 yt-dlp → stub ffmpeg 探针守最后一跳（#329，需本机有 yt-dlp；无该二进制时 skip） |
+| 18b | 系统代理只有 SOCKS → ffmpeg 段仍走直连                     | 上游硬限（2026-09-25 裁决，不造 SOCKS→HTTP 桥）：`resolveYtdlpProxy` 每进程一次性 warn，点名 SOCKS 端点并提示改用 `http_proxy` 的 HTTP 出口；`parseMacSystemProxy` 为该判决暴露 `socksProxy`（#329） |
 
 ## Content Standards
 
@@ -632,6 +634,20 @@ Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
 `sourceMode` 记录模型实际看到了什么：`native`（视频文件直进）/ `frames`（ffmpeg 抽帧，
 窗口请求或 `frames` 引擎）/ `degraded`（分析失败）。
 
+### 语义 Prompt 契约（#334，2026-10-27）
+
+- **`## Fit` 是单词判定**（`cover` / `contain`），不再让模型预测「会不会被放进 9:16 画布」。
+  先输出 `## Critical Edge Text`，Fit 由它推导；单独的 `## Reason` 已移除，解释合并进
+  Critical Edge Text——media patch 展示的正是这个字段。
+- **claim 模式只去掉重复的 Reason**，保留 `Description` / `Subjects` / `Content Kind`：
+  `Subjects` 进 `scoreCandidate` 的分数（hook gate 读这个分数），`Content Kind` 进
+  `asset-analysis.json` 与 media-patch 评审。图像另有 Critical Edge Text / Fit；视频没有 Fit。
+- **claim 上下文是任务前的 preamble**（scene narration + desired visual），不是 `##`
+  section：放成 section 会被模型当输出填成散文/游离分数，或把标签回声进 `## Fit` 导致
+  枚举解析失败。
+- **改 prompt 必须同步 bump `VLM_CACHE_PROMPT_VERSION`**（`lib/vlm-cache.mjs`），否则旧
+  缓存继续服务旧答案形状。当前 `v3-2026-10-27`。
+
 ### A1 转写接线（#542 L3，2026-10-10）
 
 **视频资产的 ASR 转写随 prompt 一起进语义分析**——这是 Q&A bench 里唯一活下来的
@@ -787,7 +803,7 @@ Text belongs to the caption layer: `scene.texts` carries numbers and names, and 
 - **NEGATIVE** — always injected. Semantic groups missing from the declared prompt are appended (`no text` / `no hands` / `no watermark`), so agents stop hand-writing them. Existing clauses are never duplicated.
 - **BRAND** — the `#0a0a14` dark base and blue-cyan tech palette, plus the subject entity's accent color (DeepSeek blue, Huawei red, Alibaba/Qwen amber, Tencent green — `docs/brand-system.md` → Entity Color Mapping), appended only when the declared prompt does not already art-direct the scene (its own background/palette/color words win).
 - **CAMERA / MOTION / LIGHTING** — advisory defaults per `visualType` are exported (`dimensionDefaultsFor`); copy them into the prompt, override freely — never force-injected.
-- **Budget** — the composed prompt must stay under a 480-token estimate (encoder truncates at 512, silently, tail-first). Over-budget scenes are refused before any GPU time with a `token-budget` reason in the report.
+- **Budget** — the composed prompt must stay under a 480-token estimate (encoder truncates at 512, silently, tail-first). Over-budget scenes are refused before any GPU time with a `token-budget` reason in the report. On the video path the limit comes from the family template (`getPromptTemplate(familyId).maxPromptTokens`), and the refusal reason names the family and the overshoot.
 
 The report entry records both surfaces: `prompt` (declared) and `generationPrompt` (composed). `verify-video.mjs --pre` still sweeps the declared prompt for Arabic numerals and warns without blocking (check `B-roll prompt dimensions`) — a data value belongs in `texts`, though an element count (`3 layers`) is a legitimate thing to write. SUBJECT / VISUAL METAPHOR / REFERENCE stay 100% on the agent — they are the ones a template cannot write for you.
 

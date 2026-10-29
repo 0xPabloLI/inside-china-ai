@@ -9,14 +9,20 @@
  *
  * Sync (no network):
  * - Normalize http:// → https://
- * - Strip query string and fragment
+ * - Strip query string and fragment (fragment always; query unless keepQuery)
  * - Normalize trailing slash (except root path)
  * - Lowercase hostname
  *
+ * `keepQuery` exists for URLs whose query is part of the address, not
+ * tracking: xhs note links carry `xsec_token` and the downloader needs it
+ * (#314). Everything else about the canonical form still applies.
+ *
  * @param {string|null|undefined} url
+ * @param {{ keepQuery?: boolean }} [options]
  * @returns {string} Canonical URL, or "" for null/undefined/empty input
  */
-export function canonicalizeUrl(url) {
+export function canonicalizeUrl(url, options = {}) {
+  const keepQuery = options.keepQuery === true;
   if (!url || typeof url !== "string" || url.trim() === "") {
     return "";
   }
@@ -51,11 +57,16 @@ export function canonicalizeUrl(url) {
   // Lowercase hostname (keep port case as-is — but port is numeric anyway)
   host = host.toLowerCase();
 
-  // Strip query string and fragment from path
-  const queryIdx = path.indexOf("?");
-  if (queryIdx !== -1) path = path.slice(0, queryIdx);
+  // Strip the fragment always; keep the query only when asked. Fragment first:
+  // a `#` there ends the address, so a `?` after it is not a query.
   const fragIdx = path.indexOf("#");
   if (fragIdx !== -1) path = path.slice(0, fragIdx);
+  let query = "";
+  const queryIdx = path.indexOf("?");
+  if (queryIdx !== -1) {
+    if (keepQuery) query = path.slice(queryIdx);
+    path = path.slice(0, queryIdx);
+  }
 
   // Normalize trailing slash (except root path "/")
   if (path.length > 1 && path.endsWith("/")) {
@@ -64,7 +75,7 @@ export function canonicalizeUrl(url) {
 
   // Reconstruct
   if (path === "") {
-    return `${protocol}://${host}/`;
+    return `${protocol}://${host}/${query}`;
   }
-  return `${protocol}://${host}${path}`;
+  return `${protocol}://${host}${path}${query}`;
 }
