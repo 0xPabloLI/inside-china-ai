@@ -71,7 +71,7 @@ function supportsNegativePrompt(backend) {
  * the model that ran.
  */
 const IMAGE_MODEL_SOURCE_LABELS = {
-  "Boogu/Boogu-Image-0.1-Turbo": "AI-generated (mflux Boogu Turbo)",
+  [DEFAULT_IMAGE_MODEL]: "AI-generated (mflux Boogu Turbo)",
 };
 
 export function resolveImageBackend(env = process.env) {
@@ -214,7 +214,9 @@ export function runImageGeneration(opts) {
     width = envInt(opts.env, "AI_IMAGE_WIDTH", DEFAULT_IMAGE_WIDTH),
     height = envInt(opts.env, "AI_IMAGE_HEIGHT", DEFAULT_IMAGE_HEIGHT),
     steps = envInt(opts.env, "AI_IMAGE_STEPS", DEFAULT_IMAGE_STEPS),
-    model = opts.env?.AI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
+    // One derivation for the checkpoint (#985) — the provenance label reads
+    // the same resolver, so the label can never disagree with what is passed.
+    model = resolveImageModel(opts.env ?? {}),
     quantize = envInt(opts.env, "AI_IMAGE_QUANTIZE", DEFAULT_IMAGE_QUANTIZE),
     negativePrompt = "",
     timeoutMs = DEFAULT_TIMEOUT_MS,

@@ -374,6 +374,42 @@ describe("runBrollStage image strategy (#155)", () => {
     );
   });
 
+  test("#985 a cached repair is persisted even when pending generation cannot run", async () => {
+    const dirs = stageDirs();
+    writeReport(
+      reportPath(dirs.outputDir),
+      cachedImageReport("scene-11-seed9999.png", "AI-generated (FastVideo FastMetal-5B-QAD)"),
+    );
+    const scenes = [
+      imageScene(),
+      {
+        id: 12,
+        voiceover: "A clip that still needs generation.",
+        mediaStrategy: "b-roll",
+        aiVideo: { prompt: "abstract network traffic, slow push-in" },
+      },
+    ];
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        generate: async () => {
+          throw new Error("deps are missing — generation must not run");
+        },
+        resolveDeps: () => ({
+          ok: false,
+          missing: ["repo"],
+          message: "FastVideo missing",
+        }),
+      }),
+    );
+    expect(result.depsError).toBe("FastVideo missing");
+    expect(result.counts.cached).toBe(1);
+    // The repair is a file write, so the deps-missing early return keeps it.
+    expect(readReport(reportPath(dirs.outputDir)).scenes["11"].winner.source).toBe(
+      "AI-generated (mflux Boogu Turbo)",
+    );
+  });
+
   test("#985 an unmapped model's label survives cache reuse instead of re-labelling", async () => {
     const dirs = stageDirs();
     const file = "scene-11-seed9999.png";

@@ -436,8 +436,10 @@ export async function runBrollStage(opts) {
 
   // No kind can run: pure depsError path — nothing generated, nothing written
   // (same behavior the stage had when the single backend was unavailable).
+  // #985: a cached-entry provenance repair is still a write worth keeping.
   if (groups.length === 0 && depsError) {
-    return { counts, depsError, reportFile: null };
+    if (reportDirty) writeReport(reportFile, report);
+    return { counts, depsError, reportFile: reportDirty ? reportFile : null };
   }
 
   // Assemble one batch per kind (each backend loads its model once).
