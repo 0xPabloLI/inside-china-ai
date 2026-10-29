@@ -379,6 +379,29 @@ describe("media-track", () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining("--approve-auto"));
   });
 
+  it("#355 an all-budget-skipped plan still reaches the stage (plan written, no silent skip)", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const scenes = [{ id: 1, voiceover: "v" }];
+    let stageCalls = 0;
+    const { ctx } = makeCtx({
+      scenes,
+      broll: brollStub({
+        buildGenerationPlan: () => ({
+          entries: [{ scene: scenes[0], action: "budget-skipped", auto: true }],
+          summary: { approvalRequired: 0, budgetSkipped: 1, generate: 0 },
+        }),
+        runBrollStage: async () => {
+          stageCalls += 1;
+          return { counts: { budgetSkipped: 1 }, planFile: "/tmp/plan.json" };
+        },
+      }),
+      deps: baseDeps(),
+    });
+    await runMediaTrack(ctx);
+    expect(stageCalls).toBe(1);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("over auto budget"));
+  });
+
   it("skips sourcing when no scene needs media", async () => {
     const calls = { sourcer: 0 };
     // Explicit media:null → skipsMediaSourcing() → not in scenesNeedingMedia.

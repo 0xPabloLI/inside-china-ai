@@ -204,15 +204,16 @@ export async function runMediaTrack({
         };
     const pending = chainPlan.entries.filter((entry) => entry.action === "generate");
     const awaitingApproval = chainPlan.summary.approvalRequired ?? 0;
-    if (pending.length > 0 || awaitingApproval > 0) {
-      console.log(
-        pending.length > 0
-          ? `🎬 Step 1.5d: Generating B-roll for ${pending.length} scene(s)` +
-              (awaitingApproval > 0
-                ? ` (${awaitingApproval} chain scene(s) await approval)…\n`
-                : "...\n")
-          : `⏸  Step 1.5d: ${awaitingApproval} chain scene(s) await approval — no GPU spent yet.\n`,
-      );
+    const overBudget = chainPlan.summary.budgetSkipped ?? 0;
+    if (pending.length > 0 || awaitingApproval > 0 || overBudget > 0) {
+      const detail = [
+        pending.length > 0 ? `${pending.length} runnable` : null,
+        awaitingApproval > 0 ? `${awaitingApproval} chain scene(s) await approval` : null,
+        overBudget > 0 ? `${overBudget} over auto budget` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      console.log(`🎬 Step 1.5d: B-roll plan — ${detail}…\n`);
       prof.mark?.("step-1.5d-broll", { track: "media" });
       try {
         const runBrollStage = deps.runBrollStage ?? broll.runBrollStage;

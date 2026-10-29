@@ -60,11 +60,16 @@ function getArg(name) {
   return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
 }
 
-function getNumberArg(name, fallback) {
-  const raw = getArg(name);
-  if (raw === null) return fallback;
-  const value = Number(raw);
-  return Number.isFinite(value) ? value : fallback;
+function getBudgetArg(name, fallback) {
+  const flag = `--${name}`;
+  const i = args.indexOf(flag);
+  if (i === -1) return fallback;
+  const raw = args[i + 1];
+  if (raw === undefined || !/^\d+$/.test(raw)) {
+    console.error(`❌ --${name} must be a non-negative integer, got "${raw ?? ""}"`);
+    process.exit(1);
+  }
+  return Number(raw);
 }
 
 function checkCommand(cmd) {
@@ -327,8 +332,8 @@ async function main() {
           // the default chain wait for --approve-auto.
           mediaChain: {
             approveAuto: args.includes("--approve-auto"),
-            autoBudget: getNumberArg("auto-budget", DEFAULT_AUTO_SCENE_BUDGET),
-            videoBudget: getNumberArg("video-budget", DEFAULT_AUTO_VIDEO_BUDGET),
+            autoBudget: getBudgetArg("auto-budget", DEFAULT_AUTO_SCENE_BUDGET),
+            videoBudget: getBudgetArg("video-budget", DEFAULT_AUTO_VIDEO_BUDGET),
           },
         }),
       meta: { track: "media" },

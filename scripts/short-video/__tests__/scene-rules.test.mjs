@@ -1992,9 +1992,22 @@ describe("checkBrollPromptDimensions", () => {
     expect(checkBrollPromptDimensions(validScenes)).toEqual([]);
   });
 
-  it("S8: stays silent when the strategy is asset even if a prompt is present", () => {
-    const result = checkBrollPromptDimensions([broll("A glowing bar", { mediaStrategy: "asset" })]);
+  it("S8: stays silent when the strategy is source-only even if a prompt is present", () => {
+    const result = checkBrollPromptDimensions([
+      broll("A glowing bar", { mediaStrategy: "source-only" }),
+    ]);
     expect(result).toEqual([]);
+  });
+
+  it("#355: a chain scene's DECLARED prompt stays in the dimension sweep", () => {
+    // No strategy + a declared aiVideo prompt is still a real T2V input; only
+    // claim-derived text is exempt from the thin-write sweep.
+    const result = checkBrollPromptDimensions([
+      broll("A glowing bar", { mediaStrategy: undefined }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].detail).toContain("subject-only thin write");
   });
 
   it("S9/S10: skips empty and whitespace prompts — the contract check already fails those", () => {

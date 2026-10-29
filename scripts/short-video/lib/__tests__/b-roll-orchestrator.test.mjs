@@ -16,6 +16,7 @@ import {
   BRAND_BASE_PROMPT,
   PROMPT_INJECTION_VERSION,
   composeGenerationPrompt,
+  composeImagePrompt,
 } from "../b-roll/prompt-injection.mjs";
 
 // ─── fixtures ───
@@ -162,6 +163,17 @@ describe("#355 chain budget, form selection and approval", () => {
     expect(plan.entries[0].action).toBe("approval-required");
     expect(plan.summary.approvalRequired).toBe(1);
     expect(plan.summary.generate).toBe(0);
+  });
+
+  test("approval preview honors the video budget instead of promising every scene T2V", () => {
+    const scenes = [
+      scene({ id: "1", aiVideo: { prompt: "a slow dolly shot" }, voiceover: "v" }),
+      scene({ id: "2", aiVideo: { prompt: "another dolly shot" }, voiceover: "v" }),
+    ];
+    const plan = buildGenerationPlan(scenes, { videoBudget: 1 });
+    const forms = Object.fromEntries(plan.entries.map((e) => [e.scene.id, e.form]));
+    expect(forms).toEqual({ 1: "video", 2: "image" });
+    expect(plan.entries.every((e) => e.action === "approval-required")).toBe(true);
   });
 
   test("auto scene budget caps the implicit rung; explicit overrides are not capped", () => {
@@ -807,6 +819,85 @@ describe("runBrollStage #355 default chain", () => {
       auto: true,
     });
     expect(existsSync(reportPath(dirs.outputDir))).toBe(false);
+  });
+
+  function cachedChainReport(scene, file = "scene-1-seed1024.png") {
+    const raw = scene.voiceover;
+    const generationPrompt = composeImagePrompt(scene, { declaredPrompt: raw });
+    return {
+      content: "demo",
+      threshold: 60,
+      updatedAt: null,
+      scenes: {
+        [String(scene.id)]: {
+          strategy: "auto",
+          form: "image",
+          auto: true,
+          promptSource: "voiceover",
+          prompt: raw,
+          promptHash: promptHash(generationPrompt),
+          injectionVersion: PROMPT_INJECTION_VERSION,
+          round: 1,
+          status: "won",
+          voiceover: raw,
+          candidates: [{ seed: 1024, file, relevance: 90, reason: "ok" }],
+          winner: { seed: 1024, file, source: "AI-generated (mflux Boogu Turbo)" },
+        },
+      },
+    };
+  }
+
+  test("an unapproved rerun reuses a cached chain winner instead of dropping it", async () => {
+    const dirs = stageDirs();
+    const scene = { id: 1, voiceover: "a robot arm assembles a phone" };
+    writeReport(reportPath(dirs.outputDir), cachedChainReport(scene));
+    let generateCalled = 0;
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [scene],
+        generate: async () => {
+          generateCalled += 1;
+          return { ok: true, fatal: null, results: [] };
+        },
+      }),
+    );
+    expect(generateCalled).toBe(0);
+    expect(result.counts.cached).toBe(1);
+    expect(result.counts.approvalRequired).toBe(0);
+    expect(scene.media).toMatchObject({ type: "image", animation: "ken-burns" });
+    const plan = JSON.parse(readFileSync(result.planFile, "utf8"));
+    expect(plan.entries[0].action).toBe("cached");
+  });
+
+  test("a cached chain winner frees its budget for a budget-skipped scene", async () => {
+    const dirs = stageDirs();
+    const cached = { id: 1, voiceover: "a robot arm assembles a phone" };
+    const fresh = { id: 2, voiceover: "a warehouse conveyor moves boxes" };
+    writeReport(reportPath(dirs.outputDir), cachedChainReport(cached));
+    const { generate, calls } = okGenerateMock();
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [cached, fresh],
+        approveAuto: true,
+        autoBudget: 1,
+        generate,
+      }),
+    );
+    expect(result.counts.cached).toBe(1);
+    expect(result.counts.generated).toBe(1);
+    expect(result.counts.budgetSkipped).toBe(0);
+    expect(fresh.media?.path).toMatch(/^assets\/b-roll\//);
+    expect(calls.flat()).toHaveLength(2);
+    const plan = JSON.parse(readFileSync(result.planFile, "utf8"));
+    expect(plan.entries.find((e) => e.sceneId === 1).action).toBe("cached");
+    expect(plan.entries.find((e) => e.sceneId === 2).action).toBe("generate");
+  });
+
+  test("legacy explicit asset chain entries are labelled auto in the report", async () => {
+    const dirs = stageDirs();
+    const scene = { id: 9, voiceover: "v", mediaStrategy: "asset" };
+    await runBrollStage(baseOpts(dirs, { scenes: [scene], approveAuto: true }));
+    expect(readReport(reportPath(dirs.outputDir)).scenes["9"].strategy).toBe("auto");
   });
 
   test("approved chain scene generates a T2I fast-path image from the derived claim", async () => {

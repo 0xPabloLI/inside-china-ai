@@ -246,6 +246,22 @@ describe("runBrollCli", () => {
     }
   });
 
+  test("#355 invalid budget values fail closed instead of disabling the cap", async () => {
+    for (const extra of [["--auto-budget", "abc"], ["--video-budget", "-1"], ["--auto-budget"]]) {
+      const c = collector();
+      const { exitCode } = await runBrollCli({
+        argv: ["--content", "demo", ...extra],
+        loadScenes: async () => fakeContent(),
+        runStage: async () => {
+          throw new Error("stage must not run with an invalid budget");
+        },
+        log: c.log,
+      });
+      expect(exitCode).toBe(1);
+      expect(c.lines.join("\n")).toMatch(/non-negative integer/);
+    }
+  });
+
   test("depsError -> exit 0 with warning (never blocks)", async () => {
     const dirs = fakeContent();
     const c = collector();

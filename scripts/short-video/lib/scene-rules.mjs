@@ -56,6 +56,7 @@ import {
   MEDIA_STRATEGIES,
   IMAGE_GENERATING_STRATEGIES,
   GENERATING_STRATEGIES,
+  resolveMediaPlan,
 } from "./media-strategies.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
 // SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
@@ -2120,14 +2121,26 @@ export function coversNegativeGroup(prompt, phrases) {
 }
 
 // The DECLARED prompt that will reach the generator, or null when the scene
-// has no explicit generating strategy / no prompt. Shared with the
+// has no generating strategy / no declared prompt. Shared with the
 // strategy-contract and prompt-dimension checks so both agree on which scenes
-// they are judging. #355: the default chain derives its prompt from
-// assetNeed / voiceover instead of requiring a declaration, so it is
-// deliberately absent here — those derived prompts are fallback text, not
-// authored 6/8-dimension writes, and must not be warned on for being "thin".
+// they are judging. #355: a chain scene's derived prompt (assetNeed /
+// voiceover) is deliberately absent — it is fallback text, not an authored
+// 6/8-dimension write, and must not be warned on for being "thin". A chain
+// scene's own DECLARED aiVideo/aiImage prompt is still a real generation input
+// and stays in the sweep.
 function generatingPrompt(scene) {
-  if (!GENERATING_STRATEGIES.has(scene.mediaStrategy)) return null;
+  if (!GENERATING_STRATEGIES.has(scene.mediaStrategy)) {
+    // #355: a chain scene may carry a DECLARED prompt (which can drive T2V),
+    // so the dimension sweep still judges it. Derived claim text is not an
+    // authored 6/8-dimension write and stays out of the sweep. Prefer the
+    // video prompt when both exist: it is the one the chain may spend on.
+    if (!resolveMediaPlan(scene).auto) return null;
+    const declaredVideo = scene.aiVideo?.prompt;
+    if (typeof declaredVideo === "string" && declaredVideo.trim() !== "") return declaredVideo;
+    const declaredImage = scene.aiImage?.prompt;
+    if (typeof declaredImage === "string" && declaredImage.trim() !== "") return declaredImage;
+    return null;
+  }
   const prompt = IMAGE_GENERATING_STRATEGIES.has(scene.mediaStrategy)
     ? scene.aiImage?.prompt
     : scene.aiVideo?.prompt;
