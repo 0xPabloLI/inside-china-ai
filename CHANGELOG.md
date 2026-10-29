@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.41.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.41.1...tanstack_start_ts-v1.41.2) (2026-10-29)
+
+
+### Bug Fixes
+
+* **b-roll:** derive image provenance from the T2I checkpoint that ran ([#1026](https://github.com/0xPabloLI/inside-china-ai/issues/1026)) ([a158f36](https://github.com/0xPabloLI/inside-china-ai/commit/a158f36293e82e73c046b0b49c77cca1cd7ad0de))
+
 ## [1.41.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.41.0...tanstack_start_ts-v1.41.1) (2026-10-29)
 
 
