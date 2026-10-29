@@ -9,6 +9,7 @@ import {
   EVIDENCE_CARD,
   MEDIA_BOTTOM_BAR,
   MEDIA_BAND,
+  BRAND_BAR,
   scrimGradient,
 } from "../lib/safe-zones.mjs";
 
@@ -126,16 +127,25 @@ describe("region separation (single source of truth)", () => {
 });
 
 describe("evidence card (#663, #848)", () => {
-  // 618 → 678 → 777 across 2026-10-29. The card's bottom edge IS the four-row
-  // text bar's top edge (derived below), and SAFE_ZONES.bottom 770 → 710 → 611
-  // moved that edge from y=838 to y=997, so the card grows with the band.
-  it("locks the card to the #663 contract geometry [60,220,820,777]", () => {
-    expect(EVIDENCE_CARD).toEqual({ left: 60, top: 220, width: 820, height: 777 });
+  // 618 → 678 → 777 → 697 across 2026-10-29. The card's bottom edge IS the
+  // four-row text bar's top edge (derived below), and SAFE_ZONES.bottom
+  // 770 → 710 → 611 moved that edge from y=838 to y=997. `top` is no longer
+  // SAFE_ZONES.top: the brand bar moved 140 → 236 and its glyphs now land at
+  // y 252-267, inside the content band, so the card anchors below it instead.
+  it("locks the card to the #663 contract geometry [60,300,820,697]", () => {
+    expect(EVIDENCE_CARD).toEqual({ left: 60, top: 300, width: 820, height: 697 });
   });
 
   it("keeps the card's bottom edge exactly on the four-row media-bottom-bar text bar top", () => {
     expect(EVIDENCE_CARD.top + EVIDENCE_CARD.height).toBe(MEDIA_BOTTOM_BAR.textBarTop);
     expect(MEDIA_BOTTOM_BAR.textBarTop).toBe(997);
+  });
+
+  it("starts below the brand bar, which sits inside the content band", () => {
+    // The bar is drawn over the content band, so a card at SAFE_ZONES.top would
+    // be occluded by it. This is the regression the review caught.
+    expect(EVIDENCE_CARD.top).toBeGreaterThan(BRAND_BAR.top + BRAND_BAR.height);
+    expect(EVIDENCE_CARD.top).toBeGreaterThan(SAFE_ZONES.top);
   });
 
   it("stays inside every protected zone", () => {

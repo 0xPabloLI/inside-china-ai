@@ -119,17 +119,37 @@ export function mediaBottomBarTopFor(texts = {}) {
 }
 
 /**
+ * BrandBar placement — `visuals.tsx` renders the bar at this top with this
+ * height. Declared here because the evidence card has to clear it: the bar's
+ * glyphs measure y 252-267, which sits INSIDE the content band (220+), so a card
+ * anchored to SAFE_ZONES.top draws underneath the bar.
+ *
+ * 236 (2026-10-29) puts the glyphs clear of TikTok's top chrome, measured
+ * y 69-171, while staying below SAFE_ZONES.top.
+ */
+export const BRAND_BAR = { top: 236, height: 48 };
+
+/** First y an evidence card may occupy: clear of the brand bar by 16px. */
+const EVIDENCE_CARD_TOP = BRAND_BAR.top + BRAND_BAR.height + 16; // 300
+
+/**
  * Evidence card geometry (#663 contract, #848): where `media.mode:"card"`
  * renders a raw page capture. The card fills the content band's width and its
  * bottom edge IS the media-bottom-bar text bar's top edge (derived from
  * MEDIA_BOTTOM_BAR, not restated), so card scenes never push content toward
- * the burned-subtitle lane and the brand bar (y≈140-188) stays clear above.
+ * the burned-subtitle lane.
+ *
+ * `top` is NOT SAFE_ZONES.top. It was until 2026-10-29, when the brand bar moved
+ * 140 → 236 to clear TikTok's top chrome: the bar's glyphs now land at y 252-267,
+ * inside the content band, so a card starting at 220 would be drawn UNDER the
+ * bar. Anchoring to EVIDENCE_CARD_TOP instead keeps the card's bottom edge on
+ * the text bar while its top edge clears the bar by 16px.
  */
 export const EVIDENCE_CARD = {
   left: SAFE_ZONES.left,
-  top: SAFE_ZONES.top,
+  top: EVIDENCE_CARD_TOP, // 300
   width: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right, // 820
-  height: MEDIA_BOTTOM_BAR.textBarTop - SAFE_ZONES.top, // 618
+  height: MEDIA_BOTTOM_BAR.textBarTop - EVIDENCE_CARD_TOP, // 697
 };
 
 /**

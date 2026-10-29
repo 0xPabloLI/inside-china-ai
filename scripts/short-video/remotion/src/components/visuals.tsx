@@ -9,7 +9,7 @@
  */
 import { staticFile, CanvasImage } from "remotion";
 import { SLOT_FIELDS } from "../../../lib/text-slots.mjs";
-import { CANVAS, SAFE_ZONES, WATERMARK_POS } from "./shared";
+import { BRAND_BAR, CANVAS, SAFE_ZONES, WATERMARK_POS } from "./shared";
 import { TextGate } from "./text-gate";
 import type { ReactNode } from "react";
 
@@ -103,7 +103,7 @@ export const BrandBar: React.FC = () => (
   <div
     style={{
       position: "absolute",
-      top: 236,
+      top: BRAND_BAR.top,
       left: 60,
       right: 200,
       display: "flex",
