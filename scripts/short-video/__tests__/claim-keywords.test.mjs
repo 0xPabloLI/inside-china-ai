@@ -122,7 +122,7 @@ describe("extractSceneClaims", () => {
     }
   });
 
-  it("keeps an explicit assetNeed on a generation-only scene (writer override until #355)", () => {
+  it("#355 pure-generation overrides never source, even with an explicit assetNeed", () => {
     expect(
       extractSceneClaims([
         {
@@ -134,7 +134,7 @@ describe("extractSceneClaims", () => {
           assetNeed: "benchmark chart",
         },
       ]),
-    ).toHaveLength(1);
+    ).toEqual([]);
   });
 
   it("skips derivation when the scene has no voiceover either", () => {

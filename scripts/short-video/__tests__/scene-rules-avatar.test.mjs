@@ -61,8 +61,11 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // contract; the advice rows are still in `before.editorial`.
     // #354: pass 35 → 36 — the searchHints schema check joined the aggregate
     // (shape, retrievability, and "declared on a scene sourcing skips").
-    expect(before.pass).toHaveLength(36);
-    expect(before.warn).toHaveLength(1);
+    // #355: pass 36 → 37, warn 1 → 0 — omitting mediaStrategy is the default
+    // chain now, so the old "missing strategy" warn is gone and the contract
+    // reports its engaged pass line instead.
+    expect(before.pass).toHaveLength(37);
+    expect(before.warn).toHaveLength(0);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });
 });

@@ -1,11 +1,12 @@
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, rmSync, existsSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
   planScenes,
   assignWinner,
+  buildGenerationPlan,
   runBrollStage,
   scenesRequiringGeneration,
   shouldSourceStock,
@@ -49,15 +50,44 @@ function analyzerFor(scoreByPath) {
 }
 
 describe("planScenes routing (scenarios #1, #6, #7, #8, #9, #10, #28)", () => {
-  test("#1/#2 no mediaStrategy anywhere -> everything skipped", () => {
-    const plans = planScenes([scene({ aiVideo: undefined }), scene({ id: "7" })]);
-    expect(plans.every((p) => p.action === "skip")).toBe(true);
+  test("#355 no mediaStrategy / legacy 'asset' -> default chain (approval-gated later)", () => {
+    const noStrategy = scene({ aiVideo: undefined });
+    const legacyAsset = scene({ id: "7", mediaStrategy: "asset", aiVideo: undefined });
+    const plans = planScenes([noStrategy, legacyAsset]);
+    expect(plans.map((p) => p.action)).toEqual(["generate", "generate"]);
+    expect(plans.every((p) => p.reason === "chain-fallback")).toBe(true);
+    expect(plans.every((p) => p.plan.auto === true && p.plan.form === "auto")).toBe(true);
   });
 
-  test("#6 aiVideo present but strategy 'asset' -> ignored", () => {
-    const plans = planScenes([scene({ mediaStrategy: "asset" })]);
+  test("#355 the chain is not runnable without approval", () => {
+    const scenes = [scene({ aiVideo: undefined })];
+    expect(scenesRequiringGeneration(scenes)).toEqual([]);
+    expect(scenesRequiringGeneration(scenes, null, Infinity, { approveAuto: true })).toEqual(
+      scenes,
+    );
+  });
+
+  test("#355 source-only sources but never generates", () => {
+    const plans = planScenes([scene({ mediaStrategy: "source-only" })]);
     expect(plans[0].action).toBe("skip");
-    expect(plans[0].reason).toMatch(/asset/);
+    expect(plans[0].reason).toBe("source-only-strategy");
+    expect(shouldSourceStock(scene({ mediaStrategy: "source-only" }))).toBe(true);
+  });
+
+  test("#355 chain eligibility mirrors sourcing eligibility (hook / CSS-only never auto-generate)", () => {
+    const plans = planScenes([
+      scene({ id: "1", visualType: "hook", aiVideo: undefined }),
+      scene({ id: "2", layout: "stacked-cards", aiVideo: undefined }),
+      scene({ id: "3", visualType: "cta", aiVideo: undefined }),
+    ]);
+    expect(plans.every((p) => p.action === "skip" && p.reason === "not-media-eligible")).toBe(true);
+  });
+
+  test("#355 explicit b-roll is not auto and does not need approval", () => {
+    const plans = planScenes([scene({ mediaStrategy: "b-roll" })]);
+    expect(plans[0].action).toBe("generate");
+    expect(plans[0].plan.auto).toBe(false);
+    expect(scenesRequiringGeneration([scene({ mediaStrategy: "b-roll" })])).toHaveLength(1);
   });
 
   test("#7 mediaOptOut beats b-roll strategy -> skip with warning", () => {
@@ -123,6 +153,63 @@ describe("planScenes routing (scenarios #1, #6, #7, #8, #9, #10, #28)", () => {
     planScenes(scenes);
 
     expect(scenes).toEqual(snapshot);
+  });
+});
+
+describe("#355 chain budget, form selection and approval", () => {
+  test("unapproved chain candidates are planned, never generated", () => {
+    const plan = buildGenerationPlan([scene({ aiVideo: undefined })]);
+    expect(plan.entries[0].action).toBe("approval-required");
+    expect(plan.summary.approvalRequired).toBe(1);
+    expect(plan.summary.generate).toBe(0);
+  });
+
+  test("auto scene budget caps the implicit rung; explicit overrides are not capped", () => {
+    const scenes = [
+      scene({ id: "1", aiVideo: undefined }),
+      scene({ id: "2", aiVideo: undefined }),
+      scene({ id: "3", mediaStrategy: "b-roll" }),
+    ];
+    const plan = buildGenerationPlan(scenes, { approveAuto: true, autoBudget: 1 });
+    const byId = Object.fromEntries(plan.entries.map((e) => [e.scene.id, e]));
+    expect(byId["1"].action).toBe("generate");
+    expect(byId["1"].form).toBe("image");
+    expect(byId["2"].action).toBe("budget-skipped");
+    expect(byId["3"].action).toBe("generate");
+    expect(plan.summary.budgetSkipped).toBe(1);
+  });
+
+  test("T2I is the default form; a declared video prompt spends the video budget", () => {
+    const scenes = [
+      scene({ id: "1", aiVideo: { prompt: "a camera dolly shot" }, voiceover: "v" }),
+      scene({ id: "2", aiVideo: { prompt: "another dolly shot" }, voiceover: "v" }),
+      scene({ id: "3", voiceover: "v" }),
+    ];
+    const oneVideo = buildGenerationPlan(scenes, { approveAuto: true, videoBudget: 1 });
+    const forms = Object.fromEntries(
+      oneVideo.entries.filter((e) => e.action === "generate").map((e) => [e.scene.id, e.form]),
+    );
+    expect(forms).toEqual({ 1: "video", 2: "image", 3: "image" });
+
+    const noVideo = buildGenerationPlan(scenes, { approveAuto: true, videoBudget: 0 });
+    expect(
+      noVideo.entries.filter((e) => e.action === "generate").every((e) => e.form === "image"),
+    ).toBe(true);
+  });
+
+  test("the chain derives its still prompt from assetNeed, then voiceover", () => {
+    const plan = buildGenerationPlan(
+      [
+        scene({ id: "1", aiVideo: undefined, assetNeed: "a robot arm on a factory line" }),
+        scene({ id: "2", aiVideo: undefined }),
+      ],
+      { approveAuto: true },
+    );
+    const byId = Object.fromEntries(plan.entries.map((e) => [e.scene.id, e]));
+    expect(byId["1"].prompt).toBe("a robot arm on a factory line");
+    expect(byId["1"].promptSource).toBe("assetNeed");
+    expect(byId["2"].promptSource).toBe("voiceover");
+    expect(byId["2"].prompt).toBe("混合架构把记忆分三层");
   });
 });
 
@@ -650,6 +737,172 @@ describe("runBrollStage", () => {
     await runBrollStage(baseOpts(dirs, { scenes, generate: okGenerateMock().generate }));
     expect(scenes[0].media.backdrop).toBeUndefined();
     expect(scenes[0].media.path).toMatch(/^assets\/b-roll\//);
+  });
+});
+
+// ─── #355 default chain stage behavior ───
+
+describe("runBrollStage #355 default chain", () => {
+  let root;
+  let caseIndex = 0;
+
+  beforeAll(() => {
+    root = mkdtempSync(join(tmpdir(), "broll-chain-"));
+  });
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  function stageDirs() {
+    caseIndex += 1;
+    const contentDir = join(root, `case-${caseIndex}`, "content", "demo");
+    const outputDir = join(root, `case-${caseIndex}`, "output", "demo");
+    mkdirSync(contentDir, { recursive: true });
+    mkdirSync(outputDir, { recursive: true });
+    return { contentDir, outputDir };
+  }
+
+  function baseOpts(dirs, overrides = {}) {
+    return {
+      scenes: [],
+      contentSlug: "demo",
+      contentDir: dirs.contentDir,
+      outputDir: dirs.outputDir,
+      fileExists: () => true,
+      generate: okGenerateMock().generate,
+      resolveDeps: () => ({ ok: true, repo: "/repo", python: "/py", missing: [], message: null }),
+      resolveImageDeps: () => ({
+        ok: true,
+        bin: "/bin/mflux",
+        backend: "mflux-boogu",
+        missing: [],
+        message: null,
+      }),
+      analyzer: async () => ({ relevance: 99, relevanceReason: "great" }),
+      ...overrides,
+    };
+  }
+
+  test("unapproved chain scenes write the plan file and spend nothing", async () => {
+    const dirs = stageDirs();
+    let generateCalled = 0;
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [{ id: 1, voiceover: "a robot arm assembles a phone" }],
+        generate: async () => {
+          generateCalled += 1;
+          return { ok: true, fatal: null, results: [] };
+        },
+      }),
+    );
+    expect(generateCalled).toBe(0);
+    expect(result.counts.approvalRequired).toBe(1);
+    expect(result.planFile).toBe(join(dirs.outputDir, "media-chain-plan.json"));
+    const plan = JSON.parse(readFileSync(result.planFile, "utf8"));
+    expect(plan.approved).toBe(false);
+    expect(plan.entries[0]).toMatchObject({
+      sceneId: 1,
+      action: "approval-required",
+      auto: true,
+    });
+    expect(existsSync(reportPath(dirs.outputDir))).toBe(false);
+  });
+
+  test("approved chain scene generates a T2I fast-path image from the derived claim", async () => {
+    const dirs = stageDirs();
+    const claims = [];
+    const { generate, calls } = okGenerateMock();
+    const scene = { id: 2, voiceover: "A humanoid robot stacks boxes in a warehouse." };
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [scene],
+        approveAuto: true,
+        generate,
+        analyzer: async (path, opts) => {
+          claims.push(opts.claim.assetNeed);
+          return { relevance: 99, relevanceReason: "great" };
+        },
+      }),
+    );
+    expect(result.counts.generated).toBe(1);
+    expect(result.counts.approvalRequired).toBe(0);
+    // T2I is the default form; the chain derives the subject from voiceover.
+    const jobs = calls[0];
+    expect(jobs).toHaveLength(2);
+    expect(jobs[0].label).toMatch(/scene-2-seed\d+\.png$/);
+    expect(jobs[0].prompt).toContain("A humanoid robot stacks boxes in a warehouse");
+    for (const claim of claims) expect(claim).toBe("A humanoid robot stacks boxes in a warehouse.");
+    expect(scene.media).toMatchObject({
+      type: "image",
+      animation: "ken-burns",
+      path: expect.stringMatching(/^assets\/b-roll\/scene-2-seed\d+\.png$/),
+    });
+    const entry = readReport(reportPath(dirs.outputDir)).scenes["2"];
+    expect(entry).toMatchObject({
+      strategy: "auto",
+      auto: true,
+      form: "image",
+      promptSource: "voiceover",
+      status: "won",
+    });
+  });
+
+  test("a declared video prompt spends the video budget; the next chain scene stays T2I", async () => {
+    const dirs = stageDirs();
+    const { generate, calls } = okGenerateMock();
+    const scenes = [
+      { id: 3, voiceover: "v3", aiVideo: { prompt: "a slow dolly shot through a server aisle" } },
+      { id: 4, voiceover: "v4" },
+    ];
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes,
+        approveAuto: true,
+        videoBudget: 1,
+        generate,
+      }),
+    );
+    expect(result.counts.generated).toBe(2);
+    const files = calls.flat().map((j) => j.output_path);
+    expect(files.some((f) => f.endsWith(".mp4"))).toBe(true);
+    expect(files.some((f) => f.endsWith(".png"))).toBe(true);
+    const report = readReport(reportPath(dirs.outputDir));
+    expect(report.scenes["3"].form).toBe("video");
+    expect(report.scenes["4"].form).toBe("image");
+  });
+
+  test("auto budget spills the excess into budget-skipped, not a failure", async () => {
+    const dirs = stageDirs();
+    const { generate, calls } = okGenerateMock();
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [
+          { id: 5, voiceover: "v5" },
+          { id: 6, voiceover: "v6" },
+        ],
+        approveAuto: true,
+        autoBudget: 1,
+        generate,
+      }),
+    );
+    expect(result.counts.generated).toBe(1);
+    expect(result.counts.budgetSkipped).toBe(1);
+    expect(calls[0]).toHaveLength(2);
+    expect(result.counts.failed).toBe(0);
+  });
+
+  test("an explicit override still runs without approval", async () => {
+    const dirs = stageDirs();
+    const { generate, calls } = okGenerateMock();
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [scene({ id: "7", mediaStrategy: "b-roll" })],
+        generate,
+      }),
+    );
+    expect(result.counts.generated).toBe(1);
+    expect(calls[0].length).toBe(2);
   });
 });
 

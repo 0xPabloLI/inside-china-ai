@@ -34,9 +34,18 @@ import { skipsMediaSourcing } from "./claim-keywords.mjs";
  * @param {object|null} ctx.broll - loaded b-roll orchestrator module, or null
  * @param {object} [ctx.deps] - test seams overriding dynamic imports
  * @param {object} [ctx.prof] - optional profiler ({mark, end}) from main.mjs
+ * @param {object} [ctx.mediaChain] - #355 chain gate: { approveAuto, autoBudget, videoBudget }
  * @returns {Promise<void>}
  */
-export async function runMediaTrack({ scenes, contentDir, baseDir, broll, deps = {}, prof = {} }) {
+export async function runMediaTrack({
+  scenes,
+  contentDir,
+  baseDir,
+  broll,
+  deps = {},
+  prof = {},
+  mediaChain = {},
+}) {
   const contentDirAbs = resolve(baseDir, "content", contentDir);
 
   // ── Stage 1.5a: Evidence captures (re-capture missing screenshots) ──
@@ -179,9 +188,31 @@ export async function runMediaTrack({ scenes, contentDir, baseDir, broll, deps =
   // handed to Real-ESRGAN. Winners are assigned in memory only — scene-data is
   // never rewritten.
   if (broll) {
-    const pending = broll.scenesRequiringGeneration(scenes);
-    if (pending.length > 0) {
-      console.log(`🎬 Step 1.5d: Generating B-roll for ${pending.length} scene(s)...\n`);
+    // #355: the work list is explicit overrides plus chain candidates. Chain
+    // scenes with approveAuto=false are not runnable, but they must still reach
+    // the stage so the HITL plan file is written (the gate is the plan, not a
+    // silent skip). `--plan` on the standalone CLI is the explicit preview.
+    // Injected stubs (tests, older callers) may only expose the work-list
+    // helper; degrade to it rather than rejecting the whole media track.
+    const chainPlan = broll.buildGenerationPlan
+      ? broll.buildGenerationPlan(scenes, mediaChain)
+      : {
+          entries: broll
+            .scenesRequiringGeneration(scenes)
+            .map((scene) => ({ scene, action: "generate", auto: false })),
+          summary: { approvalRequired: 0 },
+        };
+    const pending = chainPlan.entries.filter((entry) => entry.action === "generate");
+    const awaitingApproval = chainPlan.summary.approvalRequired ?? 0;
+    if (pending.length > 0 || awaitingApproval > 0) {
+      console.log(
+        pending.length > 0
+          ? `🎬 Step 1.5d: Generating B-roll for ${pending.length} scene(s)` +
+              (awaitingApproval > 0
+                ? ` (${awaitingApproval} chain scene(s) await approval)…\n`
+                : "...\n")
+          : `⏸  Step 1.5d: ${awaitingApproval} chain scene(s) await approval — no GPU spent yet.\n`,
+      );
       prof.mark?.("step-1.5d-broll", { track: "media" });
       try {
         const runBrollStage = deps.runBrollStage ?? broll.runBrollStage;
@@ -196,6 +227,7 @@ export async function runMediaTrack({ scenes, contentDir, baseDir, broll, deps =
             // Report lives beside media-patch.json, keyed by content dir (same
             // convention the standalone generate-broll.mjs entrypoint uses).
             outputDir: join(baseDir, "output", contentDir),
+            ...mediaChain,
             onProgress: (line) => console.log(line),
           });
         } finally {
@@ -207,9 +239,17 @@ export async function runMediaTrack({ scenes, contentDir, baseDir, broll, deps =
           const { counts } = result;
           console.log(
             `🎬 Step 1.5d: B-roll ${counts.generated} generated, ${counts.cached} cached, ` +
-              `${counts.failed} failed, ${counts.escalated} escalated, ${counts.skipped} skipped`,
+              `${counts.failed} failed, ${counts.escalated} escalated, ${counts.skipped} skipped, ` +
+              `${counts.approvalRequired ?? 0} awaiting approval, ${counts.budgetSkipped ?? 0} over auto budget`,
           );
           if (result.reportFile) console.log(`   Report: ${relative(baseDir, result.reportFile)}`);
+          if (result.planFile) console.log(`   Plan: ${relative(baseDir, result.planFile)}`);
+          if ((counts.approvalRequired ?? 0) > 0) {
+            console.log(
+              "   ⏸  Chain generation is gated: review the plan, then rerun main.mjs with " +
+                "--approve-auto (optional --auto-budget N / --video-budget N) after HITL confirmation.",
+            );
+          }
           if (counts.failed > 0 || counts.escalated > 0) {
             console.log(
               "   → Read the b-roll report, rewrite the failing prompts " +

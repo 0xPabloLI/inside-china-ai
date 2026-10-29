@@ -4,9 +4,14 @@ import { dirname } from "node:path";
 
 export const MAX_ROUNDS = 3;
 export const REPORT_FILENAME = "b-roll-report.json";
+export const PLAN_FILENAME = "media-chain-plan.json";
 
 export function reportPath(outputDir) {
   return `${outputDir}/${REPORT_FILENAME}`;
+}
+
+export function planPath(outputDir) {
+  return `${outputDir}/${PLAN_FILENAME}`;
 }
 
 export function emptyReport(content, threshold) {
@@ -34,6 +39,20 @@ export function writeReport(filePath, report) {
   writeFileSync(
     filePath,
     `${JSON.stringify({ ...report, updatedAt: new Date().toISOString() }, null, 2)}\n`,
+    "utf8",
+  );
+}
+
+/**
+ * Persist the #355 generation plan — the HITL artifact the agent shows before
+ * approving the chain's implicit rung. Same directory as the report so the
+ * two cannot drift apart.
+ */
+export function writePlan(filePath, plan) {
+  mkdirSync(dirname(filePath), { recursive: true });
+  writeFileSync(
+    filePath,
+    `${JSON.stringify({ ...plan, updatedAt: new Date().toISOString() }, null, 2)}\n`,
     "utf8",
   );
 }
@@ -93,7 +112,12 @@ export function summarizeBrollReport(report, { fileExists = null } = {}) {
       const status = entry?.status ?? "pending";
       const head = `${entry?.strategy ?? "b-roll"} · ${status} · round ${entry?.round ?? 1}`;
       const check = `Scene ${id} B-roll`;
-      const imageEntry = IMAGE_GENERATING_STRATEGIES.has(entry?.strategy);
+      // #355: chain entries carry their resolved form; explicit overrides only
+      // have a strategy. Prefer the form so an auto image failure points the
+      // agent at aiImage.prompt instead of the video template.
+      const imageEntry = entry?.form
+        ? entry.form === "image"
+        : IMAGE_GENERATING_STRATEGIES.has(entry?.strategy);
 
       if (status === "won" && entry?.winner?.file) {
         const scored = (entry.candidates ?? []).find((c) => c.file === entry.winner.file);
@@ -122,11 +146,16 @@ export function summarizeBrollReport(report, { fileExists = null } = {}) {
         .join(" · ");
       const field = imageEntry ? "aiImage.prompt" : "aiVideo.prompt";
       const dimensions = imageEntry ? "6-dimension" : "8-dimension";
+      // Chain entries have no declared prompt to rewrite by definition — their
+      // subject came from assetNeed/voiceover, so point at the real surface.
+      const fix = entry?.auto
+        ? `The chain derived this prompt from the scene's assetNeed/voiceover — add an explicit ${field} (${dimensions} template) or sharpen that text, then rerun: node generate-broll.mjs --content ${report.content ?? "<dir>"} --scene ${id}. Rounds beyond ${MAX_ROUNDS} escalate.`
+        : `Rewrite ${field} for scene ${id} with the ${dimensions} template, then rerun: node generate-broll.mjs --content ${report.content ?? "<dir>"} --scene ${id}. Rounds beyond ${MAX_ROUNDS} escalate.`;
       return {
         level: "warn",
         check,
         detail,
-        fix: `Rewrite ${field} for scene ${id} with the ${dimensions} template, then rerun: node generate-broll.mjs --content ${report.content ?? "<dir>"} --scene ${id}. Rounds beyond ${MAX_ROUNDS} escalate.`,
+        fix,
       };
     });
 }

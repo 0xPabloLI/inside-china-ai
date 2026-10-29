@@ -25,11 +25,15 @@ export const GATE_THRESHOLD = DEFAULT_RELEVANCE_THRESHOLD;
  * never the composed one (a NEGATIVE clause must not leak into the gate's
  * positive assetNeed).
  */
-export function buildClaim(scene) {
+export function buildClaim(scene, { prompt } = {}) {
+  const declared =
+    typeof prompt === "string"
+      ? prompt
+      : ((isImageStrategy(scene.mediaStrategy) ? scene.aiImage?.prompt : scene.aiVideo?.prompt) ??
+        "");
   return {
     voiceover: scene.voiceover ?? "",
-    assetNeed:
-      (isImageStrategy(scene.mediaStrategy) ? scene.aiImage?.prompt : scene.aiVideo?.prompt) ?? "",
+    assetNeed: declared,
   };
 }
 

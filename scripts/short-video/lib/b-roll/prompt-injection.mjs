@@ -247,6 +247,13 @@ export function composeVideoPrompt(scene) {
   return composePrompt((scene?.aiVideo?.prompt ?? "").trim(), scene);
 }
 
-export function composeImagePrompt(scene) {
-  return composePrompt((scene?.aiImage?.prompt ?? "").trim(), scene);
+/**
+ * Compose a still-image prompt. `declaredPrompt` overrides `aiImage.prompt`
+ * for the default chain (#355), whose image rung derives its subject from
+ * `assetNeed` / voiceover when the writer declared no image prompt. Explicit
+ * image strategies keep passing nothing and read `aiImage.prompt` as before.
+ */
+export function composeImagePrompt(scene, { declaredPrompt } = {}) {
+  const declared = (declaredPrompt ?? scene?.aiImage?.prompt ?? "").trim();
+  return composePrompt(declared, scene);
 }

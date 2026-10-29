@@ -1847,7 +1847,12 @@ export {
   GENERATING_STRATEGIES,
 } from "./media-strategies.mjs";
 
-/** True when the strategy generates a static image rather than a video clip. */
+/**
+ * True when an EXPLICIT strategy generates a static image rather than a video
+ * clip. The default chain has no form until the orchestrator resolves one via
+ * budget (media-strategies.selectAutoForm) — callers must branch on the
+ * resolved form, not on this helper, for chain scenes (#355).
+ */
 export function isImageStrategy(strategy) {
   return IMAGE_GENERATING_STRATEGIES.has(strategy);
 }
@@ -1982,12 +1987,12 @@ export function checkMediaStrategyContract(scenes) {
   const invalid = [];
   const missingPrompt = [];
   const optedOut = [];
-  const missingStrategy = [];
   let engaged = false;
 
   for (const scene of scenes) {
-    if (!scene.mediaStrategy) missingStrategy.push(String(scene.id));
-    if (!scene.mediaStrategy && !scene.aiVideo) continue;
+    // #355: omitting mediaStrategy is the default chain, not a missing
+    // declaration — it is valid and needs no prompt (the chain derives one).
+    if (!scene.mediaStrategy && !scene.aiVideo && !scene.aiImage) continue;
     engaged = true;
     const strategy = scene.mediaStrategy;
     if (strategy && !MEDIA_STRATEGIES.includes(strategy)) {
@@ -2014,7 +2019,7 @@ export function checkMediaStrategyContract(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail: `mediaStrategy on scene(s) ${invalid.join(", ")} is not a known strategy`,
-      fix: `Use one of: ${MEDIA_STRATEGIES.join(" | ")} (omitting the field means 'asset')`,
+      fix: `Use one of: ${MEDIA_STRATEGIES.join(" | ")} — or omit the field for the default chain (source stock, then budgeted generation); use "source-only" to keep sourcing without generation`,
     });
   }
   // #155: image strategies fail on a missing aiImage.prompt with the same
@@ -2047,15 +2052,6 @@ export function checkMediaStrategyContract(scenes) {
       check: CHECK,
       detail: `Scene(s) ${optedOut.join(", ")} set mediaOptOut on a generating strategy (b-roll / ai-image) — generation will be skipped`,
       fix: "mediaOptOut is deprecated (#191) — drop it to let the scene generate B-roll / ai-image, or use media: null for a deliberate no-media scene",
-    });
-  }
-  if (missingStrategy.length > 0) {
-    results.push({
-      level: "warn",
-      category: CATEGORY,
-      check: CHECK,
-      detail: `Scene(s) ${missingStrategy.join(", ")} omit mediaStrategy (silently defaults to "asset" — B-roll generation is skipped, so a scene whose sourced image falls through will reuse another scene's media)`,
-      fix: 'Set mediaStrategy explicitly on every scene: "asset" (sourced image only) | "asset-then-broll" (source first, fall back to B-roll generation) | "b-roll" (always generate) | "asset-then-ai-image" (source first, fall back to T2I image) | "ai-image" (always generate a still image)',
     });
   }
   if (results.length > 0) return results;
@@ -2123,10 +2119,13 @@ export function coversNegativeGroup(prompt, phrases) {
   return phrases.some((phrase) => new RegExp(`\\b${phrase}\\b`, "i").test(prompt));
 }
 
-// The prompt that will actually reach the generator, or null when the scene
-// never generates. Shared with the strategy-contract check so both agree on
-// which scenes they are talking about. Image strategies (#155) declare
-// `aiImage.prompt`; video strategies declare `aiVideo.prompt`.
+// The DECLARED prompt that will reach the generator, or null when the scene
+// has no explicit generating strategy / no prompt. Shared with the
+// strategy-contract and prompt-dimension checks so both agree on which scenes
+// they are judging. #355: the default chain derives its prompt from
+// assetNeed / voiceover instead of requiring a declaration, so it is
+// deliberately absent here — those derived prompts are fallback text, not
+// authored 6/8-dimension writes, and must not be warned on for being "thin".
 function generatingPrompt(scene) {
   if (!GENERATING_STRATEGIES.has(scene.mediaStrategy)) return null;
   const prompt = IMAGE_GENERATING_STRATEGIES.has(scene.mediaStrategy)

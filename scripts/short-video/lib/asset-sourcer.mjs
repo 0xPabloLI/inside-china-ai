@@ -959,8 +959,15 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
   }
   const poolFor = (sceneId) => classifyPool(poolCandidates.get(sceneId) ?? [], { threshold });
 
-  // Sort assets by score descending (greedy: highest score gets first pick)
-  const sorted = [...assets].sort((a, b) => (b.score || 0) - (a.score || 0));
+  // Sort videos ahead of images, then by score descending (#355 D1a: the
+  // sourcing rung is stock-video-first — "有视频就选视频，不选图片" — with the
+  // VLM gate still deciding whether the clip is admitted; a rejected video
+  // leaves the scene free for its image sibling).
+  const sorted = [...assets].sort(
+    (a, b) =>
+      (b.type === "video" ? 1 : 0) - (a.type === "video" ? 1 : 0) ||
+      (b.score || 0) - (a.score || 0),
+  );
 
   // Track assigned scene IDs and asset paths
   const assignedSceneIds = new Set();

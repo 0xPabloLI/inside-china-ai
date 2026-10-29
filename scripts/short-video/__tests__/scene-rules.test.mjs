@@ -1917,17 +1917,12 @@ describe("checkMediaStrategyContract", () => {
     expect(explicit[0].level).toBe("pass");
   });
 
-  it("#193: warns when scenes omit mediaStrategy (silent asset default skips b-roll)", () => {
+  it("#355: omitting mediaStrategy is the default chain — no warning", () => {
     const result = checkMediaStrategyContract([
       { id: 3, visualType: "narrative", voiceover: "The cabin interior feels spacious." },
       { id: 7, visualType: "data", voiceover: "Rides grew 40 percent year over year." },
     ]);
-    expect(result).toHaveLength(1);
-    expect(result[0].level).toBe("warn");
-    expect(result[0].check).toBe("B-roll strategy contract");
-    expect(result[0].detail).toContain("3");
-    expect(result[0].detail).toContain("7");
-    expect(result[0].fix).toContain("asset-then-broll");
+    expect(result).toEqual([]);
   });
 
   it("passes a well-formed b-roll scene", () => {
@@ -1935,19 +1930,12 @@ describe("checkMediaStrategyContract", () => {
     expect(result[0].level).toBe("pass");
   });
 
-  it("warns once for content without b-roll fields (supersedes spec #2 silence — #193)", () => {
-    const result = checkMediaStrategyContract(validScenes);
-    expect(result).toHaveLength(1);
-    expect(result[0].level).toBe("warn");
-    // every scene id is named exactly once
-    for (const scene of validScenes) {
-      expect(result[0].detail).toContain(String(scene.id));
-    }
+  it("#355: stays silent for content without b-roll fields (default chain)", () => {
+    expect(checkMediaStrategyContract(validScenes)).toEqual([]);
   });
 
   it("passes the real qwen4-preview fixture scenes", () => {
-    // Whole-file check against live scene-data: no FAIL results. Missing
-    // mediaStrategy produces a warn (issue #193), never a fail.
+    // Whole-file check against live scene-data: no FAIL results.
     const result = checkMediaStrategyContract(qwenScenes);
     expect(result.every((r) => r.level !== "fail")).toBe(true);
   });

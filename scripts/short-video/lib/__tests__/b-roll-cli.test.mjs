@@ -4,7 +4,8 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 import { runBrollCli } from "../../generate-broll.mjs";
-import { reportPath } from "../b-roll/report.mjs";
+import { reportPath, planPath } from "../b-roll/report.mjs";
+import { readFileSync } from "node:fs";
 
 // CLI unit tests inject scene loading and the stage runner, so no real
 // generation, VLM, or filesystem side effects beyond a temp output dir.
@@ -149,6 +150,97 @@ describe("runBrollCli", () => {
       const text = c.lines.join("\n");
       // 2 scenes x 2 candidates x 600s (fastmetal-5b default, #298) = 2400s = 40min
       expect(text).toMatch(/2400|40min/);
+    } finally {
+      rmSync(dirs.root, { recursive: true, force: true });
+    }
+  });
+
+  test("#355 chain candidates without --approve-auto write a plan and spend no GPU", async () => {
+    const dirs = fakeContent();
+    const c = collector();
+    let stageCalls = 0;
+    try {
+      const { exitCode } = await runBrollCli({
+        argv: ["--content", "demo"],
+        loadScenes: async () => ({
+          ...dirs,
+          scenes: [{ id: "1", voiceover: "a robot arm assembles a phone" }],
+        }),
+        runStage: async () => {
+          stageCalls += 1;
+          return { counts: { generated: 0 } };
+        },
+        log: c.log,
+      });
+      expect(exitCode).toBe(0);
+      expect(stageCalls).toBe(0);
+      const text = c.lines.join("\n");
+      expect(text).toMatch(/awaiting approval/);
+      expect(text).toMatch(/--approve-auto/);
+      const plan = JSON.parse(readFileSync(planPath(dirs.outputDir), "utf8"));
+      expect(plan.approved).toBe(false);
+      expect(plan.entries[0].action).toBe("approval-required");
+    } finally {
+      rmSync(dirs.root, { recursive: true, force: true });
+    }
+  });
+
+  test("#355 --plan writes the plan, prints it, and never calls the stage", async () => {
+    const dirs = fakeContent();
+    const c = collector();
+    let stageCalls = 0;
+    try {
+      const { exitCode } = await runBrollCli({
+        argv: ["--content", "demo", "--plan"],
+        loadScenes: async () => ({
+          ...dirs,
+          scenes: [
+            { id: "1", voiceover: "v", aiVideo: { prompt: "a dolly shot" } },
+            { id: "2", voiceover: "v", mediaStrategy: "b-roll", aiVideo: { prompt: "p" } },
+          ],
+        }),
+        runStage: async () => {
+          stageCalls += 1;
+          return { counts: { generated: 0 } };
+        },
+        log: c.log,
+      });
+      expect(exitCode).toBe(0);
+      expect(stageCalls).toBe(0);
+      expect(c.lines.join("\n")).toMatch(/Plan only/);
+      const plan = JSON.parse(readFileSync(planPath(dirs.outputDir), "utf8"));
+      expect(plan.entries).toHaveLength(2);
+      expect(plan.entries[0].action).toBe("approval-required");
+      expect(plan.entries[1].action).toBe("generate");
+    } finally {
+      rmSync(dirs.root, { recursive: true, force: true });
+    }
+  });
+
+  test("#355 --approve-auto and the two budgets are forwarded to the stage", async () => {
+    const dirs = fakeContent();
+    let stageOpts = null;
+    try {
+      const { exitCode } = await runBrollCli({
+        argv: ["--content", "demo", "--approve-auto", "--auto-budget", "2", "--video-budget", "0"],
+        loadScenes: async () => ({
+          ...dirs,
+          scenes: [{ id: "1", voiceover: "v" }],
+        }),
+        runStage: async (opts) => {
+          stageOpts = opts;
+          return {
+            counts: { generated: 0, cached: 0, failed: 0, escalated: 0, skipped: 0 },
+            depsError: null,
+            reportFile: null,
+          };
+        },
+        log: () => {},
+      });
+      expect(exitCode).toBe(0);
+      expect(stageOpts.approveAuto).toBe(true);
+      expect(stageOpts.autoBudget).toBe(2);
+      expect(stageOpts.videoBudget).toBe(0);
     } finally {
       rmSync(dirs.root, { recursive: true, force: true });
     }
