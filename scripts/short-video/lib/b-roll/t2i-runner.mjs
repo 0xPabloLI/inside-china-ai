@@ -70,7 +70,7 @@ function supportsNegativePrompt(backend) {
  * discipline as the video MODEL_TIERS winnerSource (#298): the label follows
  * the model that ran.
  */
-export const IMAGE_MODEL_SOURCE_LABELS = {
+const IMAGE_MODEL_SOURCE_LABELS = {
   "Boogu/Boogu-Image-0.1-Turbo": "AI-generated (mflux Boogu Turbo)",
 };
 
