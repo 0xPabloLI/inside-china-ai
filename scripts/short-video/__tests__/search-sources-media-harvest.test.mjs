@@ -9,10 +9,11 @@
  * still reaches the download chain even with the media capabilities gone.
  *
  * The contract under test is the wiring plus the request the harvest makes:
- * the mocked `extractFromTab` emulates the real script's gating (the real one
- * only fills `results.images` when it harvests), so the assertions are about
- * the observable outcome — whether an `imageUrl` comes back — not about the
- * script text.
+ * the mocked `evalInTab` emulates the real script's gating (the real one only
+ * fills `results.images` when it harvests), so the assertions are about the
+ * observable outcome — whether an `imageUrl` comes back — not about the
+ * script text. #945 added the script-text contract itself: the dispatched
+ * script must parse as page JavaScript.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -31,7 +32,10 @@ vi.mock("../lib/cdp-client.mjs", () => ({
   cdpNewTab: vi.fn(async () => "tab-636"),
   cdpCloseTab: vi.fn(async () => {}),
   waitForPageLoad: vi.fn(async () => true),
-  extractFromTab: vi.fn(async (tabId, script) => {
+  // #945: media enrichment evaluates a script that returns an object, so it
+  // must go through the value-transparent eval — not the array-only
+  // extractFromTab, whose contract would turn this object into [].
+  evalInTab: vi.fn(async (tabId, script) => {
     capturedScripts.push(script);
     const harvests = /harvestImages = true/.test(script);
     return {
@@ -40,6 +44,7 @@ vi.mock("../lib/cdp-client.mjs", () => ({
       metadata: { publishedTime: PUBLISHED_TIME },
     };
   }),
+  extractFromTab: vi.fn(async () => []),
   extractWithRetry: vi.fn(async () => [
     {
       title: "DeepSeek 具身智能",
@@ -55,6 +60,7 @@ vi.mock("../lib/cdp-client.mjs", () => ({
 }));
 
 import { collectFromSource } from "../search-sources.mjs";
+import { evalInTab, ScriptError } from "../lib/cdp-client.mjs";
 
 function testSource(overrides = {}) {
   return {
@@ -97,6 +103,77 @@ beforeEach(() => {
   extraction.imageUrl = null;
 });
 
+describe("#945 — the dispatched media script is valid page JavaScript", () => {
+  it("parses the script that is actually sent to Runtime.evaluate", async () => {
+    // The script is built inside a template literal: `\.` / `\/` are consumed
+    // by the template and the page receives an unparseable regex literal
+    // (SyntaxError: Invalid regular expression flags). Parsing the captured
+    // text is the contract the old test missed.
+    await collect(testSource());
+    expect(capturedScripts).toHaveLength(1);
+    expect(() => new Function(capturedScripts[0])).not.toThrow();
+  });
+
+  it("evaluates that script to an { images, videos, metadata } object", async () => {
+    await collect(testSource());
+    const links = [
+      {
+        href: ARTICLE_URL,
+        querySelector: () => ({ src: THUMBNAIL }),
+        parentElement: null,
+        closest: () => null,
+      },
+    ];
+    const documentStub = {
+      querySelectorAll: (sel) => (sel === "a[href]" ? links : []),
+      querySelector: (sel) =>
+        sel === 'meta[property="article:published_time"]'
+          ? { getAttribute: () => PUBLISHED_TIME }
+          : null,
+    };
+    const runWithDom = new Function("document", capturedScripts[0]);
+    const out = runWithDom(documentStub);
+    expect(out).toMatchObject({
+      images: { [ARTICLE_URL]: THUMBNAIL },
+      videos: {},
+      metadata: { publishedTime: PUBLISHED_TIME },
+    });
+  });
+
+  it("falls back to og:article:published_time when the plain tag is absent", async () => {
+    await collect(testSource());
+    const documentStub = {
+      querySelectorAll: () => [],
+      querySelector: (sel) =>
+        sel === 'meta[property="og:article:published_time"]'
+          ? { getAttribute: () => PUBLISHED_TIME }
+          : null,
+    };
+    const out = new Function("document", capturedScripts[0])(documentStub);
+    expect(out.metadata).toEqual({ publishedTime: PUBLISHED_TIME });
+  });
+});
+
+describe("#945 — a broken enrichment script is reported loudly, not swallowed", () => {
+  it("keeps the articles but logs the ScriptError under its own prefix", async () => {
+    evalInTab.mockRejectedValueOnce(
+      new ScriptError("SyntaxError: Invalid regular expression flags"),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const articles = await collect(testSource());
+      // Media is optional — the article batch survives.
+      expect(articles).toHaveLength(1);
+      expect(articles[0].url).toBe(ARTICLE_URL);
+      const logged = warn.mock.calls.flat().join("\n");
+      expect(logged).toContain("media enrichment script broken");
+      expect(logged).not.toContain("Media enrichment failed");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
 describe("#636 — DOM image harvest honours the source declaration", () => {
   it("fills imageUrl from the DOM when the source does not opt out", async () => {
     const articles = await collect(testSource());
@@ -120,6 +197,10 @@ describe("#636 — DOM image harvest honours the source declaration", () => {
     // video signals and og-meta the news contract reads (#309).
     expect(articles[0].videoUrls).toEqual([PAGE_VIDEO]);
     expect(articles[0].metadata.publishedTime).toBe(PUBLISHED_TIME);
+    // #309/#945: the metadata channel feeds the publishedAt promotion — a
+    // page date now lands as a real assertion instead of dateDegraded.
+    expect(articles[0].publishedAt).toBe("2026-10-15T00:00:00.000Z");
+    expect(articles[0].dateDegraded).toBeUndefined();
     expect(capturedScripts).toHaveLength(1);
     expect(capturedScripts[0]).toContain("results.videos");
   });

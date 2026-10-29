@@ -397,24 +397,19 @@ export async function detectAntiBot(tabId, opts = {}) {
 }
 
 /**
- * Extract content from a tab by evaluating an extraction script.
+ * Evaluate a page script and return its value as-is (array, object, string…).
  *
- * The script is wrapped in an IIFE (CDP eval doesn't support top-level return).
- * Handles various CDP response formats: result.value, value, JSON string, or null.
- *
- * #308: extraction no longer swallows failures into a silent []. A
- * proxy-reported page-script exception throws ScriptError; a transport
- * failure (proxy down, tab closed) rethrows the original error. Only
- * legitimate "nothing extracted" shapes (null, non-JSON string, non-array
- * value) still resolve to [] so the retry/fallback machinery keeps working.
+ * `extractFromTab` narrows the result to the array contract the article
+ * scripts return; media enrichment (#945) evaluates a script that returns
+ * `{ images, videos, metadata }` and used to lose it to that narrowing.
  *
  * @param {string} tabId - Tab ID
- * @param {string} script - JS expression that returns an array
- * @returns {Promise<Array>} Extracted articles
+ * @param {string} script - JS function body (top-level `return` allowed)
+ * @returns {Promise<*>} The script's return value
  * @throws {ScriptError} When the page script throws (proxy HTTP 400 {error})
  * @throws {Error} When the eval transport fails (proxy unreachable, tab gone)
  */
-export async function extractFromTab(tabId, script) {
+export async function evalInTab(tabId, script) {
   // Wrap in async IIFE — supports both sync and async scripts.
   // CDP eval has awaitPromise:true, so async scripts are properly awaited.
   const wrappedScript = `(async function(){${script}})()`;
@@ -424,21 +419,45 @@ export async function extractFromTab(tabId, script) {
   if (resp?.error) {
     throw new ScriptError(resp.error);
   }
-  // CDP eval returns { value: ... } — value may be array, string, or null
-  let articles = resp?.result?.value || resp?.value || resp;
-  if (Array.isArray(articles)) {
-    return articles;
-  }
-  // Try parsing if it's a string (some CDP proxies serialize arrays as JSON strings)
-  if (typeof articles === "string") {
+  // Proxy shapes: `{ value }` (the proxy's own answer), `{ result: { value } }`
+  // (a CDP passthrough), or a bare value. A `result` without `value` means the
+  // page returned undefined — CDP's RemoteObject has no value field then.
+  // Property presence, not truthiness: null/""/0 must come back as themselves,
+  // never as the envelope.
+  const has = (obj, key) => obj !== null && typeof obj === "object" && key in obj;
+  let value;
+  if (has(resp, "result")) value = resp.result?.value;
+  else if (has(resp, "value")) value = resp.value;
+  else value = resp;
+  // Some CDP proxies serialize values as JSON strings
+  if (typeof value === "string") {
     try {
-      const parsed = JSON.parse(articles);
-      if (Array.isArray(parsed)) return parsed;
+      value = JSON.parse(value);
     } catch {
-      // Not JSON — return empty
+      // Not JSON — leave the raw string
     }
   }
-  return [];
+  return value;
+}
+
+/**
+ * Extract articles from a tab — the array contract every `articleScript` and
+ * `cdpExtract` relies on. Any non-array value (object, string, null) resolves
+ * to [] so the retry/fallback machinery keeps working.
+ *
+ * #308: extraction does not swallow failures into a silent []. A
+ * proxy-reported page-script exception throws ScriptError; a transport
+ * failure (proxy down, tab closed) rethrows the original error.
+ *
+ * @param {string} tabId - Tab ID
+ * @param {string} script - JS function body that returns an array
+ * @returns {Promise<Array>} Extracted articles
+ * @throws {ScriptError} When the page script throws (proxy HTTP 400 {error})
+ * @throws {Error} When the eval transport fails (proxy unreachable, tab gone)
+ */
+export async function extractFromTab(tabId, script) {
+  const value = await evalInTab(tabId, script);
+  return Array.isArray(value) ? value : [];
 }
 
 /**
