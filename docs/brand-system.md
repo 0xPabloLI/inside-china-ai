@@ -131,7 +131,7 @@ Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word h
 | Position           | Bottom-center (Alignment=2), in the lower third below the content band                                    |
 | Margin from bottom | 500px (cue bottom edge y=1420, 256px above the measured TikTok caption top)                               |
 | Margins L/R        | 110/250 (left-shifted to match content band center; cue right edge x=830, clears the action rail by 50px) |
-| Max lines          | 2 (single line preferred; worst-case wrap stays inside the reserved lane)                                 |
+| Max lines          | 1 (`SUBTITLE_LANE.maxLines`; a wrapping cue FAILS the run, it does not share the lane)                    |
 | Background         | None (transparent, text outline only)                                                                     |
 | Style              | Karaoke `\kt` + `\kf` (word-by-word highlight, absolute per-word anchors)                                 |
 | Timing             | wav2vec2 forced alignment (`text-align.py`), per-word timestamps                                          |

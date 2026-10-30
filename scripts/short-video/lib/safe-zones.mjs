@@ -218,11 +218,12 @@ export const SUBTITLE_LANE = {
    * second line has never rendered once. Dropping to 1 spends a guarantee the
    * video does not use on the composition the user actually asked for.
    *
-   * RISK, stated plainly: a cue that DOES wrap to two lines extends upward from
-   * the bottom anchor to y 1258, which is now inside the content band. It will
-   * still RENDER (ASS does not clip to this box), it just overlaps content.
-   * Any pack that wraps must set this back to 2 — the value is only safe
-   * alongside a cue set with no long lines.
+   * Guarded, not just documented: `enforceSubtitleCompliance` reads this value
+   * (via `maxLines: SUBTITLE_LANE.maxLines`) and throws on a `lines` violation
+   * in EVERY mode, not only `fail`. So a cue that wraps fails the run instead of
+   * silently rendering upward from the bottom anchor to y 1258, inside the
+   * content band — ASS does not clip to this box, so the overlap would ship.
+   * A pack that genuinely needs two lines moves this to 2 and the gate follows.
    */
   maxLines: 1,
   /** Per-line height factor (font ascent/descent + safety) */
