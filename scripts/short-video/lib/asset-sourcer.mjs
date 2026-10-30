@@ -220,8 +220,32 @@ export const NO_MEDIA_TYPES = SHARED_NO_MEDIA_TYPES;
 /** Minimum score for hook scene auto-assignment (spec D1). */
 const HOOK_MIN_SCORE = 60;
 
-/** Hook scenes require fit="cover" (contain leaves letterbox, weakens impact). */
-const HOOK_REQUIRED_FIT = "cover";
+/**
+ * The fit an auto-sourced hook must use, derived from the pack it introduces.
+ *
+ * The hook and the body have to be composed the same way. A `cover` hook cuts a
+ * 16:9 source down to the vertical frame; a `contain` body letterboxes it whole.
+ * Swapping between the two at the hook/body seam reads worse than committing to
+ * either — and on the cover side of that swap most of the picture is discarded,
+ * which is the outcome the hook contract was relaxed to avoid.
+ *
+ * The requirement is therefore read off the body rather than fixed. A pack whose
+ * non-hook scenes mostly declare `contain` overrides a `contain` hook, so an
+ * auto-sourced pack can no longer ship a cover hook in front of a contain body.
+ * Packs that declare nothing, or split evenly, keep the historical `cover` —
+ * this only changes packs that are actually contain-bodied.
+ */
+export function hookRequiredFitFor(scenes = []) {
+  let cover = 0;
+  let contain = 0;
+  for (const scene of scenes ?? []) {
+    if (scene?.visualType === "hook") continue;
+    const fit = scene?.media?.fit;
+    if (fit === "cover") cover += 1;
+    else if (fit === "contain") contain += 1;
+  }
+  return contain > cover ? "contain" : "cover";
+}
 
 // ─── Pure functions ───
 
@@ -944,6 +968,8 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       ? opts.relevanceThreshold
       : DEFAULT_RELEVANCE_THRESHOLD;
   const reusedCap = typeof opts.reusedCap === "number" ? opts.reusedCap : 0.4;
+  // Read once: the body's composition does not change while assigning.
+  const hookRequiredFit = hookRequiredFitFor(scenes);
 
   // #294: satisfiability belongs to the scene's candidate pool, not to one
   // asset. Computed before the loop so a rejection reason can name the pool
@@ -1072,9 +1098,9 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         reason = `claim scene ${target.id} unavailable (occupied/manual media/no-media type)`;
       } else if (
         target.visualType === "hook" &&
-        ((asset.score || 0) < HOOK_MIN_SCORE || asset.fit !== HOOK_REQUIRED_FIT)
+        ((asset.score || 0) < HOOK_MIN_SCORE || asset.fit !== hookRequiredFit)
       ) {
-        reason = "hook gates not met (score>=60 + fit=cover)";
+        reason = `hook gates not met (score>=${HOOK_MIN_SCORE} + fit=${hookRequiredFit})`;
       }
 
       if (reason) {

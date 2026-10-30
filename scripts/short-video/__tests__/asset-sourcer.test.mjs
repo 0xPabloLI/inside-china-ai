@@ -46,6 +46,7 @@ import {
   markDownloaded,
   loadCachedMedia,
   toCachedMediaCandidate,
+  hookRequiredFitFor,
 } from "../lib/asset-sourcer.mjs";
 import { createSearchResultsCache, recordSearchResults } from "../lib/search-results-cache.mjs";
 
@@ -2919,5 +2920,65 @@ describe("mergeZhPools — sourceRef leads, company names fallback (#185)", () =
     expect(zh[0].keywords).toEqual(["滴滴自动驾驶"]);
     const en = pickVideoKeywordGroups({ locale: null }, groups, pool);
     expect(en).toBe(groups);
+  });
+});
+
+/**
+ * The hook must be composed like the body it introduces (#1021 review).
+ *
+ * The requirement used to be a literal `cover`, so an auto-sourced pack could
+ * ship a cover hook cutting into a contain body — the very seam the hook
+ * contract was relaxed to avoid. It is now read off the pack.
+ */
+describe("hookRequiredFitFor", () => {
+  const scene = (visualType, fit) => ({ visualType, media: fit ? { fit } : undefined });
+
+  it("keeps cover for a cover body", () => {
+    expect(hookRequiredFitFor([scene("hook", "contain"), scene("narrative", "cover")])).toBe(
+      "cover",
+    );
+  });
+
+  it("flips to contain for a contain body", () => {
+    expect(
+      hookRequiredFitFor([
+        scene("hook", "cover"),
+        scene("narrative", "contain"),
+        scene("narrative", "contain"),
+      ]),
+    ).toBe("contain");
+  });
+
+  it("follows the body's majority when a pack mixes", () => {
+    expect(
+      hookRequiredFitFor([
+        scene("narrative", "contain"),
+        scene("narrative", "contain"),
+        scene("narrative", "cover"),
+      ]),
+    ).toBe("contain");
+    expect(
+      hookRequiredFitFor([
+        scene("narrative", "cover"),
+        scene("narrative", "cover"),
+        scene("narrative", "contain"),
+      ]),
+    ).toBe("cover");
+  });
+
+  it("never lets the hook vote on its own composition", () => {
+    // The hook's declared fit is the thing being decided, so counting it would
+    // let a hand-written `cover` hook veto a contain body.
+    expect(hookRequiredFitFor([scene("narrative", "contain"), scene("hook", "cover")])).toBe(
+      "contain",
+    );
+  });
+
+  it("defaults to cover when nothing is declared, or on a tie", () => {
+    expect(hookRequiredFitFor([])).toBe("cover");
+    expect(hookRequiredFitFor([scene("narrative")])).toBe("cover");
+    expect(hookRequiredFitFor([scene("narrative", "cover"), scene("narrative", "contain")])).toBe(
+      "cover",
+    );
   });
 });
