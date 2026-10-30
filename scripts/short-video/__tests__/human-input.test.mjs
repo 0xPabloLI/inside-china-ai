@@ -22,7 +22,6 @@ import {
   clickAtPoint,
   easeOutCubic,
   ensureForeground,
-  makeRng,
   mousePath,
   openCdpSession,
   openVisibleSession,
@@ -30,12 +29,28 @@ import {
   planTyping,
   pokeEditorState,
   randomBetween,
-  sleepBetween,
   sleepJitter,
   splitGraphemes,
   typePlan,
   wheelScroll,
 } from "../lib/human-input.mjs";
+
+/**
+ * Deterministic PRNG (mulberry32) for the pacing assertions.
+ *
+ * Lives in the test on purpose: no production path seeds a run, so exporting it
+ * from the library would only add a second, unused way to build randomness.
+ */
+function makeRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 const seeded = (seed = 42) => makeRng(seed);
 
@@ -75,7 +90,7 @@ describe("makeRng / randomBetween", () => {
   });
 });
 
-describe("sleepJitter / sleepBetween", () => {
+describe("sleepJitter", () => {
   it("always varies the duration within base ± spread", async () => {
     const { sleeps, sleepFn } = fakeSleep();
     for (let i = 0; i < 20; i++) await sleepJitter(1000, 250, { rand: seeded(i), sleepFn });
@@ -91,16 +106,6 @@ describe("sleepJitter / sleepBetween", () => {
     const { sleeps, sleepFn } = fakeSleep();
     for (let i = 0; i < 20; i++) await sleepJitter(100, 400, { rand: seeded(i), sleepFn });
     for (const ms of sleeps) expect(ms).toBeGreaterThanOrEqual(0);
-  });
-
-  it("sleepBetween uses the closed interval and varies", async () => {
-    const { sleeps, sleepFn } = fakeSleep();
-    for (let i = 0; i < 20; i++) await sleepBetween(5000, 15000, { rand: seeded(i), sleepFn });
-    expect(new Set(sleeps).size).toBeGreaterThan(1);
-    for (const ms of sleeps) {
-      expect(ms).toBeGreaterThanOrEqual(5000);
-      expect(ms).toBeLessThanOrEqual(15000);
-    }
   });
 });
 
@@ -298,6 +303,55 @@ describe("wheelScroll", () => {
     expect(result.chunks).toEqual([500]);
     const evaluated = calls.find((c) => c.method === "Runtime.evaluate");
     expect(evaluated.params.expression).toContain("scrollBy(0, 500)");
+  });
+
+  it("scripts only the shortfall when a later burst is dropped", async () => {
+    // Bursts that were acknowledged already moved the page. Adding the whole
+    // request on top overshoots by exactly what they scrolled.
+    const calls = [];
+    let wheels = 0;
+    const session = {
+      send: async (method, params = {}) => {
+        if (params.type === "mouseWheel" && ++wheels > 2) throw new Error("CDP command timed out");
+        calls.push({ method, params });
+        return {};
+      },
+    };
+    const { sleepFn } = fakeSleep();
+    const result = await wheelScroll(session, {
+      x: 300,
+      y: 300,
+      totalDeltaY: 520,
+      rand: seeded(13),
+      sleepFn,
+    });
+    const delivered = result.chunks.slice(0, -1).reduce((a, b) => a + b, 0);
+    const remaining = result.chunks.at(-1);
+    expect(result.mode).toBe("js-fallback");
+    expect(remaining).toBe(520 - delivered);
+    expect(delivered + remaining).toBe(520);
+    const evaluated = calls.find((c) => c.method === "Runtime.evaluate");
+    expect(evaluated.params.expression).toContain(`scrollBy(0, ${remaining})`);
+    expect(Math.abs(remaining)).toBeLessThan(520);
+  });
+
+  it("keeps every burst positive and forward on a scroll shorter than the burst count", async () => {
+    // Each chunk is clamped to ≥1 while the split asks for 3-6 of them, so a
+    // residual correction aimed at the last chunk can zero it or flip its sign
+    // — a wheel event in the wrong direction.
+    for (const totalDeltaY of [4, 7, 10, -4]) {
+      const session = fakeSession();
+      const { sleepFn } = fakeSleep();
+      const result = await wheelScroll(session, {
+        x: 5,
+        y: 5,
+        totalDeltaY,
+        rand: seeded(14),
+        sleepFn,
+      });
+      for (const c of result.chunks) expect(Math.sign(c)).toBe(Math.sign(totalDeltaY));
+      expect(result.chunks.reduce((a, b) => a + b, 0)).toBe(totalDeltaY);
+    }
   });
 
   it("propagates the timeout when the caller opted out of the fallback", async () => {

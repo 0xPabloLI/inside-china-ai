@@ -248,13 +248,7 @@ export async function runSelfTest() {
   }
 }
 
-const isMain = (() => {
-  try {
-    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
-  } catch {
-    return false;
-  }
-})();
+const isMain = process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMain) {
   runSelfTest()

@@ -41,8 +41,9 @@
  *      requested caption, and a mismatch re-selects and pastes (the only path
  *      Draft.js is known to handle cleanly). `--paste-caption` skips typing
  *      deliberately.
- *   3. Delay jitter. Every wait is `sleepJitter(...PUBLISH_PACING.<name>)` or
- *      `sleepBetween(...)`; no fixed literal remains. A test pins each pacing
+ *   3. Delay jitter. Every wait is `sleepJitter(...PUBLISH_PACING.<name>)`, in
+ *      the same `[base, spread]` convention as the cadence bands in
+ *      `lib/human-input.mjs`; no fixed literal remains. A test pins each pacing
  *      entry to a spread of at least 20% of its base and rejects naked
  *      durations (including inside page scripts).
  *   4. Pre-publish review. With `--publish`, the script presses play on the
@@ -160,7 +161,6 @@ import {
   pokeEditorState,
   pressEnter,
   randomBetween,
-  sleepBetween,
   sleepJitter,
   typePlan,
   wheelScroll,
@@ -218,25 +218,6 @@ const TAG_BY_TEXT = (label, id = "__byText") => `
   btn.scrollIntoView({ block: "center" });
   const r = btn.getBoundingClientRect();
   return JSON.stringify({ ok: true, id: ${JSON.stringify(id)}, tag: btn.tagName, x: r.x, y: r.y, width: r.width, height: r.height });
-})()`;
-
-/** JS-level click (fallback only — produces no pointer events at all). */
-const CLICK_BY_TEXT = (label) => `
-(() => {
-  const target = ${JSON.stringify(label)};
-  const nodes = [...document.querySelectorAll("button, [role=button], div, span")];
-  const hit = nodes.find((e) => {
-    const own = [...e.childNodes]
-      .filter((n) => n.nodeType === 3)
-      .map((n) => n.textContent)
-      .join("")
-      .trim();
-    return own === target && e.getBoundingClientRect().width > 0;
-  });
-  if (!hit) return JSON.stringify({ ok: false });
-  const btn = hit.closest("button, [role=button]") || hit;
-  btn.click();
-  return JSON.stringify({ ok: true, tag: btn.tagName });
 })()`;
 
 /**
@@ -483,7 +464,11 @@ const SET_SEARCH_VALUE = (query) => `
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
   setter.call(inp, ${JSON.stringify(query)});
   inp.dispatchEvent(new Event("input", { bubbles: true }));
-  return JSON.stringify({ ok: true, value: inp.value });
+  // This branch runs when the panel re-mounted between the click and the
+  // keystrokes, so the new input is not focused and the trusted Enter typed
+  // afterwards would land on the body. Focus has to be restored here.
+  inp.focus();
+  return JSON.stringify({ ok: true, value: inp.value, focused: document.activeElement === inp });
 })()`;
 
 /** Count sound results (used to poll after a search). */
@@ -612,17 +597,15 @@ const CLEAR_VOLUME_MARKER = `
 // a modal IF one appears, and then verifies the switch's own state — that is
 // the only fact that ships.
 
-/** Expand the 显示更多 section that hides the disclosure switches. */
-const OPEN_ADVANCED = `
-(() => {
-  const t = document.body.innerText;
-  if (/AI 生成的内容/.test(t)) return JSON.stringify({ ok: true, alreadyOpen: true });
-  const btn = [...document.querySelectorAll("button, div, span")]
-    .find((e) => e.innerText && e.innerText.trim() === "显示更多");
-  if (!btn) return JSON.stringify({ ok: false, reason: "no 显示更多 control" });
-  btn.click();
-  return JSON.stringify({ ok: true, alreadyOpen: false });
-})()`;
+/**
+ * Is the 显示更多 section expanded?
+ *
+ * Expansion is verified by the disclosure text it reveals, so the same probe
+ * both skips the click when TikTok already rendered the section open and
+ * gates the click when it has to happen.
+ */
+const ADVANCED_OPEN = `
+(() => JSON.stringify({ ready: /AI 生成的内容/.test(document.body.innerText) }))()`;
 
 /** Report the AIGC switch's state (null when the section is not expanded). */
 const READ_AIGC = `
@@ -732,6 +715,12 @@ const REVIEW_STATE = `
  */
 function makePublishLogger(contentId) {
   if (!contentId) return () => {};
+  // `contentId` arrives from argv and is about to become a path component.
+  // Pipeline ids are slugs; anything else is a typo or an attempt to climb out
+  // of output/, and neither should create a directory.
+  if (!/^[A-Za-z0-9._-]+$/.test(contentId) || contentId === "." || contentId === "..") {
+    throw new Error(`--content must be a pipeline id, not a path: ${JSON.stringify(contentId)}`);
+  }
   const outDir = join(__dirname, "output", contentId);
   if (!existsSync(outDir)) return () => {};
   const dir = join(outDir, "publish", "tiktok");
@@ -826,16 +815,34 @@ async function humanClickElement(tabId, cdp, selector) {
  * a fallback and a hard failure. `isReady` defaults to the `ready` envelope
  * the scripts in this file use.
  */
-async function pollFor(
+export async function pollFor(
   tabId,
   script,
-  { timeoutMs = 20_000, label = "state", isReady = (s) => !!s?.ready } = {},
+  {
+    timeoutMs = 20_000,
+    label = "state",
+    isReady = (s) => !!s?.ready,
+    evalFn = evalJson,
+    // Injected so a test can poll without waiting; production sleeps with the
+    // same jittered band as every other wait.
+    sleepFn = (ms) => sleepJitter(ms, 0),
+  } = {},
 ) {
   const started = Date.now();
   let last = null;
   let printed = false;
   while (Date.now() - started < timeoutMs) {
-    last = await evalJson(tabId, script);
+    // A page script can fail mid-navigation (the publish click navigates away,
+    // and an eval that lands in that window comes back as an error envelope).
+    // That is "not ready yet", not a reason to abort: aborting here would report
+    // failure for a publish that actually succeeded.
+    try {
+      last = await evalFn(tabId, script);
+    } catch (err) {
+      last = { error: err.message };
+      await sleepFn(...PUBLISH_PACING.poll);
+      continue;
+    }
     if (isReady(last)) {
       if (printed) process.stdout.write("\n");
       return { ready: true, last };
@@ -844,7 +851,7 @@ async function pollFor(
       `  … waiting for ${label} (${Math.round((Date.now() - started) / 1000)}s)\r`,
     );
     printed = true;
-    await sleepJitter(...PUBLISH_PACING.poll);
+    await sleepFn(...PUBLISH_PACING.poll);
   }
   if (printed) process.stdout.write("\n");
   return { ready: false, last };
@@ -1130,7 +1137,7 @@ export async function reviewBeforePublish(tabId, cdp) {
     }
   }
 
-  const watchedMs = await sleepBetween(...REVIEW_WATCH_MS);
+  const watchedMs = await sleepJitter(...REVIEW_WATCH_MS);
   const during = await evalJson(tabId, REVIEW_STATE);
   const endClock = parseClock(during.timeText);
   const advancedSeconds =
@@ -1350,8 +1357,23 @@ async function main() {
       console.log("  5/6 AIGC label SKIPPED (--no-aigc) — the post will not carry a disclosure");
       log("aigc", { mode: "skipped" });
     } else {
-      const advanced = await evalJson(tab, OPEN_ADVANCED);
-      if (!advanced.ok) throw new Error(`could not expand 显示更多: ${JSON.stringify(advanced)}`);
+      if ((await evalJson(tab, ADVANCED_OPEN)).ready) {
+        log("aigc", { expandMode: "already-open" });
+      } else {
+        // 显示更多 is a real UI control, so it gets the same pointer treatment
+        // as every other button: tag it, travel to it, press. A page-level
+        // .click() here would ship the one bot-shaped event the rest of this
+        // path exists to avoid.
+        const tagged = await evalJson(tab, TAG_BY_TEXT("显示更多", "__advancedToggle"));
+        if (!tagged.ok) {
+          throw new Error(`could not find 显示更多: ${JSON.stringify(tagged)}`);
+        }
+        const expanded = await humanClickThen(tab, cdp, "#__advancedToggle", ADVANCED_OPEN, {
+          label: "显示更多",
+          timeoutMs: 20_000,
+        });
+        log("aigc", { expandMode: expanded.mode });
+      }
       await sleepJitter(...PUBLISH_PACING.aigcExpand);
 
       const before = await evalJson(tab, READ_AIGC);
@@ -1613,13 +1635,8 @@ async function main() {
 // Run only when invoked as a command. Importing this module (for example to
 // exercise `reviewBeforePublish` against a live prepared post) must not open
 // a browser tab and start an upload.
-const invokedDirectly = (() => {
-  try {
-    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
-  } catch {
-    return false;
-  }
-})();
+const invokedDirectly =
+  process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
   main().catch((err) => {

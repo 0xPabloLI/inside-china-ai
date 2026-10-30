@@ -70,7 +70,7 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 
 结果写在 `output/{content}/publish/tiktok/publish-log.jsonl`（每步一行 JSON，含 `step: "review"` 与 `reviewed`）。运行时自检：`node scripts/short-video/human-input-selftest.mjs`（断言页面收到的每个事件都是 trusted、零 paste）。
 
-> 输入必须落在前台标签页：后台标签的 CDP 输入派发会被节流（实测同一条 14 点轨迹前台 0.33s、后台 65s）。脚本每步先 `Target.activateTarget` 再输入。
+> 输入必须落在前台标签页：后台标签的 CDP 输入派发会被节流（实测同一条 14 点轨迹前台 0.33s、后台 65s）。脚本在开标签页时激活一次（`openVisibleSession`：`Target.activateTarget` → 新建窗口重挂 → 读 `document.visibilityState`，三次仍 hidden 就报错退出），此后不再逐步激活——`Target.activateTarget` 返回 ok 也不代表可见，窗口在别的 Space 或被遮挡时标签页仍是 `hidden`。所以运行过程中别把 Chrome 切走或最小化：一旦失焦，后续输入会以 `Input.*` 超时的形式失败，而不是静默跑完。
 
 ### 发布后自动提示
 

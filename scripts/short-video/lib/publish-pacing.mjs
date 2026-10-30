@@ -37,7 +37,9 @@ export const PUBLISH_PACING = Object.freeze({
 });
 
 /**
- * Bounds for the pre-publish review playback. A creator watches a stretch of
- * the finished clip, not a fixed number of seconds.
+ * How long the pre-publish review watches the clip: `[base, spread]`, so
+ * 10 000 ± 5 000ms — the ticket's 5–15s band, expressed in the same convention
+ * as every other entry. A creator watches a stretch of the finished clip, not a
+ * fixed number of seconds.
  */
-export const REVIEW_WATCH_MS = Object.freeze([5000, 15000]);
+export const REVIEW_WATCH_MS = Object.freeze([10_000, 5_000]);

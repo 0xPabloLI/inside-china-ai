@@ -36,17 +36,18 @@ describe("PUBLISH_PACING", () => {
   });
 
   it("keeps the review playback inside the 5-15s band", () => {
-    expect(REVIEW_WATCH_MS[0]).toBe(5000);
-    expect(REVIEW_WATCH_MS[1]).toBe(15000);
-    expect(REVIEW_WATCH_MS[0]).toBeLessThan(REVIEW_WATCH_MS[1]);
+    // Stored as [base, spread] like every other wait, so the band is derived.
+    const [base, spread] = REVIEW_WATCH_MS;
+    expect(base - spread).toBe(5000);
+    expect(base + spread).toBe(15000);
   });
 });
 
 describe("no naked durations on the publish path", () => {
   // Both files, because the claim in the docs and the header is about the path,
-  // not about one file: an inline `sleepBetween(90, 180)` in the input library
+  // not about one file: an inline `sleepJitter(135, 45)` in the input library
   // is exactly as much a fingerprint as one in the driver.
-  const NAKED_SLEEP = /(^|[^\w.])(sleep|sleepJitter|sleepBetween)\(\s*-?\d/m;
+  const NAKED_SLEEP = /(^|[^\w.])(sleep|sleepJitter)\(\s*-?\d/m;
 
   for (const [name, text] of [
     ["tiktok-upload-prep.mjs", source],
@@ -112,6 +113,53 @@ describe("pre-publish review evidence", () => {
     expect(source).toMatch(/invokedDirectly/);
     expect(source).toMatch(/if \(invokedDirectly\) \{\s*main\(\)/);
   });
+
+  it("every humanClickThen verify script reports a `ready` envelope", () => {
+    // `humanClickThen` polls with the default `isReady` (the `ready` field), so
+    // a verify script that reports some other key silently never becomes ready
+    // — the click "fails", falls back to a JS click, and then throws.
+    const calls = [...source.matchAll(/humanClickThen\(\s*tab,\s*cdp,\s*"[^"]+",\s*(\w+)/g)];
+    expect(calls.length).toBeGreaterThan(0);
+    for (const [, name] of calls) {
+      const def = source.match(new RegExp("const " + name + " = `([\\s\\S]*?)`;"));
+      expect(def, `${name} is not a template constant`).toBeTruthy();
+      expect(def[1], `${name} does not report \`ready\``).toContain("ready:");
+    }
+  });
+
+  it("treats an eval that fails mid-navigation as not-ready-and-retry", async () => {
+    // The publish click navigates away from /upload, so the first state read
+    // can land in the navigation window and fail. Aborting there would report
+    // failure for a publish that succeeded.
+    const { pollFor } = await import("../tiktok-upload-prep.mjs");
+    let calls = 0;
+    const result = await pollFor("TAB", "0", {
+      timeoutMs: 5000,
+      evalFn: async () => {
+        calls += 1;
+        if (calls === 1) throw new Error("Execution context was destroyed");
+        return { url: "https://www.tiktok.com/@news/video/7300000000000000000" };
+      },
+      sleepFn: async () => {},
+      isReady: (s) => !!s && !s.error && !/\/upload/.test(s.url || ""),
+    });
+    expect(calls).toBe(2);
+    expect(result.ready).toBe(true);
+    expect(result.last.url).toContain("/video/");
+  });
+
+  it("returns the failure instead of throwing when every read fails", async () => {
+    const { pollFor } = await import("../tiktok-upload-prep.mjs");
+    const result = await pollFor("TAB", "0", {
+      timeoutMs: 20,
+      evalFn: async () => {
+        throw new Error("Execution context was destroyed");
+      },
+      sleepFn: async () => {},
+    });
+    expect(result.ready).toBe(false);
+    expect(result.last.error).toMatch(/destroyed/);
+  });
 });
 
 describe("the driver's input shape", () => {
@@ -124,7 +172,6 @@ describe("the driver's input shape", () => {
       "planTyping",
       "wheelScroll",
       "sleepJitter",
-      "sleepBetween",
       "pokeEditorState",
     ]) {
       expect(source, `${symbol} not imported`).toContain(symbol);

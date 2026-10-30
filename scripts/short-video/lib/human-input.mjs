@@ -51,10 +51,10 @@ export const POINTER_STEP_MS = Object.freeze([9, 5]);
 export const POINTER_SETTLE_MS = Object.freeze([85, 45]);
 /** Button hold time. */
 export const POINTER_HOLD_MS = Object.freeze([45, 120]);
-/** Beat after moving to the scroll point, before the first wheel burst. */
-export const WHEEL_SETTLE_MS = Object.freeze([90, 180]);
-/** Gap between wheel bursts. */
-export const WHEEL_BURST_GAP_MS = Object.freeze([80, 260]);
+/** Beat after moving to the scroll point, before the first wheel burst (135 ± 45). */
+export const WHEEL_SETTLE_MS = Object.freeze([135, 45]);
+/** Gap between wheel bursts (170 ± 90). */
+export const WHEEL_BURST_GAP_MS = Object.freeze([170, 90]);
 /**
  * How long one wheel dispatch may wait for an ack. A real ack is milliseconds;
  * the long session budget would only convert a silent drop into a 15s stall.
@@ -62,23 +62,6 @@ export const WHEEL_BURST_GAP_MS = Object.freeze([80, 260]);
 export const WHEEL_ACK_TIMEOUT_MS = 3000;
 /** Base of the visibility re-check backoff (multiplied by attempt). */
 export const FOREGROUND_RETRY_BASE_MS = 400;
-
-/**
- * Small deterministic PRNG (mulberry32) for tests and reproducible runs.
- *
- * @param {number} seed
- * @returns {() => number} float in [0, 1)
- */
-export function makeRng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /**
  * Uniform float in [min, max].
@@ -103,21 +86,6 @@ export function randomBetween(min, max, rand = Math.random) {
 export async function sleepJitter(baseMs, spreadMs, opts = {}) {
   const { rand = Math.random, sleepFn = defaultSleep } = opts;
   const ms = Math.max(0, Math.round(baseMs + randomBetween(-spreadMs, spreadMs, rand)));
-  await sleepFn(ms);
-  return ms;
-}
-
-/**
- * Sleep a uniformly random duration inside [minMs, maxMs].
- *
- * @param {number} minMs
- * @param {number} maxMs
- * @param {{ rand?: () => number, sleepFn?: (ms: number) => Promise<void> }} [opts]
- * @returns {Promise<number>} the duration actually slept
- */
-export async function sleepBetween(minMs, maxMs, opts = {}) {
-  const { rand = Math.random, sleepFn = defaultSleep } = opts;
-  const ms = Math.max(0, Math.round(randomBetween(minMs, maxMs, rand)));
   await sleepFn(ms);
   return ms;
 }
@@ -289,15 +257,20 @@ export async function wheelScroll(session, opts) {
   await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none" });
   // Let the hit test settle before the first burst; a wheel that lands in the
   // same frame as the move is the one Chrome tends to drop.
-  await sleepBetween(...WHEEL_SETTLE_MS, { rand, sleepFn });
+  await sleepJitter(...WHEEL_SETTLE_MS, { rand, sleepFn });
 
-  const count = Math.max(3, Math.round(randomBetween(3, 6, rand)));
+  const count = Math.min(total, Math.max(3, Math.round(randomBetween(3, 6, rand))));
   const weights = Array.from({ length: count }, () => randomBetween(0.6, 1.4, rand));
   const weightSum = weights.reduce((a, b) => a + b, 0);
   const chunks = weights.map((w) => Math.max(1, Math.round((total * w) / weightSum)));
+  // Correct the rounding residual on the largest chunk. The last chunk can be
+  // clamped to 1 for a small request, and shifting the residual onto it would
+  // zero or flip its sign — scrolling in the opposite direction.
   const diff = total - chunks.reduce((a, b) => a + b, 0);
-  chunks[chunks.length - 1] += diff;
+  const biggest = chunks.indexOf(Math.max(...chunks));
+  chunks[biggest] += diff;
 
+  let sent = 0;
   try {
     for (const chunk of chunks) {
       await session.send(
@@ -315,14 +288,26 @@ export async function wheelScroll(session, opts) {
         // nothing.
         { timeoutMs: WHEEL_ACK_TIMEOUT_MS },
       );
-      await sleepBetween(...WHEEL_BURST_GAP_MS, { rand, sleepFn });
+      sent += 1;
+      await sleepJitter(...WHEEL_BURST_GAP_MS, { rand, sleepFn });
     }
   } catch (err) {
     if (!fallback) throw err;
-    await session.send("Runtime.evaluate", {
-      expression: `window.scrollBy(0, ${sign * total})`,
-    });
-    return { chunks: [sign * total], mode: "js-fallback", reason: err.message };
+    // Only the shortfall is scripted: the bursts that were acknowledged already
+    // scrolled the page, and adding the full total on top would overshoot by
+    // whatever they moved.
+    const delivered = chunks.slice(0, sent);
+    const remaining = sign * (total - delivered.reduce((a, b) => a + b, 0));
+    if (remaining) {
+      await session.send("Runtime.evaluate", {
+        expression: `window.scrollBy(0, ${remaining})`,
+      });
+    }
+    return {
+      chunks: [...delivered.map((c) => sign * c), ...(remaining ? [remaining] : [])],
+      mode: "js-fallback",
+      reason: err.message,
+    };
   }
   return { chunks: chunks.map((c) => sign * c), mode: "wheel" };
 }
