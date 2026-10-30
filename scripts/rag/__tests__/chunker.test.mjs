@@ -299,6 +299,25 @@ describe("chunkCatalog", () => {
     expect(chunks[0].text).toContain("content/unitree/assets/unitree-demo.mp4");
   });
 
+  // #1003: declared dimensions reach the indexed text (and its hash)
+  it("includes declared dimensions in chunk text", () => {
+    const chunks = chunkCatalog([
+      {
+        file: "content/test/assets/demo.png",
+        type: "image",
+        description: "A demo image",
+        width: 1080,
+        height: 1920,
+      },
+    ]);
+    expect(chunks[0].text).toContain("Dimensions: 1080x1920");
+  });
+
+  it("omits the dimensions line when width/height are absent", () => {
+    const chunks = chunkCatalog(mockEntries);
+    expect(chunks[0].text).not.toContain("Dimensions:");
+  });
+
   // chunk_text contains source
   it("includes source in chunk text", () => {
     const chunks = chunkCatalog(mockEntries);

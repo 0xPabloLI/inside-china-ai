@@ -220,7 +220,8 @@ function basename(filePath) {
  *
  * Each entry's text is composed from its present fields:
  * description (always), keywords (if present), file (always),
- * source (if present), license (if present), used_in (if present).
+ * dimensions (if declared), source (if present), license (if present),
+ * used_in (if present).
  *
  * @param {Array} entries - Array of catalog entry objects from YAML
  * @returns {Chunk[]}
@@ -240,6 +241,10 @@ export function chunkCatalog(entries) {
     }
 
     lines.push(`File: ${entry.file}`);
+
+    if (Number.isInteger(entry.width) && Number.isInteger(entry.height)) {
+      lines.push(`Dimensions: ${entry.width}x${entry.height}`);
+    }
 
     if (entry.source) {
       lines.push(`Source: ${entry.source}`);

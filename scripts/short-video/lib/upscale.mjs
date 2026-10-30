@@ -12,7 +12,7 @@
 
 import { existsSync, mkdirSync, rmSync } from "fs";
 import { join, dirname, basename, extname } from "path";
-import { execSync, spawnSync } from "child_process";
+import { execFileSync, execSync, spawnSync } from "child_process";
 import { homedir, tmpdir } from "os";
 
 // ─── Constants ───
@@ -36,7 +36,7 @@ const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".avi", ".mkv"]);
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 
 /** Default target short side (720p). */
-const DEFAULT_TARGET_SHORT_SIDE = 720;
+export const DEFAULT_TARGET_SHORT_SIDE = 720;
 
 // ─── Pure functions ───
 
@@ -91,11 +91,23 @@ export function checkResolution(filePath) {
 
   const isVideo = isVideoFile(filePath);
 
-  // Use ffprobe to get resolution
+  // Use ffprobe to get resolution. The path is a catalog-controlled string, so
+  // it goes through argv (execFile) and never through a shell line (#1003).
   let output;
   try {
-    output = execSync(
-      `"${FFPROBE_PATH}" -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${filePath}"`,
+    output = execFileSync(
+      FFPROBE_PATH,
+      [
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height",
+        "-of",
+        "csv=s=x:p=0",
+        filePath,
+      ],
       { encoding: "utf8", timeout: 10000 },
     ).trim();
   } catch {
