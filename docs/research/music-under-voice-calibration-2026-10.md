@@ -69,20 +69,34 @@ The −22.2 dB result was **inside** the general band but at its quiet end, and 
 
 The script reads the slider back after setting it and aborts if it misses by more than 1 dB. That guards the **control**; it does not measure the mix. See §6.
 
-## 6. Open gap — the constant is still not artifact-calibrated
+## 6. Closed 2026-10-30 — the mix is now calibrated on the artifact
 
-Nothing in the pipeline measures the actual music-below-narration ratio before publishing. `verify-video.mjs` reports whole-mix loudness (LUFS / true peak), which is a different quantity and cannot see this defect: the −22.2 dB post passed both loudness gates at −16.67 LUFS / TP −1.46.
+`verify-video.mjs` measures the ratio in the shipped file (#950, `lib/audio/bgm-margin.mjs`): RMS inside speech windows (from `subtitle-timing.json` + `scene-durations.json`, offset by the frame-aligned timeline) vs RMS in the gaps between them, where only the bed can be. PASS 12–26 dB; FAIL outside 10–32 dB, or when a render that recorded a local mix shows no measurable bed (≤ −50 dBFS in its own windows). The expectation comes from the `audio/bgm-mix.json` marker the mix pass writes — without it the check reports "not measured", because "bed 35 dB down" and "no bed" are the same level reading otherwise.
 
-There are also **two paths with different scales**, and only one has been measured:
+Measured on the real `deepseek-v41-flash-1017` render (voice-only track + `assets/bgm/news-cc-theme01.mp3` through `mixBgm()`; no loudnorm pass in these files, which leaves the ratio unchanged):
 
-| Path | Control | Status |
+| Mix | Whole-mix LUFS | Music below narration |
 | --- | --- | --- |
-| Platform attach (`tiktok-upload-prep.mjs`) | slider dB, read back | calibrated in §5 |
-| Local mix (`mix-bgm.mjs`) | `volume=0.12` (≈ −18.4 dB gain) | **never calibrated against a rendered artifact** |
+| voice only | −15.74 | no bed |
+| `volume=0.12` (local default) | −21.73 | **13.7 dB** → PASS, at the loud edge |
+| `volume=0.002` (bed effectively gone) | −21.79 | **bed −68.8 dBFS** → FAIL |
 
-`mix-bgm.mjs` is inside the 15–25 dB band by arithmetic, but "inside the band by arithmetic" is the same reasoning that produced the −20 dB default the user rejected.
+The two mixed variants differ by **0.06 LU** of whole-mix loudness while their margins differ by **30 dB** — the blind spot, measured. The local default landing at 13.7 dB is itself a finding: it sits at the loud end of the band while the platform path targets ≈ −17 dB; retuning `volume=0.12` is a separate decision, not something this check decides.
 
-Filed as issue **#950** (BGM 混音无工件级校验).
+Two paths still differ in scale, and both are now checked as artifacts:
+
+| Path | Control | Check |
+| --- | --- | --- |
+| Platform attach (`tiktok-upload-prep.mjs`) | slider dB, read back | slider read-back; post-download measurement below |
+| Local mix (`mix-bgm.mjs`, `finalizeRenderedVideo`) | `volume=0.12` (≈ −18.4 dB gain) | measured by `verify-video.mjs` and by `mix-bgm.mjs` right after mixing |
+
+Any artifact, including a post pulled with `yt-dlp -f b`:
+
+```bash
+node scripts/short-video/measure-bgm-margin.mjs --video /tmp/post-audio --content <id>
+```
+
+Filed as issue **#950** (BGM 混音无工件级校验); closed with this section.
 
 ## 7. Reproduce
 

@@ -106,6 +106,18 @@ describe("a gate CLI does the same thing whichever path invoked it", () => {
     expect(linked.stdout).toBe(direct.stdout);
     expect(linked.stderr).toBe(direct.stderr);
   });
+
+  it("short-video/measure-bgm-margin rejects a missing --video with exit 1", () => {
+    // Exit 1 before any ffmpeg or filesystem probing beyond the argument
+    // check, so a broken guard (exit 0, silent) is distinguishable.
+    const { direct, linked } = runBoth(join("short-video", "measure-bgm-margin.mjs"), []);
+
+    expect(direct.status).toBe(1);
+    expect(direct.stderr).toContain("--video");
+    expect(linked.status, "the symlinked invocation did nothing").toBe(direct.status);
+    expect(linked.stdout).toBe(direct.stdout);
+    expect(linked.stderr).toBe(direct.stderr);
+  });
 });
 
 describe("no script reintroduces a guard the symlink defeats", () => {
