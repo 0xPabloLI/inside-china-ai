@@ -35,9 +35,8 @@ import { cdpNewTab, cdpCloseTab } from "./lib/cdp-client.mjs";
 import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import { automationPort } from "./lib/cdp-profile-guard.mjs";
 import {
-  activateTarget,
   clickAtPoint,
-  openCdpSession,
+  openVisibleSession,
   planTyping,
   pokeEditorState,
   sleepJitter,
@@ -105,19 +104,43 @@ async function readFixture(cdp) {
 
 export async function runSelfTest() {
   const failures = [];
+  const notes = [];
   await ensureCdpProfileGuard();
 
-  const tab = await cdpNewTab(FIXTURE_URL);
-  // A background tab throttles input dispatch to ~4.6s per event (measured);
-  // foreground it before measuring anything.
-  await activateTarget(tab, { port: automationPort() });
-  const cdp = await openCdpSession(tab, { port: automationPort() });
+  // A background tab throttles input dispatch to ~5s per event (measured), so
+  // the fixture has to be in a visible tab or every count below is measured
+  // through a per-event stall. `openVisibleSession` re-hosts it in a new window
+  // when the automation window cannot be raised.
+  const opened = await openVisibleSession(FIXTURE_URL, {
+    port: automationPort(),
+    createTab: cdpNewTab,
+    closeTab: cdpCloseTab,
+    onRehost: (reason) => console.log(`  ⚠️ ${reason} — re-hosted the fixture in a new window`),
+  });
+  const tab = opened.targetId;
+  const cdp = opened.session;
   try {
     await sleepJitter(400, 150);
+
+    // Scroll FIRST, before any click or keystroke. Measured 2026-10-30 on this
+    // Chrome build: once a pointer press or a burst of trusted text input has
+    // been dispatched, a wheel event is never acknowledged (press → 15s stall,
+    // then a fallback scroll). Scrolling on a fresh page is the one order that
+    // measures real wheel delivery, and it is also the driver's order — warm up
+    // on the feed, then click and type.
+    const scrolled = await wheelScroll(cdp, { x: 640, y: 480, totalDeltaY: 520 });
+    await sleepJitter(250, 100);
+    if (scrolled.mode !== "wheel") {
+      // Not a failure by itself: this Chrome build sometimes stops acking
+      // mid-burst after a few deliveries. What matters is how many trusted
+      // wheel events the page actually received, checked below.
+      notes.push(`wheel burst ended in ${scrolled.mode}: ${scrolled.reason}`);
+    }
+
     const button = await rectOf(cdp, "#btn");
     if (!button) {
       fail(failures, "fixture button not found");
-      return { ok: false, failures, report: null };
+      return { ok: false, failures, notes, report: null };
     }
 
     const pointer = { x: 200, y: 500 };
@@ -131,7 +154,7 @@ export async function runSelfTest() {
     const editor = await rectOf(cdp, "#ed");
     if (!editor) {
       fail(failures, "fixture editor not found");
-      return { ok: false, failures, report: null };
+      return { ok: false, failures, notes, report: null };
     }
     await cdp.send("Runtime.evaluate", {
       expression: "document.getElementById('ed').focus()",
@@ -145,9 +168,6 @@ export async function runSelfTest() {
     const plan = planTyping(CAPTION);
     await typePlan(cdp, plan);
     await pokeEditorState(cdp);
-    await sleepJitter(250, 100);
-
-    await wheelScroll(cdp, { x: 640, y: 480, totalDeltaY: 520 });
     await sleepJitter(250, 100);
 
     const fixture = await readFixture(cdp);
@@ -211,6 +231,7 @@ export async function runSelfTest() {
       untrustedEvents: synthetic.length,
       pasteEvents: pastes.length,
       text: fixture.text,
+      notes,
     };
     return { ok: failures.length === 0, failures, report };
   } finally {
@@ -229,7 +250,7 @@ const isMain = (() => {
 
 if (isMain) {
   runSelfTest()
-    .then(({ ok, failures, report }) => {
+    .then(({ ok, failures, notes, report }) => {
       if (report) {
         console.log("");
         console.log("=".repeat(60));
@@ -253,6 +274,7 @@ if (isMain) {
         console.log(
           `  synthetic events: ${report.untrustedEvents} · paste events: ${report.pasteEvents}`,
         );
+        for (const note of notes ?? []) console.log(`  ⚠️ ${note}`);
         console.log("");
       }
       if (ok) {

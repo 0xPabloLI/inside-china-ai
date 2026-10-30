@@ -21,9 +21,12 @@ import {
   activateTarget,
   clickAtPoint,
   easeOutCubic,
+  ensureForeground,
   makeRng,
   mousePath,
   openCdpSession,
+  openVisibleSession,
+  openWindowTarget,
   planTyping,
   pokeEditorState,
   randomBetween,
@@ -246,7 +249,75 @@ describe("wheelScroll", () => {
       rand: seeded(9),
       sleepFn,
     });
-    for (const c of session.calls) expect(c.params.deltaY).toBeLessThan(0);
+    const wheels = session.calls.filter((c) => c.params.type === "mouseWheel");
+    for (const c of wheels) expect(c.params.deltaY).toBeLessThan(0);
+  });
+
+  it("moves the pointer to the scroll point first, or Chrome never acks the wheel", async () => {
+    // Measured 2026-10-30: a wheel dispatched right after Input.insertText
+    // never resolved, while the same wheel after one mouseMoved took 10ms.
+    const session = fakeSession();
+    const { sleepFn } = fakeSleep();
+    await wheelScroll(session, {
+      x: 640,
+      y: 480,
+      totalDeltaY: 300,
+      rand: seeded(10),
+      sleepFn,
+    });
+    expect(session.calls[0].params).toMatchObject({
+      type: "mouseMoved",
+      x: 640,
+      y: 480,
+    });
+    expect(session.calls[1].params.type).toBe("mouseWheel");
+  });
+
+  it("falls back to a scripted scroll, and says so, when the wheel never acks", async () => {
+    // Observed 2026-10-30: after a sustained burst of insertText, wheel
+    // dispatch stops resolving. Losing 15s to a hang is worse than scrolling
+    // by script, as long as the caller can see it happened.
+    const calls = [];
+    const session = {
+      send: async (method, params = {}) => {
+        calls.push({ method, params });
+        if (params.type === "mouseWheel") throw new Error("CDP command timed out");
+        return {};
+      },
+    };
+    const { sleepFn } = fakeSleep();
+    const result = await wheelScroll(session, {
+      x: 300,
+      y: 300,
+      totalDeltaY: 500,
+      rand: seeded(11),
+      sleepFn,
+    });
+    expect(result.mode).toBe("js-fallback");
+    expect(result.reason).toMatch(/timed out/);
+    expect(result.chunks).toEqual([500]);
+    const evaluated = calls.find((c) => c.method === "Runtime.evaluate");
+    expect(evaluated.params.expression).toContain("scrollBy(0, 500)");
+  });
+
+  it("propagates the timeout when the caller opted out of the fallback", async () => {
+    const session = {
+      send: async (_method, params = {}) => {
+        if (params.type === "mouseWheel") throw new Error("CDP command timed out");
+        return {};
+      },
+    };
+    const { sleepFn } = fakeSleep();
+    await expect(
+      wheelScroll(session, {
+        x: 1,
+        y: 1,
+        totalDeltaY: 100,
+        rand: seeded(12),
+        sleepFn,
+        fallback: false,
+      }),
+    ).rejects.toThrow(/timed out/);
   });
 });
 
@@ -377,7 +448,27 @@ class FakeSocket {
         }),
       );
     };
-    if (frame.method === "Target.attachToTarget") reply({ sessionId: "S-1" });
+    const fail = (error) => {
+      queueMicrotask(() =>
+        this.onmessage?.({
+          data: JSON.stringify({ id: frame.id, error }),
+        }),
+      );
+    };
+    if (FakeSocket.refuseMethod === frame.method) {
+      fail({ code: -32602, message: "No target with given id found" });
+      return;
+    }
+    if (frame.method === "Target.attachToTarget") {
+      // One session per tab; visibility is keyed by attach order within the
+      // test, so a test can say "the first tab is hidden, the next is visible".
+      this.sessionOrdinal = FakeSocket.instances.filter(
+        (s) => s.sessionOrdinal !== undefined,
+      ).length;
+      reply({ sessionId: `S-${this.sessionOrdinal + 1}` });
+    } else if (frame.method === "Target.createTarget") reply({ targetId: "WIN-TAB-1" });
+    else if (frame.method === "Runtime.evaluate")
+      reply({ result: { value: FakeSocket.visibilityFor(this.sessionOrdinal ?? 0) } });
     else if (frame.method === "Target.detachFromTarget") reply({});
     else reply({ ok: true });
   }
@@ -386,6 +477,11 @@ class FakeSocket {
   }
 }
 FakeSocket.instances = [];
+FakeSocket.refuseMethod = null;
+// Per-attach visibility; the last entry repeats for later tabs.
+FakeSocket.visibility = ["visible"];
+FakeSocket.visibilityFor = (ordinal) =>
+  FakeSocket.visibility[Math.min(ordinal, FakeSocket.visibility.length - 1)];
 
 const fakeFetch = async () => ({
   json: async () => ({ webSocketDebuggerUrl: "ws://127.0.0.1:9229/devtools/browser/fake" }),
@@ -406,6 +502,135 @@ describe("activateTarget", () => {
       params: { targetId: "TAB-9" },
     });
     expect(socket.closed).toBe(true);
+  });
+
+  it("throws when Chrome refuses the activation, instead of running throttled", async () => {
+    FakeSocket.instances = [];
+    FakeSocket.refuseMethod = "Target.activateTarget";
+    try {
+      await expect(
+        activateTarget("TAB-9", { WebSocketImpl: FakeSocket, fetchImpl: fakeFetch }),
+      ).rejects.toThrow(/Target.activateTarget refused: No target/);
+    } finally {
+      FakeSocket.refuseMethod = null;
+    }
+    expect(FakeSocket.instances[0].closed).toBe(true);
+  });
+});
+
+describe("ensureForeground", () => {
+  const sessionWith = (values) => {
+    const sent = [];
+    let i = 0;
+    return {
+      sent,
+      send: async (method) => {
+        sent.push(method);
+        if (method === "Runtime.evaluate") {
+          const value = values[Math.min(i, values.length - 1)];
+          i += 1;
+          return { result: { value } };
+        }
+        return {};
+      },
+    };
+  };
+  const noSleep = async () => {};
+
+  it("returns once the tab reports visible", async () => {
+    const session = sessionWith(["visible"]);
+    await expect(ensureForeground(session, { sleepFn: noSleep })).resolves.toBe("visible");
+    expect(session.sent).toContain("Page.bringToFront");
+  });
+
+  it("retries a hidden tab before giving up", async () => {
+    const session = sessionWith(["hidden", "hidden", "visible"]);
+    await expect(ensureForeground(session, { sleepFn: noSleep })).resolves.toBe("visible");
+  });
+
+  it("throws with the instruction instead of running at ~5s per event", async () => {
+    const session = sessionWith(["hidden"]);
+    await expect(
+      ensureForeground(session, { sleepFn: noSleep, label: "upload tab" }),
+    ).rejects.toThrow(/upload tab is hidden.*Bring the Chrome window to the front/s);
+  });
+});
+
+describe("openWindowTarget", () => {
+  it("creates the window through the browser endpoint and returns its target", async () => {
+    FakeSocket.instances = [];
+    FakeSocket.visibility = ["visible"];
+    const targetId = await openWindowTarget("https://example.test/upload", {
+      WebSocketImpl: FakeSocket,
+      fetchImpl: fakeFetch,
+    });
+    expect(targetId).toBe("WIN-TAB-1");
+    const frame = FakeSocket.instances[0].sent[0];
+    expect(frame).toMatchObject({
+      method: "Target.createTarget",
+      params: { url: "https://example.test/upload", newWindow: true },
+    });
+    expect(FakeSocket.instances[0].closed).toBe(true);
+  });
+});
+
+describe("openVisibleSession", () => {
+  const cycle = (states) => {
+    FakeSocket.visibility = states;
+    FakeSocket.instances = [];
+  };
+
+  it("keeps the proxy's tab when it is already visible", async () => {
+    cycle(["visible"]);
+    const closed = [];
+    const opened = await openVisibleSession("https://example.test/upload", {
+      createTab: async () => "TAB-1",
+      closeTab: (id) => closed.push(id),
+      WebSocketImpl: FakeSocket,
+      fetchImpl: fakeFetch,
+    });
+    expect(opened).toMatchObject({ targetId: "TAB-1", window: "existing" });
+    expect(closed).toEqual([]);
+    // No window was created.
+    expect(
+      FakeSocket.instances.some((s) => s.sent.some((f) => f.method === "Target.createTarget")),
+    ).toBe(false);
+  });
+
+  it("re-hosts into a new window when the occluded window's tab stays hidden", async () => {
+    cycle(["hidden", "visible"]);
+    const closed = [];
+    const reasons = [];
+    const opened = await openVisibleSession("https://example.test/upload", {
+      createTab: async () => "TAB-1",
+      closeTab: (id) => closed.push(id),
+      onRehost: (reason) => reasons.push(reason),
+      sleepFn: async () => {},
+      WebSocketImpl: FakeSocket,
+      fetchImpl: fakeFetch,
+    });
+    expect(opened).toMatchObject({ targetId: "WIN-TAB-1", window: "new" });
+    expect(closed).toEqual(["TAB-1"]);
+    expect(reasons[0]).toMatch(/hidden/);
+    const create = FakeSocket.instances
+      .flatMap((s) => s.sent)
+      .find((f) => f.method === "Target.createTarget");
+    expect(create.params).toEqual({ url: "https://example.test/upload", newWindow: true });
+  });
+
+  it("throws an actionable error when even a fresh window is hidden", async () => {
+    cycle(["hidden"]);
+    const closed = [];
+    await expect(
+      openVisibleSession("https://example.test/upload", {
+        createTab: async () => "TAB-1",
+        closeTab: (id) => closed.push(id),
+        sleepFn: async () => {},
+        WebSocketImpl: FakeSocket,
+        fetchImpl: fakeFetch,
+      }),
+    ).rejects.toThrow(/input is throttled.*Bring the Chrome window to the front/s);
+    expect(closed).toEqual(["TAB-1", "WIN-TAB-1"]);
   });
 });
 
@@ -428,6 +653,9 @@ describe("openCdpSession", () => {
     session.close();
     const detach = FakeSocket.instances[0].sent.find((f) => f.method === "Target.detachFromTarget");
     expect(detach.params).toEqual({ sessionId: "S-1" });
+    // Browser-level command: a top-level sessionId would route it into the page
+    // session, where Target.* does not exist.
+    expect(detach.sessionId).toBeUndefined();
     expect(FakeSocket.instances[0].closed).toBe(true);
   });
 

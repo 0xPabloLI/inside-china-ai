@@ -154,9 +154,8 @@ import { CDP_BASE, cdpNewTab, cdpEval, cdpCloseTab } from "./lib/cdp-client.mjs"
 import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import { automationPort } from "./lib/cdp-profile-guard.mjs";
 import {
-  activateTarget,
   clickAtPoint,
-  openCdpSession,
+  openVisibleSession,
   planTyping,
   pokeEditorState,
   pressEnter,
@@ -1021,20 +1020,40 @@ async function searchSound(tabId, cdp, query) {
 async function runSessionWarmup(cdp, tab) {
   const startedAt = Date.now();
   const scrolls = [];
+  const modes = [];
   const cycles = Math.max(2, Math.round(randomBetween(2, 4)));
+  let wheelsUsable = true;
   for (let i = 0; i < cycles; i++) {
     const deltaY = Math.round(randomBetween(280, 760));
-    await wheelScroll(cdp, {
-      x: Math.round(randomBetween(480, 980)),
-      y: Math.round(randomBetween(320, 620)),
-      totalDeltaY: deltaY,
-    });
+    let scrolled = { mode: "wheel" };
+    if (wheelsUsable) {
+      scrolled = await wheelScroll(cdp, {
+        x: Math.round(randomBetween(480, 980)),
+        y: Math.round(randomBetween(320, 620)),
+        totalDeltaY: deltaY,
+      });
+      if (scrolled.mode !== "wheel") {
+        // Chrome sometimes stops acknowledging wheel dispatches on this build
+        // (measured 2026-10-30). The fallback scrolls anyway; naming it here
+        // keeps the difference between a human scroll and a scripted one
+        // visible, and stops the remaining cycles paying the same wait.
+        console.log(`      ⚠️ warm-up scroll ${i + 1}/${cycles} was scripted: ${scrolled.reason}`);
+        wheelsUsable = false;
+      }
+    } else {
+      await evalJson(
+        tab,
+        `(() => { window.scrollBy(0, ${deltaY}); return JSON.stringify({ok: true}); })()`,
+      );
+      scrolled = { mode: "js-fallback" };
+    }
+    modes.push(scrolled.mode);
     scrolls.push(deltaY);
     await sleepJitter(...PUBLISH_PACING.warmupDwell);
   }
   const dwellMs = Date.now() - startedAt;
   await fetch(`${CDP_BASE}/navigate?target=${tab}`, { method: "POST", body: UPLOAD_URL });
-  return { dwellMs, scrolls, cycles };
+  return { dwellMs, scrolls, cycles, modes };
 }
 
 /**
@@ -1087,6 +1106,9 @@ export async function reviewBeforePublish(tabId, cdp) {
 
   let started = false;
   if (!alreadyPlaying) {
+    // Stand still on the frame before pressing play — a person sizes up the
+    // clip first, and it separates this click from the last one.
+    await sleepJitter(...PUBLISH_PACING.reviewBeforePlay);
     await humanClickElement(tabId, cdp, "#__reviewPlay");
     const advanced = await pollFor(tabId, REVIEW_STATE, {
       timeoutMs: 15_000,
@@ -1241,16 +1263,27 @@ async function main() {
     captionMode: hasFlag("paste-caption") ? "paste" : "typed",
   });
 
-  const tab = await cdpNewTab(hasFlag("no-warmup") ? UPLOAD_URL : WARMUP_URL);
+  let tab = null;
   let cdp = null;
   pointer.x = Math.round(randomBetween(200, 900));
   pointer.y = Math.round(randomBetween(160, 620));
   let keepTab = !hasFlag("close-tab");
   try {
-    cdp = await openCdpSession(tab, { port: automationPort() });
-    // Foreground first: a hidden tab throttles input dispatch (≈4.6s per
-    // event, measured) and TikTok's uploader never starts.
-    await activateTarget(tab, { port: automationPort() });
+    // Foreground is a precondition, not a courtesy: a hidden tab throttles
+    // input dispatch to ~5s per event (measured) and TikTok's uploader never
+    // starts. `openVisibleSession` checks it and, when the automation window
+    // cannot be raised (another macOS Space, fully occluded), re-hosts the
+    // upload in a window Chrome places on the active Space — same page, 8ms
+    // per event instead of 5s.
+    const launch = await openVisibleSession(hasFlag("no-warmup") ? UPLOAD_URL : WARMUP_URL, {
+      port: automationPort(),
+      createTab: cdpNewTab,
+      closeTab: cdpCloseTab,
+      onRehost: (reason) => console.log(`      ⚠️ ${reason} — opening a new window`),
+    });
+    tab = launch.targetId;
+    cdp = launch.session;
+    log("input", { window: launch.window });
 
     if (hasFlag("no-warmup")) {
       console.log("  0/6 warm-up skipped (--no-warmup)");
@@ -1376,9 +1409,9 @@ async function main() {
     }
 
     console.log("  6/6 attaching the native sound…");
-    const opened = await evalJson(tab, OPEN_MUSIC_TAB);
-    if (!opened.ok)
-      throw new Error(`music tab not found — editor tabs: ${JSON.stringify(opened.tabs)}`);
+    const musicTabFound = await evalJson(tab, OPEN_MUSIC_TAB);
+    if (!musicTabFound.ok)
+      throw new Error(`music tab not found — editor tabs: ${JSON.stringify(musicTabFound.tabs)}`);
     const musicTab = await humanClickThen(tab, cdp, "#__musicTab", MUSIC_PANEL_READY, {
       label: "sound library",
       timeoutMs: 30_000,

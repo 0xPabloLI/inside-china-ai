@@ -30,6 +30,8 @@ export const PUBLISH_PACING = Object.freeze({
   warmupToUpload: [8000, 2000],
   poll: [4000, 1200],
   reviewLeadIn: [1200, 400],
+  /** Standing still on the player before pressing play, like a person sizing up the clip. */
+  reviewBeforePlay: [1500, 500],
 });
 
 /**

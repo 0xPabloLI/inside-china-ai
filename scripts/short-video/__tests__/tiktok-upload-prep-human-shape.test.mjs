@@ -70,6 +70,14 @@ describe("pre-publish review evidence", () => {
     expect(source).not.toContain("__reviewVideo");
   });
 
+  it("checks the tab is really visible before dispatching input", () => {
+    // Target.activateTarget reports ok even when the Chrome window is occluded
+    // and the tab stays hidden — input then crawls at ~5s per event.
+    expect(source).toContain("openVisibleSession(");
+    expect(source).toContain("createTab: cdpNewTab");
+    expect(source).toContain("closeTab: cdpCloseTab");
+  });
+
   it("does not run the CLI when imported", () => {
     // main() opens a tab and starts an upload, so importing the module for
     // its helpers must not start one.
@@ -82,7 +90,7 @@ describe("the driver's input shape", () => {
   it("routes mouse and keyboard input through the human-input primitives", () => {
     expect(source).toContain('from "./lib/human-input.mjs"');
     for (const symbol of [
-      "openCdpSession",
+      "openVisibleSession",
       "clickAtPoint",
       "typePlan",
       "planTyping",

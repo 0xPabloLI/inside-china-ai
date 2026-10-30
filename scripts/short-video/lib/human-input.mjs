@@ -232,15 +232,36 @@ export async function clickAtPoint(session, opts) {
 /**
  * Scroll with trusted wheel events, in several bursts.
  *
+ * The leading `mouseMoved` is not decoration: a wheel dispatched right after
+ * `Input.insertText` never resolved on this Chrome build (15s timeout), while
+ * the same wheel preceded by one `mouseMoved` resolved in 10ms. A person also
+ * moves the pointer to where they want to scroll, so the fix is the more human
+ * call as well as the working one.
+ *
+ * Order matters more than that, though: after a SUSTAINED burst of trusted text
+ * input (a typed caption — ~20+ insertText events), wheel dispatch stops being
+ * acknowledged entirely, and a settle delay does not recover it (measured
+ * 2026-10-30: 0ms, 800ms and 2500ms all failed; "abc" and a single emoji
+ * still worked, so it is the burst, not any one key). Scroll BEFORE filling a
+ * text field, which is the order the driver already uses — warm up on the feed,
+ * then type the caption. When a wheel still goes unacknowledged, this falls
+ * back to a scripted scroll and reports `mode: "js-fallback"` so the caller can
+ * log it instead of losing 15 seconds to a hang.
+ *
  * @param {{ send: (method: string, params?: object) => Promise<object> }} session
- * @param {{ x: number, y: number, totalDeltaY: number, rand?: () => number, sleepFn?: (ms:number)=>Promise<void> }} opts
- * @returns {Promise<{ chunks: number[] }>}
+ * @param {{ x: number, y: number, totalDeltaY: number, rand?: () => number, sleepFn?: (ms:number)=>Promise<void>, fallback?: boolean }} opts
+ * @returns {Promise<{ chunks: number[], mode: "wheel"|"js-fallback", reason?: string }>}
  */
 export async function wheelScroll(session, opts) {
-  const { x, y, totalDeltaY, rand = Math.random, sleepFn = defaultSleep } = opts;
+  const { x, y, totalDeltaY, rand = Math.random, sleepFn = defaultSleep, fallback = true } = opts;
   const sign = Math.sign(totalDeltaY) || 1;
   const total = Math.abs(Math.round(totalDeltaY));
-  if (!total) return { chunks: [] };
+  if (!total) return { chunks: [], mode: "wheel" };
+
+  await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none" });
+  // Let the hit test settle before the first burst; a wheel that lands in the
+  // same frame as the move is the one Chrome tends to drop.
+  await sleepBetween(90, 180, { rand, sleepFn });
 
   const count = Math.max(3, Math.round(randomBetween(3, 6, rand)));
   const weights = Array.from({ length: count }, () => randomBetween(0.6, 1.4, rand));
@@ -249,18 +270,33 @@ export async function wheelScroll(session, opts) {
   const diff = total - chunks.reduce((a, b) => a + b, 0);
   chunks[chunks.length - 1] += diff;
 
-  for (const chunk of chunks) {
-    await session.send("Input.dispatchMouseEvent", {
-      type: "mouseWheel",
-      x,
-      y,
-      deltaX: 0,
-      deltaY: sign * chunk,
-      button: "none",
+  try {
+    for (const chunk of chunks) {
+      await session.send(
+        "Input.dispatchMouseEvent",
+        {
+          type: "mouseWheel",
+          x,
+          y,
+          deltaX: 0,
+          deltaY: sign * chunk,
+          button: "none",
+        },
+        // A wheel ack is milliseconds. Waiting the session's full budget for a
+        // dispatch that will never be acknowledged costs 15s per burst for
+        // nothing.
+        { timeoutMs: 3000 },
+      );
+      await sleepBetween(80, 260, { rand, sleepFn });
+    }
+  } catch (err) {
+    if (!fallback) throw err;
+    await session.send("Runtime.evaluate", {
+      expression: `window.scrollBy(0, ${sign * total})`,
     });
-    await sleepBetween(80, 260, { rand, sleepFn });
+    return { chunks: [sign * total], mode: "js-fallback", reason: err.message };
   }
-  return { chunks: chunks.map((c) => sign * c) };
+  return { chunks: chunks.map((c) => sign * c), mode: "wheel" };
 }
 
 /**
@@ -409,21 +445,18 @@ export async function typePlan(session, plan, opts = {}) {
 }
 
 /**
- * Bring a CDP target to the foreground.
+ * Send one command on the browser-level CDP endpoint.
  *
- * Not cosmetic: Chrome throttles input dispatch on hidden tabs. Measured on
- * 2026-10-30 against the automation profile, the same 14-point click path took
- * 65s in a background tab (≈4.6s per event, each one eventually acknowledged)
- * and 0.33s after activation. The web-access proxy creates tabs in the
- * background and exposes no /activate endpoint, so this talks to the
- * browser-level endpoint (`Target.activateTarget`) and leaves every other tab
- * alone.
+ * Separate from `openCdpSession` on purpose: `Target.*` commands that affect
+ * windows and tabs belong to the browser endpoint, and a page session cannot
+ * run them.
  *
- * @param {string} targetId
+ * @param {string} method
+ * @param {object} params
  * @param {{ port?: number, WebSocketImpl?: typeof WebSocket, fetchImpl?: typeof fetch, timeoutMs?: number }} [opts]
- * @returns {Promise<string>} "ok"
+ * @returns {Promise<object>} the command result
  */
-export async function activateTarget(targetId, opts = {}) {
+async function browserCommand(method, params, opts = {}) {
   const {
     port = Number(process.env.CDP_AUTOMATION_PORT || 9229),
     WebSocketImpl = globalThis.WebSocket,
@@ -439,17 +472,17 @@ export async function activateTarget(targetId, opts = {}) {
   const ws = new WebSocketImpl(version.webSocketDebuggerUrl);
   const answer = new Promise((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new Error(`activate timed out after ${timeoutMs / 1000}s`)),
+      () => reject(new Error(`${method} timed out after ${timeoutMs / 1000}s`)),
       timeoutMs,
     );
-    ws.onopen = () =>
-      ws.send(JSON.stringify({ id: 1, method: "Target.activateTarget", params: { targetId } }));
+    ws.onopen = () => ws.send(JSON.stringify({ id: 1, method, params }));
     ws.onmessage = (message) => {
       try {
         const frame = JSON.parse(message.data);
         if (frame.id !== 1) return;
         clearTimeout(timer);
-        resolve(frame.error ? `error: ${frame.error.message}` : "ok");
+        if (frame.error) reject(new Error(`${method} refused: ${frame.error.message}`));
+        else resolve(frame.result || {});
       } catch {
         /* ignore non-JSON frames */
       }
@@ -468,6 +501,92 @@ export async function activateTarget(targetId, opts = {}) {
       /* already closed */
     }
   }
+}
+
+/**
+ * Bring a CDP target to the foreground.
+ *
+ * Not cosmetic: Chrome throttles input dispatch on hidden tabs. Measured on
+ * 2026-10-30 against the automation profile, the same 14-point click path took
+ * 65s in a background tab (≈4.6s per event, each one eventually acknowledged)
+ * and 0.33s after activation. The web-access proxy creates tabs in the
+ * background and exposes no /activate endpoint, so this talks to the
+ * browser-level endpoint (`Target.activateTarget`) and leaves every other tab
+ * alone.
+ *
+ * A refused activation is not cosmetic either: every later input event on a
+ * hidden tab is throttled, so it throws rather than returning a string the
+ * caller might print and continue past.
+ *
+ * @param {string} targetId
+ * @param {{ port?: number, WebSocketImpl?: typeof WebSocket, fetchImpl?: typeof fetch, timeoutMs?: number }} [opts]
+ * @returns {Promise<string>} "ok"
+ */
+export async function activateTarget(targetId, opts = {}) {
+  await browserCommand("Target.activateTarget", { targetId }, opts);
+  return "ok";
+}
+
+/**
+ * Open a URL in a brand-new window and return its target id.
+ *
+ * Why a new window rather than a new tab: macOS puts a window the browser
+ * creates onto the Space that is active right now, while a tab added to an
+ * existing window inherits that window's Space. When the automation window
+ * sits on another Space (or is fully occluded), every tab in it stays
+ * `document.visibilityState === "hidden"` and input dispatch crawls at ~5s per
+ * event. Measured 2026-10-30 on this profile: a proxy tab in the occluded
+ * window dispatched at 5.0s per event, the same page in a new window at 8ms.
+ * Nothing else about the tab differs.
+ *
+ * @param {string} url
+ * @param {{ port?: number, WebSocketImpl?: typeof WebSocket, fetchImpl?: typeof fetch, timeoutMs?: number }} [opts]
+ * @returns {Promise<string>} the new target id
+ */
+export async function openWindowTarget(url, opts = {}) {
+  const created = await browserCommand("Target.createTarget", { url, newWindow: true }, opts);
+  if (!created?.targetId) throw new Error(`createTarget returned no targetId for ${url}`);
+  return created.targetId;
+}
+
+/**
+ * Verify the tab is really foregrounded before dispatching anything.
+ *
+ * `Target.activateTarget` returns "ok" as soon as the command is accepted,
+ * which is NOT the same as the renderer being visible: when the Chrome window
+ * itself is minimised, occluded or on another Space, the tab stays
+ * `document.visibilityState === "hidden"` and input dispatch is throttled to
+ * ~5s per event (measured 2026-10-30 on this profile). A caption would then
+ * take hours and every CDP command would time out somewhere unrelated, with no
+ * hint of the real cause. Fail here, with the instruction, instead.
+ *
+ * Only the human can fix that state (the repo forbids an agent from killing or
+ * restarting Chrome), so this throws an actionable message rather than
+ * retrying.
+ *
+ * @param {{ send: (method: string, params?: object) => Promise<object> }} session
+ * @param {{ label?: string, attempts?: number, sleepFn?: (ms:number)=>Promise<void> }} [opts]
+ * @returns {Promise<string>} the observed visibility state ("visible")
+ */
+export async function ensureForeground(session, opts = {}) {
+  const { label = "tab", attempts = 3, sleepFn = defaultSleep } = opts;
+  let state = null;
+  for (let i = 0; i < attempts; i++) {
+    // bringToFront re-raises the tab inside its window; harmless when the
+    // window is already frontmost.
+    await session.send("Page.bringToFront");
+    const { result } = await session.send("Runtime.evaluate", {
+      expression: "document.visibilityState",
+      returnByValue: true,
+    });
+    state = result?.value ?? null;
+    if (state === "visible") return state;
+    await sleepFn(400 + i * 400);
+  }
+  throw new Error(
+    `${label} is hidden (document.visibilityState=${JSON.stringify(state)}). ` +
+      "Bring the Chrome window to the front (no minimising, no other Space) and run again.",
+  );
 }
 
 /**
@@ -514,7 +633,7 @@ export async function openCdpSession(targetId, opts = {}) {
     else resolve(frame.result || {});
   };
 
-  const sendRaw = (method, params = {}, sessionId) =>
+  const sendRaw = (method, params = {}, sessionId, budgetMs = timeoutMs) =>
     new Promise((resolve, reject) => {
       if (closed) {
         reject(new Error("CDP session is closed"));
@@ -524,7 +643,7 @@ export async function openCdpSession(targetId, opts = {}) {
       const timer = setTimeout(() => {
         pending.delete(id);
         reject(new Error(`CDP command timed out: ${method}`));
-      }, timeoutMs);
+      }, budgetMs);
       pending.set(id, { resolve, reject, timer });
       ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     });
@@ -550,16 +669,41 @@ export async function openCdpSession(targetId, opts = {}) {
 
   return {
     sessionId,
-    send: (method, params) => sendRaw(method, params, sessionId),
+    /**
+     * @param {string} method
+     * @param {object} [params]
+     * @param {{ timeoutMs?: number }} [opts] per-command budget, for commands
+     *   that are allowed to be dropped (a wheel ack never takes seconds)
+     */
+    send: async (method, params, opts = {}) => {
+      const started = Date.now();
+      try {
+        return await sendRaw(method, params, sessionId, opts.timeoutMs);
+      } catch (err) {
+        // A dispatch timeout is almost always the throttling this module
+        // exists to avoid; say so instead of leaving a bare CDP error.
+        if (/^CDP command timed out/.test(err.message) && method.startsWith("Input.")) {
+          throw new Error(
+            `${err.message} after ${Date.now() - started}ms — the tab is throttled ` +
+              "(hidden renderer, or a modal blocking it). Check the Chrome window is frontmost.",
+            { cause: err },
+          );
+        }
+        throw err;
+      }
+    },
     close() {
       if (closed) return;
       try {
+        // Browser-level command: it names the session in params and must NOT
+        // carry a top-level sessionId, which would route it into the page
+        // session where Target.* does not exist (Chrome then answers
+        // "method not found" and the tab keeps the attachment).
         ws.send(
           JSON.stringify({
             id: nextId++,
             method: "Target.detachFromTarget",
             params: { sessionId },
-            sessionId,
           }),
         );
       } catch {
@@ -578,4 +722,75 @@ export async function openCdpSession(targetId, opts = {}) {
       }
     },
   };
+}
+
+/**
+ * Open a tab that is guaranteed to be visible, re-hosting it in a new window
+ * when the automation window cannot be raised.
+ *
+ * The failure this absorbs is real and silent: with the Chrome window on
+ * another macOS Space or fully occluded, a tab the proxy created dispatches
+ * input at ~5s per event while every command still succeeds. The publish run
+ * would then spend hours on a 300-character caption, or time out somewhere
+ * unrelated. Re-hosting in a new window fixes it (8ms per event in the same
+ * measurement), so the operator gets no instruction to follow.
+ *
+ * `createTab` and `closeTab` are injected so the fallback can be tested without
+ * a browser.
+ *
+ * @param {string} url
+ * @param {{
+ *   port?: number,
+ *   createTab?: (url: string) => Promise<string>,
+ *   closeTab?: (targetId: string) => Promise<void> | void,
+ *   WebSocketImpl?: typeof WebSocket,
+ *   fetchImpl?: typeof fetch,
+ *   attempts?: number,
+ *   sleepFn?: (ms: number) => Promise<void>,
+ *   onRehost?: (reason: string) => void,
+ * }} [opts]
+ * @returns {Promise<{ targetId: string, session: object, window: "existing"|"new" }>}
+ */
+export async function openVisibleSession(url, opts = {}) {
+  const {
+    port,
+    createTab,
+    closeTab = () => {},
+    WebSocketImpl,
+    fetchImpl,
+    attempts = 2,
+    sleepFn,
+    onRehost,
+  } = opts;
+  const shared = { port, WebSocketImpl, fetchImpl };
+
+  const firstTab = await createTab(url);
+  await activateTarget(firstTab, shared);
+  let session = await openCdpSession(firstTab, shared);
+  try {
+    await ensureForeground(session, { label: "the tab", attempts, sleepFn });
+    return { targetId: firstTab, session, window: "existing" };
+  } catch (err) {
+    // Close our own session before dropping the tab; the proxy tab is then
+    // closed too so a failed attempt does not leave a stray tab behind.
+    session.close();
+    await closeTab(firstTab);
+    onRehost?.(err.message);
+  }
+
+  const freshTab = await openWindowTarget(url, shared);
+  await activateTarget(freshTab, shared);
+  session = await openCdpSession(freshTab, shared);
+  try {
+    await ensureForeground(session, { label: "the new window", attempts, sleepFn });
+  } catch (err) {
+    session.close();
+    await closeTab(freshTab);
+    throw new Error(
+      `input is throttled: ${err.message} Even a window Chrome opened for this run stayed hidden, ` +
+        "so this machine cannot dispatch human-speed input right now.",
+      { cause: err },
+    );
+  }
+  return { targetId: freshTab, session, window: "new" };
 }
