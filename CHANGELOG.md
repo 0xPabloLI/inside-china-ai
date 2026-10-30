@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.43.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.43.0...tanstack_start_ts-v1.43.1) (2026-10-30)
+
+
+### Bug Fixes
+
+* **video:** make Step 1.6 media failures actionable ([#986](https://github.com/0xPabloLI/inside-china-ai/issues/986)) ([#1037](https://github.com/0xPabloLI/inside-china-ai/issues/1037)) ([b763312](https://github.com/0xPabloLI/inside-china-ai/commit/b7633123691621559aacac7f29eb095d51fb05a1))
+
 ## [1.43.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.42.0...tanstack_start_ts-v1.43.0) (2026-10-30)
 
 
