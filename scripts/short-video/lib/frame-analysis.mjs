@@ -425,12 +425,31 @@ export function checkContentPresence(buf, safeZones) {
  * scene may deliberately declare `fit: "contain"`. The point is to name the
  * condition loudly enough that a human looks at it.
  *
+ * FIT-AWARE (#952): the probe measures the frame against the scene's DECLARED
+ * `fit`, in both directions. Under `fit: "cover"` a flat band top is the
+ * letterbox defect. Under `fit: "contain"` a flat band top is the intent, so
+ * that passes — but a band top that DOES carry picture is worth a human look.
+ * Trusting the declaration (returning pass without sampling) would make the
+ * check vacuous exactly where it claims to be strict, and hard-coding `cover`
+ * would turn every deliberate contain into a false positive the moment a
+ * layout starts using it (e.g. the 16:9 viewport work in #963).
+ *
+ * The contain branch cannot tell the two causes apart, because both put
+ * picture at the band top: the runtime rendered `cover` despite the
+ * declaration, or the letterboxed picture is simply top-aligned by
+ * `focus: "top"` / a small `cropFocus.y`. Its detail names both and asks the
+ * reader to check which — a claim about a cause the probe did not observe
+ * would be worse than the warning itself.
+ *
  * @param {PixelBuffer} buf
  * @param {{top: number, right: number, bottom: number, left: number}} safeZones
  * @param {number} bandBottom - canvas y the picture is expected to reach
+ * @param {{fit?: "cover" | "contain"}} [options] - the scene's effective fit
+ *   (`media.fit ?? "cover"`).
  * @returns {AnalysisResult}
  */
-export function checkMediaBandFill(buf, safeZones, bandBottom = MEDIA_BAND.bottom) {
+export function checkMediaBandFill(buf, safeZones, bandBottom = MEDIA_BAND.bottom, options = {}) {
+  const { fit = "cover" } = options;
   const bandTop = safeZones.top;
   const xStart = safeZones.left;
   const xEnd = buf.width - safeZones.right;
@@ -441,7 +460,8 @@ export function checkMediaBandFill(buf, safeZones, bandBottom = MEDIA_BAND.botto
       level: "pass",
       check: "Media band is filled",
       detail: "media band is too short to probe",
-      metrics: { bandTop, bandBottom, probeDepth },
+      // ratio: null — not measured, so it cannot be mistaken for a measurement.
+      metrics: { bandTop, bandBottom, probeDepth, fit, ratio: null },
     };
   }
 
@@ -467,14 +487,47 @@ export function checkMediaBandFill(buf, safeZones, bandBottom = MEDIA_BAND.botto
     if (variance > PICTURE_ROW_VARIANCE) pictureRows++;
   }
 
-  const ratio = totalRows === 0 ? 0 : pictureRows / totalRows;
-  const metrics = { bandTop, bandBottom, probeDepth, pictureRows, totalRows, ratio, rowVariances };
+  // No `totalRows === 0` branch: the probeDepth guard above guarantees at
+  // least two iterations, and `totalRows++` runs unconditionally, so the count
+  // is always ≥ 2 here. A zero probe WIDTH (safe zones wider than the canvas)
+  // still counts rows and lands on ratio 0, which is a measurement, not a
+  // missing one.
+  const ratio = pictureRows / totalRows;
+  const metrics = {
+    bandTop,
+    bandBottom,
+    probeDepth,
+    fit,
+    pictureRows,
+    totalRows,
+    ratio,
+    rowVariances,
+  };
 
-  if (totalRows === 0) {
+  if (fit === "contain") {
+    // The scene asked to show the whole frame. A flat band top is that
+    // intent; picture at the band top means either the runtime ignored the
+    // declaration or the letterbox is top-aligned. Both are worth a look, and
+    // the probe cannot tell them apart.
+    if (ratio >= MEDIA_BAND_FILL_MIN_ROWS) {
+      return {
+        level: "warn",
+        check: "Media band is filled",
+        detail:
+          `scene declares fit: "contain", but the top ${probeDepth}px of the media band ` +
+          `(y ${bandTop}-${bandTop + probeDepth}) carries picture ` +
+          `(${pictureRows}/${totalRows} rows, row std ${JSON.stringify(rowVariances)}) — either the runtime ` +
+          `filled the band instead of letterboxing (fit not honoured), or the letterbox is top-aligned by ` +
+          `focus: "top" / a small cropFocus.y. Check which.`,
+        metrics,
+      };
+    }
     return {
       level: "pass",
       check: "Media band is filled",
-      detail: "media band is too short to probe",
+      detail:
+        `fit: "contain" as declared — the band top is flat background ` +
+        `(${pictureRows}/${totalRows} rows carry picture), which is the letterbox the scene asked for`,
       metrics,
     };
   }
@@ -736,16 +789,21 @@ export function checkClippedText(buf, safeZones) {
  *
  * @param {PixelBuffer} buf
  * @param {{top: number, right: number, bottom: number, left: number}} safeZones
- * @param {{mediaBandBottom?: number|null}} [options] - `mediaBandBottom` is the
- *   canvas y this scene's full-bleed media is expected to reach. Pass it for
- *   media-bottom-bar scenes, whose band top carries no text and can be probed
- *   unambiguously. Omit or pass null for scenes with no full-bleed media, and
- *   for the hook — its media is full-frame, so its band top is covered by the
- *   brand bar and badge and the probe cannot tell picture from chrome.
+ * @param {{mediaBandBottom?: number|null, mediaBandFit?: "cover"|"contain"}} [options]
+ *   - `mediaBandBottom` is the canvas y this scene's full-bleed media is
+ *   expected to reach. Pass it for media-bottom-bar scenes, whose band top
+ *   carries no text and can be probed unambiguously. Omit or pass null for
+ *   scenes with no full-bleed media, and for the hook — its media is
+ *   full-frame, so its band top is covered by the brand bar and badge and the
+ *   probe cannot tell picture from chrome. `mediaBandFit` is the scene's
+ *   effective fit (`media.fit ?? "cover"`): the band check then judges the
+ *   frame against that declaration — a flat band top passes under `"contain"`
+ *   (the declared letterbox) and warns under `"cover"` (the defect), while
+ *   picture at the band top warns under `"contain"` (#952).
  * @returns {AnalysisResult[]}
  */
 export function runFrameAnalysis(buf, safeZones, options = {}) {
-  const { mediaBandBottom = null } = options;
+  const { mediaBandBottom = null, mediaBandFit = "cover" } = options;
   const results = [
     checkNotAllBlack(buf),
     checkSafeZoneTop(buf, safeZones),
@@ -756,7 +814,7 @@ export function runFrameAnalysis(buf, safeZones, options = {}) {
     checkClippedText(buf, safeZones),
   ];
   if (mediaBandBottom !== null) {
-    results.push(checkMediaBandFill(buf, safeZones, mediaBandBottom));
+    results.push(checkMediaBandFill(buf, safeZones, mediaBandBottom, { fit: mediaBandFit }));
   }
   return results;
 }

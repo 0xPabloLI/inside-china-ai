@@ -625,4 +625,57 @@ describe("checkMediaBandFill", () => {
     }).map((r) => r.check);
     expect(checks).toContain("Media band is filled");
   });
+
+  // ─── #952: the check judges the frame against the DECLARED fit ───
+
+  it('PASSES when the scene declares fit: "contain" and the picture is letterboxed', () => {
+    // The same letterboxed frame the cover case warns about is the DECLARED
+    // geometry under contain — warning here would be a false positive on every
+    // deliberate contain scene (e.g. the 16:9 viewport work in #963).
+    const buf = bandBuffer({ yStart: 271, yEnd: 878 });
+    const result = checkMediaBandFill(buf, SAFE_ZONES, 1150, { fit: "contain" });
+    expect(result.level).toBe("pass");
+    expect(result.detail).toMatch(/contain/);
+    expect(result.metrics.fit).toBe("contain");
+    expect(result.metrics.ratio).toBeLessThan(0.5);
+    // ...and it is still a warning when the same frame declares cover.
+    const cover = checkMediaBandFill(buf, SAFE_ZONES, 1150, { fit: "cover" });
+    expect(cover.level).toBe("warn");
+  });
+
+  it('WARNS when the scene declares fit: "contain" but the band top carries picture', () => {
+    // Trusting the declaration would make this branch vacuous: a contain scene
+    // that actually rendered cover would pass identically. The probe runs in
+    // both directions — and the detail names BOTH causes, because picture at
+    // the band top is also what a top-aligned letterbox looks like.
+    const buf = bandBuffer({ yStart: SAFE_ZONES.top, yEnd: 1150 });
+    const result = checkMediaBandFill(buf, SAFE_ZONES, 1150, { fit: "contain" });
+    expect(result.level).toBe("warn");
+    expect(result.detail).toMatch(/declares fit: "contain"/);
+    expect(result.detail).toMatch(/top-aligned/);
+    expect(result.metrics.fit).toBe("contain");
+    expect(result.metrics.ratio).toBeGreaterThan(0.5);
+  });
+
+  it("defaults to cover: an omitted fit keeps the letterbox warning", () => {
+    const buf = bandBuffer({ yStart: 271, yEnd: 878 });
+    expect(checkMediaBandFill(buf, SAFE_ZONES, 1150).level).toBe("warn");
+  });
+
+  it("runFrameAnalysis forwards mediaBandFit to the band check", () => {
+    const ctx = contentBuffer();
+    const contain = runFrameAnalysis(ctx, SAFE_ZONES, {
+      mediaBandBottom: 1150,
+      mediaBandFit: "contain",
+    }).find((r) => r.check === "Media band is filled");
+    expect(contain.level).toBe("pass");
+    expect(contain.detail).toMatch(/contain/);
+
+    // Same buffer, cover declaration → the letterbox is the defect.
+    const cover = runFrameAnalysis(ctx, SAFE_ZONES, {
+      mediaBandBottom: 1150,
+      mediaBandFit: "cover",
+    }).find((r) => r.check === "Media band is filled");
+    expect(cover.level).toBe("warn");
+  });
 });
