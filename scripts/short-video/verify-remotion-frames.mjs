@@ -222,11 +222,16 @@ for (let i = 0; i < scenes.length; i++) {
   // paints full-frame media under the brand bar and badge, and every other
   // layout (context/cta, card mode) has no full-bleed picture to measure, so
   // both are left unprobed rather than reported as a pass they did not earn.
+  // #952: the check is fit-aware — a scene that declares fit:"contain" asked
+  // for the letterbox, so it passes by declaration instead of warning about it.
   const mediaBandBottom =
     scene.media && scene.media.mode !== "card" && scene.layout === "media-bottom-bar"
       ? MEDIA_BAND.bottom
       : null;
-  const analysisResults = runFrameAnalysis(buf, SAFE_ZONES, { mediaBandBottom });
+  const analysisResults = runFrameAnalysis(buf, SAFE_ZONES, {
+    mediaBandBottom,
+    mediaBandFit: scene.media?.fit ?? "cover",
+  });
   for (const r of analysisResults) {
     logResult(r);
   }
