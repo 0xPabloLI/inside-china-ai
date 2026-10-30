@@ -28,20 +28,20 @@ import { ffmpegMeasureCmd, getDurationSync } from "../tts/ffmpeg-cmd.mjs";
 import { decodeToWavFile, readWavPcm } from "./wav.mjs";
 
 /** Shortest gap that can hold a bed-only reading. */
-export const MIN_PAUSE_SECONDS = 0.15;
+const MIN_PAUSE_SECONDS = 0.15;
 /**
  * Each pause window is pulled in by this much before it is measured: word
  * boundaries are alignment estimates, and the encoder smears transients a few
  * tens of ms into the gap.
  */
-export const PAUSE_INSET_SECONDS = 0.12;
+const PAUSE_INSET_SECONDS = 0.12;
 /**
  * The local mix fades the bed in over 0.1s. 0.35 also covers decoder priming.
  * Applied to pause windows only — the voice itself is never faded.
  */
-export const HEAD_GUARD_SECONDS = 0.35;
+const HEAD_GUARD_SECONDS = 0.35;
 /** The local mix fades the bed out over the final 3s; 3.2 clears the ramp. */
-export const TAIL_GUARD_SECONDS = 3.2;
+const TAIL_GUARD_SECONDS = 3.2;
 
 /**
  * Pass band for "music below narration". Derivation and industry sources:
@@ -57,13 +57,13 @@ export const BGM_MARGIN_WARN_MAX_DB = 32;
 /** A bed at or below this in its own windows is not a bed (incident: −35 dB). */
 export const BGM_BED_FLOOR_DBFS = -50;
 /** Pass requires headroom above the floor, not just survival. */
-export const BGM_BED_EDGE_DBFS = -48;
+const BGM_BED_EDGE_DBFS = -48;
 /** Digital silence is reported at this floor instead of -Infinity. */
-export const SILENCE_FLOOR_DBFS = -120;
+const SILENCE_FLOOR_DBFS = -120;
 /** Mono decode rate for RMS. Level estimation needs no more. */
-export const MEASURE_SAMPLE_RATE = 8000;
+const MEASURE_SAMPLE_RATE = 8000;
 /** Fallback silence threshold for voice-only track analysis. */
-export const SILENCE_THRESHOLD_DB = -60;
+const SILENCE_THRESHOLD_DB = -60;
 
 function sumWindows(windows) {
   return (windows ?? []).reduce((sum, [start, end]) => sum + Math.max(0, end - start), 0);
@@ -440,7 +440,7 @@ export function evaluateBgmMargin(measurement, options = {}) {
  *
  * @param {string} videoPath
  */
-export function bgmMixMarkerPath(videoPath) {
+function bgmMixMarkerPath(videoPath) {
   return join(dirname(videoPath), "audio", "bgm-mix.json");
 }
 
