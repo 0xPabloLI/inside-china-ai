@@ -561,6 +561,8 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
    > 备选音源（仅当用户点名要别的音乐）：CC-BY BGM 池 `lib/bgm.mjs` → `selectBGM`，混流用 `mix-bgm.mjs`；TikTok 曲库别的曲子改 `--sound` / `--sound-owner` 参数。
 
+   **发布前的输入形态（#1013，2026-10-30 起）**：脚本的每一步输入都按人类形态走——鼠标沿 Bézier 轨迹移动后才按下、Caption 逐字（30–120ms 间隔，句读处偶尔停顿）用可信 insertText 打字、所有等待带 ±20% 以上抖动、发布前先播 5–15s 再暂停、打开上传页前先在 For You 停留滚动。`--no-warmup` / `--paste-caption` / `--skip-review` 是显式退出口；每一步（含「已审阅」判定）追加到 `output/{id}/publish/tiktok/publish-log.jsonl`。见 `docs/manual-ops.md`「发布前的输入形态」。
+
 8. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布。确认之后按第 7 步一条龙走完，不再二次确认配乐。
 
 > **视频/脚本修改时的自动更新规则**：如果用户在 HITL 阶段要求修改视频或 scene-data，Agent 修改完成并重新渲染视频后，必须自动重新运行 `generate-caption.mjs` 以更新 Caption 和 Pinned Comment，然后重新输出发步包。

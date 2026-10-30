@@ -20,6 +20,54 @@
  * "原声 - Chinaainews" as its sound — verified on live post 7700554811866909970.
  * A "Breaking News - Voxie" label is not reachable from the web upload page.
  *
+ * Human input layer (#1013, added 2026-10-30)
+ * ------------------------------------------
+ * The first CDP-published post (2026-10-25) sat at 0 plays after 72h while the
+ * four app-published posts before it read 210 / 285 / 419 / 372. The root
+ * cause is not established, but the path's INPUT SHAPE was measurable and
+ * bot-like, and all five features are now fixed here:
+ *
+ *   1. Mouse travel. The proxy's `/clickAt` dispatched press/release with no
+ *      `mousemove` at all (measured 2026-10-30: `mousedown:trusted`,
+ *      `mouseup:trusted`, zero movement events). Every click now goes through
+ *      `clickAtPoint` in `lib/human-input.mjs`: a bent Bézier path with
+ *      ease-out deceleration, a 0.4-2px overshoot, then a short correction.
+ *   2. Caption input. It used to be one synthetic `ClipboardEvent("paste")`
+ *      (measured `paste:synthetic`) carrying the whole 1000+ character caption
+ *      in a single frame. It is now typed through trusted insertText events,
+ *      one grapheme at a time, 30-120ms apart, with occasional 300-900ms
+ *      beats at boundaries and real Enter keys for newlines. The paste path
+ *      survives as an automatic fallback: typed text is verified against the
+ *      requested caption, and a mismatch re-selects and pastes (the only path
+ *      Draft.js is known to handle cleanly). `--paste-caption` skips typing
+ *      deliberately.
+ *   3. Delay jitter. Every wait is `sleepJitter(...PUBLISH_PACING.<name>)` or
+ *      `sleepBetween(...)`; no fixed literal remains. A test pins each pacing
+ *      entry to a spread of at least 20% of its base and rejects naked
+ *      durations (including inside page scripts).
+ *   4. Pre-publish review. With `--publish`, the script presses play on the
+ *      preview, watches it for a random 5-15s, pauses it, and confirms the
+ *      clock moved and then stopped — then records the verdict in the publish
+ *      log. The preview is a canvas with no <video> element, so the evidence
+ *      is the player's own clock. `--skip-review` opts out.
+ *   5. Session warm-up. Unless `--no-warmup`, the session opens on the For You
+ *      feed, scrolls and dwells for a random 10-20s, and only then navigates
+ *      to the upload page.
+ *
+ * The technical enabler: Chrome accepts a second flattened CDP session on the
+ * same target, so the driver opens its own browser-level session on the tab
+ * the proxy owns and dispatches trusted input there. Verified live 2026-10-30
+ * (mousemove / mousedown / insertText all arrived as `isTrusted: true`,
+ * emoji included). The shared web-access proxy is a submodule and is left
+ * untouched.
+ *
+ * Publish log
+ * -----------
+ * Every step appends one JSON line to
+ * `output/{content}/publish/tiktok/publish-log.jsonl` (when `--content` points
+ * at an existing pipeline directory): warm-up, caption mode, AIGC, sound,
+ * volume, review verdict and publish result. That is where "已审阅" lives.
+ *
  * Five steps in this flow failed silently or were missing on the first run and
  * are now guarded:
  *
@@ -83,6 +131,12 @@
  *                         label cannot be added after publishing.
  *   --publish             Click 发布 after preparing. Without it the script
  *                         never publishes.
+ *   --no-warmup           Skip the For You warm-up before the upload page.
+ *   --paste-caption       Paste the caption in one event instead of typing it.
+ *                         The run does this automatically when typed text does
+ *                         not verify; this flag just skips the attempt.
+ *   --skip-review         Skip the pre-publish playback review (the publish
+ *                         log then says `reviewed: false`).
  *   --close-tab           Close the tab when done (dry runs / testing). The
  *                         tab is kept by default, so the operator can review
  *                         and publish by hand.
@@ -93,11 +147,26 @@
  *   --dry-run             Everything except the upload (page reachability only)
  */
 
-import { readFileSync, existsSync } from "fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync } from "fs";
 import { join, dirname, resolve, basename } from "path";
 import { fileURLToPath } from "url";
-import { cdpNewTab, cdpEval, cdpCloseTab } from "./lib/cdp-client.mjs";
+import { CDP_BASE, cdpNewTab, cdpEval, cdpCloseTab } from "./lib/cdp-client.mjs";
 import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
+import { automationPort } from "./lib/cdp-profile-guard.mjs";
+import {
+  activateTarget,
+  clickAtPoint,
+  openCdpSession,
+  planTyping,
+  pokeEditorState,
+  pressEnter,
+  randomBetween,
+  sleepBetween,
+  sleepJitter,
+  typePlan,
+  wheelScroll,
+} from "./lib/human-input.mjs";
+import { PUBLISH_PACING, REVIEW_WATCH_MS } from "./lib/publish-pacing.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -109,6 +178,7 @@ const getArg = (name) => {
 const hasFlag = (name) => args.includes(`--${name}`);
 
 const UPLOAD_URL = "https://www.tiktok.com/tiktokstudio/upload";
+const WARMUP_URL = "https://www.tiktok.com/foryou";
 const DEFAULT_SOUND = "Breaking News";
 const DEFAULT_SOUND_OWNER = "Voxie";
 /**
@@ -130,7 +200,28 @@ const DEFAULT_VOLUME_DB = -15;
 
 // ─── page-side helpers (stringified into the tab) ───
 
-/** Find a clickable element whose own text is exactly `label`. */
+/** Find a clickable element whose own text is exactly `label`, and tag it. */
+const TAG_BY_TEXT = (label, id = "__byText") => `
+(() => {
+  const target = ${JSON.stringify(label)};
+  const nodes = [...document.querySelectorAll("button, [role=button], div, span")];
+  const hit = nodes.find((e) => {
+    const own = [...e.childNodes]
+      .filter((n) => n.nodeType === 3)
+      .map((n) => n.textContent)
+      .join("")
+      .trim();
+    return own === target && e.getBoundingClientRect().width > 0;
+  });
+  if (!hit) return JSON.stringify({ ok: false, reason: "not found" });
+  const btn = hit.closest("button, [role=button]") || hit;
+  btn.id = ${JSON.stringify(id)};
+  btn.scrollIntoView({ block: "center" });
+  const r = btn.getBoundingClientRect();
+  return JSON.stringify({ ok: true, id: ${JSON.stringify(id)}, tag: btn.tagName, x: r.x, y: r.y, width: r.width, height: r.height });
+})()`;
+
+/** JS-level click (fallback only — produces no pointer events at all). */
 const CLICK_BY_TEXT = (label) => `
 (() => {
   const target = ${JSON.stringify(label)};
@@ -150,39 +241,75 @@ const CLICK_BY_TEXT = (label) => `
 })()`;
 
 /**
- * Fill the description box.
+ * Resolve a click target to viewport coordinates.
  *
- * The field is a Draft.js editor (`div.public-DraftEditor-content`), and it
+ * Returns the rect and whether the point is actually reachable. The publisher
+ * uses this to aim a human click; the pointer no longer teleports to a
+ * hardcoded centre, so a target that is covered or off-screen must fail here
+ * with a name instead of clicking whatever happens to be on top.
+ */
+const RESOLVE_CLICK_TARGET = (selector) => `
+(() => {
+  const el = document.querySelector(${JSON.stringify(selector)});
+  if (!el) return JSON.stringify({ ok: false, reason: "not found" });
+  el.scrollIntoView({ block: "center" });
+  const r = el.getBoundingClientRect();
+  if (!r.width || !r.height) return JSON.stringify({ ok: false, reason: "zero-size" });
+  const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+  const hit = document.elementFromPoint(cx, cy);
+  return JSON.stringify({
+    ok: true,
+    x: r.x, y: r.y, width: r.width, height: r.height,
+    inViewport: r.y >= 0 && r.y + r.height <= window.innerHeight,
+    topmost: !!(hit && (hit === el || el.contains(hit))),
+    pointerEvents: getComputedStyle(el).pointerEvents,
+  });
+})()`;
+
+/**
+ * Focus the caption editor and select its contents.
+ *
+ * The field is a Draft.js editor (`div.public-DraftEditor-content`) and it
  * arrives PRE-FILLED with the video's filename. Draft.js keeps its own
  * ContentState beside the DOM, so typing into the DOM is not enough — the
  * editor has to receive the text through a path it actually handles.
  *
- * `document.execCommand("insertText")` is that trap. It updates the DOM and
- * leaves Draft.js's state behind, which produced a saved draft whose entire
- * body was missing (only the trailing hashtags survived, 2026-10-24). The
- * longer, multi-paragraph inserts also tore the page down to the generic
- * "出错了 / 请重试" screen with no console exception. Both symptoms came from
- * driving the DOM around Draft.js, not from the caption's content: the same
- * caption through a paste is handled cleanly.
- *
- * So the caption goes in as a synthetic `paste` carrying a real DataTransfer,
- * which is the path Draft.js implements (onPaste). Two details matter:
- *
- *  1. Select the whole editor first so the paste REPLACES the pre-filled
- *     filename. `document.execCommand("selectAll")` is what works — neither a
- *     synthetic Cmd+A keydown nor a DOM Range reaches Draft.js, and both were
- *     measured failing on the live editor.
- *  2. Let the selection settle before pasting, and give Draft.js a moment to
- *     process afterwards — it re-renders from its ContentState.
- *
- * The result is compared against the requested caption with whitespace
- * normalized: Draft.js renders block boundaries as extra newlines in
- * innerText, so an exact string compare would fail on formatting alone. That
- * check is not ceremony — it is what caught the filename being glued to the
- * caption, and a paste that silently dropped the opening paragraph.
+ * `document.execCommand("selectAll")` is what reaches it: neither a synthetic
+ * Cmd+A keydown nor a DOM Range does. Select first, then type (or paste) over
+ * the filename. Do NOT add an `execCommand("delete")` in between: clearing
+ * first and then pasting was tried and is worse — the paste landed with the
+ * first paragraph missing (708 of 1223 chars) because the delete re-renders
+ * Draft.js's ContentState and the paste races it.
  */
-const FILL_CAPTION = (caption) => `
-(async () => {
+const CAPTION_SELECT = `
+(() => {
+  const el =
+    document.querySelector('div[contenteditable="true"][data-e2e*="caption"]') ||
+    document.querySelector("div.public-DraftEditor-content") ||
+    document.querySelector('div[contenteditable="true"]') ||
+    [...document.querySelectorAll("textarea")].find((t) => t.getBoundingClientRect().width > 0);
+  if (!el) return JSON.stringify({ ok: false, reason: "no caption field" });
+
+  const isField = el.tagName === "TEXTAREA" || el.tagName === "INPUT";
+  const prefilled = isField ? el.value : el.innerText;
+  el.focus();
+  if (isField) el.select();
+  else document.execCommand("selectAll");
+  return JSON.stringify({ ok: true, kind: isField ? "field" : "editor", prefilled });
+})()`;
+
+/**
+ * Paste the caption as one synthetic ClipboardEvent.
+ *
+ * This is the FALLBACK path, and it is kept because it is the only path
+ * Draft.js has been proven to handle cleanly: typing is the normal route, but
+ * if the typed text does not verify (autocomplete, an emoji Draft refuses to
+ * compose, a page re-render mid-typing), re-selecting and pasting replaces the
+ * whole body in one step. Insert the paste after `CAPTION_SELECT`, never after
+ * a delete.
+ */
+const CAPTION_PASTE = (caption) => `
+(() => {
   const want = ${JSON.stringify(caption)};
   const el =
     document.querySelector('div[contenteditable="true"][data-e2e*="caption"]') ||
@@ -191,11 +318,6 @@ const FILL_CAPTION = (caption) => `
     [...document.querySelectorAll("textarea")].find((t) => t.getBoundingClientRect().width > 0);
   if (!el) return JSON.stringify({ ok: false, reason: "no caption field" });
 
-  const healthy = () =>
-    document.body.innerText.includes("视频描述") &&
-    document.querySelectorAll("button.editor-entrance").length > 0;
-  const normalize = (s) => s.replace(/[ \\t]+/g, " ").replace(/\\s*\\n\\s*/g, "\\n").trim();
-
   if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
     const setter = Object.getOwnPropertyDescriptor(
       el.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype,
@@ -203,52 +325,33 @@ const FILL_CAPTION = (caption) => `
     ).set;
     setter.call(el, want);
     el.dispatchEvent(new Event("input", { bubbles: true }));
-    return JSON.stringify({ ok: true, len: el.value.length, mode: "value" });
+    return JSON.stringify({ ok: true, mode: "value", len: el.value.length });
   }
-
-  const prefilled = el.innerText;
-
-  // Replace the pre-filled filename caption. Two things about Draft.js, both
-  // established on the live editor (2026-10-25):
-  //
-  //  1. A DOM Range plus a selectionchange event does NOT reach Draft.js —
-  //     its paste handler inserts at the editor's OWN internal cursor, so the
-  //     caption came out as the filename with the caption glued on
-  //     ("...-shortUnitree introduced the H2-X...", 1279 chars).
-  //  2. document.execCommand("selectAll") DOES reach it, because that goes
-  //     through the browser's editing pipeline. So selectAll is the whole
-  //     fix, and the paste replaces the filename in one step.
-  //
-  // Do NOT add an execCommand("delete") between the selectAll and the paste.
-  // Clearing first and then pasting was tried and is worse: the paste landed
-  // with the first paragraph missing (708 of 1223 chars) — the delete
-  // re-renders Draft.js's ContentState and the paste races it. Driving the
-  // editor harder also tears the page down to the generic error screen
-  // ("出错了 / 请重试"), which is the same failure the older insertText
-  // approach caused. One selectAll, one paste, then verify.
-  el.focus();
-  document.execCommand("selectAll");
-  await new Promise((r) => setTimeout(r, 700));
 
   const dt = new DataTransfer();
   dt.setData("text/plain", want);
   el.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
-  await new Promise((r) => setTimeout(r, 2500));
+  return JSON.stringify({ ok: true, mode: "paste" });
+})()`;
 
-  if (!healthy()) {
-    return JSON.stringify({ ok: false, reason: "editor died after paste" });
-  }
-
-  const got = el.innerText;
-  const replaced = got.indexOf(prefilled.slice(0, 12)) === -1;
-  const matches = normalize(got) === normalize(want);
+/** Read the caption back and whether the editor is still alive. */
+const CAPTION_READ = `
+(() => {
+  const el =
+    document.querySelector('div[contenteditable="true"][data-e2e*="caption"]') ||
+    document.querySelector("div.public-DraftEditor-content") ||
+    document.querySelector('div[contenteditable="true"]') ||
+    [...document.querySelectorAll("textarea")].find((t) => t.getBoundingClientRect().width > 0);
+  if (!el) return JSON.stringify({ ok: false, reason: "no caption field" });
+  const isField = el.tagName === "TEXTAREA" || el.tagName === "INPUT";
+  const text = isField ? el.value : el.innerText;
   return JSON.stringify({
-    ok: matches,
-    mode: "paste",
-    len: got.length,
-    prefilled: prefilled.slice(0, 40),
-    replaced,
-    reason: matches ? undefined : "caption text did not match after paste",
+    ok: true,
+    text,
+    len: text.length,
+    healthy:
+      document.body.innerText.includes("视频描述") &&
+      document.querySelectorAll("button.editor-entrance").length > 0,
   });
 })()`;
 
@@ -275,6 +378,10 @@ const OVERLAY_CLOSED = `
 (() => JSON.stringify({
   ready: !document.querySelector('[class*="clip-forge-editor-container"]'),
 }))()`;
+
+/** True once the upload page's file input is mounted. */
+const FILE_INPUT_READY = `
+(() => JSON.stringify({ ready: !!document.querySelector('input[type="file"]') }))()`;
 
 /**
  * Scroll the publish button into view and report whether a click could land.
@@ -305,6 +412,9 @@ const SCROLL_TO_PUBLISH = `
  * `.EditorLeftSideMenu__menuText` div labelled 音乐, and a generic
  * text-matching selector can land on that one instead, which does not always
  * open the sound library. Verified 2026-10-24.
+ *
+ * Tags the tab button so the driver can click it with a real pointer; the
+ * page-side `.click()` is kept as the fallback in `clickElement`.
  */
 const OPEN_MUSIC_TAB = `
 (() => {
@@ -313,7 +423,8 @@ const OPEN_MUSIC_TAB = `
   if (!music) {
     return JSON.stringify({ ok: false, tabs: btns.map((b) => (b.innerText || "").trim()) });
   }
-  music.click();
+  music.id = "__musicTab";
+  music.scrollIntoView({ block: "center" });
   return JSON.stringify({ ok: true });
 })()`;
 
@@ -330,20 +441,44 @@ const MUSIC_PANEL_READY = `
   });
 })()`;
 
-/** Search the sound library. */
-const SEARCH_SOUND = (query) => `
+/** Tag the sound-library search box so the pointer can focus it for real. */
+const TAG_SOUND_SEARCH = `
 (() => {
   const inp =
     document.querySelector('input[placeholder="搜索音乐"]') ||
     document.querySelector('input[placeholder*="搜索"]') ||
     [...document.querySelectorAll("input[type=text]")].find((i) => i.getBoundingClientRect().width > 0);
   if (!inp) return JSON.stringify({ ok: false, reason: "no search input" });
+  inp.id = "__soundSearch";
+  inp.scrollIntoView({ block: "center" });
+  return JSON.stringify({ ok: true });
+})()`;
+
+/** Read the search box value back (typed text is verified, not assumed). */
+const READ_SEARCH_VALUE = `
+(() => {
+  const inp = document.getElementById("__soundSearch");
+  return JSON.stringify({ ok: !!inp, value: inp ? inp.value : null });
+})()`;
+
+/**
+ * Set the search value through the input setter (fallback only).
+ *
+ * Needed because the native input may drop a trusted insertText if the panel
+ * re-mounted between the click and the keystrokes. The value is always read
+ * back afterwards.
+ */
+const SET_SEARCH_VALUE = (query) => `
+(() => {
+  const inp =
+    document.getElementById("__soundSearch") ||
+    document.querySelector('input[placeholder="搜索音乐"]') ||
+    document.querySelector('input[placeholder*="搜索"]');
+  if (!inp) return JSON.stringify({ ok: false, reason: "no search input" });
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
   setter.call(inp, ${JSON.stringify(query)});
   inp.dispatchEvent(new Event("input", { bubbles: true }));
-  inp.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true }));
-  inp.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", keyCode: 13, bubbles: true }));
-  return JSON.stringify({ ok: true });
+  return JSON.stringify({ ok: true, value: inp.value });
 })()`;
 
 /** Count sound results (used to poll after a search). */
@@ -353,7 +488,7 @@ const SOUND_RESULT_COUNT = `
   count: document.querySelectorAll(".MusicPanelMusicItem__wrap").length,
 }))()`;
 
-/** Attach a sound from the results list by title (+ optional owner). */
+/** Tag a sound from the results list by title (+ optional owner). */
 const ATTACH_SOUND = (title, owner) => `
 (() => {
   const wantTitle = ${JSON.stringify(title)}.toLowerCase();
@@ -369,8 +504,9 @@ const ATTACH_SOUND = (title, owner) => `
   if (!match) return JSON.stringify({ ok: false, seen: rows.slice(0, 8) });
   const label = (match.innerText || "").replace(/\\n/g, " | ").slice(0, 60);
   const btn = match.querySelector("button") || match;
-  btn.click();
-  return JSON.stringify({ ok: true, attached: label });
+  btn.id = "__soundPick";
+  btn.scrollIntoView({ block: "center" });
+  return JSON.stringify({ ok: true, attached: label, selector: "#__soundPick" });
 })()`;
 
 /**
@@ -408,9 +544,9 @@ const READ_VOLUME_DB = `
  * set with a real mouse click — the same conclusion the caption field forced.
  * The proxy's /clickAt only clicks an element's CENTRE, which for this track
  * is a fixed 50% (-20 dB on the -60..20 scale) and useless for any other
- * target, so this injects a throwaway marker at the exact x and lets
- * /clickAt land on it. `pointer-events: none` makes the marker transparent to
- * the click, so the press reaches the slider underneath.
+ * target, so this injects a throwaway marker at the exact x and lets the
+ * human pointer land on it. `pointer-events: none` makes the marker
+ * transparent to the click, so the press reaches the slider underneath.
  */
 const PLACE_VOLUME_MARKER = (db) => `
 (() => {
@@ -465,9 +601,11 @@ const CLEAR_VOLUME_MARKER = `
 //
 // The switch is a custom TUX component (`.Switch__root` wrapping a hidden
 // `input[role=switch]`), the same family as the volume slider: writing to the
-// inner input does nothing, and flipping it opens a confirmation modal that
-// must be accepted before the state actually changes. So the click is real and
-// the result is read back.
+// inner input does nothing. On 2026-10-25 flipping it opened a confirmation
+// modal that had to be accepted before the state changed; on 2026-10-30 the
+// same account flipped it directly with no modal. So the step clicks, accepts
+// a modal IF one appears, and then verifies the switch's own state — that is
+// the only fact that ships.
 
 /** Expand the 显示更多 section that hides the disclosure switches. */
 const OPEN_ADVANCED = `
@@ -493,12 +631,11 @@ const READ_AIGC = `
 })()`;
 
 /**
- * Tag the switch with an id so /clickAt can land on it.
+ * Tag the switch with an id so the pointer can land on it.
  *
  * The editor scrolls between measuring and clicking, so the position has to be
- * read in the same call that tags the element, and the click has to be the
- * proxy's real CDP mouse press — a synthetic `.click()` does not move this
- * control.
+ * read in the same call that tags the element, and the click has to be a real
+ * CDP mouse press — a synthetic `.click()` does not move this control.
  */
 const TAG_AIGC_SWITCH = `
 (() => {
@@ -512,7 +649,7 @@ const TAG_AIGC_SWITCH = `
   return JSON.stringify({ ok: true });
 })()`;
 
-/** Accept the "标记 AI 生成的内容" confirmation modal. */
+/** Tag the "标记 AI 生成的内容" confirmation modal's accept button. */
 const TAG_AIGC_CONFIRM = `
 (() => {
   const overlay = document.querySelector(".TUXModal-overlay");
@@ -539,60 +676,79 @@ const EDITOR_STATE = `
   });
 })()`;
 
-// ─── driver ───
+/**
+ * Tag the preview's play button so the pre-publish review can press play on
+ * the real player.
+ *
+ * There is no <video> element to drive: Studio renders the preview to a
+ * <canvas> inside `.Player__root`, and the only observable state is the
+ * control bar — the play/pause button label and the `00:00:03 / 00:01:04`
+ * clock. Verified on a live prepared post 2026-10-30 (`videos: []`, canvas
+ * 284x558, `.play-time` present). A `<video>`-based review would have
+ * reported "not reviewed" on every run.
+ */
+const REVIEW_TARGET = `
+(() => {
+  const btn = document.querySelector(".video-player-control .play-btn");
+  const time = document.querySelector(".video-player-control .play-time");
+  if (!btn || !time) return JSON.stringify({ ok: false, reason: "no player controls on the page" });
+  btn.id = "__reviewPlay";
+  btn.scrollIntoView({ block: "center" });
+  return JSON.stringify({
+    ok: true,
+    label: (btn.innerText || "").trim(),
+    timeText: time.innerText,
+    progress: (document.querySelector(".video-player-control .progress-bar") || {}).style?.width || null,
+  });
+})()`;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Read the tagged player's clock and control label. */
+const REVIEW_STATE = `
+(() => {
+  const time = document.querySelector(".video-player-control .play-time");
+  if (!time) return JSON.stringify({ ok: false, reason: "no player clock" });
+  const btn = document.getElementById("__reviewPlay") || document.querySelector(".video-player-control .play-btn");
+  return JSON.stringify({
+    ok: true,
+    timeText: time.innerText,
+    label: btn ? (btn.innerText || "").trim() : null,
+    progress: (document.querySelector(".video-player-control .progress-bar") || {}).style?.width || null,
+  });
+})()`;
+
+// ─── publish log ───
 
 /**
- * Bring a CDP target to the foreground.
+ * Append one JSON line per step to the content's publish package.
  *
- * Required, not cosmetic. The web-access proxy creates tabs in the BACKGROUND,
- * and Chrome throttles hidden tabs — TikTok's uploader then accepts the file
- * (DOM.setFileInputFiles reports success) but never starts the transfer, with
- * no error shown. The proxy exposes no /activate endpoint, so this talks to
- * the browser's own CDP websocket. Only the named target is activated; every
- * other tab is left alone.
- *
- * Talks to the browser-level endpoint (Target.activateTarget), NOT the page's
- * own webSocketDebuggerUrl. The proxy already holds a page-level session, and
- * a second debugger connection to the same page target never opens — it just
- * hangs until the caller times out (observed twice on 2026-10-24).
- *
- * @param {string} targetId
- * @param {number} [port] - Chrome's CDP port (the automation profile's 9229)
- * @returns {Promise<string>} "ok", or the CDP error description
+ * Written only when `--content` names an existing pipeline directory, so a
+ * typo cannot create a stray output tree. Without a log file the same entries
+ * go nowhere; stdout remains the operator-facing trace.
  */
-async function bringToFront(targetId, port = 9229) {
-  const version = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
-  if (!version.webSocketDebuggerUrl) {
-    throw new Error(`no browser-level CDP endpoint on port ${port}`);
-  }
-  const ws = new WebSocket(version.webSocketDebuggerUrl);
-  const answer = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("activate timed out after 8s")), 8000);
-    ws.onopen = () =>
-      ws.send(JSON.stringify({ id: 1, method: "Target.activateTarget", params: { targetId } }));
-    ws.onmessage = (m) => {
-      try {
-        const d = JSON.parse(m.data);
-        if (d.id !== 1) return;
-        clearTimeout(timer);
-        resolve(d.error ? `error: ${d.error.message}` : "ok");
-      } catch {
-        /* ignore non-JSON frames */
-      }
-    };
-    ws.onerror = () => {
-      clearTimeout(timer);
-      reject(new Error("CDP websocket failed"));
-    };
-  });
-  try {
-    return await answer;
-  } finally {
-    ws.close();
-  }
+function makePublishLogger(contentId) {
+  if (!contentId) return () => {};
+  const outDir = join(__dirname, "output", contentId);
+  if (!existsSync(outDir)) return () => {};
+  const dir = join(outDir, "publish", "tiktok");
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, "publish-log.jsonl");
+  return (step, detail = {}) => {
+    const entry = { at: new Date().toISOString(), step, ...detail };
+    appendFileSync(file, `${JSON.stringify(entry)}\n`);
+    return entry;
+  };
 }
+
+// ─── driver ───
+
+/** Pointer position, carried across clicks so paths start where the last ended. */
+const pointer = { x: 320, y: 320 };
+
+const normalizeCaption = (s) =>
+  s
+    .replace(/[ \t]+/g, " ")
+    .replace(/\s*\n\s*/g, "\n")
+    .trim();
 
 /** Evaluate a page script and parse its JSON envelope. */
 async function evalJson(tabId, script) {
@@ -607,13 +763,14 @@ async function evalJson(tabId, script) {
 }
 
 /**
- * Click an element with a real mouse event.
+ * Click an element with a JS-level `.click()`.
  *
- * Needed for the description field: a scripted `el.focus()` does not make
- * Draft.js adopt a selection we set, but a real click does (see FILL_CAPTION).
+ * Kept as the FALLBACK only: it produces no pointer events at all, which is
+ * one of the bot-like features #1013 is about. Used when a human click has
+ * been tried and the expected state did not follow.
  */
 async function clickElement(tabId, selector) {
-  const resp = await fetch(`http://localhost:3456/click?target=${tabId}`, {
+  const resp = await fetch(`${CDP_BASE}/click?target=${tabId}`, {
     method: "POST",
     body: selector,
   }).then((r) => r.json());
@@ -621,43 +778,357 @@ async function clickElement(tabId, selector) {
   return resp;
 }
 
-/**
- * Click an element with a real CDP mouse event at its centre.
- *
- * Distinct from clickElement(): that one dispatches a page-level click, which
- * a custom (non-native) control can ignore. This one goes through the
- * browser's input pipeline, so sliders and other pointer-driven widgets see a
- * genuine press. The proxy takes the selector as the raw request body.
- */
-async function clickAtElement(tabId, selector) {
-  const resp = await fetch(`http://localhost:3456/clickAt?target=${tabId}`, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: selector,
-  }).then((r) => r.json());
-  if (!resp?.clicked) throw new Error(`clickAt failed for ${selector}: ${JSON.stringify(resp)}`);
-  return resp;
+/** Resolve an element's viewport rect (and reachability) for a human click. */
+async function resolveClickTarget(tabId, selector) {
+  return evalJson(tabId, RESOLVE_CLICK_TARGET(selector));
 }
 
-/** Poll a predicate script until it reports ready. */
-async function waitFor(
+/** Pick a point inside the element, biased to its centre by at most ±3px. */
+function clickPointWithin(rect, rand = Math.random) {
+  const jx = Math.min(3, rect.width / 4);
+  const jy = Math.min(3, rect.height / 4);
+  return {
+    x: Math.round((rect.x + rect.width / 2 + randomBetween(-jx, jx, rand)) * 10) / 10,
+    y: Math.round((rect.y + rect.height / 2 + randomBetween(-jy, jy, rand)) * 10) / 10,
+  };
+}
+
+/**
+ * Move the pointer along a human path and click the element.
+ *
+ * @param {string} tabId
+ * @param {object} cdp - session from openCdpSession
+ * @param {string} selector
+ * @returns {Promise<{ mode: string, x: number, y: number, holdMs: number }>}
+ */
+async function humanClickElement(tabId, cdp, selector) {
+  const target = await resolveClickTarget(tabId, selector);
+  if (!target.ok) throw new Error(`click target ${selector}: ${target.reason || "not found"}`);
+  if (!target.topmost && target.pointerEvents !== "none") {
+    throw new Error(`click target ${selector} is covered at its centre`);
+  }
+  const point = clickPointWithin(target);
+  const result = await clickAtPoint(cdp, { from: { ...pointer }, to: point });
+  pointer.x = point.x;
+  pointer.y = point.y;
+  return { mode: "human", x: point.x, y: point.y, holdMs: result.holdMs };
+}
+
+/**
+ * Poll a page script until it reports the expected state.
+ *
+ * Never throws; returns the last observation so the caller can decide between
+ * a fallback and a hard failure. `isReady` defaults to the `ready` envelope
+ * the scripts in this file use.
+ */
+async function pollFor(
   tabId,
   script,
-  { timeoutMs = 180_000, intervalMs = 4000, label = "state" } = {},
+  { timeoutMs = 20_000, label = "state", isReady = (s) => !!s?.ready } = {},
 ) {
   const started = Date.now();
   let last = null;
+  let printed = false;
   while (Date.now() - started < timeoutMs) {
     last = await evalJson(tabId, script);
-    if (last?.ready) return last;
+    if (isReady(last)) {
+      if (printed) process.stdout.write("\n");
+      return { ready: true, last };
+    }
     process.stdout.write(
       `  … waiting for ${label} (${Math.round((Date.now() - started) / 1000)}s)\r`,
     );
-    await sleep(intervalMs);
+    printed = true;
+    await sleepJitter(...PUBLISH_PACING.poll);
   }
-  throw new Error(
-    `${label} not reached within ${timeoutMs / 1000}s — last state: ${JSON.stringify(last)}`,
+  if (printed) process.stdout.write("\n");
+  return { ready: false, last };
+}
+
+/** Poll a predicate script until ready, or throw with the last state. */
+async function waitFor(tabId, script, opts = {}) {
+  const { timeoutMs = 180_000, label = "state", isReady } = opts;
+  const result = await pollFor(tabId, script, { timeoutMs, label, isReady });
+  if (!result.ready) {
+    throw new Error(
+      `${label} not reached within ${timeoutMs / 1000}s — last state: ${JSON.stringify(result.last)}`,
+    );
+  }
+  return result.last;
+}
+
+const readyOnOk = (s) => !!s?.ok;
+
+/**
+ * Human-click an element and verify the state it is supposed to cause.
+ *
+ * The JS `.click()` fallback exists for controls that ignore synthetic
+ * pointer presses (the volume slider needed a real one, but the reverse also
+ * happens). Every fallback is announced, because it is exactly the kind of
+ * input-shape regression this file is trying to keep visible.
+ */
+async function humanClickThen(
+  tabId,
+  cdp,
+  selector,
+  verifyScript,
+  { label, timeoutMs = 20_000, jsFallback = true, isReady } = {},
+) {
+  let mode = "human";
+  try {
+    await humanClickElement(tabId, cdp, selector);
+  } catch (err) {
+    if (!jsFallback) throw err;
+    mode = "js-fallback";
+    console.log(`      ⚠️ ${label}: human click failed (${err.message}) — using JS click`);
+  }
+
+  if (mode === "human") {
+    const first = await pollFor(tabId, verifyScript, { timeoutMs, label, isReady });
+    if (first.ready) return { mode };
+    if (!jsFallback) {
+      throw new Error(`${label}: no response after a human click — ${JSON.stringify(first.last)}`);
+    }
+    console.log(`      ⚠️ ${label}: human click did not take — falling back to a JS click`);
+    mode = "js-fallback";
+  }
+
+  await clickElement(tabId, selector);
+  const second = await pollFor(tabId, verifyScript, { timeoutMs, label, isReady });
+  if (!second.ready) {
+    throw new Error(
+      `${label}: still no response after a JS click — ${JSON.stringify(second.last)}`,
+    );
+  }
+  return { mode: "js-fallback" };
+}
+
+/**
+ * Fill the caption by typing it like a person, with a verified paste fallback.
+ *
+ * Typing goes through trusted insertText events (Draft.js sees `beforeinput`
+ * with `inputType: "insertText"`), one grapheme at a time. The editor is then
+ * poked (`pokeEditorState`) so Draft rebuilds the block from its own
+ * ContentState — a DOM-only insertion looks identical in `innerText` but saves
+ * empty later. The final text is compared with whitespace normalized: Draft.js
+ * renders block boundaries as extra newlines in `innerText`, so an exact
+ * string compare would fail on formatting alone. If the text diverged — an
+ * autocomplete swallowed a keystroke, an emoji did not compose, a re-render
+ * ate a chunk — re-select the editor and paste once.
+ */
+async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
+  const selected = await evalJson(tabId, CAPTION_SELECT);
+  if (!selected.ok) throw new Error(`caption field not found: ${JSON.stringify(selected)}`);
+  await sleepJitter(...PUBLISH_PACING.captionFieldSelect);
+
+  const want = normalizeCaption(caption);
+  const typed =
+    !pasteOnly && selected.kind === "editor"
+      ? await (async () => {
+          const plan = planTyping(caption);
+          const started = Date.now();
+          let printed = 0;
+          console.log(
+            `      typing ${caption.length} chars (~${Math.round(plan.estimateMs / 1000)}s)…`,
+          );
+          await typePlan(cdp, plan, {
+            onSegment: (_seg, index) => {
+              const pct = Math.floor((index / plan.segments.length) * 100);
+              if (pct >= printed + 10) {
+                printed = pct;
+                process.stdout.write(`\r      typing… ${pct}%`);
+              }
+            },
+          });
+          process.stdout.write("\r");
+          // Make Draft render from its state before we trust the DOM text.
+          await pokeEditorState(cdp);
+          await sleepJitter(...PUBLISH_PACING.captionSettleAfterTyping);
+          return { plan, typedMs: Date.now() - started };
+        })()
+      : null;
+
+  const read = await evalJson(tabId, CAPTION_READ);
+  if (!read.ok) throw new Error(`caption vanished after typing: ${JSON.stringify(read)}`);
+  if (!read.healthy) throw new Error("editor died after typing — check the open tab");
+
+  if (normalizeCaption(read.text) === want) {
+    return {
+      mode: typed ? "typed" : "paste",
+      len: read.len,
+      typedMs: typed?.typedMs,
+      segments: typed?.plan.segments.length,
+    };
+  }
+
+  // Fallback: the typed text did not survive. Re-select, paste once, verify.
+  const reselected = await evalJson(tabId, CAPTION_SELECT);
+  if (!reselected.ok) throw new Error(`caption re-select failed: ${JSON.stringify(reselected)}`);
+  await sleepJitter(...PUBLISH_PACING.captionFieldSelect);
+  const pasted = await evalJson(tabId, CAPTION_PASTE(caption));
+  if (!pasted.ok) throw new Error(`caption paste failed: ${JSON.stringify(pasted)}`);
+  await sleepJitter(...PUBLISH_PACING.captionSettleAfterTyping);
+
+  const after = await evalJson(tabId, CAPTION_READ);
+  if (!after.ok || !after.healthy) {
+    throw new Error(`editor died after the paste fallback: ${JSON.stringify(after)}`);
+  }
+  if (normalizeCaption(after.text) !== want) {
+    throw new Error(
+      `caption did not verify after typing and pasting — got ${after.len} chars, ` +
+        `want ${caption.length}: ${JSON.stringify(after.text.slice(0, 80))}`,
+    );
+  }
+  console.log(
+    `      ⚠️ typed caption did not verify (${read.len} chars) — replaced it with one paste`,
   );
+  return { mode: "paste-fallback", len: after.len, typedMs: typed?.typedMs };
+}
+
+/**
+ * Type into the sound search box and press Enter.
+ *
+ * Same reasoning as the caption: writing `.value` and dispatching a synthetic
+ * `input` event is a fingerprint. The value is read back, and only a mismatch
+ * falls back to the setter.
+ */
+async function searchSound(tabId, cdp, query) {
+  const tagged = await evalJson(tabId, TAG_SOUND_SEARCH);
+  if (!tagged.ok) throw new Error(`sound search input not found: ${JSON.stringify(tagged)}`);
+  await humanClickElement(tabId, cdp, "#__soundSearch");
+  await typePlan(cdp, planTyping(query));
+
+  const read = await evalJson(tabId, READ_SEARCH_VALUE);
+  let mode = "typed";
+  if (!read.ok || read.value !== query) {
+    const set = await evalJson(tabId, SET_SEARCH_VALUE(query));
+    if (!set.ok) throw new Error(`sound search text did not take: ${JSON.stringify(read)}`);
+    mode = "setter-fallback";
+    console.log("      ⚠️ sound search: typed value did not stick — set it via the input setter");
+  }
+  await pressEnter(cdp);
+  return { mode };
+}
+
+/**
+ * Warm the session up on the For You feed before the upload page opens.
+ *
+ * A session that goes straight to the upload URL, fills a form and publishes
+ * is a shape no creator produces. This dwells and scrolls first, with human
+ * wheel events, then navigates the same tab to the upload page so the journey
+ * has a history.
+ */
+async function runSessionWarmup(cdp, tab) {
+  const startedAt = Date.now();
+  const scrolls = [];
+  const cycles = Math.max(2, Math.round(randomBetween(2, 4)));
+  for (let i = 0; i < cycles; i++) {
+    const deltaY = Math.round(randomBetween(280, 760));
+    await wheelScroll(cdp, {
+      x: Math.round(randomBetween(480, 980)),
+      y: Math.round(randomBetween(320, 620)),
+      totalDeltaY: deltaY,
+    });
+    scrolls.push(deltaY);
+    await sleepJitter(...PUBLISH_PACING.warmupDwell);
+  }
+  const dwellMs = Date.now() - startedAt;
+  await fetch(`${CDP_BASE}/navigate?target=${tab}`, { method: "POST", body: UPLOAD_URL });
+  return { dwellMs, scrolls, cycles };
+}
+
+/**
+ * Parse the player clock ("00:00:03 / 00:01:04") into seconds.
+ *
+ * @param {string|null|undefined} text
+ * @returns {number|null}
+ */
+export function parseClock(text) {
+  if (!text) return null;
+  const hms = /(\d+):(\d{2}):(\d{2})/.exec(text);
+  if (hms) return Number(hms[1]) * 3600 + Number(hms[2]) * 60 + Number(hms[3]);
+  const ms = /(\d+):(\d{2})/.exec(text);
+  if (ms) return Number(ms[1]) * 60 + Number(ms[2]);
+  return null;
+}
+
+/**
+ * Watch a random stretch of the prepared video before publishing.
+ *
+ * The first CDP-published post went from "upload finished" straight to
+ * "发布" — no creator does that. This presses play on the real preview, lets
+ * it run for 5-15s, pauses it, and records what actually happened. It never
+ * blocks: a preview that will not play is reported as `reviewed: false` with
+ * a reason, and the publish decision stays with the operator/flag.
+ *
+ * The preview is a canvas, not a <video>, so the evidence is the player's own
+ * clock: it must advance from where it started. That check is what prevents a
+ * "review" that clicks play on a control that never started.
+ */
+export async function reviewBeforePublish(tabId, cdp) {
+  const target = await evalJson(tabId, REVIEW_TARGET);
+  if (!target.ok) return { reviewed: false, reason: target.reason };
+
+  await sleepJitter(...PUBLISH_PACING.reviewLeadIn);
+  const startSeconds = parseClock(target.timeText);
+  if (startSeconds === null) {
+    return {
+      reviewed: false,
+      reason: `unreadable player clock: ${JSON.stringify(target.timeText)}`,
+    };
+  }
+
+  // Is it already playing? Compare the clock across a short interval; that is
+  // more reliable than a localized play/pause label.
+  const first = parseClock((await evalJson(tabId, REVIEW_STATE)).timeText);
+  await sleepJitter(...PUBLISH_PACING.reviewLeadIn);
+  const second = parseClock((await evalJson(tabId, REVIEW_STATE)).timeText);
+  const alreadyPlaying = first !== null && second !== null && second > first + 0.2;
+
+  let started = false;
+  if (!alreadyPlaying) {
+    await humanClickElement(tabId, cdp, "#__reviewPlay");
+    const advanced = await pollFor(tabId, REVIEW_STATE, {
+      timeoutMs: 15_000,
+      label: "preview playback",
+      isReady: (s) => {
+        const t = parseClock(s?.timeText);
+        return t !== null && t > startSeconds + 0.5;
+      },
+    });
+    started = advanced.ready;
+    if (!started) {
+      return { reviewed: false, reason: "pressing play did not start playback", watchedMs: 0 };
+    }
+  }
+
+  const watchedMs = await sleepBetween(...REVIEW_WATCH_MS);
+  const during = await evalJson(tabId, REVIEW_STATE);
+  const endClock = parseClock(during.timeText);
+  const advancedSeconds =
+    startSeconds !== null && endClock !== null ? Number((endClock - startSeconds).toFixed(2)) : 0;
+
+  // Pause only if playback actually happened, so a preview that never started
+  // is not toggled on at the end of the watch.
+  if (advancedSeconds > 0) await humanClickElement(tabId, cdp, "#__reviewPlay");
+
+  // Confirm the pause by watching the clock stand still. The control's label
+  // lags the click by a React render — read immediately it still says 暂停 —
+  // so a label check would report the state we just left.
+  const pauseClockA = parseClock((await evalJson(tabId, REVIEW_STATE)).timeText);
+  await sleepBetween(500, 900);
+  const pauseClockB = parseClock((await evalJson(tabId, REVIEW_STATE)).timeText);
+  const pausedAfter = pauseClockA !== null && pauseClockB !== null && pauseClockB === pauseClockA;
+
+  const reviewed = advancedSeconds >= 2;
+  return {
+    reviewed,
+    watchedMs,
+    advancedSeconds,
+    startedPlayback: started || alreadyPlaying,
+    pausedAfter,
+    reason: reviewed ? undefined : "playback did not advance",
+  };
 }
 
 async function main() {
@@ -730,6 +1201,8 @@ async function main() {
   // without the account's login state.
   await ensureCdpProfileGuard();
 
+  const log = makePublishLogger(contentId);
+
   console.log("");
   console.log("=".repeat(60));
   console.log("📤 TikTok upload prep (stops before Publish — HITL)");
@@ -738,13 +1211,17 @@ async function main() {
   console.log(`  Sound:   ${sound}${soundOwner ? ` — ${soundOwner}` : ""}`);
   console.log(`  Volume:  ${volumeDb} dB`);
   console.log(`  Caption: ${caption ? `${caption.length} chars` : "(none — will skip)"}`);
+  console.log(`  Warm-up: ${hasFlag("no-warmup") ? "skipped" : `${WARMUP_URL} (scroll + dwell)`}`);
+  console.log(
+    `  Input:   ${hasFlag("paste-caption") ? "paste caption (explicit)" : "typed caption"} · human pointer paths · jittered waits`,
+  );
   console.log("");
 
   if (dryRun) {
     console.log("  --dry-run: checking page reachability only");
     const tab = await cdpNewTab(UPLOAD_URL);
     try {
-      await sleep(9000);
+      await sleepJitter(...PUBLISH_PACING.dryRunReachability);
       const state = await evalJson(tab, EDITOR_STATE);
       console.log(`  ✅ upload page reachable — ${JSON.stringify(state)}`);
     } finally {
@@ -753,38 +1230,74 @@ async function main() {
     return;
   }
 
-  const tab = await cdpNewTab(UPLOAD_URL);
+  log("start", {
+    video: videoPath ? basename(videoPath) : null,
+    sound,
+    soundOwner,
+    volumeDb,
+    captionChars: caption ? caption.length : 0,
+    publish: hasFlag("publish"),
+    warmup: !hasFlag("no-warmup"),
+    captionMode: hasFlag("paste-caption") ? "paste" : "typed",
+  });
+
+  const tab = await cdpNewTab(hasFlag("no-warmup") ? UPLOAD_URL : WARMUP_URL);
+  let cdp = null;
+  pointer.x = Math.round(randomBetween(200, 900));
+  pointer.y = Math.round(randomBetween(160, 620));
   let keepTab = !hasFlag("close-tab");
   try {
-    console.log("  1/6 upload page open — waiting for the editor…");
-    await sleep(10_000);
+    cdp = await openCdpSession(tab, { port: automationPort() });
+    // Foreground first: a hidden tab throttles input dispatch (≈4.6s per
+    // event, measured) and TikTok's uploader never starts.
+    await activateTarget(tab, { port: automationPort() });
 
-    // Foreground the tab BEFORE handing over the file: a hidden tab's uploader
-    // silently never starts (see bringToFront).
-    const activated = await bringToFront(tab);
-    console.log(`      tab foregrounded (${activated})`);
+    if (hasFlag("no-warmup")) {
+      console.log("  0/6 warm-up skipped (--no-warmup)");
+      log("warmup", { skipped: true });
+      await sleepJitter(...PUBLISH_PACING.uploadPageOpen);
+    } else {
+      console.log("  0/6 warming the session up on For You…");
+      await sleepJitter(...PUBLISH_PACING.warmupPageLoad);
+      const warmed = await runSessionWarmup(cdp, tab);
+      console.log(
+        `      warmed: ${warmed.cycles} scroll(s), ${Math.round(warmed.dwellMs / 1000)}s dwell`,
+      );
+      log("warmup", { skipped: false, ...warmed });
+      await sleepJitter(...PUBLISH_PACING.warmupToUpload);
+    }
+
+    console.log("  1/6 upload page open — waiting for the editor…");
+    await waitFor(tab, FILE_INPUT_READY, { timeoutMs: 90_000, label: "upload page" });
 
     console.log("  2/6 selecting the video file…");
-    const setFiles = await fetch(`http://localhost:3456/setFiles?target=${tab}`, {
+    const setFiles = await fetch(`${CDP_BASE}/setFiles?target=${tab}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ selector: 'input[type="file"]', files: [videoPath] }),
     }).then((r) => r.json());
     if (!setFiles?.success) throw new Error(`setFiles failed: ${JSON.stringify(setFiles)}`);
+    log("upload", { file: basename(videoPath), set: true });
 
     console.log("  3/6 waiting for the upload to finish…");
     await waitFor(tab, EDITOR_STATE, { timeoutMs: 300_000, label: "editor ready" });
-    process.stdout.write("\n");
 
     if (caption) {
       // Focus the field with a real click first — Draft.js ignores a selection
-      // set by script alone (see FILL_CAPTION).
-      await clickElement(tab, "div.public-DraftEditor-content");
-      const filled = await evalJson(tab, FILL_CAPTION(caption));
-      if (!filled.ok) throw new Error(`caption failed: ${JSON.stringify(filled)}`);
-      console.log(`  4/6 caption filled (${filled.len} chars, replaced "${filled.prefilled}")`);
+      // set by script alone.
+      await humanClickElement(tab, cdp, "div.public-DraftEditor-content");
+      const filled = await fillCaption(tab, cdp, caption, {
+        pasteOnly: hasFlag("paste-caption"),
+      });
+      console.log(
+        `  4/6 caption ${filled.mode} (${filled.len} chars` +
+          `${filled.segments ? `, ${filled.segments} segments` : ""}` +
+          `${filled.typedMs ? `, ${Math.round(filled.typedMs / 1000)}s` : ""})`,
+      );
+      log("caption", filled);
     } else {
       console.log("  4/6 caption skipped (none supplied)");
+      log("caption", { mode: "skipped" });
     }
 
     // AIGC disclosure. Runs before the sound step because it is a compliance
@@ -792,39 +1305,73 @@ async function main() {
     // preference: a post that ships without it cannot be fixed afterwards.
     if (hasFlag("no-aigc")) {
       console.log("  5/6 AIGC label SKIPPED (--no-aigc) — the post will not carry a disclosure");
+      log("aigc", { mode: "skipped" });
     } else {
       const advanced = await evalJson(tab, OPEN_ADVANCED);
       if (!advanced.ok) throw new Error(`could not expand 显示更多: ${JSON.stringify(advanced)}`);
-      await sleep(1200);
+      await sleepJitter(...PUBLISH_PACING.aigcExpand);
 
       const before = await evalJson(tab, READ_AIGC);
       if (!before.ok) throw new Error(`could not read the AIGC switch: ${JSON.stringify(before)}`);
 
       if (before.checked) {
         console.log("  5/6 AIGC label already on");
+        log("aigc", { mode: "already-on" });
       } else {
         const tagged = await evalJson(tab, TAG_AIGC_SWITCH);
         if (!tagged.ok) throw new Error(`could not tag the AIGC switch: ${JSON.stringify(tagged)}`);
-        await sleep(800);
-        await clickAtElement(tab, "#__aigcSwitch");
-        await sleep(1500);
+        await sleepJitter(...PUBLISH_PACING.aigcTagSettle);
+
+        // Click, then find out what this UI version actually does. Two shapes
+        // have been observed on the same account:
+        //   - 2026-10-25: the switch opens a "标记 AI 生成的内容" modal that
+        //     must be accepted with 开启;
+        //   - 2026-10-30: the switch flips directly, no modal at all.
+        // Assuming the modal was how the smoke run failed: the toggle DID go
+        // on, but the verification waited for a modal that never came, then
+        // "retried" with a JS click. Verify the SWITCH STATE instead — it is
+        // the thing that ships.
+        await humanClickElement(tab, cdp, "#__aigcSwitch");
+        await sleepJitter(...PUBLISH_PACING.aigcTagSettle);
 
         const confirm = await evalJson(tab, TAG_AIGC_CONFIRM);
-        if (!confirm.ok)
-          throw new Error(`AIGC confirmation did not open: ${JSON.stringify(confirm)}`);
-        await clickAtElement(tab, "#__aigcConfirm");
-        await sleep(1500);
+        if (confirm.ok) {
+          await humanClickElement(tab, cdp, "#__aigcConfirm");
+          await sleepJitter(...PUBLISH_PACING.aigcConfirmSettle);
+        }
 
-        // Read back. The switch flips only when the modal is accepted, so a
-        // silent failure here is exactly how an unlabeled post ships.
-        const after = await evalJson(tab, READ_AIGC);
-        if (!after.ok || !after.checked) {
+        let after = await pollFor(tab, READ_AIGC, {
+          timeoutMs: 10_000,
+          label: "AIGC switch to flip",
+          isReady: (s) => !!s?.ok && s.checked === true,
+        });
+
+        // One deliberate retry if the first press did not land. Only after a
+        // full poll window with no modal, so a slow first click cannot be
+        // toggled twice (off again).
+        if (!after.ready && !confirm.ok) {
+          console.log("      AIGC switch did not flip — pressing it once more");
+          await humanClickElement(tab, cdp, "#__aigcSwitch");
+          await sleepJitter(...PUBLISH_PACING.aigcTagSettle);
+          after = await pollFor(tab, READ_AIGC, {
+            timeoutMs: 6_000,
+            label: "AIGC switch to flip",
+            isReady: (s) => !!s?.ok && s.checked === true,
+          });
+        }
+
+        // Read back. A silent failure here is exactly how an unlabeled post
+        // ships, so this is the one place the run must not continue.
+        if (!after.ready) {
           throw new Error(
-            `AIGC label did not stick (switch reads ${JSON.stringify(after)}). ` +
+            `AIGC label did not stick (switch reads ${JSON.stringify(after.last)}). ` +
               `Turn on 显示更多 → AI 生成的内容 by hand in the open tab, then publish from there.`,
           );
         }
-        console.log("  5/6 AIGC label ON (AI-generated content disclosed)");
+        console.log(
+          `  5/6 AIGC label ON (${confirm.ok ? "modal accepted" : "direct toggle"}, AI-generated content disclosed)`,
+        );
+        log("aigc", { mode: "on", modal: confirm.ok });
       }
     }
 
@@ -832,13 +1379,15 @@ async function main() {
     const opened = await evalJson(tab, OPEN_MUSIC_TAB);
     if (!opened.ok)
       throw new Error(`music tab not found — editor tabs: ${JSON.stringify(opened.tabs)}`);
-    await waitFor(tab, MUSIC_PANEL_READY, { timeoutMs: 60_000, label: "sound library" });
-    process.stdout.write("\n");
+    const musicTab = await humanClickThen(tab, cdp, "#__musicTab", MUSIC_PANEL_READY, {
+      label: "sound library",
+      timeoutMs: 30_000,
+    });
+    log("soundLibrary", { clickMode: musicTab.mode });
 
-    const searched = await evalJson(tab, SEARCH_SOUND(sound));
-    if (!searched.ok) throw new Error(`sound search failed: ${JSON.stringify(searched)}`);
+    const searched = await searchSound(tab, cdp, sound);
+    log("soundSearch", { query: sound, mode: searched.mode });
     await waitFor(tab, SOUND_RESULT_COUNT, { timeoutMs: 45_000, label: "sound results" });
-    process.stdout.write("\n");
 
     const attached = await evalJson(tab, ATTACH_SOUND(sound, soundOwner));
     if (!attached.ok) {
@@ -846,20 +1395,29 @@ async function main() {
         `could not attach "${sound}"${soundOwner ? ` by ${soundOwner}` : ""} — first results: ${JSON.stringify(attached.seen)}`,
       );
     }
+    await humanClickElement(tab, cdp, attached.selector);
     console.log(`      attached: ${attached.attached}`);
-    await sleep(3000);
+    await sleepJitter(...PUBLISH_PACING.soundAttached);
+    log("sound", { title: sound, owner: soundOwner, attached: attached.attached });
 
     // The volume panel follows the timeline SELECTION, so the music clip has
     // to be selected first — otherwise the slider belongs to the video's own
     // audio, and ducking THAT would quiet the narration instead of the music.
     // (Observed live: with the video track selected the panel read 0 dB, and
     // selecting the music clip revealed its -20 dB.)
-    await clickElement(tab, '[class*="AudioClip__root"]');
-    await sleep(2500);
+    const selectedClip = await humanClickThen(
+      tab,
+      cdp,
+      '[class*="AudioClip__root"]',
+      READ_VOLUME_DB,
+      { label: "music clip selection", timeoutMs: 10_000, isReady: readyOnOk },
+    );
+    await sleepJitter(...PUBLISH_PACING.clipSelect);
+
     const marker = await evalJson(tab, PLACE_VOLUME_MARKER(volumeDb));
     if (!marker.ok) throw new Error(`volume slider not reachable: ${JSON.stringify(marker)}`);
-    await clickAtElement(tab, "#__volumeMarker");
-    await sleep(1500);
+    await humanClickElement(tab, cdp, "#__volumeMarker");
+    await sleepJitter(...PUBLISH_PACING.volumeClick);
     await evalJson(tab, CLEAR_VOLUME_MARKER);
 
     // Fail loudly on a mismatch. The mix is the whole point of this step: at
@@ -873,7 +1431,10 @@ async function main() {
           `Set it by hand in the open tab's 音量 slider, then publish from there.`,
       );
     }
-    console.log(`      volume: ${vol.db} dB (read back from the slider)`);
+    console.log(
+      `      volume: ${vol.db} dB (read back from the slider, ${selectedClip.mode} clip click)`,
+    );
+    log("volume", { requestedDb: volumeDb, readBackDb: vol.db, clickMode: selectedClip.mode });
 
     console.log("");
     console.log("=".repeat(60));
@@ -896,32 +1457,61 @@ async function main() {
       // stays "原声 - Chinaainews" and the music appears nowhere in the page
       // until the editor is saved (verified 2026-10-25). Skipping this step
       // publishes the video without the music.
-      console.log("💾 Applying the clip edit (保存)…");
-      const applied = await evalJson(tab, CLICK_BY_TEXT("保存"));
-      if (!applied.ok) {
+      const tagged = await evalJson(tab, TAG_BY_TEXT("保存"));
+      if (!tagged.ok) {
         throw new Error("保存 (save) button not found — publishing now would drop the music");
       }
-      await waitFor(tab, OVERLAY_CLOSED, { timeoutMs: 60_000, label: "editor to close" });
-      process.stdout.write("\n");
+      console.log("💾 Applying the clip edit (保存)…");
+      const applied = await humanClickThen(tab, cdp, "#__byText", OVERLAY_CLOSED, {
+        label: "保存",
+        timeoutMs: 60_000,
+      });
+      log("clipEdit", { clickMode: applied.mode });
+
+      if (hasFlag("skip-review")) {
+        console.log("👀 Pre-publish review skipped (--skip-review)");
+        log("review", { reviewed: false, reason: "skipped by --skip-review" });
+      } else {
+        console.log("👀 Watching the prepared video before publishing…");
+        // A review is a behaviour signal, never a publish gate: a preview that
+        // will not play is recorded as NOT reviewed and the run continues.
+        let review;
+        try {
+          review = await reviewBeforePublish(tab, cdp);
+        } catch (err) {
+          review = { reviewed: false, reason: `review failed: ${err.message}` };
+        }
+        const verdict = review.reviewed
+          ? `reviewed: ${review.advancedSeconds}s played, paused=${review.pausedAfter}`
+          : `NOT reviewed (${review.reason})`;
+        console.log(`      ${verdict}`);
+        // `reviewed` is the operator-facing fact this step exists to record.
+        log("review", { step: "review", ...review });
+      }
 
       console.log("🚀 Publishing (--publish)…");
       const scrolled = await evalJson(tab, SCROLL_TO_PUBLISH);
       if (!scrolled.ok || !scrolled.unobstructed) {
         throw new Error(`publish button not clickable: ${JSON.stringify(scrolled)}`);
       }
-      await sleep(1500);
-      await clickAtElement(tab, '[data-e2e="post_video_button"]');
-      await sleep(10_000);
-      const after = await evalJson(tab, PUBLISH_STATE);
-      if (after.error) throw new Error(`TikTok reported an error after publish: ${after.error}`);
-      if (/\/upload/.test(after.url)) {
+      await sleepJitter(...PUBLISH_PACING.publishScroll);
+      const published = await humanClickElement(tab, cdp, '[data-e2e="post_video_button"]');
+      const settled = await pollFor(tab, PUBLISH_STATE, {
+        timeoutMs: 45_000,
+        label: "publish to finish",
+        isReady: (s) => !!s && !s.error && !/\/upload/.test(s.url || ""),
+      });
+      if (!settled.ready) {
+        const after = settled.last;
+        if (after?.error) throw new Error(`TikTok reported an error after publish: ${after.error}`);
         throw new Error(
-          `still on the upload page after the publish click — check the tab: ${after.url}`,
+          `still on the upload page after the publish click — check the tab: ${after?.url}`,
         );
       }
+      log("publish", { published: true, url: settled.last.url, clickMode: published.mode });
       console.log("=".repeat(60));
       console.log("✅ Published.");
-      console.log(`   ${after.url}`);
+      console.log(`   ${settled.last.url}`);
       keepTab = !hasFlag("close-tab");
     } else {
       console.log("✅ Editor is prepared. NOTHING HAS BEEN PUBLISHED.");
@@ -937,15 +1527,19 @@ async function main() {
         // track (the video's own audio) instead of two. The caption does
         // survive. So a draft is good for reviewing caption and framing, and
         // the sound has to be re-attached in the publishing session.
-        const saved = await evalJson(tab, CLICK_BY_TEXT("保存草稿"));
-        if (saved.ok) {
+        const tagged = await evalJson(tab, TAG_BY_TEXT("保存草稿"));
+        if (tagged.ok) {
+          const saved = await humanClickElement(tab, cdp, "#__byText");
+          await sleepJitter(...PUBLISH_PACING.soundAttached);
           console.log("   💾 Draft saved — open TikTok → 主页 → 草稿 to review.");
           console.log("      The post is a draft, not a published video.");
           console.log("      Note: the attached sound does NOT persist in the draft;");
           console.log("      re-attach it by running this script again without --save-draft.");
+          log("draft", { saved: true, clickMode: saved.mode });
         } else {
           console.log("   ⚠️  Save-draft button not found — the editor is still open");
           console.log("      in the tab, so you can click 保存草稿 yourself.");
+          log("draft", { saved: false, reason: "button not found" });
         }
         keepTab = !hasFlag("close-tab");
       } else {
@@ -954,12 +1548,15 @@ async function main() {
         console.log(`   Tab: ${tab}`);
         keepTab = true;
       }
+      log("prepared", { published: false });
     }
   } catch (err) {
     console.error(`\n❌ ${err.message}`);
+    log("error", { message: err.message });
     keepTab = true; // leave the tab so the operator can see where it stopped
     process.exitCode = 1;
   } finally {
+    cdp?.close();
     if (!keepTab) {
       await cdpCloseTab(tab);
       console.log(`   (tab closed)`);
@@ -967,7 +1564,20 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(`❌ ${err.stack || err.message}`);
-  process.exit(1);
-});
+// Run only when invoked as a command. Importing this module (for example to
+// exercise `reviewBeforePublish` against a live prepared post) must not open
+// a browser tab and start an upload.
+const invokedDirectly = (() => {
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+})();
+
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error(`❌ ${err.stack || err.message}`);
+    process.exit(1);
+  });
+}
