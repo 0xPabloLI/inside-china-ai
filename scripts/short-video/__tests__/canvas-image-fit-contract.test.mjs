@@ -91,25 +91,42 @@ function objectAt(source, open) {
 }
 
 /**
- * The object literal behind `style={identifier}` / `style={{...identifier }}`
- * in an element block, or null. Resolving it is what closes the original bug
- * shape: `objectFit` lived in the shared `mediaStyle` const, not in the
- * element, so a scan that only reads the element text cannot see it.
+ * How a `<Video>`'s `style` is expressed, so the gate never has to guess:
+ *   - `{ kind: "literal", text }`    inline `style={{ … }}` — readable directly
+ *   - `{ kind: "resolved", text }`   `style={identifier}` resolved to its literal,
+ *                                    including a `useMemo(() => ({ … }))` wrapper
+ *   - `{ kind: "unresolved" }`       a style expression this scan cannot read
+ *   - `null`                         no style prop at all
+ *
+ * `unresolved` is a gate FAILURE rather than a silent pass. The whole point of
+ * #952 is that a declared-but-unreadable constant looks correct and does
+ * nothing; a resolver that returns null would reproduce that inside the gate.
  *
  * Resolution picks the LAST `const <name>` declared before the element — the
- * one in scope — and brace-matches the literal, so a same-named const earlier
- * in the file or a `}` followed by a newline cannot silently satisfy the gate.
+ * one in scope — and brace-matches the first `{` after its `=`, so a same-named
+ * const earlier in the file or a `}` followed by a newline cannot satisfy the
+ * gate by accident.
  */
-function styleObject(source, block) {
-  const match = block.text.match(/style=\{\{\s*\.\.\.(\w+)/) ?? block.text.match(/style=\{(\w+)\}/);
-  if (!match) return null;
-  const name = match[1];
-  const declarations = [
-    ...source.matchAll(new RegExp(`const\\s+${name}\\b[^=]*=\\s*\\{`, "g")),
-  ].filter((m) => m.index < block.start);
-  if (declarations.length === 0) return null;
+function styleOf(source, block) {
+  if (!/style=\{/.test(block.text)) return null;
+  if (/style=\{\{/.test(block.text)) return { kind: "literal", text: block.text };
+  const name = (block.text.match(/style=\{\{\s*\.\.\.(\w+)/) ??
+    block.text.match(/style=\{(\w+)\}/))?.[1];
+  if (!name) return { kind: "unresolved" };
+  const declarations = [...source.matchAll(new RegExp(`const\\s+${name}\\b`, "g"))].filter(
+    (m) => m.index < block.start,
+  );
+  if (declarations.length === 0) return { kind: "unresolved" };
   const decl = declarations[declarations.length - 1];
-  return objectAt(source, decl.index + decl[0].length - 1);
+  const assign = source.indexOf("=", decl.index + decl[0].length);
+  if (assign === -1) return { kind: "unresolved" };
+  const brace = source.indexOf("{", assign);
+  const statementEnd = source.indexOf(";", assign);
+  if (brace === -1 || (statementEnd !== -1 && statementEnd < brace)) {
+    return { kind: "unresolved" };
+  }
+  const text = objectAt(source, brace);
+  return text === null ? { kind: "unresolved" } : { kind: "resolved", text };
 }
 
 describe("CanvasImage fit contract", () => {
@@ -182,6 +199,7 @@ describe("CanvasImage fit contract", () => {
   it("every @remotion/media <Video> declares objectFit as a PROP, never only in style", () => {
     const propOffenders = [];
     const styleOffenders = [];
+    const unresolvedOffenders = [];
     let seen = 0;
     for (const file of files) {
       const source = readFileSync(file, "utf8");
@@ -189,10 +207,10 @@ describe("CanvasImage fit contract", () => {
       for (const block of videoBlocks(source)) {
         seen++;
         if (!/objectFit\s*=\s*[{"]/.test(block.text)) propOffenders.push(where);
-        const resolved = styleObject(source, block);
-        if (/objectFit\s*:/.test(block.text) || (resolved && /objectFit\s*:/.test(resolved))) {
-          styleOffenders.push(where);
-        }
+        const style = styleOf(source, block);
+        if (style?.kind === "unresolved") unresolvedOffenders.push(where);
+        const styleText = style?.kind === "literal" ? block.text : (style?.text ?? "");
+        if (/objectFit\s*:/.test(styleText)) styleOffenders.push(where);
       }
     }
     // MediaBackground has 2 (backdrop + primary) and AvatarCard 1; a floor of
@@ -200,20 +218,40 @@ describe("CanvasImage fit contract", () => {
     expect(seen).toBeGreaterThanOrEqual(3);
     expect(propOffenders).toEqual([]);
     expect(styleOffenders).toEqual([]);
+    // A style this scan cannot read is a hole, not a pass: an unreadable
+    // expression can hide `objectFit` in exactly the way that shipped.
+    expect(unresolvedOffenders).toEqual([]);
   });
 
-  it("the style-object resolver reaches a shared style const", () => {
-    // Guard on the guard: if `styleObject` stops resolving, shape 2 silently
+  it("the style resolver reaches a shared style const", () => {
+    // Guard on the guard: if `styleOf` stops resolving, shape 2 silently
     // loses its gate while every assertion above stays green.
     const media = readFileSync(join(REMOTION_SRC, "components", "MediaBackground.tsx"), "utf8");
     const block = videoBlocks(media).find((b) => b.text.includes("style={mediaStyle}"));
     expect(block, "the primary <Video> must still use the shared style").toBeTruthy();
-    const resolved = styleObject(media, block);
-    expect(resolved, "style={mediaStyle} must resolve to its object literal").toBeTruthy();
-    expect(resolved).toMatch(/objectPosition/);
-    expect(resolved).not.toMatch(/objectFit:/);
+    const style = styleOf(media, block);
+    expect(style?.kind, "style={mediaStyle} must resolve").toBe("resolved");
+    expect(style.text).toMatch(/objectPosition/);
+    expect(style.text).not.toMatch(/objectFit:/);
     // The literal ends where the declaration ends, not at the next `}` + `;`.
-    expect(resolved.trimEnd().endsWith("}")).toBe(false);
-    expect(resolved).toMatch(/filter:/);
+    expect(style.text.trimEnd().endsWith("}")).toBe(false);
+    expect(style.text).toMatch(/filter:/);
+  });
+
+  it("the style resolver reads a useMemo-wrapped literal and rejects an opaque one", () => {
+    const wrapped = [
+      'const cardStyle = useMemo(() => ({ width: "100%", objectFit: "contain" }), []);',
+      "export const X = () => <Video src={s} style={cardStyle} />;",
+    ].join("\n");
+    const block = videoBlocks(wrapped)[0];
+    const style = styleOf(wrapped, block);
+    expect(style.kind).toBe("resolved");
+    expect(style.text).toMatch(/objectFit/);
+
+    const opaque = [
+      "const cardStyle = buildStyle(props);",
+      "export const X = () => <Video src={s} style={cardStyle} />;",
+    ].join("\n");
+    expect(styleOf(opaque, videoBlocks(opaque)[0]).kind).toBe("unresolved");
   });
 });

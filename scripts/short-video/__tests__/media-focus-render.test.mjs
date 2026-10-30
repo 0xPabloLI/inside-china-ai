@@ -256,14 +256,26 @@ describe("cropFocus.x selects the sampled band", { timeout: 600_000 }, () => {
 // ─── 3: the deprecated focus enum still moves the window vertically ───
 
 describe("focus enum selects the sampled band (vertical crop)", { timeout: 600_000 }, () => {
-  it("image: focus top/center/bottom → top/middle/bottom third", () => {
+  // One still per case: each render has its own 300s budget, and a test with
+  // three of them could exceed the describe budget before any single call
+  // times out — a failure with no still to inspect.
+  it("image: focus top samples the TOP third", () => {
     expect(sampleAt({ asset: "image", source: "vertical", focus: "top" })).toBe("red");
+  });
+
+  it("image: focus center samples the MIDDLE third", () => {
     expect(sampleAt({ asset: "image", source: "vertical", focus: "center" })).toBe("lime");
+  });
+
+  it("image: focus bottom samples the BOTTOM third", () => {
     expect(sampleAt({ asset: "image", source: "vertical", focus: "bottom" })).toBe("blue");
   });
 
-  it("video: focus top/bottom → top/bottom third", () => {
+  it("video: focus top samples the TOP third", () => {
     expect(sampleAt({ asset: "video", source: "vertical", focus: "top" })).toBe("red");
+  });
+
+  it("video: focus bottom samples the BOTTOM third", () => {
     expect(sampleAt({ asset: "video", source: "vertical", focus: "bottom" })).toBe("blue");
   });
 });
@@ -297,11 +309,14 @@ describe("cropFocus takes precedence over focus", { timeout: 600_000 }, () => {
 // every still of a full-frame scene.
 
 describe("MediaCard passes focus through to MediaBackground", { timeout: 600_000 }, () => {
-  it("card: focus top/bottom → top/bottom band inside the card", () => {
+  it("card: focus top samples the TOP band inside the card", () => {
     expect(
       sampleAt({ asset: "image", source: "vertical", wrap: "card", focus: "top" }, CARD_CENTRE),
       "a card-mode scene must render the same crop the full-frame scene would",
     ).toBe("red");
+  });
+
+  it("card: focus bottom samples the BOTTOM band inside the card", () => {
     expect(
       sampleAt({ asset: "image", source: "vertical", wrap: "card", focus: "bottom" }, CARD_CENTRE),
       "a card-mode scene must render the same crop the full-frame scene would",

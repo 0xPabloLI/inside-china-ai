@@ -49,9 +49,10 @@ type FixtureProps = {
    * pass media through unchanged.
    */
   wrap?: "background" | "card";
-  /** `cropFocus.x` in [0,1]; omit (or null) leaves cropFocus absent. */
+  /** `cropFocus.x` in [0,1]. Setting EITHER axis creates cropFocus; the other
+   *  axis defaults to 0.5. Leaving both null leaves cropFocus absent. */
   cropFocusX?: number | null;
-  /** `cropFocus.y` in [0,1]; omit (or null) leaves cropFocus absent. */
+  /** `cropFocus.y` in [0,1]; same rule as cropFocusX. */
   cropFocusY?: number | null;
   /** Deprecated focus enum; only observable when cropFocus is absent. */
   focus?: "top" | "center" | "bottom" | null;

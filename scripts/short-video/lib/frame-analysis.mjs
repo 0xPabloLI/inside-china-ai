@@ -487,7 +487,12 @@ export function checkMediaBandFill(buf, safeZones, bandBottom = MEDIA_BAND.botto
     if (variance > PICTURE_ROW_VARIANCE) pictureRows++;
   }
 
-  const ratio = totalRows === 0 ? 0 : pictureRows / totalRows;
+  // No `totalRows === 0` branch: the probeDepth guard above guarantees at
+  // least two iterations, and `totalRows++` runs unconditionally, so the count
+  // is always ≥ 2 here. A zero probe WIDTH (safe zones wider than the canvas)
+  // still counts rows and lands on ratio 0, which is a measurement, not a
+  // missing one.
+  const ratio = pictureRows / totalRows;
   const metrics = {
     bandTop,
     bandBottom,
@@ -498,15 +503,6 @@ export function checkMediaBandFill(buf, safeZones, bandBottom = MEDIA_BAND.botto
     ratio,
     rowVariances,
   };
-
-  if (totalRows === 0) {
-    return {
-      level: "pass",
-      check: "Media band is filled",
-      detail: "no sampleable rows in the media band (safe zones leave no probe width)",
-      metrics,
-    };
-  }
 
   if (fit === "contain") {
     // The scene asked to show the whole frame. A flat band top is that
@@ -800,8 +796,10 @@ export function checkClippedText(buf, safeZones) {
  *   scenes with no full-bleed media, and for the hook — its media is
  *   full-frame, so its band top is covered by the brand bar and badge and the
  *   probe cannot tell picture from chrome. `mediaBandFit` is the scene's
- *   effective fit (`media.fit ?? "cover"`); `"contain"` makes the band check
- *   pass by declaration (#952).
+ *   effective fit (`media.fit ?? "cover"`): the band check then judges the
+ *   frame against that declaration — a flat band top passes under `"contain"`
+ *   (the declared letterbox) and warns under `"cover"` (the defect), while
+ *   picture at the band top warns under `"contain"` (#952).
  * @returns {AnalysisResult[]}
  */
 export function runFrameAnalysis(buf, safeZones, options = {}) {
