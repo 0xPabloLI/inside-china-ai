@@ -43,6 +43,8 @@ import {
   checkInstructCoverage,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
+import { HOOK_SUPPORTED_FITS } from "../lib/hook-media.mjs";
+import { VALID_FITS } from "../lib/media-bg.mjs";
 import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
 import { scenes as deepseekScenes } from "../content/deepseek/scene-data.mjs";
 import { scenes as restraintScenes } from "../content/restraint/pt1/scene-data.mjs";
@@ -1332,13 +1334,24 @@ describe("checkHookMediaContract", () => {
     });
   }
 
-  it("FAILS hook media whose fit is present and not cover", () => {
-    for (const fit of ["contain", "fill", "none", "cvr"]) {
+  // 2026-10-29: "contain" moved from fail to pass. The old rule rejected it
+  // for letterboxing, but cover fills the frame by CUTTING it — for a 16:9
+  // source in the hook's 1080x1920 box that discards 68.4% of the picture,
+  // and the user rejected the crop outright ("这个是我不能接受的"). A
+  // letterboxed hook that matches a letterboxed body is the coherent
+  // alternative; a cover hook in front of a contain body switches composition
+  // at t=3.4s, which is worse than either choice alone.
+  it("PASSES hook media using contain (letterbox, full picture preserved)", () => {
+    const result = checkHookMediaContract([hook({ media: { ...cleanMedia, fit: "contain" } })]);
+    expect(result.filter((r) => r.level === "fail")).toHaveLength(0);
+  });
+
+  it("FAILS hook media whose fit is neither cover nor contain", () => {
+    for (const fit of ["fill", "none", "cvr"]) {
       const result = checkHookMediaContract([hook({ media: { ...cleanMedia, fit } })]);
       const fails = result.filter((r) => r.level === "fail");
       expect(fails, `fit ${fit}`).toHaveLength(1);
       expect(fails[0].check).toContain("fit");
-      expect(fails[0].detail).toContain('fit:"cover"');
       expect(fails[0].detail).toContain(fit);
     }
   });
@@ -1425,6 +1438,24 @@ describe("checkHookMediaContract", () => {
     );
     expect(results.fail.find((f) => f.check.includes("Hook media"))).toBeUndefined();
     expect(results.warn.find((w) => w.check.includes("Hook media"))).toBeDefined();
+  });
+
+  it("accepts exactly the fits media-bg.mjs validates", () => {
+    // Two hand-maintained lists, one contract: hook-media.mjs cannot import
+    // VALID_FITS (it is documented import-free), so this is what stops them
+    // drifting. They already drifted once — the renderer took `contain` while
+    // this gate still refused it — which is the bug the contract change fixed.
+    expect([...HOOK_SUPPORTED_FITS].sort()).toEqual([...VALID_FITS].sort());
+  });
+
+  it("gates on membership, so every unsupported fit is refused", () => {
+    for (const fit of ["fill", "none", "Contain", ""]) {
+      const failures = checkHookMediaContract([hook({ media: { ...cleanMedia, fit } })]);
+      const fitFailure = failures.find((f) => f.check.includes("Hook media fit"));
+      expect(fitFailure?.detail, `fit ${JSON.stringify(fit)} should be refused`).toContain(
+        `"${fit}"`,
+      );
+    }
   });
 });
 

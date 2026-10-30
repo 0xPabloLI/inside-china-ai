@@ -9,6 +9,7 @@ import {
   EVIDENCE_CARD,
   MEDIA_BOTTOM_BAR,
   MEDIA_BAND,
+  BRAND_BAR,
   scrimGradient,
 } from "../lib/safe-zones.mjs";
 
@@ -25,7 +26,7 @@ import {
  *     centered around 62-70% of frame height — our subtitles match it.
  *
  * The 1080×1920 canvas is split into non-overlapping bands:
- *   content (down to y=1150) → gap → subtitle lane (y≈1188-1350, 60px, 62-70%)
+ *   content (down to y=1309) → gap → subtitle lane (y=1339-1420, 81px)
  *   → clean margin → TikTok caption UI (y≥1500 worst case).
  *
  * These tests lock the chain so the consumers — scene content
@@ -50,8 +51,8 @@ const TIKTOK_CAPTION_TOP = 1620;
 
 describe("region separation (single source of truth)", () => {
   it("content band, subtitle lane and TikTok UI are strictly ordered", () => {
-    expect(contentBottomEdge).toBe(1150);
-    expect(laneTop).toBe(1258);
+    expect(contentBottomEdge).toBe(1309);
+    expect(laneTop).toBe(1339);
     expect(laneBottom).toBe(1420);
     // strict ordering: content < lane top < lane bottom < TikTok caption UI
     expect(contentBottomEdge).toBeLessThan(laneTop);
@@ -77,9 +78,16 @@ describe("region separation (single source of truth)", () => {
     expect(laneTop - contentBottomEdge).toBeGreaterThanOrEqual(30);
   });
 
-  it("reserves at least two lines of subtitle height inside the lane", () => {
-    const twoLines = SUBTITLE_LANE.fontSize * SUBTITLE_LANE.lineHeight * SUBTITLE_LANE.maxLines;
-    expect(laneBottom - laneTop).toBeGreaterThanOrEqual(twoLines);
+  it("reserves exactly the lines it permits, pinned with literals", () => {
+    // This used to compute its bound from maxLines itself, which made it
+    // tautological once maxLines dropped to 1: it asserted 81 >= 81 and could
+    // never fail. Pin the inputs and the product instead. The other half of the
+    // contract — that a cue exceeding maxLines is refused rather than rendered
+    // into the content band — is locked in subtitle-compliance.test.mjs.
+    expect(SUBTITLE_LANE.maxLines).toBe(1);
+    expect(SUBTITLE_LANE.fontSize).toBe(60);
+    expect(SUBTITLE_LANE.lineHeight).toBe(1.35);
+    expect(laneBottom - laneTop).toBe(81);
   });
 
   it("keeps subtitles clear of the worst-case TikTok caption zone", () => {
@@ -126,13 +134,25 @@ describe("region separation (single source of truth)", () => {
 });
 
 describe("evidence card (#663, #848)", () => {
-  it("locks the card to the #663 contract geometry [60,220,820,618]", () => {
-    expect(EVIDENCE_CARD).toEqual({ left: 60, top: 220, width: 820, height: 618 });
+  // 618 → 678 → 777 → 697 across 2026-10-29. The card's bottom edge IS the
+  // four-row text bar's top edge (derived below), and SAFE_ZONES.bottom
+  // 770 → 710 → 611 moved that edge from y=838 to y=997. `top` is no longer
+  // SAFE_ZONES.top: the brand bar moved 140 → 236 and its glyphs now land at
+  // y 252-267, inside the content band, so the card anchors below it instead.
+  it("locks the card to the #663 contract geometry [60,300,820,697]", () => {
+    expect(EVIDENCE_CARD).toEqual({ left: 60, top: 300, width: 820, height: 697 });
   });
 
   it("keeps the card's bottom edge exactly on the four-row media-bottom-bar text bar top", () => {
     expect(EVIDENCE_CARD.top + EVIDENCE_CARD.height).toBe(MEDIA_BOTTOM_BAR.textBarTop);
-    expect(MEDIA_BOTTOM_BAR.textBarTop).toBe(838);
+    expect(MEDIA_BOTTOM_BAR.textBarTop).toBe(997);
+  });
+
+  it("starts below the brand bar, which sits inside the content band", () => {
+    // The bar is drawn over the content band, so a card at SAFE_ZONES.top would
+    // be occluded by it. This is the regression the review caught.
+    expect(EVIDENCE_CARD.top).toBeGreaterThan(BRAND_BAR.top + BRAND_BAR.height);
+    expect(EVIDENCE_CARD.top).toBeGreaterThan(SAFE_ZONES.top);
   });
 
   it("stays inside every protected zone", () => {
@@ -148,32 +168,41 @@ describe("evidence card (#663, #848)", () => {
 });
 
 /**
- * Full-bleed media band (2026-10-25). These lock the geometry that answers the
- * "内容整体还是太偏上了" note: the picture used to stop at the four-row text bar
- * top (y=838, 43.6% of the frame) with an opaque panel below it, and now runs
- * to the content band's own bottom edge (y=1150, 59.9%) with the text drawn on
- * a gradient scrim over the picture.
+ * Full-bleed media band (2026-10-25, edge re-tuned 2026-10-29). These lock the
+ * geometry that answers the "内容整体还是太偏上了" note: the picture used to stop
+ * at the four-row text bar top (y=838, 43.6% of the frame) with an opaque panel
+ * below it, and now runs to the content band's own bottom edge (y=1309, 68.2%)
+ * with the text drawn on a gradient scrim over the picture.
+ *
+ * The 2026-10-29 change moved that edge 1150 → 1309 by taking SAFE_ZONES.bottom
+ * 770 → 611. (An intermediate 710 / y=1210 pass came and went first: 60px is 3%
+ * of the frame, under the threshold where a composition shift reads, and the
+ * user reported seeing no movement.) The user raised the composition twice —
+ * 2026-10-24 and again on 2026-10-29 ("整个内容区没有保证居中，内容区包括视频和文字
+ * 部分") — and the residual gap under the text bar was the whole of the second
+ * complaint. The cue itself did NOT move: the gap is now spent on both sides.
  */
 describe("media band (full-bleed footage)", () => {
   it("stops at the content band's bottom edge, never at the subtitle lane", () => {
     // The taller value (SUBTITLE_LANE_TOP, 1258) was measured and rejected: a
     // 16:9 source cover-cropped into a 1080xH band shows its full height, so a
     // caption burned into the source's bottom-left corner lands at source y
-    // 1005-1050 → canvas y 0.93H-0.97H. At H=1258 that is y 1171-1223, inside
-    // the FAIL-only subtitle gap (1150-1258) — the frame gate reads the caption
-    // as content in the gap and fails, and the scrim needed to pass dims the
-    // caption past readability. At H=1150 it lands at y 1070-1118 instead.
-    expect(MEDIA_BAND.bottom).toBe(1150);
+    // 1005-1050 → canvas y 0.93H-0.97H. H=1309 puts it at y 1217-1270 — inside
+    // the content band, 39px clear of the FAIL-only gap. A taller band walks it
+    // into that gap (SUBTITLE_LANE_TOP, 1339, would put it at 1245-1299 and the
+    // band's own edge at the gap's start), where the frame gate reads it as
+    // content and fails, and the scrim needed to pass dims it past readability.
+    expect(MEDIA_BAND.bottom).toBe(1309);
     expect(MEDIA_BAND.bottom).toBe(CANVAS.height - SAFE_ZONES.bottom);
     expect(MEDIA_BAND.bottom).toBeLessThan(SUBTITLE_LANE_TOP);
     // the whole FAIL-only gap stays empty, which is what the gate measures
-    expect(SUBTITLE_LANE_TOP - MEDIA_BAND.bottom).toBe(108);
+    expect(SUBTITLE_LANE_TOP - MEDIA_BAND.bottom).toBe(30);
   });
 
-  it("grows the picture from the old text bar top to 59.9% of the frame", () => {
+  it("grows the picture from the old text bar top to 68.2% of the frame", () => {
     expect(MEDIA_BAND.bottom).toBeGreaterThan(MEDIA_BOTTOM_BAR.textBarTop);
-    expect(MEDIA_BOTTOM_BAR.textBarTop / CANVAS.height).toBeLessThan(0.44);
-    expect(MEDIA_BAND.bottom / CANVAS.height).toBeCloseTo(0.599, 3);
+    expect(MEDIA_BOTTOM_BAR.textBarTop / CANVAS.height).toBeLessThan(0.53);
+    expect(MEDIA_BAND.bottom / CANVAS.height).toBeCloseTo(0.682, 3);
   });
 
   it("leaves a real ramp above the media's bottom edge", () => {
@@ -186,13 +215,20 @@ describe("media band (full-bleed footage)", () => {
   it("spends the right vignette on the action rail, not on the subject", () => {
     const contentCentreX =
       SAFE_ZONES.left + (CANVAS.width - SAFE_ZONES.right - SAFE_ZONES.left) / 2;
-    // The rail is x∈[880,1080]. The ramp has to start left of it, so the rail
-    // sits inside the gradient rather than past its end...
-    expect(MEDIA_BAND.vignetteStartX).toBeLessThan(880);
+    // The rail is x∈[880,1080]. 700 → 880 (2026-10-29): at 700 the ramp began
+    // 180px inside the picture and darkened the right third of the SUBJECT, to
+    // buy headroom in a region the gate samples ONLY between x 880 and 1080.
+    // Starting at the rail's own edge spends the whole ramp where it is read.
+    expect(MEDIA_BAND.vignetteStartX).toBeLessThanOrEqual(880);
     // ...and not so far left that it eats the content band's own centre.
     expect(MEDIA_BAND.vignetteStartX).toBeGreaterThan(contentCentreX);
-    // The rail is the binding constraint, so its scrim is the darkest one.
-    expect(MEDIA_BAND.vignetteAlpha).toBeGreaterThan(MEDIA_BAND.scrimAlpha);
+    // 0.95 → 0.6. At 0.95 the outer 200px went effectively opaque, which
+    // REMOVES evidence rather than dimming it ("右边的内容好像被你遮挡掉一些了").
+    // The rail no longer has to carry the darkest layer in the stack: it only
+    // overlaps a contained picture between y 640 and the picture's bottom edge,
+    // so 0.6 clears the luminance-80 threshold on its own. The bottom scrim is
+    // now the heaviest, and that is correct — it is the one carrying the text.
+    expect(MEDIA_BAND.vignetteAlpha).toBeLessThan(MEDIA_BAND.scrimAlpha);
   });
 
   it("covers the TikTok top nav band with a lighter scrim", () => {

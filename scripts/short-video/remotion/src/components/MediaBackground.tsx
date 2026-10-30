@@ -90,6 +90,33 @@ const resolvePreset = (
   return TIMING[preset] ? preset : "fade";
 };
 
+/**
+ * CSS `object-position` for the media element.
+ *
+ * VERTICAL for fit:"contain" is forced to 100% (bottom). cropFocus.y is a
+ * CROP-framing value — it chooses which slice of a cover-cropped source
+ * survives — and a contained picture keeps the whole source, so there is
+ * nothing left to frame. What the vertical still controls is where the
+ * letterboxed picture sits inside its band. Centre-anchoring (the old
+ * behaviour) split the dead space above and below and left the picture ~300px
+ * above the frame's centre of mass — the "内容整体太靠上" report.
+ * Bottom-anchoring drops the picture directly onto the text bar so the two read
+ * as one captioned unit; see CONTAIN_MEDIA_BOTTOM in lib/safe-zones.mjs for the
+ * band that decides where that lands.
+ *
+ * Extracted from the component body: inlining this pushed `MediaBackground`
+ * past the complexity ceiling the incremental lint enforces on changed files.
+ *
+ * @param {MediaField} media - the scene's media field
+ * @returns {string} a CSS `object-position` value
+ */
+const objectPositionFor = (media: MediaField): string => {
+  const focusX = media.cropFocus?.x ?? 0.5;
+  if ((media.fit ?? "cover") === "contain") return `${focusX * 100}% 100%`;
+  if (media.cropFocus) return `${media.cropFocus.x * 100}% ${media.cropFocus.y * 100}%`;
+  return FOCUS_MAP[media.focus ?? "center"] ?? "center";
+};
+
 export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -192,10 +219,9 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
     // cropped into a 1080xH band"), so the band was never the problem.
     //
     // objectPosition still belongs here: it is a plain CSS property on the
-    // underlying element and does apply.
-    objectPosition: media.cropFocus
-      ? `${media.cropFocus.x * 100}% ${media.cropFocus.y * 100}%`
-      : (FOCUS_MAP[media.focus ?? "center"] ?? "center"),
+    // underlying element and does apply. The rule — including why contain
+    // anchors to the bottom — lives in objectPositionFor above.
+    objectPosition: objectPositionFor(media),
     opacity,
     transform: `translate(${translateX}, ${translateY}) scale(${scale})`,
     filter: filter !== "none" ? filter : undefined,

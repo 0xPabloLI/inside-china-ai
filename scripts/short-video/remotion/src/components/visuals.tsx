@@ -9,7 +9,7 @@
  */
 import { staticFile, CanvasImage } from "remotion";
 import { SLOT_FIELDS } from "../../../lib/text-slots.mjs";
-import { CANVAS, SAFE_ZONES, WATERMARK_POS } from "./shared";
+import { BRAND_BAR, CANVAS, SAFE_ZONES, WATERMARK_POS } from "./shared";
 import { TextGate } from "./text-gate";
 import type { ReactNode } from "react";
 
@@ -88,12 +88,22 @@ export const FrameGlow: React.FC<{ variant?: "amber" | "blue" }> = ({ variant = 
 
 // ── Brand elements ──
 
-/** Channel brand bar — top-left, below the TikTok nav zone. */
+/**
+ * Channel brand bar — top-left, below the TikTok nav zone.
+ *
+ * `top` was 140 until 2026-10-28, which is NOT below the nav zone however the
+ * comment read: a phone screenshot measured TikTok's top chrome (search bar /
+ * tabs) at canvas y 69-171, and this bar's glyphs land at y 156-171 — inside
+ * it. SAFE_ZONES.top (220) is the repo's own declared limit. 236 puts the bar
+ * 65px clear of the chrome and 16px clear of SAFE_ZONES.top while keeping its
+ * glyphs above the media band's picture in both the card and the full-bleed
+ * layout, so it never lands on footage.
+ */
 export const BrandBar: React.FC = () => (
   <div
     style={{
       position: "absolute",
-      top: 140,
+      top: BRAND_BAR.top,
       left: 60,
       right: 200,
       display: "flex",

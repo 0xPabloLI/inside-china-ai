@@ -34,7 +34,7 @@ The first 3 seconds determine 70% of completion rate. Rules:
 | ---------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | **One core message**   | First frame conveys ONE number/word/claim, not a menu | Users scroll at ~1 per second; multi-item frames read as "too much work"                  |
 | **Text ≥ 48px**        | Readability tier 48px (metadata 40px) on a 1080×1920 canvas; titles ≥ 60px | 48px is the platform must-read line (4.4% of frame width) and the minimum `preferredSize` a copy-class field may declare (`READABILITY_TIERS` in `lib/text-slots.mjs`, raised to this by #688). It is not a hard render floor: `TextGate`'s shrink ladder may still step a field down to its `minSize` (copy 35 / metadata 29) when the copy does not fit, and cancels the render if it cannot fit even there — so write copy that fits at 48. |
-| **Upper 2/3 rule**     | Critical content above y=1150 (safe-zone bottom edge) | Below y=1150 sits the subtitle lane (y≈1258–1420) + TikTok caption UI (measured top y≈1676) |
+| **Upper 2/3 rule**     | Critical content above y=1309 (safe-zone bottom edge) | Below y=1309 sits the subtitle lane (y=1339–1420) + TikTok caption UI (measured top y≈1676) |
 | **No dead space**      | Fill the full 1920px height — no > 200px gaps         | Blank zones signal "no content" → scroll past                                             |
 | **Bold color blocks**  | Use solid-color areas (not gradients) for contrast    | Gradients compress poorly at thumbnail size; solid blocks pop                             |
 | **Asymmetric layout**  | Offset the main element left or right of center       | Centered layouts read as "AI-generated"; asymmetry feels human-designed                   |
@@ -78,7 +78,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 **Design rules for vertical:**
 
 - Content flows top-to-bottom in a natural reading order
-- Never put critical info below y=1150 (`1920 − SAFE_ZONES.bottom`): the burned-subtitle lane (y≈1258–1420) and TikTok caption UI live there — see Layout Safety in `docs/brand-system.md`
+- Never put critical info below y=1309 (`1920 − SAFE_ZONES.bottom`): the burned-subtitle lane (y=1339–1420) and TikTok caption UI live there — see Layout Safety in `docs/brand-system.md`
 - Use absolute positioning with explicit `top:` values — not flex centering (which can shift with dynamic content)
 - Test at thumbnail size: if text is unreadable at 240×426 (1/4 scale), it's too small
 
