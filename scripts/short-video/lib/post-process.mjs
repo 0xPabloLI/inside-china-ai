@@ -11,6 +11,7 @@
 import { execFileSync, spawnSync } from "child_process";
 import { existsSync, renameSync, unlinkSync } from "fs";
 import { measureAudioDrift } from "./audio/sync.mjs";
+import { writeBgmMixMarker } from "./audio/bgm-margin.mjs";
 import { ffmpegMeasureCmd, getDurationSync } from "./tts/ffmpeg-cmd.mjs";
 
 /**
@@ -576,6 +577,12 @@ export function finalizeRenderedVideo({
   ].filter(Boolean);
   execFileSync(useAss ? FFMPEG_FULL : "ffmpeg", args, { stdio: ["pipe", "pipe", "pipe"] });
   console.log(`  Finalized in 1 ffmpeg pass (${parts.join(" + ")})`);
+
+  // Record what this pass did with the bed (#950). The margin check cannot
+  // tell "music 35 dB down" from "no music" by level alone; this marker is
+  // what separates them, and it must describe THIS file (the render path makes
+  // a new versioned name per run).
+  writeBgmMixMarker(outputPath, { bgmPath: bgmPath || null, volume: bgmPath ? bgmVolume : null });
 
   if (loudnessReadback) {
     const loudness = verifyFinalLoudness(outputPath, {

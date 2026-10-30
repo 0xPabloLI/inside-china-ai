@@ -28,6 +28,12 @@ import { runAllSceneDataChecks } from "./lib/scene-rules.mjs";
 import { readReport, summarizeBrollReport } from "./lib/b-roll/report.mjs";
 import { validateMedia } from "./lib/media-bg.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
+import {
+  buildWindowsFromTiming,
+  evaluateBgmMargin,
+  expectedBedFor,
+  measureBgmMargin,
+} from "./lib/audio/bgm-margin.mjs";
 import { getPlatformProfile, listPlatformProfiles } from "./lib/platforms/index.mjs";
 import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
 
@@ -455,6 +461,68 @@ if (!preMode) {
       "File not found",
       "Run text-align.py after TTS generation",
     );
+  }
+}
+
+// ─── Post-render: BGM mix margin (#950) ───
+// Whole-mix LUFS cannot see a relative level: the 2026-10-25 post passed the
+// loudness gate at −16.67 LUFS while its bed sat 22.2 dB under the narration
+// and the user heard it as too light. This measures the bed against the voice
+// in the shipped file, using the same frame-aligned timing the subtitles use.
+if (!preMode) {
+  console.log("\n🎚️  Audio Mix Checks");
+  console.log("─".repeat(50));
+
+  const timingPath = join(OUTPUT_DIR, "audio", "subtitle-timing.json");
+  const durationsPath = join(OUTPUT_DIR, "audio", "scene-durations.json");
+  const marginFix =
+    "Adjust bgmVolume (finalizeRenderedVideo / mix-bgm) or pick another track, " +
+    "then re-run the mix — target 12–26 dB below the narration";
+
+  if (!existsSync(timingPath) || !existsSync(durationsPath)) {
+    warn(
+      "Audio",
+      "BGM under voice",
+      "timing artifacts missing — mix not measured",
+      "Run the pipeline through TTS alignment so audio/subtitle-timing.json and audio/scene-durations.json exist",
+    );
+  } else {
+    try {
+      const windows = buildWindowsFromTiming(
+        JSON.parse(readFileSync(timingPath, "utf8")),
+        JSON.parse(readFileSync(durationsPath, "utf8")),
+      );
+      const measurement = measureBgmMargin({ videoPath: VIDEO_PATH, windows });
+      // The marker the mix pass wrote says whether a bed was expected; without
+      // it "music 35 dB down" and "no music" are the same reading.
+      const verdict = evaluateBgmMargin(measurement, { expectBed: expectedBedFor(VIDEO_PATH) });
+      const numbers = measurement.ok
+        ? ` (speech ${measurement.speechRmsDb.toFixed(1)} dBFS / bed ${measurement.bgmOnlyRmsDb.toFixed(1)} dBFS over ${measurement.pauseWindows} pauses)`
+        : "";
+      const detail = `${verdict.reasons.join("; ")}${numbers}`;
+
+      if (verdict.status === "pass") {
+        pass("Audio", "BGM under voice", detail);
+      } else if (verdict.status === "warn") {
+        warn("Audio", "BGM under voice", detail, marginFix);
+      } else if (verdict.status === "fail") {
+        fail("Audio", "BGM under voice", detail, marginFix);
+      } else {
+        warn(
+          "Audio",
+          "BGM under voice",
+          `not measurable — ${verdict.reasons.join("; ")}`,
+          "Check that the audio track decodes and that this render matches the current timing data",
+        );
+      }
+    } catch (err) {
+      warn(
+        "Audio",
+        "BGM under voice",
+        `not measurable — ${err.message}`,
+        "Check that the audio track decodes and that this render matches the current timing data",
+      );
+    }
   }
 }
 

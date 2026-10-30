@@ -30,9 +30,18 @@ import { existsSync, renameSync, unlinkSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { selectBGM } from "./lib/bgm.mjs";
+import {
+  detectSilenceWindows,
+  evaluateBgmMargin,
+  measureBgmMargin,
+  writeBgmMixMarker,
+} from "./lib/audio/bgm-margin.mjs";
 import { getDurationSync } from "./lib/tts/ffmpeg-cmd.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/** Bed gain on the local path. Calibrated on the artifact by the check below. */
+const BGM_VOLUME = 0.12;
 
 const args = process.argv.slice(2);
 function getArg(name) {
@@ -83,9 +92,11 @@ const noBgmPath = absVideoPath.replace(".mp4", "-nobgm.mp4");
 renameSync(absVideoPath, noBgmPath);
 
 const bgmFadeOutStart = Math.max(videoDuration - 3, 1).toFixed(2);
-const filterComplex = `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${bgmFadeOutStart}:d=3,volume=0.12[bgm];[0:a]volume=1.0[tts];[tts][bgm]amix=inputs=2:duration=first:dropout_transition=0[aout]`;
+const filterComplex = `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${bgmFadeOutStart}:d=3,volume=${BGM_VOLUME}[bgm];[0:a]volume=1.0[tts];[tts][bgm]amix=inputs=2:duration=first:dropout_transition=0[aout]`;
 
-console.log("  🔧 Mixing BGM (instant start, 12% volume, auto-looped)...");
+console.log(
+  `  🔧 Mixing BGM (instant start, ${Math.round(BGM_VOLUME * 100)}% volume, auto-looped)...`,
+);
 
 execFileSync(
   "ffmpeg",
@@ -118,7 +129,38 @@ execFileSync(
 
 console.log(`  ✅ BGM mixed in → ${absVideoPath.split("/").pop()}`);
 
-// Clean up
+writeBgmMixMarker(absVideoPath, { bgmPath, volume: BGM_VOLUME });
+
+// ── Measure the mix against the artifact, not the constant ──
+// The voice-only file renamed above is the reference: its gaps say exactly
+// where only the bed can be. This is the check the −20 dB default lacked.
+let marginVerdict = { status: "unknown", reasons: [] };
+try {
+  const windows = detectSilenceWindows(noBgmPath, { duration: videoDuration });
+  const measurement = measureBgmMargin({ videoPath: absVideoPath, windows });
+  marginVerdict = evaluateBgmMargin(measurement, { expectBed: true });
+  if (measurement.ok) {
+    console.log(
+      `  🎚  Music ${measurement.marginDb.toFixed(1)} dB below narration ` +
+        `(speech ${measurement.speechRmsDb.toFixed(1)} dBFS / bed ${measurement.bgmOnlyRmsDb.toFixed(1)} dBFS ` +
+        `over ${measurement.pauseWindows} pauses)`,
+    );
+  }
+  for (const reason of marginVerdict.reasons) {
+    console.log(
+      `  ${marginVerdict.status === "pass" ? "✅" : marginVerdict.status === "warn" ? "⚠️ " : "❌"} ${reason}`,
+    );
+  }
+} catch (err) {
+  console.log(`  ⚠️  BGM margin not measured: ${err.message}`);
+}
+
+// Clean up — but keep the voice-only reference when the mix is out of band,
+// so the fix is a re-mix of this file rather than a re-mix of a mixed file.
+if (marginVerdict.status === "fail") {
+  console.error(`\n❌ Mix is out of band — voice-only reference kept: ${noBgmPath}`);
+  process.exit(1);
+}
 try {
   unlinkSync(noBgmPath);
 } catch {}
