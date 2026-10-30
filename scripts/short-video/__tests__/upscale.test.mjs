@@ -3,7 +3,7 @@
  *
  * TDD: Tests written first (red), implementation second (green).
  *
- * These are interface/contract tests with mocked execSync/spawnSync — they verify
+ * These are interface/contract tests with mocked child_process — they verify
  * the functions exist, accept the right arguments, handle edge cases,
  * and degrade gracefully when Real-ESRGAN is unavailable.
  */
@@ -18,12 +18,13 @@ vi.mock("fs", () => ({
 
 vi.mock("child_process", () => ({
   execSync: vi.fn(() => ""),
+  execFileSync: vi.fn(() => ""),
   spawnSync: vi.fn(() => ({ status: 0, stdout: "", stderr: "" })),
 }));
 
 // Import after mocks are set up
 import { existsSync } from "fs";
-import { execSync, spawnSync } from "child_process";
+import { execFileSync, execSync, spawnSync } from "child_process";
 
 import {
   checkResolution,
@@ -41,7 +42,7 @@ describe("checkResolution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     existsSync.mockReturnValue(true);
-    execSync.mockReturnValue("");
+    execFileSync.mockReturnValue("");
   });
 
   afterEach(() => {
@@ -59,7 +60,7 @@ describe("checkResolution", () => {
 
   // Scenario #10: ffprobe output parse failure
   it("returns needsUpscale=false when ffprobe fails", () => {
-    execSync.mockImplementation(() => {
+    execFileSync.mockImplementation(() => {
       throw new Error("ffprobe not found");
     });
     const result = checkResolution("/fake/video.mp4");
@@ -68,9 +69,20 @@ describe("checkResolution", () => {
     expect(result.height).toBe(0);
   });
 
+  // #1003: catalog paths are untrusted strings — argv, not a shell line
+  it("passes the file path as a single ffprobe argument", () => {
+    execFileSync.mockReturnValue("640x360");
+    const filePath = '/fake/a"$(touch /tmp/pwned)".mp4';
+    checkResolution(filePath);
+
+    const [, argv] = execFileSync.mock.calls[0];
+    expect(argv.at(-1)).toBe(filePath);
+    expect(argv.filter((arg) => arg.includes("pwned"))).toHaveLength(1);
+  });
+
   // Scenario #1: video 480x854 (portrait, width<720) → needsUpscale=true
   it("detects 480x854 video needs upscale", () => {
-    execSync.mockReturnValue("480x854");
+    execFileSync.mockReturnValue("480x854");
     const result = checkResolution("/fake/video.mp4");
     expect(result.width).toBe(480);
     expect(result.height).toBe(854);
@@ -80,21 +92,21 @@ describe("checkResolution", () => {
 
   // Scenario #2: video 720x1280 → needsUpscale=false
   it("detects 720x1280 video does not need upscale", () => {
-    execSync.mockReturnValue("720x1280");
+    execFileSync.mockReturnValue("720x1280");
     const result = checkResolution("/fake/video.mp4");
     expect(result.needsUpscale).toBe(false);
   });
 
   // Scenario #3: video 1080x1920 → needsUpscale=false
   it("detects 1080x1920 video does not need upscale", () => {
-    execSync.mockReturnValue("1080x1920");
+    execFileSync.mockReturnValue("1080x1920");
     const result = checkResolution("/fake/video.mp4");
     expect(result.needsUpscale).toBe(false);
   });
 
   // Scenario #4: image 640x1138 → needsUpscale=true, isVideo=false
   it("detects 640x1138 image needs upscale", () => {
-    execSync.mockReturnValue("640x1138");
+    execFileSync.mockReturnValue("640x1138");
     const result = checkResolution("/fake/image.jpg");
     expect(result.needsUpscale).toBe(true);
     expect(result.isVideo).toBe(false);
@@ -102,21 +114,21 @@ describe("checkResolution", () => {
 
   // Scenario #9: unsupported format (.gif)
   it("returns needsUpscale=false for unsupported format .gif", () => {
-    execSync.mockReturnValue("480x854");
+    execFileSync.mockReturnValue("480x854");
     const result = checkResolution("/fake/animation.gif");
     expect(result.needsUpscale).toBe(false);
   });
 
   // Scenario #9: unsupported format (.webm)
   it("returns needsUpscale=false for unsupported format .webm", () => {
-    execSync.mockReturnValue("480x854");
+    execFileSync.mockReturnValue("480x854");
     const result = checkResolution("/fake/video.webm");
     expect(result.needsUpscale).toBe(false);
   });
 
   // Also test width=HEIGHT\nheight= format
   it("parses width=NNN height=NNN format from ffprobe", () => {
-    execSync.mockReturnValue("width=480\nheight=854\n");
+    execFileSync.mockReturnValue("width=480\nheight=854\n");
     const result = checkResolution("/fake/video.mp4");
     expect(result.width).toBe(480);
     expect(result.height).toBe(854);
@@ -315,9 +327,10 @@ describe("upscaleImage", () => {
 describe("autoUpscaleIfNeeded", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    existsSync.mockReturnValue(true);
-    execSync.mockReturnValue("");
-    spawnSync.mockReturnValue({ status: 0, stdout: "", stderr: "" });
+    existsSync.mockReset().mockReturnValue(true);
+    execSync.mockReset().mockReturnValue("");
+    execFileSync.mockReset().mockReturnValue("");
+    spawnSync.mockReset().mockReturnValue({ status: 0, stdout: "", stderr: "" });
   });
 
   afterEach(() => {
@@ -326,7 +339,7 @@ describe("autoUpscaleIfNeeded", () => {
 
   // Scenario #2: 720x1280 video → no upscale
   it("returns upscaled=false for 720p video", () => {
-    execSync.mockReturnValue("720x1280");
+    execFileSync.mockReturnValue("720x1280");
     const result = autoUpscaleIfNeeded("/fake/video.mp4");
     expect(result.upscaled).toBe(false);
     expect(result.path).toBe("/fake/video.mp4");
@@ -334,14 +347,14 @@ describe("autoUpscaleIfNeeded", () => {
 
   // Scenario #3: 1080x1920 video → no upscale
   it("returns upscaled=false for 1080p video", () => {
-    execSync.mockReturnValue("1080x1920");
+    execFileSync.mockReturnValue("1080x1920");
     const result = autoUpscaleIfNeeded("/fake/video.mp4");
     expect(result.upscaled).toBe(false);
   });
 
   // Scenario #5: 720x1280 image → no upscale
   it("returns upscaled=false for 720p image", () => {
-    execSync.mockReturnValue("720x1280");
+    execFileSync.mockReturnValue("720x1280");
     const result = autoUpscaleIfNeeded("/fake/image.jpg");
     expect(result.upscaled).toBe(false);
   });
@@ -360,7 +373,7 @@ describe("autoUpscaleIfNeeded", () => {
     existsSync.mockImplementation((path) => {
       return !String(path).includes("realesrgan-ncnn-vulkan");
     });
-    execSync.mockReturnValue("480x854");
+    execFileSync.mockReturnValue("480x854");
     const result = autoUpscaleIfNeeded("/fake/video.mp4");
     expect(result.upscaled).toBe(false);
     expect(result.path).toBe("/fake/video.mp4");
@@ -368,7 +381,7 @@ describe("autoUpscaleIfNeeded", () => {
 
   // Scenario #1: 480x854 video → upscale, returns new path
   it("returns upscaled=true with new path for 480p video", () => {
-    execSync.mockReturnValue("480x854");
+    execFileSync.mockReturnValue("480x854");
     const result = autoUpscaleIfNeeded("/fake/video.mp4");
     expect(result.upscaled).toBe(true);
     expect(result.path).toContain("-upscaled.");
@@ -376,7 +389,7 @@ describe("autoUpscaleIfNeeded", () => {
 
   // Scenario #9: unsupported format
   it("returns upscaled=false for .gif file", () => {
-    execSync.mockReturnValue("480x854");
+    execFileSync.mockReturnValue("480x854");
     const result = autoUpscaleIfNeeded("/fake/animation.gif");
     expect(result.upscaled).toBe(false);
     expect(result.path).toBe("/fake/animation.gif");
@@ -384,8 +397,8 @@ describe("autoUpscaleIfNeeded", () => {
 
   // Scenario #7: Real-ESRGAN fails → return original path
   it("returns upscaled=false with original path when upscale fails", () => {
-    // checkResolution uses execSync → returns resolution
-    execSync.mockReturnValue("480x854");
+    // checkResolution uses execFileSync → returns resolution
+    execFileSync.mockReturnValue("480x854");
     // upscaleVideo uses spawnSync → all calls fail
     spawnSync.mockReturnValue({ status: 1, stdout: "", stderr: "GPU error" });
     const result = autoUpscaleIfNeeded("/fake/video.mp4");
@@ -418,9 +431,10 @@ describe("constants", () => {
 describe("pipeline integration scenarios", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    existsSync.mockReturnValue(true);
-    execSync.mockReturnValue("");
-    spawnSync.mockReturnValue({ status: 0, stdout: "", stderr: "" });
+    existsSync.mockReset().mockReturnValue(true);
+    execSync.mockReset().mockReturnValue("");
+    execFileSync.mockReset().mockReturnValue("");
+    spawnSync.mockReset().mockReturnValue({ status: 0, stdout: "", stderr: "" });
   });
 
   afterEach(() => {
@@ -429,7 +443,7 @@ describe("pipeline integration scenarios", () => {
 
   // Scenario #18: already-720p file → no upscale (pipeline scenario)
   it("pipeline: 720x1280 file returns original path (no upscale needed)", () => {
-    execSync.mockReturnValue("720x1280");
+    execFileSync.mockReturnValue("720x1280");
     const result = autoUpscaleIfNeeded("/fake/content/assets/video.mp4");
     expect(result.upscaled).toBe(false);
     expect(result.path).toBe("/fake/content/assets/video.mp4");
@@ -437,7 +451,7 @@ describe("pipeline integration scenarios", () => {
 
   // Scenario #9: 640x360 file → upscaled to 720p
   it("pipeline: 640x360 file is upscaled", () => {
-    execSync.mockReturnValue("640x360");
+    execFileSync.mockReturnValue("640x360");
     const result = autoUpscaleIfNeeded("/fake/content/assets/bg.jpg");
     expect(result.upscaled).toBe(true);
     expect(result.path).toContain("-upscaled.");

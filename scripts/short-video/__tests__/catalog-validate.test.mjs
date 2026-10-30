@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import * as yaml from "js-yaml";
 import {
   LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS,
+  findLegacyRosterIssues,
   formatIssue,
   runCli,
   validateCatalog,
@@ -97,7 +98,6 @@ describe("validateCatalog — declared vs measured", () => {
       const result = validateCatalog([entry(file, { width: 800, height: 600 })], {
         rootDir,
         probe,
-        legacyFiles: [],
       });
       expect(result.errors).toEqual([]);
       expect(codes(result.warnings)).toEqual(["probe-failed"]);
@@ -153,7 +153,6 @@ describe("validateCatalog — disk layer", () => {
     const soft = validateCatalog([item], {
       rootDir: fixtureRoot(),
       probe: probeOf(800, 600),
-      legacyFiles: [],
     });
     expect(soft.errors).toEqual([]);
     expect(codes(soft.warnings)).toEqual(["missing-file"]);
@@ -163,7 +162,6 @@ describe("validateCatalog — disk layer", () => {
       rootDir: fixtureRoot(),
       probe: probeOf(800, 600),
       requireFiles: true,
-      legacyFiles: [],
     });
     expect(codes(hard.errors)).toEqual(["missing-file"]);
   });
@@ -171,7 +169,7 @@ describe("validateCatalog — disk layer", () => {
   it("skips the disk layer entirely when probe is null", () => {
     const result = validateCatalog(
       [entry("content/demo/assets/a.png", { width: 800, height: 600 })],
-      { probe: null, legacyFiles: [] },
+      { probe: null },
     );
     expect(result.errors).toEqual([]);
     expect(result.warnings).toEqual([]);
@@ -182,7 +180,6 @@ describe("validateCatalog — disk layer", () => {
     const result = validateCatalog([entry(file, { width: 800, height: 600 })], {
       rootDir: fixtureRoot([file]),
       probe: probeOf(800, 600),
-      legacyFiles: [],
     });
     expect(result.errors).toEqual([]);
     expect(codes(result.warnings)).toEqual(["probe-unsupported"]);
@@ -191,13 +188,12 @@ describe("validateCatalog — disk layer", () => {
 });
 
 describe("validateCatalog — legacy exemptions", () => {
-  const legacyFile = "content/demo/assets/legacy.png";
+  const [legacyFile] = LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS;
 
   it("exempts a frozen path without dimensions", () => {
     const result = validateCatalog([entry(legacyFile)], {
       rootDir: fixtureRoot(),
       probe: probeOf(800, 600),
-      legacyFiles: [legacyFile],
     });
     expect(result.errors).toEqual([]);
     expect(result.legacyExempt).toEqual([legacyFile]);
@@ -207,22 +203,21 @@ describe("validateCatalog — legacy exemptions", () => {
     const result = validateCatalog([entry(legacyFile, { width: 800, height: 600 })], {
       rootDir: fixtureRoot([legacyFile]),
       probe: probeOf(800, 600),
-      legacyFiles: [legacyFile],
     });
     expect(codes(result.warnings)).toEqual(["stale-legacy"]);
     expect(result.errors).toEqual([]);
   });
 
-  it("reports a legacy path that is no longer in the catalog", () => {
-    const result = validateCatalog([], { probe: null, legacyFiles: [legacyFile] });
-    expect(codes(result.warnings)).toEqual(["stale-legacy"]);
+  it("reports frozen paths absent from the catalog", () => {
+    const issues = findLegacyRosterIssues([]);
+    expect(issues).toHaveLength(LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS.length);
+    expect(codes(issues)).toEqual(issues.map(() => "stale-legacy"));
   });
 
   it("errors when a legacy entry's file is readable, with its measured size", () => {
     const result = validateCatalog([entry(legacyFile)], {
       rootDir: fixtureRoot([legacyFile]),
       probe: probeOf(1024, 768),
-      legacyFiles: [legacyFile],
     });
     expect(codes(result.errors)).toEqual(["legacy-file-readable"]);
     expect(result.errors[0].message).toContain("1024x768");
@@ -232,21 +227,9 @@ describe("validateCatalog — legacy exemptions", () => {
     const result = validateCatalog([entry(legacyFile)], {
       rootDir: fixtureRoot([legacyFile]),
       probe: () => null,
-      legacyFiles: [legacyFile],
     });
     expect(result.errors).toEqual([]);
     expect(codes(result.warnings)).toEqual(["legacy-file-unmeasurable"]);
-  });
-
-  it("routes an unsupported legacy file type to probe-unsupported", () => {
-    const file = "content/demo/assets/legacy.gif";
-    const result = validateCatalog([entry(file)], {
-      rootDir: fixtureRoot([file]),
-      probe: probeOf(1, 1),
-      legacyFiles: [file],
-    });
-    expect(result.errors).toEqual([]);
-    expect(codes(result.warnings)).toEqual(["probe-unsupported"]);
   });
 
   it("keeps the frozen roster auditable and in sync with the catalog", () => {
@@ -261,6 +244,7 @@ describe("validateCatalog — legacy exemptions", () => {
     expect(result.errors).toEqual([]);
     expect(result.total).toBeGreaterThan(0);
     expect([...result.legacyExempt].sort()).toEqual([...FROZEN_LEGACY_SNAPSHOT].sort());
+    expect(findLegacyRosterIssues(entries)).toEqual([]);
   });
 });
 

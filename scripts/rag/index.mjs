@@ -40,7 +40,11 @@ import {
   fetchExistingHashes,
 } from "./lib/supabase-client.mjs";
 import { collectMarkdownSource, findFilesRecursive } from "./lib/collectors.mjs";
-import { formatIssue, validateCatalog } from "../short-video/lib/catalog-validate.mjs";
+import {
+  findLegacyRosterIssues,
+  formatIssue,
+  validateCatalog,
+} from "../short-video/lib/catalog-validate.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, "..", "..");
@@ -212,7 +216,7 @@ function collectAssetCatalog() {
     const detail = validation.errors.map((item) => `  - ${formatIssue(item)}`).join("\n");
     throw new Error(`catalog.yml validation failed — refusing to index:\n${detail}`);
   }
-  for (const warning of validation.warnings) {
+  for (const warning of [...validation.warnings, ...findLegacyRosterIssues(entries)]) {
     console.warn(`  ⚠️  ${formatIssue(warning)}`);
   }
   for (const file of validation.legacyExempt) {

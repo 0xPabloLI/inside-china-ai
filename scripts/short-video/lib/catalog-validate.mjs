@@ -89,23 +89,15 @@ function runProbe(probe, filePath) {
  *   Dimension probe; defaults to ffprobe via checkResolution. `null` skips the
  *   disk layer entirely (static-only run).
  * @param {boolean} [options.requireFiles] Turn missing files into errors.
- * @param {string[]} [options.legacyFiles] Legacy exemptions; defaults to the
- *   frozen list.
  */
 export function validateCatalog(entries, options = {}) {
-  const {
-    rootDir,
-    probe = checkResolution,
-    requireFiles = false,
-    legacyFiles = LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS,
-  } = options;
+  const { rootDir, probe = checkResolution, requireFiles = false } = options;
 
   if (probe && typeof rootDir !== "string") {
     throw new Error("validateCatalog: rootDir is required when probing the disk");
   }
 
-  const legacy = new Set(legacyFiles);
-  const present = new Set();
+  const legacy = new Set(LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS);
   const result = {
     total: entries.length,
     declared: 0,
@@ -126,7 +118,6 @@ export function validateCatalog(entries, options = {}) {
       );
       continue;
     }
-    present.add(file);
 
     if (typeof entry.description !== "string" || entry.description.trim() === "") {
       result.errors.push(
@@ -292,19 +283,25 @@ export function validateCatalog(entries, options = {}) {
     result.verified.push(file);
   }
 
-  for (const file of legacy) {
-    if (!present.has(file)) {
-      result.warnings.push(
-        issue(
-          "stale-legacy",
-          file,
-          "listed as legacy but absent from catalog.yml; drop it from the list",
-        ),
-      );
-    }
-  }
-
   return result;
+}
+
+/**
+ * A frozen legacy path that no longer appears in the catalog is stale. Kept
+ * out of validateCatalog because it only means something for the complete
+ * catalog, not for a fixture subset.
+ */
+export function findLegacyRosterIssues(entries) {
+  const present = new Set(
+    entries.map((entry) => entry?.file).filter((file) => typeof file === "string"),
+  );
+  return LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS.filter((file) => !present.has(file)).map((file) =>
+    issue(
+      "stale-legacy",
+      file,
+      "listed as legacy but absent from catalog.yml; drop it from the list",
+    ),
+  );
 }
 
 const USAGE =
@@ -333,7 +330,7 @@ export function runCli(argv, io = {}) {
       requireFiles = true;
     } else if (arg === "--catalog") {
       const value = args.shift();
-      if (!value) {
+      if (!value || value.startsWith("--")) {
         stderr(USAGE);
         return 2;
       }
@@ -366,9 +363,10 @@ export function runCli(argv, io = {}) {
     requireFiles,
     probe: io.probe === undefined ? checkResolution : io.probe,
   });
+  const warnings = [...result.warnings, ...findLegacyRosterIssues(entries)];
 
   for (const item of result.errors) stderr(`❌ ${formatIssue(item)}`);
-  for (const item of result.warnings) stdout(`⚠️  ${formatIssue(item)}`);
+  for (const item of warnings) stdout(`⚠️  ${formatIssue(item)}`);
   for (const file of result.legacyExempt) stdout(`↪️  legacy without dimensions: ${file}`);
 
   const verdict = result.errors.length === 0 ? "✅" : "❌";
@@ -377,7 +375,7 @@ export function runCli(argv, io = {}) {
       `${result.verified.length} verified on disk, ${result.legacyExempt.length} legacy-exempt, ` +
       `${result.diskMissing.length} file(s) missing, ${result.probeFailed.length} probe failure(s), ` +
       `${result.probeUnsupported.length} unsupported type(s), ` +
-      `${result.errors.length} error(s), ${result.warnings.length} warning(s)`,
+      `${result.errors.length} error(s), ${warnings.length} warning(s)`,
   );
 
   return result.errors.length === 0 ? 0 : 1;
