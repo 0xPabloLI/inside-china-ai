@@ -56,6 +56,22 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 >
 > `mix-bgm.mjs` 与 `trending-sounds.mjs` 仍可用，但只在用户点名要别的音乐、或需要非 TikTok 表面（本地混流）时才用。`trending-sounds.mjs` 的算法加权理由仍然成立，只是不再作为默认提问路径。
 
+### 发布前的输入形态（#1013，2026-10-30 起）
+
+首条 CDP 发布的视频 72 小时后仍 0 播放，而之前四条 App 手动发布的读数是 210 / 285 / 419 / 372。根因未定，但当时这条路径的**输入形态**是可测量的「机器人」：每一下点击只有 press/release（零 `mousemove`），整条 Caption 是一次合成 paste，所有等待都是固定毫秒。现在脚本默认按人类形态走：
+
+| 行为       | 现在的做法                                                                                               | 显式退出          |
+| ---------- | -------------------------------------------------------------------------------------------------------- | ----------------- |
+| 鼠标轨迹   | 每次点击沿带侧向弯曲的 Bézier 移动，末段减速，冲过目标 0.4–2px 再回正                                    | —                 |
+| 逐字输入   | 可信 `insertText`，一次一个字符（含 emoji），间隔 30–120ms，句读处偶发 300–900ms 停顿；换行按真 Enter 键 | `--paste-caption` |
+| 等待抖动   | 全部走 `PUBLISH_PACING` / 具名常量带（`[base, spread]`，spread ≥ base 的 20%），无裸毫秒                 | —                 |
+| 发布前审阅 | `--publish` 时先播预览 5–15s、暂停、确认时钟走过再停，判定写进日志                                       | `--skip-review`   |
+| 会话预热   | 先在 For You 滚动 2–4 次、每次停留 2.3–4.7s（合计约 5–19s），再打开上传页                                | `--no-warmup`     |
+
+结果写在 `output/{content}/publish/tiktok/publish-log.jsonl`（每步一行 JSON，含 `step: "review"` 与 `reviewed`）。运行时自检：`node scripts/short-video/human-input-selftest.mjs`（断言页面收到的每个事件都是 trusted、零 paste）。
+
+> 输入必须落在前台标签页：后台标签的 CDP 输入派发会被节流（实测同一条 14 点轨迹前台 0.33s、后台 65s）。脚本在开标签页时激活一次（`openVisibleSession`：`Target.activateTarget` → 新建窗口重挂 → 读 `document.visibilityState`，三次仍 hidden 就报错退出），此后不再逐步激活——`Target.activateTarget` 返回 ok 也不代表可见，窗口在别的 Space 或被遮挡时标签页仍是 `hidden`。所以运行过程中别把 Chrome 切走或最小化：一旦失焦，后续输入会以 `Input.*` 超时的形式失败，而不是静默跑完。
+
 ### 发布后自动提示
 
 `publish-tiktok.mjs --auto`（Publora API 档，TikTok 当前默认关闭——启用需逐平台授权，见 `docs/content-pipeline.md` Stage 5）发布成功后会：
