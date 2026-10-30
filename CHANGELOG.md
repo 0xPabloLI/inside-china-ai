@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.42.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.41.2...tanstack_start_ts-v1.42.0) (2026-10-30)
+
+
+### Features
+
+* **media:** unified fallback chain with budgeted HITL generation ([#355](https://github.com/0xPabloLI/inside-china-ai/issues/355)) ([#1031](https://github.com/0xPabloLI/inside-china-ai/issues/1031)) ([e95ed99](https://github.com/0xPabloLI/inside-china-ai/commit/e95ed99dbd21bd94bee59773c3f350ee7a9b4ee4))
+
 ## [1.41.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.41.1...tanstack_start_ts-v1.41.2) (2026-10-29)
 
 
