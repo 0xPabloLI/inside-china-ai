@@ -413,6 +413,139 @@ describe("formatFinalMediaFailures wording", () => {
   });
 });
 
+// ─── #986: Step 1.6 gives the operator the next action, not just the symptom ───
+
+describe("missing-media recovery context (#986)", () => {
+  const scene = () => ({
+    id: 6,
+    visualType: "narrative",
+    layout: "media-bottom-bar",
+    mediaStrategy: "b-roll",
+  });
+
+  it("keeps the bare line when no context is passed (render-only callers)", () => {
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({ scenes: [scene()], contentDir: dir });
+    const report = formatFinalMediaFailures(result);
+    expect(report).not.toContain("Recovery:");
+    expect(report).not.toContain("mediaStrategy");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("names the strategy and b-roll round, then lists the three recovery paths", () => {
+    const dir = makeContentDir([]);
+    const scenes = [scene()];
+    const result = checkFinalMedia({ scenes, contentDir: dir });
+    const report = formatFinalMediaFailures(result, {
+      scenes,
+      contentDir: "demo",
+      brollReport: { scenes: { 6: { status: "escalated", round: 3 } } },
+    });
+
+    expect(report).toContain(
+      'Scene 6: layout "media-bottom-bar" needs media — no media declared [mediaStrategy: b-roll; b-roll: escalated · round 3]',
+    );
+    expect(report).toContain("Recovery:");
+    expect(report).toContain("Step 1.5 re-enters sourcing");
+    expect(report).toContain("generate-broll.mjs --content demo --scene 6 [--approve-auto]");
+    expect(report).toContain("BROLL_MODEL=fastmetal-1.3b");
+    expect(report).toContain("hero-center / stacked-cards");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("labels a chain scene from the report's auto flag", () => {
+    const dir = makeContentDir([]);
+    const scenes = [
+      { id: 7, visualType: "narrative", layout: "media-overlay" }, // no mediaStrategy
+    ];
+    const result = checkFinalMedia({ scenes, contentDir: dir });
+    const report = formatFinalMediaFailures(result, {
+      scenes,
+      contentDir: "demo",
+      brollReport: { scenes: { 7: { auto: true, status: "failed", round: 1 } } },
+    });
+
+    expect(report).toContain("[mediaStrategy: default chain; b-roll: failed · round 1]");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does not add recovery hints for a non-missing-media failure", () => {
+    const result = {
+      pass: false,
+      failures: [
+        {
+          sceneId: 1,
+          layout: "media-overlay",
+          reason: "broken-media",
+          path: "assets/x.jpg",
+          code: "not-an-image",
+          detail: "bytes are not a decodable image",
+        },
+      ],
+      warnings: [],
+    };
+    const report = formatFinalMediaFailures(result, {
+      scenes: [{ id: 1, mediaStrategy: "b-roll" }],
+      contentDir: "demo",
+    });
+    expect(report).not.toContain("Recovery:");
+  });
+
+  it("warns that source-only scenes will not generate", () => {
+    const dir = makeContentDir([]);
+    const scenes = [{ ...scene(), mediaStrategy: "source-only" }];
+    const result = checkFinalMedia({ scenes, contentDir: dir });
+    const report = formatFinalMediaFailures(result, { scenes, contentDir: "demo" });
+
+    expect(report).toContain("Source-only scenes never generate");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("tells an escalated scene how to reset the round cap", () => {
+    const dir = makeContentDir([]);
+    const scenes = [scene()];
+    const result = checkFinalMedia({ scenes, contentDir: dir });
+    const report = formatFinalMediaFailures(result, {
+      scenes,
+      contentDir: "demo",
+      brollReport: { scenes: { 6: { status: "escalated", round: 3 } } },
+    });
+
+    expect(report).toContain("3-round cap");
+    expect(report).toContain("remove the scene's entry");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("labels the legacy 'asset' strategy as the default chain", () => {
+    const dir = makeContentDir([]);
+    const scenes = [{ ...scene(), mediaStrategy: "asset" }];
+    const result = checkFinalMedia({ scenes, contentDir: dir });
+    const report = formatFinalMediaFailures(result, { scenes, contentDir: "demo" });
+
+    expect(report).toContain("[mediaStrategy: default chain]");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does not treat a CSS-only layout's stale media.path as a generation miss", () => {
+    const dir = makeContentDir([]);
+    const scenes = [
+      {
+        id: 8,
+        visualType: "narrative",
+        layout: "stacked-cards",
+        media: { type: "image", path: "assets/gone.jpg" },
+      },
+    ];
+    const result = checkFinalMedia({ scenes, contentDir: dir });
+    expect(result.failures[0].reason).toBe("missing-media");
+    const report = formatFinalMediaFailures(result, { scenes, contentDir: "demo" });
+
+    expect(report).not.toContain("Recovery:");
+    expect(report).not.toContain("mediaStrategy");
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
 // ─── #191: explicit media:null and legacy mediaOptOut semantics ───
 
 describe("explicit media:null on media-dependent layouts (#191)", () => {

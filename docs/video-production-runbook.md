@@ -732,7 +732,7 @@ scene-detect，均不经装载层）；转写由 JS 侧 `transcribeVideo`（whis
 
 ## B-roll Generation (FastVideo MLX)
 
-Scene-matched generated media, on-device. Default tier `fastmetal-5b` — FastVideo `FastMetal-5B-QAD` (Wan2.2 TI2V 5B, #298); the legacy `fastmetal-1.3b` (`FastMetal-1.3B-QAD`) stays selectable via `BROLL_MODEL` as the escape hatch. Per-tier drivers, parameters, and time estimates are declared in `lib/b-roll/runner.mjs` `MODEL_TIERS` — the code is the source of truth.
+Scene-matched generated media, on-device. Default tier `fastmetal-5b` — FastVideo `FastMetal-5B-QAD` (Wan2.2 TI2V 5B, #298); the legacy `fastmetal-1.3b` (`FastMetal-1.3B-QAD`) is a **manual** escape hatch: set `BROLL_MODEL=fastmetal-1.3b` before the run. There is no runtime failover between tiers — a 5B timeout or non-zero exit fails every job in that batch (`runner.mjs` `failAll`), and a scene is re-attempted only by rerunning the stage on whichever tier `BROLL_MODEL` selects. A 1.3B retry would also need the other prompt family (#922) and costs 240s per clip vs 600s for the 5B (`MODEL_TIERS`), so the switch stays an explicit operator decision. Per-tier drivers, parameters, and time estimates are declared in `lib/b-roll/runner.mjs` `MODEL_TIERS` — the code is the source of truth.
 
 **#355 — one default chain, overrides optional.** A scene that omits `mediaStrategy` (or keeps the legacy `"asset"`) follows the same ladder: claimed stock (stock video first, #301/D1a) → external news video → library reuse / upscale → generation (T2I fast path by default; T2V only with a declared motion prompt and video budget) → pure layout for CSS-only scenes. The field is now an override, not a required per-scene choice. Rungs 1-3 are the existing Step 1.5 sourcing → cross-content reuse cap → upscale pipeline; this ticket adds the video-over-image ordering and the generation rung/gate, not a rewrite of supply (supply structure is #310's slice). Strict stock-vs-news tier ordering and per-visualType tuning remain open (#1030):
 
@@ -761,7 +761,12 @@ The chain's generation rung derives its still prompt from `assetNeed` (explicit 
 
 **Non-destructive**: a gated winner is assigned to `scene.media` in memory. `scene-data.mjs` is never rewritten, so every rerun starts from the same declared intent and a content dir shows no diff from the stage alone.
 
-**Report**: `output/<contentDir>/b-roll-report.json` — per scene the strategy (chain entries say `auto`), resolved `form`, `promptSource`, `promptHash`, `round`, status, every candidate with its score and the VLM's reason, and the winner. It is the agent's iteration input. `verify-video.mjs` renders it as the `B-roll Checks` block, which is the only B-roll surface HITL sees; anything short of `won` warns there and never blocks publishing.
+**Report**: `output/<contentDir>/b-roll-report.json` — per scene the strategy (chain entries say `auto`), resolved `form`, `promptSource`, `promptHash`, `round`, status, every candidate with its score and the VLM's reason, and the winner. It is the agent's iteration input. Two gates read it, and they do not have the same authority:
+
+- `verify-video.mjs` renders it as the `B-roll Checks` block, the readable B-roll summary HITL reviews; a scene short of `won` is a **warning** there and does not block publishing on its own.
+- `main.mjs` Step 1.6 (`lib/final-media-gate.mjs`) is the **hard** gate. A media-dependent layout (`media-overlay` / `media-bottom-bar` / `media-split`) that still has no `scene.media` after sourcing, patch, upscale and generation exits 1 with `missing-media`; the run never reaches render or `verify-video.mjs`. The hook is enforced the same way (`missing-hook-media`).
+
+When Step 1.6 fails, the error adds each scene's declared strategy or b-roll report status when known, then lists the three recovery paths: rerun the pipeline (Step 1.5 re-enters sourcing for chain / asset-then-\* scenes and generation for b-roll / ai-image scenes); rewrite the prompt and regenerate with `node scripts/short-video/generate-broll.mjs --content <dir> --scene <id>` (`--approve-auto` for a chain scene; `BROLL_MODEL=fastmetal-1.3b` switches tier manually); or move the scene to a CSS-only layout (`hero-center` / `stacked-cards`) when it does not need media.
 
 ### Tier parameters
 
@@ -825,7 +830,7 @@ The agent rewrites prompts; a human does not. After any run leaves a scene short
 1. Read the scene's report entry — the declared prompt, the composed `generationPrompt`, both candidate scores, and the VLM reason.
 2. Attack the dimension the reason points at: off-topic → SUBJECT / VISUAL METAPHOR; watermark or garbled text → check `generationPrompt` actually carries the NEGATIVE clauses (and shorten the prompt if they were budget-truncated); static or flat → CAMERA / MOTION / LIGHTING (defaults live in `lib/b-roll/prompt-injection.mjs`).
 3. Re-run `generate-broll.mjs --content <dir> --scene <id>` and read the report again.
-4. `round` counts generations per scene. Past 3 the entry becomes `escalated` and the stage refuses to spend more time on it — surface the escalated scene, its candidates and scores to the user.
+4. `round` counts generations per scene. Past 3 the entry becomes `escalated` and the stage refuses to spend more time on it — surface the escalated scene, its candidates and scores to the user. The refusal is keyed on the report entry, so `--force` does not reset it: only removing that scene's key from `output/<dir>/b-roll-report.json` (or deleting the report) allows another attempt, and that reset needs the user's approval.
 
 ### AI Image (T2I) generation — Boogu Image Turbo (#155)
 

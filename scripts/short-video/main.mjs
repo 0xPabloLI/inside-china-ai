@@ -28,6 +28,7 @@ import {
   formatFinalMediaFailures,
   reportFinalMediaWarnings,
 } from "./lib/final-media-gate.mjs";
+import { readReport, reportPath } from "./lib/b-roll/report.mjs";
 import { assertSubtitleTiming, regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { assertDualTrackRestorable } from "./lib/subtitles/dual-track.mjs";
 import { runCanonicalTextGateWithRepair } from "./lib/verify-canonical-text.mjs";
@@ -366,8 +367,12 @@ async function main() {
     const gate = checkFinalMedia({ scenes, contentDir: contentDirAbs });
     reportFinalMediaWarnings(gate);
     if (!gate.pass) {
+      // #986: Step 1.6 is the hard gate. Name each scene's generation rung and
+      // how it ended, then hand the operator the recovery paths — the
+      // "non-won never blocks" line belongs to verify-video, not to this gate.
+      const brollReport = readReport(reportPath(join(__dirname, "output", contentDir)));
       console.error("❌ Step 1.6: Final media check FAILED\n");
-      console.error(`   ${formatFinalMediaFailures(gate)}\n`);
+      console.error(`   ${formatFinalMediaFailures(gate, { scenes, brollReport, contentDir })}\n`);
       console.error("   Missing media would render an empty band or a CSS-only hook frame.");
       console.error(
         "   Supply the media (bind scene.media), or set media:null for a deliberate CSS-only hook.",
