@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.43.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.43.1...tanstack_start_ts-v1.43.2) (2026-10-30)
+
+
+### Bug Fixes
+
+* **short-video:** 压低内容堆叠、画面底挂、收窄右侧渐变晕 ([#1021](https://github.com/0xPabloLI/inside-china-ai/issues/1021)) ([e21c066](https://github.com/0xPabloLI/inside-china-ai/commit/e21c066303b704b77a30200b736a8e4b6d577098))
+
 ## [1.43.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.43.0...tanstack_start_ts-v1.43.1) (2026-10-30)
 
 
