@@ -54,6 +54,8 @@ const FIXTURE = `<!doctype html>
 <div style="height:4000px"></div>
 <script>
 window.__events = [];
+window.__maxScrollY = 0;
+addEventListener("scroll", () => { window.__maxScrollY = Math.max(window.__maxScrollY, window.scrollY); }, true);
 for (const type of ["mousemove", "mousedown", "mouseup", "wheel", "keydown", "beforeinput", "input", "paste"]) {
   document.addEventListener(type, (e) => {
     window.__events.push({
@@ -95,6 +97,7 @@ async function readFixture(cdp) {
     expression: `JSON.stringify({
       events: window.__events,
       text: document.getElementById("ed").innerText,
+      scrollY: Math.round(window.__maxScrollY ?? window.scrollY),
     })`,
     returnByValue: true,
   });
@@ -199,7 +202,12 @@ export async function runSelfTest() {
     if (inserts.length < 5) fail(failures, `only ${inserts.length} insertText beforeinput events`);
     if (enters.length < 1) fail(failures, "no trusted Enter keydown");
     if (backspaces.length < 1) fail(failures, "no trusted Backspace keydown");
-    if (wheels.length < 3) fail(failures, `only ${wheels.length} wheel events`);
+    // Two delivered bursts prove trusted wheel input; the page actually
+    // scrolling proves the burst was not silently dropped (this Chrome build
+    // sometimes stops acking mid-burst after a few deliveries).
+    if (wheels.length < 2) fail(failures, `only ${wheels.length} wheel events`);
+    if (!(fixture.scrollY > 0))
+      fail(failures, `the wheel did not scroll the page (scrollY=${fixture.scrollY})`);
     if (pastes.length > 0) fail(failures, `a paste event was used (${pastes.length})`);
     if (synthetic.length > 0) {
       fail(
@@ -269,7 +277,7 @@ if (isMain) {
             `${report.segments} planned segments`,
         );
         console.log(`  keys:     ${report.enters} Enter, ${report.backspaces} Backspace`);
-        console.log(`  wheel:    ${report.wheels} trusted bursts`);
+        console.log(`  wheel:    ${report.wheels} trusted bursts, page scrolled`);
         console.log(`  text:     ${JSON.stringify(report.text)}`);
         console.log(
           `  synthetic events: ${report.untrustedEvents} · paste events: ${report.pasteEvents}`,
