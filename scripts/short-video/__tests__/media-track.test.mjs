@@ -326,6 +326,82 @@ describe("media-track", () => {
     await expect(runMediaTrack(ctx)).resolves.toBeUndefined();
   });
 
+  it("#355 forwards the chain gate and budgets to the B-roll stage", async () => {
+    const scenes = [{ id: 1, voiceover: "v" }];
+    let stageOpts = null;
+    const { ctx } = makeCtx({
+      scenes,
+      broll: brollStub({
+        buildGenerationPlan: () => ({
+          entries: [{ scene: scenes[0], action: "generate", auto: true, form: "image" }],
+          summary: { approvalRequired: 0, generate: 1 },
+        }),
+        runBrollStage: async (opts) => {
+          stageOpts = opts;
+          return { counts: {} };
+        },
+      }),
+      deps: baseDeps(),
+    });
+    await runMediaTrack({
+      ...ctx,
+      mediaChain: { approveAuto: true, autoBudget: 2, videoBudget: 0 },
+    });
+    expect(stageOpts.approveAuto).toBe(true);
+    expect(stageOpts.autoBudget).toBe(2);
+    expect(stageOpts.videoBudget).toBe(0);
+  });
+
+  it("#355 chain candidates awaiting approval still reach the stage (plan file) and say so", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const scenes = [{ id: 1, voiceover: "v" }];
+    let stageCalls = 0;
+    const { ctx } = makeCtx({
+      scenes,
+      broll: brollStub({
+        buildGenerationPlan: () => ({
+          entries: [{ scene: scenes[0], action: "approval-required", auto: true }],
+          summary: { approvalRequired: 1, generate: 0 },
+        }),
+        runBrollStage: async () => {
+          stageCalls += 1;
+          return {
+            counts: { approvalRequired: 1 },
+            planFile: "/tmp/plan.json",
+          };
+        },
+      }),
+      deps: baseDeps(),
+    });
+    await runMediaTrack(ctx);
+    expect(stageCalls).toBe(1);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("await approval"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("--approve-auto"));
+  });
+
+  it("#355 an all-budget-skipped plan still reaches the stage (plan written, no silent skip)", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const scenes = [{ id: 1, voiceover: "v" }];
+    let stageCalls = 0;
+    const { ctx } = makeCtx({
+      scenes,
+      broll: brollStub({
+        buildGenerationPlan: () => ({
+          entries: [{ scene: scenes[0], action: "budget-skipped", auto: true }],
+          summary: { approvalRequired: 0, budgetSkipped: 1, generate: 0 },
+        }),
+        runBrollStage: async () => {
+          stageCalls += 1;
+          return { counts: { budgetSkipped: 1 }, planFile: "/tmp/plan.json" };
+        },
+      }),
+      deps: baseDeps(),
+    });
+    await runMediaTrack(ctx);
+    expect(stageCalls).toBe(1);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("over auto budget"));
+  });
+
   it("skips sourcing when no scene needs media", async () => {
     const calls = { sourcer: 0 };
     // Explicit media:null → skipsMediaSourcing() → not in scenesNeedingMedia.

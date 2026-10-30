@@ -223,6 +223,16 @@ describe("deriveGaps — classification", () => {
     expect(gaps[0].reason).toBe(GAP_REASON.UNCLASSIFIED);
   });
 
+  it("#355 records a fall-through from a chain (auto) b-roll entry", () => {
+    const gaps = deriveGaps({
+      contentSlug: "pkg",
+      scenes: [scene(1)],
+      brollReport: { scenes: { 1: { strategy: "auto", auto: true, status: "won" } } },
+    });
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].reason).toBe(GAP_REASON.FELL_THROUGH_TO_GENERATION);
+  });
+
   it("records a fall-through to generation from the b-roll report", () => {
     const gaps = deriveGaps({
       contentSlug: "pkg",

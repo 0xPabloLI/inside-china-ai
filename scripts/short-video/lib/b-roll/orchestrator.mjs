@@ -11,12 +11,23 @@ import {
   emptyReport,
   readReport,
   writeReport,
+  writePlan,
   reportPath,
+  planPath,
   promptHash,
   decideCache,
   nextRound,
   shouldRefuse,
 } from "./report.mjs";
+import { skipsMediaSourcing } from "../claim-keywords.mjs";
+import {
+  DEFAULT_AUTO_SCENE_BUDGET,
+  DEFAULT_AUTO_VIDEO_BUDGET,
+  resolveMediaPlan,
+  resolveGenerationPrompt,
+  selectAutoForm,
+  hasDeclaredVideoPrompt,
+} from "../media-strategies.mjs";
 import { buildClaim, scoreCandidates, pickWinner, GATE_THRESHOLD } from "./gate.mjs";
 import { resolveDependencies, runGeneration, resolveModelTier, MODEL_TIERS } from "./runner.mjs";
 import {
@@ -44,7 +55,7 @@ import {
   tokenBudgetExceeded,
 } from "./prompt-budget.mjs";
 import { familyForModelTier, getPromptTemplate } from "./prompt-templates.mjs";
-import { NEGATIVE_GROUPS, coversNegativeGroup, isImageStrategy } from "../scene-rules.mjs";
+import { NEGATIVE_GROUPS, coversNegativeGroup } from "../scene-rules.mjs";
 
 export const SEED_BASE = 1024;
 const CANDIDATES_PER_SCENE = 2;
@@ -55,29 +66,198 @@ export function hasMedia(scene) {
 
 /**
  * Pure routing pass. Returns one plan per scene; never mutates inputs.
- * plan = { scene, action: 'skip' | 'generate', reason, warn? }
+ * plan = { scene, action: 'skip' | 'generate', reason, warn?, plan? }
+ *
+ * #355: a scene that omits `mediaStrategy` (or keeps the legacy `asset`
+ * default) is a chain scene — it sources stock, then generates when sourcing
+ * left it empty. The chain's eligibility mirrors sourcing eligibility, so a
+ * hook / NO_MEDIA_TYPES / CSS-only / waived scene never becomes an implicit
+ * GPU job. Explicit overrides keep their own contracts.
  */
 export function planScenes(scenes) {
   return scenes.map((scene) => {
-    const strategy = scene.mediaStrategy ?? "asset";
+    const plan = resolveMediaPlan(scene);
     // #299: an explicit media:null is a deliberate waiver — generation must
     // never fill it (the final gate reports it as a warning, not a failure).
     if ("media" in scene && scene.media === null) {
-      return { scene, action: "skip", reason: "explicit-no-media" };
+      return { scene, action: "skip", reason: "explicit-no-media", plan };
     }
     if (scene.mediaOptOut === true) {
-      return { scene, action: "skip", reason: "media-opt-out", warn: true };
+      return { scene, action: "skip", reason: "media-opt-out", warn: true, plan };
     }
-    if (strategy === "asset") {
-      return { scene, action: "skip", reason: "asset-strategy" };
+    if (plan.generate === "never") {
+      return { scene, action: "skip", reason: `${plan.strategy}-strategy`, plan };
     }
-    // asset-then-* strategies (video and image alike, #155) source first and
-    // only generate when sourcing left the scene without media.
-    if (strategy.startsWith("asset-then-") && hasMedia(scene)) {
-      return { scene, action: "skip", reason: "has-media" };
+    // Fallback strategies (the default chain and asset-then-*) source first
+    // and only generate when sourcing left the scene without media.
+    if (plan.generate === "fallback" && hasMedia(scene)) {
+      return { scene, action: "skip", reason: "has-media", plan };
     }
-    return { scene, action: "generate", reason: `strategy-${strategy}` };
+    if (plan.auto) {
+      if (skipsMediaSourcing(scene)) {
+        return { scene, action: "skip", reason: "not-media-eligible", plan };
+      }
+      // The chain can always derive a still prompt from the claim; a video
+      // rung exists only when the writer declared motion semantics.
+      const imagePrompt = resolveGenerationPrompt(scene, "image", { allowDerived: true });
+      const videoPrompt = resolveGenerationPrompt(scene, "video");
+      if (!imagePrompt && !videoPrompt) {
+        return { scene, action: "skip", reason: "no-generation-prompt", plan };
+      }
+      return { scene, action: "generate", reason: "chain-fallback", plan };
+    }
+    return { scene, action: "generate", reason: `strategy-${plan.strategy}`, plan };
   });
+}
+
+/**
+ * Apply the #355 budget + HITL gate to the pure routing plan.
+ *
+ * Explicit overrides are author-decided and always pass (as before). The
+ * chain's implicit rung is bounded per content and needs approval:
+ *   - approveAuto=false  → chain scenes are "approval-required", no GPU spend
+ *   - autoBudget         → how many chain scenes may generate this run
+ *   - videoBudget        → how many of those may use T2V (the rest fall back
+ *                          to the T2I fast path; a video prompt is not a
+ *                          licence to spend 8-20x per clip)
+ *
+ * @returns {{entries: Array<object>, summary: object}}
+ */
+export function buildGenerationPlan(scenes, opts = {}) {
+  const {
+    sceneFilter = null,
+    approveAuto = false,
+    autoBudget = DEFAULT_AUTO_SCENE_BUDGET,
+    videoBudget = DEFAULT_AUTO_VIDEO_BUDGET,
+  } = opts;
+  const filterIds = sceneFilter
+    ? new Set(Array.isArray(sceneFilter) ? sceneFilter : [sceneFilter])
+    : null;
+
+  const entries = [];
+  let selected = 0;
+  let autoSelected = 0;
+  let autoVideosSelected = 0;
+  let approvalRequired = 0;
+  let budgetSkipped = 0;
+  let previewVideos = 0;
+
+  for (const routed of planScenes(scenes)) {
+    const { scene } = routed;
+    const base = {
+      scene,
+      strategy: routed.plan?.strategy ?? null,
+      auto: Boolean(routed.plan?.auto),
+      reason: routed.reason,
+      warn: routed.warn,
+    };
+    if (filterIds && !filterIds.has(String(scene.id))) {
+      entries.push({ ...base, action: "filtered-out" });
+      continue;
+    }
+    if (routed.action !== "generate") {
+      entries.push({ ...base, action: "skip" });
+      continue;
+    }
+    if (base.auto && !approveAuto) {
+      approvalRequired += 1;
+      // Preview the prompt/form the run would use so the HITL plan carries
+      // enough information to approve or reject it. Budgets are not consumed
+      // here — the summary states them separately.
+      const previewForm =
+        routed.plan?.form === "auto"
+          ? selectAutoForm(scene, videoBudget - previewVideos)
+          : routed.plan.form;
+      if (previewForm === "video") previewVideos += 1;
+      const previewPrompt = resolveGenerationPrompt(scene, previewForm, { allowDerived: true });
+      entries.push({
+        ...base,
+        action: "approval-required",
+        form: previewForm,
+        prompt: previewPrompt?.prompt ?? null,
+        promptSource: previewPrompt?.source ?? null,
+      });
+      continue;
+    }
+
+    let form = routed.plan?.form ?? "image";
+    let promptInfo = null;
+    if (base.auto) {
+      if (autoSelected >= autoBudget) {
+        budgetSkipped += 1;
+        const skippedForm = form === "auto" ? selectAutoForm(scene, videoBudget) : form;
+        const skippedPrompt = resolveGenerationPrompt(scene, skippedForm, { allowDerived: true });
+        entries.push({
+          ...base,
+          action: "budget-skipped",
+          reason: "auto-scene-budget",
+          form: skippedForm,
+          prompt: skippedPrompt?.prompt ?? null,
+          promptSource: skippedPrompt?.source ?? null,
+        });
+        continue;
+      }
+      form = form === "auto" ? selectAutoForm(scene, videoBudget - autoVideosSelected) : form;
+      if (form === "video" && autoVideosSelected >= videoBudget) form = "image";
+      promptInfo = resolveGenerationPrompt(scene, form, { allowDerived: true });
+      if (!promptInfo) {
+        entries.push({ ...base, action: "skip", reason: "no-generation-prompt", form });
+        continue;
+      }
+    } else {
+      promptInfo = resolveGenerationPrompt(scene, form, { allowDerived: false });
+    }
+
+    selected += 1;
+    if (base.auto) {
+      autoSelected += 1;
+      if (form === "video") autoVideosSelected += 1;
+    }
+    entries.push({
+      ...base,
+      action: "generate",
+      form,
+      prompt: promptInfo?.prompt ?? "",
+      promptSource: promptInfo?.source ?? null,
+    });
+  }
+
+  return {
+    entries,
+    summary: {
+      total: scenes.length,
+      generate: selected,
+      approvalRequired,
+      budgetSkipped,
+      approveAuto,
+      autoBudget,
+      videoBudget,
+    },
+  };
+}
+
+/** The plan as it lands on disk — ids and decisions, never scene copies. */
+export function serializeMediaChainPlan(chainPlan, { content, approveAuto }) {
+  return {
+    content,
+    approved: approveAuto,
+    budgets: {
+      autoScenes: chainPlan.summary.autoBudget,
+      autoVideos: chainPlan.summary.videoBudget,
+    },
+    summary: chainPlan.summary,
+    entries: chainPlan.entries.map((entry) => ({
+      sceneId: entry.scene.id,
+      visualType: entry.scene.visualType ?? null,
+      strategy: entry.strategy,
+      action: entry.action,
+      reason: entry.reason ?? null,
+      form: entry.form ?? null,
+      auto: entry.auto,
+      promptSource: entry.promptSource ?? null,
+      prompt: entry.prompt ?? null,
+    })),
+  };
 }
 
 // Step 1.5 sourcing rule, shared with claim derivation (#354).
@@ -86,14 +266,19 @@ export { shouldSourceStock } from "../media-strategies.mjs";
 /**
  * Scenes the stage would attempt, before cache and round rules are applied.
  * Shared by the CLI time estimate and main.mjs's "any work at all?" guard.
+ *
+ * Defaults are explicit-overrides-only: chain scenes are candidates but need
+ * `approveAuto: true` (#355 HITL gate) before they enter the work list.
  */
-export function scenesRequiringGeneration(scenes, sceneFilter = null, maxScenes = Infinity) {
-  const filterIds = sceneFilter
-    ? new Set(Array.isArray(sceneFilter) ? sceneFilter : [sceneFilter])
-    : null;
-  const list = planScenes(scenes)
-    .filter((p) => p.action === "generate" && (!filterIds || filterIds.has(String(p.scene.id))))
-    .map((p) => p.scene);
+export function scenesRequiringGeneration(
+  scenes,
+  sceneFilter = null,
+  maxScenes = Infinity,
+  opts = {},
+) {
+  const list = buildGenerationPlan(scenes, { ...opts, sceneFilter })
+    .entries.filter((entry) => entry.action === "generate")
+    .map((entry) => entry.scene);
   return Number.isFinite(maxScenes) ? list.slice(0, maxScenes) : list;
 }
 
@@ -142,7 +327,11 @@ function migrateLegacyEntry(entry, rawPrompt, generationPrompt) {
  *   the scene already had media (winner becomes media.backdrop), or null
  *   when a backdrop already exists (idempotent — never overwritten).
  */
-export function assignWinner(scene, winnerFile, isImage, winnerSource) {
+export function assignWinner(scene, winnerFile, isImage, winnerSource, opts = {}) {
+  // #355: only the chain's automatic T2I winner rides the ken-burns fast path;
+  // an explicit ai-image override keeps the original fade so diagrams / data
+  // stills do not get a slow zoom.
+  const imageAnimation = opts.imageAnimation ?? "fade";
   // #299: an explicit media:null is a deliberate waiver — never overwrite it
   // with a generated file (the final gate reports it as a warning).
   if ("media" in scene && scene.media === null) return null;
@@ -157,7 +346,7 @@ export function assignWinner(scene, winnerFile, isImage, winnerSource) {
         type: "image",
         path: `assets/b-roll/${winnerFile}`,
         source: winnerSource,
-        animation: "fade",
+        animation: imageAnimation,
         upscale: false,
       }
     : {
@@ -192,6 +381,9 @@ export function assignWinner(scene, winnerFile, isImage, winnerSource) {
  * @param {boolean} [opts.force] bypass cache
  * @param {string|string[]} [opts.sceneFilter] only these scene ids
  * @param {number} [opts.maxScenes] cap on scenes entering generation
+ * @param {boolean} [opts.approveAuto] HITL approval for the #355 default chain
+ * @param {number} [opts.autoBudget] chain scenes allowed to generate this run
+ * @param {number} [opts.videoBudget] chain scenes allowed to use T2V this run
  * @param {number} [opts.threshold]
  * @param {Function} [opts.fileExists] injectable existsSync
  * @param {Function} [opts.generate] injectable runner.runGeneration
@@ -200,7 +392,9 @@ export function assignWinner(scene, winnerFile, isImage, winnerSource) {
  * @param {Function} [opts.onProgress] called with each batch-script stdout line as it arrives
  * @param {object} [opts.env] environment for dep probing
  * @returns {Promise<{counts: {generated: number, cached: number, failed: number,
- *   escalated: number, skipped: number}, depsError: string|null, reportFile: string|null}>}
+ *   escalated: number, skipped: number, approvalRequired: number,
+ *   budgetSkipped: number}, depsError: string|null, reportFile: string|null,
+ *   planFile: string|null, plan: object}>}
  */
 export async function runBrollStage(opts) {
   const {
@@ -211,6 +405,9 @@ export async function runBrollStage(opts) {
     force = false,
     sceneFilter = null,
     maxScenes = Number.POSITIVE_INFINITY,
+    approveAuto = false,
+    autoBudget = DEFAULT_AUTO_SCENE_BUDGET,
+    videoBudget = DEFAULT_AUTO_VIDEO_BUDGET,
     threshold = GATE_THRESHOLD,
     fileExists = existsSync,
     generate = null,
@@ -221,10 +418,15 @@ export async function runBrollStage(opts) {
     env = process.env,
   } = opts;
 
-  const counts = { generated: 0, cached: 0, failed: 0, escalated: 0, skipped: 0 };
-  const filterIds = sceneFilter
-    ? new Set(Array.isArray(sceneFilter) ? sceneFilter : [sceneFilter])
-    : null;
+  const counts = {
+    generated: 0,
+    cached: 0,
+    failed: 0,
+    escalated: 0,
+    skipped: 0,
+    approvalRequired: 0,
+    budgetSkipped: 0,
+  };
   // Report provenance follows the tier (#298): the winner source label must
   // match the model that actually ran. Images label from the checkpoint
   // (#985) — AI_IMAGE_MODEL, not the AI_IMAGE_BACKEND contract switch.
@@ -245,15 +447,19 @@ export async function runBrollStage(opts) {
   const reportFile = reportPath(outputDir);
   const report = readReport(reportFile) ?? emptyReport(contentSlug, threshold);
 
-  const plans = planScenes(scenes);
-  let generatePlans = plans.filter((p) => p.action === "generate");
-  counts.skipped += plans.length - generatePlans.length;
-  if (filterIds) {
-    generatePlans = generatePlans.filter((p) => filterIds.has(String(p.scene.id)));
-  }
-
-  // Cache + escalation pass before touching dependencies.
-  const toGenerate = [];
+  // #355: routing + HITL/budget gate in one pass. `filterIds` is applied by
+  // the plan builder, so the counts below are the whole scene list's.
+  const chainPlan = buildGenerationPlan(scenes, {
+    sceneFilter,
+    approveAuto,
+    autoBudget,
+    videoBudget,
+  });
+  chainPlan.summary.maxScenes = Number.isFinite(maxScenes) ? maxScenes : null;
+  const planFile = planPath(outputDir);
+  const hasAnyAutoDecision = chainPlan.entries.some(
+    (entry) => entry.auto && entry.action !== "skip" && entry.action !== "filtered-out",
+  );
   let reportDirty = false;
   // Shared failed-entry shape for the per-scene refusals (#166 composed
   // budget, #922 declared budget): report entry, count and progress line move
@@ -262,12 +468,14 @@ export async function runBrollStage(opts) {
     scene,
     sceneId,
     entry,
-    { isImage, rawPrompt, generationPrompt, reason, promptHashValue },
+    { isImage, rawPrompt, generationPrompt, reason, promptHashValue, auto, promptSource },
   ) => {
     report.scenes = report.scenes ?? {};
     report.scenes[sceneId] = {
       ...(entry ?? {}),
-      strategy: scene.mediaStrategy,
+      strategy: auto ? "auto" : (scene.mediaStrategy ?? "auto"),
+      form: isImage ? "image" : "video",
+      ...(auto ? { auto: true, promptSource } : {}),
       promptHash: promptHashValue,
       injectionVersion: PROMPT_INJECTION_VERSION,
       round: entry?.round ?? 1,
@@ -283,77 +491,201 @@ export async function runBrollStage(opts) {
     counts.failed += 1;
     onProgress?.(`scene ${sceneId}: ${reason}`);
   };
-  for (const plan of generatePlans) {
-    const scene = plan.scene;
-    const sceneId = String(scene.id);
-    const isImage = isImageStrategy(scene.mediaStrategy);
-    // #166: the declared prompt stays the agent's surface (gate claim, report
-    // readability); generation receives the composed prompt with the injected
-    // constants. #155: image strategies compose from aiImage.prompt.
-    const rawPrompt = (isImage ? scene.aiImage?.prompt : scene.aiVideo?.prompt) ?? "";
-    const tokenBudget = isImage ? IMAGE_MAX_PROMPT_TOKENS : videoPromptBudget;
-    const entry = report.scenes?.[sceneId];
-    const winnerFile = entry?.winner?.file;
 
-    let generationPrompt;
-    let declaredBudgetReason = null;
+  const composeFor = (scene, isImage, rawPrompt) => {
     if (isImage) {
-      generationPrompt = composeImagePrompt(scene);
-    } else {
-      try {
-        generationPrompt = composeGenerationPrompt(scene, promptFamily);
-      } catch (error) {
-        // #922: only the declared-prompt budget is an expected per-scene
-        // failure. Admission errors mean the wiring itself is wrong and must
-        // surface, not be swallowed into a report entry.
-        if (!(error instanceof PromptBudgetError)) throw error;
-        declaredBudgetReason = error.message;
-        // The declared gate is a generation-time gate — same position as the
-        // composed one (#166) — so a cached winner keeps reusing even when
-        // the declared prompt reads over budget (legacy reports are exactly
-        // where such prompts live). Compose leniently, no gate, purely so
-        // the cache rules below can judge reuse.
-        generationPrompt = composeVideoPrompt(scene);
-      }
+      return {
+        generationPrompt: composeImagePrompt(scene, { declaredPrompt: rawPrompt }),
+        declaredBudgetReason: null,
+      };
     }
-
-    if (!force && entry) {
-      // Legacy migration is video-only: image entries are new in #155, there
-      // is no pre-injection shape to migrate.
-      if (!isImage && migrateLegacyEntry(entry, rawPrompt, generationPrompt)) reportDirty = true;
-      const decision = decideCache(
-        entry,
-        generationPrompt,
-        winnerFile ? fileExists(join(contentDir, "assets", "b-roll", winnerFile)) : false,
-      );
-      if (decision.reuse) {
-        // Provenance follows the tier that actually generated the clip, not
-        // the current env: a 1.3B-era winner reused under the 5B default must
-        // keep its original label. Legacy entries without a stored source
-        // fall back to the current tier's label (pre-#298 behavior).
-        // #985: image entries written before this fix stored the video label
-        // (or none) — only a recognized image label is trustworthy provenance.
-        const storedSource = entry.winner?.source ?? null;
-        const reuseSource = isImage
-          ? isImageSourceLabel(storedSource)
-            ? storedSource
-            : imageSource
-          : (storedSource ?? videoSource);
-        // #985: repair pre-fix report entries so the stored provenance stops
-        // disagreeing with the scene after a cached rerun (no regeneration).
-        if (isImage && entry.winner && reuseSource !== storedSource) {
-          entry.winner.source = reuseSource;
-          reportDirty = true;
-        }
-        assignWinner(scene, winnerFile, isImage, reuseSource);
-        counts.cached += 1;
-        continue;
-      }
+    try {
+      return {
+        generationPrompt: composeGenerationPrompt(scene, promptFamily),
+        declaredBudgetReason: null,
+      };
+    } catch (error) {
+      // #922: only the declared-prompt budget is an expected per-scene
+      // failure. Admission errors mean the wiring itself is wrong and must
+      // surface, not be swallowed into a report entry.
+      if (!(error instanceof PromptBudgetError)) throw error;
+      // The lenient composition never existed as a generation input; it only
+      // lets the cache rules judge reuse for an over-budget declared prompt.
+      return {
+        generationPrompt: composeVideoPrompt(scene),
+        declaredBudgetReason: error.message,
+      };
     }
+  };
 
-    // Declared-prompt refusal — only for scenes the cache did not save. The
-    // lenient composition above never existed as a generation input, so there
-    // is nothing to hash.
+  const prepare = (candidate, form) => {
+    const scene = candidate.scene;
+    const sceneId = String(scene.id);
+    const isImage = form === "image";
+    const promptInfo = resolveGenerationPrompt(scene, isImage ? "image" : "video", {
+      allowDerived: Boolean(candidate.auto),
+    });
+    // Preserve the declared string verbatim for cache hashing; the composition
+    // layer trims it.
+    const rawPrompt =
+      promptInfo?.prompt ?? (typeof candidate.prompt === "string" ? candidate.prompt : "");
+    const { generationPrompt, declaredBudgetReason } = composeFor(scene, isImage, rawPrompt);
+    return {
+      scene,
+      sceneId,
+      isImage,
+      rawPrompt,
+      generationPrompt,
+      declaredBudgetReason,
+      auto: Boolean(candidate.auto),
+      promptSource: promptInfo?.source ?? candidate.promptSource ?? null,
+    };
+  };
+
+  // Cache pre-pass over every generation candidate. Approval and budget gate
+  // NEW spend; they must never throw away a winner that already exists. A
+  // chain scene with a valid report entry is reused even on an unapproved
+  // rerun, exactly like an explicit b-roll override.
+  const candidateEntries = chainPlan.entries.filter(
+    (entry) =>
+      entry.action === "generate" ||
+      (entry.auto && (entry.action === "approval-required" || entry.action === "budget-skipped")),
+  );
+  const cachedIds = new Set();
+  let cachedBudgetedAuto = 0;
+  for (const candidate of candidateEntries) {
+    const sceneId = String(candidate.scene.id);
+    const entry = report.scenes?.[sceneId];
+    // The report entry's form is the only trustworthy shape for judging a
+    // cached winner; the plan's current form may have changed with the budget.
+    const reportForm = entry?.form === "image" || entry?.form === "video" ? entry.form : null;
+    // Pre-#355 reports have no `form`; the winner's extension is the fallback,
+    // so a cached winner is never dropped just because the plan says "auto".
+    const fileForm = entry?.winner?.file?.endsWith(".png")
+      ? "image"
+      : entry?.winner?.file?.endsWith(".mp4")
+        ? "video"
+        : null;
+    const planForm =
+      candidate.form === "image" || candidate.form === "video" ? candidate.form : null;
+    const cachedForm = reportForm ?? fileForm ?? planForm;
+    if (!cachedForm) continue;
+    const prep = prepare(candidate, cachedForm);
+    if (force || !entry) continue;
+    // Legacy migration is video-only: image entries are new in #155, there
+    // is no pre-injection shape to migrate.
+    if (!prep.isImage && migrateLegacyEntry(entry, prep.rawPrompt, prep.generationPrompt)) {
+      reportDirty = true;
+    }
+    const winnerFile = entry.winner?.file;
+    const decision = decideCache(
+      entry,
+      prep.generationPrompt,
+      winnerFile ? fileExists(join(contentDir, "assets", "b-roll", winnerFile)) : false,
+    );
+    if (!decision.reuse) continue;
+    // Provenance follows the tier that actually generated the clip (#298),
+    // and #985 only trusts recognized image labels.
+    const storedSource = entry.winner?.source ?? null;
+    const reuseSource = prep.isImage
+      ? isImageSourceLabel(storedSource)
+        ? storedSource
+        : imageSource
+      : (storedSource ?? videoSource);
+    if (prep.isImage && entry.winner && reuseSource !== storedSource) {
+      entry.winner.source = reuseSource;
+      reportDirty = true;
+    }
+    assignWinner(candidate.scene, winnerFile, prep.isImage, reuseSource, {
+      imageAnimation: prep.auto || entry.auto ? "ken-burns" : "fade",
+    });
+    counts.cached += 1;
+    cachedIds.add(sceneId);
+    if (candidate.action === "generate") cachedBudgetedAuto += 1;
+    candidate.action = "cached";
+  }
+
+  // Re-pick forms among uncached chain scenes: a cached video winner released
+  // its T2V slot, so a scene the allocator had downgraded to T2I may now ride
+  // T2V. This mirrors the promotion loop below for the video dimension.
+  let videoSlots = videoBudget;
+  for (const entry of chainPlan.entries) {
+    if (!entry.auto || entry.action !== "generate" || cachedIds.has(String(entry.scene.id))) {
+      continue;
+    }
+    const form = hasDeclaredVideoPrompt(entry.scene) && videoSlots > 0 ? "video" : "image";
+    if (form === "video") videoSlots -= 1;
+    const promptInfo = resolveGenerationPrompt(entry.scene, form, { allowDerived: true });
+    if (!promptInfo) {
+      entry.action = "skip";
+      entry.reason = "no-generation-prompt";
+      entry.form = form;
+      entry.prompt = null;
+      entry.promptSource = null;
+      continue;
+    }
+    entry.form = form;
+    entry.prompt = promptInfo.prompt;
+    entry.promptSource = promptInfo.source;
+  }
+
+  // Cached chain scenes did not spend GPU, so release their budget slots to
+  // scenes the allocator marked budget-skipped.
+  let promoted = 0;
+  let autoVideos = chainPlan.entries.filter(
+    (entry) =>
+      entry.auto &&
+      entry.action === "generate" &&
+      !cachedIds.has(String(entry.scene.id)) &&
+      entry.form === "video",
+  ).length;
+  for (const entry of chainPlan.entries) {
+    if (!entry.auto || entry.action !== "budget-skipped") continue;
+    if (cachedIds.has(String(entry.scene.id))) continue;
+    if (promoted >= cachedBudgetedAuto) break;
+    let form =
+      entry.form === "auto" ? selectAutoForm(entry.scene, videoBudget - autoVideos) : entry.form;
+    if (form === "video" && autoVideos >= videoBudget) form = "image";
+    const promptInfo = resolveGenerationPrompt(entry.scene, form, { allowDerived: true });
+    if (!promptInfo) continue;
+    entry.action = "generate";
+    entry.form = form;
+    entry.prompt = promptInfo.prompt;
+    entry.promptSource = promptInfo.source;
+    promoted += 1;
+    if (form === "video") autoVideos += 1;
+  }
+
+  counts.skipped = chainPlan.entries.filter((entry) => entry.action === "skip").length;
+  counts.approvalRequired = chainPlan.entries.filter(
+    (entry) => entry.action === "approval-required",
+  ).length;
+  counts.budgetSkipped = chainPlan.entries.filter(
+    (entry) => entry.action === "budget-skipped",
+  ).length;
+  chainPlan.summary.generate = chainPlan.entries.filter(
+    (entry) => entry.action === "generate",
+  ).length;
+  chainPlan.summary.approvalRequired = counts.approvalRequired;
+  chainPlan.summary.budgetSkipped = counts.budgetSkipped;
+  chainPlan.summary.cached = counts.cached;
+
+  // The plan is the HITL artifact. Rewrite it after the cache pass so it
+  // reports reuse (no spend) and budget promotion accurately.
+  if (hasAnyAutoDecision) {
+    writePlan(planFile, serializeMediaChainPlan(chainPlan, { content: contentSlug, approveAuto }));
+  }
+
+  const toGenerate = [];
+  for (const plan of chainPlan.entries) {
+    const sceneId = String(plan.scene.id);
+    if (plan.action !== "generate" || cachedIds.has(sceneId)) continue;
+    const prep = prepare(plan, plan.form);
+    const { scene, isImage, rawPrompt, generationPrompt, declaredBudgetReason } = prep;
+    const entry = report.scenes?.[sceneId];
+    const tokenBudget = isImage ? IMAGE_MAX_PROMPT_TOKENS : videoPromptBudget;
+
+    // Declared-prompt refusal — only for scenes the cache did not save.
     if (declaredBudgetReason) {
       recordSceneFailure(scene, sceneId, entry, {
         isImage,
@@ -361,6 +693,8 @@ export async function runBrollStage(opts) {
         generationPrompt: null,
         reason: declaredBudgetReason,
         promptHashValue: null,
+        auto: plan.auto,
+        promptSource: prep.promptSource,
       });
       continue;
     }
@@ -383,6 +717,8 @@ export async function runBrollStage(opts) {
         generationPrompt,
         reason,
         promptHashValue: promptHash(generationPrompt),
+        auto: plan.auto,
+        promptSource: prep.promptSource,
       });
       continue;
     }
@@ -402,6 +738,10 @@ export async function runBrollStage(opts) {
       rawPrompt,
       generationPrompt,
       round,
+      auto: plan.auto,
+      promptSource: prep.promptSource,
+      strategyLabel: plan.auto ? "auto" : (scene.mediaStrategy ?? "auto"),
+      imageAnimation: plan.auto ? "ken-burns" : "fade",
       prevEntry: entry ?? null,
     });
   }
@@ -410,7 +750,13 @@ export async function runBrollStage(opts) {
 
   if (limited.length === 0) {
     if (reportDirty) writeReport(reportFile, report);
-    return { counts, depsError: null, reportFile: reportDirty ? reportFile : null };
+    return {
+      counts,
+      depsError: null,
+      reportFile: reportDirty ? reportFile : null,
+      planFile,
+      plan: chainPlan,
+    };
   }
 
   // #155: scenes batch per backend kind. Each kind probes its own
@@ -439,7 +785,13 @@ export async function runBrollStage(opts) {
   // #985: a cached-entry provenance repair is still a write worth keeping.
   if (groups.length === 0 && depsError) {
     if (reportDirty) writeReport(reportFile, report);
-    return { counts, depsError, reportFile: reportDirty ? reportFile : null };
+    return {
+      counts,
+      depsError,
+      reportFile: reportDirty ? reportFile : null,
+      planFile,
+      plan: chainPlan,
+    };
   }
 
   // Assemble one batch per kind (each backend loads its model once).
@@ -504,7 +856,19 @@ export async function runBrollStage(opts) {
   report.scenes = report.scenes ?? {};
   for (const group of groups) {
     for (const item of group.items) {
-      const { scene, sceneId, isImage, rawPrompt, generationPrompt, round, prevEntry } = item;
+      const {
+        scene,
+        sceneId,
+        isImage,
+        rawPrompt,
+        generationPrompt,
+        round,
+        auto,
+        promptSource,
+        strategyLabel,
+        imageAnimation,
+        prevEntry,
+      } = item;
       const sceneJobs = group.jobsByScene.get(sceneId);
 
       const candidatesInput = [];
@@ -527,7 +891,9 @@ export async function runBrollStage(opts) {
       if (candidatesInput.length > 0) {
         scored = await scoreCandidates(candidatesInput, {
           analyzer: gateAnalyzer,
-          claim: buildClaim(scene),
+          // The chain's derived prompt is the gate claim too: candidates are
+          // judged against the same subject the generator received (#355).
+          claim: buildClaim(scene, { prompt: rawPrompt }),
           threshold,
         });
       }
@@ -545,10 +911,12 @@ export async function runBrollStage(opts) {
 
       const winnerSource = isImage ? imageSource : videoSource;
       const landedOn = winner
-        ? assignWinner(scene, basename(winner.file), isImage, winnerSource)
+        ? assignWinner(scene, basename(winner.file), isImage, winnerSource, { imageAnimation })
         : null;
       report.scenes[sceneId] = {
-        strategy: scene.mediaStrategy,
+        strategy: strategyLabel,
+        form: isImage ? "image" : "video",
+        ...(auto ? { auto: true, promptSource } : {}),
         promptHash: promptHash(generationPrompt),
         injectionVersion: PROMPT_INJECTION_VERSION,
         round,
@@ -581,5 +949,5 @@ export async function runBrollStage(opts) {
   writeReport(reportFile, report);
   // depsError is non-null when at least one kind's dependencies were missing
   // (its scenes were skipped; the caller surfaces the message).
-  return { counts, depsError, reportFile };
+  return { counts, depsError, reportFile, planFile, plan: chainPlan };
 }

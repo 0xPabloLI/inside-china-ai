@@ -38,8 +38,9 @@ const CSS_ONLY_LAYOUTS = new Set(["hero-center", "stacked-cards"]);
  * Precedence: NO_MEDIA_TYPES → hook (#299: manually curated, never
  * auto-sourced) → explicit `media: null` ("permanently no media", survives
  * reruns) → deprecated `mediaOptOut` (legacy content, still honored) →
- * CSS-only layouts. Derived supply additionally honours `shouldSourceStock`
- * (#354); an explicit `assetNeed` does not, until #355 unifies the chain.
+ * CSS-only layouts. Strategy gating is separate (`shouldSourceStock`) — the
+ * gap ledger needs `skipsMediaSourcing` to stay a pure policy predicate so it
+ * can still record a stock miss on a scene later switched to generation.
  */
 export function skipsMediaSourcing(scene) {
   if (!scene) return true;
@@ -345,7 +346,8 @@ const PHRASE_WINDOW_WORDS = 3;
  * already have their asset, and a derived claim there could only produce
  * searches whose candidates assignment rejects as occupied. Generation-only
  * strategies (`b-roll`, `ai-image`) are not derived for either — the Step 1.5
- * rule says they must not buy stock.
+ * rule says they must not buy stock, and #355 made that override win over an
+ * explicit `assetNeed` too.
  *
  * @param {Array|null} scenes - Scene data array
  * @returns {Array<{sceneId: number, assetNeed: string, voiceover: string, searchHints?: string[], sourceRef?: object}>}
@@ -357,12 +359,14 @@ export function extractSceneClaims(scenes) {
   for (const scene of scenes) {
     if (!scene) continue;
     if (skipsMediaSourcing(scene)) continue;
+    // #355: pure-generation overrides never buy stock, even when they carry
+    // an explicit assetNeed (the #354 "dead claim" leftover).
+    if (!shouldSourceStock(scene)) continue;
 
     const declared = typeof scene.assetNeed === "string" ? scene.assetNeed.trim() : "";
     // `media.path` is the binding test, not the object: a malformed `media: {}`
     // has no asset to protect, and other checks report the shape.
     if (!declared && scene.media?.path) continue;
-    if (!declared && !shouldSourceStock(scene)) continue;
 
     const voiceover = typeof scene.voiceover === "string" ? scene.voiceover : "";
     if (!declared && !voiceover.trim()) continue;

@@ -9,6 +9,7 @@
  *   node scripts/short-video/main.mjs --content deepseek --bgm
  *   node scripts/short-video/main.mjs --content distillation/pt1 --bgm
  *   node scripts/short-video/main.mjs --content deepseek --bgm --bgm-file news-theme-yt.mp3
+ *   node scripts/short-video/main.mjs --content deepseek --approve-auto   # approve the #355 chain rung
  *   node scripts/short-video/main.mjs              # lists available content
  *
  * Output:
@@ -38,6 +39,11 @@ import { finalizeRenderedVideo } from "./lib/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { createProfiler } from "./lib/pipeline-profile.mjs";
 import { runMediaTrack } from "./lib/media-track.mjs";
+import {
+  DEFAULT_AUTO_SCENE_BUDGET,
+  DEFAULT_AUTO_VIDEO_BUDGET,
+  parseBudgetArg,
+} from "./lib/media-strategies.mjs";
 import { closeAsrAnalyzer } from "./lib/asr-analyzer.mjs";
 import {
   assertAvatarScene,
@@ -56,6 +62,15 @@ const args = process.argv.slice(2);
 function getArg(name) {
   const i = args.indexOf(`--${name}`);
   return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
+}
+
+function getBudgetArg(name, fallback) {
+  try {
+    return parseBudgetArg(args, name, fallback);
+  } catch (error) {
+    console.error(`❌ ${error.message}`);
+    process.exit(1);
+  }
 }
 
 function checkCommand(cmd) {
@@ -306,7 +321,22 @@ async function main() {
   const [mediaDone, ttsDone] = await prof.runParallel([
     {
       name: "media-track",
-      fn: () => runMediaTrack({ scenes, contentDir, baseDir: __dirname, broll, prof }),
+      fn: () =>
+        runMediaTrack({
+          scenes,
+          contentDir,
+          baseDir: __dirname,
+          broll,
+          prof,
+          // #355: the chain's implicit generation rung is HITL-gated. Explicit
+          // b-roll / ai-image overrides are unaffected; only scenes relying on
+          // the default chain wait for --approve-auto.
+          mediaChain: {
+            approveAuto: args.includes("--approve-auto"),
+            autoBudget: getBudgetArg("auto-budget", DEFAULT_AUTO_SCENE_BUDGET),
+            videoBudget: getBudgetArg("video-budget", DEFAULT_AUTO_VIDEO_BUDGET),
+          },
+        }),
       meta: { track: "media" },
     },
     {

@@ -5,19 +5,35 @@
  * Usage:
  *   node generate-broll.mjs --content <dir> [--scene <id>] [--force]
  *                           [--max-scenes N] [--threshold N]
+ *                           [--approve-auto] [--auto-budget N] [--video-budget N]
+ *                           [--plan]
  *
  * Reads scene-data (never writes it), generates 2 candidates per opted-in
  * scene, gates them through the VLM, assigns winners in-memory, and records
  * everything in output/<dir>/b-roll-report.json for the agent iteration loop.
+ *
+ * #355: scenes without an explicit mediaStrategy are chain candidates. They
+ * are planned (output/<dir>/media-chain-plan.json) but only spend GPU after
+ * `--approve-auto` — the HITL confirmation point for the implicit rung.
+ * `--plan` shows the plan without probing dependencies or generating.
  */
 import { realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { runBrollStage, scenesRequiringGeneration } from "./lib/b-roll/orchestrator.mjs";
+import {
+  runBrollStage,
+  buildGenerationPlan,
+  serializeMediaChainPlan,
+} from "./lib/b-roll/orchestrator.mjs";
 import { estSecondsPerClip, resolveModelTier } from "./lib/b-roll/runner.mjs";
 import { EST_SECONDS_PER_IMAGE } from "./lib/b-roll/t2i-runner.mjs";
-import { isImageStrategy } from "./lib/scene-rules.mjs";
+import { planPath, writePlan } from "./lib/b-roll/report.mjs";
+import {
+  DEFAULT_AUTO_SCENE_BUDGET,
+  DEFAULT_AUTO_VIDEO_BUDGET,
+  parseBudgetArg,
+} from "./lib/media-strategies.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -31,6 +47,10 @@ Options:
   --force              Bypass the won-file cache and regenerate
   --max-scenes N       Cap the number of scenes generated this run
   --threshold N        Gate relevance threshold (default 60)
+  --approve-auto       Approve the default chain's implicit generation (HITL)
+  --auto-budget N      Chain scenes allowed to generate this run (default ${DEFAULT_AUTO_SCENE_BUDGET})
+  --video-budget N     Chain scenes allowed to use T2V instead of T2I (default ${DEFAULT_AUTO_VIDEO_BUDGET})
+  --plan               Write and print the media-chain plan, generate nothing
   --help               Show this help
 
 Environment:
@@ -70,6 +90,49 @@ function formatDuration(seconds) {
   return `${seconds}s (~${minutes}min)`;
 }
 
+/** One line per scene the plan actually asks a human/agent to decide on. */
+export function formatMediaChainPlan(plan) {
+  const lines = ["🗂  Media chain plan"];
+  for (const entry of plan.entries) {
+    if (!["generate", "approval-required", "budget-skipped"].includes(entry.action)) continue;
+    const label = entry.auto ? "chain" : entry.strategy;
+    const form = entry.form === "auto" ? "auto→image" : entry.form;
+    const prompt = entry.promptSource ? ` · prompt: ${entry.promptSource}` : "";
+    const why = entry.action === "generate" ? "" : ` · ${entry.action}`;
+    lines.push(`   scene ${entry.scene.id} · ${label} · ${form}${prompt}${why}`);
+  }
+  const { summary } = plan;
+  lines.push(
+    `   → ${summary.generate} runnable · ${summary.approvalRequired} awaiting approval · ` +
+      `${summary.budgetSkipped} over auto budget (${summary.autoBudget} scenes / ${summary.videoBudget} video)`,
+  );
+  return lines.join("\n");
+}
+
+function estimateForPlan(plan, { tier, maxScenes = Infinity }) {
+  let imageScenes = 0;
+  let videoScenes = 0;
+  let pending = 0;
+  let counted = 0;
+  for (const entry of plan.entries) {
+    if (entry.action === "approval-required") {
+      pending += 1;
+      continue;
+    }
+    if (entry.action !== "generate") continue;
+    if (counted >= maxScenes) continue;
+    counted += 1;
+    if (entry.form === "image") imageScenes += 1;
+    else videoScenes += 1;
+  }
+  const perClip = estSecondsPerClip(tier);
+  const runnableSeconds = imageScenes * 2 * EST_SECONDS_PER_IMAGE + videoScenes * 2 * perClip;
+  // Pending chain scenes ride the T2I fast path until approved; quote it so
+  // the approval request carries its own price tag.
+  const pendingSeconds = pending * 2 * EST_SECONDS_PER_IMAGE;
+  return { runnableSeconds, pendingSeconds, perClip };
+}
+
 export async function runBrollCli({
   argv,
   loadScenes = defaultLoadScenes,
@@ -92,40 +155,76 @@ export async function runBrollCli({
 
   const thresholdRaw = getArg(argv, "threshold");
   const maxScenesRaw = getArg(argv, "max-scenes");
+  let autoBudget;
+  let videoBudget;
+  try {
+    autoBudget = parseBudgetArg(argv, "auto-budget", DEFAULT_AUTO_SCENE_BUDGET);
+    videoBudget = parseBudgetArg(argv, "video-budget", DEFAULT_AUTO_VIDEO_BUDGET);
+  } catch (error) {
+    log(`❌ ${error.message}`);
+    return { exitCode: 1 };
+  }
   const opts = {
     force: argv.includes("--force"),
     sceneFilter: getArg(argv, "scene"),
     threshold: thresholdRaw !== undefined ? Number(thresholdRaw) : undefined,
     maxScenes: maxScenesRaw !== undefined ? Number(maxScenesRaw) : undefined,
+    approveAuto: argv.includes("--approve-auto"),
+    autoBudget,
+    videoBudget,
+    planOnly: argv.includes("--plan"),
   };
 
-  // Pre-count for the estimate; #24: zero needed scenes -> exit without
-  // touching the stage, dependencies, or the report.
-  const neededScenes = scenesRequiringGeneration(
-    scenes,
-    opts.sceneFilter,
-    opts.maxScenes ?? Infinity,
-  );
-  const needed = neededScenes.length;
+  // The plan is the single source for "is there anything to do?" and for the
+  // HITL request. It is written before any dependency probe.
+  const plan = buildGenerationPlan(scenes, {
+    sceneFilter: opts.sceneFilter,
+    approveAuto: opts.approveAuto,
+    autoBudget: opts.autoBudget,
+    videoBudget: opts.videoBudget,
+  });
+  plan.summary.maxScenes = Number.isFinite(opts.maxScenes) ? opts.maxScenes : null;
+  const runnable = plan.entries.filter((entry) => entry.action === "generate");
+  const approvalRequired = plan.summary.approvalRequired;
 
-  if (needed === 0) {
+  if (runnable.length === 0 && approvalRequired === 0 && plan.summary.budgetSkipped === 0) {
     log(
-      "ℹ️  No scenes require B-roll generation (no b-roll strategy, cache-complete, or filtered out).",
+      "ℹ️  No scenes require B-roll generation (no chain candidate, cache-complete, or filtered out).",
     );
-    return { exitCode: 0 };
+    return { exitCode: 0, plan };
   }
 
-  // #155: image candidates cost ~30s each, video clips per-model-tier (#298:
-  // 5B ~600s, 1.3B ~240s) — estimate per kind.
-  const imageScenes = neededScenes.filter((s) => isImageStrategy(s.mediaStrategy)).length;
-  const videoScenes = needed - imageScenes;
-  const tier = resolveModelTier(process.env);
-  const perClipEstimate = estSecondsPerClip(tier);
-  const estSeconds = imageScenes * 2 * EST_SECONDS_PER_IMAGE + videoScenes * 2 * perClipEstimate;
-  log(
-    `🎞  B-roll: ${needed} scene(s) x 2 candidates = ${formatDuration(estSeconds)} ` +
-      `(~${EST_SECONDS_PER_IMAGE}s/image, ~${perClipEstimate}s/clip on ${tier}; cache hits reduce this)`,
+  const planFile = planPath(outputDir);
+  writePlan(
+    planFile,
+    serializeMediaChainPlan(plan, { content: slug, approveAuto: opts.approveAuto }),
   );
+  log(formatMediaChainPlan(plan));
+
+  if (opts.planOnly) {
+    log(`\n📝 Plan only — nothing generated. Plan: ${planFile}`);
+    return { exitCode: 0, plan, planFile };
+  }
+
+  const tier = resolveModelTier(process.env);
+  const estimate = estimateForPlan(plan, { tier, maxScenes: opts.maxScenes ?? Infinity });
+  if (runnable.length > 0) {
+    log(
+      `🎞  B-roll: ${runnable.length} scene(s) x 2 candidates = ${formatDuration(estimate.runnableSeconds)} ` +
+        `(~${EST_SECONDS_PER_IMAGE}s/image, ~${estimate.perClip}s/clip on ${tier}; cache hits reduce this)`,
+    );
+  }
+  if (approvalRequired > 0) {
+    log(
+      `⏸  ${approvalRequired} chain scene(s) need approval before spending GPU ` +
+        `(~${formatDuration(estimate.pendingSeconds)} on the T2I fast path). ` +
+        `Review ${planFile}, then rerun with --approve-auto ` +
+        `(budgets: --auto-budget N / --video-budget N).`,
+    );
+  }
+
+  // Nothing runnable but a plan to approve: the file is written, no stage call.
+  if (runnable.length === 0) return { exitCode: 0, plan, planFile };
 
   const result = await runStage({
     scenes,
@@ -136,6 +235,9 @@ export async function runBrollCli({
     sceneFilter: opts.sceneFilter,
     threshold: opts.threshold,
     maxScenes: opts.maxScenes,
+    approveAuto: opts.approveAuto,
+    autoBudget: opts.autoBudget,
+    videoBudget: opts.videoBudget,
     onProgress: (line) => log(line),
   });
 
@@ -149,21 +251,29 @@ export async function runBrollCli({
 
   if (result.depsError) {
     log(`⚠️  B-roll skipped: ${result.depsError}`);
-    return { exitCode: 0, result };
+    return { exitCode: 0, result, plan, planFile };
   }
 
   const { counts } = result;
   log("\n📊 B-roll summary");
   log(
-    `   generated(won): ${counts.generated} | cached: ${counts.cached} | failed: ${counts.failed} | escalated: ${counts.escalated} | skipped: ${counts.skipped}`,
+    `   generated(won): ${counts.generated} | cached: ${counts.cached} | failed: ${counts.failed} | ` +
+      `escalated: ${counts.escalated} | skipped: ${counts.skipped} | ` +
+      `approval-required: ${counts.approvalRequired ?? 0} | over-auto-budget: ${counts.budgetSkipped ?? 0}`,
   );
   if (result.reportFile) log(`   report: ${result.reportFile}`);
-  if (counts.failed > 0 || counts.escalated > 0) {
+  if (result.planFile) log(`   plan: ${result.planFile}`);
+  if ((counts.failed ?? 0) > 0 || (counts.escalated ?? 0) > 0) {
     log(
       "   → Agent iteration: read the report, rewrite the failing prompt (8-dimension video template or its 6-dimension image variant), rerun. Max 3 rounds per scene.",
     );
   }
-  return { exitCode: 0, result };
+  if ((result.counts?.approvalRequired ?? 0) > 0) {
+    log(
+      "   → Chain scenes still await approval: rerun with --approve-auto after the HITL confirmation.",
+    );
+  }
+  return { exitCode: 0, result, plan, planFile };
 }
 
 const invokedDirectly =

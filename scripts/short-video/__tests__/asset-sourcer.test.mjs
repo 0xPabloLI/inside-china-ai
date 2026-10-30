@@ -1663,6 +1663,20 @@ describe("assignAssetsToScenes", () => {
     expect(assigned[1].assetScore).toBe(85);
   });
 
+  // #355 D1a: sourcing is stock-video-first. The higher technical score on
+  // an image must not take the scene from a video that also passes the VLM
+  // gate; a rejected video would leave the scene free for that image.
+  it("#355 prefers a video over a higher-scoring image for the same claim", () => {
+    const scenes = [makeScene(2, "narrative")];
+    const assets = [claimed("still.jpg", "image", 95, 2), claimed("clip.mp4", "video", 70, 2)];
+    const result = assignAssetsToScenes(assets, scenes);
+    const assigned = result.filter((r) => r.status === "assigned");
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].media.path).toBe("clip.mp4");
+    expect(assigned[0].media.type).toBe("video");
+    expect(result.find((r) => r.path === "still.jpg").status).toBe("unassigned");
+  });
+
   // #11: Image asset → media.volume omitted in patch
   it("omits volume field for image assets", () => {
     const scenes = [makeScene(4, "info-card")];

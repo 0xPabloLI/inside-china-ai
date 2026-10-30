@@ -56,6 +56,7 @@ import {
   MEDIA_STRATEGIES,
   IMAGE_GENERATING_STRATEGIES,
   GENERATING_STRATEGIES,
+  resolveMediaPlan,
 } from "./media-strategies.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
 // SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
@@ -1272,7 +1273,7 @@ function checkSearchHintsSchema(scenes, phrases = sceneClaimPhrases(scenes)) {
         level: "fail",
         category: "Media",
         check: `Search hints schema: Scene ${scene.id} has a claim path`,
-        detail: `searchHints is declared on a scene the sourcer never claims: hook, text-first layout, media: null, bound media without an explicit assetNeed, generation-only strategy (b-roll / ai-image) without an explicit assetNeed, or neither voiceover nor assetNeed — nothing reads it`,
+        detail: `searchHints is declared on a scene the sourcer never claims: hook, text-first layout, media: null, bound media without an explicit assetNeed, generation-only strategy (b-roll / ai-image; an assetNeed does not open a claim), or neither voiceover nor assetNeed — nothing reads it`,
         fix: "Remove searchHints from this scene, or make it sourcing-eligible first (hooks are curated by hand; text-first layouts cannot carry evidence — see #761).",
       });
       continue;
@@ -1847,7 +1848,12 @@ export {
   GENERATING_STRATEGIES,
 } from "./media-strategies.mjs";
 
-/** True when the strategy generates a static image rather than a video clip. */
+/**
+ * True when an EXPLICIT strategy generates a static image rather than a video
+ * clip. The default chain has no form until the orchestrator resolves one via
+ * budget (media-strategies.selectAutoForm) — callers must branch on the
+ * resolved form, not on this helper, for chain scenes (#355).
+ */
 export function isImageStrategy(strategy) {
   return IMAGE_GENERATING_STRATEGIES.has(strategy);
 }
@@ -1982,12 +1988,12 @@ export function checkMediaStrategyContract(scenes) {
   const invalid = [];
   const missingPrompt = [];
   const optedOut = [];
-  const missingStrategy = [];
   let engaged = false;
 
   for (const scene of scenes) {
-    if (!scene.mediaStrategy) missingStrategy.push(String(scene.id));
-    if (!scene.mediaStrategy && !scene.aiVideo) continue;
+    // #355: omitting mediaStrategy is the default chain, not a missing
+    // declaration — it is valid and needs no prompt (the chain derives one).
+    if (!scene.mediaStrategy && !scene.aiVideo && !scene.aiImage) continue;
     engaged = true;
     const strategy = scene.mediaStrategy;
     if (strategy && !MEDIA_STRATEGIES.includes(strategy)) {
@@ -2014,7 +2020,7 @@ export function checkMediaStrategyContract(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail: `mediaStrategy on scene(s) ${invalid.join(", ")} is not a known strategy`,
-      fix: `Use one of: ${MEDIA_STRATEGIES.join(" | ")} (omitting the field means 'asset')`,
+      fix: `Use one of: ${MEDIA_STRATEGIES.join(" | ")} — or omit the field for the default chain (source stock, then budgeted generation); use "source-only" to keep sourcing without generation`,
     });
   }
   // #155: image strategies fail on a missing aiImage.prompt with the same
@@ -2047,15 +2053,6 @@ export function checkMediaStrategyContract(scenes) {
       check: CHECK,
       detail: `Scene(s) ${optedOut.join(", ")} set mediaOptOut on a generating strategy (b-roll / ai-image) — generation will be skipped`,
       fix: "mediaOptOut is deprecated (#191) — drop it to let the scene generate B-roll / ai-image, or use media: null for a deliberate no-media scene",
-    });
-  }
-  if (missingStrategy.length > 0) {
-    results.push({
-      level: "warn",
-      category: CATEGORY,
-      check: CHECK,
-      detail: `Scene(s) ${missingStrategy.join(", ")} omit mediaStrategy (silently defaults to "asset" — B-roll generation is skipped, so a scene whose sourced image falls through will reuse another scene's media)`,
-      fix: 'Set mediaStrategy explicitly on every scene: "asset" (sourced image only) | "asset-then-broll" (source first, fall back to B-roll generation) | "b-roll" (always generate) | "asset-then-ai-image" (source first, fall back to T2I image) | "ai-image" (always generate a still image)',
     });
   }
   if (results.length > 0) return results;
@@ -2123,10 +2120,14 @@ export function coversNegativeGroup(prompt, phrases) {
   return phrases.some((phrase) => new RegExp(`\\b${phrase}\\b`, "i").test(prompt));
 }
 
-// The prompt that will actually reach the generator, or null when the scene
-// never generates. Shared with the strategy-contract check so both agree on
-// which scenes they are talking about. Image strategies (#155) declare
-// `aiImage.prompt`; video strategies declare `aiVideo.prompt`.
+// The DECLARED prompt that will reach the generator, or null when the scene
+// has no generating strategy / no declared prompt. Shared with the
+// strategy-contract and prompt-dimension checks so both agree on which scenes
+// they are judging. #355: a chain scene's derived prompt (assetNeed /
+// voiceover) is deliberately absent — it is fallback text, not an authored
+// 6/8-dimension write, and must not be warned on for being "thin". A chain
+// scene's own DECLARED aiVideo/aiImage prompt is still a real generation input
+// and stays in the sweep.
 function generatingPrompt(scene) {
   if (!GENERATING_STRATEGIES.has(scene.mediaStrategy)) return null;
   const prompt = IMAGE_GENERATING_STRATEGIES.has(scene.mediaStrategy)
@@ -2134,6 +2135,39 @@ function generatingPrompt(scene) {
     : scene.aiVideo?.prompt;
   if (typeof prompt !== "string" || prompt.trim() === "") return null;
   return prompt;
+}
+
+/**
+ * Every DECLARED prompt a scene may generate from, with its field name.
+ * Explicit strategies yield exactly one; a #355 chain scene yields whichever
+ * of aiVideo.prompt / aiImage.prompt the writer declared. Both are judged:
+ * the chain can downgrade to the image form after the video budget is spent,
+ * so checking only the currently-preferred prompt would let the prompt that
+ * actually runs escape the sweep. Derived claim text is not an authored
+ * 6/8-dimension write and is deliberately absent.
+ */
+function generatingPrompts(scene) {
+  if (GENERATING_STRATEGIES.has(scene.mediaStrategy)) {
+    const prompt = generatingPrompt(scene);
+    if (prompt === null) return [];
+    return [
+      {
+        prompt,
+        field: IMAGE_GENERATING_STRATEGIES.has(scene.mediaStrategy)
+          ? "aiImage.prompt"
+          : "aiVideo.prompt",
+      },
+    ];
+  }
+  if (!resolveMediaPlan(scene).auto) return [];
+  const prompts = [];
+  if (typeof scene.aiVideo?.prompt === "string" && scene.aiVideo.prompt.trim() !== "") {
+    prompts.push({ prompt: scene.aiVideo.prompt, field: "aiVideo.prompt" });
+  }
+  if (typeof scene.aiImage?.prompt === "string" && scene.aiImage.prompt.trim() !== "") {
+    prompts.push({ prompt: scene.aiImage.prompt, field: "aiImage.prompt" });
+  }
+  return prompts;
 }
 
 /**
@@ -2162,33 +2196,39 @@ export function checkBrollPromptDimensions(scenes) {
   const byPrompt = new Map();
 
   for (const scene of scenes) {
-    const prompt = generatingPrompt(scene);
-    if (prompt === null) continue;
+    const prompts = generatingPrompts(scene);
+    if (prompts.length === 0) continue;
+    const auto = resolveMediaPlan(scene).auto;
+    for (const { prompt, field } of prompts) {
+      // Explicit strategies keep their historical message shape; chain
+      // scenes name the field so a two-prompt scene stays attributable.
+      const subject = auto ? field : "prompt";
 
-    // (a) numeral sweep.
-    const numerals = [...new Set(prompt.match(NUMERAL_PATTERN) ?? [])];
-    if (numerals.length > 0) {
-      warn(
-        `Scene ${scene.id} prompt contains Arabic numerals (${numerals.join(", ")})`,
-        "Move data values into texts — T2V/T2I garbles glyphs; " +
-          "an element count (e.g. '3 layers') is fine as-is",
-      );
+      // (a) numeral sweep.
+      const numerals = [...new Set(prompt.match(NUMERAL_PATTERN) ?? [])];
+      if (numerals.length > 0) {
+        warn(
+          `Scene ${scene.id} ${subject} contains Arabic numerals (${numerals.join(", ")})`,
+          "Move data values into texts — T2V/T2I garbles glyphs; " +
+            "an element count (e.g. '3 layers') is fine as-is",
+        );
+      }
+
+      // (b) thin-write sweep — heuristic keyword probe, not a semantic read.
+      const hasShotDirection = Object.values(BROLL_SHOT_SIGNALS).some((re) => re.test(prompt));
+      if (!hasShotDirection) {
+        warn(
+          `Scene ${scene.id} ${subject} names no camera framing or camera move (subject-only thin write; heuristic)`,
+          "State a framing and a camera move (e.g. 'medium shot, slow push-in'). " +
+            "Protocol: docs/video-script-writing-guide.md → Declared b-roll prompt 写作协议",
+        );
+      }
+
+      // (c) reuse bookkeeping.
+      const key = prompt.trim().toLowerCase().replace(/\s+/g, " ");
+      if (!byPrompt.has(key)) byPrompt.set(key, []);
+      byPrompt.get(key).push(scene.id);
     }
-
-    // (b) thin-write sweep — heuristic keyword probe, not a semantic read.
-    const hasShotDirection = Object.values(BROLL_SHOT_SIGNALS).some((re) => re.test(prompt));
-    if (!hasShotDirection) {
-      warn(
-        `Scene ${scene.id} prompt names no camera framing or camera move (subject-only thin write; heuristic)`,
-        "State a framing and a camera move (e.g. 'medium shot, slow push-in'). " +
-          "Protocol: docs/video-script-writing-guide.md → Declared b-roll prompt 写作协议",
-      );
-    }
-
-    // (c) reuse bookkeeping.
-    const key = prompt.trim().toLowerCase().replace(/\s+/g, " ");
-    if (!byPrompt.has(key)) byPrompt.set(key, []);
-    byPrompt.get(key).push(scene.id);
   }
 
   // (c) emit reuse warnings once the whole pack is seen.
