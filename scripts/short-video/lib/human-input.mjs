@@ -23,6 +23,8 @@
  * @module human-input
  */
 
+import { automationPort } from "./cdp-profile-guard.mjs";
+
 /** Typing gap between segments: the band a person's keystrokes fall in. */
 export const TYPING_GAP_MS = Object.freeze([30, 120]);
 /** Occasional pause at a word/sentence boundary. */
@@ -34,6 +36,32 @@ export const NEWLINE_PAUSE_MS = Object.freeze([350, 1100]);
 
 /** Fraction of boundary positions that get a full pause instead of a gap. */
 const PAUSE_CHANCE = 0.22;
+
+/**
+ * Pointer-path cadence, as named bands rather than call-site literals.
+ *
+ * A person's pointer does not move on a fixed clock: steps are ~9ms apart,
+ * there is a short settle before the press, and the button is held for a beat.
+ * Naming them here keeps the "no bare duration" rule true of this module too —
+ * `tiktok-upload-prep-human-shape.test.mjs` rejects a numeric literal in any
+ * sleep call across the publish path.
+ */
+export const POINTER_STEP_MS = Object.freeze([9, 5]);
+/** Pause between the last move and the press: the hand settling. */
+export const POINTER_SETTLE_MS = Object.freeze([85, 45]);
+/** Button hold time. */
+export const POINTER_HOLD_MS = Object.freeze([45, 120]);
+/** Beat after moving to the scroll point, before the first wheel burst. */
+export const WHEEL_SETTLE_MS = Object.freeze([90, 180]);
+/** Gap between wheel bursts. */
+export const WHEEL_BURST_GAP_MS = Object.freeze([80, 260]);
+/**
+ * How long one wheel dispatch may wait for an ack. A real ack is milliseconds;
+ * the long session budget would only convert a silent drop into a 15s stall.
+ */
+export const WHEEL_ACK_TIMEOUT_MS = 3000;
+/** Base of the visibility re-check backoff (multiplied by attempt). */
+export const FOREGROUND_RETRY_BASE_MS = 400;
 
 /**
  * Small deterministic PRNG (mulberry32) for tests and reproducible runs.
@@ -201,10 +229,10 @@ export async function clickAtPoint(session, opts) {
       y: p.y,
       button: "none",
     });
-    await sleepJitter(9, 5, { rand, sleepFn });
+    await sleepJitter(...POINTER_STEP_MS, { rand, sleepFn });
   }
 
-  await sleepJitter(85, 45, { rand, sleepFn });
+  await sleepJitter(...POINTER_SETTLE_MS, { rand, sleepFn });
   await session.send("Input.dispatchMouseEvent", {
     type: "mousePressed",
     x: to.x,
@@ -214,7 +242,7 @@ export async function clickAtPoint(session, opts) {
     clickCount: 1,
   });
 
-  const holdMs = Math.round(randomBetween(45, 120, rand));
+  const holdMs = Math.round(randomBetween(POINTER_HOLD_MS[0], POINTER_HOLD_MS[1], rand));
   await sleepFn(holdMs);
 
   await session.send("Input.dispatchMouseEvent", {
@@ -261,7 +289,7 @@ export async function wheelScroll(session, opts) {
   await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none" });
   // Let the hit test settle before the first burst; a wheel that lands in the
   // same frame as the move is the one Chrome tends to drop.
-  await sleepBetween(90, 180, { rand, sleepFn });
+  await sleepBetween(...WHEEL_SETTLE_MS, { rand, sleepFn });
 
   const count = Math.max(3, Math.round(randomBetween(3, 6, rand)));
   const weights = Array.from({ length: count }, () => randomBetween(0.6, 1.4, rand));
@@ -285,9 +313,9 @@ export async function wheelScroll(session, opts) {
         // A wheel ack is milliseconds. Waiting the session's full budget for a
         // dispatch that will never be acknowledged costs 15s per burst for
         // nothing.
-        { timeoutMs: 3000 },
+        { timeoutMs: WHEEL_ACK_TIMEOUT_MS },
       );
-      await sleepBetween(80, 260, { rand, sleepFn });
+      await sleepBetween(...WHEEL_BURST_GAP_MS, { rand, sleepFn });
     }
   } catch (err) {
     if (!fallback) throw err;
@@ -458,7 +486,7 @@ export async function typePlan(session, plan, opts = {}) {
  */
 async function browserCommand(method, params, opts = {}) {
   const {
-    port = Number(process.env.CDP_AUTOMATION_PORT || 9229),
+    port = automationPort(),
     WebSocketImpl = globalThis.WebSocket,
     fetchImpl = globalThis.fetch,
     timeoutMs = 8000,
@@ -581,7 +609,7 @@ export async function ensureForeground(session, opts = {}) {
     });
     state = result?.value ?? null;
     if (state === "visible") return state;
-    await sleepFn(400 + i * 400);
+    await sleepFn(FOREGROUND_RETRY_BASE_MS * (i + 1));
   }
   throw new Error(
     `${label} is hidden (document.visibilityState=${JSON.stringify(state)}). ` +
@@ -602,7 +630,7 @@ export async function ensureForeground(session, opts = {}) {
  */
 export async function openCdpSession(targetId, opts = {}) {
   const {
-    port = Number(process.env.CDP_AUTOMATION_PORT || 9229),
+    port = automationPort(),
     WebSocketImpl = globalThis.WebSocket,
     fetchImpl = globalThis.fetch,
     timeoutMs = 15_000,

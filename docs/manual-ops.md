@@ -64,9 +64,9 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 | ---------- | -------------------------------------------------------------------------------------------------------- | ----------------- |
 | 鼠标轨迹   | 每次点击沿带侧向弯曲的 Bézier 移动，末段减速，冲过目标 0.4–2px 再回正                                    | —                 |
 | 逐字输入   | 可信 `insertText`，一次一个字符（含 emoji），间隔 30–120ms，句读处偶发 300–900ms 停顿；换行按真 Enter 键 | `--paste-caption` |
-| 等待抖动   | 全部走 `PUBLISH_PACING`（`[base, spread]`，spread ≥ base 的 20%），无裸毫秒                              | —                 |
+| 等待抖动   | 全部走 `PUBLISH_PACING` / 具名常量带（`[base, spread]`，spread ≥ base 的 20%），无裸毫秒                 | —                 |
 | 发布前审阅 | `--publish` 时先播预览 5–15s、暂停、确认时钟走过再停，判定写进日志                                       | `--skip-review`   |
-| 会话预热   | 先在 For You 滚动+停留 10–20s，再打开上传页                                                              | `--no-warmup`     |
+| 会话预热   | 先在 For You 滚动 2–4 次、每次停留 2.3–4.7s（合计约 5–19s），再打开上传页                                | `--no-warmup`     |
 
 结果写在 `output/{content}/publish/tiktok/publish-log.jsonl`（每步一行 JSON，含 `step: "review"` 与 `reviewed`）。运行时自检：`node scripts/short-video/human-input-selftest.mjs`（断言页面收到的每个事件都是 trusted、零 paste）。
 

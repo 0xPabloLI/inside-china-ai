@@ -51,8 +51,8 @@
  *      log. The preview is a canvas with no <video> element, so the evidence
  *      is the player's own clock. `--skip-review` opts out.
  *   5. Session warm-up. Unless `--no-warmup`, the session opens on the For You
- *      feed, scrolls and dwells for a random 10-20s, and only then navigates
- *      to the upload page.
+ *      feed, scrolls 2-4 times with a 2.3-4.7s dwell after each, and only then
+ *      navigates to the upload page.
  *
  * The technical enabler: Chrome accepts a second flattened CDP session on the
  * same target, so the driver opens its own browser-level session on the tab
@@ -280,15 +280,29 @@ const RESOLVE_CLICK_TARGET = (selector) => `
  * first paragraph missing (708 of 1223 chars) because the delete re-renders
  * Draft.js's ContentState and the paste races it.
  */
-const CAPTION_SELECT = `
-(() => {
-  const el =
+/**
+ * The caption field, in priority order, as page-side JS.
+ *
+ * One source for the four places that need it (select, paste, read, click):
+ * they used to carry four copies of this chain, and the click carried a single
+ * selector instead — so a human click could land on a different element than
+ * the paste and the read that followed.
+ */
+const CAPTION_LOOKUP = `(
     document.querySelector('div[contenteditable="true"][data-e2e*="caption"]') ||
     document.querySelector("div.public-DraftEditor-content") ||
     document.querySelector('div[contenteditable="true"]') ||
-    [...document.querySelectorAll("textarea")].find((t) => t.getBoundingClientRect().width > 0);
+    [...document.querySelectorAll("textarea")].find((t) => t.getBoundingClientRect().width > 0)
+  )`;
+
+const CAPTION_SELECT = `
+(() => {
+  const el = ${CAPTION_LOOKUP};
   if (!el) return JSON.stringify({ ok: false, reason: "no caption field" });
 
+  // Tag it so the human click below targets the same element this select,
+  // the paste and the read all resolve to.
+  el.id = "__caption";
   const isField = el.tagName === "TEXTAREA" || el.tagName === "INPUT";
   const prefilled = isField ? el.value : el.innerText;
   el.focus();
@@ -310,11 +324,7 @@ const CAPTION_SELECT = `
 const CAPTION_PASTE = (caption) => `
 (() => {
   const want = ${JSON.stringify(caption)};
-  const el =
-    document.querySelector('div[contenteditable="true"][data-e2e*="caption"]') ||
-    document.querySelector("div.public-DraftEditor-content") ||
-    document.querySelector('div[contenteditable="true"]') ||
-    [...document.querySelectorAll("textarea")].find((t) => t.getBoundingClientRect().width > 0);
+  const el = ${CAPTION_LOOKUP};
   if (!el) return JSON.stringify({ ok: false, reason: "no caption field" });
 
   if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
@@ -336,11 +346,7 @@ const CAPTION_PASTE = (caption) => `
 /** Read the caption back and whether the editor is still alive. */
 const CAPTION_READ = `
 (() => {
-  const el =
-    document.querySelector('div[contenteditable="true"][data-e2e*="caption"]') ||
-    document.querySelector("div.public-DraftEditor-content") ||
-    document.querySelector('div[contenteditable="true"]') ||
-    [...document.querySelectorAll("textarea")].find((t) => t.getBoundingClientRect().width > 0);
+  const el = ${CAPTION_LOOKUP};
   if (!el) return JSON.stringify({ ok: false, reason: "no caption field" });
   const isField = el.tagName === "TEXTAREA" || el.tagName === "INPUT";
   const text = isField ? el.value : el.innerText;
@@ -1138,7 +1144,7 @@ export async function reviewBeforePublish(tabId, cdp) {
   // lags the click by a React render — read immediately it still says 暂停 —
   // so a label check would report the state we just left.
   const pauseClockA = parseClock((await evalJson(tabId, REVIEW_STATE)).timeText);
-  await sleepBetween(500, 900);
+  await sleepJitter(...PUBLISH_PACING.pauseConfirm);
   const pauseClockB = parseClock((await evalJson(tabId, REVIEW_STATE)).timeText);
   const pausedAfter = pauseClockA !== null && pauseClockB !== null && pauseClockB === pauseClockA;
 
@@ -1297,7 +1303,7 @@ async function main() {
         `      warmed: ${warmed.cycles} scroll(s), ${Math.round(warmed.dwellMs / 1000)}s dwell`,
       );
       log("warmup", { skipped: false, ...warmed });
-      await sleepJitter(...PUBLISH_PACING.warmupToUpload);
+      await sleepJitter(...PUBLISH_PACING.uploadPageSettle);
     }
 
     console.log("  1/6 upload page open — waiting for the editor…");
@@ -1316,9 +1322,13 @@ async function main() {
     await waitFor(tab, EDITOR_STATE, { timeoutMs: 300_000, label: "editor ready" });
 
     if (caption) {
-      // Focus the field with a real click first — Draft.js ignores a selection
-      // set by script alone.
-      await humanClickElement(tab, cdp, "div.public-DraftEditor-content");
+      // Tag and select the field first (CAPTION_SELECT also focuses it), then
+      // click the tagged element with a real pointer press — Draft.js ignores a
+      // selection set by script alone.
+      const selected = await evalJson(tab, CAPTION_SELECT);
+      if (!selected.ok) throw new Error(`caption field not found: ${JSON.stringify(selected)}`);
+      await sleepJitter(...PUBLISH_PACING.captionFieldSelect);
+      await humanClickElement(tab, cdp, "#__caption");
       const filled = await fillCaption(tab, cdp, caption, {
         pasteOnly: hasFlag("paste-caption"),
       });
@@ -1515,11 +1525,14 @@ async function main() {
           review = { reviewed: false, reason: `review failed: ${err.message}` };
         }
         const verdict = review.reviewed
-          ? `reviewed: ${review.advancedSeconds}s played, paused=${review.pausedAfter}`
-          : `NOT reviewed (${review.reason})`;
+          ? `已审阅 · ${review.advancedSeconds}s played, paused=${review.pausedAfter}`
+          : `未审阅（${review.reason}）`;
         console.log(`      ${verdict}`);
-        // `reviewed` is the operator-facing fact this step exists to record.
-        log("review", { step: "review", ...review });
+        // The issue asks for the review verdict itself to be recorded, so the
+        // log carries both the machine fact (`reviewed`) and the same words the
+        // operator sees (`verdict`) — a reader of the log should not have to
+        // re-derive what "reviewed: false" meant.
+        log("review", { reviewed: review.reviewed, verdict, ...review });
       }
 
       console.log("🚀 Publishing (--publish)…");

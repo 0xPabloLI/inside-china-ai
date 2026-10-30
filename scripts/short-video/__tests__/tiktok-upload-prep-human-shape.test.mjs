@@ -16,6 +16,7 @@ import { PUBLISH_PACING, REVIEW_WATCH_MS } from "../lib/publish-pacing.mjs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DRIVER = join(__dirname, "..", "tiktok-upload-prep.mjs");
 const source = readFileSync(DRIVER, "utf8");
+const humanInputSource = readFileSync(join(__dirname, "..", "lib", "human-input.mjs"), "utf8");
 
 describe("PUBLISH_PACING", () => {
   it("gives every wait a base and a spread of at least 20%", () => {
@@ -41,14 +42,41 @@ describe("PUBLISH_PACING", () => {
   });
 });
 
-describe("no naked durations in the driver", () => {
-  it("has no fixed sleep() call", () => {
-    expect(source).not.toMatch(/(^|[^\w.])sleep\(\s*\d/);
-  });
+describe("no naked durations on the publish path", () => {
+  // Both files, because the claim in the docs and the header is about the path,
+  // not about one file: an inline `sleepBetween(90, 180)` in the input library
+  // is exactly as much a fingerprint as one in the driver.
+  const NAKED_SLEEP = /(^|[^\w.])(sleep|sleepJitter|sleepBetween)\(\s*-?\d/m;
 
-  it("has no literal setTimeout delay, in Node or in page scripts", () => {
-    expect(source).not.toMatch(/setTimeout\([^,]*,\s*\d/);
-    expect(source).not.toMatch(/setTimeout\(r,\s*\d/);
+  for (const [name, text] of [
+    ["tiktok-upload-prep.mjs", source],
+    ["lib/human-input.mjs", humanInputSource],
+  ]) {
+    it(`${name} passes no numeric literal to a sleep helper`, () => {
+      const hit = text.match(NAKED_SLEEP);
+      expect(hit?.[0] ?? null, hit ? `found: ${hit[0]}` : "clean").toBeNull();
+    });
+
+    it(`${name} has no literal setTimeout delay`, () => {
+      expect(text).not.toMatch(/setTimeout\([^,]*,\s*\d/);
+    });
+  }
+
+  it("keeps the pointer and wheel cadence as named bands", async () => {
+    const bands = await import("../lib/human-input.mjs");
+    for (const name of [
+      "POINTER_STEP_MS",
+      "POINTER_SETTLE_MS",
+      "POINTER_HOLD_MS",
+      "WHEEL_SETTLE_MS",
+      "WHEEL_BURST_GAP_MS",
+    ]) {
+      const band = bands[name];
+      expect(band, name).toHaveLength(2);
+      expect(band[0], name).toBeGreaterThan(0);
+      expect(band[1], name).toBeGreaterThan(0);
+    }
+    expect(bands.WHEEL_ACK_TIMEOUT_MS).toBeLessThan(5000);
   });
 });
 
@@ -124,7 +152,10 @@ describe("the driver's input shape", () => {
 
   it("writes the publish log, review verdict included", () => {
     expect(source).toContain("publish-log.jsonl");
-    expect(source).toContain('step: "review"');
+    // The logger writes `step` itself; the review entry must carry the verdict
+    // the issue asked to record, in the same words the operator sees.
+    expect(source).toContain('log("review"');
+    expect(source).toContain("已审阅");
     expect(source).toContain("reviewed");
   });
 
