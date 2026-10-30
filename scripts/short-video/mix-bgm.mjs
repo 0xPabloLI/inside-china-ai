@@ -17,12 +17,13 @@
  *
  * Mix settings: 0.1s fade-in (instant start), 12% volume, auto-loop, 3s fade-out.
  *
- * ⚠️ The `volume=0.12` below (≈ −18.4 dB gain on the bed) is a DIFFERENT scale
- * from the platform slider's dB reading, and unlike that slider it was never
- * calibrated against a rendered artifact. It is inside the 15–25 dB-below-voice
- * band by arithmetic (the bed is ~2 dB quieter than the voice to begin with),
- * but "inside the band by arithmetic" is the same reasoning that shipped the
- * −20 dB default the user rejected. Verify the mix, don't trust the constant.
+ * The `volume` below (≈ −18.4 dB gain on the bed, shared with
+ * finalizeRenderedVideo) is a DIFFERENT scale from the platform slider's dB
+ * reading. It is now calibrated on the rendered artifact: the mix check at the
+ * end of this script and `verify-video.mjs` measure the bed-vs-narration ratio
+ * directly (docs/research/music-under-voice-calibration-2026-10.md §6 —
+ * volume=0.12 measured 13.7 dB below narration, PASS at the loud edge; the
+ * retune question is tracked in #1043).
  */
 
 import { execFileSync } from "child_process";
@@ -37,11 +38,12 @@ import {
   writeBgmMixMarker,
 } from "./lib/audio/bgm-margin.mjs";
 import { getDurationSync } from "./lib/tts/ffmpeg-cmd.mjs";
+import { DEFAULT_BGM_VOLUME } from "./lib/post-process.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/** Bed gain on the local path. Calibrated on the artifact by the check below. */
-const BGM_VOLUME = 0.12;
+/** Bed gain on the local path — shared with the finalizeRenderedVideo path. */
+const BGM_VOLUME = DEFAULT_BGM_VOLUME;
 
 const args = process.argv.slice(2);
 function getArg(name) {

@@ -26,6 +26,7 @@ import { basename, dirname, join } from "path";
 import { findScene, sceneTimeline } from "../timeline.mjs";
 import { ffmpegMeasureCmd, getDurationSync } from "../tts/ffmpeg-cmd.mjs";
 import { decodeToWavFile, readWavPcm } from "./wav.mjs";
+import { parseSilenceDetect } from "../tts/silence-trim.mjs";
 
 /** Shortest gap that can hold a bed-only reading. */
 const MIN_PAUSE_SECONDS = 0.15;
@@ -136,11 +137,19 @@ export function buildWindowsFromTiming(timingData, sceneDurations, options = {})
   const rawSpeech = [];
   for (const scene of normalizeTiming(timingData)) {
     const entry = findScene(timeline, scene.sceneId);
+    // Clamp to the scene's own voice span like every other timing consumer
+    // (cues.mjs collectRawCues, verify-subtitles.mjs): alignment occasionally
+    // overshoots, and an unclamped window would bleed into the inter-scene
+    // buffer — merging speech into the bed-only gap the measurement needs.
+    const speechLimit = entry.offset + entry.ttsDuration;
     for (const segment of scene.segments ?? []) {
-      const start = Number(segment.start);
-      const end = Number(segment.end);
+      const start = Math.min(
+        Math.max(entry.offset + Number(segment.start), entry.offset),
+        speechLimit,
+      );
+      const end = Math.min(Math.max(entry.offset + Number(segment.end), start), speechLimit);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-      rawSpeech.push([entry.offset + start, entry.offset + end]);
+      rawSpeech.push([start, end]);
     }
   }
   const speech = mergeWindows(rawSpeech);
@@ -216,18 +225,12 @@ export function detectSilenceWindows(voiceOnlyPath, options = {}) {
     );
   }
 
-  const silences = [];
-  let open = null;
-  for (const line of String(run.stderr ?? "").split(/\r?\n/)) {
-    const started = line.match(/silence_start:\s*(-?[\d.]+)/);
-    if (started) open = Math.max(0, Number(started[1]));
-    const ended = line.match(/silence_end:\s*(-?[\d.]+)/);
-    if (ended && open != null) {
-      silences.push([open, Number(ended[1])]);
-      open = null;
-    }
-  }
-  if (open != null) silences.push([open, totalDuration]);
+  // The run/spawn shape is ours (sync, threshold −60 dB), but the interval
+  // parse is the repo's existing silencedetect parser — same logs, same shape.
+  const silences = parseSilenceDetect(run.stderr, totalDuration).map(({ start, end }) => [
+    Math.max(0, start),
+    end,
+  ]);
 
   const speech = [];
   let cursor = 0;

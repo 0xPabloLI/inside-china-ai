@@ -473,7 +473,7 @@ if (!preMode) {
   console.log("\n🎚️  Audio Mix Checks");
   console.log("─".repeat(50));
 
-  const timingPath = join(OUTPUT_DIR, "audio", "subtitle-timing.json");
+  const timingPath = SUBTITLE_TIMING_PATH;
   const durationsPath = join(OUTPUT_DIR, "audio", "scene-durations.json");
   const marginFix =
     "Adjust bgmVolume (finalizeRenderedVideo / mix-bgm) or pick another track, " +

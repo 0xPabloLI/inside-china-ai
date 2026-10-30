@@ -64,6 +64,24 @@ describe("buildWindowsFromTiming", () => {
     ]);
   });
 
+  it("clamps alignment overshoot to the scene's own voice span", () => {
+    // Same clamp as cues.mjs / verify-subtitles.mjs: a segment that ends past
+    // ttsDuration must not bleed into the inter-scene buffer, or it would eat
+    // the bed-only window the measurement depends on.
+    const overshoot = [
+      {
+        sceneId: 1,
+        segments: [
+          { start: 0.1, end: 1.0, words: [] },
+          { start: 1.066, end: 2.4, words: [] }, // 0.4s past scene 1's 2.0s voice
+        ],
+      },
+      { sceneId: 2, segments: [{ start: 0.2, end: 2.5, words: [] }] },
+    ];
+    const { speech } = buildWindowsFromTiming(overshoot, durations, NO_GUARDS);
+    expect(speech[1]).toEqual([1.066, 2.0]);
+  });
+
   it("turns the inter-scene buffer into an inset pause window", () => {
     const { pause } = buildWindowsFromTiming(timing, durations, {
       ...NO_GUARDS,
@@ -93,8 +111,9 @@ describe("buildWindowsFromTiming", () => {
       tailGuardSeconds: 3.2,
     });
     // Everything after 5.5 − 3.2 = 2.3s is inside the fade-out region, which
-    // removes the inter-scene pause. Speech windows are not clipped: the voice
-    // is never faded, and dropping words would only cost coverage.
+    // removes the inter-scene pause. Guards apply to pauses only: the voice
+    // is never faded, and dropping words would only cost coverage. (Windows
+    // are still clamped to their scene's voice span — overshoot test above.)
     expect(pause).toEqual([]);
     expect(speech).toEqual([
       [0.1, 1.0],

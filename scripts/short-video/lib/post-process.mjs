@@ -23,6 +23,8 @@ import { ffmpegMeasureCmd, getDurationSync } from "./tts/ffmpeg-cmd.mjs";
  */
 export const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 
+/** Default bed gain (0-1) for both local mix paths; retune target: #1043. */
+export const DEFAULT_BGM_VOLUME = 0.12;
 /** Allowed |measured − target| integrated loudness drift, in LU. */
 export const LOUDNESS_LU_TOLERANCE = 0.8;
 /** True peak must stay at or below this (dBTP); loudnorm targets TP=-1.5. */
@@ -342,12 +344,12 @@ export function burnSubtitles(videoPath, assPath, outputPath) {
  * @param {string} videoPath - Input MP4 (with voiceover audio)
  * @param {string} bgmPath - BGM audio file
  * @param {string} outputPath - Output MP4 (mixed audio)
- * @param {number} [volume=0.12] - BGM volume (0-1)
+ * @param {number} [volume=DEFAULT_BGM_VOLUME] - BGM volume (0-1)
  * @returns {string} Path to the output file
  * @public Kept as module API (asserted by post-process.test.mjs). The
  *   production render path folds BGM into finalizeRenderedVideo() (#198).
  */
-export function mixBgm(videoPath, bgmPath, outputPath, volume = 0.12) {
+export function mixBgm(videoPath, bgmPath, outputPath, volume = DEFAULT_BGM_VOLUME) {
   // BGM fade-out timing; a failed probe keeps the 180s default.
   const videoDuration = probeVideoDuration(videoPath);
 
@@ -449,7 +451,7 @@ export function normalizeLoudness(videoPath, outputPath, target = -16) {
  * @param {string|null} [options.audioFilter] - Head trim/pad filter prepended
  *   on [0:a] (from measureAudioDrift), or null
  * @param {number} [options.bgmFadeOutStart] - Seconds; required with bgmPath
- * @param {number} [options.bgmVolume=0.12]
+ * @param {number} [options.bgmVolume=DEFAULT_BGM_VOLUME]
  * @param {number} [options.loudnessTarget=-16]
  * @returns {string[]} ffmpeg argv (without the binary)
  */
@@ -460,7 +462,7 @@ export function buildFinalizeArgs({
   outputPath,
   audioFilter = null,
   bgmFadeOutStart,
-  bgmVolume = 0.12,
+  bgmVolume = DEFAULT_BGM_VOLUME,
   loudnessTarget = -16,
 }) {
   const args = ["-y", "-i", videoPath];
@@ -513,7 +515,7 @@ export function buildFinalizeArgs({
  * @param {string} options.outputPath - Output MP4
  * @param {object|null} [options.realign] - { outputDir, sceneDurations,
  *   audioPaths } for measureAudioDrift; null to skip the head trim entirely
- * @param {number} [options.bgmVolume=0.12]
+ * @param {number} [options.bgmVolume=DEFAULT_BGM_VOLUME]
  * @param {number} [options.loudnessTarget=-16]
  * @param {boolean} [options.loudnessReadback=true] - read the final LUFS/true
  *   peak back and repair when out of tolerance (#415 ①)
@@ -527,7 +529,7 @@ export function finalizeRenderedVideo({
   bgmPath,
   outputPath,
   realign = null,
-  bgmVolume = 0.12,
+  bgmVolume = DEFAULT_BGM_VOLUME,
   loudnessTarget = -16,
   loudnessReadback = true,
   strictLoudness = false,
