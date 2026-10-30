@@ -31,6 +31,7 @@ import { existsSync } from "fs";
 import { resolve, sep } from "path";
 import { DEFAULT_NARRATIVE_LAYOUT } from "./text-slots.mjs";
 import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
+import { resolveMediaPlan } from "./media-strategies.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
 import {
   inspectMediaFile,
@@ -333,8 +334,108 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
   return { pass: failures.length === 0, failures, warnings };
 }
 
-/** Human-readable report for the CLI. */
-export function formatFinalMediaFailures(result) {
+/**
+ * Per-scene provenance for a missing-media failure (#986).
+ *
+ * `mediaStrategy` comes from the scene; the b-roll report says how the
+ * generation rung ended. Both are optional: render-only entry points pass
+ * neither, so their failure lines stay exactly as they were. The report is
+ * keyed by String(scene.id) — the shape the orchestrator writes.
+ */
+function sceneMediaContext(failure, { scenes = null, brollReport = null } = {}) {
+  // No context = render-only / rerender caller: keep the bare line.
+  if (!scenes && !brollReport) return "";
+  // Only layouts that require media can be judged this way: a CSS-only layout
+  // that still declares a stale path also fails as missing-media, but it does
+  // not need sourcing/generation and must not be labelled as a chain scene.
+  if (failure.reason !== "missing-media" || !MEDIA_DEPENDENT_LAYOUTS.has(failure.layout)) {
+    return "";
+  }
+  const scene = (scenes ?? []).find((s) => String(s.id) === String(failure.sceneId));
+  const entry = brollReport?.scenes?.[String(failure.sceneId)] ?? null;
+  // `media-strategies.mjs` owns the vocabulary: an absent strategy and the
+  // legacy `asset` both resolve to `kind: "chain"` (#355). Never re-encode
+  // those literals here or a renamed strategy would keep the old label.
+  const plan = scene ? resolveMediaPlan(scene) : null;
+  const strategy = plan?.kind === "chain" ? "default chain" : (plan?.strategy ?? null);
+  const bits = [];
+  if (strategy) bits.push(`mediaStrategy: ${strategy}`);
+  if (entry?.status) {
+    bits.push(`b-roll: ${entry.status}${entry.round ? ` · round ${entry.round}` : ""}`);
+  }
+  return bits.length > 0 ? ` [${bits.join("; ")}]` : "";
+}
+
+/**
+ * Recovery paths for a Step 1.6 miss (#986). Every rung has already run, so
+ * the operator needs the next action, not a restatement of the symptom.
+ * Only missing media earns this block: a hook waiver, a broken file or an
+ * invalid provenance each already name their own fix, and adding "regenerate"
+ * there would point at the wrong repair.
+ *
+ * Returned as lines (not part of the failure list) so callers without context
+ * — render-only / rerender / realign — keep the previous output.
+ */
+function mediaRecoveryLines(
+  failures,
+  { contentDir = null, scenes = null, brollReport = null } = {},
+) {
+  // No context means a render-only / rerender entry point. Those callers print
+  // the same gate result with the old, bare wording; the recovery block is a
+  // Step 1.6 affordance, not a change to every failure surface.
+  if (!scenes && !brollReport && !contentDir) return [];
+  // A CSS-only layout with a stale media.path fails as missing-media too, but
+  // rerunning sourcing/generation cannot fix it — the path should be removed.
+  // The recovery ladder only applies to layouts that actually need media.
+  const missing = failures.filter(
+    (f) => f.reason === "missing-media" && MEDIA_DEPENDENT_LAYOUTS.has(f.layout),
+  );
+  if (missing.length === 0) return [];
+  const dir = contentDir || "<dir>";
+  const firstId = missing[0].sceneId;
+  const missingIds = new Set(missing.map((f) => String(f.sceneId)));
+  // "source-only" is the one strategy step 2 cannot honour: it never generates.
+  // Say so instead of sending the operator into a stage that will plan zero jobs.
+  const sourceOnly = (scenes ?? []).some(
+    (s) => missingIds.has(String(s.id)) && resolveMediaPlan(s).kind === "source-only",
+  );
+  // Escalated means the round cap is spent: rerunning the stage refuses before
+  // any GPU work, so the message must give the reset instead of repeating the
+  // action that already failed.
+  const escalated = missing.some(
+    (f) => brollReport?.scenes?.[String(f.sceneId)]?.status === "escalated",
+  );
+  return [
+    "",
+    "Recovery:",
+    ...(escalated
+      ? [
+          "  Escalated scenes have spent the 3-round cap: remove the scene's entry from the b-roll report (or delete the report) before rerunning — the stage refuses without this reset.",
+        ]
+      : []),
+    "  1. Rerun the pipeline — Step 1.5 re-enters sourcing for chain / asset-then-* scenes and generation for b-roll / ai-image scenes.",
+    `  2. Rewrite the prompt, then regenerate: node scripts/short-video/generate-broll.mjs --content ${dir} --scene ${firstId} [--approve-auto]`,
+    "     A chain scene (no explicit mediaStrategy) needs --approve-auto (and a larger --auto-budget if the plan marked it budget-skipped). BROLL_MODEL=fastmetal-1.3b switches tiers manually — there is no automatic 5B → 1.3B failover.",
+    ...(sourceOnly
+      ? [
+          "     Source-only scenes never generate: change mediaStrategy to b-roll / ai-image (or bind scene.media) before this step.",
+        ]
+      : []),
+    "  3. Move the scene to a CSS-only layout (hero-center / stacked-cards) if it does not need media.",
+  ];
+}
+
+/**
+ * Human-readable report for the CLI.
+ *
+ * @param {object} result - `checkFinalMedia` output.
+ * @param {object} [context] - Step 1.6 context (`scenes`, `brollReport`,
+ *   `contentDir`). main.mjs passes it, so a missing-media line names the
+ *   scene's strategy / b-roll status and the report ends with recovery paths.
+ *   Render-only / rerender / realign callers omit it and keep byte-identical
+ *   wording.
+ */
+export function formatFinalMediaFailures(result, context = {}) {
   if (result.pass) return "All scenes have the media they need.";
 
   const lines = result.failures.map((f) => {
@@ -365,12 +466,13 @@ export function formatFinalMediaFailures(result) {
     if (f.reason === "invalid-evidence-flag") {
       return `  Scene ${f.sceneId}: media "${f.path}" has an unusable evidence flag — ${f.detail} (only the boolean true demands provenance)`;
     }
-    return `  Scene ${f.sceneId}: layout "${f.layout}" needs media${f.path ? ` — "${f.path}" not found` : " — no media declared"}`;
+    return `  Scene ${f.sceneId}: layout "${f.layout}" needs media${f.path ? ` — "${f.path}" not found` : " — no media declared"}${sceneMediaContext(f, context)}`;
   });
 
   return [
     `${result.failures.length} scene(s) would render without the media they need:`,
     ...lines,
+    ...mediaRecoveryLines(result.failures, context),
   ].join("\n");
 }
 
