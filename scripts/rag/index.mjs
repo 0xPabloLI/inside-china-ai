@@ -215,9 +215,10 @@ function collectAssetCatalog() {
   for (const warning of validation.warnings) {
     console.warn(`  ⚠️  ${formatIssue(warning)}`);
   }
-  console.log(
-    `  ✅ catalog.yml validated (${validation.total} entries; ${validation.legacyExempt.length} legacy without dimensions)`,
-  );
+  for (const file of validation.legacyExempt) {
+    console.log(`  ↪️  legacy without dimensions: ${file}`);
+  }
+  console.log(`  ✅ catalog.yml validated (${validation.total} entries)`);
 
   const chunks = chunkCatalog(entries);
 

@@ -13,6 +13,21 @@ import {
 
 const REAL_CATALOG = join(dirname(fileURLToPath(import.meta.url)), "..", "assets", "catalog.yml");
 
+// Audited 2026-10-30 (#1003): these nine paths predate the rule and their
+// gitignored binaries are absent. Growth is a deliberate edit here and in
+// LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS, never a silent shortcut.
+const FROZEN_LEGACY_SNAPSHOT = [
+  "content/deepseek-v41-flash-1017/assets/evidence-hf-benchmark.png",
+  "content/deepseek-v41-flash-1017/assets/evidence-hf-model-card.png",
+  "content/deepseek-v41-flash-1017/assets/evidence-search-api-pricing.png",
+  "content/unitree-h2x-guardian/assets/clips/act1-martial.mp4",
+  "content/unitree-h2x-guardian/assets/clips/act2-parkour.mp4",
+  "content/unitree-h2x-guardian/assets/clips/act3-jump.mp4",
+  "content/unitree-h2x-guardian/assets/clips/act4-night.mp4",
+  "content/unitree-h2x-guardian/assets/clips/act5-lift.mp4",
+  "content/unitree-h2x-guardian/assets/clips/act6-rescue.mp4",
+];
+
 let tmp = null;
 
 afterEach(() => {
@@ -121,6 +136,14 @@ describe("validateCatalog — static schema", () => {
     const result = validateCatalog([{ description: "no file" }], { probe: null });
     expect(codes(result.errors)).toEqual(["invalid-file"]);
   });
+
+  it("fails an entry without a description (the chunker would drop it)", () => {
+    const result = validateCatalog(
+      [{ file: "content/demo/assets/a.png", width: 800, height: 600 }],
+      { probe: null },
+    );
+    expect(codes(result.errors)).toEqual(["missing-description"]);
+  });
 });
 
 describe("validateCatalog — disk layer", () => {
@@ -153,6 +176,17 @@ describe("validateCatalog — disk layer", () => {
     expect(result.errors).toEqual([]);
     expect(result.warnings).toEqual([]);
   });
+
+  it("warns when the file type has no probe instead of calling it a probe failure", () => {
+    const file = "content/demo/assets/a.gif";
+    const result = validateCatalog([entry(file, { width: 800, height: 600 })], {
+      rootDir: fixtureRoot([file]),
+      probe: probeOf(800, 600),
+      legacyFiles: [],
+    });
+    expect(result.errors).toEqual([]);
+    expect(codes(result.warnings)).toEqual(["probe-unsupported"]);
+  });
 });
 
 describe("validateCatalog — legacy exemptions", () => {
@@ -183,26 +217,38 @@ describe("validateCatalog — legacy exemptions", () => {
     expect(codes(result.warnings)).toEqual(["stale-legacy"]);
   });
 
-  it("reports a legacy file that became readable, with its measured size", () => {
+  it("errors when a legacy entry's file is readable, with its measured size", () => {
     const result = validateCatalog([entry(legacyFile)], {
       rootDir: fixtureRoot([legacyFile]),
       probe: probeOf(1024, 768),
       legacyFiles: [legacyFile],
     });
-    expect(codes(result.warnings)).toEqual(["legacy-file-present"]);
-    expect(result.warnings[0].message).toContain("1024x768");
+    expect(codes(result.errors)).toEqual(["legacy-file-present"]);
+    expect(result.errors[0].message).toContain("1024x768");
   });
 
-  it("keeps the frozen list to the entries that still lack dimensions", () => {
+  it("keeps the exemption when the file is present but unmeasurable", () => {
+    const result = validateCatalog([entry(legacyFile)], {
+      rootDir: fixtureRoot([legacyFile]),
+      probe: () => null,
+      legacyFiles: [legacyFile],
+    });
+    expect(result.errors).toEqual([]);
+    expect(codes(result.warnings)).toEqual(["legacy-file-present"]);
+  });
+
+  it("keeps the frozen roster auditable and in sync with the catalog", () => {
+    expect([...LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS].sort()).toEqual(
+      [...FROZEN_LEGACY_SNAPSHOT].sort(),
+    );
+
     const configured = readFileSync(REAL_CATALOG, "utf8");
     const entries = yaml.load(configured);
     const result = validateCatalog(entries, { probe: null });
 
     expect(result.errors).toEqual([]);
     expect(result.total).toBeGreaterThan(0);
-    expect([...result.legacyExempt].sort()).toEqual(
-      [...LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS].sort(),
-    );
+    expect([...result.legacyExempt].sort()).toEqual([...FROZEN_LEGACY_SNAPSHOT].sort());
   });
 });
 
@@ -243,8 +289,8 @@ describe("catalog-validate CLI", () => {
     return { code, stdout: stdout.join("\n"), stderr: stderr.join("\n") };
   }
 
-  function writeCatalog(entries) {
-    const rootDir = fixtureRoot();
+  function writeCatalog(entries, files = []) {
+    const rootDir = fixtureRoot(files);
     const catalogPath = join(rootDir, "assets", "catalog.yml");
     mkdirSync(dirname(catalogPath), { recursive: true });
     writeFileSync(catalogPath, yaml.dump(entries));
@@ -253,10 +299,7 @@ describe("catalog-validate CLI", () => {
 
   it("exits 0 when every entry passes", () => {
     const file = "content/demo/assets/a.png";
-    const rootDir = fixtureRoot([file]);
-    const catalogPath = join(rootDir, "assets", "catalog.yml");
-    mkdirSync(dirname(catalogPath), { recursive: true });
-    writeFileSync(catalogPath, yaml.dump([entry(file, { width: 800, height: 600 })]));
+    const catalogPath = writeCatalog([entry(file, { width: 800, height: 600 })], [file]);
 
     const { code, stdout } = run(["--catalog", catalogPath], { probe: probeOf(800, 600) });
     expect(code).toBe(0);
@@ -265,10 +308,7 @@ describe("catalog-validate CLI", () => {
 
   it("exits 1 and names the offender when a declaration is wrong", () => {
     const file = "content/demo/assets/a.png";
-    const rootDir = fixtureRoot([file]);
-    const catalogPath = join(rootDir, "assets", "catalog.yml");
-    mkdirSync(dirname(catalogPath), { recursive: true });
-    writeFileSync(catalogPath, yaml.dump([entry(file, { width: 1920, height: 1080 })]));
+    const catalogPath = writeCatalog([entry(file, { width: 1920, height: 1080 })], [file]);
 
     const { code, stderr } = run(["--catalog", catalogPath], { probe: probeOf(640, 360) });
     expect(code).toBe(1);

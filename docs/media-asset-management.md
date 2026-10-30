@@ -63,23 +63,23 @@ An **asset catalog** (`scripts/short-video/assets/catalog.yml`) holds text metad
 **Catalog entry format**:
 
 ```yaml
-- file: content/unitree/assets/unitree-demo.mp4
-  type: video
-  description: "Unitree H1 humanoid robot walking and doing backflips"
+- file: assets/robot-walk.jpg
+  type: image
+  description: "Unitree H1 humanoid robot walking"
   source: YouTube (yt-dlp)
   license: "Unitree Robotics official"
-  width: 640
-  height: 360
-  used_in: [unitree/S2, unitree/S5, unitree/S6]
-  keywords: [robot, humanoid, unitree, walking, backflip]
+  width: 1080
+  height: 1920
+  used_in: [unitree/S2, unitree/S5]
+  keywords: [robot, humanoid, unitree, walking]
 ```
 
-`width` / `height` are **required for every new entry** (#1003), both positive integers. `npm run lint:catalog` validates the declarations; `node scripts/rag/index.mjs` runs the same check before indexing and refuses to write on errors:
+`file` and `description` are required (the RAG chunker skips entries without them); `width` / `height` are **required for every new entry** (#1003), both positive integers. `npm run lint:catalog` validates the declarations; `node scripts/rag/index.mjs` runs the same check before indexing and refuses to write on errors:
 
 - a **global-library** entry (catalog path under `assets/`, i.e. `scripts/short-video/assets/`) must be at least 720p on the short side (`DEFAULT_TARGET_SHORT_SIDE`); package-local media under `content/<slug>/assets/` has no floor — it is indexed for search and upscaled per package by `autoUpscaleIfNeeded`;
 - when the file is on disk, ffprobe must agree with the declaration; a mismatch is an error naming the file, the declared and the measured sizes;
 - a missing file or an ffprobe failure is a warning, not a content verdict — the binaries are gitignored and absent on a clean checkout; `--require-files` makes missing files errors for a local pre-admission check;
-- entries that predate the rule and have no readable local file are frozen in `LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS`; the list may only shrink — backfill the dimensions and delete the path. The validator reports a frozen path that disappears from the catalog, gains dimensions, or whose file becomes readable.
+- entries that predate the rule and have no readable local file are frozen in `LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS`; the list may only shrink — the validator errors once a frozen file becomes readable, so backfill the dimensions and delete the path. It also reports a frozen path that disappears from the catalog or gains dimensions.
 
 Each entry becomes one RAG chunk with `content_type: "asset-catalog"`. The chunk text is composed from `description` + `keywords` + `file` + dimensions (when declared) + `source` + `license` + `used_in` (only present fields). Query results include `metadata.file_path`, `metadata.width` and `metadata.height` so Agent can locate the file and check its size directly.
 

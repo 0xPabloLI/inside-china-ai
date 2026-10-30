@@ -30,7 +30,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as yaml from "js-yaml";
-import { checkResolution, DEFAULT_TARGET_SHORT_SIDE } from "./upscale.mjs";
+import { checkResolution, DEFAULT_TARGET_SHORT_SIDE, isSupportedFile } from "./upscale.mjs";
 
 /** Frozen legacy paths: predate the rule and have no readable local file. */
 export const LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS = Object.freeze([
@@ -61,10 +61,9 @@ function isPositiveInteger(value) {
   return Number.isInteger(value) && value > 0;
 }
 
-/** `assets/<name>` is the curated global library; `assets/_staged/` is render scratch. */
+/** Catalog paths under `assets/` resolve to the curated global library. */
 function isGlobalLibraryPath(file) {
-  const normalized = file.replace(/^\.\//, "");
-  return normalized.startsWith("assets/") && !normalized.startsWith("assets/_staged/");
+  return file.replace(/^\.\//, "").startsWith("assets/");
 }
 
 function runProbe(probe, filePath) {
@@ -128,6 +127,17 @@ export function validateCatalog(entries, options = {}) {
     }
     present.add(file);
 
+    if (typeof entry.description !== "string" || entry.description.trim() === "") {
+      result.errors.push(
+        issue(
+          "missing-description",
+          file,
+          "entries need a description; chunkCatalog skips entries without one",
+        ),
+      );
+      continue;
+    }
+
     const hasWidth = entry.width !== undefined && entry.width !== null;
     const hasHeight = entry.height !== undefined && entry.height !== null;
 
@@ -146,14 +156,23 @@ export function validateCatalog(entries, options = {}) {
       result.legacyExempt.push(file);
       if (probe && existsSync(join(rootDir, file))) {
         const measured = runProbe(probe, join(rootDir, file));
-        const detail = measured ? ` — file is ${measured.width}x${measured.height}` : "";
-        result.warnings.push(
-          issue(
-            "legacy-file-present",
-            file,
-            `legacy entry's file is on disk now${detail}; backfill width/height and drop it from the legacy list`,
-          ),
-        );
+        if (measured) {
+          result.errors.push(
+            issue(
+              "legacy-file-present",
+              file,
+              `legacy entry's file is on disk (${measured.width}x${measured.height}); backfill width/height and drop it from the legacy list`,
+            ),
+          );
+        } else {
+          result.warnings.push(
+            issue(
+              "legacy-file-present",
+              file,
+              "legacy entry's file is on disk but could not be measured; backfill width/height once a probe is available",
+            ),
+          );
+        }
       }
       continue;
     }
@@ -216,6 +235,17 @@ export function validateCatalog(entries, options = {}) {
           requireFiles
             ? "file is required (--require-files) but not on disk"
             : "file is not on disk — dimensions are declared but unverified",
+        ),
+      );
+      continue;
+    }
+
+    if (!isSupportedFile(resolved)) {
+      result.warnings.push(
+        issue(
+          "probe-unsupported",
+          file,
+          "no probe for this file type; dimensions are declared but unverified",
         ),
       );
       continue;
