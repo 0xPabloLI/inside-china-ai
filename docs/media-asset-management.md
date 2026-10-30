@@ -109,7 +109,7 @@ Text assets (articles, scene-data) have auto-triggers in the content pipeline (S
 - **写入**：`node scripts/short-video/asset-gaps.mjs --record --content <slug>`（`docs/content-pipeline.md` Stage 3 第 8d 步，必须执行）。证据来自 scene-data + `media-patch.json` + 8b 的 `stock-relevance-report.json` + Stage 4 的 `b-roll-report.json`；不重新搜索、不下载。
 - **读取**：`--query "<实体,概念>"`（按需短路）或 `--list`（默认只看 open）。
 - **关闭**：素材真正入库后 `--satisfy <gap-id|need 子串> --by <catalog 路径>`。已 satisfied 的缺口再次 miss 会重新 open——库里有图但 sourcing 没用上，同样是缺口。
-- **归因**：`no-candidates`（什么都没搜到/下载到）、`relevance-rejected`（候选被打分但都过不了准入）、`vlm-unavailable`（工具失败，不是内容判决）、`fell-through-to-generation`（`asset-then-*` 策略在 `b-roll-report.json` 里落到了生成：sourcing 没给出可用素材）、`unclassified`（历史产物没有 per-scene 证据）。工具失败不得写成内容判决，口径同 `lib/relevance-verdict.mjs`（#294）。
+- **归因**：`no-candidates`（什么都没搜到/下载到）、`relevance-rejected`（候选被打分但都过不了准入）、`vlm-unavailable`（工具失败，不是内容判决）、`fell-through-to-generation`（`asset-then-*` 策略或 #355 默认链的 `auto` 条目在 `b-roll-report.json` 里落到了生成：sourcing 没给出可用素材）、`unclassified`（历史产物没有 per-scene 证据）。工具失败不得写成内容判决，口径同 `lib/relevance-verdict.mjs`（#294）。
 - **边界**：「要不要素材」与 sourcing 用同一个判据 `skipsMediaSourcing`（`lib/claim-keywords.mjs`）——纯生成策略（`b-roll` / `ai-image`）、`visualType: "hook"`（#299 手工策展）、`media: null`、`mediaOptOut` 与已经有 `media` 的场景都不入账：sourcing 从不尝试，记下来的缺口永远关不掉。**「声明」指显式 `assetNeed`**：#354 的 voiceover 派生认领是 best-effort 供给，不写入账本——否则每个氛围场景都会留下一条无法用素材库关闭的泛化缺口。纯生成策略的唯一例外是 8b 已经评判过该场景（报告有记录）——因判据不可满足而改成生成策略，缺口仍然保留。缺口按 need 文本去重（大小写/空白归一），同一 need 在新包再次 miss 才累加 `seenCount`，重放同一个包只刷新原因、不累加。
 - **体积**：每缺口最多保留 20 条出现记录（按最近见到时间淘汰），文件不会随轮次无限增长。
 

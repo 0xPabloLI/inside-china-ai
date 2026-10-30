@@ -32,13 +32,13 @@ export const MEDIA_STRATEGIES = [
 ];
 
 /** The absent-field value. Kept as an alias so old scene-data stays valid. */
-export const DEFAULT_MEDIA_STRATEGY = "asset";
+const DEFAULT_MEDIA_STRATEGY = "asset";
 
 /** Strategies whose prompt targets a still image (T2I, #155). */
 export const IMAGE_GENERATING_STRATEGIES = new Set(["ai-image", "asset-then-ai-image"]);
 
 /** Strategies whose prompt targets a video clip (T2V). */
-export const VIDEO_GENERATING_STRATEGIES = new Set(["b-roll", "asset-then-broll"]);
+const VIDEO_GENERATING_STRATEGIES = new Set(["b-roll", "asset-then-broll"]);
 
 /** Explicit generation overrides only — the default chain is not a member. */
 export const GENERATING_STRATEGIES = new Set([
@@ -61,6 +61,21 @@ export const GENERATION_ONLY_STRATEGIES = new Set(
  *  implicit rung so a sourced-out package cannot burn GPU silently. */
 export const DEFAULT_AUTO_SCENE_BUDGET = 4;
 export const DEFAULT_AUTO_VIDEO_BUDGET = 1;
+
+/**
+ * Parse a non-negative integer budget flag shared by both CLI entrypoints.
+ * Throws instead of returning NaN: `count >= NaN` is false, which would
+ * silently disable the spend cap.
+ */
+export function parseBudgetArg(argv, name, fallback) {
+  const idx = argv.indexOf(`--${name}`);
+  if (idx === -1) return fallback;
+  const raw = argv[idx + 1];
+  if (raw === undefined || !/^\d+$/.test(raw)) {
+    throw new Error(`--${name} must be a non-negative integer, got "${raw ?? ""}"`);
+  }
+  return Number(raw);
+}
 
 /**
  * The plan one scene's strategy resolves to.

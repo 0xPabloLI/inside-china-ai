@@ -39,7 +39,11 @@ import { finalizeRenderedVideo } from "./lib/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { createProfiler } from "./lib/pipeline-profile.mjs";
 import { runMediaTrack } from "./lib/media-track.mjs";
-import { DEFAULT_AUTO_SCENE_BUDGET, DEFAULT_AUTO_VIDEO_BUDGET } from "./lib/media-strategies.mjs";
+import {
+  DEFAULT_AUTO_SCENE_BUDGET,
+  DEFAULT_AUTO_VIDEO_BUDGET,
+  parseBudgetArg,
+} from "./lib/media-strategies.mjs";
 import { closeAsrAnalyzer } from "./lib/asr-analyzer.mjs";
 import {
   assertAvatarScene,
@@ -61,15 +65,12 @@ function getArg(name) {
 }
 
 function getBudgetArg(name, fallback) {
-  const flag = `--${name}`;
-  const i = args.indexOf(flag);
-  if (i === -1) return fallback;
-  const raw = args[i + 1];
-  if (raw === undefined || !/^\d+$/.test(raw)) {
-    console.error(`❌ --${name} must be a non-negative integer, got "${raw ?? ""}"`);
+  try {
+    return parseBudgetArg(args, name, fallback);
+  } catch (error) {
+    console.error(`❌ ${error.message}`);
     process.exit(1);
   }
-  return Number(raw);
 }
 
 function checkCommand(cmd) {

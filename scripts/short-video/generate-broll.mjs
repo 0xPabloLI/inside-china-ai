@@ -29,7 +29,11 @@ import {
 import { estSecondsPerClip, resolveModelTier } from "./lib/b-roll/runner.mjs";
 import { EST_SECONDS_PER_IMAGE } from "./lib/b-roll/t2i-runner.mjs";
 import { planPath, writePlan } from "./lib/b-roll/report.mjs";
-import { DEFAULT_AUTO_SCENE_BUDGET, DEFAULT_AUTO_VIDEO_BUDGET } from "./lib/media-strategies.mjs";
+import {
+  DEFAULT_AUTO_SCENE_BUDGET,
+  DEFAULT_AUTO_VIDEO_BUDGET,
+  parseBudgetArg,
+} from "./lib/media-strategies.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -63,20 +67,6 @@ See docs/video-production-runbook.md for the agent prompt-iteration protocol.`;
 function getArg(argv, name) {
   const idx = argv.indexOf(`--${name}`);
   return idx !== -1 ? argv[idx + 1] : undefined;
-}
-
-/**
- * Budgets are a spend cap, so an unparseable value must fail the CLI rather
- * than become NaN (which would disable the cap: `count >= NaN` is false).
- */
-function parseBudget(argv, name, fallback) {
-  const idx = argv.indexOf(`--${name}`);
-  if (idx === -1) return fallback;
-  const raw = argv[idx + 1];
-  if (raw === undefined || !/^\d+$/.test(raw)) {
-    throw new Error(`--${name} must be a non-negative integer, got "${raw ?? ""}"`);
-  }
-  return Number(raw);
 }
 
 async function defaultLoadScenes(contentDir) {
@@ -168,8 +158,8 @@ export async function runBrollCli({
   let autoBudget;
   let videoBudget;
   try {
-    autoBudget = parseBudget(argv, "auto-budget", DEFAULT_AUTO_SCENE_BUDGET);
-    videoBudget = parseBudget(argv, "video-budget", DEFAULT_AUTO_VIDEO_BUDGET);
+    autoBudget = parseBudgetArg(argv, "auto-budget", DEFAULT_AUTO_SCENE_BUDGET);
+    videoBudget = parseBudgetArg(argv, "video-budget", DEFAULT_AUTO_VIDEO_BUDGET);
   } catch (error) {
     log(`❌ ${error.message}`);
     return { exitCode: 1 };

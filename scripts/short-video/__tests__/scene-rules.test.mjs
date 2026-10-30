@@ -1999,6 +1999,18 @@ describe("checkBrollPromptDimensions", () => {
     expect(result).toEqual([]);
   });
 
+  it("#355: both declared chain prompts are judged even when the run will use only one", () => {
+    const result = checkBrollPromptDimensions([
+      broll("A glowing bar", {
+        mediaStrategy: undefined,
+        aiImage: { prompt: "A chart with 42 layers" },
+      }),
+    ]);
+    const details = result.map((r) => r.detail).join("\n");
+    expect(details).toContain("aiVideo.prompt names no camera framing");
+    expect(details).toContain("aiImage.prompt contains Arabic numerals (42)");
+  });
+
   it("#355: a chain scene's DECLARED prompt stays in the dimension sweep", () => {
     // No strategy + a declared aiVideo prompt is still a real T2V input; only
     // claim-derived text is exempt from the thin-write sweep.

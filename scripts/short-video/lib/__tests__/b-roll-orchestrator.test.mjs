@@ -906,6 +906,52 @@ describe("runBrollStage #355 default chain", () => {
     expect(plan.entries.find((e) => e.sceneId === 2).action).toBe("generate");
   });
 
+  function cachedChainVideoReport(scene, file = "scene-1-seed1024.mp4") {
+    const raw = scene.aiVideo.prompt;
+    const generationPrompt = composeGenerationPrompt(scene, "wan2.2");
+    return {
+      content: "demo",
+      threshold: 60,
+      updatedAt: null,
+      scenes: {
+        [String(scene.id)]: {
+          strategy: "auto",
+          form: "video",
+          auto: true,
+          promptSource: "aiVideo.prompt",
+          prompt: raw,
+          promptHash: promptHash(generationPrompt),
+          injectionVersion: PROMPT_INJECTION_VERSION,
+          round: 1,
+          status: "won",
+          voiceover: scene.voiceover,
+          candidates: [{ seed: 1024, file, relevance: 90, reason: "ok" }],
+          winner: { seed: 1024, file, source: "AI-generated (FastVideo FastMetal-5B-QAD)" },
+        },
+      },
+    };
+  }
+
+  test("a cached video winner frees the T2V slot for a downgraded chain scene", async () => {
+    const dirs = stageDirs();
+    const cached = { id: 1, voiceover: "v1", aiVideo: { prompt: "a slow dolly shot" } };
+    const fresh = { id: 2, voiceover: "v2", aiVideo: { prompt: "a slow pan shot" } };
+    writeReport(reportPath(dirs.outputDir), cachedChainVideoReport(cached));
+    const { generate, calls } = okGenerateMock();
+    const result = await runBrollStage(
+      baseOpts(dirs, {
+        scenes: [cached, fresh],
+        approveAuto: true,
+        videoBudget: 1,
+        generate,
+      }),
+    );
+    expect(result.counts.cached).toBe(1);
+    expect(result.counts.generated).toBe(1);
+    expect(readReport(reportPath(dirs.outputDir)).scenes["2"].form).toBe("video");
+    expect(calls.flat().every((job) => job.output_path.endsWith(".mp4"))).toBe(true);
+  });
+
   test("legacy explicit asset chain entries are labelled auto in the report", async () => {
     const dirs = stageDirs();
     const scene = { id: 9, voiceover: "v", mediaStrategy: "asset" };

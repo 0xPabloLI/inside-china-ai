@@ -2129,23 +2129,45 @@ export function coversNegativeGroup(prompt, phrases) {
 // scene's own DECLARED aiVideo/aiImage prompt is still a real generation input
 // and stays in the sweep.
 function generatingPrompt(scene) {
-  if (!GENERATING_STRATEGIES.has(scene.mediaStrategy)) {
-    // #355: a chain scene may carry a DECLARED prompt (which can drive T2V),
-    // so the dimension sweep still judges it. Derived claim text is not an
-    // authored 6/8-dimension write and stays out of the sweep. Prefer the
-    // video prompt when both exist: it is the one the chain may spend on.
-    if (!resolveMediaPlan(scene).auto) return null;
-    const declaredVideo = scene.aiVideo?.prompt;
-    if (typeof declaredVideo === "string" && declaredVideo.trim() !== "") return declaredVideo;
-    const declaredImage = scene.aiImage?.prompt;
-    if (typeof declaredImage === "string" && declaredImage.trim() !== "") return declaredImage;
-    return null;
-  }
+  if (!GENERATING_STRATEGIES.has(scene.mediaStrategy)) return null;
   const prompt = IMAGE_GENERATING_STRATEGIES.has(scene.mediaStrategy)
     ? scene.aiImage?.prompt
     : scene.aiVideo?.prompt;
   if (typeof prompt !== "string" || prompt.trim() === "") return null;
   return prompt;
+}
+
+/**
+ * Every DECLARED prompt a scene may generate from, with its field name.
+ * Explicit strategies yield exactly one; a #355 chain scene yields whichever
+ * of aiVideo.prompt / aiImage.prompt the writer declared. Both are judged:
+ * the chain can downgrade to the image form after the video budget is spent,
+ * so checking only the currently-preferred prompt would let the prompt that
+ * actually runs escape the sweep. Derived claim text is not an authored
+ * 6/8-dimension write and is deliberately absent.
+ */
+function generatingPrompts(scene) {
+  if (GENERATING_STRATEGIES.has(scene.mediaStrategy)) {
+    const prompt = generatingPrompt(scene);
+    if (prompt === null) return [];
+    return [
+      {
+        prompt,
+        field: IMAGE_GENERATING_STRATEGIES.has(scene.mediaStrategy)
+          ? "aiImage.prompt"
+          : "aiVideo.prompt",
+      },
+    ];
+  }
+  if (!resolveMediaPlan(scene).auto) return [];
+  const prompts = [];
+  if (typeof scene.aiVideo?.prompt === "string" && scene.aiVideo.prompt.trim() !== "") {
+    prompts.push({ prompt: scene.aiVideo.prompt, field: "aiVideo.prompt" });
+  }
+  if (typeof scene.aiImage?.prompt === "string" && scene.aiImage.prompt.trim() !== "") {
+    prompts.push({ prompt: scene.aiImage.prompt, field: "aiImage.prompt" });
+  }
+  return prompts;
 }
 
 /**
@@ -2174,33 +2196,39 @@ export function checkBrollPromptDimensions(scenes) {
   const byPrompt = new Map();
 
   for (const scene of scenes) {
-    const prompt = generatingPrompt(scene);
-    if (prompt === null) continue;
+    const prompts = generatingPrompts(scene);
+    if (prompts.length === 0) continue;
+    const auto = resolveMediaPlan(scene).auto;
+    for (const { prompt, field } of prompts) {
+      // Explicit strategies keep their historical message shape; chain
+      // scenes name the field so a two-prompt scene stays attributable.
+      const subject = auto ? field : "prompt";
 
-    // (a) numeral sweep.
-    const numerals = [...new Set(prompt.match(NUMERAL_PATTERN) ?? [])];
-    if (numerals.length > 0) {
-      warn(
-        `Scene ${scene.id} prompt contains Arabic numerals (${numerals.join(", ")})`,
-        "Move data values into texts — T2V/T2I garbles glyphs; " +
-          "an element count (e.g. '3 layers') is fine as-is",
-      );
+      // (a) numeral sweep.
+      const numerals = [...new Set(prompt.match(NUMERAL_PATTERN) ?? [])];
+      if (numerals.length > 0) {
+        warn(
+          `Scene ${scene.id} ${subject} contains Arabic numerals (${numerals.join(", ")})`,
+          "Move data values into texts — T2V/T2I garbles glyphs; " +
+            "an element count (e.g. '3 layers') is fine as-is",
+        );
+      }
+
+      // (b) thin-write sweep — heuristic keyword probe, not a semantic read.
+      const hasShotDirection = Object.values(BROLL_SHOT_SIGNALS).some((re) => re.test(prompt));
+      if (!hasShotDirection) {
+        warn(
+          `Scene ${scene.id} ${subject} names no camera framing or camera move (subject-only thin write; heuristic)`,
+          "State a framing and a camera move (e.g. 'medium shot, slow push-in'). " +
+            "Protocol: docs/video-script-writing-guide.md → Declared b-roll prompt 写作协议",
+        );
+      }
+
+      // (c) reuse bookkeeping.
+      const key = prompt.trim().toLowerCase().replace(/\s+/g, " ");
+      if (!byPrompt.has(key)) byPrompt.set(key, []);
+      byPrompt.get(key).push(scene.id);
     }
-
-    // (b) thin-write sweep — heuristic keyword probe, not a semantic read.
-    const hasShotDirection = Object.values(BROLL_SHOT_SIGNALS).some((re) => re.test(prompt));
-    if (!hasShotDirection) {
-      warn(
-        `Scene ${scene.id} prompt names no camera framing or camera move (subject-only thin write; heuristic)`,
-        "State a framing and a camera move (e.g. 'medium shot, slow push-in'). " +
-          "Protocol: docs/video-script-writing-guide.md → Declared b-roll prompt 写作协议",
-      );
-    }
-
-    // (c) reuse bookkeeping.
-    const key = prompt.trim().toLowerCase().replace(/\s+/g, " ");
-    if (!byPrompt.has(key)) byPrompt.set(key, []);
-    byPrompt.get(key).push(scene.id);
   }
 
   // (c) emit reuse warnings once the whole pack is seen.

@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 
 export const MAX_ROUNDS = 3;
 export const REPORT_FILENAME = "b-roll-report.json";
-export const PLAN_FILENAME = "media-chain-plan.json";
+const PLAN_FILENAME = "media-chain-plan.json";
 
 export function reportPath(outputDir) {
   return `${outputDir}/${REPORT_FILENAME}`;

@@ -26,6 +26,7 @@ import {
   resolveMediaPlan,
   resolveGenerationPrompt,
   selectAutoForm,
+  hasDeclaredVideoPrompt,
 } from "../media-strategies.mjs";
 import { buildClaim, scoreCandidates, pickWinner, GATE_THRESHOLD } from "./gate.mjs";
 import { resolveDependencies, runGeneration, resolveModelTier, MODEL_TIERS } from "./runner.mjs";
@@ -602,6 +603,30 @@ export async function runBrollStage(opts) {
     cachedIds.add(sceneId);
     if (candidate.action === "generate") cachedBudgetedAuto += 1;
     candidate.action = "cached";
+  }
+
+  // Re-pick forms among uncached chain scenes: a cached video winner released
+  // its T2V slot, so a scene the allocator had downgraded to T2I may now ride
+  // T2V. This mirrors the promotion loop below for the video dimension.
+  let videoSlots = videoBudget;
+  for (const entry of chainPlan.entries) {
+    if (!entry.auto || entry.action !== "generate" || cachedIds.has(String(entry.scene.id))) {
+      continue;
+    }
+    const form = hasDeclaredVideoPrompt(entry.scene) && videoSlots > 0 ? "video" : "image";
+    if (form === "video") videoSlots -= 1;
+    const promptInfo = resolveGenerationPrompt(entry.scene, form, { allowDerived: true });
+    if (!promptInfo) {
+      entry.action = "skip";
+      entry.reason = "no-generation-prompt";
+      entry.form = form;
+      entry.prompt = null;
+      entry.promptSource = null;
+      continue;
+    }
+    entry.form = form;
+    entry.prompt = promptInfo.prompt;
+    entry.promptSource = promptInfo.source;
   }
 
   // Cached chain scenes did not spend GPU, so release their budget slots to
