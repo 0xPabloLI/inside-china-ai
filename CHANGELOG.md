@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.45.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.44.0...tanstack_start_ts-v1.45.0) (2026-10-30)
+
+
+### Features
+
+* **video:** CDP 发布路径改用人类输入形态（轨迹/逐字/抖动/审阅/预热）([#1013](https://github.com/0xPabloLI/inside-china-ai/issues/1013)) ([eecc993](https://github.com/0xPabloLI/inside-china-ai/commit/eecc993c48499301216f1fd1bec2a62491b8ba03))
+
 ## [1.44.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.43.2...tanstack_start_ts-v1.44.0) (2026-10-30)
 
 
