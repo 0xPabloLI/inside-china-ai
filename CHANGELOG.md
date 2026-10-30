@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.43.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.42.0...tanstack_start_ts-v1.43.0) (2026-10-30)
+
+
+### Features
+
+* **media:** validate catalog.yml dimensions against declarations and disk ([#1003](https://github.com/0xPabloLI/inside-china-ai/issues/1003)) ([#1034](https://github.com/0xPabloLI/inside-china-ai/issues/1034)) ([87c1f8c](https://github.com/0xPabloLI/inside-china-ai/commit/87c1f8cdac5162ed69dc2d74863e8def598e51e2))
+
 ## [1.42.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.41.2...tanstack_start_ts-v1.42.0) (2026-10-30)
 
 
