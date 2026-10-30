@@ -119,16 +119,19 @@ export function formatMediaChainPlan(plan) {
   return lines.join("\n");
 }
 
-function estimateForPlan(plan, { tier }) {
+function estimateForPlan(plan, { tier, maxScenes = Infinity }) {
   let imageScenes = 0;
   let videoScenes = 0;
   let pending = 0;
+  let counted = 0;
   for (const entry of plan.entries) {
     if (entry.action === "approval-required") {
       pending += 1;
       continue;
     }
     if (entry.action !== "generate") continue;
+    if (counted >= maxScenes) continue;
+    counted += 1;
     if (entry.form === "image") imageScenes += 1;
     else videoScenes += 1;
   }
@@ -137,7 +140,7 @@ function estimateForPlan(plan, { tier }) {
   // Pending chain scenes ride the T2I fast path until approved; quote it so
   // the approval request carries its own price tag.
   const pendingSeconds = pending * 2 * EST_SECONDS_PER_IMAGE;
-  return { pending, runnableSeconds, pendingSeconds, perClip };
+  return { runnableSeconds, pendingSeconds, perClip };
 }
 
 export async function runBrollCli({
@@ -190,10 +193,11 @@ export async function runBrollCli({
     autoBudget: opts.autoBudget,
     videoBudget: opts.videoBudget,
   });
+  plan.summary.maxScenes = Number.isFinite(opts.maxScenes) ? opts.maxScenes : null;
   const runnable = plan.entries.filter((entry) => entry.action === "generate");
   const approvalRequired = plan.summary.approvalRequired;
 
-  if (runnable.length === 0 && approvalRequired === 0) {
+  if (runnable.length === 0 && approvalRequired === 0 && plan.summary.budgetSkipped === 0) {
     log(
       "ℹ️  No scenes require B-roll generation (no chain candidate, cache-complete, or filtered out).",
     );
@@ -213,7 +217,7 @@ export async function runBrollCli({
   }
 
   const tier = resolveModelTier(process.env);
-  const estimate = estimateForPlan(plan, { tier });
+  const estimate = estimateForPlan(plan, { tier, maxScenes: opts.maxScenes ?? Infinity });
   if (runnable.length > 0) {
     log(
       `🎞  B-roll: ${runnable.length} scene(s) x 2 candidates = ${formatDuration(estimate.runnableSeconds)} ` +

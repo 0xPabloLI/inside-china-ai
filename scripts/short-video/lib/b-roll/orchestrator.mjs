@@ -184,7 +184,16 @@ export function buildGenerationPlan(scenes, opts = {}) {
     if (base.auto) {
       if (autoSelected >= autoBudget) {
         budgetSkipped += 1;
-        entries.push({ ...base, action: "budget-skipped", reason: "auto-scene-budget", form });
+        const skippedForm = form === "auto" ? selectAutoForm(scene, videoBudget) : form;
+        const skippedPrompt = resolveGenerationPrompt(scene, skippedForm, { allowDerived: true });
+        entries.push({
+          ...base,
+          action: "budget-skipped",
+          reason: "auto-scene-budget",
+          form: skippedForm,
+          prompt: skippedPrompt?.prompt ?? null,
+          promptSource: skippedPrompt?.source ?? null,
+        });
         continue;
       }
       form = form === "auto" ? selectAutoForm(scene, videoBudget - autoVideosSelected) : form;
@@ -445,6 +454,7 @@ export async function runBrollStage(opts) {
     autoBudget,
     videoBudget,
   });
+  chainPlan.summary.maxScenes = Number.isFinite(maxScenes) ? maxScenes : null;
   const planFile = planPath(outputDir);
   const hasAnyAutoDecision = chainPlan.entries.some(
     (entry) => entry.auto && entry.action !== "skip" && entry.action !== "filtered-out",
@@ -547,9 +557,18 @@ export async function runBrollStage(opts) {
     const entry = report.scenes?.[sceneId];
     // The report entry's form is the only trustworthy shape for judging a
     // cached winner; the plan's current form may have changed with the budget.
-    const cachedForm =
-      entry?.form === "image" || entry?.form === "video" ? entry.form : candidate.form;
-    if (cachedForm !== "image" && cachedForm !== "video") continue;
+    const reportForm = entry?.form === "image" || entry?.form === "video" ? entry.form : null;
+    // Pre-#355 reports have no `form`; the winner's extension is the fallback,
+    // so a cached winner is never dropped just because the plan says "auto".
+    const fileForm = entry?.winner?.file?.endsWith(".png")
+      ? "image"
+      : entry?.winner?.file?.endsWith(".mp4")
+        ? "video"
+        : null;
+    const planForm =
+      candidate.form === "image" || candidate.form === "video" ? candidate.form : null;
+    const cachedForm = reportForm ?? fileForm ?? planForm;
+    if (!cachedForm) continue;
     const prep = prepare(candidate, cachedForm);
     if (force || !entry) continue;
     // Legacy migration is video-only: image entries are new in #155, there

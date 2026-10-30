@@ -1273,7 +1273,7 @@ function checkSearchHintsSchema(scenes, phrases = sceneClaimPhrases(scenes)) {
         level: "fail",
         category: "Media",
         check: `Search hints schema: Scene ${scene.id} has a claim path`,
-        detail: `searchHints is declared on a scene the sourcer never claims: hook, text-first layout, media: null, bound media without an explicit assetNeed, generation-only strategy (b-roll / ai-image) without an explicit assetNeed, or neither voiceover nor assetNeed — nothing reads it`,
+        detail: `searchHints is declared on a scene the sourcer never claims: hook, text-first layout, media: null, bound media without an explicit assetNeed, generation-only strategy (b-roll / ai-image; an assetNeed does not open a claim), or neither voiceover nor assetNeed — nothing reads it`,
         fix: "Remove searchHints from this scene, or make it sourcing-eligible first (hooks are curated by hand; text-first layouts cannot carry evidence — see #761).",
       });
       continue;

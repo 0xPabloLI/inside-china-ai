@@ -869,6 +869,19 @@ describe("runBrollStage #355 default chain", () => {
     expect(plan.entries[0].action).toBe("cached");
   });
 
+  test("a pre-form cached chain winner is found by its file extension", async () => {
+    const dirs = stageDirs();
+    const scene = { id: 1, voiceover: "a robot arm assembles a phone" };
+    const raw = scene.voiceover;
+    const entry = cachedChainReport(scene);
+    // Simulate an entry written before report entries carried `form`.
+    delete entry.scenes["1"].form;
+    writeReport(reportPath(dirs.outputDir), entry);
+    const result = await runBrollStage(baseOpts(dirs, { scenes: [scene] }));
+    expect(result.counts.cached).toBe(1);
+    expect(scene.media?.type).toBe("image");
+  });
+
   test("a cached chain winner frees its budget for a budget-skipped scene", async () => {
     const dirs = stageDirs();
     const cached = { id: 1, voiceover: "a robot arm assembles a phone" };

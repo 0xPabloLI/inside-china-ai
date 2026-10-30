@@ -142,11 +142,13 @@ function classifyUnmet(evidence) {
   if (status === "unavailable") return GAP_REASON.VLM_UNAVAILABLE;
 
   // A b-roll entry means the scene reached the generation stage. For an
-  // `asset-then-*` strategy that is the definition of "sourcing produced
-  // nothing usable" — Stage 4's view of the same miss.
-  if (brollEntry && String(brollEntry.strategy ?? "").startsWith("asset-then-")) {
-    return GAP_REASON.FELL_THROUGH_TO_GENERATION;
-  }
+  // `asset-then-*` strategy or a #355 chain entry (`strategy: "auto"`) that is
+  // the definition of "sourcing produced nothing usable" — Stage 4's view of
+  // the same miss.
+  const generationEntry =
+    brollEntry &&
+    (brollEntry.auto === true || String(brollEntry.strategy ?? "").startsWith("asset-then-"));
+  if (generationEntry) return GAP_REASON.FELL_THROUGH_TO_GENERATION;
 
   if (rejections.length > 0) {
     if (rejections.some((entry) => rejectionBand(entry) === "unavailable")) {
