@@ -16,6 +16,18 @@
  */
 
 /**
+ * Fits a hook may declare.
+ *
+ * `cover` and `contain` mirror `VALID_FITS` in `lib/media-bg.mjs`, which is the
+ * validation-side authority. This module is deliberately import-free, so the
+ * list is repeated rather than imported — and a drift test in
+ * `__tests__/scene-rules.test.mjs` locks the two together. The duplication has
+ * already bitten once: the renderer accepted `contain` while this gate still
+ * rejected it, which is the inconsistency this contract was changed to fix.
+ */
+export const HOOK_SUPPORTED_FITS = ["cover", "contain"];
+
+/**
  * Check one hook's media binding against the curation contract.
  *
  * @param {Record<string, any>} media - non-null scene.media object
@@ -42,7 +54,7 @@ export function checkHookMediaQuality(media) {
   // inconsistent switch at t=3.4s is worse than either choice alone.
   //
   // fill/none remain failures: they distort the frame rather than fitting it.
-  if (m.fit != null && m.fit !== "cover" && m.fit !== "contain") {
+  if (m.fit != null && !HOOK_SUPPORTED_FITS.includes(m.fit)) {
     failures.push({
       check: "Hook media fit",
       detail: `Hook media fit "${m.fit}" is not supported (fill/none distort the frame; anything else is likely a typo)`,

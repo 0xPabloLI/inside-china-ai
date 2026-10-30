@@ -17,8 +17,8 @@
  * the canvas is split into NON-OVERLAPPING bands — content must never enter
  * the burned-subtitle lane, and nothing may enter the TikTok UI zones:
  *
- *   content (≤ y=1150, x∈[60,880]) → gap → subtitle lane (y≈1188-1350, 60px,
- *   x∈[110,830]) → clean margin → TikTok caption UI (y≥1500 worst case)
+ *   content (≤ y=1309, x∈[60,880]) → gap → subtitle lane (y=1339-1420, 81px,
+ *   x∈[110,830]) → clean margin → TikTok caption UI (y≈1676 measured)
  *
  * Invariants are test-locked in __tests__/safe-zones.test.mjs.
  *
@@ -50,12 +50,13 @@ export const SAFE_ZONES = {
    * CONTAIN_MEDIA_BOTTOM): a 16:9 source at 1080 wide is 608px tall, so pushing
    * this value lower walks the picture's top down until the bar's own height
    * starts eating it. 1309 puts a 3-row scene's picture at y 429-1037 and its
-   * caption block at 1041-1309, with 30px still clear of the lane.
+   * caption block at 1045-1309, with 30px still clear of the lane.
    *
    * Everything below this line is reservation, not picture:
-   *   30px  declared content → lane gap
-   *   81px  the lane's second-line reserve (now disabled, see maxLines)
-   *   125px the cue's own offset above its lane bottom (marginV 500)
+   *   30px  declared content → lane gap        (1309 → 1339)
+   *   81px  the lane's full reservation         (1339 → 1420)
+   *   500px the lane's bottom offset, marginV   (1420 → 1920)
+   * 30 + 81 + 500 = 611.
    */
   bottom: 611,
   /** Content must stay at least this many px from the left edge */
@@ -81,7 +82,7 @@ export const SAFE_ZONES = {
 export const MEDIA_BOTTOM_BAR = {
   /** Text bar height ceiling — the four-row stack (company/action/result/source). */
   textBarHeight: 312,
-  /** Text bar top edge on the canvas (y = 1150 − 312 = 838). */
+  /** Text bar top edge on the canvas (y = 1309 − 312 = 997). */
   textBarTop: CANVAS.height - SAFE_ZONES.bottom - 312,
   /**
    * Measured rendered height of each row, in px. These are the numbers the
@@ -177,8 +178,8 @@ export const EVIDENCE_CARD = {
  * screenshot estimate. Measuring the real preview DOM with this pack's own
  * 1166-character caption in place (`.meta-data` inside `.video-overlay-container`,
  * the element that carries the username and the first caption lines) puts the
- * caption block's top edge at canvas y ≈ 1676. The lane now sits at 1258-1420:
- * still 256px clear of the measured caption top, and 128px clear of the
+ * caption block's top edge at canvas y ≈ 1676. The lane now sits at 1339-1420:
+ * still 256px clear of the measured caption top, and 30px clear of the
  * content band, while the cue reads noticeably lower in frame.
  *
  * The 60-70% "best readability" band from the vSubtitle/Blitzcut research is
@@ -198,9 +199,9 @@ export const SUBTITLE_LANE = {
    * the lower third (1420/1920 = 74% → 1312/1920 = 68%) and onto the content
    * band's own edge.
    *
-   * The gap is closed from the other end instead — SAFE_ZONES.bottom 770 → 710
-   * moves the content stack DOWN 60px, which takes the text-bar-to-cue gap
-   * from 267px to 48px without touching the cue's position at all.
+   * The gap is closed from the other end instead — SAFE_ZONES.bottom 770 → 611
+   * moves the content stack DOWN, which takes the text-bar-to-cue gap from
+   * 267px to 30px without touching the cue's position at all.
    */
   marginV: 500,
   /** ASS font size (Helvetica Neue Bold) — matches TikTok native ~60px */
@@ -260,12 +261,12 @@ export const SUBTITLE_LANE_TOP =
  * 2026-10-24 unitree render the content centroid sat at y≈685 against a frame
  * centre of 960, and the user read the result as "内容整体还是太偏上了".
  *
- * The band now runs to the content band's bottom edge (y=1150), so the picture
- * occupies 60% of the frame instead of 43-53%, and the text is drawn ON the
+ * The band now runs to the content band's bottom edge (y=1309), so the picture
+ * occupies 68.2% of the frame instead of 43-53%, and the text is drawn ON the
  * picture over a gradient scrim rather than in an opaque panel below it. The
- * band deliberately stops at 1150 rather than at the subtitle lane: see the
- * `bottom` note below for the measured reason (the source's own bottom-corner
- * captions would land in the FAIL-only subtitle gap).
+ * band deliberately stops at 1309 rather than at the subtitle lane top (1339):
+ * see the `bottom` note below for the measured reason (the source's own
+ * bottom-corner captions would land in the FAIL-only subtitle gap).
  *
  * The scrims are not decoration. They are what lets the full-bleed band pass
  * the frame gate: verify-remotion-frames.mjs fails a frame when more than 5% of
@@ -289,16 +290,15 @@ export const MEDIA_BAND = {
    * The taller value (SUBTITLE_LANE_TOP, 1258) was measured and rejected: a
    * 16:9 source cover-cropped into a 1080xH band shows its full height, so a
    * caption burned into the source's bottom-left corner lands at source y
-   * 1005-1050 → canvas y 0.93H-0.97H. At H=1258 that is y 1171-1223, which is
-   * inside the FAIL-only subtitle gap (now 1210-1258): the frame gate would
-   * read the caption as content in the gap and fail, and the scrim needed to
-   * pass would dim the caption past readability. At H=1210 the same caption
-   * lands at y 1125-1174 — inside the content band, above the gap, and outside
-   * the action rail (x 51-858 vs the rail's x≥880) — so it survives as
-   * evidence, with 36px of headroom before the gap begins.
+   * 1005-1050 → canvas y 0.93H-0.97H. At H=1309 that is y 1217-1270 — inside
+   * the content band, above the FAIL-only subtitle gap (now 1309-1339), and
+   * outside the action rail (x 51-858 vs the rail's x≥880) — so it survives as
+   * evidence, with 39px of headroom before the gap begins. A taller band, H
+   * ≥1350, would push the same caption into the gap and the frame gate would
+   * read it as content; that ceiling is what fixes this value.
    *
-   * H tracks SAFE_ZONES.bottom, so the 770 → 710 change above grew the band
-   * from 1150 to 1210 and the picture from 60% to 63% of the frame.
+   * H tracks SAFE_ZONES.bottom, so the 770 → 611 change above grew the band
+   * from 1150 to 1309 and the picture from 60% to 68.2% of the frame.
    */
   bottom: CANVAS.height - SAFE_ZONES.bottom,
   /** Bottom scrim fades in from this canvas y. */
@@ -356,7 +356,7 @@ export const MEDIA_BAND = {
  * Net effect for a 16:9 source at full width (608px tall): picture y 429-1037,
  * up from y 301-909 under the old centre-anchored band. +128px.
  */
-export const CONTAIN_MEDIA_BOTTOM = 1037;
+export const CONTAIN_MEDIA_BOTTOM = mediaBottomBarTopFor({ company: 1, action: 1, result: 1 }) - 8;
 
 /**
  * Normalised stops approximating smoothstep(t) = t²(3-2t).

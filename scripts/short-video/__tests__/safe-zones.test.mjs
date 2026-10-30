@@ -26,7 +26,7 @@ import {
  *     centered around 62-70% of frame height — our subtitles match it.
  *
  * The 1080×1920 canvas is split into non-overlapping bands:
- *   content (down to y=1309) → gap → subtitle lane (y=1339-1420, 60px)
+ *   content (down to y=1309) → gap → subtitle lane (y=1339-1420, 81px)
  *   → clean margin → TikTok caption UI (y≥1500 worst case).
  *
  * These tests lock the chain so the consumers — scene content
@@ -78,9 +78,16 @@ describe("region separation (single source of truth)", () => {
     expect(laneTop - contentBottomEdge).toBeGreaterThanOrEqual(30);
   });
 
-  it("reserves at least two lines of subtitle height inside the lane", () => {
-    const twoLines = SUBTITLE_LANE.fontSize * SUBTITLE_LANE.lineHeight * SUBTITLE_LANE.maxLines;
-    expect(laneBottom - laneTop).toBeGreaterThanOrEqual(twoLines);
+  it("reserves exactly the lines it permits, pinned with literals", () => {
+    // This used to compute its bound from maxLines itself, which made it
+    // tautological once maxLines dropped to 1: it asserted 81 >= 81 and could
+    // never fail. Pin the inputs and the product instead. The other half of the
+    // contract — that a cue exceeding maxLines is refused rather than rendered
+    // into the content band — is locked in subtitle-compliance.test.mjs.
+    expect(SUBTITLE_LANE.maxLines).toBe(1);
+    expect(SUBTITLE_LANE.fontSize).toBe(60);
+    expect(SUBTITLE_LANE.lineHeight).toBe(1.35);
+    expect(laneBottom - laneTop).toBe(81);
   });
 
   it("keeps subtitles clear of the worst-case TikTok caption zone", () => {
@@ -164,24 +171,27 @@ describe("evidence card (#663, #848)", () => {
  * Full-bleed media band (2026-10-25, edge re-tuned 2026-10-29). These lock the
  * geometry that answers the "内容整体还是太偏上了" note: the picture used to stop
  * at the four-row text bar top (y=838, 43.6% of the frame) with an opaque panel
- * below it, and now runs to the content band's own bottom edge (y=1210, 63.0%)
+ * below it, and now runs to the content band's own bottom edge (y=1309, 68.2%)
  * with the text drawn on a gradient scrim over the picture.
  *
- * The 2026-10-29 change moved that edge 1150 → 1210 by taking SAFE_ZONES.bottom
- * 770 → 710. The user raised the composition twice — 2026-10-24 and again on
- * 2026-10-29 ("整个内容区没有保证居中，内容区包括视频和文字部分") — and the residual
- * 108px gap under the text bar was the whole of the second complaint. The cue
- * itself did NOT move: the gap is now spent on both sides of the stack.
+ * The 2026-10-29 change moved that edge 1150 → 1309 by taking SAFE_ZONES.bottom
+ * 770 → 611. (An intermediate 710 / y=1210 pass came and went first: 60px is 3%
+ * of the frame, under the threshold where a composition shift reads, and the
+ * user reported seeing no movement.) The user raised the composition twice —
+ * 2026-10-24 and again on 2026-10-29 ("整个内容区没有保证居中，内容区包括视频和文字
+ * 部分") — and the residual gap under the text bar was the whole of the second
+ * complaint. The cue itself did NOT move: the gap is now spent on both sides.
  */
 describe("media band (full-bleed footage)", () => {
   it("stops at the content band's bottom edge, never at the subtitle lane", () => {
     // The taller value (SUBTITLE_LANE_TOP, 1258) was measured and rejected: a
     // 16:9 source cover-cropped into a 1080xH band shows its full height, so a
     // caption burned into the source's bottom-left corner lands at source y
-    // 1005-1050 → canvas y 0.93H-0.97H. At H=1258 that is y 1171-1223, inside
-    // the FAIL-only subtitle gap (1210-1258) — the frame gate reads the caption
-    // as content in the gap and fails, and the scrim needed to pass dims the
-    // caption past readability. At H=1210 it lands at y 1125-1174 instead.
+    // 1005-1050 → canvas y 0.93H-0.97H. H=1309 puts it at y 1217-1270 — inside
+    // the content band, 39px clear of the FAIL-only gap. A taller band walks it
+    // into that gap (SUBTITLE_LANE_TOP, 1339, would put it at 1245-1299 and the
+    // band's own edge at the gap's start), where the frame gate reads it as
+    // content and fails, and the scrim needed to pass dims it past readability.
     expect(MEDIA_BAND.bottom).toBe(1309);
     expect(MEDIA_BAND.bottom).toBe(CANVAS.height - SAFE_ZONES.bottom);
     expect(MEDIA_BAND.bottom).toBeLessThan(SUBTITLE_LANE_TOP);

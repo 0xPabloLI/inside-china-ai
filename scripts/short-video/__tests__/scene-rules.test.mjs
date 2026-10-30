@@ -43,6 +43,8 @@ import {
   checkInstructCoverage,
   runAllSceneDataChecks,
 } from "../lib/scene-rules.mjs";
+import { HOOK_SUPPORTED_FITS } from "../lib/hook-media.mjs";
+import { VALID_FITS } from "../lib/media-bg.mjs";
 import { scenes as bytedanceScenes } from "../content/bytedance-distillation/scene-data.mjs";
 import { scenes as deepseekScenes } from "../content/deepseek/scene-data.mjs";
 import { scenes as restraintScenes } from "../content/restraint/pt1/scene-data.mjs";
@@ -1436,6 +1438,24 @@ describe("checkHookMediaContract", () => {
     );
     expect(results.fail.find((f) => f.check.includes("Hook media"))).toBeUndefined();
     expect(results.warn.find((w) => w.check.includes("Hook media"))).toBeDefined();
+  });
+
+  it("accepts exactly the fits media-bg.mjs validates", () => {
+    // Two hand-maintained lists, one contract: hook-media.mjs cannot import
+    // VALID_FITS (it is documented import-free), so this is what stops them
+    // drifting. They already drifted once — the renderer took `contain` while
+    // this gate still refused it — which is the bug the contract change fixed.
+    expect([...HOOK_SUPPORTED_FITS].sort()).toEqual([...VALID_FITS].sort());
+  });
+
+  it("gates on membership, so every unsupported fit is refused", () => {
+    for (const fit of ["fill", "none", "Contain", ""]) {
+      const failures = checkHookMediaContract([hook({ media: { ...cleanMedia, fit } })]);
+      const fitFailure = failures.find((f) => f.check.includes("Hook media fit"));
+      expect(fitFailure?.detail, `fit ${JSON.stringify(fit)} should be refused`).toContain(
+        `"${fit}"`,
+      );
+    }
   });
 });
 
