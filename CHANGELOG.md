@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.44.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.43.2...tanstack_start_ts-v1.44.0) (2026-10-30)
+
+
+### Features
+
+* **video:** artifact-level BGM mix margin measurement and gate ([#950](https://github.com/0xPabloLI/inside-china-ai/issues/950)) ([#1045](https://github.com/0xPabloLI/inside-china-ai/issues/1045)) ([4825232](https://github.com/0xPabloLI/inside-china-ai/commit/482523294d0a2e13d6d046ef4b0ce48e1f939a7a))
+
 ## [1.43.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.43.1...tanstack_start_ts-v1.43.2) (2026-10-30)
 
 
