@@ -40,6 +40,7 @@ import {
   fetchExistingHashes,
 } from "./lib/supabase-client.mjs";
 import { collectMarkdownSource, findFilesRecursive } from "./lib/collectors.mjs";
+import { formatIssue, validateCatalog } from "../short-video/lib/catalog-validate.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, "..", "..");
@@ -177,6 +178,11 @@ async function collectSceneData() {
  * Graceful degradation:
  * - File missing → returns [] (no error)
  * - YAML parse error → console.warn, returns []
+ *
+ * Validation (#1003): the catalog is checked before indexing and the index
+ * refuses to write when an entry's declared dimensions are wrong or missing.
+ * A missing binary or an unreadable file is only a warning — the gitignored
+ * media is absent on a clean checkout.
  */
 function collectAssetCatalog() {
   const catalogPath = join(projectRoot, "scripts", "short-video", "assets", "catalog.yml");
@@ -199,6 +205,20 @@ function collectAssetCatalog() {
     return [];
   }
 
+  const validation = validateCatalog(entries, {
+    rootDir: join(projectRoot, "scripts", "short-video"),
+  });
+  if (validation.errors.length > 0) {
+    const detail = validation.errors.map((item) => `  - ${formatIssue(item)}`).join("\n");
+    throw new Error(`catalog.yml validation failed — refusing to index:\n${detail}`);
+  }
+  for (const warning of validation.warnings) {
+    console.warn(`  ⚠️  ${formatIssue(warning)}`);
+  }
+  console.log(
+    `  ✅ catalog.yml validated (${validation.total} entries; ${validation.legacyExempt.length} legacy without dimensions)`,
+  );
+
   const chunks = chunkCatalog(entries);
 
   const results = chunks.map((chunk) => {
@@ -208,6 +228,8 @@ function collectAssetCatalog() {
       file_path: entry.file,
       source: entry.source,
       license: entry.license,
+      width: entry.width,
+      height: entry.height,
       used_in: entry.used_in,
       keywords: entry.keywords,
     });

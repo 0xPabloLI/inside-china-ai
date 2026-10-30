@@ -41,7 +41,7 @@ Stage 0 的「素材集合」不只有全文与媒体 URL。进入 Stage 1 前�
 1. **读缺口账本**（上一轮生产的回流）：`node scripts/short-video/asset-gaps.mjs --query "<公司/人物/模型/术语>"`。open 缺口是预获取优先级——它们已经让至少一个真实包空手而归。账本形状与生命周期见 `docs/media-asset-management.md` §2「素材缺口账本」。
 2. **查库内复用**：`node scripts/rag/query.mjs "<实体或概念>" --type asset-catalog --format json`。命中 → 按 `docs/media-asset-management.md` §1 复制进 `content/<slug>/assets/`（hook 必须；全局路径不能直接写成 `media.path`），在 scene-data 里引用；不要重复下载。
 3. **缺口预取**：对每个「本轮必需 + 库内无命中」的实体/概念，从官方或一手渠道预取 **1–2 条**（公司 logo/代表图、人物典型照、产品/术语图、主题特定画面）。只预取本轮素材里点名过的对象，不做整题批量下载。
-4. **入库与质量底线**：全局可复用的素材放 `scripts/short-video/assets/` 并写 `catalog.yml`（description / keywords / source / license / width / height）；短边 <720p 不入全局库——包内素材交给媒体轨 1.5b 的 `autoUpscaleIfNeeded`（`lib/media-track.mjs`，`upscale: false` 才跳过），或换高清源。写完执行 `node scripts/rag/index.mjs`。
+4. **入库与质量底线**：全局可复用的素材放 `scripts/short-video/assets/` 并写 `catalog.yml`（description / keywords / source / license / width / height）；短边 <720p 不入全局库——包内素材交给媒体轨 1.5b 的 `autoUpscaleIfNeeded`（`lib/media-track.mjs`，`upscale: false` 才跳过），或换高清源。写完先跑 `npm run lint:catalog` 核对声明尺寸与盘上实测（不符即红；文件缺失/probe 失败只警告），再执行 `node scripts/rag/index.mjs`（索引前跑同一校验，内容错误时拒绝写入）。
 5. **回填账本**：新增素材满足的缺口执行 `node scripts/short-video/asset-gaps.mjs --satisfy <gap-id|need 子串> --by <catalog 路径>`。
 
 **完成标准**：预获取清单逐条给出 `reuse` / `prefetch` / `accepted-gap` 三态之一；`accepted-gap` 写明原因（许可、平台限制、结构性稀缺，见 #186）。静默跳过 = 未完成本步。

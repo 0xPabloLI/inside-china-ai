@@ -2,12 +2,17 @@
 # Each entry is indexed by RAG (content_type: "asset-catalog").
 # Query: node scripts/rag/query.mjs "search text" --type asset-catalog
 # See: docs/media-asset-management.md §2
+# width/height are required for new entries — check with `npm run lint:catalog`.
+# The entries still missing them are frozen in lib/catalog-validate.mjs
+# (LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS); that list may only shrink.
 
 - file: content/unitree/assets/unitree-demo.mp4
   type: video
   description: "Unitree H1 humanoid robot walking and doing backflips"
   source: YouTube (yt-dlp)
   license: "Unitree Robotics official"
+  width: 640
+  height: 360
   used_in: [unitree/S2, unitree/S5, unitree/S6]
   keywords: [robot, humanoid, unitree, walking, backflip]
 
@@ -16,6 +21,8 @@
   description: "Unitree Robotics headquarters building in Hangzhou"
   source: Wikipedia Commons
   license: "CC-BY-SA"
+  width: 3468
+  height: 4624
   used_in: [unitree/S4]
   keywords: [unitree, building, headquarters, hangzhou]
 
@@ -24,6 +31,8 @@
   description: "DeepSeek official API Change Log, showing 2026-09-10 as the newest entry (DeepSeek-V4.1-Flash Release) with no October entries below or above it"
   source: "Screenshot of https://api-docs.deepseek.com/updates (live page, CDP capture 2026-10-14)"
   license: "DeepSeek official documentation — screenshot for editorial/evidence use"
+  width: 1080
+  height: 1920
   used_in: [deepseek-flash-silent-update/S1]
   keywords:
     [
@@ -44,6 +53,8 @@
   description: "Screenshot of @loktar00's October 12, 2026 X post asking whether DeepSeek did a stealth upgrade behind the scenes: one prompt, zero revisions, straight to the API"
   source: "Screenshot of https://x.com/loktar00/status/2109652056063582631 (live page, CDP capture 2026-10-14)"
   license: "X post — screenshot for editorial/evidence use"
+  width: 880
+  height: 814
   used_in: [deepseek-flash-silent-update/S2]
   keywords:
     [
@@ -64,6 +75,8 @@
   description: "Side-by-side comparison frame from @quimedesu's X video, labelling the left output 'Deepseek v4.1 Sep 9th' and the right 'Deepseek v4.1 Oct 12th' — the clip that reached 115,692 views"
   source: "Video thumbnail from https://x.com/quimedesu/status/2109718081681449325 (X CDN, 2026-10-14)"
   license: "X post — thumbnail for editorial/evidence use"
+  width: 880
+  height: 814
   used_in: [deepseek-flash-silent-update/S3]
   keywords:
     [
@@ -83,6 +96,8 @@
   description: "Screenshot of @dummerspast39's October 13, 2026 X post rebutting the upgrade claim: no new DeepSeek checkpoint on the official API after testing knowledge, vision and SVG output — the model is just random"
   source: "Screenshot of https://x.com/dummerspast39/status/2109681157742760299 (live page, CDP capture 2026-10-14)"
   license: "X post — screenshot for editorial/evidence use"
+  width: 880
+  height: 814
   used_in: [deepseek-flash-silent-update/S5]
   keywords:
     [
@@ -102,6 +117,8 @@
   description: "DeepSeek Monitor Archive fingerprint event log in dark mode: ten logged events, the newest dated September 19, 2026, and none in October"
   source: "Screenshot of https://deepseek-monitor-archive.pages.dev/fingerprints/ (live page, CDP capture 2026-10-14)"
   license: "DeepSeek Monitor Archive — screenshot for editorial/evidence use"
+  width: 1080
+  height: 1920
   used_in: [deepseek-flash-silent-update/S6]
   keywords:
     [

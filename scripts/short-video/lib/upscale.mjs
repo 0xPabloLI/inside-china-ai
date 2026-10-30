@@ -36,7 +36,7 @@ const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".avi", ".mkv"]);
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 
 /** Default target short side (720p). */
-const DEFAULT_TARGET_SHORT_SIDE = 720;
+export const DEFAULT_TARGET_SHORT_SIDE = 720;
 
 // ─── Pure functions ───
 
