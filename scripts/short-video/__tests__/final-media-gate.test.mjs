@@ -20,6 +20,7 @@ import {
   reportFinalMediaWarnings,
 } from "../lib/final-media-gate.mjs";
 import { inspectMediaFile, MIN_MEDIA_SIDE } from "../lib/media-integrity.mjs";
+import { MAX_ROUNDS } from "../lib/b-roll/report.mjs";
 
 /**
  * A real, decodable PNG. Fixtures used to be the literal string "fake" — the
@@ -511,7 +512,7 @@ describe("missing-media recovery context (#986)", () => {
       brollReport: { scenes: { 6: { status: "escalated", round: 3 } } },
     });
 
-    expect(report).toContain("3-round cap");
+    expect(report).toContain(`${MAX_ROUNDS}-round cap`);
     expect(report).toContain("remove the scene's entry");
     rmSync(dir, { recursive: true, force: true });
   });

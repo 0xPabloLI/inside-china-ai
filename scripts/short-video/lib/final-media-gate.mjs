@@ -31,6 +31,7 @@ import { existsSync } from "fs";
 import { resolve, sep } from "path";
 import { DEFAULT_NARRATIVE_LAYOUT } from "./text-slots.mjs";
 import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
+import { resolveMediaPlan } from "./media-strategies.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
 import {
   inspectMediaFile,
@@ -352,10 +353,11 @@ function sceneMediaContext(failure, { scenes = null, brollReport = null } = {}) 
   }
   const scene = (scenes ?? []).find((s) => String(s.id) === String(failure.sceneId));
   const entry = brollReport?.scenes?.[String(failure.sceneId)] ?? null;
-  // A chain entry carries `auto: true`; its scene may have no mediaStrategy at
-  // all. `asset` is the legacy spelling of the same default chain (#355).
-  const declared = scene?.mediaStrategy ?? null;
-  const strategy = !declared || declared === "asset" ? "default chain" : declared;
+  // `media-strategies.mjs` owns the vocabulary: an absent strategy and the
+  // legacy `asset` both resolve to `kind: "chain"` (#355). Never re-encode
+  // those literals here or a renamed strategy would keep the old label.
+  const plan = scene ? resolveMediaPlan(scene) : null;
+  const strategy = plan?.kind === "chain" ? "default chain" : (plan?.strategy ?? null);
   const bits = [];
   if (strategy) bits.push(`mediaStrategy: ${strategy}`);
   if (entry?.status) {
@@ -395,7 +397,7 @@ function mediaRecoveryLines(
   // "source-only" is the one strategy step 2 cannot honour: it never generates.
   // Say so instead of sending the operator into a stage that will plan zero jobs.
   const sourceOnly = (scenes ?? []).some(
-    (s) => missingIds.has(String(s.id)) && s.mediaStrategy === "source-only",
+    (s) => missingIds.has(String(s.id)) && resolveMediaPlan(s).kind === "source-only",
   );
   // Escalated means the round cap is spent: rerunning the stage refuses before
   // any GPU work, so the message must give the reset instead of repeating the
