@@ -61,7 +61,7 @@ function isPositiveInteger(value) {
   return Number.isInteger(value) && value > 0;
 }
 
-/** Catalog paths under `assets/` resolve to the curated global library. */
+/** Catalog paths under `assets/` (including render scratch `_staged/`) resolve to the curated global library. */
 function isGlobalLibraryPath(file) {
   return file.replace(/^\.\//, "").startsWith("assets/");
 }
@@ -112,6 +112,7 @@ export function validateCatalog(entries, options = {}) {
     verified: [],
     diskMissing: [],
     probeFailed: [],
+    probeUnsupported: [],
     legacyExempt: [],
     errors: [],
     warnings: [],
@@ -154,12 +155,26 @@ export function validateCatalog(entries, options = {}) {
       }
 
       result.legacyExempt.push(file);
-      if (probe && existsSync(join(rootDir, file))) {
-        const measured = runProbe(probe, join(rootDir, file));
+      if (!probe) continue;
+
+      const legacyPath = join(rootDir, file);
+      if (existsSync(legacyPath)) {
+        if (!isSupportedFile(legacyPath)) {
+          result.probeUnsupported.push(file);
+          result.warnings.push(
+            issue(
+              "probe-unsupported",
+              file,
+              "no probe for this file type; dimensions are declared but unverified",
+            ),
+          );
+          continue;
+        }
+        const measured = runProbe(probe, legacyPath);
         if (measured) {
           result.errors.push(
             issue(
-              "legacy-file-present",
+              "legacy-file-readable",
               file,
               `legacy entry's file is on disk (${measured.width}x${measured.height}); backfill width/height and drop it from the legacy list`,
             ),
@@ -167,7 +182,7 @@ export function validateCatalog(entries, options = {}) {
         } else {
           result.warnings.push(
             issue(
-              "legacy-file-present",
+              "legacy-file-unmeasurable",
               file,
               "legacy entry's file is on disk but could not be measured; backfill width/height once a probe is available",
             ),
@@ -241,6 +256,7 @@ export function validateCatalog(entries, options = {}) {
     }
 
     if (!isSupportedFile(resolved)) {
+      result.probeUnsupported.push(file);
       result.warnings.push(
         issue(
           "probe-unsupported",
@@ -360,6 +376,7 @@ export function runCli(argv, io = {}) {
     `${verdict} ${catalogPath}: ${result.total} entries — ${result.declared} declare width/height, ` +
       `${result.verified.length} verified on disk, ${result.legacyExempt.length} legacy-exempt, ` +
       `${result.diskMissing.length} file(s) missing, ${result.probeFailed.length} probe failure(s), ` +
+      `${result.probeUnsupported.length} unsupported type(s), ` +
       `${result.errors.length} error(s), ${result.warnings.length} warning(s)`,
   );
 

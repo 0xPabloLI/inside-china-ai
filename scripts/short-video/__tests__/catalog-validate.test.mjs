@@ -186,6 +186,7 @@ describe("validateCatalog — disk layer", () => {
     });
     expect(result.errors).toEqual([]);
     expect(codes(result.warnings)).toEqual(["probe-unsupported"]);
+    expect(result.probeUnsupported).toEqual([file]);
   });
 });
 
@@ -223,7 +224,7 @@ describe("validateCatalog — legacy exemptions", () => {
       probe: probeOf(1024, 768),
       legacyFiles: [legacyFile],
     });
-    expect(codes(result.errors)).toEqual(["legacy-file-present"]);
+    expect(codes(result.errors)).toEqual(["legacy-file-readable"]);
     expect(result.errors[0].message).toContain("1024x768");
   });
 
@@ -234,7 +235,18 @@ describe("validateCatalog — legacy exemptions", () => {
       legacyFiles: [legacyFile],
     });
     expect(result.errors).toEqual([]);
-    expect(codes(result.warnings)).toEqual(["legacy-file-present"]);
+    expect(codes(result.warnings)).toEqual(["legacy-file-unmeasurable"]);
+  });
+
+  it("routes an unsupported legacy file type to probe-unsupported", () => {
+    const file = "content/demo/assets/legacy.gif";
+    const result = validateCatalog([entry(file)], {
+      rootDir: fixtureRoot([file]),
+      probe: probeOf(1, 1),
+      legacyFiles: [file],
+    });
+    expect(result.errors).toEqual([]);
+    expect(codes(result.warnings)).toEqual(["probe-unsupported"]);
   });
 
   it("keeps the frozen roster auditable and in sync with the catalog", () => {
@@ -274,6 +286,13 @@ describe("validateCatalog — global-library short-side floor", () => {
       probe: null,
     });
     expect(result.errors).toEqual([]);
+  });
+
+  it("applies the floor inside assets/_staged too (render scratch must not be cataloged)", () => {
+    const result = validateCatalog([entry("assets/_staged/x.png", { width: 640, height: 360 })], {
+      probe: null,
+    });
+    expect(codes(result.errors)).toEqual(["below-short-side"]);
   });
 });
 
