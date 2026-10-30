@@ -26,6 +26,7 @@ import {
   enforceSubtitleCompliance,
   subtitleComplianceMode,
 } from "../lib/subtitles/generate.mjs";
+import { SUBTITLE_LANE } from "../lib/safe-zones.mjs";
 
 describe("visibleText", () => {
   it("strips karaoke override tags", () => {
@@ -235,5 +236,55 @@ describe("subtitle compliance gate wiring", () => {
     const cue = { start: 0, end: 1, text: "abcdefghijklmnopqrstuv" }; // 22 CPS
     expect(enforceSubtitleCompliance([cue], {})?.ok).toBe(false);
     expect(enforceSubtitleCompliance([cue], { SUBTITLE_MAX_CPS: "30" })?.ok).toBe(true);
+  });
+});
+
+/**
+ * Lane overflow is a geometry failure, not a style preference.
+ *
+ * `SUBTITLE_LANE.maxLines` reserves the lane's height above its bottom anchor,
+ * which is also how high the content band may reach. A cue that needs a second
+ * line renders upward past that reservation — ASS does not clip to the lane —
+ * and the burned subtitle lands on top of scene content.
+ */
+describe("subtitle lane overflow", () => {
+  const wrapped = { start: 0, end: 4, text: "one two three\\Nfour five" };
+
+  it("throws in the default warn mode — geometry is not advisory", () => {
+    expect(() => enforceSubtitleCompliance([wrapped], {})).toThrow(/Subtitle lane overflow/);
+  });
+
+  it("measures the lane's own maxLines, not compliance.mjs's fallback", () => {
+    // The bug this guards: the gate only ever passed `maxCps`, so `maxLines`
+    // fell through to MAX_LINES (2) and a two-line cue sailed through while the
+    // lane reserved one line. Both halves asserted so the mismatch stays visible.
+    expect(SUBTITLE_LANE.maxLines).toBe(1);
+    expect(MAX_LINES).not.toBe(SUBTITLE_LANE.maxLines);
+    expect(checkCueCompliance([wrapped], { maxLines: MAX_LINES }).ok).toBe(true);
+    expect(checkCueCompliance([wrapped], { maxLines: SUBTITLE_LANE.maxLines }).ok).toBe(false);
+  });
+
+  it("still only warns on reading speed", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const report = enforceSubtitleCompliance(
+        [{ start: 0, end: 1, text: "abcdefghijklmnopqrstuv" }],
+        {},
+      );
+      expect(report?.ok).toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("names the limit and the cue count in the failure", () => {
+    expect(() => enforceSubtitleCompliance([wrapped, wrapped], {})).toThrow(
+      /2 cue\(s\) exceed maxLines 1/,
+    );
+  });
+
+  it("leaves off mode as the explicit escape hatch", () => {
+    expect(enforceSubtitleCompliance([wrapped], { SUBTITLE_COMPLIANCE: "off" })).toBeNull();
   });
 });

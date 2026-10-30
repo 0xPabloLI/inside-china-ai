@@ -242,12 +242,12 @@ describe("checkSafeZoneBottom", () => {
     expect(result.level).toBe("pass");
   });
 
-  it("fails when content present in bottom gap (y 1150-1188)", () => {
+  it("fails when content present in bottom gap (y 1309-1339)", () => {
     const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
       xStart: 100,
       xEnd: 800,
-      yStart: 1155,
-      yEnd: 1185,
+      yStart: 1314,
+      yEnd: 1334,
     });
     const result = checkSafeZoneBottom(buf, SAFE_ZONES);
     expect(result.level).toBe("fail");
@@ -505,12 +505,12 @@ describe("checkFinalFrameHasContent", () => {
   });
 
   it("FAILS when only the subtitle lane has content (tail with captions)", () => {
-    // Subtitles live at y 1188-1350, outside the content area.
+    // Subtitles live at y 1339-1420, outside the content area (≤1309).
     const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
       xStart: 200,
       xEnd: 880,
-      yStart: 1200,
-      yEnd: 1250,
+      yStart: 1350,
+      yEnd: 1400,
     });
     const result = checkFinalFrameHasContent(buf, SAFE_ZONES);
     expect(result.level).toBe("fail");
