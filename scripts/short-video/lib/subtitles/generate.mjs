@@ -13,6 +13,7 @@ import { renderAss } from "./ass.mjs";
 import { checkCueCompliance, formatComplianceReport } from "./compliance.mjs";
 import { alignmentCacheState, computeAlignmentSignature } from "../tts/cache.mjs";
 import { assertDualTrackRestorable } from "./dual-track.mjs";
+import { SUBTITLE_LANE } from "../safe-zones.mjs";
 
 /** Reading-speed limit for the gate; override with SUBTITLE_MAX_CPS (17 = children). */
 function subtitleMaxCps(env = process.env) {
@@ -35,6 +36,27 @@ export function subtitleComplianceMode(env = process.env) {
 }
 
 /**
+ * Line-count overflow is NOT advisory.
+ *
+ * `SUBTITLE_LANE.maxLines` is what reserves the lane's height above its bottom
+ * anchor, so it also fixes how high the CONTENT band may reach. A cue wider
+ * than one line renders upward from that anchor into the content band — ASS
+ * does not clip to the lane, so it ships an overlap rather than failing.
+ *
+ * The gate therefore separates two dimensions: reading speed (CPS) is a
+ * judgement call and stays advisory — see `subtitleComplianceMode` — but the
+ * lane height must be a fact about the video, not a guess.
+ */
+function assertLaneFits(report, detail) {
+  const overflow = (report.violations ?? []).filter((v) => v.code === "lines");
+  if (overflow.length === 0) return;
+  throw new Error(
+    `Subtitle lane overflow: ${overflow.length} cue(s) exceed maxLines ` +
+      `${SUBTITLE_LANE.maxLines} and would render into the content band\n${detail}`,
+  );
+}
+
+/**
  * Run the #415 ② compliance gate over built cues.
  *
  * @param {Array} cues
@@ -44,9 +66,16 @@ export function subtitleComplianceMode(env = process.env) {
 export function enforceSubtitleCompliance(cues, env = process.env) {
   const mode = subtitleComplianceMode(env);
   if (mode === "off") return null;
-  const report = checkCueCompliance(cues, { maxCps: subtitleMaxCps(env) });
+  const report = checkCueCompliance(cues, {
+    maxCps: subtitleMaxCps(env),
+    // Read the lane's own value. It used to fall through to compliance.mjs's
+    // MAX_LINES (2), which silently checked the wrong threshold once the lane
+    // dropped to 1 — a two-line cue is exactly the case that now overlaps.
+    maxLines: SUBTITLE_LANE.maxLines,
+  });
   if (report.ok) return report;
   const detail = formatComplianceReport(report);
+  assertLaneFits(report, detail);
   if (mode === "fail") {
     throw new Error(`Subtitle compliance gate failed\n${detail}`);
   }
