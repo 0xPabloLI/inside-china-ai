@@ -20,6 +20,7 @@ import {
   prepareScenesForPlan,
 } from "../lib/tts/plan-report.mjs";
 import { computeSceneKey, writeSceneMeta } from "../lib/tts/cache.mjs";
+import { previewTtsPlan } from "../lib/tts/preview.mjs";
 import { generateTTSWithEngine } from "../lib/tts/registry.mjs";
 
 const scene = (id, voiceover = "one two three four") => ({
@@ -220,15 +221,19 @@ describe("generateTTSWithEngine logs the plan before the batch (#953)", () => {
     }
 
     const planLines = logs.filter((l) => /TTS spend plan|scene [12]\b/.test(l));
-    expect(planLines.join("\n")).toMatch(/scene 1\b.*(missing-audio|text-changed|unknown)/);
-    expect(planLines.join("\n")).toMatch(/scene 2\b/);
+    // Empty cache → both miss for a concrete reason; "unknown" would mean the
+    // misses wiring broke, so it must not satisfy the assertion.
+    expect(planLines.join("\n")).toMatch(/scene 1\b.*missing-audio/);
+    expect(planLines.join("\n")).toMatch(/scene 2\b.*missing-audio/);
     // The log is a PRE-generation notice: every plan line already exists when
     // engine.generate() is entered (it writes the audio the plan priced).
-    expect(logsAtGenerate).toBeGreaterThanOrEqual(0);
-    expect(logs.findIndex((l) => l.includes("TTS spend plan"))).toBeLessThan(logsAtGenerate);
-    expect(logs.findIndex((l) => /scene 1\b.*(missing-audio|text-changed)/.test(l))).toBeLessThan(
-      logsAtGenerate,
-    );
+    expect(logsAtGenerate).toBeGreaterThan(0);
+    const headerIdx = logs.findIndex((l) => l.includes("TTS spend plan"));
+    const sceneIdx = logs.findIndex((l) => /scene 1\b.*missing-audio/.test(l));
+    expect(headerIdx).toBeGreaterThanOrEqual(0);
+    expect(sceneIdx).toBeGreaterThanOrEqual(0);
+    expect(headerIdx).toBeLessThan(logsAtGenerate);
+    expect(sceneIdx).toBeLessThan(logsAtGenerate);
   });
 });
 
@@ -241,6 +246,12 @@ describe("keys match the real cache after preview normalization", () => {
         { id: 1, voiceover: "DeepSeek just dropped V4.1 Flash today.", visualType: "narrative" },
       ];
       const prepared = await prepareScenesForPlan(authored, {});
+      // Pin the normalization itself: both write + plan use prepared.ttsText,
+      // so a no-op prepareScenesForPlan would otherwise stay green.
+      expect(prepared[0].ttsText).toContain("V four point one");
+      expect(computeSceneKey(engine, prepared[0].ttsText)).not.toBe(
+        computeSceneKey(engine, authored[0].voiceover),
+      );
       const key = computeSceneKey(engine, prepared[0].ttsText);
       writeFileSync(join(dir, "scene-1.wav"), "fake wav");
       writeSceneMeta(dir, 1, {
@@ -253,6 +264,103 @@ describe("keys match the real cache after preview normalization", () => {
       const { planTtsScenes } = await import("../lib/tts/cache.mjs");
       const plan = planTtsScenes(dir, prepared, engine);
       expect(plan.approved.map((a) => a.sceneId)).toEqual([1]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("previewTtsPlan mirrors the real run (#953)", () => {
+  const engine = { name: "fake", info: "Fake engine (speed=1)" };
+
+  it("honours TTS_NO_CACHE=1 instead of reporting cache hits", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-preview-nocache-"));
+    try {
+      const scenes = [scene(1), scene(2)];
+      const { report } = await previewTtsPlan({
+        scenes,
+        audioDir: dir,
+        engine,
+        env: { TTS_NO_CACHE: "1" },
+      });
+      expect(report.useCache).toBe(false);
+      expect(report.pendingCount).toBe(2);
+      expect(report.pacing).toBeNull();
+      expect(report.pacingSkipped).toMatch(/TTS_NO_CACHE/);
+      expect(formatTtsPlan(report)).toMatch(/cache disabled/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("skips the pacing precheck when the run would skip the quality gate", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-preview-skipgate-"));
+    try {
+      const hook = {
+        id: 1,
+        visualType: "hook",
+        voiceover: "one two three four five six seven eight nine ten",
+      };
+      writeFileSync(join(dir, "scene-1.wav"), "fake wav");
+      writeSceneMeta(dir, 1, {
+        key: computeSceneKey(engine, hook.voiceover, 1.0),
+        duration: 3.0,
+        engine: engine.name,
+        audioPath: join(dir, "scene-1.wav"),
+      });
+      const { report } = await previewTtsPlan({
+        scenes: [hook],
+        audioDir: dir,
+        engine,
+        env: { TTS_SKIP_QUALITY_GATE: "1" },
+      });
+      expect(report.pacing).toBeNull();
+      expect(report.pacingSkipped).toMatch(/quality gate skipped/i);
+      expect(formatTtsPlan(report)).toMatch(/pacing precheck: skipped/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("judges approved takes at the speed recorded on disk, not the baseline", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-preview-speed-"));
+    try {
+      const hook = {
+        id: 1,
+        visualType: "hook",
+        voiceover: "one two three four five six seven eight nine ten",
+      };
+      writeFileSync(join(dir, "scene-1.wav"), "compensated-take");
+      writeSceneMeta(dir, 1, {
+        key: computeSceneKey(engine, hook.voiceover, 1.2),
+        duration: 3.0,
+        engine: engine.name,
+        audioPath: join(dir, "scene-1.wav"),
+        ttsSpeed: 1.2,
+      });
+      const { report } = await previewTtsPlan({ scenes: [hook], audioDir: dir, engine, env: {} });
+      expect(report.approvedCount).toBe(1);
+      expect(report.pacing.compensations).toHaveLength(1);
+      // Without seeding scene.ttsSpeed from the take, the hook floor would
+      // print 1.1x; the run plans 1.2x because that is what is on disk.
+      expect(report.pacing.compensations[0].speed).toBe(1.2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("adds the static one-breath hint for pending scenes (no prosody probe)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-preview-breath-"));
+    try {
+      const longLine = Array.from({ length: 30 }, (_, i) => `word${i}`).join(" ");
+      const scenes = [scene(1, longLine)];
+      const { report } = await previewTtsPlan({ scenes, audioDir: dir, engine, env: {} });
+      expect(report.hints).toHaveLength(1);
+      expect(report.hints[0]).toMatch(/one-breath/i);
+      expect(formatTtsPlan(report)).toContain("📏");
+      // The authored array is never mutated.
+      expect(scenes[0].ttsText).toBeUndefined();
+      expect(scenes[0].ttsSpeed).toBeUndefined();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -314,12 +314,14 @@ describe("planTtsScenes miss reasons (#953)", () => {
       audioPath: join(dir, "scene-1.wav"),
       ttsSpeed: 1.2,
     });
+    const priorSpeed = process.env.TTS_SPEED;
     process.env.TTS_SPEED = "1.15";
     try {
       const plan = planTtsScenes(dir, [{ id: 1, voiceover: text }], engine);
       expect(plan.misses).toEqual([{ sceneId: 1, reason: "speed-changed" }]);
     } finally {
-      delete process.env.TTS_SPEED;
+      if (priorSpeed === undefined) delete process.env.TTS_SPEED;
+      else process.env.TTS_SPEED = priorSpeed;
     }
     cleanup();
   });

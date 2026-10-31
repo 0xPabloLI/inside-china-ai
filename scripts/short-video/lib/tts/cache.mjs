@@ -361,6 +361,9 @@ function resolveSceneInstruct(engine, scene) {
  *                                     per-scene instruct in, so an instruct
  *                                     edit lands here too)
  *
+ * When several inputs moved, the first matching check wins (engine → speed →
+ * text), so the label names one actionable cause rather than an unordered set.
+ *
  * @param {object} args
  * @param {string} args.outputDir
  * @param {{name: string}} args.engine

@@ -31,8 +31,6 @@
 
 /** @typedef {{id: number, voiceover?: string, ttsText?: string}} PlanScene */
 
-import { planCachedPacing } from "./pacing-plan.mjs";
-
 const EN_WORDS_PER_SECOND = 2.4;
 const CJK_CHARS_PER_SECOND = 4.4;
 const LATIN_WORD_RE = /[A-Za-z0-9]+(?:['’][A-Za-z0-9]+)*/g;
@@ -137,7 +135,15 @@ export function estimateTtsSpend(engineName, pendingScenes) {
  * @param {boolean} [args.useCache]
  * @returns {object}
  */
-export function buildTtsPlan({ engine, scenes, plan, pacing = null, useCache = true }) {
+export function buildTtsPlan({
+  engine,
+  scenes,
+  plan,
+  pacing = null,
+  pacingSkipped = null,
+  hints = [],
+  useCache = true,
+}) {
   const allScenes = scenes ?? [];
   const pendingScenes = useCache ? (plan?.pending ?? []) : allScenes;
   const approvedCount = useCache ? (plan?.approved?.length ?? 0) : 0;
@@ -174,6 +180,8 @@ export function buildTtsPlan({ engine, scenes, plan, pacing = null, useCache = t
     pendingChars: pending.reduce((sum, p) => sum + p.chars, 0),
     spend: estimateTtsSpend(engine?.name, pendingSourceScenes),
     pacing,
+    pacingSkipped,
+    hints,
   };
 }
 
@@ -208,6 +216,10 @@ function formatPacingLines(pacing) {
   const compensations = pacing.compensations ?? [];
   const rerolls = pacing.rerolls ?? [];
   const lines = [];
+  if (Array.isArray(pacing.evaluations) && pacing.evaluations.length === 0) {
+    lines.push("   🧭 pacing precheck (approved takes): no approved takes to judge");
+    return lines;
+  }
   if (compensations.length === 0 && rerolls.length === 0) {
     lines.push("   🧭 pacing precheck (approved takes): no compensation/reroll planned");
     return lines;
@@ -269,6 +281,12 @@ export function formatTtsPlan(report) {
   } else {
     lines.push("   ✅ nothing to generate — every scene is an approved cache hit.");
   }
+  for (const hint of report.hints ?? []) {
+    lines.push(`   📏 ${hint}`);
+  }
+  if (report.pacingSkipped) {
+    lines.push(`   🧭 pacing precheck: skipped — ${report.pacingSkipped}`);
+  }
   lines.push(...formatPacingLines(report.pacing));
   return lines.join("\n");
 }
@@ -315,5 +333,3 @@ export async function prepareScenesForPlan(scenes, meta = {}) {
   normalizeTtsText(clone, meta);
   return clone;
 }
-
-export { planCachedPacing };

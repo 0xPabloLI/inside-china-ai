@@ -123,16 +123,11 @@ async function main() {
   // keys are computed from the normalized spoken text.
   if (args.includes("--tts-plan")) {
     try {
-      const { buildTtsPlan, formatTtsPlan, planCachedPacing, prepareScenesForPlan } =
-        await import("./lib/tts/plan-report.mjs");
-      const { planTtsScenes } = await import("./lib/tts/cache.mjs");
-      const { selectEngine } = await import("./lib/tts/registry.mjs");
-      const plannedScenes = await prepareScenesForPlan(scenes, meta);
-      const engine = await selectEngine();
+      const { previewTtsPlan } = await import("./lib/tts/preview.mjs");
+      const { formatTtsPlan } = await import("./lib/tts/plan-report.mjs");
       const audioDir = join(__dirname, "output", meta.pipelineId, "audio");
-      const plan = planTtsScenes(audioDir, plannedScenes, engine);
-      const pacing = await planCachedPacing(plannedScenes, plan.approved);
-      console.log(formatTtsPlan(buildTtsPlan({ engine, scenes: plannedScenes, plan, pacing })));
+      const { report } = await previewTtsPlan({ scenes, meta, audioDir });
+      console.log(formatTtsPlan(report));
       console.log("\n   (preview only — nothing was generated or written)\n");
       process.exit(0);
     } catch (e) {

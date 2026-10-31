@@ -241,16 +241,20 @@ node scripts/short-video/main.mjs --content series/pt4 &
 ### TTS cache & cost preview (#953)
 
 Before editing scene text, ask the planner what the edit will cost. Planning is
-pure local I/O (~1 s), starts no GPU and writes nothing:
+local only — no GPU, no network, no writes:
 
 ```bash
 node scripts/short-video/main.mjs --content <dir> --tts-plan
 ```
 
-`main.mjs` Step 0 also runs `verify-video.mjs --pre`, which prints the same
-block, and `generateTTSWithEngine()` prints the pending-only version right
-before `engine.generate()` — so the cost is visible at the decision point, not
-after the batch.
+Choosing the engine runs local CLI version probes (`kaggle`/`modal`/venv), so
+expect seconds rather than milliseconds. `main.mjs` Step 0 also runs
+`verify-video.mjs --pre`, which prints the same block; if no TTS engine is
+available `--tts-plan` exits non-zero (the plan was the request), while
+`--pre` prints a warning and still finishes its content checks.
+`generateTTSWithEngine()` prints the pending-only version right before
+`engine.generate()` — so the cost is visible at the decision point, not after
+the batch.
 
 The report lists approved hits, every scene that will regenerate with the
 reason it missed (`text-changed` / `missing-audio` / `missing-meta` /

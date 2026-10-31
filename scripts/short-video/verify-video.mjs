@@ -38,6 +38,12 @@ import {
 } from "./lib/audio/bgm-margin.mjs";
 import { getPlatformProfile, listPlatformProfiles } from "./lib/platforms/index.mjs";
 import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
+import { loadEnv } from "./lib/load-env.mjs";
+
+// #287: the entry owns env loading. The TTS preview selects engines by
+// TTS_ENGINE / TTS_NO_CACHE / TTS_SKIP_QUALITY_GATE, so a standalone --pre
+// must see the same .env.local main.mjs loads (main-run children inherit it).
+loadEnv();
 
 // Caption constraints come from the TikTok platform profile (#219 ticket 01)
 const tiktokProfile = getPlatformProfile("tiktok");
@@ -385,18 +391,18 @@ if (sceneResults.editorial.length > 0) {
 if (preMode) {
   console.log("");
   try {
-    const { buildTtsPlan, formatTtsPlan, planCachedPacing, prepareScenesForPlan } =
-      await import("./lib/tts/plan-report.mjs");
-    const { planTtsScenes } = await import("./lib/tts/cache.mjs");
-    const { selectEngine } = await import("./lib/tts/registry.mjs");
-    const engine = await selectEngine();
-    const plannedScenes = await prepareScenesForPlan(scenes, meta);
-    const plan = planTtsScenes(join(OUTPUT_DIR, "audio"), plannedScenes, engine);
-    const pacing = await planCachedPacing(plannedScenes, plan.approved);
-    console.log(formatTtsPlan(buildTtsPlan({ engine, scenes: plannedScenes, plan, pacing })));
+    const { previewTtsPlan } = await import("./lib/tts/preview.mjs");
+    const { formatTtsPlan } = await import("./lib/tts/plan-report.mjs");
+    const { report } = await previewTtsPlan({
+      scenes,
+      meta,
+      audioDir: join(OUTPUT_DIR, "audio"),
+    });
+    console.log(formatTtsPlan(report));
   } catch (e) {
     // Non-blocking: content checks stay usable on a machine without a TTS
-    // engine. The real run still fails closed at TTS selection.
+    // engine. `main.mjs --tts-plan` fails instead — it was asked for the plan
+    // specifically, while --pre only prints one alongside its checks.
     warn(
       "TTS",
       "Cache & cost plan unavailable",
