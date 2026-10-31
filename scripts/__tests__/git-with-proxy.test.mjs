@@ -5,10 +5,11 @@
  * git* — once through `git config --get` (the `-c` arguments) and once through a
  * shell alias (the exported environment, which is what hooks inherit).
  *
- * `GIT_WITH_PROXY_PORT` is what makes this possible without a network: it skips
- * probing and pins the port, so the assertions are about wiring only. The port
- * is deliberately not the repo's configured 7890 — a test that passes when the
- * wrapper forwards nothing would prove nothing.
+ * `GIT_WITH_PROXY_PORT` is what makes this possible without a network: a port
+ * number pins the answer, `none` makes the resolution fail, so both wiring and
+ * refusal are testable. The pinned port is deliberately not the repo's configured
+ * 7890 — a test that passes when the wrapper forwards nothing would prove
+ * nothing.
  */
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
@@ -20,20 +21,21 @@ const cli = join(scriptsDir, "git-with-proxy.mjs");
 const FORCED_PORT = 9999;
 const FORCED_URL = `http://127.0.0.1:${FORCED_PORT}`;
 
-function run(args, { env = {} } = {}) {
+function run(args, { forcedPort = String(FORCED_PORT) } = {}) {
   // Inherit as little as possible: `GITHUB_*`/`PR_*` and any pre-existing proxy
-  // variable would make the case pass or fail by the caller's environment.
+  // or git-config variable would make the case pass or fail by the caller's
+  // environment.
   const base = { ...process.env };
   for (const key of Object.keys(base)) {
     if (/^(GITHUB_|PR_|GIT_CONFIG_)/.test(key)) delete base[key];
   }
   return spawnSync("node", [cli, ...args], {
     encoding: "utf8",
-    env: { ...base, GIT_WITH_PROXY_PORT: String(FORCED_PORT), ...env },
+    env: { ...base, GIT_WITH_PROXY_PORT: forcedPort },
   });
 }
 
-describe("the resolved URL reaches git", () => {
+describe("the resolved proxy reaches git", () => {
   it("pins http.proxy over whatever .git/config already says", () => {
     const result = run(["--", "config", "--get", "http.proxy"]);
 
@@ -58,17 +60,51 @@ describe("the resolved URL reaches git", () => {
     expect(result.status).toBe(0);
     expect(result.stdout.trim()).toBe(FORCED_URL);
   });
+});
 
-  it("prints the port alone for callers that only want the answer", () => {
-    const result = run(["--print-port"]);
+describe("nothing resolved", () => {
+  it("refuses to run git rather than quietly going direct", () => {
+    // The failure mode worth preventing: the command succeeds or fails on git's
+    // own connectivity while the caller believes it went through a proxy.
+    const result = run(["--", "config", "--get", "http.proxy"], { forcedPort: "none" });
+
+    expect(result.status).toBe(3);
+    expect(result.stderr).toContain("refusing to guess");
+    expect(result.stdout).toBe("");
+  });
+
+  it("runs direct only when asked, with the pinned proxy keys emptied", () => {
+    // An empty value is git's "connect directly"; leaving `.git/config`'s 7890
+    // in place would reproduce the very failure the wrapper exists to avoid.
+    const result = run(["--direct", "--", "config", "--get", "http.proxy"], {
+      forcedPort: "none",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe("");
+    expect(result.stderr).toContain("--direct");
+  });
+
+  it("reports the same exit code from the resolution-only mode", () => {
+    const result = run(["--print-url"], { forcedPort: "none" });
+
+    expect(result.status).toBe(3);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("no port forwarded");
+  });
+});
+
+describe("resolution-only mode", () => {
+  it("prints the URL alone, so a shell can capture it", () => {
+    const result = run(["--print-url"]);
 
     expect(result.status).toBe(0);
     expect(result.stdout.trim()).toBe(FORCED_URL);
     expect(result.stderr).toBe("");
   });
 
-  it("rejects a malformed forced port instead of guessing one", () => {
-    const result = run(["--print-port"], { env: { GIT_WITH_PROXY_PORT: "not-a-port" } });
+  it("rejects a malformed forced value instead of guessing one", () => {
+    const result = run(["--print-url"], { forcedPort: "not-a-port" });
 
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("GIT_WITH_PROXY_PORT");

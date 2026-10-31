@@ -16,16 +16,17 @@
  *
  *   npm run git:proxy -- push -u origin session/foo
  *   npm run git:proxy -- fetch origin main
- *   npm run git:proxy -- --print-port        # resolve and print, nothing else
+ *   npm run git:proxy -- --print-url         # resolve and print, nothing else
  *   npm run git:proxy -- --direct -- fetch   # run without a proxy, knowingly
  *
  * Two behaviours worth knowing:
- *   - Nothing forwards → git does **not** run. It exits 3 with the probe
- *     evidence and points at `--direct`. Falling back silently would make the
- *     resolution decorative: the run would succeed or fail on git's own
+ *   - Nothing forwards → git does **not** run. Every mode exits 3 with the probe
+ *     evidence, and running anyway takes `--direct`. Falling back silently would
+ *     make the resolution decorative: the run would succeed or fail on git's own
  *     connectivity while the caller believes it went through a proxy.
- *   - `GIT_WITH_PROXY_PORT` skips probing and uses that port. It exists so the
- *     wiring can be tested without a network, and so
+ *   - `GIT_WITH_PROXY_PORT` skips probing: a port number pins the answer, the
+ *     literal `none` simulates "nothing resolved". Both exist so the wiring and
+ *     the refusal can be tested without a network, and so
  *     `scripts/lib/proxy-env.sh` can reuse one answer for a batch of git calls.
  */
 import { execFileSync, spawnSync } from "node:child_process";
@@ -44,12 +45,18 @@ import {
 } from "./lib/proxy-port.mjs";
 
 const USAGE = `usage:
-  node scripts/git-with-proxy.mjs --print-port        resolve and print the port
-  node scripts/git-with-proxy.mjs -- <git args...>    run git through that port
+  node scripts/git-with-proxy.mjs --print-url         resolve and print the proxy URL
+  node scripts/git-with-proxy.mjs -- <git args...>    run git through that proxy
 
 options:
-  --direct    run git without a proxy when no port forwards (default: refuse)
+  --direct    run git without a proxy when none resolves (default: refuse)
   --help      this text
+
+exit codes:
+  0  git ran, or --print-url found a proxy
+  1  git ran and failed
+  2  bad usage (no git command, malformed GIT_WITH_PROXY_PORT)
+  3  nothing resolved and --direct was not given
 
 examples:
   npm run git:proxy -- push -u origin session/foo
@@ -87,7 +94,9 @@ function readOrEmpty(cmd, args) {
   try {
     return execFileSync(cmd, args, {
       encoding: "utf8",
-      timeout: 20000,
+      // scutil and netstat are local and instant; a long timeout here would
+      // only add to the resolver's budget without ever helping.
+      timeout: 5000,
       stdio: ["ignore", "pipe", "ignore"],
     });
   } catch {
@@ -98,6 +107,7 @@ function readOrEmpty(cmd, args) {
 /** Resolved URL, or `null` when no candidate forwards traffic. */
 async function resolveProxyUrl() {
   const forced = process.env.GIT_WITH_PROXY_PORT;
+  if (forced === "none") return { url: null, tried: [], candidates: [] };
   if (forced) {
     const port = Number(forced);
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -131,7 +141,7 @@ function describeMiss({ tried, candidates, budgetExhausted }) {
 
 async function main() {
   const argv = process.argv.slice(2);
-  const wantsPort = argv.includes("--print-port");
+  const wantsUrl = argv.includes("--print-url");
   const allowDirect = argv.includes("--direct");
 
   if (argv.length === 0 || argv.includes("--help") || argv.includes("-h")) {
@@ -142,10 +152,10 @@ async function main() {
   const resolution = await resolveProxyUrl();
   const { url } = resolution;
 
-  if (wantsPort) {
+  if (wantsUrl) {
     if (url === null) {
       process.stderr.write(describeMiss(resolution));
-      process.exit(1);
+      process.exit(3);
     }
     process.stdout.write(`${url}\n`);
     process.exit(0);
@@ -154,7 +164,7 @@ async function main() {
   // Our own flags are removed wherever they appear, then a single leading `--`
   // is dropped (npm's separator). A `--` further along is git's — `checkout --
   // <path>` — and must survive, so only the first position is treated as ours.
-  const rest = argv.filter((arg) => arg !== "--direct" && arg !== "--print-port");
+  const rest = argv.filter((arg) => arg !== "--direct" && arg !== "--print-url");
   const gitArgs = rest[0] === "--" ? rest.slice(1) : rest;
   if (gitArgs.length === 0) {
     process.stderr.write(`[git-proxy] no git command given\n\n${USAGE}`);
