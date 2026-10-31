@@ -185,11 +185,13 @@ import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import { automationPort } from "./lib/cdp-profile-guard.mjs";
 import {
   clickAtPoint,
+  emulateFocus,
   openVisibleSession,
   planTyping,
   pokeEditorState,
   pressEnter,
   randomBetween,
+  scriptedScrollBy,
   sleepJitter,
   typePlan,
   wheelScroll,
@@ -989,10 +991,15 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
             },
           });
           process.stdout.write("\r");
+          // Read before the poke so a failure can name its stage: one dropped
+          // `insertText` during the run and a `Backspace` that ate a real
+          // character look identical afterwards (both are "one char short"),
+          // but only the first means the typing loop lost a keystroke.
+          const beforePoke = await evalJson(tabId, CAPTION_READ);
           // Make Draft render from its state before we trust the DOM text.
           await pokeEditorState(cdp);
           await sleepJitter(...PUBLISH_PACING.captionSettleAfterTyping);
-          return { plan, typedMs: Date.now() - started };
+          return { plan, typedMs: Date.now() - started, beforePoke };
         })()
       : null;
 
@@ -1027,10 +1034,16 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
         `want ${caption.length}: ${JSON.stringify(after.text.slice(0, 80))}`,
     );
   }
+  const stage = !typed
+    ? "paste"
+    : typed.beforePoke?.ok && normalizeCaption(typed.beforePoke.text) === want
+      ? "poke" // typing was right; the space+Backspace lost a character
+      : "typing"; // a keystroke never landed
   console.log(
-    `      ⚠️ typed caption did not verify (${read.len} chars) — replaced it with one paste`,
+    `      ⚠️ typed caption did not verify (${read.len} chars, lost at: ${stage}) — ` +
+      "replaced it with one paste",
   );
-  return { mode: "paste-fallback", len: after.len, typedMs: typed?.typedMs };
+  return { mode: "paste-fallback", len: after.len, typedMs: typed?.typedMs, lostAt: stage };
 }
 
 /**
@@ -1071,11 +1084,16 @@ async function runSessionWarmup(cdp, tab) {
   const scrolls = [];
   const modes = [];
   const cycles = Math.max(2, Math.round(randomBetween(2, 4)));
-  let wheelsUsable = true;
+  let scriptedStreak = 0;
   for (let i = 0; i < cycles; i++) {
     const deltaY = Math.round(randomBetween(280, 760));
     let scrolled = { mode: "wheel" };
-    if (wheelsUsable) {
+    // A scripted burst is not proof that wheels are dead: the failed dispatch
+    // also heals the throttle (that happens inside `cdp.send`), and the next
+    // burst then acks again — measured on the fixture 2026-10-31, where the
+    // second burst after a heal came back with `mode: "wheel"`. So keep trying
+    // until two bursts in a row are scripted.
+    if (scriptedStreak < 2) {
       scrolled = await wheelScroll(cdp, {
         x: Math.round(randomBetween(480, 980)),
         y: Math.round(randomBetween(320, 620)),
@@ -1085,15 +1103,23 @@ async function runSessionWarmup(cdp, tab) {
         // Chrome sometimes stops acknowledging wheel dispatches on this build
         // (measured 2026-10-30). The fallback scrolls anyway; naming it here
         // keeps the difference between a human scroll and a scripted one
-        // visible, and stops the remaining cycles paying the same wait.
-        console.log(`      ⚠️ warm-up scroll ${i + 1}/${cycles} was scripted: ${scrolled.reason}`);
-        wheelsUsable = false;
+        // visible.
+        console.log(
+          `      ⚠️ warm-up scroll ${i + 1}/${cycles} was scripted: ${scrolled.reason}` +
+            (scrolled.scriptedPx
+              ? ""
+              : " (the page pins its scroll position, so scripting moved nothing)") +
+            (scrolled.correctedPx ? ` (corrected ${scrolled.correctedPx}px of late dispatch)` : ""),
+        );
+        scriptedStreak += 1;
+      } else {
+        scriptedStreak = 0;
       }
     } else {
-      await evalJson(
-        tab,
-        `(() => { window.scrollBy(0, ${deltaY}); return JSON.stringify({ok: true}); })()`,
-      );
+      // Same container trap as the wheel path: on this app shell
+      // `window.scrollBy` moves nothing, so scroll whatever element really
+      // scrolls. Imported from the library so both paths agree.
+      await evalJson(tab, scriptedScrollBy(deltaY));
       scrolled = { mode: "js-fallback" };
     }
     modes.push(scrolled.mode);
@@ -1350,16 +1376,30 @@ async function main() {
     // starts. `openVisibleSession` checks it and, when the automation window
     // cannot be raised (another macOS Space, fully occluded), re-hosts the
     // upload in a window Chrome places on the active Space — same page, 8ms
-    // per event instead of 5s.
+    // per event instead of 5s. If even that window lands hidden, it emulates
+    // focus, which lifts the throttle without moving anything.
     const launch = await openVisibleSession(hasFlag("no-warmup") ? UPLOAD_URL : WARMUP_URL, {
       port: automationPort(),
       createTab: cdpNewTab,
       closeTab: cdpCloseTab,
       onRehost: (reason) => console.log(`      ⚠️ ${reason} — opening a new window`),
+      onEmulate: () =>
+        console.log(
+          "      ⚠️ even the window Chrome opened for this run stays throttled — emulating focus",
+        ),
+      onRecover: ({ method, retried }) => {
+        // This is the path the docs promise is recorded: a heal that happens
+        // after the session-open log entry, usually mid-caption or mid-review.
+        console.log(
+          `      ⚠️ input stalled on ${method} — emulating focus` +
+            (retried ? " and retrying" : "; scripting this scroll instead"),
+        );
+        log("input", { focusEmulated: true, recovered: true, stage: "mid-run", method, retried });
+      },
     });
     tab = launch.targetId;
     cdp = launch.session;
-    log("input", { window: launch.window });
+    log("input", { stage: "open", window: launch.window, focusEmulated: launch.focusEmulated });
 
     if (hasFlag("no-warmup")) {
       console.log("  0/6 warm-up skipped (--no-warmup)");
@@ -1374,6 +1414,16 @@ async function main() {
       );
       log("warmup", { skipped: false, ...warmed });
       await sleepJitter(...PUBLISH_PACING.uploadPageSettle);
+    }
+
+    // The warm-up navigates this tab through the proxy, and emulation is
+    // renderer state that a navigation can drop. Re-assert it before the steps
+    // that need trusted input. `cdp.focusEmulated()` is the single source of
+    // truth: it is seeded with whatever opening the session had to do and
+    // updated by every mid-run heal.
+    if (cdp.focusEmulated?.()) {
+      const state = await emulateFocus(cdp);
+      log("input", { focusEmulated: true, reasserted: true, visibility: state });
     }
 
     console.log("  1/6 upload page open — waiting for the editor…");

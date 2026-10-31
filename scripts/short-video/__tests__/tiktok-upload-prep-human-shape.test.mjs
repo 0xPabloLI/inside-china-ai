@@ -105,6 +105,14 @@ describe("pre-publish review evidence", () => {
     expect(source).toContain("openVisibleSession(");
     expect(source).toContain("createTab: cdpNewTab");
     expect(source).toContain("closeTab: cdpCloseTab");
+    // The emulated-focus fallback is not silent: the run has to say so, both on
+    // stdout and in the publish log.
+    expect(source).toContain("onEmulate:");
+    expect(source).toContain("focusEmulated");
+    // Mid-run heals happen long after the session-open log line, so they need
+    // their own write; without one the docs' promise is a lie for the common case.
+    expect(source).toMatch(/onRecover:\s*\(\{/);
+    expect(source).toMatch(/log\("input",\s*\{[^}]*recovered:\s*true/);
   });
 
   it("does not run the CLI when imported", () => {

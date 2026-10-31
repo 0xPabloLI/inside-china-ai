@@ -70,7 +70,13 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 
 结果写在 `output/{content}/publish/tiktok/publish-log.jsonl`（每步一行 JSON，含 `step: "review"` 与 `reviewed`）。运行时自检：`node scripts/short-video/human-input-selftest.mjs`（断言页面收到的每个事件都是 trusted、零 paste）。
 
-> 输入必须落在前台标签页：后台标签的 CDP 输入派发会被节流（实测同一条 14 点轨迹前台 0.33s、后台 65s）。脚本在开标签页时激活一次（`openVisibleSession`：`Target.activateTarget` → 新建窗口重挂 → 读 `document.visibilityState`，三次仍 hidden 就报错退出），此后不再逐步激活——`Target.activateTarget` 返回 ok 也不代表可见，窗口在别的 Space 或被遮挡时标签页仍是 `hidden`。所以运行过程中别把 Chrome 切走或最小化：一旦失焦，后续输入会以 `Input.*` 超时的形式失败，而不是静默跑完。
+> 输入必须落在前台标签页：后台标签的 CDP 输入派发会被节流（实测同一条 14 点轨迹前台 0.33s、后台 65s）。`Target.activateTarget` 返回 ok 不代表可见，窗口在别的 Space 或被遮挡时标签页仍是 `hidden`。
+>
+> 脚本不再要求人工切窗口，判据也从「标签页可见」换成了「输入派发是否真的快」——两者会不一致：2026-10-31 实测一个新窗口在检查时自报 `visible`、几秒后变回 `hidden`，可见性检查放行、紧接着的 wheel 就 3s 超时。`openVisibleSession` 现在派发 `mouseMoved` 量延迟（健康 3–13ms，节流约 5s）；**要连续两次都超时**才判为节流，因为刚建标签页的第一次派发要建合成器，机器同时在跑渲染时也可能单次超时，单次采样会把健康但慢的标签页误判并白白重载一次。判为节流后先重挂到新窗口；新窗口也慢就开 `Emulation.setFocusEmulationEnabled`（实测同一标签页 5018ms → 3ms）。
+>
+> 跑起来之后仍有自愈：`Input.*` 超时会开焦点模拟并重试该命令（每会话最多 3 次，含开会话时已经用过的那一次，因为导航可能把模拟状态清掉），仍失败才向上抛。**滚轮是例外**：CDP 的 ack 超时不会取消已发出的派发，节流解除后原来那一发仍可能落地，重试就会多滚一截，所以滚轮只开模拟、不重发，由 `wheelScroll` 按「少送多少补多少」走脚本滚动并标注 `mode: js-fallback`；补偿之后还会再读一次滚动位置，把迟到落地的那一截按「目标位置 − 当前位置」收敛回来（fixture 实测三轮分别多滚 163px / 185px / 131px，差值报在 `correctedPx`）。两处坑已就地处理：**滚动位置要读真正在滚的那个元素**——For You 页滚的是 `#column-list-container`，`window.scrollY` 恒为 0、`window.scrollBy` 也无效；而且该容器是虚拟列表，`scrollTop` 赋值后会被应用钉回 0（实测写 300 读回 0），所以脚本兜底在那里本来就不可能有效——现在会实测脚本滚动了多少（`scriptedPx`），没动就直接如实报 `scriptedPx: 0` 且不给 `correctedPx`，而不是报一个没发生的校正。用了这条路会在 stdout 与 `publish-log.jsonl` 里记 `focusEmulated: true`——开会话时的记 `stage: "open"` 行，运行中自愈的另有 `recovered: true, stage: "mid-run"` 一行（带触发的 CDP 方法与是否重试）。
+>
+> 注意它**不改变真实窗口状态**——是「闸门解除」而不是「窗口到前台了」，所以页面自身基于失焦的行为（例如 blur 处理）在这种模式下不会发生；页面能不能加载则完全取决于网络，代理断了照样失败。
 
 ### 发布后自动提示
 

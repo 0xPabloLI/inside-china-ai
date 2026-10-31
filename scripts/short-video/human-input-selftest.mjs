@@ -119,9 +119,24 @@ export async function runSelfTest() {
     createTab: cdpNewTab,
     closeTab: cdpCloseTab,
     onRehost: (reason) => console.log(`  ⚠️ ${reason} — re-hosted the fixture in a new window`),
+    onRecover: ({ method, retried }) =>
+      console.log(
+        `  ⚠️ input stalled on ${method} mid-run — emulating focus` +
+          (retried ? " and retrying" : "; scripting that scroll instead"),
+      ),
   });
   const tab = opened.targetId;
   const cdp = opened.session;
+  // The counts below are only comparable to the documented healthy bands when
+  // the tab was really in front. Emulation lifts the throttle without moving
+  // the window, so say so instead of letting a healthy-looking number imply a
+  // visible window.
+  if (opened.focusEmulated) {
+    notes.push(
+      "focus emulation was needed: the fixture window was not in front, so these numbers " +
+        "measure an emulated renderer rather than a raised window",
+    );
+  }
   try {
     await sleepJitter(400, 150);
 
@@ -137,7 +152,18 @@ export async function runSelfTest() {
       // Not a failure by itself: this Chrome build sometimes stops acking
       // mid-burst after a few deliveries. What matters is how many trusted
       // wheel events the page actually received, checked below.
-      notes.push(`wheel burst ended in ${scrolled.mode}: ${scrolled.reason}`);
+      notes.push(
+        `wheel burst ended in ${scrolled.mode}: ${scrolled.reason}` +
+          (scrolled.correctedPx
+            ? ` (a late dispatch overshot, so the scripted scroll was corrected by ${scrolled.correctedPx}px)`
+            : ""),
+      );
+      // That burst also healed the throttle (`withThrottleRecovery` runs inside
+      // `cdp.send`), so a second burst is the honest proof that trusted wheel
+      // input works again — and it is the same retry the driver relies on.
+      await sleepJitter(400, 200);
+      const retried = await wheelScroll(cdp, { x: 640, y: 480, totalDeltaY: 260 });
+      notes.push(`after the heal, a second burst ended in ${retried.mode}`);
     }
 
     const button = await rectOf(cdp, "#btn");
@@ -241,7 +267,9 @@ export async function runSelfTest() {
       text: fixture.text,
       notes,
     };
-    return { ok: failures.length === 0, failures, report };
+    // `notes` travels with the report so the CLI prints it: the summary above
+    // has no room for "this number was measured through a js-fallback".
+    return { ok: failures.length === 0, failures, notes, report: { ...report, notes } };
   } finally {
     cdp.close();
     await cdpCloseTab(tab);

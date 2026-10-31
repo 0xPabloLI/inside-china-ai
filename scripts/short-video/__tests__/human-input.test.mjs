@@ -21,7 +21,8 @@ import {
   activateTarget,
   clickAtPoint,
   easeOutCubic,
-  ensureForeground,
+  emulateFocus,
+  ensureResponsiveInput,
   mousePath,
   openCdpSession,
   openVisibleSession,
@@ -29,10 +30,13 @@ import {
   planTyping,
   pokeEditorState,
   randomBetween,
+  scriptedScrollBy,
   sleepJitter,
   splitGraphemes,
   typePlan,
   wheelScroll,
+  MAX_THROTTLE_RECOVERIES,
+  withThrottleRecovery,
 } from "../lib/human-input.mjs";
 
 /**
@@ -270,27 +274,64 @@ describe("wheelScroll", () => {
       rand: seeded(10),
       sleepFn,
     });
-    expect(session.calls[0].params).toMatchObject({
-      type: "mouseMoved",
-      x: 640,
-      y: 480,
-    });
-    expect(session.calls[1].params.type).toBe("mouseWheel");
+    // The move comes after the one `window.scrollY` read that measures where
+    // the page started, and before the first wheel.
+    const move = session.calls.findIndex((c) => c.params.type === "mouseMoved");
+    const firstWheel = session.calls.findIndex((c) => c.params.type === "mouseWheel");
+    expect(session.calls[move].params).toMatchObject({ x: 640, y: 480 });
+    expect(move).toBeLessThan(firstWheel);
+    expect(
+      session.calls.slice(0, move).filter((c) => c.method === "Runtime.evaluate"),
+    ).toHaveLength(1);
   });
+
+  /** A page that actually moves, so the post-fallback correction is exercised. */
+  const scrollingSession = ({ dropWheelAfter = Number.POSITIVE_INFINITY, lateDispatch = true }) => {
+    const calls = [];
+    let wheels = 0;
+    let y = 0;
+    const session = {
+      calls,
+      get scrollY() {
+        return y;
+      },
+      send: async (method, params = {}) => {
+        if (params.type === "mouseWheel") {
+          wheels += 1;
+          if (wheels > dropWheelAfter) {
+            // The ack times out; a healthy renderer would still apply it. The
+            // driver cannot tell, which is exactly why the correction exists.
+            if (lateDispatch) y += params.deltaY;
+            throw new Error("CDP command timed out");
+          }
+          y += params.deltaY;
+          return {};
+        }
+        calls.push({ method, params });
+        // `wheelScroll` reads and writes through the element that actually
+        // scrolls, so the fake recognises the two generated expressions rather
+        // than a bare `window.scrollBy`. The write is checked first: it also
+        // ends with `return window.scrollY`, so order matters.
+        if (method === "Runtime.evaluate") {
+          const write = /el\.scrollTop \+ \((-?\d+)\)/.exec(params.expression);
+          if (write) {
+            y += Number(write[1]);
+            return { result: { value: y } };
+          }
+          if (/return window\.scrollY;/.test(params.expression)) return { result: { value: y } };
+        }
+        return {};
+      },
+    };
+    return session;
+  };
 
   it("falls back to a scripted scroll, and says so, when the wheel never acks", async () => {
     // Observed 2026-10-30: after a sustained burst of insertText, wheel
     // dispatch stops resolving. Losing 15s to a hang is worse than scrolling
     // by script, as long as the caller can see it happened.
-    const calls = [];
-    const session = {
-      send: async (method, params = {}) => {
-        calls.push({ method, params });
-        if (params.type === "mouseWheel") throw new Error("CDP command timed out");
-        return {};
-      },
-    };
     const { sleepFn } = fakeSleep();
+    const session = scrollingSession({ dropWheelAfter: 0, lateDispatch: false });
     const result = await wheelScroll(session, {
       x: 300,
       y: 300,
@@ -301,23 +342,97 @@ describe("wheelScroll", () => {
     expect(result.mode).toBe("js-fallback");
     expect(result.reason).toMatch(/timed out/);
     expect(result.chunks).toEqual([500]);
-    const evaluated = calls.find((c) => c.method === "Runtime.evaluate");
-    expect(evaluated.params.expression).toContain("scrollBy(0, 500)");
+    expect(session.scrollY).toBe(500);
+    // Nothing was delivered late, so the arithmetic was already right.
+    expect(result.correctedPx).toBe(0);
+  });
+
+  it("corrects for the unacknowledged wheel that lands after the scripted scroll", async () => {
+    // The ack does not cancel the dispatch. Measured 2026-10-31 on the fixture:
+    // the timed-out burst reached the page anyway, so scripting the shortfall
+    // on top overshot by that chunk. Converge on the position, not on the sum.
+    const { sleepFn } = fakeSleep();
+    const session = scrollingSession({ dropWheelAfter: 1, lateDispatch: true });
+    const result = await wheelScroll(session, {
+      x: 300,
+      y: 300,
+      totalDeltaY: 500,
+      rand: seeded(12),
+      sleepFn,
+    });
+    expect(result.mode).toBe("js-fallback");
+    // Whatever the late dispatch added is taken back out: the page ends at the
+    // requested offset, not at "delivered + shortfall".
+    expect(session.scrollY).toBe(500);
+    expect(result.correctedPx).not.toBe(0);
+  });
+
+  it("reports that scripting moved nothing on a page that pins its scroll", async () => {
+    // TikTok's For You feed is virtualized: `scrollTop = 300` reads back as 0
+    // and `window.scrollBy` does nothing (measured 2026-10-31), so only a real
+    // wheel moves it. Claiming a correction there would be a lie, and the run
+    // would record a number describing something that never happened.
+    const calls = [];
+    const session = {
+      send: async (method, params = {}) => {
+        calls.push({ method, params });
+        if (method === "Runtime.evaluate") return { result: { value: 0 } }; // always pinned
+        if (params.type === "mouseWheel") throw new Error("CDP command timed out");
+        return {};
+      },
+    };
+    const { sleepFn } = fakeSleep();
+    const result = await wheelScroll(session, {
+      x: 300,
+      y: 300,
+      totalDeltaY: 300,
+      rand: seeded(15),
+      sleepFn,
+    });
+    expect(result.mode).toBe("js-fallback");
+    expect(result.scriptedPx).toBe(0);
+    expect(result).not.toHaveProperty("correctedPx");
+    // Baseline read, a read either side of the scripted scroll, and the scroll
+    // itself — then nothing: no late-dispatch settle, no correction.
+    expect(calls.filter((c) => c.method === "Runtime.evaluate")).toHaveLength(4);
+  });
+
+  it("still scrolls when the start position cannot be read", async () => {
+    // A navigation can tear the context down mid-run. Losing the baseline only
+    // costs the late-dispatch correction; the scroll itself must still happen.
+    const calls = [];
+    const session = {
+      send: async (method, params = {}) => {
+        calls.push({ method, params });
+        if (method === "Runtime.evaluate") {
+          const write = /el\.scrollTop \+ \((-?\d+)\)/.exec(params.expression);
+          if (write) return { result: { value: null } };
+          if (/return window\.scrollY;/.test(params.expression)) {
+            throw new Error("Execution context was destroyed");
+          }
+        }
+        if (params.type === "mouseWheel") throw new Error("CDP command timed out");
+        return {};
+      },
+    };
+    const { sleepFn } = fakeSleep();
+    const result = await wheelScroll(session, {
+      x: 300,
+      y: 300,
+      totalDeltaY: 400,
+      rand: seeded(14),
+      sleepFn,
+    });
+    expect(result.mode).toBe("js-fallback");
+    expect(result).not.toHaveProperty("correctedPx");
+    expect(calls.filter((c) => c.method === "Runtime.evaluate")).not.toHaveLength(0);
   });
 
   it("scripts only the shortfall when a later burst is dropped", async () => {
     // Bursts that were acknowledged already moved the page. Adding the whole
     // request on top overshoots by exactly what they scrolled.
-    const calls = [];
-    let wheels = 0;
-    const session = {
-      send: async (method, params = {}) => {
-        if (params.type === "mouseWheel" && ++wheels > 2) throw new Error("CDP command timed out");
-        calls.push({ method, params });
-        return {};
-      },
-    };
     const { sleepFn } = fakeSleep();
+    const session = scrollingSession({ dropWheelAfter: 2, lateDispatch: false });
     const result = await wheelScroll(session, {
       x: 300,
       y: 300,
@@ -330,9 +445,43 @@ describe("wheelScroll", () => {
     expect(result.mode).toBe("js-fallback");
     expect(remaining).toBe(520 - delivered);
     expect(delivered + remaining).toBe(520);
-    const evaluated = calls.find((c) => c.method === "Runtime.evaluate");
-    expect(evaluated.params.expression).toContain(`scrollBy(0, ${remaining})`);
     expect(Math.abs(remaining)).toBeLessThan(520);
+    expect(session.scrollY).toBe(520);
+  });
+
+  it("scrolls the element that actually scrolls, not the window", async () => {
+    // Measured 2026-10-31 on TikTok's For You feed: the page scrolls
+    // `#column-list-container` (scrollHeight 6741, clientHeight 749) while
+    // `window.scrollY` stays 0 and `window.scrollBy` moves nothing. Aiming the
+    // scripted fallback at the window therefore delivered zero pixels and
+    // still reported the whole request as corrected.
+    const { JSDOM } = await import("jsdom");
+    const dom = new JSDOM(
+      `<!doctype html><body style="margin:0">
+         <div id="column-list-container" style="height:200px;overflow-y:scroll">
+           <div style="height:4000px"></div>
+         </div>
+       </body>`,
+      { pretendToBeVisual: true, runScripts: "outside-only" },
+    );
+    const { window } = dom;
+    // jsdom has no layout, so stand in for the numbers the browser would give:
+    // the container scrolls, the document does not.
+    Object.defineProperty(window.document.documentElement, "scrollHeight", { value: 200 });
+    Object.defineProperty(window.document.documentElement, "clientHeight", { value: 200 });
+    const container = window.document.getElementById("column-list-container");
+    Object.defineProperty(container, "scrollHeight", { value: 4000 });
+    Object.defineProperty(container, "clientHeight", { value: 200 });
+    Object.defineProperty(window, "getComputedStyle", {
+      value: () => ({ overflowY: "scroll" }),
+    });
+
+    window.eval(scriptedScrollBy(120));
+    expect(container.scrollTop).toBe(120);
+    expect(window.scrollY).toBe(0);
+    window.eval(scriptedScrollBy(-40));
+    expect(container.scrollTop).toBe(80);
+    dom.window.close();
   });
 
   it("keeps every burst positive and forward on a scroll shorter than the burst count", async () => {
@@ -521,7 +670,21 @@ class FakeSocket {
       ).length;
       reply({ sessionId: `S-${this.sessionOrdinal + 1}` });
     } else if (frame.method === "Target.createTarget") reply({ targetId: "WIN-TAB-1" });
-    else if (frame.method === "Runtime.evaluate")
+    else if (frame.method === "Emulation.setFocusEmulationEnabled") {
+      if (frame.params?.enabled) FakeSocket.emulated = true;
+      reply({});
+    } else if (frame.method.startsWith("Input.")) {
+      // A throttled renderer never answers: the caller's own timer fires and
+      // `openCdpSession` decorates that timeout with "the tab is throttled".
+      // Reproducing it as a plain error frame instead would hand the recovery
+      // wrapper a message Chrome never produces, and the tests would then pass
+      // by matching a regex that no real failure matches.
+      const visible = FakeSocket.visibilityFor(this.sessionOrdinal ?? 0) === "visible";
+      if (!visible && FakeSocket.dropWhenHidden) return; // swallowed, as Chrome does
+      if (!visible) fail({ code: -32000, message: "Timeout" });
+      else if (frame.method === "Input.dispatchMouseEvent") reply({});
+      else reply({ ok: true });
+    } else if (frame.method === "Runtime.evaluate")
       reply({ result: { value: FakeSocket.visibilityFor(this.sessionOrdinal ?? 0) } });
     else if (frame.method === "Target.detachFromTarget") reply({});
     else reply({ ok: true });
@@ -532,10 +695,19 @@ class FakeSocket {
 }
 FakeSocket.instances = [];
 FakeSocket.refuseMethod = null;
+// When true a hidden tab silently swallows input, as Chrome does, so the
+// caller's own timer produces the "the tab is throttled" message. Off by
+// default because it costs the full timeout.
+FakeSocket.dropWhenHidden = false;
+// Focus emulation is a browser-level fact: once enabled, every session on this
+// browser reports visible, which is what the real one does.
+FakeSocket.emulated = false;
 // Per-attach visibility; the last entry repeats for later tabs.
 FakeSocket.visibility = ["visible"];
 FakeSocket.visibilityFor = (ordinal) =>
-  FakeSocket.visibility[Math.min(ordinal, FakeSocket.visibility.length - 1)];
+  FakeSocket.emulated
+    ? "visible"
+    : FakeSocket.visibility[Math.min(ordinal, FakeSocket.visibility.length - 1)];
 
 const fakeFetch = async () => ({
   json: async () => ({ webSocketDebuggerUrl: "ws://127.0.0.1:9229/devtools/browser/fake" }),
@@ -572,41 +744,213 @@ describe("activateTarget", () => {
   });
 });
 
-describe("ensureForeground", () => {
-  const sessionWith = (values) => {
+describe("ensureResponsiveInput", () => {
+  /** Session whose input dispatch fails while it is throttled. */
+  const sessionWith = (throttled = true) => {
     const sent = [];
-    let i = 0;
+    let slow = throttled;
     return {
       sent,
-      send: async (method) => {
+      send: async (method, params = {}) => {
         sent.push(method);
-        if (method === "Runtime.evaluate") {
-          const value = values[Math.min(i, values.length - 1)];
-          i += 1;
-          return { result: { value } };
+        if (method === "Emulation.setFocusEmulationEnabled") {
+          if (params.enabled) slow = false;
+          return {};
         }
+        if (method === "Input.dispatchMouseEvent") {
+          if (slow) throw new Error("CDP -32000: Timeout");
+          return {};
+        }
+        if (method === "Runtime.evaluate")
+          return { result: { value: slow ? "hidden" : "visible" } };
         return {};
       },
     };
   };
-  const noSleep = async () => {};
 
-  it("returns once the tab reports visible", async () => {
-    const session = sessionWith(["visible"]);
-    await expect(ensureForeground(session, { sleepFn: noSleep })).resolves.toBe("visible");
+  it("returns the measured latency when input already dispatches fast", async () => {
+    const session = sessionWith(false);
+    const ready = await ensureResponsiveInput(session);
+    expect(ready.emulated).toBe(false);
+    expect(ready.latencyMs).toBeGreaterThanOrEqual(0);
     expect(session.sent).toContain("Page.bringToFront");
+    // No `visibility` field: a fast dispatch and a `hidden` document coexist,
+    // which is this whole module's thesis, so the field could only lie.
+    expect(ready).not.toHaveProperty("visibility");
   });
 
-  it("retries a hidden tab before giving up", async () => {
-    const session = sessionWith(["hidden", "hidden", "visible"]);
-    await expect(ensureForeground(session, { sleepFn: noSleep })).resolves.toBe("visible");
+  it("does not call one slow sample a throttle", async () => {
+    // A cold renderer's first dispatch can miss the budget while the tab is
+    // fine. Re-hosting on that sample would restart the page load for nothing.
+    const sent = [];
+    let dispatches = 0;
+    const session = {
+      sent,
+      send: async (method) => {
+        sent.push(method);
+        if (method === "Input.dispatchMouseEvent") {
+          dispatches += 1;
+          if (dispatches === 1) throw new Error("CDP command timed out after 1500ms");
+        }
+        if (method === "Runtime.evaluate") return { result: { value: "hidden" } };
+        return {};
+      },
+    };
+    const ready = await ensureResponsiveInput(session, { label: "upload tab" });
+    expect(ready.emulated).toBe(false);
+    expect(session.sent).not.toContain("Emulation.setFocusEmulationEnabled");
   });
 
-  it("throws with the instruction instead of running at ~5s per event", async () => {
-    const session = sessionWith(["hidden"]);
+  it("emulates focus when the first dispatch times out", async () => {
+    // 2026-10-31: this took the same tab from 5s per event to 3ms.
+    const session = sessionWith(true);
+    const ready = await ensureResponsiveInput(session, { label: "upload tab" });
+    expect(ready.emulated).toBe(true);
+    expect(session.sent).toContain("Emulation.setFocusEmulationEnabled");
+  });
+
+  it("throws with the instruction when emulation does not lift the throttle", async () => {
+    const session = sessionWith(true);
+    const original = session.send;
+    session.send = async (method, params = {}) => {
+      if (method === "Emulation.setFocusEmulationEnabled") throw new Error("CDP -32601: not found");
+      return original(method, params);
+    };
+    await expect(ensureResponsiveInput(session, { label: "upload tab" })).rejects.toThrow(
+      /upload tab cannot receive input.*Bring the Chrome window to the front/s,
+    );
+  });
+});
+
+describe("withThrottleRecovery", () => {
+  const throttledSession = (failures) => {
+    const sent = [];
+    let remaining = failures;
+    return {
+      sessionId: "S-1",
+      sent,
+      send: async (method, params = {}) => {
+        sent.push(method);
+        if (method === "Emulation.setFocusEmulationEnabled") return {};
+        if (method.startsWith("Input.") && remaining > 0) {
+          remaining -= 1;
+          throw new Error("CDP command timed out after 3000ms — the tab is throttled");
+        }
+        return { ok: true };
+      },
+    };
+  };
+
+  it("heals the first throttled dispatch and retries it once", async () => {
+    const inner = throttledSession(1);
+    const recovered = [];
+    const session = withThrottleRecovery(inner, { onRecover: (d) => recovered.push(d) });
+    await expect(session.send("Input.insertText", { text: "a" })).resolves.toEqual({ ok: true });
+    expect(inner.sent).toContain("Emulation.setFocusEmulationEnabled");
+    expect(recovered).toEqual([{ method: "Input.insertText", retried: true }]);
+    expect(session.focusEmulated()).toBe(true);
+  });
+
+  it("emulates for a stuck wheel but does not dispatch it a second time", async () => {
+    // A local ack timeout does not cancel the command: once emulation lifts the
+    // throttle the original wheel can still land, and a retry would scroll
+    // twice while `wheelScroll` records one chunk.
+    const inner = throttledSession(Number.POSITIVE_INFINITY);
+    const session = withThrottleRecovery(inner);
     await expect(
-      ensureForeground(session, { sleepFn: noSleep, label: "upload tab" }),
-    ).rejects.toThrow(/upload tab is hidden.*Bring the Chrome window to the front/s);
+      session.send("Input.dispatchMouseEvent", { type: "mouseWheel", deltaY: 120 }),
+    ).rejects.toThrow(/throttled/);
+    const wheels = inner.sent.filter((m) => m === "Input.dispatchMouseEvent");
+    expect(wheels).toHaveLength(1);
+    expect(inner.sent).toContain("Emulation.setFocusEmulationEnabled");
+    expect(session.focusEmulated()).toBe(true);
+  });
+
+  it("stops after the bounded number of recoveries instead of looping", async () => {
+    // Each failed send gets one heal-and-retry. A navigation can drop the
+    // emulation, so a second recovery is legitimate; a fourth means the machine
+    // is broken, not that we should keep trying.
+    const inner = throttledSession(Number.POSITIVE_INFINITY);
+    const session = withThrottleRecovery(inner);
+    for (let i = 0; i < MAX_THROTTLE_RECOVERIES + 1; i++) {
+      await expect(
+        session.send("Input.dispatchMouseEvent", { type: "mouseMoved" }),
+      ).rejects.toThrow(/throttled/);
+    }
+    const emulations = inner.sent.filter((m) => m === "Emulation.setFocusEmulationEnabled");
+    expect(emulations).toHaveLength(MAX_THROTTLE_RECOVERIES);
+  });
+
+  it("counts emulation done while opening the session against the same cap", async () => {
+    const inner = throttledSession(Number.POSITIVE_INFINITY);
+    const session = withThrottleRecovery(inner, { initialEmulated: true });
+    expect(session.focusEmulated()).toBe(true);
+    for (let i = 0; i < MAX_THROTTLE_RECOVERIES; i++) {
+      await expect(
+        session.send("Input.dispatchMouseEvent", { type: "mouseMoved" }),
+      ).rejects.toThrow(/throttled/);
+    }
+    // The open-time emulation was one of the three, so only two more happened.
+    const emulations = inner.sent.filter((m) => m === "Emulation.setFocusEmulationEnabled");
+    expect(emulations).toHaveLength(MAX_THROTTLE_RECOVERIES - 1);
+  });
+
+  it("keeps the throttled error when emulation itself fails, and spends nothing", async () => {
+    const inner = throttledSession(Number.POSITIVE_INFINITY);
+    const original = inner.send;
+    inner.send = async (method, params = {}) => {
+      if (method === "Emulation.setFocusEmulationEnabled") throw new Error("CDP -32601: not found");
+      return original(method, params);
+    };
+    let recovered = 0;
+    const session = withThrottleRecovery(inner, { onRecover: () => (recovered += 1) });
+    await expect(session.send("Input.dispatchMouseEvent", { type: "mouseMoved" })).rejects.toThrow(
+      /the tab is throttled/,
+    );
+    // The actionable message survives, the fact stays false, and the budget is
+    // intact for a recovery that might actually work.
+    expect(session.focusEmulated()).toBe(false);
+    expect(recovered).toBe(0);
+    inner.send = original;
+    await expect(session.send("Input.dispatchMouseEvent", { type: "mouseMoved" })).rejects.toThrow(
+      /throttled/,
+    );
+    expect(recovered).toBe(1);
+  });
+
+  it("leaves non-input commands alone", async () => {
+    const inner = throttledSession(1);
+    const session = withThrottleRecovery(inner);
+    await expect(session.send("Runtime.evaluate", { expression: "1" })).resolves.toEqual({
+      ok: true,
+    });
+    expect(inner.sent).not.toContain("Emulation.setFocusEmulationEnabled");
+  });
+
+  it("heals a real dispatch timeout, the message openCdpSession actually produces", async () => {
+    // The fakes above spell the message by hand; this one lets the real session
+    // timer produce it, so the recovery is tied to the production error shape
+    // rather than to a regex someone wrote twice.
+    FakeSocket.instances = [];
+    FakeSocket.visibility = ["hidden"];
+    FakeSocket.emulated = false;
+    FakeSocket.dropWhenHidden = true;
+    try {
+      const inner = await openCdpSession("TAB-1", {
+        WebSocketImpl: FakeSocket,
+        fetchImpl: fakeFetch,
+      });
+      const recovered = [];
+      const session = withThrottleRecovery(inner, { onRecover: (d) => recovered.push(d) });
+      await expect(
+        session.send("Input.insertText", { text: "a" }, { timeoutMs: 25 }),
+      ).resolves.toEqual({ ok: true });
+      expect(recovered).toEqual([{ method: "Input.insertText", retried: true }]);
+      expect(session.focusEmulated()).toBe(true);
+      session.close();
+    } finally {
+      FakeSocket.dropWhenHidden = false;
+    }
   });
 });
 
@@ -631,6 +975,7 @@ describe("openWindowTarget", () => {
 describe("openVisibleSession", () => {
   const cycle = (states) => {
     FakeSocket.visibility = states;
+    FakeSocket.emulated = false;
     FakeSocket.instances = [];
   };
 
@@ -659,32 +1004,85 @@ describe("openVisibleSession", () => {
       createTab: async () => "TAB-1",
       closeTab: (id) => closed.push(id),
       onRehost: (reason) => reasons.push(reason),
-      sleepFn: async () => {},
       WebSocketImpl: FakeSocket,
       fetchImpl: fakeFetch,
     });
     expect(opened).toMatchObject({ targetId: "WIN-TAB-1", window: "new" });
     expect(closed).toEqual(["TAB-1"]);
-    expect(reasons[0]).toMatch(/hidden/);
+    // The re-host reason is the measured latency, not a visibility flag: a tab
+    // can report visible and still be throttled (2026-10-31).
+    expect(reasons[0]).toMatch(/too slowly/);
     const create = FakeSocket.instances
       .flatMap((s) => s.sent)
       .find((f) => f.method === "Target.createTarget");
     expect(create.params).toEqual({ url: "https://example.test/upload", newWindow: true });
   });
 
-  it("throws an actionable error when even a fresh window is hidden", async () => {
+  it("falls back to focus emulation when even a fresh window stays hidden", async () => {
+    // Measured 2026-10-31: on a hidden tab, `Emulation.setFocusEmulationEnabled`
+    // flipped `document.visibilityState` to "visible" and two input dispatches
+    // took 20ms total where each previously hit a 3s timeout.
+    cycle(["hidden"]);
+    const emulated = [];
+    const opened = await openVisibleSession("https://example.test/upload", {
+      createTab: async () => "TAB-1",
+      onEmulate: () => emulated.push(true),
+      WebSocketImpl: FakeSocket,
+      fetchImpl: fakeFetch,
+    });
+    expect(opened).toMatchObject({
+      targetId: "WIN-TAB-1",
+      window: "new",
+      focusEmulated: true,
+    });
+    expect(emulated).toHaveLength(1);
+    const emulation = FakeSocket.instances
+      .flatMap((s) => s.sent)
+      .find((f) => f.method === "Emulation.setFocusEmulationEnabled");
+    expect(emulation.params).toEqual({ enabled: true });
+  });
+
+  it("reports focusEmulated false when a native window was visible", async () => {
+    cycle(["hidden", "visible"]);
+    const opened = await openVisibleSession("https://example.test/upload", {
+      createTab: async () => "TAB-1",
+      WebSocketImpl: FakeSocket,
+      fetchImpl: fakeFetch,
+    });
+    expect(opened.focusEmulated).toBe(false);
+  });
+
+  it("throws an actionable error when emulation is unavailable too", async () => {
     cycle(["hidden"]);
     const closed = [];
-    await expect(
-      openVisibleSession("https://example.test/upload", {
-        createTab: async () => "TAB-1",
-        closeTab: (id) => closed.push(id),
-        sleepFn: async () => {},
-        WebSocketImpl: FakeSocket,
-        fetchImpl: fakeFetch,
-      }),
-    ).rejects.toThrow(/input is throttled.*Bring the Chrome window to the front/s);
+    FakeSocket.refuseMethod = "Emulation.setFocusEmulationEnabled";
+    try {
+      await expect(
+        openVisibleSession("https://example.test/upload", {
+          createTab: async () => "TAB-1",
+          closeTab: (id) => closed.push(id),
+          WebSocketImpl: FakeSocket,
+          fetchImpl: fakeFetch,
+        }),
+      ).rejects.toThrow(/input is throttled.*Bring the Chrome window to the front/s);
+    } finally {
+      FakeSocket.refuseMethod = null;
+    }
     expect(closed).toEqual(["TAB-1", "WIN-TAB-1"]);
+  });
+});
+
+describe("emulateFocus", () => {
+  it("enables emulation and reports the state Chrome now sees", async () => {
+    FakeSocket.emulated = false;
+    FakeSocket.instances = [];
+    const session = await openCdpSession("TAB-1", {
+      WebSocketImpl: FakeSocket,
+      fetchImpl: fakeFetch,
+    });
+    await expect(emulateFocus(session)).resolves.toBe("visible");
+    expect(FakeSocket.emulated).toBe(true);
+    session.close();
   });
 });
 

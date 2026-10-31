@@ -60,8 +60,12 @@ export const WHEEL_BURST_GAP_MS = Object.freeze([170, 90]);
  * the long session budget would only convert a silent drop into a 15s stall.
  */
 export const WHEEL_ACK_TIMEOUT_MS = 3000;
-/** Base of the visibility re-check backoff (multiplied by attempt). */
-export const FOREGROUND_RETRY_BASE_MS = 400;
+/**
+ * Wait for an unacknowledged wheel to land before correcting the scroll
+ * position (120 ± 80). Long enough for a throttled renderer to drain the
+ * dispatch it never acked, short enough not to be felt.
+ */
+export const LATE_DISPATCH_SETTLE_MS = Object.freeze([120, 80]);
 
 /**
  * Uniform float in [min, max].
@@ -226,6 +230,68 @@ export async function clickAtPoint(session, opts) {
 }
 
 /**
+ * JavaScript that finds the element which actually scrolls this page.
+ *
+ * `window` is the wrong answer on an app shell: TikTok's For You feed scrolls
+ * `#column-list-container` while `window.scrollY` stays 0 and `window.scrollBy`
+ * does nothing (measured 2026-10-31: `scrollHeight` 6741, `clientHeight` 749,
+ * window offset pinned at 0). Aiming a correction at the window therefore
+ * reported the whole request as "corrected" while moving nothing.
+ *
+ * Written as an expression that resolves to a DOM element so callers can pick
+ * window-level or container-level behaviour from one scan.
+ */
+const SCROLLER_JS = `(() => {
+  const doc = document.scrollingElement || document.documentElement;
+  if (doc && doc.scrollHeight > doc.clientHeight + 4) return doc;
+  let best = null;
+  let bestRange = 0;
+  for (const el of document.querySelectorAll("div, main, section")) {
+    const overflowY = getComputedStyle(el).overflowY;
+    if (overflowY !== "scroll" && overflowY !== "auto") continue;
+    if (el.clientHeight < 200) continue;
+    const range = el.scrollHeight - el.clientHeight;
+    if (range > bestRange) {
+      bestRange = range;
+      best = el;
+    }
+  }
+  return best;
+})()`;
+
+/** Read the vertical offset of whatever element actually scrolls. */
+const SCROLL_OFFSET_JS = `(() => {
+  const el = ${SCROLLER_JS};
+  if (el && el !== document.scrollingElement && el !== document.documentElement) return el.scrollTop;
+  return window.scrollY;
+})()`;
+
+/** Scroll the element that actually scrolls, by `delta` pixels. */
+const scrollByJs = (delta) => `(() => {
+  const el = ${SCROLLER_JS};
+  if (el && el !== document.scrollingElement && el !== document.documentElement) {
+    el.scrollTop = el.scrollTop + (${delta});
+    return el.scrollTop;
+  }
+  window.scrollBy(0, ${delta});
+  return window.scrollY;
+})()`;
+
+/**
+ * A scripted scroll for callers that drive the page through the eval endpoint
+ * instead of a CDP session.
+ *
+ * Exported so the warm-up's own fallback and `wheelScroll`'s cannot disagree
+ * about which element to move — on this app shell the window is the wrong one.
+ *
+ * @param {number} delta pixels, negative to scroll up
+ * @returns {string} a JavaScript expression
+ */
+export function scriptedScrollBy(delta) {
+  return scrollByJs(delta);
+}
+
+/**
  * Scroll with trusted wheel events, in several bursts.
  *
  * The leading `mouseMoved` is not decoration: a wheel dispatched right after
@@ -246,13 +312,29 @@ export async function clickAtPoint(session, opts) {
  *
  * @param {{ send: (method: string, params?: object) => Promise<object> }} session
  * @param {{ x: number, y: number, totalDeltaY: number, rand?: () => number, sleepFn?: (ms:number)=>Promise<void>, fallback?: boolean }} opts
- * @returns {Promise<{ chunks: number[], mode: "wheel"|"js-fallback", reason?: string }>}
+ * @returns {Promise<{ chunks: number[], mode: "wheel"|"js-fallback", reason?: string, scriptedPx?: number, correctedPx?: number }>}
+ *   `scriptedPx` is what the scripted scroll actually moved (0 on a page that
+ *   pins its scroll position); `correctedPx` is only present when a late
+ *   dispatch really had to be compensated for.
  */
 export async function wheelScroll(session, opts) {
   const { x, y, totalDeltaY, rand = Math.random, sleepFn = defaultSleep, fallback = true } = opts;
   const sign = Math.sign(totalDeltaY) || 1;
   const total = Math.abs(Math.round(totalDeltaY));
   if (!total) return { chunks: [], mode: "wheel" };
+
+  /** @returns {Promise<number|null>} the page's vertical offset, null if unreadable */
+  const scrollY = async () => {
+    const { result } = await session.send("Runtime.evaluate", {
+      expression: SCROLL_OFFSET_JS,
+      returnByValue: true,
+    });
+    return typeof result?.value === "number" ? result.value : null;
+  };
+  // A navigation or a torn-down renderer must not stop the scroll itself, so an
+  // unreadable start position only costs the correction — it is the one thing
+  // here that needs a baseline.
+  const startY = await scrollY().catch(() => null);
 
   await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none" });
   // Let the hit test settle before the first burst; a wheel that lands in the
@@ -298,15 +380,48 @@ export async function wheelScroll(session, opts) {
     // whatever they moved.
     const delivered = chunks.slice(0, sent);
     const remaining = sign * (total - delivered.reduce((a, b) => a + b, 0));
+    const chunksSent = [...delivered.map((c) => sign * c), ...(remaining ? [remaining] : [])];
+
+    // Scripting is a fallback, not a guarantee. A virtualized feed pins its
+    // container: on TikTok's For You feed (2026-10-31) `scrollTop = 300` reads
+    // back as 0 and `window.scrollBy` does nothing, so a real wheel is the only
+    // thing that moves that page. Measure what the script actually achieved
+    // rather than assuming it worked — otherwise the run reports a correction
+    // it never performed.
+    let scriptedPx = 0;
     if (remaining) {
-      await session.send("Runtime.evaluate", {
-        expression: `window.scrollBy(0, ${remaining})`,
-      });
+      const beforeY = await scrollY().catch(() => null);
+      await session.send("Runtime.evaluate", { expression: scrollByJs(remaining) });
+      const afterY = await scrollY().catch(() => null);
+      scriptedPx = beforeY === null || afterY === null ? 0 : afterY - beforeY;
+    }
+    if (!scriptedPx) {
+      return {
+        chunks: chunksSent,
+        mode: "js-fallback",
+        reason: err.message,
+        scriptedPx: 0,
+      };
+    }
+
+    // The unacknowledged burst was NOT cancelled: the renderer can still apply
+    // it once the throttle lifts, and then this correction has overshot by
+    // exactly that chunk. Measured 2026-10-31 on the fixture: three wheels
+    // reached the page for a two-of-four ack, so the scripted shortfall scrolled
+    // ~163px too far. Wait for the late dispatch to land, then converge on the
+    // position the caller asked for instead of trusting the arithmetic.
+    await sleepJitter(...LATE_DISPATCH_SETTLE_MS, { rand, sleepFn });
+    const nowY = await scrollY().catch(() => null);
+    const drift = startY === null || nowY === null ? null : startY + sign * total - nowY;
+    if (drift !== null && Math.abs(drift) >= 2) {
+      await session.send("Runtime.evaluate", { expression: scrollByJs(drift) });
     }
     return {
-      chunks: [...delivered.map((c) => sign * c), ...(remaining ? [remaining] : [])],
+      chunks: chunksSent,
       mode: "js-fallback",
       reason: err.message,
+      scriptedPx,
+      ...(drift === null ? {} : { correctedPx: Math.round(drift) }),
     };
   }
   return { chunks: chunks.map((c) => sign * c), mode: "wheel" };
@@ -563,43 +678,125 @@ export async function openWindowTarget(url, opts = {}) {
 }
 
 /**
- * Verify the tab is really foregrounded before dispatching anything.
+ * How long an input dispatch may take before the renderer counts as throttled.
  *
- * `Target.activateTarget` returns "ok" as soon as the command is accepted,
- * which is NOT the same as the renderer being visible: when the Chrome window
- * itself is minimised, occluded or on another Space, the tab stays
- * `document.visibilityState === "hidden"` and input dispatch is throttled to
- * ~5s per event (measured 2026-10-30 on this profile). A caption would then
- * take hours and every CDP command would time out somewhere unrelated, with no
- * hint of the real cause. Fail here, with the instruction, instead.
+ * A healthy dispatch is a few milliseconds (measured 3-13ms on this profile);
+ * a throttled one is ~5s. The probe below times out at this value, so a
+ * throttled tab costs one probe rather than five seconds per attempt.
+ */
+export const INPUT_PROBE_TIMEOUT_MS = 1500;
+
+/**
+ * Where the latency probe dispatches its `mouseMoved`. A corner, so the hover
+ * state it creates lands on nothing that a later click cares about.
+ */
+const INPUT_PROBE_POINT = Object.freeze({ x: 2, y: 2 });
+
+/**
+ * Guarantee that input dispatched on this session is NOT throttled.
  *
- * Only the human can fix that state (the repo forbids an agent from killing or
- * restarting Chrome), so this throws an actionable message rather than
- * retrying.
+ * Visibility is not the invariant — latency is, and the two disagree often
+ * enough to matter. Measured on this profile:
+ *
+ *   2026-10-30  a tab that reports `visible` dispatches in 8ms, `hidden` in 5s;
+ *   2026-10-31  a window Chrome opened for the run reported `visible` during
+ *               `Target.activateTarget` and was `hidden` seconds later, so a
+ *               visibility check passed and the very next wheel event still hit
+ *               a 3s timeout.
+ *
+ * So probe the thing that hurts: dispatch one `mouseMoved` and time it. When it
+ * is slow, enable focus emulation (`emulateFocus`, which took the same tab from
+ * 5s per event to 3ms) and probe again. Only if THAT fails is the machine
+ * genuinely unusable, and the error says so.
  *
  * @param {{ send: (method: string, params?: object) => Promise<object> }} session
- * @param {{ label?: string, attempts?: number, sleepFn?: (ms:number)=>Promise<void> }} [opts]
- * @returns {Promise<string>} the observed visibility state ("visible")
+ * @param {{ label?: string, probeTimeoutMs?: number, allowEmulation?: boolean }} [opts]
+ *   `allowEmulation: false` makes this a pure probe, so a caller that can still
+ *   re-host the page in a real window prefers that over emulating.
+ * @returns {Promise<{ emulated: boolean, latencyMs: number }>}
  */
-export async function ensureForeground(session, opts = {}) {
-  const { label = "tab", attempts = 3, sleepFn = defaultSleep } = opts;
-  let state = null;
-  for (let i = 0; i < attempts; i++) {
-    // bringToFront re-raises the tab inside its window; harmless when the
-    // window is already frontmost.
-    await session.send("Page.bringToFront");
+export async function ensureResponsiveInput(session, opts = {}) {
+  const { label = "tab", probeTimeoutMs = INPUT_PROBE_TIMEOUT_MS, allowEmulation = true } = opts;
+
+  const visibility = async () => {
     const { result } = await session.send("Runtime.evaluate", {
       expression: "document.visibilityState",
       returnByValue: true,
     });
-    state = result?.value ?? null;
-    if (state === "visible") return state;
-    await sleepFn(FOREGROUND_RETRY_BASE_MS * (i + 1));
+    return result?.value ?? null;
+  };
+
+  const probe = async () => {
+    const started = Date.now();
+    try {
+      await session.send(
+        "Input.dispatchMouseEvent",
+        { type: "mouseMoved", x: INPUT_PROBE_POINT.x, y: INPUT_PROBE_POINT.y, button: "none" },
+        { timeoutMs: probeTimeoutMs },
+      );
+      return Date.now() - started;
+    } catch (err) {
+      return { timedOut: true, message: err.message, elapsed: Date.now() - started };
+    }
+  };
+
+  // Two probes before any verdict, and either one being fast is enough. A
+  // single 1.5s sample cannot tell a throttled renderer from a cold one: the
+  // first dispatch after `Target.createTarget` builds the compositor, and a
+  // machine doing a render alongside can miss the budget once and still be
+  // fine. Re-hosting on one slow sample restarts the page load for nothing.
+  const measure = async () => {
+    const first = await probe();
+    return typeof first === "number" ? first : await probe();
+  };
+
+  // bringToFront re-raises the tab inside its window; harmless when the window
+  // is already frontmost, and it is the only lever that does not need a human.
+  await session.send("Page.bringToFront");
+  let latency = await measure();
+  if (typeof latency === "number") return { emulated: false, latencyMs: latency };
+  if (!allowEmulation) {
+    throw new Error(
+      `${label} dispatches input too slowly: no ack within ${latency.elapsed}ms ` +
+        `(${latency.message}). Re-hosting the page in a new window.`,
+    );
   }
+
+  const afterEmulation = await emulateFocus(session).catch(() => null);
+  latency = await measure();
+  if (typeof latency === "number") return { emulated: true, latencyMs: latency };
+
   throw new Error(
-    `${label} is hidden (document.visibilityState=${JSON.stringify(state)}). ` +
+    `${label} cannot receive input: dispatch timed out twice ` +
+      `(visibilityState=${JSON.stringify(await visibility().catch(() => null))}, ` +
+      `focus emulation ${afterEmulation === "visible" ? "reported visible" : "did not take"}). ` +
       "Bring the Chrome window to the front (no minimising, no other Space) and run again.",
   );
+}
+
+/**
+ * Make a throttled-but-usable tab report itself as focused.
+ *
+ * Chrome throttles input dispatch on a renderer it considers hidden, and the
+ * only OS-level fix is a human moving the window to the active Space. Focus
+ * emulation is the in-process lever: the renderer reports `visible` and the
+ * throttle lifts. Measured 2026-10-31 on this profile, same tab: 5018ms per
+ * `Input.dispatchMouseEvent` before, 3ms after.
+ *
+ * What it does NOT do: it changes what the page believes about focus, not what
+ * the window is doing. A page that suppresses work on `blur` will not see one,
+ * so runs that use it report `focusEmulated: true` instead of passing silently.
+ *
+ * @param {{ send: (method: string, params?: object) => Promise<object> }} session
+ * @returns {Promise<string|null>} the visibility state Chrome reports afterwards
+ */
+export async function emulateFocus(session) {
+  await session.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+  const { result } = await session.send("Runtime.evaluate", {
+    expression: "document.visibilityState",
+    returnByValue: true,
+  });
+  return result?.value ?? null;
 }
 
 /**
@@ -737,16 +934,108 @@ export async function openCdpSession(targetId, opts = {}) {
   };
 }
 
+/** How many times one session may re-enable focus emulation. */
+export const MAX_THROTTLE_RECOVERIES = 3;
+
 /**
- * Open a tab that is guaranteed to be visible, re-hosting it in a new window
- * when the automation window cannot be raised.
+ * Does this failure mean "the renderer is not dispatching input right now"?
+ *
+ * `openCdpSession` decorates its own dispatch timeouts with that word; nothing
+ * else does. Keep this in one place: the recovery wrapper and the wheel
+ * fallback both need the same answer, and a second copy of the regex would let
+ * them drift apart.
+ *
+ * @param {string} method
+ * @param {Error} err
+ */
+function isThrottleError(method, err) {
+  return method.startsWith("Input.") && /throttled/.test(err?.message ?? "");
+}
+
+/** A wheel, as opposed to a move/click/key: it is the one event Chrome drops. */
+function isWheelDispatch(method, params) {
+  return method === "Input.dispatchMouseEvent" && params?.type === "mouseWheel";
+}
+
+/**
+ * Wrap a session so a mid-run throttle heals itself instead of failing a step.
+ *
+ * The visibility of a tab is not a property the session can be trusted to hold:
+ * measured 2026-10-31, a tab that dispatched input in 13ms went back to
+ * `hidden` — and to 5s per event — seconds later, with nothing in between but a
+ * navigation. A single check at session open can therefore pass and the very
+ * first wheel event after it still times out.
+ *
+ * So recover where the failure happens: an `Input.*` timeout enables focus
+ * emulation, reports it through `onRecover`, and retries that same command.
+ * The retry budget is small and finite (`MAX_THROTTLE_RECOVERIES`), because a
+ * navigation can drop the emulation and legitimately need it again — but a
+ * fourth recovery means the machine is broken, not that we should keep trying.
+ *
+ * Wheels are the exception: a local ack timeout does NOT cancel the dispatch,
+ * so the throttled renderer can still process the original wheel once
+ * emulation lifts it. Retrying would then scroll twice while `wheelScroll`
+ * records one chunk. Those rethrow after emulating, and `wheelScroll` scripts
+ * only the shortfall — the callers already verify scroll position.
+ *
+ * @param {{ sessionId?: string, send: Function, close: Function }} session
+ * @param {{
+ *   onRecover?: (detail: { method: string, retried: boolean }) => void,
+ *   initialEmulated?: boolean,
+ * }} [opts]
+ *   `initialEmulated` seeds the budget and the flag from emulation that already
+ *   happened while opening the session, so `focusEmulated()` is the single
+ *   source of truth and the cap counts that first one too.
+ * @returns {{ sessionId?: string, send: Function, close: Function, focusEmulated: () => boolean }}
+ */
+export function withThrottleRecovery(session, opts = {}) {
+  const { onRecover, initialEmulated = false } = opts;
+  let emulated = initialEmulated;
+  let recoveries = initialEmulated ? 1 : 0;
+  return {
+    sessionId: session.sessionId,
+    focusEmulated: () => emulated,
+    close: () => session.close(),
+    send: async (method, params, sendOpts) => {
+      try {
+        return await session.send(method, params, sendOpts);
+      } catch (err) {
+        if (!isThrottleError(method, err) || recoveries >= MAX_THROTTLE_RECOVERIES) throw err;
+        try {
+          await emulateFocus(session);
+        } catch (emulationError) {
+          // Keep the throttled error: it carries the actionable instruction,
+          // and the emulation failure is the reason it could not be followed.
+          throw new Error(err.message, { cause: emulationError });
+        }
+        // Only now is the fact true, and only now is the budget spent.
+        emulated = true;
+        recoveries += 1;
+        const retried = !isWheelDispatch(method, params);
+        onRecover?.({ method, retried });
+        if (!retried) throw err;
+        return session.send(method, params, sendOpts);
+      }
+    },
+  };
+}
+
+/**
+ * Open a tab whose input dispatch is not throttled, re-hosting it in a new
+ * window when the automation window cannot be raised.
  *
  * The failure this absorbs is real and silent: with the Chrome window on
  * another macOS Space or fully occluded, a tab the proxy created dispatches
  * input at ~5s per event while every command still succeeds. The publish run
  * would then spend hours on a 300-character caption, or time out somewhere
- * unrelated. Re-hosting in a new window fixes it (8ms per event in the same
- * measurement), so the operator gets no instruction to follow.
+ * unrelated. Re-hosting in a new window usually fixes it (8ms per event in the
+ * same measurement), so the operator normally sees nothing.
+ *
+ * Both stages gate on measured dispatch latency, not on `visibilityState` — a
+ * window Chrome opened for the run was observed reporting `visible` and then
+ * throttling input seconds later (2026-10-31), so the cheap-looking check let
+ * the failure through. When neither lever works, `ensureResponsiveInput` tries
+ * focus emulation, which lifts the throttle without moving any window.
  *
  * `createTab` and `closeTab` are injected so the fallback can be tested without
  * a browser.
@@ -758,11 +1047,14 @@ export async function openCdpSession(targetId, opts = {}) {
  *   closeTab?: (targetId: string) => Promise<void> | void,
  *   WebSocketImpl?: typeof WebSocket,
  *   fetchImpl?: typeof fetch,
- *   attempts?: number,
- *   sleepFn?: (ms: number) => Promise<void>,
  *   onRehost?: (reason: string) => void,
+ *   onEmulate?: () => void,
+ *   onRecover?: (detail: { method: string, retried: boolean }) => void,
  * }} [opts]
- * @returns {Promise<{ targetId: string, session: object, window: "existing"|"new" }>}
+ *   `onEmulate` fires once when the session could only be opened by emulating
+ *   focus; `onRecover` fires for every later mid-run heal, so a caller can log
+ *   them differently.
+ * @returns {Promise<{ targetId: string, session: object, window: "existing"|"new", focusEmulated: boolean }>}
  */
 export async function openVisibleSession(url, opts = {}) {
   const {
@@ -771,9 +1063,9 @@ export async function openVisibleSession(url, opts = {}) {
     closeTab = () => {},
     WebSocketImpl,
     fetchImpl,
-    attempts = 2,
-    sleepFn,
     onRehost,
+    onEmulate,
+    onRecover,
   } = opts;
   const shared = { port, WebSocketImpl, fetchImpl };
 
@@ -781,8 +1073,18 @@ export async function openVisibleSession(url, opts = {}) {
   await activateTarget(firstTab, shared);
   let session = await openCdpSession(firstTab, shared);
   try {
-    await ensureForeground(session, { label: "the tab", attempts, sleepFn });
-    return { targetId: firstTab, session, window: "existing" };
+    // Probe only: a real window is a better answer than emulation, so let the
+    // failure fall through to the re-host below before emulating anything.
+    const ready = await ensureResponsiveInput(session, {
+      label: "the tab",
+      allowEmulation: false,
+    });
+    return {
+      targetId: firstTab,
+      session: withThrottleRecovery(session, { onRecover }),
+      window: "existing",
+      focusEmulated: ready.emulated,
+    };
   } catch (err) {
     // Close our own session before dropping the tab; the proxy tab is then
     // closed too so a failed attempt does not leave a stray tab behind.
@@ -795,15 +1097,24 @@ export async function openVisibleSession(url, opts = {}) {
   await activateTarget(freshTab, shared);
   session = await openCdpSession(freshTab, shared);
   try {
-    await ensureForeground(session, { label: "the new window", attempts, sleepFn });
+    const ready = await ensureResponsiveInput(session, { label: "the new window" });
+    if (ready.emulated) onEmulate?.();
+    return {
+      targetId: freshTab,
+      // Seed the wrapper with what the probe already did, so the single
+      // `focusEmulated()` accessor tells the truth and the cap counts it.
+      session: withThrottleRecovery(session, { onRecover, initialEmulated: ready.emulated }),
+      window: "new",
+      focusEmulated: ready.emulated,
+    };
   } catch (err) {
     session.close();
     await closeTab(freshTab);
     throw new Error(
-      `input is throttled: ${err.message} Even a window Chrome opened for this run stayed hidden, ` +
+      `input is throttled: ${err.message} Even a window Chrome opened for this run stayed throttled, ` +
+        "and focus emulation did not lift it, " +
         "so this machine cannot dispatch human-speed input right now.",
       { cause: err },
     );
   }
-  return { targetId: freshTab, session, window: "new" };
 }
