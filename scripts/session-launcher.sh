@@ -60,6 +60,18 @@ case "$cmd" in
 esac
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "error: not inside a git repository" >&2; exit 1; }
+
+# Route this script's network git calls (fetch, ls-remote, push --delete) through
+# the port that is actually proxying — the closeout is where a stale pinned port
+# used to surface, since a dead port makes `fetch` fail and every delivery
+# criterion that depends on it read "not delivered". Fail-open: no resolver, no
+# proxy client, or no port answering leaves `.git/config` in charge (see
+# scripts/lib/proxy-env.sh). Never writes `.git/config`, which every worktree
+# shares. Rule and evidence: docs/agents/git-workflow.md §11.
+if [ -f "$ROOT/scripts/lib/proxy-env.sh" ]; then
+  # shellcheck source=lib/proxy-env.sh
+  . "$ROOT/scripts/lib/proxy-env.sh"
+fi
 COMMON=$(git rev-parse --git-common-dir)
 case "$COMMON" in /*) ;; *) COMMON="$ROOT/$COMMON" ;; esac
 REGISTRY_DIR="$COMMON/session-pilot"

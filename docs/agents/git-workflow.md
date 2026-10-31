@@ -131,10 +131,11 @@ npm run git:proxy -- fetch origin main
 npm run proxy:port                     # 只解析并打印端口
 ```
 
-- **判据是探针，不是监听**：候选端口逐个请求 `https://www.google.com/generate_204`，返回 `204` 才算在代理。`lsof`/`nc` 只能证明「有东西在听」——Direct 模式和死端口都会给出相反结论，本机 `lsof -p` 还会被沙箱丢掉参数。候选顺序 = `scutil --proxy` 的端口优先，其后是 `netstat` 里绑在 loopback/wildcard 的监听端口。
-- **不写 `.git/config`**：该文件被所有 worktree 共享，包装器写它等于替别的 session 改环境。包装器只对本次调用负责。
-- **解析失败不阻断**：没有端口通过探针时，git 以空 `http.proxy` 直连并打警告（等价于 `git -c http.proxy=` 的既有绕法）。在没有代理也能出网的网络下，fail-closed 只会挡住正常工作。
-- **顺带喂饱 hook**：解析到的端口同时以 `HTTP_PROXY`/`HTTPS_PROXY` 导出，`pre-push` 的 semgrep / osv-scanner 因此继承活值，而不是读系统设置里的陈旧端口。
-- **边界**：只覆盖经它发起的调用；直接 `git push` 仍用 `.git/config` 的静态值。需要全局免疫时改用客户端 TUN，而不是把端口写进更多地方。
+- **判据见 `conventions/test-env-baseline.md` §宿主代理端口**：那里的探针配方与实测表是唯一出处，本节不再抄一份。要点只有一条——探针必须**逐端口**（`-x`）；不带 `-x` 的请求在 TUN 开启时同样返回 `204`，分不出「这个端口在代理」和「这台机器在某处代理」。`lsof`/`nc` 都不是判据：Direct 模式下端口照样在监听，本机 `lsof -p` 还会被沙箱丢掉参数、返回全局列表。
+- **解析失败就不跑 git**，退出 3 并打印探针证据，要直连必须显式 `--direct`。静默降级为直连会让解析变成装饰品：命令成功与否取决于 git 自己的连通性，而调用方以为走过代理。
+- **不写 `.git/config`**：该文件被所有 worktree 共享，写它等于替别的 session 改环境。包装器只对本次调用负责；`scripts/lib/proxy-env.sh` 用 `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n` 给同一进程树里的 git 调用注入同一答案，同样不落盘。
+- **`session:stop` / `session:gc` 已接上同一个判据**（`session-launcher.sh` 启动即 source 上面的 helper）：收尾是陈旧端口最先伤到的地方——`fetch` 一死，所有依赖 origin/main 的交付判据都读成「未交付」。helper 对 git 是 fail-open（无代理客户端时保持 `.git/config` 原样），因为收尾不该因为代理关闭而停摆。
+- **顺带喂饱 hook**：解析到的 URL 同时以 `HTTP_PROXY`/`HTTPS_PROXY` 导出，`pre-push` 的 semgrep / osv-scanner 因此继承活值，而不是读系统设置里的陈旧端口。
+- **边界**：裸 `git push` 仍用 `.git/config` 的静态值。需要全局免疫时改用客户端 TUN，而不是把端口写进更多地方。
 
-实现与判据：`scripts/git-with-proxy.mjs`、`scripts/lib/proxy-port.mjs`，用例见 `scripts/__tests__/proxy-port.test.mjs`。
+实现：`scripts/git-with-proxy.mjs`、`scripts/lib/proxy-port.mjs`、`scripts/lib/proxy-env.sh`；用例见 `scripts/__tests__/proxy-port.test.mjs`（决策）与 `scripts/__tests__/git-with-proxy.test.mjs`（接线：证明解析结果真的到达 git）。

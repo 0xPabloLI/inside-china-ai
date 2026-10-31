@@ -12,6 +12,7 @@ import {
   candidatePorts,
   candidatePortsFromNetstat,
   candidatePortsFromScutil,
+  proxyUrl,
   resolveProxyPort,
 } from "../lib/proxy-port.mjs";
 
@@ -70,7 +71,7 @@ describe("candidate ports", () => {
 });
 
 describe("resolving the port that actually forwards", () => {
-  it("takes the first port that answers 204", async () => {
+  it("takes the first port that answers 204, and records what it skipped", async () => {
     const probed = [];
     const resolved = await resolveProxyPort({
       candidates: [7890, 7895],
@@ -110,11 +111,12 @@ describe("resolving the port that actually forwards", () => {
       { port: 7890, code: "000" },
       { port: 7895, code: "000" },
     ]);
+    expect(resolved.budgetExhausted).toBe(false);
   });
 
   it("retries a port before writing it off, so one bad probe is not a verdict", async () => {
-    // Observed in the wild: the preferred port answered 204 five times in a row
-    // and 000 on the sixth, which demoted the resolver to another port.
+    // Observed in the wild: the preferred port answered 204 on five consecutive
+    // runs and 000 on a sixth, which demoted the resolver to another port.
     let calls = 0;
     const resolved = await resolveProxyPort({
       candidates: [7890],
@@ -132,20 +134,31 @@ describe("resolving the port that actually forwards", () => {
     ]);
   });
 
-  it("records every attempt, so a failure report shows what was tried", async () => {
+  it("stops on the whole-run budget instead of walking every candidate", async () => {
+    // A few hung listeners would otherwise cost candidates × attempts × timeout
+    // and read as a hang rather than a failed resolution.
+    const times = [0, 0, 500];
     const resolved = await resolveProxyPort({
       candidates: [7890, 7895],
       probe: () => "000",
       attempts: 2,
+      budgetMs: 100,
+      now: () => times.shift() ?? 500,
     });
+
     expect(resolved.port).toBeNull();
-    expect(resolved.tried).toHaveLength(4);
+    expect(resolved.budgetExhausted).toBe(true);
+    expect(resolved.tried).toHaveLength(1);
   });
 });
 
 describe("what the caller does with the answer", () => {
-  it("pins both schemes at the resolved port", () => {
-    expect(buildGitProxyArgs(7890)).toEqual([
+  it("addresses every consumer at the same loopback URL", () => {
+    expect(proxyUrl(7890)).toBe("http://127.0.0.1:7890");
+  });
+
+  it("pins both schemes at the resolved URL", () => {
+    expect(buildGitProxyArgs("http://127.0.0.1:7890")).toEqual([
       "-c",
       "http.proxy=http://127.0.0.1:7890",
       "-c",
@@ -153,14 +166,14 @@ describe("what the caller does with the answer", () => {
     ]);
   });
 
-  it("empties the proxy keys when nothing resolved, so git goes direct", () => {
-    // An empty value is git's "connect directly"; leaving the dead port in place
-    // would reproduce the failure the wrapper exists to avoid.
+  it("empties the proxy keys when running direct, so a pinned config cannot win", () => {
+    // An empty value is git's "connect directly"; leaving `.git/config`'s value
+    // in place would reproduce the failure the wrapper exists to avoid.
     expect(buildGitProxyArgs(null)).toEqual(["-c", "http.proxy=", "-c", "https.proxy="]);
   });
 
-  it("exports the port so hooks inherit a live value instead of a stale one", () => {
-    expect(buildProxyEnv(7890)).toEqual({
+  it("exports the URL so hooks inherit a live value instead of a stale one", () => {
+    expect(buildProxyEnv("http://127.0.0.1:7890")).toEqual({
       HTTP_PROXY: "http://127.0.0.1:7890",
       HTTPS_PROXY: "http://127.0.0.1:7890",
       http_proxy: "http://127.0.0.1:7890",
@@ -168,7 +181,7 @@ describe("what the caller does with the answer", () => {
     });
   });
 
-  it("clears inherited proxy variables in the direct fallback", () => {
+  it("clears inherited proxy variables in the direct case", () => {
     expect(buildProxyEnv(null)).toEqual({
       HTTP_PROXY: "",
       HTTPS_PROXY: "",
