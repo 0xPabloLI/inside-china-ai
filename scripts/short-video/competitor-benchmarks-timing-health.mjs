@@ -158,14 +158,18 @@ function emptyLayerSummary() {
   };
 }
 
-/** Read `<dir>/<handle>/<id>.json` records; skips the `<id>.asr.json` evidence files. */
+/** Read `<dir>/<handle>/<id>.json` records; skips the `<id>.asr.json` and
+ *  `<id>.cuts.json` evidence files (the latter live beside records in retimed
+ *  dirs, #749). */
 export function loadRecords(dir) {
   if (!existsSync(dir)) throw new Error(`analysis directory not found: ${dir}`);
   const records = [];
   for (const handle of readdirSync(dir, { withFileTypes: true })) {
     if (!handle.isDirectory()) continue;
     for (const file of readdirSync(join(dir, handle.name))) {
-      if (!file.endsWith(".json") || file.endsWith(".asr.json")) continue;
+      if (!file.endsWith(".json") || file.endsWith(".asr.json") || file.endsWith(".cuts.json")) {
+        continue;
+      }
       records.push({
         key: `${handle.name}/${file.slice(0, -".json".length)}`,
         record: JSON.parse(readFileSync(join(dir, handle.name, file), "utf8")),

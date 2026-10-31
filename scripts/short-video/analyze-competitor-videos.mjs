@@ -7,12 +7,15 @@
  * story_level / beats / shots / learnings.
  *
  * Pipeline per video:
- *   1. ASR   — `transcribeVideo()` from lib/video-understand.mjs (whisper.cpp,
+ *   1. Cuts — `detectCuts()` (ffmpeg scene, no audio) writes
+ *              `<id>.cuts.json`: the independent measured time source used when
+ *              a layer's ASR grid collapses (#749). Cheap; failure is non-fatal.
+ *   2. ASR   — `transcribeVideo()` from lib/video-understand.mjs (whisper.cpp,
  *              ms timestamps). Reused as-is; no download leg (files are local).
- *   2. VLM   — lib/competitor-vlm-worker.py, a line-delimited worker that
+ *   3. VLM   — lib/competitor-vlm-worker.py, a line-delimited worker that
  *              reuses vlm_analyzer.py's model plumbing with a
  *              competitor-specific prompt and returns raw text.
- *   3. Parse — the worker returns a JSON object as text; the runner strips
+ *   4. Parse — the worker returns a JSON object as text; the runner strips
  *              Markdown fences and parses it into the schema v1 layers.
  *
  * Why not `understandVideo()`: it produces the *asset-semantics* schema
@@ -23,11 +26,13 @@
  * Output (all under `output/competitor-benchmarks/analysis/`, gitignored):
  *   <handle>/<id>.json      schema v1 breakdown
  *   <handle>/<id>.asr.json  transcript evidence
+ *   <handle>/<id>.cuts.json measured shot cuts (#749 second time source)
  *   index.json              run summary
  *
  * Usage:
  *   node scripts/short-video/analyze-competitor-videos.mjs [--limit N]
  *        [--handles a,b] [--out <dir>] [--force] [--asr-only] [--vlm-only]
+ *        [--no-cuts]
  *
  * @module analyze-competitor-videos
  */
@@ -46,6 +51,7 @@ import { tmpdir, homedir } from "os";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { transcribeVideo } from "./lib/video-understand.mjs";
+import { detectCuts } from "./lib/cut-detect.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WORKER_SCRIPT = join(__dirname, "lib/competitor-vlm-worker.py");
@@ -413,23 +419,71 @@ export function interpolateStarts(items, span) {
 }
 
 /**
+ * Spread items over the measured cut grid, in order (#749).
+ *
+ * The second measured time source: when the ASR grid is too coarse, the video's
+ * own shot cuts are independent measured time points. The first item starts at
+ * the video start; the rest are assigned cut timestamps index-proportionally.
+ * Consequences, all deliberate:
+ *   - every returned start is a *measured* time (0 or a detected cut), never a
+ *     point invented between cuts;
+ *   - more cuts than items samples the grid evenly (first item at 0, last at
+ *     the last cut);
+ *   - fewer cuts than items lets adjacent items share a cut — the resolution
+ *     the material actually offers, so `isTimelineCollapsed` re-judged on these
+ *     starts stays honest.
+ *
+ * @param {number} total - items in the layer
+ * @param {number[]|null} cutsMs - measured cut timestamps in ms
+ * @param {number} span - video duration in ms
+ * @returns {number[]|null} one start per item, or null when no usable cuts exist
+ */
+export function resolveCutStarts(total, cutsMs, span) {
+  const duration = Math.round(Number(span) || 0);
+  if (total <= 0 || duration <= 0) return null;
+  const cuts = [
+    ...new Set(
+      (Array.isArray(cutsMs) ? cutsMs : [])
+        .map((value) => Math.round(Number(value)))
+        .filter((ms) => ms > 0 && ms < duration),
+    ),
+  ].sort((a, b) => a - b);
+  // Just the video start is not a second source: no measured transition.
+  if (cuts.length === 0) return null;
+  if (total === 1) return [0];
+  const boundaries = [0, ...cuts];
+  const last = boundaries.length - 1;
+  return Array.from({ length: total }, (_, i) => boundaries[Math.round((i * last) / (total - 1))]);
+}
+
+/**
  * Resolve one layer's timings, with the measured-source fallback.
  *
  * The measured path (`anchorTimings`) is used as-is while its resolution is
  * trustworthy. Once `isTimelineCollapsed` says it is not, the starts are
- * interpolated within the ASR segment spans and `anchorSource` flips to
- * `"interpolated"` so downstream can tell reconstructed pacing from measured:
- * `rawDistinctStarts` preserves what the measurement actually achieved, and the
- * `beatsCollapsed`/`shotsCollapsed` flags are computed from it (the health
- * signal stays honest even though the data was repaired).
+ * rebuilt from the independent measured source when one exists: the frame-level
+ * shot cuts (#749, `resolveCutStarts`) and `anchorSource` flips to `"cuts"`.
+ * Without cuts — a no-cut talking head yields none — the starts are
+ * interpolated within the ASR segment spans exactly as before (`#730`), and
+ * `anchorSource` stays `"interpolated"`: no silent downgrade, same fallback.
+ * `rawDistinctStarts` preserves what the chosen measurement achieved (the ASR
+ * anchored starts, or the distinct cut boundaries used), and the
+ * `beatsCollapsed`/`shotsCollapsed` flags are computed from it — the health
+ * signal stays honest even though the data was repaired.
+ *
+ * Precedence: a healthy ASR layer always wins (cuts are only a repair path —
+ * speech-aligned beats are semantically anchored, cuts can fall mid-sentence);
+ * a collapsed layer prefers cuts because its ASR resolution is below the
+ * collapse threshold by definition and cuts are measured independently.
  *
  * @param {Array<object>} items
  * @param {Array<{start: number, end: number, text: string}>} segments
  * @param {number|null} durationMs
+ * @param {number[]|null} [cutsMs] - measured shot cuts, from `detectCuts()`
  * @returns {{items: Array<object>, anchored: number, total: number,
  *   distinctStarts: number, rawDistinctStarts: number, anchorSource: string}}
  */
-export function resolveTimings(items, segments, durationMs) {
+export function resolveTimings(items, segments, durationMs, cutsMs = null) {
   const raw = anchorTimings(items, segments, durationMs);
   if (!isTimelineCollapsed(raw.total, raw.distinctStarts)) {
     return {
@@ -439,6 +493,18 @@ export function resolveTimings(items, segments, durationMs) {
       distinctStarts: raw.distinctStarts,
       rawDistinctStarts: raw.distinctStarts,
       anchorSource: "asr",
+    };
+  }
+  const cutStarts = resolveCutStarts(raw.total, cutsMs, raw.span);
+  if (cutStarts) {
+    const measured = new Set(cutStarts).size;
+    return {
+      items: applyStarts(raw.items, cutStarts, raw.span),
+      anchored: raw.anchored,
+      total: raw.total,
+      distinctStarts: measured,
+      rawDistinctStarts: measured,
+      anchorSource: "cuts",
     };
   }
   const starts = interpolateStarts(raw.items, raw.span);
@@ -453,8 +519,9 @@ export function resolveTimings(items, segments, durationMs) {
 }
 
 /**
- * Compose the schema v1 record from the three sources: manifest (account +
- * plays), ffprobe (duration), and the model's breakdown JSON.
+ * Compose the schema v1 record from the four sources: manifest (account +
+ * plays), ffprobe (duration), the model's breakdown JSON, and — for collapsed
+ * layers — the measured shot cuts (#749).
  *
  * Fields we never captured (publish date, likes/comments/shares) stay null —
  * the ticket forbids inventing stats, and filling them needs a second
@@ -464,12 +531,20 @@ export function resolveTimings(items, segments, durationMs) {
  * @param {number|null} durationSec
  * @param {object|null} breakdown
  * @param {object|null} transcript
+ * @param {{times: number[], threshold: number, artifact?: string}|null} [cuts]
  * @returns {object}
  */
-export function buildRecord({ handle, followers, video }, durationSec, breakdown, transcript) {
+export function buildRecord(
+  { handle, followers, video },
+  durationSec,
+  breakdown,
+  transcript,
+  cuts = null,
+) {
   const durationMs = Number.isFinite(durationSec) ? Math.round(durationSec * 1000) : null;
-  const beats = resolveTimings(breakdown?.beats, transcript?.segments, durationMs);
-  const shots = resolveTimings(breakdown?.shots, transcript?.segments, durationMs);
+  const cutTimes = cuts?.times ?? null;
+  const beats = resolveTimings(breakdown?.beats, transcript?.segments, durationMs, cutTimes);
+  const shots = resolveTimings(breakdown?.shots, transcript?.segments, durationMs, cutTimes);
   return {
     schemaVersion: "competitor-breakdown-v1",
     meta: {
@@ -495,14 +570,30 @@ export function buildRecord({ handle, followers, video }, durationSec, breakdown
       asrSegments: transcript?.segments?.length ?? 0,
       asrGuardChanged: transcript?.guard?.changed ?? null,
       breakdownParsed: breakdown !== null,
+      // The independent measured time source (#749). Present whenever cut
+      // detection ran, whether or not a collapsed layer consumed it; a no-cut
+      // talking head records `total: 0`, which is why its layer still says
+      // `interpolated`. `threshold` and the `artifact` are the reproduction
+      // recipe (`<id>.cuts.json` holds the timestamp array).
+      ...(cuts
+        ? {
+            cuts: {
+              total: cuts.times.length,
+              threshold: cuts.threshold,
+              ...(cuts.artifact ? { artifact: cuts.artifact } : {}),
+            },
+          }
+        : {}),
       // Timing provenance. There are two independently-resolved layers, so
       // provenance is per-layer — reading one `anchorSource` would misreport the
       // other (beats can be fully measured while shots are reconstructed).
       //  - `beatsAnchorSource`/`shotsAnchorSource` — `"asr"` when starts are the
-      //    measured segment starts; `"interpolated"` when that layer's measured
-      //    grid was too coarse and the starts were reconstructed within the
-      //    segment spans (see `resolveTimings`). `evidence.asrSegments` beside
-      //    this block is the grid size that caused it.
+      //    measured segment starts; `"cuts"` when that layer's measured grid was
+      //    too coarse and the independent shot-cut grid was used; `"interpolated"`
+      //    when the grid was too coarse and no cut grid existed, so the starts
+      //    were reconstructed within the segment spans (see `resolveTimings`).
+      //    `evidence.asrSegments` / `evidence.cuts` beside this block are the
+      //    grid sizes that caused it.
       //  - `beatsCollapsed`/`shotsCollapsed` — `isTimelineCollapsed` on that
       //    layer's **measured** distinct starts, so the health signal stays honest
       //    even when the data below it was reconstructed. It is a statement about
@@ -510,29 +601,44 @@ export function buildRecord({ handle, followers, video }, durationSec, breakdown
       //    collapsed layer the item text is still valid, only `startMs`/`endMs`
       //    were untrustworthy.
       //  - `beatsMeasuredDistinctStarts`/`shotsMeasuredDistinctStarts` — the
-      //    distinct starts the *measurement* achieved, before any fallback. Read
-      //    these to judge collapse; the `*DistinctStarts` beside them are the
-      //    resolved shape and are high after a fallback.
+      //    distinct starts the *measurement* achieved, before any fallback. For a
+      //    cut-repaired layer this is the number of distinct cut boundaries used,
+      //    i.e. the resolution the second source actually provided. Read these to
+      //    judge collapse; the `*DistinctStarts` beside them are the resolved
+      //    shape and are high after a fallback.
       //  - `beatsAnchored`/`shotsAnchored` — items whose anchor resolved to a real
       //    segment. A low count with a high total is the model naming segment
       //    numbers beyond the transcript (the 2026-10-17 batch: 71 shots over 22
       //    segments, so 49 had no measured anchor).
-      timing: {
-        durationMs,
-        beatsAnchorSource: beats.anchorSource,
-        shotsAnchorSource: shots.anchorSource,
-        beatsTotal: beats.total,
-        beatsAnchored: beats.anchored,
-        shotsTotal: shots.total,
-        shotsAnchored: shots.anchored,
-        beatsMeasuredDistinctStarts: beats.rawDistinctStarts,
-        shotsMeasuredDistinctStarts: shots.rawDistinctStarts,
-        beatsDistinctStarts: beats.distinctStarts,
-        shotsDistinctStarts: shots.distinctStarts,
-        beatsCollapsed: isTimelineCollapsed(beats.total, beats.rawDistinctStarts),
-        shotsCollapsed: isTimelineCollapsed(shots.total, shots.rawDistinctStarts),
-      },
+      timing: timingEvidence(beats, shots, durationMs),
     },
+  };
+}
+
+/**
+ * The `evidence.timing` block, single-sourced so a retime pass (#749) writes
+ * exactly the fields the runner writes.
+ *
+ * @param {object} beats - resolved beats layer from `resolveTimings`
+ * @param {object} shots - resolved shots layer from `resolveTimings`
+ * @param {number|null} durationMs
+ * @returns {object}
+ */
+export function timingEvidence(beats, shots, durationMs) {
+  return {
+    durationMs,
+    beatsAnchorSource: beats.anchorSource,
+    shotsAnchorSource: shots.anchorSource,
+    beatsTotal: beats.total,
+    beatsAnchored: beats.anchored,
+    shotsTotal: shots.total,
+    shotsAnchored: shots.anchored,
+    beatsMeasuredDistinctStarts: beats.rawDistinctStarts,
+    shotsMeasuredDistinctStarts: shots.rawDistinctStarts,
+    beatsDistinctStarts: beats.distinctStarts,
+    shotsDistinctStarts: shots.distinctStarts,
+    beatsCollapsed: isTimelineCollapsed(beats.total, beats.rawDistinctStarts),
+    shotsCollapsed: isTimelineCollapsed(shots.total, shots.rawDistinctStarts),
   };
 }
 
@@ -705,6 +811,8 @@ export function safeSegment(value, what) {
  * @param {boolean} [opts.force] - re-analyse videos that already have output
  * @param {boolean} [opts.asrOnly] - skip the VLM leg
  * @param {boolean} [opts.vlmOnly] - skip the ASR leg (prompt then has no transcript)
+ * @param {boolean} [opts.noCuts] - skip shot-cut detection (collapsed layers keep
+ *   the ASR-span interpolation; the pre-#749 behavior)
  * @returns {Promise<object>} run summary
  */
 export async function analyzeCompetitorVideos({
@@ -715,6 +823,7 @@ export async function analyzeCompetitorVideos({
   force = false,
   asrOnly = false,
   vlmOnly = false,
+  noCuts = false,
 } = {}) {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const targets = [];
@@ -805,6 +914,41 @@ export async function analyzeCompetitorVideos({
       // only clock the model gets) and buildRecord needs it for beat ranges.
       const durationSec = probeDurationSec(video.file);
 
+      // 2. Cuts — the independent measured time source (#749). Cheap (one
+      //    decode, no audio) and written beside the record so a collapsed
+      //    timeline stays reproducible without re-running ASR or the VLM. A
+      //    no-cut video records 0 events; detection failure is not fatal, it
+      //    just leaves the ASR-span interpolation in charge.
+      let cuts = null;
+      if (!noCuts) {
+        try {
+          const detected = detectCuts(video.file);
+          const artifact = `${safeId}.cuts.json`;
+          writeFileSync(
+            join(dir, artifact),
+            JSON.stringify(
+              {
+                schemaVersion: "competitor-cuts-v1",
+                videoId: video.id,
+                source: "ffmpeg-scene",
+                threshold: detected.threshold,
+                cutsMs: detected.cutsMs,
+              },
+              null,
+              2,
+            ),
+          );
+          cuts = { times: detected.cutsMs, threshold: detected.threshold, artifact };
+          process.stderr.write(
+            `  cuts: ${detected.cutsMs.length} detected (scene>${detected.threshold})\n`,
+          );
+        } catch (err) {
+          process.stderr.write(
+            `  cuts: unavailable (${err.message}) — collapsed layers keep the ASR-span fallback\n`,
+          );
+        }
+      }
+
       let breakdown = null;
       let vlmError = null;
       let repaired = false;
@@ -845,7 +989,7 @@ export async function analyzeCompetitorVideos({
         }
       }
 
-      const record = buildRecord(target, durationSec, breakdown, transcript);
+      const record = buildRecord(target, durationSec, breakdown, transcript, cuts);
       record.error = vlmError;
       record.evidence.breakdownRepaired = repaired;
       record.processingMs = Date.now() - startedAt;
@@ -860,9 +1004,12 @@ export async function analyzeCompetitorVideos({
           `  ⚠ ${layer} timeline collapsed: fewer than half begin at a distinct measured ` +
             `start (${t[`${layer}MeasuredDistinctStarts`]} measured distinct over ` +
             `${t[`${layer}Total`]} ${layer}, ${t[`${layer}Anchored`]} anchored, ` +
-            `${record.evidence.asrSegments} ASR segments). Pacing was reconstructed from the ` +
-            `segment spans into ${t[`${layer}DistinctStarts`]} starts (source=${t[`${layer}AnchorSource`]}); ` +
-            "content is usable, measured pacing is not.\n",
+            `${record.evidence.asrSegments} ASR segments). Pacing was rebuilt ` +
+            (t[`${layer}AnchorSource`] === "cuts"
+              ? `onto ${t[`${layer}MeasuredDistinctStarts`]} distinct shot cuts (source=cuts)`
+              : `within the ASR segment spans into ${t[`${layer}DistinctStarts`]} starts ` +
+                `(source=${t[`${layer}AnchorSource`]})`) +
+            "; content is usable, measured pacing is not.\n",
         );
       }
 
@@ -910,6 +1057,7 @@ function parseArgs(argv) {
     else if (a === "--force") opts.force = true;
     else if (a === "--asr-only") opts.asrOnly = true;
     else if (a === "--vlm-only") opts.vlmOnly = true;
+    else if (a === "--no-cuts") opts.noCuts = true;
   }
   return opts;
 }
