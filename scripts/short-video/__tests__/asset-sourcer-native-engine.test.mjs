@@ -112,6 +112,38 @@ describe("analyzeAssets — native video engine (#542)", () => {
     expect(assets[0].durationMs).toBe(60000);
   });
 
+  it("#963: persists probed dimensions, rotation-adjusted", async () => {
+    mockProbeMedia.mockReturnValue({
+      durationMs: 60000,
+      fps: 30,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 90,
+    });
+    const assets = [{ path: "/abs/clip.mp4", type: "video", searchKeyword: "test" }];
+
+    await analyzeAssets(assets);
+
+    // A 1920x1080 stream tagged 90° displays as 1080x1920; persisting the
+    // stored order would make every portrait phone clip look landscape.
+    expect(assets[0].width).toBe(1080);
+    expect(assets[0].height).toBe(1920);
+  });
+
+  it("#963: seeds dimensions from resolution when no measurement exists", async () => {
+    mockProbeMedia.mockReturnValue(null);
+    mockDetectFocus.mockResolvedValue({ status: "degraded", frame: null });
+    const assets = [
+      { path: "/abs/clip.mp4", type: "video", searchKeyword: "test", resolution: "1280x720" },
+    ];
+
+    await analyzeAssets(assets);
+
+    expect(assets[0].width).toBe(1280);
+    expect(assets[0].height).toBe(720);
+  });
+
   it("L3: feeds the A1 transcript and records the provenance", async () => {
     mockAnalyzeAssetSemantics.mockResolvedValue({
       ...FULL_SEMANTICS,
@@ -158,6 +190,10 @@ describe("analyzeAssets — native video engine (#542)", () => {
       worstRun: 1,
       collapsedSegments: 0,
     });
+    // #963: the composition rule's inputs must be auditable from the artifact.
+    expect(video.width).toBe(1920);
+    expect(video.height).toBe(1080);
+    expect(video.landscape).toBe(true);
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

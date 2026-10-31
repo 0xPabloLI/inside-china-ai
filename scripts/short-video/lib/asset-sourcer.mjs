@@ -43,8 +43,8 @@
  * @property {number} [duration] - seconds (videos)
  * @property {string} [resolution] - e.g. "1920x1080"
  * @property {number} [fileSize] - bytes, when the source reports it
- * @property {number} [width] - pixels (images)
- * @property {number} [height] - pixels (images)
+ * @property {number} [width] - pixels (images from metadata/focus; videos once probed in analyzeAssets)
+ * @property {number} [height] - pixels (same sources as width)
  * @property {string} [source] - source/engine name that produced the candidate
  * @property {string} [id] - platform video id (yt-dlp results)
  */
@@ -65,6 +65,8 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { execFileSync } from "child_process";
 import { ALL_SOURCES, SOURCE_ATTRIBUTIONS, SUPPORTED_YTDLP_PLATFORMS } from "./source-registry.mjs";
 import { brollSectionSpec } from "./media-window.mjs";
+import { VALID_FITS } from "./media-bg.mjs";
+import { DEFAULT_NARRATIVE_LAYOUT, resolveRenderLayout } from "./text-slots.mjs";
 import {
   getCachedSearchResults,
   getOrSearchResults,
@@ -221,6 +223,32 @@ export const NO_MEDIA_TYPES = SHARED_NO_MEDIA_TYPES;
 const HOOK_MIN_SCORE = 60;
 
 /**
+ * The body composition a pack declares, or null when it declares none.
+ *
+ * Counts the non-hook scenes' `media.fit` against `VALID_FITS` (the
+ * validation-side authority — do not repeat the enum). A tie falls back to
+ * cover, the historical default. Returning null instead of a default lets the
+ * caller distinguish "the pack chose cover" from "the pack said nothing"; for
+ * the latter the hook is composed from its own source aspect (#963).
+ *
+ * @param {Array} [scenes]
+ * @returns {"cover" | "contain" | null}
+ */
+export function declaredBodyFit(scenes = []) {
+  let cover = 0;
+  let contain = 0;
+  for (const scene of scenes ?? []) {
+    if (scene?.visualType === "hook") continue;
+    const fit = scene?.media?.fit;
+    if (!VALID_FITS.includes(fit)) continue;
+    if (fit === "contain") contain += 1;
+    else cover += 1;
+  }
+  if (cover + contain === 0) return null;
+  return contain > cover ? "contain" : "cover";
+}
+
+/**
  * The fit an auto-sourced hook must use, derived from the pack it introduces.
  *
  * The hook and the body have to be composed the same way. A `cover` hook cuts a
@@ -229,22 +257,93 @@ const HOOK_MIN_SCORE = 60;
  * either — and on the cover side of that swap most of the picture is discarded,
  * which is the outcome the hook contract was relaxed to avoid.
  *
- * The requirement is therefore read off the body rather than fixed. A pack whose
- * non-hook scenes mostly declare `contain` overrides a `contain` hook, so an
- * auto-sourced pack can no longer ship a cover hook in front of a contain body.
- * Packs that declare nothing, or split evenly, keep the historical `cover` —
- * this only changes packs that are actually contain-bodied.
+ * The requirement is therefore read off the declared body rather than fixed.
+ * Packs that declare nothing get the historical `cover` here; the allocator
+ * overrides that with the hook's own aspect when no body fit is declared.
  */
 export function hookRequiredFitFor(scenes = []) {
-  let cover = 0;
-  let contain = 0;
-  for (const scene of scenes ?? []) {
-    if (scene?.visualType === "hook") continue;
-    const fit = scene?.media?.fit;
-    if (fit === "cover") cover += 1;
-    else if (fit === "contain") contain += 1;
+  return declaredBodyFit(scenes) ?? "cover";
+}
+
+/**
+ * Minimum source width/height ratio that counts as landscape for composition.
+ *
+ * 1.2, not 1.0: a 6:5 or 5:4 source still loses a wide band of its sides when
+ * cover-fitted into the 1080x1309 media band, so the contain default has to
+ * start below the exact-square boundary.
+ */
+export const LANDSCAPE_MIN_ASPECT = 1.2;
+
+/**
+ * Parse a "WxH" source-resolution string (Pexels et al.) into dimensions.
+ * Returns null for anything unparseable ("vertical", "720p", absent).
+ *
+ * @param {string} [resolution]
+ * @returns {{width: number, height: number} | null}
+ */
+export function parseResolutionDimensions(resolution) {
+  if (typeof resolution !== "string") return null;
+  const match = resolution.match(/(\d+)\s*[x×]\s*(\d+)/i);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+/**
+ * Source aspect ratio (width / height), or null when the asset carries no
+ * usable dimensions.
+ *
+ * Dimensions arrive from three places depending on the asset's stage: search
+ * metadata (`resolution`, e.g. Pexels' "1920x1080"), focus detection
+ * (`focusAnalysis.frame`, images), and the post-download ffprobe in
+ * `analyzeAssets` (`width`/`height`, videos — persisted there so the allocator
+ * can see them). The probe's values are rotation-adjusted at write time; raw
+ * rotation metadata on a portrait phone clip would otherwise read as landscape.
+ */
+export function assetAspectRatio(asset) {
+  if (!asset) return null;
+  let width = Number(asset.width);
+  let height = Number(asset.height);
+  if (!(width > 0 && height > 0)) {
+    const frame = asset.focusAnalysis?.frame;
+    width = Number(frame?.width);
+    height = Number(frame?.height);
   }
-  return contain > cover ? "contain" : "cover";
+  if (!(width > 0 && height > 0)) {
+    const dims = parseResolutionDimensions(asset.resolution);
+    if (dims) {
+      width = dims.width;
+      height = dims.height;
+    }
+  }
+  if (!(width > 0 && height > 0)) return null;
+  return width / height;
+}
+
+/** True when the source is wide enough that cover-fitting would cut content. */
+export function isLandscapeAsset(asset) {
+  const ratio = assetAspectRatio(asset);
+  return ratio != null && ratio >= LANDSCAPE_MIN_ASPECT;
+}
+
+/**
+ * Whether the scene's renderer has the contain band (#963).
+ *
+ * Only NarrativeScene's `media-bottom-bar` variant and HookScene place a
+ * contained picture in [SAFE_ZONES.top, CONTAIN_MEDIA_BOTTOM]. InfoCard /
+ * Context / Contrast draw MediaBackground in a full-frame container, where
+ * contain bottom-anchors a 16:9 picture under the subtitle lane — those scenes
+ * keep cover rather than inherit a band they do not have. The layout is read
+ * through resolveRenderLayout (the render-side authority) so a narrative with
+ * media-split/media-overlay is not mistaken for the bottom-bar variant.
+ */
+export function hasContainBand(scene) {
+  if (!scene) return false;
+  if (scene.visualType === "hook") return true;
+  return (
+    scene.visualType === "narrative" && resolveRenderLayout(scene) === DEFAULT_NARRATIVE_LAYOUT
+  );
 }
 
 // ─── Pure functions ───
@@ -943,6 +1042,13 @@ function isRejectedFor(asset, scene) {
  *   - cross-content reuse cap: a reused asset is rejected when accepting it
  *     would push reused/total above opts.reusedCap (default 0.4); rejection
  *     happens before scene search so it never consumes a scene slot
+ *   - composition (#963): on scenes that have the contain band (narrative
+ *     media-bottom-bar, hook), third-party landscape sources (aspect >=
+ *     LANDSCAPE_MIN_ASPECT) are written with fit:"contain" so cover cannot
+ *     crop them. Portrait/square sources keep cover, and layouts without the
+ *     band (info-card/context/contrast backgrounds) keep their existing fit —
+ *     the landscape default is not applied there. A hook follows the pack's
+ *     declared body majority when there is one; otherwise its own source aspect
  *   - assigned entries carry relevanceScore/relevanceSource/relevanceReason/reused
  *
  * @param {Array} assets - Downloaded assets (each must have score, type, path)
@@ -968,8 +1074,13 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       ? opts.relevanceThreshold
       : DEFAULT_RELEVANCE_THRESHOLD;
   const reusedCap = typeof opts.reusedCap === "number" ? opts.reusedCap : 0.4;
-  // Read once: the body's composition does not change while assigning.
+  // Read once each: the body's composition does not change while assigning.
   const hookRequiredFit = hookRequiredFitFor(scenes);
+  // A pack that declares body fits has already answered the hook question;
+  // one that does not composes each hook from its own source aspect.
+  const hookFitDeclared = declaredBodyFit(scenes) != null;
+  const hookFitFor = (asset) =>
+    hookFitDeclared ? hookRequiredFit : isLandscapeAsset(asset) ? "contain" : asset.fit || "cover";
 
   // #294: satisfiability belongs to the scene's candidate pool, not to one
   // asset. Computed before the loop so a rejection reason can name the pool
@@ -1042,6 +1153,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
     }
 
     const isVideo = asset.type === "video";
+    const landscape = isLandscapeAsset(asset);
     const reused = detectReused(asset);
 
     // Online reused cap — reject before scene search so a rejected reused
@@ -1105,9 +1217,11 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         reason = `claim scene ${target.id} unavailable (occupied/manual media/no-media type)`;
       } else if (
         target.visualType === "hook" &&
-        ((asset.score || 0) < HOOK_MIN_SCORE || asset.fit !== hookRequiredFit)
+        ((asset.score || 0) < HOOK_MIN_SCORE || (hookFitDeclared && asset.fit !== hookRequiredFit))
       ) {
-        reason = `hook gates not met (score>=${HOOK_MIN_SCORE} + fit=${hookRequiredFit})`;
+        reason = hookFitDeclared
+          ? `hook gates not met (score>=${HOOK_MIN_SCORE} + fit=${hookRequiredFit})`
+          : `hook gates not met (score>=${HOOK_MIN_SCORE})`;
       }
 
       if (reason) {
@@ -1116,6 +1230,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       }
 
       const vt = target.visualType;
+      const containBand = hasContainBand(target);
       const media = {
         type: asset.type,
         path: asset.path,
@@ -1125,8 +1240,25 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         animation: isVideo ? VIDEO_ANIMATION : "ken-burns",
         overlay: vt === "hook" ? 0.5 : vt === "quote" ? 0.8 : vt === "info-card" ? 0.75 : 0.7,
       };
-      if (vt === "hook") media.fit = "cover";
-      else if (asset.fit && !isVideo) media.fit = asset.fit;
+      // Composition default (#963): a third-party landscape source is shown
+      // whole (contain) where the renderer has the contain band. Cover into
+      // the 1080x1309 media band keeps only ~46% of a 16:9 source's width, and
+      // the user's 2026-10-26/2026-11-01 decision is that third-party content
+      // must survive intact. Portrait/square sources keep cover (filling the
+      // frame costs them no content). A hook is composed from the pack's
+      // declared body, or from its own source aspect when there is none.
+      if (vt === "hook") {
+        media.fit = hookFitFor(asset);
+      } else if (landscape && containBand) {
+        media.fit = "contain";
+      } else if (asset.fit && !isVideo) {
+        // Images keep the VLM/crop verdict (cover or contain), including on
+        // layouts without the contain band — a pre-existing contract this
+        // ticket does not change. Videos are decided by the landscape rule
+        // above; portrait/square keep cover, so a portrait contain verdict is
+        // intentionally not applied (#963 scope).
+        media.fit = asset.fit;
+      }
       if (asset.cropFocus) media.cropFocus = asset.cropFocus;
       if (isVideo && VOLUME_RECOMMENDATIONS[vt]) media.volume = VOLUME_RECOMMENDATIONS[vt].video;
 
@@ -1384,6 +1516,20 @@ export async function analyzeAssets(assets, opts = {}) {
     console.log("  ⏭️  All assets failed pre-filter — skipping focus detection + VLM");
   }
 
+  // #963: seed dimensions from search metadata before the real measurements
+  // overwrite them (focus frame for images, ffprobe for videos). The artifact
+  // and the composition rule both read width/height; a source that only
+  // reported `resolution` should not audit as null — including rows the
+  // pre-filter skipped, which still appear in asset-analysis.json.
+  for (const asset of assets) {
+    if (asset.width > 0 && asset.height > 0) continue;
+    const dims = parseResolutionDimensions(asset.resolution);
+    if (dims) {
+      asset.width = dims.width;
+      asset.height = dims.height;
+    }
+  }
+
   // ── Phase 2: Focus detection (medium cost ~0.5s/asset) — only for survivors ──
   // Resolve relative paths using contentDir when provided (P0-1 fix).
   // Results are content-addressed cached (#100): key = source fingerprint +
@@ -1425,6 +1571,13 @@ export async function analyzeAssets(assets, opts = {}) {
           }
         }
         asset.focusAnalysis = focus;
+        // #963: record the analyzer's own frame dimensions for images so the
+        // composition rule and the artifact have real numbers even when the
+        // search metadata omitted resolution.
+        if (asset.type === "image" && focus?.frame?.width > 0 && focus?.frame?.height > 0) {
+          asset.width = focus.frame.width;
+          asset.height = focus.frame.height;
+        }
       }
     } finally {
       await closeFocusDetector();
@@ -1490,6 +1643,17 @@ export async function analyzeAssets(assets, opts = {}) {
 
     const probe = probeMedia(absPath);
     const durationMs = probe?.durationMs;
+
+    // #963: persist the probed dimensions independently of duration — the
+    // allocator is pure and cannot probe, and the composition default has to
+    // know whether the source is landscape. probeMedia reports the stream's
+    // stored width/height, so swap a 90°/270° rotation to the orientation a
+    // viewer actually sees; otherwise a portrait phone clip reads as landscape.
+    if (probe?.width > 0 && probe?.height > 0) {
+      const rotated = Math.abs(probe.rotation ?? 0) % 180 === 90;
+      asset.width = rotated ? probe.height : probe.width;
+      asset.height = rotated ? probe.width : probe.height;
+    }
 
     if (durationMs > 0) {
       // #360: persist the probed duration (previously computed then discarded)
@@ -1851,6 +2015,12 @@ export async function analyzeAssets(assets, opts = {}) {
           subjects: a.subjects || [],
           contentKind: a.contentKind || null,
           fit: a.fit || null,
+          // #963: the source dimensions the allocator saw. They decide the
+          // landscape default, so the artifact has to record them — otherwise
+          // a surprising `contain`/`cover` in media-patch has no audit trail.
+          width: a.width ?? null,
+          height: a.height ?? null,
+          landscape: isLandscapeAsset(a),
           criticalEdgeText: a.criticalEdgeText || null,
           reason: a.reason || null,
           relevanceScore: a.relevanceScore ?? null,

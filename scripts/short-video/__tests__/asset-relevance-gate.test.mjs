@@ -148,7 +148,7 @@ describe("assignAssetsToScenes — relevance gate", () => {
     expect(result[0].reason).toMatch(/unavailable/i);
   });
 
-  it("stacks the relevance gate on top of the hook gates (score + fit=cover)", () => {
+  it("stacks the relevance gate on top of the hook gates (score + declared fit)", () => {
     const relevantButWeak = img({
       claimSceneId: 1,
       relevanceScore: 95,
@@ -160,8 +160,19 @@ describe("assignAssetsToScenes — relevance gate", () => {
     // for other scenes either (claim-bound) → unassigned
     expect(result[0].status).toBe("unassigned");
 
+    // The fit half of the gate is now driven by the pack's declared body
+    // composition (#963). An undeclared pack has no authoritative fit to
+    // reject against; a declared-cover pack still does.
     const containAsset = img({ claimSceneId: 1, relevanceScore: 95, score: 90, fit: "contain" });
-    const result2 = assignAssetsToScenes([containAsset], scenes, THRESHOLD);
+    const declaredCover = [
+      { id: 1, visualType: "hook" },
+      {
+        id: 2,
+        visualType: "narrative",
+        media: { type: "video", path: "body.mp4", fit: "cover" },
+      },
+    ];
+    const result2 = assignAssetsToScenes([containAsset], declaredCover, THRESHOLD);
     expect(result2[0].status).toBe("unassigned");
   });
 });
