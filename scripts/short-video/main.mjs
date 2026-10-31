@@ -10,6 +10,7 @@
  *   node scripts/short-video/main.mjs --content distillation/pt1 --bgm
  *   node scripts/short-video/main.mjs --content deepseek --bgm --bgm-file news-theme-yt.mp3
  *   node scripts/short-video/main.mjs --content deepseek --approve-auto   # approve the #355 chain rung
+ *   node scripts/short-video/main.mjs --content deepseek --tts-plan       # print TTS cache & cost plan, exit (#953)
  *   node scripts/short-video/main.mjs              # lists available content
  *
  * Output:
@@ -112,6 +113,28 @@ async function main() {
   if (!scenes || !Array.isArray(scenes) || scenes.length === 0) {
     console.error(`❌ No valid scenes array in content/${contentDir}/scene-data.mjs`);
     process.exit(1);
+  }
+
+  // ── --tts-plan: zero side-effect spend preview (#953) ──
+  // Planning is local (no GPU, no writes; engine selection runs local CLI
+  // version probes), so it runs BEFORE the CDP/ASR/ASS preflights, the
+  // profiler and the output-directory creation: the flag must answer "what
+  // will this edit cost?" without requiring the environment a real run needs.
+  // Normalization mirrors Steps 0.5/0.6 on a clone — cache keys are computed
+  // from the normalized spoken text.
+  if (args.includes("--tts-plan")) {
+    try {
+      const { previewTtsPlan } = await import("./lib/tts/preview.mjs");
+      const { formatTtsPlan } = await import("./lib/tts/plan-report.mjs");
+      const audioDir = join(__dirname, "output", meta.pipelineId, "audio");
+      const { report } = await previewTtsPlan({ scenes, meta, audioDir });
+      console.log(formatTtsPlan(report));
+      console.log("\n   (preview only — nothing was generated or written)\n");
+      process.exit(0);
+    } catch (e) {
+      console.error(`❌ --tts-plan failed: ${e.message}`);
+      process.exit(1);
+    }
   }
 
   // ── Version number (timestamp-based, for output file naming) ──

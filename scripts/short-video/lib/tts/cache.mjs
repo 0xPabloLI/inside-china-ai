@@ -345,6 +345,81 @@ function resolveSceneInstruct(engine, scene) {
 }
 
 /**
+ * Whether the cross-run audio cache is enabled for this run (#953).
+ *
+ * Single source for the TTS_NO_CACHE check: the generator and the dry-run
+ * preview both ask here, so the preview cannot report cache hits for a run
+ * that will regenerate everything.
+ *
+ * @param {object} [env]
+ * @returns {boolean}
+ */
+export function ttsCacheEnabled(env = process.env) {
+  return env.TTS_NO_CACHE !== "1";
+}
+
+/**
+ * Human-actionable reason a scene is pending (#953).
+ *
+ * The cache key is a one-way hash, so the planner cannot see WHICH input
+ * moved. Classify from what the sidecars still record:
+ *   - no usable sidecar + no audio  → missing-audio (never generated)
+ *   - audio on disk but no sidecar  → missing-meta (aborted/unverified take)
+ *   - unreadable sidecar            → corrupt-meta
+ *   - sidecar points at deleted wav → missing-audio
+ *   - sidecar names another engine  → engine-changed
+ *   - stored speed ≠ the speed this run would use → speed-changed
+ *   - legacy sidecar (no recorded speed) whose key matches at 1.0x but not at
+ *     the resolved speed (scene.ttsSpeed / TTS_SPEED) → speed-changed
+ *   - otherwise                     → text-changed (the key also folds the
+ *                                     per-scene instruct in, so an instruct
+ *                                     edit lands here too)
+ *
+ * When several inputs moved, the first matching check wins (engine → speed →
+ * text), so the label names one actionable cause rather than an unordered set.
+ *
+ * @param {object} args
+ * @param {string} args.outputDir
+ * @param {{name: string}} args.engine
+ * @param {{id: number}} args.scene
+ * @param {object|null} args.approvedMeta
+ * @param {object|null} args.candidateMeta
+ * @param {boolean} args.corruptSidecar
+ * @param {(meta: object) => number} args.speedForMeta
+ * @param {string} args.baselineKey - key at 1.0x, to tell a legacy speed miss
+ *   from a text edit
+ * @returns {string}
+ */
+function classifyPendingMiss({
+  outputDir,
+  engine,
+  scene,
+  approvedMeta,
+  candidateMeta,
+  corruptSidecar,
+  speedForMeta,
+  baselineKey,
+}) {
+  const meta = [approvedMeta, candidateMeta].find((m) => m && typeof m.duration === "number");
+  if (!meta) {
+    if (corruptSidecar) return "corrupt-meta";
+    const audioPath = join(outputDir, `scene-${scene.id}.wav`);
+    return existsSync(audioPath) ? "missing-meta" : "missing-audio";
+  }
+  const audioPath = meta.audioPath ?? join(outputDir, `scene-${scene.id}.wav`);
+  if (!existsSync(audioPath)) return "missing-audio";
+  if (typeof meta.engine === "string" && meta.engine !== engine.name) return "engine-changed";
+  const storedSpeed = Number.isFinite(meta.ttsSpeed) ? meta.ttsSpeed : null;
+  if (storedSpeed !== null && storedSpeed !== speedForMeta(meta)) return "speed-changed";
+  // Legacy sidecar: no recorded speed, but the take was 1.0x and this run
+  // resolves higher (hook floor / TTS_SPEED). Its key proves the text matches.
+  if (storedSpeed === null && meta.key === baselineKey && speedForMeta(meta) !== 1.0) {
+    return "speed-changed";
+  }
+  return "text-changed";
+}
+
+/**
  * Split scenes into approved hits, candidates and pending (#423).
  *
  * - A hit requires a readable meta whose key matches (under the same
@@ -355,7 +430,9 @@ function resolveSceneInstruct(engine, scene) {
  *   is surfaced for re-verification (never a hit). Its `reason` records why it
  *   is not approved.
  * - Everything else (missing/corrupt meta, key mismatch, missing audio) is
- *   pending — fail-open to regeneration.
+ *   pending — fail-open to regeneration. Each pending scene has a parallel
+ *   entry in `misses` naming why (#953) so the spend can be stated before the
+ *   batch runs.
  *
  * @param {string} outputDir
  * @param {Array<{id: number, voiceover: string}>} scenes
@@ -364,12 +441,14 @@ function resolveSceneInstruct(engine, scene) {
  *   approved: Array<{sceneId: number, audioPath: string, duration: number, cached: true, ttsSpeed: number}>,
  *   candidates: Array<{sceneId: number, audioPath: string, duration: number, reason: string, candidate: true, ttsSpeed: number}>,
  *   pending: Array,
+ *   misses: Array<{sceneId: number, reason: string}>,
  * }}
  */
 export function planTtsScenes(outputDir, scenes, engine) {
   const approved = [];
   const candidates = [];
   const pending = [];
+  const misses = [];
 
   for (const scene of scenes) {
     const resolvedSpeed = resolveSceneSpeed(scene);
@@ -385,8 +464,14 @@ export function planTtsScenes(outputDir, scenes, engine) {
     };
     const keyForMeta = (meta) => sceneCacheKey(engine, scene, speedForMeta(meta));
 
-    const approvedMeta = readJsonSafe(sceneMetaPath(outputDir, scene.id));
-    const candidateMeta = readJsonSafe(sceneCandidatePath(outputDir, scene.id));
+    const metaPath = sceneMetaPath(outputDir, scene.id);
+    const candidatePath = sceneCandidatePath(outputDir, scene.id);
+    const approvedMeta = readJsonSafe(metaPath);
+    const candidateMeta = readJsonSafe(candidatePath);
+    // readJsonSafe folds "missing" and "unparseable" into null; only the file
+    // existing separates them, and the difference decides corrupt-meta.
+    const corruptSidecar =
+      (!approvedMeta && existsSync(metaPath)) || (!candidateMeta && existsSync(candidatePath));
 
     // 1. Approved hit — the only path that skips re-verification.
     if (approvedMeta && typeof approvedMeta.duration === "number") {
@@ -437,8 +522,21 @@ export function planTtsScenes(outputDir, scenes, engine) {
     }
 
     pending.push(scene);
+    misses.push({
+      sceneId: scene.id,
+      reason: classifyPendingMiss({
+        outputDir,
+        engine,
+        scene,
+        approvedMeta,
+        candidateMeta,
+        corruptSidecar,
+        speedForMeta,
+        baselineKey: sceneCacheKey(engine, scene, 1.0),
+      }),
+    });
   }
-  return { approved, candidates, pending };
+  return { approved, candidates, pending, misses };
 }
 
 /**

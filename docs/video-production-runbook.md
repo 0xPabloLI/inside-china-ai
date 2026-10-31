@@ -237,7 +237,42 @@ node scripts/short-video/main.mjs --content series/pt4 &
 > loop fails closed after rank 4 and never reaches edge-tts / say on its own
 > (user rule 2026-09-10). Engines evaluated and rejected are recorded in
 > ADR-0019 (`Why no NPU engine`).
->
+
+### TTS cache & cost preview (#953)
+
+Before editing scene text, ask the planner what the edit will cost. Planning is
+local only — no GPU, no network, no writes:
+
+```bash
+node scripts/short-video/main.mjs --content <dir> --tts-plan
+```
+
+Choosing the engine runs local CLI version probes (`kaggle`/`modal`/venv), so
+expect seconds rather than milliseconds. `main.mjs` Step 0 also runs
+`verify-video.mjs --pre`, which prints the same block; if no TTS engine is
+available `--tts-plan` exits non-zero (the plan was the request), while
+`--pre` prints a warning and still finishes its content checks.
+`generateTTSWithEngine()` prints the pending-only version right before
+`engine.generate()` — so the cost is visible at the decision point, not after
+the batch.
+
+The report lists approved hits, every scene that will regenerate with the
+reason it missed (`text-changed` / `missing-audio` / `missing-meta` /
+`engine-changed` / `speed-changed` / `corrupt-meta`), the pending character
+count, a pacing precheck over approved takes, and a static time estimate:
+
+| Engine                    | Estimate basis                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| CosyVoice3-Kaggle-CUDA    | ~8-10 min cold start + ~15 s/scene (batch baseline, runbook table above)       |
+| CosyVoice3-Modal-CUDA     | same CUDA batch shape as Kaggle — **no measured Modal baseline**, order-of-magnitude |
+| CosyVoice3-MLX / F5-TTS-MLX | estimated speech duration × documented RTF (0.64-0.87× / 1.78×), model load excluded |
+| edge-tts / say            | `time unknown` — no published baseline; never an invented number               |
+
+Queue time and retries are not included. **Batch script edits into one round**:
+every extra round pays the full cold start; the marginal cost of one more edit
+inside the same round is near zero. Cache semantics, pacing and engines are
+unchanged by the preview — it reads the same planner the run uses.
+
 > **CosyVoice3-MLX model directory (#327)**: defaults to
 > `~/models/cosyvoice3-mlx`; an existing `~/.cosyvoice3-mlx-model` is
 > auto-detected. Before moving the model, update or remove

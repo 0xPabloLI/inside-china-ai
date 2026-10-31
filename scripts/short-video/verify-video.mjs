@@ -10,7 +10,9 @@
  *   node verify-video.mjs --pre --content <dir>       # Pre-render: scene-data only (no video needed)
  *   node verify-video.mjs [--tiktok] --content <dir>   # Post-render: full check (video + scene-data + subtitles)
  *
- *   --pre:        pre-render mode (skip video/subtitle/manual checks)
+ *   --pre:        pre-render mode (skip video/subtitle/manual checks) and print
+ *                 the TTS cache & cost plan (#953): approved hits, per-scene
+ *                 miss reasons, pacing precheck, engine-based time estimate.
  *   --tiktok:     also check TikTok-specific 60-70s duration requirement (post-render only)
  *   --long-form:  explicit YouTube long-form opt-in — downgrades scene-count (>10) and
  *                 voiceover-word (>180) violations from FAIL to WARN. TikTok default
@@ -36,6 +38,12 @@ import {
 } from "./lib/audio/bgm-margin.mjs";
 import { getPlatformProfile, listPlatformProfiles } from "./lib/platforms/index.mjs";
 import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
+import { loadEnv } from "./lib/load-env.mjs";
+
+// #287: the entry owns env loading. The TTS preview selects engines by
+// TTS_ENGINE / TTS_NO_CACHE / TTS_SKIP_QUALITY_GATE, so a standalone --pre
+// must see the same .env.local main.mjs loads (main-run children inherit it).
+loadEnv();
 
 // Caption constraints come from the TikTok platform profile (#219 ticket 01)
 const tiktokProfile = getPlatformProfile("tiktok");
@@ -372,6 +380,48 @@ if (sceneResults.editorial.length > 0) {
     if (a.fix) console.log(`     → CONSIDER: ${a.fix}`);
   }
   results.advisory.push(...advice);
+}
+
+// ─── TTS cache & cost plan (pre-render only, #953) ───
+// The preflight runs before Step 1, which is exactly the decision point the
+// author is at: "should I edit one more line, and what does that cost?".
+// Planning is local (no GPU, no writes; engine selection runs local CLI
+// version probes); the scenes are cloned and normalized the same way
+// main.mjs normalizes them, so cache keys match the real run without
+// mutating the authored data the checks above just judged.
+if (preMode) {
+  console.log("");
+  if (!meta?.pipelineId) {
+    // main.mjs derives output/<meta.pipelineId> and cannot run without it;
+    // pricing a fallback dir here would describe a different run.
+    warn(
+      "TTS",
+      "Cache & cost plan skipped",
+      "meta.pipelineId missing — main.mjs cannot derive its output directory",
+      "Add pipelineId to meta.mjs",
+    );
+  } else {
+    try {
+      const { previewTtsPlan } = await import("./lib/tts/preview.mjs");
+      const { formatTtsPlan } = await import("./lib/tts/plan-report.mjs");
+      const { report } = await previewTtsPlan({
+        scenes,
+        meta,
+        audioDir: join(OUTPUT_DIR, "audio"),
+      });
+      console.log(formatTtsPlan(report));
+    } catch (e) {
+      // Non-blocking: content checks stay usable on a machine without a TTS
+      // engine. `main.mjs --tts-plan` fails instead — it was asked for the plan
+      // specifically, while --pre only prints one alongside its checks.
+      warn(
+        "TTS",
+        "Cache & cost plan unavailable",
+        e.message,
+        "Fix TTS engine availability (TTS_ENGINE / kaggle.json / ~/.video-tts-env) to preview the spend",
+      );
+    }
+  }
 }
 
 // ─── Media background checks (shared: pre-render + post-render) ───

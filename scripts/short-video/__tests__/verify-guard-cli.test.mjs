@@ -21,50 +21,76 @@ function runPre(args) {
   });
 }
 
+// #953: --pre now also prices the TTS plan, which selects the engine for the
+// cache keys. That probe runs local CLI version checks (`kaggle --version` can
+// take ~9 s on shimmed installs), so these contract tests get a budget that
+// survives a loaded suite instead of the 5 s default.
+const CLI_TIMEOUT_MS = 60000;
+
 describe("verify-video.mjs --pre guard (CLI contract)", () => {
-  it("T1-10: over-limit content fails by default (exit 1)", () => {
-    const res = runPre(["--content", "_test-fixtures/overlimit"]);
-    expect(res.status).toBe(1);
-    expect(res.stdout).toContain("Scene count (6-10)");
-  });
+  it(
+    "T1-10: over-limit content fails by default (exit 1)",
+    () => {
+      const res = runPre(["--content", "_test-fixtures/overlimit"]);
+      expect(res.status).toBe(1);
+      expect(res.stdout).toContain("Scene count (6-10)");
+    },
+    CLI_TIMEOUT_MS,
+  );
 
-  it("T1-11: over-limit content passes with --long-form (exit 0)", () => {
-    const res = runPre(["--long-form", "--content", "_test-fixtures/overlimit"]);
-    expect(res.status).toBe(0);
-    expect(res.stdout).toContain("Scene count (6-10)");
-    expect(res.stdout).toMatch(/WARN:\s+[1-9]/);
-    // #299: the hook media waiver is itself a WARN, so the counter above can no
-    // longer prove that --long-form downgraded the scene-count rule. Pin the
-    // specific warning in the WARNINGS block.
-    expect(res.stdout).toMatch(/• \[Structure\] Scene count \(6-10\) — 11 scenes/);
-  });
+  it(
+    "T1-11: over-limit content passes with --long-form (exit 0)",
+    () => {
+      const res = runPre(["--long-form", "--content", "_test-fixtures/overlimit"]);
+      expect(res.status).toBe(0);
+      expect(res.stdout).toContain("Scene count (6-10)");
+      expect(res.stdout).toMatch(/WARN:\s+[1-9]/);
+      // #299: the hook media waiver is itself a WARN, so the counter above can no
+      // longer prove that --long-form downgraded the scene-count rule. Pin the
+      // specific warning in the WARNINGS block.
+      expect(res.stdout).toMatch(/• \[Structure\] Scene count \(6-10\) — 11 scenes/);
+    },
+    CLI_TIMEOUT_MS,
+  );
 
-  it("T1-12: compliant content passes with no flag (exit 0)", () => {
-    // zhipu-glm6-self-training is the canonical baseline: written against the
-    // current slot contract (layout field + Remotion visualType whitelist) and
-    // fully compliant with no flag.
-    const res = runPre(["--content", "zhipu-glm6-self-training"]);
-    expect(res.status).toBe(0);
-  });
+  it(
+    "T1-12: compliant content passes with no flag (exit 0)",
+    () => {
+      // zhipu-glm6-self-training is the canonical baseline: written against the
+      // current slot contract (layout field + Remotion visualType whitelist) and
+      // fully compliant with no flag.
+      const res = runPre(["--content", "zhipu-glm6-self-training"]);
+      expect(res.status).toBe(0);
+    },
+    CLI_TIMEOUT_MS,
+  );
 
-  it("contract-era content dirs pass data-level preflight (spec decision 47)", () => {
-    // Decision 47 (2026-09-01, user-confirmed): legacy packs are NOT migrated,
-    // batch-run or guaranteed — preflight red for them is expected and tracked
-    // as inventory-only in #153. Only packs written against the current
-    // contract (layout + visualType whitelist) must exit 0 here.
-    for (const dir of ["qwen4-preview", "zhipu-glm6-self-training"]) {
-      const res = runPre(["--content", dir]);
-      expect(res.status, `${dir} preflight should exit 0`).toBe(0);
-    }
-  });
+  it(
+    "contract-era content dirs pass data-level preflight (spec decision 47)",
+    () => {
+      // Decision 47 (2026-09-01, user-confirmed): legacy packs are NOT migrated,
+      // batch-run or guaranteed — preflight red for them is expected and tracked
+      // as inventory-only in #153. Only packs written against the current
+      // contract (layout + visualType whitelist) must exit 0 here.
+      for (const dir of ["qwen4-preview", "zhipu-glm6-self-training"]) {
+        const res = runPre(["--content", dir]);
+        expect(res.status, `${dir} preflight should exit 0`).toBe(0);
+      }
+    },
+    CLI_TIMEOUT_MS,
+  );
 
-  it("all content dirs pass data-level preflight (hook focal contract migrated)", () => {
-    // Historical long-form opt-in path still works: --long-form downgrades
-    // scene-count + word-count to WARN for the synthetic fixture (T1-11).
-    // Real legacy packs are NOT asserted here — decision 47 (see above).
-    const res = runPre(["--long-form", "--content", "_test-fixtures/overlimit"]);
-    expect(res.status).toBe(0);
-  });
+  it(
+    "all content dirs pass data-level preflight (hook focal contract migrated)",
+    () => {
+      // Historical long-form opt-in path still works: --long-form downgrades
+      // scene-count + word-count to WARN for the synthetic fixture (T1-11).
+      // Real legacy packs are NOT asserted here — decision 47 (see above).
+      const res = runPre(["--long-form", "--content", "_test-fixtures/overlimit"]);
+      expect(res.status).toBe(0);
+    },
+    CLI_TIMEOUT_MS,
+  );
 });
 
 describe("verify-video.mjs B-roll summary (spec #27)", () => {
@@ -85,34 +111,42 @@ describe("verify-video.mjs B-roll summary (spec #27)", () => {
     }
   }
 
-  it("prints one line per reported scene, warning on non-won statuses", () => {
-    const stdout = withReport(
-      {
-        content: "_test-fixtures/hook-standard",
-        threshold: 60,
-        scenes: {
-          6: {
-            strategy: "b-roll",
-            round: 1,
-            status: "failed",
-            candidates: [{ seed: 1024, file: "scene-6-seed1024.mp4", relevance: 41 }],
-            winner: null,
+  it(
+    "prints one line per reported scene, warning on non-won statuses",
+    () => {
+      const stdout = withReport(
+        {
+          content: "_test-fixtures/hook-standard",
+          threshold: 60,
+          scenes: {
+            6: {
+              strategy: "b-roll",
+              round: 1,
+              status: "failed",
+              candidates: [{ seed: 1024, file: "scene-6-seed1024.mp4", relevance: 41 }],
+              winner: null,
+            },
           },
         },
-      },
-      () => runPre(["--content", "_test-fixtures/hook-standard"]).stdout,
-    );
-    expect(stdout).toContain("B-roll Checks");
-    expect(stdout).toContain("Scene 6 B-roll");
-    expect(stdout).toContain("1024:41");
-  });
+        () => runPre(["--content", "_test-fixtures/hook-standard"]).stdout,
+      );
+      expect(stdout).toContain("B-roll Checks");
+      expect(stdout).toContain("Scene 6 B-roll");
+      expect(stdout).toContain("1024:41");
+    },
+    CLI_TIMEOUT_MS,
+  );
 
-  it("prints nothing about B-roll for content that never ran the stage", () => {
-    const res = runPre(["--content", "bytedance-distillation"]);
-    // spec #27: the report-derived summary section only prints when a
-    // b-roll-report.json exists. The scene-data strategy WARN (issue #193)
-    // is preflight-level and fires even when the stage never ran, so only
-    // the summary header is asserted absent here.
-    expect(res.stdout).not.toContain("B-roll Checks");
-  });
+  it(
+    "prints nothing about B-roll for content that never ran the stage",
+    () => {
+      const res = runPre(["--content", "bytedance-distillation"]);
+      // spec #27: the report-derived summary section only prints when a
+      // b-roll-report.json exists. The scene-data strategy WARN (issue #193)
+      // is preflight-level and fires even when the stage never ran, so only
+      // the summary header is asserted absent here.
+      expect(res.stdout).not.toContain("B-roll Checks");
+    },
+    CLI_TIMEOUT_MS,
+  );
 });

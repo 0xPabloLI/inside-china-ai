@@ -15,6 +15,7 @@ import { tmpdir } from "os";
 import {
   computeSceneKey,
   planTtsScenes,
+  ttsCacheEnabled,
   writeSceneMeta,
   alignmentCacheState,
   computeAlignmentSignature,
@@ -247,6 +248,153 @@ describe("planTtsScenes / writeSceneMeta", () => {
 
     const plan = planTtsScenes(dir, [scene], engine);
     expect(plan.approved).toHaveLength(1);
+  });
+});
+
+describe("ttsCacheEnabled (#953)", () => {
+  it("single-sources the TTS_NO_CACHE switch for the run and the preview", () => {
+    expect(ttsCacheEnabled({})).toBe(true);
+    expect(ttsCacheEnabled({ TTS_NO_CACHE: "0" })).toBe(true);
+    expect(ttsCacheEnabled({ TTS_NO_CACHE: "1" })).toBe(false);
+  });
+});
+
+describe("planTtsScenes miss reasons (#953)", () => {
+  // The spend preview is only useful if a pending scene names WHY it missed.
+  // These cases pin one reason per branch of the planner's decision tree.
+  const engine = { name: "f5-mlx", info: "F5-TTS-MLX (cloned from ref.wav, speed=1)" };
+  let dirs = [];
+  const cleanup = () => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+    dirs = [];
+  };
+  const newDir = () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-miss-"));
+    dirs.push(dir);
+    return dir;
+  };
+
+  it("reports missing-audio when no sidecar exists (never generated)", () => {
+    const dir = newDir();
+    const plan = planTtsScenes(dir, [{ id: 1, voiceover: "第一句" }], engine);
+    expect(plan.misses).toEqual([{ sceneId: 1, reason: "missing-audio" }]);
+    cleanup();
+  });
+
+  it("reports text-changed when the key drifted within the same engine and speed", () => {
+    const dir = newDir();
+    writeFileSync(join(dir, "scene-1.wav"), "fake-wav-bytes");
+    writeSceneMeta(dir, 1, {
+      key: computeSceneKey(engine, "原来的句子"),
+      duration: 2.5,
+      engine: engine.name,
+      audioPath: join(dir, "scene-1.wav"),
+    });
+    const plan = planTtsScenes(dir, [{ id: 1, voiceover: "改过的句子" }], engine);
+    expect(plan.misses).toEqual([{ sceneId: 1, reason: "text-changed" }]);
+    cleanup();
+  });
+
+  it("reports engine-changed when the approved take came from another engine", () => {
+    const dir = newDir();
+    const otherEngine = { name: "cosyvoice3-kaggle-cuda", info: "CosyVoice3-Kaggle-CUDA" };
+    writeFileSync(join(dir, "scene-1.wav"), "fake-wav-bytes");
+    writeSceneMeta(dir, 1, {
+      key: computeSceneKey(otherEngine, "第一句"),
+      duration: 2.5,
+      engine: otherEngine.name,
+      audioPath: join(dir, "scene-1.wav"),
+    });
+    const plan = planTtsScenes(dir, [{ id: 1, voiceover: "第一句" }], engine);
+    expect(plan.misses).toEqual([{ sceneId: 1, reason: "engine-changed" }]);
+    cleanup();
+  });
+
+  it("reports speed-changed when an operator override moves the resolved speed", () => {
+    const dir = newDir();
+    // English text: resolveSceneSpeed never lifts Chinese scenes, so a speed
+    // override only exists on the EN path.
+    const text = "the hook line";
+    writeFileSync(join(dir, "scene-1.wav"), "fake-wav-bytes");
+    writeSceneMeta(dir, 1, {
+      key: computeSceneKey(engine, text, 1.2),
+      duration: 2.5,
+      engine: engine.name,
+      audioPath: join(dir, "scene-1.wav"),
+      ttsSpeed: 1.2,
+    });
+    const priorSpeed = process.env.TTS_SPEED;
+    process.env.TTS_SPEED = "1.15";
+    try {
+      const plan = planTtsScenes(dir, [{ id: 1, voiceover: text }], engine);
+      expect(plan.misses).toEqual([{ sceneId: 1, reason: "speed-changed" }]);
+    } finally {
+      if (priorSpeed === undefined) delete process.env.TTS_SPEED;
+      else process.env.TTS_SPEED = priorSpeed;
+    }
+    cleanup();
+  });
+
+  it("reports missing-audio when a matching sidecar points at a deleted take", () => {
+    const dir = newDir();
+    writeFileSync(
+      join(dir, "scene-7.tts-meta.json"),
+      JSON.stringify({
+        key: computeSceneKey(engine, "第一句"),
+        duration: 2.5,
+        engine: engine.name,
+        audioPath: join(dir, "scene-7.wav"),
+      }),
+    );
+    const plan = planTtsScenes(dir, [{ id: 7, voiceover: "第一句" }], engine);
+    expect(plan.misses).toEqual([{ sceneId: 7, reason: "missing-audio" }]);
+    cleanup();
+  });
+
+  it("reports missing-meta when audio exists but no sidecar survives", () => {
+    const dir = newDir();
+    writeFileSync(join(dir, "scene-9.wav"), "orphan-take");
+    const plan = planTtsScenes(dir, [{ id: 9, voiceover: "第一句" }], engine);
+    expect(plan.misses).toEqual([{ sceneId: 9, reason: "missing-meta" }]);
+    cleanup();
+  });
+
+  it("reports corrupt-meta when the sidecar exists but cannot be parsed", () => {
+    const dir = newDir();
+    writeFileSync(join(dir, "scene-8.tts-meta.json"), "{not json");
+    const plan = planTtsScenes(dir, [{ id: 8, voiceover: "第一句" }], engine);
+    expect(plan.misses).toEqual([{ sceneId: 8, reason: "corrupt-meta" }]);
+    cleanup();
+  });
+
+  it("reports speed-changed for a legacy 1.0x take when the scene now resolves a speed", () => {
+    const dir = newDir();
+    const text = "the hook line";
+    writeFileSync(join(dir, "scene-1.wav"), "fake-wav-bytes");
+    // Legacy meta: approved at 1.0x, no ttsSpeed recorded. The scene now
+    // resolves 1.1x, so the key misses — the text did not change.
+    writeSceneMeta(dir, 1, {
+      key: computeSceneKey(engine, text),
+      duration: 2.5,
+      engine: engine.name,
+      audioPath: join(dir, "scene-1.wav"),
+    });
+    const plan = planTtsScenes(dir, [{ id: 1, voiceover: text, ttsSpeed: 1.1 }], engine);
+    expect(plan.misses).toEqual([{ sceneId: 1, reason: "speed-changed" }]);
+    cleanup();
+  });
+
+  it("keeps misses aligned with pending in scene order", () => {
+    const dir = newDir();
+    const scenes = [
+      { id: 1, voiceover: "第一句" },
+      { id: 2, voiceover: "第二句" },
+      { id: 3, voiceover: "第三句" },
+    ];
+    const plan = planTtsScenes(dir, scenes, engine);
+    expect(plan.pending.map((s) => s.id)).toEqual([1, 2, 3]);
+    expect(plan.misses.map((m) => m.sceneId)).toEqual([1, 2, 3]);
+    cleanup();
   });
 });
 

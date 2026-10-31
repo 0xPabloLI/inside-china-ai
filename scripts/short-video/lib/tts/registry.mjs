@@ -50,7 +50,13 @@ import {
   refreshApprovedSceneMeta,
   refreshCandidateSceneMeta,
   sceneCacheKey,
+  ttsCacheEnabled,
 } from "./cache.mjs";
+// #953: state the spend before the batch — the plan was always computed here,
+// but only its aggregate was printed, and the cost never appeared before the
+// push. Same formatter as `main --tts-plan` / `verify-video --pre`.
+import { buildTtsPlan, formatPendingGenerationLog } from "./plan-report.mjs";
+import { planCachedPacing } from "./pacing-plan.mjs";
 import {
   FAILURE_CLASS,
   partitionGateFailures,
@@ -533,41 +539,15 @@ async function finalizeTtsResults(
 }
 
 /**
- * Measure APPROVED takes for the pacing ladder (#786).
- *
- * Approved scenes skip `verifyScenes` by design (no ASR, no GPU), which is how
- * the finished hook bypassed the #244 floor: the ladder only ever judged takes
- * generated in the current run. The duration recorded with the approval is
- * enough to reproduce the gate's own WPM metric (words / duration) — same
- * tokenizer, same rounding — so the cached take can be judged by the SAME
- * ladder without paying for verification again.
- *
- * @param {Array<object>} scenes
- * @param {Array<{sceneId: number, duration: number, ttsSpeed?: number}>} cachedResults
- * @returns {Promise<{scenes: Array<object>, evaluations: Array<object>, compensations: Array, rerolls: Array, advisory: string[]}>}
+ * Test/demo engines advertise "fake" in name or info; the Quality Gate (and
+ * with it the pacing ladder) is skipped for them. Single source, shared with
+ * the dry-run preview (#953) so the preview does not plan pacing the run skips.
  */
-async function planCachedPacing(scenes, cachedResults) {
-  const empty = { scenes: [], evaluations: [], compensations: [], rerolls: [], advisory: [] };
-  if (!Array.isArray(cachedResults) || cachedResults.length === 0) return empty;
-
-  const { measureSceneWpm } = await import("./text-tokens.mjs");
-  const cachedScenes = [];
-  const evaluations = [];
-  for (const hit of cachedResults) {
-    const scene = scenes.find((s) => s.id === hit.sceneId);
-    if (!scene || !(Number(hit.duration) > 0)) continue;
-    // Same text resolution and rounding as the gate — a cached take must be
-    // judged with the metric it was approved under.
-    const wpm = measureSceneWpm(scene, hit.duration);
-    if (wpm === 0) continue;
-    cachedScenes.push(scene);
-    evaluations.push({ sceneId: scene.id, passed: true, wpm });
-  }
-  if (evaluations.length === 0) return empty;
-
-  const { planPacingResponses } = await import("./pacing.mjs");
-  const plan = planPacingResponses(cachedScenes, evaluations);
-  return { scenes: cachedScenes, evaluations, ...plan };
+export function isFakeEngine(engine) {
+  return Boolean(
+    (engine?.name && engine.name.toLowerCase().includes("fake")) ||
+    (engine?.info && engine.info.toLowerCase().includes("fake")),
+  );
 }
 
 /**
@@ -580,7 +560,7 @@ async function planCachedPacing(scenes, cachedResults) {
  * @returns {Promise<TTSResult[]>}
  */
 export async function generateTTSWithEngine(scenes, outputDir, engine, options = {}) {
-  const { useCache = process.env.TTS_NO_CACHE !== "1", runAlignment = true } = options;
+  const { useCache = ttsCacheEnabled(), runAlignment = true } = options;
 
   const atempo = getAtempo();
   // #270: hand the Quality Gate the SELECTED engine's instruct resolver so it
@@ -612,8 +592,10 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   let cachedResults = [];
   let candidateResults = [];
   let candidateSpeedById = new Map();
+  /** @type {ReturnType<typeof planTtsScenes>|null} */
+  let plan = null;
   if (useCache) {
-    const plan = planTtsScenes(outputDir, scenes, engine);
+    plan = planTtsScenes(outputDir, scenes, engine);
     if (plan.approved.length > 0) {
       console.log(
         `  💾 TTS cache: ${plan.approved.length}/${scenes.length} scenes reused (TTS_NO_CACHE=1 to force)`,
@@ -651,10 +633,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     toGenerate = plan.pending;
   }
 
-  const isFakeEngine =
-    (engine.name && engine.name.toLowerCase().includes("fake")) ||
-    (engine.info && engine.info.toLowerCase().includes("fake"));
-  const skipQualityGate = options.skipQualityGate ?? (isFakeEngine || qualityGateSkipped());
+  const skipQualityGate = options.skipQualityGate ?? (isFakeEngine(engine) || qualityGateSkipped());
 
   // Everything this run must (re-)verify: fresh generations plus candidates
   // whose audio already exists on disk (#423).
@@ -690,6 +669,14 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   // on disk (approved scenes are never regenerated), so there is nothing to
   // protect; engines derive per-pipeline identity from this path (Kaggle slug,
   // #267) and keep per-call bookkeeping under it (`.kaggle-kernel`, #420).
+  //
+  // #953: state the spend BEFORE the batch. The plan already knew which scenes
+  // missed and why; printing it only after generation (or only as an aggregate)
+  // is how a one-line edit silently bought a full cold start.
+  if (toGenerate.length > 0) {
+    const spendReport = buildTtsPlan({ engine, scenes, plan, useCache });
+    for (const line of formatPendingGenerationLog(spendReport)) console.log(line);
+  }
   const generatedResults =
     toGenerate.length > 0 ? await engine.generate(toGenerate, outputDir) : [];
 
