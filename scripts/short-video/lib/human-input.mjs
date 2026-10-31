@@ -258,15 +258,18 @@ export async function wheelScroll(session, opts) {
   const total = Math.abs(Math.round(totalDeltaY));
   if (!total) return { chunks: [], mode: "wheel" };
 
-  /** @returns {Promise<number>} the page's current vertical offset */
+  /** @returns {Promise<number|null>} the page's vertical offset, null if unreadable */
   const scrollY = async () => {
     const { result } = await session.send("Runtime.evaluate", {
       expression: "window.scrollY",
       returnByValue: true,
     });
-    return typeof result?.value === "number" ? result.value : 0;
+    return typeof result?.value === "number" ? result.value : null;
   };
-  const startY = await scrollY();
+  // A navigation or a torn-down renderer must not stop the scroll itself, so an
+  // unreadable start position only costs the correction — it is the one thing
+  // here that needs a baseline.
+  const startY = await scrollY().catch(() => null);
 
   await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none" });
   // Let the hit test settle before the first burst; a wheel that lands in the
@@ -324,15 +327,16 @@ export async function wheelScroll(session, opts) {
     // ~163px too far. Wait for the late dispatch to land, then converge on the
     // position the caller asked for instead of trusting the arithmetic.
     await sleepJitter(...LATE_DISPATCH_SETTLE_MS, { rand, sleepFn });
-    const drift = startY + sign * total - (await scrollY());
-    if (Math.abs(drift) >= 2) {
+    const nowY = startY === null ? null : await scrollY().catch(() => null);
+    const drift = nowY === null ? null : startY + sign * total - nowY;
+    if (drift !== null && Math.abs(drift) >= 2) {
       await session.send("Runtime.evaluate", { expression: `window.scrollBy(0, ${drift})` });
     }
     return {
       chunks: [...delivered.map((c) => sign * c), ...(remaining ? [remaining] : [])],
       mode: "js-fallback",
       reason: err.message,
-      correctedPx: Math.round(drift),
+      ...(drift === null ? {} : { correctedPx: Math.round(drift) }),
     };
   }
   return { chunks: chunks.map((c) => sign * c), mode: "wheel" };

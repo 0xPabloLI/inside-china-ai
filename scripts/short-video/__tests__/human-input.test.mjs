@@ -361,6 +361,33 @@ describe("wheelScroll", () => {
     expect(result.correctedPx).not.toBe(0);
   });
 
+  it("still scrolls when the start position cannot be read", async () => {
+    // A navigation can tear the context down mid-run. Losing the baseline only
+    // costs the late-dispatch correction; the scroll itself must still happen.
+    const calls = [];
+    const session = {
+      send: async (method, params = {}) => {
+        calls.push({ method, params });
+        if (method === "Runtime.evaluate" && params.expression === "window.scrollY") {
+          throw new Error("Execution context was destroyed");
+        }
+        if (params.type === "mouseWheel") throw new Error("CDP command timed out");
+        return {};
+      },
+    };
+    const { sleepFn } = fakeSleep();
+    const result = await wheelScroll(session, {
+      x: 300,
+      y: 300,
+      totalDeltaY: 400,
+      rand: seeded(14),
+      sleepFn,
+    });
+    expect(result.mode).toBe("js-fallback");
+    expect(result).not.toHaveProperty("correctedPx");
+    expect(calls.filter((c) => c.method === "Runtime.evaluate")).not.toHaveLength(0);
+  });
+
   it("scripts only the shortfall when a later burst is dropped", async () => {
     // Bursts that were acknowledged already moved the page. Adding the whole
     // request on top overshoots by exactly what they scrolled.
