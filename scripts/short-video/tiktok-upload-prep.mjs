@@ -1036,11 +1036,16 @@ async function runSessionWarmup(cdp, tab) {
   const scrolls = [];
   const modes = [];
   const cycles = Math.max(2, Math.round(randomBetween(2, 4)));
-  let wheelsUsable = true;
+  let scriptedStreak = 0;
   for (let i = 0; i < cycles; i++) {
     const deltaY = Math.round(randomBetween(280, 760));
     let scrolled = { mode: "wheel" };
-    if (wheelsUsable) {
+    // A scripted burst is not proof that wheels are dead: the failed dispatch
+    // also heals the throttle (that happens inside `cdp.send`), and the next
+    // burst then acks again — measured on the fixture 2026-10-31, where the
+    // second burst after a heal came back with `mode: "wheel"`. So keep trying
+    // until two bursts in a row are scripted.
+    if (scriptedStreak < 2) {
       scrolled = await wheelScroll(cdp, {
         x: Math.round(randomBetween(480, 980)),
         y: Math.round(randomBetween(320, 620)),
@@ -1050,9 +1055,14 @@ async function runSessionWarmup(cdp, tab) {
         // Chrome sometimes stops acknowledging wheel dispatches on this build
         // (measured 2026-10-30). The fallback scrolls anyway; naming it here
         // keeps the difference between a human scroll and a scripted one
-        // visible, and stops the remaining cycles paying the same wait.
-        console.log(`      ⚠️ warm-up scroll ${i + 1}/${cycles} was scripted: ${scrolled.reason}`);
-        wheelsUsable = false;
+        // visible.
+        console.log(
+          `      ⚠️ warm-up scroll ${i + 1}/${cycles} was scripted: ${scrolled.reason}` +
+            (scrolled.correctedPx ? ` (corrected ${scrolled.correctedPx}px of late dispatch)` : ""),
+        );
+        scriptedStreak += 1;
+      } else {
+        scriptedStreak = 0;
       }
     } else {
       await evalJson(

@@ -60,6 +60,12 @@ export const WHEEL_BURST_GAP_MS = Object.freeze([170, 90]);
  * the long session budget would only convert a silent drop into a 15s stall.
  */
 export const WHEEL_ACK_TIMEOUT_MS = 3000;
+/**
+ * Wait for an unacknowledged wheel to land before correcting the scroll
+ * position (120 ± 80). Long enough for a throttled renderer to drain the
+ * dispatch it never acked, short enough not to be felt.
+ */
+export const LATE_DISPATCH_SETTLE_MS = Object.freeze([120, 80]);
 
 /**
  * Uniform float in [min, max].
@@ -244,13 +250,23 @@ export async function clickAtPoint(session, opts) {
  *
  * @param {{ send: (method: string, params?: object) => Promise<object> }} session
  * @param {{ x: number, y: number, totalDeltaY: number, rand?: () => number, sleepFn?: (ms:number)=>Promise<void>, fallback?: boolean }} opts
- * @returns {Promise<{ chunks: number[], mode: "wheel"|"js-fallback", reason?: string }>}
+ * @returns {Promise<{ chunks: number[], mode: "wheel"|"js-fallback", reason?: string, correctedPx?: number }>}
  */
 export async function wheelScroll(session, opts) {
   const { x, y, totalDeltaY, rand = Math.random, sleepFn = defaultSleep, fallback = true } = opts;
   const sign = Math.sign(totalDeltaY) || 1;
   const total = Math.abs(Math.round(totalDeltaY));
   if (!total) return { chunks: [], mode: "wheel" };
+
+  /** @returns {Promise<number>} the page's current vertical offset */
+  const scrollY = async () => {
+    const { result } = await session.send("Runtime.evaluate", {
+      expression: "window.scrollY",
+      returnByValue: true,
+    });
+    return typeof result?.value === "number" ? result.value : 0;
+  };
+  const startY = await scrollY();
 
   await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none" });
   // Let the hit test settle before the first burst; a wheel that lands in the
@@ -301,10 +317,22 @@ export async function wheelScroll(session, opts) {
         expression: `window.scrollBy(0, ${remaining})`,
       });
     }
+    // The unacknowledged burst was NOT cancelled: the renderer can still apply
+    // it once the throttle lifts, and then this correction has overshot by
+    // exactly that chunk. Measured 2026-10-31 on the fixture: three wheels
+    // reached the page for a two-of-four ack, so the scripted shortfall scrolled
+    // ~163px too far. Wait for the late dispatch to land, then converge on the
+    // position the caller asked for instead of trusting the arithmetic.
+    await sleepJitter(...LATE_DISPATCH_SETTLE_MS, { rand, sleepFn });
+    const drift = startY + sign * total - (await scrollY());
+    if (Math.abs(drift) >= 2) {
+      await session.send("Runtime.evaluate", { expression: `window.scrollBy(0, ${drift})` });
+    }
     return {
       chunks: [...delivered.map((c) => sign * c), ...(remaining ? [remaining] : [])],
       mode: "js-fallback",
       reason: err.message,
+      correctedPx: Math.round(drift),
     };
   }
   return { chunks: chunks.map((c) => sign * c), mode: "wheel" };

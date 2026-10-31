@@ -273,27 +273,59 @@ describe("wheelScroll", () => {
       rand: seeded(10),
       sleepFn,
     });
-    expect(session.calls[0].params).toMatchObject({
-      type: "mouseMoved",
-      x: 640,
-      y: 480,
-    });
-    expect(session.calls[1].params.type).toBe("mouseWheel");
+    // The move comes after the one `window.scrollY` read that measures where
+    // the page started, and before the first wheel.
+    const move = session.calls.findIndex((c) => c.params.type === "mouseMoved");
+    const firstWheel = session.calls.findIndex((c) => c.params.type === "mouseWheel");
+    expect(session.calls[move].params).toMatchObject({ x: 640, y: 480 });
+    expect(move).toBeLessThan(firstWheel);
+    expect(
+      session.calls.slice(0, move).filter((c) => c.method === "Runtime.evaluate"),
+    ).toHaveLength(1);
   });
+
+  /** A page that actually moves, so the post-fallback correction is exercised. */
+  const scrollingSession = ({ dropWheelAfter = Number.POSITIVE_INFINITY, lateDispatch = true }) => {
+    const calls = [];
+    let wheels = 0;
+    let y = 0;
+    const session = {
+      calls,
+      get scrollY() {
+        return y;
+      },
+      send: async (method, params = {}) => {
+        if (params.type === "mouseWheel") {
+          wheels += 1;
+          if (wheels > dropWheelAfter) {
+            // The ack times out; a healthy renderer would still apply it. The
+            // driver cannot tell, which is exactly why the correction exists.
+            if (lateDispatch) y += params.deltaY;
+            throw new Error("CDP command timed out");
+          }
+          y += params.deltaY;
+          return {};
+        }
+        calls.push({ method, params });
+        if (method === "Runtime.evaluate" && params.expression === "window.scrollY") {
+          return { result: { value: y } };
+        }
+        if (method === "Runtime.evaluate") {
+          const by = Number(/scrollBy\(0, (-?\d+)\)/.exec(params.expression)?.[1] ?? 0);
+          y += by;
+        }
+        return {};
+      },
+    };
+    return session;
+  };
 
   it("falls back to a scripted scroll, and says so, when the wheel never acks", async () => {
     // Observed 2026-10-30: after a sustained burst of insertText, wheel
     // dispatch stops resolving. Losing 15s to a hang is worse than scrolling
     // by script, as long as the caller can see it happened.
-    const calls = [];
-    const session = {
-      send: async (method, params = {}) => {
-        calls.push({ method, params });
-        if (params.type === "mouseWheel") throw new Error("CDP command timed out");
-        return {};
-      },
-    };
     const { sleepFn } = fakeSleep();
+    const session = scrollingSession({ dropWheelAfter: 0, lateDispatch: false });
     const result = await wheelScroll(session, {
       x: 300,
       y: 300,
@@ -304,23 +336,36 @@ describe("wheelScroll", () => {
     expect(result.mode).toBe("js-fallback");
     expect(result.reason).toMatch(/timed out/);
     expect(result.chunks).toEqual([500]);
-    const evaluated = calls.find((c) => c.method === "Runtime.evaluate");
-    expect(evaluated.params.expression).toContain("scrollBy(0, 500)");
+    expect(session.scrollY).toBe(500);
+    // Nothing was delivered late, so the arithmetic was already right.
+    expect(result.correctedPx).toBe(0);
+  });
+
+  it("corrects for the unacknowledged wheel that lands after the scripted scroll", async () => {
+    // The ack does not cancel the dispatch. Measured 2026-10-31 on the fixture:
+    // the timed-out burst reached the page anyway, so scripting the shortfall
+    // on top overshot by that chunk. Converge on the position, not on the sum.
+    const { sleepFn } = fakeSleep();
+    const session = scrollingSession({ dropWheelAfter: 1, lateDispatch: true });
+    const result = await wheelScroll(session, {
+      x: 300,
+      y: 300,
+      totalDeltaY: 500,
+      rand: seeded(12),
+      sleepFn,
+    });
+    expect(result.mode).toBe("js-fallback");
+    // Whatever the late dispatch added is taken back out: the page ends at the
+    // requested offset, not at "delivered + shortfall".
+    expect(session.scrollY).toBe(500);
+    expect(result.correctedPx).not.toBe(0);
   });
 
   it("scripts only the shortfall when a later burst is dropped", async () => {
     // Bursts that were acknowledged already moved the page. Adding the whole
     // request on top overshoots by exactly what they scrolled.
-    const calls = [];
-    let wheels = 0;
-    const session = {
-      send: async (method, params = {}) => {
-        if (params.type === "mouseWheel" && ++wheels > 2) throw new Error("CDP command timed out");
-        calls.push({ method, params });
-        return {};
-      },
-    };
     const { sleepFn } = fakeSleep();
+    const session = scrollingSession({ dropWheelAfter: 2, lateDispatch: false });
     const result = await wheelScroll(session, {
       x: 300,
       y: 300,
@@ -333,9 +378,8 @@ describe("wheelScroll", () => {
     expect(result.mode).toBe("js-fallback");
     expect(remaining).toBe(520 - delivered);
     expect(delivered + remaining).toBe(520);
-    const evaluated = calls.find((c) => c.method === "Runtime.evaluate");
-    expect(evaluated.params.expression).toContain(`scrollBy(0, ${remaining})`);
     expect(Math.abs(remaining)).toBeLessThan(520);
+    expect(session.scrollY).toBe(520);
   });
 
   it("keeps every burst positive and forward on a scroll shorter than the burst count", async () => {
