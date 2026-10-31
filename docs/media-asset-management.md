@@ -130,7 +130,7 @@ asset-sourcer 构建跨内容已用素材索引（扫描各内容包 `assets/` �
 
 「整幅保留」指布局不裁切：入场动效仍会推镜（fade 1.05、ken-burns 1.12），折合片尾画幅约 4.8% / 10.7% 被推镜吃掉，与 B4 样片一致；这条规则管的是布局裁切，不是动效推镜。
 
-尺寸来源按序：下载后的 ffprobe（`width`/`height`，已按 rotation 归一到观看方向）、focus frame、取源元数据 `resolution`。三者都没有时按非横屏处理（维持 cover），不猜。`asset-analysis.json` 记录 `width`/`height`/`landscape`，作为最终 `media-patch` 里 contain/cover 选择的审计痕迹。
+尺寸来源：优先使用下载后的 ffprobe（视频，`width`/`height`，已按 rotation 归一到观看方向）或 focus frame（图片）；两者都没有时用取源元数据 `resolution` 兜底。三者都没有时按非横屏处理（维持 cover），不猜。`asset-analysis.json` 记录 `width`/`height`/`landscape`，作为最终 `media-patch` 里 contain/cover 选择的审计痕迹。
 
 Hook 与正文同构：pack 自己声明了正文 `fit` 时沿用声明多数（`declaredBodyFit`；`hookRequiredFitFor` 取同一多数并回落 cover）；没有声明的 pack，hook 按自身源宽高比（横屏 contain、竖/方 cover，VLM 判 contain 时保留），不再写死 cover——把竖屏 hook 强塞进 contain 会让前 3 秒变成窄条。`contain` 自 #1021 起对 hook 合法。
 
