@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.46.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.45.1...tanstack_start_ts-v1.46.0) (2026-10-31)
+
+
+### Features
+
+* **video:** give the platform profile's publish declarations real consumers ([#951](https://github.com/0xPabloLI/inside-china-ai/issues/951)) ([#1054](https://github.com/0xPabloLI/inside-china-ai/issues/1054)) ([f533339](https://github.com/0xPabloLI/inside-china-ai/commit/f53333974b01c617160bd1facd8a0926f5d47f02))
+
 ## [1.45.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.45.0...tanstack_start_ts-v1.45.1) (2026-10-31)
 
 
