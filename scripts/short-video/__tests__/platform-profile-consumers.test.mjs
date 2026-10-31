@@ -139,6 +139,20 @@ describe("the CDP driver consults the profile", () => {
   });
 });
 
+// ─── The documented CDP tier keeps the analytics contract ───
+
+describe("the cdp publish tier leaves the analytics record", () => {
+  const driver = read("tiktok-upload-prep.mjs");
+
+  it("writes pending-analysis.json after a real publish", () => {
+    // docs/content-pipeline.md §5b documents this driver as a full publish path,
+    // and the session-start reminder reads this one file. Without the write, a
+    // CDP publish left the >48h analytics export reminder silent.
+    expect(driver).toContain("buildManualPendingAnalysis(");
+    expect(driver).toContain('join(outputDir, "pending-analysis.json")');
+  });
+});
+
 // ─── Policy behaviour ───
 
 describe("the profile gate resolves the CDP method", () => {

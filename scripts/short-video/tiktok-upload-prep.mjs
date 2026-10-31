@@ -133,6 +133,8 @@
  *   --video <path>        Video file to upload (required)
  *   --content <dir>       Pipeline id — caption defaults to
  *                         output/{dir}/publish/tiktok/tiktok-caption.txt
+ *   --slug <slug>         Article slug, recorded in pending-analysis.json after
+ *                         a real publish (the analytics workflow links back to it).
  *   --caption <text>      Caption override (else the --content default)
  *   --caption-file <path> Caption file override
  *   --sound <query>       Sound to search for (default: the account's usual)
@@ -168,7 +170,14 @@
  *   --dry-run             Everything except the upload (page reachability only)
  */
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync } from "fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "fs";
 import { join, dirname, resolve, basename } from "path";
 import { fileURLToPath } from "url";
 import { CDP_BASE, cdpNewTab, cdpEval, cdpCloseTab } from "./lib/cdp-client.mjs";
@@ -188,7 +197,11 @@ import {
 import { PUBLISH_PACING, REVIEW_WATCH_MS } from "./lib/publish-pacing.mjs";
 import { getPlatformProfile } from "./lib/platforms/index.mjs";
 import { CDP_PUBLISH_METHOD, resolveAigcPolicy } from "./lib/platforms/upload-prep-policy.mjs";
-import { resolvePublishMethod } from "./lib/publish-utils.mjs";
+import {
+  buildAnalyticsGuidance,
+  buildManualPendingAnalysis,
+  resolvePublishMethod,
+} from "./lib/publish-utils.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -1639,6 +1652,26 @@ async function main() {
         );
       }
       log("publish", { published: true, url: settled.last.url, clickMode: published.mode });
+
+      // pending-analysis.json (#260's contract, extended to this tier by #951's
+      // review): the analytics workflow reads this one file and the session-start
+      // ">48h, export the CSV" reminder fires off its publishedAt. Only the
+      // manual-guide path used to write it, so a CDP publish left the reminder
+      // silent even though the post is live.
+      const outputDir = join(__dirname, "output");
+      const pending = buildManualPendingAnalysis({
+        slug: getArg("slug") ?? null,
+        videoPath,
+        publishedAt: new Date().toISOString(),
+        publishMethod,
+      });
+      if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
+      writeFileSync(
+        join(outputDir, "pending-analysis.json"),
+        JSON.stringify(pending, null, 2) + "\n",
+      );
+      log("pendingAnalysis", pending);
+      console.log(buildAnalyticsGuidance(outputDir));
       console.log("=".repeat(60));
       console.log("✅ Published.");
       console.log(`   ${settled.last.url}`);

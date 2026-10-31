@@ -167,6 +167,15 @@ describe("buildManualPendingAnalysis", () => {
     expect(result.slug).toBeNull();
     expect(result.videoPath).toBeNull();
   });
+
+  it("records the CDP tier as publishMethod cdp (#951)", () => {
+    // The manual-guide default must not be baked in: a CDP publish has no app
+    // checklist, so the record has to say which tier produced the post.
+    const result = buildManualPendingAnalysis({ publishedAt, publishMethod: "cdp" });
+    expect(result.publishMethod).toBe("cdp");
+    expect(result.status).toBe("pending");
+    expect(buildManualPendingAnalysis({ publishedAt }).publishMethod).toBe("manual-guide");
+  });
 });
 
 // ─── buildPendingAnalysis (ISSUE-19) ───
