@@ -71,6 +71,8 @@ done
 
 ⚠️ **测法本身的坑**：`--noproxy '*'` 会**覆盖** `-x`，两者同上时三条路径全退化成直连，结果是假的“都一样”。测本地代理端口时不要带 `--noproxy`。
 
+**逐端口是这条判据的全部**：不带 `-x` 的请求在 TUN 开启时也返回 `204`（见下表「不给代理（默认）」行），所以裸请求分不出「这个端口在代理」和「这台机器在某处代理」。上面这个循环已由 `npm run proxy:url` 自动化（`scripts/lib/proxy-port.mjs`），批量 git 调用见 `docs/agents/git-workflow.md` §11；本表仍是配方与实测值的唯一出处。
+
 **2026-09-25 实测快照**（每次切客户端后重测，别当长期结论）：
 
 | 路径                 | google/generate_204 | youtube | 判读                                                                                                                                           |
@@ -138,13 +140,13 @@ done
 
 测试 fixture 的构造方式（临时目录、真媒体文件、内存状态替身、常量表断言）会命中若干 Semgrep 规则，而这些形状在测试里是预期行为。**判据是「规则 id 且测试路径」双条件**：测试文件对其余规则照常扫描，生产路径的同规则命中照常上传。
 
-| 规则（完整 id，与过滤器 `RULE_IDS` 逐字一致）                                                                                     | 测试里的形状                                                                       |
-| ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal`                             | fixture 路径来自 `mkdtempSync`，taint 源=函数参数、汇=`path.join`/`resolve`         |
-| `javascript.lang.security.detect-child-process.detect-child-process`                                                                | fixture 用 `execSync` 跑 ffmpeg 造真媒体文件，参数是临时目录路径与数字（时长/延迟） |
-| `javascript.lang.security.insecure-object-assign.insecure-object-assign`                                                            | 测试替身用 `Object.assign(mem, JSON.parse(JSON.stringify(s)))` 合并内存状态         |
-| `javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp`                                                | 用常量列表或捕获的进程输出构造 `RegExp` 来断言                                      |
-| `javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop`                              | 漂移模拟按固定字段常量表改写 fixture 对象                                           |
+| 规则（完整 id，与过滤器 `RULE_IDS` 逐字一致）                                                           | 测试里的形状                                                                        |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal` | fixture 路径来自 `mkdtempSync`，taint 源=函数参数、汇=`path.join`/`resolve`         |
+| `javascript.lang.security.detect-child-process.detect-child-process`                                    | fixture 用 `execSync` 跑 ffmpeg 造真媒体文件，参数是临时目录路径与数字（时长/延迟） |
+| `javascript.lang.security.insecure-object-assign.insecure-object-assign`                                | 测试替身用 `Object.assign(mem, JSON.parse(JSON.stringify(s)))` 合并内存状态         |
+| `javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp`                    | 用常量列表或捕获的进程输出构造 `RegExp` 来断言                                      |
+| `javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop`  | 漂移模拟按固定字段常量表改写 fixture 对象                                           |
 
 - **证据（2026-10-12 首批）**：`path-join-resolve-traversal` 是 **taint 模式**规则，全量实测（`semgrep 1.179.0`，`--config p/default`，`src/ scripts/`）**115 条在测试路径、266 条在生产路径**——误报只在测试侧。**注解是否生效与版本相关（2026-10-14 订正）**：1.179.0/1.180.0 上 `// nosemgrep` 对该 taint 规则不生效（注释在汇行、源行、带显式 rule id 三种写法均仍上报）；但**本仓 pre-push 用的本地版本 1.176.1 上汇行注解生效**——同线 A/B（`const full = join(dir, entry.name);` 2 findings → 加 `// nosemgrep` 0 findings），`src/components/widgets/tokens-drift.test.ts:29` 同形亦被压制。故本地误报可先用汇行注解消掉；**CI 的过滤器仍是唯一版本无关的兜底**（CI 容器版本随镜像漂移，不能假设注解有效）。`paths.exclude` 覆盖同 id 规则会让结果**翻倍**（19 → 27 实测）。
 - **证据（2026-10-13 第二批）**：安全页 27 条开放告警全在测试路径，分属上表后四类（`detect-child-process` 19、`insecure-object-assign` 4、`detect-non-literal-regexp` 3、`prototype-pollution-loop` 1）。全量实测（`semgrep 1.176.1`，同命令）489 条结果：过滤器丢弃 **145**（118 条 `path-join-resolve-traversal` + 上述 27 条），生产路径保留 `path-join-resolve-traversal` 265 条、`detect-child-process` 41 条、`detect-non-literal-regexp` 14 条；集合外规则的 24 条前后逐条一致。**计数随 semgrep/规则集版本漂移**（首批 115/266，第二批 118/265 即版本差），契约是「规则 id + 路径」，不是任何固定数字。

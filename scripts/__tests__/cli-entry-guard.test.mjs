@@ -107,6 +107,18 @@ describe("a gate CLI does the same thing whichever path invoked it", () => {
     expect(linked.stderr).toBe(direct.stderr);
   });
 
+  it("git-with-proxy answers --help before it probes anything", () => {
+    // --help returns before any port is probed, so the case needs no proxy and
+    // no git. A broken guard exits 0 having printed nothing — that silence is
+    // the tell, and it is what a wrapped `git push` would look like too.
+    const { direct, linked } = runBoth("git-with-proxy.mjs", ["--help"]);
+
+    expect(direct.status).toBe(0);
+    expect(direct.stdout).toContain("git-with-proxy");
+    expect(linked.status, "the symlinked invocation did nothing").toBe(direct.status);
+    expect(linked.stdout).toBe(direct.stdout);
+  });
+
   it("short-video/measure-bgm-margin rejects a missing --video with exit 1", () => {
     // Exit 1 before any ffmpeg or filesystem probing beyond the argument
     // check, so a broken guard (exit 0, silent) is distinguishable.
