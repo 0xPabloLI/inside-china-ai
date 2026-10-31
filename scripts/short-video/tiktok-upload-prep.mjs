@@ -1000,7 +1000,16 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
           // probe reads back through `measure` so a swallowed space cannot
           // become a deleted character (see `pokeEditorState`).
           const poke = await pokeEditorState(cdp, {
-            measure: async () => (await evalJson(tabId, CAPTION_READ)).text,
+            measure: async () => {
+              const probe = await evalJson(tabId, CAPTION_READ);
+              // `CAPTION_READ` reports the field as missing rather than throwing;
+              // letting `undefined` through would compare "undefined" lengths and
+              // silently decide the space landed.
+              if (!probe.ok) {
+                throw new Error(`caption field vanished while poking: ${JSON.stringify(probe)}`);
+              }
+              return probe.text;
+            },
           });
           await sleepJitter(...PUBLISH_PACING.captionSettleAfterTyping);
           return { plan, typedMs: Date.now() - started, beforePoke, poke };
@@ -1011,7 +1020,13 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
   if (!read.ok) throw new Error(`caption vanished after typing: ${JSON.stringify(read)}`);
   if (!read.healthy) throw new Error("editor died after typing — check the open tab");
 
-  if (normalizeCaption(read.text) === want) {
+  // A probe that never landed means Draft was never made to render from its own
+  // ContentState, so the DOM text is the only evidence — and this module's
+  // premise is that the DOM can hold text Draft does not. Matching here would
+  // publish a caption that silently saves short, so refuse to trust it and take
+  // the verified paste instead.
+  const draftRendered = typed ? typed.poke?.spaced === true : true;
+  if (draftRendered && normalizeCaption(read.text) === want) {
     return {
       mode: typed ? "typed" : "paste",
       len: read.len,
@@ -1019,6 +1034,12 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
       segments: typed?.plan.segments.length,
       poke: pokeHealth(typed),
     };
+  }
+  if (typed && !draftRendered) {
+    console.log(
+      "      ⚠️ the re-render probe never landed, so the DOM text alone cannot be " +
+        "trusted — replacing the typed caption with one verified paste",
+    );
   }
 
   // Fallback: the typed text did not survive. Re-select, paste once, verify.
@@ -1040,13 +1061,21 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
     );
   }
   // Name the stage that actually lost the text, so the next failure says where
-  // to look instead of only that something went wrong.
+  // to look instead of only that something went wrong. `poke` health rides
+  // along: "poke" alone cannot tell a swallowed space from a delete that took
+  // more than the probe sent.
   const stage = classifyLossStage(typed, want);
   console.log(
     `      ⚠️ typed caption did not verify (${read.len} chars, lost at: ${stage}) — ` +
       "replaced it with one paste",
   );
-  return { mode: "paste-fallback", len: after.len, typedMs: typed?.typedMs, lostAt: stage };
+  return {
+    mode: "paste-fallback",
+    len: after.len,
+    typedMs: typed?.typedMs,
+    lostAt: stage,
+    poke: pokeHealth(typed),
+  };
 }
 
 /**

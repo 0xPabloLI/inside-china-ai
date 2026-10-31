@@ -577,7 +577,10 @@ export async function pokeEditorState(session, { measure } = {}) {
   while (!spaced && attempts < POKE_SPACE_ATTEMPTS) {
     attempts += 1;
     await session.send("Input.insertText", { text: " " });
-    spaced = (await measure()).length > before.length;
+    // "The text changed" beats "the text got longer": a page that renders a
+    // trailing space as `\u00a0` or trims it would otherwise report a landed
+    // probe as swallowed, and this check exists to be conservative.
+    spaced = (await measure()) !== before;
   }
   // Never delete blind: an unlanded space means the Backspace would eat real text.
   if (!spaced) return { spaced: false, restored: null, attempts };
