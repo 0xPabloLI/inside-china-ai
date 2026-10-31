@@ -996,10 +996,14 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
           // character look identical afterwards (both are "one char short"),
           // but only the first means the typing loop lost a keystroke.
           const beforePoke = await evalJson(tabId, CAPTION_READ);
-          // Make Draft render from its state before we trust the DOM text.
-          await pokeEditorState(cdp);
+          // Make Draft render from its state before we trust the DOM text. The
+          // probe reads back through `measure` so a swallowed space cannot
+          // become a deleted character (see `pokeEditorState`).
+          const poke = await pokeEditorState(cdp, {
+            measure: async () => (await evalJson(tabId, CAPTION_READ)).text,
+          });
           await sleepJitter(...PUBLISH_PACING.captionSettleAfterTyping);
-          return { plan, typedMs: Date.now() - started, beforePoke };
+          return { plan, typedMs: Date.now() - started, beforePoke, poke };
         })()
       : null;
 
@@ -1013,6 +1017,7 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
       len: read.len,
       typedMs: typed?.typedMs,
       segments: typed?.plan.segments.length,
+      poke: pokeHealth(typed),
     };
   }
 
@@ -1034,16 +1039,34 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
         `want ${caption.length}: ${JSON.stringify(after.text.slice(0, 80))}`,
     );
   }
+  // Name the stage that actually lost the text: `typing` means a keystroke never
+  // landed, `poke` means the re-render probe did, `after-poke` means neither.
   const stage = !typed
     ? "paste"
-    : typed.beforePoke?.ok && normalizeCaption(typed.beforePoke.text) === want
-      ? "poke" // typing was right; the space+Backspace lost a character
-      : "typing"; // a keystroke never landed
+    : typed.beforePoke?.ok && normalizeCaption(typed.beforePoke.text) !== want
+      ? "typing"
+      : typed.poke?.spaced === false || typed.poke?.restored === false
+        ? "poke"
+        : "after-poke";
   console.log(
     `      ⚠️ typed caption did not verify (${read.len} chars, lost at: ${stage}) — ` +
       "replaced it with one paste",
   );
   return { mode: "paste-fallback", len: after.len, typedMs: typed?.typedMs, lostAt: stage };
+}
+
+/**
+ * One-word health for the re-render probe, so a healed run still records
+ * whether the space landed on the first try.
+ *
+ * @param {{ poke?: { spaced: boolean, restored: boolean|null, attempts: number } } | null} typed
+ * @returns {string|null}
+ */
+function pokeHealth(typed) {
+  if (!typed?.poke) return null;
+  if (typed.poke.spaced === false) return "space-dropped";
+  if (typed.poke.restored === false) return "not-restored";
+  return typed.poke.attempts > 1 ? "retried" : "ok";
 }
 
 /**
