@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.46.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.45.1...tanstack_start_ts-v1.46.0) (2026-10-31)
+
+
+### Features
+
+* **video:** give the platform profile's publish declarations real consumers ([#951](https://github.com/0xPabloLI/inside-china-ai/issues/951)) ([#1054](https://github.com/0xPabloLI/inside-china-ai/issues/1054)) ([f533339](https://github.com/0xPabloLI/inside-china-ai/commit/f53333974b01c617160bd1facd8a0926f5d47f02))
+
+## [1.45.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.45.0...tanstack_start_ts-v1.45.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **deps:** overrides minimatch 到 11.0.3，解掉阻塞所有 push 的 GHSA-g3hv-75wg-m249 ([#1051](https://github.com/0xPabloLI/inside-china-ai/issues/1051)) ([6f701d8](https://github.com/0xPabloLI/inside-china-ai/commit/6f701d84d49d4a56455c21700ba8e2ee29ed6baa))
+
 ## [1.45.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.44.0...tanstack_start_ts-v1.45.0) (2026-10-30)
 
 

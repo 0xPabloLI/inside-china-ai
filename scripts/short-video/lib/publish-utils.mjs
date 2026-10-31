@@ -221,18 +221,26 @@ export function buildPendingAnalysis(postGroupId, publishedAt) {
 }
 
 /**
- * Build the pending-analysis.json content for a manual-guide publish (#260).
- * The human publishes in-app, so there is no Publora postGroupId — the field
- * stays present (null) to keep the schema stable for consumers that read
- * publishedAt/status. publishedAt is the guide-generation time, the best
- * available estimate of the actual publish moment.
+ * Build the pending-analysis.json content for a publish that has no Publora
+ * postGroupId (manual-guide, #260; the CDP web-Studio tier passes
+ * `publishMethod: "cdp"` since #951 — same shape, because the analytics
+ * workflow reads `publishedAt`/`status`, not the method).
+ * The human publishes in-app, so `postGroupId` stays present (null) to keep the
+ * schema stable for consumers that read publishedAt/status. publishedAt is the
+ * guide-generation time, the best available estimate of the actual publish
+ * moment.
  *
  * suggestedAnalysisTime = publishedAt + 48 hours.
  *
- * @param {{ slug?: string|null, videoPath?: string|null, publishedAt: string }} opts
+ * @param {{ slug?: string|null, videoPath?: string|null, publishedAt: string, publishMethod?: string }} opts
  * @returns {{ postGroupId: null, slug: string|null, videoPath: string|null, publishedAt: string, suggestedAnalysisTime: string, status: string, publishMethod: string }}
  */
-export function buildManualPendingAnalysis({ slug = null, videoPath = null, publishedAt }) {
+export function buildManualPendingAnalysis({
+  slug = null,
+  videoPath = null,
+  publishedAt,
+  publishMethod = "manual-guide",
+}) {
   const publishedDate = new Date(publishedAt);
   const suggestedDate = new Date(publishedDate.getTime() + 48 * 60 * 60 * 1000); // +48h
 
@@ -243,7 +251,7 @@ export function buildManualPendingAnalysis({ slug = null, videoPath = null, publ
     publishedAt,
     suggestedAnalysisTime: suggestedDate.toISOString(),
     status: "pending",
-    publishMethod: "manual-guide",
+    publishMethod,
   };
 }
 
