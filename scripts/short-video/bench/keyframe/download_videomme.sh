@@ -15,7 +15,11 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../../.." && pwd)
 VM=${VM:-$ROOT/.scratch/keyframe-bench/videomme}
 SUBSET=${SUBSET:-$VM/bench_subset.csv}
-PROXY=${PROXY:-http://127.0.0.1:7897}
+# Default to Clash Verge's FIXED http listener, not its mixed-port: the mixed
+# port is random since 2026-11-01 (`enable_random_port: true`), so any hardcoded
+# value here would be a port that stops existing at the next restart. Override
+# with `PROXY=$(npm run -s proxy:url)` to follow the system proxy instead.
+PROXY=${PROXY:-http://127.0.0.1:7899}
 YTDLP=${YTDLP:-$HOME/.lightning-env/bin/yt-dlp}
 GAP=${GAP:-6}
 

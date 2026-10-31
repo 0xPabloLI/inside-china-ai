@@ -35,8 +35,11 @@ set -euo pipefail
 TUNNEL_PORT=7891
 PROXY_HOST=127.0.0.1
 # Candidate host proxy ports, in the order we prefer them when `scutil --proxy`
-# has nothing (TUN / system proxy off). FlClash=7890, Clash Verge=7897.
-PROXY_PORT_CANDIDATES="${PROXY_PORT_CANDIDATES:-7890 7897 7899 7898}"
+# has nothing (TUN / system proxy off). Clash Verge's mixed-port is RANDOM since
+# 2026-11-01 (`verge.yaml` → `enable_random_port: true`), so no entry here can be
+# that value; the fixed listeners are the SOCKS 7898 / HTTP 7899 pair, and 7890
+# is FlClash's old mixed-port. `scutil --proxy` is still the primary source.
+PROXY_PORT_CANDIDATES="${PROXY_PORT_CANDIDATES:-7899 7898 7890}"
 PIDFILE="/tmp/colima-proxy-tunnel.pid"
 SSHD_CONFIG="/tmp/colima_ssh_config"
 VM_CURL="env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY curl"

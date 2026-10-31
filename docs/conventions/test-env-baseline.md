@@ -65,13 +65,15 @@
 **先实测哪个端口今天活着**，再决定往哪儿指（10 秒）：
 
 ```bash
-P=$(scutil --proxy | awk '/HTTPPort/{print $3}')   # 系统代理当前指向
-for p in "$P" 7899 7890; do
+P=$(scutil --proxy | awk '/HTTPPort/{print $3}')   # 系统代理当前指向（关掉时为空）
+for p in ${P:+"$P"} 7899 7890; do
   printf "%s => %s\n" "$p" "$(curl -s -o /dev/null -w '%{http_code}' \
     -x http://127.0.0.1:$p --max-time 8 https://www.google.com/generate_204)"
 done
 # 204 = 该端口真在代理；000 = 死端口（Direct 模式 / 无可用节点 / 未监听）
 ```
+
+`${P:+"$P"}` 是必要的：系统代理关掉时 `scutil --proxy` 没有 `HTTPPort` 行，`$P` 为空，直接写 `"$P"` 会探 `http://127.0.0.1:` 并打印一行没有意义的 `000`。
 
 ⚠️ **测法本身的坑**：`--noproxy '*'` 会**覆盖** `-x`，两者同上时三条路径全退化成直连，结果是假的“都一样”。测本地代理端口时不要带 `--noproxy`。
 
@@ -105,7 +107,7 @@ done
 - **纠错（2026-09-25 10:18）**：本条原写「VM 内直连能用是假象、VM 出网必须走代理」——**后半句在 TUN 打开后不成立**。当天实测清完 env 后 VM 直连 `google` = `204`、`github` = `200`，且 VM 把 `google.com` 解析成 **`198.18.0.4`**（宿主 TUN 的 fake-IP 段；VM `resolv.conf` 仍指向宿主 `192.168.5.1`）⇒ **宿主 TUN 覆盖了 colima VM 的 NAT 流量**。
 - **判据要用 fake-IP，不能只看状态码**：`204` 无法区分「TUN 接管」与「注入的代理生效」，`198.18.x.x` 才能。
 
-**历史坑（勿丢）**：FlClash `7890` 曾对**带 auth header 的 POST** 断连，colab CLI 因此必须切到 Clash Verge `7897`（`docs/archive/handoffs/handoff-infinitetalk-kaggle-colab.md`）。所以「哪个端口才对」不是固定的，取决于**当前客户端 + 协议**——按上表实测，别照抄历史结论。
+**历史坑（勿丢）**：FlClash `7890` 曾对**带 auth header 的 POST** 断连，colab CLI 因此必须切到 Clash Verge `7897`（`docs/archive/handoffs/handoff-infinitetalk-kaggle-colab.md`）。所以「哪个端口才对」不是固定的，取决于**当前客户端 + 协议**——按上表实测，别照抄历史结论。2026-11-01 起这个 `7897` 更不可能再对：Clash Verge 的 mixed-port 已经随机，`7897` 是个不会再监听的端口；要用固定出口就选 `7899`（HTTP）/ `7898`（SOCKS）。
 
 **根治方向 —— 两条路，别混着走**：
 
