@@ -10,7 +10,9 @@
  *   node verify-video.mjs --pre --content <dir>       # Pre-render: scene-data only (no video needed)
  *   node verify-video.mjs [--tiktok] --content <dir>   # Post-render: full check (video + scene-data + subtitles)
  *
- *   --pre:        pre-render mode (skip video/subtitle/manual checks)
+ *   --pre:        pre-render mode (skip video/subtitle/manual checks) and print
+ *                 the TTS cache & cost plan (#953): approved hits, per-scene
+ *                 miss reasons, pacing precheck, engine-based time estimate.
  *   --tiktok:     also check TikTok-specific 60-70s duration requirement (post-render only)
  *   --long-form:  explicit YouTube long-form opt-in — downgrades scene-count (>10) and
  *                 voiceover-word (>180) violations from FAIL to WARN. TikTok default
@@ -372,6 +374,36 @@ if (sceneResults.editorial.length > 0) {
     if (a.fix) console.log(`     → CONSIDER: ${a.fix}`);
   }
   results.advisory.push(...advice);
+}
+
+// ─── TTS cache & cost plan (pre-render only, #953) ───
+// The preflight runs before Step 1, which is exactly the decision point the
+// author is at: "should I edit one more line, and what does that cost?".
+// Planning is pure local I/O; the scenes are cloned and normalized the same
+// way main.mjs normalizes them, so cache keys match the real run without
+// mutating the authored data the checks above just judged.
+if (preMode) {
+  console.log("");
+  try {
+    const { buildTtsPlan, formatTtsPlan, planCachedPacing, prepareScenesForPlan } =
+      await import("./lib/tts/plan-report.mjs");
+    const { planTtsScenes } = await import("./lib/tts/cache.mjs");
+    const { selectEngine } = await import("./lib/tts/registry.mjs");
+    const engine = await selectEngine();
+    const plannedScenes = await prepareScenesForPlan(scenes, meta);
+    const plan = planTtsScenes(join(OUTPUT_DIR, "audio"), plannedScenes, engine);
+    const pacing = await planCachedPacing(plannedScenes, plan.approved);
+    console.log(formatTtsPlan(buildTtsPlan({ engine, scenes: plannedScenes, plan, pacing })));
+  } catch (e) {
+    // Non-blocking: content checks stay usable on a machine without a TTS
+    // engine. The real run still fails closed at TTS selection.
+    warn(
+      "TTS",
+      "Cache & cost plan unavailable",
+      e.message,
+      "Fix TTS engine availability (TTS_ENGINE / kaggle.json / ~/.video-tts-env) to preview the spend",
+    );
+  }
 }
 
 // ─── Media background checks (shared: pre-render + post-render) ───

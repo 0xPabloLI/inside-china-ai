@@ -477,6 +477,8 @@ node scripts/rag/index.mjs
 node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 → 合成（不含 BGM）
 ```
 
+> **改文案前先看 TTS 成本（#953）**：改一条场景文本会让该场景的缓存失效，重跑就要为它付一整轮 TTS 批成本（Kaggle 冷启动 ~8-10 min + 每场景 ~15 s）。改稿前先跑 `node scripts/short-video/main.mjs --content <dir> --tts-plan`（零副作用、秒级）：它列出已命中/待生成场景、每个场景 miss 的原因、待生成字数与按引擎的耗时估算，并预检已命中音轨的 pacing。**把多处修改合并进同一轮**——多跑一轮就要再付一次冷启动。`verify-video --pre` 与真实运行开始前打印的是同一份计划。
+
 > **Step 1.5 证据截图**：媒体轨在 asset sourcing 之前，按 `content/<slug>/evidence-captures.json` 重捕获缺失的证据截图（手动入口 `capture-evidence-shot.mjs`）；`media.evidence: true` 的 scene 不参与 stock 搜索。配方、失败语义与落档约定见 `docs/video-script-writing-guide.md` §截图证据约定。
 
 > **Step 1.5d 兜底链 HITL（#355）**：sourcing 落空后，缺省链会尝试生成；这条隐式路径默认**不花钱**。先跑 `node scripts/short-video/generate-broll.mjs --content <dir> --plan`，把 `output/<dir>/media-chain-plan.json`（每 scene 的形态、prompt 来源、预算与跳过原因）给用户确认；用户确认后才在 `main.mjs` 加 `--approve-auto`（可配 `--auto-budget N` / `--video-budget N`，默认 4 个链场景 / 1 条 T2V）。显式 `b-roll` / `ai-image` 等覆盖不受此门限制。未经确认时管线照常跑，但链场景只写 plan、不生成。
