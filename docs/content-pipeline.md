@@ -293,7 +293,22 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 
 Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论证（陌生观众听这一句，能否听懂发生了什么），再给分集结论。**报告发出后暂停**，等用户确认角度后才写 scene-data。
 
-- 完成标准：报告含 hook 一句 + 独立可理解论证 + **该 hook 的三轴自评（Hook 合格判据，评审端）**，且用户已确认。未给 hook 就写完整 scene-data = 未完成本步。
+- 完成标准：报告含 hook 一句 + 独立可理解论证 + **该 hook 的三轴自评（Hook 合格判据，评审端）** + **全片分镜台词与字卡预览**（见下），且用户已确认。未给 hook 就写完整 scene-data = 未完成本步。
+
+##### 全片分镜台词与字卡预览（#949）
+
+hook 之后紧随一张覆盖全部 scene 的预览表——这是全片台词在 TTS 之前唯一的免费确认点。TTS 的计费单位是 batch：push、Kaggle 排队、kernel setup 与产物下载是每轮固定成本，**改一句和改十句同价**（约 8-10 分钟）；一句过密的台词或一个错数字若留到 Stage 5 才被看到，就要为一轮完整往返付费。
+
+| #   | id (layout) | 预计秒数 | voiceover（逐字稿） | texts（主标题 / 副卡 / 底栏） | 计划素材 / 证据源        |
+| --- | ----------- | -------- | ------------------- | ----------------------------- | ------------------------ |
+| 1   | hook / …    | …        | 完整一句            | 主标题 / 副卡 / 底栏          | 实拍 / 官方图 / 截图页面 |
+
+- **逐字稿不缩写**：每行是该 scene 会念出口的完整句子。省略号、「同上」、「见下」都算未完成——被省掉的那句正是本表要省的钱。
+- **预计秒数**按该场景画面时长给，并用同一口径核对词密度预算（基线 > 2.9 词/秒先删词，见本文「词密度预算」）。
+- **计划素材 / 证据源**写 Stage 0 素材集合里的落点；尚未定案写 `待 sourcing`。
+- 本表与 hook 三轴自评同一份报告、同一次暂停提交——**不新增暂停点**。
+
+- 完成标准：每个 scene 一行、voiceover 与 texts 逐字给全、预计秒数齐备，且用户在同一份报告里确认。
 
 > 多集系列策略（拆分类型、集间链接、连贯规则、合集制作、系列发布）见 **`docs/series-production-guide.md`**。
 
@@ -318,7 +333,7 @@ Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论�
 5. **AI Outline 话题描述（opt-in 旁路，默认跳过）** — **默认整步跳过**（等价于旧的"用户跳过"降级分支）：不生成话题描述、不暂停、不询问。仅当用户显式点名启用时：Agent 基于核心叙事线生成一段含具体公司名+数字+事件的话题描述（≤30 词），输出到对话中，**Agent 暂停**等用户在 TikTok 移动端 CSI → AI Outline 中输入并抄回结果。
 6. **按 S.T.A.R.T. 映射表设计 scene** — 逐 scene 按叙事角色设计。每个 scene 填写 `narrativeRole`（S.T.A.R.T. 角色）和 `retentionMechanism`（留存机制），以及 voiceover、素材需求。W7 检查 open loop (S2)、W8 检查 pattern interrupt (S5)、W9 检查 loop closure (S9)；三项均为编辑建议（不阻断，见 MRL-2）。详见 `docs/video-script-writing-guide.md` → Step 3。每个 scene 的画面描述与 `assetNeed` 先过同文档 → 画面描述合同（锚点 / 动作 / 结果，#529）。
 7. **设计 SEO 标题**（≤60 chars）——默认只用 Agent 自有生成的 title；仅当 opt-in 且已拿到 AI Outline 结果时才对比两者取更优者
-8. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。每个 scene 的 `media` 字段必须匹配 Step 4 确定的素材要求——未手工指定 media 的 scene 写 `assetNeed`（推荐，决定 VLM 判据）与 `searchHints`（可选，具体→泛化，最多 4 条）；不写也不会失去认领：asset-sourcer 会从 voiceover 派生 claim（#354）。asset-sourcer 按 claim 做 per-scene 搜索 + VLM 相关性审查 + 跨内容复用上限，采购按 **stock video 优先**（#355 D1a；见 `docs/video-script-writing-guide.md` → assetNeed / searchHints 约定）。**不再需要逐 scene 选 `mediaStrategy`**（#355）：缺省/`"asset"` 走同一条兜底链——采购（视频优先）→ 复用/upscale → 生成（默认 T2I 快路径；有 `aiVideo.prompt` 且视频预算允许时 T2V）→ 纯版式。只有需要覆盖时才写：`"source-only"`（只采购、绝不生成）、`"b-roll"` / `"ai-image"`（跳过采购直接生成、必须配 8 维 `aiVideo.prompt` / 6 维 `aiImage.prompt`）、`"asset-then-broll"` / `"asset-then-ai-image"`（先采购、落空再按指定形态生成）。链上自动生成的静图 prompt 依次取自 `aiImage.prompt` / `assetNeed` / voiceover；显式生成策略仍必须手写 prompt。字段契约、模板、预算与 HITL 见 `docs/video-production-runbook.md` → B-roll Generation 与 AI Image (T2I) generation。
+8. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。每个 scene 的 `media` 字段必须匹配 Step 4 确定的素材要求——未手工指定 media 的 scene 写 `assetNeed`（推荐，决定 VLM 判据）与 `searchHints`（可选，具体→泛化，最多 4 条）；不写也不会失去认领：asset-sourcer 会从 voiceover 派生 claim（#354）。asset-sourcer 按 claim 做 per-scene 搜索 + VLM 相关性审查 + 跨内容复用上限，采购按 **stock video 优先**（#355 D1a；见 `docs/video-script-writing-guide.md` → assetNeed / searchHints 约定）。**不再需要逐 scene 选 `mediaStrategy`**（#355）：缺省/`"asset"` 走同一条兜底链——采购（视频优先）→ 复用/upscale → 生成（默认 T2I 快路径；有 `aiVideo.prompt` 且视频预算允许时 T2V）→ 纯版式。只有需要覆盖时才写：`"source-only"`（只采购、绝不生成）、`"b-roll"` / `"ai-image"`（跳过采购直接生成、必须配 8 维 `aiVideo.prompt` / 6 维 `aiImage.prompt`）、`"asset-then-broll"` / `"asset-then-ai-image"`（先采购、落空再按指定形态生成）。链上自动生成的静图 prompt 依次取自 `aiImage.prompt` / `assetNeed` / voiceover；显式生成策略仍必须手写 prompt。字段契约、模板、预算与 HITL 见 `docs/video-production-runbook.md` → B-roll Generation 与 AI Image (T2I) generation。落盘时若实质改写了 Step 0 预览表里已确认的台词或数字，先按 MRL-2 的「改动回流守卫」给用户看改动行。
    8b. **VLM stock 图片相关性评判** — scene-data 写完后，对每个 `media.type === "image"` 的场景运行 VLM 相关性评判：`node scripts/short-video/evaluate-stock-relevance.mjs --content <dir>`。判据与 asset-sourcer 分配时**同一个**：claim 取 scene 的 `assetNeed`；8b 只评已绑定 `media` 的场景，这类场景不经 sourcing（#354 的 voiceover 派生只针对未绑定 media 的场景），缺省时依次退回 `aiImage.prompt` / `aiVideo.prompt` / texts，不是另拼一套文案。结论分四态：**PASS**（首评 ≥ 60）；**PASS (second-pass)**（40–59 的 borderline 经二次「画面主体」校验返回 `match`，报告中 `relevance` 仍记首评分数）；**FAIL**（low，或 borderline 的二次校验 `no_match`/失败）；**UNAVAILABLE**（无分数：分析失败或解析失败，属工具问题，先修 analyzer/引擎，不要靠换图）。**完成标准**：没有 FAIL 与 UNAVAILABLE。整包**没有一张可准入**（`Verdict: unsatisfiable`——分数存在但都过不了准入规则；只是首评上限低于阈值、却有 borderline 经二次校验放行时仍是 `satisfiable`）时，按「判据不可满足」处理——改用 `mediaStrategy: "b-roll"` / 纯版式承载，或在 `metadata.stockRelevanceExemption` 写一条**落仓库、随代码 review** 的豁免（字符串=整包；对象 `{ reason, scenes? }`，省略 `scenes` 即整包，也可给单个 scene id 或数组；非法 id 会被丢弃并告警，不会静默放宽成整包），而不是继续换图直到有一张过线。脚本无论结论如何仍以 0 退出（8b 的完成标准要不要接硬门禁、接在哪一层，是独立决策，见 #294）。
    8c. **数字人声明评估（必须执行）** — scene-data 写完后，按 `docs/video-script-writing-guide.md` →「数字人（scene.avatar）使用策略」评估本包是否声明数字人：对照声明白名单（CTA / 关键论点 payoff / 程式化数据时刻）与黑名单（hook / 高情感段 / 突发新闻表述），**逐包给出显式结论**——符合白名单的 scene 写入 `scene.avatar: {}`（生成走 plan → approve → run，见 `docs/specs/spec-digital-human-pipeline.md`），不符合的在对话中说明"本包不加数字人及理由"。**完成标准**：对话中存在一次明确的加/不加结论（静默跳过 = 未完成此步）。`plan dry-run` 的机械警告（hook 声明 / 出镜段数 / 单段时长）会拦截明显违规，但语义判断在本步。
    8d. **素材缺口回流账本（必须执行）** — 本轮 sourcing 结束后运行 `node scripts/short-video/asset-gaps.mjs --record --content <dir>`。它从 scene-data + `output/<dir>/media-patch.json` + 8b 的 `stock-relevance-report.json` + Stage 4 的 `b-roll-report.json` 推导「声明了 `assetNeed` 却没有素材」的场景，把工具失败、内容判决与「落空后改走生成」分开归因（原因码与边界见 `docs/media-asset-management.md` §2「素材缺口账本」），并入 `knowledge/asset-gaps.json`。**8b 的豁免只说明「本包可以不带这张图」，不等于素材库已有**——缺口保持 open，直到 Stage 0 真正入库并 `--satisfy`；因不可满足而把 `mediaStrategy` 改成 `b-roll` 也不会抹掉记录（8b 报告仍在）。下一轮 Stage 0 的预获取优先级由本账本决定。**完成标准**：命令输出 `Recorded N gap(s)` 或 `No asset gaps recorded`（后者也必须真的跑过）。
@@ -456,6 +471,8 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 
 1. **字符预算 = 提示级（advisory）**：`checkTextWidthBudget`（`scene-rules.mjs`）从文本槽契约推导预算——`slotCharBudget()`（`lib/text-slots.mjs`）用实测内容盒宽度 ÷ `SLOT_FIELDS.preferredSize` 计算，不手写字符锚点；未实测的槽位直接跳过（不猜测）。超预算只进入 `🧭 Editorial Suggestions` 创作提示（建议缩短或换布局），**不阻断、不算 WARN**（#763）。仅覆盖文本槽契约声明的字段。
 2. **几何验证门槛 = 渲染时硬门**：真实判定交给 Remotion 渲染期的 TextGate（`remotion/src/` + `lib/text-geometry.mjs`）——逐行、逐样式 run 的真实几何 + ink 外溢检查，`minSize` 触底仍超即 `cancelRender`（`[TextFitError]`），文案必须改写而非静默缩到不可读。
+
+**Step 0 已批准文案的改动回流守卫（#949）**：MRL-2 通过即可进 Stage 4，但从分镜草稿到落盘的 `scene-data.mjs` 之间台词还会变——词密度预算要删词、claim 校验要改数字、素材落空要换论断。**实质改写了 Step 0 预览表里已获确认的场景论断、数字、称谓，或增删了 scene** 时，Agent 在跑 `main.mjs`（TTS / B-roll GPU 任务）之前，把被改动的行与改后文本并列展示给用户确认；标点、断句与笔误级修正可以直接进。判据是「这句话用户是否已经读过」，而不是改了几行。
 
 ### 3b. RAG Reindex（scene-data 就绪后自动触发）
 
