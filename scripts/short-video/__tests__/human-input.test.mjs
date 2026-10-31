@@ -527,12 +527,17 @@ class FakeSocket {
     else if (frame.method === "Emulation.setFocusEmulationEnabled") {
       if (frame.params?.enabled) FakeSocket.emulated = true;
       reply({});
-    } else if (frame.method === "Input.dispatchMouseEvent") {
-      // A throttled renderer never answers; the fake returns the same error
-      // CDP produces when the caller's timeout fires.
+    } else if (frame.method.startsWith("Input.")) {
+      // A throttled renderer never answers: the caller's own timer fires and
+      // `openCdpSession` decorates that timeout with "the tab is throttled".
+      // Reproducing it as a plain error frame instead would hand the recovery
+      // wrapper a message Chrome never produces, and the tests would then pass
+      // by matching a regex that no real failure matches.
       const visible = FakeSocket.visibilityFor(this.sessionOrdinal ?? 0) === "visible";
-      if (visible) reply({});
-      else fail({ code: -32000, message: "Timeout" });
+      if (!visible && FakeSocket.dropWhenHidden) return; // swallowed, as Chrome does
+      if (!visible) fail({ code: -32000, message: "Timeout" });
+      else if (frame.method === "Input.dispatchMouseEvent") reply({});
+      else reply({ ok: true });
     } else if (frame.method === "Runtime.evaluate")
       reply({ result: { value: FakeSocket.visibilityFor(this.sessionOrdinal ?? 0) } });
     else if (frame.method === "Target.detachFromTarget") reply({});
@@ -544,6 +549,10 @@ class FakeSocket {
 }
 FakeSocket.instances = [];
 FakeSocket.refuseMethod = null;
+// When true a hidden tab silently swallows input, as Chrome does, so the
+// caller's own timer produces the "the tab is throttled" message. Off by
+// default because it costs the full timeout.
+FakeSocket.dropWhenHidden = false;
 // Focus emulation is a browser-level fact: once enabled, every session on this
 // browser reports visible, which is what the real one does.
 FakeSocket.emulated = false;
@@ -619,6 +628,31 @@ describe("ensureResponsiveInput", () => {
     expect(ready.emulated).toBe(false);
     expect(ready.latencyMs).toBeGreaterThanOrEqual(0);
     expect(session.sent).toContain("Page.bringToFront");
+    // No `visibility` field: a fast dispatch and a `hidden` document coexist,
+    // which is this whole module's thesis, so the field could only lie.
+    expect(ready).not.toHaveProperty("visibility");
+  });
+
+  it("does not call one slow sample a throttle", async () => {
+    // A cold renderer's first dispatch can miss the budget while the tab is
+    // fine. Re-hosting on that sample would restart the page load for nothing.
+    const sent = [];
+    let dispatches = 0;
+    const session = {
+      sent,
+      send: async (method) => {
+        sent.push(method);
+        if (method === "Input.dispatchMouseEvent") {
+          dispatches += 1;
+          if (dispatches === 1) throw new Error("CDP command timed out after 1500ms");
+        }
+        if (method === "Runtime.evaluate") return { result: { value: "hidden" } };
+        return {};
+      },
+    };
+    const ready = await ensureResponsiveInput(session, { label: "upload tab" });
+    expect(ready.emulated).toBe(false);
+    expect(session.sent).not.toContain("Emulation.setFocusEmulationEnabled");
   });
 
   it("emulates focus when the first dispatch times out", async () => {
@@ -652,7 +686,7 @@ describe("withThrottleRecovery", () => {
       send: async (method, params = {}) => {
         sent.push(method);
         if (method === "Emulation.setFocusEmulationEnabled") return {};
-        if (method === "Input.dispatchMouseEvent" && remaining > 0) {
+        if (method.startsWith("Input.") && remaining > 0) {
           remaining -= 1;
           throw new Error("CDP command timed out after 3000ms — the tab is throttled");
         }
@@ -664,12 +698,25 @@ describe("withThrottleRecovery", () => {
   it("heals the first throttled dispatch and retries it once", async () => {
     const inner = throttledSession(1);
     const recovered = [];
-    const session = withThrottleRecovery(inner, { onRecover: (d) => recovered.push(d.method) });
-    await expect(session.send("Input.dispatchMouseEvent", { type: "mouseWheel" })).resolves.toEqual(
-      { ok: true },
-    );
+    const session = withThrottleRecovery(inner, { onRecover: (d) => recovered.push(d) });
+    await expect(session.send("Input.insertText", { text: "a" })).resolves.toEqual({ ok: true });
     expect(inner.sent).toContain("Emulation.setFocusEmulationEnabled");
-    expect(recovered).toEqual(["Input.dispatchMouseEvent"]);
+    expect(recovered).toEqual([{ method: "Input.insertText", retried: true }]);
+    expect(session.focusEmulated()).toBe(true);
+  });
+
+  it("emulates for a stuck wheel but does not dispatch it a second time", async () => {
+    // A local ack timeout does not cancel the command: once emulation lifts the
+    // throttle the original wheel can still land, and a retry would scroll
+    // twice while `wheelScroll` records one chunk.
+    const inner = throttledSession(Number.POSITIVE_INFINITY);
+    const session = withThrottleRecovery(inner);
+    await expect(
+      session.send("Input.dispatchMouseEvent", { type: "mouseWheel", deltaY: 120 }),
+    ).rejects.toThrow(/throttled/);
+    const wheels = inner.sent.filter((m) => m === "Input.dispatchMouseEvent");
+    expect(wheels).toHaveLength(1);
+    expect(inner.sent).toContain("Emulation.setFocusEmulationEnabled");
     expect(session.focusEmulated()).toBe(true);
   });
 
@@ -680,10 +727,49 @@ describe("withThrottleRecovery", () => {
     const inner = throttledSession(Number.POSITIVE_INFINITY);
     const session = withThrottleRecovery(inner);
     for (let i = 0; i < MAX_THROTTLE_RECOVERIES + 1; i++) {
-      await expect(session.send("Input.dispatchMouseEvent", {})).rejects.toThrow(/throttled/);
+      await expect(
+        session.send("Input.dispatchMouseEvent", { type: "mouseMoved" }),
+      ).rejects.toThrow(/throttled/);
     }
     const emulations = inner.sent.filter((m) => m === "Emulation.setFocusEmulationEnabled");
     expect(emulations).toHaveLength(MAX_THROTTLE_RECOVERIES);
+  });
+
+  it("counts emulation done while opening the session against the same cap", async () => {
+    const inner = throttledSession(Number.POSITIVE_INFINITY);
+    const session = withThrottleRecovery(inner, { initialEmulated: true });
+    expect(session.focusEmulated()).toBe(true);
+    for (let i = 0; i < MAX_THROTTLE_RECOVERIES; i++) {
+      await expect(
+        session.send("Input.dispatchMouseEvent", { type: "mouseMoved" }),
+      ).rejects.toThrow(/throttled/);
+    }
+    // The open-time emulation was one of the three, so only two more happened.
+    const emulations = inner.sent.filter((m) => m === "Emulation.setFocusEmulationEnabled");
+    expect(emulations).toHaveLength(MAX_THROTTLE_RECOVERIES - 1);
+  });
+
+  it("keeps the throttled error when emulation itself fails, and spends nothing", async () => {
+    const inner = throttledSession(Number.POSITIVE_INFINITY);
+    const original = inner.send;
+    inner.send = async (method, params = {}) => {
+      if (method === "Emulation.setFocusEmulationEnabled") throw new Error("CDP -32601: not found");
+      return original(method, params);
+    };
+    let recovered = 0;
+    const session = withThrottleRecovery(inner, { onRecover: () => (recovered += 1) });
+    await expect(session.send("Input.dispatchMouseEvent", { type: "mouseMoved" })).rejects.toThrow(
+      /the tab is throttled/,
+    );
+    // The actionable message survives, the fact stays false, and the budget is
+    // intact for a recovery that might actually work.
+    expect(session.focusEmulated()).toBe(false);
+    expect(recovered).toBe(0);
+    inner.send = original;
+    await expect(session.send("Input.dispatchMouseEvent", { type: "mouseMoved" })).rejects.toThrow(
+      /throttled/,
+    );
+    expect(recovered).toBe(1);
   });
 
   it("leaves non-input commands alone", async () => {
@@ -693,6 +779,32 @@ describe("withThrottleRecovery", () => {
       ok: true,
     });
     expect(inner.sent).not.toContain("Emulation.setFocusEmulationEnabled");
+  });
+
+  it("heals a real dispatch timeout, the message openCdpSession actually produces", async () => {
+    // The fakes above spell the message by hand; this one lets the real session
+    // timer produce it, so the recovery is tied to the production error shape
+    // rather than to a regex someone wrote twice.
+    FakeSocket.instances = [];
+    FakeSocket.visibility = ["hidden"];
+    FakeSocket.emulated = false;
+    FakeSocket.dropWhenHidden = true;
+    try {
+      const inner = await openCdpSession("TAB-1", {
+        WebSocketImpl: FakeSocket,
+        fetchImpl: fakeFetch,
+      });
+      const recovered = [];
+      const session = withThrottleRecovery(inner, { onRecover: (d) => recovered.push(d) });
+      await expect(
+        session.send("Input.insertText", { text: "a" }, { timeoutMs: 25 }),
+      ).resolves.toEqual({ ok: true });
+      expect(recovered).toEqual([{ method: "Input.insertText", retried: true }]);
+      expect(session.focusEmulated()).toBe(true);
+      session.close();
+    } finally {
+      FakeSocket.dropWhenHidden = false;
+    }
   });
 });
 
@@ -746,7 +858,6 @@ describe("openVisibleSession", () => {
       createTab: async () => "TAB-1",
       closeTab: (id) => closed.push(id),
       onRehost: (reason) => reasons.push(reason),
-      sleepFn: async () => {},
       WebSocketImpl: FakeSocket,
       fetchImpl: fakeFetch,
     });
@@ -769,7 +880,6 @@ describe("openVisibleSession", () => {
     const emulated = [];
     const opened = await openVisibleSession("https://example.test/upload", {
       createTab: async () => "TAB-1",
-      sleepFn: async () => {},
       onEmulate: () => emulated.push(true),
       WebSocketImpl: FakeSocket,
       fetchImpl: fakeFetch,
@@ -790,7 +900,6 @@ describe("openVisibleSession", () => {
     cycle(["hidden", "visible"]);
     const opened = await openVisibleSession("https://example.test/upload", {
       createTab: async () => "TAB-1",
-      sleepFn: async () => {},
       WebSocketImpl: FakeSocket,
       fetchImpl: fakeFetch,
     });
@@ -806,7 +915,6 @@ describe("openVisibleSession", () => {
         openVisibleSession("https://example.test/upload", {
           createTab: async () => "TAB-1",
           closeTab: (id) => closed.push(id),
-          sleepFn: async () => {},
           WebSocketImpl: FakeSocket,
           fetchImpl: fakeFetch,
         }),

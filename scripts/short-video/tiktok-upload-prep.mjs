@@ -1297,12 +1297,21 @@ async function main() {
       onRehost: (reason) => console.log(`      ⚠️ ${reason} — opening a new window`),
       onEmulate: () =>
         console.log(
-          "      ⚠️ no Chrome window could be made visible — emulating focus so input is not throttled",
+          "      ⚠️ even the window Chrome opened for this run stays throttled — emulating focus",
         ),
+      onRecover: ({ method, retried }) => {
+        // This is the path the docs promise is recorded: a heal that happens
+        // after the session-open log entry, usually mid-caption or mid-review.
+        console.log(
+          `      ⚠️ input stalled on ${method} — emulating focus` +
+            (retried ? " and retrying" : "; scripting this scroll instead"),
+        );
+        log("input", { focusEmulated: true, recovered: true, stage: "mid-run", method, retried });
+      },
     });
     tab = launch.targetId;
     cdp = launch.session;
-    log("input", { window: launch.window, focusEmulated: launch.focusEmulated });
+    log("input", { stage: "open", window: launch.window, focusEmulated: launch.focusEmulated });
 
     if (hasFlag("no-warmup")) {
       console.log("  0/6 warm-up skipped (--no-warmup)");
@@ -1321,9 +1330,10 @@ async function main() {
 
     // The warm-up navigates this tab through the proxy, and emulation is
     // renderer state that a navigation can drop. Re-assert it before the steps
-    // that need trusted input — including when the recovery wrapper had to turn
-    // it on mid-warm-up, which `launch.focusEmulated` alone would miss.
-    if (launch.focusEmulated || cdp.focusEmulated?.()) {
+    // that need trusted input. `cdp.focusEmulated()` is the single source of
+    // truth: it is seeded with whatever opening the session had to do and
+    // updated by every mid-run heal.
+    if (cdp.focusEmulated?.()) {
       const state = await emulateFocus(cdp);
       log("input", { focusEmulated: true, reasserted: true, visibility: state });
     }

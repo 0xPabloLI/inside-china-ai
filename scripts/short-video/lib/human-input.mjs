@@ -596,7 +596,7 @@ const INPUT_PROBE_POINT = Object.freeze({ x: 2, y: 2 });
  * @param {{ label?: string, probeTimeoutMs?: number, allowEmulation?: boolean }} [opts]
  *   `allowEmulation: false` makes this a pure probe, so a caller that can still
  *   re-host the page in a real window prefers that over emulating.
- * @returns {Promise<{ emulated: boolean, latencyMs: number, visibility: string|null }>}
+ * @returns {Promise<{ emulated: boolean, latencyMs: number }>}
  */
 export async function ensureResponsiveInput(session, opts = {}) {
   const { label = "tab", probeTimeoutMs = INPUT_PROBE_TIMEOUT_MS, allowEmulation = true } = opts;
@@ -623,12 +623,21 @@ export async function ensureResponsiveInput(session, opts = {}) {
     }
   };
 
+  // Two probes before any verdict, and either one being fast is enough. A
+  // single 1.5s sample cannot tell a throttled renderer from a cold one: the
+  // first dispatch after `Target.createTarget` builds the compositor, and a
+  // machine doing a render alongside can miss the budget once and still be
+  // fine. Re-hosting on one slow sample restarts the page load for nothing.
+  const measure = async () => {
+    const first = await probe();
+    return typeof first === "number" ? first : await probe();
+  };
+
   // bringToFront re-raises the tab inside its window; harmless when the window
   // is already frontmost, and it is the only lever that does not need a human.
   await session.send("Page.bringToFront");
-  let latency = await probe();
-  if (typeof latency === "number")
-    return { emulated: false, latencyMs: latency, visibility: "visible" };
+  let latency = await measure();
+  if (typeof latency === "number") return { emulated: false, latencyMs: latency };
   if (!allowEmulation) {
     throw new Error(
       `${label} dispatches input too slowly: no ack within ${latency.elapsed}ms ` +
@@ -637,10 +646,8 @@ export async function ensureResponsiveInput(session, opts = {}) {
   }
 
   const afterEmulation = await emulateFocus(session).catch(() => null);
-  latency = await probe();
-  if (typeof latency === "number") {
-    return { emulated: true, latencyMs: latency, visibility: afterEmulation };
-  }
+  latency = await measure();
+  if (typeof latency === "number") return { emulated: true, latencyMs: latency };
 
   throw new Error(
     `${label} cannot receive input: dispatch timed out twice ` +
@@ -814,6 +821,26 @@ export async function openCdpSession(targetId, opts = {}) {
 export const MAX_THROTTLE_RECOVERIES = 3;
 
 /**
+ * Does this failure mean "the renderer is not dispatching input right now"?
+ *
+ * `openCdpSession` decorates its own dispatch timeouts with that word; nothing
+ * else does. Keep this in one place: the recovery wrapper and the wheel
+ * fallback both need the same answer, and a second copy of the regex would let
+ * them drift apart.
+ *
+ * @param {string} method
+ * @param {Error} err
+ */
+function isThrottleError(method, err) {
+  return method.startsWith("Input.") && /throttled/.test(err?.message ?? "");
+}
+
+/** A wheel, as opposed to a move/click/key: it is the one event Chrome drops. */
+function isWheelDispatch(method, params) {
+  return method === "Input.dispatchMouseEvent" && params?.type === "mouseWheel";
+}
+
+/**
  * Wrap a session so a mid-run throttle heals itself instead of failing a step.
  *
  * The visibility of a tab is not a property the session can be trusted to hold:
@@ -828,14 +855,26 @@ export const MAX_THROTTLE_RECOVERIES = 3;
  * navigation can drop the emulation and legitimately need it again — but a
  * fourth recovery means the machine is broken, not that we should keep trying.
  *
+ * Wheels are the exception: a local ack timeout does NOT cancel the dispatch,
+ * so the throttled renderer can still process the original wheel once
+ * emulation lifts it. Retrying would then scroll twice while `wheelScroll`
+ * records one chunk. Those rethrow after emulating, and `wheelScroll` scripts
+ * only the shortfall — the callers already verify scroll position.
+ *
  * @param {{ sessionId?: string, send: Function, close: Function }} session
- * @param {{ onRecover?: (detail: { method: string }) => void }} [opts]
+ * @param {{
+ *   onRecover?: (detail: { method: string, retried: boolean }) => void,
+ *   initialEmulated?: boolean,
+ * }} [opts]
+ *   `initialEmulated` seeds the budget and the flag from emulation that already
+ *   happened while opening the session, so `focusEmulated()` is the single
+ *   source of truth and the cap counts that first one too.
  * @returns {{ sessionId?: string, send: Function, close: Function, focusEmulated: () => boolean }}
  */
 export function withThrottleRecovery(session, opts = {}) {
-  const { onRecover } = opts;
-  let emulated = false;
-  let recoveries = 0;
+  const { onRecover, initialEmulated = false } = opts;
+  let emulated = initialEmulated;
+  let recoveries = initialEmulated ? 1 : 0;
   return {
     sessionId: session.sessionId,
     focusEmulated: () => emulated,
@@ -844,12 +883,20 @@ export function withThrottleRecovery(session, opts = {}) {
       try {
         return await session.send(method, params, sendOpts);
       } catch (err) {
-        const throttled = /^Input\./.test(method) && /throttled/.test(err.message);
-        if (!throttled || recoveries >= MAX_THROTTLE_RECOVERIES) throw err;
+        if (!isThrottleError(method, err) || recoveries >= MAX_THROTTLE_RECOVERIES) throw err;
+        try {
+          await emulateFocus(session);
+        } catch (emulationError) {
+          // Keep the throttled error: it carries the actionable instruction,
+          // and the emulation failure is the reason it could not be followed.
+          throw new Error(err.message, { cause: emulationError });
+        }
+        // Only now is the fact true, and only now is the budget spent.
         emulated = true;
         recoveries += 1;
-        await session.send("Emulation.setFocusEmulationEnabled", { enabled: true });
-        onRecover?.({ method });
+        const retried = !isWheelDispatch(method, params);
+        onRecover?.({ method, retried });
+        if (!retried) throw err;
         return session.send(method, params, sendOpts);
       }
     },
@@ -885,7 +932,11 @@ export function withThrottleRecovery(session, opts = {}) {
  *   fetchImpl?: typeof fetch,
  *   onRehost?: (reason: string) => void,
  *   onEmulate?: () => void,
+ *   onRecover?: (detail: { method: string, retried: boolean }) => void,
  * }} [opts]
+ *   `onEmulate` fires once when the session could only be opened by emulating
+ *   focus; `onRecover` fires for every later mid-run heal, so a caller can log
+ *   them differently.
  * @returns {Promise<{ targetId: string, session: object, window: "existing"|"new", focusEmulated: boolean }>}
  */
 export async function openVisibleSession(url, opts = {}) {
@@ -897,6 +948,7 @@ export async function openVisibleSession(url, opts = {}) {
     fetchImpl,
     onRehost,
     onEmulate,
+    onRecover,
   } = opts;
   const shared = { port, WebSocketImpl, fetchImpl };
 
@@ -912,7 +964,7 @@ export async function openVisibleSession(url, opts = {}) {
     });
     return {
       targetId: firstTab,
-      session: withThrottleRecovery(session, { onRecover: onEmulate }),
+      session: withThrottleRecovery(session, { onRecover }),
       window: "existing",
       focusEmulated: ready.emulated,
     };
@@ -932,7 +984,9 @@ export async function openVisibleSession(url, opts = {}) {
     if (ready.emulated) onEmulate?.();
     return {
       targetId: freshTab,
-      session: withThrottleRecovery(session, { onRecover: onEmulate }),
+      // Seed the wrapper with what the probe already did, so the single
+      // `focusEmulated()` accessor tells the truth and the cap counts it.
+      session: withThrottleRecovery(session, { onRecover, initialEmulated: ready.emulated }),
       window: "new",
       focusEmulated: ready.emulated,
     };

@@ -119,9 +119,24 @@ export async function runSelfTest() {
     createTab: cdpNewTab,
     closeTab: cdpCloseTab,
     onRehost: (reason) => console.log(`  ⚠️ ${reason} — re-hosted the fixture in a new window`),
+    onRecover: ({ method, retried }) =>
+      console.log(
+        `  ⚠️ input stalled on ${method} mid-run — emulating focus` +
+          (retried ? " and retrying" : "; scripting that scroll instead"),
+      ),
   });
   const tab = opened.targetId;
   const cdp = opened.session;
+  // The counts below are only comparable to the documented healthy bands when
+  // the tab was really in front. Emulation lifts the throttle without moving
+  // the window, so say so instead of letting a healthy-looking number imply a
+  // visible window.
+  if (opened.focusEmulated) {
+    notes.push(
+      "focus emulation was needed: the fixture window was not in front, so these numbers " +
+        "measure an emulated renderer rather than a raised window",
+    );
+  }
   try {
     await sleepJitter(400, 150);
 
