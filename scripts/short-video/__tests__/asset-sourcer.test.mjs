@@ -47,9 +47,10 @@ import {
   loadCachedMedia,
   toCachedMediaCandidate,
   hookRequiredFitFor,
+  declaredBodyFit,
   assetAspectRatio,
   isLandscapeAsset,
-  hasDeclaredBodyFit,
+  hasContainBand,
   LANDSCAPE_MIN_ASPECT,
 } from "../lib/asset-sourcer.mjs";
 import { createSearchResultsCache, recordSearchResults } from "../lib/search-results-cache.mjs";
@@ -1821,7 +1822,7 @@ describe("assignAssetsToScenes", () => {
   });
 
   // #963: a pack that declares no body fit has no authoritative composition
-  // to gate against; the allocated body answers it instead (post-pass below).
+  // to gate against; the hook is composed from its own source aspect instead.
   it("accepts a contain hook when the pack declares no body fit", () => {
     const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
     const assets = [claimed("a1.jpg", "image", 90, 1, { fit: "contain" })];
@@ -1908,16 +1909,26 @@ describe("landscape composition default (#963)", () => {
     expect(isLandscapeAsset({ width: 1190, height: 1000 })).toBe(false);
   });
 
-  it("declares body fit only from non-hook scenes with a valid fit", () => {
-    expect(hasDeclaredBodyFit([scene(1, "hook", { fit: "contain" })])).toBe(false);
+  it("returns the declared body majority, or null when none is declared", () => {
+    expect(declaredBodyFit([scene(1, "hook", { fit: "contain" })])).toBeNull();
     expect(
-      hasDeclaredBodyFit([
+      declaredBodyFit([
         scene(1, "hook", { fit: "cover" }),
         scene(2, "narrative", { fit: "contain" }),
       ]),
-    ).toBe(true);
-    expect(hasDeclaredBodyFit([scene(2, "narrative", { fit: "fill" })])).toBe(false);
-    expect(hasDeclaredBodyFit([])).toBe(false);
+    ).toBe("contain");
+    expect(declaredBodyFit([scene(2, "narrative", { fit: "fill" })])).toBeNull();
+    expect(declaredBodyFit([])).toBeNull();
+  });
+
+  it("marks only narrative media-bottom-bar and hook as contain-band scenes", () => {
+    expect(hasContainBand(scene(1, "hook"))).toBe(true);
+    expect(hasContainBand({ id: 2, visualType: "narrative" })).toBe(true);
+    expect(hasContainBand(scene(2, "narrative"))).toBe(true);
+    expect(hasContainBand({ id: 2, visualType: "narrative", layout: "media-split" })).toBe(false);
+    expect(hasContainBand(scene(3, "info-card"))).toBe(false);
+    expect(hasContainBand(scene(4, "contrast"))).toBe(false);
+    expect(hasContainBand(null)).toBe(false);
   });
 
   it("writes contain for a landscape video body", () => {
@@ -1944,12 +1955,20 @@ describe("landscape composition default (#963)", () => {
     expect(assigned(result)[0].media.fit).toBeUndefined();
   });
 
-  it("honors a contain verdict on a portrait video", () => {
+  it("keeps cover for a landscape video on a scene without the contain band", () => {
     const result = assignAssetsToScenes(
-      [asset("tall.mp4", "video", 2, { width: 1080, height: 1920, fit: "contain" })],
-      [scene(2, "narrative")],
+      [asset("wide.mp4", "video", 2, { width: 1920, height: 1080 })],
+      [scene(2, "info-card")],
     );
-    expect(assigned(result)[0].media.fit).toBe("contain");
+    expect(assigned(result)[0].media.fit).toBeUndefined();
+  });
+
+  it("keeps cover for a landscape image on a media-split narrative", () => {
+    const result = assignAssetsToScenes(
+      [asset("wide.jpg", "image", 2, { width: 1600, height: 900, fit: "cover" })],
+      [{ id: 2, visualType: "narrative", layout: "media-split" }],
+    );
+    expect(assigned(result)[0].media.fit).toBe("cover");
   });
 
   it("keeps an explicit fit for a portrait image", () => {

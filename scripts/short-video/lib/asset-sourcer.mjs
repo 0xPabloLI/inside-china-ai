@@ -65,6 +65,8 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { execFileSync } from "child_process";
 import { ALL_SOURCES, SOURCE_ATTRIBUTIONS, SUPPORTED_YTDLP_PLATFORMS } from "./source-registry.mjs";
 import { brollSectionSpec } from "./media-window.mjs";
+import { VALID_FITS } from "./media-bg.mjs";
+import { DEFAULT_NARRATIVE_LAYOUT, resolveRenderLayout } from "./text-slots.mjs";
 import {
   getCachedSearchResults,
   getOrSearchResults,
@@ -221,6 +223,32 @@ export const NO_MEDIA_TYPES = SHARED_NO_MEDIA_TYPES;
 const HOOK_MIN_SCORE = 60;
 
 /**
+ * The body composition a pack declares, or null when it declares none.
+ *
+ * Counts the non-hook scenes' `media.fit` against `VALID_FITS` (the
+ * validation-side authority — do not repeat the enum). A tie falls back to
+ * cover, the historical default. Returning null instead of a default lets the
+ * caller distinguish "the pack chose cover" from "the pack said nothing"; for
+ * the latter the hook is composed from its own source aspect (#963).
+ *
+ * @param {Array} [scenes]
+ * @returns {"cover" | "contain" | null}
+ */
+export function declaredBodyFit(scenes = []) {
+  let cover = 0;
+  let contain = 0;
+  for (const scene of scenes ?? []) {
+    if (scene?.visualType === "hook") continue;
+    const fit = scene?.media?.fit;
+    if (!VALID_FITS.includes(fit)) continue;
+    if (fit === "contain") contain += 1;
+    else cover += 1;
+  }
+  if (cover + contain === 0) return null;
+  return contain > cover ? "contain" : "cover";
+}
+
+/**
  * The fit an auto-sourced hook must use, derived from the pack it introduces.
  *
  * The hook and the body have to be composed the same way. A `cover` hook cuts a
@@ -229,22 +257,12 @@ const HOOK_MIN_SCORE = 60;
  * either — and on the cover side of that swap most of the picture is discarded,
  * which is the outcome the hook contract was relaxed to avoid.
  *
- * The requirement is therefore read off the body rather than fixed. A pack whose
- * non-hook scenes mostly declare `contain` overrides a `contain` hook, so an
- * auto-sourced pack can no longer ship a cover hook in front of a contain body.
- * Packs that declare nothing, or split evenly, keep the historical `cover` —
- * this only changes packs that are actually contain-bodied.
+ * The requirement is therefore read off the declared body rather than fixed.
+ * Packs that declare nothing get the historical `cover` here; the allocator
+ * overrides that with the hook's own aspect when no body fit is declared.
  */
 export function hookRequiredFitFor(scenes = []) {
-  let cover = 0;
-  let contain = 0;
-  for (const scene of scenes ?? []) {
-    if (scene?.visualType === "hook") continue;
-    const fit = scene?.media?.fit;
-    if (fit === "cover") cover += 1;
-    else if (fit === "contain") contain += 1;
-  }
-  return contain > cover ? "contain" : "cover";
+  return declaredBodyFit(scenes) ?? "cover";
 }
 
 /**
@@ -294,15 +312,21 @@ export function isLandscapeAsset(asset) {
 }
 
 /**
- * Whether the pack declares its own body composition (any non-hook
- * `media.fit`). When it does, the hook follows that declared majority; when it
- * does not, the hook is composed from its own source aspect.
+ * Whether the scene's renderer has the contain band (#963).
+ *
+ * Only NarrativeScene's `media-bottom-bar` variant and HookScene place a
+ * contained picture in [SAFE_ZONES.top, CONTAIN_MEDIA_BOTTOM]. InfoCard /
+ * Context / Contrast draw MediaBackground in a full-frame container, where
+ * contain bottom-anchors a 16:9 picture under the subtitle lane — those scenes
+ * keep cover rather than inherit a band they do not have. The layout is read
+ * through resolveRenderLayout (the render-side authority) so a narrative with
+ * media-split/media-overlay is not mistaken for the bottom-bar variant.
  */
-export function hasDeclaredBodyFit(scenes = []) {
-  return (scenes ?? []).some(
-    (scene) =>
-      scene?.visualType !== "hook" &&
-      (scene?.media?.fit === "cover" || scene?.media?.fit === "contain"),
+export function hasContainBand(scene) {
+  if (!scene) return false;
+  if (scene.visualType === "hook") return true;
+  return (
+    scene.visualType === "narrative" && resolveRenderLayout(scene) === DEFAULT_NARRATIVE_LAYOUT
   );
 }
 
@@ -1002,12 +1026,13 @@ function isRejectedFor(asset, scene) {
  *   - cross-content reuse cap: a reused asset is rejected when accepting it
  *     would push reused/total above opts.reusedCap (default 0.4); rejection
  *     happens before scene search so it never consumes a scene slot
- *   - composition (#963): third-party landscape sources (aspect >=
+ *   - composition (#963): on scenes that have the contain band (narrative
+ *     media-bottom-bar, hook), third-party landscape sources (aspect >=
  *     LANDSCAPE_MIN_ASPECT) are written with fit:"contain" so cover cannot
- *     crop them; portrait/square sources keep cover. A hook follows the pack's
- *     declared body majority when there is one; otherwise it follows its own
- *     source aspect — forcing a portrait hook into contain would letterbox the
- *     first 3 seconds
+ *     crop them. Portrait/square sources keep cover, and layouts without the
+ *     band (info-card/context/contrast backgrounds) keep cover too. A hook
+ *     follows the pack's declared body majority when there is one; otherwise
+ *     its own source aspect
  *   - assigned entries carry relevanceScore/relevanceSource/relevanceReason/reused
  *
  * @param {Array} assets - Downloaded assets (each must have score, type, path)
@@ -1034,10 +1059,11 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       : DEFAULT_RELEVANCE_THRESHOLD;
   const reusedCap = typeof opts.reusedCap === "number" ? opts.reusedCap : 0.4;
   // Read once: the body's composition does not change while assigning.
-  const hookRequiredFit = hookRequiredFitFor(scenes);
+  const declaredFit = declaredBodyFit(scenes);
+  const hookRequiredFit = declaredFit ?? "cover";
   // A pack that declares body fits has already answered the hook question;
-  // one that does not is composed from each source's own aspect.
-  const hookFitDeclared = hasDeclaredBodyFit(scenes);
+  // one that does not composes each hook from its own source aspect.
+  const hookFitDeclared = declaredFit != null;
 
   // #294: satisfiability belongs to the scene's candidate pool, not to one
   // asset. Computed before the loop so a rejection reason can name the pool
@@ -1187,6 +1213,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       }
 
       const vt = target.visualType;
+      const containBand = hasContainBand(target);
       const media = {
         type: asset.type,
         path: asset.path,
@@ -1197,23 +1224,21 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         overlay: vt === "hook" ? 0.5 : vt === "quote" ? 0.8 : vt === "info-card" ? 0.75 : 0.7,
       };
       // Composition default (#963): a third-party landscape source is shown
-      // whole (contain). Cover into the 1080x1309 media band keeps only ~46%
-      // of a 16:9 source's width, and the user's 2026-10-26/2026-11-01 decision
-      // is that third-party content must survive intact. Portrait/square
-      // sources keep cover (filling the frame costs them no content); an
-      // explicit VLM verdict still decides for them.
+      // whole (contain) where the renderer has the contain band. Cover into
+      // the 1080x1309 media band keeps only ~46% of a 16:9 source's width, and
+      // the user's 2026-10-26/2026-11-01 decision is that third-party content
+      // must survive intact. Portrait/square sources keep cover (filling the
+      // frame costs them no content). A hook is composed from the pack's
+      // declared body, or from its own source aspect when there is none.
       if (vt === "hook") {
         media.fit = hookFitDeclared
           ? hookRequiredFit
           : landscape
             ? "contain"
             : asset.fit || "cover";
-      } else if (landscape) {
+      } else if (landscape && containBand) {
         media.fit = "contain";
-      } else if (asset.fit && (!isVideo || asset.fit === "contain")) {
-        // Images keep the VLM's verdict (cover or contain). A portrait video
-        // only carries a meaningful verdict when it says contain — writing
-        // "cover" would just restate the renderer's default.
+      } else if (asset.fit && !isVideo) {
         media.fit = asset.fit;
       }
       if (asset.cropFocus) media.cropFocus = asset.cropFocus;
@@ -1514,6 +1539,13 @@ export async function analyzeAssets(assets, opts = {}) {
           }
         }
         asset.focusAnalysis = focus;
+        // #963: record the analyzer's own frame dimensions for images so the
+        // composition rule and the artifact have real numbers even when the
+        // search metadata omitted resolution.
+        if (asset.type === "image" && focus?.frame?.width > 0 && focus?.frame?.height > 0) {
+          asset.width = focus.frame.width;
+          asset.height = focus.frame.height;
+        }
       }
     } finally {
       await closeFocusDetector();
@@ -1580,19 +1612,20 @@ export async function analyzeAssets(assets, opts = {}) {
     const probe = probeMedia(absPath);
     const durationMs = probe?.durationMs;
 
+    // #963: persist the probed dimensions independently of duration — the
+    // allocator is pure and cannot probe, and the composition default has to
+    // know whether the source is landscape. probeMedia reports the stream's
+    // stored width/height, so swap a 90°/270° rotation to the orientation a
+    // viewer actually sees; otherwise a portrait phone clip reads as landscape.
+    if (probe?.width > 0 && probe?.height > 0) {
+      const rotated = Math.abs(probe.rotation ?? 0) % 180 === 90;
+      asset.width = rotated ? probe.height : probe.width;
+      asset.height = rotated ? probe.width : probe.height;
+    }
+
     if (durationMs > 0) {
       // #360: persist the probed duration (previously computed then discarded)
       asset.durationMs = durationMs;
-      // #963: persist the probed dimensions too — the allocator is pure and
-      // cannot probe, and the composition default has to know whether the
-      // source is landscape. probeMedia reports the stream's stored
-      // width/height, so swap a 90°/270° rotation to the orientation a viewer
-      // actually sees; otherwise a portrait phone clip reads as landscape.
-      if (probe.width > 0 && probe.height > 0) {
-        const rotated = Math.abs(probe.rotation ?? 0) % 180 === 90;
-        asset.width = rotated ? probe.height : probe.width;
-        asset.height = rotated ? probe.width : probe.height;
-      }
       // #542 L3: the probe's audio fact gates transcription (a silent asset
       // has nothing to decode). Only persisted when the probe actually said
       // something — undefined keeps the fail-open "try anyway" path.
@@ -1955,6 +1988,7 @@ export async function analyzeAssets(assets, opts = {}) {
           // a surprising `contain`/`cover` in media-patch has no audit trail.
           width: a.width ?? null,
           height: a.height ?? null,
+          landscape: isLandscapeAsset(a),
           criticalEdgeText: a.criticalEdgeText || null,
           reason: a.reason || null,
           relevanceScore: a.relevanceScore ?? null,

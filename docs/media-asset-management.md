@@ -126,7 +126,9 @@ asset-sourcer 构建跨内容已用素材索引（扫描各内容包 `assets/` �
 
 自动取材对第三方横屏素材（源宽高比 ≥ 1.2）写 `fit: "contain"`：画面整幅保留，底边挂在文字条上方，文字条落在画面外。依据是 2026-11-01 用户裁决「第三方横屏素材完整展示」——cover 塞进 1080×1309 媒体带只保留 16:9 源宽度的约 46%，且没有逐帧保护。竖屏/方形素材仍默认 cover（填满画幅不损失内容）；手写 pack 显式声明的 `fit` 不受影响；AI 生成的 B-roll 不经 `assignAssetsToScenes`，保持既有构图。
 
-尺寸来源按序：下载后的 ffprobe（`width`/`height`，已按 rotation 归一到观看方向）、focus frame、取源元数据 `resolution`。三者都没有时按非横屏处理（维持 cover），不猜。
+落点只限有 contain 带的模板：NarrativeScene 的 `media-bottom-bar` 与 HookScene。info-card / context / contrast 这类全幅背景容器没有该带，横屏素材仍用 cover——否则 contain 会把画面压到容器底部，落进字幕带。
+
+尺寸来源按序：下载后的 ffprobe（`width`/`height`，已按 rotation 归一到观看方向）、focus frame、取源元数据 `resolution`。三者都没有时按非横屏处理（维持 cover），不猜。`asset-analysis.json` 记录 `width`/`height`/`landscape`，作为最终 `media-patch` 里 contain/cover 选择的审计痕迹。
 
 Hook 与正文同构：pack 自己声明了正文 `fit` 时沿用声明多数（`hookRequiredFitFor`）；没有声明的 pack，hook 按自身源宽高比（横屏 contain、竖/方 cover），不再写死 cover——把竖屏 hook 强塞进 contain 会让前 3 秒变成窄条。`contain` 自 #1021 起对 hook 合法。
 
