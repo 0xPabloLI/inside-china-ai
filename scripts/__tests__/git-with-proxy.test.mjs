@@ -53,8 +53,9 @@ describe("the resolved proxy reaches git", () => {
   });
 
   it("keeps its own flags out of the git command line", () => {
-    // A leaked `--direct` would make git fail on an unknown option, so a clean
-    // exit here is the assertion.
+    // Both halves matter: a leaked `--direct` would make git fail on an unknown
+    // option, so a clean exit says the flag was consumed; the URL coming back as
+    // FORCED_URL says `--direct` did not detour around a proxy that did resolve.
     const result = run(["--direct", "--", "config", "--get", "http.proxy"]);
 
     expect(result.status).toBe(0);
