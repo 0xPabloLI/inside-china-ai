@@ -28,7 +28,7 @@ import { isTimelineCollapsed } from "./analyze-competitor-videos.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DIR = join(__dirname, "output/competitor-benchmarks/analysis-recompute");
-const LAYERS = ["beats", "shots"];
+export const LAYERS = ["beats", "shots"];
 
 /**
  * Health of one layer, from the most honest source available.

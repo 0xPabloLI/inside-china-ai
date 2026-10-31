@@ -219,13 +219,13 @@
 5. ✅ **跑批量抓取**：**已完成**——`node scripts/short-video/capture-competitor-videos.mjs`，8/9 账号成功、35 条落盘（§3.3；`@allsiekmiller` 两次 0 条列表）。
 6. ✅ **批量拆解落 schema v1 JSON → 填 `learnings` → 跨条规律上浮到对应下游 issue。** 脚本已落地（`analyze-competitor-videos.mjs` + `lib/competitor-vlm-worker.py`，见 §3.3），提示词与时间轴机制已按 §3.5 三条失效模式加固并经 3 账号验证（`rileybrown.ai` / `maverickgpt` / `shedoesai`，0 失败）；**全量 35 条跑批已完成**（`index.json` 逐条 status 汇总：`analyzed 34 / failed 1 / collapsedTimeline 0`），跨条规律上浮见 **§10**。**2026-10-18 更正**：上述 `failed 1` 与 `collapsedTimeline 0` 均为**信号失真**（分别是 #729 定界符类型错配、#730 判据假阴性）；按修复后的代码对**同一批样本**重算 → **35 条全有效、beats 层塌缩 1 条**（§10.1 复算口径）。
 
-**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；**无切点内容的人声稀疏镜头节奏**（§3.5 ③——#749 已交付镜头切点作为第二实测源：有切点的塌缩层按实测切点重建，6 层中 4 层恢复可信；**无切点的单镜头口播（本批 5/35 条）仍退回 ASR 段跨度内插值**，其节奏数字不能当实测用；逐条结果见 §10.1.1）；§2.1 账号清单的 TikTok handle 与内容主题一致性（§10.1 实测有 2 个账号不在赛道，处置已开票 **#748**）。`beats` 数量的提示词合规性本轮已量化（**§10.5**：3–8 区间 AI 号仅 6/30）。
+**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；**无切点内容的人声稀疏镜头节奏**（§3.5 ③——#749 已交付镜头切点作为第二实测源：有切点的塌缩层按实测切点重建，6 层中 4 层恢复可信；无切点**且**塌缩时仍退回 ASR 段跨度内插值，本批 5 条无切点记录均为健康层、未触发该路径；逐条结果见 §10.1.1）；§2.1 账号清单的 TikTok handle 与内容主题一致性（§10.1 实测有 2 个账号不在赛道，处置已开票 **#748**）。`beats` 数量的提示词合规性本轮已量化（**§10.5**：3–8 区间 AI 号仅 6/30）。
 
 ---
 
 ## 10. 阶段 3 · 跨条规律与模式库（英文侧 35 条有效；2026-10-17 跑批 · 2026-10-18 复算）
 
-> 本节只做**证据层之上**的横向上浮：单条事实在 per-video JSON 里，不在此重述（§6 纪律）。**数据源是三个目录，勿混用**：`scripts/short-video/output/competitor-benchmarks/analysis/` 是 **2026-10-17 原跑批（修复前）**——`sineadbovell/7599711388939980063` 在其中仍是 `error: unparseable-json`、塌缩未兜底，只作 #729 / #730 的取证底本；**本节全部数字出自 `analysis-recompute/`**（2026-10-18 修复后重跑；其 `index.json` = `total 35 / recovered 1 / stillFailed 0 / collapsedBeats 1 / collapsedShots 5 / interpolated 5`）；`analysis-cuts/` 是 **2026-11-01 的 #749 第二源复核**（同一批 VLM 输出，仅塌缩层的时间轴按镜头切点重建；逐条见 §10.1.1）。三目录均 gitignore、不入库。**复算入口**：判据 / 塌缩命中数 / `anchorSource` 这类可直接复核——`node scripts/short-video/competitor-benchmarks-timing-health.mjs --dir <任一目录>`（读同样字段，输出与 `index.json` 同口径，并打印每个判定的取值依据 `basis`），或直接读该目录的 `index.json`；**median 类**（hook 时长、bpm、时长分位）为**一次性本地脚本**读同样字段所得（脚本未入库），本节各节都写明判据（`meta.durationSec` / `evidence.asrSegments` / `beats[]` / `shots[]` / `story_level`）与分位法（`statistics.quantiles(n=4)`），可据此复算。**2026-10-18 复算**：原跑批的 1 条失败（#729）与 0 条塌缩（#730）经修复后重算，样本由 34 → **35**，本节所有 median 已按 n=35 更新（判据：`beats` 非空的记录为有效；分位数用 `statistics.quantiles(n=4)`）。
+> 本节只做**证据层之上**的横向上浮：单条事实在 per-video JSON 里，不在此重述（§6 纪律）。**数据源是三个目录，勿混用**：`scripts/short-video/output/competitor-benchmarks/analysis/` 是 **2026-10-17 原跑批（修复前）**——`sineadbovell/7599711388939980063` 在其中仍是 `error: unparseable-json`、塌缩未兜底，只作 #729 / #730 的取证底本；**本节全部数字出自 `analysis-recompute/`**（2026-10-18 修复后重跑；其 `index.json` = `total 35 / recovered 1 / stillFailed 0 / collapsedBeats 1 / collapsedShots 5 / interpolated 5`）；`analysis-cuts/` 是 **2026-11-01 的 #749 第二源复核**（同一批 VLM 输出，仅塌缩层的时间轴按镜头切点重建；逐条见 §10.1.1）。三目录均 gitignore、不入库。**复算入口**：判据 / 塌缩命中数 / `anchorSource` 这类可直接复核——`node scripts/short-video/competitor-benchmarks-timing-health.mjs --dir <任一目录>`（读同样字段，输出与 `index.json` 同口径，并打印每个判定的取值依据 `basis`）；`analysis/` 与 `analysis-recompute/` 也可直接读其 `index.json`，`analysis-cuts/` 没有 index，第二源逐条判定读它自己的 `cuts-report.json`；**median 类**（hook 时长、bpm、时长分位）为**一次性本地脚本**读同样字段所得（脚本未入库），本节各节都写明判据（`meta.durationSec` / `evidence.asrSegments` / `beats[]` / `shots[]` / `story_level`）与分位法（`statistics.quantiles(n=4)`），可据此复算。**2026-10-18 复算**：原跑批的 1 条失败（#729）与 0 条塌缩（#730）经修复后重算，样本由 34 → **35**，本节所有 median 已按 n=35 更新（判据：`beats` 非空的记录为有效；分位数用 `statistics.quantiles(n=4)`）。
 
 ### 10.1 取样边界（先读，它决定这些规律能用到哪）
 
@@ -263,15 +263,16 @@
 | shots | `shedoesai/7642646978014219542` | 31 | 12 | 13 | 仍塌缩 | diverge 1 / 12 / 18 | 33350ms |
 
 - **判据**：只有 `anchorSegment` 落在实测 ASR 段内的 item 可比；切点起点落在该段内 = 一致，否则分歧；层内 ≥ 半数可比项一致 = `agree`。无有效锚点的 item 记 `unmeasured`（模型在数条目，不是引用段号）。
-- **分歧时以切点为准（限塌缩层）**：4 个分歧层中 3 个的锚点恰为 **1..N 枚举**（`anchorSegment` 等于 item 序号），另 1 个（`7685370974383901983`）是 1..48 各重复两次（96 items / 19 段）；共同点是大量锚点越出转写段数（不可比项 49/60/58/18），ASR 起点对这些条目没有独立测量含义。健康层永远保留 ASR（语音对齐的 beat 语义更强，切点可能落在句中）。`shedoesai/7372434986558934305` 的两层是真正的段引用（1×7 + 2×2），一致 7/9；跨段落的第 6/7 项在 `cuts-report.json` 里逐条列出，仍按切点定起点并以 `anchorSource: "cuts"` 留痕。
+- **分歧时以切点为准（限塌缩层）**：4 个分歧层中 3 个的锚点恰为 **1..N 枚举**（`anchorSegment` 等于 item 序号），另 1 个（`7685370974383901983`）是 1..48 各重复两次（96 items / 19 段）；共同点是大量锚点越出转写段数（不可比项 49/60/58/18），ASR 起点对这些条目没有独立测量含义。健康层永远保留 ASR（beats 与语音对齐、切点可能落在句中；shots 的 ASR 分辨率已过判据，没有替换依据）。`shedoesai/7372434986558934305` 的两层是真正的段引用（1×7 + 2×2），一致 7/9；跨段落的第 6/7 项在 `cuts-report.json` 里逐条列出，仍按切点定起点并以 `anchorSource: "cuts"` 留痕。
 - **健康信号对照**：`analysis-recompute/`（ASR-only）beats 层塌缩 **1** / shots **5**；`analysis-cuts/`（切点复核后）beats **0** / shots **2**。`analysis-cuts/` 的 `*Collapsed` 按切点源重判（`*AnchorSource: "cuts"`），ASR-only 的 1/5 仍以 `analysis-recompute/` 为准；两目录勿混用。
-- **无切点内容不变**：35 条中 **5 条在 0.15 下 0 切点**（`marcus.dipaola` 3 条单镜头口播、`natebjones`、`shedoesai/7369227818804219169`），保持 #730 的段跨度插值，`anchorSource` 仍为 `interpolated`；30 条有切点（共 812 个事件）。检测器在无切点素材上不发明切点，这是 #749 采纳前复现的失效结论。
+- **无切点内容不变（条件路径）**：35 条中 **5 条在 0.15 下 0 切点**（`marcus.dipaola` 3 条单镜头口播、`natebjones`、`shedoesai/7369227818804219169`）——这 5 条本身是健康时间轴（`source=asr`），**没有触发兜底**。无切点**且**塌缩时保持 #730 的段跨度插值（`anchorSource: "interpolated"`，行为不变），该组合由单测覆盖、本批样本未出现；30 条有切点（共 812 个事件）。检测器在无切点素材上不发明切点，这是 #749 采纳前复现的失效结论。
 - **仍未解决**：`kanekallaway/7676480440567483678`（47 个实测起点 / 95 items）与 `shedoesai/7642646978014219542`（13 / 31）的切点密度本身不足以支撑模型报的 shots 数，复核后仍判塌缩——这是素材分辨率上限，不是检测器失败；下游仍应跳过这两层的时点。
+- **9 个 beat 起点（第二源）**：`shedoesai/7372434986558934305` → `0, 833, 3733, 4700, 7500, 8500, 9267, 11033, 12167`（插值结果为 `0, 1234, 2469, 3703, 4937, 6171, 7406, 8640, 12220`）。
 - **§10.3 影响**：唯一 beats 层（`shedoesai/7372434986558934305`）的最大起点差 2563ms < 首段跨度 7920ms，按票面判据**不更新** §10.3 的账号节奏数字。该记录的 hook 时长由 1.23s 变为 0.83s（切点起点 0/833ms），§10.2 的 median 不受影响；需要时按 `anchorSource: "cuts"` 识别这批记录。
 
 ### 10.2 hook 规格
 
-hook = 第 1 个 beat（`beats[0]`，时间轴由 ASR 段界推导，§3.5 ①）。
+hook = 第 1 个 beat（时间轴由代码推导，§3.5 ①；塌缩层按切点重建，§3.5 ③——本节数字仍出自 `analysis-recompute/`）。
 
 | 维度 | median | p25 – p75 |
 | --- | --- | --- |
@@ -364,5 +365,5 @@ hook = 第 1 个 beat（`beats[0]`，时间轴由 ASR 段界推导，§3.5 ①�
 - 中文侧：**已决不做**（§9.1），跨语言对比不在本票范围。
 - `@allsiekmiller`：两次列清单均 0 条（§4），该账号样本缺失。
 - `meta.likes/comments/shares/publishedAt`：仍为 `null`（§6 已定夺：需登录态逐条详情页二次抓取，未做）→ 本节的「头部」是按 `manifest` 的播放量排序取 Top 5，非按互动率。
-- 人声稀疏视频的镜头节奏：ASR 锚定拿不到（§3.5 ③）。本批判据修好后实测 **beats 层 1 条**（`shedoesai`）、**shots 层 5 条**（`kanekallaway` ×3 + `shedoesai` ×2，模型锚点越界）——原「0 条」是假阴性。**#749 已交付第二实测源（镜头切点）**：6 层中 4 层恢复为实测起点（beats 1 + shots 3），`kanekallaway/7676480440567483678`（47/95）与 `shedoesai/7642646978014219542`（13/31）切点不足仍塌缩；**无切点的单镜头口播（5/35 条）仍用 #730 段跨度插值**，其节奏数字不能当实测用（§10.1.1）。复算入口：`node scripts/short-video/competitor-benchmarks-timing-health.mjs --dir <分析目录>`（塌缩判据）与 `node scripts/short-video/competitor-benchmarks-cuts.mjs`（第二源复核）。
+- 人声稀疏视频的镜头节奏：ASR 锚定拿不到（§3.5 ③）。本批判据修好后实测 **beats 层 1 条**（`shedoesai`）、**shots 层 5 条**（`kanekallaway` ×3 + `shedoesai` ×2，模型锚点越界）——原「0 条」是假阴性。**#749 已交付第二实测源（镜头切点）**：6 层中 4 层恢复为实测起点（beats 1 + shots 3），`kanekallaway/7676480440567483678`（47/95）与 `shedoesai/7642646978014219542`（13/31）切点不足仍塌缩；无切点**且**塌缩时仍退回 #730 段跨度插值（本批 5 条无切点记录均为健康层，未触发；该路径由单测覆盖，见 §10.1.1）。复算入口：`node scripts/short-video/competitor-benchmarks-timing-health.mjs --dir <分析目录>`（塌缩判据）与 `node scripts/short-video/competitor-benchmarks-cuts.mjs`（第二源复核）。
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -658,6 +658,41 @@ describe("--limit accounting (#300 stage 2)", () => {
       expect(summary.skipped).toBe(1);
       expect(summary.analyzed).toBe(1);
       expect(existsSync(join(outDir, "bench", "222.json"))).toBe(true);
+      // --no-cuts skips the second-source attempt entirely.
+      expect(existsSync(join(outDir, "bench", "222.cuts.json"))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("cut detection failure (#749)", () => {
+  it("keeps the record and the ASR timeline when the second source is unavailable", async () => {
+    // The fake mp4 cannot be decoded, so detectCuts throws; the runner treats
+    // that as "no second source", not as a failed record.
+    const root = mkdtempSync(join(tmpdir(), "competitor-cuts-fail-"));
+    const outDir = join(root, "out");
+    const manifestPath = join(root, "manifest.json");
+    const file = join(root, "1.mp4");
+    writeFileSync(file, "not a video");
+    writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        accounts: [
+          {
+            handle: "bench",
+            followers: "1K",
+            videos: [{ id: "1", status: "downloaded", file, views: 1 }],
+          },
+        ],
+      }),
+    );
+    try {
+      const summary = await analyzeCompetitorVideos({ manifestPath, outDir, asrOnly: true });
+      expect(summary.analyzed).toBe(1);
+      const record = JSON.parse(readFileSync(join(outDir, "bench", "1.json"), "utf8"));
+      expect(record.evidence).not.toHaveProperty("cuts");
+      expect(record.evidence.timing.beatsAnchorSource).toBe("asr");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

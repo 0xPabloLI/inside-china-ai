@@ -49,16 +49,20 @@ import {
   resolveTimings,
   timingEvidence,
 } from "./analyze-competitor-videos.mjs";
-import { loadRecords } from "./competitor-benchmarks-timing-health.mjs";
+import { LAYERS, loadRecords } from "./competitor-benchmarks-timing-health.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_VIDEO_ROOT = join(__dirname, "output/competitor-benchmarks");
 
-const LAYERS = ["beats", "shots"];
-
 /** Retimed output directory for a source analysis dir. */
 function defaultOutDir(dir) {
   return join(dirname(dir), "analysis-cuts");
+}
+
+/** An anchor that resolves to a measurable ASR segment (1-based). */
+function anchorInRange(item, segmentCount) {
+  const n = Number(item?.anchorSegment);
+  return Number.isInteger(n) && n >= 1 && n <= segmentCount;
 }
 
 /**
@@ -83,7 +87,7 @@ export function compareCutTimeline({ items, segments, cutStarts }) {
   items.forEach((item, index) => {
     const n = Number(item?.anchorSegment);
     const start = cutStarts[index];
-    if (!Number.isInteger(n) || n < 1 || n > segs.length || !Number.isFinite(start)) {
+    if (!anchorInRange(item, segs.length) || !Number.isFinite(start)) {
       unmeasured++;
       return;
     }
@@ -209,16 +213,27 @@ export function retimeWithCuts({
       Number(record.evidence?.timing?.durationMs) ||
       (Number(record.meta?.durationSec) > 0 ? Math.round(record.meta.durationSec * 1000) : 0);
 
+    const skipAndCopy = (entry) => {
+      report.skipped.push({ key, ...entry });
+      writeFileSync(outRecordPath, JSON.stringify(recordCopy, null, 2));
+    };
+
     if (!existsSync(videoPath) || !asrPath || durationMs <= 0) {
-      report.skipped.push({
-        key,
+      skipAndCopy({
         reason: !existsSync(videoPath)
           ? "video-missing"
           : !asrPath
             ? "asr-missing"
             : "duration-missing",
       });
-      writeFileSync(outRecordPath, JSON.stringify(recordCopy, null, 2));
+      continue;
+    }
+
+    let segments;
+    try {
+      segments = readJson(asrPath).segments ?? [];
+    } catch (error) {
+      skipAndCopy({ reason: "asr-unreadable", error: error.message });
       continue;
     }
 
@@ -228,11 +243,9 @@ export function retimeWithCuts({
     } catch (error) {
       // One undecodable video must not abort the pass (the runner treats cut
       // detection as non-fatal too); copy the record untouched and say why.
-      report.skipped.push({ key, reason: "cuts-failed", error: error.message });
-      writeFileSync(outRecordPath, JSON.stringify(recordCopy, null, 2));
+      skipAndCopy({ reason: "cuts-failed", error: error.message });
       continue;
     }
-    const segments = readJson(asrPath).segments ?? [];
     const artifact = `${id}.cuts.json`;
     writeFileSync(join(outHandle, artifact), JSON.stringify(cutsArtifact(id, cuts), null, 2));
     copyIfPresent(asrPath, join(outHandle, `${id}.asr.json`));
@@ -247,9 +260,9 @@ export function retimeWithCuts({
       };
     });
     for (const state of layerState) recordCopy[state.layer] = state.after.items;
-    const afterByLayer = Object.fromEntries(layerState.map((state) => [state.layer, state.after]));
+    const [beatsAfter, shotsAfter] = layerState.map((state) => state.after);
     recordCopy.evidence ??= {};
-    recordCopy.evidence.timing = timingEvidence(afterByLayer.beats, afterByLayer.shots, durationMs);
+    recordCopy.evidence.timing = timingEvidence(beatsAfter, shotsAfter, durationMs);
     recordCopy.evidence.cuts = cutsEvidence({ ...cuts, artifact });
     writeFileSync(outRecordPath, JSON.stringify(recordCopy, null, 2));
 
@@ -262,10 +275,7 @@ export function retimeWithCuts({
 
     const segmentCount = measurableSegments(segments).length;
     const anchorsOutOfRange = (items) =>
-      items.filter((item) => {
-        const n = Number(item?.anchorSegment);
-        return !(Number.isInteger(n) && n >= 1 && n <= segmentCount);
-      }).length;
+      items.filter((item) => !anchorInRange(item, segmentCount)).length;
 
     let repairedHere = 0;
     for (const { layer, items, before, after } of layerState) {
@@ -394,14 +404,26 @@ function parseArgs(argv) {
     threshold: DEFAULT_CUT_THRESHOLD,
     only: null,
   };
+  const requireValue = (flag, value) => {
+    if (value === undefined || value === "" || value.startsWith("--")) {
+      throw new Error(`${flag} requires a value`);
+    }
+    return value;
+  };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--dir") args.dir = argv[++i];
-    else if (argv[i] === "--out") args.outDir = argv[++i];
-    else if (argv[i] === "--threshold") args.threshold = Number(argv[++i]);
-    else if (argv[i] === "--only")
-      args.only = String(argv[++i] || "")
-        .split(",")
-        .filter(Boolean);
+    if (argv[i] === "--dir") args.dir = requireValue("--dir", argv[++i]);
+    else if (argv[i] === "--out") args.outDir = requireValue("--out", argv[++i]);
+    else if (argv[i] === "--threshold") {
+      const value = Number(requireValue("--threshold", argv[++i]));
+      if (!Number.isFinite(value) || value <= 0 || value >= 1) {
+        throw new Error("--threshold must be a number in (0,1)");
+      }
+      args.threshold = value;
+    } else if (argv[i] === "--only") {
+      const keys = requireValue("--only", argv[++i]).split(",").filter(Boolean);
+      if (keys.length === 0) throw new Error("--only requires comma-separated handle/id keys");
+      args.only = keys;
+    }
   }
   return args;
 }

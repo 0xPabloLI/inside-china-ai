@@ -22,6 +22,7 @@
  */
 
 import { spawnSync } from "child_process";
+import { existsSync } from "fs";
 
 /**
  * Default scene-score threshold.
@@ -38,7 +39,11 @@ import { spawnSync } from "child_process";
  */
 export const DEFAULT_CUT_THRESHOLD = 0.15;
 
-const FFMPEG = process.env.CUT_DETECT_FFMPEG || "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
+const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
+// Decode-only pass: prefer the full build the rest of the pipeline pins, but
+// fall back to PATH rather than losing the second source on a host without it
+// (the TTS measurement policy is PATH-resolved for the same reason).
+const FFMPEG = process.env.CUT_DETECT_FFMPEG || (existsSync(FFMPEG_FULL) ? FFMPEG_FULL : "ffmpeg");
 const SCENE_PTS_RE = /pts_time:([0-9]+(?:\.[0-9]+)?)/g;
 const DEFAULT_TIMEOUT_MS = 120_000;
 
