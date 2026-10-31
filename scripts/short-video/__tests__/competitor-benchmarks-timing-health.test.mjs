@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { layerHealth, summarizeRecords } from "../competitor-benchmarks-timing-health.mjs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import {
+  layerHealth,
+  loadRecords,
+  summarizeRecords,
+} from "../competitor-benchmarks-timing-health.mjs";
 
 /** Minimal schema v1 record stub: only the fields the verifier reads. */
 function record({ beats = [], shots = [], timing = {}, error, ...evidence } = {}) {
@@ -162,5 +169,23 @@ describe("summarizeRecords", () => {
     expect(summary.shots.collapsed.map((hit) => hit.key)).toEqual(["shedoesai/7372"]);
     expect(summary.beats.basis).toEqual({ items: 2, persisted: 1 });
     expect(summary.beats.staleVerdict).toEqual([]);
+  });
+});
+
+describe("loadRecords (#749)", () => {
+  it("reads only records, skipping ASR and cut evidence files", () => {
+    // Retimed dirs carry `<id>.cuts.json` beside `<id>.json`; counting an
+    // evidence file as a record would double the sample (35 → 70) and every
+    // evidence file would read as a valid, empty record.
+    const dir = mkdtempSync(join(tmpdir(), "timing-health-"));
+    try {
+      mkdirSync(join(dir, "h"), { recursive: true });
+      writeFileSync(join(dir, "h", "1.json"), JSON.stringify(record({ beats: items([0]) })));
+      writeFileSync(join(dir, "h", "1.asr.json"), "{}");
+      writeFileSync(join(dir, "h", "1.cuts.json"), JSON.stringify({ cutsMs: [1000] }));
+      expect(loadRecords(dir).map((entry) => entry.key)).toEqual(["h/1"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

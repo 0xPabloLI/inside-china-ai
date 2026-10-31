@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -20,6 +20,7 @@ import {
   anchorTimings,
   isTimelineCollapsed,
   interpolateStarts,
+  resolveCutStarts,
   resolveTimings,
   buildRecord,
   safeSegment,
@@ -207,6 +208,89 @@ describe("resolveTimings (#730)", () => {
   it("keeps interpolatedStarts a no-op for a single-item group", () => {
     const items = [{ startMs: 500 }];
     expect(interpolateStarts(items, 1000)).toEqual([500]);
+  });
+});
+
+// ─── second measured source (#749) ───
+
+const COLLAPSED_ITEMS = [
+  ...Array.from({ length: 7 }, () => ({ anchorSegment: 1 })),
+  ...Array.from({ length: 2 }, () => ({ anchorSegment: 3 })),
+];
+// 8 measured transitions inside the 33.48s span.
+const CUTS = [2000, 5000, 8000, 12000, 16000, 20000, 24000, 30000];
+const COLLAPSED_SPAN = 28480 + 5000;
+
+describe("resolveCutStarts (#749)", () => {
+  it("returns null when the material has no usable cut", () => {
+    expect(resolveCutStarts(9, [], 15800)).toBeNull();
+    expect(resolveCutStarts(9, null, 15800)).toBeNull();
+    // Only the video start / out-of-span values are not a second source.
+    expect(resolveCutStarts(9, [0, 15800, 40000, NaN], 15800)).toBeNull();
+    expect(resolveCutStarts(9, CUTS, 0)).toBeNull();
+    expect(resolveCutStarts(0, CUTS, 15800)).toBeNull();
+  });
+
+  it("uses only measured times: the video start plus detected cuts", () => {
+    const starts = resolveCutStarts(COLLAPSED_ITEMS.length, CUTS, COLLAPSED_SPAN);
+    expect(starts).toEqual([0, ...CUTS]);
+    // Every start is a measured boundary — nothing invented between cuts.
+    for (const start of starts) expect([0, ...CUTS]).toContain(start);
+  });
+
+  it("samples the grid evenly when there are more cuts than items", () => {
+    const starts = resolveCutStarts(3, CUTS, COLLAPSED_SPAN);
+    expect(starts).toEqual([0, 12000, 30000]);
+  });
+
+  it("lets items share a cut when the material offers less resolution", () => {
+    // Two boundaries for nine items: the resolved shape keeps the honest
+    // resolution (the collapse verdict is computed from it), it does not
+    // invent eight distinct starts.
+    const starts = resolveCutStarts(9, [5000], COLLAPSED_SPAN);
+    expect(new Set(starts).size).toBe(2);
+    expect(starts[0]).toBe(0);
+    expect(starts[starts.length - 1]).toBe(5000);
+  });
+
+  it("dedupes and sorts cuts, and returns a single start for one item", () => {
+    expect(resolveCutStarts(3, [8000, 2000, 8000, 2000], COLLAPSED_SPAN)).toEqual([0, 2000, 8000]);
+    expect(resolveCutStarts(1, CUTS, COLLAPSED_SPAN)).toEqual([0]);
+  });
+});
+
+describe("resolveTimings with a cut source (#749)", () => {
+  it("re-anchors a collapsed layer on the measured cuts", () => {
+    const r = resolveTimings(COLLAPSED_ITEMS, SEGMENTS, COLLAPSED_SPAN, CUTS);
+    expect(r.anchorSource).toBe("cuts");
+    expect(r.items.map((item) => item.startMs)).toEqual([0, ...CUTS]);
+    expect(r.rawDistinctStarts).toBe(9); // measured boundaries actually used
+    expect(r.distinctStarts).toBe(9);
+    for (let i = 1; i < r.items.length; i++) {
+      expect(r.items[i].startMs).toBeGreaterThanOrEqual(r.items[i - 1].startMs);
+    }
+    for (const item of r.items) expect(item.endMs).toBeGreaterThan(item.startMs);
+  });
+
+  it("keeps today's interpolation byte-for-byte when no cut source exists", () => {
+    // The #749 acceptance: a missing second source must not change behavior.
+    const without = resolveTimings(COLLAPSED_ITEMS, SEGMENTS, COLLAPSED_SPAN);
+    const empty = resolveTimings(COLLAPSED_ITEMS, SEGMENTS, COLLAPSED_SPAN, []);
+    const outOfRange = resolveTimings(COLLAPSED_ITEMS, SEGMENTS, COLLAPSED_SPAN, [0, 99999]);
+    expect(empty).toEqual(without);
+    expect(outOfRange).toEqual(without);
+    expect(without.anchorSource).toBe("interpolated");
+    expect(without.items.map((item) => item.startMs)).toEqual([
+      0, 4069, 8137, 12206, 16274, 20343, 24411, 28480, 30980,
+    ]);
+  });
+
+  it("never touches a healthy ASR layer even when cuts exist", () => {
+    const items = [1, 2, 3, 4].map((anchorSegment) => ({ anchorSegment }));
+    const without = resolveTimings(items, SEGMENTS, 49100);
+    const withCuts = resolveTimings(items, SEGMENTS, 49100, CUTS);
+    expect(withCuts).toEqual(without);
+    expect(withCuts.anchorSource).toBe("asr");
   });
 });
 
@@ -456,6 +540,27 @@ describe("buildRecord (#300 stage 2)", () => {
     expect(rec.evidence.timing.beatsCollapsed).toBe(false);
   });
 
+  it("re-anchors collapsed layers on measured cuts and records the artifact (#749)", () => {
+    const breakdown = {
+      beats: Array.from({ length: 9 }, () => ({ anchorSegment: 1 })),
+      shots: Array.from({ length: 9 }, () => ({ anchorSegment: 1 })),
+    };
+    const cuts = { cutsMs: CUTS, threshold: 0.15, artifact: "123.cuts.json" };
+    const rec = buildRecord(target, COLLAPSED_SPAN / 1000, breakdown, transcript, cuts);
+    expect(rec.evidence.cuts).toEqual({ total: 8, threshold: 0.15, artifact: "123.cuts.json" });
+    expect(rec.evidence.timing.beatsAnchorSource).toBe("cuts");
+    expect(rec.evidence.timing.shotsAnchorSource).toBe("cuts");
+    expect(rec.evidence.timing.beatsMeasuredDistinctStarts).toBe(9);
+    expect(rec.evidence.timing.beatsCollapsed).toBe(false);
+    expect(rec.beats.map((item) => item.startMs)).toEqual([0, ...CUTS]);
+  });
+
+  it("omits the cuts block entirely when detection did not run", () => {
+    const rec = buildRecord(target, 15.8, { beats: [{ anchorSegment: 1 }] }, transcript);
+    expect(rec.evidence).not.toHaveProperty("cuts");
+    expect(rec.evidence.timing.beatsAnchorSource).toBe("asr");
+  });
+
   it("does not call a single item a collapsed timeline", () => {
     const rec = buildRecord(target, 15.8, { beats: [{ anchorSegment: 1 }] }, transcript);
     expect(rec.evidence.timing.beatsCollapsed).toBe(false);
@@ -545,11 +650,49 @@ describe("--limit accounting (#300 stage 2)", () => {
         outDir,
         limit: 1,
         asrOnly: true,
+        // The fake mp4 cannot be decoded; skip detection instead of logging a
+        // non-fatal failure on every run of this accounting test.
+        noCuts: true,
       });
 
       expect(summary.skipped).toBe(1);
       expect(summary.analyzed).toBe(1);
       expect(existsSync(join(outDir, "bench", "222.json"))).toBe(true);
+      // --no-cuts skips the second-source attempt entirely.
+      expect(existsSync(join(outDir, "bench", "222.cuts.json"))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("cut detection failure (#749)", () => {
+  it("keeps the record and the ASR timeline when the second source is unavailable", async () => {
+    // The fake mp4 cannot be decoded, so detectCuts throws; the runner treats
+    // that as "no second source", not as a failed record.
+    const root = mkdtempSync(join(tmpdir(), "competitor-cuts-fail-"));
+    const outDir = join(root, "out");
+    const manifestPath = join(root, "manifest.json");
+    const file = join(root, "1.mp4");
+    writeFileSync(file, "not a video");
+    writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        accounts: [
+          {
+            handle: "bench",
+            followers: "1K",
+            videos: [{ id: "1", status: "downloaded", file, views: 1 }],
+          },
+        ],
+      }),
+    );
+    try {
+      const summary = await analyzeCompetitorVideos({ manifestPath, outDir, asrOnly: true });
+      expect(summary.analyzed).toBe(1);
+      const record = JSON.parse(readFileSync(join(outDir, "bench", "1.json"), "utf8"));
+      expect(record.evidence).not.toHaveProperty("cuts");
+      expect(record.evidence.timing.beatsAnchorSource).toBe("asr");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
