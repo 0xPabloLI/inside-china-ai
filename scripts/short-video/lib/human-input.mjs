@@ -60,8 +60,6 @@ export const WHEEL_BURST_GAP_MS = Object.freeze([170, 90]);
  * the long session budget would only convert a silent drop into a 15s stall.
  */
 export const WHEEL_ACK_TIMEOUT_MS = 3000;
-/** Base of the visibility re-check backoff (multiplied by attempt). */
-export const FOREGROUND_RETRY_BASE_MS = 400;
 
 /**
  * Uniform float in [min, max].
@@ -563,43 +561,118 @@ export async function openWindowTarget(url, opts = {}) {
 }
 
 /**
- * Verify the tab is really foregrounded before dispatching anything.
+ * How long an input dispatch may take before the renderer counts as throttled.
  *
- * `Target.activateTarget` returns "ok" as soon as the command is accepted,
- * which is NOT the same as the renderer being visible: when the Chrome window
- * itself is minimised, occluded or on another Space, the tab stays
- * `document.visibilityState === "hidden"` and input dispatch is throttled to
- * ~5s per event (measured 2026-10-30 on this profile). A caption would then
- * take hours and every CDP command would time out somewhere unrelated, with no
- * hint of the real cause. Fail here, with the instruction, instead.
+ * A healthy dispatch is a few milliseconds (measured 3-13ms on this profile);
+ * a throttled one is ~5s. The probe below times out at this value, so a
+ * throttled tab costs one probe rather than five seconds per attempt.
+ */
+export const INPUT_PROBE_TIMEOUT_MS = 1500;
+
+/**
+ * Where the latency probe dispatches its `mouseMoved`. A corner, so the hover
+ * state it creates lands on nothing that a later click cares about.
+ */
+const INPUT_PROBE_POINT = Object.freeze({ x: 2, y: 2 });
+
+/**
+ * Guarantee that input dispatched on this session is NOT throttled.
  *
- * Only the human can fix that state (the repo forbids an agent from killing or
- * restarting Chrome), so this throws an actionable message rather than
- * retrying.
+ * Visibility is not the invariant — latency is, and the two disagree often
+ * enough to matter. Measured on this profile:
+ *
+ *   2026-10-30  a tab that reports `visible` dispatches in 8ms, `hidden` in 5s;
+ *   2026-10-31  a window Chrome opened for the run reported `visible` during
+ *               `Target.activateTarget` and was `hidden` seconds later, so a
+ *               visibility check passed and the very next wheel event still hit
+ *               a 3s timeout.
+ *
+ * So probe the thing that hurts: dispatch one `mouseMoved` and time it. When it
+ * is slow, enable focus emulation (`emulateFocus`, which took the same tab from
+ * 5s per event to 3ms) and probe again. Only if THAT fails is the machine
+ * genuinely unusable, and the error says so.
  *
  * @param {{ send: (method: string, params?: object) => Promise<object> }} session
- * @param {{ label?: string, attempts?: number, sleepFn?: (ms:number)=>Promise<void> }} [opts]
- * @returns {Promise<string>} the observed visibility state ("visible")
+ * @param {{ label?: string, probeTimeoutMs?: number, allowEmulation?: boolean }} [opts]
+ *   `allowEmulation: false` makes this a pure probe, so a caller that can still
+ *   re-host the page in a real window prefers that over emulating.
+ * @returns {Promise<{ emulated: boolean, latencyMs: number, visibility: string|null }>}
  */
-export async function ensureForeground(session, opts = {}) {
-  const { label = "tab", attempts = 3, sleepFn = defaultSleep } = opts;
-  let state = null;
-  for (let i = 0; i < attempts; i++) {
-    // bringToFront re-raises the tab inside its window; harmless when the
-    // window is already frontmost.
-    await session.send("Page.bringToFront");
+export async function ensureResponsiveInput(session, opts = {}) {
+  const { label = "tab", probeTimeoutMs = INPUT_PROBE_TIMEOUT_MS, allowEmulation = true } = opts;
+
+  const visibility = async () => {
     const { result } = await session.send("Runtime.evaluate", {
       expression: "document.visibilityState",
       returnByValue: true,
     });
-    state = result?.value ?? null;
-    if (state === "visible") return state;
-    await sleepFn(FOREGROUND_RETRY_BASE_MS * (i + 1));
+    return result?.value ?? null;
+  };
+
+  const probe = async () => {
+    const started = Date.now();
+    try {
+      await session.send(
+        "Input.dispatchMouseEvent",
+        { type: "mouseMoved", x: INPUT_PROBE_POINT.x, y: INPUT_PROBE_POINT.y, button: "none" },
+        { timeoutMs: probeTimeoutMs },
+      );
+      return Date.now() - started;
+    } catch (err) {
+      return { timedOut: true, message: err.message, elapsed: Date.now() - started };
+    }
+  };
+
+  // bringToFront re-raises the tab inside its window; harmless when the window
+  // is already frontmost, and it is the only lever that does not need a human.
+  await session.send("Page.bringToFront");
+  let latency = await probe();
+  if (typeof latency === "number")
+    return { emulated: false, latencyMs: latency, visibility: "visible" };
+  if (!allowEmulation) {
+    throw new Error(
+      `${label} dispatches input too slowly: no ack within ${latency.elapsed}ms ` +
+        `(${latency.message}). Re-hosting the page in a new window.`,
+    );
   }
+
+  const afterEmulation = await emulateFocus(session).catch(() => null);
+  latency = await probe();
+  if (typeof latency === "number") {
+    return { emulated: true, latencyMs: latency, visibility: afterEmulation };
+  }
+
   throw new Error(
-    `${label} is hidden (document.visibilityState=${JSON.stringify(state)}). ` +
+    `${label} cannot receive input: dispatch timed out twice ` +
+      `(visibilityState=${JSON.stringify(await visibility().catch(() => null))}, ` +
+      `focus emulation ${afterEmulation === "visible" ? "reported visible" : "did not take"}). ` +
       "Bring the Chrome window to the front (no minimising, no other Space) and run again.",
   );
+}
+
+/**
+ * Make a throttled-but-usable tab report itself as focused.
+ *
+ * Chrome throttles input dispatch on a renderer it considers hidden, and the
+ * only OS-level fix is a human moving the window to the active Space. Focus
+ * emulation is the in-process lever: the renderer reports `visible` and the
+ * throttle lifts. Measured 2026-10-31 on this profile, same tab: 5018ms per
+ * `Input.dispatchMouseEvent` before, 3ms after.
+ *
+ * What it does NOT do: it changes what the page believes about focus, not what
+ * the window is doing. A page that suppresses work on `blur` will not see one,
+ * so runs that use it report `focusEmulated: true` instead of passing silently.
+ *
+ * @param {{ send: (method: string, params?: object) => Promise<object> }} session
+ * @returns {Promise<string|null>} the visibility state Chrome reports afterwards
+ */
+export async function emulateFocus(session) {
+  await session.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+  const { result } = await session.send("Runtime.evaluate", {
+    expression: "document.visibilityState",
+    returnByValue: true,
+  });
+  return result?.value ?? null;
 }
 
 /**
@@ -737,16 +810,68 @@ export async function openCdpSession(targetId, opts = {}) {
   };
 }
 
+/** How many times one session may re-enable focus emulation. */
+export const MAX_THROTTLE_RECOVERIES = 3;
+
 /**
- * Open a tab that is guaranteed to be visible, re-hosting it in a new window
- * when the automation window cannot be raised.
+ * Wrap a session so a mid-run throttle heals itself instead of failing a step.
+ *
+ * The visibility of a tab is not a property the session can be trusted to hold:
+ * measured 2026-10-31, a tab that dispatched input in 13ms went back to
+ * `hidden` — and to 5s per event — seconds later, with nothing in between but a
+ * navigation. A single check at session open can therefore pass and the very
+ * first wheel event after it still times out.
+ *
+ * So recover where the failure happens: an `Input.*` timeout enables focus
+ * emulation, reports it through `onRecover`, and retries that same command.
+ * The retry budget is small and finite (`MAX_THROTTLE_RECOVERIES`), because a
+ * navigation can drop the emulation and legitimately need it again — but a
+ * fourth recovery means the machine is broken, not that we should keep trying.
+ *
+ * @param {{ sessionId?: string, send: Function, close: Function }} session
+ * @param {{ onRecover?: (detail: { method: string }) => void }} [opts]
+ * @returns {{ sessionId?: string, send: Function, close: Function, focusEmulated: () => boolean }}
+ */
+export function withThrottleRecovery(session, opts = {}) {
+  const { onRecover } = opts;
+  let emulated = false;
+  let recoveries = 0;
+  return {
+    sessionId: session.sessionId,
+    focusEmulated: () => emulated,
+    close: () => session.close(),
+    send: async (method, params, sendOpts) => {
+      try {
+        return await session.send(method, params, sendOpts);
+      } catch (err) {
+        const throttled = /^Input\./.test(method) && /throttled/.test(err.message);
+        if (!throttled || recoveries >= MAX_THROTTLE_RECOVERIES) throw err;
+        emulated = true;
+        recoveries += 1;
+        await session.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+        onRecover?.({ method });
+        return session.send(method, params, sendOpts);
+      }
+    },
+  };
+}
+
+/**
+ * Open a tab whose input dispatch is not throttled, re-hosting it in a new
+ * window when the automation window cannot be raised.
  *
  * The failure this absorbs is real and silent: with the Chrome window on
  * another macOS Space or fully occluded, a tab the proxy created dispatches
  * input at ~5s per event while every command still succeeds. The publish run
  * would then spend hours on a 300-character caption, or time out somewhere
- * unrelated. Re-hosting in a new window fixes it (8ms per event in the same
- * measurement), so the operator gets no instruction to follow.
+ * unrelated. Re-hosting in a new window usually fixes it (8ms per event in the
+ * same measurement), so the operator normally sees nothing.
+ *
+ * Both stages gate on measured dispatch latency, not on `visibilityState` — a
+ * window Chrome opened for the run was observed reporting `visible` and then
+ * throttling input seconds later (2026-10-31), so the cheap-looking check let
+ * the failure through. When neither lever works, `ensureResponsiveInput` tries
+ * focus emulation, which lifts the throttle without moving any window.
  *
  * `createTab` and `closeTab` are injected so the fallback can be tested without
  * a browser.
@@ -758,11 +883,10 @@ export async function openCdpSession(targetId, opts = {}) {
  *   closeTab?: (targetId: string) => Promise<void> | void,
  *   WebSocketImpl?: typeof WebSocket,
  *   fetchImpl?: typeof fetch,
- *   attempts?: number,
- *   sleepFn?: (ms: number) => Promise<void>,
  *   onRehost?: (reason: string) => void,
+ *   onEmulate?: () => void,
  * }} [opts]
- * @returns {Promise<{ targetId: string, session: object, window: "existing"|"new" }>}
+ * @returns {Promise<{ targetId: string, session: object, window: "existing"|"new", focusEmulated: boolean }>}
  */
 export async function openVisibleSession(url, opts = {}) {
   const {
@@ -771,9 +895,8 @@ export async function openVisibleSession(url, opts = {}) {
     closeTab = () => {},
     WebSocketImpl,
     fetchImpl,
-    attempts = 2,
-    sleepFn,
     onRehost,
+    onEmulate,
   } = opts;
   const shared = { port, WebSocketImpl, fetchImpl };
 
@@ -781,8 +904,18 @@ export async function openVisibleSession(url, opts = {}) {
   await activateTarget(firstTab, shared);
   let session = await openCdpSession(firstTab, shared);
   try {
-    await ensureForeground(session, { label: "the tab", attempts, sleepFn });
-    return { targetId: firstTab, session, window: "existing" };
+    // Probe only: a real window is a better answer than emulation, so let the
+    // failure fall through to the re-host below before emulating anything.
+    const ready = await ensureResponsiveInput(session, {
+      label: "the tab",
+      allowEmulation: false,
+    });
+    return {
+      targetId: firstTab,
+      session: withThrottleRecovery(session, { onRecover: onEmulate }),
+      window: "existing",
+      focusEmulated: ready.emulated,
+    };
   } catch (err) {
     // Close our own session before dropping the tab; the proxy tab is then
     // closed too so a failed attempt does not leave a stray tab behind.
@@ -795,15 +928,22 @@ export async function openVisibleSession(url, opts = {}) {
   await activateTarget(freshTab, shared);
   session = await openCdpSession(freshTab, shared);
   try {
-    await ensureForeground(session, { label: "the new window", attempts, sleepFn });
+    const ready = await ensureResponsiveInput(session, { label: "the new window" });
+    if (ready.emulated) onEmulate?.();
+    return {
+      targetId: freshTab,
+      session: withThrottleRecovery(session, { onRecover: onEmulate }),
+      window: "new",
+      focusEmulated: ready.emulated,
+    };
   } catch (err) {
     session.close();
     await closeTab(freshTab);
     throw new Error(
-      `input is throttled: ${err.message} Even a window Chrome opened for this run stayed hidden, ` +
+      `input is throttled: ${err.message} Even a window Chrome opened for this run stayed throttled, ` +
+        "and focus emulation did not lift it, " +
         "so this machine cannot dispatch human-speed input right now.",
       { cause: err },
     );
   }
-  return { targetId: freshTab, session, window: "new" };
 }

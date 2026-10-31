@@ -156,6 +156,7 @@ import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import { automationPort } from "./lib/cdp-profile-guard.mjs";
 import {
   clickAtPoint,
+  emulateFocus,
   openVisibleSession,
   planTyping,
   pokeEditorState,
@@ -1287,16 +1288,21 @@ async function main() {
     // starts. `openVisibleSession` checks it and, when the automation window
     // cannot be raised (another macOS Space, fully occluded), re-hosts the
     // upload in a window Chrome places on the active Space — same page, 8ms
-    // per event instead of 5s.
+    // per event instead of 5s. If even that window lands hidden, it emulates
+    // focus, which lifts the throttle without moving anything.
     const launch = await openVisibleSession(hasFlag("no-warmup") ? UPLOAD_URL : WARMUP_URL, {
       port: automationPort(),
       createTab: cdpNewTab,
       closeTab: cdpCloseTab,
       onRehost: (reason) => console.log(`      ⚠️ ${reason} — opening a new window`),
+      onEmulate: () =>
+        console.log(
+          "      ⚠️ no Chrome window could be made visible — emulating focus so input is not throttled",
+        ),
     });
     tab = launch.targetId;
     cdp = launch.session;
-    log("input", { window: launch.window });
+    log("input", { window: launch.window, focusEmulated: launch.focusEmulated });
 
     if (hasFlag("no-warmup")) {
       console.log("  0/6 warm-up skipped (--no-warmup)");
@@ -1311,6 +1317,15 @@ async function main() {
       );
       log("warmup", { skipped: false, ...warmed });
       await sleepJitter(...PUBLISH_PACING.uploadPageSettle);
+    }
+
+    // The warm-up navigates this tab through the proxy, and emulation is
+    // renderer state that a navigation can drop. Re-assert it before the steps
+    // that need trusted input — including when the recovery wrapper had to turn
+    // it on mid-warm-up, which `launch.focusEmulated` alone would miss.
+    if (launch.focusEmulated || cdp.focusEmulated?.()) {
+      const state = await emulateFocus(cdp);
+      log("input", { focusEmulated: true, reasserted: true, visibility: state });
     }
 
     console.log("  1/6 upload page open — waiting for the editor…");

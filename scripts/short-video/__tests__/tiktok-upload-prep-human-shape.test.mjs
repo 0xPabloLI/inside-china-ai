@@ -105,6 +105,10 @@ describe("pre-publish review evidence", () => {
     expect(source).toContain("openVisibleSession(");
     expect(source).toContain("createTab: cdpNewTab");
     expect(source).toContain("closeTab: cdpCloseTab");
+    // The emulated-focus fallback is not silent: the run has to say so, both on
+    // stdout and in the publish log.
+    expect(source).toContain("onEmulate:");
+    expect(source).toContain("focusEmulated");
   });
 
   it("does not run the CLI when imported", () => {

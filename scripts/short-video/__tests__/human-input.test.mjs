@@ -21,7 +21,8 @@ import {
   activateTarget,
   clickAtPoint,
   easeOutCubic,
-  ensureForeground,
+  emulateFocus,
+  ensureResponsiveInput,
   mousePath,
   openCdpSession,
   openVisibleSession,
@@ -33,6 +34,8 @@ import {
   splitGraphemes,
   typePlan,
   wheelScroll,
+  MAX_THROTTLE_RECOVERIES,
+  withThrottleRecovery,
 } from "../lib/human-input.mjs";
 
 /**
@@ -521,7 +524,16 @@ class FakeSocket {
       ).length;
       reply({ sessionId: `S-${this.sessionOrdinal + 1}` });
     } else if (frame.method === "Target.createTarget") reply({ targetId: "WIN-TAB-1" });
-    else if (frame.method === "Runtime.evaluate")
+    else if (frame.method === "Emulation.setFocusEmulationEnabled") {
+      if (frame.params?.enabled) FakeSocket.emulated = true;
+      reply({});
+    } else if (frame.method === "Input.dispatchMouseEvent") {
+      // A throttled renderer never answers; the fake returns the same error
+      // CDP produces when the caller's timeout fires.
+      const visible = FakeSocket.visibilityFor(this.sessionOrdinal ?? 0) === "visible";
+      if (visible) reply({});
+      else fail({ code: -32000, message: "Timeout" });
+    } else if (frame.method === "Runtime.evaluate")
       reply({ result: { value: FakeSocket.visibilityFor(this.sessionOrdinal ?? 0) } });
     else if (frame.method === "Target.detachFromTarget") reply({});
     else reply({ ok: true });
@@ -532,10 +544,15 @@ class FakeSocket {
 }
 FakeSocket.instances = [];
 FakeSocket.refuseMethod = null;
+// Focus emulation is a browser-level fact: once enabled, every session on this
+// browser reports visible, which is what the real one does.
+FakeSocket.emulated = false;
 // Per-attach visibility; the last entry repeats for later tabs.
 FakeSocket.visibility = ["visible"];
 FakeSocket.visibilityFor = (ordinal) =>
-  FakeSocket.visibility[Math.min(ordinal, FakeSocket.visibility.length - 1)];
+  FakeSocket.emulated
+    ? "visible"
+    : FakeSocket.visibility[Math.min(ordinal, FakeSocket.visibility.length - 1)];
 
 const fakeFetch = async () => ({
   json: async () => ({ webSocketDebuggerUrl: "ws://127.0.0.1:9229/devtools/browser/fake" }),
@@ -572,41 +589,110 @@ describe("activateTarget", () => {
   });
 });
 
-describe("ensureForeground", () => {
-  const sessionWith = (values) => {
+describe("ensureResponsiveInput", () => {
+  /** Session whose input dispatch fails while it is throttled. */
+  const sessionWith = (throttled = true) => {
     const sent = [];
-    let i = 0;
+    let slow = throttled;
     return {
       sent,
-      send: async (method) => {
+      send: async (method, params = {}) => {
         sent.push(method);
-        if (method === "Runtime.evaluate") {
-          const value = values[Math.min(i, values.length - 1)];
-          i += 1;
-          return { result: { value } };
+        if (method === "Emulation.setFocusEmulationEnabled") {
+          if (params.enabled) slow = false;
+          return {};
         }
+        if (method === "Input.dispatchMouseEvent") {
+          if (slow) throw new Error("CDP -32000: Timeout");
+          return {};
+        }
+        if (method === "Runtime.evaluate")
+          return { result: { value: slow ? "hidden" : "visible" } };
         return {};
       },
     };
   };
-  const noSleep = async () => {};
 
-  it("returns once the tab reports visible", async () => {
-    const session = sessionWith(["visible"]);
-    await expect(ensureForeground(session, { sleepFn: noSleep })).resolves.toBe("visible");
+  it("returns the measured latency when input already dispatches fast", async () => {
+    const session = sessionWith(false);
+    const ready = await ensureResponsiveInput(session);
+    expect(ready.emulated).toBe(false);
+    expect(ready.latencyMs).toBeGreaterThanOrEqual(0);
     expect(session.sent).toContain("Page.bringToFront");
   });
 
-  it("retries a hidden tab before giving up", async () => {
-    const session = sessionWith(["hidden", "hidden", "visible"]);
-    await expect(ensureForeground(session, { sleepFn: noSleep })).resolves.toBe("visible");
+  it("emulates focus when the first dispatch times out", async () => {
+    // 2026-10-31: this took the same tab from 5s per event to 3ms.
+    const session = sessionWith(true);
+    const ready = await ensureResponsiveInput(session, { label: "upload tab" });
+    expect(ready.emulated).toBe(true);
+    expect(session.sent).toContain("Emulation.setFocusEmulationEnabled");
   });
 
-  it("throws with the instruction instead of running at ~5s per event", async () => {
-    const session = sessionWith(["hidden"]);
-    await expect(
-      ensureForeground(session, { sleepFn: noSleep, label: "upload tab" }),
-    ).rejects.toThrow(/upload tab is hidden.*Bring the Chrome window to the front/s);
+  it("throws with the instruction when emulation does not lift the throttle", async () => {
+    const session = sessionWith(true);
+    const original = session.send;
+    session.send = async (method, params = {}) => {
+      if (method === "Emulation.setFocusEmulationEnabled") throw new Error("CDP -32601: not found");
+      return original(method, params);
+    };
+    await expect(ensureResponsiveInput(session, { label: "upload tab" })).rejects.toThrow(
+      /upload tab cannot receive input.*Bring the Chrome window to the front/s,
+    );
+  });
+});
+
+describe("withThrottleRecovery", () => {
+  const throttledSession = (failures) => {
+    const sent = [];
+    let remaining = failures;
+    return {
+      sessionId: "S-1",
+      sent,
+      send: async (method, params = {}) => {
+        sent.push(method);
+        if (method === "Emulation.setFocusEmulationEnabled") return {};
+        if (method === "Input.dispatchMouseEvent" && remaining > 0) {
+          remaining -= 1;
+          throw new Error("CDP command timed out after 3000ms — the tab is throttled");
+        }
+        return { ok: true };
+      },
+    };
+  };
+
+  it("heals the first throttled dispatch and retries it once", async () => {
+    const inner = throttledSession(1);
+    const recovered = [];
+    const session = withThrottleRecovery(inner, { onRecover: (d) => recovered.push(d.method) });
+    await expect(session.send("Input.dispatchMouseEvent", { type: "mouseWheel" })).resolves.toEqual(
+      { ok: true },
+    );
+    expect(inner.sent).toContain("Emulation.setFocusEmulationEnabled");
+    expect(recovered).toEqual(["Input.dispatchMouseEvent"]);
+    expect(session.focusEmulated()).toBe(true);
+  });
+
+  it("stops after the bounded number of recoveries instead of looping", async () => {
+    // Each failed send gets one heal-and-retry. A navigation can drop the
+    // emulation, so a second recovery is legitimate; a fourth means the machine
+    // is broken, not that we should keep trying.
+    const inner = throttledSession(Number.POSITIVE_INFINITY);
+    const session = withThrottleRecovery(inner);
+    for (let i = 0; i < MAX_THROTTLE_RECOVERIES + 1; i++) {
+      await expect(session.send("Input.dispatchMouseEvent", {})).rejects.toThrow(/throttled/);
+    }
+    const emulations = inner.sent.filter((m) => m === "Emulation.setFocusEmulationEnabled");
+    expect(emulations).toHaveLength(MAX_THROTTLE_RECOVERIES);
+  });
+
+  it("leaves non-input commands alone", async () => {
+    const inner = throttledSession(1);
+    const session = withThrottleRecovery(inner);
+    await expect(session.send("Runtime.evaluate", { expression: "1" })).resolves.toEqual({
+      ok: true,
+    });
+    expect(inner.sent).not.toContain("Emulation.setFocusEmulationEnabled");
   });
 });
 
@@ -631,6 +717,7 @@ describe("openWindowTarget", () => {
 describe("openVisibleSession", () => {
   const cycle = (states) => {
     FakeSocket.visibility = states;
+    FakeSocket.emulated = false;
     FakeSocket.instances = [];
   };
 
@@ -665,26 +752,83 @@ describe("openVisibleSession", () => {
     });
     expect(opened).toMatchObject({ targetId: "WIN-TAB-1", window: "new" });
     expect(closed).toEqual(["TAB-1"]);
-    expect(reasons[0]).toMatch(/hidden/);
+    // The re-host reason is the measured latency, not a visibility flag: a tab
+    // can report visible and still be throttled (2026-10-31).
+    expect(reasons[0]).toMatch(/too slowly/);
     const create = FakeSocket.instances
       .flatMap((s) => s.sent)
       .find((f) => f.method === "Target.createTarget");
     expect(create.params).toEqual({ url: "https://example.test/upload", newWindow: true });
   });
 
-  it("throws an actionable error when even a fresh window is hidden", async () => {
+  it("falls back to focus emulation when even a fresh window stays hidden", async () => {
+    // Measured 2026-10-31: on a hidden tab, `Emulation.setFocusEmulationEnabled`
+    // flipped `document.visibilityState` to "visible" and two input dispatches
+    // took 20ms total where each previously hit a 3s timeout.
+    cycle(["hidden"]);
+    const emulated = [];
+    const opened = await openVisibleSession("https://example.test/upload", {
+      createTab: async () => "TAB-1",
+      sleepFn: async () => {},
+      onEmulate: () => emulated.push(true),
+      WebSocketImpl: FakeSocket,
+      fetchImpl: fakeFetch,
+    });
+    expect(opened).toMatchObject({
+      targetId: "WIN-TAB-1",
+      window: "new",
+      focusEmulated: true,
+    });
+    expect(emulated).toHaveLength(1);
+    const emulation = FakeSocket.instances
+      .flatMap((s) => s.sent)
+      .find((f) => f.method === "Emulation.setFocusEmulationEnabled");
+    expect(emulation.params).toEqual({ enabled: true });
+  });
+
+  it("reports focusEmulated false when a native window was visible", async () => {
+    cycle(["hidden", "visible"]);
+    const opened = await openVisibleSession("https://example.test/upload", {
+      createTab: async () => "TAB-1",
+      sleepFn: async () => {},
+      WebSocketImpl: FakeSocket,
+      fetchImpl: fakeFetch,
+    });
+    expect(opened.focusEmulated).toBe(false);
+  });
+
+  it("throws an actionable error when emulation is unavailable too", async () => {
     cycle(["hidden"]);
     const closed = [];
-    await expect(
-      openVisibleSession("https://example.test/upload", {
-        createTab: async () => "TAB-1",
-        closeTab: (id) => closed.push(id),
-        sleepFn: async () => {},
-        WebSocketImpl: FakeSocket,
-        fetchImpl: fakeFetch,
-      }),
-    ).rejects.toThrow(/input is throttled.*Bring the Chrome window to the front/s);
+    FakeSocket.refuseMethod = "Emulation.setFocusEmulationEnabled";
+    try {
+      await expect(
+        openVisibleSession("https://example.test/upload", {
+          createTab: async () => "TAB-1",
+          closeTab: (id) => closed.push(id),
+          sleepFn: async () => {},
+          WebSocketImpl: FakeSocket,
+          fetchImpl: fakeFetch,
+        }),
+      ).rejects.toThrow(/input is throttled.*Bring the Chrome window to the front/s);
+    } finally {
+      FakeSocket.refuseMethod = null;
+    }
     expect(closed).toEqual(["TAB-1", "WIN-TAB-1"]);
+  });
+});
+
+describe("emulateFocus", () => {
+  it("enables emulation and reports the state Chrome now sees", async () => {
+    FakeSocket.emulated = false;
+    FakeSocket.instances = [];
+    const session = await openCdpSession("TAB-1", {
+      WebSocketImpl: FakeSocket,
+      fetchImpl: fakeFetch,
+    });
+    await expect(emulateFocus(session)).resolves.toBe("visible");
+    expect(FakeSocket.emulated).toBe(true);
+    session.close();
   });
 });
 

@@ -70,7 +70,13 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 
 结果写在 `output/{content}/publish/tiktok/publish-log.jsonl`（每步一行 JSON，含 `step: "review"` 与 `reviewed`）。运行时自检：`node scripts/short-video/human-input-selftest.mjs`（断言页面收到的每个事件都是 trusted、零 paste）。
 
-> 输入必须落在前台标签页：后台标签的 CDP 输入派发会被节流（实测同一条 14 点轨迹前台 0.33s、后台 65s）。脚本在开标签页时激活一次（`openVisibleSession`：`Target.activateTarget` → 新建窗口重挂 → 读 `document.visibilityState`，三次仍 hidden 就报错退出），此后不再逐步激活——`Target.activateTarget` 返回 ok 也不代表可见，窗口在别的 Space 或被遮挡时标签页仍是 `hidden`。所以运行过程中别把 Chrome 切走或最小化：一旦失焦，后续输入会以 `Input.*` 超时的形式失败，而不是静默跑完。
+> 输入必须落在前台标签页：后台标签的 CDP 输入派发会被节流（实测同一条 14 点轨迹前台 0.33s、后台 65s）。`Target.activateTarget` 返回 ok 不代表可见，窗口在别的 Space 或被遮挡时标签页仍是 `hidden`。
+>
+> 脚本不再要求人工切窗口，判据也从「标签页可见」换成了「输入派发是否真的快」——两者会不一致：2026-10-31 实测一个新窗口在检查时自报 `visible`、几秒后变回 `hidden`，可见性检查放行、紧接着的 wheel 就 3s 超时。`openVisibleSession` 现在派发一个 `mouseMoved` 量延迟（健康 3–13ms，节流约 5s），慢了就先重挂到新窗口；新窗口也慢就开 `Emulation.setFocusEmulationEnabled`（实测同一标签页 5018ms → 3ms）。
+>
+> 跑起来之后仍有自愈：任何 `Input.*` 超时都会触发一次「开焦点模拟 + 重试该命令」（每会话最多 3 次，因为导航可能把模拟状态清掉），失败才会向上抛。用了这条路会在 stdout 与 `publish-log.jsonl` 里记 `focusEmulated: true`。
+>
+> 注意它**不改变真实窗口状态**——是「闸门解除」而不是「窗口到前台了」，所以页面自身基于失焦的行为（例如 blur 处理）在这种模式下不会发生；页面能不能加载则完全取决于网络，代理断了照样失败。
 
 ### 发布后自动提示
 
