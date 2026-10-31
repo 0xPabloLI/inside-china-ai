@@ -1010,6 +1010,10 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
               }
               return probe.text;
             },
+            // The probe forces Draft to rebuild the block, which can shift the
+            // block-boundary newlines `innerText` renders. Compare the way the
+            // final verification does, or a successful poke reports a loss.
+            sameText: (a, b) => normalizeCaption(a) === normalizeCaption(b),
           });
           await sleepJitter(...PUBLISH_PACING.captionSettleAfterTyping);
           return { plan, typedMs: Date.now() - started, beforePoke, poke };

@@ -560,11 +560,22 @@ const BACKSPACE_KEY = { key: "Backspace", code: "Backspace", windowsVirtualKeyCo
  * Without `measure` the function keeps its old fire-and-forget contract; the
  * caller that cannot read the editor (selftest) does not need the guard.
  *
+ * Two comparisons, deliberately different, and `sameText` only governs the
+ * second:
+ *
+ *   - "did the space land" is a RAW change. A trailing space is whitespace, so
+ *     any trimming comparator would answer "nothing changed" every time and the
+ *     probe could never run.
+ *   - "did the Backspace restore the text" goes through `sameText`, because this
+ *     operation just forced Draft to rebuild its block and can legitimately
+ *     shift block boundaries (the extra newlines `innerText` renders) without
+ *     losing a character. Comparing raw there reports a loss that did not happen.
+ *
  * @param {{ send: (method: string, params?: object) => Promise<object> }} session
- * @param {{ measure?: () => Promise<string> }} [opts]
+ * @param {{ measure?: () => Promise<string>, sameText?: (a: string, b: string) => boolean }} [opts]
  * @returns {Promise<{ spaced: boolean, restored: boolean|null, attempts: number }>}
  */
-export async function pokeEditorState(session, { measure } = {}) {
+export async function pokeEditorState(session, { measure, sameText = (a, b) => a === b } = {}) {
   if (!measure) {
     await session.send("Input.insertText", { text: " " });
     await pressKey(session, BACKSPACE_KEY);
@@ -586,7 +597,7 @@ export async function pokeEditorState(session, { measure } = {}) {
   if (!spaced) return { spaced: false, restored: null, attempts };
 
   await pressKey(session, BACKSPACE_KEY);
-  return { spaced: true, restored: (await measure()) === before, attempts };
+  return { spaced: true, restored: sameText(await measure(), before), attempts };
 }
 
 /**

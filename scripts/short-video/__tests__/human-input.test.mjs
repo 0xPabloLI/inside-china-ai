@@ -684,6 +684,41 @@ describe("pokeEditorState", () => {
     expect(result).toEqual({ spaced: true, restored: true, attempts: 2 });
     expect(text).toBe("caption");
   });
+
+  it("reports a restore through the caller's comparator, not raw text", async () => {
+    // The probe forces Draft to rebuild its block, which can add or collapse the
+    // block-boundary newlines `innerText` renders. Raw compare calls that a loss.
+    let text = "line one\nline two";
+    const session = {
+      sends: 0,
+      async send(method, params = {}) {
+        if (method === "Input.insertText") {
+          this.sends += 1;
+          text += params.text;
+        }
+        if (
+          method === "Input.dispatchKeyEvent" &&
+          params.type === "keyDown" &&
+          params.key === "Backspace"
+        ) {
+          // Draft rebuilds the block on delete: same text, one extra newline.
+          text = "line one\n\nline two";
+        }
+        return {};
+      },
+    };
+
+    const raw = await pokeEditorState(session, { measure: async () => text });
+    expect(raw.restored).toBe(false); // what the exact compare would have logged
+
+    text = "line one\nline two";
+    session.sends = 0;
+    const normalized = await pokeEditorState(session, {
+      measure: async () => text,
+      sameText: (a, b) => a.replace(/\s+/g, " ") === b.replace(/\s+/g, " "),
+    });
+    expect(normalized.restored).toBe(true);
+  });
 });
 
 // ─── CDP session ───
