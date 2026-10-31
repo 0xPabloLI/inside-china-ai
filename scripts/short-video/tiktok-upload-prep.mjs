@@ -1039,20 +1039,34 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
         `want ${caption.length}: ${JSON.stringify(after.text.slice(0, 80))}`,
     );
   }
-  // Name the stage that actually lost the text: `typing` means a keystroke never
-  // landed, `poke` means the re-render probe did, `after-poke` means neither.
-  const stage = !typed
-    ? "paste"
-    : typed.beforePoke?.ok && normalizeCaption(typed.beforePoke.text) !== want
-      ? "typing"
-      : typed.poke?.spaced === false || typed.poke?.restored === false
-        ? "poke"
-        : "after-poke";
+  // Name the stage that actually lost the text, so the next failure says where
+  // to look instead of only that something went wrong.
+  const stage = classifyLossStage(typed, want);
   console.log(
     `      ⚠️ typed caption did not verify (${read.len} chars, lost at: ${stage}) — ` +
       "replaced it with one paste",
   );
   return { mode: "paste-fallback", len: after.len, typedMs: typed?.typedMs, lostAt: stage };
+}
+
+/**
+ * Which step lost the caption: the typing loop, the re-render probe, or the
+ * moment after it.
+ *
+ * `after-poke` is the interesting one and not a fall-through: the DOM text and
+ * the probe's own measurement both looked right, and the caption still came out
+ * wrong once Draft rebuilt its block — precisely the failure the probe exists to
+ * surface (the 2026-10-24 draft lost 708 of 1223 characters this way).
+ *
+ * @param {{ beforePoke?: { ok: boolean, text: string }, poke?: { spaced: boolean, restored: boolean|null } } | null} typed
+ * @param {string} want
+ * @returns {"paste"|"typing"|"poke"|"after-poke"}
+ */
+function classifyLossStage(typed, want) {
+  if (!typed) return "paste"; // --paste-caption: no typing happened
+  if (!typed.beforePoke?.ok || normalizeCaption(typed.beforePoke.text) !== want) return "typing";
+  if (typed.poke?.spaced === false || typed.poke?.restored === false) return "poke";
+  return "after-poke";
 }
 
 /**

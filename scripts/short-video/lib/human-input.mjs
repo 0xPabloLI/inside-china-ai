@@ -533,7 +533,7 @@ export async function pressKey(session, key) {
   await session.send("Input.dispatchKeyEvent", { type: "keyUp", ...base });
 }
 
-/** How many times the probe space may be re-sent before giving up on it. */
+/** Total space sends allowed, the first one included — not retries on top of it. */
 const POKE_SPACE_ATTEMPTS = 2;
 
 const BACKSPACE_KEY = { key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 };

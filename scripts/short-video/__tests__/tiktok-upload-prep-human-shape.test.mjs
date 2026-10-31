@@ -220,4 +220,14 @@ describe("the driver's input shape", () => {
     expect(typed).toBeGreaterThan(-1);
     expect(pasteFallback).toBeGreaterThan(typed);
   });
+
+  it("keeps every paste-fallback stage name reachable in principle", () => {
+    // `after-poke` is not a fall-through to delete: the DOM text and the probe's
+    // own measurement can both look right while Draft rebuilds its block and
+    // drops the text — the 708-of-1223 failure `pokeEditorState` exists for.
+    // A reviewer read it as dead code once; this pins the intent.
+    for (const stage of ["paste", "typing", "poke", "after-poke"]) {
+      expect(source, `loss stage ${stage} missing`).toContain(`"${stage}"`);
+    }
+  });
 });
