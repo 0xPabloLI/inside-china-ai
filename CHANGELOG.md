@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.49.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.48.0...tanstack_start_ts-v1.49.0) (2026-10-31)
+
+
+### Features
+
+* **competitor:** shot-cut second time source for collapsed timelines ([#1069](https://github.com/0xPabloLI/inside-china-ai/issues/1069)) ([c1f86d6](https://github.com/0xPabloLI/inside-china-ai/commit/c1f86d628c44ae64d017ec53c215dc81bd514a8c))
+
 ## [1.48.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.47.0...tanstack_start_ts-v1.48.0) (2026-10-31)
 
 
