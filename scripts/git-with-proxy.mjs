@@ -17,7 +17,10 @@
  *   npm run git:proxy -- push -u origin session/foo
  *   npm run git:proxy -- fetch origin main
  *   npm run git:proxy -- --print-url         # resolve and print, nothing else
- *   npm run git:proxy -- --direct -- fetch   # run without a proxy, knowingly
+ *   npm run git:proxy -- --direct -- fetch   # run anyway when nothing resolves
+ *
+ * `--direct` is a refusal override, not a detour: it changes nothing while a
+ * proxy does resolve, and only decides what happens when none does.
  *
  * Two behaviours worth knowing:
  *   - Nothing forwards → git does **not** run. Every mode exits 3 with the probe
@@ -49,7 +52,8 @@ const USAGE = `usage:
   node scripts/git-with-proxy.mjs -- <git args...>    run git through that proxy
 
 options:
-  --direct    run git without a proxy when none resolves (default: refuse)
+  --direct    when nothing resolves, run git without a proxy (default: refuse);
+              no effect when one does resolve
   --help      this text
 
 exit codes:
