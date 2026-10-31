@@ -1074,7 +1074,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       ? opts.relevanceThreshold
       : DEFAULT_RELEVANCE_THRESHOLD;
   const reusedCap = typeof opts.reusedCap === "number" ? opts.reusedCap : 0.4;
-  // Read once: the body's composition does not change while assigning.
+  // Read once each: the body's composition does not change while assigning.
   const hookRequiredFit = hookRequiredFitFor(scenes);
   // A pack that declares body fits has already answered the hook question;
   // one that does not composes each hook from its own source aspect.
@@ -1519,8 +1519,9 @@ export async function analyzeAssets(assets, opts = {}) {
   // #963: seed dimensions from search metadata before the real measurements
   // overwrite them (focus frame for images, ffprobe for videos). The artifact
   // and the composition rule both read width/height; a source that only
-  // reported `resolution` should not audit as null.
-  for (const asset of analyzableAssets) {
+  // reported `resolution` should not audit as null — including rows the
+  // pre-filter skipped, which still appear in asset-analysis.json.
+  for (const asset of assets) {
     if (asset.width > 0 && asset.height > 0) continue;
     const dims = parseResolutionDimensions(asset.resolution);
     if (dims) {

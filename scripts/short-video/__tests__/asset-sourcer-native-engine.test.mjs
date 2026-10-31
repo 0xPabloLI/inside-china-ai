@@ -131,6 +131,19 @@ describe("analyzeAssets — native video engine (#542)", () => {
     expect(assets[0].height).toBe(1920);
   });
 
+  it("#963: seeds dimensions from resolution when no measurement exists", async () => {
+    mockProbeMedia.mockReturnValue(null);
+    mockDetectFocus.mockResolvedValue({ status: "degraded", frame: null });
+    const assets = [
+      { path: "/abs/clip.mp4", type: "video", searchKeyword: "test", resolution: "1280x720" },
+    ];
+
+    await analyzeAssets(assets);
+
+    expect(assets[0].width).toBe(1280);
+    expect(assets[0].height).toBe(720);
+  });
+
   it("L3: feeds the A1 transcript and records the provenance", async () => {
     mockAnalyzeAssetSemantics.mockResolvedValue({
       ...FULL_SEMANTICS,
