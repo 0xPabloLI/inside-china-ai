@@ -116,11 +116,12 @@ async function main() {
   }
 
   // ── --tts-plan: zero side-effect spend preview (#953) ──
-  // The planner is pure local I/O, so it runs BEFORE the CDP/ASR/ASS
-  // preflights, the profiler and the output-directory creation: the flag must
-  // answer "what will this edit cost?" without requiring the environment a
-  // real run needs. Normalization mirrors Steps 0.5/0.6 on a clone — cache
-  // keys are computed from the normalized spoken text.
+  // Planning is local (no GPU, no writes; engine selection runs local CLI
+  // version probes), so it runs BEFORE the CDP/ASR/ASS preflights, the
+  // profiler and the output-directory creation: the flag must answer "what
+  // will this edit cost?" without requiring the environment a real run needs.
+  // Normalization mirrors Steps 0.5/0.6 on a clone — cache keys are computed
+  // from the normalized spoken text.
   if (args.includes("--tts-plan")) {
     try {
       const { previewTtsPlan } = await import("./lib/tts/preview.mjs");

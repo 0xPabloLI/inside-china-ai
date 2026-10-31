@@ -272,6 +272,9 @@ describe("keys match the real cache after preview normalization", () => {
 
 describe("previewTtsPlan mirrors the real run (#953)", () => {
   const engine = { name: "fake", info: "Fake engine (speed=1)" };
+  // The fake engine skips the quality gate by design; pacing tests need a
+  // descriptor the run would actually gate.
+  const realEngine = { name: "cosyvoice3-mlx", info: "CosyVoice3-MLX (speed=1)" };
 
   it("honours TTS_NO_CACHE=1 instead of reporting cache hits", async () => {
     const dir = mkdtempSync(join(tmpdir(), "tts-preview-nocache-"));
@@ -303,15 +306,15 @@ describe("previewTtsPlan mirrors the real run (#953)", () => {
       };
       writeFileSync(join(dir, "scene-1.wav"), "fake wav");
       writeSceneMeta(dir, 1, {
-        key: computeSceneKey(engine, hook.voiceover, 1.0),
+        key: computeSceneKey(realEngine, hook.voiceover, 1.0),
         duration: 3.0,
-        engine: engine.name,
+        engine: realEngine.name,
         audioPath: join(dir, "scene-1.wav"),
       });
       const { report } = await previewTtsPlan({
         scenes: [hook],
         audioDir: dir,
-        engine,
+        engine: realEngine,
         env: { TTS_SKIP_QUALITY_GATE: "1" },
       });
       expect(report.pacing).toBeNull();
@@ -332,13 +335,18 @@ describe("previewTtsPlan mirrors the real run (#953)", () => {
       };
       writeFileSync(join(dir, "scene-1.wav"), "compensated-take");
       writeSceneMeta(dir, 1, {
-        key: computeSceneKey(engine, hook.voiceover, 1.2),
+        key: computeSceneKey(realEngine, hook.voiceover, 1.2),
         duration: 3.0,
-        engine: engine.name,
+        engine: realEngine.name,
         audioPath: join(dir, "scene-1.wav"),
         ttsSpeed: 1.2,
       });
-      const { report } = await previewTtsPlan({ scenes: [hook], audioDir: dir, engine, env: {} });
+      const { report } = await previewTtsPlan({
+        scenes: [hook],
+        audioDir: dir,
+        engine: realEngine,
+        env: {},
+      });
       expect(report.approvedCount).toBe(1);
       expect(report.pacing.compensations).toHaveLength(1);
       // Without seeding scene.ttsSpeed from the take, the hook floor would
@@ -361,6 +369,23 @@ describe("previewTtsPlan mirrors the real run (#953)", () => {
       // The authored array is never mutated.
       expect(scenes[0].ttsText).toBeUndefined();
       expect(scenes[0].ttsSpeed).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the word hints under TTS_NO_CACHE (all scenes regenerate)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "tts-preview-nocache-hints-"));
+    try {
+      const longLine = Array.from({ length: 30 }, (_, i) => `word${i}`).join(" ");
+      const { report } = await previewTtsPlan({
+        scenes: [scene(1, longLine)],
+        audioDir: dir,
+        engine,
+        env: { TTS_NO_CACHE: "1" },
+      });
+      expect(report.hints).toHaveLength(1);
+      expect(report.hints[0]).toMatch(/one-breath/i);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

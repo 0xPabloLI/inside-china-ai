@@ -217,7 +217,9 @@ function formatPacingLines(pacing) {
   const rerolls = pacing.rerolls ?? [];
   const lines = [];
   if (Array.isArray(pacing.evaluations) && pacing.evaluations.length === 0) {
-    lines.push("   🧭 pacing precheck (approved takes): no approved takes to judge");
+    lines.push(
+      "   🧭 pacing precheck (approved takes): no usable approved take to judge (missing duration/WPM)",
+    );
     return lines;
   }
   if (compensations.length === 0 && rerolls.length === 0) {

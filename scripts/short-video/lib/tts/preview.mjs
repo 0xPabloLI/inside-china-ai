@@ -20,7 +20,7 @@ import { planTtsScenes } from "./cache.mjs";
 import { qualityGateSkipped } from "./failure-class.mjs";
 import { planCachedPacing } from "./pacing-plan.mjs";
 import { buildTtsPlan, prepareScenesForPlan } from "./plan-report.mjs";
-import { selectEngine } from "./registry.mjs";
+import { isFakeEngine, selectEngine } from "./registry.mjs";
 
 /**
  * @param {object} args
@@ -45,9 +45,11 @@ export async function previewTtsPlan({
 
   const pacingSkipped = !useCache
     ? "cache disabled (TTS_NO_CACHE=1)"
-    : qualityGateSkipped(env)
-      ? "quality gate skipped (TTS_SKIP_QUALITY_GATE=1)"
-      : null;
+    : isFakeEngine(selectedEngine)
+      ? "fake engine (quality gate skipped)"
+      : qualityGateSkipped(env)
+        ? "quality gate skipped (TTS_SKIP_QUALITY_GATE=1)"
+        : null;
 
   let pacing = null;
   if (useCache && plan && !pacingSkipped) {
@@ -61,7 +63,9 @@ export async function previewTtsPlan({
     pacing = await planCachedPacing(plannedScenes, plan.approved);
   }
 
-  const hints = plan ? await pendingWordHints(plan) : [];
+  // Hints cover everything this run will generate — under TTS_NO_CACHE that is
+  // all scenes, not an empty plan.
+  const hints = await pendingWordHints(useCache ? (plan?.pending ?? []) : plannedScenes);
   const report = buildTtsPlan({
     engine: selectedEngine,
     scenes: plannedScenes,
@@ -80,13 +84,13 @@ export async function previewTtsPlan({
  * Long lines are the ones that come back needing a pacing reroll, i.e. a
  * second batch; naming them before the first batch is the point.
  *
- * @param {{pending: Array<object>}} plan
+ * @param {Array<object>} pendingScenes
  * @returns {Promise<string[]>}
  */
-async function pendingWordHints(plan) {
-  if (!plan || plan.pending.length === 0) return [];
+async function pendingWordHints(pendingScenes) {
+  if (!pendingScenes || pendingScenes.length === 0) return [];
   const { checkOneBreath } = await import("../scene-rules.mjs");
-  const result = checkOneBreath(plan.pending)[0];
+  const result = checkOneBreath(pendingScenes)[0];
   if (!result || result.level !== "warn") return [];
   return [`${result.check} — ${result.detail}; split long lines before paying for a batch`];
 }

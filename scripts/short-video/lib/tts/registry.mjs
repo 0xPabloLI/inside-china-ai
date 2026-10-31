@@ -538,6 +538,18 @@ async function finalizeTtsResults(
 }
 
 /**
+ * Test/demo engines advertise "fake" in name or info; the Quality Gate (and
+ * with it the pacing ladder) is skipped for them. Single source, shared with
+ * the dry-run preview (#953) so the preview does not plan pacing the run skips.
+ */
+export function isFakeEngine(engine) {
+  return Boolean(
+    (engine?.name && engine.name.toLowerCase().includes("fake")) ||
+    (engine?.info && engine.info.toLowerCase().includes("fake")),
+  );
+}
+
+/**
  * generateTTS with an injected engine — the testable seam.
  *
  * @param {Array} scenes - Scene objects with {id, voiceover}
@@ -620,10 +632,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     toGenerate = plan.pending;
   }
 
-  const isFakeEngine =
-    (engine.name && engine.name.toLowerCase().includes("fake")) ||
-    (engine.info && engine.info.toLowerCase().includes("fake"));
-  const skipQualityGate = options.skipQualityGate ?? (isFakeEngine || qualityGateSkipped());
+  const skipQualityGate = options.skipQualityGate ?? (isFakeEngine(engine) || qualityGateSkipped());
 
   // Everything this run must (re-)verify: fresh generations plus candidates
   // whose audio already exists on disk (#423).

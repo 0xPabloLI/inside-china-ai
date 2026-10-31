@@ -385,8 +385,9 @@ if (sceneResults.editorial.length > 0) {
 // ─── TTS cache & cost plan (pre-render only, #953) ───
 // The preflight runs before Step 1, which is exactly the decision point the
 // author is at: "should I edit one more line, and what does that cost?".
-// Planning is pure local I/O; the scenes are cloned and normalized the same
-// way main.mjs normalizes them, so cache keys match the real run without
+// Planning is local (no GPU, no writes; engine selection runs local CLI
+// version probes); the scenes are cloned and normalized the same way
+// main.mjs normalizes them, so cache keys match the real run without
 // mutating the authored data the checks above just judged.
 if (preMode) {
   console.log("");
