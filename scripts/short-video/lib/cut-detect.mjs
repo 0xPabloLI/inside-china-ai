@@ -22,7 +22,7 @@
  */
 
 import { spawnSync } from "child_process";
-import { existsSync } from "fs";
+import { ffmpegMeasureCmd } from "./tts/ffmpeg-cmd.mjs";
 
 /**
  * Default scene-score threshold.
@@ -39,11 +39,6 @@ import { existsSync } from "fs";
  */
 export const DEFAULT_CUT_THRESHOLD = 0.15;
 
-const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
-// Decode-only pass: prefer the full build the rest of the pipeline pins, but
-// fall back to PATH rather than losing the second source on a host without it
-// (the TTS measurement policy is PATH-resolved for the same reason).
-const FFMPEG = process.env.CUT_DETECT_FFMPEG || (existsSync(FFMPEG_FULL) ? FFMPEG_FULL : "ffmpeg");
 const SCENE_PTS_RE = /pts_time:([0-9]+(?:\.[0-9]+)?)/g;
 const DEFAULT_TIMEOUT_MS = 120_000;
 
@@ -108,11 +103,12 @@ export function detectCuts(
 ) {
   const filter = `select='gt(scene,${threshold})',showinfo`;
   // spawnSync (not execFileSync): showinfo writes to stderr, and execFileSync
-  // only returns stdout. The binary is the module constant, never a parameter:
-  // a function-argument executable is a taint sink Semgrep flags as command
-  // injection (tests inject behaviour by mocking spawnSync, not the binary).
+  // only returns stdout. The binary is the shared measurement-only constant,
+  // never a function parameter: a parameter here is a tainted child_process
+  // sink (Semgrep detect-child-process) and tests inject behaviour by mocking
+  // spawnSync, not the binary.
   const result = spawnSync(
-    FFMPEG,
+    ffmpegMeasureCmd,
     [
       "-hide_banner",
       "-nostats",
