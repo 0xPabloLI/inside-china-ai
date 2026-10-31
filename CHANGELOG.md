@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.47.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.46.1...tanstack_start_ts-v1.47.0) (2026-10-31)
+
+
+### Features
+
+* **tts:** surface the TTS cache plan and cost before the batch ([#953](https://github.com/0xPabloLI/inside-china-ai/issues/953)) ([1a0675b](https://github.com/0xPabloLI/inside-china-ai/commit/1a0675b5b96cff8102775f66a063dfd1b64505fa))
+
 ## [1.46.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.46.0...tanstack_start_ts-v1.46.1) (2026-10-31)
 
 
