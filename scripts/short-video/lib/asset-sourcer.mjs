@@ -275,6 +275,22 @@ export function hookRequiredFitFor(scenes = []) {
 export const LANDSCAPE_MIN_ASPECT = 1.2;
 
 /**
+ * Parse a "WxH" source-resolution string (Pexels et al.) into dimensions.
+ * Returns null for anything unparseable ("vertical", "720p", absent).
+ *
+ * @param {string} [resolution]
+ * @returns {{width: number, height: number} | null}
+ */
+export function parseResolutionDimensions(resolution) {
+  if (typeof resolution !== "string") return null;
+  const match = resolution.match(/(\d+)\s*[x×]\s*(\d+)/i);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+/**
  * Source aspect ratio (width / height), or null when the asset carries no
  * usable dimensions.
  *
@@ -294,11 +310,11 @@ export function assetAspectRatio(asset) {
     width = Number(frame?.width);
     height = Number(frame?.height);
   }
-  if (!(width > 0 && height > 0) && typeof asset.resolution === "string") {
-    const match = asset.resolution.match(/(\d+)\s*[x×]\s*(\d+)/i);
-    if (match) {
-      width = Number(match[1]);
-      height = Number(match[2]);
+  if (!(width > 0 && height > 0)) {
+    const dims = parseResolutionDimensions(asset.resolution);
+    if (dims) {
+      width = dims.width;
+      height = dims.height;
     }
   }
   if (!(width > 0 && height > 0)) return null;
@@ -1030,9 +1046,9 @@ function isRejectedFor(asset, scene) {
  *     media-bottom-bar, hook), third-party landscape sources (aspect >=
  *     LANDSCAPE_MIN_ASPECT) are written with fit:"contain" so cover cannot
  *     crop them. Portrait/square sources keep cover, and layouts without the
- *     band (info-card/context/contrast backgrounds) keep cover too. A hook
- *     follows the pack's declared body majority when there is one; otherwise
- *     its own source aspect
+ *     band (info-card/context/contrast backgrounds) keep their existing fit —
+ *     the landscape default is not applied there. A hook follows the pack's
+ *     declared body majority when there is one; otherwise its own source aspect
  *   - assigned entries carry relevanceScore/relevanceSource/relevanceReason/reused
  *
  * @param {Array} assets - Downloaded assets (each must have score, type, path)
@@ -1059,11 +1075,12 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       : DEFAULT_RELEVANCE_THRESHOLD;
   const reusedCap = typeof opts.reusedCap === "number" ? opts.reusedCap : 0.4;
   // Read once: the body's composition does not change while assigning.
-  const declaredFit = declaredBodyFit(scenes);
-  const hookRequiredFit = declaredFit ?? "cover";
+  const hookRequiredFit = hookRequiredFitFor(scenes);
   // A pack that declares body fits has already answered the hook question;
   // one that does not composes each hook from its own source aspect.
-  const hookFitDeclared = declaredFit != null;
+  const hookFitDeclared = declaredBodyFit(scenes) != null;
+  const hookFitFor = (asset) =>
+    hookFitDeclared ? hookRequiredFit : isLandscapeAsset(asset) ? "contain" : asset.fit || "cover";
 
   // #294: satisfiability belongs to the scene's candidate pool, not to one
   // asset. Computed before the loop so a rejection reason can name the pool
@@ -1231,14 +1248,15 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       // frame costs them no content). A hook is composed from the pack's
       // declared body, or from its own source aspect when there is none.
       if (vt === "hook") {
-        media.fit = hookFitDeclared
-          ? hookRequiredFit
-          : landscape
-            ? "contain"
-            : asset.fit || "cover";
+        media.fit = hookFitFor(asset);
       } else if (landscape && containBand) {
         media.fit = "contain";
       } else if (asset.fit && !isVideo) {
+        // Images keep the VLM/crop verdict (cover or contain), including on
+        // layouts without the contain band — a pre-existing contract this
+        // ticket does not change. Videos are decided by the landscape rule
+        // above; portrait/square keep cover, so a portrait contain verdict is
+        // intentionally not applied (#963 scope).
         media.fit = asset.fit;
       }
       if (asset.cropFocus) media.cropFocus = asset.cropFocus;
@@ -1496,6 +1514,19 @@ export async function analyzeAssets(assets, opts = {}) {
   // Guard: if all assets are lowConfidence, skip focus detection + VLM entirely
   if (analyzableAssets.length === 0) {
     console.log("  ⏭️  All assets failed pre-filter — skipping focus detection + VLM");
+  }
+
+  // #963: seed dimensions from search metadata before the real measurements
+  // overwrite them (focus frame for images, ffprobe for videos). The artifact
+  // and the composition rule both read width/height; a source that only
+  // reported `resolution` should not audit as null.
+  for (const asset of analyzableAssets) {
+    if (asset.width > 0 && asset.height > 0) continue;
+    const dims = parseResolutionDimensions(asset.resolution);
+    if (dims) {
+      asset.width = dims.width;
+      asset.height = dims.height;
+    }
   }
 
   // ── Phase 2: Focus detection (medium cost ~0.5s/asset) — only for survivors ──

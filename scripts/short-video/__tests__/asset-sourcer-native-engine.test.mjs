@@ -177,6 +177,10 @@ describe("analyzeAssets — native video engine (#542)", () => {
       worstRun: 1,
       collapsedSegments: 0,
     });
+    // #963: the composition rule's inputs must be auditable from the artifact.
+    expect(video.width).toBe(1920);
+    expect(video.height).toBe(1080);
+    expect(video.landscape).toBe(true);
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

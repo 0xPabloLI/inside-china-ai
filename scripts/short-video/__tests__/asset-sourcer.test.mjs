@@ -48,6 +48,7 @@ import {
   toCachedMediaCandidate,
   hookRequiredFitFor,
   declaredBodyFit,
+  parseResolutionDimensions,
   assetAspectRatio,
   isLandscapeAsset,
   hasContainBand,
@@ -1898,6 +1899,13 @@ describe("landscape composition default (#963)", () => {
     expect(assetAspectRatio({ resolution: "1080×1920" })).toBeCloseTo(9 / 16);
   });
 
+  it("parses WxH resolution strings and rejects non-dimension labels", () => {
+    expect(parseResolutionDimensions("1920x1080")).toEqual({ width: 1920, height: 1080 });
+    expect(parseResolutionDimensions("1080×1920")).toEqual({ width: 1080, height: 1920 });
+    expect(parseResolutionDimensions("vertical")).toBeNull();
+    expect(parseResolutionDimensions(undefined)).toBeNull();
+  });
+
   it("returns null when no dimensions are available", () => {
     expect(assetAspectRatio({})).toBeNull();
     expect(isLandscapeAsset({ resolution: "vertical" })).toBe(false);
@@ -1955,6 +1963,14 @@ describe("landscape composition default (#963)", () => {
     expect(assigned(result)[0].media.fit).toBeUndefined();
   });
 
+  it("ignores a contain verdict on a portrait video body", () => {
+    const result = assignAssetsToScenes(
+      [asset("tall.mp4", "video", 2, { width: 1080, height: 1920, fit: "contain" })],
+      [scene(2, "narrative")],
+    );
+    expect(assigned(result)[0].media.fit).toBeUndefined();
+  });
+
   it("keeps cover for a landscape video on a scene without the contain band", () => {
     const result = assignAssetsToScenes(
       [asset("wide.mp4", "video", 2, { width: 1920, height: 1080 })],
@@ -1969,6 +1985,14 @@ describe("landscape composition default (#963)", () => {
       [{ id: 2, visualType: "narrative", layout: "media-split" }],
     );
     expect(assigned(result)[0].media.fit).toBe("cover");
+  });
+
+  it("keeps an existing contain verdict for an image on a no-band layout", () => {
+    const result = assignAssetsToScenes(
+      [asset("wide.jpg", "image", 2, { width: 1600, height: 900, fit: "contain" })],
+      [scene(2, "info-card")],
+    );
+    expect(assigned(result)[0].media.fit).toBe("contain");
   });
 
   it("keeps an explicit fit for a portrait image", () => {
