@@ -149,7 +149,7 @@ curl -L -o pytorch_model.bin "https://modelscope.cn/models/{repo_id}/resolve/mas
 - `HF_HUB_DISABLE_XET=1` 在 import 前设置？`HF_HUB_ENABLE_HF_TRANSFER` 已 pop？
 - 下载后验证文件大小 > 0？
 - Kaggle: `kaggle datasets version/create` 加了 `--dir-mode zip`？检查 stdout 而非仅看 returncode？
-- Colab: subprocess 用 `Popen` + `sys.stdout.flush()`？通过 Clash Verge（端口 7897）代理？
+- Colab: subprocess 用 `Popen` + `sys.stdout.flush()`？通过 Clash Verge 代理？它的 mixed-port 自 2026-11-01 起是随机的（`enable_random_port: true`），固定值只剩 HTTP `7899` / SOCKS `7898`，或 `HTTPS_PROXY=$(npm run -s proxy:url)` 取当次端口。
 
 **失败版本历史**（InfiniteTalk Dataset Creator）：
 

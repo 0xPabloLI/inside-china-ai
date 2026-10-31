@@ -51,23 +51,29 @@
 
 ### 宿主代理端口（Clash Verge / FlClash 双客户端）
 
-本机同时装了 Clash Verge Rev 与 FlClash，混合端口不同，**两个都可能处于运行状态**（进程在 ≠ 代理可用）。
+本机同时装了 Clash Verge Rev 与 FlClash，**两个都可能处于运行状态**（进程在 ≠ 代理可用）。
 
-| 角色                         | 端口                                      | 配置位置                                                                                                                                                                    |
-| ---------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Clash Verge Rev `mixed-port` | `7897`                                    | `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/{config,verge}.yaml`；另有 socks `7898` / http `7899` / redir `7895` / controller `127.0.0.1:9097` |
-| FlClash `mixed-port`         | `7890`                                    | `~/Library/Application Support/com.follow.clash/config.yaml`（`port`/`socks-port`/`redir-port` 均为 0，`external-controller` 为空）                                         |
-| colima 隧道                  | VM `127.0.0.1:7891` → 宿主 `<PROXY_PORT>` | `scripts/colima-proxy-tunnel.sh`；`PROXY_PORT` 由 `scutil --proxy` 自动探测（系统代理关闭时探测失败 ⇒ 隧道起不来）                                                          |
+**2026-11-01 起 Clash Verge 的 mixed-port 是随机的**（`verge.yaml` → `enable_random_port: true`）：每次启动挑一个空闲端口，写进 `clash-verge.yaml` 的 `mixed-port`，并由 `enable_system_proxy: true` 自动写进 macOS 网络设置。实测重启两次：`63009` → `63265`。所以**任何表格里的 Clash 端口都只能当快照**，判据永远是当场探测。
+
+| 角色                         | 端口                                                                    | 配置位置                                                                                                                                                                 |
+| ---------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Clash Verge Rev `mixed-port` | **随机**（实测 `63265`）                                                | `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/clash-verge.yaml`；`verge.yaml` 里 `enable_random_port` / `enable_system_proxy` 必须同时为 true |
+| Clash Verge Rev 固定监听     | socks `7898` / http `7899` / redir `7895` / controller `127.0.0.1:9097` | `verge.yaml` 的 `verge_*_port`，这几个**不随机**；`7899` 是可用兜底出口                                                                                                  |
+| FlClash `mixed-port`         | `7890`                                                                  | `~/Library/Application Support/com.follow.clash/config.yaml`（`port`/`socks-port`/`redir-port` 均为 0，`external-controller` 为空）；2026-11-01 已确认其进程为僵尸并终止 |
+| colima 隧道                  | VM `127.0.0.1:7891` → 宿主 `<PROXY_PORT>`                               | `scripts/colima-proxy-tunnel.sh`；`PROXY_PORT` 由 `scutil --proxy` 自动探测（系统代理关闭时探测失败 ⇒ 隧道起不来）                                                       |
 
 **先实测哪个端口今天活着**，再决定往哪儿指（10 秒）：
 
 ```bash
-for p in 7890 7897; do
+P=$(scutil --proxy | awk '/HTTPPort/{print $3}')   # 系统代理当前指向（关掉时为空）
+for p in ${P:+"$P"} 7899 7890; do
   printf "%s => %s\n" "$p" "$(curl -s -o /dev/null -w '%{http_code}' \
     -x http://127.0.0.1:$p --max-time 8 https://www.google.com/generate_204)"
 done
 # 204 = 该端口真在代理；000 = 死端口（Direct 模式 / 无可用节点 / 未监听）
 ```
+
+`${P:+"$P"}` 是必要的：系统代理关掉时 `scutil --proxy` 没有 `HTTPPort` 行，`$P` 为空，直接写 `"$P"` 会探 `http://127.0.0.1:` 并打印一行没有意义的 `000`。
 
 ⚠️ **测法本身的坑**：`--noproxy '*'` 会**覆盖** `-x`，两者同上时三条路径全退化成直连，结果是假的“都一样”。测本地代理端口时不要带 `--noproxy`。
 
@@ -77,17 +83,21 @@ done
 
 | 路径                 | google/generate_204 | youtube | 判读                                                                                                                                           |
 | -------------------- | ------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| FlClash `7890`       | `204`               | `200`   | ✅ 可用（TUN 打开后它不再是唯一出口）                                                                                                          |
+| FlClash `7890`       | `204`               | `200`   | ✅ 可用（TUN 打开后它不再是唯一出口）；2026-11-01 该进程已是僵尸并被终止，此行为历史                                                           |
 | Clash Verge `7897`   | `000`               | `000`   | ❌ 端口在监听但不代理（`verge.yaml`：`enable_tun_mode: false`、`enable_system_proxy: false`，运行配置 `mode: direct`）⇒ 等价直连               |
 | **不给代理（默认）** | `204`               | `200`   | ✅ **TUN 已接管**（2026-09-25 10:10 起）：`1` `2/7` `4/6` `8/5` `16/4` `32/3` `64/2` `128.0/1` 八条半路由全部指向 `utun7`（网关 `198.18.0.1`） |
 
+⚠️ **2026-11-01：TUN 已关闭**（`enable_tun_mode: false`），上表最后一行不再成立——不带 `-x` 的请求现在真的直连，`google` 返回 `000`。所以「裸请求也能 204」这个坑今天不存在，但别据此推翻「逐端口探测」的判据：TUN 一开它就回来了。
+
+**`mode` 的坑（2026-11-01 踩过）**：`rule` 只打在运行时（`PATCH 127.0.0.1:9097/configs`）会被重启抹掉——真正的持久值在 `config.yaml` 与 `clash-verge.yaml` 的 `mode:` 行。它们是 `direct` 时，端口在监听、系统代理也指对了，但**不代理任何流量**（实测 `google=000`、`baidu=200`），看起来像「代理挂了」。改完必须重启内核才生效。
+
 **端口被写死在哪 —— 改一个要同时改，否则只有一半通**：
 
-| 位置                                               | 2026-09-25 现状                                                                                                                  |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 仓库 `.git/config` 的 `http.proxy` / `https.proxy` | `7897`（死）→ 09:50 改 `7890` → **10:12 `git config --local --unset`**。TUN 覆盖后这里**应当为空**：留着就是留一个迟早会死的端口 |
-| `~/searxng/settings.yml` 的 `outgoing.proxies`     | `http://192.168.5.2:7890`（VM 网关→宿主；当日与 FlClash 一致）                                                                   |
-| colima VM 内的 `http_proxy` 等 4 个环境变量        | `http://192.168.5.2:7890`（VM 启动时注入的项目，`colima.yaml` 的 `env` 为空 ⇒ 来自别处）                                         |
+| 位置                                               | 现状                                                                                                                                                             |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 仓库 `.git/config` 的 `http.proxy` / `https.proxy` | 仍是旧值 `7890`（2026-11-01 核对）。**随机端口后这里永远会过期**，别指望它：联网 git 走 `npm run git:proxy`（§11），由它当次解析并在进程内注入，不写这个共享文件 |
+| `~/searxng/settings.yml` 的 `outgoing.proxies`     | `http://192.168.5.2:7890`（VM 网关→宿主；当日与 FlClash 一致）                                                                                                   |
+| colima VM 内的 `http_proxy` 等 4 个环境变量        | `http://192.168.5.2:7890`（VM 启动时注入的项目，`colima.yaml` 的 `env` 为空 ⇒ 来自别处）                                                                         |
 
 ⚠️ **纠正（2026-09-25 09:50 实测）**：本表原写「git 实际直连：github 能通」——**是错的**。当天 `github.com` 直连 = `000`（被墙），只有 `api.github.com` 直连 = `200`。所以 `.git/config` 指着死端口时 git **不是直连、而是全挂**。判据要用 `github.com` 本体，别拿 `api.github.com` 代替（它不走墙）。
 
@@ -97,7 +107,7 @@ done
 - **纠错（2026-09-25 10:18）**：本条原写「VM 内直连能用是假象、VM 出网必须走代理」——**后半句在 TUN 打开后不成立**。当天实测清完 env 后 VM 直连 `google` = `204`、`github` = `200`，且 VM 把 `google.com` 解析成 **`198.18.0.4`**（宿主 TUN 的 fake-IP 段；VM `resolv.conf` 仍指向宿主 `192.168.5.1`）⇒ **宿主 TUN 覆盖了 colima VM 的 NAT 流量**。
 - **判据要用 fake-IP，不能只看状态码**：`204` 无法区分「TUN 接管」与「注入的代理生效」，`198.18.x.x` 才能。
 
-**历史坑（勿丢）**：FlClash `7890` 曾对**带 auth header 的 POST** 断连，colab CLI 因此必须切到 Clash Verge `7897`（`docs/archive/handoffs/handoff-infinitetalk-kaggle-colab.md`）。所以「哪个端口才对」不是固定的，取决于**当前客户端 + 协议**——按上表实测，别照抄历史结论。
+**历史坑（勿丢）**：FlClash `7890` 曾对**带 auth header 的 POST** 断连，colab CLI 因此必须切到 Clash Verge `7897`（`docs/archive/handoffs/handoff-infinitetalk-kaggle-colab.md`）。所以「哪个端口才对」不是固定的，取决于**当前客户端 + 协议**——按上表实测，别照抄历史结论。2026-11-01 起这个 `7897` 更不可能再对：Clash Verge 的 mixed-port 已经随机，`7897` 是个不会再监听的端口；要用固定出口就选 `7899`（HTTP）/ `7898`（SOCKS）。
 
 **根治方向 —— 两条路，别混着走**：
 
