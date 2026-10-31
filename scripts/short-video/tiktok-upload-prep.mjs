@@ -162,6 +162,7 @@ import {
   pokeEditorState,
   pressEnter,
   randomBetween,
+  scriptedScrollBy,
   sleepJitter,
   typePlan,
   wheelScroll,
@@ -954,10 +955,15 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
             },
           });
           process.stdout.write("\r");
+          // Read before the poke so a failure can name its stage: one dropped
+          // `insertText` during the run and a `Backspace` that ate a real
+          // character look identical afterwards (both are "one char short"),
+          // but only the first means the typing loop lost a keystroke.
+          const beforePoke = await evalJson(tabId, CAPTION_READ);
           // Make Draft render from its state before we trust the DOM text.
           await pokeEditorState(cdp);
           await sleepJitter(...PUBLISH_PACING.captionSettleAfterTyping);
-          return { plan, typedMs: Date.now() - started };
+          return { plan, typedMs: Date.now() - started, beforePoke };
         })()
       : null;
 
@@ -992,10 +998,16 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
         `want ${caption.length}: ${JSON.stringify(after.text.slice(0, 80))}`,
     );
   }
+  const stage = !typed
+    ? "paste"
+    : typed.beforePoke?.ok && normalizeCaption(typed.beforePoke.text) === want
+      ? "poke" // typing was right; the space+Backspace lost a character
+      : "typing"; // a keystroke never landed
   console.log(
-    `      ⚠️ typed caption did not verify (${read.len} chars) — replaced it with one paste`,
+    `      ⚠️ typed caption did not verify (${read.len} chars, lost at: ${stage}) — ` +
+      "replaced it with one paste",
   );
-  return { mode: "paste-fallback", len: after.len, typedMs: typed?.typedMs };
+  return { mode: "paste-fallback", len: after.len, typedMs: typed?.typedMs, lostAt: stage };
 }
 
 /**
@@ -1058,6 +1070,9 @@ async function runSessionWarmup(cdp, tab) {
         // visible.
         console.log(
           `      ⚠️ warm-up scroll ${i + 1}/${cycles} was scripted: ${scrolled.reason}` +
+            (scrolled.scriptedPx
+              ? ""
+              : " (the page pins its scroll position, so scripting moved nothing)") +
             (scrolled.correctedPx ? ` (corrected ${scrolled.correctedPx}px of late dispatch)` : ""),
         );
         scriptedStreak += 1;
@@ -1065,10 +1080,10 @@ async function runSessionWarmup(cdp, tab) {
         scriptedStreak = 0;
       }
     } else {
-      await evalJson(
-        tab,
-        `(() => { window.scrollBy(0, ${deltaY}); return JSON.stringify({ok: true}); })()`,
-      );
+      // Same container trap as the wheel path: on this app shell
+      // `window.scrollBy` moves nothing, so scroll whatever element really
+      // scrolls. Imported from the library so both paths agree.
+      await evalJson(tab, scriptedScrollBy(deltaY));
       scrolled = { mode: "js-fallback" };
     }
     modes.push(scrolled.mode);

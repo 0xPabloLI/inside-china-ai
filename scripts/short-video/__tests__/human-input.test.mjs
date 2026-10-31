@@ -30,6 +30,7 @@ import {
   planTyping,
   pokeEditorState,
   randomBetween,
+  scriptedScrollBy,
   sleepJitter,
   splitGraphemes,
   typePlan,
@@ -307,12 +308,17 @@ describe("wheelScroll", () => {
           return {};
         }
         calls.push({ method, params });
-        if (method === "Runtime.evaluate" && params.expression === "window.scrollY") {
-          return { result: { value: y } };
-        }
+        // `wheelScroll` reads and writes through the element that actually
+        // scrolls, so the fake recognises the two generated expressions rather
+        // than a bare `window.scrollBy`. The write is checked first: it also
+        // ends with `return window.scrollY`, so order matters.
         if (method === "Runtime.evaluate") {
-          const by = Number(/scrollBy\(0, (-?\d+)\)/.exec(params.expression)?.[1] ?? 0);
-          y += by;
+          const write = /el\.scrollTop \+ \((-?\d+)\)/.exec(params.expression);
+          if (write) {
+            y += Number(write[1]);
+            return { result: { value: y } };
+          }
+          if (/return window\.scrollY;/.test(params.expression)) return { result: { value: y } };
         }
         return {};
       },
@@ -361,6 +367,36 @@ describe("wheelScroll", () => {
     expect(result.correctedPx).not.toBe(0);
   });
 
+  it("reports that scripting moved nothing on a page that pins its scroll", async () => {
+    // TikTok's For You feed is virtualized: `scrollTop = 300` reads back as 0
+    // and `window.scrollBy` does nothing (measured 2026-10-31), so only a real
+    // wheel moves it. Claiming a correction there would be a lie, and the run
+    // would record a number describing something that never happened.
+    const calls = [];
+    const session = {
+      send: async (method, params = {}) => {
+        calls.push({ method, params });
+        if (method === "Runtime.evaluate") return { result: { value: 0 } }; // always pinned
+        if (params.type === "mouseWheel") throw new Error("CDP command timed out");
+        return {};
+      },
+    };
+    const { sleepFn } = fakeSleep();
+    const result = await wheelScroll(session, {
+      x: 300,
+      y: 300,
+      totalDeltaY: 300,
+      rand: seeded(15),
+      sleepFn,
+    });
+    expect(result.mode).toBe("js-fallback");
+    expect(result.scriptedPx).toBe(0);
+    expect(result).not.toHaveProperty("correctedPx");
+    // Baseline read, a read either side of the scripted scroll, and the scroll
+    // itself — then nothing: no late-dispatch settle, no correction.
+    expect(calls.filter((c) => c.method === "Runtime.evaluate")).toHaveLength(4);
+  });
+
   it("still scrolls when the start position cannot be read", async () => {
     // A navigation can tear the context down mid-run. Losing the baseline only
     // costs the late-dispatch correction; the scroll itself must still happen.
@@ -368,8 +404,12 @@ describe("wheelScroll", () => {
     const session = {
       send: async (method, params = {}) => {
         calls.push({ method, params });
-        if (method === "Runtime.evaluate" && params.expression === "window.scrollY") {
-          throw new Error("Execution context was destroyed");
+        if (method === "Runtime.evaluate") {
+          const write = /el\.scrollTop \+ \((-?\d+)\)/.exec(params.expression);
+          if (write) return { result: { value: null } };
+          if (/return window\.scrollY;/.test(params.expression)) {
+            throw new Error("Execution context was destroyed");
+          }
         }
         if (params.type === "mouseWheel") throw new Error("CDP command timed out");
         return {};
@@ -407,6 +447,41 @@ describe("wheelScroll", () => {
     expect(delivered + remaining).toBe(520);
     expect(Math.abs(remaining)).toBeLessThan(520);
     expect(session.scrollY).toBe(520);
+  });
+
+  it("scrolls the element that actually scrolls, not the window", async () => {
+    // Measured 2026-10-31 on TikTok's For You feed: the page scrolls
+    // `#column-list-container` (scrollHeight 6741, clientHeight 749) while
+    // `window.scrollY` stays 0 and `window.scrollBy` moves nothing. Aiming the
+    // scripted fallback at the window therefore delivered zero pixels and
+    // still reported the whole request as corrected.
+    const { JSDOM } = await import("jsdom");
+    const dom = new JSDOM(
+      `<!doctype html><body style="margin:0">
+         <div id="column-list-container" style="height:200px;overflow-y:scroll">
+           <div style="height:4000px"></div>
+         </div>
+       </body>`,
+      { pretendToBeVisual: true, runScripts: "outside-only" },
+    );
+    const { window } = dom;
+    // jsdom has no layout, so stand in for the numbers the browser would give:
+    // the container scrolls, the document does not.
+    Object.defineProperty(window.document.documentElement, "scrollHeight", { value: 200 });
+    Object.defineProperty(window.document.documentElement, "clientHeight", { value: 200 });
+    const container = window.document.getElementById("column-list-container");
+    Object.defineProperty(container, "scrollHeight", { value: 4000 });
+    Object.defineProperty(container, "clientHeight", { value: 200 });
+    Object.defineProperty(window, "getComputedStyle", {
+      value: () => ({ overflowY: "scroll" }),
+    });
+
+    window.eval(scriptedScrollBy(120));
+    expect(container.scrollTop).toBe(120);
+    expect(window.scrollY).toBe(0);
+    window.eval(scriptedScrollBy(-40));
+    expect(container.scrollTop).toBe(80);
+    dom.window.close();
   });
 
   it("keeps every burst positive and forward on a scroll shorter than the burst count", async () => {

@@ -230,6 +230,68 @@ export async function clickAtPoint(session, opts) {
 }
 
 /**
+ * JavaScript that finds the element which actually scrolls this page.
+ *
+ * `window` is the wrong answer on an app shell: TikTok's For You feed scrolls
+ * `#column-list-container` while `window.scrollY` stays 0 and `window.scrollBy`
+ * does nothing (measured 2026-10-31: `scrollHeight` 6741, `clientHeight` 749,
+ * window offset pinned at 0). Aiming a correction at the window therefore
+ * reported the whole request as "corrected" while moving nothing.
+ *
+ * Written as an expression that resolves to a DOM element so callers can pick
+ * window-level or container-level behaviour from one scan.
+ */
+const SCROLLER_JS = `(() => {
+  const doc = document.scrollingElement || document.documentElement;
+  if (doc && doc.scrollHeight > doc.clientHeight + 4) return doc;
+  let best = null;
+  let bestRange = 0;
+  for (const el of document.querySelectorAll("div, main, section")) {
+    const overflowY = getComputedStyle(el).overflowY;
+    if (overflowY !== "scroll" && overflowY !== "auto") continue;
+    if (el.clientHeight < 200) continue;
+    const range = el.scrollHeight - el.clientHeight;
+    if (range > bestRange) {
+      bestRange = range;
+      best = el;
+    }
+  }
+  return best;
+})()`;
+
+/** Read the vertical offset of whatever element actually scrolls. */
+const SCROLL_OFFSET_JS = `(() => {
+  const el = ${SCROLLER_JS};
+  if (el && el !== document.scrollingElement && el !== document.documentElement) return el.scrollTop;
+  return window.scrollY;
+})()`;
+
+/** Scroll the element that actually scrolls, by `delta` pixels. */
+const scrollByJs = (delta) => `(() => {
+  const el = ${SCROLLER_JS};
+  if (el && el !== document.scrollingElement && el !== document.documentElement) {
+    el.scrollTop = el.scrollTop + (${delta});
+    return el.scrollTop;
+  }
+  window.scrollBy(0, ${delta});
+  return window.scrollY;
+})()`;
+
+/**
+ * A scripted scroll for callers that drive the page through the eval endpoint
+ * instead of a CDP session.
+ *
+ * Exported so the warm-up's own fallback and `wheelScroll`'s cannot disagree
+ * about which element to move — on this app shell the window is the wrong one.
+ *
+ * @param {number} delta pixels, negative to scroll up
+ * @returns {string} a JavaScript expression
+ */
+export function scriptedScrollBy(delta) {
+  return scrollByJs(delta);
+}
+
+/**
  * Scroll with trusted wheel events, in several bursts.
  *
  * The leading `mouseMoved` is not decoration: a wheel dispatched right after
@@ -250,7 +312,10 @@ export async function clickAtPoint(session, opts) {
  *
  * @param {{ send: (method: string, params?: object) => Promise<object> }} session
  * @param {{ x: number, y: number, totalDeltaY: number, rand?: () => number, sleepFn?: (ms:number)=>Promise<void>, fallback?: boolean }} opts
- * @returns {Promise<{ chunks: number[], mode: "wheel"|"js-fallback", reason?: string, correctedPx?: number }>}
+ * @returns {Promise<{ chunks: number[], mode: "wheel"|"js-fallback", reason?: string, scriptedPx?: number, correctedPx?: number }>}
+ *   `scriptedPx` is what the scripted scroll actually moved (0 on a page that
+ *   pins its scroll position); `correctedPx` is only present when a late
+ *   dispatch really had to be compensated for.
  */
 export async function wheelScroll(session, opts) {
   const { x, y, totalDeltaY, rand = Math.random, sleepFn = defaultSleep, fallback = true } = opts;
@@ -261,7 +326,7 @@ export async function wheelScroll(session, opts) {
   /** @returns {Promise<number|null>} the page's vertical offset, null if unreadable */
   const scrollY = async () => {
     const { result } = await session.send("Runtime.evaluate", {
-      expression: "window.scrollY",
+      expression: SCROLL_OFFSET_JS,
       returnByValue: true,
     });
     return typeof result?.value === "number" ? result.value : null;
@@ -315,11 +380,30 @@ export async function wheelScroll(session, opts) {
     // whatever they moved.
     const delivered = chunks.slice(0, sent);
     const remaining = sign * (total - delivered.reduce((a, b) => a + b, 0));
+    const chunksSent = [...delivered.map((c) => sign * c), ...(remaining ? [remaining] : [])];
+
+    // Scripting is a fallback, not a guarantee. A virtualized feed pins its
+    // container: on TikTok's For You feed (2026-10-31) `scrollTop = 300` reads
+    // back as 0 and `window.scrollBy` does nothing, so a real wheel is the only
+    // thing that moves that page. Measure what the script actually achieved
+    // rather than assuming it worked — otherwise the run reports a correction
+    // it never performed.
+    let scriptedPx = 0;
     if (remaining) {
-      await session.send("Runtime.evaluate", {
-        expression: `window.scrollBy(0, ${remaining})`,
-      });
+      const beforeY = await scrollY().catch(() => null);
+      await session.send("Runtime.evaluate", { expression: scrollByJs(remaining) });
+      const afterY = await scrollY().catch(() => null);
+      scriptedPx = beforeY === null || afterY === null ? 0 : afterY - beforeY;
     }
+    if (!scriptedPx) {
+      return {
+        chunks: chunksSent,
+        mode: "js-fallback",
+        reason: err.message,
+        scriptedPx: 0,
+      };
+    }
+
     // The unacknowledged burst was NOT cancelled: the renderer can still apply
     // it once the throttle lifts, and then this correction has overshot by
     // exactly that chunk. Measured 2026-10-31 on the fixture: three wheels
@@ -327,15 +411,16 @@ export async function wheelScroll(session, opts) {
     // ~163px too far. Wait for the late dispatch to land, then converge on the
     // position the caller asked for instead of trusting the arithmetic.
     await sleepJitter(...LATE_DISPATCH_SETTLE_MS, { rand, sleepFn });
-    const nowY = startY === null ? null : await scrollY().catch(() => null);
-    const drift = nowY === null ? null : startY + sign * total - nowY;
+    const nowY = await scrollY().catch(() => null);
+    const drift = startY === null || nowY === null ? null : startY + sign * total - nowY;
     if (drift !== null && Math.abs(drift) >= 2) {
-      await session.send("Runtime.evaluate", { expression: `window.scrollBy(0, ${drift})` });
+      await session.send("Runtime.evaluate", { expression: scrollByJs(drift) });
     }
     return {
-      chunks: [...delivered.map((c) => sign * c), ...(remaining ? [remaining] : [])],
+      chunks: chunksSent,
       mode: "js-fallback",
       reason: err.message,
+      scriptedPx,
       ...(drift === null ? {} : { correctedPx: Math.round(drift) }),
     };
   }
