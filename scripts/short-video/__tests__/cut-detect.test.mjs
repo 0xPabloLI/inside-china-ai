@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const { spawnSync } = vi.hoisted(() => ({ spawnSync: vi.fn() }));
 vi.mock("child_process", () => ({ spawnSync }));
 
-import { detectCuts, parseScenePts } from "../lib/cut-detect.mjs";
+import { cutsArtifact, detectCuts, parseScenePts } from "../lib/cut-detect.mjs";
 
 describe("parseScenePts (#749)", () => {
   it("reads showinfo pts_time values in output order", () => {
@@ -52,5 +52,17 @@ describe("detectCuts (#749)", () => {
   it("rethrows spawn errors (missing binary, timeout)", () => {
     spawnSync.mockReturnValue({ error: new Error("ENOENT") });
     expect(() => detectCuts("/tmp/x.mp4")).toThrow(/ENOENT/);
+  });
+});
+
+describe("cutsArtifact (#749)", () => {
+  it("pins the persisted shape shared by the runner and the retime CLI", () => {
+    expect(cutsArtifact("737", { cutsMs: [1833, 3733], threshold: 0.15 })).toEqual({
+      schemaVersion: "competitor-cuts-v1",
+      videoId: "737",
+      source: "ffmpeg-scene",
+      threshold: 0.15,
+      cutsMs: [1833, 3733],
+    });
   });
 });

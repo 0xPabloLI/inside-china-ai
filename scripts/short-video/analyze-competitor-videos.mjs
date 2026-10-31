@@ -51,7 +51,7 @@ import { tmpdir, homedir } from "os";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { transcribeVideo } from "./lib/video-understand.mjs";
-import { detectCuts } from "./lib/cut-detect.mjs";
+import { cutsArtifact, detectCuts } from "./lib/cut-detect.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WORKER_SCRIPT = join(__dirname, "lib/competitor-vlm-worker.py");
@@ -531,7 +531,7 @@ export function resolveTimings(items, segments, durationMs, cutsMs = null) {
  * @param {number|null} durationSec
  * @param {object|null} breakdown
  * @param {object|null} transcript
- * @param {{times: number[], threshold: number, artifact?: string}|null} [cuts]
+ * @param {{cutsMs: number[], threshold: number, artifact?: string}|null} [cuts]
  * @returns {object}
  */
 export function buildRecord(
@@ -542,7 +542,7 @@ export function buildRecord(
   cuts = null,
 ) {
   const durationMs = Number.isFinite(durationSec) ? Math.round(durationSec * 1000) : null;
-  const cutTimes = cuts?.times ?? null;
+  const cutTimes = cuts?.cutsMs ?? null;
   const beats = resolveTimings(breakdown?.beats, transcript?.segments, durationMs, cutTimes);
   const shots = resolveTimings(breakdown?.shots, transcript?.segments, durationMs, cutTimes);
   return {
@@ -575,15 +575,7 @@ export function buildRecord(
       // talking head records `total: 0`, which is why its layer still says
       // `interpolated`. `threshold` and the `artifact` are the reproduction
       // recipe (`<id>.cuts.json` holds the timestamp array).
-      ...(cuts
-        ? {
-            cuts: {
-              total: cuts.times.length,
-              threshold: cuts.threshold,
-              ...(cuts.artifact ? { artifact: cuts.artifact } : {}),
-            },
-          }
-        : {}),
+      ...(cuts ? { cuts: cutsEvidence(cuts) } : {}),
       // Timing provenance. There are two independently-resolved layers, so
       // provenance is per-layer — reading one `anchorSource` would misreport the
       // other (beats can be fully measured while shots are reconstructed).
@@ -612,6 +604,21 @@ export function buildRecord(
       //    segments, so 49 had no measured anchor).
       timing: timingEvidence(beats, shots, durationMs),
     },
+  };
+}
+
+/**
+ * The `evidence.cuts` block, single-sourced so the runner and the retime pass
+ * (#749) write the same shape.
+ *
+ * @param {{cutsMs: number[], threshold: number, artifact?: string}} cuts
+ * @returns {{total: number, threshold: number, artifact?: string}}
+ */
+export function cutsEvidence(cuts) {
+  return {
+    total: cuts.cutsMs.length,
+    threshold: cuts.threshold,
+    ...(cuts.artifact ? { artifact: cuts.artifact } : {}),
   };
 }
 
@@ -887,7 +894,32 @@ export async function analyzeCompetitorVideos({
       process.stderr.write(`\n── ${handle}/${video.id} (${video.views} plays) ──\n`);
       const startedAt = Date.now();
 
-      // 1. ASR — reuse video-understand's whisper.cpp leg. It writes a fixed
+      // 1. Cuts — the independent measured time source (#749). Cheap (one
+      //    decode, no audio) and written beside the record so a collapsed
+      //    timeline stays reproducible without re-running ASR or the VLM. A
+      //    no-cut video records 0 events; detection failure is not fatal, it
+      //    just leaves the ASR-span interpolation in charge.
+      let cuts = null;
+      if (!noCuts) {
+        try {
+          const detected = detectCuts(video.file);
+          const artifact = `${safeId}.cuts.json`;
+          writeFileSync(
+            join(dir, artifact),
+            JSON.stringify(cutsArtifact(video.id, detected), null, 2),
+          );
+          cuts = { ...detected, artifact };
+          process.stderr.write(
+            `  cuts: ${detected.cutsMs.length} detected (scene>${detected.threshold})\n`,
+          );
+        } catch (err) {
+          process.stderr.write(
+            `  cuts: unavailable (${err.message}) — collapsed layers keep the ASR-span fallback\n`,
+          );
+        }
+      }
+
+      // 2. ASR — reuse video-understand's whisper.cpp leg. It writes a fixed
       //    `audio.wav` + `transcript.json` into outputDir, so give it a
       //    throwaway dir and keep only the parsed segments.
       let transcript = null;
@@ -913,41 +945,6 @@ export async function analyzeCompetitorVideos({
       // Probed before the VLM call: the prompt needs the duration (it is the
       // only clock the model gets) and buildRecord needs it for beat ranges.
       const durationSec = probeDurationSec(video.file);
-
-      // 2. Cuts — the independent measured time source (#749). Cheap (one
-      //    decode, no audio) and written beside the record so a collapsed
-      //    timeline stays reproducible without re-running ASR or the VLM. A
-      //    no-cut video records 0 events; detection failure is not fatal, it
-      //    just leaves the ASR-span interpolation in charge.
-      let cuts = null;
-      if (!noCuts) {
-        try {
-          const detected = detectCuts(video.file);
-          const artifact = `${safeId}.cuts.json`;
-          writeFileSync(
-            join(dir, artifact),
-            JSON.stringify(
-              {
-                schemaVersion: "competitor-cuts-v1",
-                videoId: video.id,
-                source: "ffmpeg-scene",
-                threshold: detected.threshold,
-                cutsMs: detected.cutsMs,
-              },
-              null,
-              2,
-            ),
-          );
-          cuts = { times: detected.cutsMs, threshold: detected.threshold, artifact };
-          process.stderr.write(
-            `  cuts: ${detected.cutsMs.length} detected (scene>${detected.threshold})\n`,
-          );
-        } catch (err) {
-          process.stderr.write(
-            `  cuts: unavailable (${err.message}) — collapsed layers keep the ASR-span fallback\n`,
-          );
-        }
-      }
 
       let breakdown = null;
       let vlmError = null;

@@ -4,9 +4,11 @@
  * Reads a persisted analysis directory (`analysis-recompute/` by default),
  * detects shot cuts for each record's video with ffmpeg's scene filter, and
  * writes a sibling directory (`analysis-cuts/`) whose collapsed layers are
- * re-anchored on that measured cut grid. Healthy (`anchorSource: "asr"`) layers
- * are left byte-for-byte alone — this tool never re-runs ASR or the VLM, so it
- * is the cheap way to re-judge §10.1's six collapsed records.
+ * re-anchored on that measured cut grid. Healthy layers keep their items
+ * unchanged; `evidence.timing` is recomputed for every copied record so all
+ * records carry the same field set (and the retimed verdict is read from the
+ * same place). This tool never re-runs ASR or the VLM, so it is the cheap way
+ * to re-judge §10.1's six collapsed records.
  *
  * Every output is reproducible without the audio track: the cut timestamps live
  * in `<handle>/<id>.cuts.json`, the ASR evidence is copied beside the record,
@@ -39,8 +41,9 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { detectCuts, DEFAULT_CUT_THRESHOLD } from "./lib/cut-detect.mjs";
+import { cutsArtifact, DEFAULT_CUT_THRESHOLD, detectCuts } from "./lib/cut-detect.mjs";
 import {
+  cutsEvidence,
   isTimelineCollapsed,
   measurableSegments,
   resolveTimings,
@@ -50,9 +53,13 @@ import { loadRecords } from "./competitor-benchmarks-timing-health.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_VIDEO_ROOT = join(__dirname, "output/competitor-benchmarks");
-const DEFAULT_ASR_DIR = join(DEFAULT_VIDEO_ROOT, "analysis");
 
 const LAYERS = ["beats", "shots"];
+
+/** Retimed output directory for a source analysis dir. */
+function defaultOutDir(dir) {
+  return join(dirname(dir), "analysis-cuts");
+}
 
 /**
  * Compare a layer's ASR anchors with its cut-derived starts, item by item.
@@ -151,11 +158,15 @@ function copyIfPresent(from, to) {
  */
 export function retimeWithCuts({
   dir = join(DEFAULT_VIDEO_ROOT, "analysis-recompute"),
-  outDir = join(dirname(dir), "analysis-cuts"),
+  outDir = defaultOutDir(dir),
   threshold = DEFAULT_CUT_THRESHOLD,
   only = null,
-  videoRoot = DEFAULT_VIDEO_ROOT,
-  asrDir = DEFAULT_ASR_DIR,
+  // Videos live beside the analysis dir (`<root>/<handle>/<id>.mp4`) and the
+  // original ASR evidence in `<root>/analysis/`; deriving them from `dir` lets
+  // the CLI run from a checkout that only holds code (e.g. a session worktree)
+  // while reading the outputs of the one that ran the batch.
+  videoRoot = dirname(dir),
+  asrDir = join(dirname(dir), "analysis"),
 } = {}) {
   const records = loadRecords(dir);
   mkdirSync(outDir, { recursive: true });
@@ -211,40 +222,35 @@ export function retimeWithCuts({
       continue;
     }
 
-    const cuts = detectCuts(videoPath, { threshold });
+    let cuts;
+    try {
+      cuts = detectCuts(videoPath, { threshold });
+    } catch (error) {
+      // One undecodable video must not abort the pass (the runner treats cut
+      // detection as non-fatal too); copy the record untouched and say why.
+      report.skipped.push({ key, reason: "cuts-failed", error: error.message });
+      writeFileSync(outRecordPath, JSON.stringify(recordCopy, null, 2));
+      continue;
+    }
     const segments = readJson(asrPath).segments ?? [];
     const artifact = `${id}.cuts.json`;
-    writeFileSync(
-      join(outHandle, artifact),
-      JSON.stringify(
-        {
-          schemaVersion: "competitor-cuts-v1",
-          videoId: id,
-          source: "ffmpeg-scene",
-          threshold,
-          cutsMs: cuts.cutsMs,
-        },
-        null,
-        2,
-      ),
-    );
+    writeFileSync(join(outHandle, artifact), JSON.stringify(cutsArtifact(id, cuts), null, 2));
     copyIfPresent(asrPath, join(outHandle, `${id}.asr.json`));
 
-    const before = {};
-    const after = {};
-    for (const layer of LAYERS) {
+    const layerState = LAYERS.map((layer) => {
       const items = Array.isArray(record[layer]) ? record[layer] : [];
-      before[layer] = resolveTimings(items, segments, durationMs, null);
-      after[layer] = resolveTimings(items, segments, durationMs, cuts.cutsMs);
-      recordCopy[layer] = after[layer].items;
-    }
+      return {
+        layer,
+        items,
+        before: resolveTimings(items, segments, durationMs, null),
+        after: resolveTimings(items, segments, durationMs, cuts.cutsMs),
+      };
+    });
+    for (const state of layerState) recordCopy[state.layer] = state.after.items;
+    const afterByLayer = Object.fromEntries(layerState.map((state) => [state.layer, state.after]));
     recordCopy.evidence ??= {};
-    recordCopy.evidence.timing = timingEvidence(after.beats, after.shots, durationMs);
-    recordCopy.evidence.cuts = {
-      total: cuts.cutsMs.length,
-      threshold,
-      artifact,
-    };
+    recordCopy.evidence.timing = timingEvidence(afterByLayer.beats, afterByLayer.shots, durationMs);
+    recordCopy.evidence.cuts = cutsEvidence({ ...cuts, artifact });
     writeFileSync(outRecordPath, JSON.stringify(recordCopy, null, 2));
 
     report.processed++;
@@ -254,25 +260,32 @@ export function retimeWithCuts({
       report.summary.cutsTotal += cuts.cutsMs.length;
     }
 
-    let repairedHere = 0;
-    for (const layer of LAYERS) {
-      const items = Array.isArray(record[layer]) ? record[layer] : [];
-      if (items.length === 0) continue;
-      const wasCollapsed = before[layer].anchorSource !== "asr";
-      const collapsedAfter = isTimelineCollapsed(items.length, after[layer].rawDistinctStarts);
-      if (collapsedAfter) report.summary.stillCollapsedLayers++;
-      if (!wasCollapsed || after[layer].anchorSource !== "cuts") continue;
+    const segmentCount = measurableSegments(segments).length;
+    const anchorsOutOfRange = (items) =>
+      items.filter((item) => {
+        const n = Number(item?.anchorSegment);
+        return !(Number.isInteger(n) && n >= 1 && n <= segmentCount);
+      }).length;
 
-      const cutStarts = after[layer].items.map((item) => item.startMs);
+    let repairedHere = 0;
+    for (const { layer, items, before, after } of layerState) {
+      if (items.length === 0) continue;
+      const wasCollapsed = before.anchorSource !== "asr";
+      const collapsedAfter = isTimelineCollapsed(items.length, after.rawDistinctStarts);
+      if (collapsedAfter) report.summary.stillCollapsedLayers++;
+      if (!wasCollapsed || after.anchorSource !== "cuts") continue;
+
+      const cutStarts = after.items.map((item) => item.startMs);
       const comparison = compareCutTimeline({ items, segments, cutStarts });
       const delta = maxStartDelta(
-        before[layer].items.map((item) => item.startMs),
+        before.items.map((item) => item.startMs),
         cutStarts,
       );
       const span = firstSegmentSpanMs(segments);
-      // 1..N anchors are the model counting its own items, not naming measured
-      // segments — the reason a divergence must be adjudicated in favour of the
-      // independent cut grid rather than the anchor claim.
+      // Exact 1..N anchors are the model counting its own items, and a high
+      // out-of-range count (e.g. 1,1,2,2… beyond the transcript) is the same
+      // enumeration shape — neither is an independent measured claim, which is
+      // why a divergence is adjudicated in favour of the cut grid.
       const anchorsSequential = items.every(
         (item, index) => Number(item?.anchorSegment) === index + 1,
       );
@@ -285,16 +298,19 @@ export function retimeWithCuts({
         collapsedBefore: true,
         collapsedAfter,
         anchorsSequential,
-        sourceBefore: before[layer].anchorSource,
-        sourceAfter: after[layer].anchorSource,
+        anchorsOutOfRange: anchorsOutOfRange(items),
+        sourceBefore: before.anchorSource,
+        sourceAfter: after.anchorSource,
         comparison,
         delta,
         firstSegmentSpanMs: span,
         exceedsFirstSegmentSpan: span !== null && delta.maxDeltaMs > span,
-        startsBefore: before[layer].items.map((item) => item.startMs),
+        startsBefore: before.items.map((item) => item.startMs),
         startsAfter: cutStarts,
       });
-      report.summary[comparison.verdict] = (report.summary[comparison.verdict] ?? 0) + 1;
+      if (comparison.verdict === "agree") report.summary.agree++;
+      else if (comparison.verdict === "diverge") report.summary.diverge++;
+      else report.summary.unmeasurable++;
       repairedHere++;
     }
     if (repairedHere > 0) report.summary.repairedRecords++;
@@ -352,6 +368,11 @@ function formatReport(report) {
         "  model anchors are a 1..N enumeration (item index, not segment references) — " +
           "the ASR claim is not independent of the list order",
       );
+    } else if (entry.anchorsOutOfRange > 0) {
+      lines.push(
+        `  ${entry.anchorsOutOfRange}/${entry.items} anchors fall outside the transcript's ` +
+          "segment range — an enumeration, not measured segment references",
+      );
     }
     for (const hit of entry.comparison.diverged.slice(0, 5)) {
       lines.push(
@@ -391,7 +412,7 @@ if (isMain) {
   const args = parseArgs(process.argv.slice(2));
   const report = retimeWithCuts({
     dir: args.dir,
-    outDir: args.outDir ?? join(dirname(args.dir), "analysis-cuts"),
+    outDir: args.outDir ?? defaultOutDir(args.dir),
     threshold: args.threshold,
     only: args.only,
   });

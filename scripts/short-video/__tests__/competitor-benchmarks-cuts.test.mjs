@@ -245,4 +245,25 @@ describe("retimeWithCuts (#749)", () => {
     const record = JSON.parse(readFileSync(join(fixture.outDir, "shedoesai", "737.json"), "utf8"));
     expect(record.evidence.timing.beatsAnchorSource).toBe("interpolated");
   });
+
+  it("keeps going when one video cannot be decoded", () => {
+    detectCuts.mockImplementation(() => {
+      throw new Error("Invalid data found");
+    });
+    const report = retimeWithCuts({
+      dir: fixture.dir,
+      outDir: fixture.outDir,
+      videoRoot: fixture.videoRoot,
+      asrDir: fixture.dir,
+    });
+    expect(report.skipped).toEqual([
+      { key: "shedoesai/737", reason: "cuts-failed", error: "Invalid data found" },
+    ]);
+    expect(report.processed).toBe(0);
+    // The pass still finishes and leaves the audit trail behind.
+    expect(existsSync(join(fixture.outDir, "cuts-report.json"))).toBe(true);
+    const record = JSON.parse(readFileSync(join(fixture.outDir, "shedoesai", "737.json"), "utf8"));
+    expect(record.evidence.timing.beatsAnchorSource).toBe("interpolated");
+    expect(record.evidence).not.toHaveProperty("cuts");
+  });
 });

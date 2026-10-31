@@ -545,7 +545,7 @@ describe("buildRecord (#300 stage 2)", () => {
       beats: Array.from({ length: 9 }, () => ({ anchorSegment: 1 })),
       shots: Array.from({ length: 9 }, () => ({ anchorSegment: 1 })),
     };
-    const cuts = { times: CUTS, threshold: 0.15, artifact: "123.cuts.json" };
+    const cuts = { cutsMs: CUTS, threshold: 0.15, artifact: "123.cuts.json" };
     const rec = buildRecord(target, COLLAPSED_SPAN / 1000, breakdown, transcript, cuts);
     expect(rec.evidence.cuts).toEqual({ total: 8, threshold: 0.15, artifact: "123.cuts.json" });
     expect(rec.evidence.timing.beatsAnchorSource).toBe("cuts");
@@ -650,6 +650,9 @@ describe("--limit accounting (#300 stage 2)", () => {
         outDir,
         limit: 1,
         asrOnly: true,
+        // The fake mp4 cannot be decoded; skip detection instead of logging a
+        // non-fatal failure on every run of this accounting test.
+        noCuts: true,
       });
 
       expect(summary.skipped).toBe(1);

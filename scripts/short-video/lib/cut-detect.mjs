@@ -62,6 +62,27 @@ export function parseScenePts(stderr) {
 }
 
 /**
+ * The persisted artifact shape for one video's cut detection.
+ *
+ * Single-sourced because two writers persist it: the analysis runner beside the
+ * record, and the retime CLI in its output directory. They must stay
+ * byte-identical so either can reproduce the other (#749 review).
+ *
+ * @param {string} videoId
+ * @param {{cutsMs: number[], threshold: number}} detected
+ * @returns {object}
+ */
+export function cutsArtifact(videoId, { cutsMs, threshold }) {
+  return {
+    schemaVersion: "competitor-cuts-v1",
+    videoId,
+    source: "ffmpeg-scene",
+    threshold,
+    cutsMs,
+  };
+}
+
+/**
  * Detect hard cuts in `videoPath` with ffmpeg's scene filter.
  *
  * Returns millisecond timestamps of the first frame of each new shot, strictly
