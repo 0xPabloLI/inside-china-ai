@@ -245,9 +245,16 @@ describe("resolvePublishMethod — per-platform publish gate", () => {
 // ─── Profile shape: enabledPublishMethods contract ───
 
 describe("profile shape: enabledPublishMethods", () => {
-  it("tiktok enables only manual-guide — api/cdp default closed", () => {
+  it("tiktok enables manual-guide + cdp — api stays closed", () => {
+    // `cdp` was added by #951. Before that this array said ["manual-guide"]
+    // while tiktok-upload-prep.mjs published through CDP anyway (2026-10-25),
+    // so the declaration and the runtime disagreed and nothing noticed. The
+    // driver now resolves its method through the profile, which makes this
+    // array load-bearing: dropping "cdp" here stops the CDP path.
     const profile = getPlatformProfile("tiktok");
-    expect(profile.enabledPublishMethods).toEqual(["manual-guide"]);
+    expect(profile.enabledPublishMethods).toEqual(["manual-guide", "cdp"]);
+    expect(profile.enabledPublishMethods).not.toContain("api");
+    expect(resolvePublishMethod(profile, { method: "cdp" })).toBe("cdp");
   });
 
   it("enabledPublishMethods must be a subset of the enum and include publishMethod", () => {

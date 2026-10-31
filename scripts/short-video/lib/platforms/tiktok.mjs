@@ -74,21 +74,29 @@ export const tiktokProfile = {
   displayName: "TikTok",
 
   /**
-   * Publish method: `manual-guide` is the default safe tier. API auto-publish
-   * is DISABLED (zero-views prevention — bypasses AIGC label, trending audio,
-   * in-app editing, geographic tag); CDP is not enabled for TikTok.
+   * Publish method: `manual-guide` is the default safe tier, so a run that
+   * asks for nothing gets the human checklist. API auto-publish stays DISABLED
+   * (zero-views prevention — bypasses AIGC label, trending audio, in-app
+   * editing, geographic tag).
    */
   publishMethod: "manual-guide",
 
   /**
    * Publish methods this platform actually allows (#219 T03 — publish HITL
-   * gate, spec Implementation Decisions 4). Automation paths (`api`, `cdp`)
-   * are closed until per-platform authorization + sandbox verification enable
-   * them; publishing through a non-enabled method fails closed. TikTok: the
-   * manual in-app checklist IS the publish HITL — the human performs the
-   * publish, so the confirmation point cannot be skipped.
+   * gate, spec Implementation Decisions 4). Publishing through a non-enabled
+   * method fails closed.
+   *
+   * `cdp` is enabled because it IS the approved default path (user decision
+   * 2026-10-25: publish end to end after HITL, via the Studio web upload page).
+   * Before #951 this array said `["manual-guide"]` while
+   * `tiktok-upload-prep.mjs` drove CDP anyway — a declaration with no consumer,
+   * which made "fails closed" false. The driver now resolves its method through
+   * here (`lib/platforms/upload-prep-policy.mjs`), so removing `cdp` from this
+   * line really does stop the driver.
+   *
+   * `api` stays out until the Content Posting API route is chosen (#210).
    */
-  enabledPublishMethods: ["manual-guide"],
+  enabledPublishMethods: ["manual-guide", "cdp"],
 
   /** Artifact types: only `video` is implemented; `image-thread` reserved for #223/#208. */
   artifactTypes: ["video"],
