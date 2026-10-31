@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.46.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.46.0...tanstack_start_ts-v1.46.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **video:** 按「输入延迟」而不是「标签页可见」判节流，并加自愈 ([#1013](https://github.com/0xPabloLI/inside-china-ai/issues/1013)) ([#1053](https://github.com/0xPabloLI/inside-china-ai/issues/1053)) ([0406ddb](https://github.com/0xPabloLI/inside-china-ai/commit/0406ddbc8f06198ee40d73b041fdd5e2f1976676))
+
 ## [1.46.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.45.1...tanstack_start_ts-v1.46.0) (2026-10-31)
 
 
