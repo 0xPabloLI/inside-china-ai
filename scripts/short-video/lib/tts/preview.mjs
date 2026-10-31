@@ -16,7 +16,7 @@
  *   5. static word/breath hints for pending scenes (no prosody probe).
  */
 
-import { planTtsScenes } from "./cache.mjs";
+import { planTtsScenes, ttsCacheEnabled } from "./cache.mjs";
 import { qualityGateSkipped } from "./failure-class.mjs";
 import { planCachedPacing } from "./pacing-plan.mjs";
 import { buildTtsPlan, prepareScenesForPlan } from "./plan-report.mjs";
@@ -38,7 +38,7 @@ export async function previewTtsPlan({
   env = process.env,
   engine = null,
 }) {
-  const useCache = env.TTS_NO_CACHE !== "1";
+  const useCache = ttsCacheEnabled(env);
   const plannedScenes = await prepareScenesForPlan(scenes, meta);
   const selectedEngine = engine ?? (await selectEngine());
   const plan = useCache ? planTtsScenes(audioDir, plannedScenes, selectedEngine) : null;

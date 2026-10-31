@@ -345,6 +345,20 @@ function resolveSceneInstruct(engine, scene) {
 }
 
 /**
+ * Whether the cross-run audio cache is enabled for this run (#953).
+ *
+ * Single source for the TTS_NO_CACHE check: the generator and the dry-run
+ * preview both ask here, so the preview cannot report cache hits for a run
+ * that will regenerate everything.
+ *
+ * @param {object} [env]
+ * @returns {boolean}
+ */
+export function ttsCacheEnabled(env = process.env) {
+  return env.TTS_NO_CACHE !== "1";
+}
+
+/**
  * Human-actionable reason a scene is pending (#953).
  *
  * The cache key is a one-way hash, so the planner cannot see WHICH input

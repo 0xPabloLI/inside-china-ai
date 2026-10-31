@@ -50,6 +50,7 @@ import {
   refreshApprovedSceneMeta,
   refreshCandidateSceneMeta,
   sceneCacheKey,
+  ttsCacheEnabled,
 } from "./cache.mjs";
 // #953: state the spend before the batch — the plan was always computed here,
 // but only its aggregate was printed, and the cost never appeared before the
@@ -559,7 +560,7 @@ export function isFakeEngine(engine) {
  * @returns {Promise<TTSResult[]>}
  */
 export async function generateTTSWithEngine(scenes, outputDir, engine, options = {}) {
-  const { useCache = process.env.TTS_NO_CACHE !== "1", runAlignment = true } = options;
+  const { useCache = ttsCacheEnabled(), runAlignment = true } = options;
 
   const atempo = getAtempo();
   // #270: hand the Quality Gate the SELECTED engine's instruct resolver so it

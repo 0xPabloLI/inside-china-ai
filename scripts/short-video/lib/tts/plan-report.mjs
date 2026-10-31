@@ -132,8 +132,25 @@ export function estimateTtsSpend(engineName, pendingScenes) {
  * @param {Array<PlanScene>} args.scenes
  * @param {object|null} args.plan
  * @param {object|null} [args.pacing]
+ * @param {string|null} [args.pacingSkipped] - why the precheck was skipped
+ * @param {string[]} [args.hints] - static word/breath hints for pending scenes
  * @param {boolean} [args.useCache]
- * @returns {object}
+ * @returns {{
+ *   engineName: string,
+ *   engineInfo: string,
+ *   useCache: boolean,
+ *   totalScenes: number,
+ *   approvedCount: number,
+ *   candidateCount: number,
+ *   pendingCount: number,
+ *   pending: Array<{sceneId: number, reason: string, chars: number}>,
+ *   candidates: Array<{sceneId: number, reason: string}>,
+ *   pendingChars: number,
+ *   spend: object,
+ *   pacing: object|null,
+ *   pacingSkipped: string|null,
+ *   hints: string[],
+ * }}
  */
 export function buildTtsPlan({
   engine,
@@ -151,22 +168,23 @@ export function buildTtsPlan({
   const reasonById = new Map((plan?.misses ?? []).map((m) => [m.sceneId, m.reason]));
   const byId = new Map(allScenes.map((s) => [s.id, s]));
 
-  const pending = pendingScenes.map((scene) => {
-    const source = byId.get(scene.id) ?? scene;
-    return {
-      sceneId: scene.id,
-      // Mocked plans (tests, future callers) may omit misses — say unknown
-      // instead of crashing the run that was about to spend the money.
-      reason: useCache ? (reasonById.get(scene.id) ?? "unknown") : "cache-disabled",
-      chars: textOf(source).length,
-    };
-  });
+  // Resolve each pending entry to its authored scene once: the same objects
+  // feed both the char count and the speech estimate, so a pending scene that
+  // is absent from `scenes` cannot be counted in one and dropped from the
+  // other (mocked plans, cache-disabled runs).
+  const pendingSources = pendingScenes.map((scene) => byId.get(scene.id) ?? scene);
+  const pending = pendingSources.map((source) => ({
+    sceneId: source.id,
+    // Mocked plans (tests, future callers) may omit misses — say unknown
+    // instead of crashing the run that was about to spend the money.
+    reason: useCache ? (reasonById.get(source.id) ?? "unknown") : "cache-disabled",
+    chars: textOf(source).length,
+  }));
 
   const candidates = useCache
     ? (plan?.candidates ?? []).map((c) => ({ sceneId: c.sceneId, reason: c.reason ?? "unknown" }))
     : [];
 
-  const pendingSourceScenes = pending.map((p) => byId.get(p.sceneId)).filter(Boolean);
   return {
     engineName: engine?.name ?? "unknown",
     engineInfo: engine?.info ?? engine?.name ?? "unknown",
@@ -178,7 +196,7 @@ export function buildTtsPlan({
     pending,
     candidates,
     pendingChars: pending.reduce((sum, p) => sum + p.chars, 0),
-    spend: estimateTtsSpend(engine?.name, pendingSourceScenes),
+    spend: estimateTtsSpend(engine?.name, pendingSources),
     pacing,
     pacingSkipped,
     hints,

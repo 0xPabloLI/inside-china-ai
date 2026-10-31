@@ -116,6 +116,21 @@ describe("buildTtsPlan / formatTtsPlan (#953)", () => {
     ]);
   });
 
+  it("keeps a pending scene absent from `scenes` in both chars and speech", () => {
+    // Mocked/mismatched inputs must not be counted in one place and dropped
+    // from the other — the two numbers describe the same spend.
+    const orphan = scene(9, "one two three four");
+    const plan = {
+      approved: [],
+      candidates: [],
+      pending: [orphan],
+      misses: [{ sceneId: 9, reason: "missing-audio" }],
+    };
+    const report = buildTtsPlan({ engine, scenes: [], plan });
+    expect(report.pendingChars).toBe(orphan.voiceover.length);
+    expect(report.spend.speechSeconds).toBeCloseTo(estimateSpeechSeconds([orphan]), 6);
+  });
+
   it("surfaces the pacing precheck when given one", () => {
     const pacing = {
       compensations: [

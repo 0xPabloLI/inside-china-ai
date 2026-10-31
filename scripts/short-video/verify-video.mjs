@@ -391,25 +391,36 @@ if (sceneResults.editorial.length > 0) {
 // mutating the authored data the checks above just judged.
 if (preMode) {
   console.log("");
-  try {
-    const { previewTtsPlan } = await import("./lib/tts/preview.mjs");
-    const { formatTtsPlan } = await import("./lib/tts/plan-report.mjs");
-    const { report } = await previewTtsPlan({
-      scenes,
-      meta,
-      audioDir: join(OUTPUT_DIR, "audio"),
-    });
-    console.log(formatTtsPlan(report));
-  } catch (e) {
-    // Non-blocking: content checks stay usable on a machine without a TTS
-    // engine. `main.mjs --tts-plan` fails instead — it was asked for the plan
-    // specifically, while --pre only prints one alongside its checks.
+  if (!meta?.pipelineId) {
+    // main.mjs derives output/<meta.pipelineId> and cannot run without it;
+    // pricing a fallback dir here would describe a different run.
     warn(
       "TTS",
-      "Cache & cost plan unavailable",
-      e.message,
-      "Fix TTS engine availability (TTS_ENGINE / kaggle.json / ~/.video-tts-env) to preview the spend",
+      "Cache & cost plan skipped",
+      "meta.pipelineId missing — main.mjs cannot derive its output directory",
+      "Add pipelineId to meta.mjs",
     );
+  } else {
+    try {
+      const { previewTtsPlan } = await import("./lib/tts/preview.mjs");
+      const { formatTtsPlan } = await import("./lib/tts/plan-report.mjs");
+      const { report } = await previewTtsPlan({
+        scenes,
+        meta,
+        audioDir: join(OUTPUT_DIR, "audio"),
+      });
+      console.log(formatTtsPlan(report));
+    } catch (e) {
+      // Non-blocking: content checks stay usable on a machine without a TTS
+      // engine. `main.mjs --tts-plan` fails instead — it was asked for the plan
+      // specifically, while --pre only prints one alongside its checks.
+      warn(
+        "TTS",
+        "Cache & cost plan unavailable",
+        e.message,
+        "Fix TTS engine availability (TTS_ENGINE / kaggle.json / ~/.video-tts-env) to preview the spend",
+      );
+    }
   }
 }
 

@@ -15,6 +15,7 @@ import { tmpdir } from "os";
 import {
   computeSceneKey,
   planTtsScenes,
+  ttsCacheEnabled,
   writeSceneMeta,
   alignmentCacheState,
   computeAlignmentSignature,
@@ -247,6 +248,14 @@ describe("planTtsScenes / writeSceneMeta", () => {
 
     const plan = planTtsScenes(dir, [scene], engine);
     expect(plan.approved).toHaveLength(1);
+  });
+});
+
+describe("ttsCacheEnabled (#953)", () => {
+  it("single-sources the TTS_NO_CACHE switch for the run and the preview", () => {
+    expect(ttsCacheEnabled({})).toBe(true);
+    expect(ttsCacheEnabled({ TTS_NO_CACHE: "0" })).toBe(true);
+    expect(ttsCacheEnabled({ TTS_NO_CACHE: "1" })).toBe(false);
   });
 });
 
