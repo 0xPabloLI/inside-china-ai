@@ -582,15 +582,17 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path1> [<path
 
 公开发布使用与 Stage 2 相同的文章文件，但不带 `--draft`。文章公开完成后再发布 TikTok。
 
-#### 5b. TikTok 发布（manual-guide 为当前唯一启用档）
+#### 5b. TikTok 发布（`manual-guide` 默认档，`cdp` 为已授权自动化档）
 
 ```bash
 node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipelineId> --slug <slug>
+# 或走 Studio 网页的 CDP 驱动（HITL 批准后一次做完：挂 sound + 音量 + AIGC + 点发布）
+node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --publish
 ```
 
 > **文章链接 readiness 门（#429，2026-10-19 落地）**：发布脚本在生成指南前，对**最终实际出链**做一次可达性判定（`lib/article-url-readiness.mjs`，所有走链接的消费面——manual guide 的 `{slug}` URL 与 pinned comment——共用同一 seam；纯 Caption builder 不引入网络）。两段式契约：**制包期**（`generate-caption.mjs`）只校验 origin/语法/`/posts/<slug>` 形状（草稿文章合法 404，不在此拦截）；**终检期**（本步，文章已公开后）发真实请求，HEAD 405/501 用有限 GET 复核，跨站 redirect 不算过。失败政策（用户裁决 2026-10-19，分级处置）：**确定不可达**（404/410/错 origin）→ **阻断**（退出非零，附诊断；修根因——重发文章或修 slug——后重跑）；**unknown**（reset/超时/TLS/429/可疑 403/5xx/401，含站点自身报错——非内容 bug 不卡视频）→ **自动降级**：pinned comment 去掉「Full analysis」承诺、指南不再带 URL 行、包内文件同步改写保持一致，并大声警告。降级时若检测到内容 CTA 口播了「全文在置顶评论」承诺（音频已渲染无法改），额外 🚨 警告由人工临场决定（用户裁决 2026-10-19：警告后照发，不阻断）。`--slug` 缺失时指南**不再合成** `{entity}-news` 假 URL（无 slug 即无 URL 行）。
 
-> **每平台独立发布 HITL（#219 T03）**：发布是外部不可逆动作，逐平台设确认门。TikTok 的 Profile 只启用 `manual-guide` 档——发布动作由用户按 checklist 在 App 内人工执行（确认点=执行清单本身，结构上不可跳过）；Publora `--auto` API 路径保留但默认关闭（`--auto` 会 fail-closed），启用需逐平台授权 + 沙盒验证。发布后手动回写 URL：
+> **每平台独立发布 HITL（#219 T03）**：发布是外部不可逆动作，逐平台设确认门。TikTok 的 Profile 启用 **`manual-guide`（默认档）与 `cdp`（2026-10-25 用户批准的自动化路径）**，`api` 仍关闭——`manual-guide` 由用户按 checklist 在 App 内人工执行（确认点=执行清单本身），`cdp` 由 `tiktok-upload-prep.mjs` 在 HITL 批准后一次做完（挂 sound + 音量 + AIGC + 点发布）。**声明与执行由 #951 接上**：驱动开工前调用 `resolvePublishMethod(tiktokProfile, { method: CDP_PUBLISH_METHOD })`，从 profile 删掉 `cdp` 就真的关掉该路径，不再是「注释写着 fail closed、代码照跑」；AIGC 标签同理读 `aiDisclosure.required`——`--publish` + `--no-aigc` 会被拒（需 `--confirm-unlabeled` 显式承担）。Publora `--auto` API 路径保留但默认关闭（`--auto` 会 fail-closed），启用需逐平台授权 + 沙盒验证。发布后手动回写 URL：
 >
 > ```bash
 > node scripts/article/set-tiktok-url.mjs --slug <slug> --url <tiktok-url>

@@ -88,6 +88,20 @@
  *      declared it mandatory. The control exists on the web, behind 显示更多,
  *      and cannot be set after publishing — see the AIGC section below.
  *   5. A no-voice run needs `--no-aigc`; the label is otherwise always applied.
+ *      The label decision now comes from the platform profile instead of this
+ *      flag alone (`profile.aiDisclosure.required`, #951): with `--publish`,
+ *      `--no-aigc` is refused unless `--confirm-unlabeled` acknowledges it.
+ *
+ * Profile gate (#951)
+ * -------------------
+ * The driver asks `lib/platforms/tiktok.mjs` before it acts instead of working
+ * around it: `lib/platforms/upload-prep-policy.mjs` resolves the publish method
+ * through `enabledPublishMethods` (so removing `cdp` there really stops this
+ * driver) and derives the AIGC decision from `aiDisclosure.required`. Both
+ * declarations previously had no consumer — `enabledPublishMethods` said
+ * `["manual-guide"]` while this file published through CDP, and
+ * `aiDisclosure.required` was read by nothing, which is how the 2026-10-25 post
+ * shipped unlabeled.
  *
  * HITL boundary
  * -------------
@@ -129,7 +143,13 @@
  *                         value here buries the narration.
  *   --no-aigc             Skip the AI-generated-content disclosure. Only for a
  *                         post with no synthetic media or voice at all; the
- *                         label cannot be added after publishing.
+ *                         label cannot be added after publishing. With
+ *                         --publish this is refused unless --confirm-unlabeled
+ *                         is also passed, because the profile declares the
+ *                         label required (#951).
+ *   --confirm-unlabeled   Acknowledge publishing without the AIGC label. Only
+ *                         meaningful together with --no-aigc; the run records
+ *                         the override in the publish log.
  *   --publish             Click 发布 after preparing. Without it the script
  *                         never publishes.
  *   --no-warmup           Skip the For You warm-up before the upload page.
@@ -166,6 +186,9 @@ import {
   wheelScroll,
 } from "./lib/human-input.mjs";
 import { PUBLISH_PACING, REVIEW_WATCH_MS } from "./lib/publish-pacing.mjs";
+import { getPlatformProfile } from "./lib/platforms/index.mjs";
+import { CDP_PUBLISH_METHOD, resolveAigcPolicy } from "./lib/platforms/upload-prep-policy.mjs";
+import { resolvePublishMethod } from "./lib/publish-utils.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -1167,6 +1190,19 @@ export async function reviewBeforePublish(tabId, cdp) {
 }
 
 async function main() {
+  // Profile gate (#951), first thing in the run and before anything touches
+  // the browser: a profile that closes this path, or a compliance decision that
+  // cannot be made, fails here instead of halfway through an upload. Kept inside
+  // main() rather than at module top level so importing this file stays free of
+  // argv-dependent behaviour (the pacing tests import it).
+  const tiktokProfile = getPlatformProfile("tiktok");
+  const publishMethod = resolvePublishMethod(tiktokProfile, { method: CDP_PUBLISH_METHOD });
+  const aigcPolicy = resolveAigcPolicy(tiktokProfile, {
+    noAigc: hasFlag("no-aigc"),
+    publish: hasFlag("publish"),
+    confirmUnlabeled: hasFlag("confirm-unlabeled"),
+  });
+
   const dryRun = hasFlag("dry-run");
   const videoArg = getArg("video");
   // --dry-run only proves the upload page is reachable, so a video is not
@@ -1237,6 +1273,16 @@ async function main() {
   await ensureCdpProfileGuard();
 
   const log = makePublishLogger(contentId);
+  // The profile decision is recorded before anything else, so a run's publish
+  // method and AIGC posture are auditable even when it later aborts (#951).
+  log("profile", {
+    publishMethod,
+    publishMethodEnabled: tiktokProfile.enabledPublishMethods,
+    aigcRequired: aigcPolicy.required,
+    aigcEnabled: aigcPolicy.enabled,
+    aigcOverridden: aigcPolicy.overridden,
+    aigcNote: tiktokProfile.aiDisclosure.note,
+  });
 
   console.log("");
   console.log("=".repeat(60));
@@ -1249,6 +1295,10 @@ async function main() {
   console.log(`  Warm-up: ${hasFlag("no-warmup") ? "skipped" : `${WARMUP_URL} (scroll + dwell)`}`);
   console.log(
     `  Input:   ${hasFlag("paste-caption") ? "paste caption (explicit)" : "typed caption"} · human pointer paths · jittered waits`,
+  );
+  console.log(
+    `  Gate:    method "${publishMethod}" (profile enables: ${tiktokProfile.enabledPublishMethods.join(", ")}) · ` +
+      `AIGC label ${aigcPolicy.enabled ? "on" : "OFF"} (profile requires: ${aigcPolicy.required ? "yes" : "no"})`,
   );
   console.log("");
 
@@ -1353,9 +1403,21 @@ async function main() {
     // AIGC disclosure. Runs before the sound step because it is a compliance
     // obligation (lib/platforms/tiktok.mjs aiDisclosure.required), not a
     // preference: a post that ships without it cannot be fixed afterwards.
-    if (hasFlag("no-aigc")) {
+    if (!aigcPolicy.enabled) {
       console.log("  5/6 AIGC label SKIPPED (--no-aigc) — the post will not carry a disclosure");
-      log("aigc", { mode: "skipped" });
+      if (aigcPolicy.warning) {
+        console.log(`      profile.aiDisclosure.required is true: ${aigcPolicy.warning}`);
+      }
+      if (aigcPolicy.overridden) {
+        console.log(
+          "      publishing without the label on an explicit --confirm-unlabeled override",
+        );
+      }
+      log("aigc", {
+        mode: "skipped",
+        profileRequired: aigcPolicy.required,
+        overridden: aigcPolicy.overridden,
+      });
     } else {
       if ((await evalJson(tab, ADVANCED_OPEN)).ready) {
         log("aigc", { expandMode: "already-open" });
