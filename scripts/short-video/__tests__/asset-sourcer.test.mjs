@@ -47,6 +47,10 @@ import {
   loadCachedMedia,
   toCachedMediaCandidate,
   hookRequiredFitFor,
+  assetAspectRatio,
+  isLandscapeAsset,
+  hasDeclaredBodyFit,
+  LANDSCAPE_MIN_ASPECT,
 } from "../lib/asset-sourcer.mjs";
 import { createSearchResultsCache, recordSearchResults } from "../lib/search-results-cache.mjs";
 
@@ -1816,18 +1820,31 @@ describe("assignAssetsToScenes", () => {
     expect(result[0].reason).toMatch(/hook gates/i); // claim-bound: no spill to narrative
   });
 
-  it("does NOT assign to hook when fit=contain", () => {
+  // #963: a pack that declares no body fit has no authoritative composition
+  // to gate against; the allocated body answers it instead (post-pass below).
+  it("accepts a contain hook when the pack declares no body fit", () => {
     const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
     const assets = [claimed("a1.jpg", "image", 90, 1, { fit: "contain" })];
     const result = assignAssetsToScenes(assets, scenes);
-    expect(result[0].status).toBe("unassigned");
-    expect(result[0].reason).toMatch(/hook gates/i); // claim-bound: no spill to narrative
+    expect(result[0].status).toBe("assigned");
+    expect(result[0].media.fit).toBe("contain");
   });
 
-  it("does NOT assign to hook when aiFit is missing", () => {
+  it("accepts a hook with no asset fit when the pack declares no body fit", () => {
     const scenes = [makeScene(1, "hook"), makeScene(2, "narrative")];
     const assets = [claimed("a1.jpg", "image", 90, 1)];
     // no fit set
+    const result = assignAssetsToScenes(assets, scenes);
+    expect(result[0].status).toBe("assigned");
+    expect(result[0].media.fit).toBe("cover");
+  });
+
+  it("still gates a declared-body pack on the hook asset's declared fit", () => {
+    const scenes = [
+      makeScene(1, "hook"),
+      { id: 2, visualType: "narrative", media: { type: "video", path: "body.mp4", fit: "cover" } },
+    ];
+    const assets = [claimed("a1.jpg", "image", 90, 1, { fit: "contain" })];
     const result = assignAssetsToScenes(assets, scenes);
     expect(result[0].status).toBe("unassigned");
     expect(result[0].reason).toMatch(/hook gates/i); // claim-bound: no spill to narrative
@@ -1849,6 +1866,142 @@ describe("assignAssetsToScenes", () => {
     const result = assignAssetsToScenes(assets, scenes);
     const assigned = result.find((r) => r.status === "assigned");
     expect(assigned.media.animation).toBe("ken-burns");
+  });
+});
+
+// ─── #963: third-party landscape composition default ───
+
+describe("landscape composition default (#963)", () => {
+  const scene = (id, visualType, media) => ({ id, visualType, media });
+  const asset = (path, type, sceneId, over = {}) => ({
+    path,
+    type,
+    score: 90,
+    source: "pexels-video",
+    title: path,
+    claimSceneId: sceneId,
+    relevanceScore: 90,
+    ...over,
+  });
+  const assigned = (result) => result.filter((r) => r.status === "assigned");
+
+  it("reads the aspect from width/height first", () => {
+    expect(assetAspectRatio({ width: 1920, height: 1080 })).toBeCloseTo(16 / 9);
+  });
+
+  it("falls back to the focus frame, then to resolution metadata", () => {
+    expect(
+      assetAspectRatio({ focusAnalysis: { frame: { width: 1600, height: 900 } } }),
+    ).toBeCloseTo(16 / 9);
+    expect(assetAspectRatio({ resolution: "1920x1080" })).toBeCloseTo(16 / 9);
+    expect(assetAspectRatio({ resolution: "1080×1920" })).toBeCloseTo(9 / 16);
+  });
+
+  it("returns null when no dimensions are available", () => {
+    expect(assetAspectRatio({})).toBeNull();
+    expect(isLandscapeAsset({ resolution: "vertical" })).toBe(false);
+  });
+
+  it("treats the threshold itself as landscape", () => {
+    expect(LANDSCAPE_MIN_ASPECT).toBe(1.2);
+    expect(isLandscapeAsset({ width: 1200, height: 1000 })).toBe(true);
+    expect(isLandscapeAsset({ width: 1190, height: 1000 })).toBe(false);
+  });
+
+  it("declares body fit only from non-hook scenes with a valid fit", () => {
+    expect(hasDeclaredBodyFit([scene(1, "hook", { fit: "contain" })])).toBe(false);
+    expect(
+      hasDeclaredBodyFit([
+        scene(1, "hook", { fit: "cover" }),
+        scene(2, "narrative", { fit: "contain" }),
+      ]),
+    ).toBe(true);
+    expect(hasDeclaredBodyFit([scene(2, "narrative", { fit: "fill" })])).toBe(false);
+    expect(hasDeclaredBodyFit([])).toBe(false);
+  });
+
+  it("writes contain for a landscape video body", () => {
+    const result = assignAssetsToScenes(
+      [asset("wide.mp4", "video", 2, { width: 1920, height: 1080 })],
+      [scene(2, "narrative")],
+    );
+    expect(assigned(result)[0].media.fit).toBe("contain");
+  });
+
+  it("writes contain for a landscape image even when the crop decision said cover", () => {
+    const result = assignAssetsToScenes(
+      [asset("wide.jpg", "image", 2, { width: 1600, height: 900, fit: "cover" })],
+      [scene(2, "narrative")],
+    );
+    expect(assigned(result)[0].media.fit).toBe("contain");
+  });
+
+  it("keeps cover for a portrait video body", () => {
+    const result = assignAssetsToScenes(
+      [asset("tall.mp4", "video", 2, { width: 1080, height: 1920 })],
+      [scene(2, "narrative")],
+    );
+    expect(assigned(result)[0].media.fit).toBeUndefined();
+  });
+
+  it("honors a contain verdict on a portrait video", () => {
+    const result = assignAssetsToScenes(
+      [asset("tall.mp4", "video", 2, { width: 1080, height: 1920, fit: "contain" })],
+      [scene(2, "narrative")],
+    );
+    expect(assigned(result)[0].media.fit).toBe("contain");
+  });
+
+  it("keeps an explicit fit for a portrait image", () => {
+    const result = assignAssetsToScenes(
+      [asset("tall.jpg", "image", 2, { width: 1080, height: 1920, fit: "cover" })],
+      [scene(2, "narrative")],
+    );
+    expect(assigned(result)[0].media.fit).toBe("cover");
+  });
+
+  it("writes the declared body fit on the hook (contain)", () => {
+    const result = assignAssetsToScenes(
+      [asset("hook.jpg", "image", 1, { fit: "contain" })],
+      [
+        scene(1, "hook"),
+        scene(2, "narrative", { fit: "contain" }),
+        scene(3, "narrative", { fit: "contain" }),
+      ],
+    );
+    expect(assigned(result).find((r) => r.visualType === "hook").media.fit).toBe("contain");
+  });
+
+  it("keeps a landscape hook on contain over a cover body", () => {
+    const result = assignAssetsToScenes(
+      [
+        asset("hook.jpg", "image", 1, { width: 1600, height: 900, fit: "contain" }),
+        asset("tall.mp4", "video", 2, { width: 1080, height: 1920 }),
+      ],
+      [scene(1, "hook"), scene(2, "narrative")],
+    );
+    const hook = assigned(result).find((r) => r.visualType === "hook");
+    expect(hook.media.fit).toBe("contain");
+  });
+
+  it("keeps a portrait hook on cover over a contain body", () => {
+    const result = assignAssetsToScenes(
+      [
+        asset("hook.jpg", "image", 1, { width: 1080, height: 1920, fit: "cover" }),
+        asset("wide.mp4", "video", 2, { width: 1920, height: 1080 }),
+      ],
+      [scene(1, "hook"), scene(2, "narrative")],
+    );
+    const hook = assigned(result).find((r) => r.visualType === "hook");
+    expect(hook.media.fit).toBe("cover");
+  });
+
+  it("keeps the hook's own composition when no body was assigned", () => {
+    const result = assignAssetsToScenes(
+      [asset("hook.jpg", "image", 1, { width: 1600, height: 900 })],
+      [scene(1, "hook")],
+    );
+    expect(assigned(result)[0].media.fit).toBe("contain");
   });
 });
 

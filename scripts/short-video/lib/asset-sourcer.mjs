@@ -43,8 +43,8 @@
  * @property {number} [duration] - seconds (videos)
  * @property {string} [resolution] - e.g. "1920x1080"
  * @property {number} [fileSize] - bytes, when the source reports it
- * @property {number} [width] - pixels (images)
- * @property {number} [height] - pixels (images)
+ * @property {number} [width] - pixels (images from metadata/focus; videos once probed in analyzeAssets)
+ * @property {number} [height] - pixels (same sources as width)
  * @property {string} [source] - source/engine name that produced the candidate
  * @property {string} [id] - platform video id (yt-dlp results)
  */
@@ -245,6 +245,65 @@ export function hookRequiredFitFor(scenes = []) {
     else if (fit === "contain") contain += 1;
   }
   return contain > cover ? "contain" : "cover";
+}
+
+/**
+ * Minimum source width/height ratio that counts as landscape for composition.
+ *
+ * 1.2, not 1.0: a 6:5 or 5:4 source still loses a wide band of its sides when
+ * cover-fitted into the 1080x1309 media band, so the contain default has to
+ * start below the exact-square boundary.
+ */
+export const LANDSCAPE_MIN_ASPECT = 1.2;
+
+/**
+ * Source aspect ratio (width / height), or null when the asset carries no
+ * usable dimensions.
+ *
+ * Dimensions arrive from three places depending on the asset's stage: search
+ * metadata (`resolution`, e.g. Pexels' "1920x1080"), focus detection
+ * (`focusAnalysis.frame`, images), and the post-download ffprobe in
+ * `analyzeAssets` (`width`/`height`, videos — persisted there so the allocator
+ * can see them). The probe's values are rotation-adjusted at write time; raw
+ * rotation metadata on a portrait phone clip would otherwise read as landscape.
+ */
+export function assetAspectRatio(asset) {
+  if (!asset) return null;
+  let width = Number(asset.width);
+  let height = Number(asset.height);
+  if (!(width > 0 && height > 0)) {
+    const frame = asset.focusAnalysis?.frame;
+    width = Number(frame?.width);
+    height = Number(frame?.height);
+  }
+  if (!(width > 0 && height > 0) && typeof asset.resolution === "string") {
+    const match = asset.resolution.match(/(\d+)\s*[x×]\s*(\d+)/i);
+    if (match) {
+      width = Number(match[1]);
+      height = Number(match[2]);
+    }
+  }
+  if (!(width > 0 && height > 0)) return null;
+  return width / height;
+}
+
+/** True when the source is wide enough that cover-fitting would cut content. */
+export function isLandscapeAsset(asset) {
+  const ratio = assetAspectRatio(asset);
+  return ratio != null && ratio >= LANDSCAPE_MIN_ASPECT;
+}
+
+/**
+ * Whether the pack declares its own body composition (any non-hook
+ * `media.fit`). When it does, the hook follows that declared majority; when it
+ * does not, the hook is composed from its own source aspect.
+ */
+export function hasDeclaredBodyFit(scenes = []) {
+  return (scenes ?? []).some(
+    (scene) =>
+      scene?.visualType !== "hook" &&
+      (scene?.media?.fit === "cover" || scene?.media?.fit === "contain"),
+  );
 }
 
 // ─── Pure functions ───
@@ -943,6 +1002,12 @@ function isRejectedFor(asset, scene) {
  *   - cross-content reuse cap: a reused asset is rejected when accepting it
  *     would push reused/total above opts.reusedCap (default 0.4); rejection
  *     happens before scene search so it never consumes a scene slot
+ *   - composition (#963): third-party landscape sources (aspect >=
+ *     LANDSCAPE_MIN_ASPECT) are written with fit:"contain" so cover cannot
+ *     crop them; portrait/square sources keep cover. A hook follows the pack's
+ *     declared body majority when there is one; otherwise it follows its own
+ *     source aspect — forcing a portrait hook into contain would letterbox the
+ *     first 3 seconds
  *   - assigned entries carry relevanceScore/relevanceSource/relevanceReason/reused
  *
  * @param {Array} assets - Downloaded assets (each must have score, type, path)
@@ -970,6 +1035,9 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
   const reusedCap = typeof opts.reusedCap === "number" ? opts.reusedCap : 0.4;
   // Read once: the body's composition does not change while assigning.
   const hookRequiredFit = hookRequiredFitFor(scenes);
+  // A pack that declares body fits has already answered the hook question;
+  // one that does not is composed from each source's own aspect.
+  const hookFitDeclared = hasDeclaredBodyFit(scenes);
 
   // #294: satisfiability belongs to the scene's candidate pool, not to one
   // asset. Computed before the loop so a rejection reason can name the pool
@@ -1042,6 +1110,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
     }
 
     const isVideo = asset.type === "video";
+    const landscape = isLandscapeAsset(asset);
     const reused = detectReused(asset);
 
     // Online reused cap — reject before scene search so a rejected reused
@@ -1105,9 +1174,11 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         reason = `claim scene ${target.id} unavailable (occupied/manual media/no-media type)`;
       } else if (
         target.visualType === "hook" &&
-        ((asset.score || 0) < HOOK_MIN_SCORE || asset.fit !== hookRequiredFit)
+        ((asset.score || 0) < HOOK_MIN_SCORE || (hookFitDeclared && asset.fit !== hookRequiredFit))
       ) {
-        reason = `hook gates not met (score>=${HOOK_MIN_SCORE} + fit=${hookRequiredFit})`;
+        reason = hookFitDeclared
+          ? `hook gates not met (score>=${HOOK_MIN_SCORE} + fit=${hookRequiredFit})`
+          : `hook gates not met (score>=${HOOK_MIN_SCORE})`;
       }
 
       if (reason) {
@@ -1125,8 +1196,26 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         animation: isVideo ? VIDEO_ANIMATION : "ken-burns",
         overlay: vt === "hook" ? 0.5 : vt === "quote" ? 0.8 : vt === "info-card" ? 0.75 : 0.7,
       };
-      if (vt === "hook") media.fit = "cover";
-      else if (asset.fit && !isVideo) media.fit = asset.fit;
+      // Composition default (#963): a third-party landscape source is shown
+      // whole (contain). Cover into the 1080x1309 media band keeps only ~46%
+      // of a 16:9 source's width, and the user's 2026-10-26/2026-11-01 decision
+      // is that third-party content must survive intact. Portrait/square
+      // sources keep cover (filling the frame costs them no content); an
+      // explicit VLM verdict still decides for them.
+      if (vt === "hook") {
+        media.fit = hookFitDeclared
+          ? hookRequiredFit
+          : landscape
+            ? "contain"
+            : asset.fit || "cover";
+      } else if (landscape) {
+        media.fit = "contain";
+      } else if (asset.fit && (!isVideo || asset.fit === "contain")) {
+        // Images keep the VLM's verdict (cover or contain). A portrait video
+        // only carries a meaningful verdict when it says contain — writing
+        // "cover" would just restate the renderer's default.
+        media.fit = asset.fit;
+      }
       if (asset.cropFocus) media.cropFocus = asset.cropFocus;
       if (isVideo && VOLUME_RECOMMENDATIONS[vt]) media.volume = VOLUME_RECOMMENDATIONS[vt].video;
 
@@ -1494,6 +1583,16 @@ export async function analyzeAssets(assets, opts = {}) {
     if (durationMs > 0) {
       // #360: persist the probed duration (previously computed then discarded)
       asset.durationMs = durationMs;
+      // #963: persist the probed dimensions too — the allocator is pure and
+      // cannot probe, and the composition default has to know whether the
+      // source is landscape. probeMedia reports the stream's stored
+      // width/height, so swap a 90°/270° rotation to the orientation a viewer
+      // actually sees; otherwise a portrait phone clip reads as landscape.
+      if (probe.width > 0 && probe.height > 0) {
+        const rotated = Math.abs(probe.rotation ?? 0) % 180 === 90;
+        asset.width = rotated ? probe.height : probe.width;
+        asset.height = rotated ? probe.width : probe.height;
+      }
       // #542 L3: the probe's audio fact gates transcription (a silent asset
       // has nothing to decode). Only persisted when the probe actually said
       // something — undefined keeps the fail-open "try anyway" path.
@@ -1851,6 +1950,11 @@ export async function analyzeAssets(assets, opts = {}) {
           subjects: a.subjects || [],
           contentKind: a.contentKind || null,
           fit: a.fit || null,
+          // #963: the source dimensions the allocator saw. They decide the
+          // landscape default, so the artifact has to record them — otherwise
+          // a surprising `contain`/`cover` in media-patch has no audit trail.
+          width: a.width ?? null,
+          height: a.height ?? null,
           criticalEdgeText: a.criticalEdgeText || null,
           reason: a.reason || null,
           relevanceScore: a.relevanceScore ?? null,

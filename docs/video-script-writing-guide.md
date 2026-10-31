@@ -269,7 +269,7 @@ media: {
 
 预绑定的 `media` 优先，且不会被自动补位覆盖。
 
-**可读性**：hook 模板自带 bigNumber + numberLabel，媒体要退到背景层。`overlay` 建议 0.5–0.85（显式值超出 0.4–0.9 时 preflight WARN；缺省由渲染器取 0.7）；`fit` 必须是 `cover`（缺省即 cover）——`contain`/`fill`/`none` 或拼错值会被 preflight FAIL。不要设置 `mode: "fullscreen"`：渲染端在该模式下把 overlay 归零，满屏素材会直接压住大字。
+**可读性**：hook 模板自带 bigNumber + numberLabel，媒体要退到背景层。`overlay` 建议 0.5–0.85（显式值超出 0.4–0.9 时 preflight WARN；缺省由渲染器取 0.7）；`fit` 只接受 `cover`（缺省）与 `contain`（`fill`/`none`/拼错值 preflight FAIL）。hook 与正文同构：正文是 contain 的 pack，hook 也用 contain；自动取材会跟随本次实际分配的正文多数（#963）。不要设置 `mode: "fullscreen"`：渲染端在该模式下把 overlay 归零，满屏素材会直接压住大字。
 
 **素材库现实**：`scripts/short-video/assets/` 是全局库（约 275 文件 / 297MB，含暗调通用背景），但 `catalog.yml` 目前只有 7 条、RAG 只能搜到这 7 条。完整素材库与索引是 #310，不在本票范围；手工挑图时按文件名浏览、打开确认，不要假设 RAG 能搜到。
 

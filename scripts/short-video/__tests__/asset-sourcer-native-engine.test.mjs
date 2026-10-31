@@ -112,6 +112,25 @@ describe("analyzeAssets — native video engine (#542)", () => {
     expect(assets[0].durationMs).toBe(60000);
   });
 
+  it("#963: persists probed dimensions, rotation-adjusted", async () => {
+    mockProbeMedia.mockReturnValue({
+      durationMs: 60000,
+      fps: 30,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      rotation: 90,
+    });
+    const assets = [{ path: "/abs/clip.mp4", type: "video", searchKeyword: "test" }];
+
+    await analyzeAssets(assets);
+
+    // A 1920x1080 stream tagged 90° displays as 1080x1920; persisting the
+    // stored order would make every portrait phone clip look landscape.
+    expect(assets[0].width).toBe(1080);
+    expect(assets[0].height).toBe(1920);
+  });
+
   it("L3: feeds the A1 transcript and records the provenance", async () => {
     mockAnalyzeAssetSemantics.mockResolvedValue({
       ...FULL_SEMANTICS,
