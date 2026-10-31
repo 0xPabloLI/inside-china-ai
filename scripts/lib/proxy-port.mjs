@@ -22,6 +22,16 @@
  * request sent *without* `-x` also returns `204`, so a bare request cannot tell
  * "this port proxies" from "this machine proxies somewhere".
  *
+ * Two parsers of the same `scutil --proxy` output already exist
+ * (`scripts/short-video/lib/ytdlp-guard.mjs` `parseMacSystemProxy`,
+ * `scripts/colima-proxy-tunnel.sh` `resolve_proxy_port`). They are not reused
+ * here on purpose, and the difference is the point: both gate on
+ * `<Proto>Enable == "1"`, while the failure this module exists for is exactly a
+ * toggle that disagrees with reality (a client left the flag off after a crash
+ * yet still binds a working port). Candidates therefore come from the *ports*
+ * regardless of the flag, and only the probe decides. Consolidating the three
+ * is a separate change: #1064.
+ *
  * Everything here is pure. The probe is injected, so the decision logic is
  * testable without a network, a proxy or a browser.
  */

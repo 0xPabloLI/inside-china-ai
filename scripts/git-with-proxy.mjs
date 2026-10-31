@@ -25,9 +25,9 @@
  *     make the resolution decorative: the run would succeed or fail on git's own
  *     connectivity while the caller believes it went through a proxy.
  *   - `GIT_WITH_PROXY_PORT` skips probing: a port number pins the answer, the
- *     literal `none` simulates "nothing resolved". Both exist so the wiring and
- *     the refusal can be tested without a network, and so
- *     `scripts/lib/proxy-env.sh` can reuse one answer for a batch of git calls.
+ *     literal `none` simulates "nothing resolved". Its only setters are tests —
+ *     `scripts/lib/proxy-env.sh` reuses this CLI's `--print-url` output instead
+ *     of a variable, so nothing in production sets it.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
@@ -139,12 +139,48 @@ function describeMiss({ tried, candidates, budgetExhausted }) {
   return `[git-proxy] no port forwarded ${PROBE_URL} (${spend}${budget})\n`;
 }
 
-async function main() {
-  const argv = process.argv.slice(2);
-  const wantsUrl = argv.includes("--print-url");
-  const allowDirect = argv.includes("--direct");
+/** Flags this wrapper answers itself. Everything else is git's. */
+const OWN_FLAGS = new Set(["--print-url", "--direct", "--help", "-h"]);
 
-  if (argv.length === 0 || argv.includes("--help") || argv.includes("-h")) {
+/**
+ * Split argv into this wrapper's own flags and the git command.
+ *
+ * A flag is ours only while it is one of `OWN_FLAGS` at the front; the first
+ * unrecognised token starts the git command. Two consequences, both intended:
+ *
+ *   - scanning the whole argv would swallow the flags users mean for git —
+ *     `git log --help` would print this wrapper's usage and never run;
+ *   - "interesting" leading tokens are not ours either, because git has its own
+ *     (`-c key=value`, `-C <dir>`, `--exec-path`). Treating anything unknown as
+ *     a git argument keeps `git -c alias.x=… x` working; a typo in one of our
+ *     flags then surfaces as git's own "unknown option" instead of a friendlier
+ *     message, which is the cheaper mistake to live with.
+ *
+ * @param {string[]} argv
+ * @returns {{ flags: string[], gitArgs: string[] }}
+ */
+function splitArgv(argv) {
+  const flags = [];
+  let index = 0;
+  while (index < argv.length && OWN_FLAGS.has(argv[index])) {
+    flags.push(argv[index]);
+    index += 1;
+  }
+  const rest = argv.slice(index);
+  const gitArgs = rest[0] === "--" ? rest.slice(1) : rest;
+  return { flags, gitArgs };
+}
+
+async function main() {
+  const { flags, gitArgs } = splitArgv(process.argv.slice(2));
+  const wantsUrl = flags.includes("--print-url");
+  const allowDirect = flags.includes("--direct");
+
+  if (flags.length === 0 && gitArgs.length === 0) {
+    process.stdout.write(USAGE);
+    process.exit(0);
+  }
+  if (flags.includes("--help") || flags.includes("-h")) {
     process.stdout.write(USAGE);
     process.exit(0);
   }
@@ -161,11 +197,6 @@ async function main() {
     process.exit(0);
   }
 
-  // Our own flags are removed wherever they appear, then a single leading `--`
-  // is dropped (npm's separator). A `--` further along is git's — `checkout --
-  // <path>` — and must survive, so only the first position is treated as ours.
-  const rest = argv.filter((arg) => arg !== "--direct" && arg !== "--print-url");
-  const gitArgs = rest[0] === "--" ? rest.slice(1) : rest;
   if (gitArgs.length === 0) {
     process.stderr.write(`[git-proxy] no git command given\n\n${USAGE}`);
     process.exit(2);

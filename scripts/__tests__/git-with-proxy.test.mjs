@@ -94,6 +94,29 @@ describe("nothing resolved", () => {
   });
 });
 
+describe("flags meant for git stay git's", () => {
+  it("passes -h through instead of printing its own usage", () => {
+    // Scanning the whole argv for `--help`/`-h` would answer `git log -h` with
+    // the wrapper's usage and never run git — a silent divergence no caller
+    // could see. Only leading flags are the wrapper's.
+    const result = run(["--", "log", "-h"]);
+
+    expect(result.stdout).toContain("usage: git log");
+    expect(result.stdout).not.toContain("node scripts/git-with-proxy.mjs --print-url");
+  });
+
+  it("hands a leading option it does not know to git, not to itself", () => {
+    // `-c key=value`, `-C <dir>`, `--exec-path` are git's own leading options;
+    // consuming every leading flag would make `git -c …` unreachable through
+    // the wrapper. An unknown token is therefore git's to reject.
+    const result = run(["--nope"]);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("--nope");
+    expect(result.stderr).not.toContain("[git-proxy] unknown option");
+  });
+});
+
 describe("resolution-only mode", () => {
   it("prints the URL alone, so a shell can capture it", () => {
     const result = run(["--print-url"]);

@@ -24,11 +24,20 @@
 # `git-with-proxy.mjs --print-url`, so this file and the wrapper cannot drift.
 # =============================================================================
 
-if [ -z "${GIT_CONFIG_COUNT:-}" ] && command -v node >/dev/null 2>&1; then
+if [ -z "${GIT_CONFIG_COUNT:-}" ]; then
   _proxy_env_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   _proxy_env_url=""
-  if [ -f "$_proxy_env_root/scripts/git-with-proxy.mjs" ]; then
+  # One warning per fail-open reason, and never two: the point of saying anything
+  # is that "the proxy moved" and "there is no proxy" must not look alike.
+  if ! command -v node >/dev/null 2>&1; then
+    echo "[proxy-env] node not on PATH — git keeps .git/config's http.proxy" >&2
+  elif [ ! -f "$_proxy_env_root/scripts/git-with-proxy.mjs" ]; then
+    echo "[proxy-env] resolver missing — git keeps .git/config's http.proxy" >&2
+  else
     _proxy_env_url="$(node "$_proxy_env_root/scripts/git-with-proxy.mjs" --print-url 2>/dev/null || true)"
+    if [ -z "$_proxy_env_url" ]; then
+      echo "[proxy-env] no local proxy resolved — git keeps .git/config's http.proxy" >&2
+    fi
   fi
   if [ -n "$_proxy_env_url" ]; then
     export GIT_CONFIG_COUNT=2
@@ -40,8 +49,6 @@ if [ -z "${GIT_CONFIG_COUNT:-}" ] && command -v node >/dev/null 2>&1; then
     export HTTPS_PROXY="$_proxy_env_url"
     export http_proxy="$_proxy_env_url"
     export https_proxy="$_proxy_env_url"
-  else
-    echo "[proxy-env] no local proxy resolved — git keeps .git/config's http.proxy" >&2
   fi
   unset _proxy_env_root _proxy_env_url
 fi

@@ -131,12 +131,14 @@ npm run git:proxy -- fetch origin main
 npm run proxy:url                      # 只解析并打印代理 URL
 ```
 
-- **判据见 `conventions/test-env-baseline.md` §宿主代理端口**：那里的探针配方与实测表是唯一出处，本节不再抄一份。要点只有一条——探针必须**逐端口**（`-x`）；不带 `-x` 的请求在 TUN 开启时同样返回 `204`，分不出「这个端口在代理」和「这台机器在某处代理」。`lsof`/`nc` 都不是判据：Direct 模式下端口照样在监听，本机 `lsof -p` 还会被沙箱丢掉参数、返回全局列表。
+- **判据见 `test-env-baseline.md` §宿主代理端口**：那里的探针配方与实测表是唯一出处，本节不再抄一份。要点只有一条——探针必须**逐端口**（`-x`）；不带 `-x` 的请求在 TUN 开启时同样返回 `204`，分不出「这个端口在代理」和「这台机器在某处代理」。`lsof`/`nc` 都不是判据：Direct 模式下端口照样在监听，本机 `lsof -p` 还会被沙箱丢掉参数、返回全局列表。
 - **解析失败就不跑 git**，退出 3 并打印探针证据，要直连必须显式 `--direct`。静默降级为直连会让解析变成装饰品：命令成功与否取决于 git 自己的连通性，而调用方以为走过代理。
 - **不写 `.git/config`**：该文件被所有 worktree 共享，写它等于替别的 session 改环境。包装器只对本次调用负责；`scripts/lib/proxy-env.sh` 用 `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n` 给同一进程树里的 git 调用注入同一答案，同样不落盘。
 - **`session:stop` / `session:gc` 已接上同一个判据**（`session-launcher.sh` 启动即 source 上面的 helper）：收尾是陈旧端口最先伤到的地方——`fetch` 一死，所有依赖 origin/main 的交付判据都读成「未交付」。helper 对 git 是 fail-open（无代理客户端时保持 `.git/config` 原样，并在 stderr 留一行），因为收尾不该因为代理关闭而停摆。
-- **已知边界**：helper 在 source 时解析一次，整段脚本共用这个答案。若端口在解析之后才死，`gc` 的「按已验证 tip 恢复推送」（§10 自认唯一可能丢工作的动作）会失败，且此时 fail-open 帮不上——重跑一次即可，因为恢复推送的判据在删除前已取过快照。
+- **已知边界**：helper 在 source 时解析一次，整段脚本共用这个答案。若端口在解析之后才死，`gc` 的「按已验证 tip 恢复推送」（§10 自认唯一可能丢工作的动作）会失败，而 fail-open 此时帮不上——恢复推送只由**本次运行内**删除前后的 closed-PR 快照比对触发，快照不落盘，所以重跑 `gc` 不会重放它。补救是 gc 报错时打印的那条手工命令（按已验证 tip 推回），不是重跑。
 - **顺带喂饱 hook**：解析到的 URL 同时以 `HTTP_PROXY`/`HTTPS_PROXY` 导出，`pre-push` 的 semgrep / osv-scanner 因此继承活值，而不是读系统设置里的陈旧端口。
 - **边界**：裸 `git push` 仍用 `.git/config` 的静态值。需要全局免疫时改用客户端 TUN，而不是把端口写进更多地方。
 
-实现：`scripts/git-with-proxy.mjs`、`scripts/lib/proxy-port.mjs`、`scripts/lib/proxy-env.sh`；用例见 `scripts/__tests__/proxy-port.test.mjs`（决策）与 `scripts/__tests__/git-with-proxy.test.mjs`（接线：证明解析结果真的到达 git）。
+实现：`scripts/git-with-proxy.mjs`、`scripts/lib/proxy-port.mjs`、`scripts/lib/proxy-env.sh`；用例见 `scripts/__tests__/proxy-port.test.mjs`（决策）、`git-with-proxy.test.mjs`（接线：证明解析结果真的到达 git）、`proxy-env.test.mjs`（helper 与 launcher 的 source 行）。
+
+另有两处解析同一份 `scutil --proxy` 的旧实现（`ytdlp-guard.mjs`、`colima-proxy-tunnel.sh`）。它们按 `Enable` 标志判断，与本节的探针判据不同——合并及各自的验收见 #1064。
