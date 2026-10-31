@@ -29,8 +29,10 @@
 /** The URL the probe requests; a forwarding port answers it with `204`. */
 export const PROBE_URL = "https://www.google.com/generate_204";
 
-/** The status a forwarding port returns for `PROBE_URL`. */
-export const PROBE_OK = "204";
+/** The status a forwarding port returns for `PROBE_URL`. Module-local: only the
+ * resolver compares against it, and an exported constant nobody imports is dead
+ * weight knip reports as an unused export. */
+const PROBE_OK = "204";
 
 /** Per-port budget. A dead port fails instantly; a hung one must not stall. */
 export const PROBE_TIMEOUT_S = 5;
