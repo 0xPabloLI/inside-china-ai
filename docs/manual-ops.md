@@ -74,7 +74,7 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 >
 > 脚本不再要求人工切窗口，判据也从「标签页可见」换成了「输入派发是否真的快」——两者会不一致：2026-10-31 实测一个新窗口在检查时自报 `visible`、几秒后变回 `hidden`，可见性检查放行、紧接着的 wheel 就 3s 超时。`openVisibleSession` 现在派发 `mouseMoved` 量延迟（健康 3–13ms，节流约 5s）；**要连续两次都超时**才判为节流，因为刚建标签页的第一次派发要建合成器，机器同时在跑渲染时也可能单次超时，单次采样会把健康但慢的标签页误判并白白重载一次。判为节流后先重挂到新窗口；新窗口也慢就开 `Emulation.setFocusEmulationEnabled`（实测同一标签页 5018ms → 3ms）。
 >
-> 跑起来之后仍有自愈：`Input.*` 超时会开焦点模拟并重试该命令（每会话最多 3 次，含开会话时已经用过的那一次，因为导航可能把模拟状态清掉），仍失败才向上抛。**滚轮是例外**：CDP 的 ack 超时不会取消已发出的派发，节流解除后原来那一发仍可能落地，重试就会多滚一截，所以滚轮只开模拟、不重发，由 `wheelScroll` 按「少送多少补多少」走脚本滚动并标注 `mode: js-fallback`。用了这条路会在 stdout 与 `publish-log.jsonl` 里记 `focusEmulated: true`——开会话时的记 `stage: "open"` 行，运行中自愈的另有 `recovered: true, stage: "mid-run"` 一行（带触发的 CDP 方法与是否重试）。
+> 跑起来之后仍有自愈：`Input.*` 超时会开焦点模拟并重试该命令（每会话最多 3 次，含开会话时已经用过的那一次，因为导航可能把模拟状态清掉），仍失败才向上抛。**滚轮是例外**：CDP 的 ack 超时不会取消已发出的派发，节流解除后原来那一发仍可能落地，重试就会多滚一截，所以滚轮只开模拟、不重发，由 `wheelScroll` 按「少送多少补多少」走脚本滚动并标注 `mode: js-fallback`；补偿之后还会再读一次 `window.scrollY`，把迟到落地的那一截按「目标位置 − 当前位置」收敛回来（实测三轮分别多滚 163px / 185px / 131px，差值报在 `correctedPx`）。用了这条路会在 stdout 与 `publish-log.jsonl` 里记 `focusEmulated: true`——开会话时的记 `stage: "open"` 行，运行中自愈的另有 `recovered: true, stage: "mid-run"` 一行（带触发的 CDP 方法与是否重试）。
 >
 > 注意它**不改变真实窗口状态**——是「闸门解除」而不是「窗口到前台了」，所以页面自身基于失焦的行为（例如 blur 处理）在这种模式下不会发生；页面能不能加载则完全取决于网络，代理断了照样失败。
 
