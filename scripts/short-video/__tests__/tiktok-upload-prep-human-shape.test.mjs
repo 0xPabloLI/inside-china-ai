@@ -220,4 +220,28 @@ describe("the driver's input shape", () => {
     expect(typed).toBeGreaterThan(-1);
     expect(pasteFallback).toBeGreaterThan(typed);
   });
+
+  it("keeps every paste-fallback stage name reachable in principle", () => {
+    // `after-poke` is not a fall-through to delete: the DOM text and the probe's
+    // own measurement can both look right while Draft rebuilds its block and
+    // drops the text — the 708-of-1223 failure `pokeEditorState` exists for.
+    // A reviewer read it as dead code once; this pins the intent.
+    //
+    // Matching the `return` statements, not the bare strings: `"paste"` also
+    // appears in `mode: typed ? "typed" : "paste"`, so a bare `toContain` would
+    // stay green with `classifyLossStage` deleted.
+    expect(source).toContain("function classifyLossStage(");
+    for (const stage of ["paste", "typing", "poke", "after-poke"]) {
+      expect(source, `loss stage ${stage} missing`).toContain(`return "${stage}";`);
+    }
+  });
+
+  it("does not trust DOM text when the re-render probe never landed", () => {
+    // Without a landed probe, Draft never rendered from its ContentState, so a
+    // matching `innerText` is not evidence the caption will save. The only safe
+    // move is the verified paste.
+    expect(source).toContain("draftRendered");
+    const guard = source.indexOf("draftRendered && normalizeCaption(read.text) === want");
+    expect(guard).toBeGreaterThan(-1);
+  });
 });

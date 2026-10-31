@@ -627,6 +627,98 @@ describe("pokeEditorState", () => {
     expect(session.calls[1].params.windowsVirtualKeyCode).toBe(8);
     expect(session.calls[2].params.type).toBe("keyUp");
   });
+
+  it("never sends Backspace blind — a swallowed space would eat a real character", async () => {
+    // The live failure this guards: the page drops the space, the Backspace
+    // lands anyway, and the caption comes back one character short, which looks
+    // like a dropped keystroke and forces a paste fallback.
+    let text = "caption";
+    const session = {
+      calls: [],
+      swallowSpace: true,
+      async send(method, params = {}) {
+        this.calls.push({ method, params });
+        if (method === "Input.insertText" && !this.swallowSpace) text += params.text;
+        if (
+          method === "Input.dispatchKeyEvent" &&
+          params.type === "keyDown" &&
+          params.key === "Backspace"
+        ) {
+          text = text.slice(0, -1);
+        }
+        return {};
+      },
+    };
+
+    const result = await pokeEditorState(session, { measure: async () => text });
+
+    expect(result).toEqual({ spaced: false, restored: null, attempts: 2 });
+    expect(text).toBe("caption");
+    expect(session.calls.some((c) => c.params?.key === "Backspace")).toBe(false);
+  });
+
+  it("retries the space and still restores the text when the first one is swallowed", async () => {
+    let text = "caption";
+    const session = {
+      calls: [],
+      sends: 0,
+      async send(method, params = {}) {
+        this.calls.push({ method, params });
+        if (method === "Input.insertText") {
+          this.sends += 1;
+          if (this.sends > 1) text += params.text; // first attempt swallowed
+        }
+        if (
+          method === "Input.dispatchKeyEvent" &&
+          params.type === "keyDown" &&
+          params.key === "Backspace"
+        ) {
+          text = text.slice(0, -1);
+        }
+        return {};
+      },
+    };
+
+    const result = await pokeEditorState(session, { measure: async () => text });
+
+    expect(result).toEqual({ spaced: true, restored: true, attempts: 2 });
+    expect(text).toBe("caption");
+  });
+
+  it("reports a restore through the caller's comparator, not raw text", async () => {
+    // The probe forces Draft to rebuild its block, which can add or collapse the
+    // block-boundary newlines `innerText` renders. Raw compare calls that a loss.
+    let text = "line one\nline two";
+    const session = {
+      sends: 0,
+      async send(method, params = {}) {
+        if (method === "Input.insertText") {
+          this.sends += 1;
+          text += params.text;
+        }
+        if (
+          method === "Input.dispatchKeyEvent" &&
+          params.type === "keyDown" &&
+          params.key === "Backspace"
+        ) {
+          // Draft rebuilds the block on delete: same text, one extra newline.
+          text = "line one\n\nline two";
+        }
+        return {};
+      },
+    };
+
+    const raw = await pokeEditorState(session, { measure: async () => text });
+    expect(raw.restored).toBe(false); // what the exact compare would have logged
+
+    text = "line one\nline two";
+    session.sends = 0;
+    const normalized = await pokeEditorState(session, {
+      measure: async () => text,
+      sameText: (a, b) => a.replace(/\s+/g, " ") === b.replace(/\s+/g, " "),
+    });
+    expect(normalized.restored).toBe(true);
+  });
 });
 
 // ─── CDP session ───

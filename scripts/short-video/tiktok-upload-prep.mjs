@@ -996,10 +996,27 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
           // character look identical afterwards (both are "one char short"),
           // but only the first means the typing loop lost a keystroke.
           const beforePoke = await evalJson(tabId, CAPTION_READ);
-          // Make Draft render from its state before we trust the DOM text.
-          await pokeEditorState(cdp);
+          // Make Draft render from its state before we trust the DOM text. The
+          // probe reads back through `measure` so a swallowed space cannot
+          // become a deleted character (see `pokeEditorState`).
+          const poke = await pokeEditorState(cdp, {
+            measure: async () => {
+              const probe = await evalJson(tabId, CAPTION_READ);
+              // `CAPTION_READ` reports the field as missing rather than throwing;
+              // letting `undefined` through would compare "undefined" lengths and
+              // silently decide the space landed.
+              if (!probe.ok) {
+                throw new Error(`caption field vanished while poking: ${JSON.stringify(probe)}`);
+              }
+              return probe.text;
+            },
+            // The probe forces Draft to rebuild the block, which can shift the
+            // block-boundary newlines `innerText` renders. Compare the way the
+            // final verification does, or a successful poke reports a loss.
+            sameText: (a, b) => normalizeCaption(a) === normalizeCaption(b),
+          });
           await sleepJitter(...PUBLISH_PACING.captionSettleAfterTyping);
-          return { plan, typedMs: Date.now() - started, beforePoke };
+          return { plan, typedMs: Date.now() - started, beforePoke, poke };
         })()
       : null;
 
@@ -1007,13 +1024,26 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
   if (!read.ok) throw new Error(`caption vanished after typing: ${JSON.stringify(read)}`);
   if (!read.healthy) throw new Error("editor died after typing — check the open tab");
 
-  if (normalizeCaption(read.text) === want) {
+  // A probe that never landed means Draft was never made to render from its own
+  // ContentState, so the DOM text is the only evidence — and this module's
+  // premise is that the DOM can hold text Draft does not. Matching here would
+  // publish a caption that silently saves short, so refuse to trust it and take
+  // the verified paste instead.
+  const draftRendered = typed ? typed.poke?.spaced === true : true;
+  if (draftRendered && normalizeCaption(read.text) === want) {
     return {
       mode: typed ? "typed" : "paste",
       len: read.len,
       typedMs: typed?.typedMs,
       segments: typed?.plan.segments.length,
+      poke: pokeHealth(typed),
     };
+  }
+  if (typed && !draftRendered) {
+    console.log(
+      "      ⚠️ the re-render probe never landed, so the DOM text alone cannot be " +
+        "trusted — replacing the typed caption with one verified paste",
+    );
   }
 
   // Fallback: the typed text did not survive. Re-select, paste once, verify.
@@ -1034,16 +1064,56 @@ async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
         `want ${caption.length}: ${JSON.stringify(after.text.slice(0, 80))}`,
     );
   }
-  const stage = !typed
-    ? "paste"
-    : typed.beforePoke?.ok && normalizeCaption(typed.beforePoke.text) === want
-      ? "poke" // typing was right; the space+Backspace lost a character
-      : "typing"; // a keystroke never landed
+  // Name the stage that actually lost the text, so the next failure says where
+  // to look instead of only that something went wrong. `poke` health rides
+  // along: "poke" alone cannot tell a swallowed space from a delete that took
+  // more than the probe sent.
+  const stage = classifyLossStage(typed, want);
   console.log(
     `      ⚠️ typed caption did not verify (${read.len} chars, lost at: ${stage}) — ` +
       "replaced it with one paste",
   );
-  return { mode: "paste-fallback", len: after.len, typedMs: typed?.typedMs, lostAt: stage };
+  return {
+    mode: "paste-fallback",
+    len: after.len,
+    typedMs: typed?.typedMs,
+    lostAt: stage,
+    poke: pokeHealth(typed),
+  };
+}
+
+/**
+ * Which step lost the caption: the typing loop, the re-render probe, or the
+ * moment after it.
+ *
+ * `after-poke` is the interesting one and not a fall-through: the DOM text and
+ * the probe's own measurement both looked right, and the caption still came out
+ * wrong once Draft rebuilt its block — precisely the failure the probe exists to
+ * surface (the 2026-10-24 draft lost 708 of 1223 characters this way).
+ *
+ * @param {{ beforePoke?: { ok: boolean, text: string }, poke?: { spaced: boolean, restored: boolean|null } } | null} typed
+ * @param {string} want
+ * @returns {"paste"|"typing"|"poke"|"after-poke"}
+ */
+function classifyLossStage(typed, want) {
+  if (!typed) return "paste"; // --paste-caption: no typing happened
+  if (!typed.beforePoke?.ok || normalizeCaption(typed.beforePoke.text) !== want) return "typing";
+  if (typed.poke?.spaced === false || typed.poke?.restored === false) return "poke";
+  return "after-poke";
+}
+
+/**
+ * One-word health for the re-render probe, so a healed run still records
+ * whether the space landed on the first try.
+ *
+ * @param {{ poke?: { spaced: boolean, restored: boolean|null, attempts: number } } | null} typed
+ * @returns {string|null}
+ */
+function pokeHealth(typed) {
+  if (!typed?.poke) return null;
+  if (typed.poke.spaced === false) return "space-dropped";
+  if (typed.poke.restored === false) return "not-restored";
+  return typed.poke.attempts > 1 ? "retried" : "ok";
 }
 
 /**

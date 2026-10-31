@@ -70,6 +70,10 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 
 结果写在 `output/{content}/publish/tiktok/publish-log.jsonl`（每步一行 JSON，含 `step: "review"` 与 `reviewed`）。运行时自检：`node scripts/short-video/human-input-selftest.mjs`（断言页面收到的每个事件都是 trusted、零 paste）。
 
+> 逐字输入之后要强制 Draft.js 从自己的 ContentState 重渲染一次（打一个空格再退格），否则 DOM 里看着有字、保存下来是空的（2026-10-24 那次丢了 708/1223 字符）。这一步原来是不管空格有没有落地都发退格，于是页面吞掉空格时退格删掉的是**最后一个真字符**，读回来像「打字丢了一个字」，白白回退成一次 paste。现在退格以「实测到文本变了」为前置条件，空格被吞就重发（最多 2 次），两次都没落地就**不发退格**。
+>
+> 这条路径在日志里的读法：`step: "caption"` 的 `poke` 字段是探针健康度——`"ok"`、`"retried"`（重发过）、`"space-dropped"`（空格没落地、没发退格）、`"not-restored"`（退格删多了）；回退 paste 时该行是 `mode: "paste-fallback"`，带 `lostAt` 指明丢在哪一步：`typing`（打字循环漏键）、`poke`（重渲染探针）、`after-poke`（探针看起来正常，settle 之后文本仍不对——正是 Draft 用自己的状态覆盖 DOM 的那种失败）、`paste`（本次没打字）。`space-dropped` 时 DOM 文本不能作为证据（Draft 根本没重渲染），所以即使读起来对也**强制走带校验的 paste**。
+
 > 输入必须落在前台标签页：后台标签的 CDP 输入派发会被节流（实测同一条 14 点轨迹前台 0.33s、后台 65s）。`Target.activateTarget` 返回 ok 不代表可见，窗口在别的 Space 或被遮挡时标签页仍是 `hidden`。
 >
 > 脚本不再要求人工切窗口，判据也从「标签页可见」换成了「输入派发是否真的快」——两者会不一致：2026-10-31 实测一个新窗口在检查时自报 `visible`、几秒后变回 `hidden`，可见性检查放行、紧接着的 wheel 就 3s 超时。`openVisibleSession` 现在派发 `mouseMoved` 量延迟（健康 3–13ms，节流约 5s）；**要连续两次都超时**才判为节流，因为刚建标签页的第一次派发要建合成器，机器同时在跑渲染时也可能单次超时，单次采样会把健康但慢的标签页误判并白白重载一次。判为节流后先重挂到新窗口；新窗口也慢就开 `Emulation.setFocusEmulationEnabled`（实测同一标签页 5018ms → 3ms）。

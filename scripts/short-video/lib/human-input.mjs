@@ -533,6 +533,11 @@ export async function pressKey(session, key) {
   await session.send("Input.dispatchKeyEvent", { type: "keyUp", ...base });
 }
 
+/** Total space sends allowed, the first one included — not retries on top of it. */
+const POKE_SPACE_ATTEMPTS = 2;
+
+const BACKSPACE_KEY = { key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 };
+
 /**
  * Force the editor to render from its own state, then undo the probe.
  *
@@ -543,11 +548,56 @@ export async function pressKey(session, key) {
  * Draft rebuild the block from its state — if earlier keystrokes only reached
  * the DOM, the text collapses here and the caller's verification catches it.
  *
+ * The two steps are separate commands, and that asymmetry is a data-loss bug:
+ * when the page swallows the space, the Backspace still lands and deletes the
+ * LAST REAL GRAPHEME. It presents as "the caption is one character short", which
+ * looks like a dropped keystroke during typing and sends the caller to a paste
+ * fallback for no reason. Passing `measure` closes it: the deletion is only
+ * sent once the space is observed in the text, so a swallowed space costs a
+ * retry instead of a character. Verified on a live upload page — the space is
+ * occasionally swallowed while the Backspace lands.
+ *
+ * Without `measure` the function keeps its old fire-and-forget contract; the
+ * caller that cannot read the editor (selftest) does not need the guard.
+ *
+ * Two comparisons, deliberately different, and `sameText` only governs the
+ * second:
+ *
+ *   - "did the space land" is a RAW change. A trailing space is whitespace, so
+ *     any trimming comparator would answer "nothing changed" every time and the
+ *     probe could never run.
+ *   - "did the Backspace restore the text" goes through `sameText`, because this
+ *     operation just forced Draft to rebuild its block and can legitimately
+ *     shift block boundaries (the extra newlines `innerText` renders) without
+ *     losing a character. Comparing raw there reports a loss that did not happen.
+ *
  * @param {{ send: (method: string, params?: object) => Promise<object> }} session
+ * @param {{ measure?: () => Promise<string>, sameText?: (a: string, b: string) => boolean }} [opts]
+ * @returns {Promise<{ spaced: boolean, restored: boolean|null, attempts: number }>}
  */
-export async function pokeEditorState(session) {
-  await session.send("Input.insertText", { text: " " });
-  await pressKey(session, { key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
+export async function pokeEditorState(session, { measure, sameText = (a, b) => a === b } = {}) {
+  if (!measure) {
+    await session.send("Input.insertText", { text: " " });
+    await pressKey(session, BACKSPACE_KEY);
+    return { spaced: true, restored: null, attempts: 1 };
+  }
+
+  const before = await measure();
+  let spaced = false;
+  let attempts = 0;
+  while (!spaced && attempts < POKE_SPACE_ATTEMPTS) {
+    attempts += 1;
+    await session.send("Input.insertText", { text: " " });
+    // "The text changed" beats "the text got longer": a page that renders a
+    // trailing space as `\u00a0` or trims it would otherwise report a landed
+    // probe as swallowed, and this check exists to be conservative.
+    spaced = (await measure()) !== before;
+  }
+  // Never delete blind: an unlanded space means the Backspace would eat real text.
+  if (!spaced) return { spaced: false, restored: null, attempts };
+
+  await pressKey(session, BACKSPACE_KEY);
+  return { spaced: true, restored: sameText(await measure(), before), attempts };
 }
 
 /**
