@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.50.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.49.1...tanstack_start_ts-v1.50.0) (2026-10-31)
+
+
+### Features
+
+* **video:** compose third-party landscape media as contain ([#963](https://github.com/0xPabloLI/inside-china-ai/issues/963)) ([#1076](https://github.com/0xPabloLI/inside-china-ai/issues/1076)) ([e18ec25](https://github.com/0xPabloLI/inside-china-ai/commit/e18ec25d58e156dfa6dd24bdbd641f8cd26873c8))
+
 ## [1.49.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.49.0...tanstack_start_ts-v1.49.1) (2026-10-31)
 
 
