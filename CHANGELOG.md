@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.48.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.47.0...tanstack_start_ts-v1.48.0) (2026-10-31)
+
+
+### Features
+
+* **scripts:** resolve the proxy port per invocation instead of pinning 7890 ([#1062](https://github.com/0xPabloLI/inside-china-ai/issues/1062)) ([13611d6](https://github.com/0xPabloLI/inside-china-ai/commit/13611d639589becfadaaee82302314e178f1f98a))
+
 ## [1.47.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.46.1...tanstack_start_ts-v1.47.0) (2026-10-31)
 
 
