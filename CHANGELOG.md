@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.49.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.49.0...tanstack_start_ts-v1.49.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **video:** 空格没落地就不许按退格，打字校验不再少吃一个字符 ([#1013](https://github.com/0xPabloLI/inside-china-ai/issues/1013)) ([#1068](https://github.com/0xPabloLI/inside-china-ai/issues/1068)) ([4af3389](https://github.com/0xPabloLI/inside-china-ai/commit/4af33892165e824fc5cbf0def10b2ace9b8ea09f))
+
 ## [1.49.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.48.0...tanstack_start_ts-v1.49.0) (2026-10-31)
 
 
