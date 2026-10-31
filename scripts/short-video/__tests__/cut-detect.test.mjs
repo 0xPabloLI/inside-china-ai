@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // The module shells out to ffmpeg; the parsing/selection contract is what this
-// test pins, not the decoder.
-const { spawnSync } = vi.hoisted(() => ({ spawnSync: vi.fn() }));
-vi.mock("child_process", () => ({ spawnSync }));
+// test pins, not the decoder. `execFile` is present because the shared
+// measurement-only ffmpeg module (tts/ffmpeg-cmd.mjs) is imported for its
+// binary constant and loads promisify(execFile) at module scope.
+const { spawnSync, execFile } = vi.hoisted(() => ({ spawnSync: vi.fn(), execFile: vi.fn() }));
+vi.mock("child_process", () => ({ spawnSync, execFile }));
 
 import { cutsArtifact, detectCuts, parseScenePts } from "../lib/cut-detect.mjs";
 
