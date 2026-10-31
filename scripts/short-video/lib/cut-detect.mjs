@@ -99,19 +99,20 @@ export function cutsArtifact(videoId, { cutsMs, threshold }) {
  * @param {string} videoPath
  * @param {object} [opts]
  * @param {number} [opts.threshold] - scene score in (0, 1)
- * @param {string} [opts.ffmpeg]
  * @param {number} [opts.timeoutMs]
  * @returns {{cutsMs: number[], threshold: number}}
  */
 export function detectCuts(
   videoPath,
-  { threshold = DEFAULT_CUT_THRESHOLD, ffmpeg = FFMPEG, timeoutMs = DEFAULT_TIMEOUT_MS } = {},
+  { threshold = DEFAULT_CUT_THRESHOLD, timeoutMs = DEFAULT_TIMEOUT_MS } = {},
 ) {
   const filter = `select='gt(scene,${threshold})',showinfo`;
   // spawnSync (not execFileSync): showinfo writes to stderr, and execFileSync
-  // only returns stdout.
+  // only returns stdout. The binary is the module constant, never a parameter:
+  // a function-argument executable is a taint sink Semgrep flags as command
+  // injection (tests inject behaviour by mocking spawnSync, not the binary).
   const result = spawnSync(
-    ffmpeg,
+    FFMPEG,
     [
       "-hide_banner",
       "-nostats",
