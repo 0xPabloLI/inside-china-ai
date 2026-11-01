@@ -33,9 +33,31 @@
  *      the same bands inside the evidence card, which is a LANDSCAPE box — so
  *      it crops the tall source on the vertical axis.
  *
+ * Sampling and classification are NOT defined here: they live in
+ * `__tests__/pixel-probe.mjs` (`meanColourInPatch` / `nearestPaletteColour`) and
+ * are covered by the CI-run `pixel-probe.test.mjs`. That split is the fix for
+ * #1084 — this file spent 2026-10-30..11-01 red on main because its local
+ * helpers were wrong, and being in `CI_SKIPPED_MACHINE_BOUND` meant no gate
+ * ever saw them: the 60x60 patch was centred on the fractional `CARD_CENTRE.y`
+ * (648.5), whose half-pixel the row-stride multiplication swallowed, so the
+ * read window slid to x 980-1038 — outside the card — and pure black, being
+ * equidistant from red/lime/blue, was classified "red". Invariant 5's bottom
+ * case failed on the wrong end; its top case passed while sampling nothing.
+ * A helper bug is now a red CI test; a rendering bug still needs this file.
+ *
+ * Of #1084's three leads: the FOCUS_MAP one is a non-issue for this case — the
+ * fixture sets no `fit`, so `objectPositionFor` takes the cover branch and only
+ * reads `focus`; the stills show "center top" / "center bottom" selecting the
+ * top and bottom bands. The card-geometry lead is recorded at invariant 5. The
+ * "render a still and look" lead is what the evidence lines below do on every
+ * run, and the stills are kept under `output/media-focus-stills/`.
+ *
  * CI does NOT run this file: it is in `CI_SKIPPED_MACHINE_BOUND` because it
- * shells out to `npx remotion still`, like its sibling render suites. The
- * CI-enforced half of #952 is the static gate in
+ * shells out to `npx remotion still`, like its sibling render suites — the
+ * remotion workspace has its own lockfile, so `npm ci` at the root (all CI
+ * installs) leaves `scripts/short-video/remotion/node_modules` and its
+ * headless-browser download absent (docs/conventions/test-env-baseline.md).
+ * The CI-enforced half of #952 is the static gate in
  * canvas-image-fit-contract.test.mjs; the pixel half depends on a machine with
  * ffmpeg + the remotion workspace installed.
  */
@@ -46,6 +68,7 @@ import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import { EVIDENCE_CARD } from "../lib/safe-zones.mjs";
+import { meanColourInPatch, nearestPaletteColour } from "./pixel-probe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -75,9 +98,9 @@ const CARD_CENTRE = {
 
 /** Palette reference points. Nearest-colour classification, not thresholds. */
 const PALETTE = {
-  red: [255, 0, 0],
-  lime: [0, 255, 0],
-  blue: [0, 0, 255],
+  red: { r: 255, g: 0, b: 0 },
+  lime: { r: 0, g: 255, b: 0 },
+  blue: { r: 0, g: 0, b: 255 },
 };
 
 let stillDir;
@@ -159,48 +182,23 @@ function still(props) {
   return out;
 }
 
-/** Mean RGB of a 60x60 patch centred on (cx, cy). */
-function colourAt(path, { x: cx, y: cy }) {
-  const png = PNG.sync.read(readFileSync(path));
+function sampleAt(props, point = CANVAS_CENTRE) {
+  const png = PNG.sync.read(readFileSync(still(props)));
   expect(png.width, "frame width").toBe(1080);
   expect(png.height, "frame height").toBe(1920);
-  const size = 60;
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  let n = 0;
-  for (let y = cy - size / 2; y < cy + size / 2; y += 2) {
-    for (let x = cx - size / 2; x < cx + size / 2; x += 2) {
-      const i = (y * png.width + x) * 4;
-      r += png.data[i];
-      g += png.data[i + 1];
-      b += png.data[i + 2];
-      n++;
-    }
-  }
-  return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) };
-}
-
-/** Nearest palette entry — tolerates the h264 / canvas colour round-trip. */
-function classify({ r, g, b }) {
-  let best = null;
-  let bestDist = Infinity;
-  for (const [name, [pr, pg, pb]] of Object.entries(PALETTE)) {
-    const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
-    if (d < bestDist) {
-      bestDist = d;
-      best = name;
-    }
-  }
-  return best;
-}
-
-function sampleAt(props, point = CANVAS_CENTRE) {
-  const path = still(props);
-  const rgb = colourAt(path, point);
-  const name = classify(rgb);
+  const rgb = meanColourInPatch(png, point);
+  const name = nearestPaletteColour(rgb, PALETTE);
   const where = point === CANVAS_CENTRE ? "centre" : "card centre";
   console.log(`[evidence] ${JSON.stringify(props)} → ${where} ${JSON.stringify(rgb)} = ${name}`);
+  // No palette entry within the ceiling means either nothing was drawn there
+  // (frame background) or the sample straddles two bands. Say that, instead of
+  // letting the caller's toBe() report a wrong-band failure (#1084).
+  expect(
+    name,
+    `no band at ${where} (${point.x}, ${point.y}): mean ${JSON.stringify(rgb)} is not ` +
+      `within the palette ceiling of any entry — nothing was rendered there, or the ` +
+      `patch straddles two bands`,
+  ).not.toBeNull();
   return name;
 }
 
@@ -303,10 +301,15 @@ describe("cropFocus takes precedence over focus", { timeout: 600_000 }, () => {
 
 // ─── 5: the evidence card passes media through unchanged ───
 //
-// MediaCard is a wrapper (820x618, landscape) around MediaBackground. It has
-// no media wiring of its own, which is exactly why it is worth asserting: a
-// wrapper that dropped or overwrote `focus`/`cropFocus` would look fine in
-// every still of a full-frame scene.
+// MediaCard is a wrapper (EVIDENCE_CARD.width x height = 820x697, landscape)
+// around MediaBackground. It has no media wiring of its own, which is exactly
+// why it is worth asserting: a wrapper that dropped or overwrote
+// `focus`/`cropFocus` would look fine in every still of a full-frame scene.
+//
+// The fixture passes no `bottom`, so MediaCard's default applies
+// (`top + EVIDENCE_CARD.height`) and the card is exactly EVIDENCE_CARD — which
+// is what makes CARD_CENTRE the right probe (#1084 lead 2, verified when the
+// #1021 geometry change made that centre a half pixel).
 
 describe("MediaCard passes focus through to MediaBackground", { timeout: 600_000 }, () => {
   it("card: focus top samples the TOP band inside the card", () => {
