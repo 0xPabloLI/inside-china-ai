@@ -16,6 +16,12 @@ const CI_SKIPPED_SUITES = ["scripts/short-video/__tests__/research/**"];
 
 // Suites bound to this machine: local services (CDP proxy), local venvs, or
 // local-only tooling. Each entry cites its binding.
+//
+// This list is the exclusion for the `Lint, typecheck, test` job only — it is
+// applied when VITEST_CI_SKIP_ENV_BOUND=1, which that job sets and the
+// `pixel-render` job does not. A render suite that moves into `pixel-render`
+// (#1087) therefore stays listed here as long as the quality job cannot run it,
+// and its comment names the job that does.
 const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/audio-diagnostics.test.mjs", // full-build ffmpeg behaviors
   "scripts/short-video/__tests__/avatar-card-render.test.mjs", // npx remotion still
@@ -26,7 +32,7 @@ const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/official-fit-render.test.mjs", // npx remotion still
   "scripts/short-video/__tests__/renderer-guard.test.mjs", // spawns pipeline process
   "scripts/short-video/__tests__/media-start-offset.test.mjs", // npx remotion still
-  "scripts/short-video/__tests__/media-focus-render.test.mjs", // npx remotion still (#952)
+  "scripts/short-video/__tests__/media-focus-render.test.mjs", // npx remotion still (#952); runs in the `pixel-render` CI job (#1087)
   "scripts/short-video/__tests__/media-zoom-render.test.mjs", // npx remotion still
   "scripts/short-video/__tests__/contrast-media-render.test.mjs", // npx remotion still (#761)
   "scripts/short-video/__tests__/scene-gate-render.test.mjs", // npx remotion still
