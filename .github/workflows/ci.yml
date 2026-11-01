@@ -268,11 +268,17 @@ jobs:
   # minutes of use; installing the workspace and downloading a browser there
   # would push it into the timeout.
   #
-  # Scope is deliberately one suite (#1087 chose option 3 first, then 1): prove
-  # a CI runner can render deterministically before paying for six suites. The
-  # remaining five join this job once #1087 step ② settles the pixel-tolerance
-  # / retry question — a cross-image canvas difference must not be absorbed by
-  # a retry, or this gate inherits the same silence it was opened to remove.
+  # Scope: six of the eight `npx remotion still` suites (#1087 chose option 3
+  # first, then 1 — prove a runner renders deterministically, then widen). Steps
+  # ① and ② settled the tolerance/retry question, so the widening happened in
+  # step ③: five joined `media-focus-render`, and they run serially for the
+  # reason the run step spells out.
+  #
+  # The other two are not a pending item but a measured blocker:
+  # `contrast-media-render` and `scene-gate-render` render the scene-gate fixture,
+  # which binds `assets/pexels-ai-chip.jpg` — a `pexels-*` file that `.gitignore`
+  # keeps out of the repo, so a clean checkout 404s where the photo should be.
+  # They need a generated fixture image and rebuilt assertion baselines first.
   pixel-render:
     name: Pixel render contracts
     # Same platform as the quality job: these suites compare rendered pixels
@@ -365,17 +371,16 @@ jobs:
       # The stills are the evidence trail for a red run: a sampled pixel value
       # says which band landed where, and the PNG says whether the frame was
       # rendered at all (a black frame and a mis-cropped frame fail differently).
-      # Only media-focus writes to a repo path; the other five render into
-      # mkdtemp and are gone by the time the job ends, so their evidence is the
-      # assertion message (which names the band and the sampled colour). If one
-      # of them ever fails with a message that is not enough to act on, teach
-      # that suite to write here rather than widen this glob.
+      # Three of the six persist them (media-focus / media-zoom / media-offset);
+      # text-gate, official-fit and avatar-card render into `mkdtemp`. The glob
+      # covers every `*-stills` directory under the gitignored `output/`, so a
+      # suite that starts persisting is picked up without touching this step.
       - name: Upload stills
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: media-focus-stills
-          path: scripts/short-video/output/media-focus-stills
+          name: render-stills
+          path: scripts/short-video/output/*-stills
           retention-days: 7
           if-no-files-found: warn
 
