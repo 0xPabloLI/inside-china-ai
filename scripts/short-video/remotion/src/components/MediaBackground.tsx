@@ -114,7 +114,7 @@ const objectPositionFor = (media: MediaField): string => {
   const focusX = media.cropFocus?.x ?? 0.5;
   if ((media.fit ?? "cover") === "contain") return `${focusX * 100}% 100%`;
   if (media.cropFocus) return `${media.cropFocus.x * 100}% ${media.cropFocus.y * 100}%`;
-  return "center"; // MUTATION: focus enum ignored — acceptance probe for #1087
+  return FOCUS_MAP[media.focus ?? "center"] ?? "center";
 };
 
 export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) => {
