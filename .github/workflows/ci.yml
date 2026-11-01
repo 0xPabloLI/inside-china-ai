@@ -279,14 +279,12 @@ jobs:
     # against a source palette, so runner OS must match the target platform
     # (README: Node arm64 + brew ffmpeg).
     runs-on: macos-latest
-    # Eight suites, measured serially on an M2 Pro at 473 s total (scene-gate
-    # alone is 180 s); a macos-latest runner is slower and the setup steps are
-    # ~4 min, so 25 min left too little headroom for a slow runner without
-    # turning the gate red on wall clock. Raised with the widening (#1087 step
-    # ③); if a run ever lands near this ceiling, split the slow suites into a
-    # second job rather than raise it again — the number is a budget, not a
-    # target.
-    timeout-minutes: 35
+    # Six suites, ~232 s serially on an M2 Pro plus ~4 min of setup. The step-①
+    # job (one suite) measured 2m48s end to end, so 25 min leaves room for a
+    # slower runner without turning the gate red on wall clock. If a run ever
+    # lands near this ceiling, split the slow suites into a second job rather
+    # than raise it again — the number is a budget, not a target.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -341,29 +339,33 @@ jobs:
       # `--no-file-parallelism`: each suite renders through its own headless
       # browser, so running them together makes the runner's core count the
       # variable — and a CPU-starved render fails as a pixel assertion, which
-      # is indistinguishable from a real framing defect. Serially the eight are
-      # ~473 s on an M2 Pro (scene-gate 180 s, avatar-card 61 s, text-gate 59 s,
-      # media-focus 95 s, the rest under 30 s each).
+      # is indistinguishable from a real framing defect. Serially the six are
+      # ~232 s on an M2 Pro (media-focus 95 s, avatar-card 61 s, text-gate 59 s,
+      # the rest under 30 s each).
+      #
+      # `contrast-media-render` and `scene-gate-render` are the two render suites
+      # that are NOT here: their fixture binds `assets/pexels-ai-chip.jpg`, which
+      # `.gitignore` keeps out of the repo (`pexels-*` is the scraped-media rule),
+      # so a clean checkout renders a 404 where the photo should be. They need a
+      # generated fixture image before they can join — #1087 step ③ records it.
       #
       # VITEST_CI_SKIP_ENV_BOUND is deliberately NOT set here — that env gate is
       # what excludes these suites in the quality job, and leaving it unset is
       # how this file opts into running them.
-      - name: Pixel render contracts (8 suites)
+      - name: Pixel render contracts (6 suites)
         run: |
           npx vitest run --no-file-parallelism --retry=0 \
             scripts/short-video/__tests__/media-focus-render.test.mjs \
-            scripts/short-video/__tests__/contrast-media-render.test.mjs \
             scripts/short-video/__tests__/media-start-offset.test.mjs \
             scripts/short-video/__tests__/media-zoom-render.test.mjs \
             scripts/short-video/__tests__/official-fit-render.test.mjs \
             scripts/short-video/__tests__/text-gate-render.test.mjs \
-            scripts/short-video/__tests__/avatar-card-render.test.mjs \
-            scripts/short-video/__tests__/scene-gate-render.test.mjs
+            scripts/short-video/__tests__/avatar-card-render.test.mjs
 
       # The stills are the evidence trail for a red run: a sampled pixel value
       # says which band landed where, and the PNG says whether the frame was
       # rendered at all (a black frame and a mis-cropped frame fail differently).
-      # Only media-focus writes to a repo path; the other seven render into
+      # Only media-focus writes to a repo path; the other five render into
       # mkdtemp and are gone by the time the job ends, so their evidence is the
       # assertion message (which names the band and the sampled colour). If one
       # of them ever fails with a message that is not enough to act on, teach
