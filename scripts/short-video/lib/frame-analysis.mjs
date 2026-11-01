@@ -182,13 +182,12 @@ const COLOUR_PATCH_STEP = 2;
  * Bands are saturated primaries, so a real hit lands within a few units of its
  * entry (measured: 252/0/0 for pure red after the h264 round-trip, distance 3).
  * Everything beyond 96 is a colour a fixture never painted: the blend halfway
- * between two primaries is ~180 away, the #0a0a14 card background ~235 from
- * blue, the frame's #000 exactly 255 from all three.
+ * between two primaries is ~180 out, the #0a0a14 card background ~235 from
+ * blue, the frame's #000 255 on every channel (65025 once squared).
  *
- * The comparison is strict, so a colour exactly at the ceiling does not match.
- * That is what keeps the three-way tie unresolvable even for a caller that
- * widens the ceiling to 255: the frame background must never come back as a
- * band name (#1084).
+ * The comparison is strict, so a colour exactly 96 out does not match. That
+ * bound is what keeps the three-way tie of an unrendered frame unresolvable —
+ * the frame background must never come back as a band name (#1084).
  */
 const PALETTE_MAX_DISTANCE = 96;
 
@@ -253,16 +252,21 @@ export function meanColourInPatch(buf, { x, y }) {
 /**
  * Nearest named colour, or `null` when nothing in the palette is close enough.
  *
- * The `null` is load-bearing (#1084): pure black sits at RGB distance 65025
- * from red, lime AND blue — exactly equal — so a "closest wins" classifier with
- * no distance ceiling resolves an unrendered frame to whichever entry it
- * iterates first and reports a confident band. "Nothing was drawn" must not be
+ * The `null` is load-bearing (#1084): pure black sits 65025 (squared) from red,
+ * lime AND blue — exactly equal — so a "closest wins" classifier with no
+ * distance ceiling resolves an unrendered frame to whichever entry it iterates
+ * first and reports a confident band. "Nothing was drawn" must not be
  * expressible as a palette name.
  *
  * A tie INSIDE the ceiling cannot happen for saturated primaries: two of them
- * are 255 apart on one channel, so their midpoint sits ~180 away and already
+ * are 255 apart on one channel, so their midpoint sits ~180 out and already
  * fails the ceiling. That is the other reason the ceiling is not a knob — an
  * earlier revision let callers widen it, which re-opened the tie.
+ *
+ * Both sides are validated. A NaN sample or a palette entry in the retired
+ * `[r,g,b]` tuple shape must fail loudly rather than resolve to `null`: "the
+ * read was broken" and "no band here" are the two answers this helper exists
+ * to keep apart.
  *
  * @param {{r: number, g: number, b: number}} rgb
  * @param {Record<string, {r: number, g: number, b: number}>} palette
@@ -271,14 +275,19 @@ export function meanColourInPatch(buf, { x, y }) {
 export function nearestPaletteColour(rgb, palette) {
   for (const channel of ["r", "g", "b"]) {
     if (!Number.isFinite(rgb?.[channel])) {
-      // An unreadable sample must not arrive here as "matches nothing": that is
-      // the silent-wrong-answer shape this helper exists to remove (#1084).
       throw new Error(`nearestPaletteColour: ${channel} must be finite, got ${rgb?.[channel]}`);
     }
   }
   let best = null;
   let bestDist = PALETTE_MAX_DISTANCE ** 2;
   for (const [name, entry] of Object.entries(palette)) {
+    for (const channel of ["r", "g", "b"]) {
+      if (!Number.isFinite(entry?.[channel])) {
+        throw new Error(
+          `nearestPaletteColour: palette.${name}.${channel} must be finite, got ${entry?.[channel]}`,
+        );
+      }
+    }
     const d = (rgb.r - entry.r) ** 2 + (rgb.g - entry.g) ** 2 + (rgb.b - entry.b) ** 2;
     if (d < bestDist) {
       bestDist = d;

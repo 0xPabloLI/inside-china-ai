@@ -207,11 +207,11 @@ describe("nearestPaletteColour", () => {
     expect(nearestPaletteColour({ r: 128, g: 128, b: 0 }, palette)).toBeNull();
   });
 
-  it("pins the ceiling: 90 away from an entry matches, 100 does not", () => {
+  it("pins the ceiling: 90 away from an entry matches, 96 does not", () => {
     // Deliberate change-detector. The ceiling is what decides whether an
     // unrendered frame can masquerade as a band, so moving it must move this.
     expect(nearestPaletteColour({ r: 165, g: 0, b: 0 }, palette)).toBe("red");
-    expect(nearestPaletteColour({ r: 155, g: 0, b: 0 }, palette)).toBeNull();
+    expect(nearestPaletteColour({ r: 159, g: 0, b: 0 }, palette)).toBeNull(); // exactly 96
   });
 
   it("refuses an unreadable sample instead of answering null", () => {
@@ -220,6 +220,14 @@ describe("nearestPaletteColour", () => {
     expect(() => nearestPaletteColour({ r: NaN, g: 0, b: 0 }, palette)).toThrow(/r must be finite/);
     expect(() => nearestPaletteColour({ r: 0, g: undefined, b: 0 }, palette)).toThrow(
       /g must be finite/,
+    );
+  });
+
+  it("refuses a palette entry in the retired tuple shape", () => {
+    // [255,0,0] used to be the fixture's shape; silently answering null for it
+    // would look exactly like "nothing was rendered".
+    expect(() => nearestPaletteColour({ r: 255, g: 0, b: 0 }, { red: [255, 0, 0] })).toThrow(
+      /palette\.red\.r must be finite/,
     );
   });
 });
