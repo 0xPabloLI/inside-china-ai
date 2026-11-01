@@ -13,8 +13,13 @@
  * baseline-narrative), f1-lock56 #29, f3-floor #31, unknown-field #32,
  * unknown-visualtype #37, empty-fields #34, indexed slots #36 (hook stats,
  * contrast chips, info-card points inside the baselines).
+ *
+ * The media scenarios (`baseline-contrast-media`, `baseline-fullscreen`) bind a
+ * picture generated at suite start (#1093), not the scraped `pexels-*` photo
+ * this fixture used to name: that file is gitignored, so a clean checkout
+ * rendered a 404 and the suite could not run in CI.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { execFileSync } from "child_process";
 import { mkdtempSync } from "fs";
 import { tmpdir } from "os";
@@ -22,6 +27,7 @@ import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { CANVAS, SAFE_ZONES } from "../lib/safe-zones.mjs";
 import { HOOK_SUBJECT_ROW, hookSubjectTextWidth, SLOT_FIELDS } from "../lib/text-slots.mjs";
+import { ensureSceneGatePhoto } from "./fixture-media.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -120,6 +126,10 @@ describe(
   "Gated scene templates (real Chromium via remotion still)",
   { timeout: GATE_TIMEOUT },
   () => {
+    beforeAll(() => {
+      ensureSceneGatePhoto();
+    });
+
     it.each(BASELINES)("%s: legal copy at contract sizes PASSes", (scenario) => {
       const { ok, raw } = renderScenario(scenario, BASELINE_FRAMES[scenario] ?? 45);
       expect(ok, raw).toBe(true);

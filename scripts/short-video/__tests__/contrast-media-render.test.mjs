@@ -14,13 +14,18 @@
  * same copy, so a pixel diff isolates the media layer.
  *
  * Stills are persisted under the gitignored `output/` dir as ticket evidence.
+ *
+ * The fixture's picture is generated at suite start (#1093) rather than
+ * committed: the old scraped `pexels-*` photo is gitignored, so a clean
+ * checkout rendered a 404 and this file could not run in CI.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { execFileSync } from "child_process";
 import { mkdirSync, readFileSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
+import { ensureSceneGatePhoto } from "./fixture-media.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -73,6 +78,10 @@ function diffCount(pathA, pathB) {
 }
 
 describe("ContrastScene renders bound media (#761)", { timeout: 300_000 }, () => {
+  beforeAll(() => {
+    ensureSceneGatePhoto();
+  });
+
   it("the media still differs from the text-only still across most of the frame", () => {
     const plain = still("baseline-contrast");
     const withMedia = still("baseline-contrast-media");

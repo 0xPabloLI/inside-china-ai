@@ -154,6 +154,10 @@ scripts/short-video/assets/scene-*-seed*.mp4
 # on demand — delete the directory at any time)
 scripts/short-video/assets/_staged/
 
+# Test-time generated media for the render fixtures — written by
+# __tests__/fixture-media.mjs and regenerated on demand, never source (#1093).
+scripts/short-video/assets/_fixture/
+
 # Per-content generated assets and search cache (binary/cache, not source code)
 scripts/short-video/content/**/assets/
 scripts/short-video/content/**/search-cache.json
