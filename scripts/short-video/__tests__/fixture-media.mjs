@@ -18,31 +18,13 @@
  * would otherwise delete it mid-render).
  */
 import { execFileSync } from "child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readSync, statSync } from "fs";
+import { existsSync, mkdirSync, renameSync, rmSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
+import { inspectMediaFile } from "../lib/media-integrity.mjs";
 import { SCENE_GATE_PHOTO } from "../remotion/src/fixture-media.mjs";
 
 const REMOTION_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..", "remotion");
-
-/** `\x89PNG\r\n\x1a\n` — a real file starts with it; a truncated write does not. */
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
-/** Anything smaller than this is a truncated write, not a picture. */
-const MIN_BYTES = 1024;
-
-/** True when `path` holds a complete-looking PNG (size + signature). */
-function looksLikePng(path) {
-  if (!existsSync(path) || statSync(path).size < MIN_BYTES) return false;
-  const head = Buffer.alloc(PNG_SIGNATURE.length);
-  const fd = openSync(path, "r");
-  try {
-    readSync(fd, head, 0, head.length, 0);
-  } finally {
-    closeSync(fd);
-  }
-  return head.equals(PNG_SIGNATURE);
-}
 
 /**
  * Where the fixture's picture actually lives on disk.
@@ -52,31 +34,53 @@ function looksLikePng(path) {
  * side of the link. Writing to `public/assets/...` would work too, but it
  * hides which directory is the source of truth.
  */
-export function sceneGatePhotoPath() {
+function sceneGatePhotoPath() {
   return join(REMOTION_DIR, "..", SCENE_GATE_PHOTO);
 }
 
 /**
+ * True when the path holds a COMPLETE picture.
+ *
+ * `inspectMediaFile` walks the PNG chunks to IEND, so a half-written cache from
+ * an interrupted run is regenerated instead of rendered — a size/signature
+ * check cannot tell the two apart.
+ */
+function isCompletePng(path) {
+  if (!existsSync(path)) return false;
+  return inspectMediaFile(path, { declaredType: "image" }).ok === true;
+}
+
+/**
  * Generate the fixture picture if it is not already there. Idempotent: a
- * present file is left untouched, so a re-run costs nothing and two suites in
- * the same vitest process cannot fight over it.
+ * complete file is left untouched, so a re-run costs nothing.
+ *
+ * Concurrency: vitest runs test FILES in separate worker processes, so both
+ * suites can call this at once. ffmpeg writes to a per-process temp file and
+ * the result is renamed into place — `rename` is atomic within a filesystem,
+ * so no reader can observe a partially written picture.
  *
  * Content is deliberately a synthetic test pattern rather than something that
  * tries to look like a photograph: the assertions that read this frame are
  * geometric (does the media layer render at all, do the text gates still
  * pass), and a pattern is deterministic across ffmpeg builds while a "nice"
  * gradient is not. 1600x900 is larger than the 1080x1920 canvas so the
- * `cover` branch has to crop — the same condition the real photo creates.
+ * `cover` branch has to crop — the same condition the real photo created.
  */
 export function ensureSceneGatePhoto() {
   const out = sceneGatePhotoPath();
-  if (looksLikePng(out)) return out;
+  if (isCompletePng(out)) return out;
 
   mkdirSync(dirname(out), { recursive: true });
-  execFileSync(
-    "ffmpeg",
-    ["-v", "error", "-f", "lavfi", "-i", "testsrc2=s=1600x900", "-frames:v", "1", "-y", out],
-    { stdio: ["pipe", "pipe", "pipe"], timeout: 120_000 },
-  );
+  const tmp = `${out}.${process.pid}.tmp.png`;
+  try {
+    execFileSync(
+      "ffmpeg",
+      ["-v", "error", "-f", "lavfi", "-i", "testsrc2=s=1600x900", "-frames:v", "1", "-y", tmp],
+      { stdio: ["pipe", "pipe", "pipe"], timeout: 120_000 },
+    );
+    renameSync(tmp, out);
+  } finally {
+    rmSync(tmp, { force: true });
+  }
   return out;
 }

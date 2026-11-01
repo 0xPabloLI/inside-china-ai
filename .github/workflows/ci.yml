@@ -289,11 +289,12 @@ jobs:
     # ~4 min of setup; the step-① job (one suite) measured 2m48s end to end, so
     # 25 min leaves room for a slower runner without turning the gate red on
     # wall clock. #1093's two add ~65 more `remotion still` renders (the
-    # scene-gate suite sweeps frames, not just scenarios): 24 min on a dev box
-    # under ~3x the runner's per-render cost, so they are the reason to watch
-    # the job duration rather than assume the old headroom still holds. If a run
-    # lands near this ceiling, split the slow suites into a second job rather
-    # than raise it again — the number is a budget, not a target.
+    # scene-gate suite sweeps frames, not just scenarios): the first run with
+    # them took 17m17s (run 41319038205) against 11m48s without, so the headroom
+    # is real but smaller — watch the duration rather than assume the old
+    # figure. If a run lands near this ceiling, split the slow suites into a
+    # second job rather than raise it again — the number is a budget, not a
+    # target.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
@@ -351,7 +352,8 @@ jobs:
       # variable — and a CPU-starved render fails as a pixel assertion, which
       # is indistinguishable from a real framing defect. Serially the six are
       # ~232 s on an M2 Pro (media-focus 95 s, avatar-card 61 s, text-gate 59 s,
-      # the rest under 30 s each), and #1093's two add ~230 s (below).
+      # the rest under 30 s each); #1093's two add ~5m30s on the runner
+      # (run 41319038205: the job went 11m48s → 17m17s with them in).
       #
       # The last two suites arrived with #1093: `contrast-media-render` and
       # `scene-gate-render` share the scene-gate fixture, whose picture is now
