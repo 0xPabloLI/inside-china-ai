@@ -268,17 +268,28 @@ jobs:
   # minutes of use; installing the workspace and downloading a browser there
   # would push it into the timeout.
   #
-  # Scope is deliberately one suite (#1087 chose option 3 first, then 1): prove
-  # a CI runner can render deterministically before paying for six suites. The
-  # remaining five join this job once #1087 step ② settles the pixel-tolerance
-  # / retry question — a cross-image canvas difference must not be absorbed by
-  # a retry, or this gate inherits the same silence it was opened to remove.
+  # Scope: six of the eight `npx remotion still` suites (#1087 chose option 3
+  # first, then 1 — prove a runner renders deterministically, then widen). Steps
+  # ① and ② settled the tolerance/retry question, so the widening happened in
+  # step ③: five joined `media-focus-render`, and they run serially for the
+  # reason the run step spells out.
+  #
+  # The other two are not a pending item but a measured blocker:
+  # `contrast-media-render` and `scene-gate-render` render the scene-gate fixture,
+  # which binds `assets/pexels-ai-chip.jpg` — a `pexels-*` file that `.gitignore`
+  # keeps out of the repo, so a clean checkout 404s where the photo should be.
+  # They need a generated fixture image and rebuilt assertion baselines first.
   pixel-render:
     name: Pixel render contracts
     # Same platform as the quality job: these suites compare rendered pixels
     # against a source palette, so runner OS must match the target platform
     # (README: Node arm64 + brew ffmpeg).
     runs-on: macos-latest
+    # Six suites, ~232 s serially on an M2 Pro plus ~4 min of setup. The step-①
+    # job (one suite) measured 2m48s end to end, so 25 min leaves room for a
+    # slower runner without turning the gate red on wall clock. If a run ever
+    # lands near this ceiling, split the slow suites into a second job rather
+    # than raise it again — the number is a budget, not a target.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
@@ -329,24 +340,47 @@ jobs:
 
       # `--retry=0` overrides the config's CI retry: that retry exists for
       # load-sensitive ffmpeg suites, and here it would hide exactly the
-      # cross-runner pixel jitter this job was opened to measure. A flake has to
-      # be visible before a tolerance policy (#1087 step ②) can be written.
+      # cross-runner pixel jitter this job was opened to measure.
+      #
+      # `--no-file-parallelism`: each suite renders through its own headless
+      # browser, so running them together makes the runner's core count the
+      # variable — and a CPU-starved render fails as a pixel assertion, which
+      # is indistinguishable from a real framing defect. Serially the six are
+      # ~232 s on an M2 Pro (media-focus 95 s, avatar-card 61 s, text-gate 59 s,
+      # the rest under 30 s each).
+      #
+      # `contrast-media-render` and `scene-gate-render` are the two render suites
+      # that are NOT here: their fixture binds `assets/pexels-ai-chip.jpg`, which
+      # `.gitignore` keeps out of the repo (`pexels-*` is the scraped-media rule),
+      # so a clean checkout renders a 404 where the photo should be. They need a
+      # generated fixture image before they can join — #1087 step ③ records it.
       #
       # VITEST_CI_SKIP_ENV_BOUND is deliberately NOT set here — that env gate is
-      # what excludes the suite in the quality job, and leaving it unset is how
-      # this file opts into running it.
-      - name: Pixel render contracts (media-focus-render)
-        run: npx vitest run scripts/short-video/__tests__/media-focus-render.test.mjs --retry=0
+      # what excludes these suites in the quality job, and leaving it unset is
+      # how this file opts into running them.
+      - name: Pixel render contracts (6 suites)
+        run: |
+          npx vitest run --no-file-parallelism --retry=0 \
+            scripts/short-video/__tests__/media-focus-render.test.mjs \
+            scripts/short-video/__tests__/media-start-offset.test.mjs \
+            scripts/short-video/__tests__/media-zoom-render.test.mjs \
+            scripts/short-video/__tests__/official-fit-render.test.mjs \
+            scripts/short-video/__tests__/text-gate-render.test.mjs \
+            scripts/short-video/__tests__/avatar-card-render.test.mjs
 
       # The stills are the evidence trail for a red run: a sampled pixel value
       # says which band landed where, and the PNG says whether the frame was
       # rendered at all (a black frame and a mis-cropped frame fail differently).
+      # Three of the six persist them (media-focus / media-zoom / media-offset);
+      # text-gate, official-fit and avatar-card render into `mkdtemp`. The glob
+      # covers every `*-stills` directory under the gitignored `output/`, so a
+      # suite that starts persisting is picked up without touching this step.
       - name: Upload stills
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: media-focus-stills
-          path: scripts/short-video/output/media-focus-stills
+          name: render-stills
+          path: scripts/short-video/output/*-stills
           retention-days: 7
           if-no-files-found: warn
 

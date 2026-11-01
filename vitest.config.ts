@@ -22,22 +22,33 @@ const CI_SKIPPED_SUITES = ["scripts/short-video/__tests__/research/**"];
 // `pixel-render` job does not. A render suite that moves into `pixel-render`
 // (#1087) therefore stays listed here as long as the quality job cannot run it,
 // and its comment names the job that does.
+//
+// #1087 step ③ moved five more render suites into `pixel-render` and measured
+// the four that stayed. Two of them were first unbound and then put back, because
+// CI disproved the guess that they were only ffmpeg-bound:
+// `avatar-frame-audit` fails at collection (it imports through
+// `skills/web-access/scripts/cdp-proxy.mjs`, a symlink into the uninitialised
+// `skills/shared` submodule) and `finalize-render`'s real-ffmpeg integration case
+// asserts a loudnorm/drift result the runner's ffmpeg does not reproduce.
+// `contrast-media-render` and `scene-gate-render` render the scene-gate fixture,
+// which binds a `pexels-*` photo that .gitignore keeps out of the repo — a 404 at
+// render time. All four are real bindings; verify before removing one.
 const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/audio-diagnostics.test.mjs", // full-build ffmpeg behaviors
-  "scripts/short-video/__tests__/avatar-card-render.test.mjs", // npx remotion still
-  "scripts/short-video/__tests__/avatar-frame-audit.test.mjs", // remotion render path
-  "scripts/short-video/__tests__/finalize-render.test.mjs", // remotion render path
+  "scripts/short-video/__tests__/avatar-card-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
+  "scripts/short-video/__tests__/avatar-frame-audit.test.mjs", // imports via the skills/shared submodule (uninitialised in CI)
+  "scripts/short-video/__tests__/finalize-render.test.mjs", // real-ffmpeg integration asserts runner-specific output
   "scripts/short-video/__tests__/focus-smoke.test.mjs", // ~/.video-tts-env venv
   "scripts/short-video/__tests__/infra-paths.test.mjs", // local path assumptions
-  "scripts/short-video/__tests__/official-fit-render.test.mjs", // npx remotion still
+  "scripts/short-video/__tests__/official-fit-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/renderer-guard.test.mjs", // spawns pipeline process
-  "scripts/short-video/__tests__/media-start-offset.test.mjs", // npx remotion still
-  "scripts/short-video/__tests__/media-focus-render.test.mjs", // npx remotion still (#952); runs in the `pixel-render` CI job (#1087)
-  "scripts/short-video/__tests__/media-zoom-render.test.mjs", // npx remotion still
-  "scripts/short-video/__tests__/contrast-media-render.test.mjs", // npx remotion still (#761)
-  "scripts/short-video/__tests__/scene-gate-render.test.mjs", // npx remotion still
+  "scripts/short-video/__tests__/media-start-offset.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
+  "scripts/short-video/__tests__/media-focus-render.test.mjs", // npx remotion still (#952); runs in `pixel-render` (#1087)
+  "scripts/short-video/__tests__/media-zoom-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
+  "scripts/short-video/__tests__/contrast-media-render.test.mjs", // npx remotion still (#761); fixture binds a gitignored `pexels-*` photo
+  "scripts/short-video/__tests__/scene-gate-render.test.mjs", // npx remotion still; same photo as above
   "scripts/short-video/__tests__/test-f5-duration.test.mjs", // python subprocess (baseline doc)
-  "scripts/short-video/__tests__/text-gate-render.test.mjs", // npx remotion still
+  "scripts/short-video/__tests__/text-gate-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/tiktok-video-details.test.mjs", // external fetch
   "scripts/short-video/__tests__/tts-kaggle-batch.test.mjs", // local model assets
 ];
