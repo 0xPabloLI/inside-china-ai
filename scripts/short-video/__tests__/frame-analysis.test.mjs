@@ -139,7 +139,7 @@ describe("meanColourInPatch", () => {
       r: 0,
       g: 0,
       b: 253,
-      n: 900, // 60px patch sampled every 2px → 30 x 30
+      samples: 900, // 60px patch sampled every 2px → 30 x 30
     });
   });
 
@@ -178,7 +178,11 @@ describe("meanColourInPatch", () => {
 // ─── nearestPaletteColour ───
 
 describe("nearestPaletteColour", () => {
-  const palette = { red: [255, 0, 0], lime: [0, 255, 0], blue: [0, 0, 255] };
+  const palette = {
+    red: { r: 255, g: 0, b: 0 },
+    lime: { r: 0, g: 255, b: 0 },
+    blue: { r: 0, g: 0, b: 255 },
+  };
 
   it("matches exact entries", () => {
     expect(nearestPaletteColour({ r: 255, g: 0, b: 0 }, palette)).toBe("red");
@@ -203,23 +207,20 @@ describe("nearestPaletteColour", () => {
     expect(nearestPaletteColour({ r: 128, g: 128, b: 0 }, palette)).toBeNull();
   });
 
-  it("honours a maxDistance override", () => {
-    expect(nearestPaletteColour({ r: 200, g: 0, b: 0 }, palette, { maxDistance: 255 })).toBe("red");
-    expect(nearestPaletteColour({ r: 200, g: 0, b: 0 }, palette, { maxDistance: 10 })).toBeNull();
+  it("pins the ceiling: 90 away from an entry matches, 100 does not", () => {
+    // Deliberate change-detector. The ceiling is what decides whether an
+    // unrendered frame can masquerade as a band, so moving it must move this.
+    expect(nearestPaletteColour({ r: 165, g: 0, b: 0 }, palette)).toBe("red");
+    expect(nearestPaletteColour({ r: 155, g: 0, b: 0 }, palette)).toBeNull();
   });
 
-  it("keeps the unrendered colour unmatched even at the widest ceiling", () => {
-    // The ceiling is exclusive, so maxDistance 255 does not re-open the tie.
-    expect(nearestPaletteColour({ r: 0, g: 0, b: 0 }, palette, { maxDistance: 255 })).toBeNull();
-  });
-
-  it("rejects a non-positive maxDistance instead of silently matching nothing", () => {
-    expect(() => nearestPaletteColour({ r: 255, g: 0, b: 0 }, palette, { maxDistance: 0 })).toThrow(
-      /maxDistance must be a positive number/,
+  it("refuses an unreadable sample instead of answering null", () => {
+    // Same shape as the bug this helper removes: a NaN sample is not a
+    // "no match", it is "the read was broken".
+    expect(() => nearestPaletteColour({ r: NaN, g: 0, b: 0 }, palette)).toThrow(/r must be finite/);
+    expect(() => nearestPaletteColour({ r: 0, g: undefined, b: 0 }, palette)).toThrow(
+      /g must be finite/,
     );
-    expect(() =>
-      nearestPaletteColour({ r: 255, g: 0, b: 0 }, palette, { maxDistance: NaN }),
-    ).toThrow(/maxDistance/);
   });
 });
 

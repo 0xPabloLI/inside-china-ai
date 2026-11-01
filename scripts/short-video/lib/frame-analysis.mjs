@@ -180,8 +180,15 @@ const COLOUR_PATCH_STEP = 2;
  * Max RGB distance at which a colour still counts as a palette entry.
  *
  * Bands are saturated primaries, so a real hit lands within a few units of its
- * entry (measured: 252/0/0 for pure red after the h264 round-trip). Everything
- * beyond this is a colour the fixture never painted — a blend or a background.
+ * entry (measured: 252/0/0 for pure red after the h264 round-trip, distance 3).
+ * Everything beyond 96 is a colour a fixture never painted: the blend halfway
+ * between two primaries is ~180 away, the #0a0a14 card background ~235 from
+ * blue, the frame's #000 exactly 255 from all three.
+ *
+ * The comparison is strict, so a colour exactly at the ceiling does not match.
+ * That is what keeps the three-way tie unresolvable even for a caller that
+ * widens the ceiling to 255: the frame background must never come back as a
+ * band name (#1084).
  */
 const PALETTE_MAX_DISTANCE = 96;
 
@@ -207,7 +214,7 @@ const PALETTE_MAX_DISTANCE = 96;
  *
  * @param {PixelBuffer} buf
  * @param {{x: number, y: number}} options
- * @returns {{r: number, g: number, b: number, n: number}}
+ * @returns {{r: number, g: number, b: number, samples: number}}
  */
 export function meanColourInPatch(buf, { x, y }) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
@@ -225,17 +232,22 @@ export function meanColourInPatch(buf, { x, y }) {
         `y ${yStart}-${yEnd - 1} — outside the ${buf.width}x${buf.height} frame`,
     );
   }
-  const samples = sampleRegion(buf, { xStart, xEnd, yStart, yEnd }, COLOUR_PATCH_STEP);
+  const patch = sampleRegion(buf, { xStart, xEnd, yStart, yEnd }, COLOUR_PATCH_STEP);
   let r = 0;
   let g = 0;
   let b = 0;
-  for (const s of samples) {
-    r += s.r;
-    g += s.g;
-    b += s.b;
+  for (const sample of patch) {
+    r += sample.r;
+    g += sample.g;
+    b += sample.b;
   }
-  const n = samples.length;
-  return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n), n };
+  const samples = patch.length;
+  return {
+    r: Math.round(r / samples),
+    g: Math.round(g / samples),
+    b: Math.round(b / samples),
+    samples,
+  };
 }
 
 /**
@@ -247,26 +259,27 @@ export function meanColourInPatch(buf, { x, y }) {
  * iterates first and reports a confident band. "Nothing was drawn" must not be
  * expressible as a palette name.
  *
- * The ceiling is EXCLUSIVE and must be positive. Exclusive keeps that property
- * even at `maxDistance: 255`, where an inclusive comparison would let the
- * equidistant tie resolve to a band again; the positivity check turns
- * `maxDistance: 0` into a loud error instead of a silent "nothing matches".
+ * A tie INSIDE the ceiling cannot happen for saturated primaries: two of them
+ * are 255 apart on one channel, so their midpoint sits ~180 away and already
+ * fails the ceiling. That is the other reason the ceiling is not a knob — an
+ * earlier revision let callers widen it, which re-opened the tie.
  *
  * @param {{r: number, g: number, b: number}} rgb
- * @param {Record<string, [number, number, number]>} palette
- * @param {{maxDistance?: number}} [options]
+ * @param {Record<string, {r: number, g: number, b: number}>} palette
  * @returns {string|null}
  */
-export function nearestPaletteColour(rgb, palette, { maxDistance = PALETTE_MAX_DISTANCE } = {}) {
-  if (!Number.isFinite(maxDistance) || maxDistance <= 0) {
-    throw new Error(
-      `nearestPaletteColour: maxDistance must be a positive number, got ${maxDistance}`,
-    );
+export function nearestPaletteColour(rgb, palette) {
+  for (const channel of ["r", "g", "b"]) {
+    if (!Number.isFinite(rgb?.[channel])) {
+      // An unreadable sample must not arrive here as "matches nothing": that is
+      // the silent-wrong-answer shape this helper exists to remove (#1084).
+      throw new Error(`nearestPaletteColour: ${channel} must be finite, got ${rgb?.[channel]}`);
+    }
   }
   let best = null;
-  let bestDist = maxDistance ** 2;
-  for (const [name, [pr, pg, pb]] of Object.entries(palette)) {
-    const d = (rgb.r - pr) ** 2 + (rgb.g - pg) ** 2 + (rgb.b - pb) ** 2;
+  let bestDist = PALETTE_MAX_DISTANCE ** 2;
+  for (const [name, entry] of Object.entries(palette)) {
+    const d = (rgb.r - entry.r) ** 2 + (rgb.g - entry.g) ** 2 + (rgb.b - entry.b) ** 2;
     if (d < bestDist) {
       bestDist = d;
       best = name;

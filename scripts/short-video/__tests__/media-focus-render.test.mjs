@@ -45,9 +45,18 @@
  * case failed on the wrong end; its top case passed while sampling nothing.
  * A helper bug is now a red CI test; a rendering bug still needs this file.
  *
+ * Of #1084's three leads: the FOCUS_MAP one is a non-issue for this case — the
+ * fixture sets no `fit`, so `objectPositionFor` takes the cover branch and only
+ * reads `focus`; the stills show "center top" / "center bottom" selecting the
+ * top and bottom bands. The card-geometry lead is recorded at invariant 5. The
+ * "render a still and look" lead is what the evidence lines below do on every
+ * run, and the stills are kept under `output/media-focus-stills/`.
+ *
  * CI does NOT run this file: it is in `CI_SKIPPED_MACHINE_BOUND` because it
- * shells out to `npx remotion still`, like its sibling render suites (why that
- * cannot simply be installed in CI: docs/conventions/test-env-baseline.md).
+ * shells out to `npx remotion still`, like its sibling render suites — the
+ * remotion workspace has its own lockfile, so `npm ci` at the root (all CI
+ * installs) leaves `scripts/short-video/remotion/node_modules` and its
+ * headless-browser download absent (docs/conventions/test-env-baseline.md).
  * The CI-enforced half of #952 is the static gate in
  * canvas-image-fit-contract.test.mjs; the pixel half depends on a machine with
  * ffmpeg + the remotion workspace installed.
@@ -89,9 +98,9 @@ const CARD_CENTRE = {
 
 /** Palette reference points. Nearest-colour classification, not thresholds. */
 const PALETTE = {
-  red: [255, 0, 0],
-  lime: [0, 255, 0],
-  blue: [0, 0, 255],
+  red: { r: 255, g: 0, b: 0 },
+  lime: { r: 0, g: 255, b: 0 },
+  blue: { r: 0, g: 0, b: 255 },
 };
 
 let stillDir;
@@ -292,10 +301,15 @@ describe("cropFocus takes precedence over focus", { timeout: 600_000 }, () => {
 
 // ─── 5: the evidence card passes media through unchanged ───
 //
-// MediaCard is a wrapper (820x618, landscape) around MediaBackground. It has
-// no media wiring of its own, which is exactly why it is worth asserting: a
-// wrapper that dropped or overwrote `focus`/`cropFocus` would look fine in
-// every still of a full-frame scene.
+// MediaCard is a wrapper (EVIDENCE_CARD.width x height = 820x697, landscape)
+// around MediaBackground. It has no media wiring of its own, which is exactly
+// why it is worth asserting: a wrapper that dropped or overwrote
+// `focus`/`cropFocus` would look fine in every still of a full-frame scene.
+//
+// The fixture passes no `bottom`, so MediaCard's default applies
+// (`top + EVIDENCE_CARD.height`) and the card is exactly EVIDENCE_CARD — which
+// is what makes CARD_CENTRE the right probe (#1084 lead 2, verified when the
+// #1021 geometry change made that centre a half pixel).
 
 describe("MediaCard passes focus through to MediaBackground", { timeout: 600_000 }, () => {
   it("card: focus top samples the TOP band inside the card", () => {
