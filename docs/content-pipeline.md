@@ -551,7 +551,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 3. **输出文章 draft 预览**（文章 markdown 全文）
 4. **输出场景概览表**
 5. **提示用户审阅要点**：实际观看视频检查整体观感、TTS 语音、字幕、视觉动画、Hook/CTA、有无渲染问题、文章内容准确性、脚本叙事合理性
-6. **输出 TikTok 发布前最佳实践提醒** — 完整清单见 `docs/tiktok/tiktok-best-practices.md`。每次必输出，提醒用户发布时和发布后的操作（AIGC 标签、BGM、地理标签、Caption、Hashtag、Trending 检查、Pinned Comment、回复评论、监控数据等）。
+6. **输出 TikTok 发布前最佳实践提醒** — 完整清单见 `docs/tiktok/tiktok-best-practices.md`。每次必输出。**CDP 默认路径**已由 `tiktok-upload-prep.mjs` 自动完成 AIGC 标签、BGM/音量、Caption/Hashtag 与发布；提醒只列仍需人工的项（Pinned Comment、首小时回复、监控数据），并注明**地理标签默认不做**（用户 2026-11-01 确认历史未使用；需要时走 `--save-draft` + 手机终发）。脚本结束会打印本次 11 步覆盖差。
 
    **📦 发布包**（Agent 从 generate-caption.mjs 输出中读取，直接给用户复制粘贴）：
 

@@ -32,7 +32,11 @@ vi.mock("../lib/cdp-client.mjs", () => ({
   // to their fallbacks against the real proxy, so a HK run looked like "no
   // videos" and the HK guard read as "unknown".
   cdpEval: vi.fn(async (tabId, script) => {
-    if (script.includes("cdn-cgi/trace")) return { result: { value: state.traceText } };
+    // #964: the exit gate now reads the trace page body through the shared
+    // probe instead of fetching it from a page script.
+    if (script === "document.body.innerText" || script.includes("cdn-cgi/trace")) {
+      return { result: { value: state.traceText } };
+    }
     if (script.includes("user-post-item")) return { result: { value: state.listJson } };
     return { result: { value: "scrolled" } };
   }),

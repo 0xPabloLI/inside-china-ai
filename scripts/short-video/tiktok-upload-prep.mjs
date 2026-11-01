@@ -201,7 +201,7 @@
  *                         endpoint; with --publish a mismatch, a timeout, or
  *                         loc=XX blocks. Set this when the account is meant to
  *                         publish from another region.
- *   --dry-run             Everything except the upload (page reachability only)
+ *   --dry-run             Egress probe + page reachability; never uploads or publishes
  */
 
 import {
@@ -1597,6 +1597,10 @@ async function main() {
   pointer.x = Math.round(randomBetween(200, 900));
   pointer.y = Math.round(randomBetween(160, 620));
   let keepTab = !hasFlag("close-tab");
+  // Set only after the publish click has settled on a non-upload URL: the
+  // post-publish writes below can still fail, and the catch must not tell the
+  // operator "the run did not publish" when the post is already live.
+  let publishSucceeded = false;
   try {
     // Foreground is a precondition, not a courtesy: a hidden tab throttles
     // input dispatch to ~5s per event (measured) and TikTok's uploader never
@@ -1941,6 +1945,7 @@ async function main() {
           `still on the upload page after the publish click — check the tab: ${after?.url}`,
         );
       }
+      publishSucceeded = true;
       log("publish", { published: true, url: settled.last.url, clickMode: published.mode });
 
       // pending-analysis.json (#260's contract, extended to this tier by #951's
@@ -2009,7 +2014,15 @@ async function main() {
     // operator is about to publish, not only on a successful preparation. The
     // aborted form downgrades every unfinished claim (AIGC/audio/publish) so
     // the screen cannot read "✅ done" at the moment the operator must do it.
-    showCoverage({ aborted: true });
+    // If the click already settled, the post may be live: the normal diff was
+    // printed before the click, so warn instead of downgrading a live post.
+    if (publishSucceeded) {
+      console.error(
+        "⚠️  The publish click succeeded before this error — the post may be live. Check it before re-running.",
+      );
+    } else {
+      showCoverage({ aborted: true });
+    }
     log("error", { message: err.message });
     keepTab = true; // leave the tab so the operator can see where it stopped
     process.exitCode = 1;

@@ -23,20 +23,10 @@
  *   post-publish  a follow-up after publishing (phone)
  */
 
-export const COVERAGE_KINDS = Object.freeze([
-  "auto",
-  "replaced",
-  "pending",
-  "not-covered",
-  "unverified",
-  "off",
-  "draft-lost",
-  "post-publish",
-]);
-
 /**
- * The render groups. Single source for both the printed sections and the
- * totals, so a new kind cannot be counted in one place and rendered in none.
+ * The render groups. Single source for both the printed sections, the totals
+ * and the kind vocabulary, so a new kind cannot be counted in one place and
+ * rendered in none.
  */
 export const COVERAGE_GROUPS = Object.freeze({
   automated: Object.freeze(["auto"]),
@@ -44,6 +34,13 @@ export const COVERAGE_GROUPS = Object.freeze({
   pending: Object.freeze(["pending"]),
   notCovered: Object.freeze(["not-covered", "unverified", "off", "draft-lost", "post-publish"]),
 });
+
+/** The kind vocabulary, derived from the groups so it cannot drift from them. */
+export const COVERAGE_KINDS = Object.freeze(Object.values(COVERAGE_GROUPS).flat());
+
+if (new Set(COVERAGE_KINDS).size !== COVERAGE_KINDS.length) {
+  throw new Error("publish-coverage: a kind appears in more than one render group");
+}
 
 export const STEP_COVERAGE = Object.freeze({
   "open-app": Object.freeze({
@@ -160,13 +157,16 @@ export function buildCoverageDiff(
     // An aborted run must not keep claiming steps it did not finish. The
     // operator takes over the open tab at that point, so every previously
     // automated/pending row becomes an explicit "confirm this" gap.
-    if (aborted && ["auto", "pending"].includes(kind)) {
+    if (aborted && ["auto", "pending", "draft-lost"].includes(kind)) {
       kind = "unverified";
       note = "run aborted before this step completed — confirm in the open tab";
     }
     if (aborted && step.id === "publish") {
       kind = "not-covered";
       note = "the run did not publish";
+    }
+    if (!COVERAGE_KINDS.includes(kind)) {
+      throw new Error(`coverage diff produced unknown kind "${kind}" for step "${step.id}"`);
     }
 
     return { id: step.id, short: rule.short, kind, note };

@@ -45,6 +45,10 @@ describe("coverage rules cover the profile", () => {
   it("assigns every status to exactly one render group", () => {
     const grouped = Object.values(COVERAGE_GROUPS).flat();
     expect([...grouped].sort()).toEqual([...COVERAGE_KINDS].sort());
+    expect(new Set(COVERAGE_KINDS).size).toBe(COVERAGE_KINDS.length);
+    for (const rule of Object.values(STEP_COVERAGE)) {
+      expect(COVERAGE_KINDS, rule.short).toContain(rule.kind);
+    }
   });
 
   it("keeps each display alias anchored in the profile label", () => {
@@ -83,6 +87,17 @@ describe("coverage rules cover the profile", () => {
     expect(rowById(diff, "add-sound").kind).toBe("unverified");
     expect(rowById(diff, "publish").kind).toBe("not-covered");
     expect(rowById(diff, "publish").note).toMatch(/did not publish/);
+  });
+
+  it("does not claim a saved draft when a draft run aborted", () => {
+    const diff = buildCoverageDiff(tiktokProfile, {
+      publish: false,
+      draftSaved: true,
+      aborted: true,
+    });
+    expect(rowById(diff, "add-sound").kind).toBe("unverified");
+    expect(rowById(diff, "add-sound").note).toMatch(/aborted/);
+    expect(rowById(diff, "add-sound").note).not.toMatch(/a saved draft drops/);
   });
 });
 
@@ -167,5 +182,11 @@ describe("the upload driver prints and logs the diff", () => {
     expect(source).toContain('"coverageAborted"');
     expect(source).toContain('"coverage"');
     expect(source).toContain("formatCoverageDiff(");
+  });
+
+  it("does not downgrade a post that was already published", () => {
+    expect(source).toContain("publishSucceeded = true");
+    expect(source).toContain("if (publishSucceeded)");
+    expect(source).toContain("showCoverage({ aborted: true })");
   });
 });

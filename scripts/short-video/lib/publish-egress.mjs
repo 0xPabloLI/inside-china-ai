@@ -101,8 +101,7 @@ export function evaluateEgress({
   reachable = true,
   reason = null,
 } = {}) {
-  const expected = normalizeRegion(expectedRegion);
-  if (!expected || expected === "XX") {
+  if (!isExpectedRegion(expectedRegion)) {
     // A malformed value must not fall back to SG: that turns a typo into a
     // silently weaker gate. `XX` is Cloudflare's unknown sentinel and must not
     // be usable as a target. The driver validates first; this protects other
@@ -111,6 +110,7 @@ export function evaluateEgress({
       `evaluateEgress: invalid expected region ${JSON.stringify(expectedRegion)} — use a two-letter code other than XX`,
     );
   }
+  const expected = normalizeRegion(expectedRegion);
   const blockedLevel = publish ? "block" : "warn";
   const base = {
     expectedRegion: expected,
