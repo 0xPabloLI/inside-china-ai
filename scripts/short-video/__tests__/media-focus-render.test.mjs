@@ -34,8 +34,8 @@
  *      it crops the tall source on the vertical axis.
  *
  * Sampling and classification are NOT defined here: they live in
- * lib/frame-analysis.mjs (`meanColourInPatch` / `nearestPaletteColour`) and are
- * covered by the CI-run `frame-analysis.test.mjs`. That split is the fix for
+ * `__tests__/pixel-probe.mjs` (`meanColourInPatch` / `nearestPaletteColour`) and
+ * are covered by the CI-run `pixel-probe.test.mjs`. That split is the fix for
  * #1084 — this file spent 2026-10-30..11-01 red on main because its local
  * helpers were wrong, and being in `CI_SKIPPED_MACHINE_BOUND` meant no gate
  * ever saw them: the 60x60 patch was centred on the fractional `CARD_CENTRE.y`
@@ -68,7 +68,7 @@ import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import { EVIDENCE_CARD } from "../lib/safe-zones.mjs";
-import { meanColourInPatch, nearestPaletteColour } from "../lib/frame-analysis.mjs";
+import { meanColourInPatch, nearestPaletteColour } from "./pixel-probe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
