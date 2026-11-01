@@ -4,7 +4,8 @@
  *
  * Why this module exists (#1084): `media-focus-render` spent 2026-10-30..11-01
  * red on main, and nothing in CI could see it, because the suite is in
- * `CI_SKIPPED_MACHINE_BOUND` (it shells out to `npx remotion still`) and its
+ * `CI_SKIPPED_MACHINE_BOUND` (it shells out to `npx remotion still`, so it ran
+ * nowhere in CI until the `pixel-render` job took it on — #1087) and its
  * sampling arithmetic was private to that file. The arithmetic now lives here,
  * with `pixel-probe.test.mjs` next to it running in CI — so a broken read is a
  * red CI test, and only "render a real frame" still needs a machine.
