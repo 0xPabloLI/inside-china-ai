@@ -46,10 +46,9 @@
  * A helper bug is now a red CI test; a rendering bug still needs this file.
  *
  * CI does NOT run this file: it is in `CI_SKIPPED_MACHINE_BOUND` because it
- * shells out to `npx remotion still`, like its sibling render suites — the
- * remotion workspace has its own lockfile and CI installs the root package
- * only, so `remotion` and its headless browser are absent there. The
- * CI-enforced half of #952 is the static gate in
+ * shells out to `npx remotion still`, like its sibling render suites (why that
+ * cannot simply be installed in CI: docs/conventions/test-env-baseline.md).
+ * The CI-enforced half of #952 is the static gate in
  * canvas-image-fit-contract.test.mjs; the pixel half depends on a machine with
  * ffmpeg + the remotion workspace installed.
  */
@@ -60,11 +59,7 @@ import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import { EVIDENCE_CARD } from "../lib/safe-zones.mjs";
-import {
-  COLOUR_PATCH_SIZE,
-  meanColourInPatch,
-  nearestPaletteColour,
-} from "../lib/frame-analysis.mjs";
+import { meanColourInPatch, nearestPaletteColour } from "../lib/frame-analysis.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -178,27 +173,22 @@ function still(props) {
   return out;
 }
 
-/** Mean RGB of a COLOUR_PATCH_SIZE patch centred on (cx, cy). */
-function colourAt(path, point) {
-  const png = PNG.sync.read(readFileSync(path));
+function sampleAt(props, point = CANVAS_CENTRE) {
+  const png = PNG.sync.read(readFileSync(still(props)));
   expect(png.width, "frame width").toBe(1080);
   expect(png.height, "frame height").toBe(1920);
-  return meanColourInPatch(png, { ...point, size: COLOUR_PATCH_SIZE });
-}
-
-function sampleAt(props, point = CANVAS_CENTRE) {
-  const path = still(props);
-  const rgb = colourAt(path, point);
+  const rgb = meanColourInPatch(png, point);
   const name = nearestPaletteColour(rgb, PALETTE);
   const where = point === CANVAS_CENTRE ? "centre" : "card centre";
   console.log(`[evidence] ${JSON.stringify(props)} → ${where} ${JSON.stringify(rgb)} = ${name}`);
-  // An unmatched colour means the frame background is showing through: the
-  // sample landed somewhere no picture was drawn. Say that, instead of letting
-  // the caller's toBe() report a wrong-band failure (#1084).
+  // No palette entry within the ceiling means either nothing was drawn there
+  // (frame background) or the sample straddles two bands. Say that, instead of
+  // letting the caller's toBe() report a wrong-band failure (#1084).
   expect(
     name,
-    `nothing was rendered at ${where} (${point.x}, ${point.y}): mean ${JSON.stringify(rgb)} ` +
-      `matches no palette entry, so the frame background is showing through`,
+    `no band at ${where} (${point.x}, ${point.y}): mean ${JSON.stringify(rgb)} is not ` +
+      `within the palette ceiling of any entry — nothing was rendered there, or the ` +
+      `patch straddles two bands`,
   ).not.toBeNull();
   return name;
 }

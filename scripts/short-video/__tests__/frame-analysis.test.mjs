@@ -134,12 +134,12 @@ describe("sampleRegion", () => {
 
 describe("meanColourInPatch", () => {
   it("averages the patch at an integer centre", () => {
-    const buf = solidBuffer(1080, 1920, 0, 0, 253);
-    expect(meanColourInPatch(buf, { x: 470, y: 648, size: 60 })).toEqual({
+    const buf = solidBuffer(CANVAS.width, CANVAS.height, 0, 0, 253);
+    expect(meanColourInPatch(buf, { x: 470, y: 648 })).toEqual({
       r: 0,
       g: 0,
       b: 253,
-      n: 900, // 60/2 per axis → 30 x 30
+      n: 900, // 60px patch sampled every 2px → 30 x 30
     });
   });
 
@@ -149,30 +149,27 @@ describe("meanColourInPatch", () => {
     // and slides the window to x 980-1038; paint that region a different
     // colour and the un-rounded read is unmistakable.
     const buf = bufferWithRect(
-      1080,
-      1920,
+      CANVAS.width,
+      CANVAS.height,
       { xStart: 980, xEnd: 1039, yStart: 618, yEnd: 677 },
       0,
       255,
       0,
     );
-    const fractional = meanColourInPatch(buf, { x: 470, y: 648.5, size: 60 });
-    const whole = meanColourInPatch(buf, { x: 470, y: 648, size: 60 });
-    expect(fractional).toEqual(whole);
+    const fractional = meanColourInPatch(buf, { x: 470, y: 648.5 });
+    expect(fractional).toEqual(meanColourInPatch(buf, { x: 470, y: 648 }));
     // …and it reads the card, not the marker: background #0a0a14.
     expect(fractional).toMatchObject({ r: 10, g: 10, b: 20 });
   });
 
   it("throws when the patch leaves the frame", () => {
-    const buf = solidBuffer(1080, 1920, 1, 2, 3);
-    expect(() => meanColourInPatch(buf, { x: 5, y: 500, size: 60 })).toThrow(
-      /outside the 1080x1920 frame/,
-    );
-    expect(() => meanColourInPatch(buf, { x: 540, y: 1900, size: 60 })).toThrow(/outside/);
+    const buf = solidBuffer(CANVAS.width, CANVAS.height, 1, 2, 3);
+    expect(() => meanColourInPatch(buf, { x: 5, y: 500 })).toThrow(/outside the 1080x1920 frame/);
+    expect(() => meanColourInPatch(buf, { x: 540, y: 1900 })).toThrow(/outside/);
   });
 
   it("throws on a non-finite centre", () => {
-    const buf = solidBuffer(1080, 1920, 1, 2, 3);
+    const buf = solidBuffer(CANVAS.width, CANVAS.height, 1, 2, 3);
     expect(() => meanColourInPatch(buf, { x: NaN, y: 500 })).toThrow(/centre must be finite/);
     expect(() => meanColourInPatch(buf, { x: 500, y: Infinity })).toThrow(/centre must be finite/);
   });
@@ -209,6 +206,20 @@ describe("nearestPaletteColour", () => {
   it("honours a maxDistance override", () => {
     expect(nearestPaletteColour({ r: 200, g: 0, b: 0 }, palette, { maxDistance: 255 })).toBe("red");
     expect(nearestPaletteColour({ r: 200, g: 0, b: 0 }, palette, { maxDistance: 10 })).toBeNull();
+  });
+
+  it("keeps the unrendered colour unmatched even at the widest ceiling", () => {
+    // The ceiling is exclusive, so maxDistance 255 does not re-open the tie.
+    expect(nearestPaletteColour({ r: 0, g: 0, b: 0 }, palette, { maxDistance: 255 })).toBeNull();
+  });
+
+  it("rejects a non-positive maxDistance instead of silently matching nothing", () => {
+    expect(() => nearestPaletteColour({ r: 255, g: 0, b: 0 }, palette, { maxDistance: 0 })).toThrow(
+      /maxDistance must be a positive number/,
+    );
+    expect(() =>
+      nearestPaletteColour({ r: 255, g: 0, b: 0 }, palette, { maxDistance: NaN }),
+    ).toThrow(/maxDistance/);
   });
 });
 

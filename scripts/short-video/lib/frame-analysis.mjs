@@ -6,6 +6,12 @@
  *   - Content presence (frame is not empty)
  *   - Render integrity (frame is not all-black)
  *
+ * Also the single home for "read a colour out of a rendered frame": the
+ * pixel-band render suites assert which part of a source landed in the frame by
+ * classifying a sampled colour against a fixture palette, and they must share
+ * this arithmetic rather than re-deriving it per file (#1084 — a per-file copy
+ * of it read the frame background for two days and no gate could see it).
+ *
  * All functions are pure: input → output, no IO, no side effects.
  * This makes them trivially testable with synthetic PixelBuffers.
  *
@@ -160,13 +166,15 @@ export function sampleRegion(buf, region, step) {
 }
 
 /**
- * Side length (px) of the default `meanColourInPatch` square.
+ * Side length (px) of the `meanColourInPatch` square.
  *
- * Matches the patch the pixel-band suites use: large enough that h264 /
- * canvas colour noise averages out, small enough to stay inside a single
- * colour band.
+ * Large enough that h264 / canvas colour noise averages out, small enough to
+ * stay inside a single colour band of a fixture source.
  */
-export const COLOUR_PATCH_SIZE = 60;
+const COLOUR_PATCH_SIZE = 60;
+
+/** Sampling stride inside that patch (every 2nd pixel on both axes). */
+const COLOUR_PATCH_STEP = 2;
 
 /**
  * Max RGB distance at which a colour still counts as a palette entry.
@@ -178,7 +186,7 @@ export const COLOUR_PATCH_SIZE = 60;
 const PALETTE_MAX_DISTANCE = 96;
 
 /**
- * Mean RGB of a square patch centred on (x, y).
+ * Mean RGB of a COLOUR_PATCH_SIZE square centred on (x, y).
  *
  * ROUNDS THE CENTRE FIRST, and that rounding is the entire reason this lives
  * in one place (#1084). `getPixel` indexes `data[(width * y + x) * 4]`, so a
@@ -189,47 +197,44 @@ const PALETTE_MAX_DISTANCE = 96;
  * inspect, i.e. frame background. Because pure black is equidistant from every
  * saturated primary, the caller's nearest-colour classifier then reported it as
  * "red" — the assertion failed on the wrong end (expected blue, got red) and
- * the case that happened to expect red passed while sampling nothing.
+ * the case that happened to expect red passed while sampling nothing. A
+ * half-pixel centre is not addressable, so either neighbouring row is equally
+ * correct; what matters is that the read is one of them.
  *
  * The patch must sit inside the buffer: a caller asking for pixels outside the
  * frame is describing a box that does not exist, and silently clamping would
  * reproduce the same class of bug one edge over.
  *
  * @param {PixelBuffer} buf
- * @param {{x: number, y: number, size?: number, step?: number}} options
+ * @param {{x: number, y: number}} options
  * @returns {{r: number, g: number, b: number, n: number}}
  */
-export function meanColourInPatch(buf, { x, y, size = COLOUR_PATCH_SIZE, step = 2 }) {
+export function meanColourInPatch(buf, { x, y }) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     throw new Error(`meanColourInPatch: centre must be finite, got (${x}, ${y})`);
   }
-  const cx = Math.round(x);
-  const cy = Math.round(y);
-  const half = Math.floor(size / 2);
-  const xStart = cx - half;
-  const yStart = cy - half;
-  const xEnd = xStart + size;
-  const yEnd = yStart + size;
+  const half = Math.floor(COLOUR_PATCH_SIZE / 2);
+  const xStart = Math.round(x) - half;
+  const yStart = Math.round(y) - half;
+  const xEnd = xStart + COLOUR_PATCH_SIZE;
+  const yEnd = yStart + COLOUR_PATCH_SIZE;
   if (xStart < 0 || yStart < 0 || xEnd > buf.width || yEnd > buf.height) {
     throw new Error(
-      `meanColourInPatch: ${size}x${size} patch at (${cx}, ${cy}) spans ` +
-        `x ${xStart}-${xEnd - 1}, y ${yStart}-${yEnd - 1} — outside the ` +
-        `${buf.width}x${buf.height} frame`,
+      `meanColourInPatch: ${COLOUR_PATCH_SIZE}x${COLOUR_PATCH_SIZE} patch at ` +
+        `(${Math.round(x)}, ${Math.round(y)}) spans x ${xStart}-${xEnd - 1}, ` +
+        `y ${yStart}-${yEnd - 1} — outside the ${buf.width}x${buf.height} frame`,
     );
   }
+  const samples = sampleRegion(buf, { xStart, xEnd, yStart, yEnd }, COLOUR_PATCH_STEP);
   let r = 0;
   let g = 0;
   let b = 0;
-  let n = 0;
-  for (let py = yStart; py < yEnd; py += step) {
-    for (let px = xStart; px < xEnd; px += step) {
-      const p = getPixel(buf, px, py);
-      r += p.r;
-      g += p.g;
-      b += p.b;
-      n++;
-    }
+  for (const s of samples) {
+    r += s.r;
+    g += s.g;
+    b += s.b;
   }
+  const n = samples.length;
   return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n), n };
 }
 
@@ -242,12 +247,22 @@ export function meanColourInPatch(buf, { x, y, size = COLOUR_PATCH_SIZE, step = 
  * iterates first and reports a confident band. "Nothing was drawn" must not be
  * expressible as a palette name.
  *
+ * The ceiling is EXCLUSIVE and must be positive. Exclusive keeps that property
+ * even at `maxDistance: 255`, where an inclusive comparison would let the
+ * equidistant tie resolve to a band again; the positivity check turns
+ * `maxDistance: 0` into a loud error instead of a silent "nothing matches".
+ *
  * @param {{r: number, g: number, b: number}} rgb
  * @param {Record<string, [number, number, number]>} palette
  * @param {{maxDistance?: number}} [options]
  * @returns {string|null}
  */
 export function nearestPaletteColour(rgb, palette, { maxDistance = PALETTE_MAX_DISTANCE } = {}) {
+  if (!Number.isFinite(maxDistance) || maxDistance <= 0) {
+    throw new Error(
+      `nearestPaletteColour: maxDistance must be a positive number, got ${maxDistance}`,
+    );
+  }
   let best = null;
   let bestDist = maxDistance ** 2;
   for (const [name, [pr, pg, pb]] of Object.entries(palette)) {
