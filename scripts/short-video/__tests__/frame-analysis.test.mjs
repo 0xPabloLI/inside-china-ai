@@ -14,6 +14,8 @@ import {
   checkClippedText,
   checkFinalFrameHasContent,
   runFrameAnalysis,
+  meanColourInPatch,
+  nearestPaletteColour,
   BRIGHT_THRESHOLD,
   BRIGHT_RATIO_FAIL,
   SAMPLE_STEP,
@@ -125,6 +127,88 @@ describe("sampleRegion", () => {
     const samples = sampleRegion(buf, region, 10);
     // Should still sample at least one point (0,0)
     expect(samples.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ─── meanColourInPatch ───
+
+describe("meanColourInPatch", () => {
+  it("averages the patch at an integer centre", () => {
+    const buf = solidBuffer(1080, 1920, 0, 0, 253);
+    expect(meanColourInPatch(buf, { x: 470, y: 648, size: 60 })).toEqual({
+      r: 0,
+      g: 0,
+      b: 253,
+      n: 900, // 60/2 per axis → 30 x 30
+    });
+  });
+
+  it("rounds a fractional centre instead of letting the row stride eat it (#1084)", () => {
+    // The evidence-card centre is (470, 648.5) because EVIDENCE_CARD.height is
+    // odd. Read as `(width * 648.5 + 470) * 4` the half pixel stays integral
+    // and slides the window to x 980-1038; paint that region a different
+    // colour and the un-rounded read is unmistakable.
+    const buf = bufferWithRect(
+      1080,
+      1920,
+      { xStart: 980, xEnd: 1039, yStart: 618, yEnd: 677 },
+      0,
+      255,
+      0,
+    );
+    const fractional = meanColourInPatch(buf, { x: 470, y: 648.5, size: 60 });
+    const whole = meanColourInPatch(buf, { x: 470, y: 648, size: 60 });
+    expect(fractional).toEqual(whole);
+    // …and it reads the card, not the marker: background #0a0a14.
+    expect(fractional).toMatchObject({ r: 10, g: 10, b: 20 });
+  });
+
+  it("throws when the patch leaves the frame", () => {
+    const buf = solidBuffer(1080, 1920, 1, 2, 3);
+    expect(() => meanColourInPatch(buf, { x: 5, y: 500, size: 60 })).toThrow(
+      /outside the 1080x1920 frame/,
+    );
+    expect(() => meanColourInPatch(buf, { x: 540, y: 1900, size: 60 })).toThrow(/outside/);
+  });
+
+  it("throws on a non-finite centre", () => {
+    const buf = solidBuffer(1080, 1920, 1, 2, 3);
+    expect(() => meanColourInPatch(buf, { x: NaN, y: 500 })).toThrow(/centre must be finite/);
+    expect(() => meanColourInPatch(buf, { x: 500, y: Infinity })).toThrow(/centre must be finite/);
+  });
+});
+
+// ─── nearestPaletteColour ───
+
+describe("nearestPaletteColour", () => {
+  const palette = { red: [255, 0, 0], lime: [0, 255, 0], blue: [0, 0, 255] };
+
+  it("matches exact entries", () => {
+    expect(nearestPaletteColour({ r: 255, g: 0, b: 0 }, palette)).toBe("red");
+    expect(nearestPaletteColour({ r: 0, g: 255, b: 0 }, palette)).toBe("lime");
+    expect(nearestPaletteColour({ r: 0, g: 0, b: 255 }, palette)).toBe("blue");
+  });
+
+  it("tolerates the h264 / canvas round-trip", () => {
+    expect(nearestPaletteColour({ r: 252, g: 0, b: 0 }, palette)).toBe("red");
+    expect(nearestPaletteColour({ r: 0, g: 0, b: 253 }, palette)).toBe("blue");
+  });
+
+  it("returns null for an unrendered frame rather than a band name (#1084)", () => {
+    // Black is at distance 65025 from all three primaries — an exact tie. A
+    // closest-wins classifier without a ceiling answers "red" and turns
+    // "nothing was drawn" into a confident band report.
+    expect(nearestPaletteColour({ r: 0, g: 0, b: 0 }, palette)).toBeNull();
+    expect(nearestPaletteColour({ r: 10, g: 10, b: 20 }, palette)).toBeNull(); // #0a0a14 card bg
+  });
+
+  it("returns null for a blend between two bands", () => {
+    expect(nearestPaletteColour({ r: 128, g: 128, b: 0 }, palette)).toBeNull();
+  });
+
+  it("honours a maxDistance override", () => {
+    expect(nearestPaletteColour({ r: 200, g: 0, b: 0 }, palette, { maxDistance: 255 })).toBe("red");
+    expect(nearestPaletteColour({ r: 200, g: 0, b: 0 }, palette, { maxDistance: 10 })).toBeNull();
   });
 });
 

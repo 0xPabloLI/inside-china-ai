@@ -33,8 +33,22 @@
  *      the same bands inside the evidence card, which is a LANDSCAPE box — so
  *      it crops the tall source on the vertical axis.
  *
+ * Sampling and classification are NOT defined here: they live in
+ * lib/frame-analysis.mjs (`meanColourInPatch` / `nearestPaletteColour`) and are
+ * covered by the CI-run `frame-analysis.test.mjs`. That split is the fix for
+ * #1084 — this file spent 2026-10-30..11-01 red on main because its local
+ * helpers were wrong, and being in `CI_SKIPPED_MACHINE_BOUND` meant no gate
+ * ever saw them: the 60x60 patch was centred on the fractional `CARD_CENTRE.y`
+ * (648.5), whose half-pixel the row-stride multiplication swallowed, so the
+ * read window slid to x 980-1038 — outside the card — and pure black, being
+ * equidistant from red/lime/blue, was classified "red". Invariant 5's bottom
+ * case failed on the wrong end; its top case passed while sampling nothing.
+ * A helper bug is now a red CI test; a rendering bug still needs this file.
+ *
  * CI does NOT run this file: it is in `CI_SKIPPED_MACHINE_BOUND` because it
- * shells out to `npx remotion still`, like its sibling render suites. The
+ * shells out to `npx remotion still`, like its sibling render suites — the
+ * remotion workspace has its own lockfile and CI installs the root package
+ * only, so `remotion` and its headless browser are absent there. The
  * CI-enforced half of #952 is the static gate in
  * canvas-image-fit-contract.test.mjs; the pixel half depends on a machine with
  * ffmpeg + the remotion workspace installed.
@@ -46,6 +60,11 @@ import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import { EVIDENCE_CARD } from "../lib/safe-zones.mjs";
+import {
+  COLOUR_PATCH_SIZE,
+  meanColourInPatch,
+  nearestPaletteColour,
+} from "../lib/frame-analysis.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -159,48 +178,28 @@ function still(props) {
   return out;
 }
 
-/** Mean RGB of a 60x60 patch centred on (cx, cy). */
-function colourAt(path, { x: cx, y: cy }) {
+/** Mean RGB of a COLOUR_PATCH_SIZE patch centred on (cx, cy). */
+function colourAt(path, point) {
   const png = PNG.sync.read(readFileSync(path));
   expect(png.width, "frame width").toBe(1080);
   expect(png.height, "frame height").toBe(1920);
-  const size = 60;
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  let n = 0;
-  for (let y = cy - size / 2; y < cy + size / 2; y += 2) {
-    for (let x = cx - size / 2; x < cx + size / 2; x += 2) {
-      const i = (y * png.width + x) * 4;
-      r += png.data[i];
-      g += png.data[i + 1];
-      b += png.data[i + 2];
-      n++;
-    }
-  }
-  return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) };
-}
-
-/** Nearest palette entry — tolerates the h264 / canvas colour round-trip. */
-function classify({ r, g, b }) {
-  let best = null;
-  let bestDist = Infinity;
-  for (const [name, [pr, pg, pb]] of Object.entries(PALETTE)) {
-    const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
-    if (d < bestDist) {
-      bestDist = d;
-      best = name;
-    }
-  }
-  return best;
+  return meanColourInPatch(png, { ...point, size: COLOUR_PATCH_SIZE });
 }
 
 function sampleAt(props, point = CANVAS_CENTRE) {
   const path = still(props);
   const rgb = colourAt(path, point);
-  const name = classify(rgb);
+  const name = nearestPaletteColour(rgb, PALETTE);
   const where = point === CANVAS_CENTRE ? "centre" : "card centre";
   console.log(`[evidence] ${JSON.stringify(props)} → ${where} ${JSON.stringify(rgb)} = ${name}`);
+  // An unmatched colour means the frame background is showing through: the
+  // sample landed somewhere no picture was drawn. Say that, instead of letting
+  // the caller's toBe() report a wrong-band failure (#1084).
+  expect(
+    name,
+    `nothing was rendered at ${where} (${point.x}, ${point.y}): mean ${JSON.stringify(rgb)} ` +
+      `matches no palette entry, so the frame background is showing through`,
+  ).not.toBeNull();
   return name;
 }
 

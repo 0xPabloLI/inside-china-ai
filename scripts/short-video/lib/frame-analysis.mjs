@@ -160,6 +160,107 @@ export function sampleRegion(buf, region, step) {
 }
 
 /**
+ * Side length (px) of the default `meanColourInPatch` square.
+ *
+ * Matches the patch the pixel-band suites use: large enough that h264 /
+ * canvas colour noise averages out, small enough to stay inside a single
+ * colour band.
+ */
+export const COLOUR_PATCH_SIZE = 60;
+
+/**
+ * Max RGB distance at which a colour still counts as a palette entry.
+ *
+ * Bands are saturated primaries, so a real hit lands within a few units of its
+ * entry (measured: 252/0/0 for pure red after the h264 round-trip). Everything
+ * beyond this is a colour the fixture never painted — a blend or a background.
+ */
+const PALETTE_MAX_DISTANCE = 96;
+
+/**
+ * Mean RGB of a square patch centred on (x, y).
+ *
+ * ROUNDS THE CENTRE FIRST, and that rounding is the entire reason this lives
+ * in one place (#1084). `getPixel` indexes `data[(width * y + x) * 4]`, so a
+ * fractional y is not "the nearest pixel" — when `width` is even the product
+ * `width * y` stays integral and the fraction is swallowed into the offset.
+ * A 60x60 patch centred at (470, 648.5) on a 1080px frame read x 980-1038
+ * instead of 440-498: entirely outside the 820px evidence card it was meant to
+ * inspect, i.e. frame background. Because pure black is equidistant from every
+ * saturated primary, the caller's nearest-colour classifier then reported it as
+ * "red" — the assertion failed on the wrong end (expected blue, got red) and
+ * the case that happened to expect red passed while sampling nothing.
+ *
+ * The patch must sit inside the buffer: a caller asking for pixels outside the
+ * frame is describing a box that does not exist, and silently clamping would
+ * reproduce the same class of bug one edge over.
+ *
+ * @param {PixelBuffer} buf
+ * @param {{x: number, y: number, size?: number, step?: number}} options
+ * @returns {{r: number, g: number, b: number, n: number}}
+ */
+export function meanColourInPatch(buf, { x, y, size = COLOUR_PATCH_SIZE, step = 2 }) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error(`meanColourInPatch: centre must be finite, got (${x}, ${y})`);
+  }
+  const cx = Math.round(x);
+  const cy = Math.round(y);
+  const half = Math.floor(size / 2);
+  const xStart = cx - half;
+  const yStart = cy - half;
+  const xEnd = xStart + size;
+  const yEnd = yStart + size;
+  if (xStart < 0 || yStart < 0 || xEnd > buf.width || yEnd > buf.height) {
+    throw new Error(
+      `meanColourInPatch: ${size}x${size} patch at (${cx}, ${cy}) spans ` +
+        `x ${xStart}-${xEnd - 1}, y ${yStart}-${yEnd - 1} — outside the ` +
+        `${buf.width}x${buf.height} frame`,
+    );
+  }
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let n = 0;
+  for (let py = yStart; py < yEnd; py += step) {
+    for (let px = xStart; px < xEnd; px += step) {
+      const p = getPixel(buf, px, py);
+      r += p.r;
+      g += p.g;
+      b += p.b;
+      n++;
+    }
+  }
+  return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n), n };
+}
+
+/**
+ * Nearest named colour, or `null` when nothing in the palette is close enough.
+ *
+ * The `null` is load-bearing (#1084): pure black sits at RGB distance 65025
+ * from red, lime AND blue — exactly equal — so a "closest wins" classifier with
+ * no distance ceiling resolves an unrendered frame to whichever entry it
+ * iterates first and reports a confident band. "Nothing was drawn" must not be
+ * expressible as a palette name.
+ *
+ * @param {{r: number, g: number, b: number}} rgb
+ * @param {Record<string, [number, number, number]>} palette
+ * @param {{maxDistance?: number}} [options]
+ * @returns {string|null}
+ */
+export function nearestPaletteColour(rgb, palette, { maxDistance = PALETTE_MAX_DISTANCE } = {}) {
+  let best = null;
+  let bestDist = maxDistance ** 2;
+  for (const [name, [pr, pg, pb]] of Object.entries(palette)) {
+    const d = (rgb.r - pr) ** 2 + (rgb.g - pg) ** 2 + (rgb.b - pb) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      best = name;
+    }
+  }
+  return best;
+}
+
+/**
  * Count bright pixels in a region.
  * @param {PixelBuffer} buf
  * @param {Region} region
