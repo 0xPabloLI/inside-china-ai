@@ -256,6 +256,100 @@ jobs:
       - name: Bundle size budget (size-limit)
         run: npm run check:size
 
+  # #1087: the pixel-contract suites that drive a real render. They sit in
+  # vitest.config.ts's CI_SKIPPED_MACHINE_BOUND because the render runtime lives
+  # in `scripts/short-video/remotion`, which has its own lockfile — the root
+  # `npm ci` above never created that workspace or its headless browser, so the
+  # suites were not red in CI, they were absent from it. `media-focus-render`
+  # stayed red on main for two days (#1084) behind delivery records that only
+  # said "1 known-red": nothing was watching.
+  #
+  # Separate job on purpose: `Lint, typecheck, test` is at 15 minutes and ~4.5
+  # minutes of use; installing the workspace and downloading a browser there
+  # would push it into the timeout.
+  #
+  # Scope is deliberately one suite (#1087 chose option 3 first, then 1): prove
+  # a CI runner can render deterministically before paying for six suites. The
+  # remaining five join this job once #1087 step ② settles the pixel-tolerance
+  # / retry question — a cross-image canvas difference must not be absorbed by
+  # a retry, or this gate inherits the same silence it was opened to remove.
+  pixel-render:
+    name: Pixel render contracts
+    # Same platform as the quality job: these suites compare rendered pixels
+    # against a source palette, so runner OS must match the target platform
+    # (README: Node arm64 + brew ffmpeg).
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          # Both lockfiles: the root install and the render workspace are the
+          # two dependency graphs this job needs, and either one drifting is a
+          # cache miss — not a silently stale workspace.
+          cache-dependency-path: |
+            package-lock.json
+            scripts/short-video/remotion/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci --no-audit --no-fund
+
+      # The workspace install that every other CI job skips. `--prefix` rather
+      # than `cd` so the lockfile check still applies to that directory's own
+      # package-lock.json (an out-of-sync one must fail here, as at the root).
+      - name: Install render workspace
+        run: npm ci --no-audit --no-fund --prefix scripts/short-video/remotion
+
+      # Remotion downloads chrome-headless-shell on the first render. Doing it
+      # as its own step keeps the two failure classes apart in the log: "the
+      # browser would not start" (environment) vs "a pixel assertion failed"
+      # (the contract). test-env-baseline.md documents a local crash mode where
+      # a freshly downloaded shell dies with `ProtocolError: Target closed` /
+      # `icudtl.dat not found` — if that ever happens here, this is the step
+      # that says so instead of a render suite timing out.
+      - name: Ensure the headless browser
+        working-directory: scripts/short-video/remotion
+        run: npx remotion browser ensure
+
+      # The fixtures generate colour-banded sources with ffmpeg at test time
+      # (no committed binaries), so the render job needs the same encoder the
+      # quality job verifies.
+      - name: Install ffmpeg and verify libmp3lame
+        run: |
+          set -e
+          brew install ffmpeg
+          ffmpeg -version | head -1
+          TMP=$(mktemp -d)
+          ffmpeg -hide_banner -f lavfi -i "sine=frequency=440:duration=1" -codec:a libmp3lame -q:a 4 "$TMP/t.mp3" 2>/dev/null
+          rm -rf "$TMP"
+          echo "mp3 encode OK"
+
+      # `--retry=0` overrides the config's CI retry: that retry exists for
+      # load-sensitive ffmpeg suites, and here it would hide exactly the
+      # cross-runner pixel jitter this job was opened to measure. A flake has to
+      # be visible before a tolerance policy (#1087 step ②) can be written.
+      #
+      # VITEST_CI_SKIP_ENV_BOUND is deliberately NOT set here — that env gate is
+      # what excludes the suite in the quality job, and leaving it unset is how
+      # this file opts into running it.
+      - name: Pixel render contracts (media-focus-render)
+        run: npx vitest run scripts/short-video/__tests__/media-focus-render.test.mjs --retry=0
+
+      # The stills are the evidence trail for a red run: a sampled pixel value
+      # says which band landed where, and the PNG says whether the frame was
+      # rendered at all (a black frame and a mis-cropped frame fail differently).
+      - name: Upload stills
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: media-focus-stills
+          path: scripts/short-video/output/media-focus-stills
+          retention-days: 7
+          if-no-files-found: warn
+
   security:
     name: Semgrep SAST
     runs-on: ubuntu-latest

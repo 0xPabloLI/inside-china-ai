@@ -52,14 +52,14 @@
  * "render a still and look" lead is what the evidence lines below do on every
  * run, and the stills are kept under `output/media-focus-stills/`.
  *
- * CI does NOT run this file: it is in `CI_SKIPPED_MACHINE_BOUND` because it
- * shells out to `npx remotion still`, like its sibling render suites — the
- * remotion workspace has its own lockfile, so `npm ci` at the root (all CI
- * installs) leaves `scripts/short-video/remotion/node_modules` and its
- * headless-browser download absent (docs/conventions/test-env-baseline.md).
- * The CI-enforced half of #952 is the static gate in
- * canvas-image-fit-contract.test.mjs; the pixel half depends on a machine with
- * ffmpeg + the remotion workspace installed.
+ * CI runs this file in the dedicated `pixel-render` job (#1087), which installs
+ * `scripts/short-video/remotion` — its own lockfile means the root `npm ci`
+ * every other job runs leaves that workspace's node_modules and
+ * headless-browser download absent (docs/conventions/test-env-baseline.md). It
+ * stays in `CI_SKIPPED_MACHINE_BOUND` so the `Lint, typecheck, test` job, whose
+ * 15-minute budget cannot hold a workspace install plus a browser download,
+ * still skips it. The rest of #952's gate is the static
+ * canvas-image-fit-contract.test.mjs.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync } from "child_process";
