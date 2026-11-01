@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.51.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.0...tanstack_start_ts-v1.51.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **short-video:** compose the Unitree H2-X pack as contain ([#963](https://github.com/0xPabloLI/inside-china-ai/issues/963)) ([#1083](https://github.com/0xPabloLI/inside-china-ai/issues/1083)) ([247af14](https://github.com/0xPabloLI/inside-china-ai/commit/247af14283bc20ced4ee3ca4acd35296c6a07b30))
+
 ## [1.51.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.50.0...tanstack_start_ts-v1.51.0) (2026-11-01)
 
 
