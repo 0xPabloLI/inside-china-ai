@@ -641,6 +641,16 @@ const MeasureProbe: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         // Constraint widths depend only on the containers + the gates' fixed
         // content widths, so three stable samples (post fonts.ready) are the
         // settle signal — annotation SVGs and font sizes do not move layout.
+        //
+        // EXCEPT for a group gate's shrink walk: it steps font sizes without
+        // moving the gates' widths, so a width-only signal can fire mid-walk
+        // and the payload then carries the un-shrunk sizes (or no
+        // `data-group-fit` at all — that is how `group-shrink-measure` failed
+        // on the CI runner the first time it ever ran there, #1093). A group
+        // writes `data-group-fit` when it approves, so that attribute is the
+        // group's own settle signal; scenes without groups are unaffected.
+        const groups = Array.from(document.querySelectorAll("[data-text-group]")) as HTMLElement[];
+        if (!groups.every((g) => g.dataset.groupFit)) continue;
         const settled = gates.every((g) => g.offsetWidth > 0);
         if (!settled) continue;
         // T10 F7: when the scene mounts collision asserts, wait for them to
