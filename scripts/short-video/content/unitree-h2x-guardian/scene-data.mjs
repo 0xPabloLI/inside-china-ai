@@ -79,26 +79,33 @@
  * extracting the rendered scene's frames and reading them, not by any gate —
  * `verify-video` and the frame gate check layout, never claim-versus-footage.
  *
- * Crop and dim (measured, not guessed). `media-bottom-bar` now shows the media
- * full-bleed down to y=1150 (60% of the frame) with the text drawn on top of a
- * gradient scrim — see MEDIA_BAND in lib/safe-zones.mjs for why the band stops
- * at 1150 and not at the subtitle lane. verify-remotion-frames.mjs fails a
- * frame when more than 5% of the pixels in the TikTok right action rail
- * (x>880, y 640-1775) are brighter than luminance 80. For a full-bleed band
- * that region maps to the middle of the source frame, which is bright in every
- * act of this film, so each clip's cropFocus.x was solved against a measured
- * sweep and `overlay` was then raised only as far as the rail demanded.
- * Measured worst-case rail occupancy at the values below: act1 2%, act2 2%,
- * act3 2%, act4 0%, act5 0%, act6 1%, hook 1%. The dim stays as low as that
- * allows because the overlay also dims the captions being used as evidence.
+ * Contain, and dim (measured, not guessed). Every media scene below declares
+ * `fit: "contain"`, so `media-bottom-bar` shows the WHOLE 16:9 source frame,
+ * bottom-anchored in its band — see the contain rule in MediaBackground and
+ * MEDIA_BAND in lib/safe-zones.mjs for why the band stops at 1309 and not at
+ * the subtitle lane. Nothing is cropped, and that is the point: this pack uses
+ * the film's own burned-in captions as evidence, and cropping costs it. A
+ * 1080x1920 hook cover-crop keeps 607 of the source's 1920 px (31.6%); the
+ * 1080x817 body band keeps 1428 (74.4%). Contain keeps 1080 (100%).
  *
- * Captions survive the crop because the window is 1014 source px wide (1150/1080
- * cover scale) and each act's caption sits inside it:
- *   bottom-left captions (acts 1, 4, 5, 6, source x 41-806) need cropFocus.x 0
- *   top-left caption     (act 2,          source x 46-644) needs cropFocus.x 0
- *   top-right caption    (act 3,          source x 1224-1891) needs cropFocus.x 1
- * The bottom-left captions map to canvas y 1070-1118, inside the content band
- * and clear of both the subtitle gap (y>=1150) and the action rail (x>=880).
+ * verify-remotion-frames.mjs fails a frame when more than 5% of the pixels in
+ * the TikTok right action rail (x>880, y 640-1775) are brighter than luminance
+ * 80. Because the band is 1080x817 — taller than 16:9 — a contained source fits
+ * to width and the rail samples the source across its full width rather than a
+ * cropped middle. Measured worst-case rail occupancy at the values below:
+ * hook 0.6%, act1 0.1%, act2 0.0%, act3 0.6%, act4 3.5%, act5 1.4%, act6 1.0%
+ * (worst 3.5% against the 5% line). `overlay` was then raised only as far as
+ * the rail demanded, because the dim also dims the captions being used as
+ * evidence.
+ *
+ * The captions now survive trivially: with the whole frame on screen, every
+ * burned-in caption is in frame by construction — bottom-left (acts 1, 4, 5, 6,
+ * source x 41-806), top-left (act 2, x 46-644) and top-right (act 3, x
+ * 1224-1891) alike. `cropFocus` is therefore INERT on every scene below: a
+ * contained source has no horizontal slack to spend, and the vertical anchor is
+ * the band's bottom. The values are kept rather than deleted because they record
+ * the framing that was solved for `cover`, and would apply again verbatim if a
+ * scene ever went back to it.
  *
  * Visual strategy: eight scenes carry the report (seven with real footage from
  * the official film, one CSS card for the missing-spec beat) and two close it
@@ -143,9 +150,12 @@ export const scenes = [
     // Full-bleed background, and the point of the whole re-cut: this is the
     // act where the robot actually lifts the car. The first cut used the night
     // rescue segment here, so the hook said "IT LIFTS A CAR" over footage of
-    // something else. Cover-cropping 1920x1080 into 1080x1920 keeps only 608
-    // source px of width, so no burned-in caption can survive; the payoff is
-    // the frame itself. cropFocus.x 0.5 centres the car and the robot's arms.
+    // something else. The clip is 16:9 and the hook is 9:16, so the two ways to
+    // fill it split on the captions: a cover-crop keeps only 608 of the source's
+    // 1920 px of width and no burned-in caption survives it, while contain shows
+    // the whole frame and keeps every one. This pack uses those captions as
+    // evidence, so the hook contains into the body's [220, 1037] band
+    // (hookMediaBand) rather than bleeding to the full canvas.
     //
     // videoStartOffsetMs 2500: the lift is the LAST 1.6s of the act, so playing
     // act5 from its start would spend ~4.5s on the robot walking in before the
@@ -163,7 +173,7 @@ export const scenes = [
       path: "assets/clips/act5-lift.mp4",
       source: "Unitree Robotics official film, H2-X, 2026-10-21",
       animation: "fade",
-      fit: "cover",
+      fit: "contain",
       cropFocus: { x: 0.5, y: 0.5 },
       videoStartOffsetMs: 2500,
       overlay: 0.55,
@@ -193,14 +203,15 @@ export const scenes = [
     retentionMechanism: "open-loop",
     mediaStrategy: "asset",
     // Carries Unitree's own caption "Real Footage Throughout No Speed Up"
-    // (source x 48-806, y 1005-1050). cropFocus.x must stay at 0 for the
-    // caption to fit inside the 1014 px window.
+    // (source x 48-806, y 1005-1050). Under contain the whole frame is on
+    // screen, so that caption is in frame whatever cropFocus says; the 0 below
+    // is the cover-era value and is inert.
     media: {
       type: "video",
       path: "assets/clips/act1-martial.mp4",
       source: "Unitree Robotics official film, H2-X, 2026-10-21",
       animation: "fade",
-      fit: "cover",
+      fit: "contain",
       cropFocus: { x: 0.0, y: 0.5 },
       overlay: 0.45,
       volume: 0,
@@ -228,7 +239,7 @@ export const scenes = [
       path: "assets/clips/act2-parkour.mp4",
       source: "Unitree Robotics official film, H2-X, 2026-10-21",
       animation: "fade",
-      fit: "cover",
+      fit: "contain",
       cropFocus: { x: 0.0, y: 0.5 },
       overlay: 0.4,
       volume: 0,
@@ -257,14 +268,15 @@ export const scenes = [
     retentionMechanism: "pattern-interrupt",
     mediaStrategy: "asset",
     // Carries Unitree's own caption "Ultra Long Endurance Standing for
-    // Approximately 8 Hours" (top-right, source x 1224-1891). That caption pins
-    // the window to the right edge, so cropFocus.x sits at 1.0.
+    // Approximately 8 Hours" (top-right, source x 1224-1891). That caption pinned
+    // the cover-era window to the right edge, which is where the 1.0 below comes
+    // from; under contain the whole frame is on screen and it is inert.
     media: {
       type: "video",
       path: "assets/clips/act3-jump.mp4",
       source: "Unitree Robotics official film, H2-X, 2026-10-21",
       animation: "fade",
-      fit: "cover",
+      fit: "contain",
       cropFocus: { x: 1.0, y: 0.5 },
       overlay: 0.4,
       volume: 0,
@@ -286,7 +298,8 @@ export const scenes = [
     retentionMechanism: null,
     mediaStrategy: "asset",
     // Carries Unitree's own caption "Security Demonstration" (bottom-left,
-    // source x 41-675, y ~1018-1052). cropFocus.x 0 keeps it in frame.
+    // source x 41-675, y ~1018-1052). The 0 below is the cover-era value that
+    // kept it inside the crop window; under contain it is inert.
     //
     // videoStartOffsetMs 5800 and the 21-word line are one decision, for the
     // same reason scene 6's offset is: act4 is the longest act at 13.7s and the
@@ -316,7 +329,7 @@ export const scenes = [
       path: "assets/clips/act4-night.mp4",
       source: "Unitree Robotics official film, H2-X, 2026-10-21",
       animation: "fade",
-      fit: "cover",
+      fit: "contain",
       cropFocus: { x: 0.0, y: 0.5 },
       videoStartOffsetMs: 5800,
       overlay: 0.4,
@@ -340,8 +353,10 @@ export const scenes = [
     mediaStrategy: "asset",
     // The act the hook opens on, shown whole here: 41.10-47.72, the daylight
     // car lift. Carries "Real Footage of Props for Reference Only"
-    // (bottom-left, source x 41-675). Same file as the hook, different framing:
-    // the hook cover-crops to 1080x1920, this scene shows the wide 1080x1150 band.
+    // (bottom-left, source x 41-675). Same file as the hook and, since the pack
+    // moved to fit:contain, the same framing — both render the whole source
+    // frame into the [220, 1037] band and differ only in `overlay` and in the
+    // clip offset below.
     //
     // videoStartOffsetMs 1000 is load-bearing, and the line length is chosen
     // around it. The lift is the act's LAST beat: the front wheel leaves the
@@ -362,24 +377,20 @@ export const scenes = [
     // below every take this pack has produced for multi-sentence narrative
     // lines (169-208). At the expected ~200 WPM the lift fills the last second.
     //
-    // cropFocus.x 0.0 keeps Unitree's bottom-left caption and the robot in
-    // frame; the car's front sits around source x 1010-1550, so its near corner
-    // enters the window while the body stays clipped. The hook (which crops to
-    // 1080x1920 at cropFocus 0.5) is where the whole car is visible.
+    // The whole source frame is on screen, so the framing question this comment
+    // used to answer no longer arises. Through 2026-10-31 these scenes declared
+    // fit:cover, which cropped the band to a 1014-source-px window and made
+    // cropFocus.x load-bearing: at 0.0 the car's front (source x ~1010-1550)
+    // sat mostly outside that window and the shot read as a robot standing next
+    // to nothing, so this scene alone was moved to 0.5. Under contain there is
+    // no window to place — source x 0-1920 is all on screen — and cropFocus is
+    // inert. The value is kept as the record of that decision, not as input.
     media: {
       type: "video",
       path: "assets/clips/act5-lift.mp4",
       source: "Unitree Robotics official film, H2-X, 2026-10-21",
       animation: "fade",
-      fit: "cover",
-      // x=0.5, not 0.0: this scene's whole point is the CAR coming up, and the
-      // car is on the right of the source frame. With fit:cover now actually
-      // applied (2026-10-25 objectFit fix) the band shows source x 453-1467 at
-      // 0.5 versus x 0-1014 at 0.0 — at 0.0 the lifted wheel is cropped off and
-      // the shot reads as a robot standing next to nothing.
-      //
-      // This framing was never validated before the fix: while <Video> rendered
-      // `contain`, cropFocus had no effect, so every value here was untested.
+      fit: "contain",
       cropFocus: { x: 0.5, y: 0.5 },
       videoStartOffsetMs: 1000,
       overlay: 0.4,
@@ -411,7 +422,7 @@ export const scenes = [
       path: "assets/clips/act6-rescue.mp4",
       source: "Unitree Robotics official film, H2-X, 2026-10-21",
       animation: "fade",
-      fit: "cover",
+      fit: "contain",
       cropFocus: { x: 0.0, y: 0.5 },
       overlay: 0.4,
       volume: 0,
