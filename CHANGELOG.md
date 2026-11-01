@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.51.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.50.0...tanstack_start_ts-v1.51.0) (2026-11-01)
+
+
+### Features
+
+* **publish:** gate TikTok CDP publish on browser egress and print coverage diff ([#1080](https://github.com/0xPabloLI/inside-china-ai/issues/1080)) ([d792fff](https://github.com/0xPabloLI/inside-china-ai/commit/d792ffff3d410154039d2437cb42ecde626384d2)), closes [#964](https://github.com/0xPabloLI/inside-china-ai/issues/964)
+
 ## [1.50.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.49.1...tanstack_start_ts-v1.50.0) (2026-10-31)
 
 
