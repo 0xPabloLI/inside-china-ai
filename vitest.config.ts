@@ -30,9 +30,12 @@ const CI_SKIPPED_SUITES = ["scripts/short-video/__tests__/research/**"];
 // `skills/web-access/scripts/cdp-proxy.mjs`, a symlink into the uninitialised
 // `skills/shared` submodule) and `finalize-render`'s real-ffmpeg integration case
 // asserts a loudnorm/drift result the runner's ffmpeg does not reproduce.
-// `contrast-media-render` and `scene-gate-render` render the scene-gate fixture,
-// which binds a `pexels-*` photo that .gitignore keeps out of the repo — a 404 at
-// render time. All four are real bindings; verify before removing one.
+// `contrast-media-render` and `scene-gate-render` were the last two render
+// suites outside `pixel-render`: the scene-gate fixture they both drive bound a
+// `pexels-*` photo that .gitignore keeps out of the repo, so a clean checkout
+// rendered a 404. #1093 replaced it with a file the suites generate at start,
+// so they run there too. Every remaining entry is a real binding; verify before
+// removing one.
 const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/audio-diagnostics.test.mjs", // full-build ffmpeg behaviors
   "scripts/short-video/__tests__/avatar-card-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
@@ -45,8 +48,8 @@ const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/media-start-offset.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/media-focus-render.test.mjs", // npx remotion still (#952); runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/media-zoom-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
-  "scripts/short-video/__tests__/contrast-media-render.test.mjs", // npx remotion still (#761); fixture binds a gitignored `pexels-*` photo
-  "scripts/short-video/__tests__/scene-gate-render.test.mjs", // npx remotion still; same photo as above
+  "scripts/short-video/__tests__/contrast-media-render.test.mjs", // npx remotion still (#761); runs in `pixel-render` (#1093)
+  "scripts/short-video/__tests__/scene-gate-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1093)
   "scripts/short-video/__tests__/test-f5-duration.test.mjs", // python subprocess (baseline doc)
   "scripts/short-video/__tests__/text-gate-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/tiktok-video-details.test.mjs", // external fetch
