@@ -13,9 +13,10 @@ import {
 // ── #219 T03 — TikTok publisher Profile-ization ──
 // Spec: docs/specs/spec-platform-profile-isolation.md (Implementation Decisions 4, S1/S6)
 // Ticket: .scratch/platform-profile/issues/03-publisher-profiling.md
-// Zero behavior change: same inputs produce byte-identical settings and guide
-// text (golden pins below); the profile becomes the SOURCE, publish-utils the
-// renderer (dual-source debt from ticket 01 缓议项 removed).
+// Zero behavior change at T03: same inputs produce byte-identical settings and
+// guide text (golden pins below); the profile becomes the SOURCE, publish-utils
+// the renderer (dual-source debt from ticket 01 缓议项 removed). Later
+// deliberate copy changes are recorded on the golden itself (#964).
 
 // ─── Golden: manual guide text is byte-identical pre/post Profile wiring ───
 
@@ -24,6 +25,9 @@ describe("buildManualPublishGuide golden (S1/S6 zero text change)", () => {
   // Item 6 was re-captured 2026-10-25: the sound step's text changed on
   // purpose (the standing default is now no music bed, and the scripted flow
   // gained the save + volume-read-back steps), so the golden follows it.
+  // Items 5 and 7 were re-captured 2026-11-01 (#964): Location and the in-app
+  // edit are optional, and their unmeasured claims are no longer algorithm
+  // facts. The prose changes are the point, not drift.
   const GOLDEN_WITH_AI = `
 ============================================================
 📤 TikTok Manual Publishing Guide
@@ -48,16 +52,17 @@ CAPTION_TEXT
          TikTok requires AI content labeling. Not labeling = penalty.
          This is the #1 cause of zero views for AI-voiced videos.
   [ ] 4. Paste caption above into description field
-  [ ] 5. Tap "Edit" → Add a text sticker or effect (algorithm bonus)
-         TikTok algorithm favors content edited within the app.
+  [ ] 5. Tap "Edit" → Add a text sticker or effect (optional; the algorithm bonus is unmeasured)
+         Optional. The in-app editing signal is unmeasured; skip it if the pre-rendered video is ready.
   [ ] 6. Audio: attach the music bed at the calibrated level, then publish
          Automation (one pass, after HITL approval):
          node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --sound "Breaking News" --sound-owner Voxie --volume-db -15 --publish
          Set the level by measurement: a -20 dB slider reading measured 22.2 dB below the narration on the live post.
          -15 dB lands near -17 dB, mid-range in the 15-25 dB guidance for music under speech.
          The script reads the slider back and aborts if it misses by more than 1 dB.
-  [ ] 7. Tap "Location" → Select "China" or "United States"
-         Algorithm prioritizes local content.
+  [ ] 7. Tap "Location" → Select a region (optional)
+         Optional: the successful manual posts did not tag one (user-confirmed 2026-11-01).
+         The CDP web path has no Location control; use --save-draft + the phone app when a post is genuinely local.
   [ ] 8. Set privacy to "Public" (or "Friends" for testing)
   [ ] 9. Publish
   [ ] 10. First hour: Reply to EVERY comment (engagement signal)
@@ -142,7 +147,12 @@ describe("buildManualPublishGuide renders profile.manualGuide.steps", () => {
       const label = step.label.replace("{videoPath}", "/tmp/v.mp4").replace("{slug}", "s");
       expect(guide).toContain(label);
     }
-    expect(guide).toContain("TikTok algorithm favors content edited within the app.");
+    expect(guide).toContain(
+      "Optional. The in-app editing signal is unmeasured; skip it if the pre-rendered video is ready.",
+    );
+    expect(guide).toContain(
+      "Optional: the successful manual posts did not tag one (user-confirmed 2026-11-01).",
+    );
   });
 
   it("AIGC step copy comes from profile.aiDisclosure (label + no-voice variant)", () => {

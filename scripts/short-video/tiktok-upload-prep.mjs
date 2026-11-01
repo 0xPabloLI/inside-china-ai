@@ -13,12 +13,16 @@
  * sound to the post. So the tedious part is scriptable, and the only step that
  * genuinely needs a human is the publish decision itself.
  *
- * What the web flow actually does (corrected 2026-10-25, first real publish)
- * -------------------------------------------------------------------------
- * The sound is written into the CLIP's audio, not onto the post as a labelled
- * sound. After a successful attach + save the published post still reports
- * "原声 - Chinaainews" as its sound — verified on live post 7700554811866909970.
- * A "Breaking News - Voxie" label is not reachable from the web upload page.
+ * What the web flow actually does (corrected 2026-10-26, live post recheck)
+ * ------------------------------------------------------------------------
+ * The 音乐 tab attaches a catalog sound, the clip editor's 保存 applies it at
+ * the slider level, and the published post credits that sound: live post
+ * 7700554811866909970 reports "Breaking News - Voxie" through
+ * `player/v1/...?music_info=1` (2026-10-26 recheck). The earlier note that the
+ * post still shows "原声 - Chinaainews" was wrong — it described the un-saved
+ * editor state. Whether a web attach gets the same distribution weighting as
+ * an in-app pick is unmeasured; the app-only steps are listed by the coverage
+ * diff at the end of the run.
  *
  * Human input layer (#1013, added 2026-10-30)
  * ------------------------------------------
@@ -103,6 +107,29 @@
  * `aiDisclosure.required` was read by nothing, which is how the 2026-10-25 post
  * shipped unlabeled.
  *
+ * Egress gate (#964)
+ * ------------------
+ * The browser's exit country is what TikTok sees. Before the upload page the
+ * driver reads Cloudflare's `/cdn-cgi/trace` through the automation browser and
+ * compares it with `--expect-region` (default SG). With `--publish` a mismatch
+ * or an undeterminable country is a hard block: the 2026-10-25 post that sat at
+ * 0 plays exited from Tokyo while the account's target route was Singapore. A
+ * prepare-only run warns instead, because nothing is published — but the
+ * operator can still click 发布 in the open tab, so the warning says so. The
+ * same probe runs once more immediately before the publish click: the first
+ * one predates the warm-up and upload, and a route that flips mid-run must not
+ * reach the irreversible action.
+ *
+ * Coverage diff (#964)
+ * --------------------
+ * The driver prints which `manualGuide.steps` this run actually covers, which
+ * the web path replaces, and which remain phone or manual follow-ups. The list
+ * is derived from the profile, and every step id must have a rule in
+ * `lib/platforms/publish-coverage.mjs` — a new step fails the contract test
+ * instead of disappearing from the diff. It is shown once, on the normal path
+ * just before the publish decision and on any hand-over exit (AIGC readback
+ * failure, volume mismatch) where the operator takes over the open tab.
+ *
  * HITL boundary
  * -------------
  * By default this script stops with the editor fully prepared — video
@@ -167,7 +194,14 @@
  *                         post lands in the account's TikTok drafts. Still
  *                         never publishes. The attached sound does NOT survive
  *                         a draft save/reopen; the caption does.
- *   --dry-run             Everything except the upload (page reachability only)
+ *   --expect-region <CC>  Expected browser exit country (ISO 3166-1 alpha-2,
+ *                         default SG; XX is Cloudflare's unknown sentinel and
+ *                         is not accepted). Before the upload page the driver
+ *                         reads Chrome's egress through Cloudflare's trace
+ *                         endpoint; with --publish a mismatch, a timeout, or
+ *                         loc=XX blocks. Set this when the account is meant to
+ *                         publish from another region.
+ *   --dry-run             Egress probe + page reachability; never uploads or publishes
  */
 
 import {
@@ -180,10 +214,11 @@ import {
 } from "fs";
 import { join, dirname, resolve, basename } from "path";
 import { fileURLToPath } from "url";
-import { CDP_BASE, cdpNewTab, cdpEval, cdpCloseTab } from "./lib/cdp-client.mjs";
+import { CDP_BASE, cdpNewTab, cdpEval, cdpCloseTab, waitForPageLoad } from "./lib/cdp-client.mjs";
 import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import { automationPort } from "./lib/cdp-profile-guard.mjs";
 import {
+  activateTarget,
   clickAtPoint,
   emulateFocus,
   openVisibleSession,
@@ -199,6 +234,13 @@ import {
 import { PUBLISH_PACING, REVIEW_WATCH_MS } from "./lib/publish-pacing.mjs";
 import { getPlatformProfile } from "./lib/platforms/index.mjs";
 import { CDP_PUBLISH_METHOD, resolveAigcPolicy } from "./lib/platforms/upload-prep-policy.mjs";
+import { buildCoverageDiff, formatCoverageDiff } from "./lib/platforms/publish-coverage.mjs";
+import {
+  DEFAULT_EXPECTED_REGION,
+  evaluateEgress,
+  isExpectedRegion,
+  probeEgressRegion,
+} from "./lib/publish-egress.mjs";
 import {
   buildAnalyticsGuidance,
   buildManualPendingAnalysis,
@@ -394,9 +436,11 @@ const PUBLISH_STATE = `
  * True once the clip editor overlay is gone.
  *
  * 保存 closes it, and only then is the music (and its volume) written into the
- * clip. Verified 2026-10-25: attaching the sound without saving left the post
- * with no music in its DOM and its sound still reading "原声 - Chinaainews";
- * after 保存 the timeline held the music clip at the volume that was set.
+ * clip. Verified 2026-10-25: attaching the sound without saving left the
+ * editor with no music in its DOM and its sound still reading
+ * "原声 - Chinaainews"; after 保存 the timeline held the music clip at the
+ * volume that was set, and the published post credited the attached sound
+ * (see the header).
  */
 const OVERLAY_CLOSED = `
 (() => JSON.stringify({
@@ -1298,6 +1342,26 @@ export async function reviewBeforePublish(tabId, cdp) {
   };
 }
 
+/**
+ * Print the egress verdict. The driver separately refuses to continue on
+ * `level: "block"`; this function only renders the evidence.
+ */
+function printEgress(verdict, label = "Egress") {
+  const actual = verdict.actualRegion ?? "unknown";
+  const where = verdict.ip ? ` · ${verdict.ip}${verdict.colo ? ` @${verdict.colo}` : ""}` : "";
+  const head = `  ${label}: ${actual}${where} (expected ${verdict.expectedRegion})`;
+  if (verdict.level === "ok") {
+    console.log(`  🌐 ${head} — ok`);
+  } else if (verdict.level === "warn") {
+    console.log(`  ⚠️  ${head} — ${verdict.reason}`);
+    console.log(
+      "      Nothing is published yet; publishing from this tab would carry the same risk.",
+    );
+  } else {
+    console.log(`  ❌ ${head} — ${verdict.reason}`);
+  }
+}
+
 async function main() {
   // Profile gate (#951), first thing in the run and before anything touches
   // the browser: a profile that closes this path, or a compliance decision that
@@ -1376,6 +1440,23 @@ async function main() {
     process.exit(1);
   }
 
+  // Egress-region flag. Validate it before the browser work so a typo cannot
+  // silently fall back to the default region (the gate must not become a
+  // no-op because the value was swallowed by the next flag).
+  if (args.includes("--expect-region") && getArg("expect-region") === null) {
+    console.error("❌ --expect-region needs a value, e.g. --expect-region SG");
+    process.exit(1);
+  }
+  const expectRegionRaw = getArg("expect-region");
+  const expectedRegion = (expectRegionRaw ?? DEFAULT_EXPECTED_REGION).trim().toUpperCase();
+  if (!isExpectedRegion(expectedRegion)) {
+    console.error(
+      `❌ --expect-region must be a two-letter country code other than XX, got: ${JSON.stringify(expectRegionRaw)}`,
+    );
+    console.error(`   Example: --expect-region ${DEFAULT_EXPECTED_REGION} (the default)`);
+    process.exit(1);
+  }
+
   // The publish path is a security boundary — the same profile guard the rest
   // of the pipeline uses, so this can never silently run against a profile
   // without the account's login state.
@@ -1392,6 +1473,49 @@ async function main() {
     aigcOverridden: aigcPolicy.overridden,
     aigcNote: tiktokProfile.aiDisclosure.note,
   });
+
+  // Egress-region gate (#964). The probe runs in Chrome, not the shell: the
+  // browser's exit is what TikTok sees. It opens one trace tab and closes it.
+  // The same helper runs once more immediately before the publish click: the
+  // first probe predates the warm-up and upload, so a route that flips mid-run
+  // must not reach the irreversible action.
+  const runEgressCheck = async ({ label = "egress", publish = hasFlag("publish") } = {}) => {
+    const probe = await probeEgressRegion({
+      newTab: cdpNewTab,
+      readText: async (tabId) => {
+        await waitForPageLoad(tabId, 2);
+        const resp = await cdpEval(tabId, "document.body.innerText");
+        return typeof resp?.value === "string" ? resp.value : "";
+      },
+      closeTab: cdpCloseTab,
+    });
+    const verdict = evaluateEgress({
+      expectedRegion,
+      trace: probe.trace,
+      publish,
+      reachable: probe.reachable,
+      reason: probe.reason,
+    });
+    log(label, verdict);
+    printEgress(verdict, label === "egressRecheck" ? "Egress recheck" : "Egress");
+    return verdict;
+  };
+
+  const egress = await runEgressCheck();
+  if (egress.level === "block") {
+    console.error("");
+    console.error("❌ Refusing to publish from an unverified / mismatched egress region.");
+    console.error(
+      "   Fix the VPN/egress route so the browser exits from the expected region. If the probe",
+    );
+    console.error(
+      "   itself failed (timeout / CDP proxy), fix that first — this gate fails closed.",
+    );
+    console.error(
+      "   Pass --expect-region <CC> only if that really is the region this account should publish from.",
+    );
+    process.exit(1);
+  }
 
   console.log("");
   console.log("=".repeat(60));
@@ -1424,6 +1548,39 @@ async function main() {
     return;
   }
 
+  // Coverage diff (#964), derived from the profile's OWN manualGuide.steps, so
+  // a step added to the guide cannot silently vanish. Computed before the
+  // browser work and shown once: on the normal path just before the publish
+  // decision, and in the catch on any hand-over exit (AIGC readback failure,
+  // volume mismatch) — the operator takes over in the open tab, so the gaps
+  // must be on screen there too.
+  const coverage = buildCoverageDiff(tiktokProfile, {
+    publish: hasFlag("publish"),
+    aigcEnabled: aigcPolicy.enabled,
+    draftSaved: hasFlag("save-draft") && !hasFlag("publish"),
+  });
+  let coveragePrinted = false;
+  const showCoverage = ({ aborted = false } = {}) => {
+    if (coveragePrinted && !aborted) return;
+    const diff = aborted
+      ? buildCoverageDiff(tiktokProfile, {
+          publish: hasFlag("publish"),
+          aigcEnabled: aigcPolicy.enabled,
+          draftSaved: hasFlag("save-draft") && !hasFlag("publish"),
+          aborted: true,
+        })
+      : coverage;
+    log(aborted ? "coverageAborted" : "coverage", diff);
+    console.log("");
+    console.log("=".repeat(60));
+    if (aborted) {
+      console.log("⚠️  Run aborted — coverage re-checked (nothing below is a claim of success):");
+    }
+    console.log(formatCoverageDiff(diff));
+    console.log("=".repeat(60));
+    coveragePrinted = true;
+  };
+
   log("start", {
     video: videoPath ? basename(videoPath) : null,
     sound,
@@ -1440,6 +1597,10 @@ async function main() {
   pointer.x = Math.round(randomBetween(200, 900));
   pointer.y = Math.round(randomBetween(160, 620));
   let keepTab = !hasFlag("close-tab");
+  // Set only after the publish click has settled on a non-upload URL: the
+  // post-publish writes below can still fail, and the catch must not tell the
+  // operator "the run did not publish" when the post is already live.
+  let publishSucceeded = false;
   try {
     // Foreground is a precondition, not a courtesy: a hidden tab throttles
     // input dispatch to ~5s per event (measured) and TikTok's uploader never
@@ -1696,8 +1857,7 @@ async function main() {
     );
     log("volume", { requestedDb: volumeDb, readBackDb: vol.db, clickMode: selectedClip.mode });
 
-    console.log("");
-    console.log("=".repeat(60));
+    showCoverage();
 
     if (hasFlag("publish")) {
       // The publish click. The user authorized this capability on 2026-10-24
@@ -1715,8 +1875,9 @@ async function main() {
       // The clip edit has to be APPLIED (保存) before publishing. Attaching
       // alone only stages the music in the editor: the post's own sound label
       // stays "原声 - Chinaainews" and the music appears nowhere in the page
-      // until the editor is saved (verified 2026-10-25). Skipping this step
-      // publishes the video without the music.
+      // until the editor is saved (verified 2026-10-25). Saving is also what
+      // makes the published post credit the attached sound (header). Skipping
+      // this step publishes the video without the music.
       const tagged = await evalJson(tab, TAG_BY_TEXT("保存"));
       if (!tagged.ok) {
         throw new Error("保存 (save) button not found — publishing now would drop the music");
@@ -1752,6 +1913,19 @@ async function main() {
         log("review", { reviewed: review.reviewed, verdict, ...review });
       }
 
+      // Re-check the exit immediately before the irreversible click. The first
+      // probe predates the warm-up and upload, so a VPN route that flipped
+      // mid-run must not reach the publish button.
+      const egressRecheck = await runEgressCheck({ label: "egressRecheck", publish: true });
+      // The trace probe opens a background tab; bring the upload tab back so
+      // the operator sees where it stopped and trusted input is not throttled
+      // (measured ~5s/event on a hidden tab). Also done on the block path,
+      // because the catch leaves this tab open for the hand-over.
+      await activateTarget(tab);
+      if (egressRecheck.level === "block") {
+        throw new Error(`egress changed before publishing: ${egressRecheck.reason}`);
+      }
+
       console.log("🚀 Publishing (--publish)…");
       const scrolled = await evalJson(tab, SCROLL_TO_PUBLISH);
       if (!scrolled.ok || !scrolled.unobstructed) {
@@ -1771,6 +1945,7 @@ async function main() {
           `still on the upload page after the publish click — check the tab: ${after?.url}`,
         );
       }
+      publishSucceeded = true;
       log("publish", { published: true, url: settled.last.url, clickMode: published.mode });
 
       // pending-analysis.json (#260's contract, extended to this tier by #951's
@@ -1835,6 +2010,19 @@ async function main() {
     }
   } catch (err) {
     console.error(`\n❌ ${err.message}`);
+    // The tab stays open for a hand-over; put the coverage gaps where the
+    // operator is about to publish, not only on a successful preparation. The
+    // aborted form downgrades every unfinished claim (AIGC/audio/publish) so
+    // the screen cannot read "✅ done" at the moment the operator must do it.
+    // If the click already settled, the post may be live: the normal diff was
+    // printed before the click, so warn instead of downgrading a live post.
+    if (publishSucceeded) {
+      console.error(
+        "⚠️  The publish click succeeded before this error — the post may be live. Check it before re-running.",
+      );
+    } else {
+      showCoverage({ aborted: true });
+    }
     log("error", { message: err.message });
     keepTab = true; // leave the tab so the operator can see where it stopped
     process.exitCode = 1;

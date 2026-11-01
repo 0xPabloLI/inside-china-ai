@@ -29,6 +29,7 @@ import { mkdirSync, realpathSync, writeFileSync } from "fs";
 import { join, resolve } from "path";
 import { cdpNewTab, cdpEval, cdpCloseTab } from "./lib/cdp-client.mjs";
 import { checkAutomationProfile, formatVerdict } from "./lib/cdp-profile-guard.mjs";
+import { probeEgressRegion } from "./lib/publish-egress.mjs";
 import { downloadVideo } from "./lib/video-downloaders.mjs";
 
 /**
@@ -142,28 +143,23 @@ const SCROLL_SCRIPT = `
 (() => { window.scrollBy(0, window.innerHeight * 3); return 'scrolled'; })()
 `;
 
-const EXIT_TRACE_SCRIPT = `
-(async () => {
-  const r = await fetch('https://cloudflare.com/cdn-cgi/trace');
-  return await r.text();
-})()
-`;
-
 /**
- * Read the browser exit location from Cloudflare's trace endpoint.
+ * Read the browser exit location through the shared egress probe (#964).
+ * The probe opens the trace page, reads the body, and closes the tab; this
+ * wrapper only maps its structured result onto the existing "unknown" contract.
  * @returns {Promise<string>} two-letter country code, or "unknown"
  */
 async function browserExitLocation() {
-  const tabId = await cdpNewTab("https://cloudflare.com/cdn-cgi/trace");
-  try {
-    await new Promise((r) => setTimeout(r, 3000));
-    const raw = await cdpEval(tabId, EXIT_TRACE_SCRIPT);
-    const text = cdpValue(raw, "");
-    const m = String(text).match(/^loc=(\w+)/m);
-    return m ? m[1] : "unknown";
-  } finally {
-    await cdpCloseTab(tabId);
-  }
+  const probe = await probeEgressRegion({
+    newTab: cdpNewTab,
+    readText: async (tabId) => {
+      // The trace page is plain text; the old reader used the same 3s settle.
+      await new Promise((r) => setTimeout(r, 3000));
+      return cdpValue(await cdpEval(tabId, "document.body.innerText"), "");
+    },
+    closeTab: cdpCloseTab,
+  });
+  return probe.trace?.loc ?? "unknown";
 }
 
 /**

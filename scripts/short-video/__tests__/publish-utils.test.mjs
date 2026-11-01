@@ -310,7 +310,8 @@ describe("buildManualPublishGuide", () => {
   it("includes geographic tag step", () => {
     const guide = buildManualPublishGuide(baseParams);
     expect(guide).toContain("Location");
-    expect(guide).toContain("China");
+    expect(guide).toContain("optional");
+    expect(guide).toContain("user-confirmed 2026-11-01");
   });
 
   it("includes first-hour engagement step", () => {

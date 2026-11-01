@@ -649,26 +649,25 @@ if (!preMode) {
   );
   manual(
     "Publish",
-    "Geographic tag",
-    `In TikTok post screen → tap "Location" → select "China" or "United States".\n` +
-      `  Why: algorithm prioritizes local content.\n` +
-      `  If video is about Chinese companies → tag China.\n` +
-      `  If targeting US audience → tag United States.`,
+    "Location tag (optional)",
+    `The CDP web path has no Location control, and the successful manual posts\n` +
+      `  did not tag one either (user-confirmed 2026-11-01) — treat it as optional,\n` +
+      `  not a CDP regression. If a post is genuinely local: publish via\n` +
+      `  --save-draft, then add Location in the phone app before Post.`,
   );
   manual(
     "Publish",
-    "In-app editing (algorithm bonus)",
-    `After uploading video to TikTok:\n` +
-      `  1. Tap "Edit" in the TikTok upload screen\n` +
-      `  2. Add at least one element: text sticker, effect, or filter\n` +
-      `  3. Then publish\n` +
-      `  Why: TikTok algorithm favors content edited within the app.\n` +
-      `  Even a small sticker counts — don't skip this step.`,
+    "In-app editing (app-only)",
+    `The CDP --publish path publishes a pre-rendered video and cannot add a\n` +
+      `  native sticker/effect. The "algorithm bonus" is unmeasured; if you want\n` +
+      `  it, use --save-draft and finish in the phone app. The driver prints the\n` +
+      `  exact coverage diff for the run.`,
   );
   manual(
     "Publish",
     "AIGC label (if AI voice used)",
-    `If video uses AI-generated voice (F5-TTS-MLX/cloned):\n` +
+    `The CDP driver toggles this automatically and fails closed if the switch\n` +
+      `  does not read back on. For manual app publishing:\n` +
       `  In TikTok post screen → toggle "AI-generated content" ON.\n` +
       `  Why: TikTok requires labeling AI content. Not labeling = penalty.\n` +
       `  This adds a small "AI-generated" badge to the video.`,
@@ -676,7 +675,9 @@ if (!preMode) {
   manual(
     "Publish",
     "Trending audio",
-    `In TikTok post screen → tap "Add sound" → search trending sounds.\n` +
+    `The CDP driver attaches the calibrated bed automatically (--sound); this\n` +
+      `  item is for manual app publishing. In TikTok post screen → tap "Add\n` +
+      `  sound" → search trending sounds.\n` +
       `  Pick a trending sound that fits the mood (tech/serious).\n` +
       `  Set volume: original audio at 100%, trending sound at 5-10%.\n` +
       `  Why: trending audio boosts discoverability.\n` +
