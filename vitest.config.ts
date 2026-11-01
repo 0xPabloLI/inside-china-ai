@@ -19,25 +19,27 @@ const CI_SKIPPED_SUITES = ["scripts/short-video/__tests__/research/**"];
 //
 // This list is the exclusion for the `Lint, typecheck, test` job only — it is
 // applied when VITEST_CI_SKIP_ENV_BOUND=1, which that job sets and the
-// `pixel-render` job does not. A render suite that moves into `pixel-render`
-// (#1087) therefore stays listed here as long as the quality job cannot run it,
-// and its comment names the job that does.
+// `pixel-render` job does not. All eight `npx remotion still` suites therefore
+// stay listed here (the quality job genuinely cannot run them) with a comment
+// naming the job that does. #1087 step ③ also removed two entries outright:
+// `avatar-frame-audit` and `finalize-render` were listed as "remotion render
+// path" but only ever shelled out to ffmpeg, which the quality job already
+// installs and verifies (14 s + 7 s, 41 tests) — they run in the quality job
+// now, not here.
 const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/audio-diagnostics.test.mjs", // full-build ffmpeg behaviors
-  "scripts/short-video/__tests__/avatar-card-render.test.mjs", // npx remotion still
-  "scripts/short-video/__tests__/avatar-frame-audit.test.mjs", // remotion render path
-  "scripts/short-video/__tests__/finalize-render.test.mjs", // remotion render path
+  "scripts/short-video/__tests__/avatar-card-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/focus-smoke.test.mjs", // ~/.video-tts-env venv
   "scripts/short-video/__tests__/infra-paths.test.mjs", // local path assumptions
-  "scripts/short-video/__tests__/official-fit-render.test.mjs", // npx remotion still
+  "scripts/short-video/__tests__/official-fit-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/renderer-guard.test.mjs", // spawns pipeline process
-  "scripts/short-video/__tests__/media-start-offset.test.mjs", // npx remotion still
-  "scripts/short-video/__tests__/media-focus-render.test.mjs", // npx remotion still (#952); runs in the `pixel-render` CI job (#1087)
-  "scripts/short-video/__tests__/media-zoom-render.test.mjs", // npx remotion still
-  "scripts/short-video/__tests__/contrast-media-render.test.mjs", // npx remotion still (#761)
-  "scripts/short-video/__tests__/scene-gate-render.test.mjs", // npx remotion still
+  "scripts/short-video/__tests__/media-start-offset.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
+  "scripts/short-video/__tests__/media-focus-render.test.mjs", // npx remotion still (#952); runs in `pixel-render` (#1087)
+  "scripts/short-video/__tests__/media-zoom-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
+  "scripts/short-video/__tests__/contrast-media-render.test.mjs", // npx remotion still (#761); runs in `pixel-render` (#1087)
+  "scripts/short-video/__tests__/scene-gate-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/test-f5-duration.test.mjs", // python subprocess (baseline doc)
-  "scripts/short-video/__tests__/text-gate-render.test.mjs", // npx remotion still
+  "scripts/short-video/__tests__/text-gate-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/tiktok-video-details.test.mjs", // external fetch
   "scripts/short-video/__tests__/tts-kaggle-batch.test.mjs", // local model assets
 ];

@@ -8,7 +8,8 @@
  * nowhere in CI until the `pixel-render` job took it on — #1087) and its
  * sampling arithmetic was private to that file. The arithmetic now lives here,
  * with `pixel-probe.test.mjs` next to it running in CI — so a broken read is a
- * red CI test, and only "render a real frame" still needs a machine.
+ * red CI test, and "render a real frame" is covered too, by the `pixel-render`
+ * job that runs all eight render suites (#1087).
  *
  * It sits in `__tests__/` rather than `lib/frame-analysis.mjs` because every
  * consumer is a test: `lib/frame-analysis.mjs` keeps the pixel helpers that
