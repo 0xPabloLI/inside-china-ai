@@ -599,17 +599,22 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path1> [<path
 
 公开发布使用与 Stage 2 相同的文章文件，但不带 `--draft`。文章公开完成后再发布 TikTok。
 
-#### 5b. TikTok 发布（`manual-guide` 默认档，`cdp` 为已授权自动化档）
+#### 5b. TikTok 发布（HITL 后默认 `cdp` 一键直发；`manual-guide` 为人工回退档）
 
 ```bash
-node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipelineId> --slug <slug>
-# 或走 Studio 网页的 CDP 驱动（HITL 批准后一次做完：挂 sound + 音量 + AIGC + 点发布）
+# HITL 批准后的默认路径：Studio 网页 CDP 一次做完（挂 sound + 音量 + AIGC + 出口门禁 + 点发布）
 node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --publish
+# 人工回退：生成 App 内发布指南（profile.publishMethod 仍是 manual-guide 安全档；这个入口不会自动走 cdp）
+node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipelineId> --slug <slug>
 ```
+
+> **出口地理硬门禁（#964）**：`--publish` 前脚本在自动化浏览器里探测出口国家，与 `--expect-region`（默认 `SG`）比对；不一致、探测超时或 `loc=XX` 直接阻断。2026-10-25 的首条 CDP 发布出口在东京（Zouter/AS205548），随后 0 播放——改节点后重跑，不要用 `--expect-region` 把错误出口签掉。发布点击前会再探测一次。
+>
+> **覆盖差（#964）**：脚本结束时按 profile 的 `manualGuide.steps` 打印 ✅ 自动完成 / 🔁 网页替代 / ⏳ 待执行 / ⚠️ 未覆盖。Location 记为「两条路都没做」（历史成功的手动发布也未填，用户 2026-11-01 确认），in-app editing 为 App 专有，置顶评论与首小时互动为发布后手机补做。
 
 > **文章链接 readiness 门（#429，2026-10-19 落地）**：发布脚本在生成指南前，对**最终实际出链**做一次可达性判定（`lib/article-url-readiness.mjs`，所有走链接的消费面——manual guide 的 `{slug}` URL 与 pinned comment——共用同一 seam；纯 Caption builder 不引入网络）。两段式契约：**制包期**（`generate-caption.mjs`）只校验 origin/语法/`/posts/<slug>` 形状（草稿文章合法 404，不在此拦截）；**终检期**（本步，文章已公开后）发真实请求，HEAD 405/501 用有限 GET 复核，跨站 redirect 不算过。失败政策（用户裁决 2026-10-19，分级处置）：**确定不可达**（404/410/错 origin）→ **阻断**（退出非零，附诊断；修根因——重发文章或修 slug——后重跑）；**unknown**（reset/超时/TLS/429/可疑 403/5xx/401，含站点自身报错——非内容 bug 不卡视频）→ **自动降级**：pinned comment 去掉「Full analysis」承诺、指南不再带 URL 行、包内文件同步改写保持一致，并大声警告。降级时若检测到内容 CTA 口播了「全文在置顶评论」承诺（音频已渲染无法改），额外 🚨 警告由人工临场决定（用户裁决 2026-10-19：警告后照发，不阻断）。`--slug` 缺失时指南**不再合成** `{entity}-news` 假 URL（无 slug 即无 URL 行）。
 
-> **每平台独立发布 HITL（#219 T03）**：发布是外部不可逆动作，逐平台设确认门。TikTok 的 Profile 启用 **`manual-guide`（默认档）与 `cdp`（2026-10-25 用户批准的自动化路径）**，`api` 仍关闭——`manual-guide` 由用户按 checklist 在 App 内人工执行（确认点=执行清单本身），`cdp` 由 `tiktok-upload-prep.mjs` 在 HITL 批准后一次做完（挂 sound + 音量 + AIGC + 点发布）。**声明与执行由 #951 接上**：驱动开工前调用 `resolvePublishMethod(tiktokProfile, { method: CDP_PUBLISH_METHOD })`，从 profile 删掉 `cdp` 就真的关掉该路径，不再是「注释写着 fail closed、代码照跑」；AIGC 标签同理读 `aiDisclosure.required`——`--publish` + `--no-aigc` 会被拒（需 `--confirm-unlabeled` 显式承担）。Publora `--auto` API 路径保留但默认关闭（`--auto` 会 fail-closed），启用需逐平台授权 + 沙盒验证。发布后手动回写 URL：
+> **每平台独立发布 HITL（#219 T03）**：发布是外部不可逆动作，逐平台设确认门。TikTok 的 Profile 启用 **`manual-guide`（人工回退档）与 `cdp`（HITL 后默认路径；#964 用户裁决 2026-11-01）**，`api` 仍关闭——`manual-guide` 由用户按 checklist 在 App 内人工执行（确认点=执行清单本身），`cdp` 由 `tiktok-upload-prep.mjs` 在 HITL 批准后一次做完（挂 sound + 音量 + AIGC + 点发布）。**声明与执行由 #951 接上**：驱动开工前调用 `resolvePublishMethod(tiktokProfile, { method: CDP_PUBLISH_METHOD })`，从 profile 删掉 `cdp` 就真的关掉该路径，不再是「注释写着 fail closed、代码照跑」；AIGC 标签同理读 `aiDisclosure.required`——`--publish` + `--no-aigc` 会被拒（需 `--confirm-unlabeled` 显式承担）。`tiktokProfile.publishMethod` 字段仍是 `manual-guide` 安全档（`resolvePublishMethod` 的默认值）；Agent 在 HITL 后的默认路径是 `tiktok-upload-prep.mjs` 的 `cdp` 驱动，`publish-tiktok.mjs` 保持人工指南入口。Publora `--auto` API 路径保留但默认关闭（`--auto` 会 fail-closed），启用需逐平台授权 + 沙盒验证。发布后手动回写 URL：
 >
 > ```bash
 > node scripts/article/set-tiktok-url.mjs --slug <slug> --url <tiktok-url>
@@ -621,9 +626,9 @@ node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --p
 
 ### ⏸️ 用户手工操作检查点
 
-发布后需要用户在 TikTok App 中手动完成：AIGC 标签、趋势音频、地理标签、pinned comment、回复评论。完整清单见 `docs/manual-ops.md` 的「每次发布视频时」部分。
+发布后需要用户在 TikTok App 中手动完成：pinned comment、回复评论。AIGC 标签与背景音乐已由 `tiktok-upload-prep.mjs` 自动完成；地理标签默认不做（历史成功的手动发布也未填，用户 2026-11-01 确认；网页路径没有该控件），需要时走 `--save-draft` + 手机终发。完整清单见 `docs/manual-ops.md` 的「每次发布视频时」部分。
 
-发布步骤运行时，脚本自动写入 `output/pending-analysis.json` 记录待分析状态——当前默认 `manual-guide` 档在生成发布指南时写入（`publishedAt` 取指南生成时刻，为真实发布时间的最佳估计；`postGroupId` 为 null，`publishMethod: "manual-guide"`），`api` 档在排期成功后写入。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
+发布步骤运行时，脚本自动写入 `output/pending-analysis.json` 记录待分析状态——`cdp` 档在发布成功后写入（`publishedAt` 取真实发布时刻；`publishMethod: "cdp"`），`manual-guide` 档在生成发布指南时写入（`publishedAt` 取指南生成时刻，为真实发布时间的最佳估计；`postGroupId` 为 null），`api` 档在排期成功后写入。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
 
 ---
 

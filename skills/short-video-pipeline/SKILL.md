@@ -333,13 +333,15 @@ After all automated checks pass, the agent generates a complete publishing packa
   Title: [agent writes title here, ≤60 chars]
   Hook pattern: P1a Result-First (goal: completion)
 
-👤 User executes in TikTok App:
+👤 User executes in TikTok App (manual fallback — the default path is the
+   agent running `tiktok-upload-prep.mjs --publish`, which prints the exact
+   coverage diff for the run):
   [ ] Upload video file to TikTok
   [ ] Paste caption + hashtags into description
-  [ ] Geographic tag: China or United States
-  [ ] In-app editing: add at least one sticker/effect (algorithm bonus)
-  [ ] AIGC label: toggle ON (AI voice used) — hidden behind 显示更多 on web
-  [ ] Audio: attach the music bed at the calibrated level (see "TikTok audio" below)
+  [ ] Location tag: optional — the successful manual posts did not tag one (user-confirmed 2026-11-01); the web CDP path has no location control
+  [ ] In-app editing: app-only; use `--save-draft` + the phone app if you need it (the "algorithm bonus" is unmeasured)
+  [ ] AIGC label: the CDP driver toggles it and fails closed; toggle ON when publishing by hand
+  [ ] Audio: the CDP driver attaches the calibrated bed; attach it by hand only in the app
   [ ] Publish
   [ ] Pinned comment: the comment hook alone, with `metadata.articleUrl` left unset (see `docs/content-pipeline.md` HITL step 6)
   [ ] Reply to comments (first hour after posting)
@@ -371,7 +373,9 @@ Five things in that flow fail **silently** — all found the hard way on the fir
 4. **The AI-generated-content disclosure exists on the web, behind 显示更多 (Show more).** TikTok's own help page documents the toggle for the mobile app only, which makes the desktop path look like it has no such control. It does — and it **cannot be set after publishing**: Studio's per-post ⋯ menu offers only 置顶 / 下载 / 删除 (verified). The first post shipped unlabeled because nothing implemented this step. It is now step 5/6 of the script and fails closed. Use `--no-aigc` only for a post with no synthetic media or voice at all.
 5. **The disclosure switch is also a custom TUX control** (`.Switch__root` over a hidden `input[role=switch]`), and flipping it opens a confirmation modal that must be accepted before the state changes. Same lesson as the slider: real click, then read back.
 
-What the web flow **cannot** do is label the post with the sound: the music is written into the clip's own audio, so the published post still shows "原声 - Chinaainews". A "Breaking News - Voxie" label needs the app.
+**The web flow does credit the attached sound.** `player/v1/...?music_info=1` for live post 7700554811866909970 reports "Breaking News - Voxie" (2026-10-26 recheck). The earlier note that it still shows "原声 - Chinaainews" was wrong — it described the un-saved editor state. Whether a web attach gets the same distribution weighting as an in-app pick is unmeasured.
+
+**Egress gate (#964):** before the upload page the driver reads Chrome's exit country through Cloudflare's trace and compares it with `--expect-region` (default SG). `--publish` is blocked on a mismatch, a probe timeout, or `loc=XX`; the 2026-10-25 post that sat at 0 plays exited from Tokyo while the target route was Singapore. Prepare-only runs warn instead. The driver also prints the coverage diff against `manualGuide.steps`: Location is recorded as "neither path", in-app editing as app-only, and the phone-only post-publish steps separately.
 
 ## Dimension Coverage Matrix
 

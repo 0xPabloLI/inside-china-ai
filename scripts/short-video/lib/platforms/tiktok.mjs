@@ -199,7 +199,10 @@ export const tiktokProfile = {
   // `label` is the exact checklist line template ({videoPath}/{slug} are
   // substituted by the renderer); `detail` lines render indented beneath it.
   // Step order and copy are item-by-item equivalent to the pre-T03 guide
-  // (golden-pinned in __tests__/publisher-profile.test.mjs).
+  // (golden-pinned in __tests__/publisher-profile.test.mjs), with two
+  // deliberate #964 corrections on 2026-11-01: Location and the in-app edit
+  // step are marked optional and their unmeasured claims are no longer stated
+  // as algorithm facts.
 
   manualGuide: {
     steps: [
@@ -218,8 +221,11 @@ export const tiktokProfile = {
       { id: "paste-caption", label: "Paste caption above into description field" },
       {
         id: "edit-sticker",
-        label: 'Tap "Edit" → Add a text sticker or effect (algorithm bonus)',
-        detail: ["TikTok algorithm favors content edited within the app."],
+        label:
+          'Tap "Edit" → Add a text sticker or effect (optional; the algorithm bonus is unmeasured)',
+        detail: [
+          "Optional. The in-app editing signal is unmeasured; skip it if the pre-rendered video is ready.",
+        ],
       },
       {
         id: "add-sound",
@@ -238,10 +244,13 @@ export const tiktokProfile = {
         //      saved (保存) before the music joins the clip, and the publish
         //      button sits below the fold behind the editor overlay.
         //
-        // What the web flow CANNOT do is label the post with the sound. The
-        // music is written into the clip's own audio, so the published post's
-        // sound still reads "原声 - Chinaainews" (verified on the live post
-        // 7700554811866909970). A "Breaking News - Voxie" label needs the app.
+        // The web flow DOES credit the attached sound. The 2026-10-25 note
+        // that the published post still reads "原声 - Chinaainews" was wrong:
+        // it described the un-saved editor state. Rechecked 2026-10-26 through
+        // `player/v1/...?music_info=1`, live post 7700554811866909970 credits
+        // "Breaking News - Voxie" (an independent catalog sound). Whether a web
+        // attach gets the same distribution weighting as an in-app pick is
+        // unmeasured; the run's coverage diff lists the app-only steps.
         //
         // STANDING DEFAULT (user, 2026-10-25): once the video is approved at
         // HITL, publish it end to end — attach the music bed, set its level,
@@ -257,8 +266,11 @@ export const tiktokProfile = {
       },
       {
         id: "location",
-        label: 'Tap "Location" → Select "China" or "United States"',
-        detail: ["Algorithm prioritizes local content."],
+        label: 'Tap "Location" → Select a region (optional)',
+        detail: [
+          "Optional: the successful manual posts did not tag one (user-confirmed 2026-11-01).",
+          "The CDP web path has no Location control; use --save-draft + the phone app when a post is genuinely local.",
+        ],
       },
       { id: "privacy", label: 'Set privacy to "Public" (or "Friends" for testing)' },
       { id: "publish", label: "Publish" },

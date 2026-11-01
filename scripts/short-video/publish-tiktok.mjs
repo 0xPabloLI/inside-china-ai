@@ -497,9 +497,11 @@ async function autoSaveTikTokUrl(postGroupId, slug, apiKey, publoraGet) {
 // ─── Entry point ───
 
 // Publish HITL gate (#219 T03): the requested mode must be enabled by the
-// platform profile. TikTok enables only `manual-guide` (the human publishes
-// in-app — the confirmation point itself); `api` stays closed until
+// platform profile. TikTok enables `manual-guide` (this entry point is the
+// human guide; the operator publishes in-app) and `cdp` (the Studio web driver,
+// the agent's default after HITL approval); `api` stays closed until
 // per-platform authorization enables it (spec Implementation Decisions 4).
+// This entry point still resolves `manual-guide` unless --auto asks for `api`.
 // The resolved method drives the branch so future enablement of `api` only
 // flips the profile, not this entry point.
 const publishMethod = resolvePublishMethod(getPlatformProfile("tiktok"), { auto: isAuto });
