@@ -85,8 +85,8 @@
  * MEDIA_BAND in lib/safe-zones.mjs for why the band stops at 1309 and not at
  * the subtitle lane. Nothing is cropped, and that is the point: this pack uses
  * the film's own burned-in captions as evidence, and cropping costs it. A
- * 1080x1920 hook cover-crop keeps 607 of the source's 1920 px (31.6%); the
- * 1080x817 body band keeps 1428 (74.4%). Contain keeps 1080 (100%).
+ * 1080x1920 hook cover-crop keeps 608 of the source's 1920 px (31.6%); the
+ * 1080x817 body band keeps 1428 (74.4%). Contain keeps all 1920 (100%).
  *
  * verify-remotion-frames.mjs fails a frame when more than 5% of the pixels in
  * the TikTok right action rail (x>880, y 640-1775) are brighter than luminance
@@ -233,7 +233,10 @@ export const scenes = [
     retentionMechanism: null,
     mediaStrategy: "asset",
     // Carries Unitree's own caption "4 Meter High Platform" (top-left,
-    // source x 46-644, y 44-144) — it lands in the top scrim but stays legible.
+    // source x 46-644, y 44-144). Under contain the picture occupies canvas
+    // y 429-1037, which maps that caption to about y 454-510 — clear of the
+    // 0-200 top scrim (topScrimHeight), where the cover render used to push it
+    // under the scrim.
     media: {
       type: "video",
       path: "assets/clips/act2-parkour.mp4",
@@ -379,8 +382,9 @@ export const scenes = [
     //
     // The whole source frame is on screen, so the framing question this comment
     // used to answer no longer arises. Through 2026-10-31 these scenes declared
-    // fit:cover, which cropped the band to a 1014-source-px window and made
-    // cropFocus.x load-bearing: at 0.0 the car's front (source x ~1010-1550)
+    // fit:cover, which cropped the band to a cover window (1014 source px when
+    // solved against the 1150 band, ~891 after 2026-10-29 grew it to 1309) and
+    // made cropFocus.x load-bearing: at 0.0 the car's front (source x ~1010-1550)
     // sat mostly outside that window and the shot read as a robot standing next
     // to nothing, so this scene alone was moved to 0.5. Under contain there is
     // no window to place — source x 0-1920 is all on screen — and cropFocus is
@@ -414,9 +418,11 @@ export const scenes = [
     narrativeRole: "R",
     retentionMechanism: "approaching-closure",
     mediaStrategy: "asset",
-    // A second H2-X (gold shell) pulls a dummy clear of a car. Same bottom-left
-    // caption as act 5, so cropFocus.x 0 again. 14 words against a 6.56s clip
-    // (6.06s of room) for the same reason as scene 6.
+    // A second H2-X (gold shell) pulls a dummy clear of a car. Carries the same
+    // bottom-left caption as act 5; that caption is in frame because contain
+    // shows the whole source, and the 0 below is the cover-era value that kept
+    // it inside the old crop window — inert here like every other scene.
+    // 14 words against a 6.56s clip (6.06s of room) for the same reason as scene 6.
     media: {
       type: "video",
       path: "assets/clips/act6-rescue.mp4",
