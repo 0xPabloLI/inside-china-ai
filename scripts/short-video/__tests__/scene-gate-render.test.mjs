@@ -3,7 +3,7 @@
  *
  * Same driver pattern as text-gate-render.test.mjs (T4): vitest has no access
  * to the remotion workspace's node_modules, so the real render runtime is
- * driven through `npx remotion still` against the dedicated fixture entry
+ * driven through the still driver (`remotion-still.mjs`) against the dedicated fixture entry
  * (remotion/src/scene-gate-fixture.tsx, own registerRoot — Root.tsx is never
  * touched). FAIL scenarios assert the TextFitError JSON payload that
  * cancelRender surfaces on the message's first line; dispatch errors (unknown
@@ -19,8 +19,8 @@
  * this fixture used to name: that file is gitignored, so a clean checkout
  * rendered a 404 and the suite could not run in CI.
  */
+import { renderStill } from "./remotion-still.mjs";
 import { describe, it, expect, beforeAll } from "vitest";
-import { execFileSync } from "child_process";
 import { mkdtempSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join, resolve } from "path";
@@ -40,24 +40,17 @@ const COMPOSITION = "SceneGateFixture";
  * { ok, payload, raw } — payload is the parsed TextFitError JSON when the
  * gate cancelled the render, otherwise null. Frame 45 ≥ settledFrame (40).
  */
-function renderScenario(scenario, frame = 45) {
+async function renderScenario(scenario, frame = 45) {
   const out = join(mkdtempSync(join(tmpdir(), "t5-scene-")), "still.png");
   try {
-    execFileSync(
-      "npx",
-      [
-        "remotion",
-        "still",
-        ENTRY,
-        COMPOSITION,
-        out,
-        "--props",
-        JSON.stringify({ scenario }),
-        "--frame",
-        String(frame),
-      ],
-      { cwd: REMOTION_DIR, stdio: "pipe", timeout: 240_000 },
-    );
+    await renderStill({
+      entry: ENTRY,
+      composition: COMPOSITION,
+      output: out,
+      props: { scenario },
+      frame,
+      timeout: 240_000,
+    });
     return { ok: true, payload: null, raw: "" };
   } catch (err) {
     const text = `${err.stdout ?? ""}${err.stderr ?? ""}`;
@@ -130,13 +123,13 @@ describe(
       ensureSceneGatePhoto();
     });
 
-    it.each(BASELINES)("%s: legal copy at contract sizes PASSes", (scenario) => {
-      const { ok, raw } = renderScenario(scenario, BASELINE_FRAMES[scenario] ?? 45);
+    it.each(BASELINES)("%s: legal copy at contract sizes PASSes", async (scenario) => {
+      const { ok, raw } = await renderScenario(scenario, BASELINE_FRAMES[scenario] ?? 45);
       expect(ok, raw).toBe(true);
     });
 
-    it("F1 (#29): original s9 copy locked at 56px FAILs (the incident the gate exists for)", () => {
-      const { ok, payload, raw } = renderScenario("f1-lock56");
+    it("F1 (#29): original s9 copy locked at 56px FAILs (the incident the gate exists for)", async () => {
+      const { ok, payload, raw } = await renderScenario("f1-lock56");
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();
       expect(payload.reason).toBe("fit-bottom");
@@ -146,8 +139,8 @@ describe(
       expect(payload.measured.width).toBeGreaterThan(payload.available.width);
     });
 
-    it("F3 (#31): over-long copy FAILs at the result floor with a structured error", () => {
-      const { ok, payload, raw } = renderScenario("f3-floor");
+    it("F3 (#31): over-long copy FAILs at the result floor with a structured error", async () => {
+      const { ok, payload, raw } = await renderScenario("f3-floor");
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();
       // The highlight forces nowrap, so the single line stays wider than the
@@ -163,12 +156,12 @@ describe(
       expect(payload.fontSize).toBe(SLOT_FIELDS.result.minSize);
     });
 
-    it("T10 F6: s5 copy in media-split locked at the shipped 52px FAILs (the clipped-text incident)", () => {
+    it("T10 F6: s5 copy in media-split locked at the shipped 52px FAILs (the clipped-text incident)", async () => {
       // qwen4-preview s5's original copy ("1/9 THE TRAINING COST", highlight
       // nowrap) in the media-split column it shipped in. The old world
       // clipped it at 52px; the gate asserts instead — one nowrap line of
       // ~620px against the 372px column.
-      const { ok, payload, raw } = renderScenario("f6-media-split-lock52");
+      const { ok, payload, raw } = await renderScenario("f6-media-split-lock52");
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();
       expect(payload.reason).toBe("fit-bottom");
@@ -178,25 +171,25 @@ describe(
       expect(payload.measured.width).toBeGreaterThan(payload.available.width);
     });
 
-    it("#32: a typo'd texts key fails the render with the field name", () => {
-      const { ok, raw } = renderScenario("unknown-field");
+    it("#32: a typo'd texts key fails the render with the field name", async () => {
+      const { ok, raw } = await renderScenario("unknown-field");
       expect(ok).toBe(false);
       expect(raw).toMatch(/Unknown text field "compny"/);
     });
 
-    it("T9 rendered contract: a scene missing a rendered field fails validation", () => {
-      const { ok, raw } = renderScenario("missing-rendered");
+    it("T9 rendered contract: a scene missing a rendered field fails validation", async () => {
+      const { ok, raw } = await renderScenario("missing-rendered");
       expect(ok).toBe(false);
       expect(raw).toMatch(/Rendered text field\(s\) "company" missing/);
     });
 
-    it("T8: a highlight fragment that is not a substring of its field fails validation", () => {
-      const { ok, raw } = renderScenario("bad-highlight");
+    it("T8: a highlight fragment that is not a substring of its field fails validation", async () => {
+      const { ok, raw } = await renderScenario("bad-highlight");
       expect(ok, raw).toBe(false);
       expect(raw).toMatch(/not a substring of texts\.result/);
     });
 
-    it("T9 group gate: band over its height budget shrinks low-priority fields down its order", () => {
+    it("T9 group gate: band over its height budget shrinks low-priority fields down its order", async () => {
       // The probe cancels the render with the measurement payload once every
       // gate (and group approval) has settled; measuredGroupFits carries each
       // band's final font sizes. The budget override (200) sits between the
@@ -207,7 +200,7 @@ describe(
       // 64 → 62 → … → 50, where the copy collapses to ONE line and the band
       // settles at 187 ≤ 200 — the walk never steps a field below what the
       // band needs, and it stops at 50 rather than 46 because 187 already fits.
-      const { ok, payload, raw } = renderScenario("group-shrink-measure");
+      const { ok, payload, raw } = await renderScenario("group-shrink-measure");
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();
       expect(payload.reason).toBe("measurement");
@@ -221,8 +214,8 @@ describe(
       expect(fit.contentHeight).toBeLessThanOrEqual(fit.maxHeight + 0.5);
     });
 
-    it("T9 group gate: copy that cannot fit even at the floors fails structured (group-overflow)", () => {
-      const { ok, payload, raw } = renderScenario("group-overflow-fail");
+    it("T9 group gate: copy that cannot fit even at the floors fails structured (group-overflow)", async () => {
+      const { ok, payload, raw } = await renderScenario("group-overflow-fail");
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();
       expect(payload.reason).toBe("group-overflow");
@@ -238,13 +231,13 @@ describe(
       expect(lastStepByField.result).toBe(SLOT_FIELDS.result.minSize);
     });
 
-    it("T10 F7: hook circle vs subject / numberLabel — per-target ratios recorded, each ≤ 2%", () => {
+    it("T10 F7: hook circle vs subject / numberLabel — per-target ratios recorded, each ≤ 2%", async () => {
       // decision 7: subject and numberLabel are SEPARATE denominators (never
       // merged), and the annotated number itself is not a target. The probe
       // surfaces the ratios the scene-level assert measured on the settled
       // frame; with the T10 box="inside" circle both must be ≤ the 2% gate.
       // This pins the actual numbers the ticket asks to record.
-      const { ok, payload, raw } = renderScenario("measure:hook");
+      const { ok, payload, raw } = await renderScenario("measure:hook");
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();
       expect(payload.reason).toBe("measurement");
@@ -259,13 +252,13 @@ describe(
       }
     });
 
-    it("#422: the hook logo row measures inside the band — row, logo, gate and ink", () => {
+    it("#422: the hook logo row measures inside the band — row, logo, gate and ink", async () => {
       // The failure the ticket reported was the ROW, not the gate: logo(96) +
       // gap(24) + a gate still claiming the full band(820) = 940, centred in
       // an 820 band, so the logo and the gate hung 60px past each edge. The
       // probe reads all four boxes on a real settled render — proving the
       // logo, the text and the row itself never reach the TikTok rail.
-      const { ok, payload, raw } = renderScenario("measure:hook-logo-row");
+      const { ok, payload, raw } = await renderScenario("measure:hook-logo-row");
       // The measurement harness rides out on a cancelRender payload.
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();
@@ -290,20 +283,20 @@ describe(
       expect(ink.width).toBeLessThanOrEqual(gate.width);
     });
 
-    it("#422 entrance window: the logo row never false-positives mid-SlideUp", () => {
+    it("#422 entrance window: the logo row never false-positives mid-SlideUp", async () => {
       // The ticket's acceptance covers entrance AND settled frames. The row
       // slides in from y+30 between frames 12 and 24; the entrance assert
       // polices transform-free layout boxes, so a resting overflow — which is
       // exactly what the bug was — must still fail here, while the translate
       // itself must not.
       for (const frame of [13, 20, 30]) {
-        const { ok, payload, raw } = renderScenario("baseline-hook-logo-row", frame);
+        const { ok, payload, raw } = await renderScenario("baseline-hook-logo-row", frame);
         expect(ok, raw).toBe(true);
         expect(payload).toBeNull();
       }
     });
 
-    it("#576: the claim reveal renders at the preferred size — gate box pinned", () => {
+    it("#576: the claim reveal renders at the preferred size — gate box pinned", async () => {
       // The fix raises revealText's lineHeight to 1.1, the font's natural
       // leading (measured ~1.107em: at the 56px floor the inline rect was
       // 62px against a 1.05em box). The probe reads the settled geometry:
@@ -311,7 +304,7 @@ describe(
       // ink within the gate. A re-tightened line-height fails Fit before the
       // probe can run; any change to the constant moves this box and must
       // update this pin.
-      const { ok, payload, raw } = renderScenario("measure:hook-claim-reveal");
+      const { ok, payload, raw } = await renderScenario("measure:hook-claim-reveal");
       expect(ok, raw).toBe(false);
       expect(payload, raw).toBeTruthy();
       expect(payload.reason).toBe("measurement");
@@ -325,7 +318,7 @@ describe(
       expect(ink.width).toBeLessThanOrEqual(gate.width);
     });
 
-    it("#576 entrance window: claim-led reveal never false-positives mid-entrance", () => {
+    it("#576 entrance window: claim-led reveal never false-positives mid-entrance", async () => {
       // revealText stamps in at delay 0.8s (frames 24-39); the ticket's
       // acceptance covers entrance AND settled frames. The entrance assert
       // polices transform-free layout boxes, so the StampIn shrink must not
@@ -334,32 +327,32 @@ describe(
       // before the fix.
       for (const scenario of CLAIM_REVEAL_SCENARIOS) {
         for (const frame of [13, 20, 30]) {
-          const { ok, payload, raw } = renderScenario(scenario, frame);
+          const { ok, payload, raw } = await renderScenario(scenario, frame);
           expect(ok, `${scenario} @ frame ${frame}: ${raw}`).toBe(true);
           expect(payload).toBeNull();
         }
       }
     });
 
-    it("#37: an unknown visualType throws at dispatch (no silent narrative fallback)", () => {
-      const { ok, raw } = renderScenario("unknown-visualtype");
+    it("#37: an unknown visualType throws at dispatch (no silent narrative fallback)", async () => {
+      const { ok, raw } = await renderScenario("unknown-visualtype");
       expect(ok).toBe(false);
       expect(raw).toMatch(/Unknown visualType "mystery"/);
     });
 
-    it("#34: empty strings/arrays render nothing and do not false-positive", () => {
-      const { ok, raw } = renderScenario("empty-fields");
+    it("#34: empty strings/arrays render nothing and do not false-positive", async () => {
+      const { ok, raw } = await renderScenario("empty-fields");
       expect(ok, raw).toBe(true);
     });
 
-    it("entrance window: StampIn mid-shrink frames never false-positive a safe-zone breach", () => {
+    it("entrance window: StampIn mid-shrink frames never false-positive a safe-zone breach", async () => {
       // Regression from the _gate-smoke pipeline run: the hook badge stamps in
       // 2→1 (frames 6-18); while the scale sits between 1 and 1.5 the drawn
       // box legitimately exceeds the safe band. The entrance assert polices
       // transform-free LAYOUT boxes (rest geometry), and the settled asserts
       // from settledFrame on police the same thing on drawn rects.
       for (const frame of [12, 14, 16]) {
-        const { ok, payload, raw } = renderScenario("baseline-hook", frame);
+        const { ok, payload, raw } = await renderScenario("baseline-hook", frame);
         expect(ok, raw).toBe(true);
         expect(payload).toBeNull();
       }
@@ -368,7 +361,7 @@ describe(
       // overshoots the band by more than EPS. Rest-position policing keeps
       // these frames green (pipeline regression: stat-reveal-4 "51B").
       for (const frame of [10, 14, 18, 22]) {
-        const { ok, payload, raw } = renderScenario("baseline-stat-reveal", frame);
+        const { ok, payload, raw } = await renderScenario("baseline-stat-reveal", frame);
         expect(ok, raw).toBe(true);
         expect(payload).toBeNull();
       }
@@ -378,13 +371,13 @@ describe(
       // the 820px gate (pipeline regression quote-7: reverse nesting shifted
       // the gate's layout box 30px right out of the safe band).
       for (const frame of [56, 60, 64]) {
-        const { ok, payload, raw } = renderScenario("baseline-quote", frame);
+        const { ok, payload, raw } = await renderScenario("baseline-quote", frame);
         expect(ok, raw).toBe(true);
         expect(payload).toBeNull();
       }
     });
 
-    it("scene transitions: slide-in overlap frames never false-positive a safe-zone breach", () => {
+    it("scene transitions: slide-in overlap frames never false-positive a safe-zone breach", async () => {
       // Regression from the _gate-smoke pipeline run: hook → narrative slides
       // from the right over 10 frames; while the scene is in flight its gates
       // sit outside the safe band by design (scene-local frame 7 measured at
@@ -393,7 +386,7 @@ describe(
       // the gate's own rest-position breaches are still caught. Sweep covers
       // overlap + badge FadeIn onset.
       for (const frame of [24, 25, 26, 27, 30, 34]) {
-        const { ok, payload, raw } = renderScenario("transition-slide", frame);
+        const { ok, payload, raw } = await renderScenario("transition-slide", frame);
         expect(ok, raw).toBe(true);
         expect(payload).toBeNull();
       }

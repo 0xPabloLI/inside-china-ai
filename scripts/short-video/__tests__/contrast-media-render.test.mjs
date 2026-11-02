@@ -9,7 +9,7 @@
  *
  * Driver pattern: media-start-offset.test.mjs — vitest has no access to the
  * remotion workspace's node_modules, so the real runtime is driven through
- * `npx remotion still` against the dedicated scene-gate fixture entry. The
+ * the still driver (`remotion-still.mjs`) against the dedicated scene-gate fixture entry. The
  * fixture's `baseline-contrast` and `baseline-contrast-media` scenes share the
  * same copy, so a pixel diff isolates the media layer.
  *
@@ -19,8 +19,8 @@
  * committed: the old scraped `pexels-*` photo is gitignored, so a clean
  * checkout rendered a 404 and this file could not run in CI.
  */
+import { renderStill } from "./remotion-still.mjs";
 import { describe, it, expect, beforeAll } from "vitest";
-import { execFileSync } from "child_process";
 import { mkdirSync, readFileSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -37,25 +37,18 @@ const FRAME = 45; // past every entrance animation in the contrast template
 const stillDir = join(__dirname, "..", "output", "contrast-media-stills");
 
 const cache = new Map();
-function still(scenario) {
+async function still(scenario) {
   if (cache.has(scenario)) return cache.get(scenario);
   mkdirSync(stillDir, { recursive: true });
   const out = join(stillDir, `${scenario}.png`);
-  execFileSync(
-    "npx",
-    [
-      "remotion",
-      "still",
-      ENTRY,
-      COMPOSITION,
-      out,
-      "--props",
-      JSON.stringify({ scenario }),
-      "--frame",
-      String(FRAME),
-    ],
-    { cwd: REMOTION_DIR, stdio: "pipe", timeout: 240_000 },
-  );
+  await renderStill({
+    entry: ENTRY,
+    composition: COMPOSITION,
+    output: out,
+    props: { scenario },
+    frame: FRAME,
+    timeout: 240_000,
+  });
   cache.set(scenario, out);
   return out;
 }
@@ -82,9 +75,9 @@ describe("ContrastScene renders bound media (#761)", { timeout: 300_000 }, () =>
     ensureSceneGatePhoto();
   });
 
-  it("the media still differs from the text-only still across most of the frame", () => {
-    const plain = still("baseline-contrast");
-    const withMedia = still("baseline-contrast-media");
+  it("the media still differs from the text-only still across most of the frame", async () => {
+    const plain = await still("baseline-contrast");
+    const withMedia = await still("baseline-contrast-media");
 
     // The image fills the frame and is dimmed by the 0.7 overlay; the text
     // and decorations are identical in both stills. 1080x1920 = 2,073,600

@@ -20,8 +20,8 @@
  * The numbers leave the browser through the cancelRender payload: `remotion
  * still` forwards stdout but not page console.
  */
+import { renderStill } from "./remotion-still.mjs";
 import { describe, it, expect } from "vitest";
-import { execFileSync } from "child_process";
 import { mkdtempSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join, resolve } from "path";
@@ -39,22 +39,16 @@ const LADDER_STEP = 2;
  * smuggles the measurement out), so a "passing" render is a failed probe:
  * `ok === true` means the payload never arrived.
  */
-function runProbe(spec) {
+async function runProbe(spec) {
   const out = join(mkdtempSync(join(tmpdir(), "t12-probe-")), "still.png");
   try {
-    execFileSync(
-      "npx",
-      [
-        "remotion",
-        "still",
-        ENTRY,
-        COMPOSITION,
-        out,
-        "--props",
-        JSON.stringify({ scenario: "official-seed-probe", probe: spec }),
-      ],
-      { cwd: REMOTION_DIR, stdio: "pipe", timeout: 240_000 },
-    );
+    await renderStill({
+      entry: ENTRY,
+      composition: COMPOSITION,
+      output: out,
+      props: { scenario: "official-seed-probe", probe: spec },
+      timeout: 240_000,
+    });
     return { ok: true, payload: null, raw: "" };
   } catch (err) {
     const text = `${err.stdout ?? ""}${err.stderr ?? ""}`;
@@ -64,8 +58,8 @@ function runProbe(spec) {
 }
 
 /** Fetch a probe payload, failing loudly when the probe never reported. */
-function probe(spec) {
-  const { payload, raw } = runProbe(spec);
+async function probe(spec) {
+  const { payload, raw } = await runProbe(spec);
   expect(payload, `probe payload missing. raw: ${raw.slice(-2000)}`).toBeTruthy();
   return payload;
 }
@@ -74,10 +68,10 @@ describe(
   "official layout-utils fit seed (real Chromium via remotion still)",
   { timeout: 300_000 },
   () => {
-    it("Times 900 uppercase: prediction lands within one ladder step of the truth", () => {
+    it("Times 900 uppercase: prediction lands within one ladder step of the truth", async () => {
       // Decision 57: measure the official linear extrapolation instead of
       // assuming it. Times 900 uppercase is the brand's headline treatment.
-      const p = probe({
+      const p = await probe({
         text: "QWEN3 RELEASED",
         boxWidth: 756,
         preferredSize: 56,
@@ -87,8 +81,8 @@ describe(
       expect(Math.abs(p.seed - p.truth)).toBeLessThanOrEqual(LADDER_STEP);
     });
 
-    it("seeded walk picks the same size the pre-T12 full ladder chose", () => {
-      const p = probe({
+    it("seeded walk picks the same size the pre-T12 full ladder chose", async () => {
+      const p = await probe({
         text: "QWEN3 RELEASED",
         boxWidth: 756,
         preferredSize: 56,
@@ -97,8 +91,8 @@ describe(
       expect(p.seeded, JSON.stringify(p)).toBe(p.truth);
     });
 
-    it("seed costs no more probes than the blind ladder", () => {
-      const p = probe({
+    it("seed costs no more probes than the blind ladder", async () => {
+      const p = await probe({
         text: "QWEN3 RELEASED",
         boxWidth: 756,
         preferredSize: 56,
@@ -107,12 +101,12 @@ describe(
       expect(p.seededProbes).toBeLessThanOrEqual(p.truthProbes);
     });
 
-    it("fixed-px letterSpacing: the corrected solve matches real geometry", () => {
+    it("fixed-px letterSpacing: the corrected solve matches real geometry", async () => {
       // The templates use -10px on the focus numbers. Fixed px spacing does
       // NOT scale with font size, so fitText's pure linear extrapolation
       // overshoots; official-fit.ts routes these through
       // solveSingleLinePxLetterSpacing. This proves the correction.
-      const p = probe({
+      const p = await probe({
         text: "$1.4B",
         boxWidth: 820,
         preferredSize: 240,
@@ -124,8 +118,8 @@ describe(
       expect(p.seeded, JSON.stringify(p)).toBe(p.truth);
     });
 
-    it("wrapping copy: fitTextOnNLines seed agrees with the measured truth", () => {
-      const p = probe({
+    it("wrapping copy: fitTextOnNLines seed agrees with the measured truth", async () => {
+      const p = await probe({
         text: "THE WHOLE POINT OF THE ANNOUNCEMENT IS THAT CAPACITY GROWS",
         boxWidth: 600,
         preferredSize: 48,
@@ -137,7 +131,7 @@ describe(
       expect(p.seeded, JSON.stringify(p)).toBe(p.truth);
     });
 
-    it("CJK copy: grapheme-wrap seed lands within one ladder step of the line-budget truth", () => {
+    it("CJK copy: grapheme-wrap seed lands within one ladder step of the line-budget truth", async () => {
       // #165: the official fitTextOnNLines tokenizes on spaces — space-less
       // CJK copy becomes ONE unbreakable word, so the prediction collapses to
       // a single-line squeeze (measured baseline 2026-09-07: seed 24 vs the
@@ -146,7 +140,7 @@ describe(
       // ladder step of maxLinesTruth — the largest size whose REAL render
       // fits the probe's line budget (the width-only `truth` is degenerate
       // for wrapping copy: extra lines absorb any width).
-      const p = probe({
+      const p = await probe({
         text: "整个发布的核心在于算力在一年内翻倍而单位推理成本保持基本平稳",
         boxWidth: 600,
         preferredSize: 48,
@@ -163,10 +157,10 @@ describe(
       expect(p.seeded, JSON.stringify(p)).toBe(p.truth);
     });
 
-    it("mixed latin+CJK copy: grapheme-wrap seed lands within one ladder step of the line-budget truth", () => {
+    it("mixed latin+CJK copy: grapheme-wrap seed lands within one ladder step of the line-budget truth", async () => {
       // The mixed shape locks the tokenizer's join rule: the latin run stays
       // one word, each CJK grapheme breaks individually.
-      const p = probe({
+      const p = await probe({
         text: "QWEN3 发布：算力一年翻倍而成本平稳",
         boxWidth: 600,
         preferredSize: 48,
@@ -182,12 +176,12 @@ describe(
       expect(p.seeded, JSON.stringify(p)).toBe(p.truth);
     });
 
-    it("focus number GLM-6.0: reports the floor the 820px band can actually hold", () => {
+    it("focus number GLM-6.0: reports the floor the 820px band can actually hold", async () => {
       // Evidence for the bigNumber minSize contract (spec decisions 93/270
       // fixed the floor at 180; 7-character focus numbers are the case that
       // broke it). The probe reports the truth rather than pinning a value,
       // so a contract change has to be justified by the printed numbers.
-      const p = probe({
+      const p = await probe({
         text: "GLM-6.0",
         boxWidth: 820,
         preferredSize: 240,
