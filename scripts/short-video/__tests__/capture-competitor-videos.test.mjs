@@ -1,21 +1,42 @@
 /**
  * #300 stage 2 — competitor capture gates and ranking.
+ * #748 — the identity gate that keeps a wrong handle out of the corpus.
  *
- * Why the gate cases matter more than the happy path: both gate failures are
- * *silent* in production. A wrong CDP profile turns every later verdict into a
- * projection of "not logged in" (2026-09-22 incident), and a HK exit makes
- * TikTok serve a region page that reads as "this account has no videos". The
- * assertions therefore pin the ordering — a failed gate must stop before any
- * listing or download happens, not merely produce a warning.
+ * Why the gate cases matter more than the happy path: every failure mode here
+ * is *silent* in production. A wrong CDP profile turns every later verdict into
+ * a projection of "not logged in" (2026-09-22 incident); a HK exit makes TikTok
+ * serve a region page that reads as "this account has no videos"; and a wrong
+ * handle makes a stranger's videos look like a competitor sample (2026-11-02:
+ * `@allsiekmiller` never existed, `@natebjones` was a 35-follower account, and
+ * both landed in the manifest as `videos: []` / off-niche rows with
+ * `error: null`). The assertions therefore pin ordering — a failed gate must
+ * stop before listing or downloading — and pin that an unprovable identity is
+ * written as an error, never as an empty sample.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { join } from "path";
 import { tmpdir } from "os";
+import { existsSync, readFileSync } from "fs";
 
 const state = vi.hoisted(() => ({
   profileVerdict: { status: "ok", message: "ok", fixCommand: null },
   traceText: "fl=1\nloc=JP\ncolo=NRT\n",
-  listJson: JSON.stringify({ count: 0, regionBlocked: false, items: [] }),
+  // Grid payload, minus identity: the mock fills uniqueId/nickname from the tab
+  // it was asked about, so a test cannot accidentally pass by reusing the
+  // previous account's identity.
+  profile: {
+    regionBlocked: false,
+    gridError: false,
+    notFound: false,
+    items: [],
+    followerCount: 100000,
+    videoCount: 0,
+  },
+  identityOverride: {},
+  // Number of profile reads that return no identity block (the "Please wait" shell).
+  blankReads: 0,
+  tabs: new Map(),
+  ready: "ready",
 }));
 
 vi.mock("../lib/cdp-profile-guard.mjs", () => ({
@@ -25,7 +46,11 @@ vi.mock("../lib/cdp-profile-guard.mjs", () => ({
 
 vi.mock("../lib/cdp-client.mjs", () => ({
   CDP_BASE: "http://localhost:3456",
-  cdpNewTab: vi.fn(async () => "tab-300"),
+  cdpNewTab: vi.fn(async (url) => {
+    const id = `tab-${state.tabs.size}`;
+    state.tabs.set(id, url);
+    return id;
+  }),
   cdpCloseTab: vi.fn(async () => {}),
   // The real proxy answers `{result:{value}}` — returning a bare string here
   // once hid the unwrap bug (droid-review P1): both gates silently fell through
@@ -37,7 +62,39 @@ vi.mock("../lib/cdp-client.mjs", () => ({
     if (script === "document.body.innerText" || script.includes("cdn-cgi/trace")) {
       return { result: { value: state.traceText } };
     }
-    if (script.includes("user-post-item")) return { result: { value: state.listJson } };
+    // Readiness probe: runs before the grid extractor and never touches it.
+    if (script.includes("return 'waiting'")) {
+      return { result: { value: state.ready } };
+    }
+    if (script.includes("user-post-item")) {
+      const url = state.tabs.get(tabId) ?? "";
+      const handle = url.includes("@") ? url.split("@")[1] : null;
+      if (state.blankReads > 0) {
+        // A tab that never renders its identity block (the "Please wait" shell).
+        state.blankReads -= 1;
+        return {
+          result: {
+            value: JSON.stringify({
+              count: 0,
+              uniqueId: null,
+              nickname: null,
+              regionBlocked: false,
+              gridError: false,
+              notFound: false,
+              items: [],
+            }),
+          },
+        };
+      }
+      const payload = {
+        count: state.profile.items.length,
+        uniqueId: handle,
+        nickname: handle,
+        ...state.profile,
+        ...state.identityOverride,
+      };
+      return { result: { value: JSON.stringify(payload) } };
+    }
     return { result: { value: "scrolled" } };
   }),
 }));
@@ -52,10 +109,26 @@ vi.mock("../lib/video-downloaders.mjs", () => ({
   })),
 }));
 
-const { parsePlayCount, normalizeTikTokVideoUrl, sanitizeHandle, captureCompetitorVideos } =
-  await import("../capture-competitor-videos.mjs");
+const {
+  parsePlayCount,
+  normalizeTikTokVideoUrl,
+  normalizeDisplayName,
+  identityVerdict,
+  verifyAccount,
+  sanitizeHandle,
+  BENCH_ACCOUNTS,
+  parseAccountsArg,
+  captureCompetitorVideos,
+  verifyCompetitorProfiles,
+} = await import("../capture-competitor-videos.mjs");
 const { cdpNewTab } = await import("../lib/cdp-client.mjs");
 const { downloadVideo } = await import("../lib/video-downloaders.mjs");
+
+const video = (id, views, handle = "x") => ({
+  id,
+  views,
+  href: `https://www.tiktok.com/@${handle}/video/${id}`,
+});
 
 describe("sanitizeHandle (#300 stage 2)", () => {
   it("keeps the charset TikTok handles use", () => {
@@ -117,6 +190,137 @@ describe("parsePlayCount (#300 stage 2)", () => {
   });
 });
 
+describe("identity gate (#748)", () => {
+  it("folds display names to comparable cores", () => {
+    expect(normalizeDisplayName("Maverick Maltin | AI & ChatGPT")).toBe("maverickmaltinaichatgpt");
+    expect(normalizeDisplayName("  Allie K. Miller ")).toBe("alliek miller".replace(/\s/g, ""));
+  });
+
+  it("accepts the expected handle and nickname", () => {
+    const v = identityVerdict(
+      { handle: "rileybrown.ai", displayName: "Riley Brown" },
+      { uniqueId: "rileybrown.ai", nickname: "Riley Brown" },
+    );
+    expect(v.status).toBe("ok");
+  });
+
+  it("accepts a page nickname that is a short form of the declared name", () => {
+    // The real @nate.b.jones page shows "Nate"; its declared name is "Nate B. Jones".
+    const v = identityVerdict(
+      { handle: "nate.b.jones", displayName: "Nate B. Jones" },
+      { uniqueId: "nate.b.jones", nickname: "Nate" },
+    );
+    expect(v.status).toBe("ok");
+  });
+
+  it("accepts a declared alias when the page shows a different name", () => {
+    const v = identityVerdict(
+      { handle: "shedoesai", displayName: "Gunhild Johanne Reumert", aliases: ["Johanne"] },
+      { uniqueId: "shedoesai", nickname: "Johanne" },
+    );
+    expect(v.status).toBe("ok");
+  });
+
+  it("rejects a page whose uniqueId is a different handle", () => {
+    const v = identityVerdict({ handle: "alliekmiller" }, { uniqueId: "allie.k.miller" });
+    expect(v.status).toBe("handle-mismatch");
+    expect(v.reason).toContain("allie.k.miller");
+  });
+
+  it("rejects a stranger who holds the expected handle", () => {
+    // This is the 2026-11-02 @natebjones case: the handle matched, the person did not.
+    const v = identityVerdict(
+      { handle: "natebjones", displayName: "Nate B. Jones" },
+      { uniqueId: "natebjones", nickname: "user3796273088564" },
+    );
+    expect(v.status).toBe("nickname-mismatch");
+    expect(v.reason).toContain("user3796273088564");
+  });
+
+  it("rejects a missing nickname — unprovable is not the same as fine", () => {
+    const v = identityVerdict(
+      { handle: "x", displayName: "Somebody" },
+      { uniqueId: "x", nickname: null },
+    );
+    expect(v.status).toBe("nickname-mismatch");
+  });
+
+  it("reports not-found before anything else", () => {
+    const v = identityVerdict(
+      { handle: "allsiekmiller", displayName: "Allie K. Miller" },
+      { notFound: true },
+    );
+    expect(v.status).toBe("not-found");
+    expect(v.reason).toContain("allsiekmiller");
+  });
+
+  it("refuses to verify a handle with no declared display name (ad-hoc runs must name the person)", () => {
+    const v = identityVerdict({ handle: "someone" }, { uniqueId: "someone", nickname: "Whatever" });
+    expect(v.status).toBe("unverified");
+    expect(v.reason).toContain("no display name declared");
+  });
+
+  it("parses --accounts in both forms", () => {
+    expect(parseAccountsArg("rileybrown.ai")).toEqual([
+      expect.objectContaining({ handle: "rileybrown.ai", displayName: "Riley Brown" }),
+    ]);
+    expect(parseAccountsArg("@someone=Some One, other")).toEqual([
+      expect.objectContaining({ handle: "someone", displayName: "Some One" }),
+      expect.objectContaining({ handle: "other", displayName: undefined }),
+    ]);
+  });
+
+  it("builds an auditable record from a profile read", () => {
+    const { verdict, record } = verifyAccount(
+      { handle: "rileybrown.ai", displayName: "Riley Brown", followers: "636.7K", niche: "core" },
+      {
+        identity: {
+          uniqueId: "rileybrown.ai",
+          nickname: "Riley Brown",
+          followerCount: 638800,
+          videoCount: 398,
+        },
+        items: [video("1", "1K", "rileybrown.ai")],
+        gridError: false,
+        notFound: false,
+      },
+    );
+    expect(verdict.status).toBe("ok");
+    expect(record).toMatchObject({
+      handle: "rileybrown.ai",
+      declaredFollowers: "636.7K",
+      observedFollowers: 638800,
+      niche: "core",
+      listedVideos: 1,
+      status: "ok",
+    });
+    expect(record.url).toBe("https://www.tiktok.com/@rileybrown.ai");
+    expect(record.verifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe("bench frame (#748)", () => {
+  it("uses the verified handles, not the two wrong ones", () => {
+    const handles = BENCH_ACCOUNTS.map((a) => a.handle);
+    expect(handles).toContain("nate.b.jones");
+    expect(handles).toContain("alliekmiller");
+    expect(handles).not.toContain("natebjones");
+    expect(handles).not.toContain("allsiekmiller");
+    expect(new Set(handles).size).toBe(handles.length);
+  });
+
+  it("declares a niche verdict for every account", () => {
+    for (const account of BENCH_ACCOUNTS) {
+      expect(["core", "adjacent"]).toContain(account.niche);
+      expect(account.displayName).toBeTruthy();
+    }
+    expect(BENCH_ACCOUNTS.filter((a) => a.niche === "adjacent").map((a) => a.handle)).toEqual([
+      "marcus.dipaola",
+      "kanekallaway",
+    ]);
+  });
+});
+
 describe("captureCompetitorVideos gates (#300 stage 2)", () => {
   const outDir = join(tmpdir(), `competitor-capture-test-${process.pid}`);
 
@@ -124,7 +328,19 @@ describe("captureCompetitorVideos gates (#300 stage 2)", () => {
     vi.clearAllMocks();
     state.profileVerdict = { status: "ok", message: "ok", fixCommand: null };
     state.traceText = "fl=1\nloc=JP\ncolo=NRT\n";
-    state.listJson = JSON.stringify({ count: 0, regionBlocked: false, items: [] });
+    state.profile = {
+      ...state.profile,
+      items: [],
+      regionBlocked: false,
+      gridError: false,
+      notFound: false,
+      followerCount: 100000,
+      videoCount: 0,
+    };
+    state.identityOverride = {};
+    state.blankReads = 0;
+    state.tabs.clear();
+    state.ready = "ready";
   });
 
   afterEach(() => {
@@ -158,17 +374,13 @@ describe("captureCompetitorVideos gates (#300 stage 2)", () => {
 
   it("ranks by parsed plays, not by the label string", async () => {
     vi.useFakeTimers();
-    state.listJson = JSON.stringify({
-      count: 3,
-      regionBlocked: false,
-      items: [
-        { id: "1", views: "965", href: "https://www.tiktok.com/@x/video/1" },
-        { id: "2", views: "177.5K", href: "https://www.tiktok.com/@x/video/2" },
-        { id: "3", views: "9.2K", href: "https://www.tiktok.com/@x/video/3" },
-      ],
-    });
+    state.profile.items = [video("1", "965"), video("2", "177.5K"), video("3", "9.2K")];
 
-    const pending = captureCompetitorVideos({ accounts: ["x"], topN: 2, outDir });
+    const pending = captureCompetitorVideos({
+      accounts: [{ handle: "x", displayName: "X" }],
+      topN: 2,
+      outDir,
+    });
     await vi.runAllTimersAsync();
     const manifest = await pending;
 
@@ -184,38 +396,129 @@ describe("captureCompetitorVideos gates (#300 stage 2)", () => {
     // download failed as `unsupported-by-downloader`. The URL passed to
     // downloadVideo must be exactly the href, not a re-prefixed one.
     vi.useFakeTimers();
-    state.listJson = JSON.stringify({
-      count: 1,
-      regionBlocked: false,
-      items: [
-        {
-          id: "7309572377577393451",
-          views: "309.9K",
-          href: "https://www.tiktok.com/@rileybrown.ai/video/7309572377577393451",
-        },
-      ],
-    });
+    state.profile.items = [video("7309572377577393451", "309.9K", "rileybrown.ai")];
 
-    const pending = captureCompetitorVideos({ accounts: ["rileybrown.ai"], topN: 1, outDir });
+    const pending = captureCompetitorVideos({
+      accounts: [{ handle: "rileybrown.ai", displayName: "Riley Brown" }],
+      topN: 1,
+      outDir,
+    });
     await vi.runAllTimersAsync();
     const manifest = await pending;
 
-    const [video] = manifest.accounts[0].videos;
-    expect(video.url).toBe("https://www.tiktok.com/@rileybrown.ai/video/7309572377577393451");
-    expect(video.url).not.toMatch(/tiktok\.comhttps/);
-    expect(downloadVideo).toHaveBeenCalledWith(video.url);
-    expect(video.file).toBeTruthy();
+    const [first] = manifest.accounts[0].videos;
+    expect(first.url).toBe("https://www.tiktok.com/@rileybrown.ai/video/7309572377577393451");
+    expect(first.url).not.toMatch(/tiktok\.comhttps/);
+    expect(downloadVideo).toHaveBeenCalledWith(first.url);
+    expect(first.file).toBeTruthy();
   });
 
   it("records a region-blocked page as an error on the account entry", async () => {
     vi.useFakeTimers();
-    state.listJson = JSON.stringify({ count: 0, regionBlocked: true, items: [] });
+    state.profile.regionBlocked = true;
 
-    const pending = captureCompetitorVideos({ accounts: ["x"], outDir });
+    const pending = captureCompetitorVideos({
+      accounts: [{ handle: "x", displayName: "X" }],
+      topN: 5,
+      outDir,
+    });
     await vi.runAllTimersAsync();
     const manifest = await pending;
 
     expect(manifest.accounts[0].error).toMatch(/region-blocked/);
     expect(downloadVideo).not.toHaveBeenCalled();
+  });
+
+  // The identity-gate behaviour cases live in capture-competitor-identity-gate.test.mjs:
+  // they import only the pre-#748 export surface, so they can be run against the old
+  // implementation as a genuine red baseline instead of an import error.
+
+  it("retries a tab that never rendered its identity block (#748, real 2026-11-02 shedosai case)", async () => {
+    vi.useFakeTimers();
+    // Three blank reads = every extract round of the first tab (LIST_SCROLL_ROUNDS).
+    state.blankReads = 3;
+    state.profile.items = [video("1", "1K")];
+
+    const pending = captureCompetitorVideos({
+      accounts: [{ handle: "x", displayName: "X" }],
+      topN: 1,
+      outDir,
+    });
+    await vi.runAllTimersAsync();
+    const manifest = await pending;
+
+    expect(manifest.accounts[0].error).toBeNull();
+    expect(manifest.accounts[0].identity.status).toBe("ok");
+    expect(cdpNewTab).toHaveBeenCalledTimes(3); // trace + first profile tab + retry
+  });
+
+  it("records the identity and niche verdict in the manifest", async () => {
+    vi.useFakeTimers();
+    state.profile.items = [video("1", "1K")];
+
+    const pending = captureCompetitorVideos({
+      accounts: [{ handle: "x", displayName: "X", niche: "core", followers: "100K" }],
+      topN: 1,
+      outDir,
+    });
+    await vi.runAllTimersAsync();
+    const manifest = await pending;
+
+    expect(manifest.accounts[0]).toMatchObject({
+      handle: "x",
+      displayName: "X",
+      niche: "core",
+      observedFollowers: 100000,
+      observedNickname: "x",
+    });
+    expect(manifest.accounts[0].identity.status).toBe("ok");
+    expect(manifest.accounts[0].identity.url).toBe("https://www.tiktok.com/@x");
+  });
+});
+
+describe("verifyCompetitorProfiles (#748)", () => {
+  const outDir = join(tmpdir(), `competitor-verify-test-${process.pid}`);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    state.profileVerdict = { status: "ok", message: "ok", fixCommand: null };
+    state.traceText = "fl=1\nloc=JP\ncolo=NRT\n";
+    state.profile = {
+      ...state.profile,
+      items: [],
+      regionBlocked: false,
+      gridError: false,
+      notFound: false,
+      followerCount: 100000,
+      videoCount: 0,
+    };
+    state.identityOverride = {};
+    state.blankReads = 0;
+    state.tabs.clear();
+    state.ready = "ready";
+  });
+
+  it("writes the audit artifact and downloads nothing", async () => {
+    vi.useFakeTimers();
+    state.profile.items = [video("1", "1K", "rileybrown.ai")];
+
+    const pending = verifyCompetitorProfiles({
+      accounts: [{ handle: "rileybrown.ai", displayName: "Riley Brown", niche: "core" }],
+      outDir,
+    });
+    await vi.runAllTimersAsync();
+    const artifact = await pending;
+
+    expect(downloadVideo).not.toHaveBeenCalled();
+    expect(artifact.results[0]).toMatchObject({
+      handle: "rileybrown.ai",
+      status: "ok",
+      niche: "core",
+    });
+    expect(artifact.exit).toBe("JP");
+    const file = join(outDir, "profile-verification.json");
+    expect(existsSync(file)).toBe(true);
+    expect(JSON.parse(readFileSync(file, "utf8")).results[0].handle).toBe("rileybrown.ai");
+    vi.useRealTimers();
   });
 });
