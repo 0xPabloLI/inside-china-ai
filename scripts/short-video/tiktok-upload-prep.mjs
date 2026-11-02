@@ -295,11 +295,12 @@ const PAGE_PROBE = `
   const nameOf = (el) => {
     if (!el) return null;
     const tag = el.tagName ? el.tagName.toLowerCase() : "node";
+    const id = el.id ? "#" + el.id : "";
     const classes = el.className && typeof el.className === "string"
       ? el.className.trim().split(/\\s+/).filter(Boolean).slice(0, 2)
       : [];
     const e2e = el.getAttribute && el.getAttribute("data-e2e");
-    return tag + classes.map((c) => "." + c).join("") + (e2e ? '[data-e2e="' + e2e + '"]' : "");
+    return tag + id + classes.map((c) => "." + c).join("") + (e2e ? '[data-e2e="' + e2e + '"]' : "");
   };
   const probe = (el) => {
     const r = el.getBoundingClientRect();
@@ -328,6 +329,7 @@ export const TAG_BY_TEXT = (label, id = "__byText") => `
   const target = ${JSON.stringify(label)};
   const nodes = [...document.querySelectorAll("button, [role=button], div, span")];
   const candidates = [];
+  const zeroSize = [];
   for (const e of nodes) {
     const own = [...e.childNodes]
       .filter((n) => n.nodeType === 3)
@@ -338,10 +340,15 @@ export const TAG_BY_TEXT = (label, id = "__byText") => `
     const btn = e.closest("button, [role=button]") || e;
     btn.scrollIntoView({ block: "center" });
     const measured = probe(btn);
-    if (!measured.r.width || !measured.r.height) continue;
+    if (!measured.r.width || !measured.r.height) {
+      zeroSize.push(measured.blocker);
+      continue;
+    }
     candidates.push({ btn, ...measured });
   }
-  if (!candidates.length) return JSON.stringify({ ok: false, reason: "not found" });
+  if (!candidates.length) {
+    return JSON.stringify({ ok: false, reason: "not found", zeroSize: zeroSize.slice(0, 3) });
+  }
   const chosen = candidates.find((c) => c.topmost) || candidates[0];
   chosen.btn.id = ${JSON.stringify(id)};
   const r = chosen.r;
@@ -353,6 +360,7 @@ export const TAG_BY_TEXT = (label, id = "__byText") => `
     topmost: chosen.topmost,
     blocker: chosen.blocker,
     candidates: candidates.length,
+    zeroSize: zeroSize.slice(0, 3),
   });
 })()`;
 
@@ -502,9 +510,9 @@ const PUBLISH_STATE = `
 const DRAFT_STATE = `
 (() => {
   const text = document.body.innerText || "";
-  const error = /出错了|请重试|保存失败|发布失败/.test(text) ? text.slice(0, 200) : null;
+  const pageError = /出错了|请重试|保存失败|发布失败/.test(text) ? text.slice(0, 200) : null;
   return JSON.stringify({
-    error,
+    pageError,
     url: location.href,
     saved: !/\\/upload/.test(location.pathname || ""),
   });
@@ -1122,13 +1130,15 @@ async function applyClipEdit(tabId, cdp, { log = () => {}, notFound, required = 
   }
   const tagged = await evalJson(tabId, TAG_BY_TEXT("保存"));
   if (!tagged.ok) {
-    // The tagger's own diagnostics: how many candidates shared the label, and
-    // what a pointer hit. Both are what turn "not found" into a lead.
-    const where = tagged.blocker
-      ? ` (a pointer hit ${tagged.blocker}; ${tagged.candidates ?? 0} candidate(s) matched)`
+    // The tagger's own diagnostics turn "not found" into a lead: which
+    // zero-size look-alikes matched, and what a pointer would have hit.
+    const zero = tagged.zeroSize?.length
+      ? ` (zero-size look-alike(s): ${tagged.zeroSize.join(", ")})`
       : "";
     throw new Error(
-      notFound ? notFound + where : "保存 (save) button not found — the clip edit is still staged",
+      notFound
+        ? notFound + zero
+        : "保存 (save) button not found — the clip edit is still staged" + zero,
     );
   }
   console.log("💾 Applying the clip edit (保存)…");
@@ -2135,8 +2145,11 @@ async function main() {
 
         const tagged = await evalJson(tab, TAG_BY_TEXT("保存草稿"));
         if (!tagged.ok) {
+          const zero = tagged.zeroSize?.length
+            ? ` (zero-size look-alike(s): ${tagged.zeroSize.join(", ")})`
+            : "";
           throw new Error(
-            `保存草稿 button not found after the clip edit — click it by hand in the open tab: ${tab}`,
+            `保存草稿 button not found after the clip edit${zero} — click it by hand in the open tab: ${tab}`,
           );
         }
         const saved = await humanClickElement(tab, cdp, "#__byText");
@@ -2144,15 +2157,19 @@ async function main() {
         // signal the live run gave; a click that lands everywhere else is
         // reported as unconfirmed rather than retried, because a second press
         // could save a duplicate.
+        //
+        // `pageError` is the page's own banner; `error` is `pollFor`'s record of
+        // an eval that failed mid-navigation (deliberately "not ready yet", not
+        // a TikTok refusal). Only the first may be reported as TikTok's.
         const settled = await pollFor(tab, DRAFT_STATE, {
           timeoutMs: 45_000,
           label: "the draft to be saved",
-          isReady: (s) => !!s && (!!s.error || s.saved),
+          isReady: (s) => !!s && !s.error && (!!s.pageError || s.saved),
         });
-        if (!settled.ready || settled.last?.error) {
+        if (!settled.ready || settled.last?.pageError) {
           throw new Error(
-            settled.last?.error
-              ? `TikTok reported an error after saving the draft: ${settled.last.error}`
+            settled.last?.pageError
+              ? `TikTok reported an error after saving the draft: ${settled.last.pageError}`
               : `could not confirm the draft was saved (still on ${settled.last?.url ?? tab}) — ` +
                   "check 主页 → 草稿 in the app before re-running, so a second press cannot duplicate it",
           );

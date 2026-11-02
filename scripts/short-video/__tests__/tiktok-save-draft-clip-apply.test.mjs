@@ -269,6 +269,31 @@ describe("a click refusal names the blocker and the tab", () => {
     dom.window.close();
   });
 
+  it("names a zero-size look-alike instead of a bare not-found", async () => {
+    const dom = await fixture(`<div id="hidden">保存草稿</div>`);
+    const { window } = dom;
+    place(window.document.getElementById("hidden"), { x: 10, y: 10, w: 0, h: 0 });
+
+    const result = JSON.parse(window.eval(TAG_BY_TEXT("保存草稿")));
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("not found");
+    expect(result.zeroSize.join(" ")).toContain("div#hidden");
+    dom.window.close();
+  });
+
+  it("separates the page's own error banner from a failed eval", () => {
+    // `pollFor` records an eval that failed mid-navigation as `{ error }` and
+    // keeps polling on purpose; reading that as TikTok's refusal would blame
+    // the page for the driver's own read. The page's banner is `pageError`.
+    const draftState = source.match(/const DRAFT_STATE = `([\s\S]*?)`;/);
+    expect(draftState).toBeTruthy();
+    expect(draftState[1]).toContain("pageError");
+    expect(draftState[1]).not.toMatch(/\n\s+error,/);
+    expect(source).toContain("isReady: (s) => !!s && !s.error && (!!s.pageError || s.saved)");
+    expect(source).toContain("settled.last?.pageError");
+  });
+
   it("routes the human-click guard through that message", () => {
     expect(source).toContain("clickRefusal(selector, target, { tab: tabId })");
   });
