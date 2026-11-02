@@ -1,6 +1,7 @@
 # TikTok 竞品视频基准调研（#300 · 阶段 1）
 
-> **状态**：阶段 1（只读调研）完成于 2026-10-16；阶段 2（抓取 + 批量拆解）与阶段 3（跨条规律上浮）完成于 2026-10-17——英文侧 35 条 schema v1 JSON 已产出，横向规律与下游映射见 **§10**。
+> **下游票**：#299 / #278 / #244 / #253 / #289（§10.4 模式库的目标票）；#748（账号口径，已于 2026-11-02 交付：校验门与本节 §2.1 / §10.1 的口径修正）。
+> **状态**：阶段 1（只读调研）完成于 2026-10-16；阶段 2（抓取 + 批量拆解）与阶段 3（跨条规律上浮）完成于 2026-10-17——英文侧 35 条 schema v1 JSON 已产出，横向规律与下游映射见 **§10**。2026-11-02 的 #748 回源校验修正了 §2.1 的两个 handle、把赛道口径拆成 strict / broad 两套，并在 §10.1 记录逐条分类。
 > **关联**：父票 #291（视觉设计）；下游消费方 #299 / #278 / #244 / #253 / #289。
 
 本票要回答的问题：赛道头部竞品的 hook 与整条视频 scene 结构实际怎么做，作为我们 hook/scene 改进的外部参照系。
@@ -23,18 +24,42 @@
 
 按第三方统计口径排序（粉丝量为**第三方数据**，TikTok 官方无公开账号粉丝数据）：
 
-| #   | handle              | 显示名                      | 受众        | 粉丝量（来源 / 日期）                      | 内容形态                   |
-| --- | ------------------- | --------------------------- | ----------- | ------------------------------------------ | -------------------------- |
-| 1   | `@marcus.dipaola`   | Marcus DiPaola              | 英语·美国   | 4.1M（Optell，2026-10）/ 3.8M（Collabstr） | 口播新闻 / 纪录片          |
-| 2   | `@synthesia_ai`     | Synthesia「AI Explains AI」 | 英语        | 700K+（团队自述，无日期）                  | 数字人播报 AI 新闻         |
-| 3   | `@rileybrown.ai`    | Riley Brown                 | 英语        | 636.7K（Feedspot，2026-09）                | 口播 + 录屏，AI Agent 工具 |
-| 4   | `@natebjones`       | Nate B. Jones               | 英语        | 488K（本人官网自述）                       | 口播，AI 新闻解读          |
-| 5   | `@kanekallaway`     | Kane Kallaway               | 英语        | 425.1K（Feedspot，2026-09）                | 口播，Tech & AI            |
-| 6   | `@maverickgpt`      | Maverick GPT                | 英语        | 409.6K（genz.ai，无日期）                  | 录屏，ChatGPT / AI 视频    |
-| 7   | `@sineadbovell`     | Sinead Bovell               | 英语·加拿大 | 313.1K（Feedspot）                         | 口播，科技评论             |
-| 8   | `@shedoesai`        | Johanne                     | 英语        | 227K（genz.ai）/ 220.1K（Feedspot）        | AI 教程 + 资讯             |
-| 9   | `@thechriswinfield` | Chris Winfield              | 英语        | 120.7K（Feedspot）                         | 口播，「每日 90 秒 AI」    |
-| 10  | `@allsiekmiller`    | Allie K. Miller             | 英语        | 112.3K（Feedspot）                         | 口播，AI 商业策略          |
+> **2026-11-02 回源校验（#748）**：下表 handle、显示名、粉丝量与视频数均已按**实时主页**（CDP 9229 自动化 profile）复核并取代第三方口径；`赛道` 列是人工内容判决，不是页面事实。校验产物与逐条依据见 §10.1。
+
+| #   | handle              | 主页显示名（实时）              | 受众        | 粉丝量（实时 / 视频数）              | 内容形态                   | 赛道     |
+| --- | ------------------- | ------------------------------- | ----------- | ------------------------------------ | -------------------------- | -------- |
+| 1   | `@marcus.dipaola`   | Marcus DiPaola                  | 英语·美国   | 4.1M / 6,874（第三方 4.1M）           | 口播新闻 / 纪录片          | 相邻     |
+| 2   | `@synthesia_ai`     | Synthesia_AI                    | 英语        | 674.6K / 829（团队自述 700K+）        | 数字人播报 AI 新闻         | 相邻     |
+| 3   | `@rileybrown.ai`    | Riley Brown                     | 英语        | 638.8K / 398（Feedspot 636.7K）       | 口播 + 录屏，AI Agent 工具 | 是       |
+| 4   | `@nate.b.jones`     | Nate                            | 英语        | 498.1K / 1,964（本人官网自述 488K）   | 口播，AI 新闻解读          | 是       |
+| 5   | `@kanekallaway`     | Kallaway                        | 英语        | 448.6K / 634（Feedspot 425.1K）       | 口播，Tech & AI            | 相邻     |
+| 6   | `@maverickgpt`      | Maverick Maltin \| AI & ChatGPT | 英语        | 627.6K / 752（genz.ai 409.6K）        | 录屏，ChatGPT / AI 视频    | 是       |
+| 7   | `@sineadbovell`     | Sinead Bovell                   | 英语·加拿大 | 313.6K / 888（Feedspot 313.1K）       | 口播，科技评论             | 是       |
+| 8   | `@shedoesai`        | Gunhild Johanne Reumert         | 英语        | 218.5K / 549（Feedspot 220.1K）       | AI 教程 + 资讯             | 是       |
+| 9   | `@thechriswinfield` | Chris Winfield                  | 英语        | 120.5K / 725（Feedspot 120.7K）       | 口播，「每日 90 秒 AI」    | 是       |
+| 10  | `@alliekmiller`     | Allie K. Miller                 | 英语        | 116.6K / 858（Feedspot 112.3K）       | 口播，AI 商业策略          | 是       |
+
+**两个 handle 在上一轮是错的（#748 实测）**：
+
+- `@natebjones` 不是 Nate B. Jones——实时主页是 `user3796273088564`（35 粉丝 / 1 条生活向视频）。本人官网 `natebjones.com` 直链的 TikTok 是 **`@nate.b.jones`**（498.1K / 1,964），已替换。
+- `@allsiekmiller` **不存在**（实时主页「找不到此账号」）。正确 handle 是 **`@alliekmiller`**（116.6K / 858）；另有同名陷阱 `@allie.k.miller`（97 粉丝 / 0 视频，bio 仅 "Hi"）。上一轮该号两次 0 条列表，被记成「这个号没有视频」而非「handle 不存在」，因此实际只采到 8 个账号、少一整组 Top 5。
+- **赛道边界**：`@marcus.dipaola` 是新闻/纪录片号（bio「I used to cover the White House, now I do the news on social media & make documentaries」），其播放量 Top 5 全是美国政治/社会新闻；`@kanekallaway` 是 Tech & AI，样本以科技/科学为主、AI 多为手段而非主题。两者都记为 `adjacent`，作为对照臂、不进 AI median。
+
+**逐账号取证（主页 URL + 取证时间，2026-11-02 全 9 号一次 `--verify-only` 运行，出口 SG）**
+
+| handle | 取证时间（UTC） | 主页 URL |
+| --- | --- | --- |
+| `@marcus.dipaola` | 2026-11-02T16:50:44Z | https://www.tiktok.com/@marcus.dipaola |
+| `@rileybrown.ai` | 2026-11-02T16:51:02Z | https://www.tiktok.com/@rileybrown.ai |
+| `@nate.b.jones` | 2026-11-02T16:51:21Z | https://www.tiktok.com/@nate.b.jones |
+| `@kanekallaway` | 2026-11-02T16:51:39Z | https://www.tiktok.com/@kanekallaway |
+| `@maverickgpt` | 2026-11-02T16:51:57Z | https://www.tiktok.com/@maverickgpt |
+| `@sineadbovell` | 2026-11-02T16:52:16Z | https://www.tiktok.com/@sineadbovell |
+| `@shedoesai` | 2026-11-02T16:52:35Z | https://www.tiktok.com/@shedoesai |
+| `@thechriswinfield` | 2026-11-02T16:52:54Z | https://www.tiktok.com/@thechriswinfield |
+| `@alliekmiller` | 2026-11-02T16:53:12Z | https://www.tiktok.com/@alliekmiller |
+
+> `@synthesia_ai` 在本表里带实时粉丝量（674.6K / 829）与「相邻」判决，但它是**表外观察**：不在 `BENCH_ACCOUNTS` 的 9 个取样账号里，因此不在上面这份 9 号取证产物内（同一轮手动读过主页，未纳入取样框——它是品牌号，样本形态是数字人播报，与个人创作者不可比）。
 
 **未获取项（不要当成不存在）**：`@scmpnews`、Wes Roth、Matthew Berman 取到媒体报道但 **TikTok 粉丝量未获取**（后两者以 YouTube 为主，200K–340K 订阅）。**「China AI 专题（英文）」未找到专属头部账号**——综合媒体号（如 CNA）覆盖中国 AI 但属综合新闻。这是本赛道一个真实空档，也是我们的机会窗口。
 
@@ -97,7 +122,7 @@
 - `scripts/short-video/lib/ytdlp-guard.mjs` — `ytdlpProxyArg()` 提供系统代理（JP 出口）；TikTok 分支 cookieless（extractor 自解 JS challenge，实测无需 cookie）。
 - `scripts/short-video/lib/tiktok-video-details.mjs` — 登录态 CDP 逐页抓取的既有实现（含最小交互纪律）。
 - `docs/research/tiktok-hook-patterns-best-practices.md` — 已有 P1–P6 hook 模式体系与填空模板，是竞品 hook 编码的现成词表。
-- `scripts/short-video/capture-competitor-videos.mjs`（**本次新增**）— 批量抓取入口：账号清单 → 登录态主页列视频 → 按播放量 Top N → `downloadVideo()` 落盘 → `manifest.json`。内建两道代码门禁（自动化 profile、非 HK 出口），CLI 见 `--accounts/--top/--out`。
+- `scripts/short-video/capture-competitor-videos.mjs`（**本次新增**）— 批量抓取入口：账号清单 → 登录态主页列视频 → 按播放量 Top N → `downloadVideo()` 落盘 → `manifest.json`。内建三道代码门禁（自动化 profile、非 HK 出口、账号身份），CLI 见 `--accounts/--top/--out/--verify-only`（`--accounts` 支持 `handle=DisplayName` 声明身份）。
 - 分析侧：`scripts/short-video/lib/video-understand.mjs` 的 `understandVideo()`（下载 → whisper.cpp 转写 → Qwen3-VL-30B）+ `qwen38_vlm_wrapper.py`。
 - `scripts/short-video/analyze-competitor-videos.mjs`（**本次新增**）— 批量拆解入口：读 `manifest.json` → 逐条 ASR（复用 `transcribeVideo()`）→ 竞品专用 VLM 提示词（`COMPETITOR_PROMPT`）→ 落 schema v1 per-video JSON（§6）。时间轴在**代码侧**由 ASR 段界推导（`anchorTimings()`），不接受模型自报的毫秒值（原因见 §3.5）。支持增量跳过与 `--force` 重跑（`node … --help` 看全部选项）。
 - `scripts/short-video/lib/competitor-vlm-worker.py`（**本次新增**）— 行式 JSON worker：复用 `vlm_analyzer.py` 的模型装载与推理，但换用竞品提示词并回传**原始文本**（不套资产语义 schema）。只**读**`vlm_analyzer`，不改动其生产契约。
@@ -215,11 +240,11 @@
 1. ✅ **中文侧取样口径（Open Q5）**：**已决**——只做**英文侧**对比（中文侧在 TikTok 太薄，最大约 32.5K，与英文 100K–4M 不同量级）；中文侧若日后要做，改走抖音/B站，不在本票范围。
 2. ✅ **下载路线**：**已决并落地**——TikTok → ytdlp 路由（见 §3.2 / §3.3），`downloadVideo()` 为唯一入口。
 3. ✅ **端到端单样本**：**已跑通**——下载（§3.2 两样本）→ ASR 21 段 → VLM（§3.4）。
-4. ✅ **头部门槛与取样数（Open Q1）**：**已按阶段 2 默认执行并用阶段 3 数据校准**——取 §2.1 清单中**第三方粉丝量 ≥ 100K 的英文账号**共 9 个，每账号按**播放量 Top 5**；实测列清单 36 条、落盘 35 条。最终口径见 **§10.1「取样口径校准」**（保留原门槛 + 新增「回主页校验内容主题」；样本量不足以据此收紧数值阈值）。
-5. ✅ **跑批量抓取**：**已完成**——`node scripts/short-video/capture-competitor-videos.mjs`，8/9 账号成功、35 条落盘（§3.3；`@allsiekmiller` 两次 0 条列表）。
+4. ✅ **头部门槛与取样数（Open Q1）**：**已按阶段 2 默认执行并用阶段 3 数据校准**——取 §2.1 清单中**第三方粉丝量 ≥ 100K 的英文账号**共 9 个，每账号按**播放量 Top 5**；实测列清单 36 条、落盘 35 条。最终口径见 **§10.1「取样口径校准」**（保留原门槛 + 新增「回主页校验内容主题」；样本量不足以据此收紧数值阈值）。**2026-11-02（#748）**：门槛已从文档规则升级为取样脚本的第三道代码门禁（handle 同人 + 显示名一致），两个错误 handle 已修正，赛道口径拆成 strict / broad 两套。
+5. ✅ **跑批量抓取**：**已完成**——`node scripts/short-video/capture-competitor-videos.mjs`，8/9 账号成功、35 条落盘（§3.3；`@allsiekmiller` 两次 0 条列表）。**2026-11-02 更正**：`@allsiekmiller` 0 条不是「这个号没视频」，而是**该 handle 不存在**（正确 `@alliekmiller`）；`@natebjones` 则是取错人（35 粉丝）。两者在旧 manifest 里都是 `error: null`，故「8/9 成功」实际是 8 个账号、且其中一个是陌生人。修正后的重跑命令与校验证据见 §10.1。
 6. ✅ **批量拆解落 schema v1 JSON → 填 `learnings` → 跨条规律上浮到对应下游 issue。** 脚本已落地（`analyze-competitor-videos.mjs` + `lib/competitor-vlm-worker.py`，见 §3.3），提示词与时间轴机制已按 §3.5 三条失效模式加固并经 3 账号验证（`rileybrown.ai` / `maverickgpt` / `shedoesai`，0 失败）；**全量 35 条跑批已完成**（`index.json` 逐条 status 汇总：`analyzed 34 / failed 1 / collapsedTimeline 0`），跨条规律上浮见 **§10**。**2026-10-18 更正**：上述 `failed 1` 与 `collapsedTimeline 0` 均为**信号失真**（分别是 #729 定界符类型错配、#730 判据假阴性）；按修复后的代码对**同一批样本**重算 → **35 条全有效、beats 层塌缩 1 条**（§10.1 复算口径）。
 
-**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；**无切点内容的人声稀疏镜头节奏**（§3.5 ③——#749 已交付镜头切点作为第二实测源：有切点的塌缩层按实测切点重建，6 层中 4 层恢复可信；无切点**且**塌缩时仍退回 ASR 段跨度内插值，本批 5 条无切点记录均为健康层、未触发该路径；逐条结果见 §10.1.1）；§2.1 账号清单的 TikTok handle 与内容主题一致性（§10.1 实测有 2 个账号不在赛道，处置已开票 **#748**）。`beats` 数量的提示词合规性本轮已量化（**§10.5**：3–8 区间 AI 号仅 6/30）。
+**未验证项（务必不要当成已成立）**：ScrapeCreators 是否可用；批量规模下的风控表现；**无切点内容的人声稀疏镜头节奏**（§3.5 ③——#749 已交付镜头切点作为第二实测源：有切点的塌缩层按实测切点重建，6 层中 4 层恢复可信；无切点**且**塌缩时仍退回 ASR 段跨度内插值，本批 5 条无切点记录均为健康层、未触发该路径；逐条结果见 §10.1.1）；§2.1 账号清单的 TikTok handle 与内容主题一致性（**#748 已于 2026-11-02 交付**：两个 handle 修正、逐条赛道分类与两套 median 见 §10.1；不再有「已知错号但未处置」的项）。`beats` 数量的提示词合规性本轮已量化（**§10.5**：`beats ∈ [3,8]` 在 strict 口径是 **6/24**，含 adjacent 的 broad 口径 6/29，旧全 35 条口径 9/35）。
 
 ---
 
@@ -231,23 +256,90 @@
 
 | 项 | 实测 | 含义 |
 | --- | --- | --- |
-| 落盘 | **35 条 JSON** = 9 账号 × 播放量 Top 5（2026-10-17 收口；`index.json` 逐条 status：`analyzed 34 / failed 1`） | 抽样偏「各账号最能打的那几条」，不是日常水位 |
-| **有效** | **35 条**：AI 六号 **30 条** + 非赛道 5 条（2026-10-18 复算，见下行） | 本节点所有 median 的样本（原为 34，因下一条修复而 +1） |
+| 落盘 | **35 条 JSON** = 8 个实采账号 × 播放量 Top 5（2026-10-17 收口；`index.json` 逐条 status：`analyzed 34 / failed 1`） | 抽样偏「各账号最能打的那几条」，不是日常水位。**#748 更正**：旧表述「9 账号」不成立——`@allsiekmiller` 不存在（0 条），`@natebjones` 是错号（1 条），实采 8 个账号、其中 1 个是陌生人 |
+| **有效** | **35 条**：strict core **24 条** + adjacent 5 条 + off 6 条（2026-11-02 #748 复核） | median 只用 strict 24 / broad 29 两套；off 6 条只作对照（原为 34，因 §3.5 ② 修复而 +1） |
 | 曾判失败 1 条 → 修复后有效 | `sineadbovell/7599711388939980063`（112.8s / 30 段 ASR） | 原判 `error: unparseable-json` 且 `beats`/`shots` 为空数组。**复查为定界符类型错配**（`["None"}}` 应为 `["None"]}}`），**不是 §3.5 ②-a 的输出预算截断**；`repairBreakdownJson()` 修复后 **12 beats / 60 shots / `verdict`+`story_level`+`learnings` 全恢复**（§3.5 ②-b · #729） |
 | 时间轴塌缩 | **beats 层 1 条** · **shots 层 5 条**（原 `collapsedTimeline: 0` 为**假阴性**） | beats：`shedoesai/7372434986558934305`（9 beats / 2 起点 / 2 段 ASR）→ 按实测段跨度重建节奏（§3.5 ③ · #730）。shots：`kanekallaway` ×3 + `shedoesai` ×2（其中 `7372434986558934305` 即上行 beats 那条，双层同时塌缩），根因是**模型给出越界锚点**（如 71 shots 对 22 段，仅 22 条有实测锚点）。**第二实测源复核（#749）**：6 层中 4 层按镜头切点恢复可信、2 层因素材切点不足仍塌缩，见 §10.1.1 |
 | 时长 | median **71.6s**（p25 41.1 / p75 95.4；13.8 – 323.1s） | 仅 3 条 ≤ 20s |
-| 赛道纯净度 | 非赛道 5 条：`@marcus.dipaola` 4 条 + `@natebjones` 1 条 | 见下 |
+| 赛道口径 | **strict 24 条**（core）· **broad 29 条**（core + adjacent）· off 6 条 | 2026-11-02 #748 逐条分类，见下 |
 
-- **`@marcus.dipaola`（4 条）不在 AI 赛道**：Top 5 全是美国国内社会/政治新闻（ICE 枪击、Trump 弹劾、校园枪击、白宫内幕），与 §2.1 记录的「英语·美国 4.1M 口播新闻 / 纪录片」AI race 定位不符。
-- **`@natebjones` 抓到的不是 AI 账号**：唯一一条是生活向内容（"bougie ass to Rodeo"）→ **TikTok 同名 handle 风险**。后续取样必须回主页校验内容主题，不能只按第三方榜单的显示名匹配。
-- 因此下文 hook/节奏数**以 AI 六号 30 条为主口径**，非赛道 5 条仅作对照。
+**逐条赛道分类（#748，n=35；人工读 `story_level`，非关键词匹配）**
+
+三档定义：`core` = 主题是 AI（模型/工具/agent/AI 产业）；`adjacent` = 科技/科学/商业前沿，AI 只是手段或顺带提及，不是主题；`off` = 政治、生活或一般新闻，无科技/AI 主题。
+
+| 账号 | 已分析 | core | adjacent | off | strict 需替换 | broad 需替换 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `@marcus.dipaola` | 4 | 0 | 0 | 4 | 4 | 4 |
+| `@kanekallaway` | 5 | 0 | 5 | 0 | 5 | 0 |
+| `@maverickgpt` | 5 | 5 | 0 | 0 | 0 | 0 |
+| `@rileybrown.ai` | 5 | 5 | 0 | 0 | 0 | 0 |
+| `@shedoesai` | 5 | 5 | 0 | 0 | 0 | 0 |
+| `@sineadbovell` | 5 | 4 | 0 | 1 | 1 | 1 |
+| `@thechriswinfield` | 5 | 5 | 0 | 0 | 0 | 0 |
+| `@natebjones`（错号） | 1 | 0 | 0 | 1 | 1 | 1 |
+| **合计** | **35** | **24** | **5** | **6** | **11** | **6** |
+
+- **`@marcus.dipaola` 4 条全部 off**：Trump 弹劾、白宫内幕/信源、ICE 枪击、校园枪击——与 bio 的「news & documentaries」一致。旧记录的「AI race 评论号」定位是错的：账号本体就不是 AI 号，所以这不是「播放量排序偏爱爆款」的方法论问题，而是**采样框把新闻号当成了 AI 号**。
+- **`@kanekallaway` 5 条全部 adjacent**：TerraFab、ASML、抗衰老、个体化癌症疫苗、塑料变食物——AI 出现在方法里（如蛋白设计、mRNA 设计），但主题是科技/生物。这是旧「AI 六号 30 条」里最大的口径松动（#748 之后 `@kanekallaway` 记 adjacent，strict 口径是 core 5 号）。
+- **`@sineadbovell/7599711388939980063` 是 off**：俄罗斯 IRA 社交媒体调查，全程无 AI 主题（上一轮按「AI/社会评论」归类偏宽）。
+- **`@natebjones` 唯一的 1 条是 off**，且**该账号本身取错人**（见 §2.1），这条不是「非赛道样本」而是「另一个人的样本」。
+- **`@maverickgpt` 5/5 core**——包括 `7580410789442440479`（Kimi K2 vs GPT-5），这是现有语料里唯一的中国 AI 主题样本。
+
+**处置决定（用户 2026-11-02 裁决）**
+
+- **`@marcus.dipaola` 保留在采样框，作为 adjacent 对照臂，排除出 AI median**；`@kanekallaway` 同样记 adjacent。
+- **两个 handle 按实时证据修正**：`@natebjones` → `@nate.b.jones`、`@allsiekmiller` → `@alliekmiller`。
+- **两套口径并列报告**（strict 24 / broad 29），不合并成一个数——strict 是「AI 主题」，broad 是「AI + 科技前沿」，kanekallaway 5 条是两者的唯一分歧来源。
+- **样本量保持每账号 Top 5**，修完 handle 的采样框是 9×5=45 槽；现有 33 槽可复用（24 条 strict core + `@kanekallaway` 5 条 adjacent + `@marcus.dipaola` 4 条 adjacent），**下一轮新取 12 槽**（见下方差集的「下一轮新取」列）。若不复用 adjacent 对照臂、只留 strict core，则新取上限是 45 − 24 = 21 槽（这是上界，不是计划）。
+- **5 条非赛道样本不重取**：它们已作为对照臂留在语料里，重取会让「旧口径的偏差」从语料里消失；`@natebjones` 那条随错号一并作废（不是重取，是丢弃）。
+- **adjacent 不进 median、也不删**：`@marcus.dipaola` 4 条 off + `@kanekallaway` 5 条 adjacent 都是「不被 strict median 消费」，不是「必须从语料删除」；下一轮真正要取的是 `@nate.b.jones` 与 `@alliekmiller` 各 5 槽（此前从未采到）+ `@sineadbovell` 第 6 名起 1 槽 + `@marcus.dipaola` 第 5 槽。
+
+**差集（「按播放量 Top 5」vs「赛道内 Top 5」）**
+
+两个数回答两个问题，不能相加：
+`变动既有行` = 现有 35 条里进不了 strict median 的条数（合计 **11** = 5 adjacent + 6 off，与上表「strict 需替换」同源）；
+`下一轮新取` = 采样框 45 槽里还没采到的槽数（合计 **12**，33 已采 + 12 = 45）。
+
+| 账号 | 播放量 Top 5 已分析 | in-scope（strict） | 变动既有行 | 下一轮新取 | 替换清单可否给出 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `@maverickgpt` / `@rileybrown.ai` / `@shedoesai` / `@thechriswinfield` | 各 5 | 各 5 | 0 | 0 | 无需替换 |
+| `@sineadbovell` | 5 | 4 | 1（`7599711388939980063`） | 1（第 6 名起） | 否——见下条限流说明 |
+| `@marcus.dipaola` | 4 | 0 | 4（adjacent，保留不删） | 1（第 5 槽） | 否——该号本就不是 AI 号 |
+| `@kanekallaway` | 5 | 0 | 5（adjacent，保留不删） | 0 | 否——同上 |
+| `@natebjones`（错号） | 1 | 0 | 1（整号作废） | 5（`@nate.b.jones` 全新取） | 用新 handle 的 Top 5 |
+| `@allsiekmiller`（不存在） | 0 | 0 | 0 | 5（`@alliekmiller` 全新取） | 用新 handle 的 Top 5 |
+| **合计** | **35** | **24** | **11** | **12** | — |
+
+**为什么给不出「赛道内 Top 5」的具体视频 id**：这一轮回源时 TikTok 的 `/api/post/item_list/` 对自动化浏览器返回 **429 `ratelimit triggered`**，主页网格同步显示「出错了 / 很抱歉！请稍后重试」，`[data-e2e="user-post-item"]` 数为 0——只能读到身份块，读不到第 6 名以后的条目。这不是个别账号的现象：`profile-verification.json` 里 **9/9 个账号 `gridError: true`、`listedVideos: 0`**，而身份块 9/9 读到。因此本轮**只确定槽位数与替换对象**，不确定具体 id；下一轮取样时由脚本按「身份门禁 + 播放量 Top N」自然取到，不需要人工预列。这同时是 `identity gate` 放在列表之前的理由：身份块在限流时仍可读，而网格不可读。
+
+**校验产物（可复核）**：`node scripts/short-video/capture-competitor-videos.mjs --verify-only` 会把每个账号的 `handle / 期望显示名 / 实际昵称 / uniqueId / 第三方粉丝量 / 实采粉丝量 / 视频数 / 赛道 / 主页 URL / 取证时间 / 判定` 写入 `scripts/short-video/output/competitor-benchmarks/profile-verification.json`（gitignored）；本文 §2.1 的逐账号取证表与上表是该文件的落库副本。取证时间 2026-11-02（CDP 9229，出口 SG）。
+
+> **产物是「最新一次运行」，不是归档**：固定文件名意味着每跑一次就覆盖（反例跑一次就会把 9/9 `ok` 的产物换成 1/1 `not-found`）。因此**这份文档是唯一的持久副本**——重新核对请重跑命令，不要把磁盘上的文件当成历史证据；需要留存某次结果时另行复制并标注日期。
+
+判定口径与实测（2026-11-02）：
+
+| 判定 | 含义 | 本轮实测 |
+|---|---|---|
+| `ok` | `uniqueId` 与请求 handle 一致，且昵称与声明的 `displayName`/`aliases` 互补包含 | 9/9（修正 handle 后） |
+| `not-found` | TikTok 该 handle 无主页 | `@allsiekmiller` ✅ 命中（真实不存在） |
+| `nickname-mismatch` | handle 存在但昵称不符，或昵称读不到 | `@natebjones`（昵称 `user3796273088564`）✅ 命中；`@allie.k.miller`（昵称 `Hi`，97 粉丝）✅ 命中 |
+| `handle-mismatch` | 页面回的 `uniqueId` 与请求不符 | 仅用于页面身份块始终读不到时（见下） |
+| `unverified` | 调用方没声明 `displayName`，无法证明「是同一个人」 | ad-hoc 跑法必须写 `--accounts handle=DisplayName` |
+
+- **非零退出**：任一账号判定不为 `ok` 时 CLI `process.exitCode = 1`，可直接当 CI/前置门使用（实测上面三个反例均 `EXIT=1`）。**「handle 存在」不等于「是这个人」**，所以身份未声明算失败而不是放过。**取样跑（不留 `--verify-only`）同样非零退出**：任一账号没产出样本即 `process.exitCode = 1` 并打印「treat this corpus as partial」——manifest 里的 `error` 字段对 shell 不可见，退出码是唯一不会被人忽略的信号。
+- **空白身份块重试一次**：TikTok 常常把标签页停在 `Please wait...` 骨架屏，超过任何固定等待时长。首轮 `--verify-only` 因此把 `@marcus.dipaola` / `@rileybrown.ai` 读成 `uniqueId: ""`、判定失败（人其实是同一个）；改为「读到身份信号才算就绪 + 空身份时换新标签页重试一次」后 `@shedoesai` 的同类空读也被吸收，9/9 稳定 `ok`。重试用尽仍读不到身份则判 `handle-mismatch`——**宁可失败，不采不可证样本**。
+- **昵称比对是按词的，不是按子串的**：整名折叠后相等即通过；短形式必须是**连续整词的片段**且不短于 4 字符（`Nate` ∈ `Nate B. Jones`、`Johanne` ∈ `Gunhild Johanne Reumert`）。纯子串比对会让昵称叫 `AI` 的陌生人通过 `Maverick Maltin | AI & ChatGPT`，也会让 `te` 通过别名 `Nate`——这两条都有单测。代价是页面把词连写（`MaverickMaltin`）时需要显式 `aliases`，即**报错方向是「正确的账号被拦下」，而不是「陌生人被放过」**。
+- **`niche` 也过门禁**：`niche` 是人工判决（页面不会告诉你「这是 AI 还是美国政治」），但它必须取 `core` / `adjacent` 之一；拼错（`adjecent`）或写成 `off` 会被 `niche gate failed` 拦下而不是静默进入下游筛选。
+
+
 
 **取样口径校准（本阶段关闭「§8 Open Q1：头部门槛与取样数」）**：
 
 - **保留**「粉丝量 ≥ 100K + 每账号播放量 Top 5」作为探针口径（本轮即按此执行）。
-- **门槛必须加一条内容主题校验**：回主页校验赛道归属，不能只按第三方榜单显示名匹配（本轮 9 个账号里 2 个不属 AI 赛道）。
-- **样本量不足以收紧数值阈值**：35 条有效样本下，hook 时长 p25–p75 = 4.3–6.8s（区间宽 2.5s）、shots 9–25，分位数波动大。因此本轮结论只用**中位数 + 跨账号一致的定性模式**；若要据此定死数值阈值，需把取样扩到每账号 Top 10 或增加账号数。
-- **取样口径未执行项**：门槛的「内容主题校验」与已落盘 5 条非赛道样本的处置 = **#748**（open）。人声稀疏记录的**第二实测时间源**已由 **#749** 交付（2026-11-01，见 §10.1.1）。
+- **门槛必须加一条内容主题校验**：回主页校验赛道归属，不能只按第三方榜单显示名匹配。**2026-11-02 已从文档规则升级为代码门禁**：`capture-competitor-videos.mjs` 在列表/下载前读取主页自身的 `uniqueId` 与 `nickname`，与 `BENCH_ACCOUNTS` 的 `handle` / `displayName`（可带 `aliases`）比对，不一致即写 `identity gate failed` 并跳过，**不再把空列表写成 `videos: []` + `error: null`**；`--verify-only` 只做校验不下载，产出 `profile-verification.json` 作为可复核产物。赛道归属本身仍是**人工判决**（门禁能校验它是否合法取值，不能替你判断某条视频是不是 AI 主题）——这正是 §10.1 逐条分类表存在的原因。
+- **样本量不足以收紧数值阈值**：35 条有效样本下，hook 时长 p25–p75 在 strict 口径是 4.1–6.6s（区间宽 2.5s）、shots 9–22，分位数波动大。因此本轮结论只用**中位数 + 跨账号一致的定性模式**；若要据此定死数值阈值，需把取样扩到每账号 Top 10 或增加账号数（用户 2026-11-02 裁决：本轮不做，保持 Top 5）。
+- **两套 median 并列**，见 §10.2 / §10.3 的 strict / broad 双列表；`off` 6 条只作对照，不参与任何 median。
+- **复算入口**：`node scripts/short-video/competitor-benchmarks-timing-health.mjs --dir scripts/short-video/output/competitor-benchmarks/analysis-recompute`（时间轴判据）+ 本节表格的逐条分类（`analysis-recompute/` 的 35 个 JSON 按上表 handle/id 对号，`meta.plays` 与 `story_level.hook` 可直接复核）；两套 median 的判据是 `beats[0]` 的 `startMs/endMs`、`meta.durationSec`、`beats.length`、`shots.length`，分位法 `statistics.quantiles(n=4)`（exclusive）。
 
 ### 10.1.1 第二实测源复核（#749，2026-11-01）
 
@@ -274,11 +366,13 @@
 
 hook = 第 1 个 beat（时间轴由代码推导，§3.5 ①；塌缩层按切点重建，§3.5 ③——本节数字仍出自 `analysis-recompute/`）。
 
-| 维度 | median | p25 – p75 |
-| --- | --- | --- |
-| hook 时长 | **5.0s** | 4.3 – 6.8s |
-| hook 占全片比例 | **8.2%** | — |
-| hook 文案词数 | 14.0 词 | 10 – 17 词 |
+| 维度 | strict（core，n=24） | broad（core + adjacent，n=29） | 旧口径（全部 35 条，仅对照） |
+| --- | --- | --- | --- |
+| hook 时长 | **5.0s**（p25–p75 4.1–6.6s） | **5.0s**（4.1–7.1s） | 5.0s（4.3–6.8s） |
+| hook 占全片比例 | **8.8%** | **8.9%** | 8.2% |
+| hook 文案词数 | **14.5 词**（10–17.75） | **14.0 词**（10–17.5） | 14.0 词（10–17） |
+
+> 两套口径在这一节几乎没有差别（hook 中位都 5.0s）：adjacent 5 条把时长分布拉长，但 hook 绝对值没有被拉高。旧口径的 4.3–6.8s 区间来自把 6 条 off 也计入；**off 6 条不再参与 median**。
 
 **句子族命中率**（n=35，一条可命中多族，判据为 hook 文案正则）：
 
@@ -309,25 +403,31 @@ hook = 第 1 个 beat（时间轴由代码推导，§3.5 ①；塌缩层按切�
 
 ### 10.3 节奏与结构规格
 
-| 维度 | median | p25 – p75 |
-| --- | --- | --- |
-| beats（叙事单元） | 10 | 8 – 14 |
-| shots（画面 / 口播段） | 14.0 | 9 – 25（最大 96） |
-| beats/min | 11.2 | 5.8 – 15.0 |
-| shots / beat | 1.2 | 最小 0.4 · 最大 10.7 |
+| 维度 | strict（core，n=24） | broad（core + adjacent，n=29） | 旧口径（全部 35 条，仅对照） |
+| --- | --- | --- | --- |
+| 时长 | **54.8s**（p25–p75 38.8–89.4） | **70.7s**（40.5–94.6） | 71.6s（41.1–95.4） |
+| beats（叙事单元） | 10（7.5–14.75） | 10（9–15） | 10（8–14） |
+| shots（画面 / 口播段） | **13.0**（9.25–21.75） | **15.0**（10–26.5） | 14.0（9–25，最大 96） |
+| beats/min | **13.4**（7.0–17.9） | **11.3**（6.1–16.1） | 11.2（5.8–15.0） |
+| shots / beat | 1.2（0.5–2.8） | 1.3（0.5–10.7） | 1.2（0.4–10.7） |
+| 时长 / beat | **5.5s** | **7.1s** | 7.2s |
 
-**账号分层（median，AI 六号 + 非赛道对照；bpm 取每账号各条 bpm 的中位数）**——同一赛道内明显分两档：
+> **严格口径下时长几乎短 16 秒、节奏快 2.1 beats/min**（54.8s vs 70.7s，13.4 vs 11.3）：adjacent 的 5 条（`kanekallaway` 93.7s / 14 beats）是唯一的分歧来源，其中 `kanekallaway` 单条 96 shots 也把 shots/beat 最大值从 2.8 拉到 10.7。**这是两套口径必须并列、不能只报一个数的直接理由**。
 
-| handle | 条数 | 时长 | hook 时长 | hook 占比 | beats | shots | beats/min |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `shedoesai`（AI 工具教程） | 5 | 33.2s | 2.9s | 7.8% | 10 | 13 | **18.1** |
-| `maverickgpt`（prompt 教程） | 5 | 43.3s | 4.9s | 12.1% | 10 | 13 | **13.9** |
-| `thechriswinfield`（每日 AI 工具） | 5 | 49.7s | 5.2s | 12.2% | 14 | 15 | **13.6** |
-| `kanekallaway`（科技新闻、分屏） | 5 | 93.7s | 8.3s | 9.9% | 14 | **71** | 9.4 |
-| `sineadbovell`（科技评论、口播） | 5 | 110.6s | 5.5s | 5.5% | 12 | 10 | 6.4 |
-| `rileybrown.ai`（Agent 工具、录屏） | 5 | 115.5s | 7.4s | 8.7% | 11 | 14 | 5.7 |
-| `marcus.dipaola`（新闻，**非 AI 赛道**） | 4 | 82.8s | 4.7s | 5.7% | 10 | 10 | 7.3 |
-| `natebjones`（生活向，**非 AI 赛道**） | 1 | 15s | 7.9s | 52.8% | 4 | 4 | 16.0 |
+**账号分层（median，core 5 号 + adjacent 2 号对照 + 已作废的错号；bpm 取每账号各条 bpm 的中位数）**——同一赛道内明显分两档：
+
+| handle | 条数 | 口径 | 时长 | hook 时长 | hook 占比 | beats | shots | beats/min |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `shedoesai`（AI 工具教程） | 5 | core | 33.2s | 2.9s | 7.8% | 10 | 13 | **18.1** |
+| `maverickgpt`（prompt 教程） | 5 | core | 43.3s | 4.9s | 12.1% | 10 | 13 | **13.9** |
+| `thechriswinfield`（每日 AI 工具） | 5 | core | 49.7s | 5.2s | 12.2% | 14 | 15 | **13.6** |
+| `kanekallaway`（科技新闻、分屏） | 5 | **adjacent** | 93.7s | 8.3s | 9.9% | 14 | **71** | 9.4 |
+| `sineadbovell`（科技评论、口播） | 5 | core | 110.6s | 5.5s | 5.5% | 12 | 10 | 6.4 |
+| `rileybrown.ai`（Agent 工具、录屏） | 5 | core | 115.5s | 7.4s | 8.7% | 11 | 14 | 5.7 |
+| `marcus.dipaola`（新闻，**adjacent 对照**） | 4 | adjacent | 82.8s | 4.7s | 5.7% | 10 | 10 | 7.3 |
+| `@natebjones`（**错号，已作废**） | 1 | off | 15s | 7.9s | 52.8% | 4 | 4 | 16.0 |
+
+> 本节 8 行是**旧语料**的账号分层（`analysis-recompute/` 的 35 条）。修完 handle 后 `@nate.b.jones` 与 `@alliekmiller` 两个账号**尚无样本**，其分层要等下一轮取样；`@natebjones` 行仅保留作「错号会被读成什么样」的取证，不参与任何结论。
 
 - **hook 时长总体反向，但非单调**：长叙事档 `kanekallaway` 8.3s / `rileybrown.ai` 7.4s 明显长于工具/教程档的 2.9–5.2s；`sineadbovell` 5.5s 与短号上界重叠。即「片长越长 hook 越长」在账号层面成立、**不能当单调阈值用**（与 §10.1 的样本量限制一致）。
 - **shots/beat 分布是双峰的**：median 1.2 说明多数视频 beat ≈ 镜头（1:1）；`kanekallaway` 是唯一的高制作档——5 条 shots = 18 / 24 / 71 / 95 / 96，逐条 shots/beat = 2.0 / 1.3 / 5.1 / 6.3 / **10.7**（表中最大值 10.7 的出处：96 shots / 9 beats；不可与「最大 shots ÷ 最大 beats」混算）。
@@ -341,21 +441,22 @@ hook = 第 1 个 beat（时间轴由代码推导，§3.5 ①；塌缩层按切�
 | # | 模式 | 证据 | 对我方的落点 | 目标票 |
 | --- | --- | --- | --- | --- |
 | P1 | **hook 首帧放人**：口播或「口播+素材分屏」，不用通用素材/T2V 补第一帧 | 83%（29/35）首帧有人、60% 在讲话；纯素材/录屏仅 17% | 现策略是「前 3 秒靠通用素材」——方向相反 | #299 |
-| P2 | **hook 时长按 4.5–5s 对齐**（不是 3s） | median 5.0s，p25–p75 4.3–6.8s | 我们的 hook 时长口径需重定 | #278 |
+| P2 | **hook 时长按 4.5–5s 对齐**（不是 3s） | median 5.0s，p25–p75 **4.1–6.6s**（strict，n=24；broad 4.1–7.1s；旧 4.3–6.8s 已含 off 6 条、仅作对照） | 我们的 hook 时长口径需重定 | #278 |
 | P3 | **句子族优先级**：`just+事件` / 规模最高级 / 数量锚点（各 9–11/35）为头部，提问式少（4/35） | §10.2 表 | 与我们 P1–P6 词表对照，补「just+事件」「数量锚点」两族 | #278 |
 | P4 | **强度词要克制**：insane/massive 一类只 4/35，情绪靠具体事实承载（"beats GPT-5"、"biggest building in human history"） | §10.2 | 「情感靠写稿不靠 instruct」的外部证据 | #244（已闭票，留档）· #278 |
 | P5 | **节奏分两档**：工具/教程 13.6–18.1 beats/min（33–50s 片），长叙事 5.7–9.4（94–116s 片） | §10.3 | 语速/切点规格可按内容形态分档，而非单一全局值 | #279 · #289 |
 | P6 | **结尾分型**：工具类用「评论关键词换资源」（7 条），新闻评论类用 punchline/愿景收束（9 条） | §10.3 | 我们 CTA scene 可增「关键词兑换」形态 | #253 · #299 |
 | P7 | **分屏 = 口播在下、素材在上的双层 hook**（kanekallaway 3/5，细胞/针管/Elon 舞台 + 口播） | §10.2 | 版式库可直接吸收 | #253 |
-| P8 | **beats 与 ASR 段 1:1 是常态而非缺陷**（AI 号 8/30 完全相等，如 31 段→31 beats） | §10.5 | 若下游按「≤8 单元」消费，需要归并层 | #289 |
+| P8 | **beats 与 ASR 段 1:1 是常态而非缺陷**（strict core 8/24 完全相等，如 31 段→31 beats；全体 9/35） | §10.5 | 若下游按「≤8 单元」消费，需要归并层 | #289 |
 
 ### 10.5 提示词合规性量化（原「已知偏离」的基线）
 
-| 约束 | 命中 | 说明 |
-| --- | --- | --- |
-| `beats` ∈ [3, 8] | **6/30**（AI 号）· 9/35（全体） | 未命中者大量与 ASR 段数 1:1（31→31、21→21、20→20） |
-| `shots` ≤ 12 | **10/30**（AI 号）· 14/35（全体） | 超限最严重是 `kanekallaway`（96 / 95 / 71 shots） |
+| 约束 | strict（core，n=24） | broad（n=29） | 旧口径（全部 35 条，仅对照） | 说明 |
+| --- | --- | --- | --- | --- |
+| `beats` ∈ [3, 8] | **6/24** | **6/29** | 9/35 | 未命中者大量与 ASR 段数 1:1（31→31、21→21、20→20） |
+| `shots` ≤ 12 | **10/24** | **10/29** | 14/35 | 超限最严重是 `kanekallaway`（96 / 95 / 71 shots），该号已记 adjacent |
 
+> 口径说明：旧表写作「AI 号」，分母 30 来自把 adjacent 的 `@kanekallaway` 5 条也算进 AI 号；#748 之后 strict 分母是 24。命中数不变（6 与 10 都无 adjacent 记录），所以两套口径只是分母不同。
 > 复算口径：新增恢复条 `sineadbovell/7599711388939980063` 为 12 beats / 60 shots，**两约束均未命中**，故点名数与分母同步 +1（分子不变）；`shots ≤ 12` 的超限名单再加一条（60 shots）。
 
 **裁决（本票内定，不改提示词）**：不收紧提示词去凑 3–8——强压会丢掉 #291 视觉设计需要的细分粒度；改为**下游消费侧归并**（消费方若按「≤8 个叙事单元」读，自行聚合；需要细粒度镜头清单则直接读 `shots`）。与 §3.5 判断一致，本轮给出量化基线。
@@ -363,7 +464,7 @@ hook = 第 1 个 beat（时间轴由代码推导，§3.5 ①；塌缩层按切�
 ### 10.6 未完成 / 不可用
 
 - 中文侧：**已决不做**（§9.1），跨语言对比不在本票范围。
-- `@allsiekmiller`：两次列清单均 0 条（§4），该账号样本缺失。
+- `@allsiekmiller`：**该 handle 不存在**（#748 实时主页「找不到此账号」），不是「没有视频」；正确 `@alliekmiller`（116.6K / 858）尚未取样，修正后的取样框见 §2.1。
 - `meta.likes/comments/shares/publishedAt`：仍为 `null`（§6 已定夺：需登录态逐条详情页二次抓取，未做）→ 本节的「头部」是按 `manifest` 的播放量排序取 Top 5，非按互动率。
 - 人声稀疏视频的镜头节奏：ASR 锚定拿不到（§3.5 ③）。本批判据修好后实测 **beats 层 1 条**（`shedoesai`）、**shots 层 5 条**（`kanekallaway` ×3 + `shedoesai` ×2，模型锚点越界）——原「0 条」是假阴性。**#749 已交付第二实测源（镜头切点）**：6 层中 4 层恢复为实测起点（beats 1 + shots 3），`kanekallaway/7676480440567483678`（47/95）与 `shedoesai/7642646978014219542`（13/31）切点不足仍塌缩；无切点**且**塌缩时仍退回 #730 段跨度插值（本批 5 条无切点记录均为健康层，未触发；该路径由单测覆盖，见 §10.1.1）。复算入口：`node scripts/short-video/competitor-benchmarks-timing-health.mjs --dir <分析目录>`（塌缩判据）与 `node scripts/short-video/competitor-benchmarks-cuts.mjs`（第二源复核）。
 

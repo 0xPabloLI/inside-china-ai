@@ -456,6 +456,15 @@ describe("buildRecord (#300 stage 2)", () => {
     expect(rec.meta.publishedAt).toBeNull();
   });
 
+  it("carries the declared niche from the manifest so consumers can filter (#748)", () => {
+    const core = buildRecord({ ...target, niche: "core" }, 42.5, null, null);
+    expect(core.meta.niche).toBe("core");
+    const adjacent = buildRecord({ ...target, niche: "adjacent" }, 42.5, null, null);
+    expect(adjacent.meta.niche).toBe("adjacent");
+    // An old manifest predates the field; null says "not declared", not "core".
+    expect(buildRecord(target, 42.5, null, null).meta.niche).toBeNull();
+  });
+
   it("degrades to empty layers when the VLM produced no breakdown", () => {
     const rec = buildRecord(target, null, null, null);
     expect(rec.verdict).toBeNull();
