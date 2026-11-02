@@ -46,7 +46,7 @@ const CMD_LINE_THRESHOLD = 5;
 // The field sits in the header block so a reader sees it before the evidence.
 const DOWNSTREAM_FIELD_PATTERN = /^\s*>\s*\*\*下游票\*\*\s*[：:]\s*(.+)$/m;
 const DOWNSTREAM_HEADER_LINES = 40;
-const DOWNSTREAM_ISSUE_PATTERN = /#\d{2,}/;
+const DOWNSTREAM_ISSUE_PATTERN = /#\d+/;
 const DOWNSTREAM_WAIVER_PATTERN = /^无下游\s*[：:]\s*(\S.*)$/;
 // A waiver needs a reason a reader can act on; "无下游：无" is a placeholder.
 const DOWNSTREAM_MIN_REASON = 8;
@@ -332,7 +332,28 @@ const DOWNSTREAM_FINDING_MESSAGES = {
     `${file} 的「下游票」既没有票号（\`#N\`）也没有 \`无下游：<原因>\`——两选一，不留空话`,
 };
 
-export function checkResearchDownstream(files, changed = [], baseline = new Set()) {
+export function checkResearchDownstream(
+  files,
+  changed = [],
+  baseline = new Set(),
+  changedError = null,
+) {
+  // A failed range diff shrinks `changed` to the staged set (empty in CI), so
+  // every baselined doc would read as untouched. Fail loudly instead of letting
+  // the gate's blindness present as a pass — same contract as the registration
+  // gate's `docs-base-diff-failed`.
+  if (changedError) {
+    return {
+      findings: [
+        {
+          level: "FAIL",
+          ruleId: "research-downstream-diff-failed",
+          file: "docs/research/",
+          message: `cannot diff changed research docs against ${changedError}; the downstream gate would treat edited baselined docs as unchanged`,
+        },
+      ],
+    };
+  }
   const changedSet = new Set(changed);
   const findings = [];
   for (const { filename, content } of files) {
@@ -933,6 +954,7 @@ export function main() {
     l2Files,
     changedResearch.paths,
     downstreamBaseline,
+    changedResearch.error,
   ).findings;
 
   if (process.argv.includes("--bless")) {
@@ -958,6 +980,12 @@ export function main() {
   }
 
   if (process.argv.includes("--bless-research")) {
+    if (changedResearch.error) {
+      process.stderr.write(
+        `[doc-hierarchy] cannot diff changed research docs against ${changedResearch.error}; refusing to write a baseline that may freeze docs this change edited\n`,
+      );
+      process.exit(1);
+    }
     const changedSet = new Set(changedResearch.paths);
     const offenders = l2Files
       .map((file) => ({ file: `docs/research/${file.filename}`, content: file.content }))
@@ -986,6 +1014,9 @@ export function main() {
           .map((f) => `  ${f}\n`)
           .join("")}`,
       );
+      // The refusal is the actionable part; exiting 0 would read as "baseline
+      // refreshed, done" while the edited docs still lack the field.
+      process.exit(1);
     }
     process.exit(0);
   }

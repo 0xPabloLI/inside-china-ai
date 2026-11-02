@@ -1029,6 +1029,8 @@ describe("研究文档下游票字段", () => {
 
   it("PASS: 头部声明承接票号", () => {
     expect(parseResearchDownstream(doc("> **下游票**：#1108 / #529")).verdict).toBe("ok");
+    // 单位数票号在本仓存在过，不能因为位数少判成没写
+    expect(parseResearchDownstream(doc("> **下游票**：#7")).verdict).toBe("ok");
     expect(
       checkResearchDownstream(
         [{ filename: "r.md", content: doc("> **下游票**：#1108") }],
@@ -1084,6 +1086,19 @@ describe("研究文档下游票字段", () => {
     expect(checkResearchDownstream(legacy, [], baseline).findings).toHaveLength(0);
     const changed = checkResearchDownstream(legacy, ["docs/research/old.md"], baseline);
     expect(failsOf(changed.findings)).toHaveLength(1);
+  });
+
+  it("FAIL: 改动集对不上时不静默当无改动——否则被改过的旧文档会继承豁免", () => {
+    const legacy = [{ filename: "old.md", content: "# Old\n" }];
+    const { findings } = checkResearchDownstream(
+      legacy,
+      [],
+      new Set(["docs/research/old.md"]),
+      "origin/main",
+    );
+    expect(failsOf(findings)).toHaveLength(1);
+    expect(failsOf(findings)[0].ruleId).toBe("research-downstream-diff-failed");
+    expect(messageOf(findings, "FAIL")).toContain("origin/main");
   });
 
   it("基线解析只认 docs/research/*.md，容忍注释与空行", () => {
