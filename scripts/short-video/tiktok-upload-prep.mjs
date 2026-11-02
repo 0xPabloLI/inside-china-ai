@@ -281,14 +281,18 @@ const DEFAULT_VOLUME_DB = -15;
 // ─── page-side helpers (stringified into the tab) ───
 
 /**
- * Page-side snippet: a short, stable name for an element in a diagnostic.
+ * Page-side snippet: describe an element, and probe what a pointer would hit.
  *
  * Spliced into the scripts below so a refusal can say WHICH element is in the
  * way. "covered at its centre" with no name sent the 2026-11-02 investigation
  * looking for a missing button that had been there the whole time (#1102).
+ *
+ * One reachability implementation for both scripts: the tagger and the click
+ * guard must agree on what "reachable" means, or the guard refuses a target the
+ * tagger called clear.
  */
-const PAGE_DESCRIBE = `
-  const describe = (el) => {
+const PAGE_PROBE = `
+  const nameOf = (el) => {
     if (!el) return null;
     const tag = el.tagName ? el.tagName.toLowerCase() : "node";
     const classes = el.className && typeof el.className === "string"
@@ -296,6 +300,13 @@ const PAGE_DESCRIBE = `
       : [];
     const e2e = el.getAttribute && el.getAttribute("data-e2e");
     return tag + classes.map((c) => "." + c).join("") + (e2e ? '[data-e2e="' + e2e + '"]' : "");
+  };
+  const probe = (el) => {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return { r, topmost: false, blocker: nameOf(el) + " (zero-size)" };
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    const topmost = !!(hit && (hit === el || el.contains(hit)));
+    return { r, topmost, blocker: topmost ? null : nameOf(hit) };
   };`;
 
 /**
@@ -308,7 +319,12 @@ const PAGE_DESCRIBE = `
  * the button is missing.
  */
 export const TAG_BY_TEXT = (label, id = "__byText") => `
-(() => {${PAGE_DESCRIBE}
+(() => {${PAGE_PROBE}
+  // One tag at a time: the same id is reused for each action in a run
+  // (保存, then 保存草稿), and a stale holder would win querySelector.
+  for (const old of document.querySelectorAll('[id="' + ${JSON.stringify(id)} + '"]')) {
+    old.removeAttribute("id");
+  }
   const target = ${JSON.stringify(label)};
   const nodes = [...document.querySelectorAll("button, [role=button], div, span")];
   const candidates = [];
@@ -321,24 +337,20 @@ export const TAG_BY_TEXT = (label, id = "__byText") => `
     if (own !== target) continue;
     const btn = e.closest("button, [role=button]") || e;
     btn.scrollIntoView({ block: "center" });
-    const r = btn.getBoundingClientRect();
-    if (!r.width || !r.height) continue;
-    const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
-    const hit = document.elementFromPoint(cx, cy);
-    const clear = !!(hit && (hit === btn || btn.contains(hit)));
-    candidates.push({ btn, r, clear, blocker: clear ? null : describe(hit) });
+    const measured = probe(btn);
+    if (!measured.r.width || !measured.r.height) continue;
+    candidates.push({ btn, ...measured });
   }
   if (!candidates.length) return JSON.stringify({ ok: false, reason: "not found" });
-  const chosen = candidates.find((c) => c.clear) || candidates[0];
+  const chosen = candidates.find((c) => c.topmost) || candidates[0];
   chosen.btn.id = ${JSON.stringify(id)};
-  chosen.btn.scrollIntoView({ block: "center" });
-  const r = chosen.btn.getBoundingClientRect();
+  const r = chosen.r;
   return JSON.stringify({
     ok: true,
     id: ${JSON.stringify(id)},
     tag: chosen.btn.tagName,
     x: r.x, y: r.y, width: r.width, height: r.height,
-    topmost: chosen.clear,
+    topmost: chosen.topmost,
     blocker: chosen.blocker,
     candidates: candidates.length,
   });
@@ -353,21 +365,21 @@ export const TAG_BY_TEXT = (label, id = "__byText") => `
  * with a name instead of clicking whatever happens to be on top.
  */
 export const RESOLVE_CLICK_TARGET = (selector) => `
-(() => {${PAGE_DESCRIBE}
+(() => {${PAGE_PROBE}
   const el = document.querySelector(${JSON.stringify(selector)});
   if (!el) return JSON.stringify({ ok: false, reason: "not found" });
   el.scrollIntoView({ block: "center" });
-  const r = el.getBoundingClientRect();
-  if (!r.width || !r.height) return JSON.stringify({ ok: false, reason: "zero-size" });
-  const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
-  const hit = document.elementFromPoint(cx, cy);
-  const topmost = !!(hit && (hit === el || el.contains(hit)));
+  const measured = probe(el);
+  if (!measured.r.width || !measured.r.height) {
+    return JSON.stringify({ ok: false, reason: measured.blocker || "zero-size" });
+  }
+  const r = measured.r;
   return JSON.stringify({
     ok: true,
     x: r.x, y: r.y, width: r.width, height: r.height,
     inViewport: r.y >= 0 && r.y + r.height <= window.innerHeight,
-    topmost,
-    blocker: topmost ? null : describe(hit),
+    topmost: measured.topmost,
+    blocker: measured.blocker,
     pointerEvents: getComputedStyle(el).pointerEvents,
   });
 })()`;
@@ -938,14 +950,16 @@ function clickPointWithin(rect, rand = Math.random) {
 /**
  * The one wording for a refused click.
  *
- * Names the element on top. The guard was already correct when it refused the
- * draft click in the 2026-11-02 run; what it lacked was the coverer, so the
- * message read like a missing button (#1102).
+ * Names the element on top and the tab that is still open, because the operator
+ * takes over by hand from exactly there. The guard was already correct when it
+ * refused the draft click in the 2026-11-02 run; what it lacked was the coverer,
+ * so the message read like a missing button (#1102).
  */
-export function clickRefusal(selector, target) {
+export function clickRefusal(selector, target, { tab } = {}) {
+  const where = tab ? ` — the tab is still open (${tab})` : "";
   return (
     `click target ${selector} is covered at its centre by ` +
-    `${target.blocker || "an unidentified element"}`
+    `${target.blocker || "an unidentified element"}${where}`
   );
 }
 
@@ -961,7 +975,7 @@ async function humanClickElement(tabId, cdp, selector) {
   const target = await resolveClickTarget(tabId, selector);
   if (!target.ok) throw new Error(`click target ${selector}: ${target.reason || "not found"}`);
   if (!target.topmost && target.pointerEvents !== "none") {
-    throw new Error(clickRefusal(selector, target));
+    throw new Error(clickRefusal(selector, target, { tab: tabId }));
   }
   const point = clickPointWithin(target);
   const result = await clickAtPoint(cdp, { from: { ...pointer }, to: point });
@@ -1092,11 +1106,30 @@ async function humanClickThen(
  * One implementation, deliberately: the publish exit's requirements (the
  * `OVERLAY_CLOSED` wait, the 60s window) are what make the step correct, and a
  * second copy in the draft branch is how the two exits drifted apart.
+ *
+ * `required: false` is for the draft exit only. A draft run that never opened
+ * the clip panel has nothing to apply, and failing there would make
+ * `--save-draft` stricter than it was — the panel is only guaranteed open
+ * because the publish path always stages a sound.
  */
-async function applyClipEdit(tabId, cdp, { log = () => {}, notFound } = {}) {
+async function applyClipEdit(tabId, cdp, { log = () => {}, notFound, required = true } = {}) {
+  if (!required) {
+    const closed = await evalJson(tabId, OVERLAY_CLOSED);
+    if (closed.ready) {
+      log("clipEdit", { skipped: true, reason: "no clip editor overlay is open" });
+      return { mode: "skipped" };
+    }
+  }
   const tagged = await evalJson(tabId, TAG_BY_TEXT("保存"));
   if (!tagged.ok) {
-    throw new Error(notFound || "保存 (save) button not found — the clip edit is still staged");
+    // The tagger's own diagnostics: how many candidates shared the label, and
+    // what a pointer hit. Both are what turn "not found" into a lead.
+    const where = tagged.blocker
+      ? ` (a pointer hit ${tagged.blocker}; ${tagged.candidates ?? 0} candidate(s) matched)`
+      : "";
+    throw new Error(
+      notFound ? notFound + where : "保存 (save) button not found — the clip edit is still staged",
+    );
   }
   console.log("💾 Applying the clip edit (保存)…");
   const applied = await humanClickThen(tabId, cdp, "#__byText", OVERLAY_CLOSED, {
@@ -2096,6 +2129,7 @@ async function main() {
         // the sound has to be re-attached in the publishing session.
         await applyClipEdit(tab, cdp, {
           log,
+          required: false,
           notFound: "保存 (save) button not found — the clip editor is still covering 保存草稿",
         });
 
