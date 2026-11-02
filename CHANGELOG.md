@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.51.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.1...tanstack_start_ts-v1.51.2) (2026-11-02)
+
+
+### Performance Improvements
+
+* **short-video:** render every still through one bundle and one browser ([#1097](https://github.com/0xPabloLI/inside-china-ai/issues/1097)) ([#1099](https://github.com/0xPabloLI/inside-china-ai/issues/1099)) ([67cc835](https://github.com/0xPabloLI/inside-china-ai/commit/67cc83526d1615eef57ab04aa98ff6e48b472e1f))
+
 ## [1.51.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.0...tanstack_start_ts-v1.51.1) (2026-11-01)
 
 
