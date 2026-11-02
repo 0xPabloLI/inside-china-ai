@@ -5,5 +5,5 @@
 #   - cv2.saliency.StaticSaliencySpectralResidual (saliency map)
 # Keep to the 4.x series — OpenCV 5.x removed the modules above
 opencv-contrib-python==5.0.0.93
-Pillow==12.3.0
+Pillow==13.0.0
 numpy==2.5.4
