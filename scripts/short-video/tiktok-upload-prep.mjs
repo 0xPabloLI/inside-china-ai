@@ -190,10 +190,11 @@
  *   --close-tab           Close the tab when done (dry runs / testing). The
  *                         tab is kept by default, so the operator can review
  *                         and publish by hand.
- *   --save-draft          After preparing, click 保存草稿 (Save draft) so the
- *                         post lands in the account's TikTok drafts. Still
- *                         never publishes. The attached sound does NOT survive
- *                         a draft save/reopen; the caption does.
+ *   --save-draft          After preparing, apply the staged clip edit (保存)
+ *                         and click 保存草稿 (Save draft) so the post lands in
+ *                         the account's TikTok drafts. Still never publishes.
+ *                         The attached sound does NOT survive a draft
+ *                         save/reopen; the caption does.
  *   --expect-region <CC>  Expected browser exit country (ISO 3166-1 alpha-2,
  *                         default SG; XX is Cloudflare's unknown sentinel and
  *                         is not accepted). Before the upload page the driver
@@ -279,25 +280,88 @@ const DEFAULT_VOLUME_DB = -15;
 
 // ─── page-side helpers (stringified into the tab) ───
 
-/** Find a clickable element whose own text is exactly `label`, and tag it. */
-const TAG_BY_TEXT = (label, id = "__byText") => `
-(() => {
+/**
+ * Page-side snippet: describe an element, and probe what a pointer would hit.
+ *
+ * Spliced into the scripts below so a refusal can say WHICH element is in the
+ * way. "covered at its centre" with no name sent the 2026-11-02 investigation
+ * looking for a missing button that had been there the whole time (#1102).
+ *
+ * One reachability implementation for both scripts: the tagger and the click
+ * guard must agree on what "reachable" means, or the guard refuses a target the
+ * tagger called clear.
+ */
+const PAGE_PROBE = `
+  const nameOf = (el) => {
+    if (!el) return null;
+    const tag = el.tagName ? el.tagName.toLowerCase() : "node";
+    const id = el.id ? "#" + el.id : "";
+    const classes = el.className && typeof el.className === "string"
+      ? el.className.trim().split(/\\s+/).filter(Boolean).slice(0, 2)
+      : [];
+    const e2e = el.getAttribute && el.getAttribute("data-e2e");
+    return tag + id + classes.map((c) => "." + c).join("") + (e2e ? '[data-e2e="' + e2e + '"]' : "");
+  };
+  const probe = (el) => {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return { r, topmost: false, blocker: nameOf(el) + " (zero-size)" };
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    const topmost = !!(hit && (hit === el || el.contains(hit)));
+    return { r, topmost, blocker: topmost ? null : nameOf(hit) };
+  };`;
+
+/**
+ * Find a clickable element whose own text is exactly `label`, and tag it.
+ *
+ * Several elements can carry the same text — the clip panel has its own copies
+ * of the action bar's labels while it is open. Reachability outranks document
+ * order, because a pointer cannot press what something else covers; when
+ * nothing is reachable the envelope names the blocker instead of pretending
+ * the button is missing.
+ */
+export const TAG_BY_TEXT = (label, id = "__byText") => `
+(() => {${PAGE_PROBE}
+  // One tag at a time: the same id is reused for each action in a run
+  // (保存, then 保存草稿), and a stale holder would win querySelector.
+  for (const old of document.querySelectorAll('[id="' + ${JSON.stringify(id)} + '"]')) {
+    old.removeAttribute("id");
+  }
   const target = ${JSON.stringify(label)};
   const nodes = [...document.querySelectorAll("button, [role=button], div, span")];
-  const hit = nodes.find((e) => {
+  const candidates = [];
+  const zeroSize = [];
+  for (const e of nodes) {
     const own = [...e.childNodes]
       .filter((n) => n.nodeType === 3)
       .map((n) => n.textContent)
       .join("")
       .trim();
-    return own === target && e.getBoundingClientRect().width > 0;
+    if (own !== target) continue;
+    const btn = e.closest("button, [role=button]") || e;
+    btn.scrollIntoView({ block: "center" });
+    const measured = probe(btn);
+    if (!measured.r.width || !measured.r.height) {
+      zeroSize.push(measured.blocker);
+      continue;
+    }
+    candidates.push({ btn, ...measured });
+  }
+  if (!candidates.length) {
+    return JSON.stringify({ ok: false, reason: "not found", zeroSize: zeroSize.slice(0, 3) });
+  }
+  const chosen = candidates.find((c) => c.topmost) || candidates[0];
+  chosen.btn.id = ${JSON.stringify(id)};
+  const r = chosen.r;
+  return JSON.stringify({
+    ok: true,
+    id: ${JSON.stringify(id)},
+    tag: chosen.btn.tagName,
+    x: r.x, y: r.y, width: r.width, height: r.height,
+    topmost: chosen.topmost,
+    blocker: chosen.blocker,
+    candidates: candidates.length,
+    zeroSize: zeroSize.slice(0, 3),
   });
-  if (!hit) return JSON.stringify({ ok: false, reason: "not found" });
-  const btn = hit.closest("button, [role=button]") || hit;
-  btn.id = ${JSON.stringify(id)};
-  btn.scrollIntoView({ block: "center" });
-  const r = btn.getBoundingClientRect();
-  return JSON.stringify({ ok: true, id: ${JSON.stringify(id)}, tag: btn.tagName, x: r.x, y: r.y, width: r.width, height: r.height });
 })()`;
 
 /**
@@ -308,20 +372,22 @@ const TAG_BY_TEXT = (label, id = "__byText") => `
  * hardcoded centre, so a target that is covered or off-screen must fail here
  * with a name instead of clicking whatever happens to be on top.
  */
-const RESOLVE_CLICK_TARGET = (selector) => `
-(() => {
+export const RESOLVE_CLICK_TARGET = (selector) => `
+(() => {${PAGE_PROBE}
   const el = document.querySelector(${JSON.stringify(selector)});
   if (!el) return JSON.stringify({ ok: false, reason: "not found" });
   el.scrollIntoView({ block: "center" });
-  const r = el.getBoundingClientRect();
-  if (!r.width || !r.height) return JSON.stringify({ ok: false, reason: "zero-size" });
-  const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
-  const hit = document.elementFromPoint(cx, cy);
+  const measured = probe(el);
+  if (!measured.r.width || !measured.r.height) {
+    return JSON.stringify({ ok: false, reason: measured.blocker || "zero-size" });
+  }
+  const r = measured.r;
   return JSON.stringify({
     ok: true,
     x: r.x, y: r.y, width: r.width, height: r.height,
     inViewport: r.y >= 0 && r.y + r.height <= window.innerHeight,
-    topmost: !!(hit && (hit === el || el.contains(hit))),
+    topmost: measured.topmost,
+    blocker: measured.blocker,
     pointerEvents: getComputedStyle(el).pointerEvents,
   });
 })()`;
@@ -430,6 +496,26 @@ const PUBLISH_STATE = `
   const text = document.body.innerText;
   const err = /出错了|请重试|发布失败|发布错误/.test(text) ? text.slice(0, 200) : null;
   return JSON.stringify({ error: err, url: location.href });
+})()`;
+
+/**
+ * Read the page state after the draft click.
+ *
+ * The observed shape (2026-11-02, live) is navigation away from
+ * `/tiktokstudio/upload` to `/tiktokstudio/content?tab=draft`; that is the one
+ * signal used here, plus an error banner. No toast vocabulary is guessed on
+ * purpose — an "已保存" the editor shows on its own would claim a draft that
+ * never left the page.
+ */
+const DRAFT_STATE = `
+(() => {
+  const text = document.body.innerText || "";
+  const pageError = /出错了|请重试|保存失败|发布失败/.test(text) ? text.slice(0, 200) : null;
+  return JSON.stringify({
+    pageError,
+    url: location.href,
+    saved: !/\\/upload/.test(location.pathname || ""),
+  });
 })()`;
 
 /**
@@ -870,6 +956,22 @@ function clickPointWithin(rect, rand = Math.random) {
 }
 
 /**
+ * The one wording for a refused click.
+ *
+ * Names the element on top and the tab that is still open, because the operator
+ * takes over by hand from exactly there. The guard was already correct when it
+ * refused the draft click in the 2026-11-02 run; what it lacked was the coverer,
+ * so the message read like a missing button (#1102).
+ */
+export function clickRefusal(selector, target, { tab } = {}) {
+  const where = tab ? ` — the tab is still open (${tab})` : "";
+  return (
+    `click target ${selector} is covered at its centre by ` +
+    `${target.blocker || "an unidentified element"}${where}`
+  );
+}
+
+/**
  * Move the pointer along a human path and click the element.
  *
  * @param {string} tabId
@@ -881,7 +983,7 @@ async function humanClickElement(tabId, cdp, selector) {
   const target = await resolveClickTarget(tabId, selector);
   if (!target.ok) throw new Error(`click target ${selector}: ${target.reason || "not found"}`);
   if (!target.topmost && target.pointerEvents !== "none") {
-    throw new Error(`click target ${selector} is covered at its centre`);
+    throw new Error(clickRefusal(selector, target, { tab: tabId }));
   }
   const point = clickPointWithin(target);
   const result = await clickAtPoint(cdp, { from: { ...pointer }, to: point });
@@ -995,6 +1097,57 @@ async function humanClickThen(
     );
   }
   return { mode: "js-fallback" };
+}
+
+/**
+ * Apply the staged clip edit (保存), which closes the clip editor overlay.
+ *
+ * Both exits need this, for the same physical reason: the overlay covers the
+ * whole viewport, so nothing in the page's action bar is clickable until it is
+ * gone.
+ *
+ *   - Publishing: the attached sound only reaches the post after 保存
+ *     (verified 2026-10-25; without it the post keeps "原声 - Chinaainews").
+ *   - Saving a draft: the draft click was refused on EVERY run because the
+ *     overlay sat on the action bar (#1102, 2026-11-02).
+ *
+ * One implementation, deliberately: the publish exit's requirements (the
+ * `OVERLAY_CLOSED` wait, the 60s window) are what make the step correct, and a
+ * second copy in the draft branch is how the two exits drifted apart.
+ *
+ * `required: false` is for the draft exit only. A draft run that never opened
+ * the clip panel has nothing to apply, and failing there would make
+ * `--save-draft` stricter than it was — the panel is only guaranteed open
+ * because the publish path always stages a sound.
+ */
+async function applyClipEdit(tabId, cdp, { log = () => {}, notFound, required = true } = {}) {
+  if (!required) {
+    const closed = await evalJson(tabId, OVERLAY_CLOSED);
+    if (closed.ready) {
+      log("clipEdit", { skipped: true, reason: "no clip editor overlay is open" });
+      return { mode: "skipped" };
+    }
+  }
+  const tagged = await evalJson(tabId, TAG_BY_TEXT("保存"));
+  if (!tagged.ok) {
+    // The tagger's own diagnostics turn "not found" into a lead: which
+    // zero-size look-alikes matched, and what a pointer would have hit.
+    const zero = tagged.zeroSize?.length
+      ? ` (zero-size look-alike(s): ${tagged.zeroSize.join(", ")})`
+      : "";
+    throw new Error(
+      notFound
+        ? notFound + zero
+        : "保存 (save) button not found — the clip edit is still staged" + zero,
+    );
+  }
+  console.log("💾 Applying the clip edit (保存)…");
+  const applied = await humanClickThen(tabId, cdp, "#__byText", OVERLAY_CLOSED, {
+    label: "保存",
+    timeoutMs: 60_000,
+  });
+  log("clipEdit", { clickMode: applied.mode, topmost: tagged.topmost });
+  return applied;
 }
 
 /**
@@ -1878,16 +2031,10 @@ async function main() {
       // until the editor is saved (verified 2026-10-25). Saving is also what
       // makes the published post credit the attached sound (header). Skipping
       // this step publishes the video without the music.
-      const tagged = await evalJson(tab, TAG_BY_TEXT("保存"));
-      if (!tagged.ok) {
-        throw new Error("保存 (save) button not found — publishing now would drop the music");
-      }
-      console.log("💾 Applying the clip edit (保存)…");
-      const applied = await humanClickThen(tab, cdp, "#__byText", OVERLAY_CLOSED, {
-        label: "保存",
-        timeoutMs: 60_000,
+      await applyClipEdit(tab, cdp, {
+        log,
+        notFound: "保存 (save) button not found — publishing now would drop the music",
       });
-      log("clipEdit", { clickMode: applied.mode });
 
       if (hasFlag("skip-review")) {
         console.log("👀 Pre-publish review skipped (--skip-review)");
@@ -1972,35 +2119,72 @@ async function main() {
       console.log(`   ${settled.last.url}`);
       keepTab = !hasFlag("close-tab");
     } else {
-      console.log("✅ Editor is prepared. NOTHING HAS BEEN PUBLISHED.");
-      console.log("=".repeat(60));
-
       if (hasFlag("save-draft")) {
         // 保存草稿 writes the post into the account's TikTok drafts, which sync
         // to the app for review. It is NOT 发布 — the publish decision stays
-        // with the operator, so the HITL gate is intact.
+        // with the operator, so the HITL gate is intact. This is the documented
+        // route for anything the web editor cannot express (Location today).
+        //
+        // The clip edit has to be applied FIRST, exactly like the publish exit:
+        // while the clip editor overlay is open it covers the entire action bar,
+        // and `humanClickElement` correctly refuses to click through it
+        // (#1102, measured live 2026-11-02 — the centre of 保存草稿 hit
+        // VideoClip__root, and one click on the panel's own 保存 cleared both
+        // bottom buttons).
         //
         // Caveat worth knowing before relying on it: the attached sound does
         // NOT survive the round trip. Reopening the draft showed one timeline
         // track (the video's own audio) instead of two. The caption does
         // survive. So a draft is good for reviewing caption and framing, and
         // the sound has to be re-attached in the publishing session.
+        await applyClipEdit(tab, cdp, {
+          log,
+          required: false,
+          notFound: "保存 (save) button not found — the clip editor is still covering 保存草稿",
+        });
+
         const tagged = await evalJson(tab, TAG_BY_TEXT("保存草稿"));
-        if (tagged.ok) {
-          const saved = await humanClickElement(tab, cdp, "#__byText");
-          await sleepJitter(...PUBLISH_PACING.soundAttached);
-          console.log("   💾 Draft saved — open TikTok → 主页 → 草稿 to review.");
-          console.log("      The post is a draft, not a published video.");
-          console.log("      Note: the attached sound does NOT persist in the draft;");
-          console.log("      re-attach it by running this script again without --save-draft.");
-          log("draft", { saved: true, clickMode: saved.mode });
-        } else {
-          console.log("   ⚠️  Save-draft button not found — the editor is still open");
-          console.log("      in the tab, so you can click 保存草稿 yourself.");
-          log("draft", { saved: false, reason: "button not found" });
+        if (!tagged.ok) {
+          const zero = tagged.zeroSize?.length
+            ? ` (zero-size look-alike(s): ${tagged.zeroSize.join(", ")})`
+            : "";
+          throw new Error(
+            `保存草稿 button not found after the clip edit${zero} — click it by hand in the open tab: ${tab}`,
+          );
         }
+        const saved = await humanClickElement(tab, cdp, "#__byText");
+        // Do not claim a draft that did not land. Leaving /upload is the one
+        // signal the live run gave; a click that lands everywhere else is
+        // reported as unconfirmed rather than retried, because a second press
+        // could save a duplicate.
+        //
+        // `pageError` is the page's own banner; `error` is `pollFor`'s record of
+        // an eval that failed mid-navigation (deliberately "not ready yet", not
+        // a TikTok refusal). Only the first may be reported as TikTok's.
+        const settled = await pollFor(tab, DRAFT_STATE, {
+          timeoutMs: 45_000,
+          label: "the draft to be saved",
+          isReady: (s) => !!s && !s.error && (!!s.pageError || s.saved),
+        });
+        if (!settled.ready || settled.last?.pageError) {
+          throw new Error(
+            settled.last?.pageError
+              ? `TikTok reported an error after saving the draft: ${settled.last.pageError}`
+              : `could not confirm the draft was saved (still on ${settled.last?.url ?? tab}) — ` +
+                  "check 主页 → 草稿 in the app before re-running, so a second press cannot duplicate it",
+          );
+        }
+        console.log("=".repeat(60));
+        console.log("✅ Draft saved — NOTHING HAS BEEN PUBLISHED.");
+        console.log("   Open TikTok → 主页 → 草稿 to review.");
+        console.log("   The post is a draft, not a published video.");
+        console.log("   Note: the attached sound does NOT persist in the draft;");
+        console.log("      re-attach it by running this script again without --save-draft.");
+        log("draft", { saved: true, clickMode: saved.mode, url: settled.last.url });
         keepTab = !hasFlag("close-tab");
       } else {
+        console.log("✅ Editor is prepared. NOTHING HAS BEEN PUBLISHED.");
+        console.log("=".repeat(60));
         console.log("   Review the draft in the open tab, then click 发布 (Publish)");
         console.log("   yourself — or re-run with --publish to do it in one pass.");
         console.log(`   Tab: ${tab}`);
