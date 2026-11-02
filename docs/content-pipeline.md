@@ -628,7 +628,7 @@ node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipe
 
 发布后需要用户在 TikTok App 中手动完成：pinned comment、回复评论。AIGC 标签与背景音乐已由 `tiktok-upload-prep.mjs` 自动完成；地理标签默认不做（历史成功的手动发布也未填，用户 2026-11-01 确认；网页路径没有该控件），需要时走 `--save-draft` + 手机终发。完整清单见 `docs/manual-ops.md` 的「每次发布视频时」部分。
 
-发布步骤运行时，脚本自动写入 `output/pending-analysis.json` 记录待分析状态——`cdp` 档在发布成功后写入（`publishedAt` 取真实发布时刻；`publishMethod: "cdp"`），`manual-guide` 档在生成发布指南时写入（`publishedAt` 取指南生成时刻，为真实发布时间的最佳估计；`postGroupId` 为 null），`api` 档在排期成功后写入。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
+发布步骤运行时，脚本自动写入 `output/pending-analysis.json` 记录待分析状态——`cdp` 档在发布成功后写入（`publishedAt` 取真实发布时刻；`publishMethod: "cdp"`），`manual-guide` 档在生成发布指南时写入（`publishedAt` 取指南生成时刻，为真实发布时间的最佳估计；`postGroupId` 为 null），`api` 档在排期成功后写入。**未确认的发布不记账**：`--publish` 点击后 45 s 内没有拿到一个「已离开 `/upload` 且页面无报错横幅」的页面状态时不写该文件，并按三种结局分别说明——TikTok 自己的报错横幅、脚本读不到页面（带 tab 与最后一次可读 URL）、页面仍停在 `/upload`；三者都会明说记账被跳过，提示人工确认后再补记。照着「TikTok 报错」直接重跑可能发出重复帖。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
 
 ---
 

@@ -490,13 +490,19 @@ const CAPTION_READ = `
 /**
  * Read the page state after a publish click, to catch a TikTok-side rejection
  * instead of reporting success on a form that never submitted.
+ *
+ * The banner is `pageError`, never `error`: `pollFor` owns that key for its own
+ * eval failures, and the two used to be indistinguishable after the 45 s
+ * timeout — the driver's unreadable page was printed as TikTok's refusal, which
+ * invites re-running a post that may already be live (#1106).
  */
 const PUBLISH_STATE = `
 (() => {
-  const text = document.body.innerText;
-  const err = /出错了|请重试|发布失败|发布错误/.test(text) ? text.slice(0, 200) : null;
-  return JSON.stringify({ error: err, url: location.href });
+  const text = document.body.innerText || "";
+  const pageError = /出错了|请重试|发布失败|发布错误/.test(text) ? text.slice(0, 200) : null;
+  return JSON.stringify({ pageError, url: location.href });
 })()`;
+export { PUBLISH_STATE };
 
 /**
  * Read the page state after the draft click.
@@ -996,8 +1002,11 @@ async function humanClickElement(tabId, cdp, selector) {
  * Poll a page script until it reports the expected state.
  *
  * Never throws; returns the last observation so the caller can decide between
- * a fallback and a hard failure. `isReady` defaults to the `ready` envelope
- * the scripts in this file use.
+ * a fallback and a hard failure. `lastGood` is the last observation the page
+ * actually answered with (no `error` envelope), which is the only URL worth
+ * printing once every later read fails: a timeout that can only say
+ * `check the tab: undefined` cannot be followed (#1106). `isReady` defaults to
+ * the `ready` envelope the scripts in this file use.
  */
 export async function pollFor(
   tabId,
@@ -1014,6 +1023,7 @@ export async function pollFor(
 ) {
   const started = Date.now();
   let last = null;
+  let lastGood = null;
   let printed = false;
   while (Date.now() - started < timeoutMs) {
     // A page script can fail mid-navigation (the publish click navigates away,
@@ -1027,9 +1037,10 @@ export async function pollFor(
       await sleepFn(...PUBLISH_PACING.poll);
       continue;
     }
+    if (!last?.error) lastGood = last;
     if (isReady(last)) {
       if (printed) process.stdout.write("\n");
-      return { ready: true, last };
+      return { ready: true, last, lastGood };
     }
     process.stdout.write(
       `  … waiting for ${label} (${Math.round((Date.now() - started) / 1000)}s)\r`,
@@ -1038,7 +1049,7 @@ export async function pollFor(
     await sleepFn(...PUBLISH_PACING.poll);
   }
   if (printed) process.stdout.write("\n");
-  return { ready: false, last };
+  return { ready: false, last, lastGood };
 }
 
 /** Poll a predicate script until ready, or throw with the last state. */
@@ -1054,6 +1065,92 @@ async function waitFor(tabId, script, opts = {}) {
 }
 
 const readyOnOk = (s) => !!s?.ok;
+
+/**
+ * True once the page reads as a published post: it answered, carries no banner,
+ * and is no longer the upload page.
+ *
+ * Exported alongside `pollFor` because this predicate is the boundary between
+ * "publish confirmed" and "publish unconfirmed" — the analytics record and the
+ * success line both hang off it, so it is tested against envelopes instead of
+ * being re-read out of the source (#1106).
+ */
+export const publishSettled = (s) =>
+  !!s && !s.error && !s.pageError && !/\/upload/.test(s.url || "");
+
+/**
+ * Turn what `pollFor` saw into the only two outcomes the publish exit needs.
+ *
+ * `confirmed` is recomputed from the last observation rather than trusted from
+ * `pollFor.ready`: an envelope that nobody could read must not become a
+ * confirmed publish just because the caller passed the wrong flag. `message`
+ * is null exactly when `confirmed` is true.
+ */
+export function classifyPublishSettle({ tab, last, lastGood = null } = {}) {
+  if (publishSettled(last)) return { confirmed: true, message: null };
+  return { confirmed: false, message: publishTimeoutMessage({ tab, last, lastGood }) };
+}
+
+const NOT_RECORDED =
+  "   pending-analysis.json was not written: the publish is unconfirmed — " +
+  "record it by hand only after you confirm the post";
+
+/**
+ * Explain why the publish click never settled.
+ *
+ * Three different facts used to print as one sentence: the page's own error
+ * banner, a driver-side read that never came back, and a click that simply did
+ * not navigate. Only the first is TikTok's. Saying "TikTok reported an error"
+ * for the second is how an operator ends up re-running a post that is already
+ * live, so the unreadable-page branch names the tab and the last URL the page
+ * did answer with, and every branch says out loud that the analytics record was
+ * skipped (a banner is a refusal, but only the operator can confirm the post is
+ * not live anyway).
+ *
+ * Pure on purpose: the wording is the deliverable of #1106, so it is tested
+ * without a browser.
+ */
+export function publishTimeoutMessage({ tab, last, lastGood = null } = {}) {
+  const tabRef = `tab ${tab ?? "unknown"}`;
+
+  if (!last) {
+    // No observation at all: nothing can be claimed about the page.
+    return [
+      `could not read the page after the publish click (${tabRef}) — the post may be live; check before re-running`,
+      "   no readable page was observed after the click",
+      NOT_RECORDED,
+    ].join("\n");
+  }
+
+  if (last.pageError) {
+    // TikTok refused the form itself; the analytics record is correctly
+    // skipped, but a stale banner must not be read as proof the post is dead.
+    return [
+      `TikTok reported an error after publish: ${last.pageError}`,
+      `   check ${tabRef} before re-running — a banner can outlive the attempt it described`,
+      NOT_RECORDED,
+    ].join("\n");
+  }
+
+  if (last.error) {
+    // Every read failed, so any URL here predates the click's navigation — it
+    // still shows where the page was, which is what the operator needs.
+    const where = lastGood?.url ?? last.url ?? null;
+    return [
+      `could not read the page after the publish click (${tabRef}) — the post may be live; check before re-running`,
+      where ? `   last readable URL: ${where}` : "   no readable page was observed after the click",
+      `   read error: ${last.error}`,
+      NOT_RECORDED,
+    ].join("\n");
+  }
+
+  const where = last?.url ?? lastGood?.url ?? null;
+  return [
+    `still on the upload page after the publish click — check ${tabRef}`,
+    where ? `   last readable URL: ${where}` : "   no readable page was observed after the click",
+    NOT_RECORDED,
+  ].join("\n");
+}
 
 /**
  * Human-click an element and verify the state it is supposed to cause.
@@ -2083,15 +2180,13 @@ async function main() {
       const settled = await pollFor(tab, PUBLISH_STATE, {
         timeoutMs: 45_000,
         label: "publish to finish",
-        isReady: (s) => !!s && !s.error && !/\/upload/.test(s.url || ""),
+        isReady: publishSettled,
       });
-      if (!settled.ready) {
-        const after = settled.last;
-        if (after?.error) throw new Error(`TikTok reported an error after publish: ${after.error}`);
-        throw new Error(
-          `still on the upload page after the publish click — check the tab: ${after?.url}`,
-        );
-      }
+      // The sole gate between the click and the analytics record: `confirmed`
+      // is recomputed from the last page read, so no unread envelope can fall
+      // through to the success line below (#1106).
+      const outcome = classifyPublishSettle({ tab, ...settled });
+      if (!outcome.confirmed) throw new Error(outcome.message);
       publishSucceeded = true;
       log("publish", { published: true, url: settled.last.url, clickMode: published.mode });
 
