@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.51.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.2...tanstack_start_ts-v1.51.3) (2026-11-02)
+
+
+### Bug Fixes
+
+* **short-video:** apply the clip edit before 保存草稿 so --save-draft works ([#1102](https://github.com/0xPabloLI/inside-china-ai/issues/1102)) ([#1103](https://github.com/0xPabloLI/inside-china-ai/issues/1103)) ([2d58b9f](https://github.com/0xPabloLI/inside-china-ai/commit/2d58b9f5b6ea8efc807cebae7c869d614082a208))
+
 ## [1.51.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.1...tanstack_start_ts-v1.51.2) (2026-11-02)
 
 
