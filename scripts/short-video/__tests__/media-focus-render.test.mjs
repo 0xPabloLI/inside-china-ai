@@ -198,7 +198,7 @@ async function sampleAt(props, point = CANVAS_CENTRE) {
 
 // ─── 1+2: cropFocus.x moves the window; absent means centre ───
 
-describe("cropFocus.x selects the sampled band", { timeout: 600_000 }, async () => {
+describe("cropFocus.x selects the sampled band", { timeout: 600_000 }, () => {
   it("image: left focus samples the LEFT third", async () => {
     expect(
       await sampleAt({ asset: "image", source: "horizontal", cropFocusX: 0.05 }),
@@ -247,7 +247,7 @@ describe("cropFocus.x selects the sampled band", { timeout: 600_000 }, async () 
 
 // ─── 3: the deprecated focus enum still moves the window vertically ───
 
-describe("focus enum selects the sampled band (vertical crop)", { timeout: 600_000 }, async () => {
+describe("focus enum selects the sampled band (vertical crop)", { timeout: 600_000 }, () => {
   // One still per case: each render has its own 300s budget, and a test with
   // three of them could exceed the describe budget before any single call
   // times out — a failure with no still to inspect.
@@ -277,7 +277,7 @@ describe("focus enum selects the sampled band (vertical crop)", { timeout: 600_0
 // Cover crops exactly one axis, so both fields can only compete on that axis:
 // the tall (vertical) source with cropFocus.y against focus top/bottom.
 
-describe("cropFocus takes precedence over focus", { timeout: 600_000 }, async () => {
+describe("cropFocus takes precedence over focus", { timeout: 600_000 }, () => {
   it("control: focus top alone samples the TOP band", async () => {
     expect(
       await sampleAt({ asset: "image", source: "vertical", focus: "top" }),
@@ -305,7 +305,7 @@ describe("cropFocus takes precedence over focus", { timeout: 600_000 }, async ()
 // is what makes CARD_CENTRE the right probe (#1084 lead 2, verified when the
 // #1021 geometry change made that centre a half pixel).
 
-describe("MediaCard passes focus through to MediaBackground", { timeout: 600_000 }, async () => {
+describe("MediaCard passes focus through to MediaBackground", { timeout: 600_000 }, () => {
   it("card: focus top samples the TOP band inside the card", async () => {
     expect(
       await sampleAt(

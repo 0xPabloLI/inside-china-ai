@@ -81,7 +81,7 @@ async function still(scenario, frame) {
   const key = `${scenario}@${frame}`;
   if (stillCache.has(key)) return stillCache.get(key);
   const out = join(stillDir, `${key.replace("@", "-")}.png`);
-    await renderStill({
+  await renderStill({
     entry: ENTRY,
     composition: COMPOSITION,
     output: out,
@@ -145,30 +145,34 @@ describe("S6: absent offset — no regression", { timeout: 300_000 }, async () =
 
 // ─── S7: offset 5000 — playback starts at source t=5s ───
 
-describe("S7: videoStartOffsetMs 5000 starts playback at the offset", { timeout: 300_000 }, async () => {
-  it("frame 15 differs between offset-0 and offset-5000 (source t≈0.5s vs t≈5.5s)", async () => {
-    const baseline = await still("offset-0", 15);
-    const offset = await still("offset-5000", 15);
-    const count = diffCount(baseline, offset);
-    // testsrc2 content moves continuously; a 5s source-time shift changes
-    // the frame substantially. The default 0.7 overlay dim multiplies
-    // media pixels by 0.3, so channel diffs are compressed — the observed
-    // count at this threshold is ~73k of 2.07M pixels (bright pattern
-    // regions); anything in the tens of thousands proves the source time
-    // shifted (identical frames would differ in 0).
-    expect(count).toBeGreaterThan(50_000);
-  });
+describe(
+  "S7: videoStartOffsetMs 5000 starts playback at the offset",
+  { timeout: 300_000 },
+  async () => {
+    it("frame 15 differs between offset-0 and offset-5000 (source t≈0.5s vs t≈5.5s)", async () => {
+      const baseline = await still("offset-0", 15);
+      const offset = await still("offset-5000", 15);
+      const count = diffCount(baseline, offset);
+      // testsrc2 content moves continuously; a 5s source-time shift changes
+      // the frame substantially. The default 0.7 overlay dim multiplies
+      // media pixels by 0.3, so channel diffs are compressed — the observed
+      // count at this threshold is ~73k of 2.07M pixels (bright pattern
+      // regions); anything in the tens of thousands proves the source time
+      // shifted (identical frames would differ in 0).
+      expect(count).toBeGreaterThan(50_000);
+    });
 
-  it("offset-5000@frame15 aligns with offset-0@frame165 (exact source-time match)", async () => {
-    // trimBefore shifts the source read position by exactly
-    // round(5000ms × 30fps) = 150 frames: the offset still at scene frame
-    // 15 shows the same source frame as the un-offset render at frame
-    // 15 + 150 = 165. Near-zero diff proves the offset is frames-exact.
-    const shifted = await still("offset-5000", 15);
-    const unshifted = await still("offset-0", 165);
-    expect(diffCount(shifted, unshifted)).toBeLessThan(5_000);
-  });
-});
+    it("offset-5000@frame15 aligns with offset-0@frame165 (exact source-time match)", async () => {
+      // trimBefore shifts the source read position by exactly
+      // round(5000ms × 30fps) = 150 frames: the offset still at scene frame
+      // 15 shows the same source frame as the un-offset render at frame
+      // 15 + 150 = 165. Near-zero diff proves the offset is frames-exact.
+      const shifted = await still("offset-5000", 15);
+      const unshifted = await still("offset-0", 165);
+      expect(diffCount(shifted, unshifted)).toBeLessThan(5_000);
+    });
+  },
+);
 
 // ─── S8: offset beyond source duration — graceful degradation ───
 

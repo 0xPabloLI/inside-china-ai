@@ -173,7 +173,7 @@ const TOTAL_PIXELS = 1080 * 1920;
 // SECOND crop of the cover frame. Video is excluded from this preset (below),
 // so the preset's geometry is measured where it is still allowed — images.
 
-describe("container zoom is a second crop (image control)", { timeout: 600_000 }, async () => {
+describe("container zoom is a second crop (image control)", { timeout: 600_000 }, () => {
   it("exit frame: zoom is the cover frame's centre, blown up — edges pushed off-screen", async () => {
     const zoomed = await still("zoom", "image", EXIT_FRAME);
     const plain = await still("none", "image", EXIT_FRAME);
@@ -194,7 +194,7 @@ describe("container zoom is a second crop (image control)", { timeout: 600_000 }
 
 // ─── The fix: video never takes the container zoom (#357) ───
 
-describe("video + zoom degrades to fade", { timeout: 600_000 }, async () => {
+describe("video + zoom degrades to fade", { timeout: 600_000 }, () => {
   it(`exit frame ${EXIT_FRAME}: no 1.15 exit scale — zoom renders as fade`, async () => {
     const zoomed = await still("zoom", "video", EXIT_FRAME);
     const faded = await still("fade", "video", EXIT_FRAME);
@@ -222,7 +222,7 @@ describe("video + zoom degrades to fade", { timeout: 600_000 }, async () => {
 // so a future change to the fade curve — or a switch to `none` once the audio
 // envelope is decoupled from the preset — shows up as a moved goalpost.
 
-describe("fade vs none — what the chosen default still costs", { timeout: 600_000 }, async () => {
+describe("fade vs none — what the chosen default still costs", { timeout: 600_000 }, () => {
   it("exit frame: fade's cost is bounded (no video zoom baseline exists to compare against)", async () => {
     const faded = await still("fade", "video", EXIT_FRAME);
     const plain = await still("none", "video", EXIT_FRAME);

@@ -141,7 +141,7 @@ function diffStats(pathA, pathB) {
 // plus this shadow tolerance.
 const SHADOW_TOLERANCE = 45;
 
-describe("AvatarCard (real Chromium via remotion still)", { timeout: 300_000 }, async () => {
+describe("AvatarCard (real Chromium via remotion still)", { timeout: 300_000 }, () => {
   it("declared avatar paints the card at the safe-zone rect (scale-in, no spill)", async () => {
     const card = await still("avatar-card", 45);
     const control = await still("avatar-control", 45);
