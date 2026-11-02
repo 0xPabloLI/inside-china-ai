@@ -3,7 +3,7 @@
  *
  * Driver pattern: avatar-card-render.test.mjs — vitest has no access to the
  * remotion workspace's node_modules, so the real render runtime is driven
- * through `npx remotion still` against a dedicated fixture entry
+ * through the still driver (`remotion-still.mjs`) against a dedicated fixture entry
  * (remotion/src/media-offset-fixture.tsx, own registerRoot).
  *
  * Spec scenarios (docs/specs/spec-long-video-360.md):
@@ -28,6 +28,7 @@
  * binaries. Stills live in a temp dir; paths are reported in the ticket
  * evidence comment, not committed.
  */
+import { renderStill } from "./remotion-still.mjs";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync } from "child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "fs";
@@ -76,25 +77,18 @@ afterAll(() => {
 });
 
 const stillCache = new Map();
-function still(scenario, frame) {
+async function still(scenario, frame) {
   const key = `${scenario}@${frame}`;
   if (stillCache.has(key)) return stillCache.get(key);
   const out = join(stillDir, `${key.replace("@", "-")}.png`);
-  execFileSync(
-    "npx",
-    [
-      "remotion",
-      "still",
-      ENTRY,
-      COMPOSITION,
-      out,
-      "--props",
-      JSON.stringify({ scenario }),
-      "--frame",
-      String(frame),
-    ],
-    { cwd: REMOTION_DIR, stdio: "pipe", timeout: 240_000 },
-  );
+  await renderStill({
+    entry: ENTRY,
+    composition: COMPOSITION,
+    output: out,
+    props: { scenario },
+    frame: frame,
+    timeout: 240_000,
+  });
   stillCache.set(key, out);
   return out;
 }
@@ -118,8 +112,8 @@ function diffCount(pathA, pathB) {
 
 // ─── S6: absent offset — component contract + baseline still ───
 
-describe("S6: absent offset — no regression", { timeout: 300_000 }, () => {
-  it("component contract: trimBefore is undefined when videoStartOffsetMs is absent/0", () => {
+describe("S6: absent offset — no regression", { timeout: 300_000 }, async () => {
+  it("component contract: trimBefore is undefined when videoStartOffsetMs is absent/0", async () => {
     const content = readFileSync(
       join(REMOTION_DIR, "src", "components", "MediaBackground.tsx"),
       "utf-8",
@@ -143,44 +137,48 @@ describe("S6: absent offset — no regression", { timeout: 300_000 }, () => {
     expect(backdropSection[0]).not.toMatch(/trimBefore/);
   });
 
-  it("offset-0 still renders (baseline exists for the S7 diff)", () => {
-    const out = still("offset-0", 15);
+  it("offset-0 still renders (baseline exists for the S7 diff)", async () => {
+    const out = await still("offset-0", 15);
     expect(existsSync(out)).toBe(true);
   });
 });
 
 // ─── S7: offset 5000 — playback starts at source t=5s ───
 
-describe("S7: videoStartOffsetMs 5000 starts playback at the offset", { timeout: 300_000 }, () => {
-  it("frame 15 differs between offset-0 and offset-5000 (source t≈0.5s vs t≈5.5s)", () => {
-    const baseline = still("offset-0", 15);
-    const offset = still("offset-5000", 15);
-    const count = diffCount(baseline, offset);
-    // testsrc2 content moves continuously; a 5s source-time shift changes
-    // the frame substantially. The default 0.7 overlay dim multiplies
-    // media pixels by 0.3, so channel diffs are compressed — the observed
-    // count at this threshold is ~73k of 2.07M pixels (bright pattern
-    // regions); anything in the tens of thousands proves the source time
-    // shifted (identical frames would differ in 0).
-    expect(count).toBeGreaterThan(50_000);
-  });
+describe(
+  "S7: videoStartOffsetMs 5000 starts playback at the offset",
+  { timeout: 300_000 },
+  async () => {
+    it("frame 15 differs between offset-0 and offset-5000 (source t≈0.5s vs t≈5.5s)", async () => {
+      const baseline = await still("offset-0", 15);
+      const offset = await still("offset-5000", 15);
+      const count = diffCount(baseline, offset);
+      // testsrc2 content moves continuously; a 5s source-time shift changes
+      // the frame substantially. The default 0.7 overlay dim multiplies
+      // media pixels by 0.3, so channel diffs are compressed — the observed
+      // count at this threshold is ~73k of 2.07M pixels (bright pattern
+      // regions); anything in the tens of thousands proves the source time
+      // shifted (identical frames would differ in 0).
+      expect(count).toBeGreaterThan(50_000);
+    });
 
-  it("offset-5000@frame15 aligns with offset-0@frame165 (exact source-time match)", () => {
-    // trimBefore shifts the source read position by exactly
-    // round(5000ms × 30fps) = 150 frames: the offset still at scene frame
-    // 15 shows the same source frame as the un-offset render at frame
-    // 15 + 150 = 165. Near-zero diff proves the offset is frames-exact.
-    const shifted = still("offset-5000", 15);
-    const unshifted = still("offset-0", 165);
-    expect(diffCount(shifted, unshifted)).toBeLessThan(5_000);
-  });
-});
+    it("offset-5000@frame15 aligns with offset-0@frame165 (exact source-time match)", async () => {
+      // trimBefore shifts the source read position by exactly
+      // round(5000ms × 30fps) = 150 frames: the offset still at scene frame
+      // 15 shows the same source frame as the un-offset render at frame
+      // 15 + 150 = 165. Near-zero diff proves the offset is frames-exact.
+      const shifted = await still("offset-5000", 15);
+      const unshifted = await still("offset-0", 165);
+      expect(diffCount(shifted, unshifted)).toBeLessThan(5_000);
+    });
+  },
+);
 
 // ─── S8: offset beyond source duration — graceful degradation ───
 
-describe("S8: out-of-range offset renders without throwing", { timeout: 300_000 }, () => {
-  it("offset 120000 on a 12s source: still renders, no crash", () => {
-    const out = still("offset-out-of-range", 15);
+describe("S8: out-of-range offset renders without throwing", { timeout: 300_000 }, async () => {
+  it("offset 120000 on a 12s source: still renders, no crash", async () => {
+    const out = await still("offset-out-of-range", 15);
     expect(existsSync(out)).toBe(true);
     const png = PNG.sync.read(readFileSync(out));
     expect(png.width).toBe(1080);

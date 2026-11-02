@@ -11,7 +11,7 @@
  *
  * Driver pattern: media-zoom-render.test.mjs — vitest has no access to the
  * remotion workspace's node_modules, so the real render runtime is driven
- * through `npx remotion still` against a dedicated fixture entry
+ * through the still driver (`remotion-still.mjs`) against a dedicated fixture entry
  * (remotion/src/media-focus-fixture.tsx, own registerRoot).
  *
  * The colour-coded sources are generated at test time into the gitignored
@@ -61,6 +61,7 @@
  * still skips it. The rest of #952's gate is the static
  * canvas-image-fit-contract.test.mjs.
  */
+import { renderStill } from "./remotion-still.mjs";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync } from "child_process";
 import { mkdirSync, readFileSync, rmSync } from "fs";
@@ -156,34 +157,27 @@ afterAll(() => {
 });
 
 const stillCache = new Map();
-function still(props) {
+async function still(props) {
   const key = JSON.stringify(props);
   if (stillCache.has(key)) return stillCache.get(key);
   const name = Object.entries(props)
     .map(([k, v]) => `${k}=${v}`)
     .join("_");
   const out = join(stillDir, `${name}.png`);
-  execFileSync(
-    "npx",
-    [
-      "remotion",
-      "still",
-      ENTRY,
-      COMPOSITION,
-      out,
-      "--props",
-      JSON.stringify(props),
-      "--frame",
-      String(FRAME),
-    ],
-    { cwd: REMOTION_DIR, stdio: "pipe", timeout: 300_000 },
-  );
+  await renderStill({
+    entry: ENTRY,
+    composition: COMPOSITION,
+    output: out,
+    props: props,
+    frame: FRAME,
+    timeout: 300_000,
+  });
   stillCache.set(key, out);
   return out;
 }
 
-function sampleAt(props, point = CANVAS_CENTRE) {
-  const png = PNG.sync.read(readFileSync(still(props)));
+async function sampleAt(props, point = CANVAS_CENTRE) {
+  const png = PNG.sync.read(readFileSync(await still(props)));
   expect(png.width, "frame width").toBe(1080);
   expect(png.height, "frame height").toBe(1920);
   const rgb = meanColourInPatch(png, point);
@@ -205,47 +199,47 @@ function sampleAt(props, point = CANVAS_CENTRE) {
 // ─── 1+2: cropFocus.x moves the window; absent means centre ───
 
 describe("cropFocus.x selects the sampled band", { timeout: 600_000 }, () => {
-  it("image: left focus samples the LEFT third", () => {
+  it("image: left focus samples the LEFT third", async () => {
     expect(
-      sampleAt({ asset: "image", source: "horizontal", cropFocusX: 0.05 }),
+      await sampleAt({ asset: "image", source: "horizontal", cropFocusX: 0.05 }),
       "cropFocus.x=0.05 must land on the red (left) band",
     ).toBe("red");
   });
 
-  it("image: absent cropFocus samples the CENTRE third (default)", () => {
+  it("image: absent cropFocus samples the CENTRE third (default)", async () => {
     expect(
-      sampleAt({ asset: "image", source: "horizontal" }),
+      await sampleAt({ asset: "image", source: "horizontal" }),
       "no cropFocus must leave the frame centred on the green band",
     ).toBe("lime");
   });
 
-  it("image: right focus samples the RIGHT third", () => {
+  it("image: right focus samples the RIGHT third", async () => {
     expect(
-      sampleAt({ asset: "image", source: "horizontal", cropFocusX: 0.95 }),
+      await sampleAt({ asset: "image", source: "horizontal", cropFocusX: 0.95 }),
       "cropFocus.x=0.95 must land on the blue (right) band",
     ).toBe("blue");
   });
 
-  it("video: left focus samples the LEFT third", () => {
+  it("video: left focus samples the LEFT third", async () => {
     expect(
-      sampleAt({ asset: "video", source: "horizontal", cropFocusX: 0.05 }),
+      await sampleAt({ asset: "video", source: "horizontal", cropFocusX: 0.05 }),
       "the <Video> branch must honour objectPosition too",
     ).toBe("red");
   });
 
-  it("video: absent cropFocus samples the CENTRE third (the broken default)", () => {
+  it("video: absent cropFocus samples the CENTRE third (the broken default)", async () => {
     // This is the case that shipped wrong: the video branch declared cover,
     // ignored objectFit-in-style and letterboxed, so every focus value was
     // invisible. With cover restored the default must land mid-source.
     expect(
-      sampleAt({ asset: "video", source: "horizontal" }),
+      await sampleAt({ asset: "video", source: "horizontal" }),
       "no cropFocus must leave the video frame centred on the green band",
     ).toBe("lime");
   });
 
-  it("video: right focus samples the RIGHT third", () => {
+  it("video: right focus samples the RIGHT third", async () => {
     expect(
-      sampleAt({ asset: "video", source: "horizontal", cropFocusX: 0.95 }),
+      await sampleAt({ asset: "video", source: "horizontal", cropFocusX: 0.95 }),
       "the <Video> branch must honour objectPosition too",
     ).toBe("blue");
   });
@@ -257,24 +251,24 @@ describe("focus enum selects the sampled band (vertical crop)", { timeout: 600_0
   // One still per case: each render has its own 300s budget, and a test with
   // three of them could exceed the describe budget before any single call
   // times out — a failure with no still to inspect.
-  it("image: focus top samples the TOP third", () => {
-    expect(sampleAt({ asset: "image", source: "vertical", focus: "top" })).toBe("red");
+  it("image: focus top samples the TOP third", async () => {
+    expect(await sampleAt({ asset: "image", source: "vertical", focus: "top" })).toBe("red");
   });
 
-  it("image: focus center samples the MIDDLE third", () => {
-    expect(sampleAt({ asset: "image", source: "vertical", focus: "center" })).toBe("lime");
+  it("image: focus center samples the MIDDLE third", async () => {
+    expect(await sampleAt({ asset: "image", source: "vertical", focus: "center" })).toBe("lime");
   });
 
-  it("image: focus bottom samples the BOTTOM third", () => {
-    expect(sampleAt({ asset: "image", source: "vertical", focus: "bottom" })).toBe("blue");
+  it("image: focus bottom samples the BOTTOM third", async () => {
+    expect(await sampleAt({ asset: "image", source: "vertical", focus: "bottom" })).toBe("blue");
   });
 
-  it("video: focus top samples the TOP third", () => {
-    expect(sampleAt({ asset: "video", source: "vertical", focus: "top" })).toBe("red");
+  it("video: focus top samples the TOP third", async () => {
+    expect(await sampleAt({ asset: "video", source: "vertical", focus: "top" })).toBe("red");
   });
 
-  it("video: focus bottom samples the BOTTOM third", () => {
-    expect(sampleAt({ asset: "video", source: "vertical", focus: "bottom" })).toBe("blue");
+  it("video: focus bottom samples the BOTTOM third", async () => {
+    expect(await sampleAt({ asset: "video", source: "vertical", focus: "bottom" })).toBe("blue");
   });
 });
 
@@ -284,16 +278,16 @@ describe("focus enum selects the sampled band (vertical crop)", { timeout: 600_0
 // the tall (vertical) source with cropFocus.y against focus top/bottom.
 
 describe("cropFocus takes precedence over focus", { timeout: 600_000 }, () => {
-  it("control: focus top alone samples the TOP band", () => {
+  it("control: focus top alone samples the TOP band", async () => {
     expect(
-      sampleAt({ asset: "image", source: "vertical", focus: "top" }),
+      await sampleAt({ asset: "image", source: "vertical", focus: "top" }),
       "without cropFocus the enum must drive the vertical window",
     ).toBe("red");
   });
 
-  it("cropFocus.y=0.95 + focus top samples the BOTTOM band, not the top", () => {
+  it("cropFocus.y=0.95 + focus top samples the BOTTOM band, not the top", async () => {
     expect(
-      sampleAt({ asset: "image", source: "vertical", cropFocusY: 0.95, focus: "top" }),
+      await sampleAt({ asset: "image", source: "vertical", cropFocusY: 0.95, focus: "top" }),
       "cropFocus must override object-position, including the axis focus names",
     ).toBe("blue");
   });
@@ -312,16 +306,22 @@ describe("cropFocus takes precedence over focus", { timeout: 600_000 }, () => {
 // #1021 geometry change made that centre a half pixel).
 
 describe("MediaCard passes focus through to MediaBackground", { timeout: 600_000 }, () => {
-  it("card: focus top samples the TOP band inside the card", () => {
+  it("card: focus top samples the TOP band inside the card", async () => {
     expect(
-      sampleAt({ asset: "image", source: "vertical", wrap: "card", focus: "top" }, CARD_CENTRE),
+      await sampleAt(
+        { asset: "image", source: "vertical", wrap: "card", focus: "top" },
+        CARD_CENTRE,
+      ),
       "a card-mode scene must render the same crop the full-frame scene would",
     ).toBe("red");
   });
 
-  it("card: focus bottom samples the BOTTOM band inside the card", () => {
+  it("card: focus bottom samples the BOTTOM band inside the card", async () => {
     expect(
-      sampleAt({ asset: "image", source: "vertical", wrap: "card", focus: "bottom" }, CARD_CENTRE),
+      await sampleAt(
+        { asset: "image", source: "vertical", wrap: "card", focus: "bottom" },
+        CARD_CENTRE,
+      ),
       "a card-mode scene must render the same crop the full-frame scene would",
     ).toBe("blue");
   });

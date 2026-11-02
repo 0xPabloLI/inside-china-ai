@@ -3,7 +3,7 @@
  *
  * Driver pattern: media-start-offset.test.mjs — vitest has no access to the
  * remotion workspace's node_modules, so the real render runtime is driven
- * through `npx remotion still` against a dedicated fixture entry
+ * through the still driver (`remotion-still.mjs`) against a dedicated fixture entry
  * (remotion/src/media-zoom-fixture.tsx, own registerRoot).
  *
  * Why this file exists (the user-visible defect): the `zoom` preset is a
@@ -25,6 +25,7 @@
  * and removed afterwards. Stills persist under the gitignored output/ dir as
  * ticket evidence; paths are reported in the issue comment, not committed.
  */
+import { renderStill } from "./remotion-still.mjs";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync } from "child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "fs";
@@ -89,25 +90,18 @@ afterAll(() => {
 });
 
 const stillCache = new Map();
-function still(scenario, asset, frame) {
+async function still(scenario, asset, frame) {
   const key = `${asset}-${scenario}@${frame}`;
   if (stillCache.has(key)) return stillCache.get(key);
   const out = join(stillDir, `${key.replace("@", "-")}.png`);
-  execFileSync(
-    "npx",
-    [
-      "remotion",
-      "still",
-      ENTRY,
-      COMPOSITION,
-      out,
-      "--props",
-      JSON.stringify({ scenario, asset }),
-      "--frame",
-      String(frame),
-    ],
-    { cwd: REMOTION_DIR, stdio: "pipe", timeout: 300_000 },
-  );
+  await renderStill({
+    entry: ENTRY,
+    composition: COMPOSITION,
+    output: out,
+    props: { scenario, asset },
+    frame,
+    timeout: 300_000,
+  });
   stillCache.set(key, out);
   return out;
 }
@@ -180,9 +174,9 @@ const TOTAL_PIXELS = 1080 * 1920;
 // so the preset's geometry is measured where it is still allowed — images.
 
 describe("container zoom is a second crop (image control)", { timeout: 600_000 }, () => {
-  it("exit frame: zoom is the cover frame's centre, blown up — edges pushed off-screen", () => {
-    const zoomed = still("zoom", "image", EXIT_FRAME);
-    const plain = still("none", "image", EXIT_FRAME);
+  it("exit frame: zoom is the cover frame's centre, blown up — edges pushed off-screen", async () => {
+    const zoomed = await still("zoom", "image", EXIT_FRAME);
+    const plain = await still("none", "image", EXIT_FRAME);
     // (a) the two frames are materially different — zoom is not a no-op
     const raw = diffCount(zoomed, plain);
     // (b) zoom ≈ the middle 1/EXIT_SCALE of the un-zoomed frame, blown back up.
@@ -201,17 +195,17 @@ describe("container zoom is a second crop (image control)", { timeout: 600_000 }
 // ─── The fix: video never takes the container zoom (#357) ───
 
 describe("video + zoom degrades to fade", { timeout: 600_000 }, () => {
-  it(`exit frame ${EXIT_FRAME}: no 1.15 exit scale — zoom renders as fade`, () => {
-    const zoomed = still("zoom", "video", EXIT_FRAME);
-    const faded = still("fade", "video", EXIT_FRAME);
+  it(`exit frame ${EXIT_FRAME}: no 1.15 exit scale — zoom renders as fade`, async () => {
+    const zoomed = await still("zoom", "video", EXIT_FRAME);
+    const faded = await still("fade", "video", EXIT_FRAME);
     const count = diffCount(zoomed, faded);
     console.log(`[evidence] video zoom-vs-fade f${EXIT_FRAME}: ${count}px of ${TOTAL_PIXELS}`);
     expect(count, "video must not render the 1.15 exit scale").toBeLessThan(2_000);
   });
 
-  it(`entrance frame ${ENTRANCE_FRAME}: no 1.3 entrance scale — zoom renders as fade`, () => {
-    const zoomed = still("zoom", "video", ENTRANCE_FRAME);
-    const faded = still("fade", "video", ENTRANCE_FRAME);
+  it(`entrance frame ${ENTRANCE_FRAME}: no 1.3 entrance scale — zoom renders as fade`, async () => {
+    const zoomed = await still("zoom", "video", ENTRANCE_FRAME);
+    const faded = await still("fade", "video", ENTRANCE_FRAME);
     const count = diffCount(zoomed, faded);
     console.log(`[evidence] video zoom-vs-fade f${ENTRANCE_FRAME}: ${count}px of ${TOTAL_PIXELS}`);
     expect(count, "video must not render the 1.3 entrance scale").toBeLessThan(2_000);
@@ -229,9 +223,9 @@ describe("video + zoom degrades to fade", { timeout: 600_000 }, () => {
 // envelope is decoupled from the preset — shows up as a moved goalpost.
 
 describe("fade vs none — what the chosen default still costs", { timeout: 600_000 }, () => {
-  it("exit frame: fade's cost is bounded (no video zoom baseline exists to compare against)", () => {
-    const faded = still("fade", "video", EXIT_FRAME);
-    const plain = still("none", "video", EXIT_FRAME);
+  it("exit frame: fade's cost is bounded (no video zoom baseline exists to compare against)", async () => {
+    const faded = await still("fade", "video", EXIT_FRAME);
+    const plain = await still("none", "video", EXIT_FRAME);
     const fadeVsNone = diffCount(faded, plain);
 
     // This case used to read `fadeVsNone < ZOOM_VS_NONE_BEFORE (414,816)`, i.e.
@@ -259,12 +253,15 @@ describe("fade vs none — what the chosen default still costs", { timeout: 600_
     expect(fadeVsNone, "fade must not disturb most of the frame").toBeLessThan(TOTAL_PIXELS / 2);
   });
 
-  it("entrance frame: fade-vs-none is LARGER than at the exit — it is the fade-in, not geometry", () => {
+  it("entrance frame: fade-vs-none is LARGER than at the exit — it is the fade-in, not geometry", async () => {
     const entrance = diffCount(
-      still("fade", "video", ENTRANCE_FRAME),
-      still("none", "video", ENTRANCE_FRAME),
+      await still("fade", "video", ENTRANCE_FRAME),
+      await still("none", "video", ENTRANCE_FRAME),
     );
-    const exit = diffCount(still("fade", "video", EXIT_FRAME), still("none", "video", EXIT_FRAME));
+    const exit = diffCount(
+      await still("fade", "video", EXIT_FRAME),
+      await still("none", "video", EXIT_FRAME),
+    );
     console.log(
       `[evidence] fade-vs-none: entrance f${ENTRANCE_FRAME}=${entrance}px, exit f${EXIT_FRAME}=${exit}px`,
     );

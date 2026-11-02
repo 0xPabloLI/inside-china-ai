@@ -285,16 +285,16 @@ jobs:
     # against a source palette, so runner OS must match the target platform
     # (README: Node arm64 + brew ffmpeg).
     runs-on: macos-latest
-    # Eight suites. The first six are ~232 s serially on a quiet M2 Pro plus
-    # ~4 min of setup; the step-① job (one suite) measured 2m48s end to end, so
-    # 25 min leaves room for a slower runner without turning the gate red on
-    # wall clock. #1093's two add ~65 more `remotion still` renders (the
-    # scene-gate suite sweeps frames, not just scenarios): the first run with
-    # them took 17m17s (run 41319038205) against 11m48s without, so the headroom
-    # is real but smaller — watch the duration rather than assume the old
-    # figure. If a run lands near this ceiling, split the slow suites into a
-    # second job rather than raise it again — the number is a budget, not a
-    # target.
+    # Eight suites, ~230 s serially on an M2 Pro once every assertion goes through
+    # `__tests__/remotion-still.mjs` (#1097: one bundle + one browser per test
+    # file). Before that driver the same eight took 15m42s on the runner, because
+    # each still spawned `npx remotion still` — 13.2 s of process, bundle and
+    # browser startup for 0.8 s of render.
+    #
+    # 25 min stays as the budget: it held when the suite step was 15m42s, and the
+    # driver is what took it back to minutes. If a future suite lands near this
+    # ceiling, split the slow suites into a second job rather than raise it — the
+    # number is a budget, not a target.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
@@ -350,10 +350,11 @@ jobs:
       # `--no-file-parallelism`: each suite renders through its own headless
       # browser, so running them together makes the runner's core count the
       # variable — and a CPU-starved render fails as a pixel assertion, which
-      # is indistinguishable from a real framing defect. Serially the six are
-      # ~232 s on an M2 Pro (media-focus 95 s, avatar-card 61 s, text-gate 59 s,
-      # the rest under 30 s each); #1093's two add ~5m30s on the runner
-      # (run 41319038205: the job went 11m48s → 17m17s with them in).
+      # is indistinguishable from a real framing defect. Serially the eight are
+      # ~230 s on an M2 Pro through `remotion-still.mjs`; before that driver each
+      # assertion spawned its own `npx remotion still`, which is why the same
+      # work took 15m42s on the runner. Do not add a suite that spawns the CLI:
+      # `__tests__/render-suite-policy.test.mjs` rejects it in the quality job.
       #
       # The last two suites arrived with #1093: `contrast-media-render` and
       # `scene-gate-render` share the scene-gate fixture, whose picture is now

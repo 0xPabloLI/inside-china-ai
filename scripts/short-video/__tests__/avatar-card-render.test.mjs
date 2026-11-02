@@ -3,7 +3,7 @@
  *
  * Same driver pattern as scene-gate-render.test.mjs (T5): vitest has no
  * access to the remotion workspace's node_modules, so the real render runtime
- * is driven through `npx remotion still` against the dedicated fixture entry
+ * is driven through the still driver (`remotion-still.mjs`) against the dedicated fixture entry
  * (remotion/src/avatar-card-fixture.tsx, own registerRoot — Root.tsx is never
  * touched).
  *
@@ -23,6 +23,7 @@
  * __tests__/evidence/avatar-card/ (regenerate with the AVATAR_EVIDENCE=1
  * env flag, which copies the probe stills there at half scale).
  */
+import { renderStill } from "./remotion-still.mjs";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync } from "child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync } from "fs";
@@ -81,25 +82,18 @@ afterAll(() => {
  * call pays a bundle + browser startup, so keep the matrix small).
  */
 const stillCache = new Map();
-function still(scenario, frame) {
+async function still(scenario, frame) {
   const key = `${scenario}@${frame}`;
   if (stillCache.has(key)) return stillCache.get(key);
   const out = join(stillDir, `${key.replace("@", "-")}.png`);
-  execFileSync(
-    "npx",
-    [
-      "remotion",
-      "still",
-      ENTRY,
-      COMPOSITION,
-      out,
-      "--props",
-      JSON.stringify({ scenario }),
-      "--frame",
-      String(frame),
-    ],
-    { cwd: REMOTION_DIR, stdio: "pipe", timeout: 240_000 },
-  );
+  await renderStill({
+    entry: ENTRY,
+    composition: COMPOSITION,
+    output: out,
+    props: { scenario },
+    frame,
+    timeout: 240_000,
+  });
   stillCache.set(key, out);
   // Committed frame evidence: refresh when explicitly asked for (AVATAR_EVIDENCE=1)
   if (process.env.AVATAR_EVIDENCE === "1") {
@@ -148,9 +142,9 @@ function diffStats(pathA, pathB) {
 const SHADOW_TOLERANCE = 45;
 
 describe("AvatarCard (real Chromium via remotion still)", { timeout: 300_000 }, () => {
-  it("declared avatar paints the card at the safe-zone rect (scale-in, no spill)", () => {
-    const card = still("avatar-card", 45);
-    const control = still("avatar-control", 45);
+  it("declared avatar paints the card at the safe-zone rect (scale-in, no spill)", async () => {
+    const card = await still("avatar-card", 45);
+    const control = await still("avatar-control", 45);
     expect(existsSync(card)).toBe(true);
 
     const stats = diffStats(card, control);
@@ -192,17 +186,20 @@ describe("AvatarCard (real Chromium via remotion still)", { timeout: 300_000 }, 
     }
   });
 
-  it("present window: card visible inside [{1s,3s}], absent with NO residue outside", () => {
+  it("present window: card visible inside [{1s,3s}], absent with NO residue outside", async () => {
     // One frame inside each edge + the middle: card painted (differs from control)
     for (const frame of [WIN_FROM + 1, 45, WIN_TO - 1]) {
-      const stats = diffStats(still("avatar-present", frame), still("avatar-control", frame));
+      const stats = diffStats(
+        await still("avatar-present", frame),
+        await still("avatar-control", frame),
+      );
       expect(stats.count, `frame ${frame} should show the card`).toBeGreaterThan(300 * 500);
     }
     // One frame before/after the window edges: byte-identical to the
     // control — the card is fully unmounted, nothing lingers (切换帧无残留).
     for (const frame of [WIN_FROM - 1, WIN_TO + 1]) {
-      const present = readFileSync(still("avatar-present", frame));
-      const control = readFileSync(still("avatar-control", frame));
+      const present = readFileSync(await still("avatar-present", frame));
+      const control = readFileSync(await still("avatar-control", frame));
       expect(
         present.equals(control),
         `frame ${frame}: outside the present window the render must be identical to the no-avatar control`,
@@ -210,7 +207,7 @@ describe("AvatarCard (real Chromium via remotion still)", { timeout: 300_000 }, 
     }
   });
 
-  it("control (no avatar) renders clean — the diff baseline is a real frame", () => {
-    expect(existsSync(still("avatar-control", 45))).toBe(true);
+  it("control (no avatar) renders clean — the diff baseline is a real frame", async () => {
+    expect(existsSync(await still("avatar-control", 45))).toBe(true);
   });
 });
