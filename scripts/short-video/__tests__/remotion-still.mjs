@@ -106,11 +106,13 @@ function browserFor() {
  * @param {number} [options.timeout] per-render ceiling in ms
  */
 export async function renderStill({ entry, composition, output, props, frame, timeout }) {
-  const { renderer } = await modules();
-  const serveUrl = await bundleFor(entry);
   const inputProps = props ?? {};
 
   try {
+    const { renderer } = await modules();
+    // Bundling is inside the guard too: a compile error is a rejected render
+    // from the suite's point of view, and the suites read `err.stderr`.
+    const serveUrl = await bundleFor(entry);
     // `selectComposition` is inside the guard on purpose: the fixture validates
     // input while resolving the composition (`calculateMetadata`), so the
     // dispatch/field errors a suite asserts on surface HERE, not in renderStill.

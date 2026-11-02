@@ -7,9 +7,9 @@
  * spawn pays npx (~2.6 s), the CLI's whole renderer/bundler require graph
  * (~6 s) and a fresh webpack build (~3 s) for ONE still: measured 13.2 s per
  * assertion of which the render was 0.8 s. `remotion-still.mjs` bundles once
- * per process and drops npx, so the same still costs 6.8 s today (and ~1.5 s
- * once #1097 swaps in a shared browser). A suite that goes around the driver
- * is not "slightly slower" — it is a straight multiple on the job.
+ * per process, drops npx and reuses one headless browser, so the same still
+ * costs 1.4 s. A suite that goes around the driver is not "slightly slower" —
+ * it is a straight multiple on the job.
  *
  * Rule 2 — a suite that renders must be wired into the `Pixel render contracts`
  * job, or explicitly excluded in `vitest.config.ts`. #1084 spent two days red on
@@ -36,8 +36,9 @@ const TEST_FILES = readdirSync(DIR).filter((name) => name.endsWith(".test.mjs") 
 const source = (name) => readFileSync(join(DIR, name), "utf8");
 
 /** A CLI render invocation, however it is spelled. */
-const SPAWNS_CLI = [/"remotion",\s*"still"/, /"still",\s*ENTRY/, /\bnpx\b/];
+const SPAWNS_CLI = [/"remotion",\s*"still"/, /"still",\s*ENTRY/, /"npx"/];
 
+/** Suites that render at all — they are the ones the pixel job must run. */
 const RENDER_SUITES = TEST_FILES.filter((name) => source(name).includes("remotion-still.mjs"));
 
 describe("render-suite policy (#1097)", () => {
@@ -47,7 +48,9 @@ describe("render-suite policy (#1097)", () => {
     expect(RENDER_SUITES.length).toBeGreaterThanOrEqual(8);
   });
 
-  it.each(RENDER_SUITES)("%s renders through the shared driver, not its own CLI spawn", (name) => {
+  // Rule 1 runs over EVERY test file: a suite that spawns the CLI without ever
+  // importing the driver would otherwise be invisible to this gate.
+  it.each(TEST_FILES)("%s renders through the shared driver, not its own CLI spawn", (name) => {
     const src = source(name);
     const offenders = SPAWNS_CLI.filter((re) => re.test(src));
     expect(
