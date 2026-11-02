@@ -190,6 +190,14 @@ Review 报告不能只生成后忽略。
 
 判据是产出差异，不是测试绿——测试绿只证明改动按设计工作，不证明观众看到了不同。
 
+**调研回填门（Hard gate）**：`docs/research/` 下新增或更新的报告是一张票的交付物时，闭票前必须完成三件事：
+
+- 文档头部写 `> **下游票**：`：一个或多个承接本结论的票号（如 `#291`、`#731`），或 `无下游：<为什么无需承接>`。字段由 `npm run lint:docs` 规则 3b 判定；本次改动集内的文档不看历史豁免（豁免清单 `scripts/research-downstream-baseline.txt` 只保护未改动的旧文档）。
+- 在每个声明的下游票上发一条评论：结论摘要 + 研究文档路径。下游票正文 write-once，不代改（见 `issue-tracker.md`）。
+- 结论改变了下游票的 Tier / Wave / 阻塞边 / frontier 时，同一轮更新 `docs/issue-roadmap.md` 的对应行。
+
+完成判据：字段可被 lint 读出、每个声明的下游票带着结论评论、roadmap 行与结论一致——三者缺一即该票未完成。结论还没有承接票时，先落一张执行期跟踪票（形态参照 `#529` 与 `#1108`），把它写进字段。
+
 1. 所有 ticket acceptance criteria 与 checklist 和实际验证结果一致。
 2. 运行最终 Verification Gate。
 3. 更新相关执行文档；S2/S3 完成后归档已结束工作的 spec、tickets 和 review，并更新 `docs/DOCS-INDEX.md` 与 `docs/archive/README.md`。

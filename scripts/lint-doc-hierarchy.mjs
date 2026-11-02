@@ -8,6 +8,9 @@
  * 1b. Placement — every tracked markdown file under docs/ lives in a declared directory
  * 2. L1 Design Decisions — L1 docs with L2 references must have ## Design Decisions heading
  * 3. L2 command-line heuristic — L2 docs with ≥5 command-line patterns get WARN
+ * 3b. Research downstream — every docs/research/ doc names the ticket consuming
+ *    its conclusion, or waives it with a reason (`scripts/research-downstream-baseline.txt`
+ *    freezes the pre-rule set; a changed doc is judged regardless of the baseline)
  * 4. Structural pointer or normative rule changes remind the author to load writing-for-agents
  * 5. Reference resolution — repo paths named by live docs and code must be tracked by git
  *    (evidence-tier residue is baselined in scripts/doc-ref-baseline.txt; only growth is printed)
@@ -38,6 +41,15 @@ const INDEX_PATH = join(DOCS_DIR, "DOCS-INDEX.md");
 const CMD_LINE_PATTERNS = [/npm run\s/, /node scripts\//, /git\s+\w/];
 
 const CMD_LINE_THRESHOLD = 5;
+
+// Check 3b: research deliverables declare who consumes their conclusion.
+// The field sits in the header block so a reader sees it before the evidence.
+const DOWNSTREAM_FIELD_PATTERN = /^\s*>\s*\*\*下游票\*\*\s*[：:]\s*(.+)$/m;
+const DOWNSTREAM_HEADER_LINES = 40;
+const DOWNSTREAM_ISSUE_PATTERN = /#\d+/;
+const DOWNSTREAM_WAIVER_PATTERN = /^无下游\s*[：:]\s*(\S.*)$/;
+// A waiver needs a reason a reader can act on; "无下游：无" is a placeholder.
+const DOWNSTREAM_MIN_REASON = 8;
 const AGENT_DOC_POINTER_CHAIN = "AGENTS.md → Workflow Router → Agent documents";
 const LOCAL_MARKDOWN_LINK_PATTERN = /\]\((?!https?:\/\/|mailto:|#)[^)]+\)/i;
 const BACKTICKED_LOCAL_PATH_PATTERN =
@@ -284,6 +296,100 @@ export function checkL2CommandLines(files) {
 }
 
 /**
+ * Check 3b: research deliverables declare a downstream consumer.
+ *
+ * A research doc is not delivered when its conclusion lives only in itself: the
+ * ticket that will act on it has to be named where a reader looks first. The
+ * field accepts either issue numbers (`> **下游票**：#291 / #731`) or an explicit
+ * waiver with a reason (`> **下游票**：无下游：<why nothing consumes this>`);
+ * silence is the failure this rule exists to catch (#302 B/C landed with no
+ * downstream ticket and nobody noticed until a reader asked).
+ *
+ * Legacy docs are frozen in `scripts/research-downstream-baseline.txt`. A
+ * changed doc is judged regardless of the baseline, so editing an old report is
+ * the moment it joins the rule instead of a way to inherit its exemption.
+ */
+export function parseResearchDownstream(content) {
+  const header = content.split("\n").slice(0, DOWNSTREAM_HEADER_LINES).join("\n");
+  const match = DOWNSTREAM_FIELD_PATTERN.exec(header);
+  if (!match) return { present: false, value: "", verdict: "missing" };
+  const value = match[1].trim();
+  if (DOWNSTREAM_ISSUE_PATTERN.test(value)) return { present: true, value, verdict: "ok" };
+  const waiver = DOWNSTREAM_WAIVER_PATTERN.exec(value);
+  if (waiver && waiver[1].trim().length >= DOWNSTREAM_MIN_REASON) {
+    return { present: true, value, verdict: "waived" };
+  }
+  if (/^无下游/.test(value)) return { present: true, value, verdict: "reason-missing" };
+  return { present: true, value, verdict: "unparseable" };
+}
+
+const DOWNSTREAM_FINDING_MESSAGES = {
+  missing: (file) =>
+    `${file} 头部缺 \`> **下游票**：\` 字段——写承接本结论的票号（如 \`#291\`），或写 \`无下游：<为什么无需承接>\``,
+  "reason-missing": (file) =>
+    `${file} 的「下游票」写了「无下游」但没给原因——写成 \`无下游：<为什么无需承接>\``,
+  unparseable: (file) =>
+    `${file} 的「下游票」既没有票号（\`#N\`）也没有 \`无下游：<原因>\`——两选一，不留空话`,
+};
+
+export function checkResearchDownstream(
+  files,
+  changed = [],
+  baseline = new Set(),
+  changedError = null,
+) {
+  // A failed range diff shrinks `changed` to the staged set (empty in CI), so
+  // every baselined doc would read as untouched. Fail loudly instead of letting
+  // the gate's blindness present as a pass — same contract as the registration
+  // gate's `docs-base-diff-failed`.
+  if (changedError) {
+    return {
+      findings: [
+        {
+          level: "FAIL",
+          ruleId: "research-downstream-diff-failed",
+          file: "docs/research/",
+          message: `cannot diff changed research docs against ${changedError}; the downstream gate would treat edited baselined docs as unchanged`,
+        },
+      ],
+    };
+  }
+  const changedSet = new Set(changed);
+  const findings = [];
+  for (const { filename, content } of files) {
+    const file = `docs/research/${filename}`;
+    const { verdict } = parseResearchDownstream(content);
+    if (verdict === "ok" || verdict === "waived") continue;
+    if (!changedSet.has(file) && baseline.has(file)) continue;
+    findings.push({
+      level: "FAIL",
+      ruleId: "research-downstream-missing",
+      file,
+      message: DOWNSTREAM_FINDING_MESSAGES[verdict](file),
+    });
+  }
+  return { findings };
+}
+
+/** Paths named in the downstream baseline, one per line, `#` comments. */
+export function parseDownstreamBaseline(text) {
+  return new Set(
+    text
+      .split("\n")
+      .map((l) => l.split("#")[0].trim())
+      .filter((l) => l.startsWith("docs/research/") && l.endsWith(".md")),
+  );
+}
+
+export function loadDownstreamBaseline(path = DOWNSTREAM_BASELINE_PATH) {
+  try {
+    return parseDownstreamBaseline(readFileSync(path, "utf8"));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
  * Check 5: reference resolution.
  *
  * A pointer to a file that does not exist is a dead end for whichever agent
@@ -373,6 +479,13 @@ const EVIDENCE_REFERRER_PREFIXES = [
 // accepted set: known pairs print quietly, anything new prints with a NEW marker
 // so growth is the signal. Refresh deliberately with `--bless` after reviewing.
 const REF_BASELINE_PATH = join(PROJECT_ROOT, "scripts", "doc-ref-baseline.txt");
+
+// Research docs written before the downstream field existed are frozen here
+// (#723). The ratchet is per-document: a baselined doc that this change touches
+// must carry the field, so the frozen set only ever shrinks. Refresh with
+// `node scripts/lint-doc-hierarchy.mjs --bless-research`, which refuses to
+// bless anything in the current change set.
+const DOWNSTREAM_BASELINE_PATH = join(PROJECT_ROOT, "scripts", "research-downstream-baseline.txt");
 
 /** `referrer|target`, one per line; `#` introduces a comment. Absent = nothing known. */
 export function parseRefBaseline(text) {
@@ -757,12 +870,12 @@ export function listStagedAgentDocs() {
  * whole commit range is diffed. A failed diff returns an error rather than an
  * empty list, because a gate that scans nothing must not look green.
  */
-export function getChangedDocs() {
-  const paths = new Set(getStagedFileNames("AR"));
+export function getChangedDocs(diffFilter = "AR") {
+  const paths = new Set(getStagedFileNames(diffFilter));
   const base = process.env.DOCS_BASE || process.env.DOCS_PUSH_BEFORE;
   if (base && !/^0+$/.test(base)) {
     try {
-      const range = execSync(`git diff --name-only --diff-filter=AR "${base}" HEAD`, {
+      const range = execSync(`git diff --name-only --diff-filter=${diffFilter} "${base}" HEAD`, {
         encoding: "utf-8",
         cwd: PROJECT_ROOT,
       });
@@ -835,6 +948,14 @@ export function main() {
     baseline,
     refScan.unmaterialized,
   ).findings;
+  const downstreamBaseline = loadDownstreamBaseline();
+  const changedResearch = getChangedDocs("AMR");
+  const downstreamFindings = checkResearchDownstream(
+    l2Files,
+    changedResearch.paths,
+    downstreamBaseline,
+    changedResearch.error,
+  ).findings;
 
   if (process.argv.includes("--bless")) {
     // Only the evidence tier may be blessed — a FAIL is a pointer an agent will
@@ -858,12 +979,55 @@ export function main() {
     process.exit(0);
   }
 
+  if (process.argv.includes("--bless-research")) {
+    if (changedResearch.error) {
+      process.stderr.write(
+        `[doc-hierarchy] cannot diff changed research docs against ${changedResearch.error}; refusing to write a baseline that may freeze docs this change edited\n`,
+      );
+      process.exit(1);
+    }
+    const changedSet = new Set(changedResearch.paths);
+    const offenders = l2Files
+      .map((file) => ({ file: `docs/research/${file.filename}`, content: file.content }))
+      .filter(({ content }) => {
+        const { verdict } = parseResearchDownstream(content);
+        return verdict !== "ok" && verdict !== "waived";
+      })
+      .map(({ file }) => file);
+    // Blessing a doc this change touches would grandfather the very violation
+    // the change introduced, so the ratchet only ever freezes untouched docs.
+    const frozen = offenders.filter((file) => !changedSet.has(file)).sort();
+    const refused = offenders.filter((file) => changedSet.has(file)).sort();
+    const header =
+      "# 研究文档「下游票」字段的历史豁免清单（lint-doc-hierarchy 规则 3b，#723）。\n" +
+      "# 这些文档写于字段存在之前，尚未回填；编辑其中任何一份即须补字段，\n" +
+      "# 因为门禁对本次改动集内的文件不看豁免。清单只应缩短。\n" +
+      "#   node scripts/lint-doc-hierarchy.mjs --bless-research\n" +
+      "# 回填后手工删掉对应行即可；--bless-research 不会把本次改动集里的文档写进来。\n";
+    writeFileSync(DOWNSTREAM_BASELINE_PATH, header + frozen.join("\n") + "\n", "utf8");
+    process.stderr.write(
+      `[doc-hierarchy] downstream baseline written: ${frozen.length} 条 → ${basename(DOWNSTREAM_BASELINE_PATH)}\n`,
+    );
+    if (refused.length > 0) {
+      process.stderr.write(
+        `[doc-hierarchy] 拒绝豁免本次改动集的 ${refused.length} 份文档（必须补字段）：\n${refused
+          .map((f) => `  ${f}\n`)
+          .join("")}`,
+      );
+      // The refusal is the actionable part; exiting 0 would read as "baseline
+      // refreshed, done" while the edited docs still lack the field.
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
   const allFindings = [
     ...indexFindings,
     ...changedFindings,
     ...placementFindings,
     ...l1Findings,
     ...l2Findings,
+    ...downstreamFindings,
     ...gateFindings,
     ...refFindings,
   ];
