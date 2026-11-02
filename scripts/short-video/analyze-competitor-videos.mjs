@@ -527,7 +527,7 @@ export function resolveTimings(items, segments, durationMs, cutsMs = null) {
  * the ticket forbids inventing stats, and filling them needs a second
  * logged-in detail-page pass that is out of this step's scope.
  *
- * @param {{handle: string, followers: string|null, video: object}} entry
+ * @param {{handle: string, followers: string|null, niche?: string|null, video: object}} entry
  * @param {number|null} durationSec
  * @param {object|null} breakdown
  * @param {object|null} transcript
@@ -535,7 +535,7 @@ export function resolveTimings(items, segments, durationMs, cutsMs = null) {
  * @returns {object}
  */
 export function buildRecord(
-  { handle, followers, video },
+  { handle, followers, niche = null, video },
   durationSec,
   breakdown,
   transcript,
@@ -550,6 +550,10 @@ export function buildRecord(
     meta: {
       handle,
       followers,
+      // Carried from the manifest (#748) so a consumer can build the strict and
+      // broad medians without re-reading the account list: `core` = AI subject,
+      // `adjacent` = control arm, absent/null = not declared.
+      niche,
       language: "en",
       url: video.url,
       videoId: video.id,
@@ -838,7 +842,12 @@ export async function analyzeCompetitorVideos({
     if (handles && !handles.includes(account.handle)) continue;
     for (const video of account.videos || []) {
       if (video.status !== "downloaded" || !video.file || !existsSync(video.file)) continue;
-      targets.push({ handle: account.handle, followers: account.followers ?? null, video });
+      targets.push({
+        handle: account.handle,
+        followers: account.followers ?? null,
+        niche: account.niche ?? null,
+        video,
+      });
     }
   }
 

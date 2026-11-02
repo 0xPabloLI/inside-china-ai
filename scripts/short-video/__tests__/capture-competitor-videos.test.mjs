@@ -114,6 +114,8 @@ const {
   normalizeTikTokVideoUrl,
   normalizeDisplayName,
   identityVerdict,
+  forTerminal,
+  nicheVerdict,
   verifyAccount,
   sanitizeHandle,
   BENCH_ACCOUNTS,
@@ -196,6 +198,65 @@ describe("identity gate (#748)", () => {
     expect(normalizeDisplayName("  Allie K. Miller ")).toBe("alliek miller".replace(/\s/g, ""));
   });
 
+  it("does not let a stranger nicknamed 'AI' pass as Maverick Maltin", () => {
+    // Substring matching would: "ai" is inside "maverickmaltinaichatgpt".
+    const v = identityVerdict(
+      { handle: "maverickgpt", displayName: "Maverick Maltin | AI & ChatGPT" },
+      { uniqueId: "maverickgpt", nickname: "AI" },
+    );
+    expect(v.status).toBe("nickname-mismatch");
+  });
+
+  it("does not accept a fragment of a short alias", () => {
+    const v = identityVerdict(
+      { handle: "nate.b.jones", displayName: "Nate B. Jones", aliases: ["Nate"] },
+      { uniqueId: "nate.b.jones", nickname: "te" },
+    );
+    expect(v.status).toBe("nickname-mismatch");
+  });
+
+  it("accepts a page whose display name is its own handle, and says the evidence is weaker", () => {
+    const v = identityVerdict(
+      { handle: "rileybrown.ai", displayName: "Riley Brown" },
+      { uniqueId: "rileybrown.ai", nickname: "rileybrown.ai" },
+    );
+    expect(v.status).toBe("ok");
+    expect(v.reason).toContain("no independent name");
+  });
+
+  it("needs a declared alias when the page's name folds differently from the declared one", () => {
+    // Declared name carries a suffix the page does not have, and the page joins
+    // the words the declaration separates: no contiguous run of tokens matches.
+    const bare = identityVerdict(
+      { handle: "maverickgpt", displayName: "Maverick Maltin | AI & ChatGPT" },
+      { uniqueId: "maverickgpt", nickname: "MaverickMaltin" },
+    );
+    expect(bare.status).toBe("nickname-mismatch");
+    const aliased = identityVerdict(
+      {
+        handle: "maverickgpt",
+        displayName: "Maverick Maltin | AI & ChatGPT",
+        aliases: ["MaverickMaltin"],
+      },
+      { uniqueId: "maverickgpt", nickname: "MaverickMaltin" },
+    );
+    expect(aliased.status).toBe("ok");
+  });
+
+  it("strips control characters from page-supplied names before they are printed or stored", () => {
+    expect(forTerminal("Eve\u001b[2J\u001b[31mred")).toBe("Eve [2J [31mred");
+    expect(forTerminal(null)).toBe("");
+    expect(forTerminal("x".repeat(200)).length).toBe(120);
+  });
+
+  it("fails closed on a malformed niche", () => {
+    expect(nicheVerdict({ handle: "x", niche: "core" }).status).toBe("ok");
+    expect(nicheVerdict({ handle: "x", niche: "adjacent" }).status).toBe("ok");
+    expect(nicheVerdict({ handle: "x" }).status).toBe("ok");
+    expect(nicheVerdict({ handle: "x", niche: "adjecent" }).status).toBe("niche-invalid");
+    expect(nicheVerdict({ handle: "x", niche: "off" }).status).toBe("niche-invalid");
+  });
+
   it("accepts the expected handle and nickname", () => {
     const v = identityVerdict(
       { handle: "rileybrown.ai", displayName: "Riley Brown" },
@@ -266,7 +327,8 @@ describe("identity gate (#748)", () => {
     ]);
     expect(parseAccountsArg("@someone=Some One, other")).toEqual([
       expect.objectContaining({ handle: "someone", displayName: "Some One" }),
-      expect.objectContaining({ handle: "other", displayName: undefined }),
+      // An undeclared ad-hoc handle carries no placeholder keys.
+      { handle: "other", displayName: undefined },
     ]);
   });
 
@@ -345,6 +407,22 @@ describe("captureCompetitorVideos gates (#300 stage 2)", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("records a malformed niche as a gate failure instead of sampling", async () => {
+    vi.useFakeTimers();
+    state.profile.items = [video("1", "1K")];
+
+    const pending = captureCompetitorVideos({
+      accounts: [{ handle: "x", displayName: "X", niche: "adjecent" }],
+      topN: 1,
+      outDir,
+    });
+    await vi.runAllTimersAsync();
+    const manifest = await pending;
+
+    expect(manifest.accounts[0].error).toMatch(/niche gate failed.*adjecent/);
+    expect(downloadVideo).not.toHaveBeenCalled();
   });
 
   it("stops on a wrong CDP profile before opening any page", async () => {
@@ -429,11 +507,31 @@ describe("captureCompetitorVideos gates (#300 stage 2)", () => {
     expect(downloadVideo).not.toHaveBeenCalled();
   });
 
+  it("blames the exit node, not the handle, when a region page also has no identity block", async () => {
+    // This is what a region-blocked profile actually looks like: no hydration
+    // payload, so uniqueId is empty. Judging identity first would report "wrong
+    // handle" and send the operator to fix the wrong thing.
+    vi.useFakeTimers();
+    state.profile.regionBlocked = true;
+    state.identityOverride = { uniqueId: null, nickname: null };
+
+    const pending = captureCompetitorVideos({
+      accounts: [{ handle: "x", displayName: "X" }],
+      topN: 5,
+      outDir,
+    });
+    await vi.runAllTimersAsync();
+    const manifest = await pending;
+
+    expect(manifest.accounts[0].error).toMatch(/region-blocked/);
+    expect(manifest.accounts[0].error).not.toMatch(/identity gate/);
+  });
+
   // The identity-gate behaviour cases live in capture-competitor-identity-gate.test.mjs:
   // they import only the pre-#748 export surface, so they can be run against the old
   // implementation as a genuine red baseline instead of an import error.
 
-  it("retries a tab that never rendered its identity block (#748, real 2026-11-02 shedosai case)", async () => {
+  it("retries a tab that never rendered its identity block (#748, the real @shedoesai case)", async () => {
     vi.useFakeTimers();
     // Three blank reads = every extract round of the first tab (LIST_SCROLL_ROUNDS).
     state.blankReads = 3;

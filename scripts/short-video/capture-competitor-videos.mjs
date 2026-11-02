@@ -130,6 +130,50 @@ export function normalizeDisplayName(name) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+/** Shortest token run that can prove a name. Below this, a match is noise. */
+const MIN_NAME_MATCH_CHARS = 4;
+
+/**
+ * Split a display name into word tokens; punctuation and `|` disappear.
+ *
+ * @param {string} name
+ * @returns {string[]}
+ */
+export function displayNameTokens(name) {
+  return String(name ?? "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+/**
+ * Decide whether two display names denote the same person.
+ *
+ * Substring matching is not enough: a stranger nicknamed "AI" is a substring of
+ * "Maverick Maltin | AI & ChatGPT", and an alias "Nate" would accept a nickname
+ * of "te". So a short form only counts when it appears as a **contiguous run of
+ * whole tokens** ("Nate" inside "Nate B. Jones", "Johanne" inside "Gunhild
+ * Johanne Reumert") and is long enough to be evidence. A page that joins words
+ * ("MaverickMaltin | AI") therefore needs an explicit alias — the failure is
+ * loud on a correct account, which is the direction this gate should err.
+ *
+ * @param {string} a
+ * @param {string} b
+ * @returns {boolean}
+ */
+export function displayNameMatches(a, b) {
+  const left = displayNameTokens(a);
+  const right = displayNameTokens(b);
+  if (!left.length || !right.length) return false;
+  const [short, long] = left.length <= right.length ? [left, right] : [right, left];
+  if (normalizeDisplayName(a) === normalizeDisplayName(b)) return true;
+  if (short.join("").length < MIN_NAME_MATCH_CHARS) return false;
+  for (let start = 0; start + short.length <= long.length; start++) {
+    if (short.every((token, offset) => long[start + offset] === token)) return true;
+  }
+  return false;
+}
+
 /**
  * Decide whether the page behind a handle is the account we meant to sample.
  *
@@ -137,7 +181,8 @@ export function normalizeDisplayName(name) {
  * mismatch, because "no name" and "someone else's name" both mean the run
  * cannot prove who it sampled. A declared alias covers the cases where the
  * page shows a short form of the name the account is known by ("Nate" for
- * "Nate B. Jones").
+ * "Nate B. Jones"); see `displayNameMatches` for why a plain substring test
+ * would let a stranger nicknamed "AI" through.
  *
  * @param {{handle: string, displayName?: string, aliases?: string[]}} expected
  * @param {{uniqueId?: string|null, nickname?: string|null, notFound?: boolean}} observed
@@ -155,14 +200,13 @@ export function identityVerdict(expected, observed) {
   if (observedHandle !== requestedHandle) {
     return {
       status: "handle-mismatch",
-      reason: `page reports uniqueId "${observed?.uniqueId ?? ""}", expected "${expected.handle}"`,
+      reason: `page reports uniqueId "${forTerminal(observed?.uniqueId)}", expected "${forTerminal(expected.handle)}"`,
     };
   }
-  const names = [expected.displayName, ...(expected.aliases ?? [])]
-    .map(normalizeDisplayName)
-    .filter(Boolean);
-  const observedName = normalizeDisplayName(observed?.nickname);
-  if (!names.length) {
+  const declaredNames = [expected.displayName, ...(expected.aliases ?? [])].filter((n) =>
+    normalizeDisplayName(n),
+  );
+  if (!declaredNames.length) {
     // The handle alone proves "this page is @x", not "this page is the person
     // we meant" — a stranger can hold the handle. Ad-hoc runs must declare a
     // name (`--accounts handle=Display Name`) or be added to BENCH_ACCOUNTS.
@@ -172,19 +216,30 @@ export function identityVerdict(expected, observed) {
         "no display name declared — pass --accounts handle=Display Name or add the account to BENCH_ACCOUNTS",
     };
   }
-  if (!observedName) {
+  if (!normalizeDisplayName(observed?.nickname)) {
     return {
       status: "nickname-mismatch",
-      reason: `page reports no nickname; expected one of ${names.join(", ")}`,
+      reason: `page reports no nickname; expected one of ${declaredNames.map((n) => forTerminal(n)).join(", ")}`,
     };
   }
-  const matched = names.some((n) => observedName.includes(n) || n.includes(observedName));
-  return matched
-    ? { status: "ok", reason: `nickname matches "${observed?.nickname}"` }
-    : {
-        status: "nickname-mismatch",
-        reason: `page reports "${observed?.nickname}", expected one of ${names.join(", ")} — update BENCH_ACCOUNTS if the account was renamed`,
-      };
+  const matched = declaredNames.some((name) => displayNameMatches(name, observed?.nickname));
+  if (matched)
+    return { status: "ok", reason: `nickname matches "${forTerminal(observed?.nickname)}"` };
+  // A page that uses its own handle as its display name carries no independent
+  // name, and there is nothing to contradict: the exact folded comparison that
+  // decides the declared names would accept "natebjones" for "Nate B. Jones"
+  // anyway. Rejecting it would only fail accounts whose display name is their
+  // handle, so record why the evidence is weaker and move on.
+  if (normalizeDisplayName(observed?.nickname) === normalizeDisplayName(expected.handle)) {
+    return {
+      status: "ok",
+      reason: `page display name is its own handle ("${forTerminal(observed?.nickname)}") — no independent name`,
+    };
+  }
+  return {
+    status: "nickname-mismatch",
+    reason: `page reports "${forTerminal(observed?.nickname)}", expected one of ${declaredNames.map((n) => forTerminal(n)).join(", ")} — update BENCH_ACCOUNTS if the account was renamed`,
+  };
 }
 
 /** Unwrap a CDP eval response. The proxy answers `{result:{value}}`; older
@@ -233,6 +288,13 @@ export function normalizeTikTokVideoUrl(href) {
 }
 
 /**
+ * The page copy that means "this handle has no profile". Declared once and
+ * interpolated into both page scripts: readiness and extraction must agree, or
+ * a page can be "ready" for the probe and "not-found" for the extractor.
+ */
+const NOT_FOUND_COPY = "找不到此账号|Couldn't find this account|Couldn’t find this account";
+
+/**
  * Readiness probe: the profile page first renders a "Please wait..." shell, so
  * a fixed wait can extract from a page that has no identity block yet — which
  * is how a healthy account became "0 videos" on 2026-11-01, and how the first
@@ -245,7 +307,7 @@ export function normalizeTikTokVideoUrl(href) {
 const READY_SCRIPT = `
 (() => {
   const text = document.body ? document.body.innerText : '';
-  if (/找不到此账号|Couldn't find this account|Couldn’t find this account/i.test(text)) return 'not-found';
+  if (/${NOT_FOUND_COPY}/i.test(text)) return 'not-found';
   if (document.querySelector('[data-e2e="user-title"]')) return 'ready';
   try {
     const el = document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__');
@@ -293,7 +355,7 @@ const EXTRACT_PROFILE_SCRIPT = `
     count: items.length,
     regionBlocked: /unavailable in your region|已停止在/.test(body) || location.pathname.startsWith('/hk'),
     gridError: /出错了|Something went wrong|please try again/i.test(body),
-    notFound: /找不到此账号|Couldn't find this account|Couldn’t find this account/i.test(body),
+    notFound: /${NOT_FOUND_COPY}/i.test(body),
     uniqueId: userInfo?.user?.uniqueId ?? document.querySelector('[data-e2e="user-subtitle"]')?.textContent?.trim() ?? null,
     nickname: userInfo?.user?.nickname ?? document.querySelector('[data-e2e="user-title"]')?.textContent?.trim() ?? null,
     followerCount: userInfo?.stats?.followerCount ?? null,
@@ -327,9 +389,10 @@ async function browserExitLocation() {
 }
 
 /**
- * Wait for the profile page to answer, then read identity + grid in one pass.
+ * Read one already-open profile tab: wait for it to answer, then extract the
+ * identity block and the video grid in the same scroll pass.
  *
- * @param {string} handle
+ * @param {string} tabId - an open tab already navigated to the profile
  * @returns {Promise<{
  *   identity: {uniqueId: string|null, nickname: string|null, followerCount: number|null, videoCount: number|null},
  *   items: Array<{id: string, views: string, url: string}>,
@@ -454,19 +517,13 @@ export function verifyAccount(expected, observed) {
 }
 
 /**
- * Run gates 1-2, then verify every account's identity and write the audit
- * artifact. No video is downloaded, so this is the safe pre-flight for a
- * sampling round — and the evidence trail the ticket asks for.
+ * Gates 1-2, shared by both entry points so a gap cannot exist in one and not
+ * the other: the CDP port must carry the automation profile, and the browser
+ * exit must not be HK (TikTok serves a region page there and reports no error).
  *
- * @param {object} [opts]
- * @param {Array<object>} [opts.accounts] - BENCH_ACCOUNTS-shaped entries
- * @param {string} [opts.outDir]
- * @returns {Promise<{exit: string, capturedAt: string, results: object[]}>}
+ * @returns {Promise<string>} the exit location, e.g. "SG"
  */
-export async function verifyCompetitorProfiles({
-  accounts = BENCH_ACCOUNTS,
-  outDir = join(process.cwd(), "scripts/short-video/output/competitor-benchmarks"),
-} = {}) {
+async function assertPreflightGates() {
   const profile = await checkAutomationProfile();
   if (profile.status !== "ok") {
     throw new Error(`CDP profile gate failed\n${formatVerdict(profile)}`);
@@ -478,15 +535,79 @@ export async function verifyCompetitorProfiles({
         `Point the system proxy at a non-HK node and re-run.`,
     );
   }
+  return loc;
+}
+
+/**
+ * Make a page-supplied string safe to print and to store. A nickname is written
+ * by whoever holds the account — precisely the impersonator this gate targets —
+ * and an ANSI escape in it would rewrite the operator's terminal (or a CI log)
+ * rather than show up as data. Control characters are dropped and the length is
+ * capped so one hostile field cannot flood the output.
+ *
+ * @param {string} text
+ * @param {number} [max]
+ * @returns {string}
+ */
+export function forTerminal(text, max = 120) {
+  return String(text ?? "")
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    .slice(0, max);
+}
+
+/** Niche verdicts a declared account may carry. */
+export const NICHE_VALUES = ["core", "adjacent"];
+
+/**
+ * Fail closed on a malformed niche: it is a human verdict copied into every
+ * downstream record, so a typo (`adjecent`) or a stale value silently changes
+ * which samples the AI medians consume.
+ *
+ * @param {{handle: string, niche?: string}} entry
+ * @returns {{status: "ok"|"niche-invalid", reason: string}}
+ */
+export function nicheVerdict(entry) {
+  if (entry?.niche === undefined) {
+    return { status: "ok", reason: "no niche declared (ad-hoc account)" };
+  }
+  if (NICHE_VALUES.includes(entry.niche)) {
+    return { status: "ok", reason: `niche "${entry.niche}"` };
+  }
+  return {
+    status: "niche-invalid",
+    reason: `niche "${entry.niche}" is not one of ${NICHE_VALUES.join(" / ")}`,
+  };
+}
+
+/**
+ * Run gates 1-2 (CDP profile, exit region), then verify every account's
+ * identity and write the audit artifact. No video is downloaded, so this is the
+ * safe pre-flight for a sampling round — and the evidence trail #748 asks for.
+ *
+ * @param {object} [opts]
+ * @param {Array<object>} [opts.accounts] - BENCH_ACCOUNTS-shaped entries
+ * @param {string} [opts.outDir]
+ * @returns {Promise<{exit: string, capturedAt: string, results: object[]}>}
+ */
+export async function verifyCompetitorProfiles({
+  accounts = BENCH_ACCOUNTS,
+  outDir = join(process.cwd(), "scripts/short-video/output/competitor-benchmarks"),
+} = {}) {
+  const loc = await assertPreflightGates();
 
   mkdirSync(outDir, { recursive: true });
   const artifact = { capturedAt: new Date().toISOString(), exit: loc, results: [] };
   for (const expected of accounts) {
     const handle = sanitizeHandle(expected.handle);
+    const niche = nicheVerdict(expected);
     let record;
     try {
       const observed = await readAccountProfile(handle);
       record = verifyAccount({ ...expected, handle }, observed).record;
+      if (niche.status !== "ok") {
+        record.status = niche.status;
+        record.reason = niche.reason;
+      }
     } catch (err) {
       record = {
         handle,
@@ -500,10 +621,108 @@ export async function verifyCompetitorProfiles({
     }
     artifact.results.push(record);
     writeFileSync(join(outDir, "profile-verification.json"), JSON.stringify(artifact, null, 2));
-    console.log(`@${record.handle}: ${record.status} — ${record.reason}`);
+    console.log(`@${forTerminal(record.handle)}: ${record.status} — ${record.reason}`);
     await new Promise((r) => setTimeout(r, 2500));
   }
   return artifact;
+}
+
+/**
+ * Sample one account: gate, list, download. Returns the manifest entry for the
+ * account, or null when the handle sanitises away to nothing.
+ *
+ * A failed gate returns the entry with `error` set and no videos — never an
+ * empty `videos: []` with `error: null`, which is what made a missing account
+ * look like an account without videos. The caller owns persistence and pacing,
+ * so every path (gate failure included) keeps the between-account delay.
+ *
+ * @param {object} expected - BENCH_ACCOUNTS-shaped entry
+ * @param {{topN: number, outDir: string}} opts
+ * @returns {Promise<object|null>}
+ */
+async function sampleAccount(expected, { topN, outDir }) {
+  const handle = sanitizeHandle(expected.handle);
+  if (!handle) return null;
+  const dir = join(outDir, handle);
+  mkdirSync(dir, { recursive: true });
+  const entry = {
+    handle,
+    displayName: expected.displayName ?? null,
+    niche: expected.niche ?? null,
+    followers: expected.followers ?? null,
+    observedFollowers: null,
+    observedNickname: null,
+    identity: null,
+    videos: [],
+    error: null,
+  };
+
+  // Gate 3a: the declared niche must be a value downstream can filter on.
+  const niche = nicheVerdict(expected);
+  if (niche.status !== "ok") {
+    entry.error = `niche gate failed: ${niche.reason}`;
+    return entry;
+  }
+
+  try {
+    const observed = await readAccountProfile(handle);
+    // A region-blocked page has no hydration payload, so its identity block
+    // reads as empty and the identity gate would report "wrong handle" —
+    // sending the operator to fix a handle when the actual fault is the exit
+    // node. Diagnose the environment before blaming the account.
+    if (observed.regionBlocked) {
+      throw new Error("region-blocked page (check exit node)");
+    }
+    const { verdict, record } = verifyAccount(expected, observed);
+    entry.observedFollowers = record.observedFollowers;
+    entry.observedNickname = record.nickname;
+    entry.identity = record;
+
+    // Gate 3b: identity. A run that samples a stranger is worse than a run
+    // that samples nothing, because the corpus cannot tell afterwards.
+    if (verdict.status !== "ok") {
+      entry.error = `identity gate failed: ${verdict.reason}`;
+      return entry;
+    }
+    if (!observed.items.length) {
+      entry.error = observed.gridError
+        ? "profile grid failed to render (TikTok reported an error; no video list)"
+        : "profile listed 0 videos (refusing to record an empty sample)";
+      return entry;
+    }
+
+    const ranked = observed.items
+      .map((it) => ({ ...it, plays: parsePlayCount(it.views) }))
+      .sort((a, b) => b.plays - a.plays)
+      .slice(0, topN);
+
+    for (const video of ranked) {
+      const dest = join(dir, `${video.id}.mp4`);
+      // downloadVideo returns the bytes (the ytdlp adapter owns its temp file),
+      // so the structured path is written here.
+      const result = await downloadVideo(video.url);
+      let savedFile = null;
+      if (result.buffer) {
+        writeFileSync(dest, result.buffer);
+        savedFile = dest;
+      }
+      entry.videos.push({
+        id: video.id,
+        url: video.url,
+        views: video.views,
+        plays: video.plays,
+        file: savedFile,
+        status: result.status,
+        reason: result.reason ?? null,
+        byteLength: result.byteLength,
+      });
+      // Human-like pacing between downloads (minimal-interaction discipline).
+      await new Promise((r) => setTimeout(r, 3000 + Math.floor(Math.random() * 4000)));
+    }
+  } catch (err) {
+    entry.error = err.message;
+  }
+  return entry;
 }
 
 /**
@@ -526,117 +745,27 @@ export async function captureCompetitorVideos({
   topN = DEFAULT_TOP_N,
   outDir = join(process.cwd(), "scripts/short-video/output/competitor-benchmarks"),
 } = {}) {
-  // Gate 1: the CDP port must carry the logged-in automation profile.
-  const profile = await checkAutomationProfile();
-  if (profile.status !== "ok") {
-    throw new Error(`CDP profile gate failed\n${formatVerdict(profile)}`);
-  }
+  // Gates 1-2 shared with `--verify-only`.
+  const loc = await assertPreflightGates();
 
-  // Gate 2: the browser exit must not be HK — TikTok serves a region page there
-  // and reports no error, so a HK run would look like "these accounts have no
-  // videos".
-  const loc = await browserExitLocation();
-  if (loc === "HK") {
-    throw new Error(
-      `exit gate failed: browser exits via HK (TikTok is unavailable there). ` +
-        `Point the system proxy at a non-HK node and re-run.`,
-    );
-  }
-
-  const expectedAccounts = accounts.map((entry) =>
-    typeof entry === "string"
-      ? {
-          handle: entry,
-          displayName: BENCH_ACCOUNTS.find((a) => a.handle === entry)?.displayName,
-          aliases: BENCH_ACCOUNTS.find((a) => a.handle === entry)?.aliases,
-          followers: BENCH_ACCOUNTS.find((a) => a.handle === entry)?.followers,
-          niche: BENCH_ACCOUNTS.find((a) => a.handle === entry)?.niche,
-        }
-      : entry,
+  // String entries resolve through the same parser the CLI uses, so an API
+  // caller and `--accounts` cannot classify the same handle differently.
+  const expectedAccounts = accounts.flatMap((entry) =>
+    typeof entry === "string" ? parseAccountsArg(entry) : [entry],
   );
 
   const manifest = { capturedAt: new Date().toISOString(), exit: loc, accounts: [] };
 
   for (const expected of expectedAccounts) {
-    const handle = sanitizeHandle(expected.handle);
-    if (!handle) continue;
-    const dir = join(outDir, handle);
-    mkdirSync(dir, { recursive: true });
-    const entry = {
-      handle,
-      displayName: expected.displayName ?? null,
-      niche: expected.niche ?? null,
-      followers: expected.followers ?? null,
-      observedFollowers: null,
-      observedNickname: null,
-      identity: null,
-      videos: [],
-      error: null,
-    };
-
-    try {
-      const observed = await readAccountProfile(handle);
-      const { verdict, record } = verifyAccount(expected, observed);
-      entry.observedFollowers = record.observedFollowers;
-      entry.observedNickname = record.nickname;
-      entry.identity = record;
-
-      // Gate 3: identity. A run that samples a stranger is worse than a run
-      // that samples nothing, because the corpus cannot tell afterwards.
-      if (verdict.status !== "ok") {
-        entry.error = `identity gate failed: ${verdict.reason}`;
-        manifest.accounts.push(entry);
-        writeFileSync(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
-        continue;
-      }
-      if (observed.regionBlocked) {
-        throw new Error("region-blocked page (check exit node)");
-      }
-      if (!observed.items.length) {
-        entry.error = observed.gridError
-          ? "profile grid failed to render (TikTok reported an error; no video list)"
-          : "profile listed 0 videos (refusing to record an empty sample)";
-        manifest.accounts.push(entry);
-        writeFileSync(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
-        continue;
-      }
-
-      const ranked = observed.items
-        .map((it) => ({ ...it, plays: parsePlayCount(it.views) }))
-        .sort((a, b) => b.plays - a.plays)
-        .slice(0, topN);
-
-      for (const video of ranked) {
-        const dest = join(dir, `${video.id}.mp4`);
-        // downloadVideo returns the bytes (the ytdlp adapter owns its temp
-        // file), so the structured path is written here.
-        const result = await downloadVideo(video.url);
-        let savedFile = null;
-        if (result.buffer) {
-          writeFileSync(dest, result.buffer);
-          savedFile = dest;
-        }
-        entry.videos.push({
-          id: video.id,
-          url: video.url,
-          views: video.views,
-          plays: video.plays,
-          file: savedFile,
-          status: result.status,
-          reason: result.reason ?? null,
-          byteLength: result.byteLength,
-        });
-        // Human-like pacing between downloads (minimal-interaction discipline).
-        await new Promise((r) => setTimeout(r, 3000 + Math.floor(Math.random() * 4000)));
-      }
-    } catch (err) {
-      entry.error = err.message;
-    }
-
+    const entry = await sampleAccount(expected, { topN, outDir });
+    if (!entry) continue;
     manifest.accounts.push(entry);
     writeFileSync(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));
 
-    // Jittered pacing between accounts.
+    // Jittered pacing between accounts. Every path must reach it: the gate
+    // failures used to `continue` past this sleep, so a run where several
+    // accounts failed issued back-to-back profile loads with no delay — the
+    // opposite of the minimal-interaction discipline in the module doc.
     await new Promise((r) => setTimeout(r, 4000 + Math.floor(Math.random() * 4000)));
   }
 
@@ -675,12 +804,10 @@ export function parseAccountsArg(value) {
       if (known) {
         return declaredName ? { ...known, displayName: declaredName, aliases: [] } : known;
       }
-      return {
-        handle: rawHandle,
-        displayName: declaredName || undefined,
-        followers: undefined,
-        niche: undefined,
-      };
+      // No followers/niche: an ad-hoc handle is outside the bench list, so it
+      // carries no declared figures. `displayName` is the whole point of the
+      // declaration form — without it the identity gate returns `unverified`.
+      return { handle: rawHandle, displayName: declaredName || undefined };
     });
 }
 
@@ -699,7 +826,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
         const bad = artifact.results.filter((r) => r.status !== "ok");
         if (bad.length) {
           console.error(
-            `\n${bad.length}/${artifact.results.length} accounts failed identity verification — ` +
+            `\n${bad.length}/${artifact.results.length} accounts failed verification — ` +
               `fix BENCH_ACCOUNTS before sampling.`,
           );
           process.exitCode = 1;
@@ -713,6 +840,17 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
               ? `  @${a.handle}: ERROR ${a.error}`
               : `  @${a.handle}: ${a.videos.filter((v) => v.file).length}/${a.videos.length} downloaded`,
           );
+        }
+        // A sampling run that dropped an account is a partial corpus, and the
+        // manifest cannot say so to a shell. Exit non-zero so a caller (CI, a
+        // wrapper script, a human reading `$?`) sees it without parsing JSON.
+        const dropped = manifest.accounts.filter((a) => a.error);
+        if (dropped.length) {
+          console.error(
+            `\n${dropped.length}/${manifest.accounts.length} accounts produced no sample — ` +
+              `treat this corpus as partial.`,
+          );
+          process.exitCode = 1;
         }
       });
 
