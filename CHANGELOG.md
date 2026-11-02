@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.51.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.3...tanstack_start_ts-v1.51.4) (2026-11-02)
+
+
+### Bug Fixes
+
+* **publish:** name which side failed when the publish click times out ([#1106](https://github.com/0xPabloLI/inside-china-ai/issues/1106)) ([#1111](https://github.com/0xPabloLI/inside-china-ai/issues/1111)) ([ddd4165](https://github.com/0xPabloLI/inside-china-ai/commit/ddd41652b1d61f491be041f77b16abaaceb59b7b))
+
 ## [1.51.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.2...tanstack_start_ts-v1.51.3) (2026-11-02)
 
 
