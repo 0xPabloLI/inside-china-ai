@@ -4,6 +4,8 @@
 
 关联 issue：[#302](https://github.com/0xPabloLI/inside-china-ai/issues/302)（追踪）、[#291](https://github.com/0xPabloLI/inside-china-ai/issues/291)（总入口）
 
+> **下游票**：[#1108](https://github.com/0xPabloLI/inside-china-ai/issues/1108)（A–E 执行期跟踪）、[#291](https://github.com/0xPabloLI/inside-china-ai/issues/291)（视觉母图）
+
 ---
 
 ## A. 库存视频拼接

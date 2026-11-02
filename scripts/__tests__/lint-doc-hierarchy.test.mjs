@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -9,12 +9,16 @@ import {
   checkL1DesignDecisions,
   checkL2CommandLines,
   checkReferenceResolution,
+  checkResearchDownstream,
   checkWritingForAgentsGate,
   isAgentDoc,
+  loadDownstreamBaseline,
   parseAllowedDocDirs,
   parseDiffLines,
+  parseDownstreamBaseline,
   parseIndexSections,
   parseRefBaseline,
+  parseResearchDownstream,
   loadRefBaseline,
 } from "../lint-doc-hierarchy.mjs";
 
@@ -1017,6 +1021,93 @@ describe("checkReferenceResolution", () => {
     // cdp-proxy.mjs 已解析，tiktok.com.md 仍缺 —— 照旧判死，不留灰色地带
     expect(failsOf(second.findings).map((f) => f.file)).toEqual(["docs/run.md"]);
     expect(second.findings.filter((f) => f.file === "docs/run.md")).toHaveLength(1);
+  });
+});
+
+describe("研究文档下游票字段", () => {
+  const doc = (field) => `# Report\n\n> **关联**：#302\n  ${field}\n\n## 结论\n`;
+
+  it("PASS: 头部声明承接票号", () => {
+    expect(parseResearchDownstream(doc("> **下游票**：#1108 / #529")).verdict).toBe("ok");
+    expect(
+      checkResearchDownstream(
+        [{ filename: "r.md", content: doc("> **下游票**：#1108") }],
+        ["docs/research/r.md"],
+      ).findings,
+    ).toHaveLength(0);
+  });
+
+  it("PASS: 显式无下游 + 原因", () => {
+    const content = doc("> **下游票**：无下游：操作手册，供人工查阅，无产线消费方");
+    expect(parseResearchDownstream(content).verdict).toBe("waived");
+    expect(
+      checkResearchDownstream([{ filename: "r.md", content }], ["docs/research/r.md"]).findings,
+    ).toHaveLength(0);
+  });
+
+  it("FAIL: 缺字段（改动集内）", () => {
+    const { findings } = checkResearchDownstream(
+      [{ filename: "r.md", content: doc("") }],
+      ["docs/research/r.md"],
+    );
+    expect(failsOf(findings)).toHaveLength(1);
+    expect(failsOf(findings)[0].ruleId).toBe("research-downstream-missing");
+    expect(messageOf(findings, "FAIL")).toContain("下游票");
+  });
+
+  it("FAIL: 写了「无下游」但没给原因", () => {
+    const { findings } = checkResearchDownstream(
+      [{ filename: "r.md", content: doc("> **下游票**：无下游") }],
+      ["docs/research/r.md"],
+    );
+    expect(failsOf(findings)).toHaveLength(1);
+    expect(messageOf(findings, "FAIL")).toContain("没给原因");
+  });
+
+  it("FAIL: 既无票号也不是无下游", () => {
+    const { findings } = checkResearchDownstream(
+      [{ filename: "r.md", content: doc("> **下游票**：待定") }],
+      ["docs/research/r.md"],
+    );
+    expect(failsOf(findings)).toHaveLength(1);
+    expect(messageOf(findings, "FAIL")).toContain("#N");
+  });
+
+  it("FAIL: 字段写在第 40 行之后不算数——头部是读者先看到的地方", () => {
+    const late = `# Report\n${"\n".repeat(45)}> **下游票**：#1108\n`;
+    expect(parseResearchDownstream(late).verdict).toBe("missing");
+  });
+
+  it("存量豁免：未改动的旧文档不报，改动集内的旧文档照样判死", () => {
+    const legacy = [{ filename: "old.md", content: "# Old\n" }];
+    const baseline = new Set(["docs/research/old.md"]);
+    expect(checkResearchDownstream(legacy, [], baseline).findings).toHaveLength(0);
+    const changed = checkResearchDownstream(legacy, ["docs/research/old.md"], baseline);
+    expect(failsOf(changed.findings)).toHaveLength(1);
+  });
+
+  it("基线解析只认 docs/research/*.md，容忍注释与空行", () => {
+    expect([
+      ...parseDownstreamBaseline("# c\n\ndocs/research/a.md\n docs/research/b.md \nfoo|bar\n"),
+    ]).toEqual(["docs/research/a.md", "docs/research/b.md"]);
+  });
+
+  it("仓内基线必须覆盖所有尚未合规的研究文档，且不留失效条目", () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const researchDir = join(root, "docs", "research");
+    const baseline = loadDownstreamBaseline();
+    const files = readdirSync(researchDir)
+      .filter((f) => f.endsWith(".md"))
+      .map((filename) => ({
+        filename,
+        content: readFileSync(join(researchDir, filename), "utf8"),
+      }));
+    // 未进基线的文档必须合规，否则基线之外会静默长出一批漏网文档
+    expect(checkResearchDownstream(files, [], baseline).findings).toEqual([]);
+    for (const path of baseline) {
+      // 归档/改名后基线行必须同步删除，否则豁免看起来仍在保护一份不存在的文档
+      expect(() => readFileSync(join(root, path), "utf8")).not.toThrow();
+    }
   });
 });
 
