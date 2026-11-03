@@ -51,11 +51,6 @@ import {
 import { executePlan, readPlanFile } from "../lib/digital-human.mjs";
 import { FFMPEG_PATH } from "../lib/upscale.mjs";
 
-// ffmpeg-full is a local Homebrew formula; CI runs on PATH-resolved ffmpeg.
-// Fixture synthesis only needs libx264, which both provide, and the audit
-// assertions do not depend on which build encoded the fixture.
-const FFMPEG = existsSync(FFMPEG_PATH) ? FFMPEG_PATH : "ffmpeg";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LIB_DIR = join(__dirname, "..", "lib");
 
@@ -142,7 +137,7 @@ function buildCardClip(outPath, kind) {
     ];
   }
   execFileSync(
-    FFMPEG,
+    FFMPEG_PATH,
     [...args, "-pix_fmt", "yuv420p", "-c:v", "libx264", "-crf", "28", "-y", outPath],
     { stdio: ["pipe", "pipe", "pipe"], timeout: 120_000 },
   );
@@ -166,7 +161,7 @@ function buildToneWav(outPath, { delayMs = 0 } = {}) {
   ];
   if (delayMs > 0) {
     execFileSync(
-      FFMPEG,
+      FFMPEG_PATH,
       [
         "-f",
         "lavfi",
@@ -185,7 +180,7 @@ function buildToneWav(outPath, { delayMs = 0 } = {}) {
       },
     );
   } else {
-    execFileSync(FFMPEG, base, { stdio: ["pipe", "pipe", "pipe"], timeout: 60_000 });
+    execFileSync(FFMPEG_PATH, base, { stdio: ["pipe", "pipe", "pipe"], timeout: 60_000 });
   }
 }
 
@@ -213,7 +208,7 @@ function buildFixtureVideo(outPath, cardClip, x, y, audioPath) {
     "28",
     outPath,
   ];
-  execFileSync(FFMPEG, args, { stdio: ["pipe", "pipe", "pipe"], timeout: 120_000 });
+  execFileSync(FFMPEG_PATH, args, { stdio: ["pipe", "pipe", "pipe"], timeout: 120_000 });
 }
 
 // ─── Shared fixture state ───
