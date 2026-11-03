@@ -144,4 +144,27 @@ describe("ASS burn boundary (#1118)", () => {
       );
     }
   });
+
+  it("every ASS-carrying pass still names FFMPEG_FULL, not the PATH-fallback helper", () => {
+    // The text scan above cannot see the realistic regression: post-process.mjs
+    // already imports from tts/ffmpeg-cmd.mjs, whose `ffmpegCmd` is
+    // FFMPEG_BIN-backed. Swapping a burn call site to `ffmpegCmd` would burn
+    // through PATH ffmpeg (no libass) while the preflight keeps probing
+    // FFMPEG_FULL — the drift this boundary exists to prevent. So pin the
+    // binary argument of the two passes that carry the `ass=` filter.
+    const src = readFileSync(join(LIB_DIR, "post-process.mjs"), "utf8");
+    expect(src, "post-process must not borrow the decode/probe ffmpeg").not.toMatch(
+      /\bffmpegCmd\b|\bffprobeCmd\b/,
+    );
+
+    const calls = [...src.matchAll(/execFileSync\(\s*([^,\n]+)/g)].map((m) => m[1].trim());
+    expect(
+      calls.length,
+      "post-process's ffmpeg invocations moved; re-check the burn sites",
+    ).toBeGreaterThan(0);
+    expect(
+      calls.filter((bin) => bin === "FFMPEG_FULL" || bin.startsWith("useAss")),
+      "the burn (ass=) and the useAss finalize pass must both run ffmpeg-full",
+    ).toEqual(["FFMPEG_FULL", 'useAss ? FFMPEG_FULL : "ffmpeg"']);
+  });
 });
