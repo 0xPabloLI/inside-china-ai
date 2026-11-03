@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, rmSync } from "fs";
 import { join, dirname, basename, extname } from "path";
 import { execFileSync, execSync, spawnSync } from "child_process";
 import { homedir, tmpdir } from "os";
+import { FFMPEG_BIN, FFPROBE_BIN } from "./ffmpeg-bins.mjs";
 
 // ─── Constants ───
 
@@ -23,11 +24,17 @@ export const REALESRGAN_PATH = join(homedir(), ".local", "realesrgan", "realesrg
 /** Real-ESRGAN models directory. */
 export const REALESRGAN_MODELS_DIR = join(homedir(), ".local", "realesrgan", "models");
 
-/** ffprobe binary path (ffmpeg-full). */
-export const FFPROBE_PATH = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
+/**
+ * ffprobe binary path — ffmpeg-full when installed, else PATH (#1118).
+ * Decode/probe only: the ASS burn keeps its own libass-bound binary.
+ */
+export const FFPROBE_PATH = FFPROBE_BIN;
 
-/** ffmpeg binary path (ffmpeg-full). */
-export const FFMPEG_PATH = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
+/**
+ * ffmpeg binary path — ffmpeg-full when installed, else PATH (#1118).
+ * Decode/probe only: the ASS burn keeps its own libass-bound binary.
+ */
+export const FFMPEG_PATH = FFMPEG_BIN;
 
 /** Supported video extensions. */
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".avi", ".mkv"]);

@@ -415,14 +415,12 @@ describe("constants", () => {
     expect(REALESRGAN_PATH).toContain(".local/realesrgan");
   });
 
-  it("FFPROBE_PATH points to ffmpeg-full bin", () => {
-    expect(FFPROBE_PATH).toContain("ffprobe");
-    expect(FFPROBE_PATH).toContain("ffmpeg-full");
-  });
-
-  it("FFMPEG_PATH points to ffmpeg-full bin", () => {
-    expect(FFMPEG_PATH).toContain("ffmpeg");
-    expect(FFMPEG_PATH).toContain("ffmpeg-full");
+  // #1118: resolution moved to lib/ffmpeg-bins.mjs (behaviour covered in
+  // lib/__tests__/ffmpeg-bins.test.mjs). Here only the shape this module's
+  // consumers rely on — the constants still name a binary of each kind.
+  it("FFMPEG_PATH / FFPROBE_PATH name the two binaries", () => {
+    expect(FFMPEG_PATH).toMatch(/ffmpeg$/);
+    expect(FFPROBE_PATH).toMatch(/ffprobe$/);
   });
 });
 

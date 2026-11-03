@@ -14,19 +14,19 @@
  * Both of that file's probes (sync and async) are argv-only as of the #319
  * deferred class sweep.
  *
- * ffprobe path: /opt/homebrew/opt/ffmpeg-full/bin/ffprobe
- * (same as upscale.mjs and tts/post-process.mjs)
+ * ffprobe binary: resolved by `lib/ffmpeg-bins.mjs` (#1118) — ffmpeg-full when
+ * installed, else PATH. This module used to carry its own copy of that rule.
  *
  * @module media-probe
  */
 
 import { execFileSync, spawnSync } from "child_process";
 import { existsSync } from "fs";
+import { FFPROBE_BIN } from "./ffmpeg-bins.mjs";
 
 // ─── Constants ───
 
-const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
-const ffprobeCmd = existsSync(FFPROBE_FULL) ? FFPROBE_FULL : "ffprobe";
+const ffprobeCmd = FFPROBE_BIN;
 
 /**
  * @typedef {Object} ProbeResult

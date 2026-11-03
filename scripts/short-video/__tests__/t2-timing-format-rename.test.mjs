@@ -190,9 +190,16 @@ describe("T2: timing JSON format adaptation + runWhisperAlignment rename", () =>
     );
     expect(execMock.mock.calls[0][0]).toContain("text-align.py");
     // #232 guard pass runs after alignment: scene-1's fixture tail (3.5s audio
-    // vs 1.2s last word) is trimmed — one ffmpeg trim call (+ mv + ffprobe;
-    // cmd is quoted, hence matching "ffmpeg\"" not "ffmpeg ").
-    expect(execMock.mock.calls.filter(([cmd]) => cmd.includes("ffmpeg"))).toHaveLength(1);
+    // vs 1.2s last word) is trimmed — one ffmpeg trim call (+ mv + ffprobe).
+    // Judge the executable token, not a substring of the whole command: a
+    // substring also matches any path containing "ffmpeg" (a worktree named
+    // `...-ffmpeg-...` counted a python invocation), and the token may be a
+    // bare name or an absolute path depending on the resolved binary (#1118).
+    const executable = (cmd) =>
+      (/^"[^"]+"/.exec(cmd)?.[0] ?? cmd.split(/\s+/)[0]).replaceAll('"', "");
+    expect(
+      execMock.mock.calls.filter(([cmd]) => executable(cmd).split("/").pop() === "ffmpeg"),
+    ).toHaveLength(1);
   });
 
   // ─── generateSubtitles works with both formats ───
