@@ -35,6 +35,13 @@ describe("skills submodule CI wiring (#466)", () => {
     expect(checkout.with?.submodules).toBe("recursive");
   });
 
+  it("runs submodule test code without repository credentials", () => {
+    // The submodule is public; leaving the default token persisted would hand
+    // it to code from a different repository.
+    expect(CI.jobs.quality.permissions).toEqual({ contents: "read" });
+    expect(checkoutOf("quality").with?.["persist-credentials"]).toBe(false);
+  });
+
   it("keeps the skills tests in the vitest include (otherwise the submodule buys nothing)", () => {
     expect(VITEST).toContain('"skills/**/*.test.{ts,tsx,mjs}"');
   });

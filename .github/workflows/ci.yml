@@ -12,6 +12,10 @@ concurrency:
 jobs:
   quality:
     name: Lint, typecheck, test
+    # Test code from the skills/shared submodule runs in this workspace; the
+    # job needs to read the repository and nothing else.
+    permissions:
+      contents: read
     # macOS arm64 matches the platform this repo targets (README: Node arm64 +
     # brew ffmpeg). The ubuntu run exposed 12 test files with platform-specific
     # failures — cross-platform test portability is separate debt.
@@ -27,8 +31,10 @@ jobs:
           # token reads it, so no PAT or deploy key is involved. Without this
           # input the directory is empty, the skills test glob matches nothing,
           # and the job reports green while the skill-layer suite never ran
-          # (#466).
+          # (#466). Keep the token out of the workspace: submodule test code
+          # executes here and has no reason to see it.
           submodules: recursive
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:

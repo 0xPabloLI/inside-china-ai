@@ -26,10 +26,12 @@ const CI_SKIPPED_SUITES = ["scripts/short-video/__tests__/research/**"];
 // #1087 step ③ moved five more render suites into `pixel-render` and measured
 // the four that stayed. Two of them were first unbound and then put back, because
 // CI disproved the guess that they were only ffmpeg-bound:
-// `avatar-frame-audit` fails at collection (it imports through
-// `skills/web-access/scripts/cdp-proxy.mjs`, a symlink into the uninitialised
-// `skills/shared` submodule) and `finalize-render`'s real-ffmpeg integration case
-// asserts a loudnorm/drift result the runner's ffmpeg does not reproduce.
+// `avatar-frame-audit` failed at collection (it imported through
+// `skills/web-access/scripts/cdp-proxy.mjs`, a symlink into the then
+// uninitialised `skills/shared` submodule) and `finalize-render`'s real-ffmpeg
+// integration case asserts a loudnorm/drift result the runner's ffmpeg does not
+// reproduce. #466 made the quality job check out that submodule, so the
+// collection binding is gone and `avatar-frame-audit` runs there again.
 // `contrast-media-render` and `scene-gate-render` were the last two render
 // suites outside `pixel-render`: the scene-gate fixture they both drive bound a
 // `pexels-*` photo that .gitignore keeps out of the repo, so a clean checkout
@@ -39,7 +41,6 @@ const CI_SKIPPED_SUITES = ["scripts/short-video/__tests__/research/**"];
 const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/audio-diagnostics.test.mjs", // full-build ffmpeg behaviors
   "scripts/short-video/__tests__/avatar-card-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
-  "scripts/short-video/__tests__/avatar-frame-audit.test.mjs", // imports via the skills/shared submodule (uninitialised in CI)
   "scripts/short-video/__tests__/finalize-render.test.mjs", // real-ffmpeg integration asserts runner-specific output
   "scripts/short-video/__tests__/focus-smoke.test.mjs", // ~/.video-tts-env venv
   "scripts/short-video/__tests__/infra-paths.test.mjs", // local path assumptions
