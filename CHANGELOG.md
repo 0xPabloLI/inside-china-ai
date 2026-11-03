@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.51.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.5...tanstack_start_ts-v1.51.6) (2026-11-03)
+
+
+### Bug Fixes
+
+* **short-video:** resolve decode/probe ffmpeg to PATH when ffmpeg-full is absent ([#1122](https://github.com/0xPabloLI/inside-china-ai/issues/1122)) ([db30ab1](https://github.com/0xPabloLI/inside-china-ai/commit/db30ab1c56bd811aba66cc56152ae19d74f46a2e))
+
 ## [1.51.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.4...tanstack_start_ts-v1.51.5) (2026-11-03)
 
 
