@@ -80,6 +80,14 @@ export default defineConfig({
     exclude: [
       "**/node_modules/**",
       "scripts/short-video/experiments/**",
+      // skills/web-access, skills/search-pool and skills/web-deep-research are
+      // symlinks into the skills/shared submodule. The include above matches
+      // both spellings, so once the submodule is checked out every skill test
+      // would be collected twice (#466). Keep the submodule path as the single
+      // collection root.
+      "skills/web-access/**",
+      "skills/search-pool/**",
+      "skills/web-deep-research/**",
       ...(CI_SKIP_ENV_BOUND ? [...CI_SKIPPED_SUITES, ...CI_SKIPPED_MACHINE_BOUND] : []),
     ],
     // Timing/load-sensitive suites (real ffmpeg audio, worker-pool timers)

@@ -39,6 +39,21 @@ describe("skills submodule CI wiring (#466)", () => {
     expect(VITEST).toContain('"skills/**/*.test.{ts,tsx,mjs}"');
   });
 
+  it("collects each skill test once (the public skill paths are symlink aliases)", () => {
+    const start = VITEST.indexOf("exclude: [");
+    const end = VITEST.indexOf("\n    ],", start);
+    expect(start, "vitest.config.ts has no exclude block").toBeGreaterThan(-1);
+    expect(end, "vitest.config.ts exclude block is not closed as expected").toBeGreaterThan(start);
+    const exclude = VITEST.slice(start, end);
+    for (const alias of [
+      "skills/web-access/**",
+      "skills/search-pool/**",
+      "skills/web-deep-research/**",
+    ]) {
+      expect(exclude).toContain(`"${alias}"`);
+    }
+  });
+
   it("declares skills/shared at the path vitest scans", () => {
     expect(GITMODULES).toMatch(/^\s*path\s*=\s*skills\/shared\s*$/m);
     expect(GITMODULES).toMatch(
