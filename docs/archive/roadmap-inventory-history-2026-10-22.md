@@ -554,5 +554,7 @@
 - **eslint.config.js .github/workflows/ci.yml vitest.config.ts d** — ✅ #555 已交付闭票（PR #641）
 
 - **scripts/short-video/search-sources.mjs lib/source-registry.m** — ✅ **#945** 已交付闭票（2026-10-29，PR #1023，squash `788534df`，Round CXVI：`mediaScript` 去模板内正则字面量 + `evalInTab` 值透传 + 页面媒体事实单一来源；跟进 `#1022`）——该行全部 open 票已闭，整行下沉
+- **eslint.config.js .github/workflows/ci.yml vitest.config.ts docs/conventions/test-env-baseline.md lib/upscale.mjs __tests__/avatar-frame-audit.test.mjs** — ✅ **#1118** 已交付闭票（2026-11-03，PR #1122，squash `db30ab1c`，Round CXLI）：该文件带最后一张 open 票关闭，整行下沉。交付内容见 `#1118` 的交付记录；**seam 约定保留**：`VITEST_CI_SKIP_ENV_BOUND=1` 只作用于 `Lint, typecheck, test`（`pixel-render` 不设该变量）；计时基线不靠 skip/改阈值换绿；`post-process.mjs` 的 ASS 烧字幕依赖 ffmpeg-full libass，任何回退都不得让它静默降级（`lib/__tests__/ffmpeg-bins.test.mjs` 静态拒绝它接入解码/探测 seam）。
+
 - **eslint.config.js .github/workflows/ci.yml vitest.config.ts docs/conventions/test-env-baseline.md** — ✅ **#466** 已交付闭票（2026-11-03，PR #1117，squash `a9ec76cd`，Round CXL）：shared-skills 已公开故零凭据，`submodules: recursive`；作业级 `permissions: contents: read` + `persist-credentials: false`；符号链接别名排除以避免技能测试双重收集；`visual-analyzer-pool` 的墙钟断言删除。**seam**：`VITEST_CI_SKIP_ENV_BOUND=1` 只作用于 `Lint, typecheck, test`（`pixel-render` 不设该变量）；计时基线不靠 skip/改阈值换绿。遗留 ffmpeg-full 审计绑定转 **#1118**——该行全部 open 票已闭，整行下沉
-（共 117 条已闭票句子。）
+（共 118 条已闭票句子。）
