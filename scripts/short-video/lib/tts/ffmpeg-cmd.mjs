@@ -7,16 +7,19 @@
  * assemble.mjs).
  */
 
-import { existsSync } from "fs";
 import { execFile, execFileSync } from "child_process";
 import { promisify } from "util";
+import { FFMPEG_BIN, FFPROBE_BIN } from "../ffmpeg-bins.mjs";
 
 const execFileAsync = promisify(execFile);
 
-const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
-const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
-export const ffmpegCmd = existsSync(FFMPEG_FULL) ? FFMPEG_FULL : "ffmpeg";
-const ffprobeCmd = existsSync(FFPROBE_FULL) ? FFPROBE_FULL : "ffprobe";
+/**
+ * Encode/probe binaries, resolved once by `lib/ffmpeg-bins.mjs` (#1118):
+ * ffmpeg-full when installed, else PATH, with `FFMPEG_BIN`/`FFPROBE_BIN` as an
+ * explicit override. This module used to carry its own copy of that rule.
+ */
+export const ffmpegCmd = FFMPEG_BIN;
+const ffprobeCmd = FFPROBE_BIN;
 
 /**
  * Measurement-only ffmpeg: PATH-resolved, never ffmpeg-full.

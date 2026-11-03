@@ -17,9 +17,17 @@ import { execSync, spawnSync } from "child_process";
 import { tmpdir } from "os";
 import { upscaleVideo, REALESRGAN_PATH, FFMPEG_PATH, FFPROBE_PATH } from "../lib/upscale.mjs";
 
-// Skip all tests if Real-ESRGAN binary doesn't exist
+// Skip all tests if Real-ESRGAN binary doesn't exist.
+// #1118: FFMPEG_PATH is no longer always an absolute path — without ffmpeg-full
+// it is the bare `ffmpeg`, which `existsSync` resolves against the cwd and would
+// always report missing, silently skipping this suite on the one machine shape
+// the fallback was written for. Test executability instead of path existence.
+const resolvesToBinary = (bin) =>
+  bin.includes("/")
+    ? existsSync(bin)
+    : spawnSync(bin, ["-version"], { encoding: "utf8" }).status === 0;
 const hasRealesrgan = existsSync(REALESRGAN_PATH);
-const hasFfmpeg = existsSync(FFMPEG_PATH);
+const hasFfmpeg = resolvesToBinary(FFMPEG_PATH);
 
 describe.skipIf(!hasRealesrgan || !hasFfmpeg)("upscaleVideo e2e", () => {
   let inputPath;

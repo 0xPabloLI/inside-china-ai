@@ -29,11 +29,13 @@ const CI_SKIPPED_SUITES = ["scripts/short-video/__tests__/research/**"];
 // `avatar-frame-audit` was first excluded for failing at collection (it imported
 // through `skills/web-access/scripts/cdp-proxy.mjs`, a symlink into the then
 // uninitialised `skills/shared` submodule). #466 initialised that submodule, and
-// the suite still fails on the runner for a different reason: its audit path
-// consumes the hardcoded `/opt/homebrew/opt/ffmpeg-full/bin/{ffmpeg,ffprobe}`
-// constants from `lib/upscale.mjs`, which the runner does not have (#1118).
-// `finalize-render`'s real-ffmpeg integration case asserts a loudnorm/drift
-// result the runner's ffmpeg does not reproduce.
+// the suite then failed on the runner for a different reason: its audit path
+// consumed the hardcoded `/opt/homebrew/opt/ffmpeg-full/bin/{ffmpeg,ffprobe}`
+// constants from `lib/upscale.mjs`, which the runner does not have. #1118 fixed
+// that binding at the seam (`lib/ffmpeg-bins.mjs` resolves decode/probe binaries
+// to PATH when ffmpeg-full is absent) instead of skipping the suite, so it now
+// runs here. `finalize-render`'s real-ffmpeg integration case asserts a
+// loudnorm/drift result the runner's ffmpeg does not reproduce.
 // `contrast-media-render` and `scene-gate-render` were the last two render
 // suites outside `pixel-render`: the scene-gate fixture they both drive bound a
 // `pexels-*` photo that .gitignore keeps out of the repo, so a clean checkout
@@ -43,7 +45,6 @@ const CI_SKIPPED_SUITES = ["scripts/short-video/__tests__/research/**"];
 const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/audio-diagnostics.test.mjs", // full-build ffmpeg behaviors
   "scripts/short-video/__tests__/avatar-card-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
-  "scripts/short-video/__tests__/avatar-frame-audit.test.mjs", // audit path hardcodes ffmpeg-full ffmpeg+ffprobe (#1118)
   "scripts/short-video/__tests__/finalize-render.test.mjs", // real-ffmpeg integration asserts runner-specific output
   "scripts/short-video/__tests__/focus-smoke.test.mjs", // ~/.video-tts-env venv
   "scripts/short-video/__tests__/infra-paths.test.mjs", // local path assumptions
