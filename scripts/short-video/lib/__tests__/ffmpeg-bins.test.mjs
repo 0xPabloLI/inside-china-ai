@@ -19,7 +19,12 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 
-import { HOMEBREW_FFMPEG, HOMEBREW_FFPROBE, resolveMediaBinary } from "../ffmpeg-bins.mjs";
+import { resolveMediaBinary } from "../ffmpeg-bins.mjs";
+
+// The one thing these tests need from the module private to it: which build the
+// resolver prefers. Spelled out here rather than exported only for tests.
+const HOMEBREW_FFMPEG = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
+const HOMEBREW_FFPROBE = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
 
 const LIB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 

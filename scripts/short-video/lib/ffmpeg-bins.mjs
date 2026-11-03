@@ -38,10 +38,10 @@
 import { existsSync } from "fs";
 
 /** ffmpeg-full build installed by Homebrew on this machine. */
-export const HOMEBREW_FFMPEG = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
+const HOMEBREW_FFMPEG = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 
 /** ffprobe from the same ffmpeg-full build. */
-export const HOMEBREW_FFPROBE = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
+const HOMEBREW_FFPROBE = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
 
 /**
  * Pick a media binary: override → preferred build if installed → PATH.
