@@ -66,21 +66,19 @@ describe("visual-analyzer worker pool (#189)", () => {
     });
     globalThis.__vlmModule = m;
 
-    const t0 = Date.now();
     const [r1, r2] = await Promise.all([
       m.analyzeAssetSemantics("/a/one.png"),
       m.analyzeAssetSemantics("/a/two.png"),
     ]);
-    const total = Date.now() - t0;
 
     expect(r1.description).toContain("one.png");
     expect(r2.description).toContain("two.png");
 
     // Concurrency invariant: both requests were in flight at the same time —
     // the second START lands before the first END (serial execution would
-    // only start request 2 after request 1 finished). Wall-clock bounds stay
-    // loose so the assertion doesn't flake on slow Python spawn under
-    // parallel test load.
+    // only start request 2 after request 1 finished). This is the whole
+    // assertion: an absolute wall-clock bound measures Python spawn time
+    // under parallel load, not concurrency (#466: 3176/9325ms on CI).
     const events = parseLog(logPath);
     const starts = events
       .filter((e) => e.kind === "START")
@@ -93,7 +91,6 @@ describe("visual-analyzer worker pool (#189)", () => {
     expect(starts.length).toBe(2);
     expect(ends.length).toBe(2);
     expect(starts[1]).toBeLessThan(ends[0]);
-    expect(total).toBeLessThan(2000);
   }, 20000);
 
   it("caps in-flight at pool size", async () => {
