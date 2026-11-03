@@ -23,20 +23,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # No later step pushes; keeping the token in .git/config would also
-          # collide with the submodule credential below (two Authorization
-          # headers on the same https://github.com/ URL).
-          persist-credentials: false
-
-      # skills/shared is a private repo, so the default GITHUB_TOKEN (scoped to
-      # this repository) cannot fetch it. Without this step the submodule is an
-      # empty directory, vitest's `skills/**/*.test.mjs` include matches
-      # nothing, and the job reports green while the skill-layer suite never
-      # ran (#466). The PAT is scoped to shared-skills only (contents:read).
-      - name: Checkout private skills submodule
-        env:
-          SHARED_SKILLS_TOKEN: ${{ secrets.SHARED_SKILLS_TOKEN }}
-        run: bash .github/scripts/checkout-private-submodule.sh
+          # skills/shared is a separate repository, now public — the default
+          # token reads it, so no PAT or deploy key is involved. Without this
+          # input the directory is empty, the skills test glob matches nothing,
+          # and the job reports green while the skill-layer suite never ran
+          # (#466).
+          submodules: recursive
 
       - uses: actions/setup-node@v7
         with:
