@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.51.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.4...tanstack_start_ts-v1.51.5) (2026-11-03)
+
+
+### Bug Fixes
+
+* **competitor-benchmarks:** verify who a handle is before sampling it ([#748](https://github.com/0xPabloLI/inside-china-ai/issues/748)) ([#1114](https://github.com/0xPabloLI/inside-china-ai/issues/1114)) ([5c8ce91](https://github.com/0xPabloLI/inside-china-ai/commit/5c8ce910e701c1bbc7dfb81d14e75fc32f5d2955))
+
 ## [1.51.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.3...tanstack_start_ts-v1.51.4) (2026-11-02)
 
 
