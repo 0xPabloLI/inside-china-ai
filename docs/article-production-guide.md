@@ -62,17 +62,59 @@ Widget 有两个层级，**补充数据优先**：
 
 ### Widget 决策树
 
-| 章节内容                  | 推荐 Widget 类型                    | 已有注册？                        |
-| ------------------------- | ----------------------------------- | --------------------------------- |
-| 大量文本/发言（全文概览） | 词云                                | ✅ `deepseek-cloud`               |
-| 融资/投资                 | 融资时间线 + 媒体来源               | ✅ `deepseek-funding`             |
-| 定价/对比                 | 定价对比表                          | ✅ `deepseek-pricing`             |
-| 人事变动                  | 人才流动卡片                        | ✅ `deepseek-talent`              |
-| 多公司关系                | 公司生态图                          | ✅ `deepseek-companies`           |
-| 新闻报道/公开事件         | 新闻链接卡片（标题+摘要+链接+日期） | ❌ 需创建通用 widget              |
-| 股价/市场数据             | 股价时间线（日期+价格+事件标注）    | ❌ 需创建                         |
-| 融资轮次                  | 融资时间线（日期+金额+估值+投资方） | ❌ 可复用 `deepseek-funding` 模式 |
-| 其他类型                  | 需创建新 widget                     | ❌ 需开发                         |
+注册状态以 `src/components/widgets/registry.ts` 为唯一真值；下表只给内容类型与推荐形态，不缓存注册表。
+
+| 章节内容                  | 推荐 Widget 类型                    |
+| ------------------------- | ----------------------------------- |
+| 大量文本/发言（全文概览） | 词云                                |
+| 融资/投资                 | 融资时间线 + 媒体来源               |
+| 定价/对比                 | 定价对比表                          |
+| 人事变动                  | 人才流动卡片                        |
+| 多公司关系                | 公司生态图                          |
+| 新闻报道/公开事件         | 新闻链接卡片（标题+摘要+链接+日期） |
+| 股价/市场数据             | 股价时间线（日期+价格+事件标注）    |
+| 融资轮次                  | 融资时间线（日期+金额+估值+投资方） |
+| 其他类型                  | 按六分支判断（需要新形态 → `new-dev`） |
+
+### Widget 适用性决策（#430 裁决，2026-11-04）
+
+含结构化数据（财务、对比、时间线、规格、密集数字表）的章节，**必须先做适用性判断，再把结论写进文章 frontmatter 的 `widgetPlan`**。判断是必做的，出 widget 不是——把「必须判断」和「必须部署」分开是这条规则的要点，因为新建 widget 属于应用代码改动（组件 + 注册 + 构建 + 部署 + a11y 验证）。
+
+六种结果（`status` 只能取其中之一）：
+
+| status | 何时用 | 记录要求 | 能否嵌入 |
+| --- | --- | --- | --- |
+| `reused` | 已注册 widget 与本篇的实体、指标、时点、来源都相容 | `widgets` 列出嵌入的 ID，须与正文标记一致 | 是 |
+| `history-only` | widget 只作为**历史快照**成立，正文也按历史叙事使用 | `widgets` + `note` 写明快照时点与用法 | 是 |
+| `stale` | 已注册 widget 的数据过时或语义不符，不能充当本篇证据 | `note` 点名 widget 与不相容点 | 否 |
+| `new-dev` | 没有可用 widget，需要新组件才表达得出来 | `backlog: "#<issue>"` + `note` | 否 |
+| `no-visual-value` | 数据量太小或结构太简单，可视化只是复述正文 | `note` | 否 |
+| `unverifiable` | 数字只有匿名信源或无法公开核验 | `note` | 否 |
+
+```yaml
+widgetPlan:
+  status: new-dev
+  backlog: "#1234" # 填实际的 Widget backlog 票号
+  note: "Three vendors, no comparable registered view."
+```
+
+```yaml
+widgetPlan:
+  status: no-visual-value
+  note: "Two numbers already stated in prose; a chart adds no new information."
+```
+
+**复用时效**：不设统一天数。判据是**实体、指标、时点、来源与本篇论点是否相容**——同一个数换了实体、单位或计费口径就是不相容；标明时点的历史快照可以用于历史叙事，但不能充当当前事实。共享 widget 的数据**不得为新文章静默改写**：新数据等于新 widget ID，已发布文章引用的历史口径保持不变。
+
+**需要新 widget 时**：不阻塞本包交付。开一张标题 `Widget backlog` 的 GitHub issue（label `enhancement` + `video-automation`；首项出现时开，满了 ≤15 项另开一张），每项一个原子 widget：目标形态、要覆盖的实体/指标、首个需要它的包。widget 就绪后回嵌文章、把 `widgetPlan` 改为 `reused` 并重跑检查。
+
+**机器检查**（MRL-1 的最后一步）：
+
+```bash
+node scripts/article/check-widget-plan.mjs --file articles/<slug>.md
+```
+
+判三件事：有表格且 0 widget 时必须有合法 `widgetPlan`；`widgets` 列表与正文标记一致；每个 `<!-- widget:ID -->` 都已在 `registry.ts` 注册。退出 0 才算 B10 PASS。标记的提取正则与渲染端 `src/components/widgets/content-splitter.ts` 同一份——渲染不认的写法，检查也不认。脚本只在「表格」这个可判定代理上强制，非表格形式的结构化数据仍按本节人工判断。
 
 ### Widget 宽度规则
 
@@ -90,30 +132,24 @@ Widget 有两个层级，**补充数据优先**：
 
 ### 已有 Widget 注册表
 
-见 `src/components/widgets/registry.ts`。当前注册的 widget：
+唯一真值是 `src/components/widgets/registry.ts`。这份文档不再抄第二份清单——它先前只列了部分已注册 widget，和 registry 漂移过。复用前按上面的六分支判相容性：
 
-- `deepseek-cloud` — 词云
-- `deepseek-talent` — 人才流动
-- `deepseek-funding` — 融资时间线 _(breakout)_
-- `deepseek-pricing` — API 定价对比
-- `deepseek-companies` — 公司生态
-- `distillation-news-coverage` — 新闻覆盖矩阵
-- `kimi-benchmark-controversy` — 基准测试争议
-- `kimi-identity-bleed` — 身份泄露
-- `moonshot-funding-timeline` — Moonshot 融资时间线
-- `minimax-stock-timeline` — MiniMax 股价时间线
+1. 在 registry 里找候选 ID，打开 `src/components/widgets/<package>/data/` 读实际数据与数据时点；
+2. 对照本篇要证明的实体、指标、时点、来源——任一项不符就记 `stale` 并在 `note` 里点名缺什么；
+3. 数据时点早于本篇事件且正文按当前事实叙述 → 不相容；正文本身是历史叙事 → `history-only`。
 
 ### 创建新 Widget 流程
 
 如果素材涉及新话题（非 DeepSeek），需要创建新 widget：
 
-1. 在 `src/components/widgets/{topic}/` 创建组件（**英文 only**）
-2. 在 `src/components/widgets/{topic}/data/` 写数据文件（英文）
-3. 在 `src/components/widgets/registry.ts` 注册
-4. 如 widget 需要超出 65ch 的宽度，在 `BREAKOUT_WIDGETS` 中添加 ID
-5. `npm run build` + 部署 — Widget 是前端代码，必须打包部署后才可用
-6. `node scripts/verify-widget-a11y.mjs --preview` — 发布前运行时验证（dev-only `/widgets` 预览路由）：0 FAIL 才算部署合格
-7. 然后才能运行 `publish-article.mjs` 发布含该 widget 的文章
+1. 先在滚动 `Widget backlog` 登记（见 Widget 适用性决策）；本包按 `new-dev` 记录交付，不等组件
+2. 在 `src/components/widgets/{topic}/` 创建组件（**英文 only**）
+3. 在 `src/components/widgets/{topic}/data/` 写数据文件（英文），并在组件里可见地标注数据时点（`as of <month year>`），供后续复用判断
+4. 在 `src/components/widgets/registry.ts` 注册
+5. 如 widget 需要超出 65ch 的宽度，在 `BREAKOUT_WIDGETS` 中添加 ID
+6. `npm run build` + 部署 — Widget 是前端代码，必须打包部署后才可用
+7. `node scripts/verify-widget-a11y.mjs --preview` — 发布前运行时验证（dev-only `/widgets` 预览路由）：0 FAIL 才算部署合格
+8. 然后才能运行 `publish-article.mjs` 发布含该 widget 的文章；把原包的 `widgetPlan` 从 `new-dev` 改为 `reused` 并重跑 `check-widget-plan`
 
 > Widget 数据是代码硬编码，不存数据库。这是架构约束（见 ADR-0003）。
 
@@ -154,6 +190,8 @@ More content...
 
 <!-- widget:deepseek-companies -->
 ```
+
+含结构化数据章节但没有可嵌入的 widget 时，frontmatter 另加 `widgetPlan`（六分支与格式见 Widget 适用性决策）；模板没有它是因为只有 0-widget 的包才需要。
 
 ## 原创分析要求（可选）
 
@@ -218,6 +256,7 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**；0 Blo
 | B7  | My Take 门控     | 如话题标记为敏感/争议性，不得包含 My Take 章节                                                                                                              | 删除 My Take                  |
 | B8  | AI 词汇          | 不得出现 scrub-rules Tier 2 黑名单词（leverage, utilize, facilitate, delve, seamless, robust 等）                                                           | 替换为口语化表达              |
 | B9  | Chatbot 残留     | 正文出现对话体残留（"Let's dive in" / "I hope this helps" / "Great question" 类）、拟人开场（"Honestly?..."）、知识截止免责声明，或为无人提出的反对意见辩护 | 删除残留，直接陈述论点        |
+| B10 | Widget 决策记录  | 含表格且 0 个 `<!-- widget:ID -->` 时，frontmatter 必须有合法 `widgetPlan`。判据：`check-widget-plan` 退出 0（见 Widget 适用性决策 → 机器检查；B3 的注册判据同在该脚本内） | 补 `widgetPlan` 或嵌入合格 widget |
 
 **Warnings（列出但不阻塞 HITL）：**
 
@@ -228,7 +267,7 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**；0 Blo
 | W3  | Widget 数量    | > 5 个（可能信息过载）                                                                                                                                                                  |
 | W4  | 章节数量       | < 6 或 > 10                                                                                                                                                                             |
 | W5  | SEO 关键词     | slug 或 excerpt 中缺少核心关键词                                                                                                                                                        |
-| W6  | 无 Widget      | 文章含结构化数据章节但 0 个 Widget — Agent 应设计至少 1 个，补充数据类优先                                                                                                              |
+| W6  | 无 Widget      | 非表格形式的结构化数据章节（财务/对比/时间线/规格叙述）0 个 Widget 且 `widgetPlan` 未覆盖 — Agent 应补判断记录；表格形式由 B10 机器判                                                                                       |
 | W7  | Em-dash 密度   | 正文散文段装饰性 em-dash（—）> 3 个/千字；直接引语与 Sources 列表「媒体 — 标题」引用格式豁免                                                                                            |
 | W8  | 内容层 AI 套路 | 拔高意义（"pivotal moment" 类）、name-dropping、浅层 -ing 分析串（symbolizing/reflecting/showcasing）、销售腔、同一实体同义换名、连续短句假高潮、无信源模糊归因（"Experts believe" 类） |
 | W9  | 信息密度       | 出现整段无新事实、新数据或新分析的段落（判定：逐句问「这句提供了什么前文没有的信息」，答不出的句子删除）                                                                                |

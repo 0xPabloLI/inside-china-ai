@@ -130,6 +130,17 @@ describe("a gate CLI does the same thing whichever path invoked it", () => {
     expect(linked.stdout).toBe(direct.stdout);
     expect(linked.stderr).toBe(direct.stderr);
   });
+
+  it("article/check-widget-plan answers --help", () => {
+    // --help returns before any file is read, so a broken guard shows up as
+    // exit 0 with no output instead of the usage block.
+    const { direct, linked } = runBoth(join("article", "check-widget-plan.mjs"), ["--help"]);
+
+    expect(direct.status).toBe(0);
+    expect(direct.stdout).toContain("check-widget-plan");
+    expect(linked.status, "the symlinked invocation did nothing").toBe(direct.status);
+    expect(linked.stdout).toBe(direct.stdout);
+  });
 });
 
 describe("no script reintroduces a guard the symlink defeats", () => {
