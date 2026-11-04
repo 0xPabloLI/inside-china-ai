@@ -197,7 +197,7 @@ Agent 接收任意格式的源素材，读取并理解核心内容。
 
 Agent 从 Stage 0 共享素材出发，生成含交互 Widget 的富文章。完整的文章生产规则（Widget 决策树、宽度规则、创建新 Widget 流程、Frontmatter 格式、声明验证标注规范、MRL-1 检查清单、源引用要求、原创分析要求）见 **`docs/article-production-guide.md`**。
 
-**Widget 设计（必须执行）**：文章中包含结构化数据（财务、对比、时间线、规格）的章节，必须设计至少 1 个 Widget，补充数据类优先（见 guide → Widget 定位）。Widget 数据逐项来自源素材或公开资料并标注来源。已有 Widget 可复用时直接引用 `<!-- widget:xxx -->` 标记；可复用 scene-data `meta.dataPoints` / `meta.keyEntities` 作为数据源，两个轨道共用一次提取。
+**Widget 设计（先判断，结论必须可回读）**：文章中包含结构化数据（财务、对比、时间线、规格）的章节，必须先做 Widget 适用性判断，六种结果之一写进文章 frontmatter 的 `widgetPlan`（分支表、复用时效与记录格式见 guide → Widget 适用性决策）。可安全复用时直接引用 `<!-- widget:xxx -->` 标记；可复用 scene-data `meta.dataPoints` / `meta.keyEntities` 作为数据源，两个轨道共用一次提取。没有可复用 widget 时**不阻塞本包交付**：按 guide 的六分支记录理由，确需新开发的进滚动 widget backlog，组件就绪后回嵌。MRL-1 最后一步运行 `node scripts/article/check-widget-plan.mjs --file articles/<slug>.md`，非零退出即 Blocker（B10）。
 
 ### 🔄 MRL-1: 文章自审
 
