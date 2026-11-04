@@ -57,7 +57,7 @@ import {
   useCurrentFrame,
 } from "remotion";
 import { Circle, Highlight, Underline } from "@remotion/rough-notation";
-import { ANNOTATION, BRAND_FONT_STACK, FPS } from "./components/shared";
+import { ANNOTATION, TYPE, FPS } from "./components/shared";
 import { annotationDrawnBox, collectInkOverhangs, TextGate } from "./components/text-gate";
 import { AnnotationCollisionAssert } from "./components/annotation-collision-gate";
 import { predictGateSeeds } from "./components/official-fit";
@@ -291,7 +291,7 @@ const OfficialSeedProbe: React.FC<{ spec: ProbeSpec }> = ({ spec }) => {
           style={{
             fontSize: spec.preferredSize,
             fontWeight: 900,
-            fontFamily: BRAND_FONT_STACK,
+            fontFamily: TYPE.family,
             letterSpacing: spec.letterSpacing ?? "normal",
             whiteSpace: spec.wrap ? "normal" : "pre",
             color: "#fff",
@@ -405,7 +405,7 @@ function textNode(fontSize: number, copy: string, italic = false): React.ReactNo
         fontSize,
         fontStyle: italic ? "italic" : "normal",
         fontWeight: 900,
-        fontFamily: BRAND_FONT_STACK,
+        fontFamily: TYPE.family,
         whiteSpace: "pre",
         color: "#fff",
       }}
@@ -429,7 +429,7 @@ function hookRevealNode(fontSize: number, copy: string, lineHeight: number): Rea
       style={{
         fontSize,
         fontWeight: 900,
-        fontFamily: BRAND_FONT_STACK,
+        fontFamily: TYPE.family,
         color: "#4d8bff",
         letterSpacing: "2px",
         lineHeight,
@@ -568,7 +568,7 @@ const FixtureScene: React.FC<FixtureProps> = ({
                 style={{
                   fontSize,
                   fontWeight: 900,
-                  fontFamily: BRAND_FONT_STACK,
+                  fontFamily: TYPE.family,
                   color: "#f59e0b",
                   letterSpacing: "-10px",
                   lineHeight: 1.2,
@@ -589,7 +589,7 @@ const FixtureScene: React.FC<FixtureProps> = ({
                   style={{
                     fontSize,
                     fontWeight: 900,
-                    fontFamily: BRAND_FONT_STACK,
+                    fontFamily: TYPE.family,
                     color: "#fff",
                     letterSpacing: "4px",
                     textAlign: "center",
@@ -700,7 +700,7 @@ const FixtureScene: React.FC<FixtureProps> = ({
                 style={{
                   fontSize,
                   fontWeight: 900,
-                  fontFamily: BRAND_FONT_STACK,
+                  fontFamily: TYPE.family,
                   whiteSpace: "normal",
                   color: "#fff",
                 }}
@@ -834,7 +834,7 @@ const InkLineProbe: React.FC = () => {
     fontSize: 96,
     fontStyle: "italic",
     fontWeight: 900,
-    fontFamily: BRAND_FONT_STACK,
+    fontFamily: TYPE.family,
     whiteSpace: "pre-line",
     color: "#fff",
   };
@@ -849,7 +849,7 @@ const InkLineProbe: React.FC = () => {
       </div>
       <div
         ref={mixedSpanRef}
-        style={{ marginTop: 40, fontSize: 96, fontWeight: 900, fontFamily: BRAND_FONT_STACK }}
+        style={{ marginTop: 40, fontSize: 96, fontWeight: 900, fontFamily: TYPE.family }}
       >
         <span style={{ fontStyle: "normal", color: "#fff" }}>WWW</span>
         <span style={{ fontStyle: "italic", color: "#fff" }}>ffffff</span>
@@ -863,7 +863,7 @@ const InkLineProbe: React.FC = () => {
           marginTop: 40,
           fontSize: 96,
           fontWeight: 900,
-          fontFamily: BRAND_FONT_STACK,
+          fontFamily: TYPE.family,
           whiteSpace: "nowrap",
           letterSpacing: "24px",
         }}
@@ -953,7 +953,7 @@ const AnnotationOverdrawProbe: React.FC = () => {
   const numberStyle: React.CSSProperties = {
     fontSize: 240,
     fontWeight: 900,
-    fontFamily: BRAND_FONT_STACK,
+    fontFamily: TYPE.family,
     color: "#f59e0b",
     letterSpacing: "-10px",
     lineHeight: 1.2,
@@ -981,7 +981,7 @@ const AnnotationOverdrawProbe: React.FC = () => {
         style={{
           fontSize: 78,
           fontWeight: 900,
-          fontFamily: BRAND_FONT_STACK,
+          fontFamily: TYPE.family,
           color: "#f5f5f5",
           letterSpacing: "2px",
           lineHeight: 1.1,
@@ -1006,7 +1006,7 @@ const AnnotationOverdrawProbe: React.FC = () => {
         style={{
           fontSize: 56,
           fontWeight: 900,
-          fontFamily: BRAND_FONT_STACK,
+          fontFamily: TYPE.family,
           color: "#f5f5f5",
           lineHeight: 1.15,
           whiteSpace: "pre",
@@ -1052,7 +1052,7 @@ const InkScenario: React.FC = () => {
           fontSize: INK_SIZE,
           fontStyle: "italic",
           fontWeight: 900,
-          fontFamily: BRAND_FONT_STACK,
+          fontFamily: TYPE.family,
           whiteSpace: "pre",
         }}
       >

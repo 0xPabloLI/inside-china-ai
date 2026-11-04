@@ -201,7 +201,7 @@ export const StaggerLines: React.FC<StaggerProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const units = Children.toArray(children);
-  const perFrames = Math.round(stagger * FPS);
+  const perFrames = secToFrames(stagger);
   const unitFrames = secToFrames(duration);
   // Budget the whole group: the last unit must land before the hold boundary.
   const group = useEntranceWindow(delay, duration + Math.max(0, units.length - 1) * stagger);
@@ -244,7 +244,7 @@ export const StaggerWords: React.FC<StaggerWordsProps> = ({
   const frame = useCurrentFrame();
   const parts = text.split(/(\s+)/);
   const wordCount = parts.filter((part) => part !== "" && !/^\s+$/.test(part)).length;
-  const perFrames = Math.round(stagger * FPS);
+  const perFrames = secToFrames(stagger);
   const unitFrames = secToFrames(duration);
   const group = useEntranceWindow(delay, duration + Math.max(0, wordCount - 1) * stagger);
   let wordIndex = 0;

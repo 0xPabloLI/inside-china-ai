@@ -94,7 +94,7 @@ export const HOLD = {
   } as Record<string, number>,
 } as const;
 
-export type CameraSpec = {
+type CameraSpec = {
   scaleFrom: number;
   scaleTo: number;
   /** Vertical offset at frame 0, px (negative = starts above; ramps to 0). */
