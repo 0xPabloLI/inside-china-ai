@@ -343,7 +343,7 @@ After all automated checks pass, the agent generates a complete publishing packa
   [ ] AIGC label: the CDP driver toggles it and fails closed; toggle ON when publishing by hand
   [ ] Audio: the CDP driver attaches the calibrated bed; attach it by hand only in the app
   [ ] Publish
-  [ ] Pinned comment: the comment hook alone, with `metadata.articleUrl` left unset (see `docs/content-pipeline.md` HITL step 6)
+  [ ] Pinned comment: the comment hook alone, with `metadata.articleUrl` left unset (see `docs/content-pipeline.md` HITL step 7)
   [ ] Reply to comments (first hour after posting)
 ```
 
