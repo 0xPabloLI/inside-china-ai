@@ -1,6 +1,8 @@
 # Music-Under-Voice Calibration — Why the Default Is −15 dB
 
-> **Layer: L2 (research rationale).** The execution rules live in `skills/short-video-pipeline/SKILL.md` → *TikTok audio* and `docs/content-pipeline.md` → 发布 step 7. This document holds the measurement, the derivation and the sources behind them. Nothing here is an instruction.
+> **Layer: L2 (research rationale).** The execution rules live in `skills/short-video-pipeline/SKILL.md` → *TikTok audio* and `docs/content-pipeline.md` → 发布 step 8. This document holds the measurement, the derivation and the sources behind them. Nothing here is an instruction.
+
+> **下游票**：无下游：执行规则已落在 `docs/content-pipeline.md` 发布 step 8 与 `skills/short-video-pipeline/SKILL.md` 的 TikTok audio 段，无需另开票承接。
 
 ## 1. The two scales
 

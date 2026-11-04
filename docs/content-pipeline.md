@@ -11,6 +11,8 @@
 ```
 
 > **📚 内容状态与 RAG reindex**：Stage 1 的文章可用 `publish-article.mjs --draft` 保存为非公开 draft；draft 与 Stage 0 素材可供后续工作引用。文章公开发布、附件上传和 TikTok URL 回写都在 HITL 确认后执行。每次 `publish-article.mjs` 调用会非阻塞触发 RAG reindex；其成败不阻塞视频轨。scene-data 就绪后以及 Stage 4 有多媒体素材变更时，仍按各自触发点 reindex。
+>
+> **🔀 跨轨事实汇合（#431）**：HITL 前后必须回检 Article ↔ scene-data 的事实一致性，规则见 Stage 5 →「跨轨一致性回检」。
 
 所有 stage 必经。文章不再是某个工作流的专属步骤，而是管线的必选 stage。
 
@@ -551,7 +553,8 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 3. **输出文章 draft 预览**（文章 markdown 全文）
 4. **输出场景概览表**
 5. **提示用户审阅要点**：实际观看视频检查整体观感、TTS 语音、字幕、视觉动画、Hook/CTA、有无渲染问题、文章内容准确性、脚本叙事合理性
-6. **输出 TikTok 发布前最佳实践提醒** — 完整清单见 `docs/tiktok/tiktok-best-practices.md`。每次必输出。**CDP 默认路径**已由 `tiktok-upload-prep.mjs` 自动完成 AIGC 标签、BGM/音量、Caption/Hashtag 与发布；提醒只列仍需人工的项（Pinned Comment、首小时回复、监控数据），并注明**地理标签默认不做**（用户 2026-11-01 确认历史未使用；需要时走 `--save-draft` + 手机终发——脚本先应用裁剪面板再存草稿，草稿未确认落盘会非零退出）。脚本结束会打印本次 11 步覆盖差。
+6. **输出跨轨一致性回检**（#431，必须）：用一行固定字段给出 `跨轨回检：PASS | CHANGED | SKIP` + 受影响轨道（文章 / 视频 / 两者）+ 重审版本（文章 draft 版本或 scene-data 改动摘要），差异逐项列出。判据、触发点与免检条件见本节末「跨轨一致性回检」。
+7. **输出 TikTok 发布前最佳实践提醒** — 完整清单见 `docs/tiktok/tiktok-best-practices.md`。每次必输出。**CDP 默认路径**已由 `tiktok-upload-prep.mjs` 自动完成 AIGC 标签、BGM/音量、Caption/Hashtag 与发布；提醒只列仍需人工的项（Pinned Comment、首小时回复、监控数据），并注明**地理标签默认不做**（用户 2026-11-01 确认历史未使用；需要时走 `--save-draft` + 手机终发——脚本先应用裁剪面板再存草稿，草稿未确认落盘会非零退出）。脚本结束会打印本次 11 步覆盖差。
 
    **📦 发布包**（Agent 从 generate-caption.mjs 输出中读取，直接给用户复制粘贴）：
 
@@ -565,7 +568,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
    > **置顶评论只出 commentHook（用户决定 2026-10-13）**：`metadata.articleUrl` 留空，置顶评论与 Caption 因此不带链接。这是「网站就绪前先不引流」的落地方式。要恢复引流：在该内容的 scene-data 填回 `articleUrl`，重跑 `generate-caption.mjs`（`lib/caption-utils.mjs` → `derivePinnedComment`：无 url 时只返回 hook）。
 
-7. **BGM 与发布 — 用户确认后一条龙，不再单独问 BGM**（用户决定 2026-10-25：*"我觉得以后的pipeline是不是也可以改成：我确认之后，你直接去TikTok加上背景音乐，直接发布就好了。"*）
+8. **BGM 与发布 — 用户确认后一条龙，不再单独问 BGM**（用户决定 2026-10-25：*"我觉得以后的pipeline是不是也可以改成：我确认之后，你直接去TikTok加上背景音乐，直接发布就好了。"*）
 
    **新默认路径**：HITL 用户确认「视频 OK」后，Agent 不停下来问配乐，直接：
    a. 用 `scripts/short-video/tiktok-upload-prep.mjs` 上传，**自动挂 Breaking News (Voxie)**，音量按下面红线设好并回读校验
@@ -580,9 +583,11 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
    **发布前的输入形态（#1013，2026-10-30 起）**：脚本的每一步输入都按人类形态走——鼠标沿 Bézier 轨迹移动后才按下、Caption 逐字（30–120ms 间隔，句读处偶尔停顿）用可信 insertText 打字、所有等待带 ±20% 以上抖动、发布前先播 5–15s 再暂停、打开上传页前先在 For You 停留滚动。`--no-warmup` / `--paste-caption` / `--skip-review` 是显式退出口；每一步（含「已审阅」判定）追加到 `output/{id}/publish/tiktok/publish-log.jsonl`。见 `docs/manual-ops.md`「发布前的输入形态」。
 
-8. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布。确认之后按第 7 步一条龙走完，不再二次确认配乐。
+9. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布。确认之后按第 8 步一条龙走完，不再二次确认配乐。
 
 > **视频/脚本修改时的自动更新规则**：如果用户在 HITL 阶段要求修改视频或 scene-data，Agent 修改完成并重新渲染视频后，必须自动重新运行 `generate-caption.mjs` 以更新 Caption 和 Pinned Comment，然后重新输出发步包。
+
+> **跨轨一致性回检（#431）**：文章轨与视频轨并行、文章在叙事骨架锁定前写完（#95 裁决），因此发布包不能只靠 Caption 重跑，还要做一次事实汇合。**触发点**：① 首次 HITL 输出审阅包前；② HITL 中改视频 / scene-data / 旁白 / hook 版式 / `subject` / 数字后、重渲染前；③ HITL 后文章有改动时。**判据**：比对 Article 与 scene-data 共有事实的**主体、数值、单位、时点、限定条件、归属来源、核心结论**七项；允许文章有更多背景、视频用不同结构和措辞，视频不是文章的翻译。**输出**：按上面第 6 项的固定字段给出 `跨轨回检`，差异逐项列出。**免检**：仅字体 / 版式 / 动效 / 发音别名且显示文本与事实未变时记 `SKIP` + 「无语义影响」，不重写文章，Caption 仍按上条重跑。**旧批准失效**：任何改变已审内容的修改都要更新受影响产物与验证记录，再由用户审阅当前版本，不能沿用旧批准发布修改后的包。**验收场景**：纯布局改动、发音别名但显示文本不变、同数字换实体、单位 / 币种换算、事实纠错、多 Part 仅改一集、文章先就绪 / 视频先就绪。**边界**：`meta.dataPoints` 与文章数字集合的自动比对只可作编辑建议（`🧭 Editorial Suggestions`），不作硬门禁——背景数字、日期、约数与单位换算会造成误报，同一数字属于不同实体又会漏报；语义一致性仍由 Agent 判断。
 
 > **质量门控**：视频质量不达标时，Agent 应建议用户不发布而非强行发布。发布低质量内容会损害账号健康（见 `docs/tiktok/tiktok-best-practices.md` 账号健康管理章节）。
 
@@ -641,6 +646,7 @@ node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipe
 | **🔄 MRL-2** 脚本自审    | Stage 3（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须              |
 | 📚 RAG reindex（多媒体） | Stage 4b（视频制作后）         | 脚本执行 | Agent  | 仅当有多媒体素材变更 |
 | **🔄 MRL-3** 视频自审    | Stage 5 → HITL 前              | 机器循环 | Agent  | ✅ 必须              |
+| **🔄 跨轨一致性回检**     | Stage 5 → HITL 前 + 每次修改后  | Agent 判断 | Agent  | ✅ 必须（#431）      |
 | **HITL** 内容包成品审阅  | Stage 5 内部（验证后、公开前） | 人工确认 | 用户   | ✅ 必须              |
 | 文章公开发布 + 附件上传  | Stage 5（HITL 确认后）         | 脚本执行 | Agent  | ✅ 必须              |
 | TikTok 发布 + URL 保存   | Stage 5 HITL 确认后            | 脚本执行 | Agent  | ✅ 必须              |
