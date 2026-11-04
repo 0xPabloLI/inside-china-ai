@@ -26,9 +26,10 @@ export {
 } from "../../../lib/timeline.mjs";
 
 /**
- * Design + motion tokens (#731). Declared in src/tokens.ts (kept
- * remotion-free so the contract is testable in plain Node); re-exported here
- * so components have one shared import surface.
+ * Design + motion tokens (#731). Declared in
+ * scripts/short-video/remotion/src/tokens.ts (kept remotion-free so the contract
+ * is testable in plain Node); re-exported here so components have one shared
+ * import surface.
  */
 export {
   COLOR,
