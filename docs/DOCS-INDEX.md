@@ -108,7 +108,7 @@ Numbered sequence. Current: 0001–0019 (0006 moved to archive).
 | `git-workflow.md`            | Git safety, worktrees, commit cadence, review baseline, push and PR rules + concurrent sessions and orphan-commit recovery + Session-Id provenance (hook-enforced) + post-delivery closeout (§10 `npm run session:stop` → `npm run session:gc`) + proxied git via port resolution (§11 `npm run git:proxy`) |
 | `git-concurrent-recovery.md` | 竞态应急配方（git-workflow §9 指向）：临时 index 隔离提交、孤儿提交找回、单文件恢复；含试点收尾复评触发条款                                                        |
 | `proposal-review.md`         | Evidence, impact, external-fact, tool-admission and model-parameter proposal checks                                                                                |
-| `issue-tracker.md`           | GitHub Issues operations and roadmap pointer                                                                                                                       |
+| `issue-tracker.md`           | GitHub Issues operations, scanner & audit intake contract, and roadmap pointer                                                                                     |
 | `triage-labels.md`           | Canonical issue category and state labels                                                                                                                          |
 | `domain.md`                  | Domain context and ADR layout                                                                                                                                      |
 
@@ -141,7 +141,7 @@ Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 
 ### `reviews/` — Active review records
 
-Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸收后归档到 `archive/reviews/`。以下为对应 issue 仍开着的 review。
+Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸收后归档到 `archive/reviews/`；扫描器 audit 报告的生命周期见 `docs/agents/issue-tracker.md` §Scanner & Audit Intake Contract。下表列出已登记的 review 与 audit 报告（存量 audit 报告未回填），已归档者以删除线标注。
 
 | Document                                                     | Purpose                                                                                                                                                                                                                                                                                                 |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -16,7 +16,7 @@ Issues are tracked in **GitHub Issues** on this repo using the `gh` CLI.
 ## Conventions
 
 - Use labels for triage (see `triage-labels.md`).
-- One issue = one atomic task or bug.
+- One issue = one atomic task or bug (scanner batches are the exception — see Scanner & Audit Intake Contract: one deliverable batch, not one atomic task).
 - Link related issues in the body with `#number`.
 - **Check the model-decision history before triaging or claiming a frontier issue**: an issue's premise can be stale — a model/approach named in the body may already have been demoted or superseded by a later user verdict recorded in `docs/research/` tables and inventory lines (2026-09-11 lesson: #221 proposed testing InfiniteTalk on NPU three days after the user confirmed 表情偏僵 → demoted to backup, then SoulX-FlashTalk won best talking body; issue triage and frontier pick both validated environment feasibility but nobody re-checked whether the model line was still wanted — the session worked through preparation before the user caught it). Before starting work on an issue that recommends a specific model/tool, grep `docs/research/` for that name's current verdict (✅ 最佳 / 备选 / ❌ 否决).
 - **Issue body is write-once**: the body is authored at issue creation and never rewritten. GitHub replaces the entire body on every `PATCH`, so even a "small addition" clobbers content another session wrote (2026-09-10 lesson: evidence handoff to open #235 went in as a comment for exactly this reason). Delivery records go in the closing comment (see Session cognitive offload); new evidence for an open issue owned by another session goes in a comment too — appending never overwrites.
@@ -34,6 +34,29 @@ Every issue body opens with this fixed block, written once at creation and never
 > **正文是创建时的规格（write-once，永不改写）。** 当前状态、跨 session 证据与交付记录都在评论里——读票必须带评论（`gh issue view <N> --comments`），只读正文会把已决策的问题重新问一遍。
 
 Identical in every issue and never rewritten, so the notice itself cannot race. Issues created before this rule carry no notice — for those, guard (b) still applies.
+
+## Scanner & Audit Intake Contract
+
+扫描器产出（OCR、Semgrep、droid-review、一次性审计）分四态，各有唯一落点。混装是 #319 从 19 条发现长成 181 条长期账本的根因：issue 的生命周期被「扫描覆盖进度」而不是「缺陷是否修完」决定。#319 已闭（2026-10-13），无存量待拆；本契约从下一份报告起适用。
+
+| 态 | 落点 | 生命周期 |
+| --- | --- | --- |
+| **Finding Report** — 原始候选 + 逐条裁决 | 入仓报告 `docs/reviews/<scanner>[-<scope>]-<kind>-<date>.md`（`kind` = `scan` / `audit`，与现有 `ocr-*-scan-*`、`*-audit-*` 同形），并在 `docs/DOCS-INDEX.md` 的 `reviews/` 表登记；一次性试验（不留存结论）可放 `.scratch/`（gitignored）或 PR 评论 | active 到裁决完成、对应 issue（如有）全闭；随后按 `docs/DOCS-INDEX.md` §Spec/Ticket/Review Lifecycle 归档（含 `docs/archive/README.md`） |
+| **Ruling** — 真/假阳性 + 证据 | 报告内联逐条写；对应 issue 的评论只留汇总 | 与报告同寿命 |
+| **Batch Issue** — 可交付修复批 | GitHub Issue，标签按 `triage-labels.md` | 开票即冻结：只含已确认真阳性、同一模块且同批可修完的条目，单个 issue ≤ 15 个可勾选原子项（批次上限） |
+| **Coverage Gap** — 扫描器没扫、漏扫或扫不动 | 独立的扫描器 / 测试基础设施 issue | 与业务批次 issue 分开；未扫或漏扫区域不写进批次 issue |
+
+裁决由执行该次扫描的 session 逐条落。
+
+**入口顺序**：全量扫描按 1、2、3、5；增量审查走 4，过滤（2）与冻结（3）照用。
+
+1. 先落报告、逐条裁决，再决定开不开 issue。假阳性留在报告或既有排除名单（`knip.json`、eslint allowlist 等），不进批次 issue 的分母。完成判据：报告里每条候选都有 true/false 裁决与证据。
+2. 只为「已确认真阳性 + 可直接动手」的条目开批次 issue；聚合与上限见上表，其余真阳性留在报告里待下一批。完成判据：issue checklist 的每一项都能直接动手改代码。
+3. 后续扫描的新增项进新报告，需要实施时另开批次 issue。完成判据：issue body 的条目集合与开票时一致（冻结规则见上表）。
+4. 增量路径（OCR A/B 模式、per-PR 审查）通常只有几条：裁决与证据放 PR review，真阳性直接开 issue，不强制单独报告；同一批超过批次上限时升级为报告。完成判据：PR review 里每条 finding 都有裁决，真阳性的 issue 已开。
+5. 报告内所有候选裁决完、对应 issue 全闭后归档；未裁决的报告留在 `docs/reviews/`，避免「归档 = 已处理」的误读。完成判据：报告已按生命周期归档，`docs/DOCS-INDEX.md` 与 `docs/archive/README.md` 已同步。
+
+这是约定，不是 CI 门禁（理由见 #650 的方案评审评论）。
 
 ## Wayfinding operations
 
