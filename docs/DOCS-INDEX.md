@@ -94,6 +94,7 @@ Numbered sequence. Current: 0001–0019 (0006 moved to archive).
 | Document                            | Purpose                                                                                                                                |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `data-handling.md`                  | PII inventory (subscribers, accounts, email flow) + handling rules for agents and code — what may never be copied, logged, or exported |
+| `coverage-matrix.md`                | Scan coverage matrix — which scopes each scanner has covered, where the report and ruling live, and which scopes were never scanned; gaps are recorded, never assigned (intake rules: `docs/agents/issue-tracker.md` §Scanner & Audit Intake Contract) |
 | `scenario-enumeration-checklist.md` | Boundary scenario enumeration checklist                                                                                                |
 | `scenario-matrix.md`                | Spec scenario matrix format (Modified Files Impact + Behavioral Scenarios)                                                             |
 | `fact-verification.md`              | Operational procedures for proposal-review §3/§4 (source verification chain, CLI confirmation, pricing lookup, tool maintenance check) |

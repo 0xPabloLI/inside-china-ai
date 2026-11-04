@@ -1,7 +1,7 @@
 /**
  * Documentation Hierarchy Lint
  *
- * Checks six rules:
+ * Checks:
  * 1. DOCS-INDEX consistency — every added or renamed doc under docs/ is listed in
  *    the section that owns its directory; docs root and docs/research/ are also
  *    scanned in full so their existing inventory stays closed
@@ -14,6 +14,9 @@
  * 4. Structural pointer or normative rule changes remind the author to load writing-for-agents
  * 5. Reference resolution — repo paths named by live docs and code must be tracked by git
  *    (evidence-tier residue is baselined in scripts/doc-ref-baseline.txt; only growth is printed)
+ * 6. Review report shape — a scan, audit or review report added or edited under docs/reviews/
+ *    carries a dated, kinded filename and the four header fields the intake contract
+ *    requires (docs/agents/issue-tracker.md §Scanner & Audit Intake Contract, #1131)
  *
  * Exit codes: 0 = PASS/WARN, 1 = FAIL
  */
@@ -34,6 +37,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = dirname(__dirname);
 const DOCS_DIR = join(PROJECT_ROOT, "docs");
 const RESEARCH_DIR = join(DOCS_DIR, "research");
+const REVIEWS_DIR = join(DOCS_DIR, "reviews");
 const INDEX_PATH = join(DOCS_DIR, "DOCS-INDEX.md");
 
 // --- Constants ---
@@ -50,6 +54,46 @@ const DOWNSTREAM_ISSUE_PATTERN = /#\d+/;
 const DOWNSTREAM_WAIVER_PATTERN = /^无下游\s*[：:]\s*(\S.*)$/;
 // A waiver needs a reason a reader can act on; "无下游：无" is a placeholder.
 const DOWNSTREAM_MIN_REASON = 8;
+
+// Check 6: review report shape (#1131). The intake contract asks a report to say
+// what scanned what, when, and whether the findings were ruled on — the four
+// fields a reader needs before deciding to trust the evidence. Labels are matched
+// through the separators the corpus already uses (`**工具**：`, `| 审计日期 |`,
+// `> **Scope**:`), so the rule tests for the field, not one house layout.
+// `裁决状态` has no legacy equivalent on purpose: an edit is when a report joins
+// the contract.
+//
+// The header window matches the research downstream field's (40 lines) so the two
+// ratchets share one notion of "header"; a shorter window only makes an honestly
+// labelled report fail on formatting.
+const REVIEW_HEADER_LINES = 40;
+const REVIEW_KINDS = ["scan", "audit", "review"];
+const REVIEW_NAME_DATE = /-(\d{4})-(\d{2})-(\d{2})\.md$/;
+const REVIEW_HEADER_FIELDS = [
+  { key: "tool", labels: ["工具", "Tool"], hint: "工具（哪个扫描器/模型）" },
+  { key: "scope", labels: ["范围", "Scope"], hint: "范围（扫了哪些路径或文件）" },
+  { key: "date", labels: ["日期", "Date"], hint: "日期（YYYY-MM-DD）" },
+  {
+    key: "ruling",
+    labels: ["裁决状态", "Ruling"],
+    hint: "裁决状态（未裁决 / 部分吸收 / 已吸收）",
+  },
+];
+// The label must be followed by a value separator, not merely present in prose.
+// No cap on the gap: a hand-aligned table pads short labels (`| 工具     | …`),
+// and capping it failed reports that honestly filled the field. Prose still
+// cannot match, because the separator has to come directly after the padding.
+const REVIEW_LABEL_SEPARATOR = /^[\s*_`]*[：:|]/;
+// Only `已吸收` — the whole value, or the value before a trailing note — sends the
+// report out of docs/reviews/. `部分吸收` still has open findings, so it stays:
+// archiving it would read as "handled", which is the misreading the contract
+// forbids. A value like `未裁决（已吸收 0 条）` is not absorbed.
+const REVIEW_RULING_VOCABULARY = [
+  { verdict: "absorbed", values: ["已吸收", "absorbed"] },
+  { verdict: "partial", values: ["部分吸收", "partially absorbed"] },
+  { verdict: "unruled", values: ["未裁决", "unruled", "open"] },
+];
+
 const AGENT_DOC_POINTER_CHAIN = "AGENTS.md → Workflow Router → Agent documents";
 const LOCAL_MARKDOWN_LINK_PATTERN = /\]\((?!https?:\/\/|mailto:|#)[^)]+\)/i;
 const BACKTICKED_LOCAL_PATH_PATTERN =
@@ -387,6 +431,169 @@ export function loadDownstreamBaseline(path = DOWNSTREAM_BASELINE_PATH) {
   } catch {
     return new Set();
   }
+}
+
+// --- Check 6: review report shape ---
+
+/**
+ * The value a header line assigns to `label`, or null when it assigns nothing.
+ * An assignment needs a separator AND a non-empty value: four blank table cells
+ * are labels, not fields — the reader learns nothing from `| 工具 | |`. A row of
+ * labels (`| 工具 | 范围 | 日期 | 裁决状态 |`) is also not a value: a table
+ * header with no data row would otherwise satisfy all four fields.
+ */
+function reviewLabelValue(line, label) {
+  const english = /^[A-Za-z]+$/.test(label);
+  const haystack = english ? line.toLowerCase() : line;
+  const needle = english ? label.toLowerCase() : label;
+  const at = haystack.indexOf(needle);
+  if (at < 0) return null;
+  // An English label must start a token: `**ReviewDate**: …` ends in "Date" and
+  // would otherwise satisfy the date field. Chinese labels need no boundary —
+  // they are not suffixes of one another.
+  if (english && at > 0 && /[a-z]/i.test(line[at - 1])) return null;
+  const rest = line.slice(at + label.length);
+  if (!REVIEW_LABEL_SEPARATOR.test(rest)) return null;
+  const value = rest
+    .replace(REVIEW_LABEL_SEPARATOR, "")
+    .replace(/[|*`\s]+$/, "")
+    .trim();
+  if (value === "") return null;
+  const cells = value.split("|").map((cell) => cell.trim());
+  const everyCellIsALabel = cells.every((cell) =>
+    REVIEW_HEADER_FIELDS.some((field) => field.labels.includes(cell)),
+  );
+  return everyCellIsALabel ? null : value;
+}
+
+/**
+ * Classify a `裁决状态` value. Matching is on the value's leading token, not a
+ * substring: `未裁决（已吸收 0 条）` is unruled, and a report that merely
+ * mentions absorbed work elsewhere does not get pushed into the archive.
+ * A trailing note (`已吸收（2026-10-01）`) keeps its verdict, and a value that is
+ * only a parenthetical (`（已吸收）`) is read from inside it rather than dropped.
+ */
+export function parseRulingStatus(value) {
+  const note = /[（(]([^）)]*)[）)]\s*$/.exec(value);
+  const core = (note ? value.slice(0, note.index) : value).replace(/[.。;；,，\s]+$/, "").trim();
+  const candidates = [core, note?.[1]?.trim() ?? ""].filter(Boolean).map((v) => v.toLowerCase());
+  for (const { verdict, values } of REVIEW_RULING_VOCABULARY) {
+    if (values.some((candidate) => candidates.includes(candidate.toLowerCase()))) return verdict;
+  }
+  return "unknown";
+}
+
+/**
+ * Validate a report filename against `<scanner>[-<scope>]-<kind>-<YYYY-MM-DD>.md`.
+ * The kind must be a dash-delimited segment with a scanner name before it, which
+ * keeps `ponytail-adoption-review-brief-2026-09-04.md` legal while rejecting an
+ * undated or unkinded dump. The date is checked as a real calendar day, not just
+ * as digits.
+ */
+export function parseReviewReportName(filename) {
+  const dateMatch = REVIEW_NAME_DATE.exec(filename);
+  if (!dateMatch) return { ok: false, reason: "缺少 -YYYY-MM-DD 日期后缀" };
+  const [, year, month, day] = dateMatch;
+  const date = `${year}-${month}-${day}`;
+  const parsed = new Date(`${date}T00:00:00Z`);
+  const isRealDate =
+    parsed.getUTCFullYear() === Number(year) &&
+    parsed.getUTCMonth() + 1 === Number(month) &&
+    parsed.getUTCDate() === Number(day);
+  if (!isRealDate) return { ok: false, reason: `日期 "${date}" 不是有效日历日` };
+  const segments = filename.slice(0, dateMatch.index).split("-");
+  const kindIndex = segments.findIndex((segment) => REVIEW_KINDS.includes(segment));
+  if (kindIndex < 0) {
+    return { ok: false, reason: `缺少 kind 段（${REVIEW_KINDS.join(" / ")}）` };
+  }
+  if (kindIndex === 0) {
+    return { ok: false, reason: `kind "${segments[0]}" 之前缺少扫描器名` };
+  }
+  return { ok: true };
+}
+
+/**
+ * Read the four contract fields out of a report's header block.
+ *
+ * Status is resolved most-conservatively: if any header line declares `已吸收`,
+ * the report is absorbed even when an earlier line says otherwise. A copy-paste
+ * that leaves a stale `未裁决` above a real `已吸收` must not keep the report in
+ * the active directory.
+ */
+export function parseReviewHeader(content) {
+  const lines = content.split("\n").slice(0, REVIEW_HEADER_LINES);
+  const missing = [];
+  let status = "";
+  for (const field of REVIEW_HEADER_FIELDS) {
+    const values = lines
+      .flatMap((line) => field.labels.map((label) => reviewLabelValue(line, label)))
+      .filter((value) => value !== null);
+    if (values.length === 0) {
+      missing.push(field.hint);
+      continue;
+    }
+    if (field.key !== "ruling") continue;
+    const verdicts = values.map(parseRulingStatus);
+    const absorbed = verdicts.includes("absorbed") ? values[verdicts.indexOf("absorbed")] : "";
+    status = absorbed;
+  }
+  return { missing, status };
+}
+
+/**
+ * Check 6: review report shape.
+ *
+ * Only reports this change adds, modifies or renames are judged — the legacy
+ * corpus keeps its own debt (same ratchet as the research downstream field). A
+ * failed range diff is a FAIL rather than an empty pass: a gate that scanned
+ * nothing must not look green.
+ */
+export function checkReviewReportShape(files, changed = [], changedError = null) {
+  if (changedError) {
+    return {
+      findings: [
+        {
+          level: "FAIL",
+          ruleId: "review-report-diff-failed",
+          file: "docs/reviews/",
+          message: `cannot diff changed review reports against ${changedError}; the report-shape gate would scan nothing`,
+        },
+      ],
+    };
+  }
+  const changedSet = new Set(changed);
+  const findings = [];
+  for (const { filename, content } of files) {
+    const file = `docs/reviews/${filename}`;
+    if (!changedSet.has(file)) continue;
+    const name = parseReviewReportName(filename);
+    if (!name.ok) {
+      findings.push({
+        level: "FAIL",
+        ruleId: "review-report-name",
+        file,
+        message: `${file} 文件名不合契约：${name.reason}——用 <scanner>[-<scope>]-<kind>-<YYYY-MM-DD>.md（kind = ${REVIEW_KINDS.join(" / ")}）`,
+      });
+    }
+    const { missing, status } = parseReviewHeader(content);
+    if (missing.length > 0) {
+      findings.push({
+        level: "FAIL",
+        ruleId: "review-report-header",
+        file,
+        message: `${file} 头部缺 ${missing.length} 个必填字段：${missing.join("、")}`,
+      });
+    }
+    if (status) {
+      findings.push({
+        level: "FAIL",
+        ruleId: "review-report-unarchived",
+        file,
+        message: `${file} 的裁决状态是「${status}」却仍在 docs/reviews/——已吸收的报告归档到 docs/archive/reviews/，并同步 docs/DOCS-INDEX.md 与 docs/archive/README.md`,
+      });
+    }
+  }
+  return { findings };
 }
 
 /**
@@ -949,12 +1156,20 @@ export function main() {
     refScan.unmaterialized,
   ).findings;
   const downstreamBaseline = loadDownstreamBaseline();
-  const changedResearch = getChangedDocs("AMR");
+  // One diff query feeds both ratchets: the research downstream field and the
+  // review report shape judge the same added/modified/renamed set.
+  const changedDocs = getChangedDocs("AMR");
   const downstreamFindings = checkResearchDownstream(
     l2Files,
-    changedResearch.paths,
+    changedDocs.paths,
     downstreamBaseline,
-    changedResearch.error,
+    changedDocs.error,
+  ).findings;
+  const reviewFiles = readMdFiles(REVIEWS_DIR);
+  const reviewFindings = checkReviewReportShape(
+    reviewFiles,
+    changedDocs.paths,
+    changedDocs.error,
   ).findings;
 
   if (process.argv.includes("--bless")) {
@@ -980,13 +1195,13 @@ export function main() {
   }
 
   if (process.argv.includes("--bless-research")) {
-    if (changedResearch.error) {
+    if (changedDocs.error) {
       process.stderr.write(
-        `[doc-hierarchy] cannot diff changed research docs against ${changedResearch.error}; refusing to write a baseline that may freeze docs this change edited\n`,
+        `[doc-hierarchy] cannot diff changed research docs against ${changedDocs.error}; refusing to write a baseline that may freeze docs this change edited\n`,
       );
       process.exit(1);
     }
-    const changedSet = new Set(changedResearch.paths);
+    const changedSet = new Set(changedDocs.paths);
     const offenders = l2Files
       .map((file) => ({ file: `docs/research/${file.filename}`, content: file.content }))
       .filter(({ content }) => {
@@ -1028,6 +1243,7 @@ export function main() {
     ...l1Findings,
     ...l2Findings,
     ...downstreamFindings,
+    ...reviewFindings,
     ...gateFindings,
     ...refFindings,
   ];
