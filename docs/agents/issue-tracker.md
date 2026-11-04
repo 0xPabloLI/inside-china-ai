@@ -41,22 +41,30 @@ Identical in every issue and never rewritten, so the notice itself cannot race. 
 
 | 态 | 落点 | 生命周期 |
 | --- | --- | --- |
-| **Finding Report** — 原始候选 + 逐条裁决 | 入仓报告 `docs/reviews/<scanner>[-<scope>]-<kind>-<date>.md`（`kind` = `scan` / `audit`，与现有 `ocr-*-scan-*`、`*-audit-*` 同形），并在 `docs/DOCS-INDEX.md` 的 `reviews/` 表登记；一次性试验（不留存结论）可放 `.scratch/`（gitignored）或 PR 评论 | active 到裁决完成、对应 issue（如有）全闭；随后按 `docs/DOCS-INDEX.md` §Spec/Ticket/Review Lifecycle 归档（含 `docs/archive/README.md`） |
+| **Finding Report** — 原始候选 + 逐条裁决 | 入仓报告 `docs/reviews/<scanner>[-<scope>]-<kind>-<date>.md`（`kind` = `scan` / `audit` / `review`，与现有 `ocr-*-scan-*`、`*-audit-*` 同形），头部带四字段 `工具` / `范围` / `日期` / `裁决状态`（`未裁决` / `部分吸收` / `已吸收`），并在 `docs/DOCS-INDEX.md` 的 `reviews/` 表登记；一次性试验（不留存结论）可放 `.scratch/`（gitignored）或 PR 评论 | active 到裁决完成、对应 issue（如有）全闭；`裁决状态：已吸收` 即移入归档，按 `docs/DOCS-INDEX.md` §Spec/Ticket/Review Lifecycle 归档（含 `docs/archive/README.md`） |
 | **Ruling** — 真/假阳性 + 证据 | 报告内联逐条写；对应 issue 的评论只留汇总 | 与报告同寿命 |
 | **Batch Issue** — 可交付修复批 | GitHub Issue，标签按 `triage-labels.md` | 开票即冻结：只含已确认真阳性、同一模块且同批可修完的条目，单个 issue ≤ 15 个可勾选原子项（批次上限） |
-| **Coverage Gap** — 扫描器没扫、漏扫或扫不动 | 独立的扫描器 / 测试基础设施 issue | 与业务批次 issue 分开；未扫或漏扫区域不写进批次 issue |
+| **Coverage Gap** — 未扫、漏扫或扫不动的区域 | 未扫区域登记进 `docs/conventions/coverage-matrix.md`；扫描器自身的缺陷（漏扫脚本、正则误报、跑不完）另开扫描器 / 测试基础设施 issue | 覆盖缺口不拆 issue，也不写进批次 issue：它是事实，不是工作项，真去扫时更新矩阵并落报告；工具缺陷才是工作项 |
 
 裁决由执行该次扫描的 session 逐条落。
 
 **入口顺序**：全量扫描按 1、2、3、5；增量审查走 4，过滤（2）与冻结（3）照用。
 
-1. 先落报告、逐条裁决，再决定开不开 issue。假阳性留在报告或既有排除名单（`knip.json`、eslint allowlist 等），不进批次 issue 的分母。完成判据：报告里每条候选都有 true/false 裁决与证据。
+1. 先落报告、逐条裁决，再决定开不开 issue；同一步把本次扫到的范围与仍未扫到的范围登记进 `docs/conventions/coverage-matrix.md`。假阳性留在报告或既有排除名单（`knip.json`、eslint allowlist 等），不进批次 issue 的分母。完成判据：报告里每条候选都有 true/false 裁决与证据，覆盖矩阵有了本次扫描的行。
 2. 只为「已确认真阳性 + 可直接动手」的条目开批次 issue；聚合与上限见上表，其余真阳性留在报告里待下一批。完成判据：issue checklist 的每一项都能直接动手改代码。
 3. 后续扫描的新增项进新报告，需要实施时另开批次 issue。完成判据：issue body 的条目集合与开票时一致（冻结规则见上表）。
 4. 增量路径（OCR A/B 模式、per-PR 审查）通常只有几条：裁决与证据放 PR review，真阳性直接开 issue，不强制单独报告；同一批超过批次上限时升级为报告。完成判据：PR review 里每条 finding 都有裁决，真阳性的 issue 已开。
-5. 报告内所有候选裁决完、对应 issue 全闭后归档；未裁决的报告留在 `docs/reviews/`，避免「归档 = 已处理」的误读。完成判据：报告已按生命周期归档，`docs/DOCS-INDEX.md` 与 `docs/archive/README.md` 已同步。
+5. 报告内所有候选裁决完、对应 issue 全闭后，把头部 `裁决状态` 改成 `已吸收` 并归档；未裁决的报告留在 `docs/reviews/`，避免「归档 = 已处理」的误读。完成判据：报告已按生命周期归档，`docs/DOCS-INDEX.md`、`docs/archive/README.md` 与覆盖矩阵的文件路径已同步。
 
-这是约定，不是 CI 门禁（理由见 #650 的方案评审评论）。
+**门禁**：`npm run lint:docs` 判**新增或改动**的 `docs/reviews/` 报告，三条 FAIL：
+
+- `review-report-name` — 文件名须合 `<scanner>[-<scope>]-<kind>-<YYYY-MM-DD>.md`：日期是真实日历日，kind（`scan` / `audit` / `review`）之前须有扫描器名；kind 与日期之间可再有描述词（存量 `ponytail-adoption-review-brief-2026-09-04.md` 合法）。
+- `review-report-header` — 头部（前 40 行，与 `docs/research/` 下游票字段同宽）须有四字段，空值不算填写。除上表的 `工具` / `范围` / `日期` / `裁决状态`，也接受 `Tool` / `Scope` / `Date` / `Ruling`（英文大小写不敏感，但须成词——`**ReviewDate**` 不算日期）。
+- `review-report-unarchived` — `裁决状态` 取值为 `已吸收`（或 `absorbed`）却仍在 `docs/reviews/`。判定按取值而非子串：`未裁决（已吸收 0 条）` 不是已吸收；同一份报告出现多个状态时，任一处写 `已吸收` 即按已吸收处理。
+
+`部分吸收` 不触发归档：它意味着仍有未吸收的发现，报告要留在可检索位置，归档会读成「已处理」——正是本契约第 5 步要避免的误读。
+
+存量报告不回溯，与 `docs/research/` 的下游票字段同一套棘轮；门禁只判形态，判不了裁决真假，真假仍由执行扫描的 session 落并留证据。
 
 ## Wayfinding operations
 

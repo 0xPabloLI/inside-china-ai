@@ -10,6 +10,7 @@ import {
   checkL2CommandLines,
   checkReferenceResolution,
   checkResearchDownstream,
+  checkReviewReportShape,
   checkWritingForAgentsGate,
   isAgentDoc,
   loadDownstreamBaseline,
@@ -19,6 +20,9 @@ import {
   parseIndexSections,
   parseRefBaseline,
   parseResearchDownstream,
+  parseReviewHeader,
+  parseReviewReportName,
+  parseRulingStatus,
   loadRefBaseline,
 } from "../lint-doc-hierarchy.mjs";
 
@@ -1147,5 +1151,168 @@ describe("证据层引用基线", () => {
     const keys = [...parseRefBaseline(readFileSync(path, "utf8"))];
     expect(keys.length).toBeGreaterThan(0);
     expect(keys.filter((k) => !evidence.some((p) => k.startsWith(p)))).toEqual([]);
+  });
+});
+
+describe("checkReviewReportShape（扫描报告形态门禁，#1131）", () => {
+  const tableReport = [
+    "# OCR Scan Report: src/routes",
+    "",
+    "| 字段 | 值 |",
+    "| --- | --- |",
+    "| 工具 | open-code-review v1.12.9（qwen3:8b） |",
+    "| 范围 | src/routes/ 31 文件 |",
+    "| 日期 | 2026-09-19 |",
+    "| 裁决状态 | 未裁决 |",
+    "",
+    "## Findings",
+    "",
+  ].join("\n");
+
+  const labelledReport = [
+    "# Semgrep Scan",
+    "",
+    "**Tool**: semgrep CE 1.90",
+    "**Scope**: src/",
+    "**Date**: 2026-11-04",
+    "**Ruling**: 部分吸收（3 条待修）",
+    "",
+  ].join("\n");
+
+  it("PASS: 合规文件名 + 四字段头（表格形态）", () => {
+    const findings = checkReviewReportShape(
+      [{ filename: "ocr-routes-scan-2026-09-19.md", content: tableReport }],
+      ["docs/reviews/ocr-routes-scan-2026-09-19.md"],
+    ).findings;
+    expect(findings).toEqual([]);
+  });
+
+  it("PASS: 加粗标签与 Tool/Scope/Date/Ruling 英文标签同样算数", () => {
+    const findings = checkReviewReportShape(
+      [{ filename: "semgrep-src-scan-2026-11-04.md", content: labelledReport }],
+      ["docs/reviews/semgrep-src-scan-2026-11-04.md"],
+    ).findings;
+    expect(findings).toEqual([]);
+  });
+
+  it("文件名必须带 kind 段、扫描器名与真实日历日", () => {
+    expect(parseReviewReportName("ocr-routes-scan-2026-09-19.md").ok).toBe(true);
+    // 描述词落在 kind 与日期之间仍然合法，存量语料不用改名
+    expect(parseReviewReportName("ponytail-adoption-review-brief-2026-09-04.md").ok).toBe(true);
+    expect(parseReviewReportName("notes.md").ok).toBe(false);
+    expect(parseReviewReportName("ocr-routes-scan.md").ok).toBe(false);
+    expect(parseReviewReportName("report-2026-11-04.md").ok).toBe(false);
+    expect(parseReviewReportName("scan-2026-11-04.md").ok).toBe(false);
+    expect(parseReviewReportName("ocr-x-scan-2026-13-45.md").reason).toContain("不是有效日历日");
+  });
+
+  it("FAIL: 表头有四行标签但值全空——标签不是字段", () => {
+    const blank = ["| 工具 | |", "| 范围 | |", "| 日期 | |", "| 裁决状态 | |", ""].join("\n");
+    expect(parseReviewHeader(blank).missing).toHaveLength(4);
+  });
+
+  it("英文标签大小写不敏感，但仍须成词", () => {
+    expect(parseReviewHeader("**tool**: semgrep\n").missing).not.toContain(
+      "工具（哪个扫描器/模型）",
+    );
+    expect(parseReviewHeader("**ReviewDate**: 2026-11-04\n").missing).toContain(
+      "日期（YYYY-MM-DD）",
+    );
+  });
+
+  it("头部窗口与调研字段同宽（40 行），晚几行的字段仍算数", () => {
+    const late = ["# Report", ...Array(25).fill(""), "| 工具 | semgrep |", ""].join("\n");
+    expect(parseReviewHeader(late).missing).not.toContain("工具（哪个扫描器/模型）");
+    const tooLate = ["# Report", ...Array(45).fill(""), "| 工具 | semgrep |", ""].join("\n");
+    expect(parseReviewHeader(tooLate).missing).toContain("工具（哪个扫描器/模型）");
+  });
+
+  it("裁决状态按取值判定，不做子串匹配", () => {
+    expect(parseRulingStatus("已吸收")).toBe("absorbed");
+    expect(parseRulingStatus("已吸收（2026-10-01 归档）")).toBe("absorbed");
+    expect(parseRulingStatus("Absorbed")).toBe("absorbed");
+    expect(parseRulingStatus("部分吸收")).toBe("partial");
+    expect(parseRulingStatus("未裁决（已吸收 0 条）")).toBe("unruled");
+    expect(parseRulingStatus("待复核")).toBe("unknown");
+  });
+
+  it("同一份报告里出现两个裁决状态时，按已吸收处理（不让旧行掩盖真状态）", () => {
+    const mixed = [
+      "| 工具 | semgrep |",
+      "| 范围 | src/routes |",
+      "| 日期 | 2026-11-04 |",
+      "| 裁决状态 | 未裁决 |",
+      "",
+      "## 追加",
+      "",
+      "| 裁决状态 | 已吸收 |",
+      "",
+    ].join("\n");
+    expect(parseReviewHeader(mixed).status).toBe("已吸收");
+  });
+
+  it("FAIL: 头部缺字段时点名缺的是哪几个", () => {
+    const legacy = "> 2026-09-19 | ocr scan --path src/routes | 31 files\n";
+    const { missing } = parseReviewHeader(legacy);
+    expect(missing).toHaveLength(4);
+    const findings = checkReviewReportShape(
+      [{ filename: "ocr-routes-scan-2026-09-19.md", content: legacy }],
+      ["docs/reviews/ocr-routes-scan-2026-09-19.md"],
+    ).findings;
+    expect(failsOf(findings)).toHaveLength(1);
+    expect(findings[0].ruleId).toBe("review-report-header");
+    expect(findings[0].message).toContain("工具");
+    expect(findings[0].message).toContain("裁决状态");
+  });
+
+  it("标签必须带值分隔符——`范围` 只是正文里的词不算字段", () => {
+    expect(parseReviewHeader("本次扫描范围覆盖 src/routes。\n").missing).toContain(
+      "范围（扫了哪些路径或文件）",
+    );
+  });
+
+  it("英文标签必须成词——复合词里的 Date 不算日期字段", () => {
+    expect(parseReviewHeader("**ReviewDate**: 2026-11-04\n").missing).toContain(
+      "日期（YYYY-MM-DD）",
+    );
+  });
+
+  it("FAIL: 已吸收的报告留在 docs/reviews/；部分吸收仍在场", () => {
+    const absorbed = tableReport.replace("| 裁决状态 | 未裁决 |", "| 裁决状态 | 已吸收 |");
+    const stays = checkReviewReportShape(
+      [{ filename: "ocr-routes-scan-2026-09-19.md", content: absorbed }],
+      ["docs/reviews/ocr-routes-scan-2026-09-19.md"],
+    ).findings;
+    expect(stays.map((f) => f.ruleId)).toEqual(["review-report-unarchived"]);
+
+    const partial = labelledReport; // 部分吸收
+    expect(
+      checkReviewReportShape(
+        [{ filename: "semgrep-src-scan-2026-11-04.md", content: partial }],
+        ["docs/reviews/semgrep-src-scan-2026-11-04.md"],
+      ).findings,
+    ).toEqual([]);
+  });
+
+  it("存量不回溯：未改动的旧报告不判", () => {
+    const legacy = [{ filename: "ocr-routes-scan-2026-09-19.md", content: "# old\n" }];
+    expect(checkReviewReportShape(legacy, []).findings).toEqual([]);
+  });
+
+  it("FAIL: 改动集对不上时不静默通过", () => {
+    const { findings } = checkReviewReportShape([], [], "origin/main");
+    expect(failsOf(findings)).toHaveLength(1);
+    expect(findings[0].ruleId).toBe("review-report-diff-failed");
+    expect(findings[0].message).toContain("origin/main");
+  });
+
+  it("仓内现状：改动集为空时零 findings（规则不退化成全量扫描）", () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const dir = join(root, "docs", "reviews");
+    const files = readdirSync(dir)
+      .filter((f) => f.endsWith(".md"))
+      .map((filename) => ({ filename, content: readFileSync(join(dir, filename), "utf8") }));
+    expect(files.length).toBeGreaterThan(0);
+    expect(checkReviewReportShape(files, []).findings).toEqual([]);
   });
 });
