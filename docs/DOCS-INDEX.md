@@ -141,7 +141,7 @@ Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 
 ### `reviews/` — Active review records
 
-Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸收后归档到 `archive/reviews/`；扫描器 audit 报告的生命周期见 `agents/issue-tracker.md` §Scanner & Audit Intake Contract。下表列出 review 与 audit 报告，已归档者以删除线标注。
+Review 文档与 spec/ticket 同生命周期：审查期间存在，结论被吸收后归档到 `archive/reviews/`；扫描器 audit 报告的生命周期见 `docs/agents/issue-tracker.md` §Scanner & Audit Intake Contract。下表列出已登记的 review 与 audit 报告（存量 audit 报告未回填），已归档者以删除线标注。
 
 | Document                                                     | Purpose                                                                                                                                                                                                                                                                                                 |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
