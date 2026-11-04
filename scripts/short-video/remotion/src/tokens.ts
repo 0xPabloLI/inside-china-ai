@@ -6,8 +6,9 @@
  * so the token contract can be tested in plain Node (vitest), without the
  * workspace-only Remotion dependency.
  *
- * Colour values come from DESIGN.md (§2). The video canvas is the dark
- * counterpart of the web system: same Dispatch Blue, same ink hierarchy.
+ * Colour values mirror the values already shipped on the video surface; the
+ * brand accent is DESIGN.md's Dispatch Blue. The video canvas is intentionally
+ * darker than the web surface — it is the ground the clips composite onto.
  */
 import { BRAND_FONT_STACK } from "../../lib/safe-zones.mjs";
 
@@ -17,8 +18,6 @@ export const COLOR = {
   brand: "#4d8bff",
   /** Video canvas (the dark ground every scene sits on). */
   canvas: "#0a0a14",
-  /** Ink Slate — the primary action colour on the web surface. */
-  ink: "#2a2f36",
   /** Primary on-canvas text. */
   text: "#f5f5f5",
   /** Secondary text (explanations, taglines). */
@@ -36,12 +35,6 @@ export const COLOR = {
 export const TYPE = {
   /** Brand sans stack — the only family on the video surface. */
   family: BRAND_FONT_STACK,
-  weight: {
-    semibold: 600,
-    bold: 700,
-    extrabold: 800,
-    black: 900,
-  },
 } as const;
 
 export type SpringPreset = {
@@ -72,7 +65,6 @@ export const MOTION = {
   stagger: {
     line: 0.08,
     word: 0.055,
-    char: 0.025,
   },
 } as const;
 
@@ -105,39 +97,31 @@ export const HOLD = {
 export type CameraSpec = {
   scaleFrom: number;
   scaleTo: number;
-  /** Vertical drift at settle, px (negative = push up). */
+  /** Vertical offset at frame 0, px (negative = starts above; ramps to 0). */
   driftY: number;
   transformOrigin: string;
 };
 
 /**
- * Camera tokens — one very slow push per scene (talkcraft's anti-PPT rule:
+ * Camera tokens — one very slow pull per scene (talkcraft's anti-PPT rule:
  * "a structurally static frame must be impossible").
  *
- * The camera wraps only the composition/text layers. Media keeps its own
- * bezier-driven motion (#357), so a bound clip never gets two competing
- * moves. Hook and CTA stay locked: the hook IS the cover frame (already
- * fully composed at frame 0) and the CTA is the brand close.
+ * The composition starts 0.6% larger and rests exactly at 1, so settled text
+ * sits on its authored, safe-zone-checked coordinates. The camera wraps only
+ * the composition/text layers. Media keeps its own bezier-driven motion (#357),
+ * so a bound clip never gets two competing moves. Hook and CTA stay locked:
+ * the hook IS the cover frame (already fully composed at frame 0) and the CTA
+ * is the brand close.
  */
 export const CAMERA = {
   default: {
-    scaleFrom: 1,
-    scaleTo: 1.008,
-    driftY: -4,
+    scaleFrom: 1.006,
+    scaleTo: 1,
+    driftY: 3,
     transformOrigin: "50% 50%",
   } as CameraSpec,
   /** visualTypes whose composition layer never moves. */
   disabled: ["hook", "cta"] as readonly string[],
-  /** Push-out while a number lands: the frame opens as the stat reads. */
-  byVisualType: {
-    data: { scaleFrom: 1.008, scaleTo: 1, driftY: 4, transformOrigin: "50% 50%" } as CameraSpec,
-    "stat-reveal": {
-      scaleFrom: 1.008,
-      scaleTo: 1,
-      driftY: 4,
-      transformOrigin: "50% 50%",
-    } as CameraSpec,
-  } as Record<string, CameraSpec>,
 } as const;
 
 /** Frames a scene reserves as its closing still window. */
@@ -158,16 +142,36 @@ export function settleByFrame(durationFrames: number, visualType: string): numbe
 
 /** Camera spec for a visualType, or null when the camera stays locked. */
 export function cameraSpecFor(visualType: string): CameraSpec | null {
-  if (CAMERA.disabled.includes(visualType)) return null;
-  return CAMERA.byVisualType[visualType] ?? CAMERA.default;
+  return CAMERA.disabled.includes(visualType) ? null : CAMERA.default;
+}
+
+/**
+ * Fit an entrance into the hold boundary.
+ *
+ * Normal case: unchanged. If the authored window would end inside the hold
+ * window, shift it earlier (never before frame 0) and, when even a full-length
+ * entrance cannot fit, shorten it to end exactly on the boundary.
+ */
+export function fitEntranceWindow(
+  start: number,
+  duration: number,
+  settleAt: number | null,
+): { start: number; end: number } {
+  const dur = Math.max(1, duration);
+  if (settleAt == null || start + dur <= settleAt) {
+    return { start, end: start + dur };
+  }
+  const fittedDuration = Math.min(dur, settleAt);
+  return { start: Math.max(0, settleAt - fittedDuration), end: Math.max(1, settleAt) };
 }
 
 /**
  * Camera transform at `frame` for a scene of `durationFrames`.
  *
- * Linear by design: the push is constant-speed and settles exactly on
- * `settleByFrame`, then holds identity — a pure function of the frame, no
- * wall-clock, no CSS transition.
+ * Linear by design: the pull is constant-speed and settles exactly on
+ * `settleByFrame`, at the authored resting transform (scale 1, no offset),
+ * then holds identity — a pure function of the frame, no wall-clock, no CSS
+ * transition.
  */
 export function cameraStateAt(
   frame: number,
@@ -181,7 +185,7 @@ export function cameraStateAt(
   const scale = spec.scaleFrom + (spec.scaleTo - spec.scaleFrom) * progress;
   return {
     scale,
-    translateY: spec.driftY * progress,
+    translateY: spec.driftY * (1 - progress),
     transformOrigin: spec.transformOrigin,
   };
 }

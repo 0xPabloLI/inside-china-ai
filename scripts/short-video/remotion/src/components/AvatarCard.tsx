@@ -28,7 +28,7 @@ import { Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
 import { Video } from "@remotion/media";
 import type { AvatarField } from "../types";
 import { AVATAR_CARD_RECT } from "../../../lib/safe-zones.mjs";
-import { secToFrames } from "./shared";
+import { COLOR, secToFrames } from "./shared";
 
 /** Card styling — rounded corners + shadow per spec Implementation Decision 2,
  *  proportions from the approved variant 1′ prototype. The thin border is the
@@ -40,7 +40,7 @@ const CARD_STYLE = {
   borderRadius: 16,
   border: "2px solid rgba(255,255,255,0.85)",
   boxShadow: "0 8px 30px rgba(0,0,0,0.55)",
-  background: "#0a0a14",
+  background: COLOR.canvas,
   boxSizing: "border-box",
 } as const;
 

@@ -13,7 +13,7 @@ import { Interactive } from "remotion";
 import { type SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
 import { SlideUp, StampIn, FadeIn } from "../components/animations/entrance";
-import { SPACING } from "../components/shared";
+import { SPACING, COLOR } from "../components/shared";
 import { TextGate } from "../components/text-gate";
 import { MediaBackground } from "../components/MediaBackground";
 import { Camera } from "../components/Camera";
@@ -85,7 +85,7 @@ export const ContrastScene: React.FC<{
                 {(fontSize) => (
                   <Interactive.Div
                     name="title"
-                    style={{ fontSize, fontWeight: 900, color: "#f5f5f5", textAlign: "center" }}
+                    style={{ fontSize, fontWeight: 900, color: COLOR.text, textAlign: "center" }}
                   >
                     {txt.title as string}
                   </Interactive.Div>
@@ -101,11 +101,11 @@ export const ContrastScene: React.FC<{
                     style={{
                       display: "inline-block",
                       padding: "6px 20px",
-                      border: "1px solid #94a3b8",
+                      border: `1px solid ${COLOR.textDim}`,
                       borderRadius: 6,
                       fontSize,
                       fontWeight: 900,
-                      color: "#94a3b8",
+                      color: COLOR.textDim,
                       letterSpacing: "2px",
                       marginBottom: 20,
                     }}
@@ -134,7 +134,7 @@ export const ContrastScene: React.FC<{
                 <Chip
                   key={i}
                   text={item}
-                  color="#f59e0b"
+                  color={COLOR.amber}
                   bg="rgba(245,158,11,0.1)"
                   delay={0.6 + i * 0.12}
                   slotId={`contrast.hero-center.left[${i}]`}
@@ -160,7 +160,7 @@ export const ContrastScene: React.FC<{
                 <Chip
                   key={i}
                   text={item}
-                  color="#4d8bff"
+                  color={COLOR.brand}
                   bg="rgba(77,139,255,0.1)"
                   delay={0.9 + i * 0.12}
                   slotId={`contrast.hero-center.right[${i}]`}
@@ -173,10 +173,17 @@ export const ContrastScene: React.FC<{
             <FadeIn delay={1.2} duration={0.5}>
               <TextGate sceneId={sceneId} slotId="contrast.hero-center.note">
                 {(fontSize) => (
-                  <div style={{ fontSize, fontWeight: 700, color: "#cbd5e1", textAlign: "center" }}>
+                  <div
+                    style={{
+                      fontSize,
+                      fontWeight: 700,
+                      color: COLOR.textMuted,
+                      textAlign: "center",
+                    }}
+                  >
                     {txt.note as string}
                     {txt.noteHighlight && (
-                      <span style={{ color: "#ef4444" }}>{txt.noteHighlight as string}</span>
+                      <span style={{ color: COLOR.red }}>{txt.noteHighlight as string}</span>
                     )}
                   </div>
                 )}

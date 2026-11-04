@@ -21,6 +21,7 @@ import {
   settleByFrame,
   cameraSpecFor,
   cameraStateAt,
+  fitEntranceWindow,
 } from "../remotion/src/tokens.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -38,7 +39,6 @@ describe("colour and type tokens", () => {
     // BRAND_FONT_STACK (lib/safe-zones.mjs) is the established video face;
     // the token layer must not introduce a second family.
     expect(TYPE.family).toBe("'Times New Roman', Times, serif");
-    expect(TYPE.weight.black).toBe(900);
   });
 });
 
@@ -64,20 +64,16 @@ describe("motion tokens — spring tiers", () => {
 });
 
 describe("motion tokens — stagger bands", () => {
-  it("keeps line / word / char stagger inside the iart bands", () => {
+  it("keeps line / word stagger inside the iart bands", () => {
     expect(MOTION.stagger.line).toBeGreaterThanOrEqual(0.06);
     expect(MOTION.stagger.line).toBeLessThanOrEqual(0.1);
 
     expect(MOTION.stagger.word).toBeGreaterThanOrEqual(0.04);
     expect(MOTION.stagger.word).toBeLessThanOrEqual(0.07);
-
-    expect(MOTION.stagger.char).toBeGreaterThanOrEqual(0.02);
-    expect(MOTION.stagger.char).toBeLessThanOrEqual(0.04);
   });
 
-  it("orders the bands from slowest to fastest", () => {
+  it("keeps lines slower than words", () => {
     expect(MOTION.stagger.line).toBeGreaterThan(MOTION.stagger.word);
-    expect(MOTION.stagger.word).toBeGreaterThan(MOTION.stagger.char);
   });
 });
 
@@ -128,12 +124,12 @@ describe("camera tokens", () => {
     },
   );
 
-  it("starts at the authored scale and settles exactly on settleByFrame", () => {
+  it("starts at the authored offset and settles exactly on settleByFrame", () => {
     const durationFrames = 180;
     const spec = cameraSpecFor("narrative");
     const atZero = cameraStateAt(0, durationFrames, "narrative");
     expect(atZero.scale).toBeCloseTo(spec.scaleFrom, 10);
-    expect(atZero.translateY).toBeCloseTo(0, 10);
+    expect(atZero.translateY).toBeCloseTo(spec.driftY, 10);
 
     const atSettle = cameraStateAt(
       settleByFrame(durationFrames, "narrative"),
@@ -141,7 +137,8 @@ describe("camera tokens", () => {
       "narrative",
     );
     expect(atSettle.scale).toBeCloseTo(spec.scaleTo, 10);
-    expect(atSettle.translateY).toBeCloseTo(spec.driftY, 10);
+    // The rest pose is identity: authored, safe-zone-checked coordinates.
+    expect(atSettle.translateY).toBeCloseTo(0, 10);
   });
 
   it("holds perfectly still for the whole closing window", () => {
@@ -153,22 +150,31 @@ describe("camera tokens", () => {
     }
   });
 
-  it("keeps the push monotonic and sub-perceptual per frame", () => {
+  it("pulls out monotonically and sub-perceptually per frame", () => {
     const durationFrames = 180;
     const settleAt = settleByFrame(durationFrames, "narrative");
     let previous = cameraStateAt(0, durationFrames, "narrative").scale;
     for (let frame = 1; frame <= settleAt; frame += 1) {
       const scale = cameraStateAt(frame, durationFrames, "narrative").scale;
-      expect(scale).toBeGreaterThanOrEqual(previous - 1e-12);
+      expect(scale).toBeLessThanOrEqual(previous + 1e-12);
       // < 0.02% of frame width per frame — reads as drift, never as a pan.
-      expect(scale - previous).toBeLessThanOrEqual(0.0002 + 1e-12);
+      expect(previous - scale).toBeLessThanOrEqual(0.0002 + 1e-12);
       previous = scale;
     }
   });
 
-  it("gives data and stat scenes a push-out while the number lands", () => {
-    for (const visualType of ["data", "stat-reveal"]) {
+  it("pulls every enabled type out to the authored resting pose", () => {
+    for (const visualType of [
+      "narrative",
+      "data",
+      "info-card",
+      "quote",
+      "context",
+      "contrast",
+      "stat-reveal",
+    ]) {
       const spec = cameraSpecFor(visualType);
+      expect(spec).toEqual(CAMERA.default);
       expect(spec.scaleFrom).toBeGreaterThan(spec.scaleTo);
       expect(spec.scaleTo).toBe(1);
       expect(spec.driftY).toBeGreaterThan(0);
@@ -195,15 +201,52 @@ describe("camera wiring at the scene layer", () => {
     expect(opens.length).toBeGreaterThan(0);
   });
 
-  it("never wraps media: hook, CTA and fullscreen stay camera-free", () => {
-    for (const file of [
-      "scenes/HookScene.tsx",
-      "scenes/CtaScene.tsx",
-      "scenes/FullscreenMedia.tsx",
+  it("mounts Camera on hook and CTA for the hold budget, without a transform", () => {
+    for (const [file, visualType] of [
+      ["scenes/HookScene.tsx", "hook"],
+      ["scenes/CtaScene.tsx", "cta"],
     ]) {
+      const source = readSrc(file);
+      expect(source).toContain('import { Camera } from "../components/Camera"');
+      expect(source).toContain(`<Camera visualType="${visualType}" duration={duration}>`);
+      expect(cameraSpecFor(visualType)).toBeNull();
+    }
+  });
+
+  it("never wraps media: fullscreen and background stay camera-free", () => {
+    for (const file of ["scenes/FullscreenMedia.tsx", "components/MediaBackground.tsx"]) {
       expect(readSrc(file)).not.toContain("Camera");
     }
-    expect(readSrc("components/MediaBackground.tsx")).not.toContain("Camera");
+  });
+});
+
+describe("entrance budget — hold-aware windows", () => {
+  it("leaves a legal window untouched", () => {
+    expect(fitEntranceWindow(0, 12, 135)).toEqual({ start: 0, end: 12 });
+  });
+
+  it("shifts an overrunning window earlier", () => {
+    const fitted = fitEntranceWindow(130, 12, 135);
+    expect(fitted.end).toBe(135);
+    expect(fitted.start).toBe(123);
+    expect(fitted.end - fitted.start).toBe(12);
+  });
+
+  it("compresses a window that cannot fit before the boundary", () => {
+    const fitted = fitEntranceWindow(4, 30, 10);
+    expect(fitted).toEqual({ start: 0, end: 10 });
+  });
+
+  it("does nothing when no scene budget is published", () => {
+    expect(fitEntranceWindow(200, 12, null)).toEqual({ start: 200, end: 212 });
+  });
+
+  it("routes every entrance primitive through useEntranceWindow", () => {
+    const source = readSrc("components/animations/entrance.tsx");
+    const uses = source.match(/useEntranceWindow\(/g) ?? [];
+    // Eight single-element primitives plus the two stagger groups.
+    expect(uses.length).toBeGreaterThanOrEqual(10);
+    expect(source).toContain('from "../motion-budget"');
   });
 });
 

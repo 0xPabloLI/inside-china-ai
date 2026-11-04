@@ -7,7 +7,7 @@ import { Underline } from "@remotion/rough-notation";
 import { type SceneData } from "../types";
 import { GridBg, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
 import { FadeIn, SlideUp, StampIn } from "../components/animations/entrance";
-import { SPACING } from "../components/shared";
+import { SPACING, COLOR } from "../components/shared";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
 
@@ -65,11 +65,11 @@ export const QuoteScene: React.FC<{ scene: SceneData; duration: number }> = ({
                       style={{
                         fontSize,
                         fontWeight: 700,
-                        color: "#f5f5f5",
+                        color: COLOR.text,
                         lineHeight: 1.35,
                       }}
                     >
-                      <Underline color="#4d8bff" progress={underlineProgress}>
+                      <Underline color={COLOR.brand} progress={underlineProgress}>
                         {txt.quote as string}
                       </Underline>
                     </div>
@@ -82,7 +82,12 @@ export const QuoteScene: React.FC<{ scene: SceneData; duration: number }> = ({
                 <TextGate sceneId={sceneId} slotId="quote.hero-center.source">
                   {(fontSize) => (
                     <div
-                      style={{ fontSize, fontWeight: 700, color: "#cbd5e1", letterSpacing: "2px" }}
+                      style={{
+                        fontSize,
+                        fontWeight: 700,
+                        color: COLOR.textMuted,
+                        letterSpacing: "2px",
+                      }}
                     >
                       {txt.source as string}
                     </div>
@@ -117,7 +122,7 @@ export const QuoteScene: React.FC<{ scene: SceneData; duration: number }> = ({
                           style={{
                             fontSize,
                             fontWeight: 800,
-                            color: "#f59e0b",
+                            color: COLOR.amber,
                             letterSpacing: "2px",
                           }}
                         >

@@ -14,6 +14,7 @@
 import { Children, type CSSProperties, type ReactNode } from "react";
 import { spring, useCurrentFrame } from "remotion";
 import { clamp, interpolate, FPS, secToFrames } from "../shared";
+import { useEntranceWindow } from "../motion-budget";
 import { MOTION, type SpringPreset } from "../../tokens";
 
 interface AnimProps {
@@ -55,12 +56,8 @@ const range = (p: number, from: number, to: number): number =>
 /** fadeIn — opacity 0→1, spring (item tier) */
 export const FadeIn: React.FC<AnimProps> = ({ delay = 0, duration = 0.4, children, style }) => {
   const frame = useCurrentFrame();
-  const p = progressOf(
-    frame,
-    secToFrames(delay),
-    secToFrames(delay) + secToFrames(duration),
-    MOTION.spring.item,
-  );
+  const { start, end } = useEntranceWindow(delay, duration);
+  const p = progressOf(frame, start, end, MOTION.spring.item);
   return <div style={{ opacity: p, ...style }}>{children}</div>;
 };
 
@@ -73,12 +70,8 @@ export const SlideUp: React.FC<AnimProps> = ({
   dataMeasureBox,
 }) => {
   const frame = useCurrentFrame();
-  const p = progressOf(
-    frame,
-    secToFrames(delay),
-    secToFrames(delay) + secToFrames(duration),
-    MOTION.spring.item,
-  );
+  const { start, end } = useEntranceWindow(delay, duration);
+  const p = progressOf(frame, start, end, MOTION.spring.item);
   return (
     <div
       data-measure-box={dataMeasureBox}
@@ -92,12 +85,8 @@ export const SlideUp: React.FC<AnimProps> = ({
 /** slideLeft — opacity 0→1, translateX -50→0, spring (item tier) */
 export const SlideLeft: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, children, style }) => {
   const frame = useCurrentFrame();
-  const p = progressOf(
-    frame,
-    secToFrames(delay),
-    secToFrames(delay) + secToFrames(duration),
-    MOTION.spring.item,
-  );
+  const { start, end } = useEntranceWindow(delay, duration);
+  const p = progressOf(frame, start, end, MOTION.spring.item);
   return (
     <div style={{ opacity: p, translate: `${range(p, -50, 0)}px 0`, ...style }}>{children}</div>
   );
@@ -106,12 +95,8 @@ export const SlideLeft: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, chil
 /** slideDown — opacity 0→1, translateY -30→0, spring (item tier) */
 export const SlideDown: React.FC<AnimProps> = ({ delay = 0, duration = 0.3, children, style }) => {
   const frame = useCurrentFrame();
-  const p = progressOf(
-    frame,
-    secToFrames(delay),
-    secToFrames(delay) + secToFrames(duration),
-    MOTION.spring.item,
-  );
+  const { start, end } = useEntranceWindow(delay, duration);
+  const p = progressOf(frame, start, end, MOTION.spring.item);
   return (
     <div style={{ opacity: p, translate: `0 ${range(p, -30, 0)}px`, ...style }}>{children}</div>
   );
@@ -120,12 +105,8 @@ export const SlideDown: React.FC<AnimProps> = ({ delay = 0, duration = 0.3, chil
 /** scaleIn — opacity 0→1, scale 0.7→1, spring (heading tier) */
 export const ScaleIn: React.FC<AnimProps> = ({ delay = 0, duration = 0.6, children, style }) => {
   const frame = useCurrentFrame();
-  const p = progressOf(
-    frame,
-    secToFrames(delay),
-    secToFrames(delay) + secToFrames(duration),
-    MOTION.spring.heading,
-  );
+  const { start, end } = useEntranceWindow(delay, duration);
+  const p = progressOf(frame, start, end, MOTION.spring.heading);
   return (
     <div
       style={{
@@ -145,12 +126,8 @@ export const ScaleIn: React.FC<AnimProps> = ({ delay = 0, duration = 0.6, childr
 /** stampIn — opacity 0→1, scale 2→1, spring (accent tier) */
 export const StampIn: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, children, style }) => {
   const frame = useCurrentFrame();
-  const p = progressOf(
-    frame,
-    secToFrames(delay),
-    secToFrames(delay) + secToFrames(duration),
-    MOTION.spring.accent,
-  );
+  const { start, end } = useEntranceWindow(delay, duration);
+  const p = progressOf(frame, start, end, MOTION.spring.accent);
   return (
     <div
       style={{
@@ -170,12 +147,8 @@ export const StampIn: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, childr
 /** slideRight — opacity 0→1, translateX -50→0, spring (item tier) */
 export const SlideRight: React.FC<AnimProps> = ({ delay = 0, duration = 0.5, children, style }) => {
   const frame = useCurrentFrame();
-  const p = progressOf(
-    frame,
-    secToFrames(delay),
-    secToFrames(delay) + secToFrames(duration),
-    MOTION.spring.item,
-  );
+  const { start, end } = useEntranceWindow(delay, duration);
+  const p = progressOf(frame, start, end, MOTION.spring.item);
   return (
     <div style={{ opacity: p, translate: `${range(p, -50, 0)}px 0`, ...style }}>{children}</div>
   );
@@ -189,12 +162,8 @@ export const SlideUpFromBottom: React.FC<AnimProps> = ({
   style,
 }) => {
   const frame = useCurrentFrame();
-  const p = progressOf(
-    frame,
-    secToFrames(delay),
-    secToFrames(delay) + secToFrames(duration),
-    MOTION.spring.item,
-  );
+  const { start, end } = useEntranceWindow(delay, duration);
+  const p = progressOf(frame, start, end, MOTION.spring.item);
   return (
     <div style={{ opacity: p, translate: `0 ${range(p, 50, 0)}px`, ...style }}>{children}</div>
   );
@@ -215,10 +184,6 @@ interface StaggerProps {
   children: ReactNode;
 }
 
-/** Frame offset of unit `i`, kept sub-frame accurate across the 30fps grid. */
-const unitStart = (index: number, delay: number, stagger: number): number =>
-  secToFrames(delay) + Math.round(index * stagger * FPS);
-
 /**
  * StaggerLines — one spring entrance per child, offset by MOTION.stagger.line.
  *
@@ -235,12 +200,17 @@ export const StaggerLines: React.FC<StaggerProps> = ({
   children,
 }) => {
   const frame = useCurrentFrame();
-  const dur = secToFrames(duration);
+  const units = Children.toArray(children);
+  const perFrames = Math.round(stagger * FPS);
+  const unitFrames = secToFrames(duration);
+  // Budget the whole group: the last unit must land before the hold boundary.
+  const group = useEntranceWindow(delay, duration + Math.max(0, units.length - 1) * stagger);
   return (
     <div style={style}>
-      {Children.toArray(children).map((child, i) => {
-        const start = unitStart(i, delay, stagger);
-        const p = progressOf(frame, start, start + dur, config);
+      {units.map((child, i) => {
+        const start = group.start + i * perFrames;
+        const end = Math.min(start + unitFrames, group.end);
+        const p = progressOf(frame, start, Math.max(start + 1, end), config);
         return (
           <div key={i} style={{ opacity: p, translate: `0 ${range(p, 30, 0)}px`, ...itemStyle }}>
             {child}
@@ -272,15 +242,20 @@ export const StaggerWords: React.FC<StaggerWordsProps> = ({
   itemStyle,
 }) => {
   const frame = useCurrentFrame();
-  const dur = secToFrames(duration);
+  const parts = text.split(/(\s+)/);
+  const wordCount = parts.filter((part) => part !== "" && !/^\s+$/.test(part)).length;
+  const perFrames = Math.round(stagger * FPS);
+  const unitFrames = secToFrames(duration);
+  const group = useEntranceWindow(delay, duration + Math.max(0, wordCount - 1) * stagger);
   let wordIndex = 0;
   return (
     <div style={style}>
-      {text.split(/(\s+)/).map((part, i) => {
+      {parts.map((part, i) => {
         if (part === "" || /^\s+$/.test(part)) return <span key={i}>{part}</span>;
         const index = wordIndex++;
-        const start = unitStart(index, delay, stagger);
-        const p = progressOf(frame, start, start + dur, config);
+        const start = group.start + index * perFrames;
+        const end = Math.min(start + unitFrames, group.end);
+        const p = progressOf(frame, start, Math.max(start + 1, end), config);
         return (
           <span
             key={i}

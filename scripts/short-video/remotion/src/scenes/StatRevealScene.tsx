@@ -7,7 +7,7 @@ import { Circle } from "@remotion/rough-notation";
 import { type SceneData } from "../types";
 import { GridBg, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
 import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
-import { SPACING } from "../components/shared";
+import { SPACING, COLOR } from "../components/shared";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
 
@@ -52,7 +52,7 @@ export const StatRevealScene: React.FC<{ scene: SceneData; duration: number }> =
                     style={{
                       fontSize,
                       fontWeight: 900,
-                      color: "#f59e0b",
+                      color: COLOR.amber,
                       // The gate box is a fixed-width block; pre-gate this div
                       // was a shrink-to-fit flex item that Slot centered. Keep
                       // the text centered so the Circle ellipse stays centered
@@ -65,7 +65,7 @@ export const StatRevealScene: React.FC<{ scene: SceneData; duration: number }> =
                       textShadow: "0 0 80px rgba(245,158,11,0.5)",
                     }}
                   >
-                    <Circle color="#f59e0b" progress={circleProgress}>
+                    <Circle color={COLOR.amber} progress={circleProgress}>
                       {txt.bigNumber as string}
                     </Circle>
                   </div>
@@ -78,7 +78,7 @@ export const StatRevealScene: React.FC<{ scene: SceneData; duration: number }> =
               <TextGate sceneId={sceneId} slotId="stat-reveal.hero-center.label">
                 {(fontSize) => (
                   <div
-                    style={{ fontSize, fontWeight: 800, color: "#f5f5f5", letterSpacing: "4px" }}
+                    style={{ fontSize, fontWeight: 800, color: COLOR.text, letterSpacing: "4px" }}
                   >
                     {txt.label as string}
                   </div>
@@ -90,7 +90,7 @@ export const StatRevealScene: React.FC<{ scene: SceneData; duration: number }> =
             <FadeIn delay={0.9} duration={0.5} style={{ marginTop: SPACING.xl }}>
               <TextGate sceneId={sceneId} slotId="stat-reveal.hero-center.subtext">
                 {(fontSize) => (
-                  <div style={{ fontSize, fontWeight: 600, color: "#cbd5e1" }}>
+                  <div style={{ fontSize, fontWeight: 600, color: COLOR.textMuted }}>
                     {txt.subtext as string}
                   </div>
                 )}
@@ -105,7 +105,12 @@ export const StatRevealScene: React.FC<{ scene: SceneData; duration: number }> =
               <TextGate sceneId={sceneId} slotId="stat-reveal.hero-center.source">
                 {(fontSize) => (
                   <div
-                    style={{ fontSize, fontWeight: 600, color: "#94a3b8", letterSpacing: "1px" }}
+                    style={{
+                      fontSize,
+                      fontWeight: 600,
+                      color: COLOR.textDim,
+                      letterSpacing: "1px",
+                    }}
                   >
                     {txt.source as string}
                   </div>

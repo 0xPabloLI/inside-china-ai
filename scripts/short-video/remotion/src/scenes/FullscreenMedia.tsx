@@ -10,7 +10,7 @@
 import { AbsoluteFill } from "remotion";
 import { MediaBackground } from "../components/MediaBackground";
 import { TextGate } from "../components/text-gate";
-import { SAFE_ZONES } from "../components/shared";
+import { SAFE_ZONES, COLOR } from "../components/shared";
 import type { MediaField } from "../types";
 
 export const FullscreenMedia: React.FC<{
@@ -19,7 +19,7 @@ export const FullscreenMedia: React.FC<{
   sceneId?: string;
 }> = ({ media, duration, sceneId = "fullscreen" }) => {
   return (
-    <AbsoluteFill style={{ backgroundColor: "#0a0a14" }}>
+    <AbsoluteFill style={{ backgroundColor: COLOR.canvas }}>
       <MediaBackground media={media} duration={duration} />
       {media.source && (
         // The gate wrapper owns the positioning (its height must track the

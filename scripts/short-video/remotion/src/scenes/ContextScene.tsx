@@ -5,7 +5,7 @@
 import { type SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
 import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
-import { SPACING } from "../components/shared";
+import { SPACING, COLOR } from "../components/shared";
 import { TextGate } from "../components/text-gate";
 import { MediaBackground } from "../components/MediaBackground";
 import { Camera } from "../components/Camera";
@@ -44,7 +44,7 @@ export const ContextScene: React.FC<{ scene: SceneData; duration: number; conten
                       borderRadius: 6,
                       fontSize,
                       fontWeight: 800,
-                      color: "#4d8bff",
+                      color: COLOR.brand,
                       letterSpacing: "2px",
                     }}
                   >
@@ -75,13 +75,13 @@ export const ContextScene: React.FC<{ scene: SceneData; duration: number; conten
                       style={{
                         fontSize,
                         fontWeight: 900,
-                        color: "#f5f5f5",
+                        color: COLOR.text,
                         marginBottom: SPACING.sm,
                       }}
                     >
                       {txt.title as string}
                       {txt.titleHighlight && (
-                        <span style={{ color: "#4d8bff" }}>{txt.titleHighlight as string}</span>
+                        <span style={{ color: COLOR.brand }}>{txt.titleHighlight as string}</span>
                       )}
                     </div>
                   )}
@@ -92,7 +92,7 @@ export const ContextScene: React.FC<{ scene: SceneData; duration: number; conten
               <SlideUp delay={0.6} duration={0.5} style={{ marginTop: SPACING.lg }}>
                 <TextGate sceneId={sceneId} slotId="context.hero-center.context">
                   {(fontSize) => (
-                    <div style={{ fontSize, fontWeight: 700, color: "#f59e0b" }}>
+                    <div style={{ fontSize, fontWeight: 700, color: COLOR.amber }}>
                       {txt.context as string}
                     </div>
                   )}
@@ -103,7 +103,7 @@ export const ContextScene: React.FC<{ scene: SceneData; duration: number; conten
               <FadeIn delay={0.8} duration={0.5} style={{ marginTop: SPACING.md }}>
                 <TextGate sceneId={sceneId} slotId="context.hero-center.detail">
                   {(fontSize) => (
-                    <div style={{ fontSize, fontWeight: 600, color: "#cbd5e1" }}>
+                    <div style={{ fontSize, fontWeight: 600, color: COLOR.textMuted }}>
                       {txt.detail as string}
                     </div>
                   )}

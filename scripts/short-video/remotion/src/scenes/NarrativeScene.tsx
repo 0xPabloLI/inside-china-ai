@@ -25,7 +25,7 @@ import {
   ScaleIn,
   FadeIn,
 } from "../components/animations/entrance";
-import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION } from "../components/shared";
+import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION, COLOR } from "../components/shared";
 import {
   CONTAIN_MEDIA_BOTTOM,
   mediaBottomBarHeightFor,
@@ -83,7 +83,7 @@ export const NarrativeScene: React.FC<{
         {...ov(`narrative.${variant}.company`)}
       >
         {(fontSize) => (
-          <Interactive.Div name="company" style={{ fontSize, fontWeight: 900, color: "#f5f5f5" }}>
+          <Interactive.Div name="company" style={{ fontSize, fontWeight: 900, color: COLOR.text }}>
             {txt.company as string}
           </Interactive.Div>
         )}
@@ -103,7 +103,7 @@ export const NarrativeScene: React.FC<{
             style={{
               fontSize,
               fontWeight: 900,
-              color: glowColor === "red" ? "#ef4444" : "#f59e0b",
+              color: glowColor === "red" ? COLOR.red : COLOR.amber,
             }}
           >
             <SplitHighlight
@@ -126,7 +126,7 @@ export const NarrativeScene: React.FC<{
         {...ov(`narrative.${variant}.action`)}
       >
         {(fontSize) => (
-          <div style={{ fontSize, fontWeight: 700, color: "#cbd5e1" }}>
+          <div style={{ fontSize, fontWeight: 700, color: COLOR.textMuted }}>
             <SplitHighlight
               text={txt.action as string}
               highlight={txt.highlight}
@@ -147,7 +147,9 @@ export const NarrativeScene: React.FC<{
         {...ov(`narrative.${variant}.context`)}
       >
         {(fontSize) => (
-          <div style={{ fontSize, fontWeight: 600, color: "#cbd5e1" }}>{txt.context as string}</div>
+          <div style={{ fontSize, fontWeight: 600, color: COLOR.textMuted }}>
+            {txt.context as string}
+          </div>
         )}
       </TextGate>
     ) : null;
@@ -160,7 +162,7 @@ export const NarrativeScene: React.FC<{
         {...ov(`narrative.${variant}.source`)}
       >
         {(fontSize) => (
-          <div style={{ fontSize, fontWeight: 600, color: "#94a3b8", letterSpacing: "1px" }}>
+          <div style={{ fontSize, fontWeight: 600, color: COLOR.textDim, letterSpacing: "1px" }}>
             {txt.source as string}
           </div>
         )}
@@ -379,7 +381,7 @@ export const NarrativeScene: React.FC<{
                         glowColor === "red" ? "rgba(239,68,68,0.08)" : "rgba(245,158,11,0.08)",
                       fontSize,
                       fontWeight: 800,
-                      color: glowColor === "red" ? "#ef4444" : "#f59e0b",
+                      color: glowColor === "red" ? COLOR.red : COLOR.amber,
                       letterSpacing: "2px",
                     }}
                   >
@@ -477,7 +479,7 @@ export const NarrativeScene: React.FC<{
                         glowColor === "red" ? "rgba(239,68,68,0.08)" : "rgba(245,158,11,0.08)",
                       fontSize,
                       fontWeight: 800,
-                      color: glowColor === "red" ? "#ef4444" : "#f59e0b",
+                      color: glowColor === "red" ? COLOR.red : COLOR.amber,
                       letterSpacing: "2px",
                     }}
                   >

@@ -5,7 +5,7 @@
 import { type SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
 import { SlideUp, StaggerLines } from "../components/animations/entrance";
-import { SPACING, MOTION } from "../components/shared";
+import { SPACING, MOTION, COLOR } from "../components/shared";
 import { MediaBackground } from "../components/MediaBackground";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
@@ -36,10 +36,10 @@ export const InfoCardScene: React.FC<{
             <SlideUp delay={0.2} duration={0.5}>
               <TextGate sceneId={sceneId} slotId="info-card.hero-center.title">
                 {(fontSize) => (
-                  <div style={{ fontSize, fontWeight: 900, color: "#4d8bff" }}>
+                  <div style={{ fontSize, fontWeight: 900, color: COLOR.brand }}>
                     {txt.title as string}
                     {txt.titleHighlight && (
-                      <span style={{ color: "#f59e0b" }}>{txt.titleHighlight as string}</span>
+                      <span style={{ color: COLOR.amber }}>{txt.titleHighlight as string}</span>
                     )}
                   </div>
                 )}
@@ -50,7 +50,7 @@ export const InfoCardScene: React.FC<{
             <SlideUp delay={0.4} duration={0.5}>
               <TextGate sceneId={sceneId} slotId="info-card.hero-center.subtitle">
                 {(fontSize) => (
-                  <div style={{ fontSize, fontWeight: 600, color: "#cbd5e1", marginTop: 8 }}>
+                  <div style={{ fontSize, fontWeight: 600, color: COLOR.textMuted, marginTop: 8 }}>
                     {txt.subtitle as string}
                   </div>
                 )}
@@ -79,7 +79,7 @@ export const InfoCardScene: React.FC<{
                         style={{
                           fontSize,
                           fontWeight: 700,
-                          color: "#f5f5f5",
+                          color: COLOR.text,
                           // ≥ the font's natural ascent+descent (~1.1em): the
                           // normal line-height lets inline text rects poke 1px
                           // below the line box and false-fail the assert (T5).
@@ -89,7 +89,7 @@ export const InfoCardScene: React.FC<{
                           position: "relative",
                         }}
                       >
-                        <span style={{ position: "absolute", left: 0, color: "#f59e0b" }}>▸</span>
+                        <span style={{ position: "absolute", left: 0, color: COLOR.amber }}>▸</span>
                         {point}
                       </li>
                     )}
