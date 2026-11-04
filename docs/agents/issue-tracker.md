@@ -35,6 +35,29 @@ Every issue body opens with this fixed block, written once at creation and never
 
 Identical in every issue and never rewritten, so the notice itself cannot race. Issues created before this rule carry no notice — for those, guard (b) still applies.
 
+## Scanner & Audit Intake Contract
+
+扫描器产出（OCR、Semgrep、droid-review、一次性审计）分四态，各有唯一落点。混装是 #319 从 19 条发现长成 181 条长期账本的根因：票的生命周期被「扫描覆盖进度」而不是「缺陷是否修完」决定。
+
+| 态 | 落点 | 生命周期 |
+| --- | --- | --- |
+| **Finding Report** — 原始候选 + 逐条裁决 | 入仓报告 `docs/reviews/<scanner>-<scope>-<date>.md`；一次性试验可放 `.scratch/`（gitignored）或 PR 评论 | 裁决完成且对应票（如有）全闭后移入 `docs/archive/reviews/` 并同步 `docs/DOCS-INDEX.md` |
+| **Ruling** — 真/假阳性 + 证据 | 报告内联逐条写；对应票的评论只留汇总 | 与报告同寿命 |
+| **Batch Issue** — 可交付修复批 | GitHub Issue，`ready-for-agent` | 开票即冻结：只含已确认真阳性、同一模块且同批可修完的条目，单票 ≤ 15 个可勾选原子项 |
+| **Coverage Gap** — 扫描器没扫或扫不动 | 独立的扫描器 / 测试基础设施票（`bug` / `enhancement`） | 与业务修复票分开；「未扫区域」不写进修复票 |
+
+裁决由执行该次扫描的 session 逐条落；只有「这条值不值得修」的产品取舍交用户拍板（HITL）。
+
+**入口顺序**（全量扫描与增量审查共用）：
+
+1. 先落报告、逐条裁决，再决定开不开票。假阳性与「真阳性但不修」都留在报告（后者写明取舍理由）；假阳性也可进既有排除名单（`knip.json`、eslint allowlist 等），不进实施票分母。
+2. 只为已确认真阳性开票，按「同一模块、同批能修完」聚合；超过上限就拆批。
+3. 票开出后不再追加条目。新扫描发现的新增项进新报告、新票；报告可以继续长，票面冻结。
+4. 增量路径（OCR A/B 模式、per-PR 审查）通常只有几条：裁决与证据放 PR review，真阳性直接开票，不强制单独报告；同一批超过 15 条或需跨 PR 追踪时升级为报告。
+5. 报告全量裁决完、对应票全闭后归档。未裁决的报告留在 `docs/reviews/`，避免「归档 = 已处理」的误读。
+
+这是约定，不是 CI 门禁（#650 裁决）：门禁只能断言「票引用了报告路径」这类形式，判不了裁决真假，维护成本不抵收益。
+
 ## Wayfinding operations
 
 Wayfinder is only for S3 work defined in `docs/agents/implementation-workflow.md`. Because its map and decision issues live in GitHub Issues (the wayfinder skill calls them "decision tickets"; they are child issues on this tracker, not implementation tickets), creating, editing, assigning, labelling or closing them requires user authorization for those remote writes. Without authorization, prepare a local draft or stop at the gate; do not claim that a tracker map exists.
