@@ -12,13 +12,17 @@
  *     a reuse record must declare exactly the widgets the article embeds.
  *
  * The machine proxy for "structured data" is a markdown table outside fenced
- * code blocks. That is deliberately narrower than the human rule (financials,
- * comparisons, timelines, specs): the guide still asks for the judgement on
- * prose-only sections, but the gate can only be wrong in the lenient direction.
+ * and indented code blocks. That is deliberately narrower than the human rule
+ * (financials, comparisons, timelines, specs): the guide still asks for the
+ * judgement on prose-only sections, but the gate can only be wrong in the
+ * lenient direction. Tables in code do not render as tables, so they are not
+ * structured data.
  *
- * Fenced code and four-space indented code are excluded because neither renders
- * as a table; markers get the same treatment, so a code sample that documents
- * `<!-- widget:x -->` cannot satisfy the "has a widget" side of the gate.
+ * Widget markers are different: `content-splitter.ts` splits raw markdown on
+ * the marker before any markdown parsing, so a marker inside a fenced block
+ * still renders as a widget (and breaks the code block). The gate therefore
+ * uses the splitter's exact pattern — same shape, no fence filtering — and the
+ * suite pins the two against each other.
  */
 
 /** How each outcome constrains the record and the article. */
@@ -34,12 +38,14 @@ const STATUS_RULES = {
 /** The six ruled outcomes (ticket #430, 2026-11-04 ruling). */
 export const PLAN_STATUSES = Object.keys(STATUS_RULES);
 
-const FENCE = /^(\s*)(`{3,}|~{3,})/;
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
 /**
  * True for every line that belongs to a fenced code block, including the fence
  * lines themselves. A closing fence must use the same character and be at least
  * as long as the opening one, so a ``` line inside a ```` block stays content.
+ * Openers are bounded to three leading spaces: four is an indented code block,
+ * which `findTables` already treats as code.
  */
 function fencedFlags(lines) {
   const flags = new Array(lines.length).fill(false);
@@ -48,24 +54,28 @@ function fencedFlags(lines) {
     const match = FENCE.exec(lines[i]);
     if (open) {
       flags[i] = true;
-      if (match && match[2][0] === open.char && match[2].length >= open.length) open = null;
+      if (match && match[1][0] === open.char && match[1].length >= open.length) open = null;
       continue;
     }
     if (match) {
-      open = { char: match[2][0], length: match[2].length };
+      open = { char: match[1][0], length: match[1].length };
       flags[i] = true;
     }
   }
   return flags;
 }
 
-/** IDs of every `<!-- widget:ID -->` marker outside fenced code, in document order. */
+/**
+ * IDs of every `<!-- widget:ID -->` marker, in document order.
+ *
+ * Pattern is the renderer's (`src/components/widgets/content-splitter.ts`), not
+ * a lookalike: the splitter runs on raw markdown before parsing, so it accepts
+ * no space after the colon and no fence filtering. `widget-plan.test.mjs` pins
+ * the two against each other.
+ */
 export function findWidgetMarkers(body) {
-  const lines = body.split("\n");
-  const flags = fencedFlags(lines);
-  const visible = lines.map((line, i) => (flags[i] ? "" : line)).join("\n");
   const ids = [];
-  for (const match of visible.matchAll(/<!--\s*widget:\s*([^\s>]+)\s*-->/g)) {
+  for (const match of body.matchAll(/<!--\s*widget:(\S+)\s*-->/g)) {
     ids.push(match[1]);
   }
   return ids;
@@ -156,6 +166,22 @@ export function collectRegistryIds(registrySource) {
 function declaredWidgets(plan) {
   if (!Array.isArray(plan.widgets)) return [];
   return plan.widgets.map((id) => String(id).trim()).filter(Boolean);
+}
+
+/**
+ * Strip terminal control sequences from values that come from article content.
+ *
+ * The gate prints slugs, statuses and widget IDs that an author (or a model
+ * writing the article) controls. An OSC 52 or CSI sequence in a slug can
+ * overwrite the operator's clipboard or mask the failure output the gate exists
+ * to show; a newline can forge an extra line. Values only — never the usage
+ * block, whose newlines are intentional.
+ */
+export function sanitizeForTerminal(value) {
+  return String(value)
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
+    .replace(/[\x00-\x1f\x7f]/g, "");
 }
 
 /**

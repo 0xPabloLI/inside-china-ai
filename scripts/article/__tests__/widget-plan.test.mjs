@@ -22,7 +22,9 @@ import {
   evaluateWidgetPlan,
   findTables,
   findWidgetMarkers,
+  sanitizeForTerminal,
 } from "../lib/widget-plan.mjs";
+import { splitContent } from "../../../src/components/widgets/content-splitter";
 
 const CLI = join(import.meta.dirname, "..", "check-widget-plan.mjs");
 
@@ -57,7 +59,6 @@ describe("findWidgetMarkers", () => {
     expect(findWidgetMarkers("text\n<!-- widget:deepseek-funding -->\nmore")).toEqual([
       "deepseek-funding",
     ]);
-    expect(findWidgetMarkers("<!-- widget: deepseek-funding -->")).toEqual(["deepseek-funding"]);
   });
 
   it("keeps document order and duplicates", () => {
@@ -70,9 +71,23 @@ describe("findWidgetMarkers", () => {
     expect(findWidgetMarkers(body)).toEqual([]);
   });
 
-  it("ignores a marker that only appears inside a fenced code block", () => {
-    const body = "```html\n<!-- widget:ghost-widget -->\n```\n\nNo widget here.";
-    expect(findWidgetMarkers(body)).toEqual([]);
+  it("matches what content-splitter actually renders", () => {
+    // The splitter is ground truth: it runs on raw markdown before parsing, so
+    // it accepts no space after the colon and ignores fences. A gate that is
+    // more permissive would certify a widget that never renders.
+    const forms = [
+      "<!-- widget:deepseek-funding -->",
+      "<!-- widget: deepseek-funding -->",
+      "<!-- widget:deepseek-funding-->",
+      "<!-- widget:a>b -->",
+      "```html\n<!-- widget:fenced -->\n```",
+    ];
+    for (const form of forms) {
+      const rendered = splitContent(form)
+        .filter((segment) => segment.type === "widget")
+        .map((segment) => segment.name);
+      expect(findWidgetMarkers(form), form).toEqual(rendered);
+    }
   });
 });
 
@@ -81,6 +96,16 @@ describe("findTables", () => {
     const tables = findTables(table);
     expect(tables).toHaveLength(1);
     expect(tables[0].dataRows).toBe(2);
+    expect(tables[0].startLine).toBe(3);
+  });
+
+  it("does not let a four-space indented fence swallow the rest of the body", () => {
+    // Four spaces is an indented code block, not a fence (CommonMark), so the
+    // marker and table below it are live content.
+    const body =
+      "    ```\n\n<!-- widget:deepseek-funding -->\n\n| a | b |\n| --- | --- |\n| 1 | 2 |";
+    expect(findWidgetMarkers(body)).toEqual(["deepseek-funding"]);
+    expect(findTables(body)).toHaveLength(1);
   });
 
   it("accepts alignment separators and tables without outer pipes", () => {
@@ -116,6 +141,17 @@ describe("findTables", () => {
 describe("collectRegistryIds", () => {
   it("reads WIDGETS keys only, not the breakout set", () => {
     expect(collectRegistryIds(registry)).toEqual(ids);
+  });
+});
+
+describe("sanitizeForTerminal", () => {
+  it("strips OSC and CSI sequences from article-controlled values", () => {
+    expect(sanitizeForTerminal("a\x1b]52;c;cGF5bG9hZA==\x07b")).toBe("ab");
+    expect(sanitizeForTerminal("a\x1b[31mred\x1b[0m")).toBe("ared");
+  });
+
+  it("removes newlines so a value cannot forge another output line", () => {
+    expect(sanitizeForTerminal("ok\n✗ fake")).toBe("ok✗ fake");
   });
 });
 
@@ -242,18 +278,13 @@ describe("evaluateWidgetPlan — rejections that keep the record honest", () => 
     expect(result.errors.join("\n")).toContain("mapping");
   });
 
-  it("treats a code-fenced marker as no widget at all", () => {
+  it("counts a code-fenced marker, because the splitter renders it", () => {
+    // content-splitter runs on raw markdown, so a marker inside ``` still
+    // becomes a widget (and breaks the code block). Counting it is parity.
     const fenced = "```html\n<!-- widget:deepseek-funding -->\n```\n\n" + table;
-    const missingRecord = run({}, fenced);
-    expect(missingRecord.ok).toBe(false);
-    expect(missingRecord.widgets).toEqual([]);
-
-    const claimed = run(
-      { widgetPlan: { status: "reused", widgets: ["deepseek-funding"] } },
-      fenced,
-    );
-    expect(claimed.ok).toBe(false);
-    expect(claimed.errors.join("\n")).toContain("does not match");
+    const result = run({}, fenced);
+    expect(result.ok).toBe(true);
+    expect(result.widgets).toEqual(["deepseek-funding"]);
   });
 });
 

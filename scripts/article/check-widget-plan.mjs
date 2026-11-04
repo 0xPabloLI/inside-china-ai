@@ -19,7 +19,12 @@ import { readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
-import { collectRegistryIds, evaluateWidgetPlan } from "./lib/widget-plan.mjs";
+import {
+  PLAN_STATUSES,
+  collectRegistryIds,
+  evaluateWidgetPlan,
+  sanitizeForTerminal,
+} from "./lib/widget-plan.mjs";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(SCRIPT_DIR, "..", "..");
@@ -32,7 +37,7 @@ usage:
 
 Rules:
   - structured data (a markdown table) + 0 widgets requires a widgetPlan block
-  - widgetPlan.status: reused | history-only | stale | new-dev | no-visual-value | unverifiable
+  - widgetPlan.status: ${PLAN_STATUSES.join(" | ")}
   - every <!-- widget:ID --> must be registered in registry.ts
 
 Exit: 0 = pass, 1 = finding, 2 = usage error.
@@ -112,18 +117,25 @@ function main(argv) {
     registryIds,
   });
 
-  const label = `${filePath}${parsed.data?.slug ? ` (${parsed.data.slug})` : ""}`;
+  const label = `${sanitizeForTerminal(filePath)}${parsed.data?.slug ? ` (${sanitizeForTerminal(parsed.data.slug)})` : ""}`;
   if (result.ok) {
-    for (const note of result.notes) process.stdout.write(`✓ ${label}: ${note}\n`);
+    for (const note of result.notes)
+      process.stdout.write(`✓ ${label}: ${sanitizeForTerminal(note)}\n`);
     return 0;
   }
 
   process.stderr.write(`✗ ${label}\n`);
-  for (const note of result.notes) process.stderr.write(`  · ${note}\n`);
-  for (const error of result.errors) process.stderr.write(`  ✗ ${error}\n`);
+  for (const note of result.notes) process.stderr.write(`  · ${sanitizeForTerminal(note)}\n`);
+  for (const error of result.errors) process.stderr.write(`  ✗ ${sanitizeForTerminal(error)}\n`);
   const dataRows = result.tables.reduce((sum, table) => sum + table.dataRows, 0);
+  const where = result.tables
+    .map(
+      (table) =>
+        `body line ${table.startLine}, ${table.dataRows} row${table.dataRows === 1 ? "" : "s"}`,
+    )
+    .join("; ");
   process.stderr.write(
-    `  found: ${result.tables.length} table(s) / ${dataRows} data row(s), ${result.widgets.length} widget marker(s)\n`,
+    `  found: ${result.tables.length} table(s)${where ? ` (${where})` : ""} / ${result.widgets.length} widget marker(s)\n`,
   );
   return 1;
 }

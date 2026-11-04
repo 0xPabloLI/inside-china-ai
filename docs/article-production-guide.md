@@ -94,7 +94,7 @@ Widget 有两个层级，**补充数据优先**：
 ```yaml
 widgetPlan:
   status: new-dev
-  backlog: "#<issue>"
+  backlog: "#1234" # 填实际的 Widget backlog 票号
   note: "Three vendors, no comparable registered view."
 ```
 
@@ -114,7 +114,7 @@ widgetPlan:
 node scripts/article/check-widget-plan.mjs --file articles/<slug>.md
 ```
 
-判三件事：有表格且 0 widget 时必须有合法 `widgetPlan`；`widgets` 列表与正文标记一致；每个 `<!-- widget:ID -->` 都已在 `registry.ts` 注册。退出 0 才算 B10 PASS。脚本只在「表格」这个可判定代理上强制，非表格形式的结构化数据仍按本节人工判断。
+判三件事：有表格且 0 widget 时必须有合法 `widgetPlan`；`widgets` 列表与正文标记一致；每个 `<!-- widget:ID -->` 都已在 `registry.ts` 注册。退出 0 才算 B10 PASS。标记的提取正则与渲染端 `src/components/widgets/content-splitter.ts` 同一份——渲染不认的写法，检查也不认。脚本只在「表格」这个可判定代理上强制，非表格形式的结构化数据仍按本节人工判断。
 
 ### Widget 宽度规则
 
