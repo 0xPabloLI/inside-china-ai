@@ -14,7 +14,7 @@
 import { Children, type CSSProperties, type ReactNode } from "react";
 import { spring, useCurrentFrame } from "remotion";
 import { clamp, interpolate, FPS, secToFrames } from "../shared";
-import { useEntranceWindow } from "../motion-budget";
+import { useEntranceWindow, useEntranceWindowFrames } from "../motion-budget";
 import { MOTION, type SpringPreset } from "../../tokens";
 
 interface AnimProps {
@@ -203,12 +203,19 @@ export const StaggerLines: React.FC<StaggerProps> = ({
   const units = Children.toArray(children);
   const perFrames = secToFrames(stagger);
   const unitFrames = secToFrames(duration);
-  // Budget the whole group: the last unit must land before the hold boundary.
-  const group = useEntranceWindow(delay, duration + Math.max(0, units.length - 1) * stagger);
+  // Budget the whole group in frames: the last unit must land before the hold
+  // boundary. The stagger is capped so every unit keeps a non-empty window.
+  const group = useEntranceWindowFrames(
+    secToFrames(delay),
+    unitFrames + Math.max(0, units.length - 1) * perFrames,
+  );
+  const span = group.end - group.start;
+  const effectiveStagger =
+    units.length > 1 ? Math.min(perFrames, Math.floor((span - 1) / (units.length - 1))) : 0;
   return (
     <div style={style}>
       {units.map((child, i) => {
-        const start = group.start + i * perFrames;
+        const start = group.start + i * effectiveStagger;
         const end = Math.min(start + unitFrames, group.end);
         const p = progressOf(frame, start, Math.max(start + 1, end), config);
         return (
@@ -246,14 +253,20 @@ export const StaggerWords: React.FC<StaggerWordsProps> = ({
   const wordCount = parts.filter((part) => part !== "" && !/^\s+$/.test(part)).length;
   const perFrames = secToFrames(stagger);
   const unitFrames = secToFrames(duration);
-  const group = useEntranceWindow(delay, duration + Math.max(0, wordCount - 1) * stagger);
+  const group = useEntranceWindowFrames(
+    secToFrames(delay),
+    unitFrames + Math.max(0, wordCount - 1) * perFrames,
+  );
+  const span = group.end - group.start;
+  const effectiveStagger =
+    wordCount > 1 ? Math.min(perFrames, Math.floor((span - 1) / (wordCount - 1))) : 0;
   let wordIndex = 0;
   return (
     <div style={style}>
       {parts.map((part, i) => {
         if (part === "" || /^\s+$/.test(part)) return <span key={i}>{part}</span>;
         const index = wordIndex++;
-        const start = group.start + index * perFrames;
+        const start = group.start + index * effectiveStagger;
         const end = Math.min(start + unitFrames, group.end);
         const p = progressOf(frame, start, Math.max(start + 1, end), config);
         return (

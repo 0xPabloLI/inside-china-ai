@@ -16,8 +16,16 @@ import { fitEntranceWindow } from "../tokens";
 
 export const MotionBudgetContext = createContext<number | null>(null);
 
+/** Frame form: used when the window is already authored in frames. */
+export function useEntranceWindowFrames(
+  start: number,
+  duration: number,
+): { start: number; end: number } {
+  const settleAt = useContext(MotionBudgetContext);
+  return fitEntranceWindow(start, duration, settleAt);
+}
+
 /** Hook form: seconds in, scene frames out, boundary from the scene's Camera. */
 export function useEntranceWindow(delay: number, duration: number): { start: number; end: number } {
-  const settleAt = useContext(MotionBudgetContext);
-  return fitEntranceWindow(secToFrames(delay), secToFrames(duration), settleAt);
+  return useEntranceWindowFrames(secToFrames(delay), secToFrames(duration));
 }

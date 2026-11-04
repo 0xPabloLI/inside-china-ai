@@ -33,7 +33,7 @@ export const COLOR = {
 
 /** Typography tokens. Sizes stay contract-driven (TextGate Fit owns them). */
 export const TYPE = {
-  /** Brand sans stack — the only family on the video surface. */
+  /** Brand serif stack — the only family on the video surface. */
   family: BRAND_FONT_STACK,
 } as const;
 
@@ -74,7 +74,7 @@ export const MOTION = {
  * anything2explainer (§C, issue #731) judges both "enters and freezes
  * immediately" and "lands and cuts immediately" as defects: the last beat
  * must rest 30–45 frames at 30fps before the scene leaves. The camera is what
- * enforces it structurally — its push ends `settleByFrame()` before the scene
+ * enforces it structurally — its pull ends `settleByFrame()` before the scene
  * ends, so the closing frames are provably static for the composition layer.
  * Frame-level detection of violations is #735's job, not this module's.
  */

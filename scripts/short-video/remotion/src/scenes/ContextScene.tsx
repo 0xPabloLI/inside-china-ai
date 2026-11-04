@@ -4,7 +4,7 @@
  */
 import { type SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
-import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
+import { StampIn, SlideUp, StaggerWords } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
 import { TextGate } from "../components/text-gate";
 import { MediaBackground } from "../components/MediaBackground";
@@ -100,15 +100,15 @@ export const ContextScene: React.FC<{ scene: SceneData; duration: number; conten
               </SlideUp>
             )}
             {txt.detail && (
-              <FadeIn delay={0.8} duration={0.5} style={{ marginTop: SPACING.md }}>
+              <div style={{ marginTop: SPACING.md }}>
                 <TextGate sceneId={sceneId} slotId="context.hero-center.detail">
                   {(fontSize) => (
                     <div style={{ fontSize, fontWeight: 600, color: COLOR.textMuted }}>
-                      {txt.detail as string}
+                      <StaggerWords text={txt.detail as string} delay={0.8} duration={0.5} />
                     </div>
                   )}
                 </TextGate>
-              </FadeIn>
+              </div>
             )}
           </div>
         </Slot>

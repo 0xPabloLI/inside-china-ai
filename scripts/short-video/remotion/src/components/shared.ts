@@ -53,10 +53,7 @@ export const clamp = {
   extrapolateRight: "clamp" as const,
 };
 
-/** Default easing for entrance animations (matches CSS ease-out). */
-export const easeOut = Easing.bezier(0, 0, 0.58, 1);
-
-/** Cubic-bezier(0.16, 1, 0.3, 1) — the "ease-out-expo" used by scaleIn/stampIn. */
+/** Cubic-bezier(0.16, 1, 0.3, 1) — the "ease-out-expo" used by media motion. */
 export const easeOutExpo = Easing.bezier(0.16, 1, 0.3, 1);
 
 export { interpolate, Easing };

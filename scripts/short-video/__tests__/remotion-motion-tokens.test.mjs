@@ -241,12 +241,27 @@ describe("entrance budget — hold-aware windows", () => {
     expect(fitEntranceWindow(200, 12, null)).toEqual({ start: 200, end: 212 });
   });
 
-  it("routes every entrance primitive through useEntranceWindow", () => {
+  it("routes every entrance primitive through the hold budget", () => {
     const source = readSrc("components/animations/entrance.tsx");
-    const uses = source.match(/useEntranceWindow\(/g) ?? [];
+    const single = source.match(/useEntranceWindow\(/g) ?? [];
+    const groups = source.match(/useEntranceWindowFrames\(/g) ?? [];
     // Eight single-element primitives plus the two stagger groups.
-    expect(uses.length).toBeGreaterThanOrEqual(10);
+    expect(single.length).toBe(8);
+    expect(groups.length).toBe(2);
     expect(source).toContain('from "../motion-budget"');
+  });
+
+  it("budgets stagger groups in integer frames", () => {
+    const source = readSrc("components/animations/entrance.tsx");
+    // The group window must be built from secToFrames output, not from a
+    // second rounding of the seconds expression.
+    expect(source).toContain("unitFrames + Math.max(0, units.length - 1) * perFrames");
+    expect(source).toContain("unitFrames + Math.max(0, wordCount - 1) * perFrames");
+    expect(source).toContain("Math.min(perFrames, Math.floor((span - 1) /");
+  });
+
+  it("ships StaggerWords with a production consumer", () => {
+    expect(readSrc("scenes/ContextScene.tsx")).toContain("<StaggerWords");
   });
 });
 
