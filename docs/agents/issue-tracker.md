@@ -43,17 +43,17 @@ Identical in every issue and never rewritten, so the notice itself cannot race. 
 | --- | --- | --- |
 | **Finding Report** — 原始候选 + 逐条裁决 | 入仓报告 `docs/reviews/<scanner>[-<scope>]-<kind>-<date>.md`（`kind` = `scan` / `audit`，与现有 `ocr-*-scan-*`、`*-audit-*` 同形），并在 `docs/DOCS-INDEX.md` 的 `reviews/` 表登记；一次性试验（不留存结论）可放 `.scratch/`（gitignored）或 PR 评论 | active 到裁决完成、对应 issue（如有）全闭；随后按 `docs/DOCS-INDEX.md` §Spec/Ticket/Review Lifecycle 归档（含 `docs/archive/README.md`） |
 | **Ruling** — 真/假阳性 + 证据 | 报告内联逐条写；对应 issue 的评论只留汇总 | 与报告同寿命 |
-| **Batch Issue** — 可交付修复批 | GitHub Issue：`ready-for-agent` + 类别标签（`bug` / `enhancement`） | 开票即冻结：只含已确认真阳性、同一模块且同批可修完的条目，单个 issue ≤ 15 个可勾选原子项（批次上限） |
-| **Coverage Gap** — 扫描器没扫、漏扫或扫不动 | 独立的扫描器 / 测试基础设施 issue | 与业务修复 issue 分开；未扫或漏扫区域不写进修复 issue |
+| **Batch Issue** — 可交付修复批 | GitHub Issue，标签按 `triage-labels.md` | 开票即冻结：只含已确认真阳性、同一模块且同批可修完的条目，单个 issue ≤ 15 个可勾选原子项（批次上限） |
+| **Coverage Gap** — 扫描器没扫、漏扫或扫不动 | 独立的扫描器 / 测试基础设施 issue | 与业务批次 issue 分开；未扫或漏扫区域不写进批次 issue |
 
 裁决由执行该次扫描的 session 逐条落。
 
-**入口顺序**：全量扫描按 1→5；增量审查按 4，过滤（2）与冻结（3）照用。
+**入口顺序**：全量扫描按 1、2、3、5；增量审查走 4，过滤（2）与冻结（3）照用。
 
-1. 先落报告、逐条裁决，再决定开不开 issue。假阳性留在报告或既有排除名单（`knip.json`、eslint allowlist 等），不进实施 issue 分母。完成判据：报告里每条候选都有 true/false 裁决与证据。
-2. 只为已确认真阳性开 issue，按「同一模块、同批能修完」聚合。完成判据：issue checklist 的每一项都能直接动手改代码。
-3. issue 开出后不再追加验收条目；后续扫描的新增项进新报告，需要实施时另开新 issue。完成判据：issue body 的条目集合与开票时一致。
-4. 增量路径（OCR A/B 模式、per-PR 审查）通常只有几条：裁决与证据放 PR review，真阳性直接开 issue，不强制单独报告；同一批超过批次上限或需跨 PR 追踪时升级为报告。完成判据：PR review 里每条 finding 都有裁决，真阳性的 issue 已开。
+1. 先落报告、逐条裁决，再决定开不开 issue。假阳性留在报告或既有排除名单（`knip.json`、eslint allowlist 等），不进批次 issue 的分母。完成判据：报告里每条候选都有 true/false 裁决与证据。
+2. 只为「已确认真阳性 + 可直接动手」的条目开批次 issue；聚合与上限见上表，其余真阳性留在报告里待下一批。完成判据：issue checklist 的每一项都能直接动手改代码。
+3. 后续扫描的新增项进新报告，需要实施时另开批次 issue。完成判据：issue body 的条目集合与开票时一致（冻结规则见上表）。
+4. 增量路径（OCR A/B 模式、per-PR 审查）通常只有几条：裁决与证据放 PR review，真阳性直接开 issue，不强制单独报告；同一批超过批次上限时升级为报告。完成判据：PR review 里每条 finding 都有裁决，真阳性的 issue 已开。
 5. 报告内所有候选裁决完、对应 issue 全闭后归档；未裁决的报告留在 `docs/reviews/`，避免「归档 = 已处理」的误读。完成判据：报告已按生命周期归档，`docs/DOCS-INDEX.md` 与 `docs/archive/README.md` 已同步。
 
 这是约定，不是 CI 门禁（理由见 #650 的方案评审评论）。
