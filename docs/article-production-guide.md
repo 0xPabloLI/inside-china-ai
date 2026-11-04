@@ -64,17 +64,17 @@ Widget 有两个层级，**补充数据优先**：
 
 注册状态以 `src/components/widgets/registry.ts` 为唯一真值；下表只给内容类型与推荐形态，不缓存注册表。
 
-| 章节内容                  | 推荐 Widget 类型                    | 已有注册？                        |
-| ------------------------- | ----------------------------------- | --------------------------------- |
-| 大量文本/发言（全文概览） | 词云                                | ✅ `deepseek-cloud`               |
-| 融资/投资                 | 融资时间线 + 媒体来源               | ✅ `deepseek-funding`             |
-| 定价/对比                 | 定价对比表                          | ✅ `deepseek-pricing`             |
-| 人事变动                  | 人才流动卡片                        | ✅ `deepseek-talent`              |
-| 多公司关系                | 公司生态图                          | ✅ `deepseek-companies`           |
-| 新闻报道/公开事件         | 新闻链接卡片（标题+摘要+链接+日期） | ❌ 需创建通用 widget              |
-| 股价/市场数据             | 股价时间线（日期+价格+事件标注）    | ❌ 需创建                         |
-| 融资轮次                  | 融资时间线（日期+金额+估值+投资方） | ❌ 可复用 `deepseek-funding` 模式 |
-| 其他类型                  | 需创建新 widget                     | ❌ 需开发                         |
+| 章节内容                  | 推荐 Widget 类型                    |
+| ------------------------- | ----------------------------------- |
+| 大量文本/发言（全文概览） | 词云                                |
+| 融资/投资                 | 融资时间线 + 媒体来源               |
+| 定价/对比                 | 定价对比表                          |
+| 人事变动                  | 人才流动卡片                        |
+| 多公司关系                | 公司生态图                          |
+| 新闻报道/公开事件         | 新闻链接卡片（标题+摘要+链接+日期） |
+| 股价/市场数据             | 股价时间线（日期+价格+事件标注）    |
+| 融资轮次                  | 融资时间线（日期+金额+估值+投资方） |
+| 其他类型                  | 按六分支判断（需要新形态 → `new-dev`） |
 
 ### Widget 适用性决策（#430 裁决，2026-11-04）
 
@@ -94,7 +94,7 @@ Widget 有两个层级，**补充数据优先**：
 ```yaml
 widgetPlan:
   status: new-dev
-  backlog: "#1130"
+  backlog: "#<issue>"
   note: "Three vendors, no comparable registered view."
 ```
 
@@ -106,7 +106,7 @@ widgetPlan:
 
 **复用时效**：不设统一天数。判据是**实体、指标、时点、来源与本篇论点是否相容**——同一个数换了实体、单位或计费口径就是不相容；标明时点的历史快照可以用于历史叙事，但不能充当当前事实。共享 widget 的数据**不得为新文章静默改写**：新数据等于新 widget ID，已发布文章引用的历史口径保持不变。
 
-**需要新 widget 时**：不阻塞本包交付。在滚动 backlog（一张 `Widget backlog` issue，每项一个原子 widget，开票即冻结，≤15 项，满了另开一张）登记目标 widget、要覆盖的实体/指标、首个需要它的包；widget 就绪后回嵌文章、把 `widgetPlan` 改为 `reused` 并重跑检查。
+**需要新 widget 时**：不阻塞本包交付。开一张标题 `Widget backlog` 的 GitHub issue（label `enhancement` + `video-automation`；首项出现时开，满了 ≤15 项另开一张），每项一个原子 widget：目标形态、要覆盖的实体/指标、首个需要它的包。widget 就绪后回嵌文章、把 `widgetPlan` 改为 `reused` 并重跑检查。
 
 **机器检查**（MRL-1 的最后一步）：
 
@@ -114,7 +114,7 @@ widgetPlan:
 node scripts/article/check-widget-plan.mjs --file articles/<slug>.md
 ```
 
-判三件事：有表格且 0 widget 时必须有合法 `widgetPlan`；`widgets` 列表与正文标记一致；每个 `<!-- widget:ID -->` 都已在 `registry.ts` 注册。退出 0 才算 MRL-1 通过。脚本只在「表格」这个可判定代理上强制，非表格形式的结构化数据仍按本节人工判断。
+判三件事：有表格且 0 widget 时必须有合法 `widgetPlan`；`widgets` 列表与正文标记一致；每个 `<!-- widget:ID -->` 都已在 `registry.ts` 注册。退出 0 才算 B10 PASS。脚本只在「表格」这个可判定代理上强制，非表格形式的结构化数据仍按本节人工判断。
 
 ### Widget 宽度规则
 
@@ -191,6 +191,8 @@ More content...
 <!-- widget:deepseek-companies -->
 ```
 
+含结构化数据章节但没有可嵌入的 widget 时，frontmatter 另加 `widgetPlan`（六分支与格式见 Widget 适用性决策）；模板没有它是因为只有 0-widget 的包才需要。
+
 ## 原创分析要求（可选）
 
 文章可以包含「My Take」章节，但**不是必须的**。是否添加取决于内容性质：
@@ -254,7 +256,7 @@ Agent 生成 frontmatter markdown 后，**先运行 MRL-1 自审循环**；0 Blo
 | B7  | My Take 门控     | 如话题标记为敏感/争议性，不得包含 My Take 章节                                                                                                              | 删除 My Take                  |
 | B8  | AI 词汇          | 不得出现 scrub-rules Tier 2 黑名单词（leverage, utilize, facilitate, delve, seamless, robust 等）                                                           | 替换为口语化表达              |
 | B9  | Chatbot 残留     | 正文出现对话体残留（"Let's dive in" / "I hope this helps" / "Great question" 类）、拟人开场（"Honestly?..."）、知识截止免责声明，或为无人提出的反对意见辩护 | 删除残留，直接陈述论点        |
-| B10 | Widget 决策记录  | 含表格且 0 个 `<!-- widget:ID -->` 时，frontmatter 必须有合法 `widgetPlan`；嵌入的 ID 必须已注册。判据：`check-widget-plan` 退出 0（见 Widget 适用性决策 → 机器检查） | 补 `widgetPlan` 或嵌入合格 widget |
+| B10 | Widget 决策记录  | 含表格且 0 个 `<!-- widget:ID -->` 时，frontmatter 必须有合法 `widgetPlan`。判据：`check-widget-plan` 退出 0（见 Widget 适用性决策 → 机器检查；B3 的注册判据同在该脚本内） | 补 `widgetPlan` 或嵌入合格 widget |
 
 **Warnings（列出但不阻塞 HITL）：**
 

@@ -5,7 +5,7 @@
  * widget, and the checklist downgrades zero widgets to a warning (W6). Neither
  * says what to do when no registered widget fits: the de facto answer was
  * "ship it and move on", which is why 8 of 15 articles carry zero widgets and
- * half of those contain tables.
+ * six of those eight contain tables.
  *
  * The ruling (2026-11-04, ticket comment): zero widgets is allowed only with a
  * written decision record covering one of six outcomes. This suite pins the
@@ -69,6 +69,11 @@ describe("findWidgetMarkers", () => {
     const body = "<!-- widget: -->\n<!-- widget -->\n<!-- other:x -->\n<!-- widget:a b -->";
     expect(findWidgetMarkers(body)).toEqual([]);
   });
+
+  it("ignores a marker that only appears inside a fenced code block", () => {
+    const body = "```html\n<!-- widget:ghost-widget -->\n```\n\nNo widget here.";
+    expect(findWidgetMarkers(body)).toEqual([]);
+  });
 });
 
 describe("findTables", () => {
@@ -93,6 +98,18 @@ describe("findTables", () => {
   it("requires a separator row and at least one data row", () => {
     expect(findTables("| a | b |\n| 1 | 2 |")).toEqual([]);
     expect(findTables("| a | b |\n| --- | --- |")).toEqual([]);
+  });
+
+  it("accepts a GFM separator with single dashes", () => {
+    expect(findTables("| a | b |\n| - | - |\n| 1 | 2 |")).toHaveLength(1);
+  });
+
+  it("requires header and separator to have the same width", () => {
+    expect(findTables("| a | b |\n| --- |\n| 1 | 2 |")).toEqual([]);
+  });
+
+  it("does not count a four-space indented table (renders as code)", () => {
+    expect(findTables("    | a | b |\n    | --- | --- |\n    | 1 | 2 |")).toEqual([]);
   });
 });
 
@@ -218,6 +235,26 @@ describe("evaluateWidgetPlan — rejections that keep the record honest", () => 
     const result = run({}, "<!-- widget:ghost-widget -->");
     expect(result.ok).toBe(false);
   });
+
+  it("rejects a widgetPlan that is not a mapping", () => {
+    const result = run({ widgetPlan: "reused" });
+    expect(result.ok).toBe(false);
+    expect(result.errors.join("\n")).toContain("mapping");
+  });
+
+  it("treats a code-fenced marker as no widget at all", () => {
+    const fenced = "```html\n<!-- widget:deepseek-funding -->\n```\n\n" + table;
+    const missingRecord = run({}, fenced);
+    expect(missingRecord.ok).toBe(false);
+    expect(missingRecord.widgets).toEqual([]);
+
+    const claimed = run(
+      { widgetPlan: { status: "reused", widgets: ["deepseek-funding"] } },
+      fenced,
+    );
+    expect(claimed.ok).toBe(false);
+    expect(claimed.errors.join("\n")).toContain("does not match");
+  });
 });
 
 describe("evaluateWidgetPlan — cases that need no record", () => {
@@ -277,6 +314,26 @@ describe("check-widget-plan CLI", () => {
     const result = cli([]);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("usage:");
+  });
+
+  it("exits 2 when the registry yields no widget IDs", () => {
+    const emptyRegistry = join(dir, "empty-registry.ts");
+    writeFileSync(emptyRegistry, "export const NOT_WIDGETS = {};\n");
+    const file = write("emptyreg.md", "", table);
+    const result = cli(["--registry", emptyRegistry, "--file", file]);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("no WIDGETS");
+  });
+
+  it("exits 2 when the registry cannot be read", () => {
+    const file = write("noreg.md", "", table);
+    const result = cli(["--registry", join(dir, "missing-registry.ts"), "--file", file]);
+    expect(result.status).toBe(2);
+  });
+
+  it("exits 1 when the article cannot be read", () => {
+    const result = check(["--file", join(dir, "missing-article.md")]);
+    expect(result.status).toBe(1);
   });
 
   it("answers --help without touching the filesystem", () => {
