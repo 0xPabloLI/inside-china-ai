@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.52.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.6...tanstack_start_ts-v1.52.0) (2026-11-04)
+
+
+### Features
+
+* **article:** gate zero-widget articles on a recorded decision ([#430](https://github.com/0xPabloLI/inside-china-ai/issues/430)) ([#1129](https://github.com/0xPabloLI/inside-china-ai/issues/1129)) ([326006d](https://github.com/0xPabloLI/inside-china-ai/commit/326006dc7a784cd6e87ae51d53ba6537de663241))
+
 ## [1.51.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.5...tanstack_start_ts-v1.51.6) (2026-11-03)
 
 
