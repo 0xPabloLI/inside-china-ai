@@ -59,8 +59,8 @@ Identical in every issue and never rewritten, so the notice itself cannot race. 
 **门禁**：`npm run lint:docs` 判**新增或改动**的 `docs/reviews/` 报告，三条 FAIL：
 
 - `review-report-name` — 文件名须合 `<scanner>[-<scope>]-<kind>-<YYYY-MM-DD>.md`：日期是真实日历日，kind（`scan` / `audit` / `review`）之前须有扫描器名；kind 与日期之间可再有描述词（存量 `ponytail-adoption-review-brief-2026-09-04.md` 合法）。
-- `review-report-header` — 头部（前 40 行，与 `docs/research/` 下游票字段同宽）须有四字段，空值不算填写。除上表的 `工具` / `范围` / `日期` / `裁决状态`，也接受 `Tool` / `Scope` / `Date` / `Ruling`（英文大小写不敏感，但须成词——`**ReviewDate**` 不算日期）。
-- `review-report-unarchived` — `裁决状态` 取值为 `已吸收`（或 `absorbed`）却仍在 `docs/reviews/`。判定按取值而非子串：`未裁决（已吸收 0 条）` 不是已吸收；同一份报告出现多个状态时，任一处写 `已吸收` 即按已吸收处理。
+- `review-report-header` — 头部（前 40 行，与 `docs/research/` 下游票字段同宽）须有四字段，空值不算填写，只有标签没有值的表头行也不算。除上表的 `工具` / `范围` / `日期` / `裁决状态`，也接受 `Tool` / `Scope` / `Date` / `Ruling`（英文大小写不敏感，但须成词——`**ReviewDate**` 不算日期）。
+- `review-report-unarchived` — `裁决状态` 取值为 `已吸收`（或 `absorbed`，可带括号备注）却仍在 `docs/reviews/`。判定按取值而非子串：`未裁决（已吸收 0 条）` 不是已吸收；**头部**内出现多个状态时，任一处写 `已吸收` 即按已吸收处理。正文里的状态字样不参与判定——契约读的是头部字段，正文是证据。
 
 `部分吸收` 不触发归档：它意味着仍有未吸收的发现，报告要留在可检索位置，归档会读成「已处理」——正是本契约第 5 步要避免的误读。
 

@@ -1211,6 +1211,22 @@ describe("checkReviewReportShape（扫描报告形态门禁，#1131）", () => {
     expect(parseReviewHeader(blank).missing).toHaveLength(4);
   });
 
+  it("FAIL: 只有表头行、没有数据行——一排标签不是填好的字段", () => {
+    const headerOnly = "| 工具 | 范围 | 日期 | 裁决状态 |\n| --- | --- | --- | --- |\n";
+    expect(parseReviewHeader(headerOnly).missing).toHaveLength(4);
+  });
+
+  it("对齐补白的表格不算缺字段（短标签后面可以有很多空格）", () => {
+    const aligned = [
+      "| 工具     | semgrep |",
+      "| 范围     | src/    |",
+      "| 日期     | 2026-11-04 |",
+      "| 裁决状态 | 未裁决 |",
+      "",
+    ].join("\n");
+    expect(parseReviewHeader(aligned).missing).toEqual([]);
+  });
+
   it("英文标签大小写不敏感，但仍须成词", () => {
     expect(parseReviewHeader("**tool**: semgrep\n").missing).not.toContain(
       "工具（哪个扫描器/模型）",
@@ -1234,6 +1250,12 @@ describe("checkReviewReportShape（扫描报告形态门禁，#1131）", () => {
     expect(parseRulingStatus("部分吸收")).toBe("partial");
     expect(parseRulingStatus("未裁决（已吸收 0 条）")).toBe("unruled");
     expect(parseRulingStatus("待复核")).toBe("unknown");
+  });
+
+  it("整个值被括号包住时仍读出裁决（`（已吸收）` 不能漏判）", () => {
+    expect(parseRulingStatus("（已吸收）")).toBe("absorbed");
+    expect(parseRulingStatus("(absorbed)")).toBe("absorbed");
+    expect(parseRulingStatus("（部分吸收）")).toBe("partial");
   });
 
   it("同一份报告里出现两个裁决状态时，按已吸收处理（不让旧行掩盖真状态）", () => {

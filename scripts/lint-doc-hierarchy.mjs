@@ -80,7 +80,10 @@ const REVIEW_HEADER_FIELDS = [
   },
 ];
 // The label must be followed by a value separator, not merely present in prose.
-const REVIEW_LABEL_SEPARATOR = /^[\s*_`]{0,4}[：:|]/;
+// No cap on the gap: a hand-aligned table pads short labels (`| 工具     | …`),
+// and capping it failed reports that honestly filled the field. Prose still
+// cannot match, because the separator has to come directly after the padding.
+const REVIEW_LABEL_SEPARATOR = /^[\s*_`]*[：:|]/;
 // Only `已吸收` — the whole value, or the value before a trailing note — sends the
 // report out of docs/reviews/. `部分吸收` still has open findings, so it stays:
 // archiving it would read as "handled", which is the misreading the contract
@@ -435,7 +438,9 @@ export function loadDownstreamBaseline(path = DOWNSTREAM_BASELINE_PATH) {
 /**
  * The value a header line assigns to `label`, or null when it assigns nothing.
  * An assignment needs a separator AND a non-empty value: four blank table cells
- * are labels, not fields — the reader learns nothing from `| 工具 | |`.
+ * are labels, not fields — the reader learns nothing from `| 工具 | |`. A row of
+ * labels (`| 工具 | 范围 | 日期 | 裁决状态 |`) is also not a value: a table
+ * header with no data row would otherwise satisfy all four fields.
  */
 function reviewLabelValue(line, label) {
   const english = /^[A-Za-z]+$/.test(label);
@@ -453,23 +458,27 @@ function reviewLabelValue(line, label) {
     .replace(REVIEW_LABEL_SEPARATOR, "")
     .replace(/[|*`\s]+$/, "")
     .trim();
-  return value === "" ? null : value;
+  if (value === "") return null;
+  const cells = value.split("|").map((cell) => cell.trim());
+  const everyCellIsALabel = cells.every((cell) =>
+    REVIEW_HEADER_FIELDS.some((field) => field.labels.includes(cell)),
+  );
+  return everyCellIsALabel ? null : value;
 }
 
 /**
  * Classify a `裁决状态` value. Matching is on the value's leading token, not a
  * substring: `未裁决（已吸收 0 条）` is unruled, and a report that merely
  * mentions absorbed work elsewhere does not get pushed into the archive.
- * A trailing note (`已吸收（2026-10-01）`) keeps its verdict.
+ * A trailing note (`已吸收（2026-10-01）`) keeps its verdict, and a value that is
+ * only a parenthetical (`（已吸收）`) is read from inside it rather than dropped.
  */
 export function parseRulingStatus(value) {
-  const core = value
-    .replace(/[（(][^）)]*[）)]\s*$/, "")
-    .replace(/[.。;；,，\s]+$/, "")
-    .trim()
-    .toLowerCase();
+  const note = /[（(]([^）)]*)[）)]\s*$/.exec(value);
+  const core = (note ? value.slice(0, note.index) : value).replace(/[.。;；,，\s]+$/, "").trim();
+  const candidates = [core, note?.[1]?.trim() ?? ""].filter(Boolean).map((v) => v.toLowerCase());
   for (const { verdict, values } of REVIEW_RULING_VOCABULARY) {
-    if (values.some((candidate) => candidate.toLowerCase() === core)) return verdict;
+    if (values.some((candidate) => candidates.includes(candidate.toLowerCase()))) return verdict;
   }
   return "unknown";
 }
