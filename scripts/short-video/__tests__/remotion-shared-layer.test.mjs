@@ -71,7 +71,8 @@ describe("T1: New animation components", () => {
   it("SlideUpFromBottom component exists in entrance.tsx", () => {
     const content = readFile("components/animations/entrance.tsx");
     expect(content).toMatch(/SlideUpFromBottom/);
-    expect(content).toMatch(/\[50,\s*0\]/);
+    // Slides up 50px to rest (#731 moved the distance onto the spring range).
+    expect(content).toMatch(/range\(p,\s*50,\s*0\)/);
   });
 });
 

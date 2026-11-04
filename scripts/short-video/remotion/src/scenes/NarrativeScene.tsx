@@ -35,6 +35,7 @@ import {
 import { MediaScrims } from "../components/MediaScrims";
 import { MediaBackground } from "../components/MediaBackground";
 import { MediaCard } from "../components/MediaCard";
+import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
 import { TextGroupGate } from "../components/text-group-gate";
 import { SplitHighlight } from "../components/substring-highlight";
@@ -239,38 +240,40 @@ export const NarrativeScene: React.FC<{
         {/* Text block anchored to the safe zone bottom (y=1150), drawn over the
             picture. No panel background: the bottom scrim already guarantees
             contrast, and an opaque bar would undo the full-bleed band. */}
-        <div
-          data-text-container
-          style={{
-            position: "absolute",
-            top: textBarTop,
-            left: SAFE_ZONES.left,
-            right: SAFE_ZONES.right,
-            height: textBarHeight,
-            maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right - 2 * SPACING.xl,
-            padding: `${SPACING.lg}px ${SPACING.xl}px`,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            alignItems: "center",
-            gap: SPACING.sm,
-            overflow: "hidden",
-            borderTop: `2px solid ${glowColor === "red" ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)"}`,
-          }}
-        >
-          <SlideUpFromBottom delay={0.2} duration={0.5}>
-            <CompanyText variant="media-bottom-bar" />
-          </SlideUpFromBottom>
-          <SlideUp delay={0.4} duration={0.5}>
-            <ActionText variant="media-bottom-bar" />
-          </SlideUp>
-          <StampIn delay={0.6} duration={0.5}>
-            <ResultText variant="media-bottom-bar" />
-          </StampIn>
-          <FadeIn delay={0.8} duration={0.5}>
-            <SourceText variant="media-bottom-bar" />
-          </FadeIn>
-        </div>
+        <Camera visualType="narrative" duration={duration}>
+          <div
+            data-text-container
+            style={{
+              position: "absolute",
+              top: textBarTop,
+              left: SAFE_ZONES.left,
+              right: SAFE_ZONES.right,
+              height: textBarHeight,
+              maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right - 2 * SPACING.xl,
+              padding: `${SPACING.lg}px ${SPACING.xl}px`,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: SPACING.sm,
+              overflow: "hidden",
+              borderTop: `2px solid ${glowColor === "red" ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)"}`,
+            }}
+          >
+            <SlideUpFromBottom delay={0.2} duration={0.5}>
+              <CompanyText variant="media-bottom-bar" />
+            </SlideUpFromBottom>
+            <SlideUp delay={0.4} duration={0.5}>
+              <ActionText variant="media-bottom-bar" />
+            </SlideUp>
+            <StampIn delay={0.6} duration={0.5}>
+              <ResultText variant="media-bottom-bar" />
+            </StampIn>
+            <FadeIn delay={0.8} duration={0.5}>
+              <SourceText variant="media-bottom-bar" />
+            </FadeIn>
+          </div>
+        </Camera>
       </>
     );
   };
@@ -294,38 +297,40 @@ export const NarrativeScene: React.FC<{
           <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
         </div>
       )}
-      <div
-        data-text-container
-        style={{
-          position: "absolute",
-          top: SAFE_ZONES.top, // 220
-          right: SAFE_ZONES.right, // 200 → right edge at x=880
-          bottom: SAFE_ZONES.bottom, // 770 → bottom edge at y=1150
-          width: 420, // fits in x∈[460,880] (right half minus safe zone)
-          maxWidth: 420 - 2 * SPACING.xl,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          gap: SPACING.lg,
-          overflow: "hidden",
-        }}
-      >
-        <SlideRight delay={0.2} duration={0.5}>
-          <CompanyText variant="media-split" />
-        </SlideRight>
-        <SlideUp delay={0.4} duration={0.5}>
-          <ActionText variant="media-split" />
-        </SlideUp>
-        <ScaleIn delay={0.6} duration={0.5}>
-          <ResultText variant="media-split" />
-        </ScaleIn>
-        <FadeIn delay={0.8} duration={0.5}>
-          <ContextText variant="media-split" />
-        </FadeIn>
-        <FadeIn delay={1.0} duration={0.5}>
-          <SourceText variant="media-split" />
-        </FadeIn>
-      </div>
+      <Camera visualType="narrative" duration={duration}>
+        <div
+          data-text-container
+          style={{
+            position: "absolute",
+            top: SAFE_ZONES.top, // 220
+            right: SAFE_ZONES.right, // 200 → right edge at x=880
+            bottom: SAFE_ZONES.bottom, // 770 → bottom edge at y=1150
+            width: 420, // fits in x∈[460,880] (right half minus safe zone)
+            maxWidth: 420 - 2 * SPACING.xl,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: SPACING.lg,
+            overflow: "hidden",
+          }}
+        >
+          <SlideRight delay={0.2} duration={0.5}>
+            <CompanyText variant="media-split" />
+          </SlideRight>
+          <SlideUp delay={0.4} duration={0.5}>
+            <ActionText variant="media-split" />
+          </SlideUp>
+          <ScaleIn delay={0.6} duration={0.5}>
+            <ResultText variant="media-split" />
+          </ScaleIn>
+          <FadeIn delay={0.8} duration={0.5}>
+            <ContextText variant="media-split" />
+          </FadeIn>
+          <FadeIn delay={1.0} duration={0.5}>
+            <SourceText variant="media-split" />
+          </FadeIn>
+        </div>
+      </Camera>
     </>
   );
 
@@ -342,83 +347,85 @@ export const NarrativeScene: React.FC<{
           <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
         </div>
       )}
-      {/* Top overlay — badge/company/action, starting at safe zone top (y=220) */}
-      <TextGroupGate
-        sceneId={sceneId}
-        groupId="narrative.media-overlay.top-band"
-        maxHeight={ov("narrative.media-overlay.top-band").groupMaxHeight}
-        style={{
-          position: "absolute",
-          top: SAFE_ZONES.top, // 220
-          left: SAFE_ZONES.left, // 60
-          right: SAFE_ZONES.right, // 200 → right edge at x=880
-          maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right,
-          display: "flex",
-          flexDirection: "column",
-          gap: SPACING.sm,
-          overflow: "hidden",
-        }}
-      >
-        <FadeIn delay={0.2} duration={0.5}>
-          {txt.badge && (
-            <TextGate sceneId={sceneId} slotId="narrative.media-overlay.badge">
-              {(fontSize) => (
-                <div
-                  style={{
-                    display: "inline-block",
-                    padding: `${SPACING.md}px ${SPACING.xl}px`,
-                    border: `2px solid ${glowColor === "red" ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"}`,
-                    borderRadius: 8,
-                    background:
-                      glowColor === "red" ? "rgba(239,68,68,0.08)" : "rgba(245,158,11,0.08)",
-                    fontSize,
-                    fontWeight: 800,
-                    color: glowColor === "red" ? "#ef4444" : "#f59e0b",
-                    letterSpacing: "2px",
-                  }}
-                >
-                  {txt.badge as string}
-                </div>
-              )}
-            </TextGate>
-          )}
-        </FadeIn>
-        <SlideDown delay={0.4} duration={0.5}>
-          <CompanyText variant="media-overlay" />
-        </SlideDown>
-        <SlideUp delay={0.55} duration={0.5}>
-          <ActionText variant="media-overlay" />
-        </SlideUp>
-      </TextGroupGate>
-      {/* Bottom overlay — result/context/source, anchored to safe zone bottom (y=1150) */}
-      <TextGroupGate
-        sceneId={sceneId}
-        groupId="narrative.media-overlay.bottom-band"
-        maxHeight={ov("narrative.media-overlay.bottom-band").groupMaxHeight}
-        style={{
-          position: "absolute",
-          bottom: SAFE_ZONES.bottom, // 770 → bottom edge at y=1150
-          left: SAFE_ZONES.left,
-          right: SAFE_ZONES.right,
-          maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right - 2 * SPACING["2xl"],
-          display: "flex",
-          flexDirection: "column",
-          gap: SPACING.sm,
-          background: "linear-gradient(to top, rgba(10,10,20,0.8), transparent)",
-          padding: `${SPACING.xl}px ${SPACING["2xl"]}px`,
-          overflow: "hidden",
-        }}
-      >
-        <StampIn delay={0.6} duration={0.5}>
-          <ResultText variant="media-overlay" />
-        </StampIn>
-        <FadeIn delay={0.75} duration={0.5}>
-          <ContextText variant="media-overlay" />
-        </FadeIn>
-        <FadeIn delay={0.9} duration={0.5}>
-          <SourceText variant="media-overlay" />
-        </FadeIn>
-      </TextGroupGate>
+      <Camera visualType="narrative" duration={duration}>
+        {/* Top overlay — badge/company/action, starting at safe zone top (y=220) */}
+        <TextGroupGate
+          sceneId={sceneId}
+          groupId="narrative.media-overlay.top-band"
+          maxHeight={ov("narrative.media-overlay.top-band").groupMaxHeight}
+          style={{
+            position: "absolute",
+            top: SAFE_ZONES.top, // 220
+            left: SAFE_ZONES.left, // 60
+            right: SAFE_ZONES.right, // 200 → right edge at x=880
+            maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right,
+            display: "flex",
+            flexDirection: "column",
+            gap: SPACING.sm,
+            overflow: "hidden",
+          }}
+        >
+          <FadeIn delay={0.2} duration={0.5}>
+            {txt.badge && (
+              <TextGate sceneId={sceneId} slotId="narrative.media-overlay.badge">
+                {(fontSize) => (
+                  <div
+                    style={{
+                      display: "inline-block",
+                      padding: `${SPACING.md}px ${SPACING.xl}px`,
+                      border: `2px solid ${glowColor === "red" ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"}`,
+                      borderRadius: 8,
+                      background:
+                        glowColor === "red" ? "rgba(239,68,68,0.08)" : "rgba(245,158,11,0.08)",
+                      fontSize,
+                      fontWeight: 800,
+                      color: glowColor === "red" ? "#ef4444" : "#f59e0b",
+                      letterSpacing: "2px",
+                    }}
+                  >
+                    {txt.badge as string}
+                  </div>
+                )}
+              </TextGate>
+            )}
+          </FadeIn>
+          <SlideDown delay={0.4} duration={0.5}>
+            <CompanyText variant="media-overlay" />
+          </SlideDown>
+          <SlideUp delay={0.55} duration={0.5}>
+            <ActionText variant="media-overlay" />
+          </SlideUp>
+        </TextGroupGate>
+        {/* Bottom overlay — result/context/source, anchored to safe zone bottom (y=1150) */}
+        <TextGroupGate
+          sceneId={sceneId}
+          groupId="narrative.media-overlay.bottom-band"
+          maxHeight={ov("narrative.media-overlay.bottom-band").groupMaxHeight}
+          style={{
+            position: "absolute",
+            bottom: SAFE_ZONES.bottom, // 770 → bottom edge at y=1150
+            left: SAFE_ZONES.left,
+            right: SAFE_ZONES.right,
+            maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right - 2 * SPACING["2xl"],
+            display: "flex",
+            flexDirection: "column",
+            gap: SPACING.sm,
+            background: "linear-gradient(to top, rgba(10,10,20,0.8), transparent)",
+            padding: `${SPACING.xl}px ${SPACING["2xl"]}px`,
+            overflow: "hidden",
+          }}
+        >
+          <StampIn delay={0.6} duration={0.5}>
+            <ResultText variant="media-overlay" />
+          </StampIn>
+          <FadeIn delay={0.75} duration={0.5}>
+            <ContextText variant="media-overlay" />
+          </FadeIn>
+          <FadeIn delay={0.9} duration={0.5}>
+            <SourceText variant="media-overlay" />
+          </FadeIn>
+        </TextGroupGate>
+      </Camera>
     </>
   );
 
@@ -434,87 +441,89 @@ export const NarrativeScene: React.FC<{
     ].filter((c) => c.label || c.value);
 
     return (
-      <div
-        data-text-container
-        style={{
-          position: "absolute",
-          top: SAFE_ZONES.top, // 220
-          left: SAFE_ZONES.left, // 60
-          right: SAFE_ZONES.right, // 200 → right edge at x=880
-          bottom: SAFE_ZONES.bottom, // 770 → bottom edge at y=1150
-          maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          gap: SPACING.xl,
-          overflow: "hidden",
-        }}
-      >
-        {/* Badge chip above the cards — same shape as the media-overlay chip;
+      <Camera visualType="narrative" duration={duration}>
+        <div
+          data-text-container
+          style={{
+            position: "absolute",
+            top: SAFE_ZONES.top, // 220
+            left: SAFE_ZONES.left, // 60
+            right: SAFE_ZONES.right, // 200 → right edge at x=880
+            bottom: SAFE_ZONES.bottom, // 770 → bottom edge at y=1150
+            maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: SPACING.xl,
+            overflow: "hidden",
+          }}
+        >
+          {/* Badge chip above the cards — same shape as the media-overlay chip;
             the gate wraps the chip so its padding/border stay INSIDE the slot
             (quote-7 lesson: never nest the gate inside the decoration). */}
-        {txt.badge && (
-          <FadeIn delay={0.1} duration={0.5}>
-            <TextGate sceneId={sceneId} slotId="narrative.stacked-cards.badge">
-              {(fontSize) => (
-                <div
-                  style={{
-                    display: "inline-block",
-                    padding: SPACING.md + "px " + SPACING.xl + "px",
-                    border:
-                      "2px solid " +
-                      (glowColor === "red" ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"),
-                    borderRadius: 8,
-                    background:
-                      glowColor === "red" ? "rgba(239,68,68,0.08)" : "rgba(245,158,11,0.08)",
-                    fontSize,
-                    fontWeight: 800,
-                    color: glowColor === "red" ? "#ef4444" : "#f59e0b",
-                    letterSpacing: "2px",
-                  }}
-                >
-                  {txt.badge as string}
-                </div>
-              )}
-            </TextGate>
-          </FadeIn>
-        )}
-        {cards.map((card, i) => (
-          <StampIn key={i} delay={card.delay} duration={0.5}>
-            <div
-              style={{
-                padding: SPACING["2xl"],
-                border: `2px solid ${i === 0 ? "rgba(77,139,255,0.2)" : "rgba(245,158,11,0.2)"}`,
-                borderRadius: 12,
-                background: "rgba(10,10,20,0.6)",
-              }}
-            >
-              {/* Cards read label/value from the contract fields: card 0 shows
-                  company+action, card 1 shows context+result. */}
-              {card.label && (
-                <ScaleIn delay={card.delay + 0.1} duration={0.4}>
-                  <div style={{ marginBottom: SPACING.sm }}>
-                    {i === 0 ? (
-                      <CompanyText variant="stacked-cards" />
-                    ) : (
-                      <ContextText variant="stacked-cards" />
-                    )}
+          {txt.badge && (
+            <FadeIn delay={0.1} duration={0.5}>
+              <TextGate sceneId={sceneId} slotId="narrative.stacked-cards.badge">
+                {(fontSize) => (
+                  <div
+                    style={{
+                      display: "inline-block",
+                      padding: SPACING.md + "px " + SPACING.xl + "px",
+                      border:
+                        "2px solid " +
+                        (glowColor === "red" ? "rgba(239,68,68,0.4)" : "rgba(245,158,11,0.4)"),
+                      borderRadius: 8,
+                      background:
+                        glowColor === "red" ? "rgba(239,68,68,0.08)" : "rgba(245,158,11,0.08)",
+                      fontSize,
+                      fontWeight: 800,
+                      color: glowColor === "red" ? "#ef4444" : "#f59e0b",
+                      letterSpacing: "2px",
+                    }}
+                  >
+                    {txt.badge as string}
                   </div>
-                </ScaleIn>
-              )}
-              {card.value &&
-                (i === 0 ? (
-                  <ActionText variant="stacked-cards" />
-                ) : (
-                  <ResultText variant="stacked-cards" />
-                ))}
-            </div>
-          </StampIn>
-        ))}
-        <SlideUp delay={1.0} duration={0.5}>
-          <SourceText variant="stacked-cards" />
-        </SlideUp>
-      </div>
+                )}
+              </TextGate>
+            </FadeIn>
+          )}
+          {cards.map((card, i) => (
+            <StampIn key={i} delay={card.delay} duration={0.5}>
+              <div
+                style={{
+                  padding: SPACING["2xl"],
+                  border: `2px solid ${i === 0 ? "rgba(77,139,255,0.2)" : "rgba(245,158,11,0.2)"}`,
+                  borderRadius: 12,
+                  background: "rgba(10,10,20,0.6)",
+                }}
+              >
+                {/* Cards read label/value from the contract fields: card 0 shows
+                  company+action, card 1 shows context+result. */}
+                {card.label && (
+                  <ScaleIn delay={card.delay + 0.1} duration={0.4}>
+                    <div style={{ marginBottom: SPACING.sm }}>
+                      {i === 0 ? (
+                        <CompanyText variant="stacked-cards" />
+                      ) : (
+                        <ContextText variant="stacked-cards" />
+                      )}
+                    </div>
+                  </ScaleIn>
+                )}
+                {card.value &&
+                  (i === 0 ? (
+                    <ActionText variant="stacked-cards" />
+                  ) : (
+                    <ResultText variant="stacked-cards" />
+                  ))}
+              </div>
+            </StampIn>
+          ))}
+          <SlideUp delay={1.0} duration={0.5}>
+            <SourceText variant="stacked-cards" />
+          </SlideUp>
+        </div>
+      </Camera>
     );
   };
 

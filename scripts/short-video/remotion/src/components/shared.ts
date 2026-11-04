@@ -26,6 +26,24 @@ export {
   TRANSITION_FRAMES,
 } from "../../../lib/timeline.mjs";
 
+/**
+ * Design + motion tokens (#731). Declared in src/tokens.ts (kept
+ * remotion-free so the contract is testable in plain Node); re-exported here
+ * so components have one shared import surface.
+ */
+export {
+  COLOR,
+  TYPE,
+  MOTION,
+  HOLD,
+  CAMERA,
+  holdFramesFor,
+  settleByFrame,
+  cameraSpecFor,
+  cameraStateAt,
+} from "../tokens";
+export type { SpringPreset, CameraSpec } from "../tokens";
+
 /** Seconds → frames conversion (at 30fps). */
 export const secToFrames = (s: number): number => Math.round(s * 30);
 

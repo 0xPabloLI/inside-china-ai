@@ -22,7 +22,7 @@ import {
   FrameGlow,
 } from "../components/visuals";
 import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
-import { SPACING, ANNOTATION, CANVAS } from "../components/shared";
+import { SPACING, ANNOTATION, CANVAS, COLOR } from "../components/shared";
 import { NumberPulse, ScanSweep } from "../components/animations/loops";
 import { MediaBackground } from "../components/MediaBackground";
 import { MediaScrims } from "../components/MediaScrims";
@@ -67,12 +67,12 @@ const hookMediaBand = (
 };
 
 const COLORS: Record<string, string> = {
-  blue: "#4d8bff",
-  red: "#ef4444",
-  amber: "#f59e0b",
-  green: "#34d399",
-  purple: "#6d4eff",
-  cyan: "#22d3ee",
+  blue: COLOR.brand,
+  red: COLOR.red,
+  amber: COLOR.amber,
+  green: COLOR.green,
+  purple: COLOR.purple,
+  cyan: COLOR.cyan,
 };
 
 /**
