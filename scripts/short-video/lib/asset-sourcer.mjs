@@ -1954,7 +1954,7 @@ export async function analyzeAssets(assets, opts = {}) {
   // ── Phase 3b: Crop Decision (deterministic geometry) ──
   // For each landscape image asset, evaluate 9:16 cover crop candidates
   // using focus detection data. Select best safe crop or fall back to contain.
-  const { selectBestCrop } = await import("./crop-decision.mjs");
+  const { selectBestCrop, TARGET_ASPECT } = await import("./crop-decision.mjs");
 
   for (const asset of analyzableAssets) {
     if (asset.type !== "image") continue; // video crop not supported
@@ -1964,7 +1964,9 @@ export async function analyzeAssets(assets, opts = {}) {
     if (!focus?.frame?.width || !focus?.frame?.height) continue;
 
     const sourceAspect = focus.frame.width / focus.frame.height;
-    const targetAspect = 9 / 16;
+    // #1040: shared with Phase 3a's saliencyCropHint so both stages solve for
+    // the same 9:16 framing instead of each owning a copy of the ratio.
+    const targetAspect = TARGET_ASPECT;
 
     // Only run crop decision for landscape images (source wider than target)
     if (sourceAspect <= targetAspect) continue;

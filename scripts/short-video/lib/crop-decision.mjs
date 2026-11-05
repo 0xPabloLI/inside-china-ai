@@ -25,6 +25,13 @@
  * @module crop-decision
  */
 
+/**
+ * The one owner of the 9:16 target ratio in JS. Phase 3a (crop hint) and
+ * Phase 3b (crop decision) must use the same value or the VLM would preview
+ * a different framing than the one selectBestCrop solves for.
+ */
+export const TARGET_ASPECT = 9 / 16;
+
 // ─── Types (JSDoc) ───
 
 /**
@@ -309,10 +316,9 @@ export function selectBestCrop({ sourceAspect, targetAspect, protectedRegions, s
  * rounded to the same 3 decimals Phase 3b writes, so both paths agree.
  *
  * @param {{frame?: {width: number, height: number} | null, saliency?: {available: boolean, dispersion: number, centroid: number[]} | null} | null} focusAnalysis
- * @param {number} [targetAspect=0.5625] - target width / height
  * @returns {{x: number, y: number} | null}
  */
-export function saliencyCropHint(focusAnalysis, targetAspect = 9 / 16) {
+export function saliencyCropHint(focusAnalysis) {
   const sal = focusAnalysis?.saliency;
   if (!(
     sal?.available &&
@@ -339,7 +345,7 @@ export function saliencyCropHint(focusAnalysis, targetAspect = 9 / 16) {
   const pos = sourceFocusToObjectPosition(
     [clamp01(sal.centroid[0]), clamp01(sal.centroid[1])],
     width / height,
-    targetAspect,
+    TARGET_ASPECT,
   );
   return { x: roundFocus(pos.x), y: roundFocus(pos.y) };
 }

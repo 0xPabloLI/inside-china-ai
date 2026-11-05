@@ -937,9 +937,13 @@ def _cleanup_frames(frame_paths):
 def _parse_crop_focus(raw):
     """Normalize a request's cropFocus hint into a (x, y) tuple.
 
-    Accepts {"x": float, "y": float} in normalized [0, 1] as a CSS
-    object-position ratio (#1040), NOT a source-space focus point: 0 keeps the
-    left/top edge, 0.5 centres, 1 keeps the right/bottom edge. Clamps
+    Accepts {"x": float, "y": float} in normalized [0, 1] as CSS
+    object-position ratios (#1040), NOT source-space focus points. On the
+    horizontal axis, 0 keeps the left edge, 0.5 centres, 1 keeps the right
+    edge. `simulate_crop` only crops horizontally (it keeps the full source
+    height), so focus[1] is parsed and clamped here but never read by this
+    Python path; cropFocus.y is load-bearing only in the renderer
+    (MediaBackground.tsx), including its contain-mode override. Clamps both
     components into range. Anything malformed (missing fields, wrong types,
     junk from a stale caller) falls back to None so simulate_crop keeps its
     historical center behavior — a broken hint must never break analysis.

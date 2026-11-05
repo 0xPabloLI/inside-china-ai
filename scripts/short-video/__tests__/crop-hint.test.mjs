@@ -9,7 +9,7 @@
  * centroid before handing it over — and must agree with selectBestCrop.
  */
 import { describe, it, expect, afterAll } from "vitest";
-import { saliencyCropHint, selectBestCrop } from "../lib/crop-decision.mjs";
+import { saliencyCropHint, selectBestCrop, TARGET_ASPECT } from "../lib/crop-decision.mjs";
 import { computeCacheKey } from "../lib/vlm-cache.mjs";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
@@ -19,6 +19,11 @@ const FRAME = { width: 1920, height: 1080 }; // 16:9 source
 const saliency = (centroid, dispersion = 0.5) => ({ available: true, dispersion, centroid });
 
 describe("saliencyCropHint (#1040)", () => {
+  it("owns the 9:16 ratio once and takes no unused targetAspect argument", () => {
+    expect(TARGET_ASPECT).toBeCloseTo(0.5625, 10);
+    expect(saliencyCropHint.length).toBe(1);
+  });
+
   it("converts the source-space centroid into an object-position ratio", () => {
     const hint = saliencyCropHint({ frame: FRAME, saliency: saliency([0.25, 0.6]) });
     // r = 256/81 ≈ 3.1605 → p = (0.25r - 0.5)/(r - 1) ≈ 0.134
@@ -66,7 +71,7 @@ describe("saliencyCropHint (#1040)", () => {
     const hint = saliencyCropHint(focus);
     const decision = selectBestCrop({
       sourceAspect: FRAME.width / FRAME.height,
-      targetAspect: 9 / 16,
+      targetAspect: TARGET_ASPECT,
       protectedRegions: [],
       saliency: focus.saliency,
       frame: FRAME,
