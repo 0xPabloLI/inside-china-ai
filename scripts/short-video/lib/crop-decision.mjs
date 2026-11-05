@@ -2,9 +2,22 @@
  * Crop Decision — Deterministic 9:16 cover crop evaluation.
  *
  * Pure functions (no I/O, no side effects) that:
- *   1. resolveObjectPosition: normalized source-space focus → CSS object-position
- *   2. evaluateCropSafety: does a candidate crop rect contain all protected regions?
- *   3. selectBestCrop: generate candidates, evaluate, select best safe crop
+ *   1. sourceFocusToObjectPosition: source-space focus → object-position ratio
+ *   2. resolveObjectPosition: format that ratio as a CSS object-position string
+ *   3. evaluateCropSafety: does a candidate crop rect contain all protected regions?
+ *   4. selectBestCrop: generate candidates, evaluate, select best safe crop
+ *   5. saliencyCropHint: Phase 3a VLM crop hint in the same ratio contract
+ *
+ * ## cropFocus contract (#1040)
+ *
+ * `cropFocus.{x,y}` is a normalized [0, 1] **CSS object-position ratio**, not
+ * a source-space point: 0 = left/top-aligned, 0.5 = centred, 1 = right/bottom.
+ * Both consumers read it that way — `MediaBackground.tsx:objectPositionFor`
+ * emits `${cropFocus.x * 100}%`, and `vlm_analyzer.py:simulate_crop` computes
+ * `left = (w - new_w) * focus_x`. Producers must therefore convert a
+ * source-space focus f to p before writing; `sourceFocusToObjectPosition` is
+ * the single source of truth for that conversion. 0 / 0.5 / 1 are fixed points
+ * of f → p, so the hand-written scene-data declarations needed no migration.
  *
  * The contract is consumed by asset-sourcer.mjs Phase 3b and produces
  * CropDecision objects stored in asset-analysis.json for human review.
@@ -39,7 +52,8 @@
  * @typedef {Object} CropDecision
  * @property {"safe"|"unsafe"|"indeterminate"} status
  * @property {"cover"|"contain"} policy
- * @property {{x: number, y: number} | null} cropFocus - Normalized [0,1]
+ * @property {{x: number, y: number} | null} cropFocus - Normalized [0,1] CSS
+ *   object-position ratio (see module header); null when no safe crop
  * @property {string} reason
  * @property {CropCandidate[]} candidates
  */
@@ -49,105 +63,56 @@
 /** Saliency dispersion below this → low information → indeterminate */
 const SALIENCY_LOW_THRESHOLD = 0.01;
 
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+/** Phase 3b writes cropFocus at this precision; Phase 3a hints match it (#1040). */
+const roundFocus = (v) => Math.round(v * 1000) / 1000;
+
+// ─── sourceFocusToObjectPosition ───
+
+/**
+ * Convert a normalized source-space focus point into a CSS object-position
+ * ratio — the single source of truth for the cropFocus contract (#1040).
+ *
+ * object-fit: cover shows 1/r of the source along the cropped axis, where
+ * r = sourceAspect / targetAspect. CSS object-position p slides that window:
+ * the visible window is [p·(1 − 1/r), p·(1 − 1/r) + 1/r]. Centring a
+ * source-space focus f in it gives
+ *
+ *   f = p·(1 − 1/r) + 1/(2r)  ⇒  p = (f·r − 0.5) / (r − 1)
+ *
+ * The vertical axis uses the inverted ratio (rV = targetAspect/sourceAspect).
+ * An axis that needs no crop (r ≤ 1.001) stays centred at 0.5.
+ *
+ * @param {number[]} focus - [fx, fy] in normalized [0, 1] source space
+ * @param {number} sourceAspect - source width / height
+ * @param {number} targetAspect - target width / height
+ * @returns {{x: number, y: number}} normalized [0, 1] object-position ratios
+ */
+export function sourceFocusToObjectPosition(focus, sourceAspect, targetAspect) {
+  const [fx, fy] = focus;
+  const rH = sourceAspect / targetAspect;
+  const rV = targetAspect / sourceAspect;
+  const ratioFor = (f, r) => (r > 1.001 ? clamp01((f * r - 0.5) / (r - 1)) : 0.5);
+  return { x: ratioFor(fx, rH), y: ratioFor(fy, rV) };
+}
+
 // ─── resolveObjectPosition ───
 
 /**
- * Convert a normalized source-space focus point into a CSS object-position string.
- *
- * When the source is wider than the target (r = sourceAspect / targetAspect > 1),
- * the visible fraction is 1/r of the source width. The CSS position p that keeps
- * a source-space focus point f visible is:
- *
- *   p = (f * r - 0.5 * (r - 1)) / (r - 1)  =  (f * r - 0.5) / (r - 1) + 0.5
- *
- * Simplified: p = (f * r) / (r - 1) - 0.5 / (r - 1) = (f * r - 0.5) / (r - 1)
- *
- * Wait, let me re-derive properly.
- *
- * CSS object-position p (0 = left, 0.5 = center, 1 = right) maps to source coordinate:
- * The source window visible is [p - 0.5/r, p + 0.5/r] mapped through the cover scale.
- * Actually, the correct derivation:
- *
- * When object-fit: cover scales source (S_w × S_h) into target (T_w × T_h):
- * - If source is wider: scale = T_h / S_h, visible source width = T_w / scale = T_w * S_h / T_h
- * - Visible fraction of source width = (T_w * S_h) / (T_h * S_w) = targetAspect / sourceAspect = 1/r
- *
- * The visible window in source space is centered at position p:
- *   window = [p - 1/(2r), p + 1/(2r)]  (in [0, 1] source space)
- *
- * To keep focus point f visible, we need:
- *   p - 1/(2r) ≤ f ≤ p + 1/(2r)
- *
- * To CENTER f in the visible window:
- *   p = f  →  but p must be in [1/(2r), 1 - 1/(2r)]
- *
- * Wait, that's too simple. Actually, when f is at the center of the window:
- *   f = p, so p = f. But p is constrained to [1/(2r), 1 - 1/(2r)].
- *   If f < 1/(2r) → p = 1/(2r) (clamped left)
- *   If f > 1 - 1/(2r) → p = 1 - 1/(2r) (clamped right)
- *
- * Hmm, but that means object-position percentage = p * 100, and the visible window
- * is centered on p. Let me verify:
- *
- * With object-position: 30%, the leftmost 30% of the source is pushed out of view
- * (when source is wider than target). So the visible window starts at 30% and extends
- * 1/r to the right. That means visible = [p, p + 1/r]? No...
- *
- * Actually, CSS object-position works differently. When p = 0%, the left edge of
- * the source aligns with the left edge of the container (showing the leftmost part).
- * When p = 100%, the right edge aligns (showing the rightmost part).
- * When p = 50%, center aligns.
- *
- * The visible source region is:
- *   [p * (1 - 1/r), p * (1 - 1/r) + 1/r]
- *
- * To keep focus f at the CENTER of the visible window:
- *   f = p * (1 - 1/r) + 1/(2r)
- *   p = (f - 1/(2r)) / (1 - 1/r)
- *
- * This is the correct formula. Let me verify:
- *   f = 0.5 (center) → p = (0.5 - 1/(2r)) / (1 - 1/r) = (0.5 - 1/(2r)) / ((r-1)/r)
- *   With r = 3.16: p = (0.5 - 0.158) / (2.16/3.16) = 0.342 / 0.684 = 0.5 ✓
- *
- *   f = 0.25 (left of center): p = (0.25 - 0.158) / 0.684 = 0.092 / 0.684 = 0.134 ✓
- *   f = 0.0 (far left): p = (0 - 0.158) / 0.684 = -0.231 → clamp to 0 ✓
- *   f = 1.0 (far right): p = (1 - 0.158) / 0.684 = 1.231 → clamp to 1 ✓
+ * Format a source-space focus point as a CSS object-position string.
+ * Geometry lives in sourceFocusToObjectPosition(); this is its string form.
  *
  * @param {{sourceAspect: number, targetAspect: number, normalizedFocus: number[]}} opts
  * @returns {string} CSS object-position string like "50% 50%" or "center"
  */
 export function resolveObjectPosition({ sourceAspect, targetAspect, normalizedFocus }) {
-  const [fx, fy] = normalizedFocus;
-
-  // Horizontal: source wider than target?
   const rH = sourceAspect / targetAspect;
-  const needHCrop = rH > 1.001;
-
-  // Vertical: source taller than target?
-  // sourceAspect < targetAspect means source is narrower (taller per unit width)
   const rV = targetAspect / sourceAspect;
-  const needVCrop = rV > 1.001;
+  if (rH <= 1.001 && rV <= 1.001) return "center";
 
-  if (!needHCrop && !needVCrop) {
-    return "center";
-  }
-
-  let xPct = 50;
-  let yPct = 50;
-
-  if (needHCrop) {
-    // p = (f - 1/(2r)) / (1 - 1/r)  =  (f * r - 0.5) / (r - 1)
-    const p = (fx * rH - 0.5) / (rH - 1);
-    xPct = Math.round(Math.max(0, Math.min(1, p)) * 100);
-  }
-
-  if (needVCrop) {
-    // Same formula for vertical axis
-    const p = (fy * rV - 0.5) / (rV - 1);
-    yPct = Math.round(Math.max(0, Math.min(1, p)) * 100);
-  }
-
-  return `${xPct}% ${yPct}%`;
+  const pos = sourceFocusToObjectPosition(normalizedFocus, sourceAspect, targetAspect);
+  return `${Math.round(pos.x * 100)}% ${Math.round(pos.y * 100)}%`;
 }
 
 // ─── evaluateCropSafety ───
@@ -296,17 +261,23 @@ export function selectBestCrop({ sourceAspect, targetAspect, protectedRegions, s
   }
 
   if (selected) {
-    // Compute cropFocus from the selected crop rect
-    // cropFocus is the center of the crop rect in source space
+    // The crop rect lives in source space; cropFocus is a CSS object-position
+    // ratio (#1040). Convert through the same seam the renderer's string form
+    // uses, so the decision, the VLM crop simulation and the render agree.
     const [cx] = selected.cropRect;
-    const focusX = cx + visibleFraction / 2;
+    const sourceFocusX = cx + visibleFraction / 2;
+    const { x: posX } = sourceFocusToObjectPosition(
+      [sourceFocusX, 0.5],
+      sourceAspect,
+      targetAspect,
+    );
     const anchorLabel = selected.anchor;
 
     return {
       status: "safe",
       policy: "cover",
-      cropFocus: { x: Math.round(focusX * 1000) / 1000, y: 0.5 },
-      reason: `Safe crop at ${anchorLabel} anchor (focus [${focusX.toFixed(3)}, 0.5])`,
+      cropFocus: { x: roundFocus(posX), y: 0.5 },
+      reason: `Safe crop at ${anchorLabel} anchor (source focus [${sourceFocusX.toFixed(3)}, 0.5] → object-position ${posX.toFixed(3)})`,
       candidates,
     };
   }
@@ -321,7 +292,7 @@ export function selectBestCrop({ sourceAspect, targetAspect, protectedRegions, s
   };
 }
 
-const clamp01 = (v) => Math.max(0, Math.min(1, v));
+// ─── saliencyCropHint ───
 
 /**
  * Derive a crop-focus hint from Phase 2 focus analysis for the VLM's crop
@@ -329,22 +300,46 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
  *
  * Uses the SAME saliency threshold as selectBestCrop: when the saliency map
  * would anchor the Phase 3b crop, the VLM must judge fit/criticalEdgeText on
- * that same saliency-anchored view, not a center crop. Returns null when the
- * hint would be the center anyway (caller then sends no hint).
+ * that same saliency-anchored view, not a center crop.
  *
- * @param {{saliency?: {available: boolean, dispersion: number, centroid: number[]} | null} | null} focusAnalysis
+ * #1040: `simulate_crop` consumes the hint as an object-position ratio while
+ * `saliency.centroid` is a source-space point. The conversion needs the source
+ * geometry — without a usable `frame` this returns null (centre crop) rather
+ * than pass a coordinate whose semantics are known to be wrong. The hint is
+ * rounded to the same 3 decimals Phase 3b writes, so both paths agree.
+ *
+ * @param {{frame?: {width: number, height: number} | null, saliency?: {available: boolean, dispersion: number, centroid: number[]} | null} | null} focusAnalysis
+ * @param {number} [targetAspect=0.5625] - target width / height
  * @returns {{x: number, y: number} | null}
  */
-export function saliencyCropHint(focusAnalysis) {
+export function saliencyCropHint(focusAnalysis, targetAspect = 9 / 16) {
   const sal = focusAnalysis?.saliency;
-  if (
+  if (!(
     sal?.available &&
     sal.dispersion >= SALIENCY_LOW_THRESHOLD &&
     Array.isArray(sal.centroid) &&
     sal.centroid.length === 2 &&
     sal.centroid.every((v) => typeof v === "number" && Number.isFinite(v))
-  ) {
-    return { x: clamp01(sal.centroid[0]), y: clamp01(sal.centroid[1]) };
+  )) {
+    return null;
   }
-  return null;
+
+  const { width, height } = focusAnalysis?.frame ?? {};
+  if (
+    typeof width !== "number" ||
+    typeof height !== "number" ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return null;
+  }
+
+  const pos = sourceFocusToObjectPosition(
+    [clamp01(sal.centroid[0]), clamp01(sal.centroid[1])],
+    width / height,
+    targetAspect,
+  );
+  return { x: roundFocus(pos.x), y: roundFocus(pos.y) };
 }

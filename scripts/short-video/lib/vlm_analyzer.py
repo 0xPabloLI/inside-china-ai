@@ -937,11 +937,12 @@ def _cleanup_frames(frame_paths):
 def _parse_crop_focus(raw):
     """Normalize a request's cropFocus hint into a (x, y) tuple.
 
-    Accepts {"x": float, "y": float} in normalized [0, 1] source space;
-    clamps components into range. Anything malformed (missing fields, wrong
-    types, junk from a stale caller) falls back to None so simulate_crop
-    keeps its historical center behavior — a broken hint must never break
-    analysis.
+    Accepts {"x": float, "y": float} in normalized [0, 1] as a CSS
+    object-position ratio (#1040), NOT a source-space focus point: 0 keeps the
+    left/top edge, 0.5 centres, 1 keeps the right/bottom edge. Clamps
+    components into range. Anything malformed (missing fields, wrong types,
+    junk from a stale caller) falls back to None so simulate_crop keeps its
+    historical center behavior — a broken hint must never break analysis.
     """
     if not isinstance(raw, dict):
         return None
@@ -963,7 +964,9 @@ def simulate_crop(img_path, target_ratio=9/16, focus=(0.5, 0.5)):
     Args:
         img_path: Path to the source image.
         target_ratio: Target width/height ratio (default 9/16 = 0.5625 for vertical).
-        focus: (x, y) normalized [0,1] focus point for crop centering.
+        focus: (x, y) normalized [0,1] CSS object-position ratio (#1040).
+            focus[0] is the fraction of the *slack* (w - new_w) cropped from
+            the left — not a source-space x coordinate.
 
     Returns:
         (cropped_path, cleanup_path):
@@ -983,7 +986,9 @@ def simulate_crop(img_path, target_ratio=9/16, focus=(0.5, 0.5)):
 
         # Calculate crop dimensions
         new_w = int(h * target_ratio)
-        # Focus-adjusted crop start: center the crop on the focus point
+        # #1040: focus[0] is an object-position ratio p in [0, 1]; the visible
+        # window starts at p of the horizontal slack (w - new_w). Producers
+        # convert source-space focus to p before writing cropFocus.
         focus_x = max(0.0, min(1.0, focus[0]))
         left = int((w - new_w) * focus_x)
         left = max(0, min(left, w - new_w))

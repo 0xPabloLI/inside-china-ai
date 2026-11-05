@@ -387,7 +387,7 @@ export function validateMedia(media, contentDir) {
     }
   }
 
-  // cropFocus validation (normalized [0,1] focus point)
+  // cropFocus validation (#1040: normalized [0,1] CSS object-position ratio)
   if (media.cropFocus !== undefined && media.cropFocus !== null) {
     if (typeof media.cropFocus !== "object" || media.cropFocus === null) {
       warnings.push(`cropFocus must be an object { x, y }. Got: ${typeof media.cropFocus}.`);

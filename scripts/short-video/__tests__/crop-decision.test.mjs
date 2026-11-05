@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   resolveObjectPosition,
+  sourceFocusToObjectPosition,
   evaluateCropSafety,
   selectBestCrop,
 } from "../lib/crop-decision.mjs";
@@ -117,6 +118,47 @@ describe("resolveObjectPosition", () => {
     });
     const xPct = parseFloat(result.split("%")[0]);
     expect(xPct).toBe(100);
+  });
+});
+
+// ─── sourceFocusToObjectPosition (#1040) ───
+
+describe("sourceFocusToObjectPosition (#1040 cropFocus contract)", () => {
+  const SOURCE = 16 / 9;
+  const TARGET = 9 / 16;
+  // r = (16/9) / (9/16) = 256/81 ≈ 3.1605
+
+  it("converts a left-of-centre source focus into a CSS position ratio", () => {
+    const pos = sourceFocusToObjectPosition([0.25, 0.5], SOURCE, TARGET);
+    // p = (0.25 * r - 0.5) / (r - 1) ≈ 0.134
+    expect(pos.x).toBeCloseTo(0.134, 3);
+    expect(pos.y).toBe(0.5); // no vertical crop on a landscape source
+  });
+
+  it("converts a right-of-centre source focus into a CSS position ratio", () => {
+    const pos = sourceFocusToObjectPosition([0.72, 0.5], SOURCE, TARGET);
+    expect(pos.x).toBeCloseTo(0.822, 3);
+  });
+
+  it("endpoints 0 / 0.5 / 1 are fixed points (no scene-data migration needed)", () => {
+    for (const f of [0, 0.5, 1]) {
+      expect(sourceFocusToObjectPosition([f, 0.5], SOURCE, TARGET).x).toBeCloseTo(f, 10);
+    }
+  });
+
+  it("clamps out-of-range focus into [0, 1]", () => {
+    expect(sourceFocusToObjectPosition([-0.4, 0.5], SOURCE, TARGET).x).toBe(0);
+    expect(sourceFocusToObjectPosition([1.4, 0.5], SOURCE, TARGET).x).toBe(1);
+  });
+
+  it("resolveObjectPosition stays on the same seam", () => {
+    const pos = sourceFocusToObjectPosition([0.25, 0.5], SOURCE, TARGET);
+    const resolved = resolveObjectPosition({
+      sourceAspect: SOURCE,
+      targetAspect: TARGET,
+      normalizedFocus: [0.25, 0.5],
+    });
+    expect(parseFloat(resolved.split("%")[0])).toBe(Math.round(pos.x * 100));
   });
 });
 
@@ -283,5 +325,34 @@ describe("selectBestCrop", () => {
     });
     // Portrait source in 9:16 → no horizontal crop → indeterminate (crop decision not needed)
     expect(result.status).toBe("indeterminate");
+  });
+
+  it("#1040: cropFocus.x is the CSS ratio the renderer can invert back to the solved crop rect", () => {
+    const face = { rect: [0.1, 0.4, 0.15, 0.3], kind: "face" };
+    const result = selectBestCrop({
+      sourceAspect: SOURCE_ASPECT_16_9,
+      targetAspect: TARGET_ASPECT,
+      protectedRegions: [face],
+      saliency: { available: true, dispersion: 0.5, centroid: [0.2, 0.5] },
+      frame: { width: 1920, height: 1080 },
+    });
+    expect(result.status).toBe("safe");
+
+    const selected = result.candidates.find((c) => c.anchor === "protected-0");
+    expect(selected).toBeDefined();
+    const [cx, , cw] = selected.cropRect;
+    const sourceFocusX = cx + cw / 2;
+    const { x: expectedRatio } = sourceFocusToObjectPosition(
+      [sourceFocusX, 0.5],
+      SOURCE_ASPECT_16_9,
+      TARGET_ASPECT,
+    );
+
+    expect(result.cropFocus.x).toBeCloseTo(expectedRatio, 3);
+    // The old behaviour wrote the source-space centre; that value is different.
+    expect(result.cropFocus.x).not.toBeCloseTo(sourceFocusX, 2);
+    // A CSS object-position consumer reconstructs the solved window from p.
+    const restoredLeft = result.cropFocus.x * (1 - cw);
+    expect(restoredLeft).toBeCloseTo(cx, 2);
   });
 });
