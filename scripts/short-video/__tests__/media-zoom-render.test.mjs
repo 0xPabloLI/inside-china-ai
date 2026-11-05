@@ -168,6 +168,16 @@ function diffPng(pathA, pngB) {
 
 const TOTAL_PIXELS = 1080 * 1920;
 
+/** Pixels with visible content — distinguishes a rendered clip from a black frame. */
+function nonBlackCount(path) {
+  const png = PNG.sync.read(readFileSync(path));
+  let count = 0;
+  for (let i = 0; i < png.data.length; i += 4) {
+    if (png.data[i] + png.data[i + 1] + png.data[i + 2] > 24) count++;
+  }
+  return count;
+}
+
 // ─── What the preset does (measured on an image, where zoom stays legal) ───
 // The numbers quantify the defect #357 describes: a container scale is a
 // SECOND crop of the cover frame. Video is excluded from this preset (below),
@@ -212,15 +222,16 @@ describe("video + zoom degrades to fade", { timeout: 600_000 }, () => {
   });
 });
 
-// ─── Why fade and not none (issue #357's open question) ───
+// ─── Why fade was chosen in #357, and what #1030 changed ───
 // `fade` still pushes 1.0 → 1.05 across the scene and drifts -30px on exit, so
 // it is not motionless — it cuts the crop-window drift from 30% to ~5%.
-// `none` IS motionless, and was rejected for a reason the stills cannot show:
-// MediaBackground holds `none` at a constant `baseVolume`, dropping the 4-stop
-// volume envelope, so every video's audio would hard-cut at scene boundaries.
-// These cases measure what the chosen default still costs and pin the numbers,
-// so a future change to the fade curve — or a switch to `none` once the audio
-// envelope is decoupled from the preset — shows up as a moved goalpost.
+// `none` IS motionless, and #357 rejected it for a reason the stills cannot
+// show: MediaBackground held `none` at a constant `baseVolume`, dropping the
+// 4-stop volume envelope, so every video's audio hard-cut at scene boundaries.
+// #1030 moved that envelope into lib/audio-envelope.mjs, independent of the
+// visual preset, so `none` is now admissible for talking-head clips. The cases
+// below still pin what the `fade` default costs; the #1030 block at the end
+// supplies the real-clip comparison the D6 acceptance criterion asks for.
 
 describe("fade vs none — what the chosen default still costs", { timeout: 600_000 }, () => {
   it("exit frame: fade's cost is bounded (no video zoom baseline exists to compare against)", async () => {
@@ -270,5 +281,43 @@ describe("fade vs none — what the chosen default still costs", { timeout: 600_
     // the opposite of zoom, whose entrance was the 1.3 crop. This pins the
     // mechanism: a future change to the fade-in length moves this number.
     expect(entrance).toBeGreaterThan(exit);
+  });
+});
+
+// ─── #1030 D6 acceptance: real-clip comparison, not only unit tests ───
+// The issue body is explicit: "验收需真实片段对照，不能只靠单测". The asset is
+// the real pipeline clip content/unitree/assets/unitree-superman-demo.mp4
+// (640x360, its own camera motion), rendered through the shared still driver
+// at the same frames used by the #357 cases. A still cannot show audio, so the
+// audio half of the contract is pinned numerically in
+// content-aware-animation.test.mjs; these cases show what `none` does to the
+// PICTURE of a real clip and give that comparison a control with power.
+
+describe("#1030 D6 — `none` on a real clip", { timeout: 600_000 }, () => {
+  it("renders the real clip's picture, not a black frame", async () => {
+    const plain = await still("none", "video", EXIT_FRAME);
+    const visible = nonBlackCount(plain);
+    console.log(
+      `[evidence] #1030 none/video f${EXIT_FRAME}: ${visible} visible px of ${TOTAL_PIXELS}`,
+    );
+    expect(visible, "`none` must still show the clip").toBeGreaterThan(TOTAL_PIXELS * 0.1);
+  });
+
+  it("adds ZERO container motion: entrance and exit are the same still frame", async () => {
+    // Image control: a 1080x1920 pattern, so fit:cover has nothing to
+    // resample. Any difference here is the preset moving the container.
+    const entrance = await still("none", "image", ENTRANCE_FRAME);
+    const exit = await still("none", "image", EXIT_FRAME);
+    const drift = diffCount(entrance, exit);
+    console.log(`[evidence] #1030 none/image f${ENTRANCE_FRAME}→f${EXIT_FRAME}: ${drift}px drift`);
+    expect(drift, "`none` is the motionless preset").toBeLessThan(2_000);
+  });
+
+  it("control: the same comparison on `fade` DOES show motion (test has power)", async () => {
+    const entrance = await still("fade", "image", ENTRANCE_FRAME);
+    const exit = await still("fade", "image", EXIT_FRAME);
+    const drift = diffCount(entrance, exit);
+    console.log(`[evidence] #1030 fade/image f${ENTRANCE_FRAME}→f${EXIT_FRAME}: ${drift}px drift`);
+    expect(drift, "the motionless assertion must not be vacuous").toBeGreaterThan(20_000);
   });
 });

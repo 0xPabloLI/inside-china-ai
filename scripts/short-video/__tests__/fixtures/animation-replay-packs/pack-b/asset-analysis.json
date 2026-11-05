@@ -1,0 +1,15 @@
+{
+  "assets": [
+    {
+      "path": "assets/pexels-high-score.jpg",
+      "type": "image",
+      "technicalScore": 99
+    },
+    {
+      "path": "assets/xinhua-evidence.jpg",
+      "type": "image",
+      "source": "xinhua",
+      "technicalScore": 55
+    }
+  ]
+}

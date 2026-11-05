@@ -20,6 +20,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
+import { selectAnimationForAsset } from "../lib/asset-sourcer.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REMOTION_DIR = resolve(__dirname, "..", "remotion");
@@ -67,7 +68,35 @@ describe("#357 video animation contract", () => {
     expect(fn).toMatch(/type === "video"/);
   });
 
-  it("images still get ken-burns from the allocator", () => {
-    expect(sourcer).toMatch(/isVideo \? VIDEO_ANIMATION : "ken-burns"/);
+  it("the allocator writes every animation through the content-aware seam", () => {
+    // #1030: the old `isVideo ? VIDEO_ANIMATION : "ken-burns"` expression was
+    // one of two producers. Both now resolve through a single pure function,
+    // so the written field cannot drift from what the renderer degrades.
+    expect(sourcer).toMatch(/export function selectAnimationForAsset\(/);
+    expect(sourcer).toMatch(/media\.animation = selectAnimationForAsset\(asset, media\.fit\)/);
+  });
+
+  it("ordinary cover images still get ken-burns", () => {
+    expect(selectAnimationForAsset({ type: "image" })).toBe("ken-burns");
+  });
+
+  it("keeps assignAssetsToScenes' JSDoc attached to the function", () => {
+    // droid P2: the #1030 source-tier block was inserted between the
+    // allocator's @param/@returns contract and its declaration, so editor
+    // hover showed the tier docs. Pin the adjacency.
+    expect(sourcer).toMatch(
+      /\/\*\*[\s\S]*?Batch-assign downloaded assets[\s\S]*?\*\/\nexport function assignAssetsToScenes\(/,
+    );
+  });
+
+  it("the renderer no longer ties the audio envelope to the visual preset", () => {
+    // `none` is now handed out for talking-head video; it must still fade its
+    // audio in/out instead of hard-cutting at the scene boundary. #1030 moved
+    // the curve into lib/audio-envelope.mjs so its numbers are tested
+    // behaviourally (content-aware-animation.test.mjs) rather than by regex.
+    const volumeBlock = background.match(/const videoVolume =[\s\S]*?\n  \}\);/)?.[0] ?? "";
+    expect(volumeBlock).not.toMatch(/preset === "none"/);
+    expect(volumeBlock).toMatch(/videoVolumeAt\(\{/);
+    expect(volumeBlock).toMatch(/fadeFrames/);
   });
 });

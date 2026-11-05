@@ -1,0 +1,33 @@
+{
+  "assets": [
+    {
+      "path": "assets/pexels-generic.jpg",
+      "type": "image",
+      "source": "pexels",
+      "technicalScore": 95,
+      "fit": "cover",
+      "contentKind": "photo"
+    },
+    {
+      "path": "assets/talking-head.mp4",
+      "type": "video",
+      "source": "qbitai",
+      "technicalScore": 88,
+      "contentKind": "talking_head"
+    },
+    {
+      "path": "assets/chart.png",
+      "type": "image",
+      "source": "xinhua",
+      "technicalScore": 70,
+      "contentKind": "chart"
+    },
+    {
+      "path": "assets/wide-quote.png",
+      "type": "image",
+      "source": "unsplash",
+      "technicalScore": 60,
+      "fit": "contain"
+    }
+  ]
+}

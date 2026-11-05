@@ -841,33 +841,31 @@ export function recommendScene(asset, scenes) {
     if (NO_MEDIA_TYPES.has(vt)) return null;
     if (scene.media) return null;
 
+    // #1030: the SAME seam the allocator uses. `recommendScene` writes
+    // `asset.recommendedAnimation` into asset-analysis.json, which becomes an
+    // auto-fill suggestion in media-patch.json — a second set of hardcoded
+    // presets here used to disagree with what assignAssetsToScenes would
+    // actually write (e.g. a chart recommended as `ken-burns` on a hook).
+    // The allocator remains authoritative for `fit`: only it knows whether a
+    // hook composes to `contain`, and it re-runs the seam on the resolved fit.
+    const animation = selectAnimationForAsset(asset);
+
     if (vt === "hook") {
-      return {
-        sceneId: scene.id,
-        animation: "ken-burns",
-        overlay: 0.5,
-      };
+      return { sceneId: scene.id, animation, overlay: 0.5 };
     }
     if (vt === "narrative") {
-      return {
-        sceneId: scene.id,
-        animation: asset.type === "video" ? VIDEO_ANIMATION : "ken-burns",
-        overlay: 0.7,
-      };
+      return { sceneId: scene.id, animation, overlay: 0.7 };
     }
     if (vt === "info-card") {
-      return {
-        sceneId: scene.id,
-        animation: asset.type === "image" ? "ken-burns" : "fade",
-        overlay: 0.75,
-      };
+      return { sceneId: scene.id, animation, overlay: 0.75 };
     }
     if (vt === "quote") {
-      return {
-        sceneId: scene.id,
-        animation: "fade",
-        overlay: 0.8,
-      };
+      return { sceneId: scene.id, animation, overlay: 0.8 };
+    }
+    if (vt === "context" || vt === "contrast") {
+      // #1030: these visualTypes are NOT in NO_MEDIA_TYPES, so the old
+      // `return null` silently excluded them from recommendations.
+      return { sceneId: scene.id, animation, overlay: 0.7 };
     }
     return null;
   }
@@ -920,6 +918,39 @@ export function recommendScene(asset, scenes) {
 const VIDEO_ANIMATION = "fade";
 
 /**
+ * #1030 — Content-aware animation: the single seam that decides what the
+ * allocator writes into `scene.media.animation`.
+ *
+ * A talking head / interview clip already carries its own motion; stacking a
+ * container preset on it only double-crops the frame. `none` is the one
+ * motionless preset, and it is now safe because MediaBackground no longer ties
+ * the video audio fade envelope to the preset (see the volume block there).
+ *
+ * Charts, screenshots and `fit: "contain"` images must not be pushed: the
+ * 1.0 → 1.12 ken-burns scale would move axis labels / edge text out of frame.
+ * An unknown or malformed VLM `contentKind` (the model sometimes returns a
+ * whole sentence) deliberately falls through to the default instead of being
+ * guessed at — fail-safe, not fail-closed.
+ *
+ * @param {Object} asset - sourced asset ({ type, contentKind?, fit? })
+ * @param {string} [resolvedFit] - the fit the allocator actually wrote for
+ *   this media field (a hook may resolve to contain even when asset.fit is not)
+ * @returns {"none"|"fade"|"ken-burns"}
+ */
+export const TALKING_HEAD_CONTENT_KIND = "talking_head";
+export const STATIC_IMAGE_CONTENT_KINDS = new Set(["chart", "text_screenshot"]);
+
+export function selectAnimationForAsset(asset, resolvedFit = asset?.fit) {
+  if (asset?.type === "video") {
+    return asset?.contentKind === TALKING_HEAD_CONTENT_KIND ? "none" : VIDEO_ANIMATION;
+  }
+  if (STATIC_IMAGE_CONTENT_KINDS.has(asset?.contentKind) || resolvedFit === "contain") {
+    return "fade";
+  }
+  return "ken-burns";
+}
+
+/**
  * Volume recommendation per visualType + media type.
  * Based on §4.6 research: product demos louder, narrated clips quieter.
  */
@@ -927,6 +958,8 @@ const VOLUME_RECOMMENDATIONS = {
   narrative: { video: 0.1 }, // product demo — motor sounds add realism
   quote: { video: 0.04 }, // text focus — minimize competing audio
   "info-card": { video: 0.08 }, // default level
+  context: { video: 0.08 }, // same information density as info-card
+  contrast: { video: 0.06 }, // two-column comparison: keep the VoiceOver forward
   // image: no volume (images have no audio)
 };
 
@@ -1017,6 +1050,48 @@ function isRejectedFor(asset, scene) {
 }
 
 /**
+ * #1030 — Source tier for same-type candidates.
+ *
+ * The VLM relevance gate already decided the asset is on-topic; what is left
+ * is an evidentiary preference: a first-party / vertical-newsroom source (or
+ * a locally curated evidence capture) should outrank a generic royalty-free
+ * library asset when both clear the gate.
+ *
+ * The tier is DERIVED FROM `ALL_SOURCES[].category` in source-registry.mjs.
+ * CONTEXT.md is explicit that the registry is the single source of truth for
+ * source metadata; a second hand-maintained name list here would silently
+ * drift the moment a source is added (and would demote that new source to the
+ * unknown tier without anyone noticing).
+ *
+ *   Tier 2 — first-party / vertical reporting / evidence
+ *            news, international, wechat, self_media, last30days
+ *   Tier 1 — generic search aggregation + unregistered/unknown sources
+ *   Tier 0 — generic royalty-free stock libraries (category `stock_media`)
+ */
+const SOURCE_TIER_BY_CATEGORY = {
+  stock_media: 0,
+  general: 1,
+};
+const FIRST_PARTY_TIER = 2;
+const UNKNOWN_TIER = 1;
+
+/** Cached/local evidence carries no registry row — it is first-party by definition. */
+const LOCAL_EVIDENCE_SOURCES = new Set(["cached", "cached-media"]);
+
+const SOURCE_TIERS = new Map(
+  ALL_SOURCES.map((source) => [
+    source.name,
+    SOURCE_TIER_BY_CATEGORY[source.category] ?? FIRST_PARTY_TIER,
+  ]),
+);
+
+export function sourceTierRank(asset) {
+  const source = String(asset?.source || asset?.from || "").toLowerCase();
+  if (LOCAL_EVIDENCE_SOURCES.has(source)) return FIRST_PARTY_TIER;
+  return SOURCE_TIERS.get(source) ?? UNKNOWN_TIER;
+}
+
+/**
  * Batch-assign downloaded assets to scenes using greedy matching.
  *
  * Assets are sorted by score descending. Each asset is assigned to the
@@ -1100,9 +1175,14 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
   // sourcing rung is stock-video-first — "有视频就选视频，不选图片" — with the
   // VLM gate still deciding whether the clip is admitted; a rejected video
   // leaves the scene free for its image sibling).
+  // #1030: source tier breaks ties BETWEEN candidates of the SAME type, ahead
+  // of the technical score. It deliberately does NOT outrank the type key —
+  // letting a Tier-2 image jump a Tier-0 video would reverse the #355 D1a
+  // decision, which is a separate HITL call, not this ticket's scope.
   const sorted = [...assets].sort(
     (a, b) =>
       (b.type === "video" ? 1 : 0) - (a.type === "video" ? 1 : 0) ||
+      sourceTierRank(b) - sourceTierRank(a) ||
       (b.score || 0) - (a.score || 0),
   );
 
@@ -1235,9 +1315,8 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         type: asset.type,
         path: asset.path,
         source: asset.source || asset.from || undefined,
-        // #357: see VIDEO_ANIMATION. Writing ken-burns on a hook video only
-        // made the data lie — the renderer degrades it to fade anyway.
-        animation: isVideo ? VIDEO_ANIMATION : "ken-burns",
+        // #1030: animation is assigned below, once media.fit is resolved, so
+        // a hook that composes to `contain` is seen by the content-aware seam.
         overlay: vt === "hook" ? 0.5 : vt === "quote" ? 0.8 : vt === "info-card" ? 0.75 : 0.7,
       };
       // Composition default (#963): a third-party landscape source is shown
@@ -1259,6 +1338,10 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         // intentionally not applied (#963 scope).
         media.fit = asset.fit;
       }
+      // #1030 / #357: single content-aware seam for every written animation.
+      // A talking head keeps its own motion (`none`); charts, screenshots and
+      // contained images stay still (`fade`); cover stills keep ken-burns.
+      media.animation = selectAnimationForAsset(asset, media.fit);
       if (asset.cropFocus) media.cropFocus = asset.cropFocus;
       if (isVideo && VOLUME_RECOMMENDATIONS[vt]) media.volume = VOLUME_RECOMMENDATIONS[vt].video;
 

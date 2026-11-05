@@ -32,6 +32,7 @@ import {
 import type { EffectsProp } from "remotion";
 import { Video } from "@remotion/media";
 import { interpolate, secToFrames, clamp, easeOutExpo } from "./shared";
+import { videoVolumeAt } from "../../../lib/audio-envelope.mjs";
 import type { MediaField } from "../types";
 
 // Animation timing (seconds)
@@ -194,11 +195,26 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
   // ─── Volume (independent exit fade: audio ducks out at scene end) ───
   // Video volume has its own 4-stop envelope so audio still fades out
   // at scene end, even though media opacity no longer has an exit ramp.
+  // #1030: the envelope is INDEPENDENT of the visual preset. `none` used to
+  // hold a constant baseVolume, hard-cutting a clip's audio at every scene
+  // boundary — that coupling is why the allocator could never hand `none` to
+  // a talking-head video (#357). TIMING.none is {in:0,out:0}, so it gets a
+  // short dedicated audio fade; every other preset keeps its existing timing.
+  //
+  // The curve lives in lib/audio-envelope.mjs (plain .mjs, no Remotion
+  // dependency) so it is behaviourally testable from the root vitest suite and
+  // cannot be handed a degenerate interpolate() input range on short scenes.
   const baseVolume = media.volume ?? 0.08;
-  const videoVolume =
-    preset === "none"
-      ? baseVolume
-      : baseVolume * interpolate(frame, [0, inFrames, outStart, totalFrames], [0, 1, 1, 0], clamp);
+  const fadeFrames = secToFrames(Math.min(0.25, duration / 2));
+  const videoVolume = videoVolumeAt({
+    frame,
+    baseVolume,
+    inFrames,
+    outFrames,
+    outStart,
+    totalFrames,
+    fadeFrames,
+  });
 
   const mediaStyle: React.CSSProperties = {
     position: "absolute",
