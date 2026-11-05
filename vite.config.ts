@@ -23,11 +23,26 @@ export default defineConfig({
   vite: {
     plugins: [mcpPlugin()],
     resolve: {
-      alias: {
-        "entities/lib/decode.js": path.resolve(__dirname, "node_modules/entities/lib/decode.js"),
-        "entities/lib/encode.js": path.resolve(__dirname, "node_modules/entities/lib/encode.js"),
-        entities: path.resolve(__dirname, "node_modules/entities"),
-      },
+      // Vite/@rollup/plugin-alias treats string keys as PREFIX matches, so the
+      // old `entities` key also swallowed `entities/decode`. That was harmless
+      // while consumers only used entities@4's `entities/lib/*.js` subpaths,
+      // but #981 pulled htmlparser2@10 (via @react-email/render 2.2.0 ->
+      // html-to-text@10), which imports `entities/decode` from its own nested
+      // entities@7. The prefix alias redirected it to root entities@4.5.0 —
+      // no `decode` file there — and rolldown failed the production build with
+      // UNLOADABLE_DEPENDENCY. Keep the v4 subpath workaround, but make each
+      // alias exact so every importer resolves its own entities version.
+      alias: [
+        {
+          find: /^entities\/lib\/decode\.js$/,
+          replacement: path.resolve(__dirname, "node_modules/entities/lib/decode.js"),
+        },
+        {
+          find: /^entities\/lib\/encode\.js$/,
+          replacement: path.resolve(__dirname, "node_modules/entities/lib/encode.js"),
+        },
+        { find: /^entities$/, replacement: path.resolve(__dirname, "node_modules/entities") },
+      ],
     },
   },
 });
