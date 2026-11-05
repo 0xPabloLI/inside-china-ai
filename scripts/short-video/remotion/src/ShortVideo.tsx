@@ -25,7 +25,7 @@ import { ContextScene } from "./scenes/ContextScene";
 import { ContrastScene } from "./scenes/ContrastScene";
 import { StatRevealScene } from "./scenes/StatRevealScene";
 import { FullscreenMedia } from "./scenes/FullscreenMedia";
-import { sceneTimeline, TRANSITION_FRAMES, BRAND_FONT_STACK } from "./components/shared";
+import { sceneTimeline, TRANSITION_FRAMES, COLOR, TYPE } from "./components/shared";
 import {
   assertKnownTextFields,
   REMOTION_SLOT_MAP,
@@ -117,7 +117,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
   contentDir = "",
 }) => {
   if (scenes.length === 0) {
-    return <AbsoluteFill style={{ backgroundColor: "#0a0a14" }} />;
+    return <AbsoluteFill style={{ backgroundColor: COLOR.canvas }} />;
   }
 
   // Shared schedule: visual Sequences, audio and subtitles all read their
@@ -170,7 +170,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
   });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#0a0a14", fontFamily: BRAND_FONT_STACK }}>
+    <AbsoluteFill style={{ backgroundColor: COLOR.canvas, fontFamily: TYPE.family }}>
       <TransitionSeries>{elements}</TransitionSeries>
       {audioElements}
     </AbsoluteFill>

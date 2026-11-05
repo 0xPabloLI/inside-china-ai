@@ -12,6 +12,7 @@
  */
 import { EVIDENCE_CARD } from "../../../lib/safe-zones.mjs";
 import { MediaBackground } from "./MediaBackground";
+import { COLOR } from "./shared";
 import type { MediaField } from "../types";
 
 interface Props {
@@ -35,7 +36,7 @@ export const MediaCard: React.FC<Props> = ({ media, duration, bottom }) => {
         overflow: "hidden",
         borderRadius: 12,
         border: "1px solid rgba(255,255,255,0.08)",
-        background: "#0a0a14",
+        background: COLOR.canvas,
       }}
     >
       <MediaBackground media={media} duration={duration} />

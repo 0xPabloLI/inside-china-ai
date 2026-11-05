@@ -9,7 +9,7 @@
  */
 import { staticFile, CanvasImage } from "remotion";
 import { SLOT_FIELDS } from "../../../lib/text-slots.mjs";
-import { BRAND_BAR, CANVAS, SAFE_ZONES, WATERMARK_POS } from "./shared";
+import { BRAND_BAR, CANVAS, COLOR, SAFE_ZONES, WATERMARK_POS } from "./shared";
 import { TextGate } from "./text-gate";
 import type { ReactNode } from "react";
 
@@ -123,18 +123,18 @@ export const BrandBar: React.FC = () => (
       style={{
         fontSize: 24,
         fontWeight: 900,
-        color: "#f5f5f5",
+        color: COLOR.text,
         letterSpacing: "3px",
       }}
     >
-      CHINA <span style={{ color: "#4d8bff" }}>AI</span> NEWS
+      CHINA <span style={{ color: COLOR.brand }}>AI</span> NEWS
     </span>
     <span
       style={{
         marginLeft: "auto",
         fontSize: 20,
         fontWeight: 700,
-        color: "#cbd5e1",
+        color: COLOR.textMuted,
         letterSpacing: "2px",
         padding: "5px 12px",
         border: "1px solid rgba(255,255,255,0.25)",
@@ -162,7 +162,7 @@ export const BadgePill: React.FC<{ text: string; fontSize?: number }> = ({
       display: "inline-flex",
       alignItems: "center",
       gap: 10,
-      background: "#ef4444",
+      background: COLOR.red,
       color: "white",
       // #688: 16 -> 12 vertical. The badge pill is 71px tall at the 40px
       // metadata floor, and the hook's three bands must together fit the 930px
@@ -209,7 +209,7 @@ export const StatCard: React.FC<{
   color?: string;
   sceneId?: string;
   index?: number;
-}> = ({ num, unit, label, color = "#4d8bff", sceneId, index }) => {
+}> = ({ num, unit, label, color = COLOR.brand, sceneId, index }) => {
   const gated = sceneId !== undefined && index !== undefined;
 
   const numRow = (unitSize: string | number, labelNode: ReactNode): ReactNode => (
@@ -266,7 +266,7 @@ export const StatCard: React.FC<{
                         // 310px.
                         fontSize: "0.5em",
                         fontWeight: 700,
-                        color: "#cbd5e1",
+                        color: COLOR.textMuted,
                         letterSpacing: "1px",
                         marginTop: 8,
                       }}
@@ -293,7 +293,7 @@ export const StatCard: React.FC<{
                     // passes sceneId + index.
                     fontSize: "0.5em",
                     fontWeight: 700,
-                    color: "#cbd5e1",
+                    color: COLOR.textMuted,
                     letterSpacing: "1px",
                     marginTop: 8,
                   }}

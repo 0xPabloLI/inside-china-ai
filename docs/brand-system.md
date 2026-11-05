@@ -89,6 +89,9 @@ Consistent color coding across all content — same entity always same color.
 | `--white` | `#f5f5f5` | Headlines (off-white, reduces glare vs pure #ffffff) |
 | `--sec`   | `#cbd5e1` | Labels, descriptions                                 |
 | `--muted` | `#475569` | Footnotes                                            |
+| `--dim`   | `#94a3b8` | Source lines, attribution, de-emphasized metadata    |
+
+> Remotion token names map to this table: `COLOR.text` → `--white`, `COLOR.textMuted` → `--sec`, `COLOR.textDim` → `--dim`（`scripts/short-video/remotion/src/tokens.ts`）。
 
 ### Background
 
@@ -157,15 +160,19 @@ Every scene/thumbnail layers these five effects:
 
 ## Animation Library
 
-All animations: `opacity: 0` initial, `forwards` fill mode. Stagger delays 0.3-0.7s.
+Entrances are spring-driven. Values live in `MOTION` in `scripts/short-video/remotion/src/tokens.ts`; primitives are in `scripts/short-video/remotion/src/components/animations/entrance.tsx`.
 
-| Name        | Duration | Easing                     | Use                   |
-| ----------- | -------- | -------------------------- | --------------------- |
-| `fadeIn`    | 0.3-0.5s | ease-out                   | Subtle appearance     |
-| `slideUp`   | 0.4-0.6s | ease-out                   | Headlines, titles     |
-| `slideLeft` | 0.4-0.5s | cubic-bezier(0.16,1,0.3,1) | Cards, list items     |
-| `scaleIn`   | 0.5-0.6s | ease-out                   | Big numbers, key data |
-| `stampIn`   | 0.3-0.5s | ease-out                   | Verdicts (scale 2→1)  |
+| Preset    | Spring config             | Use                                    |
+| --------- | ------------------------- | -------------------------------------- |
+| `heading` | damping 200, stiffness 20 | Headlines, titles, focal blocks        |
+| `item`    | damping 180, stiffness 15 | Cards, list items, per-line/word units |
+| `accent`  | damping 250, stiffness 12 | Big numbers, stamps, verdicts          |
+
+Primitives: `FadeIn`, `SlideUp`, `SlideDown`, `SlideLeft`, `SlideRight`, `ScaleIn`, `StampIn`, `SlideUpFromBottom`, plus `StaggerLines` / `StaggerWords` groups. `opacity: 0` initial; no CSS transitions, no wall-clock — motion is a pure function of the frame.
+
+Stagger spacing: `MOTION.stagger.line` 80ms per line, `MOTION.stagger.word` 55ms per word. Both sit inside the 0.3–0.7s authored window and read as one gesture.
+
+Camera + hold: `<Camera>` applies one sub-perceptual pull (scale 1.006 → 1, 3px drift → 0) to the composition layer only, settles at `settleByFrame()`, and holds identity. The hold window is 30–45 frames (`HOLD`): hook 30, data/stat-reveal/cta 45, others 45. Hook and CTA get no transform. Media layers keep their own bezier motion (`MediaBackground`); `loops.tsx` stays spring-free.
 
 ## Color Usage Guide (60-30-10 Principle)
 

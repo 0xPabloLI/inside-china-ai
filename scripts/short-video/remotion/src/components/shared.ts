@@ -13,7 +13,6 @@ export {
   SAFE_ZONES,
   SUBTITLE_LANE,
   WATERMARK_POS,
-  BRAND_FONT_STACK,
   MEDIA_BOTTOM_BAR,
   EVIDENCE_CARD,
 } from "../../../lib/safe-zones.mjs";
@@ -26,6 +25,25 @@ export {
   TRANSITION_FRAMES,
 } from "../../../lib/timeline.mjs";
 
+/**
+ * Design + motion tokens (#731). Declared in
+ * scripts/short-video/remotion/src/tokens.ts (kept remotion-free so the contract
+ * is testable in plain Node); re-exported here so components have one shared
+ * import surface.
+ */
+export {
+  COLOR,
+  TYPE,
+  MOTION,
+  HOLD,
+  CAMERA,
+  holdFramesFor,
+  settleByFrame,
+  cameraSpecFor,
+  cameraStateAt,
+} from "../tokens";
+export type { SpringPreset } from "../tokens";
+
 /** Seconds → frames conversion (at 30fps). */
 export const secToFrames = (s: number): number => Math.round(s * 30);
 
@@ -35,10 +53,7 @@ export const clamp = {
   extrapolateRight: "clamp" as const,
 };
 
-/** Default easing for entrance animations (matches CSS ease-out). */
-export const easeOut = Easing.bezier(0, 0, 0.58, 1);
-
-/** Cubic-bezier(0.16, 1, 0.3, 1) — the "ease-out-expo" used by scaleIn/stampIn. */
+/** Cubic-bezier(0.16, 1, 0.3, 1) — the "ease-out-expo" used by media motion. */
 export const easeOutExpo = Easing.bezier(0.16, 1, 0.3, 1);
 
 export { interpolate, Easing };

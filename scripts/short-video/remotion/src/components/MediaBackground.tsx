@@ -31,7 +31,7 @@ import {
 } from "remotion";
 import type { EffectsProp } from "remotion";
 import { Video } from "@remotion/media";
-import { interpolate, secToFrames, clamp, easeOut, easeOutExpo } from "./shared";
+import { interpolate, secToFrames, clamp, easeOutExpo } from "./shared";
 import type { MediaField } from "../types";
 
 // Animation timing (seconds)
