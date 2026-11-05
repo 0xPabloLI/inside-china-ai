@@ -28,7 +28,8 @@ export const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
  * artifact (#1043): 0.12 measured 13.7 dB below the narration on the real
  * deepseek-v41-flash-1017 render — PASS, but only 1.7 dB above the 12 dB loud
  * edge. 0.08 is −3.52 dB quieter, landing at ≈17.2 dB: the platform-attach
- * target and the middle of the comfortable 15–22 dB band. See
+ * measurement (§5), 5.2 dB above the 12 dB PASS floor and inside both the
+ * 12–26 dB gate band and the 15–25 dB general industry band (§4). See
  * docs/research/music-under-voice-calibration-2026-10.md §6.1.
  */
 export const DEFAULT_BGM_VOLUME = 0.08;

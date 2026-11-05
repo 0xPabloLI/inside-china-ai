@@ -102,7 +102,7 @@ Filed as issue **#950** (BGM 混音无工件级校验); closed with this section
 
 ### 6.1 Local bed retuned to 0.08 (#1043, 2026-11-06)
 
-The retune was decided against the same real render, not against the platform slider. Lowering the bed gain from 0.12 to 0.08 is **−3.52 dB of gain** (20·log10(0.08/0.12)); because the margin is measured relative to the voice, that same change **raises** the margin by **+3.52 dB** (−20·log10(0.08/0.12)), from 13.7 dB to ≈17.2 dB — the platform-attach target, the middle of the 15–22 dB comfortable band, and 5.2 dB above the 12 dB PASS floor. `DEFAULT_BGM_VOLUME` in `lib/post-process.mjs` is the single source for both local mix paths (`mix-bgm.mjs` and `finalizeRenderedVideo`); the two pipeline log lines now derive their percentage from it.
+The retune was decided against the same real render, not against the platform slider. Lowering the bed gain from 0.12 to 0.08 is **−3.52 dB of gain** (20·log10(0.08/0.12)); because the margin is measured relative to the voice, that same change **raises** the margin by **+3.52 dB** (−20·log10(0.08/0.12)), from 13.7 dB to ≈17.2 dB — the platform-attach measurement (§5), 5.2 dB above the 12 dB PASS floor (§6) and inside both the 12–26 dB gate band and the 15–25 dB general industry band (§4). `DEFAULT_BGM_VOLUME` in `lib/post-process.mjs` is the single source for both local mix paths (`mix-bgm.mjs` and `finalizeRenderedVideo`); the two pipeline log lines now derive their percentage from it.
 
 Re-measured on the `deepseek-v41-flash-1017` voice-only short render (63.3 s) with `assets/bgm/news-cc-theme01.mp3`, using the same `subtitle-timing.json` + `scene-durations.json` windows on both sides:
 
