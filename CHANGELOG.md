@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.53.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.1...tanstack_start_ts-v1.53.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **video:** align cropFocus with CSS object-position ratio ([#1040](https://github.com/0xPabloLI/inside-china-ai/issues/1040)) ([#1143](https://github.com/0xPabloLI/inside-china-ai/issues/1143)) ([0928ec7](https://github.com/0xPabloLI/inside-china-ai/commit/0928ec7918a1c27f753e5ea7c2afbd2161dc7604))
+
 ## [1.53.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.0...tanstack_start_ts-v1.53.1) (2026-11-05)
 
 
