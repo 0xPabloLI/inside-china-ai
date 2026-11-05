@@ -93,6 +93,11 @@ const resolvePreset = (
 /**
  * CSS `object-position` for the media element.
  *
+ * #1040: `cropFocus.{x,y}` is already a normalized CSS object-position ratio,
+ * not a source-space point — hence the direct `${x * 100}%` mapping below.
+ * crop-decision.mjs `sourceFocusToObjectPosition` is the producer-side
+ * conversion. The producer and this consumer must not be "fixed" independently.
+ *
  * VERTICAL for fit:"contain" is forced to 100% (bottom). cropFocus.y is a
  * CROP-framing value — it chooses which slice of a cover-cropped source
  * survives — and a contained picture keeps the whole source, so there is

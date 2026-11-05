@@ -20,7 +20,7 @@ export const MEDIA_FIELD_KEYS = new Set([
   "mode",
   "fit",
   "focus",
-  "cropFocus",
+  "cropFocus", // #1040: [0,1] CSS object-position ratio, not a source-space point
   "source",
   "animation",
   "overlay",
