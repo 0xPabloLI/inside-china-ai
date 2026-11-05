@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.53.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.0...tanstack_start_ts-v1.53.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **build+deps:** repair both [#981](https://github.com/0xPabloLI/inside-china-ai/issues/981) baseline regressions ([#1142](https://github.com/0xPabloLI/inside-china-ai/issues/1142)) ([2cbd884](https://github.com/0xPabloLI/inside-china-ai/commit/2cbd8849b6f7e77a4e39cc8aa4067b5c32eaecd4))
+* **deps:** update minor and patch updates ([#981](https://github.com/0xPabloLI/inside-china-ai/issues/981)) ([45ac103](https://github.com/0xPabloLI/inside-china-ai/commit/45ac103c51e74cb9615a8dfe0406065f0034b5b5))
+
 ## [1.53.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.52.0...tanstack_start_ts-v1.53.0) (2026-11-05)
 
 
