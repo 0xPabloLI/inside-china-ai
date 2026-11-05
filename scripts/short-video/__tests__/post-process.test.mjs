@@ -52,12 +52,14 @@ describe("DEFAULT_BGM_VOLUME calibration (#1043)", () => {
     const { DEFAULT_BGM_VOLUME } = await import(join(ROOT, "lib", "post-process.mjs"));
     expect(DEFAULT_BGM_VOLUME).toBe(0.08);
 
-    // 0.12 was the #950-era default that measured 13.7 dB on the real
-    // deepseek-v41-flash-1017 render (PASS, 1.7 dB from the loud edge).
-    const dropDb = -20 * Math.log10(DEFAULT_BGM_VOLUME / 0.12);
-    expect(dropDb).toBeCloseTo(3.52, 2);
-    expect(13.7 + dropDb).toBeGreaterThan(17);
-    expect(13.7 + dropDb).toBeLessThan(18);
+    // The bed gain itself drops -3.52 dB, which RAISES the measured
+    // music-below-narration margin by +3.52 dB. 0.12 was the #950-era default
+    // that measured 13.7 dB on the real deepseek-v41-flash-1017 render (PASS,
+    // 1.7 dB from the loud edge).
+    const marginGainDb = -20 * Math.log10(DEFAULT_BGM_VOLUME / 0.12);
+    expect(marginGainDb).toBeCloseTo(3.52, 2);
+    expect(13.7 + marginGainDb).toBeGreaterThan(17);
+    expect(13.7 + marginGainDb).toBeLessThan(18);
   });
 });
 

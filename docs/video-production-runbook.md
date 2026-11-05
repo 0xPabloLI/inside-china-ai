@@ -64,7 +64,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 ### Audio
 
 - TTS at full volume
-- BGM off by default (TikTok/Reels auto-add their own). Enable with `--bgm` flag: procedural cyber-ambient with an **8% bed gain** (`DEFAULT_BGM_VOLUME`, #1043 — measured ≈17.2 dB below narration on the real render; the procedural synth's own internal 12% layer mix in `lib/generate-bgm.mjs` is a separate scale), fades in 2s, fades out last 3s
+- BGM off by default (TikTok/Reels auto-add their own). Enable with `--bgm` flag: procedural cyber-ambient with an 8% bed gain (`DEFAULT_BGM_VOLUME` in `lib/post-process.mjs`), fades in 2s, fades out last 3s
 - All audio 192k AAC, 44100Hz
 
 ### Mobile-First Vertical (9:16)
@@ -1094,6 +1094,7 @@ When modifying rules in this file, consult these reference docs for root cause a
 | ------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | TTS engine selection            | ADR-0019, ADR-0008, `docs/research/voice-cloning-solutions-m2-pro.md` | Engine comparison, alternatives survey                                  |
 | Audio drift fix                 | `docs/research/audio-drift-fix.md`                                    | Root cause analysis, fix implementation, sync verification, diagnostics |
+| BGM under voice calibration     | `docs/research/music-under-voice-calibration-2026-10.md` (L2)         | Two-scale derivation, PASS band, #1043 bed-gain retune and re-measurement |
 | Per-scene prosody (pitch/tempo) | `docs/research/voice-prosody-hook-optimization.md`                    | 15 sources, per-parameter rationale, research citations                 |
 | TikTok best practices           | `docs/tiktok/tiktok-best-practices.md`                                | Signal weights, voice rules, hook formulas, audit checklist             |
 | A/B testing methodology         | `docs/tiktok/ab-testing-methodology.md`                               | Element iteration method, single-variable testing philosophy            |
