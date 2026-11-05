@@ -937,11 +937,12 @@ const VIDEO_ANIMATION = "fade";
  *   this media field (a hook may resolve to contain even when asset.fit is not)
  * @returns {"none"|"fade"|"ken-burns"}
  */
-const STATIC_IMAGE_CONTENT_KINDS = new Set(["chart", "text_screenshot"]);
+export const TALKING_HEAD_CONTENT_KIND = "talking_head";
+export const STATIC_IMAGE_CONTENT_KINDS = new Set(["chart", "text_screenshot"]);
 
 export function selectAnimationForAsset(asset, resolvedFit = asset?.fit) {
   if (asset?.type === "video") {
-    return asset?.contentKind === "talking_head" ? "none" : VIDEO_ANIMATION;
+    return asset?.contentKind === TALKING_HEAD_CONTENT_KIND ? "none" : VIDEO_ANIMATION;
   }
   if (STATIC_IMAGE_CONTENT_KINDS.has(asset?.contentKind) || resolvedFit === "contain") {
     return "fade";
@@ -1049,6 +1050,48 @@ function isRejectedFor(asset, scene) {
 }
 
 /**
+ * #1030 — Source tier for same-type candidates.
+ *
+ * The VLM relevance gate already decided the asset is on-topic; what is left
+ * is an evidentiary preference: a first-party / vertical-newsroom source (or
+ * a locally curated evidence capture) should outrank a generic royalty-free
+ * library asset when both clear the gate.
+ *
+ * The tier is DERIVED FROM `ALL_SOURCES[].category` in source-registry.mjs.
+ * CONTEXT.md is explicit that the registry is the single source of truth for
+ * source metadata; a second hand-maintained name list here would silently
+ * drift the moment a source is added (and would demote that new source to the
+ * unknown tier without anyone noticing).
+ *
+ *   Tier 2 — first-party / vertical reporting / evidence
+ *            news, international, wechat, self_media, last30days
+ *   Tier 1 — generic search aggregation + unregistered/unknown sources
+ *   Tier 0 — generic royalty-free stock libraries (category `stock_media`)
+ */
+const SOURCE_TIER_BY_CATEGORY = {
+  stock_media: 0,
+  general: 1,
+};
+const FIRST_PARTY_TIER = 2;
+const UNKNOWN_TIER = 1;
+
+/** Cached/local evidence carries no registry row — it is first-party by definition. */
+const LOCAL_EVIDENCE_SOURCES = new Set(["cached", "cached-media"]);
+
+const SOURCE_TIERS = new Map(
+  ALL_SOURCES.map((source) => [
+    source.name,
+    SOURCE_TIER_BY_CATEGORY[source.category] ?? FIRST_PARTY_TIER,
+  ]),
+);
+
+export function sourceTierRank(asset) {
+  const source = String(asset?.source || asset?.from || "").toLowerCase();
+  if (LOCAL_EVIDENCE_SOURCES.has(source)) return FIRST_PARTY_TIER;
+  return SOURCE_TIERS.get(source) ?? UNKNOWN_TIER;
+}
+
+/**
  * Batch-assign downloaded assets to scenes using greedy matching.
  *
  * Assets are sorted by score descending. Each asset is assigned to the
@@ -1095,48 +1138,6 @@ function isRejectedFor(asset, scene) {
  *   relevanceScore?: number, relevanceSource?: string, relevanceReason?: string,
  *   reused?: boolean }>}
  */
-/**
- * #1030 — Source tier for same-type candidates.
- *
- * The VLM relevance gate already decided the asset is on-topic; what is left
- * is an evidentiary preference: a first-party / vertical-newsroom source (or
- * a locally curated evidence capture) should outrank a generic royalty-free
- * library asset when both clear the gate.
- *
- * The tier is DERIVED FROM `ALL_SOURCES[].category` in source-registry.mjs.
- * CONTEXT.md is explicit that the registry is the single source of truth for
- * source metadata; a second hand-maintained name list here would silently
- * drift the moment a source is added (and would demote that new source to the
- * unknown tier without anyone noticing).
- *
- *   Tier 2 — first-party / vertical reporting / evidence
- *            news, international, wechat, self_media, last30days
- *   Tier 1 — generic search aggregation + unregistered/unknown sources
- *   Tier 0 — generic royalty-free stock libraries (category `stock_media`)
- */
-const SOURCE_TIER_BY_CATEGORY = {
-  stock_media: 0,
-  general: 1,
-};
-const FIRST_PARTY_TIER = 2;
-const UNKNOWN_TIER = 1;
-
-/** Cached/local evidence carries no registry row — it is first-party by definition. */
-const LOCAL_EVIDENCE_SOURCES = new Set(["cached", "cached-media"]);
-
-const SOURCE_TIERS = new Map(
-  ALL_SOURCES.map((source) => [
-    source.name,
-    SOURCE_TIER_BY_CATEGORY[source.category] ?? FIRST_PARTY_TIER,
-  ]),
-);
-
-export function sourceTierRank(asset) {
-  const source = String(asset?.source || asset?.from || "").toLowerCase();
-  if (LOCAL_EVIDENCE_SOURCES.has(source)) return FIRST_PARTY_TIER;
-  return SOURCE_TIERS.get(source) ?? UNKNOWN_TIER;
-}
-
 export function assignAssetsToScenes(assets, scenes, opts = {}) {
   if (!assets || assets.length === 0) return [];
 

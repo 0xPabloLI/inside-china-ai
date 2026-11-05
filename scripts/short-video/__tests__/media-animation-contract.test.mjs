@@ -80,6 +80,15 @@ describe("#357 video animation contract", () => {
     expect(selectAnimationForAsset({ type: "image" })).toBe("ken-burns");
   });
 
+  it("keeps assignAssetsToScenes' JSDoc attached to the function", () => {
+    // droid P2: the #1030 source-tier block was inserted between the
+    // allocator's @param/@returns contract and its declaration, so editor
+    // hover showed the tier docs. Pin the adjacency.
+    expect(sourcer).toMatch(
+      /\/\*\*[\s\S]*?Batch-assign downloaded assets[\s\S]*?\*\/\nexport function assignAssetsToScenes\(/,
+    );
+  });
+
   it("the renderer no longer ties the audio envelope to the visual preset", () => {
     // `none` is now handed out for talking-head video; it must still fade its
     // audio in/out instead of hard-cutting at the scene boundary. #1030 moved

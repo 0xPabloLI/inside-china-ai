@@ -24,7 +24,10 @@ import {
   selectAnimationForAsset,
   sourceTierRank,
   assignAssetsToScenes,
+  STATIC_IMAGE_CONTENT_KINDS,
+  TALKING_HEAD_CONTENT_KIND,
 } from "./lib/asset-sourcer.mjs";
+import { ALL_SOURCES } from "./lib/source-registry.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PACKS_ROOT = resolve(__dirname, "output");
@@ -32,14 +35,21 @@ const DEFAULT_PACKS_ROOT = resolve(__dirname, "output");
 /** Pre-#1030 producer: video → fade, image → ken-burns, nothing else considered. */
 export const oldAnimation = (asset) => (asset.type === "video" ? "fade" : "ken-burns");
 
-/** Real packs often omit `source`; fall back to the stock-library slug in the path. */
+/**
+ * Real packs often omit `source`; fall back to the stock-library slug in the
+ * path. The slug list comes from the registry's `stock_media` category — a
+ * hand-maintained subset silently mis-ranks `brave_image` / `searxng_image`
+ * assets as "unknown" (tier 1 instead of tier 0). Longest-first keeps
+ * `pexels-video` from being swallowed by `pexels`.
+ */
+const STOCK_SOURCE_NAMES = ALL_SOURCES.filter((source) => source.category === "stock_media")
+  .map((source) => source.name)
+  .sort((a, b) => b.length - a.length);
+
 export function inferSource(asset) {
   if (asset.source) return asset.source;
   const path = String(asset.path || "").toLowerCase();
-  for (const name of ["pexels-video", "pexels", "pixabay", "unsplash", "coverr", "wikimedia"]) {
-    if (path.includes(name)) return name;
-  }
-  return "unknown";
+  return STOCK_SOURCE_NAMES.find((name) => path.includes(name)) ?? "unknown";
 }
 
 /**
@@ -89,9 +99,9 @@ export function replayPacks(outputRoot = DEFAULT_PACKS_ROOT) {
       const after = selectAnimationForAsset(asset, asset.fit);
       if (before === after) continue;
       stats.animationChanged++;
-      if (asset.type === "video" && asset.contentKind === "talking_head") {
+      if (asset.type === "video" && asset.contentKind === TALKING_HEAD_CONTENT_KIND) {
         stats.reasons.talking_head_video++;
-      } else if (["chart", "text_screenshot"].includes(asset.contentKind)) {
+      } else if (STATIC_IMAGE_CONTENT_KINDS.has(asset.contentKind)) {
         stats.reasons.static_image++;
       } else if (asset.fit === "contain") {
         stats.reasons.contain_image++;
@@ -177,9 +187,12 @@ export function allocatorControl() {
 const isCli =
   Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isCli) {
-  const flag = process.argv.indexOf("--packs");
-  const root = flag > -1 ? resolve(process.argv[flag + 1]) : DEFAULT_PACKS_ROOT;
   try {
+    const flag = process.argv.indexOf("--packs");
+    if (flag > -1 && !process.argv[flag + 1]) {
+      throw new Error("--packs requires a directory argument.");
+    }
+    const root = flag > -1 ? resolve(process.argv[flag + 1]) : DEFAULT_PACKS_ROOT;
     const report = { ...replayPacks(root), control: allocatorControl() };
     console.log(JSON.stringify(report, null, 2));
   } catch (error) {
