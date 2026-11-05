@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.53.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.3...tanstack_start_ts-v1.53.4) (2026-11-05)
+
+
+### Bug Fixes
+
+* **video:** retune local BGM bed gain to 0.08 ([#1043](https://github.com/0xPabloLI/inside-china-ai/issues/1043)) ([#1149](https://github.com/0xPabloLI/inside-china-ai/issues/1149)) ([9a8e416](https://github.com/0xPabloLI/inside-china-ai/commit/9a8e4166c2b13fed2e7592ee9ede81a62d5dea42))
+
 ## [1.53.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.2...tanstack_start_ts-v1.53.3) (2026-11-05)
 
 
