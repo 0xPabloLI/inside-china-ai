@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.53.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.52.0...tanstack_start_ts-v1.53.0) (2026-11-05)
+
+
+### Features
+
+* **video:** motion tokens, spring entrances and hold-aware camera ([#1138](https://github.com/0xPabloLI/inside-china-ai/issues/1138)) ([2fa7f01](https://github.com/0xPabloLI/inside-china-ai/commit/2fa7f01029339e2a5dc59d413615433fbc3e0200))
+
 ## [1.52.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.51.6...tanstack_start_ts-v1.52.0) (2026-11-04)
 
 
