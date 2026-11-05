@@ -20,6 +20,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
+import { selectAnimationForAsset } from "../lib/asset-sourcer.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REMOTION_DIR = resolve(__dirname, "..", "remotion");
@@ -67,7 +68,23 @@ describe("#357 video animation contract", () => {
     expect(fn).toMatch(/type === "video"/);
   });
 
-  it("images still get ken-burns from the allocator", () => {
-    expect(sourcer).toMatch(/isVideo \? VIDEO_ANIMATION : "ken-burns"/);
+  it("the allocator writes every animation through the content-aware seam", () => {
+    // #1030: the old `isVideo ? VIDEO_ANIMATION : "ken-burns"` expression was
+    // one of two producers. Both now resolve through a single pure function,
+    // so the written field cannot drift from what the renderer degrades.
+    expect(sourcer).toMatch(/export function selectAnimationForAsset\(/);
+    expect(sourcer).toMatch(/media\.animation = selectAnimationForAsset\(asset, media\.fit\)/);
+  });
+
+  it("ordinary cover images still get ken-burns", () => {
+    expect(selectAnimationForAsset({ type: "image" })).toBe("ken-burns");
+  });
+
+  it("the renderer no longer ties the audio envelope to the visual preset", () => {
+    // `none` is now handed out for talking-head video; it must still fade its
+    // audio in/out instead of hard-cutting at the scene boundary.
+    const volumeBlock = background.match(/const videoVolume =[\s\S]*?;\n/)?.[0] ?? "";
+    expect(volumeBlock).not.toMatch(/preset === "none"/);
+    expect(volumeBlock).toMatch(/audioInFrames/);
   });
 });

@@ -104,7 +104,7 @@ describe("S4: Video volume — independent exit fade envelope", () => {
     // Should use interpolate with outStart in input stops
     // The assignment is multi-line: baseVolume * interpolate(...)
     expect(content).toMatch(/baseVolume\s*\*\s*interpolate\(/);
-    expect(content).toMatch(/videoVolume[\s\S]{0,200}?outStart/);
+    expect(content).toMatch(/videoVolume[\s\S]{0,200}?audioOutStart/);
     expect(content).toMatch(/videoVolume[\s\S]{0,200}?\[0,\s*1,\s*1,\s*0\]/);
   });
 
@@ -118,10 +118,19 @@ describe("S4: Video volume — independent exit fade envelope", () => {
     );
     expect(volumeMatch).toBeTruthy();
 
-    // Should have [0, inFrames, outStart, totalFrames] input
-    expect(volumeMatch[1]).toMatch(/0,\s*inFrames,\s*outStart,\s*totalFrames/);
+    // #1030: the audio envelope has its own time stops. `none` has zero
+    // visual timing, so it gets a short dedicated fade instead of a constant
+    // volume; all other presets resolve to their existing inFrames/outStart.
+    expect(volumeMatch[1]).toMatch(/0,\s*audioInFrames,\s*audioOutStart,\s*totalFrames/);
     // Should have [0, 1, 1, 0] output
     expect(volumeMatch[1]).toMatch(/0,\s*1,\s*1,\s*0/);
+  });
+
+  it("#1030: the audio envelope is no longer gated on the visual preset", () => {
+    const content = readFile("components/MediaBackground.tsx");
+    const block = content.match(/const videoVolume[\s\S]*?;\n/)?.[0] ?? "";
+    expect(block).not.toMatch(/preset\s*===\s*"none"/);
+    expect(content).toMatch(/const audioInFrames = inFrames \|\| secToFrames/);
   });
 });
 

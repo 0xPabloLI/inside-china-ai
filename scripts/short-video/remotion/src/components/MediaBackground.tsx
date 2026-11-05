@@ -194,11 +194,17 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
   // ─── Volume (independent exit fade: audio ducks out at scene end) ───
   // Video volume has its own 4-stop envelope so audio still fades out
   // at scene end, even though media opacity no longer has an exit ramp.
+  // #1030: the envelope is INDEPENDENT of the visual preset. `none` used to
+  // hold a constant baseVolume, hard-cutting a clip's audio at every scene
+  // boundary — that coupling is why the allocator could never hand `none` to
+  // a talking-head video (#357). TIMING.none is {in:0,out:0}, so it gets a
+  // short dedicated audio fade; every other preset keeps its existing timing.
   const baseVolume = media.volume ?? 0.08;
+  const audioInFrames = inFrames || secToFrames(Math.min(0.25, duration / 2));
+  const audioOutStart = outFrames ? outStart : totalFrames - audioInFrames;
   const videoVolume =
-    preset === "none"
-      ? baseVolume
-      : baseVolume * interpolate(frame, [0, inFrames, outStart, totalFrames], [0, 1, 1, 0], clamp);
+    baseVolume *
+    interpolate(frame, [0, audioInFrames, audioOutStart, totalFrames], [0, 1, 1, 0], clamp);
 
   const mediaStyle: React.CSSProperties = {
     position: "absolute",

@@ -869,6 +869,16 @@ export function recommendScene(asset, scenes) {
         overlay: 0.8,
       };
     }
+    if (vt === "context" || vt === "contrast") {
+      // #1030: these visualTypes are NOT in NO_MEDIA_TYPES, so the old
+      // `return null` silently excluded them from recommendations. Route the
+      // suggestion through the same content-aware seam the allocator uses.
+      return {
+        sceneId: scene.id,
+        animation: selectAnimationForAsset(asset),
+        overlay: 0.7,
+      };
+    }
     return null;
   }
 
@@ -920,6 +930,38 @@ export function recommendScene(asset, scenes) {
 const VIDEO_ANIMATION = "fade";
 
 /**
+ * #1030 — Content-aware animation: the single seam that decides what the
+ * allocator writes into `scene.media.animation`.
+ *
+ * A talking head / interview clip already carries its own motion; stacking a
+ * container preset on it only double-crops the frame. `none` is the one
+ * motionless preset, and it is now safe because MediaBackground no longer ties
+ * the video audio fade envelope to the preset (see the volume block there).
+ *
+ * Charts, screenshots and `fit: "contain"` images must not be pushed: the
+ * 1.0 → 1.12 ken-burns scale would move axis labels / edge text out of frame.
+ * An unknown or malformed VLM `contentKind` (the model sometimes returns a
+ * whole sentence) deliberately falls through to the default instead of being
+ * guessed at — fail-safe, not fail-closed.
+ *
+ * @param {Object} asset - sourced asset ({ type, contentKind?, fit? })
+ * @param {string} [resolvedFit] - the fit the allocator actually wrote for
+ *   this media field (a hook may resolve to contain even when asset.fit is not)
+ * @returns {"none"|"fade"|"ken-burns"}
+ */
+const STATIC_IMAGE_CONTENT_KINDS = new Set(["chart", "text_screenshot"]);
+
+export function selectAnimationForAsset(asset, resolvedFit = asset?.fit) {
+  if (asset?.type === "video") {
+    return asset?.contentKind === "talking_head" ? "none" : VIDEO_ANIMATION;
+  }
+  if (STATIC_IMAGE_CONTENT_KINDS.has(asset?.contentKind) || resolvedFit === "contain") {
+    return "fade";
+  }
+  return "ken-burns";
+}
+
+/**
  * Volume recommendation per visualType + media type.
  * Based on §4.6 research: product demos louder, narrated clips quieter.
  */
@@ -927,6 +969,8 @@ const VOLUME_RECOMMENDATIONS = {
   narrative: { video: 0.1 }, // product demo — motor sounds add realism
   quote: { video: 0.04 }, // text focus — minimize competing audio
   "info-card": { video: 0.08 }, // default level
+  context: { video: 0.08 }, // same information density as info-card
+  contrast: { video: 0.06 }, // two-column comparison: keep the VoiceOver forward
   // image: no volume (images have no audio)
 };
 
@@ -1063,6 +1107,53 @@ function isRejectedFor(asset, scene) {
  *   relevanceScore?: number, relevanceSource?: string, relevanceReason?: string,
  *   reused?: boolean }>}
  */
+/**
+ * #1030 — Source tier for same-type candidates.
+ *
+ * The VLM relevance gate already decided the asset is on-topic; what is left
+ * is an evidentiary preference: a first-party / vertical-newsroom source (or
+ * a locally curated evidence capture) should outrank a generic royalty-free
+ * library asset when both clear the gate. Unknown sources deliberately sit in
+ * the middle tier so adding a new source cannot silently demote it.
+ *
+ * Tier 2: first-party, vertical reporting, local/cached evidence.
+ * Tier 1: generic search aggregation, social platforms, unclassified sources.
+ * Tier 0: generic royalty-free stock libraries.
+ */
+const SOURCE_TIERS = {
+  // ── Tier 0: generic royalty-free libraries ──
+  pexels: 0,
+  "pexels-video": 0,
+  pixabay: 0,
+  unsplash: 0,
+  coverr: 0,
+  wikimedia: 0,
+  brave_image: 0,
+  searxng_image: 0,
+  // ── Tier 2: first-party / vertical reporting / local evidence ──
+  cached: 2,
+  "cached-media": 2,
+  qbitai: 2,
+  jiqizhixin: 2,
+  "36kr": 2,
+  techcrunch: 2,
+  bloomberg: 2,
+  guancha: 2,
+  ithome: 2,
+  xinhua: 2,
+  thepaper: 2,
+  leiphone: 2,
+  zhidx: 2,
+  wechat_dongchabeating: 2,
+  arxiv_search: 2,
+  github_search: 2,
+};
+
+export function sourceTierRank(asset) {
+  const source = String(asset?.source || asset?.from || "").toLowerCase();
+  return SOURCE_TIERS[source] ?? 1;
+}
+
 export function assignAssetsToScenes(assets, scenes, opts = {}) {
   if (!assets || assets.length === 0) return [];
 
@@ -1100,9 +1191,14 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
   // sourcing rung is stock-video-first — "有视频就选视频，不选图片" — with the
   // VLM gate still deciding whether the clip is admitted; a rejected video
   // leaves the scene free for its image sibling).
+  // #1030: source tier breaks ties BETWEEN candidates of the SAME type, ahead
+  // of the technical score. It deliberately does NOT outrank the type key —
+  // letting a Tier-2 image jump a Tier-0 video would reverse the #355 D1a
+  // decision, which is a separate HITL call, not this ticket's scope.
   const sorted = [...assets].sort(
     (a, b) =>
       (b.type === "video" ? 1 : 0) - (a.type === "video" ? 1 : 0) ||
+      sourceTierRank(b) - sourceTierRank(a) ||
       (b.score || 0) - (a.score || 0),
   );
 
@@ -1235,9 +1331,8 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         type: asset.type,
         path: asset.path,
         source: asset.source || asset.from || undefined,
-        // #357: see VIDEO_ANIMATION. Writing ken-burns on a hook video only
-        // made the data lie — the renderer degrades it to fade anyway.
-        animation: isVideo ? VIDEO_ANIMATION : "ken-burns",
+        // #1030: animation is assigned below, once media.fit is resolved, so
+        // a hook that composes to `contain` is seen by the content-aware seam.
         overlay: vt === "hook" ? 0.5 : vt === "quote" ? 0.8 : vt === "info-card" ? 0.75 : 0.7,
       };
       // Composition default (#963): a third-party landscape source is shown
@@ -1259,6 +1354,10 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         // intentionally not applied (#963 scope).
         media.fit = asset.fit;
       }
+      // #1030 / #357: single content-aware seam for every written animation.
+      // A talking head keeps its own motion (`none`); charts, screenshots and
+      // contained images stay still (`fade`); cover stills keep ken-burns.
+      media.animation = selectAnimationForAsset(asset, media.fit);
       if (asset.cropFocus) media.cropFocus = asset.cropFocus;
       if (isVideo && VOLUME_RECOMMENDATIONS[vt]) media.volume = VOLUME_RECOMMENDATIONS[vt].video;
 
