@@ -424,6 +424,33 @@ describe.skipIf(!hasFfmpeg)("end-to-end on synthesized audio", () => {
     }
   });
 
+  it("the #1043 bed gain raises the measured margin by ~3.5 dB over the 0.12 default", async () => {
+    const { DEFAULT_BGM_VOLUME } = await import("../lib/post-process.mjs");
+    const { dir, voice } = fixture();
+    try {
+      const windows = detectSilenceWindows(voice);
+      const measureAt = (gain) => {
+        const bed = join(dir, `bed-${gain}.wav`);
+        const mix = join(dir, `mixed-${gain}.wav`);
+        makeWav(bed, bedExpr(VOICE_AMP * gain));
+        mixVoiceAndBed(voice, bed, mix);
+        return measureBgmMargin({ videoPath: mix, windows });
+      };
+
+      const legacy = measureAt(0.12);
+      const retuned = measureAt(DEFAULT_BGM_VOLUME);
+      // The real deepseek-v41-flash-1017 render moved 13.8 → 17.3 dB; the
+      // synthesized bed has a different absolute level but the same linear
+      // gain-to-margin relationship, so CI can pin the step without shipping
+      // a gitignored real artifact.
+      expect(retuned.marginDb - legacy.marginDb).toBeGreaterThan(3);
+      expect(retuned.marginDb - legacy.marginDb).toBeLessThan(4);
+      expect(evaluateBgmMargin(retuned, { expectBed: true }).status).toBe("pass");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("reports the voice-only render as no-local-bed", () => {
     const { dir, voice } = fixture();
     try {

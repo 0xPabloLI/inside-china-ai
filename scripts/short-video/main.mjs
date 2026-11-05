@@ -37,7 +37,7 @@ import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 import { verifyWithRetry, applyDriftCorrection } from "./lib/verify-retry.mjs";
 import { buildCues } from "./lib/subtitles/cues.mjs";
 import { renderAss } from "./lib/subtitles/ass.mjs";
-import { finalizeRenderedVideo } from "./lib/post-process.mjs";
+import { finalizeRenderedVideo, DEFAULT_BGM_VOLUME } from "./lib/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { createProfiler } from "./lib/pipeline-profile.mjs";
 import { runMediaTrack } from "./lib/media-track.mjs";
@@ -461,7 +461,9 @@ async function main() {
     prof.end("step-3-bgm");
     if (bgmPath) {
       console.log(`  🎵 BGM: ${bgmPath.split("/").pop()}`);
-      console.log(`     (instant start, 12% volume, auto-looped)\n`);
+      console.log(
+        `     (instant start, ${Math.round(DEFAULT_BGM_VOLUME * 100)}% volume, auto-looped)\n`,
+      );
     } else {
       console.log("  ⚠️  No BGM file found — skipping\n");
     }

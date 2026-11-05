@@ -3,7 +3,10 @@
  * Creates a dark, atmospheric cyber-ambient track using FFmpeg audio synthesis.
  *
  * Output: scripts/short-video/output/audio/bgm.wav
- * Volume: mixed at ~12% in assembly (barely audible, adds atmosphere)
+ * Volume: the drone filter below is 0.12 of this 7-layer synth (barely audible
+ * atmosphere); the bed gain applied later in assembly is DEFAULT_BGM_VOLUME
+ * from lib/post-process.mjs (8%, #1043) — a different scale, see §6.1 of
+ * docs/research/music-under-voice-calibration-2026-10.md.
  */
 
 import { execFileSync } from "child_process";

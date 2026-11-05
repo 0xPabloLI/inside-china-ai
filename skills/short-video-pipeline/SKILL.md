@@ -506,7 +506,7 @@ pip3 install pysubs2   # ASS subtitle generation
 4. `remotion/src/` scene components take `(scene, duration)` → React render; TextGate enforces slot geometry before render
 5. `lib/subtitles/cues.mjs` + `ass.mjs` chunk `subtitle-timing.json` by pixel width and render the ASS with `\kf` karaoke tags
 6. `generate-bgm.mjs` synthesizes ambient track for `totalDuration + 10s` (if `--bgm`)
-7. `lib/render-remotion.mjs` renders the composition to `{pipelineId}-v{version}-short.mp4` (versioned output, canonical — no symlink); `post-process.mjs` burns ASS subtitles via libass and mixes BGM at 12%
+7. `lib/render-remotion.mjs` renders the composition to `{pipelineId}-v{version}-short.mp4` (versioned output, canonical — no symlink); `post-process.mjs` burns ASS subtitles via libass and mixes BGM at 8% (`DEFAULT_BGM_VOLUME`, #1043)
 
 ### Subtitle system
 

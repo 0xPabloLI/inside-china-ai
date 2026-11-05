@@ -22,6 +22,7 @@ import {
   reportFinalMediaWarnings,
 } from "./lib/final-media-gate.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
+import { DEFAULT_BGM_VOLUME } from "./lib/post-process.mjs";
 import { getDurationSync } from "./lib/tts/ffmpeg-cmd.mjs";
 import { assertSubtitleTiming, regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
@@ -148,7 +149,9 @@ async function main() {
     console.log("🎵 Step 2.5: Selecting background music...\n");
     bgmPath = selectBGM(meta.pipelineId, bgmFileOverride);
     if (bgmPath) {
-      console.log(`  🎵 BGM: ${bgmPath.split("/").pop()} (instant start, 12% volume, looped)\n`);
+      console.log(
+        `  🎵 BGM: ${bgmPath.split("/").pop()} (instant start, ${Math.round(DEFAULT_BGM_VOLUME * 100)}% volume, looped)\n`,
+      );
     } else {
       console.log("  ⚠️  No BGM file found — skipping\n");
     }

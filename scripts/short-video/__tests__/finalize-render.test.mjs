@@ -13,7 +13,11 @@ import { execSync, execFileSync } from "child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { buildFinalizeArgs, finalizeRenderedVideo } from "../lib/post-process.mjs";
+import {
+  buildFinalizeArgs,
+  DEFAULT_BGM_VOLUME,
+  finalizeRenderedVideo,
+} from "../lib/post-process.mjs";
 import { measureAudioDrift, verifyAudioSync } from "../lib/audio/sync.mjs";
 import { buildVoiceoverTrack } from "../lib/audio/track.mjs";
 import { writeWavPcm } from "../lib/audio/wav.mjs";
@@ -44,7 +48,7 @@ describe("buildFinalizeArgs", () => {
     // BGM branch: fades + volume, then amix duration=first
     expect(cmd).toContain("afade=t=in:st=0:d=0.1");
     expect(cmd).toContain("afade=t=out:st=57.00:d=3");
-    expect(cmd).toContain("volume=0.12");
+    expect(cmd).toContain(`volume=${DEFAULT_BGM_VOLUME}`); // #1043: 0.08
     expect(cmd).toContain("amix=inputs=2:duration=first:dropout_transition=0");
     // loudnorm comes after the amix (current chain order)
     const amixAt = cmd.indexOf("amix=");

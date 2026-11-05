@@ -43,6 +43,26 @@ describe("post-process module", () => {
   });
 });
 
+// #1043: the local bed gain is calibrated against the shipped-artifact
+// measurement, not against the platform's dB slider. Lock the value and its
+// derivation here so a later retune has a failing test explaining the target
+// (docs/research/music-under-voice-calibration-2026-10.md §6.1).
+describe("DEFAULT_BGM_VOLUME calibration (#1043)", () => {
+  it("is 0.08 — the -3.5 dB retune aligning the local mix with platform attach", async () => {
+    const { DEFAULT_BGM_VOLUME } = await import(join(ROOT, "lib", "post-process.mjs"));
+    expect(DEFAULT_BGM_VOLUME).toBe(0.08);
+
+    // The bed gain itself drops -3.52 dB, which RAISES the measured
+    // music-below-narration margin by +3.52 dB. 0.12 was the #950-era default
+    // that measured 13.7 dB on the real deepseek-v41-flash-1017 render (PASS,
+    // 1.7 dB from the loud edge).
+    const marginGainDb = -20 * Math.log10(DEFAULT_BGM_VOLUME / 0.12);
+    expect(marginGainDb).toBeCloseTo(3.52, 2);
+    expect(13.7 + marginGainDb).toBeGreaterThan(17);
+    expect(13.7 + marginGainDb).toBeLessThan(18);
+  });
+});
+
 // The BGM fade-out timing probes the video duration. That probe is argv-only
 // (#319 deferred class sweep): a path with shell metacharacters must reach
 // ffprobe literally, never through a shell.

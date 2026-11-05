@@ -2,7 +2,7 @@
 
 > **Layer: L2 (research rationale).** The execution rules live in `skills/short-video-pipeline/SKILL.md` → *TikTok audio* and `docs/content-pipeline.md` → 发布 step 8. This document holds the measurement, the derivation and the sources behind them. Nothing here is an instruction.
 
-> **下游票**：无下游：执行规则已落在 `docs/content-pipeline.md` 发布 step 8 与 `skills/short-video-pipeline/SKILL.md` 的 TikTok audio 段，无需另开票承接。
+> **下游票**：#1043（本地 bed gain 由 0.12 重定标至 0.08 的实施票；§6.1 的结论随该票落地）。平台挂轨侧的执行规则仍落在 `docs/content-pipeline.md` 发布 step 8 与 `skills/short-video-pipeline/SKILL.md` 的 TikTok audio 段，无需另开票承接。
 
 ## 1. The two scales
 
@@ -80,17 +80,17 @@ Measured on the real `deepseek-v41-flash-1017` render (voice-only track + `asset
 | Mix | Whole-mix LUFS | Music below narration |
 | --- | --- | --- |
 | voice only | −15.74 | no bed |
-| `volume=0.12` (local default) | −21.73 | **13.7 dB** → PASS, at the loud edge |
+| `volume=0.12` (then-local default, before #1043) | −21.73 | **13.7 dB** → PASS, at the loud edge |
 | `volume=0.002` (bed effectively gone) | −21.79 | **bed −68.8 dBFS** → FAIL |
 
-The two mixed variants differ by **0.06 LU** of whole-mix loudness while their margins differ by **30 dB** — the blind spot, measured. The local default landing at 13.7 dB is itself a finding: it sits at the loud end of the band while the platform path targets ≈ −17 dB; retuning `volume=0.12` is a separate decision, not something this check decides.
+The two mixed variants differ by **0.06 LU** of whole-mix loudness while their margins differ by **30 dB** — the blind spot, measured. The local default landing at 13.7 dB is itself a finding: it sits at the loud end of the band while the platform path targets ≈ −17 dB. This check does not pick the retune value; that decision was made in **#1043** and re-measured in §6.1. The table above records the 2026-10-30 measurement with the then-current 0.12 default.
 
 Two paths still differ in scale, and both are now checked as artifacts:
 
 | Path | Control | Check |
 | --- | --- | --- |
 | Platform attach (`tiktok-upload-prep.mjs`) | slider dB, read back | slider read-back; post-download measurement below |
-| Local mix (`mix-bgm.mjs`, `finalizeRenderedVideo`) | `volume=0.12` (≈ −18.4 dB gain) | measured by `verify-video.mjs` and by `mix-bgm.mjs` right after mixing |
+| Local mix (`mix-bgm.mjs`, `finalizeRenderedVideo`) | `volume=0.08` (≈ −21.9 dB gain, #1043) | measured by `verify-video.mjs` and by `mix-bgm.mjs` right after mixing |
 
 Any artifact, including a post pulled with `yt-dlp -f b`:
 
@@ -99,6 +99,21 @@ node scripts/short-video/measure-bgm-margin.mjs --video /tmp/post-audio --conten
 ```
 
 Filed as issue **#950** (BGM 混音无工件级校验); closed with this section.
+
+### 6.1 Local bed retuned to 0.08 (#1043, 2026-11-06)
+
+The retune was decided against the same real render, not against the platform slider. Lowering the bed gain from 0.12 to 0.08 is **−3.52 dB of gain** (20·log10(0.08/0.12)); because the margin is measured relative to the voice, that same change **raises** the margin by **+3.52 dB** (−20·log10(0.08/0.12)), from 13.7 dB to ≈17.2 dB — the platform-attach measurement (§5), 5.2 dB above the 12 dB PASS floor (§6) and inside both the 12–26 dB gate band and the 15–25 dB general industry band (§4). `DEFAULT_BGM_VOLUME` in `lib/post-process.mjs` is the single source for both local mix paths (`mix-bgm.mjs` and `finalizeRenderedVideo`); the two pipeline log lines now derive their percentage from it.
+
+Re-measured on the `deepseek-v41-flash-1017` voice-only short render (63.3 s) with `assets/bgm/news-cc-theme01.mp3`, using the same `subtitle-timing.json` + `scene-durations.json` windows on both sides:
+
+| Default | speech / bed-only RMS | Music below narration | Verdict |
+| --- | --- | --- | --- |
+| 0.12 (before) | −24.5 / −38.4 dBFS | **13.8 dB** | PASS, 1.8 dB above the loud edge |
+| 0.08 (after) | −24.6 / −41.9 dBFS | **17.3 dB** | PASS, 5.3 dB above the floor |
+
+`mix-bgm.mjs`'s own post-mix check (silence-detected pause windows) reports 13.5 → 17.0 dB for the same two files; the 0.3 dB difference between window sets changes neither verdict. The `audio/bgm-mix.json` marker records `volume: 0.08` on the after artifact.
+
+Out of scope for the retune: the platform attach slider (−15 dB), the 12–26 dB pass band and the bed-only floor, and `lib/generate-bgm.mjs`'s internal 12% synthesis level (a different scale — it shapes the procedural track before any bed gain is applied).
 
 ## 7. Reproduce
 
