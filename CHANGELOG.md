@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.53.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.2...tanstack_start_ts-v1.53.3) (2026-11-05)
+
+
+### Bug Fixes
+
+* **video:** content-aware animation, source tiers and context/contrast volume ([#1030](https://github.com/0xPabloLI/inside-china-ai/issues/1030)) ([#1146](https://github.com/0xPabloLI/inside-china-ai/issues/1146)) ([a49e36a](https://github.com/0xPabloLI/inside-china-ai/commit/a49e36aece0a3929bbb01a17ee7c38fb46254771))
+
 ## [1.53.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.1...tanstack_start_ts-v1.53.2) (2026-11-05)
 
 
