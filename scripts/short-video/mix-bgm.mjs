@@ -15,15 +15,15 @@
  * If --bgm-file is omitted, auto-selects from the BGM pool using --pipeline-id.
  * Output: <video-path> with BGM mixed in (original saved as -nobgm.mp4)
  *
- * Mix settings: 0.1s fade-in (instant start), 12% volume, auto-loop, 3s fade-out.
+ * Mix settings: 0.1s fade-in (instant start), 8% volume, auto-loop, 3s fade-out.
  *
- * The `volume` below (≈ −18.4 dB gain on the bed, shared with
+ * The `volume` below (≈ −21.9 dB gain on the bed, shared with
  * finalizeRenderedVideo) is a DIFFERENT scale from the platform slider's dB
- * reading. It is now calibrated on the rendered artifact: the mix check at the
+ * reading. It is calibrated on the rendered artifact: the mix check at the
  * end of this script and `verify-video.mjs` measure the bed-vs-narration ratio
- * directly (docs/research/music-under-voice-calibration-2026-10.md §6 —
- * volume=0.12 measured 13.7 dB below narration, PASS at the loud edge; the
- * retune question is tracked in #1043).
+ * directly (docs/research/music-under-voice-calibration-2026-10.md §6.1 —
+ * #1043 retuned 0.12 → 0.08: 13.7 dB at the loud edge became ≈17.2 dB,
+ * matching the platform-attach target).
  */
 
 import { execFileSync } from "child_process";

@@ -23,8 +23,15 @@ import { ffmpegMeasureCmd, getDurationSync } from "./tts/ffmpeg-cmd.mjs";
  */
 export const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 
-/** Default bed gain (0-1) for both local mix paths; retune target: #1043. */
-export const DEFAULT_BGM_VOLUME = 0.12;
+/**
+ * Default bed gain (0-1) for both local mix paths, calibrated on the shipped
+ * artifact (#1043): 0.12 measured 13.7 dB below the narration on the real
+ * deepseek-v41-flash-1017 render — PASS, but only 1.7 dB above the 12 dB loud
+ * edge. 0.08 is −3.52 dB quieter, landing at ≈17.2 dB: the platform-attach
+ * target and the middle of the comfortable 15–22 dB band. See
+ * docs/research/music-under-voice-calibration-2026-10.md §6.1.
+ */
+export const DEFAULT_BGM_VOLUME = 0.08;
 /** Allowed |measured − target| integrated loudness drift, in LU. */
 export const LOUDNESS_LU_TOLERANCE = 0.8;
 /** True peak must stay at or below this (dBTP); loudnorm targets TP=-1.5. */

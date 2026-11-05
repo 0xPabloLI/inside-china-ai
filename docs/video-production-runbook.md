@@ -64,7 +64,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 ### Audio
 
 - TTS at full volume
-- BGM off by default (TikTok/Reels auto-add their own). Enable with `--bgm` flag: procedural cyber-ambient at 12% volume, fades in 2s, fades out last 3s
+- BGM off by default (TikTok/Reels auto-add their own). Enable with `--bgm` flag: procedural cyber-ambient with an **8% bed gain** (`DEFAULT_BGM_VOLUME`, #1043 — measured ≈17.2 dB below narration on the real render; the procedural synth's own internal 12% layer mix in `lib/generate-bgm.mjs` is a separate scale), fades in 2s, fades out last 3s
 - All audio 192k AAC, 44100Hz
 
 ### Mobile-First Vertical (9:16)
