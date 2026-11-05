@@ -95,47 +95,26 @@ describe("S3: `none` preset — static opacity 1", () => {
 //  S4: Video volume — independent exit fade (not tied to media opacity)
 // ═══════════════════════════════════════════════════════════════
 describe("S4: Video volume — independent exit fade envelope", () => {
-  it("videoVolume uses interpolate with 4-stop envelope (not baseVolume * opacity)", () => {
+  it("videoVolume is not tied to media opacity", () => {
     const content = readFile("components/MediaBackground.tsx");
-
-    // videoVolume should NOT be baseVolume * opacity
     expect(content).not.toMatch(/videoVolume\s*=\s*baseVolume\s*\*\s*opacity/);
-
-    // Should use interpolate with outStart in input stops
-    // The assignment is multi-line: baseVolume * interpolate(...)
-    expect(content).toMatch(/baseVolume\s*\*\s*interpolate\(/);
-    expect(content).toMatch(/videoVolume[\s\S]{0,200}?audioOutStart/);
-    expect(content).toMatch(/videoVolume[\s\S]{0,200}?\[0,\s*1,\s*1,\s*0\]/);
+    expect(content).toMatch(/const videoVolume = videoVolumeAt\(\{/);
+    expect(content).toMatch(/volume=\{videoVolume\}/);
   });
 
-  it("videoVolume interpolate has 4 input stops including outStart", () => {
+  it("#1030: delegates to the preset-independent envelope module", () => {
     const content = readFile("components/MediaBackground.tsx");
-
-    // Extract videoVolume section — multi-line due to ternary
-    // Pattern: const videoVolume = ... baseVolume * interpolate(...)
-    const volumeMatch = content.match(
-      /const videoVolume[\s\S]*?baseVolume\s*\*\s*interpolate\(([\s\S]*?)\);/,
+    expect(content).toMatch(
+      /import \{ videoVolumeAt \} from "\.\.\/\.\.\/\.\.\/lib\/audio-envelope\.mjs"/,
     );
-    expect(volumeMatch).toBeTruthy();
-
-    // #1030: the audio envelope has its own time stops. `none` has zero
-    // visual timing, so it gets a short dedicated fade instead of a constant
-    // volume; all other presets resolve to their existing inFrames/outStart.
-    expect(volumeMatch[1]).toMatch(/0,\s*audioInFrames,\s*audioOutStart,\s*totalFrames/);
-    // Should have [0, 1, 1, 0] output
-    expect(volumeMatch[1]).toMatch(/0,\s*1,\s*1,\s*0/);
-  });
-
-  it("#1030: the audio envelope is no longer gated on the visual preset", () => {
-    const content = readFile("components/MediaBackground.tsx");
-    const block = content.match(/const videoVolume[\s\S]*?;\n/)?.[0] ?? "";
+    const block = content.match(/const videoVolume[\s\S]*?\n  \}\);/)?.[0] ?? "";
     expect(block).not.toMatch(/preset\s*===\s*"none"/);
-    expect(content).toMatch(/const audioInFrames = inFrames \|\| secToFrames/);
+    for (const key of ["inFrames", "outFrames", "outStart", "totalFrames", "fadeFrames"]) {
+      expect(block, key).toMatch(new RegExp(`\\b${key}\\b`));
+    }
   });
 });
 
-// ═══════════════════════════════════════════════════════════════
-//  S5: Overlay envelope — unchanged (4-stop with exit dim)
 // ═══════════════════════════════════════════════════════════════
 describe("S5: Overlay envelope — retained exit dim", () => {
   it("overlayOpacity still has 4-stop envelope with outStart", () => {

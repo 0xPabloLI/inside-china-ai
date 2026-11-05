@@ -32,6 +32,7 @@ import {
 import type { EffectsProp } from "remotion";
 import { Video } from "@remotion/media";
 import { interpolate, secToFrames, clamp, easeOutExpo } from "./shared";
+import { videoVolumeAt } from "../../../lib/audio-envelope.mjs";
 import type { MediaField } from "../types";
 
 // Animation timing (seconds)
@@ -199,12 +200,21 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
   // boundary — that coupling is why the allocator could never hand `none` to
   // a talking-head video (#357). TIMING.none is {in:0,out:0}, so it gets a
   // short dedicated audio fade; every other preset keeps its existing timing.
+  //
+  // The curve lives in lib/audio-envelope.mjs (plain .mjs, no Remotion
+  // dependency) so it is behaviourally testable from the root vitest suite and
+  // cannot be handed a degenerate interpolate() input range on short scenes.
   const baseVolume = media.volume ?? 0.08;
-  const audioInFrames = inFrames || secToFrames(Math.min(0.25, duration / 2));
-  const audioOutStart = outFrames ? outStart : totalFrames - audioInFrames;
-  const videoVolume =
-    baseVolume *
-    interpolate(frame, [0, audioInFrames, audioOutStart, totalFrames], [0, 1, 1, 0], clamp);
+  const fadeFrames = secToFrames(Math.min(0.25, duration / 2));
+  const videoVolume = videoVolumeAt({
+    frame,
+    baseVolume,
+    inFrames,
+    outFrames,
+    outStart,
+    totalFrames,
+    fadeFrames,
+  });
 
   const mediaStyle: React.CSSProperties = {
     position: "absolute",

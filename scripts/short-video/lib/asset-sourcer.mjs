@@ -841,43 +841,31 @@ export function recommendScene(asset, scenes) {
     if (NO_MEDIA_TYPES.has(vt)) return null;
     if (scene.media) return null;
 
+    // #1030: the SAME seam the allocator uses. `recommendScene` writes
+    // `asset.recommendedAnimation` into asset-analysis.json, which becomes an
+    // auto-fill suggestion in media-patch.json — a second set of hardcoded
+    // presets here used to disagree with what assignAssetsToScenes would
+    // actually write (e.g. a chart recommended as `ken-burns` on a hook).
+    // The allocator remains authoritative for `fit`: only it knows whether a
+    // hook composes to `contain`, and it re-runs the seam on the resolved fit.
+    const animation = selectAnimationForAsset(asset);
+
     if (vt === "hook") {
-      return {
-        sceneId: scene.id,
-        animation: "ken-burns",
-        overlay: 0.5,
-      };
+      return { sceneId: scene.id, animation, overlay: 0.5 };
     }
     if (vt === "narrative") {
-      return {
-        sceneId: scene.id,
-        animation: asset.type === "video" ? VIDEO_ANIMATION : "ken-burns",
-        overlay: 0.7,
-      };
+      return { sceneId: scene.id, animation, overlay: 0.7 };
     }
     if (vt === "info-card") {
-      return {
-        sceneId: scene.id,
-        animation: asset.type === "image" ? "ken-burns" : "fade",
-        overlay: 0.75,
-      };
+      return { sceneId: scene.id, animation, overlay: 0.75 };
     }
     if (vt === "quote") {
-      return {
-        sceneId: scene.id,
-        animation: "fade",
-        overlay: 0.8,
-      };
+      return { sceneId: scene.id, animation, overlay: 0.8 };
     }
     if (vt === "context" || vt === "contrast") {
       // #1030: these visualTypes are NOT in NO_MEDIA_TYPES, so the old
-      // `return null` silently excluded them from recommendations. Route the
-      // suggestion through the same content-aware seam the allocator uses.
-      return {
-        sceneId: scene.id,
-        animation: selectAnimationForAsset(asset),
-        overlay: 0.7,
-      };
+      // `return null` silently excluded them from recommendations.
+      return { sceneId: scene.id, animation, overlay: 0.7 };
     }
     return null;
   }
@@ -1113,45 +1101,40 @@ function isRejectedFor(asset, scene) {
  * The VLM relevance gate already decided the asset is on-topic; what is left
  * is an evidentiary preference: a first-party / vertical-newsroom source (or
  * a locally curated evidence capture) should outrank a generic royalty-free
- * library asset when both clear the gate. Unknown sources deliberately sit in
- * the middle tier so adding a new source cannot silently demote it.
+ * library asset when both clear the gate.
  *
- * Tier 2: first-party, vertical reporting, local/cached evidence.
- * Tier 1: generic search aggregation, social platforms, unclassified sources.
- * Tier 0: generic royalty-free stock libraries.
+ * The tier is DERIVED FROM `ALL_SOURCES[].category` in source-registry.mjs.
+ * CONTEXT.md is explicit that the registry is the single source of truth for
+ * source metadata; a second hand-maintained name list here would silently
+ * drift the moment a source is added (and would demote that new source to the
+ * unknown tier without anyone noticing).
+ *
+ *   Tier 2 — first-party / vertical reporting / evidence
+ *            news, international, wechat, self_media, last30days
+ *   Tier 1 — generic search aggregation + unregistered/unknown sources
+ *   Tier 0 — generic royalty-free stock libraries (category `stock_media`)
  */
-const SOURCE_TIERS = {
-  // ── Tier 0: generic royalty-free libraries ──
-  pexels: 0,
-  "pexels-video": 0,
-  pixabay: 0,
-  unsplash: 0,
-  coverr: 0,
-  wikimedia: 0,
-  brave_image: 0,
-  searxng_image: 0,
-  // ── Tier 2: first-party / vertical reporting / local evidence ──
-  cached: 2,
-  "cached-media": 2,
-  qbitai: 2,
-  jiqizhixin: 2,
-  "36kr": 2,
-  techcrunch: 2,
-  bloomberg: 2,
-  guancha: 2,
-  ithome: 2,
-  xinhua: 2,
-  thepaper: 2,
-  leiphone: 2,
-  zhidx: 2,
-  wechat_dongchabeating: 2,
-  arxiv_search: 2,
-  github_search: 2,
+const SOURCE_TIER_BY_CATEGORY = {
+  stock_media: 0,
+  general: 1,
 };
+const FIRST_PARTY_TIER = 2;
+const UNKNOWN_TIER = 1;
+
+/** Cached/local evidence carries no registry row — it is first-party by definition. */
+const LOCAL_EVIDENCE_SOURCES = new Set(["cached", "cached-media"]);
+
+const SOURCE_TIERS = new Map(
+  ALL_SOURCES.map((source) => [
+    source.name,
+    SOURCE_TIER_BY_CATEGORY[source.category] ?? FIRST_PARTY_TIER,
+  ]),
+);
 
 export function sourceTierRank(asset) {
   const source = String(asset?.source || asset?.from || "").toLowerCase();
-  return SOURCE_TIERS[source] ?? 1;
+  if (LOCAL_EVIDENCE_SOURCES.has(source)) return FIRST_PARTY_TIER;
+  return SOURCE_TIERS.get(source) ?? UNKNOWN_TIER;
 }
 
 export function assignAssetsToScenes(assets, scenes, opts = {}) {

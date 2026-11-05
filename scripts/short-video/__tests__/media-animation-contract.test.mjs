@@ -82,9 +82,12 @@ describe("#357 video animation contract", () => {
 
   it("the renderer no longer ties the audio envelope to the visual preset", () => {
     // `none` is now handed out for talking-head video; it must still fade its
-    // audio in/out instead of hard-cutting at the scene boundary.
-    const volumeBlock = background.match(/const videoVolume =[\s\S]*?;\n/)?.[0] ?? "";
+    // audio in/out instead of hard-cutting at the scene boundary. #1030 moved
+    // the curve into lib/audio-envelope.mjs so its numbers are tested
+    // behaviourally (content-aware-animation.test.mjs) rather than by regex.
+    const volumeBlock = background.match(/const videoVolume =[\s\S]*?\n  \}\);/)?.[0] ?? "";
     expect(volumeBlock).not.toMatch(/preset === "none"/);
-    expect(volumeBlock).toMatch(/audioInFrames/);
+    expect(volumeBlock).toMatch(/videoVolumeAt\(\{/);
+    expect(volumeBlock).toMatch(/fadeFrames/);
   });
 });

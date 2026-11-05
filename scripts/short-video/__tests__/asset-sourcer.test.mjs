@@ -515,13 +515,33 @@ describe("recommendScene", () => {
     expect(rec.overlay).toBe(0.75);
   });
 
-  it("recommends fade for quote scene", () => {
+  it("recommends the content-aware preset for quote scene", () => {
     const scenes = [{ visualType: "quote", id: 6 }];
     const asset = { type: "image" };
     const rec = recommendScene(asset, scenes);
     expect(rec.sceneId).toBe(6);
-    expect(rec.animation).toBe("fade");
+    // #1030: quote used to hardcode "fade" here while assignAssetsToScenes
+    // wrote "ken-burns" for the same ordinary image. The recommendation fed
+    // media-patch.json, so the suggested preset disagreed with the written
+    // one. Both producers now go through selectAnimationForAsset().
+    expect(rec.animation).toBe("ken-burns");
     expect(rec.overlay).toBe(0.8);
+  });
+
+  it("#1030: a static chart stays still even on a quote / hook scene", () => {
+    for (const visualType of ["quote", "hook"]) {
+      const rec = recommendScene({ type: "image", contentKind: "chart" }, [{ visualType, id: 7 }]);
+      expect(rec.animation, visualType).toBe("fade");
+    }
+  });
+
+  it("#1030: context / contrast are media-eligible and get a recommendation", () => {
+    // They are NOT in NO_MEDIA_TYPES (cta / data / stat-reveal); the old
+    // `return null` silently dropped them from asset-analysis.json.
+    for (const visualType of ["context", "contrast"]) {
+      const rec = recommendScene({ type: "video" }, [{ visualType, id: 8 }]);
+      expect(rec, visualType).toEqual({ sceneId: 8, animation: "fade", overlay: 0.7 });
+    }
   });
 
   it("returns null for data/stat-reveal scene", () => {
