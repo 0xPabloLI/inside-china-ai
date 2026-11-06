@@ -953,6 +953,7 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 scripts/short-video/
 ├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify, --max-retries)
 ├── render-only.mjs         # Re-render from existing audio (no TTS) — fast visual/subtitle iteration
+├── tts-only.mjs             # TTS-only driver (Step 0.5/0.6: voice gen + alignment + gate) — no render
 ├── generate-broll.mjs      # Standalone B-roll generation entrypoint (--help)
 ├── verify-subtitles.mjs    # CLI wrapper — subtitle verification
 ├── text-align.py           # wav2vec2 forced alignment (known text → audio)
@@ -1027,6 +1028,14 @@ node scripts/short-video/verify-subtitles.mjs <video.mp4> <subtitles.ass> <subti
 
 # Re-render without re-running TTS (visual or subtitle changes only)
 node scripts/short-video/render-only.mjs --content restraint/pt1
+
+# TTS-only — Step 0.5/0.6 (voice gen + alignment + quality gate) with no render.
+# Diagnose engine speed, or pre-generate the audio cache the full pipeline reuses
+# (writes output/<pipelineId>/audio, the same key main.mjs reads; pipelineId
+# falls back to --content when meta.pipelineId is unset).
+node scripts/short-video/tts-only.mjs --content deepseek
+# equivalent npm script:
+npm run video:tts -- --content deepseek
 
 # Debug re-render tools — accept --content like main.mjs (bare runs default to
 # deepseek-v41-flash; an unknown dir fails fast with the available list)

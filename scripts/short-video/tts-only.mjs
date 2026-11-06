@@ -4,8 +4,8 @@
  * 用于：① 诊断引擎速度；② 预生成音频缓存（后续 full pipeline 复用）。
  *
  * Usage:
- *   node scripts/short-video/tts-only.mjs --content deepseek-deepinfer
- *   TTS_ENGINE=cosyvoice3-mlx node scripts/short-video/tts-only.mjs --content deepseek-deepinfer
+ *   node scripts/short-video/tts-only.mjs --content deepseek
+ *   TTS_ENGINE=cosyvoice3-mlx node scripts/short-video/tts-only.mjs --content deepseek
  */
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -45,9 +45,15 @@ try {
 }
 
 const { generateTTS } = await import("./lib/tts/registry.mjs");
-const outputDir = join(__dirname, "output", contentDir, "audio");
+// 与 main.mjs / rerender-full.mjs 一致：输出目录以 meta.pipelineId 为 key，
+// 否则 slug 与 pipelineId 不同的内容目录（嵌套分集等）会写到 full pipeline 永不读取的路径，
+// 预生成缓存静默失效。pipelineId 缺省时回退 contentDir。
+const outputDir = join(__dirname, "output", meta.pipelineId ?? contentDir, "audio");
 const t0 = Date.now();
-const results = await generateTTS(scenes, outputDir);
+// #689 入口点一致性：与 main.mjs / rerender-full.mjs 同样把 meta.keyEntities 透传给门禁
+const results = await generateTTS(scenes, outputDir, {
+  qualityGateOptions: { keyEntities: meta.keyEntities },
+});
 const ms = Date.now() - t0;
 
 console.log(`\n=== TTS done in ${(ms / 1000).toFixed(1)}s ===`);
