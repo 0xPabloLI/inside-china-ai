@@ -128,7 +128,7 @@ asset-sourcer 构建跨内容已用素材索引（扫描各内容包 `assets/` �
 
 落点只限有 contain 带的模板：NarrativeScene 的 `media-bottom-bar` 与 HookScene。info-card / context / contrast 这类全幅背景容器没有该带，不套用这条 contain 默认——否则 contain 只会在文字块底下多出一个 letterbox 画框（修复前更糟：画面被底挂到 y 1312–1920，直接埋进字幕带）。
 
-**图片已有的 contain 判定同样受这条约束（#1075）**：`assignAssetsToScenes` 只在 `allowsContainFit(scene)` 为真时保留 VLM/crop 给的 `contain`——即有 contain 带的布局，或 `media.mode: "fullscreen"`（整幅无文字块，居中 letterbox 合法）。其余布局降级为 `cover` 并在 `media-patch.json` 条目上记 `fitDowngrade`、产线打一条告警；`scene-rules.mjs` 的 `contain fit has a band` 检查对**手写** scene-data 里同样的组合直接 fail（提示改 cover、切 `media-bottom-bar`、或 `fullscreen`）。渲染端 `MediaBackground` 的 `containAlign` 默认 `center`，只有 HookScene 与 `media-bottom-bar` 传 `bottom`——底挂只在有带容器里才成立。两个判据同源于 `lib/text-slots.mjs` 的 `hasContainBand` / `allowsContainFit`，写入端与门禁不会分叉。
+**图片已有的 contain 判定同样受这条约束（#1075）**：`assignAssetsToScenes` 只在 `allowsContainFit(scene)` 为真时保留 VLM/crop 给的 `contain`——即有 contain 带的布局，或 `media.mode: "fullscreen"`（整幅无文字块，居中 letterbox 合法）。其余布局降级为 `cover` 并在 `media-patch.json` 条目上记 `fitDowngraded`、产线打一条告警；`scene-rules.mjs` 的 `contain fit has a band` 检查对**手写** scene-data 里同样的组合直接 fail（提示改 cover、切 `media-bottom-bar`、或 `fullscreen`）。渲染端 `MediaBackground` 的 `containAlign` 默认 `center`，只有 HookScene 与 `media-bottom-bar` 传 `bottom`——底挂只在有带容器里才成立。两个判据同源于 `lib/text-slots.mjs` 的 `hasContainBand` / `allowsContainFit`，写入端与门禁不会分叉。
 
 「整幅保留」指布局不裁切：入场动效仍会推镜（fade 1.05、ken-burns 1.12），折合片尾画幅约 4.8% / 10.7% 被推镜吃掉，与 B4 样片一致；这条规则管的是布局裁切，不是动效推镜。
 
