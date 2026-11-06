@@ -42,6 +42,7 @@
     "test:python:coverage": "npm run test:python -- --cov --cov-config=scripts/short-video/__tests__/.coveragerc --cov-report=term --cov-report=json:.scratch/coverage-python/coverage.json",
     "cdp:ensure": "node scripts/short-video/cdp-ensure.mjs",
     "cdp:wx-login": "node scripts/short-video/cdp-wx-login.mjs",
+    "video:tts": "node scripts/short-video/tts-only.mjs",
     "searxng:status": "node scripts/searxng/lifecycle.mjs status",
     "searxng:ensure": "node scripts/searxng/lifecycle.mjs ensure",
     "searxng:park": "node scripts/searxng/lifecycle.mjs park --apply",
