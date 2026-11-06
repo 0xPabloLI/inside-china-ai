@@ -213,7 +213,8 @@ export const NarrativeScene: React.FC<{
                 style={{
                   position: "absolute",
                   // contain → the picture's own band, hung on the text bar
-                  // (CONTAIN_MEDIA_BOTTOM + MediaBackground's bottom anchor).
+                  // (CONTAIN_MEDIA_BOTTOM, with containAlign="bottom" passed
+                  // below — MediaBackground defaults to centring, #1075).
                   // cover → the full-bleed band, unchanged.
                   top: scene.media!.fit === "contain" ? SAFE_ZONES.top : 0,
                   left: 0,

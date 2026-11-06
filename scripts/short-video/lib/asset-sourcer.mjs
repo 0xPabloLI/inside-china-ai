@@ -1299,10 +1299,9 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       // #1075: a `contain` verdict may only be written where the renderer has
       // somewhere to put the letterbox (a band, or a text-free fullscreen
       // frame). Anywhere else the picture would sit inside a full-frame
-      // container behind the text block, so the verdict degrades to cover and
-      // the downgrade is recorded for the caller to warn about.
+      // container behind the text block, so the verdict degrades to cover.
       const containAllowed = allowsContainFit(target);
-      const downgradedFrom = asset.fit === "contain" && !containAllowed ? "contain" : null;
+      const containDowngraded = asset.fit === "contain" && !containAllowed;
       const media = {
         type: asset.type,
         path: asset.path,
@@ -1321,6 +1320,12 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       if (vt === "hook") {
         media.fit = hookFitFor(asset);
       } else if (landscape && containBand) {
+        // Deliberately `containBand`, not `containAllowed`: #963 decided that a
+        // third-party landscape source goes contain only where a band exists,
+        // and a fullscreen scene is cover under that same decision (the picture
+        // fills the frame). The fullscreen exemption in `allowsContainFit`
+        // protects a verdict that already exists; it does not extend the
+        // default.
         media.fit = "contain";
       } else if (asset.fit && !isVideo) {
         // Images keep the VLM/crop verdict (cover or contain). #1075: except
@@ -1328,7 +1333,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         // cropFocus still applies. Videos are decided by the landscape rule
         // above; portrait/square keep cover, so a portrait contain verdict is
         // intentionally not applied (#963 scope).
-        media.fit = downgradedFrom ? "cover" : asset.fit;
+        media.fit = containDowngraded ? "cover" : asset.fit;
       }
       // #1030 / #357: single content-aware seam for every written animation.
       // A talking head keeps its own motion (`none`); charts, screenshots and
@@ -1347,11 +1352,9 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         source: asset.source || asset.from || "unknown",
         attribution: asset.attribution || null,
         status: "assigned",
-        // #1075: present only when a contain verdict could not be honoured.
-        // Read by the allocator's own warning line and by scene-data audits.
-        ...(downgradedFrom
-          ? { fitDowngrade: { requested: downgradedFrom, written: "cover", visualType: vt } }
-          : {}),
+        // A contain verdict with no band to land in (the hook's composition
+        // fit goes through hookFitFor instead, so a hook never reaches this).
+        ...(containDowngraded ? { fitDowngraded: true } : {}),
         ...makeRelevance({
           score: asset.relevanceScore,
           source: RELEVANCE_SOURCE.VLM,
@@ -3971,7 +3974,7 @@ export async function main(args = process.argv.slice(2)) {
   const assignedEntries = patches.filter((p) => p.status === "assigned");
   // #1075: a contain verdict that had nowhere to land is a silent quality loss
   // unless it is said out loud — the picture still ships, only cropped.
-  const fitDowngrades = assignedEntries.filter((p) => p.fitDowngrade);
+  const fitDowngrades = assignedEntries.filter((p) => p.fitDowngraded);
   if (fitDowngrades.length > 0) {
     const where = fitDowngrades.map((p) => `scene ${p.sceneId} (${p.visualType})`).join(", ");
     console.warn(

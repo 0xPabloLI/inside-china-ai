@@ -62,7 +62,7 @@ interface Props {
 }
 
 /** Vertical anchor for a contained picture inside its container. */
-type ContainAlign = "bottom" | "center";
+export type ContainAlign = "bottom" | "center";
 
 /** Maps focus field to CSS object-position value. */
 const FOCUS_MAP: Record<string, string> = {

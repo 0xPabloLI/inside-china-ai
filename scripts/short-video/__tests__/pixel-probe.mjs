@@ -104,6 +104,38 @@ export function meanColourInPatch(buf, { x, y }) {
 }
 
 /**
+ * Vertical extent of the rows at column `x` that classify as `colour`.
+ *
+ * Answers "where is the picture, in pixels" — the measurement a contained
+ * picture needs, because its letterbox is not black: it is the scene canvas
+ * (#0a0a14), which differs from a band only in brightness. A "not black" scan
+ * measures the canvas; classifying each pixel through the same palette
+ * classifier the point probes use keeps one notion of "this row is the band".
+ *
+ * `top`/`bottom` are `null` when no row matches (nothing of that band was
+ * rendered in this column).
+ *
+ * @param {{data: Uint8Array, width: number, height: number}} buf
+ * @param {{x: number, colour: string, palette: Record<string, {r: number, g: number, b: number}>}} options
+ * @returns {{top: number|null, bottom: number|null}}
+ */
+export function bandRowExtent(buf, { x, colour, palette }) {
+  if (!Number.isInteger(x) || x < 0 || x >= buf.width) {
+    throw new Error(`bandRowExtent: column must be an integer in [0, ${buf.width}), got ${x}`);
+  }
+  let top = null;
+  let bottom = null;
+  for (let y = 0; y < buf.height; y++) {
+    const i = (buf.width * y + x) * 4;
+    const rgb = { r: buf.data[i], g: buf.data[i + 1], b: buf.data[i + 2] };
+    if (nearestPaletteColour(rgb, palette) !== colour) continue;
+    if (top === null) top = y;
+    bottom = y;
+  }
+  return { top, bottom };
+}
+
+/**
  * Nearest named colour, or `null` when nothing in the palette is close enough.
  *
  * The `null` is load-bearing (#1084): pure black sits 65025 (squared) from red,

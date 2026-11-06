@@ -2020,11 +2020,7 @@ describe("landscape composition default (#963)", () => {
     );
     const [entry] = assigned(result);
     expect(entry.media.fit).toBe("cover");
-    expect(entry.fitDowngrade).toEqual({
-      requested: "contain",
-      written: "cover",
-      visualType: "info-card",
-    });
+    expect(entry.fitDowngraded).toBe(true);
   });
 
   it("keeps contain for an image on a band layout", () => {
@@ -2034,7 +2030,7 @@ describe("landscape composition default (#963)", () => {
     );
     const [entry] = assigned(result);
     expect(entry.media.fit).toBe("contain");
-    expect(entry.fitDowngrade).toBeUndefined();
+    expect(entry.fitDowngraded).toBeUndefined();
   });
 
   it("keeps contain for a fullscreen scene — no text block over the picture", () => {

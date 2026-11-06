@@ -21,7 +21,7 @@
  * N", not "the frames differ" (an unrelated visual change satisfies the
  * latter).
  *
- * Cases pin five invariants:
+ * Cases pin six invariants:
  *   1. cropFocus.x moves the sampling window left/right — image AND video.
  *   2. The default (no cropFocus, no focus) samples the centre band — image
  *      AND video. The video default is the one that was silently broken.
@@ -32,10 +32,14 @@
  *   5. MediaCard passes media through unchanged: the same focus values land on
  *      the same bands inside the evidence card, which is a LANDSCAPE box — so
  *      it crops the tall source on the vertical axis.
+ *   6. A contained picture is anchored by its CONTAINER (#1075): centred by
+ *      default (y 656-1263, clear of the subtitle lane) and bottom-anchored
+ *      only where a band asks for it (y 1313-1919, lane cuts the top edge).
  *
  * Sampling and classification are NOT defined here: they live in
- * `__tests__/pixel-probe.mjs` (`meanColourInPatch` / `nearestPaletteColour`) and
- * are covered by the CI-run `pixel-probe.test.mjs`. That split is the fix for
+ * `__tests__/pixel-probe.mjs` (`meanColourInPatch` / `nearestPaletteColour` /
+ * `bandRowExtent`) and are covered by the CI-run `pixel-probe.test.mjs`. That
+ * split is the fix for
  * #1084 — this file spent 2026-10-30..11-01 red on main because its local
  * helpers were wrong, and being in `CI_SKIPPED_MACHINE_BOUND` meant no gate
  * ever saw them: the 60x60 patch was centred on the fractional `CARD_CENTRE.y`
@@ -68,8 +72,8 @@ import { mkdirSync, readFileSync, rmSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
-import { EVIDENCE_CARD } from "../lib/safe-zones.mjs";
-import { meanColourInPatch, nearestPaletteColour } from "./pixel-probe.mjs";
+import { EVIDENCE_CARD, SUBTITLE_LANE_TOP } from "../lib/safe-zones.mjs";
+import { bandRowExtent, meanColourInPatch, nearestPaletteColour } from "./pixel-probe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -319,27 +323,15 @@ describe("cropFocus takes precedence over focus", { timeout: 600_000 }, () => {
 //   containAlign "bottom" (pre-#1075)  : picture at y 1312-1920, frame centre black
 
 /**
- * Rows at column `x` that carry the LIME band.
+ * Vertical extent of the LIME band at column `x`.
  *
- * The letterbox is not black — it is the scene canvas (#060610), which differs
- * from the source palette only in brightness. Classifying by "not black" would
- * therefore measure the canvas, not the picture; the band's own channel is the
- * signal.
+ * The measurement itself lives in `pixel-probe.mjs` (with a CI test beside it)
+ * for the reason the module header gives: an arithmetic bug that only a
+ * machine-bound suite can see is a bug nobody sees.
  */
 async function bandExtent(props, x = 540) {
   const png = PNG.sync.read(readFileSync(await still(props)));
-  const isLime = (y) => {
-    const i = (png.width * y + x) << 2;
-    return png.data[i] < 60 && png.data[i + 1] > 200 && png.data[i + 2] < 60;
-  };
-  let top = null;
-  let bottom = null;
-  for (let y = 0; y < png.height; y++) {
-    if (!isLime(y)) continue;
-    if (top === null) top = y;
-    bottom = y;
-  }
-  return { top, bottom };
+  return bandRowExtent(png, { x, colour: "lime", palette: PALETTE });
 }
 
 describe("contain anchor follows the container (#1075)", { timeout: 600_000 }, () => {
@@ -352,6 +344,8 @@ describe("contain anchor follows the container (#1075)", { timeout: 600_000 }, (
     expect(top).toBeLessThanOrEqual(659);
     expect(bottom).toBeGreaterThanOrEqual(1261);
     expect(bottom).toBeLessThanOrEqual(1266);
+    // The whole picture stops above the burned-subtitle lane.
+    expect(bottom).toBeLessThan(SUBTITLE_LANE_TOP);
     // The centre of the frame is picture, not letterbox.
     expect(await sampleAt(props)).toBe("lime");
   });
@@ -365,18 +359,17 @@ describe("contain anchor follows the container (#1075)", { timeout: 600_000 }, (
     };
     const { top, bottom } = await bandExtent(props);
     console.log(`[evidence] contain(bottom) lime band y ${top}-${bottom}`);
-    // 1920 - 607.5 = 1312.5 → the picture starts below the content band and its
-    // top edge is inside the burned-subtitle lane (SUBTITLE_LANE_TOP = 1339).
+    // 1920 - 607.5 = 1312.5 → the picture starts below the content band and the
+    // subtitle lane cuts through its top edge.
     expect(top).toBeGreaterThanOrEqual(1310);
     expect(top).toBeLessThanOrEqual(1315);
     expect(bottom).toBe(1919);
+    expect(top).toBeLessThan(SUBTITLE_LANE_TOP);
+    expect(bottom).toBeGreaterThan(SUBTITLE_LANE_TOP);
     // What the viewer saw before the fix: canvas where the centre of the frame
-    // should be. `sampleAt` refuses to classify "nothing rendered here", which
-    // is exactly the assertion.
+    // should be. "Nothing rendered here" is a distinct answer from "a band".
     const png = PNG.sync.read(readFileSync(await still(props)));
-    const rgb = meanColourInPatch(png, CANVAS_CENTRE);
-    expect(rgb.g).toBeLessThan(60);
-    expect(nearestPaletteColour(rgb, PALETTE)).toBeNull();
+    expect(nearestPaletteColour(meanColourInPatch(png, CANVAS_CENTRE), PALETTE)).toBeNull();
   });
 
   it("cover is untouched by the anchor", async () => {

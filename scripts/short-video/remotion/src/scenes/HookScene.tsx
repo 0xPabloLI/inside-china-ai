@@ -41,12 +41,13 @@ import { SplitHighlight } from "../components/substring-highlight";
  * long-standing default.
  *
  * contain → the SAME band the body's media-bottom-bar scenes use
- * ([SAFE_ZONES.top, CONTAIN_MEDIA_BOTTOM], bottom-anchored — see
- * MediaBackground). Containing into `inset: 0` instead would centre the
- * letterboxed picture on the full 1920 frame (a 16:9 source at 1080 wide is
- * 608px tall, so y 656-1264), which runs straight through the text bar and into
- * the subtitle lane — and it would still not match the body, so the composition
- * would jump at the t=3.4s cut.
+ * ([SAFE_ZONES.top, CONTAIN_MEDIA_BOTTOM]), anchored to the bottom of that band
+ * — this scene passes `containAlign="bottom"` for exactly that reason, since
+ * MediaBackground now defaults to centring (#1075). Containing into `inset: 0`
+ * instead would centre the letterboxed picture on the full 1920 frame (a 16:9
+ * source at 1080 wide is 608px tall, so y 656-1264), which lays the picture
+ * across the text block — and it would still not match the body, so the
+ * composition would jump at the t=3.4s cut.
  *
  * Extracted from the component body: inlining the ternaries pushed `HookScene`
  * past the complexity ceiling the incremental lint enforces on changed files.

@@ -1991,10 +1991,12 @@ export function checkLayoutMediaRouting(scenes) {
  * (`hook`, `narrative/media-bottom-bar`, where the picture sits on the text
  * bar) and `media.mode: "fullscreen"` (whole frame, no text block over it).
  * Every other layout draws MediaBackground inside a full-frame container
- * behind the text: `contain` there letterboxes the picture inside a 1080×1920
- * box whose own text occupies the middle, i.e. the content lands near the
- * bottom edge — and with the pre-#1075 bottom anchor, straight into the
- * burned-subtitle lane (y 1312–1920 vs SUBTITLE_LANE_TOP 1339).
+ * behind the text, so `contain` letterboxes the picture into a framed box that
+ * the text block sits on top of — the "框中套框" the 2026-11-05 decision ruled
+ * out. (Before #1075 it was worse: the picture was bottom-anchored at
+ * y 1312–1920 and simply disappeared behind the burned subtitles. Since the
+ * render default became "center" the failure is quieter — still unreadable, no
+ * longer buried.)
  *
  * The allocator no longer writes such a verdict (#1075 downgrades it to cover
  * and warns), so what this check catches is a hand-authored scene-data: the
@@ -2020,7 +2022,7 @@ export function checkContainFitBand(scenes) {
       level: "fail",
       category: CATEGORY,
       check: CHECK,
-      detail: `Scene(s) ${offenders.join(", ")} declare media.fit = "contain" on a layout with no contain band — the picture is letterboxed inside the full-frame container, below the text block and behind the burned subtitles`,
+      detail: `Scene(s) ${offenders.join(", ")} declare media.fit = "contain" on a layout with no contain band — the picture is letterboxed inside the full-frame container as a framed box under the text block, which is neither readable as evidence nor usable as an ambient background`,
       fix: 'Use fit: "cover" (the frame default) if the beat is ambient, OR move the beat to a layout that owns a contain band (narrative with layout: "media-bottom-bar", or a hook), OR set media.mode: "fullscreen" so the picture owns the frame — fullscreen has no text block, so a centred contain is legal there',
     },
   ];

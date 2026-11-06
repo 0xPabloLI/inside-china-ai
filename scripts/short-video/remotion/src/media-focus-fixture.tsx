@@ -30,6 +30,7 @@
 import React from "react";
 import { AbsoluteFill, Composition, registerRoot } from "remotion";
 import { MediaBackground } from "./components/MediaBackground";
+import type { ContainAlign } from "./components/MediaBackground";
 import { MediaCard } from "./components/MediaCard";
 import type { MediaField } from "./types";
 
@@ -63,7 +64,7 @@ type FixtureProps = {
    *  default ("center", #1075). "bottom" reproduces the pre-#1075 behaviour,
    *  where every container bottom-anchored and a full-frame scene dropped the
    *  picture into the burned-subtitle lane. */
-  containAlign?: "bottom" | "center" | null;
+  containAlign?: ContainAlign | null;
 };
 
 const buildMedia = ({
@@ -100,7 +101,7 @@ const FixtureScene: React.FC<FixtureProps> = ({
       {wrap === "card" ? (
         <MediaCard media={media} duration={4} />
       ) : (
-        <MediaBackground media={media} duration={4} {...(containAlign ? { containAlign } : {})} />
+        <MediaBackground media={media} duration={4} containAlign={containAlign ?? undefined} />
       )}
     </AbsoluteFill>
   );
