@@ -167,7 +167,12 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                   overflow: "hidden",
                 }}
               >
-                <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
+                <MediaBackground
+                  media={scene.media}
+                  duration={duration}
+                  contentDir={contentDir}
+                  containAlign="bottom"
+                />
               </div>
               {/* The scrims are what hold the action rail and the subtitle gap
                 under the frame gate's brightness limit for daylight footage —

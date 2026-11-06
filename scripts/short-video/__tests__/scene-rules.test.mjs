@@ -38,6 +38,7 @@ import {
   MEDIA_STRATEGIES,
   checkMediaOptOutDeprecation,
   checkLayoutMediaRouting,
+  checkContainFitBand,
   checkBrollPromptDimensions,
   BROLL_SHOT_SIGNALS,
   checkInstructCoverage,
@@ -1700,6 +1701,86 @@ describe("checkLayoutMediaRouting (#761)", () => {
   it("is wired into runAllSceneDataChecks", () => {
     const { fail } = runAllSceneDataChecks([narrative({ assetNeed: "official chart" })], null);
     expect(fail.some((f) => f.check === "Text-first layout media routing")).toBe(true);
+  });
+});
+
+// ── checkContainFitBand (#1075: contain needs somewhere to put its letterbox) ──
+
+describe("checkContainFitBand (#1075)", () => {
+  const scene = (over = {}) => ({
+    id: 2,
+    visualType: "narrative",
+    layout: "media-split",
+    voiceover: "test",
+    media: { type: "image", path: "assets/wide.jpg", source: "SRC", fit: "contain" },
+    ...over,
+  });
+  const findings = (scenes) => checkContainFitBand(scenes);
+
+  it("fails contain on a full-frame layout (info-card / context / contrast)", () => {
+    for (const visualType of ["info-card", "context", "contrast"]) {
+      const [fail] = findings([scene({ visualType, layout: undefined })]);
+      expect(fail.level).toBe("fail");
+      expect(fail.check).toBe("contain fit has a band");
+      expect(fail.detail).toContain("Scene(s) 2 ");
+      expect(fail.fix).toContain("media-bottom-bar");
+    }
+  });
+
+  it("fails contain on the narrative layouts without a band", () => {
+    for (const layout of ["media-split", "media-overlay", "stacked-cards"]) {
+      const [fail] = findings([scene({ layout })]);
+      expect(fail.level).toBe("fail");
+      expect(fail.detail).toContain("Scene(s) 2 ");
+    }
+  });
+
+  it("passes contain on the two layouts that own a band", () => {
+    expect(findings([scene({ visualType: "hook", layout: "hero-center" })])).toEqual([]);
+    expect(findings([scene({ layout: "media-bottom-bar" })])).toEqual([]);
+    // An omitted layout resolves to media-bottom-bar through resolveRenderLayout.
+    expect(findings([scene({ layout: undefined })])).toEqual([]);
+  });
+
+  it("passes contain on a fullscreen scene — no text block, so a centred letterbox is legal", () => {
+    const fullscreen = scene({
+      visualType: "info-card",
+      layout: undefined,
+      media: {
+        type: "image",
+        path: "assets/wide.jpg",
+        source: "SRC",
+        fit: "contain",
+        mode: "fullscreen",
+      },
+    });
+    expect(findings([fullscreen])).toEqual([]);
+  });
+
+  it("ignores cover and absent fit", () => {
+    expect(
+      findings([
+        scene({ layout: "media-split", media: { type: "image", path: "a.jpg", fit: "cover" } }),
+      ]),
+    ).toEqual([]);
+    expect(
+      findings([scene({ layout: "media-split", media: { type: "image", path: "a.jpg" } })]),
+    ).toEqual([]);
+    expect(findings([scene({ layout: "media-split", media: undefined })])).toEqual([]);
+  });
+
+  it("is wired into runAllSceneDataChecks", () => {
+    // Minimal scene set: the check itself is the only one that can speak about
+    // `fit`, so look it up by name rather than asserting the whole report.
+    const { fail } = runAllSceneDataChecks(
+      [
+        { id: 1, visualType: "hook", voiceover: "hook line", texts: { hookLine: "hook line" } },
+        scene({ id: 2, layout: "media-split" }),
+        { id: 3, visualType: "cta", voiceover: "关注我们" },
+      ],
+      null,
+    );
+    expect(fail.some((f) => f.check === "contain fit has a band")).toBe(true);
   });
 });
 

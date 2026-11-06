@@ -370,6 +370,54 @@ export function resolveRenderLayout(scene) {
 }
 
 /**
+ * Whether the scene's renderer has the contain band (#963).
+ *
+ * Only NarrativeScene's `media-bottom-bar` variant and HookScene place a
+ * contained picture in [SAFE_ZONES.top, CONTAIN_MEDIA_BOTTOM]. InfoCard /
+ * Context / Contrast draw MediaBackground in a full-frame container, where
+ * contain letterboxes the picture somewhere inside the frame — those scenes
+ * keep cover rather than inherit a band they do not have. The layout is read
+ * through resolveRenderLayout (the render-side authority) so a narrative with
+ * media-split/media-overlay is not mistaken for the bottom-bar variant.
+ *
+ * Lives here (not in asset-sourcer.mjs) because both sides of the #1075
+ * contract need it: the allocator decides whether it may WRITE `contain`, and
+ * scene-rules decides whether a declared `contain` is legal. One predicate,
+ * so the writer and the gate cannot disagree.
+ *
+ * @param {{visualType?: string, layout?: string}} scene
+ * @returns {boolean}
+ */
+export function hasContainBand(scene) {
+  if (!scene) return false;
+  if (scene.visualType === "hook") return true;
+  return (
+    scene.visualType === "narrative" && resolveRenderLayout(scene) === DEFAULT_NARRATIVE_LAYOUT
+  );
+}
+
+/**
+ * Whether `fit: "contain"` is legal on this scene at all (#1075).
+ *
+ * `fullscreen` is the second legal home: ShortVideo hands the scene to
+ * FullscreenMedia before layout dispatch, so the picture occupies the whole
+ * frame with no text block over it — a centred letterbox costs nothing and
+ * crops nothing. That is the one place without a band where contain still
+ * means what #963 decided it means ("third-party content survives intact").
+ * Everywhere else a contained picture sits inside a full-frame container
+ * behind a text block, which is the "框里套框" the 2026-11-05 decision ruled
+ * out — those scenes get cover.
+ *
+ * @param {{visualType?: string, layout?: string, media?: {mode?: string}}} scene
+ * @returns {boolean}
+ */
+export function allowsContainFit(scene) {
+  if (!scene) return false;
+  if (scene.media?.mode === "fullscreen") return true;
+  return hasContainBand(scene);
+}
+
+/**
  * `HTML_SLOT_MAP`/`htmlSlotsFor()` were removed on 2026-09-02 with the
  * retired Playwright renderer (decision 59) — they had zero remaining
  * consumers in the live pipeline.

@@ -50,7 +50,19 @@ interface Props {
   contentDir?: string;
   /** Optional @remotion/effects to apply to video/image (e.g. blur, vignette). */
   effects?: EffectsProp;
+  /**
+   * Where a `fit: "contain"` picture sits vertically inside its container
+   * (#1075). `"bottom"` is only correct for the layouts that own a contain
+   * band — HookScene and NarrativeScene's `media-bottom-bar` — where the
+   * picture must land on the text bar. Everywhere else (full-frame info-card /
+   * context / contrast, evidence cards, fullscreen) the default `"center"`
+   * keeps the picture off the burned-subtitle lane.
+   */
+  containAlign?: ContainAlign;
 }
+
+/** Vertical anchor for a contained picture inside its container. */
+type ContainAlign = "bottom" | "center";
 
 /** Maps focus field to CSS object-position value. */
 const FOCUS_MAP: Record<string, string> = {
@@ -99,31 +111,40 @@ const resolvePreset = (
  * crop-decision.mjs `sourceFocusToObjectPosition` is the producer-side
  * conversion. The producer and this consumer must not be "fixed" independently.
  *
- * VERTICAL for fit:"contain" is forced to 100% (bottom). cropFocus.y is a
+ * VERTICAL for fit:"contain" is NOT read from cropFocus.y. cropFocus.y is a
  * CROP-framing value — it chooses which slice of a cover-cropped source
  * survives — and a contained picture keeps the whole source, so there is
- * nothing left to frame. What the vertical still controls is where the
- * letterboxed picture sits inside its band. Centre-anchoring (the old
- * behaviour) split the dead space above and below and left the picture ~300px
- * above the frame's centre of mass — the "内容整体太靠上" report.
- * Bottom-anchoring drops the picture directly onto the text bar so the two read
- * as one captioned unit; see CONTAIN_MEDIA_BOTTOM in lib/safe-zones.mjs for the
- * band that decides where that lands.
+ * nothing left to frame. The vertical therefore comes from `containAlign`,
+ * which describes the CONTAINER: only the layouts that give the picture a band
+ * want it dropped onto the text bar (`"bottom"`, see CONTAIN_MEDIA_BOTTOM in
+ * lib/safe-zones.mjs). Everything else — a full-frame info-card / context /
+ * contrast background, an evidence card, fullscreen — centres it (#1075).
+ * Before #1075 every container bottom-anchored, so a contain picture in a
+ * full-frame scene landed at y 1312–1920, under the burned subtitles
+ * (SUBTITLE_LANE_TOP 1339): the "画面被塞到字幕带下面" report.
  *
  * Extracted from the component body: inlining this pushed `MediaBackground`
  * past the complexity ceiling the incremental lint enforces on changed files.
  *
  * @param {MediaField} media - the scene's media field
+ * @param {ContainAlign} containAlign - vertical anchor for a contained picture
  * @returns {string} a CSS `object-position` value
  */
-const objectPositionFor = (media: MediaField): string => {
+const objectPositionFor = (media: MediaField, containAlign: ContainAlign): string => {
   const focusX = media.cropFocus?.x ?? 0.5;
-  if ((media.fit ?? "cover") === "contain") return `${focusX * 100}% 100%`;
+  if ((media.fit ?? "cover") === "contain") {
+    return `${focusX * 100}% ${containAlign === "bottom" ? "100%" : "50%"}`;
+  }
   if (media.cropFocus) return `${media.cropFocus.x * 100}% ${media.cropFocus.y * 100}%`;
   return FOCUS_MAP[media.focus ?? "center"] ?? "center";
 };
 
-export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) => {
+export const MediaBackground: React.FC<Props> = ({
+  media,
+  duration,
+  effects,
+  containAlign = "center",
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -240,9 +261,9 @@ export const MediaBackground: React.FC<Props> = ({ media, duration, effects }) =
     // cropped into a 1080xH band"), so the band was never the problem.
     //
     // objectPosition still belongs here: it is a plain CSS property on the
-    // underlying element and does apply. The rule — including why contain
-    // anchors to the bottom — lives in objectPositionFor above.
-    objectPosition: objectPositionFor(media),
+    // underlying element and does apply. The rule — including why only the
+    // band layouts anchor to the bottom — lives in objectPositionFor above.
+    objectPosition: objectPositionFor(media, containAlign),
     opacity,
     transform: `translate(${translateX}, ${translateY}) scale(${scale})`,
     filter: filter !== "none" ? filter : undefined,

@@ -51,9 +51,11 @@ import {
   parseResolutionDimensions,
   assetAspectRatio,
   isLandscapeAsset,
-  hasContainBand,
   LANDSCAPE_MIN_ASPECT,
 } from "../lib/asset-sourcer.mjs";
+// #1075: the band predicates are layout facts, so they live in the layout
+// authority — the allocator and scene-rules import the same pair.
+import { allowsContainFit, hasContainBand } from "../lib/text-slots.mjs";
 import { createSearchResultsCache, recordSearchResults } from "../lib/search-results-cache.mjs";
 
 // ─── search cache persistence ───
@@ -2007,12 +2009,65 @@ describe("landscape composition default (#963)", () => {
     expect(assigned(result)[0].media.fit).toBe("cover");
   });
 
-  it("keeps an existing contain verdict for an image on a no-band layout", () => {
+  it("downgrades an existing contain verdict for an image on a no-band layout", () => {
+    // #1075: this case used to keep `contain` (a pre-#963 contract). A
+    // contained picture in a full-frame container letterboxes below the text
+    // block and behind the burned subtitles, so the verdict degrades to cover
+    // and the downgrade is recorded for the caller to warn about.
     const result = assignAssetsToScenes(
       [asset("wide.jpg", "image", 2, { width: 1600, height: 900, fit: "contain" })],
       [scene(2, "info-card")],
     );
-    expect(assigned(result)[0].media.fit).toBe("contain");
+    const [entry] = assigned(result);
+    expect(entry.media.fit).toBe("cover");
+    expect(entry.fitDowngrade).toEqual({
+      requested: "contain",
+      written: "cover",
+      visualType: "info-card",
+    });
+  });
+
+  it("keeps contain for an image on a band layout", () => {
+    const result = assignAssetsToScenes(
+      [asset("wide.jpg", "image", 2, { width: 1600, height: 900, fit: "contain" })],
+      [{ id: 2, visualType: "narrative", layout: "media-bottom-bar" }],
+    );
+    const [entry] = assigned(result);
+    expect(entry.media.fit).toBe("contain");
+    expect(entry.fitDowngrade).toBeUndefined();
+  });
+
+  it("keeps contain for a fullscreen scene — no text block over the picture", () => {
+    // Read at the predicate level: a scene that already carries media is
+    // "occupied" for the allocator, so fullscreen can only reach the renderer
+    // through a hand-authored binding (or a scene whose media the allocator
+    // wrote earlier). What must hold is that `contain` is legal there.
+    expect(
+      allowsContainFit({ id: 2, visualType: "info-card", media: { mode: "fullscreen" } }),
+    ).toBe(true);
+    expect(
+      allowsContainFit({
+        id: 2,
+        visualType: "narrative",
+        layout: "media-split",
+        media: { mode: "fullscreen" },
+      }),
+    ).toBe(true);
+    expect(allowsContainFit({ id: 2, visualType: "info-card", media: { mode: "card" } })).toBe(
+      false,
+    );
+    expect(allowsContainFit(null)).toBe(false);
+  });
+
+  it("animates a downgraded image as cover, not as a still", () => {
+    // The written animation has to follow the WRITTEN fit: a contained still
+    // gets fade, a cover still keeps ken-burns. Passing the pre-downgrade
+    // verdict to selectAnimationForAsset would freeze a cover picture.
+    const result = assignAssetsToScenes(
+      [asset("wide.jpg", "image", 2, { width: 1600, height: 900, fit: "contain" })],
+      [scene(2, "info-card")],
+    );
+    expect(assigned(result)[0].media.animation).toBe("ken-burns");
   });
 
   it("keeps an explicit fit for a portrait image", () => {

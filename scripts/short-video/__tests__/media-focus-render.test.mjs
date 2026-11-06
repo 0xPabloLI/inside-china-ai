@@ -305,6 +305,91 @@ describe("cropFocus takes precedence over focus", { timeout: 600_000 }, () => {
 // is what makes CARD_CENTRE the right probe (#1084 lead 2, verified when the
 // #1021 geometry change made that centre a half pixel).
 
+// ─── 6: fit:"contain" is anchored by the CONTAINER, not by the frame (#1075) ───
+//
+// The bug: `objectPositionFor` forced the vertical to 100% for every contained
+// picture, whatever container it was in. Correct in the contain band (hook,
+// narrative media-bottom-bar, where the picture must sit on the text bar) and
+// wrong everywhere else: a 16:9 source contained in a full-frame 1080x1920
+// scene is 1080x608 and lands at y 1312-1920 — under the subtitle lane, which
+// starts at 1339. This fixture renders exactly that container (AbsoluteFill,
+// no band) so the two anchors are measurable as picture extents, not opinions.
+//
+//   containAlign "center" (default now): picture at y 656-1264, frame centre lit
+//   containAlign "bottom" (pre-#1075)  : picture at y 1312-1920, frame centre black
+
+/**
+ * Rows at column `x` that carry the LIME band.
+ *
+ * The letterbox is not black — it is the scene canvas (#060610), which differs
+ * from the source palette only in brightness. Classifying by "not black" would
+ * therefore measure the canvas, not the picture; the band's own channel is the
+ * signal.
+ */
+async function bandExtent(props, x = 540) {
+  const png = PNG.sync.read(readFileSync(await still(props)));
+  const isLime = (y) => {
+    const i = (png.width * y + x) << 2;
+    return png.data[i] < 60 && png.data[i + 1] > 200 && png.data[i + 2] < 60;
+  };
+  let top = null;
+  let bottom = null;
+  for (let y = 0; y < png.height; y++) {
+    if (!isLime(y)) continue;
+    if (top === null) top = y;
+    bottom = y;
+  }
+  return { top, bottom };
+}
+
+describe("contain anchor follows the container (#1075)", { timeout: 600_000 }, () => {
+  it("default anchor centres the picture — clear of the subtitle lane", async () => {
+    const props = { asset: "image", source: "horizontal", fit: "contain" };
+    const { top, bottom } = await bandExtent(props);
+    console.log(`[evidence] contain(default) lime band y ${top}-${bottom}`);
+    // 1080 wide → 607.5 tall → (1920 - 607.5) / 2 = 656.25 → 656..1263
+    expect(top).toBeGreaterThanOrEqual(654);
+    expect(top).toBeLessThanOrEqual(659);
+    expect(bottom).toBeGreaterThanOrEqual(1261);
+    expect(bottom).toBeLessThanOrEqual(1266);
+    // The centre of the frame is picture, not letterbox.
+    expect(await sampleAt(props)).toBe("lime");
+  });
+
+  it("bottom anchor (the pre-#1075 rule) puts the picture in the subtitle lane", async () => {
+    const props = {
+      asset: "image",
+      source: "horizontal",
+      fit: "contain",
+      containAlign: "bottom",
+    };
+    const { top, bottom } = await bandExtent(props);
+    console.log(`[evidence] contain(bottom) lime band y ${top}-${bottom}`);
+    // 1920 - 607.5 = 1312.5 → the picture starts below the content band and its
+    // top edge is inside the burned-subtitle lane (SUBTITLE_LANE_TOP = 1339).
+    expect(top).toBeGreaterThanOrEqual(1310);
+    expect(top).toBeLessThanOrEqual(1315);
+    expect(bottom).toBe(1919);
+    // What the viewer saw before the fix: canvas where the centre of the frame
+    // should be. `sampleAt` refuses to classify "nothing rendered here", which
+    // is exactly the assertion.
+    const png = PNG.sync.read(readFileSync(await still(props)));
+    const rgb = meanColourInPatch(png, CANVAS_CENTRE);
+    expect(rgb.g).toBeLessThan(60);
+    expect(nearestPaletteColour(rgb, PALETTE)).toBeNull();
+  });
+
+  it("cover is untouched by the anchor", async () => {
+    // Control: with cover there is no letterbox, so both anchors fill the frame.
+    for (const containAlign of [null, "bottom"]) {
+      const props = { asset: "image", source: "horizontal", containAlign };
+      const { top, bottom } = await bandExtent(props);
+      expect(top, String(containAlign)).toBe(0);
+      expect(bottom, String(containAlign)).toBe(1919);
+    }
+  });
+});
+
 describe("MediaCard passes focus through to MediaBackground", { timeout: 600_000 }, () => {
   it("card: focus top samples the TOP band inside the card", async () => {
     expect(

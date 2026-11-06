@@ -126,7 +126,9 @@ asset-sourcer 构建跨内容已用素材索引（扫描各内容包 `assets/` �
 
 自动取材对第三方横屏素材（源宽高比 ≥ 1.2）写 `fit: "contain"`：画面整幅保留，底边挂在文字条上方；三行及以下文案条完全在画面外，四行文案条与画面底边有 40px 既有重叠（`CONTAIN_MEDIA_BOTTOM`，2026-10-29 契约）。依据是 2026-11-01 用户裁决「第三方横屏素材完整展示」——cover 塞进 1080×1309 媒体带只保留 16:9 源宽度的约 46%，且没有逐帧保护。竖屏/方形素材仍默认 cover（填满画幅不损失内容）；手写 pack 显式声明的 `fit` 不受影响；AI 生成的 B-roll 不经 `assignAssetsToScenes`，保持既有构图。
 
-落点只限有 contain 带的模板：NarrativeScene 的 `media-bottom-bar` 与 HookScene。info-card / context / contrast 这类全幅背景容器没有该带，不套用这条 contain 默认（保留各自既有 fit；图片已有的 contain 判定是本票之外的旧契约）——否则 contain 会把画面压到容器底部，落进字幕带。
+落点只限有 contain 带的模板：NarrativeScene 的 `media-bottom-bar` 与 HookScene。info-card / context / contrast 这类全幅背景容器没有该带，不套用这条 contain 默认——否则 contain 会把画面压到容器底部，落进字幕带。
+
+**图片已有的 contain 判定同样受这条约束（#1075）**：`assignAssetsToScenes` 只在 `allowsContainFit(scene)` 为真时保留 VLM/crop 给的 `contain`——即有 contain 带的布局，或 `media.mode: "fullscreen"`（整幅无文字块，居中 letterbox 合法）。其余布局降级为 `cover` 并在 `media-patch.json` 条目上记 `fitDowngrade`、产线打一条告警；`scene-rules.mjs` 的 `contain fit has a band` 检查对**手写** scene-data 里同样的组合直接 fail（提示改 cover、切 `media-bottom-bar`、或 `fullscreen`）。渲染端 `MediaBackground` 的 `containAlign` 默认 `center`，只有 HookScene 与 `media-bottom-bar` 传 `bottom`——底挂只在有带容器里才成立。两个判据同源于 `lib/text-slots.mjs` 的 `hasContainBand` / `allowsContainFit`，写入端与门禁不会分叉。
 
 「整幅保留」指布局不裁切：入场动效仍会推镜（fade 1.05、ken-burns 1.12），折合片尾画幅约 4.8% / 10.7% 被推镜吃掉，与 B4 样片一致；这条规则管的是布局裁切，不是动效推镜。
 

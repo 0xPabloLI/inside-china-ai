@@ -225,7 +225,12 @@ export const NarrativeScene: React.FC<{
                   overflow: "hidden",
                 }}
               >
-                <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
+                <MediaBackground
+                  media={scene.media!}
+                  duration={duration}
+                  contentDir={contentDir}
+                  containAlign="bottom"
+                />
               </div>
               {/* The scrims are what keep a full-bleed band inside the frame
                   gate's rail and subtitle-gap limits — see the MEDIA_BAND note
