@@ -44,6 +44,7 @@ const THRESHOLDS = getPlatformProfile("tiktok").thresholds;
 import {
   REMOTION_SLOT_MAP,
   DEFAULT_NARRATIVE_LAYOUT,
+  allowsContainFit,
   assertKnownTextFields,
   resolveRenderLayout,
   slotId,
@@ -1982,6 +1983,51 @@ export function checkLayoutMediaRouting(scenes) {
   return results;
 }
 
+/**
+ * #1075: `fit: "contain"` needs somewhere to put its letterbox.
+ *
+ * A contained 16:9 picture keeps its whole frame but must be placed — and the
+ * only placements that work are the ones with room for it: the contain band
+ * (`hook`, `narrative/media-bottom-bar`, where the picture sits on the text
+ * bar) and `media.mode: "fullscreen"` (whole frame, no text block over it).
+ * Every other layout draws MediaBackground inside a full-frame container
+ * behind the text, so `contain` letterboxes the picture into a framed box that
+ * the text block sits on top of — the "框中套框" the 2026-11-05 decision ruled
+ * out. (Before #1075 it was worse: the picture was bottom-anchored at
+ * y 1312–1920 and simply disappeared behind the burned subtitles. Since the
+ * render default became "center" the failure is quieter — still unreadable, no
+ * longer buried.)
+ *
+ * The allocator no longer writes such a verdict (#1075 downgrades it to cover
+ * and warns), so what this check catches is a hand-authored scene-data: the
+ * writer asked for "完整展示" on a layout that cannot show it. Fails rather
+ * than warns on purpose — cover still ships a picture, an unreadable one is
+ * the defect being reported.
+ *
+ * `allowsContainFit` is the same predicate the allocator uses, so the writer
+ * and the gate cannot drift apart.
+ */
+export function checkContainFitBand(scenes) {
+  const CHECK = "contain fit has a band";
+  const CATEGORY = "Media";
+  const offenders = [];
+  for (const scene of scenes || []) {
+    if (scene?.media?.fit !== "contain") continue;
+    if (allowsContainFit(scene)) continue;
+    offenders.push(String(scene.id));
+  }
+  if (offenders.length === 0) return [];
+  return [
+    {
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene(s) ${offenders.join(", ")} declare media.fit = "contain" on a layout with no contain band — the picture is letterboxed inside the full-frame container as a framed box under the text block, which is neither readable as evidence nor usable as an ambient background`,
+      fix: 'Use fit: "cover" (the frame default) if the beat is ambient, OR move the beat to a layout that owns a contain band (narrative with layout: "media-bottom-bar", or a hook), OR set media.mode: "fullscreen" so the picture owns the frame — fullscreen has no text block, so a centred contain is legal there',
+    },
+  ];
+}
+
 export function checkMediaStrategyContract(scenes) {
   const CHECK = "B-roll strategy contract";
   const CATEGORY = "Media";
@@ -2514,6 +2560,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),
     ...checkLayoutMediaRouting(scenes),
+    ...checkContainFitBand(scenes),
     ...checkBrollPromptDimensions(scenes),
     ...avatarResults.filter((r) => r.check !== AVATAR_USAGE_CHECK),
   ];

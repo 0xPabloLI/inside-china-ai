@@ -66,7 +66,7 @@ import { execFileSync } from "child_process";
 import { ALL_SOURCES, SOURCE_ATTRIBUTIONS, SUPPORTED_YTDLP_PLATFORMS } from "./source-registry.mjs";
 import { brollSectionSpec } from "./media-window.mjs";
 import { VALID_FITS } from "./media-bg.mjs";
-import { DEFAULT_NARRATIVE_LAYOUT, resolveRenderLayout } from "./text-slots.mjs";
+import { allowsContainFit, hasContainBand } from "./text-slots.mjs";
 import {
   getCachedSearchResults,
   getOrSearchResults,
@@ -327,24 +327,9 @@ export function isLandscapeAsset(asset) {
   return ratio != null && ratio >= LANDSCAPE_MIN_ASPECT;
 }
 
-/**
- * Whether the scene's renderer has the contain band (#963).
- *
- * Only NarrativeScene's `media-bottom-bar` variant and HookScene place a
- * contained picture in [SAFE_ZONES.top, CONTAIN_MEDIA_BOTTOM]. InfoCard /
- * Context / Contrast draw MediaBackground in a full-frame container, where
- * contain bottom-anchors a 16:9 picture under the subtitle lane — those scenes
- * keep cover rather than inherit a band they do not have. The layout is read
- * through resolveRenderLayout (the render-side authority) so a narrative with
- * media-split/media-overlay is not mistaken for the bottom-bar variant.
- */
-export function hasContainBand(scene) {
-  if (!scene) return false;
-  if (scene.visualType === "hook") return true;
-  return (
-    scene.visualType === "narrative" && resolveRenderLayout(scene) === DEFAULT_NARRATIVE_LAYOUT
-  );
-}
+// `hasContainBand` / `allowsContainFit` moved to lib/text-slots.mjs (#1075):
+// scene-rules needs the same predicate, and importing this module from there
+// would drag the search/download stack into the pre-render gate.
 
 // ─── Pure functions ───
 
@@ -1311,6 +1296,12 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
 
       const vt = target.visualType;
       const containBand = hasContainBand(target);
+      // #1075: a `contain` verdict may only be written where the renderer has
+      // somewhere to put the letterbox (a band, or a text-free fullscreen
+      // frame). Anywhere else the picture would sit inside a full-frame
+      // container behind the text block, so the verdict degrades to cover.
+      const containAllowed = allowsContainFit(target);
+      const containDowngraded = asset.fit === "contain" && !containAllowed;
       const media = {
         type: asset.type,
         path: asset.path,
@@ -1329,14 +1320,20 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       if (vt === "hook") {
         media.fit = hookFitFor(asset);
       } else if (landscape && containBand) {
+        // Deliberately `containBand`, not `containAllowed`: #963 decided that a
+        // third-party landscape source goes contain only where a band exists,
+        // and a fullscreen scene is cover under that same decision (the picture
+        // fills the frame). The fullscreen exemption in `allowsContainFit`
+        // protects a verdict that already exists; it does not extend the
+        // default.
         media.fit = "contain";
       } else if (asset.fit && !isVideo) {
-        // Images keep the VLM/crop verdict (cover or contain), including on
-        // layouts without the contain band — a pre-existing contract this
-        // ticket does not change. Videos are decided by the landscape rule
+        // Images keep the VLM/crop verdict (cover or contain). #1075: except
+        // `contain` on a layout with no band — there it degrades to cover and
+        // cropFocus still applies. Videos are decided by the landscape rule
         // above; portrait/square keep cover, so a portrait contain verdict is
         // intentionally not applied (#963 scope).
-        media.fit = asset.fit;
+        media.fit = containDowngraded ? "cover" : asset.fit;
       }
       // #1030 / #357: single content-aware seam for every written animation.
       // A talking head keeps its own motion (`none`); charts, screenshots and
@@ -1355,6 +1352,9 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         source: asset.source || asset.from || "unknown",
         attribution: asset.attribution || null,
         status: "assigned",
+        // A contain verdict with no band to land in (the hook's composition
+        // fit goes through hookFitFor instead, so a hook never reaches this).
+        ...(containDowngraded ? { fitDowngraded: true } : {}),
         ...makeRelevance({
           score: asset.relevanceScore,
           source: RELEVANCE_SOURCE.VLM,
@@ -3972,6 +3972,15 @@ export async function main(args = process.argv.slice(2)) {
     usedIndex: usedAssetIndex,
   });
   const assignedEntries = patches.filter((p) => p.status === "assigned");
+  // #1075: a contain verdict that had nowhere to land is a silent quality loss
+  // unless it is said out loud — the picture still ships, only cropped.
+  const fitDowngrades = assignedEntries.filter((p) => p.fitDowngraded);
+  if (fitDowngrades.length > 0) {
+    const where = fitDowngrades.map((p) => `scene ${p.sceneId} (${p.visualType})`).join(", ");
+    console.warn(
+      `⚠️  ${fitDowngrades.length} 个 contain 判定改为 cover 渲染：目标模板没有 contain 带（contain 会把画面 letterbox 到文字/字幕带下方）— ${where}`,
+    );
+  }
   const reusedCount = assignedEntries.filter((p) => p.reused === true).length;
   const reuseStats = {
     threshold: relevanceThreshold,

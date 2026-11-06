@@ -13,7 +13,7 @@
  * the ceiling-free classifier called that black "red".
  */
 import { describe, it, expect } from "vitest";
-import { meanColourInPatch, nearestPaletteColour } from "./pixel-probe.mjs";
+import { meanColourInPatch, nearestPaletteColour, bandRowExtent } from "./pixel-probe.mjs";
 import { CANVAS } from "../lib/safe-zones.mjs";
 
 /** PixelBuffer filled with one colour. */
@@ -79,6 +79,37 @@ describe("meanColourInPatch", () => {
     const buf = solidBuffer(CANVAS.width, CANVAS.height, 1, 2, 3);
     expect(() => meanColourInPatch(buf, { x: NaN, y: 500 })).toThrow(/centre must be finite/);
     expect(() => meanColourInPatch(buf, { x: 500, y: Infinity })).toThrow(/centre must be finite/);
+  });
+});
+
+// ─── bandRowExtent ───
+
+describe("bandRowExtent", () => {
+  const palette = {
+    red: { r: 255, g: 0, b: 0 },
+    lime: { r: 0, g: 255, b: 0 },
+    blue: { r: 0, g: 0, b: 255 },
+  };
+
+  it("measures the rows of one band, ignoring the canvas around it", () => {
+    // The #1075 shape: a letterboxed picture between two stretches of canvas.
+    // "not black" would return 0..height here — the canvas is not black.
+    const buf = bufferWithRect(40, 100, { yStart: 30, yEnd: 70, xStart: 0, xEnd: 40 }, 0, 255, 0);
+    expect(bandRowExtent(buf, { x: 20, colour: "lime", palette })).toEqual({ top: 30, bottom: 69 });
+  });
+
+  it("returns nulls when the band is absent from that column", () => {
+    const buf = solidBuffer(10, 10, 10, 10, 20);
+    expect(bandRowExtent(buf, { x: 5, colour: "lime", palette })).toEqual({
+      top: null,
+      bottom: null,
+    });
+  });
+
+  it("refuses a column outside the frame instead of clamping", () => {
+    const buf = solidBuffer(10, 10, 10, 10, 20);
+    expect(() => bandRowExtent(buf, { x: 10, colour: "lime", palette })).toThrow(/column/);
+    expect(() => bandRowExtent(buf, { x: -1, colour: "lime", palette })).toThrow(/column/);
   });
 });
 

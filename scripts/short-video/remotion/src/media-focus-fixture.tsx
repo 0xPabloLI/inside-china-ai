@@ -30,6 +30,7 @@
 import React from "react";
 import { AbsoluteFill, Composition, registerRoot } from "remotion";
 import { MediaBackground } from "./components/MediaBackground";
+import type { ContainAlign } from "./components/MediaBackground";
 import { MediaCard } from "./components/MediaCard";
 import type { MediaField } from "./types";
 
@@ -56,6 +57,14 @@ type FixtureProps = {
   cropFocusY?: number | null;
   /** Deprecated focus enum; only observable when cropFocus is absent. */
   focus?: "top" | "center" | "bottom" | null;
+  /** `media.fit`. Omitted = cover (the frame default). Set "contain" to make
+   *  the letterbox — and therefore the vertical anchor — observable. */
+  fit?: "cover" | "contain" | null;
+  /** Vertical anchor for a contained picture. Omitted = MediaBackground's
+   *  default ("center", #1075). "bottom" reproduces the pre-#1075 behaviour,
+   *  where every container bottom-anchored and a full-frame scene dropped the
+   *  picture into the burned-subtitle lane. */
+  containAlign?: ContainAlign | null;
 };
 
 const buildMedia = ({
@@ -64,6 +73,7 @@ const buildMedia = ({
   cropFocusX = null,
   cropFocusY = null,
   focus = null,
+  fit = null,
 }: FixtureProps): MediaField => {
   const media: MediaField = {
     type: asset,
@@ -76,17 +86,22 @@ const buildMedia = ({
     media.cropFocus = { x: cropFocusX ?? 0.5, y: cropFocusY ?? 0.5 };
   }
   if (focus) media.focus = focus;
+  if (fit) media.fit = fit;
   return media;
 };
 
-const FixtureScene: React.FC<FixtureProps> = ({ wrap = "background", ...rest }) => {
+const FixtureScene: React.FC<FixtureProps> = ({
+  wrap = "background",
+  containAlign = null,
+  ...rest
+}) => {
   const media = buildMedia(rest);
   return (
     <AbsoluteFill style={{ background: "#000" }}>
       {wrap === "card" ? (
         <MediaCard media={media} duration={4} />
       ) : (
-        <MediaBackground media={media} duration={4} />
+        <MediaBackground media={media} duration={4} containAlign={containAlign ?? undefined} />
       )}
     </AbsoluteFill>
   );
@@ -107,6 +122,8 @@ export const MediaFocusFixtureRoot: React.FC = () => (
       cropFocusX: null,
       cropFocusY: null,
       focus: null,
+      fit: null,
+      containAlign: null,
     }}
   />
 );

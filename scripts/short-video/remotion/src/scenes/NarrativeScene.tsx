@@ -213,7 +213,8 @@ export const NarrativeScene: React.FC<{
                 style={{
                   position: "absolute",
                   // contain → the picture's own band, hung on the text bar
-                  // (CONTAIN_MEDIA_BOTTOM + MediaBackground's bottom anchor).
+                  // (CONTAIN_MEDIA_BOTTOM, with containAlign="bottom" passed
+                  // below — MediaBackground defaults to centring, #1075).
                   // cover → the full-bleed band, unchanged.
                   top: scene.media!.fit === "contain" ? SAFE_ZONES.top : 0,
                   left: 0,
@@ -225,7 +226,12 @@ export const NarrativeScene: React.FC<{
                   overflow: "hidden",
                 }}
               >
-                <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
+                <MediaBackground
+                  media={scene.media!}
+                  duration={duration}
+                  contentDir={contentDir}
+                  containAlign="bottom"
+                />
               </div>
               {/* The scrims are what keep a full-bleed band inside the frame
                   gate's rail and subtitle-gap limits — see the MEDIA_BAND note
