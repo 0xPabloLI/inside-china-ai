@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.53.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.4...tanstack_start_ts-v1.53.5) (2026-11-06)
+
+
+### Bug Fixes
+
+* **video:** keep contain fit inside its band and centre it elsewhere ([#1075](https://github.com/0xPabloLI/inside-china-ai/issues/1075)) ([#1153](https://github.com/0xPabloLI/inside-china-ai/issues/1153)) ([d523ff9](https://github.com/0xPabloLI/inside-china-ai/commit/d523ff9bc79c78b414debb6b198446b2e69eb255))
+
 ## [1.53.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.3...tanstack_start_ts-v1.53.4) (2026-11-05)
 
 
