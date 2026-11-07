@@ -5,8 +5,10 @@
 # - An entry listed here is ignored; there is no enable/disable flag.
 # - Every entry needs a written rationale AND a revisit condition.
 # - "No fixed release exists" or "fix is vendor-pinned" are the only valid
-#   reasons to be here. If a fix becomes reachable or the advisory is withdrawn
-#   upstream, delete the entry and let the scan go red until the dependency lands.
+#   reasons to be here. If a fix becomes reachable, delete the entry and let
+#   the scan go red until the dependency lands. If an advisory is withdrawn
+#   upstream, delete the entry — the scan goes clean immediately; no
+#   dependency change is needed.
 
 [[IgnoredVulns]]
 id = "GHSA-gcqx-w48m-w2h4"
