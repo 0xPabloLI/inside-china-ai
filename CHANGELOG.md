@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.53.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.5...tanstack_start_ts-v1.53.6) (2026-11-07)
+
+
+### Bug Fixes
+
+* **short-video:** state the SOCKS verdict for lowercase http_proxy ([#978](https://github.com/0xPabloLI/inside-china-ai/issues/978)) ([#1167](https://github.com/0xPabloLI/inside-china-ai/issues/1167)) ([7851194](https://github.com/0xPabloLI/inside-china-ai/commit/785119459909d9bd1b275b4424f7dca2c91b9598))
+
 ## [1.53.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.4...tanstack_start_ts-v1.53.5) (2026-11-06)
 
 
