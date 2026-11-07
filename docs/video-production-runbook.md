@@ -167,6 +167,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 | 17  | yt-dlp 自选 firefox profile 选到空库 → search 静默 0 结果   | 同一 resolver **固定 profile 绝对路径**，按「Install 级 Default → Profile 级 Default → 其余」排序候选并跳过空 `cookies.sqlite`（#328）                          |
 | 18  | 小写 `http_proxy` 没进 ffmpeg 子进程 → `--download-sections` 段直连、CDN 超时（`ffmpeg exited with code 196`） | `lib/ytdlp-guard.mjs#ytdlpProxyEnv()` 展开进两处 ffmpeg 委派 spawn 的子进程 env（`asset-sourcer.downloadYtdlp` / `video-downloaders.downloadYtdlpAdapter`），不再依赖上游 FFmpegFD 的 `--proxy` 注入；真实 yt-dlp → stub ffmpeg 探针守最后一跳（#329，需本机有 yt-dlp；无该二进制时 skip） |
 | 18b | 系统代理只有 SOCKS → ffmpeg 段仍走直连                     | 上游硬限（2026-09-25 裁决，不造 SOCKS→HTTP 桥）：`resolveYtdlpProxy` 每进程一次性 warn，点名 SOCKS 端点并提示改用 `http_proxy` 的 HTTP 出口；`parseMacSystemProxy` 为该判决暴露 `socksProxy`（#329） |
+| 18c | 小写 `http_proxy`（或大写 `HTTP_PROXY`/`https_proxy`/`HTTPS_PROXY`）本身是 SOCKS URL → ffmpeg 段不经过该代理（失败或退回直连），运行看起来走了代理 | 同一判决的第二条触发路径（#978）：`resolveYtdlpProxy` 在两条 env 分支上识别 `socks`/`socks4`/`socks4a`/`socks5`/`socks5h` scheme（斜杠数容错）并每进程一次性 warn，点名**实际生效的那个变量**（大写分支按 `https_proxy > HTTP_PROXY > HTTPS_PROXY` 的优先级归因）。端点采用**默认不打印**策略——值里出现 `@` 即打 `<credentials-redacted proxy URL>`，只有在无 `@`、无路径、无空白、长度 ≤300 且 host 是 IPv4/IPv6/`localhost`/纯字母点分域名时才打印 `host[:port]`；纯字母 `username.password` 与 `proxy.corp` 形状不可区分，属已知窄交易。去重槽与 18b 独立。路由不变（不改写成 HTTP 代理出口、不造 SOCKS→HTTP 桥）。实测 ffmpeg 8.1.2（真监听器 + 真源站）：`http_proxy=http://<listener>` 产生 1 次 accept、源站 0 命中；`socks5://` 与 `socks5h://` 均 0 次 accept、源站各命中 1 次 ⇒ SOCKS scheme 被绕过而非尝试 |
 
 ## Content Standards
 
