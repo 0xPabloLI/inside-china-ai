@@ -416,6 +416,16 @@ function ffmpegSocksGap(remedies) {
 const proxyWarnings = { socksOnly: false, socksInEnv: false };
 
 /**
+ * Upper-case proxy variables, in the order they win — highest first.
+ *
+ * The value and the name reported by the SOCKS warning both come from a single
+ * walk of this list, so the precedence exists once: reordering it or adding a
+ * variable cannot leave the warning blaming a source that did not supply the
+ * value.
+ */
+const ENV_PROXY_KEYS = ["https_proxy", "HTTP_PROXY", "HTTPS_PROXY"];
+
+/**
  * Resolve the proxy to hand to yt-dlp via `--proxy`, or null when none is needed.
  *
  * A lowercase `http_proxy` means the ffmpeg child already inherits the exact
@@ -459,18 +469,14 @@ export function resolveYtdlpProxy({
     }
     return null;
   }
-  const fromEnv = env.https_proxy || env.HTTP_PROXY || env.HTTPS_PROXY;
-  if (fromEnv) {
+  const envProxyVar = ENV_PROXY_KEYS.find((key) => env[key]);
+  if (envProxyVar) {
+    const fromEnv = env[envProxyVar];
     // The value is mirrored into the ffmpeg child's `http_proxy` by
     // `ytdlpProxyEnv()`, so a SOCKS URL here is worse than the inherited case:
     // this repo manufactures an env var ffmpeg will ignore.
     if (isSocksProxyUrl(fromEnv)) {
-      const variable = env.https_proxy
-        ? "https_proxy"
-        : env.HTTP_PROXY
-          ? "HTTP_PROXY"
-          : "HTTPS_PROXY";
-      warnSocksEnvProxy(variable, fromEnv, warnings, warn);
+      warnSocksEnvProxy(envProxyVar, fromEnv, warnings, warn);
     }
     return withScheme(fromEnv);
   }
