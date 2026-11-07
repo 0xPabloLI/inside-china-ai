@@ -200,7 +200,7 @@
 
 ## 近轮一句话档案（Round CL → J）
 
-**Round CL**（`#1043` 交付闭票——本地 BGM 默认音量 `0.12 → 0.08` 重定标（PR #1149，squash `9a8e4166`）：`DEFAULT_BGM_VOLUME` 单一下调 3.52 dB 使真实成片配乐间距由 13.8 dB 升到 17.3 dB（PASS，距 12 dB 下沿 5.3 dB），两处产线日志与 `volume=` 断言改为从常量派生，研究 §6.1 记符号约定、L1 runbook 只留参数；新增合成音频 margin 回归，7163 passed / 7 skipped，两轴 review 与 droid 两条 P2/P3 全修；frontier：Track 1A/1B 空 → Step 4 ② HITL `#1075 → #1012`）；；
+**Round CL**（`#1043` 交付闭票——本地 BGM 默认音量 `0.12 → 0.08` 重定标（PR #1149，squash `9a8e4166`）：`DEFAULT_BGM_VOLUME` 单一下调 3.52 dB 使真实成片配乐间距由 13.8 dB 升到 17.3 dB（PASS，距 12 dB 下沿 5.3 dB），两处产线日志与 `volume=` 断言改为从常量派生，研究 §6.1 记符号约定、L1 runbook 只留参数；新增合成音频 margin 回归，7163 passed / 7 skipped，两轴 review 与 droid 两条 P2/P3 全修；frontier：Track 1A/1B 空 → Step 4 ② HITL `#1075 → #1012`）
 
 **Round CXLIX**（`#1030` 交付闭票——D6 内容感知动效 / source-tier / context·contrast 音量档（PR #1146，squash `a49e36aece`）：`selectAnimationForAsset()` 成为两个生产端共用的唯一 seam，音频包络独立于视觉预设使 `none` 可用于 talking-head 片段，`sourceTierRank()` 由 Source Registry category 派生；真实包 10 包 / 216 assets 回放 101 动效变更 + 8 次重排，真机 still `none` 0px 容器位移 / 2,060,209 可见像素，7161 passed / 7 skipped，两轴 review blocking 全修；frontier：Track 1A/1B 空 → Step 4 ② HITL `#1043`）
 
