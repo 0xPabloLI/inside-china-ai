@@ -835,6 +835,256 @@ describe("#324 proxy resolution", () => {
   });
 });
 
+// ─── #978: lowercase http_proxy carrying a SOCKS URL ───
+//
+// The same failure class as #329's SOCKS-only system config, on a second
+// trigger path: when the operator exports `http_proxy=socks5://…`, the seam
+// correctly declines to override it (the ffmpeg child inherits it verbatim),
+// but ffmpeg silently ignores a SOCKS-scheme proxy URL and connects directly —
+// so the run looks proxied while the `--download-sections` leg is not.
+// Observed on this host 2026-11-07 with ffmpeg 8.1.2: a dead http:// proxy in
+// `http_proxy` fails loudly (connection refused, server never hit), while the
+// same dead port behind `socks5://` still reaches the origin (server hit).
+// The route verdict stays "do not inject"; the null is what must be stated.
+describe("#978 lowercase http_proxy carrying a SOCKS URL", () => {
+  /** Isolate one env spelling and capture the seam's warning side effect. */
+  function socksEnvDeps(value) {
+    const warnings = {};
+    const warn = vi.fn();
+    return {
+      deps: {
+        env: { http_proxy: value },
+        readSystemProxy: () => {
+          throw new Error("must not be consulted");
+        },
+        warnings,
+        warn,
+      },
+      warn,
+    };
+  }
+
+  it.each([
+    ["socks5", "socks5://127.0.0.1:7891"],
+    ["socks5h", "socks5h://127.0.0.1:7891"],
+    ["socks4", "socks4://127.0.0.1:7891"],
+    ["socks4a", "socks4a://127.0.0.1:7891"],
+    ["socks", "socks://127.0.0.1:7891"],
+    ["uppercase scheme", "SOCKS5://127.0.0.1:7891"],
+  ])("warns once and still injects nothing when http_proxy is %s", (_label, value) => {
+    const { deps, warn } = socksEnvDeps(value);
+    expect(resolveYtdlpProxy(deps)).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = warn.mock.calls[0][0];
+    // Names the variable, the endpoint and the remediation — an operator must
+    // be able to fix it without reading the source.
+    expect(message).toContain("http_proxy");
+    expect(message).toContain("127.0.0.1:7891");
+    expect(message).toContain("--download-sections");
+    // Both outcomes are named: the leg may fail outright or fall back to a
+    // direct connection. Naming only "direct" sent operators hunting a CDN
+    // timeout when the fetch failed instead.
+    expect(message).toMatch(/fail or fall back to a direct connection/);
+    expect(message).toMatch(/Export http_proxy=<an HTTP proxy>/);
+    // Per process, like #329: callers resolve per candidate.
+    expect(resolveYtdlpProxy(deps)).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps http(s) early-return semantics silent", () => {
+    for (const value of [
+      "http://127.0.0.1:7897",
+      "https://127.0.0.1:7897",
+      "http://user:pass@127.0.0.1:7897",
+    ]) {
+      const { deps, warn } = socksEnvDeps(value);
+      expect(resolveYtdlpProxy(deps)).toBeNull();
+      expect(warn, value).not.toHaveBeenCalled();
+    }
+  });
+
+  it("names a bare endpoint and names nothing at all when userinfo is present", () => {
+    // The endpoint is diagnostic value; the moment the value carries userinfo,
+    // that value is withheld entirely — the warning still names the variable.
+    const clean = socksEnvDeps("socks5://127.0.0.1:7891");
+    resolveYtdlpProxy(clean.deps);
+    expect(clean.warn.mock.calls[0][0]).toContain("127.0.0.1:7891");
+
+    const withCreds = socksEnvDeps("socks5://operator:sup3rsecret@127.0.0.1:7891");
+    resolveYtdlpProxy(withCreds.deps);
+    const message = withCreds.warn.mock.calls[0][0];
+    expect(message).toContain("http_proxy");
+    expect(message).toContain("<credentials-redacted proxy URL>");
+    expect(message).not.toContain("sup3rsecret");
+    expect(message).not.toContain("operator");
+  });
+
+  it.each([
+    ["ipv4", "socks5://127.0.0.1:7891", "127.0.0.1:7891"],
+    ["ipv4 without a port", "socks5://127.0.0.1", "127.0.0.1"],
+    ["dotted host", "socks5://proxy.corp:7890", "proxy.corp:7890"],
+    ["localhost", "socks5://localhost:7890", "localhost:7890"],
+    ["bracketed ipv6", "socks5h://[::1]:1080", "[::1]:1080"],
+  ])("still names the endpoint for a bare %s", (_label, value, expected) => {
+    const { deps, warn } = socksEnvDeps(value);
+    resolveYtdlpProxy(deps);
+    expect(warn.mock.calls[0][0]).toContain(`SOCKS URL (${expected})`);
+  });
+
+  it.each([
+    // Every shape below leaked on some earlier attempt to *find* the endpoint.
+    // `new URL` and a user:pass@ regex end the userinfo at the first `/`, so
+    // `ops:1234` parsed as host:port; a last-`@` boundary still printed the
+    // password tail when the host was truncated; a token with dots looked
+    // exactly like a hostname.
+    [
+      "a slash after a numeric password chunk",
+      "socks5://ops:1234/5678@proxy.corp:7891",
+      ["ops", "5678"],
+    ],
+    [
+      "a slash after a named user and port-like chunk",
+      "socks5://s3cretuser:443/x@proxy.corp:7891",
+      ["s3cretuser"],
+    ],
+    ["a slash in the password", "socks5://operator:pa/ssword@127.0.0.1:7891", ["pa/ssword"]],
+    ["an at-sign in the password", "socks5://operator:pa@ssword@127.0.0.1:7891", ["pa@ssword"]],
+    ["an at-sign with the host truncated", "socks5://operator:pa@ssword", ["pa", "ssword"]],
+    ["an at-sign and a port with no host", "socks5://operator:pa@ssword:1080", ["pa", "ssword"]],
+    ["a percent-encoded credential", "socks5://operator%40corp:p%40ss@127.0.0.1:7891", ["p%40ss"]],
+    ["a credential with no host at all", "socks5://operator:sup3rsecret@", ["sup3rsecret"]],
+    ["userinfo in the endpoint slot", "socks5://host@user:1234", ["user"]],
+    // No `@` means no positional boundary: `user:1234` is exactly `host:port`.
+    ["a short numeric password and no host", "socks5://alice:1234", ["alice", "1234"]],
+    ["a single-label host with no userinfo", "socks5://intranetbox:7890", ["intranetbox"]],
+    // Token shapes are dotted, and a dotted all-lowercase token is a plausible
+    // secret even though it is indistinguishable from a hostname by shape.
+    ["a dotted token with digits", "socks5://operator.sup3rsecret", ["sup3rsecret"]],
+    ["a jwt-shaped token", "socks5://eyJ1IjoiYQ.eyJwIjoiYg.sig123", ["eyJ1IjoiYQ"]],
+    ["a hyphenated api key", "socks5://sk-live-abc.def", ["sk-live"]],
+    ["a malformed ipv4", "socks5://5.6.7.8.9.10", ["5.6.7.8.9.10"]],
+  ])("never echoes credentials shaped as %s", (_label, value, forbidden) => {
+    const { deps, warn } = socksEnvDeps(value);
+    resolveYtdlpProxy(deps);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = warn.mock.calls[0][0];
+    for (const fragment of ["sup3rsecret", "pa/ssword", "p%40ss", ...forbidden]) {
+      expect(message, `${value} leaked ${fragment}`).not.toContain(fragment);
+    }
+  });
+
+  it.each([
+    ["one slash", "socks5:/user:pass@host"],
+    ["no slash", "socks5:user:pass@host"],
+  ])("recognises the socks scheme written with %s", (_label, value) => {
+    // Hand-edited exports drop or duplicate a slash; the value is still a
+    // SOCKS URL the ffmpeg leg cannot use, so the verdict must not vanish.
+    const { deps, warn } = socksEnvDeps(value);
+    expect(resolveYtdlpProxy(deps)).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).not.toContain("pass");
+  });
+
+  it("does not share dedupe state with the SOCKS-only system verdict", () => {
+    // Two different paths, two different remedies: silencing one must not
+    // hide the other.
+    const warnings = {};
+    const warn = vi.fn();
+    expect(
+      resolveYtdlpProxy({
+        env: { http_proxy: "socks5://127.0.0.1:7891" },
+        readSystemProxy: () => {
+          throw new Error("must not be consulted");
+        },
+        warnings,
+        warn,
+      }),
+    ).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(
+      resolveYtdlpProxy({
+        env: {},
+        readSystemProxy: () => parseMacSystemProxy(SCUTIL_SOCKS_ONLY),
+        warnings,
+        warn,
+      }),
+    ).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn.mock.calls[1][0]).toContain("system proxy is SOCKS-only");
+  });
+
+  it("stays silent when the lowercase http_proxy has no scheme at all", () => {
+    // A bare host:port is not a SOCKS URL; it keeps the pre-#978 semantics.
+    const { deps, warn } = socksEnvDeps("127.0.0.1:7897");
+    expect(resolveYtdlpProxy(deps)).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["https_proxy", { https_proxy: "socks5://127.0.0.1:7891" }],
+    ["HTTP_PROXY", { HTTP_PROXY: "socks5://127.0.0.1:7891" }],
+    ["HTTPS_PROXY", { HTTPS_PROXY: "socks5://127.0.0.1:7891" }],
+  ])("warns when %s carries a SOCKS URL", (variable, env) => {
+    // This path is worse than the inherited one: the seam mirrors the value
+    // into the ffmpeg child's http_proxy, so the repo itself manufactures an
+    // env var ffmpeg ignores. The route must not change — yt-dlp can use SOCKS
+    // through --proxy — but the verdict has to be stated.
+    const warnings = {};
+    const warn = vi.fn();
+    expect(resolveYtdlpProxy({ env, readSystemProxy: () => null, warnings, warn })).toBe(
+      "socks5://127.0.0.1:7891",
+    );
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = warn.mock.calls[0][0];
+    expect(message).toContain(variable);
+    expect(message).toContain("127.0.0.1:7891");
+    expect(message).toMatch(/fail or fall back to a direct connection/);
+    // Per process: the second candidate must not repeat it.
+    resolveYtdlpProxy({ env, readSystemProxy: () => null, warnings, warn });
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("names only the variable that actually supplied the value", () => {
+    // https_proxy wins the precedence chain, so the message must not blame
+    // HTTP_PROXY for a verdict the operator would fix in the wrong place.
+    const warn = vi.fn();
+    resolveYtdlpProxy({
+      env: { https_proxy: "socks5://a.corp:1", HTTP_PROXY: "socks5://b.corp:2" },
+      readSystemProxy: () => null,
+      warnings: {},
+      warn,
+    });
+    expect(warn.mock.calls[0][0]).toContain("https_proxy is a SOCKS URL (a.corp:1)");
+  });
+
+  it("does not echo a value far longer than any endpoint", () => {
+    // A 1 MB export is not diagnostic, and printing it moves secret-shaped text
+    // into the log at full length.
+    const { deps, warn } = socksEnvDeps(`socks5://${"aa.".repeat(250000)}aa`);
+    resolveYtdlpProxy(deps);
+    const message = warn.mock.calls[0][0];
+    expect(message).toContain("<unparseable proxy URL>");
+    expect(message.length).toBeLessThan(600);
+  });
+
+  it.each([
+    ["an ipv4 endpoint", "127.0.0.1:7897"],
+    ["a dotted endpoint", "proxy.corp:7890"],
+  ])("names the endpoint scutil reports for %s", (_label, endpoint) => {
+    // `parseMacSystemProxy` produces a scheme-less `host:port`, and `127.0.0.1:`
+    // reads exactly like a scheme — a strip that does not require a `/` eats
+    // the host and turns a useful warning into a placeholder.
+    const warn = vi.fn();
+    resolveYtdlpProxy({
+      env: {},
+      readSystemProxy: () => ({ httpProxy: null, httpsProxy: null, socksProxy: endpoint }),
+      warnings: {},
+      warn,
+    });
+    expect(warn.mock.calls[0][0]).toContain(`SOCKS-only (${endpoint})`);
+  });
+});
+
 describe("#324 yt-dlp proxy hand-off", () => {
   const PROXY_KEYS = ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"];
   let saved;

@@ -204,6 +204,19 @@ const STATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "output");
 // upstream hard limit, not something to paper over. resolveYtdlpProxy states
 // it once per process — `--download-sections` fetches go direct in that
 // configuration and can time out at the CDN.
+//
+// Lowercase `http_proxy` holding a SOCKS URL (#978, 2026-11-07) is the same
+// verdict on a second trigger path: the early return below is correct — the
+// child inherits the exported value verbatim — but ffmpeg cannot use SOCKS and
+// does not route through a SOCKS-scheme proxy URL, so the `--download-sections`
+// leg fails or falls back to a direct connection while the run looks proxied.
+// Observed on this host with ffmpeg 8.1.2 against a live listener and a live
+// origin: `http_proxy=http://<listener>` produced one accept and zero origin
+// hits, while `socks5://` and `socks5h://` produced zero accepts and origin
+// hits both times — the socks URL is bypassed, not attempted. The route is
+// unchanged (no injection, no SOCKS→HTTP bridge); the null is now stated once
+// per process, with its own dedupe slot so neither verdict can silence the
+// other.
 
 /** `scutil` is /usr/sbin/scutil and is absent from a minimal PATH. */
 const SCUTIL_BIN = "/usr/sbin/scutil";
@@ -275,11 +288,132 @@ function withScheme(value) {
 }
 
 /**
- * Per-process SOCKS-only verdict state — callers resolve per candidate, so
- * without dedupe the warning would repeat for every one. Injectable so tests
- * can get a fresh verdict without touching module state.
+ * True when a proxy URL names a SOCKS endpoint. Covers the spellings an
+ * operator can realistically export: `socks://`, `socks4://`, `socks4a://`,
+ * `socks5://` and `socks5h://`, case-insensitively, with zero to two slashes
+ * after the scheme (`socks5:/host` is a common hand-edit). A bare `host:port`
+ * is not a SOCKS URL — it keeps the pre-#978 semantics (no scheme, no verdict).
+ *
+ * @param {string} value - proxy URL from the environment
+ * @returns {boolean}
  */
-const proxyWarnings = { socksOnly: false };
+function isSocksProxyUrl(value) {
+  return /^socks(?:4a?|5h?)?:\/{0,2}/i.test(value.trim());
+}
+
+/**
+ * A host we are willing to print: an IPv4 literal, `localhost`, bracketed
+ * IPv6, or a dotted name whose labels are letters only.
+ *
+ * Letters-only is the narrow part: it drops the token shapes that would
+ * otherwise read as a hostname (`eyJ1…` in a JWT, `sk-live-abc.def` in an API
+ * key), and numeric labels are accepted only in the IPv4 form, so
+ * `5.6.7.8.9.10` is rejected. What it does *not* reject is a purely alphabetic
+ * `username.password` — that is indistinguishable from `proxy.corp` by shape,
+ * so it is a known narrow tradeoff rather than a guarantee: real credential
+ * syntax is `user:pass@host`, and the `@` gate below catches that.
+ */
+const PROXY_HOST =
+  /^(?:(?:\d{1,3}\.){3}\d{1,3}|localhost|\[[0-9A-Fa-f:.]+\]|[A-Za-z]+(?:\.[A-Za-z]+)+)$/;
+
+/** Longest endpoint worth printing; a DNS name is ≤253 chars plus `:port`. */
+const PROXY_ENDPOINT_MAX = 300;
+
+/**
+ * The endpoint a warning may name — or nothing.
+ *
+ * The gate is "no secrets in logs", and every attempt to *find* the endpoint
+ * inside an arbitrary value leaked on some shape: `new URL` and a
+ * `user:pass@` regex end the userinfo at the first `/`, so `ops:1234/5678@h`
+ * printed `ops:1234`; a last-`@` boundary still printed the password tail when
+ * the host was truncated (`operator:pa@ssword` → `ssword`); and with no `@` at
+ * all, a token like `operator.sup3rsecret` is indistinguishable from a host.
+ *
+ * So the default is to print nothing, and a value is named only when it is
+ * provably a bare endpoint: no `@`, no path, no whitespace, within
+ * `PROXY_ENDPOINT_MAX`, and a host that passes `PROXY_HOST`. Credential-bearing
+ * values — the only reason this function exists — never pass.
+ *
+ * @param {string} value - proxy URL from the environment
+ * @returns {string} `host[:port]` for a provably bare endpoint, else a placeholder
+ */
+function describeProxyEndpoint(value) {
+  const trimmed = value.trim();
+  // Credentials live in userinfo, and userinfo is the one thing this function
+  // exists to hide: the presence of `@` is the whole verdict, not a hint to
+  // parse around.
+  if (trimmed.includes("@")) return "<credentials-redacted proxy URL>";
+  if (/\s/.test(trimmed)) return "<unparseable proxy URL>";
+  // A value far longer than any endpoint is not a diagnostic; printing it
+  // would only move the secret-shaped text into the log at full length.
+  if (trimmed.length > PROXY_ENDPOINT_MAX) return "<unparseable proxy URL>";
+
+  // At least one `/` is required, or a bare `127.0.0.1:7897` / `proxy.corp:7890`
+  // reads as `scheme:` and loses its host to the strip.
+  const authority = trimmed.replace(/^[A-Za-z0-9+.-]+:\/{1,2}/, "");
+  // Bracketed IPv6 contains the same `:` that separates the port, so it is
+  // matched as a unit rather than by splitting on the last colon.
+  const bracketed = authority.match(/^(\[[0-9A-Fa-f:.]+\])(?::(\d{1,5}))?$/);
+  if (bracketed) return bracketed[2] ? `${bracketed[1]}:${bracketed[2]}` : bracketed[1];
+  const match = authority.match(/^([^/?#:]+)(?::(\d{1,5}))?$/);
+  if (!match) return "<unparseable proxy URL>";
+  const [, host, port] = match;
+  if (!PROXY_HOST.test(host)) return "<unparseable proxy URL>";
+  return port ? `${host}:${port}` : host;
+}
+
+/**
+ * State that an env-provided proxy is a SOCKS URL ffmpeg cannot use.
+ *
+ * Three env spellings reach the ffmpeg leg, and all three failed silently
+ * before #978: a lowercase `http_proxy` (inherited verbatim), and the
+ * uppercase `HTTP_PROXY` / `https_proxy` / `HTTPS_PROXY` values this seam
+ * mirrors into `--proxy` *and* into the child's `http_proxy` via
+ * `ytdlpProxyEnv()` — the latter is worse, because the overlay then carries a
+ * SOCKS URL this repo manufactured. The route does not change in any case
+ * (yt-dlp's own layer can use SOCKS; ffmpeg cannot); the verdict is stated
+ * once per env path, naming the variable the operator has to change.
+ *
+ * @param {string} variable - the env variable holding the SOCKS URL
+ * @param {string} value - its value
+ * @param {{socksInEnv?: boolean}} warnings - dedupe state
+ * @param {(message: string) => void} warn - warning sink
+ */
+function warnSocksEnvProxy(variable, value, warnings, warn) {
+  if (warnings.socksInEnv) return;
+  warnings.socksInEnv = true;
+  warn(
+    `[ytdlp-guard] ${variable} is a SOCKS URL (${describeProxyEndpoint(value)}); ` +
+      ffmpegSocksGap(`Export http_proxy=<an HTTP proxy> to cover the ffmpeg leg (#329, #978).`),
+  );
+}
+
+/**
+ * The half of every SOCKS verdict that is true whichever way the value got
+ * here: ffmpeg cannot use SOCKS, so that leg does not go through this proxy.
+ * One sentence, one owner — the two verdicts differ in what to change, not in
+ * this consequence.
+ *
+ * @param {string} remedies - the closing "what to export instead" sentence
+ * @returns {string}
+ */
+function ffmpegSocksGap(remedies) {
+  return (
+    `ffmpeg cannot use SOCKS, so downloads it handles (e.g. --download-sections) ` +
+    `do not go through that proxy: they fail or fall back to a direct connection and may time out at the CDN. ` +
+    remedies
+  );
+}
+
+/**
+ * Per-process SOCKS verdict state — callers resolve per candidate, so without
+ * dedupe the warning would repeat for every one. `socksOnly` covers the macOS
+ * system config; `socksInEnv` covers any env variable whose proxy value is a
+ * SOCKS URL (#978). Separate slots on purpose: two trigger paths, two
+ * remedies. Injectable so tests can get a fresh verdict without touching
+ * module state.
+ */
+const proxyWarnings = { socksOnly: false, socksInEnv: false };
 
 /**
  * Resolve the proxy to hand to yt-dlp via `--proxy`, or null when none is needed.
@@ -291,18 +425,26 @@ const proxyWarnings = { socksOnly: false };
  * (uppercase-only env, or nothing but the macOS system proxy) resolves a URL
  * callers pass both as `--proxy` and as the spawn-env overlay.
  *
- * A SOCKS-only system config yields null: ffmpeg cannot use SOCKS, and
- * yt-dlp's own layer already resolves SystemConfiguration by itself. #329
- * verdict (2026-09-25): that is an upstream hard limit, not something to
- * paper over, so the null is *stated* once per process — this function is the
- * one seam every call site goes through, which is why the warning lives here
- * rather than at each spawn.
+ * That value is not always usable: ffmpeg has no SOCKS support and does not
+ * route through a SOCKS-scheme proxy URL, so a SOCKS URL in `http_proxy`
+ * leaves the `--download-sections` leg failing or direct-connected while the
+ * run looks proxied. The same holds for the uppercase spellings this seam
+ * mirrors into the child's `http_proxy` — see `warnSocksEnvProxy`. The route
+ * does not change in either case (#978, same verdict as #329); the null is
+ * stated once per process, in its own dedupe slot.
+ *
+ * A SOCKS-only system config yields null for the same reason: ffmpeg cannot
+ * use SOCKS, and yt-dlp's own layer already resolves SystemConfiguration by
+ * itself. #329 verdict (2026-09-25): that is an upstream hard limit, not
+ * something to paper over, so the null is *stated* once per process — this
+ * function is the one seam every call site goes through, which is why the
+ * warning lives here rather than at each spawn.
  *
  * @param {Object} [deps]
  * @param {Record<string, string|undefined>} [deps.env] - Environment to read
  * @param {() => ({httpProxy: string|null, httpsProxy: string|null, socksProxy?: string|null}|null)} [deps.readSystemProxy] - System proxy source
- * @param {{socksOnly?: boolean}} [deps.warnings] - SOCKS-only dedupe state
- * @param {(message: string) => void} [deps.warn] - Warning sink (side effect: called at most once per `warnings` object)
+ * @param {{socksOnly?: boolean, socksInEnv?: boolean}} [deps.warnings] - SOCKS verdict dedupe state
+ * @param {(message: string) => void} [deps.warn] - Warning sink (side effect: called at most once per verdict per `warnings` object)
  * @returns {string|null} proxy URL to pass as `--proxy`, or null
  */
 export function resolveYtdlpProxy({
@@ -311,9 +453,27 @@ export function resolveYtdlpProxy({
   warnings = proxyWarnings,
   warn = (message) => console.warn(message),
 } = {}) {
-  if (env.http_proxy) return null;
+  if (env.http_proxy) {
+    if (isSocksProxyUrl(env.http_proxy)) {
+      warnSocksEnvProxy("http_proxy", env.http_proxy, warnings, warn);
+    }
+    return null;
+  }
   const fromEnv = env.https_proxy || env.HTTP_PROXY || env.HTTPS_PROXY;
-  if (fromEnv) return withScheme(fromEnv);
+  if (fromEnv) {
+    // The value is mirrored into the ffmpeg child's `http_proxy` by
+    // `ytdlpProxyEnv()`, so a SOCKS URL here is worse than the inherited case:
+    // this repo manufactures an env var ffmpeg will ignore.
+    if (isSocksProxyUrl(fromEnv)) {
+      const variable = env.https_proxy
+        ? "https_proxy"
+        : env.HTTP_PROXY
+          ? "HTTP_PROXY"
+          : "HTTPS_PROXY";
+      warnSocksEnvProxy(variable, fromEnv, warnings, warn);
+    }
+    return withScheme(fromEnv);
+  }
   let system;
   try {
     system = readSystemProxy();
@@ -325,9 +485,8 @@ export function resolveYtdlpProxy({
   if (system?.socksProxy && !warnings.socksOnly) {
     warnings.socksOnly = true;
     warn(
-      `[ytdlp-guard] system proxy is SOCKS-only (${system.socksProxy}); ffmpeg cannot use SOCKS, ` +
-        `so downloads it handles (e.g. --download-sections) go direct and may time out at the CDN. ` +
-        `Export http_proxy=<an HTTP proxy> to cover the ffmpeg leg (#329).`,
+      `[ytdlp-guard] system proxy is SOCKS-only (${describeProxyEndpoint(system.socksProxy)}); ` +
+        ffmpegSocksGap(`Export http_proxy=<an HTTP proxy> to cover the ffmpeg leg (#329).`),
     );
   }
   return null;
@@ -342,14 +501,15 @@ export function resolveYtdlpProxy({
  * Empty when there is nothing to inject: no proxy applies, or a lower-case
  * variable is already exported and the child inherits it as-is.
  *
- * Carries resolveYtdlpProxy's side effect: the first SOCKS-only verdict in the
- * process emits its one warning here too.
+ * Carries resolveYtdlpProxy's side effects: the first SOCKS-only system
+ * verdict and the first SOCKS-scheme env-proxy verdict in the process each
+ * emit their one warning here too.
  *
  * @param {Object} [deps] - Same seams as resolveYtdlpProxy
  * @param {Record<string, string|undefined>} [deps.env] - Environment to read
  * @param {() => ({httpProxy: string|null, httpsProxy: string|null, socksProxy?: string|null}|null)} [deps.readSystemProxy] - System proxy source
- * @param {{socksOnly?: boolean}} [deps.warnings] - SOCKS-only dedupe state
- * @param {(message: string) => void} [deps.warn] - Warning sink (side effect: called at most once per `warnings` object)
+ * @param {{socksOnly?: boolean, socksInEnv?: boolean}} [deps.warnings] - SOCKS verdict dedupe state
+ * @param {(message: string) => void} [deps.warn] - Warning sink (side effect: called at most once per verdict per `warnings` object)
  * @returns {{http_proxy?: string}} overlay to spread into the spawn env
  */
 export function ytdlpProxyEnv(deps = {}) {
@@ -372,8 +532,9 @@ export function shellQuote(value) {
  * Shell fragment for the yt-dlp proxy hand-off — empty when no proxy applies.
  * One place owns the quoting so every call site composes the same way.
  *
- * Carries resolveYtdlpProxy's side effect: the first SOCKS-only verdict in the
- * process emits its one warning here too.
+ * Carries resolveYtdlpProxy's side effects: the first SOCKS-only system verdict
+ * and the first SOCKS-scheme env-proxy verdict in the process each emit their
+ * one warning here too.
  *
  * @returns {string} `--proxy "<url>"`, or "" when nothing is injected
  */
