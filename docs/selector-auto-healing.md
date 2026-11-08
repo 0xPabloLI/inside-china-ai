@@ -115,11 +115,12 @@ node scripts/short-video/source-url-discover.mjs --only <源名> --keyword-zh �
 
 两条都是**静默失败**：不报错，只给出一个可信但错的结论。处置顺序都是**先排除环境，再动选择器**——把环境问题当选择器问题，就会去改本不该改的脚本（违反 §边界 的「healthy 源禁止顺手优化」）。
 
-### Akamai 会拦掉**新开**的 TikTok Studio 页面（2026-11-08 实测）
+### Akamai 会拦掉 `tiktokstudio/content` 上新开的页面（2026-11-08 实测）
 
-- **症状**：自动化 profile 打开 `/tiktokstudio/content` 时被 Akamai 判定，拿不到预期 DOM；同一 profile、同一出口下，**已经热着的**同一页面正常可读。
-- **做法**：复用已热的 `tiktokstudio` tab，不为同一目的反复新开。
-- **先排除这两类再修选择器**：登录态过期会让 `npm run cdp:ensure` 报非 `ok`；选择器腐烂要求 DOM 确实变了。两者都不成立时，先看是不是新开的 tab。
+- **症状**：自动化 profile 用**新开的** tab 打开 `/tiktokstudio/content` 时被 Akamai 判定，拿不到预期 DOM；同一 profile、同一出口下，**已经热着的**同一页面正常可读。
+- **做法**：这一页复用已热的 `tiktokstudio` tab。
+- **范围只到这里**：实测证据只覆盖 `/tiktokstudio/content`。`docs/tiktok/tiktok-analytics-review.md` 的 CDP 步骤按设计**每次新开** `tiktokstudio/analytics/*` tab，那是既有且仍然有效的做法，本节不改它。
+- **先排除另两类再修选择器**：`npm run cdp:ensure` 只回答一个问题——端口上的 Chrome 是不是自动化 profile（四态 `ok` / `no-chrome` / `wrong-profile` / `unknown-profile`，全凭 `--user-data-dir` argv 判定）。它不探登录态，**登录过期时同样回 `ok`**；登录要看源自己的判据（`need_login` 判决 / `loginCheckScript`，见 §边界 的 needsAuth 源一条）。选择器腐烂则要求 DOM 确实变了。
 
 ### 代理 selector 会漂移到 TikTok 不可达的节点（2026-11-08 实测）
 
