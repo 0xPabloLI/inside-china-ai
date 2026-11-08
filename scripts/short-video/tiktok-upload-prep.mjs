@@ -192,7 +192,11 @@
  *                         and publish by hand.
  *   --save-draft          After preparing, apply the staged clip edit (保存)
  *                         and click 保存草稿 (Save draft) so the post lands in
- *                         the account's TikTok drafts. Still never publishes.
+ *                         the account's TikTok Studio drafts. Still never
+ *                         publishes. Web-only: TikTok does not sync drafts
+ *                         between the desktop site and the mobile app (app
+ *                         drafts are local to the phone), so this is not a
+ *                         hand-off to the app — see the draft branch note.
  *                         The attached sound does NOT survive a draft
  *                         save/reopen; the caption does.
  *   --expect-region <CC>  Expected browser exit country (ISO 3166-1 alpha-2,
@@ -2215,10 +2219,19 @@ async function main() {
       keepTab = !hasFlag("close-tab");
     } else {
       if (hasFlag("save-draft")) {
-        // 保存草稿 writes the post into the account's TikTok drafts, which sync
-        // to the app for review. It is NOT 发布 — the publish decision stays
-        // with the operator, so the HITL gate is intact. This is the documented
-        // route for anything the web editor cannot express (Location today).
+        // 保存草稿 writes the post into the account's TikTok Studio drafts
+        // (web only). It is NOT 发布 — the publish decision stays with the
+        // operator, so the HITL gate is intact.
+        //
+        // Do NOT route "finish this on the phone" through this flag: TikTok
+        // does not sync drafts between the desktop site and the mobile app,
+        // and app drafts live in the phone's local storage, not in the cloud
+        // (platform docs; measured 2026-11-08 — Studio listed 草稿 3 and the
+        // phone app's draft box showed none of them). A post that needs a
+        // Location or an in-app edit has to be finished by exporting the mp4,
+        // moving it to the phone (AirDrop / a cloud drive) and uploading it in
+        // the app — that route drops the caption, attached sound and AIGC
+        // toggle prepared here, so they are redone there.
         //
         // The clip edit has to be applied FIRST, exactly like the publish exit:
         // while the clip editor overlay is open it covers the entire action bar,
@@ -2266,13 +2279,16 @@ async function main() {
             settled.last?.pageError
               ? `TikTok reported an error after saving the draft: ${settled.last.pageError}`
               : `could not confirm the draft was saved (still on ${settled.last?.url ?? tab}) — ` +
-                  "check 主页 → 草稿 in the app before re-running, so a second press cannot duplicate it",
+                  "check the Studio Drafts tab (web) before re-running, so a second press cannot duplicate it",
           );
         }
         console.log("=".repeat(60));
         console.log("✅ Draft saved — NOTHING HAS BEEN PUBLISHED.");
-        console.log("   Open TikTok → 主页 → 草稿 to review.");
+        console.log("   Open TikTok Studio → Content → Drafts (web) to review.");
         console.log("   The post is a draft, not a published video.");
+        console.log("   The phone app will not show this draft — TikTok does not sync");
+        console.log("      drafts between the desktop site and the app (app drafts are");
+        console.log("      stored locally on the phone).");
         console.log("   Note: the attached sound does NOT persist in the draft;");
         console.log("      re-attach it by running this script again without --save-draft.");
         log("draft", { saved: true, clickMode: saved.mode, url: settled.last.url });

@@ -652,16 +652,19 @@ if (!preMode) {
     "Location tag (optional)",
     `The CDP web path has no Location control, and the successful manual posts\n` +
       `  did not tag one either (user-confirmed 2026-11-01) — treat it as optional,\n` +
-      `  not a CDP regression. If a post is genuinely local: publish via\n` +
-      `  --save-draft, then add Location in the phone app before Post.`,
+      `  not a CDP regression. If a post genuinely needs one: export the mp4,\n` +
+      `  upload it in the phone app and add Location before Post — a Studio draft\n` +
+      `  does not sync to the app, and that route drops the caption/sound/AIGC\n` +
+      `  choices prepared on the web.`,
   );
   manual(
     "Publish",
     "In-app editing (app-only)",
     `The CDP --publish path publishes a pre-rendered video and cannot add a\n` +
       `  native sticker/effect. The "algorithm bonus" is unmeasured; if you want\n` +
-      `  it, use --save-draft and finish in the phone app. The driver prints the\n` +
-      `  exact coverage diff for the run.`,
+      `  it, upload the exported mp4 in the phone app — a Studio draft does not\n` +
+      `  sync there, and the web caption/sound/AIGC choices are redone. The\n` +
+      `  driver prints the exact coverage diff for the run.`,
   );
   manual(
     "Publish",
