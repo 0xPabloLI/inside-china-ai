@@ -66,8 +66,9 @@ export const STEP_COVERAGE = Object.freeze({
     kind: "not-covered",
     short: "Edit",
     note:
-      "app-only; the web path publishes a pre-rendered video. " +
-      "Use --save-draft + the phone app if a post genuinely needs it",
+      "app-only; the web path publishes a pre-rendered video. A Studio draft " +
+      "does not sync to the phone app, so finish there by uploading the " +
+      "exported mp4 (the web caption, sound and AIGC choices are redone)",
   }),
   "add-sound": Object.freeze({
     kind: "auto",
@@ -78,15 +79,18 @@ export const STEP_COVERAGE = Object.freeze({
     pendingWithoutPublish: true,
     draftLost: true,
     pendingNote: "staged in the open editor; 保存 then 发布 in the tab (or re-run with --publish)",
-    draftNote: "a saved draft drops the attached sound; re-attach it in the phone app",
+    draftNote:
+      "a saved draft drops the attached sound; the draft also does not reach " +
+      "the phone app, so re-attach it in whichever session finishes the post",
   }),
   location: Object.freeze({
     kind: "not-covered",
     short: "Location",
     note:
       "neither path tagged a location (the successful manual posts did not either — " +
-      "user-confirmed 2026-11-01), so this is not a CDP regression; add it via " +
-      "--save-draft + the phone app only when a post is genuinely local",
+      "user-confirmed 2026-11-01), so this is not a CDP regression; a Studio draft " +
+      "does not sync to the phone app, so add one only by exporting the mp4 and " +
+      "uploading it in the app (the web caption, sound and AIGC choices are redone)",
   }),
   privacy: Object.freeze({
     kind: "unverified",
@@ -98,7 +102,9 @@ export const STEP_COVERAGE = Object.freeze({
     short: "Publish",
     pendingWithoutPublish: true,
     pendingNote: "the tab is prepared; click 发布 after review (or re-run with --publish)",
-    draftNote: "saved as a draft; the phone app makes the final publish",
+    draftNote:
+      "saved into the web Studio drafts (TikTok does not sync drafts to the " +
+      "phone app); publish from the open Studio tab",
   }),
   "first-hour-engagement": Object.freeze({
     kind: "post-publish",

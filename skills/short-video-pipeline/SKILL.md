@@ -339,7 +339,7 @@ After all automated checks pass, the agent generates a complete publishing packa
   [ ] Upload video file to TikTok
   [ ] Paste caption + hashtags into description
   [ ] Location tag: optional — the successful manual posts did not tag one (user-confirmed 2026-11-01); the web CDP path has no location control
-  [ ] In-app editing: app-only; use `--save-draft` + the phone app if you need it (the "algorithm bonus" is unmeasured)
+  [ ] In-app editing: app-only; upload the exported mp4 in the phone app if you need it (a Studio draft does not sync there, and the web caption/sound/AIGC choices are redone; the "algorithm bonus" is unmeasured)
   [ ] AIGC label: the CDP driver toggles it and fails closed; toggle ON when publishing by hand
   [ ] Audio: the CDP driver attaches the calibrated bed; attach it by hand only in the app
   [ ] Publish

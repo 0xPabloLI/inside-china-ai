@@ -269,7 +269,7 @@ export const tiktokProfile = {
         label: 'Tap "Location" → Select a region (optional)',
         detail: [
           "Optional: the successful manual posts did not tag one (user-confirmed 2026-11-01).",
-          "The CDP web path has no Location control; use --save-draft + the phone app when a post is genuinely local.",
+          "The CDP web path has no Location control, and a Studio draft does not sync to the phone app; add one by exporting the mp4 and uploading it in the app (the web caption, sound and AIGC choices are redone there).",
         ],
       },
       { id: "privacy", label: 'Set privacy to "Public" (or "Friends" for testing)' },

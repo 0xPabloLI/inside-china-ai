@@ -28,6 +28,9 @@ describe("buildManualPublishGuide golden (S1/S6 zero text change)", () => {
   // Items 5 and 7 were re-captured 2026-11-01 (#964): Location and the in-app
   // edit are optional, and their unmeasured claims are no longer algorithm
   // facts. The prose changes are the point, not drift.
+  // Item 7 was re-captured again 2026-11-08 (#1177): the draft-sync claim was
+  // false (Studio drafts do not reach the phone app), so the location detail
+  // now states the export-and-upload route. The prose change is the point.
   const GOLDEN_WITH_AI = `
 ============================================================
 📤 TikTok Manual Publishing Guide
@@ -62,7 +65,7 @@ CAPTION_TEXT
          The script reads the slider back and aborts if it misses by more than 1 dB.
   [ ] 7. Tap "Location" → Select a region (optional)
          Optional: the successful manual posts did not tag one (user-confirmed 2026-11-01).
-         The CDP web path has no Location control; use --save-draft + the phone app when a post is genuinely local.
+         The CDP web path has no Location control, and a Studio draft does not sync to the phone app; add one by exporting the mp4 and uploading it in the app (the web caption, sound and AIGC choices are redone there).
   [ ] 8. Set privacy to "Public" (or "Friends" for testing)
   [ ] 9. Publish
   [ ] 10. First hour: Reply to EVERY comment (engagement signal)
