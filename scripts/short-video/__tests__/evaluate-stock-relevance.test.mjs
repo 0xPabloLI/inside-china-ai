@@ -127,7 +127,10 @@ describe("evaluateScene — tri-state verdict + second pass", () => {
     const analyze = vi
       .fn()
       .mockResolvedValueOnce({ relevance: 50, relevanceReason: "topically correct" })
-      .mockResolvedValueOnce({ subjectMatch: "match", reason: "robot subject" });
+      .mockResolvedValueOnce({
+        subjectMatch: "match",
+        subjectMatchReason: "robot subject",
+      });
 
     const result = await evaluateScene(scene(), contentDir, analyze);
 
@@ -137,13 +140,27 @@ describe("evaluateScene — tri-state verdict + second pass", () => {
     expect(result.admittedBy).toBe("second-pass");
     expect(result.relevance).toBe(50);
     expect(result.subjectMatch).toBe("match");
+    // #990: the check's explanation moved to subjectMatchReason.
+    expect(result.subjectReason).toBe("robot subject");
   });
 
-  it("keeps a borderline image failed when the subject check says no_match", async () => {
+  it("keeps a pre-rename cached subject check explanation (legacy `reason`)", async () => {
     const analyze = vi
       .fn()
       .mockResolvedValueOnce({ relevance: 50 })
-      .mockResolvedValueOnce({ subjectMatch: "no_match", reason: "different subject" });
+      .mockResolvedValueOnce({ subjectMatch: "match", reason: "legacy cached" });
+
+    const result = await evaluateScene(scene(), contentDir, analyze);
+
+    expect(result.subjectMatch).toBe("match");
+    expect(result.subjectReason).toBe("legacy cached");
+  });
+
+  it("keeps a borderline image failed when the subject check says no_match", async () => {
+    const analyze = vi.fn().mockResolvedValueOnce({ relevance: 50 }).mockResolvedValueOnce({
+      subjectMatch: "no_match",
+      subjectMatchReason: "different subject",
+    });
 
     const result = await evaluateScene(scene(), contentDir, analyze);
 

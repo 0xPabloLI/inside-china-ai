@@ -592,8 +592,6 @@ def parse_markdown_to_dict(raw_text):
         "contentKind": None,
         "fit": None,
         "criticalEdgeText": None,
-        # legacy-only (pre-#334 image semantics); never written by current prompts
-        "reason": None,
         "relevance": None,
         "relevanceReason": None,
         "subjectMatch": None,
@@ -1380,7 +1378,7 @@ def _format_window_label(index, count, window):
 
 
 def merge_window_results(parsed_results, windows, plan=None):
-    """Merge per-window parsed semantics dicts into ONE 8-field-compatible dict.
+    """Merge per-window parsed semantics dicts into ONE contract-shaped dict.
 
     Pure function; merge rules (documented per #360 ticket-1):
     - description: per-window descriptions joined in window order, each
@@ -1388,10 +1386,13 @@ def merge_window_results(parsed_results, windows, plan=None):
       consumers can see temporal provenance. Empty descriptions are skipped.
     - subjects: union in first-seen order.
     - contentKind: majority vote among non-null values; tie → first seen.
-    - fit / criticalEdgeText / reason / relevance / relevanceReason: first
-      non-null value in window order (per-window judgments; videos leave
-      fit/criticalEdgeText null anyway).
-    - Unknown extra keys: first non-null value wins.
+    - fit / criticalEdgeText / subjectMatchReason / relevance / relevanceReason:
+      first non-null value in window order (per-window judgments; videos leave
+      fit/criticalEdgeText null anyway, and a windowed pass never runs the #294
+      subject check).
+    - Unknown extra keys: first non-null value wins. `reason` is a tombstone in
+      the merged dict (legacy-only, #990), so a pre-#334 window cannot
+      resurrect it through this branch.
 
     Args:
         parsed_results: per-window parsed semantics dicts (successful windows

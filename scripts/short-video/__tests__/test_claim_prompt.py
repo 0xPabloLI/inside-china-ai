@@ -358,7 +358,7 @@ check(
 )
 check(
     "subject check does not write the retired semantics reason",
-    parsed_check.get("reason") is None,
+    "reason" not in parsed_check,
     f"got {parsed_check.get('reason')!r}",
 )
 missing_check = parse_markdown_to_dict("## Description\nd\n")

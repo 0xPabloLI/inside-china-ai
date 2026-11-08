@@ -686,7 +686,7 @@ Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
   检查自己的 `## Reason` 走 IPC 的 `subjectMatchReason`（旧缓存条目按 legacy `reason` 读），
   不写 artifact，评审摘要也不再打印 `// Reason:`。
 - **改 prompt 必须同步 bump `VLM_CACHE_PROMPT_VERSION`**（`lib/vlm-cache.mjs`），否则旧
-  缓存继续服务旧答案形状。当前版本号见该文件顶部的版本注记。
+  缓存继续服务旧答案形状。当前 `v6-2026-10-27`（以该文件顶部为准）。
 
 ### A1 转写接线（#542 L3，2026-10-10）
 
