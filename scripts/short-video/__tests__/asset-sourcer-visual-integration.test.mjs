@@ -115,7 +115,7 @@ describe("analyzeAssets — VLM semantic merge integration", () => {
     expect(videoCall[1].sampleFps).toBe(1.0);
   });
 
-  it("stores VLM fields on each asset (description, subjects, contentKind, fit, reason)", async () => {
+  it("stores VLM fields on each asset (description, subjects, contentKind, fit, criticalEdgeText)", async () => {
     const assets = [{ path: "/abs/img1.jpg", type: "image", searchKeyword: "Unitree" }];
 
     await analyzeAssets(assets);
@@ -125,7 +125,9 @@ describe("analyzeAssets — VLM semantic merge integration", () => {
     expect(assets[0].contentKind).toBe("product_demo");
     expect(assets[0].fit).toBe("contain");
     expect(assets[0].criticalEdgeText).toContain("bottom edge");
-    expect(assets[0].reason).toContain("cropped");
+    // #990: the retired image-semantics `reason` is no longer stored on the
+    // asset — the explanation lives in criticalEdgeText since #334.
+    expect(assets[0].reason).toBeUndefined();
   });
 
   it("does NOT store old fields (aiDescription, aiFit, aiFitReason)", async () => {
@@ -275,6 +277,8 @@ describe("analyzeAssets — VLM semantic merge integration", () => {
     expect(written.assets[0].path).toBe("/abs/img1.jpg");
     expect(written.assets[0].description).toBe("A humanoid robot in a kitchen.");
     expect(written.assets[0].subjects).toEqual(["robot", "kitchen", "product"]);
+    // #990: the artifact no longer carries the retired `reason` key.
+    expect("reason" in written.assets[0]).toBe(false);
 
     // Cleanup
     const { rmSync: rm } = await import("fs");
@@ -1425,7 +1429,10 @@ describe("analyzeAssets — #294 second-pass subject check", () => {
     mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
       Promise.resolve(
         opts?.relevanceCheck
-          ? { subjectMatch: "match", reason: "visible subject is the named company's robot" }
+          ? {
+              subjectMatch: "match",
+              subjectMatchReason: "visible subject is the named company's robot",
+            }
           : { ...borderline },
       ),
     );
@@ -1446,11 +1453,29 @@ describe("analyzeAssets — #294 second-pass subject check", () => {
     expect(assets[0].relevanceScore).toBe(50);
   });
 
+  it("reads a pre-rename cached subject check (legacy `reason`) without losing the explanation", async () => {
+    mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
+      Promise.resolve(
+        opts?.relevanceCheck
+          ? { subjectMatch: "match", reason: "legacy cached explanation" }
+          : { ...borderline },
+      ),
+    );
+
+    const assets = [{ path: "/abs/img-legacy.jpg", type: "image", claimSceneId: 2 }];
+    await analyzeAssets(assets, { claims: [claim] });
+
+    expect(assets[0].relevanceCheck).toEqual({
+      verdict: "match",
+      reason: "legacy cached explanation",
+    });
+  });
+
   it("keeps a no_match verdict and does not promote the score", async () => {
     mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
       Promise.resolve(
         opts?.relevanceCheck
-          ? { subjectMatch: "no_match", reason: "different subject" }
+          ? { subjectMatch: "no_match", subjectMatchReason: "different subject" }
           : { ...borderline },
       ),
     );

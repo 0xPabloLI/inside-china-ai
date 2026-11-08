@@ -1458,7 +1458,7 @@ export function buildReport(content, keywords, assets, failed, skipped, extra = 
  *   Phase 2: Focus detection (OpenCV, ~0.5s/asset) → closeFocusDetector
  *             Only runs on assets that survived pre-filter
  *   Phase 3a: VLM deep analysis — single analyzeAssetSemantics call per asset
- *             Stores: description, subjects, contentKind, fit, criticalEdgeText, reason
+ *             Stores: description, subjects, contentKind, fit, criticalEdgeText
  *   Phase 3b: Semantic re-scoring — uses VLM subjects + description for relevance
  *
  * Does NOT call closeVisualAnalyzer() — the caller is responsible for closing
@@ -1880,10 +1880,10 @@ export async function analyzeAssets(assets, opts = {}) {
           contentKind: null,
           fit: null,
           criticalEdgeText: null,
-          reason: null,
           relevance: null,
           relevanceReason: null,
           subjectMatch: null,
+          subjectMatchReason: null,
         };
       }
       // Persist successful raw VLM output; failed/degraded runs are not cached
@@ -1970,7 +1970,12 @@ export async function analyzeAssets(assets, opts = {}) {
       relevanceCheck = checkSemantics?.subjectMatch
         ? {
             verdict: checkSemantics.subjectMatch,
-            reason: checkSemantics.reason ?? null,
+            // #990: `subjectMatchReason` is the #294 check's own explanation.
+            // Pre-rename .vlm-cache entries still carry it as `reason`; reading
+            // that legacy key here keeps cached explanations alive without
+            // reviving the retired semantics field (no cache bump needed — the
+            // verdict and every decision field are unchanged).
+            reason: checkSemantics.subjectMatchReason ?? checkSemantics.reason ?? null,
           }
         : {
             verdict: null,
@@ -1988,7 +1993,8 @@ export async function analyzeAssets(assets, opts = {}) {
     asset.contentKind = semantics.contentKind;
     asset.fit = semantics.fit;
     asset.criticalEdgeText = semantics.criticalEdgeText;
-    asset.reason = semantics.reason;
+    // #990: the retired image-semantics `reason` is no longer stored — #334
+    // folded its explanation into criticalEdgeText.
     // Relevance gate inputs — null relevance means fail-closed downstream.
     // NOTE: `relevance` is the VLM output contract (visual-analyzer.mjs /
     // vlm_analyzer.py); `relevanceScore` is the asset/entry contract consumed
@@ -2107,7 +2113,7 @@ export async function analyzeAssets(assets, opts = {}) {
           height: a.height ?? null,
           landscape: isLandscapeAsset(a),
           criticalEdgeText: a.criticalEdgeText || null,
-          reason: a.reason || null,
+          // #990: the retired image-semantics `reason` key is not written.
           relevanceScore: a.relevanceScore ?? null,
           relevanceReason: a.relevanceReason ?? null,
           focusAnalysis: a.focusAnalysis || null,

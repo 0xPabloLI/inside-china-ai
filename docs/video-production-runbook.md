@@ -681,8 +681,12 @@ Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
 - **claim 上下文是任务前的 preamble**（scene narration + desired visual），不是 `##`
   section：放成 section 会被模型当输出填成散文/游离分数，或把标签回声进 `## Fit` 导致
   枚举解析失败。
+- **`asset-analysis.json` 不再写 `reason`**（#990）：`#334` 之后该字段恒 null，写进 artifact
+  只会让评审把「模型没给」读成「契约丢了」。解释仍在 `Critical Edge Text`；`#294` 二次主体
+  检查自己的 `## Reason` 走 IPC 的 `subjectMatchReason`（旧缓存条目按 legacy `reason` 读），
+  不写 artifact，评审摘要也不再打印 `// Reason:`。
 - **改 prompt 必须同步 bump `VLM_CACHE_PROMPT_VERSION`**（`lib/vlm-cache.mjs`），否则旧
-  缓存继续服务旧答案形状。当前 `v3-2026-10-27`。
+  缓存继续服务旧答案形状。当前版本号见该文件顶部的版本注记。
 
 ### A1 转写接线（#542 L3，2026-10-10）
 

@@ -60,7 +60,10 @@ export async function scoreCandidates(candidates, opts) {
       const analyzerOpts = window ? { ...window, claim } : { claim };
       const result = await analyzer(candidate.file, analyzerOpts);
       relevance = typeof result?.relevance === "number" ? result.relevance : null;
-      reason = result?.relevanceReason ?? result?.reason ?? null;
+      // #990: only the claim-mode explanation. The retired image-semantics
+      // `reason` never reaches this gate (it runs without `relevanceCheck`),
+      // so a fallback to it would only resurrect a dead field.
+      reason = result?.relevanceReason ?? null;
     } catch (error) {
       reason = `analyzer error: ${error?.message ?? error}`;
     }

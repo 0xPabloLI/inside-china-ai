@@ -27,8 +27,8 @@ from vlm_analyzer import (  # noqa: E402
 
 
 def make_parsed(description="desc", subjects=None, content_kind=None, fit=None,
-                critical_edge=None, reason=None, relevance=None,
-                relevance_reason=None):
+                critical_edge=None, reason=None, subject_match_reason=None,
+                relevance=None, relevance_reason=None):
     """Build one parse_markdown_to_dict-shaped result for merge tests."""
     return {
         "description": description,
@@ -37,6 +37,7 @@ def make_parsed(description="desc", subjects=None, content_kind=None, fit=None,
         "fit": fit,
         "criticalEdgeText": critical_edge,
         "reason": reason,
+        "subjectMatchReason": subject_match_reason,
         "relevance": relevance,
         "relevanceReason": relevance_reason,
     }
@@ -148,16 +149,20 @@ class TestMergeWindowResults:
         merged = merge_window_results(tie, win(2))
         assert merged["contentKind"] == "talking_head"
 
-    def test_first_non_null_for_reason_and_relevance(self):
+    def test_first_non_null_for_relevance_and_subject_reason(self):
         parsed = [
             make_parsed(reason=None, relevance=None),
-            make_parsed(reason="later reason", relevance=70,
-                        relevance_reason="why"),
+            make_parsed(reason="legacy later reason",
+                        subject_match_reason="later explanation",
+                        relevance=70, relevance_reason="why"),
         ]
         merged = merge_window_results(parsed, win(2))
-        assert merged["reason"] == "later reason"
+        assert merged["subjectMatchReason"] == "later explanation"
         assert merged["relevance"] == 70
         assert merged["relevanceReason"] == "why"
+        # #990: the retired image-semantics `reason` is a tombstone here — a
+        # pre-#334 window must not resurrect it via the unknown-key copy.
+        assert merged["reason"] is None
 
     def test_empty_parsed_list_yields_empty_contract(self):
         merged = merge_window_results([], [])

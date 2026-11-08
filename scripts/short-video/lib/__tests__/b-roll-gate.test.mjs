@@ -87,6 +87,24 @@ describe("scoreCandidates", () => {
     expect(scored.map((c) => c.passed)).toEqual([false, false]);
   });
 
+  test("#990 the dead semantics `reason` is not a gate fallback", async () => {
+    const analyzer = fakeAnalyzer({
+      "/tmp/b-roll/scene-6-seed1024.mp4": () => ({
+        relevance: 72,
+        relevanceReason: null,
+        // #334 removed `## Reason` from the semantics prompt; this key now
+        // only carries the #294 subject-check explanation, which the gate
+        // never runs. It must not surface as the gate's own reason.
+        reason: "legacy semantics explanation",
+      }),
+    });
+    const scored = await scoreCandidates([CANDIDATES[0]], {
+      analyzer,
+      claim: { voiceover: "v", assetNeed: "p" },
+    });
+    expect(scored[0].reason).toBeNull();
+  });
+
   test("claim is forwarded to the analyzer", async () => {
     const seen = [];
     const analyzer = async (path, opts) => {

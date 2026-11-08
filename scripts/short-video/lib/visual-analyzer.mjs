@@ -73,12 +73,14 @@ const DEGRADED_RESULT = Object.freeze({
   contentKind: null,
   fit: null,
   criticalEdgeText: null,
-  reason: null,
   relevance: null,
   relevanceReason: null,
   // #294 second-pass verdict — null means "no answer", which callers must
   // treat as not-admitted.
   subjectMatch: null,
+  // #990: the check's own explanation. The retired image-semantics `reason`
+  // key is intentionally absent — #334 removed that prompt section.
+  subjectMatchReason: null,
 });
 
 /**
@@ -526,7 +528,7 @@ export function getVlmVideoInput() {
  * - contentKind (string)
  * - fit ("cover" | "contain" | null) — images only, null for videos
  * - criticalEdgeText (string | null) — images only
- * - reason (string | null) — images only
+ * - subjectMatchReason (string | null) — #294 subject check only (its `## Reason`)
  * - window ({ startMs, endMs, sampleFps } | undefined) — videos only, when opts provided
  * - windows ({ startMs, endMs, sampleFps }[] | undefined) — videos only,
  *   #360 segmented analysis: Python analyzes each window and merges into a
@@ -546,7 +548,7 @@ export function getVlmVideoInput() {
  * @param {string} assetPath - Absolute path to the image/video file.
  * @param {{startMs?: number, endMs?: number, sampleFps?: number, windows?: {startMs: number, endMs: number, sampleFps: number}[], claim?: {voiceover: string, assetNeed: string}, cropFocus?: {x: number, y: number}, transcript?: string, relevanceCheck?: boolean, frameStrategy?: "uniform"|"scene", maxFrames?: number}} [opts] - Optional time window or multi-window plan (video only), scene claim (relevance judging), crop hint (images only), ASR transcript (#542, video only), second-pass subject check (#294), and frame-selection params (#391, pass-through; absent = current behavior)
  * @returns {Promise<{description: string, subjects: string[], contentKind: string|null,
- *   fit: string|null, criticalEdgeText: string|null, reason: string|null,
+ *   fit: string|null, criticalEdgeText: string|null, subjectMatchReason: string|null,
  *   window?: {startMs: number, endMs: number, sampleFps: number},
  *   windows?: {startMs: number, endMs: number, sampleFps: number}[],
  *   sourceMode?: string, transcriptChars?: number}>}

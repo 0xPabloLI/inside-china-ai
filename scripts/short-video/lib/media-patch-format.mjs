@@ -100,7 +100,7 @@ export function formatFocusSummary(focusAnalysis) {
 /**
  * Format VLM semantic analysis as a human-readable comment block.
  *
- * P3: Displays description, subjects, contentKind, fit, criticalEdgeText, reason
+ * P3: Displays description, subjects, contentKind, fit, criticalEdgeText
  * from asset-analysis.json.
  *
  * @param {Object|null} semantics - VLM analysis fields from asset-analysis.json
@@ -128,9 +128,9 @@ function formatSemanticsSummary(semantics) {
   if (semantics.criticalEdgeText) {
     lines.push(`  // Critical Edge Text: ${semantics.criticalEdgeText}`);
   }
-  if (semantics.reason) {
-    lines.push(`  // Reason: ${semantics.reason}`);
-  }
+  // #990: no `// Reason:` line — the retired image-semantics field is not
+  // rendered even when a legacy artifact still carries it (#334 folded the
+  // explanation into Critical Edge Text).
   if (semantics.lowConfidence) {
     lines.push(
       `  // ⚠️ Low confidence (technicalScore: ${semantics.technicalScore || "?"}) — VLM skipped.`,
