@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.53.7](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.6...tanstack_start_ts-v1.53.7) (2026-11-08)
+
+
+### Bug Fixes
+
+* **short-video:** retire the dead VLM semantics reason field ([#990](https://github.com/0xPabloLI/inside-china-ai/issues/990)) ([#1171](https://github.com/0xPabloLI/inside-china-ai/issues/1171)) ([af8dedd](https://github.com/0xPabloLI/inside-china-ai/commit/af8dedde5a064fe105eecc0e0d8eb00032e0a260))
+
 ## [1.53.6](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.5...tanstack_start_ts-v1.53.6) (2026-11-07)
 
 
