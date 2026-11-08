@@ -28,6 +28,9 @@ describe("buildManualPublishGuide golden (S1/S6 zero text change)", () => {
   // Items 5 and 7 were re-captured 2026-11-01 (#964): Location and the in-app
   // edit are optional, and their unmeasured claims are no longer algorithm
   // facts. The prose changes are the point, not drift.
+  // Item 7 was re-captured again 2026-11-08 (#1177): the draft-sync claim was
+  // false (Studio drafts do not reach the phone app), so the location detail
+  // now states the export-and-upload route. The prose change is the point.
   const GOLDEN_WITH_AI = `
 ============================================================
 📤 TikTok Manual Publishing Guide
