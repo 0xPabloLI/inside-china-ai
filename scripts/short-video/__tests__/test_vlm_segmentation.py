@@ -4,7 +4,7 @@ Test suite for #360 ticket-1 — multi-window (segmented) VLM analysis.
 
 Covers:
 - normalize_windows(): request-side window-list parsing (pure)
-- merge_window_results(): per-window parsed semantics -> one 8-field dict
+- merge_window_results(): per-window parsed semantics -> one nine-key dict
   (S3 contract)
 - handle_analyze_semantics(windows=...): loop + merge wiring, with
   run_vlm_inference monkeypatched (no model / venv needed)
@@ -77,7 +77,7 @@ class TestNormalizeWindows:
         assert normalize_windows([None, {"startMs": 0}]) is None
 
 
-# ─── merge_window_results (S3: 8-field contract) ───
+# ─── merge_window_results (S3: nine-key contract) ───
 
 def win(count, span_ms=10000):
     """Build `count` equal windows for merge tests."""

@@ -532,7 +532,7 @@ export function getVlmVideoInput() {
  * - window ({ startMs, endMs, sampleFps } | undefined) — videos only, when opts provided
  * - windows ({ startMs, endMs, sampleFps }[] | undefined) — videos only,
  *   #360 segmented analysis: Python analyzes each window and merges into a
- *   single 8-field-compatible result
+ *   single contract-shaped (nine-key) result
  * - sourceMode ("native" | "frames" | "degraded" | undefined) — videos only;
  *   "native" = the engine consumed the video file itself, "frames" = ffmpeg
  *   stills (a windowed request or a frames-mode engine)

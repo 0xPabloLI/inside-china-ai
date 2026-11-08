@@ -1487,7 +1487,7 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
 
     When windows is provided (list of such dicts, #360 ticket-1), the video is
     analyzed once per window and the per-window results are merged into a
-    single 8-field-compatible result (see merge_window_results for the merge
+    single contract-shaped result (nine keys, see merge_window_results for
     rules). Per-window failures fail open: as long as one window succeeds the
     asset is analyzed; only when every window fails is an error returned.
     Windows are ignored for images (no time axis).
@@ -1546,7 +1546,7 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
         sample_fps = VIDEO_FPS
 
     # Multi-window segmented analysis (#360 ticket-1): one pass per window,
-    # merged into a single 8-field-compatible result. Images have no time
+    # merged into a single contract-shaped (nine-key) result. Images have no time
     # axis — a windows list is ignored there. A #294 relevance check is a
     # whole-asset judgment (one verdict, not one per segment), so it takes
     # the single-pass path even for videos.
