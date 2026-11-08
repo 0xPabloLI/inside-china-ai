@@ -223,6 +223,8 @@ TRANSCRIPT_MAX_CHARS = 2000
 # merging keeps the information without a second model call section. It comes
 # BEFORE Fit on purpose: the model decides Fit from its own edge finding, so
 # the two fields cannot contradict each other ("no edge text" + "contain").
+# Both blocks are size-gated: __tests__/test_semantics_prompt_budget.py (#991)
+# fails on any growth, so a new explanatory sentence has to pay for itself.
 _CRITICAL_EDGE_RULE = """## Critical Edge Text
 First decide this. Start with "yes" or "no".
 - "yes" only when cropping would cut information a viewer must read or identify: text, numbers, logos, UI or chart labels.

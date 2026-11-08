@@ -687,6 +687,14 @@ Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
   不写 artifact，评审摘要也不再打印 `// Reason:`。
 - **改 prompt 必须同步 bump `VLM_CACHE_PROMPT_VERSION`**（`lib/vlm-cache.mjs`），否则旧
   缓存继续服务旧答案形状。当前 `v6-2026-10-27`（以该文件顶部为准）。
+- **prompt 体积是门禁项（#991）**：图片 base 从 #334 前的 1079 字符涨到 1446（**+34.0%**）。
+  两块规则合计 783 字符（`_CRITICAL_EDGE_RULE` 380 + `_FIT_RULE` 403），它们替换掉旧的
+  Reason 段落，净增 367 字符。**决定是接受该体积、不压缩**：
+  收敛回 `1079 × 1.05 = 1133` 要砍掉约 40% 规则文本，而那正是让 Fit 由边缘证据推导、不再
+  cover/contain 摇摆的映射；省下的每次几百字符换不回已付的实测代价。上限锁在
+  `__tests__/test_semantics_prompt_budget.py`——逐常量 + 两种 claim 组合（固定 claim 样本：
+  image base 1446 / image claim 2136 / video base 534 / video claim 1351），**只能变小不能变大**，
+  失败信息点名超限常量与超出字符数。以后要再往 prompt 里加解释，先跑绿这条门禁或重新裁决。
 
 ### A1 转写接线（#542 L3，2026-10-10）
 
