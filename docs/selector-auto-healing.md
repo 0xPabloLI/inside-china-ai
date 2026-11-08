@@ -111,6 +111,23 @@ node scripts/short-video/source-url-discover.mjs --only <源名> --keyword-zh �
 - **端口由守卫钉住，消除「选到哪个 Chrome」这件事（2026-09-23 修）**：只告警不够——代理按 `DevToolsActivePort` 探测浏览器，日常 Chrome（9222）与自动化实例（9229）同时在跑时它可能落到任意一个。`ensureCdpProfileGuard()` 现在设 `WEB_ACCESS_CDP_PORT=<automationPort()>`，这是代理的**最高优先覆盖**，且**端口没监听时硬错**——失败形态从「静默连错浏览器、给出可信但错的答案」变成「代理起不来」（响亮、可操作）。子进程继承 `process.env`，所以 `cdp-client.ensureCdpProxy()` 自己 spawn 的那条路径一并覆盖。
 - **两份 `cdp-proxy.mjs` 不是同一个文件（2026-09-23 修）**：`scripts/short-video/lib/cdp-client.mjs#findCdpProxyScript()` 原来**偏好全局副本**（`~/.agents/skills/web-access/scripts/cdp-proxy.mjs`），而 `cdp-preflight.mjs` 用**仓库内副本**（`skills/web-access/scripts/cdp-proxy.mjs`）。实测两者相差 105 行——仓库内那份带本仓自己的修复（#273 并发守卫、#308 `exceptionDetails` 优先），全局那份是全局安装留下的旧版。后果：同仓两套代理，走体检/生产路径起的是**旧的那份**。现在**仓库内优先**，全局只作 fallback。
 
+## 环境怪癖（Akamai 拦截 / 代理节点漂移）
+
+两条都是**静默失败**：不报错，只给出一个可信但错的结论。处置顺序都是**先排除环境，再动选择器**——把环境问题当选择器问题，就会去改本不该改的脚本（违反 §边界 的「healthy 源禁止顺手优化」）。
+
+### Akamai 会拦掉 `tiktokstudio/content` 上新开的页面（2026-11-08 实测）
+
+- **症状**：自动化 profile 用**新开的** tab 打开 `/tiktokstudio/content` 时被 Akamai 判定，拿不到预期 DOM；同一 profile、同一出口下，**已经热着的**同一页面正常可读。
+- **做法**：这一页复用已热的 `tiktokstudio` tab。
+- **范围只到这里**：实测证据只覆盖 `/tiktokstudio/content`。`docs/tiktok/tiktok-analytics-review.md` 的 CDP 步骤按设计**每次新开** `tiktokstudio/analytics/*` tab，那是既有且仍然有效的做法，本节不改它。
+- **先排除另两类再修选择器**：`npm run cdp:ensure` 只回答一个问题——端口上的 Chrome 是不是自动化 profile（四态 `ok` / `no-chrome` / `wrong-profile` / `unknown-profile`，全凭 `--user-data-dir` argv 判定）。它不探登录态，**登录过期时同样回 `ok`**；登录要看源自己的判据（`need_login` 判决 / `loginCheckScript`，见 §边界 的 needsAuth 源一条）。选择器腐烂则要求 DOM 确实变了。
+
+### 代理 selector 会漂移到 TikTok 不可达的节点（2026-11-08 实测）
+
+- **症状**：Clash 客户端重启或节点切换后，selector 落在任意节点上；落错节点时 TikTok 不可达，表现与「这个源死了」无法区分。
+- **做法**：涉及 TikTok 的操作前先确认出口。出口地理门禁（`--expect-region`，见 `docs/content-pipeline.md` 的出口地理硬门禁段落）是兜底，不等于「已经设好了」。
+- **selector 是客户端状态，不在仓库里**：任何 Clash 交互之后都要复核。端口解析与探针纪律（探针必须逐端口，否则分不出出口）见 `docs/agents/git-workflow.md` §11。
+
 ## 逐源修复方法论（#269 Phase 2 定案，2026-09-21）
 
 > 上游 runbook 修的是**选择器**（DOM 变了、articleScript 抓空）。本节修的是更靠前的一层：**搜索 URL 模式本身死了**（404 / 被重定向回首页）。两者失败层级不同——ITHome 案例里 articleScript 完全正常，死的是 `search?word=` 端点，且兜底分支把首页 534 条链接当成「搜索结果」静默入库（#269 Phase 1 实证）。本节是这一层的执行方法论。
