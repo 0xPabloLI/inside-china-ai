@@ -9,7 +9,7 @@
  * The media object keeps existing MediaField shape — no analysis or focusAnalysis.
  *
  * P3: Also reads asset-analysis.json (if present) to display VLM semantics
- * (description, subjects, contentKind, fit, criticalEdgeText, reason).
+ * (description, subjects, contentKind, fit, criticalEdgeText).
  *
  * Usage: node review-media-patch.mjs [--content <slug>] [--input media-patch.json] [--output formatted.txt] [--analysis asset-analysis.json]
  *

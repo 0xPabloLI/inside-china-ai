@@ -348,6 +348,19 @@ check(
     "subject_match is not duplicated as a raw section",
     "subject_match" not in parsed_check,
 )
+# #990: `## Reason` is still live here (the #294 check asks for it); it must land
+# in subjectMatchReason so the retired image-semantics `reason` stays legacy-only.
+check(
+    "subject check explanation lands in subjectMatchReason",
+    parsed_check.get("subjectMatchReason")
+    == "Visible subject is the named company's robot.",
+    f"got {parsed_check.get('subjectMatchReason')!r}",
+)
+check(
+    "subject check does not write the retired semantics reason",
+    "reason" not in parsed_check,
+    f"got {parsed_check.get('reason')!r}",
+)
 missing_check = parse_markdown_to_dict("## Description\nd\n")
 check("missing Subject Match → None", missing_check.get("subjectMatch") is None)
 
@@ -363,9 +376,9 @@ check(
     f"got {headless_no.get('subjectMatch')!r}",
 )
 check(
-    "headless verdict keeps the explanation as reason",
-    "DeepSeek logo" in (headless_no.get("reason") or ""),
-    f"got {headless_no.get('reason')!r}",
+    "headless verdict keeps the explanation as subjectMatchReason",
+    "DeepSeek logo" in (headless_no.get("subjectMatchReason") or ""),
+    f"got {headless_no.get('subjectMatchReason')!r}",
 )
 headless_yes = parse_markdown_to_dict("match\n\nThe subject is the named company's robot.\n")
 check(

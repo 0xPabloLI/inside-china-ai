@@ -13,14 +13,16 @@ Actions:
 
 Response format (one line):
   {"description": "...", "subjects": ["..."], "contentKind": "...",
-   "fit": "..."|null, "criticalEdgeText": "..."|null, "reason": "..."|null,
+   "fit": "..."|null, "criticalEdgeText": "..."|null,
+   "subjectMatchReason": "..."|null,
    "relevance": int 0-100|null, "relevanceReason": "..."|null,
    "error": null}
   {"description": "", "subjects": [], ..., "error": "reason"}
 
-`reason` is still parsed for legacy cached outputs; the current image prompts
-fold that explanation into `criticalEdgeText` and no longer ask for a separate
-section (#334).
+`subjectMatchReason` is the #294 subject check's own explanation. The retired
+image-semantics `reason` field is still parsed for pre-#334 raw text / legacy
+cached outputs only; the current image prompts fold that explanation into
+`criticalEdgeText` and no longer ask for a separate section (#334, #990).
 
 VLM outputs Markdown with ## Section headers. Python parses it via
 parse_markdown_to_dict() — pure string manipulation, no LLM needed.
@@ -544,7 +546,7 @@ def _parse_subject_match(body):
 
 
 def _split_headless_verdict(text):
-    """Split a headerless single-question answer into (verdict, reason).
+    """Split a headerless single-question answer into (verdict, explanation).
 
     The #294 subject-check prompt asks one question, and a real Qwen3-VL run
     answered it as `no_match\n\n<why>` with no `## Subject Match` header. Only
@@ -561,7 +563,7 @@ def _split_headless_verdict(text):
 
 
 def parse_markdown_to_dict(raw_text):
-    """Parse VLM Markdown output into a dict with 8 mandatory keys.
+    """Parse VLM Markdown output into a dict with 9 mandatory keys.
 
     Logic:
     1. Strip markdown code fences (```markdown ... ```) if present
@@ -574,9 +576,15 @@ def parse_markdown_to_dict(raw_text):
     8. If no '## ' found at all → entire text becomes description, other fields = null
 
     Returns dict with mandatory keys: description, subjects, contentKind,
-    fit, criticalEdgeText, reason, relevance (int 0-100 or None),
-    relevanceReason, subjectMatch (#294: "match" | "no_match" | None).
-    Missing fields = None/[].
+    fit, criticalEdgeText, relevance (int 0-100 or None), relevanceReason,
+    subjectMatch (#294: "match" | "no_match" | None), subjectMatchReason
+    (#294 check explanation). Missing fields = None/[].
+
+    `reason` is a legacy-only key: it is still parsed when the raw text carries
+    the pre-#334 `## Reason` section (old cached outputs) but never written by
+    the current prompts (#334 removed that section, #990 retired its consumers).
+    A `## Reason` next to `## Subject Match` belongs to the #294 check and lands
+    in `subjectMatchReason`, not in `reason`.
     """
     result = {
         "description": None,
@@ -584,10 +592,10 @@ def parse_markdown_to_dict(raw_text):
         "contentKind": None,
         "fit": None,
         "criticalEdgeText": None,
-        "reason": None,
         "relevance": None,
         "relevanceReason": None,
         "subjectMatch": None,
+        "subjectMatchReason": None,
     }
 
     if not raw_text or not raw_text.strip():
@@ -614,12 +622,12 @@ def parse_markdown_to_dict(raw_text):
         # without the header — see `_split_headless_verdict`.
         headless = _split_headless_verdict(text)
         if headless:
-            verdict, reason = headless
+            verdict, explanation = headless
             result.update(
                 description="",
                 subjects=[],
                 subjectMatch=verdict,
-                reason=reason,
+                subjectMatchReason=explanation,
             )
             return result
         # No headers — entire text becomes description
@@ -688,11 +696,25 @@ def parse_markdown_to_dict(raw_text):
     else:
         result["criticalEdgeText"] = None
 
-    # reason
-    if "reason" in raw_sections:
-        result["reason"] = raw_sections["reason"]
+    # subjectMatch — #294 second-pass verdict (strict enum, fail-closed).
+    # `## Match` is accepted as a header variant (the model sometimes shortens
+    # the section name); anything that is not an explicit enum fails closed.
+    if "subject_match" in raw_sections:
+        result["subjectMatch"] = _parse_subject_match(raw_sections["subject_match"])
+    elif "match" in raw_sections:
+        result["subjectMatch"] = _parse_subject_match(raw_sections["match"])
     else:
-        result["reason"] = None
+        result["subjectMatch"] = None
+
+    # `## Reason` has two owners, decided by whether this response answered the
+    # #294 check: beside `## Subject Match` it explains the verdict and lands in
+    # `subjectMatchReason`; on its own it is pre-#334 image-semantics legacy and
+    # stays in the legacy-only `reason` key (#990).
+    if "reason" in raw_sections:
+        if "subject_match" in raw_sections or "match" in raw_sections:
+            result["subjectMatchReason"] = raw_sections["reason"]
+        else:
+            result["reason"] = raw_sections["reason"]
 
     # relevance — integer 0-100 or None (missing/invalid = fail-closed upstream)
     if "relevance" in raw_sections:
@@ -705,16 +727,6 @@ def parse_markdown_to_dict(raw_text):
         result["relevanceReason"] = raw_sections["relevance_reason"]
     else:
         result["relevanceReason"] = None
-
-    # subjectMatch — #294 second-pass verdict (strict enum, fail-closed).
-    # `## Match` is accepted as a header variant (the model sometimes shortens
-    # the section name); anything that is not an explicit enum fails closed.
-    if "subject_match" in raw_sections:
-        result["subjectMatch"] = _parse_subject_match(raw_sections["subject_match"])
-    elif "match" in raw_sections:
-        result["subjectMatch"] = _parse_subject_match(raw_sections["match"])
-    else:
-        result["subjectMatch"] = None
 
     # 5. Add unknown sections as extra key-value pairs
     known_keys = {"description", "subjects", "content_kind", "fit",
@@ -1366,7 +1378,7 @@ def _format_window_label(index, count, window):
 
 
 def merge_window_results(parsed_results, windows, plan=None):
-    """Merge per-window parsed semantics dicts into ONE 8-field-compatible dict.
+    """Merge per-window parsed semantics dicts into ONE contract-shaped dict.
 
     Pure function; merge rules (documented per #360 ticket-1):
     - description: per-window descriptions joined in window order, each
@@ -1374,10 +1386,13 @@ def merge_window_results(parsed_results, windows, plan=None):
       consumers can see temporal provenance. Empty descriptions are skipped.
     - subjects: union in first-seen order.
     - contentKind: majority vote among non-null values; tie → first seen.
-    - fit / criticalEdgeText / reason / relevance / relevanceReason: first
-      non-null value in window order (per-window judgments; videos leave
-      fit/criticalEdgeText null anyway).
-    - Unknown extra keys: first non-null value wins.
+    - fit / criticalEdgeText / subjectMatchReason / relevance / relevanceReason:
+      first non-null value in window order (per-window judgments; videos leave
+      fit/criticalEdgeText null anyway, and a windowed pass never runs the #294
+      subject check).
+    - Unknown extra keys: first non-null value wins. `reason` is a tombstone in
+      the merged dict (legacy-only, #990), so a pre-#334 window cannot
+      resurrect it through this branch.
 
     Args:
         parsed_results: per-window parsed semantics dicts (successful windows
@@ -1402,12 +1417,15 @@ def merge_window_results(parsed_results, windows, plan=None):
         "contentKind": None,
         "fit": None,
         "criticalEdgeText": None,
+        # legacy-only tombstone: keeps a pre-#334 window's `## Reason` from being
+        # resurrected by the unknown-section copy below (#990).
         "reason": None,
         "relevance": None,
         "relevanceReason": None,
-        # #294: a windowed semantics pass is not a subject check; the key is
+        # #294: a windowed semantics pass is not a subject check; the keys are
         # present so the response shape stays uniform and fail-closed.
         "subjectMatch": None,
+        "subjectMatchReason": None,
     }
 
     # When a plan is given, the denominator reflects the FULL plan size and
@@ -1433,7 +1451,7 @@ def merge_window_results(parsed_results, windows, plan=None):
         kind = parsed.get("contentKind")
         if kind:
             kind_votes[kind] = kind_votes.get(kind, 0) + 1
-        for field in ("fit", "criticalEdgeText", "reason", "relevance",
+        for field in ("fit", "criticalEdgeText", "subjectMatchReason", "relevance",
                       "relevanceReason"):
             if merged[field] is None and parsed.get(field) is not None:
                 merged[field] = parsed[field]
@@ -1469,7 +1487,7 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
 
     When windows is provided (list of such dicts, #360 ticket-1), the video is
     analyzed once per window and the per-window results are merged into a
-    single 8-field-compatible result (see merge_window_results for the merge
+    single contract-shaped result (nine keys, see merge_window_results for
     rules). Per-window failures fail open: as long as one window succeeds the
     asset is analyzed; only when every window fails is an error returned.
     Windows are ignored for images (no time axis).
@@ -1528,7 +1546,7 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
         sample_fps = VIDEO_FPS
 
     # Multi-window segmented analysis (#360 ticket-1): one pass per window,
-    # merged into a single 8-field-compatible result. Images have no time
+    # merged into a single contract-shaped (nine-key) result. Images have no time
     # axis — a windows list is ignored there. A #294 relevance check is a
     # whole-asset judgment (one verdict, not one per segment), so it takes
     # the single-pass path even for videos.
@@ -1830,10 +1848,10 @@ def _degraded_result(error):
         "contentKind": None,
         "fit": None,
         "criticalEdgeText": None,
-        "reason": None,
         "relevance": None,
         "relevanceReason": None,
         "subjectMatch": None,
+        "subjectMatchReason": None,
         "error": error,
     }
 

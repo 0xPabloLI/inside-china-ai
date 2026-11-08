@@ -167,7 +167,9 @@ export async function evaluateScene(scene, contentDir, analyze) {
   }
 
   const relevance = typeof first?.relevance === "number" ? first.relevance : null;
-  const reason = first?.relevanceReason ?? first?.reason ?? null;
+  // #990: only the claim-mode explanation; the retired image-semantics
+  // `reason` is not an input to this report.
+  const reason = first?.relevanceReason ?? null;
   const band = classifyRelevance(relevance, { threshold: THRESHOLD });
 
   let relevanceCheck = null;
@@ -176,7 +178,9 @@ export async function evaluateScene(scene, contentDir, analyze) {
       const check = await analyze(assetPath, { claim, relevanceCheck: true });
       relevanceCheck = {
         verdict: check?.subjectMatch ?? null,
-        reason: check?.reason ?? check?.error ?? null,
+        // #990: `subjectMatchReason` is the check's own explanation; the
+        // trailing `reason` read keeps pre-rename cache entries working.
+        reason: check?.subjectMatchReason ?? check?.reason ?? check?.error ?? null,
       };
     } catch (error) {
       relevanceCheck = { verdict: null, reason: error?.message ?? String(error) };

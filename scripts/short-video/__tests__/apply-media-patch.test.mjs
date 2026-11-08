@@ -409,6 +409,29 @@ describe("formatPatchEntry — output boundary", () => {
     const result = formatPatchEntry(entry, analysisMap);
     expect(result).toContain("// Crop Decision: safe, cover, focus [0.3, 0.5]");
   });
+
+  // #990: `reason` is a dead semantics field (#334 removed `## Reason` from the
+  // prompt). Old artifacts still carry it; replaying one must not resurface the
+  // retired field in the review summary.
+  it("#990 does not render the retired `reason` field from a legacy artifact", () => {
+    const entry = {
+      sceneId: 1,
+      media: { type: "image", path: "legacy.jpg", fit: "cover" },
+      status: "assigned",
+    };
+    const analysisMap = new Map();
+    analysisMap.set("legacy.jpg", {
+      description: "A humanoid robot in a kitchen.",
+      subjects: ["robot"],
+      contentKind: "product_demo",
+      fit: "contain",
+      criticalEdgeText: "yes — bottom edge has product label text",
+      reason: "Bottom edge has product label text that would be cropped.",
+    });
+    const result = formatPatchEntry(entry, analysisMap);
+    expect(result).toContain("// Critical Edge Text: yes — bottom edge has product label text");
+    expect(result).not.toContain("// Reason:");
+  });
 });
 
 describe("formatMediaPatch — full output", () => {

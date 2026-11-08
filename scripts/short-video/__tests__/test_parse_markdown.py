@@ -20,7 +20,8 @@ import pytest  # noqa: E402
 
 from vlm_analyzer import parse_markdown_to_dict
 
-MANDATORY_KEYS = ["description", "subjects", "contentKind", "fit", "criticalEdgeText", "reason"]
+MANDATORY_KEYS = ["description", "subjects", "contentKind", "fit", "criticalEdgeText",
+                  "subjectMatchReason"]
 
 
 def _cases():
@@ -117,8 +118,7 @@ Calm and atmospheric.
           "subjects": [],
           "contentKind": None,
           "fit": None,
-          "criticalEdgeText": None,
-          "reason": None}),
+          "criticalEdgeText": None}),
 
         # Test 5: Partial sections — Description + Subjects only (Scenario 5)
         ("test_partial_sections", """
@@ -132,8 +132,7 @@ robot, demo
           "subjects": ["robot", "demo"],
           "contentKind": None,
           "fit": None,
-          "criticalEdgeText": None,
-          "reason": None}),
+          "criticalEdgeText": None}),
 
         # Test 6: Subjects as newline-separated (Scenario 6)
         ("test_newline_subjects", """
@@ -224,8 +223,7 @@ Wide landscape.
           "subjects": [],
           "contentKind": None,
           "fit": None,
-          "criticalEdgeText": None,
-          "reason": None}),
+          "criticalEdgeText": None}),
 
         # Test 10: Whitespace-only text
         ("test_whitespace_only", "   \n  \t  \n  ",
@@ -233,8 +231,7 @@ Wide landscape.
           "subjects": [],
           "contentKind": None,
           "fit": None,
-          "criticalEdgeText": None,
-          "reason": None}),
+          "criticalEdgeText": None}),
 
         # Test 11: Relevance body prefixed with "Score N" — the real 2B
         # claim-mode output format observed in T8 verification
