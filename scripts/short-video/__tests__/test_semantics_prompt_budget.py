@@ -112,3 +112,7 @@ def test_semantics_prompt_within_budget(name, text, ceiling, reference):
         "Shrink the text in vlm_analyzer.py, or re-open the size decision in "
         "docs/video-production-runbook.md § 语义 Prompt 契约（#334）."
     )
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__, "-v"]))
