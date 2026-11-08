@@ -4,6 +4,7 @@
 > **调研方法**: Brave Search + Jina Reader（TikTok Creator Academy 官方文档）+ TikTok Research API 文档
 > **用途**: 评估 TikTok Creator Tools 对我们视频生产管线（Content Pipeline + Analytics Workflow）的集成价值
 > **状态**: 调研完成，待用户确认后进入实施
+> **下游票**: [#1181](https://github.com/0xPabloLI/inside-china-ai/issues/1181)（CDP 网页发布的 0 播放根因判决）、[#1183](https://github.com/0xPabloLI/inside-china-ai/issues/1183)（真机自动化发布）。§5 的两条发布约束由这两票承接；§1 的 CSI 采集侧已随 Analytics Workflow 落地，无需另开票。
 
 ---
 
@@ -343,12 +344,12 @@ node scripts/short-video/lib/tiktok-csi.mjs --detail <topicId>
 | ------------------------------------------------- | --------------------------------- | ----------------------- | ------------------------------------------------------ |
 | Research API (`open.tiktokapis.com/v2/research/`) | 公开视频/用户数据查询             | ❌                      | 仅限学术/非营利，creators/commercial 不可申请，4周审核 |
 | Business API (`business-api.tiktok.com`)          | 广告管理（campaign/ad 管理+分析） | ❌                      | 只覆盖广告数据，不覆盖 CSI/AI Outline                  |
-| Content Posting API                               | 从第三方发布视频到 TikTok         | ✅ 已用（通过 Publora） | 只管发布，不管 CSI/AI Outline                          |
+| Content Posting API                               | 从第三方发布视频到 TikTok         | ✅ 可用（Publora 未用） | **无声音接口**；不管 CSI/AI Outline                    |
 | Creator Marketplace API                           | 影响者营销数据                    | ❌                      | 面向广告主找 KOL                                       |
 | Login & Identity / Share to TikTok                | 第三方登录 + 分享                 | ❌                      | 不相关                                                 |
 | CSI / AI Outline                                  | 搜索趋势 + AI 生成内容            | ❌ 无 API               | 只在 App/网页内交互                                    |
 
-**结论**：TikTok 没有任何官方 API 提供 CSI 或 AI Outline 的数据。**CDP 是唯一可行的自动化路径。**
+**结论**：TikTok 没有任何官方 API 提供 CSI 或 AI Outline 的数据，**数据侧** CDP 是唯一可行的自动化路径（见上表 TikTok Studio Analytics）。**发布侧**另有约束，两条路都不能直接照搬：CDP 网页自动化疑似被静默降权到 0 播放（#1181），而 Content Posting API 没有声音接口（`tiktok-upload-prep.mjs:10-11`）。
 
 ---
 
