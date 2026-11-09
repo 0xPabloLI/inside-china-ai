@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.55.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.55.0...tanstack_start_ts-v1.55.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **short-video:** make AI_IMAGE_BACKEND select the whole T2I backend ([#1028](https://github.com/0xPabloLI/inside-china-ai/issues/1028)) ([428f45b](https://github.com/0xPabloLI/inside-china-ai/commit/428f45b4ae4308c155bdfee4975785e02dd8ea74))
+
 ## [1.55.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.54.0...tanstack_start_ts-v1.55.0) (2026-11-09)
 
 
