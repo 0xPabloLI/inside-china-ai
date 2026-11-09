@@ -6,7 +6,7 @@ import { join } from "node:path";
 import {
   DEFAULT_IMAGE_BACKEND,
   DEFAULT_IMAGE_MODEL,
-  MFLUX_BIN_CANDIDATES,
+  mfluxBinCandidates,
   buildImageArgs,
   imageModelSourceLabel,
   isImageSourceLabel,
@@ -51,7 +51,7 @@ describe("resolveImageDependencies (#155)", () => {
     // If mflux is already installed in one of the probed venvs, the default
     // probe wins (ok:true) and this test only asserts the PATH fallback was
     // not consulted with a broken PATH. Otherwise resolution must fail loudly.
-    if (MFLUX_BIN_CANDIDATES.some((c) => existsSync(c))) {
+    if (mfluxBinCandidates().some((c) => existsSync(c))) {
       expect(res.ok).toBe(true);
       return;
     }
@@ -59,7 +59,7 @@ describe("resolveImageDependencies (#155)", () => {
     expect(res.message).toMatch(/install/i);
   });
 
-  test("AI_IMAGE_BACKEND override is surfaced for the negative-prompt contract", () => {
+  test("AI_IMAGE_BACKEND override is surfaced as the run-level backend contract", () => {
     const bin = join(dir, "mflux-generate-boogu");
     writeFileSync(bin, "#!/bin/sh\n");
     const res = resolveImageDependencies({ MFLUX_BIN: bin, AI_IMAGE_BACKEND: "mflux-z-image" });
@@ -336,15 +336,21 @@ describe("image provenance label (#985)", () => {
     expect(imageModelSourceLabel(DEFAULT_IMAGE_MODEL)).toBe("AI-generated (mflux Boogu Turbo)");
   });
 
-  test("a checkpoint override changes the label; the backend switch alone does not", () => {
+  test("a checkpoint override changes the label; a backend switch changes the default checkpoint (#1028)", () => {
     expect(imageModelSourceLabel("filipstrand/Z-Image-Turbo-mflux-4bit")).toBe(
       "AI-generated (mflux filipstrand/Z-Image-Turbo-mflux-4bit)",
     );
-    // AI_IMAGE_BACKEND only gates the negative-prompt contract; the model —
-    // and therefore the provenance label — still defaults to Boogu.
+    // #1028: the backend selects the default checkpoint, so the label now
+    // follows the backend that ran. An explicit AI_IMAGE_MODEL still wins.
     expect(imageModelSourceLabel(resolveImageModel({ AI_IMAGE_BACKEND: "mflux-z-image" }))).toBe(
-      "AI-generated (mflux Boogu Turbo)",
+      "AI-generated (mflux z-image)",
     );
+    expect(
+      imageModelSourceLabel(
+        resolveImageModel({ AI_IMAGE_BACKEND: "mflux-z-image", AI_IMAGE_MODEL: "org/custom" }),
+      ),
+    ).toBe("AI-generated (mflux org/custom)");
+    expect(imageModelSourceLabel(resolveImageModel({}))).toBe("AI-generated (mflux Boogu Turbo)");
   });
 
   test("an unknown checkpoint derives its own label instead of borrowing a known model name", () => {

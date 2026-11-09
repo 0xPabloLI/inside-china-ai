@@ -33,6 +33,7 @@ import { resolveDependencies, runGeneration, resolveModelTier, MODEL_TIERS } fro
 import {
   resolveImageDependencies,
   runImageGeneration,
+  resolveImageBackend,
   resolveImageModel,
   imageModelSourceLabel,
   isImageSourceLabel,
@@ -429,7 +430,12 @@ export async function runBrollStage(opts) {
   };
   // Report provenance follows the tier (#298): the winner source label must
   // match the model that actually ran. Images label from the checkpoint
-  // (#985) — AI_IMAGE_MODEL, not the AI_IMAGE_BACKEND contract switch.
+  // (#985); since #1028 that checkpoint defaults to the selected backend's
+  // spec, with AI_IMAGE_MODEL still winning when set explicitly.
+  // #1028: the T2I backend is a run-level decision too. Validate it here
+  // (before any plan/report work) rather than relying on the implicit
+  // validation inside resolveImageModel's default argument.
+  resolveImageBackend(env);
   const videoSource = MODEL_TIERS[resolveModelTier(env)]?.winnerSource ?? null;
   const imageSource = imageModelSourceLabel(resolveImageModel(env));
   // #922: one family per run — the tier is a run-level decision, so prompts,
