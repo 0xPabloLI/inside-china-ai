@@ -6,7 +6,7 @@ import { join } from "node:path";
 import {
   DEFAULT_IMAGE_BACKEND,
   DEFAULT_IMAGE_MODEL,
-  MFLUX_BIN_CANDIDATES,
+  mfluxBinCandidates,
   buildImageArgs,
   imageModelSourceLabel,
   isImageSourceLabel,
@@ -51,7 +51,7 @@ describe("resolveImageDependencies (#155)", () => {
     // If mflux is already installed in one of the probed venvs, the default
     // probe wins (ok:true) and this test only asserts the PATH fallback was
     // not consulted with a broken PATH. Otherwise resolution must fail loudly.
-    if (MFLUX_BIN_CANDIDATES.some((c) => existsSync(c))) {
+    if (mfluxBinCandidates().some((c) => existsSync(c))) {
       expect(res.ok).toBe(true);
       return;
     }

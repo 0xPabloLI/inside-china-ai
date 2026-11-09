@@ -68,7 +68,12 @@ export const DEFAULT_IMAGE_BACKEND = "mflux-boogu";
 
 /** Fail-closed lookup: an unknown backend must never fall back to Boogu. */
 function imageBackendSpec(backend = DEFAULT_IMAGE_BACKEND) {
-  const spec = IMAGE_BACKEND_SPECS[backend];
+  // An own-key check is load-bearing: AI_IMAGE_BACKEND comes from the env, so
+  // plain-object lookup would let `constructor` / `__proto__` / `toString`
+  // inherit a truthy non-spec value and skip the guard entirely (droid P1).
+  const spec = Object.hasOwn(IMAGE_BACKEND_SPECS, backend)
+    ? IMAGE_BACKEND_SPECS[backend]
+    : undefined;
   if (!spec) {
     throw new Error(
       `Unknown AI_IMAGE_BACKEND "${backend}" — known backends: ${Object.keys(IMAGE_BACKEND_SPECS).join(", ")}`,
@@ -90,8 +95,6 @@ export function mfluxBinCandidates(backend = DEFAULT_IMAGE_BACKEND, home = homed
     join(home, ".video-tts-env", "bin", binName),
   ];
 }
-// The default backend's list, kept for legacy consumers and tests.
-export const MFLUX_BIN_CANDIDATES = mfluxBinCandidates();
 // Boogu-Image-0.1-Turbo: 10B params, Apache 2.0, CUHK + HKUST.
 // Requires 4-bit quantization to fit in 32GB unified memory.
 export const DEFAULT_IMAGE_MODEL = IMAGE_BACKEND_SPECS[DEFAULT_IMAGE_BACKEND].defaultModel;
@@ -271,14 +274,14 @@ function envInt(env, name, fallback) {
  *   results: Array<{label: string, ok: boolean, file: string, error: string|null}>}>}
  */
 export function runImageGeneration(opts) {
-  const resolutionEnv = opts.env ?? {};
+  // Every override (including the backend) and the spawned child read the
+  // same env, so a process-level AI_IMAGE_* value can never be applied to
+  // one knob and ignored by another (droid P3).
+  const resolutionEnv = opts.env ?? process.env;
   // #1028: the backend is a run-level decision. Resolve and validate it once
   // here (and in the dependency probe) so an unknown key cannot spawn a job
   // against a backend nobody selected.
-  // Backend validation reads the same env the child process gets when no
-  // explicit opts.env was passed, so a bad process-level AI_IMAGE_BACKEND
-  // cannot slip through a direct runner call (#1028 review finding).
-  const backend = opts.backend ?? resolveImageBackend(opts.env ?? process.env);
+  const backend = opts.backend ?? resolveImageBackend(resolutionEnv);
   const spec = imageBackendSpec(backend);
   const {
     bin,

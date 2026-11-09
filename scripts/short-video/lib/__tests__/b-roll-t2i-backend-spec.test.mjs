@@ -57,6 +57,23 @@ describe("IMAGE_BACKEND_SPECS (#1028 single source of truth)", () => {
     );
   });
 
+  test("inherited Object.prototype keys fail closed too (operator-controlled env)", () => {
+    for (const key of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+      expect(() => t2i.resolveImageBackend({ AI_IMAGE_BACKEND: key })).toThrow(
+        /Unknown AI_IMAGE_BACKEND/,
+      );
+      expect(() =>
+        t2i.buildImageArgs({
+          prompt: "p",
+          outputPath: "/o.png",
+          seed: 1,
+          backend: key,
+        }),
+      ).toThrow(/Unknown AI_IMAGE_BACKEND/);
+      expect(() => t2i.mfluxBinCandidates(key)).toThrow(/Unknown AI_IMAGE_BACKEND/);
+    }
+  });
+
   test("resolveImageModel defaults to the backend checkpoint; AI_IMAGE_MODEL still wins", () => {
     expect(t2i.resolveImageModel({})).toBe(BOOGU_MODEL);
     expect(t2i.resolveImageModel({ AI_IMAGE_BACKEND: "mflux-z-image" })).toBe(Z_IMAGE_MODEL);
@@ -95,8 +112,9 @@ describe("backend-specific dependency probing (#1028)", () => {
         join(home, ".video-t2i-env", "bin", "mflux-generate-sd3.5"),
         join(home, ".video-tts-env", "bin", "mflux-generate-sd3.5"),
       ]);
-      // The legacy exported constant stays the default backend's candidate list.
-      expect(t2i.mfluxBinCandidates("mflux-boogu", home)[0]).toMatch(/mflux-generate-boogu$/);
+      // The default is the Boogu CLI; no second exported candidate table.
+      expect(t2i.mfluxBinCandidates()[0]).toMatch(/mflux-generate-boogu$/);
+      expect(t2i.MFLUX_BIN_CANDIDATES).toBeUndefined();
     } finally {
       teardown();
     }
@@ -341,6 +359,32 @@ describe("runImageGeneration resolves defaults from the backend (#1028)", () => 
     } finally {
       if (prev === undefined) delete process.env.AI_IMAGE_BACKEND;
       else process.env.AI_IMAGE_BACKEND = prev;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("process-level AI_IMAGE_MODEL / AI_IMAGE_STEPS apply without opts.env", async () => {
+    const { stub, capture, out } = captureStub();
+    const keys = ["AI_IMAGE_BACKEND", "AI_IMAGE_MODEL", "AI_IMAGE_STEPS"];
+    const prev = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    process.env.AI_IMAGE_BACKEND = "mflux-z-image";
+    process.env.AI_IMAGE_MODEL = "org/custom";
+    process.env.AI_IMAGE_STEPS = "9";
+    try {
+      await t2i.runImageGeneration({
+        bin: process.execPath,
+        scriptPath: stub,
+        workDir: dir,
+        jobs: [{ label: "out.png", prompt: "p", output_path: out, seed: 1 }],
+      });
+      const args = JSON.parse(readFileSync(capture, "utf8"));
+      expect(argValue(args, "--model")).toBe("org/custom");
+      expect(argValue(args, "--steps")).toBe("9");
+    } finally {
+      for (const k of keys) {
+        if (prev[k] === undefined) delete process.env[k];
+        else process.env[k] = prev[k];
+      }
       rmSync(dir, { recursive: true, force: true });
     }
   });
