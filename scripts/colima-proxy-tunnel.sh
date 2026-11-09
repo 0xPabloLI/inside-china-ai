@@ -25,6 +25,10 @@
 # here fails with "Operation not permitted" on every cycle. Re-sync with:
 #   npm run env:sync-tunnel
 #
+# That sync also copies `scripts/lib/proxy-port.mjs` next to the launcher: this
+# script resolves the host port by running it (`--print-port`), and reading it
+# back out of ~/Documents is exactly what launchd is not allowed to do.
+#
 # Contract: exit 0 = "nothing to do / healthy" (a legitimately absent tunnel is
 # not an error); exit 1 = "needs a human".
 
@@ -34,29 +38,46 @@ set -euo pipefail
 
 TUNNEL_PORT=7891
 PROXY_HOST=127.0.0.1
-# Candidate host proxy ports, in the order we prefer them when `scutil --proxy`
-# has nothing (TUN / system proxy off). Clash Verge's mixed-port is RANDOM since
-# 2026-11-01 (`verge.yaml` → `enable_random_port: true`), so no entry here can be
-# that value; the fixed listeners are the SOCKS 7898 / HTTP 7899 pair, and 7890
-# is FlClash's old mixed-port. `scutil --proxy` is still the primary source.
-PROXY_PORT_CANDIDATES="${PROXY_PORT_CANDIDATES:-7899 7898 7890}"
 PIDFILE="/tmp/colima-proxy-tunnel.pid"
 SSHD_CONFIG="/tmp/colima_ssh_config"
 VM_CURL="env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY curl"
-
-port_listening() { nc -z -G 1 "$PROXY_HOST" "$1" >/dev/null 2>&1; }
+# The resolver the git wrapper and the yt-dlp guard share (#1064), run as a CLI:
+# candidate ports from `scutil` + `netstat`, then a per-port `generate_204`
+# probe. Own copy of the candidate table is gone on purpose — `nc -z` answered
+# "something is listening", which a client in Direct mode does while proxying
+# nothing, and the previous `HTTPPort` read trusted a flag observed lying.
+RESOLVER_NAME="proxy-port.mjs"
 
 # --- resolve which host port to forward to ------------------------------------
-# Order: explicit env → macOS system proxy → first candidate that is listening.
+# Order: explicit env → the shared resolver. `HTTP_PROXY_PORT` survives because
+# this runs on a 60s timer and an operator who pinned a port should not wait for
+# a probe loop to agree with them.
 resolve_proxy_port() {
   if [ -n "${HTTP_PROXY_PORT:-}" ]; then printf '%s' "$HTTP_PROXY_PORT"; return 0; fi
-  local p
-  p=$(scutil --proxy 2>/dev/null | awk '/HTTPPort/{print $3; exit}')
-  if [ -n "$p" ] && port_listening "$p"; then printf '%s' "$p"; return 0; fi
-  for p in $PROXY_PORT_CANDIDATES; do
-    if port_listening "$p"; then printf '%s' "$p"; return 0; fi
-  done
-  return 1
+  local dir resolver node_bin port
+  dir=$(cd "$(dirname "$0")" && pwd)
+  resolver="$dir/$RESOLVER_NAME"
+  [ -f "$resolver" ] || resolver="$dir/lib/$RESOLVER_NAME"
+  if [ ! -f "$resolver" ]; then
+    echo "❌ cannot find $RESOLVER_NAME next to $0 or in $dir/lib — run: npm run env:sync-tunnel" >&2
+    return 1
+  fi
+  node_bin="${NODE_BIN:-}"
+  [ -n "$node_bin" ] || node_bin=$(command -v node || true)
+  if [ -z "$node_bin" ]; then
+    echo "❌ no node on PATH — cannot run $RESOLVER_NAME" >&2
+    return 1
+  fi
+  port=$("$node_bin" "$resolver" --print-port) || return 1
+  # The value becomes an ssh `-R` target; a non-numeric answer there is a
+  # malformed forward, so it is rejected at the source rather than passed on.
+  case "$port" in
+    '' | *[!0-9]*)
+      echo "❌ $RESOLVER_NAME returned a non-numeric port: '$port'" >&2
+      return 1
+      ;;
+  esac
+  printf '%s' "$port"
 }
 
 vm_run() { colima ssh -- bash -c "$1" 2>/dev/null; }
@@ -110,7 +131,7 @@ start() {
 
   local port
   if ! port=$(resolve_proxy_port); then
-    echo "❌ no listening host proxy port (tried: ${HTTP_PROXY_PORT:-none}, scutil, ${PROXY_PORT_CANDIDATES})"
+    echo "❌ no host port resolves (tried: ${HTTP_PROXY_PORT:-none}, then scutil + netstat candidates with a per-port 204 probe)"
     echo "   Start FlClash / Clash Verge, or set HTTP_PROXY_PORT=<port>."
     return 1
   fi
@@ -181,7 +202,7 @@ status() {
   if port=$(resolve_proxy_port); then
     echo "host port: $port"
   else
-    echo "host port: ❌ none listening (candidates ${PROXY_PORT_CANDIDATES})"
+    echo "host port: ❌ none resolves (shared resolver: scutil + netstat candidates, 204 probe)"
   fi
   if vm_direct_ok; then
     echo "vm egress: ✅ direct (host TUN) — tunnel not required"

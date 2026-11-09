@@ -36,8 +36,15 @@ import {
 import { basename, dirname, isAbsolute, join } from "path";
 import { fileURLToPath } from "url";
 import { homedir } from "node:os";
-import { execSync } from "node:child_process";
 import { matchDomain } from "./rate-limiter.mjs";
+import {
+  parseScutilProxy,
+  probePort,
+  proxyUrl,
+  readLoopbackPorts,
+  readScutilProxy,
+  resolveLocalProxy,
+} from "../../lib/proxy-port.mjs";
 
 /** Browser-like UA for yt-dlp invocations (#16571: UA is part of the fingerprint). */
 export const YTDLP_BROWSER_UA =
@@ -218,39 +225,6 @@ const STATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "output");
 // per process, with its own dedupe slot so neither verdict can silence the
 // other.
 
-/** `scutil` is /usr/sbin/scutil and is absent from a minimal PATH. */
-const SCUTIL_BIN = "/usr/sbin/scutil";
-
-/**
- * Parse `scutil --proxy` output into the endpoints macOS currently enables.
- *
- * Only top-level `Key : value` lines are read (2-space indent, single-token
- * value), so nested blocks — `ExceptionsList : <array> { ... }` and the
- * numeric-keyed entries inside it — are skipped without a real parser.
- *
- * @param {string} text - raw `scutil --proxy` stdout
- * @returns {{httpProxy: string|null, httpsProxy: string|null, socksProxy: string|null}} `host:port` per enabled protocol, null when disabled
- */
-export function parseMacSystemProxy(text) {
-  /** @type {Record<string, string>} */
-  const dict = {};
-  for (const line of String(text ?? "").split("\n")) {
-    const m = line.match(/^\s{2}([A-Za-z]+) : (\S+)\s*$/);
-    if (m) dict[m[1]] = m[2];
-  }
-  const endpoint = (proto) =>
-    dict[`${proto}Enable`] === "1" && dict[`${proto}Proxy`] && dict[`${proto}Port`]
-      ? `${dict[`${proto}Proxy`]}:${dict[`${proto}Port`]}`
-      : null;
-  // SOCKS is surfaced for the verdict only: ffmpeg cannot use it, so
-  // resolveYtdlpProxy reports it rather than handing it to a caller as a proxy.
-  return {
-    httpProxy: endpoint("HTTP"),
-    httpsProxy: endpoint("HTTPS"),
-    socksProxy: endpoint("SOCKS"),
-  };
-}
-
 /**
  * Cache a successful scutil read — it is a subprocess and callers are
  * per-candidate. Process-lifetime by design: a long-running process whose
@@ -260,26 +234,128 @@ export function parseMacSystemProxy(text) {
 let systemProxyCache;
 
 /**
- * Read the macOS system proxy. Returns null off-macOS or whenever scutil
- * fails; a PAC-only config parses to the all-null endpoint trio. Never
- * throws — this must never break a download.
+ * Read the macOS system proxy, parsed into per-protocol entries. Returns null
+ * off-macOS or whenever scutil fails. Never throws — this must never break a
+ * download.
  *
- * @returns {{httpProxy: string|null, httpsProxy: string|null, socksProxy: string|null}|null}
+ * The structured shape (`parseScutilProxy`'s per-protocol entries, not endpoint
+ * strings) is what the resolution needs: the port of a protocol whose `Enable`
+ * flag is off is still a candidate, because that flag is exactly what disagrees
+ * with reality (see `scripts/lib/proxy-port.mjs`).
+ *
+ * @returns {ReturnType<typeof parseScutilProxy>|null}
  */
 function readMacSystemProxy() {
   if (process.platform !== "darwin") return null;
   if (systemProxyCache !== undefined) return systemProxyCache;
-  try {
-    const out = execSync(`${SCUTIL_BIN} --proxy`, {
-      encoding: "utf8",
-      timeout: 5000,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    systemProxyCache = parseMacSystemProxy(out);
-  } catch {
-    systemProxyCache = null;
-  }
+  const out = readScutilProxy();
+  // A failed read is not cached (#329 review): one transient scutil failure
+  // would otherwise switch the proxy hand-off off for the whole process.
+  if (out === null) return null;
+  systemProxyCache = parseScutilProxy(out);
   return systemProxyCache;
+}
+
+/**
+ * Process-lifetime answer to "which port does the system proxy forward on":
+ * `undefined` = not asked yet, `null` = asked and nothing forwards.
+ *
+ * Cached because the probe is a network round trip and this resolves per
+ * candidate — a proxy-less machine would otherwise pay the whole probe budget
+ * once per asset. A *hit* is kept for the life of the process (a proxy
+ * reconfigured mid-run is picked up by the next process, same rule as
+ * `systemProxyCache`). A *miss* expires after `SYSTEM_PORT_MISS_TTL_MS`: one
+ * transient probe failure must not switch the hand-off off for the whole run,
+ * which is the same reason a failed scutil read is not cached at all.
+ *
+ * Only the production path shares it. A caller that injects its sources gets a
+ * fresh cache unless it passes one: a cache shared across test cases would make
+ * each case depend on the probe the previous one ran.
+ */
+const systemPortCache = { port: undefined, at: 0 };
+
+/** How long "no port forwards" is trusted before it is probed again. */
+const SYSTEM_PORT_MISS_TTL_MS = 60_000;
+
+/**
+ * Protocol precedence for this caller: HTTPS before HTTP.
+ *
+ * Not a preference — it is the order this file answered in before #1064, when
+ * the resolution was `system?.httpsProxy || system?.httpProxy` and the first
+ * one named won without a probe. `scutil` can name two different loopback ports
+ * (two clients, two egress paths, recorded in
+ * `docs/conventions/test-env-baseline.md`), so when both forward, "first one
+ * wins" silently switches the client the download leaves through. The shared
+ * resolver defaults to HTTP-first because that is what the git wrapper always
+ * did; this caller keeps its own answer by saying so, which is the whole point
+ * of `protocols`.
+ */
+const SYSTEM_PROTOCOL_ORDER = ["HTTPS", "HTTP", "SOCKS"];
+
+/**
+ * Resolve the system configuration to the port that forwards traffic — the same
+ * criterion the git wrapper uses (#1064), on the ports `scutil` names plus the
+ * loopback listeners.
+ *
+ * The ports are taken regardless of `Enable` on purpose: the observed failure
+ * mode is a client that left the flag off yet still binds a working port, and
+ * only the probe can tell those apart (see `scripts/lib/proxy-port.mjs`).
+ *
+ * @param {{
+ *   system: ReturnType<typeof parseScutilProxy>,
+ *   readLoopback: () => number[],
+ *   probe: (port: number) => string,
+ *   cache: { port?: number|null, at?: number },
+ *   now?: () => number,
+ * }} input
+ * @returns {number|null} Port that answered `204`, or `null`
+ */
+function resolveSystemPort({ system, readLoopback, probe, cache, now = Date.now }) {
+  const decided = cache.port !== undefined;
+  const missExpired = cache.port === null && now() - (cache.at ?? 0) >= SYSTEM_PORT_MISS_TTL_MS;
+  if (decided && !missExpired) return cache.port;
+
+  // The whole decision — candidates from the parsed dict plus the listeners,
+  // then the probe — is `resolveLocalProxy`. Calling it rather than repeating
+  // its two lines is the point of #1064: a second copy of "merge, probe, retry
+  // once" is a second place that can disagree. `protocols` keeps this caller's
+  // own precedence (see `SYSTEM_PROTOCOL_ORDER`).
+  cache.port = resolveLocalProxy({
+    scutilProxy: system,
+    readLoopback,
+    probe,
+    protocols: SYSTEM_PROTOCOL_ORDER,
+  }).port;
+  cache.at = now();
+  return cache.port;
+}
+
+/** True when an endpoint is this machine — the only kind #1064 is about. */
+function isLoopbackHost(host) {
+  return host === "localhost" || host === "::1" || host === "[::1]" || /^127\./.test(host);
+}
+
+/**
+ * A system proxy that names another machine (a corporate gateway), if one is
+ * enabled — in this file's original precedence, HTTPS before HTTP.
+ *
+ * Such an endpoint is not a candidate for "which *local* port proxies", and the
+ * probe cannot answer for it without changing what it means (it would report
+ * the network's reachability, not the proxy's). So it is passed through exactly
+ * as before #1064; rewriting it to `127.0.0.1` would turn a working gateway into
+ * "nothing forwards" and send downloads direct — the failure this ticket removes.
+ *
+ * @param {ReturnType<typeof parseScutilProxy>} system
+ * @returns {{host: string, port: number}|null}
+ */
+function remoteSystemEndpoint(system) {
+  for (const proto of ["HTTPS", "HTTP"]) {
+    const entry = system?.[proto];
+    if (entry?.enabled && entry.host && entry.port && !isLoopbackHost(entry.host)) {
+      return { host: entry.host, port: entry.port };
+    }
+  }
+  return null;
 }
 
 /** Add the http:// scheme ffmpeg and yt-dlp both expect on a bare host:port. */
@@ -450,9 +526,18 @@ const ENV_PROXY_KEYS = ["https_proxy", "HTTP_PROXY", "HTTPS_PROXY"];
  * function is the one seam every call site goes through, which is why the
  * warning lives here rather than at each spawn.
  *
+ * Which system port to use is *probed*, not read from `<Proto>Enable` (#1064):
+ * the flag is what was observed lying, and `resolveSystemPort` is the same
+ * criterion the git wrapper and the colima tunnel use. The verdict still fires
+ * when HTTP/HTTPS are enabled but nothing forwards — the remedy ("export an HTTP
+ * proxy") is the same, and the message names the endpoint ffmpeg cannot use.
+ *
  * @param {Object} [deps]
  * @param {Record<string, string|undefined>} [deps.env] - Environment to read
- * @param {() => ({httpProxy: string|null, httpsProxy: string|null, socksProxy?: string|null}|null)} [deps.readSystemProxy] - System proxy source
+ * @param {() => (ReturnType<typeof parseScutilProxy>|null)} [deps.readSystemProxy] - System proxy source
+ * @param {() => number[]} [deps.readLoopback] - Loopback listener ports, for candidates
+ * @param {(port: number) => string} [deps.probe] - Per-port proxy probe, synchronous
+ * @param {{port?: number|null}} [deps.cache] - Resolved-port cache (see `systemPortCache`)
  * @param {{socksOnly?: boolean, socksInEnv?: boolean}} [deps.warnings] - SOCKS verdict dedupe state
  * @param {(message: string) => void} [deps.warn] - Warning sink (side effect: called at most once per verdict per `warnings` object)
  * @returns {string|null} proxy URL to pass as `--proxy`, or null
@@ -460,6 +545,9 @@ const ENV_PROXY_KEYS = ["https_proxy", "HTTP_PROXY", "HTTPS_PROXY"];
 export function resolveYtdlpProxy({
   env = process.env,
   readSystemProxy = readMacSystemProxy,
+  readLoopback = readLoopbackPorts,
+  probe = probePort,
+  cache = null,
   warnings = proxyWarnings,
   warn = (message) => console.warn(message),
 } = {}) {
@@ -486,12 +574,20 @@ export function resolveYtdlpProxy({
   } catch {
     return null;
   }
-  const endpoint = system?.httpsProxy || system?.httpProxy;
-  if (endpoint) return withScheme(endpoint);
-  if (system?.socksProxy && !warnings.socksOnly) {
+  if (!system) return null;
+  const remote = remoteSystemEndpoint(system);
+  if (remote) return proxyUrl(remote.port, remote.host);
+  // An injected reader is a test seam; a cache shared between cases would make
+  // each one depend on the probe the previous one ran.
+  const usingDefaultReader = readSystemProxy === readMacSystemProxy;
+  const resolvedCache = cache ?? (usingDefaultReader ? systemPortCache : {});
+  const port = resolveSystemPort({ system, readLoopback, probe, cache: resolvedCache });
+  if (port !== null) return proxyUrl(port);
+  const socks = system.SOCKS;
+  if (socks?.enabled && !warnings.socksOnly) {
     warnings.socksOnly = true;
     warn(
-      `[ytdlp-guard] system proxy is SOCKS-only (${describeProxyEndpoint(system.socksProxy)}); ` +
+      `[ytdlp-guard] system proxy is SOCKS-only (${describeProxyEndpoint(`${socks.host}:${socks.port}`)}); ` +
         ffmpegSocksGap(`Export http_proxy=<an HTTP proxy> to cover the ffmpeg leg (#329).`),
     );
   }
