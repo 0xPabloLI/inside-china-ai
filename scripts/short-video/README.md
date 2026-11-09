@@ -59,7 +59,7 @@ Stage 6  Analytics tracking
 
 4. **TikTok-native.** Canvas is 1080×1920 (9:16). Safe zones, subtitle
    lane, brand bar, and frame analysis are calibrated against real FYP
-   screenshots. Duration target is 60-70s. Every video is verified
+   screenshots. Length follows the content (≤70s ceiling). Every video is verified
    against 20+ scene rules before it ships.
 
 5. **Human-in-the-loop only at the end.** MRL (Machine Review Loop) runs

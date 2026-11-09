@@ -272,14 +272,15 @@ if (!preMode) {
   }
 
   if (checkTikTok) {
-    if (duration <= 70) {
-      pass("Duration", "TikTok duration (≤70s, content-driven)", `${duration.toFixed(1)}s`);
+    const ceiling = tiktokProfile.thresholds.maxDurationSec;
+    if (duration <= ceiling) {
+      pass("Duration", `TikTok duration (≤${ceiling}s, content-driven)`, `${duration.toFixed(1)}s`);
     } else if (duration <= 600) {
       warn(
         "Duration",
-        "TikTok duration (≤70s, content-driven)",
-        `${duration.toFixed(1)}s > 70s (within TikTok 10min limit) — consider splitting into parts`,
-        "Create shortened TikTok cut: select 6-8 key scenes for optimal performance",
+        `TikTok duration (≤${ceiling}s, content-driven)`,
+        `${duration.toFixed(1)}s > ${ceiling}s (within TikTok 10min limit) — consider splitting into parts`,
+        "Split into parts (Step 0): keep each part under the ceiling instead of trimming to a target",
       );
     } else {
       fail(

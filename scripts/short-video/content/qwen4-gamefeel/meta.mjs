@@ -32,6 +32,4 @@ export const meta = {
     "Four Qwen 4 versions reported: Max, Plus, Flash and 27B",
   ],
   hashtags: ["#chinaai", "#qwen", "#alibaba", "#aicoding", "#gamedev"],
-  trendingChecked: true,
-  trendingSnapshot: "output/trending-snapshots/trending-2026-11-09.json",
 };

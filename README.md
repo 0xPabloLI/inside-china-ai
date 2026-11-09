@@ -4,7 +4,7 @@
 > The only human checkpoint is approving the final cut.
 
 An autonomous production pipeline that turns a topic, URL, or source document
-into a finished short video (TikTok-native 1080×1920, 60-70s) with zero manual
+into a finished short video (TikTok-native 1080×1920, ≤70s, content-driven) with zero manual
 intermediate steps: research → article → scene data → asset sourcing → voice →
 render → self-verify → candidate for your OK.
 
@@ -68,7 +68,7 @@ Stage 6  Analytics                   — TikTok metrics, A/B testing, optimizati
 
 4. **TikTok-native.** Canvas is 1080×1920. Safe zones, subtitle lane, brand
    bar, and frame analysis are calibrated against real FYP screenshots.
-   Duration target 60-70s. Every video passes 20+ automated checks.
+   Length follows the content (≤70s per video, split when longer).
 
 5. **Graceful degradation.** VLM down → keyword matching + default rendering.
    Best GPU unavailable → next tier. A stage can produce lower quality, but

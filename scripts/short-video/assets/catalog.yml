@@ -299,8 +299,9 @@
   license: "Creator demo footage — editorial/news use with on-screen credit"
   width: 1920
   height: 1080
-  used_in: [qwen4-gamefeel/S1]
-  keywords: [qwen, qwen4, alibaba, loktar, 3d, three.js, colosseum, one-shot, 69k tokens, game dev, demo]
+  used_in: [qwen4-gamefeel/S1, qwen4-gamefeel/S3]
+  keywords:
+    [qwen, qwen4, alibaba, loktar, 3d, three.js, colosseum, one-shot, 69k tokens, game dev, demo]
 
 - file: content/qwen4-gamefeel/assets/gamefeel-site-overview.png
   type: image
@@ -309,8 +310,19 @@
   license: "Open benchmark site (GitHub kodasdream/gamefeel-benchmark) — screenshot for editorial/evidence use"
   width: 3456
   height: 1816
-  used_in: [qwen4-gamefeel]
-  keywords: [gamefeel, benchmark, leaderboard, qwen-4-flash-early, opus-5.5, 49.9, 47.2, evidence, screenshot]
+  used_in: [qwen4-gamefeel/S4]
+  keywords:
+    [
+      gamefeel,
+      benchmark,
+      leaderboard,
+      qwen-4-flash-early,
+      opus-5.5,
+      49.9,
+      47.2,
+      evidence,
+      screenshot,
+    ]
 
 - file: content/qwen4-gamefeel/assets/wechat-img-5.png
   type: image
@@ -319,7 +331,7 @@
   license: "X post — screenshot for editorial/evidence use"
   width: 942
   height: 970
-  used_in: [qwen4-gamefeel]
+  used_in: [qwen4-gamefeel/S8]
   keywords: [qwen, alibaba, teaser, the becoming begins, qwen4, launch, poster, zhuangzi]
 
 - file: content/qwen4-gamefeel/assets/loktar-post.png
@@ -330,14 +342,17 @@
   width: 1196
   height: 1294
   used_in: [qwen4-gamefeel/S2]
-  keywords: [qwen, qwen4, alibaba, loktar, early access, secret api, high thinking, demo, colosseum, evidence, screenshot]
-
-- file: content/qwen4-gamefeel/assets/loktar-replies.png
-  type: image
-  description: "X replies under Loktar's Qwen 4 post, 2026-11-07: 'Qwen4 Max?' → 'No idea, they didn't tell us'; 'Is it Qwen4-27B?' → 'I wish I knew, would be amazing if it was!'"
-  source: "Screenshot of https://x.com/loktar00/status/2118782505369428117 replies (CDP capture 2026-11-09)"
-  license: "X post — screenshot for editorial/evidence use"
-  width: 1196
-  height: 415
-  used_in: [qwen4-gamefeel/S2]
-  keywords: [qwen, qwen4, alibaba, loktar, no model name, secret model, identity unconfirmed, evidence, screenshot]
+  keywords:
+    [
+      qwen,
+      qwen4,
+      alibaba,
+      loktar,
+      early access,
+      secret api,
+      high thinking,
+      demo,
+      colosseum,
+      evidence,
+      screenshot,
+    ]

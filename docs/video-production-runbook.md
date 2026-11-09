@@ -927,10 +927,10 @@ Install mflux in its **own venv** — `python3 -m venv ~/.video-t2i-env && ~/.vi
 | Platform        | Max Duration | Optimal    | Action                                                    |
 | --------------- | ------------ | ---------- | --------------------------------------------------------- |
 | YouTube Shorts  | 3min         | 60-170s    | Upload full video + custom thumbnail                      |
-| TikTok          | 10min        | **60-70s** | Upload shortened cut (6-8 key scenes)                     |
+| TikTok          | 10min        | **≤70s**   | Split into parts above the ceiling (content-driven)       |
 | Instagram Reels | 90s          | 15-30s     | Upload full video if ≤90s; otherwise create shortened cut |
 
-**Cross-platform default**: Write for 60-90s. YouTube Shorts gets the full version; TikTok needs a shortened cut.
+**Cross-platform default**: length follows the content. YouTube Shorts gets the full version; TikTok takes one part per ≤70s ceiling (split rather than compress).
 
 ### Title & Cover Strategy
 

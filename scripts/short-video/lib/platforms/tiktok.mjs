@@ -23,8 +23,16 @@
 // Drift detection test validates these match documented values.
 
 const THRESHOLDS = {
-  /** Max voiceover words for 60-70s target (2.5 wps) */
-  maxVoiceoverWords: 180,
+  /**
+   * Per-video duration ceiling in seconds (user decision 2026-11-09:
+   * duration follows the content — no minimum, no pad-to-target). Longer
+   * spines split into parts of about this length. Single source: verify-video
+   * and the episode-evaluator both read this value.
+   */
+  maxDurationSec: 70,
+
+  /** Max voiceover words for the 70s ceiling (2.5 wps) */
+  maxVoiceoverWords: 175,
 
   /** Max words per sentence for one-breath check */
   maxOneBreathWords: 25,

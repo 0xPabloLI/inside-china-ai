@@ -232,11 +232,13 @@ try:
     # huggingface_hub without `resolve_revision`). Force the wheel from the
     # frozen set and log the version so the next failure is self-describing.
     _pip_install(["--force-reinstall", "--no-deps", "huggingface_hub==0.36.2"])
-    try:
-        import huggingface_hub as _hf
-        log(f"huggingface_hub {_hf.__version__} ({_hf.__file__})")
-    except Exception as _hf_err:
-        log(f"WARN: huggingface_hub probe failed: {_hf_err}")
+    import huggingface_hub as _hf
+    log(f"huggingface_hub {_hf.__version__} ({_hf.__file__})")
+    if not _hf.__version__.startswith("0.36."):
+        raise RuntimeError(
+            f"huggingface_hub {_hf.__version__} is still active after the forced reinstall "
+            f"({_hf.__file__}) — a shadowing copy will break diffusers at model load"
+        )
     # 2026-11-09: the image now ships a diffusers that imports
     # `resolve_revision` from huggingface_hub 1.x, but the frozen
     # transformers 4.51.3 pins hub <1.0, so the image's diffusers cannot import
