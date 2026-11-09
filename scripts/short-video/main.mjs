@@ -53,6 +53,7 @@ import {
   isAvatarDeclared,
 } from "./lib/avatar-guard.mjs";
 import { loadEnv } from "./lib/load-env.mjs";
+import { warnStaleCacheEntries } from "./lib/vlm-cache.mjs";
 
 loadEnv(); // #287 — entry owns env loading; library modules never self-load
 
@@ -233,6 +234,11 @@ async function main() {
   console.log(`   Version: ${version}`);
   console.log(`   Renderer: Remotion (React → frame-by-frame)`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+
+  // ── #992: report reclaimable VLM cache entries at run start ──
+  // A prompt-version bump makes every older entry unreachable; reclaiming is
+  // an explicit command because a concurrent run may still be writing.
+  warnStaleCacheEntries(join(__dirname, "content", contentDir, ".vlm-cache"));
 
   // ── Avatar instrumentation (#214 ticket 02, presence pass) ──
   // Presence + readability ONLY, to abort before TTS spend when the clip is
