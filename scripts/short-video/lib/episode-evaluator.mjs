@@ -104,9 +104,13 @@ function buildReasoning(
   const reasons = [];
 
   if (recommendedParts > 1) {
-    reasons.push(`Core narrative requires ~${Math.round(estimatedDuration)}s, exceeding 60s limit`);
+    reasons.push(
+      `Core narrative requires ~${Math.round(estimatedDuration)}s, exceeding the 70s single-part ceiling`,
+    );
   } else {
-    reasons.push(`Core narrative fits in ~${Math.round(estimatedDuration)}s, within 60s limit`);
+    reasons.push(
+      `Core narrative fits in ~${Math.round(estimatedDuration)}s, within the 70s single-part ceiling`,
+    );
   }
 
   if (chapterCount >= 2) {
@@ -171,15 +175,17 @@ export function evaluateArticle(markdownText) {
   // Estimate duration
   const estimatedDuration = wordCount / WORDS_PER_SECOND;
 
-  // Determine recommended parts
+  // Determine recommended parts. The single-part ceiling is 70s (TikTok
+  // per-video ceiling, user decision 2026-11-09); length follows content, so
+  // there is no minimum — a 40s narrative stays one part.
   let recommendedParts;
-  if (estimatedDuration <= 60) {
+  if (estimatedDuration <= 70) {
     recommendedParts = 1;
-  } else if (estimatedDuration <= 120) {
+  } else if (estimatedDuration <= 140) {
     recommendedParts = 2;
-  } else if (estimatedDuration <= 180) {
+  } else if (estimatedDuration <= 210) {
     recommendedParts = 3;
-  } else if (estimatedDuration <= 240) {
+  } else if (estimatedDuration <= 280) {
     recommendedParts = 4;
   } else {
     recommendedParts = MAX_PARTS;

@@ -50,7 +50,9 @@ Agent 在 Content Pipeline 的 Stage 3 中写或改 scene-data 时按此文档�
 | T      | Tease     | 3-8s   | Open loop：开始一个想法，不结束它                                |
 | A      | Authority | 8-20s  | 引用源、数据，建立权威                                           |
 | R      | Relay     | 20-50s | 揭示答案、高潮、pattern interrupt                                |
-| T-Tell | Tell      | 50-60s | CTA：具体、回扣 Hook                                             |
+| T-Tell | Tell      | 收尾    | CTA：具体、回扣 Hook                                             |
+
+> 时间列按 60s 片长给出参考比例；实际时长跟随内容（用户裁决 2026-11-09）：按比例缩放，不填充到 60 秒，超过 70 秒拆集。
 
 ### AI Outline 消费映射表
 
@@ -152,7 +154,7 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。默认（�
 - **素材要求**：品牌 bar（自动渲染，无需手动指定）
 - **voiceover**：≤15 词。从 3 种 CTA 公式中选择（见 Step 6）
 - **visualType**: `"cta"`
-- **时间**：55-60s
+- **时间**：随片长自然收尾（不填充）
 
 ### 画面描述合同（锚点 / 动作 / 结果，#529）
 
