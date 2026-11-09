@@ -34,10 +34,11 @@ describe("Source structure", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(9);
   });
 
-  it("ALL_SOURCES has 62 sources", () => {
+  it("ALL_SOURCES has 63 sources", () => {
     // 64 − xinzhiyuan/baidu_news (dead upstream, removed #140 P5) + weibo_search (#317)
     // − duckduckgo_search (retired 2026-09-24, #269 Round I)
-    expect(ALL_SOURCES).toHaveLength(62);
+    // + wechat_dongchabeating_rss (self-hosted feed, #320)
+    expect(ALL_SOURCES).toHaveLength(63);
   });
 
   it("each source has required fields", () => {
@@ -70,13 +71,21 @@ describe("Source structure", () => {
 
 // ─── Wechat RSS sources ───
 describe("Wechat RSS sources", () => {
-  it("registers exactly 12 validated public feeds", () => {
-    expect(WECHAT_RSS_SOURCES).toHaveLength(12);
-    expect(WECHAT_RSS_SOURCES.every((source) => source.name.startsWith("wechat2rss_"))).toBe(true);
+  const publicFeeds = WECHAT_RSS_SOURCES.filter(
+    (source) => source.tracking.provider === "wechat2rss",
+  );
+
+  it("registers 12 validated public feeds plus the self-hosted 动察 feed", () => {
+    expect(publicFeeds).toHaveLength(12);
+    expect(publicFeeds.every((source) => source.name.startsWith("wechat2rss_"))).toBe(true);
+    expect(WECHAT_RSS_SOURCES).toHaveLength(13);
+    expect(WECHAT_RSS_SOURCES.some((source) => source.name === "wechat_dongchabeating_rss")).toBe(
+      true,
+    );
   });
 
-  it("marks every feed as third-party, non-official public RSS with a 14-day window", () => {
-    for (const source of WECHAT_RSS_SOURCES) {
+  it("marks every public feed as third-party, non-official RSS with a 14-day window", () => {
+    for (const source of publicFeeds) {
       expect(source.category).toBe("wechat");
       expect(source.supportsKeyword).toBe(false);
       expect(source.needsAuth).toBe(false);
@@ -110,6 +119,47 @@ describe("Wechat RSS sources", () => {
         url: "https://mp.weixin.qq.com/s/example",
         snippet: "这是一个用于验证 RSS 摘要解析的内容。",
         publishedAt: "Mon, 17 Aug 2026 09:00:00 +0800",
+      },
+    ]);
+  });
+
+  it("registers the self-hosted 动察Beating feed as local-only tracked context", () => {
+    const source = WECHAT_RSS_SOURCES.find((s) => s.name === "wechat_dongchabeating_rss");
+    expect(source).toBeDefined();
+    expect(source.category).toBe("wechat");
+    expect(source.supportsKeyword).toBe(false);
+    expect(source.needsAuth).toBe(false);
+    expect(source.accessMethod.primary).toBe("api");
+    expect(source.sourceRole).toBe("tracked-feed-context");
+    expect(source.tracking).toEqual({
+      provider: "we-mp-rss",
+      access: "public-rss",
+      official: false,
+      stability: "local-service",
+      freshnessWindowDays: 14,
+      localOnly: true,
+    });
+    expect(source.apiSearch.url()).toBe("http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml");
+    expect(source.url()).toBe(source.apiSearch.url());
+  });
+
+  it("parses the we-mp-rss item shape (link + pubDate + empty description)", () => {
+    const parser = WECHAT_RSS_SOURCES.find((s) => s.name === "wechat_dongchabeating_rss").apiSearch
+      .parser;
+    const items = parser(`<?xml version="1.0"?><rss version="2.0"><channel><item>
+      <id>3921736177-3921736177_sAD4yiZ0f-F2q00BGiZpGg</id>
+      <title>当年的「套壳产品」，先跑通了DeepSeek Super-agent的设想</title>
+      <description></description>
+      <link>https://mp.weixin.qq.com/s/sAD4yiZ0f-F2q00BGiZpGg</link>
+      <guid>https://mp.weixin.qq.com/s/sAD4yiZ0f-F2q00BGiZpGg</guid>
+      <pubDate>Mon, 09 Nov 2026 21:18:43 +0800</pubDate>
+    </item></channel></rss>`);
+    expect(items).toEqual([
+      {
+        title: "当年的「套壳产品」，先跑通了DeepSeek Super-agent的设想",
+        url: "https://mp.weixin.qq.com/s/sAD4yiZ0f-F2q00BGiZpGg",
+        snippet: "",
+        publishedAt: "Mon, 09 Nov 2026 21:18:43 +0800",
       },
     ]);
   });
@@ -582,11 +632,12 @@ describe("last30days sources", () => {
 describe("supportsKeyword validation", () => {
   it("homepage-only sources have supportsKeyword=false", () => {
     const homepageSources = ALL_SOURCES.filter((s) => !s.supportsKeyword);
-    // Existing homepage-only sources plus 12 fixed public Wechat RSS sources.
+    // Existing homepage-only sources plus 12 fixed public Wechat RSS sources
+    // and the self-hosted 动察 feed (#320).
     // Stock API sources all support keyword search.
     // ithome and jiqizhixin now support keyword search (unified to search page).
-    // 20 + telegram_aipost fixed-feed channel (#204)
-    expect(homepageSources.length).toBe(21);
+    // 20 + telegram_aipost fixed-feed channel (#204) + wechat_dongchabeating_rss (#320)
+    expect(homepageSources.length).toBe(22);
   });
 
   it("keyword-capable sources have supportsKeyword=true", () => {
@@ -1083,9 +1134,9 @@ describe("apiSearch configuration", () => {
     expect(threads.apiSearch).toBeUndefined();
   });
 
-  it("includes the 12 existing API sources, 12 public Wechat RSS sources, 1 Telegram channel, and zhidx/weibo_hot API layers (#140 P5)", () => {
+  it("includes the 12 existing API sources, 12 public Wechat RSS sources, the self-hosted 动察 RSS source, 1 Telegram channel, and zhidx/weibo_hot API layers (#140 P5, #320)", () => {
     const withApi = ALL_SOURCES.filter((s) => s.apiSearch);
-    expect(withApi).toHaveLength(27);
+    expect(withApi).toHaveLength(28);
     const names = withApi.map((s) => s.name);
     expect(names).toEqual(
       expect.arrayContaining([
@@ -1503,8 +1554,8 @@ describe("#314 video capability declarations", () => {
     expect(baidu.capabilities.videos.videoScript).toBeTruthy();
   });
 
-  it("keeps the source count at 62", () => {
-    expect(ALL_SOURCES).toHaveLength(62);
+  it("keeps the source count at 63", () => {
+    expect(ALL_SOURCES).toHaveLength(63);
   });
 });
 

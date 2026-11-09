@@ -16,8 +16,8 @@ import { ALL_SOURCES, WECHAT_RSS_SOURCES } from "../lib/source-registry.mjs";
 const byName = Object.fromEntries(ALL_SOURCES.map((s) => [s.name, s]));
 
 describe("shouldSkipCdpOnApiFail (Issue #66 Step 0.5)", () => {
-  it("skips CDP for every wechat2rss source (API url == CDP url, same RSS feed)", () => {
-    expect(WECHAT_RSS_SOURCES.length).toBe(12);
+  it("skips CDP for every WeChat RSS source (API url == CDP url, same feed)", () => {
+    expect(WECHAT_RSS_SOURCES.length).toBe(13);
     for (const source of WECHAT_RSS_SOURCES) {
       expect(shouldSkipCdpOnApiFail(source, "any"), source.name).toBe(true);
     }

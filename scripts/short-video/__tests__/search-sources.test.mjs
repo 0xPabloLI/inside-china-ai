@@ -17,7 +17,7 @@ import { validateDiscovery } from "../lib/research/validate.mjs";
 const articlesCapableSources = ALL_SOURCES.filter((s) => s.capabilities?.articles);
 
 describe("groupSourcesByEvidenceRole", () => {
-  it("routes the 12 wechat2rss feeds + telegram_aipost (#204) to trackedFeedContext", () => {
+  it("routes the 12 public wechat2rss feeds, the self-hosted 动察 feed, and telegram_aipost (#204) to trackedFeedContext", () => {
     const groups = groupSourcesByEvidenceRole(articlesCapableSources);
     expect(groups.trackedFeedContext.map((s) => s.name).sort()).toEqual(
       [...WECHAT_RSS_SOURCES, ...TELEGRAM_SOURCES].map((s) => s.name).sort(),
