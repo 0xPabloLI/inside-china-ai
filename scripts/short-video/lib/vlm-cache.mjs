@@ -40,7 +40,8 @@ import {
   readdirSync,
   unlinkSync,
 } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
+import { containedPath } from "./path-safety.mjs";
 
 /**
  * Bump when vlm_analyzer.py prompts/parse semantics change so cached
@@ -240,29 +241,33 @@ const CACHE_ENTRY_RE = /^[0-9a-f]{64}\.json$/;
  * deletion — only `promptVersion` does (open question 2 in #992).
  *
  * @param {string|null} cacheDir
- * @param {{promptVersion?: string}} [opts]
  */
-export function scanVlmCache(cacheDir, { promptVersion = VLM_CACHE_PROMPT_VERSION } = {}) {
+export function scanVlmCache(cacheDir) {
   const scan = {
     cacheDir,
     exists: false,
     entries: { total: 0, current: 0, orphan: 0, unparsable: 0 },
     files: { tmp: 0, other: 0 },
     bytes: { total: 0, current: 0, orphan: 0, unparsable: 0 },
-    promptVersions: {},
-    pipelineVersions: {},
-    models: {},
+    // Null-prototype: version strings come from arbitrary on-disk JSON, so a
+    // `"__proto__"` value must be an own key, not an inherited lookup.
+    promptVersions: Object.create(null),
+    pipelineVersions: Object.create(null),
+    models: Object.create(null),
     orphans: [],
   };
   if (!cacheDir || !existsSync(cacheDir)) return scan;
-  scan.exists = true;
 
   let dirents;
   try {
+    // A file at this path (a mistyped `--dir`) is not an empty cache.
+    if (!statSync(cacheDir).isDirectory()) return scan;
     dirents = readdirSync(cacheDir, { withFileTypes: true });
   } catch {
     return scan;
   }
+  scan.exists = true;
+  const root = resolve(cacheDir);
 
   for (const dirent of dirents) {
     if (!dirent.isFile()) continue;
@@ -276,7 +281,7 @@ export function scanVlmCache(cacheDir, { promptVersion = VLM_CACHE_PROMPT_VERSIO
       continue;
     }
 
-    const file = join(cacheDir, name);
+    const file = containedPath(root, name);
     let bytes = 0;
     try {
       bytes = statSync(file).size;
@@ -313,7 +318,7 @@ export function scanVlmCache(cacheDir, { promptVersion = VLM_CACHE_PROMPT_VERSIO
       scan.models[entryModel] = (scan.models[entryModel] ?? 0) + 1;
     }
 
-    if (entryPrompt === promptVersion) {
+    if (entryPrompt === VLM_CACHE_PROMPT_VERSION) {
       scan.entries.current += 1;
       scan.bytes.current += bytes;
     } else {
@@ -341,26 +346,23 @@ export function scanVlmCache(cacheDir, { promptVersion = VLM_CACHE_PROMPT_VERSIO
  * and the unlink (a concurrent prune) counts as reclaimed.
  *
  * @param {string|null} cacheDir
- * @param {{apply?: boolean, promptVersion?: string,
- *          unlink?: (path: string) => void}} [opts] - `unlink` is a test seam
- *   for the failure path; production uses fs.unlinkSync.
+ * @param {{apply?: boolean, unlink?: (path: string) => void}} [opts] -
+ *   `unlink` is a test seam for the failure path; production uses fs.unlinkSync.
  * @returns {{applied: boolean, before: object, after: object,
  *            deleted: number, deletedBytes: number,
  *            failures: {file: string, error: string}[]}}
  */
-export function pruneVlmCache(
-  cacheDir,
-  { apply = false, promptVersion = VLM_CACHE_PROMPT_VERSION, unlink = unlinkSync } = {},
-) {
-  const before = scanVlmCache(cacheDir, { promptVersion });
+export function pruneVlmCache(cacheDir, { apply = false, unlink = unlinkSync } = {}) {
+  const before = scanVlmCache(cacheDir);
   let deleted = 0;
   let deletedBytes = 0;
   const failures = [];
 
-  if (apply) {
+  if (apply && cacheDir) {
+    const root = resolve(cacheDir);
     for (const orphan of before.orphans) {
       try {
-        unlink(join(cacheDir, orphan.file));
+        unlink(containedPath(root, orphan.file));
         deleted += 1;
         deletedBytes += orphan.bytes;
       } catch (err) {
@@ -375,7 +377,7 @@ export function pruneVlmCache(
     }
   }
 
-  const after = scanVlmCache(cacheDir, { promptVersion });
+  const after = scanVlmCache(cacheDir);
   return { applied: apply, before, after, deleted, deletedBytes, failures };
 }
 
@@ -385,18 +387,15 @@ export function pruneVlmCache(
  * Silent when the directory is absent or has no orphan.
  *
  * @param {string|null} cacheDir
- * @param {{promptVersion?: string, log?: (line: string) => void}} [opts]
+ * @param {{log?: (line: string) => void}} [opts]
  */
-export function warnStaleCacheEntries(
-  cacheDir,
-  { promptVersion = VLM_CACHE_PROMPT_VERSION, log = console.warn } = {},
-) {
-  const scan = scanVlmCache(cacheDir, { promptVersion });
+export function warnStaleCacheEntries(cacheDir, { log = console.warn } = {}) {
+  const scan = scanVlmCache(cacheDir);
   if (scan.entries.orphan === 0) return scan;
   const noun = scan.entries.orphan === 1 ? "entry" : "entries";
   log(
     `  ⚠️  VLM cache: ${scan.entries.orphan} stale ${noun} ` +
-      `(promptVersion != ${promptVersion}) — kept, never auto-deleted.`,
+      `(promptVersion != ${VLM_CACHE_PROMPT_VERSION}) — kept, never auto-deleted.`,
   );
   log(`      Reclaim: node scripts/short-video/prune-vlm-cache.mjs --dir "${cacheDir}" --apply`);
   return scan;

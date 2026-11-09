@@ -558,6 +558,31 @@ describe("vlm-cache prune (#992)", () => {
     expect(result.failures).toEqual([]);
   });
 
+  it("counts __proto__ and constructor as own version keys instead of inherited lookups", () => {
+    writeEntry(`${keyFor("b")}.json`, envelope("__proto__"));
+    writeEntry(`${keyFor("c")}.json`, envelope("constructor"));
+    const scan = scanVlmCache(dir);
+
+    expect(Object.getPrototypeOf(scan.promptVersions)).toBeNull();
+    expect(scan.promptVersions["__proto__"]).toBe(1);
+    expect(scan.promptVersions.constructor).toBe(1);
+    expect(Object.keys(scan.promptVersions).sort()).toEqual(["__proto__", "constructor"]);
+    expect(scan.entries.orphan).toBe(2);
+  });
+
+  it("treats a regular file at the cache path as not a cache directory", () => {
+    const file = join(dir, "not-a-dir");
+    writeFileSync(file, "nope");
+
+    const scan = scanVlmCache(file);
+    expect(scan.exists).toBe(false);
+    expect(scan.entries.total).toBe(0);
+
+    const result = pruneVlmCache(file, { apply: true });
+    expect(result.deleted).toBe(0);
+    expect(readFileSync(file, "utf8")).toBe("nope");
+  });
+
   it("warnStaleCacheEntries names the count and the reclaim command, and stays quiet when clean", () => {
     seed();
     const lines = [];

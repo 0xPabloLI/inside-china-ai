@@ -115,6 +115,17 @@ describe("prune-vlm-cache CLI (#992)", () => {
     expect(readdirSync(dir)).toHaveLength(4);
   });
 
+  it("rejects a --dir path that is a regular file", async () => {
+    tmp = mkdtempSync(join(tmpdir(), "prune-cli-"));
+    const file = join(tmp, "not-a-dir");
+    writeFileSync(file, "nope");
+    const sink = collect();
+    const code = await runCli(["--dir", file], sink);
+
+    expect(code).toBe(2);
+    expect(sink.lines.join("\n")).toContain("cache directory not found");
+  });
+
   it("fails when an explicit content pack has no cache directory", async () => {
     tmp = mkdtempSync(join(tmpdir(), "prune-cli-"));
     mkdirSync(join(tmp, "content", "pack-a"), { recursive: true });

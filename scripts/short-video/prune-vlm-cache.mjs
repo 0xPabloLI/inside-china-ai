@@ -20,7 +20,7 @@
  * Dry run is the default — run --apply only when no pipeline run is writing
  * the same pack.
  */
-import { existsSync, readdirSync, realpathSync } from "node:fs";
+import { readdirSync, realpathSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { VLM_CACHE_PROMPT_VERSION, pruneVlmCache } from "./lib/vlm-cache.mjs";
@@ -101,10 +101,18 @@ export function discoverCacheDirs(root) {
   const dirs = [];
   for (const group of ["content", "output"]) {
     const base = join(root, group);
-    if (!existsSync(base)) continue;
+    if (!isDirectory(base)) continue;
     dirs.push(...findCacheDirs(base));
   }
   return dirs.sort();
+}
+
+function isDirectory(path) {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function formatBytes(bytes) {
@@ -161,14 +169,14 @@ export async function runCli(args, opts = {}) {
   if (parsed.dirs.length > 0) {
     dirs = parsed.dirs.map((dir) => resolve(dir));
     for (const dir of dirs) {
-      if (!existsSync(dir)) {
+      if (!isDirectory(dir)) {
         err(`❌ cache directory not found: ${dir}`);
         return 2;
       }
     }
   } else if (parsed.content) {
     const dir = join(root, "content", parsed.content, ".vlm-cache");
-    if (!existsSync(dir)) {
+    if (!isDirectory(dir)) {
       err(`❌ no .vlm-cache for content pack "${parsed.content}" (${dir})`);
       return 1;
     }
@@ -186,9 +194,10 @@ export async function runCli(args, opts = {}) {
     return 0;
   }
 
-  const promptVersions = {};
-  const pipelineVersions = {};
-  const models = {};
+  // Null-prototype: keys come from arbitrary cache JSON (e.g. "__proto__").
+  const promptVersions = Object.create(null);
+  const pipelineVersions = Object.create(null);
+  const models = Object.create(null);
   let beforeTotal = 0;
   let beforeBytes = 0;
   let afterTotal = 0;
