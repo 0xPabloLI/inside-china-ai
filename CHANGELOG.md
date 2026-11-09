@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.56.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.55.1...tanstack_start_ts-v1.56.0) (2026-11-09)
+
+
+### Features
+
+* **short-video:** wire the self-hosted 动察 RSS feed ([#320](https://github.com/0xPabloLI/inside-china-ai/issues/320)) ([#1203](https://github.com/0xPabloLI/inside-china-ai/issues/1203)) ([5ffedbc](https://github.com/0xPabloLI/inside-china-ai/commit/5ffedbc66c0c0d9d11313a7b59f2b75bb9001714))
+
 ## [1.55.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.55.0...tanstack_start_ts-v1.55.1) (2026-11-09)
 
 
