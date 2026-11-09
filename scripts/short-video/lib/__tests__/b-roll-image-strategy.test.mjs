@@ -259,7 +259,7 @@ describe("runBrollStage image strategy (#155)", () => {
     );
   });
 
-  test("#985 AI_IMAGE_BACKEND alone must not re-label the winner (it only gates the negative prompt)", async () => {
+  test("#1028 AI_IMAGE_BACKEND selects the default checkpoint, so the landing label follows it", async () => {
     const dirs = stageDirs();
     const scenes = [imageScene()];
     await runBrollStage(
@@ -269,10 +269,22 @@ describe("runBrollStage image strategy (#155)", () => {
         env: { AI_IMAGE_BACKEND: "mflux-z-image" },
       }),
     );
-    expect(scenes[0].media.source).toBe("AI-generated (mflux Boogu Turbo)");
+    expect(scenes[0].media.source).toBe("AI-generated (mflux z-image)");
     expect(readReport(reportPath(dirs.outputDir)).scenes["11"].winner.source).toBe(
-      "AI-generated (mflux Boogu Turbo)",
+      "AI-generated (mflux z-image)",
     );
+
+    // An explicit checkpoint still overrides the backend default (#985 / #1028).
+    const dirs2 = stageDirs();
+    const scenes2 = [imageScene()];
+    await runBrollStage(
+      baseOpts(dirs2, {
+        scenes: scenes2,
+        generate: okGenerateMock().generate,
+        env: { AI_IMAGE_BACKEND: "mflux-z-image", AI_IMAGE_MODEL: "org/custom" },
+      }),
+    );
+    expect(scenes2[0].media.source).toBe("AI-generated (mflux org/custom)");
   });
 
   test("cache hit on an unchanged image prompt assigns the winner without generation", async () => {
