@@ -41,7 +41,7 @@
  */
 
 import { execSync, spawnSync } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { realpathSync, writeSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /** The URL the probe requests; a forwarding port answers it with `204`. */
@@ -80,7 +80,17 @@ const NETSTAT_BIN = "/usr/sbin/netstat";
 const MIN_PORT = 1024;
 const MAX_PORT = 65535;
 
-/** Protocols `scutil --proxy` describes, in the order their ports are tried. */
+/**
+ * Protocols `scutil --proxy` describes, in the order their ports are tried when
+ * a caller does not say otherwise.
+ *
+ * The order is a real decision, not a formality: `scutil` can name two different
+ * loopback ports for HTTP and HTTPS (two clients, two egress paths), and when
+ * both forward, "first one wins" picks the client. HTTP first is what the git
+ * wrapper has always done. A caller whose previous behaviour was the opposite
+ * passes its own order instead of inheriting this one — see
+ * `ytdlp-guard.mjs`, whose pre-#1064 code read `httpsProxy || httpProxy`.
+ */
 const PROXY_PROTOCOLS = ["HTTP", "HTTPS", "SOCKS"];
 
 function toPort(value) {
@@ -130,11 +140,12 @@ export function parseScutilProxy(text) {
  * `parseScutilProxy` for why the flag is not consulted here.
  *
  * @param {ReturnType<typeof parseScutilProxy>|null} proxy
+ * @param {readonly string[]} [protocols] - try order; see `PROXY_PROTOCOLS`
  * @returns {number[]} Ports, deduplicated, disabled protocols' ports included
  */
-function portsFromParsedProxy(proxy) {
+function portsFromParsedProxy(proxy, protocols = PROXY_PROTOCOLS) {
   const ports = [];
-  for (const proto of PROXY_PROTOCOLS) {
+  for (const proto of protocols) {
     const port = proxy?.[proto]?.port;
     if (typeof port === "number") ports.push(port);
   }
@@ -159,10 +170,11 @@ function portsFromParsedProxy(proxy) {
  * whole reason this resolver probes rather than reads a list.
  *
  * @param {string} scutilOutput - Raw `scutil --proxy` output
+ * @param {readonly string[]} [protocols] - try order; see `PROXY_PROTOCOLS`
  * @returns {number[]} Ports, deduplicated, protocols without a port dropped
  */
-export function candidatePortsFromScutil(scutilOutput) {
-  return portsFromParsedProxy(parseScutilProxy(scutilOutput));
+export function candidatePortsFromScutil(scutilOutput, protocols = PROXY_PROTOCOLS) {
+  return portsFromParsedProxy(parseScutilProxy(scutilOutput), protocols);
 }
 
 /**
@@ -208,6 +220,7 @@ export function candidatePortsFromNetstat(netstatOutput) {
  *   scutilProxy?: ReturnType<typeof parseScutilProxy>|null,
  *   netstatOutput?: string,
  *   listeningPorts?: number[]|null,
+ *   protocols?: readonly string[],
  * }} sources
  * @returns {number[]} Ports, deduplicated, preferred order preserved
  */
@@ -216,10 +229,11 @@ export function candidatePorts({
   scutilProxy = null,
   netstatOutput = "",
   listeningPorts = null,
+  protocols = PROXY_PROTOCOLS,
 } = {}) {
   const fromSystem = scutilProxy
-    ? portsFromParsedProxy(scutilProxy)
-    : candidatePortsFromScutil(scutilOutput);
+    ? portsFromParsedProxy(scutilProxy, protocols)
+    : candidatePortsFromScutil(scutilOutput, protocols);
   const listening = listeningPorts ?? candidatePortsFromNetstat(netstatOutput);
   return [...new Set([...fromSystem, ...listening])];
 }
@@ -376,6 +390,7 @@ export function resolveProxyPort({
  *   readLoopback?: () => number[],
  *   probe?: (port: number) => string,
  *   attempts?: number,
+ *   protocols?: readonly string[],
  * }} [sources]
  * @returns {{
  *   port: number|null,
@@ -390,11 +405,13 @@ export function resolveLocalProxy({
   readLoopback = readLoopbackPorts,
   probe = probePort,
   attempts = 2,
+  protocols = PROXY_PROTOCOLS,
 } = {}) {
   const candidates = candidatePorts({
     scutilProxy,
     scutilOutput: scutilProxy ? "" : (readScutil() ?? ""),
     listeningPorts: readLoopback(),
+    protocols,
   });
   const resolved = resolveProxyPort({ candidates, probe, attempts });
   return { ...resolved, candidates };
@@ -459,26 +476,36 @@ function describeMiss({ tried, candidates, budgetExhausted }) {
  * so `$(...)` can capture it; a miss keeps its evidence on stderr and exits 3,
  * which is what lets the tunnel say "no port" instead of forwarding to nothing.
  *
+ * Both outputs use `writeSync` rather than `process.stdout.write`. Node makes
+ * pipe writes asynchronous on macOS (synchronous only on Windows and for files
+ * and TTYs on Linux), and the guard below calls `process.exit()` immediately
+ * after this returns — which discards whatever an async write had queued. The
+ * primary consumer is `port=$(node … --print-port)` under launchd, i.e. exactly
+ * that pipe on exactly that platform, and a lost write there surfaces as the
+ * tunnel's "non-numeric port" error: a flaky miss of a verdict the probe just
+ * spent seconds producing. A synchronous sink makes the write and the exit
+ * ordered.
+ *
  * @param {string[]} argv
  * @returns {number} exit code
  */
 function main(argv) {
   if (argv.includes("--help") || argv.includes("-h")) {
-    process.stdout.write(USAGE);
+    writeSync(1, USAGE);
     return 0;
   }
   const wantsPort = argv.includes("--print-port");
   const wantsUrl = argv.includes("--print-url");
   if (!wantsPort && !wantsUrl) {
-    process.stderr.write(USAGE);
+    writeSync(2, USAGE);
     return 2;
   }
   const { port, ...evidence } = resolveLocalProxy();
   if (port === null) {
-    process.stderr.write(describeMiss(evidence));
+    writeSync(2, describeMiss(evidence));
     return 3;
   }
-  process.stdout.write(wantsPort ? `${port}\n` : `${proxyUrl(port)}\n`);
+  writeSync(1, wantsPort ? `${port}\n` : `${proxyUrl(port)}\n`);
   return 0;
 }
 

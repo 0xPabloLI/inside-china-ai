@@ -226,34 +226,6 @@ const STATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "output");
 // other.
 
 /**
- * Parse `scutil --proxy` output into the endpoints macOS currently enables.
- *
- * Kept as the public shape of what used to be this file's own parser; the
- * parsing itself moved to `scripts/lib/proxy-port.mjs` (#1064), where the probe,
- * the git wrapper and the colima tunnel read the same dict. Kept rather than
- * deleted so the endpoint strings callers already depend on do not change
- * (expand → migrate → contract): the guard's own resolution no longer reads
- * `Enable` at all — it probes, because the flag is what lies.
- *
- * @param {string} text - raw `scutil --proxy` stdout
- * @returns {{httpProxy: string|null, httpsProxy: string|null, socksProxy: string|null}} `host:port` per enabled protocol, null when disabled
- */
-export function parseMacSystemProxy(text) {
-  const proxy = parseScutilProxy(text);
-  const endpoint = (entry) =>
-    entry.enabled && entry.host !== null && entry.port !== null
-      ? `${entry.host}:${entry.port}`
-      : null;
-  // SOCKS is surfaced for the verdict only: ffmpeg cannot use it, so
-  // resolveYtdlpProxy reports it rather than handing it to a caller as a proxy.
-  return {
-    httpProxy: endpoint(proxy.HTTP),
-    httpsProxy: endpoint(proxy.HTTPS),
-    socksProxy: endpoint(proxy.SOCKS),
-  };
-}
-
-/**
  * Cache a successful scutil read — it is a subprocess and callers are
  * per-candidate. Process-lifetime by design: a long-running process whose
  * proxy is reconfigured mid-run keeps the first value until it restarts.
@@ -266,10 +238,10 @@ let systemProxyCache;
  * off-macOS or whenever scutil fails. Never throws — this must never break a
  * download.
  *
- * The structured shape (rather than `parseMacSystemProxy`'s endpoint strings) is
- * what the resolution needs: the port of a protocol whose `Enable` flag is off
- * is still a candidate, because that flag is exactly what disagrees with
- * reality (see `scripts/lib/proxy-port.mjs`).
+ * The structured shape (`parseScutilProxy`'s per-protocol entries, not endpoint
+ * strings) is what the resolution needs: the port of a protocol whose `Enable`
+ * flag is off is still a candidate, because that flag is exactly what disagrees
+ * with reality (see `scripts/lib/proxy-port.mjs`).
  *
  * @returns {ReturnType<typeof parseScutilProxy>|null}
  */
@@ -306,6 +278,21 @@ const systemPortCache = { port: undefined, at: 0 };
 const SYSTEM_PORT_MISS_TTL_MS = 60_000;
 
 /**
+ * Protocol precedence for this caller: HTTPS before HTTP.
+ *
+ * Not a preference — it is the order this file answered in before #1064, when
+ * the resolution was `system?.httpsProxy || system?.httpProxy` and the first
+ * one named won without a probe. `scutil` can name two different loopback ports
+ * (two clients, two egress paths, recorded in
+ * `docs/conventions/test-env-baseline.md`), so when both forward, "first one
+ * wins" silently switches the client the download leaves through. The shared
+ * resolver defaults to HTTP-first because that is what the git wrapper always
+ * did; this caller keeps its own answer by saying so, which is the whole point
+ * of `protocols`.
+ */
+const SYSTEM_PROTOCOL_ORDER = ["HTTPS", "HTTP", "SOCKS"];
+
+/**
  * Resolve the system configuration to the port that forwards traffic — the same
  * criterion the git wrapper uses (#1064), on the ports `scutil` names plus the
  * loopback listeners.
@@ -331,8 +318,14 @@ function resolveSystemPort({ system, readLoopback, probe, cache, now = Date.now 
   // The whole decision — candidates from the parsed dict plus the listeners,
   // then the probe — is `resolveLocalProxy`. Calling it rather than repeating
   // its two lines is the point of #1064: a second copy of "merge, probe, retry
-  // once" is a second place that can disagree.
-  cache.port = resolveLocalProxy({ scutilProxy: system, readLoopback, probe }).port;
+  // once" is a second place that can disagree. `protocols` keeps this caller's
+  // own precedence (see `SYSTEM_PROTOCOL_ORDER`).
+  cache.port = resolveLocalProxy({
+    scutilProxy: system,
+    readLoopback,
+    probe,
+    protocols: SYSTEM_PROTOCOL_ORDER,
+  }).port;
   cache.at = now();
   return cache.port;
 }

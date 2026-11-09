@@ -70,6 +70,32 @@ describe("candidate ports", () => {
     ]);
   });
 
+  it("tries the protocols in the caller's order, not always HTTP first", () => {
+    // `scutil` can name two different loopback ports — two clients, two egress
+    // paths. HTTP-first is the default for the git wrapper's historical
+    // reasons; a caller that answered HTTPS-first before #1064 says so instead
+    // of inheriting that (see `ytdlp-guard.mjs`'s SYSTEM_PROTOCOL_ORDER).
+    const twoClients = SCUTIL.replace("HTTPSPort : 7890", "HTTPSPort : 7899");
+    expect(candidatePorts({ scutilOutput: twoClients, listeningPorts: [] })).toEqual([7890, 7899]);
+    expect(
+      candidatePorts({
+        scutilOutput: twoClients,
+        listeningPorts: [],
+        protocols: ["HTTPS", "HTTP"],
+      }),
+    ).toEqual([7899, 7890]);
+    // The wiring, not just the builder: a caller passing `protocols` gets that
+    // order through the whole decision.
+    expect(
+      resolveLocalProxy({
+        scutilProxy: parseScutilProxy(twoClients),
+        readLoopback: () => [],
+        probe: () => "204",
+        protocols: ["HTTPS", "HTTP"],
+      }).port,
+    ).toBe(7899);
+  });
+
   it("survives both sources being unavailable", () => {
     expect(candidatePorts({})).toEqual([]);
   });

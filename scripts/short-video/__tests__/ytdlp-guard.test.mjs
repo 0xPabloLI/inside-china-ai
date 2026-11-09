@@ -60,7 +60,6 @@ import {
   firefoxProfileCandidates,
   matchYtdlp412,
   parseFirefoxProfilesIni,
-  parseMacSystemProxy,
   removeYtdlpStaleOutput,
   resolveFirefoxCookieSource,
   resolveYtdlpOutputPath,
@@ -646,42 +645,50 @@ const SCUTIL_SOCKS_ONLY = SCUTIL_ALL_ENABLED.replace("HTTPEnable : 1", "HTTPEnab
   "HTTPSEnable : 0",
 );
 
+// Two clients on two loopback ports — the shape `test-env-baseline.md` records
+// (FlClash on one port, Clash Verge on another), where picking the wrong client
+// changes the egress path. Both forward, so precedence alone decides.
+const SCUTIL_TWO_CLIENTS = SCUTIL_ALL_ENABLED.replace("HTTPSPort : 7897", "HTTPSPort : 7899");
+
 describe("#324 system proxy parsing", () => {
-  it("reads every enabled HTTP(S)/SOCKS protocol, skipping the nested ExceptionsList entries", () => {
-    expect(parseMacSystemProxy(SCUTIL_ALL_ENABLED)).toEqual({
-      httpProxy: "127.0.0.1:7897",
-      httpsProxy: "127.0.0.1:7897",
-      // #329: SOCKS is surfaced so the SOCKS-only verdict can name the
-      // endpoint ffmpeg cannot use instead of resolving to a bare null.
-      socksProxy: "127.0.0.1:7897",
+  // `parseMacSystemProxy` — this file's own parser until #1064 — is gone. The
+  // guard hands `parseScutilProxy`'s dict straight to the shared resolver, so
+  // these cases pin the shape the resolver consumes; `Enable` gating has its
+  // own suite in `scripts/__tests__/proxy-port.test.mjs`.
+  it("parses one entry per protocol, skipping the nested ExceptionsList entries", () => {
+    expect(parseScutilProxy(SCUTIL_ALL_ENABLED)).toEqual({
+      HTTP: { enabled: true, host: "127.0.0.1", port: 7897 },
+      HTTPS: { enabled: true, host: "127.0.0.1", port: 7897 },
+      // #329: SOCKS is kept so the SOCKS-only verdict can name the endpoint
+      // ffmpeg cannot use, instead of resolving to a bare null.
+      SOCKS: { enabled: true, host: "127.0.0.1", port: 7897 },
     });
   });
 
-  it("reports a disabled protocol as null even when its host/port are present", () => {
+  it("keeps the port of a protocol whose Enable flag is off, while still reporting the flag", () => {
     const partial = SCUTIL_ALL_ENABLED.replace("HTTPEnable : 1", "HTTPEnable : 0");
-    expect(parseMacSystemProxy(partial).httpProxy).toBeNull();
-    expect(parseMacSystemProxy(partial).httpsProxy).toBe("127.0.0.1:7897");
+    expect(parseScutilProxy(partial).HTTP).toEqual({
+      enabled: false,
+      host: "127.0.0.1",
+      port: 7897,
+    });
+    expect(parseScutilProxy(partial).HTTPS.enabled).toBe(true);
   });
 
-  it("yields all-null on the PAC-only configuration observed on this host", () => {
-    expect(parseMacSystemProxy(SCUTIL_PAC_ONLY)).toEqual({
-      httpProxy: null,
-      httpsProxy: null,
-      socksProxy: null,
-    });
+  it("yields nothing usable on the PAC-only configuration observed on this host", () => {
+    for (const proto of ["HTTP", "HTTPS", "SOCKS"]) {
+      expect(parseScutilProxy(SCUTIL_PAC_ONLY)[proto]).toEqual({
+        enabled: false,
+        host: null,
+        port: null,
+      });
+    }
   });
 
   it("survives empty or missing input", () => {
-    expect(parseMacSystemProxy("")).toEqual({
-      httpProxy: null,
-      httpsProxy: null,
-      socksProxy: null,
-    });
-    expect(parseMacSystemProxy(null)).toEqual({
-      httpProxy: null,
-      httpsProxy: null,
-      socksProxy: null,
-    });
+    for (const input of ["", null]) {
+      expect(parseScutilProxy(input).HTTP).toEqual({ enabled: false, host: null, port: null });
+    }
   });
 });
 
@@ -726,6 +733,24 @@ describe("#324 proxy resolution", () => {
 
   it("falls back to the macOS system proxy when no env proxy exists", () => {
     expect(resolveYtdlpProxy(systemDeps(SCUTIL_ALL_ENABLED))).toBe("http://127.0.0.1:7897");
+  });
+
+  it("keeps HTTPS ahead of HTTP when scutil names both and both forward", () => {
+    // Before #1064 this answered `system.httpsProxy || system.httpProxy` — the
+    // HTTPS endpoint, no probe involved. The shared resolver defaults to
+    // HTTP-first because that is what the git wrapper always did, so this
+    // caller passes its own order; without it the refactor would silently
+    // switch which client the downloads leave through.
+    expect(parseScutilProxy(SCUTIL_TWO_CLIENTS).HTTP.port).toBe(7897);
+    expect(parseScutilProxy(SCUTIL_TWO_CLIENTS).HTTPS.port).toBe(7899);
+    expect(
+      resolveYtdlpProxy({
+        env: {},
+        readSystemProxy: () => parseScutilProxy(SCUTIL_TWO_CLIENTS),
+        readLoopback: () => [],
+        probe: () => "204",
+      }),
+    ).toBe("http://127.0.0.1:7899");
   });
 
   it("adds the http:// scheme to a bare env endpoint", () => {

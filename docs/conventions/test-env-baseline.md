@@ -89,6 +89,15 @@ done
 
 **逐端口是这条判据的全部**：不带 `-x` 的请求在 TUN 开启时也返回 `204`（见下表「不给代理（默认）」行），所以裸请求分不出「这个端口在代理」和「这台机器在某处代理」。上面这个循环已由 `npm run proxy:url` 自动化（`scripts/lib/proxy-port.mjs`），批量 git 调用见 `docs/agents/git-workflow.md` §11；本表仍是配方与实测值的唯一出处。
 
+**「在监听」不等于「在代理」（2026-11-09 实测，逐端口带 `-x`）**：
+
+| 端口    | 谁在监听                                                  | `generate_204`（带 `-x`） | 判读                                                                  |
+| ------- | --------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------- |
+| `11434` | `ollama`（`127.0.0.1:11434`；`netstat -anv` 末列直接给 PID） | `000`                     | ❌ 端口接受连接，但请求出不去 ⇒ `nc -z` / `lsof` 会把它读成「有代理」 |
+| `7899`  | Clash Verge 固定 http 口                                  | `204`                     | ✅ 真出口                                                             |
+
+第一行就是「`nc -z` 不是判据」的实证：两个端口都能 connect，差别只在请求是否真的离开本机。`lsof -p <pid> -iTCP` 在本机同样不能用（沙箱丢 `-p`、返回全局监听表），所以判据只能是带 `-x` 的探针；`<Proto>Enable` 也不是（见 `parseScutilProxy` 与 §宿主代理端口的实测）。
+
 **2026-09-25 实测快照**（每次切客户端后重测，别当长期结论）：
 
 | 路径                 | google/generate_204 | youtube | 判读                                                                                                                                           |
@@ -150,7 +159,7 @@ done
 后果链条：LaunchAgent 每 60s 判「pid 死了 ⇒ 重启」→ 新 ssh 对已被占用的 `7891` 做 `-R` → 静默失败（脚本没开 `ExitOnForwardFailure`）→ 日志只剩 `Connection refused` 噪声，而隧道时好时坏。**「隧道在通」与「守护进程还管得住它」是两件事**：只看 `kill -0 $(cat pidfile)` 会把 orphan 误判成「需要重启」。
 修法：脚本改为「先探 `7891` 是否真能出网 ⇒ 能用就静默接管、不能用才重启」，并加 `-o ExitOnForwardFailure=yes`；`start` 还会先判「VM 已能直连（TUN）⇒ 什么都不做」，重试链条由此归零。
 
-**⚠️ `~/bin` 那份必须是实体文件，不能是软链（2026-09-25 实测）**：LaunchAgent 由 launchd 派生，**没有 `~/Documents` 的 macOS 隐私（TCC）授权** —— 软链指向仓库后每轮都报 `/bin/bash: /Users/pabloli/bin/colima-proxy-tunnel.sh: Operation not permitted`（launchd 读不到 `~/Documents` 里的真身）。所以结构保持「可执行件在 `~/bin`、真值源在仓库」，同步用 `npm run env:sync-tunnel`（该脚本是唯一写入者；改完 `scripts/colima-proxy-tunnel.sh` 就跑一次）。
+**⚠️ `~/bin` 那份必须是实体文件，不能是软链（2026-09-25 实测）**：LaunchAgent 由 launchd 派生，**没有 `~/Documents` 的 macOS 隐私（TCC）授权** —— 软链指向仓库后每轮都报 `/bin/bash: /Users/pabloli/bin/colima-proxy-tunnel.sh: Operation not permitted`（launchd 读不到 `~/Documents` 里的真身）。所以结构保持「可执行件在 `~/bin`、真值源在仓库」，同步用 `npm run env:sync-tunnel`（该脚本是唯一写入者；**改完 `scripts/colima-proxy-tunnel.sh` 或 `scripts/lib/proxy-port.mjs` 任一就跑一次**——后者也被同步成 `~/bin/proxy-port.mjs`，启动器是用 `--print-port` 跑它的。只改解析器不同步，launchd 手里仍是旧副本，而这正是「同步脚本是唯一写入者」要防的漂移）。
 
 ### .nvmrc（#231，2026-09-12 新增）
 
