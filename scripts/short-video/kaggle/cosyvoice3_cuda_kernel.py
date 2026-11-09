@@ -217,9 +217,38 @@ try:
             "onnx==1.18.0", "soundfile==0.12.1",
             "wetext==0.0.4", "gdown==5.1.0", "wget==3.2",
             "transformers==4.51.3", "lightning==2.2.4", "x-transformers==2.11.24",
+            # 2026-11-09: the image now preinstalls huggingface_hub 1.x, which
+            # dropped `resolve_revision`; diffusers (pulled transitively by
+            # Matcha/CosyVoice) imports it and the kernel died at model load.
+            # The frozen wheelhouse carries 0.36.2, but nothing pinned the name,
+            # so pip saw the preinstalled 1.x as satisfying the transitive range
+            # and never downgraded. Pin it to the wheel that is already frozen.
+            "huggingface_hub==0.36.2",
         ]
     )
     log("Core deps OK")
+    # 2026-11-09: the plain pin above did not change the active version on the
+    # current image (pip reported success, `diffusers` still imported a 1.x
+    # huggingface_hub without `resolve_revision`). Force the wheel from the
+    # frozen set and log the version so the next failure is self-describing.
+    _pip_install(["--force-reinstall", "--no-deps", "huggingface_hub==0.36.2"])
+    try:
+        import huggingface_hub as _hf
+        log(f"huggingface_hub {_hf.__version__} ({_hf.__file__})")
+    except Exception as _hf_err:
+        log(f"WARN: huggingface_hub probe failed: {_hf_err}")
+    # 2026-11-09: the image now ships a diffusers that imports
+    # `resolve_revision` from huggingface_hub 1.x, but the frozen
+    # transformers 4.51.3 pins hub <1.0, so the image's diffusers cannot import
+    # (Matcha -> decoder -> diffusers). diffusers is not in the frozen
+    # wheelhouse, so install a same-era release from PyPI without touching its
+    # deps (all of which are present already).
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-q", "--no-deps", "diffusers==0.32.2"],
+        check=True,
+    )
+    import diffusers as _diff
+    log(f"diffusers {_diff.__version__}")
     # pyworld has no Linux wheel on PyPI; the released cosyvoice3.yaml imports
     # cosyvoice.dataset.processor through !name:, so it must be present. The
     # wheelhouse carries a wheel built on this same image (#231).
