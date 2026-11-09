@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.55.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.54.0...tanstack_start_ts-v1.55.0) (2026-11-09)
+
+
+### Features
+
+* **short-video:** qwen4-gamefeel pack, content-driven duration, Kaggle TTS fix ([#1196](https://github.com/0xPabloLI/inside-china-ai/issues/1196)) ([ddc3838](https://github.com/0xPabloLI/inside-china-ai/commit/ddc3838ad5aba3b19964551e7d5976afef4f7c2c))
+
 ## [1.54.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.7...tanstack_start_ts-v1.54.0) (2026-11-09)
 
 
