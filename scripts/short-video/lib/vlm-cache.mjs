@@ -39,8 +39,9 @@ import {
   statSync,
   readdirSync,
   unlinkSync,
+  realpathSync,
 } from "fs";
-import { join, resolve } from "path";
+import { join } from "path";
 import { containedPath } from "./path-safety.mjs";
 
 /**
@@ -259,15 +260,18 @@ export function scanVlmCache(cacheDir) {
   if (!cacheDir || !existsSync(cacheDir)) return scan;
 
   let dirents;
+  let root;
   try {
     // A file at this path (a mistyped `--dir`) is not an empty cache.
     if (!statSync(cacheDir).isDirectory()) return scan;
-    dirents = readdirSync(cacheDir, { withFileTypes: true });
+    // realpathSync, not resolve: it canonicalizes the directory the entries
+    // actually live in and gives containedPath the absolute root it needs.
+    root = realpathSync(cacheDir);
+    dirents = readdirSync(root, { withFileTypes: true });
   } catch {
     return scan;
   }
   scan.exists = true;
-  const root = resolve(cacheDir);
 
   for (const dirent of dirents) {
     if (!dirent.isFile()) continue;
@@ -358,20 +362,27 @@ export function pruneVlmCache(cacheDir, { apply = false, unlink = unlinkSync } =
   let deletedBytes = 0;
   const failures = [];
 
-  if (apply && cacheDir) {
-    const root = resolve(cacheDir);
-    for (const orphan of before.orphans) {
-      try {
-        unlink(containedPath(root, orphan.file));
-        deleted += 1;
-        deletedBytes += orphan.bytes;
-      } catch (err) {
-        if (err?.code === "ENOENT") {
-          // Another prune got there first; the entry is gone, but this
-          // process freed no bytes.
+  if (apply && cacheDir && before.exists) {
+    let root = null;
+    try {
+      root = realpathSync(cacheDir);
+    } catch {
+      // The directory vanished between the scan and the unlink pass.
+    }
+    if (root) {
+      for (const orphan of before.orphans) {
+        try {
+          unlink(containedPath(root, orphan.file));
           deleted += 1;
-        } else {
-          failures.push({ file: orphan.file, error: err.message });
+          deletedBytes += orphan.bytes;
+        } catch (err) {
+          if (err?.code === "ENOENT") {
+            // Another prune got there first; the entry is gone, but this
+            // process freed no bytes.
+            deleted += 1;
+          } else {
+            failures.push({ file: orphan.file, error: err.message });
+          }
         }
       }
     }
