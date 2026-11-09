@@ -67,7 +67,7 @@ export const IMAGE_BACKEND_SPECS = Object.freeze({
 export const DEFAULT_IMAGE_BACKEND = "mflux-boogu";
 
 /** Fail-closed lookup: an unknown backend must never fall back to Boogu. */
-export function imageBackendSpec(backend = DEFAULT_IMAGE_BACKEND) {
+function imageBackendSpec(backend = DEFAULT_IMAGE_BACKEND) {
   const spec = IMAGE_BACKEND_SPECS[backend];
   if (!spec) {
     throw new Error(
