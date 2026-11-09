@@ -70,6 +70,7 @@ import {
   ytdlpProxyArg,
   ytdlpProxyEnv,
 } from "../lib/ytdlp-guard.mjs";
+import { parseScutilProxy } from "../../lib/proxy-port.mjs";
 import { searchYtdlp, downloadYtdlp } from "../lib/asset-sourcer.mjs";
 import { downloadYtdlpAdapter } from "../lib/video-downloaders.mjs";
 
@@ -685,6 +686,20 @@ describe("#324 system proxy parsing", () => {
 });
 
 describe("#324 proxy resolution", () => {
+  // Since #1064 the system branch probes instead of trusting `<Proto>Enable`,
+  // so each case injects the probe and the listener list. `prefer7897` is the
+  // "a proxy is running on the port scutil names" state; `nothingForwards` is
+  // the "client closed" state.
+  const prefer7897 = (port) => (port === 7897 ? "204" : "000");
+  const nothingForwards = () => "000";
+  const systemDeps = (text, extra = {}) => ({
+    env: {},
+    readSystemProxy: () => parseScutilProxy(text),
+    readLoopback: () => [],
+    probe: prefer7897,
+    ...extra,
+  });
+
   it("does not inject when the lowercase http_proxy is already exported", () => {
     // The ffmpeg child inherits it through env inheritance; injecting would
     // additionally override yt-dlp's own no_proxy handling.
@@ -710,21 +725,57 @@ describe("#324 proxy resolution", () => {
   });
 
   it("falls back to the macOS system proxy when no env proxy exists", () => {
+    expect(resolveYtdlpProxy(systemDeps(SCUTIL_ALL_ENABLED))).toBe("http://127.0.0.1:7897");
+  });
+
+  it("adds the http:// scheme to a bare env endpoint", () => {
+    // The system branch now yields a port, so a bare `host:port` only reaches
+    // this seam from the environment.
     expect(
       resolveYtdlpProxy({
-        env: {},
-        readSystemProxy: () => parseMacSystemProxy(SCUTIL_ALL_ENABLED),
+        env: { HTTPS_PROXY: "127.0.0.1:7897" },
+        readSystemProxy: () => {
+          throw new Error("must not be consulted");
+        },
       }),
     ).toBe("http://127.0.0.1:7897");
   });
 
-  it("adds the http:// scheme to a bare system endpoint", () => {
+  it("takes a system port whose Enable flag is off, when it forwards", () => {
+    // The failure #1064 exists for: a client left the flag off (or macOS never
+    // set it) while the port still proxies. Reading `Enable` returned null here
+    // and the download went direct.
+    const flagOff = SCUTIL_ALL_ENABLED.replace(/Enable : 1/g, "Enable : 0");
+    expect(parseScutilProxy(flagOff).HTTPS.enabled).toBe(false);
+    expect(resolveYtdlpProxy(systemDeps(flagOff))).toBe("http://127.0.0.1:7897");
+  });
+
+  it("skips an enabled port that forwards nothing and takes the one that does", () => {
+    // `Enable` says the client is running; the probe says it is not proxying.
+    // The loopback listener is what actually answers, so it wins.
     expect(
       resolveYtdlpProxy({
         env: {},
-        readSystemProxy: () => ({ httpProxy: "127.0.0.1:7897", httpsProxy: null }),
+        readSystemProxy: () => parseScutilProxy(SCUTIL_ALL_ENABLED),
+        readLoopback: () => [7897, 7899],
+        probe: (port) => (port === 7899 ? "204" : "000"),
       }),
-    ).toBe("http://127.0.0.1:7897");
+    ).toBe("http://127.0.0.1:7899");
+  });
+
+  it("probes once per process when a cache is supplied", () => {
+    // Per-candidate callers would otherwise pay a network round trip for every
+    // asset; the answer only changes when the client does. The first call
+    // probes each candidate twice (one `000` is not a verdict), the second
+    // call must probe nothing.
+    const cache = {};
+    const probe = vi.fn(nothingForwards);
+    const deps = systemDeps(SCUTIL_ALL_ENABLED, { cache, probe });
+    expect(resolveYtdlpProxy(deps)).toBeNull();
+    const afterFirst = probe.mock.calls.length;
+    expect(afterFirst).toBeGreaterThan(0);
+    expect(resolveYtdlpProxy(deps)).toBeNull();
+    expect(probe.mock.calls).toHaveLength(afterFirst);
   });
 
   it("returns null and warns once when only SOCKS is enabled (ffmpeg cannot use SOCKS)", () => {
@@ -735,12 +786,7 @@ describe("#324 proxy resolution", () => {
     expect(SCUTIL_SOCKS_ONLY).toContain("SOCKSEnable : 1");
     const warnings = {};
     const warn = vi.fn();
-    const deps = {
-      env: {},
-      readSystemProxy: () => parseMacSystemProxy(SCUTIL_SOCKS_ONLY),
-      warnings,
-      warn,
-    };
+    const deps = systemDeps(SCUTIL_SOCKS_ONLY, { warnings, warn, probe: nothingForwards });
     expect(resolveYtdlpProxy(deps)).toBeNull();
     expect(warn).toHaveBeenCalledTimes(1);
     // Names the endpoint so the operator can see which proxy is unusable, and
@@ -754,14 +800,9 @@ describe("#324 proxy resolution", () => {
 
   it("does not warn about SOCKS while an HTTP(S) system proxy is usable", () => {
     const warn = vi.fn();
-    expect(
-      resolveYtdlpProxy({
-        env: {},
-        readSystemProxy: () => parseMacSystemProxy(SCUTIL_ALL_ENABLED),
-        warnings: {},
-        warn,
-      }),
-    ).toBe("http://127.0.0.1:7897");
+    expect(resolveYtdlpProxy(systemDeps(SCUTIL_ALL_ENABLED, { warnings: {}, warn }))).toBe(
+      "http://127.0.0.1:7897",
+    );
     expect(warn).not.toHaveBeenCalled();
   });
 
@@ -770,7 +811,7 @@ describe("#324 proxy resolution", () => {
     expect(
       resolveYtdlpProxy({
         env: { HTTP_PROXY: "http://127.0.0.1:7897" },
-        readSystemProxy: () => parseMacSystemProxy(SCUTIL_SOCKS_ONLY),
+        readSystemProxy: () => parseScutilProxy(SCUTIL_SOCKS_ONLY),
         warnings: {},
         warn,
       }),
@@ -779,9 +820,7 @@ describe("#324 proxy resolution", () => {
   });
 
   it("returns null on a PAC-only / no-proxy configuration", () => {
-    expect(
-      resolveYtdlpProxy({ env: {}, readSystemProxy: () => parseMacSystemProxy(SCUTIL_PAC_ONLY) }),
-    ).toBeNull();
+    expect(resolveYtdlpProxy(systemDeps(SCUTIL_PAC_ONLY))).toBeNull();
     expect(resolveYtdlpProxy({ env: {}, readSystemProxy: () => null })).toBeNull();
   });
 
@@ -1004,7 +1043,9 @@ describe("#978 lowercase http_proxy carrying a SOCKS URL", () => {
     expect(
       resolveYtdlpProxy({
         env: {},
-        readSystemProxy: () => parseMacSystemProxy(SCUTIL_SOCKS_ONLY),
+        readSystemProxy: () => parseScutilProxy(SCUTIL_SOCKS_ONLY),
+        readLoopback: () => [],
+        probe: () => "000",
         warnings,
         warn,
       }),
@@ -1068,19 +1109,28 @@ describe("#978 lowercase http_proxy carrying a SOCKS URL", () => {
   });
 
   it.each([
-    ["an ipv4 endpoint", "127.0.0.1:7897"],
-    ["a dotted endpoint", "proxy.corp:7890"],
-  ])("names the endpoint scutil reports for %s", (_label, endpoint) => {
-    // `parseMacSystemProxy` produces a scheme-less `host:port`, and `127.0.0.1:`
-    // reads exactly like a scheme — a strip that does not require a `/` eats
-    // the host and turns a useful warning into a placeholder.
+    ["an ipv4 endpoint", "127.0.0.1", 7897],
+    ["a dotted endpoint", "proxy.corp", 7890],
+  ])("names the endpoint scutil reports for %s", (_label, host, port) => {
+    // The warning names `host:port`, and `127.0.0.1:` reads exactly like a
+    // scheme — a strip that does not require a `/` eats the host and turns a
+    // useful warning into a placeholder.
+    const endpoint = `${host}:${port}`;
     const warn = vi.fn();
-    resolveYtdlpProxy({
-      env: {},
-      readSystemProxy: () => ({ httpProxy: null, httpsProxy: null, socksProxy: endpoint }),
-      warnings: {},
-      warn,
-    });
+    expect(
+      resolveYtdlpProxy({
+        env: {},
+        readSystemProxy: () => ({
+          HTTP: { enabled: false, host: null, port: null },
+          HTTPS: { enabled: false, host: null, port: null },
+          SOCKS: { enabled: true, host, port },
+        }),
+        readLoopback: () => [],
+        probe: () => "000",
+        warnings: {},
+        warn,
+      }),
+    ).toBeNull();
     expect(warn.mock.calls[0][0]).toContain(`SOCKS-only (${endpoint})`);
   });
 });

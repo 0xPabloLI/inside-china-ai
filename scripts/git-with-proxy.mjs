@@ -32,19 +32,17 @@
  *     `scripts/lib/proxy-env.sh` reuses this CLI's `--print-url` output instead
  *     of a variable, so nothing in production sets it.
  */
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
   PROBE_BUDGET_S,
-  PROBE_TIMEOUT_S,
   PROBE_URL,
   buildGitProxyArgs,
   buildProxyEnv,
-  candidatePorts,
   proxyUrl,
-  resolveProxyPort,
+  resolveLocalProxy,
 } from "./lib/proxy-port.mjs";
 
 const USAGE = `usage:
@@ -67,49 +65,14 @@ examples:
   npm run git:proxy -- --direct -- fetch origin main
 `;
 
-/** Probe one port through curl — node's fetch has no proxy support built in. */
-function probeThroughPort(port) {
-  const result = spawnSync(
-    "curl",
-    [
-      "-s",
-      "-o",
-      "/dev/null",
-      "-w",
-      "%{http_code}",
-      "--max-time",
-      String(PROBE_TIMEOUT_S),
-      "-x",
-      proxyUrl(port),
-      PROBE_URL,
-    ],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-  );
-  const code = (result.stdout || "").trim();
-  return code === "" ? "000" : code;
-}
-
 /**
- * Read a command's output, treating any failure as empty. Named for the
- * behaviour rather than the call: both callers are "I would like this list, and
- * an empty list is a usable answer".
+ * Resolved URL, or `null` when no candidate forwards traffic.
+ *
+ * The resolution itself lives in `lib/proxy-port.mjs` (#1064): the yt-dlp guard
+ * and the colima tunnel ask the same question, and three answers used to
+ * disagree. This wrapper only decides what to do with the answer.
  */
-function readOrEmpty(cmd, args) {
-  try {
-    return execFileSync(cmd, args, {
-      encoding: "utf8",
-      // scutil and netstat are local and instant; a long timeout here would
-      // only add to the resolver's budget without ever helping.
-      timeout: 5000,
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-  } catch {
-    return "";
-  }
-}
-
-/** Resolved URL, or `null` when no candidate forwards traffic. */
-async function resolveProxyUrl() {
+function resolveProxyUrl() {
   const forced = process.env.GIT_WITH_PROXY_PORT;
   if (forced === "none") return { url: null, tried: [], candidates: [] };
   if (forced) {
@@ -121,17 +84,11 @@ async function resolveProxyUrl() {
     return { url: proxyUrl(port), tried: [], candidates: [] };
   }
 
-  const candidates = candidatePorts({
-    scutilOutput: readOrEmpty("scutil", ["--proxy"]),
-    netstatOutput: readOrEmpty("netstat", ["-an"]),
-  });
-  // Two attempts: a single `000` from the preferred port was observed on a run
-  // where the port was fine (see `resolveProxyPort`).
-  const resolved = await resolveProxyPort({ candidates, probe: probeThroughPort, attempts: 2 });
+  const resolved = resolveLocalProxy();
   return {
     url: resolved.port === null ? null : proxyUrl(resolved.port),
     tried: resolved.tried,
-    candidates,
+    candidates: resolved.candidates,
     budgetExhausted: resolved.budgetExhausted,
   };
 }
@@ -175,7 +132,7 @@ function splitArgv(argv) {
   return { flags, gitArgs };
 }
 
-async function main() {
+function main() {
   const { flags, gitArgs } = splitArgv(process.argv.slice(2));
   const wantsUrl = flags.includes("--print-url");
   const allowDirect = flags.includes("--direct");
@@ -189,7 +146,7 @@ async function main() {
     process.exit(0);
   }
 
-  const resolution = await resolveProxyUrl();
+  const resolution = resolveProxyUrl();
   const { url } = resolution;
 
   if (wantsUrl) {
@@ -233,5 +190,5 @@ async function main() {
 
 const thisFile = fileURLToPath(import.meta.url);
 if (process.argv[1] && realpathSync(process.argv[1]) === thisFile) {
-  await main();
+  main();
 }
