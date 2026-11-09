@@ -143,14 +143,23 @@ function portsFromParsedProxy(proxy) {
 
 /**
  * Ports the OS system-proxy settings name, in the order they should be tried.
- * `scutil --proxy` reports 0 for a disabled protocol, which is not a port.
+ *
+ * A protocol that names no port (disabled protocols report 0, which is not a
+ * port) contributes nothing. A protocol whose `Enable` flag is off but which
+ * still names a port **does** contribute: that flag is the thing observed
+ * lying, and only the probe decides (see `parseScutilProxy`).
  *
  * These come first because they are what every other tool on the machine
  * follows (browsers, git's own config, semgrep) — if one of them works, it is
  * the port the rest of the environment already agrees on.
  *
+ * There is deliberately no hard-coded fallback list. #1062's draft carried one
+ * (`7897 7890 7899 7898 …`); the loopback listeners from `netstat` are a
+ * superset of it, and "a client binds a port its config does not name" is the
+ * whole reason this resolver probes rather than reads a list.
+ *
  * @param {string} scutilOutput - Raw `scutil --proxy` output
- * @returns {number[]} Ports, deduplicated, disabled protocols dropped
+ * @returns {number[]} Ports, deduplicated, protocols without a port dropped
  */
 export function candidatePortsFromScutil(scutilOutput) {
   return portsFromParsedProxy(parseScutilProxy(scutilOutput));
@@ -219,11 +228,16 @@ export function candidatePorts({
  * The URL a resolved port is addressed at. One place, because the same string is
  * needed for the probe, for `git -c` and for the exported environment.
  *
+ * `host` exists for the one caller that does not mean loopback: a system proxy
+ * can name another machine (a corporate gateway), and the yt-dlp guard passes
+ * such an endpoint through unchanged rather than rewriting it to `127.0.0.1`.
+ *
  * @param {number} port
+ * @param {string} [host]
  * @returns {string}
  */
-export function proxyUrl(port) {
-  return `http://127.0.0.1:${port}`;
+export function proxyUrl(port, host = "127.0.0.1") {
+  return `http://${host}:${port}`;
 }
 
 /**
@@ -351,8 +365,14 @@ export function resolveProxyPort({
  * the entry point the real callers use, and one `000` from a healthy port is
  * the observed failure that retry exists for.
  *
+ * `scutilProxy` is the parsed dict, for a caller that already holds one (the
+ * yt-dlp guard caches the `scutil` read and its tests inject the parse). Without
+ * it the resolver reads `scutil` itself, which is what the CLI and the git
+ * wrapper do.
+ *
  * @param {{
  *   readScutil?: () => string|null,
+ *   scutilProxy?: ReturnType<typeof parseScutilProxy>|null,
  *   readLoopback?: () => number[],
  *   probe?: (port: number) => string,
  *   attempts?: number,
@@ -366,12 +386,14 @@ export function resolveProxyPort({
  */
 export function resolveLocalProxy({
   readScutil = readScutilProxy,
+  scutilProxy = null,
   readLoopback = readLoopbackPorts,
   probe = probePort,
   attempts = 2,
 } = {}) {
   const candidates = candidatePorts({
-    scutilOutput: readScutil() ?? "",
+    scutilProxy,
+    scutilOutput: scutilProxy ? "" : (readScutil() ?? ""),
     listeningPorts: readLoopback(),
   });
   const resolved = resolveProxyPort({ candidates, probe, attempts });

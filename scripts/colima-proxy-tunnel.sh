@@ -69,7 +69,14 @@ resolve_proxy_port() {
     return 1
   fi
   port=$("$node_bin" "$resolver" --print-port) || return 1
-  [ -n "$port" ] || return 1
+  # The value becomes an ssh `-R` target; a non-numeric answer there is a
+  # malformed forward, so it is rejected at the source rather than passed on.
+  case "$port" in
+    '' | *[!0-9]*)
+      echo "❌ $RESOLVER_NAME returned a non-numeric port: '$port'" >&2
+      return 1
+      ;;
+  esac
   printf '%s' "$port"
 }
 

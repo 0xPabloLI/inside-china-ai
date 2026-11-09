@@ -763,6 +763,28 @@ describe("#324 proxy resolution", () => {
     ).toBe("http://127.0.0.1:7899");
   });
 
+  it("passes a system proxy on another host through untouched", () => {
+    // #1064 asks which *local* port proxies. A corporate gateway is not a
+    // candidate for that, and rewriting it to 127.0.0.1 (what the loopback
+    // probe would do) turns a working proxy into "nothing forwards".
+    const probe = vi.fn(nothingForwards);
+    expect(
+      resolveYtdlpProxy({
+        env: {},
+        readSystemProxy: () => ({
+          HTTP: { enabled: false, host: null, port: null },
+          HTTPS: { enabled: true, host: "proxy.corp", port: 7890 },
+          SOCKS: { enabled: false, host: null, port: null },
+        }),
+        readLoopback: () => [],
+        probe,
+        warnings: {},
+        warn: vi.fn(),
+      }),
+    ).toBe("http://proxy.corp:7890");
+    expect(probe).not.toHaveBeenCalled();
+  });
+
   it("probes once per process when a cache is supplied", () => {
     // Per-candidate callers would otherwise pay a network round trip for every
     // asset; the answer only changes when the client does. The first call

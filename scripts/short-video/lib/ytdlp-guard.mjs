@@ -38,13 +38,12 @@ import { fileURLToPath } from "url";
 import { homedir } from "node:os";
 import { matchDomain } from "./rate-limiter.mjs";
 import {
-  candidatePorts,
   parseScutilProxy,
   probePort,
   proxyUrl,
   readLoopbackPorts,
   readScutilProxy,
-  resolveProxyPort,
+  resolveLocalProxy,
 } from "../../lib/proxy-port.mjs";
 
 /** Browser-like UA for yt-dlp invocations (#16571: UA is part of the fingerprint). */
@@ -329,12 +328,41 @@ function resolveSystemPort({ system, readLoopback, probe, cache, now = Date.now 
   const missExpired = cache.port === null && now() - (cache.at ?? 0) >= SYSTEM_PORT_MISS_TTL_MS;
   if (decided && !missExpired) return cache.port;
 
-  const candidates = candidatePorts({ scutilProxy: system, listeningPorts: readLoopback() });
-  // Two attempts, like the git wrapper: one `000` from a healthy port was
-  // observed in the wild (`resolveProxyPort` documents it).
-  cache.port = resolveProxyPort({ candidates, probe, attempts: 2 }).port;
+  // The whole decision — candidates from the parsed dict plus the listeners,
+  // then the probe — is `resolveLocalProxy`. Calling it rather than repeating
+  // its two lines is the point of #1064: a second copy of "merge, probe, retry
+  // once" is a second place that can disagree.
+  cache.port = resolveLocalProxy({ scutilProxy: system, readLoopback, probe }).port;
   cache.at = now();
   return cache.port;
+}
+
+/** True when an endpoint is this machine — the only kind #1064 is about. */
+function isLoopbackHost(host) {
+  return host === "localhost" || host === "::1" || host === "[::1]" || /^127\./.test(host);
+}
+
+/**
+ * A system proxy that names another machine (a corporate gateway), if one is
+ * enabled — in this file's original precedence, HTTPS before HTTP.
+ *
+ * Such an endpoint is not a candidate for "which *local* port proxies", and the
+ * probe cannot answer for it without changing what it means (it would report
+ * the network's reachability, not the proxy's). So it is passed through exactly
+ * as before #1064; rewriting it to `127.0.0.1` would turn a working gateway into
+ * "nothing forwards" and send downloads direct — the failure this ticket removes.
+ *
+ * @param {ReturnType<typeof parseScutilProxy>} system
+ * @returns {{host: string, port: number}|null}
+ */
+function remoteSystemEndpoint(system) {
+  for (const proto of ["HTTPS", "HTTP"]) {
+    const entry = system?.[proto];
+    if (entry?.enabled && entry.host && entry.port && !isLoopbackHost(entry.host)) {
+      return { host: entry.host, port: entry.port };
+    }
+  }
+  return null;
 }
 
 /** Add the http:// scheme ffmpeg and yt-dlp both expect on a bare host:port. */
@@ -554,8 +582,12 @@ export function resolveYtdlpProxy({
     return null;
   }
   if (!system) return null;
-  // Only the production reader shares the process cache — see `systemPortCache`.
-  const resolvedCache = cache ?? (readSystemProxy === readMacSystemProxy ? systemPortCache : {});
+  const remote = remoteSystemEndpoint(system);
+  if (remote) return proxyUrl(remote.port, remote.host);
+  // An injected reader is a test seam; a cache shared between cases would make
+  // each one depend on the probe the previous one ran.
+  const usingDefaultReader = readSystemProxy === readMacSystemProxy;
+  const resolvedCache = cache ?? (usingDefaultReader ? systemPortCache : {});
   const port = resolveSystemPort({ system, readLoopback, probe, cache: resolvedCache });
   if (port !== null) return proxyUrl(port);
   const socks = system.SOCKS;

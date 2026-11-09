@@ -270,6 +270,37 @@ describe("the whole decision in one call", () => {
     expect(resolved.candidates).toEqual([7899]);
   });
 
+  it("reports a miss with its evidence and an empty candidate list", () => {
+    // Deterministic version of the CLI's exit-3 branch: no sources at all is
+    // the one state a machine with a running proxy cannot mask.
+    const resolved = resolveLocalProxy({
+      readScutil: () => null,
+      readLoopback: () => [],
+      probe: () => "000",
+    });
+    expect(resolved).toEqual({
+      port: null,
+      tried: [],
+      candidates: [],
+      budgetExhausted: false,
+    });
+  });
+
+  it("takes an already-parsed dict instead of re-reading scutil", () => {
+    // The yt-dlp guard caches the `scutil` read; asking it to hand back the raw
+    // text would make it parse twice.
+    const resolved = resolveLocalProxy({
+      scutilProxy: parseScutilProxy(SCUTIL),
+      readScutil: () => {
+        throw new Error("must not be consulted");
+      },
+      readLoopback: () => [],
+      probe: () => "204",
+    });
+    expect(resolved.port).toBe(7890);
+    expect(resolved.candidates).toEqual([7890]);
+  });
+
   it("rejects an async probe instead of reporting a working proxy as absent", () => {
     // A Promise compares false against "204", so an async probe would turn
     // every live proxy into "nothing forwards" — the silent failure this module
@@ -294,19 +325,22 @@ describe("the CLI the colima tunnel runs from ~/bin", () => {
     });
 
   it("prints only the answer, so a shell can capture it", () => {
-    // A miss is the only deterministic outcome here (no proxy is guaranteed on
-    // a CI machine), so the shape being asserted is "nothing on stdout".
+    // Environment-dependent by nature: the CLI reads the real machine. Both
+    // outcomes are shapes a caller can rely on — one line and nothing else, or
+    // an empty stdout with the exit code carrying the verdict. The miss branch
+    // itself is asserted deterministically in "the whole decision in one call".
     const result = run(["--print-port"]);
     if (result.status === 0) expect(result.stdout.trim()).toMatch(/^\d+$/);
     else expect(result.stdout).toBe("");
   });
 
-  it("exits 3 with the probe evidence when nothing forwards", () => {
+  it("keeps the URL on one line and every diagnostic on stderr", () => {
     const result = run(["--print-url"]);
     if (result.status === 0) {
       expect(result.stdout.trim()).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
     } else {
       expect(result.status).toBe(3);
+      expect(result.stdout).toBe("");
       expect(result.stderr).toContain("no port forwarded");
     }
   });
