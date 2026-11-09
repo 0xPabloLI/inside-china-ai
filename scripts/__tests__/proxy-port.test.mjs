@@ -5,6 +5,9 @@
  * must explain a failure instead of leaving the caller to guess.
  */
 import { describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
+import { join } from "node:path";
 
 import {
   buildGitProxyArgs,
@@ -12,7 +15,9 @@ import {
   candidatePorts,
   candidatePortsFromNetstat,
   candidatePortsFromScutil,
+  parseScutilProxy,
   proxyUrl,
+  resolveLocalProxy,
   resolveProxyPort,
 } from "../lib/proxy-port.mjs";
 
@@ -63,6 +68,32 @@ describe("candidate ports", () => {
     expect(candidatePorts({ scutilOutput: SCUTIL, netstatOutput: NETSTAT })).toEqual([
       7890, 7895, 11434,
     ]);
+  });
+
+  it("tries the protocols in the caller's order, not always HTTP first", () => {
+    // `scutil` can name two different loopback ports — two clients, two egress
+    // paths. HTTP-first is the default for the git wrapper's historical
+    // reasons; a caller that answered HTTPS-first before #1064 says so instead
+    // of inheriting that (see `ytdlp-guard.mjs`'s SYSTEM_PROTOCOL_ORDER).
+    const twoClients = SCUTIL.replace("HTTPSPort : 7890", "HTTPSPort : 7899");
+    expect(candidatePorts({ scutilOutput: twoClients, listeningPorts: [] })).toEqual([7890, 7899]);
+    expect(
+      candidatePorts({
+        scutilOutput: twoClients,
+        listeningPorts: [],
+        protocols: ["HTTPS", "HTTP"],
+      }),
+    ).toEqual([7899, 7890]);
+    // The wiring, not just the builder: a caller passing `protocols` gets that
+    // order through the whole decision.
+    expect(
+      resolveLocalProxy({
+        scutilProxy: parseScutilProxy(twoClients),
+        readLoopback: () => [],
+        probe: () => "204",
+        protocols: ["HTTPS", "HTTP"],
+      }).port,
+    ).toBe(7899);
   });
 
   it("survives both sources being unavailable", () => {
@@ -188,5 +219,174 @@ describe("what the caller does with the answer", () => {
       http_proxy: "",
       https_proxy: "",
     });
+  });
+});
+
+describe("one parser for scutil --proxy (#1064)", () => {
+  it("reports each protocol's host and port plus what macOS itself acts on", () => {
+    // The fixture enables HTTPS without naming an `HTTPSProxy` host — a shape
+    // observed on this host — so "enabled" is false there even though the port
+    // is still a candidate.
+    expect(parseScutilProxy(SCUTIL)).toEqual({
+      HTTP: { enabled: true, host: "127.0.0.1", port: 7890 },
+      HTTPS: { enabled: false, host: null, port: 7890 },
+      SOCKS: { enabled: false, host: null, port: null },
+    });
+  });
+
+  it("keeps the port of a protocol whose Enable flag is off", () => {
+    // The whole reason the parser is shared: the flag is what was observed
+    // lying, so candidate selection needs the port even when the flag says the
+    // protocol is disabled. Only `enabled` (what macOS acts on) goes false.
+    const flagOff = SCUTIL.replace("HTTPEnable : 1", "HTTPEnable : 0");
+    expect(parseScutilProxy(flagOff).HTTP).toEqual({
+      enabled: false,
+      host: "127.0.0.1",
+      port: 7890,
+    });
+    expect(candidatePortsFromScutil(flagOff)).toEqual([7890]);
+  });
+
+  it("treats a missing block as disabled rather than throwing", () => {
+    expect(parseScutilProxy("")).toEqual({
+      HTTP: { enabled: false, host: null, port: null },
+      HTTPS: { enabled: false, host: null, port: null },
+      SOCKS: { enabled: false, host: null, port: null },
+    });
+    expect(parseScutilProxy(null).HTTP.enabled).toBe(false);
+  });
+
+  it("merges a parsed dict with listeners without re-rendering it to text", () => {
+    // The yt-dlp guard holds the parsed dict; the CLI holds the raw text. Same
+    // candidate list either way, preferred order preserved.
+    const fromText = candidatePorts({ scutilOutput: SCUTIL, listeningPorts: [7899] });
+    const fromDict = candidatePorts({
+      scutilProxy: parseScutilProxy(SCUTIL),
+      listeningPorts: [7899],
+    });
+    expect(fromDict).toEqual(fromText);
+    expect(fromDict).toEqual([7890, 7899]);
+  });
+});
+
+describe("the whole decision in one call", () => {
+  it("reads both sources, then probes in preferred order", () => {
+    const probed = [];
+    const resolved = resolveLocalProxy({
+      readScutil: () => SCUTIL,
+      readLoopback: () => [7899],
+      probe: (port) => {
+        probed.push(port);
+        return port === 7899 ? "204" : "000";
+      },
+    });
+    expect(resolved.port).toBe(7899);
+    expect(resolved.candidates).toEqual([7890, 7899]);
+    // Two attempts on the dead port before moving on: one `000` is not proof.
+    expect(probed).toEqual([7890, 7890, 7899]);
+  });
+
+  it("survives a scutil read that returns null", () => {
+    const resolved = resolveLocalProxy({
+      readScutil: () => null,
+      readLoopback: () => [7899],
+      probe: () => "204",
+    });
+    expect(resolved.port).toBe(7899);
+    expect(resolved.candidates).toEqual([7899]);
+  });
+
+  it("reports a miss with its evidence and an empty candidate list", () => {
+    // Deterministic version of the CLI's exit-3 branch: no sources at all is
+    // the one state a machine with a running proxy cannot mask.
+    const resolved = resolveLocalProxy({
+      readScutil: () => null,
+      readLoopback: () => [],
+      probe: () => "000",
+    });
+    expect(resolved).toEqual({
+      port: null,
+      tried: [],
+      candidates: [],
+      budgetExhausted: false,
+    });
+  });
+
+  it("takes an already-parsed dict instead of re-reading scutil", () => {
+    // The yt-dlp guard caches the `scutil` read; asking it to hand back the raw
+    // text would make it parse twice.
+    const resolved = resolveLocalProxy({
+      scutilProxy: parseScutilProxy(SCUTIL),
+      readScutil: () => {
+        throw new Error("must not be consulted");
+      },
+      readLoopback: () => [],
+      probe: () => "204",
+    });
+    expect(resolved.port).toBe(7890);
+    expect(resolved.candidates).toEqual([7890]);
+  });
+
+  it("rejects an async probe instead of reporting a working proxy as absent", () => {
+    // A Promise compares false against "204", so an async probe would turn
+    // every live proxy into "nothing forwards" — the silent failure this module
+    // exists to remove, reproduced by its own API. Fail loudly instead.
+    expect(() => resolveProxyPort({ candidates: [7890], probe: async () => "204" })).toThrow(
+      /synchronous/,
+    );
+  });
+});
+
+describe("the CLI the colima tunnel runs from ~/bin", () => {
+  const cli = join(realpathSync(join(import.meta.dirname, "..")), "lib", "proxy-port.mjs");
+
+  const run = (args) =>
+    spawnSync("node", [cli, ...args], {
+      encoding: "utf8",
+      // No inherited proxy variables: the CLI's own resolution must not depend
+      // on what this machine happens to run, and these cases never resolve.
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(([k]) => !/^(https?_proxy|HTTPS?_PROXY)$/i.test(k)),
+      ),
+    });
+
+  it("prints only the answer, so a shell can capture it", { timeout: 30_000 }, () => {
+    // Environment-dependent by nature: the CLI reads the real machine. Both
+    // outcomes are shapes a caller can rely on — one line and nothing else, or
+    // an empty stdout with the exit code carrying the verdict. The miss branch
+    // itself is asserted deterministically in "the whole decision in one call".
+    //
+    // The explicit timeout is not slack: the CLI is *designed* to spend up to
+    // `PROBE_BUDGET_S` (15s) across a hung listener set, so vitest's 5s default
+    // is shorter than the code's own worst case. This case measured 4.0s on a
+    // machine with one black-holed port — a false red waiting to happen. The
+    // two cases below keep the default on purpose: they must stay network-free.
+    const result = run(["--print-port"]);
+    if (result.status === 0) expect(result.stdout.trim()).toMatch(/^\d+$/);
+    else expect(result.stdout).toBe("");
+  });
+
+  it("keeps the URL on one line and every diagnostic on stderr", { timeout: 30_000 }, () => {
+    const result = run(["--print-url"]);
+    if (result.status === 0) {
+      expect(result.stdout.trim()).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+    } else {
+      expect(result.status).toBe(3);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("no port forwarded");
+    }
+  });
+
+  it("refuses to run with no mode flag, rather than printing a guess", () => {
+    const result = run([]);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("--print-port");
+  });
+
+  it("answers --help without touching the network", () => {
+    const result = run(["--help"]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("--print-port");
   });
 });

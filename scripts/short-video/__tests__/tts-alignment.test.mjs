@@ -23,7 +23,13 @@ vi.mock("child_process", () => ({
   execFile: vi.fn((cmd, args, callback) => callback(null, { stdout: "", stderr: "" })),
 }));
 
-vi.mock("fs", () => ({
+// Spread the real module first: the import chain of `lib/tts/post-process.mjs`
+// reaches `lib/ytdlp-guard.mjs` → `lib/proxy-port.mjs`, which runs the repo's
+// entry guard (`realpathSync(argv[1]) === fileURLToPath(import.meta.url)`) at
+// module scope. Replacing the whole module leaves `realpathSync` undefined and
+// the import throws before any test body runs.
+vi.mock("fs", async (importOriginal) => ({
+  ...(await importOriginal()),
   existsSync: fsMock.existsSync,
   writeFileSync: fsMock.writeFileSync,
   readFileSync: vi.fn(),
