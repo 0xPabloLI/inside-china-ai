@@ -36,6 +36,7 @@
 | Firecrawl `scrape`                           | 联网/抓取                 | 注册免费        | 📋 待评估            | ⭐⭐ 英文站                                                    |
 | Firecrawl 其他功能                           | 多种                      | 注册免费        | ❌ 不推荐            | ⭐ 不如现有                                                    |
 | last30days-skill                             | 趋势发现（西方社媒+学术） | ✅              | ✅ 已集成(安全⚠️)    | ⭐⭐⭐ 核心                                                    |
+| `we-mp-rss`（自建）                          | 微信 RSS（自建）          | ✅ 自托管       | ✅ 已部署（本地）    | ⭐⭐ 动察Beating 直连 feed                                     |
 | vercel-labs/agent-skills                     | 开发/部署                 | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ Vercel+React                                            |
 | emilkowalski/skills (emil-design-eng)        | UI/动画                   | ✅              | 📋 备选(安全✅)      | ⭐⭐ motion/细节                                               |
 | guizang-ppt-skill                            | 演示文稿                  | ✅              | 📋 待评估(安全⚠️)    | ⭐ 备用                                                        |
@@ -256,6 +257,21 @@
   交叉比对执行固定的三步（#203，机制与 prompt 见 [trend-selection-dedup-scoring.md](trend-selection-dedup-scoring.md)）：① 同事件判定去重（同一现实事件才合并，不确定保留，fail-open）；② 0-10 评分 rubric；③ 按类阈值过滤（tech-news 7.0 / tech-blog 4.0）。产物须为每条留痕：去重组归属 + 分数 + 理由。
 - **安全审计**：⚠️ skills.sh Gen:Fail / Snyk:Fail / Socket:Warn（LAW 1-7 指令覆盖，Agent 语义审查通过——良性格式控制，非恶意行为）
 - **安装日期**：2026-08-12
+
+### we-mp-rss — 自建公众号 → RSS（微信读书通道）
+
+- **分类**：微信 RSS / 数据源
+- **费用**：免费（自托管）
+- **版本**：v1.5.3（`ghcr.io/rachelos/we-mp-rss:latest`，镜像 label 标 MIT；仓库 license 文件未标准化标注）
+- **做什么**：把微信公众号文章转成 RSS。当前实例通过微信读书会话采集，公众号以 `MP_WXS_<biz>` 为 feed id；本仓库的 `wechat_dongchabeating_rss` 源读取 `http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml`。
+- **为什么对本项目有用**：动察Beating 没有公开 feed；这是把它从 Google 转载搜索（滞后、易漏）换成结构化 RSS 的唯一直连路径。12 个 `wechat2rss_*` 公开 feed 仍是主轨，本实例只补这一个账号。
+- **部署**：本机 Docker 容器 `wechat-rss`，端口 `127.0.0.1:8001`，数据目录 `~/wechat-rss/data`（SQLite `db.db` + 微信读书会话 `wx.lic`）。UI 登录凭据在容器环境变量 `USERNAME`/`PASSWORD`；**不要把凭据写入仓库或日志**。
+- **维护**：唯一必须人工的步骤是微信读书扫码续期（手机确认）。会话失效时 UI 要求重新扫码；扫码后跑 `POST /api/v1/wx/weread/collect` 拉最新一篇。其余由 source-health 的零结果/失败 streak 触发告警。
+- **自动更新**：定时任务对 `MP_WXS_*` feed 会自动切到 `weread_mp` 采集器（`jobs/mps.py`），无需改 `gather.model`；但当前实例还没有建 cron 任务，所以 feed 只在手动 collect 后更新。建议在 UI 建一条 1–2h 的定时任务。
+- **边界**：只读路径；不注入微信客户端、不发消息。微信读书模式只返回**最新一篇**，不提供历史文章；feed 的 `pubDate` 是采集时间，不是原文发布时间。轮询保持低频（1–2 小时一次足够），日请求量上限 <200。
+- **何时用**：`wechat_dongchabeating_rss` 源自动读取；人工验证用 `curl http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml`。
+- **安全审计**：开源自托管，MIT（镜像 label）；无第三方 API key；本地端口只绑 `127.0.0.1`。
+- **状态**：✅ 已部署（2026-11-09；`#320`）
 
 ---
 

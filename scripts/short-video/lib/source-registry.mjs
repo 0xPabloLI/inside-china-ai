@@ -2315,7 +2315,10 @@ export const LAST30DAYS_SOURCES = [
 //
 // Each entry monitors a specific WeChat Official Account by searching
 // Google for republished articles (via 虎嗅, 新浪, ZAKER etc.) that cite
-// the account. This is the most reliable method since:
+// the account. #320 gave 动察Beating a direct RSS feed
+// (wechat_dongchabeating_rss in WECHAT_RSS_SOURCES), so this Google layer is
+// now the fallback for that account. The method remains here for accounts
+// with no RSS path; it is the most reliable fallback since:
 //   - Sogou WeChat Search has aggressive anti-bot (returns empty via CDP)
 //   - mp.weixin.qq.com profile_ext requires WeChat client (not Chrome)
 //   - Google site:mp.weixin.qq.com indexes very few articles
@@ -2350,9 +2353,12 @@ const WECHAT_ACCOUNT_SOURCES = [
   },
 ];
 
-// ─── Wechat2RSS public sources ───
-// Public third-party RSS only. These sources do not use a WeChat account,
-// a WeChat Reading session, or an official WeChat API from this project.
+// ─── WeChat RSS sources ───
+// Two tracks share the RSS parser and the tracked-feed role:
+// - 12 public third-party wechat2rss feeds: no WeChat account, session or API.
+// - 1 self-hosted we-mp-rss feed backed by a WeChat Reading session (#320).
+// The self-hosted track is local-only and read-only; its operational details
+// live in accessMethod.notes and docs/tools-catalog.md.
 function decodeRssText(value = "") {
   return value
     .replace(/^<!\[CDATA\[/i, "")
@@ -2401,7 +2407,16 @@ const WECHAT_RSS_TRACKING = Object.freeze({
   freshnessWindowDays: 14,
 });
 
-function createWechatRssSource(name, label, feedUrl) {
+// #320: a self-hosted we-mp-rss instance backed by a WeChat Reading session.
+// The tracking shape stays the shared RSS shape; the local-only nature lives in
+// accessMethod.notes and docs/tools-catalog.md rather than in unread fields.
+const WECHAT_SELF_HOSTED_RSS_TRACKING = Object.freeze({
+  access: "public-rss",
+  official: false,
+  freshnessWindowDays: 14,
+});
+
+function createWechatRssSource(name, label, feedUrl, options = {}) {
   return {
     name,
     label,
@@ -2416,9 +2431,10 @@ function createWechatRssSource(name, label, feedUrl) {
     accessMethod: {
       primary: "api",
       notes:
+        options.notes ??
         "Public third-party RSS. No WeChat account, login, or official API is used by this project.",
     },
-    tracking: WECHAT_RSS_TRACKING,
+    tracking: options.tracking ?? WECHAT_RSS_TRACKING,
     apiSearch: {
       url: () => feedUrl,
       parser: parseWechatRss,
@@ -2489,6 +2505,21 @@ export const WECHAT_RSS_SOURCES = [
     "wechat2rss_alibaba_tech",
     "阿里技术",
     "https://wechat2rss.xlab.app/feed/6e1f9b775f7a5841ac1a94310f0478b45a02ec01.xml",
+  ),
+  // #320: 动察Beating is the one account with no public feed. The 12
+  // wechat2rss feeds above stay the primary WeChat track; this self-hosted
+  // source fills only that gap. Local-only: the endpoint is a Docker service
+  // on the operator's machine, so a probe from elsewhere fails honestly
+  // instead of pretending the source is dead.
+  createWechatRssSource(
+    "wechat_dongchabeating_rss",
+    "动察Beating（自建 RSS）",
+    "http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml",
+    {
+      tracking: WECHAT_SELF_HOSTED_RSS_TRACKING,
+      notes:
+        "Self-hosted we-mp-rss feed backed by a WeChat Reading session. Local-only, read-only, no official WeChat API.",
+    },
   ),
 ];
 
@@ -3692,7 +3723,12 @@ export const SOURCE_ATTRIBUTIONS = {
     logoRequired: false,
   },
   wechat_dongchabeating: {
-    text: () => `文章来源: 冬奥速递 (微信公众号)`,
+    text: () => `文章来源: 动察Beating (微信公众号)`,
+    license: "News copyright",
+    logoRequired: false,
+  },
+  wechat_dongchabeating_rss: {
+    text: () => `文章来源: 动察Beating (微信公众号)`,
     license: "News copyright",
     logoRequired: false,
   },
