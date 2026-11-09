@@ -13,7 +13,7 @@
  *   --pre:        pre-render mode (skip video/subtitle/manual checks) and print
  *                 the TTS cache & cost plan (#953): approved hits, per-scene
  *                 miss reasons, pacing precheck, engine-based time estimate.
- *   --tiktok:     also check TikTok-specific 60-70s duration requirement (post-render only)
+ *   --tiktok:     also check TikTok's per-video duration ceiling (≤70s; no minimum)
  *   --long-form:  explicit YouTube long-form opt-in — downgrades scene-count (>10) and
  *                 voiceover-word (>180) violations from FAIL to WARN. TikTok default
  *                 keeps them as FAIL so oversized content must be split into parts.
@@ -272,14 +272,15 @@ if (!preMode) {
   }
 
   if (checkTikTok) {
-    if (duration <= 70) {
-      pass("Duration", "TikTok optimal (60-70s)", `${duration.toFixed(1)}s`);
+    const ceiling = tiktokProfile.thresholds.maxDurationSec;
+    if (duration <= ceiling) {
+      pass("Duration", `TikTok duration (≤${ceiling}s, content-driven)`, `${duration.toFixed(1)}s`);
     } else if (duration <= 600) {
       warn(
         "Duration",
-        "TikTok optimal (60-70s)",
-        `${duration.toFixed(1)}s > 70s (within TikTok 10min limit)`,
-        "Create shortened TikTok cut: select 6-8 key scenes for optimal performance",
+        `TikTok duration (≤${ceiling}s, content-driven)`,
+        `${duration.toFixed(1)}s > ${ceiling}s (within TikTok 10min limit) — consider splitting into parts`,
+        "Split into parts (Step 0): keep each part under the ceiling instead of trimming to a target",
       );
     } else {
       fail(

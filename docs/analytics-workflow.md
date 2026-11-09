@@ -369,7 +369,7 @@ Analytics 复盘
 
 - 优先选有具体数字/公司名的话题（搜索词匹配）
 - hashtag 不超过 5 个（#creatorsearchinsights 不再自动黑名单，但仅在内容确实来源于 Creator Search Insights gap 发现时才手动加入）
-- 继续缩短视频时长到 60-70s 目标
+- 时长跟随内容（≤70s 上限），不填充到固定目标
 ```
 
 ---

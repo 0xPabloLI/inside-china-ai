@@ -103,6 +103,7 @@ echo "==> group 2/5: torch trio + core deps (pypi primary, pytorch cu124 for the
   wetext==0.0.4 gdown==5.1.0 \
   transformers==4.51.3 lightning==2.2.4 x-transformers==2.11.24 \
   onnxruntime-gpu==1.20.0 tiktoken numba \
+  huggingface_hub==0.36.2 diffusers==0.32.2 \
   --index-url https://pypi.org/simple \
   --extra-index-url https://download.pytorch.org/whl/cu124
 echo "    $(wheels_so_far) wheels so far"

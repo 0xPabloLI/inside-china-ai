@@ -60,6 +60,10 @@ import { scenes as distill7labsPt2Scenes } from "../content/anthropic-distillati
 import { scenes as distill7labsPt3Scenes } from "../content/anthropic-distillation-7labs/pt3/scene-data.mjs";
 import { scenes as distill7labsPt4Scenes } from "../content/anthropic-distillation-7labs/pt4/scene-data.mjs";
 
+import { getPlatformProfile } from "../lib/platforms/index.mjs";
+
+const MAX_WORDS = getPlatformProfile("tiktok").thresholds.maxVoiceoverWords;
+
 const distill7labsAll = [
   ...distill7labsPt1Scenes,
   ...distill7labsPt2Scenes,
@@ -582,20 +586,22 @@ describe("checkShareWorthyData", () => {
 // ── checkVoiceoverWordCount ──
 
 describe("checkVoiceoverWordCount", () => {
-  it("passes when total words <=180", () => {
+  it("passes when total words fit the profile cap", () => {
     const results = checkVoiceoverWordCount(validScenes);
     expect(results[0].level).toBe("pass");
   });
 
-  it("passes at the 180-word boundary", () => {
-    const longVO = Array(180).fill("word").join(" ");
+  it("passes at the word-count boundary", () => {
+    const longVO = Array(MAX_WORDS).fill("word").join(" ");
     const scenes = [{ ...validScenes[0], voiceover: longVO }];
     const results = checkVoiceoverWordCount(scenes);
     expect(results[0].level).toBe("pass");
   });
 
-  it("fails when total words >180 (TikTok default)", () => {
-    const longVO = Array(181).fill("word").join(" ");
+  it("fails when total words exceed the profile cap", () => {
+    const longVO = Array(MAX_WORDS + 1)
+      .fill("word")
+      .join(" ");
     const scenes = [{ ...validScenes[0], voiceover: longVO }];
     const results = checkVoiceoverWordCount(scenes);
     expect(results[0].level).toBe("fail");
@@ -637,17 +643,17 @@ describe("runAllSceneDataChecks guard strictness", () => {
     const res = runAllSceneDataChecks(overLimitScenes);
     const failedChecks = res.fail.map((r) => r.check);
     expect(failedChecks).toContain("Scene count (6-10)");
-    expect(failedChecks).toContain("Total voiceover words (≤180)");
+    expect(failedChecks).toContain(`Total voiceover words (≤${MAX_WORDS})`);
   });
 
   it("--long-form: scene count + word count downgrade to warn bucket", () => {
     const res = runAllSceneDataChecks(overLimitScenes, undefined, { longForm: true });
     const warnedChecks = res.warn.map((r) => r.check);
     expect(warnedChecks).toContain("Scene count (6-10)");
-    expect(warnedChecks).toContain("Total voiceover words (≤180)");
+    expect(warnedChecks).toContain(`Total voiceover words (≤${MAX_WORDS})`);
     const failedChecks = res.fail.map((r) => r.check);
     expect(failedChecks).not.toContain("Scene count (6-10)");
-    expect(failedChecks).not.toContain("Total voiceover words (≤180)");
+    expect(failedChecks).not.toContain(`Total voiceover words (≤${MAX_WORDS})`);
   });
 
   it("compliant content stays 0 scene/word failures in both modes", () => {
@@ -656,7 +662,7 @@ describe("runAllSceneDataChecks guard strictness", () => {
     for (const res of [resDefault, resLong]) {
       const failedChecks = res.fail.map((r) => r.check);
       expect(failedChecks).not.toContain("Scene count (6-10)");
-      expect(failedChecks).not.toContain("Total voiceover words (≤180)");
+      expect(failedChecks).not.toContain(`Total voiceover words (≤${MAX_WORDS})`);
     }
   });
 });

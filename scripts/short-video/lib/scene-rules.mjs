@@ -543,7 +543,7 @@ export function checkShareWorthyData(scenes) {
   ];
 }
 
-/** Total voiceover should be <=180 words for 60-70s target */
+/** Total voiceover should fit the profile's duration ceiling (see maxVoiceoverWords) */
 export function checkVoiceoverWordCount(scenes, opts = {}) {
   const totalWords = scenes.reduce(
     (sum, s) => sum + (s.voiceover || "").split(/\s+/).filter(Boolean).length,

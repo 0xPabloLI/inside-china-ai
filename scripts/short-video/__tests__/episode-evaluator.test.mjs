@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { evaluateArticle } from "../lib/episode-evaluator.mjs";
 
 describe("evaluateArticle", () => {
-  it("returns 1 part for short article (<60s)", () => {
+  it("returns 1 part for short article (<70s ceiling)", () => {
     const short = "This is a short article about DeepSeek.";
     const result = evaluateArticle(short);
     expect(result.recommendedParts).toBe(1);
@@ -16,7 +16,7 @@ describe("evaluateArticle", () => {
     const medium = Array(300).fill("word").join(" ");
     const result = evaluateArticle(medium);
     expect(result.recommendedParts).toBe(2);
-    expect(result.estimatedDuration).toBeGreaterThan(60);
+    expect(result.estimatedDuration).toBeGreaterThan(70);
     expect(result.reasoning.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -25,12 +25,12 @@ describe("evaluateArticle", () => {
     const long = Array(450).fill("word").join(" ");
     const result = evaluateArticle(long);
     expect(result.recommendedParts).toBe(3);
-    expect(result.reasoning.some((r) => r.includes("exceeding 60s"))).toBe(true);
+    expect(result.reasoning.some((r) => r.includes("exceeding the 70s"))).toBe(true);
   });
 
   it("returns 5 parts (cap) for very long article", () => {
-    // ~700 words = ~280s
-    const veryLong = Array(700).fill("word").join(" ");
+    // ~760 words = ~304s
+    const veryLong = Array(760).fill("word").join(" ");
     const result = evaluateArticle(veryLong);
     expect(result.recommendedParts).toBe(5);
   });
@@ -83,11 +83,11 @@ slug: "test"
     expect(result.dataPointCount).toBeGreaterThanOrEqual(3);
   });
 
-  it("chooses thematic split when chapterCount >= 2 and duration > 60s", () => {
+  it("chooses thematic split when chapterCount >= 2 and duration > 70s", () => {
     const article =
       "## Topic One\n\n" + "word ".repeat(100) + "\n\n## Topic Two\n\n" + "word ".repeat(100);
     const result = evaluateArticle(article);
-    expect(result.estimatedDuration).toBeGreaterThan(60);
+    expect(result.estimatedDuration).toBeGreaterThan(70);
     expect(result.splitMethod).toBe("thematic");
   });
 

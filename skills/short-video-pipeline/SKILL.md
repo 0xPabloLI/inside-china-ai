@@ -11,7 +11,7 @@ Turn raw information into branded **mobile-first short-form videos**. All output
 
 Unless the user specifies otherwise:
 
-- **Duration**: 60-70s (TikTok default). YouTube Shorts can extend to 180s if user requests.
+- **Duration**: content-driven — no pad-to-target (user decision 2026-11-09). Length follows what the script has to say; a 40s story ships at 40s. Hard ceiling 70s per TikTok video; when the spine needs more, split into parts of about a minute each (Step 0 split evaluation).
 - **Aspect**: 9:16 vertical, 1080×1920 (HARD REQUIREMENT — phone screen format, never horizontal)
 - **TTS**: CosyVoice3-Kaggle-CUDA (default — full emotion fidelity) > CosyVoice3-Modal-CUDA (paid CUDA fallback) > CosyVoice3-MLX (local fallback) > F5-TTS-MLX (backup) > edge-tts > macOS say. Batch mode. Unified venv: `~/.video-tts-env` (Python 3.12). Full config in `docs/video-production-runbook.md` → TTS Engine Configuration.
 - **BGM**: Off by default (TikTok/Reels auto-add). Enable with `--bgm` flag.
@@ -43,7 +43,7 @@ Reuse hits (copy into `content/<slug>/assets/`), prefetch 1–2 official sources
 
 ### 2. Write scene-data.mjs
 
-Structure content into **6-10 scenes** targeting 60-70s total duration:
+Structure content into **up to 6-10 scenes**, as many as the spine needs (length follows the content):
 
 ```
 Scene 1:    Hook      — explosive headline, 3-5s
@@ -55,7 +55,7 @@ Scene N+1:  CTA       — brand close, 3-5s
 **Rules**:
 
 - Each scene: 1-2 sentences of voiceover (drives TTS duration)
-- Total target: 60-70s for TikTok (default). YouTube Shorts can extend to 180s if user requests.
+- Total duration: whatever the scenes need. Ship 40s when the story is 40s; never pad. If the spine exceeds 70s, split into parts (Step 0) rather than compress.
 - Use `brand-system` scene templates and color semantics
 - File: `scripts/short-video/content/<slug>/scene-data.mjs`
 
@@ -186,7 +186,7 @@ SLOT_WIDTH=744 node scripts/short-video/measure-text-width.mjs 'EXTREME TESTING.
 
 A `WRAPS` verdict is only fatal where the container has room for one line. `media-bottom-bar`'s three rows are that case; elsewhere `SLOT_DEFAULTS.maxLines` is 2 and a two-line field is fine (the hook's `source` and the context card's `title` both ship wrapped). Sizes and weights per field are in `SLOT_FIELDS`; the slot width per template is in `MEASURED_MAX_WIDTH` (`lib/text-slots.mjs`).
 
-**Completion criterion**: scene-data.mjs is valid JS, every scene has `id`, `voiceover`, `texts`, total estimated duration is 60-70s, and every `media-bottom-bar` field measures one line.
+**Completion criterion**: scene-data.mjs is valid JS, every scene has `id`, `voiceover`, `texts`, total estimated duration follows the content (no fixed band; ≤70s per part), and every `media-bottom-bar` field measures one line.
 
 ### 3. Run the pipeline
 
@@ -262,7 +262,7 @@ Run automated verification against 2025-2026 TikTok best practices:
 
 ```bash
 node scripts/short-video/verify-video.mjs           # YouTube Shorts mode
-node scripts/short-video/verify-video.mjs --tiktok    # TikTok mode (60-70s check)
+node scripts/short-video/verify-video.mjs --tiktok    # TikTok mode (≤70s ceiling check)
 ```
 
 **This step is MANDATORY. Do NOT skip. Do NOT publish until all automated checks pass.**
@@ -420,21 +420,21 @@ News channels do not ride trending sounds. Instead, monitor which China AI topic
 
 **Decision framework**:
 
-- Topic is breaking (24h, multi-source) -> **Breaking News** (P1 hook, 30-45s)
-- Topic is developing (48h+, multi-angle analysis) -> **Deep Analysis** (P5/P2 hook, 60-70s)
-- Ranking/comparison data available -> **Data Reveal** (P1/P6 hook, 45-60s)
-- Topic is cool but has educational value -> **Explainer** (P3 hook, 60-90s)
+- Topic is breaking (24h, multi-source) -> **Breaking News** (P1 hook)
+- Topic is developing (48h+, multi-angle analysis) -> **Deep Analysis** (P5/P2 hook)
+- Ranking/comparison data available -> **Data Reveal** (P1/P6 hook)
+- Topic is cool but has educational value -> **Explainer** (P3 hook)
 
 ### News Content Calendar (adapted from tt-content-planner)
 
 News is event-driven, but you can still build a rhythm:
 
-| Content type  | Frequency               | Production window          | Duration |
-| ------------- | ----------------------- | -------------------------- | -------- |
-| Breaking News | 2-3/week (event-driven) | Within 6h of event         | 30-45s   |
-| Deep Analysis | 1-2/week                | 24-48h after event         | 60-70s   |
-| Data Reveal   | 1/week                  | Weekend / data release day | 45-60s   |
-| Explainer     | 0-1/month               | During slow news periods   | 60-90s   |
+| Content type  | Frequency               | Production window          | Duration (content-driven) |
+| ------------- | ----------------------- | -------------------------- | ------------------------- |
+| Breaking News | 2-3/week (event-driven) | Within 6h of event         | as short as the news is   |
+| Deep Analysis | 1-2/week                | 24-48h after event         | up to 70s, then split     |
+| Data Reveal   | 1/week                  | Weekend / data release day | as short as the data is   |
+| Explainer     | 0-1/month               | During slow news periods   | up to 70s, then split     |
 
 **Hook batching**: During slow news periods, pre-draft 3-5 evergreen scene-data stubs (unicorn lists, tech explainers, industry comparisons). When an event hits, only the hook needs rewriting for fast publication.
 
@@ -461,13 +461,13 @@ News is event-driven, but you can still build a rhythm:
 
 ## Platform Limits
 
-| Platform             | Max Duration | Optimal    | Note                                        |
-| -------------------- | ------------ | ---------- | ------------------------------------------- |
-| **TikTok (default)** | 10min        | **60-70s** | Default target. `verify-video.mjs --tiktok` |
-| YouTube Shorts       | 3min         | 60-180s    | If user requests, extend scenes             |
-| Instagram Reels      | 90s          | 15-30s     | Hard 90s limit                              |
+| Platform             | Max Duration | Optimal                | Note                                        |
+| -------------------- | ------------ | ---------------------- | ------------------------------------------- |
+| **TikTok (default)** | 10min        | **content-driven ≤70s** | No minimum. `verify-video.mjs --tiktok`     |
+| YouTube Shorts       | 3min         | ≤180s, content-driven  | If user requests, extend scenes             |
+| Instagram Reels      | 90s          | 15-30s                 | Hard 90s limit                              |
 
-**DEFAULT: Write for TikTok (60-70s).** If user requests YouTube Shorts, extend to 180s max. Run `verify-video.mjs --tiktok` by default; use `verify-video.mjs` (without flag) for YouTube mode.
+**DEFAULT: Write for TikTok.** Length follows the content; ≤70s per video, split when longer. Run `verify-video.mjs --tiktok` by default; use `verify-video.mjs` (without flag) for YouTube mode.
 
 ## Prerequisites
 
@@ -545,7 +545,7 @@ Read `docs/brand-system.md` for color tokens, typography, animation library, and
 **Pipeline scripts**:
 
 - `main.mjs` — Full pipeline (TTS + HTML + Record + ASS + Assemble). `--content <dir>` selects content pipeline, `--bgm` enables BGM, `--skip-verify` skips subtitle verification.
-- `verify-video.mjs` — TikTok best practices compliance gate (MRL-3). `--tiktok` for 60-70s duration check. `--content <dir>` for content pipeline selection.
+- `verify-video.mjs` — TikTok best practices compliance gate (MRL-3). `--tiktok` for the ≤70s ceiling check. `--content <dir>` for content pipeline selection.
 
 **Subtitle alignment**: Use forced alignment (NOT recognition). We already know the text from `scene-data.mjs`. Use `text-align.py` which uses wav2vec2 to align known text to audio, producing per-word timestamps in `subtitle-timing.json`. Do NOT use Whisper for this — Whisper tries to recognize what was said, which fails on TTS audio (especially after silenceremove).
 
@@ -556,4 +556,4 @@ Read `docs/brand-system.md` for color tokens, typography, animation library, and
 **Versioning**: Output files are versioned with timestamp: `{pipelineId}-v{YYYY-MM-DDTHH-MM-SS}-short.mp4`. There is no symlink — the timestamped file is canonical, and old versions are cleaned up manually.
 **Network retry**: edge-tts connection drops handled with exponential backoff (3 retries) in `generate-tts.mjs`.
 
-**Scene length**: 6-12 seconds each. If TTS > 12s, split into two scenes. Total target: 60-70s for TikTok (default).
+**Scene length**: 6-12 seconds each. If TTS > 12s, split into two scenes. Total duration is content-driven (≤70s per part).

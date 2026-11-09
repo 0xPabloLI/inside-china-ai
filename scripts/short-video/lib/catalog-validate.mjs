@@ -37,12 +37,6 @@ export const LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS = Object.freeze([
   "content/deepseek-v41-flash-1017/assets/evidence-hf-benchmark.png",
   "content/deepseek-v41-flash-1017/assets/evidence-hf-model-card.png",
   "content/deepseek-v41-flash-1017/assets/evidence-search-api-pricing.png",
-  "content/unitree-h2x-guardian/assets/clips/act1-martial.mp4",
-  "content/unitree-h2x-guardian/assets/clips/act2-parkour.mp4",
-  "content/unitree-h2x-guardian/assets/clips/act3-jump.mp4",
-  "content/unitree-h2x-guardian/assets/clips/act4-night.mp4",
-  "content/unitree-h2x-guardian/assets/clips/act5-lift.mp4",
-  "content/unitree-h2x-guardian/assets/clips/act6-rescue.mp4",
 ]);
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));

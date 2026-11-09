@@ -22,13 +22,15 @@ import { buildTiktokSettings } from "../lib/publish-utils.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Verbatim copy of the pre-migration tiktok-rules.mjs THRESHOLDS — the
-// equivalence anchor. Kept as an independent literal so drift in either
-// the profile or the derivation is caught.
+// Baseline copy of the tiktok-rules.mjs THRESHOLDS — the equivalence anchor.
+// Kept as an independent literal so drift in either the profile or the
+// derivation is caught. 2026-11-09: maxDurationSec added and the word cap
+// moved 180 -> 175 with the content-driven duration policy.
 // #219 T02: maxCaptionLength/maxTitleLength/minHashtags/maxHashtags moved OUT
 // of thresholds — caption/hashtag limits live solely in caption./hashtags.
 const TIKTOK_THRESHOLDS_BASELINE = {
-  maxVoiceoverWords: 180,
+  maxDurationSec: 70,
+  maxVoiceoverWords: 175,
   maxOneBreathWords: 25,
   minScenes: 6,
   maxScenes: 10,

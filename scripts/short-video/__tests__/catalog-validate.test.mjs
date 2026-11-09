@@ -14,19 +14,15 @@ import {
 
 const REAL_CATALOG = join(dirname(fileURLToPath(import.meta.url)), "..", "assets", "catalog.yml");
 
-// Audited 2026-10-30 (#1003): these nine paths predate the rule and their
+// Audited 2026-10-30 (#1003): these three paths predate the rule and their
 // gitignored binaries are absent. Growth is a deliberate edit here and in
 // LEGACY_CATALOG_FILES_WITHOUT_DIMENSIONS, never a silent shortcut.
+// 2026-11-09: the six unitree clips left the roster — their files became
+// readable, so their dimensions were backfilled and the list shrank.
 const FROZEN_LEGACY_SNAPSHOT = [
   "content/deepseek-v41-flash-1017/assets/evidence-hf-benchmark.png",
   "content/deepseek-v41-flash-1017/assets/evidence-hf-model-card.png",
   "content/deepseek-v41-flash-1017/assets/evidence-search-api-pricing.png",
-  "content/unitree-h2x-guardian/assets/clips/act1-martial.mp4",
-  "content/unitree-h2x-guardian/assets/clips/act2-parkour.mp4",
-  "content/unitree-h2x-guardian/assets/clips/act3-jump.mp4",
-  "content/unitree-h2x-guardian/assets/clips/act4-night.mp4",
-  "content/unitree-h2x-guardian/assets/clips/act5-lift.mp4",
-  "content/unitree-h2x-guardian/assets/clips/act6-rescue.mp4",
 ];
 
 let tmp = null;

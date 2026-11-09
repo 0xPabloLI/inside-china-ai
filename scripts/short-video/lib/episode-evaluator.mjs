@@ -5,8 +5,12 @@
  * Agent calls this, then makes narrative design decisions.
  */
 
+import { getPlatformProfile } from "./platforms/index.mjs";
+
 const WORDS_PER_SECOND = 2.5; // F5-TTS average
 const MAX_PARTS = 5;
+// One number, one owner: the TikTok profile owns the per-video ceiling.
+const SINGLE_PART_CEILING_SEC = getPlatformProfile("tiktok").thresholds.maxDurationSec;
 
 /**
  * Strip frontmatter (--- delimited) from markdown.
@@ -104,9 +108,13 @@ function buildReasoning(
   const reasons = [];
 
   if (recommendedParts > 1) {
-    reasons.push(`Core narrative requires ~${Math.round(estimatedDuration)}s, exceeding 60s limit`);
+    reasons.push(
+      `Core narrative requires ~${Math.round(estimatedDuration)}s, exceeding the ${SINGLE_PART_CEILING_SEC}s single-part ceiling`,
+    );
   } else {
-    reasons.push(`Core narrative fits in ~${Math.round(estimatedDuration)}s, within 60s limit`);
+    reasons.push(
+      `Core narrative fits in ~${Math.round(estimatedDuration)}s, within the ${SINGLE_PART_CEILING_SEC}s single-part ceiling`,
+    );
   }
 
   if (chapterCount >= 2) {
@@ -171,15 +179,17 @@ export function evaluateArticle(markdownText) {
   // Estimate duration
   const estimatedDuration = wordCount / WORDS_PER_SECOND;
 
-  // Determine recommended parts
+  // Determine recommended parts. Length follows content, so there is no
+  // minimum; the single-part ceiling comes from the TikTok profile and parts
+  // step at one ceiling each.
   let recommendedParts;
-  if (estimatedDuration <= 60) {
+  if (estimatedDuration <= SINGLE_PART_CEILING_SEC) {
     recommendedParts = 1;
-  } else if (estimatedDuration <= 120) {
+  } else if (estimatedDuration <= SINGLE_PART_CEILING_SEC * 2) {
     recommendedParts = 2;
-  } else if (estimatedDuration <= 180) {
+  } else if (estimatedDuration <= SINGLE_PART_CEILING_SEC * 3) {
     recommendedParts = 3;
-  } else if (estimatedDuration <= 240) {
+  } else if (estimatedDuration <= SINGLE_PART_CEILING_SEC * 4) {
     recommendedParts = 4;
   } else {
     recommendedParts = MAX_PARTS;

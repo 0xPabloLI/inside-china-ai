@@ -529,14 +529,14 @@ node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 �
 ### 🔄 MRL-3: 视频自审（HITL 前置）
 
 ```bash
-node scripts/short-video/verify-video.mjs --tiktok  # 全量合规检查 = MRL-3；--tiktok 追加 TikTok 60-70s 时长档
+node scripts/short-video/verify-video.mjs --tiktok  # 全量合规检查 = MRL-3；--tiktok 追加 TikTok 单条时长上限（≤70s，无下限）
 ```
 
 > Post-render 全部检查 PASS 后，verify-video.mjs 自动生成各平台发布包到 `output/{pipelineId}/publish/{platform}/`（内核产物原地不动），并按各平台 Profile 的 caption 上限逐平台校验（#219 T02）。
 
 > **Verify-retry loop**（`lib/verify-retry.mjs`）：Step 6 字幕验证失败后，自动分类失败类型并尝试对应修复。每次修复后重新验证，只接受严格减少 error 数的修复，否则回滚。`--max-retries N`（默认 2）控制重试上限。两类情况**不消耗重试预算**、一次 verify 后直接 fail-closed（#818）：分类不可重试（`unknown` / `audio-sync-skipped` / `subtitle-alignment`，各自带原因入日志），或修复根本没跑成（返回 `success:false` 或抛异常——磁盘未变，复验只会得到同一份报告）。详见 `docs/archive/spec-verify-retry-loop.md`。
 
-**MRL-3 Blockers**（verify-video.mjs 已覆盖）：视频文件有效、时长在 TikTok 60-70s 范围、分辨率/码率/编码合规、字幕文件存在且时间轴对齐、无黑屏/空帧、**BGM 与旁白的相对电平**（成品实测，PASS 12–26 dB 低于旁白；本地混过 BGM 的成品若纯 BGM 窗读数 ≤ −50 dBFS 或比值越出 10–32 dB 则 FAIL，期望值来自 `audio/bgm-mix.json` 标记；#950）。
+**MRL-3 Blockers**（verify-video.mjs 已覆盖）：视频文件有效、**时长 ≤70s（无下限——时长跟随内容，不填充到 1 分钟；用户裁决 2026-11-09；超过 70s 只 WARN 建议拆分）**、分辨率/码率/编码合规、字幕文件存在且时间轴对齐、无黑屏/空帧、**BGM 与旁白的相对电平**（成品实测，PASS 12–26 dB 低于旁白；本地混过 BGM 的成品若纯 BGM 窗读数 ≤ −50 dBFS 或比值越出 10–32 dB 则 FAIL，期望值来自 `audio/bgm-mix.json` 标记；#950）。
 
 **MRL-3 内容补充检查**（Agent 手动执行）：
 
