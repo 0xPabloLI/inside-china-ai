@@ -2353,9 +2353,12 @@ const WECHAT_ACCOUNT_SOURCES = [
   },
 ];
 
-// ─── Wechat2RSS public sources ───
-// Public third-party RSS only. These sources do not use a WeChat account,
-// a WeChat Reading session, or an official WeChat API from this project.
+// ─── WeChat RSS sources ───
+// Two tracks share the RSS parser and the tracked-feed role:
+// - 12 public third-party wechat2rss feeds: no WeChat account, session or API.
+// - 1 self-hosted we-mp-rss feed backed by a WeChat Reading session (#320).
+// The self-hosted track is local-only and read-only; its operational details
+// live in accessMethod.notes and docs/tools-catalog.md.
 function decodeRssText(value = "") {
   return value
     .replace(/^<!\[CDATA\[/i, "")
@@ -2405,15 +2408,12 @@ const WECHAT_RSS_TRACKING = Object.freeze({
 });
 
 // #320: a self-hosted we-mp-rss instance backed by a WeChat Reading session.
-// `access` stays "public-rss" so the discovery schema keeps one RSS method;
-// `provider` / `stability` / `localOnly` carry the operational difference.
+// The tracking shape stays the shared RSS shape; the local-only nature lives in
+// accessMethod.notes and docs/tools-catalog.md rather than in unread fields.
 const WECHAT_SELF_HOSTED_RSS_TRACKING = Object.freeze({
-  provider: "we-mp-rss",
   access: "public-rss",
   official: false,
-  stability: "local-service",
   freshnessWindowDays: 14,
-  localOnly: true,
 });
 
 function createWechatRssSource(name, label, feedUrl, options = {}) {

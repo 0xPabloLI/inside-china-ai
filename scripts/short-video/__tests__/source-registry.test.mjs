@@ -132,13 +132,11 @@ describe("Wechat RSS sources", () => {
     expect(source.accessMethod.primary).toBe("api");
     expect(source.sourceRole).toBe("tracked-feed-context");
     expect(source.tracking).toEqual({
-      provider: "we-mp-rss",
       access: "public-rss",
       official: false,
-      stability: "local-service",
       freshnessWindowDays: 14,
-      localOnly: true,
     });
+    expect(source.accessMethod.notes).toMatch(/Self-hosted/);
     expect(source.apiSearch.url()).toBe("http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml");
     expect(source.url()).toBe(source.apiSearch.url());
   });
