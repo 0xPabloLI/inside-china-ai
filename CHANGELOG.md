@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.54.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.7...tanstack_start_ts-v1.54.0) (2026-11-09)
+
+
+### Features
+
+* **short-video:** reclaim orphaned .vlm-cache entries ([#992](https://github.com/0xPabloLI/inside-china-ai/issues/992)) ([#1188](https://github.com/0xPabloLI/inside-china-ai/issues/1188)) ([1b95a4b](https://github.com/0xPabloLI/inside-china-ai/commit/1b95a4bcb05178c5a416834b5480a86bb46d38db))
+
 ## [1.53.7](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.53.6...tanstack_start_ts-v1.53.7) (2026-11-08)
 
 
