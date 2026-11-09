@@ -138,7 +138,7 @@ Active handoffs only. Completed handoffs archived to `archive/handoffs/`.
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ~~`tts-indian-accent-handoff.md`~~             | ✅ 已归档至 `archive/handoffs/`（追踪 Issue #234 闭票，四维标准与 Quality Gate 解包落地已解决）                                                      |
 | `handoff-on-demand-audit.md`                   | On-Demand Content Audit feature design (Issue #60/#61 OPEN)                                                                                       |
-| `handoff-hitl-unblock-2026-11-09.md`           | HITL 解阻包 — roadmap Step 4 ②/③ 9 张票的决策卡、选项与人工清单（待用户拍板）                                                                     |
+| `handoff-hitl-unblock-2026-11-09.md`           | HITL 解阻包 — roadmap Step 4 ②/③ 9 张票的决策卡、选项与人工清单（2026-11-09 已拍板，见 §8 决策记录）                                             |
 | ~~`handoff-qwen4-preview-r2-visual-audit.md`~~ | ✅ 已归档至 `archive/handoffs/`（转化入 Epic #141 Text Overflow Hardening 12 票收官，全片 71/71 帧重渲染验收通过）                                 |
 
 ### `reviews/` — Active review records

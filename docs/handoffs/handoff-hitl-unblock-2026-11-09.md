@@ -1,7 +1,7 @@
 # Handoff: HITL 解阻包（2026-11-09）
 
 > Created: 2026-11-09
-> Status: 待用户拍板（gate 未解；本文不改任何票状态、label 或 roadmap gate）
+> Status: 已拍板（2026-11-09 按推荐默认；执行记录见 §8）
 > Scope: roadmap Step 4 ② `#320` / `#434`；③ `#1160` / `#733` / `#734` / `#735` / `#738` / `#739` / `#747`
 > 决策入口: §3 决策表；选定后按 §6 映射执行
 > 相关: `docs/issue-roadmap.md`（Round CLXI，④ 队首 `#1028`）、`#291`（Active Wayfinder Map）
@@ -165,6 +165,24 @@
 
 ## 7. 边界
 
-- 本文不改任何票状态、label 或 roadmap gate；决策前 ③ 组仍是 `ready-for-human`。
+- 本文本身不改票；2026-11-09 的裁决由执行 session 落到各票评论与 label（见 §8），roadmap 同步在同日的 docs PR。
 - 按 wayfinder 契约，HITL 票只能由真人交流解决，Agent 不代拍板；本文的「推荐默认」只是建议。
 - 决策落库走 issue 评论（write-once 正文不动）；本文在决策执行完后按 `docs/DOCS-INDEX.md` 生命周期归档。
+
+## 8. 决策记录（2026-11-09）
+
+用户回复「按推荐默认」，执行如下（评论 ID 为各票 2026-11-09 裁决评论）：
+
+| 票 | 选择 | 落地 |
+| --- | --- | --- |
+| `#1160` | B 维持暂缓 | `ready-for-human` → `dormant`；评论 `6739033890`；触发条件 = `#735` 定稿 |
+| `#733` | C 暂缓到 `#739` 之后 | `ready-for-human` → `dormant`；评论 `6739034327`；触发条件 = `#739` 交付 |
+| `#738` | A 现在做，主角判定源 = scene 显式声明 | `ready-for-human` → `ready-for-agent`；评论 `6739034818` |
+| `#739` | A 只做尺寸三档 + 空场判据 | `ready-for-human` → `ready-for-agent`；评论 `6739035264` |
+| `#734` | A 只做①确定性渲染，②并入 `#228` | `ready-for-human` → `ready-for-agent`；评论 `6739035720`；`#228` 并入记录 `6739037599` |
+| `#735` | A 最小终检闭环 | `ready-for-human` → `ready-for-agent`；评论 `6739036086` |
+| `#747` | A token 纯重构 | `ready-for-human` → `ready-for-agent`；评论 `6739036468` |
+| `#320` | B 暂缓 | `ready-for-human` → `dormant`；评论 `6739036833`；触发条件见评论 |
+| `#434` | A 现在做远端核查 | 保持 `ready-for-human`；核查清单评论 `6739037175`，待用户完成 9 条视频与 2 处配置页 |
+
+执行后 frontier：Step 4 ③ 队首 `#734`（`#735`/`#739`/`#738`/`#747` 同段，`#738`/`#739` 串行），④ `#1028`/`#1022`/`#446` 等 ③ 清空后再落。
