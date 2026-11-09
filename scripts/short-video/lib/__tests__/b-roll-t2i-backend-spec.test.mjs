@@ -324,6 +324,26 @@ describe("runImageGeneration resolves defaults from the backend (#1028)", () => 
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  test("a process-level unknown backend still fails closed without opts.env", () => {
+    const { stub, out } = captureStub();
+    const prev = process.env.AI_IMAGE_BACKEND;
+    process.env.AI_IMAGE_BACKEND = "flux-dev";
+    try {
+      expect(() =>
+        t2i.runImageGeneration({
+          bin: process.execPath,
+          scriptPath: stub,
+          workDir: dir,
+          jobs: [{ label: "out.png", prompt: "p", output_path: out, seed: 1 }],
+        }),
+      ).toThrow(/Unknown AI_IMAGE_BACKEND/);
+    } finally {
+      if (prev === undefined) delete process.env.AI_IMAGE_BACKEND;
+      else process.env.AI_IMAGE_BACKEND = prev;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("provenance and stage-level fail-closed (#1028)", () => {
@@ -354,6 +374,40 @@ describe("provenance and stage-level fail-closed (#1028)", () => {
           env: { AI_IMAGE_BACKEND: "flux-dev" },
         }),
       ).rejects.toThrow(/Unknown AI_IMAGE_BACKEND/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("a run with real image scenes refuses a bad backend with zero generation calls", async () => {
+    const root = mkdtempSync(join(tmpdir(), "t2i-stage-"));
+    let generateCalls = 0;
+    try {
+      const contentDir = join(root, "content");
+      const outputDir = join(root, "output");
+      mkdirSync(contentDir, { recursive: true });
+      mkdirSync(outputDir, { recursive: true });
+      await expect(
+        runBrollStage({
+          scenes: [
+            {
+              id: 1,
+              mediaStrategy: "ai-image",
+              aiImage: { prompt: "abstract diagram" },
+              voiceover: "v",
+            },
+          ],
+          contentSlug: "demo",
+          contentDir,
+          outputDir,
+          env: { AI_IMAGE_BACKEND: "flux-dev" },
+          generate: async () => {
+            generateCalls += 1;
+            return { ok: true, fatal: null, results: [] };
+          },
+        }),
+      ).rejects.toThrow(/Unknown AI_IMAGE_BACKEND/);
+      expect(generateCalls).toBe(0);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

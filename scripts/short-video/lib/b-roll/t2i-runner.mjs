@@ -111,6 +111,14 @@ const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
  * so the label follows a backend switch too — but `AI_IMAGE_MODEL` still wins
  * when set explicitly. Same discipline as the video MODEL_TIERS
  * winnerSource (#298): the label follows the model that ran.
+ *
+ * The #1028 triage proposed a per-backend `sourceLabel` in the spec table.
+ * Provenance stays keyed on the checkpoint on purpose: that proposal's
+ * `ai_generated_image (…)` spelling does not match the #985 label contract
+ * (`^AI-generated \(mflux .+\)$`, enforced by isImageSourceLabel below), so
+ * storing it would make cached winners look like foreign sources and get
+ * re-labelled on reuse. A backend switch changes the default checkpoint and
+ * the label follows it automatically — no second table to drift.
  */
 const IMAGE_MODEL_SOURCE_LABELS = {
   [DEFAULT_IMAGE_MODEL]: "AI-generated (mflux Boogu Turbo)",
@@ -267,7 +275,10 @@ export function runImageGeneration(opts) {
   // #1028: the backend is a run-level decision. Resolve and validate it once
   // here (and in the dependency probe) so an unknown key cannot spawn a job
   // against a backend nobody selected.
-  const backend = opts.backend ?? resolveImageBackend(resolutionEnv);
+  // Backend validation reads the same env the child process gets when no
+  // explicit opts.env was passed, so a bad process-level AI_IMAGE_BACKEND
+  // cannot slip through a direct runner call (#1028 review finding).
+  const backend = opts.backend ?? resolveImageBackend(opts.env ?? process.env);
   const spec = imageBackendSpec(backend);
   const {
     bin,
