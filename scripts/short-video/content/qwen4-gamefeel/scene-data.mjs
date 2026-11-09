@@ -45,7 +45,8 @@ export const scenes = [
     media: {
       type: "video",
       path: "assets/loktar-3d-demo.mp4",
-      source: "Loktar (@loktar00) demo of an unreleased Qwen 4 early-access model, X post 2026-11-07",
+      source:
+        "Loktar (@loktar00) demo of an unreleased Qwen 4 early-access model, X post 2026-11-07",
       animation: "fade",
       fit: "cover",
       cropFocus: { x: 0.5, y: 0.5 },
@@ -77,7 +78,8 @@ export const scenes = [
     media: {
       type: "image",
       path: "assets/loktar-post.png",
-      source: "Screenshot of https://x.com/loktar00/status/2118782505369428117 (CDP capture 2026-11-09)",
+      source:
+        "Screenshot of https://x.com/loktar00/status/2118782505369428117 (CDP capture 2026-11-09)",
       animation: "fade",
       mode: "card",
       fit: "cover",
@@ -105,7 +107,8 @@ export const scenes = [
     media: {
       type: "video",
       path: "assets/loktar-3d-demo.mp4",
-      source: "Loktar (@loktar00) demo of an unreleased Qwen 4 early-access model, X post 2026-11-07",
+      source:
+        "Loktar (@loktar00) demo of an unreleased Qwen 4 early-access model, X post 2026-11-07",
       animation: "fade",
       fit: "contain",
       cropFocus: { x: 0.5, y: 0.5 },
@@ -134,7 +137,8 @@ export const scenes = [
     media: {
       type: "image",
       path: "assets/gamefeel-site-overview.png",
-      source: "Screenshot of https://kodasdream.github.io/gamefeel-benchmark/ (CDP capture 2026-11-09)",
+      source:
+        "Screenshot of https://kodasdream.github.io/gamefeel-benchmark/ (CDP capture 2026-11-09)",
       animation: "fade",
       // Page capture → evidence card, same reason as scene 2: full-bleed put
       // 18.8% bright pixels in the action rail.
