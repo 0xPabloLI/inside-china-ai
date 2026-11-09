@@ -70,7 +70,7 @@ sudo kill <空闲的 PID...>                                        # 只杀空�
 | Clash Verge Rev `mixed-port` | **随机**（实测 `63265`）                                                | `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/clash-verge.yaml`；`verge.yaml` 里 `enable_random_port` / `enable_system_proxy` 必须同时为 true |
 | Clash Verge Rev 固定监听     | socks `7898` / http `7899` / redir `7895` / controller `127.0.0.1:9097` | `verge.yaml` 的 `verge_*_port`，这几个**不随机**；`7899` 是可用兜底出口                                                                                                  |
 | FlClash `mixed-port`         | `7890`                                                                  | `~/Library/Application Support/com.follow.clash/config.yaml`（`port`/`socks-port`/`redir-port` 均为 0，`external-controller` 为空）；2026-11-01 已确认其进程为僵尸并终止 |
-| colima 隧道                  | VM `127.0.0.1:7891` → 宿主 `<PROXY_PORT>`                               | `scripts/colima-proxy-tunnel.sh`；`PROXY_PORT` 由 `scutil --proxy` 自动探测（系统代理关闭时探测失败 ⇒ 隧道起不来）                                                       |
+| colima 隧道                  | VM `127.0.0.1:7891` → 宿主 `<PROXY_PORT>`                               | `scripts/colima-proxy-tunnel.sh`；`PROXY_PORT` 由共享解析器 `scripts/lib/proxy-port.mjs --print-port` 给出（scutil + netstat 候选 + 逐端口探针；解析不到 ⇒ 隧道起不来，不静默直连） |
 
 **先实测哪个端口今天活着**，再决定往哪儿指（10 秒）：
 

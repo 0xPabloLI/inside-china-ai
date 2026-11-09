@@ -141,4 +141,4 @@ npm run proxy:url                      # 只解析并打印代理 URL
 
 实现：`scripts/git-with-proxy.mjs`、`scripts/lib/proxy-port.mjs`、`scripts/lib/proxy-env.sh`；用例见 `scripts/__tests__/proxy-port.test.mjs`（决策）、`git-with-proxy.test.mjs`（接线：证明解析结果真的到达 git）、`proxy-env.test.mjs`（helper 与 launcher 的 source 行）。
 
-另有两处解析同一份 `scutil --proxy` 的旧实现（`ytdlp-guard.mjs`、`colima-proxy-tunnel.sh`）。它们按 `Enable` 标志判断，与本节的探针判据不同——合并及各自的验收见 #1064。
+**同一个判据另有三个消费者**（#1064 合并后）：`ytdlp-guard.mjs` 的系统代理分支、`colima-proxy-tunnel.sh` 的端口来源，以及 `proxy-port.mjs` 自己的 `--print-port` CLI（隧道从 `~/bin` 的同步副本调用它，因为 launchd 读不到 `~/Documents`）。四处过去各写一份，`scutil` 侧的两处按 `<Proto>Enable` 判断、colima 侧按 `nc -z` 判断——两个都不是判据：前者是实测会撒谎的标志，后者只证明有人在监听（本机 `11434` 就在监听且不代理，探针 `000` 而 `7899` 是 `204`）。
