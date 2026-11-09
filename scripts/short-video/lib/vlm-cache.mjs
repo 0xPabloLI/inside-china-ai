@@ -20,11 +20,26 @@
  * semantics change. The model ID is part of the key, so switching 2B/9B
  * models never serves stale entries.
  *
+ * Reclaim (#992): a version bump makes every older entry unreachable, so the
+ * cache only grows. Entries are never deleted automatically — `pruneVlmCache`
+ * is the explicit path (dry-run by default, only {@link scanVlmCache}'s
+ * orphans are removed), and `warnStaleCacheEntries` reports the reclaimable
+ * count when a run starts writing to a cache directory.
+ *
  * @module vlm-cache
  */
 
 import { createHash } from "crypto";
-import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, statSync } from "fs";
+import {
+  readFileSync,
+  writeFileSync,
+  renameSync,
+  mkdirSync,
+  existsSync,
+  statSync,
+  readdirSync,
+  unlinkSync,
+} from "fs";
 import { join } from "path";
 
 /**
@@ -196,6 +211,195 @@ export function writeCachedResult(cacheDir, key, opts) {
   } catch (err) {
     console.warn(`  ⚠️  VLM cache write failed: ${err.message}`);
   }
+}
+
+/**
+ * Cache entries are content-addressed: `{64-hex sha256}.json` (the key comes
+ * from computeCacheKey, which always returns a sha256 hex digest). Anything
+ * else in the directory is not an entry this module wrote and is never a
+ * deletion candidate.
+ */
+const CACHE_ENTRY_RE = /^[0-9a-f]{64}\.json$/;
+
+/**
+ * Account for a cache directory without deleting anything (#992).
+ *
+ * Classification policy:
+ *   - `{64-hex}.json` that parses and whose `meta.promptVersion` equals the
+ *     current version → `current` (a future run can still hit it).
+ *   - `{64-hex}.json` that parses but has a different or missing
+ *     `meta.promptVersion` → `orphan` (its key was built from old prompt
+ *     material, so the current version can never hit it). A missing version
+ *     counts as orphan: the key cannot prove which prompt produced it.
+ *   - `{64-hex}.json` that fails to parse/read → `unparsable` (kept: a file
+ *     this module cannot read has not been proved stale).
+ *   - `*.tmp` → in-flight atomic writes of a concurrent run (kept).
+ *   - anything else → `other` (kept; not written by this module).
+ *
+ * `pipelineVersion` and `model` are reported for diagnosis but never decide
+ * deletion — only `promptVersion` does (open question 2 in #992).
+ *
+ * @param {string|null} cacheDir
+ * @param {{promptVersion?: string}} [opts]
+ */
+export function scanVlmCache(cacheDir, { promptVersion = VLM_CACHE_PROMPT_VERSION } = {}) {
+  const scan = {
+    cacheDir,
+    exists: false,
+    entries: { total: 0, current: 0, orphan: 0, unparsable: 0 },
+    files: { tmp: 0, other: 0 },
+    bytes: { total: 0, current: 0, orphan: 0, unparsable: 0 },
+    promptVersions: {},
+    pipelineVersions: {},
+    models: {},
+    orphans: [],
+  };
+  if (!cacheDir || !existsSync(cacheDir)) return scan;
+  scan.exists = true;
+
+  let dirents;
+  try {
+    dirents = readdirSync(cacheDir, { withFileTypes: true });
+  } catch {
+    return scan;
+  }
+
+  for (const dirent of dirents) {
+    if (!dirent.isFile()) continue;
+    const name = dirent.name;
+    if (name.endsWith(".tmp")) {
+      scan.files.tmp += 1;
+      continue;
+    }
+    if (!CACHE_ENTRY_RE.test(name)) {
+      scan.files.other += 1;
+      continue;
+    }
+
+    const file = join(cacheDir, name);
+    let bytes = 0;
+    try {
+      bytes = statSync(file).size;
+    } catch {
+      // Vanished between readdir and stat: fall through to the read, which
+      // will classify it as unparsable.
+    }
+    scan.entries.total += 1;
+    scan.bytes.total += bytes;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(readFileSync(file, "utf-8"));
+    } catch {
+      scan.entries.unparsable += 1;
+      scan.bytes.unparsable += bytes;
+      continue;
+    }
+
+    const meta =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.meta
+        ? parsed.meta
+        : {};
+    const entryPrompt = typeof meta.promptVersion === "string" ? meta.promptVersion : null;
+    const entryPipeline = typeof meta.pipelineVersion === "string" ? meta.pipelineVersion : null;
+    const entryModel = typeof meta.model === "string" ? meta.model : null;
+
+    const promptLabel = entryPrompt ?? "(missing)";
+    scan.promptVersions[promptLabel] = (scan.promptVersions[promptLabel] ?? 0) + 1;
+    if (entryPipeline) {
+      scan.pipelineVersions[entryPipeline] = (scan.pipelineVersions[entryPipeline] ?? 0) + 1;
+    }
+    if (entryModel) {
+      scan.models[entryModel] = (scan.models[entryModel] ?? 0) + 1;
+    }
+
+    if (entryPrompt === promptVersion) {
+      scan.entries.current += 1;
+      scan.bytes.current += bytes;
+    } else {
+      scan.entries.orphan += 1;
+      scan.bytes.orphan += bytes;
+      scan.orphans.push({
+        file: name,
+        promptVersion: entryPrompt,
+        pipelineVersion: entryPipeline,
+        model: entryModel,
+        generatedAt: typeof meta.generatedAt === "string" ? meta.generatedAt : null,
+        bytes,
+      });
+    }
+  }
+
+  return scan;
+}
+
+/**
+ * Reclaim orphaned entries (#992). A dry run unless `apply` is true — the
+ * caller decides when it is safe (no concurrent run writing the directory).
+ * Only {@link scanVlmCache} orphans are unlinked; current, unparsable, `.tmp`
+ * and unknown files always survive. A file that disappears between the scan
+ * and the unlink (a concurrent prune) counts as reclaimed.
+ *
+ * @param {string|null} cacheDir
+ * @param {{apply?: boolean, promptVersion?: string,
+ *          unlink?: (path: string) => void}} [opts] - `unlink` is a test seam
+ *   for the failure path; production uses fs.unlinkSync.
+ * @returns {{applied: boolean, before: object, after: object,
+ *            deleted: number, deletedBytes: number,
+ *            failures: {file: string, error: string}[]}}
+ */
+export function pruneVlmCache(
+  cacheDir,
+  { apply = false, promptVersion = VLM_CACHE_PROMPT_VERSION, unlink = unlinkSync } = {},
+) {
+  const before = scanVlmCache(cacheDir, { promptVersion });
+  let deleted = 0;
+  let deletedBytes = 0;
+  const failures = [];
+
+  if (apply) {
+    for (const orphan of before.orphans) {
+      try {
+        unlink(join(cacheDir, orphan.file));
+        deleted += 1;
+        deletedBytes += orphan.bytes;
+      } catch (err) {
+        if (err?.code === "ENOENT") {
+          // Another prune got there first; the entry is gone, but this
+          // process freed no bytes.
+          deleted += 1;
+        } else {
+          failures.push({ file: orphan.file, error: err.message });
+        }
+      }
+    }
+  }
+
+  const after = scanVlmCache(cacheDir, { promptVersion });
+  return { applied: apply, before, after, deleted, deletedBytes, failures };
+}
+
+/**
+ * Report reclaimable entries at run start (#992) — a warning, never an
+ * automatic deletion, because a concurrent run may still be writing.
+ * Silent when the directory is absent or has no orphan.
+ *
+ * @param {string|null} cacheDir
+ * @param {{promptVersion?: string, log?: (line: string) => void}} [opts]
+ */
+export function warnStaleCacheEntries(
+  cacheDir,
+  { promptVersion = VLM_CACHE_PROMPT_VERSION, log = console.warn } = {},
+) {
+  const scan = scanVlmCache(cacheDir, { promptVersion });
+  if (scan.entries.orphan === 0) return scan;
+  const noun = scan.entries.orphan === 1 ? "entry" : "entries";
+  log(
+    `  ⚠️  VLM cache: ${scan.entries.orphan} stale ${noun} ` +
+      `(promptVersion != ${promptVersion}) — kept, never auto-deleted.`,
+  );
+  log(`      Reclaim: node scripts/short-video/prune-vlm-cache.mjs --dir "${cacheDir}" --apply`);
+  return scan;
 }
 
 /**

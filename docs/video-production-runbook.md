@@ -687,6 +687,10 @@ Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
   不写 artifact，评审摘要也不再打印 `// Reason:`。
 - **改 prompt 必须同步 bump `VLM_CACHE_PROMPT_VERSION`**（`lib/vlm-cache.mjs`），否则旧
   缓存继续服务旧答案形状。当前 `v6-2026-10-27`（以该文件顶部为准）。
+- **bump 之后回收旧条目（#992）**：`node scripts/short-video/prune-vlm-cache.mjs` 默认只报告、
+  `--apply` 才删（`--content <slug>` / `--dir <cache-dir>` 可限范围）；只删 `meta.promptVersion`
+  不匹配的 `{64-hex}.json`，当前版本、`.tmp`、无法解析与其他文件保留。时机是 bump 后的下一次 run
+  前、且无并行 run 写同一个包；run 启动时只告警可回收条数，不会自动删除。
 - **prompt 体积是门禁项（#991）**：图片 base 从 #334 前的 1079 字符涨到 1446（**+34.0%**）。
   两块规则合计 783 字符（`_CRITICAL_EDGE_RULE` 380 + `_FIT_RULE` 403），它们替换掉旧的
   Reason 段落，净增 367 字符。**决定是接受该体积、不压缩**：

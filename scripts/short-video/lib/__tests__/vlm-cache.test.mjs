@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   mkdtempSync,
+  mkdirSync,
   rmSync,
   writeFileSync,
   readdirSync,
@@ -16,6 +17,9 @@ import {
   computeCacheKey,
   getCachedResult,
   writeCachedResult,
+  scanVlmCache,
+  pruneVlmCache,
+  warnStaleCacheEntries,
 } from "../vlm-cache.mjs";
 
 describe("vlm-cache (#189)", () => {
@@ -422,5 +426,157 @@ describe("wrapAnalyzerWithCache window normalization", () => {
     await wrapped(img, { claim, startMs: 0, endMs: 5000, sampleFps: 1 });
     expect(calls).toBe(3);
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// ─── #992: reclaim orphaned entries after a prompt-version bump ───
+describe("vlm-cache prune (#992)", () => {
+  let dir;
+  const keyFor = (ch) => ch.repeat(64); // the cache layout is {64-hex sha256}.json
+  const envelope = (promptVersion, overrides = {}) => ({
+    ok: true,
+    data: { description: "cached" },
+    error: null,
+    meta: {
+      ...(promptVersion ? { promptVersion } : {}),
+      pipelineVersion: VLM_CACHE_PIPELINE_VERSION,
+      model: "m1",
+      ...overrides,
+    },
+  });
+  const writeEntry = (name, entry) => writeFileSync(join(dir, name), JSON.stringify(entry));
+
+  const seed = () => {
+    writeEntry(`${keyFor("a")}.json`, envelope(VLM_CACHE_PROMPT_VERSION));
+    writeEntry(`${keyFor("b")}.json`, envelope("v1-2026-09-04"));
+    writeEntry(`${keyFor("c")}.json`, envelope("v2-2026-10-10"));
+    writeEntry(`${keyFor("d")}.json`, { ok: true, data: {}, error: null, meta: { model: "m1" } });
+    writeFileSync(join(dir, `${keyFor("e")}.json`), "{not-json");
+    writeFileSync(join(dir, `.${keyFor("f")}.123.tmp`), "partial write");
+    writeEntry("notes.json", { ok: true });
+    writeFileSync(join(dir, "README.txt"), "not a cache entry");
+  };
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vlm-prune-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("classifies current, orphan, unparsable, tmp and unknown files without deleting", () => {
+    seed();
+    const scan = scanVlmCache(dir);
+    expect(scan.exists).toBe(true);
+    expect(scan.entries).toEqual({ total: 5, current: 1, orphan: 3, unparsable: 1 });
+    expect(scan.files).toEqual({ tmp: 1, other: 2 });
+    expect(scan.promptVersions).toMatchObject({
+      [VLM_CACHE_PROMPT_VERSION]: 1,
+      "v1-2026-09-04": 1,
+      "v2-2026-10-10": 1,
+      "(missing)": 1,
+    });
+    expect(readdirSync(dir)).toHaveLength(8);
+  });
+
+  it("keeps a current entry whose pipelineVersion differs — only promptVersion decides", () => {
+    writeEntry(
+      `${keyFor("a")}.json`,
+      envelope(VLM_CACHE_PROMPT_VERSION, { pipelineVersion: "p0" }),
+    );
+    const result = pruneVlmCache(dir, { apply: true });
+    expect(result.deleted).toBe(0);
+    expect(readdirSync(dir)).toEqual([`${keyFor("a")}.json`]);
+    expect(result.before.pipelineVersions.p0).toBe(1);
+  });
+
+  it("dry-run reports orphans and deletes nothing", () => {
+    seed();
+    const result = pruneVlmCache(dir);
+    expect(result.applied).toBe(false);
+    expect(result.deleted).toBe(0);
+    expect(result.before.entries.orphan).toBe(3);
+    expect(result.after.entries.orphan).toBe(3);
+    expect(readdirSync(dir)).toHaveLength(8);
+  });
+
+  it("apply deletes only orphan key-shaped entries; current, tmp, unparsable and unknown files survive", () => {
+    seed();
+    const result = pruneVlmCache(dir, { apply: true });
+    expect(result.deleted).toBe(3);
+    expect(result.deletedBytes).toBeGreaterThan(0);
+    expect(result.after.entries).toEqual({ total: 2, current: 1, orphan: 0, unparsable: 1 });
+    expect(result.after.files).toEqual({ tmp: 1, other: 2 });
+    expect(readdirSync(dir).sort()).toEqual(
+      [
+        `${keyFor("a")}.json`,
+        `${keyFor("e")}.json`,
+        `.${keyFor("f")}.123.tmp`,
+        "notes.json",
+        "README.txt",
+      ].sort(),
+    );
+  });
+
+  it("is a no-op when the cache directory does not exist", () => {
+    const result = pruneVlmCache(join(dir, "missing"), { apply: true });
+    expect(result.before.exists).toBe(false);
+    expect(result.deleted).toBe(0);
+    expect(result.after.entries.total).toBe(0);
+  });
+
+  it("reports per-entry unlink failures and keeps the entry", () => {
+    seed();
+    const result = pruneVlmCache(dir, {
+      apply: true,
+      unlink: () => {
+        throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+      },
+    });
+    expect(result.deleted).toBe(0);
+    expect(result.deletedBytes).toBe(0);
+    expect(result.failures).toHaveLength(3);
+    expect(new Set(result.failures.map((failure) => failure.file))).toEqual(
+      new Set([`${keyFor("b")}.json`, `${keyFor("c")}.json`, `${keyFor("d")}.json`]),
+    );
+    expect(result.after.entries.orphan).toBe(3);
+    expect(readdirSync(dir)).toHaveLength(8);
+  });
+
+  it("counts an entry a concurrent prune already removed as deleted without claiming its bytes", () => {
+    seed();
+    const result = pruneVlmCache(dir, {
+      apply: true,
+      unlink: () => {
+        throw Object.assign(new Error("gone"), { code: "ENOENT" });
+      },
+    });
+    expect(result.deleted).toBe(3);
+    // This process freed nothing; the concurrent prune did.
+    expect(result.deletedBytes).toBe(0);
+    expect(result.failures).toEqual([]);
+  });
+
+  it("warnStaleCacheEntries names the count and the reclaim command, and stays quiet when clean", () => {
+    seed();
+    const lines = [];
+    warnStaleCacheEntries(dir, { log: (line) => lines.push(line) });
+    const message = lines.join("\n");
+    expect(message).toContain("3 stale");
+    expect(message).toContain("prune-vlm-cache.mjs");
+    expect(message).toContain("--dir");
+    expect(message).toContain(dir);
+    expect(readdirSync(dir)).toHaveLength(8); // warning never deletes
+
+    const cleanDir = join(dir, "clean");
+    mkdirSync(cleanDir);
+    writeFileSync(
+      join(cleanDir, `${keyFor("a")}.json`),
+      JSON.stringify(envelope(VLM_CACHE_PROMPT_VERSION)),
+    );
+    const cleanLines = [];
+    warnStaleCacheEntries(cleanDir, { log: (line) => cleanLines.push(line) });
+    expect(cleanLines).toEqual([]);
   });
 });
