@@ -27,7 +27,13 @@ vi.mock("child_process", () => ({
   execFile: vi.fn((cmd, args, callback) => callback(null, { stdout: "", stderr: "" })),
 }));
 
-vi.mock("fs", () => ({
+// Spread the real module first: this suite reaches `lib/ytdlp-guard.mjs`, whose
+// import chain ends at `lib/proxy-port.mjs` — and that file runs the repo's
+// entry guard (`realpathSync(argv[1]) === fileURLToPath(import.meta.url)`) at
+// module scope. A whole-module replacement leaves `realpathSync` undefined and
+// the import itself throws before any test body runs.
+vi.mock("fs", async (importOriginal) => ({
+  ...(await importOriginal()),
   existsSync: fsMock.existsSync,
   writeFileSync: fsMock.writeFileSync,
   readFileSync: fsMock.readFileSync,

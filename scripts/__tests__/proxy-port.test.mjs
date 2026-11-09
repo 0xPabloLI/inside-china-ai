@@ -324,17 +324,23 @@ describe("the CLI the colima tunnel runs from ~/bin", () => {
       ),
     });
 
-  it("prints only the answer, so a shell can capture it", () => {
+  it("prints only the answer, so a shell can capture it", { timeout: 30_000 }, () => {
     // Environment-dependent by nature: the CLI reads the real machine. Both
     // outcomes are shapes a caller can rely on — one line and nothing else, or
     // an empty stdout with the exit code carrying the verdict. The miss branch
     // itself is asserted deterministically in "the whole decision in one call".
+    //
+    // The explicit timeout is not slack: the CLI is *designed* to spend up to
+    // `PROBE_BUDGET_S` (15s) across a hung listener set, so vitest's 5s default
+    // is shorter than the code's own worst case. This case measured 4.0s on a
+    // machine with one black-holed port — a false red waiting to happen. The
+    // two cases below keep the default on purpose: they must stay network-free.
     const result = run(["--print-port"]);
     if (result.status === 0) expect(result.stdout.trim()).toMatch(/^\d+$/);
     else expect(result.stdout).toBe("");
   });
 
-  it("keeps the URL on one line and every diagnostic on stderr", () => {
+  it("keeps the URL on one line and every diagnostic on stderr", { timeout: 30_000 }, () => {
     const result = run(["--print-url"]);
     if (result.status === 0) {
       expect(result.stdout.trim()).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
