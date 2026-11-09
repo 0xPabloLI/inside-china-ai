@@ -13,7 +13,9 @@
 
 ---
 
-## 逐轮盘点（Round CLVII → LV）
+## 逐轮盘点（Round CLVIII → LV）
+
+（**Round CLVIII：`#991` 交付闭票**——VLM 语义 prompt 体积闸门落地，接受 #334 的图片 base 1446 字符（+34.0%）并把上限锁进 pytest（PR #1175，squash `76778ef2`）；产品验证门：**无产出差异（enabling guard）**，prompt 文本与 Fit 判定未改。frontier：Step 1/2/3 与 Step 4 ① 空 / ② `#320` 未分配 / ③ 7 张派生票整组 gate 逐张跳过 / **④ 队首 `#991` 闭票，推进至 `#992`**（其后 `#1008`/`#1064`/`#1028`/`#1022`/`#446`）。）
 
 （**Round CLVII：`#990` 交付闭票**——VLM 语义死字段 `reason` 退役，`#294` 复核解释改由 `subjectMatchReason` 承载（PR #1171，squash `af8dedde5a064fe105eecc0e0d8eb00032e0a260`）；产品验证门：**无产出差异（enabling fix）**。frontier：Step 1/2/3 与 Step 4 ① 空 / ② `#320` 未分配（2026-11-08 解除陈旧认领） / ③ 7 张派生票整组 gate 逐张跳过 / **④ 队首 `#990` 闭票，推进至 `#991`**（其后 `#992`/`#1008`/`#1064`/`#1028`/`#1022`/`#446`）。）
 
@@ -206,7 +208,9 @@
 
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
-## 近轮一句话档案（Round CLIV → J）
+## 近轮一句话档案（Round CLV → J）
+
+**Round CLV**（`#911` 交付闭票——`osv-scanner.toml` 撤回 advisory 死配置清理（PR #1165，squash `8eefc6e7360ed6552510071f7633cf40cd290d7b`）：按票面 triage 裁决删 `GHSA-hp3w-g68c-fv3c` 条目并补「上游撤回」场景、保留仍过滤 1 条真实漏洞的 `GHSA-gcqx-w48m-w2h4`；`api.osv.dev` 复核撤回状态、空配置对照证明删除不会让门禁变红；droid P3 指出裁决逐字原句把两种退出条件并成一句、尾句在撤回场景不成立，`656c3254` 拆成按场景分述并 resolve；产品视角定性为**无产出差异（工程卫生）**、无后续票因本票解锁产出；frontier：Step 1/2/3 空 → Step 4 ① 空 → ② `#320` 被并行 session 认领落空 → ③ 7 张派生票整组 gate 逐张跳过 → **④ 队首 `#911` 闭票、推进至 `#978`**）；
 
 **Round CLIV**（用户裁决「全部同意」→ `#732` 收口闭票、`#1160` 纳 frontier：先回写 Parent Map `#291` 再发带 `交付记录` / `## 产品视角` 三句的 closing comment（`issuecomment-6701569473`，门禁预检 3 实质单元通过）并 REST 关闭、标签剥到 `enhancement` + `video-automation`；①③ 判不适用 / 已覆盖、② 由 `#1160` 只做契约设计；`#1160` 纳入台账索引但**不补挂原生 sub_issue**（避免进 AFK 连续锁轨触发 Step 1/3 重算），当前成片**暂不引入音效层**；`hassancs91` LICENSE 待升档前再核、`#1108` 保持 dormant；本轮零产线改动；frontier：Track 1A/1B 空 → Step 4 ② 余 `#320` 被并行 session 认领 → **Step 4 ③ 队首 `#1160`**；同轮补 `blocked-on: evidence` gate，瀑布跳过本票并继续推进、不自动领起；**同轮二次修正**：gate 作用域补到 ③ 全段 7 张派生票，逐张跳过、④ 不冻结、实际可领落点 `#911`，结论回写 `#291`/`#733`，轮次与 archive 不动）；
 
