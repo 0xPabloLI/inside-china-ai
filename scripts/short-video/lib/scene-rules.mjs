@@ -1750,7 +1750,7 @@ function largestDeclaredObject(scene) {
  * over ~1 s).
  *
  * Severity is WARN, matching the source's "mid-level defect": the layouts that
- * fix these scenes (four information-graphic topologies) are the deferred half
+ * fix these scenes (the infographic layout topologies, #1215) are the deferred half
  * of #739, so this is a named design debt until they land, not a render block.
  *
  * @param {object[]} scenes
@@ -1813,8 +1813,8 @@ export function checkEmptyField(scenes, opts = {}) {
         `against the ${EMPTY_FIELD.maxObjectPx}px hero line, ${persistence}`,
       fix:
         `Give the shot a hero object at the hero tier (${TYPE_TIERS.hero.min}px+: stat / bigNumber / ` +
-        "full-band media) and demote the small copy to supporting; the four infographic topologies " +
-        "are the deferred half of #739 — until they land this is named design debt, not a render block.",
+        "full-band media) and demote the small copy to supporting; the infographic layout topologies " +
+        "(#1215, the deferred half of #739) — until they land this is named design debt, not a render block.",
     });
   });
   // One pass row for the whole check, not one per scene: the gate reports what
