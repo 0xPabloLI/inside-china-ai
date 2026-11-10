@@ -96,7 +96,7 @@
       **2026-11-09 HITL 裁决（③ 段 gate 解除，用户按推荐默认）**：`#738`/`#734`/`#735`/`#739`/`#747` 已逐张圈定子范围并转 `ready-for-agent`（`#738` 主角判定源 = scene 显式声明；`#734` 只做①确定性渲染、②并入 `#228`；`#735` 只做最小终检闭环；`#739` 只做尺寸三档 + 空场判据；`#747` 只做 token 纯重构）；`#1160`/`#733` 转 `dormant`（触发条件见各票 2026-11-09 评论）；`#320` 已交付闭票（PR #1203，squash `5ffedbc6`）；`#434` 已核查闭票（评论 `6740307743`），② 段清空。**③ 段自此有 5 张可领票，先于 ④；`#738`/`#739` 同属 `scenes/` 串行带，一次只做一张。** `#734`/`#735`/`#739`/`#738` 已分别于 Round CLXIV/CLXV/CLXVI/CLXVII 交付闭票（PR #1207 squash `905a2a77`、PR #1211 squash `00d6bbd6`、PR #1216 squash `b0c8a030`、PR #1220 squash `cb69029e`），余 `#747` 一张；`#1160` 的 dormant 触发条件进入待评估（本轮不自动唤醒，留待下轮 triage）。
       **现行 frontier（2026-11-10，Round CLXVII 后）**：① Track 1B 段为空（本段先于一切 HITL 与外部 repo 吸收，2026-10-25 裁决 A + B）→ ② 段清空（`#320`/`#434` 均已闭票）→ ③ 队首 `#747`（`ready-for-agent`；`#734`/`#735`/`#739`/`#738` 已分别于 Round CLXIV/CLXV/CLXVI/CLXVII 闭票）→ ④ 低优段 `#1022`/`#446`（等 ③ 清空后再落；`#1028` 已于 Round CLXII 交付闭票）。
       ④ 段余票：**`#1022`** `fetch-page.mjs` CDP 层改调 `evalInTab`、**`#446`** `noozra_search` 补 `needsAuth`/`authRequired`/`API_KEY_ENV_MAP`。③ 段解除条件：2026-11-09 已逐张裁决（5 张转 `ready-for-agent`，2 张 `dormant`，见上）；后续如重开 `#1160`/`#733`，仍须用户重新圈定范围。**按 wayfinder 契约，HITL 票只能由真人交流解决，Agent 不得代拍板**——解除判定由用户作出，Agent 不得以证据到位为由自行解除 gate。
-      逐轮复算过程与既有已闭票的 PR 清单见 [`archive/roadmap-inventory-history-2026-10-22.md`](archive/roadmap-inventory-history-2026-10-22.md) 的逐轮盘点（覆盖 Round CLXV → LV；更早轮次见该目录另两份 archive）。
+      逐轮复算过程与既有已闭票的 PR 清单见 [`archive/roadmap-inventory-history-2026-10-22.md`](archive/roadmap-inventory-history-2026-10-22.md) 的逐轮盘点（覆盖 Round CLXVI → LV；更早轮次见该目录另两份 archive）。
 
 **完成判据**：每次闭票同步 `docs/issue-roadmap.md` 时，必须按上述四步重新计算并刷新 `## 当前状态` 顶部的三轨 `frontier` 行；若在途 Wayfinder 子票闭票，必须同步将 Track 2 frontier 推进至刚解锁的下一张子票。
 
