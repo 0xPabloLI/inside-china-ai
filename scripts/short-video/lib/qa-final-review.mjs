@@ -20,8 +20,9 @@ import { FPS, TRANSITION_FRAMES, sceneTimeline, scheduleTotalFrames } from "./ti
 export const ACCEPTANCE_OFFSETS = Object.freeze({ entry: 15, exit: 15 });
 export const SHEET_LAYOUT = Object.freeze({ cols: 3, rows: 4 });
 export const TILE_SIZE = Object.freeze({ width: 270, height: 480 });
-export const MAX_REVIEW_ROUNDS = 3;
-export const SEVERITIES = Object.freeze(["P0", "P1", "P2"]);
+// Module-internal: no cross-module consumer, so knip treats an export as dead API.
+const MAX_REVIEW_ROUNDS = 3;
+const SEVERITIES = Object.freeze(["P0", "P1", "P2"]);
 
 const blockingFindings = (findings) =>
   findings.filter((f) => f.severity === "P0" || f.severity === "P1");
@@ -34,7 +35,7 @@ const blockingFindings = (findings) =>
  * @param {Array<object>} frames
  * @param {{cols:number,rows:number}} [layout]
  */
-export function groupIntoSheets(frames, layout = SHEET_LAYOUT) {
+function groupIntoSheets(frames, layout = SHEET_LAYOUT) {
   const { cols, rows } = layout;
   const size = cols * rows;
   const sheets = [];
