@@ -4,10 +4,15 @@
  * Derived from the retired ctaScene() HTML template
  * (removed 2026-09-20, see git history).
  * All font sizes, colors, positions are精确对照 from its templateCss().
+ *
+ * Light (#738): the brand lockup is the protagonist and flashes as it lands;
+ * the action stamp takes the focus at 1.5s — the ask is the one thing that may
+ * pull the eye off the brand.
  */
 import { staticFile, CanvasImage, Interactive } from "remotion";
 import type { SceneData } from "../types";
 import { GridBg, Glow, Scanlines, Slot, FrameGlow } from "../components/visuals";
+import { useFocusLight } from "../components/focus-light";
 import { ScaleIn, StampIn, FadeIn } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
 import { LogoPulse } from "../components/animations/loops";
@@ -20,6 +25,8 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
   const brand = (txt.brand as string) ?? "CHINA AI NEWS";
   const brandHighlight = (txt.brandHighlight as string) ?? "AI";
   const sceneId = `cta-${scene.id}`;
+  const brandLight = useFocusLight("cta", "brand", duration);
+  const actionLight = useFocusLight("cta", "action", duration);
 
   return (
     <Camera visualType="cta" duration={duration}>
@@ -67,6 +74,8 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
                       letterSpacing: "4px",
                       marginBottom: SPACING.lg,
                       textAlign: "center",
+                      // #738: the brand lockup is the protagonist.
+                      ...brandLight,
                     }}
                   >
                     {brand.split(brandHighlight).map((part, i, arr) => (
@@ -135,8 +144,9 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
                         fontWeight: 900,
                         color: COLOR.amber,
                         letterSpacing: "2px",
-                        textShadow: "0 0 30px rgba(245,158,11,0.3)",
                         textAlign: "center",
+                        // #738: the ask takes the focus at 1.5s.
+                        ...actionLight,
                       }}
                     >
                       {txt.action as string}

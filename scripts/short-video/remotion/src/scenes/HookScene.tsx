@@ -21,6 +21,7 @@ import {
   Slot,
   FrameGlow,
 } from "../components/visuals";
+import { useFocusLight } from "../components/focus-light";
 import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
 import { SPACING, ANNOTATION, CANVAS, COLOR } from "../components/shared";
 import { NumberPulse, ScanSweep } from "../components/animations/loops";
@@ -150,6 +151,14 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
   // See hookMediaBand above for the cover/contain split and why it matters.
   const hookBand = hookMediaBand(scene.media);
 
+  // #738: the focal — a number when the pack is number-led, otherwise the
+  // claim — is the protagonist. The reveal is the one event that may take the
+  // light off it. Only the branch that renders asks for the light, so the
+  // wireframe never lights two heroes.
+  const numberLight = useFocusLight("hook", "bigNumber", duration);
+  const hookTextLight = useFocusLight("hook", "hookText", duration);
+  const revealLight = useFocusLight("hook", "revealText", duration);
+
   return (
     <Camera visualType="hook" duration={duration}>
       <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
@@ -181,19 +190,11 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
               <MediaScrims mediaBottom={hookBand.scrimBottom} />
             </>
           ))}
-        {/* Background layers — CSS: .grid-bg + .glow-tint + .scanlines + .scan-sweep */}
+        {/* Background layers — CSS: .grid-bg + .scanlines + .scan-sweep.
+            #738 removed the corner radial tint: it was a second key light with
+            no subject, and the hook's number/claim is the only thing that
+            should glow. */}
         <GridBg />
-        <div
-          style={{
-            position: "absolute",
-            bottom: -250,
-            left: -200,
-            width: 900,
-            height: 900,
-            borderRadius: "50%",
-            background: `radial-gradient(circle, ${color}1a 0%, transparent 60%)`,
-          }}
-        />
         <Scanlines />
         <ScanSweep duration={duration} />
         <BrandBar />
@@ -259,7 +260,9 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                     style={{
                       width: HOOK_SUBJECT_ROW.logoSize,
                       height: HOOK_SUBJECT_ROW.logoSize,
-                      filter: "drop-shadow(0 0 25px rgba(77,139,255,0.3))",
+                      // #738: the mark keeps its own colour, no halo — the
+                      // frame's light is the number/claim, not the lockup's
+                      // supporting mark.
                       // Brand marks are wide wordmarks (deepseek.svg is 195×41);
                       // a canvas defaults to object-fit: fill, which stretched
                       // this one to the square box. contain keeps the wordmark
@@ -288,7 +291,8 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                           fontWeight: 900,
                           color: COLOR.text,
                           letterSpacing: "4px",
-                          textShadow: `0 0 30px ${color}66`,
+                          // #738: the subject line is supporting cast — the
+                          // glow belongs to the number/claim (配角默认不发光).
                         }}
                       >
                         {txt.subject as string}
@@ -321,7 +325,10 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                       // false-fail Fit (T5).
                       lineHeight: 1.2,
                       whiteSpace: "nowrap",
-                      textShadow: "0 0 60px rgba(245,158,11,0.5), 0 0 120px rgba(245,158,11,0.3)",
+                      // #738: the number is the protagonist at its resting
+                      // level — the cover frame is composed, so there is no
+                      // entrance to flash on (the reveal is the event).
+                      ...numberLight,
                     }}
                   >
                     <NumberPulse interval={2} color="rgba(245,158,11">
@@ -399,7 +406,8 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                       color: COLOR.text,
                       letterSpacing: "2px",
                       lineHeight: 1.1,
-                      textShadow: `0 0 40px ${color}66`,
+                      // #738: the claim is the protagonist in the claim-led hook.
+                      ...hookTextLight,
                     }}
                   >
                     <SplitHighlight
@@ -436,6 +444,8 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                           lineHeight: 1.1,
                           marginTop: SPACING.xl,
                           textAlign: "center",
+                          // #738: the reveal takes the focus (with the flash).
+                          ...revealLight,
                         }}
                       >
                         {txt.revealText as string}

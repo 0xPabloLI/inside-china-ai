@@ -1,11 +1,16 @@
 /**
  * StatRevealScene — large number reveal with label and source.
  * Scene 9 in the Unitree video (China 97% market share).
+ *
+ * Light (#738): the number is the protagonist (white flash as it stamps in),
+ * the label takes the focus at 1.1s. The centre wash behind the number is gone;
+ * the number itself is now what carries the light.
  */
 import { useCurrentFrame, interpolate } from "remotion";
 import { Circle } from "@remotion/rough-notation";
 import { type SceneData } from "../types";
 import { GridBg, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
+import { useFocusLight } from "../components/focus-light";
 import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
 import { Camera } from "../components/Camera";
@@ -18,6 +23,8 @@ export const StatRevealScene: React.FC<{ scene: SceneData; duration: number }> =
   const txt = scene.texts || {};
   const sceneId = `stat-reveal-${scene.id}`;
   const frame = useCurrentFrame();
+  const numberLight = useFocusLight("stat-reveal", "bigNumber", duration);
+  const labelLight = useFocusLight("stat-reveal", "label", duration);
   const circleProgress = interpolate(frame, [15, 30], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -26,18 +33,6 @@ export const StatRevealScene: React.FC<{ scene: SceneData; duration: number }> =
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       <GridBg />
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: 1000,
-          height: 1000,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 60%)",
-        }}
-      />
       <Scanlines />
       <BrandBar />
       <FrameGlow variant="amber" />
@@ -62,7 +57,8 @@ export const StatRevealScene: React.FC<{ scene: SceneData; duration: number }> =
                       // line-height makes the inline text rects poke above the
                       // gate box and false-fail Fit (T5).
                       lineHeight: 1.2,
-                      textShadow: "0 0 80px rgba(245,158,11,0.5)",
+                      // #738: protagonist light, white flash on landing.
+                      ...numberLight,
                     }}
                   >
                     <Circle color={COLOR.amber} progress={circleProgress}>
@@ -78,7 +74,14 @@ export const StatRevealScene: React.FC<{ scene: SceneData; duration: number }> =
               <TextGate sceneId={sceneId} slotId="stat-reveal.hero-center.label">
                 {(fontSize) => (
                   <div
-                    style={{ fontSize, fontWeight: 800, color: COLOR.text, letterSpacing: "4px" }}
+                    style={{
+                      fontSize,
+                      fontWeight: 800,
+                      color: COLOR.text,
+                      letterSpacing: "4px",
+                      // #738: the focus moves here after the number lands.
+                      ...labelLight,
+                    }}
                   >
                     {txt.label as string}
                   </div>

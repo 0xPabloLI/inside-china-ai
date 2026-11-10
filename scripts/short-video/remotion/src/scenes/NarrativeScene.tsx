@@ -16,6 +16,7 @@
 import { Interactive, useCurrentFrame, interpolate } from "remotion";
 import type { SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow } from "../components/visuals";
+import { useFocusLight } from "../components/focus-light";
 import {
   SlideUp,
   SlideDown,
@@ -72,6 +73,13 @@ export const NarrativeScene: React.FC<{
     extrapolateRight: "clamp",
   });
 
+  // #738: the payoff is the protagonist (every layout draws it once), the
+  // company line takes the focus first. Narrative alternates its accent per
+  // scene id, so the light follows the colour the template actually paints.
+  const lightTone = glowColor === "red" ? ("red" as const) : ("amber" as const);
+  const companyLight = useFocusLight("narrative", "company", duration, { tone: lightTone });
+  const resultLight = useFocusLight("narrative", "result", duration, { tone: lightTone });
+
   // ─── Shared text elements — every field renders inside a TextGate whose
   // slot id follows the layout, so the contract (sizes, widths, floors) is
   // the single source of truth for all four variants (T5). ───
@@ -83,7 +91,16 @@ export const NarrativeScene: React.FC<{
         {...ov(`narrative.${variant}.company`)}
       >
         {(fontSize) => (
-          <Interactive.Div name="company" style={{ fontSize, fontWeight: 900, color: COLOR.text }}>
+          <Interactive.Div
+            name="company"
+            style={{
+              fontSize,
+              fontWeight: 900,
+              color: COLOR.text,
+              // #738: first beat — the subject takes the focus, then hands it on.
+              ...companyLight,
+            }}
+          >
             {txt.company as string}
           </Interactive.Div>
         )}
@@ -104,6 +121,8 @@ export const NarrativeScene: React.FC<{
               fontSize,
               fontWeight: 900,
               color: glowColor === "red" ? COLOR.red : COLOR.amber,
+              // #738: protagonist light — the payoff owns the frame from 1.1s.
+              ...resultLight,
             }}
           >
             <SplitHighlight

@@ -1,9 +1,14 @@
 /**
  * ContextScene — context card with badge, title, and detail.
  * Scene 7 in the Unitree video (DeepSeek + Tencent backing).
+ *
+ * Light (#738): the card title is the protagonist; the amber context line and
+ * the detail are supporting copy and stay dark (配角默认不发光). The blue
+ * corner tint is ground colour, not a second key light.
  */
 import { type SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
+import { useFocusLight } from "../components/focus-light";
 import { StampIn, SlideUp, StaggerWords } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
 import { TextGate } from "../components/text-gate";
@@ -18,6 +23,7 @@ export const ContextScene: React.FC<{ scene: SceneData; duration: number; conten
   const txt = scene.texts || {};
   const sceneId = `context-${scene.id}`;
   const hasMedia = !!scene.media;
+  const titleLight = useFocusLight("context", "title", duration);
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
@@ -77,6 +83,8 @@ export const ContextScene: React.FC<{ scene: SceneData; duration: number; conten
                         fontWeight: 900,
                         color: COLOR.text,
                         marginBottom: SPACING.sm,
+                        // #738: the title is the shot's protagonist.
+                        ...titleLight,
                       }}
                     >
                       {txt.title as string}

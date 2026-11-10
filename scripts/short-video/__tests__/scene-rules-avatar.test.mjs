@@ -66,7 +66,9 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // reports its engaged pass line instead.
     // #739: pass 37 → 38 — the empty-field gate reports one pass for the
     // pack's stat-reveal scene (240px bigNumber is hero tier); no warn joins.
-    expect(before.pass).toHaveLength(38);
+    // #738: pass 38 → 39 — the protagonist-light gate reports one pass for the
+    // pack's four lit scenes; no warn joins.
+    expect(before.pass).toHaveLength(39);
     expect(before.warn).toHaveLength(0);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });

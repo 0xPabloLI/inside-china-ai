@@ -8,10 +8,16 @@
  * text block covers them; `scene-rules.checkLayoutMediaRouting` fails that
  * combination. Before this wiring the template dropped a bound `scene.media`
  * silently (two real scenes had product photos that never rendered).
+ *
+ * Light (#738): the framing claim is the protagonist and flashes as it lands;
+ * at 1.3s the right-hand answer card takes the focus (a box light). The left
+ * card stays dark — in a contrast, the side being argued against is not the
+ * subject.
  */
 import { Interactive } from "remotion";
 import { type SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
+import { useFocusLight } from "../components/focus-light";
 import { SlideUp, StampIn, FadeIn } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
 import { TextGate } from "../components/text-gate";
@@ -28,6 +34,8 @@ export const ContrastScene: React.FC<{
   const left = txt.left ?? [];
   const right = txt.right ?? [];
   const hasMedia = Boolean(scene.media);
+  const titleLight = useFocusLight("contrast", "title", duration);
+  const rightLight = useFocusLight("contrast", "right", duration);
 
   const Chip: React.FC<{
     text: string;
@@ -85,7 +93,14 @@ export const ContrastScene: React.FC<{
                 {(fontSize) => (
                   <Interactive.Div
                     name="title"
-                    style={{ fontSize, fontWeight: 900, color: COLOR.text, textAlign: "center" }}
+                    style={{
+                      fontSize,
+                      fontWeight: 900,
+                      color: COLOR.text,
+                      textAlign: "center",
+                      // #738: the claim is the protagonist, flash on landing.
+                      ...titleLight,
+                    }}
                   >
                     {txt.title as string}
                   </Interactive.Div>
@@ -153,6 +168,8 @@ export const ContrastScene: React.FC<{
               width: "100%",
               border: "2px solid rgba(77,139,255,0.3)",
               background: "rgba(77,139,255,0.05)",
+              // #738: the answer card takes the focus at 0.9s.
+              ...rightLight,
             }}
           >
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
