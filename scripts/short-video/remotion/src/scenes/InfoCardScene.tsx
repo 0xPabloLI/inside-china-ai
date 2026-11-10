@@ -1,9 +1,14 @@
 /**
  * InfoCardScene — image background (ken-burns) + info card with bullet points.
  * Scene 4 in the Unitree video (company background).
+ *
+ * Light (#738): the points card is the object — a box light, not a text glow
+ * (an individual bullet is never the shot). The card is lit from the first
+ * frame and gains the focus as its bullets start landing.
  */
 import { type SceneData } from "../types";
 import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
+import { useFocusLight } from "../components/focus-light";
 import { SlideUp, StaggerLines } from "../components/animations/entrance";
 import { SPACING, MOTION, COLOR } from "../components/shared";
 import { MediaBackground } from "../components/MediaBackground";
@@ -18,6 +23,7 @@ export const InfoCardScene: React.FC<{
   const txt = scene.texts || {};
   const sceneId = `info-card-${scene.id}`;
   const points = txt.points ?? [];
+  const cardLight = useFocusLight("info-card", "points", duration);
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
@@ -68,6 +74,8 @@ export const InfoCardScene: React.FC<{
               borderRadius: 12,
               background: "rgba(10,10,20,0.6)",
               width: "100%",
+              // #738: the card is the protagonist — a box light, not a text glow.
+              ...cardLight,
             }}
           >
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>

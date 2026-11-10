@@ -53,6 +53,7 @@ import {
   textFieldValue,
 } from "./text-slots.mjs";
 import { EMPTY_FIELD, isEmptyField, tierForSize, TYPE_TIERS } from "./type-scale.mjs";
+import { FOCUS_LIGHT, LIGHT_PLANS, lightPlanFor, validateLightPlan } from "./focus-light.mjs";
 import { sceneClipFrames } from "./timeline.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
@@ -1850,8 +1851,100 @@ export function checkEmptyField(scenes, opts = {}) {
   ];
 }
 
-// ─── visualType whitelist (Remotion dispatch table) ───
+// ─── protagonist light (#738) ───
 
+/**
+ * Protagonist light gate (#738): does each scene light exactly one subject?
+ *
+ * The plans themselves are validated once (`validateLightPlan`); a plan that
+ * breaks the budget also throws inside the renderer, so a `fail` row here is
+ * the preflight copy of a render-time error, not a second opinion.
+ *
+ * The per-scene half is the content binding: a plan names contract fields
+ * (`stat`, `result`, `points` …) and a pack may leave one out. What the gate
+ * refuses is a shot with NO lit subject — the glare-free "small copy on a dark
+ * frame" the visual review keeps naming. Candidates are in priority order
+ * because some templates draw mutually exclusive heroes (the hook's number OR
+ * claim); the first one the scene declares is the one the template renders, so
+ * that, and only that, is the protagonist.
+ *
+ * A narrative card layout (`stacked-cards`) lights each card's own `result`;
+ * the field is still declared, so the check holds without a per-layout branch.
+ *
+ * @param {object[]} scenes
+ * @returns {Array<{level: string, category: string, check: string, detail?: string, fix?: string}>}
+ */
+export function checkFocusLight(scenes) {
+  const planErrors = [];
+  for (const [visualType, plan] of Object.entries(LIGHT_PLANS)) {
+    for (const error of validateLightPlan(plan)) {
+      planErrors.push({
+        level: "fail",
+        category: "Layout",
+        check: `Protagonist light plan — ${visualType}`,
+        detail: error,
+        fix: `Fix LIGHT_PLANS.${visualType} in lib/focus-light.mjs — the renderer throws on the same budget`,
+      });
+    }
+  }
+
+  const warns = [];
+  let governed = 0;
+  let skipped = 0;
+  for (const scene of scenes) {
+    if (!REMOTION_SLOT_MAP[scene.visualType]) continue;
+    // Fullscreen media draws no text frame: the footage is the subject and the
+    // light system does not apply (final-media-gate owns that layer).
+    if (scene.media?.mode === "fullscreen") {
+      skipped += 1;
+      continue;
+    }
+    governed += 1;
+    const plan = lightPlanFor(scene.visualType);
+    if (!plan) {
+      warns.push({
+        level: "warn",
+        category: "Layout",
+        check: `Protagonist light — ${scene.visualType} ${scene.id}`,
+        detail: "template has no light plan, so nothing in this shot carries the light",
+        fix: `Declare one in LIGHT_PLANS (lib/focus-light.mjs): the contract field that is the subject, plus its beats.`,
+      });
+      continue;
+    }
+    const rendered = plan.protagonist.filter((field) => {
+      const value = textFieldValue(scene.visualType, scene.texts, field);
+      if (Array.isArray(value)) return value.length > 0;
+      return value !== undefined && value !== null && String(value).trim() !== "";
+    });
+    if (rendered.length === 0) {
+      warns.push({
+        level: "warn",
+        category: "Layout",
+        check: `Protagonist light — ${scene.visualType} ${scene.id}`,
+        detail:
+          `no protagonist field is declared (${plan.protagonist.join(" / ")}), so the shot has ` +
+          "no lit subject — the frame stays flat",
+        fix: `Declare ${plan.protagonist[0]} on scene ${scene.id}, or change the template's plan if the subject moved.`,
+      });
+    }
+  }
+  if (planErrors.length > 0) return planErrors;
+  if (warns.length > 0) return warns;
+  return [
+    {
+      level: "pass",
+      category: "Layout",
+      check: "Protagonist light",
+      detail:
+        `${governed} scene(s) light one declared subject, ${Object.keys(LIGHT_PLANS).length} ` +
+        `template plan(s) within budget (${FOCUS_LIGHT.maxConcurrent} focus per frame, ` +
+        `${FOCUS_LIGHT.transferOffFrames}-frame extinguish)` +
+        (skipped > 0 ? `; ${skipped} fullscreen media scene(s) skipped` : ""),
+    },
+  ];
+}
+
+// ─── visualType whitelist (Remotion dispatch table) ───
 // The Remotion renderer dispatches on a fixed component set; an unknown
 // visualType silently degrades to NarrativeScene and drops custom text
 // fields (observed: "benchmark" scene rendered without its bars, qwen4-preview
@@ -2720,6 +2813,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkLayoutMediaRouting(scenes),
     ...checkContainFitBand(scenes),
     ...checkEmptyField(scenes, opts),
+    ...checkFocusLight(scenes),
     ...checkBrollPromptDimensions(scenes),
     ...avatarResults.filter((r) => r.check !== AVATAR_USAGE_CHECK),
   ];

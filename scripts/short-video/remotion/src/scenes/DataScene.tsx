@@ -2,11 +2,17 @@
  * DataScene — big stat reveal with source attribution.
  * Pure CSS, no media background.
  * Scene 3 in the Unitree video (8,288× oversubscribed).
+ *
+ * Light (#738): the stat is the protagonist and lands with a white flash; the
+ * label takes the focus half a second later. The decorative corner wash that
+ * used to sit behind this scene is gone — a full-frame gradient is not a
+ * subject.
  */
 import { Interactive, useCurrentFrame, interpolate } from "remotion";
 import { Circle } from "@remotion/rough-notation";
 import { type SceneData } from "../types";
 import { GridBg, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
+import { useFocusLight } from "../components/focus-light";
 import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
 import { Camera } from "../components/Camera";
@@ -19,6 +25,8 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
   const txt = scene.texts || {};
   const sceneId = `data-${scene.id}`;
   const frame = useCurrentFrame();
+  const statLight = useFocusLight("data", "stat", duration);
+  const labelLight = useFocusLight("data", "statLabel", duration);
   const circleProgress = interpolate(frame, [15, 30], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -27,17 +35,6 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       <GridBg />
-      <div
-        style={{
-          position: "absolute",
-          bottom: -200,
-          right: -200,
-          width: 900,
-          height: 900,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 60%)",
-        }}
-      />
       <Scanlines />
       <BrandBar />
       <FrameGlow variant="amber" />
@@ -63,7 +60,8 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
                       // line-height makes the inline text rects poke above the
                       // gate box and false-fail Fit (T5).
                       lineHeight: 1.2,
-                      textShadow: "0 0 60px rgba(245,158,11,0.4)",
+                      // #738: protagonist light, white flash on landing.
+                      ...statLight,
                     }}
                   >
                     <Circle color={COLOR.amber} progress={circleProgress}>
@@ -80,7 +78,14 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
                 {(fontSize) => (
                   <Interactive.Div
                     name="statLabel"
-                    style={{ fontSize, fontWeight: 800, color: COLOR.text, letterSpacing: "4px" }}
+                    style={{
+                      fontSize,
+                      fontWeight: 800,
+                      color: COLOR.text,
+                      letterSpacing: "4px",
+                      // #738: the focus moves here after the number lands.
+                      ...labelLight,
+                    }}
                   >
                     {txt.statLabel as string}
                   </Interactive.Div>

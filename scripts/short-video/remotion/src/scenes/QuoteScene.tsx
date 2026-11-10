@@ -1,11 +1,16 @@
 /**
  * QuoteScene — large quote with attribution and verified badge.
  * Scene 6 in the Unitree video ("filing admits robots can't do real work").
+ *
+ * Light (#738): the quotation is the protagonist and flashes white as it
+ * lands; the attribution takes the focus at 1.3s. The red corner wash is gone —
+ * it was a second, competing key light with no subject.
  */
 import { useCurrentFrame, interpolate } from "remotion";
 import { Underline } from "@remotion/rough-notation";
 import { type SceneData } from "../types";
 import { GridBg, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
+import { useFocusLight } from "../components/focus-light";
 import { FadeIn, SlideUp, StampIn } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
 import { Camera } from "../components/Camera";
@@ -18,6 +23,8 @@ export const QuoteScene: React.FC<{ scene: SceneData; duration: number }> = ({
   const txt = scene.texts || {};
   const sceneId = `quote-${scene.id}`;
   const frame = useCurrentFrame();
+  const quoteLight = useFocusLight("quote", "quote", duration);
+  const sourceLight = useFocusLight("quote", "source", duration);
   const underlineProgress = interpolate(frame, [20, 40], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -26,17 +33,6 @@ export const QuoteScene: React.FC<{ scene: SceneData; duration: number }> = ({
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       <GridBg />
-      <div
-        style={{
-          position: "absolute",
-          bottom: -200,
-          left: -200,
-          width: 900,
-          height: 900,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(239,68,68,0.15) 0%, transparent 60%)",
-        }}
-      />
       <Scanlines />
       <BrandBar />
       <FrameGlow variant="amber" />
@@ -67,6 +63,8 @@ export const QuoteScene: React.FC<{ scene: SceneData; duration: number }> = ({
                         fontWeight: 700,
                         color: COLOR.text,
                         lineHeight: 1.35,
+                        // #738: protagonist light, white flash on landing.
+                        ...quoteLight,
                       }}
                     >
                       <Underline color={COLOR.brand} progress={underlineProgress}>
@@ -87,6 +85,8 @@ export const QuoteScene: React.FC<{ scene: SceneData; duration: number }> = ({
                         fontWeight: 700,
                         color: COLOR.textMuted,
                         letterSpacing: "2px",
+                        // #738: the focus moves to the attribution.
+                        ...sourceLight,
                       }}
                     >
                       {txt.source as string}

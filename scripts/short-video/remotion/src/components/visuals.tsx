@@ -9,6 +9,7 @@
  */
 import { staticFile, CanvasImage } from "remotion";
 import { SLOT_FIELDS } from "../../../lib/text-slots.mjs";
+import { LIGHT_TIERS } from "../../../lib/focus-light.mjs";
 import { BRAND_BAR, CANVAS, COLOR, SAFE_ZONES, WATERMARK_POS } from "./shared";
 import { TextGate } from "./text-gate";
 import type { ReactNode } from "react";
@@ -30,7 +31,15 @@ export const GridBg: React.FC = () => (
   />
 );
 
-/** Radial glow — colored radial gradient positioned at a corner. */
+/**
+ * Radial glow — background GROUND colour, not light.
+ *
+ * This is the scene's ambient tint (a corner vignette at 0.10–0.15 alpha), part
+ * of the same layer as `GridBg` and `Scanlines`. It never marks a subject: if
+ * something in the frame should draw the eye, that is `useFocusLight` (#738),
+ * which owns the soft/focus/flash tiers. Placing this behind a subject to make
+ * it "pop" is the exact defect #738 removed from `FrameGlow`.
+ */
 export const Glow: React.FC<{ color: "red" | "blue" }> = ({ color }) => {
   const config =
     color === "red"
@@ -66,19 +75,30 @@ export const Scanlines: React.FC = () => (
   />
 );
 
-/** Frame glow — decorative border + inner glow on every scene frame edge. */
+/**
+ * Frame glow — the bloom tier: the structure line every scene carries.
+ *
+ * Until #738 this also painted a 40px inset wash across the whole frame. That
+ * wash was the defect the light system exists to fix: it is ambient colour with
+ * no subject, so the brightest area of a close-up and of a wide shot were the
+ * same, and there was nothing for a focus transfer to move between. The border
+ * stays (a structure line, always on, `LIGHT_TIERS.bloom`), the wash is gone —
+ * the light now lands on the object the shot is about (`useFocusLight`).
+ *
+ * Do not add a full-frame `boxShadow`/gradient back here. If a frame feels
+ * empty, the fix is a hero object, not a wash.
+ */
 export const FrameGlow: React.FC<{ variant?: "amber" | "blue" }> = ({ variant = "amber" }) => {
   const c =
     variant === "blue"
-      ? { border: "rgba(77,139,255,0.2)", shadow: "rgba(77,139,255,0.08)" }
-      : { border: "rgba(245,158,11,0.2)", shadow: "rgba(245,158,11,0.08)" };
+      ? { border: `rgba(77,139,255,${LIGHT_TIERS.bloom.borderAlpha})` }
+      : { border: `rgba(245,158,11,${LIGHT_TIERS.bloom.borderAlpha})` };
   return (
     <div
       style={{
         position: "absolute",
         inset: 0,
-        border: `3px solid ${c.border}`,
-        boxShadow: `inset 0 0 40px ${c.shadow}`,
+        border: `${LIGHT_TIERS.bloom.borderPx}px solid ${c.border}`,
         pointerEvents: "none",
         zIndex: 99,
       }}
