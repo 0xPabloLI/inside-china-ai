@@ -465,7 +465,7 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 
 机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 三轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端）。分类依据与逐项处置见 #763 交付评论。
 
-信息类 scene 另有一条**空场判据**（`checkEmptyField`，#739）：`data` / `stat-reveal` / `contrast` / `info-card` / `context` 的最大已声明文本对象低于 110px、且持续超过 45 帧 → **WARN**（镜头没有主角，只有小字与小 chip）。带 `media` 层的镜头不判：素材本身就是内容区最大物体，缺素材归 `final-media-gate`。竖屏三档与阈值来源见 `docs/conventions/visual-design-loop.md` → Type scale，单一真源是 `lib/type-scale.mjs`；post-render 用 `audio/scene-durations.json` 换算成含 0.5s 录音缓冲的 clip 帧数，preflight 在 TTS 之前以整镜为窗口。修法（四种信息图拓扑）是 #739 的后续半段，落地前该 WARN 是具名设计债，不阻断渲染。
+信息类 scene 另有一条**空场判据**（`checkEmptyField`，#739）：`data` / `stat-reveal` / `contrast` / `info-card` / `context` 的最大已声明文本对象低于 110px、且持续超过 45 帧 → **WARN**（镜头没有主角，只有小字与小 chip）。渲染 `media` 层的镜头不判：素材本身就是内容区最大物体（`data`/`stat-reveal` 不渲染媒体，声明了也照判），缺素材归 `final-media-gate`。竖屏三档与阈值来源见 `docs/conventions/visual-design-loop.md` → Type scale，单一真源是 `lib/type-scale.mjs`；post-render 用 `audio/scene-durations.json` 换算成含 0.5s 录音缓冲的 clip 帧数，preflight 在 TTS 之前以整镜为窗口。修法（四种信息图拓扑）是 #739 的后续半段，落地前该 WARN 是具名设计债，不阻断渲染。
 
 `media` 对象另有一条 schema 检查（`lib/media-field-schema.mjs`，check 名以 `Media field schema:` 开头，#836）：**未知键即 FAIL**（拼错 `evidnce` 不会静默关掉 evidence 强制）、`evidence` 只接受 `true`/`false`/`null`、`evidence: true` 必须同时声明 `provenance`、声明了 `provenance` 就先跑 `validateProvenance()`（clip ⊇ rect）。允许的键集合是 `remotion/src/types.ts` 里 `MediaField` 的 .mjs 镜像，两边由单测钉住——加字段必须同改两处。
 

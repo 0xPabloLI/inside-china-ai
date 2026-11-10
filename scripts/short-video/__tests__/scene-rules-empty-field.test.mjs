@@ -85,6 +85,25 @@ describe("checkEmptyField — largest declared object", () => {
     expect(results[0].detail).toContain("media layer");
   });
 
+  it("does not exempt an empty media object (nothing is drawn)", () => {
+    const results = checkEmptyField([{ ...contrastScene, media: {} }]);
+    expect(warns(results)).toHaveLength(1);
+  });
+
+  it("does not exempt a media layer the template never draws", () => {
+    // data / stat-reveal are NO_MEDIA_TYPES: DataScene renders no media, so a
+    // declared path there cannot stand in for a hero object.
+    const results = checkEmptyField([
+      {
+        ...dataScene,
+        texts: { stat: "", statLabel: "only a label", source: "X" },
+        media: { path: "a.png" },
+      },
+    ]);
+    expect(warns(results)).toHaveLength(1);
+    expect(results[0].check).toContain("Empty field — data");
+  });
+
   it("warns on contrast: the title is supporting tier, so there is no hero", () => {
     const found = warns(checkEmptyField([contrastScene]));
     expect(found).toHaveLength(1);
@@ -122,6 +141,8 @@ describe("checkEmptyField — persistence window", () => {
       sceneDurations: [{ sceneId: 3, duration: 1.0 }],
     });
     expect(warns(results)).toEqual([]);
+    expect(results[0].detail).toContain("stayed under the line");
+    expect(results[0].detail).not.toContain("carry a hero object");
     expect(results[0].detail).toContain("45 frames");
   });
 

@@ -1765,16 +1765,25 @@ export function checkEmptyField(scenes, opts = {}) {
   );
   const warns = [];
   /** @type {Array<{px: number, field: string, frames: number|null}>} */
-  const cleared = [];
+  const heroClear = [];
+  /** Clip lengths of scenes that stay small but too short for the rule. */
+  const shortSkips = [];
   let mediaHeroes = 0;
   let skipped = 0;
   scenes.forEach((scene, index) => {
     if (!EMPTY_FIELD_TYPES.has(scene.visualType)) return;
-    // A declared media layer IS the content area's largest object (background,
+    // A rendered media layer IS the content area's largest object (background,
     // split or bottom band — every media layout gives it a large field). The
     // rule exists to catch "small copy + small chip", not a shot carried by
     // footage; media absence is the final-media-gate's job, not this rule's.
-    if (scene.media) {
+    // Only count a layer the run will actually draw: `data`/`stat-reveal` never
+    // render media (#831 NO_MEDIA_TYPES), and an empty `media: {}` draws the CSS
+    // fallback — exempting either would silence the rule without a hero.
+    const drawsMedia =
+      (scene.media?.mode === "fullscreen" || !NO_MEDIA_TYPES.has(scene.visualType)) &&
+      typeof scene.media?.path === "string" &&
+      scene.media.path.trim() !== "";
+    if (drawsMedia) {
       mediaHeroes += 1;
       return;
     }
@@ -1786,7 +1795,8 @@ export function checkEmptyField(scenes, opts = {}) {
     const seconds = durations.get(scene.id ?? index + 1);
     const frames = seconds === undefined || seconds === null ? null : sceneClipFrames(seconds);
     if (!isEmptyField({ largestObjectPx: largest.px, frames })) {
-      cleared.push({ ...largest, frames });
+      if (largest.px >= EMPTY_FIELD.maxObjectPx) heroClear.push({ ...largest, frames });
+      else shortSkips.push(frames);
       return;
     }
     const tier = tierForSize(largest.px);
@@ -1806,35 +1816,33 @@ export function checkEmptyField(scenes, opts = {}) {
   });
   // One pass row for the whole check, not one per scene: the gate reports what
   // needs action, and a clean 29-scene pack should not add 12 rows (#763).
+  // Each clause states what it actually knows — a scene skipped by the
+  // persistence window did NOT clear the hero line, so it must not say so.
   if (warns.length > 0) return warns;
-  const notes = [];
-  if (mediaHeroes > 0) notes.push(`${mediaHeroes} carried by a media layer`);
-  if (skipped > 0) notes.push(`${skipped} without a measurable text object`);
-  const noteText = notes.length > 0 ? ` (${notes.join("; ")} skipped)` : "";
-  if (cleared.length === 0) {
-    return [
-      {
-        level: "pass",
-        category: "Layout",
-        check: "Empty field",
-        detail:
-          notes.length > 0
-            ? `no judged scene${noteText}`
-            : "no governed information scenes in this pack",
-      },
-    ];
+  const parts = [];
+  if (heroClear.length > 0) {
+    const smallest = heroClear.reduce((a, b) => (b.px < a.px ? b : a));
+    const persistence = smallest.frames === null ? "" : `, clip ${smallest.frames} frames`;
+    parts.push(
+      `${heroClear.length} governed information scene(s) carry a hero object at or above the ` +
+        `${EMPTY_FIELD.maxObjectPx}px hero line (smallest largest-object ${smallest.px}px ` +
+        `${smallest.field}${persistence})`,
+    );
   }
-  const smallest = cleared.reduce((a, b) => (b.px < a.px ? b : a));
-  const persistence = smallest.frames === null ? "" : `, clip ${smallest.frames} frames`;
+  if (shortSkips.length > 0) {
+    parts.push(
+      `${shortSkips.length} stayed under the line within the ${EMPTY_FIELD.minFrames}-frame ` +
+        `window (longest clip ${Math.max(...shortSkips)} frames)`,
+    );
+  }
+  if (mediaHeroes > 0) parts.push(`${mediaHeroes} carried by a media layer`);
+  if (skipped > 0) parts.push(`${skipped} without a measurable text object`);
   return [
     {
       level: "pass",
       category: "Layout",
       check: "Empty field",
-      detail:
-        `${cleared.length} governed information scene(s) clear the ` +
-        `${EMPTY_FIELD.maxObjectPx}px hero line (smallest largest-object ${smallest.px}px ` +
-        `${smallest.field}${persistence})${noteText}`,
+      detail: parts.length > 0 ? parts.join("; ") : "no governed information scenes in this pack",
     },
   ];
 }

@@ -81,9 +81,10 @@ export const TYPE_TIERS = {
  * Scope is the information grammar this ticket governs (the five templates the
  * survey named), not the whole catalogue: the brand CTA and the hook are
  * deliberately small-copy formats and are judged by their own gates. The rule
- * measures TEXT objects only — a scene carried by a media layer is not empty,
- * and that exemption belongs to the caller, which skips media scenes before
- * calling `isEmptyField`.
+ * measures TEXT objects only — a scene whose template draws a media layer is
+ * not empty, and that exemption belongs to the caller: it only counts a media
+ * path the template actually renders (`data`/`stat-reveal` ignore media) and
+ * skips those scenes before calling `isEmptyField`.
  */
 export const EMPTY_FIELD = {
   /** Largest-object threshold, px — the source's 110, kept after rescaling. */
