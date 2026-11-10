@@ -152,11 +152,15 @@ export function planAcceptanceFrames(sceneDurations, options = {}) {
  * number, its grid address and the voiceover claim that the frame must
  * satisfy — the claim-versus-footage check no layout gate can make.
  */
-export function renderReviewRequest(plan, { contentId, videoPath, implementer }) {
+export function renderReviewRequest(
+  plan,
+  { contentId, videoPath, implementer, packetVersion = 1, round = 1 },
+) {
   const lines = [
     `# QA final review — ${contentId}`,
     "",
     `Video: \`${videoPath}\``,
+    `Packet version: ${packetVersion} · review round: ${round}.`,
     `Timeline: ${plan.fps} fps, ${plan.totalFrames} frames, ${plan.scenes.length} scenes.`,
     `Declaration: entry +${plan.declaration.entry} / exit -${plan.declaration.exit} ${plan.declaration.unit}.`,
     `Implementer: \`${implementer}\`.`,
@@ -207,7 +211,8 @@ export function renderReviewRequest(plan, { contentId, videoPath, implementer })
       {
         reviewer: "independent-agent-id",
         implementer,
-        round: 1,
+        round,
+        packetVersion,
         verdict: "pass",
         reviewedFrames: plan.frames.map((f) => f.frame),
         findings: [
@@ -234,6 +239,9 @@ export function renderReviewRequest(plan, { contentId, videoPath, implementer })
     "- `implementer` must equal the value above; the CLI compares it with the packet, not with your own JSON.",
   );
   lines.push(
+    `- \`packetVersion\` must equal ${packetVersion}: a report for an older render of this pack is not a review of this packet.`,
+  );
+  lines.push(
     `node scripts/short-video/qa-final-review.mjs --content ${contentId} --report <final-review.json>`,
   );
   lines.push("");
@@ -251,13 +259,23 @@ export function renderReviewRequest(plan, { contentId, videoPath, implementer })
  *
  * @returns {{ok:boolean, errors:string[]}}
  */
-export function validateReviewReport(report, plan, { expectedImplementer } = {}) {
+export function validateReviewReport(
+  report,
+  plan,
+  { expectedImplementer, expectedPacketVersion } = {},
+) {
   const errors = [];
   if (!report || typeof report !== "object" || Array.isArray(report)) {
     return { ok: false, errors: ["report must be a JSON object"] };
   }
   const declared = new Set(plan.frames.map((f) => f.frame));
   const { reviewer, implementer, round, verdict, findings, reviewedFrames } = report;
+
+  if (typeof expectedPacketVersion === "number" && report.packetVersion !== expectedPacketVersion) {
+    errors.push(
+      `packetVersion must be ${expectedPacketVersion}, got ${JSON.stringify(report.packetVersion)}`,
+    );
+  }
 
   if (typeof reviewer !== "string" || !reviewer.trim()) errors.push("reviewer is required");
   if (typeof implementer !== "string" || !implementer.trim()) {

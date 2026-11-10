@@ -12,7 +12,7 @@
  * HITL option A). Run it after `verify-video.mjs` is green and before HITL.
  *
  * Usage:
- *   node scripts/short-video/qa-final-review.mjs --content <id> --video <finished.mp4> [--implementer <id>]
+ *   node scripts/short-video/qa-final-review.mjs --content <id> --video <finished.mp4> [--implementer <id>] [--reset-review]
  *   node scripts/short-video/qa-final-review.mjs --content <id> --plan-only
  *   node scripts/short-video/qa-final-review.mjs --content <id> --reproduce <frame> [--out <png>]
  *   node scripts/short-video/qa-final-review.mjs --content <id> --report <final-review.json>
@@ -70,6 +70,7 @@ const qaDir = join(__dirname, "output", contentId, "qa");
 const framesDir = join(qaDir, "frames");
 const sheetsDir = join(qaDir, "sheets");
 const planOnly = hasFlag("plan-only");
+const resetReview = hasFlag("reset-review");
 const reportPath = getArg("report");
 const reproduceFrame = getArg("reproduce");
 const videoPath = getArg("video");
@@ -109,17 +110,25 @@ try {
   die(e.message);
 }
 
-const manifestPath = join(qaDir, "acceptance-frames.json");
-let previousManifest = null;
-if (existsSync(manifestPath)) {
+const readJson = (path) => {
+  if (!existsSync(path)) return null;
   try {
-    previousManifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    return JSON.parse(readFileSync(path, "utf8"));
   } catch {
-    previousManifest = null;
+    return null;
   }
-}
-const writeManifest = (manifest) =>
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+};
+const writeJson = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
+
+// Two separate files on purpose: the PACKET is rebuilt after every P0/P1 fix
+// (new render, new stills), while the LEDGER survives rebuilds so the
+// implementer identity and the cumulative three-round cap cannot be reset by
+// a re-render. --report writes only the ledger; --video writes only the packet.
+const manifestPath = join(qaDir, "acceptance-frames.json");
+const ledgerPath = join(qaDir, "review-ledger.json");
+const previousManifest = readJson(manifestPath);
+let ledger = readJson(ledgerPath);
+const writeManifest = (manifest) => writeJson(manifestPath, manifest);
 
 // --reproduce: re-render ONE declared frame through still-frame.mjs, which
 // checks the staged assets and reproduces the real render props. The loop
@@ -188,24 +197,39 @@ if (reportPath) {
     die(`cannot parse report: ${e.message}`);
   }
 
-  // Rounds are cumulative in the packet, so a reviewer cannot replay round 1
-  // forever. The implementer is likewise fixed when the packet was built.
-  const rounds = Array.isArray(previousManifest.reviewRounds) ? previousManifest.reviewRounds : [];
+  // Rounds are cumulative in the LEDGER, so a reviewer cannot replay round 1
+  // forever, and rebuilding the packet after a fix cannot zero the count.
+  if (!ledger) die("no review ledger for this content — run the full loop with --video first");
+  const rounds = Array.isArray(ledger.rounds) ? ledger.rounds : [];
   const expectedRound = rounds.length + 1;
   if (report.round !== expectedRound) {
-    die(`report round must be ${expectedRound} (packet has recorded ${rounds.length} round(s))`);
+    die(`report round must be ${expectedRound} (ledger has recorded ${rounds.length} round(s))`);
   }
   const validation = validateReviewReport(report, plan, {
-    expectedImplementer: previousManifest.implementer,
+    expectedImplementer: ledger.implementer,
+    expectedPacketVersion: previousManifest.packetVersion,
   });
   const outcome = decideReviewOutcome(report, plan, validation);
   if (!validation.ok) {
     for (const error of validation.errors) console.error(`   - ${error}`);
     die(`final review INVALID (${validation.errors.length} problem(s))`);
   }
-  // A validated (even failing) round counts; only an invalid report leaves the
-  // ledger untouched.
-  writeManifest({ ...previousManifest, reviewRounds: [...rounds, report.round] });
+  // A validated (even failing) round counts; only the ledger changes, never
+  // the packet under review.
+  ledger = {
+    ...ledger,
+    rounds: [...rounds, report.round],
+    history: [
+      ...(Array.isArray(ledger.history) ? ledger.history : []),
+      {
+        round: report.round,
+        status: outcome.status,
+        reviewer: report.reviewer,
+        packetVersion: previousManifest.packetVersion,
+      },
+    ],
+  };
+  writeJson(ledgerPath, ledger);
 
   console.log(`Final review: ${outcome.status}`);
   if (outcome.status === "fix-required") {
@@ -303,17 +327,34 @@ rmSync(blankPath, { force: true });
 
 // Only now is the packet complete: manifest and reviewer input are written
 // after the stills and sheets exist, so a failed run leaves no usable packet.
+const packetVersion = (previousManifest?.packetVersion ?? 0) + 1;
+if (!ledger || resetReview) {
+  ledger = { contentId, implementer, rounds: [], history: [] };
+  if (resetReview) console.log("   --reset-review: review ledger cleared");
+} else if (ledger.implementer !== implementer) {
+  die(
+    `review ledger belongs to implementer ${ledger.implementer} — use --reset-review to start a new review`,
+  );
+}
+writeJson(ledgerPath, ledger);
+const round = (ledger.rounds?.length ?? 0) + 1;
 writeManifest({
   contentId,
   video: { path: videoPath, name: basename(videoPath), bytes: statSync(videoPath).size },
-  implementer,
+  implementer: ledger.implementer,
   complete: true,
-  reviewRounds: [],
+  packetVersion,
   ...plan,
 });
 writeFileSync(
   join(qaDir, "review-request.md"),
-  renderReviewRequest(plan, { contentId, videoPath, implementer }),
+  renderReviewRequest(plan, {
+    contentId,
+    videoPath,
+    implementer: ledger.implementer,
+    packetVersion,
+    round,
+  }),
 );
 console.log(`   declaration: ${manifestPath}`);
 console.log(`   reviewer packet: ${join(qaDir, "review-request.md")}`);

@@ -119,6 +119,7 @@ describe("validateReviewReport", () => {
     round: 1,
     verdict: "pass",
     findings: [],
+    packetVersion: 7,
     // A pass report still has to cite every frame it reviewed — otherwise
     // "no findings" is indistinguishable from "no review".
     reviewedFrames: plan.frames.map((f) => f.frame),
@@ -210,6 +211,24 @@ describe("validateReviewReport", () => {
     });
     expect(res.ok).toBe(false);
     expect(res.errors.join(" ")).toMatch(/independent/i);
+  });
+
+  it("binds a report to the packet version it reviewed", () => {
+    const res = validateReviewReport(valid(), plan, {
+      expectedImplementer: "session-impl",
+      expectedPacketVersion: 6,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors.join(" ")).toMatch(/packetVersion/);
+  });
+
+  it("accepts a report for the current packet version", () => {
+    expect(
+      validateReviewReport(valid(), plan, {
+        expectedImplementer: "session-impl",
+        expectedPacketVersion: 7,
+      }),
+    ).toEqual({ ok: true, errors: [] });
   });
 });
 
