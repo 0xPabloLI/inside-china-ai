@@ -569,6 +569,31 @@ const FIELD_ALIASES = {
 };
 
 /**
+ * Read a contract field's value from a scene's texts, resolving visualType
+ * aliases (`data.statLabel` renders through the `label` slot).
+ *
+ * Consumers that walk REMOTION_SLOT_MAP need the same alias resolution the
+ * renderer and `assertKnownTextFields` use; without it a data scene's label
+ * looks absent to the contract and the empty-field check (#739) under-reads
+ * the scene's largest object.
+ *
+ * @param {string} visualType
+ * @param {Record<string, unknown>|undefined} texts
+ * @param {string} field - contract field name (post-alias)
+ * @returns {unknown} the declared value, or undefined when absent
+ */
+export function textFieldValue(visualType, texts, field) {
+  const t = texts ?? {};
+  if (t[field] !== undefined && t[field] !== null) return t[field];
+  const aliases = FIELD_ALIASES[visualType] ?? {};
+  for (const [key, aliased] of Object.entries(aliases)) {
+    if (aliased !== field) continue;
+    if (t[key] !== undefined && t[key] !== null) return t[key];
+  }
+  return undefined;
+}
+
+/**
  * Reject text fields a template does not know about (spec decision 51).
  *
  * A typo'd field would otherwise be silently ignored — the template renders

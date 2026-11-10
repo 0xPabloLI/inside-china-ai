@@ -11,6 +11,7 @@
  * darker than the web surface — it is the ground the clips composite onto.
  */
 import { BRAND_FONT_STACK } from "../../lib/safe-zones.mjs";
+import { EMPTY_FIELD, TYPE_TIERS } from "../../lib/type-scale.mjs";
 
 /** Brand + semantic palette (DESIGN.md §2, video/dark surface). */
 export const COLOR = {
@@ -35,6 +36,22 @@ export const COLOR = {
 export const TYPE = {
   /** Brand serif stack — the only family on the video surface. */
   family: BRAND_FONT_STACK,
+  /**
+   * Three-tier information scale (#739): label 40–48, supporting 60–110,
+   * hero 150+. Declared sizes (`SLOT_FIELDS[*].preferredSize`) must land in a
+   * band — the two gaps are intentional, so a stray intermediate size is
+   * detectable rather than plausible. Values are declared in
+   * `lib/type-scale.mjs` (the Node gate reads the same object; the renderer
+   * must not carry a second copy).
+   */
+  tiers: TYPE_TIERS,
+  /**
+   * Empty-field rule (#739): a governed information scene whose largest
+   * content object is below `maxObjectPx` for more than `minFrames` frames has
+   * no hero object. Declared next to the scale because the threshold IS the
+   * supporting band's upper bound.
+   */
+  emptyField: EMPTY_FIELD,
 } as const;
 
 export type SpringPreset = {

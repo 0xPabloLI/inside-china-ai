@@ -106,7 +106,23 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 #### Sync（一致性）
 
-> Remotion 是唯一渲染器后（决策 59，2026-09-01），不再有 React ↔ HTML 双源，原 `verify-template-sync.mjs` 随 HTML 路径退役（归档已于 2026-09-20 删除）。一致性现在由单一真源保证：几何/安全区常量只在 `lib/safe-zones.mjs` 定义，字号契约只在 `lib/text-slots.mjs` 定义。（`lib/scene-layout.mjs` 是已退役的 HTML 路径固定槽位网格，无生产消费方，不作为真源。）
+> Remotion 是唯一渲染器后（决策 59，2026-09-01），不再有 React ↔ HTML 双源，原 `verify-template-sync.mjs` 随 HTML 路径退役（归档已于 2026-09-20 删除）。一致性现在由单一真源保证：几何/安全区常量只在 `lib/safe-zones.mjs` 定义，字号契约只在 `lib/text-slots.mjs` 定义，字号**档位**只在 `lib/type-scale.mjs` 定义（`text-slots.mjs` 管每个字段用多大，`type-scale.mjs` 管这些尺寸必须落在哪一档）。（`lib/scene-layout.mjs` 是已退役的 HTML 路径固定槽位网格，无生产消费方，不作为真源。）
+
+#### Type scale（尺寸三档，2026-11-10 · #739）
+
+竖屏尺寸分三档，**档位之外没有第四种设计尺寸**。档位是 `lib/type-scale.mjs` 的 `TYPE_TIERS`（渲染端经 `tokens.ts` 的 `TYPE.tiers` 读同一对象），每个 `SLOT_FIELDS[field].preferredSize` 必须落在其中一档：
+
+| 档位       | 竖屏像素 | 用途                                  |
+| ---------- | -------- | ------------------------------------- |
+| label      | 40–48    | 标签、chip、出处等元数据（#688 地板） |
+| supporting | 60–110   | 主文案与配角对象                      |
+| hero       | 150+     | 镜头的主角对象（大数字 / set piece）  |
+
+两段空隙（49–59、111–149）是刻意的：设计尺寸落在空隙会被门禁判为「第四种尺寸」。缩小阶梯（TextGate 为长文案在 `preferredSize → minSize` 之间降到 52px）不属于设计尺寸，不参与档位判定。
+
+档位来源是 anything2explainer `reference/composition-and-light.md` §1/§6（1280×720 横屏：主角 ≥170 / 配角 60–110 / 标签 22–30）按 1080×1920 重算：hero 下限取契约里的大数字地板 150（170 × 1080/1280 = 143.4 向上取整）；supporting 保持 60–110（我方 lead class 60–80 在带内，110 同时是空场线）；label 重锚到 #688 的可读地板 40/48（源值的 19–25px 在手机上不可读，#688 优先）。
+
+**空场判据**：`checkEmptyField`（`lib/scene-rules.mjs`）对 `data` / `stat-reveal` / `contrast` / `info-card` / `context` 五种信息类 scene 取「已声明文本对象的最大 `preferredSize`」，低于 110px（supporting 档上限）且持续超过 45 帧即 **WARN**——镜头没有主角，只有小字与小 chip。post-render 模式用 `audio/scene-durations.json` 的真实帧数判持续窗口；preflight 在 TTS 之前，以整镜为窗口。修法（四种信息图拓扑）是 #739 的后续半段，落地前该 WARN 是**具名设计债**，不是渲染阻断。
 
 ### 间距语义角色参考
 
@@ -131,11 +147,12 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 ## 工具索引
 
-| 工具               | 路径                                                          | 作用                                    |
-| ------------------ | ------------------------------------------------------------- | --------------------------------------- |
-| TextGate           | `scripts/short-video/remotion/src/` + `lib/text-geometry.mjs` | 渲染时几何强制（安全区、溢出、换词）    |
-| `render-only.mjs`  | `scripts/short-video/`                                        | 快速渲染验证（`--content _gate-smoke`） |
-| `impeccable` skill | `.agents/skills/impeccable/`                                  | 5 维度设计审查框架（layout.md）         |
+| 工具               | 路径                                                          | 作用                                                      |
+| ------------------ | ------------------------------------------------------------- | --------------------------------------------------------- |
+| TextGate           | `scripts/short-video/remotion/src/` + `lib/text-geometry.mjs` | 渲染时几何强制（安全区、溢出、换词）                      |
+| `checkEmptyField`  | `scripts/short-video/lib/scene-rules.mjs`                     | 信息类 scene 空场判据（最大对象 <110px 且 >45 帧 → WARN） |
+| `render-only.mjs`  | `scripts/short-video/`                                        | 快速渲染验证（`--content _gate-smoke`）                   |
+| `impeccable` skill | `.agents/skills/impeccable/`                                  | 5 维度设计审查框架（layout.md）                           |
 
 ## Design Decisions & References
 

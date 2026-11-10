@@ -340,7 +340,26 @@ if (!scenes || scenes.length === 0) {
 pass("Scene Data", "Scenes array exists", `${scenes.length} scenes`);
 
 // Run all scene-data validation rules from lib/scene-rules.mjs
-const sceneResults = runAllSceneDataChecks(scenes, seriesMeta, { longForm, meta });
+// #739: the empty-field persistence window reads real scene lengths only in
+// post-render mode, where this run's audio artifacts exist. Preflight runs
+// before TTS and judges the whole shot; a stale file from an earlier run must
+// not stand in for durations this run has not produced yet.
+let sceneDurations = null;
+if (!preMode) {
+  const durationsPath = join(OUTPUT_DIR, "audio", "scene-durations.json");
+  if (existsSync(durationsPath)) {
+    try {
+      sceneDurations = JSON.parse(readFileSync(durationsPath, "utf8"));
+    } catch {
+      /* unreadable: fall back to whole-shot persistence; the audio gate names the artifact */
+    }
+  }
+}
+const sceneResults = runAllSceneDataChecks(scenes, seriesMeta, {
+  longForm,
+  meta,
+  sceneDurations,
+});
 
 // Passing checks collapse to one line per category: the gate is read for what
 // needs action, not for a 60-line wall of ✅ (#763). Failures and warnings keep

@@ -64,7 +64,9 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // #355: pass 36 → 37, warn 1 → 0 — omitting mediaStrategy is the default
     // chain now, so the old "missing strategy" warn is gone and the contract
     // reports its engaged pass line instead.
-    expect(before.pass).toHaveLength(37);
+    // #739: pass 37 → 38 — the empty-field gate reports one pass for the
+    // pack's stat-reveal scene (240px bigNumber is hero tier); no warn joins.
+    expect(before.pass).toHaveLength(38);
     expect(before.warn).toHaveLength(0);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });

@@ -26,6 +26,25 @@ declare module "../../../lib/safe-zones.mjs" {
   export const BRAND_FONT_STACK: string;
 }
 
+declare module "../../../lib/type-scale.mjs" {
+  export type TypeBand = { min: number; max: number | null };
+  export const TYPE_TIERS: {
+    label: TypeBand;
+    supporting: TypeBand;
+    hero: TypeBand;
+  };
+  export const EMPTY_FIELD: {
+    maxObjectPx: number;
+    minFrames: number;
+    visualTypes: readonly string[];
+  };
+  export function tierForSize(px: number): "label" | "supporting" | "hero" | null;
+  export function isEmptyField(input: {
+    largestObjectPx: number | null | undefined;
+    frames?: number | null;
+  }): boolean;
+}
+
 declare module "../../../lib/timeline.mjs" {
   export const FPS: number;
   export const SCENE_BUFFER: number;
