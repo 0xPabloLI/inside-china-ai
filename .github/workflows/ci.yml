@@ -298,7 +298,7 @@ jobs:
     # against a source palette, so runner OS must match the target platform
     # (README: Node arm64 + brew ffmpeg).
     runs-on: macos-latest
-    # Eight suites, ~230 s serially on an M2 Pro once every assertion goes through
+    # Nine suites, ~240 s serially on an M2 Pro once every assertion goes through
     # `__tests__/remotion-still.mjs` (#1097: one bundle + one browser per test
     # file). Before that driver the same eight took 15m42s on the runner, because
     # each still spawned `npx remotion still` — 13.2 s of process, bundle and

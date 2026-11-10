@@ -22,12 +22,18 @@
  * reach of one vitest process; that is why the static contract exists and why
  * this suite runs on the same macOS runner every time.
  *
- * Frames chosen from the fixtures' own documentation:
- *   - scene-gate `baseline-narrative` frame 12 — entrance springs mid-flight,
- *     text gates have already fitted; frame 45 is the settled frame used by
- *     the gate suite.
- *   - media-zoom `zoom` + video frame 118 — exit window (opacity 1, container
- *     scale ≈1.14), real clip content; frame 9 is the entrance window.
+ * One dedicated fixture entry (`remotion/src/render-determinism-fixture.tsx`)
+ * serves both cases, so this suite owns its bundle directory: `remotion-still.mjs`
+ * memoizes one bundle per entry per process but writes it to a fixed path per
+ * entry, so a suite sharing an entry with another would rebuild that directory
+ * mid-render under local parallelism — a failure that would read as a
+ * determinism break.
+ *
+ * Frames:
+ *   - text mode frame 12 — entrance springs mid-flight, text gates have
+ *     already fitted; frame 45 is the settled frame the gate suites use.
+ *   - video mode frame 118 — exit window (opacity 1, container scale ≈1.14),
+ *     real H.264 content; frame 9 is the entrance window.
  *
  * Runs in `pixel-render` (machine-bound: needs the remotion workspace and its
  * headless browser), like every suite that imports `remotion-still.mjs`.
@@ -44,7 +50,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REMOTION_DIR = resolve(__dirname, "..", "remotion");
 const STILL_DIR = join(__dirname, "..", "output", "determinism-stills");
 
-/** Own copy of the real pipeline clip — never the name the zoom suite uses. */
+/** The real pipeline clip, copied under this suite's own basename. */
 const CLIP_NAME = "render-determinism-clip.mp4";
 const SOURCE_CLIP = resolve(
   __dirname,
@@ -58,18 +64,14 @@ const SOURCE_CLIP = resolve(
 const CASES = [
   {
     name: "text-entrance",
-    entry: "src/scene-gate-fixture.tsx",
-    composition: "SceneGateFixture",
-    props: { scenario: "baseline-narrative" },
+    props: { mode: "text" },
     frame: 12,
     contrastFrame: 45,
     covers: "entrance spring + text-gate fitting",
   },
   {
     name: "video-zoom",
-    entry: "src/media-zoom-fixture.tsx",
-    composition: "MediaZoomFixture",
-    props: { scenario: "zoom", asset: "video", fixtureName: CLIP_NAME },
+    props: { mode: "video", clipName: CLIP_NAME },
     frame: 118,
     contrastFrame: 9,
     covers: "H.264 frame extraction + container scale",
@@ -88,22 +90,36 @@ afterAll(() => {
   rmSync(clipPath, { force: true });
 });
 
-const stillCache = new Map();
+/** Fixed per suite: one entry whose bundle directory no other suite writes. */
+const ENTRY = "src/render-determinism-fixture.tsx";
+const COMPOSITION = "RenderDeterminismFixture";
 
-async function still(testCase, frame) {
-  const key = `${testCase.name}@${frame}`;
-  if (stillCache.has(key)) return stillCache.get(key);
-  const out = join(STILL_DIR, `${key.replace("@", "-")}.png`);
+/**
+ * Render one frame to a still. `tag` suffixes the filename and bypasses the
+ * cache; the identical-pair assertion renders the same inputs to two paths
+ * through THIS function, so the pair cannot drift in render options (an option
+ * added to only one copy would make the 0-byte gate compare different renders
+ * and misreport the difference as nondeterminism).
+ */
+async function render(testCase, frame, tag = "") {
+  const out = join(STILL_DIR, `${testCase.name}@${frame}${tag ? `-${tag}` : ""}.png`);
   await renderStill({
-    entry: testCase.entry,
-    composition: testCase.composition,
+    entry: ENTRY,
+    composition: COMPOSITION,
     output: out,
     props: testCase.props,
     frame,
     timeout: 300_000,
   });
-  stillCache.set(key, out);
   return out;
+}
+
+const stillCache = new Map();
+
+async function still(testCase, frame) {
+  const key = `${testCase.name}@${frame}`;
+  if (!stillCache.has(key)) stillCache.set(key, await render(testCase, frame));
+  return stillCache.get(key);
 }
 
 /**
@@ -149,9 +165,9 @@ describe("frame-identical re-render (#734)", { timeout: 600_000 }, () => {
     describe(`${testCase.name} — ${testCase.covers}`, () => {
       it("renders the same frame twice with zero pixel differences", async () => {
         const first = await still(testCase, testCase.frame);
-        // Second independent render: fresh page load, same bundle. Cached?  No:
-        // `still()` is keyed per (case, frame) and this is the second call.
-        const second = await renderAgain(testCase, "rerun");
+        // Second independent render to its own path: `render()` bypasses the
+        // still cache and goes through the same option set as the first.
+        const second = await render(testCase, testCase.frame, "rerun");
         const diff = pixelDiff(first, second);
         console.log(
           `[evidence] ${testCase.name} frame ${testCase.frame} (${diff.size}): ${diff.differingBytes} differing bytes`,
@@ -176,17 +192,3 @@ describe("frame-identical re-render (#734)", { timeout: 600_000 }, () => {
     });
   }
 });
-
-/** Render the exact same inputs to a second path, bypassing the still cache. */
-async function renderAgain(testCase, tag) {
-  const out = join(STILL_DIR, `${testCase.name}@${testCase.frame}-${tag}.png`);
-  await renderStill({
-    entry: testCase.entry,
-    composition: testCase.composition,
-    output: out,
-    props: testCase.props,
-    frame: testCase.frame,
-    timeout: 300_000,
-  });
-  return out;
-}
