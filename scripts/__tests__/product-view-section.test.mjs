@@ -1,7 +1,7 @@
 /**
  * `scripts/product-view-section.mjs` — the final report quotes a judged section.
  *
- * §9 step 8 has three surfaces: the PR body, the closing comment, the final
+ * §9 steps 8–9 have three surfaces: the PR body, the closing comment, the final
  * report. The first two have mechanical gates (#810, #966). The third is chat
  * text, so CI has no input to judge and a harness hook can only guess from a
  * transcript. The answer is not a third gate but one fewer surface to author:

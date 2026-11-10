@@ -121,9 +121,9 @@ Completion criterion: close the terminal and imagine a colleague opens a fresh o
 - 改动：<一句话，细节归 diff 与 PR body>
 - 证据：<测试数字 + 一条真机/真实数据结果，细目归测试与 CI>
 - 机制：<一句，细节归 runbook 或代码注释>
-- 遗留：<一句，没有就写「无」>
+- 遗留：<一句，没有就写「无」；真正 N/A 的条件分支写在这里>
 
-超出这四行的内容各有归宿：变更清单归 diff 与 PR body、验收细目归测试与 CI、机制细节归 L1 文档、逐步实现理由归 commit message、review 往返留在 PR 讨论串（那里就是它的发生地，线程持久，抄一份只是多一个会漂移的副本）。四行成节不是排版偏好：`scripts/product-view-section.mjs` 的 `extractSection` 按标题切到下一个同级标题，把明细并进 `## 产品视角` 会让整段记录被渲染进最终汇报，产品视角反而被淹没。
+超出这四行的内容各有归宿：变更清单归 diff 与 PR body、验收细目归测试与 CI、机制细节归 L1 文档、逐步实现理由归 commit message、review 往返留在 PR 讨论串（那里就是它的发生地，线程持久，抄一份只是多一个会漂移的副本）。四行成节不是排版偏好：`scripts/product-view-section.mjs` 的 `extractSection` 按标题切到下一个**同级或更高级**标题为止，更深的 `###` 会被并进本节——所以证据与明细放在记录自己的 `##` 标题下；并进 `## 产品视角` 会让整段记录被渲染进最终汇报，产品视角反而被淹没。
 
 The final report quotes the record's product-view section instead of restating it: `scripts/product-view-section.mjs <N>` prints it, and the report pastes that output (why there is no third gate, and what remains unenforced: `implementation-workflow.md` §9 step 9 and `docs/archive/reviews/product-view-gates-history-2026-11.md`).
 
