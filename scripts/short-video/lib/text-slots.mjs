@@ -569,6 +569,31 @@ const FIELD_ALIASES = {
 };
 
 /**
+ * Read a contract field's value from a scene's texts, resolving visualType
+ * aliases (`data.statLabel` renders through the `label` slot).
+ *
+ * Consumers that walk REMOTION_SLOT_MAP need the same alias resolution the
+ * renderer and `assertKnownTextFields` use; without it a data scene's label
+ * looks absent to the contract and the empty-field check (#739) under-reads
+ * the scene's largest object.
+ *
+ * @param {string} visualType
+ * @param {Record<string, unknown>|undefined} texts
+ * @param {string} field - contract field name (post-alias)
+ * @returns {unknown} the declared value, or undefined when absent
+ */
+export function textFieldValue(visualType, texts, field) {
+  const t = texts ?? {};
+  if (t[field] !== undefined && t[field] !== null) return t[field];
+  const aliases = FIELD_ALIASES[visualType] ?? {};
+  for (const [key, aliased] of Object.entries(aliases)) {
+    if (aliased !== field) continue;
+    if (t[key] !== undefined && t[key] !== null) return t[key];
+  }
+  return undefined;
+}
+
+/**
  * Reject text fields a template does not know about (spec decision 51).
  *
  * A typo'd field would otherwise be silently ignored — the template renders
@@ -596,12 +621,9 @@ export function assertKnownTextFields(visualType, layout, texts) {
   // unconditionally, so absent data would ship a hollow scene (T9, spec
   // audit of the T5 claim). Only ABSENCE fails — an empty string or empty
   // array present under its key stays a deliberate "render nothing" (#34).
-  const missing = groups.rendered.filter((field) => {
-    if (t[field] !== undefined && t[field] !== null) return false;
-    return !Object.entries(aliases).some(
-      ([key, aliased]) => aliased === field && t[key] !== undefined && t[key] !== null,
-    );
-  });
+  const missing = groups.rendered.filter(
+    (field) => textFieldValue(visualType, t, field) === undefined,
+  );
   if (missing.length > 0) {
     throw new Error(
       `Rendered text field(s) ${missing.map((f) => `"${f}"`).join(", ")} missing from ` +

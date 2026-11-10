@@ -49,7 +49,11 @@ import {
   resolveRenderLayout,
   slotId,
   slotCharBudget,
+  SLOT_FIELDS,
+  textFieldValue,
 } from "./text-slots.mjs";
+import { EMPTY_FIELD, isEmptyField, tierForSize, TYPE_TIERS } from "./type-scale.mjs";
+import { sceneClipFrames } from "./timeline.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
 import { skipsMediaSourcing, sceneClaimPhrases, isUsableSearchHints } from "./claim-keywords.mjs";
@@ -1692,6 +1696,160 @@ export function checkTextWidthBudget(scenes) {
   return results;
 }
 
+// ─── Information type scale + empty-field rule (#739) ───
+
+const EMPTY_FIELD_TYPES = new Set(EMPTY_FIELD.visualTypes);
+
+/**
+ * Largest text object a governed scene declares, in px.
+ *
+ * Reads the template's own contract (`REMOTION_SLOT_MAP` for the layout the
+ * renderer will resolve) so a field the template does not draw cannot make a
+ * scene look full. Field values go through `textFieldValue` for the visualType
+ * aliases (`data.statLabel` → `label`).
+ *
+ * @param {object} scene
+ * @returns {{px: number, field: string}|null} null when nothing measurable renders
+ */
+function largestDeclaredObject(scene) {
+  const layout = resolveRenderLayout(scene);
+  const groups = REMOTION_SLOT_MAP[scene.visualType]?.[layout];
+  if (!groups) return null;
+  let largest = 0;
+  let field = null;
+  for (const name of [...groups.rendered, ...groups.optional]) {
+    const value = textFieldValue(scene.visualType, scene.texts, name);
+    if (value === undefined) continue;
+    if (typeof value === "string" && value.trim() === "") continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    const preferred = SLOT_FIELDS[name]?.preferredSize;
+    if (typeof preferred !== "number") continue;
+    if (preferred > largest) {
+      largest = preferred;
+      field = name;
+    }
+  }
+  return field === null ? null : { px: largest, field };
+}
+
+/**
+ * Empty-field rule (#739): a governed information scene whose largest content
+ * object stays under the supporting band's upper bound has no hero object —
+ * the "small copy + small chip" defect the source survey names.
+ *
+ * Judged on the DECLARED type scale (`preferredSize`), not rendered pixels:
+ * preflight runs before a frame exists, and the design sizes are the thing the
+ * contract can enforce. Scenes carrying a media layer are skipped — the footage
+ * is the content area's largest object, and a missing asset is the
+ * final-media-gate's finding, not this rule's. `opts.sceneDurations` (the
+ * post-render `audio/scene-durations.json` shape, in voiceover seconds)
+ * supplies the real persistence window; the clip is what the viewer sees, so
+ * the window is `sceneClipFrames()` — voiceover plus the recording buffer — not
+ * the raw TTS second count. Without durations the scene itself is the window,
+ * which is the same condition for every clip longer than 45 frames (voiceover
+ * over ~1 s).
+ *
+ * Severity is WARN, matching the source's "mid-level defect": the layouts that
+ * fix these scenes (four information-graphic topologies) are the deferred half
+ * of #739, so this is a named design debt until they land, not a render block.
+ *
+ * @param {object[]} scenes
+ * @param {{sceneDurations?: Array<{sceneId: number, duration: number}>}} [opts]
+ * @returns {Array<{level: string, category: string, check: string, detail?: string, fix?: string}>}
+ */
+export function checkEmptyField(scenes, opts = {}) {
+  // Tolerate a non-array payload (a legacy `{ scenes: [...] }` envelope read
+  // from a persisted output dir): judge the whole shot instead of throwing.
+  const rows = Array.isArray(opts.sceneDurations) ? opts.sceneDurations : [];
+  const durations = new Map(
+    rows
+      .filter((row) => row && Number.isFinite(row.duration))
+      .map((row) => [row.sceneId, row.duration]),
+  );
+  const warns = [];
+  /** @type {Array<{px: number, field: string, frames: number|null}>} */
+  const heroClear = [];
+  /** Clip lengths of scenes that stay small but too short for the rule. */
+  const shortSkips = [];
+  let mediaHeroes = 0;
+  let skipped = 0;
+  scenes.forEach((scene, index) => {
+    if (!EMPTY_FIELD_TYPES.has(scene.visualType)) return;
+    // A rendered media layer IS the content area's largest object (background,
+    // split or bottom band — every media layout gives it a large field). The
+    // rule exists to catch "small copy + small chip", not a shot carried by
+    // footage; media absence is the final-media-gate's job, not this rule's.
+    // Only count a layer the run will actually draw: `data`/`stat-reveal` never
+    // render media (#831 NO_MEDIA_TYPES), and an empty `media: {}` draws the CSS
+    // fallback — exempting either would silence the rule without a hero.
+    const drawsMedia =
+      (scene.media?.mode === "fullscreen" || !NO_MEDIA_TYPES.has(scene.visualType)) &&
+      typeof scene.media?.path === "string" &&
+      scene.media.path.trim() !== "";
+    if (drawsMedia) {
+      mediaHeroes += 1;
+      return;
+    }
+    const largest = largestDeclaredObject(scene);
+    if (!largest) {
+      skipped += 1;
+      return;
+    }
+    const seconds = durations.get(scene.id ?? index + 1);
+    const frames = seconds === undefined || seconds === null ? null : sceneClipFrames(seconds);
+    if (!isEmptyField({ largestObjectPx: largest.px, frames })) {
+      if (largest.px >= EMPTY_FIELD.maxObjectPx) heroClear.push({ ...largest, frames });
+      else shortSkips.push(frames);
+      return;
+    }
+    const tier = tierForSize(largest.px);
+    const persistence = frames === null ? "whole-scene persistence" : `persists ${frames} frames`;
+    warns.push({
+      level: "warn",
+      category: "Layout",
+      check: `Empty field — ${scene.visualType} ${scene.id}`,
+      detail:
+        `largest declared object ${largest.px}px (${largest.field}, tier ${tier ?? "none"}) ` +
+        `against the ${EMPTY_FIELD.maxObjectPx}px hero line, ${persistence}`,
+      fix:
+        `Give the shot a hero object at the hero tier (${TYPE_TIERS.hero.min}px+: stat / bigNumber / ` +
+        "full-band media) and demote the small copy to supporting; the four infographic topologies " +
+        "are the deferred half of #739 — until they land this is named design debt, not a render block.",
+    });
+  });
+  // One pass row for the whole check, not one per scene: the gate reports what
+  // needs action, and a clean 29-scene pack should not add 12 rows (#763).
+  // Each clause states what it actually knows — a scene skipped by the
+  // persistence window did NOT clear the hero line, so it must not say so.
+  if (warns.length > 0) return warns;
+  const parts = [];
+  if (heroClear.length > 0) {
+    const smallest = heroClear.reduce((a, b) => (b.px < a.px ? b : a));
+    const persistence = smallest.frames === null ? "" : `, clip ${smallest.frames} frames`;
+    parts.push(
+      `${heroClear.length} governed information scene(s) carry a hero object at or above the ` +
+        `${EMPTY_FIELD.maxObjectPx}px hero line (smallest largest-object ${smallest.px}px ` +
+        `${smallest.field}${persistence})`,
+    );
+  }
+  if (shortSkips.length > 0) {
+    parts.push(
+      `${shortSkips.length} stayed under the line within the ${EMPTY_FIELD.minFrames}-frame ` +
+        `window (longest clip ${Math.max(...shortSkips)} frames)`,
+    );
+  }
+  if (mediaHeroes > 0) parts.push(`${mediaHeroes} carried by a media layer`);
+  if (skipped > 0) parts.push(`${skipped} without a measurable text object`);
+  return [
+    {
+      level: "pass",
+      category: "Layout",
+      check: "Empty field",
+      detail: parts.length > 0 ? parts.join("; ") : "no governed information scenes in this pack",
+    },
+  ];
+}
+
 // ─── visualType whitelist (Remotion dispatch table) ───
 
 // The Remotion renderer dispatches on a fixed component set; an unknown
@@ -2561,6 +2719,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkMediaOptOutDeprecation(scenes),
     ...checkLayoutMediaRouting(scenes),
     ...checkContainFitBand(scenes),
+    ...checkEmptyField(scenes, opts),
     ...checkBrollPromptDimensions(scenes),
     ...avatarResults.filter((r) => r.check !== AVATAR_USAGE_CHECK),
   ];
