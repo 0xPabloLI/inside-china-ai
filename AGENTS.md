@@ -30,7 +30,7 @@
 6. **Agent documents**: before creating, moving, deleting, renaming or structurally changing `AGENTS.md`, `docs/`, a skill or any Agent-reached document, load `writing-for-agents` and apply `docs/DOCS-INDEX.md` placement rules.
 7. **Proposals and external facts**: before recommending a code change, architecture, tool, service or model, follow `docs/agents/proposal-review.md`.
 8. **Git actions**: before staging, committing, pushing, opening a PR, working across branches or changing context with unfinished work, follow `docs/agents/git-workflow.md`.
-9. **Delivery**: every delivery opens its close-out — final report, closing delivery-record comment, PR body — with the `## 产品视角` three sentences, pure docs and roadmap accounting included; all three are required for the delivery to count as complete. Form, exemptions and the mechanical gate: `docs/agents/implementation-workflow.md` §9 step 8.
+9. **Delivery**: the final report opens with the section `node scripts/product-view-section.mjs <issue>` prints — `exit ≠ 0` means the delivery is unfinished. The PR body and the closing delivery-record comment carry the same `## 产品视角` three sentences, each behind its own gate; pure docs and roadmap accounting included. Form and exemptions: `docs/agents/implementation-workflow.md` §9 steps 8–9.
 
 ## Hard Safety Gates
 

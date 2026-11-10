@@ -4,7 +4,7 @@
 > 票的实时状态与标签以 `gh issue list --state open` 为准，**本文件不缓存状态**；交付叙事与证据的唯一权威源是 **issue 评论**（`gh issue view <N> --comments`）。
 > 历史叙事与已闭票行 → [`archive/roadmap-inventory-history-2026-10-22.md`](archive/roadmap-inventory-history-2026-10-22.md)；更早（2026-09-24 精简前三表全量、2026-08 起逐轮盘点）→ [`archive/roadmap-tables-archive-2026-09-24.md`](archive/roadmap-tables-archive-2026-09-24.md)、[`archive/roadmap-inventory-history-2026-09-23.md`](archive/roadmap-inventory-history-2026-09-23.md)。
 > **维护规则**：新票分流后加一行；**闭票即删行**（交付记录写进闭票评论）；每轮盘点只改「当前状态」的 Last inventory 一行，且**该行只保留当前轮**——收尾时把上一轮整段追加进 `archive/roadmap-inventory-history-2026-10-22.md`（一句话档案保留最近 4 轮，溢出同法下沉）。表内行同理：**已闭票句子**（`✅` 交付记录）随闭票下沉，行内只留 open 票、串行规则与 seam 约定。这两条纪律是本文件不再长回 200KB+ 的机制。
-> **Last inventory 的篇幅也是纪律**：≤600 字符，只承载四件事——轮次 + 票号 + 一句话结论、PR 与 squash sha、产品验证门定性（`有产出差异` / `无产出差异`）、frontier 复算结果。交付叙事就是这四件事本身，展开的细节分别归 PR body、测试与 CI、L1 文档与 PR 讨论串——每个面的唯一归宿由 `agents/implementation-workflow.md` §9 的「记录是索引，不是副本」定义，本行不另立一份。**新写的一句话档案同理 ≤250 字符**（既有条目保留原详略直到下沉，不给它们做一次无读者的重写）。超长的盘点行不是「记录得更仔细」，而是把票评论抄了第二遍；两份副本必然漂移，且每轮都会被下一个 session 重读一次。
+> **Last inventory 的篇幅也是纪律**：≤600 字符，只承载四件事——轮次 + 票号 + 一句话结论、PR 与 squash sha、产品验证门定性（`有产出差异` / `无产出差异`）、frontier 复算结果。交付叙事就是这四件事本身，展开的细节分别归 PR body、测试与 CI、L1 文档与 PR 讨论串——每个面的唯一归宿由 `agents/issue-tracker.md` 的「交付记录的结构与预算」与 `agents/implementation-workflow.md` §9 第 8–9 步定义，本行不另立一份。**新写的一句话档案同理 ≤250 字符**（既有条目保留原详略直到下沉，不给它们做一次无读者的重写）。超长的盘点行不是「记录得更仔细」，而是把票评论抄了第二遍；两份副本必然漂移，且每轮都会被下一个 session 重读一次。
 > **调研票盘点**：扫到已闭调研票时，按研究文档头部的 `> **下游票**：` 字段核对——下游票是否已收到结论评论、row 是否仍与结论一致；`无下游：<原因>` 跳过。缺回填的补评论并记入本轮盘点（规则与门禁见 `agents/implementation-workflow.md` §9）。
 
 ## 当前状态

@@ -1,7 +1,7 @@
 /**
  * `scripts/product-view-section.mjs` — the final report quotes a judged section.
  *
- * §9 step 8 has three surfaces: the PR body, the closing comment, the final
+ * §9 steps 8–9 have three surfaces: the PR body, the closing comment, the final
  * report. The first two have mechanical gates (#810, #966). The third is chat
  * text, so CI has no input to judge and a harness hook can only guess from a
  * transcript. The answer is not a third gate but one fewer surface to author:
@@ -400,7 +400,7 @@ describe("the docs and the script cannot drift apart", () => {
   // the next agent follows it and gets nothing.
   const root = join(import.meta.dirname, "..", "..");
 
-  it("§9 step 8 sends the report through the script, and the script is there", () => {
+  it("§9 step 9 sends the report through the script, and the script is there", () => {
     const workflow = readFileSync(
       join(root, "docs", "agents", "implementation-workflow.md"),
       "utf8",

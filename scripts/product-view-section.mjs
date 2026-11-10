@@ -2,7 +2,7 @@
 /**
  * Render the `## 产品视角` section the final report quotes (#810 follow-up).
  *
- * §9 step 8 asks for the same three sentences on three surfaces. The PR body and
+ * §9 steps 8–9 ask for the same three sentences on three surfaces. The PR body and
  * the closing comment now have mechanical gates (#810, #966); the final report is
  * chat text, so CI has no input to judge. The two harness options are both wrong:
  * a `Stop` hook cannot tell a progress message from a report, and its only input

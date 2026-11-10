@@ -105,7 +105,7 @@ The tracker is the session's external memory: a fresh session must be able to re
 
 | Produced state                                                                                                                                                                                                                | Home                                                                                     | Done when                                                                                                                                   |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Per-issue delivery record (product impact — the user-visible problem it solved, what the user now sees, and which behaviour or boundary did not change; then a `## 交付摘要` section; structure and budget: `implementation-workflow.md` §9) | Closing comment on the issue, **opening with the marker `交付记录` / `Delivery record` and carrying a `## 产品视角` section** | A reader who never saw the session can see what changed for users (or why nothing did), and resume or audit the work from the comment plus the homes it points to |
+| Per-issue delivery record (product impact — the user-visible problem it solved, what the user now sees, and which behaviour or boundary did not change; then a `## 交付摘要` section; structure and budget: 「交付记录的结构与预算」) | Closing comment on the issue, **opening with the marker `交付记录` / `Delivery record` and carrying a `## 产品视角` section** | A reader who never saw the session can see what changed for users (or why nothing did), and resume or audit the work from the comment plus the homes it points to |
 | Roadmap state (tier, wave, blockers, labels)                                                                                                                                                                                  | `docs/issue-roadmap.md` tier/wave rows                                                   | `gh issue list --state open` and the tables agree                                                                                           |
 | Session narrative (what ran, in order)                                                                                                                                                                                        | the ticket's closing comment + the pilot-log entry; the inventory line atop `docs/issue-roadmap.md` carries round + ticket + PR/squash sha + product-gate verdict + frontier (its four carriers and ≤600-char budget are defined in that file's 维护规则)                        | The next session's "Last inventory" is the newest line and names the frontier                                                               |
 | Commit provenance                                                                                                                                                                                                             | `Session-Id` trailer + pilot-log registration                                            | `git log --all --format=...trailers` resolves every session commit                                                                          |
@@ -114,7 +114,18 @@ The tracker is the session's external memory: a fresh session must be able to re
 
 Completion criterion: close the terminal and imagine a colleague opens a fresh one — if they would need to ask you anything the tracker already could have answered, the offload is incomplete.
 
-The final report quotes the record's product-view section instead of restating it: `scripts/product-view-section.mjs <N>` prints it, and the report pastes that output (why there is no third gate, and what remains unenforced: `implementation-workflow.md` §9 step 8 and §12).
+### 交付记录的结构与预算
+
+产品视角三句按读的人写，不设字数上限——它是全篇唯一被完整读完的部分。三句之后接 `## 交付摘要`，固定四行、每行一句、合计 ≤600 字符：
+
+- 改动：<一句话，细节归 diff 与 PR body>
+- 证据：<测试数字 + 一条真机/真实数据结果，细目归测试与 CI>
+- 机制：<一句，细节归 runbook 或代码注释>
+- 遗留：<一句，没有就写「无」；真正 N/A 的条件分支写在这里>
+
+超出这四行的内容各有归宿：变更清单归 diff 与 PR body、验收细目归测试与 CI、机制细节归 L1 文档、逐步实现理由归 commit message、review 往返留在 PR 讨论串（那里就是它的发生地，线程持久，抄一份只是多一个会漂移的副本）。四行成节不是排版偏好：`scripts/product-view-section.mjs` 的 `extractSection` 按标题切到下一个**同级或更高级**标题为止，更深的 `###` 会被并进本节——所以证据与明细放在记录自己的 `##` 标题下；并进 `## 产品视角` 会让整段记录被渲染进最终汇报，产品视角反而被淹没。
+
+The final report quotes the record's product-view section instead of restating it: `scripts/product-view-section.mjs <N>` prints it, and the report pastes that output (why there is no third gate, and what remains unenforced: `implementation-workflow.md` §9 step 9 and `docs/archive/reviews/product-view-gates-history-2026-11.md`).
 
 That marker is machine-checked: `.github/workflows/issue-tracker-signals.yml` posts a reminder when a non-`wontfix` issue closes with no delivery-record comment, and (#315) the missing case is a ledger, not a one-shot reminder — the closed issue carries `delivery-record-missing`, a later user comment with the marker (or an explicit `无需交付记录` waiver) clears it, a daily recheck escalates once after 3 days, and the backlog is auditable via `gh issue list --label delivery-record-missing --state closed` (grandfathered: only issues closed on/after 2026-09-19, the gate's CI rollout date, participate).
 
