@@ -27,9 +27,10 @@
  *   supporting band, and every 60–110px full-width headline would qualify,
  *   which voids the empty-field rule for exactly the "small copy" defect it
  *   exists to catch. The portrait contract keeps ONE hero floor (150px); a
- *   width-qualified hero belongs to the four information-graphic topologies
- *   (the deferred half of #739), where a layout — not a bare font size —
- *   defines the focal object.
+ *   width-qualified hero belongs to the infographic layout topologies (the
+ *   deferred half of #739; #1215 expands the ruling's four topologies into
+ *   six quantified layouts plus the "多" (many) matrix), where a layout — not a
+ *   bare font size — defines the focal object.
  *
  * The bands leave two deliberate gaps (49–59 and 111–149): "no fourth size"
  * means a declared size must land inside a band, and the gaps make a stray
