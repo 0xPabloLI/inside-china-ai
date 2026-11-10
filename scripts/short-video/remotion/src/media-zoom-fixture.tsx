@@ -37,6 +37,13 @@ type FixtureProps = {
   scenario?: "zoom" | "fade" | "none";
   /** Which fixture asset to render: the real clip or a still frame of it. */
   asset?: "video" | "image";
+  /**
+   * Basename override for the copied asset (#734). The determinism suite
+   * renders a second copy of the clip: both suites copy into and delete from
+   * the same `public/assets/` directory, and vitest runs test files in
+   * parallel locally, so a shared filename is a race, not a shortcut.
+   */
+  fixtureName?: string;
 };
 
 const BASE_VIDEO: MediaField = {
@@ -54,11 +61,16 @@ const BASE_IMAGE: MediaField = {
   overlay: 0,
 };
 
-const FixtureScene: React.FC<FixtureProps> = ({ scenario = "zoom", asset = "video" }) => {
+const FixtureScene: React.FC<FixtureProps> = ({
+  scenario = "zoom",
+  asset = "video",
+  fixtureName,
+}) => {
   const base = asset === "image" ? BASE_IMAGE : BASE_VIDEO;
+  const source = fixtureName ? { ...base, path: `assets/${fixtureName}` } : base;
   return (
     <AbsoluteFill style={{ background: "#000" }}>
-      <MediaBackground media={{ ...base, animation: scenario }} duration={4} />
+      <MediaBackground media={{ ...source, animation: scenario }} duration={4} />
     </AbsoluteFill>
   );
 };

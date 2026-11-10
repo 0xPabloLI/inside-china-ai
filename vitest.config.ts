@@ -55,6 +55,7 @@ const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/media-zoom-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/contrast-media-render.test.mjs", // npx remotion still (#761); runs in `pixel-render` (#1093)
   "scripts/short-video/__tests__/scene-gate-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1093)
+  "scripts/short-video/__tests__/render-determinism.test.mjs", // npx remotion still (#734); runs in `pixel-render`
   "scripts/short-video/__tests__/test-f5-duration.test.mjs", // python subprocess (baseline doc)
   "scripts/short-video/__tests__/text-gate-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/tiktok-video-details.test.mjs", // external fetch

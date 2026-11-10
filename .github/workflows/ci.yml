@@ -281,7 +281,7 @@ jobs:
   # minutes of use; installing the workspace and downloading a browser there
   # would push it into the timeout.
   #
-  # Scope: all eight `npx remotion still` suites (#1087 chose option 3 first,
+  # Scope: all nine `npx remotion still` suites (#1087 chose option 3 first,
   # then 1 — prove a runner renders deterministically, then widen). Steps ① and
   # ② settled the tolerance/retry question, so the widening happened in step ③:
   # five joined `media-focus-render`. The last two, `contrast-media-render` and
@@ -363,8 +363,8 @@ jobs:
       # `--no-file-parallelism`: each suite renders through its own headless
       # browser, so running them together makes the runner's core count the
       # variable — and a CPU-starved render fails as a pixel assertion, which
-      # is indistinguishable from a real framing defect. Serially the eight are
-      # ~230 s on an M2 Pro through `remotion-still.mjs`; before that driver each
+      # is indistinguishable from a real framing defect. Serially the nine are
+      # ~240 s on an M2 Pro through `remotion-still.mjs`; before that driver each
       # assertion spawned its own `npx remotion still`, which is why the same
       # work took 15m42s on the runner. Do not add a suite that spawns the CLI:
       # `__tests__/render-suite-policy.test.mjs` rejects it in the quality job.
@@ -381,7 +381,15 @@ jobs:
       # VITEST_CI_SKIP_ENV_BOUND is deliberately NOT set here — that env gate is
       # what excludes these suites in the quality job, and leaving it unset is
       # how this file opts into running them.
-      - name: Pixel render contracts (8 suites)
+      #
+      # The ninth suite (#734) is the determinism gate: it renders the same
+      # frame twice and requires 0 differing bytes, plus a different-frame
+      # negative control so two blank or stale frames cannot pass. Its static
+      # half (`render-determinism-contract.test.mjs`, which walks the production
+      # module graph and rejects Math.random / Date.now / performance.now /
+      # unseeded random()) runs in `Lint, typecheck, test` — fast enough to catch
+      # the source before this job's render ever runs.
+      - name: Pixel render contracts (9 suites)
         run: |
           npx vitest run --no-file-parallelism --retry=0 \
             scripts/short-video/__tests__/media-focus-render.test.mjs \
@@ -391,14 +399,16 @@ jobs:
             scripts/short-video/__tests__/text-gate-render.test.mjs \
             scripts/short-video/__tests__/avatar-card-render.test.mjs \
             scripts/short-video/__tests__/contrast-media-render.test.mjs \
-            scripts/short-video/__tests__/scene-gate-render.test.mjs
+            scripts/short-video/__tests__/scene-gate-render.test.mjs \
+            scripts/short-video/__tests__/render-determinism.test.mjs
 
       # The stills are the evidence trail for a red run: a sampled pixel value
       # says which band landed where, and the PNG says whether the frame was
       # rendered at all (a black frame and a mis-cropped frame fail differently).
-      # Four of the eight persist them (media-focus / media-zoom / media-offset /
-      # contrast-media); text-gate, official-fit, avatar-card and scene-gate
-      # render into `mkdtemp`. The glob
+      # Four of the original eight persist them (media-focus / media-zoom /
+      # media-offset / contrast-media); text-gate, official-fit, avatar-card and
+      # scene-gate render into `mkdtemp`, and the determinism suite (#734) is the
+      # fifth persisting one (`determinism-stills/`). The glob
       # covers every `*-stills` directory under the gitignored `output/`, so a
       # suite that starts persisting is picked up without touching this step.
       - name: Upload stills
