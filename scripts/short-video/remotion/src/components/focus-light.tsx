@@ -21,8 +21,9 @@
  * can run on the shadow while the content stays opaque).
  */
 import { useCurrentFrame } from "remotion";
-import type { CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 import {
+  LIGHT_TONES,
   focusLightStyle,
   lightKindFor,
   lightStateAt,
@@ -32,8 +33,8 @@ import {
 } from "../../../lib/focus-light.mjs";
 import { secToFrames } from "./shared";
 
-/** The lib's tones — a key set of `LIGHT_TONES`, declared here for TS. */
-type LightTone = "amber" | "blue" | "red";
+/** The lib's tones, taken from the object rather than re-typed by hand. */
+type LightTone = keyof typeof LIGHT_TONES;
 
 const DARK: CSSProperties = {};
 
@@ -53,12 +54,18 @@ export function useFocusLight(
 ): CSSProperties {
   const frame = useCurrentFrame();
   const plan = lightPlanFor(visualType);
-  if (!plan) return DARK;
   const durationFrames =
     Number.isFinite(duration) && duration > 0 ? secToFrames(duration) : undefined;
   // A plan that breaks the budget throws here, i.e. the render fails. That is
-  // the point: the rule is a contract, not a review note.
-  const timeline = resolveLightTimeline(plan, { durationFrames });
+  // the point: the rule is a contract, not a review note. Memoized per target:
+  // Remotion re-renders every frame, and the schedule is constant for the shot.
+  // The hook stays unconditional (Rules of Hooks) — a template without a plan
+  // simply resolves to null.
+  const timeline = useMemo(
+    () => (plan ? resolveLightTimeline(plan, { durationFrames }) : null),
+    [plan, durationFrames],
+  );
+  if (!plan || !timeline) return DARK;
   return focusLightStyle(
     { tone: opts.tone ?? lightToneFor(plan, target), kind: lightKindFor(plan, target) },
     lightStateAt(timeline, target, frame),

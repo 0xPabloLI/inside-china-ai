@@ -3,7 +3,7 @@
  * Scene 9 in the Unitree video (China 97% market share).
  *
  * Light (#738): the number is the protagonist (white flash as it stamps in),
- * the label takes the focus at 0.6s. The centre wash behind the number is gone;
+ * the label takes the focus at 1.1s. The centre wash behind the number is gone;
  * the number itself is now what carries the light.
  */
 import { useCurrentFrame, interpolate } from "remotion";

@@ -6,7 +6,7 @@
  * All font sizes, colors, positions are精确对照 from its templateCss().
  *
  * Light (#738): the brand lockup is the protagonist and flashes as it lands;
- * the action stamp takes the focus at 1.0s — the ask is the one thing that may
+ * the action stamp takes the focus at 1.5s — the ask is the one thing that may
  * pull the eye off the brand.
  */
 import { staticFile, CanvasImage, Interactive } from "remotion";
@@ -145,7 +145,7 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
                         color: COLOR.amber,
                         letterSpacing: "2px",
                         textAlign: "center",
-                        // #738: the ask takes the focus at 1.0s.
+                        // #738: the ask takes the focus at 1.5s.
                         ...actionLight,
                       }}
                     >

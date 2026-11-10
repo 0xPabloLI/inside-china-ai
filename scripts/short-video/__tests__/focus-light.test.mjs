@@ -1,11 +1,14 @@
 /**
  * Protagonist light contract (#738).
  *
- * Independent expectations: the three tiers, the 8-frame extinguish and the
- * 3–6 frame flash are the source rules (anything2explainer `reference/
- * composition-and-light.md` §2), not values read back from the module. The
- * per-frame budget is checked by walking every frame of a representative scene
- * rather than by trusting the resolver's own arithmetic.
+ * The tier ordering, the 8-frame extinguish and the 3–6 frame flash are the
+ * source rules (anything2explainer `reference/composition-and-light.md` §2),
+ * pinned here as literal expectations. Two kinds of test live below: the
+ * frame-walk ones exercise the public resolver over every frame of a
+ * representative scene, and the plan-shaped ones are contract guards — they
+ * pass a plan through `validateLightPlan` and assert the violation is named,
+ * which is a smoke test of the validator, not an independent reading of the
+ * rule.
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -30,10 +33,12 @@ const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 describe("three tiers", () => {
   it("is exactly bloom < soft < flash, and nothing else", () => {
     expect(Object.keys(LIGHT_TIERS)).toEqual(["bloom", "soft", "flash"]);
-    // The tiers are ordered by brightness: structure line < focus < white flash.
+    // Ordered by brightness: structure line < focus < white flash.
     expect(LIGHT_TIERS.bloom.borderAlpha).toBeLessThan(LIGHT_TIERS.soft.focus.farAlpha);
     expect(LIGHT_TIERS.soft.focus.farAlpha).toBeLessThan(LIGHT_TIERS.soft.focus.alpha);
     expect(LIGHT_TIERS.soft.focus.alpha).toBeLessThan(LIGHT_TIERS.flash.alpha);
+    // The bloom has no level: it is constant, so nothing can brighten it.
+    expect(LIGHT_TIERS.bloom).not.toHaveProperty("level");
   });
 
   it("keeps the protagonist lit but below the current focus", () => {
@@ -124,18 +129,32 @@ describe("per-frame budget", () => {
   });
 
   it("takes exactly 8 frames to reach the resting level after a transfer", () => {
-    const transfer = timeline.beats[1].litFrom; // statLabel takes over at 0.5s
+    const transfer = timeline.beats[1].litFrom; // statLabel takes over at 1.0s
     const resting = LIGHT_TIERS.soft.protagonist.level;
-    // First frame of the transfer is already below full…
-    expect(lightStateAt(timeline, "stat", transfer).level).toBeLessThan(1);
-    // …and the window is exactly 8 frames long.
-    expect(lightStateAt(timeline, "stat", transfer + 7).level).toBeCloseTo(resting, 6);
-    expect(lightStateAt(timeline, "stat", transfer + 8).level).toBeCloseTo(resting, 6);
+    const ramp = [];
+    for (let offset = 0; offset < FOCUS_LIGHT.transferOffFrames; offset += 1) {
+      ramp.push(lightStateAt(timeline, "stat", transfer + offset).level);
+    }
+    // The transfer frame is already below full: only ONE light is ever at 1.0.
+    expect(ramp[0]).toBeLessThan(1);
+    // Strictly decreasing, and the window's last frame IS the resting level —
+    // the light is fully out 8 frames after the next one lit.
+    for (let i = 1; i < ramp.length; i += 1) expect(ramp[i]).toBeLessThan(ramp[i - 1]);
+    expect(ramp[ramp.length - 1]).toBeCloseTo(resting, 6);
+    // Six frames in it is still visibly above the resting level: this is what
+    // pins the window to 8 rather than any shorter N.
+    expect(lightStateAt(timeline, "stat", transfer + 6).level).toBeGreaterThan(resting);
+    // …and it stays there.
+    expect(
+      lightStateAt(timeline, "stat", transfer + FOCUS_LIGHT.transferOffFrames).level,
+    ).toBeCloseTo(resting, 6);
   });
 
   it("runs the white flash for the declared frames and no longer", () => {
     const beat = timeline.beats[0];
-    expect(lightStateAt(timeline, "stat", beat.litFrom).flash).toBeGreaterThan(0.8);
+    // Peak on the beat frame, then a linear decay that is gone one frame after
+    // the declared window.
+    expect(lightStateAt(timeline, "stat", beat.litFrom).flash).toBe(LIGHT_TIERS.flash.alpha);
     expect(lightStateAt(timeline, "stat", beat.litFrom + beat.flash).flash).toBe(0);
   });
 
@@ -213,13 +232,6 @@ describe("CSS surface", () => {
     const style = focusLightStyle({ tone: "blue", kind: "box" }, { level: 1, flash: 0 });
     expect(style.textShadow).toBeUndefined();
     expect(style.boxShadow).toContain("rgba(77,139,255");
-  });
-
-  it("glows a graphic through two drop-shadow filters — the source's 双层柔光", () => {
-    const style = focusLightStyle({ tone: "blue", kind: "graphic" }, { level: 1, flash: 0 });
-    expect(style.textShadow).toBeUndefined();
-    expect(style.boxShadow).toBeUndefined();
-    expect(style.filter.match(/drop-shadow\(/g)).toHaveLength(2);
   });
 
   it("is a pure function of its input (same state, same string)", () => {

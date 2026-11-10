@@ -9,7 +9,7 @@
  */
 import { staticFile, CanvasImage } from "remotion";
 import { SLOT_FIELDS } from "../../../lib/text-slots.mjs";
-import { LIGHT_TIERS } from "../../../lib/focus-light.mjs";
+import { LIGHT_TIERS, LIGHT_TONES } from "../../../lib/focus-light.mjs";
 import { BRAND_BAR, CANVAS, COLOR, SAFE_ZONES, WATERMARK_POS } from "./shared";
 import { TextGate } from "./text-gate";
 import type { ReactNode } from "react";
@@ -89,16 +89,14 @@ export const Scanlines: React.FC = () => (
  * empty, the fix is a hero object, not a wash.
  */
 export const FrameGlow: React.FC<{ variant?: "amber" | "blue" }> = ({ variant = "amber" }) => {
-  const c =
-    variant === "blue"
-      ? { border: `rgba(77,139,255,${LIGHT_TIERS.bloom.borderAlpha})` }
-      : { border: `rgba(245,158,11,${LIGHT_TIERS.bloom.borderAlpha})` };
+  const [r, g, b] = LIGHT_TONES[variant];
+  const border = `rgba(${r},${g},${b},${LIGHT_TIERS.bloom.borderAlpha})`;
   return (
     <div
       style={{
         position: "absolute",
         inset: 0,
-        border: `${LIGHT_TIERS.bloom.borderPx}px solid ${c.border}`,
+        border: `${LIGHT_TIERS.bloom.borderPx}px solid ${border}`,
         pointerEvents: "none",
         zIndex: 99,
       }}

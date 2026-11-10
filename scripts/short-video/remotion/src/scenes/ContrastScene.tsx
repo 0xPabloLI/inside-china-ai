@@ -10,7 +10,7 @@
  * silently (two real scenes had product photos that never rendered).
  *
  * Light (#738): the framing claim is the protagonist and flashes as it lands;
- * at 0.9s the right-hand answer card takes the focus (a box light). The left
+ * at 1.3s the right-hand answer card takes the focus (a box light). The left
  * card stays dark — in a contrast, the side being argued against is not the
  * subject.
  */

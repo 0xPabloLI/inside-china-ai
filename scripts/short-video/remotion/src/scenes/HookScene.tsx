@@ -325,8 +325,9 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                       // false-fail Fit (T5).
                       lineHeight: 1.2,
                       whiteSpace: "nowrap",
-                      // #738: protagonist light (white flash on landing, then
-                      // the resting level) replaces the ad-hoc textShadow.
+                      // #738: the number is the protagonist at its resting
+                      // level — the cover frame is composed, so there is no
+                      // entrance to flash on (the reveal is the event).
                       ...numberLight,
                     }}
                   >

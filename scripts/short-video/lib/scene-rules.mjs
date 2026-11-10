@@ -1899,18 +1899,12 @@ export function checkFocusLight(scenes) {
       skipped += 1;
       continue;
     }
-    governed += 1;
+    // A template without a plan renders unlit; the contract test pins
+    // LIGHT_PLANS against REMOTION_SLOT_MAP, so the missing plan fails CI
+    // instead of turning every scene of the pack into a warning.
     const plan = lightPlanFor(scene.visualType);
-    if (!plan) {
-      warns.push({
-        level: "warn",
-        category: "Layout",
-        check: `Protagonist light — ${scene.visualType} ${scene.id}`,
-        detail: "template has no light plan, so nothing in this shot carries the light",
-        fix: `Declare one in LIGHT_PLANS (lib/focus-light.mjs): the contract field that is the subject, plus its beats.`,
-      });
-      continue;
-    }
+    if (!plan) continue;
+    governed += 1;
     const rendered = plan.protagonist.filter((field) => {
       const value = textFieldValue(scene.visualType, scene.texts, field);
       if (Array.isArray(value)) return value.length > 0;

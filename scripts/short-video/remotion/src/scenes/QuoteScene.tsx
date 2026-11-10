@@ -3,7 +3,7 @@
  * Scene 6 in the Unitree video ("filing admits robots can't do real work").
  *
  * Light (#738): the quotation is the protagonist and flashes white as it
- * lands; the attribution takes the focus at 1.3s. The red corner wash is gone —
+ * lands; the attribution takes the focus at 1.8s. The red corner wash is gone —
  * it was a second, competing key light with no subject.
  */
 import { useCurrentFrame, interpolate } from "remotion";

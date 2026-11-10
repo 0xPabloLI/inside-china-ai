@@ -4,7 +4,7 @@
  * Scene 3 in the Unitree video (8,288× oversubscribed).
  *
  * Light (#738): the stat is the protagonist and lands with a white flash; the
- * label takes the focus half a second later. The decorative corner wash that
+ * label takes the focus once the number has settled. The decorative corner wash that
  * used to sit behind this scene is gone — a full-frame gradient is not a
  * subject.
  */

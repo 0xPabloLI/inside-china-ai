@@ -27,9 +27,11 @@
  * ## Where the light lives
  *
  * The light is a STYLE on the element itself — `textShadow` for text,
- * `boxShadow` for a card, `filter: drop-shadow()` for a graphic — not an extra
- * positioned layer. Three reasons, all of them structural rather than
- * cosmetic:
+ * `boxShadow` for a card — not an extra positioned layer. (No template's
+ * subject is a bare graphic today: the CTA logo rides inside the `brand` text
+ * lockup and the hook's mark is supporting cast. When one is, it takes the same
+ * path with `filter: drop-shadow()`, which is why `kind` exists at all.) Three
+ * reasons, all of them structural rather than cosmetic:
  *
  * 1. It follows the object by construction. A glow div would need the object's
  *    box, and Remotion renders in Node with no layout pass: any measurement is
@@ -60,12 +62,15 @@
  * `resolveLightTimeline()` is the single source both consumers read: the
  * renderer (`remotion/src/components/focus-light.tsx`) turns it into CSS per
  * frame, and `checkFocusLight()` (scene-rules.mjs) binds it to the content that
- * will actually render. The budget is checked, not asserted by prose:
+ * will actually render.
  *
- * - at most one target at full level at any frame (`maxConcurrent`),
- * - the outgoing light takes exactly `transferOffFrames` to reach its resting
- *   level, and two beats cannot overlap that window,
- * - a flash is an integer 3–6 frames.
+ * The budget holds BY CONSTRUCTION, which is why there is no runtime branch
+ * counting lights: a beat's window runs to the next beat's start, beats are
+ * validated to be at least `transferOffFrames` apart and each target may carry
+ * one beat, so at most one target is ever at `level 1` on any frame
+ * (`maxConcurrent` names that rule for the gate and the docs). The outgoing
+ * light then takes exactly `transferOffFrames` to reach its resting level, and
+ * a flash is an integer 3–6 frames.
  *
  * There is no `remotion` import here, so the contract is testable in plain Node
  * (`__tests__/focus-light.test.mjs`) like `type-scale.mjs`.
@@ -80,7 +85,7 @@ import { FPS } from "./timeline.mjs";
  * Tone → RGB. Mirrors `COLOR` in `remotion/src/tokens.ts`; the contract test
  * asserts the two agree, so a palette change cannot leave a stale copy here.
  *
- * @type {Record<string, [number, number, number]>}
+ * @type {{amber: [number, number, number], blue: [number, number, number], red: [number, number, number]}}
  */
 export const LIGHT_TONES = {
   amber: [245, 158, 11],
@@ -108,9 +113,17 @@ export const LIGHT_TONES = {
  */
 export const LIGHT_TIERS = {
   bloom: {
-    /** Structure-line border width, px (unchanged from the retired wash). */
+    /**
+     * Structure-line border width, px (unchanged from the retired wash).
+     *
+     * The source calls this tier "白 bloom" because its own design is white
+     * line-art on black. Ours is not: the frame line is brand chrome, and the
+     * palette deviation is the same one that refuses its purple key colour.
+     * What the tier MEANS — always on, no subject, the lowest of the three —
+     * is what is copied, and `borderAlpha` is what keeps it lowest.
+     */
     borderPx: 3,
-    /** Border alpha per tone — the line is visible in every shot. */
+    /** Border alpha per tone — visible in every shot, never an emphasis. */
     borderAlpha: 0.2,
   },
   soft: {
@@ -127,9 +140,12 @@ export const LIGHT_TIERS = {
       hardShadow: { y: 4, blurPx: 12, alpha: 0.55 },
     },
     protagonist: {
-      blurPx: 32,
-      farBlurPx: 96,
-      /** Resting level = a fraction of `focus.alpha` (主角常亮，但不抢当前重点). */
+      /**
+       * Resting level = a fraction of `focus.alpha` (主角常亮，但不抢当前重点).
+       * The blur radii are the focus tier's: the protagonist differs only in
+       * how hard it glows, not in the shape of the glow — a second pair of
+       * radii would be a second look, not a second tier.
+       */
       level: 0.55,
     },
   },
@@ -172,7 +188,7 @@ export const FOCUS_LIGHT = {
  * inside an amber frame) and `kind` overrides the CSS family for one target (a
  * card that takes the focus in a text plan).
  *
- * @type {Record<string, {protagonist: string[], tone: keyof typeof LIGHT_TONES, kind: "text"|"box"|"graphic", beats: Array<{target: string, at: number, flash?: number, kind?: "text"|"box"|"graphic", tone?: keyof typeof LIGHT_TONES}>}>}
+ * @type {Record<string, {protagonist: string[], tone: keyof typeof LIGHT_TONES, kind: "text"|"box", beats: Array<{target: string, at: number, flash?: number, kind?: "text"|"box", tone?: keyof typeof LIGHT_TONES}>}>}
  */
 export const LIGHT_PLANS = {
   /** The hook's focal claim/number is the subject; the reveal is the event. */
@@ -290,9 +306,9 @@ export function lightPlanFor(visualType) {
  * declares one, else the plan's. A template can mix them — a text headline and
  * a card that takes the focus later (contrast).
  *
- * @param {{kind: "text"|"box"|"graphic", beats: Array<{target: string, kind?: "text"|"box"|"graphic"}>}} plan
+ * @param {{kind: "text"|"box", beats: Array<{target: string, kind?: "text"|"box"}>}} plan
  * @param {string} target
- * @returns {"text"|"box"|"graphic"}
+ * @returns {"text"|"box"}
  */
 export function lightKindFor(plan, target) {
   const beat = plan.beats?.find((entry) => entry.target === target);
@@ -329,8 +345,8 @@ function toFrame(seconds, fps) {
  *
  * `kind` picks the property: text glows through `textShadow` (so the light
  * follows the glyph outline, and the hard drop shadow stays legible over a
- * bright frame), a card through `boxShadow`, a graphic through
- * `drop-shadow()` filters. The flash is white and sits on top of the tone.
+ * bright frame), a card through `boxShadow`. The flash is white and sits on top
+ * of the tone.
  *
  * Alphas are rounded to 1/1000 so the declaration is stable frame to frame
  * (the same input always produces the same string — #734's determinism
@@ -339,48 +355,29 @@ function toFrame(seconds, fps) {
  * Returns `{}` when the target is dark, so an unlit element keeps exactly the
  * style it had before this ticket.
  *
- * @param {{tone: keyof typeof LIGHT_TONES, kind: "text"|"box"|"graphic"}} plan
+ * @param {{tone: keyof typeof LIGHT_TONES, kind: "text"|"box"}} spec
  * @param {{level: number, flash: number}} state
  * @returns {{textShadow?: string, boxShadow?: string, filter?: string}}
  */
-export function focusLightStyle(plan, state) {
+export function focusLightStyle(spec, state) {
   const { level, flash } = state;
   if (!(level > 0) && !(flash > 0)) return {};
-  const [r, g, b] = LIGHT_TONES[plan.tone] ?? LIGHT_TONES.amber;
+  const [r, g, b] = LIGHT_TONES[spec.tone] ?? LIGHT_TONES.amber;
   const soft = LIGHT_TIERS.soft.focus;
-  const nearAlpha = round3(level * soft.alpha);
-  const farAlpha = round3(level * soft.farAlpha);
-  const flashAlpha = round3(flash);
-
-  const tone = (alpha) => `rgba(${r},${g},${b},${alpha})`;
-  const white = (alpha) => `rgba(255,255,255,${alpha})`;
-
-  if (plan.kind === "box") {
-    const shadows = [];
-    if (flashAlpha > 0) shadows.push(`0 0 ${LIGHT_TIERS.flash.blurPx}px ${white(flashAlpha)}`);
-    if (nearAlpha > 0) shadows.push(`0 0 ${soft.blurPx}px ${tone(nearAlpha)}`);
-    if (farAlpha > 0) shadows.push(`0 0 ${soft.farBlurPx}px ${tone(farAlpha)}`);
-    return shadows.length > 0 ? { boxShadow: shadows.join(", ") } : {};
+  const layers = [];
+  if (flash > 0) {
+    layers.push(`0 0 ${LIGHT_TIERS.flash.blurPx}px rgba(255,255,255,${round3(flash)})`);
   }
-
-  if (plan.kind === "graphic") {
-    const filters = [];
-    if (flashAlpha > 0)
-      filters.push(`drop-shadow(0 0 ${LIGHT_TIERS.flash.blurPx}px ${white(flashAlpha)})`);
-    if (nearAlpha > 0) filters.push(`drop-shadow(0 0 ${soft.blurPx}px ${tone(nearAlpha)})`);
-    if (farAlpha > 0) filters.push(`drop-shadow(0 0 ${soft.farBlurPx}px ${tone(farAlpha)})`);
-    return filters.length > 0 ? { filter: filters.join(" ") } : {};
-  }
-
-  const shadows = [];
-  if (flashAlpha > 0) shadows.push(`0 0 ${LIGHT_TIERS.flash.blurPx}px ${white(flashAlpha)}`);
-  if (nearAlpha > 0) shadows.push(`0 0 ${soft.blurPx}px ${tone(nearAlpha)}`);
-  if (farAlpha > 0) shadows.push(`0 0 ${soft.farBlurPx}px ${tone(farAlpha)}`);
   if (level > 0) {
-    const hard = soft.hardShadow;
-    shadows.push(`0 ${hard.y}px ${hard.blurPx}px rgba(0,0,0,${hard.alpha})`);
+    layers.push(`0 0 ${soft.blurPx}px rgba(${r},${g},${b},${round3(level * soft.alpha)})`);
+    layers.push(`0 0 ${soft.farBlurPx}px rgba(${r},${g},${b},${round3(level * soft.farAlpha)})`);
   }
-  return shadows.length > 0 ? { textShadow: shadows.join(", ") } : {};
+  if (spec.kind === "box") return { boxShadow: layers.join(", ") };
+  // Text keeps a hard drop shadow under the glow: white copy over footage needs
+  // the contrast, and the source's 大字 form asks for it explicitly.
+  const hard = soft.hardShadow;
+  layers.push(`0 ${hard.y}px ${hard.blurPx}px rgba(0,0,0,${hard.alpha})`);
+  return { textShadow: layers.join(", ") };
 }
 
 /**
@@ -416,8 +413,8 @@ export function validateLightPlan(plan, opts = {}) {
       `tone "${String(plan.tone)}" is not one of ${Object.keys(LIGHT_TONES).join(" / ")}`,
     );
   }
-  if (!["text", "box", "graphic"].includes(plan.kind)) {
-    errors.push(`kind "${String(plan.kind)}" must be text / box / graphic`);
+  if (!["text", "box"].includes(plan.kind)) {
+    errors.push(`kind "${String(plan.kind)}" must be text / box`);
   }
 
   const beats = plan.beats;
@@ -445,11 +442,13 @@ export function validateLightPlan(plan, opts = {}) {
         errors.push(`${where}.flash must be an integer ${min}–${max} frames`);
       }
     }
-    if (beat.kind !== undefined && !["text", "box", "graphic"].includes(beat.kind)) {
-      errors.push(`${where}.kind must be text / box / graphic when present`);
+    if (beat.kind !== undefined && !["text", "box"].includes(beat.kind)) {
+      errors.push(`${where}.kind must be text / box when present`);
     }
     if (beat.tone !== undefined && !(beat.tone in LIGHT_TONES)) {
-      errors.push(`${where}.tone must be one of ${Object.keys(LIGHT_TONES).join(" / ")} when present`);
+      errors.push(
+        `${where}.tone must be one of ${Object.keys(LIGHT_TONES).join(" / ")} when present`,
+      );
     }
     const previous = beats[index - 1];
     if (previous && Number.isFinite(previous.at) && Number.isFinite(beat.at)) {
@@ -548,9 +547,6 @@ export function lightStateAt(timeline, target, frame) {
         // next one lights, i.e. two full lights in one frame.
         level = 1 - (1 - resting) * ((elapsed + 1) / offFrames);
       }
-    } else {
-      // Before this target's beat it can still be the protagonist at rest.
-      level = resting;
     }
     let flash = 0;
     const flashFrames = beat.flash ?? 0;
