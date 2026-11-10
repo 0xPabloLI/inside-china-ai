@@ -400,7 +400,7 @@ describe("the docs and the script cannot drift apart", () => {
   // the next agent follows it and gets nothing.
   const root = join(import.meta.dirname, "..", "..");
 
-  it("§9 step 8 sends the report through the script, and the script is there", () => {
+  it("§9 step 9 sends the report through the script, and the script is there", () => {
     const workflow = readFileSync(
       join(root, "docs", "agents", "implementation-workflow.md"),
       "utf8",

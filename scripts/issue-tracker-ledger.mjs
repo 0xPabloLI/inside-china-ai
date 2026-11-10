@@ -142,7 +142,7 @@ export function productViewReminder() {
   return [
     "⚠️ **交付记录缺产品视角三句** —— 有带 `交付记录` 标记的评论，但它没有 `## 产品视角` 节，或不足三条实质内容。",
     "",
-    "按 `docs/agents/issue-tracker.md` 的 Session cognitive offload 与 `docs/agents/implementation-workflow.md` §9 第 8 步，交付记录以这三句开头：",
+    "按 `docs/agents/issue-tracker.md` 的 Session cognitive offload 与 `docs/agents/implementation-workflow.md` §9 第 8–9 步，交付记录以这三句开头：",
     "",
     roleList(),
     "",
