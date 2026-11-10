@@ -124,6 +124,8 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 **空场判据**：`checkEmptyField`（`lib/scene-rules.mjs`）对 `data` / `stat-reveal` / `contrast` / `info-card` / `context` 五种信息类 scene 取「已声明文本对象的最大 `preferredSize`」，低于 110px（supporting 档上限）且持续超过 45 帧即 **WARN**——镜头没有主角，只有小字与小 chip。判的是声明尺寸而不是渲染像素；渲染 `media` 层的镜头直接跳过（素材本身就是内容区最大物体；`data`/`stat-reveal` 不渲染媒体、声明了也照判，缺素材归 `final-media-gate`）。持续窗口在 post-render 用 `audio/scene-durations.json` 换算成**成片 clip 帧数**（`sceneClipFrames()`，含 0.5s 录音缓冲）；preflight 在 TTS 之前，以整镜为窗口。修法（信息图版式拓扑）是 #739 的后续半段，由 `#1215` 承接——#739 裁决里的四种拓扑在那里展开为六种量化版式 +「多」用矩阵；落地前该 WARN 是**具名设计债**，不是渲染阻断。
 
+**作者侧纪律**：写 `scene-data.mjs` 的信息类 scene 时，指定一个主角字段——`stat` / `bigNumber`（hero 档 240px 的大数字与 set piece）或一条会渲染的 `media.path`；`title` 的 60px 属配角档，替代不了主角。`verify-video.mjs --pre` 在 TTS 之前用同一条判据点名缺主角的镜头，按这条填就不会被点名。
+
 ### 间距语义角色参考
 
 修改间距时，先判断关系的语义角色，再选 scale 档位：
