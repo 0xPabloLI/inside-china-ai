@@ -124,6 +124,8 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 **空场判据**：`checkEmptyField`（`lib/scene-rules.mjs`）对 `data` / `stat-reveal` / `contrast` / `info-card` / `context` 五种信息类 scene 取「已声明文本对象的最大 `preferredSize`」，低于 110px（supporting 档上限）且持续超过 45 帧即 **WARN**——镜头没有主角，只有小字与小 chip。判的是声明尺寸而不是渲染像素；渲染 `media` 层的镜头直接跳过（素材本身就是内容区最大物体；`data`/`stat-reveal` 不渲染媒体、声明了也照判，缺素材归 `final-media-gate`）。持续窗口在 post-render 用 `audio/scene-durations.json` 换算成**成片 clip 帧数**（`sceneClipFrames()`，含 0.5s 录音缓冲）；preflight 在 TTS 之前，以整镜为窗口。修法（信息图版式拓扑）是 #739 的后续半段，由 `#1215` 承接——#739 裁决里的四种拓扑在那里展开为六种量化版式 +「多」用矩阵；落地前该 WARN 是**具名设计债**，不是渲染阻断。
 
+**作者侧纪律**：写 `scene-data.mjs` 的信息类 scene 时，按类型指定主角——`data` / `stat-reveal` 用 `stat` / `bigNumber`（hero 档 240px；这两类不渲染媒体，`media.path` 无效）；`contrast` / `info-card` / `context` 用会渲染的 `media.path`（满幅环境底是这三个模板今天唯一的主角来源，文本侧主槽要等 `#1215` 的版式补齐）。`title` 的 60px 属配角档，替代不了主角。`verify-video.mjs --pre` 在 TTS 之前用同一条判据点名缺主角的镜头。
+
 #### 主角光（light follows the subject，2026-11-10 · #738）
 
 画面里的光只有三层，**没有第四种**，且光的数量与转移受预算约束。单一真源是 `lib/focus-light.mjs`（`LIGHT_TIERS` / `FOCUS_LIGHT` / `LIGHT_PLANS`），渲染端 `useFocusLight()` 与 preflight 的 `checkFocusLight()` 读同一份对象：
@@ -134,6 +136,7 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 | soft   | 柔光：主角常亮 + 当前重点      | 主角静止在 `level 0.55`，当前重点 `1.0`          |
 | flash  | 白闪事件                       | 落在拍点上，3–6 帧内衰减到 0                     |
 
+- **「受光主角」与「空场判据的主角对象」是两个问题**：这里的主角是「光跟谁走」，由模板声明，可以是一个 60–110px 的标题；空场判据问的是「内容区最大物体够不够大」，`contrast` / `info-card` / `context` 的文本侧主角今天仍判具名设计债（#1215 补版式）。光跟着它，不等于宣称它是 hero 档。
 - **主角必带光，配角默认不发光**：主角由**模板显式声明**（`LIGHT_PLANS[visualType].protagonist`，HITL 2026-11-09 裁定「scene 显式声明」，不作 `focusAnalysis` 自动判定）。互斥变体（hook 的 `bigNumber` / `hookText`）按优先级取第一个实际声明的字段。
 - **一帧内重点 ≤1**：每个模板的 `beats` 按时间排序、每个 target 只出现一次；拍点之间的间隔必须 ≥ `FOCUS_LIGHT.transferOffFrames`（8 帧），因此任一帧最多一个 target 处于 `level 1`。违反即 `resolveLightTimeline()` 抛错——渲染失败，而不是「风格不佳」。
 - **转移灭灯 8 帧**：新拍点亮起的那一帧，前一处已经离开 `level 1`，并在 8 帧内线性退回它的静止值（主角退回 0.55，配角退回 0）。衰减跑在 shadow alpha 上，内容本身不降透明度。
