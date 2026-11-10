@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.58.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.57.0...tanstack_start_ts-v1.58.0) (2026-11-10)
+
+
+### Features
+
+* **short-video:** three-tier type scale + empty-field gate ([#739](https://github.com/0xPabloLI/inside-china-ai/issues/739)) ([#1216](https://github.com/0xPabloLI/inside-china-ai/issues/1216)) ([b0c8a03](https://github.com/0xPabloLI/inside-china-ai/commit/b0c8a0309bb08e1b03c73384fc43263da89bae37))
+
 ## [1.57.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.56.0...tanstack_start_ts-v1.57.0) (2026-11-10)
 
 
