@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.59.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.58.0...tanstack_start_ts-v1.59.0) (2026-11-10)
+
+
+### Features
+
+* **short-video:** light the protagonist instead of the whole frame ([#738](https://github.com/0xPabloLI/inside-china-ai/issues/738)) ([#1220](https://github.com/0xPabloLI/inside-china-ai/issues/1220)) ([cb69029](https://github.com/0xPabloLI/inside-china-ai/commit/cb69029ed922f6a199a308a37588a1ea39791289))
+
 ## [1.58.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.57.0...tanstack_start_ts-v1.58.0) (2026-11-10)
 
 
