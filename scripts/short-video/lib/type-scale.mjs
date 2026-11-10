@@ -87,8 +87,8 @@ export const TYPE_TIERS = {
  * skips those scenes before calling `isEmptyField`.
  */
 export const EMPTY_FIELD = {
-  /** Largest-object threshold, px — the source's 110, kept after rescaling. */
-  maxObjectPx: 110,
+  /** Largest-object threshold, px — the supporting band's ceiling (#739). */
+  maxObjectPx: TYPE_TIERS.supporting.max,
   /** Persistence window, frames at 30fps; the rule requires MORE than this. */
   minFrames: 45,
   /** visualTypes governed by the rule (#739 scope). */

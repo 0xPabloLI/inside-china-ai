@@ -168,6 +168,16 @@ describe("checkEmptyField — persistence window", () => {
     const results = checkEmptyField([contrastScene]);
     expect(results[0].detail).toContain("whole-scene persistence");
   });
+
+  it("judges the whole shot instead of throwing on a non-array payload", () => {
+    // A persisted output dir can hold the legacy `{ scenes: [...] }` envelope;
+    // verify-video normalizes it, and the gate itself must not die on it.
+    const results = checkEmptyField([contrastScene], {
+      sceneDurations: { scenes: [{ sceneId: 3, duration: 3 }] },
+    });
+    expect(warns(results)).toHaveLength(1);
+    expect(results[0].detail).toContain("whole-scene persistence");
+  });
 });
 
 describe("checkEmptyField — preflight wiring", () => {

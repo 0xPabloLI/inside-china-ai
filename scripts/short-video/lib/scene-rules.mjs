@@ -1758,8 +1758,11 @@ function largestDeclaredObject(scene) {
  * @returns {Array<{level: string, category: string, check: string, detail?: string, fix?: string}>}
  */
 export function checkEmptyField(scenes, opts = {}) {
+  // Tolerate a non-array payload (a legacy `{ scenes: [...] }` envelope read
+  // from a persisted output dir): judge the whole shot instead of throwing.
+  const rows = Array.isArray(opts.sceneDurations) ? opts.sceneDurations : [];
   const durations = new Map(
-    (opts.sceneDurations ?? [])
+    rows
       .filter((row) => row && Number.isFinite(row.duration))
       .map((row) => [row.sceneId, row.duration]),
   );

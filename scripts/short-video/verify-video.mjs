@@ -350,7 +350,11 @@ pass("Scene Data", "Scenes array exists", `${scenes.length} scenes`);
 let sceneDurations = null;
 if (!preMode && existsSync(SCENE_DURATIONS_PATH)) {
   try {
-    sceneDurations = JSON.parse(readFileSync(SCENE_DURATIONS_PATH, "utf8"));
+    const parsed = JSON.parse(readFileSync(SCENE_DURATIONS_PATH, "utf8"));
+    // Legacy envelope: output dirs persist across runs, and older artifacts
+    // carry `{ scenes: [...] }` — normalize like resolveSceneAudioInfo
+    // (lib/scene-audio.mjs) so a post-render verify never dies on the shape.
+    sceneDurations = Array.isArray(parsed) ? parsed : (parsed?.scenes ?? null);
   } catch {
     /* unreadable: fall back to whole-shot persistence; the audio gate names the artifact */
   }
