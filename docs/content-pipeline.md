@@ -467,6 +467,8 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 
 信息类 scene 另有一条**空场判据**（`checkEmptyField`，#739）：`data` / `stat-reveal` / `contrast` / `info-card` / `context` 的最大已声明文本对象低于 110px、且持续超过 45 帧 → **WARN**（镜头没有主角，只有小字与小 chip）。渲染 `media` 层的镜头不判：素材本身就是内容区最大物体（`data`/`stat-reveal` 不渲染媒体，声明了也照判），缺素材归 `final-media-gate`。竖屏三档与阈值来源见 `docs/conventions/visual-design-loop.md` → Type scale，单一真源是 `lib/type-scale.mjs`；post-render 用 `audio/scene-durations.json` 换算成含 0.5s 录音缓冲的 clip 帧数，preflight 在 TTS 之前以整镜为窗口。修法（信息图版式拓扑）是 #739 的后续半段，由 `#1215` 承接（四种拓扑展开为六种量化版式 +「多」用矩阵）；落地前该 WARN 是具名设计债，不阻断渲染。
 
+镜头里的**光**另有判据（`checkFocusLight`，#738）：三层光（结构线 bloom / 主角柔光 / 3–6 帧白闪）、主角必带光、一帧内重点 ≤1、转移灭灯 8 帧。主角由模板显式声明（`lib/focus-light.mjs` 的 `LIGHT_PLANS`，不作自动判定）；某镜的主角字段没声明 → **WARN**（镜头没有受光主体，整帧平掉），plan 本身违反预算 → **FAIL**（渲染端 `resolveLightTimeline()` 抛同一个错）。全屏 media 镜头不判（画面就是主体）。背景 corner tint 是底色、不是光；`FrameGlow` 只剩 3px 结构线。规则与来源见 `docs/conventions/visual-design-loop.md` → 主角光。
+
 `media` 对象另有一条 schema 检查（`lib/media-field-schema.mjs`，check 名以 `Media field schema:` 开头，#836）：**未知键即 FAIL**（拼错 `evidnce` 不会静默关掉 evidence 强制）、`evidence` 只接受 `true`/`false`/`null`、`evidence: true` 必须同时声明 `provenance`、声明了 `provenance` 就先跑 `validateProvenance()`（clip ⊇ rect）。允许的键集合是 `remotion/src/types.ts` 里 `MediaField` 的 .mjs 镜像，两边由单测钉住——加字段必须同改两处。
 
 **文本溢出双层防线**（spec 决策 14/71，T11 同步）：
