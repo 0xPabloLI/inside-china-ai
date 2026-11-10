@@ -1074,6 +1074,30 @@ node scripts/short-video/realign-render.mjs [--content <dir>]  # forced realign 
 | 5    | Render the final video with Remotion (React → frame-by-frame, 1080×1920): TextGate geometry gate (safe zones / container overflow / glyph ink / annotation bounds, `cancelRender` with `[TextFitError]`) runs during this render, then ASS burn-in / BGM mix / loudness norm | `output/{id}/{id}-v{version}-short.mp4`                  |
 | 6    | Verify subtitles with auto-retry (auto, `--skip-verify` to skip, `--max-retries N` default 2); categories whose repair cannot change the verdict stop after one verify instead of burning the budget (#818); the re-check reads the artifact the repair returned, and only an accepted repair's paths are kept and carried on (#870) | `output/{id}/verification-report.json`                   |
 
+### QA Final Review — post-render, independent (#735)
+
+Runs **after** `verify-video.mjs` (MRL-3) is green and **before** the Stage 5 HITL checkpoint. The gate is the report's exit code: `--report` returns 0 only for a complete packet whose independent reviewer cited every declared frame and left no P0/P1. It is deliberately not wired into `main.mjs` — option A is a process increment, not another render-time gate. Quantitative thresholds (static-segment length, high-saturation debris index, vertical-format calibration) are out of scope until a real pack is calibrated.
+
+```bash
+node scripts/short-video/qa-final-review.mjs --content <id> --video <finished-short.mp4> --implementer <session-id>   # add --reset-review only to start a new review
+# Hand review-request.md + sheets/*.jpg to a reviewer that did NOT implement this pack.
+node scripts/short-video/qa-final-review.mjs --content <id> --report <final-review.json>
+node scripts/short-video/qa-final-review.mjs --content <id> --reproduce <frame>  # optional remotion still
+node scripts/short-video/qa-final-review.mjs --content <id> --plan-only          # declaration only, writes nothing
+```
+
+`--content` accepts the same nested pack ids as `main.mjs` (for example `restraint/pt1`); every segment must be a plain path segment, so `..` and absolute paths are rejected. `output/{id}/qa/` follows the same nesting. Before extracting, the CLI clears stale `.fe-*.png` and `frame-*.png` files from that directory: a killed run must never let an old take's stills be renamed onto the current declared frames.
+
+`output/{id}/qa/` holds the packet (`acceptance-frames.json`, `frames/frame-<n>.png`, `sheets/sheet-NN.jpg`, `review-request.md`), the reviewer's `final-review.json`, and the separate `review-ledger.json` that outlives packet rebuilds.
+
+**Contract.** Each scene declares two acceptance frames as fixed offsets (entry +15 / exit −15 relative frames), resolved to absolute frame numbers through `scripts/short-video/lib/timeline.mjs` — the same source as the composition and the subtitle track. A TTS retake moves the absolute numbers without invalidating the declaration. Sheets are 3×4 tiles (geometry lives in `SHEET_LAYOUT` / `TILE_SIZE` in `scripts/short-video/lib/qa-final-review.mjs`) and carry no burned-in labels, so `review-request.md` maps `r1c1 → frame N → scene and voiceover claim`. The surveyed `contact_sheet.py` is PolyForm Noncommercial; the tiling here is a fresh ffmpeg `tile` call, not a copy.
+
+**Independence and rounds.** `--implementer` and the cumulative `rounds` live in `review-ledger.json`, a file the packet rebuild never overwrites; `--report` compares the report's implementer against it and requires `round = rounds.length + 1`. A report must also carry the packet's `packetVersion` (incremented on every rebuilt packet), so a report written for an older render cannot be reused after a P0/P1 fix. `--report` rejects self-review, frame numbers outside the declaration, findings without evidence, a report that fails to list every declared frame in `reviewedFrames`, a `pass` verdict carrying P0/P1, and a round that does not advance the ledger. P0/P1 requires a fix and a rebuilt packet, capped at three rounds; the third round still holding P0/P1 stops delivery. The CLI exits non-zero for `fix-required`, `exhausted` and `invalid`. Only a complete packet (all stills + all sheets on disk) can be reviewed; a failed extraction leaves the old manifest marked incomplete. `--reset-review` is the explicit human action that starts a fresh ledger.
+
+**Gotchas.** Frames come from the finished MP4 in one ffmpeg pass: the review judges what the viewer sees. `--reproduce <frame>` re-renders a single declared frame through `still-frame.mjs` when a finding needs the composition's own still — that tool refuses to run without a prior full render's staged assets. If the finished video is shorter than the scene timeline (the frame-count drift in the troubleshooting table), extraction fails closed instead of silently reviewing a subset. After a TTS retake, rebuild the packet with `--video` — `--report` compares the report against the saved declaration and refuses a stale one.
+
+**Completion criterion**: every declared frame has a still, every sheet exists, `--report` exits 0 with `reviewedFrames` covering the declaration and no P0/P1, and the report was written by a context that did not implement the pack.
+
 ### Version Numbers
 
 Every pipeline run generates a **versioned output file**: `{pipelineId}-v{YYYY-MM-DDTHH-MM-SS}-short.mp4`.

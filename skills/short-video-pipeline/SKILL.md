@@ -306,6 +306,12 @@ node scripts/short-video/verify-video.mjs --tiktok    # TikTok mode (≤70s ceil
 
 **Completion criterion**: `verify-video.mjs` exits with code 0 (0 FAIL items).
 
+#### Final review — independent, frame-numbered (#735)
+
+Step 6 green → run the *QA Final Review* loop in `docs/video-production-runbook.md` before the Stage 5 HITL checkpoint; the packet, report schema and gate semantics live there. The reviewer must be a context that did not implement this pack.
+
+**Completion criterion**: `qa-final-review.mjs --report` exits 0 and the *QA Final Review* section's completion criterion in the runbook is met.
+
 ### 7. Publishing Package (agent-generated + user executes)
 
 After all automated checks pass, the agent generates a complete publishing package for the user:
