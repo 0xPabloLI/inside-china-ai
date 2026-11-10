@@ -119,6 +119,9 @@ describe("validateReviewReport", () => {
     round: 1,
     verdict: "pass",
     findings: [],
+    // A pass report still has to cite every frame it reviewed — otherwise
+    // "no findings" is indistinguishable from "no review".
+    reviewedFrames: plan.frames.map((f) => f.frame),
     ...patch,
   });
 
@@ -172,6 +175,42 @@ describe("validateReviewReport", () => {
     expect(res.ok).toBe(false);
     expect(res.errors.join(" ")).toMatch(/evidence/i);
   });
+
+  it("requires a pass report to cite every declared frame", () => {
+    const res = validateReviewReport(valid({ reviewedFrames: [] }), plan);
+    expect(res.ok).toBe(false);
+    expect(res.errors.join(" ")).toMatch(/reviewedFrames/);
+  });
+
+  it("rejects an undeclared frame in reviewedFrames", () => {
+    const res = validateReviewReport(
+      valid({ reviewedFrames: [...plan.frames.map((f) => f.frame), 9999] }),
+      plan,
+    );
+    expect(res.ok).toBe(false);
+    expect(res.errors.join(" ")).toMatch(/reviewedFrames/);
+  });
+
+  it("binds the report to the implementer recorded in the packet", () => {
+    const res = validateReviewReport(valid(), plan, { expectedImplementer: "packet-impl" });
+    expect(res.ok).toBe(false);
+    expect(res.errors.join(" ")).toMatch(/implementer/i);
+  });
+
+  it("accepts a report matching the packet implementer", () => {
+    expect(validateReviewReport(valid(), plan, { expectedImplementer: "session-impl" })).toEqual({
+      ok: true,
+      errors: [],
+    });
+  });
+
+  it("rejects a reviewer equal to the packet implementer even if the report claims another", () => {
+    const res = validateReviewReport(valid({ reviewer: "packet-impl" }), plan, {
+      expectedImplementer: "packet-impl",
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors.join(" ")).toMatch(/independent/i);
+  });
 });
 
 describe("decideReviewOutcome", () => {
@@ -182,6 +221,7 @@ describe("decideReviewOutcome", () => {
     round,
     verdict: findings.length ? "changes-required" : "pass",
     findings,
+    reviewedFrames: plan.frames.map((f) => f.frame),
   });
   const p0 = () => [{ frame: plan.frames[0].frame, severity: "P0", evidence: "black frame" }];
 

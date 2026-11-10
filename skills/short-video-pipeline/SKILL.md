@@ -256,12 +256,6 @@ Two real failures this caught on the unitree pack, both invisible to every gate:
 
 **Completion criterion**: all checklist items pass, and every action a voiceover names is visible inside its own scene's window.
 
-#### Final review — independent, frame-numbered (#735)
-
-MRL-3 green → run the QA final-review loop (the *QA Final Review* section of `docs/video-production-runbook.md`, `scripts/short-video/qa-final-review.mjs`): two declared acceptance frames per scene, 3x4 sheets, then a report from a reviewer context that did NOT implement this pack. It sits between MRL-3 and the Stage 5 HITL checkpoint, and blocks nothing automatically — the report is the gate. Quantitative thresholds are a separate, not-yet-calibrated ticket.
-
-**Completion criterion**: `qa-final-review.mjs --report` exits 0, and every P0/P1 finding has been fixed and re-reviewed within three rounds.
-
 ### 6. TikTok Best Practices Compliance Gate (MANDATORY)
 
 Run automated verification against 2025-2026 TikTok best practices:
@@ -311,6 +305,12 @@ node scripts/short-video/verify-video.mjs --tiktok    # TikTok mode (≤70s ceil
 - A failure cannot be auto-fixed (requires user decision, e.g. "cut which scenes?") → present options to user
 
 **Completion criterion**: `verify-video.mjs` exits with code 0 (0 FAIL items).
+
+#### Final review — independent, frame-numbered (#735)
+
+Step 6 green → run the *QA Final Review* loop in `docs/video-production-runbook.md` before the Stage 5 HITL checkpoint; the packet, report schema and gate semantics live there. The reviewer must be a context that did not implement this pack.
+
+**Completion criterion**: `qa-final-review.mjs --report` exits 0, and every P0/P1 finding has been fixed and re-reviewed within three rounds.
 
 ### 7. Publishing Package (agent-generated + user executes)
 

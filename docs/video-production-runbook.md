@@ -1076,23 +1076,25 @@ node scripts/short-video/realign-render.mjs [--content <dir>]  # forced realign 
 
 ### QA Final Review — post-render, independent (#735)
 
-Runs **after** `verify-video.mjs` (MRL-3) is green and **before** the Stage 5 HITL checkpoint. It is a review process, not another machine gate: it changes no render entry point and blocks nothing automatically. Quantitative thresholds (static-segment length, high-saturation debris index, vertical-format calibration) are out of scope until a real pack is calibrated.
+Runs **after** `verify-video.mjs` (MRL-3) is green and **before** the Stage 5 HITL checkpoint. The gate is the report's exit code: `--report` returns 0 only for a complete packet whose independent reviewer cited every declared frame and left no P0/P1. It is deliberately not wired into `main.mjs` — option A is a process increment, not another render-time gate. Quantitative thresholds (static-segment length, high-saturation debris index, vertical-format calibration) are out of scope until a real pack is calibrated.
 
 ```bash
 node scripts/short-video/qa-final-review.mjs --content <id> --video <finished-short.mp4> --implementer <session-id>
 # Hand review-request.md + sheets/*.jpg to a reviewer that did NOT implement this pack.
 node scripts/short-video/qa-final-review.mjs --content <id> --report <final-review.json>
+node scripts/short-video/qa-final-review.mjs --content <id> --reproduce <frame>  # optional remotion still
+node scripts/short-video/qa-final-review.mjs --content <id> --plan-only          # declaration only, writes nothing
 ```
 
 The packet lands in `output/{id}/qa/`: `acceptance-frames.json`, `frames/frame-<n>.png`, `sheets/sheet-NN.jpg`, `review-request.md`, and the reviewer's `final-review.json`.
 
 **Contract.** Each scene declares two acceptance frames as fixed offsets (entry +15 / exit −15 relative frames), resolved to absolute frame numbers through `scripts/short-video/lib/timeline.mjs` — the same source as the composition and the subtitle track. A TTS retake moves the absolute numbers without invalidating the declaration. Sheets are 3×4 tiles of 270×480 and carry no burned-in labels, so `review-request.md` maps `r1c1 → frame N → scene and voiceover claim`. The surveyed `contact_sheet.py` is PolyForm Noncommercial; the tiling here is a fresh ffmpeg `tile` call, not a copy.
 
-**Independence.** The reviewer id must differ from `--implementer`. `--report` rejects self-review, frame numbers outside the declaration, findings without evidence, a `pass` verdict carrying P0/P1, and a fourth round. P0/P1 requires a fix round, capped at three; the third round still holding P0/P1 stops delivery. The CLI exits non-zero for `fix-required`, `exhausted` and `invalid`.
+**Independence.** `--implementer` is recorded in `acceptance-frames.json` when the packet is built, and `--report` compares the report against that value — a reviewer cannot name a different implementer in its own JSON. `--report` rejects self-review, frame numbers outside the declaration, findings without evidence, a report that fails to list every declared frame in `reviewedFrames`, a `pass` verdict carrying P0/P1, and a round that does not advance the packet's cumulative `reviewRounds`. P0/P1 requires a fix round, capped at three; the third round still holding P0/P1 stops delivery. The CLI exits non-zero for `fix-required`, `exhausted` and `invalid`. Only a complete packet (all stills + all sheets on disk) can be reviewed; a failed extraction leaves the old manifest marked incomplete.
 
-**Gotchas.** Frames come from the finished MP4 in one ffmpeg pass, not from `remotion still`: the review judges what the viewer sees, while `still-frame.mjs` stays the single-frame TextFit reproducer. If the finished video is shorter than the scene timeline (the frame-count drift in the troubleshooting table), extraction fails closed instead of silently reviewing a subset. After a TTS retake, rebuild the packet with `--video` — `--report` compares the report against the saved declaration and refuses a stale one. `--plan-only` emits the declaration without needing a video.
+**Gotchas.** Frames come from the finished MP4 in one ffmpeg pass: the review judges what the viewer sees. `--reproduce <frame>` re-renders a single declared frame through `still-frame.mjs` when a finding needs the composition's own still — that tool refuses to run without a prior full render's staged assets. If the finished video is shorter than the scene timeline (the frame-count drift in the troubleshooting table), extraction fails closed instead of silently reviewing a subset. After a TTS retake, rebuild the packet with `--video` — `--report` compares the report against the saved declaration and refuses a stale one.
 
-**Completion criterion**: every declared frame has a still, every sheet exists, `--report` exits 0 with no P0/P1, and the report was written by a context that did not implement the pack.
+**Completion criterion**: every declared frame has a still, every sheet exists, `--report` exits 0 with `reviewedFrames` covering the declaration and no P0/P1, and the report was written by a context that did not implement the pack.
 
 ### Version Numbers
 

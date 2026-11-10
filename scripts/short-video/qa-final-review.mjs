@@ -14,7 +14,8 @@
  * Usage:
  *   node scripts/short-video/qa-final-review.mjs --content <id> --video <finished.mp4> [--implementer <id>]
  *   node scripts/short-video/qa-final-review.mjs --content <id> --plan-only
- *   node scripts/short-video/qa-final-review.mjs --content <id> --report output/<id>/qa/final-review.json
+ *   node scripts/short-video/qa-final-review.mjs --content <id> --reproduce <frame> [--out <png>]
+ *   node scripts/short-video/qa-final-review.mjs --content <id> --report <final-review.json>
  */
 import { execFileSync } from "child_process";
 import {
@@ -32,6 +33,7 @@ import { readSceneDurationsForTimeline } from "./lib/avatar-frame-audit.mjs";
 import { extractFramesAtIndexes } from "./lib/frame-extract.mjs";
 import {
   SHEET_LAYOUT,
+  TILE_SIZE,
   buildSheetCommand,
   decideReviewOutcome,
   planAcceptanceFrames,
@@ -54,7 +56,7 @@ const die = (message) => {
 const contentId = getArg("content");
 if (!contentId) {
   die(
-    "usage: qa-final-review.mjs --content <id> --video <finished.mp4> [--implementer <id>] | --plan-only | --report <final-review.json>",
+    "usage: qa-final-review.mjs --content <id> --video <finished.mp4> [--implementer <id>] | --plan-only | --reproduce <frame> | --report <final-review.json>",
   );
 }
 // Same shape as still-frame.mjs: the id is a path segment and must not escape
@@ -69,14 +71,15 @@ const framesDir = join(qaDir, "frames");
 const sheetsDir = join(qaDir, "sheets");
 const planOnly = hasFlag("plan-only");
 const reportPath = getArg("report");
+const reproduceFrame = getArg("reproduce");
 const videoPath = getArg("video");
 const implementer = getArg("implementer") || process.env.USER || "pipeline-session";
 
 if (!existsSync(join(contentDir, "scene-data.mjs"))) {
   die(`no scene-data.mjs for content ${contentId}`);
 }
-if (!videoPath && !planOnly && !reportPath) {
-  die("--video <finished.mp4> is required (or use --plan-only / --report)");
+if (!videoPath && !planOnly && !reportPath && reproduceFrame === null) {
+  die("--video <finished.mp4> is required (or use --plan-only / --reproduce / --report)");
 }
 if (videoPath && !existsSync(videoPath)) {
   die(`video not found: ${videoPath}`);
@@ -106,7 +109,6 @@ try {
   die(e.message);
 }
 
-mkdirSync(qaDir, { recursive: true });
 const manifestPath = join(qaDir, "acceptance-frames.json");
 let previousManifest = null;
 if (existsSync(manifestPath)) {
@@ -116,29 +118,50 @@ if (existsSync(manifestPath)) {
     previousManifest = null;
   }
 }
-const videoInfo = videoPath
-  ? { path: videoPath, name: basename(videoPath), bytes: statSync(videoPath).size }
-  : (previousManifest?.video ?? null);
-const manifest = {
-  contentId,
-  video: videoInfo,
-  implementer,
-  ...plan,
-};
-writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
-const reviewRequest = renderReviewRequest(plan, {
-  contentId,
-  videoPath: videoPath ?? "(plan-only: no video supplied)",
-  implementer,
-});
-writeFileSync(join(qaDir, "review-request.md"), reviewRequest);
+const writeManifest = (manifest) =>
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
 
+// --reproduce: re-render ONE declared frame through still-frame.mjs, which
+// checks the staged assets and reproduces the real render props. The loop
+// reviews finished-video frames; this is the per-scene remotion still the
+// issue names, kept as an explicit single-frame investigation step.
+if (reproduceFrame !== null) {
+  const frame = Number(reproduceFrame);
+  if (!Number.isInteger(frame) || !plan.frames.some((f) => f.frame === frame)) {
+    die(
+      `--reproduce needs one declared acceptance frame: ${plan.frames.map((f) => f.frame).join(", ")}`,
+    );
+  }
+  const out = getArg("out") || join(qaDir, `reproduce-${frame}.png`);
+  mkdirSync(qaDir, { recursive: true });
+  console.log(`Reproducing frame ${frame} via still-frame.mjs → ${out}`);
+  try {
+    execFileSync(
+      process.execPath,
+      [
+        join(__dirname, "still-frame.mjs"),
+        "--content",
+        contentId,
+        "--frame",
+        String(frame),
+        "--out",
+        out,
+      ],
+      { stdio: "inherit" },
+    );
+  } catch {
+    die(
+      "still-frame.mjs failed — a still needs a prior full render of this content (staged assets)",
+    );
+  }
+  console.log(`✅ reproduced frame ${frame}: ${out}`);
+  process.exit(0);
+}
+
+// --report: check the report against the COMPLETE packet the reviewer saw.
 if (reportPath) {
-  // The report must be checked against the declaration the reviewer actually
-  // saw, not a freshly recomputed one (a TTS retake between the two would
-  // otherwise re-legitimise an outdated set of frame numbers).
-  if (!previousManifest?.frames) {
-    die("no QA packet for this content — run the full loop with --video first");
+  if (!previousManifest?.complete) {
+    die("no complete QA packet for this content — run the full loop with --video first");
   }
   const savedFrames = previousManifest.frames.map((f) => f.frame).join(",");
   const currentFrames = plan.frames.map((f) => f.frame).join(",");
@@ -147,6 +170,16 @@ if (reportPath) {
       "the acceptance frame declaration changed since the QA packet was built — rebuild the packet with --video before reviewing",
     );
   }
+  const missingStills = plan.frames.filter((f) => !existsSync(join(framesDir, f.pngName)));
+  if (missingStills.length > 0) {
+    die(
+      `${missingStills.length} declared still(s) are missing from ${framesDir} — rebuild the packet`,
+    );
+  }
+  const missingSheets = plan.sheets.filter((s) => !existsSync(join(sheetsDir, s.name)));
+  if (missingSheets.length > 0) {
+    die(`${missingSheets.length} sheet(s) are missing from ${sheetsDir} — rebuild the packet`);
+  }
   if (!existsSync(reportPath)) die(`report not found: ${reportPath}`);
   let report;
   try {
@@ -154,12 +187,26 @@ if (reportPath) {
   } catch (e) {
     die(`cannot parse report: ${e.message}`);
   }
-  const validation = validateReviewReport(report, plan);
-  const outcome = decideReviewOutcome(report, plan);
+
+  // Rounds are cumulative in the packet, so a reviewer cannot replay round 1
+  // forever. The implementer is likewise fixed when the packet was built.
+  const rounds = Array.isArray(previousManifest.reviewRounds) ? previousManifest.reviewRounds : [];
+  const expectedRound = rounds.length + 1;
+  if (report.round !== expectedRound) {
+    die(`report round must be ${expectedRound} (packet has recorded ${rounds.length} round(s))`);
+  }
+  const validation = validateReviewReport(report, plan, {
+    expectedImplementer: previousManifest.implementer,
+  });
+  const outcome = decideReviewOutcome(report, plan, validation);
   if (!validation.ok) {
     for (const error of validation.errors) console.error(`   - ${error}`);
     die(`final review INVALID (${validation.errors.length} problem(s))`);
   }
+  // A validated (even failing) round counts; only an invalid report leaves the
+  // ledger untouched.
+  writeManifest({ ...previousManifest, reviewRounds: [...rounds, report.round] });
+
   console.log(`Final review: ${outcome.status}`);
   if (outcome.status === "fix-required") {
     console.log(
@@ -184,16 +231,18 @@ if (reportPath) {
 console.log(
   `QA plan: ${plan.scenes.length} scenes / ${plan.frames.length} frames / ${plan.sheets.length} sheets (${plan.totalFrames} frames @ ${plan.fps}fps)`,
 );
-console.log(`   declaration: ${join(qaDir, "acceptance-frames.json")}`);
-console.log(`   reviewer packet: ${join(qaDir, "review-request.md")}`);
 if (planOnly) {
-  console.log("   --plan-only: no frames extracted; supply --video for the full loop");
+  console.log(`   declared frames: ${plan.frames.map((f) => f.frame).join(", ")}`);
+  console.log("   --plan-only: nothing written; supply --video for the full loop");
   process.exit(0);
 }
 
+// A half-built packet must never look complete to --report.
+if (previousManifest) writeManifest({ ...previousManifest, complete: false });
+
 // One ffmpeg pass for every acceptance frame. Missing frames mean the finished
-// video is shorter than the timeline (runbook:164): fail closed rather than
-// quietly reviewing a subset of the declared frames.
+// video is shorter than the timeline: fail closed rather than quietly
+// reviewing a subset of the declared frames.
 const { byFrame, missing } = await extractFramesAtIndexes({
   videoPath,
   frames: plan.frames.map((f) => f.frame),
@@ -219,7 +268,7 @@ execFileSync(
     "-f",
     "lavfi",
     "-i",
-    "color=c=black:s=270x480:d=1",
+    `color=c=black:s=${TILE_SIZE.width}x${TILE_SIZE.height}:d=1`,
     "-frames:v",
     "1",
     blankPath,
@@ -252,6 +301,22 @@ for (const sheet of plan.sheets) {
 }
 rmSync(blankPath, { force: true });
 
+// Only now is the packet complete: manifest and reviewer input are written
+// after the stills and sheets exist, so a failed run leaves no usable packet.
+writeManifest({
+  contentId,
+  video: { path: videoPath, name: basename(videoPath), bytes: statSync(videoPath).size },
+  implementer,
+  complete: true,
+  reviewRounds: [],
+  ...plan,
+});
+writeFileSync(
+  join(qaDir, "review-request.md"),
+  renderReviewRequest(plan, { contentId, videoPath, implementer }),
+);
+console.log(`   declaration: ${manifestPath}`);
+console.log(`   reviewer packet: ${join(qaDir, "review-request.md")}`);
 console.log("\n✅ QA packet ready. Hand review-request.md + sheets to an INDEPENDENT reviewer.");
 console.log(
   `   Then: node scripts/short-video/qa-final-review.mjs --content ${contentId} --report <final-review.json>`,

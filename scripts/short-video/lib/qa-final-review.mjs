@@ -19,8 +19,12 @@ import { FPS, TRANSITION_FRAMES, sceneTimeline, scheduleTotalFrames } from "./ti
 /** Relative offsets (frames) from the start / end of a scene's clip window. */
 export const ACCEPTANCE_OFFSETS = Object.freeze({ entry: 15, exit: 15 });
 export const SHEET_LAYOUT = Object.freeze({ cols: 3, rows: 4 });
+export const TILE_SIZE = Object.freeze({ width: 270, height: 480 });
 export const MAX_REVIEW_ROUNDS = 3;
 export const SEVERITIES = Object.freeze(["P0", "P1", "P2"]);
+
+const blockingFindings = (findings) =>
+  findings.filter((f) => f.severity === "P0" || f.severity === "P1");
 
 /**
  * Split the flat frame ledger into fixed 3x4 sheets. A cell's grid address is
@@ -159,8 +163,8 @@ export function renderReviewRequest(plan, { contentId, videoPath, implementer })
     "",
     "## How to review",
     "",
-    "You are an **independent** reviewer: your `reviewer` id must differ from the implementer above.",
-    "Read the sheets, then READ each still it points at. Every finding cites the frame number.",
+    "You are an **independent** reviewer: your `reviewer` id must differ from the implementer above, which the packet records and the CLI checks — you cannot redefine it in the report.",
+    "Read the sheets, then READ each still it points at. Cite every declared frame in `reviewedFrames`, even when there are no findings.",
     "The sheets carry no burned-in labels; use the grid ledger below (r1c1 = top-left).",
     "Severity is P0 / P1 / P2. P0 or P1 requires a fix round; three rounds is the cap.",
     "",
@@ -205,6 +209,7 @@ export function renderReviewRequest(plan, { contentId, videoPath, implementer })
         implementer,
         round: 1,
         verdict: "pass",
+        reviewedFrames: plan.frames.map((f) => f.frame),
         findings: [
           { frame: plan.frames[0]?.frame ?? 0, severity: "P0", evidence: "frame shows ..." },
         ],
@@ -218,8 +223,16 @@ export function renderReviewRequest(plan, { contentId, videoPath, implementer })
   lines.push(
     `- \`frame\` must be one of the declared frames: ${plan.frames.map((f) => f.frame).join(", ")}.`,
   );
+  lines.push(
+    "- `reviewedFrames` must contain every declared frame, with no extras — a pass with no cited frames is not a review.",
+  );
   lines.push("- `severity` is P0, P1 or P2; P0/P1 means `changes-required`, not `pass`.");
-  lines.push(`- \`round\` is 1..${MAX_REVIEW_ROUNDS}; a third round with P0/P1 stops delivery.`);
+  lines.push(
+    `- \`round\` is 1..${MAX_REVIEW_ROUNDS} and must advance by one each time; a third round with P0/P1 stops delivery.`,
+  );
+  lines.push(
+    "- `implementer` must equal the value above; the CLI compares it with the packet, not with your own JSON.",
+  );
   lines.push(
     `node scripts/short-video/qa-final-review.mjs --content ${contentId} --report <final-review.json>`,
   );
@@ -232,25 +245,39 @@ export function renderReviewRequest(plan, { contentId, videoPath, implementer })
  * reject self-review, invented frame numbers, missing evidence and a verdict
  * that contradicts its own P0/P1 findings.
  *
+ * `expectedImplementer` comes from the packet, NOT from the report: otherwise
+ * a reviewer could simply write a different implementer name and self-review
+ * would pass. The packet's identity is fixed when the stills are built.
+ *
  * @returns {{ok:boolean, errors:string[]}}
  */
-export function validateReviewReport(report, plan) {
+export function validateReviewReport(report, plan, { expectedImplementer } = {}) {
   const errors = [];
   if (!report || typeof report !== "object" || Array.isArray(report)) {
     return { ok: false, errors: ["report must be a JSON object"] };
   }
   const declared = new Set(plan.frames.map((f) => f.frame));
-  const { reviewer, implementer, round, verdict, findings } = report;
+  const { reviewer, implementer, round, verdict, findings, reviewedFrames } = report;
 
   if (typeof reviewer !== "string" || !reviewer.trim()) errors.push("reviewer is required");
   if (typeof implementer !== "string" || !implementer.trim()) {
     errors.push("implementer is required");
   }
   if (
+    typeof expectedImplementer === "string" &&
+    expectedImplementer.trim() &&
+    implementer !== expectedImplementer
+  ) {
+    errors.push(
+      `implementer must match the packet (${expectedImplementer}), got ${JSON.stringify(implementer)}`,
+    );
+  }
+  const trustedImplementer = expectedImplementer ?? implementer;
+  if (
     typeof reviewer === "string" &&
-    typeof implementer === "string" &&
+    typeof trustedImplementer === "string" &&
     reviewer.trim() &&
-    reviewer.trim() === implementer.trim()
+    reviewer.trim() === trustedImplementer.trim()
   ) {
     errors.push("reviewer must be independent of implementer (self-review rejected)");
   }
@@ -259,6 +286,20 @@ export function validateReviewReport(report, plan) {
   }
   if (!["pass", "changes-required"].includes(verdict)) {
     errors.push("verdict must be pass or changes-required");
+  }
+  // A report with zero findings still has to prove the frames were reviewed.
+  const cited = Array.isArray(reviewedFrames) ? reviewedFrames : null;
+  if (!cited) {
+    errors.push("reviewedFrames must be an array of declared frame numbers");
+  } else {
+    const unique = [...new Set(cited)];
+    const missing = plan.frames.map((f) => f.frame).filter((f) => !unique.includes(f));
+    const extra = unique.filter((f) => !declared.has(f));
+    if (missing.length > 0 || extra.length > 0) {
+      errors.push(
+        `reviewedFrames must cover exactly the declared frames (missing: ${missing.join(",") || "none"}; extras: ${extra.join(",") || "none"})`,
+      );
+    }
   }
   if (!Array.isArray(findings)) {
     errors.push("findings must be an array");
@@ -274,19 +315,17 @@ export function validateReviewReport(report, plan) {
         errors.push(`finding ${i}: evidence is required`);
       }
     });
-    const blockers = findings.filter((f) => f.severity === "P0" || f.severity === "P1");
-    if (blockers.length > 0 && verdict !== "changes-required") {
+    if (blockingFindings(findings).length > 0 && verdict !== "changes-required") {
       errors.push("verdict must be changes-required when P0/P1 findings exist");
     }
   }
   return { ok: errors.length === 0, errors };
 }
 
-/** Decide the delivery outcome from a validated report. */
-export function decideReviewOutcome(report, plan) {
-  const validation = validateReviewReport(report, plan);
+/** Decide the delivery outcome from a (possibly pre-validated) report. */
+export function decideReviewOutcome(report, plan, validation = validateReviewReport(report, plan)) {
   if (!validation.ok) return { status: "invalid", errors: validation.errors, blockers: [] };
-  const blockers = report.findings.filter((f) => f.severity === "P0" || f.severity === "P1");
+  const blockers = blockingFindings(report.findings);
   if (blockers.length === 0) return { status: "pass", nextRound: null, blockers: [] };
   if (report.round >= MAX_REVIEW_ROUNDS) return { status: "exhausted", nextRound: null, blockers };
   return { status: "fix-required", nextRound: report.round + 1, blockers };
@@ -297,15 +336,9 @@ export function decideReviewOutcome(report, plan) {
  * (padding the last sheet with blank tiles) at `inputPattern`; keeping the
  * command a pure function makes the geometry testable without a renderer.
  */
-export function buildSheetCommand({
-  framePaths,
-  outPath,
-  inputPattern,
-  cols = SHEET_LAYOUT.cols,
-  rows = SHEET_LAYOUT.rows,
-  tileWidth = 270,
-  tileHeight = 480,
-}) {
+export function buildSheetCommand({ framePaths, outPath, inputPattern }) {
+  const { cols, rows } = SHEET_LAYOUT;
+  const { width, height } = TILE_SIZE;
   if (!Array.isArray(framePaths) || framePaths.length === 0) {
     throw new Error("a sheet needs at least one frame");
   }
@@ -314,8 +347,8 @@ export function buildSheetCommand({
   }
   const pattern = inputPattern ?? join(dirname(outPath), ".tiles", "%02d.png");
   const filter = [
-    `scale=${tileWidth}:${tileHeight}:force_original_aspect_ratio=decrease`,
-    `pad=${tileWidth}:${tileHeight}:(ow-iw)/2:(oh-ih)/2`,
+    `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
+    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
     `tile=${cols}x${rows}`,
   ].join(",");
   return [
