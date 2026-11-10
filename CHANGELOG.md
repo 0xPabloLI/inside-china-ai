@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.57.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.56.0...tanstack_start_ts-v1.57.0) (2026-11-10)
+
+
+### Features
+
+* **short-video:** frame-numbered QA final review loop ([#735](https://github.com/0xPabloLI/inside-china-ai/issues/735)) ([#1211](https://github.com/0xPabloLI/inside-china-ai/issues/1211)) ([00d6bbd](https://github.com/0xPabloLI/inside-china-ai/commit/00d6bbd687b888f17900df0784bb572e733fa4f2))
+
 ## [1.56.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.55.1...tanstack_start_ts-v1.56.0) (2026-11-09)
 
 
