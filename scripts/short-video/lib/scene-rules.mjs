@@ -52,8 +52,8 @@ import {
   SLOT_FIELDS,
   textFieldValue,
 } from "./text-slots.mjs";
-import { EMPTY_FIELD, isEmptyField, tierForSize } from "./type-scale.mjs";
-import { FPS } from "./timeline.mjs";
+import { EMPTY_FIELD, isEmptyField, tierForSize, TYPE_TIERS } from "./type-scale.mjs";
+import { sceneClipFrames } from "./timeline.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
 import { skipsMediaSourcing, sceneClaimPhrases, isUsableSearchHints } from "./claim-keywords.mjs";
@@ -1739,10 +1739,15 @@ function largestDeclaredObject(scene) {
  *
  * Judged on the DECLARED type scale (`preferredSize`), not rendered pixels:
  * preflight runs before a frame exists, and the design sizes are the thing the
- * contract can enforce. `opts.sceneDurations` (the post-render
- * `audio/scene-durations.json` shape) supplies the real persistence window;
- * without it the scene itself is the window, which is the same condition for
- * every shot longer than 45 frames.
+ * contract can enforce. Scenes carrying a media layer are skipped — the footage
+ * is the content area's largest object, and a missing asset is the
+ * final-media-gate's finding, not this rule's. `opts.sceneDurations` (the
+ * post-render `audio/scene-durations.json` shape, in voiceover seconds)
+ * supplies the real persistence window; the clip is what the viewer sees, so
+ * the window is `sceneClipFrames()` — voiceover plus the recording buffer — not
+ * the raw TTS second count. Without durations the scene itself is the window,
+ * which is the same condition for every clip longer than 45 frames (voiceover
+ * over ~1 s).
  *
  * Severity is WARN, matching the source's "mid-level defect": the layouts that
  * fix these scenes (four information-graphic topologies) are the deferred half
@@ -1758,46 +1763,80 @@ export function checkEmptyField(scenes, opts = {}) {
       .filter((row) => row && Number.isFinite(row.duration))
       .map((row) => [row.sceneId, row.duration]),
   );
-  const results = [];
+  const warns = [];
+  /** @type {Array<{px: number, field: string, frames: number|null}>} */
+  const cleared = [];
+  let mediaHeroes = 0;
+  let skipped = 0;
   scenes.forEach((scene, index) => {
     if (!EMPTY_FIELD_TYPES.has(scene.visualType)) return;
+    // A declared media layer IS the content area's largest object (background,
+    // split or bottom band — every media layout gives it a large field). The
+    // rule exists to catch "small copy + small chip", not a shot carried by
+    // footage; media absence is the final-media-gate's job, not this rule's.
+    if (scene.media) {
+      mediaHeroes += 1;
+      return;
+    }
     const largest = largestDeclaredObject(scene);
-    if (!largest) return;
+    if (!largest) {
+      skipped += 1;
+      return;
+    }
     const seconds = durations.get(scene.id ?? index + 1);
-    const frames = seconds === undefined || seconds === null ? null : Math.round(seconds * FPS);
+    const frames = seconds === undefined || seconds === null ? null : sceneClipFrames(seconds);
+    if (!isEmptyField({ largestObjectPx: largest.px, frames })) {
+      cleared.push({ ...largest, frames });
+      return;
+    }
     const tier = tierForSize(largest.px);
     const persistence = frames === null ? "whole-scene persistence" : `persists ${frames} frames`;
-    const detail =
-      `largest declared object ${largest.px}px (${largest.field}, tier ${tier ?? "none"}) ` +
-      `against the ${EMPTY_FIELD.maxObjectPx}px hero line, ${persistence}`;
-    if (isEmptyField({ largestObjectPx: largest.px, frames })) {
-      results.push({
-        level: "warn",
-        category: "Layout",
-        check: `Empty field — ${scene.visualType} ${scene.id}`,
-        detail,
-        fix:
-          "Give the shot a hero object at the hero tier (150px+: stat / bigNumber / full-band media) " +
-          "and demote the small copy to supporting; the four infographic topologies are the deferred " +
-          "half of #739 — until they land this is named design debt, not a render block.",
-      });
-    } else {
-      results.push({
+    warns.push({
+      level: "warn",
+      category: "Layout",
+      check: `Empty field — ${scene.visualType} ${scene.id}`,
+      detail:
+        `largest declared object ${largest.px}px (${largest.field}, tier ${tier ?? "none"}) ` +
+        `against the ${EMPTY_FIELD.maxObjectPx}px hero line, ${persistence}`,
+      fix:
+        `Give the shot a hero object at the hero tier (${TYPE_TIERS.hero.min}px+: stat / bigNumber / ` +
+        "full-band media) and demote the small copy to supporting; the four infographic topologies " +
+        "are the deferred half of #739 — until they land this is named design debt, not a render block.",
+    });
+  });
+  // One pass row for the whole check, not one per scene: the gate reports what
+  // needs action, and a clean 29-scene pack should not add 12 rows (#763).
+  if (warns.length > 0) return warns;
+  const notes = [];
+  if (mediaHeroes > 0) notes.push(`${mediaHeroes} carried by a media layer`);
+  if (skipped > 0) notes.push(`${skipped} without a measurable text object`);
+  const noteText = notes.length > 0 ? ` (${notes.join("; ")} skipped)` : "";
+  if (cleared.length === 0) {
+    return [
+      {
         level: "pass",
         category: "Layout",
-        check: `Empty field — ${scene.visualType} ${scene.id}`,
-        detail,
-      });
-    }
-  });
-  if (results.length === 0) {
-    results.push({
+        check: "Empty field",
+        detail:
+          notes.length > 0
+            ? `no judged scene${noteText}`
+            : "no governed information scenes in this pack",
+      },
+    ];
+  }
+  const smallest = cleared.reduce((a, b) => (b.px < a.px ? b : a));
+  const persistence = smallest.frames === null ? "" : `, clip ${smallest.frames} frames`;
+  return [
+    {
       level: "pass",
       category: "Layout",
-      check: "Empty field (no governed information scenes in this pack)",
-    });
-  }
-  return results;
+      check: "Empty field",
+      detail:
+        `${cleared.length} governed information scene(s) clear the ` +
+        `${EMPTY_FIELD.maxObjectPx}px hero line (smallest largest-object ${smallest.px}px ` +
+        `${smallest.field}${persistence})${noteText}`,
+    },
+  ];
 }
 
 // ─── visualType whitelist (Remotion dispatch table) ───

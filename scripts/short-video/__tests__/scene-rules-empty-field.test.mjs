@@ -3,7 +3,8 @@
  *
  * The gate judges the DECLARED type scale of the five information templates:
  * a scene whose largest object sits below the 110px hero line has no hero and
- * warns. Data and stat-reveal carry a 240px focal number and must pass; the
+ * warns. Scenes carried by a media layer are skipped — the footage is the
+ * object. Data and stat-reveal carry a 240px focal number and must pass; the
  * contrast / context / info-card families are the known "small copy + small
  * chip" shapes until the deferred topologies land.
  */
@@ -60,13 +61,28 @@ describe("checkEmptyField — largest declared object", () => {
   it("passes a data scene: the stat anchor is hero tier", () => {
     const results = checkEmptyField([dataScene]);
     expect(warns(results)).toEqual([]);
-    expect(results[0].detail).toContain("240px (stat");
+    expect(results[0].detail).toContain("240px stat");
   });
 
   it("passes a stat-reveal scene: the big number is hero tier", () => {
     const results = checkEmptyField([statRevealScene]);
     expect(warns(results)).toEqual([]);
-    expect(results[0].detail).toContain("240px (bigNumber");
+    expect(results[0].detail).toContain("240px bigNumber");
+  });
+
+  it("reports one pass row for the whole check, not one per scene", () => {
+    const results = checkEmptyField([dataScene, statRevealScene]);
+    expect(results).toHaveLength(1);
+    expect(results[0].level).toBe("pass");
+    expect(results[0].detail).toContain("2 governed information scene(s)");
+  });
+
+  it("skips a scene carried by a media layer", () => {
+    const results = checkEmptyField([
+      { ...contrastScene, media: { type: "video", path: "assets/clips/a.mp4" } },
+    ]);
+    expect(warns(results)).toEqual([]);
+    expect(results[0].detail).toContain("media layer");
   });
 
   it("warns on contrast: the title is supporting tier, so there is no hero", () => {
@@ -95,22 +111,33 @@ describe("checkEmptyField — largest declared object", () => {
   it("ignores visualTypes outside the information grammar", () => {
     const results = checkEmptyField([quoteScene]);
     expect(warns(results)).toEqual([]);
-    expect(results[0].check).toContain("no governed information scenes");
+    expect(results[0].detail).toContain("no governed information scenes");
   });
 });
 
 describe("checkEmptyField — persistence window", () => {
-  it("skips a scene at or under 45 frames", () => {
+  it("skips a scene at or under 45 frames of rendered clip", () => {
     const results = checkEmptyField([contrastScene], {
-      sceneDurations: [{ sceneId: 3, duration: 1.5 }], // exactly 45 frames @30fps
+      // 1.0s of voiceover + the 0.5s recording buffer = exactly 45 frames @30fps.
+      sceneDurations: [{ sceneId: 3, duration: 1.0 }],
     });
     expect(warns(results)).toEqual([]);
     expect(results[0].detail).toContain("45 frames");
   });
 
+  it("measures the rendered clip, not the raw voiceover seconds", () => {
+    // 1.03s of voiceover is only 31 raw frames, but the clip is 46 frames —
+    // the viewer sees the empty field for the clip, so this must fire.
+    const results = checkEmptyField([contrastScene], {
+      sceneDurations: [{ sceneId: 3, duration: 1.03 }],
+    });
+    expect(warns(results)).toHaveLength(1);
+    expect(results[0].detail).toContain("46 frames");
+  });
+
   it("fires for a scene longer than 45 frames", () => {
     const results = checkEmptyField([contrastScene], {
-      sceneDurations: [{ sceneId: 3, duration: 2.0 }], // 60 frames
+      sceneDurations: [{ sceneId: 3, duration: 1.5 }], // 60 frames once buffered
     });
     expect(warns(results)).toHaveLength(1);
     expect(results[0].detail).toContain("60 frames");
@@ -137,11 +164,11 @@ describe("checkEmptyField — preflight wiring", () => {
 
   it("accepts scene durations through opts", () => {
     const results = runAllSceneDataChecks([contrastScene], null, {
-      sceneDurations: [{ sceneId: 3, duration: 1.2 }],
+      sceneDurations: [{ sceneId: 3, duration: 0.8 }], // 39 frames once buffered
     });
     expect(results.warn.find((r) => r.check.startsWith("Empty field"))).toBeUndefined();
     const passing = results.pass.find((r) => r.check.startsWith("Empty field"));
     expect(passing).toBeDefined();
-    expect(passing.detail).toContain("36 frames");
+    expect(passing.detail).toContain("39 frames");
   });
 });

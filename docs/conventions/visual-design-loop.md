@@ -110,7 +110,7 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 #### Type scale（尺寸三档，2026-11-10 · #739）
 
-竖屏尺寸分三档，**档位之外没有第四种设计尺寸**。档位是 `lib/type-scale.mjs` 的 `TYPE_TIERS`（渲染端经 `tokens.ts` 的 `TYPE.tiers` 读同一对象），每个 `SLOT_FIELDS[field].preferredSize` 必须落在其中一档：
+竖屏尺寸分三档，**档位之外没有第四种设计尺寸**。档位是 `lib/type-scale.mjs` 的 `TYPE_TIERS`（`tokens.ts` 经 `TYPE.tiers` 重新导出同一对象；当前没有场景直接消费，档位先以契约形式落地），每个 `SLOT_FIELDS[field].preferredSize` 必须落在其中一档：
 
 | 档位       | 竖屏像素 | 用途                                  |
 | ---------- | -------- | ------------------------------------- |
@@ -118,11 +118,11 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 | supporting | 60–110   | 主文案与配角对象                      |
 | hero       | 150+     | 镜头的主角对象（大数字 / set piece）  |
 
-两段空隙（49–59、111–149）是刻意的：设计尺寸落在空隙会被门禁判为「第四种尺寸」。缩小阶梯（TextGate 为长文案在 `preferredSize → minSize` 之间降到 52px）不属于设计尺寸，不参与档位判定。
+两段空隙（49–59、111–149）是刻意的：设计尺寸落在空隙会让契约测试（`__tests__/type-scale.test.mjs`）变红。没有运行时门禁——渲染端只读声明尺寸，测试就是守卫。缩小阶梯（TextGate 为长文案在 `preferredSize → minSize` 之间降到 52px）不属于设计尺寸，不参与档位判定。
 
-档位来源是 anything2explainer `reference/composition-and-light.md` §1/§6（1280×720 横屏：主角 ≥170 / 配角 60–110 / 标签 22–30）按 1080×1920 重算：hero 下限取契约里的大数字地板 150（170 × 1080/1280 = 143.4 向上取整）；supporting 保持 60–110（我方 lead class 60–80 在带内，110 同时是空场线）；label 重锚到 #688 的可读地板 40/48（源值的 19–25px 在手机上不可读，#688 优先）。
+档位来源是 anything2explainer `reference/composition-and-light.md` §1/§6（1280×720 横屏：主角 ≥170 / 配角 60–110 / 标签 22–30）按 1080×1920 重算：hero 下限取契约里的大数字地板 150（170 × 1080/1280 = 143.4 向上取整）；supporting 保持 60–110（我方 lead class 60–80 在带内，110 同时是空场线）；label 重锚到 #688 的可读地板 40/48（源值的 19–25px 在手机上不可读，#688 优先）。源值的**第二主角形式**（大字 ≥96px 且整行宽 ≥300px）不采纳：重算后约 81px / 253px 落在 supporting 带内，会把 60–110px 的通栏标题全部算成主角，空场判据就此失效；宽度型主角属于四种信息图拓扑（#739 后续半段），由版式而不是字号定义。
 
-**空场判据**：`checkEmptyField`（`lib/scene-rules.mjs`）对 `data` / `stat-reveal` / `contrast` / `info-card` / `context` 五种信息类 scene 取「已声明文本对象的最大 `preferredSize`」，低于 110px（supporting 档上限）且持续超过 45 帧即 **WARN**——镜头没有主角，只有小字与小 chip。post-render 模式用 `audio/scene-durations.json` 的真实帧数判持续窗口；preflight 在 TTS 之前，以整镜为窗口。修法（四种信息图拓扑）是 #739 的后续半段，落地前该 WARN 是**具名设计债**，不是渲染阻断。
+**空场判据**：`checkEmptyField`（`lib/scene-rules.mjs`）对 `data` / `stat-reveal` / `contrast` / `info-card` / `context` 五种信息类 scene 取「已声明文本对象的最大 `preferredSize`」，低于 110px（supporting 档上限）且持续超过 45 帧即 **WARN**——镜头没有主角，只有小字与小 chip。判的是声明尺寸而不是渲染像素；带 `media` 层的镜头直接跳过（素材本身就是内容区最大物体，缺素材归 `final-media-gate`）。持续窗口在 post-render 用 `audio/scene-durations.json` 换算成**成片 clip 帧数**（`sceneClipFrames()`，含 0.5s 录音缓冲）；preflight 在 TTS 之前，以整镜为窗口。修法（四种信息图拓扑）是 #739 的后续半段，落地前该 WARN 是**具名设计债**，不是渲染阻断。
 
 ### 间距语义角色参考
 

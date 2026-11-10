@@ -86,6 +86,9 @@ const pipelineId = meta?.pipelineId || contentDir.replace(/\//g, "-");
 
 const OUTPUT_DIR = join(__dirname, "output", pipelineId);
 const SUBTITLE_TIMING_PATH = join(OUTPUT_DIR, "audio", "subtitle-timing.json");
+// Written by lib/subtitles/generate.mjs after TTS; read by the empty-field
+// persistence window (#739) and the BGM mix measurement (#950).
+const SCENE_DURATIONS_PATH = join(OUTPUT_DIR, "audio", "scene-durations.json");
 
 // Build file prefix: subject-pipelineId if different, else just pipelineId
 const subject = meta?.subject;
@@ -345,14 +348,11 @@ pass("Scene Data", "Scenes array exists", `${scenes.length} scenes`);
 // before TTS and judges the whole shot; a stale file from an earlier run must
 // not stand in for durations this run has not produced yet.
 let sceneDurations = null;
-if (!preMode) {
-  const durationsPath = join(OUTPUT_DIR, "audio", "scene-durations.json");
-  if (existsSync(durationsPath)) {
-    try {
-      sceneDurations = JSON.parse(readFileSync(durationsPath, "utf8"));
-    } catch {
-      /* unreadable: fall back to whole-shot persistence; the audio gate names the artifact */
-    }
+if (!preMode && existsSync(SCENE_DURATIONS_PATH)) {
+  try {
+    sceneDurations = JSON.parse(readFileSync(SCENE_DURATIONS_PATH, "utf8"));
+  } catch {
+    /* unreadable: fall back to whole-shot persistence; the audio gate names the artifact */
   }
 }
 const sceneResults = runAllSceneDataChecks(scenes, seriesMeta, {
@@ -544,7 +544,7 @@ if (!preMode) {
   console.log("─".repeat(50));
 
   const timingPath = SUBTITLE_TIMING_PATH;
-  const durationsPath = join(OUTPUT_DIR, "audio", "scene-durations.json");
+  const durationsPath = SCENE_DURATIONS_PATH;
   const marginFix =
     "Adjust bgmVolume (finalizeRenderedVideo / mix-bgm) or pick another track, " +
     "then re-run the mix — target 12–26 dB below the narration";

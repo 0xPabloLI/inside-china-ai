@@ -22,12 +22,22 @@
  *   set in #688 (copy 48 / metadata 40). #688 supersedes the source value —
  *   a 25px label is unreadable on a phone — so the label band re-anchors on
  *   those floors (`READABILITY_TIERS`).
+ * - the source's second hero form — "big text ≥96px on a line ≥300px wide" —
+ *   is NOT adopted. Rescaled it is ~81px on a ≥253px line, squarely inside the
+ *   supporting band, and every 60–110px full-width headline would qualify,
+ *   which voids the empty-field rule for exactly the "small copy" defect it
+ *   exists to catch. The portrait contract keeps ONE hero floor (150px); a
+ *   width-qualified hero belongs to the four information-graphic topologies
+ *   (the deferred half of #739), where a layout — not a bare font size —
+ *   defines the focal object.
  *
  * The bands leave two deliberate gaps (49–59 and 111–149): "no fourth size"
  * means a declared size must land inside a band, and the gaps make a stray
- * intermediate size detectable instead of plausible. The gaps are checked over
- * the DESIGN sizes (`SLOT_FIELDS[*].preferredSize`), not the shrink ladder —
- * shrinking a long line through 52px is TextGate fit, not a design choice.
+ * intermediate size detectable instead of plausible. The gaps are enforced by
+ * the contract test (`__tests__/type-scale.test.mjs`) over the DESIGN sizes
+ * (`SLOT_FIELDS[*].preferredSize`), not the shrink ladder — shrinking a long
+ * line through 52px is TextGate fit, not a design choice. There is no runtime
+ * gate: the renderer reads only declared sizes, so the test is the guard.
  *
  * This module is the single source for both consumers: the renderer's token
  * layer (`remotion/src/tokens.ts` re-exports it as `TYPE.tiers`) and the
@@ -70,7 +80,10 @@ export const TYPE_TIERS = {
  *
  * Scope is the information grammar this ticket governs (the five templates the
  * survey named), not the whole catalogue: the brand CTA and the hook are
- * deliberately small-copy formats and are judged by their own gates.
+ * deliberately small-copy formats and are judged by their own gates. The rule
+ * measures TEXT objects only — a scene carried by a media layer is not empty,
+ * and that exemption belongs to the caller, which skips media scenes before
+ * calling `isEmptyField`.
  */
 export const EMPTY_FIELD = {
   /** Largest-object threshold, px — the source's 110, kept after rescaling. */
