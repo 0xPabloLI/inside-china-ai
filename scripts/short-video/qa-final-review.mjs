@@ -22,6 +22,7 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -35,9 +36,11 @@ import {
   SHEET_LAYOUT,
   TILE_SIZE,
   buildSheetCommand,
+  isValidContentId,
   decideReviewOutcome,
   planAcceptanceFrames,
   renderReviewRequest,
+  validateLedgerShape,
   validateReviewReport,
 } from "./lib/qa-final-review.mjs";
 
@@ -59,9 +62,9 @@ if (!contentId) {
     "usage: qa-final-review.mjs --content <id> --video <finished.mp4> [--implementer <id>] | --plan-only | --reproduce <frame> | --report <final-review.json>",
   );
 }
-// Same shape as still-frame.mjs: the id is a path segment and must not escape
-// the content tree.
-if (!/^[a-z0-9_][a-z0-9._-]*$/.test(contentId)) {
+// Nested pack ids (`restraint/pt1`) are supported, as in main.mjs; every
+// segment must be a plain path segment so join() cannot escape the trees.
+if (!isValidContentId(contentId)) {
   die(`--content must be a content id, got: ${JSON.stringify(contentId)}`);
 }
 
@@ -110,12 +113,16 @@ try {
   die(e.message);
 }
 
-const readJson = (path) => {
+const readJson = (path, { allowBroken = false } = {}) => {
   if (!existsSync(path)) return null;
   try {
     return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
+  } catch (e) {
+    // A truncated packet/ledger is NOT "nothing reviewed yet": that would
+    // silently reset the round cap. Only the explicit --reset-review action
+    // may discard it; everything else fails closed with a repair instruction.
+    if (allowBroken) return null;
+    die(`${path} is not valid JSON (${e.message}) — repair it or rerun with --reset-review`);
   }
 };
 const writeJson = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
@@ -127,7 +134,14 @@ const writeJson = (path, value) => writeFileSync(path, JSON.stringify(value, nul
 const manifestPath = join(qaDir, "acceptance-frames.json");
 const ledgerPath = join(qaDir, "review-ledger.json");
 const previousManifest = readJson(manifestPath);
-let ledger = readJson(ledgerPath);
+let ledger = readJson(ledgerPath, { allowBroken: resetReview });
+if (ledger !== null && !resetReview) {
+  const ledgerError = validateLedgerShape(ledger, { contentId });
+  if (ledgerError)
+    die(
+      `review ledger is unusable: ${ledgerError} — rerun with --reset-review to start a new review`,
+    );
+}
 const writeManifest = (manifest) => writeJson(manifestPath, manifest);
 
 // --reproduce: re-render ONE declared frame through still-frame.mjs, which
@@ -197,19 +211,22 @@ if (reportPath) {
     die(`cannot parse report: ${e.message}`);
   }
 
-  // Rounds are cumulative in the LEDGER, so a reviewer cannot replay round 1
-  // forever, and rebuilding the packet after a fix cannot zero the count.
+  if (!report || typeof report !== "object" || Array.isArray(report)) {
+    die("report must be a JSON object");
+  }
+  // Rounds are cumulative in the LEDGER's history, so a reviewer cannot replay
+  // round 1 forever, and rebuilding the packet after a fix cannot zero it.
   if (!ledger) die("no review ledger for this content — run the full loop with --video first");
-  const rounds = Array.isArray(ledger.rounds) ? ledger.rounds : [];
-  const expectedRound = rounds.length + 1;
+  const history = ledger.history;
+  const expectedRound = history.length + 1;
   if (report.round !== expectedRound) {
-    die(`report round must be ${expectedRound} (ledger has recorded ${rounds.length} round(s))`);
+    die(`report round must be ${expectedRound} (ledger has recorded ${history.length} round(s))`);
   }
   const validation = validateReviewReport(report, plan, {
     expectedImplementer: ledger.implementer,
     expectedPacketVersion: previousManifest.packetVersion,
   });
-  const outcome = decideReviewOutcome(report, plan, validation);
+  const outcome = decideReviewOutcome(report, validation);
   if (!validation.ok) {
     for (const error of validation.errors) console.error(`   - ${error}`);
     die(`final review INVALID (${validation.errors.length} problem(s))`);
@@ -218,9 +235,8 @@ if (reportPath) {
   // the packet under review.
   ledger = {
     ...ledger,
-    rounds: [...rounds, report.round],
     history: [
-      ...(Array.isArray(ledger.history) ? ledger.history : []),
+      ...history,
       {
         round: report.round,
         status: outcome.status,
@@ -263,6 +279,17 @@ if (planOnly) {
 
 // A half-built packet must never look complete to --report.
 if (previousManifest) writeManifest({ ...previousManifest, complete: false });
+
+// frame-extract writes .fe-<k>.png into outDir and renames them at the end. A
+// killed run leaves them behind; on a shorter retake they would be renamed
+// onto the CURRENT declared frames, silently resurrecting old-video stills.
+// Clear both the temp sequence and the previous take's stills first.
+mkdirSync(framesDir, { recursive: true });
+for (const name of readdirSync(framesDir)) {
+  if ((name.startsWith(".fe-") || name.startsWith("frame-")) && name.endsWith(".png")) {
+    rmSync(join(framesDir, name), { force: true });
+  }
+}
 
 // One ffmpeg pass for every acceptance frame. Missing frames mean the finished
 // video is shorter than the timeline: fail closed rather than quietly
@@ -329,7 +356,7 @@ rmSync(blankPath, { force: true });
 // after the stills and sheets exist, so a failed run leaves no usable packet.
 const packetVersion = (previousManifest?.packetVersion ?? 0) + 1;
 if (!ledger || resetReview) {
-  ledger = { contentId, implementer, rounds: [], history: [] };
+  ledger = { contentId, implementer, history: [] };
   if (resetReview) console.log("   --reset-review: review ledger cleared");
 } else if (ledger.implementer !== implementer) {
   die(
@@ -337,7 +364,7 @@ if (!ledger || resetReview) {
   );
 }
 writeJson(ledgerPath, ledger);
-const round = (ledger.rounds?.length ?? 0) + 1;
+const round = ledger.history.length + 1;
 writeManifest({
   contentId,
   video: { path: videoPath, name: basename(videoPath), bytes: statSync(videoPath).size },

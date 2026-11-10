@@ -13,16 +13,51 @@
  * composition and the subtitle track, so a TTS retake moves the frame numbers
  * without invalidating the declaration.
  */
-import { dirname, join } from "path";
+import { CANVAS } from "./safe-zones.mjs";
 import { FPS, TRANSITION_FRAMES, sceneTimeline, scheduleTotalFrames } from "./timeline.mjs";
 
 /** Relative offsets (frames) from the start / end of a scene's clip window. */
 export const ACCEPTANCE_OFFSETS = Object.freeze({ entry: 15, exit: 15 });
 export const SHEET_LAYOUT = Object.freeze({ cols: 3, rows: 4 });
-export const TILE_SIZE = Object.freeze({ width: 270, height: 480 });
+/** Quarter-scale of the production canvas: CANVAS is the single source of truth. */
+export const TILE_SIZE = Object.freeze({ width: CANVAS.width / 4, height: CANVAS.height / 4 });
 // Module-internal: no cross-module consumer, so knip treats an export as dead API.
 const MAX_REVIEW_ROUNDS = 3;
 const SEVERITIES = Object.freeze(["P0", "P1", "P2"]);
+
+/**
+ * Nested pack ids (`restraint/pt1`) are valid, as in main.mjs. Every segment
+ * must be a plain path segment, so `join()` cannot escape the content/output
+ * trees; a segment cannot start with `.`, which rules out `..`.
+ */
+export function isValidContentId(id) {
+  return typeof id === "string" && /^[a-z0-9_][a-z0-9._-]*(\/[a-z0-9_][a-z0-9._-]*)*$/.test(id);
+}
+
+/**
+ * The ledger is the only carrier of cumulative rounds and implementer identity.
+ * A corrupt / partial file must never look like "no reviews yet": that would
+ * silently reset the three-round cap without the explicit `--reset-review`.
+ * @returns {string|null} an error message, or null when the shape is usable
+ */
+export function validateLedgerShape(value, { contentId } = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return "review ledger must be a JSON object";
+  }
+  if (typeof value.implementer !== "string" || !value.implementer.trim()) {
+    return "review ledger has no implementer";
+  }
+  if (typeof value.contentId !== "string" || (contentId && value.contentId !== contentId)) {
+    return "review ledger belongs to another content pack";
+  }
+  if (!Array.isArray(value.history)) return "review ledger has no history array";
+  if (!value.history.every((h) => h && Number.isInteger(h.round))) {
+    return "review ledger has a malformed history entry";
+  }
+  if (value.history.length > MAX_REVIEW_ROUNDS) return "review ledger exceeds the three-round cap";
+  if (Array.isArray(value.rounds)) return "review ledger uses the retired rounds array";
+  return null;
+}
 
 const blockingFindings = (findings) =>
   findings.filter((f) => f.severity === "P0" || f.severity === "P1");
@@ -33,10 +68,9 @@ const blockingFindings = (findings) =>
  * burned-in text (no font dependency), the ledger maps r1c1 -> frame N.
  *
  * @param {Array<object>} frames
- * @param {{cols:number,rows:number}} [layout]
  */
-function groupIntoSheets(frames, layout = SHEET_LAYOUT) {
-  const { cols, rows } = layout;
+function groupIntoSheets(frames) {
+  const { cols, rows } = SHEET_LAYOUT;
   const size = cols * rows;
   const sheets = [];
   for (let start = 0; start < frames.length; start += size) {
@@ -58,21 +92,24 @@ function groupIntoSheets(frames, layout = SHEET_LAYOUT) {
 /**
  * Turn scene durations into the acceptance-frame declaration.
  *
- * Fail-closed on: missing/zero durations, scenes too short to hold two
- * distinct frames, and any absolute frame outside the composition. The
- * composition is TransitionSeries-based, so a scene's safe window is
- * `[visualStartFrames, visualStartFrames + clipFrames)` — visualFrames adds
- * the transition overlap, which the series gives back when it overlaps.
+ * Fail-closed on: missing/zero durations, an entry frame inside a transition,
+ * scenes too short to hold two distinct frames, and any absolute frame outside
+ * the composition.
+ *
+ * `visualStartFrames` is the running sum of clip lengths; for every non-first
+ * scene the first TRANSITION_FRAMES local frames are still the crossfade from
+ * the previous scene. The solo window therefore starts at
+ * `visualStartFrames + TRANSITION_FRAMES` and entry must clear it.
+ *
+ * `offsets` stays injectable so that transition-guard branch is testable; fps
+ * and transitionOverlap are read from the timeline module, the single source.
  *
  * @param {Array<{sceneId:number,duration:number,voiceover?:string}>} sceneDurations
- * @param {{fps?:number,transitionOverlap?:number,offsets?:{entry:number,exit:number}}} [options]
+ * @param {{offsets?:{entry:number,exit:number}}} [options]
  */
-export function planAcceptanceFrames(sceneDurations, options = {}) {
-  const {
-    fps = FPS,
-    transitionOverlap = TRANSITION_FRAMES,
-    offsets = ACCEPTANCE_OFFSETS,
-  } = options;
+export function planAcceptanceFrames(sceneDurations, { offsets = ACCEPTANCE_OFFSETS } = {}) {
+  const fps = FPS;
+  const transitionOverlap = TRANSITION_FRAMES;
 
   if (!Array.isArray(sceneDurations) || sceneDurations.length === 0) {
     throw new Error("scene durations are required to plan acceptance frames");
@@ -98,6 +135,14 @@ export function planAcceptanceFrames(sceneDurations, options = {}) {
     const { sceneId, visualStartFrames, clipFrames } = entry;
     const entryRel = Math.min(offsets.entry, clipFrames - 1);
     const exitRel = Math.max(0, clipFrames - 1 - offsets.exit);
+    // A non-first scene opens on a crossfade; reviewing that blend as the
+    // scene's own content is the claim-versus-footage error this gate exists
+    // to catch. Fail closed rather than hand the reviewer a blended frame.
+    if (i > 0 && entryRel <= transitionOverlap) {
+      throw new Error(
+        `scene ${sceneId} entry frame +${entryRel} is inside the ${transitionOverlap}-frame transition overlap`,
+      );
+    }
     if (entryRel >= exitRel) {
       throw new Error(
         `scene ${sceneId} is too short for two distinct acceptance frames (${clipFrames} frames)`,
@@ -144,7 +189,7 @@ export function planAcceptanceFrames(sceneDurations, options = {}) {
     declaration: { ...offsets, unit: "relative frames inside each scene's clip window" },
     scenes,
     frames,
-    sheets: groupIntoSheets(frames, SHEET_LAYOUT),
+    sheets: groupIntoSheets(frames),
   };
 }
 
@@ -216,9 +261,7 @@ export function renderReviewRequest(
         packetVersion,
         verdict: "pass",
         reviewedFrames: plan.frames.map((f) => f.frame),
-        findings: [
-          { frame: plan.frames[0]?.frame ?? 0, severity: "P0", evidence: "frame shows ..." },
-        ],
+        findings: [],
       },
       null,
       2,
@@ -233,6 +276,9 @@ export function renderReviewRequest(
     "- `reviewedFrames` must contain every declared frame, with no extras — a pass with no cited frames is not a review.",
   );
   lines.push("- `severity` is P0, P1 or P2; P0/P1 means `changes-required`, not `pass`.");
+  lines.push(
+    '- The template above is the passing case. A blocking finding is `{ frame, severity: "P0"|"P1", evidence }` and requires `verdict: "changes-required"`.',
+  );
   lines.push(
     `- \`round\` is 1..${MAX_REVIEW_ROUNDS} and must advance by one each time; a third round with P0/P1 stops delivery.`,
   );
@@ -342,8 +388,14 @@ export function validateReviewReport(
 }
 
 /** Decide the delivery outcome from a (possibly pre-validated) report. */
-export function decideReviewOutcome(report, plan, validation = validateReviewReport(report, plan)) {
-  if (!validation.ok) return { status: "invalid", errors: validation.errors, blockers: [] };
+export function decideReviewOutcome(report, validation) {
+  if (!validation || !validation.ok) {
+    return {
+      status: "invalid",
+      errors: validation?.errors ?? ["a validation result is required"],
+      blockers: [],
+    };
+  }
   const blockers = blockingFindings(report.findings);
   if (blockers.length === 0) return { status: "pass", nextRound: null, blockers: [] };
   if (report.round >= MAX_REVIEW_ROUNDS) return { status: "exhausted", nextRound: null, blockers };
@@ -352,8 +404,9 @@ export function decideReviewOutcome(report, plan, validation = validateReviewRep
 
 /**
  * ffmpeg argv for one sheet. The caller stages `framePaths` as `%02d.png`
- * (padding the last sheet with blank tiles) at `inputPattern`; keeping the
- * command a pure function makes the geometry testable without a renderer.
+ * (padding the last sheet with blank tiles) at `inputPattern`; `inputPattern`
+ * is required because nothing else stages that directory. Keeping the command
+ * a pure function makes the geometry testable without a renderer.
  */
 export function buildSheetCommand({ framePaths, outPath, inputPattern }) {
   const { cols, rows } = SHEET_LAYOUT;
@@ -364,7 +417,9 @@ export function buildSheetCommand({ framePaths, outPath, inputPattern }) {
   if (framePaths.length > cols * rows) {
     throw new Error(`a ${cols}x${rows} sheet holds at most ${cols * rows} frames`);
   }
-  const pattern = inputPattern ?? join(dirname(outPath), ".tiles", "%02d.png");
+  if (typeof inputPattern !== "string" || !inputPattern) {
+    throw new Error("inputPattern is required — the caller stages the tiles");
+  }
   const filter = [
     `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
     `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
@@ -381,7 +436,7 @@ export function buildSheetCommand({ framePaths, outPath, inputPattern }) {
     "-start_number",
     "1",
     "-i",
-    pattern,
+    inputPattern,
     "-vf",
     filter,
     "-frames:v",

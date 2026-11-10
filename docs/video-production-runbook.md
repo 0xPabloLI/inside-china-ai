@@ -1086,6 +1086,8 @@ node scripts/short-video/qa-final-review.mjs --content <id> --reproduce <frame> 
 node scripts/short-video/qa-final-review.mjs --content <id> --plan-only          # declaration only, writes nothing
 ```
 
+`--content` accepts the same nested pack ids as `main.mjs` (for example `restraint/pt1`); every segment must be a plain path segment, so `..` and absolute paths are rejected. `output/{id}/qa/` follows the same nesting. Before extracting, the CLI clears stale `.fe-*.png` and `frame-*.png` files from that directory: a killed run must never let an old take's stills be renamed onto the current declared frames.
+
 `output/{id}/qa/` holds the packet (`acceptance-frames.json`, `frames/frame-<n>.png`, `sheets/sheet-NN.jpg`, `review-request.md`), the reviewer's `final-review.json`, and the separate `review-ledger.json` that outlives packet rebuilds.
 
 **Contract.** Each scene declares two acceptance frames as fixed offsets (entry +15 / exit −15 relative frames), resolved to absolute frame numbers through `scripts/short-video/lib/timeline.mjs` — the same source as the composition and the subtitle track. A TTS retake moves the absolute numbers without invalidating the declaration. Sheets are 3×4 tiles (geometry lives in `SHEET_LAYOUT` / `TILE_SIZE` in `scripts/short-video/lib/qa-final-review.mjs`) and carry no burned-in labels, so `review-request.md` maps `r1c1 → frame N → scene and voiceover claim`. The surveyed `contact_sheet.py` is PolyForm Noncommercial; the tiling here is a fresh ffmpeg `tile` call, not a copy.

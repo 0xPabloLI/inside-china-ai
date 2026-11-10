@@ -13,12 +13,16 @@ import { describe, it, expect } from "vitest";
 import {
   ACCEPTANCE_OFFSETS,
   SHEET_LAYOUT,
+  TILE_SIZE,
+  buildSheetCommand,
+  decideReviewOutcome,
+  isValidContentId,
   planAcceptanceFrames,
   renderReviewRequest,
+  validateLedgerShape,
   validateReviewReport,
-  decideReviewOutcome,
-  buildSheetCommand,
 } from "../lib/qa-final-review.mjs";
+import { CANVAS } from "../lib/safe-zones.mjs";
 
 const DURATIONS = [
   { sceneId: 1, duration: 4.0, voiceover: "Hook: a robot opens a door." },
@@ -234,6 +238,8 @@ describe("validateReviewReport", () => {
 
 describe("decideReviewOutcome", () => {
   const plan = planAcceptanceFrames(DURATIONS);
+  // Production passes the packet-bound validation; the weaker default path is gone.
+  const outcomeFor = (r) => decideReviewOutcome(r, validateReviewReport(r, plan));
   const report = (round, findings) => ({
     reviewer: "review-agent",
     implementer: "session-impl",
@@ -246,22 +252,20 @@ describe("decideReviewOutcome", () => {
 
   it("passes when only P2 notes remain", () => {
     expect(
-      decideReviewOutcome(
-        report(1, [{ frame: plan.frames[0].frame, severity: "P2", evidence: "nit" }]),
-        plan,
-      ).status,
+      outcomeFor(report(1, [{ frame: plan.frames[0].frame, severity: "P2", evidence: "nit" }]))
+        .status,
     ).toBe("pass");
   });
 
   it("asks for one more fix round when a P0 is found", () => {
-    expect(decideReviewOutcome(report(1, p0()), plan)).toMatchObject({
+    expect(outcomeFor(report(1, p0()))).toMatchObject({
       status: "fix-required",
       nextRound: 2,
     });
   });
 
   it("stops at three cumulative rounds", () => {
-    expect(decideReviewOutcome(report(3, p0()), plan).status).toBe("exhausted");
+    expect(outcomeFor(report(3, p0())).status).toBe("exhausted");
   });
 });
 
@@ -271,10 +275,84 @@ describe("buildSheetCommand", () => {
     const argv = buildSheetCommand({
       framePaths: plan.sheets[0].cells.map((c) => `/qa/frames/frame-${c.frame}.png`),
       outPath: "/qa/sheets/sheet-01.jpg",
+      inputPattern: "/qa/sheets/.tiles-01/%02d.png",
     });
     expect(argv[0]).toBe("ffmpeg");
     expect(argv).toContain("-frames:v");
     expect(argv.join(" ")).toContain("tile=3x4");
     expect(argv.at(-1)).toBe("/qa/sheets/sheet-01.jpg");
+  });
+});
+
+describe("independent-review regressions", () => {
+  it("derives tile geometry from the production canvas, not a second literal", () => {
+    expect(TILE_SIZE).toEqual({ width: CANVAS.width / 4, height: CANVAS.height / 4 });
+  });
+
+  it("accepts nested pack ids but rejects traversal and empty segments", () => {
+    expect(isValidContentId("restraint/pt1")).toBe(true);
+    expect(isValidContentId("unitree-h2x-guardian")).toBe(true);
+    for (const bad of [
+      "../secret",
+      "restraint/../secret",
+      "/absolute",
+      "a//b",
+      "a/./b",
+      "",
+      "a\\b",
+      null,
+    ]) {
+      expect(isValidContentId(bad)).toBe(false);
+    }
+  });
+
+  it("fails closed when an entry frame lands inside the transition overlap", () => {
+    expect(() => planAcceptanceFrames(DURATIONS, { offsets: { entry: 10, exit: 15 } })).toThrow(
+      /transition overlap/i,
+    );
+  });
+
+  it("shows a self-consistent report template (pass implies no blockers)", () => {
+    const plan = planAcceptanceFrames(DURATIONS);
+    const md = renderReviewRequest(plan, {
+      contentId: "demo-pack",
+      videoPath: "/tmp/demo.mp4",
+      implementer: "session-impl",
+    });
+    expect(md).toContain('"findings": []');
+    expect(md).toContain('"verdict": "pass"');
+    expect(md).toContain("changes-required");
+  });
+
+  it("rejects a corrupt, truncated or stale review ledger shape", () => {
+    const good = { contentId: "demo", implementer: "impl", history: [{ round: 1 }] };
+    expect(validateLedgerShape(good, { contentId: "demo" })).toBeNull();
+    for (const bad of [
+      null,
+      7,
+      [],
+      { ...good, implementer: "" },
+      { ...good, contentId: "other" },
+      { ...good, history: "nope" },
+      { ...good, history: [{ round: "1" }] },
+      { ...good, history: Array(4).fill({ round: 1 }) },
+      { ...good, rounds: [1] },
+    ]) {
+      expect(validateLedgerShape(bad, { contentId: "demo" })).toEqual(expect.any(String));
+    }
+  });
+
+  it("requires a packet-bound validation result for the outcome", () => {
+    expect(decideReviewOutcome({}, undefined).status).toBe("invalid");
+  });
+
+  it("requires an explicit staged tile input pattern", () => {
+    const plan = planAcceptanceFrames(DURATIONS);
+    expect(() =>
+      buildSheetCommand({
+        framePaths: plan.sheets[0].cells.map((c) => `/qa/frames/frame-${c.frame}.png`),
+        outPath: "/qa/sheets/sheet-01.jpg",
+      }),
+    ).toThrow(/inputPattern/);
   });
 });
