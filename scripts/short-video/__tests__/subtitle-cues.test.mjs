@@ -134,10 +134,24 @@ describe("chunkWords", () => {
     expect(chunks.flatMap((c) => c.words.map((x) => x.text))).toEqual(input.map((x) => x.text));
   });
 
+  it("never carries a sentence-final word across the break", () => {
+    // The pair cannot merge (983px > 720px) and one word would have to cross.
+    // The obvious candidate is "ok." — but it ends the sentence, so it stays on
+    // the page whose sentence it ends; the orphan page is left as it is.
+    const input = words(
+      ["Wide", 0, 0.2],
+      ["format", 0.2, 0.4],
+      ["ok.", 0.4, 0.6],
+      ["Cybersecurity", 0.6, 1.2],
+    );
+    const chunks = chunkWords(input);
+    expect(chunks.map((c) => c.text)).toEqual(["Wide format ok.", "Cybersecurity"]);
+  });
+
   it("merges a trailing single-word chunk back into the previous line", () => {
     // "Go now." ends a sentence, so "Fast." would flush as its own one-word
-    // chunk; since the combined line ("Go now. Fast.", ~393px) fits the 720px
-    // lane, the orphan is merged back rather than left to blink alone.
+    // chunk; since the combined line ("Go now. Fast.", ~446px at 68px) fits the
+    // 720px lane, the orphan is merged back rather than left to blink alone.
     const input = words(["Go", 0, 0.3], ["now.", 0.35, 0.7], ["Fast.", 0.8, 1.2]);
     const chunks = chunkWords(input);
     expect(chunks).toHaveLength(1);

@@ -171,7 +171,7 @@ export const EVIDENCE_CARD = {
  *
  * TikTok's own native auto-captions are canvas-centered — but they're
  * auto-generated 3-5 word snippets that are naturally narrow, so they never
- * reach the rail. Our karaoke cues can be up to 720px wide (≈6 words at 68px),
+ * reach the rail. Our karaoke cues can be up to 720px wide (≈4 words at 68px),
  * which would be occluded if centered.
  *
  * marginV places the cue BOTTOM edge at 1920 − 500 = 1420; the lane reserves

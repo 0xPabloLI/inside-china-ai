@@ -246,8 +246,8 @@ describe("checkSafeZoneBottom", () => {
     const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
       xStart: 100,
       xEnd: 800,
-      yStart: 1314,
-      yEnd: 1334,
+      yStart: 1299,
+      yEnd: 1327,
     });
     const result = checkSafeZoneBottom(buf, SAFE_ZONES);
     expect(result.level).toBe("fail");
