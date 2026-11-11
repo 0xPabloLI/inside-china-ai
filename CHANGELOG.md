@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.61.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.60.1...tanstack_start_ts-v1.61.0) (2026-11-11)
+
+
+### Features
+
+* **short-video:** raise burned subtitle to 68px and re-derive safe zones ([#1228](https://github.com/0xPabloLI/inside-china-ai/issues/1228)) ([#1243](https://github.com/0xPabloLI/inside-china-ai/issues/1243)) ([db68f13](https://github.com/0xPabloLI/inside-china-ai/commit/db68f138f4e32439644032da69b75e177760ff13))
+
 ## [1.60.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.60.0...tanstack_start_ts-v1.60.1) (2026-11-11)
 
 
