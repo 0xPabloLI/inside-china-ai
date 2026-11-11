@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.62.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.61.0...tanstack_start_ts-v1.62.0) (2026-11-11)
+
+
+### Features
+
+* **short-video:** add hook payoff check and retention cohort report ([#1206](https://github.com/0xPabloLI/inside-china-ai/issues/1206)) ([#1246](https://github.com/0xPabloLI/inside-china-ai/issues/1246)) ([f67af4f](https://github.com/0xPabloLI/inside-china-ai/commit/f67af4f69022b83ce5cd0bc997286adb5b563872))
+
 ## [1.61.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.60.1...tanstack_start_ts-v1.61.0) (2026-11-11)
 
 
