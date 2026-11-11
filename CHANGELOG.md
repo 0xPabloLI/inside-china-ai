@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.60.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.59.1...tanstack_start_ts-v1.60.0) (2026-11-11)
+
+
+### Features
+
+* **short-video:** hook sentence families and 4.5–5s duration band ([#1231](https://github.com/0xPabloLI/inside-china-ai/issues/1231)) ([#1235](https://github.com/0xPabloLI/inside-china-ai/issues/1235)) ([32c7bdc](https://github.com/0xPabloLI/inside-china-ai/commit/32c7bdc7854fd331727e8a402247a114be651faa))
+
 ## [1.59.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.59.0...tanstack_start_ts-v1.59.1) (2026-11-11)
 
 
