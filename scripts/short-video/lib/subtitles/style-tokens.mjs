@@ -19,19 +19,19 @@
  *   laid out against that box. Copying them here would create the drift this
  *   refactor is removing. The style row reads them from the lane.
  * - **Colour is the video palette.** `spoken` is Dispatch Blue and
- *   `unspoken` is the primary text colour — the same values `COLOR` declares
- *   in `remotion/src/tokens.ts` for the composition surface. There is no
- *   runtime bridge (Node cannot import that TS module), so the binding is a
- *   contract test: `__tests__/subtitle-tokens.test.mjs` fails if these two
- *   hexes ever diverge from the video palette. Values are sRGB hex because
- *   that is what `toAssColor` consumes; the ASS word itself (`&HAABBGGRR`) is
- *   derived, never authored by hand.
+ *   `unspoken` is the primary text colour. Both values come from
+ *   `lib/video-palette.mjs`, which `remotion/src/tokens.ts` also imports for
+ *   its `COLOR` object — one declaration, two surfaces. Values here are sRGB
+ *   hex because that is what `toAssColor` consumes; the ASS word itself
+ *   (`&HAABBGGRR`) is derived, never authored by hand.
  *
  * Scope (#747 HITL ruling A, 2026-11-09): pure refactor. Current values only,
  * zero visual change. New emphasis techniques (scale / glow / underline / pill)
  * are a separate brand decision and must extend this object rather than return
  * to literals in the serialiser.
  */
+
+import { VIDEO_PALETTE } from "../video-palette.mjs";
 
 /**
  * One ASS colour: `hex` is the sRGB value, `alpha` is ASS's inverted alpha
@@ -86,9 +86,9 @@ export const SUBTITLE_STYLE = {
   },
   color: {
     /** Unspoken words (SecondaryColour) — near-white, legible on the dark stage. */
-    unspoken: { hex: "#f5f5f5", alpha: 0x00 },
-    /** Spoken words (PrimaryColour) — Dispatch Blue #4d8bff, DESIGN.md's progress marker. */
-    spoken: { hex: "#4d8bff", alpha: 0x00 },
+    unspoken: { hex: VIDEO_PALETTE.text, alpha: 0x00 },
+    /** Spoken words (PrimaryColour) — Dispatch Blue, DESIGN.md's progress marker. */
+    spoken: { hex: VIDEO_PALETTE.brand, alpha: 0x00 },
     /** Outline (OutlineColour) — 40% transparent black. */
     outline: STROKE_INK,
     /** Back colour (BackColour) — the shadow fallback, same ink as the outline. */

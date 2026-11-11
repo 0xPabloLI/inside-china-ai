@@ -12,15 +12,16 @@
  */
 import { BRAND_FONT_STACK } from "../../lib/safe-zones.mjs";
 import { EMPTY_FIELD, TYPE_TIERS } from "../../lib/type-scale.mjs";
+import { VIDEO_PALETTE } from "../../lib/video-palette.mjs";
 
 /** Brand + semantic palette (DESIGN.md §2, video/dark surface). */
 export const COLOR = {
   /** Dispatch Blue — the one brand accent, shared with the web surface. */
-  brand: "#4d8bff",
+  brand: VIDEO_PALETTE.brand,
   /** Video canvas (the dark ground every scene sits on). */
   canvas: "#0a0a14",
   /** Primary on-canvas text. */
-  text: "#f5f5f5",
+  text: VIDEO_PALETTE.text,
   /** Secondary text (explanations, taglines). */
   textMuted: "#cbd5e1",
   /** Tertiary text (source lines, attribution). */

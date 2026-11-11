@@ -140,7 +140,7 @@ Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word h
 | Timing             | wav2vec2 forced alignment (`text-align.py`), per-word timestamps                                          |
 | Generation         | `lib/subtitles/` (JS, see docs/video-production-runbook.md)                                               |
 
-Subtitle values have two single sources: the **look** (karaoke colour pair, family/weight, outline/shadow, glyph spacing) lives in `SUBTITLE_STYLE` (`scripts/short-video/lib/subtitles/style-tokens.mjs`), and **position/size** (font size, bottom-centre alignment, the three margins) lives in `SUBTITLE_LANE` (`scripts/short-video/lib/safe-zones.mjs`). `lib/subtitles/ass.mjs` only serialises them — never hardcode either. The subtitle lane (y=1339–1420) is structurally separated from the content band (ends y=1309), so burned subtitles can never overlap scene content.
+Subtitle values have two single sources: the **look** (karaoke colour pair, family/weight, outline/shadow, glyph spacing) lives in `SUBTITLE_STYLE` (`scripts/short-video/lib/subtitles/style-tokens.mjs`), and **position/size** (font size, bottom-centre alignment, the three margins) lives in `SUBTITLE_LANE` (`scripts/short-video/lib/safe-zones.mjs`). The two palette hexes are declared once in `scripts/short-video/lib/video-palette.mjs`, which the composition's `COLOR` also imports. `lib/subtitles/ass.mjs` only serialises them — never hardcode either. The subtitle lane (y=1339–1420) is structurally separated from the content band (ends y=1309), so burned subtitles can never overlap scene content.
 
 ASS Style line (pinned by `scripts/short-video/__tests__/subtitle-tokens.test.mjs`):
 
@@ -385,7 +385,7 @@ Brand closer — the single shared CtaScene component (`remotion/src/scenes/CtaS
 The CSS implementation of these specs lives in:
 
 - `scripts/short-video/lib/safe-zones.mjs` — **single source of truth** for safe-zone + subtitle-lane geometry (font size, alignment, margins, watermark) constants. Every other layer (slot layout, subtitle ASS, TextGate) derives from these values; never hardcode them elsewhere.
-- `scripts/short-video/lib/subtitles/style-tokens.mjs` — **single source of truth** for the burned cue's look (karaoke colour pair, family/weight, outline/shadow, glyph spacing). `lib/subtitles/ass.mjs` only serialises it; ASS colour words are derived from sRGB hex, never authored by hand.
+- `scripts/short-video/lib/subtitles/style-tokens.mjs` — **single source of truth** for the burned cue's look (karaoke colour pair, family/weight, outline/shadow, glyph spacing). Its brand/text hexes come from `lib/video-palette.mjs`, shared with the composition's `COLOR`. `lib/subtitles/ass.mjs` only serialises it; ASS colour words are derived from sRGB hex, never authored by hand.
 - `scripts/short-video/lib/text-slots.mjs` — **single source of truth** for every slot's font size, floor, max lines and shrink priority (`SLOT_FIELDS`).
 - `scripts/short-video/remotion/src/components/visuals.tsx` — the live `Slot` band container (`kicker` / `hero` / `support`); scene components override `top`/`height` when their own content needs a different split.
 - `scripts/short-video/lib/scene-layout.mjs` — **retired**: the fixed slot grid of the deleted HTML path (`SLOTS`, `slotCss()`, `sceneFrame()`). No production consumer since decision 59; kept only for its own unit test. Do not read band geometry from it.

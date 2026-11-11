@@ -17,6 +17,7 @@ declare module "../../../lib/safe-zones.mjs" {
     maxLines: number;
     lineHeight: number;
     maxWidth: number;
+    alignment: number;
     marginL: number;
     marginR: number;
   };

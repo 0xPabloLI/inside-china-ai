@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { SUBTITLE_STYLE, toAssColor } from "../lib/subtitles/style-tokens.mjs";
 import { SUBTITLE_LANE } from "../lib/safe-zones.mjs";
+import { VIDEO_PALETTE } from "../lib/video-palette.mjs";
 import { renderAss } from "../lib/subtitles/ass.mjs";
 import { COLOR } from "../remotion/src/tokens.ts";
 
@@ -45,13 +46,17 @@ describe("toAssColor", () => {
   });
 });
 
-describe("subtitle palette alignment with the video surface", () => {
-  it("uses the same brand accent and text colour as the composition palette", () => {
-    // remotion/src/tokens.ts COLOR is the video surface's palette. The burn
-    // path cannot import it at runtime (Node vs the TS bundle), so this test
-    // is the binding: divergence is a failure, not a silent two-palette split.
-    expect(SUBTITLE_STYLE.color.spoken.hex).toBe(COLOR.brand);
-    expect(SUBTITLE_STYLE.color.unspoken.hex).toBe(COLOR.text);
+describe("shared video palette", () => {
+  it("declares the brand accent and primary text once, for both surfaces", () => {
+    // Pinned literals: lib/video-palette.mjs is the one declaration. Moving a
+    // value means changing it here, and both consumers are asserted to read
+    // that module rather than carry a second hardcoded copy.
+    expect(VIDEO_PALETTE.brand).toBe("#4d8bff");
+    expect(VIDEO_PALETTE.text).toBe("#f5f5f5");
+    expect(SUBTITLE_STYLE.color.spoken.hex).toBe(VIDEO_PALETTE.brand);
+    expect(SUBTITLE_STYLE.color.unspoken.hex).toBe(VIDEO_PALETTE.text);
+    expect(COLOR.brand).toBe(VIDEO_PALETTE.brand);
+    expect(COLOR.text).toBe(VIDEO_PALETTE.text);
   });
 
   it("keeps the family the width table was built for", () => {
