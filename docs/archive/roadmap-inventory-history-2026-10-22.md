@@ -236,6 +236,8 @@
 
 **Round CLXI**（`#1064` 交付闭票——三处本地代理端口解析器收拢到 `proxy-port.mjs`（唯一解析器 + 逐端口探针），guard 保 HTTPS 优先、隧道走 `~/bin` 副本（PR #1194，squash `0ddf7ef4`）；无产出差异；frontier：④ 队首 `#1064` 闭票、推进至 `#1028`）
 
+**Round CLX**（`#1008` 交付闭票——归档 `CIV` 逐字重复删除、`CV`/`CII`/`CI` 从 `e4c772a2` 补回，头部重算 96/126（125 distinct）（PR #1192，squash `debc8816`）；无产出差异；frontier：④ 队首 `#1008` 闭票、推进至 `#1064`）
+
 **Round CLIX**（`#992` 交付闭票——VLM 缓存孤儿条目回收路径落地（PR #1188，squash `1b95a4bc`）：只删 `meta.promptVersion` 不匹配的 `{64-hex}.json`，run 启动只告警、`--apply` 才回收；本机真实缓存 210 条 / 223.2 KiB → 0 / 0 B；无产出差异（enabling fix）；frontier：④ 队首 `#992` 闭票、推进至 `#1008`）
 
 **Round CLVIII**（`#991` 交付闭票——VLM 语义 prompt 体积闸门：接受 #334 的图片 base 1446 字符（+34.0%）并把上限锁进 pytest，prompt 文本零改动、缓存版本不 bump（PR #1175，squash `76778ef2`）；无产出差异（enabling guard）；frontier：④ 队首 `#991` 闭票、推进至 `#992`）
@@ -317,8 +319,6 @@
 **Round CXX**（`#986` 交付闭票——B-roll 失败链文档纠偏 + Step 1.6 恢复指引（PR #1037，squash `b7633123`）：runbook 明确 1.3B 手动档位/无 runtime failover，区分 verify-video 告警与 Step 1.6 硬门禁；`formatFinalMediaFailures` 在 context 下输出 strategy/b-roll 状态（含 escalated 轮次上限）与三条恢复路径，legacy `asset` 归 default chain、source-only 明示不生成、CSS-only stale path 不误报；策略分类走 `resolveMediaPlan`，`MAX_ROUNDS` 测试钉住；droid 2 条 P2 全修；frontier：Track 1A 空、Track 1B `#952`、HITL `#963`）
 
 **Round CXIX**（`#1003` 交付闭票——catalog 宽高两层门禁（PR #1034，squash `87c1f8cd`）：静态 schema + ffprobe 对账 + legacy 冻结清单 + `npm run lint:catalog`，RAG 索引前拒绝写入、宽高进 metadata/text；7 条回填、9 条豁免；720p 阈值为全局库 `assets/` 作用域（包内媒体按策略可低于 720p）；droid P1 命令注入改 `execFileSync` argv；frontier：Track 1A 空、Track 1B `#986`、HITL `#963`）
-
-**Round CLX**（`#1008` 交付闭票——归档 `CIV` 逐字重复删除、`CV`/`CII`/`CI` 从 `e4c772a2` 补回，头部重算 96/126（125 distinct）（PR #1192，squash `debc8816`）；无产出差异；frontier：④ 队首 `#1008` 闭票、推进至 `#1064`）
 
 **Round CXVIII**（`#355` 交付闭票——统一媒体兜底链（PR #1031，squash `e95ed99d`）：缺省/`asset` 走采购（视频优先）→ 复用/upscale → 生成（T2I+ken-burns 默认，T2V 只在声明 `aiVideo.prompt` 且视频预算内）→ 纯版式；`source-only` 保留旧「只采购」语义，链上生成 `--approve-auto` 前零花费、plan 落盘、缓存先于审批（未批准 rerun 复用 winner）；真实 fixture VLM 100/100；D6/per-visualType/source-tier 延至 `#1030`；frontier：Track 1A 空、Track 1B `#1003`、HITL `#963`）
 
