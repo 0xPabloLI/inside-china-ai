@@ -13,11 +13,11 @@ vi.mock("../lib/cdp-client.mjs", () => ({
   cdpNewTab: vi.fn(),
   cdpCloseTab: vi.fn(),
   waitForPageLoad: vi.fn(),
-  extractFromTab: vi.fn(),
+  evalInTab: vi.fn(),
 }));
 
 import { fetchPage, fetchStatic, fetchJina, fetchCdp } from "../lib/fetch-page.mjs";
-import { cdpNewTab, cdpCloseTab, waitForPageLoad, extractFromTab } from "../lib/cdp-client.mjs";
+import { cdpNewTab, cdpCloseTab, waitForPageLoad, evalInTab } from "../lib/cdp-client.mjs";
 
 function mockResponse({ ok = true, status = 200, text = "" } = {}) {
   return {
@@ -105,14 +105,50 @@ describe("fetchCdp", () => {
   it("extracts page text through the CDP client and closes the tab", async () => {
     cdpNewTab.mockResolvedValue("tab-123");
     waitForPageLoad.mockResolvedValue(true);
-    extractFromTab.mockResolvedValue("rendered page text");
+    evalInTab.mockResolvedValue({ text: "rendered page text" });
     cdpCloseTab.mockResolvedValue(undefined);
 
     const result = await fetchCdp("https://example.com/heavy-js");
     expect(result).toEqual({ ok: true, method: "cdp", text: "rendered page text" });
     expect(cdpNewTab).toHaveBeenCalledWith("https://example.com/heavy-js");
-    expect(extractFromTab).toHaveBeenCalled();
+    expect(evalInTab).toHaveBeenCalled();
     expect(cdpCloseTab).toHaveBeenCalledWith("tab-123");
+  });
+
+  it("reports an unexpected eval shape separately from an empty page", async () => {
+    cdpNewTab.mockResolvedValue("tab-shape");
+    waitForPageLoad.mockResolvedValue(true);
+    cdpCloseTab.mockResolvedValue(undefined);
+
+    evalInTab.mockResolvedValueOnce([{ title: "not the envelope" }]);
+    const arrayShaped = await fetchCdp("https://example.com/shape-a");
+    expect(arrayShaped).toEqual({
+      ok: false,
+      method: "cdp",
+      text: "",
+      error: "unexpected extraction shape (array)",
+    });
+
+    // The message names the offending field, so a wrong envelope does not read
+    // as a generic "object".
+    evalInTab.mockResolvedValueOnce({ text: 123 });
+    const wrongField = await fetchCdp("https://example.com/shape-b");
+    expect(wrongField.error).toBe("unexpected extraction shape (text: number)");
+  });
+
+  it("reports an empty page instead of a silent blank string", async () => {
+    cdpNewTab.mockResolvedValue("tab-empty");
+    waitForPageLoad.mockResolvedValue(true);
+    evalInTab.mockResolvedValue({ text: "   " });
+    cdpCloseTab.mockResolvedValue(undefined);
+
+    const result = await fetchCdp("https://example.com/blank");
+    expect(result).toEqual({
+      ok: false,
+      method: "cdp",
+      text: "",
+      error: "empty extraction result",
+    });
   });
 
   it("does not close a tab that was never opened (cdpNewTab rejected)", async () => {
@@ -159,7 +195,7 @@ describe("fetchPage auto mode", () => {
     vi.stubGlobal("fetch", fetchMock);
     cdpNewTab.mockResolvedValue("tab-9");
     waitForPageLoad.mockResolvedValue(true);
-    extractFromTab.mockResolvedValue("cdp text");
+    evalInTab.mockResolvedValue({ text: "cdp text" });
     cdpCloseTab.mockResolvedValue(undefined);
 
     const result = await fetchPage("https://example.com/heavy");
@@ -223,7 +259,7 @@ describe("fetchPage explicit methods", () => {
   it("method 'cdp' goes straight to the browser", async () => {
     cdpNewTab.mockResolvedValue("tab-1");
     waitForPageLoad.mockResolvedValue(true);
-    extractFromTab.mockResolvedValue("browser text");
+    evalInTab.mockResolvedValue({ text: "browser text" });
     cdpCloseTab.mockResolvedValue(undefined);
 
     const result = await fetchPage("https://example.com/c", { method: "cdp" });

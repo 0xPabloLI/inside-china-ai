@@ -23,6 +23,12 @@
  *   const { text } = await fetchPage(url, { method: "jina" });     // Jina only
  *   const { text } = await fetchPage(url, { method: "cdp" });      // CDP only
  *
+ * Status (#1022): no production consumer. `search-sources.mjs` reaches CDP
+ * through its own `cdp-client.mjs` call sites, so this module's only importers
+ * are its own test files. Wiring it into a source chain is a separate
+ * decision, not something these tests imply: the suite stayed green for the
+ * whole time this layer returned "empty extraction result" on every page.
+ *
  * @module fetch-page
  */
 
@@ -109,6 +115,20 @@ export async function fetchJina(url, opts = {}) {
 }
 
 /**
+ * Log-safe description of why a CDP eval result is not page text — never the
+ * payload itself.
+ *
+ * @param {unknown} value - What evalInTab returned
+ * @returns {string} e.g. "null" | "array" | "text: undefined" | "number"
+ */
+function describeShape(value) {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  if (typeof value === "object") return `text: ${typeof value.text}`;
+  return typeof value;
+}
+
+/**
  * CDP extraction — full Chrome render via the local CDP proxy.
  * Heaviest layer: opens a real tab, waits for load, extracts
  * document.body.innerText, always closes the tab.
@@ -121,17 +141,36 @@ export async function fetchJina(url, opts = {}) {
 export async function fetchCdp(url, opts = {}) {
   // Dynamic import keeps the cdp-client dependency lazy (repo convention in
   // asset-sourcer.mjs) so static/jina callers don't touch CDP at all.
-  const { cdpNewTab, cdpCloseTab, waitForPageLoad, extractFromTab } =
-    await import("./cdp-client.mjs");
+  const { cdpNewTab, cdpCloseTab, waitForPageLoad, evalInTab } = await import("./cdp-client.mjs");
   let tabId = null;
   try {
     tabId = await cdpNewTab(url);
     await waitForPageLoad(tabId, opts.loadRetries ?? 2);
-    const text = await extractFromTab(
+    // #1022: evalInTab is the raw-value primitive. extractFromTab narrows to
+    // the array contract its article scripts return and drops every other
+    // value, so this layer reported "empty extraction result" for 100% of
+    // pages since #66 — a string script through an array-only seam.
+    //
+    // The script returns `{ text }` rather than the bare string because
+    // evalInTab JSON-parses string values: a page whose innerText happens to
+    // be valid JSON (a bare number, "null") would come back as a non-string
+    // and be discarded the same way.
+    const value = await evalInTab(
       tabId,
-      `return (document.body && document.body.innerText) || "";`,
+      `return { text: (document.body && document.body.innerText) || "" };`,
     );
-    const ok = typeof text === "string" && text.trim().length > 0;
+    const text = value?.text;
+    if (typeof text !== "string") {
+      // #308's lesson applies to this seam as well: an eval that returned an
+      // unexpected shape is a broken contract, not a page without content.
+      return {
+        ok: false,
+        method: "cdp",
+        text: "",
+        error: `unexpected extraction shape (${describeShape(value)})`,
+      };
+    }
+    const ok = text.trim().length > 0;
     return {
       ok,
       method: "cdp",
