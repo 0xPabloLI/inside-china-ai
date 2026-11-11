@@ -132,9 +132,9 @@ describe("analyzeSync", () => {
 
   it("flags a word whose highlight drifts past the tolerance", () => {
     const cues = renderedCues();
-    cues.find((c) => c.words.some((w) => w.text === "KPIs.")).words.find(
-      (w) => w.text === "KPIs.",
-    ).onset += 0.12;
+    cues
+      .find((c) => c.words.some((w) => w.text === "KPIs."))
+      .words.find((w) => w.text === "KPIs.").onset += 0.12;
     const result = analyzeSync(cues, expectedWordTimes(timingData, sceneDurations));
     expect(result.offenders).toHaveLength(1);
     expect(result.offenders[0].text).toBe("KPIs.");
