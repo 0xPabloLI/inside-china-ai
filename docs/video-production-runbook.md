@@ -53,7 +53,7 @@ The first 3 seconds determine 70% of completion rate. Rules:
 
 #### Subtitle Best Practices
 
-Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/brand-system.md` → Subtitle Specification. All values derive from `SUBTITLE_LANE` in `lib/safe-zones.mjs` (single source of truth) — never hardcode them.
+Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/brand-system.md` → Subtitle Specification. Two single sources back it: the look (colour pair, family/weight, stroke, glyph spacing) in `lib/subtitles/style-tokens.mjs` — brand/text hexes from `lib/video-palette.mjs`, shared with the composition — and size/alignment/margins in `SUBTITLE_LANE` (`lib/safe-zones.mjs`); never hardcode either.
 
 ### Pacing
 
