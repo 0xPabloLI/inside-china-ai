@@ -1891,12 +1891,14 @@ export const INTERNATIONAL_SOURCES = [
     name: "noozra_search",
     label: "Noozra",
     category: "international",
+    // #446: the key gates the API, not a login — same shape as gnews/currents.
+    // needsAuth stays false so the unauthenticated probe can still judge the page.
     needsAuth: false,
     supportsKeyword: true,
     accessMethod: {
       primary: "api",
       notes:
-        "API (noozra.com/api/search, free, no auth, 100 req/day per IP). News headlines from 200+ curated RSS sources. JSON response.",
+        "API (noozra.com/api/search, free key, 100 req/day per key). Requires NOOZRA_API_KEY (Authorization: Bearer nk_...). News headlines from 200+ curated RSS sources. JSON response.",
     },
     useCleanTitle: false,
     // Noozra API: returns JSON with articles[] containing headline, url, published_at, source
@@ -1913,7 +1915,14 @@ export const INTERNATIONAL_SOURCES = [
           author: article.source || "",
         }));
       },
-      authRequired: false,
+      authRequired: true,
+      // #446: lazy on purpose (see resolveApiHeaders) — the key lives in .env.local
+      // and loadEnv() runs after this module is evaluated.
+      get headers() {
+        return process.env.NOOZRA_API_KEY
+          ? { Authorization: `Bearer ${process.env.NOOZRA_API_KEY}` }
+          : {};
+      },
     },
     url: (keyword) => `https://noozra.com/search?q=${encodeURIComponent(keyword)}`,
     articleScript: `
@@ -3767,6 +3776,7 @@ const API_KEY_ENV_MAP = {
   tiktok_creator: "SCRAPECREATORS_API_KEY",
   gnews: "GNEWS_API_KEY",
   currents: "CURRENTS_API_KEY",
+  noozra_search: "NOOZRA_API_KEY",
 };
 
 // ─── #88 Part 2: Universal Google site: fallback auto-generation ───

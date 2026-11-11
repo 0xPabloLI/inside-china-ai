@@ -523,7 +523,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **Stars**：461k+（GitHub Top 5）
 - **做什么**：社区维护的 1400+ 免费 API 合集，覆盖 50+ 分类（Animals、AI/ML、News、Open Data、Science & Math、Finance、Geocoding、Photography、Video、Text Analysis、Social、Government 等）。每个条目标注 Auth 类型（No/apiKey/OAuth）、HTTPS 支持、CORS 状态
 - **为什么对本项目有用**：需要找免费 API 替代付费 SaaS 时先查这里。项目已用的 API 中 Pexels、arXiv、Reddit、Hacker News (HN Algolia) 均在此列表中。潜在补充方向：
-  - **News**：DataCube AI（每日 AI 行业新闻，8 语言，No auth）、Noozra（200+ RSS 源，No auth）、GNews（新闻搜索，apiKey）→ 可补充 search-sources 的新闻源
+  - **News**：DataCube AI（每日 AI 行业新闻，8 语言，No auth）、Noozra（200+ RSS 源，apiKey）、GNews（新闻搜索，apiKey）→ 可补充 search-sources 的新闻源
   - **Machine Learning**：Groq（免费 LLM 推理，Llama/Mixtral/Gemma）、Hugging Face（模型推理 API）、Jina AI（免费 embedding/rerank）、OpenVisionAPI（开源计算机视觉，No auth）→ 可补充 RAG embedding 或 VLM 分析
   - **Science & Math**：OpenAlex（学术作品开放目录，No auth）、CORE（开放获取论文，apiKey）→ 可补充 arXiv 之外的学术源
   - **Finance**：Alpha Vantage（实时/历史股票数据，apiKey）、Econdb（宏观经济数据，No auth）→ 中国 AI 公司 IPO/财务数据
@@ -1184,7 +1184,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 | API          | Auth   | 集成到                                 | 端点                                            | 补充什么                                     | 状态      |
 | ------------ | ------ | -------------------------------------- | ----------------------------------------------- | -------------------------------------------- | --------- |
 | DataCube AI  | No     | source-registry WESTERN_SOURCES        | `https://www.datacubeai.space/feed.xml?lang=en` | 每日 AI 行业新闻，8 语言                     | ✅ 已集成 |
-| Noozra       | No     | source-registry GENERAL_SEARCH_SOURCES | `https://noozra.com/api/search?q=`              | 200+ RSS 源新闻头条                          | ✅ 已集成 |
+| Noozra       | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://noozra.com/api/search?q=`              | 200+ RSS 源新闻头条，100 req/天（`NOOZRA_API_KEY`） | ✅ 已集成 |
 | GNews        | apiKey | source-registry WESTERN_SOURCES        | `https://gnews.io/api/v4/search`                | 新闻搜索，多语言，100 req/天                 | ✅ 已集成 |
 | Currents     | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://api.currentsapi.services/v1/search`    | 实时全球新闻，200 req/天                     | ✅ 已集成 |
 | OpenAlex     | No     | source-registry WESTERN_SOURCES        | `https://api.openalex.org/works`                | 学术作品开放目录（2.4 亿作品）               | ✅ 已集成 |
