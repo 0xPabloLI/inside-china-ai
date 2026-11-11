@@ -56,6 +56,12 @@ const sceneDurations = [{ sceneId: 1, duration: 1.5, ttsDuration: 1.5, clipDurat
 
 describe("T6: Gate 2 — subtitle-alignment repairFn", () => {
   beforeEach(() => {
+    // clearAllMocks resets call history only: re-arm the success path so a
+    // failure mock installed by one test cannot silence the next one.
+    execMock.mockImplementation((cmd, callback) => callback(null, { stdout: "", stderr: "" }));
+  });
+
+  beforeEach(() => {
     vi.clearAllMocks();
   });
 

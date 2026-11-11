@@ -73,7 +73,7 @@ The most useful comparison in the same news cycle did not come from a national l
 
 A CLSA research note reported on October 12, 2026, found that OpenRouter's weekly token consumption exceeded 146 trillion by the end of September. Chinese models accounted for about 65% of token usage and 30% of dollar spend. US models took 31% of tokens and 70% of spend. In January, the split was 22% and 65% of tokens, and 6% and 94% of spend ([Zhitong Finance, October 12, 2026](https://www.zhitongcaijing.com/content/detail/1505829.html)).
 
-The driver was price. The note estimates Chinese models were about 80% cheaper per token than US rivals. Chinese model weekly spend rose 27 times this year, driven by a 67-times increase in token volume, while the blended token price nearly halved ([Zhitong Finance, October 12, 2026](https://www.zhitongcaijing.com/content/detail/1505829.html)).
+The driver was price. The note estimates Chinese models were about 80% cheaper per token than US rivals. Chinese model weekly spend rose 27 times this year, driven by a 67-times increase in token volume ([Zhitong Finance, October 12, 2026](https://www.zhitongcaijing.com/content/detail/1505829.html)).
 
 That is the number the chart should have been paired with. Usage share and revenue share move in different directions when prices differ by a factor of five. A 65% token share does not mean Chinese labs captured 65% of the value, and a 30% spend share does not mean they are marginal. It means the market is price-sensitive.
 
@@ -97,14 +97,14 @@ The 55% figure deserves scrutiny because its source is a single company with an 
 
 ## Sources
 
-- Chinese Online investor relations record 2026-004, CNINFO, June 3, 2026: http://static.cninfo.com.cn/finalpage/2026-06-03/1225350332.PDF
-- Tidenews, "Do not be fooled by the so-called China-US token comparison chart," October 19, 2026: https://tidenews.com.cn/news.html?id=3590063
-- Beijing News, "Is 'the US uses AI for productivity, China uses AI for dopamine' a false premise?" October 18, 2026: https://www.bjnews.com.cn/detail/1792305444129934.html
-- Baijiahao, "The China-US AI token comparison is missing its data," October 15, 2026: https://baijiahao.baidu.com/s?id=1879073437336377927
-- Sina BigNews, daily token calls exceed 140 trillion, September 17, 2026: https://news.sina.cn/bignews/2026-09-17/detail-iniscvfz0364544.d.html?vt=4
-- IT Home, National Data Administration on 500 trillion daily tokens, August 30, 2026: https://www.ithome.com/0/996/119.htm
-- People's Daily, National Data Administration on the token economy, August 29, 2026: http://finance.people.com.cn/n1/2026/0829/c1004-40788542.html
-- Zhitong Finance, CLSA on Chinese models' OpenRouter share, October 12, 2026: https://www.zhitongcaijing.com/content/detail/1505829.html
+- [CNINFO — Chinese Online investor relations record 2026-004, June 3, 2026](http://static.cninfo.com.cn/finalpage/2026-06-03/1225350332.PDF)
+- [Tidenews — Do not be fooled by the so-called China-US token comparison chart, October 19, 2026](https://tidenews.com.cn/news.html?id=3590063)
+- [Beijing News — Is "the US uses AI for productivity, China uses AI for dopamine" a false premise?, October 18, 2026](https://www.bjnews.com.cn/detail/1792305444129934.html)
+- [Baijiahao — The China-US AI token comparison is missing its data, October 15, 2026](https://baijiahao.baidu.com/s?id=1879073437336377927)
+- [Sina BigNews — Daily token calls exceed 140 trillion, September 17, 2026](https://news.sina.cn/bignews/2026-09-17/detail-iniscvfz0364544.d.html?vt=4)
+- [IT Home — National Data Administration on 500 trillion daily tokens, August 30, 2026](https://www.ithome.com/0/996/119.htm)
+- [People's Daily — National Data Administration on the token economy, August 29, 2026](http://finance.people.com.cn/n1/2026/0829/c1004-40788542.html)
+- [Zhitong Finance — CLSA on Chinese models' OpenRouter share, October 12, 2026](https://www.zhitongcaijing.com/content/detail/1505829.html)
 
 ## Verification Summary
 

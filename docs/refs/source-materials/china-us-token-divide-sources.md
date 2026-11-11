@@ -24,7 +24,7 @@ Key reading:
 
 ## 2. The US 58% figure: no published source located
 
-- 潮新闻 (Tidenews), 2026-10-19, 佘宗明: "后者没有权威出处，连严谨行业调研数据都谈不上" (the US figure has no authoritative source).
+- 潮新闻 (Tidenews), 2026-10-19, 佘宗明: "后者没有权威出处，连严谨行业调研数据都谈不上" (the US figure has no authoritative source). The same piece also calls the Chinese figure a listed company's one-sided statement — the article quotes that as "a listed company's one-sided statement".
   https://tidenews.com.cn/news.html?id=3590063
 - 新京报, 2026-10-18, 佘宗明: "后者查无此'论'，a16z、麦肯锡、Gartner都没说过" (could not find the claim; a16z, McKinsey and Gartner did not publish it).
   https://www.bjnews.com.cn/detail/1792305444129934.html
@@ -38,7 +38,7 @@ The closest real, sourced number is platform-specific, not US-wide: OpenRouter +
 ## 3. The official Chinese aggregate
 
 - 国家数据局 / 新华社, 2026-03-24: China's daily token (词元) calls exceeded **140 trillion** by March 2026, up from about **100 billion** in early 2024 (more than 1,000x in two years), and up 40%+ from 100 trillion at end-2025.
-  Reported by 36Kr newsflash: https://m.36kr.com/search/newsflashes/%E5%88%98%E7%83%88%E5%AE%8F
+  Also reported by 36Kr newsflashes, but the only URL available is 36Kr's search page for 刘烈宏 (https://m.36kr.com/search/newsflashes/%E5%88%98%E7%83%88%E5%AE%8F), whose contents change over time — it is deliberately not pinned, so this figure rests on the Sina / IT Home / People's Daily URLs below.
   Also 新浪: https://news.sina.cn/bignews/2026-09-17/detail-iniscvfz0364544.d.html?vt=4
 - 国家数据局 at the 2026 China International Big Data Expo, 2026-08-29: by June 2026, daily token calls had exceeded **500 trillion**.
   IT之家: https://www.ithome.com/0/996/119.htm
@@ -50,7 +50,7 @@ The closest real, sourced number is platform-specific, not US-wide: OpenRouter +
   - OpenRouter weekly token consumption exceeded **146 trillion** by end-September 2026.
   - Chinese models reached about **65%** of OpenRouter token usage in September, up from **22%** in January 2026; US models fell from 65% to 31%.
   - In dollar spend, Chinese models were about **30%** vs US **70%** in September (January: 6% vs 94%), helped by roughly **80% price discounts**.
-  - Chinese model weekly spend is up 27x year-to-date, driven by 67x token growth; blended token price almost halved.
+  - Chinese model weekly spend is up 27x year-to-date, driven by 67x token growth; blended token price almost halved. These three do not reconcile arithmetically (67x volume x ~0.5x price is ~33x spend, not 27x), so the article reports spend and volume only and drops the price clause rather than asking readers to multiply inconsistent numbers.
   - URL: https://www.zhitongcaijing.com/content/detail/1505829.html
 
 This is the key "token share is not revenue share" data point. It also shows the Chinese token boom is not confined to short video.

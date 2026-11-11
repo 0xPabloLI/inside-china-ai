@@ -17,14 +17,14 @@ export function TokenSplitRealityCheckView() {
             className={`rounded-lg border p-3 ${
               card.status === "sourced"
                 ? "border-warning/50 bg-warning-muted/40"
-                : "border-destructive/40 bg-destructive/5"
+                : "border-danger/40 bg-danger-muted/40"
             }`}
           >
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-xs text-muted-foreground">{card.side}</span>
               <span
                 className={`text-xs font-semibold tracking-wide ${
-                  card.status === "sourced" ? "text-warning-foreground" : "text-destructive"
+                  card.status === "sourced" ? "text-warning-foreground" : "text-danger"
                 }`}
               >
                 {card.statusLabel}

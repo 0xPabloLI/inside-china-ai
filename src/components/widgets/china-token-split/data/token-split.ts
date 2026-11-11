@@ -1,3 +1,7 @@
+// Sources: Chinese Online (SZ 300364) investor-relations record 2026-004 filed
+// with the Shenzhen exchange (CNINFO, published 2026-06-03), plus the CLSA note
+// reported by Zhitong Finance on 2026-10-12. Every figure here is traced in
+// docs/refs/source-materials/china-us-token-divide-sources.md — edit both together.
 export const SOURCE_CARDS = [
   {
     side: "CHINA",
