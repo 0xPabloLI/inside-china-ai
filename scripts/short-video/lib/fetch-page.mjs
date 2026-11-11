@@ -24,8 +24,8 @@
  *   const { text } = await fetchPage(url, { method: "cdp" });      // CDP only
  *
  * Status (#1022): no production consumer. `search-sources.mjs` reaches CDP
- * through its own `cdpExtract`/`evalInTab` call sites, so this module's only
- * importer is its test file. Wiring it into a source chain is a separate
+ * through its own `cdp-client.mjs` call sites, so this module's only importers
+ * are its own test files. Wiring it into a source chain is a separate
  * decision, not something these tests imply: the suite stayed green for the
  * whole time this layer returned "empty extraction result" on every page.
  *
@@ -115,14 +115,16 @@ export async function fetchJina(url, opts = {}) {
 }
 
 /**
- * Log-safe description of a value's shape — never the payload itself.
+ * Log-safe description of why a CDP eval result is not page text — never the
+ * payload itself.
  *
- * @param {unknown} value
- * @returns {string} "null" | "array" | "string" | "number" | "object" | ...
+ * @param {unknown} value - What evalInTab returned
+ * @returns {string} e.g. "null" | "array" | "text: undefined" | "number"
  */
 function describeShape(value) {
   if (value === null) return "null";
   if (Array.isArray(value)) return "array";
+  if (typeof value === "object") return `text: ${typeof value.text}`;
   return typeof value;
 }
 

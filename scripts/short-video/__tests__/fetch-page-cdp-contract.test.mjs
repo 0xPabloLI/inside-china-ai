@@ -6,8 +6,11 @@
 // — a value the real function can never produce.
 //
 // So this file stubs the *transport* (global.fetch → the CDP proxy) and lets
-// the real `evalInTab` run: async-IIFE wrapping, envelope unwrapping, the
-// JSON.parse pass for string values, and `fetchCdp`'s read path all execute.
+// the real `evalInTab` run: the async-IIFE wrapping and the `{ value }`
+// envelope unwrapping execute for real. That is what makes the "123" case
+// below meaningful — the envelope keeps the page's text a string, where a
+// bare-string script would have handed evalInTab a value it parses into the
+// number 123.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -62,12 +65,32 @@ describe("fetchCdp through the real evalInTab", () => {
     const result = await fetchCdp("https://example.com/heavy-js");
 
     expect(result).toEqual({ ok: true, method: "cdp", text: "rendered page text" });
-    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
-      `${CDP_BASE}/new`,
-      `${CDP_BASE}/eval?target=tab-real`,
-      `${CDP_BASE}/eval?target=tab-real`,
-      `${CDP_BASE}/close?target=tab-real`,
-    ]);
+    const calls = fetchMock.mock.calls;
+    expect(String(calls[0][0])).toBe(`${CDP_BASE}/new`);
+    // The page script — not just the readyState poll — reached the transport.
+    expect(calls.some(([, init]) => String(init?.body).includes("document.body.innerText"))).toBe(
+      true,
+    );
+    expect(String(calls.at(-1)[0])).toBe(`${CDP_BASE}/close?target=tab-real`);
+  });
+
+  it("accepts a bare string when the transport skips the envelope", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init = {}) => {
+        const target = String(url);
+        if (target === `${CDP_BASE}/new`) return jsonResponse({ targetId: "tab-bare" });
+        if (target.startsWith(`${CDP_BASE}/eval`)) {
+          if (init.body === "document.readyState") return jsonResponse({ value: "complete" });
+          return jsonResponse({ value: "bare page text" });
+        }
+        return jsonResponse({ ok: true });
+      }),
+    );
+
+    const result = await fetchCdp("https://example.com/bare");
+
+    expect(result).toEqual({ ok: true, method: "cdp", text: "bare page text" });
   });
 
   it("keeps a JSON-looking innerText as text, not as a parsed JSON value", async () => {

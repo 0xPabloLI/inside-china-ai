@@ -118,16 +118,22 @@ describe("fetchCdp", () => {
   it("reports an unexpected eval shape separately from an empty page", async () => {
     cdpNewTab.mockResolvedValue("tab-shape");
     waitForPageLoad.mockResolvedValue(true);
-    evalInTab.mockResolvedValue([{ title: "not the envelope" }]);
     cdpCloseTab.mockResolvedValue(undefined);
 
-    const result = await fetchCdp("https://example.com/shape");
-    expect(result).toEqual({
+    evalInTab.mockResolvedValueOnce([{ title: "not the envelope" }]);
+    const arrayShaped = await fetchCdp("https://example.com/shape-a");
+    expect(arrayShaped).toEqual({
       ok: false,
       method: "cdp",
       text: "",
       error: "unexpected extraction shape (array)",
     });
+
+    // The message names the offending field, so a wrong envelope does not read
+    // as a generic "object".
+    evalInTab.mockResolvedValueOnce({ text: 123 });
+    const wrongField = await fetchCdp("https://example.com/shape-b");
+    expect(wrongField.error).toBe("unexpected extraction shape (text: number)");
   });
 
   it("reports an empty page instead of a silent blank string", async () => {
