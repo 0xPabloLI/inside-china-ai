@@ -129,7 +129,8 @@ function stableStringify(value) {
  *          claim?: {voiceover: string, assetNeed: string},
  *          cropFocus?: {x: number, y: number} | null,
  *          transcript?: string | null,
- *          relevanceCheck?: boolean}} req
+ *          relevanceCheck?: boolean,
+ *          hookCheck?: {promise: string} | null}} req
  * @returns {Promise<string>} 64-char hex sha256
  */
 export async function computeCacheKey(req) {
@@ -156,6 +157,14 @@ export async function computeCacheKey(req) {
   // #294: the second-pass subject check swaps the whole prompt, so it must
   // never hit a first-pass entry (or vice versa). Absent = first pass.
   h.update(stableStringify({ relevanceCheck: req.relevanceCheck === true ? true : null }));
+  // #1206: the hook payoff prompt bakes the claim into the prompt — a
+  // different promise is a different analysis, and hook mode must not hit a
+  // first-pass entry (or vice versa). Present-but-empty still opts into hook
+  // mode, so it hashes too; absent leaves the key byte-identical to pre-#1206,
+  // keeping existing caches valid.
+  if (req.hookCheck !== undefined && req.hookCheck !== null) {
+    h.update(stableStringify({ hookCheck: req.hookCheck.promise ?? "" }));
+  }
   return h.digest("hex");
 }
 
@@ -444,11 +453,19 @@ export function wrapAnalyzerWithCache(analyzeFn, { cacheDir, model, disabled = f
       claim: opts?.claim,
       cropFocus: opts?.cropFocus ?? null,
       transcript: opts?.transcript ?? null,
+      hookCheck: opts?.hookCheck ?? null,
     });
     const cached = getCachedResult(cacheDir, key);
     if (cached) return cached.data;
     const result = await analyzeFn(filePath, opts);
-    if (result?.description && result.description.length > 0) {
+    // Enum-only prompts (#1206 hook check) carry no description; their verdict
+    // is the result. In hook mode a description without a verdict is a parse
+    // failure, not a success — pinning it would make `--semantic` report
+    // "unavailable" forever instead of retrying.
+    const hasBody = opts?.hookCheck
+      ? result?.payoff != null
+      : (result?.description && result.description.length > 0) || result?.payoff != null;
+    if (hasBody) {
       writeCachedResult(cacheDir, key, { data: result });
     }
     return result;
