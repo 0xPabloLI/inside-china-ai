@@ -110,7 +110,7 @@ export const HOOK_SENTENCE_FAMILIES = [
     // "first", "only") need their determiner so discourse markers
     // ("First, let's look…") do not count as the family.
     pattern:
-      /\b(?:biggest|largest|smallest|fastest|slowest|cheapest|best|worst|highest|lowest|strongest|weakest|greatest|first(?!\s*[,:])|the most|the only|unprecedented)\b/i,
+      /\b(?:biggest|largest|smallest|fastest|slowest|cheapest|best|worst|highest|lowest|strongest|weakest|greatest|first(?!\s*(?:[,:]|up\b|off\b|thing\b))|the most|the only|unprecedented)\b/i,
   },
   {
     id: "quantity-anchor",
@@ -118,9 +118,11 @@ export const HOOK_SENTENCE_FAMILIES = [
     priority: true,
     // A digit inside a name/version (GPT-5, H100, V4.1, GLM-6.0) is not a
     // quantity anchor — the lookbehind rejects digits attached to a word
-    // character, a dot, or a hyphen. "$10B", "1.3 billion", "20,000" still hit.
+    // character, a dot, or a hyphen, and a bare single digit (spaced model
+    // versions such as "Qwen 4") only counts with a unit. "$10B",
+    // "1.3 billion", "20,000", "100%" still hit.
     pattern:
-      /(?<![\w.-])\d[\d,.]*|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|hundred|thousand|million|billion|trillion|half|double|triple)\b/i,
+      /(?<![\w.-])(?:\$?\d{2,}[\d,.]*|\d[\d,.]*\s*(?:%|billion|million|thousand|B|M|K|x|×|GB|TB|ms|s)\b)|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|hundred|thousand|million|billion|trillion|half|double|triple)\b/i,
   },
   {
     id: "just-event",
@@ -128,8 +130,10 @@ export const HOOK_SENTENCE_FAMILIES = [
     priority: true,
     // "-ed" covers regular past tense; the list holds the irregular verbs that
     // actually show up in the corpus (just put / just beat / just made …).
+    // Base/stative verbs that merely end in -ed ("just need", "just feed")
+    // are excluded — they are not events.
     pattern:
-      /\bjust\s+(?:[a-z]+ed|got|made|took|gave|found|built|beat|broke|won|sold|bought|brought|thought|caught|taught|fought|held|kept|left|lost|paid|ran|said|saw|sent|set|shot|shut|spent|stood|struck|told|understood|went|came|became|put|cut|read)\b/i,
+      /\bjust\s+(?!(?:need|feed|seed|speed|breed|bleed|succeed|proceed|exceed|embed|dread|spread|thread|shed|wed|sled|bred|fled|sped)\b)(?:[a-z]+ed|got|made|took|gave|found|built|beat|broke|won|sold|bought|brought|thought|caught|taught|fought|held|kept|left|lost|paid|ran|said|saw|sent|set|shot|shut|spent|stood|struck|told|understood|went|came|became|put|cut|read)\b/i,
   },
   {
     id: "contrarian",

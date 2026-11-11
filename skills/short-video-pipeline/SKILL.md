@@ -130,7 +130,7 @@ Full fill-in-the-blank templates (P1a-P6b): `docs/research/tiktok-hook-patterns-
 
 #### Hook Anatomy: Three-Layer Open + Timing Budget
 
-The TikTok Hook is three things firing in the first 1-3 seconds:
+The TikTok Hook is three things firing in the opening 4.5–5s (the first 3s must still deliver the core value):
 
 | Layer              | Job                                         | Rule                                                                        |
 | ------------------ | ------------------------------------------- | --------------------------------------------------------------------------- |
@@ -218,7 +218,7 @@ Updates `scripts/youtube-thumbnail.html` with current video's headline, then ren
 ### 5. Quality check
 
 - [ ] Watch the full video — check timing, no cut-off text
-- [ ] **Watch first 3 seconds muted** — is it still compelling without sound? (85% of social autoplay is muted)
+- [ ] **Watch the hook's opening 3 seconds muted** — is it still compelling without sound? (85% of social autoplay is muted)
 - [ ] Verify all numbers are accurate and sourced
 - [ ] Check CTA shows "CHINA AI NEWS" (no URL during testing phase)
 - [ ] Confirm thumbnail matches video content

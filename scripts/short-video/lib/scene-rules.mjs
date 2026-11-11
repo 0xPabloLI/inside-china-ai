@@ -321,7 +321,7 @@ function firstHookSentence(voiceover) {
   // capital (`Model X.`) does.
   const sentenceEnd = /[.!?](?=[\s"'”’)\]]|$)/g;
   const abbreviationEnd =
-    /(?:\b(?:Mr|Mrs|Ms|Dr|Prof|Inc|Ltd|Co|Corp|vs|etc|e\.g|i\.e)\.|(?:\b[A-Z]\.){2,})$/;
+    /(?:\b(?:Mr|Mrs|Ms|Dr|Prof|Inc|Ltd|Co|Corp|vs|etc|No|St|Ave|Rd|Fig|e\.g|i\.e|a\.m|p\.m)\.|(?:\b[A-Z]\.){2,})$/;
   let match;
   while ((match = sentenceEnd.exec(trimmed))) {
     const head = trimmed.slice(0, match.index + 1);
@@ -418,7 +418,7 @@ export function checkHookSentenceFamily(scenes) {
  * accounts legitimately run 7–8s hooks (research §10.2 / §10.3).
  */
 export function checkHookDuration(scenes, opts = {}) {
-  const CHECK = "Hook duration (4.5–5.0s target)";
+  const CHECK = `Hook duration (${THRESHOLDS.hookTargetMinSec.toFixed(1)}–${THRESHOLDS.hookTargetMaxSec.toFixed(1)}s target)`;
   const CATEGORY = "Hook";
   const hook = scenes[0];
   if (hook?.visualType !== "hook") {

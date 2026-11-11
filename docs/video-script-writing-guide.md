@@ -211,6 +211,8 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 | **Curiosity Gap**   | "别急着 [常见行为]，先看 [这个]"     | "Don't dismiss Chinese enterprise AI until you see what ByteDance just did." | 产品/分析    |
 | **Question**        | "如果 [假设] 是错的呢？"             | "What if China's biggest AI bet isn't a model at all?"                       | 哲学/分析    |
 
+> 表中示例是**句式原型**，不是时长模板：用前按 4.5–5s（约 12 词）重写；短例（如 9 词的 "$10B for AI…"）要补到目标带。完整口径见 `docs/content-pipeline.md` →「hook 时长口径」。
+
 ### 句子族优先级（#1231）
 
 落稿时**首句至少命中一个头族**：`规模 / 最高级锚点`、`数量锚点`、`just + 事件`。`第二人称 / 祈使` 与 `反共识 / 否定` 可叠加；`提问式` 降级，只有同句带数字/规模锚点时才成立；`强度词` 只作点缀，必须有具体事实兜底。完整命中数、时长口径与验证方式见 `docs/content-pipeline.md` →「Hook 文案句式（写稿规范，#278）」的「首句句子族优先级」与「hook 时长口径」；机检只报编辑建议（`checkHookSentenceFamily` / `checkHookDuration`）。

@@ -81,6 +81,26 @@ describe("checkHookSentenceFamily — priority families", () => {
     expect(result.detail).toContain("先头三族");
   });
 
+  it("does not treat `First up` as the scale family", () => {
+    const result = at(
+      checkHookSentenceFamily(withHook("First up, we look at what DeepSeek shipped.")),
+    );
+    expect(result.level).toBe("warn");
+    expect(result.detail).toContain("先头三族");
+  });
+
+  it("does not count a spaced model version as a quantity anchor", () => {
+    const result = at(checkHookSentenceFamily(withHook("Qwen 4 is the model everyone wants.")));
+    expect(result.level).toBe("warn");
+    expect(result.detail).toContain("先头三族");
+  });
+
+  it("does not count `just need` as a just + event", () => {
+    const result = at(checkHookSentenceFamily(withHook("You just need to see this.")));
+    expect(result.level).toBe("warn");
+    expect(result.detail).toContain("先头三族");
+  });
+
   it("keeps `first` when it modifies a noun", () => {
     const result = at(checkHookSentenceFamily(withHook("China just passed its first AI law.")));
     expect(result.level).toBe("pass");
@@ -113,6 +133,13 @@ describe("checkHookSentenceFamily — priority families", () => {
     );
     expect(result.level).toBe("pass");
     expect(result.detail).toContain("just + 事件");
+  });
+
+  it("keeps `No.` inside the first sentence", () => {
+    const result = at(
+      checkHookSentenceFamily(withHook("No. 1 chipmaker just shipped the biggest chip yet.")),
+    );
+    expect(result.level).toBe("pass");
   });
 });
 
