@@ -159,10 +159,7 @@ export async function fetchCdp(url, opts = {}) {
       tabId,
       `return { text: (document.body && document.body.innerText) || "" };`,
     );
-    // A bare string is accepted too: evalInTab returns the raw value, and a
-    // proxy that serializes the envelope differently must not read as "page
-    // empty".
-    const text = typeof value === "string" ? value : value?.text;
+    const text = value?.text;
     if (typeof text !== "string") {
       // #308's lesson applies to this seam as well: an eval that returned an
       // unexpected shape is a broken contract, not a page without content.

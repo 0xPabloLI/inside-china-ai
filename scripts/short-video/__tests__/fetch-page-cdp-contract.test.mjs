@@ -27,10 +27,12 @@ function jsonResponse(data) {
  * plus the proxy would: the script arrives as an expression, so evaluate it as
  * one and await its promise, then answer with the `{ value }` envelope.
  *
- * @param {{body: {innerText: string} | null}} page - Fake page state
+ * @param {{page?: {body: {innerText: string} | null}, answer?: unknown}} opts -
+ *   `page` is the fake document the script sees; `answer` replaces the eval
+ *   answer wholesale, for transports that do not send the `{ value }` envelope.
  * @returns {import("vitest").Mock} fetch stub
  */
-function cdpTransport(page) {
+function cdpTransport({ page, answer } = {}) {
   return vi.fn(async (url, init = {}) => {
     const target = String(url);
     if (target === `${CDP_BASE}/new`) return jsonResponse({ targetId: "tab-real" });
@@ -38,6 +40,7 @@ function cdpTransport(page) {
       const script = init.body;
       // waitForPageLoad polls this exact expression.
       if (script === "document.readyState") return jsonResponse({ value: "complete" });
+      if (answer !== undefined) return jsonResponse(answer);
       const value = await new Function("document", `return ${script}`)(page);
       return jsonResponse({ value });
     }
@@ -59,7 +62,7 @@ afterEach(() => {
 
 describe("fetchCdp through the real evalInTab", () => {
   it("returns the page text instead of losing it to the array narrowing", async () => {
-    const fetchMock = cdpTransport({ body: { innerText: "rendered page text" } });
+    const fetchMock = cdpTransport({ page: { body: { innerText: "rendered page text" } } });
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await fetchCdp("https://example.com/heavy-js");
@@ -74,29 +77,26 @@ describe("fetchCdp through the real evalInTab", () => {
     expect(String(calls.at(-1)[0])).toBe(`${CDP_BASE}/close?target=tab-real`);
   });
 
-  it("accepts a bare string when the transport skips the envelope", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url, init = {}) => {
-        const target = String(url);
-        if (target === `${CDP_BASE}/new`) return jsonResponse({ targetId: "tab-bare" });
-        if (target.startsWith(`${CDP_BASE}/eval`)) {
-          if (init.body === "document.readyState") return jsonResponse({ value: "complete" });
-          return jsonResponse({ value: "bare page text" });
-        }
-        return jsonResponse({ ok: true });
-      }),
-    );
+  // A proxy that answers eval with the bare value instead of the `{ value }`
+  // envelope: evalInTab's `value = resp` fallback returns the string, and the
+  // module must report a contract mismatch rather than accept it as page text.
+  it("reports an envelope-less answer as a shape error", async () => {
+    vi.stubGlobal("fetch", cdpTransport({ answer: "bare page text" }));
 
     const result = await fetchCdp("https://example.com/bare");
 
-    expect(result).toEqual({ ok: true, method: "cdp", text: "bare page text" });
+    expect(result).toEqual({
+      ok: false,
+      method: "cdp",
+      text: "",
+      error: "unexpected extraction shape (string)",
+    });
   });
 
   it("keeps a JSON-looking innerText as text, not as a parsed JSON value", async () => {
     // evalInTab JSON-parses string results, so a bare-string script would turn
     // this page's "123" into the number 123 and then be discarded as non-text.
-    vi.stubGlobal("fetch", cdpTransport({ body: { innerText: "123" } }));
+    vi.stubGlobal("fetch", cdpTransport({ page: { body: { innerText: "123" } } }));
 
     const result = await fetchCdp("https://example.com/numeric");
 
@@ -104,7 +104,7 @@ describe("fetchCdp through the real evalInTab", () => {
   });
 
   it("reports a page with no body as empty rather than throwing", async () => {
-    vi.stubGlobal("fetch", cdpTransport({ body: null }));
+    vi.stubGlobal("fetch", cdpTransport({ page: { body: null } }));
 
     const result = await fetchCdp("https://example.com/no-body");
 
