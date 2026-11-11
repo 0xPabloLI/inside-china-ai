@@ -1184,7 +1184,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 | API          | Auth   | 集成到                                 | 端点                                            | 补充什么                                     | 状态      |
 | ------------ | ------ | -------------------------------------- | ----------------------------------------------- | -------------------------------------------- | --------- |
 | DataCube AI  | No     | source-registry WESTERN_SOURCES        | `https://www.datacubeai.space/feed.xml?lang=en` | 每日 AI 行业新闻，8 语言                     | ✅ 已集成 |
-| Noozra       | No     | source-registry GENERAL_SEARCH_SOURCES | `https://noozra.com/api/search?q=`              | 200+ RSS 源新闻头条                          | ✅ 已集成 |
+| Noozra       | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://noozra.com/api/search?q=`              | 200+ RSS 源新闻头条，100 req/天（`NOOZRA_API_KEY`） | ✅ 已集成 |
 | GNews        | apiKey | source-registry WESTERN_SOURCES        | `https://gnews.io/api/v4/search`                | 新闻搜索，多语言，100 req/天                 | ✅ 已集成 |
 | Currents     | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://api.currentsapi.services/v1/search`    | 实时全球新闻，200 req/天                     | ✅ 已集成 |
 | OpenAlex     | No     | source-registry WESTERN_SOURCES        | `https://api.openalex.org/works`                | 学术作品开放目录（2.4 亿作品）               | ✅ 已集成 |

@@ -1938,6 +1938,21 @@ describe("resolveApiHeaders — 凭据必须在请求时读取", () => {
     }
   });
 
+  it("noozra_search 的 Bearer 头是惰性的：import 之后再设 env 仍然生效 (#446)", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "noozra_search");
+    const api = src.capabilities.articles.apiSearch;
+    delete process.env.NOOZRA_API_KEY;
+    expect(resolveApiHeaders(api)).toEqual({});
+    process.env.NOOZRA_API_KEY = "test-key-not-real";
+    try {
+      expect(resolveApiHeaders(api)).toEqual({
+        Authorization: "Bearer test-key-not-real",
+      });
+    } finally {
+      delete process.env.NOOZRA_API_KEY;
+    }
+  });
+
   it("没有任何 apiSearch 的 headers 是模块作用域读取的 env", () => {
     for (const s of ALL_SOURCES) {
       const api = s.capabilities?.articles?.apiSearch ?? s.apiSearch;
@@ -1967,9 +1982,14 @@ describe("missingApiKey — 缺哪个 key 是可机读的事实", () => {
     }
   });
 
-  it("注册表里唯一声明需要 key 的三源，都能点名到 env 变量", () => {
+  it("注册表里声明需要 key 的源，都能点名到 env 变量", () => {
     const keyed = ALL_SOURCES.filter((s) => s.capabilities?.articles?.requiresApiKey);
-    expect(keyed.map((s) => s.name).sort()).toEqual(["currents", "gnews", "tiktok_creator"]);
+    expect(keyed.map((s) => s.name).sort()).toEqual([
+      "currents",
+      "gnews",
+      "noozra_search",
+      "tiktok_creator",
+    ]);
     for (const s of keyed) {
       expect(typeof s.capabilities.articles.apiKeyEnv).toBe("string");
     }

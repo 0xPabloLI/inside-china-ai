@@ -466,6 +466,15 @@ describe("#67 — capabilities.articles API credentials", () => {
     expect(src.capabilities.articles.apiKeyEnv).toBe("CURRENTS_API_KEY");
   });
 
+  it("noozra_search has requiresApiKey=true, paidApi=false, apiKeyEnv=NOOZRA_API_KEY (#446)", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "noozra_search");
+    expect(src.capabilities.articles.requiresApiKey).toBe(true);
+    // 需要 key 的是 API，不是登录页：needsAuth 若为 true 会关掉死链探针。
+    expect(src.capabilities.articles.needsAuth).toBe(false);
+    expect(src.capabilities.articles.paidApi).toBe(false);
+    expect(src.capabilities.articles.apiKeyEnv).toBe("NOOZRA_API_KEY");
+  });
+
   it("non-auth API sources have requiresApiKey=false, apiKeyEnv=null, paidApi=false", () => {
     const nonAuthApi = ALL_SOURCES.filter(
       (s) => s.capabilities?.articles?.apiSearch && !s.apiSearch.authRequired,
