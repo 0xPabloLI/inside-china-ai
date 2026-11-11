@@ -337,7 +337,7 @@ export function checkSafeZoneRight(buf, safeZones) {
  * @returns {AnalysisResult}
  */
 export function checkSafeZoneBottom(buf, safeZones) {
-  // Content bottom edge = height - safeZones.bottom = 1920 - 770 = 1150
+  // Content bottom edge = height - safeZones.bottom = 1920 - 622 = 1298
   const contentBottom = buf.height - safeZones.bottom;
   const subtitleLaneTop = SUBTITLE_LANE_TOP;
   const region = {

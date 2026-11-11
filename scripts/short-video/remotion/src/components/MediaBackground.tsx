@@ -121,7 +121,7 @@ const resolvePreset = (
  * contrast background, an evidence card, fullscreen — centres it (#1075).
  * Before #1075 every container bottom-anchored, so a contain picture in a
  * full-frame scene landed at y 1312–1920, under the burned subtitles
- * (SUBTITLE_LANE_TOP 1339): the "画面被塞到字幕带下面" report.
+ * (SUBTITLE_LANE_TOP 1328): the "画面被塞到字幕带下面" report.
  *
  * Extracted from the component body: inlining this pushed `MediaBackground`
  * past the complexity ceiling the incremental lint enforces on changed files.

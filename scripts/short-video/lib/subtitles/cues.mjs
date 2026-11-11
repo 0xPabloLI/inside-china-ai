@@ -72,6 +72,13 @@ function clamp(value, min, max) {
  *
  * A one-word chunk that our own splitting created reads as a blink; a one-word
  * chunk that is genuinely its own sentence ("Exactly.") is left alone.
+ *
+ * When the pair cannot share one page (68px font, #1228: "DeepSeek has no
+ * KPIs." is 752px against a 720px lane) the word is still stranded, so one
+ * word crosses the break instead of the whole chunk: "DeepSeek has | no KPIs."
+ * Both pages then carry two words. The previous page needs three words to
+ * spare one; with two it would become the lone narrow word the guard exists to
+ * prevent.
  */
 function mergeTrailingOrphan(chunks) {
   if (chunks.length < 2) return chunks;
@@ -81,10 +88,21 @@ function mergeTrailingOrphan(chunks) {
 
   const prev = chunks[chunks.length - 2];
   const combined = [...prev.words, ...last.words];
-  if (combined.length > MAX_WORDS) return chunks;
-  if (measureWidth(joinWords(combined)) > HARD_PX) return chunks;
+  if (combined.length <= MAX_WORDS && measureWidth(joinWords(combined)) <= HARD_PX) {
+    return [...chunks.slice(0, -2), makeChunk(combined)];
+  }
 
-  return [...chunks.slice(0, -2), makeChunk(combined)];
+  if (prev.words.length < 3) return chunks;
+  const carried = prev.words[prev.words.length - 1];
+  // A sentence-final word belongs to the page whose sentence it ends (the same
+  // rule `lastClauseSplit` follows), so it never crosses the break — a short
+  // orphan page is the lesser cost.
+  if (/[.!?]["'”’)]?$/.test(carried.text)) return chunks;
+  const rebPrev = prev.words.slice(0, -1);
+  const rebLast = [carried, ...last.words];
+  if (measureWidth(joinWords(rebLast)) > HARD_PX) return chunks;
+
+  return [...chunks.slice(0, -2), makeChunk(rebPrev), makeChunk(rebLast)];
 }
 
 /**

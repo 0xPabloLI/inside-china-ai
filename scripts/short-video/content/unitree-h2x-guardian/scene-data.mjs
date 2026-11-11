@@ -82,7 +82,7 @@
  * Contain, and dim (measured, not guessed). Every media scene below declares
  * `fit: "contain"`, so `media-bottom-bar` shows the WHOLE 16:9 source frame,
  * bottom-anchored in its band — see the contain rule in MediaBackground and
- * MEDIA_BAND in lib/safe-zones.mjs for why the band stops at 1309 and not at
+ * MEDIA_BAND in lib/safe-zones.mjs for why the band stops at 1298 and not at
  * the subtitle lane. Nothing is cropped, and that is the point: this pack uses
  * the film's own burned-in captions as evidence, and cropping costs it. A
  * 1080x1920 hook cover-crop keeps 608 of the source's 1920 px (31.6%); the

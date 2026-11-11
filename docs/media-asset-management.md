@@ -124,7 +124,7 @@ asset-sourcer 构建跨内容已用素材索引（扫描各内容包 `assets/` �
 
 ### 第三方横屏素材的默认构图（#963）
 
-自动取材对第三方横屏素材（源宽高比 ≥ 1.2）写 `fit: "contain"`：画面整幅保留，底边挂在文字条上方；三行及以下文案条完全在画面外，四行文案条与画面底边有 40px 既有重叠（`CONTAIN_MEDIA_BOTTOM`，2026-10-29 契约）。依据是 2026-11-01 用户裁决「第三方横屏素材完整展示」——cover 塞进 1080×1309 媒体带只保留 16:9 源宽度的约 46%，且没有逐帧保护。竖屏/方形素材仍默认 cover（填满画幅不损失内容）；手写 pack 显式声明的 `fit` 不受影响；AI 生成的 B-roll 不经 `assignAssetsToScenes`，保持既有构图。
+自动取材对第三方横屏素材（源宽高比 ≥ 1.2）写 `fit: "contain"`：画面整幅保留，底边挂在文字条上方；三行及以下文案条完全在画面外，四行文案条与画面底边有 40px 既有重叠（`CONTAIN_MEDIA_BOTTOM`，2026-10-29 契约）。依据是 2026-11-01 用户裁决「第三方横屏素材完整展示」——cover 塞进 1080×1298 媒体带只保留 16:9 源宽度的约 46%，且没有逐帧保护。竖屏/方形素材仍默认 cover（填满画幅不损失内容）；手写 pack 显式声明的 `fit` 不受影响；AI 生成的 B-roll 不经 `assignAssetsToScenes`，保持既有构图。
 
 落点只限有 contain 带的模板：NarrativeScene 的 `media-bottom-bar` 与 HookScene。info-card / context / contrast 这类全幅背景容器没有该带，不套用这条 contain 默认——否则 contain 只会在文字块底下多出一个 letterbox 画框（修复前更糟：画面被底挂到 y 1312–1920，直接埋进字幕带）。
 

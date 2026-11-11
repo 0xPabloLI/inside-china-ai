@@ -18,7 +18,11 @@ function words(...specs) {
 }
 
 describe("chunkWords", () => {
-  it("keeps the sentence-final word in its own chunk", () => {
+  it("keeps the sentence-final word attached to the words before it", () => {
+    // At 60px this line was one page; at 68px it measures 752px, past the hard
+    // 720px limit, so it splits. The contract the fixture is here for still
+    // holds: the sentence-final "KPIs." shares a page with "no" instead of
+    // being stranded alone.
     const input = words(
       ["DeepSeek", 0.04, 0.457],
       ["has", 0.483, 0.659],
@@ -26,9 +30,8 @@ describe("chunkWords", () => {
       ["KPIs.", 0.925, 1.524],
     );
     const chunks = chunkWords(input);
-    expect(chunks).toHaveLength(1);
-    expect(chunks[0].text).toBe("DeepSeek has no KPIs.");
-    expect(chunks[0].words.map((w) => w.text)).toEqual(["DeepSeek", "has", "no", "KPIs."]);
+    expect(chunks.map((c) => c.text)).toEqual(["DeepSeek has", "no KPIs."]);
+    expect(chunks[1].words.map((w) => w.text)).toEqual(["no", "KPIs."]);
   });
 
   it("derives chunk text from its own word list, so text and words cannot diverge", () => {
@@ -131,10 +134,24 @@ describe("chunkWords", () => {
     expect(chunks.flatMap((c) => c.words.map((x) => x.text))).toEqual(input.map((x) => x.text));
   });
 
+  it("never carries a sentence-final word across the break", () => {
+    // The pair cannot merge (983px > 720px) and one word would have to cross.
+    // The obvious candidate is "ok." — but it ends the sentence, so it stays on
+    // the page whose sentence it ends; the orphan page is left as it is.
+    const input = words(
+      ["Wide", 0, 0.2],
+      ["format", 0.2, 0.4],
+      ["ok.", 0.4, 0.6],
+      ["Cybersecurity", 0.6, 1.2],
+    );
+    const chunks = chunkWords(input);
+    expect(chunks.map((c) => c.text)).toEqual(["Wide format ok.", "Cybersecurity"]);
+  });
+
   it("merges a trailing single-word chunk back into the previous line", () => {
     // "Go now." ends a sentence, so "Fast." would flush as its own one-word
-    // chunk; since the combined line ("Go now. Fast.", ~393px) fits the 720px
-    // lane, the orphan is merged back rather than left to blink alone.
+    // chunk; since the combined line ("Go now. Fast.", ~446px at 68px) fits the
+    // 720px lane, the orphan is merged back rather than left to blink alone.
     const input = words(["Go", 0, 0.3], ["now.", 0.35, 0.7], ["Fast.", 0.8, 1.2]);
     const chunks = chunkWords(input);
     expect(chunks).toHaveLength(1);
@@ -183,10 +200,10 @@ describe("chunkWords", () => {
   });
 
   it("refuses a clause break that would blink a one-word page", () => {
-    // Same overflow trigger, but the only clause boundary sits after the first
-    // word. Breaking there would leave "Alpha," alone on screen for a blink,
-    // so the splitter cuts mid-phrase instead — the fallback must not trade a
-    // mid-phrase cut for an orphan page.
+    // "Alpha beta, gamma" measures 623px at 68px — past the 85% soft limit, so
+    // the splitter must break. Breaking after the only earlier clause boundary
+    // ("Alpha,") would leave a one-word page on screen for a blink, so it cuts
+    // mid-sentence instead: both pages carry two or more words.
     const input = words(
       ["Alpha,", 0, 0.3],
       ["beta", 0.3, 0.6],
@@ -195,8 +212,9 @@ describe("chunkWords", () => {
       ["epsilon", 1.2, 1.6],
     );
     const chunks = chunkWords(input);
-    expect(chunks.map((c) => c.text)).toEqual(["Alpha, beta gamma", "delta epsilon"]);
+    expect(chunks.map((c) => c.text)).toEqual(["Alpha, beta", "gamma delta epsilon"]);
     expect(chunks).toHaveLength(2);
+    expect(chunks.every((c) => c.words.length > 1)).toBe(true);
     expect(chunks.flatMap((c) => c.words.map((x) => x.text))).toEqual(input.map((x) => x.text));
   });
 
@@ -206,6 +224,10 @@ describe("chunkWords", () => {
     // split shortens the line, so the width decision has to be re-taken
     // against the remaining words — computing it once against the pre-split
     // line emitted a 797px page (over the 720px lane).
+    //
+    // At 68px "delivery-grade" alone is 465px and cannot share a page with
+    // "multimodal" (865px), so one lone page is unavoidable here — and it is a
+    // full-width word, not the blink this test is about.
     const input = words(
       ["Pro,", 0, 0.2],
       ["a", 0.2, 0.3],
@@ -217,13 +239,16 @@ describe("chunkWords", () => {
     );
     const chunks = chunkWords(input);
     expect(chunks.map((c) => c.text)).toEqual([
-      "Pro, a delivery-grade",
+      "Pro, a",
+      "delivery-grade",
       "multimodal agent",
       "model that",
     ]);
     for (const chunk of chunks) {
       expect(measureWidth(chunk.text)).toBeLessThanOrEqual(SUBTITLE_LANE.maxWidth);
-      expect(chunk.words.length).toBeGreaterThan(1);
+    }
+    for (const lone of chunks.filter((c) => c.words.length === 1)) {
+      expect(measureWidth(lone.text)).toBeGreaterThan(SUBTITLE_LANE.maxWidth / 2);
     }
     expect(chunks.flatMap((c) => c.words.map((x) => x.text))).toEqual(input.map((x) => x.text));
   });

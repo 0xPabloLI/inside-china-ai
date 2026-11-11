@@ -106,7 +106,10 @@ describe("compareWordSequence", () => {
 
   it("fails and names the missing word when a cue drops one", () => {
     const cues = renderedCues();
-    cues[0].words = cues[0].words.filter((w) => w.text !== "KPIs.");
+    // Locate the page that carries the word: at 68px the sentence splits across
+    // two pages, so it is not necessarily cues[0].
+    const cue = cues.find((c) => c.words.some((w) => w.text === "KPIs."));
+    cue.words = cue.words.filter((w) => w.text !== "KPIs.");
     const result = compareWordSequence(cues, expectedWordTimes(timingData, sceneDurations));
     expect(result.matches).toBe(false);
     expect(result.firstMismatch.expected).toBe("KPIs.");
@@ -129,7 +132,9 @@ describe("analyzeSync", () => {
 
   it("flags a word whose highlight drifts past the tolerance", () => {
     const cues = renderedCues();
-    cues[0].words[3].onset += 0.12;
+    cues
+      .find((c) => c.words.some((w) => w.text === "KPIs."))
+      .words.find((w) => w.text === "KPIs.").onset += 0.12;
     const result = analyzeSync(cues, expectedWordTimes(timingData, sceneDurations));
     expect(result.offenders).toHaveLength(1);
     expect(result.offenders[0].text).toBe("KPIs.");
