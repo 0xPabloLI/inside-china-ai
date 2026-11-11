@@ -39,7 +39,8 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildHookClaim } from "./lib/hook-payoff.mjs";
+import { buildHookClaim, truncate } from "./lib/hook-payoff.mjs";
+import { mapDetailsToObservations, parseJsonl } from "./lib/hashtag-tracker.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -194,37 +195,41 @@ export function buildRows({ videos = [], packs = [], overrides = {}, tracker = [
     tracker.filter((entry) => entry?.videoId).map((entry) => [String(entry.videoId), entry]),
   );
   const packBySlug = new Map(packs.map((pack) => [pack.slug, pack]));
+  // The export field mapping belongs to lib/hashtag-tracker.mjs; reuse it so a
+  // shape change is fixed in one place.
+  const observations = mapDetailsToObservations({ videos });
+  const rawById = new Map(videos.map((video) => [String(video.videoId ?? ""), video]));
 
-  const rows = videos.map((video) => {
-    const videoId = String(video.videoId ?? "");
+  const rows = observations.map((observation) => {
+    const videoId = observation.videoId;
+    const raw = rawById.get(videoId) || {};
     const override = overrides[videoId];
     const match = override
       ? packBySlug.has(override)
         ? { slug: override, coverage: 1 }
         : null
-      : matchPack(video.title, packs);
+      : matchPack(observation.videoTitle, packs);
     const pack = match ? packBySlug.get(match.slug) : null;
     const tracked = trackerById.get(videoId);
     return {
-      postedOn: video.postedOn ?? null,
-      postedAt: postedDate(video.postedOn),
+      postedOn: observation.publishedAt || null,
+      postedAt: postedDate(observation.publishedAt),
       videoId,
-      views: typeof video.videoViews === "number" ? video.videoViews : null,
-      avgWatchTimeSec: typeof video.avgWatchTimeSec === "number" ? video.avgWatchTimeSec : null,
-      fullWatchPct:
-        typeof video.watchedFullVideoPct === "number" ? video.watchedFullVideoPct : null,
-      fypPct: video.trafficSource?.forYouPct ?? null,
-      searchPct: video.trafficSource?.searchPct ?? null,
-      majorDropSec: parseMajorDropSec(video.retentionInsight),
+      views: observation.views,
+      avgWatchTimeSec: observation.avgWatchTimeSec,
+      fullWatchPct: observation.watchedFullVideoPct,
+      fypPct: observation.fypPercent,
+      searchPct: observation.searchPercent,
+      majorDropSec: parseMajorDropSec(raw.retentionInsight),
       pack: pack?.slug ?? null,
       matchCoverage: match ? Number(match.coverage.toFixed(2)) : null,
       hook: hookFeatures(pack?.scenes?.[0] ?? null),
       hashtags: tracked?.hashtags ?? pack?.meta?.hashtags ?? [],
-      title: video.title ?? "",
+      title: observation.videoTitle,
     };
   });
 
-  return rows.sort((a, b) => b.postedAt - a.postedAt).slice(0, limit);
+  return rows.sort((a, b) => b.postedAt - a.postedAt).slice(0, Math.max(0, limit));
 }
 
 /** Median of the numeric values, or null when there is none. */
@@ -277,11 +282,6 @@ const dash = (value) => (value === null || value === undefined || value === "" ?
 
 function fixed(value, digits = 1, suffix = "") {
   return typeof value === "number" ? `${value.toFixed(digits)}${suffix}` : "–";
-}
-
-function truncate(text, max) {
-  const value = String(text ?? "");
-  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
 /**
@@ -363,8 +363,10 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--details") options.details = argv[++i];
-    else if (arg === "--limit") options.limit = Number(argv[++i]) || options.limit;
-    else if (arg === "--content-root") options.contentRoot = resolve(argv[++i]);
+    else if (arg === "--limit") {
+      // Clamp: a negative value would turn slice(0, -n) into "drop the last n".
+      options.limit = Math.max(1, Number(argv[++i]) || options.limit);
+    } else if (arg === "--content-root") options.contentRoot = resolve(argv[++i]);
     else if (arg === "--out") options.out = argv[++i];
     else if (arg === "--json") options.json = true;
     else if (arg === "--map") {
@@ -417,17 +419,14 @@ async function loadPacks(contentRoot) {
 function loadTracker(outputDir) {
   const file = join(outputDir, "hashtag-effect-tracker.jsonl");
   if (!existsSync(file)) return [];
-  return readFileSync(file, "utf8")
-    .split("\n")
-    .filter((line) => line.trim())
-    .map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
+  // lib/hashtag-tracker.mjs owns this store's format and fails loud (with a
+  // line number) on a malformed row; a damaged optional input becomes an empty
+  // enrichment instead of killing the report.
+  try {
+    return parseJsonl(readFileSync(file, "utf8"));
+  } catch {
+    return [];
+  }
 }
 
 async function main() {
@@ -440,7 +439,15 @@ async function main() {
     process.exit(1);
   }
 
-  const details = JSON.parse(readFileSync(detailsPath, "utf8"));
+  // A hand-exported TikTok file and a typo'd --content-root / --out are the
+  // realistic failure modes; report them as a one-line error, not a raw stack.
+  let details;
+  try {
+    details = JSON.parse(readFileSync(detailsPath, "utf8"));
+  } catch (error) {
+    console.error(`❌ Could not read the details export ${detailsPath}: ${error.message}`);
+    process.exit(1);
+  }
   const videos = Array.isArray(details.videos) ? details.videos : [];
   const packs = await loadPacks(options.contentRoot);
   const rows = buildRows({
@@ -471,5 +478,8 @@ async function main() {
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main();
+  main().catch((error) => {
+    console.error(`❌ ${error.message}`);
+    process.exit(1);
+  });
 }

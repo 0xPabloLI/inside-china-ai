@@ -66,14 +66,24 @@ def test_accepts_a_lengthened_header():
 
 
 def test_headerless_answer_opens_with_the_verdict():
-    parsed = parse_markdown_to_dict("pass\n\nThe front wheel lifts off the ground.")
+    parsed = parse_markdown_to_dict(
+        "pass\n\nThe front wheel lifts off the ground.", hook_mode=True
+    )
     assert parsed["payoff"] == "pass"
     assert parsed["payoffReason"] == "The front wheel lifts off the ground."
 
 
+def test_headerless_payoff_is_not_read_in_other_prompt_modes():
+    """`Partial` opens a perfectly good description — only hook mode may claim it."""
+    parsed = parse_markdown_to_dict("Partial view of the assembly line with robotic arms.")
+    assert parsed["payoff"] is None
+    assert parsed["description"] == "Partial view of the assembly line with robotic arms."
+
+
 def test_headerless_description_that_mentions_a_verdict_later_is_not_a_verdict():
     parsed = parse_markdown_to_dict(
-        "A robot walks through a villa.\n\nThe car is absent from these frames."
+        "A robot walks through a villa.\n\nThe car is absent from these frames.",
+        hook_mode=True,
     )
     assert parsed["payoff"] is None
     assert "robot walks" in parsed["description"]

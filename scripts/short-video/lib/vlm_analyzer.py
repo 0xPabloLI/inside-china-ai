@@ -637,8 +637,14 @@ def _split_headless_payoff(text):
     return match.group(1).lower(), (remainder or None)
 
 
-def parse_markdown_to_dict(raw_text):
+def parse_markdown_to_dict(raw_text, hook_mode=False):
     """Parse VLM Markdown output into a dict with 9 mandatory keys.
+
+    `hook_mode` (#1206) gates the headerless-payoff split: "pass", "partial"
+    and "absent" are ordinary English words, so accepting them as an opening
+    verdict in every mode would let a normal description like "Partial view of
+    the assembly line" lose its text. Only the payoff prompt, which asks for
+    exactly one of those words, opts in.
 
     Logic:
     1. Strip markdown code fences (```markdown ... ```) if present
@@ -707,7 +713,7 @@ def parse_markdown_to_dict(raw_text):
                 subjectMatchReason=explanation,
             )
             return result
-        headless_payoff = _split_headless_payoff(text)
+        headless_payoff = _split_headless_payoff(text) if hook_mode else None
         if headless_payoff:
             verdict, explanation = headless_payoff
             result.update(
@@ -1689,7 +1695,9 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
                     frame_strategy=frame_params["strategy"],
                     max_frames=frame_params["max_frames"],
                 )
-                parsed_results.append(parse_markdown_to_dict(raw))
+                parsed_results.append(
+                    parse_markdown_to_dict(raw, hook_mode=hook_check is not None)
+                )
                 _debug_raw_response(raw)
                 successful_windows.append(win)
             except Exception as e:
@@ -1737,7 +1745,7 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
 
     # Parse Markdown output
     _debug_raw_response(raw)
-    result = parse_markdown_to_dict(raw)
+    result = parse_markdown_to_dict(raw, hook_mode=hook_check is not None)
 
     # Add sourceMode for video assets
     if is_video and source_mode:

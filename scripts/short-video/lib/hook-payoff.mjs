@@ -181,7 +181,16 @@ export function analyzeHookFrame(buf, safeZones = SAFE_ZONES) {
 
 // ─── Verdict ───
 
-function truncate(text, max = DETAIL_MAX_CHARS) {
+/**
+ * Trim a string to `max` characters for one-line report fields.
+ *
+ * Shared with cohort-report.mjs so the two reports truncate identically.
+ *
+ * @param {unknown} text
+ * @param {number} [max]
+ * @returns {string}
+ */
+export function truncate(text, max = DETAIL_MAX_CHARS) {
   const value = String(text ?? "");
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }

@@ -22,7 +22,7 @@
  *   --content     content pipeline id (required — e.g. unitree-h2x-guardian)
  *   --video       rendered mp4 (default: newest output/<pipelineId> render)
  *   --strict      exit 1 when a fail-level finding is reported
- *   --semantic    run the VLM claim check (slow; cached in output/.vlm-cache)
+ *   --semantic    run the VLM claim check (slow; cached in output/<pipelineId>/.vlm-cache)
  *   --window-ms   semantic window inside the hook (default: hook scene length)
  *   --json        machine-readable report on stdout
  */
@@ -115,66 +115,81 @@ function hookWindowMs() {
 
 function readPng(filePath) {
   return new Promise((resolve, reject) => {
-    createReadStream(filePath)
-      .pipe(new PNG())
-      .on("parsed", function onParsed(data) {
-        resolve({ data, width: this.width, height: this.height });
-      })
-      .on("error", reject);
+    const source = createReadStream(filePath);
+    const png = new PNG();
+    // `pipe()` does not forward source errors to the destination, so the read
+    // stream needs its own listener — otherwise ENOENT/EACCES escapes as an
+    // uncaught exception instead of skipping the frame.
+    source.on("error", reject);
+    png.on("parsed", function onParsed() {
+      resolve({ data: this.data, width: this.width, height: this.height });
+    });
+    png.on("error", reject);
+    source.pipe(png);
   });
 }
 
 const tempDir = join(OUTPUT_DIR, ".hook-payoff-frames");
-const frames = HOOK_SAMPLE_TIMES_SEC.map((t) => Math.round(t * FPS));
-const { byFrame } = await extractFramesAtIndexes({
-  videoPath,
-  frames,
-  outDir: tempDir,
-  nameFor: (f) => `hook-${f}.png`,
-});
-
 const samples = [];
-for (const t of HOOK_SAMPLE_TIMES_SEC) {
-  const frame = Math.round(t * FPS);
-  const framePath = byFrame.get(frame);
-  if (!framePath) continue;
-  try {
-    const buf = await readPng(framePath);
-    const analysis = analyzeHookFrame(buf);
-    samples.push({ t, frame, kind: analysis.kind, metrics: analysis.metrics });
-  } catch {
-    /* an unreadable frame is reported as missing, not fabricated */
-  }
-}
-
 let semantics = null;
-if (semantic) {
-  const { analyzeAssetSemantics, closeVisualAnalyzer, getVlmModelId } =
-    await import("./lib/visual-analyzer.mjs");
-  const { wrapAnalyzerWithCache } = await import("./lib/vlm-cache.mjs");
-  const analyze = wrapAnalyzerWithCache(analyzeAssetSemantics, {
-    cacheDir: join(OUTPUT_DIR, ".vlm-cache"),
-    model: getVlmModelId(),
+
+// The frames exist for this run only. Clear stale PNGs first (a killed run
+// otherwise leaves frames that a later failed ffmpeg pass would reuse and
+// report as this run's samples), and clean up on every exit path.
+rmSync(tempDir, { recursive: true, force: true });
+try {
+  const frames = HOOK_SAMPLE_TIMES_SEC.map((t) => Math.round(t * FPS));
+  const { byFrame } = await extractFramesAtIndexes({
+    videoPath,
+    frames,
+    outDir: tempDir,
+    nameFor: (f) => `hook-${f}.png`,
   });
-  // The analyzer forwards the Python child's stderr through console.debug,
-  // which Node writes to stdout — that would corrupt `--json`. Keep stdout
-  // parseable; non-JSON runs still show the diagnostics.
-  const debugLog = console.debug;
-  if (asJson) console.debug = () => {};
-  try {
-    semantics = await analyze(videoPath, {
-      startMs: 0,
-      endMs: hookWindowMs(),
-      sampleFps: 2,
-      hookCheck: { promise: claim.promise },
-    });
-  } catch {
-    // A missing VLM must not hide the pixel verdict — report it unavailable.
-    semantics = { payoff: null, payoffReason: null };
-  } finally {
-    console.debug = debugLog;
-    await closeVisualAnalyzer();
+
+  for (const t of HOOK_SAMPLE_TIMES_SEC) {
+    const frame = Math.round(t * FPS);
+    const framePath = byFrame.get(frame);
+    if (!framePath) continue;
+    try {
+      const buf = await readPng(framePath);
+      const analysis = analyzeHookFrame(buf);
+      samples.push({ t, frame, kind: analysis.kind, metrics: analysis.metrics });
+    } catch {
+      /* an unreadable frame is reported as missing, not fabricated */
+    }
   }
+
+  if (semantic) {
+    const { analyzeAssetSemantics, closeVisualAnalyzer, getVlmModelId } =
+      await import("./lib/visual-analyzer.mjs");
+    const { wrapAnalyzerWithCache } = await import("./lib/vlm-cache.mjs");
+    const analyze = wrapAnalyzerWithCache(analyzeAssetSemantics, {
+      cacheDir: join(OUTPUT_DIR, ".vlm-cache"),
+      model: getVlmModelId(),
+      disabled: process.env.VLM_CACHE_DISABLED === "1",
+    });
+    // The analyzer forwards the Python child's stderr through console.debug,
+    // which Node writes to stdout — that would corrupt `--json`. Keep stdout
+    // parseable; non-JSON runs still show the diagnostics.
+    const debugLog = console.debug;
+    if (asJson) console.debug = () => {};
+    try {
+      semantics = await analyze(videoPath, {
+        startMs: 0,
+        endMs: hookWindowMs(),
+        sampleFps: 2,
+        hookCheck: { promise: claim.promise },
+      });
+    } catch {
+      // A missing VLM must not hide the pixel verdict — report it unavailable.
+      semantics = { payoff: null, payoffReason: null };
+    } finally {
+      console.debug = debugLog;
+      await closeVisualAnalyzer();
+    }
+  }
+} finally {
+  rmSync(tempDir, { recursive: true, force: true });
 }
 
 const result = evaluateHookPayoff({ samples, claim, semantics, strict });
@@ -184,14 +199,6 @@ const report = {
   windowMs: semantic ? hookWindowMs() : null,
   ...result,
 };
-
-// The frames were sampled for this run only; leaving them behind would grow
-// output/<pack> with one PNG set per invocation.
-try {
-  rmSync(tempDir, { recursive: true, force: true });
-} catch {
-  /* best-effort cleanup */
-}
 
 if (asJson) {
   console.log(JSON.stringify(report, null, 2));
