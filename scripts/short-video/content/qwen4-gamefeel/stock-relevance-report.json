@@ -16,9 +16,9 @@
     {
       "sceneId": 2,
       "sceneName": "secret-test",
-      "asset": "assets/loktar-replies.png",
+      "asset": "assets/loktar-post.png",
       "exempted": true,
-      "exemptionReason": "Scene 2 uses the X reply strip 'Qwen4 Max?' / 'No idea, they didn't tell us' (CDP capture of the Loktar thread, 2026-11-09). Relevance is verified by reading the thread; the analyzer's portrait centre crop removes the text it would need to read, and the same applies to any wide screenshot of a public post.",
+      "exemptionReason": "Scene 2's image is the primary source of the story: Loktar's own post announcing the Qwen 4 test (CDP capture, 2026-11-09). The analyzer scored it 50 because its claim text (secret API, no model name) is not spelled out in the post body — that context lives in the thread replies and is quoted in the video's voiceover. A curated news screenshot, not a stock image; relevance is judged by reading the source.",
       "relevance": null,
       "reason": null,
       "band": null,

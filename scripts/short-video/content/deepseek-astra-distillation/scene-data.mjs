@@ -43,7 +43,6 @@ export const scenes = [
     visualType: "hook",
     layout: "hero-center",
     narrativeRole: "S",
-    retentionMechanism: "open-loop",
     mediaStrategy: "asset",
     // Pure typography on the open: an explicit null, not a sourcing target.
     // The 4-point jump is the claim, and the second line names the alleged
@@ -69,8 +68,8 @@ export const scenes = [
     name: "the-score",
     visualType: "contrast",
     layout: "hero-center",
-    narrativeRole: "A",
-    retentionMechanism: "curiosity-gap",
+    narrativeRole: "T",
+    retentionMechanism: "open-loop",
     mediaStrategy: "asset",
     media: null,
     // Take 1 and 2 were both hard-blocked by the acoustic gate: the ASR writes
@@ -213,9 +212,10 @@ export const scenes = [
     retentionMechanism: "loop-closure",
     mediaStrategy: "asset",
     media: null,
-    voiceover: "One viral test called it 84% GPT-6 Astra. That tool has no DeepSeek model on file.",
+    voiceover:
+      "One viral test called it 84.66% GPT-6 Astra. That tool has no DeepSeek model on file.",
     texts: {
-      stat: "84%",
+      stat: "84.66%",
       statLabel: "GPT-6 ASTRA MATCH",
       subtext: "NO DEEPSEEK IN ITS DATABASE",
       source: "SOURCE: TMT POST, OCT 2026",

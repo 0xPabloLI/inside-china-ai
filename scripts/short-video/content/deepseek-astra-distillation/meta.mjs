@@ -29,7 +29,11 @@ export const meta = {
     ],
   },
   // Every number that appears in the hook, the body and the close. checkLoopClose
-  // matches the closing scene's numbers against this list.
+  // tries a numeric loop first, but numericAnchors drops integer anchors below 10,
+  // so the closing line's spelled "four" never matches this list: the check falls
+  // back to the word-match branch and reports the advisory warn. The loop is
+  // carried by the hook's framing ("four points" -> "four points up"), not by a
+  // numeric anchor.
   dataPoints: [
     "2026-10-17: DeepSeek ships V4.1-Flash-1017 as a point update, same API price, open MIT weights",
     "Browser Use Bench v2.1 runs 180 live-website tasks, page updated 2026-10-17",
