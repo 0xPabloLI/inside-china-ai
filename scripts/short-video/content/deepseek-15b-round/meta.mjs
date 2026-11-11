@@ -1,6 +1,6 @@
 export const meta = {
   article: "deepseek-15b-round",
-  subject: "china-ai",
+  subject: "deepseek",
   pipelineId: "deepseek-15b-round",
   title: "DeepSeek Asked for $7.5B. It Got $15B.",
   renderer: "remotion",

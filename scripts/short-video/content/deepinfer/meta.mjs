@@ -1,5 +1,5 @@
 export const meta = {
-  subject: "china-ai",
+  subject: "deepseek",
   pipelineId: "deepinfer",
   title: "DeepSeek Open-Sourced Its Engine. Three Pieces Missing.",
   article: "deepinfer",

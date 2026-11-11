@@ -25,6 +25,8 @@
   - https://www.reuters.com/world/asia-pacific/deepseek-raises-15-billion-challenge-leading-us-labs-bloomberg-news-reports-2026-10-22/
 - **Tech Startups summary (2026-10-22)**: same figures, plus June 2026 first external round of $7.4B at a ¥350.88B (~$52B) valuation; CITIC Securities advising on a STAR Market IPO.
   - https://techstartups.com/2026/10/22/deepseek-raises-15-billion-at-74-billion-valuation-backed-by-tencent-catl-and-chinese-tech-giants/
+- **36Kr (2026-10-22)**: June round started April 2026 and closed at ~¥51B; June valuation quoted ~¥340B — the figure the `deepseek-15b-round` pack uses for its "UP 47% SINCE JUNE" line (¥340B → ¥500B); ¥500B equals 2.1x the combined market value of Zhipu + MiniMax; CITIC Securities preparing a STAR Market IPO; CFO Yan Wentao joined late September. Note the ¥340B (36Kr) vs ¥350.88B (Tech Startups) spread — third-party calculations, not company-confirmed.
+  - https://36kr.com/p/4036974031394694
 - **证券时报 (2026-10-06)**: round had already locked at least ¥80B (~$12B), final size could approach ¥100B; target valuation ~¥500B; CATL and Tencent leading.
   - https://stcn.com/article/detail/4209093.html
 - **证券时报 (pre-close analysis)**: "钱不是问题，芯片才是" framing.
@@ -34,6 +36,7 @@
 
 - Tense: 界面/上证 says "拟筹得" (plans to raise) and "within days"; Reuters headline says "has raised". Use "about to close" framing.
 - Valuation: $74B pre-money vs ~$89B post-money — both are third-party calculations, not company-confirmed.
+- June valuation: ¥340B (36Kr, the figure the pack's "UP 47% SINCE JUNE" line uses) vs ¥350.88B (Tech Startups) — pick one and keep it consistent between the pack and this ledger.
 - No company confirmation exists for any figure in this ledger.
 
 ## Excluded on purpose

@@ -51,13 +51,7 @@ export const scenes = [
     retentionMechanism: "open-loop",
     mediaStrategy: "asset",
     assetNeed: "official DeepSeek announcement cover image",
-    media: {
-      type: "image",
-      path: "assets/wx-01.jpg",
-      source: "DeepSeek official WeChat post, Oct 20, 2026",
-      animation: "ken-burns",
-      overlay: 0.8,
-    },
+    media: null,
     voiceover:
       "On October 20, DeepSeek announced DeepInfer. It is the inference framework behind its own API, now open source.",
     texts: {
@@ -168,13 +162,7 @@ export const scenes = [
     retentionMechanism: null,
     mediaStrategy: "asset",
     assetNeed: "GitHub repository page card showing stars and forks",
-    media: {
-      type: "image",
-      path: "assets/gh-deepinfer-og.png",
-      source: "github.com/deepseek-ai/DeepInfer, Oct 21, 2026",
-      animation: "ken-burns",
-      overlay: 0.78,
-    },
+    media: null,
     voiceover:
       "The repo passed 12,000 stars in one day. A second repo ships the token codec behind DeepSeek's API.",
     texts: {

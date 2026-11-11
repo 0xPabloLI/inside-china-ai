@@ -2,9 +2,10 @@
 // Every number below traces to docs/refs/source-materials/deepseek-15b-round-2026-10-22.md
 export const scenes = [
   {
-    id: "hook",
+    id: 1,
     visualType: "hook",
     layout: "hero-center",
+    narrativeRole: "S",
     voiceover: "DeepSeek asked for 7.5 billion dollars. Investors handed over 15 billion.",
     texts: {
       badge: "CHINA AI",
@@ -16,13 +17,13 @@ export const scenes = [
     },
     mediaStrategy: "asset",
     media: null,
-    shot: "full",
-    component: null,
   },
   {
-    id: "what-happened",
+    id: 2,
     visualType: "info-card",
     layout: "hero-center",
+    narrativeRole: "T",
+    retentionMechanism: "open-loop",
     voiceover: "Bloomberg reported the round closed. 15 billion dollars, one hundred billion yuan.",
     texts: {
       title: "THE ROUND",
@@ -31,13 +32,12 @@ export const scenes = [
     },
     mediaStrategy: "asset",
     media: null,
-    shot: "full",
-    component: null,
   },
   {
-    id: "target-doubled",
+    id: 3,
     visualType: "contrast",
     layout: "hero-center",
+    narrativeRole: "A",
     voiceover: "The target started at 7.5 billion dollars. Two raises later, it doubled.",
     texts: {
       title: "2X THE ASK",
@@ -47,13 +47,12 @@ export const scenes = [
     },
     mediaStrategy: "asset",
     media: null,
-    shot: "full",
-    component: null,
   },
   {
-    id: "who-paid",
+    id: 4,
     visualType: "info-card",
     layout: "hero-center",
+    narrativeRole: "A",
     voiceover:
       "More than 15 investors joined. Tencent and CATL wrote the biggest checks, and Geely, Meituan and Midea came in too.",
     texts: {
@@ -63,13 +62,13 @@ export const scenes = [
     },
     mediaStrategy: "asset",
     media: null,
-    shot: "full",
-    component: null,
   },
   {
-    id: "valuation-jump",
+    id: 5,
     visualType: "contrast",
     layout: "hero-center",
+    narrativeRole: "A",
+    retentionMechanism: "pattern-interrupt",
     voiceover:
       "In June, DeepSeek was worth 50 billion dollars, three hundred forty billion yuan. Reports now say 74 billion dollars.",
     texts: {
@@ -80,13 +79,12 @@ export const scenes = [
     },
     mediaStrategy: "asset",
     media: null,
-    shot: "full",
-    component: null,
   },
   {
-    id: "peer-check",
+    id: 6,
     visualType: "contrast",
     layout: "hero-center",
+    narrativeRole: "A",
     voiceover: "That is 2.1 times the combined market value of Zhipu and MiniMax.",
     texts: {
       title: "SIZE CHECK",
@@ -96,13 +94,12 @@ export const scenes = [
     },
     mediaStrategy: "asset",
     media: null,
-    shot: "full",
-    component: null,
   },
   {
-    id: "where-it-goes",
+    id: 7,
     visualType: "context",
     layout: "hero-center",
+    narrativeRole: "A",
     voiceover:
       "The cash goes into model training, compute and hiring, as DeepSeek pushes for global competition and a Shanghai listing.",
     texts: {
@@ -114,13 +111,12 @@ export const scenes = [
     },
     mediaStrategy: "asset",
     media: null,
-    shot: "full",
-    component: null,
   },
   {
-    id: "caveat",
+    id: 8,
     visualType: "context",
     layout: "hero-center",
+    narrativeRole: "R",
     voiceover:
       "DeepSeek has not confirmed any of this. Reports say the deal closes within days, and the valuation is still being argued over.",
     texts: {
@@ -132,13 +128,13 @@ export const scenes = [
     },
     mediaStrategy: "asset",
     media: null,
-    shot: "full",
-    component: null,
   },
   {
-    id: "the-close",
+    id: 9,
     visualType: "narrative",
     layout: "stacked-cards",
+    narrativeRole: "R",
+    retentionMechanism: "loop-closure",
     voiceover:
       "The ask was 7.5 billion dollars. The answer was 15. In China AI, the seat price just doubled.",
     texts: {
@@ -151,13 +147,13 @@ export const scenes = [
     },
     mediaStrategy: "asset",
     media: null,
-    shot: "full",
-    component: null,
   },
   {
-    id: "cta",
+    id: 10,
     visualType: "cta",
     layout: "hero-center",
+    narrativeRole: "T-Tell",
+    retentionMechanism: "loop-closure",
     voiceover: "Follow China AI News, and watch what 15 billion buys.",
     texts: {
       brand: "CHINA AI NEWS",
@@ -168,8 +164,6 @@ export const scenes = [
     },
     mediaStrategy: "asset",
     media: null,
-    shot: "full",
-    component: null,
   },
 ];
 

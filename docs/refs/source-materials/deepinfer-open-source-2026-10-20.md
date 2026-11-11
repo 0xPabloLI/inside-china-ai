@@ -65,3 +65,5 @@
 已存在 DeepSeek 包：`deepseek-v41-flash`（发布）、`deepseek-v41-flash-1017`（基准跑分）、`deepseek-flash-silent-update`（API 指纹）、`deepseek-harness-desktop`（桌面端泄露）、`deepseek-huawei-cluster`（16 万昇腾芯片订单）。
 
 **未覆盖角度**：推理框架本身、开源范围的边界、KVCache/负载均衡这类「serving 层」的工程细节。
+
+**同事件并行包**：`scripts/short-video/content/deepseek-deepinfer/`（2026-10-21）打的是同一事件的 headline 角度（155 万亿 tokens/天、$38/卡时、100 PiB KVCache、7 天 TTL）；本包 `deepinfer` 打的是「开源范围缺哪三块」的角度。两包共用这套数字，改数时两边一起改。
