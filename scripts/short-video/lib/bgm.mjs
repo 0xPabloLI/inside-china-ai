@@ -4,8 +4,8 @@
  *
  * "Instant start" = BGM has audible sound in the first 0.5s (mean > -35dB).
  * A BGM with a slow intro (e.g. cinematic-news-yt at -91dB) is useless for
- * TikTok — the Hook (first 3s) would have no BGM impact even with our 0.1s
- * mix fade-in, because the source file itself is silent.
+ * TikTok — the hook's opening seconds would have no BGM impact even with our
+ * 0.1s mix fade-in, because the source file itself is silent.
  *
  * Selection is deterministic: hash(pipelineId) % pool.length ensures the same
  * content always gets the same BGM (reproducible re-renders), while different

@@ -126,11 +126,11 @@ Full fill-in-the-blank templates (P1a-P6b): `docs/research/tiktok-hook-patterns-
 - [ ] Rotate patterns across videos — avoid using the same pattern 3+ times in a row
 - [ ] If no template fits the story, write your own hook — just pass the preflight checks above
 
-**Hook-first design**: The first 1 second must be visually striking — bold text, breaking news badge, or large number on screen. The first 3 seconds determine 70% of completion rate. Do not waste them on logos or slow fades.
+**Hook-first design**: The first 1 second must be visually striking — bold text, breaking news badge, or large number on screen. The first 3 seconds determine 70% of completion rate; the hook segment itself targets 4.5–5s (`docs/content-pipeline.md` → hook 时长口径). Do not waste the openers on logos or slow fades.
 
 #### Hook Anatomy: Three-Layer Open + Timing Budget
 
-The TikTok Hook is three things firing in the first 1-3 seconds:
+The TikTok Hook is three things firing in the opening 4.5–5s (the first 3s must still deliver the core value):
 
 | Layer              | Job                                         | Rule                                                                        |
 | ------------------ | ------------------------------------------- | --------------------------------------------------------------------------- |
@@ -218,7 +218,7 @@ Updates `scripts/youtube-thumbnail.html` with current video's headline, then ren
 ### 5. Quality check
 
 - [ ] Watch the full video — check timing, no cut-off text
-- [ ] **Watch first 3 seconds muted** — is it still compelling without sound? (85% of social autoplay is muted)
+- [ ] **Watch the hook's opening 3 seconds muted** — is it still compelling without sound? (85% of social autoplay is muted)
 - [ ] Verify all numbers are accurate and sourced
 - [ ] Check CTA shows "CHINA AI NEWS" (no URL during testing phase)
 - [ ] Confirm thumbnail matches video content

@@ -231,8 +231,8 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
     const mediaPath = scene.media?.path;
     const optOut = scene.mediaOptOut === true;
 
-    // Hook enforcement is layout-independent (#299). The hook is the first 3
-    // seconds: a CSS-only hook is acceptable only as an explicit waiver, so it
+    // Hook enforcement is layout-independent (#299). The hook is the opening
+    // 4.5–5 seconds: a CSS-only hook is acceptable only as an explicit waiver, so it
     // passes with a warning; anything else without a landed file fails — this
     // is the last chance after sourcing/generation has run.
     if (scene.visualType === "hook") {
@@ -444,9 +444,9 @@ export function formatFinalMediaFailures(result, context = {}) {
     }
     if (f.reason === "missing-hook-media") {
       if (f.path) {
-        return `  Scene ${f.sceneId}: hook (first 3 seconds) media "${f.path}" not found — bind scene.media from the curated library, or set media:null for a deliberate CSS-only hook`;
+        return `  Scene ${f.sceneId}: hook (first 4.5–5 seconds) media "${f.path}" not found — bind scene.media from the curated library, or set media:null for a deliberate CSS-only hook`;
       }
-      return `  Scene ${f.sceneId}: hook (first 3 seconds) has no media — bind scene.media from the curated library, or set media:null for a deliberate CSS-only hook`;
+      return `  Scene ${f.sceneId}: hook (first 4.5–5 seconds) has no media — bind scene.media from the curated library, or set media:null for a deliberate CSS-only hook`;
     }
     if (f.reason === "hook-media-quality") {
       return `  Scene ${f.sceneId}: ${f.detail}`;

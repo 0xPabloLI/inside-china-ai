@@ -144,6 +144,13 @@ describe("tiktok-rules.mjs sync invariants", () => {
     expect(THRESHOLDS.ctaStackThreshold).toBe(3);
     expect(THRESHOLDS.maxGoalSignals).toBe(2);
     expect(THRESHOLDS.greetingCheckWords).toBe(3);
+    // Hook opening spec (#1231, research §10.2): target 4.5–5.0s, measured
+    // p25–p75 4.1–6.6s; the pre-TTS projection uses the #252 budget rate.
+    expect(THRESHOLDS.hookTargetMinSec).toBe(4.5);
+    expect(THRESHOLDS.hookTargetMaxSec).toBe(5.0);
+    expect(THRESHOLDS.hookObservedMinSec).toBe(4.1);
+    expect(THRESHOLDS.hookObservedMaxSec).toBe(6.6);
+    expect(THRESHOLDS.voiceoverEstimateWps).toBe(2.5);
     // Caption/hashtag limits moved to profile.caption / profile.hashtags
     // (#219 T02 single-path convergence — no threshold duplicates).
     expect(THRESHOLDS.maxCaptionLength).toBeUndefined();

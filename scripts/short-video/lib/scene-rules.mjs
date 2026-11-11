@@ -34,6 +34,9 @@ import {
   WATERMARK_PATTERN,
   GREETING_PATTERN,
   NAMED_SOURCE_PATTERN,
+  HOOK_SENTENCE_FAMILIES,
+  HOOK_INTENSITY_PATTERN,
+  HOOK_CONCRETE_FACT_PATTERN,
   TARGET_KEYWORDS,
   KNOWN_COMPANIES,
 } from "./tiktok-rules.mjs";
@@ -304,6 +307,207 @@ export function checkHookCompellingElement(scenes) {
   ];
 }
 
+/**
+ * First sentence of a hook, terminator included. Splitting on `[.!?]` alone
+ * would cut decimals ("V4.1", "1.3 billion") — only a terminator followed by
+ * whitespace or end-of-string closes the sentence.
+ */
+function firstHookSentence(voiceover) {
+  const trimmed = (voiceover || "").trim();
+  if (!trimmed) return "";
+  // A terminator counts when whitespace, a closing quote/bracket, or the end
+  // follows it — `He said "boom." Then…` ends at the period. Known
+  // abbreviations (`U.S.`, `Dr.`) do not end the sentence; a standalone
+  // capital (`Model X.`) does.
+  const sentenceEnd = /[.!?](?=[\s"'”’)\]]|$)/g;
+  const abbreviationEnd =
+    /(?:\b(?:Mr|Mrs|Ms|Dr|Prof|Inc|Ltd|Co|Corp|vs|etc|No|St|Ave|Rd|Fig|e\.g|i\.e|a\.m|p\.m)\.|(?:\b[A-Z]\.){2,})$/;
+  let match;
+  while ((match = sentenceEnd.exec(trimmed))) {
+    const head = trimmed.slice(0, match.index + 1);
+    if (abbreviationEnd.test(head)) continue;
+    return head;
+  }
+  return trimmed;
+}
+
+/**
+ * Hook opening sentence family (#1231).
+ *
+ * Advisory, not a gate (#763): sentence tension cannot be judged mechanically.
+ * The check reports which corpus families the FIRST SENTENCE hits, and calls
+ * out the two shapes the write-side rule downgrades — question-only openers
+ * (4/35) and intensity words without a concrete fact behind them (4/35).
+ * Source: docs/research/competitor-video-benchmarks-research.md §10.2.
+ */
+export function checkHookSentenceFamily(scenes) {
+  const CHECK = "Hook sentence family (first sentence)";
+  const CATEGORY = "Hook";
+  const hook = scenes[0];
+  if (hook?.visualType !== "hook") {
+    return [{ level: "pass", category: CATEGORY, check: CHECK, detail: "No hook scene" }];
+  }
+  const vo = hook.voiceover || "";
+  const opening = firstHookSentence(vo);
+  const openingFamilies = HOOK_SENTENCE_FAMILIES.filter((f) => f.pattern.test(opening));
+  const priority = openingFamilies.filter((f) => f.priority);
+  // The fact backing an intensity word may sit in a later hook sentence (the
+  // 303 shape: "just dropped a bombshell"), so the anchor search is hook-wide.
+  // A named comparison ("beats GPT-5") is a concrete fact without a digit or a
+  // priority family (research §10.4 P4), so it counts as backing too.
+  const anchored =
+    HOOK_SENTENCE_FAMILIES.some((f) => f.priority && f.pattern.test(vo)) ||
+    HOOK_CONCRETE_FACT_PATTERN.test(vo);
+  const questionLed = openingFamilies.some((f) => f.id === "question");
+  const intensity = HOOK_INTENSITY_PATTERN.test(vo);
+  const labels = openingFamilies.map((f) => f.label).join(" + ");
+
+  if (priority.length > 0) {
+    return [
+      {
+        level: "pass",
+        category: CATEGORY,
+        check: CHECK,
+        detail: labels ? `首句命中 ${labels}` : "首句命中优先族",
+      },
+    ];
+  }
+  if (questionLed) {
+    return [
+      {
+        level: "warn",
+        category: CATEGORY,
+        check: CHECK,
+        detail: "首句是提问式（竞品 4/35，头三族各 9–11/35）",
+        fix: "改用规模/最高级、数量锚点或 just + 事件开场；提问式只有在同句带具体数字锚点时保留（405 形状）",
+      },
+    ];
+  }
+  if (intensity && !anchored) {
+    return [
+      {
+        level: "warn",
+        category: CATEGORY,
+        check: CHECK,
+        detail: "强度词没有具体事实兜底（insane/massive 一类在竞品里只 4/35）",
+        fix: "给强度词补一个具体事实锚点（数字、规模/最高级、just + 事件，或点名的对照如 beats GPT-5），否则删掉它",
+      },
+    ];
+  }
+  return [
+    {
+      level: "warn",
+      category: CATEGORY,
+      check: CHECK,
+      detail: "首句未命中先头三族（规模/最高级、数量锚点、just + 事件）",
+      fix: "把首句改成一个头族锚点：最大/最强/第一次、一个具体数字，或 [主体] just [事件]",
+    },
+  ];
+}
+
+/**
+ * Hook duration against the competitor band (#1231).
+ *
+ * Measured on the voiceover take (`opts.sceneDurations` = post-render
+ * `audio/scene-durations.json`, in voiceover seconds), not on the rendered
+ * clip: the clip adds the 0.5s recording buffer (lib/timeline.mjs). Before TTS
+ * the length is projected from the word count at the #252 budget rate, so the
+ * write step sees the number while it can still change.
+ *
+ * Advisory, not a gate: the corpus p25–p75 band is 2.5s wide and long-narrative
+ * accounts legitimately run 7–8s hooks (research §10.2 / §10.3).
+ */
+export function checkHookDuration(scenes, opts = {}) {
+  const CHECK = `Hook duration (${THRESHOLDS.hookTargetMinSec.toFixed(1)}–${THRESHOLDS.hookTargetMaxSec.toFixed(1)}s target)`;
+  const CATEGORY = "Hook";
+  const hook = scenes[0];
+  if (hook?.visualType !== "hook") {
+    return [{ level: "pass", category: CATEGORY, check: CHECK, detail: "No hook scene" }];
+  }
+  const vo = hook.voiceover || "";
+  const t = THRESHOLDS;
+  const target = `${t.hookTargetMinSec}–${t.hookTargetMaxSec}s`;
+  const observed = `${t.hookObservedMinSec}–${t.hookObservedMaxSec}s`;
+  const wps = t.voiceoverEstimateWps;
+  // Word bands are integer projections at the budget rate: the low edge is
+  // ceil(min·wps) and the high edge floor(max·wps) so every word count in the
+  // band still projects inside the seconds band (4.5–5.0s → 12 words;
+  // 4.1–6.6s → 11–16 words).
+  const wordBand = (minSec, maxSec) => {
+    const lo = Math.ceil(minSec * wps);
+    const hi = Math.floor(maxSec * wps);
+    return lo === hi ? `约 ${lo} 词` : `约 ${lo}–${hi} 词`;
+  };
+  const targetWords = wordBand(t.hookTargetMinSec, t.hookTargetMaxSec);
+  const acceptWords = wordBand(t.hookObservedMinSec, t.hookObservedMaxSec);
+
+  const rows = Array.isArray(opts.sceneDurations) ? opts.sceneDurations : [];
+  const row = rows.find((r) => r && Number.isFinite(r.duration) && r.sceneId === (hook.id ?? 1));
+  if (row) {
+    const sec = row.duration;
+    if (sec >= t.hookTargetMinSec && sec <= t.hookTargetMaxSec) {
+      return [
+        {
+          level: "pass",
+          category: CATEGORY,
+          check: CHECK,
+          detail: `实测 ${sec.toFixed(2)}s — 目标 ${target}`,
+        },
+      ];
+    }
+    if (sec >= t.hookObservedMinSec && sec <= t.hookObservedMaxSec) {
+      return [
+        {
+          level: "pass",
+          category: CATEGORY,
+          check: CHECK,
+          detail: `实测 ${sec.toFixed(2)}s — 目标 ${target}，在实测带 ${observed} 内`,
+        },
+      ];
+    }
+    return [
+      {
+        level: "warn",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `实测 ${sec.toFixed(2)}s — 超出实测带 ${observed}（目标 ${target}）`,
+        fix: `删/加 hook VO 到${targetWords}（可接受${acceptWords}；目标 ${target}），改完以 audio/scene-durations.json 复测`,
+      },
+    ];
+  }
+
+  const words = vo.split(/\s+/).filter(Boolean).length;
+  if (words === 0) {
+    return [{ level: "pass", category: CATEGORY, check: CHECK, detail: "No hook voiceover" }];
+  }
+  const projected = words / wps;
+  const measured = `预估 ${projected.toFixed(1)}s（${words} 词 @${wps} 词/秒）`;
+  if (projected >= t.hookTargetMinSec && projected <= t.hookTargetMaxSec) {
+    return [
+      { level: "pass", category: CATEGORY, check: CHECK, detail: `${measured} — 目标 ${target}` },
+    ];
+  }
+  if (projected >= t.hookObservedMinSec && projected <= t.hookObservedMaxSec) {
+    return [
+      {
+        level: "pass",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${measured} — 目标 ${target}，在实测带 ${observed} 内`,
+      },
+    ];
+  }
+  return [
+    {
+      level: "warn",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `${measured} — 超出实测带 ${observed}（目标 ${target}）`,
+      fix: `${projected > t.hookObservedMaxSec ? "删词" : "补词"}到${targetWords}（可接受${acceptWords}；目标 ${target}）；TTS 后以 audio/scene-durations.json 复测`,
+    },
+  ];
+}
+
 /** No em/en/double dashes in any scene's VO or texts */
 export function checkNoEmDashes(scenes) {
   const found = [];
@@ -560,7 +764,7 @@ export function checkVoiceoverWordCount(scenes, opts = {}) {
         level: "pass",
         category: "Duration",
         check: `Total voiceover words (≤${THRESHOLDS.maxVoiceoverWords})`,
-        detail: `${totalWords} words (~${(totalWords / 2.5).toFixed(0)}s)`,
+        detail: `${totalWords} words (~${(totalWords / THRESHOLDS.voiceoverEstimateWps).toFixed(0)}s)`,
       },
     ];
   }
@@ -1084,7 +1288,7 @@ export function checkLoopClose(scenes, meta) {
 
 /** Hook scene media contract (#299).
  *
- *  The hook is the first 3 seconds, and asset-sourcer structurally skips it —
+ *  The hook is the opening 4.5–5 seconds, and asset-sourcer structurally skips it —
  *  so a missing hook file is never "a sourcing gap".  A hook must have one of:
  *
  *    (a) a manually bound `media` object (curated: cover fit, legible overlay,
@@ -1165,7 +1369,7 @@ export function checkHookMediaContract(scenes) {
         category: CATEGORY,
         check: CHECK,
         detail:
-          "Hook sets mediaOptOut:true but has no media — mediaOptOut is deprecated and generation skips opt-outs, so the first 3 seconds would render CSS-only",
+          "Hook sets mediaOptOut:true but has no media — mediaOptOut is deprecated and generation skips opt-outs, so the opening hook would render CSS-only",
         fix: "mediaOptOut is deprecated: bind scene.media from the curated library, or use media: null for a deliberate CSS-only hook",
       },
     ];
@@ -1191,7 +1395,7 @@ export function checkHookMediaContract(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail:
-        "Hook scene has no media (manual curation — asset-sourcer skips hooks) — the first 3 seconds would render CSS-only",
+        "Hook scene has no media (manual curation — asset-sourcer skips hooks) — the opening hook would render CSS-only",
       fix: 'Bind scene.media from the curated library (media: { type, path: "assets/<file>", source, fit: "cover" }), or set media: null deliberately for a CSS-only hook',
     },
   ];
@@ -2557,10 +2761,10 @@ const AVATAR_KEYS = ["videoPath", "position", "scale", "present"];
 /** Advisory usage-strategy rows; the aggregate sends these to the editorial bucket. */
 const AVATAR_USAGE_CHECK = "Avatar usage strategy";
 // Present-interval overflow can only be estimated here (scene-rules runs
-// pre-TTS): 2.5 words/sec is the established voiceover pace
+// pre-TTS): the platform budget rate is the established voiceover pace
 // (checkVoiceoverWordCount). The generation step enforces the exact TTS
 // duration; this check only catches obviously wrong declarations.
-const AVATAR_WPS = 2.5;
+const AVATAR_WPS = THRESHOLDS.voiceoverEstimateWps;
 const AVATAR_DURATION_TOLERANCE = 2;
 
 function avatarIntervalProblems(scene, present) {
@@ -2817,6 +3021,8 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   // reach pass/warn/fail, so they can't block a render or inflate the gate.
   const EDITORIAL_RUNNERS = [
     () => checkHookCompellingElement(scenes),
+    () => checkHookSentenceFamily(scenes),
+    () => checkHookDuration(scenes, opts),
     () => checkShareWorthyData(scenes),
     () => checkSubjectVisibility(scenes, meta),
     () => checkTeleprompterRhythm(scenes),

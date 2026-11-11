@@ -44,6 +44,12 @@ const TIKTOK_THRESHOLDS_BASELINE = {
   ctaStackThreshold: 3,
   maxGoalSignals: 2,
   greetingCheckWords: 3,
+  // #1231 hook opening spec — additions after the initial migration baseline.
+  hookTargetMinSec: 4.5,
+  hookTargetMaxSec: 5.0,
+  hookObservedMinSec: 4.1,
+  hookObservedMaxSec: 6.6,
+  voiceoverEstimateWps: 2.5,
 };
 
 // ─── Loader ───
