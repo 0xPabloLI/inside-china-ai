@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.59.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.59.0...tanstack_start_ts-v1.59.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **short-video:** make fetch-page's CDP layer return page text ([#1022](https://github.com/0xPabloLI/inside-china-ai/issues/1022)) ([#1226](https://github.com/0xPabloLI/inside-china-ai/issues/1226)) ([57b4933](https://github.com/0xPabloLI/inside-china-ai/commit/57b493321c67628b9483b9519edf6ac68f0252bd))
+
 ## [1.59.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.58.0...tanstack_start_ts-v1.59.0) (2026-11-10)
 
 
