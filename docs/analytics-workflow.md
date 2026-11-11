@@ -227,6 +227,44 @@ node scripts/short-video/hashtag-effect-tracker.mjs report
 
 ---
 
+## Hook 留存 cohort（#1206）
+
+把已发布视频的留存数据和产生它的内容包的 hook 特征并排，回答「哪种 hook 留人」。
+
+```bash
+# 默认读 output/ 下最新的 tiktok-video-details-*.json，最近 10 条
+node scripts/short-video/cohort-report.mjs
+node scripts/short-video/cohort-report.mjs --details output/tiktok-video-details-2026-11-09.json \
+  --limit 5 --out .scratch/cohort.md
+node scripts/short-video/cohort-report.mjs --map 7705731246604799252=unitree-h2x-guardian --json
+```
+
+**指标口径（只列导出里真实存在的）**：
+
+| 列 | 来源 | 说明 |
+| --- | --- | --- |
+| views | `videoViews` | 播放量 |
+| avg watch | `avgWatchTimeSec` | 人均观看秒数 |
+| full-watch | `watchedFullVideoPct` | 完播率（看完视频的占比），与视频长度强相关，跨长度档不可直接比 |
+| major drop | 从 `retentionInsight` 解析出的秒数 | 「大多数观众在 0:02 停止了观看」的那个秒数，是本仓库能拿到的**最接近 3s 留存**的信号 |
+| FYP/search | `trafficSource` | 推荐流 / 搜索流占比 |
+
+**3s 留存拿不到。** TikTok Studio 的 per-video 导出没有 3 秒留存字段，报告里也不虚构这一列；`major drop` 是代理指标，解读时必须说明这一点。
+
+**视频→内容包的映射**：导出里的 `title` 是 caption 开头，而内容包会改稿，所以按「caption 词集 vs 内容包词集（metadata + 全部 voiceover）」的覆盖率匹配，下限 0.8；匹配不上就显示 `unmapped`，可用 `--map <videoId>=<pack>` 钉住。
+
+**样本门槛照旧**：<10 条视频时 cohort 中位数只是带数字的轶事，写结论时必须带 n。当前（2026-11-09 导出，5 条）的实际输出：
+
+| hook kind | n | 中位播放 | 中位人均观看 | 中位完播 | 中位跌落秒 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| footage | 2 | 260 | 6.5s | 1.6% | 2s |
+| image | 2 | 356 | 9.3s | 3.8% | 1s |
+| card | 1 | 211 | 4.2s | 0.9% | 1s |
+
+**读法**：五条视频的 `major drop` 全部落在 1–2s，即留存是在开头两秒内决定的，与 hook 类型无关；image hook 的中位观看更好，但 n=2，只能作为下一个实验的假设，不能当结论。要出结论需要前瞻性 A/B（同一选题、只换 hook 类型），属于后续票。
+
+---
+
 ## Hashtag 库维护
 
 > Hashtag 效果追踪（上面）和 Hashtag 库更新是一个闭环：追踪告诉你哪些 tag 有效/有害，库更新把结论固化到代码和文档中。

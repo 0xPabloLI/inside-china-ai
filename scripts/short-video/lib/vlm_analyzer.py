@@ -446,6 +446,42 @@ def build_relevance_check_prompt(is_video=False, claim=None):
     return _claim_preamble(claim) + "\n\n" + base
 
 
+HOOK_PAYOFF_PROMPT_BODY = """Check whether a vertical short video's opening frames show the payoff its hook promises.
+
+Question: in the frames above, does the promised payoff actually happen — the specific action or result the claim names — or only something related?
+
+Rules:
+- Judge only what these frames show, never what the rest of the video might show later.
+- pass = the named action or result is clearly visible.
+- partial = the action is only starting, is partly out of frame, or only part of the claim is visible.
+- absent = the subject may be present, but the named action or result is not shown.
+- If the claim is a number or a statistic with no depictable action, answer partial unless the frames clearly contradict it.
+
+## Payoff
+One word: pass, partial or absent
+## Payoff Reason
+One sentence naming what the frames actually show.
+"""
+
+
+def build_hook_payoff_prompt(claim):
+    """Build the #1206 hook payoff prompt.
+
+    Unlike the #294 claim prompt — which explicitly judges the visible SUBJECT,
+    not the event — this one asks the action-level question the hook gate needs:
+    does the promised payoff happen in these frames? `claim.promise` is the
+    printed claim (hookText/revealText, or bigNumber/numberLabel); a claim-less
+    hook still gets a prompt, because "is anything happening" is a fair question.
+    """
+    promise = str((claim or {}).get("promise") or "").strip()
+    head = (
+        f'The hook prints this claim on screen:\n"{promise}"\n\n'
+        if promise
+        else "The hook prints no claim text; judge whether the frames show a clear payoff action.\n\n"
+    )
+    return head + HOOK_PAYOFF_PROMPT_BODY
+
+
 def build_semantics_prompt(is_video=False, claim=None, transcript=None):
     """Build the semantics prompt, optionally with a transcript / claim block.
 
@@ -547,6 +583,25 @@ def _parse_subject_match(body):
     return "no_match" if match.group(1).startswith("no") else "match"
 
 
+def _parse_payoff(body):
+    """Extract the #1206 hook payoff verdict from `## Payoff`.
+
+    Strict enum, fail-closed like _parse_subject_match: the first line must
+    start with pass / partial / absent. A bare prose answer that names exactly
+    one of the three is accepted; anything ambiguous returns None so the
+    caller reports "unavailable" instead of inventing a verdict.
+    """
+    if not body:
+        return None
+    text = body.strip().lower()
+    first_line = text.split("\n", 1)[0].strip().strip("*").strip()
+    match = re.match(r"^(pass|partial|absent)\b", first_line)
+    if match:
+        return match.group(1)
+    found = {value for value in ("pass", "partial", "absent") if re.search(rf"\b{value}\b", text)}
+    return found.pop() if len(found) == 1 else None
+
+
 def _split_headless_verdict(text):
     """Split a headerless single-question answer into (verdict, explanation).
 
@@ -562,6 +617,24 @@ def _split_headless_verdict(text):
         return None
     remainder = text.split("\n", 1)[1].strip() if "\n" in text else ""
     return verdict, (remainder or None)
+
+
+def _split_headless_payoff(text):
+    """Split a headerless hook-payoff answer into (verdict, explanation).
+
+    Observed with Qwen3-VL: the one-question prompt is often answered as
+    `pass\n\n<why>` with no `## Payoff` header (#294 saw the same shape).
+    Only a verdict that OPENS the answer is accepted — a description that
+    merely mentions "absent" later is not a verdict.
+    """
+    if not text:
+        return None
+    first_line = text.strip().split("\n", 1)[0].strip().strip("*").strip()
+    match = re.match(r"^(pass|partial|absent)\b", first_line, re.IGNORECASE)
+    if not match:
+        return None
+    remainder = text.strip().split("\n", 1)[1].strip() if "\n" in text.strip() else ""
+    return match.group(1).lower(), (remainder or None)
 
 
 def parse_markdown_to_dict(raw_text):
@@ -598,6 +671,8 @@ def parse_markdown_to_dict(raw_text):
         "relevanceReason": None,
         "subjectMatch": None,
         "subjectMatchReason": None,
+        "payoff": None,
+        "payoffReason": None,
     }
 
     if not raw_text or not raw_text.strip():
@@ -630,6 +705,16 @@ def parse_markdown_to_dict(raw_text):
                 subjects=[],
                 subjectMatch=verdict,
                 subjectMatchReason=explanation,
+            )
+            return result
+        headless_payoff = _split_headless_payoff(text)
+        if headless_payoff:
+            verdict, explanation = headless_payoff
+            result.update(
+                description="",
+                subjects=[],
+                payoff=verdict,
+                payoffReason=explanation,
             )
             return result
         # No headers — entire text becomes description
@@ -730,10 +815,25 @@ def parse_markdown_to_dict(raw_text):
     else:
         result["relevanceReason"] = None
 
+    # payoff — #1206 hook payoff verdict (strict enum, fail-closed)
+    if "payoff" in raw_sections:
+        result["payoff"] = _parse_payoff(raw_sections["payoff"])
+    elif "hook_payoff" in raw_sections:
+        # The model sometimes lengthens the header to "## Hook Payoff".
+        result["payoff"] = _parse_payoff(raw_sections["hook_payoff"])
+    else:
+        result["payoff"] = None
+
+    # payoffReason
+    if "payoff_reason" in raw_sections:
+        result["payoffReason"] = raw_sections["payoff_reason"]
+    else:
+        result["payoffReason"] = None
+
     # 5. Add unknown sections as extra key-value pairs
     known_keys = {"description", "subjects", "content_kind", "fit",
                   "critical_edge_text", "reason", "relevance", "relevance_reason",
-                  "subject_match", "match"}
+                  "subject_match", "match", "payoff", "hook_payoff", "payoff_reason"}
     for key, value in raw_sections.items():
         if key not in known_keys:
             result[key] = value
@@ -1474,11 +1574,22 @@ def merge_window_results(parsed_results, windows, plan=None):
 
 # ─── Request handler ───
 
+def _debug_raw_response(raw):
+    """Dump the model's raw answer to stderr when VLM_DEBUG_RAW=1.
+
+    Parse failures are otherwise invisible: the response only carries nulls.
+    """
+    if os.environ.get("VLM_DEBUG_RAW"):
+        sys.stderr.write("[vlm_analyzer] raw response:\n" + str(raw) + "\n[END RAW]\n")
+        sys.stderr.flush()
+
+
 def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
                              window=None, windows=None, claim=None,
                              crop_focus=None, frame_strategy=None,
                              max_frames=None, sample_fps=None,
-                             transcript=None, relevance_check=False):
+                             transcript=None, relevance_check=False,
+                             hook_check=None):
     """Handle an analyze_semantics request.
 
     Dispatches to image or video prompt based on file extension.
@@ -1505,6 +1616,11 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
     simulation anchors on it so the VLM judges the framing the viewer will
     actually see (#198).
 
+    When hook_check ({promise}) is provided, the hook payoff prompt replaces
+    the semantics prompt entirely and the response carries
+    payoff / payoffReason (#1206) — an action-level verdict, unlike the
+    subject-level relevance check.
+
     Frame-selection params (#391): frame_strategy ("uniform" | "scene"),
     max_frames (cap, default 16) and sample_fps (uniform decode fps, default
     2.0, uniform-strategy only). None = not supplied → defaults reproduce the
@@ -1526,11 +1642,13 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
     # #294 second pass: the subject-match prompt replaces the semantics prompt
     # entirely. It answers one enum question, so it carries no Fit/Subjects
     # sections — the caller only reads subjectMatch from this response.
-    prompt_text = (
-        build_relevance_check_prompt(is_video, claim)
-        if relevance_check
-        else build_semantics_prompt(is_video, claim, transcript)
-    )
+    # #1206 hook check: same idea, action-level instead of subject-level.
+    if hook_check is not None:
+        prompt_text = build_hook_payoff_prompt(hook_check)
+    elif relevance_check:
+        prompt_text = build_relevance_check_prompt(is_video, claim)
+    else:
+        prompt_text = build_semantics_prompt(is_video, claim, transcript)
     # Provenance for the artifact: the chars actually fed to the prompt
     # (capped), not the raw transcript length. Absent/ignored → not set.
     transcript_chars = len(transcript.strip()[:TRANSCRIPT_MAX_CHARS]) if (
@@ -1551,8 +1669,11 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
     # merged into a single contract-shaped (nine-key) result. Images have no time
     # axis — a windows list is ignored there. A #294 relevance check is a
     # whole-asset judgment (one verdict, not one per segment), so it takes
-    # the single-pass path even for videos.
-    window_list = normalize_windows(windows) if (is_video and not relevance_check) else None
+    # the single-pass path even for videos. A #1206 hook check is likewise one
+    # verdict over the hook window.
+    window_list = normalize_windows(windows) if (
+        is_video and not relevance_check and hook_check is None
+    ) else None
     if window_list:
         parsed_results = []
         successful_windows = []
@@ -1569,6 +1690,7 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
                     max_frames=frame_params["max_frames"],
                 )
                 parsed_results.append(parse_markdown_to_dict(raw))
+                _debug_raw_response(raw)
                 successful_windows.append(win)
             except Exception as e:
                 # Per-window fail-open: a broken segment narrows coverage but
@@ -1614,6 +1736,7 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
         return {}, f"VLM generation failed: {e}"
 
     # Parse Markdown output
+    _debug_raw_response(raw)
     result = parse_markdown_to_dict(raw)
 
     # Add sourceMode for video assets
@@ -1789,6 +1912,8 @@ def main():
                 # #294 second-pass subject check — absent/false = the normal
                 # semantics prompt.
                 relevance_check = bool(request.get("relevanceCheck"))
+                # #1206 hook payoff check — action-level, replaces the prompt.
+                hook_check = request.get("hookCheck")
                 # Frame-selection params (#391): request value wins over the
                 # CLI default; absent on both → current behavior (S1).
                 frame_strategy = request.get(
@@ -1806,6 +1931,7 @@ def main():
                     sample_fps=sample_fps,
                     transcript=transcript,
                     relevance_check=relevance_check,
+                    hook_check=hook_check,
                 )
                 if err:
                     response = _degraded_result(err)
@@ -1854,6 +1980,8 @@ def _degraded_result(error):
         "relevanceReason": None,
         "subjectMatch": None,
         "subjectMatchReason": None,
+        "payoff": None,
+        "payoffReason": None,
         "error": error,
     }
 

@@ -467,6 +467,29 @@ Hook 是开头的 4.5–5 秒（目标带，见上节「hook 时长口径」）�
 
 已有包迁移口径：hook 没有媒体**且没有生成策略**的包，下一次预检会 FAIL；带生成策略的包预检只 WARN，由最终 media gate 判定落地文件是否可用。hook 若写了已废弃的 `mediaOptOut: true` 且没有媒体，预检直接 FAIL——改用 `media: null` 显式豁免。
 
+### Hook 承诺-画面对账（#1206）
+
+`verify-video` 与帧分析只判**布局**（安全区、对比度、媒体是否存在），从不判「hook 说的和画面里的是不是一回事」。2026-10-25 的 unitree 剪辑就是反例：`IT LIFTS A CAR.` 压在夜景救援片段上，全部机检通过，缺陷只能靠人工读帧发现。本节补这一层。
+
+```bash
+node scripts/short-video/verify-hook-payoff.mjs --content <dir>                  # 像素判定
+node scripts/short-video/verify-hook-payoff.mjs --content <dir> --semantic       # 加 VLM 语义复核（有缓存）
+node scripts/short-video/verify-hook-payoff.mjs --content <dir> --semantic --strict  # 发布前硬判
+```
+
+`--semantic` 会起本地 Qwen3-VL（首次约 1–2 分钟，结果按视频指纹 + claim 缓存到 `output/<pack>/.vlm-cache`）。VLM 不可用、超时或没有给出判定时，报告会写 `semantic check unavailable` 而不是猜一个分数——像素判定仍然有效。
+
+| 判据 | 判定方式 | 什么算缺陷 |
+| --- | --- | --- |
+| 抽样帧 | ffmpeg 取 0.0 / 0.5 / 1.0 / 2.0s；`lib/hook-payoff.mjs` 按内容区 ink 覆盖率把帧分为 picture / card / flat / black | — |
+| Hook opens on footage | 首帧不是 picture 时看画面何时到位 | 1.0s 后仍停在文字卡（用文案占住开头）。0.5s 的黑卡是渲染器 fade-in，好坏成片都有，不判 |
+| Hook claim readable | 取 scene 1 的 `hookText`/`revealText`，number-led 取 `bigNumber`/`numberLabel`，都没有则回落 voiceover | 屏幕上和口播里都没有可对账的承诺 |
+| Hook picture matches the claim | `--semantic` 时把同一 claim 交给 VLM，取 pass / partial / absent 的**动作级**判定（不是 #294 的主体相关度） | 画面里有内容，但不是承诺的那个动作/结果（10-25 缺陷的签名） |
+
+**默认 WARN，`--strict` 才 FAIL / exit 1。** 显式 `media: null` 的纯文字 hook 是合法选择（#299 契约只 WARN），VLM 判定也只是模型判断；默认不阻断，避免用一个假阳性杀掉合法 hook。
+
+**写稿端判据**：hook 的 payoff 必须在**前 1.5s 内可见**——不是「画面里有相关内容」，而是承诺的动作/结果本身。2026-11-09 的 5 条视频 cohort 里 `major drop` 全部落在 1–2s，与这条判据同向（数据与新字段口径见 `docs/analytics-workflow.md` → Hook 留存 cohort；样本 <10，只作假设）。
+
 ### AI Outline 话题描述规则（Step 5 细则，仅 opt-in 时适用）
 
 > TikTok AI Outline 仅移动端可用。输出质量取决于输入具体度——含公司名+数字时大幅提升。实测（2026-08-27）：泛输入→clickbait；具体输入→Title/Hook/Hashtags 均可用。
