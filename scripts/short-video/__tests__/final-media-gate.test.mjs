@@ -178,7 +178,7 @@ describe("checkFinalMedia", () => {
   });
 });
 
-// ─── #299: the hook (first 3 seconds) must land a usable media file ───
+// ─── #299: the hook (first 4.5–5 seconds) must land a usable media file ───
 
 describe("hook media gate (#299, layout-independent)", () => {
   it("FAILS a hook that still has no media after sourcing/generation", () => {
@@ -243,7 +243,7 @@ describe("hook media gate (#299, layout-independent)", () => {
     });
     const report = formatFinalMediaFailures(result);
     expect(report).toContain("Scene 5");
-    expect(report).toContain("hook (first 3 seconds) has no media");
+    expect(report).toContain("hook (first 4.5–5 seconds) has no media");
     expect(report).toContain("media:null");
     rmSync(dir, { recursive: true, force: true });
   });

@@ -21,7 +21,7 @@
 
 ### Hook-First Design
 
-The first 3 seconds determine 70% of completion rate. Rules:
+The first 3 seconds determine 70% of completion rate; the hook segment itself targets 4.5–5s (`docs/content-pipeline.md` → hook 时长口径). Rules:
 
 - **First frame**: visually striking — bold text, breaking news badge, or large number
 - **First sentence**: must deliver the core hook, not a setup
@@ -49,7 +49,7 @@ The first 3 seconds determine 70% of completion rate. Rules:
 
 - Burned-in subtitles on all scenes except CTA (hook scene now included)
 - Visual data anchors (big numbers, colored bars) that convey meaning without audio
-- If the first 3 seconds only make sense with sound, rework them
+- If the hook only makes sense with sound, rework it
 
 #### Subtitle Best Practices
 

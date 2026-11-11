@@ -73,6 +73,25 @@ const THRESHOLDS = {
 
   /** Hook greeting: max words to check from start */
   greetingCheckWords: 3,
+
+  /**
+   * Hook VO target band in seconds (#1231). Competitor hook median 5.0s
+   * (docs/research/competitor-video-benchmarks-research.md §10.2). Measured on
+   * the voiceover take (`audio/scene-durations.json`), not the rendered clip —
+   * the clip adds the 0.5s recording buffer.
+   */
+  hookTargetMinSec: 4.5,
+  hookTargetMaxSec: 5.0,
+
+  /**
+   * Hook VO accepted band, strict core n=24 p25–p75 (#1231). The 35-record 口径
+   * is 4.3–6.8s; the doc uses the strict subset.
+   */
+  hookObservedMinSec: 4.1,
+  hookObservedMaxSec: 6.6,
+
+  /** Words-per-second rate for projecting VO seconds before TTS (#252 budget rate) */
+  voiceoverEstimateWps: 2.5,
 };
 
 // ─── TikTok Profile ───

@@ -1,7 +1,7 @@
 /**
  * Hook media quality checks (#299).
  *
- * The hook is the first 3 seconds and asset-sourcer structurally skips it, so
+ * The hook is the opening 4.5–5 seconds and asset-sourcer structurally skips it, so
  * its media is curated by hand. Two gates judge it: preflight
  * (`scene-rules.mjs` → `checkHookMediaContract`, before sourcing) and the
  * final media gate (`final-media-gate.mjs`, after sourcing/generation). Both

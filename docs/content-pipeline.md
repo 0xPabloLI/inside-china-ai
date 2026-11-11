@@ -295,7 +295,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 
 Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论证（陌生观众听这一句，能否听懂发生了什么），再给分集结论。**报告发出后暂停**，等用户确认角度后才写 scene-data。
 
-- 完成标准：报告含 hook 一句 + 独立可理解论证 + **该 hook 的三轴自评（Hook 合格判据，评审端）** + **全片脚本预览表**（每个 scene 一行，voiceover / texts / 预估秒数 / 计划素材四列填全，见下），且用户已确认。未给 hook 就写完整 scene-data = 未完成本步。
+- 完成标准：报告含 hook 一句 + 独立可理解论证 + **该 hook 的四轴自评（Hook 合格判据，评审端）** + **全片脚本预览表**（每个 scene 一行，voiceover / texts / 预估秒数 / 计划素材四列填全，见下），且用户已确认。未给 hook 就写完整 scene-data = 未完成本步。
 
 #### 全片脚本预览表（#949）
 
@@ -308,7 +308,7 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 - **整句填，不缩写**：voiceover 列写该 scene 会念出口的全部字，texts 列写屏幕会显示的全部字——「同上」「见下」都算未完成，被省掉的那句正是本表要省的钱。
 - **预估秒数从台词反推**：voiceover 长度 ÷ 对应语言的目标语速（EN 词/秒；ZH 字/分，再 ÷60 换成秒），档位只在「旁白语速预算」维护。Step 0 还没有素材时长，这个数由台词算，不由画面算。
 - **计划素材 / 证据源**写 Stage 0 素材集合里的落点；尚未定案写 `待 sourcing`。
-- 本表与 hook 三轴自评同一份报告、同一次确认，不单独开一次暂停。
+- 本表与 hook 四轴自评同一份报告、同一次确认，不单独开一次暂停。
 
 > 多集系列策略（拆分类型、集间链接、连贯规则、合集制作、系列发布）见 **`docs/series-production-guide.md`**。
 
@@ -360,7 +360,7 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 | EN   | ~2.7-2.8 词/秒净内容（对齐 165 wpm 目标带，见下）   | filler/hedging 禁用清单：just / really / basically / actually / so 开场 / throat-clearers（"So, look…"） / 软限定词（somewhat / kind of）——逐句删 |
 | ZH   | 维持现状（实测 236-288 字/分已是快节奏档）          | 不追求提速；删除口头禅与重复铺垫                                                                                                                  |
 
-**hook 前 3 秒密度**：核心价值必须在 hook 前 3 秒点出（Meta 研究：前 3 秒传达核心价值 → 完播 +47%）。hook 不堆铺垫句。能量曲线方向（#252 调研）：hook 应是全片能量峰值、语速不慢于正文，中段衰减是流失点，cta 结尾加速属正常模式。
+**hook 前 3 秒密度**：核心价值必须在 hook 前 3 秒点出（Meta 研究：前 3 秒传达核心价值 → 完播 +47%）。hook 不堆铺垫句。能量曲线方向（#252 调研）：hook 应是全片能量峰值、语速不慢于正文，中段衰减是流失点，cta 结尾加速属正常模式。**3s 是价值交付点，不是 hook 段长度**——hook 段本身的目标时长是 4.5–5s（口径见下节）。
 
 **词密度预算（Stage 3 拦截，#252）**：行业高 WPM 靠写稿密度而非 TTS 拉速（1.2× 上限），在写稿阶段拦截比生成后重抽省远程 GPU 耗时。EN 场景自检公式：`词数 / 预估秒数`（预估秒数按该场景画面时长）。**基线预估 > 2.9 词/秒（≈175 WPM）→ 拦截并删减冗余词后再过 MRL-2**；**目标仍为 2.4-2.5 词/秒（#786 不改）**。**速度带 ≠ 密度预算**：2.9 词/秒是「写稿上限」（超过即要求删词），165 WPM 是「成片声学目标」（由停顿裁剪 + 倍率补差实现）；写稿目标**不随**声学目标一起上移——把两者同时推高会双重挤压理解资源（Rodero 2016：速度越高、可承载的信息密度必须越低），且本票没有「快则减速」支路，写密了只能越界（详见 `docs/research/speech-density-pacing-2026-10.md` 与 #786 的实测：现有文案密度下三包已落在 172-175 WPM）。理由：场景基线密度差异大（实测 127-214 WPM）时，任何静态倍率都必然把高基线场景推出上限——预算在源头抹平基线差异，残余交给 TTS 闭环。
 
@@ -389,10 +389,33 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
 1. **核心数据/结论带具象化对比**——"10x smaller"、"比主流模型便宜 90%"这类可验证锚点，取代"大幅提升""显著领先"式模糊表述。
 2. **第一句 1.5s 内建立核心冲突**（单句 punchline）——与上一节「hook 前 3 秒点出核心价值」是同一条 hook 时间线的前后两拍：1.5s 立冲突，3s 交价值。平静陈述句开场不满足本条（#244 评审意见）。
+3. **首句命中头族**（#1231，竞品 35 条语料 §10.2）：`规模 / 最高级锚点`、`数量锚点`、`just + 事件` 三族各命中 9–11/35，是头部句式；首句至少命中其中一族。**提问式降级**（4/35）——保留在备选库，且只有同句自带数字/规模锚点时才算成立（405 形状），不作默认开场。**强度词只作点缀**（4/35）——insane / massive 一类必须有具体事实兜底（数字、规模/最高级、just + 事件，或点名的对照如 "beats GPT-5"），否则删掉。
+4. **hook 段目标 4.5–5s**（可接受 4.1–6.6s）——口径与写稿预估见本节末「hook 时长口径」。
 
 **建议要求**：视角具象化——用场景化切入代替抽象陈述。
 
 **punchy 句式元素**（按题材取用）：短句三连、感叹号、数字前置、疑问句/感叹句开场，以及标点停顿制造的重音断句。**破折号不进 scene VO/texts**——`checkNoEmDashes` 对 em/en/double dash 是 MRL-2 fail 级机检，断句与重音意图用句号、换行或短句切分表达（#278 元素列原含「破折号引导重音/断句」；机检门优先故按此降级，偏差记录见 #278 交付评论）。四种公式级模式（Shocking Number / Contradiction / Curiosity Gap / Question）与轮换规则见 `docs/video-script-writing-guide.md` → Step 5，此处不重复。
+
+**首句句子族优先级**（#1231，`docs/research/competitor-video-benchmarks-research.md` §10.2，n=35；一条可命中多族）：
+
+| 优先级 | 句子族 | 命中 | 形态 |
+| ------ | ------ | ---- | ---- |
+| 头族 | 规模 / 最高级锚点 | 11/35 | "the biggest … in human history"、"the most insane …"、"strongest year ever" |
+| 头族 | 数量锚点 | 11/35 | "one / five / N / 100%"、"nine of eleven"、具体金额或参数量 |
+| 头族 | `just` + 事件 | 9/35 | "[主体] just dropped / banned / beat …" |
+| 备选（可叠加） | 第二人称 / 祈使 | 10/35 | "Here's how you…" |
+| 备选（可叠加） | 反共识 / 否定 | 6/35 | "and nobody's talking about it" |
+| 降级 | 提问式 | 4/35 | 仅在同句带数字/规模锚点时保留（405 形状） |
+| 点缀 | 强度词 | 4/35 | insane / massive 一类，必须有具体事实兜底 |
+
+**hook 时长口径**（#1231，§10.2）：
+
+- 目标 **4.5–5.0s**（竞品中位 5.0s），可接受带 **4.1–6.6s**（strict n=24 的 p25–p75）。旧口径「前 3 秒 / 0–3s」是价值交付点，不是 hook 段长度。
+- 口径以 `audio/scene-durations.json` 的 hook scene **VO 秒数**为准；成片 clip = VO + 0.5s 录制缓冲（`lib/timeline.mjs`），buffer 不算进 4.5–5s。
+- 写稿预估（TTS 前）：按 2.5 词/秒（#252 预算口径）→ 目标 **约 12 词**（12 词 = 4.8s），可接受 **约 11–16 词**（11 词 = 4.4s，16 词 = 6.4s）。词带端点用 ceil/floor 取整，保证带内每个词数都落在对应秒带内；TTS 后按实测秒数复测。
+- 词带与竞品不同不是矛盾：竞品 hook 文案中位 **14.5 词**（IQR 10–17.75，§10.2），除以 5.0s ≈ **2.9 词/秒**（由 §10.2 的两个中位数直接换算）；我方既有包实测密度 **2.5–2.8 词/秒**（`docs/research/speech-density-pacing-2026-10.md` §1），27 条 hook 的 `output/*/audio/scene-durations.json` 复算中位 **2.54 词/秒**（2026-11-11；产物在本地 gitignored `output/`），故按 2.5 词/秒预算出的目标是约 12 词。竞品口播本身比我方快；秒数是唯一判据，词带只用于 TTS 前的写稿预估。
+- 机检只报编辑建议（`checkHookSentenceFamily` / `checkHookDuration`，见 🧭 Editorial Suggestions），不阻断渲染——句子张力不可机械判定，且长叙事账号的 hook 合法地跑到 7–8s（#752 的不新增机械阻断裁决不变）。
+- **验证**：新视频首周 `avgWatchTimeSec` 从现行 7s 目标提高到 **15s+**；不看完播率（分母会被时长污染）。回收时对照 #259 的 0:01 流失基线；基线数据快照在本地 gitignored `output/analytics-conclusions.md`，可核对口径以 #259 / #1231 为准。
 
 **题材分流**（triage 2026-09-14；题材定位与 #253 行业坐标系衔接）：
 
@@ -401,7 +424,7 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 | 突发快讯型     | 速度与颠覆感   |
 | 产业深度拆解型 | 反差与格局变化 |
 
-**疑问句开场**：进备选句式库，不设为唯一默认（#244 R3：405 疑问句开场为多内容泛化最佳，但整体仍不如 303 的 take）。
+**疑问句开场**：降级为备选（4/35），不设为默认；只有同句自带数字/规模锚点时保留（#244 R3 的 405 是这种形状，但整体仍不如 303 的 take）。
 
 **存量口径**：只管增量内容包——历史已发布包不回改。
 
@@ -409,29 +432,30 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
 ### Hook 合格判据（评审端，#752）
 
-**这是评审门，不是 CI 门。** 三轴由 Agent 在 Step 0 报告与 MRL-2 自审时**逐轴自评**，任一轴 FAIL 即改写 hook 再往下走；`scene-rules.mjs` **不新增机械阻断**（理由与依据见本节末）。hook 的机检项只报编辑建议（`checkHookCompellingElement` / `checkNoWrittenOpener`，见 🧭 Editorial Suggestions），不进退出码；机械契约仍由 `checkHookContract` / `checkHookDiffersFromText` / `checkHookMediaContract` 把门（#763）。
+**这是评审门，不是 CI 门。** 四轴由 Agent 在 Step 0 报告与 MRL-2 自审时**逐轴自评**，任一轴 FAIL 即改写 hook 再往下走；`scene-rules.mjs` **不新增机械阻断**（理由与依据见本节末）。hook 的机检项只报编辑建议（`checkHookCompellingElement` / `checkNoWrittenOpener` / `checkHookSentenceFamily` / `checkHookDuration`，见 🧭 Editorial Suggestions），不进退出码；机械契约仍由 `checkHookContract` / `checkHookDiffersFromText` / `checkHookMediaContract` 把门（#763）。
 
 | 轴 | 检查项（逐项勾选） | FAIL 签名 |
 | --- | --- | --- |
 | **1 首句冲突密度** | hook 前 1.5s（首分句，读到第一个句读 `. ! ?` 或 `,` 为止）是否已落出**冲突/反差/冲击本身**（结果先行）？ | 顺叙开场且对象是中性描述（模型名/参数/功能）——"X just released Y"；铺垫句开场（"According to…"、"In a move that…"） |
 | **2 可感知比较锚点** | hook 里出现的每个**度量数字**（金额/参数量/跑分/人数/时长）是否在同句或紧邻分句给出参照系（`vs 对手` / `1/N 成本` / `从 X 到 Y` / 分母如 "nine of eleven" / 量级对照如 one GPU vs 1.3 billion people）？hook 无度量数字时本轴记 **N/A**，不因缺数字判 FAIL | 裸报绝对量无对照（"raised $10B"、"10T tokens"） |
 | **3 三轨同频** | 3a 台词核心锚点词与 `texts.bigNumber` / `texts.subject` 是否指向**同一对象**（同一秒落点）？<br>3b hook media 是否满足 #299 契约（判定表与严重度见下节 `### Hook 媒体策展（#299）`；机检在 `lib/hook-media.mjs`），或显式 `media: null`？ | 3a 口播讲 A、屏幕大字写 B；3b 违反 #299 契约（项与严重度按该表判，本表不重述） |
+| **4 首句句子族与时长**（#1231） | 4a 首句是否命中头族（规模/最高级、数量锚点、`just` + 事件），或提问式同句自带数字/规模锚点？4b 强度词是否有具体事实兜底？4c hook VO 是否在 **4.5–5.0s** 目标带——TTS 前按约 12 词预估，TTS 后按 `audio/scene-durations.json` 实测？ | 4a 首句无任何头族，或提问式无锚点；4b 强度词单独撑句；4c 实测/预估超出 **4.1–6.6s** 可接受带 |
 
 **建议级（不计 FAIL）**：首拍可被陌生观众识别的新实体（公司/模型/产品/事件）≤2 个。triage 原把它列为轴 3 的硬项，本轮按 HITL「不新增机械阻断」降为建议级——一句话塞进 3 家公司是密度问题，owner 归 #235/#252。
 
-**不设词数阈值**：已验证的正面样本首分句 5–13 词，任何固定词数阈值都会把 405 与外部样本判死。hook **总**词数的现行口径（guide 写「≤10 词」）与实测证据冲突——完整表述与裁决跟踪见 `docs/video-script-writing-guide.md` → Step 5 校准表。
+**首分句不设词数阈值，hook 总长走时长口径**：已验证的正面样本首分句 5–13 词，任何固定词数阈值都会把 405 与外部样本判死。hook **总**长不由词数审美决定，而由 4.5–5s 目标换算（约 12 词，可接受约 11–16 词，见上节）。303/405 是**句式张力**的参照，不是时长模板——303 的 18 词按 2.5 词/秒 ≈ 7.2s、405 的 21 词 ≈ 8.4s，都落在可接受带外；沿用它们的形状时按目标词带重写。
 
 **与既有句式库的关系**：与 P1–P6（`docs/research/tiktok-hook-patterns-best-practices.md`）不冲突。`[Company] just [verb]…` 这个**形状**本身不判 FAIL——FAIL 的是首分句落在中性对象上。P1a 的既有范例 "SenseTime just posted its strongest year ever." 首分句落的是最高级结果，过轴 1；P1 模板里的 `[specific number]` 若为裸数，另须过轴 2 锚点。
 
 **W2 的机械面**：W2（Hook 具体性）仍是 Agent 判断项——triage 提议把 `checkHookSpecificity` 收缩为「只保留最底线机械检查」，但该函数在代码中**不存在**（`scripts/` 与 `src/` 零命中），故 W2 无机械项可收缩，本表即其唯一判据。
 
-**与 Step 0 的关系**：Step 0 报告给出的 hook 一句必须附本表三轴的逐轴自评（PASS / FAIL / N/A + 一句理由）；「陌生观众能否独立听懂」仍由 Step 0 的独立可理解论证项判定，不在本表重复。
+**与 Step 0 的关系**：Step 0 报告给出的 hook 一句必须附本表四轴的逐轴自评（PASS / FAIL / N/A + 一句理由）；「陌生观众能否独立听懂」仍由 Step 0 的独立可理解论证项判定，不在本表重复。
 
 **为什么不做成硬门禁**：句式张力与锚点质量不可机械判定——本仓库的门禁假阳性教训（#548/#689 家族）与判据依据（#244 HITL 实听、#300 §10.2/§10.3）不在本文重述。正反范例与逐条拆解见 `docs/video-script-writing-guide.md` → Step 5 校准表。
 
 ### Hook 媒体策展（#299）
 
-Hook 是前 3 秒，媒体**逐包人工策展**，不走通用搜源（`asset-sourcer` 结构上跳过 hook）。HITL 阶段必须三选一：
+Hook 是开头的 4.5–5 秒（目标带，见上节「hook 时长口径」），媒体**逐包人工策展**，不走通用搜源（`asset-sourcer` 结构上跳过 hook）。HITL 阶段必须三选一：
 
 | Hook 状态  | 写法                                                                                                | 预检（`--pre`）                                               | 最终 media gate（sourcing/生成后）  |
 | ---------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------- |
@@ -463,7 +487,7 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | 编辑建议（advisory） | 需要品味/上下文/世界知识，**不进退出码、不算 WARN** | `🧭 Editorial Suggestions` 区块 |
 | Agent 判断项 | 机器无法判定，Agent 自评 | HITL 报告 |
 
-机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 三轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端）。分类依据与逐项处置见 #763 交付评论。
+机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 四轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端；轴 4 由 #1231 增补）。分类依据与逐项处置见 #763 交付评论。
 
 信息类 scene 另有一条**空场判据**（`checkEmptyField`，#739）：`data` / `stat-reveal` / `contrast` / `info-card` / `context` 的最大已声明文本对象低于 110px、且持续超过 45 帧 → **WARN**（镜头没有主角，只有小字与小 chip）。渲染 `media` 层的镜头不判：素材本身就是内容区最大物体（`data`/`stat-reveal` 不渲染媒体，声明了也照判），缺素材归 `final-media-gate`。竖屏三档与阈值来源见 `docs/conventions/visual-design-loop.md` → Type scale，单一真源是 `lib/type-scale.mjs`；post-render 用 `audio/scene-durations.json` 换算成含 0.5s 录音缓冲的 clip 帧数，preflight 在 TTS 之前以整镜为窗口。修法（信息图版式拓扑）是 #739 的后续半段，由 `#1215` 承接（四种拓扑展开为六种量化版式 +「多」用矩阵）；落地前该 WARN 是具名设计债，不阻断渲染。
 

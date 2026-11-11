@@ -92,6 +92,80 @@ export const STRONG_WORD_PATTERN =
 /** Hook compelling element: numbers */
 export const NUMBER_PATTERN = /\$?\d+[.,]?\d*\s*(billion|million|thousand|%|B|M|K)?/i;
 
+/**
+ * Hook sentence families (#1231).
+ *
+ * Source: docs/research/competitor-video-benchmarks-research.md §10.2
+ * (n=35 hook openers; one hook can hit several families). The first three are
+ * the priority families (9–11/35 each); question-led openers are downgraded
+ * (4/35) and intensity words are decoration only (4/35) — they need a concrete
+ * fact behind them. Order here is the priority order shown in advice.
+ */
+export const HOOK_SENTENCE_FAMILIES = [
+  {
+    id: "scale-superlative",
+    label: "规模 / 最高级锚点",
+    priority: true,
+    // Superlative adjectives are unambiguous; rate-limited words ("most",
+    // "first", "only") need their determiner so discourse markers
+    // ("First, let's look…") do not count as the family.
+    pattern:
+      /\b(?:biggest|largest|smallest|fastest|slowest|cheapest|best|worst|highest|lowest|strongest|weakest|greatest|first(?!\s*[,:])|the most|the only|unprecedented)\b/i,
+  },
+  {
+    id: "quantity-anchor",
+    label: "数量锚点",
+    priority: true,
+    // A digit inside a name/version (GPT-5, H100, V4.1, GLM-6.0) is not a
+    // quantity anchor — the lookbehind rejects digits attached to a word
+    // character, a dot, or a hyphen. "$10B", "1.3 billion", "20,000" still hit.
+    pattern:
+      /(?<![\w.-])\d[\d,.]*|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|hundred|thousand|million|billion|trillion|half|double|triple)\b/i,
+  },
+  {
+    id: "just-event",
+    label: "just + 事件",
+    priority: true,
+    // "-ed" covers regular past tense; the list holds the irregular verbs that
+    // actually show up in the corpus (just put / just beat / just made …).
+    pattern:
+      /\bjust\s+(?:[a-z]+ed|got|made|took|gave|found|built|beat|broke|won|sold|bought|brought|thought|caught|taught|fought|held|kept|left|lost|paid|ran|said|saw|sent|set|shot|shut|spent|stood|struck|told|understood|went|came|became|put|cut|read)\b/i,
+  },
+  {
+    id: "contrarian",
+    label: "反共识 / 否定",
+    priority: false,
+    pattern:
+      /\b(?:nobody|no one|never|none|nothing|isn't|aren't|won't|don't|doesn't|didn't|stop|not)\b/i,
+  },
+  {
+    id: "second-person",
+    label: "第二人称 / 祈使",
+    priority: false,
+    pattern: /\b(?:you|your|yours|yourself|here's|here are)\b/i,
+  },
+  {
+    id: "question",
+    label: "提问式",
+    priority: false,
+    pattern: /\?/,
+  },
+];
+
+/** Hook intensity words — decoration only, never the whole hook (#1231). */
+export const HOOK_INTENSITY_PATTERN =
+  /\b(?:insane|massive|unbelievably|unbelievable|crazy|wild|huge|enormous|mind-blowing|shocking|bombshell|explosive|revolutionary|game-chang(?:er|ing))\b/i;
+
+/**
+ * Concrete facts that can back an intensity word. Research §10.4 P4 names two
+ * shapes: a measured/scale anchor ("biggest building in human history") and a
+ * named comparison ("beats GPT-5"). The latter carries no digit and no
+ * priority family, so it needs its own pattern or the advice would claim no
+ * fact exists where one clearly does.
+ */
+export const HOOK_CONCRETE_FACT_PATTERN =
+  /\b(?:beat|beats|beating|outperform(?:s|ed)?|faster than|cheaper than|twice|vs\.?)\b/i;
+
 /** B3: Written-style opener detection */
 export const WRITTEN_OPENER_PATTERN =
   /in this video,? i will|today i want to talk about|in this video,? we will|today we're going to/i;

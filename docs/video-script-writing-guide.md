@@ -46,13 +46,13 @@ Agent 在 Content Pipeline 的 Stage 3 中写或改 scene-data 时按此文档�
 
 | 段     | 名称      | 时间   | 职责                                                             |
 | ------ | --------- | ------ | ---------------------------------------------------------------- |
-| S      | Stop      | 0-3s   | Hook：shocking number / contradiction / curiosity gap / question |
-| T      | Tease     | 3-8s   | Open loop：开始一个想法，不结束它                                |
+| S      | Stop      | 0-5s   | Hook：shocking number / contradiction / curiosity gap / question |
+| T      | Tease     | 5-8s   | Open loop：开始一个想法，不结束它                                |
 | A      | Authority | 8-20s  | 引用源、数据，建立权威                                           |
 | R      | Relay     | 20-50s | 揭示答案、高潮、pattern interrupt                                |
 | T-Tell | Tell      | 收尾    | CTA：具体、回扣 Hook                                             |
 
-> 时间列按 60s 片长给出参考比例；实际时长跟随内容（用户裁决 2026-11-09）：按比例缩放，不填充到 60 秒，超过 70 秒拆集。
+> 时间列按 60s 片长给出参考比例；实际时长跟随内容（用户裁决 2026-11-09）：按比例缩放，不填充到 60 秒，超过 70 秒拆集。S 段的 0-5s 是 **VO 目标带**——实测 VO 可在 4.1–6.6s（成片 clip 另加 0.5s 录制缓冲）；T 段起点跟着 hook VO 结束走，不按表内秒数硬切。
 
 ### AI Outline 消费映射表
 
@@ -86,9 +86,9 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。默认（�
 - **narrativeRole**: `"S"`
 - **留存机制**：埋下 open loop 的种子（暗示有更深层的东西）
 - **素材要求**：冲击力强的背景图/视频（公司 logo、产品画面、标志性场景）。Hook 媒体逐包人工策展：直接把文件绑定为 `scene.media`（见下文 Hook 媒体策展）；不要用 `assetNeed`——asset-sourcer 结构上跳过 hook
-- **voiceover**：≤10 词（冲突未决，见 Step 5 校准表）。从 4 种 hook 公式中轮换选择（见 Step 5）
+- **voiceover**：约 12 词（目标 4.5–5s，按 2.5 词/秒；可接受约 11–16 词，口径见 `docs/content-pipeline.md` →「hook 时长口径」）。从 4 种 hook 公式中轮换选择（见 Step 5）
 - **visualType**: `"hook"`
-- **时间**：0-3s
+- **时间**：0-5s（VO 目标带；实测带 4.1–6.6s，clip 另加 0.5s 缓冲）
 
 #### Scene 2: Tease（T — Tease）
 
@@ -98,7 +98,7 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。默认（�
 - **素材要求**：与 Scene 1 形成对比的背景图（时间线、事件截图、对比画面）
 - **voiceover**：≤15 词。必须包含一个未解悬念
 - **visualType**: `"narrative"`
-- **时间**：3-8s
+- **时间**：5-8s（起点跟 hook VO 结束走，不按秒硬切）
 
 #### Scene 3-4: Authority（A — Authority）
 
@@ -188,7 +188,7 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 | 规则                   | 怎么做                                          |
 | ---------------------- | ----------------------------------------------- |
 | **Write for the ear**  | 缩写（don't, can't, it's）、句子片段、口语化    |
-| **短句**               | Hook ≤10 词（冲突未决，见 Step 5 校准表）；body ≤25 词（一口气） |
+| **短句**               | Hook 见 Scene 1 的目标带（4.5–5s）；body ≤25 词（一口气） |
 | **Vary line length**   | 在 15 词的 context 行之间插入 3-5 词 punch line |
 | **No hedging**         | 删除 maybe, sort of, kinda, perhaps             |
 | **No written openers** | 不以 "In this video," "Today we'll" 开头        |
@@ -211,15 +211,19 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 | **Curiosity Gap**   | "别急着 [常见行为]，先看 [这个]"     | "Don't dismiss Chinese enterprise AI until you see what ByteDance just did." | 产品/分析    |
 | **Question**        | "如果 [假设] 是错的呢？"             | "What if China's biggest AI bet isn't a model at all?"                       | 哲学/分析    |
 
+### 句子族优先级（#1231）
+
+落稿时**首句至少命中一个头族**：`规模 / 最高级锚点`、`数量锚点`、`just + 事件`。`第二人称 / 祈使` 与 `反共识 / 否定` 可叠加；`提问式` 降级，只有同句带数字/规模锚点时才成立；`强度词` 只作点缀，必须有具体事实兜底。完整命中数、时长口径与验证方式见 `docs/content-pipeline.md` →「Hook 文案句式（写稿规范，#278）」的「首句句子族优先级」与「hook 时长口径」；机检只报编辑建议（`checkHookSentenceFamily` / `checkHookDuration`）。
+
 ### Hook 正反面校准表（#752）
 
-**口径**：判据来源是**人工裁决**（#244 三轮 A/B 实听 + 陌生观众自足性），播放量只作**入选门槛**，#259 的 0:01 留存落点只作**回收对照**（该口径下我方无正例）。逐条「为何算好」按评审端三轴（`docs/content-pipeline.md` → Hook 合格判据）拆解。
+**口径**：判据来源是**人工裁决**（#244 三轮 A/B 实听 + 陌生观众自足性），播放量只作**入选门槛**，#259 的 0:01 留存落点只作**回收对照**（该口径下我方无正例）。逐条「为何算好」按评审端轴 1–3 拆解（#752）；轴 4（首句句子族与时长，#1231）见下方「词数口径」——历史样本只作句式参照，不回溯改判。
 
-**机检提醒（照抄前必读）**：`checkHookCompellingElement`（`scripts/short-video/lib/scene-rules.mjs`）要求 hook VO 命中 `NUMBER_PATTERN`（阿拉伯数字）或 `STRONG_WORD_PATTERN` 强词表之一；两个常量的唯一来源是 `scripts/short-video/lib/tiktok-rules.mjs`（该模块自述为规则内容 SSOT），**词表与正则不在此重抄**。该检查自 #763 起只进 `🧭 Editorial Suggestions`（advisory，不阻断），且它只判「含数字/强词」——孤立数字如 `9` 也能过，**不能当作 hook 合格的证据**；合格判定走 `docs/content-pipeline.md` → Hook 合格判据（#752 三轴）。本表正例校准的是**句式与三轴质量**，不是机检合规——下表 `机检` 列逐条标注，口径是跑真门禁所得。
+**机检提醒（照抄前必读）**：`checkHookCompellingElement`（`scripts/short-video/lib/scene-rules.mjs`）要求 hook VO 命中 `NUMBER_PATTERN`（阿拉伯数字）或 `STRONG_WORD_PATTERN` 强词表之一；两个常量的唯一来源是 `scripts/short-video/lib/tiktok-rules.mjs`（该模块自述为规则内容 SSOT），**词表与正则不在此重抄**。该检查自 #763 起只进 `🧭 Editorial Suggestions`（advisory，不阻断），且它只判「含数字/强词」——孤立数字如 `9` 也能过，**不能当作 hook 合格的证据**；合格判定走 `docs/content-pipeline.md` → Hook 合格判据（#752 四轴；轴 4 由 #1231 增补）。#1231 另加两条同层建议：`checkHookSentenceFamily`（首句句子族）与 `checkHookDuration`（TTS 实测秒数或写稿词数预估）。本表正例校准的是**句式与轴 1–3 质量**，不是机检合规——下表 `机检` 列逐条标注，口径是跑真门禁所得；轴 4 见下方「词数口径」。
 
 #### 正面基准 · 内部已验证（#244，2026-09-13 HITL 实听）
 
-| 样本 | 原始 take 文本 | 三轴拆解 | 机检 |
+| 样本 | 原始 take 文本 | 轴 1–3 拆解 | 机检 |
 | --- | --- | --- | --- |
 | **303**（胜出，用户裁决「情感充沛很多」） | DeepSeek just dropped a bombshell! V four point one Flash — brand new architecture, native multimodal. This changes everything. | 轴1 首分句 5 词即落 "bombshell"（冲突先于对象）；轴2 **N/A**（无度量数字）；轴3 锚点词 = 模型名，与 hook 屏上 `subject` 同指。非轴补记：「brand new architecture」与上代形成对照（对照质量，非数字锚点，不计轴 2） | ✗ 无阿拉伯数字（"V four point one" 为拼写）、"bombshell" 不在强词表 |
 | **405**（疑问句，多内容泛化最佳；整体仍不如 303） | What if one GPU could run a world model for 1.3 billion people? Ant Group just proved it. In real time. | 轴1 首分句 13 词，但前 3 词已抛假设冲突；轴2 "1.3 billion people" 自带体量反差，第二句给主体；轴3 三拍短句，屏上焦点可同步 | ✓ 含 "1.3" |
@@ -230,11 +234,11 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 （断句切分的听感**未经复核**——要确认节奏按 #278 的方式实听对比。）
 
-**词数口径冲突（未决，全仓唯一权威表述）**：303 = 18 词、405 = 21 词，外部样本中位 14.0 词——都超本 guide 的「Hook ≤10 词」写法（Step 3 Scene 1 与 Step 4 写作风格两处均按此表执行）。冲突待 **#763** 三分类审计裁决；在此之前以**已验证样本**为准，不要为凑 ≤10 词牺牲轴 1 / 轴 2。
+**词数口径（#1231 已裁决）**：旧的「Hook ≤10 词」写法作废。hook 总长按 **4.5–5s** 目标（可接受 4.1–6.6s）换算，词带与验证方式见 `docs/content-pipeline.md` →「hook 时长口径」。303（18 词 ≈ 7.2s）与 405（21 词 ≈ 8.4s）是**句式张力**的参照，不是时长模板——两者都超出可接受带；沿用它们的「提问 + 数字锚点」形状时按目标词带重写。首分句仍不设词数阈值（见 `docs/content-pipeline.md` → Hook 合格判据）。
 
 #### 正面基准 · 外部（#300，2026-10-17 抓取快照；样本 = 各账号播放量 Top 5）
 
-| 账号（档位） | 原文（ASR 首段） | 句子族 | 三轴拆解 | 机检 |
+| 账号（档位） | 原文（ASR 首段） | 句子族 | 轴 1–3 拆解 | 机检 |
 | --- | --- | --- | --- | --- |
 | `maverickgpt`（prompt 教程） | China just dropped an AI model that beats GPT-5 on almost every benchmark, and nobody's talking about it. | `just` + 事件 | 轴1 首分句 13 词，但 "beats GPT-5" 即冲突；轴2 **N/A**（无度量数字）；轴3 首帧真人对镜口播，与口播锚点同指。非轴补记：对手名（GPT-5）即参照系，非数字锚点，不计轴 2 | ✓ 含 "GPT-5" |
 | `kanekallaway`（科技新闻、分屏） | Elon is now creating the biggest building in human history, the TerraFab. | 规模 / 最高级锚点 | 轴1 "biggest building in human history" 先于主体名落地；轴2 **N/A**（无度量数字）；轴3 首帧分屏（Elon 舞台 + 口播），画面与口播同指。非轴补记：最高级（biggest…in history）即参照系，非数字锚点 | ✗ 无数字、无强词 |
@@ -245,7 +249,7 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 #### 反面教材（Anti-Patterns）
 
-| 反例 | 文本 | 病在哪 | 按三轴改写 |
+| 反例 | 文本 | 病在哪 | 按轴 1–3 改写 |
 | --- | --- | --- | --- |
 | **302 原文案**（#244 R2 裁决「只是快了」：同 instruct、同语速下听着仍慢） | DeepSeek just dropped V four point one Flash, with a new architecture and native multimodal. | 轴1 首分句是「发布 + 对象」顺叙，冲突没落地；轴2 **N/A**（无度量数字——「new architecture」无对照物属对照质量问题，不计轴 2） | 同上方 303 落地改写（先落冲突、版本号写阿拉伯数字形式，两处机检风险一并解决） |
 | **平静陈述句开场**（#278 明令不满足） | 泛指：`X 公司今天发布了 Y 模型` | 轴1 铺垫先行，1.5s 内无冲突 | 结果先行：把 Y 的反常之处提到第一句 |
@@ -310,7 +314,7 @@ CTA 公式：`[Action Verb] + [What They Get]`
 
 **声明黑名单**（不要声明）：
 
-1. **hook 段前 3 秒**——人脸效应小且 30s 转负，人声 hook 效应强一个量级（前 3 秒人声 10s 留存 +24.7%）；开场交给素材+TTS
+1. **hook 段（4.5–5s）的前 3 秒**——人脸效应小且 30s 转负，人声 hook 效应强一个量级（前 3 秒人声 10s 留存 +24.7%）；开场交给素材+TTS
 2. **高情感叙事段**——情感性时刻观众不接受 AI 面孔
 3. **突发新闻表述/观点冲突段**——接受度最低档且信任风险最高
 
