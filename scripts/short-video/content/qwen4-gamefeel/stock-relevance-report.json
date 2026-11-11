@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 2,
+  "threshold": 60,
+  "borderlineFloor": 40,
+  "summary": {
+    "evaluated": 2,
+    "passed": 2,
+    "borderlineAdmitted": 0,
+    "failed": 0,
+    "unavailable": 0,
+    "exempted": 1,
+    "ceiling": 80,
+    "verdict": "satisfiable"
+  },
+  "results": [
+    {
+      "sceneId": 2,
+      "sceneName": "secret-test",
+      "asset": "assets/loktar-replies.png",
+      "exempted": true,
+      "exemptionReason": "Scene 2 uses the X reply strip 'Qwen4 Max?' / 'No idea, they didn't tell us' (CDP capture of the Loktar thread, 2026-11-09). Relevance is verified by reading the thread; the analyzer's portrait centre crop removes the text it would need to read, and the same applies to any wide screenshot of a public post.",
+      "relevance": null,
+      "reason": null,
+      "band": null,
+      "subjectMatch": null,
+      "subjectReason": null,
+      "admittedBy": null,
+      "passed": false,
+      "status": "EXEMPT"
+    },
+    {
+      "sceneId": 4,
+      "sceneName": "benchmark",
+      "asset": "assets/gamefeel-site-overview.png",
+      "claimSource": "texts",
+      "relevance": 80,
+      "reason": "The image shows the \"GameFeel Bench\" tool, which is directly related to the scene claim about scoring unpublished games on game feel, creativity, and code. The visible text \"Gamefeel\" and \"Creativity\" in the chart labels directly supports the claim.",
+      "band": "pass",
+      "subjectMatch": null,
+      "subjectReason": null,
+      "admittedBy": "score",
+      "passed": true,
+      "status": "PASS"
+    },
+    {
+      "sceneId": 8,
+      "sceneName": "teaser",
+      "asset": "assets/wechat-img-5.png",
+      "claimSource": "texts",
+      "relevance": 80,
+      "reason": "The visible subject is the official announcement from Alibaba's Qwen, which directly supports the scene claim about the launch of the Qwen series. The text \"The becoming begins\" matches the claim, and the image is a direct promotional asset for the product.",
+      "band": "pass",
+      "subjectMatch": null,
+      "subjectReason": null,
+      "admittedBy": "score",
+      "passed": true,
+      "status": "PASS"
+    }
+  ]
+}
