@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.60.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.60.0...tanstack_start_ts-v1.60.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **short-video:** require NOOZRA_API_KEY for noozra_search ([#446](https://github.com/0xPabloLI/inside-china-ai/issues/446)) ([#1239](https://github.com/0xPabloLI/inside-china-ai/issues/1239)) ([1ccb3ec](https://github.com/0xPabloLI/inside-china-ai/commit/1ccb3ecca3ad626e4fc09060636cc0352db7ede4))
+
 ## [1.60.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.59.1...tanstack_start_ts-v1.60.0) (2026-11-11)
 
 
