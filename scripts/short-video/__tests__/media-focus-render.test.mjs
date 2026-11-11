@@ -316,7 +316,7 @@ describe("cropFocus takes precedence over focus", { timeout: 600_000 }, () => {
 // narrative media-bottom-bar, where the picture must sit on the text bar) and
 // wrong everywhere else: a 16:9 source contained in a full-frame 1080x1920
 // scene is 1080x608 and lands at y 1312-1920 — under the subtitle lane, which
-// starts at 1339. This fixture renders exactly that container (AbsoluteFill,
+// starts at 1328. This fixture renders exactly that container (AbsoluteFill,
 // no band) so the two anchors are measurable as picture extents, not opinions.
 //
 //   containAlign "center" (default now): picture at y 656-1264, frame centre lit

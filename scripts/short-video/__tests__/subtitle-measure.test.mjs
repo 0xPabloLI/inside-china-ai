@@ -7,19 +7,19 @@ import { SUBTITLE_LANE } from "../lib/safe-zones.mjs";
  *
  * Approximates Helvetica Neue Bold advance widths with the Adobe
  * Helvetica-Bold AFM table; widths are per-1000-em units scaled by the
- * subtitle font size (60px). The guarantee this provides is "single line in
+ * subtitle font size (68px). The guarantee this provides is "single line in
  * the normal case" — the two-line reserved lane (T1) is the safety net for
  * any mismatch between the approximation and the rendering device.
  */
 
 const F = SUBTITLE_LANE.fontSize;
 
-describe("measureWidth (Helvetica Neue Bold, 60px)", () => {
+describe("measureWidth (Helvetica Neue Bold, 68px)", () => {
   it("scales per-1000-em advances by the style font size", () => {
-    // "W" advance = 944 per 1000 em → 10 × 0.944 × 60 = 566.4px
-    expect(measureWidth("WWWWWWWWWW")).toBeCloseTo(566.4, 2);
-    // "i" advance = 278 → 10 × 0.278 × 60 = 166.8px
-    expect(measureWidth("iiiiiiiiii")).toBeCloseTo(166.8, 2);
+    // "W" advance = 944 per 1000 em → 10 × 0.944 × 68 = 641.92px
+    expect(measureWidth("WWWWWWWWWW")).toBeCloseTo(641.92, 2);
+    // "i" advance = 278 → 10 × 0.278 × 68 = 189.04px
+    expect(measureWidth("iiiiiiiiii")).toBeCloseTo(189.04, 2);
   });
 
   it("counts spaces with the space advance", () => {

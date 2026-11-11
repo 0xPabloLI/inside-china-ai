@@ -239,9 +239,9 @@ beforeAll(() => {
     buildFixtureVideo(p, card, x, y, audio);
     fixtures[name] = p;
   };
-  // AVATAR_CARD_RECT = {x:460, y:598} — the compliant right-center card.
+  // AVATAR_CARD_RECT = {x:460, y:738} — the compliant right-center card.
   make("compliant", cardMoving, AVATAR_CARD_RECT.x, AVATAR_CARD_RECT.y, alignedWav);
-  make("zone-subtitle", cardDynamic, AVATAR_CARD_RECT.x, 820, null); // bottom 1370 ∈ lane [1339,1420]
+  make("zone-subtitle", cardDynamic, AVATAR_CARD_RECT.x, 820, null); // bottom 1370 ∈ lane [1328,1420]
   make("zone-rail", cardDynamic, 530, AVATAR_CARD_RECT.y, null); // right edge 950 > rail 880
   make("zone-bottom", cardDynamic, AVATAR_CARD_RECT.x, 1370, null); // card 1370-1920 ⊃ bottom zone [1520,1920]
   make("lip-static", cardStatic, AVATAR_CARD_RECT.x, AVATAR_CARD_RECT.y, null);

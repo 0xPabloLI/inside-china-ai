@@ -73,7 +73,7 @@ describe("renderAss style row", () => {
     // Pre-#747 output, pinned literally:
     //   family / size / spoken / unspoken / outline / back / Bold … margins
     const expected =
-      "Style: Default,Helvetica Neue,60," +
+      "Style: Default,Helvetica Neue,68," +
       "&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000," +
       "-1,0,0,0,100,100,0,0,1,3,1,2," +
       "110,250,500,1";
@@ -108,7 +108,7 @@ describe("renderAss style row", () => {
       alignment: 5,
     });
     expect(row).toBe(
-      "Style: Default,Helvetica Neue,60," +
+      "Style: Default,Helvetica Neue,68," +
         "&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000," +
         "0,0,0,0,90,110,2,5,3,4,2,5," +
         "110,250,500,1",
