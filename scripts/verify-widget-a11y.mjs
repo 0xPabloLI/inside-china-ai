@@ -25,6 +25,20 @@
  *               /widgets/<name> preview route instead of article pages
  */
 import { chromium } from "@playwright/test";
+import { readFileSync } from "node:fs";
+
+// The registry's BREAKOUT_WIDGETS set is the single source of truth for which
+// widget previews render inside the wide wrapper. Parsing it here (the registry
+// is TypeScript, so it cannot be imported from a node script) keeps this gate
+// from hardcoding a list that drifts the moment a second breakout widget lands.
+const BREAKOUT_IDS = (() => {
+  const src = readFileSync(
+    new URL("../src/components/widgets/registry.ts", import.meta.url),
+    "utf8",
+  );
+  const block = src.match(/const BREAKOUT_WIDGETS = new Set<string>\(\[([\s\S]*?)\]\)/);
+  return new Set([...(block?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]));
+})();
 
 const argUrl = process.argv.indexOf("--url");
 const BASE = argUrl >= 0 ? process.argv[argUrl + 1] : "http://localhost:8083";
@@ -644,7 +658,7 @@ async function runPreviewMode() {
       return w ? w.className : "";
     });
     if (width) {
-      const expectBreakout = id === "deepseek-funding";
+      const expectBreakout = BREAKOUT_IDS.has(id);
       check(
         expectBreakout ? width.includes("max-w-none") : width.includes("max-w-prose"),
         `Wrapper width ${expectBreakout ? "max-w-none (breakout)" : "max-w-prose"}`,
