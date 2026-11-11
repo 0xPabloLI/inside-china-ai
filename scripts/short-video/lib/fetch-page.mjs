@@ -115,6 +115,18 @@ export async function fetchJina(url, opts = {}) {
 }
 
 /**
+ * Log-safe description of a value's shape — never the payload itself.
+ *
+ * @param {unknown} value
+ * @returns {string} "null" | "array" | "string" | "number" | "object" | ...
+ */
+function describeShape(value) {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  return typeof value;
+}
+
+/**
  * CDP extraction — full Chrome render via the local CDP proxy.
  * Heaviest layer: opens a real tab, waits for load, extracts
  * document.body.innerText, always closes the tab.
@@ -145,7 +157,20 @@ export async function fetchCdp(url, opts = {}) {
       tabId,
       `return { text: (document.body && document.body.innerText) || "" };`,
     );
-    const text = typeof value?.text === "string" ? value.text : "";
+    // A bare string is accepted too: evalInTab returns the raw value, and a
+    // proxy that serializes the envelope differently must not read as "page
+    // empty".
+    const text = typeof value === "string" ? value : value?.text;
+    if (typeof text !== "string") {
+      // #308's lesson applies to this seam as well: an eval that returned an
+      // unexpected shape is a broken contract, not a page without content.
+      return {
+        ok: false,
+        method: "cdp",
+        text: "",
+        error: `unexpected extraction shape (${describeShape(value)})`,
+      };
+    }
     const ok = text.trim().length > 0;
     return {
       ok,

@@ -115,26 +115,19 @@ describe("fetchCdp", () => {
     expect(cdpCloseTab).toHaveBeenCalledWith("tab-123");
   });
 
-  // #1022: the old mock returned a string from extractFromTab — a value the
-  // real implementation can never produce, because it narrows to arrays. This
-  // evaluates the script the module actually sends and reads the result back:
-  // if the script's shape and the consumer's read path ever disagree again,
-  // this case (not the wiring case above) goes red.
-  it("sends a script whose evaluated shape is what it reads back", async () => {
+  it("reports an unexpected eval shape separately from an empty page", async () => {
     cdpNewTab.mockResolvedValue("tab-shape");
     waitForPageLoad.mockResolvedValue(true);
+    evalInTab.mockResolvedValue([{ title: "not the envelope" }]);
     cdpCloseTab.mockResolvedValue(undefined);
-    let script = null;
-    evalInTab.mockImplementation(async (_tabId, sent) => {
-      script = sent;
-      return new Function("document", sent)({
-        body: { innerText: "rendered page text" },
-      });
-    });
 
     const result = await fetchCdp("https://example.com/shape");
-    expect(typeof script).toBe("string");
-    expect(result).toEqual({ ok: true, method: "cdp", text: "rendered page text" });
+    expect(result).toEqual({
+      ok: false,
+      method: "cdp",
+      text: "",
+      error: "unexpected extraction shape (array)",
+    });
   });
 
   it("reports an empty page instead of a silent blank string", async () => {
