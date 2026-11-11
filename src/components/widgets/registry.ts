@@ -26,6 +26,7 @@ export type LazyWidget = LazyExoticComponent<WidgetComponent>;
  */
 const BREAKOUT_WIDGETS = new Set<string>([
   "deepseek-funding", // donut chart + investor legend side-by-side
+  "token-split-reality-check", // two-column source cards that read as one comparison
 ]);
 
 export const WIDGETS: Record<string, LazyWidget> = {
@@ -98,6 +99,11 @@ export const WIDGETS: Record<string, LazyWidget> = {
   "qwen4-benchmarks": lazy(() =>
     import("./qwen4-benchmarks/benchmarks-view").then((m) => ({
       default: m.Qwen4BenchmarksView,
+    })),
+  ),
+  "token-split-reality-check": lazy(() =>
+    import("./china-token-split/token-split-view").then((m) => ({
+      default: m.TokenSplitRealityCheckView,
     })),
   ),
   "deepseek-1017-benchmarks": lazy(() =>
