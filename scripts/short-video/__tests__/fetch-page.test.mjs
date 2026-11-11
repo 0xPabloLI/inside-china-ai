@@ -13,11 +13,11 @@ vi.mock("../lib/cdp-client.mjs", () => ({
   cdpNewTab: vi.fn(),
   cdpCloseTab: vi.fn(),
   waitForPageLoad: vi.fn(),
-  extractFromTab: vi.fn(),
+  evalInTab: vi.fn(),
 }));
 
 import { fetchPage, fetchStatic, fetchJina, fetchCdp } from "../lib/fetch-page.mjs";
-import { cdpNewTab, cdpCloseTab, waitForPageLoad, extractFromTab } from "../lib/cdp-client.mjs";
+import { cdpNewTab, cdpCloseTab, waitForPageLoad, evalInTab } from "../lib/cdp-client.mjs";
 
 function mockResponse({ ok = true, status = 200, text = "" } = {}) {
   return {
@@ -105,14 +105,51 @@ describe("fetchCdp", () => {
   it("extracts page text through the CDP client and closes the tab", async () => {
     cdpNewTab.mockResolvedValue("tab-123");
     waitForPageLoad.mockResolvedValue(true);
-    extractFromTab.mockResolvedValue("rendered page text");
+    evalInTab.mockResolvedValue({ text: "rendered page text" });
     cdpCloseTab.mockResolvedValue(undefined);
 
     const result = await fetchCdp("https://example.com/heavy-js");
     expect(result).toEqual({ ok: true, method: "cdp", text: "rendered page text" });
     expect(cdpNewTab).toHaveBeenCalledWith("https://example.com/heavy-js");
-    expect(extractFromTab).toHaveBeenCalled();
+    expect(evalInTab).toHaveBeenCalled();
     expect(cdpCloseTab).toHaveBeenCalledWith("tab-123");
+  });
+
+  // #1022: the old mock returned a string from extractFromTab — a value the
+  // real implementation can never produce, because it narrows to arrays. This
+  // evaluates the script the module actually sends and reads the result back:
+  // if the script's shape and the consumer's read path ever disagree again,
+  // this case (not the wiring case above) goes red.
+  it("sends a script whose evaluated shape is what it reads back", async () => {
+    cdpNewTab.mockResolvedValue("tab-shape");
+    waitForPageLoad.mockResolvedValue(true);
+    cdpCloseTab.mockResolvedValue(undefined);
+    let script = null;
+    evalInTab.mockImplementation(async (_tabId, sent) => {
+      script = sent;
+      return new Function("document", sent)({
+        body: { innerText: "rendered page text" },
+      });
+    });
+
+    const result = await fetchCdp("https://example.com/shape");
+    expect(typeof script).toBe("string");
+    expect(result).toEqual({ ok: true, method: "cdp", text: "rendered page text" });
+  });
+
+  it("reports an empty page instead of a silent blank string", async () => {
+    cdpNewTab.mockResolvedValue("tab-empty");
+    waitForPageLoad.mockResolvedValue(true);
+    evalInTab.mockResolvedValue({ text: "   " });
+    cdpCloseTab.mockResolvedValue(undefined);
+
+    const result = await fetchCdp("https://example.com/blank");
+    expect(result).toEqual({
+      ok: false,
+      method: "cdp",
+      text: "",
+      error: "empty extraction result",
+    });
   });
 
   it("does not close a tab that was never opened (cdpNewTab rejected)", async () => {
@@ -159,7 +196,7 @@ describe("fetchPage auto mode", () => {
     vi.stubGlobal("fetch", fetchMock);
     cdpNewTab.mockResolvedValue("tab-9");
     waitForPageLoad.mockResolvedValue(true);
-    extractFromTab.mockResolvedValue("cdp text");
+    evalInTab.mockResolvedValue({ text: "cdp text" });
     cdpCloseTab.mockResolvedValue(undefined);
 
     const result = await fetchPage("https://example.com/heavy");
@@ -223,7 +260,7 @@ describe("fetchPage explicit methods", () => {
   it("method 'cdp' goes straight to the browser", async () => {
     cdpNewTab.mockResolvedValue("tab-1");
     waitForPageLoad.mockResolvedValue(true);
-    extractFromTab.mockResolvedValue("browser text");
+    evalInTab.mockResolvedValue({ text: "browser text" });
     cdpCloseTab.mockResolvedValue(undefined);
 
     const result = await fetchPage("https://example.com/c", { method: "cdp" });

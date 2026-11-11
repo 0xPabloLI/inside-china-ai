@@ -23,6 +23,12 @@
  *   const { text } = await fetchPage(url, { method: "jina" });     // Jina only
  *   const { text } = await fetchPage(url, { method: "cdp" });      // CDP only
  *
+ * Status (#1022): no production consumer. `search-sources.mjs` reaches CDP
+ * through its own `cdpExtract`/`evalInTab` call sites, so this module's only
+ * importer is its test file. Wiring it into a source chain is a separate
+ * decision, not something these tests imply: the suite stayed green for the
+ * whole time this layer returned "empty extraction result" on every page.
+ *
  * @module fetch-page
  */
 
@@ -121,17 +127,26 @@ export async function fetchJina(url, opts = {}) {
 export async function fetchCdp(url, opts = {}) {
   // Dynamic import keeps the cdp-client dependency lazy (repo convention in
   // asset-sourcer.mjs) so static/jina callers don't touch CDP at all.
-  const { cdpNewTab, cdpCloseTab, waitForPageLoad, extractFromTab } =
-    await import("./cdp-client.mjs");
+  const { cdpNewTab, cdpCloseTab, waitForPageLoad, evalInTab } = await import("./cdp-client.mjs");
   let tabId = null;
   try {
     tabId = await cdpNewTab(url);
     await waitForPageLoad(tabId, opts.loadRetries ?? 2);
-    const text = await extractFromTab(
+    // #1022: evalInTab is the raw-value primitive. extractFromTab narrows to
+    // the array contract its article scripts return and drops every other
+    // value, so this layer reported "empty extraction result" for 100% of
+    // pages since #66 — a string script through an array-only seam.
+    //
+    // The script returns `{ text }` rather than the bare string because
+    // evalInTab JSON-parses string values: a page whose innerText happens to
+    // be valid JSON (a bare number, "null") would come back as a non-string
+    // and be discarded the same way.
+    const value = await evalInTab(
       tabId,
-      `return (document.body && document.body.innerText) || "";`,
+      `return { text: (document.body && document.body.innerText) || "" };`,
     );
-    const ok = typeof text === "string" && text.trim().length > 0;
+    const text = typeof value?.text === "string" ? value.text : "";
+    const ok = text.trim().length > 0;
     return {
       ok,
       method: "cdp",
