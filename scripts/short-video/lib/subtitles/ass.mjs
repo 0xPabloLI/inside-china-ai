@@ -17,28 +17,33 @@
  * delivery format.
  */
 
-import { CANVAS, SUBTITLE_LANE } from "../safe-zones.mjs";
+import { SUBTITLE_LANE } from "../safe-zones.mjs";
+import { SUBTITLE_STYLE, toAssColor } from "./style-tokens.mjs";
 
-/** Unspoken words (SecondaryColour) — near-white, legible on the dark stage. */
-const COLOR_UNSPOKEN = "&H00F5F5F5";
-/** Spoken words (PrimaryColour) — Dispatch Blue #4d8bff, the DESIGN.md progress marker. */
-const COLOR_SPOKEN = "&H00FF8B4D";
-
-// Position and size come from lib/safe-zones.mjs (single source of truth):
-// marginV 500 keeps the cue BOTTOM edge at y=1420 and 256px clear of the
-// measured TikTok caption UI; the asymmetric side margins (110/250)
-// left-shift the cue to match the content band's center (x=470), so the cue
-// right edge (x=830) clears the action rail (x≈880) by 50px. See
-// SUBTITLE_LANE JSDoc for the full rationale.
+// Look tokens (colours, family, weight, stroke, glyph spacing) come from
+// ./style-tokens.mjs — the single source for how a cue looks. Position and
+// size come from lib/safe-zones.mjs (single source of truth): marginV 500
+// keeps the cue BOTTOM edge at y=1420 and 256px clear of the measured TikTok
+// caption UI; the asymmetric side margins (110/250) left-shift the cue to
+// match the content band's center (x=470), so the cue right edge (x=830)
+// clears the action rail (x≈880) by 50px. See SUBTITLE_LANE JSDoc for the full
+// rationale.
 const DEFAULT_STYLE = {
-  fontName: "Helvetica Neue",
+  fontName: SUBTITLE_STYLE.font.family,
   fontSize: SUBTITLE_LANE.fontSize,
-  primaryColor: COLOR_SPOKEN,
-  secondaryColor: COLOR_UNSPOKEN,
-  outlineColor: "&H66000000",
-  backColor: "&H66000000",
-  outline: 3,
-  shadow: 1,
+  bold: SUBTITLE_STYLE.font.bold,
+  primaryColor: toAssColor(SUBTITLE_STYLE.color.spoken),
+  secondaryColor: toAssColor(SUBTITLE_STYLE.color.unspoken),
+  outlineColor: toAssColor(SUBTITLE_STYLE.color.outline),
+  backColor: toAssColor(SUBTITLE_STYLE.color.back),
+  outline: SUBTITLE_STYLE.stroke.outlineWidth,
+  shadow: SUBTITLE_STYLE.stroke.shadowOffset,
+  borderStyle: SUBTITLE_STYLE.stroke.borderStyle,
+  letterSpacing: SUBTITLE_STYLE.glyph.letterSpacing,
+  scaleX: SUBTITLE_STYLE.glyph.scaleX,
+  scaleY: SUBTITLE_STYLE.glyph.scaleY,
+  angle: SUBTITLE_STYLE.glyph.angle,
+  alignment: SUBTITLE_LANE.alignment,
   marginL: SUBTITLE_LANE.marginL,
   marginR: SUBTITLE_LANE.marginR,
   marginV: SUBTITLE_LANE.marginV,
@@ -102,7 +107,10 @@ function karaokeText(cue) {
  * Render cues as an ASS v4+ subtitle file.
  *
  * @param {Array<{start: number, end: number, text: string, words: Array}>} cues
- * @param {Partial<typeof DEFAULT_STYLE>} [styleOverrides]
+ * @param {Partial<typeof DEFAULT_STYLE>} [styleOverrides] Raw ASS-row values
+ *   (escape hatch for tests/experiments). Production callers pass none and the
+ *   defaults come from ./style-tokens.mjs + SUBTITLE_LANE; a caller that
+ *   overrides a colour here is deliberately leaving the token layer.
  * @returns {string}
  */
 export function renderAss(cues, styleOverrides = {}) {
@@ -119,7 +127,10 @@ export function renderAss(cues, styleOverrides = {}) {
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    `Style: Default,${style.fontName},${style.fontSize},${style.primaryColor},${style.secondaryColor},${style.outlineColor},${style.backColor},-1,0,0,0,100,100,0,0,1,${style.outline},${style.shadow},2,${style.marginL},${style.marginR},${style.marginV},1`,
+    // Italic/Underline/StrikeOut (0) and Encoding (1) are ASS format
+    // requirements — unused flags off, default charset — not look decisions,
+    // so they stay wire constants rather than tokens.
+    `Style: Default,${style.fontName},${style.fontSize},${style.primaryColor},${style.secondaryColor},${style.outlineColor},${style.backColor},${style.bold ? -1 : 0},0,0,0,${style.scaleX},${style.scaleY},${style.letterSpacing},${style.angle},${style.borderStyle},${style.outline},${style.shadow},${style.alignment},${style.marginL},${style.marginR},${style.marginV},1`,
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",

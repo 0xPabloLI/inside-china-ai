@@ -232,6 +232,13 @@ export const SUBTITLE_LANE = {
   /** Max single-line cue width in px */
   maxWidth: 720,
   /**
+   * ASS Alignment — 2 = bottom-centre. The cue is anchored to its bottom edge
+   * at `marginV`, which is what makes the derived lane top a worst-case
+   * reservation rather than the actual line position. Part of this lane's
+   * position contract, not of the look tokens (`lib/subtitles/style-tokens.mjs`).
+   */
+  alignment: 2,
+  /**
    * ASS MarginL — left margin, sized to left-shift the cue so its right edge
    * (marginL + maxWidth) clears the action rail (x≈880) by ≥50px.
    * marginL + maxWidth + marginR = CANVAS.width → 110 + 720 + 250 = 1080.
