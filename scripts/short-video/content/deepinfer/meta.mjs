@@ -1,0 +1,45 @@
+export const meta = {
+  subject: "china-ai",
+  pipelineId: "deepinfer",
+  title: "DeepSeek Open-Sourced Its Engine. Three Pieces Missing.",
+  article: "deepinfer",
+  renderer: "remotion",
+  createdAt: "2026-10-20",
+  storySpine: {
+    phenomenon:
+      "DeepSeek open-sourced DeepInfer, the inference framework behind DeepSeek V4.1 Flash, and says one cluster serves 155 trillion tokens a day.",
+    caveat:
+      "The release is offline-only and its own README lists a KV cache system, prefill/decode disaggregation and replica load balancing as required but not included; every performance number is vendor-reported.",
+    storyType: "phenomenon",
+  },
+  topics: [
+    "china-ai",
+    "deepseek",
+    "deepinfer",
+    "inference",
+    "kvcache",
+    "serving",
+    "open-source",
+    "ai-infrastructure",
+  ],
+  keyEntities: {
+    companies: ["deepseek"],
+    people: [],
+    models: ["deepseek-v4.1-flash"],
+  },
+  dataPoints: [
+    "DeepSeek WeChat announcement, 2026-10-20 16:54 Beijing: open-sourcing the internal inference framework DeepInfer plus deepseek-recipe",
+    "Official post and GitHub deployment Q&A: a single cluster serves 155 trillion tokens per day, with overall revenue of US$38 per GPU-hour at valley pricing",
+    "155 trillion per day is about 1.79 billion tokens per second (calculated, not stated in the source)",
+    "GitHub API, 2026-10-20: deepseek-ai/DeepInfer, Apache-2.0, Python, 6,309 stars; deepseek-ai/deepseek-recipe, MIT, Rust, 1,104 stars",
+    "DeepInfer README: supported models list contains only DeepSeek-V4.1-Flash",
+    "DeepInfer README: 'This open-source release provides offline inference'",
+    "DeepInfer README, required for a complete inference service but not included: a KV cache system; VE/Prefill/Decode disaggregation; load balancing across data-parallel replicas for prefill and decode",
+    "Deployment Q&A: KV cache management and load balancing are tightly coupled to DeepSeek internal infrastructure, so that code is not yet fully open-sourced",
+    "Zhihu technical report: decoder SWA bounded replay cuts total prefill compute by nearly half",
+    "Zhihu technical report: variable-length DSpark verification lifts throughput 6 percent over fixed 5-token verification",
+    "Zhihu technical report: KVCache retained more than 72 hours; about 100 PiB of SSD; SWA KV cache hit rate above 98 percent with roughly 180 second TTL",
+    "Hardware: NVIDIA SM100 GPUs and Huawei Ascend 950 NPUs; CUDA 13 or CANN 9.2 to build",
+  ],
+  hashtags: ["#chinaai", "#deepseek", "#ainews", "#opensource"],
+};
