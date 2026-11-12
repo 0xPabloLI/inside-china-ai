@@ -159,7 +159,7 @@ Qwen-Image-2512 的 HF Space demo 用 dashscope `qwen-plus` LLM 做 prompt 改�
 
 ## Round CLXXVI 收口补充（2026-11-12，#304）
 
-> 本节是 **#304 的收口对账**，不改写上文两轮的冻结结论。上文 9 个候选的 M2 Pro 真机数据、VLM 排名与「Boogu Turbo 保持冠军」结论均已随 #155 / #1028 落到 `scripts/short-video/lib/b-roll/t2i-runner.mjs` 的 `IMAGE_BACKEND_SPECS`（默认 `mflux-boogu`）。票面「现状基线」写于 2026-09-14，其中「默认 Z-Image Turbo」「本机速度从未实测」两项已失效；票正文 write-once 不改，在此更正。
+> 本节是 **#304 的收口对账**，不改写上文两轮的冻结结论。上文 8 个已实测候选的 M2 Pro 真机数据、VLM 排名与「Boogu Turbo 保持冠军」结论均已随 #155 / #1028 落到 `scripts/short-video/lib/b-roll/t2i-runner.mjs` 的 `IMAGE_BACKEND_SPECS`（默认 `mflux-boogu`）。票面「现状基线」写于 2026-09-14，其中「默认 Z-Image Turbo」「本机速度从未实测」两项已失效；票正文 write-once 不改，在此更正。
 
 ### 1. 候选证据卡与准入（AC ① / ②）
 
@@ -169,7 +169,7 @@ Qwen-Image-2512 的 HF Space demo 用 dashscope `qwen-plus` LLM 做 prompt 改�
 | ---- | ---- | ---- | ---- | ---- | ---- |
 | **Boogu Turbo** | `Boogu/Boogu-Image-0.1-Turbo` | Apache-2.0 | mflux 0.20.0 `mflux-generate-boogu`，MLX 4bit | 2026-09-20 / 09-27 / 11-12 | **可验证**（现行默认） |
 | FLUX.2-klein-4B | `black-forest-labs/FLUX.2-klein-4B` | Apache-2.0 | mflux 0.20.0 `mflux-generate-flux2`，bf16 | 2026-09-20 | **可验证**（缓存已删） |
-| Z-Image Turbo | `filipstrand/Z-Image-Turbo-mflux-4bit` | Tongyi Qianwen（#274 裁为误标，维持无合规风险） | mflux `mflux-generate-z-image-turbo`，MLX 4bit | 2026-09-20 | **可验证** |
+| Z-Image Turbo | `filipstrand/Z-Image-Turbo-mflux-4bit` | Tongyi Qianwen（#274 裁为误标，维持无合规风险） | 产线后端 `mflux-generate-z-image`（`mflux-z-image`，50 步，MLX 4bit）；Turbo 是 guidance-distilled 的 checkpoint 变体（`AI_IMAGE_MODEL=z-image-turbo`，9 步），本机虽另有 `mflux-generate-z-image-turbo` CLI，产线未接入 | 2026-09-20 | **可验证** |
 | Qwen-Image-2512 | `Qwen/Qwen-Image-2512` + `mlx-community/Qwen-Image-2512-4bit` | Apache-2.0 | mflux 0.20.0 `mflux-generate-qwen` + `--low-ram --vae-tiling` | 2026-09-27 | **可验证** |
 | FLUX.2-klein-9B | `black-forest-labs/FLUX.2-klein-9B` | 非商业 | mflux MLX 4bit | 2026-09-20 | 需缓解（NC）→ 不进评分 |
 | Qwen-Image-2.1 | `Qwen/Qwen-Image-2.1` | qwen-research 非商业 | mflux 0.20.0 `mflux-generate-qwen-2.1`，bf16 原版 `-q 4` | 2026-09-27 | 需缓解（NC）→ 不进评分 |
@@ -196,7 +196,7 @@ Qwen-Image-2512 的 HF Space demo 用 dashscope `qwen-plus` LLM 做 prompt 改�
 
 ### 3. 本机实测对账（AC ④）
 
-- **已做**：M2 Pro 32GB 上 9 个候选（6 模型 + 3 个 Qwen）同题 3 prompt（柱状图 / 架构图 / 数据流）+ seed=42 + 1024×1024，记录了耗时、Peak MLX 与 VLM 评分。
+- **已做**：M2 Pro 32GB 上 **8 个实测候选**（9-20 的 6 模型 + 9-27 的 Qwen-Image-2512 / Qwen-Image-2.1）同题 3 prompt（柱状图 / 架构图 / 数据流）+ seed=42 + 1024×1024，记录了耗时与 VLM 评分（Peak MLX 仅部分候选有数据）；第 9 个登记候选 Qwen-Image（一代）未本机 smoke，见 §1。
 - **速度口径并列标注**：上文 9-20 表的 **364s/图** 是 832×1216 产线默认（runbook 沿用），9-27 补测的 **97–121s** 是 1024² 同题对比口径；两者分辨率与步数不同，不可直接相比，此处并列保留。
 - **与票面 AC 的偏差**：`_t2i-smoke` fixture 确实存在（`scripts/short-video/content/_t2i-smoke/scene-data.mjs`，2026-09-08，单场景 transformer-memory 架构图，`node generate-broll.mjs --content _t2i-smoke`），但既有横评用的是自建 3 prompt + mflux CLI，**未走该 fixture**；因此「VLM gate 通过率」没有按产线 `b-roll-report.json` 口径统计，用的是 VLM 45 分制评分。这是口径偏差，不是等价替换。
 - **Kaggle T4 参照：未执行**（用户 2026-11-12 批准豁免，见 §5）。
@@ -218,14 +218,12 @@ Qwen-Image-2512 的 HF Space demo 用 dashscope `qwen-plus` LLM 做 prompt 改�
 
 | AC | 状态 | 依据 / 偏差 |
 | ---- | ---- | ---- |
-| ① 候选清单 + 证据卡 | 已补齐 | 上文 9 候选 + §1 统一证据卡（运行时版本本轮补） |
+| ① 候选清单 + 证据卡 | 已补齐 | 上文 8 个实测候选 + §1 统一证据卡（11 行，含未实测登记；运行时版本本轮补） |
 | ② 准入 | 满足 | NC / 许可未核 / 证据卡不全者均标「需缓解」不进评分；社区量化版不提权 |
 | ③ 四维加权评分 | 本轮补 | §2，回溯重建声明已标注 |
-| ④ 本机 ≥2 候选 `_t2i-smoke` 同题 + Kaggle T4 ≥1 | **部分满足（含批准豁免）** | 本机 9 候选同题真机实测；未走 fixture、未按产线 gate 通过率统计（§3）；Kaggle T4 参照未执行 |
+| ④ 本机 ≥2 候选 `_t2i-smoke` 同题 + Kaggle T4 ≥1 | **部分满足（含批准豁免）** | 本机 8 候选同题真机实测；未走 fixture、未按产线 gate 通过率统计（§3）；Kaggle T4 参照未执行 |
 | ⑤ 结论回写 + 维持/更换建议 | 满足 | 本报告即结论：**维持现状（Boogu Turbo）**，不产生实现票草案 |
 
 **豁免理由**：① 本地 MLX 是产线唯一 T2I 路径，Kaggle T4 参照不改变本地选型；② 按 `AGENTS.md` 云 GPU 路由优先级，MLX 本地已充分验证，云参照属可选参照而非前置；③ B-roll T2I 非端到端瓶颈；④ 新候选差异化能力不对口 B-roll 无文字抽象图用途。
 
 **残余风险**：若后续出现「Apache-2.0 + mflux 原生 + 抽象图质量显著更优且更快」的新模型，本结论需复核；`~/.video-t2i-env` 的 mflux 升到含 `moss-image` CLI 的版本时，Boogu 默认路径需回归。如需实测，另立窄票，不在本轮扩面。
-
-**下游票**：`#304`（结论摘要与本报告路径见该票交付记录评论；结论已落地，不再产生实施票）。
