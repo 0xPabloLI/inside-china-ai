@@ -452,9 +452,9 @@ describe("buildQueryGroups", () => {
       null,
     );
     expect(claimCount).toBe(1);
-    // extractKeywords also emits a company-entity fallback group (claimSceneId
-    // null) from the capitalized "Unitree" in the voiceover — filter to the
-    // claim-bound groups this test is about.
+    // extractKeywords (via buildQueryGroups) now produces only claim-bound
+    // groups, since the company-entity fallback pool was retired by #356 —
+    // filter to the claim-bound groups this test is about.
     expect(queryGroups.filter((g) => g.claimSceneId === 3)).toEqual([
       { keywords: ["unitree humanoid robot walks", "factory floor"], claimSceneId: 3 },
     ]);
@@ -486,7 +486,7 @@ describe("buildQueryGroups", () => {
     expect(queryGroups.filter((g) => g.claimSceneId === 8)).toHaveLength(1);
   });
 
-  it("skips all-stopword claims but keeps the fallback pool (row 5)", () => {
+  it("skips all-stopword claims and adds no company-entity fallback (#356 retired, row 5)", () => {
     const scenes = [
       { id: 1, visualType: "narrative", voiceover: "vo", assetNeed: "the of and to a" },
     ];
@@ -495,12 +495,12 @@ describe("buildQueryGroups", () => {
       { keyEntities: { companies: ["Qwen"] } },
       null,
     );
-    expect(queryGroups).toHaveLength(1);
-    expect(queryGroups[0].claimSceneId).toBeNull();
-    expect(queryGroups[0].keywords).toEqual(["Qwen"]); // extractKeywords preserves source casing
+    // The all-stopword assetNeed yields no claim, and the company-entity
+    // fallback pool was retired — so nothing is sourced (CSS fallback instead).
+    expect(queryGroups).toEqual([]);
   });
 
-  it("keeps claim groups ahead of the fallback pool", () => {
+  it("keeps the claim group and adds no fallback pool (#356)", () => {
     const scenes = [
       { id: 2, visualType: "narrative", voiceover: "vo", assetNeed: "benchmark chart" },
     ];
@@ -509,12 +509,14 @@ describe("buildQueryGroups", () => {
       { keyEntities: { companies: ["Qwen"] } },
       null,
     );
-    expect(queryGroups.map((g) => g.claimSceneId)).toEqual([2, null]);
+    expect(queryGroups.map((g) => g.claimSceneId)).toEqual([2]);
   });
 
-  it("lets --keywords override the fallback pool", () => {
-    const { queryGroups } = buildQueryGroups([], null, ["custom"]);
-    expect(queryGroups[0].keywords).toEqual(["custom"]);
+  it("no longer sources an unowned --keywords pool (#356 retired)", () => {
+    // The CLI --keywords override used to feed an unowned fallback group
+    // (claimSceneId: null). #356 retired that pool and the flag.
+    const { queryGroups } = buildQueryGroups([]);
+    expect(queryGroups).toEqual([]);
   });
 });
 
