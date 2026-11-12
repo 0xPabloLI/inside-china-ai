@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.62.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.0...tanstack_start_ts-v1.62.1) (2026-11-12)
+
+
+### Performance Improvements
+
+* **web-access:** fanout three families concurrently ([#467](https://github.com/0xPabloLI/inside-china-ai/issues/467)) ([#1249](https://github.com/0xPabloLI/inside-china-ai/issues/1249)) ([463fc3e](https://github.com/0xPabloLI/inside-china-ai/commit/463fc3eadb678eb85e96bf6697116de905a8256f))
+
 ## [1.62.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.61.0...tanstack_start_ts-v1.62.0) (2026-11-11)
 
 
