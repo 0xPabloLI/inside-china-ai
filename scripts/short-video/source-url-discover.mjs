@@ -388,8 +388,11 @@ async function discoverViaSearchBox(homeUrls, keyword, { firstLanded = false } =
 
 async function discoverSource(source, { zhKeyword, enKeyword, compareBoxes = false }) {
   const keyword = keywordForSource(source, zhKeyword, enKeyword);
+  // #1240: `apiOnly` sources have no CDP url; probe the API endpoint instead
+  // (mirrors selectSweepTargets / source-url-sweep.mjs).
   const useApi =
-    source.accessMethod?.primary === "api" && typeof source.apiSearch?.url === "function";
+    (source.accessMethod?.primary === "api" || source.apiOnly) &&
+    typeof source.apiSearch?.url === "function";
   const probedUrl = useApi ? source.apiSearch.url(keyword) : source.url(keyword);
   const homeUrl = safeOrigin(probedUrl) ? new URL(probedUrl).origin + "/" : probedUrl;
 
@@ -694,8 +697,9 @@ async function main() {
   const enKeyword = getArg("keyword-en") || "AI";
   // `--compare` (with `--only`) and `--all` audit URL alignment rather than repair
   // breakage: every keyword-bearing source gets its search box driven even when
-  // the configured URL is healthy. `--all` additionally means "the whole registry
-  // minus the media sources" (`selectSweepTargets` drops the `url`-less ones).
+  // the configured URL is healthy. `--all` additionally means "the whole probeable
+  // registry minus the media sources" (`selectSweepTargets` keeps `apiOnly` sources
+  // via their apiSearch.url and drops sources with neither channel — #1240).
   const compareBoxes = hasFlag("compare") || hasFlag("all");
   const targets = resolveTargets({
     only: getArg("only"),

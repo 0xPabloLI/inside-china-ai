@@ -353,10 +353,9 @@ async function collectFromCdp(source, keyword) {
   if (!cdpAvailable) return { articles: [], status: null };
   // #67: Read from capabilities.articles with top-level fallback
   const cap = source.capabilities?.articles;
-  // #1240: API-only sources carry a null CDP url, so resolve defensively
-  // instead of calling a missing url getter.
-  const urlFn = cap?.url ?? source.url;
-  const url = typeof urlFn === "function" ? urlFn(keyword || DEFAULT_KEYWORDS[0]) : urlFn;
+  // #1240: resolve through the shared helper — API-only sources carry a null
+  // CDP url, and a throwing getter is a fail-safe null, not a layer crash.
+  const url = buildSourceSearchUrl(source, keyword);
   if (!url) return { articles: [], status: null };
   console.log(`\n🔍 Scraping ${source.label} (${source.name}) via CDP...`);
 
@@ -690,8 +689,10 @@ export async function probeSourceUrl(url, opts = {}) {
 }
 
 /**
- * Resolve a source's registered CDP search URL the same way collectFromCdp
- * does (capabilities.articles.url with top-level fallback, default keyword).
+ * Resolve a source's registered CDP search URL (capabilities.articles.url with
+ * top-level fallback, default keyword). This is the single resolution rule used
+ * by collectFromCdp and the URL-health tooling; an API-only source (#1240)
+ * carries no CDP url, so it resolves to null rather than opening a tab.
  *
  * @param {Object} source - source definition
  * @param {string|null} keyword

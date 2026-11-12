@@ -198,7 +198,6 @@
 | #405 | 下载CLI失败清单与guard集成                                                       | P2·W2B     | 已有串行bench/native batch；全长/生产clip契约分开                                                                                                                                                                                                            |
 | #468 | 垂直源错误/限流与身份契约                                                        | P2·W2B     | 核当前provider规则；mailto因果过时，不加代理/fallback猜测                                                                                                                                                                                                    |
 | #469 | 站点经验所有权/隐私/持久化                                                       | P2·W2B     | HITL；现有读取已含存在条件，不自动推送loaded经验                                                                                                                                                                                                             |
-| #1240 | Noozra 退役被 robots.txt 禁止的 /search CDP 兜底（#446 遗留） | P3·W2B | P3 bug；2026-11-12 分流 `ready-for-agent`；只保留 keyed API（#446），三组契约测试不回归 |
 
 ### Dormant — 触发条件未满足（暂缓占用排期）
 
