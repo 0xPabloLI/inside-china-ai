@@ -6,7 +6,7 @@ name: Pool engine canary
 #   2. newsCapable 引擎的 publishedAt 覆盖：0/N = 日期字段漂移（jina
 #      `publishedTime` 那次的教训：文章照常解析、日期静默丢失）；部分覆盖是
 #      上游真实形态（#416/#1121：Serper organic / Tavily news 混合结果常有
-#      未带日期条目），只有跌破 50% 才算告警。OK 行打印实际覆盖便于观察下滑。
+#      未带日期条目），只记 INFO、从不告警。OK 行打印实际覆盖便于观察是否滑向 0。
 # 失败 → 每引擎一张 `[pool-canary] <engine>` 票（标题去重：重失败追加评论，
 # 恢复则在 open 票留言），走 bug + needs-triage 正常分流；
 # triage-staleness 守卫（issue-tracker-signals）兜底 3 天无人管会提醒。
