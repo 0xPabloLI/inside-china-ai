@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.62.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.1...tanstack_start_ts-v1.62.2) (2026-11-12)
+
+
+### Bug Fixes
+
+* **short-video:** retire Noozra robots-disallowed CDP fallback ([#1240](https://github.com/0xPabloLI/inside-china-ai/issues/1240)) ([#1257](https://github.com/0xPabloLI/inside-china-ai/issues/1257)) ([6353568](https://github.com/0xPabloLI/inside-china-ai/commit/6353568c65b05d5105adbe94dc77e8e26ee5c038))
+
 ## [1.62.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.0...tanstack_start_ts-v1.62.1) (2026-11-12)
 
 
