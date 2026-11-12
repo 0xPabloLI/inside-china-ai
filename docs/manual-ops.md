@@ -122,6 +122,9 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 ② CDP 抓取（默认路径，无需手动 CSV）
    │  TikTok Studio Analytics + CSI 直接抓取
    │  → hashtag-effect-tracker.jsonl（用 hashtag-effect-tracker.mjs upsert 落库）+ analytics-conclusions.md
+   │  （标签是逐视频的：一次 upsert 的 --tags/--from-caption 只描述一个视频；
+   │    多视频 details 要么逐个传标签，要么确认整批同标签后加 --assume-same-tags；
+   │    改写已有记录的标签集必须显式加 --overwrite-tags）
    │  （手动导 CSV 为 fallback：登录 analytics.tiktok.com → Content → Export）
    │
 ③ 运行分析脚本

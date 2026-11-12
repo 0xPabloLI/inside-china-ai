@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -504,5 +504,203 @@ describe("hashtag-effect-tracker CLI", () => {
     const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
     const out = runCli(["report", "--tracker", join(dir, "missing.jsonl")]);
     expect(out).toContain("0 records");
+  });
+});
+
+// ─── CLI tag-source guards (#1179) ───
+
+function detailsWithIds(dir, ids, fetchedAt = "2026-10-11T09:22:25.374Z") {
+  const path = join(dir, "tiktok-video-details.json");
+  writeFileSync(
+    path,
+    JSON.stringify({
+      fetchedAt,
+      videos: ids.map((videoId) => ({
+        videoId,
+        title: `Video ${videoId}`,
+        postedOn: "2026/9/30",
+        videoViews: 100,
+      })),
+    }),
+    "utf8",
+  );
+  return path;
+}
+
+function captionFixture(dir, hashtags) {
+  const pkg = join(dir, "publish-package");
+  mkdirSync(pkg, { recursive: true });
+  writeFileSync(join(pkg, "tiktok-metadata.json"), JSON.stringify({ hashtags }), "utf8");
+  return pkg;
+}
+
+function failingCli(args) {
+  return spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
+}
+
+describe("hashtag-effect-tracker CLI — tag-source guards (#1179)", () => {
+  it("refuses to broadcast one caption's hashtags across several videos", () => {
+    // --from-caption reads a single publish package, but --from-details can
+    // carry a whole week of videos. Letting one caption's tags fan out would
+    // silently rewrite every record and mix tag sets in the report.
+    const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
+    const tracker = join(dir, "output", "tracker.jsonl");
+    const details = detailsWithIds(dir, ["1111111111111111111", "2222222222222222222"]);
+    const pkg = captionFixture(dir, ["#chinaai"]);
+
+    const res = failingCli([
+      "upsert",
+      "--from-details",
+      details,
+      "--from-caption",
+      pkg,
+      "--tracker",
+      tracker,
+    ]);
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain("2 videos");
+    expect(res.stderr).toContain("--assume-same-tags");
+    expect(existsSync(tracker)).toBe(false);
+  });
+
+  it("refuses to broadcast --tags across several videos too", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
+    const tracker = join(dir, "output", "tracker.jsonl");
+    const details = detailsWithIds(dir, ["1111111111111111111", "2222222222222222222"]);
+
+    const res = failingCli([
+      "upsert",
+      "--from-details",
+      details,
+      "--tags",
+      "#chinaai",
+      "--tracker",
+      tracker,
+    ]);
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain("--assume-same-tags");
+    expect(existsSync(tracker)).toBe(false);
+  });
+
+  it("--assume-same-tags broadcasts deliberately and names every videoId", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
+    const tracker = join(dir, "output", "tracker.jsonl");
+    const ids = ["1111111111111111111", "2222222222222222222"];
+    const details = detailsWithIds(dir, ids);
+    const pkg = captionFixture(dir, ["#chinaai"]);
+
+    const out = runCli([
+      "upsert",
+      "--from-details",
+      details,
+      "--from-caption",
+      pkg,
+      "--assume-same-tags",
+      "--tracker",
+      tracker,
+    ]);
+
+    expect(out).toContain("--assume-same-tags");
+    for (const id of ids) expect(out).toContain(id);
+    const records = parseJsonl(readFileSync(tracker, "utf8"));
+    expect(records.map((r) => r.hashtags)).toEqual([["#chinaai"], ["#chinaai"]]);
+  });
+
+  it("refuses to rewrite an existing tag set without --overwrite-tags", () => {
+    // A single video is not automatically safe: pointing --from-caption at
+    // the wrong package rewrites that record's attribution just as silently.
+    const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
+    const tracker = join(dir, "output", "tracker.jsonl");
+    mkdirSync(join(dir, "output"), { recursive: true });
+    const videoId = "1111111111111111111";
+    const seeded = serializeJsonl([
+      { videoId, views: 100, hashtags: ["#old"], recordedAt: "2026-10-01T00:00:00.000Z" },
+    ]);
+    writeFileSync(tracker, seeded, "utf8");
+    const details = detailsWithIds(dir, [videoId]);
+
+    const res = failingCli([
+      "upsert",
+      "--from-details",
+      details,
+      "--tags",
+      "#new",
+      "--tracker",
+      tracker,
+    ]);
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain(videoId);
+    expect(res.stderr).toContain("#old");
+    expect(res.stderr).toContain("#new");
+    expect(res.stderr).toContain("--overwrite-tags");
+    expect(readFileSync(tracker, "utf8")).toBe(seeded);
+  });
+
+  it("--overwrite-tags allows the rewrite and keeps the old set as history", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
+    const tracker = join(dir, "output", "tracker.jsonl");
+    mkdirSync(join(dir, "output"), { recursive: true });
+    const videoId = "1111111111111111111";
+    writeFileSync(
+      tracker,
+      serializeJsonl([
+        { videoId, views: 100, hashtags: ["#old"], recordedAt: "2026-10-01T00:00:00.000Z" },
+      ]),
+      "utf8",
+    );
+    const details = detailsWithIds(dir, [videoId]);
+
+    runCli([
+      "upsert",
+      "--from-details",
+      details,
+      "--tags",
+      "#new",
+      "--overwrite-tags",
+      "--tracker",
+      tracker,
+    ]);
+
+    const [rec] = parseJsonl(readFileSync(tracker, "utf8"));
+    expect(rec.hashtags).toEqual(["#new"]);
+    expect(rec.hashtagHistory[0].hashtags).toEqual(["#old"]);
+  });
+
+  it("treats a reordered tag set as the same set (no --overwrite-tags needed)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tracker-cli-"));
+    const tracker = join(dir, "output", "tracker.jsonl");
+    mkdirSync(join(dir, "output"), { recursive: true });
+    const videoId = "1111111111111111111";
+    writeFileSync(
+      tracker,
+      serializeJsonl([
+        {
+          videoId,
+          views: 100,
+          hashtags: ["#a", "#b"],
+          recordedAt: "2026-10-01T00:00:00.000Z",
+        },
+      ]),
+      "utf8",
+    );
+    const details = detailsWithIds(dir, [videoId]);
+
+    const out = runCli([
+      "upsert",
+      "--from-details",
+      details,
+      "--tags",
+      "#b,#a",
+      "--tracker",
+      tracker,
+    ]);
+
+    expect(out).toContain("added 0");
+    const [rec] = parseJsonl(readFileSync(tracker, "utf8"));
+    expect(rec.hashtags).toEqual(["#a", "#b"]);
+    expect(rec.hashtagHistory).toBeUndefined();
   });
 });

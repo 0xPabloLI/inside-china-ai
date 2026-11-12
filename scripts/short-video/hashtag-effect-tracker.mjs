@@ -7,7 +7,7 @@
  *     --from-details output/tiktok-video-details-2026-10-11.json \
  *     [--from-caption <publish package dir>] \
  *     [--tags "#a,#b,#c"] [--published-at 2026/9/30] \
- *     [--dry-run]
+ *     [--assume-same-tags] [--overwrite-tags] [--dry-run]
  *
  *   node scripts/short-video/hashtag-effect-tracker.mjs report
  *
@@ -22,6 +22,12 @@
  * writes (views / avgWatchTime / completion / traffic split). Hashtags are NOT
  * in that file — the live caption is the only source — so pass them explicitly
  * via `--tags` (or `--from-caption` to read a publish package's metadata).
+ *
+ * Both tag sources describe ONE video, while `--from-details` routinely carries
+ * a week of them. Two guards keep that mismatch from rewriting history: a
+ * multi-video run with a single tag set is refused unless `--assume-same-tags`
+ * says the broadcast is deliberate, and an existing record's differing tag set
+ * is refused unless `--overwrite-tags` is passed (#1179).
  *
  * @module hashtag-effect-tracker-cli
  */
@@ -77,6 +83,8 @@ function parseTagsArg(value) {
     .map((t) => (t.startsWith("#") ? t : `#${t}`));
 }
 
+const tagSet = (tags) => [...(Array.isArray(tags) ? tags : [])].sort().join("|");
+
 function cmdUpsert(args) {
   const trackerPath = argValue(args, "tracker") || DEFAULT_TRACKER;
   const detailsPath = argValue(args, "from-details");
@@ -84,6 +92,8 @@ function cmdUpsert(args) {
   const tagsArg = argValue(args, "tags");
   const publishedAt = argValue(args, "published-at");
   const dryRun = hasFlag(args, "dry-run");
+  const assumeSameTags = hasFlag(args, "assume-same-tags");
+  const overwriteTags = hasFlag(args, "overwrite-tags");
 
   if (!detailsPath) {
     throw new Error("upsert needs --from-details <tiktok-video-details-*.json>");
@@ -99,6 +109,13 @@ function cmdUpsert(args) {
   }
 
   const tags = captionDir ? tagsFromCaption(captionDir) : tagsArg ? parseTagsArg(tagsArg) : null;
+  if (tags && observations.length > 1 && !assumeSameTags) {
+    const source = captionDir ? "--from-caption" : "--tags";
+    throw new Error(
+      `${source} provides one hashtag set but --from-details carries ${observations.length} videos — ` +
+        `pass tags per video, or pass --assume-same-tags to broadcast ${JSON.stringify(tags)} to all ${observations.length} deliberately`,
+    );
+  }
   if (tags) {
     observations = observations.map((o) => normalizeObservation({ ...o, hashtags: tags }));
   }
@@ -108,6 +125,37 @@ function cmdUpsert(args) {
 
   const existing = loadTracker(trackerPath);
   const { records, added, updated, unchanged, legacy } = upsertRecords(existing, observations);
+
+  // One caption is not a licence to rewrite history: a differing tag set on an
+  // existing record needs an explicit flag, or a single wrong --from-caption
+  // silently re-attributes every video it is pointed at.
+  const priorTags = new Map(
+    existing
+      .filter((r) => typeof r.videoId === "string" && r.videoId)
+      .map((r) => [r.videoId, Array.isArray(r.hashtags) ? r.hashtags : []]),
+  );
+  const rewritten = records.filter((r) => {
+    const prev = priorTags.get(r.videoId);
+    return prev && prev.length > 0 && tagSet(prev) !== tagSet(r.hashtags);
+  });
+  if (rewritten.length > 0 && !overwriteTags) {
+    throw new Error(
+      `refusing to rewrite hashtags on ${rewritten.length} existing record(s) without --overwrite-tags:\n` +
+        rewritten
+          .map(
+            (r) =>
+              `  • ${r.videoId}: ${JSON.stringify(priorTags.get(r.videoId))} → ${JSON.stringify(r.hashtags)}`,
+          )
+          .join("\n"),
+    );
+  }
+
+  if (tags && assumeSameTags && observations.length > 1) {
+    console.log(
+      `⚠️  --assume-same-tags: broadcasting ${JSON.stringify(tags)} to ${observations.length} videos: ` +
+        observations.map((o) => o.videoId).join(", "),
+    );
+  }
 
   console.log(`tracker: ${trackerPath}`);
   console.log(
@@ -161,7 +209,7 @@ try {
   } else {
     console.log("Usage:");
     console.log(
-      '  hashtag-effect-tracker.mjs upsert --from-details <file> [--tags "#a,#b"] [--from-caption <dir>] [--published-at <date>] [--dry-run]',
+      '  hashtag-effect-tracker.mjs upsert --from-details <file> [--tags "#a,#b"] [--from-caption <dir>] [--published-at <date>] [--assume-same-tags] [--overwrite-tags] [--dry-run]',
     );
     console.log("  hashtag-effect-tracker.mjs report [--tracker <path>]");
     process.exit(command ? 1 : 0);
