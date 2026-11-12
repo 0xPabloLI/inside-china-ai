@@ -3,8 +3,10 @@ name: Pool engine canary
 # #305 C —— 机制化抓引擎漂移，替代「靠业务跑批时偶尔发现」：
 # 每周 2 次对三个 newsCapable 引擎各发 1 次 must-hit 调用（news 模式 7 天窗），断言
 #   1. 能解析出条目（url/link 词表漂移 → parse-drop）；
-#   2. newsCapable 引擎 publishedAt 覆盖率 100%（日期字段漂移 —— jina
-#      `publishedTime` 那次的教训：文章照常解析、日期静默丢失）。
+#   2. newsCapable 引擎的 publishedAt 覆盖：0/N = 日期字段漂移（jina
+#      `publishedTime` 那次的教训：文章照常解析、日期静默丢失）；部分覆盖是
+#      上游真实形态（#416/#1121：Serper organic / Tavily news 混合结果常有
+#      未带日期条目），只有跌破 50% 才算告警。OK 行打印实际覆盖便于观察下滑。
 # 失败 → 每引擎一张 `[pool-canary] <engine>` 票（标题去重：重失败追加评论，
 # 恢复则在 open 票留言），走 bug + needs-triage 正常分流；
 # triage-staleness 守卫（issue-tracker-signals）兜底 3 天无人管会提醒。

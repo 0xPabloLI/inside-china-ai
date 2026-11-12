@@ -8,9 +8,12 @@
  * delivery contract:
  *   - parsed > 0                → catches url/link vocabulary drift (parse-drop)
  *                                 and engine death
- *   - 100% publishedAt coverage → catches date-field vocabulary drift, the
+ *   - publishedAt coverage      → catches date-field vocabulary drift, the
  *     jina `publishedTime` catch of 2026-09-20: articles parse fine but every
- *     publishedAt silently becomes undefined downstream.
+ *     publishedAt silently becomes undefined downstream. 0/N is that
+ *     signature; partial coverage is expected upstream (#416/#1121: Serper
+ *     organic and Tavily news mixes leave some entries undated) and only
+ *     trips below MIN_DATE_COVERAGE.
  *
  * Engines: the three newsCapable engines only. Jina is excluded on purpose —
  * one call ≈ 59k tokens ≈ 6% of its monthly free quota (#309 probe), so even
@@ -39,6 +42,14 @@ const DEFAULT_QUERY = "DeepSeek"; // must-hit: validated against every engine 20
 export const CANARY_ENGINES = POOL_ENGINES.filter((engine) => engine.newsCapable === true);
 
 /**
+ * Share of dated entries below which partial coverage stops reading as
+ * "upstream sometimes leaves a result undated" and starts reading as a parse
+ * gap. 0/N is always drift regardless of this threshold — it is the
+ * unambiguous signature the jina catch produced.
+ */
+const MIN_DATE_COVERAGE = 0.5;
+
+/**
  * Pure verdict for one engine run (an attempt object from searchPool plus the
  * delivered articles when ok). Returns the list of findings; empty = pass.
  * @returns {Array<{type: string, detail: string}>}
@@ -61,18 +72,33 @@ export function evaluateEngineRun(engine, run) {
   if (articles.length === 0) {
     return [{ type: "no-results", detail: "must-hit query returned nothing" }];
   }
-  // The jina-class check (#309 date contract): newsCapable engines must date
-  // every entry — coverage below 100% means the date vocabulary drifted.
-  const dated = articles.filter((article) => Boolean(article.publishedAt)).length;
-  if (dated < articles.length) {
+  // The jina-class check (#309 date contract): a zero-dated delivery is the
+  // vocabulary-drift signature; partial coverage is a real upstream shape
+  // (#416/#1121) and only fails when most entries lack a date.
+  const dated = datedCount(articles);
+  if (dated === 0) {
     return [
       {
         type: "date-coverage",
-        detail: `${dated}/${articles.length} articles carry publishedAt — date-field vocabulary drift`,
+        detail: `0/${articles.length} articles carry publishedAt — date-field vocabulary drift`,
+      },
+    ];
+  }
+  const coverage = dated / articles.length;
+  if (coverage < MIN_DATE_COVERAGE) {
+    return [
+      {
+        type: "date-coverage",
+        detail: `${dated}/${articles.length} articles carry publishedAt (${Math.round(coverage * 100)}% < ${MIN_DATE_COVERAGE * 100}%) — most entries arrive undated upstream; inspect the adapter only once coverage hits 0`,
       },
     ];
   }
   return [];
+}
+
+/** Dated articles in one delivery — shared by the verdict and the OK log line. */
+function datedCount(articles) {
+  return articles.filter((article) => Boolean(article?.publishedAt)).length;
 }
 
 /** One probe per engine: single call, news mode, serial (never parallel here). */
@@ -105,16 +131,22 @@ function issueTitle(engineName, findings) {
   return `[pool-canary] ${engineName}: ${findings.map((f) => f.type).join(",")}`;
 }
 
-function issueBody(engineName, findings, query) {
+/** Same fixed opener every issue body carries (`issue-tracker.md` §Body notice). */
+const WRITE_ONCE_NOTICE =
+  "> **正文是创建时的规格（write-once，永不改写）。** 当前状态、跨 session 证据与交付记录都在评论里——读票必须带评论（`gh issue view <N> --comments`），只读正文会把已决策的问题重新问一遍。";
+
+export function issueBody(engineName, findings, query) {
   const lines = findings.map((f) => `- **${f.type}** — ${f.detail}`);
   return [
+    WRITE_ONCE_NOTICE,
+    "",
     `\`[pool-canary]\` failed for **${engineName}** on ${new Date().toISOString().slice(0, 10)} (query: \`${query}\`).`,
     "",
     ...lines,
     "",
-    "This ticket is filed by the scheduled canary (workflow `pool-canary.yml`); it dedupes by title, so keep it open until the fixture/adapter fix lands. Fix seam: refresh the wire fixture `__tests__/fixtures/pool-contracts/" +
+    "This ticket is filed by the scheduled canary (workflow `pool-canary.yml`); it dedupes by title, so keep it open until the fix lands. `0/N` dated means the date-field vocabulary drifted — refresh the wire fixture `__tests__/fixtures/pool-contracts/" +
       engineName +
-      ".json` from a real response and repair the matching adapter in `scripts/short-video/lib/search-pool.mjs` (see issue #305).",
+      ".json` from a real response and repair the matching adapter in `scripts/short-video/lib/search-pool.mjs` (see issue #305). Partial coverage below the 50% gate means most entries arrive undated upstream — check the raw response before touching the adapter.",
   ].join("\n");
 }
 
@@ -204,19 +236,29 @@ async function main(argv) {
     `[pool-canary] probing ${CANARY_ENGINES.map((e) => e.name).join(", ")} with "${query}" (news, 7d)`,
   );
   const runs = await probeEngines(query);
-  const results = runs.map((run) => ({
-    engine: run.engine,
-    attempt: run.attempt,
-    findings: evaluateEngineRun(run.engine, {
-      ...run.attempt,
-      articles: run.attempt.ok ? run.articles : undefined,
-    }),
-  }));
+  const results = runs.map((run) => {
+    const articles = run.attempt.ok ? run.articles : [];
+    return {
+      engine: run.engine,
+      attempt: run.attempt,
+      articles,
+      findings: evaluateEngineRun(run.engine, {
+        ...run.attempt,
+        articles: run.attempt.ok ? articles : undefined,
+      }),
+    };
+  });
 
   let failed = 0;
   for (const result of results) {
     if (result.findings.length === 0) {
-      console.log(`[pool-canary] ${result.engine.name}: OK`);
+      // Partial coverage below 100% is a pass — keep it visible so a slow
+      // slide toward drift is readable in the log before it trips the gate.
+      const total = result.articles.length;
+      const dated = datedCount(result.articles);
+      console.log(
+        `[pool-canary] ${result.engine.name}: OK${total ? ` (${dated}/${total} dated)` : ""}`,
+      );
       continue;
     }
     failed += 1;
