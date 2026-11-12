@@ -74,17 +74,23 @@ function hasFlag(name) {
   return process.argv.includes(`--${name}`);
 }
 
-/** Every source with a probeable URL. Two rules learned the hard way:
+/** Every source with a probeable URL. Three rules learned the hard way:
  *  · `api` sources are included — an `api` source fails at its endpoint, and
  *    probing its legacy CDP `url` instead reports healthy sources as dead
  *    (gnews 404 / openalex 403 were both artifacts of probing the wrong URL).
  *  · `supportsKeyword: false` sources are included — a listing or feed URL can
  *    die exactly like a search pattern (techcrunch/guancha/qbitai all live in
  *    the source-health zero-streak list while carrying no keyword).
+ *  · `apiOnly` sources (#1240) are included even without a top-level `url`:
+ *    their `apiSearch.url` is the probe target, and `sweepSource`'s `useApi`
+ *    branch resolves it. Filtering on `url` alone silently shrank the health
+ *    coverage the moment Noozra's robots-disallowed CDP fallback was retired.
  * `channel` and `keywordDriven` are recorded per row so the classes stay
  * separable in the report. */
 export function selectSweepTargets(sources = ALL_SOURCES) {
-  return sources.filter((s) => typeof s.url === "function");
+  return sources.filter(
+    (s) => typeof s.url === "function" || (s.apiOnly && typeof s.apiSearch?.url === "function"),
+  );
 }
 
 /** Empty keyword for sources whose URL carries no query term. */
@@ -141,8 +147,12 @@ async function sweepSource(source, { zhKeyword, enKeyword }) {
   // An `api` source fails at its API endpoint, not at its legacy CDP `url` —
   // probing the wrong one reports a dead source that is actually healthy
   // (openalex/gnews both looked "404/403" until apiSearch.url was probed).
+  // #1240: `apiOnly` is authoritative even if accessMethod has drifted —
+  // admitting such a source to the target set without steering the probe to
+  // its API would call a missing source.url getter.
   const useApi =
-    source.accessMethod?.primary === "api" && typeof source.apiSearch?.url === "function";
+    (source.accessMethod?.primary === "api" || source.apiOnly) &&
+    typeof source.apiSearch?.url === "function";
   const probedUrl = useApi ? source.apiSearch.url(keyword) : source.url(keyword);
   // Header-riding credentials (ScrapeCreators `x-api-key`) are invisible to a
   // bare fetch, so a keyed endpoint answered "no API key" and read as dead —

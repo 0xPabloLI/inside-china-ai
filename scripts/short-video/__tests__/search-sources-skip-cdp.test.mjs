@@ -5,12 +5,13 @@
 // falling back to CDP after an API failure is pure waste: same URL, same result.
 // The decision helper `shouldSkipCdpOnApiFail` must return true for those
 // sources and false for sources whose CDP url is a distinct site-search page
-// (gnews, arxiv_search, github_search, core_search, openalex_search, currents,
-// noozra_search) or which have no API at all.
+// (gnews, arxiv_search, github_search, core_search, openalex_search, currents)
+// or which have no API at all. #1240: API-only sources have no CDP fallback
+// at all and are skipped by the same helper.
 
 import { describe, it, expect } from "vitest";
 
-import { shouldSkipCdpOnApiFail } from "../search-sources.mjs";
+import { shouldSkipCdpOnApiFail, buildSourceSearchUrl } from "../search-sources.mjs";
 import { ALL_SOURCES, WECHAT_RSS_SOURCES } from "../lib/source-registry.mjs";
 
 const byName = Object.fromEntries(ALL_SOURCES.map((s) => [s.name, s]));
@@ -39,7 +40,6 @@ describe("shouldSkipCdpOnApiFail (Issue #66 Step 0.5)", () => {
       "core_search",
       "openalex_search",
       "currents",
-      "noozra_search",
     ];
     for (const name of keepFallback) {
       const source = byName[name];
@@ -47,6 +47,21 @@ describe("shouldSkipCdpOnApiFail (Issue #66 Step 0.5)", () => {
       expect(source.apiSearch || source.capabilities?.articles?.apiSearch, name).toBeDefined();
       expect(shouldSkipCdpOnApiFail(source, "DeepSeek"), name).toBe(false);
     }
+  });
+
+  it("skips CDP for API-only noozra_search (#1240)", () => {
+    const source = byName["noozra_search"];
+    // #1240: there is no CDP fallback at all, not merely a redundant one.
+    expect(source.apiOnly).toBe(true);
+    expect(source.url).toBeUndefined();
+    expect(source.articleScript).toBeUndefined();
+    expect(buildSourceSearchUrl(source, "DeepSeek")).toBeNull();
+    expect(source.capabilities.articles.url).toBeNull();
+    expect(source.capabilities.articles.articleScript).toBeNull();
+    expect(shouldSkipCdpOnApiFail(source, "DeepSeek")).toBe(true);
+    // The keyed API remains the only article channel (#446).
+    expect(source.capabilities.articles.apiSearch.authRequired).toBe(true);
+    expect(source.capabilities.articles.apiKeyEnv).toBe("NOOZRA_API_KEY");
   });
 
   it("never skips when the source has no API (CDP is the first layer)", () => {

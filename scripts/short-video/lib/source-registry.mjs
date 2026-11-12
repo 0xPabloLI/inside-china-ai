@@ -1925,18 +1925,12 @@ export const INTERNATIONAL_SOURCES = [
           : {};
       },
     },
-    url: (keyword) => `https://noozra.com/search?q=${encodeURIComponent(keyword)}`,
-    articleScript: `
-      var results = [];
-      document.querySelectorAll('article, .news-item, .headline, [class*="article"]').forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var title = el.querySelector('h2, h3, .title, [class*="headline"]');
-        if (link && title) {
-          results.push({ title: title.textContent.trim(), url: link.href });
-        }
-      });
-      return results.slice(0, 20);
-    `,
+    // #1240: noozra.com/search is disallowed by robots.txt. This source has no
+    // CDP page and no DOM extraction script — the keyed API (#446) is its only
+    // channel. enrichWithCapabilities keeps capabilities.articles (and its
+    // apiSearch) with url/articleScript set to null; shouldSkipCdpOnApiFail
+    // treats apiOnly as a hard gate so an API failure cannot open a tab.
+    apiOnly: true,
   },
 ];
 
@@ -3954,7 +3948,10 @@ function enrichWithCapabilities(sources) {
     const capabilities = {};
 
     // R4 + #67: Articles — all article-consumption fields in capabilities.articles
-    if (source.articleScript) {
+    // #1240: apiOnly sources have no CDP page but still need the keyed API
+    // capability. Gating solely on articleScript would drop apiSearch along
+    // with the fallback and remove the source from article search entirely.
+    if (source.articleScript || source.apiOnly) {
       const api = source.apiSearch;
       // #88 Part 2: Auto-generate googleSiteFallback for applicable sources
       const autoFallback = shouldAutoGenGoogleSiteFallback(source)
@@ -3963,8 +3960,12 @@ function enrichWithCapabilities(sources) {
       capabilities.articles = {
         method: source.accessMethod?.primary || "cdp",
         supportsKeyword: source.supportsKeyword,
-        url: source.url,
-        articleScript: source.articleScript,
+        // #1240: apiOnly sources have no CDP page at all. Keep url and
+        // articleScript null instead of synthesising a sentinel page url;
+        // shouldSkipCdpOnApiFail reads the apiOnly flag as a hard gate.
+        url: source.apiOnly ? null : source.url,
+        articleScript: source.apiOnly ? null : source.articleScript,
+        apiOnly: !!source.apiOnly,
         loginCheckScript: source.loginCheckScript || null,
         needsAuth: source.needsAuth || false,
         // #888: per-source opt-out from the unauthenticated URL probe. Absent
