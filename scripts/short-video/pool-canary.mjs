@@ -47,7 +47,7 @@ export const CANARY_ENGINES = POOL_ENGINES.filter((engine) => engine.newsCapable
  * gap. 0/N is always drift regardless of this threshold — it is the
  * unambiguous signature the jina catch produced.
  */
-export const MIN_DATE_COVERAGE = 0.5;
+const MIN_DATE_COVERAGE = 0.5;
 
 /**
  * Pure verdict for one engine run (an attempt object from searchPool plus the
@@ -131,9 +131,15 @@ function issueTitle(engineName, findings) {
   return `[pool-canary] ${engineName}: ${findings.map((f) => f.type).join(",")}`;
 }
 
-function issueBody(engineName, findings, query) {
+/** Same fixed opener every issue body carries (`issue-tracker.md` §Body notice). */
+const WRITE_ONCE_NOTICE =
+  "> **正文是创建时的规格（write-once，永不改写）。** 当前状态、跨 session 证据与交付记录都在评论里——读票必须带评论（`gh issue view <N> --comments`），只读正文会把已决策的问题重新问一遍。";
+
+export function issueBody(engineName, findings, query) {
   const lines = findings.map((f) => `- **${f.type}** — ${f.detail}`);
   return [
+    WRITE_ONCE_NOTICE,
+    "",
     `\`[pool-canary]\` failed for **${engineName}** on ${new Date().toISOString().slice(0, 10)} (query: \`${query}\`).`,
     "",
     ...lines,

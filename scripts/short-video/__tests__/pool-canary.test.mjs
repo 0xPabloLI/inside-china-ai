@@ -12,7 +12,7 @@
  * is the engine's fault, not the query's.
  */
 import { describe, it, expect } from "vitest";
-import { evaluateEngineRun, CANARY_ENGINES } from "../pool-canary.mjs";
+import { evaluateEngineRun, issueBody, CANARY_ENGINES } from "../pool-canary.mjs";
 
 const datedArticle = (url) => ({ url, publishedAt: "2026-09-20T00:00:00.000Z" });
 
@@ -91,5 +91,18 @@ describe("evaluateEngineRun", () => {
       { ok: false, error: "missing SERPER_API_KEY" },
     );
     expect(findings.map((f) => f.type)).toEqual(["missing-key"]);
+  });
+});
+
+describe("issueBody", () => {
+  it("opens with the write-once notice every issue body must carry (issue-tracker.md)", () => {
+    const body = issueBody("serper", [{ type: "date-coverage", detail: "0/10" }], "DeepSeek");
+    expect(body.split("\n")[0]).toContain("正文是创建时的规格（write-once，永不改写）");
+  });
+
+  it("explains both date-coverage tiers instead of pointing straight at the adapter", () => {
+    const body = issueBody("serper", [{ type: "date-coverage", detail: "0/10" }], "DeepSeek");
+    expect(body).toContain("0/N");
+    expect(body).toContain("50% gate");
   });
 });
