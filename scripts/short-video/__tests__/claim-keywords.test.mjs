@@ -439,48 +439,41 @@ describe("buildQueryGroups", () => {
   });
 
   it("builds a claim-bound group from a voiceover-derived claim (#354)", () => {
-    const { queryGroups, claimCount } = buildQueryGroups(
-      [
-        {
-          id: 3,
-          visualType: "narrative",
-          layout: "media-overlay",
-          voiceover: "Unitree's humanoid robot walks across a factory floor.",
-        },
-      ],
-      null,
-      null,
-    );
+    const { queryGroups, claimCount } = buildQueryGroups([
+      {
+        id: 3,
+        visualType: "narrative",
+        layout: "media-overlay",
+        voiceover: "Unitree's humanoid robot walks across a factory floor.",
+      },
+    ]);
     expect(claimCount).toBe(1);
-    // extractKeywords (via buildQueryGroups) now produces only claim-bound
-    // groups, since the company-entity fallback pool was retired by #356 —
-    // filter to the claim-bound groups this test is about.
+    // After #356, claim-bound groups come only from extractSceneClaims +
+    // claimQueryPhrases (claim-keywords.mjs); buildQueryGroups no longer calls
+    // extractKeywords for an unowned pool, so filter to the claim-bound groups
+    // this test is about.
     expect(queryGroups.filter((g) => g.claimSceneId === 3)).toEqual([
       { keywords: ["unitree humanoid robot walks", "factory floor"], claimSceneId: 3 },
     ]);
   });
 
   it("uses searchHints instead of tokenizing when the writer supplies them (#354)", () => {
-    const { queryGroups } = buildQueryGroups(
-      [
-        {
-          id: 4,
-          visualType: "narrative",
-          layout: "media-overlay",
-          voiceover: "Unitree's humanoid robot walks across a factory floor.",
-          searchHints: ["unitree h1 humanoid robot", "humanoid robot factory"],
-        },
-      ],
-      null,
-      null,
-    );
+    const { queryGroups } = buildQueryGroups([
+      {
+        id: 4,
+        visualType: "narrative",
+        layout: "media-overlay",
+        voiceover: "Unitree's humanoid robot walks across a factory floor.",
+        searchHints: ["unitree h1 humanoid robot", "humanoid robot factory"],
+      },
+    ]);
     expect(queryGroups.filter((g) => g.claimSceneId === 4)).toEqual([
       { keywords: ["unitree h1 humanoid robot", "humanoid robot factory"], claimSceneId: 4 },
     ]);
   });
 
   it("derives claim-bound groups on a real package (unitree)", () => {
-    const { queryGroups, claimCount } = buildQueryGroups(unitreeScenes, null, null);
+    const { queryGroups, claimCount } = buildQueryGroups(unitreeScenes);
     expect(claimCount).toBeGreaterThanOrEqual(2);
     expect(queryGroups.filter((g) => g.claimSceneId === 6)).toHaveLength(1);
     expect(queryGroups.filter((g) => g.claimSceneId === 8)).toHaveLength(1);
@@ -490,11 +483,7 @@ describe("buildQueryGroups", () => {
     const scenes = [
       { id: 1, visualType: "narrative", voiceover: "vo", assetNeed: "the of and to a" },
     ];
-    const { queryGroups } = buildQueryGroups(
-      scenes,
-      { keyEntities: { companies: ["Qwen"] } },
-      null,
-    );
+    const { queryGroups } = buildQueryGroups(scenes);
     // The all-stopword assetNeed yields no claim, and the company-entity
     // fallback pool was retired — so nothing is sourced (CSS fallback instead).
     expect(queryGroups).toEqual([]);
@@ -504,19 +493,8 @@ describe("buildQueryGroups", () => {
     const scenes = [
       { id: 2, visualType: "narrative", voiceover: "vo", assetNeed: "benchmark chart" },
     ];
-    const { queryGroups } = buildQueryGroups(
-      scenes,
-      { keyEntities: { companies: ["Qwen"] } },
-      null,
-    );
+    const { queryGroups } = buildQueryGroups(scenes);
     expect(queryGroups.map((g) => g.claimSceneId)).toEqual([2]);
-  });
-
-  it("no longer sources an unowned --keywords pool (#356 retired)", () => {
-    // The CLI --keywords override used to feed an unowned fallback group
-    // (claimSceneId: null). #356 retired that pool and the flag.
-    const { queryGroups } = buildQueryGroups([]);
-    expect(queryGroups).toEqual([]);
   });
 });
 

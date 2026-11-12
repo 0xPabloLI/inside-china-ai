@@ -3218,7 +3218,7 @@ export async function main(args = process.argv.slice(2)) {
       console.warn(`  ⚠️  Failed to load scene-data: ${e.message}`);
     }
   } else {
-    console.log("  Scene-data: not found (will use CLI keywords only)");
+    console.log("  Scene-data: not found (no claims — zh video pool / CSS fallback apply)");
   }
 
   // Load meta from separate meta.mjs if not exported by scene-data
@@ -3262,7 +3262,7 @@ export async function main(args = process.argv.slice(2)) {
   if (allKeywords.length === 0) {
     // Graceful degradation (spec #130 Scenario row 2): scenes render with
     // CSS fallback instead of aborting the in-process pipeline run.
-    console.warn("⚠️  No search queries available (no usable claims, no meta.keyEntities).");
+    console.warn("⚠️  No search queries available (no usable claims).");
     console.warn(
       "   Scenes will render with CSS fallback. Add assetNeed/searchHints to scene-data for per-scene sourcing.",
     );
@@ -3305,7 +3305,7 @@ export async function main(args = process.argv.slice(2)) {
   const failed = [];
   const skipped = [];
 
-  // URL-level dedup across all phases (Phase 0, API, yt-dlp, CDP, Tier 3).
+  // URL-level dedup across all phases (API, yt-dlp, CDP, zh video, claim groups).
   // Prevents re-downloading the same image URL when different search
   // phases return overlapping results (Single Visit Extraction principle).
   const downloadedUrls = new Set();

@@ -4,9 +4,9 @@
  *
  * Why this exists: the article path is a second producer of the URL class the
  * ticket is about. `articleScript` results are cached by trends-utils as
- * `topics[].images[].url`, and the asset sourcer's Phase 0 replays them through
- * `loadCachedImages` as `source: "cached"` — so a card thumbnail harvested here
- * still reaches the download chain even with the media capabilities gone.
+ * `topics[].images[].url`. Before #356 the asset sourcer's Phase 0 replayed
+ * them through `loadCachedImages` as `source: "cached"`; that replay was
+ * retired by #356, so this is now historical context.
  *
  * The contract under test is the wiring plus the request the harvest makes:
  * the mocked `evalInTab` emulates the real script's gating (the real one only

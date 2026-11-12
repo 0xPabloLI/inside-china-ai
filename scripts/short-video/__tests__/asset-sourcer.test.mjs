@@ -114,7 +114,7 @@ describe("extractKeywords", () => {
       { voiceover: "Unitree released a new H1 humanoid robot today" },
       { voiceover: "DeepSeek also announced their V4 model" },
     ];
-    const result = extractKeywords(scenes, null, null);
+    const result = extractKeywords(scenes, null);
     // Should extract known company names from voiceover text
     expect(result.length).toBeGreaterThan(0);
     expect(result.some((k) => k.toLowerCase().includes("unitree"))).toBe(true);
@@ -122,13 +122,13 @@ describe("extractKeywords", () => {
 
   it("returns empty array when all sources are empty", () => {
     const scenes = [{ voiceover: "The weather is nice today" }];
-    const result = extractKeywords(scenes, null, null);
+    const result = extractKeywords(scenes, null);
     expect(result).toEqual([]);
   });
 
-  it("deduplicates keywords across sources", () => {
+  it("deduplicates repeated company names (case-insensitive)", () => {
     const scenes = [{ voiceover: "Unitree robot demo" }];
-    const meta = { keyEntities: { companies: ["Unitree"] } };
+    const meta = { keyEntities: { companies: ["Unitree", "unitree"] } };
     const result = extractKeywords(scenes, meta);
     const unitreeCount = result.filter((k) => k.toLowerCase() === "unitree").length;
     expect(unitreeCount).toBe(1);

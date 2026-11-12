@@ -213,8 +213,8 @@ async function enrichWithMedia(tabId, articles, { harvestImages = true } = {}) {
   // #636: a source can declare its DOM images unusable (`harvestImages: false`
   // in the registry — Bing news cards expose only a CDN thumbnail or a base64
   // placeholder). The eval then skips the harvest instead of shipping an image
-  // map the caller discards, and the trend cache never receives a thumbnail
-  // the asset sourcer would later replay through loadCachedImages.
+  // map the caller discards. The trend cache no longer feeds loadCachedImages:
+  // that Phase 0 replay was retired by #356.
   const mediaScript = `
     var results = { images: {}, videos: {}, metadata: {} };
     var harvestImages = ${harvestImages};
