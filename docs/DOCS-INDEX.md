@@ -291,6 +291,7 @@ Deep research reports with citations.
 | `vlm-relevance-accuracy-test-design.md`            | VLM Relevance 准确性测试方案（#334）— claim-mode relevance 判断可量化评估，对比 2B / GLM-9B / 30B-A3B 三模型在 B-roll gate 场景准确性                                                                                                                                                                                                                                                                              |
 | `qwen38-qwen36-tools-support-research.md`          | Qwen3.8 和 Qwen3.6 的 tools 支持确认（2026-09-23）— 本地 `ollama show` + Ollama 官方页面确认两个模型都支持 tools，修正此前"qwen3.8 不支持 tools"的错误说法                                                                                                                                                                                                                                                  |
 | `whisper-repetition-loops-research-2026-10.md`     | Whisper 重复循环的业界处置（#540）— 四轴实测：VAD 门控（FEMA 17→0 段，但音乐/歌唱素材 −74%/−98% 词）、解码参数（whisper.cpp/MLX 无 repetition penalty，`-nf` 关温度回退 / `-tp` 不升温 / `-et` 熵门 / `-nth` 无语音门 均压不住）、检测判据（段级循环 10/143：6 例护栏已修 + 4 例未修，vs 全文 compression ratio 误报 33/143）、下游处置（固定视频/claim 三档 A/B 的 relevance 与描述一致 → 不值得按 `contaminated` 丢 transcript）；裁决：只加检测形状与 provenance，不动生产默认（runbook §⑤ 唯一生产运行时 = whisper.cpp） |
+| `subtitle-min-duration-68px.md`                    | 字幕最短显示时长与 68px 版式的算术边界（#1228）— `layoutCues` 的「下一页起点 − 2 帧」天花板机制、三包 under-0.8s / 最短页实测、`SOFT_PX` 612→720 扫描（证明提高切分阈值无效）、语速 2.44–3.20 词/秒与判定口径 |
 
 ## Spec/Ticket/Review Lifecycle
 

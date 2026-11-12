@@ -137,6 +137,10 @@ node scripts/short-video/main.mjs --content series/pt4 &
 
 `restore-tokens` 自身仍是软失败（匹配不上保留 spoken），**但渲染边界不再容忍它**：`lib/subtitles/dual-track.mjs#assertDualTrackRestorable` 在写 `.ass` 之前做三重检查 —— 静态（每条 replacement 必须能在本场景自己的 `ttsText` 里被消费）、动态（还原后的 timing 不得残留 spoken run）与词数守恒（`#817`：`ttsText` 的有效词 token 数必须等于 `voiceover` 的词数加上各 replacement 的净增减，还原后的 timing 展开词数必须等于 `voiceover`；这两条能抓住「规则吞掉/重复一个替换对之外的词」这类前两条全静默的丢词缺陷），任一不满足即抛错，`generateSubtitles` / `regenerateSubtitles` 及各条 `.ass` 直写路径（`main.mjs` Step 4/6、`render-only`、`realign-render`、`rerender-full`）都已接上。无法映射的场景在 Step 0.6 按**场景**回退到显示轨并 warn（整包回退会让一行坏文本关掉全片归一化）；`voiceoverTts` 作者手写轨的词数漂移只 warn 不阻断（作者拥有该行）。纯 cue 场景（无 voiceover 文本）必须显式传 `skipDualTrackCheck: true`，漏传 `scenes` 会直接报错而不是静默放行。
 
+### 字幕最短显示时长（0.8s）是目标而非门禁（#1228）
+
+`MIN_DURATION` 只在语流有间隙时成立：`layoutCues` 把每页结束时间夹在「下一页起点 − 2 帧」的天花板内，连续朗读时 1–2 词的页物理上停不满 0.8s。**不要把 under-0.8s 条数当回归门**；有效信号是**最短页 <0.25s** 或 **under-0.5s 占比 >10%**，出现时先降 TTS 语速（目标 ≤2.8 词/秒）或缩短句长，不放宽 `MIN_DURATION`（2026-11-11 裁决）。机制推导、三包实测与软限扫描见 [`research/subtitle-min-duration-68px.md`](research/subtitle-min-duration-68px.md)。
+
 ### 已知故障模式与固化措施（2026-09-08/09 修复清单）
 
 修复固化在代码与本文档，不依赖会话记忆。回归时按表定位。
@@ -1145,6 +1149,7 @@ When modifying rules in this file, consult these reference docs for root cause a
 | TTS engine selection            | ADR-0019, ADR-0008, `docs/research/voice-cloning-solutions-m2-pro.md` | Engine comparison, alternatives survey                                  |
 | Audio drift fix                 | `docs/research/audio-drift-fix.md`                                    | Root cause analysis, fix implementation, sync verification, diagnostics |
 | BGM under voice calibration     | `docs/research/music-under-voice-calibration-2026-10.md` (L2)         | Two-scale derivation, PASS band, #1043 bed-gain retune and re-measurement |
+| Subtitle min duration (0.8s)    | `docs/research/subtitle-min-duration-68px.md` (L2)                    | Ceiling mechanism, three-pack measurements, SOFT_PX sweep, speech-rate bound |
 | Per-scene prosody (pitch/tempo) | `docs/research/voice-prosody-hook-optimization.md`                    | 15 sources, per-parameter rationale, research citations                 |
 | TikTok best practices           | `docs/tiktok/tiktok-best-practices.md`                                | Signal weights, voice rules, hook formulas, audit checklist             |
 | A/B testing methodology         | `docs/tiktok/ab-testing-methodology.md`                               | Element iteration method, single-variable testing philosophy            |
