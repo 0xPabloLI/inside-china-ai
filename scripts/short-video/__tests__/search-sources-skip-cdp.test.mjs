@@ -6,7 +6,8 @@
 // The decision helper `shouldSkipCdpOnApiFail` must return true for those
 // sources and false for sources whose CDP url is a distinct site-search page
 // (gnews, arxiv_search, github_search, core_search, openalex_search, currents,
-// noozra_search) or which have no API at all.
+// ) or which have no API at all. #1240: API-only sources have no CDP
+// fallback at all and are skipped by the same helper.
 
 import { describe, it, expect } from "vitest";
 
@@ -39,7 +40,6 @@ describe("shouldSkipCdpOnApiFail (Issue #66 Step 0.5)", () => {
       "core_search",
       "openalex_search",
       "currents",
-      "noozra_search",
     ];
     for (const name of keepFallback) {
       const source = byName[name];
@@ -47,6 +47,20 @@ describe("shouldSkipCdpOnApiFail (Issue #66 Step 0.5)", () => {
       expect(source.apiSearch || source.capabilities?.articles?.apiSearch, name).toBeDefined();
       expect(shouldSkipCdpOnApiFail(source, "DeepSeek"), name).toBe(false);
     }
+  });
+
+  it("skips CDP for API-only noozra_search (#1240)", () => {
+    const source = byName["noozra_search"];
+    expect(source.apiOnly).toBe(true);
+    expect(source.url).toBeUndefined();
+    expect(source.articleScript).toBeUndefined();
+    expect(source.capabilities.articles.articleScript).toBeNull();
+    // #66 same-endpoint skip fires: the derived CDP url IS the API endpoint,
+    // so an API failure can never fall back to the robots.txt-disallowed page.
+    expect(shouldSkipCdpOnApiFail(source, "DeepSeek")).toBe(true);
+    expect(source.capabilities.articles.url("DeepSeek")).toBe(
+      source.capabilities.articles.apiSearch.url("DeepSeek"),
+    );
   });
 
   it("never skips when the source has no API (CDP is the first layer)", () => {

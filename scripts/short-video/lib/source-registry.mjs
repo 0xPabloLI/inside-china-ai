@@ -1925,18 +1925,13 @@ export const INTERNATIONAL_SOURCES = [
           : {};
       },
     },
-    url: (keyword) => `https://noozra.com/search?q=${encodeURIComponent(keyword)}`,
-    articleScript: `
-      var results = [];
-      document.querySelectorAll('article, .news-item, .headline, [class*="article"]').forEach(function(el) {
-        var link = el.querySelector('a[href]');
-        var title = el.querySelector('h2, h3, .title, [class*="headline"]');
-        if (link && title) {
-          results.push({ title: title.textContent.trim(), url: link.href });
-        }
-      });
-      return results.slice(0, 20);
-    `,
+    // #1240: noozra.com/search is disallowed by robots.txt. This source has no
+    // CDP page and no DOM extraction script — the keyed API (#446) is its only
+    // channel. enrichWithCapabilities still builds capabilities.articles for
+    // apiOnly sources, deriving a never-opened CDP url from the API endpoint so
+    // #66's same-endpoint skip fires instead of an API failure falling back to
+    // the disallowed page.
+    apiOnly: true,
   },
 ];
 
@@ -3954,7 +3949,10 @@ function enrichWithCapabilities(sources) {
     const capabilities = {};
 
     // R4 + #67: Articles — all article-consumption fields in capabilities.articles
-    if (source.articleScript) {
+    // #1240: apiOnly sources have no CDP page but still need the keyed API
+    // capability. Gating solely on articleScript would drop apiSearch along
+    // with the fallback and remove the source from article search entirely.
+    if (source.articleScript || source.apiOnly) {
       const api = source.apiSearch;
       // #88 Part 2: Auto-generate googleSiteFallback for applicable sources
       const autoFallback = shouldAutoGenGoogleSiteFallback(source)
@@ -3963,8 +3961,11 @@ function enrichWithCapabilities(sources) {
       capabilities.articles = {
         method: source.accessMethod?.primary || "cdp",
         supportsKeyword: source.supportsKeyword,
-        url: source.url,
-        articleScript: source.articleScript,
+        // #1240: apiOnly sources carry no page url. The derived url equals the
+        // API endpoint, so shouldSkipCdpOnApiFail (#66) skips the CDP layer and
+        // collectFromCdp never opens a browser tab for them.
+        url: source.url ?? (source.apiOnly ? api?.url : undefined),
+        articleScript: source.articleScript ?? null,
         loginCheckScript: source.loginCheckScript || null,
         needsAuth: source.needsAuth || false,
         // #888: per-source opt-out from the unauthenticated URL probe. Absent

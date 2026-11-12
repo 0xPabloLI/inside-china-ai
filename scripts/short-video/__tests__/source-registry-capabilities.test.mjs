@@ -475,6 +475,20 @@ describe("#67 — capabilities.articles API credentials", () => {
     expect(src.capabilities.articles.apiKeyEnv).toBe("NOOZRA_API_KEY");
   });
 
+  it("noozra_search is API-only: no CDP page or DOM extraction script (#1240)", () => {
+    const src = ALL_SOURCES.find((s) => s.name === "noozra_search");
+    // noozra.com/search is disallowed by robots.txt; the keyed API is the only channel.
+    expect(src.apiOnly).toBe(true);
+    expect(src.url).toBeUndefined();
+    expect(src.articleScript).toBeUndefined();
+    const cap = src.capabilities.articles;
+    expect(cap.apiSearch).toBeDefined();
+    expect(cap.apiSearch.authRequired).toBe(true);
+    expect(cap.apiKeyEnv).toBe("NOOZRA_API_KEY");
+    expect(cap.articleScript).toBeNull();
+    expect(cap.url("DeepSeek")).not.toMatch(/noozra\.com\/search/);
+  });
+
   it("non-auth API sources have requiresApiKey=false, apiKeyEnv=null, paidApi=false", () => {
     const nonAuthApi = ALL_SOURCES.filter(
       (s) => s.capabilities?.articles?.apiSearch && !s.apiSearch.authRequired,

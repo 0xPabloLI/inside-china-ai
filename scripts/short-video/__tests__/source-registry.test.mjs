@@ -53,6 +53,14 @@ describe("Source structure", () => {
       expect(typeof source.accessMethod.notes).toBe("string");
       // Stock API sources don't have url/articleScript at top level — they use capabilities
       if (source.category === "stock_media") continue;
+      // #1240: API-only sources have no CDP page and no DOM extractor; the
+      // keyed API is their only article channel.
+      if (source.apiOnly) {
+        expect(source.url).toBeUndefined();
+        expect(source.articleScript).toBeUndefined();
+        expect(source.apiSearch).toBeDefined();
+        continue;
+      }
       expect(typeof source.url).toBe("function");
       expect(typeof source.articleScript).toBe("string");
       // MCP-only sources may have minimal articleScript (e.g. "return [];")
@@ -348,6 +356,8 @@ describe("Extract scripts", () => {
     for (const src of ALL_SOURCES) {
       // Skip stock API sources (no CDP article extraction)
       if (src.category === "stock_media") continue;
+      // #1240: API-only sources have no DOM extractor by design.
+      if (src.apiOnly) continue;
       expect(typeof src.articleScript).toBe("string");
       // API sources do not use the CDP extractor; MCP-only sources may have minimal articleScript.
       if (src.accessMethod.primary === "api" || (src.mcpFallback && !src.url())) continue;
@@ -360,8 +370,8 @@ describe("Extract scripts", () => {
       // Skip stock API sources (no CDP article extraction)
       if (src.category === "stock_media") continue;
       // Sources without a CDP page (mcp_grok_search: Bigsong API only, #307)
-      // may have a minimal articleScript
-      if (!src.url()) continue;
+      // may have a minimal articleScript. #1240: API-only sources have none.
+      if (src.apiOnly || !src.url()) continue;
       expect(src.articleScript).toContain("return results");
     }
   });
