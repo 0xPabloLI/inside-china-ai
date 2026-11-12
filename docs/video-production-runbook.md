@@ -139,13 +139,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 
 ### 字幕最短显示时长（0.8s）是目标而非门禁（#1228）
 
-`MIN_DURATION = 0.8s` 只在语流有间隙时成立：`layoutCues` 把每页的 `end` 夹在「下一页 `start` − 2 帧」的天花板内，连续朗读时下一页紧跟当前页，1–2 词的页在物理上无法停留 0.8s。68px + 720px + 单行版式下这是算术结果，不是回归：
-
-- 三份真实包实测（68px）：under-0.8s **16 / 15 / 36** 条，最短 **0.334 / 0.274 / 0.294s**；60px 基线为 7 / 7 / 21。
-- 提高软切分阈值不解决问题：`SOFT_PX` 612 → 650 / 690 / 720 重跑，under-0.8s 为 16/14/35、17/13/30、17/11/27，最短页稳定在 0.27–0.44s——天花板在下一词起点，不在切分阈值。
-- 主因是语速：三包分别为 2.60 / 2.44 / 3.20 词/秒；3.2 词/秒时 2 词页只有约 0.6s。
-
-判定口径：**不要**把 under-0.8s 条数当回归门；有效信号是**最短页 <0.25s** 或 **under-0.5s 占比 >10%**，出现时先降 TTS 语速（目标 ≤2.8 词/秒）或缩短句长，而不是放宽 `MIN_DURATION`（2026-11-11 裁决：0.8s 阈值本身不放宽）。
+`MIN_DURATION` 只在语流有间隙时成立：`layoutCues` 把每页结束时间夹在「下一页起点 − 2 帧」的天花板内，连续朗读时 1–2 词的页物理上停不满 0.8s。**不要把 under-0.8s 条数当回归门**；有效信号是**最短页 <0.25s** 或 **under-0.5s 占比 >10%**，出现时先降 TTS 语速（目标 ≤2.8 词/秒）或缩短句长，不放宽 `MIN_DURATION`（2026-11-11 裁决）。机制推导、三包实测与软限扫描见 [`research/subtitle-min-duration-68px.md`](research/subtitle-min-duration-68px.md)。
 
 ### 已知故障模式与固化措施（2026-09-08/09 修复清单）
 
@@ -1155,6 +1149,7 @@ When modifying rules in this file, consult these reference docs for root cause a
 | TTS engine selection            | ADR-0019, ADR-0008, `docs/research/voice-cloning-solutions-m2-pro.md` | Engine comparison, alternatives survey                                  |
 | Audio drift fix                 | `docs/research/audio-drift-fix.md`                                    | Root cause analysis, fix implementation, sync verification, diagnostics |
 | BGM under voice calibration     | `docs/research/music-under-voice-calibration-2026-10.md` (L2)         | Two-scale derivation, PASS band, #1043 bed-gain retune and re-measurement |
+| Subtitle min duration (0.8s)    | `docs/research/subtitle-min-duration-68px.md` (L2)                    | Ceiling mechanism, three-pack measurements, SOFT_PX sweep, speech-rate bound |
 | Per-scene prosody (pitch/tempo) | `docs/research/voice-prosody-hook-optimization.md`                    | 15 sources, per-parameter rationale, research citations                 |
 | TikTok best practices           | `docs/tiktok/tiktok-best-practices.md`                                | Signal weights, voice rules, hook formulas, audit checklist             |
 | A/B testing methodology         | `docs/tiktok/ab-testing-methodology.md`                               | Element iteration method, single-variable testing philosophy            |
