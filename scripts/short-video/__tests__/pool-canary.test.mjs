@@ -74,6 +74,7 @@ describe("evaluateEngineRun", () => {
         i < dated ? datedArticle(`https://d${i}`) : { url: `https://u${i}` },
       );
     expect(evaluateEngineRun({ name: "serper" }, { ok: true, articles: mixed(5, 10) })).toEqual([]);
+    expect(evaluateEngineRun({ name: "serper" }, { ok: true, articles: mixed(4, 10) })).toEqual([]);
     expect(evaluateEngineRun({ name: "serper" }, { ok: true, articles: mixed(1, 3) })).toEqual([]);
   });
 
