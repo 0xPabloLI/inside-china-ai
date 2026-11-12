@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.62.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.2...tanstack_start_ts-v1.62.3) (2026-11-12)
+
+
+### Bug Fixes
+
+* **short-video:** split canary date-coverage into drift vs upstream shape ([#416](https://github.com/0xPabloLI/inside-china-ai/issues/416), [#1121](https://github.com/0xPabloLI/inside-china-ai/issues/1121)) ([#1260](https://github.com/0xPabloLI/inside-china-ai/issues/1260)) ([16b4740](https://github.com/0xPabloLI/inside-china-ai/commit/16b474097e62109727f8d0503afa2f3ba1cfb338))
+
 ## [1.62.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.1...tanstack_start_ts-v1.62.2) (2026-11-12)
 
 
