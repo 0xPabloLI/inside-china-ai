@@ -678,9 +678,10 @@ export const NEWS_SOURCES = [
     probeAuthoritative: false,
     useCleanTitle: false,
     // #636: same fact as above, for the article path. `enrichWithMedia` would
-    // otherwise cache the card's <img> as topics[].images[].url, which the
-    // asset sourcer replays through loadCachedImages as `source: "cached"` —
-    // so the thumbnail would still reach the download chain.
+    // otherwise cache the card's <img> as topics[].images[].url; before #356
+    // the asset sourcer replayed that through loadCachedImages as
+    // `source: "cached"`, so the thumbnail reached the download chain. #356
+    // retired that Phase 0 replay, so this is now historical context.
     harvestImages: false,
     url: (keyword) =>
       `https://www.bing.com/news/search?q=${encodeURIComponent(keyword)}&qft=interval%3d%227%22`,

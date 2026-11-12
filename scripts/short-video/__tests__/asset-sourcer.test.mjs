@@ -95,19 +95,18 @@ describe("extractKeywords", () => {
     expect(result).toContain("DeepSeek");
   });
 
-  it("falls back to CLI keywords when keyEntities is empty", () => {
-    const scenes = [{ voiceover: "Something happened" }];
+  it("falls back to voiceover extraction when keyEntities is empty", () => {
+    const scenes = [{ voiceover: "Unitree released a new H1 humanoid robot today" }];
     const meta = { keyEntities: {} };
-    const result = extractKeywords(scenes, meta, ["robot", "AI"]);
-    expect(result).toContain("robot");
-    expect(result).toContain("AI");
+    const result = extractKeywords(scenes, meta);
+    expect(result.some((k) => k.toLowerCase().includes("unitree"))).toBe(true);
   });
 
-  it("falls back to CLI keywords when keyEntities is undefined", () => {
-    const scenes = [{ voiceover: "Something" }];
+  it("falls back to voiceover extraction when keyEntities is undefined", () => {
+    const scenes = [{ voiceover: "DeepSeek also announced their V4 model" }];
     const meta = undefined;
-    const result = extractKeywords(scenes, meta, ["DeepSeek"]);
-    expect(result).toContain("DeepSeek");
+    const result = extractKeywords(scenes, meta);
+    expect(result.some((k) => k.toLowerCase().includes("deepseek"))).toBe(true);
   });
 
   it("extracts company names from voiceover when no keyEntities and no CLI keywords", () => {
@@ -115,7 +114,7 @@ describe("extractKeywords", () => {
       { voiceover: "Unitree released a new H1 humanoid robot today" },
       { voiceover: "DeepSeek also announced their V4 model" },
     ];
-    const result = extractKeywords(scenes, null, null);
+    const result = extractKeywords(scenes, null);
     // Should extract known company names from voiceover text
     expect(result.length).toBeGreaterThan(0);
     expect(result.some((k) => k.toLowerCase().includes("unitree"))).toBe(true);
@@ -123,15 +122,14 @@ describe("extractKeywords", () => {
 
   it("returns empty array when all sources are empty", () => {
     const scenes = [{ voiceover: "The weather is nice today" }];
-    const result = extractKeywords(scenes, null, null);
+    const result = extractKeywords(scenes, null);
     expect(result).toEqual([]);
   });
 
-  it("deduplicates keywords across sources", () => {
+  it("deduplicates repeated company names (case-insensitive)", () => {
     const scenes = [{ voiceover: "Unitree robot demo" }];
-    const meta = { keyEntities: { companies: ["Unitree"] } };
-    const cli = ["Unitree", "robot"];
-    const result = extractKeywords(scenes, meta, cli);
+    const meta = { keyEntities: { companies: ["Unitree", "unitree"] } };
+    const result = extractKeywords(scenes, meta);
     const unitreeCount = result.filter((k) => k.toLowerCase() === "unitree").length;
     expect(unitreeCount).toBe(1);
   });
@@ -2792,7 +2790,7 @@ describe("T3 — CDP type handling", () => {
 // Scenario matrix rows #1, #2, #4, #5, #9
 
 describe("shouldSkipUrl", () => {
-  // Scenario #1: Phase 0 downloads URL X, Tier 2 returns same URL X
+  // Scenario #1: an early phase downloads URL X, a later phase returns the same URL X
   it("returns true when URL is already in the Set", () => {
     const downloadedUrls = new Set(["https://example.com/img/123.jpg"]);
     expect(shouldSkipUrl("https://example.com/img/123.jpg", downloadedUrls)).toBe(true);
@@ -2878,12 +2876,12 @@ describe("markDownloaded", () => {
 
 // Integration-style: shouldSkipUrl + markDownloaded together
 describe("URL dedup flow (shouldSkipUrl + markDownloaded)", () => {
-  // Scenario #1: Phase 0 → Tier 2 same URL
+  // Scenario #1: early phase → later phase, same URL
   it("simulates Phase 0 download then Tier 2 skip", () => {
     const downloadedUrls = new Set();
     const url = "https://ithome.com/img/deepseek-123.jpg";
 
-    // Phase 0: not yet downloaded
+    // early phase: not yet downloaded
     expect(shouldSkipUrl(url, downloadedUrls)).toBe(false);
     markDownloaded(url, downloadedUrls);
 
@@ -2896,7 +2894,7 @@ describe("URL dedup flow (shouldSkipUrl + markDownloaded)", () => {
     const downloadedUrls = new Set();
     const url = "https://example.com/flaky.jpg";
 
-    // Phase 0: download fails → NOT marked
+    // early phase: download fails → NOT marked
     // (shouldSkipUrl returns false, but download fails, so markDownloaded not called)
     expect(shouldSkipUrl(url, downloadedUrls)).toBe(false);
 

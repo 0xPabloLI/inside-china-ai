@@ -514,7 +514,9 @@ function tokenizeClaimWords(text) {
  * filler, so it is not an anchor — "ROBOT" / "HAND" cannot leak back in as
  * bare queries, and acronyms such as "GPU" only survive inside a phrase.
  * Sentence-start capitalization is ignored for the same reason ("Robot",
- * "Split"); those brands are covered by the caller's fallback pool.
+ * "Split"); brand coverage is no longer provided by a caller fallback pool —
+ * #356 retired the unowned company-entity pool, so brands must surface through
+ * a scene's own claim (assetNeed / searchHints / voiceover), not this filter.
  * Returns lowercase forms to match the token stream.
  *
  * @param {string} claim - Raw claim text (casing intact)

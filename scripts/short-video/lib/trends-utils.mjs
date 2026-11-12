@@ -371,9 +371,9 @@ export function buildOutputJson(articles) {
       };
 
       // T03 (#55): Extract imageUrl from article for cross-stage image caching.
-      // Asset sourcer (Stage 4) reads these cached URLs to skip redundant CDP
-      // requests — this file's image entry shape ({url, sourceArticle}) is the
-      // contract loadCachedImages() consumes (#199 2.4); keep both sides in step.
+      // NOTE: the asset sourcer's Phase 0 read of these cached URLs via
+      // loadCachedImages() was retired by #356 (unowned fallback pool) — this
+      // entry shape is retained but has no production caller from the sourcer.
       if (article.imageUrl) {
         topicEntry.images = [
           {

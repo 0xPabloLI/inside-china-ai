@@ -711,8 +711,9 @@ describe("#636 — bing_news declares articles only", () => {
 
   // Criterion 1 is about *not producing* thumbnail URLs, and the article
   // script is a second producer: trends-utils caches its `imageUrl` as
-  // topics[].images[].url, which the asset sourcer's Phase 0 replays through
-  // loadCachedImages as `source: "cached"`.
+  // topics[].images[].url. Before #356 the asset sourcer's Phase 0 replayed
+  // that through loadCachedImages as `source: "cached"`; that replay was
+  // retired by #356, so this is historical context.
   it("articleScript emits no imageUrl", () => {
     expect(bing.articleScript).not.toMatch(/imageUrl/);
   });

@@ -334,11 +334,20 @@ export function isLandscapeAsset(asset) {
 // ─── Pure functions ───
 
 /**
- * Build the per-run search plan from scene-data claims + fallback keywords.
+ * Build the per-run search plan from scene-data claims only.
  *
  * Claims come from `extractSceneClaims`: an explicit `assetNeed`, or the
  * voiceover for a sourcing-eligible scene without bound media (#354). A
  * writer-supplied `searchHints` list replaces the tokenized phrases.
+ *
+ * The previous unowned fallback pool (meta.keyEntities companies + CLI
+ * `--keywords` + voiceover-extracted names, pushed as `claimSceneId: null`)
+ * was retired by #356: #297 fail-closed assignment made every result from that
+ * pool permanently unassignable, so sourcing it only wasted network/compute
+ * and surfaced dead rows in the catalog report. Scene-level needs now route
+ * exclusively through the claim path (#354); the zh-CN video pool
+ * (`pickVideoKeywordGroups` / `buildZhVideoKeywords`) is a separate,
+ * bilibili-specific path and is intentionally out of scope here.
  *
  * Pure function so the "no queries available" edge is testable without
  * touching the CLI (spec #130 Scenario row 2: empty pool → graceful
@@ -346,11 +355,9 @@ export function isLandscapeAsset(asset) {
  * main.mjs, so process.exit here would kill the whole pipeline).
  *
  * @param {Array} scenes - Scene data array
- * @param {Object|null} meta - Metadata with keyEntities
- * @param {string[]|null} cliKeywords - CLI --keywords override (fallback pool)
  * @returns {{queryGroups: Array<{keywords: string[], claimSceneId: number|null}>, allKeywords: string[], claimCount: number}}
  */
-export function buildQueryGroups(scenes, meta, cliKeywords) {
+export function buildQueryGroups(scenes) {
   const claims = extractSceneClaims(scenes);
   const queryGroups = [];
   const zhQueryGroups = [];
@@ -358,7 +365,7 @@ export function buildQueryGroups(scenes, meta, cliKeywords) {
     // #354: explicit searchHints win; otherwise the claim text (assetNeed, or
     // the voiceover for a derived claim) is tokenized deterministically.
     const kws = claimQueryPhrases(claimInfo);
-    if (kws.length === 0) continue; // all stopwords → covered by fallback pool
+    if (kws.length === 0) continue; // all stopwords → no group for this claim
     queryGroups.push({ keywords: kws, claimSceneId: claimInfo.sceneId });
     // #185: zh pool from the scene's original-language source material
     if (claimInfo.sourceRef?.sourceText) {
@@ -367,10 +374,6 @@ export function buildQueryGroups(scenes, meta, cliKeywords) {
         zhQueryGroups.push({ keywords: zh, claimSceneId: claimInfo.sceneId });
       }
     }
-  }
-  const fallbackKeywords = extractKeywords(scenes, meta, cliKeywords);
-  if (fallbackKeywords.length > 0) {
-    queryGroups.push({ keywords: fallbackKeywords, claimSceneId: null });
   }
   return {
     queryGroups,
@@ -386,18 +389,17 @@ export function buildQueryGroups(scenes, meta, cliKeywords) {
  * English claim phrases ("autonomous vehicle interior cabin") have near-zero
  * recall on Bilibili and return generic stock videos that the VLM gate then
  * rejects (didi-robotaxi-r2 baseline: 1 result per English keyword, all
- * rejected). This pool maps known companies (meta.keyEntities → CLI →
- * voiceover extraction, via extractKeywords) through COMPANY_NAME_ZH and
- * keeps only mapped names. Empty result = no zh keywords derivable — the
- * caller falls back to the existing keyword groups.
+ * rejected). This pool maps known companies (meta.keyEntities, via
+ * extractKeywords) through COMPANY_NAME_ZH and keeps only mapped names. Empty
+ * result = no zh keywords derivable — the caller falls back to the existing
+ * keyword groups.
  *
  * @param {Object|null} meta - Metadata with keyEntities
  * @param {Array} scenes - Scene data array (voiceover extraction tier)
- * @param {string[]|null} [cliKeywords] - CLI keywords (mapped when they hit the table)
  * @returns {string[]} Deduplicated Chinese company keyword array (may be empty)
  */
-export function buildZhVideoKeywords(meta, scenes, cliKeywords) {
-  const keywords = extractKeywords(scenes, meta, cliKeywords ?? null);
+export function buildZhVideoKeywords(meta, scenes) {
+  const keywords = extractKeywords(scenes, meta);
   const zh = [];
   const seen = new Set();
   for (const keyword of keywords) {
@@ -453,15 +455,18 @@ export function pickVideoKeywordGroups(source, queryGroups, zhPool) {
 }
 
 /**
- * Extract keywords from scene-data, CLI args, or voiceover text.
- * 3-tier fallback: meta.keyEntities → CLI keywords → voiceover extraction.
+ * Extract keywords from scene-data or voiceover text.
+ * 2-tier fallback: meta.keyEntities.companies → voiceover extraction.
+ *
+ * The previous CLI `--keywords` tier (#356 retired) is gone: manual keyword
+ * overrides now belong on the scene's `searchHints` (claim-bound, #354), not
+ * on an unowned fallback pool.
  *
  * @param {Array} scenes - Scene data array
  * @param {Object|null} meta - Metadata object with keyEntities
- * @param {string[]|null} cliKeywords - CLI-provided keywords
  * @returns {string[]} Deduplicated keyword array
  */
-export function extractKeywords(scenes, meta, cliKeywords) {
+export function extractKeywords(scenes, meta) {
   const keywords = [];
 
   // Tier 1: meta.keyEntities.companies (+ Chinese names for CDP search)
@@ -473,12 +478,7 @@ export function extractKeywords(scenes, meta, cliKeywords) {
     }
   }
 
-  // Tier 2: CLI keywords
-  if (cliKeywords && Array.isArray(cliKeywords)) {
-    keywords.push(...cliKeywords);
-  }
-
-  // Tier 3: Extract known company names from voiceover text
+  // Tier 2: Extract known company names from voiceover text
   if (keywords.length === 0 && scenes && Array.isArray(scenes)) {
     for (const scene of scenes) {
       const vo = scene?.voiceover || "";
@@ -3148,7 +3148,7 @@ export function persistSearchResultsCache(searchCachePath, searchCache, logger =
 /**
  * Main entry point.
  *
- * Usage: node asset-sourcer.mjs --content unitree [--keywords "kw1,kw2"] [--max-per-source 3]
+ * Usage: node asset-sourcer.mjs --content unitree [--max-per-source 3]
  *
  * @param {string[]} args - CLI arguments
  */
@@ -3160,7 +3160,6 @@ export async function main(args = process.argv.slice(2)) {
   };
 
   const contentSlug = getArg("content");
-  const keywordsArg = getArg("keywords");
   const maxPerSource = parseInt(getArg("max-per-source") || "3", 10);
   const relevanceThreshold = parseFloat(
     getArg("relevance-threshold") || String(DEFAULT_RELEVANCE_THRESHOLD),
@@ -3174,7 +3173,7 @@ export async function main(args = process.argv.slice(2)) {
 
   if (!contentSlug) {
     console.error(
-      "Usage: node asset-sourcer.mjs --content <slug> [--keywords <kw>] [--max-per-source <n>] [--strict-yield]",
+      "Usage: node asset-sourcer.mjs --content <slug> [--max-per-source <n>] [--strict-yield]",
     );
     process.exit(1);
   }
@@ -3219,7 +3218,7 @@ export async function main(args = process.argv.slice(2)) {
       console.warn(`  ⚠️  Failed to load scene-data: ${e.message}`);
     }
   } else {
-    console.log("  Scene-data: not found (will use CLI keywords only)");
+    console.log("  Scene-data: not found (no claims — zh video pool / CSS fallback apply)");
   }
 
   // Load meta from separate meta.mjs if not exported by scene-data
@@ -3235,16 +3234,12 @@ export async function main(args = process.argv.slice(2)) {
     }
   }
 
-  // Per-scene claims (explicit assetNeed or voiceover-derived, #354) +
-  // company-entity fallback pool.
+  // Per-scene claims (explicit assetNeed or voiceover-derived, #354). The
+  // company-entity fallback pool was retired by #356 (was fail-closed by
+  // #297 and only wasted network/compute).
   // Claim-bound candidates are tagged with claimSceneId so they can only be
   // assigned to the scene they were sourced for (spec #130 D3/D7).
-  const cliKeywords = keywordsArg ? keywordsArg.split(",").map((k) => k.trim()) : null;
-  const { queryGroups, zhQueryGroups, allKeywords, claimCount } = buildQueryGroups(
-    scenes,
-    meta,
-    cliKeywords,
-  );
+  const { queryGroups, zhQueryGroups, allKeywords, claimCount } = buildQueryGroups(scenes);
   // #185: international image/API sources append the zh sourceRef groups
   // after the en groups (engines handle CJK; no locale field on these).
   const sourceGroups = [...queryGroups, ...zhQueryGroups];
@@ -3255,7 +3250,7 @@ export async function main(args = process.argv.slice(2)) {
   // company names only (previous behavior unchanged).
   const zhVideoKeywords = mergeZhPools(
     zhQueryGroups.flatMap((g) => g.keywords),
-    buildZhVideoKeywords(meta, scenes, cliKeywords),
+    buildZhVideoKeywords(meta, scenes),
   );
   const sceneClaims = extractSceneClaims(scenes);
   const primaryKeyword = queryGroups[0]?.keywords[0] || "asset";
@@ -3267,9 +3262,7 @@ export async function main(args = process.argv.slice(2)) {
   if (allKeywords.length === 0) {
     // Graceful degradation (spec #130 Scenario row 2): scenes render with
     // CSS fallback instead of aborting the in-process pipeline run.
-    console.warn(
-      "⚠️  No search queries available (no usable claims, no meta.keyEntities, no --keywords).",
-    );
+    console.warn("⚠️  No search queries available (no usable claims).");
     console.warn(
       "   Scenes will render with CSS fallback. Add assetNeed/searchHints to scene-data for per-scene sourcing.",
     );
@@ -3312,62 +3305,17 @@ export async function main(args = process.argv.slice(2)) {
   const failed = [];
   const skipped = [];
 
-  // URL-level dedup across all phases (Phase 0, API, yt-dlp, CDP, Tier 3).
+  // URL-level dedup across all phases (API, yt-dlp, CDP, zh video, claim groups).
   // Prevents re-downloading the same image URL when different search
   // phases return overlapping results (Single Visit Extraction principle).
   const downloadedUrls = new Set();
 
-  // ── Phase 0: Cached-image flow (from trend discovery) ──
-  // Cached trend images enter the fallback pool (claimSceneId: null) —
-  // gated assignment fail-closes them (#297): they surface in the report for
-  // manual/catalog use while scenes fall through to B-roll/layout.
-  // R1: Check trending-topics.json for cached image URLs before making new CDP/API requests.
-  // Images are filtered by keyword match + URL pattern (exclude logos/icons), then
-  // pre-download filtered (technicalScore >= 20), then downloaded.
-  const trendingTopicsPath = join(__dirname, "..", "output", "trending-topics.json");
-  const cachedImages = loadCachedImages(trendingTopicsPath, allKeywords);
-  if (cachedImages.length > 0) {
-    console.log(`\n🖼️  Cached images (from trend discovery): ${cachedImages.length} found`);
-    const scored = cachedImages
-      .map((c) => {
-        const candidate = toCachedImageCandidate(c);
-        return {
-          ...candidate,
-          score: scoreCandidate(candidate, primaryKeyword),
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, maxPerSource);
-
-    for (let j = 0; j < scored.length; j++) {
-      const candidate = scored[j];
-      if (!candidate.url) continue;
-
-      // T05: Pre-download filter (runs before URL dedup in this phase)
-      if (shouldSkipByPreFilter(candidate, primaryKeyword, "cached", skipped)) continue;
-
-      // Skip if this URL was already downloaded by a prior phase
-      if (shouldSkipByDedup(candidate, downloadedUrls, "cached", skipped)) continue;
-
-      const filename = buildFilename("cached", primaryKeyword, j + 1, "jpg");
-      const destPath = join(assetsDir, filename);
-      await downloadAndRecord(candidate, {
-        destPath,
-        contentDir,
-        label: "cached",
-        sourceName: "cached",
-        keyword: primaryKeyword,
-        downloadedUrls,
-        allAssets,
-        failed,
-        skipped,
-      });
-    }
-  } else {
-    console.log("\n🖼️  No cached images found in trending-topics.json");
-  }
-
   // ── Phase 0b: Cached media from detail pages (SVE #114) ──
+  // NOTE: the prior Phase 0 (cached trend images from trending-topics.json,
+  // claimSceneId:null) was retired by #356 — #297 fail-closed assignment on
+  // that pool, so it only wasted network/compute and surfaced dead rows in the
+  // catalog report. Scene-level needs now route through the claim path (#354);
+  // the shared dedup helpers (shouldSkipUrl/markDownloaded) below are unchanged.
   // Reads media-cache.json produced by extract-media.mjs during Stage 0.
   // Contains images + videos extracted from article detail pages that the
   // Agent already opened. Reuses existing score/filter/download pipeline.
