@@ -156,6 +156,26 @@ describe("collectFromSource fallback chain order", () => {
     );
   });
 
+  it("#1240 API-only source never opens a CDP layer after an empty API", async () => {
+    const { promise, calls, events } = harness(
+      {},
+      {
+        apiOnly: true,
+        apiSearch: { url: (kw) => `https://api.test/q?kw=${kw}` },
+        // The registry leaves these null for apiOnly sources: no page url,
+        // no extraction script, hence no CDP fallback to fall back to.
+        capabilities: { articles: { apiOnly: true, url: null, articleScript: null } },
+      },
+    );
+    const articles = await promise;
+    expect(articles).toEqual([]);
+    // Other downstream layers may still be consulted; the CDP layer must not.
+    expect(calls.map((c) => c.fn)).not.toContain("collectCdp");
+    expect(events).toContainEqual(
+      expect.objectContaining({ layer: "cdp", reason: "skipped-same-url-as-api" }),
+    );
+  });
+
   it("#358 api 兜底层空结果时让位给 googleSiteFallback（顺序：api → api-site → google）", async () => {
     const { promise, calls } = harness(
       { collectCdp: async () => ({ articles: [], status: null }) },

@@ -1927,10 +1927,9 @@ export const INTERNATIONAL_SOURCES = [
     },
     // #1240: noozra.com/search is disallowed by robots.txt. This source has no
     // CDP page and no DOM extraction script — the keyed API (#446) is its only
-    // channel. enrichWithCapabilities still builds capabilities.articles for
-    // apiOnly sources, deriving a never-opened CDP url from the API endpoint so
-    // #66's same-endpoint skip fires instead of an API failure falling back to
-    // the disallowed page.
+    // channel. enrichWithCapabilities keeps capabilities.articles (and its
+    // apiSearch) with url/articleScript set to null; shouldSkipCdpOnApiFail
+    // treats apiOnly as a hard gate so an API failure cannot open a tab.
     apiOnly: true,
   },
 ];
@@ -3961,11 +3960,12 @@ function enrichWithCapabilities(sources) {
       capabilities.articles = {
         method: source.accessMethod?.primary || "cdp",
         supportsKeyword: source.supportsKeyword,
-        // #1240: apiOnly sources carry no page url. The derived url equals the
-        // API endpoint, so shouldSkipCdpOnApiFail (#66) skips the CDP layer and
-        // collectFromCdp never opens a browser tab for them.
-        url: source.url ?? (source.apiOnly ? api?.url : undefined),
-        articleScript: source.articleScript ?? null,
+        // #1240: apiOnly sources have no CDP page at all. Keep url and
+        // articleScript null instead of synthesising a sentinel page url;
+        // shouldSkipCdpOnApiFail reads the apiOnly flag as a hard gate.
+        url: source.apiOnly ? null : source.url,
+        articleScript: source.apiOnly ? null : source.articleScript,
+        apiOnly: !!source.apiOnly,
         loginCheckScript: source.loginCheckScript || null,
         needsAuth: source.needsAuth || false,
         // #888: per-source opt-out from the unauthenticated URL probe. Absent

@@ -482,11 +482,13 @@ describe("#67 — capabilities.articles API credentials", () => {
     expect(src.url).toBeUndefined();
     expect(src.articleScript).toBeUndefined();
     const cap = src.capabilities.articles;
+    expect(cap.apiOnly).toBe(true);
     expect(cap.apiSearch).toBeDefined();
     expect(cap.apiSearch.authRequired).toBe(true);
     expect(cap.apiKeyEnv).toBe("NOOZRA_API_KEY");
+    // No CDP page and no extraction script are reachable from the capability.
+    expect(cap.url).toBeNull();
     expect(cap.articleScript).toBeNull();
-    expect(cap.url("DeepSeek")).not.toMatch(/noozra\.com\/search/);
   });
 
   it("non-auth API sources have requiresApiKey=false, apiKeyEnv=null, paidApi=false", () => {

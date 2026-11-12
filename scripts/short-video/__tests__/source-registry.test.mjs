@@ -1,4 +1,13 @@
 import { describe, it, expect, afterEach } from "vitest";
+
+// #1240: API-only sources have no CDP page; assert the shape instead of
+// silently exempting them from the registry structure contract.
+function expectApiOnlySource(source) {
+  expect(source.apiOnly).toBe(true);
+  expect(source.url).toBeUndefined();
+  expect(source.articleScript).toBeUndefined();
+  expect(source.apiSearch).toBeDefined();
+}
 import {
   NEWS_SOURCES,
   SELF_MEDIA_SOURCES,
@@ -53,12 +62,9 @@ describe("Source structure", () => {
       expect(typeof source.accessMethod.notes).toBe("string");
       // Stock API sources don't have url/articleScript at top level — they use capabilities
       if (source.category === "stock_media") continue;
-      // #1240: API-only sources have no CDP page and no DOM extractor; the
-      // keyed API is their only article channel.
+      // #1240: API-only sources have no CDP page and no DOM extractor.
       if (source.apiOnly) {
-        expect(source.url).toBeUndefined();
-        expect(source.articleScript).toBeUndefined();
-        expect(source.apiSearch).toBeDefined();
+        expectApiOnlySource(source);
         continue;
       }
       expect(typeof source.url).toBe("function");
@@ -357,7 +363,10 @@ describe("Extract scripts", () => {
       // Skip stock API sources (no CDP article extraction)
       if (src.category === "stock_media") continue;
       // #1240: API-only sources have no DOM extractor by design.
-      if (src.apiOnly) continue;
+      if (src.apiOnly) {
+        expectApiOnlySource(src);
+        continue;
+      }
       expect(typeof src.articleScript).toBe("string");
       // API sources do not use the CDP extractor; MCP-only sources may have minimal articleScript.
       if (src.accessMethod.primary === "api" || (src.mcpFallback && !src.url())) continue;
@@ -371,7 +380,11 @@ describe("Extract scripts", () => {
       if (src.category === "stock_media") continue;
       // Sources without a CDP page (mcp_grok_search: Bigsong API only, #307)
       // may have a minimal articleScript. #1240: API-only sources have none.
-      if (src.apiOnly || !src.url()) continue;
+      if (src.apiOnly) {
+        expectApiOnlySource(src);
+        continue;
+      }
+      if (!src.url()) continue;
       expect(src.articleScript).toContain("return results");
     }
   });
