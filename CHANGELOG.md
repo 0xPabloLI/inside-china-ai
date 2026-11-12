@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.62.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.3...tanstack_start_ts-v1.62.4) (2026-11-12)
+
+
+### Bug Fixes
+
+* **short-video:** align canary date verdict with the Round CLXXVIII ruling ([#1264](https://github.com/0xPabloLI/inside-china-ai/issues/1264)) ([f102469](https://github.com/0xPabloLI/inside-china-ai/commit/f1024696c15c0a1eca98e929350c5a617cd0586b))
+
 ## [1.62.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.2...tanstack_start_ts-v1.62.3) (2026-11-12)
 
 
