@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.62.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.4...tanstack_start_ts-v1.62.5) (2026-11-12)
+
+
+### Bug Fixes
+
+* **short-video:** guard hashtag tracker against caption fan-out ([#1179](https://github.com/0xPabloLI/inside-china-ai/issues/1179)) ([#1269](https://github.com/0xPabloLI/inside-china-ai/issues/1269)) ([d6a5481](https://github.com/0xPabloLI/inside-china-ai/commit/d6a5481059978c0d80b83bcd1bdbfb71280cdf18))
+
 ## [1.62.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.3...tanstack_start_ts-v1.62.4) (2026-11-12)
 
 
